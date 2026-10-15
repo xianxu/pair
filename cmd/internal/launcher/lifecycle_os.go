@@ -3,6 +3,7 @@ package launcher
 import (
 	"context"
 	"errors"
+	"github.com/xianxu/pair/cmd/internal/osfs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -24,7 +25,10 @@ func (r OSRuntime) DeleteSessionContext(ctx context.Context, session string) err
 	if poll <= 0 {
 		poll = 25 * time.Millisecond
 	}
-	return quiesceZellijSession(ctx, session, ops, wait, poll)
+	if err := quiesceZellijSession(ctx, session, ops, wait, poll); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (r OSRuntime) ReapNvimContext(ctx context.Context, paths lifecycleEditorPaths) error {
@@ -95,7 +99,7 @@ func (r OSRuntime) TakeQuitIntent(session string) (QuitIntent, bool, error) {
 	if !ok {
 		return QuitIntent{}, false, errors.New("invalid quit marker session")
 	}
-	raw, err := r.ReadFile(path)
+	raw, err := osfs.ReadRegularMetadata(context.Background(), path, 64*1024)
 	if os.IsNotExist(err) {
 		return QuitIntent{}, false, nil
 	}
@@ -103,7 +107,7 @@ func (r OSRuntime) TakeQuitIntent(session string) (QuitIntent, bool, error) {
 		return QuitIntent{}, false, err
 	}
 	r.Remove(path)
-	intent, err := ReadQuitIntent([]byte(raw))
+	intent, err := ReadQuitIntent(raw)
 	return intent, true, err
 }
 

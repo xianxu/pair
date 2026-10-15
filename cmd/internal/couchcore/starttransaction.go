@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/xianxu/pair/cmd/internal/checkpoint"
 	"github.com/xianxu/pair/cmd/internal/couchidentity"
+	"github.com/xianxu/pair/cmd/internal/threadrecord"
 )
 
 type ProcessIdentity struct {
@@ -31,13 +32,14 @@ const (
 )
 
 type StartEvent struct {
-	Binding *couchidentity.SessionBinding
-	Shape   StartShape
-	Kind    StartEventKind
-	Nonce   string
-	Owner   SupervisorOwner
-	Helper  ProcessIdentity
-	Profile *LaunchProfile
+	RecoveryIntent *threadrecord.RecoveryIntent
+	Binding        *couchidentity.SessionBinding
+	Shape          StartShape
+	Kind           StartEventKind
+	Nonce          string
+	Owner          SupervisorOwner
+	Helper         ProcessIdentity
+	Profile        *LaunchProfile
 	// Layout is the couch-wide layout this start was launched in, recorded on
 	// the thread as a witness. A POINTER because "no layout was chosen" is a
 	// real state distinct from any layout value: a warm reattach sends no
@@ -61,10 +63,20 @@ func AdvanceStartTransaction(record ThreadRecord, event StartEvent) (ThreadRecor
 		if incarnation.State != IncarnationCreating || incarnation.Start != nil || incarnation.PID != 0 || incarnation.Identity != "" {
 			return ThreadRecord{}, errors.New("start claim requires an untracked creating incarnation")
 		}
+		if event.RecoveryIntent != nil {
+			if err := threadrecord.ValidateRecoveryIntent(*event.RecoveryIntent, toPersistedThreadAddress(next.Address)); err != nil {
+				return ThreadRecord{}, err
+			}
+			if incarnation.StartedAt.Before(event.RecoveryIntent.Context.CreatedAt) || !incarnation.StartedAt.Before(event.RecoveryIntent.Context.ExpiresAt) {
+				return ThreadRecord{}, errors.New("recovery intent is outside its lifetime")
+			}
+		}
+		next.RecoveryContext = nil
 		incarnation.Start = &ThreadStartClaim{
-			Nonce:         event.Nonce,
-			OwnerPID:      event.Owner.PID,
-			OwnerIdentity: event.Owner.Identity,
+			RecoveryIntent: threadrecord.CloneRecoveryIntent(event.RecoveryIntent),
+			Nonce:          event.Nonce,
+			OwnerPID:       event.Owner.PID,
+			OwnerIdentity:  event.Owner.Identity,
 		}
 		if event.Profile != nil {
 			profile := cloneLaunchProfile(*event.Profile)
@@ -131,6 +143,7 @@ func AdvanceStartTransaction(record ThreadRecord, event StartEvent) (ThreadRecor
 		if incarnation.Start.SessionBinding != nil {
 			next.SessionBinding = cloneSessionBinding(incarnation.Start.SessionBinding)
 		}
+		retainStartRecoveryContext(&next, incarnation.Start)
 		incarnation.Start = nil
 	default:
 		return ThreadRecord{}, fmt.Errorf("unknown start event %q", event.Kind)
@@ -299,4 +312,16 @@ func continuationTargetSession(record ThreadRecord) string {
 		return record.Continuation.Source.Session
 	}
 	return ""
+}
+
+// retainStartRecoveryContext preserves the original screen and explicit choice
+// before any terminal transition clears its start claim, including rollback.
+func retainStartRecoveryContext(record *ThreadRecord, start *ThreadStartClaim) {
+	if start == nil || start.RecoveryIntent == nil {
+		return
+	}
+	intent := start.RecoveryIntent
+	record.RecoveryContext = threadrecord.CloneRecoveryContext(&intent.Context)
+	record.RecoveryContext.SelectedKey = intent.SelectedKey
+	record.RecoveryContext.SelectedNativeID = intent.NativeID
 }

@@ -24,6 +24,9 @@ type slotCurrentObservation struct {
 }
 
 func (s *ThreadStore) readSlotCurrentLocked() (slotCurrentObservation, error) {
+	return s.readSlotCurrentLockedContext(context.Background())
+}
+func (s *ThreadStore) readSlotCurrentLockedContext(ctx context.Context) (slotCurrentObservation, error) {
 	var out slotCurrentObservation
 	var physicalErr error
 	out.HostInfo, physicalErr = os.Stat(s.slot.WorktreeRoot)
@@ -34,7 +37,7 @@ func (s *ThreadStore) readSlotCurrentLocked() (slotCurrentObservation, error) {
 	if physicalErr != nil {
 		return out, physicalErr
 	}
-	raw, err := s.readRetentionFile(filepath.Join(s.root, "thread.json"))
+	raw, err := s.readRetentionFileContext(ctx, filepath.Join(s.root, "thread.json"))
 	if errors.Is(err, os.ErrNotExist) {
 		return out, nil
 	}
@@ -51,7 +54,7 @@ func (s *ThreadStore) readSlotCurrentLocked() (slotCurrentObservation, error) {
 		out.Err = err
 		return out, nil
 	}
-	if envelope.SchemaVersion != 0 && envelope.SchemaVersion != ThreadSchemaVersion {
+	if envelope.SchemaVersion != 0 && envelope.SchemaVersion != 1 && envelope.SchemaVersion != 2 && envelope.SchemaVersion != ThreadSchemaVersion {
 		out.Unsupported = true
 		out.Err = fmt.Errorf("unsupported slot record version %d; use a compatible Couch binary", envelope.SchemaVersion)
 		return out, nil
@@ -64,11 +67,14 @@ func (s *ThreadStore) readSlotCurrentLocked() (slotCurrentObservation, error) {
 	out.Record = &record
 	return out, nil
 }
-func (s *ThreadStore) observeSlotCurrent() (out slotCurrentObservation, err error) {
+func (s *ThreadStore) observeSlotCurrent() (slotCurrentObservation, error) {
+	return s.observeSlotCurrentContext(context.Background())
+}
+func (s *ThreadStore) observeSlotCurrentContext(ctx context.Context) (out slotCurrentObservation, err error) {
 	if !s.layout.Local {
 		return out, errors.New("slot observation requires local store")
 	}
-	err = s.withLock(func() error { var err error; out, err = s.readSlotCurrentLocked(); return err })
+	err = s.withReadLockContext(ctx, func() error { var err error; out, err = s.readSlotCurrentLockedContext(ctx); return err })
 	return
 }
 

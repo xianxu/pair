@@ -109,7 +109,9 @@ func warmFailureRoutes() []warmFailureRoute {
 }
 
 // The headline: no warm route may delete the session it was reattaching.
-func TestAFailedWarmReattachKeepsItsSession(t *testing.T) {
+// Explicit continuation adoption still owns a tracked start transaction; plain
+// Continue is covered by TestPublicWarmAttachFailuresPreserveIndependentLifecycle.
+func TestAFailedTrackedWarmAdoptionKeepsItsSession(t *testing.T) {
 	t.Parallel()
 
 	for _, route := range warmFailureRoutes() {
@@ -123,7 +125,7 @@ func TestAFailedWarmReattachKeepsItsSession(t *testing.T) {
 			defer cancel()
 			route.inject(t, env, address, cancel)
 
-			record, handle, err := env.Couch.ResumeContext(ctx, address)
+			record, handle, err := env.Couch.resumeContextWith(ctx, address, ResumeOptions{}, true)
 			if route.abortAfterStart {
 				if err != nil {
 					t.Fatalf("warm reattach refused before the console saw it: %v", err)
@@ -334,7 +336,8 @@ func TestAbortStartedReadsOwnershipFromTheRegistryNotTheCaller(t *testing.T) {
 // leave an IncarnationLive with nothing behind it -- the stale state pair#171
 // describes, reached from an ordinary failure path rather than a crash, and
 // rendered in the switcher as unusable/stale-incarnation forever.
-func TestAFailedRetireStillLeavesTheRecordRecoverable(t *testing.T) {
+// Retirement is specific to explicit tracked adoption, never plain attachment.
+func TestAFailedTrackedWarmAdoptionRetireStillLeavesTheRecordRecoverable(t *testing.T) {
 	t.Parallel()
 
 	env, address := warmDetachedThread(t)
@@ -364,7 +367,7 @@ func TestAFailedRetireStillLeavesTheRecordRecoverable(t *testing.T) {
 		return nil
 	}
 
-	_, _, err := env.Couch.ResumeContext(context.Background(), address)
+	_, _, err := env.Couch.resumeContextWith(context.Background(), address, ResumeOptions{}, true)
 	if err == nil {
 		t.Fatal("route 5 did not fail")
 	}

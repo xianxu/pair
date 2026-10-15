@@ -220,7 +220,7 @@ func TestPairSessionNameRunsNoZellij(t *testing.T) {
 // not the functions. This is the test that would have caught the first draft's
 // miss -- it counted DetachedSessions, and awaitResumeRegistration's PairSession
 // poll was a sixth full snapshot nobody had listed.
-func TestWarmResumeAsksTwoSessionsForClientsWhateverTheHostHas(t *testing.T) {
+func TestWarmResumeListingBudgetIsIndependentOfOtherSessions(t *testing.T) {
 	for _, others := range []int{2, 21} {
 		t.Run(fmt.Sprintf("S=%d", others+1), func(t *testing.T) {
 			env := newTestEnv(t, "/repo")
@@ -244,8 +244,8 @@ func TestWarmResumeAsksTwoSessionsForClientsWhateverTheHostHas(t *testing.T) {
 			}
 			lc := pairlifecycletest.CountCalls(t, log, "list-clients")
 			ls := pairlifecycletest.CountCalls(t, log, "list-sessions")
-			if lc != 2 || ls != 4 {
-				t.Fatalf("list-clients = %d, list-sessions = %d; want 2 and 4 at every S (attach-state proof twice; registration uses the independent owner probe)", lc, ls)
+			if lc != 0 || ls != 8 {
+				t.Fatalf("list-clients = %d, list-sessions = %d; want 0 and 8 at every S (initial/pre-spawn/pre-ack/post-ack each use short plus full listing)", lc, ls)
 			}
 		})
 	}

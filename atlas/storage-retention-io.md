@@ -45,8 +45,8 @@ an entrypoint-specific integration test with a coordinator contract test. This
 is stated coverage, not a claim that the entrypoint test independently proves
 every coordinator invariant.
 
-<!-- retention-call: cmd/internal/launcher/osruntime.go#ParkScrollback -> AcquireSelectedProcess -->
-<!-- retention-call: cmd/internal/launcher/osruntime.go#ParkScrollback -> PublishCaptureMetadata -->
+<!-- retention-call: cmd/internal/launcher/osruntime.go#ParkScrollbackContext -> AcquireSelectedProcess -->
+<!-- retention-call: cmd/internal/launcher/osruntime.go#ParkScrollbackContext -> PublishCaptureMetadata -->
 <!-- retention-call: cmd/internal/launcher/createflow.go#runCreate -> beginRetention -->
 <!-- retention-call: cmd/internal/launcher/createflow.go#runCreate -> writeRetainedDraft -->
 <!-- retention-call: cmd/internal/launcher/createflow.go#RunLaunch -> finishLaunchRetention -->

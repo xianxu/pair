@@ -822,7 +822,7 @@ func TestParkCoordinatorRestartInspectionAndRecoveryAreSeparate(t *testing.T) {
 		t.Fatalf("inspection effects: triggers=%v request=%+v", artifacts.TriggeredQuits(), lifecycle.lastRequest)
 	}
 	controller.CompletionTimeout = 0
-	recoveryErr := couch.RecoverActiveParks(context.Background())
+	_, recoveryErr := couch.Park(context.Background(), active.Address, "recover")
 	if recoveryErr == nil {
 		t.Fatal("recovery without completion returned success")
 	}
@@ -915,7 +915,7 @@ func TestParkCoordinatorConstructorDoesNotQueryPairSession(t *testing.T) {
 
 	couch.PairLifecycle.CompletionTimeout = 0
 	recoveryDone := make(chan error, 1)
-	go func() { recoveryDone <- couch.RecoverActiveParks(context.Background()) }()
+	go func() { _, err := couch.Park(context.Background(), active.Address, "recover"); recoveryDone <- err }()
 	select {
 	case <-queryEntered:
 	case err := <-recoveryDone:

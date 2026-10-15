@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
@@ -57,6 +58,8 @@ func newColdResumeRig(t *testing.T, configure ...func(*couchtty.Console)) *coldR
 		// up and owned.
 		rt.artifacts.SetPaneSidecar(parked.Address, "claude")
 		rt.artifacts.SetPairSession(parked.Address, managedChildSession(t, rt.runner, id), true)
+		// Registration and a helper PID alone do not prove an interactive agent.
+		rt.artifacts.SetSessionPresence(parked.Address, couchcore.SessionObservation{State: couchcore.SessionPresent})
 		return nil
 	}
 	c, err := rt.NewCouch()
@@ -70,6 +73,8 @@ func newColdResumeRig(t *testing.T, configure ...func(*couchtty.Console)) *coldR
 	if err := c.Threads.EnrollSlotRepository(context.Background(), couchcore.SlotRepository{Identity: identity}); err != nil {
 		t.Fatal(err)
 	}
+	// This rig starts with an already open console: the parked ordinary slot
+	// is resumed only by the menu or remote action exercised below.
 	host := hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 100})
 	reader, input := io.Pipe()
 	t.Cleanup(func() { _ = reader.Close(); _ = input.Close() })
@@ -112,6 +117,8 @@ func newColdResumeRig(t *testing.T, configure ...func(*couchtty.Console)) *coldR
 func (r *coldResumeRig) awaitResumeAndAttach(t *testing.T) couchcore.OperationCall {
 	t.Helper()
 	var resume couchcore.OperationCall
+	timeout := time.NewTimer(min(30*time.Second, testwait.Budget(t)))
+	defer timeout.Stop()
 	for {
 		select {
 		case d := <-r.calls:
@@ -124,7 +131,7 @@ func (r *coldResumeRig) awaitResumeAndAttach(t *testing.T) couchcore.OperationCa
 			if d.call.Name == "attach" {
 				return resume
 			}
-		case <-testwait.After(t):
+		case <-timeout.C:
 			t.Fatalf("no resume and attach: %s", r.host.Written())
 		}
 	}
@@ -186,13 +193,13 @@ func TestColdResumeOfAParkedPrimaryRegistersFromBothOrigins(t *testing.T) {
 			return strings.Contains(r.host.Written(), "threads")
 		})
 		rowReady := func() bool {
-			return strings.Contains(r.host.Written(), "threads") && strings.Contains(r.host.Written(), "parked ·")
+			return strings.Contains(r.host.Written(), "threads") && strings.Contains(r.host.Written(), "Resume from disk")
 		}
 		if rowReady() {
 			t.Fatal("Enter readiness accepted the header before inventory was released")
 		}
 		close(inventory)
-		// The long temp path is truncated, so match the row's state.
+		// The long temp path is truncated, so match the explicit outcome label.
 		waitWarmAcceptance(t, "switcher row", rowReady)
 		if _, err := r.input.Write([]byte{'\r'}); err != nil {
 			t.Fatal(err)

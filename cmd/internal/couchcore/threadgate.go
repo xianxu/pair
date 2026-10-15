@@ -165,7 +165,7 @@ func (c *Couch) hold(ctx context.Context, address ThreadAddress, op string) (con
 }
 
 // holdWait waits for the thread's current holder instead of refusing: the
-// drains (Leave, RecoverActiveParks, AbortStarted), which must not skip a
+// drains (Leave, AbortStarted), which must not skip a
 // thread because some other operation reached it first.
 func (c *Couch) holdWait(ctx context.Context, address ThreadAddress, op string) (context.Context, func(), error) {
 	return c.gate().acquire(ctx, address, op, true)

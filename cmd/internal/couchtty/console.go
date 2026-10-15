@@ -2049,6 +2049,10 @@ func (c *Console) finishOperation(completed operationCompletion) bool {
 	// Never for a background completion: the pass reattaches behind the
 	// operator, and there is no adoption, so no background completion is ever
 	// the operator's own landing (pair#206).
+	if warned, ok := completed.value.(interface{ Warning() string }); ok && err == nil && warned.Warning() != "" {
+		c.reduceMenu(MenuEvent{Kind: MenuEventNotice, Error: warned.Warning()})
+		c.setNotice(warned.Warning())
+	}
 	if completed.origin.Operation == "resume" && err == nil && startedHandleID != "" && !completed.origin.Background && !completed.origin.PreserveFocus {
 		c.requestMenuRefresh()
 		c.forceSwitch(startedHandleID)
@@ -2121,7 +2125,24 @@ func (c *Console) ExecuteConsoleOperation(call couchcore.OperationCall) (any, er
 		}
 		c.mu.Unlock()
 		if target == "" {
-			return nil, fmt.Errorf("thread %s/%s is not attached to this console", address.RepoScope, address.Tag)
+			// A restored registry entry does not restore its PTY handle. Route
+			// through resume's fresh terminal proof and let normal completion
+			// install the returned helper, rather than treating the row as lost.
+			c.mu.Lock()
+			fn := c.ops
+			listed := false
+			for _, row := range menuRows(c.menu) {
+				if row.Address == address && couchcore.ContinuityOutcome(row) == couchcore.Continue {
+					listed = true
+					break
+				}
+			}
+			c.mu.Unlock()
+			if fn == nil || !listed {
+				return nil, fmt.Errorf("thread %s/%s is not attached to this console", address.RepoScope, address.Tag)
+			}
+			return fn(couchcore.OperationCall{Name: "resume", Context: call.Context, Implicit: true,
+				Args: map[string]string{"repo-scope": address.RepoScope, "tag": string(address.Tag), "warm-only": "true"}})
 		}
 		err := c.runTerminalCommand(call.Context, func() error { _, err := c.selectActorContext(call.Context, target, true, how); return err })
 		return address, err

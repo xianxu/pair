@@ -71,6 +71,15 @@ func (c *Couch) Detach(ctx context.Context, address ThreadAddress) (ThreadRecord
 	if !ok {
 		return ThreadRecord{}, errors.New("detach requires Pair session observation")
 	}
+	if c.hasLocalWarmClient(address) {
+		observed, err := c.Threads.PreviewThreadContext(ctx, address)
+		if err != nil {
+			return ThreadRecord{}, err
+		}
+		if handled, err := c.detachBorrowedHelpers(ctx, observed); handled || err != nil {
+			return observed, err
+		}
+	}
 	ctx, release, err := c.hold(ctx, address, "detach")
 	if err != nil {
 		return ThreadRecord{}, err

@@ -337,14 +337,23 @@ func (a recoveryContextArtifacts) NamedPairSessionContext(ctx context.Context, a
 func TestRecoveryObservationDeadlineCancelsBlockingObserver(t *testing.T) {
 	t.Parallel()
 
-	for _, parentBudget := range []time.Duration{30 * time.Second, 30 * time.Millisecond} {
-		t.Run(parentBudget.String(), func(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		budget time.Duration
+	}{
+		{"long parent", 30 * time.Second},
+		{"short parent", 30 * time.Millisecond},
+		{"expired parent", -time.Nanosecond},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			parentBudget := tc.budget
 			env, source := switchEnvWithLiveThread(t)
 			env.Proc.Kill(source.Incarnations[0].PID)
 			parent, cancel := context.WithTimeout(context.Background(), parentBudget)
 			defer cancel()
 			parentDeadline, _ := parent.Deadline()
 			observations := 0
+			var callStarted time.Time
 			env.Couch.Artifacts = recoveryContextArtifacts{FakeThreadArtifactCollisionChecker: env.Artifacts, observe: func(ctx context.Context, _ ThreadAddress) (PairSessionBinding, error) {
 				observations++
 				deadline, ok := ctx.Deadline()
@@ -353,7 +362,7 @@ func TestRecoveryObservationDeadlineCancelsBlockingObserver(t *testing.T) {
 				}
 				if parentBudget > 5*time.Second {
 					remaining := time.Until(deadline)
-					if remaining > 5*time.Second || remaining < 4*time.Second {
+					if remaining > recoveryObservationTimeout || deadline.Before(callStarted.Add(recoveryObservationTimeout)) {
 						t.Fatalf("recovery observation budget=%v, want five seconds", remaining)
 					}
 					if !deadline.Before(parentDeadline) {
@@ -366,9 +375,15 @@ func TestRecoveryObservationDeadlineCancelsBlockingObserver(t *testing.T) {
 				return PairSessionBinding{}, ctx.Err()
 			}}
 			before, _ := env.Couch.Threads.GetThread(source.Address)
+			callStarted = time.Now()
 			_, err := env.Couch.RecoverThread(parent, source.Address, "")
-			if !errors.Is(err, context.DeadlineExceeded) || observations != 1 {
-				t.Fatalf("blocked observer did not stop exactly once: %v calls%d", err, observations)
+			if !errors.Is(err, context.DeadlineExceeded) {
+				t.Fatalf("recovery did not honor deadline: %v", err)
+			}
+			// A short caller budget can expire in store preflight before the observer.
+			// The long-parent case separately proves the inner bound cancels one call.
+			if observations > 1 || (parentBudget > recoveryObservationTimeout && observations != 1) || (parentBudget < 0 && observations != 0) {
+				t.Fatalf("unexpected observer count for %s: %d", tc.name, observations)
 			}
 			if parentBudget > 5*time.Second && parent.Err() != nil {
 				t.Fatal("caller deadline, not recovery budget, stopped observation")

@@ -32,7 +32,7 @@ func stallCall(t *testing.T, r *serviceRig, req couchmessage.Request) couchmessa
 	return response
 }
 func TestAutomaticInputStallSupervisorEffects(t *testing.T) {
-	for _, fault := range []string{"none", "stale-nonce", "stale-session", "replaced", "disconnected", "wrong-id", "missing-hub", "closed-desktop", "hub-origin"} {
+	for _, fault := range []string{"none", "unfocused", "stale-nonce", "stale-session", "replaced", "disconnected", "wrong-id", "missing-hub", "closed-desktop", "hub-origin"} {
 		t.Run(fault, func(t *testing.T) {
 			r, bindings := hubMessageRig(t)
 			hub, worker := bindings[1], bindings[2]
@@ -56,19 +56,22 @@ func TestAutomaticInputStallSupervisorEffects(t *testing.T) {
 				req.Session = "old"
 			case "replaced":
 				r.world.set(worker, func(s *worldSlot) { s.pidFile++ })
+			case "unfocused":
+				// Detaching a local client leaves the authenticated wrapper live.
+				if err := r.s.post(couchmessage.RegistryEvent{Kind: couchmessage.PaneChanged, Thread: worker.Thread()}, true); err != nil {
+					t.Fatal(err)
+				}
 			case "disconnected":
-				r.attach(worker, "")
-				r.waitConnected(worker, false)
+				r.disconnect(worker)
 			case "wrong-id":
 				req.ID = "other"
 			case "missing-hub":
-				r.attach(hub, "")
-				r.waitConnected(hub, false)
+				r.disconnect(hub)
 			case "closed-desktop":
 				_ = host.Close()
 			}
 			got := stallCall(t, r, req)
-			valid := fault == "none" || fault == "missing-hub" || fault == "closed-desktop" || fault == "hub-origin"
+			valid := fault == "none" || fault == "unfocused" || fault == "missing-hub" || fault == "closed-desktop" || fault == "hub-origin"
 			if valid && got.Code != "ok" && got.Code != "uncertain" {
 				t.Fatalf("response %+v", got)
 			}
@@ -119,9 +122,10 @@ func TestAutomaticInputStallReconnectAndCapacity(t *testing.T) {
 	if got := stallCall(t, r, stallRequest(worker, 2)); got.Code != "ok" {
 		t.Fatal(got)
 	}
-	r.attach(worker, "")
-	r.waitConnected(worker, false)
-	r.attach(worker, "h2")
+	r.disconnect(worker)
+	// The same wrapper incarnation opens a new registry connection; it does
+	// not need a client pane to recover its previous stall sequence.
+	r.wrapper(worker)
 	r.waitConnected(worker, true)
 	_ = stallCall(t, r, stallRequest(worker, 2))
 	_ = stallCall(t, r, stallRequest(worker, 1))
@@ -209,12 +213,10 @@ func TestAutomaticInputStallVerifiedReplacementResetsSequence(t *testing.T) {
 	r.s.supervision.Store(newSupervisionCoordinator(r.s, func(string) {}))
 	r.s.SetDesktopNotify(func(context.Context, string, string) error { calls++; return nil })
 	_ = stallCall(t, r, stallRequest(worker, 20))
-	r.attach(worker, "")
-	r.waitConnected(worker, false)
+	r.disconnect(worker)
 	replacement := worker
 	replacement.Nonce = "replacement"
 	r.world.set(worker, func(s *worldSlot) { s.binding = replacement })
-	r.attach(replacement, "replacement-pane")
 	r.wrapper(replacement)
 	r.waitConnected(replacement, true)
 	if got := stallCall(t, r, stallRequest(worker, 21)); got.Code != "refused" {
@@ -235,13 +237,11 @@ func TestAutomaticInputStallPIDReuseAdmitsBothHubMessages(t *testing.T) {
 	if got := stallCall(t, r, first); got.Code != "ok" {
 		t.Fatal(got)
 	}
-	r.attach(worker, "")
-	r.waitConnected(worker, false)
+	r.disconnect(worker)
 	replacement := worker
 	replacement.Nonce = "new-launch"
 	replacement.Start = "reused-pid-start"
 	r.world.set(worker, func(s *worldSlot) { s.binding = replacement })
-	r.attach(replacement, "replacement-pane")
 	r.wrapper(replacement)
 	r.waitConnected(replacement, true)
 	second := stallRequest(replacement, 1)

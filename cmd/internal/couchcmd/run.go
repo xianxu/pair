@@ -34,7 +34,6 @@ import (
 	"github.com/xianxu/pair/cmd/internal/couchtty"
 	"github.com/xianxu/pair/cmd/internal/crashreport"
 	"github.com/xianxu/pair/cmd/internal/diagnosticlog"
-	"github.com/xianxu/pair/cmd/internal/gcruntime"
 	"github.com/xianxu/pair/cmd/internal/hostty"
 	"github.com/xianxu/pair/cmd/internal/keyhelp"
 	"github.com/xianxu/pair/cmd/internal/launcher"
@@ -182,6 +181,10 @@ func (r OSRuntime) NewCouchWith(runner couchcore.Runner, namespace couchcore.Cou
 	c.SlotIO = couchcore.OSProvisionIO{}
 	c.RootAgent = r.Getenv("PAIR_AGENT")
 	c.ContinuationSource = (couchcore.OSContinuationSourceReader{DataDir: dataDir}).Read
+	recoveryReader := couchcore.OSRecoveryEvidenceReader{DataDir: dataDir, HomeDir: r.Getenv("HOME")}
+	c.RecoveryEvidence = recoveryReader.Read
+	c.RecoveryPreserve = recoveryReader.Preserve
+	c.RecoveryTerminal = recoveryReader.PrepareTerminal
 	renderer, _ := exec.LookPath("pair")
 	c.SwitchContext = couchcore.OSSwitchContextResolver{DataDir: dataDir, HomeDir: r.Getenv("HOME"), Renderer: renderer}
 	c.SlotTerminal = func(address couchcore.ThreadAddress, agent string, maxLines int) ([]string, error) {
@@ -448,9 +451,8 @@ func runTypedOperation(op couchcore.Operation, parsed, prepareArgs map[string]st
 			return err
 		})
 	}
-	armPass := armsReattachPass(op.Name)
 	finish := func(console *couchtty.Console, c *couchcore.Couch, start couchcore.StartResult, out io.Writer) int {
-		return runConsole(console, c, start, out, armPass, hubs)
+		return runConsole(console, c, start, out, hubs)
 	}
 	return runTypedOperationWithConsole(op, parsed, prepareArgs, forceConsole, layout, inFile, outFile, stdin, stdout, stderr, rt, finish, setup...)
 }
@@ -630,16 +632,12 @@ func runTypedOperationWithConsole(op couchcore.Operation, parsed, prepareArgs ma
 		renderError(stderr, err)
 		return 1
 	}
-	if ownsLive && c.PairLifecycle != nil {
-		recoveryContext, stopRecovery := context.WithCancel(context.Background())
-		defer stopRecovery()
-		go func() {
-			// Every failure is already durable on the occupied park transaction.
-			// The worker must not paint concurrently with the terminal owner.
-			_ = c.RecoverActiveParks(recoveryContext)
-		}()
-	}
 	if console != nil {
+		if forceConsole && op.Name == "start" {
+			if start, ok := result.(couchcore.StartResult); ok {
+				return finishConsole(console, c, start, stdout)
+			}
+		}
 		if child, ok := result.(couchcore.StartedChild); ok {
 			if start, hasChild := child.Started(); hasChild {
 				return finishConsole(console, c, start, stdout)
@@ -849,22 +847,15 @@ func installCrashReport(console *couchtty.Console, store string) {
 // measures the whole startup, not only the part after the console exists.
 var processStartedAt = time.Now()
 
-// armsReattachPass is pair#206's decision 9: a start arms the background
-// reattach pass, and a resume of one named thread does not. An operator who
-// named one thread asked for that thread, not for every other detached thread
-// to come back behind it.
-func armsReattachPass(operation string) bool { return operation == "start" }
-
-// runConsole attaches the spawned child and hands the terminal over. This
-// displaces render's StartResult branch, which printed a line and then blocked
-// on Handle.Wait for the child's lifetime.
-func runConsole(console *couchtty.Console, c *couchcore.Couch, start couchcore.StartResult, stdout io.Writer, armPass bool, configuredHubs ...*hubRuntime) int {
+// runConsole opens the switcher when startup has no child. Explicit launch
+// results attach their child before handing the terminal over.
+func runConsole(console *couchtty.Console, c *couchcore.Couch, start couchcore.StartResult, stdout io.Writer, configuredHubs ...*hubRuntime) int {
 	// Wire the switcher's actionable projection HERE, on the path that actually
 	// runs a console. Typeahead stays pure over the resulting in-memory rows.
 	wireResolver(console, c, configuredHubs...)
 
 	_, ok := start.Handle.(couchcore.TerminalHandle)
-	if !ok {
+	if start.Handle != nil && !ok {
 		// A runner that cannot offer a terminal: fall back rather than crash.
 		fmt.Fprintf(stdout, "couch: no terminal available; running without a console\n")
 		if start.Handle != nil {
@@ -872,16 +863,10 @@ func runConsole(console *couchtty.Console, c *couchcore.Couch, start couchcore.S
 		}
 		return 1
 	}
-	root := ""
-	if c != nil && c.PairLifecycle != nil {
-		root = c.PairLifecycle.DataDir
-	}
-	maintenance, err := gcruntime.StartAfterReady(context.Background(), root, func() error { return beginConsole(console, start, armPass) })
-	if err != nil {
+	if err := beginConsole(console, start); err != nil {
 		renderError(stdout, err)
 		return 1
 	}
-	defer func() { maintenance.Stop(); _ = maintenance.Wait() }()
 	messages, messageErr := startMessageService(console, c, configuredHubs...)
 	if messageErr != nil {
 		renderError(stdout, messageErr)
@@ -907,18 +892,21 @@ func recordConsoleExit(failure error) {
 	}
 }
 
-// beginConsole attaches the startup child and, only once that has committed,
-// arms the background reattach pass (pair#206). After the attach, because a
-// console that never came up must reattach nothing behind it; before Run,
-// because the Run loop is what admits inventories and the first one it reduces
-// is the one the pass seeds from. Split from runConsole so that ordering is
-// testable without a live terminal.
-func beginConsole(console *couchtty.Console, start couchcore.StartResult, armPass bool) error {
+// beginConsole attaches the explicitly started hub child, then arms the existing
+// bounded warm-only pass before Run admits its first inventory. No background
+// attempt may launch or recover a conversation whose terminal is absent.
+func beginConsole(console *couchtty.Console, start couchcore.StartResult) error {
+	if start.Handle == nil {
+		return nil
+	}
 	if err := dispatchInitialAttach(console, start); err != nil {
 		return err
 	}
-	if armPass {
-		console.ArmReattachPass(start.Record.Thread)
+	console.ArmReattachPass(start.Record.Thread)
+	if warning := start.Warning(); warning != "" {
+		// Startup adoption bypasses finishOperation; queue a standing notice
+		// for the first paint so slow startup cannot hide borrowed ownership.
+		console.Notify(couchtty.Notice{Kind: "status", Control: true, Body: warning})
 	}
 	return nil
 }
@@ -1322,24 +1310,32 @@ func renderThreadRows(w io.Writer, threads []couchcore.ThreadSummary, includeAdd
 	}
 }
 
-// threadStateText is the diagnostic wording for a classified state. It says
-// more than the switcher's column has room for, and the two cannot disagree
-// about WHICH state a thread is in -- only about how much room they have to
-// describe it.
+// threadStateText shares the switcher's continuity choice, with room for
+// diagnostic detail. Archived records retain their separate restore wording.
 func threadStateText(thread couchcore.ThreadSummary) string {
-	switch thread.State {
-	case couchcore.ThreadLive:
-		return "live"
-	case couchcore.ThreadDetached:
-		return "detached (no client attached; the agent is still running)"
-	case couchcore.ThreadParked:
-		return "parked (no agent running; resumable)"
-	case couchcore.ThreadBusy:
-		return "starting (couch claimed this start and has not finished it)"
-	case couchcore.ThreadArchived:
+	if thread.State == couchcore.ThreadArchived {
 		return "archived (restore by moving it back and re-adding the address)"
 	}
-	return "unusable: " + thread.Reason.Label()
+	switch couchcore.ContinuityOutcome(couchcore.ActionableThreadSummary{State: thread.State, Reason: thread.Reason}) {
+	case couchcore.Continue:
+		if thread.State == couchcore.ThreadDetached {
+			return "Continue (no client attached; the agent is still running)"
+		}
+		return "Continue"
+	case couchcore.ResumeDisk:
+		return "Resume from disk (no agent running)"
+	case couchcore.ContinuityStarting:
+		return "Starting (couch claimed a start and has not finished it)"
+	default:
+		label := "Start fresh"
+		if !couchcore.RebootAdmitted(thread.State, thread.Reason, false) {
+			label = "Relaunch"
+		}
+		if thread.Reason != "" {
+			return label + ": " + thread.Reason.Label()
+		}
+		return label
+	}
 }
 
 // dimCodes returns ANSI dim/reset only when the destination is a real
@@ -1383,7 +1379,8 @@ func usageWith(w io.Writer, bindings []couchkeys.Binding) {
 	fmt.Fprintln(w, "             then repo default. Missing config: ask the operator to set it in the switch form.")
 	fmt.Fprintln(w, "             No self, startup parameter edits or context delivery. Read the receipt before retrying.")
 	verbLine(w, "--operation-status", "       couch --operation-status ID [--json]")
-	verbLine(w, "--resume", "       couch --resume repo:N [--json]")
+	verbLine(w, "--resume", "       couch --resume repo:N [--candidate KEY] [--json]")
+	verbLine(w, "--resume-candidates", "       couch --resume-candidates repo:N [--json]")
 	verbLine(w, "--reboot", "       couch --reboot repo:N --confirm [--force-unknown] [--json]")
 	fmt.Fprintln(w, "             Archive the slot's conversation and replace it with a fresh agent on the current")
 	fmt.Fprintln(w, "             binary. A live slot is stopped first; busy refuses, busy-unknown needs")

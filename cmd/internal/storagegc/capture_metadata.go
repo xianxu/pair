@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
+	"github.com/xianxu/pair/cmd/internal/osfs"
 )
 
 func CaptureIdentity(path string) (artifactpath.CaptureFileIdentity, error) {
@@ -27,7 +28,7 @@ func CaptureIdentity(path string) (artifactpath.CaptureFileIdentity, error) {
 // PublishCaptureMetadata follows completed payload syncs. The caller keeps its
 // producer registration until publication returns; interrupted publication leaves
 // the payload recoverable under the conservative legacy clock.
-func (c *Coordinator) PublishCaptureMetadata(ctx context.Context, owner artifactpath.StorageOwner, capture artifactpath.ParkedCapture, at time.Time) error {
+func (c *Coordinator) PublishCaptureMetadata(ctx context.Context, owner artifactpath.StorageOwner, capture artifactpath.ParkedCapture, at time.Time, witnesses ...*artifactpath.CaptureWitness) error {
 	if err := c.validateOwner(owner); err != nil {
 		return err
 	}
@@ -38,6 +39,23 @@ func (c *Coordinator) PublishCaptureMetadata(ctx context.Context, owner artifact
 	parsed, err := artifactpath.ParseParkedCapture(member, time.UTC)
 	if err != nil || parsed.Raw != capture.Raw || parsed.Events != capture.Events || parsed.Metadata != capture.Metadata || at.IsZero() {
 		return errors.New("invalid capture publication")
+	}
+	var witness *artifactpath.CaptureWitness
+	if len(witnesses) > 1 {
+		return errors.New("multiple capture witnesses")
+	}
+	if len(witnesses) == 1 {
+		witness = witnesses[0]
+	}
+	if witness != nil {
+		copy := *witness
+		witness = &copy
+		if err := artifactpath.ValidateCaptureWitness(*witness); err != nil {
+			return err
+		}
+		if witness.ScopeKey != owner.RepoScope || witness.Tag != owner.Tag {
+			return errors.New("foreign capture witness")
+		}
 	}
 	return c.WithLock(ctx, func(l *Locked) error {
 		if _, err := os.Lstat(capture.Metadata); !errors.Is(err, os.ErrNotExist) {
@@ -54,7 +72,18 @@ func (c *Coordinator) PublishCaptureMetadata(ctx context.Context, owner artifact
 		} else if !errors.Is(err, os.ErrNotExist) {
 			return err
 		}
-		return l.atomicJSON(capture.Metadata, artifactpath.CaptureMetadata{Version: 1, Raw: filepath.Base(capture.Raw), Events: filepath.Base(capture.Events), CapturedAt: at.UTC(), RawIdentity: raw, EventsIdentity: events})
+		version := 1
+		if witness != nil {
+			archived, err := readCaptureWitnessEvents(ctx, capture.Events)
+			if err != nil {
+				return err
+			}
+			if archived == nil || *archived != *witness {
+				return errors.New("archived capture witness changed")
+			}
+			version = 2
+		}
+		return l.atomicJSON(capture.Metadata, artifactpath.CaptureMetadata{Version: version, Witness: witness, Raw: filepath.Base(capture.Raw), Events: filepath.Base(capture.Events), CapturedAt: at.UTC(), RawIdentity: raw, EventsIdentity: events})
 	})
 }
 
@@ -87,4 +116,42 @@ func capturePublicationTime(capture artifactpath.ParkedCapture) (time.Time, bool
 		return time.Time{}, true, errors.New("capture events appeared after publication")
 	}
 	return metadata.CapturedAt, true, nil
+}
+
+// ReadCaptureWitness verifies the currently open generation's source file IDs.
+// Missing historical authority is explicit nil; malformed authority is an error.
+func ReadCaptureWitness(ctx context.Context, rawPath, eventsPath string) (*artifactpath.CaptureWitness, error) {
+	w, e := readCaptureWitnessEvents(ctx, eventsPath)
+	if e != nil || w == nil {
+		return w, e
+	}
+	raw, e := CaptureIdentity(rawPath)
+	if e != nil {
+		return nil, e
+	}
+	events, e := CaptureIdentity(eventsPath)
+	if e != nil {
+		return nil, e
+	}
+	if w.RawFile != (artifactpath.CaptureFileID{Device: raw.Device, Inode: raw.Inode}) || w.EventsFile != (artifactpath.CaptureFileID{Device: events.Device, Inode: events.Inode}) {
+		return nil, errors.New("capture witness file generation changed")
+	}
+	return w, nil
+}
+func readCaptureWitnessEvents(ctx context.Context, path string) (*artifactpath.CaptureWitness, error) {
+	data, e := osfs.ReadRegularMetadata(ctx, path, artifactpath.MaxCaptureWitnessEventsBytes)
+	if errors.Is(e, os.ErrNotExist) {
+		return nil, nil
+	}
+	if e != nil {
+		return nil, e
+	}
+	w, e := artifactpath.DecodeCaptureWitness(data)
+	if errors.Is(e, artifactpath.ErrCaptureWitnessAbsent) {
+		return nil, nil
+	}
+	if e != nil {
+		return nil, e
+	}
+	return &w, nil
 }

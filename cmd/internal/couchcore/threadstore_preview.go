@@ -10,12 +10,15 @@ import (
 // PreviewSnapshot uses the regular decoder/routing without initializing stores,
 // registering retention ownership or recovering an interrupted transaction.
 func (s *ThreadStore) PreviewSnapshot() (ThreadSnapshot, error) {
+	return s.PreviewSnapshotContext(context.Background())
+}
+func (s *ThreadStore) PreviewSnapshotContext(ctx context.Context) (ThreadSnapshot, error) {
 	if s == nil {
 		return ThreadSnapshot{}, errors.New("thread store unavailable")
 	}
 	view := *s
 	view.readOnly = true
-	return view.Snapshot()
+	return view.snapshotContext(ctx)
 }
 func (s *ThreadStore) PreviewPathLaunchPreference(repoIdentity, path, scope string) (PathLaunchPreference, bool, error) {
 	if s == nil {
@@ -25,6 +28,31 @@ func (s *ThreadStore) PreviewPathLaunchPreference(repoIdentity, path, scope stri
 	view.readOnly = true
 	return view.getPathLaunchPreference(repoIdentity, path, scope)
 }
+
+// PreviewThreadContext reads through the regular decoder and backend router,
+// without initializing stores, enrolling retention or replaying pending journals.
+func (s *ThreadStore) PreviewThreadContext(ctx context.Context, address ThreadAddress) (ThreadRecord, error) {
+	if s == nil {
+		return ThreadRecord{}, errors.New("thread store unavailable")
+	}
+	view := *s
+	view.readOnly = true
+	record, _, err := view.getThreadStampedContext(ctx, address)
+	return record, err
+}
+
+// withReadLockContext retains lifecycle recovery for ordinary getters while
+// preview views carry the caller's cancellation through every routed read.
+func (s *ThreadStore) withReadLockContext(ctx context.Context, fn func() error) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if s.readOnly {
+		return s.withPreviewLockContext(ctx, fn)
+	}
+	return s.withLock(fn)
+}
+
 func (s *ThreadStore) withPreviewLock(fn func() error) error {
 	return s.withPreviewLockContext(context.Background(), fn)
 }
@@ -59,11 +87,11 @@ func (s *ThreadStore) withPreviewLockWithin(ctx context.Context, wait time.Durat
 	}
 	lock, err := s.retentionReadLock(ctx, wait)
 	if err != nil {
-		return err
+		return errors.Join(err, ctx.Err())
 	}
 	defer func() { err = errors.Join(err, lock.Close()) }()
 	if _, err := os.Lstat(s.journalPath()); err == nil {
-		return errors.New("thread store recovery pending; open the workspace before previewing")
+		return errors.New("thread store recovery pending; an explicit lifecycle action is required")
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return err
 	}

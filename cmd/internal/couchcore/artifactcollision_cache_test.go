@@ -96,3 +96,69 @@ func TestCollisionNativeBindingReusesLedgerAcrossRuntimeCopies(t *testing.T) {
 		t.Fatalf("recreated scoped runtime repeated ledger IO/decode %d/%d", counts.reads, counts.decodes)
 	}
 }
+
+func TestScopedBindingsCacheUnselectedScopeAndInvalidateChangedClaims(t *testing.T) {
+	dir := t.TempDir()
+	selected, other := "aaaaaaaaaaaaaaaa", "bbbbbbbbbbbbbbbb"
+	write := func(scope, name string) string {
+		t.Helper()
+		path := filepath.Join(dir, "repos", scope, "session-names.jsonl")
+		if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+			t.Fatal(err)
+		}
+		line, err := launcher.BuildSessionNameIndexLine(launcher.SessionNameEntry{SessionName: name, ScopeKey: scope, Tag: "work", RepoRoot: "/tmp/project", RepoName: "project"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(line+"\n"), 0600); err != nil {
+			t.Fatal(err)
+		}
+		return path
+	}
+	write(selected, "pair-one")
+	otherPath := write(other, "pair-other")
+	stats := map[string]int{}
+	reads, decodes := 0, 0
+	c := NewScopedThreadArtifactCollisionChecker(dir)
+	c.SessionIndexes = launcher.NewSessionNameIndexCacheWithIO(launcher.SessionNameIndexCacheIO{
+		Stat:     func(path string) (os.FileInfo, error) { stats[path]++; return os.Lstat(path) },
+		ReadFile: func(path string) ([]byte, error) { raw, err := os.ReadFile(path); reads += len(raw); return raw, err },
+		Decode: func(raw string) (launcher.SessionNameIndex, error) {
+			decodes += len(raw)
+			return launcher.DecodeSessionNameIndex(raw)
+		},
+	})
+	address := ThreadAddress{RepoScope: selected, Tag: "work"}
+	otherAddress := ThreadAddress{RepoScope: other, Tag: "work"}
+	observe := func(wantClaims int) {
+		t.Helper()
+		bindings, current, _, err := c.resolveScopedBindings(context.Background(), []ThreadAddress{address}, nil)
+		if err != nil || len(bindings) != 1 || bindings[0].Address != address {
+			t.Fatalf("selected bindings=%v err=%v", bindings, err)
+		}
+		if current[otherAddress] == "" || claimsFromBindings(current)["pair-one"] != wantClaims {
+			t.Fatalf("unselected scope missing or stale: current=%v want claims=%d", current, wantClaims)
+		}
+	}
+	observe(1)
+	if reads == 0 || decodes == 0 || stats[otherPath] == 0 {
+		t.Fatalf("census bypassed shared cache: reads=%d decodes=%d stats=%v", reads, decodes, stats)
+	}
+	reads, decodes, stats = 0, 0, map[string]int{}
+	for range 3 {
+		observe(1)
+	}
+	if reads != 0 || decodes != 0 || stats[otherPath] == 0 {
+		t.Fatalf("warm census lost cache admission: reads=%d decodes=%d stats=%v", reads, decodes, stats)
+	}
+	write(other, "pair-one")
+	observe(2)
+	if reads == 0 || decodes == 0 {
+		t.Fatal("changed unselected scope was not decoded")
+	}
+	reads, decodes, stats = 0, 0, map[string]int{}
+	observe(2)
+	if reads != 0 || decodes != 0 || stats[otherPath] == 0 {
+		t.Fatalf("changed claims did not settle in cache: reads=%d decodes=%d stats=%v", reads, decodes, stats)
+	}
+}

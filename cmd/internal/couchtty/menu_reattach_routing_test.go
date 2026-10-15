@@ -47,7 +47,7 @@ func TestReduceMenuSeedsAndStartsThePassFromTheFirstInventory(t *testing.T) {
 // get past the in-flight match, which would otherwise drop it on the floor.
 func TestReduceMenuRoutesAPassResultAroundTheOperatorsSlot(t *testing.T) {
 	state, effects := passMenu(t, passInventory())
-	operator := MenuOperationOrigin{Operation: "switch", Attempt: 99, Address: menuAddress("couch-live")}
+	operator := MenuOperationOrigin{Operation: "switch", Attempt: 99, Address: menuAddress("couch-root")}
 	state.InFlight = operator
 
 	result := MenuEvent{Kind: MenuEventOperationResult, Operation: "resume", Background: true,
@@ -77,7 +77,7 @@ func TestReduceMenuRoutesAPassResultAroundTheOperatorsSlot(t *testing.T) {
 func TestReduceMenuResumesAHeldPassWhenTheOperatorsSlotClears(t *testing.T) {
 	state, effects := passMenu(t, passInventory()) // couch-a is reattaching
 	// The operator starts an operation on a live row while couch-a is in flight.
-	state.Frames[0].SelectedAddress = menuAddress("couch-live")
+	state.Frames[0].SelectedAddress = menuAddress("couch-root")
 	state, started := reduceKey(state, PanelKey{Kind: KeyEnter})
 	if len(started) != 1 || state.InFlight.Operation == "" {
 		t.Fatalf("operator Enter = %+v (inflight %+v)", started, state.InFlight)

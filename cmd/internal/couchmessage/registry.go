@@ -5,11 +5,10 @@ import (
 	"time"
 )
 
-// Registry decides which wrapper bindings may receive (#365). It replaces
-// polling with the facts lifecycle producers already own: a wrapper's session
-// connection (open, closed by death or exec) and the Console's pane for its
-// thread. It is pure: callers feed events in arrival order and execute the
-// returned effects; every interleaving is reproducible by feeding events.
+// Registry decides which wrapper bindings may receive. Membership follows
+// the authenticated wrapper connection, closed by death or exec; client panes
+// only describe local presentation. It is pure: callers feed events in arrival
+// order and execute effects; every interleaving is reproducible.
 type Registry struct {
 	sessions map[SessionToken]*registrySession
 	panes    map[ThreadKey]PaneHandle
@@ -27,15 +26,15 @@ func (b Binding) Thread() ThreadKey { return ThreadKey{Scope: b.Scope, Tag: b.Ta
 
 // AdmissionPhase is a session's whole state; there are no side flags.
 //
-//	AwaitingPane --pane--> Admitting --ok--> Admitted
+//	hello --> Admitting --ok--> Admitted
 //	Admitting --fail--> Rejected --retry due--> Admitting   (≤ MaxAdmissionAttempts)
-//	Rejected (last attempt) --> Dormant --attach/submit/send--> Admitting
+//	Rejected (last attempt) --> Dormant --submit/send--> Admitting
 //	any open phase --a newer session for the slot is admitted--> Displaced (final)
 //	(a newer session that is never admitted displaces nothing)
 type AdmissionPhase int
 
 const (
-	AwaitingPane AdmissionPhase = iota
+	AwaitingAdmission AdmissionPhase = iota
 	Admitting
 	Admitted
 	Rejected
@@ -58,7 +57,7 @@ type registrySession struct {
 	picker      *bool
 	pickerSince time.Time
 	phase       AdmissionPhase
-	pane        PaneHandle // Admitting/Admitted: the pane the admission checked
+	pane        PaneHandle // optional client metadata captured when admission began
 	attempt     int        // failed admissions since the last event that reset it
 }
 
@@ -99,7 +98,7 @@ type RegistryEvent struct {
 type RegistryEffectKind int
 
 const (
-	// EffectAdmit runs one full authority check of Binding against Pane.
+	// EffectAdmit runs one full wrapper/terminal authority check of Binding.
 	EffectAdmit RegistryEffectKind = iota
 	EffectConnect
 	EffectDisconnect
@@ -148,7 +147,7 @@ func (r *Registry) Advance(e RegistryEvent) ([]RegistryEffect, error) {
 				fx = r.displace(t, s, fx)
 			}
 		}
-		s := &registrySession{binding: e.Binding, build: e.Build, phase: AwaitingPane}
+		s := &registrySession{binding: e.Binding, build: e.Build, phase: AwaitingAdmission}
 		r.sessions[e.Token] = s
 		fx = r.readmit(e.Token, s, fx)
 	case SessionClosed:
@@ -161,38 +160,17 @@ func (r *Registry) Advance(e RegistryEvent) ([]RegistryEffect, error) {
 		}
 		delete(r.sessions, e.Token)
 	case PaneChanged:
-		old := r.panes[e.Thread]
-		if old == e.Pane {
-			return nil, nil
-		}
-		// Disconnect sessions admitted against the departing pane first.
-		for t, s := range r.sessions {
-			if s.binding.Thread() == e.Thread && r.connected(s) {
-				fx = append(fx, RegistryEffect{Kind: EffectDisconnect, Token: t, Binding: s.binding})
-			}
-		}
+		// Client attachment is presentation state. It cannot disconnect a
+		// live wrapper or prevent one from joining after a Couch restart.
 		if e.Pane == "" {
 			delete(r.panes, e.Thread)
 		} else {
 			r.panes[e.Thread] = e.Pane
 		}
-		for _, t := range r.tokens() {
-			s := r.sessions[t]
-			if s.binding.Thread() != e.Thread || s.phase == Displaced {
-				continue
-			}
-			s.attempt = 0
-			fx = r.readmit(t, s, fx)
-		}
 	case AdmissionDone:
 		s := r.sessions[e.Token]
 		if s == nil || s.phase != Admitting || s.pane != e.Pane {
 			return nil, nil
-		}
-		if r.panes[s.binding.Thread()] != e.Pane {
-			// Checked a pane that has since gone; check the current one.
-			fx = r.readmit(e.Token, s, fx)
-			break
 		}
 		if e.Err != nil {
 			fx = r.fail(e.Token, s, fx)
@@ -260,16 +238,11 @@ func (r *Registry) Advance(e RegistryEvent) ([]RegistryEffect, error) {
 	return fx, nil
 }
 
-// readmit admits s against its thread's current pane, or waits for one. A
-// hello before its pane burns no retries.
+// readmit admits the live wrapper connection. A local client pane is optional
+// metadata and never grants authority; the effect performs the full check.
 func (r *Registry) readmit(t SessionToken, s *registrySession, fx []RegistryEffect) []RegistryEffect {
-	pane, ok := r.panes[s.binding.Thread()]
-	if !ok {
-		s.phase, s.pane = AwaitingPane, ""
-		return fx
-	}
-	s.phase, s.pane = Admitting, pane
-	return append(fx, RegistryEffect{Kind: EffectAdmit, Token: t, Binding: s.binding, Pane: pane})
+	s.phase, s.pane = Admitting, r.panes[s.binding.Thread()]
+	return append(fx, RegistryEffect{Kind: EffectAdmit, Token: t, Binding: s.binding, Pane: s.pane})
 }
 
 // fail records a failed attempt and schedules the next one on the bounded
@@ -303,13 +276,7 @@ func (r *Registry) newerAdmittedForSlot(t SessionToken, b Binding) bool {
 
 func sameSlot(a, b Binding) bool { return a.Repository == b.Repository && a.Slot == b.Slot }
 
-func (r *Registry) connected(s *registrySession) bool {
-	if s.phase != Admitted {
-		return false
-	}
-	pane, ok := r.panes[s.binding.Thread()]
-	return ok && pane == s.pane
-}
+func (r *Registry) connected(s *registrySession) bool { return s.phase == Admitted }
 
 // tokens lists sessions oldest first, so effects come out in a stable order.
 func (r *Registry) tokens() []SessionToken {

@@ -24,6 +24,9 @@ import (
 // method on it. The terminal UI and (later) the advisor's tools are both
 // clients of these methods -- never of two separate implementations.
 type Couch struct {
+	RecoveryEvidence       RecoveryEvidenceReader
+	RecoveryPreserve       RecoveryCapturePreserver
+	RecoveryTerminal       RecoveryTerminalPreparation
 	Identities             IdentityAllocator
 	Slots                  SlotCatalog
 	Workspaces             WorkspaceReadiness
@@ -78,6 +81,9 @@ type Couch struct {
 	// returned, so it is never LayoutUnknown and Flag() is always well formed.
 	Layout Layout
 
+	// warmClients proves ownership of direct attach helpers created by this process.
+	// Restored registry entries never populate it; regMu guards both.
+	warmClients               map[ActorID]Handle
 	reg                       Registry
 	names                     NamingTable
 	postAckQuiesceTimeout     time.Duration
@@ -105,45 +111,12 @@ type Couch struct {
 
 // ReconcileActiveParks performs an explicit active-park reconciliation pass.
 // It may query external Pair/Zellij state, so constructors must never call it;
-// interactive composition uses the context-bound RecoverActiveParks worker.
+// recovery is performed only by an explicit operator action.
 func (c *Couch) ReconcileActiveParks(ctx context.Context) error {
 	if c == nil || c.PairLifecycle == nil {
 		return errors.New("Couch Pair lifecycle controller is unavailable")
 	}
 	return c.PairLifecycle.ReconcileActive(ctx)
-}
-
-// RecoverActiveParks performs the blocking half of restart recovery serially.
-// The composition root runs it in one context-bound worker after construction,
-// so external Pair/Zellij teardown can never delay startup or fan out.
-func (c *Couch) RecoverActiveParks(ctx context.Context) error {
-	if c == nil || c.PairLifecycle == nil {
-		return errors.New("Couch Pair lifecycle controller is unavailable")
-	}
-	snapshot, err := c.Threads.Snapshot()
-	if err != nil {
-		return err
-	}
-	var result error
-	for _, record := range snapshot.Records {
-		if record.Park == nil {
-			continue
-		}
-		// A drain (pair#205): wait for any operation holding the thread rather
-		// than fail boot recovery because the reattach pass reached it first.
-		held, release, holdErr := c.holdWait(ctx, record.Address, "park-recovery")
-		if holdErr != nil {
-			result = errors.Join(result, holdErr)
-			break
-		}
-		_, recoverErr := c.PairLifecycle.Recover(held, record.Address)
-		release()
-		result = errors.Join(result, recoverErr)
-		if ctx.Err() != nil {
-			break
-		}
-	}
-	return result
 }
 
 func New(namespace CouchNamespace, r Runner, p PathOps, g GitRunner, proc ProcOps, s Store, c Clock, ids IDGen, entropy io.Reader, artifacts ThreadArtifactController) (*Couch, error) {
@@ -204,9 +177,6 @@ func New(namespace CouchNamespace, r Runner, p PathOps, g GitRunner, proc ProcOp
 		resumeRegistrationTimeout: pairRegistrationTimeout,
 		sleep:                     time.Sleep,
 		after:                     time.After,
-	}
-	if err := result.reconcileInterruptedStarts(); err != nil {
-		return nil, fmt.Errorf("reconcile interrupted starts: %w", err)
 	}
 	if environment, ok := artifacts.(PairLifecycleEnvironment); ok {
 		result.PairLifecycle = &PairLifecycleController{
@@ -538,9 +508,6 @@ func (c *Couch) spawnResolved(ctx context.Context, resolution StartResolution, r
 				"  retire it:   run couch in another repository, select it, Tab → reboot\n"+
 				"  the record:  %s",
 			held.Tag, resolution.CanonicalPath, held.Tag, recordPath)
-	}
-	if held, orphaned := ScopeHoldsOrphanedThread(rows, scope.Key); orphaned {
-		return ActorRecord{}, nil, errors.New(orphanStartRefusal(scope.Root, held.Address, held.Orphan))
 	}
 	if held, occupied := ScopeHoldsUsableThread(rows, scope.Key); occupied {
 		// The next steps have to be ones that WORK from where the operator is.
@@ -877,6 +844,12 @@ func (c *Couch) AbortStarted(ctx context.Context, start StartResult, cause error
 	// the helper and terminal, never the session.
 	helperOnly := func() error {
 		return errors.Join(cause, c.quiescePostAckStart(start.Record.Thread, start.Handle, StartWarmReattach))
+	}
+	c.regMu.Lock()
+	local := c.warmClients[start.Record.ID]
+	c.regMu.Unlock()
+	if local != nil && local.PID() == start.Record.PID && local.Identity() == start.Record.Identity {
+		return errors.Join(helperOnly(), c.Forget(start.Record.Args.Worktree, start.Record.ID))
 	}
 	_, release, holdErr := c.holdWait(ctx, start.Record.Thread, "abort-start")
 	var cleanupErr error
@@ -1342,6 +1315,18 @@ func (c *Couch) mutateRegistry(mutate func(Registry) (Registry, error)) error {
 		return err
 	}
 	c.reg = next
+	for id := range c.warmClients {
+		found := false
+		for _, actor := range next.Records() {
+			if actor.ID == id {
+				found = true
+				break
+			}
+		}
+		if !found {
+			delete(c.warmClients, id)
+		}
+	}
 	return nil
 }
 
@@ -1415,24 +1400,4 @@ func (c *Couch) allocateConversationTag(ctx context.Context, repo string) (strin
 	}
 	result, err := c.Identities.Allocate(ctx, couchidentity.AllocationRequest{Conversation: true, RepositoryToken: repo})
 	return result.PairTag, err
-}
-
-// orphanStartRefusal is startup's refusal beside an orphaned primary (#399).
-//
-// The advice is the reap mechanism itself, not a hand-written recipe (M1/M2
-// review: two hand-written recipes were both wrong about the 2026-10-06 tree).
-// Couch will not start in this repository, and `couch --reap` is a slot-socket
-// operation, so the gesture that works from here is the switcher in another
-// repository -- the same escape the unreadable-record refusal names.
-func orphanStartRefusal(root string, address ThreadAddress, server *launcher.SessionServerIdentity) string {
-	headline := fmt.Sprintf("thread %s's zellij server lost its socket", address.Tag)
-	if server != nil {
-		headline = launcher.OrphanDiagnostic(server.Session, server.PID)
-	}
-	return fmt.Sprintf("%s\n"+
-		"its agent may still be running, so couch will not start a second primary in %s\n"+
-		"  recover it:  run couch in another repository, select %s, Tab → recover\n"+
-		"               (it reaps the orphaned server and everything under it, then resumes)\n"+
-		"  inspect it:  couch --show %s",
-		headline, root, address.Tag, address.Tag)
 }

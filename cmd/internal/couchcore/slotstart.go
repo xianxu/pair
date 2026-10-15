@@ -34,7 +34,7 @@ func (c *Couch) resolveManagedStart(ctx context.Context, args StartArgs) (StartR
 		local := newSlotThreadStore(c.Namespace, target.Slot)
 		local.readOnly = true
 		var current slotCurrentObservation
-		err := local.withPreviewLock(func() error { var e error; current, e = local.readSlotCurrentLocked(); return e })
+		err := local.withPreviewLockContext(ctx, func() error { var e error; current, e = local.readSlotCurrentLockedContext(ctx); return e })
 		if err != nil && !errors.Is(err, os.ErrNotExist) {
 			return StartResolution{}, err
 		}
@@ -90,7 +90,7 @@ func (c *Couch) resolveManagedStart(ctx context.Context, args StartArgs) (StartR
 		if e != nil {
 			return StartResolution{}, e
 		}
-		snapshot, e := c.Threads.PreviewSnapshot()
+		snapshot, e := c.Threads.PreviewSnapshotContext(ctx)
 		if e != nil {
 			return StartResolution{}, e
 		}

@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/launcher"
@@ -79,9 +80,21 @@ func TestTwoScopeNameCollisionNeverOwnsForeignSession(t *testing.T) {
 	if len(deleter.deleted) != 0 {
 		t.Fatalf("foreign terminal quit: %v", deleter.deleted)
 	}
-	detached, err := checker.DetachedSessions(context.Background(), []DetachedCandidate{{Address: old, Agent: "claude"}})
-	if err != nil || len(detached) != 0 {
-		t.Fatalf("foreign stale name selected warm resume: %+v %v", detached, err)
+	for _, exactName := range []string{"", name} {
+		detached, err := checker.DetachedSessions(context.Background(), []DetachedCandidate{{Address: old, Agent: "claude", SessionName: exactName}})
+		if err != nil || len(detached) != 0 {
+			t.Fatalf("foreign stale name selected warm resume: %+v %v", detached, err)
+		}
+	}
+	presence, err := checker.SessionPresence(context.Background(), []ThreadAddress{old})
+	if err != nil || presence[old].State != SessionUnresolved {
+		t.Fatalf("single-scope inventory borrowed foreign terminal: %v %v", presence, err)
+	}
+	record := actionableTestThread("old", time.Unix(100, 0).UTC())
+	record.Address = old
+	state, reason := ClassifyThread(record, ThreadEvidence{Session: presence[old]})
+	if ContinuityOutcome(ActionableThreadSummary{State: state, Reason: reason}) != Fresh {
+		t.Fatalf("collision advertised action: %s/%s", state, reason)
 	}
 }
 

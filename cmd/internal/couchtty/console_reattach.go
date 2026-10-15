@@ -39,8 +39,11 @@ func (c *Console) ArmReattachPass(root couchcore.ThreadAddress) {
 			return
 		}
 		c.reattachContext, c.reattachCancel = ctx, cancel
+		// This is pre-Run configuration. Reduce under the state lock without
+		// publishing an empty panel before initial notices are admitted.
+		c.ensureMenuLocked(couchcore.ThreadAddress{})
+		c.menu, _ = ReduceMenu(c.menu, MenuEvent{Kind: MenuEventReattachArm, Address: root})
 		c.mu.Unlock()
-		c.reduceMenu(MenuEvent{Kind: MenuEventReattachArm, Address: root})
 	})
 }
 
@@ -107,6 +110,7 @@ func (c *Console) runBackgroundOperation(effect MenuEffect) {
 	_, err := c.operationQueue.Enqueue(operationRequest{key: key, name: effect.Operation, origin: origin, run: func() (any, error) {
 		operationContext, cancelOperation := context.WithCancel(parent)
 		defer cancelOperation()
+		// Stop or pass release can cancel an enqueued attempt before dispatch.
 		if err := operationContext.Err(); err != nil {
 			return nil, err
 		}

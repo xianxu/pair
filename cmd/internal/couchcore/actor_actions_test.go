@@ -30,6 +30,7 @@ var actorActionSpec = []actorActionRule{
 	{state: ThreadDetached, want: []string{"resume", "reboot"}},
 	// unusable/unknown is no verdict this round: nothing is offered.
 	{state: ThreadUnusable, reason: ReasonUnknown},
+	{state: ThreadUnusable, reason: ReasonNeedsRelaunch},
 	// An orphaned server's agent may still be writing: resume would start a
 	// second one, and reboot would archive a running conversation. Only a
 	// confirmed reap is safe, and M2 adds it (#399).

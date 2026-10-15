@@ -20,7 +20,9 @@ type contextPairSessionObserver interface {
 
 func (c *Couch) recoverySession(ctx context.Context, address ThreadAddress) (PairSessionBinding, error) {
 	if c.Threads != nil {
-		record, err := c.Threads.GetThread(address)
+		view := *c.Threads
+		view.readOnly = true
+		record, err := view.GetThread(address)
 		if err == nil {
 			return observeRecordSession(ctx, c.Artifacts, record)
 		}
