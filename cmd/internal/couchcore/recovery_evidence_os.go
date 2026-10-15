@@ -34,10 +34,21 @@ type OSRecoveryEvidenceReader struct {
 }
 
 func recoveryCaptureSource(record ThreadRecord, paths artifactpath.Paths, agent string) (threadrecord.RecoveryCapture, error) {
-	for _, inc := range record.Incarnations {
-		if inc.Start != nil && inc.Start.RecoveryIntent != nil {
-			return inc.Start.RecoveryIntent.Context.Capture, nil
+	if intent := retainedRecoveryIntent(record); intent != nil {
+		if intent.Kind() == threadrecord.RecoveryInferred {
+			return intent.Context.Capture, nil
 		}
+		// Tagged orientation may name the outgoing tag after Fresh selected a new
+		// address. That screen remains readable by peek, never inference authority
+		// for this tag. Missing orientation similarly selects this tag's own screen.
+		if o := intent.Orientation; o != nil && o.Capture != nil && o.Capture.Token != "" {
+			expected, err := paths.ParkedScrollbackArtifacts(o.Capture.Token)
+			if err == nil && expected.Raw == o.Capture.Raw && expected.Events == o.Capture.Events {
+				return *o.Capture, nil
+			}
+		}
+		current, err := paths.ScrollbackArtifacts(agent)
+		return threadrecord.RecoveryCapture{Raw: current.Raw, Events: current.Events}, err
 	}
 	if record.RecoveryContext != nil {
 		return record.RecoveryContext.Capture, nil
@@ -363,10 +374,12 @@ func recoveryCaptureMetadata(ctx context.Context, paths artifactpath.Paths, c *t
 }
 
 func (r OSRecoveryEvidenceReader) recoveryBranchIssue(ctx context.Context, record ThreadRecord) (string, string) {
-	for _, inc := range record.Incarnations {
-		if inc.Start != nil && inc.Start.RecoveryIntent != nil {
-			c := inc.Start.RecoveryIntent.Context
-			return c.Branch, c.Issue
+	if intent := retainedRecoveryIntent(record); intent != nil {
+		if intent.Kind() == threadrecord.RecoveryInferred {
+			return intent.Context.Branch, intent.Context.Issue
+		}
+		if intent.Orientation != nil {
+			return intent.Orientation.Branch, intent.Orientation.Issue
 		}
 	}
 	if c := record.RecoveryContext; c != nil {

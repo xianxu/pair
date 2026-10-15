@@ -186,6 +186,7 @@ func (r OSRuntime) NewCouchWith(runner couchcore.Runner, namespace couchcore.Cou
 	c.RecoveryPreserve = recoveryReader.Preserve
 	c.RecoveryTerminal = recoveryReader.PrepareTerminal
 	c.RecoveryRetirement = recoveryReader.PrepareConfirmedTerminal
+	c.SlotRetainedCapture = recoveryReader.ReadRetainedTerminal
 	renderer, _ := exec.LookPath("pair")
 	c.SwitchContext = couchcore.OSSwitchContextResolver{DataDir: dataDir, HomeDir: r.Getenv("HOME"), Renderer: renderer}
 	c.SlotTerminal = func(address couchcore.ThreadAddress, agent string, maxLines int) ([]string, error) {
