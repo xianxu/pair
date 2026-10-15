@@ -1171,3 +1171,12 @@ No follow-up implementation starts on this branch.
   or PTY/TERM guess. Corrected official-binary live tests PASS9.483s
   (/tmp/pair528-ci-corrected-official-live.log). Original CI early exits and
   non-JSON response remain unexplained until required CI reruns.
+
+- CI38678724668: recoverywarm now PASS; park PTY exposes 'No session ... found',
+  attachcode1. Exact officialbinary ambientTMPDIR reproduces in1.919s; /tmp
+  countermeasure passes. Root: newTerminalOSAttempt expands /var symlink before
+  injecting ZELLIJ_SOCKET_DIR, crossing macOS socket limit. Preserve transport
+  spelling, canonicalize lease identity only. Cancelled own queued suite20090
+  before admission (exit130), and obsolete review31430 (contextcancelled, no
+  verdict), both parent4470 and startidentities checked immediately beforeINT.
+  No working slots, stage or other test owners affected.

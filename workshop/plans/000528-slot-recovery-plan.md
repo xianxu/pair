@@ -1340,3 +1340,16 @@ identity instead; retain ownership assertions. Capture bounded helper output and
 query bytes on failure so CI diagnoses actual Zellij errors. Investigate the
 original failures with the exact upstream binary; do not waive conformance or
 change production JSON handling without evidence. Stage remains untouched.
+
+### 2026-10-14 — preserve the native socket spelling at handoff
+
+CI diagnostics identify a real attach failure, reproduced with the exact upstream
+Zellij release: canonicalizing macOS /var to /private/var expands a usable97-byte
+socket path to105 bytes, beyond its104-byte limit. The live listing uses the
+original environment, but handoff injected this longer socket root. Preserve the
+lexical root for the child transport, canonicalizing only the socket identity
+used by the shared lease. Add a symlink-path constructor regression and verify
+scratch live attachment with the ambient macOS TMPDIR. No new mechanism, no
+readiness or liveness policy change (ARCH-PURPOSE, ARCH-DRY). The queued ee59 suite
+was cancelled before admission; its review was cancelled as obsolete, with no
+verdict claimed. Rerun recorded suite and normal review on the corrected head.
