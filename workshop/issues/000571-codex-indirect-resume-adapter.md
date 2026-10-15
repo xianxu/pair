@@ -107,6 +107,12 @@ Pre-close launch-boundary audit found ordinary Codex latest refused adapter erro
 
 Fixed at the launch boundary: ordinary error/deadline/canceled/oversize/missing-scope keeps exact argv, launches once, publishes no native identity and makes no reservation; strict recovery/required/explicit counterparts refuse. Final launcher normal/race regex Test.*(CodexConfig|CodexLatestCreate|NativeResume|NativeCreate) passed7.746s/10.736s; includes existing native resume/create tests as well as the new matrix. Diff check clean.
 
+### 2026-10-15 — full-suite classification finding and main integration
+
+Recorded suite on12223899 completed every shell/editor prerequisite and all Go packages (the failure was in the final go test ./... recipe, so no remaining recipes/packages were skipped). Sole failure: TestEverySlotStateSiteIsAResource incorrectly classifies two native Git common/worktrees joins in codex_git_scope.go as Pair slot containers. No functional test failed. Runtime11m54s; log sha256:091ad05cf7b8, /Users/xianxu/workspace/pair/.git/sdlc/test-stats/failed/2d5391b0bdfc0302904c3fd66f568868.log.
+
+Merged origin/main after #573 landed, cleanly with no conflict resolutions (ba943894); integrated-head suite is running and will finish, not be stopped at the known classification finding. Corrected only the audit: exact native Git source/function/base-expression/component/arity exceptions, counted exactly once, with negative unrelated-slot and stale/changed/duplicate controls. Behavioral RED preceded fix; targeted normal0.583s/race4.402s now pass. Production code unchanged. Final fresh suite is required on the corrected audit head before landing; source ownership verification now explicitly includes both artifactpath and the independent slot-resource audit.
+
 ### 2026-10-15 — planning under the disk restriction
 
 Append source-backed configuration/selector measurements and a proposal before implementation. No architecture or implementation gate is waived: issue-branch preparation, canonical durable plan and change-code wait until compilation is permitted; admission integration waits for #556 on main. Preserve native passthrough for unresolved scopes, picker/names, incomplete DB evidence and nondeterministic ties instead of changing ordinary resume behavior into a refusal.

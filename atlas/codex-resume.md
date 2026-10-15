@@ -112,6 +112,9 @@ Run focused normal tests, then the same selection under `-race`:
 ```sh
 go test ./cmd/internal/sessioninventory ./cmd/internal/launcher ./cmd/internal/wrapcmd \
   -run 'Test.*(CodexConfig|CodexLatest|NativeSelectorCodex|NativeResume|NativeAdmission|NativeCreate|NativeInventory)' -count=1
+go test ./cmd/internal/artifactpath -count=1
+go test ./cmd/internal/couchcore \
+  -run 'Test(EverySlotStateSiteIsAResource|SlotTokenAllowlistIsCurrent|NativeGitContainerJoinClassification|NativeGitJoinInventoryRejectsStaleAndDuplicateExemptions)$' -count=1
 ```
 
 Private real TOML, SQLite and JSONL fixtures cover provenance and candidate

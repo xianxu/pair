@@ -1950,6 +1950,10 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #571: A read-only adapter's unknown/error/encoding-limit result must preserve
   ordinary native compatibility without a reservation. Test those failures at
   the launch boundary, alongside strict recovery and exact-ID refusal controls.
+- #571: Native Git worktrees and Pair slot worktrees share filename vocabulary
+  but different ownership. Keep foreign-path exceptions exact and counted, with
+  unrelated-slot controls; run both artifactpath and Couch slot-resource audits
+  when adding path literals outside the slot implementation.
 - #573 second close: writer/reader compatibility includes every authority handoff's derived fields. Budget the encoded export (history plus mutable state) before accepting growth, then prove forget→re-register at the byte boundary with folds intact. Filesystem tests must create distinct aliases explicitly; canonical paths are already known, regardless of whether TMPDIR happens to use /var or /private/var.
 
 - #573 third close: preflight and effect must consume the same immutable prepared bundle. Checking post-pruning state and then validating an older loaded state during shadow publication can refuse after document mutation. Compile document, shadow, encoded state/horizon and result hash before effects; prove valid gap-acceptance plus pruning succeeds, and ambiguous result sections fail without mutation.
