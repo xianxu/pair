@@ -1,12 +1,12 @@
 ---
 id: 000573
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-15
 updated: 2026-10-15
 estimate_hours: 1.704
-card_mirror: '3a06369e2a8eaecda421654c9bc1535050e6be49' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'f4e81bfcc6e0c429acbc1b2548e3a6edba3f89f6' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-15T10:56:32-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: operator}
+actual_hours: N/A
 ---
 
 # Agentic documents: Couch registry so session-sync verbs work for any submitted file (universal-agent-input-interface S1, Couch side)
