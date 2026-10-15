@@ -14,13 +14,16 @@ import (
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 )
 
-// dispatchReboot drives `reboot` through the declared operation and the
-// live-owner executor -- the production boundary M2's switcher will use.
-func dispatchReboot(env *testEnv, args map[string]string) (RebootResult, error) {
-	value, err := DispatchOperation(OperationExecutors{LiveOwner: CouchLiveOwnerExecutor(env.Couch), DirectStore: DirectStoreExecutor(env.Couch)},
-		OperationCall{Name: "reboot", Args: args, Implicit: true, Context: context.Background()})
-	result, _ := value.(RebootResult)
-	return result, err
+// rebootLegacyForTest preserves coverage of the retained direct Reboot API:
+// archive-only recovery, explicit profile overrides and its live idle verdict.
+// Public dispatch now uses RecoverSelection; its new confirmation and strict
+// Fresh readiness contract is exercised by recovery_prepared/acceptance tests.
+func rebootLegacyForTest(env *testEnv, args map[string]string) (RebootResult, error) {
+	target := RebootTarget{Path: args["path"], Agent: args["agent"], RequireSettled: args[requireSettledArg]}
+	if target.Path == "" {
+		target.Address = ThreadAddress{RepoScope: args["repo-scope"], Tag: ThreadTag(args["tag"])}
+	}
+	return env.Couch.Reboot(context.Background(), target)
 }
 
 func rebootArgs(address ThreadAddress) map[string]string {
@@ -82,7 +85,7 @@ func TestRebootPrimaryParkedArchivesAndStartsFreshInOneJournal(t *testing.T) {
 
 	env := newTestEnv(t, "/repo")
 	old := parkedNamedPrimary(t, env)
-	result, err := dispatchReboot(env, rebootArgs(old.Address))
+	result, err := rebootLegacyForTest(env, rebootArgs(old.Address))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -139,7 +142,7 @@ func TestRebootPrimaryCrashAfterJournalRecovers(t *testing.T) {
 		}
 		return nil
 	}
-	if _, err := dispatchReboot(env, rebootArgs(old.Address)); err == nil {
+	if _, err := rebootLegacyForTest(env, rebootArgs(old.Address)); err == nil {
 		t.Fatal("the interrupted reboot reported success")
 	}
 	env.Couch.Threads.hooks = threadStoreHooks{}
@@ -166,7 +169,7 @@ func TestRebootPrimaryCrashAfterJournalRecovers(t *testing.T) {
 	env.Proc.Kill(fresh.Incarnations[0].Start.OwnerPID)
 	leak := &leakFirstClaim{FakeThreadArtifactCollisionChecker: env.Artifacts}
 	env.Couch.Artifacts = leak
-	result, err := dispatchReboot(env, rebootArgs(fresh.Address))
+	result, err := rebootLegacyForTest(env, rebootArgs(fresh.Address))
 	if err != nil {
 		t.Fatalf("reboot after a crash and a leaked claim: %v", err)
 	}
@@ -192,7 +195,7 @@ func TestRebootDetachedStopsTheSessionFirst(t *testing.T) {
 		}
 		return nil
 	}
-	result, err := dispatchReboot(env, rebootArgs(old.Address))
+	result, err := rebootLegacyForTest(env, rebootArgs(old.Address))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -235,7 +238,7 @@ func TestRebootRefusesLiveBusyAndStillUnknown(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			env, address := setup(t)
 			ops := len(env.Runner.Ops)
-			if _, err := dispatchReboot(env, rebootArgs(address)); err == nil {
+			if _, err := rebootLegacyForTest(env, rebootArgs(address)); err == nil {
 				t.Fatal("reboot accepted it")
 			}
 			if archived, err := env.Couch.Threads.ArchivedThreads(); err != nil || len(archived) != 0 {
@@ -257,7 +260,7 @@ func TestRebootDirectoryMissingArchivesOnly(t *testing.T) {
 	if _, reason, _ := env.Couch.classifyForAction(context.Background(), record.Address); reason != ReasonPathMissing {
 		t.Fatalf("fixture reason %q, want path-missing", reason)
 	}
-	result, err := dispatchReboot(env, rebootArgs(record.Address))
+	result, err := rebootLegacyForTest(env, rebootArgs(record.Address))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -281,7 +284,7 @@ func TestRebootUnreadablePrimaryArchivesOnly(t *testing.T) {
 	if err := os.WriteFile(env.Couch.Threads.recordPath(record.Address), corrupt, 0600); err != nil {
 		t.Fatal(err)
 	}
-	result, err := dispatchReboot(env, rebootArgs(record.Address))
+	result, err := rebootLegacyForTest(env, rebootArgs(record.Address))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -327,7 +330,7 @@ func TestRebootSlotParkedIsTodaysFreshSlot(t *testing.T) {
 
 	env, local := slotRecoveryOperationFixture(t)
 	old := slotRecordFixture(t, env, local)
-	result, err := dispatchReboot(env, map[string]string{"path": local.slot.WorktreeRoot, "repo-scope": old.Address.RepoScope})
+	result, err := rebootLegacyForTest(env, map[string]string{"path": local.slot.WorktreeRoot, "repo-scope": old.Address.RepoScope})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -352,7 +355,7 @@ func TestRebootSlotDetachedQuiescesThenStarts(t *testing.T) {
 	old := slotRecordFixture(t, env, local)
 	env.Artifacts.SetPairSession(old.Address, "pair-slot-detached", true)
 	env.Artifacts.SetDetachedSession(old.Address, "pair-slot-detached")
-	result, err := dispatchReboot(env, map[string]string{"path": local.slot.WorktreeRoot, "repo-scope": old.Address.RepoScope})
+	result, err := rebootLegacyForTest(env, map[string]string{"path": local.slot.WorktreeRoot, "repo-scope": old.Address.RepoScope})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -374,7 +377,7 @@ func TestRebootProfileFailureStopsNothing(t *testing.T) {
 	old := detachedPrimary(t, env)
 	args := rebootArgs(old.Address)
 	args["agent"] = "no-such-agent"
-	if _, err := dispatchReboot(env, args); err == nil {
+	if _, err := rebootLegacyForTest(env, args); err == nil {
 		t.Fatal("reboot accepted an agent that cannot launch")
 	}
 	if got := env.Artifacts.Quiesces(); len(got) != 0 {
@@ -405,7 +408,7 @@ func TestRebootOfARolledBackStartStartsFresh(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	result, err := dispatchReboot(env, rebootArgs(record.Address))
+	result, err := rebootLegacyForTest(env, rebootArgs(record.Address))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -455,7 +458,7 @@ func TestRebootOfARolledBackStartRefusesBesideALegacyPrimary(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	result, err := dispatchReboot(env, rebootArgs(record.Address))
+	result, err := rebootLegacyForTest(env, rebootArgs(record.Address))
 	if err == nil || !strings.Contains(err.Error(), "one primary slot per repository") {
 		t.Fatalf("reboot beside a legacy primary: %+v, %v; want the one-primary refusal", result, err)
 	}
@@ -482,11 +485,11 @@ func TestRebootAfterResumeFailedIsUsable(t *testing.T) {
 
 	env := newTestEnv(t, "/repo")
 	parked := createParkedThreadInCouch(t, env, LaunchProfile{Agent: "claude", Argv: []string{}})
-	_, err := dispatchResume(env, map[string]string{"repo-scope": parked.Address.RepoScope, "tag": string(parked.Address.Tag)})
+	_, err := env.Couch.ResumeTarget(context.Background(), ResumeTarget{Address: parked.Address})
 	if ResumeDiagnosticOf(err) != ResumeBindingUnbound || !strings.Contains(err.Error(), "reboot") {
 		t.Fatalf("resume: %v", err)
 	}
-	result, err := dispatchReboot(env, rebootArgs(parked.Address))
+	result, err := rebootLegacyForTest(env, rebootArgs(parked.Address))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -511,10 +514,10 @@ func TestRebootAfterFailedLaunchDoesNotArchiveTwice(t *testing.T) {
 		env := newTestEnv(t, "/repo")
 		old := parkedNamedPrimary(t, env)
 		env.Runner.FailNextStart(errors.New("spawn failed"))
-		if _, err := dispatchReboot(env, rebootArgs(old.Address)); err == nil {
+		if _, err := rebootLegacyForTest(env, rebootArgs(old.Address)); err == nil {
 			t.Fatal("launch fault missing")
 		}
-		_, err := dispatchReboot(env, rebootArgs(old.Address))
+		_, err := rebootLegacyForTest(env, rebootArgs(old.Address))
 		if err == nil || !strings.Contains(err.Error(), "nothing to reboot") {
 			t.Fatalf("retry with the archived tag: %v", err)
 		}
@@ -525,10 +528,10 @@ func TestRebootAfterFailedLaunchDoesNotArchiveTwice(t *testing.T) {
 		old := slotRecordFixture(t, env, local)
 		args := map[string]string{"path": local.slot.WorktreeRoot, "repo-scope": old.Address.RepoScope}
 		env.Runner.FailNextStart(errors.New("spawn failed"))
-		if _, err := dispatchReboot(env, args); err == nil {
+		if _, err := rebootLegacyForTest(env, args); err == nil {
 			t.Fatal("launch fault missing")
 		}
-		result, err := dispatchReboot(env, args)
+		result, err := rebootLegacyForTest(env, args)
 		if err != nil {
 			t.Fatalf("slot retry: %v", err)
 		}
@@ -577,7 +580,7 @@ func TestRebootLiveUnboundThread(t *testing.T) {
 	}
 	args := rebootArgs(live.Address)
 	args[requireSettledArg] = settledForcedValue
-	result, err := dispatchReboot(env.testEnv, args)
+	result, err := rebootLegacyForTest(env.testEnv, args)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -597,7 +600,7 @@ func TestRebootLiveUnboundThread(t *testing.T) {
 	probe.busyErr = &SlotOperationError{Code: LiveRestartBusy, Detail: "turn open"}
 	args = rebootArgs(live.Address)
 	args[requireSettledArg] = settledKnownValue
-	if _, err := dispatchReboot(env.testEnv, args); slotOperationCode(err) != LiveRestartBusy {
+	if _, err := rebootLegacyForTest(env.testEnv, args); slotOperationCode(err) != LiveRestartBusy {
 		t.Fatalf("busy: %v", err)
 	}
 	if current, err := env.Couch.Threads.GetThread(live.Address); err != nil || current.Park != nil || current.VerifiedPark != nil || len(env.Runner.Ops) != 0 {
@@ -624,7 +627,7 @@ func TestRebootLiveSlotByPath(t *testing.T) {
 
 	env, live, probe := liveSlotRebootEnv(t)
 	args := map[string]string{"path": live.StartingPath, "repo-scope": live.Address.RepoScope, requireSettledArg: settledKnownValue}
-	result, err := dispatchReboot(env.testEnv, args)
+	result, err := rebootLegacyForTest(env.testEnv, args)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -640,7 +643,7 @@ func TestRebootLiveSlotByPath(t *testing.T) {
 	}
 	// Without a verdict, the same live slot is refused (recover's route).
 	env2, live2, _ := liveSlotRebootEnv(t)
-	if _, err := dispatchReboot(env2.testEnv, map[string]string{"path": live2.StartingPath, "repo-scope": live2.Address.RepoScope}); err == nil || env2.Proc.Exists(5151) != Live {
+	if _, err := rebootLegacyForTest(env2.testEnv, map[string]string{"path": live2.StartingPath, "repo-scope": live2.Address.RepoScope}); err == nil || env2.Proc.Exists(5151) != Live {
 		t.Fatalf("a live slot without a verdict: %v", err)
 	}
 }
@@ -654,7 +657,7 @@ func TestLiveRebootProfileFailureStopsNothing(t *testing.T) {
 	check := func(t *testing.T, env *relaunchEnv, live ThreadRecord, args map[string]string, pid int) {
 		args["agent"] = "no-such-agent"
 		args[requireSettledArg] = settledForcedValue
-		if _, err := dispatchReboot(env.testEnv, args); err == nil || !strings.Contains(err.Error(), "nothing was stopped") {
+		if _, err := rebootLegacyForTest(env.testEnv, args); err == nil || !strings.Contains(err.Error(), "nothing was stopped") {
 			t.Fatalf("reboot of an unlaunchable agent: %v", err)
 		}
 		current, err := env.Couch.Threads.GetThread(live.Address)
