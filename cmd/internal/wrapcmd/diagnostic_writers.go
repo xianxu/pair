@@ -68,3 +68,11 @@ func (p *proxy) flushCapture() {
 		p.debug("SCROLLBACK-flush-fail", err.Error())
 	}
 }
+
+// Stop admission as well as the clock: SIGWINCH can arrive after PTY EOF while
+// the child is still alive. These late events have no remaining flush owner.
+func (p *proxy) finishCapture() {
+	if err := p.capture.Close(); err != nil {
+		p.debug("SCROLLBACK-flush-fail", err.Error())
+	}
+}

@@ -3,6 +3,7 @@ package wrapcmd
 import (
 	"bytes"
 	"errors"
+	"github.com/creack/pty"
 	"github.com/xianxu/pair/cmd/internal/diagnosticlog"
 	"io"
 	"os"
@@ -181,6 +182,7 @@ func TestMasterPumpDrainsCaptureBeforeReturningOnEOF(t *testing.T) {
 			defer p.closeDebug()
 			done := make(chan struct{})
 			go func() { p.masterPump(); close(done) }()
+			defer func() { _ = writer.Close(); <-done; _ = capture.Close() }()
 			if _, err := writer.Write([]byte("accepted-eof")); err != nil {
 				t.Fatal(err)
 			}
@@ -191,6 +193,9 @@ func TestMasterPumpDrainsCaptureBeforeReturningOnEOF(t *testing.T) {
 			case <-done:
 			case <-t.Context().Done():
 				t.Fatal("pump did not return after EOF")
+			}
+			if err := capture.WriteEvent("resize", map[string]any{"cols": 80, "rows": 24}); !errors.Is(err, io.ErrClosedPipe) {
+				t.Fatalf("stopped capture owner accepted late resize: %v", err)
 			}
 			if capture.Offset() != int64(len("accepted-eof")) {
 				t.Fatalf("capture offset=%d", capture.Offset())
@@ -209,5 +214,51 @@ func TestMasterPumpDrainsCaptureBeforeReturningOnEOF(t *testing.T) {
 				t.Fatalf("pump exit hid capture flush failure: %s %v", b, err)
 			}
 		})
+	}
+}
+
+func TestMasterPumpRejectsInFlightResizeAfterOwnerEnds(t *testing.T) {
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reader.Close()
+	resizeEntered, releaseResize, resizeDone := make(chan struct{}), make(chan struct{}), make(chan struct{})
+	var events bytes.Buffer
+	capture := newCaptureBuffer(io.Discard, &events)
+	p := &proxy{ptmx: reader, stdinFile: reader, scrollbackFD: reader, eventsFD: reader, capture: capture,
+		captureFlushTicks: make(chan time.Time), stdoutPump: newStdoutPump(io.Discard),
+		agentBasename: "claude", now: time.Now, notifyModeActive: notifyModeDefault, captureWindow: defaultCaptureWindow,
+		getWinsize:    func(*os.File) (*pty.Winsize, error) { return &pty.Winsize{Cols: 80, Rows: 24}, nil },
+		setPTYWinsize: func(*os.File, *pty.Winsize) error { close(resizeEntered); <-releaseResize; return nil }}
+	go func() { p.setWinsize(); close(resizeDone) }()
+	<-resizeEntered // Successful ioctl is in flight before PTY EOF; event follows later.
+	pumpDone := make(chan struct{})
+	go func() { p.masterPump(); close(pumpDone) }()
+	defer func() {
+		_ = writer.Close()
+		select {
+		case <-releaseResize:
+		default:
+			close(releaseResize)
+		}
+		<-resizeDone
+		<-pumpDone
+		_ = capture.Close()
+	}()
+	if _, err := writer.Write([]byte("last-output")); err != nil {
+		t.Fatal(err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	<-pumpDone
+	close(releaseResize)
+	<-resizeDone
+	if n := capture.events.Buffered(); n != 0 {
+		t.Fatalf("resize admitted %d sidecar bytes after its flush owner ended", n)
+	}
+	if bytes.Contains(events.Bytes(), []byte(`"type":"resize"`)) {
+		t.Fatalf("late resize published after capture closed: %s", events.Bytes())
 	}
 }

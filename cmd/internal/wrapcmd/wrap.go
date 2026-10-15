@@ -3074,7 +3074,7 @@ argsDone:
 //
 // Returns when the master pipe closes (child exited).
 func (p *proxy) masterPump() {
-	defer p.flushCapture()
+	defer p.finishCapture()
 	type readEv struct {
 		data []byte
 		err  error
