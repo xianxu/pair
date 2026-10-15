@@ -836,6 +836,18 @@ Corrected normal build PASS; root inspected both code changes. Atlas and lessons
 record the grammar rule. A new normal recorded suite and whole-issue re-review
 follow; M1/M2 closed boundaries remain historical, no waiver or live/stage effect.
 
+
+### 2026-10-15 — integrate landed #558 before final recorded verification
+
+While eedeba2e7's required suite was still queued (not running tests), main gained
+#558's receiver-profile code/docs plus published issues. Canceled only this slot's
+owned sdlc process7164 with INT after ps/cwd verification; queued runner exited130.
+No pass/failure of code is claimed for that canceled run. Merged origin/main
+cleanly, preserving #558 receiver-list/Qoder behavior and #556 recovery/admission;
+no conflict resolution. New recorded suite will cover the integrated head rather
+than consuming a full run whose head immediately needs integration. No other
+process, test lock, working slot or stage was changed.
+
 ## Revisions
 
 ### 2026-10-15T05:33-07:00 — overnight M2 dispatch
