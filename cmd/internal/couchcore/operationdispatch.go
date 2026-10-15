@@ -454,35 +454,21 @@ func CouchLiveOwnerExecutor(c *Couch) OperationExecutor {
 			}
 			return c.ResumeCandidates(ctx, target)
 		case "resume":
-			if key := a["candidate"]; key != "" {
-				if a["warm-only"] != "" {
-					return nil, fmt.Errorf("candidate selection cannot be automatic warm resume")
-				}
-				target, err := resolveRecoveryOperationTarget(ctx, c, a)
-				if err != nil {
-					return nil, err
-				}
-				return c.RecoverSelection(ctx, RecoverySelection{Target: target, Kind: RecoveryInferred, CandidateKey: key, Reference: a["ref"]})
-			}
-			// warm-only is the background reattach pass, and it stays a direct
-			// warm-only resume: no route may start an agent behind the
-			// operator's back (pair#206).
-			if a["warm-only"] == "true" {
-				address, err := resolveOperationThread(c, a)
-				if err != nil {
-					return nil, err
-				}
-				record, handle, err := c.ResumeContextWith(ctx, address, ResumeOptions{WarmOnly: true})
-				if err != nil {
-					return nil, err
-				}
-				return StartResult{Record: record, Handle: handle}, nil
-			}
 			target, err := resolveRecoveryOperationTarget(ctx, c, a)
 			if err != nil {
 				return nil, err
 			}
-			return c.RecoverSelection(ctx, RecoverySelection{Target: target, Kind: RecoveryProven, Reference: a["ref"]})
+			if key := a["candidate"]; key != "" {
+				if a["warm-only"] != "" {
+					return nil, fmt.Errorf("candidate selection cannot be automatic warm resume")
+				}
+				result, err := c.RecoverSelection(ctx, RecoverySelection{Target: target, Kind: RecoveryInferred, CandidateKey: key, Reference: a["ref"]})
+				return result, withRebootAdvice(err)
+			}
+			if a["warm-only"] == "true" {
+				return c.ResumeTargetWith(ctx, target, ResumeOptions{WarmOnly: true})
+			}
+			return c.ResumeTarget(ctx, target)
 		case "switch", "attach", "move-slot":
 			return nil, fmt.Errorf("%s requires an active couch console", call.Operation.Name)
 		default:

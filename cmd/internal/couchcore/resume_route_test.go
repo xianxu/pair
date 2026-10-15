@@ -10,9 +10,9 @@ import (
 	"go/token"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/xianxu/pair/cmd/internal/checkpoint"
 	"github.com/xianxu/pair/cmd/internal/launcher"
@@ -146,9 +146,6 @@ func expectedResumeRoute(in ResumeRouteInput) ResumeRoute {
 	if in.Slot {
 		return ResumeRouteSlot
 	}
-	if in.HasRecord && in.RecoveryRecover {
-		return ResumeRouteRecover
-	}
 	return ResumeRouteThread
 }
 
@@ -159,18 +156,16 @@ func TestChooseResumeRoute(t *testing.T) {
 	for _, slot := range []bool{false, true} {
 		for _, hasRecord := range []bool{false, true} {
 			for _, phase := range phases {
-				for _, recover := range []bool{false, true} {
-					in := ResumeRouteInput{Slot: slot, HasRecord: hasRecord, Continuation: phase, RecoveryRecover: recover}
-					if !hasRecord && (phase != "" || recover) {
-						continue // no record carries no continuation and no recovery verdict
-					}
-					want := expectedResumeRoute(in)
-					if want == 0 {
-						t.Fatalf("%+v: the expected table has no route", in)
-					}
-					if got := ChooseResumeRoute(in); got != want {
-						t.Errorf("%+v: route %v, want %v", in, got, want)
-					}
+				in := ResumeRouteInput{Slot: slot, HasRecord: hasRecord, Continuation: phase}
+				if !hasRecord && phase != "" {
+					continue // no record carries no continuation
+				}
+				want := expectedResumeRoute(in)
+				if want == 0 {
+					t.Fatalf("%+v: the expected table has no route", in)
+				}
+				if got := ChooseResumeRoute(in); got != want {
+					t.Errorf("%+v: route %v, want %v", in, got, want)
 				}
 			}
 		}
@@ -204,7 +199,8 @@ func writeSlotPathPreference(t *testing.T, local *ThreadStore, agent string) {
 // A slot whose thread pointer couch lost, with its conversation still bound
 // in the native ledger. Resume carries no agent argument -- the operator only
 // pressed resume -- so the agent the adoption is proved against comes from the
-// slot's own path preference, and the ledger proves it per agent.
+// slot's own path preference. The listing proves an attachable terminal and
+// the ledger proves the selected agent; adoption starts no native conversation.
 func TestResumeOperationOnASlotPathAdoptsALostPointer(t *testing.T) {
 	t.Parallel()
 
@@ -212,13 +208,13 @@ func TestResumeOperationOnASlotPathAdoptsALostPointer(t *testing.T) {
 	writeSlotPathPreference(t, local, "claude")
 	scope, _ := launcher.ResolveRepoScope(local.slot.WorktreeRoot)
 	address := ThreadAddress{RepoScope: scope.Key, Tag: "couch-1111111111111111"}
-	env.Artifacts.SetPairSession(address, "pair-survivor", false)
+	env.Artifacts.SetPairSession(address, "pair-survivor", true)
+	env.Artifacts.SetDetachedSession(address, "pair-survivor")
 	env.Artifacts.SetNativeBinding(address, "claude", sessioninventory.BindingEstablished, "native-1")
-	// The cold resume's session coming up births its agent pane.
-	env.Runner.AfterAcknowledge = func(id string) error {
-		env.Artifacts.SetPairSession(address, continuationChildSession(t, env.Runner, id), true)
-		return nil
-	}
+	env.Couch.Workspaces = slotReadinessFunc(func(context.Context, ProvisionRequest) (ProvisionResult, error) {
+		t.Fatal("warm adoption reconciled the workspace")
+		return ProvisionResult{}, nil
+	})
 	value, err := dispatchResume(env, map[string]string{"path": local.slot.WorktreeRoot, "repo-scope": scope.Key})
 	if err != nil {
 		t.Fatal(err)
@@ -226,6 +222,9 @@ func TestResumeOperationOnASlotPathAdoptsALostPointer(t *testing.T) {
 	result, ok := value.(StartResult)
 	if !ok || result.Record.Thread != address || result.Handle == nil {
 		t.Fatalf("resume did not adopt the survivor: %#v", value)
+	}
+	if result.Record.Shape != StartWarmReattach || childEnvValue(env.Runner.Child(result.Handle.ID()).Env, launcher.CouchLaunchProfileEnv) != "" {
+		t.Fatal("lost pointer adoption launched a native agent")
 	}
 	current, err := local.GetThread(address)
 	if err != nil || current.LatestLaunchProfile == nil || current.LatestLaunchProfile.Agent != "claude" {
@@ -245,7 +244,8 @@ func TestResumeOperationOnASlotPathAdoptsALostPointer(t *testing.T) {
 // observes nothing about which agent runs in the session (pane sidecars name
 // agents but keep stale twins, and nothing reads them as identity). So a
 // record-less detached survivor is never adopted on a guess -- right or wrong
-// -- and the refusal says a session survives, not reboot, because reboot would
+// -- without matching native proof. The refusal says a session survives,
+// not reboot, because reboot would
 // refuse a slot with a live owner too.
 func TestResumeAdoptionWithTheWrongAgentIsNotProved(t *testing.T) {
 	t.Parallel()
@@ -311,19 +311,15 @@ func TestResumeReattachesASurvivorOfAnUnusablePrimary(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var shape StartShape
-	var handle Handle
-	switch result := value.(type) {
-	case StartResult:
-		shape, handle = result.Record.Shape, result.Handle
-	case ContinuationResult:
-		shape, handle = result.Record.Shape, result.Handle
-	default:
+	child, ok := value.(StartedChild)
+	if !ok {
 		t.Fatalf("unexpected result %#v", value)
 	}
-	if shape != StartWarmReattach || handle == nil {
-		t.Fatalf("not a warm reattach: shape %q", shape)
+	started, ok := child.Started()
+	if !ok || started.Record.Shape != StartWarmReattach || started.Handle == nil {
+		t.Fatalf("not a warm reattach: %#v", value)
 	}
+	handle := started.Handle
 	if childEnvValue(env.Runner.Child(handle.ID()).Env, launcher.CouchLaunchProfileEnv) != "" {
 		t.Fatal("a fresh agent was started for a surviving session")
 	}
@@ -393,7 +389,7 @@ func TestResumeTransientRefusalDoesNotNameReboot(t *testing.T) {
 
 	env := newTestEnv(t, "/repo")
 	record := archivableThread(t, env.Couch.Threads, "couch-0000000000000001")
-	if _, err := env.Couch.Threads.CommitStartClaim(record.Address, record.Revision, "/repo/.git", time.Unix(200, 0).UTC(), StartEvent{
+	if _, err := env.Couch.Threads.CommitStartClaim(record.Address, record.Revision, "/repo/.git", env.Now, StartEvent{
 		Kind: StartClaimed, Nonce: "start-0123456789abcdef", Shape: StartFreshExisting,
 		Owner:   SupervisorOwner{PID: 77, Identity: "owner-couch"},
 		Profile: record.LatestLaunchProfile,
@@ -439,7 +435,7 @@ func TestOpenSlotZeroSurvivorsIsATypedRefusal(t *testing.T) {
 // The background reattach pass asks for warm-only, and it must stay a direct
 // warm-only resume: routing it through Continue or RecoverThread
 // could start an agent behind the operator's back.
-func TestWarmOnlyResumeIsUnrouted(t *testing.T) {
+func TestResumeWarmOnlyIsUnrouted(t *testing.T) {
 	t.Parallel()
 
 	env := newTestEnv(t, "/repo")
@@ -469,5 +465,136 @@ func TestStartFormOpenOfAnEmptySlotNamesReboot(t *testing.T) {
 	})
 	if ResumeDiagnosticOf(err) != ResumeNoSurvivor || !strings.Contains(err.Error(), "Tab → reboot") {
 		t.Fatalf("open of an empty slot: diagnostic %q, err %v", ResumeDiagnosticOf(err), err)
+	}
+}
+
+func TestResumeRecordlessColdEvidenceNeverLaunchesOrAdopts(t *testing.T) {
+	env, local := slotRecoveryOperationFixture(t)
+	writeSlotPathPreference(t, local, "claude")
+	scope, _ := launcher.ResolveRepoScope(local.slot.WorktreeRoot)
+	address := ThreadAddress{RepoScope: scope.Key, Tag: "couch-1111111111111111"}
+	env.Artifacts.SetPairSession(address, "absent-old-session", false)
+	env.Artifacts.SetNativeBinding(address, "claude", sessioninventory.BindingEstablished, "proven-native")
+	_, err := dispatchResume(env, map[string]string{"path": local.slot.WorktreeRoot, "repo-scope": scope.Key})
+	if ResumeDiagnosticOf(err) != ResumeNoSurvivor || !strings.Contains(strings.ToLower(err.Error()), "fresh") || len(env.Runner.Ops) != 0 {
+		t.Fatalf("recordless cold launched: err=%v ops=%v", err, env.Runner.Ops)
+	}
+	if observed, e := local.observeSlotCurrent(); e != nil || observed.Record != nil {
+		t.Fatalf("cold evidence adopted a pointer: %+v err=%v", observed, e)
+	}
+}
+
+func TestResumeColdNativeRetainsPreparedConfirmationBoundary(t *testing.T) {
+	f := newRecoveryExecutionFixture(t)
+	f.Couch.RecoveryEvidence = nil
+	f.Proc.Set(42, "old-helper")
+	f.Artifacts.SetNativeBinding(f.record.Address, "codex", sessioninventory.BindingEstablished, "proven-native")
+	retired := 0
+	f.Couch.RecoveryRetirement = func(context.Context, ThreadRecord) (RecoveryRetirement, error) {
+		return RecoveryRetirement{Digest: "exact-owned", Stops: []RecoveryStopProcess{{PID: 42, Identity: "old-helper", Role: "wrapper"}}, Retire: func(context.Context) error { retired++; f.Proc.Kill(42); return nil }}, nil
+	}
+	_, err := dispatchResume(f.testEnv, map[string]string{"repo-scope": f.record.Address.RepoScope, "tag": string(f.record.Address.Tag)})
+	var required *RecoveryConfirmationRequired
+	if !errors.As(err, &required) || retired != 0 || len(f.Runner.Ops) != 0 {
+		t.Fatalf("cold route bypassed confirmation: err=%v retired=%d ops=%v", err, retired, f.Runner.Ops)
+	}
+	result, err := f.Couch.ConfirmRecovery(context.Background(), required.Offer.Token)
+	if err != nil || retired != 1 || result.Start.Handle == nil {
+		t.Fatalf("confirmed cold route=%+v retired=%d err=%v", result, retired, err)
+	}
+}
+
+func TestResumeUnknownListingNeverAttachesOrPreparesColdRecovery(t *testing.T) {
+	env, record := peekEnv(t)
+	env.Artifacts.SetPairSession(record.Address, "listed", true)
+	env.Artifacts.ListedSessionHook = func(ThreadAddress) error { return errors.New("listing unanswered") }
+	prepared := 0
+	env.Couch.RecoveryRetirement = func(context.Context, ThreadRecord) (RecoveryRetirement, error) {
+		prepared++
+		return RecoveryRetirement{}, nil
+	}
+	_, err := dispatchResume(env, map[string]string{"repo-scope": record.Address.RepoScope, "tag": string(record.Address.Tag)})
+	if err == nil || prepared != 0 || len(env.Runner.Ops) != 0 {
+		t.Fatalf("unknown listing acted: err=%v prepared=%d ops=%v", err, prepared, env.Runner.Ops)
+	}
+}
+
+func TestResumePendingContinuationUsesItsRetainedCheckpointExecutor(t *testing.T) {
+	f := newContinuationFixture(t)
+	f.env.Proc.Kill(f.source.Incarnations[0].PID)
+	f.env.Artifacts.SetPairSession(f.source.Address, "pair-exact", false)
+	f.env.Couch.RecoveryRetirement = func(context.Context, ThreadRecord) (RecoveryRetirement, error) {
+		t.Fatal("retained continuation entered generic recovery retirement")
+		return RecoveryRetirement{}, nil
+	}
+	value, err := dispatchResume(f.env.testEnv, map[string]string{"repo-scope": f.source.Address.RepoScope, "tag": string(f.source.Address.Tag)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	child, ok := value.(StartedChild)
+	if !ok {
+		t.Fatalf("continuation returned no start: %#v", value)
+	}
+	started, ok := child.Started()
+	if !ok || started.Handle == nil || f.launches != 1 {
+		t.Fatalf("continuation launch: value=%#v launches=%d", value, f.launches)
+	}
+	record, err := f.env.Couch.Threads.GetThread(f.source.Address)
+	if err != nil || record.Continuation == nil || record.Continuation.Phase != checkpoint.Complete || record.Continuation.SourceAbsence == nil {
+		t.Fatalf("retained continuation not completed: %+v err=%v", record.Continuation, err)
+	}
+}
+
+func TestResumePositiveListingOutranksPendingContinuation(t *testing.T) {
+	f := newContinuationFixture(t)
+	before, err := f.env.Couch.Threads.GetThread(f.source.Address)
+	if err != nil {
+		t.Fatal(err)
+	}
+	value, err := dispatchResume(f.env.testEnv, map[string]string{"repo-scope": f.source.Address.RepoScope, "tag": string(f.source.Address.Tag)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	child, ok := value.(StartedChild)
+	if !ok {
+		t.Fatalf("Continue returned no client: %#v", value)
+	}
+	started, ok := child.Started()
+	if !ok || started.Record.Shape != StartWarmReattach || childEnvValue(f.env.Runner.Child(started.Handle.ID()).Env, launcher.CouchLaunchProfileEnv) != "" {
+		t.Fatalf("listing entered compaction launch: %#v", value)
+	}
+	after, err := f.env.Couch.Threads.GetThread(f.source.Address)
+	if err != nil || !reflect.DeepEqual(before, after) || len(f.env.Artifacts.TriggeredQuits()) != 0 {
+		t.Fatalf("Continue changed retained pending request: before=%+v after=%+v err=%v", before, after, err)
+	}
+}
+
+func TestResumeRunningContinuationRetriesItsExactRegisteredTarget(t *testing.T) {
+	f := newContinuationFixture(t)
+	first, err := f.env.Couch.Continue(context.Background(), f.source.Address, f.status.RequestID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	record, err := f.env.Couch.Threads.GetThread(f.source.Address)
+	if err != nil {
+		t.Fatal(err)
+	}
+	record, err = f.env.Couch.Threads.updateExistingThread(record.Address, record.Revision, func(next *ThreadRecord) error { unrecordTarget(next); return nil })
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.env.Artifacts.SetPairSession(record.Address, record.SessionBinding.Name, false)
+	f.env.Couch.RecoveryRetirement = func(context.Context, ThreadRecord) (RecoveryRetirement, error) {
+		t.Fatal("running continuation entered generic native recovery")
+		return RecoveryRetirement{}, nil
+	}
+	launches := f.launches
+	value, err := dispatchResume(f.env.testEnv, map[string]string{"repo-scope": record.Address.RepoScope, "tag": string(record.Address.Tag)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, ok := value.(ContinuationResult)
+	if !ok || result.Status.Phase != checkpoint.Complete || f.launches != launches || result.Status.RequestID != first.Status.RequestID {
+		t.Fatalf("running continuation retry: value=%#v launches=%d want %d", value, f.launches, launches)
 	}
 }
