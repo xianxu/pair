@@ -1772,3 +1772,8 @@ Deleting the orientation delivery also deleted the only `automaticRenderEpoch.Ad
   empty implies absent. Check kernel filtering before turning missing metadata
   into authority; on Darwin require an independent signal-zero ESRCH, retaining
   alive, permission and other outcomes as uncertainty.
+
+- #218 shutdown: cancellation entry points must remain callable while state
+  commits hold their mutex. Cancel the lifetime first; release scoped state at
+  joined teardown's existing barrier and invoke cleanup outside the mutex. Test
+  Stop with an active pass while holding the state lock, not only idle Stop.

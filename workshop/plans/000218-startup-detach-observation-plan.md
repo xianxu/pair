@@ -205,3 +205,12 @@ Alive, denied and other probe outcomes retain EIO uncertainty with diagnostic
 text. Normal identities and raw lookup errors take no probe. Deterministic tests
 cover these outcomes and native reaped-child/argv-to-identity exit tests remain.
 Missing metadata cannot authorize absence. Primary-source basis: [XNU proc iteration](https://github.com/apple-oss-distributions/xnu/blob/main/bsd/kern/kern_proc.c#L3853-L3865); upstream main is not pinned to the host kernel, so the implementation keeps conservative uncertainty.
+
+### 2026-10-14 — preserve shutdown cancellation without the state mutex
+
+Full-suite attach-transaction regression proved M2 Stop self-deadlocks if an
+attach holds c.mu. Keep Stop limited to lifetime cancellation and stop signaling;
+its descendant pass and worker contexts cancel immediately. Move explicit scope
+release to teardown's existing mutex barrier, call outside the lock before
+workers.Wait. Tests hold c.mu across Stop and separate prompt cancellation from
+joined exactly-once cleanup. Existing deterministic test reproduced RED at8s.

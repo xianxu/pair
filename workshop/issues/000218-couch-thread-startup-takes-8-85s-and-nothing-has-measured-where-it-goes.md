@@ -415,7 +415,23 @@ or run here. Switching listing format, combining inventories, or explicitly
 naming an action cannot eliminate upstream discovery. This diagnostic/scope
 choice remains for the hub; no approval inferred.
 
+Full local suite on fd4a2580 FAILED: exit2 after15m24s execution and1201s
+queue wait, logSHA d0dc10ab0d77 (full retained sdlc local-check log).
+Only failing package couchtty: TestConsoleStopDuringAttachRefusesPartialPaneAndKeepsTerminalRestored
+timed out at10min. All other Go packages completed, including launcher, procutil,
+couchcore and diagnosticlog. Targeted8s rerun reproduces the same self-deadlock:
+existing test holds c.mu while calling Stop; M2 added synchronous c.mu acquisition
+to release pass fields. Lifetime cancellation already synchronously cancels
+production pass/capture/worker descendants; queued workers check cancellation
+before dispatcher IO. Move explicit pass cleanup into teardown's existing state
+mutex barrier, invoke its callback outside the mutex before joining workers.
+Strengthen scoped-pass Stop test to hold c.mu across Stop, assert immediate
+context cancellation, then await teardown for exactly-once release/cleared fields.
+Read-only peer review confirmed the cancellation graph and correction.
+
 ## Revisions
+
+- 2026-10-14 — repair M2 shutdown lock regression found by full suite: preserve mutex-free Stop; release pass fields/callback in joined teardown. No lifecycle authority or retry changes.
 
 - 2026-10-14 — correct the earlier empty-Darwin-lookup inference: only an independent kernel ESRCH establishes absence; retain uncertainty otherwise. No retry or effect-authority relaxation.
 
