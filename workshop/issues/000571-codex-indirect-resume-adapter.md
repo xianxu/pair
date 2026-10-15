@@ -121,6 +121,10 @@ Corrected-head recorded suite8bd4baa1 passed couchcore (407.388s), launcher (40.
 
 The8bd4baa1 run completed all recipes and Go packages in13m3s, with only the #585 broadcast failure. Saved log: /Users/xianxu/workspace/pair/.git/sdlc/test-stats/failed/b2dd3d164d5caad0fd4f624661697ade.log; sha256 prefix40d6d761bed7. The unchanged recorded rerun is now executing on exactly8bd4baa138c63cda357c3a447ddb2cba294f1df7 (run119840be5020067f99a3413fd951e608), after #585 publication. No tests were skipped or aborted.
 
+### 2026-10-15 — independent restoration observation flake
+
+The unchanged recorded rerun on8bd4baa1 stopped in test-review after4m33s, before Go packages: tests/review-observation-test.sh Python line55 received branch changed during restoration; invoke Alt+C again in its repeated checkout/request loop. Log /Users/xianxu/workspace/pair/.git/sdlc/test-stats/failed/119840be5020067f99a3413fd951e608.log, sha256 prefix58ed1e657115. Unchanged isolated shell test passed; the adapter changes none of that observation/controller/test code. Filed unassigned #586 with the first-check evidence and unproven incomplete-wanted-observation hypothesis. Preserve restore authorization. Started make -k to complete remaining recipes/packages and queued another recorded suite on the unchanged8bd4baa1 code. No production or test fixes added for either flake. Main's intervening issue documents merged cleanly; all files changed since the tested head remain issue Markdown only.
+
 ### 2026-10-15 — planning under the disk restriction
 
 Append source-backed configuration/selector measurements and a proposal before implementation. No architecture or implementation gate is waived: issue-branch preparation, canonical durable plan and change-code wait until compilation is permitted; admission integration waits for #556 on main. Preserve native passthrough for unresolved scopes, picker/names, incomplete DB evidence and nondeterministic ties instead of changing ordinary resume behavior into a refusal.
