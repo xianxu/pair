@@ -252,3 +252,123 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-15T02:48:34-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 528 — couch: resume a slot whose conversation binding is unproven: infer it from transcripts and the tty log, or start fresh oriented from the tty log |
+| repo | pair |
+| issue file | workshop/issues/000528-couch-resume-a-slot-whose-conversation-binding-is-unproven-infer-it-from-transcripts-and-the-tty-log-or-start-fresh-oriented-from-the-tty-log.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 0bf9315528f7b9ffbc2ecf247a863bef298ed399..15bf3855722960fd8a97ddd2f4bf52395e7be08b |
+| command | sdlc close --issue 528 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-15T02:48:34-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The conflict resolution preserves both intents: inventory stays blocked until the header-only readiness check rejects the empty menu, then Enter waits for the current “Resume from disk” label. No new defects or scope expansion found in this interdiff.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Prior disposition retained; observation policy is unchanged.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Prior disposition retained; process-generation checks are unchanged.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Prior disposition retained; admission readers are unchanged.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      Prior disposition retained; coordination-file lifecycle is unchanged.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      Prior disposition retained; capture and configuration readers are unchanged.
+  - id: BR-6
+    disposition: addressed
+    note: |
+      Prior disposition retained; native ownership resolution is unchanged.
+  - id: BR-7
+    disposition: addressed
+    note: |
+      Prior disposition retained; recovery routing is unchanged.
+  - id: BR-8
+    disposition: addressed
+    note: |
+      Prior disposition retained; native conformance parsing is unchanged.
+  - id: BR-9
+    disposition: addressed
+    note: |
+      Prior disposition retained; attachment admission and execution are unchanged.
+  - id: BR-10
+    disposition: addressed
+    note: |
+      Prior documentation disposition retained; no user-facing surface changes.
+  - id: BR-11
+    disposition: addressed
+    note: |
+      Prior disposition retained; startup integration is unchanged.
+  - id: BR-12
+    disposition: addressed
+    note: |
+      Prior disposition retained; observation-only store access is unchanged.
+  - id: BR-13
+    disposition: addressed
+    note: |
+      Prior disposition retained; contextual broker readers are unchanged.
+  - id: BR-14
+    disposition: addressed
+    note: |
+      Prior disposition retained; automatic attachment and dead-client repair are unchanged.
+  - id: BR-15
+    disposition: addressed
+    note: |
+      Production-symbol and artifact-classification guards pass at the pinned head.
+```
+
+1. **Strengths**
+   - [cold_resume_origins_test.go:174](cmd/internal/couchcmd/cold_resume_origins_test.go:174) retains deterministic inventory blocking and the header-only negative assertion.
+   - [cold_resume_origins_test.go:195](cmd/internal/couchcmd/cold_resume_origins_test.go:195) waits for the label emitted by the current renderer.
+   - Both switcher and remote paths retain cold-launch registration assertions.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage:** Cold-resume test passed ten repetitions, exercising both origins. Targeted continuity tests and production-symbol/artifact-classification guards passed. Diff whitespace check passed; checkout remains clean. Full suite, live conformance, and mutation checks were not rerun.
+
+6. **Architecture:** **ARCH-DRY passes:** no duplicated production behavior introduced. **ARCH-PURE passes:** injected inventory seam preserves deterministic synchronization. **ARCH-PURPOSE passes:** resolution retains both the scheduling regression and current recovery label. No new architectural or user-facing surface requires atlas/README updates.
+
+7. **Plan revisions:** None required; the appended revision accurately describes the test-only resolution.
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.550438083s
+head: "15bf3855722960fd8a97ddd2f4bf52395e7be08b"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

@@ -2189,6 +2189,75 @@ rounds:
       isolation: fenced
       reviewed: 65517e605e94572a4a70be21eb3cd88313368cc1
       blocked: false
+    - "n": 20
+      timestamp: "2026-10-15T02:48:34-07:00"
+      dispatched: "2026-10-15T02:47:11-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Prior disposition retained; observation policy is unchanged.
+          round: 20
+        - id: BR-2
+          disposition: addressed
+          note: Prior disposition retained; process-generation checks are unchanged.
+          round: 20
+        - id: BR-3
+          disposition: addressed
+          note: Prior disposition retained; admission readers are unchanged.
+          round: 20
+        - id: BR-4
+          disposition: addressed
+          note: Prior disposition retained; coordination-file lifecycle is unchanged.
+          round: 20
+        - id: BR-5
+          disposition: addressed
+          note: Prior disposition retained; capture and configuration readers are unchanged.
+          round: 20
+        - id: BR-6
+          disposition: addressed
+          note: Prior disposition retained; native ownership resolution is unchanged.
+          round: 20
+        - id: BR-7
+          disposition: addressed
+          note: Prior disposition retained; recovery routing is unchanged.
+          round: 20
+        - id: BR-8
+          disposition: addressed
+          note: Prior disposition retained; native conformance parsing is unchanged.
+          round: 20
+        - id: BR-9
+          disposition: addressed
+          note: Prior disposition retained; attachment admission and execution are unchanged.
+          round: 20
+        - id: BR-10
+          disposition: addressed
+          note: Prior documentation disposition retained; no user-facing surface changes.
+          round: 20
+        - id: BR-11
+          disposition: addressed
+          note: Prior disposition retained; startup integration is unchanged.
+          round: 20
+        - id: BR-12
+          disposition: addressed
+          note: Prior disposition retained; observation-only store access is unchanged.
+          round: 20
+        - id: BR-13
+          disposition: addressed
+          note: Prior disposition retained; contextual broker readers are unchanged.
+          round: 20
+        - id: BR-14
+          disposition: addressed
+          note: Prior disposition retained; automatic attachment and dead-client repair are unchanged.
+          round: 20
+        - id: BR-15
+          disposition: addressed
+          note: Production-symbol and artifact-classification guards pass at the pinned head.
+          round: 20
+      recipe: fix-review
+      isolation: fenced
+      reviewed: 15bf3855722960fd8a97ddd2f4bf52395e7be08b
+      blocked: false
 ---
 
 # Gate ledger — pair#528 (boundary-review)
@@ -2431,6 +2500,26 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-12 — addressed — Read-only detach snapshot and borrowed preview remain; journal-preservation regression passes.
 - BR-13 — addressed — Prior disposition retained; contextual broker artifact readers are unchanged.
 - BR-14 — addressed — Selected attachment retains migration bypass and positive-listing checks; affected attachment tests pass.
+- BR-15 — addressed — Production-symbol and artifact-classification guards pass at the pinned head.
+
+## Round 20 — 2026-10-15T02:48:34-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — Prior disposition retained; observation policy is unchanged.
+- BR-2 — addressed — Prior disposition retained; process-generation checks are unchanged.
+- BR-3 — addressed — Prior disposition retained; admission readers are unchanged.
+- BR-4 — addressed — Prior disposition retained; coordination-file lifecycle is unchanged.
+- BR-5 — addressed — Prior disposition retained; capture and configuration readers are unchanged.
+- BR-6 — addressed — Prior disposition retained; native ownership resolution is unchanged.
+- BR-7 — addressed — Prior disposition retained; recovery routing is unchanged.
+- BR-8 — addressed — Prior disposition retained; native conformance parsing is unchanged.
+- BR-9 — addressed — Prior disposition retained; attachment admission and execution are unchanged.
+- BR-10 — addressed — Prior documentation disposition retained; no user-facing surface changes.
+- BR-11 — addressed — Prior disposition retained; startup integration is unchanged.
+- BR-12 — addressed — Prior disposition retained; observation-only store access is unchanged.
+- BR-13 — addressed — Prior disposition retained; contextual broker readers are unchanged.
+- BR-14 — addressed — Prior disposition retained; automatic attachment and dead-client repair are unchanged.
 - BR-15 — addressed — Production-symbol and artifact-classification guards pass at the pinned head.
 
 ## Open findings
