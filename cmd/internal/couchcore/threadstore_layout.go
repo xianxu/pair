@@ -36,9 +36,6 @@ func (l StoreLayout) journalEntries(entries []storeJournalEntry) []storeJournalE
 	return result
 }
 
-func (s *ThreadStore) localMembership() (threadManifest, []byte, bool, error) {
-	return s.localMembershipContext(context.Background())
-}
 func (s *ThreadStore) localMembershipContext(ctx context.Context) (threadManifest, []byte, bool, error) {
 	manifest := threadManifest{SchemaVersion: 1, Threads: []ThreadAddress{}}
 	raw, err := s.readRetentionFileContext(ctx, filepath.Join(s.root, "thread.json"))
@@ -174,9 +171,6 @@ func (s *ThreadStore) readPayloadContext(ctx context.Context, path string) ([]by
 
 // Open each component relative to the retained parent descriptor. Unlike a
 // Lstat followed by ReadFile, replacement with a symlink cannot redirect reads.
-func (s *ThreadStore) readLocalPayload(path string, limit int64) ([]byte, error) {
-	return s.readLocalPayloadContext(context.Background(), path, limit)
-}
 func (s *ThreadStore) readLocalPayloadContext(ctx context.Context, path string, limit int64) ([]byte, error) {
 	ctx, cleanup := s.metadataReadContext(ctx)
 	defer cleanup()

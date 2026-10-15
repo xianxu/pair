@@ -92,7 +92,7 @@ func TestInspectionLocalDescriptorReadRetainsAuthorityCancellation(t *testing.T)
 		cancel()
 		// Snapshot callers use background wrappers; the descriptor reader must
 		// still obey the context that owns these retained inspection locks.
-		if _, err := view.readLocalPayload(view.recordPath(record.Address), localPayloadLimit); !errors.Is(err, context.Canceled) {
+		if _, err := view.readLocalPayloadContext(context.Background(), view.recordPath(record.Address), localPayloadLimit); !errors.Is(err, context.Canceled) {
 			t.Fatalf("local descriptor outlived inspection authority: %v", err)
 		}
 		if _, err := inspection.Snapshot(store.namespace); !errors.Is(err, context.Canceled) {

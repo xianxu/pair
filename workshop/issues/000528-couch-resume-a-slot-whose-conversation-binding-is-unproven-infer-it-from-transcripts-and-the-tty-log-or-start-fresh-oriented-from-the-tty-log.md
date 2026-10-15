@@ -993,3 +993,30 @@ No follow-up implementation starts on this branch.
   graph and refuse absent WarmOnly before lifecycle work; remove obsolete
   adapters. Appended plan Revision before source. No cap demotion used to
   ignore BR-15, no review bypass; final suite follows the correction.
+
+- BR-14 actual-consumer RED: post-ack FIFO214.041ms despite50ms context;
+  preflight lock1.003s despite25ms context; absent WarmOnly replayed a valid
+  journal arriving after preflight. Corrected preflight to contextual preview,
+  moved absent WarmOnly refusal before hold/retention/lifecycle reads, and
+  routed repair through the readonly contextual backend for both routing and
+  reread, with context forwarded to the local publication gate. Revision,
+  exact-dead old helper and locally owned new helper guards remain unchanged.
+- Automatic ThreadStore read inventory: broker record/agent/use-time callbacks
+  use PreviewThreadContext; families use RepositoryNamesContext; warm resume
+  preflight uses PreviewThreadContext; listing gates retain caller context;
+  attachment registration reads only in-memory registry then saves it; repair
+  uses readonly contextual routing/reread and no journal replay; worker inventory
+  uses PreviewSnapshotContext through local backends. Selected hub observation
+  uses a readonly local clone, while explicit hub setup/lifecycle authority stays
+  unchanged. Generic Store registry/description reads predate M1 and remain
+  outside this per-thread correction; no claim that all filesystem IO is bounded.
+- BR-15 removed all four obsolete adapters (readOptionalFile, readThreadLocked,
+  localMembership, readLocalPayload), updating two test consumers. Combined
+  symbol/artifact classification guard PASS3.236s. Focused automatic warm/startup,
+  preview/inspection, inventory-deadline, broker/fastpeek plus symbol guard PASS:
+  artifactpath1.403s/core44.923s/cmd4.434s. Includes cancellation immediately before
+  repair publication and global/local/routed-local inventory deadline tests.
+  Normal re-review and final recorded suite remain required.
+- FIFO fixture cleanup also bounds its own writer wait and skips it if the
+  acknowledgement hook never ran; focused final rerun PASS1.526s. No production
+  edits after the combined passing group; diff check clean.

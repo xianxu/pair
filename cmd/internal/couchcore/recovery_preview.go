@@ -149,7 +149,7 @@ func (c *Couch) recoveryTarget(ctx context.Context, t ResumeTarget) (*ThreadStor
 	if t.Path == "" {
 		view := *c.Threads
 		view.readOnly = true
-		record, err := view.GetThread(t.Address)
+		record, err := view.PreviewThreadContext(ctx, t.Address)
 		return c.Threads, record, err
 	}
 	if c.Slots == nil {
@@ -169,7 +169,7 @@ func (c *Couch) recoveryTarget(ctx context.Context, t ResumeTarget) (*ThreadStor
 	var observed slotCurrentObservation
 	err = view.withPreviewLockContext(ctx, func() error {
 		var readErr error
-		observed, readErr = view.readSlotCurrentLocked()
+		observed, readErr = view.readSlotCurrentLockedContext(ctx)
 		return readErr
 	})
 	if errors.Is(err, os.ErrNotExist) {

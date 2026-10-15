@@ -2,6 +2,8 @@ package couchcore
 
 import (
 	"context"
+	"errors"
+	"golang.org/x/sys/unix"
 	"os"
 	"reflect"
 	"strings"
@@ -226,5 +228,160 @@ func TestWarmAttachmentAfterLeaveRetiresDeadClientRemainsBorrowed(t *testing.T) 
 	}
 	if len(env.Proc.Signals) != 0 || len(env.Artifacts.Quiesces()) != 0 || env.Artifacts.BindingResolutions() != 0 {
 		t.Fatal("warm attachment signalled, tore down, or resolved a native conversation")
+	}
+}
+
+func TestWarmOnlyAttachmentRepairRejectsFIFOAfterAcknowledgment(t *testing.T) {
+	record := warmDetachedRecord(t)
+	record.Incarnations = []ThreadIncarnation{{PID: 5151, Identity: "dead-client", State: IncarnationLive, LaunchProfile: record.LatestLaunchProfile}}
+	env, before, session := readonlyWarmFixture(t, record, Dead)
+	path := env.Couch.Threads.recordPath(before.Address)
+	original, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var done chan struct{}
+	defer func() {
+		if done == nil {
+			return
+		}
+		select {
+		case <-done:
+		case <-time.After(time.Second):
+			t.Error("FIFO fixture writer did not finish")
+		}
+	}()
+	env.Runner.AfterAcknowledge = func(string) error {
+		env.Artifacts.SetPairSession(before.Address, session, true)
+		if err := os.Remove(path); err != nil {
+			return err
+		}
+		if err := unix.Mkfifo(path, 0600); err != nil {
+			return err
+		}
+		done = make(chan struct{})
+		go func() {
+			defer close(done)
+			time.Sleep(200 * time.Millisecond)
+			fd, err := unix.Open(path, unix.O_RDWR|unix.O_NONBLOCK, 0)
+			if err == nil {
+				_, _ = unix.Write(fd, original)
+				_ = unix.Close(fd)
+			}
+		}()
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	started := time.Now()
+	actor, h, err := env.Couch.ResumeContextWith(ctx, before.Address, ResumeOptions{WarmOnly: true})
+	elapsed := time.Since(started)
+	if h != nil {
+		defer env.Runner.SetExited(h.ID(), 0)
+	}
+	if elapsed >= 150*time.Millisecond {
+		t.Fatalf("automatic repair waited for FIFO writer: %v", elapsed)
+	}
+	if err != nil || h == nil || !strings.Contains(actor.AttachmentNotice, "BORROWED ATTACH") {
+		t.Fatalf("attachment=%+v handle=%v err=%v", actor, h, err)
+	}
+	if info, err := os.Lstat(path); err != nil || info.Mode()&os.ModeNamedPipe == 0 {
+		t.Fatalf("repair changed FIFO: %v", err)
+	}
+}
+
+func TestWarmOnlyResumePreflightHonorsCallerDeadline(t *testing.T) {
+	env, before, _ := readonlyWarmFixture(t, warmDetachedRecord(t), Dead)
+	lock, err := env.Couch.Threads.retentionReadLock(context.Background(), 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lock.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Millisecond)
+	defer cancel()
+	started := time.Now()
+	_, h, err := env.Couch.ResumeContextWith(ctx, before.Address, ResumeOptions{WarmOnly: true})
+	if elapsed := time.Since(started); elapsed >= 150*time.Millisecond || !errors.Is(err, context.DeadlineExceeded) || h != nil {
+		t.Fatalf("preflight ignored deadline: elapsed=%v err=%v handle=%v", elapsed, err, h)
+	}
+}
+
+func TestWarmOnlyAbsentTerminalPreservesJournalArrivingAfterPreflight(t *testing.T) {
+	env, before, _ := readonlyWarmFixture(t, warmDetachedRecord(t), Dead)
+	store := env.Couch.Threads
+	env.Artifacts.SetDetachedSession(before.Address, "")
+	var pending []byte
+	store.hooks.AfterGetThread = func(ThreadAddress) error {
+		store.hooks.AfterGetThread = nil
+		interrupted := errors.New("pending journal fixture")
+		store.hooks.AfterJournal = func() error { return interrupted }
+		if _, err := store.updateExistingThread(before.Address, before.Revision, func(next *ThreadRecord) error { next.Description = "pending must not replay"; return nil }); !errors.Is(err, interrupted) {
+			t.Fatalf("fixture=%v", err)
+		}
+		store.hooks.AfterJournal = nil
+		var err error
+		pending, err = os.ReadFile(store.journalPath())
+		if err != nil {
+			t.Fatal(err)
+		}
+		return nil
+	}
+	original, err := os.ReadFile(store.recordPath(before.Address))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, h, err := env.Couch.ResumeContextWith(context.Background(), before.Address, ResumeOptions{WarmOnly: true})
+	if err == nil || h != nil {
+		t.Fatalf("absent warm attachment err=%v handle=%v", err, h)
+	}
+	after, readErr := os.ReadFile(store.journalPath())
+	if readErr != nil || string(after) != string(pending) {
+		t.Fatalf("warm-only refusal replayed pending journal: %v", readErr)
+	}
+	after, readErr = os.ReadFile(store.recordPath(before.Address))
+	if readErr != nil || string(after) != string(original) {
+		t.Fatalf("warm-only refusal changed record: %v", readErr)
+	}
+}
+
+func TestWarmOnlyRepairCancellationBeforePublicationPreservesRecord(t *testing.T) {
+	record := warmDetachedRecord(t)
+	record.Incarnations = []ThreadIncarnation{{PID: 5151, Identity: "dead-client", State: IncarnationLive, LaunchProfile: record.LatestLaunchProfile}}
+	env, before, _ := readonlyWarmFixture(t, record, Dead)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	env.Couch.Threads.hooks.BeforeUpdate = func(ThreadRecord, ThreadRecord) error { cancel(); return nil }
+	actor, h, err := env.Couch.ResumeContextWith(ctx, before.Address, ResumeOptions{WarmOnly: true})
+	if h != nil {
+		defer env.Runner.SetExited(h.ID(), 0)
+	}
+	if err != nil || h == nil || !strings.Contains(actor.AttachmentNotice, "BORROWED ATTACH") {
+		t.Fatalf("canceled repair attachment=%+v handle=%v err=%v", actor, h, err)
+	}
+	assertWarmRecordUnchanged(t, env, before)
+	if _, err := os.Lstat(env.Couch.Threads.publicationPath()); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("canceled repair left publication: %v", err)
+	}
+}
+
+func TestAutomaticInventoryPreviewHonorsCallerDeadline(t *testing.T) {
+	for _, kind := range []string{"global", "local", "routed-local"} {
+		t.Run(kind, func(t *testing.T) {
+			store, backend, _ := previewThreadFixture(t, kind)
+			env := newTestEnv(t, "/repo")
+			env.Couch.Threads = store
+			lock, err := backend.retentionReadLock(context.Background(), 0)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer lock.Close()
+			ctx, cancel := context.WithTimeout(context.Background(), 25*time.Millisecond)
+			defer cancel()
+			started := time.Now()
+			_, _, err = env.Couch.gatherThreadEvidence(ctx, nil, func(ThreadRecord) bool { return false })
+			if elapsed := time.Since(started); elapsed >= 150*time.Millisecond || !errors.Is(err, context.DeadlineExceeded) {
+				t.Fatalf("inventory ignored deadline: elapsed=%v err=%v", elapsed, err)
+			}
+		})
 	}
 }

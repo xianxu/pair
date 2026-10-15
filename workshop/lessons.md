@@ -1796,3 +1796,9 @@ Deleting the orientation delivery also deleted the only `automaticRenderEpoch.Ad
   and inspection cancellation, and reuse regular-file/type/size admission.
   Exercise FIFOs at routing, final records, archives and aliases; preserve
   descriptor-relative local opens rather than reopening an admitted pathname.
+
+- #528 BR-14/15: A contextual preview at one consumer is not the full automatic
+  path. Trace attachment preflight, optional repair, effect-time rereads and
+  refusal branches; warm-only absence must exit before lifecycle bookkeeping.
+  After reader refactors, run the production-symbol guard before review and
+  remove obsolete wrappers rather than exempting them.

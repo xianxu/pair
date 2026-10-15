@@ -790,19 +790,28 @@ func (s *ThreadStore) AbandonPark(address ThreadAddress, expectedRevision uint64
 }
 
 func (s *ThreadStore) Snapshot() (ThreadSnapshot, error) {
+	return s.snapshotContext(context.Background())
+}
+func (s *ThreadStore) snapshotContext(ctx context.Context) (ThreadSnapshot, error) {
+	if err := ctx.Err(); err != nil {
+		return ThreadSnapshot{}, err
+	}
 	if missing, err := s.localBackendMissing(); err != nil || missing {
 		return ThreadSnapshot{}, err
 	}
 	var snapshot ThreadSnapshot
 	var rootManifest threadManifest
-	err := s.withLock(func() error {
-		manifest, _, _, err := s.loadManifestLocked()
+	err := s.withReadLockContext(ctx, func() error {
+		manifest, _, _, err := s.loadManifestLockedContext(ctx)
 		if err != nil {
 			return err
 		}
 		rootManifest = manifest
 		snapshot = ThreadSnapshot{Generation: manifest.Generation}
 		for _, address := range manifest.Threads {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
 			// A record that cannot be read or decoded is REPORTED, not raised.
 			// Raising made one corrupt file fail the whole inventory: `couch
 			// --list` exited 1 and the switcher showed nothing, which is the
@@ -810,13 +819,19 @@ func (s *ThreadStore) Snapshot() (ThreadSnapshot, error) {
 			// ReasonInvalid unreachable in production -- a documented state
 			// with a label, an Enter notice and an archive exit that no store
 			// could ever produce.
-			raw, err := s.readPayload(s.recordPath(address))
+			raw, err := s.readPayloadContext(ctx, s.recordPath(address))
 			if err != nil {
+				if ctx.Err() != nil {
+					return ctx.Err()
+				}
 				snapshot.Unreadable = append(snapshot.Unreadable, address)
 				continue
 			}
 			record, err := s.decodeThreadRaw(address, raw)
 			if err != nil {
+				if ctx.Err() != nil {
+					return ctx.Err()
+				}
 				snapshot.Unreadable = append(snapshot.Unreadable, address)
 				continue
 			}
@@ -825,7 +840,7 @@ func (s *ThreadStore) Snapshot() (ThreadSnapshot, error) {
 		return nil
 	})
 	if err == nil && !s.layout.Local {
-		return s.appendSlotSnapshots(snapshot, rootManifest)
+		return s.appendSlotSnapshotsContext(ctx, snapshot, rootManifest)
 	}
 	return snapshot, err
 }
@@ -1145,9 +1160,6 @@ func sortThreadAddresses(addresses []ThreadAddress) {
 	})
 }
 
-func (s *ThreadStore) readThreadLocked(address ThreadAddress) (ThreadRecord, error) {
-	return s.readThreadLockedContext(context.Background(), address)
-}
 func (s *ThreadStore) readThreadLockedContext(ctx context.Context, address ThreadAddress) (ThreadRecord, error) {
 	raw, err := s.readPayloadContext(ctx, s.recordPath(address))
 	if errors.Is(err, os.ErrNotExist) {

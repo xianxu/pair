@@ -2,6 +2,7 @@ package couchcore
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/json"
 	"errors"
@@ -112,17 +113,6 @@ func imageMatches(current []byte, exists bool, image *[]byte) bool {
 	return exists && bytes.Equal(current, *image)
 }
 
-func readOptionalFile(path string) ([]byte, bool, error) {
-	raw, err := os.ReadFile(path)
-	if errors.Is(err, os.ErrNotExist) {
-		return nil, false, nil
-	}
-	if err != nil {
-		return nil, false, fmt.Errorf("read %q: %w", path, err)
-	}
-	return raw, true, nil
-}
-
 // writeAtomicBytes also serves unlocked continuation materialization. Its old
 // generic staging files are outside coordinated store cleanup authority.
 func writeAtomicBytes(path string, raw []byte) error {
@@ -176,7 +166,13 @@ func (s *ThreadStore) writeStoreAtomicLocked(path string, raw []byte) error {
 	return s.writeStoreAtomicLockedChecked(path, raw, nil)
 }
 
-func (s *ThreadStore) writeStoreAtomicLockedChecked(path string, raw []byte, check func() error) (err error) {
+func (s *ThreadStore) writeStoreAtomicLockedChecked(path string, raw []byte, check func() error) error {
+	return s.writeStoreAtomicLockedCheckedContext(context.Background(), path, raw, check)
+}
+func (s *ThreadStore) writeStoreAtomicLockedCheckedContext(ctx context.Context, path string, raw []byte, check func() error) (err error) {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if s.readOnly {
 		return errors.New("cannot write through a preview store")
 	}
@@ -191,7 +187,7 @@ func (s *ThreadStore) writeStoreAtomicLockedChecked(path string, raw []byte, che
 		if int64(len(raw)) > s.payloadLimit(path) {
 			return errors.New("local metadata exceeds size limit")
 		}
-		if _, _, err := s.readOptionalPayload(path); err != nil {
+		if _, _, err := s.readOptionalPayloadContext(ctx, path); err != nil {
 			return err
 		}
 	}

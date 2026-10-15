@@ -827,7 +827,7 @@ func (c *Couch) gatherThreadEvidence(ctx context.Context, observations []LiveTTY
 	if err := ctx.Err(); err != nil {
 		return ThreadSnapshot{}, nil, err
 	}
-	snapshot, err := c.Threads.PreviewSnapshot()
+	snapshot, err := c.Threads.PreviewSnapshotContext(ctx)
 	if err != nil {
 		return ThreadSnapshot{}, nil, err
 	}

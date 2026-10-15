@@ -48,7 +48,7 @@ func (s *ThreadStore) RepairDeadClientHelper(ctx context.Context, before ThreadR
 	}
 	view := *s
 	view.readOnly = true
-	backend, err := view.storeForAddress(before.Address)
+	backend, err := view.storeForAddressContext(ctx, before.Address)
 	if err != nil {
 		return err
 	}
@@ -56,7 +56,7 @@ func (s *ThreadStore) RepairDeadClientHelper(ctx context.Context, before ThreadR
 	target.readOnly = false
 	published := false
 	err = target.withPreviewLockContext(ctx, func() error {
-		raw, err := target.readPayload(target.recordPath(before.Address))
+		raw, err := backend.readPayloadContext(ctx, backend.recordPath(before.Address))
 		if err != nil {
 			return err
 		}
@@ -106,7 +106,7 @@ func (s *ThreadStore) RepairDeadClientHelper(ctx context.Context, before ThreadR
 			}
 			return nil
 		}
-		if err := target.writeStoreAtomicLockedChecked(target.recordPath(before.Address), append(encoded, '\n'), guard); err != nil {
+		if err := target.writeStoreAtomicLockedCheckedContext(ctx, target.recordPath(before.Address), append(encoded, '\n'), guard); err != nil {
 			return fmt.Errorf("repair dead client helper: %w", err)
 		}
 		published = true

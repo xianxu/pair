@@ -10,12 +10,15 @@ import (
 // PreviewSnapshot uses the regular decoder/routing without initializing stores,
 // registering retention ownership or recovering an interrupted transaction.
 func (s *ThreadStore) PreviewSnapshot() (ThreadSnapshot, error) {
+	return s.PreviewSnapshotContext(context.Background())
+}
+func (s *ThreadStore) PreviewSnapshotContext(ctx context.Context) (ThreadSnapshot, error) {
 	if s == nil {
 		return ThreadSnapshot{}, errors.New("thread store unavailable")
 	}
 	view := *s
 	view.readOnly = true
-	return view.Snapshot()
+	return view.snapshotContext(ctx)
 }
 func (s *ThreadStore) PreviewPathLaunchPreference(repoIdentity, path, scope string) (PathLaunchPreference, bool, error) {
 	if s == nil {
@@ -84,7 +87,7 @@ func (s *ThreadStore) withPreviewLockWithin(ctx context.Context, wait time.Durat
 	}
 	lock, err := s.retentionReadLock(ctx, wait)
 	if err != nil {
-		return err
+		return errors.Join(err, ctx.Err())
 	}
 	defer func() { err = errors.Join(err, lock.Close()) }()
 	if _, err := os.Lstat(s.journalPath()); err == nil {

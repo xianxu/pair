@@ -416,9 +416,7 @@ func (c *Couch) resumeContextWith(ctx context.Context, address ThreadAddress, op
 	if c == nil || c.Threads == nil {
 		return ActorRecord{}, nil, errors.New("resume: Couch is unavailable")
 	}
-	view := *c.Threads
-	view.readOnly = true
-	thread, err := view.GetThread(address)
+	thread, err := c.Threads.PreviewThreadContext(ctx, address)
 	if err != nil {
 		return ActorRecord{}, nil, err
 	}
@@ -444,6 +442,9 @@ func (c *Couch) resumeContextWith(ctx context.Context, address ThreadAddress, op
 	if detached && !adoptWarm {
 		return c.attachListedTerminal(ctx, thread, warmSession, opts)
 	}
+	if opts.WarmOnly && !detached {
+		return ActorRecord{}, nil, refuseResume(ResumeNotDetached, "thread has no positively listed terminal to attach to; an attach-only resume never starts an agent")
+	}
 	ctx, release, err := c.hold(ctx, address, "resume")
 	if err != nil {
 		return ActorRecord{}, nil, err
@@ -463,10 +464,6 @@ func (c *Couch) resumeContextWith(ctx context.Context, address ThreadAddress, op
 	}
 	if err := c.confirmResumeReplacementAbsent(ctx, thread); err != nil {
 		return ActorRecord{}, nil, err
-	}
-	if opts.WarmOnly && !detached {
-		return ActorRecord{}, nil, refuseResume(ResumeNotDetached,
-			"thread has no positively listed terminal to attach to; an attach-only resume never starts an agent")
 	}
 	var binding NativeBindingResolution
 	var bindings NativeBindingResolver

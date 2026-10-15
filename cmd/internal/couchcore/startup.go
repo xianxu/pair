@@ -90,7 +90,9 @@ func (c *Couch) StartInteractive(ctx context.Context, args StartArgs) (StartResu
 		if err != nil {
 			return StartResult{}, err
 		}
-		observed, err := local.observeSlotCurrent()
+		view := *local
+		view.readOnly = true
+		observed, err := view.observeSlotCurrentContext(ctx)
 		if err != nil {
 			return StartResult{}, err
 		}
@@ -127,7 +129,7 @@ func (c *Couch) StartInteractive(ctx context.Context, args StartArgs) (StartResu
 	}
 	// A positively listed terminal is sufficient attachment authority, including
 	// pre-upgrade sessions with no launch policy or cold-resume metadata.
-	snapshot, err := c.Threads.PreviewSnapshot()
+	snapshot, err := c.Threads.PreviewSnapshotContext(ctx)
 	if err != nil {
 		return StartResult{}, err
 	}
