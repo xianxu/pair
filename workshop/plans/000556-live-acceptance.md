@@ -10,7 +10,7 @@ These stateful fixtures allocate private temporary stores and fake process/agent
 boundaries; they never change a real slot, native transcript, or Zellij session.
 
 ```sh
-go test ./cmd/internal/couchcore -run 'TestProvenRecovery|TestPreparedRecovery|TestPreparedFresh|TestResumeCandidate|TestRecoveryFresh|TestRecoveryStartFence|TestRecoveryLaunchUnconfirmed|TestRecoveryConfirmation' -count=1 -timeout=120s
+go test ./cmd/internal/couchcore -run 'TestProvenRecovery|TestPrepared|TestResumeCandidate|TestRecoveryFresh|TestRecoveryStartFence|TestRecoveryLaunch|TestRecoveryFinal|TestRecoveryConfirmation|TestPeekTagged|TestTaggedRecovery' -count=1 -timeout=120s
 go test ./cmd/internal/couchcmd ./cmd/internal/couchtty ./cmd/internal/couchmessage -run 'TestRecovery|TestResumeCandidates|TestMenuRecovery|TestHubMutation|TestSlotOperation' -count=1 -timeout=90s
 go test ./cmd/internal/launcher -run 'TestRecovery|TestConfirmedRecovery' -count=1 -timeout=90s
 ```

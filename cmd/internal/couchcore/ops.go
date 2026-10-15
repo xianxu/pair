@@ -456,7 +456,7 @@ func Operations() []Operation {
 				{Name: "mode", Summary: "detach (default) or park every live thread (--mode=<mode>)", FlagOnly: true, ValueRequired: true},
 			},
 		},
-		{Name: "recovery-confirmation", Summary: "Confirm the exact recovery stop set", Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmNone, Result: ResultStart, Presentation: PresentationInternal, Args: []ArgSpec{{Name: "token", Summary: "short-lived capability for the exact previously offered stop set", Required: true, ValueRequired: true}}},
+		{Name: "recovery-confirmation", Summary: "Confirm the exact recovery stop set", Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmNone, Result: ResultStart, Presentation: PresentationInternal, Args: []ArgSpec{{Name: "token", Summary: "short-lived capability for the exact previously offered stop set", Required: true, FlagOnly: true, ValueRequired: true}}},
 		{Name: "resume-candidates", Summary: "List explicit conversation recovery choices", Execution: ExecuteLiveOwner, Effect: EffectRead, Confirmation: ConfirmNone, Result: ResultRecoveryPreview, Presentation: PresentationTUI,
 			Args: []ArgSpec{{Name: "ref", Summary: "thread or exact slot reference"}, {Name: "path", Summary: "slot host checkout", Implicit: true}, {Name: "repo-scope", Summary: "repository scope", Implicit: true}, {Name: "tag", Summary: "exact thread tag", Implicit: true}},
 		},
