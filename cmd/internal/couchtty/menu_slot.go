@@ -29,6 +29,16 @@ func menuThreadTarget(state MenuState, key couchcore.ThreadRowKey, address couch
 // or replaced under the row, so the tag is not what names it. Its in-flight
 // operation is then keyed by row, not by an address the operation replaces.
 func dispatchMenuRow(state MenuState, operation string, row couchcore.ActionableThreadSummary) (MenuState, []MenuEffect) {
+	if row.Target.Kind != couchcore.ThreadTargetSlot || row.Target.Validate() != nil {
+		if row.Address.RepoScope == "" || row.Address.Tag == "" {
+			state.Notice = errorMenuNotice("no exact conversation or valid slot target is available")
+			return state, nil
+		}
+		// An invalid slot cannot supply a path; only its exact native address
+		// remains usable. A validated slot can still recover without a record.
+		row.Target = couchcore.ThreadTarget{Kind: couchcore.ThreadTargetOrdinary, Address: row.Address}
+		row.RowKey = couchcore.ThreadRowKey{Kind: couchcore.ThreadTargetOrdinary, Address: row.Address}
+	}
 	if view, owned := passViewOf(state.Reattach, row.Address); owned && view.State == PassFailed &&
 		couchcore.ContinuityOutcome(row) == couchcore.Continue && (operation == "switch" || operation == "resume") {
 		// A failed listed-live row may look live without a local client. Its
