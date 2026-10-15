@@ -11,11 +11,13 @@ import (
 )
 
 type Segment struct {
-	Path      string    `json:"path"`
-	Bytes     int64     `json:"bytes"`
-	LastWrite time.Time `json:"last_write"`
-	Eligible  bool      `json:"eligible"`
-	Reason    string    `json:"reason"`
+	Path       string    `json:"path"`
+	Bytes      int64     `json:"bytes"`
+	LastWrite  time.Time `json:"last_write"`
+	Eligible   bool      `json:"eligible"`
+	Reason     string    `json:"reason"`
+	Unverified bool      `json:"unverified,omitempty"`
+	Oversized  bool      `json:"oversized,omitempty"`
 }
 
 // DecideSegment is independent of session activity and Couch visibility.
@@ -118,6 +120,9 @@ func collectManagedPage(path string, options Options, cursor string, limit int) 
 			if e = recoverRotation(p, &s, options); e != nil {
 				return e
 			}
+		}
+		if e := ensureDiagnosticLimits(p, &s, options); e != nil {
+			return e
 		}
 		var rows []Segment
 		rows, next, complete, e = previewPageLocked(p, options, cursor, limit, true)

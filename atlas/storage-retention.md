@@ -8,7 +8,7 @@ receipts. Agent-native stores and repository files are outside collection.
 | Pair drafts, queued/submitted prompts, ledger, current terminal data and recovery state | 365 days since meaningful use | Live users and Couch switcher membership, including parked or unreadable threads |
 | Archived Couch records and associated Pair session data | Fresh 365-day grace at archive, extended by later meaningful use | Live users; a restored manifest reference protects again |
 | Immutable old parked captures | 365 days per capture | Exact readers and unfinished handoffs; tag reuse and Couch visibility do not renew age |
-| Debugging logs | 365 days per generation | Writer coordination and complete legacy-process evidence |
+| Debugging logs | Up to 3 closed generations plus current; 365-day age expiry | Writer coordination and complete legacy-process evidence |
 
 Meaningful use is explicit create/attach/resume/view, or a changed authored-content
 write. Unchanged saves, background scans, repaint, diagnostics and distillation do
@@ -97,7 +97,13 @@ The implementation map:
   captures use the latest plausible filename time or file mtime conservatively.
 - `diagnosticlog/` manages wrapper events, adaptation records and optional
   Pair/Couch traces. Current paths stay stable. Generations rotate at 24 hours or
-  64 MiB; segmentation preserves young data. Closed-generation expiry uses last
+  64 MiB, with at most three immutable generations plus current (256 MiB normal
+  payload per log). Count eviction can remove younger diagnostics. Schema v2
+  persists the limits under the log lock; every Go and shell/Lua CLI writer
+  follows that authority, including already-open handles. Options can tighten
+  it and cannot enlarge it. Count debt or a full byte cap refuses further
+  appends until proven maintenance succeeds. Old strict readers reject v2
+  rather than bypassing the policy. Closed-generation age expiry uses last
   write, allowing up to one extra day of record-age slack. Logging is optional
   and may skip under contention. External traces are discovered only through
   exact writer registrations; unknown old external paths are not globbed.
@@ -108,10 +114,19 @@ The implementation map:
   intents replay through missing payloads, metadata and removed ancestor
   directories, while replacement identities and unsafe ancestors still refuse.
   `creation.go` publishes a reserved inode without replacement; `append.go`
-  records bounded intended bytes before payload writes and reconciles only the
-  prefix actually written. Ordinary optional appends use atomic publication for
-  process-exit recovery without per-record fsync. Host power-loss durability is
-  not promised for debug records; inconsistent evidence retains them. Rotation
+  reserves a bounded batch with its length/hash in place, verifies the complete
+  appended bytes, then publishes one checkpoint. Legacy payload intents recover
+  before migration. Uncertifiable partial batches are preserved whole as
+  explicitly unverified generations; writer proof permits a fresh current log.
+  Quarantines count toward retention and can expire through exact deletion.
+  Preview reports unverified and pre-existing oversized generations. Legacy
+  oversized or uncertified data is retained and reported separately; the normal
+  cap is not a claim that old multi-GiB traces are retroactively bounded. Full
+  certification visits at most 64 generation candidates; incomplete evidence
+  refuses optional growth and count pruning. Ordinary optional appends use atomic publication for
+  process-exit recovery without per-record fsync. Wrapper diagnostics coalesce at 64 KiB or dirty five-second ticks, bounded to
+  256 KiB outstanding including flight. Host power-loss durability is not
+  promised for debug records; inconsistent evidence retains them. Rotation
   and destructive collection sync their payload/metadata boundaries durably.
 - `gcruntime/` composes Couch, process evidence, binding cleanup and diagnostic
   collection. `gccmd/` exposes the command; `storagegc/schedule.go` owns bounded
@@ -119,6 +134,13 @@ The implementation map:
   bypasses session clock and liveness evaluation; collection supplies its own
   exact writer and generation proof. The maintenance context propagates into
   process inspections, their subprocess deadlines and recovery tree walks.
+  Protocol-aware runtime rows skip irrelevant data-root canonicalization while
+  retaining both process-generation fences; legacy missing roots still refuse.
+  This proof also feeds parked-capture expiry. End-to-end maintenance tests
+  collect expired raw/events/metadata together and preserve exact readers,
+  unfinished handoffs and the existing CaptureRetentionPeriod boundary. That
+  one constant remains 365 days; diagnostic count eviction never selects raw
+  recovery captures.
 
 Malformed metadata, ambiguous ownership, unknown liveness, symlinks, incomplete
 inventories and uncertain filesystem effects retain data. Exceptionally large

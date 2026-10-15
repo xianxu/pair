@@ -300,6 +300,23 @@ func previewPageLocked(path string, o Options, cursor string, limit int, cleanup
 	if e := o.checkContext(); e != nil {
 		return nil, cursor, false, e
 	}
+	excessPaths := map[string]bool{}
+	limits, e := ResolveDiagnosticLimits(s.Limits, DiagnosticLimits{})
+	if e != nil {
+		return nil, cursor, false, e
+	}
+	candidates, inventoryErr := policyGenerations(path, o)
+	if inventoryErr == nil {
+		excess, selectionErr := SelectExcessGenerations(o.Now(), candidates, limits, true)
+		if selectionErr != nil {
+			return nil, cursor, false, selectionErr
+		}
+		for _, g := range excess {
+			excessPaths[segmentPath(path, g.Name)] = true
+		}
+	} else if !errors.Is(inventoryErr, ErrMore) {
+		return nil, cursor, false, inventoryErr
+	}
 	add := func(p string, g generation) error {
 		if err := o.checkContext(); err != nil {
 			return err
@@ -311,12 +328,19 @@ func previewPageLocked(path string, o Options, cursor string, limit int, cleanup
 		if e = matches(st, g); e != nil {
 			return e
 		}
-		eligible := reason == "" && DecideSegment(o.Now(), g.LastWrite)
+		eligible := reason == "" && (DecideSegment(o.Now(), g.LastWrite) || excessPaths[p])
 		why := reason
+		if why == "" && excessPaths[p] {
+			why = "diagnostic generation count limit"
+		}
+		oversized := g.Size > limits.MaxBytes
+		if why == "" && oversized {
+			why = "pre-existing diagnostic generation exceeds byte limit"
+		}
 		if why == "" && !eligible {
 			why = RetainedReason
 		}
-		out = append(out, Segment{p, st.Size(), g.LastWrite, eligible, why})
+		out = append(out, Segment{Path: p, Bytes: st.Size(), LastWrite: g.LastWrite, Eligible: eligible, Reason: why, Unverified: g.UnverifiedTail != nil, Oversized: oversized})
 		return nil
 	}
 	if cursor == "" && s.Current.Identity != (identity{}) {

@@ -949,7 +949,11 @@ Wrapper diagnostics batch at64KiB or every five seconds while dirty; raw capture
 and its offset sidecar flush every250ms. Orderly shutdown drains both. A process
 crash can lose pending buffers; optional diagnostics have no power-loss durability
 guarantee. See [storage retention and IO](atlas/storage-retention-io.md) for exact
-bounds and the synchronization kept for receipts, park and recovery.
+bounds and the synchronization kept for receipts, park and recovery. New diagnostic
+segments are capped at64MiB, with three closed generations plus current;
+pre-existing oversized evidence stays until certified eviction. Unknown writer
+evidence refuses further growth at the limit. Parked recovery
+captures use their separate age policy and exact reader protections.
 
 The tab bar starts with the hub, the checkout you started Couch from, and then
 lists every other slot grouped by repository:

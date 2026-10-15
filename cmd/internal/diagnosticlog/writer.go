@@ -59,17 +59,15 @@ type Options struct {
 	appendSync    func(*os.File) error
 	directorySync func(string) error
 	// Context bounds optional maintenance; nil preserves ordinary writer behavior.
-	Context  context.Context
-	Now      func() time.Time
-	MaxBytes int64
-	// HardMaxBytes rejects a complete write when it cannot fit after rotation.
-	// The default policy allows growth while rotation is blocked.
-	HardMaxBytes bool
-	Proof        Proof
-	Root         string
-	Registry     func(context.Context, RegistryEntry) error
-	Retire       func(context.Context, RegistryEntry) error
-	Fault        func(step string) error
+	Context        context.Context
+	Now            func() time.Time
+	MaxBytes       int64
+	MaxGenerations int
+	Proof          Proof
+	Root           string
+	Registry       func(context.Context, RegistryEntry) error
+	Retire         func(context.Context, RegistryEntry) error
+	Fault          func(step string) error
 	// SynchronousMaintenance is for explicit batch writers and fault harnesses;
 	// terminal emitters leave it false and never inspect processes on append.
 	SynchronousMaintenance bool
@@ -105,14 +103,15 @@ type generation struct {
 	ModTime   time.Time `json:"mod_time"`
 }
 type diskState struct {
-	Creating  *generation    `json:"creating,omitempty"`
-	Appending *appendIntent  `json:"appending,omitempty"`
-	Version   int            `json:"version"`
-	Path      string         `json:"path"`
-	Current   generation     `json:"current"`
-	Writers   []Registration `json:"writers"`
-	Pending   *generation    `json:"pending,omitempty"`
-	Deleting  *generation    `json:"deleting,omitempty"`
+	Creating  *generation      `json:"creating,omitempty"`
+	Appending *appendIntent    `json:"appending,omitempty"`
+	Version   int              `json:"version"`
+	Limits    DiagnosticLimits `json:"limits,omitempty"`
+	Path      string           `json:"path"`
+	Current   generation       `json:"current"`
+	Writers   []Registration   `json:"writers"`
+	Pending   *generation      `json:"pending,omitempty"`
+	Deleting  *generation      `json:"deleting,omitempty"`
 }
 
 func (o Options) observe(op, path string, n int) {
@@ -224,13 +223,25 @@ func Open(path string, options Options) (*Writer, error) {
 		if e := recoverAppend(p, &s, options, false); e != nil {
 			return e
 		}
-		if s.Pending == nil && s.Deleting == nil {
-			if e := ensureCurrent(p, &s, options); e != nil {
-				return e
+		if s.Pending != nil || s.Deleting != nil {
+			if err := options.prove(p, s.Writers); err != nil {
+				return err
+			}
+			if s.Deleting != nil {
+				if err := recoverDeletion(p, &s, options); err != nil {
+					return err
+				}
+			}
+			if s.Pending != nil {
+				if err := recoverRotation(p, &s, options); err != nil {
+					return err
+				}
 			}
 		}
-
-		return nil
+		if e := ensureCurrent(p, &s, options); e != nil {
+			return e
+		}
+		return ensureDiagnosticLimits(p, &s, options)
 	})
 	if e != nil {
 		return nil, e
@@ -258,9 +269,6 @@ func (w *Writer) Write(b []byte) (int, error) {
 	}
 	if len(b) == 0 {
 		return 0, nil
-	}
-	if w.options.HardMaxBytes && int64(len(b)) > w.options.MaxBytes {
-		return 0, ErrLimit
 	}
 	n := 0
 	nextBytes := int64(len(b))
@@ -304,6 +312,29 @@ func (w *Writer) Write(b []byte) (int, error) {
 				return e
 			}
 		}
+		if e := ensureDiagnosticLimits(w.path, &s, w.options); e != nil {
+			return e
+		}
+		if nextBytes > s.Limits.MaxBytes {
+			return ErrLimit
+		}
+		debt, e := diagnosticCountDebt(w.path, s.Limits, w.options)
+		if e != nil {
+			maintenanceDue = true
+			return e
+		}
+		if debt {
+			maintenanceDue = true
+			if !w.options.SynchronousMaintenance {
+				return ErrLimit
+			}
+			if e := w.prove(s); e != nil {
+				return errors.Join(ErrLimit, e)
+			}
+			if _, e := trimDiagnosticGenerations(w.path, &s, w.options, s.Limits.MaxGenerations); e != nil {
+				return e
+			}
+		}
 		st, e := regular(w.path)
 		exists := e == nil
 		if e != nil && !os.IsNotExist(e) {
@@ -315,8 +346,8 @@ func (w *Writer) Write(b []byte) (int, error) {
 			}
 		}
 		now := w.options.Now().UTC()
-		if !s.Current.Start.IsZero() && exists && (st.Size() >= w.options.MaxBytes ||
-			(w.options.HardMaxBytes && nextBytes > w.options.MaxBytes-st.Size()) ||
+		if !s.Current.Start.IsZero() && exists && (st.Size() >= s.Limits.MaxBytes ||
+			(nextBytes > s.Limits.MaxBytes-st.Size()) ||
 			!now.Before(s.Current.Start.Add(GenerationPeriod))) {
 			maintenanceDue = true
 			if w.options.SynchronousMaintenance && w.prove(s) == nil {
@@ -329,7 +360,7 @@ func (w *Writer) Write(b []byte) (int, error) {
 		if e := ensureCurrent(w.path, &s, w.options); e != nil {
 			return e
 		}
-		if w.options.HardMaxBytes && nextBytes > w.options.MaxBytes-s.Current.Size {
+		if nextBytes > s.Limits.MaxBytes-s.Current.Size {
 			return ErrLimit
 		}
 		for len(b) > 0 {
@@ -483,11 +514,14 @@ func readJSON(path string, dst any) error {
 	return nil
 }
 func validate(s diskState, path string) error {
-	if s.Version != 1 || s.Path != path {
+	if (s.Version != 1 && s.Version != 2) || s.Path != path {
 		return errors.New("invalid diagnostic identity")
 	}
 	if s.Current.UnverifiedTail != nil {
 		return errors.New("unverified diagnostic generation cannot be current")
+	}
+	if (s.Version == 1 && s.Limits != (DiagnosticLimits{})) || (s.Version == 2 && !validDiagnosticLimits(s.Limits)) {
+		return errors.New("invalid diagnostic limits schema")
 	}
 	if s.Current.Name != "" {
 		return errors.New("diagnostic current cannot name a segment")
@@ -711,6 +745,17 @@ func rotateGeneration(path string, s *diskState, g generation, o Options) error 
 	if e := fault(o, "rotation-payload-synced"); e != nil {
 		return e
 	}
+	limits := s.Limits
+	if s.Version == 1 {
+		var err error
+		limits, err = ResolveDiagnosticLimits(DiagnosticLimits{}, DiagnosticLimits{o.MaxBytes, o.MaxGenerations})
+		if err != nil {
+			return err
+		}
+	}
+	if _, err := trimDiagnosticGenerations(path, s, o, max(0, limits.MaxGenerations-1)); err != nil {
+		return err
+	}
 	ready := false
 	for range 8 {
 		if err := o.checkContext(); err != nil {
@@ -883,7 +928,15 @@ func maintain(path string, options Options, nextBytes int64) error {
 			}
 		}
 		if s.Pending != nil {
-			return recoverRotation(p, &s, options)
+			if e := recoverRotation(p, &s, options); e != nil {
+				return e
+			}
+		}
+		if e := ensureDiagnosticLimits(p, &s, options); e != nil {
+			return e
+		}
+		if _, e := trimDiagnosticGenerations(p, &s, options, s.Limits.MaxGenerations); e != nil {
+			return e
 		}
 		if s.Current.Identity == (identity{}) {
 			return nil
@@ -895,8 +948,8 @@ func maintain(path string, options Options, nextBytes int64) error {
 		if e = matches(st, s.Current); e != nil {
 			return e
 		}
-		if !options.Now().Before(s.Current.Start.Add(GenerationPeriod)) || st.Size() >= options.MaxBytes ||
-			(options.HardMaxBytes && nextBytes > options.MaxBytes-st.Size()) {
+		if !options.Now().Before(s.Current.Start.Add(GenerationPeriod)) || st.Size() >= s.Limits.MaxBytes ||
+			(nextBytes > s.Limits.MaxBytes-st.Size()) {
 			return rotate(p, &s, options)
 		}
 		return nil

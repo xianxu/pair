@@ -317,12 +317,12 @@ func TestProductionWriteNeverWaitsForInspection(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	w.Write([]byte("first"))
+	w.Write([]byte("1111"))
 	returned := make(chan error, 1)
-	go func() { _, e := w.Write([]byte("second")); returned <- e }()
+	go func() { _, e := w.Write([]byte("2222")); returned <- e }()
 	select {
 	case e := <-returned:
-		if e != nil {
+		if !errors.Is(e, ErrLimit) {
 			t.Fatal(e)
 		}
 	case <-time.After(time.Second):
@@ -335,7 +335,7 @@ func TestProductionWriteNeverWaitsForInspection(t *testing.T) {
 		close(release)
 		t.Fatal("maintenance not scheduled")
 	}
-	if _, e = w.Write([]byte("optional")); !errors.Is(e, ErrBusy) {
+	if _, e = w.Write([]byte("more")); !errors.Is(e, ErrBusy) {
 		t.Fatalf("contended optional record %v", e)
 	}
 	close(release)
@@ -368,13 +368,11 @@ func TestRotationRecoveryRejectsReplacementCurrent(t *testing.T) {
 	os.WriteFile(path, []byte("replacement"), 0600)
 	opts.Fault = nil
 	w, e = Open(path, opts)
-	if e != nil {
-		t.Fatal(e)
+	if e == nil {
+		w.Close()
+		t.Fatal("replacement accepted during open recovery")
 	}
-	defer w.Close()
-	if _, e = w.Write([]byte("append")); e == nil {
-		t.Fatal("replacement accepted during recovery")
-	}
+
 	b, _ := os.ReadFile(path)
 	if string(b) != "replacement" {
 		t.Fatal("replacement changed")

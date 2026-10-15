@@ -713,11 +713,14 @@ rows. Logging failure cannot fail delivery. The CLI's one write-report call is
 limited to 200 ms and cannot invalidate the file write. A missing log means
 unavailable evidence, never zero activity.
 
-The existing diagnostic writer registers the stable path with Pair GC. Its new
-opt-in hard generation limit refuses whole rows at 64 MiB if normal rotation
-cannot proceed; normal daily rotation and 365-day retention still apply. This is
-a generation cap, not a total-store cap. The writer and buffered tail end with
-the supervisor; historical generations belong to the existing diagnostic collector.
+The shared diagnostic writer registers the stable path with Pair GC and
+persists a 64 MiB current-generation cap with three retained immutable
+generations. All writers obey that limit; whole rows refuse when proven
+rotation cannot proceed. Daily rotation and 365-day age expiry also apply;
+count eviction can remove younger diagnostics. Pre-existing oversized evidence
+is reported separately and preserved until certified eviction. The writer and
+buffered tail end with the supervisor; historical generations belong to the
+existing diagnostic collector. See [storage retention](storage-retention.md).
 
 `python3 scripts/supervision-labels/labels.py LOG...` derives ten-minute labels
 from selected local segments. See its [skill](../scripts/supervision-labels/SKILL.md)

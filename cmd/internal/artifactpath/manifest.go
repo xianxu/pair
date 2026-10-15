@@ -1032,6 +1032,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/diagnosticlog/append_reservation.go",
 	"cmd/internal/diagnosticlog/batch_model.go",
 	"cmd/internal/diagnosticlog/buffered.go",
+	"cmd/internal/diagnosticlog/policy.go",
 	"cmd/internal/wrapcmd/capture_buffer.go",
 	"cmd/internal/wrapcmd/diagnostic_writers.go",
 	"cmd/internal/diagnosticlog/creation.go",
