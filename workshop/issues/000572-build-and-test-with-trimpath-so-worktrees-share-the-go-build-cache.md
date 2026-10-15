@@ -15,7 +15,7 @@ claimant:
     workspace: pair:1
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "d5f0ba4c", done: "7f5d6529"}
+flow: {kind: full, provenance: inferred}
 ---
 
 # Build and test with -trimpath so worktrees share the Go build cache
@@ -49,6 +49,8 @@ minutes. The operator approved building with `-trimpath`.
 ## Log
 
 ### 2026-10-15
+- 2026-10-15: closed — Full recorded suite passed on fdedd7dd in 9m16s (log 7943372536ad). Since then only docs and BR-1 test-fixture isolation changed; the two failures were reproduced before the fix and root/probe/birthrace tests now pass with TMPDIR inside/outside Pair, both trimmed/untrimmed. Fresh recorded suite on 96e5c250 is queued and remains required before merge. Cache reuse proof, make build, and operator local-gates label remain valid. (done-when: contract moved since change-code; judged by the close review); review verdict: SHIP
+- 2026-10-15: flow upgraded quick → full — 153 added lines in code files (limit 100); an earlier round of this close already ran the full review
 
 - 2026-10-15: claimed in pair:1. Read-only audit identified ten test files,
   shared recording fixtures, and ten probes using runtime.Caller for assets.
