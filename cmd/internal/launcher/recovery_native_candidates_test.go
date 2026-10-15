@@ -116,7 +116,7 @@ func TestRecoveryNativeOwnerReobservesChangedWrapperSet(t *testing.T) {
 
 func TestRecoveryNativeLegacyReadinessNamesMigrationOwner(t *testing.T) {
 	for _, orphan := range []bool{false, true} {
-		w, check := nativeOwnerFixture(t, "codex", "other")
+		w, check := nativeOwnerFixture(t, "codex", "selected")
 		w.ready.AgentIdentity = ""
 		var err error
 		if orphan {
@@ -133,6 +133,25 @@ func TestRecoveryNativeLegacyReadinessNamesMigrationOwner(t *testing.T) {
 			if !strings.Contains(err.Error(), evidence) {
 				t.Fatalf("legacy refusal lacks %q: %v", evidence, err)
 			}
+		}
+	}
+}
+
+func TestRecoveryNativeLegacyDifferentIDExcludesCollision(t *testing.T) {
+	for _, agent := range []string{"codex", "claude", "qoder"} {
+		for _, orphan := range []bool{false, true} {
+			t.Run(agent+map[bool]string{false: "/wrapper", true: "/orphan"}[orphan], func(t *testing.T) {
+				w, check := nativeOwnerFixture(t, agent, "other")
+				check.Agent = agent
+				w.ready.AgentIdentity = ""
+				if orphan {
+					w.snapshots[0].Processes = w.snapshots[0].Processes[1:]
+					w.snapshots[0].Processes[0].PPID = 1
+				}
+				if err := checkRecoveryNativeOwnersWithDiscovery(context.Background(), check, w.Observe, w.Read, orphanOwnerDiscovery(check)); err != nil {
+					t.Fatalf("legacy owner ledger excludes requested ID: %v", err)
+				}
+			})
 		}
 	}
 }

@@ -48,3 +48,16 @@
 ## Revisions
 
 - 2026-10-15: Initial small candidate repair expanded by the TL's approved legacy proof because ordinary operational migration is circularly blocked and 18 of 21 live wrappers are legacy. Exact held writable transcript plus kinship is positive proof; an exact different ordinal-ledger ID is the approved negative collision exclusion.
+
+### 2026-10-15 16:02 — plan-gate refinements and approved exclusion
+
+This revision supersedes the earlier test-case inventory and makes both admission consumers explicit (PQ-1/PQ-2).
+
+- `observeLegacyNativeOrphans` runs first (`recovery_native_owner.go`, before wrapper ledger processing). Move exact attached-wrapper detection before its missing-AgentIdentity refusal. An attached legacy direct child proceeds to the shared wrapper proof path, not automatic admission. A true orphan still reads the exact readiness ordinal through shared `readRecoveryNativeID`; an exact different native ID excludes collision, while a same/unknown ID with no wrapper association refuses with owner migration advice. Modern identities and retained-generation comparisons keep their existing fences. No catch-and-ignore of unknown evidence.
+- `recoveryNativeProofForWrapper` combines `recoveryWrapperReady` with the extracted `readRecoveryNativeID`. Normal readiness needs exact identity/ancestry as today. Legacy readiness needs a non-zombie direct child and wrapper generation from exact owner argv. The TL's 61032867 explicitly approves exclusion of a different requested native ID by that exact owner/ordinal ledger; matching IDs additionally require `checkLegacyHeldNative` before an exact source exemption. Proof carries the holder generation for the final observation comparison. Both the initial and final native checks use this same function.
+- `checkRecoveryNativeOwnersWithDiscovery` / `observeLegacyNativeOrphans` / `recoveryNativeProofForWrapper`: adversarial stateful process-table and held-file sequences through the real gate pin allowed exclusions, collision refusals, exact source exemption, unknown evidence and generation/parent changes; assert no executable launch/kill effects.
+- `parseLsofWritableNames` / `LsofWritableNames`: fuzz malformed/truncated field streams and use a fake executable to assert all-or-error results, requested-PID ownership, writable regular descriptors and hard context/output limits.
+- `NativeIDForArtifact` (export the existing `observationNativeID` decision, without a parallel filename parser): table-driven malformed/other-root artifact grammar asserts identity only for the registered provider's root transcript filenames. `checkLegacyHeldNative` uses these identities only for exact owner-ledger matching, never a whole native inventory or latest scan.
+- Legacy error formatting / Couch friendly-slot advice: pin exact owner fallback and preview-only friendly resolution; a broken catalogue must preserve the original refusal, not invent a slot.
+
+Measured limitations remain explicit: the ready PID can be a node shim, so a positively identified immediate Codex engine is inspected too; arbitrary grandchildren/tools are not. Idle Claude holds no transcript, hence a different exact ledger ID excludes collision, while a matching/unknown one remains guarded. New wrappers do not use this legacy exception.
