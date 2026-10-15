@@ -848,6 +848,19 @@ no conflict resolution. New recorded suite will cover the integrated head rather
 than consuming a full run whose head immediately needs integration. No other
 process, test lock, working slot or stage was changed.
 
+
+### 2026-10-15 — final integrated grammar correction suite PASS
+
+Required normal recorded suite on pushed integrated
+`b719d79bc03cc68fe898a8b24f4194777d96fa44` **PASS**, exit0 in **12m7s**, following
+1401s machine queue wait. Retained suite.log at that exact head in common Git
+sdlc/local-checks, sha256 prefix `ed7dceb689cd`. Core481.330s, launcher70.320s,
+wrapper58.512s, inventory12.085s; all shell/editor integration and Go packages
+passed. Root independent delimiter rerun launcher0.115s/wrapper1.086s; integrated
+build PASS. All #558 receiver changes are included. No prior quiescence flake
+recurrence, no machine-default/cache cleanup, no stage/live effects or waiver.
+Whole-issue re-review follows with the grammar-wide BR-6 correction and evidence.
+
 ## Revisions
 
 ### 2026-10-15T05:33-07:00 — overnight M2 dispatch
