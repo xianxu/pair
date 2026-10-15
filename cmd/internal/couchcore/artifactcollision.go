@@ -83,8 +83,11 @@ type ScopedThreadArtifactCollisionChecker struct {
 	GlobalDataDir string
 	// SessionIndexes is shared by value copies; nil preserves uncached literals.
 	SessionIndexes *launcher.SessionNameIndexCache
-	Sessions       launcher.SessionDeleter
-	OwnerProbe     SessionOwnerProber
+	// OwnerLaunches spans scoped inventory runtimes created by this checker.
+	OwnerLaunches *sessioninventory.OwnerLaunchCache
+	InventoryWork sessioninventory.QueryWorkObserver
+	Sessions      launcher.SessionDeleter
+	OwnerProbe    SessionOwnerProber
 	// Zellij is how the checker observes sessions. The zero value is the real
 	// zellij on PATH; tests point Path at a stub and count the calls, because
 	// "a reattach asks two sessions for their clients" is a count, not a timing
@@ -103,7 +106,7 @@ func (c ScopedThreadArtifactCollisionChecker) serverStates() launcher.ServerStat
 }
 
 func NewScopedThreadArtifactCollisionChecker(globalDataDir string) ScopedThreadArtifactCollisionChecker {
-	return ScopedThreadArtifactCollisionChecker{GlobalDataDir: globalDataDir, Sessions: launcher.OSRuntime{}, SessionIndexes: launcher.NewSessionNameIndexCache()}
+	return ScopedThreadArtifactCollisionChecker{GlobalDataDir: globalDataDir, Sessions: launcher.OSRuntime{}, SessionIndexes: launcher.NewSessionNameIndexCache(), OwnerLaunches: sessioninventory.NewOwnerLaunchCache()}
 }
 
 func (c ScopedThreadArtifactCollisionChecker) PairLifecycleIO() LifecycleIO {
@@ -650,7 +653,7 @@ func (c ScopedThreadArtifactCollisionChecker) ResolveEstablished(ctx context.Con
 		return NativeBindingResolution{}, err
 	}
 	return (SessionInventoryNativeBindingResolver{
-		Runtime: sessioninventory.NewOSRuntime(home, paths.ScopeDir()),
+		Runtime: sessioninventory.NewOSRuntime(home, paths.ScopeDir()).WithOwnerLaunchCache(c.OwnerLaunches).WithWorkObserver(c.InventoryWork),
 	}).ResolveEstablished(ctx, repoScope, tag, agent)
 }
 
