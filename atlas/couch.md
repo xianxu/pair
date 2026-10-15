@@ -3874,9 +3874,16 @@ validation; its notice says workspace setup was not refreshed.
 
 ## Native conversation admission (#556 M2)
 
-Every new native resume passes the common launcher gate, including ordinary Pair
-launches outside Couch. The native selector is resolved once and rewritten to an
-explicit canonical ID before launch identity is published. Forks and newly chosen
+Every new native resume is classified at the common launcher gate, including
+ordinary Pair launches outside Couch. Exact canonical IDs and supported
+Claude/Qoder latest selectors resolve once and use an explicit canonical ID
+before launch identity is published. Codex indirect selectors (latest, picker,
+native names/search or prefixes) preserve native CLI behavior unreserved and show
+one line at actual execution saying concurrent native resume is not guarded.
+This explicit compatibility exception lasts until the faithful adapter in #571;
+it never bypasses a nonempty invalid or replayed grant, and full canonical UUID
+resumes still require admission. Unknown indirect targets are not recorded as
+proven canonical IDs. Forks and newly chosen
 session IDs have separate semantics and never claim the source conversation as
 an existing writer. Saved defaults are not rewritten by resolution.
 
@@ -3900,8 +3907,9 @@ forgetting possible writers. Fresh remains a separate conversation.
 Owners: `launcher/native_admission.go`, `native_admission_os.go`,
 `native_createflow_os.go`, `native_resume_selector*.go`,
 `recovery_native_owner*.go`, `sessioninventory/native_selector*.go`, and
-`wrapcmd/native_admission.go`. Provider latest support is constrained by measured
-native ordering and positively resolved effective configuration; unsupported or
-incomplete mappings report that limitation with exact-ID/Fresh advice. Production
-Codex effective configuration remains an explicit pending policy/adapter gap;
-fixtures with supplied configuration do not establish production support.
+`wrapcmd/native_admission.go`. Provider latest support is constrained by measured native ordering and positively
+resolved effective configuration. Unsupported/incomplete mappings for other
+agents report exact-ID/Fresh advice. Codex's approved unreserved exception is owned
+by the shared CodexIndirectResumeCompatibility policy, with one wrapper notice;
+#571 will read effective configuration from files and verify native DB semantics.
+No app-server configuration process is part of this implementation.

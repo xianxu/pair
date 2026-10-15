@@ -1,9 +1,11 @@
 package launcher
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -18,7 +20,7 @@ func TestNativeCreateAdmissionPrecedesLedgerAndReachesOnlyAgentHandoff(t *testin
 			calls := 0
 			rt.nativeReserve = func(_ context.Context, request NativeAdmissionRequest) (string, error) {
 				calls++
-				if request.Agent != agent || request.NativeID != "canonical-native" || request.Attempt == "" || request.CommandDigest == "" {
+				if request.Agent != agent || request.NativeID != "11111111-1111-4111-8111-111111111111" || request.Attempt == "" || request.CommandDigest == "" {
 					t.Fatalf("invalid reservation %+v", request)
 				}
 				if len(rt.ledger["work"]) != 0 || len(rt.preparedLaunches) != 0 {
@@ -34,7 +36,7 @@ func TestNativeCreateAdmissionPrecedesLedgerAndReachesOnlyAgentHandoff(t *testin
 					t.Fatal("native handoff has no reserved grant")
 				}
 			}
-			opts := baseOpts(LaunchArgs{Agent: agent, AgentExplicit: true, ForcedTag: "work", AgentArgs: resumeToken(agent, "canonical-native"), AgentArgsExplicit: true})
+			opts := baseOpts(LaunchArgs{Agent: agent, AgentExplicit: true, ForcedTag: "work", AgentArgs: resumeToken(agent, "11111111-1111-4111-8111-111111111111"), AgentArgsExplicit: true})
 			opts.SkipConfigPicker = true
 			code, err := run(t, opts, rt)
 			if err != nil || code != 0 || calls != 1 {
@@ -54,7 +56,7 @@ func TestNativeCreateAdmissionRefusalPublishesNoLaunch(t *testing.T) {
 	rt.nativeReserve = func(context.Context, NativeAdmissionRequest) (string, error) {
 		return "", errors.New("another native writer")
 	}
-	opts := baseOpts(LaunchArgs{Agent: "codex", AgentExplicit: true, ForcedTag: "work", AgentArgs: []string{"resume", "canonical-native"}, AgentArgsExplicit: true})
+	opts := baseOpts(LaunchArgs{Agent: "codex", AgentExplicit: true, ForcedTag: "work", AgentArgs: []string{"resume", "11111111-1111-4111-8111-111111111111"}, AgentArgsExplicit: true})
 	opts.SkipConfigPicker = true
 	code, err := run(t, opts, rt)
 	if code == 0 && err == nil {
@@ -96,7 +98,7 @@ func TestNativeCreateCancellationStopsAtExposure(t *testing.T) {
 			} else {
 				rt.appendLedgerErr = errors.New("ledger refused")
 			}
-			opts := baseOpts(LaunchArgs{Agent: "codex", AgentExplicit: true, ForcedTag: "work", AgentArgs: []string{"resume", "canonical-native"}, AgentArgsExplicit: true})
+			opts := baseOpts(LaunchArgs{Agent: "codex", AgentExplicit: true, ForcedTag: "work", AgentArgs: []string{"resume", "11111111-1111-4111-8111-111111111111"}, AgentArgsExplicit: true})
 			opts.SkipConfigPicker = true
 			code, err := run(t, opts, rt)
 			if code == 0 && err == nil {
@@ -126,7 +128,7 @@ func TestNativeCreatePinsLatestBeforePublication(t *testing.T) {
 		agent string
 		args  []string
 	}{
-		{"codex", []string{"--model", "test-model", "resume", "--last", "continue work"}},
+
 		{"claude", []string{"--continue", "--model", "test-model"}},
 		{"qoder", []string{"--continue"}},
 	} {
@@ -138,11 +140,11 @@ func TestNativeCreatePinsLatestBeforePublication(t *testing.T) {
 				if q.Selector.Kind != NativeResumeLatest || q.CWD != baseOpts(LaunchArgs{}).Env.Cwd {
 					t.Fatalf("wrong native scope: %+v", q)
 				}
-				args, err := PinNativeResumeSelector(q.Selector, "chosen-native")
-				return NativeResumeResolution{Status: sessioninventory.NativeSelectorResolved, NativeID: "chosen-native", Args: args}, err
+				args, err := PinNativeResumeSelector(q.Selector, "33333333-3333-4333-8333-333333333333")
+				return NativeResumeResolution{Status: sessioninventory.NativeSelectorResolved, NativeID: "33333333-3333-4333-8333-333333333333", Args: args}, err
 			}
 			rt.nativeReserve = func(_ context.Context, q NativeAdmissionRequest) (string, error) {
-				if q.NativeID != "chosen-native" {
+				if q.NativeID != "33333333-3333-4333-8333-333333333333" {
 					t.Fatalf("reserved %+v", q)
 				}
 				// Simulate the native latest changing after resolution.
@@ -158,7 +160,7 @@ func TestNativeCreatePinsLatestBeforePublication(t *testing.T) {
 					t.Fatal(err)
 				}
 				parsed, err := ParseNativeResumeSelector(tc.agent, command.Argv)
-				if err != nil || parsed.Kind != NativeResumeExplicit || parsed.NativeID != "chosen-native" {
+				if err != nil || parsed.Kind != NativeResumeExplicit || parsed.NativeID != "33333333-3333-4333-8333-333333333333" {
 					t.Fatalf("not pinned %+v err=%v", command, err)
 				}
 				if tc.agent == "codex" && !strings.Contains(strings.Join(command.Argv, " "), "continue work") {
@@ -187,7 +189,7 @@ func TestNativeCreateUnresolvedSelectorHasNoWriterEffects(t *testing.T) {
 				t.Fatal("unresolved selector reserved")
 				return "", nil
 			}
-			opts := baseOpts(LaunchArgs{Agent: "codex", AgentExplicit: true, ForcedTag: "work", AgentArgs: []string{"resume", "--last"}, AgentArgsExplicit: true})
+			opts := baseOpts(LaunchArgs{Agent: "muse", AgentExplicit: true, ForcedTag: "work", AgentArgs: []string{"resume", "--last"}, AgentArgsExplicit: true})
 			opts.SkipConfigPicker = true
 			code, err := run(t, opts, rt)
 			if code == 0 && err == nil {
@@ -207,9 +209,9 @@ func TestNativeCreateForkDoesNotReserveOrRecordSourceAsWriter(t *testing.T) {
 		return "", nil
 	}
 	opts := baseOpts(LaunchArgs{Agent: "claude", AgentExplicit: true, ForcedTag: "work", AgentArgs: []string{"--resume", "fork-source", "--fork-session"}, AgentArgsExplicit: true})
-	opts.SkipConfigPicker = true
+	rt.files[filepath.Join(opts.Env.DataDir, "config-work-claude.json")] = `{"agent":"claude","args":[],"session_id":"stale"}`
 	code, err := run(t, opts, rt)
-	if code != 0 || err != nil {
+	if code != 0 || err != nil || rt.launchCount != 1 {
 		t.Fatalf("code=%d err=%v", code, err)
 	}
 	if rt.env["PAIR_SESSION_ID"] != "" || rt.env[NativeAdmissionEnv] != "" {
@@ -251,15 +253,18 @@ func TestNativeCreateTwoSlotAdmissionBarrier(t *testing.T) {
 				err  error
 			}
 			done := make(chan result, 1)
-			go func() { code, err := run(t, opts("slot-one", "native-one"), first); done <- result{code, err} }()
+			go func() {
+				code, err := run(t, opts("slot-one", "11111111-1111-4111-8111-111111111111"), first)
+				done <- result{code, err}
+			}()
 			select {
 			case <-entered:
 			case <-time.After(5 * time.Second):
 				t.Fatal("first slot never reached native handoff")
 			}
-			id := "native-one"
+			id := "11111111-1111-4111-8111-111111111111"
 			if !same {
-				id = "native-two"
+				id = "22222222-2222-4222-8222-222222222222"
 			}
 			code, err := run(t, opts("slot-two", id), second)
 			close(release)
@@ -276,6 +281,82 @@ func TestNativeCreateTwoSlotAdmissionBarrier(t *testing.T) {
 				}
 			} else if code != 0 || err != nil || second.launched == "" {
 				t.Fatalf("independent writer blocked: code=%d err=%v", code, err)
+			}
+		})
+	}
+}
+
+func TestNativeCreateCodexIndirectCompatibilityPreservesInvocation(t *testing.T) {
+	for _, args := range [][]string{
+		{"resume", "--last"},
+		{"--profile", "operator-profile", "resume", "--last", "continue this task"},
+		{"resume"},
+		{"resume", "native-human-name", "--all"},
+		{"resume", "11111111"},
+	} {
+		t.Run(strings.Join(args, " "), func(t *testing.T) {
+			rt := newFakeRuntime()
+			rt.nativeResolve = func(context.Context, NativeResumeRequest) (NativeResumeResolution, error) {
+				t.Error("compatibility invoked unresolved adapter")
+				return NativeResumeResolution{}, errors.New("not implemented")
+			}
+			rt.nativeReserve = func(context.Context, NativeAdmissionRequest) (string, error) {
+				t.Error("indirect compatibility invented a reservation")
+				return "", errors.New("wrong admission")
+			}
+			rt.launchHook = func(int) {
+				cmd, err := DecodeAgentCommand(rt.env[AgentCommandEnv])
+				if err != nil {
+					t.Fatal(err)
+				}
+				if !reflect.DeepEqual(cmd.Argv, inlineModeArgs("codex", args, nil)) {
+					t.Fatalf("native invocation changed: got %q original %q", cmd.Argv, args)
+				}
+				if rt.env[NativeAdmissionEnv] != "" || rt.env["PAIR_SESSION_ID"] != "" {
+					t.Fatal("indirect launch invented native identity or authority")
+				}
+			}
+			opts := baseOpts(LaunchArgs{Agent: "codex", AgentExplicit: true, ForcedTag: "work", AgentArgs: args, AgentArgsExplicit: true})
+			rt.files[filepath.Join(opts.Env.DataDir, "config-work-codex.json")] = `{"agent":"codex","args":[],"session_id":"11111111-1111-4111-8111-111111111111"}`
+			var stderr bytes.Buffer
+			code, err := RunLaunch(opts, rt, &stderr)
+			if strings.Contains(stderr.String(), "starting fresh") {
+				t.Errorf("native selection falsely reported Fresh: %s", stderr.String())
+			}
+			if code != 0 || err != nil || rt.launched == "" {
+				t.Fatalf("Codex CLI regression: code=%d err=%v", code, err)
+			}
+			if got := rt.ledger["work"]; len(got) != 1 || got[0].SessionID != "" {
+				t.Fatalf("indirect selector recorded as canonical identity: %+v", got)
+			}
+		})
+	}
+}
+
+func TestNativeCreateChosenNewIDBypassesSavedPicker(t *testing.T) {
+	for _, agent := range []string{"claude", "qoder"} {
+		t.Run(agent, func(t *testing.T) {
+			rt := newFakeRuntime()
+			rt.nativeReserve = func(context.Context, NativeAdmissionRequest) (string, error) {
+				t.Fatal("new conversation reserved an existing writer")
+				return "", nil
+			}
+			args := []string{"--session-id", "44444444-4444-4444-8444-444444444444", "--model", "chosen-model"}
+			opts := baseOpts(LaunchArgs{Agent: agent, AgentExplicit: true, ForcedTag: "work", AgentArgs: args, AgentArgsExplicit: true})
+			rt.files[filepath.Join(opts.Env.DataDir, "config-work-"+agent+".json")] = `{"agent":"` + agent + `","args":[],"session_id":"stale"}`
+			rt.launchHook = func(int) {
+				cmd, err := DecodeAgentCommand(rt.env[AgentCommandEnv])
+				if err != nil {
+					t.Fatal(err)
+				}
+				if !reflect.DeepEqual(cmd.Argv, inlineModeArgs(agent, args, nil)) {
+					t.Fatalf("new-conversation invocation replaced: %q", cmd.Argv)
+				}
+			}
+			var stderr bytes.Buffer
+			code, err := RunLaunch(opts, rt, &stderr)
+			if code != 0 || err != nil || rt.launchCount != 1 || strings.Contains(stderr.String(), "starting fresh") {
+				t.Fatalf("new choice intercepted: code=%d err=%v launches=%d stderr=%s", code, err, rt.launchCount, &stderr)
 			}
 		})
 	}

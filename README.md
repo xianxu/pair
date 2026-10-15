@@ -1449,9 +1449,11 @@ one explicitly. A possibly running old owner prevents native resume until it
 has been safely retired. A shared admission check prevents two Pair slots from
 starting the same native conversation at once, including launches outside Couch.
 An uncertain start retains ownership; missing readiness alone never proves the
-conversation is free. Native latest selectors must resolve uniquely before launch;
-unsupported configuration/provider mappings name that limitation and offer an
-exact session ID or Fresh. Existing continuation actions remain available where
+conversation is free. Claude and Qoder latest selectors resolve uniquely before launch. Codex indirect
+selectors retain native CLI behavior and show one line saying concurrent resume
+is not guarded until the faithful adapter in #571 is available; full canonical
+Codex IDs remain guarded. Other unsupported configuration/provider mappings name
+that limitation and offer an exact session ID or Fresh. Existing continuation actions remain available where
 a continuation request owns the thread.
 
 **Reboot** preserves the old record and available evidence (checkpoint, native

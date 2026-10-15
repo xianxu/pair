@@ -108,3 +108,15 @@ or slot needs to be stopped to establish these cases.
 Native latest-provider limitations remain pending hub direction. Do not use the
 live operator script to test unproved native selection semantics or claim those
 fixtures establish effective production configuration.
+
+
+### Approved Codex compatibility coverage
+
+Until #571, Codex latest/picker/name/search/prefix selectors keep their native argv
+and run unreserved, with exactly one one-line notice from the actual wrapper.
+Headless tests exercise both argv and from-launch-env entry forms and confirm no
+claim/publication, no guessed canonical ID, and no saved-default changes. Full
+canonical Codex UUIDs, including nonexistent ones, remain outside this exception:
+missing/mismatched/replayed admission still refuses before native execution.
+Claude/Qoder latest resolution remains pinned and guarded. Do not describe the
+Codex indirect exception as protecting against two live writers.

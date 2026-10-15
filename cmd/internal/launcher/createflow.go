@@ -693,21 +693,6 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 		legacyImported = importLegacyFlatTag(rt, chosenTag, opts.GlobalDataDir, dataDir)
 	}
 	configPath := resolveConfigPath(rt, dataDir, chosenTag, agent)
-	var savedForPicker savedConfig
-	var savedWarnings []string
-	if !opts.Args.ResumeRequired && !opts.Args.FreshRequired && opts.ContinueCheckpoint.Version == 0 {
-		var savedErr error
-		savedForPicker, savedWarnings, savedErr = readSavedConfigForTag(rt, configPath, scope.Key, chosenTag, agent)
-		if savedErr != nil {
-			fmt.Fprintf(stderr, "pair: %v\n", savedErr)
-			return launchStep{code: 1}, nil
-		}
-	}
-	if !opts.SkipConfigPicker {
-		for _, warning := range savedWarnings {
-			fmt.Fprintln(stderr, warning)
-		}
-	}
 
 	var agentDefault AgentDefault
 	var defaultFound bool
@@ -729,19 +714,41 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 	// offers to reuse its args / resume its session, unless an explicit resume
 	// token on argv already made the choice.
 	if !opts.SkipConfigPicker && !opts.Args.ResumeRequired && !opts.Args.FreshRequired && opts.ContinueCheckpoint.Version == 0 {
+		callerSelection, parseErr := ParseNativeResumeSelector(agent, agentArgs)
+		if parseErr != nil {
+			fmt.Fprintf(stderr, "pair: native resume selector: %v\n", parseErr)
+			return launchStep{code: 1}, nil
+		}
+		var savedForPicker savedConfig
+		// A native context choice bypasses the saved picker entirely, including
+		// stale saved-session warnings that would falsely report a Fresh launch.
+		if callerSelection.Kind == NativeResumeNone {
+			var warnings []string
+			var savedErr error
+			savedForPicker, warnings, savedErr = readSavedConfigForTag(rt, configPath, scope.Key, chosenTag, agent)
+			if savedErr != nil {
+				fmt.Fprintf(stderr, "pair: %v\n", savedErr)
+				return launchStep{code: 1}, nil
+			}
+			for _, warning := range warnings {
+				fmt.Fprintln(stderr, warning)
+			}
+		}
 		if code, ok := runConfigPicker(rt, configPath, savedForPicker, agent, chosenTag, &agentArgs, stderr); !ok {
 			return launchStep{code: code}, nil
 		}
 	}
 
-	// Resolve indirect selectors once, then launch only the pinned identity.
+	// Resolve supported selectors once; the approved Codex indirect exception
+	// preserves the native CLI invocation without inventing a canonical target.
 	selector, err := ParseNativeResumeSelector(agent, agentArgs)
 	if err != nil {
 		fmt.Fprintf(stderr, "pair: native resume selector: %v\n", err)
 		return launchStep{code: 1}, nil
 	}
 	explicitResume := ""
-	if selector.Kind == NativeResumeExplicit || selector.Kind == NativeResumeLatest || selector.Kind == NativeResumePicker {
+	unguardedCodex := !opts.Args.ResumeRequired && opts.Args.Recovery == nil && CodexIndirectResumeCompatibility(selector)
+	if !unguardedCodex && (selector.Kind == NativeResumeExplicit || selector.Kind == NativeResumeLatest || selector.Kind == NativeResumePicker) {
 		ctx, cancel := context.WithTimeout(context.Background(), zjTimeout)
 		resolved, err := rt.ResolveNativeResume(ctx, NativeResumeRequest{Agent: agent, CWD: env.Cwd, Selector: selector})
 		cancel()
@@ -1198,8 +1205,8 @@ func runConfigPicker(rt Runtime, configPath string, saved savedConfig, agent, ch
 		fmt.Fprintf(stderr, "pair: native resume selector: %v\n", err)
 		return 1, false
 	}
-	if selector.Kind == NativeResumeExplicit || selector.Kind == NativeResumeLatest || selector.Kind == NativeResumePicker {
-		return 0, true // caller selected native context; the config picker cannot replace it.
+	if selector.Kind != NativeResumeNone {
+		return 0, true // caller selected native context, including a fork/new ID.
 	}
 	if saved.Agent == "" {
 		return 0, true // unusable config — proceed as if none.

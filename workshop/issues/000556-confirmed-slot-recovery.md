@@ -667,6 +667,44 @@ Next: hub decides selector configuration strategy and machine capacity, rerun th
 required suite on the resulting code head, then normal M2 milestone-close and
 whole-issue close/PR/CI/merge on SHIP. M1 remains normally closed at `69c213c289ac`.
 
+### 2026-10-15 — approved Codex compatibility delta verified
+
+Shared policy `acbaa18e6` reuses the inventory UUID-shape authority; wrapper
+`85d909865` permits only empty-grant Codex indirect invocations, preserves argv,
+and prints the shared one-line notice once at actual execution. A nonempty bad,
+mismatched or replayed grant never selects the exception; full canonical IDs
+remain guarded. Root launch skips resolution/reservation for that explicit
+compatibility route, publishes no guessed native identity, and keeps trusted
+required/recovery targets on the guarded path. #571 remains unassigned on main;
+the hub received its number (receipt **submitted**).
+
+Meaningful RED-to-GREEN: all five common launcher cases (last, profile+last+
+prompt, picker, name/search, prefix) originally invoked the unavailable resolver
+and refused. They now launch unchanged without resolver/reservation or invented
+identity. Eight actual argv/from-launch-env PTY cases independently went RED,
+then GREEN with exactly one notice and no claim/publication; exact-ID and
+nonempty-grant negative controls still refuse. Updated exact-ID fixture shapes
+to actual canonical UUIDs rather than accidentally exercising the exception.
+
+The same tests caught unrelated saved-session warnings falsely saying
+`starting fresh` before an explicit native choice. Saved-picker reads/warnings
+now occur only when the caller has not chosen native context. A fork regression
+went RED when stale saved config reopened the picker and aborted, then GREEN;
+new chosen-ID sibling cases also verify one launch, unchanged argv and no source
+reservation. README, atlas and headless acceptance document the intentional
+unguarded exception and #571 boundary (no app-server process added).
+
+Private per-command test cache/temp (no global environment edit or shared-cache
+deletion) allowed full packages to pass despite shared scratch exhaustion:
+launcher **35.182s**, wrapper **58.671s**, inventory **11.583s**; focused race
+launcher **2.799s**, wrapper **7.626s**, inventory **1.288s**. After the final
+fork/new-picker correction, complete launcher **PASS 34.708s**, focused mixed
+selection/recovery/config/restart checks **PASS 0.225s**. Build passed using the
+same private per-command environment before that final small picker correction;
+current build rerun follows. Final required recorded suite and normal M2 review
+remain outstanding on the approved resulting code head. No live/stage/native
+conversation/configuration effects occurred.
+
 ## Revisions
 
 ### 2026-10-15T05:33-07:00 — overnight M2 dispatch
