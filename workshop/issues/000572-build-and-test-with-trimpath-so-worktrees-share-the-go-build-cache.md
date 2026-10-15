@@ -44,7 +44,7 @@ minutes. The operator approved building with `-trimpath`.
 
 ## Plan
 
-- [ ] Execute [trimpath plan](../plans/000572-trimpath-cache-plan.md): baseline, path-independent discovery, defaults, cache proof, full qualification and operator gate approval.
+- [x] Execute [trimpath plan](../plans/000572-trimpath-cache-plan.md): baseline, path-independent discovery, defaults, cache proof, full qualification and operator gate approval.
 
 ## Log
 
@@ -111,3 +111,11 @@ minutes. The operator approved building with `-trimpath`.
   4d51ae06-fce6-4253-b6a3-e5d472e1a678, verified submitted). GitHub's
   local-gates guard, conformance, and merge check are green. Recorded suite
   retains its queue position; no second full run started.
+
+- Recorded full suite PASS on fdedd7dd4d30e0119ee2f42fdbdf8afcb053dd9e:
+  exit 0, 9m16s runtime after 2087s machine-queue wait; status sdlc-local/suite.
+  Full shell/Lua and Go suite passed, including all 12 baseline-failing packages.
+  Log SHA-256 prefix 7943372536ad, retained at
+  /Users/xianxu/workspace/pair/.git/sdlc/local-checks/fdedd7dd4d30e0119ee2f42fdbdf8afcb053dd9e/suite.log.
+  The recorded checkout binary independently reports -trimpath=true at that SHA.
+  Only issue/plan bookkeeping changed since the tested commit.

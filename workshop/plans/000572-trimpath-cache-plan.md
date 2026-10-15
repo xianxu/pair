@@ -51,7 +51,7 @@ ARCH-DRY: one filesystem discovery implementation shared by tests, recording fix
 
 - [x] Commit a stable candidate, create two detached temporary worktrees at that same commit, and run the same small real package through one isolated GOCACHE sequentially. Use module `go list -export -json` / build action IDs and compiler `-x` output to measure: without trimpath, worktree-specific cache exports; with trimpath, identical export cache path/build ID and no second compile. Retain Go version, flags, package, roots, entry sizes/counts, and commands in the issue Log. Do not use test-result caching as compile-cache evidence.
 - [x] Warm dependencies only as needed; the package is small and the run is bounded. Clean up only the worktrees/cache created for this measurement after saving evidence.
-- [ ] Run make build and the full suite with defaults; preserve all failures and distinguish pre-existing ones from trimpath regressions. Use the recorded suite for final candidate verification where possible to avoid redundant full runs.
+- [x] Run make build and the full suite with defaults; preserve all failures and distinguish pre-existing ones from trimpath regressions. Use the recorded suite for final candidate verification where possible to avoid redundant full runs.
 - [ ] Close through SDLC's fresh-context review; address findings. Open PR and tell the hub its exact URL/head and .sdlc delta for the operator's local-gates-verified label. Never apply that label ourselves.
 - [ ] Once the operator-controlled gate and required checks pass, merge main and land via sdlc merge --yes. Report real merge hash and measurements to hub, then stop.
 
