@@ -377,13 +377,19 @@ func writePublicPairCommandStubs(t *testing.T, dir string) {
 	zellij := `#!/bin/sh
 printf 'zellij\t%s\t%s\t%s\n' "$*" "$COUCH_TREE" "$COUCH_STORE_DIR" >> "$PAIR_TEST_COMMAND_LOG"
 case "$*" in
-  "list-sessions --short")
-    [ "$PAIR_TEST_ZELLIJ_MODE" = existing ] && printf '📁pair-compiler-fix\n'
-    ;;
-  "list-sessions --no-formatting")
-    [ "$PAIR_TEST_ZELLIJ_MODE" = existing ] && printf '📁pair-compiler-fix [Created 1s ago]\n'
+  "list-sessions --short"|"list-sessions --no-formatting")
+    if [ "$PAIR_TEST_ZELLIJ_MODE" != existing ]; then
+      printf 'No active zellij sessions found.\n' >&2
+      exit 1
+    fi
+    if [ "$*" = 'list-sessions --short' ]; then
+      printf '📁pair-compiler-fix\n'
+    else
+      printf '📁pair-compiler-fix [Created 1s ago]\n'
+    fi
     ;;
   *"action list-clients"*)
+    printf 'CLIENT_ID\n'
     [ "$PAIR_TEST_ZELLIJ_MODE" = existing ] && printf 'test-client\n'
     ;;
 esac

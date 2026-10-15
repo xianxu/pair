@@ -417,6 +417,14 @@ func testComposedPairRegistrationBoundary(t *testing.T, freshSlot bool) {
 	writeExecutableForTest(t, filepath.Join(binDir, "zellij"), `#!/bin/sh
 printf '%s\n' "$*" >> "$PAIR_TEST_ZELLIJ_LOG"
 case " $* " in
+  *" list-sessions "*)
+    # The fixture has no real sessions; empty success means no reply, not absent.
+    printf 'No active zellij sessions found.\n' >&2
+    exit 1
+    ;;
+  *" action list-clients "*)
+    printf 'CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\n'
+    ;;
   *" --new-session-with-layout "*)
 	printf '{"tag":"%s","agent":"%s","session":"%s","nonce":"%s","pid":%d}\n' \
 	  "$PAIR_TAG" "$PAIR_AGENT" "$PAIR_SESSION_NAME" "$PAIR_LAUNCH_NONCE" "$PPID" > "$PAIR_AGENT_READY_PATH"

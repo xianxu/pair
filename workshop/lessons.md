@@ -1784,4 +1784,4 @@ Deleting the orientation delivery also deleted the only `automaticRenderEpoch.Ad
   separately, and capture the failing phase before changing a test budget.
   Isolated rerun passes do not erase a failed broad run or prove its cause.
 
-- #562 fixture sweep: When a read boundary distinguishes an unanswered query from observed absence, update every executable fake that encoded absence as exit0/empty—including shell smoke fixtures and shared helpers. A package-only pass cannot cover their separate launcher path. Use the Make wrapper for hosted test-environment isolation.
+- #562 fixture sweep: When a read boundary distinguishes an unanswered query from observed absence, update every executable fake that encoded absence as exit0/empty—including shell smoke fixtures, shared helpers, composition fixtures and public-command entrypoints. Search generic launch-only executable stubs as well as literal query strings; a silent default can turn cleanup into an endless wait. A package-only pass cannot cover their separate launcher path. Use the Make wrapper for hosted test-environment isolation.
