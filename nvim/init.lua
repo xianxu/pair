@@ -4,6 +4,7 @@
 
 vim.g.mapleader = ' '
 
+local fs_watch = dofile(vim.fn.fnamemodify(debug.getinfo(1, 'S').source:sub(2), ':p:h') .. '/fs_watch.lua')
 local retention = dofile(vim.fn.fnamemodify(debug.getinfo(1, 'S').source:sub(2), ':p:h') .. '/retention.lua').setup('draft-editor')
 retention:watch_writes(function(path)
   local draft = vim.env.PAIR_DRAFT_PATH
@@ -3093,21 +3094,16 @@ local function pair_start_pending_fs_watch()
   if not pending_path or pending_path == '' then return end
   local data_dir = vim.fn.fnamemodify(pending_path, ':h')
   local target = vim.fn.fnamemodify(pending_path, ':t')
-  local handle = vim.loop.new_fs_event()
-  if not handle then return end
-  local ok = pcall(function()
-    handle:start(data_dir, {}, vim.schedule_wrap(function(err, filename)
-      if err then return end
-      -- Many other files churn in $PAIR_DATA_DIR (agent-output, draft,
-      -- config…); skip events that name a different file. Where the
-      -- platform doesn't report a filename (filename == nil), fall
-      -- through and let the pickup short-circuit on its own existence
-      -- check.
-      if filename and filename ~= target then return end
-      pcall(pair_pickup_scrollback_pending)
-    end))
+  fs_watch.start(vim, data_dir, function(err, filename)
+    if err then return end
+    -- Many other files churn in $PAIR_DATA_DIR (agent-output, draft,
+    -- config…); skip events that name a different file. Where the
+    -- platform doesn't report a filename (filename == nil), fall
+    -- through and let the pickup short-circuit on its own existence
+    -- check.
+    if filename and filename ~= target then return end
+    pcall(pair_pickup_scrollback_pending)
   end)
-  if not ok then handle:close() end
 end
 pair_start_pending_fs_watch()
 
@@ -4556,18 +4552,14 @@ local function pair_slug_reconcile()
 end
 
 do
-  local handle = vim.loop.new_fs_event()
-  if handle then
-    local proposed_path = vim.env.PAIR_SLUG_PROPOSED_PATH
-    local target = proposed_path and vim.fn.fnamemodify(proposed_path, ':t') or nil
-    local ok = pcall(function()
-      handle:start(vim.fn.fnamemodify(proposed_path, ':h'), {}, vim.schedule_wrap(function(err, filename)
-        if err then return end
-        if filename and filename ~= target then return end
-        pcall(pair_slug_reconcile)
-      end))
+  local proposed_path = vim.env.PAIR_SLUG_PROPOSED_PATH
+  if proposed_path and proposed_path ~= '' then
+    local target = vim.fn.fnamemodify(proposed_path, ':t')
+    fs_watch.start(vim, vim.fn.fnamemodify(proposed_path, ':h'), function(err, filename)
+      if err then return end
+      if filename and filename ~= target then return end
+      pcall(pair_slug_reconcile)
     end)
-    if not ok then handle:close() end
   end
 end
 
