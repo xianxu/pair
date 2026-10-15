@@ -185,3 +185,82 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-15T04:08:43-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 562 — Zellij CLI queries can finish before their reply |
+| repo | pair |
+| issue file | workshop/issues/000562-zellij-empty-reply-race.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 81ca972350c61881306f0393a666f03c5efa2809..98f4336f2382c360894192080638cb678789d9cc |
+| command | sdlc close --issue 562 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-15T04:08:43-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The interdiff preserves both sides’ intent in all three conflict resolutions. Prior fixes remain intact, the native fixture correction has a demonstrated failing counterfactual, and no new defects or scope expansion were found.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      osruntime.go:144 checks cancellation before interpreting validator evidence and rejects unrecognized subprocess failures. The five failed-probe regressions and eleven validator controls pass on the pinned head; this interdiff preserves that implementation.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Inspected the historical before/after correction: Done-when and Plan now claim Pair boundary regressions and explicitly retain upstream receiver tests as outstanding. This matches zellij_empty_reply_test.go:116–124. The current window preserves those criteria.
+```
+
+1. **Strengths**
+
+   - `osruntime.go:118` retains main’s bounded query and saved-layout preservation.
+   - `terminal_registration_fixture_test.go:112` distinguishes observed empty results from unanswered queries.
+   - `selected_root_test.go:84` combines explicit failure injection, client headers, and positive pane evidence while preserving attachment assertions.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Focused native-registration and composition tests passed normally and under `-race`. Selected-root, failed-name-probe, validator-control, and empty-observation tests passed.
+
+   Restoring the previous native fixture helper through a temporary overlay makes the new regression fail for both listing modes and clients. Temporary files were removed; the checkout remains unchanged. The full suite and live conformance were not independently rerun.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY: pass** — updates the existing shared fixture rather than adding parallel behavior.
+   - **ARCH-PURE: pass** — changes remain in the subprocess boundary and integration fixtures.
+   - **ARCH-PURPOSE: pass** — conflict resolutions preserve uncertainty handling and main’s admission behavior.
+
+   No new architectural or user-facing surface requires atlas or README changes. No Core concepts table applies.
+
+7. **Plan revision recommendations:** None. The source-identity correction and integration notes record corrections without expanding scope.
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.388849875s
+head: "98f4336f2382c360894192080638cb678789d9cc"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
