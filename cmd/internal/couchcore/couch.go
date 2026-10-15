@@ -614,6 +614,7 @@ func (c *Couch) spawnResolved(ctx context.Context, resolution StartResolution, r
 // a created slot's revalidation, a fresh slot's other-owner check -- and runs
 // inside the same rollback as everything else here.
 type claimedLaunch struct {
+	Prompt       string
 	Context      context.Context
 	Thread       ThreadRecord
 	Nonce        string
@@ -638,7 +639,11 @@ func (c *Couch) launchClaimedThread(in claimedLaunch) (ActorRecord, Handle, erro
 			return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(thread, nonce))
 		}
 	}
-	profileRaw, err := launcher.BuildCouchLaunchProfile(
+	buildProfile := launcher.BuildCouchLaunchProfile
+	if in.Prompt != "" {
+		buildProfile = launcher.BuildCouchFreshLaunchProfile
+	}
+	profileRaw, err := buildProfile(
 		string(thread.Address.Tag), profile.Profile.Agent, profile.Profile.Argv,
 		string(profile.AgentSource), string(profile.ArgvSource),
 	)
@@ -652,6 +657,7 @@ func (c *Couch) launchClaimedThread(in claimedLaunch) (ActorRecord, Handle, erro
 		Context: ctx,
 		Thread:  thread, Nonce: nonce, Args: args, StartedAt: in.StartedAt,
 		ProfileRaw: profileRaw, UseRepoDefault: profile.ArgvSource == ArgvSourceRepoDefault,
+		Fresh: in.Prompt != "", Prompt: in.Prompt, Recovery: in.Prompt != "",
 	})
 }
 

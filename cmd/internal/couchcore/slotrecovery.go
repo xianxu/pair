@@ -323,6 +323,10 @@ func (c *Couch) StartFreshSlot(ctx context.Context, path, agent string) (StartRe
 // before quiescing), so it is not re-resolved here; it is distinct from
 // accepted, which also triggers revalidateCreatedSlot.
 func (c *Couch) startFreshSlot(ctx context.Context, path, agent string, requireEmpty bool, accepted *StartResolution, preflight *LaunchProfileResolution) (StartResult, error) {
+	return c.startFreshSlotWithPrompt(ctx, path, agent, requireEmpty, accepted, preflight, "")
+}
+
+func (c *Couch) startFreshSlotWithPrompt(ctx context.Context, path, agent string, requireEmpty bool, accepted *StartResolution, preflight *LaunchProfileResolution, prompt string) (StartResult, error) {
 	local, slot, err := c.selectedSlot(ctx, path)
 	if err != nil {
 		return StartResult{}, err
@@ -387,7 +391,7 @@ func (c *Couch) startFreshSlot(ctx context.Context, path, agent string, requireE
 		return StartResult{}, err
 	}
 	actor, handle, err := c.launchClaimedThread(claimedLaunch{
-		Context: ctx, Thread: record, Nonce: nonce, StartedAt: c.Clock.Now(), Profile: profile,
+		Context: ctx, Thread: record, Nonce: nonce, StartedAt: c.Clock.Now(), Profile: profile, Prompt: prompt,
 		Args: StartArgs{Worktree: Worktree(slot.WorktreeRoot), Cwd: cwd},
 		AfterPrepare: func() error {
 			if err := c.verifyOtherSlotOwnersAbsent(ctx, slot, record.Address); err != nil {
