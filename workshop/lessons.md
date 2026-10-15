@@ -1910,3 +1910,6 @@ Deleting the orientation delivery also deleted the only `automaticRenderEpoch.Ad
 - #568 inventory gate: a new native runtime helper needs both its canonical source classification and its generated-mirror classification in artifactpath’s exhaustive manifest. Run that package immediately after adding the file; the embedding build alone does not validate source participation.
 
 - #568 review / #570: Unix socket paths have a byte envelope that includes the caller’s TMPDIR prefix. A subprocess test passing under the normal temp root does not prove it works under a deeper review checkout; preserve the refused endpoint and file a separate demonstrated path-length defect rather than treating an environment-shortened run as universal coverage.
+
+- #556 M2 review: classify existing-session selectors from the same context authority used by Fresh validation; a remote/PR selector is not an ordinary launch simply because inventory cannot resolve it. Test both native wrapper entry forms and literal option/prompt controls.
+- #556 M2 review: a reserved capability needs revocation as well as consumption. Serialize exact dead-helper revocation with Claim, and test both lock orders: revoke first rejects delayed authority; Claim first retains uncertain spawning ownership. Helper death never proves an already-authorized child dead.

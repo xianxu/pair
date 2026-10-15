@@ -754,6 +754,29 @@ classification and exact reserved-attempt revocation under the Claim lock after
 strict helper death, retaining any already-spawning uncertainty. Bounded independent
 fixes are delegated; TDD and final full verification/re-review remain required.
 
+
+### 2026-10-15 — BR-6 / BR-7 corrected and targeted verification
+
+BR-6 correction `61d335ba9764d6a11f59594876fa3ae037aee646` reuses Fresh's
+context-selector authority for unsupported flags and commands. RED launcher0.187s /
+wrapper3.065s reproduced harmless actual stub spawns through argv and from-launch-env;
+GREEN plus targeted race launcher2.835s / wrapper7.310s. Tests cover all Fresh flag
+families, unsupported-plus-resume/new/fork, literal values/prompts, valid granted
+resume and unchanged approved Codex passthrough. No duplicate selector table.
+
+BR-7 correction `7af210ada02ec76499c5b170f9fc71f144b56aa0` adds exact
+reserved-attempt revocation under the existing store/Claim lock after strict helper
+death. RED reproduced blocked replacement. GREEN targeted1.251s, independent
+root rerun1.168s. Deterministic lock contention covers revocation first (replacement
+admitted, old grant rejected) and Claim first (spawning retained, replacement
+refused), plus live/unknown helper, token/request/generation drift and cancellation.
+No already-authorized child is inferred dead from helper death.
+
+Corrected-code normal `make build` PASS (pair, couch, launch helper). Atlas and
+lessons updated for both finding classes. A fresh required recorded suite follows
+on the checkpointed head, then normal M2 re-close/review with no waivers. No live
+slot, stage, operator restart or native production session was touched.
+
 ## Revisions
 
 ### 2026-10-15T05:33-07:00 — overnight M2 dispatch

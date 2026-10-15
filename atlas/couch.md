@@ -3897,8 +3897,12 @@ terminal lifetime; different native IDs can proceed independently. Legacy owners
 remain checked through bounded Pair metadata and process evidence, including a
 retained native child whose wrapper has died.
 
-Only definitely unexposed reservations may be cancelled. Uncertain publication,
-missing readiness or a dead wrapper alone never releases a conversation. A running
+Only definitely unexposed reservations may be cancelled by their helper. On the
+next admission, an unconsumed reserved grant whose exact helper is proven dead
+is revoked under the same store lock used by wrapper Claim; a delayed wrapper
+cannot execute the revoked grant. If Claim wins first, the resulting spawning
+entry stays retained. Uncertain child publication, missing readiness or a dead
+wrapper alone never releases a conversation. A running
 entry is collected only when both exact wrapper and child are proven dead; unknown
 process observations retain it. These are internal authority states, not new menu
 outcomes. Corrupt, oversized or full authority refuses admission rather than silently
@@ -3912,4 +3916,4 @@ resolved effective configuration. Unsupported/incomplete mappings for other
 agents report exact-ID/Fresh advice. Codex's approved unreserved exception is owned
 by the shared CodexIndirectResumeCompatibility policy, with one wrapper notice;
 #571 will read effective configuration from files and verify native DB semantics.
-No app-server configuration process is part of this implementation.
+No app-server configuration process is part of this implementation. Unsupported remote/PR/cloud and other existing-context selectors derive from the same authority as Fresh validation and refuse before launch, including both wrapper entry forms; option values and prompt text remain literal.
