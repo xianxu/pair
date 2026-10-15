@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
+	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 )
 
 type Owner struct{ Scope, Tag, Agent, NativeID, ScopeDir, Ledger, Transcript string }
@@ -25,7 +26,11 @@ func NewFixture(t testing.TB, slots, ledgerBytes int) Fixture {
 	t.Helper()
 	root := t.TempDir()
 	f := Fixture{Home: filepath.Join(root, "home"), DataDir: filepath.Join(root, "pair"), Counts: &Counter{}}
-	native := filepath.Join(f.Home, ".codex", "sessions", "2026", "10", "14")
+	roots := sessioninventory.NewOSRuntime(f.Home, f.DataDir).NativeRoots(sessioninventory.AgentCodex)
+	if len(roots) != 1 {
+		t.Fatalf("expected one Codex native root, got %d", len(roots))
+	}
+	native := filepath.Join(roots[0].Path, "2026", "10", "14")
 	if err := os.MkdirAll(native, 0700); err != nil {
 		t.Fatal(err)
 	}

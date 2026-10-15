@@ -252,3 +252,9 @@ New production source inventory initially failed for moved test-support files an
 Atlas now documents normal-suite commands, count boundaries, adding an invariant and a separate TL/operator CPU smoke. No stage, live operator action or machine setting change. Integrated targeted group is running before the pushed-head recorded full suite; close/landing remain pending.
 
 Integrated targeted group PASS: UI12.212s, message1.348s, launcher0.184s, core9.676s, procutil0.167s, threadactivity1.156s, support0.321s (/tmp/pair204-integrated-targeted.log). Temporary counterfactual sources live only outside the checkout.
+
+### 2026-10-15 — first full suite and canonical fixture root
+
+Recorded full suite on52d9b7daf6b97538fce58e44ccf756acca6da49b completed all recipes in9m4s after280s queue wait. Its only failure was TestNoNativeAuthorityShadowInInteractiveConsumers: the extracted test-support fixture duplicated the Codex native storage path. Saved failure log e74cededd3e7ff175d5ee7bbbf6dc708.log, SHA256 prefix67142c241ca3. Every other package passed; no remaining recipes or flaky-failure waiver.
+
+The fixture now obtains its native root from sessioninventory.NewOSRuntime.NativeRoots instead of defining another path (ARCH-DRY). The guard stays unchanged. Targeted native-authority guards, shared fixture and both20x30MB consumer invariants pass: sessioninventory3.828s, support0.280s, UI11.937s, message1.989s. A new recorded full suite is required before close.
