@@ -67,7 +67,7 @@ Rows map to issue/spec, session-name cache, activity cache, ledger reuse, messag
 - [x] Add regression fixtures and capture uncached read/allocation profile.
 - [x] Cache strict session-name evidence and share existing ledger parsing across long-lived collision queries.
 - [x] Reuse validated activity projection while its exact dependencies are unchanged; retain changed-input validation.
-- [ ] Verify invalidation/races/scale, document cache ownership, run full suite, review, and coordinate acceptance/landing.
+- [x] Verify invalidation/races/scale, document cache ownership, run full suite, review, and coordinate acceptance/landing.
 
 ## Log
 
@@ -96,3 +96,5 @@ Final wiring audit found ResolveEstablished still recreated an inventory runtime
 Before/after CPU profiles captured for the synthetic20-slot benchmark with phase=warm labels: /tmp/pair559-warm.cpu and /tmp/pair559-disabled.cpu; matching top reports in /tmp/pair559-warm-top.txt and /tmp/pair559-disabled-top.txt. Filtered warm samples show0.21s CPU with caching versus0.97s cache-disabled; the enabled profile has metadata syscalls and no catalog/scanner decoder stacks, while disabled includes CatalogStore.Read, DecodeScannerState and ValidateBindingProof. Sampling/timing is diagnostic, not a threshold or live-supervisor acceptance claim. Profile benchmark allocation values603,317 B/5,941 allocs vs2,500,179 B/25,066 allocs per20-row pass; observed bytes again0/0 enabled versus25,118 body/42,638 decoder disabled. Cold setup is excluded by the warm label.
 
 Added missing-ledger→created-ledger activity invalidation regression; passed. Removed redundant direct index-ready mutation after failed load: begin transition already marks the entry unready, so the pure transition remains the sole state writer. Existing strict-load/race tests cover failure publication.
+
+First complete full suite PASSED: bfc7f564aed9e90492dbe49526034fe157699344, make test exit0 in12m4s, recorded sdlc-local/suite, log sha256 prefix8a9878f379f2. No failures or skipped remainder. Subsequent production delta is only collision inventory runtime shared-cache/observer wiring, covered by both core cache integration tests under -race; latest index change removes redundant state assignment and its targeted race passed. Exact-head required suite on eaa222a565b6f1532489111402d0e577b7dc6be7 is queued, and merge cannot proceed without its recorded pass. Close review is local code acceptance, not live rollout acceptance. Hub received the rollout scheduling request (receipt ef32b236-d530-4b36-bc6a-c2be19f4d9d0 submitted); live CPU/delivery acceptance or explicit alternate decision is still pending, and no stage/restart was performed. The final issue Plan row records verification plus initiated acceptance coordination; landing remains governed by close/CI/suite/live gates below, not claimed done by that tick.

@@ -60,38 +60,38 @@ No query result grants action authority: launcher SessionOwnerProbe and Revalida
 
 **Files:** launcher/session_index_cache_test.go (new); sessioninventory/activity_cache_test.go (new); existing sessioninventory/ledger_read_test.go; threadactivity/os_test.go; couchcore artifactcollision tests.
 
-- [ ] Build valid synthetic indexes and 15/33 MiB session evidence using existing provider/runtime fixture builders. Include current launch, previous-established fallback, and filename-confirmed v3 roots.
-- [ ] Repeated production seam test counts reads/decoded bytes and records testing benchmark allocations. Show baseline repeated work on current code; save CPU/memory profiles in /tmp, never commit real transcript content.
-- [ ] Use equivalent small/large unchanged fixtures and assert no warm body reads; output equality against fresh uncached validation is the oracle.
+- [x] Build valid synthetic indexes and 15/33 MiB session evidence using existing provider/runtime fixture builders. Include current launch, previous-established fallback, and filename-confirmed v3 roots.
+- [x] Repeated production seam test counts reads/decoded bytes and records testing benchmark allocations. Show baseline repeated work on current code; save CPU/memory profiles in /tmp, never commit real transcript content.
+- [x] Use equivalent small/large unchanged fixtures and assert no warm body reads; output equality against fresh uncached validation is the oracle.
 
 ## Task 2 — strict session-name and ledger evidence reuse
 
 **Files:** launcher/session_index.go, new session_index_cache.go; couchcore/artifactcollision.go; sessioninventory/launch_cache.go, query.go; tests beside each.
 
-- [ ] Add a caller-owned session-name reader with injected stat/read seam; include global legacy and per-scope paths separately. Reuse existing strong platform file metadata, not mtime alone. Keep strict parse failures and legacy-first/scoped-second precedence.
-- [ ] Cache latest-per-owner projection once per source generation for collision consumers, so warm effectiveBindings does not traverse historical rows. Keep the raw index API unchanged for unrelated launcher consumers. Characterize contested/cross-scope cases against existing effectiveBindings.
-- [ ] Wire the checker's PairSessionName and resolveScopedBindings through the same shared cache. Verify ListedPairSessionContext/message authority on the main version used for implementation. Constructor initializes pointer ownership; zero-value/literal checkers retain a correct uncached fallback for tests.
-- [ ] Reuse existing OwnerLaunchCache parsing for QueryResumeTargetContext. Cache only current plus previous-established evidence needed by fallback, derived with the existing reducer; no duplicate root selection rule and no full historical-record retention. Give checker-created inventory runtimes the shared owner cache.
-- [ ] All effect-time ownership revalidation remains uncached. Reads/stat errors discard old authority. Test append/replacement/truncation/same-size rewrite, duplicate owners, missing/corrupt files, incomplete frames and per-scope isolation.
+- [x] Add a caller-owned session-name reader with injected stat/read seam; include global legacy and per-scope paths separately. Reuse existing strong platform file metadata, not mtime alone. Keep strict parse failures and legacy-first/scoped-second precedence.
+- [x] Cache latest-per-owner projection once per source generation for collision consumers, so warm effectiveBindings does not traverse historical rows. Keep the raw index API unchanged for unrelated launcher consumers. Characterize contested/cross-scope cases against existing effectiveBindings.
+- [x] Wire the checker's PairSessionName and resolveScopedBindings through the same shared cache. Verify ListedPairSessionContext/message authority on the main version used for implementation. Constructor initializes pointer ownership; zero-value/literal checkers retain a correct uncached fallback for tests.
+- [x] Reuse existing OwnerLaunchCache parsing for QueryResumeTargetContext. Cache only current plus previous-established evidence needed by fallback, derived with the existing reducer; no duplicate root selection rule and no full historical-record retention. Give checker-created inventory runtimes the shared owner cache.
+- [x] All effect-time ownership revalidation remains uncached. Reads/stat errors discard old authority. Test append/replacement/truncation/same-size rewrite, duplicate owners, missing/corrupt files, incomplete frames and per-scope isolation.
 
 ## Task 3 — unchanged validated activity reuse
 
 **Files:** sessioninventory/activity.go, new activity_cache.go, query.go narrow evidence exposure; threadactivity/os.go and tests.
 
-- [ ] Introduce an activity-query owner shared by threadactivity runtime across probes, keyed by canonical Pair root, scope, tag, agent and parser/schema contract. Return SessionActivity and presence; retain only that compact projection and dependency stamps.
-- [ ] On miss run the current QuerySessionContext plus ActivityForSession. Expose the validation's observed native artifact fingerprints to this internal query path rather than reconstructing authority from resume identity. Include current owner ledger and catalog present/absent state in dependencies; catalog invalidation matters because it can change proof reuse/authorization.
-- [ ] On hit freshly stat those exact dependencies, then return activity with zero catalog/native/ledger body decoding. Preserve activity's current-launch-only semantics. Changed native bytes trigger current scanner validation (including APFS growth/rewrites); no metadata-only new authority.
-- [ ] Verify dependency stability across load/publication: compare validation-observed native metadata and ledger/catalog pre/post observations, retry once on drift. Do not admit an unobserved dependency or bless partial/canceled content work. Where dependency observation is incomplete, remain uncached and fail closed.
-- [ ] Keep all existing threadactivity consumers on this same implementation; no separate UI-only rule or new watcher. Existing log/pane-birth signals continue to work when native evidence is unavailable.
+- [x] Introduce an activity-query owner shared by threadactivity runtime across probes, keyed by canonical Pair root, scope, tag, agent and parser/schema contract. Return SessionActivity and presence; retain only that compact projection and dependency stamps.
+- [x] On miss run the current QuerySessionContext plus ActivityForSession. Expose the validation's observed native artifact fingerprints to this internal query path rather than reconstructing authority from resume identity. Include current owner ledger and catalog present/absent state in dependencies; catalog invalidation matters because it can change proof reuse/authorization.
+- [x] On hit freshly stat those exact dependencies, then return activity with zero catalog/native/ledger body decoding. Preserve activity's current-launch-only semantics. Changed native bytes trigger current scanner validation (including APFS growth/rewrites); no metadata-only new authority.
+- [x] Verify dependency stability across load/publication: compare validation-observed native metadata and ledger/catalog pre/post observations, retry once on drift. Do not admit an unobserved dependency or bless partial/canceled content work. Where dependency observation is incomplete, remain uncached and fail closed.
+- [x] Keep all existing threadactivity consumers on this same implementation; no separate UI-only rule or new watcher. Existing log/pane-birth signals continue to work when native evidence is unavailable.
 
 ## Task 4 — validation, documentation, rollout
 
-- [ ] Named tests for index cache load/commit, owner evidence fallback, cached activity query and production checker/runtime wiring exercise stateful file worlds and real temp files. Barrier-controlled races cover changed-during-read, canceled waiters and stale completion; run with -race.
-- [ ] Scale benchmark over repeated unchanged queries reports CPU and allocation profiles before/after. Require no size-proportional warm reads or allocations; growth/mutation triggers validation once, then reaches a warm state again. Do not claim the entire supervisor CPU is fixed solely from a microbenchmark.
-- [ ] Run affected packages (launcher, sessioninventory, threadactivity, couchcore, couchcmd/couchtty seams as applicable). Sweep artifactpath's source inventory for new production files and run its tests.
-- [ ] Update atlas/couch.md or inventory atlas with cache owners, fingerprint invalidation and remaining cold/changed-input costs; README only if operator flow changes.
-- [ ] Push and record full suite via sdlc local-check run --name suite; if a known failure occurs finish the remainder with make -k and report every failure. sdlc close owns fresh review.
-- [ ] Ask hub for rollout slot/time; no stage or restart of the live supervisor without direction. Live acceptance: hub/operator rebuild/restart, repeat same bounded sample/CPU observation at idle and one normal delivery; inspect uncertain outcomes by receipts, never auto-resend. Landing order follows hub's acceptance decision and SDLC gates.
+- [x] Named tests for index cache load/commit, owner evidence fallback, cached activity query and production checker/runtime wiring exercise stateful file worlds and real temp files. Barrier-controlled races cover changed-during-read, canceled waiters and stale completion; run with -race.
+- [x] Scale benchmark over repeated unchanged queries reports CPU and allocation profiles before/after. Require no size-proportional warm reads or allocations; growth/mutation triggers validation once, then reaches a warm state again. Do not claim the entire supervisor CPU is fixed solely from a microbenchmark.
+- [x] Run affected packages (launcher, sessioninventory, threadactivity, couchcore, couchcmd/couchtty seams as applicable). Sweep artifactpath's source inventory for new production files and run its tests.
+- [x] Update atlas/couch.md or inventory atlas with cache owners, fingerprint invalidation and remaining cold/changed-input costs; README only if operator flow changes.
+- [x] Push and record full suite via sdlc local-check run --name suite; if a known failure occurs finish the remainder with make -k and report every failure. sdlc close owns fresh review.
+- [x] Ask hub for rollout slot/time; no stage or restart of the live supervisor without direction. Live acceptance: hub/operator rebuild/restart, repeat same bounded sample/CPU observation at idle and one normal delivery; inspect uncertain outcomes by receipts, never auto-resend. Landing order follows hub's acceptance decision and SDLC gates.
 
 ## Test strategy by risky function
 
@@ -139,3 +139,7 @@ Reason: the plan-quality gate requires function names, beyond the conceptual sea
 | couchcmd.messageAuthority.current | Named production message regression drives actual cached checker; cold/mutated controls prove both counters and current identity guards connected |
 
 No new test-case inventory or extra review boundary is introduced. Pure transitions implement the already-approved state/event table; thin methods execute its read/publish effects.
+
+### 2026-10-14 — local verification and acceptance accounting
+
+Task ticks record implemented work, first passing complete suite and submitted rollout-coordination request; they do not assert the future gate actions in those paragraphs have completed. Mandatory close review now runs; exact-head landing suite is queued. Live acceptance and landing remain pending hub/gate outcomes and will be recorded in the issue Log before shipping. No operator action is inferred from elapsed time.
