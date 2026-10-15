@@ -26,8 +26,9 @@ func DecideSegment(now, lastWrite time.Time) bool {
 }
 
 // Preview is read-only: it does not create a lock, initialize or recover state.
-// At most limit segment metadata entries are visited. Callers schedule more work
-// by repeating after collection; a current file is always an additional row.
+// The requested page is bounded by limit; count-policy classification also
+// certifies at most 64 immutable candidates. Callers resume incomplete pages;
+// a current file is always an additional row.
 func Preview(path string, options Options, limit int) ([]Segment, error) {
 	rows, _, done, e := previewManagedPage(path, options, "", limit)
 	if e == nil && !done {
@@ -36,7 +37,7 @@ func Preview(path string, options Options, limit int) ([]Segment, error) {
 	return rows, e
 }
 
-// Collect revalidates and unlinks only exact expired generations. It never
+// Collect revalidates and unlinks exact age- or count-expired generations. It never
 // removes the stable lock inode or scans arbitrary external trace filenames.
 func Collect(path string, options Options, limit int) ([]Segment, error) {
 	rows, _, done, e := collectManagedPage(path, options, "", limit)
