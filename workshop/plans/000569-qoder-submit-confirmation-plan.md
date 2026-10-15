@@ -66,12 +66,12 @@ The final unreconciled-input policy is awaiting TL confirmation: safe bounded es
 ### 1. Pin native and state-machine evidence
 
 - [ ] Preserve a bounded read-only pair:4 pending/idle observation and receipt status. Coordinate through the TL before any live input, restart or staging.
-- [ ] Add failing pure reducer tests for bounded retry and terminal no-op behavior. Add stateful Qoder regressions for dropped first submit, late paste render, occupied composer plus unrelated turn, and mid-turn acceptance. Run targeted tests and record RED.
+- [ ] Add failing tests using the named function strategies in the revision below. Exercise the production writer with the stateful Qoder receiver and record RED.
 - [ ] Implement the minimal reducer retry event/count and Qoder evidence projection, then wire through the existing PTY writer. Record GREEN and exact wire counts: body pasted once, bounded CR writes, no writes after confirmation/interruption/deadline.
 
 ### 2. Bound failed-transaction recovery
 
-- [ ] After TL decides the terminal policy, add RED tests for unreconciled residue, one report, immediate actionable later refusal, and positive-empty recovery followed by a successful new delivery. Include human drafts, pickers, partial frames, stale epochs and child exit as negative controls.
+- [ ] Under the approved terminal policy, add RED tests for the recovery invariants using the named function strategies below. Keep reporting, input ownership and next-delivery outcomes independently observable.
 - [ ] Extend the existing typed stall cause/parser and supervisor notice if needed, preserving mixed-version visible refusal and no automatic release on unknown/occupied input. Reuse the report queue, sanitization, incarnation binding and sequence deduplication. Run parser, reducer and supervisor tests, then race tests.
 - [ ] Map the confirmation/retry/recovery behavior in atlas/couch.md; update public guidance only where the operator must act. Add a lesson for any review-discovered rule. Update artifact inventory for a new production source file.
 
@@ -91,3 +91,20 @@ TL approval of this plan, retry budget and terminal residual-input policy is pen
 ### 2026-10-15 — TL approval and exact envelope authority
 
 TL approved plan 967b13cdbf243d945d13986c1d0864c2bc906cad (receipt c4ac5b82-afee-4dfe-8a1e-70a9c5c367db), including three attempts >=500 ms apart inside the existing 30 s window and the explicit terminal-residue policy. Every retry additionally requires that the rendered Qoder composer still holds exactly the envelope Couch typed (earlier refinement 84d5bf3e-f2ba-4f7b-a483-c65b528689f6). Match the full qualified composer, never just a prefix/header or whitespace-stripped substring; if wrapping/truncation makes exact ownership unverifiable, do not retry. Human admission, changed text, unknown/partial frames and overlays revoke retry. The live check must run before landing and be coordinated with TL; Qoder's cheap window is 07:00–17:00 PDT.
+
+### 2026-10-15 — plan-quality round 1 corrections
+
+PQ-1 (ARCH-ORDER): terminal escalation is an event effect, not a future timeout. In advancePeer's PeerPublish effect, before stopping delivery polling, an unconfirmed Qoder submission after a complete body paste and without human interruption emits automaticQuarantine through advanceAutomaticInput. That pure event enters NeedsOperator and emits exactly one report immediately, with duration measured since pastedAt. Exact-envelope residue uses the typed unsubmitted-composer cause; unverifiable residue uses an uncertainty cause and wording, never a claim that execution failed. The existing bounded reporter performs IO off the writer. A subsequent delivery observes this state and the existing peer reducer publishes a no-paste terminal refusal with the actionable reason; it does not spend its admission deadline waiting. Normal output already signals d.wake and calls dispatchPeer through the input owner. Evaluate the automatic-input recovery observation before dispatchPeer's terminal early return, so a complete post-quarantine empty frame clears NeedsOperator even when there is no next delivery. Only that existing render wake or new admission drives observation; no new timer, goroutine or idle poll. An empty snapshot at/before the transaction fence cannot release. Human input, unknown/partial output or an occupied composer never authorizes a retry, deletion or late execution.
+
+PQ-2: the earlier scenario prose is superseded by these function-level adversarial strategies. Individual cases belong in executable tests.
+
+| Risky function | Input class and mechanical guard |
+|---------------|----------------------------------|
+| AdvancePeerDelivery | Generate retry/interrupt/terminal event sequences; count PTY effects independently, prove at most three submits, exactly one paste and no post-terminal effects. |
+| qoderSubmissionEvidence | Mutate complete terminal snapshots, envelope bytes and rendered epochs; exact supported layout and unchanged-input authority are necessary for retry, while only fresh empty evidence confirms. Fuzz malformed geometry/text and reject clipped or unsupported representations. |
+| dispatchPeer / advancePeer | Stateful receiver drops keys and reorders paint/turn/input events under fake time; assert receipt outcome against receiver's accepted-envelope count and exact wire writes. |
+| advanceAutomaticInput | Enumerate quarantine/render/admission transitions with monotone epochs; prove one report, immediate no-paste refusal and recovery only from later complete empty evidence. |
+| ParseAutomaticInputStall | Fuzz bounded JSON and typed-cause mutations; validate required fields, non-release of unsubmitted/unknown causes and visible mixed-version refusal. |
+| handleAutomaticInputStall | Existing authenticated fake supervisor receives duplicate/foreign/changed-incarnation reports; assert one owning-hub notice per authorized sequence and no control authority from report content. |
+
+Exact-envelope interpretation: use the complete composer parser and a deterministic expected visual projection of Couch's known envelope. Preserve logical newlines and meaningful spaces; never flatten or normalize arbitrary observed text. Printable/Unicode layout is supported only when its renderer projection can be established by captured Qoder evidence; unknown wrapping/truncation/control sequences fail closed. The no-admitted-human-input fence remains necessary because screen equality alone cannot prove underlying editor bytes. If a native layout is not yet qualified, the safe outcome is no retry plus explicit recovery, not broadened text matching.
