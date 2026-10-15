@@ -98,3 +98,90 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-15T02:02:35-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 562 — Zellij CLI queries can finish before their reply |
+| repo | pair |
+| issue file | workshop/issues/000562-zellij-empty-reply-race.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 965fcb8147cbb4f63a43d867a571cff7afa140e0..54d5b2defa4d2c44f827a17cd9100c89f3069afd |
+| command | sdlc close --issue 562 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-15T02:02:35-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+Both prior findings are addressed. The implementation preserves uncertainty for unanswered reads and failed name probes, retains established empty-inventory evidence, and adds no retries. The revised acceptance criteria accurately distinguish delivered Pair regressions from outstanding upstream protocol work. No new blocking findings found.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      osruntime.go:128–144 checks cancellation before validator evidence and propagates unrecognized subprocess failures. TestFailedZellijNameProbeCannotTeachMonotoneBounds covers failed diagnostics and partial stdout/stderr through the production monotone acceptor. It passes on HEAD; restoring the previous probe implementation via a temporary overlay makes all five cases fail.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      The pinned before/after diff revises issue lines 52 and 59 to claim Pair boundary regressions, explicitly leaving upstream receiver tests and captured IPC ordering outstanding. This matches zellij_empty_reply_test.go:116–124, which models CLI completion rather than ConnStatus, and the internal draft’s requested upstream scenarios.
+```
+
+1. **Strengths**
+
+   - `zellij.go:202` centralizes unanswered-read rejection while preserving the explicit empty-inventory diagnostic.
+   - `createflow.go:1387` retains assignment-local uncertainty without learning positive or negative length bounds.
+   - Stateful tests verify no automatic retry, recovery through fresh observations, and unchanged ownership-generation fences.
+   - The live PID/pane fixture uses the same atomic publisher exercised by the deterministic barrier test.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Full launcher tests passed. Focused launcher, couchcore, and shared-fake tests passed normally and under the race detector. Public-command and production-registration composition tests passed.
+
+   Counterfactual overlays independently made regressions fail when restoring the previous name probe, removing the shared no-reply guard, or restoring direct fixture publication. Temporary overlays were removed; the checkout remains unchanged.
+
+   The repository-wide suite and live conformance were not independently rerun. Pinned upstream [query receiver](https://github.com/zellij-org/zellij/blob/efd8fd5a89a20c07a111d248ad7fce53848d2c18/zellij-client/src/cli_client.rs#L212-L258) and [discovery probe](https://github.com/zellij-org/zellij/blob/efd8fd5a89a20c07a111d248ad7fce53848d2c18/zellij-utils/src/sessions.rs#L148-L167) support the documented possible interleavings.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY: pass** — shared read boundary and client-count parser.
+   - **ARCH-PURE: pass** — small IO guards; existing injected ownership seam retained.
+   - **ARCH-PURPOSE: pass** — enumerated authority consumers preserve uncertainty; acceptance matches delivery.
+   - **ARCH-MOCK: pass** — stateful executable fake exercises production boundaries; live conformance lane exists.
+   - **ARCH-CONSTRAINTS: pass** — bounded queries, no added retries or fan-out.
+   - **ARCH-SECURE: pass** — failed external evidence cannot grant name or ownership authority.
+   - **ARCH-ORDER: pass** — unknown observations stop assignment; fresh observations and generation replacement are covered.
+   - **ARCH-FUNERAL: pass** — no new production durable artifacts; fixtures use temporary-directory cleanup.
+
+   Atlas coverage is present. No new command, flag, keybinding, or configuration surface requires a README update. No Core concepts table is present.
+
+7. **Plan revision recommendations:** None.
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.824387583s
+head: "54d5b2defa4d2c44f827a17cd9100c89f3069afd"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

@@ -15,7 +15,7 @@ claimant:
     workspace: pair:7
     worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "dd135d10", done: "f76a45da"}
+flow: {kind: full, provenance: inferred}
 ---
 
 # Zellij CLI queries can finish before their reply
@@ -62,6 +62,10 @@ External posting, upstream installation and operator environment changes require
 
 ## Log
 
+
+
+- 2026-10-15: closed — Full suite PASS b15c36aa exit0 9m11s log18ad9a98b2bf before BR-1 correction; replacement suite on54d5b2de queued and MUST pass before merge. BR-1 subprocess regressions RED before correction20.434s then GREEN15.273s; original-code overlay independently fails failed-connect/partial-stdout cases (/tmp/pair562-br1-counterfactual.log). Full corrected launcher -race PASS92.439s; eleven real-subprocess validator controls PASS1.028s. Context failures precede parsing; only source-verified exact post-parse absence replies can prove name validation. BR-2 Done-when/Plan reconciled with TL-approved boundary-fake/source-evidence delivery, old wording retained in Revision. Earlier stateful and atomic publication counterfactuals preserved. PR340 previous conformance green; final54d5b2de CI pending. No external post/operator mutation; live look TL-owned morning restart.; review verdict: SHIP
+- 2026-10-15: flow upgraded quick → full — 129 added lines in code files (limit 100); an earlier round of this close already ran the full review
 ### 2026-10-14
 
 Split from #218 during warm-fleet measurement. Filed as an unassigned follow-up; no implementation or upstream post performed. Full evidence and incomplete matrices remain recorded in #218. CI log retrieved through gh; source at the exact failing commit inspected rather than attributing the Atoi message to CLI output.
