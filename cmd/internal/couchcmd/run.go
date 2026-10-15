@@ -294,6 +294,14 @@ func RunWithRuntime(args []string, stdin io.Reader, stdout, stderr io.Writer, rt
 	}
 	invocation, err := ParseCLI(args, couchcore.Operations())
 	if err != nil {
+		if len(args) > 0 && args[0] == "--session-sync" {
+			for _, arg := range args[1:] {
+				if arg == "--json" {
+					_ = json.NewEncoder(stdout).Encode(sessionSyncResponse{Code: "usage", Error: err.Error()})
+					return 2
+				}
+			}
+		}
 		fmt.Fprintf(stderr, "couch: %v\n", err)
 		return 2
 	}
@@ -1402,9 +1410,11 @@ func usageWith(w io.Writer, bindings []couchkeys.Binding) {
 	verbLine(w, "--broadcast-list", "       couch --broadcast-list [--json]")
 	fmt.Fprintln(w, "             The running broadcast and its viewer count, and the recordings shared for")
 	fmt.Fprintln(w, "             replay (never a link).")
-	verbLine(w, "--session-sync", "       couch --session-sync diff|status [--json]|write|release ... FILE")
-	fmt.Fprintln(w, "             The one way an agent changes a session-sync file it owns: refuses under the")
-	fmt.Fprintln(w, "             operator's lock or over unread edits, and lists owed deliveries. See couch --skill.")
+	verbLine(w, "--session-sync", "       couch --session-sync register FILE --owner SLOT [--json]")
+	fmt.Fprintln(w, "             lookup FILE | list | forget FILE | rename OLD NEW [--json]")
+	fmt.Fprintln(w, "             read|diff|status|write ... FILE: registered markdown and legacy session files.")
+	fmt.Fprintln(w, "             CAS writes refuse under the operator lock; after 30 minutes, ping its holder.")
+	fmt.Fprintln(w, "             Registration lasts until forget; rename moves metadata only. See couch --skill.")
 	verbLine(w, "--adopt-store", "       couch --adopt-store <absolute-path> [--pair-data <path>] [--identity-dir <path>]")
 	fmt.Fprintln(w, "             [--legacy-store <path>]... [--exclude-store <path>]... [--apply <digest>]")
 	fmt.Fprintln(w, "             Preview legacy stores as JSON; apply the current digest to select in place.")

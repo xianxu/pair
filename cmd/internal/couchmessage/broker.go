@@ -684,7 +684,7 @@ func (b *Broker) tryAdmission(ctx context.Context, a *SlotActor, seq uint64, fro
 		return Receipt{}, ErrRecipientBusy
 	}
 	now := b.now()
-	m := Message{ID: id, From: from, To: to, Body: body, Deadline: now.Add(PasteTimeout)}
+	m := Message{ID: id, From: from, To: to, Body: body, Deadline: now.Add(PasteTimeout), AcceptedAt: now}
 	if err = b.apply(a, Event{Kind: Admit, Binding: to, Message: m, At: now}); err != nil {
 		return Receipt{}, err
 	}
@@ -698,7 +698,7 @@ func (b *Broker) tryAdmission(ctx context.Context, a *SlotActor, seq uint64, fro
 // (pair#492) and wakes the worker that promotes it.
 func (b *Broker) enqueueLocked(a *SlotActor, from Binding, id string, route Route, body string) (Receipt, error) {
 	now := b.now()
-	m := Message{ID: id, From: from, To: a.binding, Body: body, Deadline: now.Add(QueueWait)}
+	m := Message{ID: id, From: from, To: a.binding, Body: body, Deadline: now.Add(QueueWait), AcceptedAt: now}
 	if err := b.apply(a, Event{Kind: Enqueue, Binding: a.binding, Message: m, At: now}); err != nil {
 		return Receipt{}, err
 	}
