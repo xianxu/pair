@@ -1887,3 +1887,5 @@ Deleting the orientation delivery also deleted the only `automaticRenderEpoch.Ad
 - #568: A silent nonzero editor exit can happen after all assertions pass. Capture the return code, pre-exit messages and case-local Neovim log before cleanup. Own filesystem watchers through explicit stop/close before global teardown and invalidate already-queued callbacks; a startup delay or isolated green run does not establish disposal.
 
 - #568 inventory gate: a new native runtime helper needs both its canonical source classification and its generated-mirror classification in artifactpath’s exhaustive manifest. Run that package immediately after adding the file; the embedding build alone does not validate source participation.
+
+- #568 review / #570: Unix socket paths have a byte envelope that includes the caller’s TMPDIR prefix. A subprocess test passing under the normal temp root does not prove it works under a deeper review checkout; preserve the refused endpoint and file a separate demonstrated path-length defect rather than treating an environment-shortened run as universal coverage.
