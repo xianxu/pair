@@ -14,7 +14,21 @@ import (
 	"github.com/xianxu/pair/cmd/internal/panebirth"
 )
 
+// RecoveryLaunchUnconfirmed preserves an attempt that may already own a native
+// agent. Its durable selection remains available for explicit observation.
+type RecoveryLaunchUnconfirmed struct {
+	Address ThreadAddress
+	Nonce   string
+	Cause   error
+}
+
+func (e *RecoveryLaunchUnconfirmed) Error() string {
+	return fmt.Sprintf("recovery launch unconfirmed for %s:%s (attempt %s): %v", e.Address.RepoScope, e.Address.Tag, e.Nonce, e.Cause)
+}
+func (e *RecoveryLaunchUnconfirmed) Unwrap() error { return e.Cause }
+
 type trackedThreadLaunch struct {
+	Recovery       bool
 	Background     bool
 	Context        context.Context
 	Thread         ThreadRecord
@@ -196,12 +210,30 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 	}
 	steps.mark("record+baseline")
 	stage = "acknowledge"
-	if err := h.Acknowledge(); err != nil {
-		cause := fmt.Errorf("acknowledge blocked helper %+v: %w", thread.Address, err)
-		return ActorRecord{}, h, fail(h, cause, func() error { return c.failTrackedPostAckStart(shape, thread, in.Nonce, h, nil) })
+	ackErr := h.Acknowledge()
+	if ackErr != nil {
+		ackErr = fmt.Errorf("acknowledge blocked helper %+v: %w", thread.Address, ackErr)
+		if !in.Recovery {
+			return ActorRecord{}, h, fail(h, ackErr, func() error { return c.failTrackedPostAckStart(shape, thread, in.Nonce, h, nil) })
+		}
 	}
-	if err := ctx.Err(); err != nil {
+	if err := ctx.Err(); err != nil && !in.Recovery {
 		return ActorRecord{}, h, fail(h, err, func() error { return c.failTrackedPostAckStart(shape, thread, in.Nonce, h, nil) })
+	}
+	recoveryObserved := false
+	reobserve := func() error {
+		recoveryObserved = true
+		// A cancelled caller ends its wait, not the native launch. This independent
+		// read-only look is bounded and addresses only the already-started attempt.
+		final, cancel := context.WithTimeout(context.WithoutCancel(ctx), exitedFinalLook)
+		defer cancel()
+		return c.reobserveRecoveryRegistration(final, thread, in, birth)
+	}
+	unconfirmed := func(cause error) error {
+		if !recoveryObserved {
+			cause = errors.Join(cause, reobserve())
+		}
+		return &RecoveryLaunchUnconfirmed{Address: thread.Address, Nonce: in.Nonce, Cause: fail(h, cause, nil)}
 	}
 	registrationTimeout := pairRegistrationTimeout
 	if (in.Resume || in.Fresh) && c.resumeRegistrationTimeout > 0 {
@@ -229,12 +261,22 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 		return c.awaitThreadRegistration(ctx, thread.Address)
 	}
 	stage = "registration"
-	err = await(registrationContext)
+	err = errors.Join(ackErr, ctx.Err())
+	if err == nil {
+		err = await(registrationContext)
+	}
 	cancelRegistration()
 	exited := stopExitWatch()
-	if exited {
-		// The exit can be seen before the wait's first look: registration
-		// already written still counts, so look once more before failing.
+	if in.Recovery {
+		if err != nil || exited {
+			if finalErr := reobserve(); finalErr == nil {
+				err, exited = nil, false
+			} else {
+				return ActorRecord{}, h, unconfirmed(errors.Join(err, finalErr))
+			}
+		}
+	} else if exited {
+		// Ordinary launch retains its existing post-exit final look.
 		final, cancelFinal := context.WithTimeout(ctx, exitedFinalLook)
 		if await(final) == nil {
 			err, exited = nil, false
@@ -270,6 +312,9 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 	})
 	if err != nil {
 		cause := fmt.Errorf("promote registered thread %+v: %w", thread.Address, err)
+		if in.Recovery {
+			return ActorRecord{}, h, unconfirmed(cause)
+		}
 		return ActorRecord{}, h, fail(h, cause, func() error { return c.failTrackedPostAckStart(shape, thread, in.Nonce, h, nil) })
 	}
 	thread = registeredThread
@@ -283,10 +328,52 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 		pruned, _ := c.withoutDead(reg)
 		return pruned.Insert(record), nil
 	}); err != nil {
-		return record, h, fail(h, fmt.Errorf("persist registry: %w", err), func() error { return c.failPostAckStart(thread.Address, h, shape, nil) })
+		cause := fmt.Errorf("persist registry: %w", err)
+		if in.Recovery {
+			return record, h, unconfirmed(cause)
+		}
+		return record, h, fail(h, cause, func() error { return c.failPostAckStart(thread.Address, h, shape, nil) })
 	}
 	steps.mark("promotion+registry")
 	return record, h, nil
+}
+
+// reobserveRecoveryRegistration makes one observation, with no polling, retry,
+// launch or cleanup. The saved binding names this exact terminal incarnation.
+func (c *Couch) reobserveRecoveryRegistration(ctx context.Context, thread ThreadRecord, in trackedThreadLaunch, birth *PaneMarks) error {
+	if birth != nil {
+		// Preserve the cold-launch no-probe-before-birth rule on this final look.
+		now, err := c.observePaneSidecars(thread.Address)
+		if err != nil {
+			return err
+		}
+		if !birth.BornIn(now) {
+			return errors.New("recovery terminal pane birth is not confirmed")
+		}
+	}
+	if in.Fresh {
+		if c.FreshRegistration == nil {
+			return errors.New("fresh recovery registration observer unavailable")
+		}
+		registered, err := c.FreshRegistration(ctx, thread.Address, in.Args.Stack, in.Nonce)
+		if err != nil {
+			return err
+		}
+		if !registered {
+			return errors.New("recovery attempt registration is not confirmed")
+		}
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	binding, err := observeRecordSession(withoutSessionOwnerPass(ctx), c.Artifacts, thread)
+	if err != nil {
+		return err
+	}
+	if !binding.Present || binding.Name != recordSessionName(thread) {
+		return errors.New("recovery terminal registration is not confirmed")
+	}
+	return ctx.Err()
 }
 
 func (c *Couch) failTrackedPreAckStart(thread ThreadRecord, nonce string, h BlockedHandle, cause error) error {
