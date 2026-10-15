@@ -462,7 +462,7 @@ func CouchLiveOwnerExecutor(c *Couch) OperationExecutor {
 				if a["warm-only"] != "" {
 					return nil, fmt.Errorf("candidate selection cannot be automatic warm resume")
 				}
-				result, err := c.RecoverSelection(ctx, RecoverySelection{Target: target, Kind: RecoveryInferred, CandidateKey: key, Reference: a["ref"]})
+				result, err := c.ResumeCandidate(ctx, target, key)
 				return result, withRebootAdvice(err)
 			}
 			if a["warm-only"] == "true" {
