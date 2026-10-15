@@ -68,7 +68,8 @@ retain default plus up to four alternatives with evidence via menu and CLI.
 
 - [x] Inspect current owners and revise #528's M2 design before implementation;
   keep a separate review and operator acceptance boundary.
-- [ ] Implement the approved [confirmed recovery plan](../plans/000556-confirmed-recovery-plan.md), including headless lifecycle acceptance and the morning scratch script.
+- [ ] M1 — Shared prepared recovery, confirmed Resume/Fresh, standalone hub CLI confirmation, schema-4 intent/read-only v3 migration; headless acceptance and morning scratch script; milestone-close.
+- [ ] M2 — Shared native admission reservations and two-slot barrier tests; milestone-close.
 - [ ] Record the full suite, close on SHIP and land; the hub owns the operator's restart and live acceptance.
 
 ## Log
@@ -115,3 +116,14 @@ restart. The issue now references the newer `slot-recovery` target; the earlier
 The durable plan is awaiting the hub's approval; no implementation is started.
 No messaging reconciliation (#561), wrapper endpoint reconstruction (#557),
 automatic inference, live-slot experimentation or stage changes are included.
+
+### 2026-10-15 — approved milestone split
+
+Verified hub receipt `249a1bbd-5f2f-457a-b009-c2581eae3da9` approves the plan
+with two separate milestone-close boundaries. M1 implements confirmed recovery
+and schema migration, including standalone `couch --recovery-confirmation TOKEN`
+for the hub and the morning scratch script. M2 separately enforces native
+admission against concurrent writers. Tokens/reservations/schema are internal;
+visible outcomes stay Continue / Resume from disk (confirmed) / Start fresh,
+plus needs relaunch, with only the actual stop confirmation shown. Retain the
+five-minute stale-Starting bound and one exact reobservation. Change-code next.

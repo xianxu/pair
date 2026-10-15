@@ -180,3 +180,28 @@ Built from source audit at `09c5b48dd7586d6ba908a45ea86899190ad3dd4a`, including
 ### 2026-10-15T05:38-07:00 — native concurrency audit
 
 A bounded follow-up verified that current native checks do not serialize competing slots. Added an explicit bounded native admission reservation protocol to meet the existing no-two-writers Done-when. This is a design addition for hub review, not implemented code or a claim that the existing gate already provides exclusion.
+
+### 2026-10-15 — approved direction and two review boundaries
+
+Hub receipt `249a1bbd-5f2f-457a-b009-c2581eae3da9` approves implementation with
+these superseding changes:
+
+- **M1** is tasks 1–4 plus task 5's M1 headless acceptance, atlas and scratch
+  script. It excludes the native admission store/hand-off work in task 3.
+  Close with `sdlc milestone-close --issue 556 --milestone M1`.
+- **M2** is the native admission reservation protocol, common Pair/wrapper gate
+  and deterministic two-slot barrier/death/uncertain-readiness tests. It has its
+  own `sdlc milestone-close --issue 556 --milestone M2`, then whole-issue close
+  and normal landing on SHIP. M1 does not claim to fix cross-slot exclusion.
+- `couch --recovery-confirmation TOKEN` must work **standalone** for the
+  authenticated owning hub: the offer binds its target and selection so no UI
+  or repeated selection arguments are necessary. The CLI's optional token
+  argument on resume/reboot may share this owner; no duplicate execution path.
+- Keep user-visible outcomes exactly Continue / Resume from disk (confirmed) /
+  Start fresh, plus needs relaunch. Internal capabilities, reservations and
+  schemas add no visible state or extra prompt beyond the stop confirmation.
+- Keep the proposed five-minute Starting presentation bound and one exact
+  reobservation. Supply the final scratch script at M1; live effects still wait
+  for the hub/operator's morning restart.
+
+This supersedes the original single-boundary task heading and close instruction.
