@@ -1,6 +1,6 @@
 ---
 id: 000564
-status: codecomplete
+status: done
 created: 2026-10-14
 updated: 2026-10-15
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 8e46802a30902440f303211c2a029a8a16fc239a
         evidence_commit: 6cfd032af5fae62cba382713accc242282f904f3
+        landed_commit: 049540fbec11689932e061ae8580913792ffa73e
 ---
 
 # Retention resume test expires its registration budget under load
