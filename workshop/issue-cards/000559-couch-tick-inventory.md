@@ -1,6 +1,6 @@
 ---
 id: 000559
-status: codecomplete
+status: done
 created: 2026-10-14
 updated: 2026-10-14
 estimate_hours: 2.106
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 6488217f14d78860407e5adcb466e1487d1a1c8a
         evidence_commit: d3a63190b629438b6d2894654655ae1042073499
+        landed_commit: 0f8c044dba8e639722390d9d91adf1b9173fa9c6
 ---
 
 # Stop reparsing inventory on Couch ticks
