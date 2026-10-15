@@ -1,12 +1,20 @@
 ---
 id: 000573
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-15
 updated: 2026-10-15
 estimate_hours:
-card_mirror: 'd62d5d18f5cfda8ff0a71ef13574314b46ddb00e' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'be7948584baebe10fe2a8039655fc41b89c6acdb' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-15T10:56:32-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:5
+    worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Agentic documents: Couch registry so session-sync verbs work for any submitted file (universal-agent-input-interface S1, Couch side)
@@ -38,8 +46,15 @@ writing anything into the file.
 
 ## Plan
 
-- [ ]
+Detailed implementation plan: [agentic document registry](../plans/000573-agentic-document-registry-plan.md).
+
+- [ ] Build registry model/store and stable document metadata, with idempotent register/forget/rename and read-only membership discovery.
+- [ ] Route every sync verb through registration-aware ownership, CAS, owed matching and lock-age refusals, preserving legacy behavior.
+- [ ] Expose the agreed Parley CLI/JSON contract and update help, skill and atlas.
+- [ ] Verify targeted/race/full suites and operator live check, close review, then land on SHIP.
 
 ## Log
 
 ### 2026-10-15
+
+Claimed on TL dispatch; read ops project's project.md and design.md before design. Scope is S1 Couch only; TL owns the project file. Sent proposed contract to parley.nvim:2, confirmed submitted, and received its integration requirements (read-only membership, canonical missing-old rename paths, explicit partial-effect outcomes). Existing ledger and CAS are reused (ARCH-DRY); stable document identity keeps rename from losing shadow/folds or old-path submits (ARCH-ORDER). Read-only design exploration independently confirmed these integration points. Concrete plan pending hub approval; implementation has not started. start-plan's attempted weave refresh refused due to the preserved unrelated untracked pensive; it explicitly admitted planning on the existing substrate, with ariadne #385/#386 in flight.
