@@ -61,8 +61,8 @@ and both origins still register, then close the stale issue.
 
 ## Plan
 
-- [ ] Gate inventory in the existing switcher fixture and share the row predicate.
-- [ ] Prove header-only predicate red, restored predicate green; qualify 20 runs and race.
+- [x] Gate inventory in the existing switcher fixture and share the row predicate.
+- [x] Prove header-only predicate red, restored predicate green; qualify 20 runs and race.
 - [ ] Run build and full make -k test, review, merge main, land on SHIP.
 
 ## Log
@@ -93,3 +93,27 @@ and both origins still register, then close the stale issue.
 
 - 2026-10-14: scope is deterministic coverage and qualification of the landed
   #436 fix, not reimplementing it; discovered by inspecting main and git history.
+
+### 2026-10-14 — deterministic guard and verification
+
+- TL approved the coverage/closure plan (receipt aea0f01a-7eb3-4f40-a648-b707e94eb84c).
+- Configure the provider before Console.Run starts, so no ungated inventory
+  request can race setup. The wrapper retains the production provider and
+  returns on console lifetime cancellation; the failing mutation also proves
+  cleanup exits while the barrier is still closed.
+- Baseline both origins: 20 passes (45.254s). Barrier both origins: 20 passes
+  (54.867s); natural host load was 29.77 before qualification and 13.10 near
+  its completion. No artificial load was generated.
+- Header-only mutation via Go overlay failed in 1.087s with exactly
+  `Enter readiness accepted the header before inventory was released`.
+  Restored predicate and both origins passed; focused race passed (4.944s).
+  `make build` passed. Logs: /tmp/pair423-{baseline20,green20,red,race,build}.log.
+- CI history: `gh run list --created '>=2026-10-11' --status failure --limit 1000`
+  returned 23 failures, nine after #436's merge 80cc80afdb130a02bde57def3b537ec915dfab61
+  (2026-10-11 09:54:02Z). Fetched failed logs for those nine plus the adjacent
+  pre-merge run: no mention of this test. This is **no observed CI recurrence**,
+  not proof of absence: couch-zellij-conformance selects live tests and excludes
+  this cold-resume test; local-gates-guard is metadata-only. The known original
+  report was local. CI list and fetched logs are /tmp/pair423-ci-*.
+- Full `make -k test` is queued behind the machine's two-suite gate; all
+  prerequisites and Go targets will be allowed to finish before closure.
