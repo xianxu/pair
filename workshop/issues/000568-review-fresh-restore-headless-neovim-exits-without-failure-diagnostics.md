@@ -40,7 +40,7 @@ Coordinate with pair:2's suite/environment measurements. Compare the recorded-su
 
 - [x] Add bounded failure diagnostics first; exercise a deliberately silent nonzero editor exit and a Lua/message failure so missing evidence is red before the harness repair.
 - [x] Reproduce the suite-context failure using pair:2's measurements and one-variable probes; name the actual cause in Log/Revisions, then add a deterministic regression and minimal fix at that boundary.
-- [ ] Run the fresh-restore and affected review fixtures, a clean make -k build, and required recorded suite; fresh SHIP review, land, and notify pair:2 plus hub.
+- [x] Run the fresh-restore and affected review fixtures, a clean make -k build, and required recorded suite; fresh SHIP review, land, and notify pair:2 plus hub.
 
 ARCH-DRY: reuse ReviewTestEnvironment and current stateful Zellij fake; do not create a parallel product launcher. ARCH-ORDER: evidence must be captured before Neovim exits and before fixture cleanup; diagnostic tests force silent/error exit orderings. ARCH-FUNERAL: diagnostic files remain inside each temporary case, are printed bounded on failure, then removed with their owning fixture; no persistent logs or caller state added.
 
@@ -77,3 +77,5 @@ Delta: add one small fs_watch helper owning start/refusal, stop/close at VimLeav
 2026-10-15: Corrected artifactpath package passes (8.983s), including the exact exhaustive inventory test that failed in the recorded run.
 
 2026-10-15: Rebuilt corrected implementation f6493cbc0e041e32b560bc5302143fb4bdcda31e with make -k -B build successfully. The new required suite runs on that pushed head; Lua watcher/review behavior is unchanged from the prior verified implementation, with only exhaustive inventory declarations corrected.
+
+2026-10-15: Required sdlc-local/suite passed on corrected implementation f6493cbc0e041e32b560bc5302143fb4bdcda31e (exit 0, 8m33s). Real fresh-restore all five cases passed inside the recorded run; diagnostics/lifecycle tests passed (1.575s), artifactpath passed (3.960s), couchcore passed (248.004s). Full log SHA-256: 89215f27792bc167d8b8b52016fec6ec1ea763811c01448059de8a545af90bcb. Implementation verification is complete; fresh close review and guarded landing follow this checkpoint. Subsequent changes are evidence only.
