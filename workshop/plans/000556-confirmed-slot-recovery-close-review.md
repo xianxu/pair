@@ -114,3 +114,108 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-15T12:51:27-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 556 — Couch confirmed disk recovery and always-reachable fresh startup |
+| repo | pair |
+| issue file | workshop/issues/000556-confirmed-slot-recovery.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | d6da7d4b809729db8a8766bd71258ca8f3326d9a..567606271aa35bdfd02c98213031e1571d7f2e5d |
+| command | sdlc close --issue 556 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-15T12:51:27-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The reviewed implementation matches the issue’s Spec and revised Plan, including the explicitly approved Codex indirect-resume exception. BR-6 is addressed with reachable guards and meaningful regression coverage. No new blocking findings were identified.
+
+```findings
+dispose:
+  - id: BR-6
+    disposition: addressed
+    note: |
+      The shared classifier rejects unsupported Fresh-authority selectors before resolution or spawn. Launcher and both wrapper-entry regressions pass on head; substituting the pre-fix classifier makes teleport/from-pr cases fail and demonstrates actual unadmitted stub spawning.
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Retained Fresh selects read-only workspace readiness beside unproved owners. The surviving-workspace regression passes, preserving files and asserting no convergence or signals.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Confirmed retirement independently requires every accepted owner absent. Surviving, replaced, reparented and final-listing-race regressions pass.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      README now documents standalone exact-stop confirmation, expiry, bounded Starting and survivor-safe Fresh. These descriptions match recovery_confirmation.go, DecideStaleStart and the prepared executor; corresponding atlas changes are present.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      Preview resolution passes a read-only ThreadStore through resolvers without copying Couch. Profile/preflight regressions and go vet pass.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      Keyed Fresh resolves before native-only guards. The explicit/candidate/operation matrix passes, including negative controls preserving native restrictions.
+  - id: BR-7
+    disposition: addressed
+    note: |
+      Reserved-grant fencing and Claim share the store lock. Deterministic tests exercise both lock orderings, stale-grant rejection and retention of spawning uncertainty; selected race checks pass.
+```
+
+1. **Strengths**
+
+   - Shared selector classification governs launcher admission and the sole wrapper spawn boundary, including positional identities after `--`.
+   - Recovery preserves durable intent before retirement and retains uncertain launches instead of silently replacing them.
+   - Stateful tests control fencing/claim order and independently assert writer exclusion.
+   - README and atlas cover the new confirmation, recovery and admission surfaces.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Passed full `launcher`, `wrapcmd`, `sessioninventory`, `threadrecord` and `couchmessage` packages; focused recovery tests across `couchcore`, `couchcmd` and `couchtty`; selected race tests; vet for core/launcher/wrapper; and diff whitespace checks.
+
+   BR-6’s counterfactual run failed as expected with the pre-fix classifier. Temporary overlay files were removed; the checkout remains unchanged. I did not rerun the entire repository suite or perform live operator acceptance.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** Shared selector and Fresh authorities serve both launch boundaries.
+   - **ARCH-PURE — pass:** Decision transitions remain separate from injected lifecycle IO.
+   - **ARCH-PURPOSE — pass:** Recovery and native admission implement the revised scope; the Codex exception is explicit and documented.
+   - **ARCH-MOCK — pass:** Stateful doubles exercise production seams and controlled failures; scratch conformance is documented.
+   - **ARCH-CONSTRAINTS — pass:** Observation deadlines, scan limits and admission capacity have explicit refusal behavior.
+   - **ARCH-SECURE — pass:** Versioned persisted authority, exact generations and invocation digests are validated before effects.
+   - **ARCH-ORDER — pass:** Admission transitions serialize under one lock; tests reproduce both relevant fence/claim orderings.
+   - **ARCH-FUNERAL — pass:** Confirmation capabilities expire; admission storage is bounded and collected through exact process evidence or reserved-grant fencing.
+
+7. **Plan revision recommendations:** None. Existing revisions account for the implemented behavior and approved exceptions.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"30ceb3c3-c884-47ff-b6e5-f2620ef35c82","repository":"github.com/xianxu/pair","issue_id":"000556","recipe":"milestone-review","round":8,"attempt":1,"agent":"codex","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/22d43684b4115a01","reviewed_head":"567606271aa35bdfd02c98213031e1571d7f2e5d","slot":"pair:2","requested_at":"2026-10-15T19:47:53.91696Z"},"phase":"finished","pid":65389,"started_at":"2026-10-15T19:47:54.329747Z","finished_at":"2026-10-15T19:51:02.730076Z","session_id":"01a1411b-5d47-7932-82bd-7af1ffc33592","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.525146833s
+head: "567606271aa35bdfd02c98213031e1571d7f2e5d"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
