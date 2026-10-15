@@ -36,7 +36,7 @@ The existing reducer owns legal phases, submit-attempt count and terminal outcom
 | dispatchPeer / advancePeer | cmd/internal/wrapcmd/peer_delivery.go | modified | existing PTY writer, terminal snapshot and clock |
 | Automatic-input reporter | cmd/internal/wrapcmd/automatic_input_report.go | reused | bounded evidence queue and broker request |
 | Supervisor stall handler | cmd/internal/couchcmd/automatic_input_stall.go | modified | authenticated owning-hub and desktop notice |
-| harnessSessionFake | cmd/internal/wrapcmd/harness_session_test.go and peer_qoder_test.go | reused/extended | production input owner and terminal model |
+| harnessSessionFake | cmd/internal/wrapcmd/harness_tty_integration_test.go and peer_qoder_test.go | reused/extended | production input owner and terminal model |
 
 The stateful receiver fixture paints actual captured Qoder idle/pending screen shapes, retains body until a configured submit is accepted, counts each submit and each body paste, and can drop initial submit, delay repaint, accept mid-turn, interrupt with human input or replace the composer with a picker. Every production effect traverses the same writer seam as the fake. Live pair:4 checks qualify that model before landing.
 
