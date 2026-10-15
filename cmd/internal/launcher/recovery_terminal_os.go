@@ -139,7 +139,7 @@ func (o recoveryTerminalOS) Observe(ctx context.Context, session string) (recove
 // unstable or unavailable descendant argv remains missing evidence, and a
 // changed exact named server refuses the observation rather than moving authority.
 func projectRecoveryTerminalSnapshot(session string, rows []procutil.Observation, after []procutil.Process) (recoveryTerminalSnapshot, error) {
-	result := recoveryTerminalSnapshot{Processes: after, Commands: map[int]string{}}
+	result := recoveryTerminalSnapshot{Processes: after, Commands: map[int]string{}, Args: map[int][]string{}}
 	current := make(map[int]procutil.Process, len(after))
 	for _, p := range after {
 		if _, exists := current[p.PID]; exists {
@@ -182,6 +182,7 @@ func projectRecoveryTerminalSnapshot(session string, rows []procutil.Observation
 		command := strings.TrimSpace(strings.Join(row.Args, " "))
 		if command != "" {
 			result.Commands[row.PID] = command
+			result.Args[row.PID] = append([]string(nil), row.Args...)
 		}
 	}
 	servers, err := serverProcesses(rows)

@@ -125,3 +125,23 @@ func TestRecoveryNativeObservationHonorsCanceledAndMissingContext(t *testing.T) 
 		t.Fatal("nil context accepted")
 	}
 }
+
+func TestRecoveryNativeProjectionPreservesArgvBoundariesWithoutAliases(t *testing.T) {
+	rows, after := recoveryNativeRows()
+	rows[1].Args = []string{"nvim", "/data with spaces/draft-work.md", "a'b"}
+	got, err := projectRecoveryTerminalSnapshot("session", rows, after)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Args[11]) != 3 || got.Args[11][1] != "/data with spaces/draft-work.md" {
+		t.Fatalf("argv=%q", got.Args[11])
+	}
+	rows[1].Args[1] = "mutated"
+	if got.Args[11][1] == "mutated" {
+		t.Fatal("observation retains mutable source argv")
+	}
+	parsed, err := splitObservedCommand(recoveryArgCommand(got.Args[11]))
+	if err != nil || len(parsed) != 3 || parsed[2] != "a'b" {
+		t.Fatalf("argv roundtrip=%q err=%v", parsed, err)
+	}
+}
