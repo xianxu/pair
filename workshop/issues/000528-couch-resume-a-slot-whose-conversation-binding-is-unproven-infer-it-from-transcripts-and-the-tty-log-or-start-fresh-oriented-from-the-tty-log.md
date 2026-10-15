@@ -7,7 +7,7 @@ target: slot-continuity
 created: 2026-10-13
 updated: 2026-10-15
 estimate_hours: 6.3535
-card_mirror: '61e2f2c56a2368940199b1426310be23b307736f' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '27e0818b9fe82913d0fd0a0dfb5d773c18258120' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-13T08:57:28-07:00
 claimant:
     operator: Xian Xu
