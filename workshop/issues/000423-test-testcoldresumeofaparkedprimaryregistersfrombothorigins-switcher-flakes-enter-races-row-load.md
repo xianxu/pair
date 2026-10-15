@@ -84,6 +84,7 @@ and both origins still register, then close the stale issue.
   `▸ repo /…/TestColdResume… parked`.
 
 ### 2026-10-14 — investigation and plan
+- 2026-10-14: closed — Both cold-resume origins pass 20 runs (54.867s), focused race 4.944s, make build passes. Header-only mutation fails deterministically before inventory release. Fixed by #436 plus this barrier guard; no production or atlas surface changes. TL approved targeted close and exactly one recorded full suite at merge; cancelled only queued pre-close run. CI audit found no observed recurrence but CI excludes this test.; review verdict: SHIP
 
 - Main already contains #436's exact row-wait fix; #423 remained open.
   The old failure frame and current menu reducer agree: header publication
