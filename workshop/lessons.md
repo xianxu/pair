@@ -1813,3 +1813,4 @@ Deleting the orientation delivery also deleted the only `automaticRenderEpoch.Ad
   merely a pathname. Use the existing atomic writer so a successful read cannot
   see the creation/truncation window. Reproduce scheduling races by stretching
   that window in an overlay; do not hide them with more reader polling.
+- #555: For generated-output changes, record both consumer and substrate revisions, before/after blob identity, and repeat-generation result. Disposable review checkouts may lack sibling sources; measured host evidence lets review verify provenance without modifying its environment.
