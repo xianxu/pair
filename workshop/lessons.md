@@ -1892,3 +1892,5 @@ Deleting the orientation delivery also deleted the only `automaticRenderEpoch.Ad
 
 - #573 plan review: removing a routing record can reactivate an older storage authority. Export current folds, gap acknowledgments, snapshots and historical addressing durably before that handoff; a partial export must leave the current authority intact. A size-triggered trim is not an unconditional age expiry, so never prune evidence references solely from its advertised retention age.
 - #573 rename ordering: delivery completion time cannot identify the pathname a queued message addressed. Preserve immutable admission time through queue promotion, use it only for addressing, and retain completion time for delivery/status/retention. Reproduce queue, rename, old-path reuse, then late completion through the actual broker/ledger seam.
+
+- #573 wire verification: when adding a time.Time field, audit whole-struct comparisons across JSON/socket boundaries. Assert nonzero/Equal instant preservation before normalizing process-local monotonic metadata; never drop the field from integrity coverage. Run the real wrapper/broker integration as well as producer and recorder tests.

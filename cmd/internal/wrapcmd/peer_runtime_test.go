@@ -150,10 +150,14 @@ func TestPeerRuntimeBrokerToWrapperSubmitsOnce(t *testing.T) {
 			if !message.Deadline.Equal(accepted.Message.Deadline) {
 				t.Fatal("CLI changed deadline")
 			}
-			// JSON preserves the instant, not Go's process-local monotonic clock data.
+			if !message.AcceptedAt.Equal(accepted.Message.AcceptedAt) || message.AcceptedAt.IsZero() {
+				t.Fatalf("CLI changed admission time: got %v; want %v", message.AcceptedAt, accepted.Message.AcceptedAt)
+			}
+			// JSON preserves instants, not Go's process-local monotonic clock data.
 			message.Deadline = accepted.Message.Deadline
+			message.AcceptedAt = accepted.Message.AcceptedAt
 			if message != accepted.Message {
-				t.Fatal("CLI changed canonical envelope")
+				t.Fatalf("CLI changed canonical envelope: got %#v; want %#v", message, accepted.Message)
 			}
 			if peerSubmits(receiver) != 0 {
 				t.Fatal("peer submission falsely reset operator-only breaker")
