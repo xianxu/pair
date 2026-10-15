@@ -139,6 +139,7 @@ func TestSlotPreferencesIndependentAcrossRestartResumeAndFresh(t *testing.T) {
 		t.Fatal(err)
 	}
 	env.Artifacts.SetPairSession(source.Thread, current.SessionBinding.Name, false)
+	env.Artifacts.SetSessionPresence(source.Thread, SessionObservation{State: SessionAbsent})
 	env.Runner.AfterAcknowledge = func(id string) error {
 		env.Artifacts.SetPairSession(source.Thread, continuationChildSession(t, env.Runner, id), true)
 		return nil
@@ -164,6 +165,7 @@ func TestSlotPreferencesIndependentAcrossRestartResumeAndFresh(t *testing.T) {
 		t.Fatal(err)
 	}
 	env.Artifacts.SetPairSession(source.Thread, current.SessionBinding.Name, false)
+	env.Artifacts.SetSessionPresence(source.Thread, SessionObservation{State: SessionAbsent})
 	env.Runner.AfterAcknowledge = nil
 	fresh, err := env.Couch.StartFreshSlot(ctx, paths[1], "")
 	if err != nil {

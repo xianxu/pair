@@ -173,7 +173,18 @@ func TestResumeRefusesUnconfirmedDifferentAgent(t *testing.T) {
 				env.Artifacts.SetPairSession(source.Address, continuationChildSession(t, env.Runner, id), true)
 				return nil
 			}
-			actor, _, err := env.Couch.ResumeContext(context.Background(), source.Address)
+			actor, handle, err := env.Couch.ResumeContext(context.Background(), source.Address)
+			if mode == "present" {
+				if err != nil || handle == nil || actor.Shape != StartWarmReattach {
+					t.Fatalf("listed target could not attach: %v", err)
+				}
+				t.Cleanup(func() { env.Runner.SetExited(handle.ID(), 0) })
+				after, _ := env.Couch.Threads.GetThread(source.Address)
+				if !reflect.DeepEqual(after, unknown) {
+					t.Fatal("attachment modified unresolved replacement")
+				}
+				return
+			}
 			if mode == "absent" {
 				if err != nil || actor.Args.Stack != "claude" {
 					t.Fatalf("proved absent target cannot resume old: %+v %v", actor, err)
@@ -263,11 +274,7 @@ func TestInterruptedSwitchResumePreservesTargetAuthority(t *testing.T) {
 					env.Artifacts.SetPairSession(source.Address, "pair-target", true)
 				}
 				if presence == "appears" {
-					env.Artifacts.DetachedSessionsHook = func([]ThreadAddress) error {
-						env.Artifacts.DetachedSessionsHook = nil
-						env.Artifacts.SetPairSession(source.Address, "pair-target", true)
-						return nil
-					}
+					env.Couch.Artifacts = &appearingSwitchSessionObserver{FakeThreadArtifactCollisionChecker: env.Artifacts}
 				}
 				if phase == "reconciled-pending" {
 					if err := env.Couch.reconcileInterruptedStarts(); err != nil {
@@ -288,7 +295,9 @@ func TestInterruptedSwitchResumePreservesTargetAuthority(t *testing.T) {
 				if phase != "registered" && (presence != "absent" || phase == "unbound") {
 					env.Runner.FailNextStart(errors.New("unexpected replacement spawn"))
 				}
-				actor, handle, resumeErr := env.Couch.ResumeContext(context.Background(), source.Address)
+				// This matrix protects lifecycle adoption and cold replacement, not
+				// the public nonmutating attachment tested above.
+				actor, handle, resumeErr := env.Couch.resumeContextWith(context.Background(), source.Address, ResumeOptions{}, true)
 				after, err := env.Couch.Threads.GetThread(source.Address)
 				if err != nil {
 					t.Fatal(err)
@@ -328,4 +337,19 @@ func TestInterruptedSwitchResumePreservesTargetAuthority(t *testing.T) {
 			})
 		}
 	}
+}
+
+// Appear between the two cold replacement gates, after the first exact absent
+// observation. The second gate must preserve the newly present target.
+type appearingSwitchSessionObserver struct {
+	*FakeThreadArtifactCollisionChecker
+	calls int
+}
+
+func (f *appearingSwitchSessionObserver) NamedPairSessionContext(ctx context.Context, address ThreadAddress, name string) (PairSessionBinding, error) {
+	f.calls++
+	if f.calls >= 2 {
+		f.SetPairSession(address, "pair-target", true)
+	}
+	return f.FakeThreadArtifactCollisionChecker.NamedPairSessionContext(ctx, address, name)
 }

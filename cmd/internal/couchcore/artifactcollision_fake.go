@@ -35,6 +35,7 @@ type FakeThreadArtifactCollisionChecker struct {
 	QuiesceHook        func(ThreadAddress) error
 	pairSessions       map[ThreadAddress]PairSessionBinding
 	nativeBindings     map[nativeBindingKey]NativeBindingResolution
+	recoveryWrappers   []FakeRecoveryNativeWrapper
 	triggeredQuit      []TriggeredQuit
 	TriggerQuitHook    func(string, launcher.QuitIntent) error
 	// BeforeRegistration lets an integration test interleave a durable state
@@ -47,6 +48,7 @@ type FakeThreadArtifactCollisionChecker struct {
 	// DetachedSessionsHook lets a test fail the observation, or interleave a
 	// durable change at the moment the projector asks who is detached.
 	DetachedSessionsHook func([]ThreadAddress) error
+	ListedSessionHook    func(ThreadAddress) error
 
 	// panes models each thread's agent pane sidecars (#287), keyed by agent:
 	// production keys are paths, but PaneMarks only compares keys for identity.
@@ -542,4 +544,40 @@ func (f *FakeThreadArtifactCollisionChecker) NamedPairSessionContext(ctx context
 		return PairSessionBinding{Name: name}, nil
 	}
 	return binding, nil
+}
+
+func (f *FakeThreadArtifactCollisionChecker) ListedPairSessionContext(ctx context.Context, address ThreadAddress, name string) (PairSessionBinding, error) {
+	if err := ctx.Err(); err != nil {
+		return PairSessionBinding{}, err
+	}
+	if f.ListedSessionHook != nil {
+		if err := f.ListedSessionHook(address); err != nil {
+			return PairSessionBinding{}, err
+		}
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	binding := f.pairSessions[address]
+	if name != "" && name != binding.Name {
+		return PairSessionBinding{Name: name}, nil
+	}
+	if name == "" {
+		name = binding.Name
+	}
+	current := make(map[ThreadAddress]string, len(f.pairSessions))
+	var sessions []launcher.Session
+	for candidate, observed := range f.pairSessions {
+		current[candidate] = observed.Name
+		if observed.Present {
+			sessions = append(sessions, launcher.Session{Name: observed.Name, State: launcher.SessionAttached})
+		}
+	}
+	if name == "" {
+		return PairSessionBinding{}, nil
+	}
+	facts := ProjectSessionPresence([]SessionNameBinding{{Address: address, SessionName: name}}, sessions, nil, claimsFromBindings(current))[address]
+	if facts.State == SessionUnresolved {
+		return PairSessionBinding{}, errors.New("selected listed session is not uniquely attributed")
+	}
+	return PairSessionBinding{Name: name, Present: facts.State == SessionPresent}, nil
 }

@@ -594,6 +594,8 @@ func TestDriveActionShutdownJoinsAndRejectsClicks(t *testing.T) {
 	b.armed.Store(true)
 	r.con.startDriveOperation(cast, recording.CtlGrant, recording.Author{ID: who})
 	awaitDrive(t, "writer entered", b.entered)
+	// Keep HTTP transport teardown separate from the ACK-join assertion.
+	castClient.CloseIdleConnections()
 	r.con.Stop()
 	select {
 	case <-b.canceled:

@@ -56,6 +56,9 @@ func ActorRowFactsOf(row ActionableThreadSummary) ActorRowFacts {
 // unusable/unknown rows get nothing ("checking…" is not a verdict, and reboot
 // stops a session).
 func ActorActions(f ActorRowFacts) []string {
+	if f.Reason == ReasonNeedsRelaunch {
+		return nil
+	}
 	if f.Orphaned {
 		// Its agent may still be writing: resume would add a second one and
 		// reboot would archive a running conversation. Only a confirmed reap

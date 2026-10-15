@@ -184,7 +184,7 @@ func TestFastPeekMatchesTheTypedPeek(t *testing.T) {
 	b := couchmessage.Binding{Slot: "pair:1", Scope: record.Address.RepoScope, Tag: string(record.Address.Tag), Agent: "wrapper-basename", PID: 7}
 	s := &messageService{}
 	s.authority.endpoint = func(couchmessage.Binding) couchmessage.DeliveryEndpoint { return &fakeTailEndpoint{tail: tail} }
-	s.authority.record = c.Threads.GetThread
+	s.authority.record = c.Threads.PreviewThreadContext
 	connected := map[couchmessage.Binding]bool{b: true}
 	s.connected.Store(&connected)
 	call := func(ctx context.Context, _ string, request any, response any) error {

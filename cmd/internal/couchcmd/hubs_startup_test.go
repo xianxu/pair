@@ -14,12 +14,13 @@ import (
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchtty"
 	"github.com/xianxu/pair/cmd/internal/hostty"
+	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/ptychild"
 	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 // This rig uses the real startup policy, declared dispatch, existing operation
-// queue, reattach pass, adoption and terminal input. Only external processes and
+// queue, adoption and terminal input. Only external processes and
 // the host terminal are fake; every store and hub directory is private.
 type hubStartupRig struct {
 	rt       testRT
@@ -36,7 +37,7 @@ type hubStartupRig struct {
 	history  []dispatchedCall
 }
 
-func newHubStartupRig(t *testing.T, detached bool) *hubStartupRig {
+func newHubStartupRig(t *testing.T, detached bool, beforeAdoption ...func(*hubStartupRig)) *hubStartupRig {
 	t.Helper()
 	root, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {
@@ -53,8 +54,20 @@ func newHubStartupRig(t *testing.T, detached bool) *hubStartupRig {
 		catalog.Workspaces[p] = identity
 		catalog.Repositories[p] = couchcore.SlotRepository{Identity: identity}
 	}
-	rt := newRT(t, paths...)
+	// This live ordinary slot is visible to startup and joins the warm-only
+	// background pass; explicit hubs remain independently queued.
+	ordinary := filepath.Join(root, "ordinary-slot1")
+	if err := os.Mkdir(ordinary, 0700); err != nil {
+		t.Fatal(err)
+	}
+	number, address, branch := 1, "ops:1", "main-slot1"
+	ordinaryIdentity := couchcore.WorkspaceIdentity{SchemaVersion: 2, Repo: "ops", RepoIdentity: filepath.Join(paths[0], ".git"), PrimaryRoot: paths[0], FleetRoot: root, EnvironmentRoot: root, WorktreeRoot: ordinary, Kind: "worktree", Slot: &number, Address: &address, RestingBranch: &branch}
+	catalog.Workspaces[ordinary] = ordinaryIdentity
+	rt := newRT(t, append(append([]string(nil), paths...), ordinary)...)
+
 	rt.runner = couchcore.NewFakeRunner()
+	other := seedDetachedThread(t, rt, ordinary)
+	rt.artifacts.SetDetachedSession(other.Address, "pair-"+other.Address.RepoScope+"-"+string(other.Address.Tag))
 	if detached {
 		thread := seedDetachedThread(t, rt, paths[1])
 		rt.artifacts.SetDetachedSession(thread.Address, "pair-"+string(thread.Address.Tag))
@@ -80,6 +93,15 @@ func newHubStartupRig(t *testing.T, detached bool) *hubStartupRig {
 			rt.runner.SetExited(id, 0)
 		}
 	})
+	// Pair's acknowledged launch creates a positively listed Zellij session.
+	// A local fake terminal alone must not impersonate that external fact.
+	rt.runner.AfterAcknowledge = func(id string) error {
+		child := rt.runner.Child(id)
+		address := couchcore.ThreadAddress{RepoScope: envValue(child.Env, "COUCH_THREAD_SCOPE"), Tag: couchcore.ThreadTag(envValue(child.Env, "COUCH_THREAD_TAG"))}
+		rt.artifacts.SetPairSession(address, managedChildSession(t, rt.runner, id), true)
+		rt.artifacts.SetSessionPresence(address, couchcore.SessionObservation{State: couchcore.SessionPresent})
+		return nil
+	}
 	rt.runner.AfterBlockedStart = func(id string) {
 		rig.mu.Lock()
 		rig.children = append(rig.children, id)
@@ -91,12 +113,15 @@ func newHubStartupRig(t *testing.T, detached bool) *hubStartupRig {
 		t.Fatal(err)
 	}
 	rig.hubs = hubs
-	wireResolver(console, c, hubs)
 	first, err := c.StartInteractive(context.Background(), couchcore.StartArgs{Cwd: paths[0]})
 	if err != nil {
 		t.Fatal(err)
 	}
 	rig.first = first
+	for _, setup := range beforeAdoption {
+		setup(rig)
+	}
+	wireResolver(console, c, hubs)
 	actual := console.Ops()
 	console.SetOperationDispatcher(func(call couchcore.OperationCall) (any, error) {
 		rig.mu.Lock()
@@ -106,7 +131,7 @@ func newHubStartupRig(t *testing.T, detached bool) *hubStartupRig {
 		rig.calls <- dispatchedCall{call, e}
 		return v, e
 	})
-	if err := beginConsole(console, first, true); err != nil {
+	if err := beginConsole(console, first); err != nil {
 		t.Fatal(err)
 	}
 	return rig
@@ -159,11 +184,12 @@ func TestHubStartupTwoHubsPreserveFirstFocus(t *testing.T) {
 	}
 	r.await(t, "attach")
 	r.assertFirstUsable(t)
+	waitWarmAcceptance(t, "warm worker starts beside hubs", func() bool { r.mu.Lock(); defer r.mu.Unlock(); return len(r.children) == 3 })
 	r.mu.Lock()
 	count := len(r.children)
 	r.mu.Unlock()
-	if count != 2 {
-		t.Fatalf("started %d children, want exactly two", count)
+	if count != 3 {
+		t.Fatalf("started %d children, want two hubs and one warm worker", count)
 	}
 }
 
@@ -179,15 +205,16 @@ func TestHubStartupLaterFailureLeavesFirstUsable(t *testing.T) {
 		return strings.Contains(r.host.Written(), "hub failed; open it in the switcher to retry:")
 	})
 	r.assertFirstUsable(t)
+	waitWarmAcceptance(t, "warm worker starts despite failed hub", func() bool { r.mu.Lock(); defer r.mu.Unlock(); return len(r.children) == 2 })
 	r.mu.Lock()
 	count := len(r.children)
 	r.mu.Unlock()
-	if count != 1 {
-		t.Fatalf("failed hub spawned %d children", count)
+	if count != 2 {
+		t.Fatalf("failed hub should retain first hub plus warm worker, got %d children", count)
 	}
 }
 
-func TestHubStartupDetachedExtraIsNotAlsoReattachedByPass(t *testing.T) {
+func TestHubStartupDetachedExtraLaunchesWithoutDuplicateWarmAttempt(t *testing.T) {
 	r := newHubStartupRig(t, true)
 	entered, release := make(chan struct{}), make(chan struct{})
 	var once sync.Once
@@ -243,8 +270,12 @@ func TestHubStartupDetachedExtraIsNotAlsoReattachedByPass(t *testing.T) {
 	r.mu.Lock()
 	history := append([]dispatchedCall(nil), r.history...)
 	r.mu.Unlock()
+	benchScope, err := launcher.ResolveRepoScope(r.paths[1])
+	if err != nil {
+		t.Fatal(err)
+	}
 	for _, call := range history {
-		if call.call.Name == "resume" {
+		if call.call.Name == "resume" && call.call.Args["repo-scope"] == benchScope.Key {
 			t.Fatalf("extra hub was also admitted to reattach pass: %+v, %v", call.call, call.err)
 		}
 	}
@@ -266,12 +297,13 @@ func TestHubStartupSingleHubDoesNotEnqueueAnotherLaunch(t *testing.T) {
 	r.run(t)
 	r.assertFirstUsable(t)
 	if !r.console.ReattachPassArmed() {
-		t.Fatal("lost existing single background pass")
+		t.Fatal("single hub did not arm warm worker attachment")
 	}
+	waitWarmAcceptance(t, "single hub starts warm worker", func() bool { r.mu.Lock(); defer r.mu.Unlock(); return len(r.children) == 2 })
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if len(r.children) != 1 {
-		t.Fatalf("single hub started %d children", len(r.children))
+	if len(r.children) != 2 {
+		t.Fatalf("single hub plus warm worker started %d children", len(r.children))
 	}
 	for _, call := range r.history {
 		if call.call.Name == "start-hub" {

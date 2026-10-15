@@ -653,7 +653,7 @@ func runFleetSample(t *testing.T, c *couchcore.Couch, tracker *fleetTracker, inn
 		sample.Errors = append(sample.Errors, "initial root: "+err.Error())
 		return
 	}
-	if err := beginConsole(console, initial, true); err != nil {
+	if err := beginConsole(console, initial); err != nil {
 		sample.Errors = append(sample.Errors, "begin Console: "+err.Error())
 		return
 	}

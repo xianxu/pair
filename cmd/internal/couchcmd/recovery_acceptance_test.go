@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -188,10 +189,17 @@ func runRecoveryMenuAcceptance(t *testing.T, mode string) {
 			}
 		}
 		rt.proc.Set(inc.PID, inc.Identity)
-		rt.artifacts.SetDetachedSession(source.Address, "")
+		if mode != "warm" {
+			rt.artifacts.SetDetachedSession(source.Address, "")
+		}
+		// A warm attach retains its positively listed terminal throughout;
+		// clearing it would invent an absence while inventory is running.
 		rt.artifacts.SetPairSession(source.Address, targetSession, true)
 		if mode == "warm" {
-			return nil
+			// Inventory can run after acknowledgement and before adoption. Probe
+			// that point deterministically instead of relying on its scheduler.
+			_, err := c.ActionableThreadInventoryContext(context.Background(), nil)
+			return err
 		}
 		var profile launcher.TrustedLaunchProfile
 		for _, entry := range rt.runner.Child(id).Env {
@@ -370,7 +378,19 @@ func runRecoveryMenuAcceptance(t *testing.T, mode string) {
 	if err != nil || current.Address != source.Address {
 		t.Fatalf("address changed: %+v %v", current, err)
 	}
-	if current.SessionBinding == nil || current.SessionBinding.Name != managedChildSession(t, rt.runner, start.Handle.ID()) {
+	if mode == "warm" {
+		// The source client was independently proved dead above. Continue may
+		// replace only its client identity with the locally owned attach helper.
+		expected := source
+		expected.Incarnations = append([]couchcore.ThreadIncarnation(nil), source.Incarnations...)
+		expected.Incarnations[0].PID = start.Handle.PID()
+		expected.Incarnations[0].Identity = start.Handle.Identity()
+		expected.Incarnations[0].State = couchcore.IncarnationLive
+		expected.Revision++
+		if !reflect.DeepEqual(current, expected) || managedChildSession(t, rt.runner, start.Handle.ID()) != session {
+			t.Fatalf("Continue changed more than its dead client identity or selected terminal: before=%+v after=%+v", source, current)
+		}
+	} else if current.SessionBinding == nil || current.SessionBinding.Name != managedChildSession(t, rt.runner, start.Handle.ID()) {
 		t.Fatalf("promoted terminal differs from launched intent: %+v", current.SessionBinding)
 	}
 	if mode != "warm" && (current.Continuation.Source.Session != session || current.Continuation.SourceAbsence == nil || current.Continuation.SourceAbsence.Session != session || current.Continuation.Target == nil || current.Continuation.Target.Generation == nil || current.Continuation.Target.Generation.Session != current.SessionBinding.Name) {

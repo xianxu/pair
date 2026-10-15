@@ -7,6 +7,15 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- A getter may replay durable transactions or enroll retention through its lock path. Automatic startup/authentication readers use a shared preview accessor, and regressions preserve a valid pending journal in global and routed slot-local stores; prove explicit lifecycle reads can still replay the same journal. Carry cancellation through routing as well as the final file read. (#528 BR-12)
+
+- Terminal integration assertions read projected cells, not concatenated delta writes: a cursor-positioned suffix can complete a phrase that never occurs contiguously in the byte stream. Await a view-specific marker before releasing concurrent effects; status-bar labels do not prove the switcher opened. Split effect-count and visible-outcome assertions so failures identify the missing observation. (#528 BR-11)
+
+- A process-survival fixture synchronizes after the child installs its signal handler, before the parent exits. Forking does not establish that order; a FIFO handshake avoids false liveness failures under load. (#528)
+- Tests that exercise host-wide terminal discovery need globally unique session names even when HOME and socket directories are isolated. Test concurrent independent runs; changing only the socket root does not isolate a name-based ownership query. (#528)
+
+- Before claiming a design extends existing metadata, inspect the actual owner/schema. A path decoder is not a persisted attestation. Name the new authority explicitly and test its publication boundary. (#528 PQ-2)
+- Admission locks protect the observable transition, not just process creation. Release after verified ownership/readiness and before waiting for the long-lived client; test both orderings with controlled events. (#528 PQ-1)
 - A spawn API can return an error after it created and cleaned up a process. Preserve bounded evidence before that cleanup and carry it through the error; a nil returned handle does not prove nothing started. Test the post-spawn setup refusal, not only exec failure and registration failure. (#531 BR-1)
 
 - A late asynchronous report is checked against whether its source is still live, not against a counter that only
@@ -1557,6 +1566,16 @@ proof; record the surprising case so the next change starts from evidence.
 - **#494 reconciliation lifetime:** operation identity includes the authority’s lifetime, not only request ID/body. Retire browser state when the server’s document ledger retires; test switch-return plus lost reply and late completion, not each lifecycle independently.
 - **#494 interactive identity:** a record stream can update between pointer-down and pointer-up. Preserve swatch/control DOM nodes across unrelated updates, and test an interleaved record against the originally pressed element on every shared surface.
 
+### #528 — terminal evidence boundaries
+
+- Keep unknown observations distinct from proven unsafe state through every projection and optimistic UI overlay; test a failed inspection after successful attachment.
+- A PID plus ancestry is not a process generation. Pin the child's start identity in readiness, and mutation-test reuse of only that PID while the server remains unchanged.
+- A byte limit does not bound open/read on a FIFO. Runtime metadata readers must reject special files, open nonblocking, and validate the opened inode.
+- Permanent coordination files require a cardinality bound. Stable hashed stripes preserve exclusion without unsafe unlink races or per-session accumulation.
+
+- **#528 bounded-read family:** fixing named reader sites is insufficient. Enumerate every new persisted-input consumer in the branch diff, including audit/config and capture sidecars, and add consumer tests that fail if they bypass the shared reader.
+
+- **#528 optional artifact fallback:** shared IO error types must preserve the distinction between unavailable optional evidence (raw-only, uncertified capture) and malformed authority (refuse). Exercise fallback consumers, not just the new reader. Deadline tests must admit cancellation before an observer is entered; prove inner timeout separately from caller expiry.
 - #523 M2: an asynchronous UI result belongs to the authority generation and
   attempt, not merely the cast instance. Await the actual completion in negative
   clipboard tests; a no-op queue barrier can overtake an unqueued callback.
@@ -1614,8 +1633,19 @@ proof; record the surprising case so the next change starts from evidence.
 
 - A full suite that compares embedded assets with source must run against a stable tree. Finish source edits before launching it; if an independently verified final delta lands mid-run, disclose snapshot failures and rerun the affected packages after regeneration rather than calling that run green.
 
+### #528 — recovery transaction integration
+
+- When a start claim owns recovery evidence, every transition that removes the claim must transfer that evidence, including rollback with and without a park receipt. Test each destructive transition, not only registration.
+- Recovery must not change saved startup preferences through the shared successful-start path. Assert defaults before and after a real store-backed recovery transaction.
+- Pair helper ancestry does not necessarily reach its wrapper after Zellij daemonizes. Use exact readiness nonce and agent process generation when identifying the source; scope/tag alone cannot distinguish competing incarnations.
 - When integrating capture availability changes, test a batch containing both visible and off-screen notes. Pixel unavailability does not imply lost document identity; preserve navigation rejection separately.
 
+- **#528 exact native ownership:** a live wrapper plus the newest tag-level ledger entry is not a causal join. Bind the wrapper generation through readiness's exact live agent and launch ordinal; test an older live wrapper alongside a newer same-owner launch. Apply the same association rule to source exemptions and fakes.
+- **#528 primary recovery routing:** a new secondary action does not satisfy the primary recovery contract. Test Enter, mouse, explicit Relaunch and equivalent restart gestures against the shared preview, preserving ordinary healthy behavior.
+
+- **#528 recovery conformance:** extending a native format consumer creates a new contract even when the older scanner still parses the file. Exercise the new production interpretation in installed-native conformance, and prove recovery-only drift fails while legacy inventory remains valid.
+
+- **#528 store authority:** coordinators call named typed ThreadStore transitions, never updateExistingThread callbacks. Include TestArbitraryLifecycleMutationHasNoDoor alongside targeted lifecycle integration checks; behavioral tests alone do not cover the authority boundary.
 - #535: Keep error text and wrapped causes complete; apply concise summaries only at operator presentation boundaries. Run the full affected package and use make -k after an early prerequisite failure so one known timing failure cannot hide later regressions. Cancellation tests should cancel at the intended observation seam, not race unrelated filesystem work against a tiny deadline.
 - #533: An operation deadline cannot bound an editing lock while its synchronous subprocesses are unbounded. Carry one remaining-time budget through every external effect and render progress before entering waits. Verify an actual blocked child and embedded UI redraw ordering, not only model state.
 
@@ -1682,6 +1712,21 @@ Deleting the orientation delivery also deleted the only `automaticRenderEpoch.Ad
 
 - #511 close review: count repeated test outcomes from the complete log, using exact per-subtest records. A terminal tail or truncated tool result is not evidence of the total failure count.
 
+- #528 M1 BR-9: Test an offered Continue through the real resume executor and
+  launcher, including missing profile, incomplete argv, unsupported saved agent,
+  and missing original cwd. Projection-only tests do not prove downstream cold
+  launch requirements were removed from warm attachment. BR-10: startup and
+  primary-action changes must update README usage as well as the atlas.
+
+- #528 M1 BR-9 follow-up: A terminal client does not need lifecycle ownership
+  of the agent it views. Sweep executor behavior across all record shapes the
+  classifier accepts, and preserve independent start/park records. Persisted
+  registry PIDs are not proof of a terminal handle owned by this process.
+
+- #528 M1 BR-9 authority sweep: follow an offered action through its post-ack
+  completion and the real launcher. Removing a prerequisite at the first gate
+  is insufficient when registration or final handoff imposes it again. Keep
+  attachment evidence separate from lifecycle retirement authority end to end.
 - #530: When a fixture advances a synthetic clock, first await completion of all
   independently admitted deliveries that affect its rule inputs, not just the
   endpoint whose messages the assertion counts. An in-flight startup prompt
@@ -1737,6 +1782,10 @@ Deleting the orientation delivery also deleted the only `automaticRenderEpoch.Ad
 
 - #551: os.NewFile does not establish atomic close-on-exec for a raw descriptor. Set O_CLOEXEC at the raw open, and sweep transient binding reads and directory paging alongside locks. A final FD_CLOEXEC check alone cannot catch a post-open fork/exec race; defend atomic placement over the whole raw-open family.
 
+- #528 merge verification: a new main guard covers feature-branch sources too.
+  When importing a cross-cutting invariant such as native process inspection,
+  run that guard against the whole merged package, including files outside
+  conflict hunks, before spending a full-suite run.
 - #552: An occurrence sequence and its transport ID must both name the exact
   incarnation. PID plus sequence can collide after PID reuse; hash the full
   binding, and reject reordered sequences through a high-water mark retained
@@ -1751,12 +1800,48 @@ Deleting the orientation delivery also deleted the only `automaticRenderEpoch.Ad
   evidence but creates no required sdlc-local/suite status, so landing must run
   the declared suite again. Inspect the declaration before scheduling the run.
 
+- #528 BR-13: Bounding a store lock does not bound persisted-byte reads.
+  Sweep every routing/fallback reader reachable from a preview, retain request
+  and inspection cancellation, and reuse regular-file/type/size admission.
+  Exercise FIFOs at routing, final records, archives and aliases; preserve
+  descriptor-relative local opens rather than reopening an admitted pathname.
+
+- #528 BR-14/15: A contextual preview at one consumer is not the full automatic
+  path. Trace attachment preflight, optional repair, effect-time rereads and
+  refusal branches; warm-only absence must exit before lifecycle bookkeeping.
+  After reader refactors, run the production-symbol guard before review and
+  remove obsolete wrappers rather than exempting them.
+
+- #528 BR-14 downstream: Follow the launched helper through the handoff, not
+  just its parent API. Optional agent presentation must not resolve native
+  conversations; a selected attach must not run migration or orphan cleanup.
+  Include write-only opens in FIFO probes: opening a draft for writing can
+  block just as a ReadFile can.
+
+- #528 final suite: A subprocess readiness file is a publication boundary, not
+  merely a pathname. Use the existing atomic writer so a successful read cannot
+  see the creation/truncation window. Reproduce scheduling races by stretching
+  that window in an overlay; do not hide them with more reader polling.
 - #555: For generated-output changes, record both consumer and substrate revisions, before/after blob identity, and repeat-generation result. Disposable review checkouts may lack sibling sources; measured host evidence lets review verify provenance without modifying its environment.
 
+- #528 final fixture sweep: An existence-based waiter needs atomic payload
+  publication for socket requests and pane/readiness JSON too. Inspect the
+  underlying error (empty Unix bind address) before calling a timeout load-only.
+  Keep a shutdown-order assertion independent of idle HTTP client cleanup;
+  close fixture idle connections instead of widening its ACK deadline.
 - #559: A cache for optional evidence must preserve the uncached fallback when its metadata cannot be observed. A disposable-catalog fingerprint failure cannot become new activity authority or a new requirement for otherwise valid ledger/native proof. Pin parity with the uncached query, and count real decoder inputs separately from filesystem reads so decoding cached bytes cannot hide behind a zero-IO test.
 
 - #559 review: Cache failure tests must recover with unchanged fingerprints and fence an older in-flight loader, not merely reject the failing call. Distinguish a canceled waiter that observed nothing from a failed source observation. Measure retained projections using substantive proof/boundary payloads, and signal cancellation barriers only after the caller actually reaches the wait.
 
+- #528 cancellation: receiving a queued request does not prove it is still
+  admitted. Check its lifetime before dispatch; a cancelled predecessor can
+  publish completion while Stop is still closing channels. Preserve the
+  shutdown assertion and reproduce the scheduling window before changing it.
+
+- #528 live CI: Canonical paths are identities, not always valid transports.
+  Expanding /var to /private/var can break a Unix socket near its byte limit.
+  Canonicalize the shared lock key while preserving the server's lexical path
+  for the client; test that aliases share a lock without rewriting argv/env.
 - #218: A native convenience wrapper may erase a successful empty result into a
   generic IO error. Preserve absence/error distinctions at the native boundary;
   reproduce exit between successful argv and identity using an owned child, and
@@ -1783,4 +1868,9 @@ Deleting the orientation delivery also deleted the only `automaticRenderEpoch.Ad
   separately, and capture the failing phase before changing a test budget.
   Isolated rerun passes do not erase a failed broad run or prove its cause.
 
+- #528/#218 integration: When an approved lifecycle path changes, carry
+  instrumentation onto its actual steps instead of restoring old lifecycle
+  work to satisfy phase assertions. Optional borrowed-client previews should
+  be conditional on local ownership; bounded nonblocking previews can starve
+  beside a fleet's explicit writes even when each operation is correct alone.
 - #554: An emulator reply drainer owns a lifetime even in a one-shot screen fixture. Reuse terminalModel instead of pairing raw Emulator.Close with an unjoined io.Copy; close the reply pipe, join the reader, then dispose the emulator. Pin ordering on real EOF and observable disposal, including an injected shutdown error, rather than sleeps or a probabilistic race-only assertion.

@@ -304,6 +304,8 @@ func menuBreadcrumb(state MenuState, frame MenuFrame) string {
 	switch frame.Kind {
 	case MenuFrameActions:
 		parts = append(parts, "actions")
+	case MenuFrameRecovery:
+		parts = append(parts, "resume candidates")
 	case MenuFrameConfirmation:
 		// `leave` never reaches here -- it returns early above as a global frame.
 		parts = append(parts, frame.Action)
@@ -319,6 +321,8 @@ func menuBreadcrumb(state MenuState, frame MenuFrame) string {
 // there mean something.
 func renderMenuFrame(state MenuState, frame MenuFrame, width, height int, now time.Time, color256 bool) ([]string, []ActorExtent) {
 	switch frame.Kind {
+	case MenuFrameRecovery:
+		return renderRecoveryMenu(frame, width, height), nil
 	case MenuFrameSwitchAgent:
 		return renderSwitchAgentMenu(frame, width, height), nil
 	case MenuFrameRoot:
@@ -459,20 +463,32 @@ func continuationLabel(phase checkpoint.Phase) string {
 }
 
 func threadStateText(thread couchcore.ActionableThreadSummary, now time.Time) string {
-	if notice := menuRowNotice(menuRowFactsOf(thread)); notice != "" {
-		return notice
-	}
-	switch thread.State {
-	case couchcore.ThreadLive:
-		return "live"
-	case couchcore.ThreadDetached:
-		return withMenuAge("detached", now, thread.LastActiveAt)
-	case couchcore.ThreadParked:
-		return withMenuAge("parked", now, thread.LastActiveAt)
-	case couchcore.ThreadArchived:
+	if thread.State == couchcore.ThreadArchived {
 		return "archived"
 	}
-	return thread.Reason.Label()
+	switch couchcore.ContinuityOutcome(thread) {
+	case couchcore.Continue:
+		if thread.State == couchcore.ThreadDetached && hasRecordedActivity(thread.LastActiveAt) {
+			return "Continue · " + relativeMenuAge(now, thread.LastActiveAt)
+		}
+		return "Continue"
+	case couchcore.ResumeDisk:
+		if hasRecordedActivity(thread.LastActiveAt) {
+			return "Resume from disk · " + relativeMenuAge(now, thread.LastActiveAt)
+		}
+		return "Resume from disk"
+	case couchcore.ContinuityStarting:
+		return "Starting"
+	default:
+		label := "Start fresh"
+		if !couchcore.RebootAdmitted(thread.State, thread.Reason, false) {
+			label = "Relaunch"
+		}
+		if notice := menuRowNotice(menuRowFactsOf(thread)); notice != "" {
+			label += " · " + notice
+		}
+		return label
+	}
 }
 
 // renderRootMenuFrame returns the drawn lines and, for the root list, where each
@@ -544,7 +560,11 @@ func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, no
 		// pending thread reads queued or reattaching, a failed one says why.
 		view, owned := passViewOf(state.Reattach, thread.Address)
 		suffix := "  " + rootStateText(thread, now)
-		if pass := passSuffix(view, owned, width); pass != "" {
+		passOutcome := rootStateText(thread, now)
+		if couchcore.ContinuityOutcome(thread) == couchcore.Continue {
+			passOutcome = "Continue"
+		}
+		if pass := passSuffix(view, owned, width, passOutcome); pass != "" {
 			suffix = pass
 		}
 		entry := labels[menuRowKey(thread)]
@@ -842,7 +862,7 @@ func styledMenuWidth(line string) int {
 // passStateText is a pass-owned row's state column. An attached row has none of
 // its own: the lookup overlays it as live, so rootStateText already says so.
 //
-// "reattaching..." carries no spinner here. The switcher's spinner advances
+// "attaching…" carries no spinner here. The switcher's spinner advances
 // only while a progress notice shows, and the pass shows none, so a glyph would
 // sit frozen. The ellipsis says "in progress"; the live animation is on the
 // status bar, where the operator is while the pass runs.
@@ -851,9 +871,9 @@ func passStateText(view PassView) string {
 	case PassQueued:
 		return "queued"
 	case PassLoading:
-		return "reattaching…"
+		return "attaching…"
 	case PassFailed:
-		return "reattach failed: " + view.Diagnostic
+		return "pane failed: " + view.Diagnostic + " (retry)"
 	}
 	return ""
 }
@@ -866,8 +886,11 @@ const menuLabelFloor = 16
 // does not. A failed row can carry an error's own text (pair#206 decision 11),
 // which is neither short nor trustworthy, so the text is sanitized and fitted
 // here, where the width is known, leaving the label menuLabelFloor columns.
-func passSuffix(view PassView, owned bool, width int) string {
+func passSuffix(view PassView, owned bool, width int, stateText string) string {
 	text := passStateText(view)
+	if view.Pending() || view.State == PassFailed {
+		text = stateText + " · " + text
+	}
 	if !owned || text == "" {
 		return ""
 	}

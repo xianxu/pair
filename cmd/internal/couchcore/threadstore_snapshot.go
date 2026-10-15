@@ -1,8 +1,14 @@
 package couchcore
 
-import "fmt"
+import (
+	"context"
+	"fmt"
+)
 
-func (s *ThreadStore) appendSlotSnapshots(snapshot ThreadSnapshot, manifest threadManifest) (ThreadSnapshot, error) {
+func (s *ThreadStore) appendSlotSnapshotsContext(ctx context.Context, snapshot ThreadSnapshot, manifest threadManifest) (ThreadSnapshot, error) {
+	if err := ctx.Err(); err != nil {
+		return snapshot, err
+	}
 	backends, err := s.discoveredBackendsFromManifest(manifest)
 	if err != nil {
 		return snapshot, err
@@ -27,7 +33,13 @@ func (s *ThreadStore) appendSlotSnapshots(snapshot ThreadSnapshot, manifest thre
 		seen[record.Address] = true
 	}
 	for _, backend := range backends {
-		local, err := backend.Snapshot()
+		if err := ctx.Err(); err != nil {
+			return snapshot, err
+		}
+		local, err := backend.snapshotContext(ctx)
+		if ctx.Err() != nil {
+			return snapshot, ctx.Err()
+		}
 		observation := SlotInventoryObservation{Identity: *backend.slot, Err: err}
 		for _, family := range manifest.RepositoryFamilies {
 			if family.PrimaryRoot == backend.slot.PrimaryRoot && family.RepoIdentity == backend.slot.RepoIdentity {

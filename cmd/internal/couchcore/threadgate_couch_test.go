@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/launcher"
-	"github.com/xianxu/pair/cmd/internal/pairlifecycletest"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 	"github.com/xianxu/pair/cmd/internal/testwait"
 )
@@ -36,11 +35,6 @@ func TestEveryLifecycleEntryRefusesAHeldThread(t *testing.T) {
 		name string
 		call func() error
 	}{
-		{"resume", func() error { _, _, err := c.ResumeContext(bg, address); return err }},
-		{"warm-only resume", func() error {
-			_, _, err := c.ResumeContextWith(bg, address, ResumeOptions{WarmOnly: true})
-			return err
-		}},
 		{"relaunch", func() error { _, err := c.Relaunch(bg, address); return err }},
 		{"detach", func() error { _, err := c.Detach(bg, address); return err }},
 		{"park", func() error { _, err := c.Park(bg, address, ""); return err }},
@@ -66,9 +60,9 @@ func TestEveryLifecycleEntryRefusesAHeldThread(t *testing.T) {
 }
 
 // The 2026-09-08 incident (pair#214) in today's code: a resume arriving while
-// a relaunch is mid-park is refused naming the relaunch, and the relaunch
-// completes undisturbed.
-func TestAResumeDuringARelaunchIsRefusedAndTheThreadStaysResumable(t *testing.T) {
+// Continue can attach while relaunch is mid-park, without acquiring its claim;
+// the existing relaunch completes undisturbed.
+func TestContinueDuringRelaunchPreservesItsLifecycleHold(t *testing.T) {
 	t.Parallel()
 
 	env, live := envWithLiveThread(t)
@@ -91,10 +85,30 @@ func TestAResumeDuringARelaunchIsRefusedAndTheThreadStaysResumable(t *testing.T)
 	}()
 	<-reached
 
-	_, _, err := c.ResumeContext(context.Background(), live.Address)
+	before, err := c.Threads.GetThread(live.Address)
+	if err != nil {
+		t.Fatal(err)
+	}
+	actor, helper, err := c.ResumeContext(context.Background(), live.Address)
+	if err != nil || helper == nil || actor.Shape != StartWarmReattach {
+		close(proceed)
+		<-done
+		t.Fatalf("listed Continue refused while relaunch owns lifecycle: %v", err)
+	}
+	t.Cleanup(func() { env.Runner.SetExited(helper.ID(), 0) })
+	assertWarmRecordUnchanged(t, env.testEnv, before)
+	_, unexpectedRelease, holdErr := c.hold(context.Background(), live.Address, "replacement")
+	if holdErr == nil {
+		unexpectedRelease()
+		close(proceed)
+		<-done
+		t.Fatal("Continue released relaunch hold")
+	}
 	var busy *ThreadBusyError
-	if !errors.As(err, &busy) || busy.Running != "relaunch" {
-		t.Fatalf("resume during relaunch = %v, want ThreadBusyError naming relaunch", err)
+	if !errors.As(holdErr, &busy) || busy.Running != "relaunch" {
+		close(proceed)
+		<-done
+		t.Fatalf("wrong hold: %v", holdErr)
 	}
 	close(proceed)
 	got := <-done
@@ -304,60 +318,6 @@ func TestParkJoinModeNeverBegins(t *testing.T) {
 	}
 }
 
-// RecoverActiveParks is a drain: it waits for a thread's holder, then
-// recovers the open park (BR-4).
-func TestParkRecoveryWaitsForAHolderThenRecovers(t *testing.T) {
-	t.Parallel()
-
-	store, _, thread := createControllerThread(t)
-	identity := ParkIdentity{Nonce: "park-wait", Address: thread.Address, PID: 42, ProcessIdentity: "pair-helper"}
-	thread, err := store.BeginPark(thread.Address, thread.Revision, identity)
-	if err != nil {
-		t.Fatal(err)
-	}
-	now := time.Unix(300, 0).UTC()
-	model := pairlifecycletest.New(now)
-	model.SetSession("pair-exact", true)
-	lifecycle := &fakeControllerLifecycle{model: model}
-	artifacts := NewFakeThreadArtifactCollisionChecker()
-	artifacts.SetPairSession(thread.Address, "pair-exact", true)
-	artifacts.TriggerQuitHook = func(string, launcher.QuitIntent) error {
-		completion := successCompletion(lifecycle.lastRequest, now)
-		lifecycle.completion = &completion
-		return nil
-	}
-	controller := &PairLifecycleController{
-		Threads: store, DataDir: t.TempDir(), Lifecycle: lifecycle, Sessions: artifacts,
-		Proc: NewFakeProcOps(), Clock: FixedClock{T: now},
-		Nonce: func() (string, error) { return "unused", nil },
-	}
-	c := &Couch{Threads: store, PairLifecycle: controller}
-	_, release, err := c.hold(context.Background(), thread.Address, "resume")
-	if err != nil {
-		t.Fatal(err)
-	}
-	done := make(chan error, 1)
-	go func() { done <- c.RecoverActiveParks(context.Background()) }()
-	select {
-	case err := <-done:
-		t.Fatalf("park recovery returned while the thread was held: %v", err)
-	case <-time.After(150 * time.Millisecond):
-	}
-	if got := len(artifacts.TriggeredQuits()); got != 0 {
-		t.Fatalf("park recovery acted on a held thread: %d quits", got)
-	}
-	release()
-	if err := <-done; err != nil {
-		t.Fatalf("park recovery after release = %v", err)
-	}
-	recovered, err := store.GetThread(thread.Address)
-	if err != nil || recovered.Park != nil || recovered.VerifiedPark == nil {
-		t.Fatalf("recovered thread = %+v, %v; want the park closed and verified", recovered, err)
-	}
-}
-
-// AbortStarted waits for a holder; once released, a start that still owns its
-// thread is cleaned up in full, session included (BR-4).
 func TestAbortStartedWaitsForAHolderThenQuiesces(t *testing.T) {
 	t.Parallel()
 

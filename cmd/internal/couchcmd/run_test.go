@@ -19,8 +19,11 @@ import (
 
 	"github.com/creack/pty"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/couchmessage"
 	"github.com/xianxu/pair/cmd/internal/couchtty"
+	"github.com/xianxu/pair/cmd/internal/hostty"
 	"github.com/xianxu/pair/cmd/internal/launcher"
+	"github.com/xianxu/pair/cmd/internal/ptychild"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 	"github.com/xianxu/pair/cmd/internal/testwait"
 )
@@ -336,11 +339,9 @@ func seedDetachedThread(t *testing.T, rt testRT, path string) couchcore.ThreadRe
 	return created
 }
 
-// The M3 acceptance case, across a RESTART: a couch that detached a thread and
-// went away, then `couch` again in that tree. Driven through production
-// interactive routing all the way to initial Console attach -- not below it,
-// because reducer support is not user reachability.
-func TestInteractiveLaunchReattachesUniqueDetachedRoot(t *testing.T) {
+// A named hub follows production resume routing and attaches its surviving
+// thread without reopening any ordinary slots.
+func TestInteractiveHubLaunchResumesDetachedSession(t *testing.T) {
 	// This legacy fixture predates layout witnesses; request its layout explicitly.
 	rt := newRT(t, "/repo")
 	detached := seedDetachedThread(t, rt, "/repo")
@@ -364,6 +365,9 @@ func TestInteractiveLaunchReattachesUniqueDetachedRoot(t *testing.T) {
 
 	var attached couchcore.StartResult
 	finish := func(console *couchtty.Console, c *couchcore.Couch, start couchcore.StartResult, _ io.Writer) int {
+		if start.Handle == nil || len(rt.runner.Ops) == 0 {
+			t.Fatal("explicit hub startup did not launch its child")
+		}
 		wireResolver(console, c)
 		if err := dispatchInitialAttach(console, start); err != nil {
 			t.Fatalf("initial attach: %v", err)
@@ -395,11 +399,8 @@ func TestInteractiveLaunchReattachesUniqueDetachedRoot(t *testing.T) {
 	}
 }
 
-// RESTATED for #256 M2. A gone session is not by itself a missing resume
-// authority: the ledger may still name a conversation, and then couch
-// cold-resumes instead of starting a second thread in the same tree. Startup
-// creates a NEW thread when the session is gone AND the ledger resolves nothing.
-func TestInteractiveLaunchStartsNewWhenNoSessionSurvives(t *testing.T) {
+// A hub with no surviving session or native resume proof starts a new thread.
+func TestInteractiveHubLaunchStartsFreshWithoutResumeProof(t *testing.T) {
 	rt := newRT(t, "/repo")
 	stale := seedDetachedThread(t, rt, "/repo")
 	rt.artifacts.SetNativeBinding(stale.Address, "claude", sessioninventory.BindingUnbound, "")
@@ -418,6 +419,9 @@ func TestInteractiveLaunchStartsNewWhenNoSessionSurvives(t *testing.T) {
 
 	var attached couchcore.StartResult
 	finish := func(console *couchtty.Console, c *couchcore.Couch, start couchcore.StartResult, _ io.Writer) int {
+		if start.Handle == nil || len(rt.runner.Ops) == 0 {
+			t.Fatal("explicit hub startup did not launch its child")
+		}
 		wireResolver(console, c)
 		if err := dispatchInitialAttach(console, start); err != nil {
 			t.Fatalf("initial attach: %v", err)
@@ -438,7 +442,7 @@ func TestInteractiveLaunchStartsNewWhenNoSessionSurvives(t *testing.T) {
 	}
 }
 
-func TestInteractiveLaunchResumesUniqueParkedRoot(t *testing.T) {
+func TestInteractiveHubLaunchResumesProvenParkedThread(t *testing.T) {
 	rt := newRT(t, "/repo")
 	parked := seedVerifiedPark(t, rt, "/repo")
 	rt.artifacts.SetNativeBinding(parked.Address, "claude", sessioninventory.BindingEstablished, "native-root-1")
@@ -459,6 +463,9 @@ func TestInteractiveLaunchResumesUniqueParkedRoot(t *testing.T) {
 
 	var attached couchcore.StartResult
 	finish := func(console *couchtty.Console, c *couchcore.Couch, start couchcore.StartResult, _ io.Writer) int {
+		if start.Handle == nil || len(rt.runner.Ops) == 0 {
+			t.Fatal("explicit hub startup did not launch its child")
+		}
 		wireResolver(console, c)
 		if err := dispatchInitialAttach(console, start); err != nil {
 			t.Fatalf("initial attach: %v", err)
@@ -594,7 +601,7 @@ func TestEveryOperationHasASummaryAndDescribedArgs(t *testing.T) {
 func TestOperationArityMatchesExpectation(t *testing.T) {
 	// Declared in the test rather than read from the operation itself, so
 	// this cannot degrade into asserting X == X.
-	want := map[string]int{"provision-workspace": 3, "request-continuation": 7, "continue-thread": 3, "prepare-switch-agent": 4, "switch-agent": 7, "prepare-start": 3, "start": 5, "start-hub": 1, "list": 0, "show": 2, "reconcile": 1, "peek": 7, "stop": 1, "alias": 3, "publish-description": 3, "switch": 2, "attach": 3, "park": 4, "detach": 3, "leave": 1, "resume": 5, "reboot": 5, "reap": 3, "recover": 3, "archived": 0, "relaunch": 4, "reload-context": 4, "prepare": 5}
+	want := map[string]int{"provision-workspace": 3, "request-continuation": 7, "continue-thread": 3, "retry-continuation": 4, "dismiss-continuation": 4, "continuation-status": 4, "prepare-switch-agent": 4, "switch-agent": 7, "prepare-start": 3, "start": 5, "start-hub": 1, "list": 0, "show": 2, "reconcile": 1, "peek": 7, "stop": 1, "alias": 3, "publish-description": 3, "switch": 2, "attach": 3, "park": 4, "detach": 3, "leave": 1, "resume": 6, "resume-candidates": 4, "reboot": 5, "reap": 3, "recover": 3, "archived": 0, "relaunch": 4, "reload-context": 4, "prepare": 5}
 	for _, op := range couchcore.Operations() {
 		if got := len(op.Args); got != want[op.Name] {
 			t.Errorf("%s has %d args, want %d", op.Name, got, want[op.Name])
@@ -910,7 +917,7 @@ func TestListShowsATreeWithNoAgent(t *testing.T) {
 	// row appears WITH a stated reason: a named tree the operator cannot enter
 	// must still say why, which is the whole of #181. The parked/detached
 	// wording has its own test below.
-	if !strings.Contains(out, "unusable: no saved launch") {
+	if !strings.Contains(out, "Start fresh: no saved launch") {
 		t.Fatalf("out = %q; a row that cannot be entered must state why", out)
 	}
 }
@@ -1202,7 +1209,7 @@ func TestConsoleGetsCouchsActionableProvider(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Spawn: %v", err)
 	}
-	runConsole(console, c, couchcore.StartResult{Record: rec, Handle: h}, &bytes.Buffer{}, false)
+	runConsole(console, c, couchcore.StartResult{Record: rec, Handle: h}, &bytes.Buffer{})
 
 	provider := console.ActionableProvider()
 	if provider == nil {
@@ -1341,7 +1348,7 @@ func TestConsoleGetsAnActionDispatcher(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Spawn: %v", err)
 	}
-	runConsole(console, c, couchcore.StartResult{Record: rec, Handle: h}, &bytes.Buffer{}, false)
+	runConsole(console, c, couchcore.StartResult{Record: rec, Handle: h}, &bytes.Buffer{})
 
 	ops := console.Ops()
 	if ops == nil {
@@ -1424,7 +1431,7 @@ func TestConsoleExitForgetsThroughCouchRegistry(t *testing.T) {
 		t.Fatal("test setup has no registered actor")
 	}
 
-	runConsole(console, c, couchcore.StartResult{Record: rec, Handle: h}, &bytes.Buffer{}, false)
+	runConsole(console, c, couchcore.StartResult{Record: rec, Handle: h}, &bytes.Buffer{})
 
 	if got := rt.registryRecords(t); len(got) != 0 {
 		t.Fatalf("registry after terminal child exit = %+v, want empty", got)
@@ -1580,38 +1587,22 @@ func TestWarmOnlyIsUnreachableFromTheCommandLine(t *testing.T) {
 	}
 }
 
-// pair#206 decision 9: a start arms the background reattach pass; a resume of
-// one named thread does not.
-func TestOnlyAStartArmsTheReattachPass(t *testing.T) {
-	for operation, want := range map[string]bool{"start": true, "resume": false, "show": false} {
-		if got := armsReattachPass(operation); got != want {
-			t.Errorf("armsReattachPass(%q) = %v, want %v", operation, got, want)
-		}
-	}
-}
-
-// beginConsole is where the ordering lives: the startup child attaches, THEN
-// the pass is armed, and a failed attach never arms. It is tested with a fake
-// dispatcher, the way TestInitialConsoleAttachDispatchesDeclaredOperation tests
-// the attach itself.
-//
-// An earlier version drove runConsole with a child that had already exited, so
-// Run would return at once. But the initial attach refuses an exited child, so
-// runConsole returned before arming anything: the "arms" test failed, and the
-// "never arms on a failed attach" test passed for the wrong reason, since the
-// exited child failed the attach rather than the mismatch it meant to test.
-func TestBeginConsoleArmsThePassOnlyAfterASuccessfulAttach(t *testing.T) {
+// Startup arms background warm-only attachment after its selected hub adopts.
+func TestBeginConsoleArmsWarmPassOnlyAfterSuccessfulAttach(t *testing.T) {
 	address := couchcore.ThreadAddress{RepoScope: "816fc349d3faebf8", Tag: "couch-0102030405060708"}
-	start := couchcore.StartResult{Record: couchcore.ActorRecord{Thread: address}}
+	runner := couchcore.NewFakeRunner()
+	handle, err := runner.Start("/repo", []string{"pair"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	start := couchcore.StartResult{Record: couchcore.ActorRecord{Thread: address}, Handle: handle}
 	for _, tt := range []struct {
 		name      string
 		attachErr error
-		armPass   bool
 		wantArmed bool
 	}{
-		{"a start whose attach succeeds is armed", nil, true, true},
-		{"a failed attach never arms", errors.New("attach refused"), true, false},
-		{"a console that is not a start is not armed", nil, false, false},
+		{"a successful hub attach arms", nil, true},
+		{"a failed attach never arms", errors.New("attach refused"), false},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			console, _, _ := consoleRunnerFor("start", strings.NewReader(""), true, nil, nil)
@@ -1621,7 +1612,7 @@ func TestBeginConsoleArmsThePassOnlyAfterASuccessfulAttach(t *testing.T) {
 			console.SetOperationDispatcher(func(couchcore.OperationCall) (any, error) {
 				return address, tt.attachErr
 			})
-			if err := beginConsole(console, start, tt.armPass); (err != nil) != (tt.attachErr != nil) {
+			if err := beginConsole(console, start); (err != nil) != (tt.attachErr != nil) {
 				t.Fatalf("beginConsole err = %v, want the attach's error %v", err, tt.attachErr)
 			}
 			if got := console.ReattachPassArmed(); got != tt.wantArmed {
@@ -1784,5 +1775,106 @@ func TestRecoverPlanCLIEmitsTheReport(t *testing.T) {
 	}
 	if rt.supervisor.acquired != 0 || len(rt.runner.Ops) != 0 {
 		t.Fatalf("the read-only report acquired the supervisor (%d) or ran children (%v)", rt.supervisor.acquired, rt.runner.Ops)
+	}
+}
+
+func TestThreadStateTextUsesSharedContinuityOutcome(t *testing.T) {
+	for _, tc := range []struct {
+		state  couchcore.ActionableThreadState
+		reason couchcore.ThreadReason
+		want   string
+	}{
+		{couchcore.ThreadLive, "", "Continue"},
+		{couchcore.ThreadDetached, "", "Continue (no client attached; the agent is still running)"},
+		{couchcore.ThreadParked, "", "Resume from disk (no agent running)"},
+		{couchcore.ThreadUnusable, couchcore.ReasonProfileMissing, "Start fresh: no saved launch"},
+		{couchcore.ThreadBusy, "", "Starting (couch claimed a start and has not finished it)"},
+		{couchcore.ThreadArchived, "", "archived (restore by moving it back and re-adding the address)"},
+	} {
+		got := threadStateText(couchcore.ThreadSummary{State: tc.state, Reason: tc.reason})
+		if got != tc.want {
+			t.Fatalf("%s: %q want %q", tc.state, got, tc.want)
+		}
+	}
+}
+
+// A candidate resume must retain hub authority while it waits in the queue.
+func TestCandidateResumeRetainsQueuedHubGuard(t *testing.T) {
+	r, _, _ := slotRig(t)
+	var queuedGuard func(context.Context) error
+	r.slotOps.candidate = func(key, target, candidate string, started func(), finished func(any, error), guards ...func(context.Context) error) error {
+		if candidate != "candidate-token" || len(guards) != 1 {
+			t.Fatalf("candidate admission lost its token or hub guard: %q, %d", candidate, len(guards))
+		}
+		queuedGuard = guards[0]
+		return nil
+	}
+	ownershipChanged := false
+	guard := func(context.Context) error {
+		if ownershipChanged {
+			return errors.New("ownership changed")
+		}
+		return nil
+	}
+	caller := couchmessage.Binding{Scope: "scope", Tag: "caller"}
+	request := couchmessage.Request{Op: "resume", ID: "candidate-resume", Target: "pair:2", CandidateKey: "candidate-token"}
+	if got := r.slotOps.handle(context.Background(), caller, request, guard); got.Code != "accepted" {
+		t.Fatalf("candidate admission: %+v", got)
+	}
+	ownershipChanged = true
+	if queuedGuard == nil || queuedGuard(context.Background()) == nil {
+		t.Fatal("queued candidate resume lost the ownership recheck")
+	}
+}
+
+func TestInitialHubBorrowedAttachmentNoticeAppearsOnFirstPaint(t *testing.T) {
+	for _, attachErr := range []error{nil, errors.New("attach refused")} {
+		host := hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 160})
+		input, writer := io.Pipe()
+		console := couchtty.New(host, input)
+		runner := couchcore.NewFakeRunner()
+		handle, err := runner.Start("/repo", []string{"pair"}, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		start := couchcore.StartResult{Record: couchcore.ActorRecord{Thread: couchcore.ThreadAddress{RepoScope: "0123456789abcdef", Tag: "couch-0123456789abcdef"}, AttachmentNotice: "BORROWED ATTACH: old client is alive; retained lifecycle state was preserved."}, Handle: handle}
+		console.SetOperationDispatcher(func(call couchcore.OperationCall) (any, error) {
+			if call.Name != "attach" {
+				t.Fatalf("startup dispatched %s", call.Name)
+			}
+			return start.Record.Thread, attachErr
+		})
+		err = beginConsole(console, start)
+		if (err != nil) != (attachErr != nil) {
+			t.Fatalf("adoption error=%v", err)
+		}
+		done := make(chan struct{})
+		go func() { console.Run(); close(done) }()
+		paintDeadline := testwait.After(t)
+		painted := false
+		for !painted {
+			select {
+			case <-host.Writes():
+				painted = strings.Contains(host.Written(), "threads")
+			case <-paintDeadline:
+				console.Stop()
+				writer.Close()
+				t.Fatal("no initial console paint")
+			}
+		}
+		console.Stop()
+		writer.Close()
+		select {
+		case <-done:
+		case <-testwait.After(t):
+			t.Fatal("console did not stop")
+		}
+		visible := strings.Contains(host.Written(), start.Warning())
+		if visible != (attachErr == nil) {
+			t.Fatalf("initial borrowed warning visible=%v after adoption error=%v; paint=%q", visible, attachErr, host.Written())
+		}
+		if console.ReattachPassArmed() != (attachErr == nil) {
+			t.Fatal("warm pass arming did not follow successful adoption")
+		}
 	}
 }

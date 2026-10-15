@@ -108,6 +108,16 @@ func LaunchNative(launchArgs []string, pairHome string, stdout, stderr io.Writer
 		return 1, nil
 	}
 	launchDataDir := ScopedLaunchDataDir(dataDir, repoRoot)
+	if intent := args.CouchSession; intent != nil && intent.Disposition == "attach" {
+		// The helper may run outside the unavailable original checkout. The
+		// validated terminal intent, not its cwd, owns the artifact namespace.
+		paths := NewScopedPaths(dataDir, RepoScope{Key: intent.Scope}, intent.Tag)
+		if err := paths.Validate(); err != nil {
+			fmt.Fprintln(stderr, "pair:", err)
+			return 1, nil
+		}
+		launchDataDir = paths.ScopeDir()
+	}
 	if explicit := os.Getenv("PAIR_DATA_DIR"); explicit != "" {
 		if selectedGlobal != "" && explicit != launchDataDir {
 			fmt.Fprintf(stderr, "pair: PAIR_DATA_DIR %q conflicts with selected repository scope %q; clear the inherited override\n", explicit, launchDataDir)

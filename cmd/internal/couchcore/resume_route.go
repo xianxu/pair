@@ -124,6 +124,25 @@ func (c *Couch) ResumeTarget(ctx context.Context, t ResumeTarget) (any, error) {
 }
 
 func (c *Couch) resumeRouted(ctx context.Context, t ResumeTarget) (any, error) {
+	// Attachment precedes continuation recovery and workspace reconciliation:
+	// those operations own lifecycle effects that Continue does not authorize.
+	_, retained, readErr := c.recoveryTarget(ctx, t)
+	if readErr != nil && !errors.Is(readErr, ErrThreadNotFound) {
+		return nil, readErr
+	}
+	if readErr == nil {
+		session, listed, err := c.listedTerminal(ctx, retained)
+		if err != nil {
+			return nil, err
+		}
+		if listed {
+			actor, handle, err := c.attachListedTerminal(ctx, retained, session, ResumeOptions{})
+			if err != nil {
+				return nil, err
+			}
+			return StartResult{Record: actor, Handle: handle}, nil
+		}
+	}
 	in := ResumeRouteInput{Slot: t.Path != ""}
 	var record ThreadRecord
 	var local *ThreadStore

@@ -67,6 +67,7 @@ type OperationResult uint8
 const (
 	ResultUnknown OperationResult = iota
 	ResultStartResolution
+	ResultRecoveryPreview
 	ResultStart
 	ResultThreadInventory
 	ResultStop
@@ -137,6 +138,10 @@ type StartedChild interface {
 
 // Started makes a StartResult its own adoption payload.
 func (s StartResult) Started() (StartResult, bool) { return s, true }
+
+// Warning reports why a successful attachment borrowed the terminal without
+// replacing its retained client record. The notice is not persisted.
+func (s StartResult) Warning() string { return s.Record.AttachmentNotice }
 
 // StopResult reports what stopping actually did: a record for an already-dead
 // actor is forgotten without a signal, and saying so avoids implying a running
@@ -450,11 +455,15 @@ func Operations() []Operation {
 				{Name: "mode", Summary: "detach (default) or park every live thread (--mode=<mode>)", FlagOnly: true, ValueRequired: true},
 			},
 		},
+		{Name: "resume-candidates", Summary: "List explicit conversation recovery choices", Execution: ExecuteLiveOwner, Effect: EffectRead, Confirmation: ConfirmNone, Result: ResultRecoveryPreview, Presentation: PresentationTUI,
+			Args: []ArgSpec{{Name: "ref", Summary: "thread or exact slot reference"}, {Name: "path", Summary: "slot host checkout", Implicit: true}, {Name: "repo-scope", Summary: "repository scope", Implicit: true}, {Name: "tag", Summary: "exact thread tag", Implicit: true}},
+		},
 		{
 			Name: "resume", Summary: "Reattach a detached work thread, or resume one whose conversation still resolves",
 			Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmNone, Result: ResultStart,
 			Presentation: PresentationTUI, RowAction: true,
 			Args: []ArgSpec{
+				{Name: "candidate", Summary: "opaque recovery choice key", FlagOnly: true, ValueRequired: true},
 				{Name: "ref", Summary: "thread tag or path", Required: false},
 				{Name: "tag", Summary: "exact thread tag from trusted owner context", Implicit: true},
 				{Name: "repo-scope", Summary: "repository scope derived from caller context", Required: true, Implicit: true},

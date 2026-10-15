@@ -2,6 +2,7 @@ package couchcore
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -68,5 +69,38 @@ func TestMigrationProcessesIncludesCreatingOwnersAndUnknownIdentity(t *testing.T
 	cancel()
 	if _, e := ObserveMigrationProcesses(ctx, NewFakeProcOps(), []ThreadRecord{{Incarnations: []ThreadIncarnation{{}}}}); e == nil {
 		t.Fatal("ignored cancelled scan")
+	}
+}
+
+func TestInspectionLocalDescriptorReadRetainsAuthorityCancellation(t *testing.T) {
+	store, repository, record := migrationFixture(t)
+	if err := store.EnrollSlotRepository(context.Background(), repository); err != nil {
+		t.Fatal(err)
+	}
+	local, err := store.storeForAddress(record.Address)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	err = WithStoreInspectionLocks(ctx, []CouchNamespace{store.namespace}, nil, func(inspection *StoreInspection) error {
+		if _, err := inspection.Snapshot(store.namespace); err != nil {
+			return err
+		}
+		view := *local
+		view.inspection = inspection
+		cancel()
+		// Snapshot callers use background wrappers; the descriptor reader must
+		// still obey the context that owns these retained inspection locks.
+		if _, err := view.readLocalPayloadContext(context.Background(), view.recordPath(record.Address), localPayloadLimit); !errors.Is(err, context.Canceled) {
+			t.Fatalf("local descriptor outlived inspection authority: %v", err)
+		}
+		if _, err := inspection.Snapshot(store.namespace); !errors.Is(err, context.Canceled) {
+			t.Fatalf("canceled snapshot=%v", err)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
 }

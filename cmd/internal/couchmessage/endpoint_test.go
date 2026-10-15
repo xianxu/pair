@@ -4,7 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"net"
+	"os"
+	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -272,5 +277,40 @@ func TestRemoteEndpointBusyReservationIsRecipientBusy(t *testing.T) {
 	e := RemoteEndpoint{Binding: m.To, socket: socket}
 	if err := e.Reserve(context.Background(), m.ID, 1); !errors.Is(err, ErrRecipientBusy) {
 		t.Fatalf("reserve: %v", err)
+	}
+}
+
+func TestEndpointMissingOrRefusedExplainsRelaunch(t *testing.T) {
+	for _, refused := range []bool{false, true} {
+		t.Run(fmt.Sprint(refused), func(t *testing.T) {
+			socket := transportSocket(t)
+			cause := error(os.ErrNotExist)
+			if refused {
+				listener, err := net.ListenUnix("unix", &net.UnixAddr{Name: socket, Net: "unix"})
+				if err != nil {
+					t.Fatal(err)
+				}
+				listener.SetUnlinkOnClose(false)
+				if err := listener.Close(); err != nil {
+					t.Fatal(err)
+				}
+				cause = syscall.ECONNREFUSED
+			}
+			endpoint := RemoteEndpoint{Binding: protocolBinding("pair:1"), socket: socket}
+			_, err := endpoint.Observe(context.Background())
+			if err == nil || !strings.Contains(err.Error(), "messaging unavailable until next relaunch") || !errors.Is(err, cause) {
+				t.Fatalf("endpoint diagnostic/cause = %v; want relaunch advice and %v", err, cause)
+			}
+		})
+	}
+}
+
+func TestEndpointCanceledObservationDoesNotClaimBrokenChannel(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	endpoint := RemoteEndpoint{Binding: protocolBinding("pair:1"), socket: transportSocket(t)}
+	_, err := endpoint.Observe(ctx)
+	if !errors.Is(err, context.Canceled) || strings.Contains(err.Error(), "next relaunch") {
+		t.Fatalf("cancellation misdiagnosed: %v", err)
 	}
 }

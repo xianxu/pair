@@ -62,11 +62,9 @@ func TestPreM4ManifestStillLoads(t *testing.T) {
 // yet.
 //
 // This is the shape that turns a decode-only tombstone into an outage.
-// reconcileInterruptedStarts runs inside New(), promotes this incarnation, and
-// advanceSuccessfulStart refuses an empty repository identity -- so if the
-// tombstone is merely tolerated rather than READ, couch refuses to start at
-// all after the upgrade. The operator's store has 5 records with `policy` and
-// none with an open start today, which is luck, not a guarantee.
+// Explicit interrupted-start reconciliation promotes this incarnation, and
+// advanceSuccessfulStart requires its original repository identity. Tolerating
+// the tombstone without reading it would break recovery after the upgrade.
 const livePreM4RecordWithOpenStart = `{
   "schema_version": 2,
   "address": {"repo_scope": "816fc349d3faebf8", "tag": "couch-0102030405060708"},
@@ -114,7 +112,7 @@ func TestPreM4StartCarriesItsRepositoryIdentityForward(t *testing.T) {
 		t.Fatalf("incarnations = %+v, want the one in the fixture", record.Incarnations)
 	}
 	// Not merely "it decoded": the VALUE has to survive, or promoting this
-	// start refuses and New() fails for the whole store.
+	// start refuses during an explicit lifecycle action.
 	if got := record.Incarnations[0].RepoIdentity; got != "/repo/.git" {
 		t.Fatalf("repository identity = %q, want it recovered from the policy tombstone", got)
 	}

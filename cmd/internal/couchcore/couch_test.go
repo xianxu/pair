@@ -195,6 +195,19 @@ func newTestEnv(t *testing.T, trees ...string) *testEnv {
 	now := time.Date(2026, 8, 21, 12, 0, 0, 0, time.UTC)
 	artifacts := NewFakeThreadArtifactCollisionChecker()
 	artifacts.AutoEstablish(true)
+	// The default fixture launch completes the server/agent-ready handshake.
+	// Failure/split fixtures replace this callback or set explicit observations;
+	// a helper's process liveness never synthesizes this evidence.
+	r.AfterAcknowledge = func(id string) error {
+		child := r.Child(id)
+		if !child.alive {
+			return nil
+		}
+		address := ThreadAddress{RepoScope: environmentValue(child.Env, "COUCH_THREAD_SCOPE"), Tag: ThreadTag(environmentValue(child.Env, "COUCH_THREAD_TAG"))}
+		artifacts.SetSessionPresence(address, SessionObservation{State: SessionPresent})
+		return nil
+	}
+
 	c, err := New(ns, r, NewFakePathOps(nil), g, proc, NewStore(dir), FixedClock{T: now}, NewFixedIDGen("ah8d", "b2c1"), newIncrementingEntropy(), artifacts)
 	if err != nil {
 		t.Fatalf("New: %v", err)
@@ -413,24 +426,25 @@ func testComposedPairRegistrationBoundary(t *testing.T, freshSlot bool) {
 	ready := filepath.Join(t.TempDir(), "zellij-ready")
 	release := filepath.Join(t.TempDir(), "zellij-release")
 	zellijLog := filepath.Join(t.TempDir(), "zellij.log")
-	writeExecutableForTest(t, filepath.Join(binDir, "claude"), "#!/bin/sh\nexit 0\n")
-	writeExecutableForTest(t, filepath.Join(binDir, "zellij"), `#!/bin/sh
-printf '%s\n' "$*" >> "$PAIR_TEST_ZELLIJ_LOG"
-case " $* " in
-  *" --new-session-with-layout "*)
-	printf '{"tag":"%s","agent":"%s","session":"%s","nonce":"%s","pid":%d}\n' \
-	  "$PAIR_TAG" "$PAIR_AGENT" "$PAIR_SESSION_NAME" "$PAIR_LAUNCH_NONCE" "$PPID" > "$PAIR_AGENT_READY_PATH"
-    printf ready > "$PAIR_TEST_ZELLIJ_READY"
-	i=0
-	while [ ! -f "$PAIR_TEST_ZELLIJ_RELEASE" ] && [ "$i" -lt 1000 ]; do
-	  sleep 0.01
-	  i=$((i + 1))
-	done
-	[ -f "$PAIR_TEST_ZELLIJ_RELEASE" ] || exit 124
-    ;;
-esac
-exit 0
-`)
+
+	fixtureBinary, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"zellij", "pair-wrap", "claude"} {
+		if err := os.Symlink(fixtureBinary, filepath.Join(binDir, name)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	socketRoot, err := os.MkdirTemp("/tmp", "pair-registration-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(socketRoot) })
+	t.Setenv("ZELLIJ_SOCKET_DIR", socketRoot)
+	t.Setenv("PAIR_TEST_COUCH_TERMINAL_FIXTURE", "1")
+	t.Setenv("PAIR_TEST_ZELLIJ_PANES", filepath.Join(t.TempDir(), "panes.json"))
+
 	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 	t.Setenv("HOME", home)
 	t.Setenv("XDG_DATA_HOME", "")
@@ -470,7 +484,13 @@ exit 0
 		t.Fatal(err)
 	}
 
-	couch.Identities = &legacyFixtureAllocator{c: couch}
+	// The scanner is host-wide by name. Derive a fixture-only allocated store
+	// number from the unique directory before any terminal launch can occur.
+	fixtureID, err := strconv.ParseUint(strings.TrimPrefix(filepath.Base(socketRoot), "pair-registration-"), 10, 64)
+	if err != nil {
+		t.Fatal(err)
+	}
+	couch.Identities = &legacyFixtureAllocator{c: couch, storeID: (uint64(1) << 63) | fixtureID}
 	if freshSlot {
 		zero, primaryAddress, resting := 0, "pair:0", "main"
 		primary := WorkspaceIdentity{SchemaVersion: 2, Repo: slot.Repo, RepoIdentity: slot.RepoIdentity,
@@ -636,6 +656,11 @@ exit 0
 			t.Errorf("%s = %q, want %q", key, got, want)
 		}
 	}
+
+	// Readiness proves the fixture acquired admission's lock. Wait for that
+	// lock to be released before ending its client; no policy file is involved.
+	waitFixtureHandoffLease(t, waitCtx, filepath.Join(socketRoot, "contract_version_1", preAck.Incarnations[0].Start.SessionBinding.Name))
+
 	if err := os.WriteFile(release, []byte("release"), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -1256,7 +1281,7 @@ func TestSpawnPostAckFailuresQuiesceRealPersistentDescendant(t *testing.T) {
 	}
 }
 
-func TestNewReconcilesDeadUnregisteredHelperByExactNonce(t *testing.T) {
+func TestExplicitReconcileDeletesDeadUnregisteredHelperByExactNonce(t *testing.T) {
 	t.Parallel()
 
 	ns := testCouchNamespace(t)
@@ -1276,16 +1301,19 @@ func TestNewReconcilesDeadUnregisteredHelperByExactNonce(t *testing.T) {
 	}
 	artifacts := NewFakeThreadArtifactCollisionChecker()
 	artifacts.SetRegistration(record.Address, RegistrationAbsent, nil)
-	_, err := New(ns, NewFakeRunner(), NewFakePathOps(nil), NewFakeGit(nil), NewFakeProcOps(), NewStore(ns.Dir()), FixedClock{}, NewFixedIDGen("id"), newIncrementingEntropy(), artifacts)
+	c, err := New(ns, NewFakeRunner(), NewFakePathOps(nil), NewFakeGit(nil), NewFakeProcOps(), NewStore(ns.Dir()), FixedClock{}, NewFixedIDGen("id"), newIncrementingEntropy(), artifacts)
 	if err != nil {
 		t.Fatalf("New: %v", err)
+	}
+	if err := c.reconcileInterruptedStarts(); err != nil {
+		t.Fatal(err)
 	}
 	if _, err := store.GetThread(record.Address); !errors.Is(err, ErrThreadNotFound) {
 		t.Fatalf("dead unregistered start remained: %v", err)
 	}
 }
 
-func TestNewPromotesEstablishedSurvivingHelper(t *testing.T) {
+func TestExplicitReconcilePromotesEstablishedSurvivingHelper(t *testing.T) {
 	t.Parallel()
 
 	ns := testCouchNamespace(t)
@@ -1308,9 +1336,12 @@ func TestNewPromotesEstablishedSurvivingHelper(t *testing.T) {
 	proc.Set(42, "helper-token")
 	artifacts := NewFakeThreadArtifactCollisionChecker()
 	artifacts.SetRegistration(record.Address, RegistrationEstablished, nil)
-	_, err = New(ns, NewFakeRunner(), NewFakePathOps(nil), NewFakeGit(nil), proc, NewStore(ns.Dir()), FixedClock{}, NewFixedIDGen("id"), newIncrementingEntropy(), artifacts)
+	c, err := New(ns, NewFakeRunner(), NewFakePathOps(nil), NewFakeGit(nil), proc, NewStore(ns.Dir()), FixedClock{}, NewFixedIDGen("id"), newIncrementingEntropy(), artifacts)
 	if err != nil {
 		t.Fatalf("New: %v", err)
+	}
+	if err := c.reconcileInterruptedStarts(); err != nil {
+		t.Fatal(err)
 	}
 	got, err := store.GetThread(record.Address)
 	if err != nil || got.Revision != created.Revision+1 || got.Incarnations[0].State != IncarnationLive || got.Incarnations[0].Start != nil {
@@ -1485,6 +1516,7 @@ func TestNameSurvivesActorReplacement(t *testing.T) {
 
 	env.Runner.SetExited(h.ID(), 0)
 	env.Proc.Kill(first.PID)
+	env.Artifacts.SetSessionPresence(first.Thread, SessionObservation{State: SessionAbsent})
 	if err := env.Couch.Forget("/repo", first.ID); err != nil {
 		t.Fatalf("Forget: %v", err)
 	}
@@ -1629,7 +1661,11 @@ func TestStartInANonGitDirectoryRefuses(t *testing.T) {
 	args := StartArgs{Cwd: "/plain"}
 	for name, start := range map[string]func() error{
 		"start form": func() error { _, err := env.Couch.PrepareStart(context.Background(), args); return err },
-		"startup":    func() error { _, err := env.Couch.StartInteractive(context.Background(), args); return err },
+		"explicit startup": func() error {
+			args.Action = StartCreate
+			_, err := env.Couch.StartInteractive(context.Background(), args)
+			return err
+		},
 	} {
 		err := start()
 		if err == nil || !strings.Contains(err.Error(), "resolve worktree") {
@@ -2038,10 +2074,8 @@ func TestSpawnRefusesAnEmptyPath(t *testing.T) {
 	}
 }
 
-// An orphaned primary is a RUNNING agent nothing can reach (#399). Startup
-// used to treat unusable rows as debris and would start a second primary in
-// the same repository beside it; it refuses instead, naming the server.
-func TestSpawnBesideAnOrphanedPrimaryRefuses(t *testing.T) {
+// A fresh hub receives a new name and leaves its orphaned predecessor alone.
+func TestStartupBesideAnOrphanedPrimaryUsesANewName(t *testing.T) {
 	t.Parallel()
 
 	env := newTestEnv(t, "/repo")
@@ -2055,20 +2089,38 @@ func TestSpawnBesideAnOrphanedPrimaryRefuses(t *testing.T) {
 	server := launcher.SessionServerIdentity{PID: 9090, Identity: "t", Session: "📁repo-1"}
 	env.Artifacts.SetSessionPresence(first.Thread, SessionObservation{State: SessionOrphaned, Orphan: &server})
 	opsBefore := len(env.Runner.Ops)
-
-	args := StartArgs{Worktree: "/repo"}
-	prepared, err := env.Couch.PrepareStart(context.Background(), args)
+	retained, err := env.Couch.Threads.GetThread(first.Thread)
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, _, err = env.Couch.SpawnPrepared(context.Background(), args, prepared.Resolution.Fingerprint)
-	if err == nil {
-		t.Fatal("a second primary started beside an orphaned one")
+	before, err := json.Marshal(retained)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if !strings.Contains(err.Error(), launcher.OrphanDiagnostic("📁repo-1", 9090)) {
-		t.Fatalf("refusal %q does not name the orphaned server", err)
+
+	result, err := env.Couch.StartInteractive(context.Background(), StartArgs{Cwd: "/repo"})
+	if err != nil {
+		t.Fatal(err)
 	}
-	if len(env.Runner.Ops) != opsBefore {
-		t.Fatalf("the refusal had effects: %q", env.Runner.Ops[opsBefore:])
+	if result.Handle == nil || result.Record.Thread == first.Thread {
+		t.Fatal("hub did not start under a fresh name beside remnant")
 	}
+	if len(env.Runner.Ops) != opsBefore+2 {
+		t.Fatalf("startup had unexpected effects: %q", env.Runner.Ops[opsBefore:])
+	}
+	retained, err = env.Couch.Threads.GetThread(first.Thread)
+	if err != nil {
+		t.Fatal(err)
+	}
+	after, err := json.Marshal(retained)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(before) != string(after) {
+		t.Fatal("fresh hub changed orphan record")
+	}
+	if len(env.Proc.Signals[server.PID]) != 0 {
+		t.Fatal("fresh hub signalled orphan owner")
+	}
+
 }

@@ -97,7 +97,7 @@ func TestGroupedMenuStoredNameIsNeitherShownNorMatched(t *testing.T) {
 	row.State = couchcore.ThreadParked
 	state := NewMenuState([]couchcore.ActionableThreadSummary{row}, row.Address)
 	plain := string(ansi.Strip([]byte(RenderMenu(state, 120, 15, time.Unix(1, 0), false))))
-	for _, part := range []string{"pair:2", row.WorkingPath, "parked"} {
+	for _, part := range []string{"pair:2", row.WorkingPath, "Resume from disk"} {
 		if !strings.Contains(plain, part) {
 			t.Errorf("missing %q in %s", part, plain)
 		}

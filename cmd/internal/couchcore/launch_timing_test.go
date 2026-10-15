@@ -25,7 +25,7 @@ func TestLaunchTimingObserverReportsSuccessfulWarmResume(t *testing.T) {
 	if _, _, err := env.Couch.ResumeContextWith(ctx, address, ResumeOptions{WarmOnly: true}); err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"claim", "checkout", "prepare", "spawn", "record+baseline", "ack", "registration", "promotion+registry"}
+	want := []string{"attach-prepare", "attach-admission", "attach-spawn", "attach-ack", "attach-live-check", "attach-registry+repair", "attach-cleanup+release"}
 	if !slices.Equal(names, want) {
 		t.Fatalf("phases=%v want %v", names, want)
 	}
@@ -42,6 +42,33 @@ func TestLaunchTimingObserverReportsSuccessfulWarmResume(t *testing.T) {
 	if !slices.Equal(names, want) {
 		t.Fatalf("observer escaped operation context: %v", names)
 	}
+}
+
+func TestLaunchTimingObserverReportsWarmRetryWithoutColdLifecyclePhases(t *testing.T) {
+	env, address := warmDetachedThread(t)
+	before, err := env.Couch.Threads.GetThread(address)
+	if err != nil {
+		t.Fatal(err)
+	}
+	runner := &retryAttachRunner{Runner: env.Runner, failures: 1}
+	env.Couch.Runner = runner
+	var names []string
+	ctx := WithLaunchTimingObserver(t.Context(), func(name string, elapsed time.Duration) {
+		if elapsed < 0 {
+			t.Errorf("negative elapsed for %s: %s", name, elapsed)
+		}
+		names = append(names, name)
+	})
+	_, handle, err := env.Couch.ResumeContextWith(ctx, address, ResumeOptions{WarmOnly: true})
+	if err != nil || handle == nil || runner.attempts != 2 {
+		t.Fatalf("attempts=%d handle=%v err=%v", runner.attempts, handle, err)
+	}
+	t.Cleanup(func() { env.Runner.SetExited(handle.ID(), 0) })
+	want := []string{"attach-prepare", "attach-admission", "attach-spawn", "attach-cleanup+release", "attach-retry-backoff", "attach-prepare", "attach-admission", "attach-spawn", "attach-ack", "attach-live-check", "attach-registry+repair", "attach-cleanup+release"}
+	if !slices.Equal(names, want) {
+		t.Fatalf("warm retry phases=%v want %v", names, want)
+	}
+	assertWarmRecordUnchanged(t, env, before)
 }
 
 func TestLaunchTimingObserverPreservesRegistrationFailureTimings(t *testing.T) {

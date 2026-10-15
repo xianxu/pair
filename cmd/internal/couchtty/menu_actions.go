@@ -25,6 +25,7 @@ const (
 	menuPhaseLiveContinuationRunning              // the request owns the thread until Couch finishes it
 	menuPhaseLiveContinuationPending              // the request is about to run: nothing to do yet
 	menuPhaseLiveOrphaned                         // live, but its server lost its socket (#399)
+	menuPhaseNeedsRelaunch                        // explicit recovery only, never automatic reattach
 	menuPhaseUnknown                              // unusable/unknown: no verdict this round, offer nothing
 	menuPhaseResumable                            // parked or detached
 	menuPhaseUnusable                             // unusable, or not live with an unfinished request
@@ -78,7 +79,9 @@ func menuRowFactsOf(row couchcore.ActionableThreadSummary) menuRowFacts {
 		f.Phase = menuPhaseResumable
 	case couchcore.ThreadUnusable:
 		f.Phase = menuPhaseUnusable
-		if row.Reason == couchcore.ReasonUnknown {
+		if row.Reason == couchcore.ReasonNeedsRelaunch {
+			f.Phase = menuPhaseNeedsRelaunch
+		} else if row.Reason == couchcore.ReasonUnknown {
 			f.Phase = menuPhaseUnknown
 		}
 	}
@@ -92,6 +95,12 @@ func menuRowFactsOf(row couchcore.ActionableThreadSummary) menuRowFacts {
 // nothing on says why through menuRowNotice, which reads the same phase.
 func menuRowActions(f menuRowFacts) []string {
 	switch f.Phase {
+	case menuPhaseBusy:
+		return nil
+	case menuPhaseNeedsRelaunch, menuPhaseUnknown:
+		return []string{"relaunch"}
+	case menuPhaseLiveContinuationPending:
+		return nil
 	case menuPhaseLive:
 		// Detach first: it is the safe, everyday gesture -- the agent keeps
 		// running and only the client goes. Park is destructive and sits
@@ -116,7 +125,10 @@ func menuRowActions(f menuRowFacts) []string {
 		// Recover leads: it is the default gesture, running whatever the
 		// recovery report decides for this row (#399).
 		actions := couchcore.ActorActions(f.Actor)
-		items := actions
+		items := append([]string(nil), actions...)
+		if len(items) == 0 {
+			items = []string{"relaunch"}
+		}
 		if couchcore.RecoverOffered(actions) {
 			items = append([]string{"recover"}, actions...)
 		}
@@ -171,8 +183,10 @@ type menuRowAdvice struct {
 func menuRowAdviceOf(f menuRowFacts) menuRowAdvice {
 	var a menuRowAdvice
 	switch {
+	case f.Phase == menuPhaseNeedsRelaunch:
+		a.Notice.Text = "terminal unavailable; previous conversation may be recoverable"
 	case f.Phase == menuPhaseBusy:
-		a.Notice.Text = "starting elsewhere"
+		a.Notice.Text = "Starting"
 	case f.Phase == menuPhaseUnknown:
 		// "checking…" read like progress; it is the absence of a verdict, and
 		// reboot stops a session, so nothing is offered until there is one.

@@ -1,6 +1,10 @@
 package couchcore
 
-import "testing"
+import (
+	"encoding/json"
+	"strings"
+	"testing"
+)
 
 func registryRecord(id string, tree Worktree) ActorRecord {
 	return ActorRecord{ID: ActorID(id), Args: StartArgs{Worktree: tree}}
@@ -62,5 +66,29 @@ func TestRecordsCarryOriginalCaseWorktree(t *testing.T) {
 	got := NewRegistry().Insert(registryRecord("couch-a", w)).Records()
 	if len(got) != 1 || got[0].Args.Worktree != w {
 		t.Fatalf("Records = %+v, want the unfolded path %q", got, w)
+	}
+}
+
+func TestAttachmentNoticeNeverPersistsInRegistry(t *testing.T) {
+	actor := registryRecord("client", "/repo")
+	actor.AttachmentNotice = "BORROWED ATTACH: old client is alive; retained client state was left unchanged."
+	reg := NewRegistry().Insert(actor)
+	raw, err := json.Marshal(snapshot{Actors: reg.Records()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(raw), actor.AttachmentNotice) || strings.Contains(string(raw), "AttachmentNotice") {
+		t.Fatalf("attachment note persisted: %s", raw)
+	}
+	var restored snapshot
+	if err := json.Unmarshal(raw, &restored); err != nil {
+		t.Fatal(err)
+	}
+	if records := restored.Actors; len(records) != 1 || records[0].AttachmentNotice != "" {
+		t.Fatalf("restored ephemeral attachment note: %+v", records)
+	}
+	result := RecoveryResumeResult{Start: StartResult{Record: actor}, Notice: "incomplete prior evidence"}
+	if got := result.Warning(); !strings.Contains(got, actor.AttachmentNotice) || !strings.Contains(got, result.Notice) {
+		t.Fatalf("warning composition lost context: %q", got)
 	}
 }

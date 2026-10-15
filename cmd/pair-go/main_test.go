@@ -228,12 +228,16 @@ func TestPublicPairCommandFamiliesIgnoreCouchStore(t *testing.T) {
 	buildCommand(t, pair, ".")
 
 	commands := []struct {
-		name       string
-		args       []string
-		liveZellij bool
-		extraEnv   []string
+		name           string
+		args           []string
+		liveZellij     bool
+		extraEnv       []string
+		wantCode       int
+		wantDiagnostic string
 	}{
-		{name: "launch-create", args: []string{"resume", "compiler-fix"}},
+		// Fresh launch still requires admission. A positively listed session
+		// attaches without consulting any Couch store, including the unread FIFO.
+		{name: "launch-create", args: []string{"resume", "compiler-fix"}, wantCode: 1, wantDiagnostic: "terminal client exited before admission was verified"},
 		{name: "launch-resume-attach", args: []string{"resume", "compiler-fix"}, liveZellij: true},
 		{name: "launch-picker", liveZellij: true},
 		{name: "list", args: []string{"list"}, liveZellij: true},
@@ -313,15 +317,15 @@ func TestPublicPairCommandFamiliesIgnoreCouchStore(t *testing.T) {
 				result, timedOut := runPublicPairCommand(t, 8*time.Second, pairRoot, env, pair, command.args...)
 				if timedOut {
 					t.Errorf("public Pair command timed out; an unread Couch manifest was opened: args=%q", command.args)
-				} else if result.code != 0 {
-					t.Errorf("public Pair command depends on %s Couch state: args=%q code=%d stderr=%q", store.name, command.args, result.code, result.stderr)
+				} else if result.code != command.wantCode || !strings.Contains(result.stderr, command.wantDiagnostic) {
+					t.Errorf("public Pair command depends on %s Couch state: args=%q code=%d stderr=%q; want code=%d diagnostic=%q", store.name, command.args, result.code, result.stderr, command.wantCode, command.wantDiagnostic)
 				}
 
 				after := publicPairNamespaceState(t, storeDir)
 				if !reflect.DeepEqual(after, before) {
 					t.Errorf("public Pair command mutated Couch namespace\nbefore: %#v\nafter:  %#v", before, after)
 				}
-				if command.name == "launch-create" && store.name == "missing" {
+				if command.name == "launch-create" {
 					invocations := readPublicPairCommandLog(t, commandLog)
 					var handoffs []publicPairCommandInvocation
 					for _, invocation := range invocations {

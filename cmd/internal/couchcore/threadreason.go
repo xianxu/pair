@@ -10,6 +10,8 @@ package couchcore
 type ThreadReason string
 
 const (
+	// ReasonNeedsRelaunch refuses attachment to a terminal without a usable agent.
+	ReasonNeedsRelaunch ThreadReason = "needs-relaunch"
 	// ReasonBindingLost is a thread whose durable state is fine but whose
 	// resume proof is gone -- pair#168's shape, where a launch ledger row with
 	// no binding after it shadows the last established binding. RECOVERABLE:
@@ -77,6 +79,7 @@ const (
 	// its socket (#399): unreachable, and its agent may still be writing. Not
 	// resumable (a second agent would join the conversation), not archivable
 	// (the conversation is running), not rebootable; reap is the step.
+	// Kept for callers holding a legacy projection. New inventory emits needs-relaunch.
 	ReasonOrphanedServer ThreadReason = "orphaned-server"
 	// The binding failures the evidence pass names (pair#214): the ledger was
 	// read and refused the resume, for a reason the operator can act on.
@@ -105,11 +108,12 @@ func IsBindingFailure(reason ThreadReason) bool {
 	return false
 }
 
-// AllThreadReasons is the vocabulary itself, so display tables and the
+// AllThreadReasons is the active inventory vocabulary, so display tables and the
 // retirement rule iterate it rather than restating it. Go cannot check a switch
 // for exhaustiveness; this enumeration is what does.
 func AllThreadReasons() []ThreadReason {
 	return []ThreadReason{
+		ReasonNeedsRelaunch,
 		ReasonBindingLost,
 		ReasonSessionGone,
 		ReasonNeverStarted,
@@ -119,7 +123,6 @@ func AllThreadReasons() []ThreadReason {
 		ReasonProfileMissing,
 		ReasonAgentUnsupported,
 		ReasonUnknown,
-		ReasonOrphanedServer,
 		ReasonConversationAmbiguous,
 		ReasonNoTurn,
 		ReasonUnconfirmed,
@@ -134,6 +137,8 @@ func AllThreadReasons() []ThreadReason {
 // added later cannot ship unlabelled anywhere.
 func (r ThreadReason) Label() string {
 	switch r {
+	case ReasonNeedsRelaunch:
+		return "terminal needs relaunch"
 	case ReasonBindingLost:
 		return "binding lost — repairable"
 	case ReasonSessionGone:

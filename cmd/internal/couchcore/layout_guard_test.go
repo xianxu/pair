@@ -2,7 +2,6 @@ package couchcore
 
 import (
 	"context"
-	"strings"
 	"testing"
 	"time"
 
@@ -27,106 +26,27 @@ func seedStartupDetached(t *testing.T, env *testEnv, tag ThreadTag, layout Layou
 	return created
 }
 
-func TestDefaultStartInteractiveRefusesLegacyLayoutWithRemedies(t *testing.T) {
-	t.Parallel()
-
-	env := newTestEnv(t, "/repo")
-	held := seedStartupDetached(t, env, "couch-0000000000000001", "")
-
-	_, err := env.Couch.StartInteractive(context.Background(), StartArgs{Cwd: "/repo"})
-	if err == nil {
-		t.Fatal("couch started in layout3 alongside a layout2 session")
-	}
-	message := err.Error()
-	for _, want := range []string{
-		string(held.Address.Tag), // which thread
-		"layout2",                // what it is
-		"layout3",                // what was asked for
-		"detached",               // why couch cannot change it
-		"park",                   // the way forward
-		"keep using",
-		"couch --layout2",
-	} {
-		if !strings.Contains(message, want) {
-			t.Fatalf("refusal %q does not mention %q", message, want)
+// A selected hub starts without changing other retained layouts.
+func TestStartupLaunchesHubOverOtherRetainedLayouts(t *testing.T) {
+	for _, parked := range []bool{false, true} {
+		env := newTestEnv(t, "/repo")
+		address := detachedThreadAt(t, env, "/other", "layout")
+		bumpLayout(t, env, address, "")
+		if parked {
+			current, err := env.Couch.Threads.GetThread(address)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := env.Couch.Threads.updateExistingThread(address, current.Revision, func(next *ThreadRecord) error {
+				markActionableParked(next, time.Unix(100, 0).UTC())
+				return nil
+			}); err != nil {
+				t.Fatal(err)
+			}
 		}
-	}
-	// A refusal before any effect: the guard sits ahead of every launch path,
-	// so nothing was started and nothing has to be rolled back.
-	if len(env.Runner.Ops) != 0 {
-		t.Fatalf("a refused startup still launched: %v", env.Runner.Ops)
-	}
-}
-
-// Parked threads do not block, and this is the test that makes "park them
-// first" a real remedy rather than advice: after parking, the same store that
-// refused now starts.
-func TestStartInteractiveProceedsWhenOnlyParkedThreadsDisagree(t *testing.T) {
-	t.Parallel()
-
-	env := newTestEnv(t, "/repo")
-	env.Couch.Layout = Layout3
-	parked := seedStartupParked(t, env, "couch-0000000000000001", "/repo")
-	seedStartupColdLaunch(t, env, parked.Address)
-
-	start, err := env.Couch.StartInteractive(context.Background(), StartArgs{Cwd: "/repo"})
-	if err != nil {
-		t.Fatalf("a parked thread in the other layout blocked startup: %v", err)
-	}
-	if start.Record.Thread != parked.Address {
-		t.Fatalf("startup resumed %+v; want the parked thread %+v", start.Record.Thread, parked.Address)
-	}
-	// And it came back in COUCH's layout, not the one it was parked from.
-	if got := env.Runner.Ops[0]; !strings.Contains(got, "--layout3") {
-		t.Fatalf("cold resume argv = %q; want --layout3", got)
-	}
-}
-
-func TestStartInteractiveAcceptsAMatchingSession(t *testing.T) {
-	t.Parallel()
-
-	env := newTestEnv(t, "/repo")
-	env.Couch.Layout = Layout3
-	held := seedStartupDetached(t, env, "couch-0000000000000001", Layout3)
-	env.Runner.AfterAcknowledge = func(string) error {
-		env.Artifacts.SetPairSession(held.Address, "pair-"+string(held.Address.Tag), true)
-		return nil
-	}
-
-	if _, err := env.Couch.StartInteractive(context.Background(), StartArgs{Cwd: "/repo"}); err != nil {
-		t.Fatalf("a session in couch's OWN layout was refused: %v", err)
-	}
-}
-
-// The ARCH-CONSTRAINTS budget, pinned rather than asserted in prose: the guard
-// consumes the rows startup already read, so it must add no session
-// enumeration of its own.
-//
-// The pin is the REFUSING run specifically. It stops at the guard, so every
-// detached-session question it asked is one the guard is responsible for plus
-// the single one ActionableThreadInventoryContext makes -- exactly 1 if the
-// guard reuses those rows, 2 if it enumerates for itself. (Comparing against an
-// admitted run would prove nothing: that run continues into a resume, whose own
-// re-proof of detachment legitimately asks again.)
-func TestGuardAddsNoSessionEnumeration(t *testing.T) {
-	t.Parallel()
-
-	env := newTestEnv(t, "/repo")
-	env.Couch.Layout = Layout3
-	seedStartupDetached(t, env, "couch-0000000000000001", Layout2)
-
-	if _, err := env.Couch.StartInteractive(context.Background(), StartArgs{Cwd: "/repo"}); err == nil {
-		t.Fatal("the conflicting startup was admitted; this test needs the refusing path")
-	}
-	// The rule is unchanged -- the guard adds no session enumeration of its own
-	// -- but the inventory's session question is now PRESENCE, one host-wide
-	// call, so that is what a guard reusing its rows costs. A refused startup
-	// never reaches a resume, so it counts clients zero times.
-	if got := env.Artifacts.SessionPresenceQueries(); got != 1 {
-		t.Fatalf("a refused startup asked session presence %d times; want exactly 1 -- "+
-			"the guard must reuse the inventory's rows, not enumerate for itself", got)
-	}
-	if got := env.Artifacts.DetachedQueries(); got != 0 {
-		t.Fatalf("a refused startup counted clients %d times; the refresh must ask none", got)
+		start, err := env.Couch.StartInteractive(context.Background(), StartArgs{Cwd: "/repo"})
+		if err != nil || start.Handle == nil || len(env.Runner.Ops) != 2 {
+			t.Fatalf("startup: %+v %v %v", start, err, env.Runner.Ops)
+		}
 	}
 }

@@ -82,7 +82,7 @@ func TestParkWorkerBoundsAndCoalesces(t *testing.T) {
 	}
 }
 
-func TestParkCoordinatorCoalescesStartupRecoveryAndInteractiveRetry(t *testing.T) {
+func TestParkCoordinatorCoalescesExplicitRecoveryAndRetry(t *testing.T) {
 	t.Parallel()
 
 	store, _, thread := createControllerThread(t)
@@ -125,12 +125,13 @@ func TestParkCoordinatorCoalescesStartupRecoveryAndInteractiveRetry(t *testing.T
 	}
 	recoveryDone := make(chan error, 1)
 	go func() {
-		recoveryDone <- couch.RecoverActiveParks(context.Background())
+		_, err := couch.Park(context.Background(), thread.Address, "recover")
+		recoveryDone <- err
 	}()
 	select {
 	case <-triggerEntered:
 	case <-testwait.After(t):
-		t.Fatal("startup recovery did not reach the exact trigger")
+		t.Fatal("explicit recovery did not reach the exact trigger")
 	}
 	retryDone := make(chan outcome, 1)
 	go func() {
@@ -259,15 +260,20 @@ func TestACancelledParkStillRefusesOtherLifecycleOperations(t *testing.T) {
 	if err := <-returned; !errors.Is(err, context.Canceled) {
 		t.Fatalf("park = %v, want prompt cancellation", err)
 	}
-	// Resume refuses on its own earlier rule here (the parking incarnation is
-	// still recorded live), before reaching CommitStartClaim's open-park check;
-	// either way it must be a structured refusal, not an incidental error.
-	if _, _, err := c.ResumeContext(context.Background(), source.Address); ResumeDiagnosticOf(err) == "" {
-		t.Fatalf("resume during the cancelled park = %v, want a structured resume refusal", err)
-	}
+	// Detaching the durable lifecycle remains forbidden while its park is open.
 	if _, err := c.Detach(context.Background(), source.Address); err == nil || !strings.Contains(err.Error(), "open park transaction") {
-		t.Fatalf("detach during the cancelled park = %v, want the open park transaction refusal", err)
+		t.Fatalf("detach bypassed active park: %v", err)
 	}
+	before, err := c.Threads.GetThread(source.Address)
+	if err != nil {
+		t.Fatal(err)
+	}
+	actor, helper, err := c.ResumeContext(context.Background(), source.Address)
+	if err != nil || helper == nil || actor.Shape != StartWarmReattach {
+		t.Fatalf("listed Continue refused during cancelled park: %v", err)
+	}
+	t.Cleanup(func() { env.Runner.SetExited(helper.ID(), 0) })
+	assertWarmRecordUnchanged(t, env.testEnv, before)
 	// A second transaction carries its own nonce (production nonces are random;
 	// this fixture's is fixed, which would coalesce onto the running park).
 	c.PairLifecycle.Nonce = func() (string, error) { return "park-second-transaction", nil }

@@ -26,8 +26,8 @@ import (
 // agent (no fresh spawn, no arg composition) and blocks on the attach handoff so
 // the loop regains control for cleanup + restart. agent is the inferred title
 // agent (the on-disk agent-<tag> record, resolved by the caller).
-func runAttach(opts LaunchOptions, env Env, rt Runtime, tag, session, agent string, proof *SessionOwnerObservation) (int, error, RetentionUse) {
-	return attachWithRetention(opts, env, rt, tag, session, agent, true, proof)
+func runAttach(opts LaunchOptions, env Env, rt Runtime, tag, session, agent string) (int, error, RetentionUse) {
+	return attachWithRetention(opts, env, rt, tag, session, agent, true)
 }
 
 // AttachExistingSession is Pair's production blocking attach handoff. It is
@@ -35,27 +35,20 @@ func runAttach(opts LaunchOptions, env Env, rt Runtime, tag, session, agent stri
 // controlled child process and prove that Couch's production quit trigger is
 // what releases it. The normal launcher reaches it through runAttach.
 func AttachExistingSession(opts LaunchOptions, env Env, rt Runtime, tag, session, agent string) (int, error) {
-	code, err, _ := attachWithRetention(opts, env, rt, tag, session, agent, false, nil)
+	code, err, _ := attachWithRetention(opts, env, rt, tag, session, agent, false)
 	return code, err
 }
 
-func attachWithRetention(opts LaunchOptions, env Env, rt Runtime, tag, session, agent string, retain bool, proof *SessionOwnerObservation) (code int, resultErr error, retained RetentionUse) {
+func attachWithRetention(opts LaunchOptions, env Env, rt Runtime, tag, session, agent string, retain bool) (code int, resultErr error, retained RetentionUse) {
 	if err := validateCouchSessionLaunch(opts.Args, env); err != nil {
 		return 1, err, nil
 	}
-	var ownerProof SessionOwnerObservation
 	if intent := opts.Args.CouchSession; intent != nil {
 		if intent.Disposition != "attach" || intent.Name != session || intent.Tag != tag {
 			return 1, errors.New("couch session attach address changed"), nil
 		}
-		if proof != nil {
-			ownerProof = *proof
-		} else {
-			var err error
-			ownerProof, err = verifyCouchSessionAttach(rt, opts.GlobalDataDir, *intent)
-			if err != nil {
-				return 1, err, nil
-			}
+		if err := verifyCouchSessionAttach(rt, *intent); err != nil {
+			return 1, err, nil
 		}
 	}
 
@@ -120,11 +113,15 @@ func attachWithRetention(opts LaunchOptions, env Env, rt Runtime, tag, session, 
 	// count here. No meter beats a wrong one. The attach itself never refuses
 	// over this -- the meter is optional, the handoff is not.
 	scopeKey := ""
-	if scope, err := ResolveRepoScope(envScopeRoot(env)); err == nil {
+	if intent := opts.Args.CouchSession; intent != nil && intent.Disposition == "attach" {
+		scopeKey = intent.Scope
+	} else if scope, err := ResolveRepoScope(envScopeRoot(env)); err == nil {
 		scopeKey = scope.Key
 	} else if env.CouchThreadTag == tag && ValidateRepoScopeKey(env.CouchThreadScope) == nil {
 		scopeKey = env.CouchThreadScope
 	}
+	rt.SetEnv("PAIR_SCOPE_KEY", scopeKey)
+	rt.SetEnv("PAIR_AGENT", agent)
 	rt.SpawnTitlePoller(tag, agent, session, titlepoller.NewSessionEnv(env.DataDir, scopeKey))
 	defer func() {
 		if resultErr != nil || code != 0 {
@@ -133,14 +130,10 @@ func attachWithRetention(opts LaunchOptions, env Env, rt Runtime, tag, session, 
 	}()
 
 	opts.startupTiming.mark("attach-setup")
-	if opts.Args.CouchSession != nil {
-		// Retention, title preparation and cmux can block. Recheck the original
-		// server generation at the final effect, never observe a replacement.
-		observer, ok := rt.(couchSessionOwnerRuntime)
-		if !ok {
-			return 1, errors.New("couch session owner observer unavailable"), nil
-		}
-		if err := observer.RevalidateSessionOwner(context.Background(), ownerProof); err != nil {
+	if intent := opts.Args.CouchSession; intent != nil {
+		// Preparation can block. Require a fresh positive listing at the final
+		// effect; the native list-to-attach death race remains accepted.
+		if err := verifyCouchSessionAttach(rt, *intent); err != nil {
 			return 1, err, nil
 		}
 	}

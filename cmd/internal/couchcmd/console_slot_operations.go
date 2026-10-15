@@ -46,5 +46,38 @@ func consoleSlotOperations(console *couchtty.Console, c *couchcore.Couch, probe 
 		return c.Threads.RepositoryNamesContext(ctx)
 	}, time.Now)
 	ops.guardedRun = run
+	ops.preview = func(ctx context.Context, target string) (couchcore.RecoveryPreview, error) {
+		resolved, err := recoveryTargetForReference(ctx, c, target)
+		if err != nil {
+			return couchcore.RecoveryPreview{}, err
+		}
+		return c.ResumeCandidates(ctx, resolved)
+	}
+	ops.candidate = func(key, target, candidate string, started func(), finished func(any, error), guards ...func(context.Context) error) error {
+		return console.EnqueueRemoteOperation(key, "resume", func(ctx context.Context) (couchcore.OperationCall, error) {
+			var guard func(context.Context) error
+			if len(guards) > 0 {
+				guard = guards[0]
+				if err := guard(ctx); err != nil {
+					return couchcore.OperationCall{}, err
+				}
+			}
+			resolved, err := recoveryTargetForReference(ctx, c, target)
+			if err != nil {
+				return couchcore.OperationCall{}, err
+			}
+			args := map[string]string{"candidate": candidate, "repo-scope": resolved.Address.RepoScope}
+			if resolved.Path != "" {
+				args["path"] = resolved.Path
+			} else {
+				args["tag"] = string(resolved.Address.Tag)
+			}
+			call := couchcore.OperationCall{Name: "resume", Args: args, Implicit: true, Context: ctx}
+			if guard != nil {
+				call.TypedPayload = hubMutationPayload{guard: guard}
+			}
+			return call, nil
+		}, started, finished)
+	}
 	return ops
 }

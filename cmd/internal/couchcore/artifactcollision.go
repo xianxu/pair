@@ -373,10 +373,8 @@ func (c ScopedThreadArtifactCollisionChecker) PaneSidecars(address ThreadAddress
 // DetachedSessionResolver observes which of the supplied threads currently have
 // a live zellij session with no client attached.
 //
-// It takes addresses rather than returning the whole set because the
-// session-name index is PER REPO SCOPE (`<dataDir>/repos/<scope>/session-names.jsonl`):
-// a whole-set method would need a `repos/*` enumeration this checker does not
-// have. Taking addresses mirrors PairSession(address) and ResolveEstablished.
+// The selected addresses bound client queries. Namespace claims include the
+// existing scope indexes so an unselected address cannot be borrowed silently.
 type DetachedSessionResolver interface {
 	DetachedSessions(ctx context.Context, candidates []DetachedCandidate) ([]DetachedSessionObservation, error)
 }
@@ -402,20 +400,43 @@ func (c ScopedThreadArtifactCollisionChecker) resolveScopedBindings(ctx context.
 		byScope[address.RepoScope] = append(byScope[address.RepoScope], address)
 	}
 
+	// Session names are host-wide. Include other stored scopes in claim counts
+	// even when the caller selects one address; otherwise a stale local row can
+	// borrow another scope's listed terminal.
+	if len(scopes) != 0 {
+		selectedDir, err := artifactpath.ResolveScopeDir(c.GlobalDataDir, scopes[0])
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		entries, err := os.ReadDir(filepath.Dir(selectedDir))
+		if err != nil && !errors.Is(err, fs.ErrNotExist) {
+			return nil, nil, nil, err
+		}
+		for _, entry := range entries {
+			if !entry.IsDir() {
+				continue
+			}
+			if _, seen := byScope[entry.Name()]; seen {
+				continue
+			}
+			if _, err := artifactpath.ResolveScopeDir(c.GlobalDataDir, entry.Name()); err != nil {
+				continue
+			}
+			scopes = append(scopes, entry.Name())
+			byScope[entry.Name()] = nil
+		}
+	}
 	var reads []scopedIndexRead
 	readable := make(map[string]bool, len(scopes))
 	for _, scope := range scopes {
 		if err := ctx.Err(); err != nil {
 			return nil, nil, nil, err
 		}
-		scoped := byScope[scope]
-		paths, err := artifactpath.Resolve(artifactpath.Address{
-			DataDir: c.GlobalDataDir, RepoScope: scope, Tag: string(scoped[0].Tag),
-		})
+		scopeDir, err := artifactpath.ResolveScopeDir(c.GlobalDataDir, scope)
 		if err != nil {
 			return nil, nil, nil, err
 		}
-		index, err := c.readSessionIndex(ctx, paths.ScopeDir())
+		index, err := c.readSessionIndex(ctx, scopeDir)
 		if err != nil {
 			continue
 		}
@@ -499,9 +520,12 @@ func (c ScopedThreadArtifactCollisionChecker) SessionPresence(ctx context.Contex
 		}
 		servers, serverErr := c.serverStates().ServerStates(ctx)
 		if serverErr != nil {
-			// Without the server snapshot an orphan would read absent -- the
-			// "no session" that offers a resume onto a running agent. Fail closed.
-			return nil, fmt.Errorf("observe zellij servers: %w", serverErr)
+			// A failed process observation cannot erase a listed live session;
+			// it also cannot prove absence for the remaining bindings.
+			servers = map[string]launcher.ServerState{}
+			for _, binding := range bindings {
+				servers[binding.SessionName] = launcher.ServerState{Verdict: launcher.ServerUnresolved}
+			}
 		}
 		out = ProjectSessionPresence(bindings, sessions, servers, claimsFromBindings(current))
 	}
@@ -544,9 +568,8 @@ func (c ScopedThreadArtifactCollisionChecker) DetachedSessions(ctx context.Conte
 	for _, candidate := range candidates {
 		if candidate.SessionName != "" {
 			exact = append(exact, SessionNameBinding{Address: candidate.Address, Agent: candidate.Agent, SessionName: candidate.SessionName})
-		} else {
-			addresses = append(addresses, candidate.Address)
 		}
+		addresses = append(addresses, candidate.Address)
 		proof[candidate.Address] = candidate
 	}
 	if len(candidates) == 0 {
@@ -555,13 +578,15 @@ func (c ScopedThreadArtifactCollisionChecker) DetachedSessions(ctx context.Conte
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	bindings, _, _, err := c.resolveScopedBindings(ctx, addresses, func(address ThreadAddress) string {
+	bindings, current, _, err := c.resolveScopedBindings(ctx, addresses, func(address ThreadAddress) string {
 		return proof[address].Agent
 	})
 	if err != nil {
 		return nil, err
 	}
-	bindings = append(bindings, exact...)
+	// Explicit recorded names replace this address's stale index row, while
+	// other addresses' claims still participate in namespace ambiguity.
+	bindings = overrideSessionBindings(bindings, current, exact)
 	if len(bindings) == 0 {
 		return nil, nil
 	}
@@ -579,27 +604,7 @@ func (c ScopedThreadArtifactCollisionChecker) DetachedSessions(ctx context.Conte
 	if err != nil {
 		return nil, fmt.Errorf("observe zellij sessions: %w", err)
 	}
-	// Unlike passive inventory this is a selected action. Positive runtime
-	// ownership supersedes stale index claim counts, while a foreign server
-	// cannot select the warm path for this conversation.
-	live := indexSessionsByName(sessions)
-	var owned []SessionNameBinding
-	claims := map[string]int{}
-	for _, binding := range bindings {
-		if !live.live[binding.SessionName] || live.ambiguous[binding.SessionName] {
-			continue
-		}
-		observed, err := c.NamedPairSessionContext(ctx, binding.Address, binding.SessionName)
-		if err != nil {
-			return nil, err
-		}
-		if !observed.Present {
-			continue
-		}
-		owned = append(owned, binding)
-		claims[binding.SessionName]++
-	}
-	return ProjectDetachedSessions(owned, sessions, claims)
+	return ProjectDetachedSessions(bindings, sessions, claimsFromBindings(current))
 }
 
 func (c ScopedThreadArtifactCollisionChecker) TriggerQuit(session string, intent launcher.QuitIntent) error {
@@ -662,6 +667,55 @@ var (
 	_ NativeBindingResolver   = ScopedThreadArtifactCollisionChecker{}
 	_ DetachedSessionResolver = ScopedThreadArtifactCollisionChecker{}
 )
+
+func overrideSessionBindings(bindings []SessionNameBinding, current map[ThreadAddress]string, exact []SessionNameBinding) []SessionNameBinding {
+	for _, chosen := range exact {
+		filtered := bindings[:0]
+		for _, binding := range bindings {
+			if binding.Address != chosen.Address {
+				filtered = append(filtered, binding)
+			}
+		}
+		bindings = append(filtered, chosen)
+		current[chosen.Address] = chosen.SessionName
+	}
+	return bindings
+}
+
+// ListedPairSessionContext selects one exact terminal using only a positive
+// non-exited list row and the shared address/namespace binding census.
+func (c ScopedThreadArtifactCollisionChecker) ListedPairSessionContext(ctx context.Context, address ThreadAddress, name string) (PairSessionBinding, error) {
+	bindings, current, readable, err := c.resolveScopedBindings(ctx, []ThreadAddress{address}, nil)
+	if err != nil {
+		return PairSessionBinding{}, err
+	}
+	if name != "" {
+		bindings = overrideSessionBindings(bindings, current, []SessionNameBinding{{Address: address, SessionName: name}})
+	}
+	if name == "" {
+		name = current[address]
+	}
+	result := PairSessionBinding{Name: name}
+	if name == "" {
+		if !readable[address.RepoScope] {
+			return result, errors.New("session namespace could not be read")
+		}
+		return result, nil
+	}
+	sessions, err := c.Zellij.LivenessContext(ctx)
+	if err != nil {
+		return result, fmt.Errorf("observe listed session: %w", err)
+	}
+	observation := ProjectSessionPresence(bindings, sessions, nil, claimsFromBindings(current))[address]
+	switch observation.State {
+	case SessionPresent:
+		result.Present = true
+	case SessionAbsent:
+	default:
+		return result, errors.New("selected listed session is not uniquely attributed")
+	}
+	return result, nil
+}
 
 func (c ScopedThreadArtifactCollisionChecker) readSessionIndex(ctx context.Context, scopeDir string) (launcher.SessionNameIndex, error) {
 	if c.SessionIndexes != nil {
