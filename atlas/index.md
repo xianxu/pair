@@ -26,7 +26,11 @@
   cwd and validated module identity, and `probes/zellijprobe.RepoRoot` accepts
   `PAIR_PROBE_REPO` for probes launched outside a checkout. Inside a Couch shell it drops
   the session's environment-origin names first (pair#436); a raw `go test ./...`
-  keeps them, so a test that reads one pins it. Its first step,
+  keeps them, so a test that reads one pins it. The environment probe
+  (`tests/make-test-env-test.sh`) exercises both bare and command-line-assigned
+  outer Make invocations; its synthetic fixture clears inherited Make controls
+  so caller assignments cannot override the values under test (#577). Explicit
+  and recursive Go-flag precedence remain covered inside that fixture. Its first step,
   `tests/host-preflight.sh`, refuses a host that cannot bind a unix socket, open
   a PTY or exec `ps` (an agent sandbox), because the suite then fails in ~150
   places that look like code bugs (pair#450). A refusal it does not probe still
