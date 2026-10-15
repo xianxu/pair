@@ -214,3 +214,19 @@ its descendant pass and worker contexts cancel immediately. Move explicit scope
 release to teardown's existing mutex barrier, call outside the lock before
 workers.Wait. Tests hold c.mu across Stop and separate prompt cancellation from
 joined exactly-once cleanup. Existing deterministic test reproduced RED at8s.
+
+### 2026-10-14 — received TL landing scope and deferred experiment
+
+Land candidate-only enrichment and shared initial pass after corrected suite
+and reviews. Keep benchmark incomplete and record claim/prepare/durable-record
+contention without attributing overlapping intervals solely to fsync or locks.
+No concurrency-default change. Unassigned #562 owns the reply/discovery race
+with CI evidence separately classified; dependent unassigned #563 owns passive
+IPC frames and the renewed balanced9 comparison. #560 remains cold attribution.
+TL owns actual operator attach/detach timing at next Couch restart batched with
+#528; no worker staging :0. This supersedes M2's full-matrix/tuning acceptance,
+not its shared-pass safety contract or fresh generation/effect fences. Original
+cold/matrix/tuning checklist rows remain historical, not completed. Canonical
+TL instruction bd68b37f matched sender/current recipient/full body; its rendered
+delivery confirmation is indeterminate, and the actual instruction arrived in
+this conversation.

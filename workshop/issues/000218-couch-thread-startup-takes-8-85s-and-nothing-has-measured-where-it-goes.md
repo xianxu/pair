@@ -445,7 +445,53 @@ Hub outcome report 08575386-7a92-4f70-8e6c-38c3af0525d0 confirmed submitted,
 including the fixed failure, incomplete benchmark, proposed isolated diagnostic
 and need for scope/live-check coordination. Awaiting answer; no scope approval.
 
+### 2026-10-14 — received TL disposition and follow-up publication
+
+Received TL scope instruction in this conversation, matched against canonical
+receipt bd68b37f-cf8d-4d9b-bc88-df5509979c1e (ops:0, current pair:5 binding,
+exact body). Transport status is indeterminate because rendered turn-start
+confirmation was missed; do not claim a submitted receipt. The instruction
+actually received here directs landing M1 candidate-only enrichment and M2
+shared initial pass after corrected suite and close review, with benchmark
+incomplete and no concurrency-default change. Operator live attach/detach timing
+is deferred to the TL's next Couch restart batched with #528; do not stage :0.
+
+Filed, released and published unassigned #562 (Zellij reply race, CI evidence
+and internal upstream draft) and #563 (passive IPC frames plus balanced6/20/40,
+deps562). Both conform to issue schema and remain open/unassigned. CI Atoi
+input was an empty source-agent.pid after an existence-only wait, not captured
+CLI stdout; its cause is independent/unproven. Historical cold #560 unchanged.
+Pair:2 notification038d6f4e-01ac-452f-b3aa-380febc619f6 timed out and receipt
+lookup refused; no delivery claimed or automatic resend. Hub report of the
+filings4b9930c1-1d64-4214-8606-f35422db66d5 likewise remains unconfirmed.
+
+Partial performance evidence (not a balanced comparison): MATRIX4 source7dfd7e6
+completed6 rows at limits6/20/40/20/40/6 with all21 first frames in
+13.259/11.821/11.702/12.069/11.016/12.885s and Leave in
+3.775/3.074/3.396/3.335/3.057/3.569s. Row7 had21 frames11.537s but Leave
+refused invalid live pane JSON; rows8/9 never ran. MATRIX5 source9c4ff8c failed
+row1 before complete readiness due inconsistent successful discovery; its
+5.330s is only the last partial frame, not fleet readiness. MATRIX3 sourcee976
+had21 frames23.618s but later attached proof disagreed. Keep versions separate.
+
+Contention attribution: M1 single warm parent1.650s included claim829ms,
+prepare289ms and record/baseline124ms. Under MATRIX3's21-session load, background
+per-operation medians were claim1842.8ms, prepare861.3ms and record+baseline462.7ms
+(registration703.7ms, promotion509.5ms). These observed intervals include queueing,
+CPU and nested work; they overlap across slots and cannot be summed into fleet
+wall time or interpreted as isolated lock/fsync costs. Durable record+baseline
+includes durability but does not isolate fsync. Host minidle0% and load1 up to29.31
+show co-tenant contention. Candidate-only scans and shared initial evidence
+remove repeated process enrichment, while distinct global CLI discovery remains.
+No reliable concurrency recommendation follows from these incomplete rows.
+
+Corrected suite still queued on b289539f; all subsequent changes, including
+merging main's target/follow-up details, are Markdown-only. No review or close
+claimed yet.
+
 ## Revisions
+
+- 2026-10-14 — received TL final scope disposition (canonical bd68b37f body, transport rendering confirmation indeterminate): #218 acceptance is native candidate-only enrichment plus shared initial owner pass, preserved fresh effect fences, corrected suite and close review, and honest partial performance/contended-phase records. Full balanced9, passive IPC diagnostic and measured concurrency selection move to unassigned #563 after #562; cold stays #560. Operator live check is TL-owned at next restart with #528, with no :0 staging here. Supersedes original cold/full-matrix/tuning Plan rows and Done-when requirements; those remain unchecked as historical work, not falsely completed. M2 close covers built shared pass and retained incomplete measurement; the default is unchanged.
 
 - 2026-10-14 — repair M2 shutdown lock regression found by full suite: preserve mutex-free Stop; release pass fields/callback in joined teardown. No lifecycle authority or retry changes.
 
