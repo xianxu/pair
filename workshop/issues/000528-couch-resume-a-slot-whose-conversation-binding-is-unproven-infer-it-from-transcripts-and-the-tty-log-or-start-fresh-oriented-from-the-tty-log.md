@@ -1247,3 +1247,9 @@ No follow-up implementation starts on this branch.
   new fleet-test beginConsole oldsignature; corrected command group PASS9.287s.
   Add truthful optional warm-path timing with retry/context regression; inspect
   store contention separately, no policy/timing-budget changes.
+
+- Detach owner-pass isolated5/5 failures (16.695s,18-19of21 detached): readonly
+  preflights starve for their1s budget beside normal explicit transactions.
+  No locally owned warm clients exist in that fixture. Shared ownership
+  predicate avoids irrelevant borrowed previews; reuse held fresh record for
+  session probe. Preserve borrowed preview semantics and exact signal proofs.

@@ -1385,3 +1385,15 @@ or restore lifecycle writes. Exact sequence and retry-count regressions retain
 context isolation; the cold timing contract remains. ARCH-DRY reuses existing
 observer/steps. Store-contention failure is independently measured before any
 correction; no timeout or ownership weakening.
+
+### 2026-10-14 — avoid optional borrowed-client probes during managed detach
+
+The new21-slot Leave test fails5/5: bounded preview flock pollers starve beside
+explicit detach transactions, even isolated. Do not widen budgets. Borrowed
+helper preview is relevant only when this Couch owns a matching warm handle;
+share that local ownership predicate and retain the preview path when present.
+For a managed detach under the existing per-thread hold, use the freshly read
+record for session observation rather than re-entering the preview store. Keep
+exact generation checks, all existing lifecycle claims/writes, and3owner reads
+per thread. Add regressions for skipping irrelevant previews and retaining
+borrowed readonly behavior; no new lock or concurrency mechanism.
