@@ -1346,7 +1346,9 @@ command reads reporting `EINVAL`, `ESRCH` and `ENOENT` mean gone and are omitted
 including exit races during later environment reads. Identity reads retain their
 errors separately: only positive absence (`ESRCH`/`ENOENT`, successful zero-byte
 Darwin lookup) or terminal metadata means gone; identity `EINVAL`, `EIO`,
-permission and unknown failures remain visible. Public identity helpers retain
+permission and unknown failures remain visible. `IdentityUnavailableError` keeps
+that provenance through downstream gone classifiers, so identity EINVAL cannot
+be reinterpreted as an argv disappearance. Public identity helpers retain
 unreaped generation tokens for compatibility.
 zombie status excludes confirmed terminated processes from command snapshots
 while metadata tables retain them. Darwin uses

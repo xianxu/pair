@@ -1762,3 +1762,8 @@ Deleting the orientation delivery also deleted the only `automaticRenderEpoch.Ad
   reproduce exit between successful argv and identity using an owned child, and
   assert argv succeeded so an older disappearance path cannot make the test pass.
   Keep public generation-token compatibility separate from snapshot liveness.
+
+- #218 follow-through: preserving uncertainty at a producer is insufficient when
+  consumers reclassify its errno. Carry typed error provenance through every
+  gone classifier; pin launcher absence and diagnostic writer-proof consumers,
+  while keeping raw command/environment exit semantics separately tested.

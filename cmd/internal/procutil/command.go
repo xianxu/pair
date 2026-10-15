@@ -14,9 +14,23 @@ import (
 // ErrUnsupported identifies a platform without native process inspection.
 var ErrUnsupported = errors.New("native process inspection unsupported")
 
+// IdentityUnavailableError preserves identity-read uncertainty separately from
+// command/environment errors whose errno may establish process disappearance.
+// Unwrap retains the underlying diagnostic without granting absence authority.
+type IdentityUnavailableError struct{ Err error }
+
+func (e *IdentityUnavailableError) Error() string {
+	return "process identity unavailable: " + e.Err.Error()
+}
+func (e *IdentityUnavailableError) Unwrap() error { return e.Err }
+
 // IsProcessGone classifies individual native process reads, never table-wide
 // failures. The kernel may discard argv before publishing a zombie table row.
 func IsProcessGone(err error) bool {
+	var identityErr *IdentityUnavailableError
+	if errors.As(err, &identityErr) {
+		return false
+	}
 	return errors.Is(err, os.ErrNotExist) || errors.Is(err, syscall.ESRCH) || errors.Is(err, syscall.EINVAL)
 }
 
@@ -143,10 +157,10 @@ func snapshotSelected(ctx context.Context, r processReader, selectRow func(Proce
 				continue // Only the old snapshot generation is gone; never adopt its replacement.
 			}
 			if err == nil && identityErr != nil {
-				err = fmt.Errorf("process identity after command read: %w", identityErr)
+				err = &IdentityUnavailableError{Err: identityErr}
 			}
 			if err == nil && identity == "" {
-				err = errors.New("process identity unavailable after command read")
+				err = &IdentityUnavailableError{Err: errors.New("empty identity after command read")}
 			}
 			if err != nil {
 				o.Err = fmt.Errorf("process %d: %w", p.PID, err)

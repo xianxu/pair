@@ -170,6 +170,16 @@ func TestServerProcessesPermissionAndUnknownStayFailClosed(t *testing.T) {
 	}
 }
 
+func TestServerProcessesIdentityEINVALStaysFailClosed(t *testing.T) {
+	for _, name := range []string{"zellij", ""} {
+		failure := &procutil.IdentityUnavailableError{Err: syscall.EINVAL}
+		row := procutil.Observation{Process: procutil.Process{PID: 10, Name: name, Identity: "generation"}, Err: fmt.Errorf("process 10: %w", failure)}
+		if _, err := serverProcesses([]procutil.Observation{row}); err == nil || !errors.Is(err, syscall.EINVAL) {
+			t.Fatalf("identity uncertainty lost: name=%q err=%v", name, err)
+		}
+	}
+}
+
 // A copied executable gives the native table the same short name as real Zellij;
 // merely replacing argv[0] on launcher.test would not exercise that boundary.
 func controlledServerExecutable(t *testing.T, dir string) string {

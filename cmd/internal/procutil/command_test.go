@@ -152,6 +152,21 @@ func TestSnapshotIdentityEvidenceAfterCommand(t *testing.T) {
 		})
 	}
 }
+
+func TestSnapshotIdentityEINVALRemainsUnknownToGoneClassifier(t *testing.T) {
+	w := &snapshotWorld{
+		rows:           []Process{{PID: 1, Identity: "old", Name: "zellij"}},
+		commands:       map[int]CommandInfo{1: {Executable: "/zellij", Args: []string{"zellij"}}},
+		identityErrors: map[int]error{1: syscall.EINVAL},
+	}
+	rows, err := snapshot(context.Background(), w)
+	if err != nil || len(rows) != 1 {
+		t.Fatalf("snapshot = %+v, %v", rows, err)
+	}
+	if !errors.Is(rows[0].Err, syscall.EINVAL) || IsProcessGone(rows[0].Err) {
+		t.Fatalf("identity uncertainty classified as disappearance: %v", rows[0].Err)
+	}
+}
 func TestSnapshotSkipsProcessExitDuringCommandRead(t *testing.T) {
 	for _, gone := range []error{syscall.EINVAL, syscall.ESRCH, os.ErrNotExist} {
 		w := &snapshotWorld{rows: []Process{{PID: 1, Identity: "old", Name: "zellij"}, {PID: 2, Identity: "live"}}, commands: map[int]CommandInfo{1: {}, 2: {Executable: "/app", Args: []string{"ok"}}}, commandErrors: map[int]error{1: fmt.Errorf("procargs: %w", gone)}, identities: map[int]string{1: "old", 2: "live"}}
