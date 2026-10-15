@@ -1,7 +1,7 @@
 threads
 Ctrl+Y copy last notice
-▸   pair:1  /workspace/worktree/pair-slot1/pair  live
+▸   pair:1  /workspace/worktree/pair-slot1/pair  Continue
     └─ review ready
-    pair:2  /workspace/worktree/pair-slot2/pair  live
+    pair:2  /workspace/worktree/pair-slot2/pair  Continue
 TAB BAR
 [pair:1]  :2

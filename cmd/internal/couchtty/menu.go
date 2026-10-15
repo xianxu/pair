@@ -2,6 +2,7 @@ package couchtty
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -60,6 +61,7 @@ const (
 	MenuFrameText
 	MenuFrameStart
 	MenuFrameSwitchAgent
+	MenuFrameRecovery
 )
 
 // MenuRootView is the root list mode, retained for the owning console lifetime.
@@ -72,9 +74,11 @@ const (
 
 // MenuFrame owns the navigation state for exactly one menu level.
 type MenuFrame struct {
-	SwitchPrepared *couchcore.PreparedAgentSwitch
-	SwitchStage    int
-	SwitchEdited   bool
+	RecoveryTarget  couchcore.ResumeTarget
+	RecoveryPreview *couchcore.RecoveryPreview
+	SwitchPrepared  *couchcore.PreparedAgentSwitch
+	SwitchStage     int
+	SwitchEdited    bool
 	// Rune distance from the end; zero keeps newly prefilled parameters at end.
 	SwitchCursorFromEnd int
 
@@ -139,6 +143,7 @@ type MenuNotice struct {
 }
 
 type MenuProgressOwner struct {
+	InventoryRefresh  bool
 	PreviewGeneration uint64
 	OperationAttempt  uint64
 	Completion        CompletionIdentity
@@ -281,13 +286,14 @@ const (
 )
 
 type MenuEvent struct {
-	RowKey       couchcore.ThreadRowKey
-	Kind         MenuEventKind
-	Key          PanelKey
-	Address      couchcore.ThreadAddress
-	Inventory    []couchcore.ActionableThreadSummary
-	InventorySet bool
-	Operation    string
+	RecoveryPreview *couchcore.RecoveryPreview
+	RowKey          couchcore.ThreadRowKey
+	Kind            MenuEventKind
+	Key             PanelKey
+	Address         couchcore.ThreadAddress
+	Inventory       []couchcore.ActionableThreadSummary
+	InventorySet    bool
+	Operation       string
 	// Mode is the operation's disposition where it has one: which of park or
 	// detach a whole-couch `leave` applies to every live thread.
 	Mode       string
@@ -330,11 +336,12 @@ type MenuEvent struct {
 
 // MenuEffect is an operation request for the thin Console shell.
 type MenuEffect struct {
-	Operation  string
-	Attempt    uint64
-	Args       map[string]string
-	Preview    *PreviewRequest
-	Completion *CompletionRequest
+	CancelPreview uint64
+	Operation     string
+	Attempt       uint64
+	Args          map[string]string
+	Preview       *PreviewRequest
+	Completion    *CompletionRequest
 	// Background marks a reattach-pass effect (pair#206): enqueued without the
 	// operator's in-flight slot, and attached without taking focus.
 	Background bool
@@ -503,8 +510,11 @@ func ReduceMenu(state MenuState, event MenuEvent) (MenuState, []MenuEffect) {
 		// Only mark a dispatch that HAPPENED. dispatchThreadOperation refuses
 		// when another operation is in flight and returns the state unchanged;
 		// marking that would leave Manual set on someone else's operation.
-		if len(effects) > 0 {
-			state.InFlight.Manual = true
+		for _, effect := range effects {
+			if effect.Operation != "" {
+				state.InFlight.Manual = true
+				break
+			}
 		}
 		return state, effects
 	}
@@ -513,8 +523,9 @@ func ReduceMenu(state MenuState, event MenuEvent) (MenuState, []MenuEffect) {
 	}
 	if event.Kind == MenuEventRefreshStarted {
 		next.RefreshPending = true
-		if !next.InventoryReady && next.Notice.Level != MenuNoticeProgress {
+		if !next.InventoryReady && (next.Notice == (MenuNotice{}) || next.Notice.Owner.InventoryRefresh) {
 			next.Notice = infoMenuNotice("thread inventory unavailable")
+			next.Notice.Owner.InventoryRefresh = true
 		}
 		return next, nil
 	}
@@ -526,6 +537,9 @@ func ReduceMenu(state MenuState, event MenuEvent) (MenuState, []MenuEffect) {
 			// (cell 2); a running one carries on, since warm-only re-proves each
 			// thread at attempt time (cell 4).
 			return advanceReattach(next)
+		}
+		if next.Notice.Owner.InventoryRefresh {
+			next.Notice = MenuNotice{}
 		}
 		if !next.ProjectionPending || event.Generation > next.ProjectionAfterGeneration {
 			next.ProjectionPending = false
@@ -576,6 +590,8 @@ func ReduceMenu(state MenuState, event MenuEvent) (MenuState, []MenuEffect) {
 		return openStartForm(next)
 	}
 	switch next.CurrentFrame().Kind {
+	case MenuFrameRecovery:
+		return reduceRecoveryKey(next, event.Key)
 	case MenuFrameRoot:
 		return reduceRootKey(next, event.Key)
 	case MenuFrameActions:
@@ -701,7 +717,7 @@ func menuFrameBindsThread(frame MenuFrame) bool {
 	if frame.Kind == MenuFrameConfirmation && frame.Action == "leave" {
 		return false
 	}
-	return frame.Kind == MenuFrameSwitchAgent || frame.Kind == MenuFrameActions || frame.Kind == MenuFrameConfirmation || frame.Kind == MenuFrameText
+	return frame.Kind == MenuFrameRecovery || frame.Kind == MenuFrameSwitchAgent || frame.Kind == MenuFrameActions || frame.Kind == MenuFrameConfirmation || frame.Kind == MenuFrameText
 }
 
 // reduceParkHotkey handles the Alt+x/Alt+d ownership-boundary chords.
@@ -749,7 +765,7 @@ func reduceParkHotkey(state MenuState, event MenuEvent) (MenuState, []MenuEffect
 	}
 	if event.Operation == "park" || event.Operation == "relaunch" {
 		thread, ok := menuThread(state, event.Address)
-		if !ok || !thread.Live() {
+		if !ok || (!thread.Live() && !(event.Operation == "relaunch" && thread.Reason == couchcore.ReasonNeedsRelaunch)) {
 			state.Notice = errorMenuNotice("only a running thread can be " + pastParticiple(event.Operation))
 			return state, nil
 		}
@@ -760,6 +776,11 @@ func reduceParkHotkey(state MenuState, event MenuEvent) (MenuState, []MenuEffect
 		if !containsMenuItem(menuActionItems(thread), event.Operation) {
 			state.Notice = errorMenuNotice(thread.Label() + ": " + event.Operation + " is not offered while its continuation is unfinished")
 			return state, nil
+		}
+		if menuRowNeedsRecoveryPreview(thread, event.Operation) {
+			state.Frames = state.Frames[:1]
+			selectMenuRow(&state.Frames[0], thread)
+			return dispatchMenuRow(state, event.Operation, thread)
 		}
 	}
 	state.Frames = state.Frames[:1]
@@ -788,23 +809,29 @@ func pastParticiple(operation string) string {
 	return operation + "ed"
 }
 
-// enterOperationFor is what landing on a row DOES: a live row switches, and a
-// row that offers resume resumes -- parked, detached, or unusable where resume
-// has a route (a slot, a recoverable survivor, a retained request). Every
-// other row does nothing on Enter and says why. It reads the action table
-// rather than restating it, so Enter can never land on an action the row does
-// not offer.
-//
-// One authority, because a click must take Enter's rule rather than a restatement
-// of it -- the restatement had already diverged on its first day (pair#172).
+// enterOperationFor maps the shared continuity outcome to the existing effect.
+// Enter and mouse selection share this rule. Only admitted Fresh confirms;
+// unfinished starts expose read-only details, and uncertain rows open recovery.
 func enterOperationFor(thread couchcore.ActionableThreadSummary) string {
-	if thread.Live() {
-		return "switch"
-	}
-	if containsMenuItem(menuActionItems(thread), "resume") {
+	switch couchcore.ContinuityOutcome(thread) {
+	case couchcore.ContinuityStarting:
+		return "resume-candidates"
+	case couchcore.Continue:
+		if thread.Live() {
+			return "switch"
+		}
 		return "resume"
+	case couchcore.ResumeDisk:
+		return "resume"
+	default:
+		offered := menuActionItems(thread)
+		for _, operation := range []string{"resume-candidates", "relaunch", "resume", "reboot", "recover"} {
+			if slices.Contains(offered, operation) {
+				return operation
+			}
+		}
+		return ""
 	}
-	return ""
 }
 
 // enterRefusalNotice is what Enter says on a row it will not act on: why, and
@@ -846,6 +873,9 @@ func reduceActionKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
 			state.Notice = errorMenuNotice("no selection")
 			return state, nil
 		}
+		if menuRowNeedsRecoveryPreview(thread, frame.SelectedItem) {
+			return dispatchMenuRow(state, frame.SelectedItem, thread)
+		}
 		switch frame.SelectedItem {
 		case "add-slot":
 			path := menuAddSlotPath(thread)
@@ -856,6 +886,8 @@ func reduceActionKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
 			form := &state.Frames[len(state.Frames)-1]
 			form.Path, form.FormField = path, MenuFieldAgent
 			return requestStartPreview(state)
+		case "resume-candidates":
+			return openRecoveryPreview(state, thread)
 		case "switch-agent":
 			return openSwitchAgent(state, thread.Address)
 		case "alias":
@@ -1248,6 +1280,9 @@ func requestStartPreview(state MenuState) (MenuState, []MenuEffect) {
 }
 
 func reducePreviewResult(state MenuState, event MenuEvent) (MenuState, []MenuEffect) {
+	if state.CurrentFrame().Kind == MenuFrameRecovery {
+		return reduceRecoveryPreview(state, event)
+	}
 	if state.CurrentFrame().Kind == MenuFrameSwitchAgent {
 		return reduceSwitchAgentPreview(state, event)
 	}
@@ -1419,6 +1454,12 @@ func filterMenuItems(items []string, query string) []string {
 }
 
 func menuItemLabel(item string) string {
+	if item == "resume" {
+		return "Resume from disk"
+	}
+	if item == "reboot" {
+		return "Start fresh"
+	}
 	if item == "add-slot" {
 		return "add slot"
 	}
@@ -1630,6 +1671,8 @@ func reconcileMenuFrames(state MenuState, previous ...[]couchcore.ActionableThre
 				continue
 			}
 			reconcileItemSelection(&frame, filterMenuItems(confirmationMenuItems(state, frame), frame.Filter))
+		case MenuFrameRecovery:
+			// Selection revalidates the preview key against current core evidence.
 		case MenuFrameSwitchAgent:
 			if bound != frame.Thread || (!containsMenuItem(menuActionItems(thread), "switch-agent") && state.InFlight.Operation != "switch-agent") {
 				invalidThreadFrame = true

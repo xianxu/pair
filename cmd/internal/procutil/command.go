@@ -4,18 +4,33 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
-	"strconv"
 	"strings"
 	"syscall"
+	"time"
 )
 
 // ErrUnsupported identifies a platform without native process inspection.
 var ErrUnsupported = errors.New("native process inspection unsupported")
 
+// IdentityUnavailableError preserves identity-read uncertainty separately from
+// command/environment errors whose errno may establish process disappearance.
+// Unwrap retains the underlying diagnostic without granting absence authority.
+type IdentityUnavailableError struct{ Err error }
+
+func (e *IdentityUnavailableError) Error() string {
+	return "process identity unavailable: " + e.Err.Error()
+}
+func (e *IdentityUnavailableError) Unwrap() error { return e.Err }
+
 // IsProcessGone classifies individual native process reads, never table-wide
 // failures. The kernel may discard argv before publishing a zombie table row.
 func IsProcessGone(err error) bool {
+	var identityErr *IdentityUnavailableError
+	if errors.As(err, &identityErr) {
+		return false
+	}
 	return errors.Is(err, os.ErrNotExist) || errors.Is(err, syscall.ESRCH) || errors.Is(err, syscall.EINVAL)
 }
 
@@ -36,20 +51,78 @@ type Observation struct {
 type processReader interface {
 	table() ([]Process, error)
 	command(int) (CommandInfo, error)
-	identity(int) string
+	identity(int) (string, error)
 }
 type nativeReader struct{}
 
 func (nativeReader) table() ([]Process, error)            { return Table() }
 func (nativeReader) command(pid int) (CommandInfo, error) { return nativeCommand(pid) }
-func (nativeReader) identity(pid int) string              { return Identity(strconv.Itoa(pid)) }
+func (nativeReader) identity(pid int) (string, error)     { return nativeIdentity(pid) }
 
 // Snapshot reads the metadata table once and enriches every row with native
 // command evidence, excluding kernel-confirmed terminated rows. Start identities
 // fence PID reuse during each read. It keeps
 // per-row failures; cancellation or table failure aborts the whole observation.
-func Snapshot(ctx context.Context) ([]Observation, error) { return snapshot(ctx, nativeReader{}) }
+func Snapshot(ctx context.Context) ([]Observation, error) {
+	return (Source{}).Snapshot(ctx)
+}
+
+// SnapshotNamed enriches only rows with the exact short kernel name or an
+// unavailable name. Metadata selects candidates; native executable and argv
+// evidence still determine their meaning. Unknown names retain uncertainty.
+func SnapshotNamed(ctx context.Context, name string) ([]Observation, error) {
+	return (Source{}).SnapshotNamed(ctx, name)
+}
+
+// Capture diagnostics count calls at the reader boundary, including failed
+// reads and rows that disappear. Output contains no process-table contents or
+// requested names. Disabled captures take the original path without a wrapper.
+func snapshotCapture(ctx context.Context, r processReader, selectRow func(Process) bool, enabled string, out io.Writer, now func() time.Time) ([]Observation, error) {
+	if enabled != "1" {
+		return snapshotSelected(ctx, r, selectRow)
+	}
+	kind := "full"
+	if selectRow != nil {
+		kind = "named"
+	}
+	counted := &snapshotCallReader{processReader: r}
+	start := now()
+	defer func() {
+		elapsed := now().Sub(start)
+		fmt.Fprintf(out, "pair startup snapshot: pid=%d kind=%s table_calls=%d command_calls=%d identity_calls=%d duration_ms=%.3f\n", os.Getpid(), kind, counted.tables, counted.commands, counted.identities, float64(elapsed)/float64(time.Millisecond))
+	}()
+	return snapshotSelected(ctx, counted, selectRow)
+}
+
+type snapshotCallReader struct {
+	processReader
+	tables, commands, identities int
+}
+
+func (r *snapshotCallReader) table() ([]Process, error) {
+	r.tables++
+	return r.processReader.table()
+}
+
+func (r *snapshotCallReader) command(pid int) (CommandInfo, error) {
+	r.commands++
+	return r.processReader.command(pid)
+}
+
+func (r *snapshotCallReader) identity(pid int) (string, error) {
+	r.identities++
+	return r.processReader.identity(pid)
+}
+
+func processNameCandidate(p Process, name string) bool {
+	return p.Name == name || p.Name == ""
+}
+
 func snapshot(ctx context.Context, r processReader) ([]Observation, error) {
+	return snapshotSelected(ctx, r, nil)
+}
+
+func snapshotSelected(ctx context.Context, r processReader, selectRow func(Process) bool) ([]Observation, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -62,7 +135,7 @@ func snapshot(ctx context.Context, r processReader) ([]Observation, error) {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		if p.Zombie {
+		if p.Zombie || (selectRow != nil && !selectRow(p)) {
 			continue
 		}
 		o := Observation{Process: p}
@@ -76,12 +149,18 @@ func snapshot(ctx context.Context, r processReader) ([]Observation, error) {
 			if IsProcessGone(err) {
 				continue
 			}
-			identity := r.identity(p.PID)
-			if identity != "" && identity != p.Identity {
+			identity, identityErr := r.identity(p.PID)
+			if errors.Is(identityErr, os.ErrNotExist) || errors.Is(identityErr, syscall.ESRCH) {
+				continue // Positive absence/terminal evidence, never an unreadable identity.
+			}
+			if identityErr == nil && identity != "" && identity != p.Identity {
 				continue // Only the old snapshot generation is gone; never adopt its replacement.
 			}
+			if err == nil && identityErr != nil {
+				err = &IdentityUnavailableError{Err: identityErr}
+			}
 			if err == nil && identity == "" {
-				err = errors.New("process identity unavailable after command read")
+				err = &IdentityUnavailableError{Err: errors.New("empty identity after command read")}
 			}
 			if err != nil {
 				o.Err = fmt.Errorf("process %d: %w", p.PID, err)

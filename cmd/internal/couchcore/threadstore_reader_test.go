@@ -2,6 +2,7 @@ package couchcore
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"golang.org/x/sys/unix"
@@ -50,7 +51,7 @@ func TestLocalCurrentReadersRejectSymlink(t *testing.T) {
 			case "snapshot":
 				_, err = s.Snapshot()
 			case "locked":
-				_, err = s.readThreadLocked(r.Address)
+				_, err = s.readThreadLockedContext(context.Background(), r.Address)
 			case "start":
 				_, err = s.AdvanceStart(r.Address, r.Revision, StartEvent{Kind: StartRegistered, Nonce: "start-0123456789abcdef"})
 			case "park":

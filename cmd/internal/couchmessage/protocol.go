@@ -25,7 +25,8 @@ type Request struct {
 	Op, Scope, Tag, Session, Nonce, ID, Target, Body string
 	Title                                            string `json:",omitempty"` // notify only
 	// Agent narrows a send or selects the switch destination harness.
-	Agent string `json:",omitempty"`
+	Agent        string `json:",omitempty"`
+	CandidateKey string `json:",omitempty"`
 	// Confirmed declares the operator's confirmation for an operation whose
 	// declaration requires one (reboot); resume and reboot only.
 	Confirmed bool `json:",omitempty"`
@@ -43,10 +44,11 @@ type Request struct {
 }
 
 type Response struct {
-	Code, Error string
-	Submission  *SubmissionStatus `json:",omitempty"`
-	Receipt     *Receipt
-	Actors      []Candidate
+	Code, Error     string
+	RecoveryPreview *couchcore.RecoveryPreview `json:",omitempty"`
+	Submission      *SubmissionStatus          `json:",omitempty"`
+	Receipt         *Receipt
+	Actors          []Candidate
 	// Operation is a resume/reboot request's receipt (pair#367 M2).
 	Operation *OperationReceipt `json:",omitempty"`
 	// Broadcast answers broadcast-status (pair#413); nil means no broadcast.
@@ -140,6 +142,9 @@ func ValidateRequest(r Request) error {
 	if r.Drive != nil && r.Op != "keys" && r.Op != "set-model" {
 		return errors.New("drive intent applies only to keys and set-model")
 	}
+	if r.CandidateKey != "" && (r.Op != "resume" || !utf8.ValidString(r.CandidateKey) || len(r.CandidateKey) > 512 || strings.IndexFunc(r.CandidateKey, unicode.IsSpace) >= 0 || strings.IndexFunc(r.CandidateKey, unicode.IsControl) >= 0) {
+		return errors.New("candidate key applies only to resume and must be a bounded opaque token")
+	}
 	if r.Op != "move-slot" && (r.ToHub != "" || r.Persist) {
 		return errors.New("hub destination and persistence apply only to move-slot requests")
 	}
@@ -175,6 +180,13 @@ func ValidateRequest(r Request) error {
 		if len(field) > MaxBindingBytes {
 			return errors.New("request identity exceeds limit")
 		}
+	}
+	if r.Op == "automatic-input-stall" {
+		if r.Binding != nil || r.Scope == "" || r.Tag == "" || r.Session == "" || r.Nonce == "" || !validMessageID(r.ID) || r.Target != "" || r.Agent != "" || r.Confirmed || r.SameBinary || r.ForceUnknown || r.TailScope != "" || r.TailTag != "" || r.Lines != 0 {
+			return errors.New("automatic-input-stall requires only caller identity, occurrence ID and typed report")
+		}
+		_, err := ParseAutomaticInputStall(r.Body)
+		return err
 	}
 	if r.Op == "session-write" {
 		if r.Binding != nil || r.Scope == "" || r.Tag == "" || r.Session == "" || r.Nonce == "" || r.ID != "" || r.Body != "" || r.Agent != "" || r.Confirmed || r.SameBinary || r.ForceUnknown || r.TailScope != "" || r.TailTag != "" || r.Lines != 0 {
@@ -274,6 +286,12 @@ func ValidateRequest(r Request) error {
 		if (r.Op == "set-model") != (r.Drive.Model != nil) || (r.Op == "set-model") != r.Confirmed {
 			return errors.New("set-model requires model intent and --confirm; keys takes no confirmation")
 		}
+	case r.Op == "resume-candidates":
+		if r.ID != "" || r.Body != "" || r.Agent != "" || r.Confirmed || r.SameBinary || r.ForceUnknown {
+			return errors.New("resume-candidates accepts only an exact slot")
+		}
+		_, _, err := parseSlot(r.Target)
+		return err
 	case r.Op == "switch-agent":
 		if !validMessageID(r.ID) || !r.Confirmed || !launcher.IsSupportedAgent(r.Agent) {
 			return errors.New("switch-agent requires a request ID, supported agent and confirmation")

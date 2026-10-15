@@ -225,10 +225,9 @@ func TestDecideResumeAcceptsDetachedWithoutVerifiedPark(t *testing.T) {
 			wantCode: "",
 		},
 		{
-			name:     "a detached record still needs a saved launch profile",
+			name:     "a detached record needs no saved launch profile",
 			mutate:   func(r *ThreadRecord) { r.LatestLaunchProfile = nil },
 			detached: true,
-			wantCode: ResumeProfileMissing,
 		},
 	}
 
@@ -433,5 +432,14 @@ func TestResumeTombstonedIsReachableFromProduction(t *testing.T) {
 	if got := ResumeDiagnosticOf(err); got != ResumeTombstoned {
 		t.Fatalf("production cold resume = %q (%v), want %q -- the branch the plan and the atlas both promise is unreachable",
 			got, err, ResumeTombstoned)
+	}
+}
+
+// Invalid cold metadata is not needed to attach an already-owned terminal.
+// The store normally rejects this shape; exercise the pure boundary directly.
+func TestDecideResumeWarmDoesNotRequireCompleteColdProfile(t *testing.T) {
+	record := ThreadRecord{LatestLaunchProfile: &LaunchProfile{}}
+	if _, err := DecideResume(ResumeEligibilityInput{Thread: record, Detached: true, WorkingPathExists: false}); err != nil {
+		t.Fatalf("warm attach required cold metadata: %v", err)
 	}
 }

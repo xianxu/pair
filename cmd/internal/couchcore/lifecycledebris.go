@@ -59,76 +59,11 @@ func (c *Couch) clearLifecycleDebris(thread ThreadRecord) (*ThreadRecord, error)
 		return nil, nil // nothing in the way
 	}
 
-	// ---- screen ----
-	var incarnation *ThreadIncarnation
-	// Two values, not one: whether to roll the claim back, and which nonce to
-	// roll back. A nonce doing both jobs means an empty one silently skips the
-	// write the screen decided on, and the reason it cannot be empty lives in a
-	// validator this file does not cite (`componentPattern`, threadrecord).
-	// M1's own rule is that an omitted guard cites its clause; this removes the
-	// need for one.
-	clearStart := false
-	var rollback string
-	switch len(thread.Incarnations) {
-	case 0:
-	case 1:
-		candidate := thread.Incarnations[0]
-		if candidate.Start != nil {
-			// A start is in flight while the couch that claimed it is alive or
-			// unprovable -- the same rule the classifier applies to decide
-			// `busy`, and the same direction ReconcileStart fails. A claim
-			// whose owner is provably dead has no driver, and leaving it is
-			// what made the row unarchivable as well as unstartable (#256 M2).
-			//
-			// The owner is NOT the helper. It is the couch process that began
-			// the transaction, and probing the helper here would authorize a
-			// rollback against a process nobody looked at.
-			owner := ProcessIdentity{PID: candidate.Start.OwnerPID, Identity: candidate.Start.OwnerIdentity}
-			if observeExactProcess(c.Proc, owner) != Dead {
-				return nil, refuseResume(ResumeStarting,
-					"a start claim is outstanding and the couch that made it could not be proved gone; let it finish")
-			}
-			if candidate.PID > 0 && observeExactProcess(c.Proc, ProcessIdentity{PID: candidate.PID, Identity: candidate.Identity}) != Dead {
-				return nil, refuseResume(ResumeStarting,
-					"the process this start forked could not be proved dead, so the claim must not be rolled back")
-			}
-			clearStart, rollback = true, candidate.Start.Nonce
-		} else {
-			if candidate.PID <= 0 || candidate.Identity == "" {
-				return nil, refuseResume(ResumeUnknown,
-					"the recorded incarnation names no process, so it cannot be proved dead or retired")
-			}
-			if observeExactProcess(c.Proc, ProcessIdentity{PID: candidate.PID, Identity: candidate.Identity}) != Dead {
-				return nil, refuseResume(ResumeUnknown,
-					"recorded process could not be proved dead, so its incarnation cannot be retired; inspect it before acting on the thread")
-			}
-			if candidate.State != IncarnationLive && candidate.State != IncarnationUnknown {
-				// The two retirement transitions accept exactly these, and
-				// finding that out after abandoning the park is what destroys
-				// the park.
-				return nil, refuseResume(ResumeUnknown,
-					"recorded incarnation is "+string(candidate.State)+"; only a live or unproven one can be retired")
-			}
-			incarnation = &candidate
-		}
-	default:
-		return nil, refuseResume(ResumeUnknown,
-			"thread carries more than one recorded incarnation; ownership must be resolved before it can be resumed")
+	plan, err := c.inspectLifecycleDebris(thread)
+	if err != nil {
+		return nil, err
 	}
-	if thread.Park != nil {
-		// The park's OWN owner, which validateLifecycle does not require to be
-		// one of the incarnations: zero matches are permitted when the phase is
-		// `unknown` and the transaction carries a replacement_incarnation
-		// failure. Probing the incarnation here would write a permanent
-		// tombstone about a process nothing looked at, one that may be alive and
-		// mid-park -- its FinalizePark would then never match again. Pinned by
-		// TestForeignOwnedParkIsRepresentableAndRefused.
-		owner := ProcessIdentity{PID: thread.Park.Identity.PID, Identity: thread.Park.Identity.ProcessIdentity}
-		if observeExactProcess(c.Proc, owner) != Dead {
-			return nil, refuseResume(ResumeParking,
-				"the park transaction's own owner could not be proved dead, so its record must not be abandoned")
-		}
-	}
+	incarnation, clearStart, rollback := plan.incarnation, plan.clearStart, plan.rollback
 
 	// ---- write ----
 	//
@@ -172,4 +107,87 @@ func (c *Couch) clearLifecycleDebris(thread ThreadRecord) (*ThreadRecord, error)
 		return nil, refuseResume(ResumeUnknown, "stale incarnation could not be retired: "+err.Error())
 	}
 	return &retired, nil
+}
+
+// lifecycleDebris is an ephemeral description of the existing retirement rules.
+// Preparation can inspect authority without executing any retirement.
+type lifecycleDebris struct {
+	incarnation *ThreadIncarnation
+	clearStart  bool
+	rollback    string
+}
+
+func (c *Couch) inspectLifecycleDebris(thread ThreadRecord) (lifecycleDebris, error) {
+	// ---- screen ----
+	var incarnation *ThreadIncarnation
+	// Two values, not one: whether to roll the claim back, and which nonce to
+	// roll back. A nonce doing both jobs means an empty one silently skips the
+	// write the screen decided on, and the reason it cannot be empty lives in a
+	// validator this file does not cite (`componentPattern`, threadrecord).
+	// M1's own rule is that an omitted guard cites its clause; this removes the
+	// need for one.
+	clearStart := false
+	var rollback string
+	switch len(thread.Incarnations) {
+	case 0:
+	case 1:
+		candidate := thread.Incarnations[0]
+		if candidate.Start != nil {
+			// A start is in flight while the couch that claimed it is alive or
+			// unprovable -- the same rule the classifier applies to decide
+			// `busy`, and the same direction ReconcileStart fails. A claim
+			// whose owner is provably dead has no driver, and leaving it is
+			// what made the row unarchivable as well as unstartable (#256 M2).
+			//
+			// The owner is NOT the helper. It is the couch process that began
+			// the transaction, and probing the helper here would authorize a
+			// rollback against a process nobody looked at.
+			owner := ProcessIdentity{PID: candidate.Start.OwnerPID, Identity: candidate.Start.OwnerIdentity}
+			if observeExactProcess(c.Proc, owner) != Dead {
+				return lifecycleDebris{}, refuseResume(ResumeStarting,
+					"a start claim is outstanding and the couch that made it could not be proved gone; let it finish")
+			}
+			if candidate.PID > 0 && observeExactProcess(c.Proc, ProcessIdentity{PID: candidate.PID, Identity: candidate.Identity}) != Dead {
+				return lifecycleDebris{}, refuseResume(ResumeStarting,
+					"the process this start forked could not be proved dead, so the claim must not be rolled back")
+			}
+			clearStart, rollback = true, candidate.Start.Nonce
+		} else {
+			if candidate.PID <= 0 || candidate.Identity == "" {
+				return lifecycleDebris{}, refuseResume(ResumeUnknown,
+					"the recorded incarnation names no process, so it cannot be proved dead or retired")
+			}
+			if observeExactProcess(c.Proc, ProcessIdentity{PID: candidate.PID, Identity: candidate.Identity}) != Dead {
+				return lifecycleDebris{}, refuseResume(ResumeUnknown,
+					"recorded process could not be proved dead, so its incarnation cannot be retired; inspect it before acting on the thread")
+			}
+			if candidate.State != IncarnationLive && candidate.State != IncarnationUnknown {
+				// The two retirement transitions accept exactly these, and
+				// finding that out after abandoning the park is what destroys
+				// the park.
+				return lifecycleDebris{}, refuseResume(ResumeUnknown,
+					"recorded incarnation is "+string(candidate.State)+"; only a live or unproven one can be retired")
+			}
+			incarnation = &candidate
+		}
+	default:
+		return lifecycleDebris{}, refuseResume(ResumeUnknown,
+			"thread carries more than one recorded incarnation; ownership must be resolved before it can be resumed")
+	}
+	if thread.Park != nil {
+		// The park's OWN owner, which validateLifecycle does not require to be
+		// one of the incarnations: zero matches are permitted when the phase is
+		// `unknown` and the transaction carries a replacement_incarnation
+		// failure. Probing the incarnation here would write a permanent
+		// tombstone about a process nothing looked at, one that may be alive and
+		// mid-park -- its FinalizePark would then never match again. Pinned by
+		// TestForeignOwnedParkIsRepresentableAndRefused.
+		owner := ProcessIdentity{PID: thread.Park.Identity.PID, Identity: thread.Park.Identity.ProcessIdentity}
+		if observeExactProcess(c.Proc, owner) != Dead {
+			return lifecycleDebris{}, refuseResume(ResumeParking,
+				"the park transaction's own owner could not be proved dead, so its record must not be abandoned")
+		}
+	}
+
+	return lifecycleDebris{incarnation: incarnation, clearStart: clearStart, rollback: rollback}, nil
 }

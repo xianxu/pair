@@ -1,6 +1,7 @@
 package launcher
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -8,6 +9,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/zellijsession"
 	"os"
 
+	"github.com/xianxu/pair/cmd/internal/procutil"
 	"github.com/xianxu/pair/cmd/internal/zellijpane"
 )
 
@@ -18,16 +20,24 @@ type SessionOwnerIO interface {
 	Socket(path string) SocketState
 }
 
-type SessionOwnerProbe struct{ IO SessionOwnerIO }
+type SessionOwnerProbe struct {
+	IO        SessionOwnerIO
+	Processes procutil.Source
+}
 
 func (p SessionOwnerProbe) runtime() SessionOwnerIO {
 	if p.IO != nil {
 		return p.IO
 	}
-	return osSessionOwnerIO{}
+	return osSessionOwnerIO{processes: p.Processes}
 }
 
 func (p SessionOwnerProbe) Probe(ctx context.Context, name, globalDataDir, scope, tag string) (SessionOwnerObservation, error) {
+	return p.probe(ctx, name, globalDataDir, scope, tag, p.runtime().SessionServers)
+}
+
+// probe varies only the initial evidence; every authority fence reads live IO.
+func (p SessionOwnerProbe) probe(ctx context.Context, name, globalDataDir, scope, tag string, initial func(context.Context, string) ([]SessionServerIdentity, error)) (SessionOwnerObservation, error) {
 	result := SessionOwnerObservation{Name: name}
 	expected, err := sessionExpectedOwner(globalDataDir, scope, tag)
 	if err != nil {
@@ -39,7 +49,7 @@ func (p SessionOwnerProbe) Probe(ctx context.Context, name, globalDataDir, scope
 	ctx, cancel := context.WithTimeout(ctx, zellijQueryTimeout)
 	defer cancel()
 	io := p.runtime()
-	before, err := io.SessionServers(ctx, name)
+	before, err := initial(ctx, name)
 	if err != nil {
 		return result, fmt.Errorf("observe session server: %w", err)
 	}
@@ -87,6 +97,9 @@ func (p SessionOwnerProbe) Probe(ctx context.Context, name, globalDataDir, scope
 		result.Diagnostic = "session server changed during observation"
 		return result, nil
 	}
+	if len(bytes.TrimSpace(raw)) == 0 {
+		return result, fmt.Errorf("observe live session panes: %w", ErrZellijNoReply)
+	}
 	if !json.Valid(raw) {
 		result.Diagnostic = "invalid live pane JSON"
 		return result, nil
@@ -113,10 +126,10 @@ func (p SessionOwnerProbe) Revalidate(ctx context.Context, observation SessionOw
 	return nil
 }
 
-type osSessionOwnerIO struct{}
+type osSessionOwnerIO struct{ processes procutil.Source }
 
-func (osSessionOwnerIO) SessionServers(ctx context.Context, name string) ([]SessionServerIdentity, error) {
-	return newOSSessionQuiescenceOps().SessionServers(ctx, name)
+func (o osSessionOwnerIO) SessionServers(ctx context.Context, name string) ([]SessionServerIdentity, error) {
+	return newOSSessionQuiescenceOps(o.processes).SessionServers(ctx, name)
 }
 func (osSessionOwnerIO) SessionPresent(ctx context.Context, name string) (bool, error) {
 	raw, err := (ZellijSource{}).runContext(ctx, "list-sessions", "--no-formatting")
@@ -134,8 +147,8 @@ func (osSessionOwnerIO) SessionPanes(ctx context.Context, name string) ([]byte, 
 }
 
 func (r OSRuntime) ObserveSessionOwner(ctx context.Context, name, globalDataDir, scope, tag string) (SessionOwnerObservation, error) {
-	return (SessionOwnerProbe{}).Probe(ctx, name, globalDataDir, scope, tag)
+	return (SessionOwnerProbe{Processes: r.Processes}).Probe(ctx, name, globalDataDir, scope, tag)
 }
 func (r OSRuntime) RevalidateSessionOwner(ctx context.Context, observation SessionOwnerObservation) error {
-	return (SessionOwnerProbe{}).Revalidate(ctx, observation)
+	return (SessionOwnerProbe{Processes: r.Processes}).Revalidate(ctx, observation)
 }

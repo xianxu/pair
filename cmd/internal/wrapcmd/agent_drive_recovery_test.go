@@ -136,6 +136,32 @@ func TestAgentDriveRecoveryHandsLeaseToNormalDelivery(t *testing.T) {
 		t.Fatalf("delivery %+v", d.receipt())
 	}
 }
+
+func TestAgentDriveRecoveryPreservesStallSequence(t *testing.T) {
+	for _, phase := range []automaticInputPhase{automaticInputAwaitingEmpty, automaticInputAlerted} {
+		t.Run(fmt.Sprint(phase), func(t *testing.T) {
+			f, d, _ := driveFixture(t)
+			recoveryPaint(f, "/model")
+			d.settled = false
+			f.proxy.automaticInput = automaticInputTransaction{phase: phase, sequence: 17, renderFence: f.proxy.automaticRenderEpoch.Load()}
+			result, err := driveStart(t, d, agentdrive.Request{Keys: agentdrive.KeySequence{{Kind: agentdrive.KeyClearLine}}})
+			if err != nil || result.Terminal() {
+				t.Fatalf("admission %+v %v", result, err)
+			}
+			var out bytes.Buffer
+			f.proxy.dispatchAgentDrive(&out)
+			if out.String() != "\x15" {
+				t.Fatalf("residual lease did not admit explicit recovery: %q", out.String())
+			}
+			f.output("\x1b[?2026h\x1b[2J" + peerEmptyComposer() + "\x1b[?2026l")
+			f.proxy.dispatchAgentDrive(&out)
+			result, _ = d.agentDriveResult("test-drive")
+			if result.Outcome != agentdrive.OutcomeConfirmed || f.proxy.automaticInput.phase != automaticInputIdle || f.proxy.automaticInput.sequence != 17 {
+				t.Fatalf("recovery lost tripwire generation: %+v tx=%+v", result, f.proxy.automaticInput)
+			}
+		})
+	}
+}
 func TestAgentDriveRecoveryTickUsesExactOwnedCommand(t *testing.T) {
 	for _, text := range []string{"/model", "unrelated", "/model\n"} {
 		t.Run(text, func(t *testing.T) {

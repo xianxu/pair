@@ -1,6 +1,7 @@
 package launcher
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -18,6 +19,44 @@ import (
 	"github.com/xianxu/pair/cmd/internal/titlepoller"
 )
 
+// Consecutive deltas partition the measured startup. elapsed_ms is cumulative,
+// not another duration to add. No timing spans the blocking client lifetime.
+type startupTiming struct {
+	out             io.Writer
+	now             func() time.Time
+	start, previous time.Time
+	stopped         bool
+}
+
+// This begins at launcher package initialization, before main's asset/root
+// resolution. Native exec/loader and earlier Go package initialization remain
+// outside this clock and belong to the parent's spawn-to-readiness residual.
+var startupInitializedAt = time.Now()
+
+func newStartupTiming(enabled string, out io.Writer, now func() time.Time, start time.Time) *startupTiming {
+	if enabled != "1" {
+		return nil
+	}
+	return &startupTiming{out: out, now: now, start: start, previous: start}
+}
+
+func (t *startupTiming) mark(phase string) {
+	if t == nil || t.stopped {
+		return
+	}
+	now := t.now()
+	fmt.Fprintf(t.out, "pair startup: phase=%s delta_ms=%.3f elapsed_ms=%.3f\n", phase, float64(now.Sub(t.previous))/float64(time.Millisecond), float64(now.Sub(t.start))/float64(time.Millisecond))
+	t.previous = now
+}
+
+func (t *startupTiming) handoff(phase string) {
+	if t == nil || t.stopped {
+		return
+	}
+	t.mark(phase)
+	t.stopped = true
+}
+
 // RunLaunch is the native launcher's in-process driver (#99 M2 create + M3
 // attach/restart/quit + M5b compaction/pick/rename/continue): a thin loop over the
 // pure deciders (DecideLaunch + createlogic.go + M1's agentargs) that maps each
@@ -30,9 +69,25 @@ import (
 // user-facing messages are on the writer, the int is the exit code, the returned
 // error is always nil.
 func RunLaunch(opts LaunchOptions, rt Runtime, stderr io.Writer) (int, error) {
+	if opts.startupTiming == nil {
+		opts.startupTiming = newStartupTiming(os.Getenv("PAIR_STARTUP_TIMING"), stderr, time.Now, time.Now())
+	}
+	opts.startupTiming.mark("launch-entry")
 	if err := validateCouchSessionLaunch(opts.Args, opts.Env); err != nil {
 		fmt.Fprintf(stderr, "pair: %v\n", err)
 		return 1, nil
+	}
+	if a := opts.Args.Recovery; a != nil {
+		p := TrustedLaunchProfile{Tag: opts.Args.ForcedTag, Agent: opts.Args.Agent, Recovery: a, FreshRequired: opts.Args.FreshRequired, FreshNonce: opts.Args.FreshNonce, ResumeRequired: opts.Args.ResumeRequired, RequiredSessionID: opts.Args.RequiredSessionID}
+		if err := validateRecoveryProfile(p); err != nil {
+			fmt.Fprintf(stderr, "pair: %v\n", err)
+			return 1, nil
+		}
+		session := opts.Args.CouchSession
+		if session == nil || session.Disposition != "create" || session.Nonce != a.Attempt || session.Scope != a.Address.RepoScope || session.Tag != a.Address.Tag {
+			fmt.Fprintln(stderr, "pair: recovery requires its matching Couch terminal start")
+			return 1, nil
+		}
 	}
 	if opts.Args.Prompt != "" {
 		if !opts.Args.FreshRequired {
@@ -57,7 +112,13 @@ func RunLaunch(opts LaunchOptions, rt Runtime, stderr io.Writer) (int, error) {
 		opts.ContinueDoc, opts.ContinueText, opts.ContinueSlug = "", "", ""
 	}
 	env := normalizeEnv(opts.Env)
-	rt.StartProofMigration()
+	selectedAttach := opts.Args.CouchSession != nil && opts.Args.CouchSession.Disposition == "attach"
+	// Continue borrows an already selected terminal. Upgrade migration and
+	// orphan-editor cleanup are unrelated lifecycle work, not attach admission.
+	if !selectedAttach {
+		rt.StartProofMigration()
+	}
+	opts.startupTiming.mark("migration")
 
 	// Prepend the resolved asset root's bin/ to PATH so zellij (and its panes:
 	// pair-wrap, copy_command "copy-on-select", Run "pair-help"/openers, and the
@@ -91,21 +152,25 @@ func RunLaunch(opts LaunchOptions, rt Runtime, stderr io.Writer) (int, error) {
 		fmt.Fprintf(stderr, "      detach first (Alt+d) or run pair from a fresh terminal.\n")
 		return 1, nil
 	}
+	opts.startupTiming.mark("ancestry")
 
 	// Startup nvim hygiene (shell 1243): reap embeds whose Pair session is
 	// gone (an external kill / reboot leaves no quit marker). Once, up front — a
 	// clean restart below leaves nothing new to sweep. Liveness, not a full
 	// snapshot: liveTagsForSweep reads names only, and a full one would ask every
 	// live session for its clients (pair#228).
-	if sessions, err := rt.SessionLiveness(); err == nil {
-		index, err := rt.ReadSessionNameIndex()
-		if err != nil {
-			fmt.Fprintf(stderr, "pair: read session-name index: %v\n", err)
-			return 1, nil
+	if !selectedAttach {
+		if sessions, err := rt.SessionLiveness(); err == nil {
+			index, err := rt.ReadSessionNameIndex()
+			if err != nil {
+				fmt.Fprintf(stderr, "pair: read session-name index: %v\n", err)
+				return 1, nil
+			}
+			rt.SweepOrphanNvim(liveTagsForSweep(sessions, index, scopeKeyFromDataDir(opts.GlobalDataDir, env.DataDir)))
 		}
-		rt.SweepOrphanNvim(liveTagsForSweep(sessions, index, scopeKeyFromDataDir(opts.GlobalDataDir, env.DataDir)))
 	}
 
+	opts.startupTiming.mark("prelude")
 	pendingSession, pendingMarker := opts.RestartSession, opts.RestartAttempt
 	for {
 		if opts.ContinueCheckpoint.Version != 0 {
@@ -261,6 +326,26 @@ type launchStep struct {
 // natively (#99 M5c — no shell to fall back to): a handled abort/error returns
 // handedOff=false with the exit code already messaged on stderr.
 func runOnce(opts LaunchOptions, env Env, rt Runtime, stderr io.Writer) (launchStep, error) {
+	if intent := opts.Args.CouchSession; intent != nil && intent.Disposition == "attach" {
+		// This is already a selected terminal, never a native launch request.
+		// History, saved agent configuration and cwd cannot choose another one.
+		// Keep the timing partition for phases whose result the intent supplies.
+		opts.startupTiming.mark("discovery")
+		opts.startupTiming.mark("decision")
+		if err := verifyCouchSessionAttach(rt, *intent); err != nil {
+			fmt.Fprintf(stderr, "pair: %v\n", err)
+			return launchStep{code: 1}, nil
+		}
+		opts.startupTiming.mark("attach-verification")
+		agent := rt.InferAgent(intent.Tag) // Optional title metadata only; no default or launch profile.
+		opts.startupTiming.mark("attach-layout")
+		code, err, retained := runAttach(opts, env, rt, intent.Tag, intent.Name, agent)
+		if err != nil {
+			fmt.Fprintf(stderr, "pair: failed to attach session '%s': %v\n", intent.Name, err)
+			return launchStep{code: 1}, nil
+		}
+		return launchStep{code: code, session: intent.Name, tag: intent.Tag, agent: agent, handedOff: true, retention: retained}, nil
+	}
 	agent := opts.Args.Agent
 	// The agent the forwarded `-- <args>` were typed against. If a pick below
 	// resolves a DIFFERENT agent (resume-by-name inference), those args are
@@ -279,6 +364,7 @@ func runOnce(opts LaunchOptions, env Env, rt Runtime, stderr io.Writer) (launchS
 		fmt.Fprintf(stderr, "pair: failed to scan session history: %v\n", err)
 		return launchStep{code: 1}, nil
 	}
+	opts.startupTiming.mark("discovery")
 	// A 📁 name typed at `pair resume` is still a NAME here; turn it into a tag
 	// before anything keys off it. Both assignLaunchSessionNames and DecideLaunch
 	// read ForcedTag, so the resolution has to land on opts.Args itself (#130).
@@ -357,17 +443,11 @@ func runOnce(opts LaunchOptions, env Env, rt Runtime, stderr io.Writer) (launchS
 			return launchStep{code: 1}, nil
 		}
 	}
+	opts.startupTiming.mark("decision")
 	switch decision.Action {
 	case ActionAttach:
-		var ownerProof SessionOwnerObservation
-		if intent := opts.Args.CouchSession; intent != nil {
-			var err error
-			ownerProof, err = verifyCouchSessionAttach(rt, opts.GlobalDataDir, *intent)
-			if err != nil {
-				fmt.Fprintf(stderr, "pair: %v\n", err)
-				return launchStep{code: 1}, nil
-			}
-		}
+		opts.startupTiming.mark("attach-verification")
+
 		layoutResolution, err := resolveLiveLayout(rt, env.DataDir, decision.Tag, decision.SessionName, opts.Args.Layout)
 		if err != nil {
 			fmt.Fprintf(stderr, "pair: %v\n", err)
@@ -395,7 +475,9 @@ func runOnce(opts LaunchOptions, env Env, rt Runtime, stderr io.Writer) (launchS
 			return launchStep{code: 0, session: decision.SessionName, tag: decision.Tag, agent: agent, relaunch: true}, nil
 		}
 
-		code, err, retained := runAttach(opts, env, rt, decision.Tag, decision.SessionName, agent, &ownerProof)
+		opts.startupTiming.mark("attach-layout")
+		code, err, retained := runAttach(opts, env, rt, decision.Tag, decision.SessionName, agent)
+
 		if err != nil {
 			fmt.Fprintf(stderr, "pair: failed to attach session '%s': %v\n", decision.SessionName, err)
 			return launchStep{code: 1}, nil
@@ -457,12 +539,15 @@ func assignLaunchSessionNames(rt Runtime, live []Session, repoRoot, globalDataDi
 	// budget measurement any more -- what is shared is the pair of bounds the
 	// probes have narrowed, and since it keys on length alone, tag B is answered
 	// from tag A's observations for free.
-	accepts, _ := sessionNameAcceptor(rt)
+	accepts, _, queryError := sessionNameAcceptor(rt)
 	for _, tag := range tags {
 		if tag == "" {
 			continue
 		}
 		name, updated, err := AssignSessionName(index, live, scope, tag, accepts)
+		if observedErr := queryError(); observedErr != nil {
+			err = observedErr
+		}
 		if err != nil {
 			fmt.Fprintf(stderr, "pair: %v\n", err)
 			return nil, nil, nil, false
@@ -525,8 +610,12 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 	// validator and translate the rejection before writing sidecars or spawning
 	// helpers.
 	if err := rt.ProbeSessionName(session); err != nil {
-		fmt.Fprintf(stderr, "pair: tag '%s' makes zellij's session name too long for this\n", chosenTag)
-		fmt.Fprintf(stderr, "      machine's socket path (%s). Pick a shorter tag.\n", session)
+		if errors.Is(err, errSessionNameTooLong) {
+			fmt.Fprintf(stderr, "pair: tag '%s' makes zellij's session name too long for this\n", chosenTag)
+			fmt.Fprintf(stderr, "      machine's socket path (%s). Pick a shorter tag.\n", session)
+		} else {
+			fmt.Fprintf(stderr, "pair: could not validate session name: %v; run the launch again to ask anew.\n", err)
+		}
 		return launchStep{code: 1}, nil
 	}
 	scope, err := ResolveRepoScope(envScopeRoot(env))
@@ -562,15 +651,25 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 		fmt.Fprintf(stderr, "pair: cannot claim thread '%s': %v\n", chosenTag, addressErr)
 		return launchStep{code: 1}, nil
 	}
-	if opts.Args.ResumeRequired {
+	if opts.Args.Recovery != nil {
+		verifier, ok := rt.(RecoveryAuthorityRuntime)
+		if !ok {
+			fmt.Fprintln(stderr, "pair: runtime lacks recovery authority validation")
+			return launchStep{code: 1}, nil
+		}
+		if err := verifier.ValidateRecoveryAuthority(context.Background(), *opts.Args.Recovery, scope, chosenTag, agent, env.Cwd); err != nil {
+			fmt.Fprintf(stderr, "pair: recovery authority changed: %v\n", err)
+			return launchStep{code: 1}, nil
+		}
+	} else if opts.Args.ResumeRequired {
 		actual, status := rt.EstablishedSessionID(scope.Key, chosenTag, agent)
 		if err := RequireNativeResumeBinding(opts.Args.RequiredSessionID, actual, status); err != nil {
 			fmt.Fprintf(stderr, "pair: %v\n", err)
 			return launchStep{code: 1}, nil
 		}
 	}
-	// Free the name (clear a stale EXITED resurrect record) and guard against a
-	// live session unexpectedly occupying it before any source-of-truth writes.
+	// Guard the name before source-of-truth writes. Saved layouts are retained;
+	// final locked admission also refuses orphaned or contested servers.
 	if opts.Args.CouchSession != nil {
 		current, err := rt.SessionLiveness()
 		if err != nil || sessionNamePresent(current, session) {
@@ -663,6 +762,9 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 	// The native conversation survives resume; the wrapper incarnation does not.
 	if opts.Args.FreshRequired || couchOwned {
 		nonce := opts.Args.FreshNonce
+		if opts.Args.Recovery != nil {
+			nonce = opts.Args.Recovery.Attempt
+		}
 		if _, err := prepareLaunchReadinessWithNonce(rt, chosenTag, agent, session, nonce); err != nil {
 			fmt.Fprintf(stderr, "pair: %v\n", err)
 			return launchStep{code: 1}, nil
@@ -670,7 +772,10 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 	} else if opts.Args.AgentArgsExplicit && !opts.Args.AgentArgsFromCouch && !opts.Args.ResumeRequired && opts.ContinueCheckpoint.Version == 0 {
 		defaultReady = startAgentDefaultPersistence(rt, chosenTag, agent, session, opts.Args.AgentArgs, 5*time.Second)
 	} else {
-		rt.SetEnv("PAIR_LAUNCH_NONCE", "")
+		if _, err := prepareLaunchReadiness(rt, chosenTag, agent, session); err != nil {
+			fmt.Fprintf(stderr, "pair: %v\n", err)
+			return launchStep{code: 1}, nil
+		}
 	}
 
 	sessionID := firstNonEmpty(explicitResume, newSid)
@@ -863,6 +968,7 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 	configDir := filepath.Join(opts.PairHome, "zellij")
 	layout := filepath.Join(opts.PairHome, "zellij", "layouts", LayoutAssetBasename(layoutResolution.Mode))
 	bound := opts.birthBound()
+	opts.startupTiming.handoff("create-handoff")
 	code, verdict, err := launchWatched(rt, opts.birthClock(), birthEvidence, session, configDir, layout, bound)
 	if err != nil {
 		restoreLayoutRecord(rt, dataDir, chosenTag, priorLayout)
@@ -891,7 +997,8 @@ func prepareLaunchReadiness(rt Runtime, tag, agent, session string) (ReadyExpect
 	return prepareLaunchReadinessWithNonce(rt, tag, agent, session, "")
 }
 func prepareLaunchReadinessWithNonce(rt Runtime, tag, agent, session, nonce string) (ReadyExpectation, error) {
-	rt.RemoveReadyRecord(tag, agent)
+	// Keep the previous agent evidence until the locked handoff has checked it.
+	// A fresh nonce prevents old readiness from satisfying this attempt.
 	if nonce == "" {
 		nonce = rt.MintLaunchNonce()
 	}
@@ -960,7 +1067,11 @@ func assignSingleSessionName(rt Runtime, live []Session, cwd, tag string, stderr
 		fmt.Fprintf(stderr, "pair: read session-name index: %v\n", err)
 		return "", SessionNameEntry{}, false
 	}
-	name, updated, err := AssignSessionName(index, live, scope, tag, singleUseAcceptor(rt))
+	accepts, _, queryError := sessionNameAcceptor(rt)
+	name, updated, err := AssignSessionName(index, live, scope, tag, accepts)
+	if observedErr := queryError(); observedErr != nil {
+		err = observedErr
+	}
 	if err != nil {
 		fmt.Fprintf(stderr, "pair: %v\n", err)
 		return "", SessionNameEntry{}, false
@@ -994,8 +1105,12 @@ func promptForTag(rt Runtime, prefill string, compose func(string) string, base 
 	//
 	// The probe is still the oracle: we reach for a NUMBER only once it has
 	// already said no, and only so the refusal can quote something concrete.
-	accepts, refusedAt := sessionNameAcceptor(rt)
+	accepts, refusedAt, queryError := sessionNameAcceptor(rt)
 	if candidate := compose(tag); !accepts(candidate) {
+		if err := queryError(); err != nil {
+			fmt.Fprintf(stderr, "pair: %v; run the launch again to ask anew.\n", err)
+			return "", 1, false
+		}
 		// Quote the observation that made the decision. The old form asked a
 		// separate budget oracle whose fallback could CONTRADICT the probe --
 		// the candidate fits the guessed 24, sessionNameFits returns ok with an
@@ -1009,6 +1124,10 @@ func promptForTag(rt Runtime, prefill string, compose func(string) string, base 
 		} else if refusal, ok := refusedAt(); ok {
 			message = fmt.Sprintf("name '%s' needs %d bytes; zellij refuses names of %d bytes "+
 				"or more on this machine", candidate, len(candidate), refusal)
+		}
+		if err := queryError(); err != nil {
+			fmt.Fprintf(stderr, "pair: %v; run the launch again to ask anew.\n", err)
+			return "", 1, false
 		}
 		fmt.Fprintf(stderr, "pair: %s\n      pick a shorter name.\n", message)
 		return "", 1, false
@@ -1276,14 +1395,6 @@ func measureAcceptedLimit(accepts func(string) bool) (int, bool) {
 	return lo, true
 }
 
-// singleUseAcceptor is sessionNameAcceptor where the caller needs only the
-// predicate. Named rather than inlined so the discarded second value is a
-// deliberate choice at one site instead of an `_` repeated at several.
-func singleUseAcceptor(rt Runtime) func(string) bool {
-	accepts, _ := sessionNameAcceptor(rt)
-	return accepts
-}
-
 // sessionNameAcceptor answers "will zellij take this name" for a whole
 // assignment, in a number of probes bounded by the candidates' distinct LENGTHS
 // rather than by how many threads the repo has ever had.
@@ -1321,11 +1432,17 @@ func singleUseAcceptor(rt Runtime) func(string) bool {
 // "probe, then guess a budget" that can contradict it (ARCH-DRY, and the third
 // finding in the family that produced BR-1 and BR-11: an unmeasured number may
 // EXPLAIN a refusal but must never stand in for the observation).
-func sessionNameAcceptor(rt Runtime) (accepts func(string) bool, refusedAt func() (int, bool)) {
-	probe := func(n string) bool { return rt.ProbeSessionName(n) == nil }
+// queryError retains unanswered observations for the assignment, without
+// learning a length bound or issuing further probes. A new assignment starts fresh.
+func sessionNameAcceptor(rt Runtime) (accepts func(string) bool, refusedAt func() (int, bool), queryError func() error) {
+	var unanswered error
+	queryError = func() error { return unanswered }
 	longestOK, shortestBad := 0, 0
 	refusedAt = func() (int, bool) { return shortestBad, shortestBad > 0 }
 	accepts = func(name string) bool {
+		if unanswered != nil {
+			return false
+		}
 		n := len(name)
 		if longestOK > 0 && n <= longestOK {
 			return true
@@ -1333,16 +1450,21 @@ func sessionNameAcceptor(rt Runtime) (accepts func(string) bool, refusedAt func(
 		if shortestBad > 0 && n >= shortestBad {
 			return false
 		}
-		if probe(name) {
+		err := rt.ProbeSessionName(name)
+		if err == nil {
 			longestOK = n
 			return true
+		}
+		if !errors.Is(err, errSessionNameTooLong) {
+			unanswered = err
+			return false
 		}
 		if shortestBad == 0 || n < shortestBad {
 			shortestBad = n
 		}
 		return false
 	}
-	return accepts, refusedAt
+	return accepts, refusedAt, queryError
 }
 
 // sessionNameProbeMarker prefixes every calibration probe so the names cannot

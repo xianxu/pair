@@ -53,6 +53,7 @@ func TestSlotAcceptanceTwoSlotsRecoverIndependently(t *testing.T) {
 		t.Fatal(err)
 	}
 	env.Proc.Kill(actors[0].PID)
+	env.Artifacts.SetSessionPresence(actors[0].Thread, SessionObservation{State: SessionAbsent})
 	if err := os.WriteFile(firstPath, []byte("broken current metadata"), 0600); err != nil {
 		t.Fatal(err)
 	}

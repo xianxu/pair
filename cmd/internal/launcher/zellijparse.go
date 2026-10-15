@@ -35,6 +35,19 @@ func sessionNameRejected(out string) bool {
 	return strings.Contains(out, "session name must be less than")
 }
 
+// sessionNameAbsentDiagnostic recognizes post-parse action diagnostics from
+// Zellij 0.45.1. Its --session Clap validator runs before these branches.
+func sessionNameAbsentDiagnostic(session, stderr string) bool {
+	diagnostic := strings.TrimSpace(stderr)
+	if diagnostic == "There is no active session!" {
+		return true
+	}
+	heading := "Session '" + session + "' not found. The following sessions are active:\n"
+	active, ok := strings.CutPrefix(diagnostic, heading)
+	return ok && active != "" && !strings.ContainsAny(active, "\r\n") &&
+		active != "No active zellij sessions found." && !strings.HasPrefix(active, "Error occurred:")
+}
+
 // pairSessionNames extracts the Pair session names from `zellij
 // list-sessions --short` output — sorted + deduped, matching the shell's
 // `awk '/^pair-/' | sort` (list flow, shell 1235/232), widened to pair's
@@ -57,8 +70,8 @@ func pairSessionNames(short string) []string {
 // parseClientCount counts the clients attached to a session from `zellij
 // --session NAME action list-clients` output: a header line then one row per
 // client, so the count is the non-empty lines after the first (shell 292:
-// `tail -n +2 | wc -l`). Empty output (query failed / no session) → 0, treated
-// as detached. The single source of truth for both ListSessions and
+// `tail -n +2 | wc -l`). Callers must first establish a nonempty successful
+// reply; an unanswered query cannot prove detached. Shared by ListSessions and
 // ZellijSource.clientCount (ARCH-DRY).
 func parseClientCount(raw string) int {
 	lines := strings.Split(strings.TrimRight(raw, "\n"), "\n")

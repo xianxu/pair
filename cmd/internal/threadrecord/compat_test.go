@@ -65,9 +65,11 @@ func TestPreM4RecordsStillDecode(t *testing.T) {
 		RepoScope: func(string) error { return nil },
 		Tag:       func(string) error { return nil },
 	}
-	if err := Validate(record, validators); err != nil {
+	migrated, err := DecodePersisted([]byte(liveRecordV2), record.Address, validators)
+	if err != nil {
 		t.Fatalf("a record written before M4 no longer validates: %v", err)
 	}
+	record = migrated
 	if len(record.Incarnations) != 1 {
 		t.Fatalf("incarnations = %+v, want the one in the fixture", record.Incarnations)
 	}

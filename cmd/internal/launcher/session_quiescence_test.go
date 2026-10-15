@@ -18,11 +18,8 @@ type statefulSessionQuiescenceOps struct {
 	reuseBeforeKill bool
 	unrelatedKilled bool
 	probeErr        error
-	deleteErr       error
 	killErr         error
-	deleteCalls     int
 	killed          []int
-	reRegistrates   int
 }
 
 func (f *statefulSessionQuiescenceOps) SessionPresent(context.Context, string) (bool, error) {
@@ -38,22 +35,9 @@ func (f *statefulSessionQuiescenceOps) SessionServers(_ context.Context, session
 		if identity == "" {
 			identity = "start-a"
 		}
-		return []SessionServerIdentity{{PID: f.serverPID, Identity: identity, Session: session}}, nil
+		return []SessionServerIdentity{{PID: f.serverPID, Identity: identity, Session: session, Socket: "/tmp/" + session}}, nil
 	}
 	return nil, nil
-}
-
-func (f *statefulSessionQuiescenceOps) DeleteSessionRecord(context.Context, string) error {
-	f.deleteCalls++
-	if f.deleteErr != nil {
-		return f.deleteErr
-	}
-	f.present = false
-	if f.serverAlive {
-		f.present = true
-		f.reRegistrates++
-	}
-	return nil
 }
 
 func (f *statefulSessionQuiescenceOps) KillServer(server SessionServerIdentity) error {
@@ -68,6 +52,7 @@ func (f *statefulSessionQuiescenceOps) KillServer(server SessionServerIdentity) 
 	}
 	if server.PID == f.serverPID {
 		f.serverAlive = false
+		f.present = false
 	}
 	return nil
 }
@@ -82,6 +67,7 @@ func TestOSSessionKillReauthorizesExactProcessIdentity(t *testing.T) {
 		{name: "PID reused", identities: []string{"reused-start"}, command: "/opt/bin/zellij --server /tmp/pair-work"},
 		{name: "process execed away", identities: []string{"zellij-start"}, command: "/usr/bin/unrelated --worker"},
 		{name: "reuse during reauthorization", identities: []string{"zellij-start", "reused-start"}, command: "/opt/bin/zellij --server /tmp/pair-work"},
+		{name: "socket replaced", identities: []string{"zellij-start"}, command: "/opt/bin/zellij --server /other/pair-work"},
 		{name: "exact incarnation", identities: []string{"zellij-start"}, command: "/opt/bin/zellij --server /tmp/pair-work", wantKill: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -99,7 +85,7 @@ func TestOSSessionKillReauthorizesExactProcessIdentity(t *testing.T) {
 				processCommand: func(string) string { return tc.command },
 				killProcess:    func(int) error { killed = true; return nil },
 			}
-			if err := ops.KillServer(SessionServerIdentity{PID: 4242, Identity: "zellij-start", Session: "pair-work"}); err != nil {
+			if err := ops.KillServer(SessionServerIdentity{PID: 4242, Identity: "zellij-start", Session: "pair-work", Socket: "/tmp/pair-work"}); err != nil {
 				t.Fatal(err)
 			}
 			if killed != tc.wantKill {
@@ -109,7 +95,8 @@ func TestOSSessionKillReauthorizesExactProcessIdentity(t *testing.T) {
 	}
 }
 
-func TestOSRuntimeDeleteSessionProvesReRegisteringServerAbsent(t *testing.T) {
+func TestOSRuntimeDeleteSessionKillsExactServerWithoutDeletingLayout(t *testing.T) {
+	t.Setenv("ZELLIJ_SOCKET_DIR", filepath.Join(t.TempDir(), "absent"))
 	ops := &statefulSessionQuiescenceOps{present: true, serverPID: 4242, serverAlive: true}
 	rt := OSRuntime{
 		sessionQuiescence:  ops,
@@ -122,8 +109,8 @@ func TestOSRuntimeDeleteSessionProvesReRegisteringServerAbsent(t *testing.T) {
 	if ops.present || ops.serverAlive {
 		t.Fatalf("successful delete left state: %+v", ops)
 	}
-	if ops.reRegistrates != 1 || ops.deleteCalls < 2 || !reflect.DeepEqual(ops.killed, []int{4242}) {
-		t.Fatalf("re-registration lifecycle was not observed: %+v", ops)
+	if !reflect.DeepEqual(ops.killed, []int{4242}) {
+		t.Fatalf("quiescence missed exact server: %+v", ops)
 	}
 }
 
@@ -133,7 +120,7 @@ func TestDeleteSessionFailsClosedWhenAbsenceCannotBeObserved(t *testing.T) {
 		ops  *statefulSessionQuiescenceOps
 	}{
 		{name: "probe error", ops: &statefulSessionQuiescenceOps{probeErr: errors.New("zellij query unavailable")}},
-		{name: "delete error", ops: &statefulSessionQuiescenceOps{present: true, deleteErr: errors.New("delete refused")}},
+		{name: "present without attributable server", ops: &statefulSessionQuiescenceOps{present: true}},
 		{name: "kill error", ops: &statefulSessionQuiescenceOps{serverPID: 4242, serverAlive: true, killErr: errors.New("kill refused")}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -162,10 +149,6 @@ func (o *deadlineCaptureOps) SessionPresent(ctx context.Context, _ string) (bool
 func (o *deadlineCaptureOps) SessionServers(ctx context.Context, _ string) ([]SessionServerIdentity, error) {
 	o.capture(ctx)
 	return nil, nil
-}
-func (o *deadlineCaptureOps) DeleteSessionRecord(ctx context.Context, _ string) error {
-	o.capture(ctx)
-	return nil
 }
 func (*deadlineCaptureOps) KillServer(SessionServerIdentity) error { return nil }
 
@@ -229,5 +212,112 @@ func TestOSSessionQuiescenceEmptyInventory(t *testing.T) {
 				t.Fatalf("present=%v err=%v, want absent and error=%v", present, err, tc.wantError)
 			}
 		})
+	}
+}
+
+type replacingQuiescenceOps struct {
+	servers       []SessionServerIdentity
+	observations  int
+	beforeObserve func(*replacingQuiescenceOps)
+	killed        []SessionServerIdentity
+}
+
+func (o *replacingQuiescenceOps) SessionPresent(context.Context, string) (bool, error) {
+	return len(o.servers) > 0, nil
+}
+func (o *replacingQuiescenceOps) SessionServers(context.Context, string) ([]SessionServerIdentity, error) {
+	o.observations++
+	if o.beforeObserve != nil {
+		o.beforeObserve(o)
+	}
+	return append([]SessionServerIdentity(nil), o.servers...), nil
+}
+func (o *replacingQuiescenceOps) KillServer(s SessionServerIdentity) error {
+	o.killed = append(o.killed, s)
+	for i, x := range o.servers {
+		if x == s {
+			o.servers = append(o.servers[:i:i], o.servers[i+1:]...)
+			break
+		}
+	}
+	return nil
+}
+func TestQuiescenceRejectsContestedAndReplacementBeforeEffects(t *testing.T) {
+	a := SessionServerIdentity{PID: 1, Identity: "a", Session: "work", Socket: "/tmp/work"}
+	b := SessionServerIdentity{PID: 2, Identity: "b", Session: "work", Socket: "/tmp/work"}
+	for _, kind := range []string{"contested", "replacement", "same PID new start", "socket replaced", "unknown identity"} {
+		t.Run(kind, func(t *testing.T) {
+			o := &replacingQuiescenceOps{servers: []SessionServerIdentity{a}}
+			switch kind {
+			case "contested":
+				o.servers = append(o.servers, b)
+			default:
+				o.beforeObserve = func(o *replacingQuiescenceOps) {
+					if o.observations == 2 {
+						replacement := b
+						if kind == "same PID new start" {
+							replacement.PID = a.PID
+						}
+						if kind == "socket replaced" {
+							replacement = a
+							replacement.Socket = "/other/work"
+						}
+						if kind == "unknown identity" {
+							replacement = a
+							replacement.Identity = ""
+						}
+						o.servers = []SessionServerIdentity{replacement}
+					}
+				}
+			}
+			if err := quiesceZellijSession(context.Background(), "work", o, time.Second, time.Nanosecond); err == nil {
+				t.Fatal("unsafe quiescence succeeded")
+			}
+			if len(o.killed) != 0 {
+				t.Fatalf("unauthorized effects: kills=%v", o.killed)
+			}
+		})
+	}
+}
+
+func TestAuthorizedQuiescenceAllowsOnlyAttributedSnapshot(t *testing.T) {
+	a := SessionServerIdentity{PID: 1, Identity: "a", Session: "work", Socket: "/tmp/work"}
+	b := SessionServerIdentity{PID: 2, Identity: "b", Session: "work", Socket: "/other/work"}
+	o := &replacingQuiescenceOps{servers: []SessionServerIdentity{a, b}}
+	if err := quiesceAuthorizedSession(t.Context(), "work", []SessionServerIdentity{a, b}, o, time.Second, time.Nanosecond); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(o.killed, []SessionServerIdentity{a, b}) {
+		t.Fatalf("effects: kills=%v", o.killed)
+	}
+}
+
+func TestQuiescenceRefusesReplacementAfterAuthorizedKill(t *testing.T) {
+	a := SessionServerIdentity{PID: 1, Identity: "a", Session: "work", Socket: "/tmp/work"}
+	b := SessionServerIdentity{PID: 2, Identity: "b", Session: "work", Socket: "/tmp/work"}
+	o := &replacingQuiescenceOps{servers: []SessionServerIdentity{a}}
+	o.beforeObserve = func(o *replacingQuiescenceOps) {
+		if o.observations == 3 {
+			o.servers = []SessionServerIdentity{b}
+		}
+	}
+	if err := quiesceZellijSession(t.Context(), "work", o, time.Second, time.Nanosecond); err == nil {
+		t.Fatal("replacement must refuse")
+	}
+	if !reflect.DeepEqual(o.killed, []SessionServerIdentity{a}) {
+		t.Fatalf("effects: kills=%v", o.killed)
+	}
+}
+
+func TestOSSessionQuiescenceRetainsSavedLayout(t *testing.T) {
+	dir := t.TempDir()
+	stub := "#!/bin/sh\nprintf '%s\\n' 'pair-fixture [Created 1m ago] (EXITED - attach to resurrect)'\n"
+	if err := os.WriteFile(filepath.Join(dir, "zellij"), []byte(stub), 0755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", dir)
+	present, err := (osSessionQuiescenceOps{}).SessionPresent(t.Context(), "pair-fixture")
+	if err != nil || present {
+		t.Fatalf("saved layout counted as live: present=%v err=%v", present, err)
 	}
 }

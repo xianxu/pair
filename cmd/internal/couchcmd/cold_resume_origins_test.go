@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
@@ -38,7 +39,7 @@ type dispatchedCall struct {
 	err  error
 }
 
-func newColdResumeRig(t *testing.T) *coldResumeRig {
+func newColdResumeRig(t *testing.T, configure ...func(*couchtty.Console)) *coldResumeRig {
 	t.Helper()
 	root, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {
@@ -57,6 +58,8 @@ func newColdResumeRig(t *testing.T) *coldResumeRig {
 		// up and owned.
 		rt.artifacts.SetPaneSidecar(parked.Address, "claude")
 		rt.artifacts.SetPairSession(parked.Address, managedChildSession(t, rt.runner, id), true)
+		// Registration and a helper PID alone do not prove an interactive agent.
+		rt.artifacts.SetSessionPresence(parked.Address, couchcore.SessionObservation{State: couchcore.SessionPresent})
 		return nil
 	}
 	c, err := rt.NewCouch()
@@ -70,6 +73,8 @@ func newColdResumeRig(t *testing.T) *coldResumeRig {
 	if err := c.Threads.EnrollSlotRepository(context.Background(), couchcore.SlotRepository{Identity: identity}); err != nil {
 		t.Fatal(err)
 	}
+	// This rig starts with an already open console: the parked ordinary slot
+	// is resumed only by the menu or remote action exercised below.
 	host := hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 100})
 	reader, input := io.Pipe()
 	t.Cleanup(func() { _ = reader.Close(); _ = input.Close() })
@@ -89,6 +94,9 @@ func newColdResumeRig(t *testing.T) *coldResumeRig {
 		r.calls <- dispatchedCall{call, err}
 		return value, err
 	})
+	for _, setup := range configure {
+		setup(console)
+	}
 	done := make(chan int, 1)
 	go func() { done <- console.Run() }()
 	t.Cleanup(func() {
@@ -109,6 +117,8 @@ func newColdResumeRig(t *testing.T) *coldResumeRig {
 func (r *coldResumeRig) awaitResumeAndAttach(t *testing.T) couchcore.OperationCall {
 	t.Helper()
 	var resume couchcore.OperationCall
+	timeout := time.NewTimer(min(30*time.Second, testwait.Budget(t)))
+	defer timeout.Stop()
 	for {
 		select {
 		case d := <-r.calls:
@@ -121,7 +131,7 @@ func (r *coldResumeRig) awaitResumeAndAttach(t *testing.T) couchcore.OperationCa
 			if d.call.Name == "attach" {
 				return resume
 			}
-		case <-testwait.After(t):
+		case <-timeout.C:
 			t.Fatalf("no resume and attach: %s", r.host.Written())
 		}
 	}
@@ -161,16 +171,36 @@ func (r *coldResumeRig) assertRegisteredLive(t *testing.T) {
 // live slot (pair#367 smoke test, tools:0).
 func TestColdResumeOfAParkedPrimaryRegistersFromBothOrigins(t *testing.T) {
 	t.Run("switcher", func(t *testing.T) {
-		r := newColdResumeRig(t)
+		inventory := make(chan struct{})
+		r := newColdResumeRig(t, func(console *couchtty.Console) {
+			provider := console.ActionableProvider()
+			console.SetActionableProvider(func(ctx context.Context, observations []couchcore.LiveTTYObservation) ([]couchcore.ActionableThreadSummary, error) {
+				select {
+				case <-inventory:
+					return provider(ctx, observations)
+				case <-ctx.Done():
+					return nil, ctx.Err()
+				}
+			})
+		})
 		if _, err := r.input.Write([]byte{0}); err != nil {
 			t.Fatal(err)
 		}
-		// The header paints before the first inventory lands; Enter on that
-		// empty menu is "no selection". Wait for the parked row itself (pair#436);
-		// its long temp path is truncated, so match its state.
-		waitWarmAcceptance(t, "switcher row", func() bool {
-			return strings.Contains(r.host.Written(), "threads") && strings.Contains(r.host.Written(), "parked ·")
+		// Force the load-dependent ordering from #423: the header is visible,
+		// but the real provider cannot publish a row yet. The predicate used
+		// before Enter must reject this frame (#436), regardless of scheduling.
+		waitWarmAcceptance(t, "switcher header", func() bool {
+			return strings.Contains(r.host.Written(), "threads")
 		})
+		rowReady := func() bool {
+			return strings.Contains(r.host.Written(), "threads") && strings.Contains(r.host.Written(), "Resume from disk")
+		}
+		if rowReady() {
+			t.Fatal("Enter readiness accepted the header before inventory was released")
+		}
+		close(inventory)
+		// The long temp path is truncated, so match the explicit outcome label.
+		waitWarmAcceptance(t, "switcher row", rowReady)
 		if _, err := r.input.Write([]byte{'\r'}); err != nil {
 			t.Fatal(err)
 		}

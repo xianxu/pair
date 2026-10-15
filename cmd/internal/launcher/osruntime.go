@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"github.com/xianxu/pair/cmd/internal/storagegc"
 	"github.com/xianxu/pair/cmd/internal/zellijsession"
+	"golang.org/x/sys/unix"
 	"io"
 	"os"
 	"os/exec"
@@ -42,6 +43,7 @@ type OSRuntime struct {
 	DataDir       string
 	GlobalDataDir string
 	PairHome      string
+	Processes     procutil.Source
 
 	sessionQuiescence  sessionQuiescenceOps
 	sessionQuiesceWait time.Duration
@@ -55,6 +57,28 @@ func NewOSRuntime(dataDir, pairHome string) *OSRuntime {
 
 func NewScopedOSRuntime(globalDataDir, dataDir, pairHome string) *OSRuntime {
 	return &OSRuntime{DataDir: dataDir, GlobalDataDir: globalDataDir, PairHome: pairHome}
+}
+
+// Touch ensures an ordinary draft/marker exists without opening a FIFO or
+// following a substituted symlink. It preserves existing regular-file bytes.
+func (r OSRuntime) Touch(path string) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return err
+	}
+	fd, err := unix.Open(path, unix.O_WRONLY|unix.O_CREAT|unix.O_NONBLOCK|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0644)
+	if err != nil {
+		return err
+	}
+	file := os.NewFile(uintptr(fd), path)
+	defer file.Close()
+	info, err := file.Stat()
+	if err != nil {
+		return err
+	}
+	if !info.Mode().IsRegular() {
+		return &osfs.InvalidMetadataError{Path: path, Kind: osfs.MetadataNotRegular}
+	}
+	return file.Close()
 }
 
 func (r OSRuntime) StartProofMigration() {
@@ -93,23 +117,16 @@ func (OSRuntime) SessionLiveness() ([]Session, error) {
 }
 
 func (OSRuntime) SessionBlocksReuse(session string) bool {
-	present, exited := zellijsession.RowState(zj("list-sessions", "--no-formatting"), session)
-	if !present {
-		return false // no such session — reuse is free.
+	ctx, cancel := context.WithTimeout(context.Background(), zjTimeout)
+	defer cancel()
+	raw, err := (ZellijSource{}).runContext(ctx, "list-sessions", "--no-formatting")
+	if err != nil {
+		return true
 	}
-	if exited {
-		// Stale resurrect residue (#67): delete it and report reusable.
-		//
-		// The delete goes through DeleteSession rather than a `zj` call inlined
-		// here (#130). It used to be inlined, which put the only destructive act
-		// in this flow BELOW the Runtime seam — invisible to the fake, so a test
-		// asserting "a foreign session is never deleted" could pass while the
-		// hazard sat untouched. Routing it through the seam makes the deletion
-		// observable by construction.
-		_ = OSRuntime{}.DeleteSession(session)
-		return false
-	}
-	return true // running/detached — still occupied.
+	present, _ := zellijsession.RowState(string(raw), session)
+	// A saved layout remains evidence. Reuse never deletes it implicitly;
+	// legacy recovery creates a new terminal name after resolving ownership.
+	return present
 }
 
 // ProbeSessionName asks zellij whether it accepts session's length, at the cost
@@ -118,23 +135,31 @@ func (OSRuntime) SessionBlocksReuse(session string) bool {
 func (OSRuntime) ProbeSessionName(session string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), zjTimeout)
 	defer cancel()
-	out, err := exec.CommandContext(ctx, "zellij", "--session", session, "action", "list-clients").CombinedOutput()
-	if sessionNameRejected(string(out)) {
-		return fmt.Errorf("session name too long: %s", session)
+	cmd := exec.CommandContext(ctx, "zellij", "--session", session, "action", "list-clients")
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &stdout, &stderr
+	err := cmd.Run()
+	if ctx.Err() != nil {
+		return fmt.Errorf("could not ask zellij about session name %q: %w", session, ctx.Err())
 	}
-	// A FAILED observation is not a positive one. Discarding err meant a zellij
-	// that is missing, killed, or past zjTimeout produced empty output,
-	// sessionNameRejected("") said false, and the name read as ACCEPTED. Since
-	// #215 that is worse than one bad answer: acceptance is monotone, so the
-	// bracket generalises a single failed observation to every name of that
-	// length or shorter, arithmetically and without asking again. A timeout here
-	// is reachable under exactly the load this issue is about (zjTimeout is 5s,
-	// and a `zellij action` round-trip was measured at 467ms under load, #203).
-	//
-	// Empty output with a non-zero exit is the tell: zellij that ran and refused
-	// says so on stderr, which CombinedOutput captures.
-	if err != nil && len(bytes.TrimSpace(out)) == 0 {
+	out := append(stdout.Bytes(), stderr.Bytes()...)
+	if sessionNameRejected(string(out)) {
+		return fmt.Errorf("%w: %s", errSessionNameTooLong, session)
+	}
+	if err != nil {
+		// Clap validates --session before action dispatch. These exact
+		// post-parse absence diagnostics prove length acceptance only.
+		var exit *exec.ExitError
+		if errors.As(err, &exit) && exit.ExitCode() == 1 && stdout.Len() == 0 &&
+			sessionNameAbsentDiagnostic(session, stderr.String()) {
+			return nil
+		}
 		return fmt.Errorf("could not ask zellij about session name %q: %w", session, err)
+	}
+	// Empty success after an early unblock is unanswered. Neither failed IO
+	// nor unrelated stderr may teach the assignment's monotone length bounds.
+	if len(bytes.TrimSpace(stdout.Bytes())) == 0 {
+		return fmt.Errorf("could not ask zellij about session name %q: %w", session, ErrZellijNoReply)
 	}
 	return nil
 }
@@ -142,11 +167,8 @@ func (OSRuntime) ProbeSessionName(session string) error {
 // LaunchSession is the BLOCKING fork+wait handoff (NOT syscall.Exec): the tty is
 // passed straight through and the Go launcher regains control on pane exit.
 // Cancelling ctx ends the client (#288): see killOnCancel.
-func (OSRuntime) LaunchSession(ctx context.Context, session, configDir, layout string) (int, error) {
-	return runBlockingHandoff(killOnCancel(exec.CommandContext(ctx, "zellij",
-		"--config-dir", configDir,
-		"--new-session-with-layout", layout,
-		"--session", session)))
+func (r OSRuntime) LaunchSession(ctx context.Context, session, configDir, layout string) (int, error) {
+	return r.runTerminalHandoff(ctx, session, configDir, layout, true)
 }
 
 // clientKillGrace is how long a cancelled client gets to exit on SIGTERM
@@ -168,8 +190,8 @@ func killOnCancel(cmd *exec.Cmd) *exec.Cmd {
 func (OSRuntime) ProbeLiveLayout(session string) (LayoutMode, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), zjTimeout)
 	defer cancel()
-	out, err := exec.CommandContext(ctx, "zellij", "--session", session, "action",
-		"list-panes", "--json", "--command", "--state").Output()
+	out, err := (ZellijSource{}).runContext(ctx, "--session", session, "action",
+		"list-panes", "--json", "--command", "--state")
 	if err != nil {
 		return "", err
 	}
@@ -219,8 +241,16 @@ func (r OSRuntime) ListSessions() ([]ListRow, error) {
 	if _, err := exec.LookPath("zellij"); err != nil {
 		return nil, fmt.Errorf("zellij not found on PATH") // shell 231-234
 	}
-	raw := zj("list-sessions", "--no-formatting")
-	names := pairSessionNames(zj("list-sessions", "--short"))
+	source := ZellijSource{}
+	raw, err := source.run("list-sessions", "--no-formatting")
+	if err != nil {
+		return nil, err
+	}
+	short, err := source.run("list-sessions", "--short")
+	if err != nil {
+		return nil, err
+	}
+	names := pairSessionNames(string(short))
 	index, err := r.ReadSessionNameIndex()
 	if err != nil {
 		return nil, fmt.Errorf("read session-name index: %w", err)
@@ -228,9 +258,19 @@ func (r OSRuntime) ListSessions() ([]ListRow, error) {
 	// One list-clients per pair session, deliberately: each row renders
 	// "attached (N clients)", so every count IS the output: a justified full
 	// scan, like bare pair's picker (pair#228).
-	return buildListRowsForScope(names, raw, index, scopeKeyFromDataDir(r.GlobalDataDir, r.DataDir), r.InferAgent, func(session string) int {
-		return parseClientCount(zj("--session", session, "action", "list-clients"))
-	}), nil
+	var queryErr error
+	rows := buildListRowsForScope(names, string(raw), index, scopeKeyFromDataDir(r.GlobalDataDir, r.DataDir), r.InferAgent, func(session string) int {
+		if queryErr != nil {
+			return 0
+		}
+		var count int
+		count, queryErr = source.clientCountContext(context.Background(), session)
+		return count
+	})
+	if queryErr != nil {
+		return nil, queryErr
+	}
+	return rows, nil
 }
 
 // --- ContinuationOps -------------------------------------------------------
@@ -469,8 +509,8 @@ func (OSRuntime) SetEnv(key, value string) { _ = os.Setenv(key, value) }
 
 // InZellijPane walks the PPID chain looking for a zellij ancestor — the ground
 // truth (env vars leak across cmux panes, so $ZELLIJ can't be trusted).
-func (OSRuntime) InZellijPane() bool {
-	rows, err := procutil.Table()
+func (r OSRuntime) InZellijPane() bool {
+	rows, err := r.Processes.Table()
 	return err == nil && hasProcessAncestor(rows, os.Getpid(), "zellij")
 }
 
@@ -569,10 +609,6 @@ func (OSRuntime) MintUUID() string {
 
 // --- ReadinessOps ----------------------------------------------------------
 
-func (r OSRuntime) RemoveReadyRecord(tag, agent string) {
-	r.Remove(AgentReadyPath(r.DataDir, tag, agent))
-}
-
 func (OSRuntime) MintLaunchNonce() string {
 	var b [16]byte
 	if _, err := rand.Read(b[:]); err != nil {
@@ -640,13 +676,17 @@ func (r OSRuntime) InferAgent(tag string) string {
 	if pathErr != nil {
 		return ""
 	}
-	if entries, err := r.ReadLedger(tag); err == nil {
+	// Agent inference is presentation metadata, not native resume authority.
+	// Read only local bounded records; resolving typed native targets here
+	// would make an optional context meter delay a selected terminal attach.
+	if raw, err := osfs.ReadRegularMetadata(context.Background(), paths.Ledger(), 4*1024*1024); err == nil {
+		entries := parseLedger(string(raw), func(sessionledger.Current) sessioninventory.ResumeTarget { return sessioninventory.ResumeTarget{} })
 		if latest, ok := LatestLedgerEntry(entries); ok && latest.Agent != "" {
 			return latest.Agent
 		}
 	}
-	if raw, err := r.ReadFile(paths.Agent()); err == nil {
-		if a := strings.TrimSpace(raw); a != "" {
+	if raw, err := osfs.ReadRegularMetadata(context.Background(), paths.Agent(), 4096); err == nil {
+		if a := strings.TrimSpace(string(raw)); a != "" {
 			return a
 		}
 	}
@@ -780,8 +820,8 @@ func (r OSRuntime) EstablishedSessionID(scopeKey, tag, agent string) (string, se
 // --- LifecycleOps ----------------------------------------------------------
 
 // AttachSession is the BLOCKING attach twin of LaunchSession.
-func (OSRuntime) AttachSession(session, configDir string) (int, error) {
-	return runBlockingHandoff(exec.Command("zellij", "--config-dir", configDir, "attach", session))
+func (r OSRuntime) AttachSession(session, configDir string) (int, error) {
+	return r.runTerminalHandoff(context.Background(), session, configDir, "", false)
 }
 
 // restartMarkerPath and quitMarkerPath keep compatibility cache paths behind
@@ -855,10 +895,9 @@ func (OSRuntime) ExecKillSession(session string) error {
 	return syscall.Exec(path, argv, os.Environ())
 }
 
-// DeleteSession returns success only after both the exact session record and
-// every exact server process are observed absent. A lingering server can
-// re-register the record after delete-session, so attempted deletion alone is
-// not quiescence evidence.
+// DeleteSession returns success only after the authorized server generations
+// and live session are observed absent. Saved layouts are retained; their
+// existence is not evidence of a running terminal.
 func (r OSRuntime) DeleteSession(session string) error {
 	return r.DeleteSessionContext(context.Background(), session)
 }
@@ -911,7 +950,7 @@ func (r OSRuntime) SweepOrphanNvim(liveTags []string) {
 			}
 		}
 	}
-	if rows, err := procutil.Snapshot(context.Background()); err == nil {
+	if rows, err := r.Processes.Snapshot(context.Background()); err == nil {
 		for _, row := range rows {
 			if row.Err != nil {
 				continue
@@ -937,7 +976,13 @@ func (r OSRuntime) SweepOrphanNvim(liveTags []string) {
 // touches parked-<tag> (shell 696-708). The timestamp is taken here (time.Now is
 // live in OSRuntime, unlike a pure decider).
 func (r OSRuntime) ParkScrollback(tag, agent string, move bool) (string, bool) {
-	lease, err := storagegc.AcquireSelectedProcess(context.Background(), func(key string) string {
+	return r.ParkScrollbackContext(context.Background(), tag, agent, move)
+}
+func (r OSRuntime) ParkScrollbackContext(ctx context.Context, tag, agent string, move bool) (string, bool) {
+	if ctx == nil || ctx.Err() != nil {
+		return "", false
+	}
+	lease, err := storagegc.AcquireSelectedProcess(ctx, func(key string) string {
 		switch key {
 		case "PAIR_DATA_DIR":
 			return r.DataDir
@@ -961,11 +1006,33 @@ func (r OSRuntime) ParkScrollback(tag, agent string, move bool) (string, bool) {
 	if size, ok := r.FileSize(scrollback.Raw); !ok || size == 0 {
 		return "", false
 	}
+	// Capture provenance must be checked against the source generation before
+	// transfer changes its file IDs. Missing historical evidence stays legacy.
+	witness, err := storagegc.ReadCaptureWitness(ctx, scrollback.Raw, scrollback.Events)
+	skipEvents := false
+	if err != nil {
+		// Optional unreadable events must not discard usable raw history. Keep
+		// that capture explicitly uncertified; malformed authority still refuses.
+		var pathError *os.PathError
+		var invalid *osfs.InvalidMetadataError
+		unreadableType := errors.As(err, &invalid) && invalid.Kind == osfs.MetadataNotRegular
+		if !errors.As(err, &pathError) && !unreadableType {
+			return "", false
+		}
+		witness = nil
+		skipEvents = true
+	}
+	if witness != nil && (witness.ScopeKey != lease.Owner.RepoScope || witness.Tag != tag || witness.Agent != agent) {
+		return "", false
+	}
 	// Exclusive destination creation protects earlier captures, including concurrent
 	// parks and copies in the same second. The suffix remains a family component.
 	capturedAt := time.Now()
 	stamp := capturedAt.Format("20060102T150405")
 	for collision := 0; ; collision++ {
+		if ctx.Err() != nil {
+			return "", false
+		}
 		token := stamp
 		if collision > 0 {
 			token = fmt.Sprintf("%s-%d", stamp, collision)
@@ -985,7 +1052,12 @@ func (r OSRuntime) ParkScrollback(tag, agent string, move bool) (string, bool) {
 		} else if !errors.Is(err, os.ErrNotExist) {
 			return "", false
 		}
-		err = transferFile(scrollback.Raw, parked.Raw, move)
+		var rawID, eventsID *artifactpath.CaptureFileID
+		if witness != nil {
+			rawID = &witness.RawFile
+			eventsID = &witness.EventsFile
+		}
+		err = transferFileContext(ctx, scrollback.Raw, parked.Raw, move, rawID)
 		if errors.Is(err, os.ErrExist) {
 			continue
 		}
@@ -996,7 +1068,11 @@ func (r OSRuntime) ParkScrollback(tag, agent string, move bool) (string, bool) {
 		// only retention metadata uses canonical physical paths.
 		selectedBase := filepath.Join(r.DataDir, filepath.Base(parked.Base))
 		// Events are optional; failed copies remove their incomplete destination.
-		_ = transferFile(scrollback.Events, parked.Events, move)
+		if !skipEvents {
+			if err := transferFileContext(ctx, scrollback.Events, parked.Events, move, eventsID); err != nil {
+				witness = nil
+			}
+		}
 		member, err := artifactpath.MatchArtifact(parked.Raw, []artifactpath.StorageOwner{lease.Owner}, nil)
 		if err != nil {
 			return selectedBase, false
@@ -1005,7 +1081,7 @@ func (r OSRuntime) ParkScrollback(tag, agent string, move bool) (string, bool) {
 		if err != nil {
 			return selectedBase, false
 		}
-		if err := lease.Coordinator.PublishCaptureMetadata(context.Background(), lease.Owner, capture, capturedAt); err != nil {
+		if err := lease.Coordinator.PublishCaptureMetadata(ctx, lease.Owner, capture, capturedAt, witness); err != nil {
 			return selectedBase, false
 		}
 		_ = r.Touch(paths.Parked())
@@ -1015,17 +1091,52 @@ func (r OSRuntime) ParkScrollback(tag, agent string, move bool) (string, bool) {
 
 // transferFile streams to an exclusive destination and only removes the source
 // after the complete capture has been synced and closed.
-func transferFile(src, dst string, move bool) error {
-	source, err := os.Open(src)
+func transferFile(src, dst string, move bool, expected ...*artifactpath.CaptureFileID) error {
+	return transferFileContext(context.Background(), src, dst, move, expected...)
+}
+func transferFileContext(ctx context.Context, src, dst string, move bool, expected ...*artifactpath.CaptureFileID) error {
+	if ctx == nil {
+		return errors.New("capture transfer requires context")
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if len(expected) > 1 {
+		return errors.New("multiple expected capture identities")
+	}
+	source, err := os.OpenFile(src, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
 	if err != nil {
 		return err
 	}
 	defer source.Close()
+	before, err := source.Stat()
+	if err != nil {
+		return err
+	}
+	native, ok := before.Sys().(*syscall.Stat_t)
+	if !ok || !before.Mode().IsRegular() {
+		return errors.New("capture source must be regular")
+	}
+	if len(expected) == 1 && expected[0] != nil && *expected[0] != (artifactpath.CaptureFileID{Device: uint64(native.Dev), Inode: uint64(native.Ino)}) {
+		return errors.New("capture source generation changed before transfer")
+	}
 	destination, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
 	if err != nil {
 		return err
 	}
-	_, copyErr := io.Copy(destination, source)
+	_, copyErr := io.CopyN(destination, captureContextReader{ctx: ctx, reader: source}, before.Size())
+	if copyErr == nil {
+		copyErr = ctx.Err()
+	}
+	if copyErr == nil {
+		after, e := source.Stat()
+		current, e2 := os.Lstat(src)
+		if e != nil || e2 != nil {
+			copyErr = errors.Join(e, e2)
+		} else if !current.Mode().IsRegular() || !os.SameFile(before, current) || !os.SameFile(before, after) || before.Size() != after.Size() || before.Size() != current.Size() || !before.ModTime().Equal(after.ModTime()) || !before.ModTime().Equal(current.ModTime()) {
+			copyErr = errors.New("capture source changed during transfer")
+		}
+	}
 	if copyErr == nil {
 		copyErr = destination.Sync()
 	}
@@ -1038,6 +1149,18 @@ func transferFile(src, dst string, move bool) error {
 		return os.Remove(src)
 	}
 	return nil
+}
+
+type captureContextReader struct {
+	ctx    context.Context
+	reader io.Reader
+}
+
+func (r captureContextReader) Read(p []byte) (int, error) {
+	if err := r.ctx.Err(); err != nil {
+		return 0, err
+	}
+	return r.reader.Read(p)
 }
 
 // ConfirmParkNudge shows the [y/N] preserve prompt on /dev/tty, bounded by
@@ -1084,8 +1207,8 @@ func (r OSRuntime) KillTitlePoller(tag string) {
 		return
 	}
 	pf := paths.TitlePID()
-	if raw, err := r.ReadFile(pf); err == nil {
-		if pid := strings.TrimSpace(raw); pid != "" {
+	if raw, err := osfs.ReadRegularMetadata(context.Background(), pf, 4096); err == nil {
+		if pid := strings.TrimSpace(string(raw)); pid != "" {
 			_ = exec.Command("kill", pid).Run()
 		}
 		r.Remove(pf)

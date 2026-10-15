@@ -84,6 +84,17 @@ func (c *Console) EnqueueRemoteOperationDeadline(key, op string, deadline time.T
 			}
 			call.Implicit, call.Context = true, ctx
 			remote.call = call
+			// A repeated resume can reuse this console's actual pane. A live
+			// registry PID alone cannot prove ownership of its terminal handle.
+			if call.Name == "resume" && call.Args["candidate"] == "" {
+				c.mu.Lock()
+				address, known := remoteOperationAddress(c.menu, remote)
+				attached := known && c.switchTargetForAddressLocked(address) != ""
+				c.mu.Unlock()
+				if attached {
+					return address, nil
+				}
+			}
 			operating := time.Now()
 			value, err = fn(call)
 			operated = time.Since(operating)

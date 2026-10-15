@@ -189,6 +189,20 @@ func (s *Server) serve(conn net.Conn) {
 	if strictjson.Decode(raw, &value) != nil {
 		return
 	}
+	if requestIsRecoveryPreview(raw) {
+		cancel()
+		ctx, cancel = context.WithTimeout(s.ctx, RecoveryPreviewTimeout)
+		defer cancel()
+		deadline, _ = ctx.Deadline()
+		if err := conn.SetDeadline(deadline); err != nil {
+			return
+		}
+		// One request owns this connection. EOF propagates caller cancellation
+		// into the bounded scan instead of leaving it running after disconnect.
+		gone := make(chan struct{})
+		go func() { defer close(gone); var extra [1]byte; _, _ = conn.Read(extra[:]); cancel() }()
+		defer func() { conn.Close(); <-gone }()
+	}
 	response, err := s.handler(ctx, raw)
 	if err != nil || ctx.Err() != nil {
 		return
@@ -220,7 +234,12 @@ func (s *Server) Close() error {
 // Call performs exactly one exchange. A failed call can have been admitted by
 // the remote handler; callers must query their request ID rather than retry it.
 func Call(ctx context.Context, socket string, request any, response any) error {
-	ctx, cancel := context.WithTimeout(ctx, TransportTimeout)
+	timeout := TransportTimeout
+	encoded, encodeErr := json.Marshal(request)
+	if encodeErr == nil && requestIsRecoveryPreview(encoded) {
+		timeout = RecoveryPreviewTimeout
+	}
+	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	if err := ctx.Err(); err != nil {
 		return err
@@ -306,4 +325,13 @@ func transportWriteFrame(out io.Writer, body []byte) error {
 		return io.ErrShortWrite
 	}
 	return nil
+}
+
+// Recovery preview is read-only and owns a bounded transcript scan. Frame
+// reception retains the ordinary timeout; only its handler gets the scan bound.
+const RecoveryPreviewTimeout = 35 * time.Second
+
+func requestIsRecoveryPreview(raw []byte) bool {
+	var request Request
+	return json.Unmarshal(raw, &request) == nil && request.Op == "resume-candidates" && ValidateRequest(request) == nil
 }

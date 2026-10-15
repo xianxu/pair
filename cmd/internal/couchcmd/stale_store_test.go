@@ -84,8 +84,8 @@ func TestIsolatedSmokeEnvironmentProtectsAmbientRegistry(t *testing.T) {
 	if err != nil {
 		t.Fatalf("isolated child: %v\n%s", err, output)
 	}
-	if !strings.Contains(string(output), "isolated registration verified") {
-		t.Fatalf("child did not verify registration: %s", output)
+	if !strings.Contains(string(output), "isolated read-only listing verified") {
+		t.Fatalf("child did not verify read-only listing: %s", output)
 	}
 	after, err := os.ReadFile(registryPath)
 	if err != nil || !bytes.Equal(before, after) {
@@ -125,19 +125,23 @@ func TestIsolatedSmokeListChild(t *testing.T) {
 		t.Fatal("roots do not agree")
 	}
 	seedIsolatedCouchSelection(t)
+	registryPath := filepath.Join(root, ".retention", "stores.json")
+	before, beforeErr := os.ReadFile(registryPath)
+	if beforeErr != nil && !os.IsNotExist(beforeErr) {
+		t.Fatal(beforeErr)
+	}
 	var out, stderr bytes.Buffer
 	if code := Run([]string{"--list"}, strings.NewReader(""), &out, &stderr); code != 0 {
 		t.Fatalf("list: %d %s", code, stderr.String())
 	}
-	c, err := storagegc.NewCoordinator(root)
-	if err != nil {
-		t.Fatal(err)
+	after, afterErr := os.ReadFile(registryPath)
+	if afterErr != nil && !os.IsNotExist(afterErr) {
+		t.Fatal(afterErr)
 	}
-	registry, err := c.ReadRegistry()
-	if err != nil || len(registry.Stores) == 0 {
-		t.Fatalf("isolated store not registered: %+v %v", registry, err)
+	if os.IsNotExist(beforeErr) != os.IsNotExist(afterErr) || !bytes.Equal(before, after) {
+		t.Fatalf("read-only listing changed retention registration: before=%q (%v), after=%q (%v)", before, beforeErr, after, afterErr)
 	}
-	t.Log("isolated registration verified")
+	t.Log("isolated read-only listing verified")
 }
 
 // Actual-process fixtures must opt into a confined authority; HOME alone does

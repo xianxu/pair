@@ -262,7 +262,7 @@ func (f *fakeRuntime) ProbeSessionName(session string) error {
 		return f.probeErr
 	}
 	if f.maxSessionNameBytes > 0 && len(session) > f.maxSessionNameBytes {
-		return fmt.Errorf("session name too long")
+		return errSessionNameTooLong
 	}
 	return nil
 }
@@ -465,9 +465,6 @@ func TestAssignLaunchSessionNamesRefusesUnreadableIndex(t *testing.T) {
 	}
 }
 
-func (f *fakeRuntime) RemoveReadyRecord(tag, agent string) {
-	f.Remove(AgentReadyPath("/data", tag, agent))
-}
 func (f *fakeRuntime) MintLaunchNonce() string { return "fake-launch-nonce" }
 func (f *fakeRuntime) WaitReadyRecord(expect ReadyExpectation, timeout time.Duration) (readiness.ReadyRecord, error) {
 	if f.readyErr != nil {

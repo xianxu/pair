@@ -1,6 +1,7 @@
 package couchcore
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,8 +14,12 @@ import (
 // slotRepositoryManifest retains locations and their independently verified
 // common-directory authority in one snapshot. Older stores may lack authority.
 func (s *ThreadStore) slotRepositoryManifest() (threadManifest, error) {
+	return s.slotRepositoryManifestContext(context.Background())
+}
+
+func (s *ThreadStore) slotRepositoryManifestContext(ctx context.Context) (threadManifest, error) {
 	var snapshot threadManifest
-	err := s.withLock(func() error { manifest, _, _, err := s.loadManifestLocked(); snapshot = manifest; return err })
+	err := s.withReadLockContext(ctx, func() error { manifest, _, _, err := s.loadManifestLockedContext(ctx); snapshot = manifest; return err })
 	return snapshot, err
 }
 
@@ -185,13 +190,20 @@ func (s *ThreadStore) storeForPath(physicalPath, scope, commonGit string) (*Thre
 }
 
 func (s *ThreadStore) storeForAddress(address ThreadAddress) (*ThreadStore, error) {
+	return s.storeForAddressContext(context.Background(), address)
+}
+
+func (s *ThreadStore) storeForAddressContext(ctx context.Context, address ThreadAddress) (*ThreadStore, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if err := validateThreadAddress(address); err != nil {
 		return nil, err
 	}
 	if s.layout.Local {
 		return s, nil
 	}
-	manifest, err := s.slotRepositoryManifest()
+	manifest, err := s.slotRepositoryManifestContext(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -201,10 +213,10 @@ func (s *ThreadStore) storeForAddress(address ThreadAddress) (*ThreadStore, erro
 	// A valid ordinary record proves its own global storage origin, independent
 	// of damage in some other slot's local metadata.
 	var legacy ThreadRecord
-	legacyErr := s.withLock(func() error {
-		raw, err := os.ReadFile(s.recordPath(address))
+	legacyErr := s.withReadLockContext(ctx, func() error {
+		raw, err := s.readPayloadContext(ctx, s.recordPath(address))
 		if errors.Is(err, os.ErrNotExist) {
-			raw, err = s.readRetentionFile(s.archivePath(address))
+			raw, err = s.readRetentionFileContext(ctx, s.archivePath(address))
 		}
 		if err != nil {
 			return err
@@ -215,14 +227,23 @@ func (s *ThreadStore) storeForAddress(address ThreadAddress) (*ThreadStore, erro
 	if legacyErr == nil && !recordInSlotRepositories(legacy, manifest) {
 		return s, nil
 	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	stores, err := s.discoveredBackendsFromManifest(manifest)
 	if err != nil {
+		return nil, err
+	}
+	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 	var found *ThreadStore
 	var damaged error
 	var explicitCollision bool
 	for _, local := range stores {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		// Missing .couch is a visible recovery row, not permission to create state
 		// merely because somebody looked up an unrelated tag.
 		if _, err := os.Lstat(local.root); errors.Is(err, os.ErrNotExist) {
@@ -231,12 +252,12 @@ func (s *ThreadStore) storeForAddress(address ThreadAddress) (*ThreadStore, erro
 			return nil, err
 		}
 		matched := false
-		err := local.withLock(func() error {
-			manifest, _, _, err := local.loadManifestLocked()
+		err := local.withReadLockContext(ctx, func() error {
+			manifest, _, _, err := local.loadManifestLockedContext(ctx)
 			if err != nil {
 				// A readable address in a damaged envelope is collision evidence,
 				// never permission to load or mutate that conversation.
-				if raw, readErr := local.readRetentionFile(local.recordPath(address)); readErr == nil {
+				if raw, readErr := local.readRetentionFileContext(ctx, local.recordPath(address)); readErr == nil {
 					var envelope struct {
 						Address ThreadAddress `json:"address"`
 					}
@@ -248,7 +269,7 @@ func (s *ThreadStore) storeForAddress(address ThreadAddress) (*ThreadStore, erro
 			}
 			matched = manifestContains(manifest, address)
 			if !matched {
-				_, err = local.readRetentionFile(local.archivePath(address))
+				_, err = local.readRetentionFileContext(ctx, local.archivePath(address))
 				if err == nil {
 					matched = true
 				} else if !errors.Is(err, os.ErrNotExist) {

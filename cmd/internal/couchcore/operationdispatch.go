@@ -445,7 +445,23 @@ func CouchLiveOwnerExecutor(c *Couch) OperationExecutor {
 			default:
 				return nil, fmt.Errorf("leave: invalid mode %q (want detach or park)", a["mode"])
 			}
+		case "resume-candidates":
+			target, err := resolveRecoveryOperationTarget(ctx, c, a)
+			if err != nil {
+				return nil, err
+			}
+			return c.ResumeCandidates(ctx, target)
 		case "resume":
+			if key := a["candidate"]; key != "" {
+				if a["warm-only"] != "" {
+					return nil, fmt.Errorf("candidate selection cannot be automatic warm resume")
+				}
+				target, err := resolveRecoveryOperationTarget(ctx, c, a)
+				if err != nil {
+					return nil, err
+				}
+				return c.ResumeCandidate(ctx, target, key)
+			}
 			// warm-only is the background reattach pass, and it stays a direct
 			// warm-only resume: no route may start an agent behind the
 			// operator's back (pair#206).
@@ -537,4 +553,22 @@ func resolveOperationThread(c *Couch, args map[string]string) (ThreadAddress, er
 		return ThreadAddress{}, fmt.Errorf("thread reference %q did not resolve uniquely", args["ref"])
 	}
 	return matches[0].Address, nil
+}
+
+func resolveRecoveryOperationTarget(ctx context.Context, c *Couch, args map[string]string) (ResumeTarget, error) {
+	if path := args["path"]; path != "" {
+		return ResumeTarget{Path: path}, nil
+	}
+	if args["tag"] == "" && c.Slots != nil {
+		ref, ok, err := ParseWorkspaceReference(args["ref"])
+		if err != nil {
+			return ResumeTarget{}, err
+		}
+		if ok && ref.Number > 0 {
+			path, _, err := c.WorkspaceReferencePath(ctx, args["ref"])
+			return ResumeTarget{Path: path}, err
+		}
+	}
+	address, err := resolveOperationThread(c, args)
+	return ResumeTarget{Address: address}, err
 }

@@ -295,22 +295,44 @@ func (s *ThreadStore) GetThread(address ThreadAddress) (ThreadRecord, error) {
 // stamp, so a caller that finds the same stamp later may reuse the record.
 // The one read path, so AfterGetThread fires for every read.
 func (s *ThreadStore) getThreadStamped(address ThreadAddress) (ThreadRecord, recordStamp, error) {
+	return s.getThreadStampedContext(context.Background(), address)
+}
+
+func (s *ThreadStore) getThreadStampedContext(ctx context.Context, address ThreadAddress) (ThreadRecord, recordStamp, error) {
+	record, stamp, err := s.readThreadStampedContext(ctx, address)
+	if err == nil {
+		err = ctx.Err()
+	}
+	if err == nil && s.hooks.AfterGetThread != nil {
+		if hookErr := s.hooks.AfterGetThread(address); hookErr != nil {
+			return ThreadRecord{}, recordStamp{}, hookErr
+		}
+	}
+	return record, stamp, err
+}
+
+func (s *ThreadStore) readThreadStampedContext(ctx context.Context, address ThreadAddress) (ThreadRecord, recordStamp, error) {
+	if err := ctx.Err(); err != nil {
+		return ThreadRecord{}, recordStamp{}, err
+	}
 	if err := validateThreadAddress(address); err != nil {
 		return ThreadRecord{}, recordStamp{}, err
 	}
-	backend, routeErr := s.storeForAddress(address)
+	backend, routeErr := s.storeForAddressContext(ctx, address)
 	if routeErr != nil {
 		return ThreadRecord{}, recordStamp{}, routeErr
 	}
 	if backend != s {
-		return backend.getThreadStamped(address)
+		return backend.readThreadStampedContext(ctx, address)
 	}
 	var result ThreadRecord
 	var stamp recordStamp
-	err := s.withLock(func() error {
+	read := false
+	err := s.withReadLockContext(ctx, func() error {
+		read = true
 		path := s.recordPath(address)
 		info, statErr := os.Lstat(path)
-		record, err := s.readThreadLocked(address)
+		record, err := s.readThreadLockedContext(ctx, address)
 		if err != nil {
 			return err
 		}
@@ -320,10 +342,8 @@ func (s *ThreadStore) getThreadStamped(address ThreadAddress) (ThreadRecord, rec
 		result = cloneThreadRecord(record)
 		return nil
 	})
-	if err == nil && s.hooks.AfterGetThread != nil {
-		if hookErr := s.hooks.AfterGetThread(address); hookErr != nil {
-			return ThreadRecord{}, recordStamp{}, hookErr
-		}
+	if err == nil && !read {
+		err = fmt.Errorf("%w: %+v", ErrThreadNotFound, address)
 	}
 	return result, stamp, err
 }
@@ -451,6 +471,21 @@ func (s *ThreadStore) updateExistingThread(address ThreadAddress, expectedRevisi
 		return nil
 	})
 	return result, err
+}
+
+// PreserveRecoveryBeforeRetirement records the validated explicit selection and
+// original screen before the coordinator retires its exact source. The revision
+// binds that authority to the record used for recovery admission.
+func (s *ThreadStore) PreserveRecoveryBeforeRetirement(address ThreadAddress, expectedRevision uint64, intent threadrecord.RecoveryIntent) (ThreadRecord, error) {
+	if err := threadrecord.ValidateRecoveryIntent(intent, threadrecord.Address{RepoScope: address.RepoScope, Tag: string(address.Tag)}); err != nil {
+		return ThreadRecord{}, err
+	}
+	return s.updateExistingThread(address, expectedRevision, func(next *ThreadRecord) error {
+		retained := threadrecord.CloneRecoveryContext(&intent.Context)
+		retained.SelectedKey, retained.SelectedNativeID = intent.SelectedKey, intent.NativeID
+		next.RecoveryContext = retained
+		return nil
+	})
 }
 
 func (s *ThreadStore) BeginPark(address ThreadAddress, expectedRevision uint64, identity ParkIdentity) (ThreadRecord, error) {
@@ -604,7 +639,9 @@ func (s *ThreadStore) FinalizePark(address ThreadAddress, expectedRevision uint6
 // park or a surviving detached session -- and the revision CAS is what makes
 // the decision still true at the moment of the write.
 func (s *ThreadStore) CommitStartClaim(address ThreadAddress, expectedRevision uint64, repoIdentity string, startedAt time.Time, event StartEvent) (ThreadRecord, error) {
-	if repoIdentity == "" {
+	// Warm attachment operates on a proved terminal, including one whose
+	// checkout is unavailable. It does not create repository-owned artifacts.
+	if repoIdentity == "" && event.Shape != StartWarmReattach {
 		return ThreadRecord{}, errors.New("start claim has no repository identity")
 	}
 	return s.updateExistingThread(address, expectedRevision, func(next *ThreadRecord) error {
@@ -753,19 +790,28 @@ func (s *ThreadStore) AbandonPark(address ThreadAddress, expectedRevision uint64
 }
 
 func (s *ThreadStore) Snapshot() (ThreadSnapshot, error) {
+	return s.snapshotContext(context.Background())
+}
+func (s *ThreadStore) snapshotContext(ctx context.Context) (ThreadSnapshot, error) {
+	if err := ctx.Err(); err != nil {
+		return ThreadSnapshot{}, err
+	}
 	if missing, err := s.localBackendMissing(); err != nil || missing {
 		return ThreadSnapshot{}, err
 	}
 	var snapshot ThreadSnapshot
 	var rootManifest threadManifest
-	err := s.withLock(func() error {
-		manifest, _, _, err := s.loadManifestLocked()
+	err := s.withReadLockContext(ctx, func() error {
+		manifest, _, _, err := s.loadManifestLockedContext(ctx)
 		if err != nil {
 			return err
 		}
 		rootManifest = manifest
 		snapshot = ThreadSnapshot{Generation: manifest.Generation}
 		for _, address := range manifest.Threads {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
 			// A record that cannot be read or decoded is REPORTED, not raised.
 			// Raising made one corrupt file fail the whole inventory: `couch
 			// --list` exited 1 and the switcher showed nothing, which is the
@@ -773,13 +819,19 @@ func (s *ThreadStore) Snapshot() (ThreadSnapshot, error) {
 			// ReasonInvalid unreachable in production -- a documented state
 			// with a label, an Enter notice and an archive exit that no store
 			// could ever produce.
-			raw, err := s.readPayload(s.recordPath(address))
+			raw, err := s.readPayloadContext(ctx, s.recordPath(address))
 			if err != nil {
+				if ctx.Err() != nil {
+					return ctx.Err()
+				}
 				snapshot.Unreadable = append(snapshot.Unreadable, address)
 				continue
 			}
 			record, err := s.decodeThreadRaw(address, raw)
 			if err != nil {
+				if ctx.Err() != nil {
+					return ctx.Err()
+				}
 				snapshot.Unreadable = append(snapshot.Unreadable, address)
 				continue
 			}
@@ -788,7 +840,7 @@ func (s *ThreadStore) Snapshot() (ThreadSnapshot, error) {
 		return nil
 	})
 	if err == nil && !s.layout.Local {
-		return s.appendSlotSnapshots(snapshot, rootManifest)
+		return s.appendSlotSnapshotsContext(ctx, snapshot, rootManifest)
 	}
 	return snapshot, err
 }
@@ -866,7 +918,9 @@ func (s *ThreadStore) advanceSuccessfulStart(address ThreadAddress, expectedRevi
 			return err
 		}
 		nextThreadRaw = append(nextThreadRaw, '\n')
-		if profile == nil {
+		// Recovery and warm attachment select an existing configuration; neither
+		// expresses a new default agent or startup-parameter preference.
+		if profile == nil || incarnation.Start.RecoveryIntent != nil || event.Shape == StartWarmReattach {
 			if err := s.writeStoreAtomicLocked(s.recordPath(address), nextThreadRaw); err != nil {
 				return err
 			}
@@ -1001,6 +1055,7 @@ func (s *ThreadStore) DeleteStart(address ThreadAddress, expectedRevision uint64
 			if incarnation.State != IncarnationCreating || incarnation.Start == nil || incarnation.Start.Nonce != nonce {
 				return fmt.Errorf("thread %+v is no longer parked start %q at revision %d", address, nonce, expectedRevision)
 			}
+			retainStartRecoveryContext(record, incarnation.Start)
 			record.Incarnations = nil
 			return nil
 		})
@@ -1028,6 +1083,7 @@ func (s *ThreadStore) DeleteStart(address ThreadAddress, expectedRevision uint64
 			if incarnation.State != IncarnationCreating || incarnation.Start == nil || incarnation.Start.Nonce != nonce {
 				return fmt.Errorf("thread %+v is no longer start %q at revision %d", address, nonce, expectedRevision)
 			}
+			retainStartRecoveryContext(record, incarnation.Start)
 			record.Incarnations = nil
 			return nil
 		})
@@ -1104,8 +1160,8 @@ func sortThreadAddresses(addresses []ThreadAddress) {
 	})
 }
 
-func (s *ThreadStore) readThreadLocked(address ThreadAddress) (ThreadRecord, error) {
-	raw, err := s.readPayload(s.recordPath(address))
+func (s *ThreadStore) readThreadLockedContext(ctx context.Context, address ThreadAddress) (ThreadRecord, error) {
+	raw, err := s.readPayloadContext(ctx, s.recordPath(address))
 	if errors.Is(err, os.ErrNotExist) {
 		return ThreadRecord{}, fmt.Errorf("%w: %+v", ErrThreadNotFound, address)
 	}
@@ -1128,10 +1184,13 @@ func (s *ThreadStore) decodeThreadRaw(address ThreadAddress, raw []byte) (Thread
 }
 
 func (s *ThreadStore) loadManifestLocked() (threadManifest, []byte, bool, error) {
+	return s.loadManifestLockedContext(context.Background())
+}
+func (s *ThreadStore) loadManifestLockedContext(ctx context.Context) (threadManifest, []byte, bool, error) {
 	if s.layout.Local {
-		return s.localMembership()
+		return s.localMembershipContext(ctx)
 	}
-	raw, exists, err := s.readOptionalPayload(s.manifestPath())
+	raw, exists, err := s.readOptionalPayloadContext(ctx, s.manifestPath())
 	if err != nil {
 		return threadManifest{}, nil, false, err
 	}

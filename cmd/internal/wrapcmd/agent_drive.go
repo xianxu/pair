@@ -205,11 +205,10 @@ func (p *proxy) finishAgentDriveLocked(r *wrapperDrive, screen agentdrive.Screen
 		d.drive.active = nil
 	}
 	if p.automaticInput.phase == automaticInputDrive {
-		if screen.Idle && screen.Complete && !screen.TurnActive {
-			p.automaticInput = automaticInputTransaction{}
-		} else {
-			p.finishAutomaticInput(automaticInputDrive)
-		}
+		outcome := r.state.Result().Outcome
+		confirmed := outcome == agentdrive.OutcomeConfirmed || outcome == agentdrive.OutcomeFailed
+		empty := confirmed && screen.Idle && screen.Complete && !screen.TurnActive
+		p.automaticInput, _ = advanceAutomaticInput(p.automaticInput, automaticInputEvent{kind: automaticFinish, owner: automaticInputDrive, epoch: p.automaticRenderEpoch.Load(), submitted: confirmed, confirmedEmpty: empty})
 	}
 	d.armSettleLocked()
 }
@@ -248,12 +247,13 @@ func (p *proxy) dispatchAgentDrive(out io.Writer) {
 	}
 	if !r.state.Started() && !r.state.Terminal() {
 		recovery := r.start.Request.RecoveryOnly()
-		lease := p.automaticInput.phase == automaticInputIdle || p.automaticInput.phase == automaticInputAwaitingEmpty && (recovery || p.automaticInputAvailable(automaticInputDrive))
+		residual := p.automaticInput.phase == automaticInputAwaitingEmpty || p.automaticInput.phase == automaticInputAlerted
+		lease := p.automaticInput.phase == automaticInputIdle || residual && (recovery || p.automaticInputAvailable(automaticInputDrive))
 		common := !d.exited && !d.image && d.sequence == r.start.Sequence && !d.inputBuffered && d.replies.inFlight == 0 && len(d.replies.input) == 0 && d.reservation == "" && (d.current.Message.ID == "" || d.current.Status.Terminal()) && lease
 		screen.Idle = screen.Idle && d.settled && common
 		screen.Recoverable = screen.Recoverable && recovery && common
 		if screen.Idle || screen.Recoverable {
-			p.automaticInput.phase = automaticInputDrive
+			p.automaticInput, _ = advanceAutomaticInput(p.automaticInput, automaticInputEvent{kind: automaticBegin, owner: automaticInputDrive, eligible: recovery})
 		}
 		r.state, r.effects = agentdrive.ReduceDrive(r.state, agentdrive.DriveEvent{Kind: agentdrive.EventStart, At: d.now(), Screen: screen})
 	} else if (len(r.effects) == 0 || r.state.RecoveryDue(d.now())) && !r.state.Terminal() {

@@ -15,8 +15,8 @@ func codexStartupStatus(snapshot terminalSnapshot) (bool, bool) {
 		}
 		line = strings.TrimSpace(strings.TrimPrefix(line, "│"))
 		for _, field := range []string{"model:", "directory:"} {
-			if strings.HasPrefix(line, field) {
-				value := strings.Fields(strings.TrimSpace(strings.TrimPrefix(line, field)))
+			if len(line) >= len(field) && strings.EqualFold(line[:len(field)], field) {
+				value := strings.Fields(strings.TrimSpace(line[len(field):]))
 				resolved := len(value) > 0 && value[0] != "loading" && value[0] != "│"
 				if field == "model:" {
 					model = resolved

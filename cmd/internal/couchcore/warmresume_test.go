@@ -2,7 +2,7 @@ package couchcore
 
 import (
 	"context"
-	"errors"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -137,70 +137,7 @@ func TestWarmReattachSendsNoResumeProfileAndNoLayout(t *testing.T) {
 	}
 }
 
-// Startup keeps its no-fallback rule -- a tree holding one resumable thread
-// must not quietly gain a second -- but the refusal has to be actionable. The
-// operator used to get a diagnostic code and no next step.
-func TestStartupResumeRefusalNamesTheThreadAndTheWayForward(t *testing.T) {
-	t.Parallel()
-
-	address := ThreadAddress{RepoScope: "0123456789abcdef", Tag: "couch-0001020304050607"}
-	wrapped := startupResumeRefusal(address, refuseResume(ResumeSessionGone, "the detached session is no longer running"))
-	if wrapped == nil {
-		t.Fatal("a refusal became a success")
-	}
-	message := wrapped.Error()
-	for _, want := range []string{
-		string(ResumeSessionGone), // what happened
-		string(address.Tag),       // which thread
-		"couch --show",            // how to inspect it
-		"pair",                    // how to work anyway
-	} {
-		if !strings.Contains(message, want) {
-			t.Fatalf("refusal %q does not mention %q", message, want)
-		}
-	}
-	// The typed refusal must survive wrapping: callers switch on the code.
-	if got := ResumeDiagnosticOf(wrapped); got != ResumeSessionGone {
-		t.Fatalf("wrapped diagnostic = %q, want %q", got, ResumeSessionGone)
-	}
-}
-
-// RESTATED for #256. A non-refusal used to pass through UNTOUCHED, which is how
-// an internal store message reached the operator with no next step and refused
-// `couch` in the whole tree. It is now decorated too -- but with a message that
-// is TRUE of it: couch could not tell, rather than claiming to have found a
-// resumable thread it never read.
-func TestStartupResumeRefusalExplainsAnInternalFailureWithoutClaimingAThread(t *testing.T) {
-	t.Parallel()
-
-	plain := errors.New("store is unreadable")
-	got := startupResumeRefusal(ThreadAddress{}, plain)
-	if got == nil || !errors.Is(got, plain) {
-		t.Fatalf("the original error must stay reachable: %v", got)
-	}
-	if strings.Contains(got.Error(), "found one resumable thread") {
-		t.Fatalf("an unreadable store was reported as a thread couch found:\n%s", got)
-	}
-	for _, want := range []string{"could not resume", "couch --show", "work anyway"} {
-		if !strings.Contains(got.Error(), want) {
-			t.Fatalf("internal failure is not actionable — missing %q:\n%s", want, got)
-		}
-	}
-	if startupResumeRefusal(ThreadAddress{}, nil) != nil {
-		t.Fatal("startupResumeRefusal invented an error")
-	}
-}
-
-// pair#206 M2: the background pass's resume can only REATTACH, never start.
-//
-// The pass runs behind the operator's back, so a thread that has stopped being
-// warm by the time its turn comes -- parked in the meantime, its session gone,
-// or attached elsewhere -- must be refused before any effect. A resume without
-// warm-only would cold-start a parked thread's agent, which is exactly what the
-// Spec rules out ("parked threads are not resumed at startup").
-//
-// Each row asserts the refusal comes BEFORE CommitStartClaim (the revision is
-// unchanged) and before any child is spawned.
+// An explicit warm-only request never cold-starts a stopped agent.
 func TestWarmOnlyResumeNeverStartsAnAgent(t *testing.T) {
 	t.Parallel()
 
@@ -364,7 +301,7 @@ func TestWarmProofMatcherAcceptsOnlyExactSessionEvidence(t *testing.T) {
 		{"absent", nil, false},
 		{"duplicate", []DetachedSessionObservation{valid, valid}, false},
 		{"wrong-address", []DetachedSessionObservation{{Address: ThreadAddress{RepoScope: "other", Tag: record.Address.Tag}, SessionName: valid.SessionName, Agent: valid.Agent}}, false},
-		{"wrong-agent", []DetachedSessionObservation{{Address: record.Address, SessionName: valid.SessionName, Agent: "codex"}}, false},
+		{"saved-agent-does-not-gate-continue", []DetachedSessionObservation{{Address: record.Address, SessionName: valid.SessionName, Agent: "codex"}}, true},
 		{"empty-session", []DetachedSessionObservation{{Address: record.Address, Agent: valid.Agent}}, false},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -375,12 +312,12 @@ func TestWarmProofMatcherAcceptsOnlyExactSessionEvidence(t *testing.T) {
 	}
 }
 
-func TestWarmRecheckRefusesSessionReplacementAfterClaim(t *testing.T) {
+func TestWarmRecheckRefusesSessionReplacementBeforeHelper(t *testing.T) {
 	t.Parallel()
 
 	env, address := warmDetachedThread(t)
 	calls := 0
-	env.Artifacts.DetachedSessionsHook = func([]ThreadAddress) error {
+	env.Artifacts.ListedSessionHook = func(ThreadAddress) error {
 		calls++
 		if calls == 2 {
 			env.Artifacts.SetDetachedSession(address, "pair-replacement")
@@ -401,4 +338,88 @@ func (a warmSessionArtifacts) NamedPairSessionContext(ctx context.Context, addre
 	return a.PairSessionIO.(interface {
 		NamedPairSessionContext(context.Context, ThreadAddress, string) (PairSessionBinding, error)
 	}).NamedPairSessionContext(ctx, address, name)
+}
+
+// Continue consumes the live terminal, not the cold-launch metadata saved for
+// recreating its agent. Exercise the executor, including the child boundary.
+func TestWarmResumeExecutorIgnoresColdMetadataDefects(t *testing.T) {
+	for _, defect := range []string{"missing-profile", "incomplete-profile", "unsupported-agent", "missing-working-path", "missing-path-observer"} {
+		t.Run(defect, func(t *testing.T) {
+			env := newTestEnv(t, "/repo")
+			env.Couch.Slots = &SlotCatalogFake{}
+			record := warmDetachedRecord(t)
+			record.StartingPath, record.WorkingPath = "/repo", "/repo"
+			record.Reservation = false
+			preference := PathLaunchPreference{SchemaVersion: PathLaunchPreferenceSchemaVersion, RepoIdentity: "existing-repo", PhysicalPath: "/repo", LastAgent: "codex", ArgvByAgent: map[string][]string{"codex": {"--search"}}, Revision: 1}
+			if err := writePathLaunchPreferenceForTest(env.Couch.Threads, preference); err != nil {
+				t.Fatal(err)
+			}
+			switch defect {
+			case "missing-profile":
+				record.LatestLaunchProfile = nil
+			case "incomplete-profile":
+				// The store normalizes legacy null argv to configured-empty;
+				// preserve that case without manufacturing an invalid record.
+				record.LatestLaunchProfile.Argv = nil
+			case "unsupported-agent":
+				record.LatestLaunchProfile.Agent = "old-unsupported-agent"
+			case "missing-working-path":
+				env.Couch.Path.(*FakePathOps).Fail("/repo")
+			case "missing-path-observer":
+				env.Couch.Path = nil
+			}
+			created, err := env.Couch.Threads.CreateThread(record)
+			if err != nil {
+				t.Fatal(err)
+			}
+			session := "pair-" + string(created.Address.Tag)
+			env.Artifacts.SetDetachedSession(created.Address, session)
+			env.Runner.AfterAcknowledge = func(string) error { env.Artifacts.SetPairSession(created.Address, session, true); return nil }
+			_, handle, err := env.Couch.ResumeContextWith(context.Background(), created.Address, ResumeOptions{WarmOnly: true})
+			if err != nil {
+				t.Fatalf("Continue refused saved %s: %v", defect, err)
+			}
+			if handle == nil {
+				t.Fatal("Continue did not start attachment")
+			}
+			child := env.Runner.Child(handle.ID())
+			if defect == "missing-working-path" && child.Dir != "/" {
+				t.Fatalf("missing workspace helper cwd=%q, want safe host root", child.Dir)
+			}
+			if !slices.Equal(child.Argv, []string{"pair", "--couch-session-v1", "resume", string(created.Address.Tag)}) {
+				t.Fatalf("not exact warm attachment: %q", child.Argv)
+			}
+			if env.Artifacts.BindingResolutions() != 0 {
+				t.Fatal("Continue resolved native conversation")
+			}
+			for _, entry := range child.Env {
+				if strings.HasPrefix(entry, launcher.CouchLaunchProfileEnv+"=") {
+					t.Fatalf("Continue fabricated cold launch authority: %q", entry)
+				}
+			}
+			after, err := env.Couch.Threads.GetThread(created.Address)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if after.WorkingPath != created.WorkingPath {
+				t.Fatalf("Continue rewrote saved working path: before=%q after=%q", created.WorkingPath, after.WorkingPath)
+			}
+			afterPreference, found, err := env.Couch.Threads.GetPathLaunchPreference(preference.RepoIdentity, preference.PhysicalPath)
+			if err != nil || !found || !reflect.DeepEqual(afterPreference, preference) {
+				t.Fatalf("Continue changed defaults: %+v found=%v err=%v", afterPreference, found, err)
+			}
+			if !reflect.DeepEqual(after, created) {
+				t.Fatalf("Continue changed durable thread: before=%+v after=%+v", created, after)
+			}
+			if !reflect.DeepEqual(after.LatestLaunchProfile, created.LatestLaunchProfile) {
+				t.Fatalf("Continue rewrote saved profile: before=%+v after=%+v", created.LatestLaunchProfile, after.LatestLaunchProfile)
+			}
+		})
+	}
+}
+
+func (a warmSessionArtifacts) ListedPairSessionContext(ctx context.Context, address ThreadAddress, name string) (PairSessionBinding, error) {
+	return a.PairSessionIO.(interface {
+		ListedPairSessionContext(context.Context, ThreadAddress, string) (PairSessionBinding, error)
+	}).ListedPairSessionContext(ctx, address, name)
 }

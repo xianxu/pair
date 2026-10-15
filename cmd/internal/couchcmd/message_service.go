@@ -53,7 +53,7 @@ type messageAuthority struct {
 	// record reads a thread's record, so a tail read by slot (pair#429)
 	// names its agent and working path as the typed peek does; nil names the
 	// binding's agent only.
-	record func(couchcore.ThreadAddress) (couchcore.ThreadRecord, error)
+	record func(context.Context, couchcore.ThreadAddress) (couchcore.ThreadRecord, error)
 	// hub is the worktree root Couch started from: the TL slot, which gets
 	// the larger peer-message bucket (#433). "" when Couch started outside a
 	// checkout.
@@ -62,7 +62,7 @@ type messageAuthority struct {
 	hubTarget func(context.Context, string) (couchcore.HubSlot, error)
 }
 
-// live is the full check, run once per admission: a lifecycle event, never a
+// live is the full check, run once per wrapper admission: a lifecycle event, never a
 // timer.
 func (a messageAuthority) live(ctx context.Context, b couchmessage.Binding) (string, error) {
 	if err := ctx.Err(); err != nil {
@@ -81,7 +81,7 @@ func (a messageAuthority) live(ctx context.Context, b couchmessage.Binding) (str
 	if err = a.launch(ctx, b); err != nil {
 		return "", err
 	}
-	// External probes may yield while a pane is replaced or detached.
+	// External probes may yield while a terminal or its retained checkout changes.
 	current, err := a.thread(ctx, b)
 	if err != nil {
 		return "", err
@@ -96,7 +96,7 @@ func (a messageAuthority) live(ctx context.Context, b couchmessage.Binding) (str
 }
 
 // current is the use-time check at Observe/Reserve/Deliver and for a sending
-// caller: the Couch pane is still live (in memory), the PID file still names
+// caller: the exact terminal is still positively listed, the PID file still names
 // this wrapper (a surviving old wrapper after replacement), and the launch's
 // recorded files still name this nonce and session (an index rewritten while
 // the old wrapper survives headless). Death and exec arrive as session close.
@@ -118,6 +118,30 @@ func (a messageAuthority) current(ctx context.Context, b couchmessage.Binding) (
 	return root, ctx.Err()
 }
 
+// recordedMessageAuthority shares the use-time file checks with callers that
+// supply their own artifact reader. Every invocation observes readiness afresh;
+// sessionName owns any metadata cache, never live wrapper authority.
+func recordedMessageAuthority(reader couchcore.OSReadyReader, sessionName func(context.Context, couchcore.ThreadAddress) (string, error)) func(context.Context, couchmessage.Binding) error {
+	return func(ctx context.Context, b couchmessage.Binding) error {
+		address := couchcore.ThreadAddress{RepoScope: b.Scope, Tag: couchcore.ThreadTag(b.Tag)}
+		ready, ok, e := reader.RecordedSession(ctx, address, b.Agent, b.Nonce)
+		if e != nil {
+			return fmt.Errorf("wrapper launch registration: %w", e)
+		}
+		if !ok || ready != b.Session {
+			return errors.New("wrapper launch registration unavailable")
+		}
+		name, e := sessionName(ctx, address)
+		if e != nil {
+			return e
+		}
+		if name != b.Session {
+			return errors.New("wrapper conversation changed")
+		}
+		return nil
+	}
+}
+
 // Admissions run concurrently up to this bound, so a broker restart with N
 // surviving wrappers costs N full checks, a few at a time.
 const (
@@ -126,8 +150,8 @@ const (
 )
 
 // messageService turns registry effects into IO (#365). One goroutine owns
-// the Registry and applies events in arrival order: wrapper sessions, Console
-// pane state, admission results and retry timers. Request goroutines read
+// the Registry and applies wrapper sessions, admission results and retry
+// timers in arrival order. Request goroutines read
 // only the published snapshot of connected bindings.
 type messageService struct {
 	hubMoves  atomic.Pointer[hubMoveService]
@@ -162,6 +186,12 @@ type messageService struct {
 	switches      atomic.Pointer[agentSwitchService]
 	drives        atomic.Pointer[agentDriveService]
 	desktopNotify atomic.Pointer[func(context.Context, string, string) error]
+	// Retained across disconnects; only a verified replacement supersedes a slot.
+	stalls struct {
+		sync.Mutex
+		records map[string]automaticInputStallRecord
+	}
+
 	// broadcastStatus answers broadcast-status (pair#413). Installed after the
 	// service is serving, so it is an atomic pointer; nil answers unsupported.
 	broadcastStatus atomic.Pointer[func() (couchmessage.BroadcastStatus, bool)]
@@ -316,12 +346,12 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch, configur
 			}
 			return messageFamilies(names), nil
 		},
-		thread: console.MessageBinding, workspace: resolver.ResolveWorkspace,
-		record: func(address couchcore.ThreadAddress) (couchcore.ThreadRecord, error) {
+		thread: messageThreadResolver(c), workspace: resolver.ResolveWorkspace,
+		record: func(ctx context.Context, address couchcore.ThreadAddress) (couchcore.ThreadRecord, error) {
 			if c.Threads == nil {
 				return couchcore.ThreadRecord{}, errors.New("no thread store")
 			}
-			return c.Threads.GetThread(address)
+			return c.Threads.PreviewThreadContext(ctx, address)
 		},
 		agent: func(ctx context.Context, address couchcore.ThreadAddress) (string, error) {
 			if err := ctx.Err(); err != nil {
@@ -330,7 +360,7 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch, configur
 			if c.Threads == nil {
 				return "", errors.New("no thread store")
 			}
-			record, err := c.Threads.GetThread(address)
+			record, err := c.Threads.PreviewThreadContext(ctx, address)
 			if err != nil {
 				return "", err
 			}
@@ -373,24 +403,7 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch, configur
 			}
 			return nil
 		},
-		recorded: func(ctx context.Context, b couchmessage.Binding) error {
-			address := couchcore.ThreadAddress{RepoScope: b.Scope, Tag: couchcore.ThreadTag(b.Tag)}
-			ready, ok, e := reader.RecordedSession(ctx, address, b.Agent, b.Nonce)
-			if e != nil {
-				return fmt.Errorf("wrapper launch registration: %w", e)
-			}
-			if !ok || ready != b.Session {
-				return errors.New("wrapper launch registration unavailable")
-			}
-			name, e := sessionName(ctx, address)
-			if e != nil {
-				return e
-			}
-			if name != b.Session {
-				return errors.New("wrapper conversation changed")
-			}
-			return nil
-		},
+		recorded: recordedMessageAuthority(reader, sessionName),
 		endpoint: func(b couchmessage.Binding) couchmessage.DeliveryEndpoint {
 			return couchmessage.RemoteEndpoint{Namespace: namespace, Binding: b}
 		},
@@ -442,9 +455,6 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch, configur
 	service.broker.SetNiceView(rn.view)
 	service.workers.Add(1)
 	go func() { defer service.workers.Done(); rn.run(service.lifetime, reniceEvery) }()
-	// After the loop runs: the replay of already-attached panes lands in the
-	// mailbox the loop drains.
-	console.SubscribeMessageLifecycle(panes)
 	return service, nil
 }
 
@@ -736,10 +746,14 @@ func (s *messageService) connectedWorkspace(ctx context.Context, b couchmessage.
 
 func (s *messageService) handle(ctx context.Context, request couchmessage.Request) (response couchmessage.Response) {
 	switch {
+	case request.Op == "resume-candidates":
+		return s.handleResumeCandidates(ctx, request)
 	case request.Op == "move-slot":
 		return s.handleHubMove(ctx, request)
 	case request.Op == "session-write":
 		return s.handleSessionWrite(ctx, request)
+	case request.Op == "automatic-input-stall":
+		return s.handleAutomaticInputStall(ctx, request)
 	case request.Op == "notify":
 		return s.handleNotify(ctx, request)
 	case request.Op == "switch-agent":
@@ -893,19 +907,19 @@ func (s *messageService) handleTail(ctx context.Context, request couchmessage.Re
 	if err != nil {
 		return couchmessage.Response{Code: "unavailable", Error: err.Error()}
 	}
-	return couchmessage.Response{Code: "ok", Tail: &tail, TailThread: s.tailThread(binding)}
+	return couchmessage.Response{Code: "ok", Tail: &tail, TailThread: s.tailThread(ctx, binding)}
 }
 
 // tailThread names whose tail it is with what the typed peek reads from the
 // thread record -- its agent (couchcore.RecordAgent) and working path -- so a
 // fast peek answers in the same shape (pair#429). Without a readable record
 // it names the wrapper's own agent and no path.
-func (s *messageService) tailThread(b couchmessage.Binding) *couchmessage.TailThread {
+func (s *messageService) tailThread(ctx context.Context, b couchmessage.Binding) *couchmessage.TailThread {
 	thread := &couchmessage.TailThread{Slot: b.Slot, Tag: b.Tag, Agent: b.Agent}
 	if s.authority.record == nil {
 		return thread
 	}
-	record, err := s.authority.record(couchcore.ThreadAddress{RepoScope: b.Scope, Tag: couchcore.ThreadTag(b.Tag)})
+	record, err := s.authority.record(ctx, couchcore.ThreadAddress{RepoScope: b.Scope, Tag: couchcore.ThreadTag(b.Tag)})
 	if err != nil {
 		return thread
 	}
@@ -998,10 +1012,10 @@ func (s *messageService) SetShares(shares func() []couchmessage.ShareStatus) {
 }
 
 // handleSlotOperation authenticates a slot operation's caller by Couch's own
-// liveness, not by messaging registration (operator decision, #367 smoke
+// terminal and launch identity, not by messaging registration (#367 smoke
 // test: a live slot whose wrapper's peer setup failed must still recover
 // others). The thread named by the request's scope and tag must have a live
-// Couch pane (authority.thread), and its recorded launch must name this
+// listed terminal (authority.thread), and its recorded launch must name this
 // shell's session and launch nonce (authority.recorded, for the agent its
 // record launched). Any failure refuses with nothing enqueued.
 func (s *messageService) handleSlotOperation(ctx context.Context, request couchmessage.Request) couchmessage.Response {
@@ -1014,7 +1028,7 @@ func (s *messageService) handleSlotOperation(ctx context.Context, request couchm
 	caller, err := s.liveCaller(ctx, request)
 	if err != nil {
 		return couchmessage.Response{Code: "unavailable", Error: fmt.Sprintf(
-			"caller is not a live Couch slot (thread %s not live, or this shell's session/launch does not match its record): %v", request.Tag, err)}
+			"caller is not a live Couch slot (thread %s not listed, or this shell's session/launch does not match its record): %v", request.Tag, err)}
 	}
 	if request.Op == "operation-status" {
 		if authenticated, err := s.switchCaller(ctx, request); err == nil {
@@ -1205,4 +1219,39 @@ func (s *messageService) LivenessForThread(scope, tag string) (couchmessage.Slot
 		}
 	}
 	return couchmessage.SlotLiveness{}, false
+}
+
+// messageThreadResolver proves the retained thread and its positively listed
+// terminal without requiring this Couch to attach a local client pane.
+func messageThreadResolver(c *couchcore.Couch) func(context.Context, couchmessage.Binding) (string, error) {
+	return func(ctx context.Context, binding couchmessage.Binding) (string, error) {
+		if err := ctx.Err(); err != nil {
+			return "", err
+		}
+		if c.Threads == nil {
+			return "", errors.New("no thread store")
+		}
+		address := couchcore.ThreadAddress{RepoScope: binding.Scope, Tag: couchcore.ThreadTag(binding.Tag)}
+		record, err := c.Threads.PreviewThreadContext(ctx, address)
+		if err != nil {
+			return "", err
+		}
+		if record.WorkingPath == "" {
+			return "", errors.New("message thread has no retained checkout")
+		}
+		observer, ok := c.Artifacts.(interface {
+			ListedPairSessionContext(context.Context, couchcore.ThreadAddress, string) (couchcore.PairSessionBinding, error)
+		})
+		if !ok {
+			return "", errors.New("listed Pair session observer unavailable")
+		}
+		session, err := observer.ListedPairSessionContext(ctx, address, binding.Session)
+		if err != nil {
+			return "", err
+		}
+		if !session.Present || session.Name != binding.Session {
+			return "", errors.New("message terminal is not positively listed")
+		}
+		return record.WorkingPath, ctx.Err()
+	}
 }

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/checkpoint"
+	"github.com/xianxu/pair/cmd/internal/osfs"
 	"github.com/xianxu/pair/cmd/internal/sessionledger"
 )
 
@@ -57,37 +58,12 @@ func (r OSRuntime) ReadRestartMarker(session string) (RestartMarker, bool, error
 	if !ok {
 		return RestartMarker{}, false, errors.New("invalid restart marker path")
 	}
-	info, err := os.Lstat(path)
+	raw, err := osfs.ReadRegularMetadata(context.Background(), path, maxRestartMarkerBytes)
 	if errors.Is(err, os.ErrNotExist) {
 		return RestartMarker{}, false, nil
 	}
 	if err != nil {
 		return RestartMarker{}, false, err
-	}
-	if !info.Mode().IsRegular() {
-		return RestartMarker{}, false, errors.New("restart marker is not a regular file")
-	}
-	f, err := os.Open(path)
-	if errors.Is(err, os.ErrNotExist) {
-		return RestartMarker{}, false, nil
-	}
-	if err != nil {
-		return RestartMarker{}, false, err
-	}
-	defer f.Close()
-	st, err := f.Stat()
-	if err != nil {
-		return RestartMarker{}, false, err
-	}
-	if !st.Mode().IsRegular() {
-		return RestartMarker{}, false, errors.New("restart marker is not a regular file")
-	}
-	raw, err := io.ReadAll(io.LimitReader(f, maxRestartMarkerBytes+1))
-	if err != nil {
-		return RestartMarker{}, false, err
-	}
-	if len(raw) > maxRestartMarkerBytes {
-		return RestartMarker{}, false, errors.New("restart marker exceeds size bound")
 	}
 	marker, err := decodeRestartMarker(string(raw))
 	return marker, true, err

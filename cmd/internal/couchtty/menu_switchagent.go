@@ -199,7 +199,11 @@ func renderSwitchAgentMenu(frame MenuFrame, width, height int) []string {
 }
 
 func menuActionsFor(state MenuState, thread couchcore.ActionableThreadSummary) []string {
-	return menuActionItems(thread)
+	items := menuActionItems(thread)
+	if thread.Address.RepoScope != "" && thread.Address.Tag != "" {
+		items = append(items, "resume-candidates")
+	}
+	return items
 }
 
 func invalidateSwitchEdit(state *MenuState, frame *MenuFrame) {

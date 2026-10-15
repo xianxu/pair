@@ -21,6 +21,9 @@ type observedReadCloser struct {
 }
 
 func TestMain(m *testing.M) {
+	if os.Getenv("PAIR_TEST_COUCH_TERMINAL_FIXTURE") == "1" && (filepath.Base(os.Args[0]) == "zellij" || filepath.Base(os.Args[0]) == "pair-wrap" || filepath.Base(os.Args[0]) == "claude") {
+		os.Exit(runRegistrationTerminalFixture())
+	}
 	if os.Getenv("PAIR_TEST_COUCH_LAUNCH_NATIVE_SIDECAR") == "1" && len(os.Args) > 1 &&
 		(os.Args[1] == "session-watch" || os.Args[1] == "title") {
 		os.Exit(0)

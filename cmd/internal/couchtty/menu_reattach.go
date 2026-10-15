@@ -10,9 +10,8 @@ import (
 
 // The background reattach pass (pair#206).
 //
-// After `couch` attaches the thread for its directory, every other thread whose
-// agent is still running behind a client-less zellij session is reattached, one
-// at a time, behind the operator's back. It is pure state inside MenuState, so
+// After `couch` attaches its explicit hubs, every other positively listed
+// Continue thread is attached through the bounded existing scheduler. It is pure state inside MenuState, so
 // the menu's single transition authority owns every interleaving with the
 // operator's own operations -- the transitions table in the #206 plan is its
 // specification, and these functions are its cells.
@@ -161,15 +160,10 @@ func passViewOf(pass ReattachPass, address couchcore.ThreadAddress) (PassView, b
 	return PassView{}, false
 }
 
-// reattachCandidate is the seed rule: a thread whose agent is still running, or
-// one whose proof could not be ASKED. Unknown is "we could not ask", not "not
-// detached", so it is included; warm-only re-proves every thread at attempt
-// time and refuses one that is not really warm, which the pass then skips.
+// reattachCandidate shares the projected Continue authority. Unknown, exited,
+// parked and starting rows cannot authorize automatic attachment.
 func reattachCandidate(row couchcore.ActionableThreadSummary) bool {
-	if row.Detached() {
-		return true
-	}
-	return row.State == couchcore.ThreadUnusable && row.Reason == couchcore.ReasonUnknown
+	return couchcore.ContinuityOutcome(row) == couchcore.Continue
 }
 
 // armReattach is cell 1: Idle -> Armed, remembering the root to exclude. Arming
@@ -287,18 +281,17 @@ func finishReattach(state MenuState, event MenuEvent) MenuState {
 			state.Reattach.Attached = map[couchcore.ThreadAddress]uint64{}
 		}
 		state.Reattach.Attached[address] = event.ProjectionAfterGeneration
-	case event.Busy || event.Diagnostic == couchcore.ResumeNotDetached || event.Diagnostic == couchcore.ResumeSessionGone:
-		// Busy (pair#205): another operation holds the thread, so it is being
-		// acted on by someone else -- not this pass's failure to report.
-		// Cell 6: the thread stopped being warm before its turn. Skipped
-		// silently -- it was never going to be reattached, so it did not fail.
 	default:
-		// Cell 7. A refusal carries a code. A failure that is not one (a spawn
-		// error, a registration timeout) carries only its text, so its row
-		// shows that text's first line (decision 11).
-		code := string(event.Diagnostic)
+		// Every attempted Continue remains visible on failure, including busy
+		// and changed session proof. Its first error line leads; a diagnostic
+		// code is the fallback. The core already retries a transient failure,
+		// so the pass never schedules another attempt on its own.
+		code := firstErrorLine(event.Error)
 		if code == "" {
-			code = firstErrorLine(event.Error)
+			code = string(event.Diagnostic)
+		}
+		if code == "" && event.Busy {
+			code = "thread is busy"
 		}
 		if code == "" {
 			code = reattachFailedCode
@@ -333,6 +326,10 @@ func expireAttached(state MenuState, generation uint64) MenuState {
 // clearReattachFailure is cell 9: the operator resuming a failed thread by hand
 // clears its mark. A failed row is no longer pending, so it is selectable.
 func clearReattachFailure(state MenuState, address couchcore.ThreadAddress) MenuState {
+	if _, failed := state.Reattach.Failed[address]; !failed {
+		return state
+	}
+	state.Reattach = cloneReattachPass(state.Reattach)
 	delete(state.Reattach.Failed, address)
 	return state
 }
@@ -376,7 +373,7 @@ func pendingPlaceholders(pass ReattachPass) []ReattachPlaceholder {
 // Enter's verb, the leave count, rendering -- treats it as live. Pending and
 // failed rows keep their inventory state; readers ask passViewOf for those.
 func overlayPassRow(pass ReattachPass, row couchcore.ActionableThreadSummary) couchcore.ActionableThreadSummary {
-	if view, owned := passViewOf(pass, row.Address); owned && view.State == PassAttached {
+	if view, owned := passViewOf(pass, row.Address); owned && view.State == PassAttached && row.Reason != couchcore.ReasonNeedsRelaunch && row.Reason != couchcore.ReasonUnknown {
 		row.State = couchcore.ThreadLive
 		row.Reason = ""
 	}

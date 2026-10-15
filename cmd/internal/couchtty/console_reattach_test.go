@@ -242,13 +242,16 @@ func TestStopCancelsAnInFlightPassAttemptAndRunsNoMore(t *testing.T) {
 func TestAnOperatorSwitchWaitsBehindAtMostTheRunningAttempt(t *testing.T) {
 	f := newFixture(t, 24, 100)
 	root := consoleThread(f, "c1")
-	second := ptychild.NewFakeChild(nil)
-	second.SetSink(func(ctx context.Context, batch ptychild.OutputBatch) error { return f.con.Deliver(ctx, "c2", batch) })
-	f.con.Attach("c2", "worker", second)
-	live := consoleThread(f, "c2")
 
 	order := make(chan string, 8)
 	release := make(chan struct{})
+	t.Cleanup(func() {
+		select {
+		case <-release:
+		default:
+			close(release)
+		}
+	})
 	var once sync.Once
 	f.con.SetOperationDispatcher(func(call couchcore.OperationCall) (any, error) {
 		switch call.Name {
@@ -267,7 +270,6 @@ func TestAnOperatorSwitchWaitsBehindAtMostTheRunningAttempt(t *testing.T) {
 	f.con.SetActionableProvider(func(context.Context, []couchcore.LiveTTYObservation) ([]couchcore.ActionableThreadSummary, error) {
 		return []couchcore.ActionableThreadSummary{
 			{Address: root, State: couchcore.ThreadLive, LastActiveAt: now},
-			{Address: live, State: couchcore.ThreadLive, LastActiveAt: now},
 			{Address: menuAddress("couch-first"), State: couchcore.ThreadDetached, LastActiveAt: now.Add(-time.Minute)},
 			{Address: menuAddress("couch-second"), State: couchcore.ThreadDetached, LastActiveAt: now.Add(-time.Hour)},
 		}, nil
@@ -276,9 +278,9 @@ func TestAnOperatorSwitchWaitsBehindAtMostTheRunningAttempt(t *testing.T) {
 	if got := <-order; got != "resume:couch-first" {
 		t.Fatalf("first dispatch = %q, want the first pass attempt", got)
 	}
-	// The operator switches to the live thread while that attempt is held.
+	// The operator switches to the explicit root while that attempt is held.
 	f.con.mu.Lock()
-	f.con.menu.Frames[0].SelectedAddress = live
+	f.con.menu.Frames[0].SelectedAddress = root
 	f.con.mu.Unlock()
 	f.con.reduceMenu(MenuEvent{Kind: MenuEventKey, Key: PanelKey{Kind: KeyEnter}})
 	close(release)
@@ -509,4 +511,27 @@ func TestTheFrameThePassLeavesBehindIsPainted(t *testing.T) {
 		}
 		return false
 	})
+}
+
+// A completion can schedule another queued attempt while Stop is cancelling
+// the pass. Dequeueing that request must not invoke a cancelled dispatcher.
+func TestQueuedBackgroundAttachCancelledBeforeDispatch(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	dispatched := false
+	c := &Console{lifetime: ctx, operationQueue: newOperationQueue(1)}
+	c.ops = func(call couchcore.OperationCall) (any, error) {
+		dispatched = true
+		return nil, call.Context.Err()
+	}
+	c.runBackgroundOperation(MenuEffect{Operation: "resume", Attempt: 1})
+	request := <-c.operationQueue.requests
+	cancel()
+	_, err := request.run()
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("queued cancelled request error = %v", err)
+	}
+	if dispatched {
+		t.Fatal("cancelled queued attachment reached dispatcher")
+	}
 }

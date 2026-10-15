@@ -26,10 +26,9 @@ func TestMain(m *testing.M) {
 }
 
 type observingLiveSessionOps struct {
-	inner           sessionQuiescenceOps
-	serverObserved  bool
-	deleteAttempted bool
-	killAttempted   bool
+	inner          sessionQuiescenceOps
+	serverObserved bool
+	killAttempted  bool
 }
 
 func (o *observingLiveSessionOps) SessionPresent(ctx context.Context, session string) (bool, error) {
@@ -44,31 +43,22 @@ func (o *observingLiveSessionOps) SessionServers(ctx context.Context, session st
 	return servers, err
 }
 
-func (o *observingLiveSessionOps) DeleteSessionRecord(ctx context.Context, session string) error {
-	o.deleteAttempted = true
-	return o.inner.DeleteSessionRecord(ctx, session)
-}
-
 func (o *observingLiveSessionOps) KillServer(server SessionServerIdentity) error {
 	o.killAttempted = true
 	return o.inner.KillServer(server)
 }
 
 // TestSessionQuiescenceLive is the external-interface counterpart to the
-// stateful re-registration fake. `make test-live` runs it locally; the weekly
+// stateful ownership-replacement fake. `make test-live` runs it locally; the weekly
 // couch-zellij-conformance workflow runs this focused target on macOS.
 func TestSessionQuiescenceLive(t *testing.T) {
 	session := startControlledZellijSession(t)
 
-	// Zellij's own delete-session commonly terminates its server before the
-	// explicit escalation step runs. Add an exact-argv sentinel that is not
-	// owned by that session, so live conformance must dispatch the underlying
-	// OS kill operation rather than merely enter KillServer after the real
-	// server has already disappeared.
+	// A second test-owned exact-argv server makes ordinary cleanup contested.
 	sentinelDir := t.TempDir()
-	sentinelBinary := filepath.Join(sentinelDir, "zellij")
+	sentinelBinary := controlledServerExecutable(t, sentinelDir)
 	sentinel := &exec.Cmd{
-		Path: os.Args[0],
+		Path: sentinelBinary,
 		Args: []string{sentinelBinary, "--server", filepath.Join(sentinelDir, session)},
 		Env:  append(os.Environ(), "PAIR_ZELLIJ_KILL_SENTINEL=1"),
 	}
@@ -110,10 +100,18 @@ func TestSessionQuiescenceLive(t *testing.T) {
 
 	observed := &observingLiveSessionOps{inner: ops}
 	rt := OSRuntime{sessionQuiescence: observed, sessionQuiesceWait: 10 * time.Second, sessionQuiescePoll: 50 * time.Millisecond}
-	if err := rt.DeleteSession(session); err != nil {
-		t.Fatalf("DeleteSession live conformance: %v", err)
+	if err := rt.DeleteSession(session); err == nil || observed.killAttempted {
+		t.Fatalf("contested cleanup must refuse without effects: err=%v killed=%v", err, observed.killAttempted)
 	}
-	if !observed.serverObserved || !observed.deleteAttempted || !observed.killAttempted {
+	authorized, err := ops.SessionServers(t.Context(), session)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Both generations belong to this fixture; authorize their exact snapshot.
+	if err := quiesceAuthorizedSession(t.Context(), session, authorized, observed, 10*time.Second, 50*time.Millisecond); err != nil {
+		t.Fatalf("authorized live quiescence: %v", err)
+	}
+	if !observed.serverObserved || !observed.killAttempted {
 		t.Fatalf("incomplete live interface coverage: %+v", observed)
 	}
 	if !killedSentinel {

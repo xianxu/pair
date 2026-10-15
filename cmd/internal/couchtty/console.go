@@ -240,6 +240,10 @@ type Console struct {
 	completionRunning    CompletionIdentity
 	lifetime             context.Context
 	cancelLifetime       context.CancelFunc
+	sessionOwnerPass     func(context.Context) (context.Context, context.CancelFunc)
+	reattachArmOnce      sync.Once
+	reattachContext      context.Context
+	reattachCancel       context.CancelFunc
 	stop                 chan struct{}
 	once                 sync.Once
 	workers              sync.WaitGroup
@@ -657,7 +661,8 @@ func (c *Console) switchTo(id string, force bool, how arrival) (stayed bool) {
 }
 
 // Stop tears the console down. Safe to call more than once, and from any
-// goroutine.
+// goroutine, including while an attach holds c.mu. Lifetime cancellation also
+// cancels pass workers; teardown releases their scoped state after the barrier.
 func (c *Console) Stop() {
 	c.once.Do(func() {
 		c.cancelLifetime()
@@ -1033,7 +1038,11 @@ func (c *Console) teardown(restore func() error) error {
 	}
 	c.mu.Lock()
 	c.started = false
+	cancelPass := c.releaseReattachPassLocked()
 	c.mu.Unlock()
+	if cancelPass != nil {
+		cancelPass()
+	}
 	c.workers.Wait()
 	releaseErr := c.release()
 	c.mu.Lock()
@@ -2018,8 +2027,12 @@ func (c *Console) finishOperation(completed operationCompletion) bool {
 		c.menu, menuEffects = ReduceMenu(c.menu, event)
 	}
 	panelFocused := c.focus.IsPanel()
+	cancelPass := c.completedReattachPassLocked()
 	c.mu.Unlock()
 	// A completion can start the reattach pass's next attempt (pair#206).
+	if cancelPass != nil {
+		cancelPass()
+	}
 	c.dispatchMenuEffects(menuEffects)
 	if completed.origin.Operation == "leave" && err == nil {
 		// Report what leave actually did before the terminal goes. Skipped
@@ -2036,6 +2049,10 @@ func (c *Console) finishOperation(completed operationCompletion) bool {
 	// Never for a background completion: the pass reattaches behind the
 	// operator, and there is no adoption, so no background completion is ever
 	// the operator's own landing (pair#206).
+	if warned, ok := completed.value.(interface{ Warning() string }); ok && err == nil && warned.Warning() != "" {
+		c.reduceMenu(MenuEvent{Kind: MenuEventNotice, Error: warned.Warning()})
+		c.setNotice(warned.Warning())
+	}
 	if completed.origin.Operation == "resume" && err == nil && startedHandleID != "" && !completed.origin.Background && !completed.origin.PreserveFocus {
 		c.requestMenuRefresh()
 		c.forceSwitch(startedHandleID)
@@ -2108,7 +2125,24 @@ func (c *Console) ExecuteConsoleOperation(call couchcore.OperationCall) (any, er
 		}
 		c.mu.Unlock()
 		if target == "" {
-			return nil, fmt.Errorf("thread %s/%s is not attached to this console", address.RepoScope, address.Tag)
+			// A restored registry entry does not restore its PTY handle. Route
+			// through resume's fresh terminal proof and let normal completion
+			// install the returned helper, rather than treating the row as lost.
+			c.mu.Lock()
+			fn := c.ops
+			listed := false
+			for _, row := range menuRows(c.menu) {
+				if row.Address == address && couchcore.ContinuityOutcome(row) == couchcore.Continue {
+					listed = true
+					break
+				}
+			}
+			c.mu.Unlock()
+			if fn == nil || !listed {
+				return nil, fmt.Errorf("thread %s/%s is not attached to this console", address.RepoScope, address.Tag)
+			}
+			return fn(couchcore.OperationCall{Name: "resume", Context: call.Context, Implicit: true,
+				Args: map[string]string{"repo-scope": address.RepoScope, "tag": string(address.Tag), "warm-only": "true"}})
 		}
 		err := c.runTerminalCommand(call.Context, func() error { _, err := c.selectActorContext(call.Context, target, true, how); return err })
 		return address, err

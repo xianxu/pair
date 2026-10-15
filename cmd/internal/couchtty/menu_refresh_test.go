@@ -124,3 +124,30 @@ func TestProjectionPendingClearsOnlyAfterAuthorizedRefreshGeneration(t *testing.
 		t.Fatalf("post-mutation generation did not clear pending projection: %+v", fresh)
 	}
 }
+
+func TestInventorySuccessClearsOnlyInventoryNotice(t *testing.T) {
+	for _, initialError := range []string{"", "corrupt manifest"} {
+		state := NewMenuState(nil, couchcore.ThreadAddress{})
+		state, _ = ReduceMenu(state, MenuEvent{Kind: MenuEventRefreshStarted})
+		if initialError != "" {
+			state, _ = ReduceMenu(state, MenuEvent{Kind: MenuEventInventory, Error: initialError})
+		}
+		state, _ = ReduceMenu(state, MenuEvent{Kind: MenuEventInventory, Inventory: menuThreads()})
+		want := MenuNotice{}
+		if initialError != "" {
+			want = errorMenuNotice("thread inventory unavailable: " + initialError)
+		}
+		if state.Notice != want {
+			t.Fatalf("successful inventory notice: got %+v want %+v", state.Notice, want)
+		}
+	}
+	for _, notice := range []MenuNotice{infoMenuNotice("borrowed attachment: lifecycle claim is open"), errorMenuNotice("attach failed"), progressMenuNotice("starting hub")} {
+		state := NewMenuState(nil, couchcore.ThreadAddress{})
+		state.Notice = notice
+		state, _ = ReduceMenu(state, MenuEvent{Kind: MenuEventRefreshStarted})
+		state, _ = ReduceMenu(state, MenuEvent{Kind: MenuEventInventory, Inventory: menuThreads()})
+		if state.Notice != notice {
+			t.Fatalf("inventory replaced unrelated notice: got %+v want %+v", state.Notice, notice)
+		}
+	}
+}

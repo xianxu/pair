@@ -24,6 +24,7 @@
 package scrollbackcmd
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -151,7 +152,14 @@ func feedSegments(em *vt.Emulator, raw []byte, events []scrollbackEvent) []dateM
 }
 
 func feedSegmentsChecked(em *vt.Emulator, raw []byte, events []scrollbackEvent, checked bool) ([]dateMark, error) {
+	return feedSegmentsContext(context.Background(), em, raw, events, checked)
+}
+
+func feedSegmentsContext(ctx context.Context, em *vt.Emulator, raw []byte, events []scrollbackEvent, checked bool) ([]dateMark, error) {
 	checkLoss := func() error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		if checked && em.HistoryCapacityLoss() != 0 {
 			return fmt.Errorf("rendered history exceeds capacity; lost %d rows", em.HistoryCapacityLoss())
 		}
@@ -159,6 +167,9 @@ func feedSegmentsChecked(em *vt.Emulator, raw []byte, events []scrollbackEvent, 
 	}
 	write := func(data []byte) error {
 		for len(data) > 0 {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
 			n := len(data)
 			// Stop soon after overflow rather than repeatedly evicting a large
 			// history for the rest of an adversarial recording.
@@ -178,6 +189,9 @@ func feedSegmentsChecked(em *vt.Emulator, raw []byte, events []scrollbackEvent, 
 	var cursor int64
 	var marks []dateMark
 	for _, e := range events {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		off := e.Offset
 		if off > int64(len(raw)) {
 			off = int64(len(raw))
@@ -436,6 +450,13 @@ func replayData(raw []byte, events []scrollbackEvent, plain bool, historyLimit, 
 }
 
 func replayDataWithLimits(raw []byte, events []scrollbackEvent, plain bool, historyLimit, rowLimit int, limits vt.Limits) (replayed, error) {
+	return replayDataWithLimitsContext(context.Background(), raw, events, plain, historyLimit, rowLimit, limits)
+}
+
+func replayDataWithLimitsContext(ctx context.Context, raw []byte, events []scrollbackEvent, plain bool, historyLimit, rowLimit int, limits vt.Limits) (replayed, error) {
+	if err := ctx.Err(); err != nil {
+		return replayed{}, err
+	}
 	cols, rows := initialSize(events)
 	em, err := vt.NewEmulatorWithLimits(cols, rows, limits)
 	if err != nil {
@@ -445,7 +466,7 @@ func replayDataWithLimits(raw []byte, events []scrollbackEvent, plain bool, hist
 	em.Scrollback().SetMaxLines(historyLimit)
 	// Replay has no controlling app; discard terminal replies synchronously.
 	em.SetReplyWriter(io.Discard)
-	marks, err := feedSegmentsChecked(em, raw, events, rowLimit > 0)
+	marks, err := feedSegmentsContext(ctx, em, raw, events, rowLimit > 0)
 	if rowLimit > 0 && em.HistoryCapacityLoss() != 0 {
 		return replayed{}, fmt.Errorf("rendered history exceeds capacity (%d rows, %d cells, %d bytes); lost %d rows", rowLimit, limits.HistoryCells, limits.HistoryBytes, em.HistoryCapacityLoss())
 	}
@@ -466,10 +487,16 @@ func replayDataWithLimits(raw []byte, events []scrollbackEvent, plain bool, hist
 	viewportTop := sb.Len() + 1 // 1-indexed line where the visible buffer starts
 	out := make([]string, 0, sb.Len()+em.Height())
 	for i := 0; i < sb.Len(); i++ {
+		if err := ctx.Err(); err != nil {
+			return replayed{}, err
+		}
 		out = append(out, serializeRow(sb.Line(i), plain))
 	}
 	w := em.Width()
 	for y := 0; y < em.Height(); y++ {
+		if err := ctx.Err(); err != nil {
+			return replayed{}, err
+		}
 		out = append(out, serializeRow(visibleRow(em, y, w), plain))
 	}
 	// Trim trailing all-blank lines: a half-empty visible buffer otherwise

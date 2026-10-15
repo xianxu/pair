@@ -53,6 +53,7 @@ type OperationReceipt struct {
 	Op           string
 	Target       string
 	Agent        string `json:",omitempty"`
+	CandidateKey string `json:",omitempty"`
 	Status       ReceiptStatus
 	// Code is a refusal's code (SlotOperationError's, e.g. not-offered).
 	Code string `json:",omitempty"`
@@ -99,13 +100,13 @@ type ReceiptOutcome struct {
 
 // ReceiptEvent drives ApplyReceiptEvent.
 type ReceiptEvent struct {
-	IntentDigest          string
-	ToHub                 string
-	Persist               bool
-	Kind                  ReceiptEventKind
-	ID, Op, Target, Agent string // admit names all three; start, finish and status name the ID
-	Outcome               ReceiptOutcome
-	At                    time.Time
+	IntentDigest                        string
+	ToHub                               string
+	Persist                             bool
+	Kind                                ReceiptEventKind
+	ID, Op, Target, Agent, CandidateKey string // admit names all three; start, finish and status name the ID
+	Outcome                             ReceiptOutcome
+	At                                  time.Time
 }
 
 // ErrReceiptIDConflict refuses an admission reusing an ID for another
@@ -128,9 +129,9 @@ func ApplyReceiptEvent(r OperationReceipt, e ReceiptEvent) (OperationReceipt, er
 		return r, nil
 	case ReceiptAdmit:
 		if r.Status == ReceiptNone {
-			return OperationReceipt{IntentDigest: e.IntentDigest, ID: e.ID, Op: e.Op, Target: e.Target, Agent: e.Agent, ToHub: e.ToHub, Persist: e.Persist, Status: ReceiptQueued, Admitted: e.At}, nil
+			return OperationReceipt{CandidateKey: e.CandidateKey, IntentDigest: e.IntentDigest, ID: e.ID, Op: e.Op, Target: e.Target, Agent: e.Agent, ToHub: e.ToHub, Persist: e.Persist, Status: ReceiptQueued, Admitted: e.At}, nil
 		}
-		if e.IntentDigest != r.IntentDigest || e.Op != r.Op || e.Target != r.Target || e.Agent != r.Agent || e.ToHub != r.ToHub || e.Persist != r.Persist {
+		if e.CandidateKey != r.CandidateKey || e.IntentDigest != r.IntentDigest || e.Op != r.Op || e.Target != r.Target || e.Agent != r.Agent || e.ToHub != r.ToHub || e.Persist != r.Persist {
 			return r, ErrReceiptIDConflict
 		}
 		return r, nil

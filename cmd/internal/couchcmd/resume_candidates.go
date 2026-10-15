@@ -1,0 +1,130 @@
+package couchcmd
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+
+	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/couchmessage"
+	"github.com/xianxu/pair/cmd/internal/rowtext"
+)
+
+const recoveryPreviewTimeout = couchmessage.RecoveryPreviewTimeout
+
+func runResumeCandidatesCLI(inv cliInvocation, rt Runtime, out, diagnostic io.Writer, call messageCall) int {
+	socket, err := couchmessage.SocketPath(rt.Getenv("COUCH_STORE_DIR"), "broker")
+	if rt.Getenv("COUCH_STORE_DIR") == "" {
+		err = fmt.Errorf("--resume-candidates requires a live Couch slot")
+	}
+	if err != nil {
+		fmt.Fprintln(diagnostic, "couch:", err)
+		return 1
+	}
+	request := callerIdentity(rt, "resume-candidates")
+	request.Target = inv.ref
+	if err = couchmessage.ValidateRequest(request); err != nil {
+		fmt.Fprintln(diagnostic, "couch:", err)
+		return 1
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), recoveryPreviewTimeout)
+	defer cancel()
+	var response couchmessage.Response
+	if err = call(ctx, socket, request, &response); err != nil {
+		fmt.Fprintln(diagnostic, "couch:", err)
+		return 1
+	}
+	if response.Code != "ok" || response.RecoveryPreview == nil {
+		detail := response.Error
+		if detail == "" {
+			detail = "candidate preview unavailable (" + response.Code + ")"
+		}
+		fmt.Fprintln(diagnostic, "couch:", detail)
+		return 1
+	}
+	preview := response.RecoveryPreview
+	if inv.jsonOutput {
+		if err = json.NewEncoder(out).Encode(preview); err != nil {
+			fmt.Fprintln(diagnostic, err)
+			return 1
+		}
+		return 0
+	}
+	fmt.Fprintln(out, "Recovery choices for", inv.ref, "(explicit selection required)")
+	choices := append([]couchcore.RecoveryChoice(nil), preview.Candidates...)
+	if preview.Fresh != nil {
+		choices = append(choices, *preview.Fresh)
+	}
+	for i, c := range choices {
+		label := c.Label
+		if i == 0 && len(preview.Candidates) > 0 {
+			label = "best · " + label
+		}
+		activity := "unknown"
+		if !c.LastActivity.IsZero() {
+			activity = c.LastActivity.Local().Format("2006-01-02 15:04 MST")
+		}
+		evidence := "original saved screen"
+		if c.NativeID != "" {
+			evidence = fmt.Sprintf("matched %d/%d · tail %.0f%%", c.Matched, c.Total, c.TailMatch)
+		}
+		fmt.Fprintf(out, "%d. %s [%s] %s\n   last activity %s · %s\n   %s\n   couch --resume %s --candidate %s\n", i+1, rowtext.Sanitize(label), rowtext.Sanitize(c.Agent), rowtext.Sanitize(c.NativeID), activity, evidence, rowtext.Sanitize(c.Excerpt), inv.ref, c.Key)
+	}
+	for _, reason := range preview.Reasons {
+		fmt.Fprintln(out, rowtext.Sanitize(reason))
+	}
+	if preview.Incomplete {
+		fmt.Fprintln(out, "Candidate scan incomplete.")
+	}
+	if preview.Truncated {
+		fmt.Fprintln(out, "Additional candidates omitted.")
+	}
+	return 0
+}
+
+// Resolve the durable slot row without filtering it through today's action list.
+func recoveryTargetForReference(ctx context.Context, c *couchcore.Couch, reference string) (couchcore.ResumeTarget, error) {
+	ref, ok, err := couchcore.ParseWorkspaceReference(reference)
+	if err != nil || !ok || ref.Repo == "" {
+		return couchcore.ResumeTarget{}, fmt.Errorf("recovery requires an exact repo:N slot")
+	}
+	path, ok, err := c.WorkspaceReferencePath(ctx, reference)
+	if err != nil {
+		return couchcore.ResumeTarget{}, err
+	}
+	if !ok || path == "" {
+		return couchcore.ResumeTarget{}, fmt.Errorf("unknown slot %s", reference)
+	}
+	if ref.Number > 0 {
+		return couchcore.ResumeTarget{Path: path}, nil
+	}
+	rows, err := c.ActionableThreadInventoryContext(ctx, nil)
+	if err != nil {
+		return couchcore.ResumeTarget{}, err
+	}
+	row, err := couchcore.SelectSlotRow(rows, ref.Number, path)
+	if err != nil {
+		return couchcore.ResumeTarget{}, err
+	}
+	return couchcore.ResumeTarget{Address: row.Address}, nil
+}
+
+func (s *messageService) handleResumeCandidates(ctx context.Context, r couchmessage.Request) couchmessage.Response {
+	if err := couchmessage.ValidateRequest(r); err != nil {
+		return couchmessage.Response{Code: "invalid-request", Error: err.Error()}
+	}
+	if _, err := s.liveCaller(ctx, r); err != nil {
+		return couchmessage.Response{Code: "unavailable", Error: err.Error()}
+	}
+	if s.slotOps == nil || s.slotOps.preview == nil {
+		return couchmessage.Response{Code: "unsupported", Error: "resume candidates unavailable"}
+	}
+	ctx, cancel := context.WithTimeout(ctx, recoveryPreviewTimeout)
+	defer cancel()
+	preview, err := s.slotOps.preview(ctx, r.Target)
+	if err != nil {
+		return couchmessage.Response{Code: "unavailable", Error: err.Error()}
+	}
+	return couchmessage.Response{Code: "ok", RecoveryPreview: &preview}
+}

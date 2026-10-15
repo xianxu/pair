@@ -245,6 +245,15 @@ func TestSlotOperationTypedOutcomes(t *testing.T) {
 			t.Fatalf("%+v", got)
 		}
 	})
+	t.Run("borrowed attachment notice survives hub receipt", func(t *testing.T) {
+		started := couchcore.StartResult{Record: couchcore.ActorRecord{AttachmentNotice: "BORROWED ATTACH: old client is alive; retained client state was left unchanged."}}
+		for _, value := range []any{started, couchcore.RecoveryResumeResult{Start: started}, notedResult{value: started, note: "explicit Continue"}} {
+			got := finishWith(value, nil)(t)
+			if got.Status != couchmessage.ReceiptSucceeded || !strings.Contains(got.Warning, started.Warning()) {
+				t.Fatalf("borrowed attachment warning lost: %+v", got)
+			}
+		}
+	})
 	t.Run("succeeded with tag", func(t *testing.T) {
 		started := couchcore.StartResult{Record: couchcore.ActorRecord{Thread: couchcore.ThreadAddress{RepoScope: "scope", Tag: "fresh"}}}
 		got := finishWith(couchcore.RebootResult{Start: started, Archived: couchcore.ThreadAddress{RepoScope: "scope", Tag: "old"}}, nil)(t)

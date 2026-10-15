@@ -102,6 +102,11 @@ func (c *Couch) Relaunch(ctx context.Context, address ThreadAddress) (RelaunchRe
 		return refused, err
 	}
 
+	sourceThread := thread
+	thread, _, err = c.ownedAttachmentFacts(thread)
+	if err != nil {
+		return refused, err
+	}
 	if err := continuationGuard(thread); err != nil {
 		return refused, err
 	}
@@ -142,6 +147,10 @@ func (c *Couch) Relaunch(ctx context.Context, address ThreadAddress) (RelaunchRe
 		return refused, withRebootHint(err)
 	}
 
+	thread, err = c.adoptOwnedAttachment(ctx, sourceThread)
+	if err != nil {
+		return refused, err
+	}
 	// Only now is anything destroyed.
 	if _, err := c.PairLifecycle.ParkExpected(ctx, address, thread.Revision); err != nil {
 		return RelaunchResult{Outcome: ParkIncomplete}, fmt.Errorf(

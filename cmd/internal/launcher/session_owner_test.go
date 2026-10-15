@@ -167,3 +167,48 @@ func FuzzObservedCommandQuotedArguments(f *testing.F) {
 		}
 	})
 }
+
+// A new claimant must invalidate authority even if the original generation
+// survives unchanged. Narrowed discovery must retain fresh exclusivity checks.
+type competingOwnerWorld struct {
+	ownerWorld
+	competitor     SessionServerIdentity
+	compete        bool
+	competeOnQuery bool
+}
+
+func (w *competingOwnerWorld) SessionServers(ctx context.Context, name string) ([]SessionServerIdentity, error) {
+	rows, err := w.ownerWorld.SessionServers(ctx, name)
+	if w.compete {
+		rows = append(rows, w.competitor)
+	}
+	return rows, err
+}
+func (w *competingOwnerWorld) SessionPanes(ctx context.Context, name string) ([]byte, error) {
+	if w.competeOnQuery {
+		w.compete = true
+	}
+	return w.ownerWorld.SessionPanes(ctx, name)
+}
+func TestSessionOwnerFreshChecksRefuseNewClaimant(t *testing.T) {
+	original := SessionServerIdentity{PID: 42, Identity: "original", Session: "session", Socket: "/tmp/session"}
+	w := &competingOwnerWorld{ownerWorld: ownerWorld{present: true, generation: original, panes: []byte(`[{"id":1,"pane_command":"nvim /tmp/data/repos/0123456789abcdef/draft-1-repo-1.md"}]`)}, competitor: SessionServerIdentity{PID: 43, Identity: "competitor", Session: "session", Socket: "/other/session"}}
+	p := SessionOwnerProbe{IO: w}
+	observed, err := p.Probe(t.Context(), "session", "/tmp/data", "0123456789abcdef", "1-repo-1")
+	if err != nil || observed.State != SessionOwnerOwned {
+		t.Fatalf("healthy authority: %+v %v", observed, err)
+	}
+	w.compete = true
+	if err := p.Revalidate(t.Context(), observed); err == nil {
+		t.Fatal("new claimant reached effect authority")
+	}
+	w.compete = false
+	w.competeOnQuery = true
+	observed, err = p.Probe(t.Context(), "session", "/tmp/data", "0123456789abcdef", "1-repo-1")
+	if err != nil || observed.State != SessionOwnerUnknown || observed.Diagnostic != "session server changed during observation" {
+		t.Fatalf("competing claimant around pane IO: %+v %v", observed, err)
+	}
+	if w.generation != original {
+		t.Fatal("fixture changed original generation")
+	}
+}

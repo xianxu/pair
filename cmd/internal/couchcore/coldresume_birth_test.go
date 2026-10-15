@@ -150,7 +150,7 @@ func TestColdResumeTimesOutWhenThePaneIsNeverBorn(t *testing.T) {
 
 // An attached terminal cannot authorize a cold create. Refuse before releasing
 // the helper so neither a second agent nor destructive cleanup can occur.
-func TestColdResumeAgainstALiveSessionNeitherWaitsNorDeletesIt(t *testing.T) {
+func TestResumeAgainstALiveSessionAttachesWithoutColdLaunch(t *testing.T) {
 	t.Parallel()
 
 	env := newTestEnv(t, "/repo")
@@ -160,8 +160,17 @@ func TestColdResumeAgainstALiveSessionNeitherWaitsNorDeletesIt(t *testing.T) {
 	env.Artifacts.SetNativeBinding(address, "claude", sessioninventory.BindingEstablished, "native-root-1")
 	env.Artifacts.SetPairSession(address, "pair-"+string(address.Tag), true) // live, not detached
 
-	if _, _, err := env.Couch.Resume(address); err == nil {
-		t.Fatal("cold resume accepted an attached live terminal")
+	actor, handle, err := env.Couch.Resume(address)
+	if err != nil || handle == nil || actor.Shape != StartWarmReattach {
+		t.Fatalf("listed live terminal did not attach: %+v %v", actor, err)
+	}
+	t.Cleanup(func() { env.Runner.SetExited(handle.ID(), 0) })
+	assertWarmRecordUnchanged(t, env, parked)
+	if env.Artifacts.BindingResolutions() != 0 {
+		t.Fatal("attached terminal consulted cold binding")
+	}
+	if !slices.Equal(env.Runner.Child(handle.ID()).Argv, []string{"pair", launcher.CouchSessionFlag, "resume", string(address.Tag)}) {
+		t.Fatal("live terminal received cold launch flags")
 	}
 	if containsAddress(env.Artifacts.Quiesces(), address) {
 		t.Fatalf("a cold resume deleted the live session of %+v", address)

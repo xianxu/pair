@@ -37,23 +37,23 @@ func TestReattachArmIsOnce(t *testing.T) {
 }
 
 // Cell 3: what is seeded, and in what order.
-func TestReattachSeedTakesWarmAndUnknownThreadsMostRecentFirst(t *testing.T) {
+func TestReattachSeedTakesContinueThreadsMostRecentFirst(t *testing.T) {
 	inventory := []couchcore.ActionableThreadSummary{
 		reattachRow("couch-root", couchcore.ThreadDetached, 0), // excluded: the startup root
 		reattachRow("couch-old", couchcore.ThreadDetached, 90), // warm, least recent
-		reattachRow("couch-live", couchcore.ThreadLive, 1),     // already hosted
+		reattachRow("couch-live", couchcore.ThreadLive, 1),     // listed live: still a candidate
 		reattachRow("couch-parked", couchcore.ThreadParked, 2), // never resumed at startup
 		reattachRow("couch-new", couchcore.ThreadDetached, 5),  // warm, most recent
 		reattachRow("couch-gone", couchcore.ThreadUnusable, 3), // session-gone: not a candidate
 	}
 	unknown := reattachRow("couch-unknown", couchcore.ThreadUnusable, 30)
-	unknown.Reason = couchcore.ReasonUnknown // "we could not ask", not "not detached"
+	unknown.Reason = couchcore.ReasonUnknown // no positive terminal listing
 	inventory = append(inventory, unknown)
 	inventory[5].Reason = couchcore.ReasonSessionGone
 
 	state := seedReattach(armedMenu("couch-root"), inventory)
 
-	want := []couchcore.ThreadAddress{menuAddress("couch-new"), menuAddress("couch-unknown"), menuAddress("couch-old")}
+	want := []couchcore.ThreadAddress{menuAddress("couch-live"), menuAddress("couch-new"), menuAddress("couch-old")}
 	if !reflect.DeepEqual(state.Reattach.Queue, want) || state.Reattach.Phase != ReattachRunning {
 		t.Fatalf("queue = %v (phase %d), want %v running", state.Reattach.Queue, state.Reattach.Phase, want)
 	}
@@ -146,17 +146,17 @@ func TestReattachFinishResolvesTheAttempt(t *testing.T) {
 		}
 	})
 	for _, code := range []couchcore.ResumeDiagnosticCode{couchcore.ResumeNotDetached, couchcore.ResumeSessionGone} {
-		t.Run("cell 6: "+string(code)+" is a silent skip", func(t *testing.T) {
+		t.Run("changed proof: "+string(code)+" remains visible", func(t *testing.T) {
 			state, attempt := loadingPass(t)
 			event := passResult(attempt, "couch-a")
 			event.Diagnostic = code
 			state = finishReattach(state, event)
-			if view, owned := passViewOf(state.Reattach, menuAddress("couch-a")); owned {
-				t.Fatalf("a thread that stopped being warm is still owned by the pass: %+v", view)
+			if view, owned := passViewOf(state.Reattach, menuAddress("couch-a")); !owned || view.State != PassFailed || view.Diagnostic != string(code) {
+				t.Fatalf("changed proof failure was hidden: %+v owned=%v", view, owned)
 			}
 		})
 	}
-	t.Run("cell 6: a thread busy with another operation is a silent skip", func(t *testing.T) {
+	t.Run("busy with another operation remains visible", func(t *testing.T) {
 		// pair#205: the busy refusal carries a message, not a code, so only the
 		// Busy flag keeps it out of cell 7.
 		state, attempt := loadingPass(t)
@@ -164,11 +164,8 @@ func TestReattachFinishResolvesTheAttempt(t *testing.T) {
 		event.Busy = true
 		event.Error = "couch-a is busy: relaunch is already running on it"
 		state = finishReattach(state, event)
-		if _, failed := state.Reattach.Failed[menuAddress("couch-a")]; failed {
-			t.Fatalf("a busy thread was marked reattach failed: %v", state.Reattach.Failed)
-		}
-		if view, owned := passViewOf(state.Reattach, menuAddress("couch-a")); owned {
-			t.Fatalf("a busy thread is still owned by the pass: %+v", view)
+		if got := state.Reattach.Failed[menuAddress("couch-a")]; got != event.Error {
+			t.Fatalf("busy refusal was hidden: %v", state.Reattach.Failed)
 		}
 	})
 	t.Run("cell 7: a failure is marked with its code", func(t *testing.T) {
@@ -285,6 +282,18 @@ func TestCloneMenuStateCopiesThePassDeeply(t *testing.T) {
 	}
 	if empty := cloneMenuState(NewMenuState(nil, couchcore.ThreadAddress{})); empty.Reattach.Attached != nil || empty.Reattach.Failed != nil {
 		t.Fatal("a nil map must stay nil, or DeepEqual comparisons of whole states break")
+	}
+}
+
+func TestReattachOverlayCannotHideUnsafeTerminal(t *testing.T) {
+	address := menuAddress("couch-a")
+	pass := ReattachPass{Attached: map[couchcore.ThreadAddress]uint64{address: 10}}
+	for _, reason := range []couchcore.ThreadReason{couchcore.ReasonUnknown, couchcore.ReasonNeedsRelaunch} {
+		row := couchcore.ActionableThreadSummary{Address: address, State: couchcore.ThreadUnusable, Reason: reason}
+		got := overlayPassRow(pass, row)
+		if got.State != row.State || got.Reason != row.Reason {
+			t.Fatalf("successful client attach hid %s terminal: %+v", reason, got)
+		}
 	}
 }
 

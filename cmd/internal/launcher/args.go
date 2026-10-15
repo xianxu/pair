@@ -7,6 +7,7 @@ import (
 
 // LaunchArgs is the pure parse result for the guarded pair-go launch prototype.
 type LaunchArgs struct {
+	Recovery *RecoveryAuthority
 	// FreshNonce binds a fresh launch's readiness to Couch's attempt.
 	FreshNonce        string
 	CouchSessionV1    bool

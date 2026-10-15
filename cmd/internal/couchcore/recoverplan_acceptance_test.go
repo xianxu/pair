@@ -107,6 +107,7 @@ func newRecoverWorld(t *testing.T) *recoverWorld {
 		t.Fatal(err)
 	}
 	env.Proc.Set(4242, "pair-primary")
+	env.Artifacts.SetSessionPresence(primary.Address, SessionObservation{State: SessionPresent})
 	// A claim whose slot directory is gone, and one on a scratch worktree.
 	fleet.AddDanglingClaim(f.Primary, filepath.Join(root, "worktree", repo+"-slot9", repo), ref(15), address(9))
 	fleet.AddOffSlotRow(filepath.Join(root, "scratch"), f.Primary, "")
@@ -214,6 +215,7 @@ func TestRecoverPlanStepsConverge(t *testing.T) {
 	}
 	w.env.Runner.AfterAcknowledge = func(id string) error {
 		w.env.Artifacts.SetPairSession(resuming, continuationChildSession(t, w.env.Runner, id), true)
+		w.env.Artifacts.SetSessionPresence(resuming, SessionObservation{State: SessionPresent})
 		return nil
 	}
 	slotOf := map[string]int{}

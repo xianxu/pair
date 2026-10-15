@@ -31,6 +31,8 @@ const maxSlotOperationReceipts = 64
 type slotOperations struct {
 	run        slotOperationRunner
 	guardedRun func(string, string, string, couchcore.LiveRestartOptions, func(context.Context) error, func(), func(any, error)) error
+	preview    func(context.Context, string) (couchcore.RecoveryPreview, error)
+	candidate  func(string, string, string, func(), func(any, error), ...func(context.Context) error) error
 	names      func(context.Context) ([]couchcore.RepositoryName, error)
 	now        func() time.Time
 
@@ -89,6 +91,12 @@ func (s *slotOperations) handle(ctx context.Context, caller couchmessage.Binding
 		return couchmessage.Response{Code: "ok", Operation: &receipt}
 	}
 	return s.admit(ctx, caller, r, func(key string, started func(), finished func(any, error)) error {
+		if r.CandidateKey != "" {
+			if s.candidate == nil {
+				return errors.New("candidate resume unavailable")
+			}
+			return s.candidate(key, r.Target, r.CandidateKey, started, finished, guards...)
+		}
 		if len(guards) > 0 {
 			if s.guardedRun == nil {
 				return errors.New("hub-aware operation queue unavailable")
@@ -121,7 +129,7 @@ func (s *slotOperations) admit(ctx context.Context, caller couchmessage.Binding,
 	defer s.mu.Unlock()
 	s.sweepLocked()
 	existing, held := s.receipts[key]
-	receipt, err := couchmessage.ApplyReceiptEvent(existing, couchmessage.ReceiptEvent{Kind: couchmessage.ReceiptAdmit, IntentDigest: driveIntentDigest(r), ID: r.ID, Op: r.Op, Target: r.Target, Agent: r.Agent, ToHub: r.ToHub, Persist: r.Persist, At: s.now()})
+	receipt, err := couchmessage.ApplyReceiptEvent(existing, couchmessage.ReceiptEvent{Kind: couchmessage.ReceiptAdmit, IntentDigest: driveIntentDigest(r), CandidateKey: r.CandidateKey, ID: r.ID, Op: r.Op, Target: r.Target, Agent: r.Agent, ToHub: r.ToHub, Persist: r.Persist, At: s.now()})
 	switch {
 	case errors.Is(err, couchmessage.ErrReceiptIDConflict):
 		return couchmessage.Response{Code: "id-conflict", Error: err.Error()}

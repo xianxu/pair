@@ -1,6 +1,7 @@
 package couchtty
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
@@ -42,6 +43,36 @@ func TestEveryOfferedActionIsReachableFromEnter(t *testing.T) {
 					}
 					// And what it did must match the DECLARATION, so the two
 					// cannot drift apart again.
+					// An unsafe terminal's advertised Relaunch is evidence selection;
+					// the ordinary healthy relaunch declaration still confirms.
+					if action == "relaunch" && !thread.Live() {
+						if next.CurrentFrame().Kind != MenuFrameRecovery || len(effects) != 1 || effects[0].Preview == nil || effects[0].Operation != "" || next.InFlight.Operation != "" {
+							t.Fatal("non-live relaunch bypassed read-only recovery preview")
+						}
+						// Completing an observation itself must never start work.
+						frame := next.CurrentFrame()
+						preview := &couchcore.RecoveryPreview{Address: address, Fresh: &couchcore.RecoveryChoice{Label: "Start fresh"}}
+						next, effects = ReduceMenu(next, MenuEvent{Kind: MenuEventPreviewResult, Generation: frame.Generation, RecoveryPreview: preview})
+						if len(effects) != 0 || next.InFlight.Operation != "" {
+							t.Fatal("preview completion dispatched lifecycle")
+						}
+						next, effects = reduceRecoveryKey(next, PanelKey{Kind: KeyEnter})
+						if !slices.Contains(menuActionItems(thread), "reboot") {
+							if len(effects) != 0 || next.InFlight.Operation != "" || next.CurrentFrame().Kind != MenuFrameRecovery {
+								t.Fatal("refused Fresh choice remained executable")
+							}
+						} else {
+							if len(effects) != 0 || next.CurrentFrame().Kind != MenuFrameConfirmation || next.CurrentFrame().Action != "reboot" {
+								t.Fatal("Fresh choice bypassed confirmation")
+							}
+							next.Frames[len(next.Frames)-1].SelectedItem = "reboot"
+							_, effects = reduceConfirmationKey(next, PanelKey{Kind: KeyEnter})
+							if len(effects) != 1 || effects[0].Operation != "reboot" {
+								t.Fatalf("confirmed Fresh did not execute: %+v", effects)
+							}
+						}
+						return
+					}
 					if confirms, declared := couchcore.OperationConfirms(action); declared && confirms {
 						if next.CurrentFrame().Kind != MenuFrameConfirmation && next.CurrentFrame().Kind != MenuFrameSwitchAgent {
 							t.Errorf("%q declares ConfirmRequired but Enter did not confirm: %v",
@@ -140,5 +171,21 @@ func TestAClickRefusedMidOperationDoesNotMarkSomeoneElsesWork(t *testing.T) {
 	}
 	if next.InFlight.Manual {
 		t.Error("the refused click marked the in-flight park as manual, so it will skip its attention capture")
+	}
+}
+
+func TestMissingSlotDirectoryPreviewOffersNoUnexecutableFresh(t *testing.T) {
+	row := menuSlotRow(1, "missing")
+	row.Reason = couchcore.ReasonPathMissing
+	state := NewMenuState([]couchcore.ActionableThreadSummary{row}, row.Address)
+	state, _ = openRecoveryPreview(state, row)
+	frame := state.CurrentFrame()
+	state, effects := ReduceMenu(state, MenuEvent{Kind: MenuEventPreviewResult, Generation: frame.Generation, RecoveryPreview: &couchcore.RecoveryPreview{Address: row.Address, Fresh: &couchcore.RecoveryChoice{Label: "Start fresh"}}})
+	if len(effects) != 0 || state.CurrentFrame().RecoveryPreview.Fresh != nil {
+		t.Fatal("missing directory retained unexecutable Fresh")
+	}
+	next, effects := reduceRecoveryKey(state, PanelKey{Kind: KeyEnter})
+	if len(effects) != 0 || next.InFlight.Operation != "" || next.CurrentFrame().Kind != MenuFrameRecovery {
+		t.Fatal("missing directory dispatched lifecycle or confirmation")
 	}
 }

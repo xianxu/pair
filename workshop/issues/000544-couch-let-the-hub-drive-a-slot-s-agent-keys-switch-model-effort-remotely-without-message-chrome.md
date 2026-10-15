@@ -89,6 +89,14 @@ Durable implementation plan: [agent keys and model selection](../plans/000544-ag
 
 ## Revisions
 
+### 2026-10-15 — reconcile landed recovery and stall supervision
+
+**Reason:** TL unblocks #544 after #528 acceptance/landing and the operator's main Couch restart. Integrate main3dcdd38c361e4ceed303374099a16ab668c9553d before renewed verification. Nine conflict sites overlap additive documentation, source inventory, candidate-bound recovery receipts, endpoint validation and wrapper shutdown/state fields.
+
+**Delta:** Preserve both typed drive intent/digest and resume CandidateKey through validation, receipt identity and dispatch; retain main's endpoint context/incarnation safeguards and once-only wrapper shutdown while cancelling active drives. Keep both inventory/docs additions. Main's automatic-input reducer now owns alerted residual waits and a monotonic stall sequence: explicit recovery can take an awaiting-empty or alerted residual lease after positive composer proof, while active owners remain exclusive. Route drive begin/finish through that reducer, preserve its sequence and distinguish confirmed final input/recovery from uncertain outcomes. New integration tests first reproduced alerted recovery refusal and sequence reset; both are now GREEN. No broadened input authority or deadline is introduced (ARCH-DRY, ARCH-ORDER).
+
+Rerun targeted races, isolated native conformance and the recorded full suite on the integrated commit. The new broker operations and wrapper endpoint capability require this branch's Couch plus current wrappers in selected idle slots. Propose staging pair:0 for an operator-batched restart only after those checks; no staging or restart is authorized by this revision itself. Renew session-only Codex/Claude model selection and explicit keys/dirty-composer recovery, followed by ordinary delivery to prove the input lease hands off.
+
 ### 2026-10-14 — measured submit timing and native selection evidence
 
 **Reason:** Actual Run/socket/native-child conformance reproduced the operator failure in both scratch and Pair virtual terminals: `/model` and CR can reach Codex in one rapid input burst. Changing CR to CSI13u did not fix it. A 150ms quiet gap did open the picker. The pinned [Codex 0.162.1 paste-burst implementation](https://raw.githubusercontent.com/openai/codex/rust-v0.162.1/codex-rs/tui/src/bottom_pane/paste_burst.rs) retains Enter suppression for 120ms after fast text, even after the text has rendered. Keyboard negotiation differs between Ghostty and the old scratch environment, but is not the demonstrated cause. Native raw capture also proves selected picker rows may use a unique `›` without reverse-video styling.

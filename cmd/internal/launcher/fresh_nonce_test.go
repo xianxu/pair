@@ -5,6 +5,18 @@ import (
 	"testing"
 )
 
+func TestOrdinaryStandaloneCreateHasCaptureAndTerminalNonce(t *testing.T) {
+	rt := newFakeRuntime()
+	opts := baseOpts(LaunchArgs{Agent: "codex", ForcedTag: "work"})
+	opts.Env.DataDir = t.TempDir()
+	if code, err := run(t, opts, rt); err != nil || code != 0 {
+		t.Fatalf("launch %d %v", code, err)
+	}
+	if rt.env["PAIR_LAUNCH_NONCE"] == "" {
+		t.Fatal("ordinary launch cannot attest terminal or capture without nonce")
+	}
+}
+
 func TestFreshLaunchNonceWithoutPromptReachesReadiness(t *testing.T) {
 	raw := `{"schema_version":1,"tag":"work","agent":"codex","argv":[],"agent_source":"explicit","argv_source":"explicit","fresh_required":true,"fresh_nonce":"couch-exact-attempt"}`
 	args, _, err := ApplyCouchLaunchProfile(LaunchArgs{ForcedTag: "work"}, raw)

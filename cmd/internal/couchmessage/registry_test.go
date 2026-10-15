@@ -29,52 +29,43 @@ func kinds(fx []RegistryEffect) []RegistryEffectKind {
 	return out
 }
 
-func TestRegistryHelloBeforePaneWaitsWithoutRetries(t *testing.T) {
+func TestRegistryHelloAdmitsWithoutPane(t *testing.T) {
 	r := NewRegistry()
 	b := registryBinding("pair:1", "a", 10)
-	if fx := step(t, r, RegistryEvent{Kind: SessionOpened, Token: 1, Binding: b}); len(fx) != 0 {
-		t.Fatalf("hello without a pane emitted %v", kinds(fx))
+	fx := step(t, r, RegistryEvent{Kind: SessionOpened, Token: 1, Binding: b})
+	if len(fx) != 1 || fx[0].Kind != EffectAdmit || fx[0].Pane != "" {
+		t.Fatalf("hello without any client pane must admit the wrapper: %+v", fx)
 	}
-	fx := step(t, r, RegistryEvent{Kind: PaneChanged, Thread: b.Thread(), Pane: "h1"})
-	if len(fx) != 1 || fx[0].Kind != EffectAdmit || fx[0].Pane != "h1" {
-		t.Fatalf("attach effects %+v", fx)
-	}
-	fx = step(t, r, RegistryEvent{Kind: AdmissionDone, Token: 1, Pane: "h1"})
+	fx = step(t, r, RegistryEvent{Kind: AdmissionDone, Token: 1})
 	if len(fx) != 1 || fx[0].Kind != EffectConnect || !r.Connected()[b] {
-		t.Fatalf("admission effects %+v", fx)
+		t.Fatalf("wrapper admission effects %+v", fx)
 	}
 }
 
-func TestRegistryDetachKeepsSessionAndReattachReadmits(t *testing.T) {
+func TestRegistryClientDetachAndReplacementKeepWrapperConnected(t *testing.T) {
 	r := NewRegistry()
 	b := registryBinding("pair:1", "a", 10)
 	step(t, r, RegistryEvent{Kind: PaneChanged, Thread: b.Thread(), Pane: "h1"})
 	step(t, r, RegistryEvent{Kind: SessionOpened, Token: 1, Binding: b})
 	step(t, r, RegistryEvent{Kind: AdmissionDone, Token: 1, Pane: "h1"})
-	fx := step(t, r, RegistryEvent{Kind: PaneChanged, Thread: b.Thread()})
-	if len(fx) != 1 || fx[0].Kind != EffectDisconnect || r.Connected()[b] {
-		t.Fatalf("detach effects %+v", fx)
+	for _, pane := range []PaneHandle{"", "h2"} {
+		if fx := step(t, r, RegistryEvent{Kind: PaneChanged, Thread: b.Thread(), Pane: pane}); len(fx) != 0 || !r.Connected()[b] {
+			t.Fatalf("client pane %q altered live wrapper membership: %+v", pane, fx)
+		}
 	}
-	if p, _ := r.Phase(1); p != AwaitingPane {
-		t.Fatalf("detached session phase %v", p)
-	}
-	fx = step(t, r, RegistryEvent{Kind: PaneChanged, Thread: b.Thread(), Pane: "h2"})
-	if len(fx) != 1 || fx[0].Kind != EffectAdmit || fx[0].Pane != "h2" {
-		t.Fatalf("reattach effects %+v", fx)
+	if fx := step(t, r, RegistryEvent{Kind: SessionClosed, Token: 1}); len(fx) != 1 || fx[0].Kind != EffectDisconnect || r.Connected()[b] {
+		t.Fatalf("wrapper close did not disconnect: %+v", fx)
 	}
 }
 
-func TestRegistryResultForReplacedPaneIsDiscarded(t *testing.T) {
+func TestRegistryClientReplacementDoesNotInvalidateWrapperAdmission(t *testing.T) {
 	r := NewRegistry()
 	b := registryBinding("pair:1", "a", 10)
 	step(t, r, RegistryEvent{Kind: PaneChanged, Thread: b.Thread(), Pane: "h1"})
 	step(t, r, RegistryEvent{Kind: SessionOpened, Token: 1, Binding: b})
 	step(t, r, RegistryEvent{Kind: PaneChanged, Thread: b.Thread(), Pane: "h2"})
-	if fx := step(t, r, RegistryEvent{Kind: AdmissionDone, Token: 1, Pane: "h1"}); len(fx) != 0 || r.Connected()[b] {
-		t.Fatalf("stale result connected: %+v", fx)
-	}
-	if fx := step(t, r, RegistryEvent{Kind: AdmissionDone, Token: 1, Pane: "h2"}); len(fx) != 1 || fx[0].Kind != EffectConnect {
-		t.Fatalf("current result %+v", fx)
+	if fx := step(t, r, RegistryEvent{Kind: AdmissionDone, Token: 1, Pane: "h1"}); len(fx) != 1 || fx[0].Kind != EffectConnect || !r.Connected()[b] {
+		t.Fatalf("local pane replacement invalidated wrapper authority: %+v", fx)
 	}
 }
 
@@ -311,9 +302,6 @@ func TestRegistryInterleavingsKeepInvariants(t *testing.T) {
 					t.Fatalf("seed %d: two connected bindings for %s", seed, b.Slot)
 				}
 				slots[b.Slot] = true
-				if _, ok := r.panes[b.Thread()]; !ok {
-					t.Fatalf("seed %d: connected without a pane", seed)
-				}
 			}
 			// Newest wins: an older session may stay connected while a newer
 			// one is still being checked (delivery can complete at the old
@@ -347,8 +335,8 @@ func TestRegistryInterleavingsKeepInvariants(t *testing.T) {
 func TestRegistryLiveness(t *testing.T) {
 	r := NewRegistry()
 	admit := func(token SessionToken, b Binding, build *BuildIdentity, pane PaneHandle) {
-		step(t, r, RegistryEvent{Kind: SessionOpened, Token: token, Binding: b, Build: build})
 		step(t, r, RegistryEvent{Kind: PaneChanged, Thread: b.Thread(), Pane: pane})
+		step(t, r, RegistryEvent{Kind: SessionOpened, Token: token, Binding: b, Build: build})
 		step(t, r, RegistryEvent{Kind: AdmissionDone, Token: token, Pane: pane})
 	}
 	modern := registryBinding("pair:1", "a", 101)

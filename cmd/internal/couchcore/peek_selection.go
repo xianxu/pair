@@ -23,6 +23,17 @@ func SelectPeekSource(record ThreadRecord, previous bool) (PeekSource, error) {
 	if !previous {
 		return PeekSource{Agent: RecordAgent(record), Binding: cloneSessionBinding(record.SessionBinding)}, nil
 	}
+	// Recovery carries an exact immutable screen independently of park proof.
+	// The original source survives later output and choices on this same tag.
+	if context := record.RecoveryContext; context != nil {
+		if err := threadrecord.ValidateRecoveryContext(*context, toPersistedThreadAddress(record.Address)); err != nil {
+			return PeekSource{}, err
+		}
+		if context.Capture.Token == "" {
+			return PeekSource{}, fmt.Errorf("recovery screen has no retained capture token")
+		}
+		return PeekSource{Agent: RecordAgent(record), Token: context.Capture.Token}, nil
+	}
 	p := threadrecord.ClonePreviousSession(record.PreviousSession)
 	if p == nil {
 		return PeekSource{}, fmt.Errorf("previous session descriptor is unavailable")

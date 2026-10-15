@@ -1216,25 +1216,13 @@ func unusableMenuRow(reason couchcore.ThreadReason) couchcore.ActionableThreadSu
 	}
 }
 
-// Silence is what the operator reports as a bug, and a dispatched switch would
-// have failed with "not attached to this console" -- true of the console, and
-// nothing to do with why the thread cannot be entered.
-func TestEnterOnAnUnusableRowExplainsAndDispatchesNothing(t *testing.T) {
-	state := NewMenuState([]couchcore.ActionableThreadSummary{
-		unusableMenuRow(couchcore.ReasonBindingLost),
-	}, couchcore.ThreadAddress{})
-	state.InventoryReady = true
-
+// Missing binding cannot authorize Continue; Fresh first names its exact target.
+func TestEnterOnAnUnusableRowRequiresFreshConfirmation(t *testing.T) {
+	row := unusableMenuRow(couchcore.ReasonBindingLost)
+	state := NewMenuState([]couchcore.ActionableThreadSummary{row}, couchcore.ThreadAddress{})
 	got, effects := reduceKey(state, PanelKey{Kind: KeyEnter})
-
-	if len(effects) != 0 {
-		t.Fatalf("unusable row dispatched %+v", effects)
-	}
-	if got.Notice.Level != MenuNoticeError || !strings.Contains(got.Notice.Text, "binding") {
-		t.Fatalf("notice = %+v, want the reason", got.Notice)
-	}
-	if !strings.Contains(got.Notice.Text, "compiler") {
-		t.Fatalf("notice = %q, want it to name the thread", got.Notice.Text)
+	if len(effects) != 0 || got.CurrentFrame().Kind != MenuFrameConfirmation || got.CurrentFrame().Action != "reboot" || got.CurrentFrame().Thread != row.Address {
+		t.Fatalf("Fresh did not confirm exact row: %+v %+v", got.CurrentFrame(), effects)
 	}
 }
 
@@ -1293,30 +1281,17 @@ func TestRebootConfirmationDispatchesAndSurvivesARefresh(t *testing.T) {
 	}
 }
 
-// ThreadBusy had no behavioural test at all: menuThreadActionable excludes it,
-// but nothing proved Enter refuses or that the row explains itself, and
-// TestEveryReasonExplainsItselfOnEnter iterates AllThreadReasons() so it never
-// reaches the empty-reason arm a busy row carries.
-func TestEnterOnABusyRowExplainsAndOffersNoLifecycleAction(t *testing.T) {
-	busy := couchcore.ActionableThreadSummary{
-		Address: menuAddress("couch-one"), WorkingPath: "/repo/compiler",
-		State: couchcore.ThreadBusy,
-	}
+// A busy row offers Fresh, while confirmation keeps the first gesture inert.
+func TestEnterOnABusyRowOpensReadOnlyDetails(t *testing.T) {
+	busy := couchcore.ActionableThreadSummary{Address: menuAddress("couch-one"), WorkingPath: "/repo/compiler", State: couchcore.ThreadBusy}
 	state := NewMenuState([]couchcore.ActionableThreadSummary{busy}, couchcore.ThreadAddress{})
-	state.InventoryReady = true
-
 	got, effects := reduceKey(state, PanelKey{Kind: KeyEnter})
-	if len(effects) != 0 {
-		t.Fatalf("a busy row dispatched %+v", effects)
+	if len(effects) != 1 || effects[0].Preview == nil || effects[0].Operation != "" || got.CurrentFrame().Kind != MenuFrameRecovery {
+		t.Fatalf("busy row bypassed confirmation: %+v %+v", got.CurrentFrame(), effects)
 	}
-	if got.Notice.Level != MenuNoticeError || !strings.Contains(got.Notice.Text, "starting elsewhere") {
-		t.Fatalf("notice = %+v, want it to say the thread is starting elsewhere", got.Notice)
-	}
-
-	// And nothing is offered on a thread another couch is still starting:
-	// rebooting one would retire a record mid-start.
-	if items := menuActionItems(busy); len(items) != 0 {
-		t.Fatalf("busy row offers %v", items)
+	items := menuActionsFor(state, busy)
+	if len(items) != 1 || items[0] != "resume-candidates" {
+		t.Fatalf("busy row actions: %v", items)
 	}
 }
 

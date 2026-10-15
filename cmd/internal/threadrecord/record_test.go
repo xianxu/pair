@@ -49,7 +49,7 @@ func validRecord() Record {
 
 func TestValidateEnumeratesThreadRecordStructuralInvariants(t *testing.T) {
 	tests := map[string]func(*Record){
-		"schema version":        func(r *Record) { r.SchemaVersion = 3 },
+		"schema version":        func(r *Record) { r.SchemaVersion = SchemaVersion + 1 },
 		"repository scope":      func(r *Record) { r.Address.RepoScope = "other" },
 		"tag":                   func(r *Record) { r.Address.Tag = "other" },
 		"absolute start path":   func(r *Record) { r.StartingPath = "repo" },
@@ -131,7 +131,7 @@ func TestValidatePersistedAddsAddressInvariants(t *testing.T) {
 	}
 }
 
-func TestDecodeV1MigratesToV2(t *testing.T) {
+func TestDecodeV1MigratesToCurrentSchema(t *testing.T) {
 	raw := []byte(`{
   "schema_version": 1,
   "address": {"repo_scope":"816fc349d3faebf8","tag":"couch-0102030405060708"},
@@ -146,7 +146,7 @@ func TestDecodeV1MigratesToV2(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DecodePersisted(v1): %v", err)
 	}
-	if record.SchemaVersion != SchemaVersion || SchemaVersion != 2 {
+	if record.SchemaVersion != SchemaVersion || SchemaVersion != 3 {
 		t.Fatalf("schema = %d, current = %d", record.SchemaVersion, SchemaVersion)
 	}
 	if record.LatestLaunchProfile != nil || record.Park != nil || record.VerifiedPark != nil || record.ParkHistory != nil || !record.LastActiveAt.IsZero() {
@@ -156,7 +156,7 @@ func TestDecodeV1MigratesToV2(t *testing.T) {
 
 func validLifecycleRecord() Record {
 	record := validRecord()
-	record.SchemaVersion = 2
+	record.SchemaVersion = SchemaVersion
 	record.Incarnations[0] = Incarnation{
 		PID: 42, Identity: "helper", State: "live",
 		LaunchProfile: &LaunchProfile{Agent: "codex", Argv: []string{"--sandbox", "workspace-write"}},
@@ -173,7 +173,7 @@ func validLifecycleRecord() Record {
 	return record
 }
 
-func TestV2RoundTrip(t *testing.T) {
+func TestCurrentSchemaRoundTrip(t *testing.T) {
 	want := validLifecycleRecord()
 	raw, err := json.Marshal(want)
 	if err != nil {
@@ -181,7 +181,7 @@ func TestV2RoundTrip(t *testing.T) {
 	}
 	got, err := DecodePersisted(raw, want.Address, testValidators)
 	if err != nil {
-		t.Fatalf("DecodePersisted(v2): %v", err)
+		t.Fatalf("DecodePersisted(current): %v", err)
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("round trip = %#v, want %#v", got, want)

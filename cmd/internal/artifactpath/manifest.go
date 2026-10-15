@@ -57,6 +57,7 @@ type ResolvedBinding struct {
 
 // pair:m5-concept pure
 var ResolvedBindings = append([]ResolvedBinding{
+	{Name: "cache-session-lock", Family: "session-lock", Resolver: "ResolvePairCache", Member: "TerminalLease"},
 	{Name: "matched-changelog-family", Family: "changelog", Resolver: "MatchArtifact"},
 	{Name: "parsed-parked-capture", Family: "parked", Resolver: "ParseParkedCapture"},
 	{Name: "cache-restart", Family: "restart", Resolver: "ResolvePairCache", Member: "Restart"},
@@ -176,6 +177,7 @@ type SourceClassification struct {
 // family requires adding its constructor and classifying every source consumer.
 // pair:m5-concept pure
 var Families = []Family{
+	{Name: "session-lock", Token: "session-locks"},
 	{Name: "fullscreen-return", Token: "fullscreen-return-"},
 	{Name: "fullscreen-lock", Token: "fullscreen-lock-"},
 	{Name: "fullscreen-diagnostics", Token: "fullscreen-diagnostics-"},
@@ -229,6 +231,17 @@ var Families = []Family{
 // shell, Lua, and KDL sources.
 // pair:m5-concept pure
 var SourceClassifications = []SourceClassification{
+	{Path: "cmd/internal/couchcore/recovery_evidence_os.go", Kind: ResolvedConsumer},
+	{Path: "cmd/internal/couchcore/recovery_native_owner.go", Kind: ResolvedConsumer},
+	{Path: "cmd/internal/launcher/recovery_native_owner.go", Kind: ResolvedConsumer},
+	{Path: "cmd/internal/launcher/recovery_authority_os.go", Kind: ResolvedConsumer},
+	{Path: "cmd/internal/launcher/recovery_terminal.go", Kind: ResolvedConsumer},
+	{Path: "cmd/internal/launcher/recovery_terminal_os.go", Kind: ResolvedConsumer},
+	{Path: "cmd/internal/threadrecord/recovery.go", Kind: ResolvedConsumer},
+
+	{Path: "cmd/internal/wrapcmd/capture_witness.go", Kind: ResolvedConsumer},
+	{Path: "cmd/internal/artifactpath/session_lock.go", Kind: Constructor, Families: []string{"session-lock"}},
+	{Path: "cmd/internal/launcher/session_handoff_os.go", Kind: ResolvedConsumer, Families: []string{"session-lock"}, BindingNames: []string{"cache-session-lock"}},
 	{Path: "cmd/internal/couchcmd/run.go", Kind: ResolvedConsumer},
 	{Path: "cmd/internal/scrollbackcmd/bounded.go", Kind: ResolvedConsumer},
 	{Path: "cmd/internal/pairlog/retention.go", Kind: ResolvedConsumer, Families: []string{"log"}, BindingNames: []string{"scoped-log"}, Vocabulary: []VocabularyAllowance{goCallVocabulary("log", "prompt-log-writer", "github.com/xianxu/pair/cmd/internal/storagegc.AcquireSelectedProcess", 2, 1)}},
@@ -403,6 +416,11 @@ var SourceClassifications = []SourceClassification{
 	// and, through panebirth, the launch's pane evidence -- never the draft.
 	{Path: "cmd/internal/threadactivity/activity.go", Kind: ResolvedConsumer,
 		Families: []string{"log"}, BindingNames: []string{"scoped-log"}},
+	// #204 shared test-only evidence/counters use the same namespace resolver.
+	{Path: "cmd/internal/workbenchperftest/fixture.go", Kind: ResolvedConsumer,
+		Families: []string{"ledger"}, BindingNames: []string{"composite-ledger"}},
+	{Path: "cmd/internal/workbenchperftest/counts.go", Kind: ResolvedConsumer,
+		Families: []string{"ledger"}, BindingNames: []string{"direct-ledger-history"}},
 	{Path: "cmd/internal/workbenchshortcut/shortcut.go", Kind: ResolvedConsumer,
 		Families:     []string{"last-left-pane", "last-terminal-pane", "terminal-panes"},
 		BindingNames: []string{"scoped-wrapper-last-left-pane", "scoped-wrapper-last-terminal-pane", "scoped-wrapper-terminal-panes"}},
@@ -465,10 +483,15 @@ var SourceClassifications = []SourceClassification{
 	{Path: "cmd/internal/launcher/osruntime.go", Kind: ResolvedConsumer,
 		Families:     []string{"agent", "draft", "ledger", "nvim-pid", "outer-tty", "parked", "parked-scrollback", "restart", "scrollback", "session-binding", "session-inventory-catalog", "title-pid"},
 		BindingNames: []string{"cache-restart", "scoped-agent", "scoped-draft", "scoped-ledger", "scoped-nvim-pid", "scoped-outer-tty", "scoped-parked", "scoped-parked-scrollback", "scoped-scrollback", "selected-nvim-pid", "selected-session-binding", "selected-session-inventory-catalog", "scoped-title-pid"},
-		Vocabulary: []VocabularyAllowance{
-			goCallVocabulary("config", "--config-dir", "os/exec.Command", 1, 1),
-			goCallVocabulary("config", "--config-dir", "os/exec.CommandContext", 2, 1),
-		}},
+	},
+	{Path: "cmd/internal/launcher/session_index_cache.go", Kind: ResolvedConsumer,
+		Families: []string{"session-binding"}, BindingNames: []string{"legacy-session-binding", "selected-session-binding"}},
+	{Path: "cmd/internal/sessioninventory/activity_cache.go", Kind: ResolvedConsumer,
+		Families: []string{"ledger"}, BindingNames: []string{"scoped-ledger"}},
+	{Path: "cmd/internal/sessioninventory/activity_runtime.go", Kind: ResolvedConsumer,
+		Families: []string{"session-inventory-catalog"}, BindingNames: []string{"selected-session-inventory-catalog"}},
+	{Path: "cmd/internal/sessioninventory/query_work.go", Kind: ResolvedConsumer,
+		Families: []string{"session-inventory-catalog"}, BindingNames: []string{"selected-session-inventory-catalog"}},
 	{Path: "cmd/internal/sessioninventory/query.go", Kind: ResolvedConsumer,
 		Families: []string{"ledger"}, BindingNames: []string{"direct-ledger-history", "direct-ledger-history-tag"}},
 	{Path: "cmd/internal/sessioninventory/runtime_os.go", Kind: ResolvedConsumer,
@@ -540,6 +563,7 @@ var SourceClassifications = []SourceClassification{
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/pane_identity.lua", Kind: GeneratedMirror},
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/dom_transport.lua", Kind: GeneratedMirror},
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/draft_send.lua", Kind: GeneratedMirror},
+	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/fs_watch.lua", Kind: GeneratedMirror},
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/init.lua", Kind: GeneratedMirror, Families: []string{"draft"}},
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/interrupt.lua", Kind: GeneratedMirror},
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/lifecycle_command.lua", Kind: GeneratedMirror},
@@ -607,6 +631,33 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcmd/agent_drive_cli.go",
 	"cmd/internal/couchcmd/agent_drive_messages.go",
 	"cmd/internal/couchcmd/agent_drive_service.go",
+
+	"cmd/internal/couchcmd/resume_candidates.go",
+	"cmd/internal/couchcore/recovery_key.go",
+	"cmd/internal/couchcore/recovery_preview.go",
+	"cmd/internal/couchcore/recovery_native_owner_fake.go",
+	"cmd/internal/couchcore/recovery_resume.go",
+	"cmd/internal/couchtty/menu_recovery.go",
+	"cmd/internal/launcher/recovery_authority.go",
+	"cmd/internal/orientation/recovery.go",
+	"cmd/internal/sessioninventory/recovery_candidate.go",
+	"cmd/internal/sessioninventory/recovery_collect.go",
+	"cmd/internal/sessioninventory/recovery_filemeta_darwin.go",
+	"cmd/internal/sessioninventory/recovery_filemeta_linux.go",
+	"cmd/internal/sessioninventory/recovery_filemeta_other.go",
+	"cmd/internal/sessioninventory/recovery_match.go",
+	"cmd/internal/sessioninventory/recovery_os.go",
+
+	"cmd/internal/osfs/metadata_read.go",
+	"cmd/internal/couchcore/agent_usability.go",
+	"cmd/internal/artifactpath/capture_witness.go",
+	"cmd/internal/launcher/session_handoff.go",
+	"cmd/internal/launcher/session_lease.go",
+	"cmd/internal/launcher/terminal_agent.go",
+	"cmd/internal/sessioninventory/file_fingerprint.go",
+	"cmd/internal/wrapcmd/automatic_input_report.go",
+	"cmd/internal/couchmessage/automatic_input_stall.go",
+	"cmd/internal/couchcmd/automatic_input_stall.go",
 	// #538 private web evidence and note protocol, outside Pair artifact families.
 	"cmd/internal/submission/publication.go",
 	"cmd/internal/webcast/board/prepared_note.go",
@@ -980,11 +1031,14 @@ var NonArtifactSources = []string{
 	// #399 orphaned zellij servers: sockets, process trees and couch operations;
 	// no Pair artifact filenames.
 	"cmd/internal/launcher/session_servers.go",
+	"cmd/internal/launcher/session_owner_pass.go",
+	"cmd/internal/couchcore/session_owner_pass.go",
 	"cmd/internal/launcher/session_reap.go",
 	"cmd/internal/couchcore/reap.go",
 	"cmd/internal/couchcore/recover_action.go",
 	"cmd/internal/couchcore/progress.go",
 	"cmd/internal/procutil/command.go",
+	"cmd/internal/procutil/source.go",
 	"cmd/internal/procutil/command_parse.go",
 	"cmd/internal/procutil/command_procfs.go",
 	"cmd/internal/procutil/command_darwin.go",
@@ -1164,6 +1218,8 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcore/threadstore_snapshot.go",
 	"cmd/internal/couchcore/threadtarget.go",
 	"cmd/internal/couchcore/threadtag.go",
+	"cmd/internal/couchcore/warm_attach.go",
+	"cmd/internal/couchcore/warm_attach_repair.go",
 	"cmd/internal/couchcore/workspaceref.go",
 	"cmd/internal/couchcore/worktree.go",
 	"cmd/internal/mouseinput/mouseinput.go",
@@ -1402,6 +1458,8 @@ var NonArtifactSources = []string{
 	"nvim/pane_identity.lua",
 	"nvim/dom_transport.lua",
 	"nvim/draft_send.lua",
+	// Watch lifetime only; the caller supplies the complete directory binding.
+	"nvim/fs_watch.lua",
 	"nvim/interrupt.lua",
 	"nvim/lifecycle_command.lua",
 	"nvim/marker_codec.lua",
@@ -1531,6 +1589,7 @@ type GCClassification struct {
 // GCClassifications must cover every artifact family explicitly.
 // pair:m5-concept pure
 var GCClassifications = map[string]GCClassification{
+	"session-lock":              {SessionRetention, GCProtected, "PairCachePaths.TerminalLease; stable coordination inode, never unlinked"},
 	"agent-default":             {SessionRetention, GCShared, "ScopePaths.AgentDefault"},
 	"native-session":            {SessionRetention, GCProtected, "LifecyclePaths.Request (embedded metadata only)"},
 	"session-binding":           {SessionRetention, GCShared, "ScopePaths.SessionBindings"},

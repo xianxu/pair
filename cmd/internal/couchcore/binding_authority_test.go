@@ -121,18 +121,16 @@ func TestSlotAdmissionProbesDurableNameEvenWhenIndexSaysAbsent(t *testing.T) {
 	}
 }
 
-type detachedNameRequestObserver struct {
+type listedNameRequestObserver struct {
 	*FakeThreadArtifactCollisionChecker
 	selected string
 }
 
-func (o *detachedNameRequestObserver) DetachedSessions(ctx context.Context, candidates []DetachedCandidate) ([]DetachedSessionObservation, error) {
-	if len(candidates) == 1 {
-		o.selected = candidates[0].SessionName
-	}
-	return nil, errors.New("stop after detached observation")
+func (o *listedNameRequestObserver) ListedPairSessionContext(ctx context.Context, address ThreadAddress, name string) (PairSessionBinding, error) {
+	o.selected = name
+	return PairSessionBinding{}, errors.New("stop after listed observation")
 }
-func TestResumePassesDurableNameToDetachedObserver(t *testing.T) {
+func TestResumePassesDurableNameToListedObserver(t *testing.T) {
 	t.Parallel()
 
 	env := newTestEnv(t, "/repo")
@@ -146,11 +144,14 @@ func TestResumePassesDurableNameToDetachedObserver(t *testing.T) {
 		t.Fatal(err)
 	}
 	r = bindAuthorityThread(t, env.Couch.Threads, r)
-	observer := &detachedNameRequestObserver{FakeThreadArtifactCollisionChecker: env.Artifacts}
+	observer := &listedNameRequestObserver{FakeThreadArtifactCollisionChecker: env.Artifacts}
 	env.Couch.Artifacts = observer
-	_, _, _ = env.Couch.ResumeContext(context.Background(), r.Address)
+	_, handle, resumeErr := env.Couch.ResumeContext(context.Background(), r.Address)
+	if resumeErr == nil || handle != nil || len(env.Runner.Ops) != 0 {
+		t.Fatalf("failed listing reached helper: handle=%v err=%v ops=%v", handle, resumeErr, env.Runner.Ops)
+	}
 	if observer.selected != r.SessionBinding.Name {
-		t.Fatalf("requested detached name %q, want %q", observer.selected, r.SessionBinding.Name)
+		t.Fatalf("requested listed name %q, want %q", observer.selected, r.SessionBinding.Name)
 	}
 }
 func TestDetachUnknownDurableOwnerRefusesBeforeSignal(t *testing.T) {

@@ -353,7 +353,7 @@ func TestRetentionExplicitResumeTouchesButBackgroundReattachDoesNot(t *testing.T
 
 	for _, background := range []bool{false, true} {
 		t.Run(fmt.Sprint(background), func(t *testing.T) {
-			env, address := warmDetachedThread(t)
+			env, address := retentionResumeThread(t)
 			coordinator, err := storagegc.NewCoordinator(t.TempDir())
 			if err != nil {
 				t.Fatal(err)
@@ -374,7 +374,7 @@ func TestRetentionExplicitResumeTouchesButBackgroundReattachDoesNot(t *testing.T
 				env.Artifacts.SetPairSession(address, "pair-"+string(address.Tag), true)
 				return nil
 			}
-			_, handle, err := env.Couch.ResumeContextWith(context.Background(), address, ResumeOptions{WarmOnly: background})
+			_, handle, err := env.Couch.ResumeContextWith(retentionResumeContext(t), address, ResumeOptions{WarmOnly: background})
 			if err != nil || handle == nil {
 				t.Fatalf("resume %v", err)
 			}

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/xianxu/pair/cmd/internal/couchidentity"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -36,14 +37,14 @@ type trackedThreadLaunch struct {
 	Begun time.Time
 }
 
-// launchTrackedThread is the single post-claim launch path for both a newly
-// allocated thread and an exact cold resume.
+// launchTrackedThread is the post-claim helper path for a new thread,
+// an exact cold resume, or attachment to an existing terminal.
 func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle, error) {
 	ctx := in.Context
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	steps := newLaunchSteps(in.Begun)
+	steps := newLaunchSteps(ctx, in.Begun)
 	stage := "prepare"
 	fail := func(h Handle, cause error, cleanup func() error) error {
 		return c.captureLaunchFailure(in, stage, h, cause, cleanup)
@@ -55,29 +56,10 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 		return ActorRecord{}, nil, rollback(in.Thread, err)
 	}
 	thread := in.Thread
-	if c.Slots != nil {
-		cwd, err := c.Path.Physical(in.Args.WorkingDir())
-		var tree Worktree
-		if err == nil {
-			tree, err = c.ResolveTree(cwd)
-		}
-		if err == nil {
-			_, err = RelativeFamilyPath(string(tree), cwd)
-		}
-		if err == nil {
-			scope, scopeErr := launcher.ResolveRepoScope(string(tree))
-			if scopeErr != nil {
-				err = scopeErr
-			} else if scope.Key != thread.Address.RepoScope {
-				err = errors.New("launch checkout does not match thread scope")
-			}
-		}
-		if err != nil {
-			return ActorRecord{}, nil, rollback(thread, err)
-		}
-		in.Args.Cwd = cwd
-		in.Args.Worktree = tree
+	if err := c.normalizeTrackedLaunchArgs(&in.Args, thread.Address, in.Warm); err != nil {
+		return ActorRecord{}, nil, rollback(thread, err)
 	}
+
 	steps.mark("checkout")
 
 	// A warm reattach sends NEITHER a layout flag NOR a trusted resume profile,
@@ -172,7 +154,13 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 	env = append(env, launcher.CouchSessionIntentEnv+"="+string(intent))
 	steps.mark("prepare")
 	stage = "spawn"
-	h, err := c.Runner.StartBlocked(ctx, in.Args.WorkingDir(), argv, env, 10*time.Second)
+	launchDir := in.Args.WorkingDir()
+	if in.Warm && !c.workingPathExists(thread) {
+		// A client attaches independently of the pane's original checkout.
+		// Keep recorded paths intact; use a neutral existing helper directory.
+		launchDir = string(filepath.Separator)
+	}
+	h, err := c.Runner.StartBlocked(ctx, launchDir, argv, env, 10*time.Second)
 	steps.mark("spawn")
 	if err != nil {
 		return ActorRecord{}, nil, rollback(thread, fmt.Errorf("spawn %s: %w", in.Args.Worktree, err))
@@ -273,6 +261,12 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 	stage = "promote registration"
 	registeredThread, err := c.Threads.AdvanceStart(thread.Address, thread.Revision, StartEvent{
 		Kind: StartRegistered, Nonce: in.Nonce, Layout: registeredLayout,
+		Shape: func() StartShape {
+			if in.Warm {
+				return StartWarmReattach
+			}
+			return ""
+		}(),
 	})
 	if err != nil {
 		cause := fmt.Errorf("promote registered thread %+v: %w", thread.Address, err)
@@ -291,6 +285,7 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 	}); err != nil {
 		return record, h, fail(h, fmt.Errorf("persist registry: %w", err), func() error { return c.failPostAckStart(thread.Address, h, shape, nil) })
 	}
+	steps.mark("promotion+registry")
 	return record, h, nil
 }
 
@@ -398,6 +393,8 @@ func (c *Couch) diagnoseRegistrationFailure(err error, address ThreadAddress, bu
 // killed every cold launch it overlapped (probes/zellijbirthrace: 10/10).
 // A warm reattach passes nil, because its session is already live.
 func (c *Couch) awaitResumeRegistration(ctx context.Context, address ThreadAddress, birth *PaneMarks) error {
+	// Registration must see births after the initial pass observation.
+	ctx = withoutSessionOwnerPass(ctx)
 	_, ok := c.Artifacts.(PairSessionIO)
 	if !ok {
 		return errors.New("exact Pair session observer is unavailable")
@@ -482,12 +479,30 @@ func whileHelperAlive(ctx context.Context, h Handle) (context.Context, func() bo
 // operator asked that an earlier slow step never hide behind the one that
 // timed out). It writes nothing; failures carry its text.
 type launchSteps struct {
-	last  time.Time
-	steps []string
+	last    time.Time
+	steps   []string
+	observe launchTimingObserver
 }
 
-func newLaunchSteps(begun time.Time) *launchSteps {
+// The observer is a local measurement seam. It has no environment, terminal,
+// persistence or UI behavior; timings still appear only in retained failures
+// unless the caller explicitly supplies an observer in its operation context.
+type launchTimingObserverKey struct{}
+type launchTimingObserver func(string, time.Duration)
+
+// WithLaunchTimingObserver observes consecutive launch and detach stage durations
+// only within ctx. Callbacks run synchronously in the operation's goroutine;
+// callers sharing the context across operations must synchronize their observer.
+// The observer must not block or change lifecycle behavior.
+func WithLaunchTimingObserver(ctx context.Context, observe func(string, time.Duration)) context.Context {
+	return context.WithValue(ctx, launchTimingObserverKey{}, launchTimingObserver(observe))
+}
+
+func newLaunchSteps(ctx context.Context, begun time.Time) *launchSteps {
 	s := &launchSteps{last: time.Now()}
+	if ctx != nil {
+		s.observe, _ = ctx.Value(launchTimingObserverKey{}).(launchTimingObserver)
+	}
 	if !begun.IsZero() {
 		s.last = begun
 		s.mark("claim")
@@ -496,9 +511,16 @@ func newLaunchSteps(begun time.Time) *launchSteps {
 }
 
 func (s *launchSteps) mark(step string) {
+	if s == nil {
+		return
+	}
 	now := time.Now()
-	s.steps = append(s.steps, step+" "+now.Sub(s.last).Round(time.Millisecond).String())
+	elapsed := now.Sub(s.last)
+	s.steps = append(s.steps, step+" "+elapsed.Round(time.Millisecond).String())
 	s.last = now
+	if s.observe != nil {
+		s.observe(step, elapsed)
+	}
 }
 
 func (s *launchSteps) String() string { return strings.Join(s.steps, ", ") }
@@ -670,6 +692,37 @@ func freshNonceReachesPair(in trackedThreadLaunch) error {
 	}
 	if in.Nonce == "" {
 		return fmt.Errorf("%w: fresh launch requires a nonce", errFreshNonceUnreachable)
+	}
+	return nil
+}
+
+func (c *Couch) normalizeTrackedLaunchArgs(args *StartArgs, address ThreadAddress, warm bool) error {
+	if c.Slots != nil && (!warm || c.Path != nil) {
+		cwd, err := c.Path.Physical(args.WorkingDir())
+		var tree Worktree
+		if err == nil {
+			tree, err = c.ResolveTree(cwd)
+		}
+		if err == nil {
+			_, err = RelativeFamilyPath(string(tree), cwd)
+		}
+		if err == nil {
+			scope, scopeErr := launcher.ResolveRepoScope(string(tree))
+			if scopeErr != nil {
+				err = scopeErr
+			} else if scope.Key != address.RepoScope {
+				err = errors.New("launch checkout does not match thread scope")
+			}
+		}
+		if err != nil && !warm {
+			return err
+		}
+		// Keep the normal repository-root presentation when it is available.
+		// Attachment itself depends on the exact terminal, not this metadata.
+		if err == nil {
+			args.Cwd = cwd
+			args.Worktree = tree
+		}
 	}
 	return nil
 }

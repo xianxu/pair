@@ -66,7 +66,7 @@ queue, or cross-supervisor delivery.
 ## What each verb costs
 
 - **light:** `--notify`, `--help`, `--skill`, `--actors`, `--send-to`, `--message-status`, `--operation-status`, `--peek` (its --transcripts option costs seconds), `--broadcast-list`, `--session-sync`, `--archived`, `--adopt-store`, `--broadcast-web-query`, `--broadcast-web-submit`, `--broadcast-web-replay` (then serves until stopped)
-- **seconds:** `--keys`, `--set-model`, `--move-slot`, `--list`, `--show`, `--reconcile`, `--reap`, `--broadcast-web-fidelity` (a headless Chrome)
+- **seconds:** `--keys`, `--set-model`, `--resume-candidates`, `--move-slot`, `--list`, `--show`, `--reconcile`, `--reap`, `--broadcast-web-fidelity` (a headless Chrome)
 - **heavy:** `couch` (launch), `--recover-plan-from-sdlc`, `--resume`, `--reboot`, `--relaunch`, `--reload-context`, `--prepare`, `--recover`, `--switch-agent`
 
 Cost: light is under a second, seconds is a few seconds, heavy is tens of
