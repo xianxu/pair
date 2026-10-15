@@ -1,13 +1,13 @@
 ---
 id: 000204
-status: working
+status: codecomplete
 deps: []
 target: workbench-latency
 github_issue:
 created: 2026-09-06
 updated: 2026-10-15
 estimate_hours: 2.246
-card_mirror: '7cc0859f79dbdb9ba9d4a108cb6f2a7face19259' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'f1f51afc0373d30cb5814aa8d14a6dac24795356' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-15T05:25:29-07:00
 claimant:
     operator: Xian Xu
@@ -17,6 +17,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: operator}
+actual_hours: 1.90
 ---
 
 # workbench performance suite: counted invariants first
