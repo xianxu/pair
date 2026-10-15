@@ -1,12 +1,20 @@
 ---
 id: 000568
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-15
 updated: 2026-10-15
 estimate_hours:
-card_mirror: '272924a33afb6194d8f7f0dba3b8ba0076129c69' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'f0159ce3f453ee80ce2f9f66904b5ef1a7cf1287' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-15T07:54:13-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:3
+    worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Review fresh-restore headless Neovim exits without failure diagnostics
@@ -17,6 +25,10 @@ During pair#556 M1 recorded verification, the unchanged shell test tests/review-
 
 ## Spec
 
+Make every unsuccessful driver invocation explain its exit using bounded, case-local evidence: process return code/signal, separate stdout/stderr, Neovim messages, review-child log and fixture phase/artifact presence. Capture messages before shutdown so a silent nonzero qa exit remains diagnosable. Preserve evidence in the suite output before temporary cleanup; do not capture the caller's files or unrestricted environment.
+
+Coordinate with pair:2's suite/environment measurements. Compare the recorded-suite wrapper, environment, TMPDIR/path shape and shared Neovim state against isolation. Reproduce the demonstrated cause deterministically, fix its owning boundary, and retain the real draft/opener/RPC behavior and exact child cleanup. No timeout increase, retry or skip. Root-cause implementation will be recorded as a revision after evidence identifies it.
+
 ## Done when
 
 - The failing assertion records return code, bounded Neovim output and enough per-case state to identify a failure without retaining private/user state.
@@ -25,8 +37,14 @@ During pair#556 M1 recorded verification, the unchanged shell test tests/review-
 
 ## Plan
 
-- [ ]
+- [ ] Add bounded failure diagnostics first; exercise a deliberately silent nonzero editor exit and a Lua/message failure so missing evidence is red before the harness repair.
+- [ ] Reproduce the suite-context failure using pair:2's measurements and one-variable probes; name the actual cause in Log/Revisions, then add a deterministic regression and minimal fix at that boundary.
+- [ ] Run the fresh-restore and affected review fixtures, a clean make -k build, and required recorded suite; fresh SHIP review, land, and notify pair:2 plus hub.
+
+ARCH-DRY: reuse ReviewTestEnvironment and current stateful Zellij fake; do not create a parallel product launcher. ARCH-ORDER: evidence must be captured before Neovim exits and before fixture cleanup; diagnostic tests force silent/error exit orderings. ARCH-FUNERAL: diagnostic files remain inside each temporary case, are printed bounded on failure, then removed with their owning fixture; no persistent logs or caller state added.
 
 ## Log
 
 2026-10-15: recorded suite at db86a287f8c74bbda952dfe00356e3b8f11d4601 exited 2 after 3m39s, before the Go phase. Retained common-Git log .git/sdlc/test-stats/failed/eef944b68fc13088226c6a06a1a85b99.log; SHA256 prefix92b0a48d20e5. Earlier cases fresh-restores-history and wrong-conversation-ack-refused passed. Isolated command bash tests/review-fresh-restore-test.sh subsequently passed all five cases. No changes to review editor/opener files in the #556 correction window.
+
+2026-10-15: pair:3 claimed and started from main 03f5ba2af12069d6d6d628a34e0195a3dd05a0e9; substrate refreshed to ariadne 1e2e9bd573e7b08366688d10001e95583dd35e97. Verified both retained suite failures differ in refusal case but have the same empty combined output assertion. Existing driver prints xpcall errors but has no shutdown messages/return-code report. Coordinating with pair:2 via Couch.
