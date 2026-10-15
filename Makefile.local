@@ -289,6 +289,7 @@ test-review: $(BIN_DIR)/pair
 	bash tests/review-definition-test.sh
 	bash tests/review-branch-restore-test.sh
 	bash tests/review-observation-test.sh
+	python3 -B tests/review-fresh-restore-diagnostics-test.py
 	bash tests/review-fresh-restore-test.sh
 	bash tests/review-producer-context-test.sh
 

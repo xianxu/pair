@@ -57,15 +57,28 @@ elif args[:2]==['action','list-panes']:
                               {'id':42,'terminal_command':'nvim -u '+os.environ['PAIR_HOME']+'/nvim/review.lua'},
                               {'id':4,'is_floating':False,'is_plugin':False,'terminal_command':'pair wrap'}]}))
 ''');fake.chmod(0o700)
+    diagnostics=temp/'diagnostics.lua'
+    diagnostics.write_text(r'''
+vim.g.pair_test_phase='startup'
+vim.api.nvim_create_autocmd('VimLeavePre',{callback=function()
+  local messages=vim.api.nvim_exec2('messages',{output=true}).output
+  vim.fn.writefile({vim.json.encode({phase=vim.g.pair_test_phase,
+    messages=messages:sub(-4096),errmsg=vim.v.errmsg:sub(-4096),exiting=vim.v.exiting})},
+    vim.env.DRIVER_DIAGNOSTICS)
+end})
+''')
     driver=temp/'draft-driver.lua'
     driver.write_text(r'''
+vim.g.pair_test_phase='driver'
 local messages={}
 local initial
 _pair_review.client.opts.notify=function(message) messages[#messages+1]=message end
 local ok,err=xpcall(function()
   assert(_pair_review.read_target()==nil,'fresh session adopted another conversation target')
+  vim.g.pair_test_phase='toggle'
   PairReviewToggle()
   assert(vim.wait(10000,function() return not _pair_review.client.busy end,10),'Alt+C transaction did not finish')
+  vim.g.pair_test_phase='activation-complete'
   if #messages==0 and _pair_review.read_target() then
     local meta=vim.json.decode(vim.fn.readfile(vim.env.PAIR_REVIEW_OPEN_PATH)[3])
     local snapshot="luaeval('vim.json.encode({marks=#vim.api.nvim_buf_get_extmarks(0,vim.api.nvim_create_namespace(\"review\"),0,-1,{}),diagnostics=vim.diagnostic.get(0)})')"
@@ -83,6 +96,7 @@ local ok,err=xpcall(function()
     assert(#messages==0,vim.inspect(messages))
   end
   vim.fn.writefile({vim.json.encode({messages=messages,initial=initial})},vim.env.DRIVER_RESULT)
+  vim.g.pair_test_phase='result-written'
 end,debug.traceback)
 if not ok then io.stderr:write(err..'\n');vim.cmd('cquit 1') end
 vim.cmd('qa!')
@@ -116,12 +130,34 @@ vim.cmd('qa!')
             PAIR_REVIEW_MODE_PATH=str(data/'mode'),PAIR_AGENT_CONFIG_PATH=str(data/'agent.json'),PAIR_AGENT_PID_PATH=str(data/'agent.pid'),
             PAIR_LAYOUT_MODE_PATH=str(data/'layout'),PAIR_ZELLIJ_ACTIONS_PATH=str(data/'actions.jsonl'),
             FAKE_ZELLIJ_STATE=str(data),FAKE_WRONG_SESSION='1' if wrong_session else '0',DRIVER_RESULT=str(data/'result.json'),
+            DRIVER_DIAGNOSTICS=str(data/'diagnostics.json'),
             ZELLIJ_PANE_ID='3',XDG_STATE_HOME=str(data/'xdg-state'),XDG_DATA_HOME=str(data/'xdg-data'),XDG_CACHE_HOME=str(data/'xdg-cache'))
         before=git('rev-parse','HEAD')
+        def tail(path):
+            if not path.exists():return '<absent>'
+            with path.open('rb') as stream:
+                stream.seek(max(0,path.stat().st_size-4096))
+                return stream.read(4096).decode(errors='replace')
+        def failure(returncode):
+            report=dict(case=name,returncode=returncode,
+                signal=signal.Signals(-returncode).name if returncode is not None and returncode<0 else None,
+                stdout=tail(data/'stdout.log'),stderr=tail(data/'stderr.log'),
+                neovim=tail(pathlib.Path(env['NVIM_LOG_FILE'])),child=tail(data/'review.log'),
+                result=tail(data/'result.json'),
+                artifacts={key:(data/key).exists() for key in ('children','calls.jsonl','review-fresh.open')})
+            diagnostic=data/'diagnostics.json'
+            if diagnostic.exists():report.update(json.loads(diagnostic.read_text()))
+            else:report.update(phase='unavailable',messages='<shutdown capture absent>')
+            return json.dumps(report,ensure_ascii=False)
         try:
-            result=subprocess.run(['nvim','--headless','-u',str(draft_init),str(draft),'-c','luafile '+str(driver)],
-                cwd=repo,env=env,stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,timeout=15)
-            assert result.returncode==0,(name,result.stdout)
+            with (data/'stdout.log').open('wb') as stdout, (data/'stderr.log').open('wb') as stderr:
+                try:
+                    result=subprocess.run(['nvim','--headless','--cmd','luafile '+str(diagnostics),
+                        '-u',str(draft_init),str(draft),'-c','luafile '+str(driver)],
+                        cwd=repo,env=env,stdin=subprocess.DEVNULL,stdout=stdout,stderr=stderr,timeout=15)
+                except subprocess.TimeoutExpired as err:
+                    raise AssertionError(failure(None)) from err
+            assert result.returncode==0,failure(result.returncode)
             outcome=json.loads((data/'result.json').read_text())
             calls=[json.loads(line) for line in (data/'calls.jsonl').read_text().splitlines()] if (data/'calls.jsonl').exists() else []
             spawns=[call for call in calls if call[0]=='run']
