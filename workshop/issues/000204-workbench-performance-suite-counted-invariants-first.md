@@ -211,3 +211,7 @@ Receipt dcb3f338-41ac-45ae-a098-39ff395ae578 approves plan227c8394, closes this 
 > - [ ] Document how to add an invariant.
 
 </details>
+
+### 2026-10-15 — plan-quality round1
+
+PQ-1/PQ-2 request concrete process-source ownership and named measurement-oracle unit-test strategies. Refined the durable plan with one zero-native procutil.Source/Reader instance propagated through ancestry, orphan sweep, initial owner capture and every native live fence; no global hooks or observation caching. Named Counter.RecordRead/RecordDecode/Snapshot and Snapshot.Delta strategies use an independent accounting oracle, immutable snapshots and joined concurrent updates under race. No implementation before the gate passes.

@@ -105,3 +105,36 @@ There is one atomic review boundary for this suite addition. An incidental runti
 ## Revisions
 
 2026-10-15 — TL approved227c8394 via dcb3f338-41ac-45ae-a098-39ff395ae578. Replaced pending scope alternatives with the approved selected-Couch strict boundary and the additional standalone2/continuation3/owner1+2N ratchets. Earlier interaction/tier2 goals move to #566; scan reduction is filed separately. No timing gate or safety-fence change is authorized.
+
+### 2026-10-15 — plan-quality PQ-1/PQ-2 refinement
+
+PQ-1 concrete source ownership: add procutil.Source in cmd/internal/procutil/source.go. Its zero value uses nativeReader; NewSource accepts the exported low-level Reader below, adapts it to the existing private processReader, and each Snapshot method delegates to existing snapshotCapture (including #218 diagnostics, candidate selection and identity fencing). Package Snapshot/SnapshotNamed delegate to Source{}; no process observation is cached. A pointer-backed counted Reader owns the test topology and synchronized call totals; every copy of its Source shares the exact same Reader.
+
+```go
+type Reader interface {
+    Table() ([]Process, error)
+    Command(int) (CommandInfo, error)
+    Identity(int) (string, error)
+}
+type Source struct { reader processReader }
+func NewSource(Reader) Source
+func (Source) Table() ([]Process, error)
+func (Source) Snapshot(context.Context) ([]Observation, error)
+func (Source) SnapshotNamed(context.Context, string) ([]Observation, error)
+```
+
+| Production owner | Injection path |
+|---|---|
+| launcher.OSRuntime.Processes | InZellijPane uses Source.Table; SweepOrphanNvim uses Source.Snapshot. ObserveSessionOwner/RevalidateSessionOwner pass this Source into SessionOwnerProbe. |
+| launcher.OSServerStates.Processes | ServerStates uses Source.SnapshotNamed; initial capture counts at the Reader.Table seam. |
+| launcher.SessionOwnerProbe.Processes | runtime() retains explicit IO precedence, otherwise builds osSessionOwnerIO with this Source. |
+| osSessionOwnerIO | SessionServers constructs newOSSessionQuiescenceOps with that Source. |
+| osSessionQuiescenceOps.processes | SessionServers uses Source.SnapshotNamed. Constructor accepts an optional Source, preserving zero-argument native defaults. |
+| NewSessionOwnerPass | Nil initial source derives OSServerStates with probe.Processes, so capture and live fences cannot silently split to a host-default source. |
+| Scoped checker fixture | Servers=OSServerStates{Processes:source}, OwnerProbe=SessionOwnerProbe{Processes:source}; both receive the same instance. |
+
+No SessionOwnerCapture product type is introduced; that phrase describes the existing initial capture behavior. All native reads inside the measured adapters pass through the source above. Targeted identity/command operations remain distinguishable from table enumerations and never acquire fake evidence by incrementing a high-level method count.
+
+PQ-2 named oracle functions and strategies: Counter.RecordRead(family,owner,path,n), Counter.RecordDecode(family,owner,path,n), Counter.Snapshot(), and Snapshot.Delta(before) live in workbenchperftest/counts.go. Counter.Observer(owner) adapts QueryWorkObserver without introducing a second accounting implementation. Test record/delta arithmetic against an independent serial reference over generated adversarial update sequences; verify snapshots own independent map copies; verify controlled concurrent update totals with joins under -race. Negative deltas are not silently clamped, so reset/disconnection is visible. Consumer cold controls assert all required families are present before checking zeros.
+
+Source.Table/Source.Snapshot/Source.SnapshotNamed tests use a stateful injected Reader through actual snapshotCapture, proving exact enumeration counts, candidate/identity evidence preservation and cancellation/error propagation without host access. The launcher and owner-pass ratchets use that same low-level Reader; adding a second enumeration must be observed even when no argv enrichment occurs. These are integration tests, not declarations of a pure core.
