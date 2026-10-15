@@ -636,6 +636,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/sessioninventory/native_selector_io.go",
 	"cmd/internal/sessioninventory/native_selector_os.go",
 	"cmd/internal/wrapcmd/native_admission.go",
+	"internal/reporoot/root.go",
 	"cmd/internal/couchcmd/resume_candidates.go",
 	"cmd/internal/couchcore/recovery_confirmation.go",
 	"cmd/internal/couchcore/recovery_fresh_missing.go",

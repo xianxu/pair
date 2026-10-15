@@ -20,7 +20,11 @@
 ## See also
 
 - `make test` — the one gate. It runs every shell/Lua suite, then `go test ./...`
-  with the cache off, so it covers every package. Inside a Couch shell it drops
+  with test-result caching off, so it covers every package. Make adds `-trimpath`
+  to existing `GOFLAGS` to share package compilation across worktrees; the recorded
+  suite pins `PAIR_GO_TRIMPATH=-trimpath`. `internal/reporoot` finds test assets by
+  cwd and validated module identity, and `probes/zellijprobe.RepoRoot` accepts
+  `PAIR_PROBE_REPO` for probes launched outside a checkout. Inside a Couch shell it drops
   the session's environment-origin names first (pair#436); a raw `go test ./...`
   keeps them, so a test that reads one pins it. Its first step,
   `tests/host-preflight.sh`, refuses a host that cannot bind a unix socket, open

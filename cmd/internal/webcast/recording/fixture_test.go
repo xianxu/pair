@@ -7,7 +7,28 @@ import (
 	"path/filepath"
 	"slices"
 	"testing"
+
+	"github.com/xianxu/pair/internal/reporoot"
 )
+
+func TestFixtureFromDifferentPackageDirectories(t *testing.T) {
+	root, err := reporoot.Current()
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := filepath.Join(root, "cmd/internal/webcast/recording/testdata/fixtures/segments")
+	for _, rel := range []string{".", "cmd/internal/webcast", "cmd/internal/webcast/recording"} {
+		t.Run(rel, func(t *testing.T) {
+			t.Chdir(filepath.Join(root, rel))
+			if got := Fixture("segments"); got != want {
+				t.Fatalf("fixture = %q; want %q", got, want)
+			}
+			if _, err := os.Stat(filepath.Join(Fixture("segments"), PinFile)); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
 
 var updatePins = flag.Bool("update-pins", false, "rewrite the fixtures' canonical.sha256 (after a deliberate reducer change)")
 

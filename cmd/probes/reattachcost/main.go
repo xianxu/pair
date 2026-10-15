@@ -93,12 +93,11 @@ type window struct {
 }
 
 func run() int {
-	_, self, _, ok := runtime.Caller(0)
-	if !ok {
-		fmt.Println("PROBE-ERROR: cannot locate probe assets")
+	repo, err := zellijprobe.RepoRoot()
+	if err != nil {
+		fmt.Println("PROBE-ERROR:", err)
 		return 1
 	}
-	repo := filepath.Join(filepath.Dir(self), "..", "..", "..")
 	config := filepath.Join(repo, "zellij", "config.kdl")
 
 	n := 8

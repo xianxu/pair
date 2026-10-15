@@ -29,7 +29,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"time"
 
@@ -50,13 +49,12 @@ func resize(f *os.File, rows, cols uint16) error {
 }
 
 func run() int {
-	_, self, _, ok := runtime.Caller(0)
-	if !ok {
-		fmt.Println("PROBE-ERROR: cannot locate probe assets")
+	repo, err := zellijprobe.RepoRoot()
+	if err != nil {
+		fmt.Println("PROBE-ERROR:", err)
 		return 1
 	}
-	dir := filepath.Dir(self)
-	repo := filepath.Join(dir, "..", "..", "..") // cmd/probes/zellijrepaint -> repo root
+	dir := filepath.Join(repo, "cmd/probes/zellijrepaint")
 
 	layout, err := zellijprobe.WriteLayout(dir, map[string]string{
 		"PROBE_SH": filepath.Join(dir, "probe.sh"),

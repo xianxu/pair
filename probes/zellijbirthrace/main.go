@@ -53,7 +53,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -159,11 +158,6 @@ func sessionState(name string) (listed, exited bool) {
 	return false, false
 }
 
-func repoRoot() string {
-	_, file, _, _ := runtime.Caller(0)
-	return filepath.Join(filepath.Dir(file), "..", "..")
-}
-
 // --- poke: the zellij bug, no Pair ----------------------------------------
 
 func runPoke(args []string) int {
@@ -173,6 +167,11 @@ func runPoke(args []string) int {
 	logPath := fs.String("zellij-log", filepath.Join(zellijTmp(), "zellij-log", "zellij.log"), "zellij log")
 	if err := fs.Parse(args); err != nil {
 		return 2
+	}
+	repo, err := zellijprobe.RepoRoot()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
 	}
 	layout, err := os.CreateTemp("", "zellijbirthrace-*.kdl")
 	if err != nil {
@@ -189,7 +188,7 @@ func runPoke(args []string) int {
 
 	counts := map[string]int{}
 	for i := 0; i < *n; i++ {
-		verdict := pokeTrial(i, *sockDir, *logPath, layout.Name())
+		verdict := pokeTrial(i, *sockDir, *logPath, layout.Name(), repo)
 		counts[strings.Fields(verdict)[0]]++
 		fmt.Printf("trial %d: %s\n", i, verdict)
 	}
@@ -198,7 +197,7 @@ func runPoke(args []string) int {
 	return 0
 }
 
-func pokeTrial(i int, sockDir, logPath, layout string) string {
+func pokeTrial(i int, sockDir, logPath, layout, repo string) string {
 	mark := markPanics(logPath)
 	prefix := fmt.Sprintf("birthrace%d", i)
 	name := fmt.Sprintf("%s-%d", prefix, os.Getpid())
@@ -221,7 +220,7 @@ func pokeTrial(i int, sockDir, logPath, layout string) string {
 	}()
 
 	s, err := zellijprobe.Start(zellijprobe.Options{
-		ConfigFile: filepath.Join(repoRoot(), "zellij", "config.kdl"),
+		ConfigFile: filepath.Join(repo, "zellij", "config.kdl"),
 		Layout:     layout,
 		NamePrefix: prefix,
 		Env:        zellijprobe.Scrub([]string{"ZELLIJ", "PAIR_", "COUCH_", "CMUX_"}, "TERM=xterm-256color"),

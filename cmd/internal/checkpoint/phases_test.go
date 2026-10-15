@@ -5,19 +5,23 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/xianxu/pair/internal/reporoot"
 )
 
 // The phase vocabulary is written out exactly once, in AllPhases: any other
 // []Phase literal -- production or test -- is a restatement that a new phase
 // would silently skip.
 func TestPhaseListIsWrittenOnlyInAllPhases(t *testing.T) {
-	_, file, _, _ := runtime.Caller(0)
-	root := filepath.Join(filepath.Dir(file), "..", "..")
+	repo, err := reporoot.Current()
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := filepath.Join(repo, "cmd")
 	var found []string
-	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+	err = filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".go") {
 			return err
 		}

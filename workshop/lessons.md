@@ -1915,3 +1915,9 @@ Deleting the orientation delivery also deleted the only `automaticRenderEpoch.Ad
 - #556 M2 review: a reserved capability needs revocation as well as consumption. Serialize exact dead-helper revocation with Claim, and test both lock orders: revoke first rejects delayed authority; Claim first retains uncertain spawning ownership. Helper death never proves an already-authorized child dead.
 
 - #556 whole-issue BR-6: an option terminator ends flag recognition, not a native command's positional identity grammar. Parse command/option/positional modes together, including literal -- option values; pin by token identity, not the first raw delimiter. Test canonical IDs after -- through launcher and both wrapper transports, with latest, prompt, fork/new and real value-option controls.
+### 2026-10-15 — bound filesystem ancestry in discovery tests (#572 BR-1)
+
+A temporary directory is not necessarily outside the checkout: SDLC review
+places TMPDIR inside it. Tests expecting ancestor discovery to fail must
+establish an explicit foreign-module boundary. Qualify both inside-checkout
+and external temporary roots rather than relying on the host's TMPDIR.

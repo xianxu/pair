@@ -39,7 +39,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -370,18 +369,17 @@ func (s *screen) all() string {
 }
 
 func runProbe() int {
-	_, self, _, ok := runtime.Caller(0)
-	if !ok {
-		return inconclusive("cannot locate probe assets")
+	repo, err := zellijprobe.RepoRoot()
+	if err != nil {
+		return inconclusive("cannot locate probe assets: %v", err)
 	}
-	dir := filepath.Dir(self)
-	repo := filepath.Join(dir, "..", "..", "..") // cmd/probes/couchnestedrows -> repo root
+	dir := filepath.Join(repo, "cmd/probes/couchnestedrows")
 
 	pairBin := filepath.Join(repo, "bin", "pair")
 	if len(os.Args) > 1 {
 		pairBin = os.Args[1]
 	}
-	pairBin, err := filepath.Abs(pairBin)
+	pairBin, err = filepath.Abs(pairBin)
 	if err != nil || !executable(pairBin) {
 		return inconclusive("no built pair at %s (make bin/pair)", pairBin)
 	}
