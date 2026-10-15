@@ -267,6 +267,39 @@ proven resume, explicit candidate keys, standalone stop-token acceptance, Fresh
 orientation and previous-screen reads. No live acceptance is claimed. M1 does
 not claim cross-slot native exclusion; that remains M2's separate review boundary.
 
+### 2026-10-15 — M1 review round 1: REWORK, three families addressed
+
+The normal boundary review at `a2b67ce4127cd90c06961204a4feed4c213dd1b2`
+returned REWORK with BR-1/2 Critical and BR-3 Important. No milestone was closed.
+The retained sidecar and close ledger record all findings; no dispute or waiver
+is needed because source inspection and RED tests confirmed them.
+
+- BR-1 (`recovery-preserves-surviving-workspaces`): retained and recordless Fresh
+  share read-only readiness while source absence is unproved, rechecking after
+  claim. The strengthened foreign fixture initially counted one forbidden normal
+  readiness call. The fix leaves fixture sentinel/files/processes intact; absent
+  sources retain normal readiness. Focused tests passed 6.619s; broader recovery
+  tests passed 15.466s. Invalid/unavailable host evidence refuses without repair.
+- BR-2 (`retirement-requires-owner-absence`): exact confirmed retirement now
+  checks immutable generations before each leaf-first signal and independently
+  waits for every named process to disappear; server absence alone never succeeds.
+  Surviving/reparented/replaced/new owners, false signal success and final listing
+  races are covered. Strict old retirement gains only the absence oracle, not
+  broader kill authority. Full launcher race tests passed 80.131s. Connected
+  settled owners use ParkExpected after preservation; the helper is named in the
+  same stop offer. Failed park retains its transaction without fallback. New
+  stateful park ordering/failed-publication/unknown-helper tests pass; core race
+  selection passed 1.940s and broader recovery/Park selection 27.092s.
+- BR-3 (`user-facing-docs-follow-surface`): README and the older Atlas accounts
+  now describe standalone exact-stop confirmation, expiry, always-available Fresh,
+  bounded Starting, retained uncertainty and survivor-safe workspace handling.
+  README documentation guards passed 0.415/0.653s; deleted flow names were swept
+  from the obsolete Atlas reboot account. Plan Revisions and lessons record the
+  classes and their independent test oracles.
+
+A new recorded suite and normal M1 re-close follow these corrections. M2 remains
+unimplemented, and no operator acceptance or live effects are claimed.
+
 ## Revisions
 
 ### 2026-10-15T05:33-07:00 — overnight M2 dispatch

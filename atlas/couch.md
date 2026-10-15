@@ -1550,47 +1550,35 @@ nor matched: `ThreadReferenceFields` is `{Address, Label, WorkingPath, Summary}`
 store resolution leaves `Label` and `Summary` empty (tag and path only), and the
 switcher passes what a row shows.
 
-**Resume and reboot are the actor operations for a row that is not live (#363).**
-`resume` (`Couch.ResumeTarget`, `couchcore/resume_route.go`) gets the old
-conversation back by whatever path works: a pure `ChooseResumeRoute` hands the
-row to `OpenSlot` (warm, cold, or adopting a conversation whose pointer couch
-lost -- on resume's guessed agent only through the native ledger, which binds
-per agent; a record-less detached survivor is refused `resume-survivor-unproven`
-because the detached proof cannot tell which agent runs), `Continue`,
-`RecoverThread` or `ResumeContextWith`. It takes a slot `path` or a thread
-address; `warm-only` (the background reattach pass) stays a direct warm-only
-resume. A refusal whose transcript cannot come back names reboot; the
-`ResumeRebootAdvice` map classifies every `ResumeDiagnosticCode`, so transient
-refusals say retry instead. `reboot` (`Couch.Reboot`, `couchcore/reboot.go`)
-archives the old record with its evidence and starts a fresh agent with a new
-tag in the same slot or path, without touching the worktree; a pure
-`DecideReboot` picks archive-and-start, archive-only (directory missing, or an
-unreadable `:0`), start-only, or refuse, and `RebootableState` is archive's
-admission rule. The fresh profile resolves before `prepareRetirement`
-(`ArchiveThread`'s admission and quiesce half) stops anything, and the retire
-plus the fresh claimed record commit in one store journal: `replaceSlotCurrent`
-for `:1+`, `ThreadStore.ReplaceThreadExpected` for `:0`, which composes the
-same `archiveJournalEntries` / `createJournalEntries` builders `archiveThread`
-and `CreateThread` use. Fresh records start without the stored name and
-description; the archived record keeps them. Both kinds report the retirement
-half through one `retiredResult`, including a session left unstopped.
+**Resume and Fresh share prepared recovery (#556).**
+`ResumeTargetWith` (`couchcore/resume_route.go`) gives a positively listed terminal
+Continue priority and starts only an attach helper, including the background
+warm-only pass. Lost pointers can adopt one proved existing terminal; they never
+repair a checkout or start an agent. Existing pending/running #522 continuation
+requests retain their exact executors. Actual cold native resume and the thin
+`Reboot`/`ResumeCandidate` facades enter `executePreparedRecovery`
+(`recovery_prepared.go`). Native resume carries no Prompt. Fresh allocates a new
+tag and uses the normal #522 Prompt to point at previous-screen, branch and issue
+evidence. The raw unreadable-primary archive escape stops and launches nothing.
 
-**Reboot of a live row (pair#456).** Relaunch needs a conversation to resume, so
-a live session that never finished a turn (`resume-binding-unbound`) or an
-old-wrapper Codex slot stuck `resume-binding-provisional` has no relaunch; those
-refusals now name reboot (`withRebootHint`, `relaunch.go`). `RebootAdmitted`
-admits a live row only when the call carries an idle verdict
-(`require-settled`): remote `couch --reboot repo:N --confirm` gets it from
-`prepareLiveRestart` / `DecideLiveRestart` (busy refuses, busy-unknown unless
-`--force-unknown`, a dirty tree is only noted), and the switcher's `Tab → reboot`
-on a live row sends `forced` (`liveRebootArgs`; the operator is looking, a known
-busy still refuses). Under the reboot hold the order is: `rebootAdmit`
-classifies and admits with no effect; the fresh-profile preflight resolves; only
-then `rebootStopLive` re-checks busy (`LiveRestart.ConfirmNotBusy`), parks the
-thread with the Pair lifecycle's `ParkExpected` (no binding needed) and
-reclassifies; then `prepareRetirement` and the start run as for a parked reboot.
-So a profile that cannot resolve leaves the live agent running (ARCH-ORDER). A
-call without the verdict (recover's reboot step) still refuses a live row.
+Preparation resolves the normal saved profile, preserves available screen and
+durable selection, and obtains exact, expiring stop acceptance before retirement.
+`--recovery-confirmation TOKEN` lets the owning hub accept the same offer as the
+menu without repeating the target. A settled connected source uses
+`PairLifecycle.ParkExpected`; a damaged source uses the immutable confirmed
+terminal plan (`launcher/recovery_terminal_confirmed.go`). Retirement succeeds
+only after every accepted process generation is independently proved gone.
+`--force-unknown` is not retirement authority. Unproved/foreign owners remain
+untouched; Fresh uses a distinct terminal identity and read-only checkout
+readiness instead of reconciling setup beneath them. Normal workspace repair is
+permitted only after absence is proved. Record replacement uses the existing
+slot/global archive journal, preserving open lifecycle evidence in the archive.
+
+Unconfirmed launch acknowledgment or registration retains the exact pending
+claim, reobserves it once, and reports uncertainty. It never silently kills the
+possible new agent or replaces it with Fresh. A StartClaim whose owner is dead
+or which is older than five minutes offers explicit recovery rather than staying
+Starting. Profile failure still leaves the existing agent untouched.
 
 **The switcher's per-row actions are one pure table (#363 M2).**
 `menuActionItems(row)` is `menuRowActions(menuRowFactsOf(row))`
@@ -1601,8 +1589,10 @@ continuation, resumable, unusable, unknown, busy) plus `ResumeOffered`,
 the Spec table over them. Live rows get detach, relaunch, park and switch coding
 agent (`:0` adds alias and add slot); rows that are not live get resume and
 reboot, and a `:0` among them also gets add slot unless its directory is missing
-(pair#402: a new slot needs the primary checkout, not `:0`'s agent); unknown,
-busy and live-pending rows get nothing, and `menuRowAdviceOf`
+(pair#402: a new slot needs the primary checkout, not `:0`'s agent). The
+legacy action table supplies Relaunch for unknown/needs-relaunch rows and details
+for genuinely in-flight work; the recovery frame adds explicit disk choices and
+Fresh independently of scan/TTY availability. `menuRowAdviceOf`
 reads the same facts to say why ("state could not be checked", "starting
 elsewhere", `RebootDirectoryMissing` on a `:1+`, `RebootCheckoutMissing` on a
 `:0`). It is the one home of every row-facing next step -- the status
@@ -2711,8 +2701,8 @@ included -- whose primary (`:0`, an ordinary target; slot rows are `:1+` and
 never count) is live, detached or parked. Startup reaches the same rows first
 and resumes instead, so the refusal is the start form's: "couch keeps one
 primary slot per repository", naming the thread's label and a fresh step its row
-can take (`primaryFreshStep`: `Tab → reboot` where `RebootableState` permits it,
-otherwise `Alt+Shift+N` inside the live thread). Known debris does not block --
+can take (`primaryFreshStep`; explicit Fresh uses prepared recovery and any
+required exact-stop acceptance). Known debris does not block --
 a repository whose only primary rows are unusable-but-classified must stay
 startable (resolved ambiguity 9). A linked worktree that is not a slot has its
 own scope, so its own primary. Couch starts only inside a Git repository:
@@ -3514,7 +3504,7 @@ consumed by the guard that would otherwise re-derive one:
 |---|---|---|---|
 | switch-agent | `SwitchableState` | `PrepareAgentSwitch` | `live`, `parked`, `binding-lost`, `session-gone` |
 | archive | `ArchivableState` | `Couch.ArchiveThread` (via `classifyForAction`) | `detached`, `parked`, every unusable reason **except** `unknown` |
-| reboot | `RebootAdmitted` (`RebootableState` = `ArchivableState`, or `live` with an idle verdict, pair#456) | `Couch.Reboot` (`rebootAdmit`; preflight; `rebootStopLive` for a live row; then `prepareRetirement`) | archive's set, plus `live` |
+| reboot / Start fresh | explicit Fresh selection, version/config/checkout validation and any exact-stop acceptance | `Couch.Reboot` → shared prepared recovery | Fresh remains available independently of native scan/TTY evidence; unknown owners are left untouched |
 | resume | `ResumableState` | `SelectResumableRoot` | `detached`, `parked` |
 
 The switcher's **offer** is written separately, in the action table

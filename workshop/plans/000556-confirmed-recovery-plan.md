@@ -304,3 +304,27 @@ its strict absence gate. Resume routing must retain positively listed warm
 adoption and typed refusal advice while cold native resume uses only the prepared
 owner. Menu requests show only the eventual exact-stop confirmation, removing
 the old preliminary generic Fresh prompt. No new user-visible state is added.
+
+### 2026-10-15 — M1 boundary round 1 corrections
+
+The first M1 review returned REWORK (BR-1/2/3). The scope remains M1; no
+admission-store work has started. Both retained-record and recordless Fresh must
+use the shared read-only checkout readiness whenever previous owner absence is
+unproved, including its final recheck. A new tag isolates terminal identity,
+not the physical workspace, so it never authorizes normal setup convergence.
+
+Retirement must independently observe absence of every accepted process
+identity, including survivors after a server exits. The confirmed launcher
+retires only immutable accepted generations, leaf-first, checking ownership
+before each signal. Strict legacy retirement gains an absence oracle without
+broader kill authority. Settled connected source helpers are named in the same
+confirmation and use normal ParkExpected after durable intent/screen preservation;
+a failed/uncertain park keeps its transaction and never falls through to a
+second retirement strategy. The terminal plan then independently proves its
+accepted owners gone. README and older Atlas recovery accounts are updated to
+the actual shared path and token surface.
+
+Core concept locations: `recovery_prepared.go` owns the prepared executor;
+`recovery_retirement_os.go` bridges normal park and confirmed terminal evidence;
+`launcher/recovery_terminal_confirmed.go` owns immutable process attribution
+and confirmed retirement. These supersede the initial coarse task path list.

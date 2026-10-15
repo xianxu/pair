@@ -1889,3 +1889,13 @@ Deleting the orientation delivery also deleted the only `automaticRenderEpoch.Ad
   Native admission must retain the child generation through reparenting and
   uncertain readiness; explicit Fresh remains the safe alternative.
 - #204 plan/code review: a shared initial process capture is not a total scan budget. Count full enumerations at the reader boundary, including named-snapshot live fences, and propagate one instance through every adapter. Keep ratchets as upper bounds with separate positive connection/success controls so improvements can pass. Consumer regressions must enter actual scheduling/socket/attach paths; cold and mutation controls defend against disconnected observers.
+
+- Recovery under foreign survivors needs read-only readiness on every entry path,
+  including retained-record Fresh; a different terminal tag does not isolate a
+  shared checkout from workspace reconciliation (pair#556 BR-1).
+- Retirement tests must independently assert every advertised process generation
+  is absent. A successful server signal or empty server list does not establish
+  child/native-owner death; model orphan and reparented survivors (pair#556 BR-2).
+- When replacing a public recovery flow, sweep README and older Atlas accounts
+  as well as the new feature section so obsolete admission rules do not survive
+  beside the current contract (pair#556 BR-3).
