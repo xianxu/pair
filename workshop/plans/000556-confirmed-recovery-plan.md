@@ -522,3 +522,39 @@ a different faithful configuration source. Preserve existing native files and
 saved defaults; no silent mtime/default guesses and no latest bypass around
 admission. Until the decision, finish independent verification and checkpoint,
 but do not close M2 or land a known deviation from its approved selector contract.
+
+
+### 2026-10-15 — operator-approved Codex compatibility exception and split
+
+Verified hub decision `b927c539-6b36-4710-b39e-8b9142e1721b` supersedes the
+pending configuration decision above. Land M2 exact canonical-ID admission for
+all agents and measured latest resolution for Claude/Qoder. Preserve today's
+Codex indirect CLI behavior: pass the original selector/argv through unreserved,
+with exactly one one-line notice that concurrent native resume is not guarded.
+This is a deliberate compatibility exception, not a guarded launch or proof of
+uniquely resolved identity. Full canonical UUID resumes remain guarded; latest,
+picker and unresolved native name/search/prefix forms are indirect. Never let a
+nonempty invalid/replayed/mismatched grant invoke the exception. Fork/new/Fresh
+and all other agents retain their existing distinct semantics. A shared pure
+policy serves common launcher and wrapper, with no new environment state.
+
+The native wrapper prints the notice once at actual execution; the launcher does
+not duplicate it. Indirect invocation does not publish a guessed native ID or
+pretend a reservation exists. Tests exercise both wrapper command forms, original
+argv/prompt preservation, absent admission effects and exact-ID negative controls.
+Historical fake IDs representing exact Codex resumes must use canonical UUID
+shapes so they cannot accidentally test the new indirect compatibility route.
+
+Filed/published **#571**, unassigned, `codex-indirect-resume-adapter`, target
+slot-recovery, dependency pair#556 for admission integration. It preserves the
+operator's direction: effective configuration read-only from CODEX_HOME,
+config.toml, runtime profiles, documented CLI/env precedence, model_provider and
+sqlite_home; source-backed native DB selection verified against this machine's
+real configuration/DB, with no real conversation launch or native mutation. No
+app-server configuration process is introduced. Planning/measurement can start
+from main immediately; no stacked branch on unlanded #556.
+
+Current shared scratch exhaustion remains a verification issue independently of
+this now-approved product policy. Complete the compatibility delta, appropriate
+targeted checks, a clean-capacity recorded suite, normal M2 review and landing on
+SHIP. Do not inherit #528 waivers or interpret this decision as a suite bypass.

@@ -698,3 +698,20 @@ reserve and execute the same explicit canonical ID. Refuse only unresolved or
 ambiguous selectors/name mappings; do not regress supported continue/last or edit
 saved defaults. The durable plan Revision supersedes the earlier blanket-refusal
 proposal. Native admission remains M2, after M1's independent verification block.
+
+
+### 2026-10-15 — approved primary-agent compatibility and #571 split
+
+Verified decision `b927c539-6b36-4710-b39e-8b9142e1721b`: land exact canonical-ID
+admission for all, Claude/Qoder latest resolution, and unchanged unreserved Codex
+indirect passthrough with one one-line unguarded notice until a faithful adapter
+exists. The durable plan appends the implementation boundary and explicit-ID
+negative controls; no metadata app-server adapter is authorized or added.
+
+Filed/published **pair#571**, unassigned, via `sdlc issue new --no-claim`, details
+`workshop/issues/000571-codex-indirect-resume-adapter.md` on origin/main. Target
+slot-recovery; dependency #556 for admission integration; source/profile/env/Codex
+home/state-home semantics read only from files and verified against the real DB.
+The hub received the number in receipt `86bf24fa-23d7-481f-a998-17093dde4e28`.
+Implementation of the approved compatibility delta proceeds independently of
+shared scratch capacity; final required suite and normal gates still apply.
