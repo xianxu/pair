@@ -915,6 +915,23 @@ and additive flags/command-line overrides/nested Make. Integrated make build PAS
 No production flags or declared suite argv changed. Required full recorded suite
 and narrow post-close integration review follow; no gate is waived.
 
+
+### 2026-10-15 — post-close integrated required suite PASS
+
+Normal recorded `make PAIR_GO_TRIMPATH=-trimpath test` at
+`1e454fd4d89e1f10ba832ce4b814c293d02a677e` **PASS**, exit0 in **12m37s** after
+863s queue. Retained suite.log in common Git sdlc/local-checks under that head,
+sha256 prefix `28276f5e2d73`. Both Make environment modes PASS198 knobs plus
+additive/override/nested checks; all editor/shell integrations and Go packages
+passed. Core495.693s, launcher57.435s, wrapper77.091s, inventory11.528s.
+Integrated build passed. No test or review gate is waived.
+
+Narrow fixed-then-ship review now covers the additive manifest resolution from
+#572 main integration, with #577's fixture correction retained from main.
+Verified hub receipt ebd9c8ff authorizes only --no-actual if close encounters the
+specific incomplete Qoder session metadata measurement bug, ariadne#391; normal
+measurement is attempted first. No other waiver authorized or needed.
+
 ## Revisions
 
 ### 2026-10-15T05:33-07:00 — overnight M2 dispatch
