@@ -1,6 +1,6 @@
 ---
 id: 000558
-status: codecomplete
+status: done
 created: 2026-10-14
 updated: 2026-10-15
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 3a8bf1fcb917a2246362dee4a3b482b03cf755db
         evidence_commit: 281cf3bacb548ab0739d501f3dadebc4576f08d8
+        landed_commit: 730456eaecf3588bc1859b47e769015addecf0cc
 ---
 
 # couch skill and docs still say only Claude and Codex are receiver profiles; add Qoder (#550)
