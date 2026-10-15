@@ -1784,3 +1784,5 @@ Deleting the orientation delivery also deleted the only `automaticRenderEpoch.Ad
   Isolated rerun passes do not erase a failed broad run or prove its cause.
 
 - #554: An emulator reply drainer owns a lifetime even in a one-shot screen fixture. Reuse terminalModel instead of pairing raw Emulator.Close with an unjoined io.Copy; close the reply pipe, join the reader, then dispose the emulator. Pin ordering on real EOF and observable disposal, including an injected shutdown error, rather than sleeps or a probabilistic race-only assertion.
+
+- #564: A semantic test must choose its fixture's time authority. Reusing a failure fixture can silently import a tiny real registration deadline despite a fixed domain clock. Use the existing parent-linked registration context seam and bound the caller by its test budget; pin deadline inheritance and cancellation at observer events. Reproduce expiry before the first poll separately, and distinguish later cleanup probes from completed registration observations.

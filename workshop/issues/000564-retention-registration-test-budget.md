@@ -40,8 +40,8 @@ Reproduce the budget exhaustion through controlled scheduling/storage barriers o
 
 ## Plan
 
-- [ ] Establish the deadline boundary and a meaningful red regression under controlled load/order.
-- [ ] Correct the test seam or diagnosed behavior while preserving production timeout and retention contracts.
+- [x] Establish the deadline boundary and a meaningful red regression under controlled load/order.
+- [x] Correct the test seam or diagnosed behavior while preserving production timeout and retention contracts.
 - [ ] Run semantic retention, intentional timeout and broad couchcore verification.
 
 ## Log
@@ -56,3 +56,5 @@ Filed and released as independent follow-up during #218 close. No code change or
 - Root cause: the retention-semantic case inherits a deadline intended for warm failure tests. The deadline begins after acknowledge and before the first registration observation; wall time can expire before that observer is scheduled. `FixedClock` only controls domain timestamps, while the registration factory defaults to context.WithTimeout.
 - Proposed correction: a retention-only fixture uses the existing registrationDeadline seam with parent-linked context.WithCancel, so only the enclosing test budget/cancellation bounds registration. Keep warmDetachedThread's 200ms budget and all intentional timeout tests unchanged (ARCH-DRY, ARCH-ORDER). Preserve the real storage coordinator and both exact retention/environment assertions.
 - Proposed regression: retain the event-spent-before-first-poll characterization; prove the retention fixture propagates its parent deadline rather than adding a 200ms deadline, and parent cancellation still terminates registration. Run semantic retention and intentional timeout/lifecycle regressions, broad couchcore (normal plus targeted race), make -k build and required sdlc-local suite before SHIP/landing. No production changes expected.
+
+- 2026-10-15: Hub approved the design. The new deadline-propagation regression failed under the unchanged warm fixture: registration had a 200ms deadline while its enclosing test budget had about 590s remaining. Retention-only fixture now injects context.WithCancel through the existing registrationDeadline seam and uses the enclosing remaining test budget; warmDetachedThread and production code are untouched. All three deterministic cases plus the original semantic test passed three repetitions (9.338s). The original exact LastUse, process-list and PAIR_RETENTION_BACKGROUND assertions remain unchanged. Targeted lifecycle/race and broad couchcore checks are running.
