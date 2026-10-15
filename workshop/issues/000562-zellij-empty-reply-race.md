@@ -1,13 +1,20 @@
 ---
 id: 000562
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-14
 updated: 2026-10-14
 estimate_hours:
-card_mirror: 'de9be9d3ccd59461919470d7facd62791fe3a540' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '14b78108157d248bc072001c7a2a901d168a186a' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-14T21:49:51-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:7
+    worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Zellij CLI queries can finish before their reply
@@ -57,3 +64,30 @@ External posting, upstream installation and operator environment changes require
 ### 2026-10-14
 
 Split from #218 during warm-fleet measurement. Filed as an unassigned follow-up; no implementation or upstream post performed. Full evidence and incomplete matrices remain recorded in #218. CI log retrieved through gh; source at the exact failing commit inspected rather than attributing the Atoi message to CLI output.
+
+
+## Revisions
+
+### 2026-10-14 — dispatched correction and executable plan
+
+TL dispatch sets the correction: empty/whitespace-only successful CLI stdout is **no answer**, never detached/absent/accepted authority. A separately requested query is a fresh observation; no hidden retry, sleep, positive cache or relaxed generation check. Nonempty malformed pane JSON retains its failing classification. Preserve the existing explicit exit1/no-active-sessions diagnostic as a positively observed empty inventory.
+
+Source investigation verified upstream v0.45.1 commit bebf50a75198fe6c434cbf34cb2ef981a1d959ca from local git objects. The individual CLI receive loop accepts an unrelated UnblockInputThread before Log and start_cli_client then completes successfully. ConnStatus reads one response and excludes anything other than Connected. These are possible source-supported interleavings, not proof of the runtime ordering in #218. Nonempty incomplete discovery remains possible and belongs to #563's passive evidence; this correction does not claim globally complete inventories.
+
+**Chosen design:** one typed ErrZellijNoReply at ZellijSource.runContext's read boundary (ARCH-DRY/ORDER). Empty exit0 with optional whitespace fails; the exact known empty-inventory exit1 diagnostic remains distinct. Existing snapshot/presence/quiescence/owner paths propagate uncertainty; no cached poison prevents a later fresh observation. Sweep legacy launcher authority paths that bypass that seam: SessionBlocksReuse blocks reuse on query error; ProbeSessionName does not generalize empty success into monotone name acceptance; ListSessions propagates missing client/listing replies rather than displaying detached. ProbeLiveLayout uses the same query boundary. ShowFamilyExisting's display-only omission helper creates no authority and stays best effort. No mutation acknowledgments are routed through this nonempty-read contract.
+
+Rejected alternatives: auto-repeat the same query would hide uncertainty and can amplify the upstream race; changing Zellij/installing a patched binary requires upstream work/environment changes and would not protect existing installations. Keep the Pair boundary conservative and the upstream report internal.
+
+**Checkable implementation sequence (single atomic close, no milestones):**
+
+1. Stateful fake-zellij executable scripts ordered protocol frames per invocation. U-before-Log produces exit0/empty, records that Log remained unread; the next explicitly requested observation receives Log. Tests enter real ZellijSource/runContext, snapshot/list-clients, SessionOwnerProbe and legacy safety paths. Assert no automatic second query, no authority/side effect from unknown, and recovery through a new query; separate malformed nonempty JSON, explicit empty inventory, cancellation and generation-replacement controls. Observe RED before changing production.
+2. Implement the shared no-reply guard and the enumerated legacy consumers, preserving existing exact server-generation guards and malformed reply behavior. Use controlled process/frame barriers, no timing oracle. Expected production addition stays below100lines (quick shell); if it leaves that shell, use full plan-quality before proceeding.
+3. Independently fix the CI fixture publication boundary: its current shell redirection publishes an empty source-agent.pid before printf writes, and waitFile watches existence only. Reuse a test-only same-directory temporary+rename publisher for PID and pane identity. A controlled test pauses at rename and proves public path absent until complete values are published; no attribution to CLI stdout. Test files only; no production sidecar format change.
+4. Finish the internal upstream draft with precise pinned source links, ordering pseudo-regressions, source-supported versus captured evidence, and explicit PID-race exclusion. No upstream posting or installation. Update the atlas map for observation semantics; give #563 the stable boundary/evidence limitation via the hub.
+5. Run affected launcher/core fixture tests with race detector, controlled repetition and guard-removal counterfactual; push and run declared full suite once before close, then close's fresh review. Merge main and land through sdlc merge --yes on SHIP. Ask hub only if actual live/operator setup is needed; do not stage or touch pair:0 without instruction.
+
+**Pure/integration split:** response presence and existing JSON/parser classifications are deterministic; ZellijSource.runContext executes one bounded subprocess. SessionOwnerProbe uses its existing injected IO and before/after server identity. The fake owns persisted per-test frame/invocation state, removed with t.TempDir; no production durable state or goroutine is added (ARCH-PURE/MOCK/FUNERAL). Existing5second per-query budget and caller cancellation remain; number of production queries does not increase (ARCH-CONSTRAINTS). Session/PID identities are rechecked at effect boundaries as today (ARCH-SECURE). This serves the observation error class without attempting an upstream protocol replacement (ARCH-PURPOSE).
+
+**Acceptance:** deterministic private fake/headless scenarios plus the full suite and existing live conformance lane. Live pane/operator mutations are unnecessary to force the chosen interleaving; request hub's acceptance decision with the plan. The separate PID publication regression is mandatory even though that failure is not the Zellij race.
+
+Planning checkpoint: claimed pair:7, start-plan refreshed Ariadne and then succeeded on retry. No implementation or real Zellij session mutation performed.
