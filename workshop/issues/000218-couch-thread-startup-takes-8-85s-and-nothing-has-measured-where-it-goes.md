@@ -437,6 +437,14 @@ descendants without c.mu; explicit cleanup runs outside the teardown mutex
 before workers.Wait. No failed-suite result is being treated as a pass; rerun
 required on the corrected pushed head.
 
+Corrected shutdown candidate b289539f9ce2211ce3b63d2d1bc71d4b5efef4cd pushed.
+Complete targeted couchtty package PASS42.055s (all tests, 3min bound), in
+addition to selected race PASS2.185s and rebuild PASS. Required full suite
+session91014 is queued for this exact candidate; no passing status claimed.
+Hub outcome report 08575386-7a92-4f70-8e6c-38c3af0525d0 confirmed submitted,
+including the fixed failure, incomplete benchmark, proposed isolated diagnostic
+and need for scope/live-check coordination. Awaiting answer; no scope approval.
+
 ## Revisions
 
 - 2026-10-14 — repair M2 shutdown lock regression found by full suite: preserve mutex-free Stop; release pass fields/callback in joined teardown. No lifecycle authority or retry changes.
