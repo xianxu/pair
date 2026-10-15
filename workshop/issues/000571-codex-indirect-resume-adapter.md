@@ -48,7 +48,7 @@ Canonical approved implementation design: [durable plan](../plans/000571-codex-i
 - [x] Build source-faithful read-only config projection and inventory-owned scoped roots; API-only local bootstrap proof or native compatibility.
 - [x] Build separate TUI and exec collectors with portable real config/SQLite/transcript evidence.
 - [x] Reuse pin/reserve/claim with namespace-bound handoff and unchanged compatibility UX.
-- [ ] Verify source/machine controls, targeted normal/race and full suite; atlas, close and land on SHIP.
+- [x] Verify source/machine controls, targeted normal/race and full suite; update atlas and prepare close evidence.
 
 ## Log
 
@@ -126,6 +126,12 @@ The8bd4baa1 run completed all recipes and Go packages in13m3s, with only the #58
 The unchanged recorded rerun on8bd4baa1 stopped in test-review after4m33s, before Go packages: tests/review-observation-test.sh Python line55 received branch changed during restoration; invoke Alt+C again in its repeated checkout/request loop. Log /Users/xianxu/workspace/pair/.git/sdlc/test-stats/failed/119840be5020067f99a3413fd951e608.log, sha256 prefix58ed1e657115. Unchanged isolated shell test passed; the adapter changes none of that observation/controller/test code. Filed unassigned #586 with the first-check evidence and unproven incomplete-wanted-observation hypothesis. Preserve restore authorization. Started make -k to complete remaining recipes/packages and queued another recorded suite on the unchanged8bd4baa1 code. No production or test fixes added for either flake. Main's intervening issue documents merged cleanly; all files changed since the tested head remain issue Markdown only.
 
 TL confirmed the same flake rule for #586: file independent unassigned evidence, then one unchanged recorded rerun. This is run23c46148480d5d752a0e3df4ef9e4435 on8bd4baa1. If it fails on a different flake, report before a fourth recorded attempt; suite flake rate is a test-economy concern. The keep-going run has now passed review-observation-test unchanged under suite load and continues through the remaining checks.
+
+### 2026-10-15 — full keep-going suite green; close readiness
+
+Full `make -k PAIR_GO_TRIMPATH=-trimpath test` completed exit0, every recipe and Go package, with no failures. Log /tmp/pair571-keep-going-suite.log; SHA256 f841adcce742565c0a5e2de6bb4e644a58ea9e31a9ecf9463a3373631cfe712e. It ran from branch head0cddd02c643b709823b16950d1abcd88b956efe4, whose code is identical to8bd4baa1; subsequent commits only record issue evidence. Couchcore382.008s, launcher43.574s, inventory16.317s, wrapper82.895s. Both independent flakes passed unchanged. The recorded same-code run23c46148 has also passed review observation and entered its Go suite; await its result for the required publish status.
+
+Checklist clarification: the final design checkbox now describes deliverables complete before close; close/landing remain governed by the binary and will be recorded as outcomes, rather than incorrectly ticking future actions. No design, scope or implementation changed. Indexed atlas and compatibility docs are current. Read-only acceptance remains the TL-approved machine path; no native startup, credential reads or pair:0 action.
 
 ### 2026-10-15 — planning under the disk restriction
 

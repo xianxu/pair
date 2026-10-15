@@ -101,7 +101,7 @@ ARCH-ORDER: observe -> unique selection -> reserve -> explicit argv -> verify sc
 - [x] RED/GREEN scoped native runtime and separate TUI/exec collectors via private real SQLite/transcript state; retain native fallback.
 - [x] RED/GREEN parser/createflow and namespace-bound admission/handoff, preserving other agents and old strict routes.
 - [x] Run read-only private-snapshot real-machine source/query and adapter comparison; observe compatibility here. Coordinate any live action through hub.
-- [ ] Update current indexed inventory/recovery atlas and compatibility support/version docs; run targeted normal/race then recorded full suite; close, merge main, land SHIP, report real hashes.
+- [x] Update indexed inventory/recovery atlas and compatibility support/version docs; run targeted normal/race and the full keep-going suite, and prepare evidence for binary-owned close and landing.
 
 ## Operating envelope and residue
 
@@ -132,3 +132,7 @@ Config budget is4MiB total (stricter than8MiB),64 reads,128 ancestry,256 bounded
 ### 2026-10-15 — PQ-1/PQ-2
 
 Replaces the materialized2e712aec design's open policy-provenance obligation with the independently source-verified API-only local bootstrap proof for TUI AND exec; ordinary current-machine config remains cloud-unknown. Replaces case inventories with named function/adversarial/mechanical-guard strategies. Prior full proposal remains versioned on2e712aec and in the approved issue publication history; no scope or credential boundary changed.
+
+### 2026-10-15 — close checklist and verification outcome
+
+Clarify the final checkbox as pre-close deliverables so future close/landing actions are not falsely marked complete. Full keep-going suite passed all recipes/packages exit0 on code identical to8bd4baa1; required recorded same-code rerun is executing after independent flakes were filed as unassigned #585 and #586, per the TL-approved bounded retry rule. Its publish status remains pending. No adapter design or scope changed.
