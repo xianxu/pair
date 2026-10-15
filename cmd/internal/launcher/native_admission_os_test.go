@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"testing"
@@ -343,6 +344,125 @@ func TestNativeAdmissionAbsentOrExplicitEmptyStoreCanInitialize(t *testing.T) {
 				}
 			}
 			reserveAdmission(t, store, req)
+		})
+	}
+}
+
+func TestNativeAdmissionReservedFenceStopsAtCanceledDeathProbe(t *testing.T) {
+	world := newAdmissionWorld()
+	store := world.store(t.TempDir())
+	req := admissionRequest(t, "native")
+	old := reserveAdmission(t, store, req)
+	path := admissionStorePath(t, store.Home)
+	before, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	world.as(22)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	probes, checks, writes := 0, 0, 0
+	store.io.inspect = func(storagegc.ProcessIdentity) storagegc.Liveness {
+		probes++
+		cancel()
+		return storagegc.ProcessDead
+	}
+	store.io.write = func(string, []byte) error { writes++; return nil }
+	req.Attempt = "replacement"
+	grant, err := store.Reserve(ctx, req, func(context.Context, NativeAdmissionOwners) error { checks++; return nil })
+	if !errors.Is(err, context.Canceled) || grant != "" || probes != 1 || checks != 0 || writes != 0 {
+		t.Fatalf("canceled fence continued: err=%v grant=%t probes=%d checks=%d writes=%d", err, grant != "", probes, checks, writes)
+	}
+	after, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(before, after) {
+		t.Fatal("canceled death probe revoked original grant")
+	}
+	world.as(12)
+	if _, err := world.store(store.Home).Claim(context.Background(), old, req.Agent, req.CommandDigest); err != nil {
+		t.Fatal("cancellation lost original authority", err)
+	}
+}
+
+func TestNativeAdmissionFenceAndClaimSerializeOnStoreLock(t *testing.T) {
+	for _, first := range []string{"fence", "claim"} {
+		t.Run(first, func(t *testing.T) {
+			world := newAdmissionWorld()
+			home := t.TempDir()
+			req := admissionRequest(t, "native")
+			old := reserveAdmission(t, world.store(home), req)
+			world.lives[7] = storagegc.ProcessDead
+			replacement, wrapper := world.store(home), world.store(home)
+			replacement.io.self = func() (storagegc.ProcessIdentity, error) {
+				return storagegc.ProcessIdentity{PID: 22, Birth: "wrapper2"}, nil
+			}
+			wrapper.io.self = func() (storagegc.ProcessIdentity, error) {
+				return storagegc.ProcessIdentity{PID: 12, Birth: "wrapper"}, nil
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			locked, competing := make(chan struct{}), make(chan struct{})
+			waitForCompetitor := func() error {
+				close(locked)
+				select {
+				case <-competing:
+					return nil
+				case <-ctx.Done():
+					return ctx.Err()
+				}
+			}
+			if first == "fence" {
+				replacement.io.inspect = func(storagegc.ProcessIdentity) storagegc.Liveness {
+					if waitForCompetitor() != nil {
+						return storagegc.ProcessUnknown
+					}
+					return storagegc.ProcessDead
+				}
+				acquire := wrapper.ops().acquire
+				wrapper.io.acquire = func(ctx context.Context, path string) (io.Closer, error) { close(competing); return acquire(ctx, path) }
+			} else {
+				wrapper.io.self = func() (storagegc.ProcessIdentity, error) {
+					if err := waitForCompetitor(); err != nil {
+						return storagegc.ProcessIdentity{}, err
+					}
+					return storagegc.ProcessIdentity{PID: 12, Birth: "wrapper"}, nil
+				}
+				acquire := replacement.ops().acquire
+				replacement.io.acquire = func(ctx context.Context, path string) (io.Closer, error) { close(competing); return acquire(ctx, path) }
+			}
+			reserveResult, claimResult := make(chan error, 1), make(chan error, 1)
+			reserve := func() {
+				next := req
+				next.Attempt = "replacement"
+				_, err := replacement.Reserve(ctx, next, noLegacy)
+				reserveResult <- err
+			}
+			claim := func() { _, err := wrapper.Claim(ctx, old, req.Agent, req.CommandDigest); claimResult <- err }
+			if first == "fence" {
+				go reserve()
+			} else {
+				go claim()
+			}
+			select {
+			case <-locked:
+			case <-ctx.Done():
+				t.Fatal(ctx.Err())
+			}
+			if first == "fence" {
+				go claim()
+			} else {
+				go reserve()
+			}
+			reserveErr, claimErr := <-reserveResult, <-claimResult
+			if first == "fence" {
+				if reserveErr != nil || claimErr == nil {
+					t.Fatalf("fence first: reserve=%v claim=%v", reserveErr, claimErr)
+				}
+			} else if claimErr != nil || reserveErr == nil {
+				t.Fatalf("claim first: reserve=%v claim=%v", reserveErr, claimErr)
+			}
 		})
 	}
 }

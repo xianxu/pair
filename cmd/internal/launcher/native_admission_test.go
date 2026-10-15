@@ -102,7 +102,7 @@ func TestNativeAdmissionSingleConsumptionAndExactPublication(t *testing.T) {
 	}
 }
 func TestNativeAdmissionLifetimeNeverExpiresOrReleasesOnReadiness(t *testing.T) {
-	for _, phase := range []string{"reserved-helper-dead", "spawning-wrapper-dead", "running", "running-wrapper-dead", "running-child-dead", "running-reparented-child", "running-unknown", "running-both-dead"} {
+	for _, phase := range []string{"spawning-wrapper-dead", "running", "running-wrapper-dead", "running-child-dead", "running-reparented-child", "running-unknown", "running-both-dead"} {
 		t.Run(phase, func(t *testing.T) {
 			w := newAdmissionWorld()
 			s := w.store(t.TempDir())
@@ -121,8 +121,6 @@ func TestNativeAdmissionLifetimeNeverExpiresOrReleasesOnReadiness(t *testing.T) 
 				}
 			}
 			switch phase {
-			case "reserved-helper-dead":
-				w.lives[7] = storagegc.ProcessDead
 			case "spawning-wrapper-dead", "running-wrapper-dead":
 				w.lives[12] = storagegc.ProcessDead
 			case "running-child-dead":
@@ -214,5 +212,117 @@ func TestNativeAdmissionCommandDigestPinsArgvBoundariesAndPrompt(t *testing.T) {
 		if _, e := NativeAdmissionCommandDigest("codex", argv); e == nil {
 			t.Fatal("invalid invocation accepted")
 		}
+	}
+}
+
+// Reserve and Claim serialize on the same durable store lock. These two
+// histories exercise each possible winner without relying on scheduler timing.
+func TestNativeAdmissionDeadHelperFenceOrdersWithClaim(t *testing.T) {
+	for _, phase := range []string{"reserved-dead", "reserved-alive", "reserved-unknown", "claimed-dead"} {
+		t.Run(phase, func(t *testing.T) {
+			w := newAdmissionWorld()
+			home := t.TempDir()
+			s := w.store(home)
+			r := admissionRequest(t, "native")
+			old := reserveAdmission(t, s, r)
+			if phase == "claimed-dead" {
+				w.lives[7] = storagegc.ProcessDead
+				w.as(12)
+				if _, err := s.Claim(context.Background(), old, r.Agent, r.CommandDigest); err != nil {
+					t.Fatal(err)
+				}
+				w.lives[12] = storagegc.ProcessDead // A lost spawning wrapper is still uncertain.
+			}
+			switch phase {
+			case "reserved-dead", "claimed-dead":
+				w.lives[7] = storagegc.ProcessDead
+			case "reserved-unknown":
+				w.lives[7] = storagegc.ProcessUnknown
+			}
+			w.as(22) // Replacement helper is a different, living generation.
+			next := r
+			next.Attempt = "replacement"
+			replacement, err := s.Reserve(context.Background(), next, noLegacy)
+			if phase != "reserved-dead" {
+				if err == nil {
+					t.Fatal("unproved or already consumed grant reclaimed")
+				}
+				if phase != "claimed-dead" {
+					w.as(12)
+					if _, err := s.Claim(context.Background(), old, r.Agent, r.CommandDigest); err != nil {
+						t.Fatal("retained grant changed", err)
+					}
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal("dead helper's unconsumed reservation blocked replacement", err)
+			}
+			if replacement == old {
+				t.Fatal("replacement reused revoked capability")
+			}
+			w.as(12)
+			if _, err := s.Claim(context.Background(), old, r.Agent, r.CommandDigest); err == nil {
+				t.Fatal("revoked grant authorized spawn")
+			}
+			if err := s.CancelBeforeHandoff(context.Background(), old); err == nil {
+				t.Fatal("revoked grant canceled replacement")
+			}
+			claim, err := s.Claim(context.Background(), replacement, next.Agent, next.CommandDigest)
+			if err != nil {
+				t.Fatal("replacement cannot claim", err)
+			}
+			if err := s.PublishChild(context.Background(), claim, 13); err != nil {
+				t.Fatal("replacement cannot publish child", err)
+			}
+		})
+	}
+}
+
+func TestAdvanceNativeAdmissionFenceRequiresExactUnconsumedDeadHelper(t *testing.T) {
+	r := admissionRequest(t, "native")
+	g := nativeAdmissionGrant{Request: r, Token: strings.Repeat("a", 64), Helper: storagegc.ProcessIdentity{PID: 7, Birth: "helper"}}
+	entry, err := AdvanceNativeAdmission(nil, admissionChange(g, NativeAdmissionReserve, storagegc.ProcessIdentity{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	spawning, err := AdvanceNativeAdmission(entry, admissionChange(g, NativeAdmissionSpawn, storagegc.ProcessIdentity{PID: 12, Birth: "wrapper"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, drift := range []string{"none", "unknown", "alive", "token", "attempt", "command", "helper-generation", "spawning"} {
+		t.Run(drift, func(t *testing.T) {
+			current := entry
+			change := admissionChange(g, NativeAdmissionFence, storagegc.ProcessIdentity{})
+			change.HelperLiveness = storagegc.ProcessDead
+			switch drift {
+			case "unknown":
+				change.HelperLiveness = storagegc.ProcessUnknown
+			case "alive":
+				change.HelperLiveness = storagegc.ProcessAlive
+			case "token":
+				change.Token = strings.Repeat("b", 64)
+			case "attempt":
+				change.Request.Attempt = "other"
+			case "command":
+				change.Request.CommandDigest = strings.Repeat("b", 64)
+			case "helper-generation":
+				change.Helper.Birth = "reused-pid"
+			case "spawning":
+				current = spawning
+			}
+			before := *current
+			next, err := AdvanceNativeAdmission(current, change)
+			if drift == "none" {
+				if err != nil || next != nil {
+					t.Fatalf("exact dead reservation not revoked: next=%v err=%v", next, err)
+				}
+			} else if err == nil {
+				t.Fatal("changed or unproved authority revoked")
+			}
+			if *current != before {
+				t.Fatal("fence mutated prior authority")
+			}
+		})
 	}
 }

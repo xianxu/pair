@@ -63,6 +63,7 @@ const (
 	NativeAdmissionPublish NativeAdmissionTransition = "publish"
 	NativeAdmissionCancel  NativeAdmissionTransition = "cancel-before-handoff"
 	NativeAdmissionCollect NativeAdmissionTransition = "collect-both-dead"
+	NativeAdmissionFence   NativeAdmissionTransition = "fence-dead-helper-reservation"
 )
 
 type NativeAdmissionChange struct {
@@ -71,6 +72,7 @@ type NativeAdmissionChange struct {
 	Token                          string
 	Helper, Process                storagegc.ProcessIdentity
 	WrapperLiveness, ChildLiveness storagegc.Liveness
+	HelperLiveness                 storagegc.Liveness
 }
 
 func admissionText(s string, max int) bool {
@@ -146,6 +148,14 @@ func AdvanceNativeAdmission(current *NativeAdmissionEntry, c NativeAdmissionChan
 		return nil, errors.New("native admission attempt changed")
 	}
 	switch c.Transition {
+	case NativeAdmissionFence:
+		// Claim must consume this exact capability before a wrapper may spawn.
+		// Revocation under that same lock therefore fences every delayed Claim;
+		// helper death never releases an already-consumed spawning admission.
+		if next.Phase != NativeAdmissionReserved || c.HelperLiveness != storagegc.ProcessDead {
+			return nil, errors.New("unconsumed native reservation death unproved")
+		}
+		return nil, nil
 	case NativeAdmissionSpawn:
 		if next.Phase != NativeAdmissionReserved || !validAdmissionProcess(c.Process) {
 			return nil, errors.New("native admission already consumed or wrapper unavailable")

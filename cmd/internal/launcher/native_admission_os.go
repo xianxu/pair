@@ -247,13 +247,28 @@ func (s NativeAdmissionStore) Reserve(ctx context.Context, r NativeAdmissionRequ
 		if !validAdmissionProcess(self) {
 			return errors.New("native helper identity unavailable")
 		}
-		// Only both-dead running entries are collectable. Unknown spawning effects
-		// and dead helpers without a completed handoff remain deliberately retained.
+		// Revoke dead-helper reservations before any Claim can consume them.
+		// Spawning uncertainty stays retained; running needs both writers dead.
 		for i := len(state.Entries) - 1; i >= 0; i-- {
 			if err := ctx.Err(); err != nil {
 				return err
 			}
 			e := state.Entries[i]
+			if e.Phase == NativeAdmissionReserved {
+				dead := ops.inspect(e.Helper)
+				if err := ctx.Err(); err != nil {
+					return err
+				}
+				if dead == storagegc.ProcessDead {
+					g := nativeAdmissionGrant{Request: e.Request, Token: e.Token, Helper: e.Helper}
+					change := admissionChange(g, NativeAdmissionFence, storagegc.ProcessIdentity{})
+					change.HelperLiveness = dead
+					if err := applyAdmission(state, g, change); err != nil {
+						return err
+					}
+				}
+				continue
+			}
 			if e.Phase != NativeAdmissionRunning {
 				continue
 			}
