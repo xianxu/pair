@@ -384,3 +384,58 @@ func TestRegistryRegisterRefusesExistingChangedDeclaration(t *testing.T) {
 		})
 	}
 }
+
+func TestRegistryRetryReconfirmsFailedPublicationDurability(t *testing.T) {
+	path, _, _ := fixture(t)
+	path, err := canonical(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := t.TempDir()
+	entry := RegistryEntry{Version: 1, Path: path, Directory: directory(path), Lock: lockPath(path)}
+	failed := errors.New("directory sync failed after rename")
+	syncs, stages := 0, 0
+	fail := true
+	syncDirectory := func(dir string) error {
+		syncs++
+		if dir != RegistryDirectory(root) {
+			t.Fatalf("unexpected sync directory %q", dir)
+		}
+		if fail {
+			return failed
+		}
+		return syncDir(dir)
+	}
+	stage := func() error { stages++; return nil }
+	if err := registerWithDirectorySync(context.Background(), root, entry, stage, syncDirectory); !errors.Is(err, failed) {
+		t.Fatalf("publication sync error=%v", err)
+	}
+	sum := sha256.Sum256([]byte(path))
+	declaration := filepath.Join(RegistryDirectory(root), fmt.Sprintf("%x.json", sum))
+	before, err := os.Stat(declaration)
+	if err != nil {
+		t.Fatalf("rename did not publish declaration: %v", err)
+	}
+	body, err := os.ReadFile(declaration)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := registerWithDirectorySync(context.Background(), root, entry, stage, syncDirectory); !errors.Is(err, failed) {
+		t.Fatalf("unchanged retry forgot failed sync: %v", err)
+	}
+	fail = false
+	if err := registerWithDirectorySync(context.Background(), root, entry, stage, syncDirectory); err != nil {
+		t.Fatal(err)
+	}
+	after, err := os.Stat(declaration)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(declaration)
+	if err != nil || string(got) != string(body) || !os.SameFile(before, after) || !before.ModTime().Equal(after.ModTime()) {
+		t.Fatalf("retry replaced published declaration: %q %v", got, err)
+	}
+	if syncs != 3 || stages != 1 {
+		t.Fatalf("syncs=%d stages=%d want3/1", syncs, stages)
+	}
+}

@@ -106,3 +106,8 @@ pump every 250 ms, on every pump exit before child wait, and on orderly teardown
 crash exposure, not power-loss durability. Receipt, park, recovery, generation
 rotation and destructive collection keep their durable synchronization. Raw
 capture size rotation remains separate work (#582): no VT state is discarded.
+
+Exact registry declarations reuse unchanged content and inode, but reconfirm the
+registry directory's durability on Open. Failed sync after rename remains an
+error on identical retry until synchronization succeeds; no declaration rewrite
+is needed (`registry_test.go`).

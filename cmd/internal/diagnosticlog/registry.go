@@ -26,6 +26,12 @@ func register(ctx context.Context, root string, entry RegistryEntry) error {
 	return registerWithHook(ctx, root, entry, nil)
 }
 func registerWithHook(ctx context.Context, root string, entry RegistryEntry, hook func() error) error {
+	return registerWithDirectorySync(ctx, root, entry, hook, syncDir)
+}
+
+// Directory synchronization is an explicit IO seam so uncertain publication
+// and its identical retry can be exercised without global hooks or timing.
+func registerWithDirectorySync(ctx context.Context, root string, entry RegistryEntry, hook func() error, syncDirectory func(string) error) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -59,11 +65,11 @@ func registerWithHook(ctx context.Context, root string, entry RegistryEntry, hoo
 			if err := ctx.Err(); err != nil {
 				return err
 			}
-			return syncDir(dir)
+			return syncDirectory(dir)
 		} else if !os.IsNotExist(err) {
 			return err
 		}
-		return publishJSON(dir, path, entry, true, Options{Context: ctx}, hook)
+		return publishJSON(dir, path, entry, true, Options{Context: ctx, directorySync: syncDirectory}, hook)
 	})
 }
 

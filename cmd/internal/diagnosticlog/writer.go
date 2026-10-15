@@ -55,8 +55,9 @@ type Options struct {
 	FlushTicks <-chan time.Time
 
 	// appendWrite injects real partial-write outcomes in durability tests.
-	appendWrite func(*os.File, []byte) (int, error)
-	appendSync  func(*os.File) error
+	appendWrite   func(*os.File, []byte) (int, error)
+	appendSync    func(*os.File) error
+	directorySync func(string) error
 	// Context bounds optional maintenance; nil preserves ordinary writer behavior.
 	Context  context.Context
 	Now      func() time.Time
@@ -609,9 +610,9 @@ func publishJSON(stageDir, path string, value any, durable bool, o Options, afte
 	o.observe("rename", path, 0)
 	if durable {
 		if stageDir != filepath.Dir(path) {
-			return errors.Join(syncDir(stageDir), syncDir(filepath.Dir(path)))
+			return errors.Join(o.syncDirectory(stageDir), o.syncDirectory(filepath.Dir(path)))
 		}
-		return syncDir(stageDir)
+		return o.syncDirectory(stageDir)
 	}
 	return nil
 }
@@ -926,4 +927,11 @@ func (o Options) context() context.Context {
 		return o.Context
 	}
 	return context.Background()
+}
+
+func (o Options) syncDirectory(path string) error {
+	if o.directorySync != nil {
+		return o.directorySync(path)
+	}
+	return syncDir(path)
 }

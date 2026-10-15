@@ -88,3 +88,101 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-15T16:13:02-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 579 — pair wrap writes ~200× more than it appends (~4 MB/s per slot): per-event sync on scrollback/wrap-events logs; also no rotation |
+| repo | pair |
+| issue file | workshop/issues/000579-pair-wrap-writes-200-more-than-it-appends-4-mb-s-per-slot-per-event-sync-on-scrollback-wrap-events-logs-also-no-rotation.md |
+| boundary | milestone M1 |
+| milestone | M1 |
+| window | 32a0818a32ffb6ae4764aa587a3193959a4ad295..aa22ef251aaa6d0510e4e9a9c480cb506dd005b2 |
+| command | sdlc milestone-close --issue 579 --milestone M1 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-15T16:13:02-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+BR-1 is addressed with verified red/green evidence. The M1 implementation preserves capture ordering, reduces diagnostic amplification, and passes focused package and race checks. One Important gap remains: the promised regression for registry durability reconfirmation is missing.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      wrap.go:3077 flushes capture on every pump exit. TestMasterPumpDrainsCaptureBeforeReturningOnEOF passes at head; removing the defer in a temporary overlay makes both drainage and error-reporting cases fail.
+findings:
+  - id: new
+    severity: Important
+    kind: defect
+    family: durability-reconfirmation
+    title: |
+      Add the promised registry durability-retry regression
+    detail: |
+      cmd/internal/diagnosticlog/registry_test.go:247 checks unchanged declarations and inode preservation, but never exercises publication followed by failed directory sync and retry. The M1 plan explicitly requires this case at workshop/plans/000579-wrapper-log-io-plan.md:120. Replacing registry.go:62's durability reconfirmation with return nil still passes every TestRegistry test. Add an injected sync-failure sequence proving an equal declaration reconfirms durability, propagates sync failure, and avoids content replacement.
+```
+
+1. **Strengths**
+
+   - Capture EOF drainage and error reporting have meaningful regression coverage.
+   - The real-writer amplification test preserves all 1,000 records in order and measured **1.0188×**, three writes, one checkpoint rename, and zero hot syncs.
+   - Compact reservations validate persisted input strictly; partial-quarantine tests preserve uncertain bytes and exercise interrupted rotation recovery.
+   - README and atlas updates explain buffering, crash exposure, and retained synchronization boundaries.
+
+2. **Critical findings**
+
+   None.
+
+3. **Important findings**
+
+   The registry durability regression above. The production reconfirmation at `cmd/internal/diagnosticlog/registry.go:62` appears correct; the missing test leaves a specifically identified failure mode unprotected.
+
+4. **Minor findings**
+
+   None.
+
+5. **Test coverage notes**
+
+   Passed all four focused packages: `diagnosticlog`, `wrapcmd`, `adapt`, and `artifactpath`. Selected buffering, recovery, quarantine, capture, and wrapper-wiring tests also passed under `-race`. Temporary mutation overlays were removed; the checkout remains unchanged.
+
+   Inspected the scratch measurement harness and result artifacts supporting the reported **61.0× → 1.32×** physical-write comparison. Build and full recorded-suite execution were not rerun during this review.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** quarantine reuses rotation recovery; diagnostic emitters share one buffered owner.
+   - **ARCH-PURE — pass:** batch transitions and reservation classifications have direct tests without IO.
+   - **ARCH-PURPOSE — pass for M1:** batching and compact append metadata are delivered; shared retention limits remain M2.
+   - **ARCH-MOCK — pass:** stateful sinks, manual clocks, process-inspection doubles, and portable filesystem fixtures exercise production seams.
+   - **ARCH-CONSTRAINTS — pass:** admission bounds include in-flight bytes; counted tests verify amplification.
+   - **ARCH-SECURE — pass:** bounded strict decoding and identity checks preserve refusal of changed evidence.
+   - **ARCH-ORDER — flag:** registry durability-retry coverage is missing, as detailed above. Capture-owner shutdown is verified.
+   - **ARCH-FUNERAL — pass for M1:** reservation storage is bounded and retired; quarantines use existing generation collection. Count retention remains M2.
+
+7. **Plan revision recommendations**
+
+   None. Implement the existing M1 durability-retry test requirement; no scope revision is needed.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"02b08413-075b-4baf-8715-7ad5e37fd6fd","repository":"github.com/xianxu/pair","issue_id":"000579","recipe":"milestone-review","round":2,"attempt":1,"agent":"codex","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/3b6b0ac70846a5ed","reviewed_head":"aa22ef251aaa6d0510e4e9a9c480cb506dd005b2","slot":"pair:3","requested_at":"2026-10-15T23:10:04.444581Z"},"phase":"finished","pid":86366,"started_at":"2026-10-15T23:10:04.629976Z","finished_at":"2026-10-15T23:12:41.627737Z","session_id":"01a141d4-7466-7cd2-ad0d-b9e233dae31a","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.246468375s
+head: "aa22ef251aaa6d0510e4e9a9c480cb506dd005b2"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
