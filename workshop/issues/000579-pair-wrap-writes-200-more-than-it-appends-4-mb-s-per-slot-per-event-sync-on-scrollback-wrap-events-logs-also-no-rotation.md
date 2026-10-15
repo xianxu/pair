@@ -52,7 +52,11 @@ Separately, these files are **never rotated**: wrap-events logs of **3.9 GB** (p
 
 ## Plan
 
-- [ ]
+Proposed durable plan: [wrapper log IO](../plans/000579-wrapper-log-io-plan.md).
+Pending hub scope approval: the plan separates raw size rotation into a faithful checkpoint/segment follow-up; original Done-when remains binding until explicitly revised.
+
+- [ ] M1 — Coalesced diagnostic IO and authority-preserving raw/event batching.
+- [ ] M2 — Safe bounded diagnostic generations, compatibility and qualification.
 
 ## Log
 
