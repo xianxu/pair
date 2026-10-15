@@ -2120,6 +2120,75 @@ rounds:
       isolation: fenced
       reviewed: d0862f78585dcca647c6494d6a8fd6942d7bf5e1
       blocked: false
+    - "n": 19
+      timestamp: "2026-10-15T01:53:48-07:00"
+      dispatched: "2026-10-15T01:51:08-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Prior disposition retained; uncertainty policy is unchanged in this window.
+          round: 19
+        - id: BR-2
+          disposition: addressed
+          note: Prior disposition retained; agent-generation authority is unchanged.
+          round: 19
+        - id: BR-3
+          disposition: addressed
+          note: Prior disposition retained; admission read bounds are unchanged.
+          round: 19
+        - id: BR-4
+          disposition: addressed
+          note: Prior disposition retained; coordination-file lifecycle is unchanged.
+          round: 19
+        - id: BR-5
+          disposition: addressed
+          note: Prior disposition retained; capture and configuration readers are unchanged.
+          round: 19
+        - id: BR-6
+          disposition: addressed
+          note: Prior disposition retained; native launch ownership resolution is unchanged.
+          round: 19
+        - id: BR-7
+          disposition: addressed
+          note: Prior disposition retained; recovery primary-action routing is unchanged.
+          round: 19
+        - id: BR-8
+          disposition: addressed
+          note: Prior disposition retained; native conformance parsing is unchanged.
+          round: 19
+        - id: BR-9
+          disposition: addressed
+          note: Positive-listing admission and final-effect rechecks survive launcher conflict resolution; selected-attach tests pass.
+          round: 19
+        - id: BR-10
+          disposition: addressed
+          note: Prior documentation disposition retained; this window adds no new command, flag, or keybinding.
+          round: 19
+        - id: BR-11
+          disposition: addressed
+          note: Prior disposition retained; the changed startup fixture compiles with the current beginConsole signature.
+          round: 19
+        - id: BR-12
+          disposition: addressed
+          note: Read-only detach snapshot and borrowed preview remain; journal-preservation regression passes.
+          round: 19
+        - id: BR-13
+          disposition: addressed
+          note: Prior disposition retained; contextual broker artifact readers are unchanged.
+          round: 19
+        - id: BR-14
+          disposition: addressed
+          note: Selected attachment retains migration bypass and positive-listing checks; affected attachment tests pass.
+          round: 19
+        - id: BR-15
+          disposition: addressed
+          note: Production-symbol and artifact-classification guards pass at the pinned head.
+          round: 19
+      recipe: fix-review
+      isolation: fenced
+      reviewed: 65517e605e94572a4a70be21eb3cd88313368cc1
+      blocked: false
 ---
 
 # Gate ledger — pair#528 (boundary-review)
@@ -2343,6 +2412,26 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 ## Round 17 — 2026-10-14T20:18:32-07:00 (codex) — passed
 
 ## Round 18 — 2026-10-14T21:09:36-07:00 (codex) — passed
+
+## Round 19 — 2026-10-15T01:53:48-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — Prior disposition retained; uncertainty policy is unchanged in this window.
+- BR-2 — addressed — Prior disposition retained; agent-generation authority is unchanged.
+- BR-3 — addressed — Prior disposition retained; admission read bounds are unchanged.
+- BR-4 — addressed — Prior disposition retained; coordination-file lifecycle is unchanged.
+- BR-5 — addressed — Prior disposition retained; capture and configuration readers are unchanged.
+- BR-6 — addressed — Prior disposition retained; native launch ownership resolution is unchanged.
+- BR-7 — addressed — Prior disposition retained; recovery primary-action routing is unchanged.
+- BR-8 — addressed — Prior disposition retained; native conformance parsing is unchanged.
+- BR-9 — addressed — Positive-listing admission and final-effect rechecks survive launcher conflict resolution; selected-attach tests pass.
+- BR-10 — addressed — Prior documentation disposition retained; this window adds no new command, flag, or keybinding.
+- BR-11 — addressed — Prior disposition retained; the changed startup fixture compiles with the current beginConsole signature.
+- BR-12 — addressed — Read-only detach snapshot and borrowed preview remain; journal-preservation regression passes.
+- BR-13 — addressed — Prior disposition retained; contextual broker artifact readers are unchanged.
+- BR-14 — addressed — Selected attachment retains migration bypass and positive-listing checks; affected attachment tests pass.
+- BR-15 — addressed — Production-symbol and artifact-classification guards pass at the pinned head.
 
 ## Open findings
 

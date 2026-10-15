@@ -131,3 +131,124 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-15T01:53:47-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 528 — couch: resume a slot whose conversation binding is unproven: infer it from transcripts and the tty log, or start fresh oriented from the tty log |
+| repo | pair |
+| issue file | workshop/issues/000528-couch-resume-a-slot-whose-conversation-binding-is-unproven-infer-it-from-transcripts-and-the-tty-log-or-start-fresh-oriented-from-the-tty-log.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 0da5baebf64904d7489a28d12da1c76255184bbf..65517e605e94572a4a70be21eb3cd88313368cc1 |
+| command | sdlc close --issue 528 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-15T01:53:47-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The interdiff preserves both sides’ intent across all four conflict resolutions. Warm timing reports actual attachment work, managed detach avoids unnecessary previews, and borrowed detach retains its read-only behavior. No new blocking defects or scope expansion found.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Prior disposition retained; uncertainty policy is unchanged in this window.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Prior disposition retained; agent-generation authority is unchanged.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Prior disposition retained; admission read bounds are unchanged.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      Prior disposition retained; coordination-file lifecycle is unchanged.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      Prior disposition retained; capture and configuration readers are unchanged.
+  - id: BR-6
+    disposition: addressed
+    note: |
+      Prior disposition retained; native launch ownership resolution is unchanged.
+  - id: BR-7
+    disposition: addressed
+    note: |
+      Prior disposition retained; recovery primary-action routing is unchanged.
+  - id: BR-8
+    disposition: addressed
+    note: |
+      Prior disposition retained; native conformance parsing is unchanged.
+  - id: BR-9
+    disposition: addressed
+    note: |
+      Positive-listing admission and final-effect rechecks survive launcher conflict resolution; selected-attach tests pass.
+  - id: BR-10
+    disposition: addressed
+    note: |
+      Prior documentation disposition retained; this window adds no new command, flag, or keybinding.
+  - id: BR-11
+    disposition: addressed
+    note: |
+      Prior disposition retained; the changed startup fixture compiles with the current beginConsole signature.
+  - id: BR-12
+    disposition: addressed
+    note: |
+      Read-only detach snapshot and borrowed preview remain; journal-preservation regression passes.
+  - id: BR-13
+    disposition: addressed
+    note: |
+      Prior disposition retained; contextual broker artifact readers are unchanged.
+  - id: BR-14
+    disposition: addressed
+    note: |
+      Selected attachment retains migration bypass and positive-listing checks; affected attachment tests pass.
+  - id: BR-15
+    disposition: addressed
+    note: |
+      Production-symbol and artifact-classification guards pass at the pinned head.
+```
+
+1. **Strengths**
+   - [park.go:189](cmd/internal/couchcore/park.go:189) retains the shared owner-observation scope alongside the read-only detach snapshot.
+   - [console_reattach.go:41](cmd/internal/couchtty/console_reattach.go:41) preserves shared-pass ownership without painting before Run; the new regression verifies arm-once behavior.
+   - [lifecycle.go:133](cmd/internal/launcher/lifecycle.go:133) preserves positive-listing verification immediately before attachment.
+   - The borrowed-detach regression checks unchanged journal and record bytes plus exact helper-only signaling.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage:** Targeted tests passed across couchcore, couchtty, launcher, and couchcmd. Broader Leave/Detach/warm-attachment regressions passed, as did production-symbol and artifact-classification guards. Full suite, live conformance, and mutation checks were not rerun during this review.
+
+6. **Architecture:** ARCH-DRY passes: timing reuses `launchSteps`, and both detach entry points share the optional-preview predicate. ARCH-PURE passes: changes remain in existing integration boundaries with injected dependencies. ARCH-PURPOSE passes: conflict resolutions preserve attachment authority and read-only behavior. Atlas documents the integration; no new README-facing surface appears.
+
+7. **Plan revisions:** None required. The appended entries describe integration corrections without changing the accepted recovery scope.
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.445840375s
+head: "65517e605e94572a4a70be21eb3cd88313368cc1"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
