@@ -399,6 +399,8 @@ func (c *Couch) diagnoseRegistrationFailure(err error, address ThreadAddress, bu
 // killed every cold launch it overlapped (probes/zellijbirthrace: 10/10).
 // A warm reattach passes nil, because its session is already live.
 func (c *Couch) awaitResumeRegistration(ctx context.Context, address ThreadAddress, birth *PaneMarks) error {
+	// Registration must see births after the initial pass observation.
+	ctx = withoutSessionOwnerPass(ctx)
 	_, ok := c.Artifacts.(PairSessionIO)
 	if !ok {
 		return errors.New("exact Pair session observer is unavailable")

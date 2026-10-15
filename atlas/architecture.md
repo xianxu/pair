@@ -1318,6 +1318,12 @@ The clock stops before a blocking client lifetime. Ordinary launches are silent.
 `launchSteps` retains parent timings in failures and accepts a context-scoped
 observer for the opt-in real lifecycle fixture, without emitting UI or disk data.
 Nested owner/process durations explain parent stages and are not additive to them.
+Native snapshot diagnostic lines use the same flag and count actual reader calls,
+including failures and disappeared rows; they contain no names, argv or identities.
+The default path keeps the unwrapped reader. The opt-in fleet fixture in
+`cmd/internal/couchcmd/startup_fleet_timing_live_test.go` drives the actual Console
+worker pool and LeaveDetach, requiring a meaningful alternate-screen agent marker
+for first-frame readiness rather than treating attached-state queries as a frame.
 
 ### Native process inspection
 
@@ -1338,7 +1344,14 @@ is only a candidate filter. Server discovery keeps exact argv authority and
 snapshot identities; unreadable possible zellij rows refuse an absence proof.
 SessionOwnerProbe still freshly enumerates candidates after pane queries and
 before effects, requiring exactly one unchanged generation and socket. A second
-claimant invalidates authority even if the original server survives. The full
+claimant invalidates authority even if the original server survives.
+`SessionOwnerPass` shares one lazy initial ServerStates capture per background
+reattach or LeaveDetach pass; the checker scope and selected data root bind its
+context. Capture failures are memoized; one caller's cancellation leaves siblings
+intact. After-pane and final authority reads remain fresh. Registration explicitly
+bypasses the initial map to see newly born generations. Console drops/cancels the
+scope on pass completion or Stop; standalone operations keep fresh discovery.
+The full
 `Snapshot` contract remains available to diagnostic inventory and other consumers.
 Diagnostic inventory uses full executable names, since kernel names truncate,
 and keeps strict identity fencing across environment inspection. Its Inspection

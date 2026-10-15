@@ -152,6 +152,34 @@ Claimed by pair:5, started from main 9a2aff687 after slot substrate refresh. Ope
 - Production detach490.558917ms: claim0.023917ms, read+owner169.650958ms, signal0.041459ms, process-exit10.82875ms, retirement310.002291ms; sum490.547375ms, residual0.011542ms. Retirement includes owner160.710666ms and approximately149ms scoped store reads/writes. Exact owned server survives detached, incarnation retired and unrelated sentinel survives. Separate shim run passed: parent1.784370666s, attached proof1.923128s, child793.554ms, detach464.142916ms; detach residual0.010791ms. Trace /tmp/pair218-attributed-detach-final-zellij.trace finite calls include fixture/readiness: list-sessions13/290.488ms, clients4/113.589ms, panes8/208.701ms. Blocking attach row remains absent after group SIGTERM; no exclusive call-count claim from this aggregate.
 - Frozen attributed source /tmp/pair218-attribution.TZ7J81, Pair/helper /tmp/pair218-attributed-baseline-bin, test /tmp/pair218-attributed-baseline-couchcore.test. Command from source cmd/internal/couchcore: TMPDIR=/tmp PAIR_LIVE_COUCH=1 PAIR_LIVE_STARTUP_PERF=1 PAIR_STARTUP_PERF_BIN_DIR=/tmp/pair218-attributed-baseline-bin /tmp/pair218-attributed-baseline-couchcore.test -test.run '^TestStartupManagedAttachDetachTimingLive$' -test.count=1 -test.v. Bounded PTY prefix sink preserves child marks without changing production output capture. Ordinary suite skip and stage scope/failure/ordering tests pass. Targeted procutil/launcher/couchcore race, full procutil/launcher/artifactpath tests, make -k build, native Seatbelt and Linux cross-build pass. Linux native remains untested; portable fixture/cross-build only. No runner/VM added. Host load averages during measurement varied substantially (17.93/34.84/39.43 at16:37); do not infer precise end-to-end speedup from single runs.
 
+
+### 2026-10-14 — M1 SHIP and M2 integration
+
+M1 closed SHIP with no findings at82c0eea5782ad527d2fcd077af66ac2e9204bc8a.
+Recorded suite passed on71e3380d773ddda553af77a5933dad1884f2aa42 in12m10s,
+log sha256e43d9c7c917c. The reviewer independently passed targeted/native/race
+checks and a live rerun (attached proof2.29s, detach330ms), after a first handoff
+failed with No session found. Investigation reproduced one invalid pane-JSON
+response in10 diagnostic attempts; exact same server generation/socket remained.
+Subsequent raw-output shared-namespace12/12 and isolated-namespace10/10 passed.
+Neither confirms a cause or fix. Preserve all attempts; private socket namespace
+is containment, not a demonstrated repair. Evidence /tmp/pair218-handoff-investigate.
+Native Zellij0.45.1 discovery filters sockets by ConnStatus response, so kernel
+server proof and failed CLI name discovery can coexist; do not weaken authority
+or silently retry failed samples.
+
+M2 units prove21 concurrent callers share capture1 with42 live reads (after-pane
+plus Revalidate), capture errors do not rescan, sibling cancellation is isolated,
+and parent cancellation reaches capture/live IO. Checker contexts are bound to
+constructor scope and selected root. Registration-bypass mutation went red with
+prelaunch absence polling until its deadline. LeaveDetach scope mutation went red
+for all21 slots before wiring; all three per-slot observations now inherit the
+one pass and completion cancels it. Standalone Detach remains fresh. Console
+scope tests passed20 repetitions, targeted race and production wiring tests;
+canceled queued workers now recheck cancellation immediately before dispatcher IO.
+Actual native diagnostics are opt-in and preserve the default unwrapped reader.
+Cold attribution is now the separately published, unassigned #560.
+
 ## Revisions
 
 - 2026-10-14 — add (operator via TL): concrete case. At the operator's 14:33 restart, Couch's background attaches spawned 21 zellij clients between 14:33:37 and 14:33:47 (~6 at a time): roughly 2–3 s per attach, against ~10–20 ms for `zellij list-sessions` and an expected ~100–300 ms floor (list, lease, one record write, spawn client, first frame). Detach ("leave couch") is unmeasured but also inspects each slot's session server. Trace one attach and one detach step by step; the likely waste is a whole process-table read (native argv for every process since #547) per slot. Probably one shared snapshot per startup or detach pass instead.
@@ -161,6 +189,9 @@ Claimed by pair:5, started from main 9a2aff687 after slot substrate refresh. Ope
 - 2026-10-14 — add (implementation plan): M1 baseline plus native candidate/fencing foundation; M2 shared parent pass and remeasurement/concurrency selection. Child Pair cannot reuse Couch memory, so narrowed standalone discovery is included. Preserve #553 and exact-generation effect checks.
 
 - 2026-10-14 — refine (PQ-1/PQ-2/PQ-3): shared evidence is initial only. Fresh after-pane/effect checks retain name exclusivity via candidate-only enumeration; registration bypasses the pass to observe post-launch births. Compact named-function test strategies supersede procedural case inventories in the durable plan.
+
+
+- 2026-10-14 — TL scope clarification (receipt e6621a25-d14b-4826-8a8e-edcccd2e2e4a): this issue covers current warm restart attach, detach and the6/20/40 fleet. This supersedes the original cold-start/historical8.85s checklist requirement; cold attribution is unassigned #560. Warm acceptance requires meaningful client first frame, lease/record durability and contention attribution, including Couch CPU and co-tenant load. The approximate twelve75ms scans could explain0.9s, not all of the observed2–3s; do not blame the full interval on scans.
 
 ## Estimate
 

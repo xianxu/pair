@@ -240,6 +240,10 @@ type Console struct {
 	completionRunning    CompletionIdentity
 	lifetime             context.Context
 	cancelLifetime       context.CancelFunc
+	sessionOwnerPass     func(context.Context) (context.Context, context.CancelFunc)
+	reattachArmOnce      sync.Once
+	reattachContext      context.Context
+	reattachCancel       context.CancelFunc
 	stop                 chan struct{}
 	once                 sync.Once
 	workers              sync.WaitGroup
@@ -662,6 +666,12 @@ func (c *Console) Stop() {
 	c.once.Do(func() {
 		c.cancelLifetime()
 		close(c.stop)
+		c.mu.Lock()
+		cancelPass := c.releaseReattachPassLocked()
+		c.mu.Unlock()
+		if cancelPass != nil {
+			cancelPass()
+		}
 	})
 }
 
@@ -2018,8 +2028,12 @@ func (c *Console) finishOperation(completed operationCompletion) bool {
 		c.menu, menuEffects = ReduceMenu(c.menu, event)
 	}
 	panelFocused := c.focus.IsPanel()
+	cancelPass := c.completedReattachPassLocked()
 	c.mu.Unlock()
 	// A completion can start the reattach pass's next attempt (pair#206).
+	if cancelPass != nil {
+		cancelPass()
+	}
 	c.dispatchMenuEffects(menuEffects)
 	if completed.origin.Operation == "leave" && err == nil {
 		// Report what leave actually did before the terminal goes. Skipped

@@ -80,6 +80,7 @@ func (NoThreadArtifactCollisions) Registration(ThreadAddress) (RegistrationEvide
 func (NoThreadArtifactCollisions) Quiesce(ThreadAddress) error { return nil }
 
 type ScopedThreadArtifactCollisionChecker struct {
+	ownerScope    *sessionOwnerScope
 	GlobalDataDir string
 	Sessions      launcher.SessionDeleter
 	OwnerProbe    SessionOwnerProber
@@ -101,7 +102,7 @@ func (c ScopedThreadArtifactCollisionChecker) serverStates() launcher.ServerStat
 }
 
 func NewScopedThreadArtifactCollisionChecker(globalDataDir string) ScopedThreadArtifactCollisionChecker {
-	return ScopedThreadArtifactCollisionChecker{GlobalDataDir: globalDataDir, Sessions: launcher.OSRuntime{}}
+	return ScopedThreadArtifactCollisionChecker{GlobalDataDir: globalDataDir, Sessions: launcher.OSRuntime{}, ownerScope: &sessionOwnerScope{}}
 }
 
 func (c ScopedThreadArtifactCollisionChecker) PairLifecycleIO() LifecycleIO {
@@ -300,7 +301,7 @@ func (c ScopedThreadArtifactCollisionChecker) NamedPairSessionContext(ctx contex
 	if err := validateThreadAddress(address); err != nil {
 		return PairSessionBinding{}, err
 	}
-	owner, err := c.ownerProbe().Probe(ctx, name, c.GlobalDataDir, address.RepoScope, string(address.Tag))
+	owner, err := c.ownerProbeForContext(ctx).Probe(ctx, name, c.GlobalDataDir, address.RepoScope, string(address.Tag))
 	binding := PairSessionBinding{Name: name, Owner: &owner}
 	if err != nil {
 		return binding, err

@@ -56,7 +56,7 @@ The pass supplies initial server evidence only. Probe's after-pane check and Rev
 
 ## Tasks and review boundaries
 
-- [ ] M1 — Baseline and native candidate discovery: capture one real attach and production detach breakdown before changing behavior; implement named enrichment and fresh observed-server checks with red/green safety/count tests; verify process conformance and close M1.
+- [x] M1 — Baseline and native candidate discovery: capture one real attach and production detach breakdown before changing behavior; implement named enrichment and fresh observed-server checks with red/green safety/count tests; verify process conformance and close M1.
 - [ ] M2 — Shared pass and measurements: integrate one bulk parent capture across startup/Leave, test count/order/cancellation invariants, remeasure the same fleet at 6/20/40, select only supported concurrency changes, update atlas/timeout comment, full suite and issue close/land.
 
 ### M1 steps
@@ -131,3 +131,24 @@ separate from the stage sum. Attribute unoptimized behavior in a disposable
 archive of the frozen baseline plus timing-only overlays; retain original frozen
 binaries for comparative runs. This is measurement implementation within M1,
 not an ownership change.
+
+### 2026-10-14 — M1 SHIP, M2 scope binding and actual counters
+
+M1 closed with SHIP and no findings after recorded full-suite, native and race
+verification. The reviewer reproduced a failed live handoff before an identical
+rerun passed; classify that failure before accepting representative fleet timing.
+M2 shares initial evidence in launcher SessionOwnerPass so the common owner
+classifier remains the single authority. Couch binds it to an immutable checker
+scope token plus the selected data root; standalone/opaque custom probes retain
+their existing seam. Registration explicitly strips the binding to observe births.
+Console creates the lazy observation context at arm and drops/cancels it at done
+or stop, with no discovery IO during first-frame paint. LeaveDetach owns one scope
+across its real fanout; LeavePark and standalone Detach stay outside that scope.
+
+The existing opt-in startup diagnostic flag also enables bounded native snapshot
+counter lines (PID, full/named kind, actual table/command/identity invocation counts,
+monotonic duration). It logs no argv, identities, names or paths. This supplies
+the accepted experiment's actual native counts without inferring them from row
+counts or owner probes. Default discovery keeps the unwrapped reader path.
+The 21-session experiment uses couchcmd's real wireResolver/beginConsole/Console
+worker pool and production LeaveDetach, not a separately modeled fanout.

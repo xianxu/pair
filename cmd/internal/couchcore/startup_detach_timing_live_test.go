@@ -46,12 +46,24 @@ func (p *startupPhases) report(t *testing.T, operation string, wall time.Duratio
 	p.rows = nil
 }
 
-type startupOwnerTiming struct{ phases *startupPhases }
+type startupOwnerTiming struct {
+	phases      *startupPhases
+	diagnostics *testing.T
+}
 
 func (p startupOwnerTiming) Probe(ctx context.Context, name, data, scope, tag string) (launcher.SessionOwnerObservation, error) {
 	start := time.Now()
 	defer p.phases.add("owner.Probe", start)
-	return (launcher.SessionOwnerProbe{}).Probe(ctx, name, data, scope, tag)
+	observed, err := (launcher.SessionOwnerProbe{}).Probe(ctx, name, data, scope, tag)
+	if p.diagnostics != nil {
+		info, socketErr := os.Lstat(observed.Server.Socket)
+		var socketMode os.FileMode
+		if info != nil {
+			socketMode = info.Mode()
+		}
+		p.diagnostics.Logf("owner boundary session=%s state=%d server=%+v socket_mode=%s socket_error=%v probe_error=%v", name, observed.State, observed.Server, socketMode, socketErr, err)
+	}
+	return observed, err
 }
 func (p startupOwnerTiming) Revalidate(ctx context.Context, value launcher.SessionOwnerObservation) error {
 	start := time.Now()
@@ -136,6 +148,57 @@ func TestStartupManagedAttachDetachTimingLive(t *testing.T) {
 	}
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 	t.Setenv("PAIR_HOME", root)
+	if os.Getenv("PAIR_STARTUP_PERF_ISOLATE_SOCKET") == "1" {
+		socketRoot, err := os.MkdirTemp("/private/tmp", "p218.")
+		if err != nil {
+			t.Fatal(err)
+		}
+		socketRoot, err = filepath.EvalSymlinks(socketRoot)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := os.RemoveAll(socketRoot); err != nil {
+				t.Errorf("remove private socket root: %v", err)
+			}
+		})
+		t.Setenv("TMPDIR", socketRoot)
+		t.Logf("isolated socket TMPDIR=%s; socket workload excludes co-tenant sessions", socketRoot)
+	}
+	if os.Getenv("PAIR_STARTUP_PERF_DIAGNOSTICS") == "1" {
+		realZellij, err := exec.LookPath("zellij")
+		if err != nil {
+			t.Fatal(err)
+		}
+		realZellij, err = filepath.EvalSymlinks(realZellij)
+		if err != nil {
+			t.Fatal(err)
+		}
+		diagnosticRoot := os.Getenv("PAIR_STARTUP_PERF_DIAG_DIR")
+		if !filepath.IsAbs(diagnosticRoot) {
+			t.Fatal("PAIR_STARTUP_PERF_DIAG_DIR must be an absolute private directory")
+		}
+		diagnosticDir := filepath.Join(diagnosticRoot, fmt.Sprintf("run-%d-%d", os.Getpid(), time.Now().UnixNano()))
+		if err := os.MkdirAll(diagnosticDir, 0700); err != nil {
+			t.Fatal(err)
+		}
+		diagnosticBin := filepath.Join(base, "zellij-diagnostic-bin")
+		if err := os.Mkdir(diagnosticBin, 0700); err != nil {
+			t.Fatal(err)
+		}
+		t.Setenv("PAIR_STARTUP_PERF_BOUNDARY_TRACE", filepath.Join(diagnosticDir, "zellij-boundaries.txt"))
+		// exec preserves the native server generation. Runtime/config evidence
+		// belongs only to this explicitly requested private diagnostic run.
+		quotedReal := "'" + strings.ReplaceAll(realZellij, "'", "'\\''") + "'"
+		script := "#!/bin/sh\n{ printf 'pid=%s ppid=%s HOME=%s TMPDIR=%s XDG_RUNTIME_DIR=%s XDG_CONFIG_HOME=%s XDG_DATA_HOME=%s ZELLIJ_SOCKET_DIR=%s ZELLIJ_CONFIG_DIR=%s PAIR_HOME=%s PATH=%s' \"$$\" \"$PPID\" \"$HOME\" \"$TMPDIR\" \"$XDG_RUNTIME_DIR\" \"$XDG_CONFIG_HOME\" \"$XDG_DATA_HOME\" \"$ZELLIJ_SOCKET_DIR\" \"$ZELLIJ_CONFIG_DIR\" \"$PAIR_HOME\" \"$PATH\"; for arg do printf ' arg=%s' \"$arg\"; done; printf '\\n'; } >> \"$PAIR_STARTUP_PERF_BOUNDARY_TRACE\"\n" +
+			"capture=0\nfor arg do case \"$arg\" in list-panes) capture=1;; esac; done\n" +
+			"if [ \"$capture\" = 1 ]; then\n" + quotedReal + " \"$@\" > \"$PAIR_STARTUP_PERF_BOUNDARY_TRACE.stdout.$$\" 2> \"$PAIR_STARTUP_PERF_BOUNDARY_TRACE.stderr.$$\"\nstatus=$?\ncat \"$PAIR_STARTUP_PERF_BOUNDARY_TRACE.stdout.$$\"\ncat \"$PAIR_STARTUP_PERF_BOUNDARY_TRACE.stderr.$$\" >&2\nexit \"$status\"\nfi\nexec " + quotedReal + " \"$@\"\n"
+		if err := os.WriteFile(filepath.Join(diagnosticBin, "zellij"), []byte(script), 0700); err != nil {
+			t.Fatal(err)
+		}
+		t.Setenv("PATH", diagnosticBin+string(os.PathListSeparator)+os.Getenv("PATH"))
+		t.Logf("diagnostic real_zellij=%s pair_bin=%s config=%s evidence=%s", realZellij, bin, filepath.Join(root, "zellij"), diagnosticDir)
+	}
 	repo := filepath.Join(base, "repo")
 	if out, err := exec.Command("git", "init", "-q", "-b", "main", repo).CombinedOutput(); err != nil {
 		t.Fatalf("git init: %v %s", err, out)
@@ -152,7 +215,11 @@ func TestStartupManagedAttachDetachTimingLive(t *testing.T) {
 	}
 	phases := &startupPhases{}
 	checker := NewScopedThreadArtifactCollisionChecker(data)
-	checker.OwnerProbe = startupOwnerTiming{phases}
+	ownerTiming := startupOwnerTiming{phases: phases}
+	if os.Getenv("PAIR_STARTUP_PERF_DIAGNOSTICS") == "1" {
+		ownerTiming.diagnostics = t
+	}
+	checker.OwnerProbe = ownerTiming
 	// The regular failure tail can lose startup lines once Zellij renders its
 	// screen. Preserve a bounded prefix at the real PTY sink before first byte.
 	var childOutputMu sync.Mutex
@@ -209,6 +276,22 @@ func TestStartupManagedAttachDetachTimingLive(t *testing.T) {
 	if _, err := c.Threads.CreateThread(record); err != nil {
 		t.Fatal(err)
 	}
+	diagnoseFailure := func() {
+		if os.Getenv("PAIR_STARTUP_PERF_DIAGNOSTICS") != "1" {
+			return
+		}
+		diagnosticContext, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		_, _ = ownerTiming.Probe(diagnosticContext, session, data, scope.Key, string(record.Address.Tag))
+		out, err := exec.CommandContext(diagnosticContext, "zellij", "--config-dir", filepath.Join(root, "zellij"), "list-sessions", "--short").CombinedOutput()
+		var selected []string
+		for _, line := range strings.Split(string(out), "\n") {
+			if strings.Contains(line, session) {
+				selected = append(selected, line)
+			}
+		}
+		t.Logf("failed handoff selected config session rows=%q query_error=%v", selected, err)
+	}
 	sentinel := exec.Command("sleep", "60")
 	if err := sentinel.Start(); err != nil {
 		t.Fatal(err)
@@ -243,6 +326,7 @@ func TestStartupManagedAttachDetachTimingLive(t *testing.T) {
 	for {
 		rows, queryErr := (launcher.ZellijSource{}).SnapshotSessionsContext(ctx, []string{session})
 		if queryErr != nil {
+			diagnoseFailure()
 			_, output := handle.(interface{ LaunchOutput() (string, []byte) }).LaunchOutput()
 			t.Fatalf("readiness query: %v child_output=%q", queryErr, output)
 		}
@@ -251,9 +335,11 @@ func TestStartupManagedAttachDetachTimingLive(t *testing.T) {
 		}
 		select {
 		case <-handle.Exited():
+			diagnoseFailure()
 			_, output := handle.(interface{ LaunchOutput() (string, []byte) }).LaunchOutput()
 			t.Fatalf("Pair exited before attach readiness: code=%d output=%q", handle.Wait(), output)
 		case <-ctx.Done():
+			diagnoseFailure()
 			_, output := handle.(interface{ LaunchOutput() (string, []byte) }).LaunchOutput()
 			t.Fatalf("attach readiness: %v child_output=%q", ctx.Err(), output)
 		case <-time.After(20 * time.Millisecond):

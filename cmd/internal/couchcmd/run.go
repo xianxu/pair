@@ -942,6 +942,7 @@ func dispatchInitialAttach(console *couchtty.Console, start couchcore.StartResul
 // wireResolver supplies the proof-bearing actionable projection. Reference
 // matching for keystrokes is intentionally in-memory inside the pure menu.
 func wireResolver(console *couchtty.Console, c *couchcore.Couch, configuredHubs ...*hubRuntime) {
+	console.SetSessionOwnerPass(c.WithSessionOwnerPass)
 	artifacts, _ := c.Artifacts.(shortcutFocusArtifacts)
 	console.SetShortcutFocusProbe(shortcutFocusProbe(artifacts, queryShortcutClients))
 	console.SetPaneRects(paneRectsOf(artifacts, queryPaneGeometry, readNoteFile))

@@ -74,30 +74,43 @@ func TestNativeServerObservationHonorsCanceledContext(t *testing.T) {
 // short name selects enrichment; argv and generation still authorize effects.
 func TestNativeSnapshotFindsArgvServer(t *testing.T) {
 	dir := t.TempDir()
-	session := "pair547-controlled-server"
+	session := "pair218-" + filepath.Base(filepath.Dir(dir))
 	binary := controlledServerExecutable(t, dir)
 	child := &exec.Cmd{Path: binary, Args: []string{binary, "--server", filepath.Join(dir, session)}, Env: append(os.Environ(), "PAIR_ZELLIJ_KILL_SENTINEL=1")}
 	if err := child.Start(); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = child.Process.Kill(); _ = child.Wait() })
+	// An unrelated native executable can spoof exactly the same server argv.
+	// It must not trigger argv enrichment at either launcher discovery route.
+	unrelated := &exec.Cmd{Path: os.Args[0], Args: child.Args, Env: child.Env}
+	if err := unrelated.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = unrelated.Process.Kill(); _ = unrelated.Wait() })
 	rows, err := procutil.Table()
 	if err != nil {
 		t.Fatal(err)
 	}
-	foundName := false
+	foundName, unrelatedName := false, false
 	for _, row := range rows {
 		if row.PID == child.Process.Pid {
 			foundName = row.Name == "zellij"
 		}
+		if row.PID == unrelated.Process.Pid {
+			unrelatedName = row.Name != "" && row.Name != "zellij"
+		}
 	}
-	if !foundName {
+	if !foundName || !unrelatedName {
 		t.Fatal("controlled server lacks native zellij candidate name")
 	}
 	ops := newOSSessionQuiescenceOps()
 	servers, err := ops.SessionServers(t.Context(), session)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if len(servers) != 1 || servers[0].PID != child.Process.Pid {
+		t.Fatalf("unrelated argv spoof selected: %+v", servers)
 	}
 	found := false
 	for _, server := range servers {
