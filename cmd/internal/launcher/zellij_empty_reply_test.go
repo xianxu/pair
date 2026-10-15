@@ -295,3 +295,26 @@ func TestZellijEmptyReplyExplicitNoSessionsRemainsValid(t *testing.T) {
 		t.Fatalf("explicit empty inventory = %+v %v", got, err)
 	}
 }
+
+func TestZellijEmptyReplyOwnerPassAllowsFreshCLIObservation(t *testing.T) {
+	const name = "pair-a"
+	args := []string{"--session", name, "action", "list-panes", "--json", "--command"}
+	valid := `[{"id":1,"pane_command":"nvim /tmp/data/repos/0123456789abcdef/draft-1-repo-1.md"}]`
+	fake := newEmptyReplyFake(t, earlyUnblockFrame(args, ""), emptyReplyFrame{Args: args, Events: []string{"Log", "UnblockInput"}, Stdout: valid})
+	world := &emptyReplyOwnerIO{source: fake.source, hasServer: true, server: SessionServerIdentity{PID: 7, Identity: "same", Session: name, Socket: "/fake/socket"}}
+	captures := 0
+	source := ownerPassSourceFunc(func(context.Context) (map[string]ServerState, error) {
+		captures++
+		return map[string]ServerState{name: {Verdict: ServerReachable, Server: world.server}}, nil
+	})
+	pass := NewSessionOwnerPass(t.Context(), source, SessionOwnerProbe{IO: world})
+	got, err := pass.Probe(t.Context(), name, "/tmp/data", "0123456789abcdef", "1-repo-1")
+	assertEmptyReply(t, err)
+	if got.State != SessionOwnerUnknown || fake.calls(t) != 1 {
+		t.Fatal("pass authorized empty CLI reply")
+	}
+	got, err = pass.Probe(t.Context(), name, "/tmp/data", "0123456789abcdef", "1-repo-1")
+	if err != nil || got.State != SessionOwnerOwned || fake.calls(t) != 2 || captures != 1 {
+		t.Fatalf("fresh pane observation=%+v,%v; captures=%d", got, err, captures)
+	}
+}
