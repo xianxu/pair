@@ -95,7 +95,7 @@ Files: couchcmd/session_sync.go, session_sync_test.go, message_deliveries_test.g
 
 ### 4. Verify, review, land
 
-- [ ] Commit/push through sdlc pr; run required full suite via sdlc local-check run --name suite on the pushed head. Preserve failures and fix demonstrated regressions; no bypass of CI/local-gates.
+- [x] Commit/push through sdlc pr; run required full suite via sdlc local-check run --name suite on the pushed head. Preserve failures and fix demonstrated regressions; no bypass of CI/local-gates.
 - [ ] Arrange the required operator live check through the hub before landing: a plain right-pane note submits, locks on next edit, rejects Couch write, unlocks on submit, and remains owed until write --fold. Stage/build only as the hub authorizes; clear stage after use.
 - [ ] Update issue Log/atlas and run sdlc close --issue 573 --verified with exact evidence; the gate owns the mandatory fresh review. Fix Important/Critical findings or dispute with evidence.
 - [ ] On SHIP, integrate main, repeat required checks if code changed, sdlc merge --yes; report landed PR and stop. TL owns project updates.
@@ -175,3 +175,7 @@ The corrected and main-integrated candidate passed its required recorded suite o
 BR-1 is verified addressed. BR-2's original overflow controls passed mutation checks, but the reviewer reproduced a missing edge: forget adds SubmitPaths to central State and can export more than the next import's 1 MiB envelope. Reserve the complete encoded State plus historical paths before every admission/growth: new registration, additional alias registration, rename, whole-read shadow refresh and write's post-fold state. The central bytes remain smaller; no limit increases. Legacy export validates this same reserved representation before publishing it, so a successful forget remains reimportable. One metadata loader owns the central reader bounds. Boundary tests independently size encoded handoff state, exercise refusals before authority/document/snapshot mutation, and run register → forget → re-register with preserved horizon/folds.
 
 BR-3: the symlink regression now explicitly resolves the already-known canonical spelling and expects Changed false, and uses a separate distinct leaf alias to prove Changed true once and false on retry. Canonical and default TMPDIR runs both pass; no filesystem spelling is assumed.
+
+### 2026-10-15 — handoff corrections verified with integrated main
+
+The required suite on 6cbc544ad049612379b84279d0f4dd330ac0ac02 passed in 13m5s, with #556 integrated. Full race (26.802s), focused post-integration checks and all server checks pass. Third close review must dispose the remaining BR-2/BR-3; landing is pending.
