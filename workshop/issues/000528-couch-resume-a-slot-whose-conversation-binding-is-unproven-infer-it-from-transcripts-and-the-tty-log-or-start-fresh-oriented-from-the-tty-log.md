@@ -1240,3 +1240,10 @@ No follow-up implementation starts on this branch.
   update to current always-arm signature (same intended true behavior).
   Core/command checks still running at merge checkpoint; no full pass claimed.
   codeload setup-go URL now returns200, independently measured2026-10-14 22:57.
+
+- Merged core targeted run72.020s: warm observer phases[] (new borrowed-attach
+  path bypasses launchTrackedThread instrumentation); detach21-slot test hit
+  three store-busy errors. Other target package initially compile failed on
+  new fleet-test beginConsole oldsignature; corrected command group PASS9.287s.
+  Add truthful optional warm-path timing with retry/context regression; inspect
+  store contention separately, no policy/timing-budget changes.

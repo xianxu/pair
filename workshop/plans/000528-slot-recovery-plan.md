@@ -1373,3 +1373,15 @@ no new recovery policy. Record historical invalid JSON as #562-owned unresolved
 observation, never silently classify empty replies as absence. Normal targeted
 checks, final merged suite and post-close review cover this merge. Stage stays
 hub-owned. The prior external CI archive404 remains independently classified.
+
+### 2026-10-14 — keep #218 timing truthful on the new warm path
+
+The merged warm timing regression observes no events because #528 borrows the
+terminal through attachListedTerminal, bypassing cold launch claims, registration
+and promotion intentionally. Reuse #218 launchSteps only when its context observer
+is present, as Detach does. Mark actual warm preparation/admission/spawn/ack/live
+check/registry-repair/cleanup and real retry backoff; never synthesize cold events
+or restore lifecycle writes. Exact sequence and retry-count regressions retain
+context isolation; the cold timing contract remains. ARCH-DRY reuses existing
+observer/steps. Store-contention failure is independently measured before any
+correction; no timeout or ownership weakening.
