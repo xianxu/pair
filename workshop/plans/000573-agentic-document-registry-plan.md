@@ -103,3 +103,11 @@ Files: couchcmd/session_sync.go, session_sync_test.go, message_deliveries_test.g
 ## Approval and coordination
 
 Pending TL plan approval and parley.nvim:2 contract agreement. Operator has approved the project/slice; no implementation starts until the hub approves this concrete plan.
+
+## Revisions
+
+### 2026-10-15 11:02 PDT — TL approval and lifetime capacity
+
+TL approved commit 07265d36b87ef30a549ff1a93a7900fe924d5360 with this authoritative delta: registry capacity is **4096 live registrations / 16 MiB registry**, replacing the draft's 256 / 1 MiB everywhere above. On overflow, refuse register with the exact command `couch --session-sync forget FILE` as recovery advice; never evict. Other bounds are approved. Lifetime metadata cost is at most 4096 bounded document shadows plus small per-document state, until explicit forget; no missing-path cleanup. Public verbs wait for parley.nvim:2 contract agreement.
+
+Live verification delta: **land #573 independently without :0 staging**; backward compatibility is verified by tests. TL rebuilds pair:0 after landing. The operator's plain-note end-to-end live check happens after parley.nvim#332 is staged, with one Couch restart plus nvim restart, owned by the TL. This replaces Task 4's prelanding staging/live requirement for this item; no simulated test will be called operator acceptance.
