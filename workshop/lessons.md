@@ -1938,3 +1938,6 @@ and external temporary roots rather than relying on the host's TMPDIR.
   identity is pinned; selection authority depends on those exclusions too.
 - #571: A pre-open Lstat does not enforce no-follow or bounded reads. Use the
   secure metadata primitive and test a symlink/FIFO swap between check and open.
+- #571: Revalidation must accept the final production argv, including flags
+  injected after selection. Exercise Couch's shell_snapshot injection through
+  the real config reader before Claim; raw argv equality alone misses this.

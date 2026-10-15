@@ -292,7 +292,9 @@ func codexCLIConfigLayer(q CodexConfigInvocation, home string) (codexConfigLayer
 		enabled bool
 	}{{q.Enable, true}, {q.Disable, false}} {
 		for _, name := range a.names {
-			if name != "worktrees" {
+			// Pair disables shell snapshots for Couch ownership. This native
+			// feature does not change history selection or its namespace.
+			if name != "worktrees" && name != "shell_snapshot" {
 				return codexConfigLayer{}, errCodexConfigObservation
 			}
 			codexMergeConfig(values, map[string]any{"features": map[string]any{name: a.enabled}})

@@ -98,7 +98,7 @@ func TestNativeAdmissionCodexScopeChangeDoesNotConsume(t *testing.T) {
 	}
 }
 func TestNativeAdmissionCodexScopeUnchangedPublishes(t *testing.T) {
-	for _, kind := range []string{"plain", "cwd-override", "exec", "parent-config-flags", "relative-home"} {
+	for _, kind := range []string{"plain", "cwd-override", "exec", "parent-config-flags", "relative-home", "couch-shell-snapshot"} {
 		t.Run(kind, func(t *testing.T) {
 			cmd, w, _ := scopedAdmissionCommand(t)
 			// Explicit child env wins over the operator shell environment.
@@ -124,6 +124,8 @@ func TestNativeAdmissionCodexScopeUnchangedPublishes(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
+			case "couch-shell-snapshot":
+				cmd.Args = append([]string{cmd.Args[0], "--disable", "shell_snapshot"}, cmd.Args[1:]...)
 			case "parent-config-flags":
 				cmd.Args = append([]string{cmd.Args[0], "-c", "features.shell_snapshot=false"}, cmd.Args[1:]...)
 			}

@@ -24,8 +24,11 @@ policy absent. Auth/credential files and keychains are never read.
 | Exact UUID | Existing guarded admission; custom CODEX_HOME supplies its transcript root |
 | Strict recovery/ResumeRequired with unresolved evidence | Existing refusal; no silent downgrade |
 
-The current machine's ordinary configuration was measured as cloud-unknown;
-read-only DB comparisons do not claim guarded support for that configuration.
+The source-derived projection of this machine's ordinary configuration was
+cloud-unknown. The adapter's explicit read-only conformance check is stricter:
+a symlinked project config falls outside its secure observation boundary, so it
+reports observation-incomplete. Neither result grants authority; read-only DB
+comparisons do not claim guarded support for that configuration.
 Supported positive tests use real private API-only configuration through the same
 reader, collector and reservation path.
 
@@ -50,6 +53,9 @@ provider, profile and prompt syntax are not reparsed by a second argv grammar.
   native interpretation is unsupported use compatibility.
 - Named `environments.toml`, executor-server scope and unsupported relocation
   also use compatibility. No broad Codex-home scan discovers policy.
+- The runtime-injected `--disable shell_snapshot` flag is selector-independent
+  and remains supported during wrapper revalidation. `worktrees` changes scope;
+  other unmodeled feature flags retain compatibility.
 
 On macOS, the small `darwin && cgo` adapter asks CoreFoundation whether the native
 managed preference keys are forced. Darwin builds without CGO cannot prove those

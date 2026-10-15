@@ -422,3 +422,32 @@ func TestCodexConfigMissingProfileIsEmptyNativeLayer(t *testing.T) {
 		t.Fatalf("%+v %v", p, err)
 	}
 }
+
+func TestCodexConfigKnownFeatureFlagsKeepSelectionScope(t *testing.T) {
+	for _, tc := range []struct {
+		name            string
+		enable, disable []string
+		status          CodexConfigStatus
+		worktrees       bool
+	}{
+		{name: "shell-snapshot-disable", disable: []string{"shell_snapshot"}, status: CodexConfigComplete},
+		{name: "shell-snapshot-enable", enable: []string{"shell_snapshot"}, status: CodexConfigComplete},
+		{name: "worktrees-enable", enable: []string{"worktrees", "shell_snapshot"}, status: CodexConfigComplete, worktrees: true},
+		{name: "worktrees-disable", disable: []string{"worktrees", "shell_snapshot"}, status: CodexConfigComplete},
+		{name: "unknown-disable", disable: []string{"future_selection_feature"}, status: CodexConfigCompatibility},
+		{name: "unknown-enable", enable: []string{"future_selection_feature"}, status: CodexConfigCompatibility},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			reader, inv, _, _ := codexTestConfig(t, "forced_login_method='api'\n[features]\nworktrees=false\n")
+			inv.Enable = tc.enable
+			inv.Disable = tc.disable
+			projection, err := readCodexSelectionConfig(context.Background(), inv, reader)
+			if err != nil || projection.Status != tc.status {
+				t.Fatalf("feature projection: %+v %v", projection, err)
+			}
+			if projection.Status == CodexConfigComplete && projection.Scope.Worktrees != tc.worktrees {
+				t.Fatalf("worktrees changed: %+v", projection.Scope)
+			}
+		})
+	}
+}

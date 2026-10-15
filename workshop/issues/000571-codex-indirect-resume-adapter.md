@@ -87,6 +87,10 @@ Final integrated targeted normal tests passed launcher11.970s, wrapper19.894s, s
 
 Explicit real-machine read-only config conformance opened only named noncredential files,12 bounded reads/47390 bytes across TUI and exec, no native startup/selection/admission. Both remain compatibility: observation-incomplete (secure project-file observation), stricter than the previously source-derived cloud-unknown result; no forced API-only policy was supplied. Read-only Lstat classification of ancestor .codex/config.toml paths confirms one symlink and one regular file: the shared reader refuses the static symlink before open (not ELOOP after open). Earlier source-DB private-snapshot controls remain conditional selection measurements, not guarded support on this machine. No native paths or contents printed.
 
+### 2026-10-15 — final Couch argv regression
+
+Source sweep found Couch injects --disable shell_snapshot after latest projection; wrapper reprojection initially rejected it. A real private API-only scope regression failed before the fix with configuration unavailable before Claim, then passed after allowing this exact selector-independent native flag alongside worktrees. Unknown feature names remain compatibility. Normal config/admission tests passed0.282s/4.417s; race1.298s/5.426s. The1e76b04c full-suite attempt was canceled while queued (exit130, no tests executed) so it cannot be confused with verification; queue the corrected code through the normal gate.
+
 ### 2026-10-15 — planning under the disk restriction
 
 Append source-backed configuration/selector measurements and a proposal before implementation. No architecture or implementation gate is waived: issue-branch preparation, canonical durable plan and change-code wait until compilation is permitted; admission integration waits for #556 on main. Preserve native passthrough for unresolved scopes, picker/names, incomplete DB evidence and nondeterministic ties instead of changing ordinary resume behavior into a refusal.
