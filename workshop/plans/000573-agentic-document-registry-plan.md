@@ -71,27 +71,27 @@ couch --session-sync rename OLD NEW [--json]
 
 Files: new registry_model.go, registry.go and colocated tests under cmd/internal/sessionsync/; cmd/internal/artifactpath/manifest.go.
 
-- [ ] Write unit tests for RegistryState.transition and decodeRegistry using the adversarial strategies below; run focused tests and observe RED before implementation.
-- [ ] Implement RegistryState.transition, decodeRegistry and RegistryStore.withLock/save with durable publication and bounded flock; verify through the fault-injectable temporary-filesystem strategy below.
-- [ ] Add new production source files to artifactpath's exhaustive inventory. Run go test ./cmd/internal/sessionsync ./cmd/internal/artifactpath; commit registry core.
+- [x] Write unit tests for RegistryState.transition and decodeRegistry using the adversarial strategies below; run focused tests and observe RED before implementation.
+- [x] Implement RegistryState.transition, decodeRegistry and RegistryStore.withLock/save with durable publication and bounded flock; verify through the fault-injectable temporary-filesystem strategy below.
+- [x] Add new production source files to artifactpath's exhaustive inventory. Run go test ./cmd/internal/sessionsync ./cmd/internal/artifactpath; commit registry core.
 
 ### 2. Shared sync operations
 
 Files: sessionsync/sync.go, file.go, owed.go and existing/new tests.
 
-- [ ] Write failures for Sync.resolveDocument, EffectiveOwner, OwedForDocument and Sync.forget using the strategies below.
-- [ ] Route registered operations through the registry resolver and stable metadata; retain unchanged legacy route. Extend owed matching with time-scoped path history. Keep fold publication after successful document/shadow writes.
-- [ ] Test OperatorLockAge and file.guard with the injected-clock strategy below; add structured/text age without weakening refusal.
-- [ ] Exercise Sync.withDocument through controlled two-process barriers and independent state invariants as specified below. Run focused tests and race tests; commit integration.
+- [x] Write failures for Sync.resolveDocument, EffectiveOwner, OwedForDocument and Sync.forget using the strategies below.
+- [x] Route registered operations through the registry resolver and stable metadata; retain unchanged legacy route. Extend owed matching with time-scoped path history. Keep fold publication after successful document/shadow writes.
+- [x] Test OperatorLockAge and file.guard with the injected-clock strategy below; add structured/text age without weakening refusal.
+- [x] Exercise Sync.withDocument through controlled two-process barriers and independent state invariants as specified below. Run focused tests and race tests; commit integration.
 
 ### 3. Public CLI and documentation
 
 Files: couchcmd/session_sync.go, session_sync_test.go, message_deliveries_test.go, run.go, skills/couch/SKILL.md; atlas/couch.md; workshop/lessons.md if review produces a rule.
 
-- [ ] Add failing tests for parseSessionSyncCLI and runSessionSyncCLI using the protocol and malformed-input strategies below; implement the five new verbs through Sync methods, retaining existing envelope/exit semantics.
-- [ ] Publish the agreed command/output/error contract to parley.nvim:2; include exact test invocation and fixture semantics. Do not change Parley sources.
-- [ ] Document first-submit registration, forget, metadata-only rename/lock responsibility, legacy compatibility and aged-lock ping rule in CLI help, Couch skill and atlas.
-- [ ] Run go test ./cmd/internal/sessionsync ./cmd/internal/couchcmd ./cmd/internal/artifactpath and focused races, then make build. Record output and exact HEAD.
+- [x] Add failing tests for parseSessionSyncCLI and runSessionSyncCLI using the protocol and malformed-input strategies below; implement the five new verbs through Sync methods, retaining existing envelope/exit semantics.
+- [x] Publish the agreed command/output/error contract to parley.nvim:2; include exact test invocation and fixture semantics. Do not change Parley sources.
+- [x] Document first-submit registration, forget, metadata-only rename/lock responsibility, legacy compatibility and aged-lock ping rule in CLI help, Couch skill and atlas.
+- [x] Run go test ./cmd/internal/sessionsync ./cmd/internal/couchcmd ./cmd/internal/artifactpath and focused races, then make build. Record output and exact HEAD.
 
 ### 4. Verify, review, land
 
@@ -151,3 +151,7 @@ TL explicitly approved this scoped delta after implementation exposed a real ord
 | Delivery recorder | cmd/internal/couchcmd/message_deliveries.go | modified | completion-time ledger append |
 
 Test strategy: TestBrokerAcceptanceTimeSurvivesQueuedPromotion advances an atomic fake clock through real broker admission/promotion; acceptance stays fixed while the deadline changes. TestQueuedSubmitRemainsOwedAfterRenameAndOldPathReuse uses the real message service/ledger and an endpoint barrier: enqueue before rename, reuse OLD for a new registration, then complete delivery; the original document must owe the submit and its replacement must not. Observed RED before the recorder/matcher change, then GREEN. ARCH-ORDER distinguishes address-time identity from completion-time delivery evidence; neither timestamp substitutes for the other.
+
+### 2026-10-15 11:49 PDT — implementation progress checkpoint
+
+Tasks 1–3 are complete; their RED/GREEN, fault-injection, cross-process and race evidence is recorded in the issue Log. Registry core and integration shipped together in the atomic implementation commit rather than separate module commits. The agreed caller contract and effective-owner/rename semantics are frozen in atlas/couch-agentic-documents.md. Task 4 remains pending the required queued full suite, close review and landing. Its live-check row is superseded by the TL-approved postlanding combined check above; no :0 staging or operator acceptance is claimed.
