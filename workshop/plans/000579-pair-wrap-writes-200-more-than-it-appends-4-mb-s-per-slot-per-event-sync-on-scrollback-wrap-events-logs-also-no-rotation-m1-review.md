@@ -186,3 +186,88 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-15T16:18:51-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 579 — pair wrap writes ~200× more than it appends (~4 MB/s per slot): per-event sync on scrollback/wrap-events logs; also no rotation |
+| repo | pair |
+| issue file | workshop/issues/000579-pair-wrap-writes-200-more-than-it-appends-4-mb-s-per-slot-per-event-sync-on-scrollback-wrap-events-logs-also-no-rotation.md |
+| boundary | milestone M1 |
+| milestone | M1 |
+| window | 32a0818a32ffb6ae4764aa587a3193959a4ad295..8a91523741f6fcefc1be498fdc3418cb74a38905 |
+| command | sdlc milestone-close --issue 579 --milestone M1 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-15T16:18:51-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned range satisfies the revised M1 scope. BR-2 now has meaningful regression coverage, verified by mutation testing. No new blocking findings emerged. Shared retention bounds remain M2 work; this verdict covers M1 only.
+
+```findings
+dispose:
+  - id: BR-2
+    disposition: addressed
+    note: |
+      registry_test.go:388 exercises publication followed by failed directory sync, failing identical retry, and successful reconfirmation while preserving bytes/inode/mtime. Replacing registry.go:68 with return nil makes the regression fail.
+  - id: BR-1
+    disposition: addressed
+    note: |
+      The EOF drain/error-reporting regression passes. Removing masterPump's deferred flush makes both cases fail, confirming the production fix remains reachable and necessary.
+```
+
+1. **Strengths**
+
+   - Compact reservations preserve recovery evidence without duplicating payload.
+   - The real-writer invariant measured **1.0187×** logical amplification, one checkpoint rename, and zero hot syncs.
+   - Capture tests verify raw-before-sidecar ordering, unchanged witnessed bytes, sticky failures, and EOF drainage.
+   - README and atlas document the new buffering behavior and crash limitations.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Full tests passed for `diagnosticlog`, `wrapcmd`, `adapt`, and `artifactpath`. Selected race tests passed. Both prior fixes failed their targeted tests when removed through temporary overlays. Repository source remained unchanged.
+
+   Inspected the scratch measurement harness and saved results supporting the reported physical IO reduction. Build, full recorded suite, and live measurements were not independently rerun.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** quarantine reuses durable rotation and collection.
+   - **ARCH-PURE — pass:** batch transitions and reservation classification have direct pure tests.
+   - **ARCH-PURPOSE — pass for M1:** implementation matches the governing scope revisions.
+   - **ARCH-MOCK — pass:** stateful sinks and process inspection share production seams; storage tests use temporary folders.
+   - **ARCH-CONSTRAINTS — pass:** admission and flight are bounded; deterministic counters exercise amplification.
+   - **ARCH-SECURE — pass:** strict parsing, identity checks, and foreign-tail refusal preserve uncertainty.
+   - **ARCH-ORDER — pass:** confirmed progress, concurrent admission, close, and EOF drainage are exercised.
+   - **ARCH-FUNERAL — pass for M1:** reservations are bounded and retired; quarantines use existing expiry collection. Count bounds remain M2.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"e5a38a5a-2ae3-458f-9505-59e2f4daac2d","repository":"github.com/xianxu/pair","issue_id":"000579","recipe":"milestone-review","round":3,"attempt":1,"agent":"codex","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/a59b97b959cd8ced","reviewed_head":"8a91523741f6fcefc1be498fdc3418cb74a38905","slot":"pair:3","requested_at":"2026-10-15T23:16:33.651203Z"},"phase":"finished","pid":74691,"started_at":"2026-10-15T23:16:33.792007Z","finished_at":"2026-10-15T23:18:49.84123Z","session_id":"01a141da-6495-7962-89af-4ca4f1f66590","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.746207709s
+head: "8a91523741f6fcefc1be498fdc3418cb74a38905"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

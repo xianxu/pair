@@ -58,12 +58,13 @@ Separately, these files are **never rotated**: wrap-events logs of **3.9 GB** (p
 Proposed durable plan: [wrapper log IO](../plans/000579-wrapper-log-io-plan.md).
 The approved scope and protocol are recorded in the Revisions below and the durable plan; faithful raw capture size rotation is unassigned #582.
 
-- [ ] M1 — Coalesced diagnostic IO and authority-preserving raw/event batching.
+- [x] M1 — Coalesced diagnostic IO and authority-preserving raw/event batching.
 - [ ] M2 — Safe bounded diagnostic generations, compatibility and qualification.
 
 ## Log
 
 ### 2026-10-15
+- 2026-10-15: closed M1 — BR-1 EOF drain/error regression verified RED/GREEN; BR-2 real rename then repeated injected directory-sync failure followed by success preserves bytes/inode/mtime, three syncs/one stage; removing reconfirmation is RED0.07s, real selected registry/amplification/lifecycle tests GREEN-race11.768s; make -k build passes; logical1.0181x and isolated physical61.01x to1.32x measured; M2 and postlanding acceptance pending.; review verdict: SHIP
 
 - Claimed and started on pair:3 from main a3beedd0074c536a49396ca68e5e038eebfb35d7. start-plan refreshed sibling Ariadne, then reran successfully.
 - Measurement before design: proc_pid_rusage(pid 73688, RUSAGE_INFO_V2) over 10.006 seconds counted 7,385,088 physical disk-write bytes versus 86,077 appended raw+wrap-event bytes (85.80x). Files grew 63,591 wrap-events +22,486 raw bytes. Python ctypes called libproc directly; no root or mutation of the wrapper. Activity level affects the rate; this is one observed window, not a universal 200x.
