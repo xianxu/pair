@@ -40,6 +40,40 @@ rounds:
           family: measurement-oracle-test-contract
           round: 1
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: 7942ff76-2f04-42e7-abe5-1e1ebf9e55d4
+            repository: github.com/xianxu/pair
+            issue_id: "000204"
+            recipe: plan-quality
+            round: 2
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot7/pair
+            reviewed_head: d92963eebd7081bbe01bb7bca7ca168913443bcd
+            slot: pair:7
+            requested_at: "2026-10-15T12:38:10.907154Z"
+          phase: finished
+          pid: 65303
+          started_at: "2026-10-15T12:38:11.135433Z"
+          finished_at: "2026-10-15T12:38:42.898284Z"
+          session_id: 01a13f91-f127-7421-ad24-bf2153376189
+          outcome: returned
+      "n": 2
+      timestamp: "2026-10-15T05:38:43-07:00"
+      agent: codex
+      dispose:
+        - id: PQ-1
+          disposition: addressed
+          note: Names the shared Source/Reader and its injection through every measured native enumeration owner, preserving native defaults and existing capture behavior.
+          round: 2
+        - id: PQ-2
+          disposition: addressed
+          note: Names the accounting functions and specifies independent-oracle sequence testing, snapshot independence, and controlled concurrent accounting under race testing.
+          round: 2
+      blocked: false
+content_hash: 69ef4ac9c3713baa34bd06b426b43f11891ff92595f4e8ca390de498a8a61dbf
 ---
 
 # Gate ledger — pair#204 (plan-quality)
@@ -56,7 +90,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **PQ-2** [Important] `measurement-oracle-test-contract` Name the counting functions and their unit-test strategies
   ARCH-PURE: the plan introduces shared snapshot/delta and concurrent accounting helpers but names no functions to unit-test directly. Add their intended function names and one strategy line per risky function, covering adversarial update sequences and snapshot independence with an independent accounting oracle, plus controlled concurrent updates verified under race testing; avoid enumerating individual test cases.
 
+## Round 2 — 2026-10-15T05:38:43-07:00 (codex) — passed
+
+### Disposed
+
+- PQ-1 — addressed — Names the shared Source/Reader and its injection through every measured native enumeration owner, preserving native defaults and existing capture behavior.
+- PQ-2 — addressed — Names the accounting functions and specifies independent-oracle sequence testing, snapshot independence, and controlled concurrent accounting under race testing.
+
 ## Open findings
 
-- **PQ-1** [Important] `production-source-seam-coverage` Specify the shared process-source ownership and injection path
-- **PQ-2** [Important] `measurement-oracle-test-contract` Name the counting functions and their unit-test strategies
+(none — every finding has been disposed)

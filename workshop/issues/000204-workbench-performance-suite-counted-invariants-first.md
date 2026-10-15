@@ -6,8 +6,8 @@ target: workbench-latency
 github_issue:
 created: 2026-09-06
 updated: 2026-10-15
-estimate_hours:
-card_mirror: '10150ab62ed25df86f73dcde84ae877b87203003' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 2.246
+card_mirror: '7cc0859f79dbdb9ba9d4a108cb6f2a7face19259' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-15T05:25:29-07:00
 claimant:
     operator: Xian Xu
@@ -215,3 +215,23 @@ Receipt dcb3f338-41ac-45ae-a098-39ff395ae578 approves plan227c8394, closes this 
 ### 2026-10-15 — plan-quality round1
 
 PQ-1/PQ-2 request concrete process-source ownership and named measurement-oracle unit-test strategies. Refined the durable plan with one zero-native procutil.Source/Reader instance propagated through ancestry, orphan sweep, initial owner capture and every native live fence; no global hooks or observation caching. Named Counter.RecordRead/RecordDecode/Snapshot and Snapshot.Delta strategies use an independent accounting oracle, immutable snapshots and joined concurrent updates under race. No implementation before the gate passes.
+
+## Estimate
+
+Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only; source is marked stale, so calibration is provisional. Reuse existing Go/std-library fixtures, socket service and native process capture; no novel external library/API discovery. Familiarity1.0. Thorough approved plan applies x0.2 design discount and15% design buffer; implementation picks are40% of v2's primitive table as v3.1 requires.
+
+Three consumer integrations each use API-integration base design1.0/impl0.5 => design0.20/impl0.20. Fixture/counter extraction uses smaller-Go-module base0.20/0.50 =>0.04/0.20; source wiring uses cross-cutting-refactor base0.60/0.50 =>0.12/0.20; docs base0.20/0.20 =>0.04/0.08; one close review base0.20/0.50 =>0.04/0.20. Design subtotal0.84 plus buffer0.126; implementation1.28; total2.246h. Queue wait is not an extra implementation primitive.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: api-integration design=0.20 impl=0.20
+item: api-integration design=0.20 impl=0.20
+item: api-integration design=0.20 impl=0.20
+item: smaller-go-module design=0.04 impl=0.20
+item: cross-cutting-refactor design=0.12 impl=0.20
+item: atlas-docs design=0.04 impl=0.08
+item: milestone-review design=0.04 impl=0.20
+design-buffer: 0.15
+total: 2.246
+```
