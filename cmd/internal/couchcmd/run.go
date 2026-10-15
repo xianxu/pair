@@ -1473,12 +1473,5 @@ func wireIdleFading(console *couchtty.Console, getenv func(string) string) {
 	if dataDir == "" {
 		dataDir = launcher.ResolveDataDir(home, getenv("XDG_DATA_HOME"))
 	}
-	runtime := threadactivity.NewOSRuntime(home)
-	console.SetActivityProbe(func(ctx context.Context, row couchcore.ActionableThreadSummary) (time.Time, error) {
-		thread, err := threadactivity.InScope(dataDir, row.Address.RepoScope, string(row.Address.Tag), row.Agent)
-		if err != nil {
-			return time.Time{}, err
-		}
-		return threadactivity.Latest(ctx, runtime, thread), nil
-	})
+	console.SetActivityProbe(couchtty.ThreadActivityProbe(dataDir, threadactivity.NewOSRuntime(home)))
 }

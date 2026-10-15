@@ -43,6 +43,7 @@ type OSRuntime struct {
 	DataDir       string
 	GlobalDataDir string
 	PairHome      string
+	Processes     procutil.Source
 
 	sessionQuiescence  sessionQuiescenceOps
 	sessionQuiesceWait time.Duration
@@ -508,8 +509,8 @@ func (OSRuntime) SetEnv(key, value string) { _ = os.Setenv(key, value) }
 
 // InZellijPane walks the PPID chain looking for a zellij ancestor — the ground
 // truth (env vars leak across cmux panes, so $ZELLIJ can't be trusted).
-func (OSRuntime) InZellijPane() bool {
-	rows, err := procutil.Table()
+func (r OSRuntime) InZellijPane() bool {
+	rows, err := r.Processes.Table()
 	return err == nil && hasProcessAncestor(rows, os.Getpid(), "zellij")
 }
 
@@ -949,7 +950,7 @@ func (r OSRuntime) SweepOrphanNvim(liveTags []string) {
 			}
 		}
 	}
-	if rows, err := procutil.Snapshot(context.Background()); err == nil {
+	if rows, err := r.Processes.Snapshot(context.Background()); err == nil {
 		for _, row := range rows {
 			if row.Err != nil {
 				continue

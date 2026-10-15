@@ -1888,3 +1888,4 @@ Deleting the orientation delivery also deleted the only `automaticRenderEpoch.Ad
 - #556: Wrapper death does not prove the native transcript has no writer.
   Native admission must retain the child generation through reparenting and
   uncertain readiness; explicit Fresh remains the safe alternative.
+- #204 plan/code review: a shared initial process capture is not a total scan budget. Count full enumerations at the reader boundary, including named-snapshot live fences, and propagate one instance through every adapter. Keep ratchets as upper bounds with separate positive connection/success controls so improvements can pass. Consumer regressions must enter actual scheduling/socket/attach paths; cold and mutation controls defend against disconnected observers.
