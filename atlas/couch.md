@@ -3956,8 +3956,10 @@ forgetting possible writers. Fresh remains a separate conversation.
 
 Owners: `launcher/native_admission.go`, `native_admission_os.go`,
 `native_createflow_os.go`, `native_resume_selector*.go`,
-`recovery_native_owner*.go`, `sessioninventory/native_selector*.go`, and
-`wrapcmd/native_admission.go`. Provider latest support is constrained by measured native ordering and positively
+`recovery_native_*.go`, `sessioninventory/native_selector*.go`, and
+`wrapcmd/native_admission.go`; the held-file boundary is
+`procutil.LsofWritableNames`, and full ledger validation belongs to
+`sessionledger/record.go` and `strictjson/decode.go`. Provider latest support is constrained by measured native ordering and positively
 resolved effective configuration. Unsupported/incomplete mappings for other
 agents report exact-ID/Fresh advice. Codex's approved unreserved exception is owned
 by the shared CodexIndirectResumeCompatibility policy, with one wrapper notice;
