@@ -22,6 +22,24 @@ type Registration struct {
 	RegisteredAt                     time.Time
 }
 
+const registeredStateMaxBytes = 1 << 20
+
+// Preflight every prospective registered companion before publishing authority
+// or mutating the shared document. Producers and readers share these limits.
+func validateRegisteredMetadata(shadow string, st State) error {
+	if len(shadow) > documentMaxBytes {
+		return registryLimit()
+	}
+	raw, err := encodeState(st)
+	if err != nil {
+		return err
+	}
+	if len(raw) > registeredStateMaxBytes {
+		return registryLimit()
+	}
+	return nil
+}
+
 type RegistryResult struct {
 	Registration *Registration
 	Changed      bool
@@ -253,19 +271,28 @@ func (s *Sync) Register(path, owner string) (RegistryResult, error) {
 		if !ValidSlot(EffectiveOwner(string(content), owner)) {
 			return RegistryResult{}, refuse("document owner is not an exact Couch slot address")
 		}
+		spelling, err := filepath.Abs(path)
+		if err != nil {
+			return RegistryResult{}, err
+		}
 		if existing := t.find(documentPath); existing != nil {
 			requested := owner
 			if frontmatter(string(content), "couch-owner") != "" {
 				requested = existing.RegisteredOwner
 			}
-			_, change, err := t.state.transition(RegistryEvent{Kind: "register", File: documentPath, Owner: requested})
+			next, change, err := t.state.transition(RegistryEvent{Kind: "register", File: documentPath, Owner: requested, Spelling: spelling})
 			if err != nil {
 				return RegistryResult{}, err
 			}
-			if err := t.confirm(); err != nil {
+			if change.Changed {
+				err = t.save(next)
+			} else {
+				err = t.confirm()
+			}
+			if err != nil {
 				return RegistryResult{}, err
 			}
-			return RegistryResult{Registration: view(*change.Registration, string(content), true)}, nil
+			return RegistryResult{Registration: view(*change.Registration, string(content), true), Changed: change.Changed}, nil
 		}
 		if err := t.cleanup(); err != nil {
 			return RegistryResult{}, err
@@ -275,15 +302,19 @@ func (s *Sync) Register(path, owner string) (RegistryResult, error) {
 			return RegistryResult{}, err
 		}
 		at := s.now()
-		spelling, err := filepath.Abs(path)
-		if err != nil {
-			return RegistryResult{}, err
-		}
 		event := RegistryEvent{Kind: "register", File: documentPath, Owner: owner, ID: hex.EncodeToString(id[:]), At: at, Spelling: spelling}
 		st := State{Since: at}
 		var shadow string
 		var hasShadow bool
 		if IsSessionSync(string(content)) {
+			for _, companion := range []struct {
+				path  string
+				limit int64
+			}{{PathsOf(path).State, registeredStateMaxBytes}, {PathsOf(path).Shadow, documentMaxBytes}} {
+				if _, err := readRegular(companion.path, companion.limit); err != nil && !errors.Is(err, os.ErrNotExist) {
+					return RegistryResult{}, err
+				}
+			}
 			_, err := locked(path, func(f *file) (bool, error) {
 				st = f.state
 				shadow = f.shadow
@@ -304,6 +335,9 @@ func (s *Sync) Register(path, owner string) (RegistryResult, error) {
 		}
 		p := t.metadata(*change.Registration)
 		st.SubmitPaths = nil // registry history is authoritative until a legacy handoff
+		if err := validateRegisteredMetadata(shadow, st); err != nil {
+			return RegistryResult{}, err
+		}
 		if err := saveStateUsing(p, st, t.publish); err != nil {
 			return RegistryResult{}, err
 		}
@@ -364,7 +398,15 @@ func (s *Sync) Rename(oldPath, newPath string) (RegistryResult, error) {
 					return RegistryResult{}, absErr
 				}
 				for _, d := range t.state.Documents {
-					if d.Paths[len(d.Paths)-1].Spelling == spelling {
+					known := false
+					current := d.Paths[len(d.Paths)-1]
+					for _, candidate := range append([]string{current.Spelling}, current.Spellings...) {
+						if candidate == spelling {
+							known = true
+							break
+						}
+					}
+					if known {
 						old = d.File
 						break
 					}
@@ -378,10 +420,14 @@ func (s *Sync) Rename(oldPath, newPath string) (RegistryResult, error) {
 		if t.find(old) == nil {
 			if destination := t.find(file); destination != nil && len(destination.Paths) > 1 {
 				previous := destination.Paths[len(destination.Paths)-2]
-				if previous.Spelling != "" {
-					resolved, resolveErr := canonicalDocument(previous.Spelling)
+				for _, spelling := range append([]string{previous.Spelling}, previous.Spellings...) {
+					if spelling == "" {
+						continue
+					}
+					resolved, resolveErr := canonicalDocument(spelling)
 					if resolveErr == nil && resolved == old {
-						old = previous.Spelling
+						old = spelling
+						break
 					}
 				}
 			}
@@ -428,7 +474,7 @@ func (s *Sync) Forget(path string) (RegistryResult, error) {
 					return RegistryResult{}, err
 				}
 				seen := map[string]bool{}
-				for _, legacyPath := range []string{documentPath, d.Paths[len(d.Paths)-1].Spelling, spelling} {
+				for _, legacyPath := range append(documentSpellings(*d), spelling) {
 					if legacyPath == "" || seen[legacyPath] {
 						continue
 					}
@@ -486,7 +532,7 @@ func withDocument[T any](s *Sync, path string, fn func(*file) (T, error)) (T, er
 			return zero, err
 		}
 		p := t.metadata(*d)
-		if _, err := readRegular(p.State, 1<<20); err != nil {
+		if _, err := readRegular(p.State, registeredStateMaxBytes); err != nil {
 			return zero, fmt.Errorf("registered document state unavailable: %w", err)
 		}
 		st, err := LoadState(p)
@@ -526,12 +572,7 @@ func documentLockPaths(d DocumentRegistration, requested string) ([]string, erro
 	if err != nil {
 		return nil, err
 	}
-	candidates := []string{d.File, abs}
-	for _, history := range d.Paths {
-		if history.Spelling != "" {
-			candidates = append(candidates, history.Spelling)
-		}
-	}
+	candidates := append(documentSpellings(d), abs)
 	seen := map[string]bool{}
 	var out []string
 	for _, path := range candidates {
@@ -556,7 +597,7 @@ func documentLockPaths(d DocumentRegistration, requested string) ([]string, erro
 func (t *registryTxn) exportLegacy(d DocumentRegistration, path string) error {
 	_, err := locked(path, func(f *file) (bool, error) {
 		central := t.metadata(d)
-		if _, err := readRegular(central.State, 1<<20); err != nil {
+		if _, err := readRegular(central.State, registeredStateMaxBytes); err != nil {
 			return false, err
 		}
 		st, err := LoadState(central)

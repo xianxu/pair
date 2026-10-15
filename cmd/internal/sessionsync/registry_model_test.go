@@ -287,3 +287,95 @@ func TestRegistryModelLegacyUnboundedFirstInterval(t *testing.T) {
 	_, err = encodeRegistry(r)
 	modelCode(t, err, "registry-invalid")
 }
+
+func TestRegistryModelAdditionalSpellingsAreBoundedAndDetached(t *testing.T) {
+	e := modelEvent("register", "/a", 1)
+	r, initial := modelApply(t, RegistryState{Version: 1}, e)
+	e.Spelling = "/alias"
+	next, c := modelApply(t, r, e)
+	raw, _ := json.Marshal(next)
+	if !c.Changed || !strings.Contains(string(raw), `"Spellings":["/alias"]`) {
+		t.Fatalf("new alias was not retained: %s %+v", raw, c)
+	}
+	if c.Registration.ID != initial.Registration.ID || !c.Registration.RegisteredAt.Equal(initial.Registration.RegisteredAt) || !c.Registration.Paths[0].From.Equal(initial.Registration.Paths[0].From) || len(c.Registration.Paths) != len(initial.Registration.Paths) {
+		t.Fatal("alias changed identity or owed horizon")
+	}
+	_, retry := modelApply(t, next, e)
+	if retry.Changed {
+		t.Fatal("same alias retry changed registry")
+	}
+	e.Owner = "ops:0"
+	_, _, err := next.transition(e)
+	modelCode(t, err, "owner-conflict")
+	// Fill the additional-spelling bound without consuming rename history.
+	e.Owner = "pair:5"
+	for i := 1; i < registryMaxPaths; i++ {
+		e.Spelling = fmt.Sprintf("/alias%d", i)
+		next, _ = modelApply(t, next, e)
+	}
+	before, _ := json.Marshal(next)
+	e.Spelling = "/overflow"
+	_, _, err = next.transition(e)
+	modelCode(t, err, "registry-limit")
+	after, _ := json.Marshal(next)
+	if string(before) != string(after) {
+		t.Fatal("overflow evicted admitted spelling")
+	}
+	// A returned change must not alias either input or returned state.
+	c.Registration.Paths[0].Spellings[0] = "/mutated"
+	if next.Documents[0].Paths[0].Spellings[0] != "/alias" || len(r.Documents[0].Paths[0].Spellings) != 0 {
+		t.Fatal("spelling slices alias input or change")
+	}
+}
+
+func TestRegistryModelAdditionalSpellingSurvivesRenameAndCountsTowardTotalBound(t *testing.T) {
+	r, _ := modelApply(t, RegistryState{Version: 1}, modelEvent("register", "/a", 1))
+	alias := modelEvent("register", "/a", 2)
+	alias.Spelling = "/alias"
+	r, _ = modelApply(t, r, alias)
+	rename := modelEvent("rename", "/b", 3)
+	rename.Old = "/a"
+	r, _ = modelApply(t, r, rename)
+	if r.Documents[0].Paths[0].Until == nil || !reflect.DeepEqual(r.Documents[0].Paths[0].Spellings, []string{"/alias"}) {
+		t.Fatal("rename lost closed interval alias")
+	}
+	for i := 1; i < registryMaxPaths; i++ {
+		alias.File = "/b"
+		alias.Spelling = fmt.Sprintf("/alias%d", i)
+		r, _ = modelApply(t, r, alias)
+	}
+	alias.Spelling = "/overflow"
+	_, _, err := r.transition(alias)
+	modelCode(t, err, "registry-limit")
+	// The decoder must enforce the same total even when each interval is small.
+	r.Documents[0].Paths[1].Spellings = append(r.Documents[0].Paths[1].Spellings, "/overflow")
+	raw, _ := json.Marshal(r)
+	_, err = decodeRegistry(raw)
+	modelCode(t, err, "registry-invalid")
+}
+
+func TestRegistryModelImportedHistoryAdmitsNewCallerAlias(t *testing.T) {
+	e := modelEvent("register", "/a", 2)
+	e.Spelling = "/newalias"
+	e.InitialPaths = []PathInterval{{File: "/a", Spelling: "/oldalias", From: e.At.Add(-time.Hour)}}
+	_, c := modelApply(t, RegistryState{Version: 1}, e)
+	if !reflect.DeepEqual(c.Registration.Paths[0].Spellings, []string{"/newalias"}) {
+		t.Fatalf("import dropped caller alias: %+v", c.Registration.Paths)
+	}
+}
+
+func TestRegistryModelRenameRetryRecognizesAdditionalPreviousAlias(t *testing.T) {
+	r, _ := modelApply(t, RegistryState{Version: 1}, modelEvent("register", "/canonical", 1))
+	alias := modelEvent("register", "/canonical", 2)
+	alias.Spelling = "/alias"
+	r, _ = modelApply(t, r, alias)
+	rename := modelEvent("rename", "/canonical", 3)
+	rename.Old = "/canonical"
+	rename.Spelling = "/movedalias"
+	r, _ = modelApply(t, r, rename)
+	rename.Old = "/alias"
+	_, c, err := r.transition(rename)
+	if err != nil || c.Changed || c.Registration == nil || c.Registration.ID != r.Documents[0].ID {
+		t.Fatalf("alias retry: %+v %v", c, err)
+	}
+}

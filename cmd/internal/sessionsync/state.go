@@ -65,10 +65,18 @@ func saveState(p Paths, st State) error {
 	return saveStateUsing(p, st, writeAtomic)
 }
 
-func saveStateUsing(p Paths, st State, publish func(string, []byte) error) error {
+func encodeState(st State) ([]byte, error) {
 	raw, err := json.MarshalIndent(st, "", "  ")
+	if err != nil {
+		return nil, err
+	}
+	return append(raw, '\n'), nil
+}
+
+func saveStateUsing(p Paths, st State, publish func(string, []byte) error) error {
+	raw, err := encodeState(st)
 	if err != nil {
 		return err
 	}
-	return publish(p.State, append(raw, '\n'))
+	return publish(p.State, raw)
 }

@@ -372,6 +372,11 @@ func (f *file) shadowAfter(section, body, next string, now time.Time) string {
 // sidecar-less file's horizon (the shadow's mtime), so the horizon is pinned
 // in the sidecar first.
 func (f *file) saveShadow(content string) error {
+	if f.registration != nil {
+		if err := validateRegisteredMetadata(content, f.state); err != nil {
+			return err
+		}
+	}
 	if _, err := os.Stat(f.paths.State); errors.Is(err, os.ErrNotExist) {
 		if err := saveState(f.paths, f.state); err != nil {
 			return err
@@ -426,14 +431,25 @@ func (s *Sync) write(f *file, req WriteRequest) (Result, error) {
 	}
 	now := s.now()
 	next = Restamp(next, now)
+	shadow := f.shadowAfter(req.Section, req.Body, next, now)
+	state := f.state
+	state.LastWrite = &now
+	state.Fold(req.Fold, rows)
+	if f.registration != nil {
+		if len(next) > documentMaxBytes {
+			return Result{}, registryLimit()
+		}
+		if err := validateRegisteredMetadata(shadow, state); err != nil {
+			return Result{}, err
+		}
+	}
 	if err := replaceShared(req.File, []byte(next)); err != nil {
 		return Result{}, err
 	}
-	if err := f.saveShadow(f.shadowAfter(req.Section, req.Body, next, now)); err != nil {
+	if err := f.saveShadow(shadow); err != nil {
 		return Result{}, err
 	}
-	f.state.LastWrite = &now
-	f.state.Fold(req.Fold, rows)
+	f.state = state
 	if err := saveState(f.paths, f.state); err != nil {
 		return Result{}, err
 	}

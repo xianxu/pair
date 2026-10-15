@@ -405,8 +405,12 @@ func TestRegistrySymlinkAliasAndPostRenameMissingLeaf(t *testing.T) {
 	}
 	realPath := filepath.Join(dir, "note.md")
 	second, err := r.sync.Register(realPath, "ops:0")
-	if err != nil || second.Changed || second.Registration.ID != first.Registration.ID {
+	if err != nil || !second.Changed || second.Registration.ID != first.Registration.ID {
 		t.Fatalf("alias %+v %v", second, err)
+	}
+	retry, err := r.sync.Register(realPath, "ops:0")
+	if err != nil || retry.Changed {
+		t.Fatalf("alias retry %+v %v", retry, err)
 	}
 	if _, err := r.sync.Read(old, ""); err != nil {
 		t.Fatal(err)

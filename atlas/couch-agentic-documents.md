@@ -22,7 +22,9 @@ only on a `type: session-sync` file, so business metadata stays meaningful.
 JSON uses the existing capitalized `Code`/`Error` envelope. Successful register,
 lookup and rename return `Registration` with `ID`, canonical `File`, effective
 `Owner`, fallback `RegisteredOwner` and RFC3339 `RegisteredAt`. Mutations return
-`Changed`; an idempotent replay returns false. List returns `Registrations`,
+`Changed`; an idempotent replay returns false. Registering a new alias spelling
+retains it for lock authority and submit history and returns true once, without
+resetting the document identity or its metadata. List returns `Registrations`,
 an array of persisted bindings (its Owner is the fallback owner, without
 reading every document); use lookup for the current effective owner.
 
@@ -63,10 +65,12 @@ no registration.
 
 Capacity is 4096 registrations and a 16 MiB registry, with no eviction. Overflow
 refuses and advises `couch --session-sync forget FILE`. Rename history is capped
-at 256 intervals per document and is never pruned merely by age: the delivery
-ledger can retain old rows below its size-triggered trim threshold. Registered
-document/shadow size is bounded at 4 MiB; registry waits and diff execution are
-bounded at two seconds.
+at 256 intervals plus 256 additional admitted aliases per document and is never
+pruned merely by age: the delivery ledger can retain old rows below its
+size-triggered trim threshold. Registered document/shadow size is bounded at
+4 MiB and central state at 1 MiB; prospective writes and legacy imports are
+checked before changing authority or document content. Registry waits and diff
+execution are bounded at two seconds.
 
 A held operator lock always blocks agent writes. A valid lock timestamp older
 than 30 minutes adds its age and advice to ping the operator; it never expires

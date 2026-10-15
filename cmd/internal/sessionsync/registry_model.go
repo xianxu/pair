@@ -18,10 +18,11 @@ const (
 )
 
 type PathInterval struct {
-	File     string
-	Spelling string `json:",omitempty"`
-	From     time.Time
-	Until    *time.Time `json:",omitempty"`
+	File      string
+	Spelling  string   `json:",omitempty"`
+	Spellings []string `json:",omitempty"`
+	From      time.Time
+	Until     *time.Time `json:",omitempty"`
 }
 type DocumentRegistration struct {
 	ID              string
@@ -88,9 +89,21 @@ func (r RegistryState) validate() error {
 		if len(d.Paths) == 0 || len(d.Paths) > registryMaxPaths {
 			return registryInvalid("invalid path history size")
 		}
+		additionalSpellings := 0
 		for i, p := range d.Paths {
 			if !registryPath(p.File) || (p.Spelling != "" && !registryPath(p.Spelling)) || (i > 0 && p.From.IsZero()) {
 				return registryInvalid("invalid path interval")
+			}
+			additionalSpellings += len(p.Spellings)
+			if additionalSpellings > registryMaxPaths {
+				return registryInvalid("too many admitted path spellings")
+			}
+			seen := map[string]bool{p.File: true, p.Spelling: true}
+			for _, spelling := range p.Spellings {
+				if !registryPath(spelling) || seen[spelling] {
+					return registryInvalid("invalid or duplicate admitted path spelling")
+				}
+				seen[spelling] = true
 			}
 			if i > 0 && (d.Paths[i-1].Until == nil || p.From.Before(*d.Paths[i-1].Until)) {
 				return registryInvalid("overlapping path intervals")
@@ -133,10 +146,23 @@ func cloneRegistryPaths(paths []PathInterval) []PathInterval {
 	}
 	out := append([]PathInterval{}, paths...)
 	for i := range out {
+		out[i].Spellings = append([]string(nil), out[i].Spellings...)
 		if out[i].Until != nil {
 			v := *out[i].Until
 			out[i].Until = &v
 		}
+	}
+	return out
+}
+
+// documentSpellings includes admitted aliases from every interval. Callers must
+// still resolve each candidate against the current file before granting it
+// lock authority or exporting metadata: an old spelling may have been reused.
+func documentSpellings(d DocumentRegistration) []string {
+	out := []string{d.File}
+	for _, p := range d.Paths {
+		out = append(out, p.File, p.Spelling)
+		out = append(out, p.Spellings...)
 	}
 	return out
 }
@@ -153,6 +179,29 @@ func (r RegistryState) clone() RegistryState {
 func registryChange(d DocumentRegistration, changed bool) RegistryChange {
 	d.Paths = cloneRegistryPaths(d.Paths)
 	return RegistryChange{Registration: &d, Changed: changed}
+}
+
+// admitRegistrySpelling records the caller in the current interval without
+// resetting the document identity, owed horizon or any historical interval.
+func admitRegistrySpelling(d *DocumentRegistration, spelling string) (bool, error) {
+	last := &d.Paths[len(d.Paths)-1]
+	if spelling == "" || spelling == last.File || spelling == last.Spelling {
+		return false, nil
+	}
+	for _, admitted := range last.Spellings {
+		if admitted == spelling {
+			return false, nil
+		}
+	}
+	count := 0
+	for _, p := range d.Paths {
+		count += len(p.Spellings)
+	}
+	if count >= registryMaxPaths {
+		return false, registryLimit()
+	}
+	last.Spellings = append(last.Spellings, spelling)
+	return true, nil
 }
 
 // transition is a pure transaction: neither a returned state nor a change
@@ -177,11 +226,19 @@ func (r RegistryState) transition(e RegistryEvent) (RegistryState, RegistryChang
 	switch e.Kind {
 	case "register":
 		if at >= 0 {
-			d := out.Documents[at]
+			d := &out.Documents[at]
 			if d.RegisteredOwner != e.Owner {
 				return fail(registryRefusal("owner-conflict", "document already registered to a different owner"))
 			}
-			return out, registryChange(d, false), nil
+			changed, err := admitRegistrySpelling(d, e.Spelling)
+			if err != nil {
+				return fail(err)
+			}
+			if !changed {
+				return out, registryChange(*d, false), nil
+			}
+			change = registryChange(*d, true)
+			break
 		}
 		if len(out.Documents) >= registryMaxDocuments {
 			return fail(registryLimit())
@@ -201,6 +258,9 @@ func (r RegistryState) transition(e RegistryEvent) (RegistryState, RegistryChang
 		}
 		if len(d.Paths) > registryMaxPaths {
 			return fail(registryLimit())
+		}
+		if _, err := admitRegistrySpelling(&d, e.Spelling); err != nil {
+			return fail(err)
 		}
 		out.Documents = append(out.Documents, d)
 		change = registryChange(d, true)
@@ -222,6 +282,11 @@ func (r RegistryState) transition(e RegistryEvent) (RegistryState, RegistryChang
 					prev := d.Paths[len(d.Paths)-2]
 					if prev.File == e.Old || prev.Spelling == e.Old {
 						return out, registryChange(d, false), nil
+					}
+					for _, spelling := range prev.Spellings {
+						if spelling == e.Old {
+							return out, registryChange(d, false), nil
+						}
 					}
 				}
 			}

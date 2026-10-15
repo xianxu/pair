@@ -79,7 +79,14 @@ func OwedForDocument(rows []Entry, st State, file string, paths []PathInterval, 
 					if addressedAt.Before(binding.From) || (binding.Until != nil && !addressedAt.Before(*binding.Until)) {
 						continue
 					}
-					if canonical(p) == binding.File || p == binding.Spelling {
+					spellingMatches := p == binding.Spelling
+					for _, alias := range binding.Spellings {
+						if p == alias {
+							spellingMatches = true
+							break
+						}
+					}
+					if canonical(p) == binding.File || spellingMatches {
 						matches = true
 						break
 					}
