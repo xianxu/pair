@@ -268,3 +268,23 @@ func FuzzQoderSubmissionEvidence(f *testing.F) {
 		}
 	})
 }
+
+func TestPeerQoderQuarantineRefusalPrecedesPickerHold(t *testing.T) {
+	r := newQoderReceiver(t, 99)
+	r.firstSubmit()
+	r.now = r.now.Add(couchmessage.DeliveryTimeout)
+	r.dispatch()
+	next := peerTestMessage(r.now)
+	next.ID = "quarantined-with-picker"
+	if err := r.d.reserve(next.ID, r.d.sequence); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.d.enqueue(next); err != nil {
+		t.Fatal(err)
+	}
+	r.f.proxy.pickerActive.Store(true)
+	r.dispatch()
+	if r.d.receipt().Status != couchmessage.Cancelled || !strings.Contains(r.d.receipt().Detail, "press Enter or clear it") || r.pastes != 1 {
+		t.Fatalf("quarantine became a picker hold: %+v", r.d.receipt())
+	}
+}

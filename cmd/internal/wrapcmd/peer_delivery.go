@@ -440,6 +440,11 @@ func (p *proxy) dispatchPeer(out io.Writer) {
 		event.Kind = couchmessage.PeerImageInput
 	case d.interrupted:
 		event.Kind = couchmessage.PeerOperatorInput
+	case !automaticAvailable && p.automaticInput.phase == automaticInputNeedsOperator:
+		// Quarantine is already a terminal recovery decision, not another
+		// operator hold. Refuse without touching input even under a picker.
+		event.Kind = couchmessage.PeerAutomaticInputBlocked
+		event.Ready = p.automaticInput.residueCause == couchmessage.AutomaticInputStallUnsubmittedComposer
 	case p.pickerActive.Load() && d.current.Status == couchmessage.Delivering:
 		event.Kind = couchmessage.PeerOverlayObserved
 	case p.pickerActive.Load():
@@ -449,13 +454,8 @@ func (p *proxy) dispatchPeer(out io.Writer) {
 		d.current.Detail = d.pickerHoldDetailLocked(p.pickerEpisode.Load(), p.agentTail)
 		return
 	case !automaticAvailable:
-		if p.automaticInput.phase == automaticInputNeedsOperator {
-			event.Kind = couchmessage.PeerAutomaticInputBlocked
-			event.Ready = p.automaticInput.residueCause == couchmessage.AutomaticInputStallUnsubmittedComposer
-		} else {
-			d.current.Detail = "waiting for previous automatic input: " + p.automaticInputCause
-			return
-		}
+		d.current.Detail = "waiting for previous automatic input: " + p.automaticInputCause
+		return
 	case d.replies.inFlight > 0:
 		d.current.Detail = "waiting for forwarded input"
 		return
