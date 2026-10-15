@@ -205,3 +205,56 @@ these superseding changes:
   for the hub/operator's morning restart.
 
 This supersedes the original single-boundary task heading and close instruction.
+
+### 2026-10-15 — plan-quality round 1 dispositions
+
+**PQ-1 (ownership-survives-owner-handoff), addressed:** supersede the reservation
+removal-on-readiness rule. The durable native admission entry remains while its
+native writer can exist, even after successful readiness. Its tagged states are
+reserved (exact Pair helper), spawning (exact wrapper; child identity not yet
+known), and running (exact wrapper plus native child PID/start identity).
+Before native start, the wrapper commits spawning; after spawn it publishes the
+exact child's PID/start identity under the same native key and attempt CAS.
+Running reservations are reclaimed only when the recorded native child AND
+wrapper are proved dead; wrapper death alone never releases a live or unknown
+child. A spawning entry whose wrapper dies before publishing child identity
+remains unresolved, including across Couch restarts: no timeout-based release or
+native relaunch. Fresh under a different native identity stays reachable; a
+bounded store is preferable to inventing death evidence. Reserved entries may be
+released only before wrapper execution is possible, or after the exact pending
+launch is fenced and its attributed launch tree proved absent. Ownership checks
+for pre-upgrade writers remain necessary alongside this common-boundary guard.
+
+`AdvanceNativeAdmission` is the pure transition authority; every mutation of the
+portable admission store calls it while holding its global store lock. Sequence
+tests control handoff, wrapper death, surviving/reparented child, delayed child
+publication and duplicate/late completion. The independent invariant is that
+no second admission of the same native identity succeeds while the first
+writer's death is unproved. A running entry holds only a bounded identity tuple,
+not a transcript or screen; explicit retirement and next admission collect exact
+dead generations. This applies to M2, not the M1 confirmation milestone.
+
+**PQ-2 (function-level-test-strategy), addressed:** the test cases in the
+original task prose are illustrative only; the following named-function
+strategies replace them as the implementation/testing contract:
+
+| Production functions | Adversarial strategy and mechanical oracle |
+|---|---|
+| `DecideSlotRecovery`, new `DecidePreparedRecovery` | Generate combinations of selection kind, incomplete evidence and owner knowledge; assert Continue requires positive listing, inference is explicit, Fresh remains offered |
+| `ValidateRecoveryContext`, `ValidateRecoveryIntent`, `DecodePersisted` | Fuzz strict tagged/versioned records and malformed physical-file references; assert old native authority never weakens and future versions never gain write authority |
+| New `AdvanceRecoveryExecution` | Drive all external completion/cancellation/drift orderings through the reducer; assert preservation precedes effects, each attempt launches at most once, and uncertainty never becomes absence |
+| New `AdvanceRecoveryConfirmation`, capability store `Issue`/`Consume` | Fake-clock/entropy event sequences and binding substitution; assert expiry, single consumption and exact actor/selection/stop-set match before any signal |
+| `startInFlight`, new `DecideStaleStart`, `AdvanceStartTransaction` | Clock and delayed old-driver events around the five-minute bound; assert expiry exposes an action but never kills the supervisor or grants a stale nonce authority |
+| `ResumeCandidate` and shared prepared executor | Stateful portable store/process/runner worlds with barriers between preservation, CAS and effects; assert selected native identity, no unaccepted signal and evidence retention under interruption |
+| `attributeRecoveryServers`, terminal driver `prepare`/`retire` | Mutate process identity/ancestry and membership at each lease/signal boundary; assert only the accepted set may be signalled and unknown/foreign members remain untouched |
+| `ValidateRecoveryAuthority`, `launchTrackedThread` | Delay or lose exact-attempt registration and mutate the claim before native exec; assert no duplicate launch, no uncertain destructive cleanup and no stale authority |
+| `ParseCLI`, `ValidateRequest`, `PrepareSlotOperation`, `reduceRecoveryKey` | Closed-shape generation plus actor/target/token substitution; assert menu/CLI dispatch the same prepared owner and Fresh never emits an empty candidate command |
+| `AdvanceNativeAdmission` and common Pair/wrapper admission adapter | Two-slot barriers and controlled handoff/death/publication sequences; assert same-ID exclusion, different-ID independence and retention through unknown child liveness |
+
+**PQ-3 (external-conformance-cadence), addressed:** run opt-in scratch lifecycle
+conformance after changes to native CLI composition, readiness, Zellij lifecycle
+or OS process attribution, before that change's release. The implementing slot
+records headless conformance evidence; the hub schedules the operator restart
+check. CI's ordinary suite runs the same portable stateful seams without live
+agents. Morning acceptance is the first release check, not an unattended cron
+or permission to touch working slots.
