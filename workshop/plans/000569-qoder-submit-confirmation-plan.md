@@ -85,3 +85,9 @@ The final unreconciled-input policy is awaiting TL confirmation: safe bounded es
 ## Approval
 
 TL approval of this plan, retry budget and terminal residual-input policy is pending. No implementation begins before approval and sdlc change-code.
+
+## Revisions
+
+### 2026-10-15 — TL approval and exact envelope authority
+
+TL approved plan 967b13cdbf243d945d13986c1d0864c2bc906cad (receipt c4ac5b82-afee-4dfe-8a1e-70a9c5c367db), including three attempts >=500 ms apart inside the existing 30 s window and the explicit terminal-residue policy. Every retry additionally requires that the rendered Qoder composer still holds exactly the envelope Couch typed (earlier refinement 84d5bf3e-f2ba-4f7b-a483-c65b528689f6). Match the full qualified composer, never just a prefix/header or whitespace-stripped substring; if wrapping/truncation makes exact ownership unverifiable, do not retry. Human admission, changed text, unknown/partial frames and overlays revoke retry. The live check must run before landing and be coordinated with TL; Qoder's cheap window is 07:00–17:00 PDT.
