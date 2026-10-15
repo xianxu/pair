@@ -1101,3 +1101,12 @@ No follow-up implementation starts on this branch.
   stage remain untouched for hub-owned restaging; no stage mutation will occur.
   Do not claim a submitted receipt or repeat the message. Normal final suite
   and whole-issue close still precede landing; GitHub access works again.
+
+- Final required suite on8d3e50e50 PASSED and was recorded as sdlc-local/suite:
+  exit0 in10m38s; log SHA256 fc023be79c3165e7addd69170115ecef48b53caf62d749d6d30cb48ab4677c17.
+  Core312.920s, cmd65.239s, tty38.799s, launcher16.205s, wrap56.552s;
+  all shell/editor/packaging/Go checks passed. This is recorded gate evidence,
+  unlike the failed API publication on the prior run. Runtime remains M1-SHIP;
+  post-boundary changes are fixture corrections and main's ignore/docs merge.
+  Proceed to ordinary whole-issue close and landing; pair:0 stage remains
+  untouched for the hub's combined restage with #559.
