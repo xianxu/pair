@@ -2,7 +2,6 @@ package couchtty
 
 import (
 	"fmt"
-	"slices"
 	"strconv"
 	"strings"
 
@@ -49,7 +48,6 @@ func reduceRecoveryPreview(state MenuState, event MenuEvent) (MenuState, []MenuE
 	if event.Error != "" || event.RecoveryPreview == nil {
 		state.Notice = errorMenuNotice(event.Error)
 		frame.RecoveryPreview = &couchcore.RecoveryPreview{Address: frame.Thread, Incomplete: true, Reasons: []string{event.Error, "Conversation evidence unavailable; starting fresh may lose working context."}, Fresh: &couchcore.RecoveryChoice{Label: "Start fresh"}}
-		restrictRecoveryChoices(&state, frame)
 		frame.SelectedItem = "0"
 		return state, nil
 	}
@@ -61,26 +59,8 @@ func reduceRecoveryPreview(state MenuState, event MenuEvent) (MenuState, []MenuE
 		preview.Fresh = &fresh
 	}
 	frame.RecoveryPreview = &preview
-	restrictRecoveryChoices(&state, frame)
 	frame.SelectedItem = "0"
 	return state, nil
-}
-
-// M1 retains evidence without presenting a lifecycle choice whose current
-// admission refuses. M2 adds confirmation-safe retirement for these owners.
-func restrictRecoveryChoices(state *MenuState, frame *MenuFrame) {
-	preview := frame.RecoveryPreview
-	row, known := menuThreadTarget(*state, frame.RowKey, frame.Thread)
-	if !known || row.State == couchcore.ThreadBusy {
-		for i := range preview.Candidates {
-			preview.Candidates[i].Key = ""
-		}
-		preview.Fresh = nil
-		return
-	}
-	if preview.Fresh != nil && preview.Fresh.Key == "" && !slices.Contains(menuActionItems(row), "reboot") {
-		preview.Fresh = nil
-	}
 }
 
 func reduceRecoveryKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
@@ -109,7 +89,8 @@ func reduceRecoveryKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) 
 		if choice.Key == "" {
 			if choice.NativeID == "" {
 				if row, ok := menuThreadTarget(state, frame.RowKey, frame.Thread); ok {
-					return dispatchMenuRow(state, "reboot", row)
+					args := couchcore.ActorOperationArgs(row, "reboot")
+					return dispatchMenuOperation(state, MenuEffect{Operation: "reboot", Args: args}, row.Address)
 				}
 			}
 			return state, nil

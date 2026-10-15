@@ -69,7 +69,11 @@ func runResumeCandidatesCLI(inv cliInvocation, rt Runtime, out, diagnostic io.Wr
 		if c.NativeID != "" {
 			evidence = fmt.Sprintf("matched %d/%d · tail %.0f%%", c.Matched, c.Total, c.TailMatch)
 		}
-		fmt.Fprintf(out, "%d. %s [%s] %s\n   last activity %s · %s\n   %s\n   couch --resume %s --candidate %s\n", i+1, rowtext.Sanitize(label), rowtext.Sanitize(c.Agent), rowtext.Sanitize(c.NativeID), activity, evidence, rowtext.Sanitize(c.Excerpt), inv.ref, c.Key)
+		command := "couch --resume " + inv.ref + " --candidate " + c.Key
+		if c.Key == "" {
+			command = couchcore.SlotOperationCommand("reboot", inv.ref)
+		}
+		fmt.Fprintf(out, "%d. %s [%s] %s\n   last activity %s · %s\n   %s\n   %s\n", i+1, rowtext.Sanitize(label), rowtext.Sanitize(c.Agent), rowtext.Sanitize(c.NativeID), activity, evidence, rowtext.Sanitize(c.Excerpt), command)
 	}
 	for _, reason := range preview.Reasons {
 		fmt.Fprintln(out, rowtext.Sanitize(reason))

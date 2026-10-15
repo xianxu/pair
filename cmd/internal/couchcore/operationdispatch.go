@@ -315,17 +315,19 @@ func CouchLiveOwnerExecutor(c *Couch) OperationExecutor {
 				args = *argv
 			}
 			return c.SwitchAgent(ctx, SwitchAgentRequest{Address: address, Agent: a["agent"], KnownConfig: known, Argv: args, AcceptedFingerprint: a["fingerprint"], Source: a["source"]})
+		case "recovery-confirmation":
+			return c.ConfirmRecovery(ctx, a["token"])
 		case "reboot":
-			if path := a["path"]; path != "" {
-				return c.Reboot(ctx, RebootTarget{Path: path, Agent: a["agent"], RequireSettled: a[requireSettledArg]})
+			target, err := resolveRecoveryOperationTarget(ctx, c, a)
+			if err != nil && a["tag"] != "" {
+				var address ThreadAddress
+				address, err = resolveThreadForArchive(c, a)
+				target = ResumeTarget{Address: address}
 			}
-			// Exact-tag addressing reaches unreadable records too: an
-			// unreadable :0 is the case reboot archives on its own.
-			address, err := resolveThreadForArchive(c, a)
 			if err != nil {
 				return nil, err
 			}
-			return c.Reboot(ctx, RebootTarget{Address: address, Agent: a["agent"], RequireSettled: a[requireSettledArg]})
+			return c.RecoverSelection(ctx, RecoverySelection{Target: target, Kind: RecoveryFresh, Reference: a["ref"]})
 		case "reap":
 			if path := a["path"]; path != "" {
 				return c.Reap(ctx, ReapTarget{Path: path})
@@ -460,7 +462,7 @@ func CouchLiveOwnerExecutor(c *Couch) OperationExecutor {
 				if err != nil {
 					return nil, err
 				}
-				return c.ResumeCandidate(ctx, target, key)
+				return c.RecoverSelection(ctx, RecoverySelection{Target: target, Kind: RecoveryInferred, CandidateKey: key, Reference: a["ref"]})
 			}
 			// warm-only is the background reattach pass, and it stays a direct
 			// warm-only resume: no route may start an agent behind the
@@ -476,27 +478,11 @@ func CouchLiveOwnerExecutor(c *Couch) OperationExecutor {
 				}
 				return StartResult{Record: record, Handle: handle}, nil
 			}
-			if path := a["path"]; path != "" {
-				return c.ResumeTarget(ctx, ResumeTarget{Path: path})
-			}
-			if a["tag"] == "" && c.Slots != nil {
-				ref, recognized, err := ParseWorkspaceReference(a["ref"])
-				if err != nil {
-					return nil, err
-				}
-				if recognized && ref.Number > 0 {
-					path, _, err := c.WorkspaceReferencePath(ctx, a["ref"])
-					if err != nil {
-						return nil, err
-					}
-					return c.ResumeTarget(ctx, ResumeTarget{Path: path})
-				}
-			}
-			address, err := resolveOperationThread(c, a)
+			target, err := resolveRecoveryOperationTarget(ctx, c, a)
 			if err != nil {
 				return nil, err
 			}
-			return c.ResumeTarget(ctx, ResumeTarget{Address: address})
+			return c.RecoverSelection(ctx, RecoverySelection{Target: target, Kind: RecoveryProven, Reference: a["ref"]})
 		case "switch", "attach", "move-slot":
 			return nil, fmt.Errorf("%s requires an active couch console", call.Operation.Name)
 		default:
@@ -554,6 +540,10 @@ func resolveOperationThread(c *Couch, args map[string]string) (ThreadAddress, er
 }
 
 func resolveRecoveryOperationTarget(ctx context.Context, c *Couch, args map[string]string) (ResumeTarget, error) {
+	if args["tag"] != "" {
+		args = cloneStringMap(args)
+		delete(args, "ref")
+	}
 	if path := args["path"]; path != "" {
 		return ResumeTarget{Path: path}, nil
 	}

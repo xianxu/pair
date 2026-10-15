@@ -3,6 +3,7 @@ package couchmessage
 import (
 	"errors"
 	"fmt"
+	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"time"
 )
 
@@ -40,14 +41,16 @@ const ReceiptRetention = 5 * time.Minute
 
 // OperationReceipt is the typed outcome of one resume or reboot request.
 type OperationReceipt struct {
-	ToHub        string `json:",omitempty"`
-	Persist      bool   `json:",omitempty"`
-	ID           string
-	Op           string
-	Target       string
-	Agent        string `json:",omitempty"`
-	CandidateKey string `json:",omitempty"`
-	Status       ReceiptStatus
+	RecoveryConfirmation string                               `json:",omitempty"`
+	Confirmation         *couchcore.RecoveryConfirmationOffer `json:",omitempty"`
+	ToHub                string                               `json:",omitempty"`
+	Persist              bool                                 `json:",omitempty"`
+	ID                   string
+	Op                   string
+	Target               string
+	Agent                string `json:",omitempty"`
+	CandidateKey         string `json:",omitempty"`
+	Status               ReceiptStatus
 	// Code is a refusal's code (SlotOperationError's, e.g. not-offered).
 	Code string `json:",omitempty"`
 	// Detail is the refusal's or failure's factual text.
@@ -86,12 +89,14 @@ const (
 
 // ReceiptOutcome is a finish event's terminal result.
 type ReceiptOutcome struct {
+	Confirmation                                           *couchcore.RecoveryConfirmationOffer
 	Status                                                 ReceiptStatus
 	Code, Detail, Diagnostic, Tag, Archived, Warning, Path string
 }
 
 // ReceiptEvent drives ApplyReceiptEvent.
 type ReceiptEvent struct {
+	RecoveryConfirmation                string
 	ToHub                               string
 	Persist                             bool
 	Kind                                ReceiptEventKind
@@ -120,9 +125,9 @@ func ApplyReceiptEvent(r OperationReceipt, e ReceiptEvent) (OperationReceipt, er
 		return r, nil
 	case ReceiptAdmit:
 		if r.Status == ReceiptNone {
-			return OperationReceipt{ID: e.ID, Op: e.Op, Target: e.Target, Agent: e.Agent, CandidateKey: e.CandidateKey, ToHub: e.ToHub, Persist: e.Persist, Status: ReceiptQueued, Admitted: e.At}, nil
+			return OperationReceipt{ID: e.ID, Op: e.Op, Target: e.Target, Agent: e.Agent, CandidateKey: e.CandidateKey, RecoveryConfirmation: e.RecoveryConfirmation, ToHub: e.ToHub, Persist: e.Persist, Status: ReceiptQueued, Admitted: e.At}, nil
 		}
-		if e.Op != r.Op || e.Target != r.Target || e.Agent != r.Agent || e.CandidateKey != r.CandidateKey || e.ToHub != r.ToHub || e.Persist != r.Persist {
+		if e.RecoveryConfirmation != r.RecoveryConfirmation || e.Op != r.Op || e.Target != r.Target || e.Agent != r.Agent || e.CandidateKey != r.CandidateKey || e.ToHub != r.ToHub || e.Persist != r.Persist {
 			return r, ErrReceiptIDConflict
 		}
 		return r, nil
@@ -140,6 +145,7 @@ func ApplyReceiptEvent(r OperationReceipt, e ReceiptEvent) (OperationReceipt, er
 			return refuse("finish without a terminal outcome")
 		}
 		o := e.Outcome
+		r.Confirmation = o.Confirmation
 		r.Status, r.Code, r.Detail, r.Diagnostic, r.Tag, r.Archived, r.Warning, r.Path, r.Finished = o.Status, o.Code, o.Detail, o.Diagnostic, o.Tag, o.Archived, o.Warning, o.Path, e.At
 		return r, nil
 	case ReceiptExpire:

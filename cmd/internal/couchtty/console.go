@@ -1973,6 +1973,10 @@ func (c *Console) finishOperation(completed operationCompletion) bool {
 		Background: completed.origin.Background,
 	}
 	if err != nil {
+		var required *couchcore.RecoveryConfirmationRequired
+		if errors.As(err, &required) {
+			event.RecoveryConfirmation = &required.Offer
+		}
 		event.Error = couchcore.OperatorError(err)
 		// A code, so the pass tells a skip from a failure without matching text.
 		event.Diagnostic = couchcore.ResumeDiagnosticOf(err)

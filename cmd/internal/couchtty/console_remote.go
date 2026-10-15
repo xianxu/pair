@@ -69,7 +69,10 @@ func (c *Console) EnqueueRemoteOperation(key, op string, prepare func(context.Co
 			if call.Name != op {
 				return nil, fmt.Errorf("prepared %q for a %s request", call.Name, op)
 			}
-			call.Implicit, call.Context = true, ctx
+			call.Implicit = true
+			if call.Context == nil {
+				call.Context = ctx
+			}
 			remote.call = call
 			// A repeated resume can reuse this console's actual pane. A live
 			// registry PID alone cannot prove ownership of its terminal handle.
