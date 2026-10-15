@@ -1261,3 +1261,139 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-14T17:30:09-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 528 — couch: resume a slot whose conversation binding is unproven: infer it from transcripts and the tty log, or start fresh oriented from the tty log |
+| repo | pair |
+| issue file | workshop/issues/000528-couch-resume-a-slot-whose-conversation-binding-is-unproven-infer-it-from-transcripts-and-the-tty-log-or-start-fresh-oriented-from-the-tty-log.md |
+| boundary | milestone M1 |
+| milestone | M1 |
+| window | e272745337452f9b3df2949e5c4a6faa97c85d59..db08fb6474c10298ce7b8642f29ed773746e3a7c |
+| command | sdlc milestone-close --issue 528 --milestone M1 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-14T17:30:09-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The revised M1 contract is implemented, and BR-14 is addressed with meaningful regression evidence. Automatic attachment now uses bounded metadata reads through both Couch’s repair path and the launched Pair helper. Removing those fixes in a disposable checkout reproduced failures. No new blocking findings emerged; remaining recovery execution and endpoint repair are explicitly assigned to #556 and #557.
+
+```findings
+dispose:
+  - id: BR-14
+    disposition: addressed
+    note: |
+      Repair uses preview routing and contextual bounded reads; the downstream Pair helper bounds optional metadata and skips unrelated migration/index housekeeping. Production attachment regressions pass, including race runs. Reverting the repair fix reproduced a 203.8ms FIFO stall under a 50ms deadline; reverting helper fixes failed ledger, agent, index, draft, poller and quit cases. Disposable checkout removed.
+  - id: BR-1
+    disposition: addressed
+    note: |
+      SessionUnresolved remains distinct from absence; positive listing alone authorizes Continue. Session-presence and projection regressions pass.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Exact process-generation checks remain on ownership-sensitive paths. Revised Continue authority deliberately uses positive terminal listing; launcher identity and retained-readiness tests pass.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Policy admission is removed under the revised contract. Remaining cold readiness reads use bounded regular metadata IO with caller context.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      TerminalLease retains the fixed 256-stripe inode layout in artifactpath/session_lock.go. Artifactpath tests pass.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      Shared bounded metadata admission remains in place; the latest attachment correction reuses it. Full osfs tests pass.
+  - id: BR-9
+    disposition: addressed
+    note: |
+      Listed-live Continue bypasses native launch-profile and binding prerequisites through the selected warm attachment route; focused warm attachment tests pass.
+  - id: BR-10
+    disposition: addressed
+    note: |
+      README.md:395 documents requested-hub startup, background Continue attachment, bounded retry and visible pane failures. These match run.go and menu_reattach.go.
+  - id: BR-11
+    disposition: addressed
+    note: |
+      Startup integration uses rendered VT screen observations and separates attempt counts from visible failure assertions. StartupWarm tests pass normally and under the race detector.
+  - id: BR-12
+    disposition: addressed
+    note: |
+      Broker record callbacks use PreviewThreadContext. Preview regressions verify pending journals and retained records remain unchanged.
+  - id: BR-13
+    disposition: addressed
+    note: |
+      Preview routing and payload reads use shared bounded metadata readers, preserving descriptor-relative local access. Preview FIFO, cancellation and inspection regressions pass.
+  - id: BR-15
+    disposition: addressed
+    note: |
+      Obsolete reader adapters are removed; the complete artifactpath suite, including the production-symbol guard, passes.
+```
+
+### 1. Strengths
+
+- [warm_attach_repair.go:46](cmd/internal/couchcore/warm_attach_repair.go:46) keeps repair narrowly scoped: revision checks, exact helper identity, claim preservation and cancellation before publication.
+- [selected_attach_metadata_test.go:61](cmd/internal/launcher/selected_attach_metadata_test.go:61) exercises production filesystem methods through `RunLaunch` and `runOnce`; mutations demonstrate that it detects real blocking behavior.
+- [metadata_read.go:112](cmd/internal/osfs/metadata_read.go:112) shares descriptor-based bounded reading across consumers without reopening admitted local paths.
+- README and atlas updates describe the changed startup and attachment behavior.
+
+### 2. Critical findings
+
+None.
+
+### 3. Important findings
+
+None.
+
+### 4. Minor findings
+
+None requiring follow-up.
+
+### 5. Test coverage notes
+
+Passed:
+
+- Complete launcher, couchmessage, couchtty, artifactpath and osfs suites.
+- Focused couchcore/couchcmd attachment, preview, projection and startup regressions.
+- Targeted race tests for helper metadata, warm-only attachment and startup.
+- Two disposable-checkout mutation checks, both failing as expected without the fixes.
+
+The complete repository suite and opt-in live conformance were not rerun. The pinned checkout remained unchanged.
+
+### 6. Architectural notes
+
+- **ARCH-DRY — pass:** consumers reuse shared metadata IO and existing attachment machinery.
+- **ARCH-PURE — pass:** projection and registry transitions remain pure; filesystem admission stays in adapters.
+- **ARCH-PURPOSE — pass:** the bounded-read rule covers parent repair and downstream helper consumers.
+- **ARCH-MOCK — pass:** stateful terminal/process seams exercise production decisions; existing live conformance remains available.
+- **ARCH-CONSTRAINTS — pass:** size/type admission, bounded retries and cancellation have regression coverage.
+- **ARCH-SECURE — pass:** metadata admission rejects special files and substituted symlinks; local reads retain descriptor authority.
+- **ARCH-ORDER — pass:** identity/revision rechecks preserve uncertainty and prevent cancelled repair publication.
+- **ARCH-FUNERAL — pass:** no new durable artifact family; repair staging and fixed lock stripes retain defined lifecycles.
+
+### 7. Plan revision recommendations
+
+None. The appended revisions reconcile the final M1 behavior and explicitly preserve the deferred M2/M3 scope.
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 4.109771959s
+head: "db08fb6474c10298ce7b8642f29ed773746e3a7c"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

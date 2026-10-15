@@ -1447,6 +1447,261 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-v1
+        repository: github.com/xianxu/pair
+        code_head: db08fb6474c10298ce7b8642f29ed773746e3a7c
+        tracker_head: d77d1fcb79ac8913c853877c9dd948a304811a41
+        branch_point: c07a31921d66b891e36ae300e266bd7794bede3e
+        since: "2026-10-13T08:57:28-07:00"
+        until: "2026-10-14T17:26:35-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-13T08:57:28-07:00"
+              end: "2026-10-14T17:26:35-07:00"
+              began: "2026-10-13T08:57:28-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot2/pair
+        sources:
+            - harness: codex
+              id: 01a133a3-eaec-77b3-8c1e-dc4ac6b41fbd
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: efa33460ad3fe045a3e4d8a9831e637e989f1741b1e1e0e752ae356395fc3feb
+              started: "2026-10-13T05:05:19.479Z"
+              spawned: false
+              bytes: 48727308
+              windows:
+                - start: "2026-10-13T08:57:28-07:00"
+                  end: "2026-10-14T17:26:35-07:00"
+            - harness: codex
+              id: 01a13604-7f67-7c71-8862-d652ff00507c
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              parent_id: 01a133a3-eaec-77b3-8c1e-dc4ac6b41fbd
+              digest: b41b7a545560a75e22708b5d1399ed0c43c186a6cae81a5f61981dddcb7c3c26
+              started: "2026-10-13T16:07:06.952Z"
+              spawned: true
+              bytes: 687525
+              windows:
+                - start: "2026-10-13T16:07:06.952Z"
+                  end: "2026-10-14T17:26:35-07:00"
+            - harness: codex
+              id: 01a1361a-aa08-77d0-8a39-fcac18d7aec7
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: 048dd253370c5d447ca62a2e36eea18b6389d43cdaf73fa89d7cfafd6434d5f5
+              started: "2026-10-13T16:31:19.827Z"
+              spawned: false
+              bytes: 782141
+              windows:
+                - start: "2026-10-13T16:31:19.827Z"
+                  end: "2026-10-14T17:26:35-07:00"
+            - harness: codex
+              id: 01a1361e-8991-7f03-8a7b-3d5973745b61
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: 92b2c39dd8e4cb64ba521e35394d47eca35dfc839b69df5ad0f8afee6011c7f5
+              started: "2026-10-13T16:35:33.749Z"
+              spawned: false
+              bytes: 538951
+              windows:
+                - start: "2026-10-13T16:35:33.749Z"
+                  end: "2026-10-14T17:26:35-07:00"
+            - harness: codex
+              id: 01a13620-2019-7901-9606-4ef4c7d27b1c
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: 2df34f8d5aa5d7b6c236ce7bc2e70e77e4c35f5180e6f7addab471e95be82791
+              started: "2026-10-13T16:37:17.75Z"
+              spawned: false
+              bytes: 541231
+              windows:
+                - start: "2026-10-13T16:37:17.75Z"
+                  end: "2026-10-14T17:26:35-07:00"
+            - harness: codex
+              id: 01a13620-de40-7632-a9af-061a59f0a52b
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: a3f94580afaea679dbf2cecb0237c4d6ec3d2ae1ef8542ff997cd18a35b3043f
+              started: "2026-10-13T16:38:06.405Z"
+              spawned: false
+              bytes: 521917
+              windows:
+                - start: "2026-10-13T16:38:06.405Z"
+                  end: "2026-10-14T17:26:35-07:00"
+            - harness: codex
+              id: 01a13883-ab89-7992-ab0c-79b093c13b95
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: 750bd23d4285903b71f354129fa6927c5a9776752ffc18e2b00d5ee3b3a5ed3f
+              started: "2026-10-14T03:45:15.863Z"
+              spawned: false
+              bytes: 831906
+              windows:
+                - start: "2026-10-14T03:45:15.863Z"
+                  end: "2026-10-14T17:26:35-07:00"
+            - harness: codex
+              id: 01a13884-4286-73c2-b7b2-17540c9cac4a
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: ee61a169ede4b6e959c5a65aee80abf76ddc3a35ff0c484a0eada3b4c77eca0a
+              started: "2026-10-14T03:45:54.508Z"
+              spawned: false
+              bytes: 492551
+              windows:
+                - start: "2026-10-14T03:45:54.508Z"
+                  end: "2026-10-14T17:26:35-07:00"
+            - harness: codex
+              id: 01a13b23-d0ac-7b81-a844-510e6c4484bd
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              parent_id: 01a133a3-eaec-77b3-8c1e-dc4ac6b41fbd
+              digest: f07276c3f1f2a878bd46f3a6826fb7f4c5af2c6a612932c861ea476e2c97e4a9
+              started: "2026-10-14T15:59:25.5Z"
+              spawned: true
+              bytes: 6304730
+              windows:
+                - start: "2026-10-14T15:59:25.5Z"
+                  end: "2026-10-14T17:26:35-07:00"
+            - harness: codex
+              id: 01a13b23-eb0b-7642-9e0f-496f67490264
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              parent_id: 01a133a3-eaec-77b3-8c1e-dc4ac6b41fbd
+              digest: cc6243fd7178ee354ca679c48f70fe4c573eb09eba800d5f94831a0a98f49efc
+              started: "2026-10-14T15:59:32.235Z"
+              spawned: true
+              bytes: 2730708
+              windows:
+                - start: "2026-10-14T15:59:32.235Z"
+                  end: "2026-10-14T17:26:35-07:00"
+            - harness: codex
+              id: 01a13b24-1965-7260-926a-536a068a83f7
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              parent_id: 01a133a3-eaec-77b3-8c1e-dc4ac6b41fbd
+              digest: eecfb2a3b6b9b0a5e5a2ed4d11ff5b40bc447fc96c3291c31b4961af1048c94d
+              started: "2026-10-14T15:59:44.113Z"
+              spawned: true
+              bytes: 5680675
+              windows:
+                - start: "2026-10-14T15:59:44.113Z"
+                  end: "2026-10-14T17:26:35-07:00"
+        excluded_brain_sessions: 1
+        excluded_brain_minutes: 75.37058333333333
+        cuts:
+            - boundary: M1
+              dispatched: "2026-10-13T10:58:01-07:00"
+              finalized: "2026-10-13T11:01:13-07:00"
+              finalizing: false
+            - boundary: M1
+              dispatched: "2026-10-13T11:30:13-07:00"
+              finalized: "2026-10-13T11:34:12-07:00"
+              finalizing: false
+            - boundary: M1
+              dispatched: "2026-10-13T12:03:38-07:00"
+              finalized: "2026-10-13T12:06:16-07:00"
+              finalizing: true
+            - boundary: M2
+              dispatched: "2026-10-13T13:20:56-07:00"
+              finalized: "2026-10-13T13:26:16-07:00"
+              finalizing: false
+            - boundary: M2
+              dispatched: "2026-10-13T13:34:13-07:00"
+              finalized: "2026-10-13T13:39:34-07:00"
+              finalizing: false
+            - boundary: M2
+              dispatched: "2026-10-13T13:44:33-07:00"
+              finalized: "2026-10-13T13:49:02-07:00"
+              finalizing: true
+            - boundary: M1
+              dispatched: "2026-10-13T21:37:49-07:00"
+              finalized: "2026-10-13T21:42:34-07:00"
+              finalizing: false
+            - boundary: M1
+              dispatched: "2026-10-13T22:08:52-07:00"
+              finalized: "2026-10-13T22:11:38-07:00"
+              finalizing: false
+            - boundary: M1
+              dispatched: "2026-10-13T22:56:16-07:00"
+              finalized: "2026-10-13T23:03:06-07:00"
+              finalizing: false
+            - boundary: M1
+              dispatched: "2026-10-13T23:10:32-07:00"
+              finalized: "2026-10-13T23:12:54-07:00"
+              finalizing: false
+            - boundary: M1
+              dispatched: "2026-10-14T15:16:46-07:00"
+              finalized: "2026-10-14T15:20:38-07:00"
+              finalizing: false
+            - boundary: M1
+              dispatched: "2026-10-14T16:23:08-07:00"
+              finalized: "2026-10-14T16:27:24-07:00"
+              finalizing: false
+            - boundary: M1
+              dispatched: "2026-10-14T16:41:22-07:00"
+              finalized: "2026-10-14T16:44:45-07:00"
+              finalizing: false
+            - boundary: M1
+              dispatched: "2026-10-14T16:56:26-07:00"
+              finalized: "2026-10-14T17:01:36-07:00"
+              finalizing: false
+            - boundary: M1
+              dispatched: "2026-10-14T17:08:12-07:00"
+              finalized: "2026-10-14T17:16:10-07:00"
+              finalizing: false
+      "n": 16
+      timestamp: "2026-10-14T17:30:09-07:00"
+      dispatched: "2026-10-14T17:27:19-07:00"
+      agent: codex
+      dispose:
+        - id: BR-14
+          disposition: addressed
+          note: Repair uses preview routing and contextual bounded reads; the downstream Pair helper bounds optional metadata and skips unrelated migration/index housekeeping. Production attachment regressions pass, including race runs. Reverting the repair fix reproduced a 203.8ms FIFO stall under a 50ms deadline; reverting helper fixes failed ledger, agent, index, draft, poller and quit cases. Disposable checkout removed.
+          round: 16
+        - id: BR-1
+          disposition: addressed
+          note: SessionUnresolved remains distinct from absence; positive listing alone authorizes Continue. Session-presence and projection regressions pass.
+          round: 16
+        - id: BR-2
+          disposition: addressed
+          note: Exact process-generation checks remain on ownership-sensitive paths. Revised Continue authority deliberately uses positive terminal listing; launcher identity and retained-readiness tests pass.
+          round: 16
+        - id: BR-3
+          disposition: addressed
+          note: Policy admission is removed under the revised contract. Remaining cold readiness reads use bounded regular metadata IO with caller context.
+          round: 16
+        - id: BR-4
+          disposition: addressed
+          note: TerminalLease retains the fixed 256-stripe inode layout in artifactpath/session_lock.go. Artifactpath tests pass.
+          round: 16
+        - id: BR-5
+          disposition: addressed
+          note: Shared bounded metadata admission remains in place; the latest attachment correction reuses it. Full osfs tests pass.
+          round: 16
+        - id: BR-9
+          disposition: addressed
+          note: Listed-live Continue bypasses native launch-profile and binding prerequisites through the selected warm attachment route; focused warm attachment tests pass.
+          round: 16
+        - id: BR-10
+          disposition: addressed
+          note: README.md:395 documents requested-hub startup, background Continue attachment, bounded retry and visible pane failures. These match run.go and menu_reattach.go.
+          round: 16
+        - id: BR-11
+          disposition: addressed
+          note: Startup integration uses rendered VT screen observations and separates attempt counts from visible failure assertions. StartupWarm tests pass normally and under the race detector.
+          round: 16
+        - id: BR-12
+          disposition: addressed
+          note: Broker record callbacks use PreviewThreadContext. Preview regressions verify pending journals and retained records remain unchanged.
+          round: 16
+        - id: BR-13
+          disposition: addressed
+          note: Preview routing and payload reads use shared bounded metadata readers, preserving descriptor-relative local access. Preview FIFO, cancellation and inspection regressions pass.
+          round: 16
+        - id: BR-15
+          disposition: addressed
+          note: Obsolete reader adapters are removed; the complete artifactpath suite, including the production-symbol guard, passes.
+          round: 16
+      boundary: M1
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: db08fb6474c10298ce7b8642f29ed773746e3a7c
+      blocked: false
 ---
 
 # Gate ledger — pair#528 (boundary-review)
@@ -1650,6 +1905,23 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-12 — addressed — Broker thread, record, and agent callbacks use PreviewThreadContext; pending-journal preservation regressions pass.
 - BR-13 — addressed — Preview routing uses bounded contextual readers, including descriptor-relative local reads; FIFO, unsafe-byte, cancellation, and journal-preservation regressions pass.
 
+## Round 16 — 2026-10-14T17:30:09-07:00 (codex) — passed
+
+### Disposed
+
+- BR-14 — addressed — Repair uses preview routing and contextual bounded reads; the downstream Pair helper bounds optional metadata and skips unrelated migration/index housekeeping. Production attachment regressions pass, including race runs. Reverting the repair fix reproduced a 203.8ms FIFO stall under a 50ms deadline; reverting helper fixes failed ledger, agent, index, draft, poller and quit cases. Disposable checkout removed.
+- BR-1 — addressed — SessionUnresolved remains distinct from absence; positive listing alone authorizes Continue. Session-presence and projection regressions pass.
+- BR-2 — addressed — Exact process-generation checks remain on ownership-sensitive paths. Revised Continue authority deliberately uses positive terminal listing; launcher identity and retained-readiness tests pass.
+- BR-3 — addressed — Policy admission is removed under the revised contract. Remaining cold readiness reads use bounded regular metadata IO with caller context.
+- BR-4 — addressed — TerminalLease retains the fixed 256-stripe inode layout in artifactpath/session_lock.go. Artifactpath tests pass.
+- BR-5 — addressed — Shared bounded metadata admission remains in place; the latest attachment correction reuses it. Full osfs tests pass.
+- BR-9 — addressed — Listed-live Continue bypasses native launch-profile and binding prerequisites through the selected warm attachment route; focused warm attachment tests pass.
+- BR-10 — addressed — README.md:395 documents requested-hub startup, background Continue attachment, bounded retry and visible pane failures. These match run.go and menu_reattach.go.
+- BR-11 — addressed — Startup integration uses rendered VT screen observations and separates attempt counts from visible failure assertions. StartupWarm tests pass normally and under the race detector.
+- BR-12 — addressed — Broker record callbacks use PreviewThreadContext. Preview regressions verify pending journals and retained records remain unchanged.
+- BR-13 — addressed — Preview routing and payload reads use shared bounded metadata readers, preserving descriptor-relative local access. Preview FIFO, cancellation and inspection regressions pass.
+- BR-15 — addressed — Obsolete reader adapters are removed; the complete artifactpath suite, including the production-symbol guard, passes.
+
 ## Open findings
 
-- **BR-14** [Critical] `bounded-untrusted-artifact-reads` (kind: defect) Automatic warm attachment can block indefinitely in dead-client repair
+(none — every finding has been disposed)
