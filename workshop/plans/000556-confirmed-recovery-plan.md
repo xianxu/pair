@@ -484,3 +484,41 @@ same-ID and different-ID barrier, delayed wrapper, surviving child, cancellation
 PID reuse, capacity, uncertain publication and replay sequences. This completes
 the existing no-two-writers contract; it does not start the separate endpoint
 rebuild milestone or change the pending latest-provider policy question.
+
+
+### 2026-10-15 — pending decision: effective native selector configuration
+
+The approved resolve-and-pin policy is still the contract; no scope reduction is
+approved. Current exact canonical resume admission is implemented for all six
+agents. Ordinary measured latest is implemented for Claude/Qoder; production
+Codex latest intentionally returns Unsupported because its effective provider and
+SQLite home are not positively resolved. Grok/Muse/Agy latest ordering and special
+Claude/Qoder lifecycle/worktree scope remain unmapped. Do not claim those product
+paths work merely because a fixture can supply authoritative inputs.
+
+A private, unauthenticated Codex 0.162.1 experiment used only initialize,
+initialized and config/read, under private HOME/CODEX_HOME/cwd/environment, with
+no conversation/model request. [Exact bounded evidence](000556-codex-config-probe.md)
+records commands, protocol, timings, exit codes and created scratch paths. Native
+config/read honors supplied -c values and resolves config/CLI relative paths,
+but omits runtime defaults and CODEX_SQLITE_HOME. App-server rejects runtime
+--profile; ConfigReadParams offers only includeLayers/cwd. The ordinary inventory
+root also currently uses HOME/.codex/sessions rather than CODEX_HOME.
+
+Therefore there is no verified universal read-only configuration oracle. A
+possible explicit-launch-only adapter would start/reap a bounded native metadata
+server before resolving the exact ID, carry identical supported overrides/cwd,
+apply only source-proven missing-field/environment precedence, authorize the
+physical effective Codex transcript root, and refuse unmappable profile/remote
+scope. This is a proposed design delta, not code authorization: native server
+startup creates/migrates metadata databases, WAL/SHM, skills and plugin/temp state,
+with measured initialization 56–107ms in later cases and 1.75–1.78s in initial
+custom-provider cases. It cannot run in startup inventory/preview. It still does
+not supply faithful runtime-profile parity, and no production adapter was added.
+
+The hub must decide whether to approve that explicit-launch effect and its
+unsupported scope limits, approve a narrower milestone/follow-up split, or require
+a different faithful configuration source. Preserve existing native files and
+saved defaults; no silent mtime/default guesses and no latest bypass around
+admission. Until the decision, finish independent verification and checkpoint,
+but do not close M2 or land a known deviation from its approved selector contract.

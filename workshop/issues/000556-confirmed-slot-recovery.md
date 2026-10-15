@@ -608,6 +608,30 @@ strict-decoding correction. Its result cannot satisfy final code-head verificati
 The pending latest-selector scope decision may change code again, so final required
 suite/review/landing remain after that decision; no ancestor pass will be relabelled.
 
+### 2026-10-15 — M2 recorded integration pass and private config measurement
+
+The cancellation/split correction head
+`8b3274af5fe3b4cab7fa6b41cd4021faea145611` passed its required recorded suite:
+exit 0 in **9m25s**, log
+`/Users/xianxu/workspace/pair/.git/sdlc/local-checks/8b3274af5fe3b4cab7fa6b41cd4021faea145611/suite.log`,
+SHA-256 prefix **ab7907c786d9** (core 306.734s, launcher 34.215s,
+wrapper 65.721s). This is integration evidence, not final-head clearance, because
+the strict-decoding correction followed it. The required suite on
+`32c5e123535f1dfe9b46e2edb9ed433bdb212002` is now running and includes that fix.
+A current-code `make build` passed, rebuilding Pair, Couch and launch helper.
+
+The bounded private Codex configuration experiment is durably retained at
+`workshop/plans/000556-codex-config-probe.md`; the plan appends a pending decision,
+not an approved mechanism. Only private scratch state was used; no authentication,
+conversation/model RPC, production native state, live slot or stage was used.
+All owned metadata-server children exited and were reaped. The API is merged
+configuration rather than complete resolved runtime configuration, has no runtime
+profile selector, and server startup writes/migrates metadata. Forwarding a profile
+flag or translating it to the retired profile config key does not work. Existing
+Pair inventory also does not honor custom CODEX_HOME. Those are concrete remaining
+scope limits, not permission to invent defaults. The hub's decision is still
+required before M2 close/landing.
+
 ## Revisions
 
 ### 2026-10-15T05:33-07:00 — overnight M2 dispatch
