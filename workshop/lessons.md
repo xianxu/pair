@@ -1896,3 +1896,9 @@ A temporary directory is not necessarily outside the checkout: SDLC review
 places TMPDIR inside it. Tests expecting ancestor discovery to fail must
 establish an explicit foreign-module boundary. Qualify both inside-checkout
 and external temporary roots rather than relying on the host's TMPDIR.
+
+- #577: When changing a declared suite command, run its exact argv directly as
+  well as the recorded gate: local-check reads declarations from main, so a
+  pre-merge pass may still exercise the old command. Synthetic environment
+  fixtures must isolate inherited MAKEFLAGS/MAKEOVERRIDES/MFLAGS; keep explicit
+  command-line and recursive Make behavior covered inside the fixture.
