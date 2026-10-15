@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"reflect"
 	"slices"
@@ -26,6 +27,8 @@ type RecoveryNativeOwnerCheck struct {
 	SourcePID                                int
 	SourceIdentity                           string
 	SourceSession, SourceNonce               string
+	Admissions                               NativeAdmissionOwners
+	io                                       *nativeOwnerCheckIO
 }
 
 type recoveryNativeWrapper struct {
@@ -35,10 +38,32 @@ type recoveryNativeWrapper struct {
 }
 
 func CheckRecoveryNativeOwner(ctx context.Context, check RecoveryNativeOwnerCheck) error {
-	return checkRecoveryNativeOwners(ctx, check, newRecoveryTerminalOS().Observe, osfs.ReadRegularMetadata)
+	if ctx == nil {
+		return errors.New("native ownership check requires context")
+	}
+	if check.NativeID == "" {
+		return ctx.Err()
+	}
+	ops := nativeOwnerCheckIO{store: NativeAdmissionStore{Home: os.Getenv("HOME")}, observe: newRecoveryTerminalOS().Observe, read: osfs.ReadRegularMetadata, discover: discoverLegacyNativeOwners}
+	if check.io != nil {
+		ops = *check.io
+	}
+	run := func(ctx context.Context, owners NativeAdmissionOwners) error {
+		check.Admissions = owners
+		return checkRecoveryNativeOwnersWithDiscovery(ctx, check, ops.observe, ops.read, ops.discover)
+	}
+	if check.Admissions.active != nil && check.Admissions.active.Load() {
+		return run(ctx, check.Admissions)
+	}
+	return ops.store.withStore(ctx, func(ctx context.Context, state *nativeAdmissionFile, io nativeAdmissionIO) error {
+		return withNativeAdmissionOwners(ctx, state, io, run)
+	})
 }
 
 func checkRecoveryNativeOwners(ctx context.Context, check RecoveryNativeOwnerCheck, observe func(context.Context, string) (recoveryTerminalSnapshot, error), read func(context.Context, string, int64) ([]byte, error)) error {
+	return checkRecoveryNativeOwnersWithDiscovery(ctx, check, observe, read, discoverLegacyNativeOwners)
+}
+func checkRecoveryNativeOwnersWithDiscovery(ctx context.Context, check RecoveryNativeOwnerCheck, observe func(context.Context, string) (recoveryTerminalSnapshot, error), read func(context.Context, string, int64) ([]byte, error), discover func(context.Context, string) ([]artifactpath.StorageOwner, error)) error {
 	if ctx == nil {
 		return errors.New("native ownership check requires context")
 	}
@@ -58,10 +83,19 @@ func checkRecoveryNativeOwners(ctx context.Context, check RecoveryNativeOwnerChe
 	if err != nil {
 		return err
 	}
+	beforeOrphans, err := observeLegacyNativeOrphans(ctx, check, before, wrappers, read, discover)
+	if err != nil {
+		return err
+	}
 	excluded := 0
+	admitted := map[int]bool{}
 	proofs := map[int]readiness.ReadyRecord{}
 	for _, wrapper := range wrappers {
 		if wrapper.Agent != check.Agent {
+			continue
+		}
+		if check.Admissions.coversDifferentWrapper(check.Agent, check.NativeID, wrapper.Process, before) {
+			admitted[wrapper.Process.PID] = true
 			continue
 		}
 		ready, err := recoveryWrapperReady(ctx, before, wrapper, read)
@@ -124,8 +158,21 @@ func checkRecoveryNativeOwners(ctx context.Context, check RecoveryNativeOwnerChe
 	if !reflect.DeepEqual(wrappers, next) {
 		return errors.New("native owner process generation changed; retry")
 	}
+	afterOrphans, err := observeLegacyNativeOrphans(ctx, check, after, next, read, discover)
+	if err != nil {
+		return err
+	}
+	if !reflect.DeepEqual(beforeOrphans, afterOrphans) {
+		return errors.New("retained native owner generation changed; retry")
+	}
 	for _, wrapper := range next {
 		if wrapper.Agent != check.Agent {
+			continue
+		}
+		if admitted[wrapper.Process.PID] {
+			if !check.Admissions.coversDifferentWrapper(check.Agent, check.NativeID, wrapper.Process, after) {
+				return errors.New("admitted native writer changed; retry")
+			}
 			continue
 		}
 		ready, err := recoveryWrapperReady(ctx, after, wrapper, read)
@@ -282,4 +329,11 @@ func recoveryWrapperReady(ctx context.Context, snapshot recoveryTerminalSnapshot
 		}
 	}
 	return readiness.ReadyRecord{}, errors.New("live wrapper readiness does not prove its exact process generation")
+}
+
+type nativeOwnerCheckIO struct {
+	store    NativeAdmissionStore
+	observe  func(context.Context, string) (recoveryTerminalSnapshot, error)
+	read     func(context.Context, string, int64) ([]byte, error)
+	discover func(context.Context, string) ([]artifactpath.StorageOwner, error)
 }
