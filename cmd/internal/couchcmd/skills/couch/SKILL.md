@@ -377,7 +377,7 @@ couch --send-to pair:4 --message 'Recovery (pair:4): restore this slot'\''s pair
      `:0` agent. Note `workspace-unknown`: part of the workspace could not be
      observed; read the report again later.
 
-## Session-sync files
+## Session-sync files and agentic documents
 
 A markdown file with frontmatter `type: session-sync` and `couch-owner: <your
 slot>` (older files say `owner:`, still read when `couch-owner:` is absent) is
@@ -386,8 +386,21 @@ you). Change it only through the `--session-sync` verbs below. The operator's
 lock is pessimistic; your writes are optimistic: read a section, then write it
 back naming the hash you read. You hold no lock and have nothing to release.
 
+Any markdown file becomes agentic on its first successful registration and
+submit from the right-pane editor. Parley saves it, runs `register FILE --owner
+SLOT`, then sends `submitted: FILE` to the effective owner. No frontmatter is
+added: `couch-owner:` wins when present, otherwise the registry supplies the
+owner. A plain document's business `owner:` field does not route messages.
+Use these same verbs for registered documents. Existing session-sync files
+need no registration and keep their legacy owner compatibility.
+
 | Verb | Does |
 |------|------|
+| `register FILE --owner SLOT [--json]` | Registers durably; repeating the same binding preserves its ID, baseline and owed events |
+| `lookup FILE [--json]` | Read-only membership/effective owner discovery; exit 0 with Code ok and explicit Registration null alone proves absence |
+| `list [--json]` | Lists persisted bindings and fallback owners without opening every document |
+| `forget FILE [--json]` | Removes registration, including for a deleted file; never deletes the document or operator lock |
+| `rename OLD NEW [--json]` | Updates metadata after a successful filesystem move; keeps identity, snapshots, folds and old-path submits |
 | `read --section HEADING FILE [--json]` | Prints `hash: H`, then that `## HEADING` section's body |
 | `read --all FILE [--json]` | The whole file and its hash; you have now seen every edit, so `diff` goes empty |
 | `write --section HEADING BODYFILE FILE --if-hash H` | Replaces that section if it still has hash H (whole heading lines only) and prints the new hash |
@@ -400,6 +413,20 @@ back naming the hash you read. You hold no lock and have nothing to release.
   prints the current hash. Read it again, recompute, and retry. Edits in
   other sections never block a section write. A write without `--if-hash`
   refuses.
+- **Forgotten lock:** a valid operator-lock time older than 30 minutes adds
+  its age and advice to ping the operator (or add a Needs you item for the
+  TL's session file). The lock never expires; malformed or future times still
+  block. Ask for their submit, then retry normally.
+- **Lifetime:** registration persists until explicit forget. Registry limits
+  refuse further growth with `couch --session-sync forget FILE` advice; nothing
+  is silently evicted. An unavailable lookup, including an older binary's
+  usage error/non-JSON, is not evidence that a document is unregistered.
+- **Moving a document:** the caller moves the file, its `.side/` folder and
+  backlinks, and reconciles the editor's `.lock` and buffer baseline. Couch
+  moves metadata only; OLD may already be missing. Read the returned effective
+  Registration and Changed field. `registry-uncertain` means a publication may
+  have happened: retry the identical command/arguments, never blindly roll back.
+  An occupied destination refuses without replacing its identity.
 - **Owed events:** Couch records every delivery to your slot, including the
   operator's submits (`submitted: <path>`). Each stays owed by your
   session-sync file until a `write --fold ID[,ID]` says the file reflects it;

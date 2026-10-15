@@ -16,6 +16,7 @@
 - [Workbench performance](workbench-performance.md) — normal-suite counted UI/message/attach invariants, scan ratchets, extension guide and separate live CPU acceptance.
 - [Agent scratch volume](agent-scratch-volume.md) — Go build cache and agent/test temp roots on an APFS volume fseventsd doesn't journal (#496): setup, verify, lifecycle, teardown.
 - [Review workbench](review-workbench.md) — embedded nvim document-review pane (#66): agent proposes edit records, nvim applies them undo-ably + journals rounds via docflow.
+- [Agentic document caller contract](couch-agentic-documents.md) — durable registration, read-only discovery, rename and forget for submitted markdown files; shared with Parley.
 
 ## See also
 

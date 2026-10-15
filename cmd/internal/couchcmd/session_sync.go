@@ -18,12 +18,18 @@ import (
 // sessionSyncArgs is one `couch --session-sync` invocation (pair#437).
 type sessionSyncArgs struct {
 	verb, file, section, bodyFile, ifHash string
+	owner, oldFile                        string
 	all, json                             bool
 	accepts                               sessionsync.Accepts
 	fold                                  []string
 }
 
-const sessionSyncUsage = `couch --session-sync diff FILE
+const sessionSyncUsage = `couch --session-sync register FILE --owner SLOT [--json]
+couch --session-sync lookup FILE [--json]
+couch --session-sync list [--json]
+couch --session-sync forget FILE [--json]
+couch --session-sync rename OLD NEW [--json]
+couch --session-sync diff FILE
 couch --session-sync status [--json] FILE
 couch --session-sync read --section HEADING FILE [--json]
 couch --session-sync read --all FILE [--json]
@@ -41,10 +47,15 @@ func parseSessionSyncCLI(args []string) (cliInvocation, error) {
 	}
 	a := &sessionSyncArgs{verb: args[1]}
 	allowed := map[string][]string{
-		"diff":   {},
-		"status": {"--json"},
-		"read":   {"--section", "--all", "--json"},
-		"write":  {"--section", "--all", "--if-hash", "--accept-gap", "--fold"},
+		"register": {"--owner", "--json"},
+		"lookup":   {"--json"},
+		"list":     {"--json"},
+		"forget":   {"--json"},
+		"rename":   {"--json"},
+		"diff":     {},
+		"status":   {"--json"},
+		"read":     {"--section", "--all", "--json"},
+		"write":    {"--section", "--all", "--if-hash", "--accept-gap", "--fold"},
 		// Retired by pair#439 (no agent-held lock); accepted as a no-op
 		// with its old flags for one release so older skills don't break.
 		"release": {"--accept-edits", "--accept-gap", "--fold"},
@@ -71,12 +82,14 @@ func parseSessionSyncCLI(args []string) (cliInvocation, error) {
 		}
 		seen[arg] = true
 		switch arg {
-		case "--section", "--fold", "--if-hash":
+		case "--section", "--fold", "--if-hash", "--owner":
 			if i+1 >= len(rest) || rest[i+1] == "" {
 				return usage("%s needs a value", arg)
 			}
 			i++
-			if arg == "--section" {
+			if arg == "--owner" {
+				a.owner = rest[i]
+			} else if arg == "--section" {
 				a.section = rest[i]
 			} else if arg == "--if-hash" {
 				a.ifHash = rest[i]
@@ -96,6 +109,15 @@ func parseSessionSyncCLI(args []string) (cliInvocation, error) {
 		}
 	}
 	want := 1
+	if a.verb == "list" {
+		want = 0
+	}
+	if a.verb == "rename" {
+		want = 2
+	}
+	if a.verb == "register" && a.owner == "" {
+		return usage("register requires --owner SLOT")
+	}
 	if (a.verb == "write" || a.verb == "read") && seen["--section"] == a.all {
 		return usage("%s takes exactly one of --section HEADING or --all", a.verb)
 	}
@@ -108,9 +130,15 @@ func parseSessionSyncCLI(args []string) (cliInvocation, error) {
 	if len(positional) != want {
 		return usage("--session-sync %s takes %d path argument(s), got %d", a.verb, want, len(positional))
 	}
-	a.file = positional[want-1]
+	if want > 0 {
+		a.file = positional[want-1]
+	}
 	if want == 2 {
-		a.bodyFile = positional[0]
+		if a.verb == "rename" {
+			a.oldFile = positional[0]
+		} else {
+			a.bodyFile = positional[0]
+		}
 	}
 	return cliInvocation{kind: cliSessionSync, sessionSync: a}, nil
 }
@@ -153,6 +181,56 @@ func runSessionSyncCLI(a *sessionSyncArgs, rt Runtime, stdout, stderr io.Writer)
 	}
 	s := sessionsync.New(namespace.Dir())
 	switch a.verb {
+	case "register", "forget", "rename":
+		var res sessionsync.RegistryResult
+		switch a.verb {
+		case "register":
+			res, err = s.Register(file, a.owner)
+		case "forget":
+			res, err = s.Forget(file)
+		case "rename":
+			res, err = s.Rename(a.oldFile, file)
+		}
+		if err != nil {
+			return fail(err)
+		}
+		if a.json {
+			if err := json.NewEncoder(stdout).Encode(sessionSyncResponse{Code: "ok", Registration: res.Registration, Changed: res.Changed}); err != nil {
+				return fail(err)
+			}
+		} else if res.Registration != nil {
+			fmt.Fprintf(stdout, "%s\nowner: %s\nid: %s\n", res.Registration.File, res.Registration.Owner, res.Registration.ID)
+		} else {
+			fmt.Fprintln(stdout, "forgotten:", file)
+		}
+	case "lookup":
+		res, err := s.Lookup(file)
+		if err != nil {
+			return fail(err)
+		}
+		if a.json {
+			if err := json.NewEncoder(stdout).Encode(sessionSyncResponse{Code: "ok", Registration: res}); err != nil {
+				return fail(err)
+			}
+		} else if res != nil {
+			fmt.Fprintf(stdout, "%s\nowner: %s\nid: %s\n", res.File, res.Owner, res.ID)
+		} else {
+			fmt.Fprintln(stdout, "not registered:", file)
+		}
+	case "list":
+		res, err := s.List()
+		if err != nil {
+			return fail(err)
+		}
+		if a.json {
+			if err := json.NewEncoder(stdout).Encode(sessionSyncResponse{Code: "ok", Registrations: res}); err != nil {
+				return fail(err)
+			}
+		} else {
+			for _, entry := range res {
+				fmt.Fprintf(stdout, "%s\t%s\n", entry.File, entry.RegisteredOwner)
+			}
+		}
 	case "status":
 		st, err := s.Status(file)
 		if err != nil {
@@ -213,6 +291,10 @@ type sessionSyncResponse struct {
 	Hash   string `json:",omitempty"` // the current hash, on a stale refusal
 	Status *sessionsync.Status
 	Read   *sessionsync.ReadResult `json:",omitempty"`
+	// Do not omit Registration: lookup's explicit null is confirmed absence.
+	Registration  *sessionsync.Registration
+	Registrations []sessionsync.Registration
+	Changed       bool
 }
 
 func refusalHash(err error) string {
