@@ -302,3 +302,96 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-15T15:14:35-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 573 — Agentic documents: Couch registry so session-sync verbs work for any submitted file (universal-agent-input-interface S1, Couch side) |
+| repo | pair |
+| issue file | workshop/issues/000573-agentic-documents-couch-registry-so-session-sync-verbs-work-for-any-submitted-file-universal-agent-input-interface-s1-couch-side.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | e0b46192c306a9167db74c69f747c932f49e4abc..9a428a8590bb98e779e633abcaa63deaa3163b55 |
+| command | sdlc close --issue 573 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-15T15:14:35-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned implementation delivers the issue’s registry, sync operations, ownership, rename and lock-age behavior. BR-2 is addressed: writes publish the exact prevalidated bundle, and regression tests demonstrably fail with the previous implementation. No new blocking findings.
+
+```findings
+dispose:
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Metadata admission/growth reserves complete handoff state. Current regressions pass; restoring the pre-fix sync.go makes gap acceptance fail with documentChanged=true and makes ambiguous-result refusal change metadata. Temporary mutation copy removed.
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Additional-alias lock and legacy-export regressions pass; admitted spellings feed the shared canonical-document authority checks.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      registry_test.go:406 explicitly resolves the canonical spelling and uses a distinct leaf alias for Changed=true; the session-sync suite passes.
+```
+
+1. **Strengths**
+
+   - Write preparation validates content, metadata limits and result hash before document mutation (`cmd/internal/sessionsync/sync.go:411`).
+   - Shared metadata validation reserves historical paths needed for legacy handoff (`cmd/internal/sessionsync/registry.go:32`).
+   - Controlled broker delivery tests cover queued submits across rename and pathname reuse.
+   - README, atlas and embedded Couch guidance document the new public surface and lifecycle.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Passed independently:
+
+   - Session-sync, Couch CLI, broker and artifact-inventory package tests.
+   - Complete session-sync race suite.
+   - Wrapper broker-to-runtime envelope regression.
+
+   Both prepared-publication regressions failed against the previous write implementation. The pinned checkout remains unchanged. Operator editor acceptance remains the explicitly approved postlanding check.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** shared ledger, publication and spelling helpers.
+   - **ARCH-PURE — pass:** deterministic registry transitions and write preparation separated from publication.
+   - **ARCH-PURPOSE — pass:** registration feeds all four sync operations and owed-event handling.
+   - **ARCH-MOCK — pass:** portable filesystem backend and injected delivery/publication seams exercise production boundaries.
+   - **ARCH-CONSTRAINTS — pass:** bounded metadata, registry capacity and lock/diff execution.
+   - **ARCH-SECURE — pass:** registry validation, regular-file checks and validated identity-derived storage paths.
+   - **ARCH-ORDER — pass:** serialized authority transitions, controlled waiting-writer tests and preserved admission timestamps.
+   - **ARCH-FUNERAL — pass:** explicit forget, bounded history and serialized orphan cleanup.
+
+7. **Plan revision recommendations:** None; existing revisions describe the final implementation and approved live-check timing.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"40ad9eab-6c92-48e1-b58f-434a0238b203","repository":"github.com/xianxu/pair","issue_id":"000573","recipe":"milestone-review","round":4,"attempt":1,"agent":"codex","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/fa3c44f2938b357b","reviewed_head":"9a428a8590bb98e779e633abcaa63deaa3163b55","slot":"pair:5","requested_at":"2026-10-15T22:11:30.299399Z"},"phase":"finished","pid":18870,"started_at":"2026-10-15T22:11:30.639819Z","finished_at":"2026-10-15T22:14:34.344449Z","session_id":"01a1419e-d7d8-7580-baf5-a1820566424b","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.918963333s
+head: "9a428a8590bb98e779e633abcaa63deaa3163b55"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

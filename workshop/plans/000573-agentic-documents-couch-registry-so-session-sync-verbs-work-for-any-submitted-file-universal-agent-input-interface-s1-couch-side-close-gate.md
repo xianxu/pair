@@ -235,6 +235,48 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 40ad9eab-6c92-48e1-b58f-434a0238b203
+            repository: github.com/xianxu/pair
+            issue_id: "000573"
+            recipe: milestone-review
+            round: 4
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/Library/Caches/sdlc/review-checkouts/fa3c44f2938b357b
+            reviewed_head: 9a428a8590bb98e779e633abcaa63deaa3163b55
+            slot: pair:5
+            requested_at: "2026-10-15T22:11:30.299399Z"
+          phase: finished
+          pid: 18870
+          started_at: "2026-10-15T22:11:30.639819Z"
+          finished_at: "2026-10-15T22:14:34.344449Z"
+          session_id: 01a1419e-d7d8-7580-baf5-a1820566424b
+          outcome: returned
+      "n": 4
+      timestamp: "2026-10-15T15:14:36-07:00"
+      dispatched: "2026-10-15T15:11:27-07:00"
+      agent: codex
+      dispose:
+        - id: BR-2
+          disposition: addressed
+          note: Metadata admission/growth reserves complete handoff state. Current regressions pass; restoring the pre-fix sync.go makes gap acceptance fail with documentChanged=true and makes ambiguous-result refusal change metadata. Temporary mutation copy removed.
+          round: 4
+        - id: BR-1
+          disposition: addressed
+          note: Additional-alias lock and legacy-export regressions pass; admitted spellings feed the shared canonical-document authority checks.
+          round: 4
+        - id: BR-3
+          disposition: addressed
+          note: registry_test.go:406 explicitly resolves the canonical spelling and uses a distinct leaf alias for Changed=true; the session-sync suite passes.
+          round: 4
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: 9a428a8590bb98e779e633abcaa63deaa3163b55
+      blocked: false
 ---
 
 # Gate ledger — pair#573 (boundary-review)
@@ -271,6 +313,14 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-2 — not-addressed — The handoff reservation fixes have meaningful regression coverage: removing SubmitPaths reservation makes admission, alias, rename, and write tests fail. However, sync.go:442 validates post-fold state, then changes the document at line 446; saveShadow at line 449 revalidates the old f.state at line 376. Reproduced with valid handoff state sized to 1 MiB minus 16 bytes, obsolete folds, a new delivery gap, and write --accept-gap: post-fold preflight passes, but shadow publication returns registry-limit with documentChanged=true. This remains the persisted-writer-reader-envelope family: use one prepared, validated metadata state throughout publication, and sweep every subsequent writer/validator for stale-state checks. ARCH-CONSTRAINTS / ARCH-ORDER.
 - BR-3 — addressed — registry_test.go:406-425 now resolves the canonical spelling and expects an unchanged registration, then uses a distinct leaf alias to test admission and retry. The corrected test passes with an explicitly canonical TMPDIR, and the complete sessionsync package passes.
 
+## Round 4 — 2026-10-15T15:14:36-07:00 (codex) — passed
+
+### Disposed
+
+- BR-2 — addressed — Metadata admission/growth reserves complete handoff state. Current regressions pass; restoring the pre-fix sync.go makes gap acceptance fail with documentChanged=true and makes ambiguous-result refusal change metadata. Temporary mutation copy removed.
+- BR-1 — addressed — Additional-alias lock and legacy-export regressions pass; admitted spellings feed the shared canonical-document authority checks.
+- BR-3 — addressed — registry_test.go:406 explicitly resolves the canonical spelling and uses a distinct leaf alias for Changed=true; the session-sync suite passes.
+
 ## Open findings
 
-- **BR-2** [Critical] `persisted-writer-reader-envelope` (kind: defect) Shadow writers exceed the registered reader limit and strand successful operations
+(none — every finding has been disposed)
