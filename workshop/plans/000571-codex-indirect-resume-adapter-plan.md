@@ -136,3 +136,7 @@ Replaces the materialized2e712aec design's open policy-provenance obligation wit
 ### 2026-10-15 — close checklist and verification outcome
 
 Clarify the final checkbox as pre-close deliverables so future close/landing actions are not falsely marked complete. Full keep-going suite passed all recipes/packages exit0 on code identical to8bd4baa1; required recorded same-code rerun is executing after independent flakes were filed as unassigned #585 and #586, per the TL-approved bounded retry rule. Its publish status remains pending. No adapter design or scope changed.
+
+### 2026-10-15 — BR-1/BR-2 source-fidelity correction
+
+Ordered CLI overrides need native final-leaf replacement, separate from recursive config-layer merging; preserve only the tagged structured-feature exception. Sweep supported table-valued assignments and test both effective projection and selected ID. Native record authority requires successful native schema eligibility for the rollout envelope, session metadata and turn context, including typed optional-present fields. Support a source-proven bounded subset and retain compatibility for unproven records; do not change generic inventory validation to claim native selection proof. Replace incomplete positive fixtures with native-valid records, test malformed newer records and no wrong-ID reservation, then run normal/race and fresh recorded full suite before the next close. This narrows faithful guarded admission within the original scope; no credentials or startup oracle.

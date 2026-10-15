@@ -50,6 +50,9 @@ Canonical approved implementation design: [durable plan](../plans/000571-codex-i
 - [x] Reuse pin/reserve/claim with namespace-bound handoff and unchanged compatibility UX.
 - [x] Verify source/machine controls, targeted normal/race and full suite; update atlas and prepare close evidence.
 
+- [ ] Match native CLI leaf replacement and prove projected worktree scope/selected ID (BR-1).
+- [ ] Validate native transcript record eligibility, replace incomplete positive fixtures, and rerun verification/close (BR-2).
+
 ## Log
 
 Operator decision relayed by ops:0, verified receipt b927c539-6b36-4710-b39e-8b9142e1721b. Split unassigned from #556. Existing evidence is on #556's branch in workshop/plans/000556-codex-config-probe.md and its plan revisions. Private config/read experiments establish that API is merged configuration, omits defaults/env and rejects runtime profiles; this follow-up explicitly uses read-only files instead.
@@ -132,6 +135,12 @@ TL confirmed the same flake rule for #586: file independent unassigned evidence,
 Full `make -k PAIR_GO_TRIMPATH=-trimpath test` completed exit0, every recipe and Go package, with no failures. Log /tmp/pair571-keep-going-suite.log; SHA256 f841adcce742565c0a5e2de6bb4e644a58ea9e31a9ecf9463a3373631cfe712e. It ran from branch head0cddd02c643b709823b16950d1abcd88b956efe4, whose code is identical to8bd4baa1; subsequent commits only record issue evidence. Couchcore382.008s, launcher43.574s, inventory16.317s, wrapper82.895s. Both independent flakes passed unchanged. The recorded same-code run23c46148 has also passed review observation and entered its Go suite; await its result for the required publish status.
 
 Checklist clarification: the final design checkbox now describes deliverables complete before close; close/landing remain governed by the binary and will be recorded as outcomes, rather than incorrectly ticking future actions. No design, scope or implementation changed. Indexed atlas and compatibility docs are current. Read-only acceptance remains the TL-approved machine path; no native startup, credential reads or pair:0 action.
+
+### 2026-10-15 — close REWORK; source-fidelity corrections
+
+The unchanged recorded suite on8bd4baa138c63cda357c3a447ddb2cba294f1df7 passed exit0 in11m20s, all recipes/packages. Log /Users/xianxu/workspace/pair/.git/sdlc/local-checks/8bd4baa138c63cda357c3a447ddb2cba294f1df7/suite.log; sha256 prefix954cc1b5b1d8. Both suite processes completed; no superseded suite remains running. This is pre-review-fix evidence, not a substitute for final changed-code verification.
+
+Close round1 on73a3a6a3 returned REWORK, findings BR-1 and BR-2 Critical; no close finalized. Measured candidate actual5.55h. BR-1: native config/src/overrides.rs assigns/replaces the final dotted key, with a special structured-feature exception, whereas the adapter recursively merges every CLI assignment. Keep inter-layer merging distinct from ordered CLI leaf assignment; sweep all supported table-valued overrides and verify worktree scope and selected ID after replacement. BR-2: native serde successfully decodes whole RolloutLine/SessionMeta/TurnContextItem before trusting it; payload.cwd alone is not eligibility. Add a conservative source-backed native schema admission at the adapter boundary, including optional fields when present, or retain native compatibility when eligibility cannot be established. Do not let a malformed newer record authorize a different ID; use native-valid positive fixtures across collectors and handoff tests. Verify against tagged source before changes, add REDs, fix each class, rerun normal/race plus full suite, then reclose. Hub informed, receipt472445a6 submitted. No approved credential, native-startup or staging boundary changes.
 
 ### 2026-10-15 — planning under the disk restriction
 
