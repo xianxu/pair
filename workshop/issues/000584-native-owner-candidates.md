@@ -1,6 +1,6 @@
 ---
 id: 000584
-status: open
+status: working
 deps: []
 github_issue:
 target: slot-recovery
@@ -8,7 +8,16 @@ created: 2026-10-15
 updated: 2026-10-15
 estimate_hours:
 severity: critical
-card_mirror: '17eea3b7ad2b5aac277b975b2142a44f7a95ad0a' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '811482386c5355c0c904353332c9bbefeb6ad2e3' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-15T15:43:33-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:2
+    worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
+    repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "61cdc71d", done: "2f5bc31e"}
 ---
 
 # Native owner scan blocks fleet resume on unrelated processes
