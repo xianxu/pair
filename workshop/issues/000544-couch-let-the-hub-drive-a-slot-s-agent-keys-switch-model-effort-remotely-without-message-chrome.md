@@ -107,6 +107,13 @@ Sent the hub the staged hash and exact smoke commands, receipt013b70ca-a5d2-45e7
 
 - Final staged-source recorded suite PASS: `sdlc local-check run --name suite` on e13111215270762629c27e860584429b7ae66a98, main-declared `make PAIR_GO_TRIMPATH=-trimpath test`, exit0 in13m14s, recorded as sdlc-local/suite. All shell/editor and Go checks pass, including couchcmd94.287s, couchcore538.155s, couchmessage7.472s and wrapcmd155.119s. Log `/Users/xianxu/workspace/pair/.git/sdlc/local-checks/e13111215270762629c27e860584429b7ae66a98/suite.log`, SHA256 e07d82adbc090d21bd7ac6ae850c305999b0ec542d40b90f953294e33428b261. Later commits are issue evidence only; pair:0 remains staged at the tested e1311121. Await operator restart and owning-hub live smoke, then close review.
 
+
+### 2026-10-15 — restaged with the agentic-document registry
+
+Verified TL receipt07bd2c8d-c68d-4b63-9452-246f3506ed2c authorizes main merge/restage after #573 landed and keeps smoke on hold for the operator's ariadne:5 UI park retry. Merge of main c88967b551a1416e0024a248ca09871848eb9f33 (including #573/55ae58b12) was conflict-free: source commit6d65c4c4ef29bcdea3ea5b45f3dfdeed41ce1154. Incoming integration adds the registry, session-sync routing and broker admission timestamps; the drive reducer/writer are unchanged. Focused races PASS sessionsync16.757s, couchmessage2.528s, couchcmd23.473s (drive/receipt/session-sync/admission timestamp/registry/rename/delivery cases); inventory PASS21.183s. Diff check clean.
+
+`sdlc stage --build` replaced e1311121 on pair:0 with 6d65c4c4ef29bcdea3ea5b45f3dfdeed41ce1154. Verified target HEAD, clean checkout and Pair/Couch metadata at that exact revision with vcs.modified=false. The unrelated old pair-hoprtt warning remains. Started a new recorded suite on6d65c4c4 using the declared command; it is queued at the native gate, so the prior e1311121 pass is not claimed for this merge. Hub notified of the staged hash and hold. No restart, smoke, or peer input performed.
+
 ## Revisions
 
 ### 2026-10-15 — reconcile landed recovery and stall supervision
