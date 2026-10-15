@@ -49,3 +49,9 @@ Plan from main after claim/start-plan. Resolve complete checkpoint schema and al
 ### 2026-10-15
 
 Filed unassigned at hub request (verified receipt 8cb950d6-7819-48dd-9813-e10321f20ad8). Findings above came from read-only consumer exploration during #579; no raw rotation code has been written.
+
+## Revisions
+
+### 2026-10-15T23:00:00Z — distinguish per-thread diagnostics from per-wrapper capture
+
+Hub observation during #579: wrap-events-<tag>.jsonl is keyed by the thread tag and survives relaunches (pair-8: born October1, now4.1GB); scrollback .raw restarts per wrapper and old raw/events pairs are parked. There are1,242 parked files totaling5.3GB since September23. The wrap-events diagnostic JSONL is distinct from the witnessed raw capture's offset sidecar; #579 bounds the former and verifies the existing parked-capture expiry path. This issue must preserve that distinction when designing capture size rotation, and account for accumulation across repeated wrapper launches. Existing parked captures expire through the independent CaptureRetentionPeriod constant (currently365days), with exact active readers/handoffs protected; diagnostic count eviction must never target recovery captures.
