@@ -327,7 +327,7 @@ func CouchLiveOwnerExecutor(c *Couch) OperationExecutor {
 			if err != nil {
 				return nil, err
 			}
-			return c.RecoverSelection(ctx, RecoverySelection{Target: target, Kind: RecoveryFresh, Reference: a["ref"]})
+			return c.Reboot(ctx, RebootTarget{Path: target.Path, Address: target.Address, Agent: a["agent"]})
 		case "reap":
 			if path := a["path"]; path != "" {
 				return c.Reap(ctx, ReapTarget{Path: path})

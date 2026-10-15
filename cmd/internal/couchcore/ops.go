@@ -417,7 +417,6 @@ func Operations() []Operation {
 				{Name: "repo-scope", Summary: "repository scope derived from caller context", Implicit: true},
 				{Name: "tag", Summary: "exact thread tag from trusted owner context", Implicit: true},
 				{Name: "agent", Summary: "agent for the fresh conversation", FlagOnly: true, ValueRequired: true},
-				{Name: "require-settled", Summary: "admits a live thread: admission's idle evidence, known or forced (pair#456)", Implicit: true},
 			},
 		},
 		{
