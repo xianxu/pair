@@ -804,13 +804,7 @@ func runStartupFleetTiming(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, key := range []string{"HOME", "XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_CACHE_HOME", "XDG_STATE_HOME"} {
-		path := filepath.Join(base, key)
-		if err := os.MkdirAll(path, 0700); err != nil {
-			t.Fatal(err)
-		}
-		t.Setenv(key, path)
-	}
+	fleetFixtureEnvironment(t, socketRoot, base)
 	for _, key := range []string{"ZELLIJ", "ZELLIJ_SESSION_NAME", "PAIR_DATA_DIR", "COUCH_TREE", "COUCH_STORE_DIR", "COUCH_THREAD_SCOPE", "COUCH_THREAD_TAG", "PAIR_COUCH_LAUNCH_PROFILE"} {
 		t.Setenv(key, "")
 	}
@@ -1250,5 +1244,73 @@ func TestFleetParentTimingAcceptsInitialAttachWithoutContext(t *testing.T) {
 	ctx := timings.context(nil, "attach", "root")
 	if ctx == nil {
 		t.Fatal("missing initial attach context")
+	}
+}
+
+// Keep setup and spawned Pair clients in the same private fixture environment.
+func fleetFixtureEnvironment(t *testing.T, socketRoot, base string) {
+	t.Helper()
+	for _, key := range []string{"HOME", "XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_CACHE_HOME", "XDG_STATE_HOME"} {
+		path := filepath.Join(base, key)
+		if err := os.MkdirAll(path, 0700); err != nil {
+			t.Fatal(err)
+		}
+		t.Setenv(key, path)
+	}
+	// Socket addresses have a small Unix-domain path budget. Keep these
+	// directly beneath the short private root, independent of inherited Couch
+	// settings and testing.TempDir's longer per-test directory names.
+	for key, leaf := range map[string]string{
+		"ZELLIJ_SOCKET_DIR": "s", "XDG_RUNTIME_DIR": "r", "ZELLIJ_CONFIG_DIR": "c",
+	} {
+		path := filepath.Join(socketRoot, leaf)
+		if err := os.MkdirAll(path, 0700); err != nil {
+			t.Fatal(err)
+		}
+		t.Setenv(key, path)
+	}
+}
+
+func TestFleetFixtureEnvironmentIsolatesInheritedRuntimePaths(t *testing.T) {
+	keys := []string{"ZELLIJ_SOCKET_DIR", "XDG_RUNTIME_DIR", "ZELLIJ_CONFIG_DIR"}
+	for _, key := range keys {
+		t.Setenv(key, "/inherited/operator/"+key)
+	}
+	root := t.TempDir()
+	fleetFixtureEnvironment(t, root, filepath.Join(root, "fixture"))
+	for _, key := range keys {
+		path := os.Getenv(key)
+		if !strings.HasPrefix(path, root+string(os.PathSeparator)) {
+			t.Fatalf("%s escaped private root: %q", key, path)
+		}
+		info, err := os.Stat(path)
+		if err != nil || !info.IsDir() || info.Mode().Perm() != 0700 {
+			t.Fatalf("%s directory is not private: %v %v", key, info, err)
+		}
+	}
+	profile, err := runtimebundle.TerminalEnvironment(filepath.Join(root, "data"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	output := filepath.Join(root, "child-environment")
+	runner := &couchcore.PtyRunner{Environment: func() ([]string, error) { return profile, nil }}
+	handle, err := runner.Start(root, []string{"/bin/sh", "-c", `printf '%s\n' "$ZELLIJ_SOCKET_DIR" "$XDG_RUNTIME_DIR" "$ZELLIJ_CONFIG_DIR" "$TERM" > "$1"`, "fixture", output}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer handle.(couchcore.TerminalHandle).Terminal().Close()
+	select {
+	case <-handle.Exited():
+	case <-time.After(5 * time.Second):
+		_ = handle.Signal(os.Kill)
+		t.Fatal("environment child did not exit")
+	}
+	raw, err := os.ReadFile(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := os.Getenv(keys[0]) + "\n" + os.Getenv(keys[1]) + "\n" + os.Getenv(keys[2]) + "\npair-vt-256color\n"
+	if string(raw) != want {
+		t.Fatalf("child runtime environment=%q want %q", raw, want)
 	}
 }

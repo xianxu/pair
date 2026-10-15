@@ -250,6 +250,20 @@ cleanup and final fixture cleanup. Artifactpath dead-symbol check found the
 cross-package diagnostic-only API; a narrow documented allowlist entry retains
 it. No new production flags or lifecycle authority were introduced.
 
+### 2026-10-14 — second experiment setup refusal retained
+
+make -k build passed; frozen source9d5b3ca89b4c888cf3387fc1c91c454e429c7083,
+including #559. Separate MATRIX2 /tmp/pair218-MATRIX2.6f1ANH FAILED setup
+before sample1 (4.08s), no timing data. Native Zellij rejected the fixture session
+name with a zero-character limit. Manifest proves inherited ZELLIJ_SOCKET_DIR
+still pointed to the restarted Couch's long /private/var/folders runtime path;
+TMPDIR alone did not isolate this explicit override. No authority change or
+retries. Complete source archive/binary hashes, failed raw output and diagnostics
+retained. Future fleet setup must explicitly bind Zellij socket and XDG runtime
+paths inside the short private root before both fixtures and terminal environment
+construction. Regression tests must pin inherited environment isolation. This
+is fixture containment, not an explanation of the old identity failure.
+
 ## Revisions
 
 - 2026-10-14 — add (operator via TL): concrete case. At the operator's 14:33 restart, Couch's background attaches spawned 21 zellij clients between 14:33:37 and 14:33:47 (~6 at a time): roughly 2–3 s per attach, against ~10–20 ms for `zellij list-sessions` and an expected ~100–300 ms floor (list, lease, one record write, spawn client, first frame). Detach ("leave couch") is unmeasured but also inspects each slot's session server. Trace one attach and one detach step by step; the likely waste is a whole process-table read (native argv for every process since #547) per slot. Probably one shared snapshot per startup or detach pass instead.
