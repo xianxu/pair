@@ -1,14 +1,21 @@
 ---
 id: 000558
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-14
-updated: 2026-10-14
+updated: 2026-10-15
 estimate_hours:
-card_mirror: 'b6c118073c88d7be172c42d47505511412c4c973' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '132954123dc21db83f43eed839243e1c7f4ef548' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-14T15:23:08-07:00
 
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:4
+    worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
+    repository: github.com/xianxu/pair
 ---
 
 # couch skill and docs still say only Claude and Codex are receiver profiles; add Qoder (#550)
