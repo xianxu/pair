@@ -42,7 +42,7 @@
 - [x] Factor existing exact-ordinal ledger projection once for modern, legacy and orphan consumers; add the injected legacy held-file check without weakening modern readiness.
 - [x] Add bounded writable-file IO and reuse native filename codecs; fake command/parser tests and read-only host conformance.
 - [x] Add exact-owner migration diagnostics, with friendly Couch slot resolution through preview reads where available; tests for known and unresolved owners.
-- [ ] Update atlas and Log with justification, the 18-wrapper census, host evidence and limitations; targeted tests and build.
+- [x] Update atlas and Log with justification, the 18-wrapper census, host evidence and limitations; targeted tests and build.
 - [ ] Record the full suite on the pushed final code head; close once with the mandatory SDLC review; land on SHIP and report merge to hub. No live migration or resume from this slot.
 
 ## Revisions

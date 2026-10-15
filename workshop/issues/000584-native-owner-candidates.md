@@ -56,6 +56,8 @@ Filter native-owner candidates from kernel metadata before requiring argv; unrel
 - 2026-10-15: Final bounded-scheduling host observation passed five consecutive read-only checks under concurrent targeted/race runs: 1.579, 1.664, 1.562, 1.496 and 4.281 seconds, all inside the unchanged five-second budget (load 12.67/16.96/20.08 at the end). Typical margin is over three seconds; the slowest measured margin is 0.719 seconds, not a guarantee under arbitrary load. No launch, reservation, park, signal or production metadata writes were performed. Earlier serial checks under concurrent build load exhausted the budget and are retained above rather than omitted.
 - 2026-10-15: Targeted affected-package run passed: couchcore 9.030s, launcher 0.725s, procutil 3.345s, sessioninventory 0.186s. The real twelve-owner/two-fence memo test and ordered worker suite pass under -race (five repetitions, 1.681s); worker-only race tests pass twenty repetitions. Sessionledger and strictjson package tests passed. Real-row differential corpus and adversarial differential fuzz pass; native ledger content is retained only locally.
 
+- 2026-10-15: Three additional host checks while two full-suite slots were occupied passed in 1.882, 2.617 and 4.731 seconds (load 16.50/16.90/19.75). Thus the worst observed final margin is 0.269 seconds; arbitrary system load can still exhaust a bounded foreground observation. This is a safe refusal, not evidence that an owner is absent. Required suite is running on 39d43995c, PR #353; both builds passed.
+
 ## Revisions
 
 ### 2026-10-15 15:55 — approved narrow legacy association
