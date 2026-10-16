@@ -1,6 +1,6 @@
 ---
 id: 000544
-status: codecomplete
+status: done
 created: 2026-10-13
 updated: 2026-10-16
 estimate_hours: 6.29
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: fa550f04ceffa5dd925ac03f28320c00ec35cf83
         evidence_commit: a8203ef6e955067034b7f72c7335f5b9dcb7692c
+        landed_commit: c3a50da5934ec7952e7b9568f2fda14e155f3f0e
 ---
 
 # couch: let the hub drive a slot's agent keys (switch model/effort remotely), without message chrome
