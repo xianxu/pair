@@ -1980,3 +1980,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #593 BR-3: Inventory completeness is per supported producer/backend, not per logical kind. Sweep global, repo-scoped, slot-local, legacy and sharded layouts together; assert coverage with producer-generated paths before declaring the coverage family fixed.
 
 - #544 integration with #597: subprocess helpers that intentionally model Couch set their disposable thread identity after TestMain sanitizes inherited live identity. Run opt-in native conformance after TestMain changes; a default-suite skip cannot verify the helper startup path.
+
+- #544 BR-1/BR-2: failure recovery replaces current-screen evidence, so retain actionable observed choices in the bounded result detail and test after completed backout through receipt/CLI output. Reconcile prospective plan symbols with delivered APIs and reused conformance fixtures before close.

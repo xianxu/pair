@@ -603,3 +603,103 @@ func TestDriveReservedRecoveryNeedsFreshEmptyProof(t *testing.T) {
 		t.Fatalf("unchanged pre-text prompt claimed recovery: %+v %#v", s.Result(), effects)
 	}
 }
+
+func TestDriveMissingChoicesSurviveRecoveredPrompt(t *testing.T) {
+	for _, agent := range []string{"codex", "claude"} {
+		t.Run(agent, func(t *testing.T) {
+			now := time.Unix(100, 0)
+			s, err := NewDrive(Request{Model: &ModelRequest{Model: "missing-model"}}, agent, now.Add(time.Minute))
+			if err != nil {
+				t.Fatal(err)
+			}
+			s, _ = ReduceDrive(s, DriveEvent{Kind: EventStart, At: now, Screen: Screen{Epoch: 1, Complete: true, Idle: true}})
+			for i := 0; i < 3; i++ {
+				s, _ = ReduceDrive(s, DriveEvent{Kind: EventWritten, At: now})
+			}
+			lines := capture(t, "model-picker")
+			if agent == "claude" {
+				lines = claudeCapture(t, "model-picker")
+			}
+			labels := ReadModelScreen(agent, Screen{Complete: true, Lines: lines}).Labels
+			if len(labels) == 0 {
+				t.Fatal("fixture has no choices")
+			}
+			s, fx := ReduceDrive(s, DriveEvent{Kind: EventScreen, At: now, Screen: Screen{Epoch: 2, Complete: true, Lines: lines}})
+			if len(fx) != 1 || fx[0].Key.Kind != KeyEsc {
+				t.Fatalf("missing backout: %#v", fx)
+			}
+			s, _ = ReduceDrive(s, DriveEvent{Kind: EventWritten, At: now})
+			s, _ = ReduceDrive(s, DriveEvent{Kind: EventScreen, At: now, Screen: Screen{Epoch: 3, Complete: true, Idle: true, Lines: []string{"empty prompt"}}})
+			result := s.Result()
+			if result.Outcome != OutcomeFailed || !strings.Contains(result.Detail, "back at empty prompt") {
+				t.Fatalf("%#v", result)
+			}
+			for _, label := range labels {
+				if !strings.Contains(result.Detail, label) {
+					t.Fatalf("recovery lost choice %q: %#v", label, result)
+				}
+			}
+			if strings.Join(result.Tail, " ") != "empty prompt" {
+				t.Fatalf("tail not current: %#v", result)
+			}
+		})
+	}
+}
+
+func TestDriveMissingEffortChoicesSurviveRecoveredPrompt(t *testing.T) {
+	s, now := modelAtPicker(t, ModelRequest{Model: "gpt-6.1-sol", Effort: "missing-effort"})
+	s, _ = ReduceDrive(s, DriveEvent{Kind: EventScreen, At: now, Screen: Screen{Epoch: 2, Complete: true, Lines: capture(t, "model-picker")}})
+	s, _ = ReduceDrive(s, DriveEvent{Kind: EventWritten, At: now})
+	s, fx := ReduceDrive(s, DriveEvent{Kind: EventScreen, At: now, Screen: Screen{Epoch: 3, Complete: true, Lines: capture(t, "effort-picker")}})
+	if len(fx) != 1 || fx[0].Key.Kind != KeyEsc {
+		t.Fatalf("%#v", fx)
+	}
+	s, _ = ReduceDrive(s, DriveEvent{Kind: EventWritten, At: now})
+	s, fx = ReduceDrive(s, DriveEvent{Kind: EventScreen, At: now, Screen: Screen{Epoch: 4, Complete: true, Lines: capture(t, "model-picker")}})
+	if len(fx) != 1 || fx[0].Key.Kind != KeyEsc {
+		t.Fatalf("%#v", fx)
+	}
+	s, _ = ReduceDrive(s, DriveEvent{Kind: EventWritten, At: now})
+	s, _ = ReduceDrive(s, DriveEvent{Kind: EventScreen, At: now, Screen: Screen{Epoch: 5, Complete: true, Idle: true}})
+	if s.Result().Outcome != OutcomeFailed {
+		t.Fatalf("%#v", s.Result())
+	}
+	for _, label := range []string{"low", "medium", "high"} {
+		if !strings.Contains(s.Result().Detail, label) {
+			t.Fatalf("lost effort %q: %#v", label, s.Result())
+		}
+	}
+}
+
+func TestChoiceFailureBoundsWholeLabels(t *testing.T) {
+	labels := make([]string, MaxObservedLabels)
+	for i := range labels {
+		labels[i] = strings.Repeat("界", 42)
+	}
+	detail := choiceFailure("model", labels)
+	if len(detail) > 900 || !strings.Contains(detail, "further choices omitted") || !strings.Contains(detail, labels[0]) {
+		t.Fatalf("bad bounded choices: %q", detail)
+	}
+	// Recovery suffixes and the 1 KiB broker/endpoint detail bound must coexist.
+	if len(detail+"; prompt recovery unconfirmed") > 1024 {
+		t.Fatal("detail envelope exceeded")
+	}
+}
+
+func TestDriveClaudeUnsupportedEffortRetainsObservedChoice(t *testing.T) {
+	now := time.Unix(100, 0)
+	s, _ := NewDrive(Request{Model: &ModelRequest{Model: "opus 5.5", Effort: "missing-effort"}}, "claude", now.Add(time.Minute))
+	s, _ = ReduceDrive(s, DriveEvent{Kind: EventStart, At: now, Screen: Screen{Epoch: 1, Complete: true, Idle: true}})
+	for i := 0; i < 3; i++ {
+		s, _ = ReduceDrive(s, DriveEvent{Kind: EventWritten, At: now})
+	}
+	s, fx := ReduceDrive(s, DriveEvent{Kind: EventScreen, At: now, Screen: Screen{Epoch: 2, Complete: true, Lines: claudeCapture(t, "session-before")}})
+	if len(fx) != 1 || fx[0].Key.Kind != KeyEsc {
+		t.Fatalf("%#v", fx)
+	}
+	s, _ = ReduceDrive(s, DriveEvent{Kind: EventWritten, At: now})
+	s, _ = ReduceDrive(s, DriveEvent{Kind: EventScreen, At: now, Screen: Screen{Epoch: 3, Complete: true, Idle: true}})
+	if s.Result().Outcome != OutcomeFailed || !strings.Contains(s.Result().Detail, "medium") {
+		t.Fatalf("%#v", s.Result())
+	}
+}

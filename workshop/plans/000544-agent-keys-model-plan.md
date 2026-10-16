@@ -235,3 +235,32 @@ Rerun targeted races, isolated native conformance and the recorded full suite on
 **Reason:** Verified TL receipt670622a8-d2a5-48e2-892d-9f0a7bca8494 directs immediate merge/restage after #587; do not wait for #569, which rides a later restart.
 
 **Delta:** Integrate origin/main2156c014cee0af8fa1662064ebfe32d746e6568a, carrying #573/#579/#584/#585/#594/#587. Preserve both resource and drive dispatch, source inventories and skill costs at three additive conflict sites. Main's legacy-message serialization, broker-release distinction and capture buffering remain unchanged by reconciliation. Targeted drive/recovery/protocol/resource/native ownership tests plus inventory and actual native Run conformance verify the integration before staging. The operator still owns the Couch restart and the hub runs live model/key acceptance (ARCH-DRY, ARCH-ORDER). No Qoder repair or new live input is part of this restage.
+
+
+### 2026-10-15 — boundary inventory reconciliation (BR-2)
+
+**Reason:** The original Core concepts table described prospective names rather than the delivered symbols. This revision supersedes that table and the statement “one table per agent”; earlier design text remains historical evidence.
+
+**Delta:** Keep one shared typed reducer and explicit per-agent screen parsers. A separate Recipe type/table would duplicate the parser and reducer transition authority without a second consumer (ARCH-DRY, ARCH-PURE). Codex/Claude picker phases and scope support are implemented by ReadModelScreen plus ReduceDrive/NewDrive/apply; recorded per-agent fixtures qualify those branches. This preserves the design's purpose: labels and complete recognized screens determine navigation, never assumed row positions. Claude default scope still refuses before input. The following is the current symbol inventory:
+
+| Entity | Kind | Path | Status / ownership |
+|---|---|---|---|
+| KeySequence, ParseKeySequence | PURE | cmd/internal/agentdrive/keys.go | new; bounded caller keys |
+| ModelRequest, ModelScope, Request, Result | PURE | cmd/internal/agentdrive/recipe.go | new; request/result data, no Recipe entity |
+| ScreenEvidence, ReadModelScreen, confirmationCounts | PURE | cmd/internal/agentdrive/screen.go | new; explicit Codex/Claude parsing |
+| DriveState, DriveEvent, ReduceDrive, NewDrive, apply, choiceFailure | PURE | cmd/internal/agentdrive/model.go | new; shared transitions, agent-specific supported scopes and apply actions; bounded failure choices survive changing tail |
+| OperationReceipt, ApplyReceiptEvent | PURE | cmd/internal/couchmessage/operation.go | modified; bounded result/intent ownership |
+| classifyWait | PURE | cmd/internal/couchcmd/wait_notice.go | modified; model-control confirmation recognition |
+| handleAgentDrive, installAgentDriveService | INTEGRATION | cmd/internal/couchcmd/agent_drive_service.go | new; authenticated console queue |
+| RemoteEndpoint.ObserveDrive, StartDrive, DriveStatus, CancelDrive | INTEGRATION | cmd/internal/couchmessage/drive_endpoint.go | new; bounded exact-bound RPC |
+| endpoint request/response and drive intent | INTEGRATION | cmd/internal/couchmessage/endpoint.go, protocol.go | modified; typed wire parsing |
+| dispatchAgentDrive | INTEGRATION | cmd/internal/wrapcmd/agent_drive.go | new; existing writer and admission |
+| wrapper endpoint admission | INTEGRATION | cmd/internal/wrapcmd/peer_runtime.go | modified; binding and mailbox |
+| automatic input / lifecycle accounting | INTEGRATION | cmd/internal/wrapcmd/automatic_input.go, wrap.go | modified; shared ownership and translator |
+| CLI adapter | INTEGRATION | cmd/internal/couchcmd/agent_drive_cli.go, agent_drive_messages.go | new; argv and read-only receipt polling |
+| stateful drive harness | INTEGRATION | cmd/internal/wrapcmd/agent_drive_test.go | new; harnessSessionFake and input-loop fixtures |
+| native direct conformance | INTEGRATION | cmd/internal/wrapcmd/agent_drive_conformance_test.go, agent_drive_live_test.go | new; disposable native PTY |
+| actual Run/socket native conformance | INTEGRATION | cmd/internal/wrapcmd/agent_drive_virtual_conformance_test.go | new; scratch and Pair virtual terminal |
+| peerLiveEnvironment, peerLiveLocalAuth | INTEGRATION | cmd/internal/wrapcmd/peer_live_test.go | reused unchanged; existing disposable Codex auth/environment seam, no new Claude credential flow |
+
+Live fleet set-model/keys/delivery smoke remains post-landing after the next operator restart, owned by TL ops:0 under submitted receipt35fe918a. Recorded/native checks and the normal close review/full-suite gates remain landing prerequisites.

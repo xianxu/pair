@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/xianxu/pair/cmd/internal/agentdrive"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
 )
@@ -73,5 +74,42 @@ func TestDriveCLILostReplyGivesStatusAndPeek(t *testing.T) {
 	code := runAgentDriveCLI(inv, rt, &out, &diagnostic, func(context.Context, string, any, any) error { calls++; return errors.New("lost") })
 	if code != 1 || calls != 1 || !strings.Contains(diagnostic.String(), "--operation-status") || !strings.Contains(diagnostic.String(), "--peek pair:2") || strings.Contains(diagnostic.String(), "recover-plan") {
 		t.Fatalf("%d %d %s", code, calls, diagnostic.String())
+	}
+}
+
+func TestDriveCLIRetainsRecoveredChoicesThroughReceipt(t *testing.T) {
+	for _, jsonOutput := range []bool{false, true} {
+		args := []string{"--set-model", "pair:2", "--model", "missing", "--confirm"}
+		if jsonOutput {
+			args = append(args, "--json")
+		}
+		inv, err := ParseCLI(args, couchcore.Operations())
+		if err != nil {
+			t.Fatal(err)
+		}
+		rt := newRT(t)
+		for key, value := range map[string]string{"COUCH_STORE_DIR": "/tmp/couch-drive-test", "COUCH_THREAD_SCOPE": "scope", "COUCH_THREAD_TAG": "tag", "PAIR_SESSION_NAME": "session", "PAIR_LAUNCH_NONCE": "nonce"} {
+			rt.env[key] = value
+		}
+		var out, diagnostic bytes.Buffer
+		detail := "requested model not among observed choices: opus 5.5, sonnet 4.6; back at empty prompt"
+		code := runAgentDriveCLI(inv, rt, &out, &diagnostic, func(_ context.Context, _ string, raw any, result any) error {
+			req := raw.(couchmessage.Request)
+			receipt, err := couchmessage.ApplyReceiptEvent(couchmessage.OperationReceipt{}, couchmessage.ReceiptEvent{Kind: couchmessage.ReceiptAdmit, ID: req.ID, Op: "set-model"})
+			if err != nil {
+				return err
+			}
+			receipt, err = couchmessage.ApplyReceiptEvent(receipt, couchmessage.ReceiptEvent{Kind: couchmessage.ReceiptFinish, ID: req.ID, Outcome: couchmessage.ReceiptOutcome{Status: couchmessage.ReceiptFailed, Drive: &agentdrive.Result{Outcome: agentdrive.OutcomeFailed, Detail: detail, Tail: []string{"empty prompt"}}}})
+			if err != nil {
+				return err
+			}
+			response := result.(*couchmessage.Response)
+			response.Code = "ok"
+			response.Operation = &receipt
+			return nil
+		})
+		if code != 1 || !strings.Contains(out.String(), detail) || !strings.Contains(out.String(), "empty prompt") {
+			t.Fatalf("json=%v code=%d output=%s diagnostic=%s", jsonOutput, code, out.String(), diagnostic.String())
+		}
 	}
 }

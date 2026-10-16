@@ -271,6 +271,25 @@ func commandNext(s DriveState) (DriveState, []DriveEffect) {
 	}
 	return write(s, keys[s.command], phaseModel)
 }
+
+// Keep actionable choices separate from the changing tail, within the existing
+// 1 KiB receipt-detail envelope, including later recovery diagnostics. Whole
+// labels retain UTF-8 boundaries; an omitted suffix is reported explicitly.
+func choiceFailure(kind string, labels []string) string {
+	detail := "requested " + kind + " not among observed choices: "
+	for i, label := range labels {
+		separator := ""
+		if i > 0 {
+			separator = ", "
+		}
+		if len(detail)+len(separator)+len(label) > 800 {
+			return detail + "; further choices omitted (diagnostic limit)"
+		}
+		detail += separator + label
+	}
+	return detail
+}
+
 func backout(s DriveState, detail string) (DriveState, []DriveEffect) {
 	s.result.Detail = detail
 	if s.backouts >= 3 {
@@ -423,7 +442,7 @@ func ReduceDrive(input DriveState, event DriveEvent) (DriveState, []DriveEffect)
 				}
 			}
 			if targetIndex < 0 {
-				return backout(s, "requested model not among observed choices")
+				return backout(s, choiceFailure("model", evidence.Labels))
 			}
 			if selected != targetIndex {
 				s.navigation++
@@ -450,7 +469,7 @@ func ReduceDrive(input DriveState, event DriveEvent) (DriveState, []DriveEffect)
 					}
 				}
 				if current < 0 || want < 0 {
-					return backout(s, "unsupported observed effort")
+					return backout(s, choiceFailure("effort", []string{s.effort}))
 				}
 				s.navigation++
 				k := KeyRight
@@ -482,7 +501,7 @@ func ReduceDrive(input DriveState, event DriveEvent) (DriveState, []DriveEffect)
 				}
 			}
 			if targetIndex < 0 {
-				return backout(s, "requested effort not among observed choices")
+				return backout(s, choiceFailure("effort", evidence.Labels))
 			}
 			if selected != targetIndex {
 				s.navigation++

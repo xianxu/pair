@@ -148,7 +148,20 @@ Integrated current main at2b602b9a5; only conflict was additive artifact invento
 
 Additional actual Run/native conformance RED twice: wrapper never registered, although Codex reached its empty prompt. New main #597 TestMain clears Couch thread scope/tag for ordinary tests; this subprocess fixture had depended on those inherited values. Restore only its disposable scope/tag inside the explicit boundary helper after TestMain (no production change), and retain bounded wrapper diagnostics for registration failures. Actual Run/socket/native conformance now GREEN18.770s: scratch9.18s and Pair virtual9.29s, model/effort/session confirmation, dirty recovery and joined cleanup. The final fixture change needs a recorded suite on its own source before landing; do not claim the2b602b9a5 run covers it.
 
+### 2026-10-15 — first boundary review and failure-evidence correction
+
+Close round1 returned REWORK with BR-1 (failure choices lost after backout) and BR-2 (prospective Core concepts names diverged from delivered implementation). No close finalized. Tests first reproduced lost model labels after completed recovery for both Codex and Claude, lost Codex effort choices after two-step recovery, and lost Claude observed effort on unsupported requests. Retain bounded whole labels in Result.Detail, independent of latest Tail; cap diagnostics below the existing1KiB transport/receipt bound and explicitly name omitted choices. No new wire field or parallel result store. Broker receipt/CLI tests verify choices and current empty prompt in plain and JSON results. Model failure and recovery authority remain unchanged (ARCH-DRY, ARCH-ORDER).
+
+Targeted drive/boundary races PASS core1.271s, protocol1.343s, CLI/service3.287s, wrapper9.896s; full pure-core races after the final Claude diagnostic correction PASS1.270s. Durable plan appends the current symbol inventory and reconciles explicit per-agent parsing with the shared reducer; no nonexistent Recipe entity or RemoteEndpoint.Drive API remains in the active inventory. Prior2b602b9a5 suite was deliberately interrupted exit130 after the helper changed; it is not passing evidence. The91b007dca suite remains the earlier-source run; the production diagnostic fix needs a final recorded suite before landing.
+
 ## Revisions
+
+### 2026-10-15 — preserve choices through failure recovery (BR-1/BR-2)
+
+**Reason:** Boundary review verified loss of actionable picker evidence and drift in the prospective plan inventory.
+
+**Delta:** Preserve model/effort observed labels in bounded failure Detail through prompt recovery, existing receipt clipping and CLI output. Long lists explicitly report omitted labels. Sweep missing-choice branches for both agents; regress completed recovery and receipt output. Reconcile active plan concepts/APIs/conformance locations by an appended inventory revision, retaining the original design as history. No change to input effects, authority, deadlines or supported scope.
+
 
 ### 2026-10-15 — restore isolated conformance identity after TestMain
 
