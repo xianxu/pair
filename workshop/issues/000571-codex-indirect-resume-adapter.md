@@ -81,6 +81,12 @@ Source links (matching tag):
 
 ## Revisions
 
+### 2026-10-15 — TL approval of BR-3/BR-4 narrowed implementation
+
+TL receipt3303cfe5-0e36-4214-8600-2a73a507022a approves Revision0aa26c95, including stable-present-WAL only. Implement the proposed scope uncertainty policy and private snapshot boundary; absent/non-WAL/hot/changing inputs retain native compatibility. No native SHM observation, source SQLite open or new locking mechanism. Keep the whole-native-directory unchanged test as the headline regression.
+
+Implementation ownership: the configuration agent handles Git scope; the collector agent handles private snapshot construction, budgets and inventory lifecycle; the namespace agent handles real OS launcher WAL fixtures and non-mutation/cleanup assertions. Root integrates documentation, source classification and SDLC verification. Existing Git REDs are committed at ae9ec28a1; launcher WAL RED resolves the expected ID then exposes native SHM creation and missing hermetic invocation flags. Host rc/schema protections already reject the tested external effects: those controls are defensive coverage, not an additional demonstrated unsafe baseline. No success claim until production and regression verification finish.
+
 ### 2026-10-15 — implementation and adversarial controls
 
 #556 landed bcf73458 and the hub released integration (eeabc985). Merged main, materialized the canonical plan and cleared full-flow change-code after PQ-1/PQ-2 were addressed; estimate5.90h adopted after plan-quality CLEAN. Later estimate review was INFO only. Implementation uses a source-derived local forced-login-api bootstrap as positive evidence, never credentials or a caller completeness flag.
