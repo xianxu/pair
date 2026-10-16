@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 )
@@ -115,6 +116,13 @@ func (e RemoteEndpoint) call(ctx context.Context, r EndpointRequest) (EndpointRe
 	}
 	var response EndpointResponse
 	if err := Call(ctx, socket, r, &response); err != nil {
+		var decode *replyDecodeError
+		if errors.As(err, &decode) {
+			if strings.HasPrefix(decode.Error(), "json: unknown field ") {
+				return EndpointResponse{}, fmt.Errorf("wrapper %s is newer than the Couch supervisor; restart Couch: %w", e.Binding.Slot, err)
+			}
+			return EndpointResponse{}, fmt.Errorf("wrapper %s reply could not be decoded; restart Couch: %w", e.Binding.Slot, err)
+		}
 		var dial *net.OpError
 		if errors.As(err, &dial) && dial.Op == "dial" && (errors.Is(err, os.ErrNotExist) || errors.Is(err, syscall.ECONNREFUSED)) {
 			return EndpointResponse{}, fmt.Errorf("messaging unavailable until next relaunch: %w", err)
@@ -192,7 +200,11 @@ func (e RemoteEndpoint) Deliver(parent context.Context, m Message, progress func
 	ctx, cancel := context.WithDeadline(parent, m.Horizon().Add(ReceiptTimeout))
 	defer cancel()
 	commitCtx, stopCommit := context.WithDeadline(ctx, m.Deadline)
-	r, err := e.call(commitCtx, EndpointRequest{Op: "commit", ID: m.ID, Message: &m})
+	// Admission time belongs to the broker, not the wrapper's input protocol.
+	// Keep the original for sender evidence; legacy wrappers reject this field.
+	wire := m
+	wire.AcceptedAt = time.Time{}
+	r, err := e.call(commitCtx, EndpointRequest{Op: "commit", ID: m.ID, Message: &wire})
 	stopCommit()
 	if err != nil {
 		return Receipt{}, err

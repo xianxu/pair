@@ -1957,4 +1957,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 - #579 M2: draining an owner is insufficient if asynchronous producers can still admit after its clock stops. Stop admission atomically with the final drain. Exercise a resize whose successful IO result is delayed across PTY EOF, then require no pending or published late sidecar event.
 
+- #594 review: When an approved revision changes certainty guarantees or defers production acceptance, append the revision and reconcile the active Spec and every Done when clause too. A historical Log records the decision but does not supersede contradictory closure criteria; name the pending check's owner and distinguish it from the landing gate.
 - #585 BR-1: a reaped process-group leader does not prove its descendants have exited. Preserve owned-group termination across a pending stderr drain; reader interruption alone can hide a surviving child. Regression fixtures must include a real descendant retaining the FD and require both descendant death and joined drain. Reuse the test-budget event helper instead of adding another fixed scheduling guard.
