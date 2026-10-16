@@ -431,24 +431,66 @@ func TestMessageAdmissionRejectsMismatchesThenGoesDormant(t *testing.T) {
 // A send to a slot whose session went dormant gets one more bounded attempt,
 // so an idle healthy agent is not unreachable until someone touches its pane.
 func TestMessageSendToDormantSlotReadmits(t *testing.T) {
-	r := newServiceRig(t)
+	awakened, release := make(chan struct{}), make(chan struct{})
+	var releaseOnce sync.Once
+	defer releaseOnce.Do(func() { close(release) })
+	calls := 0
+	r := newServiceRig(t, func(a messageAuthority) messageAuthority {
+		launch := a.launch
+		a.launch = func(ctx context.Context, b couchmessage.Binding) error {
+			if b.Slot == "pair:2" {
+				calls++
+				if calls == len(couchmessage.RetryDelays)+2 {
+					close(awakened)
+					select {
+					case <-release:
+					case <-ctx.Done():
+						return ctx.Err()
+					}
+				}
+			}
+			return launch(ctx, b)
+		}
+		return a
+	})
 	from := r.connect(1)
+	retries := make(chan func(), 1)
+	r.s.after = func(_ time.Duration, f func()) { retries <- f }
 	to := r.world.add(2)
 	r.world.set(to, func(s *worldSlot) { s.launch = false })
 	r.attach(to, "h2")
 	r.wrapper(to)
-	for fired := 0; fired < len(couchmessage.RetryDelays); {
-		fired += r.fireRetries()
-		time.Sleep(5 * time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	for range couchmessage.RetryDelays {
+		select {
+		case retry := <-retries:
+			retry()
+		case <-ctx.Done():
+			t.Fatal("retry ladder did not finish")
+		}
 	}
-	time.Sleep(100 * time.Millisecond)
-	r.world.set(to, func(s *worldSlot) { s.launch = true })
 	send := callerRequest(from, "send")
 	send.ID, send.Target, send.Body = "id-1", to.Slot, "work"
-	if resp := r.s.handle(context.Background(), send); resp.Code != "unavailable" {
-		t.Fatalf("send to dormant slot %+v", resp)
+	// Firing the final retry does not mean its failure reached Dormant.
+	// Keep launch unhealthy until a send starts the next admission, which
+	// can happen only from Dormant. Hold that admission so even a fast
+	// worker cannot connect before the triggering request refuses.
+	for {
+		if resp := r.s.handle(ctx, send); resp.Code != "unavailable" {
+			t.Fatalf("send before successful readmission %+v", resp)
+		}
+		select {
+		case <-awakened:
+			r.world.set(to, func(s *worldSlot) { s.launch = true })
+			releaseOnce.Do(func() { close(release) })
+			r.waitConnected(to, true)
+			return
+		case <-ctx.Done():
+			t.Fatal("send never awakened dormant session")
+		default:
+		}
 	}
-	r.waitConnected(to, true)
 }
 
 func TestMessageSendingCallerMustRemainCurrent(t *testing.T) {
