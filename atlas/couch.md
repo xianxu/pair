@@ -1450,8 +1450,9 @@ in `MenuNotice`, so repeating the action does not copy its own confirmation.
 
 A read-only investigation for #604 found Ghostty's installed default permits
 `clipboard-write` and no local permission override; Zellij documents OSC 52 write
-support. The affected live terminal chain and the layer losing the original
-request were not established. Local clipboard copying bypasses these delivery
+support. The current Couch parent chain was Couch → login shell → login →
+Ghostty, with no outer multiplexer. The layer losing the original request was
+not established without a live clipboard probe. Local clipboard copying bypasses these delivery
 dependencies rather than assuming either terminal blocks OSC 52. See
 [Ghostty's clipboard permission](https://ghostty.org/docs/config/reference#clipboard-write)
 and [Zellij's clipboard support](https://zellij.dev/documentation/compatibility.html).
