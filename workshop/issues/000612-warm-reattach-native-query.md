@@ -16,6 +16,7 @@ claimant:
     workspace: pair:1
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "79c256dc", done: "c955d608"}
 ---
 
 # Warm reattach acceptance intermittently resolves native binding
