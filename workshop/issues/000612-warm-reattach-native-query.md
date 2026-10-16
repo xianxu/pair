@@ -1,13 +1,21 @@
 ---
 id: 000612
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-16
 updated: 2026-10-16
 estimate_hours:
 severity: medium
-card_mirror: 'd053d04ca0db174672eb33ad1ffde74a15c66580' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '1ec7b07bd65bf0ac0cdf9f9d85969acb077af3e4' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-16T05:47:20-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:1
+    worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Warm reattach acceptance intermittently resolves native binding
@@ -30,7 +38,9 @@ Establish a controlled ordering that explains the unexpected native-binding quer
 
 ## Plan
 
-- [ ]
+- [ ] Reproduce the acknowledgment transition with explicit host presence and no live TTY observations; identify the native-resolution caller and compare the production presence contract (ARCH-MOCK, ARCH-ORDER).
+- [ ] Confirm the responsible fake/fixture or product owner, then implement a minimal invariant-preserving correction with a regression that fails without it.
+- [ ] Verify the relevant fake contracts and repeated complete couchcmd runs, race detection, and the recorded full suite; close review and report for landing.
 
 ## Log
 
@@ -44,3 +54,5 @@ Commands on both commits: go test -trimpath ./cmd/internal/couchcmd -count=5; go
 Additional bounded controls (shuffle seed 1792152713078555000): dormant+warm pair reproduced 3/100 warm failures, 15.511s (/tmp/pair-589-fixture-pair.log); warm alone reproduced 1/100, 13.608s (/tmp/pair-589-warm-alone.log). Restoring the ORIGINAL dormant-test body from main through /tmp/pair-589-original-control-qf81jja_/overlay.json, then running ONLY warm reattach, reproduced 9/200, 33.301s (/tmp/pair-589-original-control.log). The original 30 warm-only repetitions had passed (6.005s), showing why that sample was insufficient.
 
 Unconfirmed root-cause hypothesis from inspection: warm_reattach_test.go's AfterAcknowledge calls SetDetachedSession(address, empty), which deletes pairSessions and sessionPresence, followed by SetPairSession(address, name, true), which restores pairSessions but leaves sessionPresence absent. Background ActionableThreadInventoryContext can consume that absence without live observations yet and legitimately enter its native-binding query branch. The counter is a field on each FakeThreadArtifactCollisionChecker (newRT allocates a new instance), not process-wide. No controlled barrier or call-stack measurement has yet proved this hypothesis; the next owner should establish that ordering before choosing a fix.
+
+2026-10-16: pair:1 claimed #612 after #589 landed (PR #363). Entered planning. A read-only parallel audit compares the production session-presence checker and fake state transitions while the main agent builds a controlled measurement. No implementation changes yet.
