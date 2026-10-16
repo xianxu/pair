@@ -232,6 +232,24 @@ local document_bytes = dofile(here .. 'review/document_bytes.lua')
 local identity = dofile(here .. 'review/identity.lua')
 local restore_policy = dofile(here .. 'review/restore.lua')
 
+-- init.lua carries the rationale for $PAIR_NVIM_PID_FILE. This config publishes
+-- per activation rather than at VimEnter, because its embed is restarted and
+-- rolled back; the removal is registered once here and deletes only a record that
+-- still names this process, so a pid a later activation — or a restarted embed for
+-- the same tag — just republished survives this one's clean exit (#583).
+do
+  local pidfile = vim.env.PAIR_NVIM_PID_FILE
+  if pidfile and pidfile ~= '' then
+    vim.api.nvim_create_autocmd('VimLeave', {
+      once = true,
+      callback = function()
+        local ok, lines = pcall(vim.fn.readfile, pidfile)
+        if ok and lines[1] == tostring(vim.fn.getpid()) then pcall(vim.fn.delete, pidfile) end
+      end,
+    })
+  end
+end
+
 -- 🤖 marker highlight groups. Keep these aligned with parley.nvim's review mode
 -- so pair and parley render the marker language consistently across themes.
 local function setup_review_marker_hl()

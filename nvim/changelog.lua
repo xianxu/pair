@@ -39,6 +39,15 @@ do
         pcall(vim.fn.writefile, { tostring(vim.fn.getpid()) }, pidfile)
       end,
     })
+    -- init.lua carries the rationale: a clean exit drops its own record, and only
+    -- one that still names this process (#583).
+    vim.api.nvim_create_autocmd('VimLeave', {
+      once = true,
+      callback = function()
+        local ok, lines = pcall(vim.fn.readfile, pidfile)
+        if ok and lines[1] == tostring(vim.fn.getpid()) then pcall(vim.fn.delete, pidfile) end
+      end,
+    })
   end
 end
 

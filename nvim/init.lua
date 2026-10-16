@@ -30,6 +30,19 @@ do
         pcall(vim.fn.writefile, { tostring(vim.fn.getpid()) }, pidfile)
       end,
     })
+    -- A clean exit removes its own record, so the next sweep is not handed a pid
+    -- that stopped being ours (#583). Only a record still naming *this* process
+    -- goes: a restarted editor for the same tag republishes its own pid here
+    -- first, and deleting that would leave the survivor unnamed. A SIGKILLed
+    -- embed never reaches VimLeave and so keeps its record — that record is the
+    -- reaper's only name for the process, which is the whole point of it.
+    vim.api.nvim_create_autocmd('VimLeave', {
+      once = true,
+      callback = function()
+        local ok, lines = pcall(vim.fn.readfile, pidfile)
+        if ok and lines[1] == tostring(vim.fn.getpid()) then pcall(vim.fn.delete, pidfile) end
+      end,
+    })
   end
 end
 
