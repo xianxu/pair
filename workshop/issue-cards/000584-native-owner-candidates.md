@@ -1,6 +1,6 @@
 ---
 id: 000584
-status: working
+status: codecomplete
 created: 2026-10-15
 updated: 2026-10-15
 estimate_hours: 1.3935
@@ -14,6 +14,14 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
+actual_hours: 2.50
+tracker:
+    version: 1
+    completion:
+        token: close-e1125004932e
+        repository: github.com/xianxu/pair
+        reviewed_head: 44b10b71dd206c8f694724df6137f54b8c9f7cbc
+        evidence_commit: 3e73065dad3790af8005dd7877f208e47acc058d
 ---
 
 # Native owner scan blocks fleet resume on unrelated processes
