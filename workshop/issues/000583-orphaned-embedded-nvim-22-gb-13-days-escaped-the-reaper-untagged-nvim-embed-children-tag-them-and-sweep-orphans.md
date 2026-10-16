@@ -473,3 +473,54 @@ no row was invented to satisfy a plan sentence, and the guard passes untouched.
 Verified: `go test ./cmd/internal/storagegc/ -run TestManagedIOInventoryAnchors -count=1` ok 0.176s,
 `go test ./cmd/internal/artifactpath/ -count=1` ok 6.927s (its `TestArtifactDocsUseBindingsForCurrentConsumers`
 is the other atlas grep guard, and the edited paragraphs touch neither its required nor its forbidden phrases).
+
+### 2026-10-16 — M1 boundary review round 1: FIX-THEN-SHIP, and the closed pane was unreachable
+
+`sdlc milestone-close --issue 583 --milestone M1` ran the boundary review at head `95db2c14b` and refused
+to finalize: verdict **FIX-THEN-SHIP** with one open blocking finding
+(`workshop/plans/000583-…-m1-review.md`).
+
+**BR-1 (Important) was right, and the first fix it offered was the wrong one.** The rule "owner live but
+reparented to launchd → kill" — Task 2's second killing row, Task 5's `OwnerLive = live[tag]` — could not
+fire for a tag-keyed kind: both sweep sources dropped live tags and the quit path passes `false`, so
+`reapReasonReparented` only ever reached changelog viewers and a hand-built test target. I drafted the
+finding's other option (withdraw the claim) on the strength of Task 7's measurement that closing an
+embed's stdin ends it in ~31 ms, then rejected my own draft: that measurement says an embed *usually* dies
+with its parent, and this issue exists because one did not, for 13 days and 22 GB. The atlas already
+carried the honest sentence — "the embed sometimes survives RPC-pipe EOF and gets reparented to launchd".
+So the leak was real (a session lives for days after its editor pane closes) and the code changed instead
+of the plan: `tagSidecars` (was `deadTagSidecars`) targets every tag the globs find with `live[tag]` as
+`OwnerLive`, `nvimSidecarsFor` takes liveness from its caller, and `argvOnlyEmbeds` keeps live tags. The
+guard did not move — ppid 1 plus the kind's full argv attribution plus the identity fence — and the cost
+is near zero, because source 2 already read argv for every nvim row before it checked liveness. Two sweep
+cases that had leaned on the ppid-1 `embed()` helper for a live tag now give it a live parent, so each
+isolates what it names; two new cases pin one SIGKILL for a reparented live-tag embed (reached through its
+sidecar, and through argv alone); `TestNvimSidecarsGiveEveryKindArgvEvidence` pins that a liveness a caller
+states reaches every kind.
+
+**BR-2 (Minor) fixed at its root, not as suggested.** `RunViewer` is a **held** child (`opener/runtime.go`
+ends in `cmd.Wait()`) and the openlock goes by `defer` on its return, so PQ-5's "absent lock ⇒ dead owner"
+stands; the defect was `opener/run.go` ignoring the `WriteFile` error, which left a viewer whose ownership
+was never recorded reapable by any other session's sweep. `RunChangelog` now refuses to open one: exit 1,
+cause named on stderr, no distiller launched, and no removal of a lock this opener never wrote. Pinned by
+`TestRunChangelogRefusesAViewerItCannotClaim`, teeth proven by mutation (reverting to `_ = rt.WriteFile`
+turns it RED on `code = 0, want 1`). The suggested grandparent-pid check would have added a second
+ownership model beside the openlock; the scrollback lock at `run.go:109` stays unchecked on purpose, since
+it guards re-entrancy, not ownership — a failed write there costs a duplicate read-only viewer.
+
+**BR-3 (Minor) recorded** in the plan's `## Non-goals`: the quit path reads pid records only, so a second
+scrollback viewer whose per-tag sidecar was overwritten waits for the next launch sweep. The deleted
+`pkill -9 -f` pattern caught it, and everything else whose argv mentioned the path.
+
+**BR-4 (Minor) half fixed, half disposed.** `byPID` is now built once per pass (`indexByPID`) and shared by
+the openlock liveness check and the decisions. The second `Command(pid)` read stays, with the reason at the
+read: `argvOnlyEmbeds` reads argv to *attribute*, `decideNvimSidecar` reads it to *authorize*, and the
+authorizing read has to sit beside the identity fence — carrying an earlier read into the decision would
+mix evidence from two moments, which is what the one-snapshot rule removed.
+
+Verified: `go build ./...`; `go vet ./cmd/internal/launcher/ ./cmd/internal/opener/`;
+`go test ./cmd/internal/launcher/ ./cmd/internal/opener/ -count=1` ok (30.7s / 0.2s);
+`PAIR_LIVE_NVIM_REAP=1 go test ./cmd/internal/launcher/ -run TestLiveNvimReap -v -count=1` PASS 3/3
+(0.176s), whose live-tag case now asserts exactly one decision, reason `owner live`, no kill, record
+intact. Atlas `architecture.md`'s startup-sweep paragraph re-edited for the same reason as BR-1: its first
+two evidence sources described dead tags only, and it now states the live-tag rule.

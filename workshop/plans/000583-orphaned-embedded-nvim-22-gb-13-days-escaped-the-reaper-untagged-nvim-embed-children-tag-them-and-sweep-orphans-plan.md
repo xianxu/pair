@@ -199,7 +199,10 @@ reaps nothing partially: a candidate is either signalled or not, and the next pa
   input, so the table drives one field at a time to its boundary — absent, wrong-valued, and
   right-valued — and asserts the verdict *and* the reason string for each, with the invariant that no
   row missing any one predicate is ever a kill. The two rows that must kill: owner dead, and owner live
-  but ppid 1 (the closed-pane case the 22 GB orphan is an instance of).
+  but ppid 1 — the closed pane, an editor that died while its session lived on. *(The 22 GB orphan was not
+  an instance of this row: it was a **bare** embed whose argv carried no scope path, which is M2's class;
+  and until the M1 boundary review no production source built such a row at all — see `## Revisions`,
+  2026-10-16 "M1 boundary review".)*
 - [x] **Step 2: Run, expect FAIL.** `go test ./cmd/internal/launcher/ -run ClassifyNvimReap -count=1`
 - [x] **Step 3: Implement**
 
@@ -297,7 +300,9 @@ func ClassifyNvimReap(row NvimReapRow) (kill bool, reason string)
 - [x] **Step 3: Implement.** One snapshot; three evidence sources feeding `ClassifyNvimReap` rows:
   1. `nvim-pid-<tag>-<kind>` sidecars over `NvimPIDGlobs()` — `Owner` is the tag from `TagFromNvimPID`,
      `OwnerLive` is `live[tag]`, `ExpectedArgPath` is the kind's path for draft/scrollback and `""` for
-     review.
+     review. *(As built, every tag the globs find is a target, live ones included — `tagSidecars` hands
+     `live[tag]` to `nvimSidecarsFor`, so a live tag's embed is decided on the ppid rule instead of being
+     dropped; see `## Revisions`, 2026-10-16 "M1 boundary review".)*
   2. rows named `nvim` whose argv carries a scope path — `Owner` from `TagFromNvimEmbedArgv`
      (draft/scrollback only; it stays as it is), `OwnerLive` from `live`.
   3. `<base>.nvim-pid` siblings — `Owner` is the base, `ExpectedArgPath` is `<base>.md`, and `OwnerLive`
@@ -543,6 +548,11 @@ func ClassifyOrphanNvim(row procutil.Process, args []string, cwd string, cwdKnow
   so the argv fallback covers an overwritten sidecar. The changelog's argv has a variable trailing
   component count and no unambiguous split, which is exactly why only changelog moves to an
   artifact-keyed record.
+- The quit path has no argv fallback. `ReapNvim` reads pid records only, so a second scrollback viewer
+  whose per-tag sidecar the first one overwrote is not reaped at quit; the next launch sweep covers it —
+  on its owner's death, or on the reparented rule if its pane closed first. The deleted `pkill -9 -f`
+  pattern did catch that viewer, and also every other process whose argv mentioned the path, which is why
+  #583 removed it. Recorded rather than fixed (M1 boundary review BR-3).
 
 ## Revisions
 
@@ -723,3 +733,53 @@ func ClassifyOrphanNvim(row procutil.Process, args []string, cwd string, cwdKnow
   (the sidecar row: three kinds, the review record resolved at its launch site rather than env-bound, the
   "only a record that still names this process" removal guard, identity-exact reaping, and the changelog's
   artifact-keyed record with the reason (tag, kind) cannot serve it).
+- **2026-10-16 — M1 boundary review (FIX-THEN-SHIP): the closed pane was unreachable, so the sweep now
+  decides live tags too.** Reason: BR-1 (Important) found that the rule Task 2 pins and Task 5 states —
+  "owner live but reparented to launchd → kill" — could not fire for a tag-keyed kind: `deadTagSidecars`
+  and `argvOnlyEmbeds` both dropped live tags and the quit path passes `OwnerLive: false`, so no
+  draft/scrollback/review row was ever built with `OwnerLive: true`. The finding offered two fixes, emit
+  live-tag rows or withdraw the claim. Withdrawal was drafted first and then rejected as unsound: the
+  ~31 ms stdin-EOF measurement (Task 7 revision (d)) shows only that an embed *usually* dies with its
+  parent, and the issue's own evidence is a 13-day survivor, so "a live tag's embed cannot linger at ppid
+  1" would have generalized one measurement into a claim the 22 GB orphan contradicts — and the atlas
+  already said as much ("the embed sometimes survives RPC-pipe EOF and gets reparented to launchd"). The
+  leak was real: a session runs for days after its editor pane closes, and until now the embed that pane
+  left behind waited for the session to end.
+  (a) *Live tags are candidates.* `deadTagSidecars` → `tagSidecars` targets every tag whose record the
+  globs find and passes `live[tag]` down; `nvimSidecarsFor` gained an `ownerLive` parameter (the quit path
+  and `editorPathsOf` pass `false`, which is their own authorization); `argvOnlyEmbeds` no longer skips a
+  live tag and states `OwnerLive: live[tag]`. `reapReasonReparented` is therefore reachable in production
+  for all three tag kinds, and the guard did not move: ppid 1 **plus** the kind's full argv attribution
+  plus the identity fence. Cost is near zero — source 2 already read argv for every nvim row before it
+  checked liveness — plus one record read per live tag per kind, mostly a miss.
+  (b) *Tests.* The two sweep cases that used the ppid-1 `embed()` helper for a live tag now give it a live
+  parent, so each isolates what it names (a healthy live-tag embed is kept; a dead tag's record does not
+  steal its live neighbour's viewer), and two new cases assert exactly one SIGKILL for a reparented
+  live-tag embed — one reached through its sidecar, one through argv alone.
+  `TestNvimSidecarsGiveEveryKindArgvEvidence` also pins that the liveness a caller states reaches every
+  kind. The gated live test's live-tag case changed meaning with the code: it now asserts exactly one
+  decision, reason `owner live`, no kill, record intact (PASS 3/3 in 0.176 s), and its header no longer
+  calls the reparented branch unreachable. The live run still does not attempt a real reparenting — a
+  disposable parent that leaves the embed alive at ppid 1 could not be built on this host (Task 7 (d)) —
+  so that branch stays pinned by the fake table's ppid-1 rows.
+  (c) *BR-2 (Minor, absent evidence read as owner death) is fixed at its root,* not with the suggested
+  grandparent-pid check. `RunViewer` is a **held** child (`opener/runtime.go:161-176` ends in `cmd.Wait()`)
+  and the openlock goes by `defer` on its return, so an absent lock really does mean the opener is gone
+  and PQ-5's rule stands; the defect was that `opener/run.go` ignored the `WriteFile` error, leaving a
+  viewer whose ownership was never recorded reapable by any other session's sweep. The write is now
+  checked and the viewer refuses to open (exit 1, cause on stderr, no distiller launched, and a lock this
+  opener never wrote is not removed), pinned by `TestRunChangelogRefusesAViewerItCannotClaim` — teeth
+  proven by mutation, since reverting to `_ = rt.WriteFile` turns it RED on `code = 0, want 1`. A
+  grandparent check would have added a second ownership model beside the openlock. The scrollback lock at
+  `run.go:109` stays unchecked on purpose: it guards re-entrancy, not ownership, so a failed write costs a
+  duplicate read-only viewer, not a live process.
+  (d) *BR-3 (Minor, the quit path lost its argv fallback) is documented, not fixed* — see `## Non-goals`.
+  (e) *BR-4 (Minor, repeated per-pass work) is half fixed and half disposed.* `byPID` is built once per
+  pass (`indexByPID`) and handed to both the openlock liveness check and `reapNvimRows`. The second
+  `Command(pid)` read stays: `argvOnlyEmbeds` reads argv to *attribute* and `decideNvimSidecar` reads it to
+  *authorize*, and the authorizing read must sit beside the identity fence — carrying an earlier read into
+  the decision would mix evidence from two moments, exactly what Task 5's revision (a) removed. It costs
+  one argv read per argv-only target on a launch/quit path, and the reason is now a comment at the read.
+  The atlas' startup-sweep paragraph (`:385`) was edited again for (a): its first two evidence sources
+  described dead tags only, and it now states the live-tag rule — a dead owner is the whole authorization,
+  a live tag's embed needs reparenting on top.
