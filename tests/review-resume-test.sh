@@ -9,6 +9,10 @@
 # Run: bash tests/review-resume-test.sh
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+if [ "${1:-}" != --isolated-child ]; then
+  exec python3 -B "$ROOT/tests/lib/review_test_env.py" "$ROOT" "$0" "$@"
+fi
+shift
 . "$ROOT/tests/lib/run-headless.sh"
 RT="${TMPDIR:-/tmp}/pair-resume-test.$$"; mkdir -p "$RT"
 trap 'rm -rf "$RT"' EXIT

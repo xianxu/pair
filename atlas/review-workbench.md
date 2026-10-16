@@ -344,6 +344,11 @@ persistent agent's recognition and round-trip behavior.
   `review-readiness-cli` (quoted git facts stay valid JSON), `resume`,
   `review-branch-restore` (real branches and same-process activation), and the
   agent-owns-git loop.
+- `review-resume-isolation-test.py` (#591) runs the complete resume fixture with
+  foreign inherited `PAIR_HOME` and `PAIR_BIN`, requiring the checkout executable
+  and unchanged caller artifact sentinels. The resume fixture reuses
+  `ReviewTestEnvironment` before its Git/editor subprocesses; its original
+  legacy, scoped/ambiguous and read-only assertions and deadlines are preserved.
 - `review-observation-diagnostics-test.py` (#586) validates exit/status and
   complete wanted identities before forwarding, and tests incomplete fresh
   observations, real checkout refusal, and a successful restoration. The

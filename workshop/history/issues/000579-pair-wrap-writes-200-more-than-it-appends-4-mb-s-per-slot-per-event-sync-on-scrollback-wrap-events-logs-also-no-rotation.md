@@ -6,7 +6,7 @@ github_issue:
 created: 2026-10-15
 updated: 2026-10-15
 estimate_hours: 2.622
-card_mirror: 'cec4cbb48c6acfd211afd74c066fed3613418fe4' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'c5956d67550c177789e2a79935c16c0550037d55' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-15T15:07:36-07:00
 claimant:
     operator: Xian Xu
@@ -52,7 +52,7 @@ Separately, these files are **never rotated**: wrap-events logs of **3.9 GB** (p
 - A complete interrupted batch recovers by its exact digest; an uncertifiable incomplete batch is preserved as a marked-unverified quarantined generation and a fresh current log starts after safe writer proof. Nothing unverified is adopted or truncated; quarantines remain protected by the diagnostic backup fence.
 - Raw/events writes flush on250ms/size/orderly shutdown without changing witness identity or raw bytes; raw flush precedes sidecar offset publication. Faithful raw+events size rotation is unassigned #582, outside this issue.
 - Deterministic crash/progress/ownership/rotation/buffer tests, recorded suite, build and mandatory fresh SHIP reviews pass. Receipt, park and recovery synchronization remain intact; process-crash and power-loss bounds are documented.
-- After landing, live process bytes-written versus raw+event bytes-appended and diagnostic state inode-change rates are recorded in ## Log with before/after ratios, exact binary/process/activity context, and reported to hub. Baseline85.8x/10.006s and2187 observed replacements/60.003s remains the comparison.
+- After landing, record the hub-accepted live comparison from ops tools/disk-writes in ## Log: new wrappers 0.00–0.07 MB/s versus old wrappers 2–4.7 MB/s. The hub accepts this as completion of the outstanding live after-sample (2026-10-16 revision below). Preserve the earlier detailed baseline and isolated amplification/inode evidence without presenting these new rate ranges as matched-window amplification ratios.
 
 ## Plan
 
@@ -83,6 +83,10 @@ The approved scope and protocol are recorded in the Revisions below and the dura
 
 - 2026-10-15T22:18:28Z: verified acceptance receipt e774d4c0-5be6-4c77-8e0a-8e25ceeb3cd4; explicit post-landing measurement added below. This is not approval of the pending scope/retention design. Production code remains unchanged.
 
+
+### 2026-10-16 — post-landing live after-sample accepted
+
+The hub measured live wrappers tonight using **ops tools/disk-writes**: wrappers on the new build wrote **0.00–0.07 MB/s**, compared with **2–4.7 MB/s** for old wrappers. Source: submitted hub receipt f068151b-8e9b-4f38-b43d-e38a9527c45d, which explicitly requests recording this as the live after-sample and closes the remaining #579 measurement obligation. These are hub-observed process write-rate ranges; the message does not supply matched appended-byte counts, state inode rates, PIDs, build hashes or sample windows, so no new amplification ratio or inode-rate claim is derived from them. The existing detailed live baseline and isolated before/after measurements remain above and in the retained implementation notes. No wrapper was restarted or live data mutated by this recording.
 
 ## Revisions
 
@@ -116,6 +120,10 @@ Verified hub receipt8f573644-79af-4c74-99b6-58677b6b5137 explicitly says Go on d
 
 The first plan-quality review correctly found shared adaptation writers could bypass a wrapper-only option. Governing plan now persists schema-v2 DiagnosticLimits and makes every managed writer enforce them; older strict decoders refuse rather than bypass. Limits can tighten but not widen on another handle. Named-function strategy table replaces the earlier prose test inventories as the current contract. No production code changed before the gate.
 
+
+### 2026-10-16T11:39:26Z — hub supplies and accepts the live after-sample
+
+Reason: submitted hub decision f068151b-8e9b-4f38-b43d-e38a9527c45d supplies its own ops tools/disk-writes comparison and states that recording it completes #579. Delta: accept that live old/new process-rate comparison for the outstanding rollout check, replacing the request for a separate worker-owned matched-window byte/inode sample. Done when and Log now reflect this accepted evidence; earlier measurements are preserved with their original scope.
 
 ## Estimate
 
