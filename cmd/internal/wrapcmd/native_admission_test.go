@@ -113,7 +113,7 @@ func TestNativeAdmissionConsumptionAndChildPublicationEncloseSpawn(t *testing.T)
 		command.Process = &os.Process{Pid: 123}
 		return nil, nil
 	}
-	if _, err := startNativePTY(context.Background(), world, "valid-grant", "codex", cmd, io.Discard, spawn); err != nil {
+	if _, err := startNativePTY(context.Background(), false, world, "valid-grant", "codex", cmd, io.Discard, spawn); err != nil {
 		t.Fatal(err)
 	}
 	// Returning success is the caller's permission to configure/publish ready.
@@ -122,7 +122,7 @@ func TestNativeAdmissionConsumptionAndChildPublicationEncloseSpawn(t *testing.T)
 		t.Fatalf("native ownership/readiness order: %v state=%s", world.events, world.state)
 	}
 	before := len(world.events)
-	if _, err := startNativePTY(context.Background(), world, "valid-grant", "codex", cmd, io.Discard, spawn); err == nil {
+	if _, err := startNativePTY(context.Background(), false, world, "valid-grant", "codex", cmd, io.Discard, spawn); err == nil {
 		t.Fatal("duplicate grant spawned another native writer")
 	}
 	if !reflect.DeepEqual(world.events[before:], []string{"claim"}) || !world.childAlive || world.state != "running" {
@@ -142,7 +142,7 @@ func TestNativeAdmissionFailureDoesNotInventReleaseOrReadiness(t *testing.T) {
 				world.publishErr = errors.New("publication outcome uncertain")
 			}
 			spawns := 0
-			_, err := startNativePTY(context.Background(), world, grant, "codex", cmd, io.Discard, func(command *exec.Cmd) (*os.File, error) {
+			_, err := startNativePTY(context.Background(), false, world, grant, "codex", cmd, io.Discard, func(command *exec.Cmd) (*os.File, error) {
 				spawns++
 				world.events = append(world.events, "spawn")
 				if failure == "spawn" {
@@ -200,7 +200,7 @@ func TestNativeAdmissionSelectorsAndCommandMustMatchTheGrant(t *testing.T) {
 			_, world := nativeAdmissionTestCommand(t)
 			cmd := exec.Command("/native/"+tc.agent, tc.args...)
 			spawns := 0
-			_, err := startNativePTY(context.Background(), world, tc.grant, tc.agent, cmd, io.Discard, func(*exec.Cmd) (*os.File, error) {
+			_, err := startNativePTY(context.Background(), false, world, tc.grant, tc.agent, cmd, io.Discard, func(*exec.Cmd) (*os.File, error) {
 				spawns++
 				return nil, nil
 			})
@@ -403,7 +403,7 @@ func TestCodexIndirectCompatibilityCannotBypassConsumedGrant(t *testing.T) {
 	world := &nativeAdmissionWorld{state: "running", agent: "codex", digest: digest, childAlive: true}
 	var notice bytes.Buffer
 	spawns := 0
-	_, err = startNativePTY(t.Context(), world, "valid-grant", "codex", cmd, &notice, func(*exec.Cmd) (*os.File, error) { spawns++; return nil, nil })
+	_, err = startNativePTY(t.Context(), false, world, "valid-grant", "codex", cmd, &notice, func(*exec.Cmd) (*os.File, error) { spawns++; return nil, nil })
 	if err == nil || spawns != 0 || notice.Len() != 0 || !reflect.DeepEqual(world.events, []string{"claim"}) || world.state != "running" || !world.childAlive {
 		t.Fatalf("compatibility bypassed consumed grant: err=%v spawns=%d notice=%q world=%+v", err, spawns, notice.String(), world)
 	}
@@ -415,12 +415,19 @@ func TestCouchHostedResumeStartsWithoutNativeAdmission(t *testing.T) {
 	for _, hosted := range []bool{true, false} {
 		cmd, world := nativeAdmissionTestCommand(t)
 		spawns := 0
-		_, err := startAgentPTY(context.Background(), hosted, world, "", "codex", cmd, io.Discard, func(*exec.Cmd) (*os.File, error) { spawns++; return nil, nil })
+		_, err := startNativePTY(context.Background(), hosted, world, "", "codex", cmd, io.Discard, func(*exec.Cmd) (*os.File, error) { spawns++; return nil, nil })
 		if hosted && (err != nil || spawns != 1 || len(world.events) != 0) {
 			t.Fatalf("hosted resume: err=%v spawns=%d events=%v", err, spawns, world.events)
 		}
 		if !hosted && (err == nil || spawns != 0) {
 			t.Fatalf("ordinary resume admitted without grant: err=%v spawns=%d", err, spawns)
 		}
+	}
+	// Only a pinned resume skips admission; an unpinned one never reaches the
+	// registry check, so Couch-hosted or not it still needs a grant.
+	spawns := 0
+	_, err := startNativePTY(context.Background(), true, &nativeAdmissionWorld{}, "", "claude", exec.Command("/native/claude", "--continue"), io.Discard, func(*exec.Cmd) (*os.File, error) { spawns++; return nil, nil })
+	if err == nil || spawns != 0 {
+		t.Fatalf("hosted unpinned resume started without admission: err=%v spawns=%d", err, spawns)
 	}
 }

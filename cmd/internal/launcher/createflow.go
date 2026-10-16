@@ -818,10 +818,12 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 			}
 		}
 	}()
-	// A Couch-owned resume needs no native admission (pair#597): both Couch
-	// resume paths (recovery and cold resume) check Couch's registry for the
-	// same conversation in another live slot before they launch this one.
-	if explicitResume != "" && !couchOwned {
+	// Couch's resume and recovery launches take no native admission (pair#597):
+	// both check Couch's registry for the same conversation in another live
+	// slot first, and only their profiles carry ResumeRequired or Recovery.
+	// Any other launch, Couch-owned or not, still reserves.
+	registryChecked := couchOwned && (opts.Args.ResumeRequired || opts.Args.Recovery != nil)
+	if explicitResume != "" && !registryChecked {
 		digest, err := NativeAdmissionCommandDigest(agent, append([]string{agent}, PromptArgs(agent, commandArgs, opts.Args.Prompt)...))
 		if err != nil {
 			fmt.Fprintf(stderr, "pair: %v\n", err)

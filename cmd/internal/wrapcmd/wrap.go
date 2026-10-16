@@ -2890,7 +2890,7 @@ argsDone:
 	cmd := exec.Command(argv[0], launcher.PromptArgs(argv[0], argv[1:], launchPrompt)...)
 	cmd.Env = childEnv
 	agentNotBefore := time.Now()
-	ptmx, err := startAgentPTY(context.Background(), launcher.CouchHostedEnv(os.Getenv), launcher.NativeAdmissionStore{Home: os.Getenv("HOME")}, admissionGrant, p.agentBasename, cmd, stderr, pty.Start)
+	ptmx, err := startNativePTY(context.Background(), launcher.CouchHostedEnv(os.Getenv), launcher.NativeAdmissionStore{Home: os.Getenv("HOME")}, admissionGrant, p.agentBasename, cmd, stderr, pty.Start)
 	if err != nil {
 		// Only this wrapper's newly created direct child is ours to clean up.
 		// Cleanup does not release a possibly committed native admission.
