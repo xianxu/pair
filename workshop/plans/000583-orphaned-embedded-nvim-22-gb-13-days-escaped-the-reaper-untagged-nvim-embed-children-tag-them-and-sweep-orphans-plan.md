@@ -366,7 +366,13 @@ func ClassifyNvimReap(row NvimReapRow) (kill bool, reason string)
   tag-level collection and reaping, `:1218`'s tag-only family list still said `{draft,scrollback}`, and
   `:1256` is the sidecar row.)*
 - [x] **Step 2:** `go test ./cmd/internal/storagegc/ -run TestManagedIOInventoryAnchors -count=1` → PASS.
-- [ ] **Step 3:** `sdlc milestone-close --issue 583 --milestone M1`, then commit.
+- [x] **Step 3:** `sdlc milestone-close --issue 583 --milestone M1`, then commit.
+  *(Closed at round 5: `Review-Verdict: SHIP` over `758c4b72..25ae5ed5`, 0 new findings, BR-7 disposed as
+  addressed, all eight ARCH principles pass. The gate committed its own evidence as `9545171de` and pushed
+  the branch, so there was nothing left to paste or commit here. Rounds 3, 4 and 5 were one family —
+  `kill-attribution-must-name-owner` — which is the story `## Revisions` tells; the judge's own mutation
+  check reddened 9 rows, a wider set than my 3, because it also dropped the rows that merely need the bound
+  file.)*
 
 ## Chunk 2: M2 — untagged orphans are reported and reaped on confirmation
 
