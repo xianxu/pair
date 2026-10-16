@@ -439,3 +439,93 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-16T06:02:26-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 595 — Replace the native-owner forensics (#556/#584) with a wrapper-held flock per conversation; one-time cutover; delete the scan and reservation store |
+| repo | pair |
+| issue file | workshop/issues/000595-replace-the-native-owner-forensics-556-584-with-a-wrapper-held-flock-per-conversation-one-time-cutover-delete-the-scan-and-reservation-store.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 614cd4c77793dd43b8cba6dcd93a4d858025b932..6e30fdbf474c2b22924ade77271eb845590ee983 |
+| command | sdlc close --issue 595 |
+| reviewer | claude |
+| isolation | fenced |
+| timestamp | 2026-10-16T06:02:26-07:00 |
+| verdict | SHIP |
+
+## Review
+
+Checking where the wrapper takes its exact-ID lock, to see whether the new `Unbound()` gate in the discovery-unavailable notice is accurate.
+
+Running the nativelock and wrapcmd test packages at head.
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+This window contains the fixes made after the close review. It changes the `Relabel` write order, the watcher-unavailable notice in `wrap.go`, the plan text, and a native conformance test that now waits for its wrapper to exit before removing the fixture. None of the four open prior findings is blocking. BR-11 and BR-12 are fixed. BR-7's code is correct but has no regression test. BR-9 had no work in this window. The new code adds no Critical or Important defects. `go vet` passes on the three changed packages. `go test` passes for nativelock (0.29s) and wrapcmd (73s). I did not run the couchtty conformance test, because it needs a live Zellij/native fixture.
+
+1. **Strengths**
+   - `cmd/internal/nativelock/lock.go:89-96`: `Relabel` now truncates before it writes. A contender reading in between sees either an empty label or the start of the new one. An empty label fails `validHolder` and is shown as "another Pair session". The old label's tail can no longer mix with the new one.
+   - `cmd/internal/wrapcmd/wrap.go:2970-2997`: one `discoveryUnavailable` helper now covers all three failure paths: `os.Executable` failure, no watcher for the launch, and a pipe/start failure. It only shows the notice when the agent is a supported native agent and no ID is locked yet (`locks.Unbound()`).
+   - `terminal_native_test.go:66-80`: the cleanup now waits up to 5s for the wrapper to exit, using its pidfile. If the pidfile is missing (for example, the test failed before its path was set), it skips the wait and removes the fixture as before.
+   - The plan now describes the current design in the Delete list, the test table row and the LOC paragraph, and the landing item no longer refers to the dropped maintenance window.
+
+2. **Critical findings:** none.
+
+3. **Important findings:** none.
+
+4. **Minor findings:** none new. Two prior Minor findings stay open:
+   - BR-9: nothing in this window touches the three validators.
+   - BR-7: the code fix is in place, but no test covers it.
+
+5. **Test coverage notes**
+   - The BR-12 race cannot be tested deterministically: any single-threaded `Relabel` test passes with both orderings. I accepted the fix on inspection.
+   - The BR-7 notice gating has no test. A wrapper test with an injected nil watcher, run once unbound and once with an exact ID locked, would cover it.
+
+6. **Architectural notes**
+   - ARCH-DRY: flag, carried as BR-9. The interdiff itself removes duplication: three copies of the notice logic became one helper.
+   - ARCH-PURE: pass. The notice predicate is small glue over `locks.Unbound()`, and the lock state machine stays in the pure `nativelock.Advance`.
+   - ARCH-PURPOSE: pass. The BR-7 fix covers every way discovery can fail to start, not just the one site the finding named.
+
+7. **Plan revision recommendations:** none needed. One wording leftover: the checked item at plan line 115 still says "maintenance rollout". It is a completed item, so it reads as history.
+
+```findings
+dispose:
+  - id: BR-7
+    disposition: not-addressed
+    note: |
+      Code fix present and covers all three discovery-failure paths (wrap.go:2970-2997, gated on locks.Unbound()), but no regression test pins it; add an injected-nil-watcher test for the unbound vs exact-ID-locked cases.
+  - id: BR-9
+    disposition: not-addressed
+    note: |
+      No change in this window to validHolder, validBindingNotice or NativeLockFilename; they still disagree on whitespace and Cf characters.
+  - id: BR-11
+    disposition: addressed
+    note: |
+      Plan lines 72, 90, 108 and the landing item 123 now describe the no-capability, no-maintenance design; the remaining mentions are struck rows or dated Revisions entries.
+  - id: BR-12
+    disposition: addressed
+    note: |
+      lock.go:89-96 truncates before WriteAt, so a reader sees an empty label (shown as the generic holder) or a prefix of the new one, never the old suffix; the race cannot be tested deterministically, so verified by inspection.
+```
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"f2a6fe34-862d-418d-a939-4b0e462ea108","repository":"github.com/xianxu/pair","issue_id":"000595","recipe":"fix-review","round":4,"attempt":1,"agent":"claude","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/9c85b80c13d6e7c2","reviewed_head":"6e30fdbf474c2b22924ade77271eb845590ee983","slot":"pair:2","requested_at":"2026-10-16T13:00:00.86147Z"},"phase":"finished","pid":45543,"started_at":"2026-10-16T13:00:01.00873Z","finished_at":"2026-10-16T13:02:24.896156Z","session_id":"85ac8ce7-2578-479f-8872-cb3e56a0f848","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.73144s
+head: "6e30fdbf474c2b22924ade77271eb845590ee983"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000408

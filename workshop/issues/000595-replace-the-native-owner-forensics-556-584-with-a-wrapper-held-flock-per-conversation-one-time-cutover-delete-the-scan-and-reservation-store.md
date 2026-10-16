@@ -61,6 +61,8 @@ Durable implementation plan: workshop/plans/000595-conversation-flock-plan.md (o
 ## Log
 
 
+
+- 2026-10-16: closed — Post-close fix for CI couch-zellij-conformance (PR #369): TestNativeConsoleWrapperZellij/wrapped-zellij left notify/lock under its fixture because the wrapper (pane child) was still finishing cleanup ~60 ms after the zellij server exited (measured with a probe; wrapper reparented to PID 1, then exited). The test now joins the wrapper by its pidfile, bounded 5 s, before removing the fixture. make -f Makefile.local test-native-terminal-ci green 3/3 locally; main passes the job; no product change. no-plan-check: the open item is the operator maintenance acceptance, pending by design. (fixed-then-ship); review verdict: SHIP
 - 2026-10-16: closed — Recorded suite green on 7a7b6086 (round-1 fixes). Round-2 fixes on c1a5e8b9: per-platform live-member probe (darwin kill probe, Linux /proc non-zombie members; TestProcStatLiveInGroup; linux vet clean), slot label resolved in the background and held locks relabelled (TestSetHolderRelabelsHeldLocks), plan states the approved design. Touched packages green: nativelock, wrapcmd, launcher, artifactpath. Suite runs on c1a5e8b9 failed only on load-sensitive tests unrelated to this change (test-review nvim branch-mismatch flake; TestPublicWarmAttach zellij list-sessions timeout at load avg 30), each passing in isolation; suite rerun before merge. Net vs main: prod -1095ish, tests -2418ish (recount at merge). no-plan-check: the open item is the operator maintenance acceptance, pending by design.; review verdict: FIX-THEN-SHIP
 ### 2026-10-15
 
