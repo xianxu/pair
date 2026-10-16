@@ -191,7 +191,12 @@ func DecodeRequestWithRoots(b []byte, home string, env map[string]string) (Archi
 	}
 	return r, ValidateRequest(r)
 }
-func ValidateRequest(r ArchiveRequest) error {
+func ValidateRequest(r ArchiveRequest) error { return validateRequest(r, false) }
+
+// validateRequest admits a snapshot-required kind only when collected: the
+// continuous pass took a coherent private snapshot itself (pair#592). Manual
+// requests never select a live database.
+func validateRequest(r ArchiveRequest, collected bool) error {
 	if r.Version != Version {
 		return errors.New("unsupported request version")
 	}
@@ -203,7 +208,7 @@ func ValidateRequest(r ArchiveRequest) error {
 	if err != nil {
 		return err
 	}
-	if rule.SnapshotRequired {
+	if rule.SnapshotRequired && !collected {
 		return errors.New("snapshot source requires the snapshot collector; manual selection is not supported")
 	}
 	if err := validateSource(r.Source); err != nil {
