@@ -22,5 +22,9 @@ except OSError as error:
     shutil.copymode(source, destination)
 PY
 fi
+# Resolve relative outputs before selecting the checkout, independently of cwd.
+output="$1"
+case "$output" in /*) ;; *) output="$PWD/$output" ;; esac
+cd "$(dirname "${BASH_SOURCE[0]}")/../.."
 # exec retains the caller's CommandContext cancellation semantics.
-exec go build -o "$1" ./cmd/pair-go
+exec go build -o "$output" ./cmd/pair-go

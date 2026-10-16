@@ -17,6 +17,7 @@ cat > "$d/fake/go" <<'GO'
 #!/bin/sh
 set -eu
 printf 'build\n' >> "${CALLS:?}"
+[ "$PWD" = "${ROOT_EXPECTED:?}" ]
 [ "$1" = build ] && [ "$2" = -o ]
 printf '#!/bin/sh\nexit 0\n' > "$3"
 chmod +x "$3"
@@ -26,7 +27,11 @@ cat > "$d/fake/make" <<'MAKE'
 exit 0
 MAKE
 chmod +x "$d/fake/"*
-PATH="$d/fake:$PATH" CALLS="$d/calls" PAIR_TEST_BINARY= bash "$root/tests/lib/with-pair-test-binary.sh" sh -c 'test -x "$PAIR_TEST_BINARY"; printf "%s" "$PAIR_TEST_BINARY" > "$1"; exit 7' sh "$d/path" && exit 1 || code=$?
+# Caller cwd must not choose the source tree or reinterpret relative outputs.
+(cd "$root/tests"; PATH="$d/fake:$PATH" CALLS="$d/subcalls" ROOT_EXPECTED="$root" PAIR_TEST_BINARY= bash "$root/tests/lib/pair-test-binary.sh" "$d/from-subdir")
+(cd "$d"; PATH="$d/fake:$PATH" CALLS="$d/subcalls" ROOT_EXPECTED="$root" PAIR_TEST_BINARY= bash "$root/tests/lib/pair-test-binary.sh" relative-output)
+[ -x "$d/from-subdir" ] && [ -x "$d/relative-output" ]
+PATH="$d/fake:$PATH" CALLS="$d/calls" ROOT_EXPECTED="$root" PAIR_TEST_BINARY= bash "$root/tests/lib/with-pair-test-binary.sh" sh -c 'test -x "$PAIR_TEST_BINARY"; printf "%s" "$PAIR_TEST_BINARY" > "$1"; exit 7' sh "$d/path" && exit 1 || code=$?
 [ "$code" = 7 ]
 [ "$(wc -l < "$d/calls" | tr -d ' ')" = 1 ]
 [ ! -e "$(cat "$d/path")" ]
