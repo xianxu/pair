@@ -28,6 +28,7 @@ const (
 	GoCaseValueVocabulary    VocabularyContext = "go-case-value"
 	GoComparisonVocabulary   VocabularyContext = "go-comparison"
 	GoKeyValueVocabulary     VocabularyContext = "go-key-value"
+	GoMapKeyVocabulary       VocabularyContext = "go-map-key"
 	GoReturnVocabulary       VocabularyContext = "go-return"
 	ExactLineVocabulary      VocabularyContext = "exact-line"
 )
@@ -470,6 +471,9 @@ var SourceClassifications = []SourceClassification{
 	{Path: "cmd/internal/sessionledger/record.go", Kind: VocabularyConsumer, Families: []string{"native-session"}, Vocabulary: []VocabularyAllowance{
 		goStructVocabulary("native-session", `json:"session_id"`, "SessionID", 1),
 	}},
+	{Path: "cmd/internal/sessioninventory/codex_rollout_eligibility.go", Kind: VocabularyConsumer, Families: []string{"native-session"}, Vocabulary: []VocabularyAllowance{
+		{Family: "native-session", Value: "session_id", Context: GoMapKeyVocabulary, Use: "codexNativeSessionMetaEligible", Count: 1},
+	}},
 	{Path: "cmd/internal/titlepoller/runtime.go", Kind: ResolvedConsumer, Families: []string{"pane"}, BindingNames: []string{"scoped-pane-glob"}, Vocabulary: []VocabularyAllowance{
 		goCallVocabulary("pane", "--pane-id", "os/exec.Command", 5, 1),
 	}},
@@ -635,7 +639,6 @@ var NonArtifactSources = []string{
 	"cmd/internal/sessioninventory/codex_config_os.go",
 	"cmd/internal/sessioninventory/codex_git_scope.go",
 	"cmd/internal/sessioninventory/codex_latest.go",
-	"cmd/internal/sessioninventory/codex_rollout_eligibility.go",
 	"cmd/internal/sessioninventory/codex_platform_scope.go",
 	"cmd/internal/launcher/native_admission.go",
 	"cmd/internal/launcher/native_createflow_os.go",

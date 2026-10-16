@@ -1960,3 +1960,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 - #571 close: distinguish native config-layer merge from ordered CLI leaf assignment. Repeated table-valued overrides need projection and selected-ID regressions; a scalar-only precedence matrix cannot prove native fidelity.
 - #571 close: a transcript field is authoritative only after the native decoder would accept its containing record. Use native-valid positive fixtures and schema-invalid newer-candidate controls; partial JSON extraction is not a protocol eligibility check. Unknown complex optional fields must preserve compatibility rather than acquire selection authority.
+
+- #571 source-inventory correction: protocol map keys are vocabulary, not artifact ownership. Classify exact function/literal/count with moved, duplicate and path-use controls; run the complete artifactpath package so TestProductionArtifactReferencesAreExactlyClassified cannot be omitted by an optimistic name filter.

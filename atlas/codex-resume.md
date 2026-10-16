@@ -131,3 +131,9 @@ mutation; the stateful admission fixtures control handoff ordering. Native
 configuration files are never modified by these tests. Any live operator action
 is scheduled through the hub. Normal release verification also runs the complete
 recorded suite and source/artifact ownership guards.
+
+The artifact-source inventory classifies the eligibility helper as a counted
+`native-session` vocabulary consumer: its `session_id` map key is allowed only
+in the named metadata predicate. A direct map-key context does not permit
+constructed keys, moved/duplicate uses or artifact path operations. Run the
+complete artifactpath package when adding protocol vocabulary.
