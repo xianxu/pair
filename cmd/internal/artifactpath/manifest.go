@@ -641,6 +641,8 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcmd/agent_drive_cli.go",
 	"cmd/internal/couchcmd/agent_drive_messages.go",
 	"cmd/internal/couchcmd/agent_drive_service.go",
+	"cmd/internal/launcher/native_inventory_os.go",
+	"cmd/internal/sessioninventory/codex_home.go",
 	"cmd/internal/historyarchive/archivetest/fakes.go",
 	"cmd/internal/archivecmd/run.go",
 	"cmd/internal/historyarchive/archive.go",

@@ -176,6 +176,10 @@ Actual Run/socket native virtual conformance count3 PASS74.287s, covering three 
 
 sdlc merge integrated main7346048a6 into535ae7f7b1e6; publish replay/instance gates and GitHub CI passed. Its required suite acquired admission after268s and progressed through shell/editor integrations without a reported failure. Main then landed #571 (PR351, main4c895c9c9), making that code integration obsolete. Interrupted this merge/suite with SIGINT/exit130 before landing; no passing full-suite claim. #586 remains codecomplete/not-landed, so take the landing turn after it rather than run another suite on an about-to-change main. Hub notified (5333dab6) and pair:3 asked to report its landing (73b0fd9b). Branch remains clean/reviewed; close binding2ee17868c9f3 is intact. Resume: sdlc pr after any log commit, then sdlc merge --yes; it owns fresh-main integration, final suite/CI and archive. No restart or live fleet acceptance performed.
 
+### 2026-10-16 — integrate the preceding landings
+
+#586 landed26b8cd9a31a8; waited for its archive transaction, then pushed the documentation checkpoint with sdlc pr. sdlc merge refused main integration at1a1047c89126 due the additive NonArtifactSources conflict and restored the branch without landing. Its prescribed recovery is manual main merge, full suite and fixed-then-ship close. Resolved only that conflict by retaining #544's ten non-artifact sources plus main's launcher/native_inventory_os.go and sessioninventory/codex_home.go entries. Other main changes merge cleanly. No runtime behavior changed by this resolution (ARCH-DRY). Run targeted inventory/drive checks and the exact native target, record an integrated full suite, then narrow re-close with that evidence and retry the normal merge. Post-landing fleet smoke stays TL-owned.
+
 ## Revisions
 
 ### 2026-10-15 — synchronize conformance across qualification changes (BR-4)
@@ -329,3 +333,10 @@ Add recorded RED/GREEN tests for submit-vs-newline under the real protocol, reco
 **Reason:** Full-suite/focused RED exposes three #579 pump fixtures missing #544's transport initialization after the merge.
 
 **Delta:** Reuse prepareMasterPumpTransport before launching each new capture pump fixture, matching production descriptor ownership and joined teardown (ARCH-DRY, ARCH-FUNERAL). Preserve capture assertions and all production code. The test-only correction does not require restaging the operator's production binary; record a fresh passing suite before close/landing.
+
+
+### 2026-10-16 — additive inventory conflict after #571/#586
+
+**Reason:** The landing gate found both branches inserted non-artifact source classifications at the same list boundary.
+
+**Delta:** Preserve both sets of entries exactly; no new source ownership, behavior or scope. Satisfy the prescribed full-suite and narrow fix-review gates before landing. This revision records conflict reconciliation only (ARCH-DRY).

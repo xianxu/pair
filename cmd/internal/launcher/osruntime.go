@@ -702,10 +702,37 @@ func (r OSRuntime) ReadLedger(tag string) ([]LedgerEntry, error) {
 	if err != nil {
 		return nil, err
 	}
-	native := sessioninventory.NewOSRuntime(os.Getenv("HOME"), r.DataDir)
-	return parseLedger(raw, func(current sessionledger.Current) sessioninventory.ResumeTarget {
-		return sessioninventory.ResumeTargetForRuntimeLaunch(native, current)
-	}), nil
+	type namespace struct {
+		native sessioninventory.OSRuntime
+		err    error
+	}
+	namespaces := map[string]namespace{}
+	lookup := func(agent string) namespace {
+		if found, ok := namespaces[agent]; ok {
+			return found
+		}
+		native, err := r.nativeInventory(agent, "")
+		found := namespace{native: native, err: err}
+		namespaces[agent] = found
+		return found
+	}
+	entries := parseLedger(raw, func(current sessionledger.Current) sessioninventory.ResumeTarget {
+		found := lookup(current.Launch.Agent)
+		if found.err != nil {
+			return sessioninventory.ResumeTarget{Status: sessioninventory.BindingUnbound}
+		}
+		return sessioninventory.ResumeTargetForRuntimeLaunch(found.native, current)
+	})
+	// Check every represented agent, including compatibility-only rows that
+	// never invoke the typed projection. Namespace failures block that agent's
+	// resume authority without discarding other agents or inventing entries.
+	for index := range entries {
+		if lookup(entries[index].Agent).err != nil {
+			entries[index].SessionID = ""
+			entries[index].ResumeBlocked = true
+		}
+	}
+	return entries, nil
 }
 
 func (r OSRuntime) AppendLedger(tag string, entry LedgerEntry) error {
@@ -789,8 +816,11 @@ func (r OSRuntime) AgentSessionExists(agent, sid, cwd string) bool {
 	if sid == "" {
 		return false
 	}
-	home := os.Getenv("HOME")
-	runtime := sessioninventory.NewOSRuntime(home, r.DataDir)
+	runtime, err := r.nativeInventory(agent, cwd)
+	if err != nil {
+		// Unknown namespace cannot prove absence.
+		return true
+	}
 	nativeAgent := sessioninventory.Agent(agent)
 	if scope, err := artifactpath.ResolveSelectedScope(r.DataDir); err == nil {
 		if catalog, err := (sessioninventory.CatalogStore{Runtime: sessioninventory.CatalogOSRuntime{}}).Read(scope.SessionInventoryCatalog()); err == nil {
@@ -808,8 +838,10 @@ func (r OSRuntime) AgentSessionExists(agent, sid, cwd string) bool {
 }
 
 func (r OSRuntime) EstablishedSessionID(scopeKey, tag, agent string) (string, sessioninventory.BindingStatus) {
-	home := os.Getenv("HOME")
-	runtime := sessioninventory.NewOSRuntime(home, r.DataDir)
+	runtime, err := r.nativeInventory(agent, "")
+	if err != nil {
+		return "", sessioninventory.BindingUnbound
+	}
 	query, err := sessioninventory.QueryResumeTarget(runtime, scopeKey, tag, sessioninventory.Agent(agent))
 	if err != nil {
 		return "", query.Status

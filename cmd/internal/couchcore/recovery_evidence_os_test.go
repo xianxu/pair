@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/xianxu/pair/cmd/internal/launcher"
+	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 	"os"
 	"path/filepath"
 	"strings"
@@ -65,6 +66,7 @@ func (g *recoveryEvidenceGit) RunContext(ctx context.Context, dir string, args .
 
 func recoveryEvidenceFixture(t *testing.T, witnessed bool) (OSRecoveryEvidenceReader, ThreadRecord) {
 	t.Helper()
+	t.Setenv("CODEX_HOME", "")
 	dir := t.TempDir()
 	record := validThreadRecord(t)
 	record.WorkingPath = dir
@@ -235,5 +237,65 @@ func TestRecoveryOldArchiveDoesNotInventActivityFromCopyClock(t *testing.T) {
 	}
 	if !got.Capture.LastActivity.IsZero() || len(got.Ranked) != 0 || len(got.Reasons) == 0 || !strings.Contains(got.Reasons[0], "activity time is unavailable") {
 		t.Fatalf("invented old archive activity: %+v", got)
+	}
+}
+
+func TestRecoveryEvidenceCodexHomeDiscoveryAndValidation(t *testing.T) {
+	for _, mode := range []string{"custom", "default", "invalid", "relative"} {
+		t.Run(mode, func(t *testing.T) {
+			reader, record := recoveryEvidenceFixture(t, true)
+			record.WorkingPath, _ = filepath.EvalSymlinks(record.WorkingPath)
+			t.Setenv("HOME", t.TempDir()) // Reader's explicit HomeDir must win for default roots.
+			nativeHome := filepath.Join(reader.HomeDir, ".codex")
+			if mode == "custom" {
+				nativeHome = filepath.Join(t.TempDir(), "custom")
+			}
+			if err := os.MkdirAll(filepath.Join(nativeHome, "sessions", "2026", "10", "15"), 0700); err != nil {
+				t.Fatal(err)
+			}
+			value := ""
+			switch mode {
+			case "custom":
+				value = nativeHome
+			case "invalid":
+				value = filepath.Join(t.TempDir(), "missing")
+			case "relative":
+				value = ".codex"
+			}
+			t.Setenv("CODEX_HOME", value)
+			const id = "019d1111-1111-7111-8111-111111111111"
+			stamp := time.Now().UTC().Add(-45 * time.Second).Format(time.RFC3339Nano)
+			raw := fmt.Sprintf(`{"timestamp":%q,"type":"session_meta","payload":{"id":%q,"source":"cli","cwd":%q,"originator":"codex-tui"}}
+`, stamp, id, record.WorkingPath)
+			if err := os.WriteFile(filepath.Join(nativeHome, "sessions", "2026", "10", "15", "rollout-2026-10-15T00-00-00-"+id+".jsonl"), []byte(raw), 0600); err != nil {
+				t.Fatal(err)
+			}
+			got, err := reader.Read(context.Background(), record)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if mode == "invalid" || mode == "relative" {
+				if !got.Incomplete || len(got.Ranked) != 0 || len(got.Reasons) == 0 || got.Capture.Raw == "" {
+					t.Fatalf("unknown home lost screen or inferred native authority: %+v", got)
+				}
+				return
+			}
+			if got.Incomplete || len(got.Ranked) != 1 {
+				t.Fatalf("native home discovery=%+v", got)
+			}
+			candidate := got.Ranked[0].Candidate
+			preserved, err := reader.Preserve(context.Background(), record, got)
+			if err != nil {
+				t.Fatal(err)
+			}
+			// Independently constructed validation runtime must resolve the same source.
+			runtime, err := sessioninventory.NewNativeTranscriptRuntime(reader.HomeDir, reader.DataDir, sessioninventory.AgentCodex, "", os.Getenv)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := sessioninventory.RevalidateRecoveryCandidate(context.Background(), runtime, candidate.Entry, sessioninventory.AgentCodex, id, record.WorkingPath, preserved.Capture.LastActivity); err != nil {
+				t.Fatalf("discovered candidate could not validate: %v", err)
+			}
+		})
 	}
 }

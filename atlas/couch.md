@@ -4052,7 +4052,7 @@ Claude/Qoder latest selectors resolve once and use an explicit canonical ID
 before launch identity is published. Codex indirect selectors (latest, picker,
 native names/search or prefixes) preserve native CLI behavior unreserved and show
 one line at actual execution saying concurrent native resume is not guarded.
-This explicit compatibility exception lasts until the faithful adapter in #571;
+This native-compatibility boundary is deliberate (see [Codex resume](codex-resume.md));
 it never bypasses a nonempty invalid or replayed grant, and full canonical UUID
 resumes still require admission. Unknown indirect targets are not recorded as
 proven canonical IDs. The classifier follows native command positional grammar after an option terminator: a Codex/Muse resume session ID after `--` remains an identity, while latest/already-bound/top-level prompt text stays literal. Pinning preserves the real delimiter and changes only the selected identity; measured option-value rules are shared with Fresh validation. Forks and newly chosen

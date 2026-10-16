@@ -7,6 +7,9 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- A strict trust check and a native discovery rule can intentionally treat aliases differently. Failure to prove one observed discovery candidate makes the whole candidate scope unknown; silently omitting it can select an older conversation. Test the selected identity with a newer candidate behind an unsupported alias. (#571 BR-3)
+- SQLite read-only mode can create native WAL-index sidecars. A non-mutating adapter queries an owned coherent private snapshot, and a real WAL fixture must compare the entire native file set and bytes before and after success, failure and cancellation. An integrity check validates recovery, not the coherence of separately copied source files. (#571 BR-4)
+
 - Decode persisted authority into zero values and require its version/collection fields explicitly. Only file absence permits initialization: decoding `{}` over a prefilled default can erase unresolved ownership and admit a second writer. Test missing fields, top-level null and null collections separately from valid empty state. (#556 M2)
 
 - Normalize an advertised choice through its validated key before applying mode-specific admission. A shared candidate route may represent Fresh as well as resume; test explicit and keyed forms against every native-only guard and run the printed command/menu route. (#556 BR-5)
@@ -1936,6 +1939,26 @@ and external temporary roots rather than relying on the host's TMPDIR.
   fixtures must isolate inherited MAKEFLAGS/MAKEOVERRIDES/MFLAGS; keep explicit
   command-line and recursive Make behavior covered inside the fixture.
 
+- #571: Configuration overrides have their own key grammar. Applying a TOML
+  document parser to a literal dotted key can turn comments or newlines into
+  a different authority-bearing key. Match the native override grammar and
+  prove malformed keys cannot create positive policy evidence.
+- #571: Latest-selection pagination must retain the native cursor semantics.
+  OFFSET can skip a candidate after an earlier row disappears. Fence every
+  inspected transcript, including excluded higher candidates, until the chosen
+  identity is pinned; selection authority depends on those exclusions too.
+- #571: A pre-open Lstat does not enforce no-follow or bounded reads. Use the
+  secure metadata primitive and test a symlink/FIFO swap between check and open.
+- #571: Revalidation must accept the final production argv, including flags
+  injected after selection. Exercise Couch's shell_snapshot injection through
+  the real config reader before Claim; raw argv equality alone misses this.
+- #571: A read-only adapter's unknown/error/encoding-limit result must preserve
+  ordinary native compatibility without a reservation. Test those failures at
+  the launch boundary, alongside strict recovery and exact-ID refusal controls.
+- #571: Native Git worktrees and Pair slot worktrees share filename vocabulary
+  but different ownership. Keep foreign-path exceptions exact and counted, with
+  unrelated-slot controls; run both artifactpath and Couch slot-resource audits
+  when adding path literals outside the slot implementation.
 - #573 second close: writer/reader compatibility includes every authority handoff's derived fields. Budget the encoded export (history plus mutable state) before accepting growth, then prove forget→re-register at the byte boundary with folds intact. Filesystem tests must create distinct aliases explicitly; canonical paths are already known, regardless of whether TMPDIR happens to use /var or /private/var.
 
 - #573 third close: preflight and effect must consume the same immutable prepared bundle. Checking post-pruning state and then validating an older loaded state during shadow publication can refuse after document mutation. Compile document, shadow, encoded state/horizon and result hash before effects; prove valid gap-acceptance plus pruning succeeds, and ambiguous result sections fail without mutation.
@@ -1963,6 +1986,10 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 - #584: After changing a live Make target, run its workflow-contract tests as well as the new probe. The standalone-checkout dry-run contract has an exhaustive command map; update that consumer with the target and derive its expected count from the same map.
 
+- #571 close: distinguish native config-layer merge from ordered CLI leaf assignment. Repeated table-valued overrides need projection and selected-ID regressions; a scalar-only precedence matrix cannot prove native fidelity.
+- #571 close: a transcript field is authoritative only after the native decoder would accept its containing record. Use native-valid positive fixtures and schema-invalid newer-candidate controls; partial JSON extraction is not a protocol eligibility check. Unknown complex optional fields must preserve compatibility rather than acquire selection authority.
+
+- #571 source-inventory correction: protocol map keys are vocabulary, not artifact ownership. Classify exact function/literal/count with moved, duplicate and path-use controls; run the complete artifactpath package so TestProductionArtifactReferencesAreExactlyClassified cannot be omitted by an optimistic name filter.
 - #579: when persisted metadata gains optional pointer fields, sweep every equality check on that metadata type. Compare decoded evidence by value; pointer identity differs after JSON replay and can permanently block exact-generation cleanup. Defend both interrupted recovery and eventual expiry.
 
 - #579 BR-1: a pump's EOF and its child process exit are separate lifecycle events. A timer-owned buffer must drain when its scheduling owner stops, before any later child wait; test EOF with the flush clock withheld and exercise flush-error reporting.
@@ -1971,8 +1998,23 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 - #579 M2: draining an owner is insufficient if asynchronous producers can still admit after its clock stops. Stop admission atomically with the final drain. Exercise a resize whose successful IO result is delayed across PTY EOF, then require no pending or published late sidecar event.
 
+- #571 mechanism re-plan: repeated fidelity deltas on one foreign selector mean
+  reassess the boundary before adding another policy rule. A native database is
+  evidence, not a native selection contract. Without a supported read-only
+  resolver, preserve indirect native behavior and guard only proven exact IDs.
+
+- #571 reduced close: isolate a native-home failure to its agent when projecting
+  a shared ledger; a blocked Codex entry must not discard Claude/Qoder authority.
+  A home-routing change must cover recovery discovery and validation together,
+  including legacy held-file checks. Test the full candidate handoff, not only
+  each helper's root list. Historical working cwd is not startup provenance.
 - #594 review: When an approved revision changes certainty guarantees or defers production acceptance, append the revision and reconcile the active Spec and every Done when clause too. A historical Log records the decision but does not supersede contradictory closure criteria; name the pending check's owner and distinguish it from the landing gate.
 - #585 BR-1: a reaped process-group leader does not prove its descendants have exited. Preserve owned-group termination across a pending stderr drain; reader interruption alone can hide a surviving child. Regression fixtures must include a real descendant retaining the FD and require both descendant death and joined drain. Reuse the test-budget event helper instead of adding another fixed scheduling guard.
+
+- #571 BR6 repeat: enumerate persisted representation shapes before fixing a
+  projection. A typed callback cannot establish availability for compatibility-
+  only records; apply authority/error policy to every represented agent and
+  test the real saved-config/restart consumer, including preserved bytes.
 - #597 BR-1: removing a guard at a shared boundary (launcher, wrapper) in favour of an upstream check must cover every upstream path that reaches it. Skipping admission for all Couch-owned launches also stripped it from Couch cold resume, which lacked the registry check. List every entry point (grep the profile builders), give each the replacement check and a refusal test, in the same change.
 
 - #593: A cleanup scan budget must count transient artifacts, not retained final objects. Isolate staging before applying bounds, and test continued writes beyond the listing cap. Whenever a writer gains numbered shards, test that its source inventory includes actual rolled names while excluding locks/staging.
