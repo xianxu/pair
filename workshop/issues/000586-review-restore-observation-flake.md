@@ -106,6 +106,10 @@ Retained asynchronous refusals are65 index-lock,20 obsolete-selection-receipt,8 
 
 Integrated origin/main a1beae74b after the experiment; merge completed cleanly. Required build and recorded suite will be rerun on the integrated source before close. Plan investigation/fix checkboxes are satisfied through the explicitly approved fallback below, not a claim that an unobserved production scheduling cause was fixed. #589 now has pair:2's claim; do not collide with it when continuing the batch.
 
+### Integrated suite blocked by an independent startup-cancellation fixture
+
+Required suite501ea461dee91eaad8c9ae484cbfa18d on a0b3fb0de67824b57d0f42cedd32acd02a7d1778 waited780.079s, then failed exit2 after188.925s, before any review integration fixtures. LifetimeTests.test_cancellation_during_startup (SIGINT,delay0.02) in tests/without-ancestors-test.py:103 timed out waiting3s for helper exit; five methods ran4.850s. Both helper and test are unchanged from main. Log /Users/xianxu/workspace/pair/.git/sdlc/test-stats/failed/501ea461dee91eaad8c9ae484cbfa18d.log, SHA256ddf72cf3b67ba81c2891b26c021302619c0d9120ac6b9d17f401e525646a337a. This is a failed suite, not a passing #586 verification; the previous pre-integration source suite remains historical evidence only. No suite retry launched. Read-only startup audit and an unassigned-issue draft are retained at /tmp/pair586-without-ancestors-failure.md; no cause claimed because the fixture discards stderr/process state. Report to hub for filing/rerun direction without moving main during the #597/#571 priority landings.
+
 ## Revisions
 
 ### 2026-10-15 — approved diagnostics-first timebox
