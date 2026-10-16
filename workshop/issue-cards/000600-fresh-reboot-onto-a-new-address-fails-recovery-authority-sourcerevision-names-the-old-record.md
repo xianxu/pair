@@ -1,6 +1,6 @@
 ---
 id: 000600
-status: working
+status: codecomplete
 created: 2026-10-15
 updated: 2026-10-15
 estimate_hours:
@@ -14,6 +14,14 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
+actual_hours: 0.09
+tracker:
+    version: 1
+    completion:
+        token: close-b7f888ba5e92
+        repository: github.com/xianxu/pair
+        reviewed_head: ae4f827e4fd4cb1e6d9cd23ca77ce35b0d4105e1
+        evidence_commit: d9fc23c2aca3883a4b19e45c58657d30b6e4b71b
 ---
 
 # Fresh reboot onto a new address fails recovery authority: SourceRevision names the old record
