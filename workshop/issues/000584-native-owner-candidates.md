@@ -79,6 +79,8 @@ Filter native-owner candidates from kernel metadata before requiring argv; unrel
 
 - 2026-10-15: The post-review full run caught TestConformanceWorkflowRunsWithoutSiblingMakefile, whose exhaustive expected-command map still listed the original three commands. Updated it to include the new procutil live check and derive the expected count from that map. All TestConformanceWorkflow cases passed in 0.366s. This is the companion expectation for BR-2 wiring, with no production change. The prior run remains pinned to 44b10b71 and is finishing; a fresh recorded suite and narrow post-close review are required for this test-only correction.
 
+- 2026-10-15: Final corrected-head required suite PASS at a7ce2731d8694771996b0f110f69586e04831ccd: exit 0 in 12m6s, log SHA-256 fc274b358938; core 473.229s, launcher 44.160s and couchcmd 73.059s passed. Recorded log: /Users/xianxu/workspace/pair/.git/sdlc/local-checks/a7ce2731d8694771996b0f110f69586e04831ccd/suite.log. Narrow fixed-then-ship review also returned SHIP with zero findings, committed as 850c5c5d19aede124e1101e4308ef1afc63c71ba. CI is green. No gate waivers, suite exclusions or production slot effects. Landing follows; the operator must restart Couch onto a build containing this fix before retrying ariadne:5.
+
 ## Revisions
 
 ### 2026-10-15 15:55 — approved narrow legacy association
