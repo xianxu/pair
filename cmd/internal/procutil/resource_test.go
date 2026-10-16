@@ -31,6 +31,10 @@ func (f *resourceFake) commandRead(int) (CommandInfo, error) {
 	f.calls++
 	return CommandInfo{Executable: "owned"}, f.err
 }
+func (f *resourceFake) environmentRead(int) ([]byte, error) {
+	f.calls++
+	return []byte("COUCH_THREAD_TAG=t\x00OTHER=x\x00"), f.err
+}
 func (f *resourceFake) selfCPURead() (uint64, error) { f.calls++; return 42, f.err }
 func TestResourceBoundedTable(t *testing.T) {
 	for _, tc := range []struct {
