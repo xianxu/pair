@@ -32,34 +32,28 @@ machine (unreadable root processes, 18 of 21 older wrappers without agent_identi
 
 ## Spec
 
-- **One mechanism:** each pair wrapper, before exec'ing a native agent on conversation ID X, takes
-  `flock(LOCK_EX|LOCK_NB)` on `<cache>/native-locks/<agent>-<X>.lock` and passes the fd to the agent process (not
-  close-on-exec), so the lock lives exactly as long as any holder. A fresh conversation takes its lock when its ID is
-  first known.
-- **Admission** (resume from disk, relaunch, Codex resume): one non-blocking lock attempt. Free → proceed; held → refuse
-  with "in use by <slot>" (the lock file records the holder's slot for the message only, never for the decision) and
-  offer Fresh. Two outcomes.
-- **One-time cutover** for wrappers started before the lock: they hold no lock. The cutover is an explicit,
-  operator-confirmed relaunch of each old slot (an override flag for that relaunch only, logged), after which every live
-  writer holds a lock. No permanent legacy code path.
-- **Delete** the forensic scan (`recovery_native_*`, process-table/argv/ledger/lsof ownership proof), the reservation
-  store (`native_admission*`), and #584's legacy and unbound fallbacks, with their tests. Keep only what other
-  features still need (check each deletion's callers).
-- Agents started outside pair are not covered (they aren't today either); document it.
+A Pair wrapper holds a nonblocking exclusive flock for each exact conversation ID it knows until it exits. Known IDs lock before native startup; Fresh unknown IDs lock when the existing Pair watcher reports the current launch's binding. No native fd inheritance, native ID bootstrap or new discovery/forensics. Holder metadata supplies a label only; held means refuse with the holder slot and offer Fresh.
+
+The native agent runs in its own wrapper-owned process group. Every controlled wrapper exit terminates that group before reaping the leader and releasing locks. Wrapper SIGKILL can leave an orphan engine after the lock drops: that accepted gap belongs to #583's reaper and #587's unattributed report, not this admission guard. Agents outside Pair are outside its guarantee.
+
+One maintenance cutover, one lock build: delete the global native owner scan, legacy/unbound fallbacks and durable admission reservation store in the same change. Ordinary disk Resume refuses while the current live-wrapper registry/readiness inventory contains any wrapper without the lock capability: `relaunch older slots first: X, Y`. Startup, Continue and Fresh remain available. The existing confirmed Relaunch of the exact live old slot is the migration action, still taking the new flock after source retirement; no new override or dual-guard build. Preserve/move the narrow confirmed stop-set attribution helpers.
 
 ## Done when
 
-- Tests: two wrappers on one ID → second refused with the holder named; holder exits (including SIGKILL) → lock free;
-  a forked/orphaned agent child keeps the lock; the cutover override relaunch works once and is logged.
-- The forensic and reservation code is gone (net negative LOC, stated in the close).
-- Live: resume-from-disk of a parked slot works on this machine; resuming a conversation held by a live slot is refused
-  with that slot named.
+- Real kernel and wrapper tests show one winner for two wrappers on one ID, a diagnostic holder label, no losing-writer metadata damage, and lock release on wrapper exit including SIGKILL.
+- Controlled normal/error/signal/restart exits stop only the owned agent group before reap/lock release; tests explicitly document the accepted SIGKILL orphan gap rather than promising inherited-agent protection.
+- Current-launch unknown-to-known IDs acquire through existing discovery; stale/duplicate events and a late collision are handled without a new native integration or historical scan.
+- Legacy capability tests show startup/Continue/Fresh unaffected, ordinary disk Resume names sorted live old slots, confirmed Relaunch migrates them, and Resume works once they are gone. Dead/stale readiness alone is not a blocker.
+- The forensic and reservation code is gone, shared consumers and stop-set safety remain, and close reports actual net production/test LOC deletion. Build, required recorded suite and SHIP review pass.
+- Operator live maintenance acceptance: restart over old live slots, migrate them once at a quiet time, resume a parked scratch conversation, and refuse a held scratch conversation with its slot named. This remains pending until performed; any landing before it requires the TL's explicit direction.
 
 ## Plan
 
-- [ ] Resolve measured fd inheritance and fresh unknown-ID requirements with the TL/operator; approve the durable plan before code.
-- [ ] M1 — introduce the lock/native handoff and temporary confirmed cutover; separate review and operator acceptance.
-- [ ] M2 — after migration, delete forensic/reservation authority and temporary override; final conformance, live acceptance and SHIP.
+Durable implementation plan: workshop/plans/000595-conversation-flock-plan.md (one atomic close boundary).
+
+- [ ] Obtain TL approval of the wrapper-lifetime/capability-cutover revision before change-code.
+- [ ] Implement and verify the small lock, existing binding notification and owned-group cleanup; remove forensic/reservation authority in the same build, preserving moved source stop-set attribution.
+- [ ] Run full verification and SHIP review; coordinate the single operator maintenance acceptance; report actual net deletion and land as directed.
 
 ## Log
 
@@ -75,3 +69,9 @@ machine (unreadable root processes, 18 of 21 older wrappers without agent_identi
 ### 2026-10-15 — measured constraints before implementation
 
 The original strict orphan-child and late Fresh-ID requirements remain in force. This draft does not silently replace them with a wrapper-only promise. The TL/operator must choose a proven native integration or explicitly revise the guarantee before change-code. The proposed temporary migration build and final deletion are separate acceptance boundaries; final code retains one mechanism and no legacy fallback. Stable inode residue and exact cleanup timing are named in the draft for approval.
+
+### 2026-10-15 19:58 PDT — TL scope decision replaces the original promise
+
+TL cb293d05 explicitly narrows inherited-child/orphan protection to wrapper lifetime and chooses a maintenance cutover. This supersedes the initial fd-to-native guarantee, orphan-child-keeps-lock acceptance, temporary override and proposed dual-guard milestones. Controlled exits kill the wrapper-owned group; SIGKILL/orphan recovery is #583/#587. The active Spec, Done when and durable plan now agree. Resume-only legacy capability gating leaves the existing confirmed Relaunch available to perform migration, avoiding a circular all-slots refusal; there is no new override flag. No code changed.
+
+Measured deletion baseline: 1,777 production + 2,766 test lines in dedicated old blocks, less 114 production lines moved/retained for stop-set safety, gives 1,663 replaceable production + 2,766 test lines. Allow 350–650 new production and 500–900 test lines: approximately 1,000–1,300 net production lines and 2,900–3,600 production-plus-test lines deleted, before extra bridge removals. This is a planning range, not a final diff claim. The revised plan is committed and sent before code.

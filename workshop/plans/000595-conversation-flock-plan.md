@@ -1,116 +1,129 @@
 # Conversation flock implementation plan
 
-> **For agentic workers:** Consult AGENTS.md Section 3 (Subagent Strategy) to determine the appropriate execution approach. Follow the approved plan and SDLC gates. This draft is PLAN ONLY; do not enter change-code until the decisions below are resolved and the TL approves the revision.
+> **For agentic workers:** Consult AGENTS.md Section 3 (Subagent Strategy). PLAN ONLY until the TL approves this revision; then use the normal change-code and close gates. This is one atomic implementation and one issue-close boundary, with no intermediate migration build.
 
-**Goal:** Replace historical native-writer forensics and durable admission reservations with one kernel-held lock per native conversation.
+**Goal:** Replace global native-owner forensics and durable admission reservations with wrapper-lifetime conversation locks.
 
-**Architecture:** The wrapper owns a nonblocking exclusive flock, and a native child retaining the same open-file description extends its lifetime. The kernel decides contention; holder metadata supplies a display label only. Preserve the existing recovery confirmation and transcript-selection paths.
+**Architecture:** A Pair wrapper takes one nonblocking exclusive flock per known conversation ID and holds it until that wrapper exits. Its agent runs in the wrapper-owned child process group, which the wrapper terminates on every controlled exit before releasing its locks. A maintenance-only compatibility check refuses ordinary disk resume while a live old wrapper lacks the lock capability; the operator migrates those slots with the existing confirmed Relaunch action.
 
-**Tech stack:** Go, Darwin/Linux flock, exec.Cmd.ExtraFiles, existing Pair wrapper/PTY and recovery flows.
+**Tech stack:** Go, local Darwin/Linux flock, existing PTY process groups, readiness records, Pair session watcher and recovery confirmation.
 
-**Target:** [Slot recovery](../targets/slot-recovery.md). Continue/Resume from disk/Start fresh remain the visible outcomes; startup must not perform recovery writes.
+**Target:** [Slot recovery](../targets/slot-recovery.md). Continue / Resume from disk / Start fresh remain the visible outcomes. Couch always starts; the transition guard runs only on explicit disk resume, never startup or attach.
 
-## Status and decisions required before code
+## Approved scope revision and limit
 
-The primitive works, but passing ExtraFiles alone does **not** satisfy every promise in the issue. Two measured blockers must be resolved explicitly, not covered by a new fallback scanner:
+TL cb293d05 replaces the original inherited-child guarantee with **wrapper lifetime**. Do not pass lock fds into native agents, adapt the Codex shim, preallocate native IDs through new native APIs, or add another ownership-discovery system. The wrapper starts locking when it knows an ID; Fresh with an unknown ID remains unbound until the existing Pair watcher reports it.
 
-1. **Codex's native engine does not inherit the fd through its Node shim.** The installed `/opt/homebrew/bin/codex:241` invokes `spawn(binaryPath, args, {stdio: "inherit", env})`. A scratch reproduction shows Node holding the lock, the fake engine receiving EBADF for the passed fd, and a contender acquiring after Node is killed while that engine remains alive. Merely passing an fd to the immediate launcher is insufficient for the orphan guarantee.
-2. **Fresh unknown IDs are discovered after exec.** Claude/Qoder/Grok have caller-minted IDs (`launcher.MintsSessionID`). Codex/Agy/Muse use the detached watcher after startup. An fd opened after that event cannot retroactively be inherited by an already-running agent. In-app conversation changes/forks have the same lifetime question.
+The accepted gap is wrapper SIGKILL while an orphan engine keeps writing: the kernel releases that wrapper's lock, and this guard does not discover the orphan. Document and route that case to #583's reaper and #587's unattributed report. Agents outside Pair are also outside the guarantee. No orphan-child lock-survival test is claimed as acceptance for this revision.
 
-The issue's strict promise needs proven native launch/ID integration for these cases before deleting the old guard. The alternative is an explicitly weaker wrapper-lifetime guarantee, which is simpler but does not meet the current orphan-child Done when. **Recommendation:** retain the current guarantee unless the operator explicitly changes it; first approve a bounded feasibility step for the three primary agents, then approve its concrete integration before implementation. Do not silently weaken the invariant or build a permanent forensic fallback.
+The same lock build removes the scan and store. There is no dual-guard build, temporary override flag, global cutover journal, or permanent forensic fallback.
 
-The proposed two-boundary cutover below also needs approval: an intermediate build carries the new lock plus the old guard only for migration; after the operator's confirmed fleet relaunch, the final build deletes the old mechanism. An atomic alternative requires a maintenance window with all old native writers stopped before the new-only build runs. A final build deployed over unguarded live writers has no safe automatic cutover proof.
-
-## Core concepts (proposed; not yet implemented)
+## Core concepts
 
 | Entity | Kind | File | Status |
 |---|---|---|---|
-| Native conversation key and safe filename | PURE | cmd/internal/nativelock/key.go | new |
-| Free/held/error outcome and holder-label formatting | PURE | cmd/internal/nativelock/result.go | new |
-| Secure stable-inode flock handle; close-only lifetime | INTEGRATION | cmd/internal/nativelock/lock.go | new |
-| Native start/descriptor handoff boundary | INTEGRATION | cmd/internal/wrapcmd/native_lock.go | replaces native_admission.go |
-| Lock artifact path | PURE | cmd/internal/artifactpath/native_lock.go | new |
-| Selector resolution/pinning | INTEGRATION | cmd/internal/launcher/native_resume_selector_resolve.go | retained/modified |
-| Fresh binding notification | INTEGRATION | cmd/internal/sessionwatch/lifecycle.go; wrapcmd lifecycle consumer | unresolved; modified only after ID/fd design approval |
-| Exact source retirement attribution | INTEGRATION | cmd/internal/launcher/recovery_process_owners.go | moved from forensic file; not a conversation-ownership scan |
-| One-operation migration override | INTEGRATION | existing launcher/recovery and Couch relaunch adapters | temporary in proposed M1; removed in M2 |
-| Native writer forensic proofs and reservation store | INTEGRATION | deletion inventory below | deleted in final M2 |
+| Exact agent/conversation key; safe filename and diagnostic label | PURE | cmd/internal/nativelock/key.go | new |
+| Free/held/IO-error decision and known-ID set | PURE | cmd/internal/nativelock/state.go | new |
+| Stable-inode, single-attempt flock handle | INTEGRATION | cmd/internal/nativelock/lock.go | new |
+| Lock cache path | PURE | cmd/internal/artifactpath/native_lock.go | new |
+| Wrapper lock acquisition / controlled shutdown | INTEGRATION | cmd/internal/wrapcmd/native_lock.go; wrap.go | replaces native_admission.go and modifies native start/exit |
+| Current-launch binding notification | INTEGRATION | cmd/internal/sessionwatch/lifecycle.go; wrapcmd watcher launch | small notification from existing discovery, not a new discovery mechanism |
+| Native-lock readiness capability | INTEGRATION | cmd/internal/readiness/record.go; wrapcmd readiness publication | modified |
+| Live legacy-slot transition guard | PURE predicate / INTEGRATION observation | cmd/internal/launcher/native_lock_capability.go; Couch recovery adapters | new; replaces global owner checks |
+| Exact confirmed stop-set attribution | INTEGRATION | cmd/internal/launcher/recovery_terminal_confirmed_owner.go | moved, preserving existing checks |
+| Native owner forensics and admission reservations | INTEGRATION | deletion inventory below | deleted in this change |
 
-The key identifies the agent and exact canonical native ID, not cwd, tty overlap or a guessed latest conversation. Resolve existing indirect selectors through their existing native inventory semantics before admission; do not regress the operator's supported selectors. Inventory limitations remain explicit prerequisites, not an excuse to introduce another reservation.
+Key/label/state tests run without IO. Kernel, watcher, liveness and process-group behavior use portable stateful fakes at their own seams plus real temporary-process conformance. Do not call IO orchestration PURE.
 
-## Kernel ownership contract
+## Runtime contract
 
-- Resolve `<Pair cache>/native-locks/<agent>-<safe exact ID>.lock` through artifactpath. No traversal via IDs. Use one stable inode per key; never unlink or atomically replace it online.
-- Secure open uses no-follow, regular-file and same-inode checks, with owner-only directory/file permissions. Reuse existing secure-open patterns. Do **not** reuse terminalLease.Close: it explicitly LOCK_UNs the shared description and would drop a surviving child's lock.
-- Make exactly one LOCK_EX|LOCK_NB attempt. Held means refuse with `in use by <slot>` and offer Fresh. Missing/malformed holder metadata means `in use by another Pair session`; it never changes the decision. Other IO errors remain visible errors, never proof that the lock is free.
-- Write bounded holder metadata in place only after acquiring; a losing contender must not truncate it. Keep it display-only; no PID inference, readiness scan or stale-owner repair.
-- Pass the owned descriptor into the **actual native writer's** supported launch chain before exec. The wrapper closes only its copy after the child is done or launch fails; it must not explicitly unlock a shared inherited handle.
-- A successful preflight probe is not admission. The wrapper's actual acquisition immediately before native startup is definitive. Source retirement/confirmation remains separate; do not stop a source merely because another conversation is held.
-- No fd is attached to arbitrary tools to make a test pass. Installed launcher chains and native runtime descriptor behavior need conformance, not a fake that always preserves fds.
+### Conversation lock
 
-## Verified source map and deletion inventory
+1. Resolve `<Pair cache>/native-locks/<agent>-<safe exact ID>.lock` through artifactpath. Validate/encode IDs without traversal; no cwd or tail inference.
+2. Securely open one stable regular inode, with no-follow and owner-only permissions. Make exactly one `LOCK_EX|LOCK_NB` attempt. No polling or reservation.
+3. Free: record a bounded diagnostic holder slot in place, then keep the handle in the wrapper. Held: refuse with `in use by <slot>` and offer Fresh. Missing/malformed holder metadata reads `in use by another Pair session`; it never changes the kernel decision. Other IO errors are visible, not absence.
+4. Do not unlink or atomically replace an online lock inode. A losing contender never truncates the holder's metadata. The fd stays close-on-exec and is not passed to the native agent.
+5. Exact-ID launches acquire before the agent starts. Resolve selectors with existing adapters where supported; retain today's indirect-selector UX. For an ID only learned after startup, acquire when the existing current-launch watcher reports it. A repeated report is idempotent; keep each known ID locked until wrapper exit. A late conflict stops the wrapper's owned child group and reports the held conversation, without retrying input or continuing unguarded.
+6. Reuse the existing native binding decision, not historical ledger decoding or a new native integration. The minimal internal handoff is a private notification pipe from the already-launched Pair watcher to its wrapper, carrying the current launch ordinal and discovered ID. The watcher reports after its existing binding decision commits. It cannot notify a replacement wrapper through an old pipe. Close/join the bounded reader on wrapper shutdown; do not persist callback state or poll whole ledgers.
 
-Replace these authority paths:
+This deliberately promises nothing before an unknown Fresh ID is known. It preserves existing launch prompts/configuration and does not add an app-server bootstrap, native fd shim or conversation-ID selection policy.
 
-- `launcher/native_createflow_os.go`: ReserveNativeResume and CancelNativeResume.
-- `launcher/createflow.go:750–830,1030`: admission reservation, command digest and PAIR_NATIVE_ADMISSION export. Keep native selector pinning, prompt and launch-status behavior.
-- `wrapcmd/native_admission.go`: grant claim/child publication at startNativePTY; both wrapper entry forms use this boundary.
-- `couchcore/recovery_prepared.go:179,388` and `launcher/recovery_authority_os.go:192`: global native owner checks. Keep immutable prepared recovery, source confirmation, transcript/capture validation and authority consumption.
+### Owned process group and exit
 
-Delete after cutover:
+`pty.Start` already establishes a new session and controlling terminal (`creack/pty@v1.1.24/start.go` sets Setsid and Setctty); retain and test that ownership. Consolidate cleanup around the directly created child group, never discovered foreign processes.
 
-- `launcher/native_admission.go`, `native_admission_os.go`, the wrapper grant/store interface and their store-specific tests/fakes.
-- `launcher/recovery_native_legacy.go`, `recovery_native_metadata.go`, `recovery_native_owner_orphans.go`, `recovery_native_parallel.go`, global writer-proof portions of `recovery_native_owner.go`, and their forensic-only tests.
-- `couchcore/recovery_native_owner.go` and its forensic diagnostic adapter/tests when its last caller is gone.
-- `artifactpath/native_admission.go`, native-admission runtime methods/tokens/retention entries, source inventory entries and obsolete store references.
-- `procutil.LsofWritableNames`, its strict parser/live conformance fixtures and Makefile.local selection if the caller sweep still finds only the deleted forensic consumer; similarly sessioninventory.NativeIDForArtifact.
+- Normal completion, setup failure after spawn, output failure, catchable termination (TERM/INT/HUP/QUIT), panic unwinding and fresh restart all use the same owned-child cleanup boundary.
+- Signal only that owned group, use the existing one-second TERM grace then KILL, and reap the direct child. Terminate the group **before reaping the leader**, so a delayed signal cannot hit a recycled group ID. Cleanup is idempotent; cancel/join any timer or worker before returning.
+- Hold conversation locks throughout cleanup. Release after the group shutdown/wait path, then allow fresh wrapper re-exec to acquire new ownership. Replace the current unjoined delayed SIGUSR2 group-kill goroutine with that same owned lifecycle.
+- SIGKILL cannot execute cleanup; its orphan gap is explicit and belongs to the reaper/report paths. No process-table/argv/lsof admission proof is reintroduced.
 
-Do not blindly delete every recovery_native symbol. `launcher/recovery_terminal_confirmed.go:170,174,291` uses recoveryNativeWrappers/recoveryWrapperReady to attribute the **confirmed stop set**. Move that narrow responsibility to the named source-retirement integration and keep its identity/ancestry safety tests. This is not global conversation-ownership proof.
+### Maintenance cutover
 
-Retain shared strict JSON/ledger decoding improvements, ordinary LsofNames, native inventory/selector resolution, transcript bindings, launch history and session lifecycle observation: they have other consumers. Enumerate callers with rg before each deletion and run the artifact-reference inventory check.
+Add a small native-lock capability version to the existing readiness publication (missing = legacy). Read it for live wrappers from the existing registry/current readiness inventory, matching the current session/nonce; do not infer liveness from a leftover readiness file alone. Use the existing listed-live terminal inventory when an ordinary Pair invocation has no connected broker. Do not enumerate OS processes or decode historical launch ledgers to build this list.
 
-## Proposed sequence (not approved yet)
+At ordinary disk-resume admission, including the Pair native-resume entry path, collect the live wrappers without this capability. A nonempty, deterministically sorted list refuses with `relaunch older slots first: X, Y`. Recheck at the actual launch gate, without creating a reservation. Once the operator has relaunched those old slots, the list is empty and this rule no longer fires. Continue/attach and Fresh remain available.
 
-### Before M1: resolve the measured native integration gap
+The **existing confirmed Relaunch of a live old slot is the maintenance action**: retire that exact source first, then restart its current conversation under the new wrapper's lock. It is not blocked by the Resume-only transition rule; it cannot choose an unrelated conversation or bypass a held flock. This distinction is necessary to avoid circular migration. There is no new user override flag or permission flow; existing person-or-hub stop-set confirmation remains authoritative. A parked slot's ordinary Resume still waits for maintenance to finish.
 
-- [ ] Verify native fd survival for Claude/Codex/Qoder against scratch launches, without working slots or real user data. Exercise the installed Codex shim shape, not only direct exec.
-- [ ] Present the smallest concrete native fd/unknown-ID solution and its upkeep cost; or obtain an explicit operator revision of the orphan guarantee. No implementation until approved.
-- [ ] Name every entry mode: exact resume; latest/continue; Fresh with caller ID; Fresh with post-start ID; native in-app switch/fork; wrapper fresh re-exec. No mode silently bypasses the chosen policy.
+Rollout order is explicit: restart Couch onto this build before starting new wrappers, then relaunch old slots at the operator's quiet window. New readers accept old readiness records. The new readiness capability is not sent as an additive message-receipt field; no general compatibility framework. Test a Couch restart over old live slots: startup succeeds, rows remain Continue, and only disk resume shows the named migration refusal.
 
-### M1 — lock integration and confirmed cutover (proposed review boundary)
+## Delete and retain (verified at 484bc381)
 
-- [ ] Write red real-process tests for contention, display-only metadata, inherited fd lifetime, wrapper SIGKILL, orphaned child, last-holder SIGKILL and two-start barriers. Test symlink/nonregular/replaced inode and failed launch cleanup.
-- [ ] Implement the small lock IO seam and native start integration, with portable temporary storage and stateful fake kernel handles for ordering tests. Keep actual flock subprocess tests as conformance.
-- [ ] Integrate the approved Fresh/selector/native-launch solution; inspect source and test ordinary wrapper launch plus from-launch-env and fresh re-exec paths.
-- [ ] Add the temporary relaunch-only cutover override. It requires person-or-hub confirmation naming what stops, is bound to the existing prepared operation, cannot authorize arbitrary argv, is consumed once, and is logged. A replay must not retire or launch twice.
-- [ ] Run build, focused/race tests, full recorded suite and milestone-close. Stage only when scheduled by the TL.
-- [ ] Operator acceptance: scratch lock conflict + orphan cases; then the explicit one-time relaunch of every old slot, with transcripts preserved. Check the already-reported hello-v2 wrapper build identity and no old in-flight launches. Do not declare migration complete from a cache marker alone.
+Delete in the same code change:
 
-### M2 — remove old authority and finish (proposed review boundary)
+- `launcher/native_admission.go`, `native_admission_os.go`; wrapper `native_admission.go`; `artifactpath/native_admission.go`; reservation-only tests/fakes, grant/digest/environment plumbing and runtime methods.
+- Global owner proof in `launcher/recovery_native_owner.go`, plus `recovery_native_legacy.go`, `recovery_native_metadata.go`, `recovery_native_owner_orphans.go`, `recovery_native_parallel.go` and forensic-only tests.
+- Couch's forensic diagnostic adapter/fake and calls in `couchcore/recovery_prepared.go` and `launcher/recovery_authority_os.go`; replace admission with the small capability check and wrapper lock, preserving prepared recovery/transcript/capture validation.
+- The now-unused `procutil.LsofWritableNames` block and its dedicated parser/live tests, `sessioninventory.NativeIDForArtifact` export, and the live Make selection/companion workflow-command expectation if the final caller sweep still finds no other consumers.
+- Artifactpath store family, bindings, source inventory entries and obsolete references. No reads/writes of native-admission-v1 remain.
 
-- [ ] After the operator confirms cutover, delete the forensic/reservation inventory and temporary override, with obsolete tests. Keep only the lock as native writer authority.
-- [ ] Remove the old reservation data/lock files only through an explicit machine cleanup approved after no old binary can still use them; exact paths are `~/.cache/pair/native-admission-v1.json` and `.lock`. Do not delete anything during planning.
-- [ ] Update artifactpath inventory, atlas/couch.md and target references; document native agents outside Pair and manually starting pre-cutover Pair binaries as outside this guarantee.
-- [ ] Full suite/build and M2 close review; state production and test net LOC against branch base, and prove no forensic/reservation callers remain.
-- [ ] TL/operator live acceptance: resume one parked scratch conversation, refuse a conversation held by another live scratch slot with its label, preserve Fresh action. Then whole-issue close and land on SHIP.
+**Move/keep 114 production lines** from owner.go: recoveryNativeWrapper, recoverySourceAncestor, recoveryNativeWrappers and recoveryWrapperReady. `recovery_terminal_confirmed.go:170,174,291` still needs exact source stop-set attribution. Move them to recovery_terminal_confirmed_owner.go, preserving identity/ancestry checks and replacing the forensic error-type dependency with a source-retirement error.
 
-## Ordering, constraints and residue
+Keep selector classification/pinning and its UX tests, ordinary LsofNames, shared strict JSON/ledger validation, launch history, transcript bindings, native inventory and notification lifecycle consumers. Check every deletion's callers with rg; do not delete whole test files that still cover selectors, recovery confirmation or stop safety.
 
-- **ARCH-ORDER:** kernel acquisition is the only writer admission. Competing starts race that same inode; exactly one proceeds. Start failure closes the parent's copy, not another holder's. No state resets infer external child death. Recovery confirmation and source teardown keep their existing exact source guard.
-- **ARCH-CONSTRAINTS:** local Darwin/Linux filesystem; one nonblocking acquisition, no polling wait or OS-wide scan, one live handle per held conversation. Measure latency under concurrent starts rather than promising a new arbitrary timeout. No network work on admission.
-- **ARCH-SECURE:** IDs and holder data are untrusted typed inputs; metadata is bounded and diagnostic, symlinks/replaced inodes refuse, same-user diagnostic labels are not authority. No new credential.
-- **ARCH-FUNERAL:** handles die with their last holder. Stable lock inodes remain per conversation to avoid split-inode races; there is no append per turn or launch. Document and measure inode/metadata cost per conversation. Do not garbage-collect lock files online; any directory reset requires a quiescent machine operation. This residue policy needs operator acceptance.
-- **ARCH-DRY / ARCH-PURE:** keep key/label logic pure, kernel/native IO in small seams, use existing artifact cache resolution and recovery flows. Delete the old mechanism, not just bypass it.
-- **ARCH-MOCK / ARCH-PURPOSE:** fake handle ownership spans fork/exec/close and competing opens, then conforms against real subprocesses. A direct-exec fake does not establish Codex engine inheritance. Do not claim the strict orphan guarantee until each supported launch mode has a proven path.
+## Net deletion estimate
+
+Source-counted old blocks, using Python splitlines counts and rg caller verification:
+
+| Replaceable scope | Production lines | Test lines |
+|---|---:|---:|
+| Five global scan files | 880 | 1,124 |
+| Reservation/store plus wrapper admission | 767 | 1,230 |
+| Writable-lsof-only block/tests | 130 | 274 |
+| Couch legacy-advice test | 0 | 138 |
+| Subtotal | 1,777 | 2,766 |
+| Preserve/move stop-set duties | -114 | retained safety tests |
+| **Measured replaceable baseline** | **1,663** | **2,766** |
+
+Allow roughly **350–650 added production lines** for the small lock, watcher notification, capability check and group cleanup, and **500–900 new/updated test lines**. Expected net deletion is therefore about **1,000–1,300 production lines**, or **2,900–3,600 production-plus-test lines**, before additional bridge/call-site removal. These are planning ranges, not promised final counts; report actual diff against branch base at close. Docs/review artifacts are counted separately.
+
+## Implementation and acceptance (one atomic close boundary)
+
+- [ ] After TL approval, run change-code; derive the full-flow estimate only after plan-quality clears.
+- [ ] TDD lock key/metadata and real kernel contention: two wrappers, one ID, exactly one starts; holder named, loser no truncation; holder normal exit/SIGKILL releases. Pin repeated same-wrapper ID reports and two-start barriers.
+- [ ] TDD unknown-to-known watcher notification and wrong/stale launch rejection through the existing watcher result; no native API integration or ledger scan. Cover late held-ID failure and stop/close ordering.
+- [ ] TDD owned process-group cleanup for normal/setup/output/panic/signal/restart paths. Fake native descendants stay in their assigned group; only scratch-owned groups may be signalled. A deliberate wrapper SIGKILL test records the accepted orphan gap rather than claiming safety it cannot provide.
+- [ ] TDD cutover: live legacy + capable + dead/stale records; sorted refusal only on disk Resume; startup/Continue/Fresh unaffected; confirmed old-slot Relaunch migrates without a bypass flag; subsequent Resume proceeds. Cover both CLI wrapper transports and ordinary Pair resume.
+- [ ] Implement lock ownership and capability/readiness, move stop-set attribution, then remove the forensic/reservation inventory in the same build. Sweep callers and artifact references; no partial dual-guard deployment.
+- [ ] Update atlas/couch.md and issue Spec/Done when to this approved scope, preserve superseded promises in Revisions, and document orphan responsibility and maintenance rollout. Update target only if its existing commitments need the accepted limit stated.
+- [ ] Build, targeted/race/conformance regressions, required recorded suite, actual LOC report and mandatory issue-close review. No code may land on REWORK.
+- [ ] TL schedules the single maintenance stage/restart and live acceptance: Couch starts over old live slots, ordinary parked Resume lists legacy blockers, confirmed Relaunch migrates them, parked scratch Resume works, a held scratch conversation refuses with its slot and offers Fresh. No working slot is mutated by this agent.
+- [ ] Land on SHIP and report actual merge hash plus remaining operator acceptance, if the TL explicitly chooses landing before the maintenance window. Do not silently count an unrun live check as complete.
+
+## Constraints and lifecycle
+
+- **ARCH-DRY / PURE:** key/decision logic is pure; flock, watcher and process cleanup stay in small IO seams. Reuse current native discovery and recovery confirmation. The old authority is removed, not hidden behind the new one.
+- **ARCH-ORDER:** explicit wrapper states are unknown-ID / held known-ID set / stopping / exited. Known-ID arrival acquires once; contention or IO failure starts controlled stop; stopping rejects late arrivals; exit closes the handles. No rollback guesses a native child dead, and no restart replays input. The owned group is killed before leader reap and lock release.
+- **ARCH-CONSTRAINTS:** local Darwin/Linux filesystem; one nonblocking flock attempt, no process scan, metadata bounded to 1 KiB, current live wrapper set bounded by existing slot limits. Fresh discovery uses its existing cadence; no new native scan budget or background ownership poll.
+- **ARCH-SECURE / MOCK:** validate IDs and current-launch notification at the boundary; metadata is display-only. Tests use temp cache/config and scratch descendants; stateful fakes model open/contend/close, binding order and controlled shutdown; real flock/PTY process tests check the model.
+- **ARCH-FUNERAL:** fd lifetime is the wrapper's lifetime. Keep stable lock inodes per conversation to prevent split-inode races; no per-turn/launch append. Measure inode/metadata cost and never unlink them online. The obsolete reservation files may be removed only in a separate operator-approved quiescent cleanup after no old binary uses them; do not add a compatibility reader or cleanup daemon.
+- **ARCH-PURPOSE:** the guarantee is cooperating wrapper lifetime, not orphan-engine exclusion. No native fd adapter, ID bootstrap, new reservation store, capability-policy sidecar or dual-guard migration build.
 
 ## Measurements retained locally
 
-Scratch directory: `/var/folders/07/b9wcwwld4_v2w9r3hk525bm80000gn/T/pair-595-flock.XreBFC/`.
-
-Run `python3 <directory>/measure.py`, `extra.py`, and `spawn-proof.py`; results are `results.jsonl`, `extra-results.jsonl`, and `spawn-results.jsonl`.
-
-Observed on this Darwin host: a separate reopen, even within the same process, contends with errno 35; dup survives original close; an inherited child retains the lock after wrapper SIGKILL; last-child SIGKILL and reap frees it. The exact Node spawn shape drops fd3 in the fake native child; after killing Node, the fake engine stays live while a second opener succeeds. All helpers were scratch-owned and cleaned up. No coding agent or live slot was launched/stopped.
+`/var/folders/07/b9wcwwld4_v2w9r3hk525bm80000gn/T/pair-595-flock.XreBFC/` contains measure.py, extra.py, spawn-proof.py and their JSONL results. The kernel proof and Codex shim loss remain valid evidence for why the original inherited-child promise was rejected. All helpers were scratch-owned and cleaned up; no real coding agent or live slot was launched/stopped.
 
 ## Revisions
 
-- 2026-10-15: Draft recorded after #594 landed (47a485ce). Source and kernel measurements expose unresolved inherited-fd and post-start-ID requirements. No code or cleanup is authorized by this draft; get the operator/TL decision before refining it into an executable approved plan.
+- **2026-10-15, draft 484bc381:** proposed inherited-child ownership and two-boundary migration, with explicit native fd/unknown-ID gaps; no code was authorized.
+- **2026-10-15 19:58 PDT, TL cb293d05:** supersedes that draft: wrapper lifetime only, owned process-group cleanup on controlled exits, accepted SIGKILL/orphan gap handled by #583/#587; maintenance cutover with a live legacy-capability refusal; scan/store deleted in the same build. Removed native fd/ID integration, dual-guard stages and override. Added source-counted deletion estimate. Revised active plan and issue acceptance together so superseded promises do not remain closure requirements. This revision awaits TL approval before code.
