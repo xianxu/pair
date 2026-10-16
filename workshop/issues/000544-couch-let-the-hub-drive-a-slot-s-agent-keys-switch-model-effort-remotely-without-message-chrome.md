@@ -6,7 +6,7 @@ github_issue:
 created: 2026-10-13
 updated: 2026-10-16
 estimate_hours: 6.29
-card_mirror: '5bf85a660bb03e22388415d599acd448ef14af5a' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '4f44263ece41041487c8b8b78e9bdc8a5a27a16e' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-14T01:55:19-07:00
 claimant:
     operator: Xian Xu
@@ -16,7 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: operator}
-actual_hours: 16.95
+actual_hours: 18.44
 ---
 
 # couch: let the hub drive a slot's agent keys (switch model/effort remotely), without message chrome
