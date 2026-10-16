@@ -943,7 +943,7 @@ func (r OSRuntime) ReapNvim(tag string) {
 	if err != nil {
 		return
 	}
-	_, _ = reapNvimSidecars(context.Background(), r.processTable(), r, nvimSidecarsFor(paths, tag, paths.ScopeDir()))
+	_, _ = reapNvimSidecars(context.Background(), r.processTable(), r, nvimSidecarsFor(paths, tag, paths.ScopeDir(), false))
 }
 
 // SweepOrphanNvim reaps embedded nvim processes whose Pair session is not live,

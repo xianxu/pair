@@ -287,7 +287,7 @@ func TestNvimSidecarsGiveEveryKindArgvEvidence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	targets := nvimSidecarsFor(paths, "work", paths.ScopeDir())
+	targets := nvimSidecarsFor(paths, "work", paths.ScopeDir(), false)
 	if len(targets) != len(artifactpath.NvimKinds()) {
 		t.Fatalf("targets = %+v, want one per kind %v", targets, artifactpath.NvimKinds())
 	}
@@ -318,6 +318,14 @@ func TestNvimSidecarsGiveEveryKindArgvEvidence(t *testing.T) {
 			}
 		}
 	}
+	// Liveness is the caller's evidence, so what the sweep observed must reach
+	// every kind: a kind that dropped it would be reaped on its owner's death
+	// alone, with no reparenting to justify the kill.
+	for _, target := range nvimSidecarsFor(paths, "work", paths.ScopeDir(), true) {
+		if !target.OwnerLive {
+			t.Fatalf("kind %q lost the owner liveness it was given: %+v", target.Kind, target)
+		}
+	}
 }
 
 // One record per kind of the closed set, in its order: the derivation both the
@@ -329,7 +337,7 @@ func TestNvimSidecarsForDerivesFromTheClosedKindSet(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	targets := nvimSidecarsFor(paths, "work", paths.ScopeDir())
+	targets := nvimSidecarsFor(paths, "work", paths.ScopeDir(), false)
 	var kinds, records []string
 	for _, target := range targets {
 		kinds = append(kinds, target.Kind)
@@ -509,13 +517,26 @@ func TestSweepOrphanNvimDecidesEachPidOnItsOwnEvidence(t *testing.T) {
 			wantSignals: []string{"4242:KILL"},
 		},
 		{
-			name:     "a live tag's draft embed",
+			// A live tag's embed is a candidate: the pane that spawned it can close
+			// while the session lives on, and the embed it leaves at ppid 1 is the
+			// 13-day shape #583 exists for. Its healthy neighbour — a live parent —
+			// is the case that must never be signalled.
+			name:     "a live tag's draft embed whose parent is alive",
+			liveTags: []string{"work"},
+			setup: func(t *testing.T, scope *sweepScope, table *fakeProcessTable) {
+				scope.record(t, "draft", 4242)
+				nvimRow(table, 4242, 4000, scope.draftArgv())
+			},
+			wantKept: []string{"nvim-pid-work-draft"},
+		},
+		{
+			name:     "a live tag's draft embed reparented to launchd",
 			liveTags: []string{"work"},
 			setup: func(t *testing.T, scope *sweepScope, table *fakeProcessTable) {
 				scope.record(t, "draft", 4242)
 				embed(table, 4242, scope.draftArgv())
 			},
-			wantKept: []string{"nvim-pid-work-draft"},
+			wantSignals: []string{"4242:KILL"},
 		},
 		{
 			name: "a dead tag's scrollback embed",
@@ -529,7 +550,8 @@ func TestSweepOrphanNvimDecidesEachPidOnItsOwnEvidence(t *testing.T) {
 			// `scrollback-work-` is a prefix of `scrollback-work-2-`: a prefix
 			// match would hand a live tag's viewer to its dead neighbour. The
 			// dead tag's stale record is dropped, because the pid it names is
-			// not its own.
+			// not its own. The embed's parent is alive so the case stays about
+			// attribution: a reparented live-tag embed is its own case above.
 			name:     "a live tag's scrollback embed found through a dead tag's record",
 			liveTags: []string{"work-2"},
 			setup: func(t *testing.T, scope *sweepScope, table *fakeProcessTable) {
@@ -542,7 +564,7 @@ func TestSweepOrphanNvimDecidesEachPidOnItsOwnEvidence(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				embed(table, 4242, draftArgv(scroll.ANSI))
+				nvimRow(table, 4242, 4000, draftArgv(scroll.ANSI))
 			},
 		},
 		{
@@ -624,11 +646,21 @@ func TestSweepOrphanNvimDecidesEachPidOnItsOwnEvidence(t *testing.T) {
 			wantSignals: []string{"4242:KILL"},
 		},
 		{
-			name:     "an argv-only embed of a live tag",
+			name:     "an argv-only embed of a live tag whose parent is alive",
+			liveTags: []string{"work"},
+			setup: func(t *testing.T, scope *sweepScope, table *fakeProcessTable) {
+				nvimRow(table, 4242, 4000, scope.draftArgv())
+			},
+		},
+		{
+			// No record, so nothing to remove: argv attribution plus ppid 1 is the
+			// whole evidence, and it is enough for the classifier.
+			name:     "an argv-only embed of a live tag reparented to launchd",
 			liveTags: []string{"work"},
 			setup: func(t *testing.T, scope *sweepScope, table *fakeProcessTable) {
 				embed(table, 4242, scope.draftArgv())
 			},
+			wantSignals: []string{"4242:KILL"},
 		},
 		{
 			name: "a record that does not name a pid",

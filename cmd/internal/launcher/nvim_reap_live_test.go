@@ -44,10 +44,14 @@ import (
 // alive, its tag is not live, and that combination is the whole authorization. The
 // real 13-day orphan's stdin was held by a process that outlived its slot.
 //
-// A reparented-to-launchd embed of a *live* tag — the classifier's
-// reapReasonReparented branch — is unreachable from the sweep (a live tag produces no
-// sidecar targets at all) and is pinned by the ppid-1 rows in
-// TestSweepOrphanNvimDecidesEachPidOnItsOwnEvidence.
+// A live tag's embed *is* a sweep candidate: the pane that spawned it can close while
+// the session lives on, and the embed it leaves at ppid 1 is the shape #583 exists for.
+// What decides it is the classifier's reapReasonReparented branch, pinned by the ppid-1
+// rows in TestSweepOrphanNvimDecidesEachPidOnItsOwnEvidence. The live-tag case below is
+// the other half of the same rule — a live tag's embed with its parent alive is decided
+// and kept. The live run does not attempt a real reparenting: that needs a disposable
+// parent which leaves the embed alive at ppid 1, and this host does not offer one (see
+// the measurements above).
 
 // liveEmbedPublish is the VimEnter pid publish the four pair nvim configs do,
 // reduced to the one line the reaper depends on: the record names the embed, which
@@ -238,6 +242,9 @@ func TestLiveNvimReapRemovesADeadTagsEmbed(t *testing.T) {
 	}
 }
 
+// A live tag's embed whose parent is alive. The sweep decides it — a live tag is a
+// candidate, since its embed can outlive the pane that spawned it — and keeps it: no
+// signal, and the record stays for the next pass.
 func TestLiveNvimReapLeavesALiveTagsEmbedAlone(t *testing.T) {
 	nvim := liveNvim(t)
 	scopeDir := t.TempDir()
@@ -245,8 +252,18 @@ func TestLiveNvimReapLeavesALiveTagsEmbedAlone(t *testing.T) {
 	tag := "live-owned"
 	embed := spawnLiveEmbed(t, rt.processTable(), nvim, scopeDir, tag)
 
-	if found := outcomesFor(liveSweep(t, scopeDir, []string{tag}), embed.pid); len(found) != 0 {
-		t.Errorf("a live tag's embed was decided at all: %v", found)
+	found := outcomesFor(liveSweep(t, scopeDir, []string{tag}), embed.pid)
+	if len(found) != 1 {
+		t.Fatalf("outcomes for the embed = %v, want exactly one decision", found)
+	}
+	if found[0].Killed {
+		t.Errorf("a live tag's embed was killed: %+v", found[0])
+	}
+	if found[0].Reason != reapReasonOwnerLive {
+		t.Errorf("reason = %q, want %q", found[0].Reason, reapReasonOwnerLive)
+	}
+	if found[0].Removed {
+		t.Errorf("an undecided outcome removed the record: %+v", found[0])
 	}
 	if !embed.alive() {
 		t.Error("the embed died although its owner is live")

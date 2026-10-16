@@ -284,9 +284,11 @@ type lifecycleEditorPaths struct {
 // #583): both the quit path and the orphan reaper build through it, so a kind
 // cannot be reaped by one and missed by the other. The kinds come from
 // artifactpath.NvimKinds(), pinned by
-// TestNvimSidecarsForDerivesFromTheClosedKindSet.
+// TestNvimSidecarsForDerivesFromTheClosedKindSet. Owner liveness is false here
+// because this derivation serves the explicit quit path, which is itself the
+// authorization to reap.
 func editorPathsOf(paths artifactpath.Paths) lifecycleEditorPaths {
-	return lifecycleEditorPaths{sidecars: nvimSidecarsFor(paths, paths.Tag(), paths.ScopeDir())}
+	return lifecycleEditorPaths{sidecars: nvimSidecarsFor(paths, paths.Tag(), paths.ScopeDir(), false)}
 }
 
 type launcherCleanupOps struct {

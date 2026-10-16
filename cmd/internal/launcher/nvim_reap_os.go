@@ -80,13 +80,18 @@ type nvimReapOutcome struct {
 // drift out of the reap (#583): the launch sweep enumerated {draft, scrollback}
 // by hand, and a review pane's embed was never a candidate.
 //
+// ownerLive is the caller's evidence about the owner, not a property of the kind:
+// a path that is itself the authorization to reap (quit) passes false, and the
+// sweep passes what the live-tag set says, so a live tag's embed is only signalled
+// on the classifier's reparented rule.
+//
 // scopeDir attributes a scrollback embed by tag; empty leaves it unattributable,
 // which skips rather than kills.
-func nvimSidecarsFor(paths artifactpath.Paths, owner, scopeDir string) []nvimSidecar {
+func nvimSidecarsFor(paths artifactpath.Paths, owner, scopeDir string, ownerLive bool) []nvimSidecar {
 	kinds := artifactpath.NvimKinds()
 	targets := make([]nvimSidecar, 0, len(kinds))
 	for _, kind := range kinds {
-		target := nvimSidecar{Path: paths.NvimPID(kind), Kind: kind, Owner: owner}
+		target := nvimSidecar{Path: paths.NvimPID(kind), Kind: kind, Owner: owner, OwnerLive: ownerLive}
 		switch kind {
 		case nvimKindDraft:
 			target.ExpectedArgPath = paths.Draft()
@@ -106,7 +111,9 @@ func nvimSidecarsFor(paths artifactpath.Paths, owner, scopeDir string) []nvimSid
 // decide through the same ClassifyNvimReap row:
 //
 //   - a tag-keyed sidecar names a pid, and its owner is the tag in the record's
-//     own name, dead once the live-tag set does not carry it;
+//     own name: dead once the live-tag set does not carry it, and for a live tag
+//     only reparenting to launchd authorizes the kill — the pane that spawned the
+//     embed closed while its session lived on;
 //   - a changelog record's owner is the opener holding the sibling openlock, so
 //     a viewer is reaped on the opener's death and not on its tag's;
 //   - an embed that left no record is attributed by argv, the weakest evidence,
@@ -130,45 +137,55 @@ func sweepOrphanNvim(ctx context.Context, table ProcessTable, records nvimSideca
 	for _, tag := range liveTags {
 		live[tag] = true
 	}
+	byPID := indexByPID(rows)
+	targets := tagSidecars(scope, scopeDir, live)
+	targets = append(targets, changelogSidecars(scope, records, byPID)...)
+	targets = append(targets, argvOnlyEmbeds(scope, table, scopeDir, live, rows)...)
+	return reapNvimRows(ctx, table, records, targets, byPID)
+}
+
+// indexByPID is the snapshot's one index construction: the openlock liveness
+// check and every decision read the same rows, so the map is built once per pass.
+func indexByPID(rows []ProcessRow) map[int]ProcessRow {
 	byPID := make(map[int]ProcessRow, len(rows))
 	for _, row := range rows {
 		byPID[row.PID] = row
 	}
-	targets := deadTagSidecars(scope, scopeDir, live)
-	targets = append(targets, changelogSidecars(scope, records, byPID)...)
-	targets = append(targets, argvOnlyEmbeds(scope, table, scopeDir, live, rows)...)
-	return reapNvimRows(ctx, table, records, targets, rows)
+	return byPID
 }
 
-// deadTagSidecars enumerates the tag-keyed records in the scope and targets
-// every kind of the closed set for each tag that is not live. An absent record
-// decides nothing, so a dead tag's whole kind set is safe to target: it is how a
-// kind that only one surface writes still gets reaped.
-func deadTagSidecars(scope artifactpath.ScopePaths, scopeDir string, live map[string]bool) []nvimSidecar {
+// tagSidecars enumerates the tag-keyed records in the scope and targets every
+// kind of the closed set for each tag it finds, live or dead, carrying the
+// liveness the sweep observed. An absent record decides nothing, so a tag's whole
+// kind set is safe to target: it is how a kind that only one surface writes still
+// gets reaped. A live tag's kinds are targets too, because its embed can outlive
+// the pane that spawned it — the classifier then needs ppid 1 before it signals,
+// and a healthy embed with its parent alive is kept.
+func tagSidecars(scope artifactpath.ScopePaths, scopeDir string, live map[string]bool) []nvimSidecar {
 	globs, err := scope.NvimPIDGlobs()
 	if err != nil {
 		return nil
 	}
-	dead := map[string]bool{}
+	seen := map[string]bool{}
 	for _, glob := range globs {
 		matches, err := filepath.Glob(glob.Pattern)
 		if err != nil {
 			continue
 		}
 		for _, match := range matches {
-			if tag, ok := scope.TagFromNvimPID(match, glob.Kind); ok && !live[tag] {
-				dead[tag] = true
+			if tag, ok := scope.TagFromNvimPID(match, glob.Kind); ok {
+				seen[tag] = true
 			}
 		}
 	}
-	tags := slices.Sorted(maps.Keys(dead))
+	tags := slices.Sorted(maps.Keys(seen))
 	targets := make([]nvimSidecar, 0, len(tags)*len(artifactpath.NvimKinds()))
 	for _, tag := range tags {
 		paths, err := artifactpath.ResolveScoped(scopeDir, tag)
 		if err != nil {
 			continue
 		}
-		targets = append(targets, nvimSidecarsFor(paths, tag, scopeDir)...)
+		targets = append(targets, nvimSidecarsFor(paths, tag, scopeDir, live[tag])...)
 	}
 	return targets
 }
@@ -217,7 +234,9 @@ func openerLive(records nvimSidecarIO, openlock string, byPID map[int]ProcessRow
 
 // argvOnlyEmbeds attributes embeds that left no pid record. argv is the whole
 // evidence, so the target states the predicate argv just satisfied: the draft's
-// exact artifact path, or a tag attribution through the scope's one parser.
+// exact artifact path, or a tag attribution through the scope's one parser. A live
+// tag's embed is attributed too, with the liveness the sweep observed, so the
+// classifier decides it on ppid rather than the source dropping it.
 func argvOnlyEmbeds(scope artifactpath.ScopePaths, table ProcessTable, scopeDir string, live map[string]bool, rows []ProcessRow) []nvimSidecar {
 	var targets []nvimSidecar
 	for _, row := range rows {
@@ -229,14 +248,14 @@ func argvOnlyEmbeds(scope artifactpath.ScopePaths, table ProcessTable, scopeDir 
 			continue
 		}
 		tag := scope.TagFromNvimEmbedArgv(strings.Join(args, " "))
-		if tag == "" || live[tag] {
+		if tag == "" {
 			continue
 		}
 		paths, err := artifactpath.ResolveScoped(scopeDir, tag)
 		if err != nil {
 			continue
 		}
-		target := nvimSidecar{PID: row.PID, Owner: tag}
+		target := nvimSidecar{PID: row.PID, Owner: tag, OwnerLive: live[tag]}
 		if argvCarriesField(args, paths.Draft()) {
 			target.Kind, target.ExpectedArgPath = nvimKindDraft, paths.Draft()
 		} else {
@@ -258,7 +277,7 @@ func reapNvimSidecars(ctx context.Context, table ProcessTable, records nvimSidec
 	if err != nil {
 		return nil, fmt.Errorf("nvim reap: snapshot processes: %w", err)
 	}
-	return reapNvimRows(ctx, table, records, targets, rows)
+	return reapNvimRows(ctx, table, records, targets, indexByPID(rows))
 }
 
 // reapNvimRows is the whole reap path: one snapshot for pid/parent/identity/name,
@@ -273,20 +292,17 @@ func reapNvimSidecars(ctx context.Context, table ProcessTable, records nvimSidec
 //
 // Deciding against a snapshot already taken is what lets the sweep share one
 // across its evidence sources: pid, parent, identity and the openlock liveness
-// it reads all describe the same moment.
+// it reads all describe the same moment, and byPID is that snapshot's one index
+// — the sweep hands the same map to its openlock check and to this pass.
 //
 // A pid is decided once: the sweep's sources overlap, and two records naming one
 // pid are two pieces of evidence about the same process, so a second decision
 // would only report a kill the first already made. Every record naming a decided
 // pid still follows it off disk. Record-backed targets come first, so the source
 // that owns a record is the one whose attribution decides it.
-func reapNvimRows(ctx context.Context, table ProcessTable, records nvimSidecarIO, targets []nvimSidecar, rows []ProcessRow) ([]nvimReapOutcome, error) {
+func reapNvimRows(ctx context.Context, table ProcessTable, records nvimSidecarIO, targets []nvimSidecar, byPID map[int]ProcessRow) ([]nvimReapOutcome, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
-	}
-	byPID := make(map[int]ProcessRow, len(rows))
-	for _, row := range rows {
-		byPID[row.PID] = row
 	}
 	outcomes := make([]nvimReapOutcome, 0, len(targets))
 	decided := make(map[int]string, len(targets))
@@ -347,11 +363,14 @@ func decideOne(table ProcessTable, records nvimSidecarIO, target nvimSidecar, pi
 // kernel start stamp is re-read before the signal is allowed, so a pid recycled
 // since the snapshot is left alone -- and its record is dropped, because the
 // process it named is gone.
-func decideNvimSidecar(table ProcessTable, target nvimSidecar, pid int, rows map[int]ProcessRow) (bool, string) {
-	row, present := rows[pid]
+func decideNvimSidecar(table ProcessTable, target nvimSidecar, pid int, byPID map[int]ProcessRow) (bool, string) {
+	row, present := byPID[pid]
 	if !present {
 		return false, reapReasonGone
 	}
+	// argv is read here rather than carried in from the source that attributed the
+	// row: the kill has to rest on evidence taken beside the identity fence below,
+	// not on a read from an earlier moment in the pass.
 	args, argsKnown := table.Command(pid)
 	candidate := NvimReapRow{
 		Kind: target.Kind, Owner: target.Owner, PID: pid, PPID: row.PPID,
