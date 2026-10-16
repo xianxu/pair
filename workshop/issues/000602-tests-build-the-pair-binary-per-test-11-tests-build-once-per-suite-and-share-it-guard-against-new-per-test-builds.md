@@ -98,6 +98,8 @@ Raw after-links.jsonl SHA256 7a87a46f26d860e1021fdc184a8a71066782d3d3335735693c9
 
 2026-10-16 BR-3 qualification: temporary overlay against all eleven complete original Go files at 53c96ded observed RED 5/11 (exact six relative-target misses), then GREEN 11/11 after package-cwd normalization and bounded explicit-command-Dir facts. Portable committed fixtures cover all eleven command recipes, direct/context/table relatives, absolute/module targets, and unrelated relative/explicit-Dir negatives. Targeted guard tests pass; testpair -race PASS 9.553 s. Consumer and runtime code unchanged.
 
+2026-10-16 root independently re-ran the full-source overlay qualification: all eleven subtests PASS (0.108 s), verified each preserved body byte-for-byte against git show 53c96ded and that overlay implementation starts with the current committed guard. Bundle SHA256 46db6b15d260e5e450668cdd7aef3e0297d91e61d77eeef9b6e63334a5ccb969. Local overlay /tmp/pair602-guard-_cqj8nju/overlay.json; portable eleven-recipe regression fixtures remain committed.
+
 ## Revisions
 
 2026-10-16 R1 — close review BR-1 reproduced the shell builder resolving source relative to caller cwd; centralize checkout selection while resolving relative output against the original cwd, with subdirectory and outside-checkout fake-compiler regression controls plus the real embedded-runtime script from tests/. BR-2 requires README coverage of the complete shared/supplied/fallback lifecycle and plain-vs-development defaults. Scope and original assertions unchanged; re-run targeted checks and the recorded full suite before re-close.
