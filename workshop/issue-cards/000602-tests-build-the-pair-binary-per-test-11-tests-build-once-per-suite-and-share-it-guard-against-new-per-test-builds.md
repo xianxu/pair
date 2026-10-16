@@ -1,6 +1,6 @@
 ---
 id: 000602
-status: codecomplete
+status: done
 created: 2026-10-15
 updated: 2026-10-16
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 78826bb5fac275cc5cefa49d3b8882d66fc9821c
         evidence_commit: 0643afa75826482bd8bfd3c381f12bcaac53fd44
+        landed_commit: 4ebb014b032fee16c7c61c8cbbb29e1456bd4e3a
 ---
 
 # Tests build the pair binary per test (11 tests): build once per suite and share it; guard against new per-test builds
