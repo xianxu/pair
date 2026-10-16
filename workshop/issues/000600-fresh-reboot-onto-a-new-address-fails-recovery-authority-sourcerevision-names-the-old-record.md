@@ -1,6 +1,6 @@
 ---
 id: 000600
-status: working
+status: codecomplete
 deps: []
 github_issue:
 target: slot-recovery
@@ -8,7 +8,7 @@ created: 2026-10-15
 updated: 2026-10-15
 estimate_hours:
 severity: critical
-card_mirror: 'f8304316995dab40e5acea8ca061fb02a9f77ba7' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'cd37bd12cea80bb0cc906931d25faa08472af222' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-15T22:46:02-07:00
 claimant:
     operator: Xian Xu
@@ -17,6 +17,7 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
+actual_hours: 0.09
 ---
 
 # Fresh reboot onto a new address fails recovery authority: SourceRevision names the old record
