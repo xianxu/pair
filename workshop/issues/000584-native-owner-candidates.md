@@ -64,6 +64,8 @@ Filter native-owner candidates from kernel metadata before requiring argv; unrel
 
 - 2026-10-15: Additional read-only live collision conformance passed in 1.798s: asking the guard about this slot's currently held native conversation refused with its exact live owner, 990458a6956a804b:1-pair-8. The test only invoked ownership observation, not resume/admission effects. Final corrected-head make build passed.
 
+- 2026-10-15: Corrected recorded run at 9979945fb passes the inventory contract but reports TestMessageSendToDormantSlotReadmits: expected unavailable, got accepted. Messaging source and test are unchanged from origin/main. Isolated thirty-repeat rerun passed in 5.061s; the prior full suite passed couchcmd. Filed unassigned pair#589 to measure and repair the suspected asynchronous retry/100 ms fixture race, with evidence, and reported to the hub. No messaging edits or gate waiver in #584. This full run is still finishing its other Go packages.
+
 ## Revisions
 
 ### 2026-10-15 15:55 — approved narrow legacy association
