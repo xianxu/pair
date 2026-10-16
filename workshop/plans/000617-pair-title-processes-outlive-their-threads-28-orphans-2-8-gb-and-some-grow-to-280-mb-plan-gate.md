@@ -19,6 +19,25 @@ reviewer_runs:
       finished_at: "2026-10-16T21:41:42.70866Z"
       session_id: 01a146a9-8342-7bb0-ad16-f7c0a57fde8f
       outcome: returned
+    - version: 1
+      intent:
+        id: 73c3da14-459b-4ba5-8c02-7c3968767eaa
+        repository: github.com/xianxu/pair
+        issue_id: "000617"
+        recipe: estimate-quality
+        round: 1
+        attempt: 1
+        agent: codex
+        root: /Users/xianxu/workspace/worktree/pair-slot6/pair
+        reviewed_head: 0bbb918d562885eae629116aa1284decb164d66f
+        slot: pair:6
+        requested_at: "2026-10-16T22:43:37.692324Z"
+      phase: finished
+      pid: 86742
+      started_at: "2026-10-16T22:43:37.97101Z"
+      finished_at: "2026-10-16T22:44:02.344416Z"
+      session_id: 01a146e2-9bd2-7193-bd12-00016f7810e4
+      outcome: returned
 gate: plan-quality
 issue: 617
 id_prefix: PQ
@@ -126,7 +145,40 @@ rounds:
           note: The plan names production functions and gives concise adversarial testing strategies.
           round: 3
       blocked: false
-content_hash: a5844b5f4c9c66af525f2eafd3ef369e25fd7b01880b1f0c8da3def5c2605410
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: c4e24c80-15ad-4624-a9a1-2060dfdf4b16
+            repository: github.com/xianxu/pair
+            issue_id: "000617"
+            recipe: plan-quality
+            round: 4
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot6/pair
+            reviewed_head: 0bbb918d562885eae629116aa1284decb164d66f
+            slot: pair:6
+            requested_at: "2026-10-16T22:43:09.690439Z"
+          phase: finished
+          pid: 72754
+          started_at: "2026-10-16T22:43:09.941565Z"
+          finished_at: "2026-10-16T22:43:33.327089Z"
+          session_id: 01a146e2-2dd2-7e02-bd2f-bf9c3a961c59
+          outcome: returned
+      "n": 4
+      timestamp: "2026-10-16T15:43:34-07:00"
+      agent: codex
+      dispose:
+        - id: PQ-1
+          disposition: addressed
+          note: The approved shutdown revision covers in-process proof work and owned external commands without waiting for decoder cooperation.
+          round: 4
+        - id: PQ-2
+          disposition: addressed
+          note: Named production functions have concise adversarial strategies and mechanical guards.
+          round: 4
+      blocked: false
+content_hash: 1e68ff6c4f074e504dfa5a51ab8d902be80ca366c1cdee5f021dace7d0b4d218
 ---
 
 # Gate ledger — pair#617 (plan-quality)
@@ -156,6 +208,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 - PQ-1 — addressed — Cancellation covers in-process work, with bounded CLI teardown and production-process verification.
 - PQ-2 — addressed — The plan names production functions and gives concise adversarial testing strategies.
+
+## Round 4 — 2026-10-16T15:43:34-07:00 (codex) — passed
+
+### Disposed
+
+- PQ-1 — addressed — The approved shutdown revision covers in-process proof work and owned external commands without waiting for decoder cooperation.
+- PQ-2 — addressed — Named production functions have concise adversarial strategies and mechanical guards.
 
 ## Open findings
 
