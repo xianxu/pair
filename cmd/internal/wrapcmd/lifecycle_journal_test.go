@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -278,7 +279,8 @@ func TestMasterPumpForwardsPTYWhileLifecycleJournalIOIsBlocked(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer reader.Close()
+	t.Cleanup(func() { _ = reader.Close() })
+	t.Cleanup(func() { _ = writer.Close() })
 	entered, release := make(chan struct{}), make(chan struct{})
 	out := newDrainBuffer()
 	p := &proxy{
@@ -288,6 +290,9 @@ func TestMasterPumpForwardsPTYWhileLifecycleJournalIOIsBlocked(t *testing.T) {
 		lifecycleJournal: blockingLifecycleAdvancer{entered: entered, release: release},
 	}
 	done := make(chan struct{})
+	prepareMasterPumpTransport(t, p, done)
+	unblock := sync.OnceFunc(func() { close(release) })
+	t.Cleanup(unblock)
 	go func() {
 		p.masterPump()
 		close(done)
@@ -303,7 +308,7 @@ func TestMasterPumpForwardsPTYWhileLifecycleJournalIOIsBlocked(t *testing.T) {
 	waitForStdoutBatch(t, func() bool {
 		return string(out.Bytes()) == "still-forwarded"
 	})
-	close(release)
+	unblock()
 	if err := writer.Close(); err != nil {
 		t.Fatal(err)
 	}

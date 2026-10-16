@@ -7,6 +7,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/xianxu/pair/cmd/internal/agentdrive"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/webcast/query"
 )
@@ -46,6 +47,7 @@ type adoptionArgs struct {
 }
 
 type cliInvocation struct {
+	drive      *agentdrive.Request
 	hubPaths   []string
 	toHub      string
 	persistHub bool
@@ -112,6 +114,8 @@ func ParseCLI(args []string, operations []couchcore.Operation) (cliInvocation, e
 	// scanning layout flags, which could otherwise consume a literal body.
 	if len(args) > 0 {
 		switch args[0] {
+		case "--keys", "--set-model":
+			return parseAgentDriveCLI(args)
 		case "--move-slot":
 			return parseHubMoveCLI(args)
 		case "--notify":

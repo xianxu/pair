@@ -225,6 +225,9 @@ func Reduce(state NotificationLifecycle, observation TurnObservation) (Notificat
 }
 
 func (p *proxy) publishLifecycleObservation(observation TurnObservation) {
+	if p.driveControl.Load() && (observation.Kind == ObservationUserSubmission || observation.Kind == ObservationBareReturn) {
+		return
+	}
 	if p.lifecycleEvents == nil {
 		return
 	}

@@ -129,6 +129,7 @@ func TestMasterPumpFlushesCaptureOnInjectedTick(t *testing.T) {
 		stdoutPump:    newStdoutPump(writerFunc(func(data []byte) (int, error) { outputSeen <- struct{}{}; return len(data), nil })),
 		agentBasename: "claude", now: time.Now, notifyModeActive: notifyModeDefault, captureWindow: defaultCaptureWindow}
 	done := make(chan struct{})
+	prepareMasterPumpTransport(t, p, done)
 	go func() { p.masterPump(); close(done) }()
 	defer func() { _ = writer.Close(); <-done; _ = capture.Close() }()
 	if _, err := writer.Write([]byte("tick-capture")); err != nil {
@@ -181,6 +182,7 @@ func TestMasterPumpDrainsCaptureBeforeReturningOnEOF(t *testing.T) {
 				diagnosticOptions: func() diagnosticlog.Options { return diagnosticlog.Options{FlushTicks: make(chan time.Time)} }}
 			defer p.closeDebug()
 			done := make(chan struct{})
+			prepareMasterPumpTransport(t, p, done)
 			go func() { p.masterPump(); close(done) }()
 			defer func() { _ = writer.Close(); <-done; _ = capture.Close() }()
 			if _, err := writer.Write([]byte("accepted-eof")); err != nil {
@@ -234,6 +236,7 @@ func TestMasterPumpRejectsInFlightResizeAfterOwnerEnds(t *testing.T) {
 	go func() { p.setWinsize(); close(resizeDone) }()
 	<-resizeEntered // Successful ioctl is in flight before PTY EOF; event follows later.
 	pumpDone := make(chan struct{})
+	prepareMasterPumpTransport(t, p, pumpDone)
 	go func() { p.masterPump(); close(pumpDone) }()
 	defer func() {
 		_ = writer.Close()

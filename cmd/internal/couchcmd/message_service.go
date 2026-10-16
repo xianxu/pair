@@ -186,6 +186,7 @@ type messageService struct {
 	// nil answers them unsupported.
 	slotOps       *slotOperations
 	switches      atomic.Pointer[agentSwitchService]
+	drives        atomic.Pointer[agentDriveService]
 	desktopNotify atomic.Pointer[func(context.Context, string, string) error]
 	// Retained across disconnects; only a verified replacement supersedes a slot.
 	stalls struct {
@@ -439,6 +440,7 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch, configur
 	}
 	probe.service.Store(service)
 	service.installAgentSwitchService(console, c, switchGuard)
+	service.installAgentDriveService(console)
 	service.installHubMoves(console)
 	service.SetDesktopNotify(console.NotifyDesktop)
 	console.SetMessageBroker(service.broker)
@@ -788,6 +790,8 @@ func (s *messageService) handle(ctx context.Context, request couchmessage.Reques
 		return s.handleAgentSwitch(ctx, request)
 	case couchmessage.IsSubmissionOp(request.Op):
 		return s.handleSubmission(ctx, request)
+	case request.Op == "keys" || request.Op == "set-model":
+		return s.handleAgentDrive(ctx, request)
 	case request.Op == "recovery-confirmation" || couchcore.IsSlotOperation(request.Op) || request.Op == "operation-status":
 		return s.handleSlotOperation(ctx, request)
 	case request.Op == "broadcast-status":

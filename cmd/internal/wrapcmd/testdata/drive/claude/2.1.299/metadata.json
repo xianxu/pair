@@ -1,0 +1,20 @@
+{
+  "agent": "claude",
+  "version": "2.1.299",
+  "version_evidence": "original recovery header Claude Code v2.1.299",
+  "capture": "hub/TL authorized live picker research and session-only apply; imported styled tails, no ANSI raw available",
+  "model": "Opus 5.5",
+  "effort": "medium",
+  "selected_model_next": "Fable 5.1",
+  "selected_effort_next": "High",
+  "selected_effort_adjusted": "xHigh",
+  "scope_evidence": "Enter to set as default \u00b7 s to use this session only \u00b7 Esc to cancel",
+  "session_apply_verified": true,
+  "default_apply_verified": false,
+  "default_hashes": "not measured by fixture importer; hub performed session-only apply",
+  "recovery": "Kept model as Opus 5.5; fresh empty composer and medium footer",
+  "selection": "\u276f selected row; \u2714 current model; no reverse markup in capture",
+  "isolation": "TL source is existing authorized slot; no credential/config plumbing, no slot input by fixture importer",
+  "session_confirmation": "Set model to Opus 5.5 for this session only",
+  "session_final_effort": "medium"
+}
