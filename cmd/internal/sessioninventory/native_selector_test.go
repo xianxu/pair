@@ -6,7 +6,6 @@ import (
 	si "github.com/xianxu/pair/cmd/internal/sessioninventory"
 	"github.com/xianxu/pair/cmd/internal/sessioninventorytest"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 )
@@ -155,60 +154,55 @@ func TestNativeSelectorClaudeAndQoderLatestUseNativeMTimeNotMessageTime(t *testi
 	}
 }
 
-func TestNativeSelectorCodexRequiresPositiveConfigurationAndExactScope(t *testing.T) {
-	rt := selectorBoundedFake{sessioninventorytest.NewFakeRuntime()}
+// A nil Runtime makes every inherited IO method a trap. The bounded methods
+// also fail immediately, so compatibility cannot accidentally inspect a cwd,
+// native root, transcript, process, or SQLite database.
+type selectorNoProbe struct {
+	si.Runtime
+	t *testing.T
+}
+
+func (r selectorNoProbe) NativeRoots(si.Agent) []si.StorageRoot {
+	r.t.Fatal("indirect Codex selector inspected native roots")
+	return nil
+}
+func (r selectorNoProbe) ResolveRecoveryCWD(context.Context, string) (string, error) {
+	r.t.Fatal("indirect Codex selector probed physical cwd")
+	return "", nil
+}
+func (r selectorNoProbe) VisitRecoveryFiles(context.Context, si.StorageRoot, int, func(si.FileEntry) error) (int, error) {
+	r.t.Fatal("indirect Codex selector listed native files")
+	return 0, nil
+}
+func (r selectorNoProbe) StatRecoveryFile(context.Context, si.Artifact) (si.FileEntry, error) {
+	r.t.Fatal("indirect Codex selector inspected native metadata")
+	return si.FileEntry{}, nil
+}
+func (r selectorNoProbe) ReadRecoveryAt(context.Context, si.FileEntry, int64, int64) ([]byte, bool, error) {
+	r.t.Fatal("indirect Codex selector read native content")
+	return nil, false, nil
+}
+
+func TestNativeSelectorCodexIndirectNeverProbesEvenWithResolvedConfiguration(t *testing.T) {
+	chosen := si.SelectNativeLatest(si.NativeSelectorRequest{Agent: si.AgentCodex, CWD: "/work", Latest: true}, si.NativeSelectorSnapshot{Complete: true, Candidates: []si.NativeSelectorCandidate{{Agent: si.AgentCodex, NativeID: "019d1111-1111-7111-8111-111111111111", CWD: "/work", UpdatedAt: time.Unix(100, 0), Eligible: true}}})
+	if chosen.Status != si.NativeSelectorUnsupported || chosen.NativeID != "" {
+		t.Fatalf("supplied Codex metadata gained latest authority: %+v", chosen)
+	}
 	for _, q := range []si.NativeSelectorRequest{
 		{Agent: si.AgentCodex, CWD: "/work", Latest: true},
-		{Agent: si.AgentCodex, CWD: "/work", Latest: true, Config: si.NativeSelectorConfig{ProviderResolved: true}},
-		{Agent: si.AgentCodex, CWD: "/work", Latest: true, Config: si.NativeSelectorConfig{SQLiteHomeResolved: true, SQLiteHome: "/state"}},
+		{Agent: si.AgentCodex, CWD: "/work", Latest: true, Config: si.NativeSelectorConfig{Provider: "openai", ProviderResolved: true, SQLiteHome: "/state", SQLiteHomeResolved: true}},
+		{Agent: si.AgentCodex, CWD: "/work", Latest: true, IncludeNonInteractive: true},
 		{Agent: si.AgentCodex, CWD: "/work", Latest: true, All: true},
-		{Agent: si.AgentCodex, CWD: "/work", Latest: true, Config: si.NativeSelectorConfig{Remote: true}},
+		{Agent: si.AgentCodex, CWD: "/work", Latest: true, Config: si.NativeSelectorConfig{Remote: true, ScopeExpanded: true}},
+		{Agent: si.AgentCodex, CWD: "relative", Latest: true},
+		{Agent: si.AgentCodex, NativeID: "conversation-name"},
+		{Agent: si.AgentCodex, NativeID: "019d1111"},
+		{Agent: si.AgentCodex},
 	} {
-		r, err := si.ResolveNativeSelector(t.Context(), rt, q)
-		if err != nil || r.Status != si.NativeSelectorUnsupported {
-			t.Fatalf("unmapped config=%+v %v", r, err)
+		r, err := si.ResolveNativeSelector(t.Context(), selectorNoProbe{t: t}, q)
+		if err != nil || r.Status != si.NativeSelectorUnsupported || r.NativeID != "" {
+			t.Fatalf("indirect selector gained authority: %+v %v", r, err)
 		}
-	}
-}
-
-type selectorCodexMetadata struct {
-	selectorBoundedFake
-	rows  si.SQLiteResult
-	query string
-}
-
-func (f *selectorCodexMetadata) QueryNativeSelectorSQLite(ctx context.Context, a si.Artifact, query string, limit int64) (si.SQLiteResult, error) {
-	f.query = query
-	return f.rows, ctx.Err()
-}
-
-func TestNativeSelectorCodexPinsNativeUpdatedMillisAndAuthorizedRoot(t *testing.T) {
-	rt := sessioninventorytest.NewFakeRuntime()
-	root := si.StorageRoot{Agent: si.AgentCodex, Name: "codex-sessions", Path: "/native/sessions"}
-	rt.AddRoot(root)
-	id := "019d1111-1111-7111-8111-111111111111"
-	relative := "2026/08/28/rollout-test-" + id + ".jsonl"
-	rt.PutFile(si.FileEntry{Artifact: si.Artifact{StorageRoot: root.Name, RelativePath: relative}}, []byte(`{"timestamp":"2026-08-28T10:00:00Z","type":"session_meta","payload":{"id":"`+id+`","source":"vscode","cwd":"/work"}}`+"\n"))
-	metadata := &selectorCodexMetadata{selectorBoundedFake: selectorBoundedFake{rt}, rows: si.SQLiteResult{Columns: []string{"id", "rollout_path", "updated_at_ms"}, Rows: [][]string{{id, root.Path + "/" + relative, "100000"}}}}
-	q := si.NativeSelectorRequest{Agent: si.AgentCodex, CWD: "/work", Latest: true, Config: si.NativeSelectorConfig{Provider: "provider'quoted", ProviderResolved: true, SQLiteHome: "/native/state", SQLiteHomeResolved: true}}
-	r, err := si.ResolveNativeSelector(t.Context(), metadata, q)
-	if err != nil || r.Status != si.NativeSelectorResolved || r.NativeID != id {
-		t.Fatalf("resolved=%+v %v", r, err)
-	}
-	for _, want := range []string{"updated_at_ms DESC LIMIT 2", "preview<>''", "source IN ('cli','vscode')", "provider''quoted"} {
-		if !strings.Contains(metadata.query, want) {
-			t.Errorf("query missing %q: %s", want, metadata.query)
-		}
-	}
-	q.IncludeNonInteractive = true
-	_, err = si.ResolveNativeSelector(t.Context(), metadata, q)
-	if err != nil || !strings.Contains(metadata.query, "'exec','mcp'") {
-		t.Fatalf("source kinds: %s %v", metadata.query, err)
-	}
-	metadata.rows.Rows[0][1] = "/foreign/rollout-" + id + ".jsonl"
-	r, err = si.ResolveNativeSelector(t.Context(), metadata, q)
-	if err != nil || r.Status == si.NativeSelectorResolved {
-		t.Fatalf("foreign path admitted: %+v %v", r, err)
 	}
 }
 
