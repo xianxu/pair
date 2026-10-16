@@ -180,6 +180,12 @@ sdlc merge integrated main7346048a6 into535ae7f7b1e6; publish replay/instance ga
 
 #586 landed26b8cd9a31a8; waited for its archive transaction, then pushed the documentation checkpoint with sdlc pr. sdlc merge refused main integration at1a1047c89126 due the additive NonArtifactSources conflict and restored the branch without landing. Its prescribed recovery is manual main merge, full suite and fixed-then-ship close. Resolved only that conflict by retaining #544's ten non-artifact sources plus main's launcher/native_inventory_os.go and sessioninventory/codex_home.go entries. Other main changes merge cleanly. No runtime behavior changed by this resolution (ARCH-DRY). Run targeted inventory/drive checks and the exact native target, record an integrated full suite, then narrow re-close with that evidence and retry the normal merge. Post-landing fleet smoke stays TL-owned.
 
+### 2026-10-16 — integrated full-suite verification
+
+Integrated0d1f2921fc047966f79f34aff80db2328c330ebb (main includes #571/#586) targeted races PASS: agentdrive1.421s, couchmessage1.276s, wrapcmd11.347s, couchcmd2.463s. Inventory PASS32.004s. Exact make test-agent-drive-live PASS47.752s, all three direct-native and both actual Run/socket terminal cases executed without skips. No new production change after the additive inventory resolution.
+
+Recorded sdlc local-check suite on exact0d1f2921 PASS exit0 in14m48s after1009s machine admission wait. All shell/editor and Go checks passed, including couchcmd84.462s, couchcore447.155s and wrapcmd100.540s. Log /Users/xianxu/workspace/pair/.git/sdlc/local-checks/0d1f2921fc047966f79f34aff80db2328c330ebb/suite.log, reported SHA256 prefixf51b5eaa9ed5. Recorded sdlc-local/suite. This is final integrated source evidence, not any earlier interrupted run. Narrow fixed-then-ship close is now due for the code-file conflict resolution, followed by sdlc pr/merge. TL still owns post-landing fleet feature smoke.
+
 ## Revisions
 
 ### 2026-10-15 — synchronize conformance across qualification changes (BR-4)
