@@ -85,3 +85,20 @@ func TestFoldPrunesIDsThatLeftTheLedger(t *testing.T) {
 		t.Fatalf("got %v", st.Folded)
 	}
 }
+
+// pair#599: a document that is not the owner's session file owes only the
+// submits that name it, never plain deliveries.
+func TestOwedForNonSessionDocumentSkipsPlainDeliveries(t *testing.T) {
+	rows := []Entry{
+		{ID: "plain", From: "pair:2", At: t0, Head: "worker report"},
+		{ID: "mine", From: "ops:0", At: t0, Head: SubmitPrefix + "/w/qa.md"},
+		{ID: "other", From: "ops:0", At: t0, Head: SubmitPrefix + "/w/tl.md"},
+	}
+	got := OwedForDocument(rows, State{}, "/w/qa.md", nil, false, identity)
+	if len(got) != 1 || got[0].ID != "mine" || got[0].Kind != KindSubmit {
+		t.Fatalf("owed %+v, want only the document's own submit", got)
+	}
+	if got := OwedForDocument(rows, State{}, "/w/tl.md", nil, true, identity); len(got) != 2 || got[0].ID != "plain" || got[1].ID != "other" {
+		t.Fatalf("session file owed %+v, want the plain delivery and its own submit", got)
+	}
+}

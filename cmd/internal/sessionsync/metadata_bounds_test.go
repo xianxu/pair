@@ -125,7 +125,7 @@ func TestRegisteredWritePreflightsFoldStateSize(t *testing.T) {
 	for i := 0; i < 260; i++ {
 		id := fmt.Sprintf("%d-%s", i, strings.Repeat("x", 4096))
 		ids = append(ids, id)
-		raw, err := json.Marshal(Entry{ID: id, From: "ops:0", At: r.now, Head: "delivery"})
+		raw, err := json.Marshal(Entry{ID: id, From: "ops:0", At: r.now, Head: SubmitPrefix + path}) // a plain document owes only its submits (pair#599)
 		if err != nil {
 			t.Fatal(err)
 		}

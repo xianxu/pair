@@ -1,12 +1,21 @@
 ---
 id: 000599
-status: open
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-15
-updated: 2026-10-15
+updated: 2026-10-16
 estimate_hours:
-card_mirror: 'e88ea063b0d0ed65e03063d93c61c2cf3ca0f2c3' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'eb73ccfe0d10346621964645c687df283146a438' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-16T08:22:54-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:2
+    worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
+    repository: github.com/xianxu/pair
+actual_hours: 0.08
 ---
 
 # Couch: plain peer deliveries become owed on every agentic document of the owner (duplicate session-sync pings)
@@ -33,8 +42,14 @@ separately. The TL has to fold the same IDs once per file; with several agentic 
 
 ## Plan
 
-- [ ]
+- [x] `sessionsync.OwedForDocument` takes whether the document owes plain deliveries; `Sync.owed` passes `IsSessionSync(content)`, so only the owner's `type: session-sync` file owes them. Submits stay owed by the document they name.
+- [x] Tests: unit (non-session document owes only its submits) and Sync-level (session file plus registered plain document of one owner: delivery owed once, submit only on its document); fold-size test moved to submits; atlas Owed rule.
 
 ## Log
 
 ### 2026-10-15
+
+### 2026-10-16 — fix (pair:2)
+- 2026-10-16: closed — Recorded suite green on 876f0f80. RED->GREEN TestPlainDeliveryOwedOnlyOnSessionFileAndSubmitOnlyOnItsDocument (one owner, session file plus registered plain QA document: before, the QA document also owed the worker report; after, the delivery is owed once on the session file and the submit only on its document). Unit TestOwedForNonSessionDocumentSkipsPlainDeliveries. Fold-size test moved to submits (its intent unchanged). sessionsync and couchcmd green. Atlas couch.md Owed rule updated. Status and Parley pings read Sync.owed, so pings follow.; review verdict: SHIP
+
+Cause: `OwedForDocument` owed every plain delivery on every session-sync document of the owner by design ("each folds it for itself"); #573 made plain registered markdown such documents, so each delivery was owed and pinged once per document. RED test reproduced it (the QA document owed the worker report). Fix keys plain deliveries to the owner's `type: session-sync` file; status and Parley pings follow from Sync.owed.

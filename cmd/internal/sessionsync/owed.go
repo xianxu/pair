@@ -41,18 +41,21 @@ func SubmitPath(head string) (string, bool) {
 	return p, ok && p != ""
 }
 
-// Owed lists the events the owner still owes file: ledger rows from Since on,
-// not folded, deduplicated by ID, minus submits of other files. Every plain
-// delivery is owed by each session-sync file of that owner, and each folds it
-// for itself. canonical maps a path to its comparable form (symlinks
-// resolved); the caller passes it so this stays pure.
+// Owed lists the events the owner still owes a session-sync file: ledger rows
+// from Since on, not folded, deduplicated by ID, minus submits of other files.
+// canonical maps a path to its comparable form (symlinks resolved); the caller
+// passes it so this stays pure.
 func Owed(rows []Entry, st State, file string, canonical func(string) string) []OwedEvent {
-	return OwedForDocument(rows, st, file, st.SubmitPaths, canonical)
+	return OwedForDocument(rows, st, file, st.SubmitPaths, true, canonical)
 }
 
 // OwedForDocument uses the historical binding at the event's timestamp; a
 // reused old pathname does not inherit the former document's submissions.
-func OwedForDocument(rows []Entry, st State, file string, paths []PathInterval, canonical func(string) string) []OwedEvent {
+// plain says whether this document owes plain deliveries (no document named):
+// only the owner's session file does, so a delivery is owed once, not once per
+// agentic document of that owner (pair#599). Submits are owed only by the
+// document they name.
+func OwedForDocument(rows []Entry, st State, file string, paths []PathInterval, plain bool, canonical func(string) string) []OwedEvent {
 	folded := make(map[string]bool, len(st.Folded))
 	for _, id := range st.Folded {
 		folded[id] = true
@@ -67,7 +70,12 @@ func OwedForDocument(rows []Entry, st State, file string, paths []PathInterval, 
 		kind := KindDelivery
 		// A submit names an absolute path; a malformed one stays owed as a
 		// plain delivery rather than vanishing.
-		if p, ok := SubmitPath(r.Head); ok && filepath.IsAbs(p) {
+		p, ok := SubmitPath(r.Head)
+		if !ok || !filepath.IsAbs(p) {
+			if !plain {
+				continue
+			}
+		} else {
 			matches := canonical(p) == self
 			if len(paths) > 0 {
 				matches = false
