@@ -19,6 +19,25 @@ reviewer_runs:
       finished_at: "2026-10-15T21:34:39.719253Z"
       session_id: 01a1417c-c082-7122-a0fa-e0e3da0cc318
       outcome: returned
+    - version: 1
+      intent:
+        id: ac6e6af5-288b-423b-b874-0c67ba9cc4ae
+        repository: github.com/xianxu/pair
+        issue_id: "000571"
+        recipe: estimate-quality
+        round: 1
+        attempt: 1
+        agent: codex
+        root: /Users/xianxu/workspace/worktree/pair-slot7/pair
+        reviewed_head: 5500821ac7fbe39ca0c46ed09ef71710e708a354
+        slot: pair:7
+        requested_at: "2026-10-16T02:07:32.283896Z"
+      phase: finished
+      pid: 83717
+      started_at: "2026-10-16T02:07:32.376266Z"
+      finished_at: "2026-10-16T02:08:07.738563Z"
+      session_id: 01a14276-ecef-7310-a963-13ecb96db6e6
+      outcome: returned
 gate: plan-quality
 issue: 571
 id_prefix: PQ
@@ -126,7 +145,31 @@ rounds:
           note: Named risky functions have concise adversarial strategies and mechanical guards.
           round: 3
       blocked: false
-content_hash: dfc14de4a16980fab7c7dd8f11738f4d471b573123e442db9a126f82ce31fb0f
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: 37e7ba4e-e282-4fa5-96ed-6ca4766bfbe8
+            repository: github.com/xianxu/pair
+            issue_id: "000571"
+            recipe: plan-quality
+            round: 4
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot7/pair
+            reviewed_head: 5500821ac7fbe39ca0c46ed09ef71710e708a354
+            slot: pair:7
+            requested_at: "2026-10-16T02:06:56.041293Z"
+          phase: finished
+          pid: 80921
+          started_at: "2026-10-16T02:06:56.135161Z"
+          finished_at: "2026-10-16T02:07:29.180555Z"
+          session_id: 01a14276-5f69-78a1-ba4b-f58121438b6a
+          outcome: returned
+      "n": 4
+      timestamp: "2026-10-15T19:07:29-07:00"
+      agent: codex
+      blocked: false
+content_hash: 4e728fd535c325a96d629fbee8747d836e92481e1e29adcd2f5992d54f01a879
 ---
 
 # Gate ledger — pair#571 (plan-quality)
@@ -156,6 +199,8 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 - PQ-1 — addressed — Production authority derives from observed API-only bootstrap policy; positive fixtures traverse the production path.
 - PQ-2 — addressed — Named risky functions have concise adversarial strategies and mechanical guards.
+
+## Round 4 — 2026-10-15T19:07:29-07:00 (codex) — passed
 
 ## Open findings
 
