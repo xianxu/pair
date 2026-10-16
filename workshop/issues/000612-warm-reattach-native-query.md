@@ -30,6 +30,11 @@ One automatic full-suite main baseline at d59420ed5eee5e3b94113bb8cac0c82cff5d4a
 
 Establish a controlled ordering that explains the unexpected native-binding query. Preserve the warm-reattach contract: a surviving session must not need native-conversation resolution. Investigate whether the acceptance fixture's host-presence transitions disagree with the session state, or production inventory performs an inappropriate cold-binding probe while reattachment is in progress. Fix the identified owner without weakening the zero-query assertion, adding sleeps, or extending deadlines.
 
+
+Confirmed ownership: the demonstrated failure is a fake/fixture defect, not evidence of a product regression. Clearing a detached session deletes sessionPresence, then SetPairSession(true) restores only the pair binding, so the contradiction persists until explicitly corrected. Production presence is independent of attached-client count. The real inventory correctly requests cold proof when the fake says SessionAbsent and has no live TTY observations yet.
+
+Proposed quick-flow design: add one atomic fake attachment transition that removes detached-client state while retaining the existing session presence, pair binding, and pane identity. Use it in the three warm-acknowledgment fixtures (warm_reattach, continuation_acceptance and slot_operations_acceptance) and the attached-client setup in warm_attach_readonly. Cold/fresh replacement and disappearance fixtures retain their distinct semantics. Pin the transition's invariants directly and deterministically query real actionable inventory inside the warm acknowledgement before adoption (ARCH-MOCK, ARCH-ORDER, ARCH-DRY). No production session-resolution policy changes, sleeps, or deadline extensions.
+
 ## Done when
 
 - A controlled reproduction identifies which operation issues the unexpected ResolveEstablished call and what evidence it observed.
@@ -38,7 +43,7 @@ Establish a controlled ordering that explains the unexpected native-binding quer
 
 ## Plan
 
-- [ ] Reproduce the acknowledgment transition with explicit host presence and no live TTY observations; identify the native-resolution caller and compare the production presence contract (ARCH-MOCK, ARCH-ORDER).
+- [x] Reproduce the acknowledgment transition with explicit host presence and no live TTY observations; identify the native-resolution caller and compare the production presence contract (ARCH-MOCK, ARCH-ORDER).
 - [ ] Confirm the responsible fake/fixture or product owner, then implement a minimal invariant-preserving correction with a regression that fails without it.
 - [ ] Verify the relevant fake contracts and repeated complete couchcmd runs, race detection, and the recorded full suite; close review and report for landing.
 
@@ -56,3 +61,9 @@ Additional bounded controls (shuffle seed 1792152713078555000): dormant+warm pai
 Unconfirmed root-cause hypothesis from inspection: warm_reattach_test.go's AfterAcknowledge calls SetDetachedSession(address, empty), which deletes pairSessions and sessionPresence, followed by SetPairSession(address, name, true), which restores pairSessions but leaves sessionPresence absent. Background ActionableThreadInventoryContext can consume that absence without live observations yet and legitimately enter its native-binding query branch. The counter is a field on each FakeThreadArtifactCollisionChecker (newRT allocates a new instance), not process-wide. No controlled barrier or call-stack measurement has yet proved this hypothesis; the next owner should establish that ordering before choosing a fix.
 
 2026-10-16: pair:1 claimed #612 after #589 landed (PR #363). Entered planning. A read-only parallel audit compares the production session-presence checker and fake state transitions while the main agent builds a controlled measurement. No implementation changes yet.
+
+2026-10-16: Controlled measurement /tmp/pair-612-measure-r9x71iig/overlay.json failed deterministically with live PairSession Present=true, SessionPresence State=absent, followed by the real actionable inventory resolving exactly one native binding. Command: go test -trimpath -overlay=/tmp/pair-612-measure-r9x71iig/overlay.json ./cmd/internal/couchcmd -run '^TestWarmAcknowledgmentPresenceMeasurement$' -count=1 -v (FAIL 0.453s, intended assertion). This proves the inconsistent fake state and its consuming branch without a scheduler delay. Source audit confirms the production presence checker lists attached and detached live sessions as present; the zero-native-query contract remains correct. A bounded independent read-only audit found the same warm clear→set pattern in continuation acceptance, slot operations acceptance, and the readonly attached-client fixture; cold/fresh uses and disappearing-session tests are distinct. Proposed atomic fake transition and deterministic acknowledgement coverage sent to the TL for design approval before implementation.
+
+## Revisions
+
+2026-10-16 — Root-cause classification: controlled host-evidence measurement and production-contract audit establish fake/fixture ownership. Refine the correction from an open investigation to an atomic attached-client transition preserving session presence/binding/panes, with the enumerable warm-fixture family swept in the same patch. Production admission and recovery policy stay unchanged.
