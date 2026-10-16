@@ -92,3 +92,56 @@ Modify `Makefile.local`, relevant workflow-contract tests only if their existing
 ## Architecture checklist
 
 ARCH-DRY: use Go's runner/build/JSON rather than clone the upstream specialized engine. ARCH-PURE: partition, coverage and budget rules separate from process IO. ARCH-PURPOSE: preserve the whole discovered inventory and every other package, not only fast fixtures. ARCH-MOCK: stateful fake-Go orchestration plus real Go/helper conformance. ARCH-CONSTRAINTS: measured aggregate budget and per-process headroom. ARCH-SECURE: only typed discovered names/argv; isolated temporary roots, no session identity or secret mutation. ARCH-ORDER: explicit job/cancellation lifecycle and joined workers. ARCH-FUNERAL: bounded temporary logs; no timing-cache family.
+
+
+## Revisions
+
+### 2026-10-16 — R2: cheaper tests before capacity (active plan)
+
+**Reason:** TL receipt f85a0b66-f9d0-47d3-b5f0-51c3a2f54288 rejects the sharding-first proposal. The preceding runner design/tasks are retained as an unapproved historical proposal and are **not execution instructions**. This revision supersedes every earlier implementation task, proposed budget and live-opt-in refusal. No runner, new skip, changed fixture deadline or capacity increase is authorized. All ten causes are in the profile artifact.
+
+**Active goal:** remove avoidable computation and setup/transaction/process work, preserve each test's claims, remeasure with the same GOMAXPROCS=3/GOFLAGS=-p=3 envelope. Only if the resulting isolated package still exceeds about200s will we propose three lanes with measured results. Remove #610's20m allowance once default600s has comfortable measured headroom.
+
+**Core concepts delta:** retire partition_names, coverage_errors, parallel_budget and the custom runner entirely. New/modified test-only PURE entities: factored consistency predicates and ordered evidence iterator in recoverplan_test.go; bounded dependency-base enumeration. INTEGRATION entities: ProvisionFixture identity adapter in provision_git_test.go; existing lifecycle/continuation fixtures; disposable fleet conformance in recoverplan_fleet_test.go. All production algorithms and interfaces remain unchanged.
+
+#### R2 task1 — preserve coverage and eliminate Cartesian waste
+
+Files: recoverplan_test.go, optional focused test-only evidence enumeration file.
+
+- [ ] Record the old iterator's accepted-order/count fingerprint and metamorphic stride fingerprint, plus host-base/variant counts. Retain All* vocabulary-derived dimensions. Regression/negative controls must detect a dropped, duplicated or reordered accepted point; do not retain a second expensive exhaustive reference pass in every normal run.
+- [ ] Factor existing consistent into agent/offer physical facts, host Git/claim facts and dependency facts, with consistent delegating to those same predicates. Test existing impossible-evidence exclusions and boundary combinations before changing enumeration.
+- [ ] Run agent/offer checks before entering branch/Git/claim dimensions, then complete host checks before dependency loops. Preserve lexical accepted order; do not duplicate pruning rules or invent narrower legal states. Keep the final consistency authority.
+- [ ] Parameterize dependency coordinates so HostJudgments generates only DepNone/Clean bases initially, then checks every current dependency variant. Require old/new counts and fingerprints to match; keep stride23 unchanged in the metamorphic property.
+- [ ] Verify original assertions and mutation controls; profile the three properties again and record CPU/time change. Commit.
+
+#### R2 task2 — remove redundant fixture writes and identity subprocesses
+
+Files: provision_git_test.go, sessionevidence_test.go, continuation_store_test.go, existing fixture conformance tests as needed.
+
+- [ ] Add real-Git identity contract checks for primary/slot, branch change, detached HEAD, unsafe/corrupt membership and cancelled context before altering the fixture adapter. Observe the meaningful failure for any new semantic guard, then batch top-level/common-dir/HEAD/branch through one real Git invocation. Preserve fresh results and validate output shape; no observation cache and no production changes. Compare full identities before/after and count actual subprocesses in a focused diagnostic trace.
+- [ ] In ReAdoption, build the same110 candidate shapes before allocating a store; use ValidateThreadRecord to avoid IO for exactly the shapes rejected today. Seed the same Name in the initial record, removing the extra metadata transition. Preserve per-cell names/dispositions, pure validator ownership, all admitted durable write/clear/readback assertions and coded-refusal/no-partial-tombstone negative controls.
+- [ ] In ContinuationRequestsBoundedOwnedSet, leave all100 rows and corruption in place; publish only for the ten requested rows. Keep duplicate ownership, ten-output/4096-byte and redaction contracts. Force an outsider read/full scan to show the regression still fails. Run existing continuation CAS/transaction tests unchanged.
+- [ ] Commit measured cost reductions and exact retained coverage counts.
+
+#### R2 task3 — bound external conformance input and remove serial table bottlenecks
+
+Files: recoverplan_fleet_test.go, slotreconcile_test.go, slotobserve_test.go, identity_repository_names_test.go, slotsave_test.go.
+
+- [ ] Change live producer conformance's vantage from the operator fleet to a disposable real-Git fleet with nonempty ready/dirty/missing observations and local remotes. Keep the installed real sdlc CLI, schema/decoder/known-vocabulary assertions and existing missing-binary/short dispositions; introduce no opt-in gate or new skips. Demonstrate unsupported producer output still fails. A fake fleet alone cannot replace this proof.
+- [ ] Replace SetAsideHoldsMatchThePlan's nine fully provisioned worlds with minimal independent real temp layouts: retain all eight agent states, actual set-aside/classification/no-residue behavior, a sentinel movement assertion for permitted states, and one minimal healthy real-Git checkout for recovered refusal. Existing full-checkout restoration/conformance tests stay unchanged. This removes unnecessary Git setup rather than parallelizing it.
+- [ ] Add t.Parallel only to independent child cases of real-Git reconciliation, resource observation and repository-name tables. Each retains its own temp roots/refs/stores; no environment/cwd/global mutations. Parent and child cleanup ownership must remain intact. Existing TestMain's aggregate parallel limit is unchanged; verify race safety and all case results. Do not add parallelism to global-mutation tests or remove cases.
+- [ ] Retain all12 real-Git scenarios, both reconciliation passes/model agreement/no-repeat effects, all ten broken-resource scenarios and all five name cases and all eight set-aside agent variants plus recovered checkout. Run focused race/negative controls. Commit.
+
+#### R2 task4 — remeasure, decide, restore default timeout
+
+Files: profile artifact, issue, Makefile.local, existing test documentation if needed.
+
+- [ ] Finish and record current pre-change full-Make JSON baseline, including queue wait, package wall, serial/parallel intervals, inventory and co-tenancy (targeted diagnostics ran during its Go phase; label that load honestly).
+- [ ] Repeat isolated full couchcore JSON with unchanged caller flags; compare every top-level/subtest disposition except explicitly added regression cases. Run focused race checks for changed fixtures. Record timings and command counts separately; never claim summed overlapping test durations as wall savings.
+- [ ] If >about200s remains, stop and send a measured residual profile plus a three-lane proposal to hub. No runner work until new approval. If comfortably under, qualify representative full-suite load and remove the20m flag/comment from Makefile.local, retaining the default10m. Do not extend deadlines to make qualification pass.
+- [ ] Push, record full suite with sdlc local-check run --name suite, complete required Make/environment contracts and CI. Record all failures, including unrelated ones. Update profile/Log/lessons; TL owns project records.
+- [ ] Run the full-flow close review and land through the line on SHIP. Keep one atomic close boundary; no Mx tags.
+
+**Approval checkpoint:** send this R2 plan and per-test causes to the hub, then wait before change-code/implementation. Full flow remains explicit. Estimate is derived only after the revised design clears plan-quality.
+
+**Architecture:** ARCH-DRY shares physical predicates and existing fixtures, with no new scheduler. ARCH-PURE removes IO from rejected-shape setup and uses pure domain pruning. ARCH-PURPOSE retains all domain points, cases and write-path assertions. ARCH-MOCK keeps real Git/CLI conformance where that is the claim. ARCH-CONSTRAINTS keeps current concurrency and measures actual savings. ARCH-SECURE moves conformance from operator data into a controlled temporary fleet. ARCH-ORDER preserves accepted enumeration order and per-case ownership. ARCH-FUNERAL uses existing t.TempDir cleanup, with no new persistent cache or fixture template.
