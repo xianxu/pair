@@ -15,6 +15,7 @@ claimant:
     workspace: pair:3
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "af139ff2", done: "45fa3bd6"}
 ---
 
 # Preserve cloudflared stderr on early process exit
