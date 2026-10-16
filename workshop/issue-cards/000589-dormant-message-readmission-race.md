@@ -1,6 +1,6 @@
 ---
 id: 000589
-status: codecomplete
+status: done
 created: 2026-10-15
 updated: 2026-10-16
 estimate_hours:
@@ -22,6 +22,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 8a00404d7ae9a70daba1485be3b595fb6661f7f8
         evidence_commit: d0d0f817a8c176a2179d87427905dc02aa17dabd
+        landed_commit: 5d40e6bdd0d60e0070c1afe3c1cf44c92908cb5f
 ---
 
 # Dormant message readmission test races its last asynchronous attempt
