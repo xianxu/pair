@@ -95,6 +95,12 @@ recovery launches take no native admission (#597): before launching, they
 refuse only if another positively live slot in Couch's registry records the same
 conversation ("conversation X is in use by repo:N"). Every other launch, and
 ordinary Pair, keeps native admission until #595.
+A Fresh reboot stops everything the slot owns (#607): to whatever terminal
+attribution proves, it adds the wrapper Couch's message registry names (exact pid
+and start identity), that wrapper's descendants from one process-table snapshot,
+and the slot's own zellij session by its recorded name unless another live slot's
+record names it. All of it is listed in the reboot confirmation; the reboot
+refuses only when an exit cannot be confirmed.
 
 Graceful Couch detach can retire a proven-dead helper before the next Couch
 starts. A listed-live terminal with no retained incarnation then attaches as
@@ -1239,6 +1245,9 @@ by its leading position and reverse-video colours (pair#521).
   inventory (`reorderMenuInventory`). `PresentThreads(rows, git, hub)` puts the
   hub row first, flags it `Hub` and adds the indent (`hubSection`). That one
   order serves the switcher, the tab bar and clicks.
+- **One chip per slot (#607):** a slot's chip is its current inventory row, as
+  in the switcher. A pane still open on a replaced address (a reboot's old
+  thread, until its client exits) gets no chip.
 - **Several hubs (#546):** explicit directories define ordered hubs. Their
   `.hub` claims and ephemeral CLI moves feed `HubOwnership`; unclaimed slots
   belong to the first hub. `Console.SetHubOwnership` supplies one section per
