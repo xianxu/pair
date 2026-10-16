@@ -69,9 +69,9 @@ Design subtotal 1.30h plus15%=1.495h; implementation subtotal1.83h; total3.325h,
 See [implementation plan](../plans/000617-title-process-lifetime-plan.md). TL approval required before code.
 
 - [x] Attribute Go heap/allocations and reconcile #583 cleanup contract.
-- [ ] Red tests, then wrapper-owned title lease and cancellation.
+- [x] Red tests, then wrapper-owned title lease and immediate owned-group EOF teardown (cancellation superseded by approved revision2ed371a2).
 - [x] Measured memory fix and bounded soak.
-- [ ] Identity-fenced legacy cleanup, live acceptance, normal SDLC close/landing.
+- [x] Identity-fenced cleanup of the five approved legacy title generations; live acceptance moved after landing by TL977e9db5. Normal close/landing remains the workflow gate, not a prerequisite checklist task.
 
 ## Log
 
@@ -228,3 +228,7 @@ Read-only build verification confirms pair:0 remains main at9fc035e718b1d2f4810b
 Received TL977e9db5-f9fe-4e8d-9e1e-2992464e4c01 in this actual turn; canonical stored sender, current recipient incarnation and exact body match. Receipt status remains indeterminate (submit observed but turn/paste confirmation timed out), so do not misstate it as submitted; transport discrepancy reported as0375f79e-6188-4aea-9c73-69d7ab77298e. The received direction is NO staging on pair:0: land #617 only after its recorded suite and normal close-review SHIP, TL rebuilds main with #617 and #618, operator restarts Couch once, then this worker runs live wrapper/title acceptance on fresh slots. This supersedes the pre-landing staging proposal and explicitly moves that live acceptance after landing; no live acceptance result is claimed now. The5-title cleanup had already completed under the earlier verified approval855a869b and was not repeated. Additional89183/grok remains outside that approved set and under separate request775cdf34.
 
 The machine test queue is legitimate: the current holder is an Ariadne worktree, whose heavy suite uses both slots; the next named waiter is Pair. Our recorded exact-head suite remains in its original queue entry. Do not bypass the machine gate or fabricate a suite result.
+
+### 2026-10-16 — reconcile pre-close checklist with approved revisions
+
+Close dry run refused the two historical unchecked Plan rows, without dispatching or claiming a close review. Updated their wording to the already-approved final contract: immediate owned-group EOF teardown replaces cooperative cancellation, the approved five-generation cleanup is verified complete, and TL977e9db5 moves installed-live acceptance after landing and the combined restart. No live acceptance or close/landing result is claimed by those ticks. Actual preview succeeded with measured5.36h; close must measure/adopt afresh, never use a hand-typed value. Integrated suite still queued; normal review and landing gates remain pending.
