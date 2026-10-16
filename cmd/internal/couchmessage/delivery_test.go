@@ -192,7 +192,7 @@ func TestPeerDeliveryRetryStopsAndShortWrites(t *testing.T) {
 
 func TestPeerDeliveryBlockedAutomaticInputRefusesBeforePaste(t *testing.T) {
 	s, fx := AdvancePeerDelivery(PeerDeliveryState{}, PeerDeliveryEvent{Kind: PeerAutomaticInputBlocked, Ready: true})
-	if s.Outcome() != Cancelled || fx != PeerPublish || s.BodyWritten || s.Reason != "composer holds an unsubmitted automatic message; press Enter or clear it" {
+	if s.Outcome() != Cancelled || fx != PeerPublish || s.BodyWritten || s.Reason != "composer holds an unsubmitted automatic message; press Alt+Enter or clear it" {
 		t.Fatal(s, fx)
 	}
 	assertPeerTerminalNoEffects(t, s)

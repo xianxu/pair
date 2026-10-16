@@ -718,13 +718,24 @@ images, menus and unknown states prevent automatic submission. Unchanged text
 in the separate draft pane does not block delivery. Claude Code, Codex CLI and
 Qoder CLI receive at any installed version. Fixtures and live checks cover
 Claude Code 2.1.286, Codex CLI 0.159.2 and Qoder CLI 1.1.71; a Qoder 1.1.66
-fixture also covers the first-run folder-trust dialog. The Qoder live smoke
+fixture also covers the first-run folder-trust dialog. The #550 Qoder live smoke
 confirmed registration, live peek, message receipt/reply and idle settling.
 Evidence for newer versions is tracked in #368. Messages are bracketed-pasted
 into an empty composer and submitted automatically after a short delay; the
-wrapper confirms submission from a cleared composer or a newly opened turn.
-It does not reconstruct the pasted envelope from wrapped or collapsed text.
-Existing human input and open pickers hold delivery.
+wrapper normally confirms submission from a cleared composer or a newly opened
+turn. Qoder requires a fresh complete rendered empty composer. If its submit
+key is ignored, Couch may retry only that key, at most three attempts at least
+500 ms apart within the original 30-second window. Each retry requires the
+complete unchanged envelope in Qoder's composer and no intervening human input;
+the body is never pasted twice. Other receivers do not reconstruct wrapped or
+collapsed envelopes. Existing human input and open pickers hold normal delivery.
+
+If Qoder submission remains unconfirmed, one alert goes to its owning hub and
+later deliveries refuse promptly with recovery advice. Inspect that composer,
+then use **Alt+Enter** to submit the pending text or clear it. Plain Enter inserts
+a newline under Pair's normal Qoder remapping. Only a later complete empty
+composer releases the quarantine; Couch never deletes the text or submits it
+after the expired delivery window.
 Prefer short coordination messages pointing to repository artifacts. Human
 Couch acceptance is separate from these receiver checks.
 
@@ -733,7 +744,7 @@ means a mailbox reservation; `submitted` means bytes submitted, not completed
 work. No eligible family slot returns `not-dispatched` with exit status zero.
 Other refusals return nonzero. If a send times out, query the printed ID with
 `--message-status` and inspect the recipient before sending again. Couch never
-retries uncertain input or keeps a durable message queue across restart.
+replays an uncertain body or keeps a durable message queue across restart.
 
 For agent setup, run `couch --skill` in an existing conversation and have the
 agent read the output. For discovery in future sessions, save the output as

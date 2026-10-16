@@ -60,7 +60,7 @@ func (s *messageService) handleAutomaticInputStall(ctx context.Context, r couchm
 	}
 	body := fmt.Sprintf("Slot %s: unexpected automatic-input stall; %s; cause %s; wait %d ms; fence %d, epoch %d. Inspect the slot's retained automatic-input-stall diagnostic (sequence %d).", caller.Slot, outcome, report.Cause, report.WaitMillis, report.Fence, report.Epoch, report.Sequence)
 	if report.Cause == couchmessage.AutomaticInputStallUnsubmittedComposer {
-		body = fmt.Sprintf("%s's composer holds an unsubmitted automatic message; press Enter or clear it. %s", caller.Slot, body)
+		body = fmt.Sprintf("%s's composer holds an unsubmitted automatic message; %s. %s", caller.Slot, couchmessage.AutomaticInputRecoveryHint, body)
 	}
 	var failures []string
 	if c := s.supervision.Load(); c != nil {

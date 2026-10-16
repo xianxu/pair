@@ -120,3 +120,9 @@ Tasks 1–2 are complete. Candidate code a7b330872a80118ff1756edde74104805b07225
 ### 2026-10-15 — final required suite passed
 
 The recorded suite on a7b330872a80118ff1756edde74104805b07225d passed exit0 in 12m29s (SHA256 4d6a4760b008e2410324de2b8f660f8905cdfb00710ae5b02a2a4d21076e2895); focused/race/fuzz/build/inventory evidence and all CI checks pass. Fresh main integration added issue details only. The full-suite task is complete; close review is next. TL-directed live/landing hold remains in force, and the native live task remains unchecked.
+
+### 2026-10-15 — close round 1 recovery action and README correction
+
+BR-1: earlier prose/example 'press Enter' is superseded by **press Alt+Enter or clear it**. Pair's Qoder profile rewrites plain Enter to a newline; Alt+Enter produces the native submit CR. One shared AutomaticInputRecoveryHint feeds receipt and supervisor instructions. The regression follows the actual refusal's prescribed chord through production translateChunk, verifies a bare native submit and observes the stateful receiver consume the envelope/release quarantine. A string-equality assertion alone is insufficient.
+
+BR-2: sweep README's Qoder-specific confirmation exception, exact-envelope bounded key-only retries, prompt quarantine refusal and correct manual recovery. Replace its generic 'never retries uncertain input' claim with body-replay wording. Atlas and current notice/test strings agree; historical TL quotations remain unchanged. Native acceptance and landing stay held.

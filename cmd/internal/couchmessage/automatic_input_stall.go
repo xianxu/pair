@@ -9,6 +9,9 @@ import (
 	"github.com/xianxu/pair/cmd/internal/strictjson"
 )
 
+// AutomaticInputRecoveryHint names Pair's submit chord, not native Return.
+const AutomaticInputRecoveryHint = "press Alt+Enter or clear it"
+
 const (
 	AutomaticInputStallUnsubmittedComposer        = "unsubmitted-composer"
 	AutomaticInputStallNoRender                   = "no-render"

@@ -637,7 +637,7 @@ wrapped restart notice.
 
 Unconfirmed Qoder input enters explicit operator recovery at terminal receipt
 publication. One authenticated tripwire alerts its owning hub; exact pending
-envelopes get the instruction to press Enter or clear the composer, while
+envelopes get the instruction to press Alt+Enter or clear the composer, while
 unverifiable input keeps uncertainty wording. Later deliveries refuse promptly
 without pasting. Only a later complete empty render releases this quarantine,
 observed through normal output wakes even without another delivery. There is

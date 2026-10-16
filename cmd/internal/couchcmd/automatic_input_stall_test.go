@@ -303,7 +303,7 @@ func TestAutomaticInputStallUnsubmittedComposerNotice(t *testing.T) {
 	if err != nil || receipt.Message.To != hub {
 		t.Fatalf("owning hub receipt %+v %v", receipt, err)
 	}
-	want := worker.Slot + "'s composer holds an unsubmitted automatic message; press Enter or clear it"
+	want := worker.Slot + "'s composer holds an unsubmitted automatic message; press Alt+Enter or clear it"
 	mu.Lock()
 	defer mu.Unlock()
 	if len(notices) != 1 || len(desktop) != 1 {

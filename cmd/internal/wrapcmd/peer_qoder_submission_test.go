@@ -132,7 +132,7 @@ func TestPeerQoderResidueAlertsRefusesAndRecovers(t *testing.T) {
 	}
 	r.dispatch()
 	r.d.reservation = "" // the production endpoint releases admission after enqueue
-	if r.d.receipt().Status != couchmessage.Cancelled || !strings.Contains(r.d.receipt().Detail, "press Enter or clear it") || r.pastes != 1 || len(r.reports) != 1 {
+	if r.d.receipt().Status != couchmessage.Cancelled || !strings.Contains(r.d.receipt().Detail, "press Alt+Enter or clear it") || r.pastes != 1 || len(r.reports) != 1 {
 		t.Fatalf("later delivery: %+v pastes=%d reports=%d", r.d.receipt(), r.pastes, len(r.reports))
 	}
 	// The existing render wake reconciles the terminal transaction, with no
@@ -284,7 +284,48 @@ func TestPeerQoderQuarantineRefusalPrecedesPickerHold(t *testing.T) {
 	}
 	r.f.proxy.pickerActive.Store(true)
 	r.dispatch()
-	if r.d.receipt().Status != couchmessage.Cancelled || !strings.Contains(r.d.receipt().Detail, "press Enter or clear it") || r.pastes != 1 {
+	if r.d.receipt().Status != couchmessage.Cancelled || !strings.Contains(r.d.receipt().Detail, "press Alt+Enter or clear it") || r.pastes != 1 {
 		t.Fatalf("quarantine became a picker hold: %+v", r.d.receipt())
+	}
+}
+
+func TestPeerQoderRecoveryAdviceRoutesToNativeSubmit(t *testing.T) {
+	r := newQoderReceiver(t, 99)
+	r.firstSubmit()
+	r.now = r.now.Add(couchmessage.DeliveryTimeout)
+	r.dispatch()
+	next := peerTestMessage(r.now)
+	next.ID = "operator-recovery-advice"
+	if err := r.d.reserve(next.ID, r.d.sequence); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.d.enqueue(next); err != nil {
+		t.Fatal(err)
+	}
+	r.dispatch()
+	advice := r.d.receipt().Detail
+	// Follow the actual instruction through the production input translator,
+	// instead of proving merely that two strings agree about a key name.
+	var key []byte
+	switch {
+	case strings.Contains(advice, "Alt+Enter"):
+		key = []byte("\x1b\r")
+	case strings.Contains(advice, "Enter"):
+		key = []byte("\r")
+	default:
+		t.Fatalf("no supported recovery action in %q", advice)
+	}
+	translated, left, paste := r.f.proxy.translateChunk(key, false)
+	if string(translated) != "\r" || len(left) != 0 || paste {
+		t.Fatalf("advice %q emits %q, not a native submit", advice, translated)
+	}
+	r.acceptOn = r.submits + 1
+	if _, err := r.Write(translated); err != nil {
+		t.Fatal(err)
+	}
+	r.dispatch()
+	r.dispatch()
+	if r.accepted != 1 || r.f.proxy.automaticInput.phase != automaticInputIdle {
+		t.Fatalf("manual recovery left input pending: accepted=%d phase=%v", r.accepted, r.f.proxy.automaticInput.phase)
 	}
 }
