@@ -33,9 +33,11 @@ Reproduce and diagnose the first restore identity check without weakening author
 - The test validates resolver status before forwarding identity and retains actionable failure evidence.
 - Real branch changes still refuse restoration; repeated isolated and loaded suite checks pass with measured results.
 
+- If the original flake does not reproduce within about one hour of loaded runs, retain the measured observations, ship the diagnostics with deterministic regressions and a positive control, and move to #589 as explicitly directed by the hub. Do not claim an unmeasured original cause.
+
 ## Plan
 
-Proposed quick-flow investigation and fix, pending hub approval. Keep #586 separate from #591 until retained evidence demonstrates a shared cause; continue #589, #591 and #590 in the agreed order after this item. Expected small boundary change; if demonstrated scope leaves the shell, revise and use a durable plan before implementation.
+Approved quick-flow investigation and fix. Keep #586 separate from #591 until retained evidence demonstrates a shared cause; continue #589, #591 and #590 in the agreed order after this item. Expected small boundary change; if demonstrated scope leaves the shell, revise and use a durable plan before implementation.
 
 - [ ] Make the fixture fail diagnostically at its observation boundary: validate resolver exit, JSON shape, resolved status and complete identity before forwarding; preserve wanted and fresh status/repo/branch/head/file/diagnostic, command phase and completion ordering on refusal. Reuse the existing isolated fixture wrapper; bounded metadata only, no copied snapshots (ARCH-DRY/CONSTRAINTS).
 - [ ] Establish deterministic RED with controlled invalid/incomplete wanted and fresh observations at that wrapper/controller seam. Preserve genuine changed-branch refusal and a positive same-identity restoration. Require actionable evidence and no activation on refused observations; no sleeps or altered assertions (ARCH-PURE/ORDER/SECURE).
@@ -60,3 +62,9 @@ Proposed quick-flow investigation and fix, pending hub approval. Keep #586 separ
 Read-only audit: Python resolve() decodes check_output without checking status; RunReadinessCLI --resolve returns exit0 for a successfully encoded invalid observation. resolveIdentityWithSnapshot shares a real two-second context across root/index/branch/HEAD/history/integrity operations. C:request checks only wanted's table/repo shape before resolving again; its generic changed-branch refusal can compare a partial wanted identity against a fresh resolved identity. The observed historical generic message is consistent with that ordering, but neither original observation was retained, so it remains a hypothesis. Both #585 source suites passed the unchanged observation fixture; those green samples do not refute the recorded intermittent failure.
 
 Alternatives: immediately tightening only the wanted-status check improves evidence but does not establish or eliminate the scheduling flake; replaying a fake resolved identity would remove the production Git deadline but risks bypassing the behavior under investigation. Recommend diagnostics first, deterministic invalid/stale refusal cases, then a measured Revision at the actual time/observation boundary. Keep authorization fail-closed and use the fixture's actual state rather than a larger wall-clock budget.
+
+## Revisions
+
+### 2026-10-15 — approved diagnostics-first timebox
+
+Hub approval2db01686-340a-477c-a046-6d5dab2a3085 matches committed plan5827613c9f7ea1025454f7278e50b2f5b8fd2323 and the directly delivered instruction. Canonical receipt is indeterminate after submit (turn already running), not claimed as confirmed transport submission. Authorized diagnostics, deterministic regressions and positive control, then suite-equivalent loaded reproduction one variable at a time; record a demonstrated root in a Revision before any behavioral fix. New limit: about one hour of loaded reproduction. If no failure reproduces, report retained evidence and ship diagnostics so the next failure explains itself, then move to #589. This explicitly permits a diagnostics-only outcome without pretending the original scheduling cause is established. No larger budgets, new sleeps, retries until green, or skips.
