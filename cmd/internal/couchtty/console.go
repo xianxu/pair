@@ -199,12 +199,16 @@ type Console struct {
 	// started reports that Run owns the terminal, so a notice may paint itself.
 	// Its own field rather than something inferred from another: "is it safe to
 	// write to the operator's screen yet" is its own question.
-	started         bool
-	exited          chan childExit
-	operationQueue  *operationQueue
-	refreshRequests chan struct{}
-	refreshResults  chan menuRefreshResult
-	refreshSchedule RefreshSchedule
+	started            bool
+	exited             chan childExit
+	operationQueue     *operationQueue
+	resourceRows       []couchcore.ActionableThreadSummary
+	resourceGeneration uint64
+	resourceRowsKnown  bool
+	resourceChanges    chan struct{}
+	refreshRequests    chan struct{}
+	refreshResults     chan menuRefreshResult
+	refreshSchedule    RefreshSchedule
 	// Slot quick-status glyph refresh (pair#317); see console_slotgit.go.
 	slotGitProbe    SlotGitProbe
 	slotGitRequests chan struct{}
@@ -559,6 +563,7 @@ func (c *Console) installObservedThreadActor(ctx context.Context, handleID strin
 		}
 	}
 	c.ensureMenuLocked(thread)
+	c.resourcesChangedLocked()
 	c.mu.Unlock()
 	c.requestMenuRefresh()
 
@@ -1095,6 +1100,7 @@ func (c *Console) onExit(event childExit) bool {
 	panelFocused := c.focus.IsPanel()
 	wasActive := c.active == event.id
 	delete(c.panes, event.id)
+	c.resourcesChangedLocked()
 	// Not a landing: on exit the operator goes to the panel, so recording one
 	// would make the dead thread the return target -- the single place
 	// ctrl+backspace can never usefully go.

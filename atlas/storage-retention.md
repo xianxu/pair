@@ -143,3 +143,23 @@ restore path when restoring archived records.
 
 Verification lives beside these packages, in `nvim/retention_test.lua`, and in
 `tests/retention-test.sh` and `tests/adapt-schema-test.sh`.
+
+## Resource monitor snapshots (#587)
+
+Couch's resource sampler owns one best-effort namespace-local aggregate history,
+separate from diagnosticlog's 365-day retention. ResourceHistoryStore writes
+resources/history.json (up to 4 MiB), with one fixed .history-stage replacement.
+Current file plus stage are bounded at 8 MiB. Existing safe-path, regular-file
+and no-follow checks protect reads and writes; oversized or invalid history is
+reported as lost continuity and a fresh bounded in-memory ring starts.
+
+History retains at most 24 hours, 1440 frames and 4 MiB of aggregate slot usage,
+orphan/unattributed summaries and coverage/cost metadata. The memory ring keeps
+advancing when a write fails. A crash may lose its tail; history failures never
+gate alerts. Ownership, rate baselines, episodes and delivery outcomes are only
+in memory. Restart re-arms advisory alerts, so a repeat is possible.
+
+While Couch is stopped the file remains bounded; the next load/write prunes
+expired frames. No cleanup daemon or checkpoint/intent files are created.
+Sources remain classified as namespace-owned non-Pair artifacts in artifactpath.
+See [resource monitoring](couch.md#resource-monitoring-587).
