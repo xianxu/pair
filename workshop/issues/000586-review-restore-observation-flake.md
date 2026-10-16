@@ -114,6 +114,10 @@ Required suite501ea461dee91eaad8c9ae484cbfa18d on a0b3fb0de67824b57d0f42cedd32ac
 
 Hub approval63d2b0cc-0e3e-4227-bd10-c459712f4280 (canonical submitted receipt matches sender/current recipient/body) authorizes filing the independent failure unassigned and one unchanged recorded suite rerun; no fixture fix inside #586, merge still held pending #597/#571 and explicit go. Filed #598 with complete failure evidence on origin. Targeted integrated diagnostics group passed8tests31.189s. Since only issue Log commits advanced the issue branch after the failure, local-check --rev initially refused the old source because it was no longer a remote branch tip (no suite executed). Published temporary verification ref verify-000586-unchanged-suite at exact a0b3fb0de67824b57d0f42cedd32acd02a7d1778 and launched the one authorized recorded rerun there. No code, timeout, assertion or fixture change; remove the temporary ref after its evidence is secured.
 
+### Exact-source authorized rerun PASS; ready for close review
+
+One authorized unchanged recorded rerun a434158b4ff3c9fcc7da7a10fc5eedff on a0b3fb0de67824b57d0f42cedd32acd02a7d1778 completed exit0 in798.634s (13m19), queue0.134s. Log /Users/xianxu/workspace/pair/.git/sdlc/local-checks/a0b3fb0de67824b57d0f42cedd32acd02a7d1778/suite.log, SHA2562cfda2445836f4ef85c8c6744d781ddbf4ace733dbcba4ecb4b5e72067e293cf. without-ancestors five tests passed1.985s; independent first failure remains filed unassigned as #598. New8diagnostics tests passed17.813s, unchanged observation fixture passed, all fresh-restore cases and all Go packages passed (couchcore463.268s). Build make -k -B build previously passed on the same source; changes since are this issue's Log only. Original root still unproven after202timeboxed passing probes; diagnostics-only shipment remains explicitly approved. Close review is next; merge remains forbidden until the hub's go after #597/#571.
+
 ## Revisions
 
 ### 2026-10-15 — approved diagnostics-first timebox
