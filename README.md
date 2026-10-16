@@ -1681,6 +1681,10 @@ Custom names like `bugfix`, `blogging`, or `research` are allowed (chars: `A-Z a
 
 From a non-agent Pair pane, detach with `Alt+d`. For Couch-managed work, use the switcher’s Detach action. To re-attach: run `pair` again and pick from the list. To fully quit (no resurrect entry): `Alt+x`.
 
+## History backup
+
+🤖{Use `pair archive inventory` to inspect supported history sources and `pair archive create --request /private/tmp/pair-archive-request.json` to back up explicitly selected stable files. Creation streams tar through zstd `-19` and GPG public-key encryption, verifies stored ciphertext and records the result in a private local catalog; it preserves source files. Install `gpg` and `zstd`, supply a trusted full public-key fingerprint and separate source, sink and catalog paths. No private key is needed for creation. [History backup](atlas/history-backup.md) documents the request JSON, defaults, limits, retry behavior and operator key-recovery checklist. This command does not schedule backups, delete sources, snapshot live SQLite databases, upload to Drive or provide a restore command.}
+
 ## Storage retention
 
 `pair gc` previews Pair-owned storage by retention bucket, with byte totals and

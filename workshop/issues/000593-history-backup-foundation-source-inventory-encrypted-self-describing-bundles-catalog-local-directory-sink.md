@@ -53,13 +53,22 @@ Design sections 2.1, 2.2, 2.3 and 2.5, plus the local-directory sink from 2.4.
 
 See [durable plan](../plans/000593-history-backup-plan.md).
 
-- [ ] Implement and qualify the foundation through one whole-issue review boundary.
+- [x] Implement and qualify the foundation through one whole-issue review boundary.
 
 ## Log
 ### 2026-10-15 — claimed and shaping
 Claimed pair:1; start-plan refreshed the inherited ariadne tooling and succeeded on retry. Read operator-approved ops design and project, existing dispatcher/storagegc/artifactpath/durablefile/osfs seams. zstd, gpg and tar are installed. The initial sdlc issue show printed headings only; the full original issue was subsequently read and preserved. Ops MEMORY.md is absent; AGENTS.local.md read, no ops edits. Keep the foundation separate from retention authority: ARCH-DRY one format/inventory, ARCH-PURPOSE complete verified round-trip, ARCH-FUNERAL explicit artifact ownership without an extra job journal. Plan approval requested from hub before code.
 
 Read-only bounded seam review confirmed there is no general backup inventory or streaming subprocess pipeline to reuse. Reuse durablefile for small metadata/sync and commitoutcome for uncertain publication; existing session catalogs are replacement/trimmed stores and cannot serve the append-only backup contract. Plan covers parent-symlink confinement, joined pipeline shutdown, no-replace objects and explicit torn-tail refusal.
+
+
+### 2026-10-15 — implementation and targeted qualification
+
+Implemented the inventory/pure format, descriptor-confined selection/tar streaming, joined zstd/GPG pipeline, local no-replace sink, repaired/rolling catalog, synchronous coordinator and thin CLI. Stateful doubles cover retained late publications, corruption and cancellation; live conformance uses a disposable key through the full Archiver→LocalSink→Get→independent decrypt/decompress path. Three empty/binary/Unicode fixtures recovered with identical hashes/manifest; corrupted ciphertext was rejected (6,144-byte tar, 1,048-byte ciphertext, 1.198s pipeline; 5.42s including key generation/cleanup). Initial artifact classification failed on the new files and passed after registering their ownership. CLI/dispatcher route tests passed. Catalog failed-open cleanup initially leaked its lock through a named-return defer; regression failed first and passed after capturing the owned catalog. Namespace regression likewise proved filesystem-root and staging/sink overlaps were admitted, then passed with pre-write refusal.
+
+Targeted package and race runs passed before the final sink staging cleanup refinement. Final package run after that change passed (historyarchive6.763s, archivetest0.136s, archivecmd0.296s); final race run passed (18.208s/1.139s/1.208s). Final isolated live test passed in2.346s: full three-file pipeline1.078s, 6,144-byte tar→1,049-byte ciphertext, source hashes preserved and corruption rejected. Sink stale-partial cleanup, active writer protection and reserved-name tests each failed first, then focused race passed after serialized cleanup. The estimate-quality informational notes (catalog implementation risk and bundled real-tool discovery allowance) are acknowledged; keep the accepted estimate unchanged and measure actual work rather than revise it retrospectively.
+
+Built CLI live smoke: one selected real ops QA document (1,150 bytes) encrypted with the approved public recipient to a 1,715-byte bundle in /private/tmp/pair593-live-68t2s1xa. Read-back plus independent SHA256 matched 9eb1c9a746cba16d427dc6c1d0549e81c349c97fb8129dd47b93226def8322b3; source hash unchanged; repeat invocation retained exactly one catalog record. /usr/bin/time -l reported 0.86s real, 0.02s user, 0.04s system and 86,851,584-byte maximum RSS (fixture measurement, not a general bound). No personal private-key operation, source output or ops edit. Encrypted fixture, private catalog and request are retained there for inspection until host temporary-file cleanup; this temporary smoke is not durable backup storage.
 
 ## Revisions
 

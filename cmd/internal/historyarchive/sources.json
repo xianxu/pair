@@ -1,0 +1,215 @@
+{
+  "version": 1,
+  "sources": [
+    {
+      "kind": "pair-terminal-events",
+      "owner": "pair",
+      "root_token": "pair-data",
+      "patterns": [
+        "repos/*/wrap-events*"
+      ],
+      "mode": "on-expiry",
+      "retention": "Existing Pair terminal retention",
+      "snapshot_required": false,
+      "artifact_families": [
+        "wrap-events"
+      ]
+    },
+    {
+      "kind": "pair-parked-captures",
+      "owner": "pair",
+      "root_token": "pair-data",
+      "patterns": [
+        "repos/*/parked*"
+      ],
+      "mode": "on-expiry",
+      "retention": "Existing parked-session retention",
+      "snapshot_required": false,
+      "artifact_families": [
+        "parked",
+        "parked-scrollback"
+      ]
+    },
+    {
+      "kind": "pair-scrollback",
+      "owner": "pair",
+      "root_token": "pair-data",
+      "patterns": [
+        "repos/*/scrollback*"
+      ],
+      "mode": "on-expiry",
+      "retention": "Existing Pair scrollback retention",
+      "snapshot_required": false,
+      "artifact_families": [
+        "scrollback"
+      ]
+    },
+    {
+      "kind": "couch-sessions",
+      "owner": "couch",
+      "root_token": "pair-data",
+      "patterns": [
+        "repos/*/session-names.jsonl"
+      ],
+      "mode": "continuous",
+      "retention": "Existing Couch history retention",
+      "snapshot_required": false,
+      "artifact_families": [
+        "session-binding"
+      ]
+    },
+    {
+      "kind": "couch-ledgers",
+      "owner": "couch",
+      "root_token": "pair-data",
+      "patterns": [
+        "repos/*/ledger-*.jsonl"
+      ],
+      "mode": "continuous",
+      "retention": "Existing Couch ledger retention",
+      "snapshot_required": false,
+      "artifact_families": [
+        "ledger"
+      ]
+    },
+    {
+      "kind": "couch-threads",
+      "owner": "couch",
+      "root_token": "pair-data",
+      "patterns": [
+        "couch/threadstore/*"
+      ],
+      "mode": "continuous",
+      "retention": "Existing Couch thread retention",
+      "snapshot_required": false
+    },
+    {
+      "kind": "webcast-recordings",
+      "owner": "pair",
+      "root_token": "pair-data",
+      "patterns": [
+        "couch/webcast/recordings/*"
+      ],
+      "mode": "on-expiry",
+      "retention": "Existing webcast retention",
+      "snapshot_required": false
+    },
+    {
+      "kind": "pair-adapt-diagnostics",
+      "owner": "pair",
+      "root_token": "pair-data",
+      "patterns": [
+        "repos/*/adapt*"
+      ],
+      "mode": "on-expiry",
+      "retention": "Existing diagnostic retention",
+      "snapshot_required": false,
+      "artifact_families": [
+        "adapt"
+      ]
+    },
+    {
+      "kind": "pair-fullscreen-diagnostics",
+      "owner": "pair",
+      "root_token": "pair-data",
+      "patterns": [
+        "repos/*/fullscreen*"
+      ],
+      "mode": "on-expiry",
+      "retention": "Existing diagnostic retention",
+      "snapshot_required": false,
+      "artifact_families": [
+        "fullscreen-diagnostics"
+      ]
+    },
+    {
+      "kind": "claude-transcripts",
+      "owner": "claude",
+      "root_token": "claude-home",
+      "patterns": [
+        "projects/*/*.jsonl"
+      ],
+      "mode": "continuous",
+      "retention": "Agent-managed retention",
+      "snapshot_required": false
+    },
+    {
+      "kind": "codex-transcripts",
+      "owner": "codex",
+      "root_token": "codex-home",
+      "patterns": [
+        "sessions/*",
+        "archived_sessions/*"
+      ],
+      "mode": "continuous",
+      "retention": "Agent-managed retention",
+      "snapshot_required": false
+    },
+    {
+      "kind": "qoder-transcripts",
+      "owner": "qoder",
+      "root_token": "qoder-home",
+      "patterns": [
+        "projects/*"
+      ],
+      "mode": "continuous",
+      "retention": "Agent-managed retention",
+      "snapshot_required": false
+    },
+    {
+      "kind": "codex-database",
+      "owner": "codex",
+      "root_token": "codex-home",
+      "patterns": [
+        "*.sqlite",
+        "*.sqlite3"
+      ],
+      "mode": "continuous",
+      "retention": "Snapshot required; agent-managed live database",
+      "snapshot_required": true
+    },
+    {
+      "kind": "ops-documents",
+      "owner": "operator",
+      "root_token": "ops-worktree",
+      "patterns": [
+        "qa/*",
+        "assets/*",
+        "*"
+      ],
+      "mode": "continuous",
+      "retention": "Operator-managed local documents",
+      "snapshot_required": false
+    },
+    {
+      "kind": "sdlc-runtime",
+      "owner": "sdlc",
+      "root_token": "git-common",
+      "patterns": [
+        "sdlc/*"
+      ],
+      "mode": "continuous",
+      "retention": "Existing SDLC runtime retention",
+      "snapshot_required": false
+    },
+    {
+      "kind": "archive-catalog",
+      "owner": "pair",
+      "root_token": "pair-data",
+      "patterns": [
+        "archive/*.jsonl"
+      ],
+      "mode": "continuous",
+      "retention": "Explicit operator retention",
+      "snapshot_required": false
+    }
+  ],
+  "sinks": [
+    {
+      "kind": "*",
+      "min_age_seconds": 0,
+      "max_age_seconds": 0,
+      "sink": "local"
+    }
+  ]
+}
