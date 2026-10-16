@@ -1,6 +1,6 @@
 ---
 id: 000614
-status: working
+status: codecomplete
 created: 2026-10-16
 updated: 2026-10-16
 estimate_hours:
@@ -14,6 +14,14 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
+actual_hours: 0.04
+tracker:
+    version: 1
+    completion:
+        token: close-d117b6e53bf1
+        repository: github.com/xianxu/pair
+        reviewed_head: 61066dc88570e5b010925faf1ef02fcefc028231
+        evidence_commit: aac5cfdc3a8cc25e9f22ba5c741ac0e7735dd59f
 ---
 
 # One shared rule for native conversation IDs and lock holder labels
