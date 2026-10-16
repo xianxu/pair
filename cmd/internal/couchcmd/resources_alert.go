@@ -120,6 +120,9 @@ func (d resourceAlertDispatcher) dispatch(ctx context.Context, cp *resourceCheck
 		if e.Phase != "pending" || e.Effect == nil {
 			continue
 		}
+		delivery := func(outcome couchcore.ResourceDeliveryOutcome) {
+			*e, _ = couchcore.AdvanceResourceEpisode(*e, couchcore.ResourceEpisodeEvent{Delivery: outcome, EffectID: e.Effect.ID})
+		}
 		if err := ctx.Err(); err != nil {
 			return err
 		}
@@ -134,6 +137,7 @@ func (d resourceAlertDispatcher) dispatch(ctx context.Context, cp *resourceCheck
 		if fresh {
 			hub, ok := d.resolve(e.Effect.Workspace)
 			if !ok {
+				delivery(couchcore.ResourceDeliveryUnknown)
 				continue
 			}
 			body := fmt.Sprintf("Couch resource monitor: %s pid=%d name=%s %s %.3f for %s; sampled coverage. Inspect with couch --resources.", rowtext.Sanitize(e.Effect.Slot), e.Effect.Process.PID, rowtext.Sanitize(e.Effect.Name), rowtext.Sanitize(e.Effect.Metric), e.Effect.Value, e.Effect.Duration)
@@ -142,38 +146,43 @@ func (d resourceAlertDispatcher) dispatch(ctx context.Context, cp *resourceCheck
 		}
 		a := &cp.Attempts[at]
 		if a.State == "admitted" {
-			e.Phase = "notified"
+			delivery(couchcore.ResourceDeliveryAdmitted)
 			continue
 		}
 		if !fresh && a.State != "refused" {
 			if d.lookup != nil {
 				if r, ok := d.lookup(ctx, *a); ok && resourceReceiptMatches(r, *a) {
 					a.State = "admitted"
-					e.Phase = "notified"
+					delivery(couchcore.ResourceDeliveryAdmitted)
 					continue
 				}
 			}
 			a.State = "unknown"
+			delivery(couchcore.ResourceDeliveryUnknown)
 			continue
 		}
 		currentHub, currentOwnerKnown := d.resolve(e.Effect.Workspace)
 		if !fresh && (!currentOwnerKnown || currentHub != a.From || d.connected == nil || !d.connected(a.From)) {
 			a.State = "unknown"
+			delivery(couchcore.ResourceDeliveryUnknown)
 			continue
 		}
 		a.State = "attempting"
 		if err := save(*cp); err != nil {
-			a.State = "refused" // No broker call occurred; retry the same envelope after storage recovers.
+			a.State = "refused"
+			delivery(couchcore.ResourceDeliveryRefused) // No broker call occurred; retry the same envelope after storage recovers.
 			return err
 		}
 		r, err := d.send(ctx, *a)
 		if err == nil && resourceReceiptMatches(r, *a) {
 			a.State = "admitted"
-			e.Phase = "notified"
+			delivery(couchcore.ResourceDeliveryAdmitted)
 		} else {
 			a.State = "unknown"
+			delivery(couchcore.ResourceDeliveryUnknown)
 			if errors.Is(err, couchmessage.ErrRecipientBusy) || errors.Is(err, couchmessage.ErrBudgetExhausted) || errors.Is(err, couchmessage.ErrUnavailable) || errors.Is(err, couchmessage.ErrUnsupported) {
 				a.State = "refused"
+				delivery(couchcore.ResourceDeliveryRefused)
 			}
 		}
 		if err := save(*cp); err != nil {

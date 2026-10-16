@@ -2,9 +2,12 @@ package couchcmd
 
 import (
 	"context"
+	"fmt"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchtty"
 	"github.com/xianxu/pair/cmd/internal/launcher"
+	"github.com/xianxu/pair/cmd/internal/procutil"
+	"strings"
 	"testing"
 )
 
@@ -76,5 +79,88 @@ func TestResourceInventorySnapshotRequiresCurrentSessionProofAndNoIO(t *testing.
 	inv.rows[0].Workspace = couchcore.WorkspaceIdentity{}
 	if got := inv.slots()[0]; got.OwnershipKnown || got.Reason != "workspace identity unavailable" {
 		t.Fatalf("missing workspace claimed: %+v", got)
+	}
+}
+
+func TestResourceInventoryStartupSampleWhileProbeBlocked(t *testing.T) {
+	entered, release, done := make(chan struct{}), make(chan struct{}), make(chan struct{})
+	a := couchcore.ThreadAddress{RepoScope: "s", Tag: "live"}
+	inv := &resourceInventory{seen: map[string]string{}, probe: func(context.Context, couchcore.ThreadAddress) (couchcore.PairSessionBinding, error) {
+		close(entered)
+		<-release
+		return couchcore.PairSessionBinding{}, nil
+	}}
+	go func() {
+		defer close(done)
+		inv.refresh(context.Background(), couchtty.ResourceInventorySnapshot{InventoryKnown: true, Rows: []couchcore.ActionableThreadSummary{{Address: a, State: couchcore.ThreadLive}}})
+	}()
+	<-entered
+	defer func() { close(release); <-done }()
+	root := couchcore.ResourceProcessKey{PID: 10, Identity: "root"}
+	child := couchcore.ResourceProcessKey{PID: 11, Identity: "child"}
+	f := &samplerReader{rows: []procutil.Process{{PID: 10, Identity: "root"}, {PID: 11, PPID: 10, Identity: "child"}}}
+	s := testResourceSampler(f)
+	s.slots = inv.snapshot
+	s.state.Provenance = []couchcore.ResourceProvenance{{ResourceRoot: couchcore.ResourceRoot{Key: child, Slot: "r:1", Thread: a}, Root: root}}
+	s.pass(context.Background())
+	if len(s.view().Orphans) != 0 || s.view().Processes[0].OrphanKnown {
+		t.Fatalf("startup invented orphan: %+v", s.view())
+	}
+	if got := inv.slots(); len(got) != 1 || got[0].Thread != a {
+		t.Fatalf("blocked proof hid known slot metadata: %+v", got)
+	}
+}
+
+func TestResourceInventoryOverCapPrioritizesLiveRows(t *testing.T) {
+	inv := &resourceInventory{seen: map[string]string{}}
+	snap := couchtty.ResourceInventorySnapshot{InventoryKnown: true}
+	for i := 0; i < couchcore.ResourceMaxSlots; i++ {
+		snap.Rows = append(snap.Rows, couchcore.ActionableThreadSummary{Address: couchcore.ThreadAddress{RepoScope: "s", Tag: couchcore.ThreadTag(fmt.Sprint(i))}, State: couchcore.ThreadParked})
+	}
+	live := couchcore.ThreadAddress{RepoScope: "s", Tag: "live"}
+	snap.Rows = append(snap.Rows, couchcore.ActionableThreadSummary{Address: live, State: couchcore.ThreadLive})
+	inv.refresh(context.Background(), snap)
+	found := false
+	for _, row := range inv.slots() {
+		found = found || row.Thread == live
+	}
+	if !found {
+		t.Fatal("current live row silently omitted by cap")
+	}
+	inventory := inv.snapshot()
+	if inventory.Complete || inventory.Omitted != 1 {
+		t.Fatalf("cap concealed incompleteness: %+v", inventory)
+	}
+	sampler := testResourceSampler(&samplerReader{})
+	sampler.slots = inv.snapshot
+	sampler.pass(context.Background())
+	if !strings.Contains(strings.Join(sampler.view().Errors, " "), "omitted 1 rows") {
+		t.Fatal("query concealed omitted rows")
+	}
+
+}
+
+func TestResourceInventoryCanceledProofRetainsPublishedMetadata(t *testing.T) {
+	entered, done := make(chan struct{}), make(chan struct{})
+	inv := &resourceInventory{probe: func(ctx context.Context, _ couchcore.ThreadAddress) (couchcore.PairSessionBinding, error) {
+		close(entered)
+		<-ctx.Done()
+		return couchcore.PairSessionBinding{}, ctx.Err()
+	}}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	a := couchcore.ThreadAddress{RepoScope: "s", Tag: "a"}
+	go func() {
+		defer close(done)
+		inv.refresh(ctx, couchtty.ResourceInventorySnapshot{InventoryKnown: true, Rows: []couchcore.ActionableThreadSummary{{Address: a}}})
+	}()
+	<-entered
+	if s := inv.snapshot(); s.Complete || len(s.Slots) != 1 {
+		t.Fatalf("pending inventory unavailable: %+v", s)
+	}
+	cancel()
+	<-done
+	if s := inv.snapshot(); s.Complete || len(s.Slots) != 1 {
+		t.Fatalf("cancellation proved absence: %+v", s)
 	}
 }

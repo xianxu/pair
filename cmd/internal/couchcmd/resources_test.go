@@ -63,8 +63,8 @@ func (f *samplerReader) SelfCPU(context.Context) (uint64, int, error) {
 func testResourceSampler(f *samplerReader) *resourceSampler {
 	p, _ := couchcore.ParseResourcePolicy(nil)
 	p.OrphanRSSBytes = 100
-	return &resourceSampler{reader: f, policy: p, now: func() time.Time { return time.Unix(100, 0) }, slots: func() []couchcore.ResourceSlot {
-		return []couchcore.ResourceSlot{{Slot: "pair:1", OwnershipKnown: true, Roots: []couchcore.ResourceRoot{{Key: couchcore.ResourceProcessKey{PID: 10, Identity: "owned"}}}}}
+	return &resourceSampler{reader: f, policy: p, now: func() time.Time { return time.Unix(100, 0) }, slots: func() couchcore.ResourceSlotInventory {
+		return couchcore.ResourceSlotInventory{Complete: true, Slots: []couchcore.ResourceSlot{{Slot: "pair:1", OwnershipKnown: true, Roots: []couchcore.ResourceRoot{{Key: couchcore.ResourceProcessKey{PID: 10, Identity: "owned"}}}}}}
 	}}
 }
 func TestResourceSamplerSelectionCallsAndImmutableView(t *testing.T) {
@@ -166,8 +166,11 @@ func TestResourceSamplerCombinedCapKeepsOwnedFirst(t *testing.T) {
 	if len(f.usages) != couchcore.ResourceMaxProcesses || f.usages[0] != 10 || len(f.commands) != 0 {
 		t.Fatal("combined cap or owned priority", len(f.usages), f.usages[0], len(f.commands))
 	}
-	if len(v.Processes) != 1 || len(v.Unattributed) != couchcore.ResourceMaxProcesses-1 || !strings.Contains(strings.Join(v.Errors, " "), "limit exceeded") {
+	if len(v.Processes) != 1 || len(v.Unattributed) == 0 || len(v.Unattributed) >= couchcore.ResourceMaxProcesses-1 || !strings.Contains(strings.Join(v.Errors, " "), "limit exceeded") {
 		t.Fatal("missing partial coverage", len(v.Processes), len(v.Unattributed), v.Errors)
+	}
+	if !strings.Contains(strings.Join(v.Errors, " "), fmt.Sprintf("%d unattributed processes omitted", couchcore.ResourceMaxProcesses-1-len(v.Unattributed))) {
+		t.Fatal("missing exact wire omission count", v.Errors)
 	}
 	if v.Cost.NativeCalls > 8+2*len(f.usages)+v.Cost.CommandCalls {
 		t.Fatal("native call envelope", v.Cost)
@@ -274,8 +277,8 @@ func TestResourceSamplerNativeCost(t *testing.T) {
 		t.Fatalf("fixture did not approach history cap: %d", len(raw))
 	}
 	policy, _ := couchcore.ParseResourcePolicy(nil)
-	sampler := &resourceSampler{reader: reader, policy: policy, persist: persistence.persist, slots: func() []couchcore.ResourceSlot {
-		return []couchcore.ResourceSlot{{Slot: address, Workspace: workspace, OwnershipKnown: true, Roots: []couchcore.ResourceRoot{{Key: couchcore.ResourceProcessKey{PID: owned.PID, Identity: owned.Identity}}}}}
+	sampler := &resourceSampler{reader: reader, policy: policy, persist: persistence.persist, slots: func() couchcore.ResourceSlotInventory {
+		return couchcore.ResourceSlotInventory{Complete: true, Slots: []couchcore.ResourceSlot{{Slot: address, Workspace: workspace, OwnershipKnown: true, Roots: []couchcore.ResourceRoot{{Key: couchcore.ResourceProcessKey{PID: owned.PID, Identity: owned.Identity}}}}}}
 	}}
 	var sum, maxCPU uint64
 	for pass := 0; pass < 3; pass++ {

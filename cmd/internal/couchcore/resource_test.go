@@ -12,17 +12,17 @@ func TestResourceSelectDeduplicatesAndRetainsProvenance(t *testing.T) {
 	root := ResourceRoot{Key: ResourceProcessKey{1, "a"}, Slot: "r:1", Thread: ThreadAddress{Tag: "old"}}
 	slots := []ResourceSlot{{Slot: "r:1", OwnershipKnown: true, Roots: []ResourceRoot{root, root}}}
 	table := []procutil.Process{{PID: 1, Identity: "a"}, {PID: 2, PPID: 1, Identity: "b"}}
-	got := SelectResourceProcesses(table, slots, nil, true)
+	got := SelectResourceProcesses(table, slots, nil, true, true)
 	if len(got.Processes) != 2 {
 		t.Fatalf("selection: %+v", got)
 	}
 	table = table[1:]
 	table[0].PPID = 1
-	got = SelectResourceProcesses(table, nil, got.Processes, true)
+	got = SelectResourceProcesses(table, nil, got.Processes, true, true)
 	if len(got.Processes) != 1 || !got.Processes[0].Orphan || got.Processes[0].Thread.Tag != "old" {
 		t.Fatalf("lost provenance: %+v", got)
 	}
-	unknown := SelectResourceProcesses(table, nil, got.Processes, false)
+	unknown := SelectResourceProcesses(table, nil, got.Processes, false, true)
 	if len(unknown.Processes) != 1 || unknown.Processes[0].Orphan {
 		t.Fatalf("unknown root established orphan: %+v", unknown)
 	}
@@ -57,32 +57,32 @@ func TestResourceConflictCycleReuseAndUnknown(t *testing.T) {
 	root := ResourceRoot{Key: ResourceProcessKey{10, "a"}, Slot: "r:1"}
 	slots := []ResourceSlot{{Slot: "r:1", OwnershipKnown: true, Roots: []ResourceRoot{root}}}
 	table := []procutil.Process{{PID: 10, Identity: "a"}, {PID: 20, PPID: 10, Identity: "b"}}
-	prior := SelectResourceProcesses(table, slots, nil, true).Processes
+	prior := SelectResourceProcesses(table, slots, nil, true, true).Processes
 	table[1].PPID = 1
-	got := SelectResourceProcesses(table, slots, prior, true)
+	got := SelectResourceProcesses(table, slots, prior, true, true)
 	if !got.Processes[1].Orphan {
 		t.Fatal("reparented process not orphan")
 	}
 	slots[0].OwnershipKnown = false
-	got = SelectResourceProcesses(table, slots, prior, true)
+	got = SelectResourceProcesses(table, slots, prior, true, true)
 	if got.Processes[1].Orphan {
 		t.Fatal("unknown ownership marked orphan")
 	}
 	slots[0].OwnershipKnown = true
 	table[1].Identity = "reuse"
-	got = SelectResourceProcesses(table, slots, prior, true)
+	got = SelectResourceProcesses(table, slots, prior, true, true)
 	if len(got.Processes) != 1 {
 		t.Fatal("reused PID inherited ownership")
 	}
 	table[1].Identity = "b"
 	table[1].PPID = 10
 	slots = append(slots, ResourceSlot{Slot: "r:2", OwnershipKnown: true, Roots: []ResourceRoot{{Key: ResourceProcessKey{20, "b"}, Slot: "r:2"}}})
-	got = SelectResourceProcesses(table, slots, nil, true)
+	got = SelectResourceProcesses(table, slots, nil, true, true)
 	if len(got.Processes) != 1 {
 		t.Fatal("conflicting roots double charged")
 	}
 	table[0].PPID = 20
-	got = SelectResourceProcesses(table, slots, nil, true)
+	got = SelectResourceProcesses(table, slots, nil, true, true)
 	if len(got.Processes) != 0 {
 		t.Fatal("cycle accepted")
 	}
@@ -105,16 +105,16 @@ func TestResourceClassifyUnproven(t *testing.T) {
 func TestResourceSelectionOrderIndependent(t *testing.T) {
 	table := []procutil.Process{{PID: 10, Identity: "a"}, {PID: 20, PPID: 10, Identity: "b"}, {PID: 30, PPID: 20, Identity: "c"}}
 	slots := []ResourceSlot{{Slot: "r:1", OwnershipKnown: true, Roots: []ResourceRoot{{Key: ResourceProcessKey{10, "a"}, Slot: "r:1"}}}}
-	a := SelectResourceProcesses(table, slots, nil, true)
+	a := SelectResourceProcesses(table, slots, nil, true, true)
 	table[0], table[2] = table[2], table[0]
-	b := SelectResourceProcesses(table, slots, nil, true)
+	b := SelectResourceProcesses(table, slots, nil, true, true)
 	if !reflect.DeepEqual(a, b) {
 		t.Fatal("table order changed selection")
 	}
 }
 func TestResourceUnknownIdentityRetainsProvenance(t *testing.T) {
 	old := ResourceProvenance{ResourceRoot: ResourceRoot{Key: ResourceProcessKey{5, "old"}, Slot: "r:1"}, Root: ResourceProcessKey{2, "root"}}
-	got := SelectResourceProcesses([]procutil.Process{{PID: 5}}, nil, []ResourceProvenance{old}, true)
+	got := SelectResourceProcesses([]procutil.Process{{PID: 5}}, nil, []ResourceProvenance{old}, true, true)
 	if len(got.Processes) != 1 || got.Processes[0].OrphanKnown {
 		t.Fatalf("unknown generation lost or resolved: %+v", got)
 	}
@@ -212,4 +212,31 @@ func TestResourceSlotWriteAlertNamesLargestContributor(t *testing.T) {
 		}
 	}
 	t.Fatal("missing write alert")
+}
+
+func TestResourceIncompleteInventoryNeedsPositiveOrphanEvidence(t *testing.T) {
+	root := ResourceProcessKey{PID: 10, Identity: "root"}
+	child := ResourceProcessKey{PID: 11, Identity: "child"}
+	prior := []ResourceProvenance{{ResourceRoot: ResourceRoot{Key: child, Slot: "r:1"}, Root: root}}
+	table := []procutil.Process{{PID: 10, Identity: "root"}, {PID: 11, PPID: 10, Identity: "child"}}
+	for _, complete := range []bool{false, true} {
+		got := SelectResourceProcesses(table, nil, prior, true, complete).Processes[0]
+		if got.OrphanKnown != complete || got.Orphan != complete {
+			t.Fatalf("complete=%v: %+v", complete, got)
+		}
+	}
+	// A complete native table proves exact root loss independently of discovery.
+	got := SelectResourceProcesses(table[1:], nil, prior, true, false).Processes[0]
+	if !got.OrphanKnown || !got.Orphan {
+		t.Fatalf("confirmed root death lost: %+v", got)
+	}
+	got = SelectResourceProcesses(table[1:], nil, prior, false, false).Processes[0]
+	if got.OrphanKnown || got.Orphan {
+		t.Fatalf("partial table asserted death: %+v", got)
+	}
+	table[0].Identity = ""
+	got = SelectResourceProcesses(table, nil, prior, true, false).Processes[0]
+	if got.OrphanKnown || got.Orphan {
+		t.Fatalf("unreadable root asserted death: %+v", got)
+	}
 }

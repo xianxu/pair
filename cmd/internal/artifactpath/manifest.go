@@ -632,6 +632,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcmd/resources_persist.go",
 	"cmd/internal/couchcmd/resources_inventory.go",
 	"cmd/internal/couchcmd/resources_render.go",
+	"cmd/internal/couchcmd/resources_projection.go",
 	"cmd/internal/couchcmd/resources_alert.go",
 	"cmd/internal/couchcore/resource.go",
 	"cmd/internal/couchcore/resource_episode.go",

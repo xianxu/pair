@@ -33,6 +33,15 @@ type ResourceSlot struct {
 	Idle           bool              `json:"idle"`
 	Roots          []ResourceRoot    `json:"roots"`
 }
+
+// ResourceSlotInventory distinguishes a completed census from startup, cancellation
+// or bounded omission. Unknown inventory must never prove slot disappearance.
+type ResourceSlotInventory struct {
+	Slots    []ResourceSlot
+	Complete bool
+	Omitted  int
+}
+
 type ResourceProvenance struct {
 	ResourceRoot
 	Root        ResourceProcessKey `json:"root"`
@@ -57,14 +66,16 @@ type ResourceCost struct {
 	WallTime      time.Duration `json:"wall_time"`
 }
 type ResourceSample struct {
-	At           time.Time
-	Table        []procutil.Process
-	TableKnown   bool
-	Slots        []ResourceSlot
-	Observations []ResourceUsageObservation
-	Commands     map[ResourceProcessKey][]string
-	Errors       []string
-	Cost         ResourceCost
+	At                time.Time
+	Table             []procutil.Process
+	TableKnown        bool
+	InventoryComplete bool
+	InventoryOmitted  int
+	Slots             []ResourceSlot
+	Observations      []ResourceUsageObservation
+	Commands          map[ResourceProcessKey][]string
+	Errors            []string
+	Cost              ResourceCost
 }
 type ResourceProcessView struct {
 	ResourceProvenance
@@ -118,7 +129,7 @@ func resourceSort(ps []ResourceProvenance) {
 
 // SelectResourceProcesses follows only unique, generation-identified ancestry.
 // Remembered ownership survives reparenting; missing evidence never proves orphanhood.
-func SelectResourceProcesses(table []procutil.Process, slots []ResourceSlot, prior []ResourceProvenance, known bool) ResourceSelection {
+func SelectResourceProcesses(table []procutil.Process, slots []ResourceSlot, prior []ResourceProvenance, known, inventoryComplete bool) ResourceSelection {
 	out := ResourceSelection{}
 	rows := map[int]procutil.Process{}
 	duplicate := map[int]bool{}
@@ -136,7 +147,7 @@ func SelectResourceProcesses(table []procutil.Process, slots []ResourceSlot, pri
 	if len(slots) > ResourceMaxSlots {
 		out.Errors = append(out.Errors, "slot limit exceeded")
 		slots = slots[:ResourceMaxSlots]
-		known = false
+		inventoryComplete = false
 	}
 	roots := map[ResourceProcessKey][]ResourceRoot{}
 	own := map[string]ResourceSlot{}
@@ -237,8 +248,12 @@ func SelectResourceProcesses(table []procutil.Process, slots []ResourceSlot, pri
 			_, rootAlive := rows[pv.Root.PID]
 			rp := rows[pv.Root.PID]
 			s, exists := own[pv.Slot]
-			pv.OrphanKnown = known && (!exists || s.OwnershipKnown) && (!rootAlive || rp.Identity != "")
-			pv.Orphan = pv.OrphanKnown && (len(candidates) == 0 || !rootAlive || rp.Identity != pv.Root.Identity || rp.Zombie || exists && s.Thread != pv.Thread)
+			// Exact root death/reuse is positive process evidence, independent of
+			// the slot census. A live root plus an omitted slot is only unknown.
+			rootDead := known && !duplicate[pv.Root.PID] && (!rootAlive || rp.Zombie || rp.Identity != "" && rp.Identity != pv.Root.Identity)
+			ownerKnown := exists && s.OwnershipKnown || !exists && inventoryComplete
+			pv.OrphanKnown = rootDead || known && ownerKnown && rootAlive && rp.Identity != "" && !duplicate[pv.Root.PID]
+			pv.Orphan = rootDead || pv.OrphanKnown && (len(candidates) == 0 || exists && s.Thread != pv.Thread)
 		}
 		out.Processes = append(out.Processes, pv)
 	}

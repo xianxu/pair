@@ -16,18 +16,29 @@ type ResourceEffect struct {
 	Duration  time.Duration      `json:"duration"`
 	Workspace WorkspaceIdentity  `json:"workspace"`
 }
+type ResourceDeliveryOutcome string
+
+const (
+	ResourceDeliveryAdmitted ResourceDeliveryOutcome = "admitted"
+	ResourceDeliveryRefused  ResourceDeliveryOutcome = "refused"
+	ResourceDeliveryUnknown  ResourceDeliveryOutcome = "unknown"
+)
+
 type ResourceEpisode struct {
-	Process ResourceProcessKey `json:"process"`
-	Slot    string             `json:"slot"`
-	Key     string             `json:"key"`
-	Metric  string             `json:"metric"`
-	Phase   string             `json:"phase"`
-	Since   time.Time          `json:"since"`
-	Last    time.Time          `json:"last"`
-	Samples int                `json:"samples"`
-	Effect  *ResourceEffect    `json:"effect,omitempty"`
+	Delivery ResourceDeliveryOutcome `json:"delivery,omitempty"`
+	Process  ResourceProcessKey      `json:"process"`
+	Slot     string                  `json:"slot"`
+	Key      string                  `json:"key"`
+	Metric   string                  `json:"metric"`
+	Phase    string                  `json:"phase"`
+	Since    time.Time               `json:"since"`
+	Last     time.Time               `json:"last"`
+	Samples  int                     `json:"samples"`
+	Effect   *ResourceEffect         `json:"effect,omitempty"`
 }
 type ResourceEpisodeEvent struct {
+	Delivery              ResourceDeliveryOutcome
+	EffectID              string
 	At                    time.Time
 	Known, High, Admitted bool
 	RequiredDuration      time.Duration
@@ -45,8 +56,26 @@ func AdvanceResourceEpisode(e ResourceEpisode, v ResourceEpisodeEvent) (Resource
 	if e.Phase == "" {
 		e.Phase = "clear"
 	}
-	if v.Admitted && e.Effect != nil {
-		e.Phase = "notified"
+	outcome := v.Delivery
+	if v.Admitted {
+		outcome = ResourceDeliveryAdmitted
+	}
+	if outcome != "" {
+		// Delivery observations belong to one immutable effect. A late receipt
+		// cannot admit its recovered episode's replacement or change metric time.
+		if e.Effect == nil || v.EffectID != "" && v.EffectID != e.Effect.ID || e.Phase != "pending" && e.Phase != "notified" {
+			return e, nil
+		}
+		if e.Phase == "notified" {
+			return e, nil
+		}
+		switch outcome {
+		case ResourceDeliveryAdmitted:
+			e.Phase = "notified"
+			e.Delivery = outcome
+		case ResourceDeliveryRefused, ResourceDeliveryUnknown:
+			e.Delivery = outcome
+		}
 		return e, nil
 	}
 	if !v.Known {
@@ -63,6 +92,7 @@ func AdvanceResourceEpisode(e ResourceEpisode, v ResourceEpisodeEvent) (Resource
 		e.Since = time.Time{}
 		e.Last = v.At
 		e.Effect = nil
+		e.Delivery = ""
 		return e, nil
 	}
 	if e.Phase == "pending" || e.Phase == "notified" {
@@ -82,6 +112,7 @@ func AdvanceResourceEpisode(e ResourceEpisode, v ResourceEpisodeEvent) (Resource
 		x.ID = fmt.Sprintf("resource-%x", sha256.Sum256([]byte(e.Key+"/"+e.Since.UTC().Format(time.RFC3339Nano))))
 		e.Effect = &x
 		e.Phase = "pending"
+		e.Delivery = ""
 		return e, &x
 	}
 	return e, nil

@@ -85,6 +85,19 @@ func ValidateResourceState(s ResourceState) error {
 		default:
 			return fmt.Errorf("invalid episode phase")
 		}
+		switch e.Delivery {
+		case "": // Legacy checkpoints predate explicit delivery observations.
+		case ResourceDeliveryAdmitted:
+			if e.Phase != "notified" {
+				return fmt.Errorf("admitted delivery requires notified episode")
+			}
+		case ResourceDeliveryRefused, ResourceDeliveryUnknown:
+			if e.Phase != "pending" {
+				return fmt.Errorf("unadmitted delivery requires pending episode")
+			}
+		default:
+			return fmt.Errorf("invalid resource delivery outcome")
+		}
 		if (e.Phase == "pending" || e.Phase == "notified") && (e.Effect == nil || e.Effect.ID == "" || len(e.Effect.ID) > 256) {
 			return fmt.Errorf("missing episode effect")
 		}
@@ -105,7 +118,7 @@ func ValidateResourceState(s ResourceState) error {
 }
 func resourceFloat(v float64) *float64 { return &v }
 func AdvanceResources(state ResourceState, s ResourceSample, p ResourcePolicy) (ResourceState, ResourceView, []ResourceEffect) {
-	sel := SelectResourceProcesses(s.Table, s.Slots, state.Provenance, s.TableKnown)
+	sel := SelectResourceProcesses(s.Table, s.Slots, state.Provenance, s.TableKnown, s.InventoryComplete && s.InventoryOmitted == 0)
 	next := ResourceState{Provenance: sel.Processes, Previous: map[ResourceProcessKey]ResourcePrevious{}, ObservedCPUTimeNS: state.ObservedCPUTimeNS, ObservedDiskWriteBytes: state.ObservedDiskWriteBytes}
 	v := ResourceView{SampledAt: s.At, Slots: []ResourceSlotView{}, Processes: []ResourceProcessView{}, Orphans: []ResourceProcessView{}, Errors: append(append([]string{}, s.Errors...), sel.Errors...), Cost: s.Cost}
 	obs := map[ResourceProcessKey]ResourceUsageObservation{}

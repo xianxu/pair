@@ -73,3 +73,101 @@ func TestResourceSnapshotStoreRejectsSymlinksAndNonregularFiles(t *testing.T) {
 		})
 	}
 }
+
+func TestResourceSnapshotStoreLoadsArtifactsIndependently(t *testing.T) {
+	for _, bad := range []string{"checkpoint.json", "history.json"} {
+		t.Run(bad, func(t *testing.T) {
+			dir, err := filepath.EvalSymlinks(t.TempDir())
+			if err != nil {
+				t.Fatal(err)
+			}
+			validate := func(raw []byte) error {
+				if !json.Valid(raw) {
+					return errors.New("malformed")
+				}
+				return nil
+			}
+			s := ResourceSnapshotStore{Dir: dir, ValidateCheckpoint: validate, ValidateHistory: validate}
+			for _, name := range []string{"checkpoint.json", "history.json"} {
+				raw := []byte(`{"valid":true}`)
+				if name == bad {
+					raw = []byte(`broken`)
+				}
+				if err := os.WriteFile(filepath.Join(dir, name), raw, 0600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			cp, h, err := s.Load()
+			if err == nil {
+				t.Fatal("missing corruption error")
+			}
+			if bad == "checkpoint.json" && string(h) != `{"valid":true}` || bad == "history.json" && string(cp) != `{"valid":true}` {
+				t.Fatalf("valid sibling discarded: cp=%s history=%s err=%v", cp, h, err)
+			}
+		})
+	}
+}
+
+func TestResourceSnapshotStoreSeparatesCorruptionFromUnsafePaths(t *testing.T) {
+	for _, kind := range []string{"malformed", "oversized", "directory", "symlink"} {
+		t.Run(kind, func(t *testing.T) {
+			dir, err := filepath.EvalSymlinks(t.TempDir())
+			if err != nil {
+				t.Fatal(err)
+			}
+			s := ResourceSnapshotStore{Dir: dir, ValidateCheckpoint: func(b []byte) error {
+				if !json.Valid(b) {
+					return errors.New("bad JSON")
+				}
+				return nil
+			}}
+			p := filepath.Join(dir, "checkpoint.json")
+			switch kind {
+			case "malformed":
+				err = os.WriteFile(p, []byte("broken"), 0600)
+			case "oversized":
+				err = os.WriteFile(p, make([]byte, ResourceCheckpointLimit+1), 0600)
+			case "directory":
+				err = os.Mkdir(p, 0700)
+			case "symlink":
+				err = os.Symlink(filepath.Join(dir, "missing"), p)
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = s.LoadCheckpoint()
+			var corrupt *ResourceSnapshotCorruptError
+			if err == nil || errors.As(err, &corrupt) != (kind == "malformed" || kind == "oversized") {
+				t.Fatalf("wrong recovery authority for %s: %v", kind, err)
+			}
+		})
+	}
+}
+
+func TestResourceSnapshotStoreReadPermissionFailureIsNotCorruption(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root bypasses file permissions")
+	}
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := filepath.Join(dir, "checkpoint.json")
+	if err := os.WriteFile(p, []byte(`{}`), 0000); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(p, 0600) })
+	s := ResourceSnapshotStore{Dir: dir, ValidateCheckpoint: func([]byte) error { return nil }}
+	_, err = s.LoadCheckpoint()
+	var corrupt *ResourceSnapshotCorruptError
+	if !errors.Is(err, os.ErrPermission) || errors.As(err, &corrupt) {
+		t.Fatal("read failure granted rebuild permission", err)
+	}
+	if err := os.Chmod(p, 0600); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := s.LoadCheckpoint()
+	if err != nil || string(raw) != `{}` {
+		t.Fatal("read did not recover", string(raw), err)
+	}
+}

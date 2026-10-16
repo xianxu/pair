@@ -50,3 +50,45 @@ func TestResourceEpisodeGapAndUnknownBreakAccumulation(t *testing.T) {
 		t.Fatal("gap bridged high duration")
 	}
 }
+func TestResourceEpisodeDeliveryOutcomesAreGenerationFenced(t *testing.T) {
+	e := ResourceEpisode{Phase: "pending", Effect: &ResourceEffect{ID: "current"}}
+	for _, outcome := range []ResourceDeliveryOutcome{ResourceDeliveryRefused, ResourceDeliveryUnknown, ResourceDeliveryAdmitted} {
+		next, effect := AdvanceResourceEpisode(e, ResourceEpisodeEvent{Delivery: outcome, EffectID: "older"})
+		if next.Phase != "pending" || next.Delivery != "" || effect != nil {
+			t.Fatalf("late old receipt changed new episode: %+v", next)
+		}
+	}
+	for _, outcome := range []ResourceDeliveryOutcome{ResourceDeliveryRefused, ResourceDeliveryUnknown, ResourceDeliveryAdmitted} {
+		next, effect := AdvanceResourceEpisode(e, ResourceEpisodeEvent{Delivery: outcome, EffectID: "current"})
+		want := "pending"
+		if outcome == ResourceDeliveryAdmitted {
+			want = "notified"
+		}
+		if next.Phase != want || next.Delivery != outcome || effect != nil || e.Phase != "pending" || e.Delivery != "" {
+			t.Fatalf("outcome %s: %+v", outcome, next)
+		}
+	}
+	admitted, _ := AdvanceResourceEpisode(e, ResourceEpisodeEvent{Delivery: ResourceDeliveryAdmitted, EffectID: "current"})
+	late, _ := AdvanceResourceEpisode(admitted, ResourceEpisodeEvent{Delivery: ResourceDeliveryRefused, EffectID: "current"})
+	if late.Phase != "notified" || late.Delivery != ResourceDeliveryAdmitted {
+		t.Fatal("late refusal undid admission")
+	}
+	clear, _ := AdvanceResourceEpisode(admitted, ResourceEpisodeEvent{Known: true})
+	if clear.Phase != "clear" || clear.Delivery != "" {
+		t.Fatal("recovery retained old delivery")
+	}
+}
+func TestResourceEpisodeDeliveryDoesNotActAsUnknownMetric(t *testing.T) {
+	e := ResourceEpisode{Phase: "accumulating", Samples: 3, Since: time.Now()}
+	next, _ := AdvanceResourceEpisode(e, ResourceEpisodeEvent{Delivery: ResourceDeliveryUnknown, EffectID: "old"})
+	if next.Phase != e.Phase || next.Samples != 3 {
+		t.Fatal("receipt reset metric accumulation")
+	}
+}
+func TestResourceEpisodeRejectsInvalidPersistedDelivery(t *testing.T) {
+	for _, e := range []ResourceEpisode{{Key: "x", Metric: "slot-write", Phase: "clear", Delivery: "invalid"}, {Key: "x", Metric: "slot-write", Phase: "clear", Delivery: ResourceDeliveryAdmitted}, {Key: "x", Metric: "slot-write", Phase: "accumulating", Delivery: ResourceDeliveryRefused}} {
+		if err := ValidateResourceState(ResourceState{Episodes: []ResourceEpisode{e}}); err == nil {
+			t.Fatalf("accepted delivery inconsistent with episode: %+v", e)
+		}
+	}
+}

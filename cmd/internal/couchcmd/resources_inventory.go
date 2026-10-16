@@ -26,6 +26,8 @@ type resourceInventory struct {
 	sourceRows []couchcore.ActionableThreadSummary
 	hosted     []couchcore.LiveTTYObservation
 	sessions   map[couchcore.ThreadAddress]string
+	complete   bool
+	omitted    int
 }
 
 func newResourceInventory(console *couchtty.Console, c *couchcore.Couch, service *messageService) *resourceInventory {
@@ -90,84 +92,154 @@ func resourceRowFingerprint(row couchcore.ActionableThreadSummary, hosted []couc
 	return fmt.Sprintf("%s|%s|%s|%s|%s|%s|%v", row.Address.RepoScope, row.Address.Tag, row.WorkingPath, row.Target.Slot.WorktreeRoot, row.State, row.LastActiveAt.UTC().Format(time.RFC3339Nano), identities)
 }
 
+// Refresh publishes the bounded census before slow proofs. During a refresh,
+// readers retain slot names but never infer absence from unfinished discovery.
 func (r *resourceInventory) refresh(ctx context.Context, snapshot couchtty.ResourceInventorySnapshot) {
 	r.mu.Lock()
 	old := append([]couchcore.ResourceSlot(nil), r.rows...)
+	inheritedOmitted := 0
 	if !snapshot.InventoryKnown && snapshot.Rows == nil {
 		snapshot.Rows = append([]couchcore.ActionableThreadSummary(nil), r.sourceRows...)
+		inheritedOmitted = r.omitted
 	}
 	sessions := make(map[couchcore.ThreadAddress]string, len(r.sessions))
 	for a, s := range r.sessions {
 		sessions[a] = s
 	}
+	r.complete = false
 	r.mu.Unlock()
+	// Prefer hosted/admitted current threads, then other live rows, before parked
+	// records. Stable keys make cap selection reproducible across menu ordering.
+	active := map[couchcore.ThreadAddress]bool{}
+	for _, h := range snapshot.Hosted {
+		active[h.Address] = true
+	}
+	if r.service != nil && r.service.broker != nil {
+		for _, b := range r.service.broker.Connected() {
+			active[couchcore.ThreadAddress{RepoScope: b.Scope, Tag: couchcore.ThreadTag(b.Tag)}] = true
+		}
+	}
+	rows := append([]couchcore.ActionableThreadSummary(nil), snapshot.Rows...)
+	priority := func(row couchcore.ActionableThreadSummary) int {
+		if active[row.Address] {
+			return 0
+		}
+		if row.State == couchcore.ThreadLive {
+			return 1
+		}
+		if row.State == couchcore.ThreadDetached {
+			return 2
+		}
+		return 3
+	}
+	sort.SliceStable(rows, func(i, j int) bool {
+		a, b := priority(rows[i]), priority(rows[j])
+		if a != b {
+			return a < b
+		}
+		return resourceInventoryKey(rows[i]) < resourceInventoryKey(rows[j])
+	})
+	omitted := inheritedOmitted
+	if len(rows) > couchcore.ResourceMaxSlots {
+		omitted += len(rows) - couchcore.ResourceMaxSlots
+		rows = rows[:couchcore.ResourceMaxSlots]
+	}
+	next := make([]couchcore.ResourceSlot, len(rows))
 	nextSeen := map[string]string{}
 	nextEntries := map[string]couchcore.ResourceSlot{}
-	var next []couchcore.ResourceSlot
 	nextSessions := map[couchcore.ThreadAddress]string{}
-	for _, row := range snapshot.Rows {
-		if len(next) >= couchcore.ResourceMaxSlots || ctx.Err() != nil {
-			break
-		}
-		fingerprint := resourceRowFingerprint(row, snapshot.Hosted)
+	changed := make([]bool, len(rows))
+	for i, row := range rows {
 		key := resourceInventoryKey(row)
+		fingerprint := resourceRowFingerprint(row, snapshot.Hosted)
 		entry, exists := r.entries[key]
-		if !exists || r.seen[key] != fingerprint {
-			entry = couchcore.ResourceSlot{Thread: row.Address, Slot: row.Address.RepoScope + "/" + string(row.Address.Tag)}
+		changed[i] = !exists || r.seen[key] != fingerprint
+		if changed[i] {
+			entry = couchcore.ResourceSlot{Thread: row.Address, Slot: row.Address.RepoScope + "/" + string(row.Address.Tag), Reason: "ownership discovery pending"}
+			if row.Target.Kind == couchcore.ThreadTargetSlot {
+				entry.Slot = fmt.Sprintf("%s:%d", row.Target.Slot.Repo, row.Target.Slot.Number)
+			}
+			delete(sessions, row.Address)
+		}
+		next[i] = entry
+		nextSeen[key] = fingerprint
+		nextEntries[key] = entry
+		nextSessions[row.Address] = sessions[row.Address]
+	}
+	publish := func(complete bool) {
+		r.mu.Lock()
+		r.rows = append([]couchcore.ResourceSlot(nil), next...)
+		r.sourceRows = append([]couchcore.ActionableThreadSummary(nil), rows...)
+		r.hosted = append([]couchcore.LiveTTYObservation(nil), snapshot.Hosted...)
+		r.sessions = make(map[couchcore.ThreadAddress]string, len(nextSessions))
+		for a, s := range nextSessions {
+			r.sessions[a] = s
+		}
+		r.complete = complete
+		r.omitted = omitted
+		r.mu.Unlock()
+	}
+	publish(false)
+	workspaceComplete := true
+	for i, row := range rows {
+		if ctx.Err() != nil {
+			return
+		}
+		if changed[i] {
 			path := row.WorkingPath
 			if row.Target.Kind == couchcore.ThreadTargetSlot {
 				path = row.Target.Slot.WorktreeRoot
-				entry.Slot = fmt.Sprintf("%s:%d", row.Target.Slot.Repo, row.Target.Slot.Number)
 			}
 			if r.workspace != nil {
 				if id, err := r.workspace(ctx, path); err == nil && id.Address != nil && id.RepoIdentity != "" {
-					entry.Workspace = id
-					entry.Slot = *id.Address
+					next[i].Workspace = id
+					next[i].Slot = *id.Address
 				}
 			}
+			// Workspace identity is useful even while terminal ownership is slow.
+			publish(false)
 			if r.probe != nil && row.Address != (couchcore.ThreadAddress{}) {
 				binding, err := r.probe(ctx, row.Address)
 				if err == nil {
-					sessions[row.Address] = binding.Name
-				} else {
-					delete(sessions, row.Address)
+					nextSessions[row.Address] = binding.Name
 				}
 			}
 		}
-		nextSeen[key] = fingerprint
-		nextEntries[key] = entry
-		next = append(next, entry)
-		nextSessions[row.Address] = sessions[row.Address]
+		if next[i].Workspace.RepoIdentity == "" || next[i].Workspace.WorktreeRoot == "" {
+			workspaceComplete = false
+		}
+		nextEntries[resourceInventoryKey(row)] = next[i]
+		publish(false)
 	}
-	// A canceled pass must not erase rows it did not get to inspect.
 	if ctx.Err() != nil {
 		return
 	}
-	// Retire removed proof addresses, never a second empty-address slot.
-	retained := map[couchcore.ThreadAddress]bool{}
-	for _, row := range next {
-		retained[row.Thread] = true
-	}
-	for _, row := range old {
-		if !retained[row.Thread] {
-			r.cache.Forget(row.Thread)
+	complete := snapshot.InventoryKnown && omitted == 0 && workspaceComplete
+	// Unknown/omitted rows are not proof of removal; keep their exact cache proof.
+	if complete {
+		retained := map[couchcore.ThreadAddress]bool{}
+		for _, row := range next {
+			retained[row.Thread] = true
+		}
+		for _, row := range old {
+			if !retained[row.Thread] {
+				r.cache.Forget(row.Thread)
+			}
 		}
 	}
 	r.seen = nextSeen
 	r.entries = nextEntries
-	r.mu.Lock()
-	r.rows = next
-	r.sourceRows = append([]couchcore.ActionableThreadSummary(nil), snapshot.Rows...)
-	r.hosted = append([]couchcore.LiveTTYObservation(nil), snapshot.Hosted...)
-	r.sessions = nextSessions
-	r.mu.Unlock()
+	publish(complete)
 }
 
 // slots performs no process, filesystem, git or terminal IO. Wrapper admission
 // can update the shared proof cache independently of the inventory worker.
-func (r *resourceInventory) slots() []couchcore.ResourceSlot {
+func (r *resourceInventory) slots() []couchcore.ResourceSlot { return r.snapshot().Slots }
+
+func (r *resourceInventory) snapshot() couchcore.ResourceSlotInventory {
 	r.mu.Lock()
 	rows := append([]couchcore.ResourceSlot(nil), r.rows...)
+	complete, omitted := r.complete, r.omitted
 	hosted := append([]couchcore.LiveTTYObservation(nil), r.hosted...)
 	sessions := make(map[couchcore.ThreadAddress]string, len(r.sessions))
 	for a, s := range r.sessions {
@@ -196,9 +268,6 @@ func (r *resourceInventory) slots() []couchcore.ResourceSlot {
 		a := couchcore.ThreadAddress{RepoScope: b.Scope, Tag: couchcore.ThreadTag(b.Tag)}
 		i, exists := indexes[a]
 		if !exists {
-			if len(rows) >= couchcore.ResourceMaxSlots {
-				continue
-			}
 			i = len(rows)
 			indexes[a] = i
 			rows = append(rows, couchcore.ResourceSlot{Slot: b.Slot, Thread: a})
@@ -246,6 +315,21 @@ func (r *resourceInventory) slots() []couchcore.ResourceSlot {
 			}
 		}
 	}
-	sort.Slice(rows, func(i, j int) bool { return rows[i].Slot < rows[j].Slot })
-	return rows
+
+	live := map[string]bool{}
+	for _, b := range bindings {
+		live[b.Slot] = true
+	}
+	sort.SliceStable(rows, func(i, j int) bool {
+		if live[rows[i].Slot] != live[rows[j].Slot] {
+			return live[rows[i].Slot]
+		}
+		return rows[i].Slot < rows[j].Slot
+	})
+	if len(rows) > couchcore.ResourceMaxSlots {
+		omitted += len(rows) - couchcore.ResourceMaxSlots
+		rows = rows[:couchcore.ResourceMaxSlots]
+		complete = false
+	}
+	return couchcore.ResourceSlotInventory{Slots: rows, Complete: complete && omitted == 0, Omitted: omitted}
 }

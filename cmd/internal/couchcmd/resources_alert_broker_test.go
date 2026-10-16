@@ -70,7 +70,7 @@ func TestResourceAlertBrokerExactHubSelfDeliveryWithoutWorker(t *testing.T) {
 		t.Fatal("no self delivery")
 	}
 	r, ok, _ := b.ReceiptSnapshot(cp.State.Episodes[0].Effect.ID)
-	if !ok || r.Message.From != *hub || cp.State.Episodes[0].Phase != "notified" {
+	if !ok || r.Message.From != *hub || (cp.State.Episodes[0].Phase != "notified" || cp.State.Episodes[0].Delivery != couchcore.ResourceDeliveryAdmitted) {
 		t.Fatal("no admitted episode")
 	}
 	if err := d.dispatch(context.Background(), cp, save); err != nil {
@@ -89,7 +89,7 @@ func TestResourceAlertBrokerBusyQueuesOnce(t *testing.T) {
 		t.Fatal(err)
 	}
 	r, ok, _ := b.ReceiptSnapshot(cp.State.Episodes[0].Effect.ID)
-	if !ok || r.Status != couchmessage.Queued || cp.State.Episodes[0].Phase != "notified" {
+	if !ok || r.Status != couchmessage.Queued || (cp.State.Episodes[0].Phase != "notified" || cp.State.Episodes[0].Delivery != couchcore.ResourceDeliveryAdmitted) {
 		t.Fatalf("busy not admitted once: %+v %+v", r, cp)
 	}
 	if err := d.dispatch(context.Background(), cp, func(resourceCheckpoint) error { return nil }); err != nil {
@@ -122,7 +122,7 @@ func TestResourceAlertBrokerCrashIntentNeverResendsMissingReceipt(t *testing.T) 
 	if err := d.dispatch(context.Background(), &restored, save); err != nil {
 		t.Fatal(err)
 	}
-	if restored.Attempts[0].State != "unknown" {
+	if restored.Attempts[0].State != "unknown" || restored.State.Episodes[0].Delivery != couchcore.ResourceDeliveryUnknown {
 		t.Fatal(restored.Attempts)
 	}
 	if _, ok, _ := b.ReceiptSnapshot(restored.Attempts[0].ID); ok {
@@ -193,7 +193,7 @@ func TestResourceAlertBrokerRestartReconcilesAdmittedReceipt(t *testing.T) {
 	if err := d.dispatch(context.Background(), &restored, func(resourceCheckpoint) error { return nil }); err != nil {
 		t.Fatal(err)
 	}
-	if restored.State.Episodes[0].Phase != "notified" || restored.Attempts[0].State != "admitted" {
+	if (restored.State.Episodes[0].Phase != "notified" || restored.State.Episodes[0].Delivery != couchcore.ResourceDeliveryAdmitted) || restored.Attempts[0].State != "admitted" {
 		t.Fatal("receipt did not reconcile")
 	}
 }

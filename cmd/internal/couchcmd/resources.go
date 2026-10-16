@@ -26,7 +26,7 @@ type resourceReader interface {
 type resourceSampler struct {
 	history func() (time.Time, int)
 	reader  resourceReader
-	slots   func() []couchcore.ResourceSlot
+	slots   func() couchcore.ResourceSlotInventory
 	policy  couchcore.ResourcePolicy
 	state   couchcore.ResourceState
 	now     func() time.Time
@@ -77,7 +77,16 @@ func (s *resourceSampler) pass(ctx context.Context) {
 		sample.Errors = append(sample.Errors, "sampler CPU start: "+cpuErr.Error())
 	}
 	if s.slots != nil {
-		sample.Slots = s.slots()
+		inventory := s.slots()
+		sample.Slots = inventory.Slots
+		sample.InventoryComplete = inventory.Complete && inventory.Omitted == 0
+		sample.InventoryOmitted = inventory.Omitted
+		if !sample.InventoryComplete {
+			sample.Errors = append(sample.Errors, "slot inventory incomplete")
+		}
+		if inventory.Omitted > 0 {
+			sample.Errors = append(sample.Errors, fmt.Sprintf("slot inventory omitted %d rows at capacity", inventory.Omitted))
+		}
 	}
 	table, n, err := r.Table(ctx)
 	sample.Cost.TableCalls = n
@@ -95,7 +104,7 @@ func (s *resourceSampler) pass(ctx context.Context) {
 		sample.Errors = append(sample.Errors, "process table limit exceeded")
 	}
 	sample.Table = table
-	selection := couchcore.SelectResourceProcesses(table, sample.Slots, s.state.Provenance, sample.TableKnown)
+	selection := couchcore.SelectResourceProcesses(table, sample.Slots, s.state.Provenance, sample.TableKnown, sample.InventoryComplete)
 	rows := make(map[couchcore.ResourceProcessKey]procutil.Process, len(table))
 	pidCounts := map[int]int{}
 	for _, p := range table {
@@ -183,7 +192,7 @@ func (s *resourceSampler) pass(ctx context.Context) {
 	if s.history != nil {
 		v.HistoryOldest, v.HistoryFrames = s.history()
 	}
-	v = cloneResourceView(v) // Include final cache construction in sampler CPU.
+	v = cloneResourceView(projectResourceView(v)) // Include bounded wire projection and cache construction in sampler CPU.
 	end, n, endErr := r.SelfCPU(ctx)
 	v.Cost.NativeCalls += n
 	if endErr != nil {

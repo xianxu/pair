@@ -24,16 +24,49 @@ type ResourceSnapshotStore struct {
 	ValidateHistory    func([]byte) error
 }
 
+// ResourceSnapshotCorruptError means bytes from a safely opened regular file
+// cannot be used. They may be replaced with fresh observations. Filesystem and
+// unsafe-path failures deliberately do not carry this recovery permission.
+type ResourceSnapshotCorruptError struct {
+	Name string
+	Err  error
+}
+
+func (e *ResourceSnapshotCorruptError) Error() string {
+	return fmt.Sprintf("corrupt resource snapshot %s: %v", e.Name, e.Err)
+}
+func (e *ResourceSnapshotCorruptError) Unwrap() error { return e.Err }
+
+// ResourceSnapshotLoadError preserves independent artifact failures. Load still
+// returns the validated bytes of either healthy artifact.
+type ResourceSnapshotLoadError struct{ Checkpoint, History error }
+
+func (e *ResourceSnapshotLoadError) Error() string {
+	return errors.Join(e.Checkpoint, e.History).Error()
+}
+func (e *ResourceSnapshotLoadError) Unwrap() []error {
+	var out []error
+	if e.Checkpoint != nil {
+		out = append(out, e.Checkpoint)
+	}
+	if e.History != nil {
+		out = append(out, e.History)
+	}
+	return out
+}
 func (s ResourceSnapshotStore) Load() (checkpoint, history []byte, err error) {
-	checkpoint, err = s.read("checkpoint.json", ResourceCheckpointLimit, s.ValidateCheckpoint)
-	if err != nil {
-		return nil, nil, err
+	checkpoint, cpErr := s.LoadCheckpoint()
+	history, hErr := s.LoadHistory()
+	if cpErr != nil || hErr != nil {
+		err = &ResourceSnapshotLoadError{Checkpoint: cpErr, History: hErr}
 	}
-	history, err = s.read("history.json", ResourceHistoryLimit, s.ValidateHistory)
-	if err != nil {
-		return nil, nil, err
-	}
-	return
+	return checkpoint, history, err
+}
+func (s ResourceSnapshotStore) LoadCheckpoint() ([]byte, error) {
+	return s.read("checkpoint.json", ResourceCheckpointLimit, s.ValidateCheckpoint)
+}
+func (s ResourceSnapshotStore) LoadHistory() ([]byte, error) {
+	return s.read("history.json", ResourceHistoryLimit, s.ValidateHistory)
 }
 
 func (s ResourceSnapshotStore) read(name string, limit int, validate func([]byte) error) ([]byte, error) {
@@ -57,18 +90,21 @@ func (s ResourceSnapshotStore) read(name string, limit int, validate func([]byte
 	if err != nil {
 		return nil, err
 	}
-	if !info.Mode().IsRegular() || info.Size() > int64(limit) {
-		return nil, fmt.Errorf("unsafe or oversized resource snapshot %s", name)
+	if !info.Mode().IsRegular() {
+		return nil, fmt.Errorf("unsafe resource snapshot %s", name)
+	}
+	if info.Size() > int64(limit) {
+		return nil, &ResourceSnapshotCorruptError{Name: name, Err: errors.New("byte limit exceeded")}
 	}
 	raw, err := io.ReadAll(io.LimitReader(f, int64(limit)+1))
 	if err != nil {
 		return nil, err
 	}
 	if len(raw) > limit {
-		return nil, fmt.Errorf("resource snapshot %s exceeds limit", name)
+		return nil, &ResourceSnapshotCorruptError{Name: name, Err: errors.New("byte limit exceeded")}
 	}
 	if err := validate(raw); err != nil {
-		return nil, fmt.Errorf("resource snapshot %s: %w", name, err)
+		return nil, &ResourceSnapshotCorruptError{Name: name, Err: err}
 	}
 	return raw, nil
 }

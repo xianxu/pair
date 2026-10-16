@@ -38,7 +38,7 @@
 
 | Name | Lives in | Status | Wraps |
 |---|---|---|---|
-| NativeResourceReader | `cmd/internal/procutil/resource_darwin.go`, `resource_other.go`, `resource.go` | new | libproc and bounded process table/identity sysctls |
+| NativeResourceReader | `cmd/internal/procutil/resource_darwin.go`, `resource_unsupported.go`, `resource.go` | new | libproc and bounded process table/identity sysctls |
 | ResourceWorld | `cmd/internal/couchcore/resource_fake_test.go` | new | stateful fake process generations, counters, errors and clock |
 | ResourceRoot evidence handoff | `cmd/internal/couchcmd/message_service.go`, `cmd/internal/couchcore/artifactcollision.go`, `cmd/internal/couchtty/console_resources.go` | modified/new | existing authenticated server proof and hosted process roots |
 | resourceSampler | `cmd/internal/couchcmd/resources.go` | new | reader, cached slot/idle snapshots, timer, reducer, store, broker |
@@ -198,3 +198,15 @@ Existing domain names ResourceObservation and ResourceStore already refer to slo
 ### 2026-10-15 — TL sequences live acceptance after close review
 
 Receipt5e56f410-ff46-4aad-b623-660fc4da8ca7: pair:0 remains staged for#544, with#569 awaiting the same restart. TL directs finish recorded suite and close review now, then **hold**. TL will combine#544/#569/#587 for one Couch restart after#584, probably tomorrow morning, with cadence2s/write-duration6s and a designated scratch slot. Only then run all-slot visibility, one write alert, sustained silence, recovery and re-arm. No staging/restart or landing is authorized before that acceptance. The live Done-when remains outstanding; if close requires completed plan checkboxes, use its precise plan-check acknowledgment for this explicitly deferred acceptance, not a fabricated pass.
+
+### 2026-10-15 — close review corrections
+
+BR-1: bound the cached wire projection below the existing broker frame envelope using actual JSON byte sizes. Preserve every slot aggregate; shorten long presentation labels explicitly and allocate independent detail budgets to processes, proven orphans, unproven candidates, episodes and diagnostics, with omission counts. Projection runs inside measured sampling, never on a query. Prove maximum supported cardinalities through a real Unix socket (ARCH-CONSTRAINTS).
+
+BR-2: load checkpoint and history independently. Malformed regular snapshots can rebuild with explicit continuity/deduplication warnings; valid sibling evidence survives. Unsafe paths and transient I/O remain protected and retry rather than permanently latching failure. Recovered checkpoints reset rate baselines before further alert decisions.
+
+BR-3: slot inventory publishes completeness and omitted counts. Startup, cancellation and truncation never prove absence; prioritize live rows under the cap and disclose coverage loss. Positive generation-fenced root death remains evidence. A barrier regression samples while discovery is withheld.
+
+BR-4: correct the integration table's unsupported platform filename to resource_unsupported.go, matching the implemented !darwin || !cgo adapter.
+
+BR-5: production delivery results and restart receipt reconciliation enter the pure episode reducer with immutable effect-ID fencing. Persist and validate admitted/refused/unknown outcomes; adapters no longer assign authoritative phases (ARCH-PURE).

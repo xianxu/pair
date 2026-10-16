@@ -4012,3 +4012,16 @@ History retains aggregate slot frames and orphan/unattributed summaries for at
 most 24 hours, 1,440 frames and 4 MiB. The separate checkpoint is capped at
 2 MiB. Both use fixed bounded replacement stages, at most 12 MiB including
 current files and stages. See [resource snapshot retention](storage-retention.md#resource-monitor-snapshots-587).
+
+The cached response is a byte-budgeted projection (`resources_projection.go`)
+within the broker's frame envelope. It preserves all bounded slot aggregates,
+shortens long presentation labels, and reports omitted detail counts separately
+for processes, orphans, unproven candidates, episodes and diagnostics. Projection
+cost is included in sampling; queries only copy the cached result. Incomplete
+startup or capped inventories cannot prove owner disappearance.
+
+Checkpoint and history recovery are independent. Corrupt regular files rebuild
+with explicit continuity warnings; a valid checkpoint retains alert suppression
+when history is damaged. An invalid checkpoint starts without provenance or
+prior deduplication claims. Unsafe paths and transient I/O retry without
+replacement; restored checkpoints begin with fresh rate baselines.
