@@ -993,3 +993,16 @@ func (b *Broker) SetSubmissionObserver(observe func(Binding, uint64)) {
 	defer b.mu.Unlock()
 	b.submissionObserver = observe
 }
+
+// ResourceIdle returns pending-work evidence without observation or alias IO.
+// known is false for disconnected generations; the caller combines this with
+// the exact wrapper's settled evidence rather than inferring idle from silence.
+func (b *Broker) ResourceIdle(binding Binding) (pending, known bool) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	a := b.actors[binding]
+	if a == nil || !a.state.Connected() {
+		return false, false
+	}
+	return actorCandidate(a, b.now()).Pending, true
+}

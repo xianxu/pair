@@ -27,6 +27,7 @@ is a request, never operator approval or evidence that work is accepted.
 | Give an idle slot a fresh agent conversation | `couch --reload-context pair:2 --confirm` |
 | Bring an idle slot up for new work (refresh, then a fresh conversation) | `couch --prepare pair:2 --confirm` |
 | End an orphaned server's tree (its socket is gone) | `couch --reap pair:2 --confirm` |
+| Inspect cached per-slot CPU, RSS, disk writes and orphan candidates | `couch --resources [--json]` |
 | See a slot's resources and repair plan | `couch --show pair:2` |
 | Repair a slot's workspace now | `couch --reconcile pair:2` |
 | Write a session-sync file you own (never by hand) | `couch --session-sync read --section 'Needs you' FILE`, then `couch --session-sync write --section 'Needs you' BODY FILE --if-hash H` |
@@ -63,7 +64,7 @@ queue, or cross-supervisor delivery.
 
 ## What each verb costs
 
-- **light:** `--notify`, `--help`, `--skill`, `--actors`, `--send-to`, `--message-status`, `--operation-status`, `--peek` (its --transcripts option costs seconds), `--broadcast-list`, `--session-sync`, `--archived`, `--adopt-store`, `--broadcast-web-query`, `--broadcast-web-submit`, `--broadcast-web-replay` (then serves until stopped)
+- **light:** `--notify`, `--help`, `--skill`, `--actors`, `--send-to`, `--message-status`, `--operation-status`, `--peek` (its --transcripts option costs seconds), `--broadcast-list`, `--resources`, `--session-sync`, `--archived`, `--adopt-store`, `--broadcast-web-query`, `--broadcast-web-submit`, `--broadcast-web-replay` (then serves until stopped)
 - **seconds:** `--resume-candidates`, `--move-slot`, `--list`, `--show`, `--reconcile`, `--reap`, `--broadcast-web-fidelity` (a headless Chrome)
 - **heavy:** `couch` (launch), `--recover-plan-from-sdlc`, `--resume`, `--reboot`, `--relaunch`, `--reload-context`, `--prepare`, `--recover`, `--switch-agent`, `--recovery-confirmation`
 

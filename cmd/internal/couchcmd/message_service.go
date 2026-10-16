@@ -20,6 +20,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
 	"github.com/xianxu/pair/cmd/internal/couchtty"
+	"github.com/xianxu/pair/cmd/internal/procutil"
 	"github.com/xianxu/pair/cmd/internal/strictjson"
 	core "github.com/xianxu/pair/cmd/internal/submission"
 	"golang.org/x/sys/unix"
@@ -154,6 +155,7 @@ const (
 // timers in arrival order. Request goroutines read
 // only the published snapshot of connected bindings.
 type messageService struct {
+	resources atomic.Pointer[resourceSampler]
 	hubMoves  atomic.Pointer[hubMoveService]
 	facts     atomic.Pointer[supervisionFactLog]
 	server    *couchmessage.Server
@@ -285,6 +287,17 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch, configur
 		return nil, nil
 	}
 	// Validated before any socket is taken: a bad knob refuses the start.
+	resourceEnv := map[string]string{}
+	for _, item := range os.Environ() {
+		key, value, _ := strings.Cut(item, "=")
+		if strings.HasPrefix(key, "COUCH_RESOURCE_") {
+			resourceEnv[key] = value
+		}
+	}
+	resourcePolicy, err := couchcore.ParseResourcePolicy(resourceEnv)
+	if err != nil {
+		return nil, err
+	}
 	threshold, err := waitNoticeThreshold(os.Getenv)
 	if err != nil {
 		return nil, err
@@ -453,6 +466,13 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch, configur
 	service.broker.SetNiceView(rn.view)
 	service.workers.Add(1)
 	go func() { defer service.workers.Done(); rn.run(service.lifetime, reniceEvery) }()
+	inventory := newResourceInventory(console, c, service)
+	persistence := newResourcePersistence(namespace, newResourceAlertDispatcher(service))
+	sampler := &resourceSampler{reader: procutil.NativeResourceReader{}, slots: inventory.slots, policy: resourcePolicy, state: persistence.checkpoint.State, persist: persistence.persist, history: persistence.historySummary}
+	service.resources.Store(sampler)
+	service.workers.Add(2)
+	go func() { defer service.workers.Done(); inventory.run(service.lifetime) }()
+	go func() { defer service.workers.Done(); sampler.run(service.lifetime) }()
 	return service, nil
 }
 
@@ -744,6 +764,15 @@ func (s *messageService) connectedWorkspace(ctx context.Context, b couchmessage.
 
 func (s *messageService) handle(ctx context.Context, request couchmessage.Request) (response couchmessage.Response) {
 	switch {
+	case request.Op == "resources":
+		if err := couchmessage.ValidateRequest(request); err != nil {
+			return couchmessage.Response{Code: "invalid-request", Error: err.Error()}
+		}
+		if sampler := s.resources.Load(); sampler != nil {
+			view := sampler.view()
+			return couchmessage.Response{Code: "ok", Resources: &view}
+		}
+		return couchmessage.Response{Code: "unsupported", Error: "resource sampler unavailable"}
 	case request.Op == "resume-candidates":
 		return s.handleResumeCandidates(ctx, request)
 	case request.Op == "move-slot":

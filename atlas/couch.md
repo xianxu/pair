@@ -3937,3 +3937,78 @@ agents report exact-ID/Fresh advice. Codex's approved unreserved exception is ow
 by the shared CodexIndirectResumeCompatibility policy, with one wrapper notice;
 #571 will read effective configuration from files and verify native DB semantics.
 No app-server configuration process is part of this implementation. Unsupported remote/PR/cloud and other existing-context selectors derive from the same authority as Fresh validation and refuse before launch, including both wrapper entry forms; option values and prompt text remain literal.
+
+## Resource monitoring (#587)
+
+`couch --resources [--json]` reads the running supervisor's cached resource view
+through the broker socket. Queries perform no process scan, terminal query or
+Git lookup. One joined supervisor worker samples at one-minute cadence; a
+separate inventory worker authenticates roots at startup and on changed
+thread/helper/lifecycle evidence. Routine unchanged menu refreshes do not
+repeat ownership probes.
+
+Ownership starts with an authenticated terminal server `(PID, start identity)`
+from `ScopedThreadArtifactCollisionChecker.NamedPairSessionContext`, published
+in `ResourceRootCache` before being consumed by the sampler. Probe revisions
+are assigned before I/O, so a late old result cannot replace a newer proof.
+Cached console rows include draft-only, detached, parked and never-started
+slots; hosted helper/client roots and admitted wrapper bindings supplement
+server descendants. Missing workspace or terminal evidence remains explicit
+unknown coverage. A slot's branch or quiet output alone never proves idle:
+idle requires the matching wrapper's settled state and no pending broker work
+or picker.
+
+`couchcore/resource*.go` owns pure generation-fenced attribution, deltas,
+episodes and bounded history; `couchcmd/resources_inventory.go` owns root
+refresh; `couchcmd/resources.go` owns sampling and storage; `resources_alert.go`
+owns checkpoint-before-send delivery. `procutil/resource*.go` provides the
+native reader. Darwin with cgo supports cumulative process CPU, current RSS and
+physical disk-write bytes. Other builds report unsupported counters. PID reuse,
+changed parentage, zombies, partial reads and counter regression cannot become
+valid rate samples. The first observation establishes a baseline; CPU 100%
+means one core. Observed cumulative totals omit unsampled lifetimes.
+
+Remembered process generations preserve original slot ownership after
+reparenting; confirmed root loss or thread replacement can expose proven
+orphans. A process first seen after orphaning has no invented slot owner.
+Known process kinds parented by PID 1 above the RSS floor are shown as
+**unattributed (unproven)**, never acted on. Only candidate classification may
+inspect argv; full command lines are not retained or displayed. Sampling can
+miss a process born and exited, or born and orphaned, between observations.
+Monitoring sends messages and does not kill, restart or renice anything.
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `COUCH_RESOURCE_CADENCE` | `1m` | Sample interval, 1 second through 1 hour |
+| `COUCH_RESOURCE_WRITE_BYTES_PER_SECOND` | `2097152` | Sustained disk-write threshold |
+| `COUCH_RESOURCE_WRITE_DURATION` | `10m` | Required sustained-write interval |
+| `COUCH_RESOURCE_PROCESS_RSS_BYTES` | `8589934592` | Per-process RSS threshold |
+| `COUCH_RESOURCE_IDLE_CPU_PERCENT` | `90` | Idle-slot CPU threshold, percent of one core |
+| `COUCH_RESOURCE_IDLE_CPU_DURATION` | `15m` | Required idle-CPU interval |
+| `COUCH_RESOURCE_ORPHAN_RSS_BYTES` | `268435456` | Proven-orphan RSS threshold; two samples required |
+
+Set policy before starting Couch. Unknown or malformed resource settings refuse
+startup. Unknown measurements interrupt accumulation rather than clearing an
+already admitted incident. Alerts resolve the current owning hub and use normal
+broker delivery. Immutable envelopes are checkpointed before dispatch;
+ambiguous admission survives restart without an automatic duplicate send.
+Unproven candidates remain report-only.
+
+The displayed cost records attempted native calls, sampler-thread CPU and wall
+time. At most three table size/read attempts plus two self-CPU reads cost eight
+native calls; successful usage with identity fencing adds two per process, plus
+actual candidate-command calls. Sampler-thread CPU excludes concurrent GC and
+other goroutines. A native-reader-only short measurement after bulk conversion
+averaged 1.643 ms (maximum 2.391 ms), or 0.002739% of one core at 60-second
+cadence. Full sampling plus near-cap history persistence (953 frames,
+4,189,412 bytes, 27 usage observations) averaged 68.414 ms across three passes,
+maximum 69.011 ms: 0.114023% of one core per minute. The qualified target is
+below 0.2%, with a 300 ms maximum pass CPU budget; the product requirement is
+well under 1%. This run used 58 native attempts and two snapshot publications
+per pass. Current-pass final CPU is published in the cached view after storage
+completes; its history frame cannot include the completed cost of writing itself.
+
+History retains aggregate slot frames and orphan/unattributed summaries for at
+most 24 hours, 1,440 frames and 4 MiB. The separate checkpoint is capped at
+2 MiB. Both use fixed bounded replacement stages, at most 12 MiB including
+current files and stages. See [resource snapshot retention](storage-retention.md#resource-monitor-snapshots-587).

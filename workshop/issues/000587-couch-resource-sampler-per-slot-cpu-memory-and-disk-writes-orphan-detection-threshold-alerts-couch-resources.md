@@ -115,3 +115,8 @@ item: real-api-discovery design=0.00 impl=0.24
 design-buffer: 0.15
 total: 4.883
 ```
+
+
+2026-10-15: change-code passed plan-quality CLEAN and estimate-quality INFO (design checkpoint committed by SDLC). Implemented native, pure model, root publication/inventory, bounded storage/history, cached CLI and broker alert seams with targeted regressions. Combined targeted Resource|ProductionArtifact run passed all6packages. Native SDK bulk projection fixes measured cgo overhead; full near-cap persistence measurement and TL-authorized revised<0.2% qualification are recorded in plan Revisions. Estimate issue/spec design covers already-incurred shaping, not remaining work; review and API integration allowances include qualification execution/landing, and actuals determine idle classification. Full suite, smoke, boundary review and landing remain outstanding.
+
+2026-10-15: Near-cap cost requalification after TL budget clarification passed: mean68.414ms/max69.011ms CPU,0.114023% at60s; ~1008hostrows,27usageobservations,58nativeattempts and2publications/~4.19MiB perpass,3passes. Targeted worker race tests passed. Real-broker regressions prove hub self-delivery with the original worker disconnected, queued admission once, persisted-intent-before-send, restart reconciliation, and conservative unknown suppression. Design review corrections also enforce closed resources request fields, generation-unknown retention, runtime episode caps and alert offender names.

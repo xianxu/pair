@@ -81,6 +81,7 @@ func (NoThreadArtifactCollisions) Quiesce(ThreadAddress) error { return nil }
 
 type ScopedThreadArtifactCollisionChecker struct {
 	ownerScope    *sessionOwnerScope
+	ResourceRoots *ResourceRootCache
 	GlobalDataDir string
 	// SessionIndexes is shared by value copies; nil preserves uncached literals.
 	SessionIndexes *launcher.SessionNameIndexCache
@@ -107,7 +108,7 @@ func (c ScopedThreadArtifactCollisionChecker) serverStates() launcher.ServerStat
 }
 
 func NewScopedThreadArtifactCollisionChecker(globalDataDir string) ScopedThreadArtifactCollisionChecker {
-	return ScopedThreadArtifactCollisionChecker{GlobalDataDir: globalDataDir, Sessions: launcher.OSRuntime{}, ownerScope: &sessionOwnerScope{}, SessionIndexes: launcher.NewSessionNameIndexCache(), OwnerLaunches: sessioninventory.NewOwnerLaunchCache()}
+	return ScopedThreadArtifactCollisionChecker{GlobalDataDir: globalDataDir, ResourceRoots: NewResourceRootCache(), Sessions: launcher.OSRuntime{}, ownerScope: &sessionOwnerScope{}, SessionIndexes: launcher.NewSessionNameIndexCache(), OwnerLaunches: sessioninventory.NewOwnerLaunchCache()}
 }
 
 func (c ScopedThreadArtifactCollisionChecker) PairLifecycleIO() LifecycleIO {
@@ -305,7 +306,9 @@ func (c ScopedThreadArtifactCollisionChecker) NamedPairSessionContext(ctx contex
 	if err := validateThreadAddress(address); err != nil {
 		return PairSessionBinding{}, err
 	}
+	revision := c.ResourceRoots.Begin(address, name)
 	owner, err := c.ownerProbeForContext(ctx).Probe(ctx, name, c.GlobalDataDir, address.RepoScope, string(address.Tag))
+	c.ResourceRoots.Complete(address, revision, owner, err)
 	binding := PairSessionBinding{Name: name, Owner: &owner}
 	if err != nil {
 		return binding, err

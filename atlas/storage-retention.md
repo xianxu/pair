@@ -128,3 +128,28 @@ restore path when restoring archived records.
 
 Verification lives beside these packages, in `nvim/retention_test.lua`, and in
 `tests/retention-test.sh` and `tests/adapt-schema-test.sh`.
+
+## Resource monitor snapshots (#587)
+
+Couch's resource sampler owns a namespace-local checkpoint and rolling aggregate
+history, separate from `diagnosticlog` and its 365-day retention. The single
+supervisor writer uses `couchcore.ResourceSnapshotStore`: `checkpoint.json`
+(up to 2 MiB), `history.json` (up to 4 MiB), and one fixed replacement stage for
+each. Current files plus stages are bounded at 12 MiB; writes validate their
+encoded size and schema before publication. Nonregular files, symlinks,
+oversized input and malformed schemas refuse rather than being interpreted as
+empty ownership evidence.
+
+The history writer prunes by sample age (24 hours), count (1,440 frames) and
+encoded bytes (4 MiB). Frames contain aggregate slot usage, orphan/unattributed
+summaries and coverage/cost metadata, not full argv or every process's history.
+The checkpoint preserves bounded generation provenance, baselines and alert
+admission state. Restart validates that state; it does not convert stale roots
+into live ownership or ambiguous delivery into permission to resend.
+
+While Couch is stopped the files remain bounded; the next load/write prunes
+expired history. No timer daemon runs solely to delete a stopped supervisor's
+snapshot. These namespace files are classified in `artifactpath`'s production
+source inventory as non-Pair artifacts and are not session-retention clock
+renewals or Pair tag-bearing families. The implementation and policy are mapped
+in [Couch resource monitoring](couch.md#resource-monitoring-587).

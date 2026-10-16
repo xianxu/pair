@@ -425,6 +425,7 @@ couch --peek repo:N --all [--transcripts]
                                            complete current recording projection [heavy]; bounded, plain text
 couch --archived         threads removed from couch, with their records kept
 couch --actors [--json]  live peer-message receivers in this Couch namespace
+couch --resources [--json] latest cached process-resource sample
 couch --broadcast-list [--json]   every link out by kind (screen, web view, web drive) and its viewers, and the
                          recordings shared for replay (pair#477); never a link
 couch --broadcast-web-query DIR dom|events|notes|link ...
@@ -665,6 +666,23 @@ each slot's agent niceness and how many of its processes run low. A slot whose
 agent itself runs below Couch's own priority (started under the earlier
 whole-slot nice) gets one notice; only root can raise a priority again, so relaunch the slot to restore
 it.
+
+**Resource monitoring.** `couch --resources` (or `--resources --json`) reads
+Couch's latest cached sample: per-slot CPU, RSS and physical disk-write rates,
+proven surviving orphan processes, and unproven candidates listed separately.
+The default interval is one minute. CPU uses 100% per core; unavailable counters
+stay unavailable. Totals cover observed intervals, so short-lived processes
+between samples are not lifetime accounting. The command also shows sample age
+and the sampler's own native-call, CPU and elapsed-time cost.
+
+Couch alerts the owning hub for sustained writes above 2 MiB/s for ten minutes,
+a process above 8 GiB RSS, an idle slot above 90% of one core for fifteen minutes,
+or a proven orphan above 256 MiB across two samples. Each incident is admitted
+once through normal messaging; unresolved delivery is not blindly retried.
+Unattributed candidates are report-only. Monitoring never kills processes.
+See [resource monitoring](atlas/couch.md#resource-monitoring-587) for policy
+settings, ownership evidence, platform support and coverage limits. Aggregate
+history rolls over after 24 hours and is bounded independently of debug logs.
 
 **Adopt existing state before cutover.** Stop and upgrade all old Couch binaries
 first. Couch keeps the chosen store in place, along with its Pair data directory

@@ -123,6 +123,11 @@ func (c *Console) finishMenuRefresh(result menuRefreshResult) {
 	seeded, pending := false, 0
 	var root couchcore.ThreadAddress
 	c.mu.Lock()
+	if result.err == nil {
+		c.resourceRows = cloneResourceRows(result.inventory)
+		c.resourceRowsKnown = true
+		c.resourcesChangedLocked()
+	}
 	if c.menuReady {
 		event := MenuEvent{Kind: MenuEventInventory, Inventory: result.inventory, Generation: result.generation}
 		if result.err != nil {
