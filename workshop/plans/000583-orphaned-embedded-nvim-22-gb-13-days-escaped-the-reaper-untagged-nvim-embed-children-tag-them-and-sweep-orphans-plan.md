@@ -381,14 +381,18 @@ func ClassifyNvimReap(row NvimReapRow) (kill bool, reason string)
 **Files:**
 - Create: `cmd/internal/procutil/identity_age_test.go`
 
-- [ ] **Step 1: Failing test:** spawn `sleep 30` as an owned child, read `Identity(pid)`, parse
+- [x] **Step 1: Failing test:** spawn `sleep 30` as an owned child, read `Identity(pid)`, parse
   `"<sec>.<usec>"`, assert the elapsed time since that stamp is between 0 and 5 s. This is the assumption
   every age threshold rests on, so it is measured, not read from a header (ARCH-MOCK: the fake models what
-  a live check proves).
-- [ ] **Step 2: Run, expect FAIL** until `ParseIdentityTime` exists.
-- [ ] **Step 3: Implement** `func ParseIdentityTime(identity string) (time.Time, bool)` in `procutil`
-  (rejecting a malformed or empty stamp) and use it wherever age is derived.
-- [ ] **Step 4: Run, expect PASS.** Commit `#583: derive process age from the kernel identity stamp`
+  a live check proves). *(Landed wider — see `## Revisions`: the live test also runs on linux, and three pure
+  parser tables cover both token shapes on every platform.)*
+- [x] **Step 2: Run, expect FAIL** until `ParseIdentityTime` exists. *(Red first, and red for the right
+  reason: the live check caught the test passing a pid where the function takes a token.)*
+- [x] **Step 3: Implement** `func ParseIdentityTime(identity string) (time.Time, bool)` in `procutil`
+  (rejecting a malformed or empty stamp) and use it wherever age is derived. *(Landed as
+  `StartTimeFromIdentity(identity string) (time.Time, bool)` plus the pure `ParseIdentityWallClock`,
+  `ParseIdentityTicks` and `ParseBootTime` — see `## Revisions`.)*
+- [x] **Step 4: Run, expect PASS.** Commit `#583: derive process age from the kernel identity stamp`
 
 ### Task 10: The cwd probe
 
@@ -950,3 +954,31 @@ func ClassifyOrphanNvim(row procutil.Process, args []string, cwd string, cwdKnow
   other three configs write no second line — 21 assertions across the four configs.
   Atlas `:385` and `:1256` re-edited (the record's second line is review's attribution; the binding rule;
   "the pid a record names is not itself the attribution"). `workshop/lessons.md` gains the BR-7 rule.
+- **2026-10-16 — Task 9 implemented; the age derivation had to become platform-aware.** Reason: the task's
+  title asserts "the identity stamp is a wall clock", and that is true only on darwin. Measured in the tree
+  rather than assumed: `table_darwin.go:31` builds `"<sec>.<usec>"` with two `FormatInt` calls, so the
+  fractional field is an *integer* microsecond count (".5" is 5us, not half a second — reading it as a
+  fraction would date every birth up to 100ms late, an error an hours-wide threshold absorbs silently), while
+  `command_parse.go:91` sets linux's token to field 22 of `/proc/pid/stat`, ticks since boot. A darwin-only
+  parser would have left the whole M2 sweep silently inert on linux, which is a supported platform
+  (`table_linux.go`, `identity_linux.go`) and a CI one (`merge-check.yml` runs ubuntu-latest). Silent absence
+  of a leak detector is worse than the conversion, and the package already carries the precedent for handling
+  exactly this asymmetry: `strict_identity.go` switches on `runtime.GOOS` and documents why linux adds its
+  boot ID ("start ticks repeat across reboots").
+  Delta: `procutil.StartTimeFromIdentity(identity string) (time.Time, bool)` — the token in, the birth out,
+  so a caller holding a snapshot row pays no syscall, which is what Task 13's cost gate assumes. Darwin parses
+  the wall clock; linux converts ticks through `/proc/stat`'s `btime` and `USER_HZ`; any other platform
+  reports false. Three pure parsers sit beside it (`ParseIdentityWallClock`, `ParseIdentityTicks`,
+  `ParseBootTime`) so both token shapes are fixture-tested on every platform, and `false` is contracted to
+  mean *age unknown*, never *age zero* — an unknown age is not an orphan, which is M1's family rule applied
+  to the new evidence.
+  Two assumptions are measured rather than trusted. `USER_HZ` is hardcoded at 100 (pure-Go linux cannot call
+  `sysconf`, and every linux target this module builds for reports 100); a wrong rate moves a just-started
+  child's birth far enough to fail the live test's 5 s window, and the live test now runs on linux in CI
+  instead of skipping there. `btime` is read per call, not cached: it is one small file, only for rows that
+  already cleared the cheap gates, and a cache would survive a reboot and then date every process from the
+  previous boot.
+  The red step earned its keep: the first run failed because the test passed a pid where the function takes a
+  token, which is why the name is `StartTimeFromIdentity` and not the plan's `ParseIdentityTime` — a function
+  that does IO on one platform should not be called "parse", and the argument should not be mistakable for a
+  pid.
