@@ -82,6 +82,10 @@ Reviewer disposed BR-1/BR-2 with independently failing negative controls, and re
 
 BR-3 producer sweep: artifactpath Paths covers WrapEvents, Parked/parked scrollback raw-events-metadata, Scrollback raw-events-ANSI-viewport, SessionBindings, Ledger, AdaptLog and FullscreenDiagnostics in both legacy and scoped roots. Public ThreadStore Create/Archive and EnrollSlotRepository produce actual global and slot-local records, archive, archive-grace and manifest paths; declarations also cover preferences/journal. DirWriter produces webcast asset/stream files under configured Couch storage. Deliberate exclusions: openlocks/fullscreen control files, store locks/publication staging, saved-work checkout trees, current registry/descriptions, Chrome profiles and origin-privacy configuration. Patterns denote files or directory subtrees; no scanner. Tests first failed on missing legacy/global/local coverage, wrong global root and overbroad control inclusion, then passed. Inventory/catalog race pass2.764s. CLI COUCH_STORE_DIR propagation also failed first (used default home instead of configured store) then passed after adding the input to the CLI adapter.
 
+### 2026-10-15 — SHIP and recorded suite
+
+Round3 returned SHIP with zero open findings; close evidence ab5aed090e8fcef108a311ee45588e0751161f21. Required recorded suite passed on ec92c1fe36f427d3b6accd665a4b7147f79bf3ba: exit0 in13m11s, logSHA256 prefix e37eb0d26278, saved at the git common directory sdlc/local-checks/ec92c1fe36f427d3b6accd665a4b7147f79bf3ba/suite.log. Includes complete shell/editor checks and go test ./... (couchcore483.774s, historyarchive19.646s), no waivers or known failures. Subsequent changes are close evidence/docs and main’s unrelated issue-only commit. PR358 ready for the mandatory landing gate; TL-owned ops project will be reported to hub for ticking.
+
 ## Revisions
 
 ### 2026-10-15 — proposed foundation implementation scope
