@@ -1,6 +1,6 @@
 ---
 id: 000606
-status: working
+status: codecomplete
 created: 2026-10-15
 updated: 2026-10-16
 estimate_hours:
@@ -13,6 +13,14 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
+actual_hours: 0.32
+tracker:
+    version: 1
+    completion:
+        token: close-113584a35748
+        repository: github.com/xianxu/pair
+        reviewed_head: ee39876a52fc7fc8a51be8fdc89e2e5dd1dc8f84
+        evidence_commit: 79f9d576804864857a2d7d1f6a42eca986f0838a
 ---
 
 # Resource monitor: a slot's detached test suite (sdlc local-check) is reported as orphans; attribute it to the slot
