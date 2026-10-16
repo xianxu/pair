@@ -75,6 +75,8 @@ Filter native-owner candidates from kernel metadata before requiring argv; unrel
 
 - 2026-10-15: BR-1 correction sweeps the entire concept table, naming actual pure helpers and all IO/scheduling adapters. BR-2 live conformance passed (0.24s), then five -race repetitions passed (2.230s total), with the complete procutil package passing (3.801s). A temporary source overlay that wrongly treated read-only descriptors as writable went RED on the new fixture (read-only descriptor was reported writable); the real production boundary went GREEN. The fixture is selected by both existing live targets and their recurring macOS workflow; no protected workflow/config paths changed. Production behavior is unchanged by this review delta.
 
+- 2026-10-15: The post-review full run caught TestConformanceWorkflowRunsWithoutSiblingMakefile, whose exhaustive expected-command map still listed the original three commands. Updated it to include the new procutil live check and derive the expected count from that map. All TestConformanceWorkflow cases passed in 0.366s. This is the companion expectation for BR-2 wiring, with no production change. The prior run remains pinned to 44b10b71 and is finishing; a fresh recorded suite and narrow post-close review are required for this test-only correction.
+
 ## Revisions
 
 ### 2026-10-15 15:55 — approved narrow legacy association
