@@ -144,14 +144,21 @@ func (c Cloudflared) Open(ctx context.Context, l net.Listener) (Handle, error) {
 		rec.release()
 		return nil, err
 	}
-	stderr, err := cmd.StderrPipe()
+	stderr, stderrWriter, err := cloudflaredStderrPipe(cmd)
 	if err != nil {
 		rec.release()
 		return nil, err
 	}
 	if err := cmd.Start(); err != nil {
+		_ = stderr.Close()
+		if stderrWriter != nil {
+			_ = stderrWriter.Close()
+		}
 		rec.release()
 		return nil, err
+	}
+	if stderrWriter != nil {
+		_ = stderrWriter.Close()
 	}
 	h := &cloudflaredHandle{cmd: cmd, stdin: stdin, guarded: c.Guard != nil, exited: make(chan struct{}), record: rec}
 	found := make(chan string, 1)
@@ -169,10 +176,7 @@ func (c Cloudflared) Open(ctx context.Context, l net.Listener) (Handle, error) {
 			}
 		}
 	})
-	go func() {
-		_ = cmd.Wait()
-		close(h.exited)
-	}()
+	go h.waitForExit(func() {})
 
 	timeout := c.OpenTimeout
 	if timeout <= 0 {
@@ -198,6 +202,16 @@ func (c Cloudflared) Open(ctx context.Context, l net.Listener) (Handle, error) {
 		h.Close()
 		return nil, ctx.Err()
 	}
+}
+
+func cloudflaredStderrPipe(cmd *exec.Cmd) (io.ReadCloser, io.Closer, error) {
+	r, w, err := os.Pipe()
+	if err != nil {
+		return nil, nil, err
+	}
+	// Wait must not close this reader: the scanner owns it until drained.
+	cmd.Stderr = w
+	return r, w, nil
 }
 
 // tunnelArgs builds cloudflared's arguments, and what stderr says when the
@@ -235,6 +249,11 @@ type cloudflaredHandle struct {
 
 func (h *cloudflaredHandle) URL() string             { return h.url }
 func (h *cloudflaredHandle) Exited() <-chan struct{} { return h.exited }
+
+func (h *cloudflaredHandle) waitForExit(drain func()) {
+	_ = h.cmd.Wait()
+	close(h.exited)
+}
 
 // watchStderr reads the guard's child line, then hands every line to look.
 // It drains to EOF so the process never blocks on a full pipe.

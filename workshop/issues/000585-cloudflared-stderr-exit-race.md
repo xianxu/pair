@@ -71,3 +71,7 @@ Prior #579 live acceptance is explicitly deferred by hub851b7681-9be7-4078-8664-
 ### Approved implementation boundary
 
 Canonical hub approval7f23a2b8-bee4-4d38-a7e8-125be7d64f6d approves plan a3d8e90d and explicitly identifies this as a real production bug, not merely a flaky test: concurrent Wait while reading StderrPipe violates the Go contract. Preserve this distinction in close evidence. Approved owned os.Pipe, parent writer close after Start, exited publication after process wait and stderr drain, existing owned-group force teardown, and deterministic wait-before-drain RED. Keep the remaining batch order. No larger sleeps/timeouts or production slots.
+
+### Deterministic RED checkpoint
+
+The real fake-process regression forced cmd.Wait before any stderr read. With the exec-owned StderrPipe setup it failed with lastLine="no output" instead of the exact API failure (package0.334s). Switching only the shared setup to owned os.Pipe preserves that diagnostic. The second lifecycle regression delays the real scanner until the wait owner invokes its drain effect: baseline publication without invoking drain fails deterministically with drained=false last="no output" (package0.700s). This is a production ownership defect, not only a fixture flake. An intervening compile-only failure from adding the second test before its helper is not counted as RED evidence. Implementation is incomplete at this checkpoint: drain join and forced reader cleanup remain.
