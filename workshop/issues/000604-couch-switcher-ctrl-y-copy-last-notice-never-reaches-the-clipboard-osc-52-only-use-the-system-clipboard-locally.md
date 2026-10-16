@@ -59,6 +59,7 @@ The checked investigation and acceptance-coordination step follows the approved 
 ### 2026-10-15
 
 ### 2026-10-16 — bounded design
+- 2026-10-16: closed — Red-green full-notice clipboard regression; clipcmd and couchtty focused tests and race checks passed. Complete make -k test passed (79a1e5cb433c); recorded suite on fe4eb6d6 passed in 14m03s (46dbb4bf499d); earlier independent failures retained in unassigned #620/#623. Later changes docs only. BR-2 README corrected; BR-1 diagnostic scope explicitly narrowed by TL delivery f7d15982: bounded read-only investigation complete, original OSC loss layer unknown. Live clipboard smoke deferred by TL to next natural restart, no pair:0 staging, fix-forward if it fails.; review verdict: SHIP
 
 Plan posted to the hub; proceeding under the bounded quick-flow dispatch. The existing method only writes OSC 52. A private executable on PATH supplies the clipboard seam, avoiding a second tool registry or test-only production API (ARCH-PURE/ARCH-DRY). One serial user action creates no durable state or background work; the subprocess is joined before returning. Timeout/failure may be uncertain, so fallback is an explicitly requested second transport, not proof that a local copy never happened; feedback claims confirmed copying only on successful exit.
 
