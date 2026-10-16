@@ -40,7 +40,9 @@ Preserve every reconstruction/decoration, scoped/ambiguous authorization and rea
 
 - [x] Add the real-fixture regression with a foreign executable and caller artifact sentinels, and observe red before fixing the fixture.
 - [x] Reuse ReviewTestEnvironment's shell re-exec to pin checkout PAIR_HOME/executable and isolate artifacts before any subprocess (ARCH-DRY, ARCH-SECURE). Preserve the complete fixture body and deadlines.
-- [ ] Wire the regression into the suite, update Atlas and record targeted plus required recorded broad-suite verification. Then use the mandatory close review and land on SHIP in the hub's order.
+- [x] Wire the regression into the suite, update Atlas and record targeted plus required recorded broad-suite verification.
+
+Remaining workflow checkpoints: mandatory close review, then land on SHIP in the hub's order.
 
 ## Revisions
 
@@ -75,3 +77,10 @@ TL approved the isolation fix and inherited-foreign-home red/green only. Extende
 - New real-fixture regression controls PAIR_HOME and PAIR_BIN independently, supplies caller artifact sentinels, and requires all existing success messages plus zero foreign-executable invocations. Red before the fix: both subcases failed (9.942s). PAIR_HOME produced the exact three initial failures; PAIR_BIN left the first case passing but failed the later scoped/ambiguous cases, proving both selectors need isolation.
 - The fix is exactly four entry lines reusing the existing ReviewTestEnvironment shell re-exec before any Git/editor subprocess. The original fixture body, assertions and 30s/10s watchdogs are byte-for-byte unchanged; the production 2500ms resolver deadline is untouched. No extended trace was added. The shared helper pins PAIR_HOME, removes inherited PAIR_BIN and moves writable artifacts to fixture storage.
 - Green: python3 -B tests/review-resume-isolation-test.py passed both independent selector cases in 12.080s; neither foreign executable ran, and every caller sentinel remained unchanged. Standalone bash tests/review-resume-test.sh passed all six assertion groups. bash -n and git diff --check passed. The regression is wired into test-review; Atlas maps the fixture isolation coverage. Required recorded broad-suite verification and close review remain pending.
+
+### 2026-10-16 — clean build and recorded full suite
+
+- Source verified by git rev-parse: `980d581cfebb5b3fcc9c1a3de60694caaf240144`. `make -k -B build` passed; bin/pair reports that exact vcs.revision and vcs.modified=false.
+- Required `sdlc local-check run --name suite`, run `ab98062bbfcf7d6b44a710d2c0a9a80e`: PASS, exit 0 in 908.941525584s (15m9), separate queue wait 242.824364917s. Every shell/editor recipe and Go package completed; couchcore 562.718s and couchcmd 101.019s. No retry or budget change was needed.
+- The unchanged original resume assertions passed in the broad context, and the inherited PAIR_HOME/PAIR_BIN regression passed both cases in 8.565s. Observation/fresh restoration and startup-cancellation checks also passed.
+- Retained log `/Users/xianxu/workspace/pair/.git/sdlc/local-checks/980d581cfebb5b3fcc9c1a3de60694caaf240144/suite.log`; SHA256 `a12c6621bf5cf5cd861fad86b9de939ae950a0c2977aa3bb29c425ce35732929`. Implementation and verification are ready for the mandatory close review. The TL owns ops/test-economy; this worker will report its tick rather than edit the project. #607 was still codecomplete/not-landed at the last ordering check; coordinate final landing in the hub's order.
