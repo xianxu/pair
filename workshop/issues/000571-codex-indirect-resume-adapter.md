@@ -82,6 +82,14 @@ Source links (matching tag):
 
 ## Revisions
 
+### 2026-10-15 — zero-drift scope decision; reduced proposal awaiting review
+
+TL submitted receipt3b2dcde8 chooses native-compatible indirect Codex resumes and existing exact-ID guarding. This supersedes the original indirect-selection Spec/Done-when and the preceding BR-5 classification proposal. The canonical plan's latest Revision contains the reduced keep/delete map, active acceptance criteria and measured-versus-projected line accounting. Production remains unchanged until that reduced scope is reviewed.
+
+Keep only home-relative transcript inventory support needed by exact IDs and policy-free ledger/recovery identity; restore main's unchanged admission/wrapper protocol. Delete config/Git/provider/cloud/SQLite/latest/schema policy, snapshots, supporting tests/dependencies/exemptions, and main's older Codex SQL collector so it cannot reappear. Other agents remain unchanged. Relative CODEX_HOME uses proven startup cwd, never -C or remembered session cwd; unavailable provenance is not a guessed default.
+
+Measured current Go/dependency/test patch is net+6324 lines; projected reduced patch is roughly net+150 to+400 (about5900-6200 removed), with exact signed final counts due after approved implementation. Workshop history is retained separately. The condition for revisiting is an upstream native read-only "resolve resume target" command/API returning the actual selected ID for the real invocation without opening/writing native state. Our own queries over a safe DB snapshot do not satisfy it. #595 separately owns locking after the actual ID becomes known.
+
 ### 2026-10-15 — native mechanism re-plan requested before BR-5
 
 TL receiptab449251 requires stepping back after five fidelity defects, with no code until the Revision is seen. The canonical plan now records the native-surface survey first: no exposed read-only TUI/exec resume-to-UUID resolver was found in rust-v0.162.1. Resume enters live lifecycle; thread/list is a primitive requiring client-side configuration/CWD policy; native DB snapshot reads do not supply that policy; native StateRuntime listing initialization is writable. No Codex/app-server or credential access was used for the survey.
