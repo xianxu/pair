@@ -37,7 +37,7 @@ Apply the hub's explicit temporary unblock: give the full suite's broad Go invoc
 
 ## Plan
 
-- [ ] From main, change only the broad suite recipe and its temporary-budget comment; verify actual Make argv before/after.
+- [x] From main, change only the broad suite recipe and its temporary-budget comment; verify actual Make argv before/after.
 - [ ] File the performance follow-up; run build and the recorded suite, close, and land before resuming #591 unchanged.
 
 ## Log
@@ -45,3 +45,7 @@ Apply the hub's explicit temporary unblock: give the full suite's broad Go invoc
 ### 2026-10-16 — approved fleet unblock
 
 Hub decision 173f498b-9796-4fd6-a777-07e28ce4107c explicitly authorizes 20m as a deliberate temporary budget. #591 remains clean at 47a221c079675acc1415c1a85db3ac559fcb1722 and is not rerun yet. Integrated suite failed only the package-wide timeout; automatic main comparison passed in 946.514 s with couchcore at 580.585 s. The fixed duration is visible at the suite owner (ARCH-DRY), not injected through shared GOFLAGS or hidden retry machinery. Production behavior is unchanged.
+
+### 2026-10-16 — minimal implementation and recipe verification
+
+Started independently from main a00d0ceee25e3ca0f8703e52531b20c2d112f818. Filed #611 unassigned for the measured performance remedy and eventual allowance removal. A direct Make dry-run argv check failed before the change (only go test ./... -count=1), then passed with exactly go test ./... -count=1 -timeout 20m. This configuration-only edit adds two explanatory comments and one explicit flag; no runtime code or fixture assertions/deadlines change. Existing tests/make-test-env-test.sh passed both outer Make variants, all 215 derived knobs, explicit overrides and nested Make. make -k -B build and git diff --check passed. The required recorded suite will verify the real compiler/test invocation; the outer suite budget remains 30m.
