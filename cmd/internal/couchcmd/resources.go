@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
-	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/procutil"
 )
 
@@ -191,14 +190,15 @@ func (s *resourceSampler) pass(ctx context.Context) {
 			observe(p)
 		}
 	}
-	names := map[string]bool{"zellij": true, "nvim": true}
-	for _, name := range launcher.AgentInventory() {
-		names[name] = true
-	}
 	candidates := make([]procutil.Process, 0)
 	for _, p := range table {
-		key := couchcore.ResourceProcessKey{PID: p.PID, Identity: p.Identity}
-		if p.PPID == 1 && !p.Zombie && p.PID > 0 && p.Identity != "" && pidCounts[p.PID] == 1 && !selected[key] && names[filepath.Base(p.Name)] {
+		// The row shape and the kind set are couchcore's rules, not the
+		// sampler's: #583's orphan sweep classifies through the same predicate,
+		// so a row this filter admits and the classifier refuses (or the
+		// reverse) would be a disagreement between two copies of one rule.
+		// UnattributedKind is the wide half — an nvim row is worth an argv read
+		// before anything knows whether it is an embed (#583, ARCH-DRY).
+		if pidCounts[p.PID] == 1 && couchcore.UnattributedShape(p, selected) && couchcore.UnattributedKind(filepath.Base(p.Name)) {
 			candidates = append(candidates, p)
 		}
 	}

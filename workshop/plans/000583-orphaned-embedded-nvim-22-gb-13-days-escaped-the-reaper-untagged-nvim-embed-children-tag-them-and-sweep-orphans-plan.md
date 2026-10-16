@@ -432,14 +432,31 @@ func ClassifyNvimReap(row NvimReapRow) (kill bool, reason string)
 - Modify: `cmd/internal/couchcore/resource.go:301-341`
 - Test: `cmd/internal/couchcore/resource_test.go:90` (`TestResourceClassifyUnproven`) stays green unchanged
 
-- [ ] **Step 1: Extract** `func UnattributedCandidate(p procutil.Process, claimed map[ResourceProcessKey]bool, args []string) bool`
+- [x] **Step 1: Extract** `func UnattributedCandidate(p procutil.Process, claimed map[ResourceProcessKey]bool, args []string) bool`
   holding exactly today's predicates (ppid 1, not zombie, identity known, unclaimed, known kind name, and
   for `nvim` an exact `--embed` field). `ClassifyUnattributed` keeps its RSS floor and view construction and
   calls it.
-- [ ] **Step 2: Run the existing #587 tests unchanged, expect PASS** — the extraction is behaviour-preserving,
+  *(Landed as three named pieces rather than one, because there were **three** copies of the rule, not two:
+  `UnattributedShape` (the row-level half), `UnattributedKind` (the name half, wide enough to run before argv
+  is read) and `UnattributedCandidate` (both, plus nvim's `--embed` proof). The third copy was the sampler's
+  own pre-filter, which built `{zellij, nvim} ∪ AgentInventory()` a second time and re-stated the shape checks
+  inline; it now calls the shared two (`couchcmd/resources.go:193-205`), so a row the sampler admits and the
+  classifier refuses is impossible rather than merely unlikely. The kind set also moved to a package-level
+  `unattributedKinds`, built once: `ClassifyUnattributed` walks up to `ResourceMaxTableRows` rows per pass and
+  was rebuilding the map for every call, inside a sampler with a <0.2% CPU budget.
+  One deliberate tightening: `p.PID <= 0` is now refused. Neither platform's table can produce it
+  (`table_darwin.go:24` and `parseLinuxStat` both filter), so `TestResourceClassifyUnproven` cannot tell the
+  difference — but the predicate now gates a kill path, and a kill path should not inherit its pid validation
+  from a caller's filter.)*
+- [x] **Step 2: Run the existing #587 tests unchanged, expect PASS** — the extraction is behaviour-preserving,
   and a red existing test means the extraction changed the rule.
   `go test ./cmd/internal/couchcore/ -run 'Resource' -count=1`
-- [ ] **Step 3: Commit** `#583: extract the shared unattributed-process predicate`
+  *(Green: `TestResourceClassifyUnproven` is byte-identical, all `Resource*` tests pass in 6.6 s, and the whole
+  `couchcmd` package — which holds the sampler whose filter moved — passes in 79 s. The new
+  `TestUnattributedCandidate` falsifies one claim per row across 14 rows: a plain nvim, an unread argv,
+  `--embed` inside a longer field, an unknown kind, a name that merely contains `nvim`, a full path that still
+  names its kind, a live parent, a zombie, no generation, no pid, and a claimed row.)*
+- [x] **Step 3: Commit** `#583: extract the shared unattributed-process predicate`
 
 ### Task 12: The orphan classification, pure
 
