@@ -78,3 +78,36 @@ PASS, command wall900.89s (15m0.89s); couchcore execution539.310s. Same1,376 top
 Slowest loaded core tests: real reconcile65.76s, SetAside holds46.50s, recovery convergence41.13s, bounded continuation38.49s, host judgments34.43s, metamorphic33.94s, readoption33.67s, observer32.88s, repository names32.43s, totality30.03s, live fleet27.50s. These elapsed durations overlap.
 
 Raw full log SHA-256:9aa661a8edbdca473d6d326b8552c8a20667fc86c7706359ce2782489a254271. Files suite-before.log/suite-before.time/suite-before-summary.json in the diagnostic directory above. This is an instrumented planning baseline, not an sdlc-local/suite status on the branch.
+
+
+## R2 post-change measurements (2026-10-16)
+
+Same command: `/usr/bin/time -l go test -trimpath -json ./cmd/internal/couchcore -count=1`; same GOMAXPROCS=3 and effective GOFLAGS=-p=3. No timeout, skip, retry or increased parallel-worker limit added.
+
+- Head `73cc1f2021f2927b3c958f73e133b5117766a5a3`: package278.599s, command286.19s, serial132.688168s, remaining145.911s. Diagnostic FAIL: one new fixture membership guard incorrectly rejected the existing separate-Git-directory enrollment test. This is not a qualified green performance result. All old names still ran; the failure was corrected before the next run. Initial load17-ish, with a targeted couchcmd run visible before launch; no competing full suite observed at that initial snapshot. Raw `after-1.jsonl` SHA256 b98c37e662dc58bd8f05c7aa7b284769d5f0069714fb1c173a3ae6646bd6987b.
+- Corrected head `8b9977e09121c893686f3049068b63e8357bafe8`: PASS package340.356s, command346.97s, serial160.554945s, remaining179.801s. A second full suite started during this run: mid-run snapshot shows two couchcore binaries plus other Go package binaries. Therefore this is a **loaded correctness/profile sample**, not the corrected isolated qualification or the required recorded full-suite check. Start/mid/end load and process snapshots are retained next to raw data. Raw `after-corrected.jsonl` SHA256 761d92d424de99bd41c17315ed6b26a568732d35e5447aecfd95268a5a8ea698.
+- Exact event comparison: every baseline top-level and subtest name has the same terminal disposition in the corrected run. No removed case, no changed skip. Five new top-level guards and16 new subtest names: seven malformed-identity cases and nine newly named set-aside cases. Total1,381 top-level cases =1,364 pass/17 pre-existing skips. All12 real-Git reconciliation cases, ten resource perturbations, five names,110 re-adoption shapes (74pass/36skip) and all2,406,528 accepted evidence points/order retained.
+
+| Test | Before isolated seconds | After diagnostic seconds | Corrected loaded seconds |
+|---|---:|---:|---:|
+| ReconcileAgreesWithRealGit |46.26|sum children38.89; window105.56|sum children45.27; window114.14|
+| RecoverPlanStepsConverge |42.55|18.67|19.16|
+| ReAdoptionExitsAreTotalAndCoded |28.75|16.71|24.43|
+| ContinuationRequestsBoundedOwnedSet |28.45|19.43|30.83|
+| HostJudgmentsReadOnlyHostFacts |25.91|0.95|0.59|
+| DeriveRecoverPlanIsTotalOverTheEvidenceDomain |24.92|0.93|0.73|
+| RecoverReconcileReadingIsMetamorphic |24.67|0.30|0.21|
+| FleetInventoryLiveConformance |24.61|4.08|5.16|
+| ObserveEachBrokenResource |24.29|sum children18.39; window84.80|sum children22.24; window108.03|
+| RepositoryNamesAtConversationAllocationBoundaries |23.96|sum children10.19; window138.70|sum children16.49; window172.70|
+| SetAsideHoldsMatchThePlan |22.97|0.44|1.10|
+
+Parallel child durations overlap: their sum is workload attribution, not elapsed wall savings. Go reports0.00s for these three parents after child parallelization, excluding their children. The inclusive parent window above adds run-to-pause and cont-to-terminal intervals; it includes child scheduling waits behind unrelated tests. Neither zero parent elapsed nor the larger scheduling window is an honest standalone execution comparison. Before/after samples also have different host contention, so make no qualified speedup/reliability claim.
+
+Correctness evidence: combined changed properties/fixtures/tables race PASS20.379s; corrected separate-storage/identity race group PASS3.160s; existing durable/CAS/transaction group PASS and lifecycle/continuation race PASS10.561s. Domain drop/duplicate/reorder controls fail the ordered fingerprint. Durable outsider/full-scan/uncoded-refusal/partial-tombstone/unsafe-clear controls fail their actual assertions. Set-aside lost-move control fails its sentinel assertion; ignored-hold control fails on nil-error classification (never passes). One-process identity contract now includes separate Git storage, with an observed red before correction. No production files changed.
+
+### Residual capacity proposal, not implementation
+
+The diagnostic remains above200s even before the competing full suite, and the corrected loaded run passes at340s. A corrected quiet green measurement is still missing. Much of the remaining serial phase is distributed across small global-state/real-process tests: first diagnostic's largest sequential cases are InterruptedSwitchResumePreservesTargetAuthority9.41s, AcceptanceReportBudgetTenSlots9.07s, RecoverResumeRefusesConversationLiveInAnotherSlotAtBothGates6.73s; there is no single near-timeout case.
+
+Using sorted round-robin top-level names, charging the three parallel-child tables by their child sums rather than zero parent elapsed, the diagnostic predicts three lanes of189.31/190.03/188.73s (461/460/460names). Applying the same model to the corrected loaded sample predicts228.98/231.42/236.78s. Model = measured sequential sum + parallel elapsed sum/3. It omits changed CPU/IO contention, compile/discovery and tail scheduling; these are proposals, not verified lane times. Retain #610 until the hub approves a residual plan and real qualification passes.
