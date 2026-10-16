@@ -41,7 +41,7 @@ Measure the admission ordering with a controllable stateful fixture. Establish t
 
 - [x] Reproduce the late final retry with a controlled authority barrier; record the expected unavailable assertion failing.
 - [x] Synchronize retries and send-triggered readmission with channels at the existing authority/retry seams; keep launch unhealthy until the refusal is observed. No sleeps or longer deadlines (ARCH-ORDER, ARCH-DRY).
-- [ ] Run repeated race verification and the recorded full suite; close through the SDLC review, then await SHIP for landing.
+- [x] Run repeated race verification and the recorded full suite; close through the SDLC review, then await SHIP for landing.
 
 ## Log
 
@@ -56,3 +56,7 @@ A fixture-only candidate overlay passed fifty race-detector repetitions in 5.649
 2026-10-16: pair:1 claimed the released item. Small fixture-only plan posted to ops:0; authorized to proceed after posting. Production admission behavior stays unchanged. Final landing waits behind #544, #605 and #607.
 
 2026-10-16: Red: go test -race -overlay=/tmp/pair-589-red-qvv91upo/overlay.json ./cmd/internal/couchcmd -run '^TestDormantLateFinalRetryMeasurement$' -count=1 -v failed at the original unavailable assertion with Code=accepted, after explicitly holding the final admission across launch restoration. The overlay reuses pair:2's controlled proof with the original expectation; it does not change production code. Green: the fixture-only replacement passed 50 race repetitions (2.758s); TestMessage* passed with -race (8.394s), and couchmessage passed with -race (9.828s). Retry callbacks now arrive on a channel; launch remains unhealthy until the post-ladder admission starts, and that admission is held until the unavailable response is observed. The existing 3s rig bound is retained; no sleeps added. No production behavior or architectural surface changed.
+
+2026-10-16: Negative control: disabling the production Registry SendTargeted→readmit transition via /tmp/pair-589-control-t3ey19h0/overlay.json made the fixed test fail within its existing 3s bound; the healthy production transition passed 50 race repetitions. This confirms the test reaches the production readmission path.
+
+Recorded full suite on ff788e65bb02408429d7e974389a2511d8492db2 completed all tests and packages, failing only TestCancelledHandoffReportsAChildsCleanExit in launcher (handoff -1,nil vs expected 0,nil). No launcher diff from main. Its 30 isolated -trimpath repetitions passed (4.425s). At ops:0's direction this separate fixture failure was filed as unassigned #609, preserving failure log /Users/xianxu/workspace/pair/.git/sdlc/test-stats/failed/515ad3a2617b9f0f7d1aa19c39691236.log. The one authorized unchanged-head rerun passed every check: sdlc local-check run --name suite --rev ff788e65bb02408429d7e974389a2511d8492db2, exit 0 in 15m17s, log sha256 prefix 66c7dd9900bb, recorded sdlc-local/suite on that head. Its full log is /Users/xianxu/workspace/pair/.git/sdlc/local-checks/ff788e65bb02408429d7e974389a2511d8492db2/suite.log. No sleeps or longer deadlines in the fixture fix; no new architectural surface, so close acknowledges no-atlas. Mandatory close review follows; landing remains held behind #605, #590 and #607 pending SHIP from ops:0.
