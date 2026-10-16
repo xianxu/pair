@@ -473,3 +473,21 @@ blocking unavailable entries. Empty or unrelated ledgers do not probe Codex,
 and no synthetic authority row or new admission/config policy is introduced.
 Add failing saved-config/restart coverage for compatibility-only rows before
 production edits, then normal/race and a new full suite before full close.
+
+### 2026-10-15 — complete represented-agent availability rule
+
+Expanded BR6 matrix first failed1.529s in all four compatibility-only variants
+(config removal/Fresh and restart with legacy ID); typed/mixed controls passed.
+One per-call native-runtime cache now feeds both typed projection and every
+represented post-parse row. Invalid homes clear/block Codex compatibility rows
+without probing Codex for empty or unrelated ledgers. Valid custom/default
+legacy presentation and non-authority controls remain unchanged. Exact matrix
+GREEN1.668s; all TestNativeInventory normal1.158s/race1.626s.
+
+Committed35c042089 and merged main/#587 at
+9c4fe5c4ffeed3bd6c75079309735e45894c4f8a. The one manifest conflict joined
+our two source entries with #587's entries; no semantic code conflict. Exact
+production-source classification3.589s and resource guard0.760s pass. Fresh
+full suite queued on9c4fe5c4 (inflight cc4a96c418c8c120039d09d12d658c9b).
+Hub reportd915a88e is indeterminate after submit, so it was not blindly resent;
+the final landed/blocked outcome will get its own confirmed report.
