@@ -203,6 +203,13 @@ func (c *Couch) executePreparedRecovery(ctx context.Context, selection RecoveryS
 			}
 		}
 	}
+	if selection.Kind == RecoveryFresh {
+		var treeNotes []string
+		if retirement, treeNotes, err = c.withSlotTree(ctx, record, retirement); err != nil {
+			return result, err
+		}
+		notes = append(notes, treeNotes...)
+	}
 	witness := recoveryConfirmationWitness{Address: record.Address, Revision: record.Revision, Selection: selection, Digest: recoverySelectionDigest(record, selection, retirement), NativeID: choice.NativeID}
 	if confirmation != "" {
 		if err := c.consumeRecoveryConfirmation(ctx, confirmation, witness); err != nil {

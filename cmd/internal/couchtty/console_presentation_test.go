@@ -252,3 +252,22 @@ func TestSwitcherRowShowsNoStoredNameDetail(t *testing.T) {
 		t.Fatalf("stored name rendered: %s", plain)
 	}
 }
+
+// pair#607: after a fresh reboot the slot's old pane can outlive its replaced
+// address for a while; the tab bar still shows one chip per slot, the current
+// row's, as the switcher does.
+func TestRebootedSlotShowsOneTabChip(t *testing.T) {
+	current := groupedRow("/workspace/pair", 6, "new-tag")
+	old := groupedRow("/workspace/pair", 6, "old-tag")
+	con := New(hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 120}), strings.NewReader(""))
+	con.order = []string{"old", "new"}
+	con.panes = map[string]*pane{
+		"old": {tree: couchcore.Worktree(old.StartingPath), thread: old.Address, label: "pair"},
+		"new": {tree: couchcore.Worktree(current.StartingPath), thread: current.Address, label: "pair"},
+	}
+	con.menu = NewMenuState([]couchcore.ActionableThreadSummary{current}, current.Address)
+	model := con.statusModelLocked()
+	if len(model.Actors) != 1 || model.Actors[0].Thread != current.Address {
+		t.Fatalf("tab bar actors = %+v, want one chip for the current address", model.Actors)
+	}
+}
