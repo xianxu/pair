@@ -1,12 +1,20 @@
 ---
 id: 000586
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-15
 updated: 2026-10-15
 estimate_hours:
-card_mirror: 'baf91ac3de1b4778dfd644c76c03ffe53464fdda' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '4be64b089094a743b85489a37e34befc5368248e' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-15T19:17:48-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:3
+    worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Diagnose intermittent review restoration observation mismatch
@@ -27,6 +35,13 @@ Reproduce and diagnose the first restore identity check without weakening author
 
 ## Plan
 
+Proposed quick-flow investigation and fix, pending hub approval. Keep #586 separate from #591 until retained evidence demonstrates a shared cause; continue #589, #591 and #590 in the agreed order after this item. Expected small boundary change; if demonstrated scope leaves the shell, revise and use a durable plan before implementation.
+
+- [ ] Make the fixture fail diagnostically at its observation boundary: validate resolver exit, JSON shape, resolved status and complete identity before forwarding; preserve wanted and fresh status/repo/branch/head/file/diagnostic, command phase and completion ordering on refusal. Reuse the existing isolated fixture wrapper; bounded metadata only, no copied snapshots (ARCH-DRY/CONSTRAINTS).
+- [ ] Establish deterministic RED with controlled invalid/incomplete wanted and fresh observations at that wrapper/controller seam. Preserve genuine changed-branch refusal and a positive same-identity restoration. Require actionable evidence and no activation on refused observations; no sleeps or altered assertions (ARCH-PURE/ORDER/SECURE).
+- [ ] Reproduce under the suite's parallel load while changing one variable at a time. Record both observations before selecting the fix. In particular, distinguish the fixture forwarding invalid exit-zero JSON from actual branch movement and the resolver's shared two-second Git deadline. Append a Revision with demonstrated cause and the minimal owning-boundary change; ask the hub if choosing a new fixture time authority or broader production scope is required. Do not turn a timeout into successful identity, retry until green, or enlarge any budget (ARCH-PURPOSE/MOCK).
+- [ ] Implement the demonstrated fix with regression evidence, preserving production authorization and bounded process ownership. Use event-driven completion or an injected fixture clock if scheduling is the cause. Temporary evidence dies with the existing fixture owner; dump relevant diagnostics before cleanup (ARCH-FUNERAL). Run targeted/loaded checks, make -k build, required recorded suite, atlas update as applicable, then mandatory close review and SHIP landing.
+
 ## Log
 
 ### 2026-10-15 — first observed during #571 unchanged rerun
@@ -37,3 +52,11 @@ Reproduce and diagnose the first restore identity check without weakening author
 - Read-only source audit locates the first gate at `nvim/review/restore_controller.lua:137-139`, before activation/confirmation. A controller invalid observation normally preserves its own diagnostic; the generic text is consistent with an incomplete wanted observation but does not prove it.
 - Unchanged isolated `bash tests/review-observation-test.sh` passed exit0 on the same code (subsequent branch changes are issue documents only). Earlier full suite run `b2dd3d164d5caad0fd4f624661697ade` passed this test and failed only the independent #585 broadcast test.
 - Filed unassigned as independent verification followup; do not fold a review-controller fix into #571.
+
+### 2026-10-15 — claimed after #585 landed
+
+#585 landed via PR #357 at git-verified merge27a12fec10e7df7df86e5a5fb7a4f2a2f655b199; hub outcome receipt5a62e02b-0d83-46dc-bdaf-8549cb39b517 is submitted. Started #586 from main archive6f0e8c656bcfebc2051e85a8d0eb1c8e7366825b; claim and start-plan succeeded. No implementation changes or new test run for #586 yet.
+
+Read-only audit: Python resolve() decodes check_output without checking status; RunReadinessCLI --resolve returns exit0 for a successfully encoded invalid observation. resolveIdentityWithSnapshot shares a real two-second context across root/index/branch/HEAD/history/integrity operations. C:request checks only wanted's table/repo shape before resolving again; its generic changed-branch refusal can compare a partial wanted identity against a fresh resolved identity. The observed historical generic message is consistent with that ordering, but neither original observation was retained, so it remains a hypothesis. Both #585 source suites passed the unchanged observation fixture; those green samples do not refute the recorded intermittent failure.
+
+Alternatives: immediately tightening only the wanted-status check improves evidence but does not establish or eliminate the scheduling flake; replaying a fake resolved identity would remove the production Git deadline but risks bypassing the behavior under investigation. Recommend diagnostics first, deterministic invalid/stale refusal cases, then a measured Revision at the actual time/observation boundary. Keep authorization fail-closed and use the fixture's actual state rather than a larger wall-clock budget.
