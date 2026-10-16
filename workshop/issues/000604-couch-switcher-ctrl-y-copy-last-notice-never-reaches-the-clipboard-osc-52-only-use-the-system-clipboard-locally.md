@@ -65,3 +65,9 @@ The regression TestSwitcherCopiesFullNoticeToSystemClipboard failed on the old i
 Targeted race verification also passed: clipcmd (1.495s) and couchtty (2.964s), covering the notice-copy and local-clipboard regressions.
 
 Read-only current process ancestry was Couch (71982) → zsh (35159) → login (35158) → Ghostty (80193); no outer multiplexer was observed. This rules out an outer Zellij layer for the current launch, not for every historical occurrence. No OSC or real-clipboard probe was sent.
+
+### 2026-10-16 — first recorded suite and independent fixture failure
+
+Recorded suite on fe4eb6d6e83bd53b9d42fcf27811a383c348b222 stopped before Go tests in tests/review-branch-restore-test.sh: data/landed.json was absent after its five-second handoff wait. Failed run retained at /Users/xianxu/workspace/pair/.git/sdlc/test-stats/failed/07f7702637f31ade0443abc6b434b7f2.log (exit 2, 5m38s, SHA256 prefix eee92d770af5; file timestamp 2026-10-16T22:18:18Z). The unchanged targeted repeat passed, logged at /tmp/pair604-review-branch-restore-repeat.log. Filed unassigned #620; no root cause or load attribution is claimed and no fixture/timeout change belongs to #604.
+
+Running make -k PAIR_GO_TRIMPATH=-trimpath test to complete coverage rather than skip the remaining recipes; log /tmp/pair604-keepgoing-suite.log. This run uses the same code with only the later atlas/issue prose commit. Its branch-restore check has passed and Go packages are still running. The exact pushed head's issue-backed recorded rerun remains outstanding. The hub received this status (receipt 93c64a3f-fcd4-4527-aa23-32267900716b submitted). Live staging permission/acceptance remains pending; pair:0 is untouched.
