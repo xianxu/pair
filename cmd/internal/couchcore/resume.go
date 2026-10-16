@@ -8,7 +8,6 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
-	"github.com/xianxu/pair/cmd/internal/threadrecord"
 )
 
 type ResumeDiagnosticCode string
@@ -553,18 +552,7 @@ func (c *Couch) resumeContextWith(ctx context.Context, address ThreadAddress, op
 	} else if retired != nil {
 		thread = *retired
 	}
-	var migrationIntent *threadrecord.RecoveryIntent
-	if !detached {
-		choice := RecoveryChoice{Agent: eligible.Profile.Agent, NativeID: eligible.RequiredSessionID}
-		if err := c.checkRecoveryNativeLock(ctx, choice); err != nil {
-			return ActorRecord{}, nil, err
-		}
-		if isRelaunchMigration(ctx, choice) {
-			migrationIntent = &threadrecord.RecoveryIntent{Relaunch: true, Mode: RecoveryProven, Address: toPersistedThreadAddress(address), SourceRevision: thread.Revision, CreatedAt: startedAt, Agent: choice.Agent, NativeID: choice.NativeID, SelectedKey: "relaunch:" + nonce}
-		}
-	}
 	thread, err = c.Threads.CommitStartClaim(address, thread.Revision, repoIdentity, startedAt, StartEvent{
-		RecoveryIntent: migrationIntent,
 		Shape: func() StartShape {
 			if detached {
 				return StartWarmReattach
@@ -608,20 +596,14 @@ func (c *Couch) resumeContextWith(ctx context.Context, address ThreadAddress, op
 		if err := launcher.RequireNativeResumeBinding(eligible.RequiredSessionID, currentBinding.NativeID, currentBinding.Status); err != nil {
 			return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(thread, nonce))
 		}
+		// The launcher takes no native admission for a Couch-owned resume
+		// (pair#597); every Couch resume passes this registry check instead.
+		if err := c.checkRecoveryConversationInUse(ctx, thread, RecoveryChoice{Agent: eligible.Profile.Agent, NativeID: eligible.RequiredSessionID}); err != nil {
+			return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(thread, nonce))
+		}
 		built, err := launcher.BuildCouchResumeLaunchProfile(string(address.Tag), eligible.Profile.Agent, eligible.Profile.Argv, eligible.RequiredSessionID)
 		if err != nil {
 			return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(thread, nonce))
-		}
-		if migrationIntent != nil {
-			backend, err := c.Threads.storeForAddress(address)
-			if err != nil {
-				return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(thread, nonce))
-			}
-			authority := launcher.RecoveryAuthority{Version: 1, Address: toPersistedThreadAddress(address), Attempt: nonce, RecordRevision: thread.Revision, RecordPath: backend.recordPath(address), Intent: *migrationIntent}
-			built, err = launcher.BuildCouchRecoveryLaunchProfile(string(address.Tag), eligible.Profile.Agent, eligible.Profile.Argv, authority)
-			if err != nil {
-				return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(thread, nonce))
-			}
 		}
 		profileRaw = built
 	}

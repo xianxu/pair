@@ -253,10 +253,9 @@ type LifecycleOps interface {
 	ClearCmuxOwner()
 }
 
-// NativeResumeOps resolves selectors and checks the host cutover before resume.
+// NativeResumeOps resolves native resume selectors to one exact conversation.
 type NativeResumeOps interface {
 	ResolveNativeResume(context.Context, NativeResumeRequest) (NativeResumeResolution, error)
-	CheckNativeResumeCapability(context.Context, NativeLockExemption) error
 }
 
 // Runtime is the full launcher effect seam.

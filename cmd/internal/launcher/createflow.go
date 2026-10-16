@@ -641,16 +641,6 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 		}()
 	}
 	couchOwned := env.CouchThreadScope == scope.Key && env.CouchThreadTag == chosenTag
-	var addressErr error
-	if opts.Args.ResumeRequired || opts.Args.FreshRequired {
-		addressErr = rt.RegisterExistingCouchThread(scope, chosenTag)
-	} else {
-		addressErr = rt.EnsureThreadAddress(scope, chosenTag, couchOwned)
-	}
-	if addressErr != nil {
-		fmt.Fprintf(stderr, "pair: cannot claim thread '%s': %v\n", chosenTag, addressErr)
-		return launchStep{code: 1}, nil
-	}
 	if opts.Args.Recovery != nil {
 		verifier, ok := rt.(RecoveryAuthorityRuntime)
 		if !ok {
@@ -661,7 +651,22 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 			fmt.Fprintf(stderr, "pair: recovery authority changed: %v\n", err)
 			return launchStep{code: 1}, nil
 		}
-	} else if opts.Args.ResumeRequired {
+	}
+	var addressErr error
+	if opts.Args.FreshRequired && opts.Args.Recovery != nil && couchOwned {
+		// Fresh recovery allocates a new reserved address. Publish only after
+		// validating this helper's exact durable recovery start claim.
+		addressErr = rt.EnsureThreadAddress(scope, chosenTag, true)
+	} else if opts.Args.ResumeRequired || opts.Args.FreshRequired {
+		addressErr = rt.RegisterExistingCouchThread(scope, chosenTag)
+	} else {
+		addressErr = rt.EnsureThreadAddress(scope, chosenTag, couchOwned)
+	}
+	if addressErr != nil {
+		fmt.Fprintf(stderr, "pair: cannot claim thread '%s': %v\n", chosenTag, addressErr)
+		return launchStep{code: 1}, nil
+	}
+	if opts.Args.Recovery == nil && opts.Args.ResumeRequired {
 		actual, status := rt.EstablishedSessionID(scope.Key, chosenTag, agent)
 		if err := RequireNativeResumeBinding(opts.Args.RequiredSessionID, actual, status); err != nil {
 			fmt.Fprintf(stderr, "pair: %v\n", err)
@@ -796,19 +801,6 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 	if commandErr != nil {
 		fmt.Fprintf(stderr, "pair: %v\n", commandErr)
 		return launchStep{code: 1}, nil
-	}
-	// Recovery authority was checked against this exact durable start above.
-	// A Relaunch has already parked its source and migrates one wrapper while
-	// other legacy slots remain live; ordinary Resume requires the cutover.
-	relaunch := opts.Args.Recovery != nil && opts.Args.Recovery.Intent.Relaunch
-	if explicitResume != "" && !relaunch {
-		ctx, cancel := context.WithTimeout(context.Background(), zjTimeout)
-		err := rt.CheckNativeResumeCapability(ctx, NativeLockExemption{})
-		cancel()
-		if err != nil {
-			fmt.Fprintf(stderr, "pair: native resume refused: %v\n", err)
-			return launchStep{code: 1}, nil
-		}
 	}
 
 	var defaultReady <-chan error

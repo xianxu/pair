@@ -2,13 +2,16 @@ package wrapcmd
 
 import (
 	"bufio"
+	"context"
 	"fmt"
-	"github.com/xianxu/pair/cmd/internal/launcher"
 	"io"
 	"os"
 	"os/exec"
 	"sync"
+	"time"
 
+	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/nativelock"
 	"github.com/xianxu/pair/cmd/internal/sessionwatch"
 )
@@ -153,4 +156,21 @@ func startNativePTY(locks *wrapperNativeLocks, cmd *exec.Cmd, stderr io.Writer, 
 		fmt.Fprintln(stderr, launcher.CodexIndirectResumeCompatibilityNotice)
 	}
 	return start(cmd)
+}
+
+// nativeLockHolder labels this wrapper in its locks the way Couch names a slot
+// ("pair:3"), so a refused resume says "in use by pair:3" from either observer
+// (pair#595). Outside a slot it falls back to the Pair tag, then "standalone".
+func nativeLockHolder() string {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	if cwd, err := os.Getwd(); err == nil {
+		if identity, err := couchcore.NewOSSlotCatalog(couchcore.OSProvisionIO{}).ResolveWorkspace(ctx, cwd); err == nil && identity.Address != nil {
+			return *identity.Address
+		}
+	}
+	if tag := os.Getenv("PAIR_TAG"); tag != "" {
+		return tag
+	}
+	return "standalone"
 }

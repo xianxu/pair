@@ -87,29 +87,3 @@ func TestReadyAgentIdentityPreservesLegacyAndRejectsInvalid(t *testing.T) {
 		}
 	}
 }
-
-func TestNativeLockCapabilityCompatibility(t *testing.T) {
-	const old = `{"tag":"work","agent":"codex","session":"pair-work","nonce":"n","pid":1}`
-	record, err := Decode(old)
-	if err != nil || record.NativeLockVersion != 0 {
-		t.Fatalf("legacy = %+v, %v", record, err)
-	}
-	for _, version := range []int{NativeLockVersion, NativeLockVersion + 1} {
-		record.NativeLockVersion = version
-		raw, err := Encode(record)
-		if err != nil {
-			t.Fatal(err)
-		}
-		got, err := Decode(raw)
-		if err != nil || got.NativeLockVersion != version {
-			t.Fatalf("roundtrip = %+v, %v", got, err)
-		}
-	}
-	record.NativeLockVersion = -1
-	if _, err := Encode(record); err == nil {
-		t.Fatal("accepted negative capability")
-	}
-	if _, err := Decode(strings.TrimSuffix(old, "}") + `,"native_lock_version":-1}`); err == nil {
-		t.Fatal("decoded negative capability")
-	}
-}

@@ -37,8 +37,7 @@ import (
 // from its own goroutine while the main flow is still writing config, so the
 // fake is genuinely concurrent even though production hits real files.
 type fakeRuntime struct {
-	nativeResolve    func(context.Context, NativeResumeRequest) (NativeResumeResolution, error)
-	nativeCapability func(context.Context, NativeLockExemption) error
+	nativeResolve func(context.Context, NativeResumeRequest) (NativeResumeResolution, error)
 
 	mu                  sync.Mutex
 	inPane              bool
@@ -2055,10 +2054,4 @@ func (r *fakeRuntime) ResolveNativeResume(ctx context.Context, q NativeResumeReq
 	}
 	args, err := PinNativeResumeSelector(q.Selector, q.Selector.NativeID)
 	return NativeResumeResolution{Status: sessioninventory.NativeSelectorResolved, NativeID: q.Selector.NativeID, Args: args}, err
-}
-func (r *fakeRuntime) CheckNativeResumeCapability(ctx context.Context, exemption NativeLockExemption) error {
-	if r.nativeCapability != nil {
-		return r.nativeCapability(ctx, exemption)
-	}
-	return nil
 }

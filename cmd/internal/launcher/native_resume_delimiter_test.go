@@ -106,17 +106,12 @@ func TestNativeCreateDelimiterCanonicalIDChecksCapabilityAndKeepsInvocation(t *t
 	for _, args := range [][]string{{"resume", "--", delimiterNativeID}, {"exec", "resume", "--", delimiterNativeID}, {"--model", "--", "resume", "--", delimiterNativeID}} {
 		t.Run(strings.Join(args, " "), func(t *testing.T) {
 			rt := newFakeRuntime()
-			checked := 0
 			rt.nativeResolve = func(_ context.Context, q NativeResumeRequest) (NativeResumeResolution, error) {
 				if q.Selector.Kind != NativeResumeExplicit || q.Selector.NativeID != delimiterNativeID {
 					t.Fatalf("wrong resolution %+v", q.Selector)
 				}
 				pinned, err := PinNativeResumeSelector(q.Selector, delimiterNativeID)
 				return NativeResumeResolution{Status: sessioninventory.NativeSelectorResolved, NativeID: delimiterNativeID, Args: pinned}, err
-			}
-			rt.nativeCapability = func(_ context.Context, _ NativeLockExemption) error {
-				checked++
-				return nil
 			}
 			rt.launchHook = func(int) {
 				command, err := DecodeAgentCommand(rt.env[AgentCommandEnv])
@@ -131,8 +126,8 @@ func TestNativeCreateDelimiterCanonicalIDChecksCapabilityAndKeepsInvocation(t *t
 			opts.SkipConfigPicker = true
 			var stderr bytes.Buffer
 			code, err := RunLaunch(opts, rt, &stderr)
-			if err != nil || code != 0 || checked != 1 {
-				t.Fatalf("canonical command unchecked: count=%d code=%d err=%v stderr=%s", checked, code, err, &stderr)
+			if err != nil || code != 0 {
+				t.Fatalf("canonical command failed: code=%d err=%v stderr=%s", code, err, &stderr)
 			}
 		})
 	}

@@ -176,7 +176,7 @@ func (c *Couch) executePreparedRecovery(ctx context.Context, selection RecoveryS
 		}
 	}
 	if selection.Kind != RecoveryFresh {
-		if err := c.checkRecoveryNativeLock(ctx, choice); err != nil {
+		if err := c.checkRecoveryConversationInUse(ctx, record, choice); err != nil {
 			return result, err
 		}
 		if len(retirement.Stops) == 0 {
@@ -202,6 +202,13 @@ func (c *Couch) executePreparedRecovery(ctx context.Context, selection RecoveryS
 				retirement.Stops = append(retirement.Stops, RecoveryStopProcess{PID: parkHelper.PID, Identity: parkHelper.Identity, Role: "client-helper"})
 			}
 		}
+	}
+	if selection.Kind == RecoveryFresh {
+		var treeNotes []string
+		if retirement, treeNotes, err = c.withSlotTree(ctx, record, retirement); err != nil {
+			return result, err
+		}
+		notes = append(notes, treeNotes...)
 	}
 	witness := recoveryConfirmationWitness{Address: record.Address, Revision: record.Revision, Selection: selection, Digest: recoverySelectionDigest(record, selection, retirement), NativeID: choice.NativeID}
 	if confirmation != "" {
@@ -259,10 +266,15 @@ func (c *Couch) executePreparedRecovery(ctx context.Context, selection RecoveryS
 		choice = *selected
 		intent = threadrecord.RecoveryIntent{Context: *preview.Snapshot, SelectedKey: choice.Key, NativeID: choice.NativeID, SourceRevision: record.Revision}
 	}
+	// The intent is compared with its persisted copy (start fence, workspace
+	// recheck, fresh replacement), so it must equal that copy from the start:
+	// the clock's monotonic reading survives only in memory (pair#605).
+	if intent, err = persistedRecoveryIntent(intent); err != nil {
+		return result, err
+	}
 	if err := ctx.Err(); err != nil {
 		return result, err
 	}
-	intent.Relaunch = selection.Kind == RecoveryProven && isRelaunchMigration(ctx, choice)
 	phase := recoveryPrepared
 	record, err = c.Threads.PreserveRecoveryBeforeRetirement(record.Address, record.Revision, intent)
 	if err != nil {
@@ -386,7 +398,7 @@ func (c *Couch) launchRecoveryClaim(ctx context.Context, record ThreadRecord, no
 		}
 	}
 	if selection.Kind != RecoveryFresh {
-		if err := c.checkRecoveryNativeLock(ctx, choice); err != nil {
+		if err := c.checkRecoveryConversationInUse(ctx, record, choice); err != nil {
 			return fail(err)
 		}
 	}
@@ -472,8 +484,11 @@ func (c *Couch) launchRecoveryFreshAddress(ctx context.Context, old ThreadRecord
 		prefix = filepath.Base(backend.slot.PrimaryRoot)
 	}
 	next, nonce, err := c.claimFreshRecord(ctx, freshClaimInput{ScopeKey: old.Address.RepoScope, Cwd: old.WorkingPath, RepoIdentity: repo, TagPrefix: prefix, Store: backend, Profile: LaunchProfileResolution{Profile: profile, AgentSource: AgentSourcePath, ArgvSource: ArgvSourcePath}, Commit: func(next ThreadRecord) error {
+		// The intent moves to the new address record, so its source revision
+		// is that record's (pair#600); the old record's revision is larger and
+		// the launcher refuses a source newer than the record it validates.
 		nextIntent = *threadrecord.CloneRecoveryIntent(&intent)
-		nextIntent.Address = toPersistedThreadAddress(next.Address)
+		nextIntent.Address, nextIntent.SourceRevision = toPersistedThreadAddress(next.Address), next.Revision
 		next.RecoveryIntent = threadrecord.CloneRecoveryIntent(&nextIntent)
 		next.Incarnations[0].Start.RecoveryIntent = threadrecord.CloneRecoveryIntent(&nextIntent)
 		if backend.layout.Local {
@@ -533,4 +548,15 @@ func (c *Couch) repairRetiredRecoveryWorkspace(ctx context.Context, record Threa
 		}
 	}
 	return nil
+}
+
+// persistedRecoveryIntent is the intent as the store will decode it: times lose
+// their monotonic reading and keep only what their encoding carries.
+func persistedRecoveryIntent(intent threadrecord.RecoveryIntent) (threadrecord.RecoveryIntent, error) {
+	raw, err := json.Marshal(intent)
+	if err != nil {
+		return threadrecord.RecoveryIntent{}, err
+	}
+	var persisted threadrecord.RecoveryIntent
+	return persisted, json.Unmarshal(raw, &persisted)
 }

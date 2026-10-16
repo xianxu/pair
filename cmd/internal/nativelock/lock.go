@@ -72,7 +72,7 @@ func Acquire(home string, key Key, holder string) (*Handle, error) {
 			if readErr == nil {
 				label = ParseHolder(data)
 			}
-			return fail(fmt.Errorf("in use by %s; Start fresh", label))
+			return fail(fmt.Errorf("conversation %s is in use by %s; Start fresh", key.id, label))
 		}
 		return fail(fmt.Errorf("acquire native lock: %w", err))
 	}

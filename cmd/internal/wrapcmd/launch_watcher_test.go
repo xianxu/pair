@@ -17,8 +17,13 @@ var realStartWatcherProcess = startWatcherProcess
 // Ordinary wrap tests suppress real watchers: os.Executable() is the test
 // binary and Pair sessions supply a live PAIR_LAUNCH_ORDINAL. The detach
 // acceptance helper explicitly opts into executing the real watcher command.
+// They are ordinary Pair too: a test run from a Couch slot inherits its thread
+// variables, which would make the wrapper Couch-hosted; tests that want a
+// Couch-hosted wrapper set them.
 func TestMain(m *testing.M) {
 	detachWatcherHelper()
+	os.Unsetenv("COUCH_THREAD_SCOPE")
+	os.Unsetenv("COUCH_THREAD_TAG")
 	startWatcherProcess = func(_ []string, _ []string, _ ...*os.File) error { return nil }
 	os.Exit(m.Run())
 }

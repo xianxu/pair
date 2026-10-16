@@ -84,6 +84,20 @@ func DefaultOSRuntime(pairDataDir string) (OSRuntime, error) {
 	return NewOSRuntime(homeDir, pairDataDir), nil
 }
 
+// WithCodexHome scopes only the canonical transcript namespace for an explicit ID.
+func (r OSRuntime) WithCodexHome(home string) (OSRuntime, error) {
+	if !filepath.IsAbs(home) || strings.ContainsRune(home, 0) {
+		return OSRuntime{}, errors.New("Codex home requires an absolute path")
+	}
+	roots := make(map[Agent][]StorageRoot, len(r.roots))
+	for a, v := range r.roots {
+		roots[a] = append([]StorageRoot(nil), v...)
+	}
+	roots[AgentCodex] = []StorageRoot{{Agent: AgentCodex, Name: "codex-sessions", Path: filepath.Join(home, "sessions")}}
+	r.roots = roots
+	return r, nil
+}
+
 func (r OSRuntime) NativeRoots(agent Agent) []StorageRoot {
 	return append([]StorageRoot(nil), r.roots[agent]...)
 }

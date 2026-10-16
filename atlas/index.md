@@ -6,6 +6,7 @@
 
 - [Architecture](architecture.md) — what the pieces are and how they fit together.
 - [Session identity and storage](session-identity.md) — Pair's scoped address claims, deterministic native-session forests, durable resume targets, launch-specific probation and optional parsed projections, Couch's independent ThreadStore authority, Couch C/N/M allocation and live ownership proof, the standalone `📁` naming scheme, and legacy flat-data recovery.
+- [Codex resume](codex-resume.md) — native indirect selection and exact-ID transcript-home routing.
 - [Slot continuity target](../workshop/targets/slot-continuity.md) — the operator-approved commitment: Continue, Resume from disk or Start fresh, with one action per outcome and recovery available to the person or hub.
 - [Slot recovery target](../workshop/targets/slot-recovery.md) — confirmed disk resume, always reachable Fresh and the crash-only recovery contract; [confirmed recovery](couch.md#confirmed-disk-recovery-556-m1) maps the person/hub execution path.
 - [Go migration inventory](go-migration-inventory.md) — artifact/caller/runtime contract for the staged primary-Go-binary migration.
@@ -128,6 +129,7 @@
 
 - [Storage retention](storage-retention.md) — Pair/Couch clocks, protected users, collection, migration and bounded 24-hour resource-monitor snapshots.
 
+- [History backup](history-backup.md) — Explicit encrypted bundles, verified local publication, private sharded catalog, retry guarantees and operator key recovery.
 - [Managed retention I/O](storage-retention-io.md) — Checked entrypoints, protected artifacts, guard call chains, meaningful-use rules and behavioral evidence.
 
 - [Terminal ownership](terminal.md) — Shared endpoint, presenter, profile, transport and qualification boundaries.

@@ -87,7 +87,7 @@ func TestContentionStableInodeAndClose(t *testing.T) {
 	if len(data) > 1024 || ParseHolder(data) != "pair:2" {
 		t.Fatalf("holder %q", data)
 	}
-	if _, err := Acquire(home, k, "pair:3"); err == nil || !strings.Contains(err.Error(), "in use by pair:2") || !strings.Contains(err.Error(), "Start fresh") {
+	if _, err := Acquire(home, k, "pair:3"); err == nil || !strings.Contains(err.Error(), "is in use by pair:2") || !strings.Contains(err.Error(), "Start fresh") {
 		t.Fatalf("contention %v", err)
 	}
 	afterData, _ := os.ReadFile(path)

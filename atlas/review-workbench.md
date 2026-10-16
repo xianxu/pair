@@ -344,6 +344,15 @@ persistent agent's recognition and round-trip behavior.
   `review-readiness-cli` (quoted git facts stay valid JSON), `resume`,
   `review-branch-restore` (real branches and same-process activation), and the
   agent-owns-git loop.
+- `review-observation-diagnostics-test.py` (#586) validates exit/status and
+  complete wanted identities before forwarding, and tests incomplete fresh
+  observations, real checkout refusal, and a successful restoration. The
+  fixture-only `tests/lib/review_observation_trace.lua` observes existing wait
+  and callback results in memory, retaining bounded identity metadata and
+  request/call ordering without copying document snapshots. Failure output
+  includes both observations before editor teardown; setting the fixture's
+  `PAIR_TEST_OBSERVATION_REPORT` retains a successful probe report too. This
+  instrumentation changes no production resolver deadline or admission rule.
 
 Review marker navigation is buffer-local and normal-mode only. Couch's existing
 client-focus probe recognizes the review role and forwards Alt+n unchanged;

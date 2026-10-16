@@ -12,42 +12,6 @@ import (
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 )
 
-func TestNativeCreateCapabilityPrecedesLaunchWrites(t *testing.T) {
-	for _, agent := range []string{"claude", "codex", "agy", "muse", "qoder", "grok"} {
-		t.Run(agent, func(t *testing.T) {
-			rt := newFakeRuntime()
-			calls := 0
-			rt.nativeCapability = func(_ context.Context, exemption NativeLockExemption) error {
-				calls++
-				if exemption != (NativeLockExemption{}) {
-					t.Fatal("ordinary resume exempted a source")
-				}
-				if len(rt.ledger["work"]) != 0 || len(rt.preparedLaunches) != 0 {
-					t.Fatal("identity published before capability check")
-				}
-				return errors.New("legacy wrappers still live")
-			}
-			opts := baseOpts(LaunchArgs{Agent: agent, AgentExplicit: true, ForcedTag: "work", AgentArgs: resumeToken(agent, "11111111-1111-4111-8111-111111111111"), AgentArgsExplicit: true})
-			opts.SkipConfigPicker = true
-			code, err := run(t, opts, rt)
-			if code == 0 || err != nil || calls != 1 || rt.launched != "" || len(rt.ledger["work"]) != 0 || len(rt.preparedLaunches) != 0 {
-				t.Fatalf("capability refusal: calls=%d code=%d err=%v", calls, code, err)
-			}
-		})
-	}
-}
-func TestNativeCreateFreshSkipsLegacyCapabilityBarrier(t *testing.T) {
-	rt := newFakeRuntime()
-	rt.nativeCapability = func(context.Context, NativeLockExemption) error {
-		t.Fatal("Fresh checked existing writers")
-		return nil
-	}
-	code, err := run(t, baseOpts(LaunchArgs{Agent: "codex", AgentExplicit: true, ForcedTag: "work", AgentArgs: []string{}, AgentArgsExplicit: true, FreshRequired: true}), rt)
-	if code != 0 || err != nil {
-		t.Fatalf("Fresh: code=%d err=%v", code, err)
-	}
-}
-
 // Native inventory is consulted once. A newer session arriving after admission
 // cannot change which conversation the native CLI opens.
 func TestNativeCreatePinsLatestBeforePublication(t *testing.T) {
@@ -69,14 +33,6 @@ func TestNativeCreatePinsLatestBeforePublication(t *testing.T) {
 				}
 				args, err := PinNativeResumeSelector(q.Selector, "33333333-3333-4333-8333-333333333333")
 				return NativeResumeResolution{Status: sessioninventory.NativeSelectorResolved, NativeID: "33333333-3333-4333-8333-333333333333", Args: args}, err
-			}
-			rt.nativeCapability = func(_ context.Context, _ NativeLockExemption) error {
-				// Simulate the native latest changing after resolution.
-				rt.nativeResolve = func(context.Context, NativeResumeRequest) (NativeResumeResolution, error) {
-					t.Fatal("selector resolved twice")
-					return NativeResumeResolution{}, nil
-				}
-				return nil
 			}
 			rt.launchHook = func(int) {
 				command, err := DecodeAgentCommand(rt.env[AgentCommandEnv])
@@ -109,10 +65,6 @@ func TestNativeCreateUnresolvedSelectorHasNoWriterEffects(t *testing.T) {
 			rt.nativeResolve = func(context.Context, NativeResumeRequest) (NativeResumeResolution, error) {
 				return NativeResumeResolution{Status: status, Reason: "bounded native inventory did not resolve"}, nil
 			}
-			rt.nativeCapability = func(context.Context, NativeLockExemption) error {
-				t.Fatal("unresolved selector reached capability check")
-				return nil
-			}
 			opts := baseOpts(LaunchArgs{Agent: "muse", AgentExplicit: true, ForcedTag: "work", AgentArgs: []string{"resume", "--last"}, AgentArgsExplicit: true})
 			opts.SkipConfigPicker = true
 			code, err := run(t, opts, rt)
@@ -128,10 +80,6 @@ func TestNativeCreateUnresolvedSelectorHasNoWriterEffects(t *testing.T) {
 
 func TestNativeCreateForkSkipsCapabilityAndSourceWriterIdentity(t *testing.T) {
 	rt := newFakeRuntime()
-	rt.nativeCapability = func(context.Context, NativeLockExemption) error {
-		t.Fatal("fork checked existing writers")
-		return nil
-	}
 	opts := baseOpts(LaunchArgs{Agent: "claude", AgentExplicit: true, ForcedTag: "work", AgentArgs: []string{"--resume", "fork-source", "--fork-session"}, AgentArgsExplicit: true})
 	rt.files[filepath.Join(opts.Env.DataDir, "config-work-claude.json")] = `{"agent":"claude","args":[],"session_id":"stale"}`
 	code, err := run(t, opts, rt)
@@ -156,10 +104,6 @@ func TestNativeCreateCodexIndirectCompatibilityPreservesInvocation(t *testing.T)
 			rt.nativeResolve = func(context.Context, NativeResumeRequest) (NativeResumeResolution, error) {
 				t.Error("compatibility invoked unresolved adapter")
 				return NativeResumeResolution{}, errors.New("not implemented")
-			}
-			rt.nativeCapability = func(context.Context, NativeLockExemption) error {
-				t.Error("indirect compatibility reached capability check")
-				return errors.New("wrong capability check")
 			}
 			rt.launchHook = func(int) {
 				cmd, err := DecodeAgentCommand(rt.env[AgentCommandEnv])
@@ -194,10 +138,6 @@ func TestNativeCreateChosenNewIDBypassesSavedPicker(t *testing.T) {
 	for _, agent := range []string{"claude", "qoder"} {
 		t.Run(agent, func(t *testing.T) {
 			rt := newFakeRuntime()
-			rt.nativeCapability = func(context.Context, NativeLockExemption) error {
-				t.Fatal("new conversation checked existing writers")
-				return nil
-			}
 			args := []string{"--session-id", "44444444-4444-4444-8444-444444444444", "--model", "chosen-model"}
 			opts := baseOpts(LaunchArgs{Agent: agent, AgentExplicit: true, ForcedTag: "work", AgentArgs: args, AgentArgsExplicit: true})
 			rt.files[filepath.Join(opts.Env.DataDir, "config-work-"+agent+".json")] = `{"agent":"` + agent + `","args":[],"session_id":"stale"}`

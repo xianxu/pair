@@ -115,3 +115,39 @@ Exact registry declarations reuse unchanged content and inode, but reconfirm the
 registry directory's durability on Open. Failed sync after rename remains an
 error on identical retry until synchronization succeeds; no declaration rewrite
 is needed (`registry_test.go`).
+
+
+## History backup storage
+
+The explicit `pair archive create` batch path is owned by
+[`historyarchive.Archiver`](../cmd/internal/historyarchive/archive.go) and
+[`archivecmd`](../cmd/internal/archivecmd/run.go). Its sources are selected stable
+regular files. It checks identity, size, mtime and hash across description and tar
+writing, preserves those sources, and does not renew managed-session use or
+change a source's retention policy. Inventory and help do not create backup
+storage. This is not yet the archive-before-eviction integration: consumers must
+wait for successful verified catalog evidence before any future deletion step.
+
+The archive invocation owns temporary ciphertext; ordinary returns remove it.
+Serialized recovery removes only owned staging remnants from interrupted writes:
+the catalog lock protects catalog-adjacent staging, and the sink serializes its
+own publication staging recovery. Published bundle/label objects are never
+cleaned up by this recovery. A partial published pair requires inspection; a
+complete matching uncataloged pair can be verified and adopted on explicit retry.
+
+The sink owns immutable encrypted bundles and plaintext labels. The private local
+catalog owns full source manifests and verified object references under one
+cross-process lock. Records stream across 64 MiB shards, with automatic rollover
+and synced repair of an incomplete trailing JSONL line; complete records are
+retained and validated. Every success, including reuse, reconfirms durability.
+These artifacts remain until an explicit retention decision; no background
+schedule or automatic deletion is introduced. Disk usage is encrypted payloads
+plus labels, private catalog shards and in-flight staging. A bundle targets
+256 MiB raw payload, admits at most 1 GiB raw payload and 2 GiB ciphertext, and
+uses one zstd compression thread; compression working memory is additional.
+
+[History backup](history-backup.md) maps the complete request, bounds, privacy
+and recovery contract. Behavioral coverage is in `historyarchive/archive_test.go`,
+`sink_test.go`, `catalog_test.go`, `files_test.go` and `codec_test.go`; the isolated
+real transform test is `codec_live_test.go`. These archive paths do not imply a
+new managed-owner file family or weaken existing diagnostic backup fences.

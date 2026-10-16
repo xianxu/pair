@@ -12,6 +12,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/launcher"
+	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 )
 
 type recoveryExecutionFixture struct {
@@ -354,49 +355,29 @@ func TestResumeCandidateLaunchNoticeDoesNotResend(t *testing.T) {
 	}
 }
 
-func TestResumeLegacyCapabilityAtBothGates(t *testing.T) {
-	for _, late := range []bool{false, true} {
-		f := newRecoveryExecutionFixture(t)
-		key := f.preview(t).Candidates[0].Key
-		occupy := func() { f.Artifacts.SetLegacyNativeLockSlots("pair:3") }
-		if late {
-			f.Couch.Workspaces = slotReadinessFunc(func(context.Context, ProvisionRequest) (ProvisionResult, error) {
-				f.prepared++
-				occupy()
-				return slotReadyResult(f.Couch.Threads), nil
-			})
-		} else {
-			occupy()
-		}
-		_, err := f.Couch.ResumeCandidate(context.Background(), ResumeTarget{Address: f.record.Address}, key)
-		if err == nil || !strings.Contains(err.Error(), "relaunch older slots first: pair:3") || len(f.Runner.Ops) != 0 {
-			t.Fatalf("legacy resume admitted: %v ops=%v", err, f.Runner.Ops)
-		}
-		if !late && (f.preserved != 0 || f.prepared != 0) {
-			t.Fatal("preflight ran after effects")
-		}
+// pair#605: production's clock carries a monotonic reading that the store
+// does not persist. A recovery resume must still pass the workspace recheck,
+// which compares the claimed record with its persisted copy.
+func TestRecoveryResumeWithMonotonicClockPassesWorkspaceRecheck(t *testing.T) {
+	for _, kind := range []string{"inferred", "proven"} {
+		t.Run(kind, func(t *testing.T) {
+			f := newRecoveryExecutionFixture(t)
+			f.registerLiveChildren(t)
+			now := time.Now()
+			f.observation.Capture.CapturedAt = now.Add(-time.Second)
+			f.observation.Ranked[0].Candidate.SemanticLast = now.Add(-time.Second)
+			f.Couch.Clock = SystemClock{}
+			key := f.preview(t).Candidates[0].Key
+			var err error
+			if kind == "inferred" {
+				_, err = f.Couch.ResumeCandidate(context.Background(), ResumeTarget{Address: f.record.Address}, key)
+			} else {
+				f.Artifacts.SetNativeBinding(f.record.Address, "codex", sessioninventory.BindingEstablished, f.observation.Ranked[0].Candidate.NativeID)
+				_, err = f.Couch.RecoverSelection(context.Background(), RecoverySelection{Target: ResumeTarget{Address: f.record.Address}, Kind: RecoveryProven})
+			}
+			if err != nil {
+				t.Fatalf("recovery resume with a monotonic clock: %v", err)
+			}
+		})
 	}
-}
-
-func TestMigrationBypassIsBoundToRelaunchNativeID(t *testing.T) {
-	f := newRecoveryExecutionFixture(t)
-	f.Artifacts.SetLegacyNativeLockSlots("pair:3")
-	choice := RecoveryChoice{Agent: "codex", NativeID: "native"}
-	if err := f.Couch.checkRecoveryNativeLock(context.Background(), choice); err == nil {
-		t.Fatal("ordinary resume bypassed")
-	}
-	ctx := context.WithValue(context.Background(), relaunchMigrationKey{}, relaunchMigration{Agent: "codex", NativeID: "native"})
-	if err := f.Couch.checkRecoveryNativeLock(ctx, choice); err != nil {
-		t.Fatal(err)
-	}
-	choice.NativeID = "other"
-	if err := f.Couch.checkRecoveryNativeLock(ctx, choice); err == nil {
-		t.Fatal("migration selected unrelated conversation")
-	}
-}
-
-func (f *FakeThreadArtifactCollisionChecker) SetLegacyNativeLockSlots(slots ...string) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.legacyNativeLockSlots = append([]string(nil), slots...)
 }

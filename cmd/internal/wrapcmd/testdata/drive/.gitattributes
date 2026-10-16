@@ -1,0 +1,2 @@
+# PTY bytes retain CR, terminal whitespace and escape sequences.
+**/*.raw binary

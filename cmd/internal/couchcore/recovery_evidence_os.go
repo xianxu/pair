@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -196,7 +197,12 @@ func (r OSRecoveryEvidenceReader) Read(ctx context.Context, record ThreadRecord)
 		out.Reasons = []string{"capture producing time is unknown; native inference unavailable"}
 		return out, nil
 	}
-	runtime := sessioninventory.NewOSRuntime(r.HomeDir, r.DataDir)
+	runtime, err := sessioninventory.NewNativeTranscriptRuntime(r.HomeDir, r.DataDir, sessioninventory.Agent(out.Agent), "", os.Getenv)
+	if err != nil {
+		out.Incomplete = true
+		out.Reasons = []string{"native transcript home unavailable; native inference unavailable"}
+		return out, validateRecoveryCaptureSnapshot(ctx, capture)
+	}
 	evidence := sessioninventory.CollectRecoveryEvidence(ctx, runtime, sessioninventory.RecoveryCollectRequest{Agent: sessioninventory.Agent(out.Agent), TargetCWD: record.WorkingPath, ProducingLaunch: &witness.OpenedAt, CapturedAt: &capture.LastActivity, RenderedTail: lines, TTYActivity: &capture.LastActivity, BytesAlreadyRead: capture.RawIdentity.Size + 2*capture.EventsIdentity.Size})
 	out.Ranked, out.Incomplete, out.Reasons = evidence.Ranked, evidence.Incomplete, evidence.Reasons
 	return out, validateRecoveryCaptureSnapshot(ctx, capture)

@@ -7,6 +7,7 @@ import json,os,pathlib,subprocess,sys,tempfile,time
 root=pathlib.Path(os.environ['PAIR_ROOT'])
 sys.path.insert(0,str(root/'tests/lib'))
 from review_test_env import ReviewTestEnvironment
+from review_observation_diagnostics import observe_wanted, identity_metadata
 pane_init=pathlib.Path(os.environ.get('PAIR_TEST_REVIEW_INIT',str(root/'nvim/review.lua')))
 with ReviewTestEnvironment() as isolated, tempfile.TemporaryDirectory(prefix='pair-observation-') as td:
     tmp=pathlib.Path(td).resolve();repo=tmp/'repo';repo.mkdir();data=tmp/'data';data.mkdir();home=tmp/'home';(home/'bin').mkdir(parents=True)
@@ -21,7 +22,12 @@ with ReviewTestEnvironment() as isolated, tempfile.TemporaryDirectory(prefix='pa
         (tmp/'msg').write_text('review('+name+'): agent r1\n\n```review-records\n'+json.dumps([record])+'\n```\n')
         git('commit','-qaF',str(tmp/'msg'))
     git('checkout','-q','review/a')
-    def resolve():return json.loads(subprocess.check_output([str(root/'bin/pair'),'review','readiness','--resolve',str(repo)],env=base_env,text=True,timeout=4))
+    phase='startup';wanted_history=[];requests=[]
+    wanted_binary=os.environ.get('PAIR_TEST_OBSERVATION_WANTED_BIN',str(root/'bin/pair'))
+    def resolve():
+        return observe_wanted([wanted_binary,'review','readiness','--resolve',str(repo)],
+                              base_env,wanted_history,'wanted:'+phase)
+
     slow=tmp/'slow';calls=tmp/'calls'
     wrapper=home/'bin/pair'
     wrapper.write_text('#!'+sys.executable+'\n'+'''import os,sys,time,subprocess
@@ -41,14 +47,34 @@ os.execv(os.environ['REAL_PAIR'],[os.environ['REAL_PAIR'],*sys.argv[1:]])
         PAIR_DATA_DIR=str(data),PAIR_TAG='observation',PAIR_SESSION_ID='sid',PAIR_REVIEW_OPEN_PATH=str(opened),
         PAIR_REVIEW_HANDOFF_PATH=str(data/'handoff.json'),PAIR_REVIEW_LANDED_PATH=str(data/'landed.json'),
         PAIR_REVIEW_IDENTITY=json.dumps(resolve()),XDG_STATE_HOME=str(tmp/'state'),XDG_CACHE_HOME=str(tmp/'cache'),XDG_DATA_HOME=str(tmp/'xdg'))
-    with (tmp/'pane.log').open('w') as log:
-        pane=subprocess.Popen(['nvim','--headless','-u',str(pane_init),str(repo/'a.md')],cwd=repo,env=env,stdout=log,stderr=log)
+    trace_path=tmp/'pane-observations.json';trace_init=tmp/'observation-init.lua'
+    trace_init.write_text('dofile('+json.dumps(str(pane_init))+')\n'+
+        'dofile('+json.dumps(str(root/'tests/lib/review_observation_trace.lua'))+').install({path='+json.dumps(str(trace_path))+'})\n')
+    pane=None;meta=None
+
     def evaluate(expr):return subprocess.check_output(['nvim','--server',meta['endpoint'],'--remote-expr',expr],env=env,text=True,timeout=8).strip()
     def lua(code):return evaluate("luaeval('"+code.replace("'","''")+"')")
     def request(want):
         raw=json.dumps(dict(token=meta['token'],session='sid',identity=want))
-        return json.loads(evaluate("luaeval('vim.json.encode(PairReviewPane.restore(_A))', '"+raw.replace("'","''")+"')"))
+        ack=json.loads(evaluate("luaeval('vim.json.encode(PairReviewPane.restore(_A))', '"+raw.replace("'","''")+"')"))
+        requests.append(dict(phase=phase,wanted=identity_metadata(want),ack=dict(
+            ok=ack.get('ok'),same=ack.get('same'),error=str(ack.get('error',''))[:2048],
+            identity=identity_metadata(ack.get('identity')),context=identity_metadata(ack.get('context')))))
+        return ack
+    def evidence():
+        fresh={'unavailable':'pane endpoint not published'}
+        if pane is not None and pane.poll() is None and meta is not None:
+            try:fresh=json.loads(lua('vim.json.encode(PairReviewObservationTraceSnapshot())'))
+            except Exception as error:fresh={'unavailable':str(error)}
+        if 'unavailable' in fresh and trace_path.exists():
+            try:fresh=json.loads(trace_path.read_text())
+            except Exception as error:fresh={'unavailable':'invalid final trace: '+str(error)}
+        return dict(phase=phase,wanted=wanted_history,requests=requests,fresh=fresh,
+                      returncode=pane.poll() if pane is not None else None,
+                      pane_log=(tmp/'pane.log').read_text(errors='replace')[-16384:] if (tmp/'pane.log').exists() else '')
     try:
+        with (tmp/'pane.log').open('w') as log:
+            pane=subprocess.Popen(['nvim','--headless','-u',str(trace_init),str(repo/'a.md')],cwd=repo,env=env,stdout=log,stderr=log)
         end=time.monotonic()+6
         while time.monotonic()<end:
             if opened.exists() and len(opened.read_text().splitlines())>=3:break
@@ -57,11 +83,13 @@ os.execv(os.environ['REAL_PAIR'],[os.environ['REAL_PAIR'],*sys.argv[1:]])
         count=lambda:int(lua('#vim.api.nvim_get_autocmds({event="TextChanged",buffer=vim.api.nvim_get_current_buf()})'))
         before=count()
         for name in ('b','a','b','a'):
+            phase='restore:'+name
             git('checkout','-q','review/'+name);ack=request(resolve());assert ack['ok'],ack
         after=count()
         if before!=after:failures.append('render callbacks accumulated: '+str((before,after)))
         # A completed identity observation is deliberately withheld across a
         # checkout. The callback must apply captured A bytes, never reread B.
+        phase='withheld-observation-across-checkout'
         (repo/'a.md').write_text('a reviewed captured before checkout\n')
         (tmp/'hold').touch();lua('vim.api.nvim_exec_autocmds("FocusGained",{})')
         end=time.monotonic()+3
@@ -80,6 +108,7 @@ os.execv(os.environ['REAL_PAIR'],[os.environ['REAL_PAIR'],*sys.argv[1:]])
         (tmp/'hold').unlink();git('checkout','-q','review/a')
         # Clean same-branch disk edits still reload, after an async observation.
         # The timed region is inside the editor; RPC startup is excluded.
+        phase='slow-same-branch-observation'
         slow.touch()
         duration=float(lua('(function() local now=vim.uv.hrtime(); assert(PairReviewPane.apply_definition_result(vim.api.nvim_get_current_buf())==false); return (vim.uv.hrtime()-now)/1e6 end)()'))
         if duration>=250:failures.append('empty definition poll blocked for '+str(duration)+'ms')
@@ -93,6 +122,7 @@ os.execv(os.environ['REAL_PAIR'],[os.environ['REAL_PAIR'],*sys.argv[1:]])
         else:failures.append('matching branch external edit did not reload')
         if lua('vim.bo.endofline')!='false':failures.append('snapshot lost no-final-newline state')
         slow.unlink()
+        phase='snapshot-bytes'
         for body,first,eol,fmt,bomb in [
             ('dos first\r\ndos last\r\n','dos first','true','dos','false'),
             ('\ufeffBOM first\r\nBOM last\r\n','BOM first','true','dos','true'),
@@ -115,9 +145,11 @@ os.execv(os.environ['REAL_PAIR'],[os.environ['REAL_PAIR'],*sys.argv[1:]])
 
         # An external checkout may replace the file at the same path, but its
         # different branch must never reload into this clean activation.
+        phase='different-branch-must-not-reload'
         slow.unlink();git('checkout','--','a.md');git('checkout','-q','review/b');slow.touch()
         lua('vim.api.nvim_exec_autocmds("FocusGained",{})');time.sleep(1.5)
         if lua('vim.api.nvim_buf_get_lines(0,0,1,false)[1]')!='external same branch':failures.append('different branch reloaded active document')
+        phase='coalesced-edits'
         slow.unlink();git('checkout','-q','review/a');slow.touch()
         if calls.exists():calls.write_text('')
         duration=float(lua('(function() vim.api.nvim_buf_set_lines(0,0,-1,false,{"edited"}); local now=vim.uv.hrtime(); vim.api.nvim_exec_autocmds("TextChanged",{buffer=0}); return (vim.uv.hrtime()-now)/1e6 end)()'))
@@ -131,10 +163,19 @@ os.execv(os.environ['REAL_PAIR'],[os.environ['REAL_PAIR'],*sys.argv[1:]])
         duration=float(lua('(function() local now=vim.uv.hrtime(); vim.api.nvim_exec_autocmds("FocusGained",{}); return (vim.uv.hrtime()-now)/1e6 end)()'))
         if duration>=250:failures.append('FocusGained blocked for '+str(duration)+'ms')
         assert not failures,'; '.join(failures)
+        if os.environ.get('PAIR_TEST_OBSERVATION_REPORT'):
+            report=evidence();report['outcome']='passed'
+            pathlib.Path(os.environ['PAIR_TEST_OBSERVATION_REPORT']).write_text(json.dumps(report,sort_keys=True))
         print('review-observation-test ok')
+    except BaseException:
+        report=evidence();report['outcome']='failed'
+        print('review observation failure: '+json.dumps(report,sort_keys=True),file=sys.stderr)
+        raise
     finally:
         slow.unlink(missing_ok=True)
-        pane.terminate()
-        try:pane.wait(timeout=5)
-        except subprocess.TimeoutExpired:pane.kill();pane.wait()
+        if pane is not None:
+            pane.terminate()
+            try:pane.wait(timeout=5)
+            except subprocess.TimeoutExpired:pane.kill();pane.wait()
+
 PY

@@ -37,17 +37,18 @@ func (c *Console) statusModelLocked() StatusModel {
 		at, known := c.menu.Activity[p.thread]
 		actor := StatusActor{Thread: p.thread, Active: id == c.active, Bell: len(c.attention.Projection(p.thread)) > 0,
 			Blocked: c.menu.Blocked[p.thread], Idle: IdleLevelFor(now, at, known)}
-		members[p.thread] = actor
 		index, found := byAddress[p.thread]
 		if !found {
-			row := couchcore.ActionableThreadSummary{Address: p.thread, StartingPath: string(p.tree), WorkingPath: string(p.tree)}
-			if target, ok := slotsByPath[string(p.tree)]; ok {
-				row.Target = target
-				row.RowKey, _ = target.RowKey()
+			// A slot's chip is its current row, as in the switcher (pair#607):
+			// a pane left on a replaced address (a reboot's old thread) gets
+			// none, so one slot never shows two chips.
+			if _, slot := slotsByPath[string(p.tree)]; slot {
+				continue
 			}
-			rows = append(rows, row)
+			rows = append(rows, couchcore.ActionableThreadSummary{Address: p.thread, StartingPath: string(p.tree), WorkingPath: string(p.tree)})
 			index = len(rows) - 1
 		}
+		members[p.thread] = actor
 		// A snapshot can lag attachment. The pane's canonical tree supplies missing
 		// context only; an observed slot target and its durable row key are retained.
 		if rows[index].StartingPath == "" {

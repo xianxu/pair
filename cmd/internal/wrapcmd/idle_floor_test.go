@@ -119,12 +119,14 @@ func newIdleFloorHarness(t *testing.T, agent, mode string, idle time.Duration) *
 		h.mu.Unlock()
 		return notifications.Write(data)
 	}))
+	prepareMasterPumpTransport(t, h.proxy, h.done)
 	go func() {
 		h.proxy.masterPump()
 		close(h.done)
 	}()
 	t.Cleanup(func() {
 		_ = writer.Close()
+		_ = h.proxy.childIO.Close()
 		select {
 		case <-h.done:
 		case <-testwait.After(t):

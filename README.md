@@ -460,6 +460,10 @@ couch --recovery-confirmation TOKEN [--json]
                          approve that offer from the authenticated owning hub; no repeated target or TUI is needed
 couch --switch-agent repo:N --agent NAME --confirm [--json]
                          from the hub: switch another idle, clean slot using saved target-agent settings
+couch --keys repo:N STEP... [--json]
+                         owning hub: drive named keys in an idle, empty agent composer and return its styled tail
+couch --set-model repo:N --model MODEL [--effort LEVEL] [--scope session|default] --confirm [--json]
+                         owning hub: select and verify model/effort; session scope is the default
 couch --operation-status ID [--json]   inspect an asynchronous operation receipt
 couch --reap repo:N --confirm [--json]     from a live slot: end an orphaned server's tree
 couch --recover repo:N [--json]               from a live slot: run the report's steps for it
@@ -488,6 +492,39 @@ couch --message-status ID [--json]      inspect a message receipt; a send to a b
 couch --skill            print the bundled agent coordination skill
 couch --adopt-store /absolute/store     preview adoption of an existing store
 ```
+
+`couch --keys` and `couch --set-model` require a verified owning hub and one
+other exact live slot with an idle, empty agent composer. The separate Neovim
+draft does not block these controls. A busy turn, open picker, occupied composer
+or unknown wrapper state refuses before input; relaunch an older wrapper on the
+new build if its drive capability is unavailable. Recovery-only `--keys`
+requests containing solely `clear-line` and/or `esc` may start on a positively
+recognized occupied composer, with no turn, picker, buffered input or competing
+automatic input. After inspecting an uncertain result and the slot, use
+`couch --keys pair:7 clear-line` to clear that composer's current line. Mixed
+requests and model selection still require an empty composer.
+
+```sh
+couch --keys pair:7 clear-line text:/model submit wait:200 down enter
+couch --set-model pair:7 --model gpt-6.1-sol --effort medium --confirm
+```
+
+Named raw steps are `text:…`, `enter`, `submit`, `up`, `down`, `esc`,
+`clear-line` and `wait:MS`. `enter` follows Pair's Return behavior: newline in
+the composer, selection in a picker; `submit` follows Alt+Return. Each `esc`
+is a separate input step. Raw success confirms the writes and final observation.
+Use `--set-model` when you need a confirmed model, effort and scope: it follows
+observed labels, uses the picker's current effort if omitted, and verifies a
+fresh agent confirmation. Session scope uses `s` in both agents. Explicit
+`--scope default --confirm` is supported for Codex; Claude default scope is
+refused before input because its persistence recipe is not verified.
+
+A drive has a 30-second server budget, including queue wait; the CLI observes
+for at most 36 seconds. Human input or a changed wrapper/owner cancels it.
+An uncertain outcome never permits automatic replay: inspect the printed
+receipt with `couch --operation-status ID` and the slot with `couch --peek repo:N`
+before sending anything else. Input and result bounds are documented in the
+[Couch atlas](atlas/couch.md#agent-keys-and-model-selection-544).
 
 Couch attaches only after a fresh `zellij list-sessions` result lists the
 session live (not EXITED). An absent session or failed listing never authorizes
@@ -738,13 +775,24 @@ images, menus and unknown states prevent automatic submission. Unchanged text
 in the separate draft pane does not block delivery. Claude Code, Codex CLI and
 Qoder CLI receive at any installed version. Fixtures and live checks cover
 Claude Code 2.1.286, Codex CLI 0.159.2 and Qoder CLI 1.1.71; a Qoder 1.1.66
-fixture also covers the first-run folder-trust dialog. The Qoder live smoke
+fixture also covers the first-run folder-trust dialog. The #550 Qoder live smoke
 confirmed registration, live peek, message receipt/reply and idle settling.
 Evidence for newer versions is tracked in #368. Messages are bracketed-pasted
 into an empty composer and submitted automatically after a short delay; the
-wrapper confirms submission from a cleared composer or a newly opened turn.
-It does not reconstruct the pasted envelope from wrapped or collapsed text.
-Existing human input and open pickers hold delivery.
+wrapper normally confirms submission from a cleared composer or a newly opened
+turn. Qoder requires a fresh complete rendered empty composer. If its submit
+key is ignored, Couch may retry only that key, at most three attempts at least
+500 ms apart within the original 30-second window. Each retry requires the
+complete unchanged envelope in Qoder's composer and no intervening human input;
+the body is never pasted twice. Other receivers do not reconstruct wrapped or
+collapsed envelopes. Existing human input and open pickers hold normal delivery.
+
+If Qoder submission remains unconfirmed, one alert goes to its owning hub and
+later deliveries refuse promptly with recovery advice. Inspect that composer,
+then use **Alt+Enter** to submit the pending text or clear it. Plain Enter inserts
+a newline under Pair's normal Qoder remapping. Only a later complete empty
+composer releases the quarantine; Couch never deletes the text or submits it
+after the expired delivery window.
 Prefer short coordination messages pointing to repository artifacts. Human
 Couch acceptance is separate from these receiver checks.
 
@@ -753,7 +801,7 @@ means a mailbox reservation; `submitted` means bytes submitted, not completed
 work. No eligible family slot returns `not-dispatched` with exit status zero.
 Other refusals return nonzero. If a send times out, query the printed ID with
 `--message-status` and inspect the recipient before sending again. Couch never
-retries uncertain input or keeps a durable message queue across restart.
+replays an uncertain body or keeps a durable message queue across restart.
 
 For agent setup, run `couch --skill` in an existing conversation and have the
 agent read the output. For discovery in future sessions, save the output as
@@ -1486,8 +1534,8 @@ starting the same native conversation at once, including launches outside Couch.
 An uncertain start retains ownership; missing readiness alone never proves the
 conversation is free. Claude and Qoder latest selectors resolve uniquely before launch. Codex indirect
 selectors retain native CLI behavior and show one line saying concurrent resume
-is not guarded until the faithful adapter in #571 is available; full canonical
-Codex IDs remain guarded. Other unsupported configuration/provider mappings name
+is not guarded; full canonical Codex IDs remain guarded. Exact-ID transcript
+validation honors CODEX_HOME (see [Codex resume](atlas/codex-resume.md)). Other unsupported configuration/provider mappings name
 that limitation and offer an exact session ID or Fresh. Existing continuation actions remain available where
 a continuation request owns the thread.
 
@@ -1680,6 +1728,10 @@ Session name [claude]: <Enter to accept, or type a custom name>
 Custom names like `bugfix`, `blogging`, or `research` are allowed (chars: `A-Z a-z 0-9 - _`). 
 
 From a non-agent Pair pane, detach with `Alt+d`. For Couch-managed work, use the switcher’s Detach action. To re-attach: run `pair` again and pick from the list. To fully quit (no resurrect entry): `Alt+x`.
+
+## History backup
+
+🤖{Use `pair archive inventory` to inspect supported history sources and `pair archive create --request /private/tmp/pair-archive-request.json` to back up explicitly selected stable files. Creation streams tar through zstd `-19` and GPG public-key encryption, verifies stored ciphertext and records the result in a private local catalog; it preserves source files. Install `gpg` and `zstd`, supply a trusted full public-key fingerprint and separate source, sink and catalog paths. No private key is needed for creation. [History backup](atlas/history-backup.md) documents the request JSON, defaults, limits, retry behavior and operator key-recovery checklist. This command does not schedule backups, delete sources, snapshot live SQLite databases, upload to Drive or provide a restore command.}
 
 ## Storage retention
 

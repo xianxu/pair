@@ -78,9 +78,6 @@ type RecoveryOrientation struct {
 }
 
 type RecoveryIntent struct {
-	// Relaunch is set only after an exact live source was successfully parked.
-	// It is bound to the persisted start authority, never a user override.
-	Relaunch       bool                 `json:"relaunch,omitempty"`
 	Mode           RecoveryMode         `json:"mode,omitempty"`
 	Address        Address              `json:"address,omitzero"`
 	SourceRevision uint64               `json:"source_revision,omitempty"`
@@ -183,9 +180,6 @@ func validateRecoveryCapture(c RecoveryCapture) error {
 }
 
 func ValidateRecoveryIntent(i RecoveryIntent, address Address) error {
-	if i.Relaunch && i.Kind() != RecoveryProven {
-		return errors.New("relaunch requires an exact proven conversation")
-	}
 	switch i.Kind() {
 	case RecoveryInferred:
 		if err := ValidateRecoveryContext(i.Context, address); err != nil {

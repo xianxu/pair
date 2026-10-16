@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/xianxu/pair/cmd/internal/archivecmd"
 	"github.com/xianxu/pair/cmd/internal/changelogcmd"
 	"github.com/xianxu/pair/cmd/internal/clipcmd"
 	"github.com/xianxu/pair/cmd/internal/continuationcmd"
@@ -86,6 +87,8 @@ func runWithLegacyRuntime(args []string, stdout, stderr io.Writer, rt legacyRunt
 // unknown name is a programming error.
 func runStreamingSubcommand(name string, rest []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	switch name {
+	case "archive":
+		return archivecmd.Run(rest, stdout, stderr)
 	case "gc":
 		return gccmd.Run(rest, os.Getenv, stdout, stderr)
 	case "diagnostic append":

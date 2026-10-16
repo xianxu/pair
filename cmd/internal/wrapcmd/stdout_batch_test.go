@@ -70,7 +70,8 @@ func TestMasterPumpFlushesStdoutOnTick(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer reader.Close()
+	t.Cleanup(func() { _ = reader.Close() })
+	t.Cleanup(func() { _ = writer.Close() })
 
 	// drainBuffer, not bytes.Buffer: this test polls the output while
 	// masterPump is still writing to it, so an unsynchronised buffer is a data
@@ -87,6 +88,7 @@ func TestMasterPumpFlushesStdoutOnTick(t *testing.T) {
 		now:              time.Now,
 	}
 	done := make(chan struct{})
+	prepareMasterPumpTransport(t, p, done)
 	go func() {
 		p.masterPump()
 		close(done)
@@ -116,7 +118,8 @@ func TestMasterPumpFlushesStdoutOnEOF(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer reader.Close()
+	t.Cleanup(func() { _ = reader.Close() })
+	t.Cleanup(func() { _ = writer.Close() })
 
 	var out bytes.Buffer
 	p := &proxy{
@@ -129,6 +132,7 @@ func TestMasterPumpFlushesStdoutOnEOF(t *testing.T) {
 		now:              time.Now,
 	}
 	done := make(chan struct{})
+	prepareMasterPumpTransport(t, p, done)
 	go func() {
 		p.masterPump()
 		close(done)
