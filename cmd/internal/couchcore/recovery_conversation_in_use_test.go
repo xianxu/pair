@@ -76,3 +76,40 @@ func TestRecoveryConversationInUseIsRegistryOnly(t *testing.T) {
 		})
 	}
 }
+
+// pair#597 close review BR-1: the ordinary Couch cold resume (resume,
+// relaunch) takes no native admission either, so it must pass the same
+// registry check before any child starts.
+func TestColdResumeRefusesConversationLiveInAnotherSlot(t *testing.T) {
+	for _, collide := range []bool{true, false} {
+		env := newTestEnv(t, "/repo")
+		profile := LaunchProfile{Agent: "claude", Argv: []string{}}
+		parked := createParkedThreadInCouch(t, env, profile)
+		env.Artifacts.SetNativeBinding(parked.Address, "claude", sessioninventory.BindingEstablished, "native-root-1")
+		other := validThreadRecord(t)
+		other.Address.Tag = "couch-2222222222222222"
+		other.StartingPath, other.WorkingPath = "/repo", "/repo"
+		other.LatestLaunchProfile = &profile
+		other.Incarnations = []ThreadIncarnation{{PID: 77, Identity: "other-helper", State: IncarnationLive, LaunchProfile: &profile}}
+		if _, err := env.Couch.Threads.CreateThread(other); err != nil {
+			t.Fatal(err)
+		}
+		env.Proc.Set(77, "other-helper")
+		otherID := "native-root-2"
+		if collide {
+			otherID = "native-root-1"
+		}
+		env.Artifacts.SetNativeBinding(other.Address, "claude", sessioninventory.BindingEstablished, otherID)
+		env.Runner.AfterAcknowledge = func(id string) error {
+			env.Artifacts.SetPairSession(parked.Address, continuationChildSession(t, env.Runner, id), true)
+			return nil
+		}
+		_, _, err := env.Couch.Resume(parked.Address)
+		if collide && (err == nil || !strings.Contains(err.Error(), "conversation native-root-1 is in use by") || len(env.Runner.order) != 0) {
+			t.Fatalf("collision admitted: err=%v children=%v", err, env.Runner.order)
+		}
+		if !collide && err != nil {
+			t.Fatalf("different conversation refused: %v", err)
+		}
+	}
+}

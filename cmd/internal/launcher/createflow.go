@@ -818,9 +818,9 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 			}
 		}
 	}()
-	// A Couch-owned resume needs no native admission (pair#597): Couch retired
-	// the slot's own processes and checked its registry for the same
-	// conversation in another live slot before it launched this one.
+	// A Couch-owned resume needs no native admission (pair#597): both Couch
+	// resume paths (recovery and cold resume) check Couch's registry for the
+	// same conversation in another live slot before they launch this one.
 	if explicitResume != "" && !couchOwned {
 		digest, err := NativeAdmissionCommandDigest(agent, append([]string{agent}, PromptArgs(agent, commandArgs, opts.Args.Prompt)...))
 		if err != nil {

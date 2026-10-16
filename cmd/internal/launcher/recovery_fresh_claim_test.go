@@ -33,7 +33,7 @@ func (r *recoveryFreshClaimRuntime) RegisterExistingCouchThread(scope RepoScope,
 }
 
 func TestRecoveryFreshEstablishesOnlyAuthorizedReservedAddress(t *testing.T) {
-	for _, scenario := range []string{"valid", "tagged valid", "changed attempt", "wrong owner", "missing marker", "resume"} {
+	for _, scenario := range []string{"valid", "tagged valid", "changed attempt", "wrong owner", "missing marker", "resume", "retry after refusal"} {
 		t.Run(scenario, func(t *testing.T) {
 			a := testRecoveryAuthority()
 			opts := baseOpts(LaunchArgs{ForcedTag: "work"})
@@ -65,7 +65,7 @@ func TestRecoveryFreshEstablishesOnlyAuthorizedReservedAddress(t *testing.T) {
 				opts.Env.CouchThreadTag = "other"
 			}
 			rt := &recoveryFreshClaimRuntime{global: t.TempDir(), recoveryGateRuntime: &recoveryGateRuntime{couchSessionRuntime: &couchSessionRuntime{fakeRuntime: newFakeRuntime()}, record: recoveryAuthorityRecord(a, opts.Env.Cwd, "codex", 42, "helper")}}
-			if scenario == "changed attempt" {
+			if scenario == "changed attempt" || scenario == "retry after refusal" {
 				rt.record.Incarnations[0].Start.Nonce = "other"
 			}
 			marker := NewScopedPaths(rt.global, scope, "work").ThreadClaim()
@@ -84,7 +84,20 @@ func TestRecoveryFreshEstablishesOnlyAuthorizedReservedAddress(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if scenario == "valid" || scenario == "tagged valid" {
+			if scenario == "retry after refusal" {
+				// pair#597: a refused Fresh leaves its reserved marker as it was,
+				// so the next validated attempt on the same address starts.
+				after, readErr := os.ReadFile(marker)
+				if code != 1 || rt.launchCount != 0 || readErr != nil || !bytes.Equal(before, after) {
+					t.Fatalf("first attempt: code=%d launches=%d marker=%s %v", code, rt.launchCount, after, readErr)
+				}
+				rt.record.Incarnations[0].Start.Nonce = a.Attempt
+				stderr.Reset()
+				if code, err = RunLaunch(opts, rt, &stderr); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if scenario == "valid" || scenario == "tagged valid" || scenario == "retry after refusal" {
 				if code != 0 || rt.launchCount != 1 {
 					t.Fatalf("fresh recovery failed: code=%d launches=%d stderr=%s", code, rt.launchCount, &stderr)
 				}
