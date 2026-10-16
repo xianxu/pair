@@ -100,6 +100,8 @@ Raw after-links.jsonl SHA256 7a87a46f26d860e1021fdc184a8a71066782d3d3335735693c9
 
 2026-10-16 root independently re-ran the full-source overlay qualification: all eleven subtests PASS (0.108 s), verified each preserved body byte-for-byte against git show 53c96ded and that overlay implementation starts with the current committed guard. Bundle SHA256 46db6b15d260e5e450668cdd7aef3e0297d91e61d77eeef9b6e63334a5ccb969. Local overlay /tmp/pair602-guard-_cqj8nju/overlay.json; portable eleven-recipe regression fixtures remain committed.
 
+2026-10-16 R2 complete verification: recorded suite PASS on 31561018d1dad71c536dbcad0a3804b64147e55e in 11m11s; log sha256 prefix d1e3299210e9 at sdlc/local-checks/31561018d1dad71c536dbcad0a3804b64147e55e/suite.log. No failing tests; couchcore 333.332 s, wrapcmd 75.986 s. Server conformance and both deterministic checks green. All eleven original source bodies detected, portable recipe fixtures and relative/unrelated negative controls pass. Ready for close round 3.
+
 ## Revisions
 
 2026-10-16 R1 — close review BR-1 reproduced the shell builder resolving source relative to caller cwd; centralize checkout selection while resolving relative output against the original cwd, with subdirectory and outside-checkout fake-compiler regression controls plus the real embedded-runtime script from tests/. BR-2 requires README coverage of the complete shared/supplied/fallback lifecycle and plain-vs-development defaults. Scope and original assertions unchanged; re-run targeted checks and the recorded full suite before re-close.
