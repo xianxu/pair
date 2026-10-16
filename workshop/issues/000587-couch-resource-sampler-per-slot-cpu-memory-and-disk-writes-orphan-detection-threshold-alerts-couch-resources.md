@@ -1,12 +1,12 @@
 ---
 id: 000587
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-15
 updated: 2026-10-15
 estimate_hours: 4.883
-card_mirror: 'e2f429d5d3b1adb11e269c0f705d5efa7f0995c0' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'abb9e9c341225fc86c7b6d9f19f4e18a2c9de850' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-15T16:54:15-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: operator}
+actual_hours: 4.22
 ---
 
 # Couch resource sampler: per-slot CPU, memory and disk writes, orphan detection, threshold alerts, couch --resources
