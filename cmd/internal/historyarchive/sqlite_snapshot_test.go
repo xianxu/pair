@@ -105,14 +105,14 @@ func TestSQLiteSnapshotSkipsOverLimitDatabaseWithoutCopying(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := f.Truncate(MaxBundleBytes + 1); err != nil {
+	if err := f.Truncate(MaxSnapshotRawBytes + 1); err != nil {
 		t.Fatal(err)
 	}
 	f.Close()
 	copies := 0
 	s := SQLiteSnapshotter{SQLite: "sqlite3", Scratch: t.TempDir(), copyFile: func(string, string) error { copies++; return nil }}
 	ok, note, err := s.Snapshot(context.Background(), src, "big.sqlite", filepath.Join(t.TempDir(), "s"))
-	if err != nil || ok || !strings.Contains(note, "per-file bound") || copies != 0 {
+	if err != nil || ok || !strings.Contains(note, "snapshot bound") || copies != 0 {
 		t.Fatalf("over-limit db: ok=%v note=%q err=%v copies=%d", ok, note, err, copies)
 	}
 }

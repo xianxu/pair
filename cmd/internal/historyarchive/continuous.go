@@ -155,7 +155,7 @@ func (p ContinuousPass) archiveRoot(ctx context.Context, root SourceRoot, index 
 		if index.Seen(identity, c) {
 			continue
 		}
-		described, err := (&SelectedFiles{Root: identity.Root}).Describe(ctx, []string{c.Path})
+		described, err := (&SelectedFiles{Root: identity.Root, Limit: rawBundleLimit(root.Kind)}).Describe(ctx, []string{c.Path})
 		if err != nil {
 			skipped = append(skipped, fmt.Sprintf("%s/%s: %v", root.Kind, c.Path, err))
 			continue
@@ -168,11 +168,23 @@ func (p ContinuousPass) archiveRoot(ctx context.Context, root SourceRoot, index 
 	archived := 0
 	for len(fresh) > 0 {
 		n := min(len(fresh), MaxFiles)
+		if collected {
+			// One request per snapshot: an oversized one is skipped alone,
+			// never taking the rest of the batch with it.
+			n = 1
+		}
 		req := ArchiveRequest{Version: Version, Kind: root.Kind, Source: identity, Files: fresh[:n], Recipients: p.Config.Recipients, Sink: p.Config.Sink, Catalog: p.Config.Catalog}
 		records, err := p.Archiver.create(ctx, req, collected)
 		for _, r := range records {
 			index.Add(r.Manifest)
 			archived += len(r.Manifest.Files)
+		}
+		if collected && errors.Is(err, ErrCiphertextLimit) {
+			// A snapshot too large even compressed is skipped, not a failed
+			// pass: it would fail the same way every day (pair#616).
+			skipped = append(skipped, fmt.Sprintf("%s/%s: %v; skipped", root.Kind, fresh[0], err))
+			fresh = fresh[n:]
+			continue
 		}
 		if err != nil {
 			return archived, skipped, err

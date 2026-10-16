@@ -1,13 +1,22 @@
 ---
 id: 000616
-status: open
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-16
 updated: 2026-10-16
 estimate_hours:
 severity: medium
-card_mirror: 'bc8e077c3f07aaf5a776830a20d4574b87bfabeb' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '2b0ca6f59bdfde3c10253fa616f859c7e9431aa7' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-16T11:06:23-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:2
+    worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
+    repository: github.com/xianxu/pair
+actual_hours: 0.58
 ---
 
 # history-backup: bound database snapshots by compressed bundle size, not source size
@@ -27,8 +36,15 @@ For database snapshots, bound the compressed bundle (ciphertext limit), not the 
 
 ## Plan
 
-- [ ]
+- [x] One kind-based `rawBundleLimit` (snapshot kinds `MaxSnapshotRawBytes` 8 GiB, others 1 GiB) used by Describe (`SelectedFiles.Limit`), PlanBundles, ValidateManifest and ValidateLabel; the snapshot pre-check uses the snapshot bound.
+- [x] `ErrCiphertextLimit` from the bounded writer's own record; the continuous pass skips that snapshot with a note.
+- [x] Tests (RED-checked) and a live codex-database pass.
 
 ## Log
 
 ### 2026-10-16
+- 2026-10-16: closed — Round-1 fixes: BR-1 one request per snapshot so an over-ciphertext snapshot is skipped alone (test archives the small DB and skips the big one; RED with batching); BR-2 the daily snapshot storage cost (~115 MB/day for thread_history, ~40 GB/year, never-deleting sink) stated in atlas history-backup.md and raised to the TL as a retention decision. Recorded suite green on fba9593f; historyarchive green after fixes. Live: thread_history_1.sqlite 1.60 GB -> 115 MB bundle, verified.; review verdict: FIX-THEN-SHIP
+
+### 2026-10-16 — fix and live pass (pair:2)
+
+Kind-based raw bound, because ValidateManifest also runs on catalog reads: a request flag would let a >1 GiB snapshot be written and then fail every catalog read. Live `pair archive continuous --kind codex-database` (niced, 633 s): 3 files archived, no skips; thread_history_1.sqlite 1.60 GB raw -> 115 MB bundle (13.9x), bundle sha256 and size verified in the sink.

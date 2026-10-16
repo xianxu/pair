@@ -125,7 +125,7 @@ Durability is reconfirmed for existing records as well as newly written records.
 | Selected files per request | 10,000 |
 | Request, manifest or catalog record | 4 MiB |
 | Target raw bundle payload | 256 MiB |
-| Hard raw bundle payload / individual file | 1 GiB |
+| Hard raw bundle payload / individual file | 1 GiB; database snapshot kinds 8 GiB, bounded in practice by the 2 GiB ciphertext (#616) |
 | Ciphertext per bundle | 2 GiB |
 | Catalog shard | 64 MiB, automatic rollover |
 | Sink listing result | 10,000 entries |
@@ -216,5 +216,5 @@ does nothing.
   configured and the last pass is over 24 hours old (`couchcmd/archive_schedule.go`),
   logging to `$PAIR_DATA_DIR/archive/continuous.log`. A manual run uses the same
   lock.
-- Files over the 1 GiB per-file bound are skipped with a note.
+- Files over their kind's raw bound are skipped with a note. Database snapshots use the snapshot bound (`rawBundleLimit`, 8 GiB): they compress well (Codex `thread_history_1.sqlite` 1.60 GB to 115 MB), so the 2 GiB ciphertext bound is their real limit, and a snapshot whose compressed bundle exceeds it is skipped with a note (`ErrCiphertextLimit`), not a failed pass (#616). Each snapshot is its own request, so a skip never drops another database. Cost: a database that changes daily is a new version every pass, and the sink never deletes; at the measured 115 MB per `thread_history_1.sqlite` bundle that is roughly 40 GB a year for that one database. Pruning old snapshot versions is a separate, not-yet-made retention decision.
 

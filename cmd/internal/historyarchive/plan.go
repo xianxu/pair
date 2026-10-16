@@ -80,7 +80,7 @@ func planBundles(r ArchiveRequest, files []FileEntry, collected bool) ([]Manifes
 			return nil, errors.New("unexpected or duplicate described file")
 		}
 		delete(selected, f.Path)
-		if f.Size < 0 || f.Size > MaxBundleBytes || !validHex(f.SHA256, 64) || f.Mtime.IsZero() {
+		if f.Size < 0 || f.Size > rawBundleLimit(r.Kind) || !validHex(f.SHA256, 64) || f.Mtime.IsZero() {
 			return nil, errors.New("invalid described file")
 		}
 		f.Mtime = f.Mtime.UTC()
@@ -100,7 +100,7 @@ func planBundles(r ArchiveRequest, files []FileEntry, collected bool) ([]Manifes
 	base := Manifest{Version: Version, Kind: r.Kind, Source: r.Source, Compression: "zstd -19", Recipients: canonicalRecipients(r.Recipients)}
 	// Reserve catalog/label overhead too, so an admitted bundle can be cataloged.
 	// Keys and timestamps use a conservative upper bound; entries are counted exactly.
-	prototype := CatalogRecord{Manifest: base, Sink: r.Sink, BundleKey: strings.Repeat("k", 256+2*len(r.Kind)), LabelKey: strings.Repeat("k", 256+2*len(r.Kind)), Label: BundleLabel{Version: Version, ID: strings.Repeat("a", 64), Kind: r.Kind, FileCount: MaxFiles, RawBytes: MaxBundleBytes, Bytes: MaxCiphertextBytes, Compression: base.Compression, Recipients: base.Recipients, SHA256: strings.Repeat("a", 64)}}
+	prototype := CatalogRecord{Manifest: base, Sink: r.Sink, BundleKey: strings.Repeat("k", 256+2*len(r.Kind)), LabelKey: strings.Repeat("k", 256+2*len(r.Kind)), Label: BundleLabel{Version: Version, ID: strings.Repeat("a", 64), Kind: r.Kind, FileCount: MaxFiles, RawBytes: rawBundleLimit(r.Kind), Bytes: MaxCiphertextBytes, Compression: base.Compression, Recipients: base.Recipients, SHA256: strings.Repeat("a", 64)}}
 	encodedBase, err := json.Marshal(prototype)
 	if err != nil {
 		return nil, err
