@@ -2029,3 +2029,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #544 BR-3: opt-in external conformance needs a committed target that enables every required suite, plus a named after-change/upgrade cadence. Run the exact target and confirm cases execute instead of accepting a skipped default-suite result.
 
 - #544 BR-4: conformance must requalify every new observation, then separate admission from dispatch. A known zero-input refusal can justify a distinct fresh fixture request; Step0 alone never authorizes replay of an unconfirmed write. Force both pre-admission and pre-dispatch qualification loss with controlled tests.
+
+- #612: client attachment changes neither session-server liveness nor index ownership. Fake transitions must preserve presence, pane identity and duplicate claims together. Force inventory between host acknowledgement and terminal adoption so an intermittent native-proof query becomes deterministic; test removal from detached inventory before adding a duplicate claimant, since duplicate refusal can mask a no-op transition.
