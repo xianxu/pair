@@ -228,6 +228,7 @@ func (c *Catalog) Find(ctx context.Context, id string) (CatalogRecord, bool, err
 	}
 	return found, ok, nil
 }
+
 // Each visits every complete record in every shard, oldest shard first.
 func (c *Catalog) Each(ctx context.Context, visit func(CatalogRecord) error) error {
 	for _, name := range c.shards {
