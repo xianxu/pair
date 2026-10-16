@@ -35,11 +35,14 @@ the UI can't tell. Tests only assert the escape bytes were written, never that a
   labelled as unverifiable.
 - Find out why OSC 52 doesn't reach Ghostty here (a multiplexer not passing it through, or Ghostty's
   `clipboard-write` setting), and note it in the atlas.
+- Diagnostic scope amendment (2026-10-16; approved Revision below): the clause above is superseded by the completed read-only investigation. Record that Ghostty defaults allow OSC 52, the current Couch launch has no outer multiplexer, and the original loss layer remains unknown. Further investigation is required only if the clipboard smoke fails after the next natural restart; successful local copying does not depend on OSC 52, so this uncertainty primarily concerns the SSH fallback.
 
 ## Done when
 
 - A test with a fake clipboard seam asserts the notice text reaches it; the operator confirms Ctrl+Y works live.
 - Acceptance amendment (2026-10-16; Revisions below): the live confirmation above is deferred until the next natural Couch restart. Landing requires passing recorded verification and SHIP; do not stage on pair:0, and fix forward if the later smoke fails.
+
+- Diagnostic acceptance amendment (2026-10-16): the bounded investigation and its limits are recorded in the atlas; a proven original loss layer is not a landing prerequisite under the approved scope.
 
 ## Plan
 
@@ -48,6 +51,8 @@ the UI can't tell. Tests only assert the escape bytes were written, never that a
 - [x] Cover command failure, unavailable tool, cancellation/timeout, remote fallback, empty history and focused-child Ctrl+Y; no tests touch the actual clipboard. Keep copy feedback out of retained history.
 - [x] Update the existing atlas account with confirmed local versus unverifiable OSC results and the read-only transport/config evidence. Run the recorded full suite and close review; coordinate operator Ctrl+Y acceptance through the hub before landing.
 
+
+The checked investigation and acceptance-coordination step follows the approved Revisions: bounded read-only diagnosis is complete; live smoke is deferred to the next natural restart, with further diagnosis only if that smoke fails.
 
 ## Log
 
@@ -93,6 +98,10 @@ The binary-owned quick review read cd7beba6916499e28d64600662660ecd000ea3d9 and 
 
 Requested explicit approval to narrow diagnosis to the completed bounded read-only investigation, retain the unknown loss layer, and investigate further only if the deferred natural-restart smoke fails. Message to hub was refused with missing-registration diagnostic; fresh actors showed both slots live, so used the documented exact sender fallback ops:0. Receipt b327b1c9-3e48-47eb-a41d-a688a81cc43a is submitted. Scope reduction is only a proposal until the hub answers; no new code, tests, full-suite retry, staging or landing while it is pending.
 
+### 2026-10-16 — approved scope resolves BR-1
+
+Canonical TL delivery f7d15982-4387-40dd-ad41-3da44432c15c approved narrowing the diagnostic deliverable to the completed read-only investigation and keeping the loss layer unknown. The Spec, Done when, checked Plan and atlas now explicitly follow that scope. BR-2 was addressed by the existing README update. No code or tests changed after the passing recorded suite; running the ordinary close again because the first REWORK did not finalize acceptance.
+
 ## Revisions
 
 ### 2026-10-16 16:02 PDT — acceptance arrangement from the hub
@@ -106,3 +115,7 @@ At receipt the recorded rerun had already failed on the second unrelated review 
 Canonical hub decision efadcd45-6fb6-487e-9392-7fc79782168e authorizes filing the second fixture failure and exactly one additional recorded rerun on the same head; any failure stops and is reported. Filed #623 unclaimed with its log path. The hub links likely load pressure to #618 and reported load average 140; that remains a hypothesis for the specific fixture failure. No production/test changes or timeout increases are authorized by this decision. The no-staging/natural-restart acceptance arrangement remains in force, now reflected by an appended Done-when amendment.
 
 The first rerun invocation was refused before testing because fe4eb6d6e83bd53b9d42fcf27811a383c348b222 was no longer a remote tip after documentation-only checkpoints. Following the named push precondition, published temporary verification ref verify-604-suite-fe4eb6d6 at that exact commit, without rewriting the issue branch. The single test attempt then starts through sdlc local-check on the same commit. Retire the temporary ref once verification/landing evidence no longer needs it; it carries no independent development.
+
+### 2026-10-16 16:37 PDT — approved bounded diagnostic scope
+
+TL approval f7d15982-4387-40dd-ad41-3da44432c15c supersedes the original Spec demand to identify the OSC 52 loss layer and qualifies the checked Plan investigation step. The completed read-only investigation establishes Ghostty defaults permit OSC 52 and the observed Couch launch has no outer multiplexer; the actual loss layer remains unknown. Record these limits in the atlas. Further investigation is required only if the deferred clipboard smoke fails after the next natural restart. Local pbcopy success bypasses OSC 52, so the remaining transport uncertainty primarily affects SSH fallback. This explicitly changes the diagnostic deliverable; it does not claim a live smoke pass or waive recorded verification and SHIP.

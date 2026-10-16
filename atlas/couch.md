@@ -1456,6 +1456,11 @@ not established without a live clipboard probe. Local clipboard copying bypasses
 dependencies rather than assuming either terminal blocks OSC 52. See
 [Ghostty's clipboard permission](https://ghostty.org/docs/config/reference#clipboard-write)
 and [Zellij's clipboard support](https://zellij.dev/documentation/compatibility.html).
+The approved #604 diagnostic scope ends at this read-only investigation; the
+original loss layer remains unknown. The clipboard smoke follows the next
+natural Couch restart, with further diagnosis only if it fails. Successful
+local copying bypasses OSC 52; its unresolved delivery uncertainty primarily
+concerns the SSH fallback.
 
 #151 M2 added the pure core and M3 wired it into Console. One
 immutable-by-copy `MenuState` stack owns the root filter/selection plus exact
