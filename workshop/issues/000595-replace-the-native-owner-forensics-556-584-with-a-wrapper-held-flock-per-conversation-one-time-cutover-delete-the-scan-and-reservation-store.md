@@ -7,7 +7,7 @@ target: slot-recovery
 created: 2026-10-15
 updated: 2026-10-16
 estimate_hours: 2.15
-card_mirror: '184a26f7938193443a16a00c66799aca2484284f' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '81d596abbcf451638398f67d1ad661ee00256da2' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-15T19:45:21-07:00
 claimant:
     operator: Xian Xu
@@ -17,7 +17,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: operator}
-actual_hours: 3.23
+actual_hours: 3.73
 ---
 
 # Replace the native-owner forensics (#556/#584) with a wrapper-held flock per conversation; one-time cutover; delete the scan and reservation store
