@@ -1,13 +1,13 @@
 ---
 id: 000614
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-16
 updated: 2026-10-16
 estimate_hours:
 severity: low
-card_mirror: '18bdbb2b76a9d1cb7e2e534e7c0147332c9ea45b' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '5daf5d1e50733884046c32963d1a7702127acfde' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-16T07:27:14-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
+actual_hours: 0.04
 ---
 
 # One shared rule for native conversation IDs and lock holder labels
