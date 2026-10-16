@@ -39,8 +39,8 @@ Measure the admission ordering with a controllable stateful fixture. Establish t
 
 ## Plan
 
-- [ ] Reproduce the late final retry with a controlled authority barrier; record the expected unavailable assertion failing.
-- [ ] Synchronize retries and send-triggered readmission with channels at the existing authority/retry seams; keep launch unhealthy until the refusal is observed. No sleeps or longer deadlines (ARCH-ORDER, ARCH-DRY).
+- [x] Reproduce the late final retry with a controlled authority barrier; record the expected unavailable assertion failing.
+- [x] Synchronize retries and send-triggered readmission with channels at the existing authority/retry seams; keep launch unhealthy until the refusal is observed. No sleeps or longer deadlines (ARCH-ORDER, ARCH-DRY).
 - [ ] Run repeated race verification and the recorded full suite; close through the SDLC review, then await SHIP for landing.
 
 ## Log
@@ -54,3 +54,5 @@ Local measurement artifacts (not required to understand the issue): /var/folders
 A fixture-only candidate overlay passed fifty race-detector repetitions in 5.649s (candidate.json, candidate_test.go, candidate.patch, candidate.log). It keeps launch=false, holds the seventh admission, and sends until that admission begins, requiring unavailable while held. The seventh check proves a send awakened Dormant; only then does it set launch=true, release, and await connection. This removes the sleep oracle and also prevents a fast successful readmission from racing the first-send refusal assertion. This is measurement, not a landed fix; the issue's owner should choose the smallest actual-state synchronization. TL approved keeping the fix separate from #584 and using the unchanged-head recorded rerun under the flake rule (8e95bb66).
 
 2026-10-16: pair:1 claimed the released item. Small fixture-only plan posted to ops:0; authorized to proceed after posting. Production admission behavior stays unchanged. Final landing waits behind #544, #605 and #607.
+
+2026-10-16: Red: go test -race -overlay=/tmp/pair-589-red-qvv91upo/overlay.json ./cmd/internal/couchcmd -run '^TestDormantLateFinalRetryMeasurement$' -count=1 -v failed at the original unavailable assertion with Code=accepted, after explicitly holding the final admission across launch restoration. The overlay reuses pair:2's controlled proof with the original expectation; it does not change production code. Green: the fixture-only replacement passed 50 race repetitions (2.758s); TestMessage* passed with -race (8.394s), and couchmessage passed with -race (9.828s). Retry callbacks now arrive on a channel; launch remains unhealthy until the post-ladder admission starts, and that admission is held until the unavailable response is observed. The existing 3s rig bound is retained; no sleeps added. No production behavior or architectural surface changed.
