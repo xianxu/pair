@@ -41,6 +41,7 @@ type peerDelivery struct {
 	state            couchmessage.PeerDeliveryState
 	image            bool
 	interrupted      bool
+	released         bool // broker cancellation, never operator input
 	// Operator holds before the paste (pair#435): heldFor is the closed
 	// hold time credited to the paste-by, heldSince the open hold's start.
 	heldFor   time.Duration
@@ -373,6 +374,7 @@ func (d *peerDelivery) enqueue(m couchmessage.Message) error {
 	d.current = couchmessage.Receipt{Message: m, Status: couchmessage.Queued}
 	d.state = couchmessage.PeerDeliveryState{}
 	d.interrupted = false
+	d.released = false
 	d.heldFor, d.heldSince = 0, time.Time{}
 	d.waits, d.waitAt = nil, time.Time{}
 	d.signal()
@@ -434,6 +436,8 @@ func (p *proxy) dispatchPeer(out io.Writer) {
 		event.Kind = couchmessage.PeerImageInput
 	case d.interrupted:
 		event.Kind = couchmessage.PeerOperatorInput
+	case d.released:
+		event.Kind = couchmessage.PeerBrokerReleased
 	case p.pickerActive.Load() && d.current.Status == couchmessage.Delivering:
 		event.Kind = couchmessage.PeerOverlayObserved
 	case p.pickerActive.Load():

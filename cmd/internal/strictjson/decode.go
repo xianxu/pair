@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strconv"
 )
 
 // Decode rejects duplicate object keys, unknown fields, and trailing values.
@@ -40,61 +41,66 @@ func Decode(raw []byte, target any) error {
 // sdlc fleet inventory, pair#367) yet refuse an ambiguous document.
 func RejectDuplicateKeys(raw []byte) error { return rejectDuplicateKeys(raw) }
 
+// Validate syntax once using the standard library, then inspect only object
+// keys. Decoder.Token allocates and converts every value, even values irrelevant
+// to duplicate detection. Keep decoded-key equality (including invalid UTF-8
+// replacement) and Token's float64 overflow rejection for the external API.
 func rejectDuplicateKeys(raw []byte) error {
-	dec := json.NewDecoder(bytes.NewReader(raw))
-	if err := scanValue(dec); err != nil {
-		return err
+	if !json.Valid(raw) {
+		return errors.New("invalid JSON value")
 	}
-	var extra any
-	if err := dec.Decode(&extra); !errors.Is(err, io.EOF) {
-		if err == nil {
-			return errors.New("trailing JSON value")
-		}
-		return err
-	}
-	return nil
-}
-
-func scanValue(dec *json.Decoder) error {
-	token, err := dec.Token()
-	if err != nil {
-		return err
-	}
-	delim, ok := token.(json.Delim)
-	if !ok {
-		return nil
-	}
-	switch delim {
-	case '{':
-		seen := map[string]struct{}{}
-		for dec.More() {
-			keyToken, err := dec.Token()
-			if err != nil {
-				return err
+	var stack []map[string]struct{}
+	for i := 0; i < len(raw); i++ {
+		switch raw[i] {
+		case '{':
+			stack = append(stack, map[string]struct{}{})
+		case '[':
+			stack = append(stack, nil)
+		case '}', ']':
+			stack = stack[:len(stack)-1]
+		case '"':
+			start := i
+			decode := false
+			i++
+			for raw[i] != '"' {
+				if raw[i] == '\\' {
+					decode = true
+					i++
+				} else if raw[i] >= 128 {
+					decode = true
+				}
+				i++
 			}
-			key, ok := keyToken.(string)
-			if !ok {
-				return errors.New("JSON object key is not a string")
+			end := i + 1
+			next := end
+			for next < len(raw) && (raw[next] == ' ' || raw[next] == '\t' || raw[next] == '\r' || raw[next] == '\n') {
+				next++
 			}
-			if _, exists := seen[key]; exists {
+			if next >= len(raw) || raw[next] != ':' {
+				continue
+			}
+			key := string(raw[start+1 : i])
+			if decode {
+				if err := json.Unmarshal(raw[start:end], &key); err != nil {
+					return err
+				}
+			}
+			seen := stack[len(stack)-1]
+			if _, ok := seen[key]; ok {
 				return fmt.Errorf("duplicate JSON object key %q", key)
 			}
 			seen[key] = struct{}{}
-			if err := scanValue(dec); err != nil {
-				return err
+		default:
+			if raw[i] == '-' || (raw[i] >= '0' && raw[i] <= '9') {
+				start := i
+				for i+1 < len(raw) && raw[i+1] != ',' && raw[i+1] != '}' && raw[i+1] != ']' && raw[i+1] != ' ' && raw[i+1] != '\t' && raw[i+1] != '\r' && raw[i+1] != '\n' {
+					i++
+				}
+				if _, err := strconv.ParseFloat(string(raw[start:i+1]), 64); err != nil {
+					return err
+				}
 			}
 		}
-		_, err = dec.Token()
-		return err
-	case '[':
-		for dec.More() {
-			if err := scanValue(dec); err != nil {
-				return err
-			}
-		}
-		_, err = dec.Token()
-		return err
-	default:
-		return fmt.Errorf("unexpected JSON delimiter %q", delim)
 	}
+	return nil
 }

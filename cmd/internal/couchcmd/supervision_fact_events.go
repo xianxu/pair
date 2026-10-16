@@ -20,7 +20,6 @@ func openSupervisionFacts(root, namespace string) *supervisionFactLog {
 			return ""
 		})
 		opts.Context = ctx
-		opts.HardMaxBytes = true
 		return diagnosticlog.Open(filepath.Join(namespace, "supervision.jsonl"), opts)
 	})
 }

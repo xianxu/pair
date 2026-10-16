@@ -8,6 +8,9 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/xianxu/pair/cmd/internal/artifactpath"
+	"github.com/xianxu/pair/cmd/internal/diagnosticlog"
 )
 
 // fixedTime is a deterministic clock for line-format assertions.
@@ -173,5 +176,39 @@ func TestOpenAppendsAcrossOpens(t *testing.T) {
 	lines := strings.Count(strings.TrimSpace(string(data)), "\n") + 1
 	if lines != 2 {
 		t.Fatalf("want 2 appended lines, got %d:\n%s", lines, data)
+	}
+}
+
+func TestOpenBufferedPreservesEventsAndDrainsOnClose(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("PAIR_TAG", "buffered")
+	t.Setenv("PAIR_DATA_DIR", dir)
+	l := OpenBuffered("pair-wrap", "codex", diagnosticlog.Options{FlushTicks: make(chan time.Time)})
+	if l == nil {
+		t.Fatal("buffered flight recorder did not open")
+	}
+	defer l.Close()
+	l.Log(2, "buffered-event", Fired, "exact detail")
+	paths, err := artifactpath.ResolveScoped(dir, "buffered")
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(paths.AdaptLog())
+	if err != nil || len(b) != 0 {
+		t.Fatalf("adapt log bypassed buffer: %q %v", b, err)
+	}
+	if err := l.Close(); err != nil {
+		t.Fatal(err)
+	}
+	b, err = os.ReadFile(paths.AdaptLog())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got event
+	if err := json.Unmarshal(b, &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Comp != "pair-wrap" || got.Agent != "codex" || got.Signal != "buffered-event" || got.Detail != "exact detail" || got.Aspect != 2 || got.Outcome != "fired" {
+		t.Fatalf("event changed: %+v", got)
 	}
 }

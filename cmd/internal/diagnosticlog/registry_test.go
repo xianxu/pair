@@ -2,8 +2,10 @@ package diagnosticlog
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -66,7 +68,7 @@ func TestPreviewDoesNotInitializeOrRecover(t *testing.T) {
 	*now = now.Add(RetentionPeriod + 24*time.Hour)
 	state, _ := os.ReadFile(filepath.Join(directory(path), "state.json"))
 	rows, e := Preview(path, opts, 100)
-	if e != nil || len(rows) != 1 || !rows[0].Eligible {
+	if e != nil || len(rows) != 1 || rows[0].Eligible {
 		t.Fatalf("preview %v %v", rows, e)
 	}
 	stateAfter, _ := os.ReadFile(filepath.Join(directory(path), "state.json"))
@@ -122,13 +124,17 @@ func TestPausedOpenerRepublishesAfterRetirement(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	w.Write([]byte("expired"))
+	// This fixture retires only an abandoned, empty current reservation.
 	w.Close()
 	s, e := load(path)
 	if e != nil {
 		t.Fatal(e)
 	}
 	s.Writers = nil
+	s.Current = generation{}
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
 	if e = save(path, s, true, Options{}); e != nil {
 		t.Fatal(e)
 	}
@@ -193,10 +199,14 @@ func TestRetirementCrashKeepsDiscoverableRecovery(t *testing.T) {
 			if e != nil {
 				t.Fatal(e)
 			}
-			w.Write([]byte("expired"))
+			// This fixture retires only an abandoned, empty current reservation.
 			w.Close()
 			s, _ := load(path)
 			s.Writers = nil
+			s.Current = generation{}
+			if err := os.Remove(path); err != nil {
+				t.Fatal(err)
+			}
 			save(path, s, true, Options{})
 			*now = now.Add(RetentionPeriod + 24*time.Hour)
 			opts.Fault = func(step string) error {
@@ -240,4 +250,200 @@ func FuzzDecideSegmentAge(f *testing.F) {
 func registryEntriesForTest(root string) ([]RegistryEntry, error) {
 	page, err := EnumerateRoot(context.Background(), root, 0, 100)
 	return page.Entries, err
+}
+
+func TestRegistryRepeatedOpenPreservesDeclaration(t *testing.T) {
+	path, _, opts := fixture(t)
+	root := t.TempDir()
+	opts.Registry = func(ctx context.Context, entry RegistryEntry) error { return register(ctx, root, entry) }
+	w, err := Open(path, opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
+	canonicalPath, err := canonical(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	entry := RegistryEntry{Version: 1, Path: canonicalPath, Directory: directory(canonicalPath), Lock: lockPath(canonicalPath)}
+	sum := sha256.Sum256([]byte(entry.Path))
+	declaration := filepath.Join(RegistryDirectory(root), fmt.Sprintf("%x.json", sum))
+	before, err := os.Stat(declaration)
+	if err != nil {
+		t.Fatal(err)
+	}
+	staged := false
+	if err := registerWithHook(context.Background(), root, entry, func() error { staged = true; return nil }); err != nil {
+		t.Fatal(err)
+	}
+	if staged {
+		t.Error("unchanged registry declaration staged a replacement")
+	}
+	for range 3 {
+		w, err = Open(path, opts)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := w.Close(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	after, err := os.Stat(declaration)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !os.SameFile(before, after) || !before.ModTime().Equal(after.ModTime()) {
+		t.Error("repeated Open rewrote unchanged registry declaration")
+	}
+	if err := os.Remove(declaration); err != nil {
+		t.Fatal(err)
+	}
+	staged = false
+	if err := registerWithHook(context.Background(), root, entry, func() error { staged = true; return nil }); err != nil {
+		t.Fatal(err)
+	}
+	if !staged {
+		t.Error("missing registry declaration was not republished")
+	}
+	if _, err := os.Stat(declaration); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestRegistryRegisterRefusesExistingChangedDeclaration(t *testing.T) {
+	for _, kind := range []string{"altered", "malformed", "unknown-field", "symlink", "directory"} {
+		t.Run(kind, func(t *testing.T) {
+			root := t.TempDir()
+			path, err := canonical(filepath.Join(root, "trace.log"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			entry := RegistryEntry{Version: 1, Path: path, Directory: directory(path), Lock: lockPath(path)}
+			if err := register(context.Background(), root, entry); err != nil {
+				t.Fatal(err)
+			}
+			sum := sha256.Sum256([]byte(path))
+			declaration := filepath.Join(RegistryDirectory(root), fmt.Sprintf("%x.json", sum))
+			switch kind {
+			case "altered":
+				changed := entry
+				changed.Lock += ".changed"
+				b, err := json.Marshal(changed)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(declaration, b, 0600); err != nil {
+					t.Fatal(err)
+				}
+			case "malformed":
+				if err := os.WriteFile(declaration, []byte("{"), 0600); err != nil {
+					t.Fatal(err)
+				}
+			case "unknown-field":
+				b, err := json.Marshal(entry)
+				if err != nil {
+					t.Fatal(err)
+				}
+				b = append(b[:len(b)-1], []byte(",\"unknown\":true}")...)
+				if err := os.WriteFile(declaration, b, 0600); err != nil {
+					t.Fatal(err)
+				}
+			case "symlink", "directory":
+				if err := os.Remove(declaration); err != nil {
+					t.Fatal(err)
+				}
+				if kind == "symlink" {
+					target := filepath.Join(root, "target")
+					b, err := json.Marshal(entry)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if err := os.WriteFile(target, b, 0600); err != nil {
+						t.Fatal(err)
+					}
+					if err := os.Symlink(target, declaration); err != nil {
+						t.Fatal(err)
+					}
+				} else if err := os.Mkdir(declaration, 0700); err != nil {
+					t.Fatal(err)
+				}
+			}
+			before, err := os.Lstat(declaration)
+			if err != nil {
+				t.Fatal(err)
+			}
+			staged := false
+			err = registerWithHook(context.Background(), root, entry, func() error { staged = true; return nil })
+			if err == nil {
+				t.Error("unsafe or changed declaration was overwritten")
+			}
+			if staged {
+				t.Error("replacement was staged before declaration validation")
+			}
+			after, err := os.Lstat(declaration)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !os.SameFile(before, after) || !before.ModTime().Equal(after.ModTime()) {
+				t.Error("refusal mutated existing declaration")
+			}
+		})
+	}
+}
+
+func TestRegistryRetryReconfirmsFailedPublicationDurability(t *testing.T) {
+	path, _, _ := fixture(t)
+	path, err := canonical(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := t.TempDir()
+	entry := RegistryEntry{Version: 1, Path: path, Directory: directory(path), Lock: lockPath(path)}
+	failed := errors.New("directory sync failed after rename")
+	syncs, stages := 0, 0
+	fail := true
+	syncDirectory := func(dir string) error {
+		syncs++
+		if dir != RegistryDirectory(root) {
+			t.Fatalf("unexpected sync directory %q", dir)
+		}
+		if fail {
+			return failed
+		}
+		return syncDir(dir)
+	}
+	stage := func() error { stages++; return nil }
+	if err := registerWithDirectorySync(context.Background(), root, entry, stage, syncDirectory); !errors.Is(err, failed) {
+		t.Fatalf("publication sync error=%v", err)
+	}
+	sum := sha256.Sum256([]byte(path))
+	declaration := filepath.Join(RegistryDirectory(root), fmt.Sprintf("%x.json", sum))
+	before, err := os.Stat(declaration)
+	if err != nil {
+		t.Fatalf("rename did not publish declaration: %v", err)
+	}
+	body, err := os.ReadFile(declaration)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := registerWithDirectorySync(context.Background(), root, entry, stage, syncDirectory); !errors.Is(err, failed) {
+		t.Fatalf("unchanged retry forgot failed sync: %v", err)
+	}
+	fail = false
+	if err := registerWithDirectorySync(context.Background(), root, entry, stage, syncDirectory); err != nil {
+		t.Fatal(err)
+	}
+	after, err := os.Stat(declaration)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(declaration)
+	if err != nil || string(got) != string(body) || !os.SameFile(before, after) || !before.ModTime().Equal(after.ModTime()) {
+		t.Fatalf("retry replaced published declaration: %q %v", got, err)
+	}
+	if syncs != 3 || stages != 1 {
+		t.Fatalf("syncs=%d stages=%d want3/1", syncs, stages)
+	}
 }
