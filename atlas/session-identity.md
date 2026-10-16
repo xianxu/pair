@@ -472,6 +472,14 @@ override a current ledger generation.
 
 ### Codex root identity
 
+Exact-ID validation, ledger evidence and recovery use the same transcript home,
+routed by `launcher/native_inventory_os.go` through
+`sessioninventory.ResolveCodexHome` and `WithCodexHome`. An explicit CODEX_HOME
+is an existing canonical directory; a relative value uses the proven startup
+working directory before native `-C`. Unset or empty uses HOME/.codex. This
+routes transcript lookup only; it does not select an indirect resume target.
+See [Codex resume](codex-resume.md).
+
 Codex scanning treats source metadata as open-world: `vscode`, unfamiliar valid
 values, and absent source fields do not by themselves reject a root. Understood parent/subagent evidence still prevents
 child transcripts from being selected as roots. Parsing checks apply to fresh
@@ -519,13 +527,3 @@ legacy unscoped <tag>  (manual import)
 Selecting it copies missing flat sidecars into the current repo scope, including
 queued prompt files, preserves the flat source files, avoids overwriting scoped
 files, and writes a ledger row with `legacy_import: true`.
-
-## Codex physical namespace
-
-The [read-only resume adapter](codex-resume.md) keeps the CODEX_HOME transcript
-namespace separate from sqlite_home. Launcher ledger/native identity and recovery
-validation reuse the inventory-owned selected-home constructor. An invalid custom
-home cannot silently reauthorize a default-home transcript. Complete indirect
-selection carries its namespace through the existing admission request and is
-verified against the actual child environment before Claim; unknown cloud policy
-keeps native compatibility without reading credentials.

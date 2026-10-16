@@ -7,7 +7,7 @@ target: slot-recovery
 created: 2026-10-15
 updated: 2026-10-15
 estimate_hours: 5.9
-card_mirror: 'ef90521f95d32c1c536635de27e3eddfa067a423' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'bdb1c5860cf83090f2321ff5564362c53bbc88ca' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-15T10:22:13-07:00
 claimant:
     operator: Xian Xu
@@ -19,7 +19,7 @@ claimant:
 flow: {kind: full, provenance: operator}
 ---
 
-# Resolve Codex indirect resumes from faithful read-only configuration
+# Keep Codex indirect resumes native; route exact-ID transcript homes
 
 ## Problem
 
@@ -297,3 +297,17 @@ item: milestone-review design=0.04 impl=0.20
 design-buffer: 0.15
 total: 5.90
 ```
+
+### 2026-10-15 — reduced implementation checkpoint
+
+Change-code accepted the reduced design (CLEAN). The historical 5.90h estimate
+above describes the original selector mechanism, not remaining work. Remaining
+work is deletion, the home-only route, focused zero-probe controls, documentation
+and fresh full verification/review; no original selector completion is planned.
+The config/Git/provider/schema/snapshot machinery and TOML dependency are being
+removed. The home helper regression first failed because explicit CODEX_HOME
+queried HOME; the extracted helper now passes focused normal/race tests.
+Original admission/wrapper protocols are restored; exact-ID routing stays thin
+for #595. Root owns docs/guards; three bounded agents own home extraction,
+inventory collector deletion and launcher routing. No native credential reads
+or pair:0 changes.

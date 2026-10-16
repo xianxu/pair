@@ -1464,13 +1464,10 @@ one explicitly. A possibly running old owner prevents native resume until it
 has been safely retired. A shared admission check prevents two Pair slots from
 starting the same native conversation at once, including launches outside Couch.
 An uncertain start retains ownership; missing readiness alone never proves the
-conversation is free. Claude and Qoder latest selectors resolve uniquely before launch.
-Codex latest selectors are guarded when the [read-only adapter](atlas/codex-resume.md)
-can prove a complete local API-only configuration, stable private DB/WAL snapshot
-and unique target. The adapter leaves the native history directory unchanged. Cloud-unknown,
-picker/name and incomplete mappings retain native CLI behavior with one line saying
-concurrent resume is not guarded; full canonical Codex IDs remain guarded.
-Other unsupported configuration/provider mappings name
+conversation is free. Claude and Qoder latest selectors resolve uniquely before launch. Codex indirect
+selectors retain native CLI behavior and show one line saying concurrent resume
+is not guarded; full canonical Codex IDs remain guarded. Exact-ID transcript
+validation honors CODEX_HOME (see [Codex resume](atlas/codex-resume.md)). Other unsupported configuration/provider mappings name
 that limitation and offer an exact session ID or Fresh. Existing continuation actions remain available where
 a continuation request owns the thread.
 

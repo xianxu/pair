@@ -1972,3 +1972,8 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #579 BR-2: a successful rename followed by failed directory sync is an uncertain durability outcome, even when the next read finds identical bytes. Test repeated identical publication with injected sync failures, requiring durability reconfirmation and stable inode/content; healthy no-op tests alone cannot defend this class.
 
 - #579 M2: draining an owner is insufficient if asynchronous producers can still admit after its clock stops. Stop admission atomically with the final drain. Exercise a resize whose successful IO result is delayed across PTY EOF, then require no pending or published late sidecar event.
+
+- #571 mechanism re-plan: repeated fidelity deltas on one foreign selector mean
+  reassess the boundary before adding another policy rule. A native database is
+  evidence, not a native selection contract. Without a supported read-only
+  resolver, preserve indirect native behavior and guard only proven exact IDs.

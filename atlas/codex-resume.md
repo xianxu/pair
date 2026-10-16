@@ -1,161 +1,42 @@
-# Codex read-only resume selection
+# Codex resume
 
-Pair maps the local configuration and history behavior of Codex0.162.1
-(`rust-v0.162.1`). It reads files; it does not start Codex or app-server to discover
-configuration. The launcher offers ordinary latest selectors to this adapter
-before deciding whether they can use native writer admission.
+Ordinary indirect Codex resumes keep native CLI behavior. Latest, pickers,
+names and prefixes pass through with their original arguments before any
+home, configuration, transcript, Git or database probing. Pair does not predict
+the selected conversation or reserve a guessed identity. The wrapper prints
+one line explaining that concurrent resume is not guarded.
 
-## Guarded support and native compatibility
+Full canonical UUIDs use the existing exact-ID validation and
+Reserve → Claim → Publish admission flow. Strict required/recovery launches
+still require proven identity; indirect compatibility is not proof.
 
-A complete local pre-cloud bootstrap with `forced_login_method = "api"` rules out
-backend-authenticated cloud policy without reading credentials. Only complete
-observations and a unique native result can become a guarded explicit UUID.
-Unknown cloud eligibility retains the original invocation and the wrapper prints
-one line saying concurrent native resume is **not guarded**. An absent cloud cache,
-an API-key environment variable, or an explicit provider does not prove cloud
-policy absent. Auth/credential files and keychains are never read.
+## Transcript home
 
-| Invocation/evidence | Result |
-|---|---|
-| Local API-only bootstrap, supported config and unique latest | Resolve once, pin UUID, reserve and verify scope before execution |
-| Cloud-unknown or unsupported managed/executor configuration | Native pass-through, one not-guarded note |
-| Picker, name/prefix, remote or worktree creation | Existing native compatibility where allowed by the selector policy |
-| Missing/incomplete DB evidence, absent/non-WAL/changing snapshot, tied activity or read limit | Native pass-through; Pair does not repair or guess |
-| Exact UUID | Existing guarded admission; custom CODEX_HOME supplies its transcript root |
-| Strict recovery/ResumeRequired with unresolved evidence | Existing refusal; no silent downgrade |
+`sessioninventory.ResolveCodexHome` owns the small home projection:
 
-The source-derived projection of this machine's ordinary configuration was
-cloud-unknown. The adapter's explicit read-only conformance check is stricter:
-a symlinked project config falls outside its secure observation boundary, so it
-reports observation-incomplete. Neither result grants authority; read-only DB
-comparisons do not claim guarded support for that configuration.
-Supported positive tests use real private API-only configuration through the same
-reader, collector and reservation path.
+- Nonempty CODEX_HOME must name an existing directory and is canonicalized.
+  It does not require HOME. Relative values use the proven startup directory
+  before native `-C`; missing provenance cannot be guessed from a selected cwd.
+- Empty or unset CODEX_HOME uses HOME/.codex, which need not exist yet.
 
-## Configuration ownership
+`launcher/native_inventory_os.go` applies that home consistently to exact-ID
+validation, ledger evidence and recovery. This changes transcript lookup only;
+the shared admission protocol remains unchanged. Session inventory rejects
+Codex indirect selector requests before IO, including legacy requests carrying
+provider or database metadata. Other agents retain their selector behavior.
 
-`sessioninventory/codex_config*.go` owns typed projection and the thin reader.
-The reader receives invocation inputs from the existing native selector parser;
-provider, profile and prompt syntax are not reparsed by a second argv grammar.
+## Boundary and verification
 
-- `CODEX_HOME` selects the physical native home, defaulting to `HOME/.codex`.
-  A relative explicit home resolves from process startup cwd, before `-C`.
-- Base `config.toml` and selected `NAME.config.toml` use profile-v2 semantics.
-  Legacy profile selectors and unresolved inputs retain native behavior.
-- System/user/profile/trusted-project/session layers retain source precedence.
-  Project provider keys are ignored; trusted project SQLite and worktree settings
-  may apply. Unsupported managed/MDM requirements remain uncertainty.
-- Ordered CLI assignments replace their final dotted-key value; independent
-  config layers merge. Native's four structured-feature exceptions retain their
-  boolean/table rules. Mixed global worktree toggles and subcommand-scoped config
-  overrides retain compatibility because their native scope ordering is not
-  represented by the flattened invocation.
-- File paths retain their origin directory; CLI values and `CODEX_SQLITE_HOME`
-  use effective cwd. Configured `sqlite_home` precedes the environment value;
-  the default is Codex home. Transcript and state homes remain separate.
-- Worktrees defaults on. Validated current/primary/linked checkout metadata
-  supplies corresponding existing directories. Nested logical cwd aliases whose
-  native interpretation is unsupported use compatibility. Any observed candidate
-  whose discovery identity cannot be proved makes the whole projection unknown;
-  trust rejection is not evidence that native discovery would exclude it.
-- Named `environments.toml`, executor-server scope and unsupported relocation
-  also use compatibility. No broad Codex-home scan discovers policy.
-- The runtime-injected `--disable shell_snapshot` flag is selector-independent
-  and remains supported during wrapper revalidation. `worktrees` changes scope;
-  other unmodeled feature flags retain compatibility.
-- Linux physical cwd paths under `/mnt/<ASCII drive letter>` retain native
-  compatibility because native WSL selection also folds case. This boundary
-  requires no WSL/environment probe and does not change macOS selection.
+There is no supported native read-only resolve-resume-target API. Reading
+Codex's state database is not that contract: native selection policy lives in
+its clients and changes independently. Pair therefore carries no Codex latest
+selector, configuration/provider policy, Git scope emulation, SQLite snapshot
+or TOML dependency. A future adapter requires a supported native API that
+accepts the actual invocation and returns its selected identity and namespace
+before opening or writing conversation state.
 
-On macOS, the small `darwin && cgo` adapter asks CoreFoundation whether the native
-managed preference keys are forced. Darwin builds without CGO cannot prove those
-inputs absent and use compatibility. Other unimplemented platform-policy scopes
-also remain unknown. TOML parsing uses the pinned Go TOML library, not a line or
-regular-expression approximation.
-
-## Distinct latest algorithms
-
-`codex_latest.go` keeps two source-derived collectors:
-
-- TUI filters active, visible interactive history by history provider and the
-  effective worktree/all cwd set. A malformed native top result never permits
-  selecting a different lower result as though native did that.
-- Exec lists all native source kinds by provider, then compares the latest
-  `turn_context.cwd` found by reverse rollout reads. Only complete absence permits
-  DB-cwd fallback; `--all` removes the cwd predicate. Timestamp-cursor pagination
-  preserves the observation when rows arrive or disappear between pages.
-
-UpdatedAt has no specified UUID tiebreaker. The adapter retains compatibility
-when timestamp ambiguity prevents proving the native result. Every inspected
-transcript snapshot stays fenced through final inventory validation. DB paths,
-filename IDs and native metadata must agree inside the authorized transcript root.
-`codex_rollout_eligibility.go` checks the source-backed native record subset
-before metadata or turn cwd becomes selection authority. Incomplete required
-fields, invalid typed fields and unsupported complex values retain compatibility;
-the generic legacy inventory reader is not native schema proof.
-
-## Non-mutating SQLite observation
-
-The Codex selector queries an attempt-owned private DB/WAL snapshot, never the
-native database. Guarded selection requires a stable, present WAL and WAL-mode
-DB. Source reads copy WAL first, then DB, and verify complete repeated reads plus
-identity and generation fences. WAL header/frame checksums establish the supported
-committed generation; private SQLite recovery and quick_check validate the captured
-image. Native SHM is never inspected or copied.
-
-Absent WAL, non-WAL mode, a hot journal, unsafe metadata or any changed observation
-retains native compatibility. The adapter adds no source locks or repair writes.
-Safe, noninteractive SQLite options and an explicit empty init keep private queries
-independent of a user's rc and external file functions. Attempt-owned temporary
-files, including private sidecars, are removed on success, error and cancellation;
-cleanup failure cannot produce guarded authority. A scratch parent inside native
-storage, including a symlink alias, retains compatibility before creating files.
-SQLite child temporary-file locations also stay inside the owned snapshot. Pagination and selected-content
-validation share one captured DB cohort while transcript observations remain fenced.
-
-## Handoff and budgets
-
-The existing launcher resolver pins one UUID before reservation. A serialized,
-bounded namespace binding on the existing admission request covers physical
-homes, provider, mode and cwd scope; the scoped digest also binds final argv.
-Before Claim, the wrapper reprojects its actual child environment/cwd and checks
-the binding. Mismatch refuses with retry advice without consuming the reservation.
-No second latest lookup occurs. Removing or forging scope cannot downgrade the
-stored request into a legacy claim. Existing grant validation and CAS still own
-writer admission and teardown.
-
-Configuration reads cap files at1MiB and total observations at4MiB, with64 named
-reads and64KiB Git metadata. Selector work uses the existing30s/256MiB/10000-entry
-bounds,1MiB SQLite page output and32MiB per reverse transcript scan. Exhaustion is
-unknown, not absence. Both snapshot copy and verification reads consume the same
-256MiB source budget. Scope JSON is bounded at8KiB and grant encoding at64KiB;
-the existing1MiB admission store cap and lifecycle remain.
-
-Custom native-home construction also feeds ledger identity and recovery
-revalidation, so a selected custom-home UUID does not later fall back to the
-default transcript root. Invalid home evidence refuses affected Codex proof;
-other-agent-only ledger paths remain unaffected.
-
-## Verification
-
-Run focused normal tests, then the same selection under `-race`:
-
-```sh
-go test ./cmd/internal/sessioninventory ./cmd/internal/launcher ./cmd/internal/wrapcmd \
-  -run 'Test.*(CodexConfig|CodexLatest|NativeSelectorCodex|NativeResume|NativeAdmission|NativeCreate|NativeInventory)' -count=1
-go test ./cmd/internal/artifactpath -count=1
-go test ./cmd/internal/couchcore \
-  -run 'Test(EverySlotStateSiteIsAResource|SlotTokenAllowlistIsCurrent|NativeGitContainerJoinClassification|NativeGitJoinInventoryRejectsStaleAndDuplicateExemptions)$' -count=1
-```
-
-Private real TOML, SQLite and JSONL fixtures cover provenance and candidate
-mutation; the stateful admission fixtures control handoff ordering. Native
-configuration files are never modified by these tests. Any live operator action
-is scheduled through the hub. Normal release verification also runs the complete
-recorded suite and source/artifact ownership guards.
-
-The artifact-source inventory classifies the eligibility helper as a counted
-`native-session` vocabulary consumer: its `session_id` map key is allowed only
-in the named metadata predicate. A direct map-key context does not permit
-constructed keys, moved/duplicate uses or artifact path operations. Run the
-complete artifactpath package when adding protocol vocabulary.
+Focused tests defend zero-probe indirect launches, exact-ID custom-home and
+startup-directory routing, strict recovery, and unchanged admission. Inventory
+tests count IO at the indirect boundary. Home tests cover canonical aliases,
+relative paths, invalid directories and absent HOME. The normal full suite
+also runs the source-classification guards.
