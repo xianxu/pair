@@ -2,7 +2,6 @@
 package contextcmd
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"os"
@@ -58,15 +57,6 @@ func Run(args []string, env Env, stdout, stderr io.Writer) int {
 // RunWithRuntime applies the production established-binding query through an
 // injected inventory runtime.
 func RunWithRuntime(args []string, env Env, runtime sessioninventory.Runtime, stdout, stderr io.Writer) int {
-	return RunWithRuntimeContext(context.Background(), args, env, runtime, stdout, stderr)
-}
-
-// RunWithRuntimeContext gives an owned title poll the same projection with its
-// lifetime. The supplied runtime carries cancellation through range IO too.
-func RunWithRuntimeContext(ctx context.Context, args []string, env Env, runtime sessioninventory.Runtime, stdout, stderr io.Writer) int {
-	if ctx == nil || ctx.Err() != nil {
-		return 0
-	}
 	if len(args) < 2 {
 		return 0
 	}
@@ -75,11 +65,11 @@ func RunWithRuntimeContext(ctx context.Context, args []string, env Env, runtime 
 		return ExitNoScopeKey
 	}
 	tag, agent := args[0], args[1]
-	query, err := sessioninventory.QuerySessionContext(ctx, runtime, env.PairScopeKey, tag, sessioninventory.Agent(agent))
+	query, err := sessioninventory.QuerySession(runtime, env.PairScopeKey, tag, sessioninventory.Agent(agent))
 	if err != nil || query.Status != sessioninventory.BindingEstablished || query.Root == nil {
 		return 0
 	}
-	if usage, ok, usageErr := sessioninventory.TokenUsageForRoot(runtime, *query.Root); usageErr == nil && ok && ctx.Err() == nil {
+	if usage, ok, usageErr := sessioninventory.TokenUsageForRoot(runtime, *query.Root); usageErr == nil && ok {
 		fmt.Fprintln(stdout, ctxmeter.Humanize(usage.InputTokens))
 	}
 	return 0

@@ -1,6 +1,7 @@
 package titlepoller
 
 import (
+	"context"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/procutil"
+	"github.com/xianxu/pair/cmd/internal/storagegc"
 	"github.com/xianxu/pair/cmd/internal/testpair"
 )
 
@@ -31,8 +33,27 @@ func TestMain(m *testing.M) {
 	if mode == "" {
 		os.Exit(m.Run())
 	}
-	if mode != "proof" && mode != "command" {
+	if mode != "proof" && mode != "command" && mode != "retention" {
 		os.Exit(2)
+	}
+	if mode == "retention" {
+		coordinator, err := storagegc.NewCoordinator(os.Getenv("PAIR_DATA_DIR"))
+		if err != nil {
+			panic(err)
+		}
+		ready := make(chan struct{})
+		go func() {
+			if err := coordinator.WithLock(context.Background(), func(*storagegc.Locked) error {
+				if err := os.WriteFile(os.Getenv("PAIR_617_ENTERED"), []byte("retention lock held"), 0600); err != nil {
+					panic(err)
+				}
+				close(ready)
+				select {}
+			}); err != nil {
+				panic(err)
+			}
+		}()
+		<-ready
 	}
 	factory := func() Runtime { return NewOSRuntime() }
 	if mode == "proof" {
@@ -59,6 +80,10 @@ type cliTitleFixture struct {
 }
 
 func startCLITitle(t *testing.T, mode string) *cliTitleFixture {
+	return startCLITitleGroup(t, mode, true)
+}
+
+func startCLITitleGroup(t *testing.T, mode string, ownGroup bool) *cliTitleFixture {
 	t.Helper()
 	root := t.TempDir()
 	data := filepath.Join(root, "data")
@@ -97,7 +122,9 @@ func startCLITitle(t *testing.T, mode string) *cliTitleFixture {
 	explicit := append(owner.Environ(), "PAIR_617_CLI_HELPER="+mode, "PAIR_617_ENTERED="+filepath.Join(root, "entered"), "PAIR_617_DESCENDANT="+filepath.Join(root, "descendant"), "PAIR_DATA_DIR="+data, "PAIR_TAG=fixture", "PAIR_SCOPE_KEY=0123456789abcdef", "PAIR_LAUNCH_ORDINAL=1", "PATH="+bin+":/usr/bin:/bin")
 	cmd.Env = testpair.Environment(t, root, explicit...)
 	cmd.ExtraFiles = []*os.File{reader}
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	if ownGroup {
+		cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	}
 	log, err := os.Create(filepath.Join(root, "stderr"))
 	if err != nil {
 		t.Fatal(err)
@@ -114,7 +141,11 @@ func startCLITitle(t *testing.T, mode string) *cliTitleFixture {
 		// The group is owned only while the exact title or observed descendant
 		// identity still exists; never signal a recycled numeric process group.
 		if f.identity != "" && procutil.Identity(strconv.Itoa(cmd.Process.Pid)) == f.identity || f.descendantIdentity != "" && procutil.Identity(f.descendantPID) == f.descendantIdentity {
-			_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+			if ownGroup {
+				_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+			} else {
+				_ = cmd.Process.Kill()
+			}
 		}
 		select {
 		case <-f.done:
@@ -123,6 +154,26 @@ func startCLITitle(t *testing.T, mode string) *cliTitleFixture {
 		}
 	})
 	return f
+}
+
+func TestTitleCLIRequiresOwnedProcessGroup(t *testing.T) {
+	f := startCLITitleGroup(t, "proof", false)
+	select {
+	case err := <-f.done:
+		f.done <- err
+		if err == nil {
+			t.Fatal("title accepted a borrowed process group")
+		}
+	case <-time.After(time.Second):
+		t.Fatal("title admitted polling without its own process group")
+	}
+	log, _ := os.ReadFile(filepath.Join(f.root, "stderr"))
+	if !strings.Contains(string(log), "process group") {
+		t.Fatalf("missing owned-group refusal: %s", log)
+	}
+	if _, err := os.Stat(filepath.Join(f.root, "entered")); !os.IsNotExist(err) {
+		t.Fatal("borrowed-group title reached polling")
+	}
 }
 func awaitCLIFile(t *testing.T, f *cliTitleFixture, name string) string {
 	t.Helper()
@@ -149,6 +200,15 @@ func awaitCLIExit(t *testing.T, f *cliTitleFixture) {
 func TestTitleCLILeaseEOFExitsDuringProof(t *testing.T) {
 	f := startCLITitle(t, "proof")
 	awaitCLIFile(t, f, "entered")
+	awaitCLIExit(t, f)
+}
+
+func TestTitleCLILeaseEOFExitsDuringRetentionAcquisition(t *testing.T) {
+	f := startCLITitle(t, "retention")
+	awaitCLIFile(t, f, "entered")
+	// Keep the coordinator lock held throughout this wait and EOF assertion.
+	// The child cannot reach its runtime until registration acquires that lock.
+	time.Sleep(50 * time.Millisecond)
 	awaitCLIExit(t, f)
 }
 func TestTitleCLILeaseEOFKillsBlockedCommandDescendant(t *testing.T) {

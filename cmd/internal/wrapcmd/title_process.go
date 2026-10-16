@@ -96,11 +96,17 @@ func (p *wrapperTitleProcess) Close() error {
 		return err
 	case <-time.After(3 * time.Second):
 	}
-	// This fallback only addresses our still-unjoined child, never a pidfile.
+	// A title that cannot execute its watcher still owns the command group we
+	// created with Setsid. Fence that group through our still-unjoined child;
+	// numeric pidfiles grant no authority here.
 	if p.identity == "" || procutil.Identity(strconv.Itoa(p.cmd.Process.Pid)) != p.identity {
 		return errors.Join(err, errors.New("title shutdown identity unavailable"))
 	}
-	if killErr := p.cmd.Process.Kill(); killErr != nil {
+	pgid, groupErr := syscall.Getpgid(p.cmd.Process.Pid)
+	if groupErr != nil || pgid != p.cmd.Process.Pid || procutil.Identity(strconv.Itoa(p.cmd.Process.Pid)) != p.identity {
+		return errors.Join(err, errors.New("title shutdown group ownership unavailable"), groupErr)
+	}
+	if killErr := syscall.Kill(-pgid, syscall.SIGKILL); killErr != nil {
 		return errors.Join(err, killErr)
 	}
 	select {

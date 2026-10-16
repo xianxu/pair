@@ -486,3 +486,34 @@ func TestTitleProjectionRejectsOwnerSupersessionDuringTail(t *testing.T) {
 		t.Fatal("supersession hook disconnected")
 	}
 }
+
+// Admission retains the full validator's complete-snapshot requirement. Partial
+// framing is permitted only after a successful admission of existing authority.
+func TestTitleProjectionAdmissionPreservesFullValidatorRules(t *testing.T) {
+	at := time.Now()
+	rt, a, ledger := proofBackedCodexFixtureWithGeneration(t, "019d1111-1111-7111-8111-111111111111", &at, "")
+	raw, err := rt.ReadFile(ledger, -1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	current, ok := sessionledger.CurrentLaunch(sessionledger.ParseLedger(raw).Records, sessionledger.Owner{ScopeKey: "scope", Tag: "work", Agent: "codex"})
+	if !ok || current.Binding == nil || current.Binding.AuthorizationProof == nil {
+		t.Fatal("missing proof control")
+	}
+	rt.AppendFile(a, []byte(`{"type":"event_msg"}`), "partial-at-admission")
+	_, _, oracleErr := sessioninventory.NewIncrementalInventory(rt, sessioninventory.Catalog{Version: sessioninventory.CatalogVersion}).ValidateBindingProof(sessioninventory.AgentCodex, *current.Binding.AuthorizationProof)
+	if oracleErr == nil {
+		t.Fatal("full-validator control unexpectedly accepts partial snapshot")
+	}
+	p := sessioninventory.NewTitleProjection(rt, "scope", "work", sessioninventory.AgentCodex, 1)
+	if _, err := p.Poll(); err == nil {
+		t.Fatal("title weakened initial authorization")
+	}
+	rt.AppendFile(a, []byte("\n"), "complete-admission-tail")
+	if _, err := p.Poll(); err == nil {
+		t.Fatal("stopped admission retried proof")
+	}
+	if _, err := sessioninventory.NewTitleProjection(rt, "scope", "work", sessioninventory.AgentCodex, 1).Poll(); err != nil {
+		t.Fatalf("fresh complete admission control: %v", err)
+	}
+}

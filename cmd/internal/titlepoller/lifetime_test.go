@@ -3,7 +3,7 @@ package titlepoller
 import "testing"
 
 func TestTitleLifetimeTerminalOrders(t *testing.T) {
-	events := []TitleEvent{TitleLeaseReady, TitleOwnerEOF, TitleCancelled, TitlePollStopped}
+	events := []TitleEvent{TitleLeaseReady, TitleOwnerEOF, TitleSignalled, TitlePollStopped}
 	var visit func(TitleLifetime, int)
 	visit = func(state TitleLifetime, depth int) {
 		if depth == 0 {
@@ -26,7 +26,7 @@ func TestTitleLifetimeTerminalOrders(t *testing.T) {
 		t.Fatalf("ready effects=%v", effects)
 	}
 	stopping, effects := AdvanceTitleLifetime(active, TitleOwnerEOF)
-	if effects&TitleCancelPoll == 0 || !stopping.stopped() {
-		t.Fatal("EOF did not cancel")
+	if effects != TitleExit || stopping.phase != titleExited {
+		t.Fatal("EOF did not exit immediately")
 	}
 }

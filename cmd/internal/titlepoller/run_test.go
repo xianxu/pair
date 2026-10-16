@@ -45,8 +45,6 @@ type fakeRuntime struct {
 	nowAdvance        time.Duration // advance per Now() call (0 = fixed clock)
 	sleeps            int
 	pid               string
-	alive             map[string]bool
-	commands          map[string]string
 	namedSessions     map[string]bool // per-session-name override (e.g. a foreign cmux owner)
 	sessionAliveSeq   []bool          // consumed per call for names NOT in namedSessions
 	sessionAliveIdx   int
@@ -82,7 +80,6 @@ func withLivePane(f *fakeRuntime) *fakeRuntime {
 
 func newFake() *fakeRuntime {
 	return &fakeRuntime{
-		alive: map[string]bool{}, commands: map[string]string{},
 		files: map[string]string{}, wrote: map[string]string{},
 		mtimes: map[string]time.Time{}, counts: map[string]string{},
 		activities: map[string]time.Time{}, now: time.Unix(1_700_000_000, 0),
@@ -101,9 +98,7 @@ func (f *fakeRuntime) Sleep(time.Duration) {
 		f.sleepHook(f.sleeps)
 	}
 }
-func (f *fakeRuntime) Getpid() string                 { return f.pid }
-func (f *fakeRuntime) ProcessAlive(p string) bool     { return f.alive[p] }
-func (f *fakeRuntime) ProcessCommand(p string) string { return f.commands[p] }
+func (f *fakeRuntime) Getpid() string { return f.pid }
 func (f *fakeRuntime) SessionAlive(name string) bool {
 	f.sessionAliveCalls++
 	f.events = append(f.events, "session-alive")
@@ -241,8 +236,6 @@ func TestUpdateFrameTitlesIgnoresStaleAgentTwin(t *testing.T) {
 func TestRunLegacyPidfileCannotSuppressLeasedGeneration(t *testing.T) {
 	rt := newFake()
 	rt.files["/dd/title-pid-T"] = "4242\n"
-	rt.alive["4242"] = true
-	rt.commands["4242"] = "/x/bin/pair title T claude"
 	rt.pid = "9001"
 	rt.nowAdvance = 40 * time.Second
 	if code := Run(fixtureOpts(), rt); code != 0 {
@@ -253,14 +246,11 @@ func TestRunLegacyPidfileCannotSuppressLeasedGeneration(t *testing.T) {
 	}
 }
 
-// A stale pidfile (recycled PID whose argv isn't our poller) must NOT wedge the
-// respawn — the poller claims the pidfile and proceeds. Here the pane never
-// appears within the grace window, so Run exits 0 after writing the pidfile.
+// A stale numeric PID publication cannot wedge the new lease owner. Here the
+// pane never appears, so Run exits after replacing that metadata.
 func TestRunReclaimsStalePidfileThenGraceTimeout(t *testing.T) {
 	rt := newFake()
 	rt.files["/dd/title-pid-T"] = "4242\n"
-	rt.alive["4242"] = true
-	rt.commands["4242"] = "/usr/sbin/cupsd" // recycled PID, not our poller
 	rt.pid = "9001"
 	rt.sessionAliveDflt = false // and no pane is ever born
 	opts := fixtureOpts()

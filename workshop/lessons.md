@@ -2074,3 +2074,8 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #617 profiling review: a terminal projection's cheap no-op is not warm work.
   Measurements must fail on terminal errors and require positive activity and
   supported-usage controls before reporting allocation or timing improvements.
+
+- #617 teardown review: apply owned-group termination at every exit boundary,
+  including the wrapper's controlled-close fallback. A child unable to run its
+  EOF watcher still has commands; fence PID/start and group leadership before
+  signaling, and test with a stopped title plus an unrelated-group sentinel.

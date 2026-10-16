@@ -47,8 +47,6 @@ type Runtime interface {
 	Now() time.Time
 	Sleep(time.Duration)
 	Getpid() string
-	ProcessAlive(pid string) bool
-	ProcessCommand(pid string) string
 
 	SessionAlive(session string) bool
 	RenamePane(session, paneID, title string) error
@@ -68,15 +66,7 @@ type Runtime interface {
 // Run drives the poller until the Pair session disappears (or its agent pane is
 // never born). Returns a process exit code (always 0 — like the shell poller,
 // it exits cleanly on session-gone and never surfaces an error).
-func Run(opts Options, rt Runtime) int { return RunContext(context.Background(), opts, rt) }
-
-func RunContext(ctx context.Context, opts Options, rt Runtime) int {
-	if ctx == nil {
-		return 1
-	}
-	if ctx.Err() != nil {
-		return 0
-	}
+func Run(opts Options, rt Runtime) int {
 	if opts.Tag == "" || opts.Agent == "" {
 		return 0
 	}
@@ -134,7 +124,7 @@ func RunContext(ctx context.Context, opts Options, rt Runtime) int {
 	// the launcher resolves the same path from the same inputs before it
 	// spawns us, and refuses the launch if that fails.
 	panePath, err := panebirth.Evidence(opts.DataDir, opts.Tag, opts.Agent)
-	if err != nil || panebirth.Await(ctx, pollerClock{rt}, paneBirthPoll, opts.StartupGrace, func() (bool, error) {
+	if err != nil || panebirth.Await(context.Background(), pollerClock{rt}, paneBirthPoll, opts.StartupGrace, func() (bool, error) {
 		_, ok := rt.ModTime(panePath)
 		return ok, nil
 	}) != nil {
@@ -145,9 +135,6 @@ func RunContext(ctx context.Context, opts Options, rt Runtime) int {
 	lastPrefix := "__init__" // sentinel so the first real bucket always fires
 	misses := 0
 	for {
-		if ctx.Err() != nil {
-			return 0
-		}
 		// Self-terminate when the session is gone, debounced across misses so a
 		// single flaky IPC read (common right after sleep/wake) doesn't kill us.
 		if rt.SessionAlive(session) {
@@ -163,9 +150,6 @@ func RunContext(ctx context.Context, opts Options, rt Runtime) int {
 
 		latest := activityMTime(opts, rt)
 		if rt.Err() != nil {
-			return 0
-		}
-		if ctx.Err() != nil {
 			return 0
 		}
 		if latest.IsZero() {

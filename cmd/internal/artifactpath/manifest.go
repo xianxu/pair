@@ -471,7 +471,7 @@ var SourceClassifications = []SourceClassification{
 		goStructVocabulary("native-session", `json:"session_id"`, "SessionID", 1),
 	}},
 	{Path: "cmd/internal/titlepoller/runtime.go", Kind: ResolvedConsumer, Families: []string{"pane"}, BindingNames: []string{"scoped-pane-glob"}, Vocabulary: []VocabularyAllowance{
-		goCallVocabulary("pane", "--pane-id", "os/exec.CommandContext", 6, 1),
+		goCallVocabulary("pane", "--pane-id", "os/exec.Command", 5, 1),
 	}},
 	{Path: "cmd/internal/launcher/legacy_live.go", Kind: ResolvedConsumer, Families: []string{"pane"}, BindingNames: []string{"legacy-pane"}},
 	{Path: "cmd/internal/launcher/lifecycle.go", Kind: ResolvedConsumer,

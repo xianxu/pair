@@ -1,7 +1,6 @@
 package titlepoller
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"github.com/xianxu/pair/cmd/internal/zellijsession"
@@ -14,7 +13,6 @@ import (
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/contextcmd"
 	"github.com/xianxu/pair/cmd/internal/osfs"
-	"github.com/xianxu/pair/cmd/internal/procutil"
 )
 
 // OSRuntime implements Runtime with real zellij/cmux/fs/process calls. The fs
@@ -22,7 +20,6 @@ import (
 // osfs.FS (#93 M3).
 type OSRuntime struct {
 	osfs.FS
-	ctx        context.Context
 	projection *titleProjection
 	err        error
 }
@@ -33,7 +30,7 @@ func NewOSRuntime() OSRuntime {
 	if err != nil || ordinal == 0 || strconv.FormatUint(ordinal, 10) != raw {
 		return OSRuntime{err: errors.New("title projection requires exact launch ordinal")}
 	}
-	return OSRuntime{ctx: context.Background(), projection: newTitleProjection(contextcmd.EnvFromOS(), ordinal)}
+	return OSRuntime{projection: newTitleProjection(contextcmd.EnvFromOS(), ordinal)}
 }
 func (r OSRuntime) Err() error {
 	if r.err != nil {
@@ -44,45 +41,19 @@ func (r OSRuntime) Err() error {
 	}
 	return errors.New("title projection unavailable")
 }
-func (r OSRuntime) WithContext(ctx context.Context) OSRuntime { r.ctx = ctx; return r }
-func (r OSRuntime) context() context.Context {
-	if r.ctx == nil {
-		return context.Background()
-	}
-	return r.ctx
-}
-func (r OSRuntime) command(build func(context.Context) *exec.Cmd) ([]byte, error) {
-	ctx, cancel := context.WithTimeout(r.context(), 2*time.Second)
-	defer cancel()
-	cmd := build(ctx)
-	cmd.WaitDelay = 100 * time.Millisecond
-	return cmd.Output()
-}
-
-func (OSRuntime) Now() time.Time { return time.Now() }
-func (r OSRuntime) Sleep(d time.Duration) {
-	timer := time.NewTimer(d)
-	defer timer.Stop()
-	select {
-	case <-timer.C:
-	case <-r.context().Done():
-	}
-}
-func (OSRuntime) Getpid() string { return strconv.Itoa(os.Getpid()) }
+func (OSRuntime) Now() time.Time        { return time.Now() }
+func (OSRuntime) Sleep(d time.Duration) { time.Sleep(d) }
+func (OSRuntime) Getpid() string        { return strconv.Itoa(os.Getpid()) }
 
 // WriteFile publishes title PID and workspace-owner records through a sibling
 // temporary file and rename, so abrupt lease termination cannot expose a prefix.
 func (r OSRuntime) WriteFile(path, data string) error { return r.FS.WriteAtomic(path, data) }
-func (OSRuntime) ProcessAlive(p string) bool          { return procutil.Alive(p) }
-func (OSRuntime) ProcessCommand(p string) string      { return procutil.Command(p) }
 
 // SessionAlive reports whether a zellij server is running session. An EXITED
 // (resurrectable) row is gone: `--short` lists those too, which kept pollers
 // ticking for days after their session ended (pair#420).
 func (r OSRuntime) SessionAlive(session string) bool {
-	out, err := r.command(func(ctx context.Context) *exec.Cmd {
-		return exec.CommandContext(ctx, "zellij", "list-sessions", "--no-formatting")
-	})
+	out, err := exec.Command("zellij", "list-sessions", "--no-formatting").Output()
 	if err != nil {
 		return false
 	}
@@ -90,10 +61,8 @@ func (r OSRuntime) SessionAlive(session string) bool {
 }
 
 func (r OSRuntime) RenamePane(session, paneID, title string) error {
-	_, err := r.command(func(ctx context.Context) *exec.Cmd {
-		return exec.CommandContext(ctx, "zellij", "--session", session, "action",
-			"rename-pane", "--pane-id", paneID, title)
-	})
+	_, err := exec.Command("zellij", "--session", session, "action",
+		"rename-pane", "--pane-id", paneID, title).Output()
 	return err
 }
 
@@ -103,9 +72,7 @@ func (OSRuntime) CmuxAvailable() bool {
 }
 
 func (r OSRuntime) CmuxRenameWorkspace(title string) error {
-	_, err := r.command(func(ctx context.Context) *exec.Cmd {
-		return exec.CommandContext(ctx, "cmux", "rename-workspace", title)
-	})
+	_, err := exec.Command("cmux", "rename-workspace", title).Output()
 	return err
 }
 

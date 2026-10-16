@@ -275,3 +275,75 @@ func TestWrapperTitleFixtureDoesNotTouchInheritedCapture(t *testing.T) {
 		t.Fatal("disposable capture write control missing")
 	}
 }
+
+// A stopped title cannot execute its EOF watcher. The wrapper's bounded
+// fallback must therefore kill its owned group, including commands already
+// started by that title, while leaving another group alive.
+func TestWrapperTitleForcedShutdownKillsOwnedGroup(t *testing.T) {
+	root := t.TempDir()
+	pidfile := filepath.Join(root, "command-pid")
+	cmd := exec.Command("/bin/sh", "-c", `trap '' HUP INT TERM; sleep 30 & echo $! > "$PAIR_TITLE_COMMAND_PID"; kill -STOP $$`)
+	cmd.Env = testpair.Environment(t, root, "PAIR_TITLE_COMMAND_PID="+pidfile)
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reader.Close()
+	cmd.ExtraFiles = []*os.File{reader}
+	if err := cmd.Start(); err != nil {
+		writer.Close()
+		t.Fatal(err)
+	}
+	titlePID := strconv.Itoa(cmd.Process.Pid)
+	p := &wrapperTitleProcess{writer: writer, cmd: cmd, identity: procutil.Identity(titlePID), done: make(chan error, 1)}
+	waited := make(chan struct{})
+	go func() { p.done <- cmd.Wait(); close(waited) }()
+	var childPID, childIdentity string
+	t.Cleanup(func() {
+		_ = writer.Close()
+		if p.identity != "" && procutil.Identity(titlePID) == p.identity || childIdentity != "" && procutil.Identity(childPID) == childIdentity {
+			_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+		}
+		select {
+		case <-waited:
+		case <-time.After(time.Second):
+			t.Error("forced-title fixture was not joined")
+		}
+	})
+	for end := time.Now().Add(time.Second); time.Now().Before(end); {
+		if raw, e := os.ReadFile(pidfile); e == nil {
+			childPID = strings.TrimSpace(string(raw))
+			childIdentity = liveTitleIdentity(t, childPID)
+			if childIdentity != "" {
+				break
+			}
+		}
+		time.Sleep(time.Millisecond)
+	}
+	if p.identity == "" || childIdentity == "" {
+		t.Fatal("title/owned command positive controls unavailable")
+	}
+	sentinel := exec.Command("sleep", "30")
+	sentinel.Env = testpair.Environment(t, root)
+	if err := sentinel.Start(); err != nil {
+		t.Fatal(err)
+	}
+	sentinelPID := strconv.Itoa(sentinel.Process.Pid)
+	sentinelIdentity := liveTitleIdentity(t, sentinelPID)
+	t.Cleanup(func() { _ = sentinel.Process.Kill(); _ = sentinel.Wait() })
+	if sentinelIdentity == "" {
+		t.Fatal("unrelated-group sentinel unavailable")
+	}
+	t.Logf("forced title close: %v", p.Close())
+	if liveTitleIdentity(t, sentinelPID) != sentinelIdentity {
+		t.Fatal("forced title cleanup killed another process group")
+	}
+	for end := time.Now().Add(time.Second); time.Now().Before(end); {
+		if liveTitleIdentity(t, childPID) != childIdentity {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("wrapper forced fallback left its title's command alive")
+}

@@ -33,6 +33,50 @@ func runCLI(args []string, getenv func(string) string, stderr io.Writer, runtime
 		fmt.Fprintln(stderr, "pair-title: retention: PAIR_TAG differs from command tag")
 		return 1
 	}
+
+	owner, err := ParseTitleOwner(getenv(OwnerPIDEnv), getenv(OwnerStartEnv))
+	if err != nil || getenv(LeaseFDEnv) != "3" || procutil.Identity(strconv.Itoa(owner.PID)) != owner.Start {
+		fmt.Fprintln(stderr, "pair-title: wrapper lease identity unavailable")
+		return 1
+	}
+	// The wrapper creates the title with Setsid. Refuse before arming any
+	// group-wide signal unless this process owns that entire group.
+	if syscall.Getpgrp() != os.Getpid() {
+		fmt.Fprintln(stderr, "pair-title: wrapper-owned process group unavailable")
+		return 1
+	}
+	reader := os.NewFile(3, "title-wrapper-lease")
+	info, err := reader.Stat()
+	if err != nil || info.Mode()&os.ModeNamedPipe == 0 {
+		fmt.Fprintln(stderr, "pair-title: wrapper lease is not a pipe")
+		return 1
+	}
+	syscall.CloseOnExec(3)
+	defer reader.Close()
+	state, effects := AdvanceTitleLifetime(TitleLifetime{}, TitleLeaseReady)
+	if effects&TitleStartPoll == 0 {
+		return 1
+	}
+	// No Start/register gap exists: commands inherit our already-owned group.
+	// One kernel group signal ends the title and every such descendant even
+	// during an indivisible proof decode, blocking IPC, or concurrent Start.
+	go func() {
+		_, _ = io.Copy(io.Discard, reader)
+		_, effects := AdvanceTitleLifetime(state, TitleOwnerEOF)
+		if effects&TitleExit != 0 {
+			exitTitleGroup()
+		}
+	}()
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, syscall.SIGTERM, syscall.SIGINT, syscall.SIGHUP)
+	defer signal.Stop(signals)
+	go func() {
+		<-signals
+		_, effects := AdvanceTitleLifetime(state, TitleSignalled)
+		if effects&TitleExit != 0 {
+			exitTitleGroup()
+		}
+	}()
 	lease, err := storagegc.AcquireSelectedProcess(context.Background(), getenv, "title-poller")
 	if err != nil {
 		fmt.Fprintf(stderr, "pair-title: retention: %v\n", err)
@@ -40,55 +84,19 @@ func runCLI(args []string, getenv func(string) string, stderr io.Writer, runtime
 	}
 	defer lease.Close()
 
-	owner, err := ParseTitleOwner(getenv(OwnerPIDEnv), getenv(OwnerStartEnv))
-	if err != nil || getenv(LeaseFDEnv) != "3" || procutil.Identity(strconv.Itoa(owner.PID)) != owner.Start {
-		fmt.Fprintln(stderr, "pair-title: wrapper lease identity unavailable")
-		return 1
+	code := Run(opts, runtime())
+	_, effects = AdvanceTitleLifetime(state, TitlePollStopped)
+	if effects&TitleExit != 0 {
+		exitTitleGroup()
 	}
-	reader := os.NewFile(3, "title-wrapper-lease")
-	syscall.CloseOnExec(3)
-	info, err := reader.Stat()
-	if err != nil || info.Mode()&os.ModeNamedPipe == 0 {
-		fmt.Fprintln(stderr, "pair-title: wrapper lease is not a pipe")
-		return 1
-	}
-	signals, stopSignals := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT, syscall.SIGHUP)
-	defer stopSignals()
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	leaseDone := make(chan struct{})
-	go func() { defer close(leaseDone); var one [1]byte; _, _ = reader.Read(one[:]) }()
-	defer func() { _ = reader.Close(); <-leaseDone }()
-	state, effects := AdvanceTitleLifetime(TitleLifetime{}, TitleLeaseReady)
-	if effects&TitleStartPoll == 0 {
-		return 1
-	}
-	result := make(chan int, 1)
-	go func() {
-		rt := runtime()
-		if osrt, ok := rt.(OSRuntime); ok {
-			rt = osrt.WithContext(ctx)
-		}
-		result <- RunContext(ctx, opts, rt)
-	}()
-	var code int
-	select {
-	case code = <-result:
-		state, _ = AdvanceTitleLifetime(state, TitlePollStopped)
-		return code
-	case <-leaseDone:
-		state, effects = AdvanceTitleLifetime(state, TitleOwnerEOF)
-	case <-signals.Done():
-		state, effects = AdvanceTitleLifetime(state, TitleCancelled)
-	}
-	if effects&TitleCancelPoll != 0 {
-		cancel()
-	}
-	// Cooperative join. The bounded CLI-process fallback remains gated on the
-	// TL's explicit approval; do not silently turn this into detached work.
-	code = <-result
-	_, _ = AdvanceTitleLifetime(state, TitlePollStopped)
 	return code
+}
+
+func exitTitleGroup() {
+	_ = syscall.Kill(-os.Getpid(), syscall.SIGKILL)
+	// Only a failed group signal can reach this fallback. No cleanup/join or
+	// in-process work may delay termination after lease EOF.
+	os.Exit(1)
 }
 
 // optionsFromCLI is RunCLI's parse without its side effects, so what the poller
