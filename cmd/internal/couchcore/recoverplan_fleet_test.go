@@ -153,8 +153,8 @@ func TestKnownFleetReasonGrammar(t *testing.T) {
 
 // TestFleetInventoryLiveConformance pins the decoder and the fake's
 // vocabulary to the real producer: the installed sdlc's own output must decode
-// and use only verdicts and reasons the fake can produce. It needs network for
-// sdlc's tracker fetches; a sandboxed run still decodes (claims go stale).
+// and use only verdicts and reasons the fake can produce. A disposable fleet
+// with local Git remotes bounds its inputs without substituting a fake producer.
 func TestFleetInventoryLiveConformance(t *testing.T) {
 	t.Parallel()
 
@@ -164,10 +164,20 @@ func TestFleetInventoryLiveConformance(t *testing.T) {
 	if _, err := exec.LookPath("sdlc"); err != nil {
 		t.Skip("no sdlc on PATH")
 	}
-	vantage, err := filepath.Abs(filepath.Join("..", "..", ".."))
-	if err != nil {
-		t.Fatal(err)
+	// Exercise the real producer against bounded owned data, rather than
+	// inventorying the operator's fleet and fetching its unrelated trackers.
+	f := newProvisionFixture(t)
+	p := NewWorkspaceProvisioner(f)
+	for slot := 1; slot <= 2; slot++ {
+		if _, err := p.Ensure(context.Background(), ProvisionRequest{Path: f.Primary, Slot: slot, Agent: AgentNone}); err != nil {
+			t.Fatal(err)
+		}
 	}
+	write(t, filepath.Join(f.host(1), "construct", "deps"), "substrate ../absent-layer\n")
+	f.git(f.host(1), "add", "construct/deps")
+	f.git(f.host(1), "commit", "-m", "declare absent dependency")
+	write(t, filepath.Join(f.host(2), "untracked.txt"), "owned dirty work")
+	vantage := f.Primary
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 	raw, err := OSProvisionIO{}.Run(ctx, ProvisionCommand{Dir: vantage, Program: "sdlc", Args: []string{"fleet", "inventory", "--json", "--path", vantage}, Timeout: 90 * time.Second})
@@ -178,11 +188,17 @@ func TestFleetInventoryLiveConformance(t *testing.T) {
 	if err != nil {
 		t.Fatalf("decode live inventory: %v", err)
 	}
+	if len(inv.Rows) == 0 || len(inv.Slots) != 3 {
+		t.Fatalf("bounded live fleet lacks its rows/slots: %+v", inv)
+	}
+	seen := map[string]bool{}
 	for _, slot := range inv.Slots {
+		seen[slot.Verdict] = true
 		if !knownFleetVerdicts[slot.Verdict] {
 			t.Errorf("slot %s verdict %q is unknown to the decoder", slot.Address, slot.Verdict)
 		}
 		for _, m := range slot.Members {
+			seen[m.Verdict] = true
 			if !knownFleetVerdicts[m.Verdict] {
 				t.Errorf("member %s verdict %q is unknown to the decoder", m.Path, m.Verdict)
 			}
@@ -196,6 +212,11 @@ func TestFleetInventoryLiveConformance(t *testing.T) {
 	for _, row := range inv.Rows {
 		if !knownClaimsStates[row.ClaimsState] {
 			t.Errorf("row %s claims_state %q is unknown to the decoder", row.TreePath, row.ClaimsState)
+		}
+	}
+	for _, want := range []string{"ready", "holds-work", "missing", "needs-recovery"} {
+		if !seen[want] {
+			t.Errorf("controlled live fleet did not exercise %s: %v", want, seen)
 		}
 	}
 	if strings.TrimSpace(inv.Machine.State) == "" {

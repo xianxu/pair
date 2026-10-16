@@ -193,6 +193,32 @@ func assertNoSavedWork(t *testing.T, l SlotLayout) {
 	}
 }
 
+// setAsidePolicyFixture supplies only the directories/lease the set-aside
+// policy reads. Git provisioning, commits and remotes are unrelated to holds.
+func setAsidePolicyFixture(t *testing.T) (*slotConverger, string) {
+	t.Helper()
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	primary := filepath.Join(root, "repo")
+	layout := NewSlotLayout(primary, filepath.Join(primary, ".git"), 1)
+	dep := filepath.Join(layout.Env(), fakeDep)
+	for _, path := range []string{layout.common, dep} {
+		if err := os.MkdirAll(path, 0700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write(t, filepath.Join(dep, "keep.txt"), "owned work")
+	lease, err := AcquireHostCreationLease(layout.common)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = lease.Close() })
+	io := OSProvisionIO{Env: append(os.Environ(), "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL=/dev/null")}
+	return &slotConverger{p: NewWorkspaceProvisioner(io), layout: layout, lease: lease}, dep
+}
+
 // TestSetAsideHoldsMatchThePlan (BR-12): the converge step names the same hold
 // PlanSlot gives the same condition, through the one SetAsideHold, and a
 // checkout that recovered meanwhile is retryable, never a hand-off.
@@ -200,29 +226,42 @@ func TestSetAsideHoldsMatchThePlan(t *testing.T) {
 	t.Parallel()
 
 	for _, agent := range AllEvidenceAgents() {
-		s := newObservedSlot(t)
-		dep := brokenDep(t, s)
-		cv := s.converger(t)
-		cv.agentNow = func(context.Context) EvidenceAgent { return agent }
-		err := cv.converge(context.Background(), PlannedStep{Step: StepSetAside, Resource: DepResource(fakeDep), Path: dep})
-		reason, held := SetAsideHold(agent, false)
-		if !held {
-			if err != nil {
-				t.Errorf("agent %s: %v", agent, err)
+		t.Run(string(agent), func(t *testing.T) {
+			cv, dep := setAsidePolicyFixture(t)
+			cv.agentNow = func(context.Context) EvidenceAgent { return agent }
+			err := cv.converge(context.Background(), PlannedStep{Step: StepSetAside, Resource: DepResource(fakeDep), Path: dep})
+			reason, held := SetAsideHold(agent, false)
+			if !held {
+				if err != nil {
+					t.Fatalf("agent %s: %v", agent, err)
+				}
+				entries, readErr := os.ReadDir(cv.layout.SavedWork())
+				if readErr != nil || len(entries) != 1 {
+					t.Fatalf("allowed set-aside entries=%v, %v", entries, readErr)
+				}
+				saved := filepath.Join(cv.layout.SavedWork(), entries[0].Name(), "tree", "keep.txt")
+				if raw, readErr := os.ReadFile(saved); readErr != nil || string(raw) != "owned work" {
+					t.Fatalf("allowed set-aside lost work: %q, %v", raw, readErr)
+				}
+				return
 			}
-			continue
-		}
-		if f := ClassifyConvergeError(PlannedStep{Step: StepSetAside, Resource: DepResource(fakeDep)}, err); f.Class != FailureHold || f.Cause != reason {
-			t.Errorf("agent %s: classified %+v, the plan gives hold %s", agent, f, reason)
-		}
-		assertNoSavedWork(t, s.layout)
+			if f := ClassifyConvergeError(PlannedStep{Step: StepSetAside, Resource: DepResource(fakeDep)}, err); f.Class != FailureHold || f.Cause != reason {
+				t.Errorf("agent %s: classified %+v, the plan gives hold %s", agent, f, reason)
+			}
+			assertNoSavedWork(t, cv.layout)
+		})
 	}
-	s := newObservedSlot(t)
-	dep := s.addDep(t, fakeDep) // healthy: no longer broken when the step runs
-	err := s.converger(t).converge(context.Background(), PlannedStep{Step: StepSetAside, Resource: DepResource(fakeDep), Path: dep})
-	if f := ClassifyConvergeError(PlannedStep{Step: StepSetAside, Resource: DepResource(fakeDep)}, err); !errors.Is(err, errCheckoutRecovered) || f.Class != FailureRetryable {
-		t.Fatalf("recovered checkout: %v classified %+v, want retryable", err, f)
-	}
+	t.Run("recovered checkout", func(t *testing.T) {
+		cv, dep := setAsidePolicyFixture(t)
+		// A repository is enough positive evidence; no remote or commit is read.
+		if _, err := cv.p.IO.Run(context.Background(), ProvisionCommand{Dir: dep, Program: "git", Args: []string{"init", "-b", "main"}}); err != nil {
+			t.Fatal(err)
+		}
+		err := cv.converge(context.Background(), PlannedStep{Step: StepSetAside, Resource: DepResource(fakeDep), Path: dep})
+		if f := ClassifyConvergeError(PlannedStep{Step: StepSetAside, Resource: DepResource(fakeDep)}, err); !errors.Is(err, errCheckoutRecovered) || f.Class != FailureRetryable {
+			t.Fatalf("recovered checkout: %v classified %+v, want retryable", err, f)
+		}
+	})
 }
 
 // TestReconcileResultListsWhatItSetAside: a broken dependency is set aside and

@@ -150,6 +150,7 @@ func TestObserveEachBrokenResource(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
 			s := newObservedSlot(t)
 			os.MkdirAll(s.layout.Store(), 0o700)
 			c.break_(t, s)

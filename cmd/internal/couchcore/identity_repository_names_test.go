@@ -23,6 +23,7 @@ func TestRepositoryNamesAtConversationAllocationBoundaries(t *testing.T) {
 				entry = "fresh"
 			}
 			t.Run(entry+"/"+name, func(t *testing.T) {
+				t.Parallel()
 				f := newProvisionFixture(t, name)
 				path := f.Primary
 				if fresh {
