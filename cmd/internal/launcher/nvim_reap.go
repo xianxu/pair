@@ -51,13 +51,21 @@ type NvimReapRow struct {
 	// ExpectArgvTag are the two owner-naming forms; a row stating neither is
 	// unattributable.
 	//
+	// Attribution also has to be bound to the pid at the moment its record is
+	// written, and must not change over that process's lifetime (#583 BR-7).
+	// Mutable session state may corroborate a decision but cannot be its subject:
+	// a mismatch against state that moved after the record was written would
+	// classify the process's own orphan as "not ours" and, being a decided
+	// negative, delete the only record that names it.
+	//
 	//   ExpectArgvPath    argv must carry ExpectedArgPath as an exact field: the
 	//                     artifact the embed serves. Deterministic for draft (the
 	//                     scope's own draft path) and for a changelog viewer (its
 	//                     .md); for review, whose file is anywhere in the user's
-	//                     tree, it is the file this tag's own review state names
-	//                     -- so an empty value means the state named none, which
-	//                     is missing evidence rather than a pass.
+	//                     tree, it is the file the publisher wrote into the
+	//                     record's second line out of its own argv -- so an empty
+	//                     value means a record that bound none, which is missing
+	//                     evidence rather than a pass.
 	//   ExpectArgvTag     argv must be attributed to Owner by the scope's parser,
 	//                     for a kind whose path embeds a varying component
 	//                     (scrollback carries the agent). ArgvTag is that

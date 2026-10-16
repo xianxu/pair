@@ -22,8 +22,8 @@ func reapRow() NvimReapRow {
 
 // reviewRow turns the fully-evidenced draft row into a fully-evidenced review
 // row. The file a review pane serves is arbitrary, so the owner-naming evidence
-// is the file this tag's own review state names, corroborated by the config
-// every pair review pane runs.
+// is the file its publisher bound into the record's second line, corroborated by
+// the config every pair review pane runs.
 func reviewRow(r *NvimReapRow) {
 	r.Kind = "review"
 	r.Args = []string{"nvim", "--embed", "-u", "/pair/nvim/review.lua", "/docs/spec.md"}
@@ -123,7 +123,7 @@ func TestClassifyNvimReapKillsOnlyOnCompleteIdentity(t *testing.T) {
 			reason: "argv serves another path",
 		},
 		{
-			name:   "review kind attributed by its own tag's target file",
+			name:   "review kind attributed by the file its record binds",
 			mutate: reviewRow,
 			kill:   true,
 			reason: "owner dead",
@@ -131,13 +131,16 @@ func TestClassifyNvimReapKillsOnlyOnCompleteIdentity(t *testing.T) {
 		{
 			// #583 BR-6: the pid a dead tag's review record names can be held by
 			// another tag's live review pane by now. The config's base name is in
-			// both argv, so only the file the record's own tag state names decides.
+			// both argv, so only the file bound into this record decides.
 			name:   "review argv serves another tag's document",
 			mutate: func(r *NvimReapRow) { reviewRow(r); r.ExpectedArgPath = "/docs/theirs.md" },
 			reason: "argv serves another path",
 		},
 		{
-			name:   "review state names no file",
+			// A record whose publisher bound no file — a legacy one-line record —
+			// is missing evidence, and missing evidence keeps the record (#583
+			// BR-7): dropping it would leave an embed no later pass can find.
+			name:   "review record bound no file",
 			mutate: func(r *NvimReapRow) { reviewRow(r); r.ExpectedArgPath = "" },
 			reason: "attribution unknown",
 		},

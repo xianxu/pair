@@ -822,7 +822,8 @@ func ClassifyOrphanNvim(row procutil.Process, args []string, cwd string, cwdKnow
   reader, exported beside `targetJSON` and pinned to it by `TestTargetFileOf`. A state that is gone,
   unreadable or names no file leaves the field empty — missing evidence, so the candidate skips and keeps
   its record (`reapKeepsRecord` gained `attribution unknown`), never a pass.
-  *Residual gap, deliberate:* argv is fixed at spawn (`RunOpen` passes the file it was asked to open), while
+  *Residual gap, deliberate* (**wrong, and superseded by round 4 below** — the skip is not the safe
+  direction, because the outcome that skips here also deletes the record): argv is fixed at spawn (`RunOpen` passes the file it was asked to open), while
   the state is rewritten per `:PairReview` and per prepare receipt, so an Alt+C **retarget** to a different
   file leaves the two naming different files and the embed unattributable — the sweep skips it and keeps the
   record. That is the safe direction (no wrong kill), the window is one retargeted pane, the embed normally
@@ -857,3 +858,89 @@ func ClassifyOrphanNvim(row procutil.Process, args []string, cwd string, cwdKnow
   one sibling, then reverted). Truly single-sourcing the literals in Go costs reflection, a sentinel probe,
   or a parallel field enumeration, each of which re-lists the seven members somewhere; guarding the
   behaviour removes the drift risk the finding names without the machinery.
+- **2026-10-16 — M1 boundary review round 4 (BR-7 Critical): the review attribution is bound into the record
+  at publish, because round 3's "safe direction" claim was false.** Reason: BR-7 found that attributing
+  through `review-target-<tag>.json` — mutable state, rewritten by `:PairReview` and by every Alt+C
+  activation of a live pane (`review/restore_client.lua:137`) while the pane's argv still names its spawn
+  file — classifies the pane's own orphan as `argv serves another path`, and that reason is a *decided
+  negative*: `reapKeepsRecord` drops the record on it. Review has no argv-only fallback (its argv carries no
+  scope path, so `TagFromNvimEmbedArgv` attributes nothing), so deleting the record deletes the only name
+  that process ever had, and no later pass can find it. That is the issue's own orphan class, reopened by
+  the fix for the previous finding. Round 3 recorded this divergence as a deliberate residual and called it
+  "the safe direction (no wrong kill)"; both halves were wrong — the divergence is the routine case rather
+  than a narrow window, and the outcome deletes rather than merely skips. The paragraph above is marked
+  superseded rather than deleted, so the false premise stays visible.
+  Rule adopted (the finding's, and now the family's): **attribution evidence must be bound to the pid at the
+  moment its record is written, and must not change for that pid's lifetime.** Mutable session state may
+  corroborate a decision but cannot be its subject; a mismatch against state that moved after the record was
+  written must keep the record, never drop it.
+  Delta: `review.lua`'s publish writes two lines — the pid, then `vim.v.argv[#vim.v.argv]`, the file this
+  embed was spawned with, read out of **its own argv** rather than from the state or from the activation's
+  `file` parameter (which is precisely the value that drifts). `sidecarPID` → `sidecarRecord` (line 1 = pid,
+  line 2 = served), with both call sites (`openerLive`, `reapNvimRows`); `nvimSidecar.ReviewState` →
+  `ServedInRecord`, resolved in `reapNvimRows` beside the pid read instead of in `decideOne`;
+  `reviewAttribution` deleted, and `reviewcmd.TargetFileOf` + `TestTargetFileOf` with it (dead once nothing
+  reads the state). The other three configs keep writing one line, which `sidecarRecord` reads as "bound
+  nothing".
+  Why line 2 is sound where the state was not: it is written by the process it names, out of that process's
+  own argv, which is fixed for the process's lifetime. A mismatch therefore *proves* the pid is not the
+  process that wrote the record — a decided negative that may drop it — while an absent or empty line 2 (a
+  legacy record, or a spawn shape that stops putting the file last) is missing evidence: `attribution
+  unknown`, record kept. ARCH-ORDER: subject and evidence are now written at the same moment by the same
+  actor. ARCH-FUNERAL: no negative outcome deletes a record that is still the only name for a process.
+  Residual, narrower and stated: two tags serving the *same absolute file*, plus a pid wrap onto the other
+  tag's record, could still collide. That is strictly narrower than BR-6's, which fired for any review pane
+  whose state had moved at all. The closure path if it ever matters is a spawner-minted nonce carried in
+  argv and bound into the record — rejected for M1 as a new spawn-shape contract bought for a case that also
+  needs a pid reuse.
+  Tests: the two rows the finding demanded (a reparented embed after a retarget must be KILLed, at reap and
+  at sweep level; a cross-tag live pane serving a different file must be skipped) plus a legacy one-line
+  record and an empty line 2, both kept. Teeth proven by mutation: restoring the state read (BR-6 semantics)
+  fails exactly those three retarget rows and nothing else; reverted, the package is green. The lifecycle
+  test reads line 1 through `record_pid` and asserts review's line 2 is byte-equal to the file it launched
+  with, and that the other three configs write no second line — 21 assertions over the four configs.
+  Atlas `:385` and `:1256` re-edited to name the record's second line as review's attribution and to state
+  the binding rule; `workshop/lessons.md` gains the BR-7 rule (bind evidence at write time; check what a
+  decided negative *deletes* before calling a skip safe).
+- **2026-10-16 — M1 boundary review round 4 (BR-7 Critical): review attribution is bound into the record at
+  publish, and round 3's "residual gap, deliberate" is withdrawn as wrong.** Reason: BR-7 measured what
+  round 3 had asserted away. `:PairReview` and an Alt+C activation of a live pane
+  (`nvim/review/restore_client.lua:137`) both rewrite `review-target-<tag>.json` while the pane's argv keeps
+  naming its spawn file, so the divergence is the *routine* case for any pane retargeted after it opened, not
+  a one-pane window. And the outcome is not "skips and keeps the record": `reapReasonOtherPath` is a decided
+  negative, `reapKeepsRecord` drops the record on it, and review has no argv-only fallback (its argv carries
+  no scope path, so `TagFromNvimEmbedArgv` attributes nothing) — the embed loses the only name it ever had.
+  That is the issue's own orphan class, reopened by the fix to the previous finding.
+  Rule adopted (the finding's, now the family's second): **attribution evidence must be bound to the pid at
+  the moment its record is written and must not change for that pid's lifetime.** Mutable session state may
+  corroborate a decision; a mismatch against it must keep the record, never drop it. ARCH-ORDER: subject and
+  evidence are written at the same moment by the same actor. ARCH-FUNERAL: no negative outcome may delete the
+  only record naming a live process.
+  Delta: `nvim/review.lua`'s publish writes two lines — the pid, then `vim.v.argv[#vim.v.argv]`, the file this
+  embed was spawned with, taken from its own argv rather than from the activation's `file` parameter (which is
+  exactly the mutable value). `sidecarPID` → `sidecarRecord(raw) (pid, served, ok)` (line 1 = pid, line 2 =
+  served), both call sites (`openerLive`, `reapNvimRows`) updated; `nvimSidecar.ReviewState` →
+  `ServedInRecord`, bound where the record is read; `reviewAttribution` deleted; `reviewcmd.TargetFileOf` and
+  `TestTargetFileOf` deleted as dead once nothing reads the state. The other three configs keep writing one
+  line, which `sidecarRecord` reads as "bound nothing".
+  Soundness: line 2 is written by the process it names, out of that process's own argv, which cannot change
+  for its lifetime — so a mismatch *proves* the pid is not the process that wrote the record (a decided
+  negative that may drop it), while a record with no line 2 (a legacy one, or an empty argv tail) is
+  `attribution unknown` and is kept.
+  Residual, strictly narrower than BR-6's: two tags serving the *same absolute file*, plus a pid wrap onto the
+  other tag's record, could still collide. Closure path if it ever matters: the spawner mints a nonce into
+  argv and the record binds it — rejected for M1 as a new spawn-shape contract bought for a case that also
+  needs a pid reuse.
+  Tests: the two rows the finding demanded plus two more. Reap level — a quit-path pane retargeted after
+  spawn (kill), a live tag's retargeted embed reparented to launchd (kill, `reparented to launchd`), a
+  cross-tag live pane serving a different file (skip, stale record dropped), a legacy one-line record and an
+  empty line 2 (both `attribution unknown`, kept). Sweep level — the reparented-after-retarget kill with the
+  drifted state present on disk, the cross-tag skip, the legacy record kept.
+  `TestNvimSidecarsGiveEveryKindArgvEvidence`'s review branch now asserts the target states *where* the field
+  comes from (`ServedInRecord`) and carries no value of its own, so a scope-derived path cannot come back.
+  Teeth proven by mutation: restoring the state read (BR-6 semantics) reddens exactly the three retarget rows
+  and nothing else; reverted, the package is green. `tests/nvim-pidfile-lifecycle-test.sh` reads line 1
+  through `record_pid` and asserts review's line 2 is byte-equal to the file it launched with, and that the
+  other three configs write no second line — 21 assertions across the four configs.
+  Atlas `:385` and `:1256` re-edited (the record's second line is review's attribution; the binding rule;
+  "the pid a record names is not itself the attribution"). `workshop/lessons.md` gains the BR-7 rule.

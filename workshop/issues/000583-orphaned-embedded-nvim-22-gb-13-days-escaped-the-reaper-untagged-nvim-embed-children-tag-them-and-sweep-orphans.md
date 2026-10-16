@@ -617,3 +617,47 @@ ExpectArgvPath` sites), and the behaviour it replaces is documented by the case 
 "review kind expects no scope path" asserted a kill on `nvim --embed` plus `review.lua` alone. Deleting
 `.nvim-pid` from `ownerCandidates`' suffix list turns the new GC guard red on exactly that sibling
 (reverted, `git diff` clean for `gc.go`).
+
+### 2026-10-16 — M1 boundary review round 4: BR-7, my BR-6 fix reopened the leak it was fixing
+
+Round 4 disposed BR-6 and raised one Critical in the same family (its 2nd finding, so the gate now names the
+class, not the instance): *"attribution evidence must be bound to the pid at the moment the record is
+written, and must not change for the pid's lifetime. Mutable session state may corroborate, but a mismatch
+against it must keep the record, never drop it."*
+
+BR-7 is right, and the plan's round-3 claim that the divergence was a safe deliberate residual was wrong on
+both counts. Measured from source: `:PairReview` and an Alt+C activation of a live pane
+(`nvim/review/restore_client.lua:137`) both rewrite `review-target-<tag>.json`, while the pane's argv keeps
+naming the file it was spawned with — so the divergence is routine for any retargeted pane, not a one-pane
+window. And the outcome is not a harmless skip: `reapReasonOtherPath` is a *decided negative*,
+`reapKeepsRecord` drops the record on it, and review has no argv-only fallback (its argv carries no scope
+path), so a retargeted pane's orphan loses the only name it ever had. The 22 GB class, reopened by the
+previous round's fix.
+
+Fixed the way the finding prescribes. `nvim/review.lua`'s publish now writes two lines: the pid, then
+`vim.v.argv[#vim.v.argv]` — the file this embed was spawned with, out of its **own** argv, not the
+activation's `file` parameter (which is exactly the value that drifts). `sidecarPID` → `sidecarRecord(raw)
+(pid, served, ok)`; `nvimSidecar.ReviewState` → `ServedInRecord`, bound in `reapNvimRows` where the record is
+read; `reviewAttribution` deleted, and `reviewcmd.TargetFileOf` + `TestTargetFileOf` with it. The launcher no
+longer reads the review-target state at all (grep-verified: the only remaining `review-target` references in
+the package are test fixtures). A record with no second line — a legacy one, or an empty argv tail — is
+`attribution unknown` and is **kept**.
+
+Why line 2 is sound where the state was not: it is written by the process it names, from that process's own
+argv, which is fixed for its lifetime. A mismatch therefore proves the pid is not the process that wrote the
+record, so dropping it is correct; a record that bound nothing proves nothing, so it stays. Residual,
+strictly narrower than BR-6's: two tags serving the same absolute file plus a pid wrap onto the other's
+record could still collide. Closing that needs a spawner-minted nonce in argv — a new spawn-shape contract,
+not bought for a case that also needs a pid reuse.
+
+Verified: `gofmt -l` clean; `go build ./...`; `go vet` + `go test ./cmd/internal/launcher/
+./cmd/internal/reviewcmd/ ./cmd/internal/artifactpath/ -count=1` ok; the whole `go test ./cmd/internal/...
+-count=1` (BR-5's rule); `make runtimebundle-generate test-nvim-pidfile` 21/21 across the four lua configs,
+its new review assertion being that line 2 is byte-equal to the file the embed was launched with;
+`PAIR_LIVE_NVIM_REAP=1 go test ./cmd/internal/launcher/ -run TestLiveNvimReap -count=1` PASS 3/3. Teeth
+proven by mutation: restoring the state read (BR-6 semantics) reddens exactly the three retarget rows the
+finding demanded — reap-level quit, reap-level live-tag reparent, sweep-level reparent — and nothing else;
+reverted, green. The plan's round-3 "Residual gap, deliberate" paragraph is marked withdrawn rather than
+deleted, so the false premise stays visible; `workshop/lessons.md` gains the BR-7 rule, including the half
+that would have caught it before the judge did: check what a decided negative *deletes* before calling a
+skip safe.

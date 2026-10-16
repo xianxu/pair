@@ -26,17 +26,23 @@ const (
 	reapDraft    = reapScopeDir + "/draft-work.md"
 	reapSidecar  = reapScopeDir + "/nvim-pid-work-draft"
 	reapStamp    = "1700000000.1"
-	// The review kind's owner-naming evidence: the file a review embed serves is
-	// anywhere in the user's tree, so only the tag's own target state names it
-	// (#583 BR-6).
-	reapReviewState = reapScopeDir + "/review-target-work.json"
-	reapReviewFile  = "/src/post.md"
+	// The file a review embed serves is anywhere in the user's tree, so the only
+	// owner-naming evidence for the review kind is the one its publisher bound
+	// into the record's second line (#583 BR-7).
+	reapReviewFile = "/src/post.md"
 )
 
-// reviewStateJSON is the review-target document as it sits on disk, spelled out
-// here rather than built by the writer so the reap is pinned to the contract the
-// launcher reads.
-func reviewStateJSON(file string) string {
+// reviewRecord is the review kind's record: pid on line 1, and on line 2 the
+// exact argv field the publishing embed served. review.lua writes both at
+// publish, from its own argv, so line 2 cannot drift from the process it names.
+func reviewRecord(pid int, served string) string {
+	return strconv.Itoa(pid) + "\n" + served + "\n"
+}
+
+// reviewTargetState is the tag's mutable review-target document, as :PairReview
+// and an Alt+C activation rewrite it. It is a fixture only: no reap decision may
+// read it, because it drifts while the pane's argv does not (#583 BR-7).
+func reviewTargetState(file string) string {
 	return `{"file":"` + file + `","status":"ready","session":"sid1"}`
 }
 
@@ -69,11 +75,15 @@ func scrollbackTarget(scopeDir string) nvimSidecar {
 type nvimSidecarReapCase struct {
 	name string
 	// target defaults to the tag-keyed draft record.
-	target  nvimSidecar
+	target nvimSidecar
+	// sidecar is the record's content. For the review kind its second line is the
+	// attribution the decision reads.
 	sidecar string
-	// reviewState, when set, is written to the target's review state path: the
-	// review kind's owner-naming attribution is read from there.
-	reviewState string
+	// retargeted, when set, is written to the tag's mutable review-target state:
+	// what a later Alt+C activation or :PairReview leaves on disk while the pane's
+	// argv still names the file it was spawned with. The decision must not read it
+	// (#583 BR-7).
+	retargeted string
 	// table defaults to reapNvimTable(4242, draftArgv(reapDraft)).
 	table      *fakeProcessTable
 	noProcess  bool
@@ -91,8 +101,8 @@ func (c nvimSidecarReapCase) run(t *testing.T) nvimReapOutcome {
 	}
 	sidecars := newFakeRuntime()
 	sidecars.files[target.Path] = c.sidecar
-	if c.reviewState != "" {
-		sidecars.files[target.ReviewState] = c.reviewState
+	if c.retargeted != "" {
+		sidecars.files[reapScopeDir+"/review-target-work.json"] = c.retargeted
 	}
 	table := c.table
 	switch {
@@ -138,8 +148,10 @@ func TestReapNvimSidecarsKillsOnlyWhatTheEvidenceNames(t *testing.T) {
 	t.Parallel()
 	review := nvimSidecar{
 		Path: reapScopeDir + "/nvim-pid-work-review", Kind: "review", Owner: "work",
-		ExpectArgvPath: true, ReviewState: reapReviewState, ExpectedAssetBase: "review.lua",
+		ExpectArgvPath: true, ServedInRecord: true, ExpectedAssetBase: "review.lua",
 	}
+	reviewOfLiveTag := review
+	reviewOfLiveTag.OwnerLive = true
 	liveOwner := nvimSidecar{Path: reapSidecar, Kind: "draft", Owner: "work", ExpectArgvPath: true, ExpectedArgPath: reapDraft, OwnerLive: true}
 	for _, tc := range []nvimSidecarReapCase{
 		{
@@ -217,48 +229,71 @@ func TestReapNvimSidecarsKillsOnlyWhatTheEvidenceNames(t *testing.T) {
 			wantReason: reapReasonOwnerDead,
 		},
 		{
-			name: "a review embed serving the file its own tag's state names", sidecar: "4242\n",
-			target: review, reviewState: reviewStateJSON(reapReviewFile),
+			name: "a review embed serving the file its record binds", sidecar: reviewRecord(4242, reapReviewFile),
+			target:     review,
 			table:      reapNvimTable(4242, reviewArgv(reapReviewFile)),
 			wantKill:   true,
 			wantReason: reapReasonOwnerDead,
 		},
 		{
+			// The quit path's row for #583 BR-7: the pane was retargeted after this
+			// embed was spawned, so the tag's mutable review-target state names
+			// another file than the one in argv. The record's second line was bound
+			// from this process's own argv at publish, so it still matches and the
+			// quit reaps its own pane. Attributing through the state instead made
+			// this "argv serves another path" and deleted the record.
+			name: "a review embed whose pane retargeted after it was spawned", sidecar: reviewRecord(4242, reapReviewFile),
+			target: review, retargeted: reviewTargetState("/src/theirs.md"),
+			table:      reapNvimTable(4242, reviewArgv(reapReviewFile)),
+			wantKill:   true,
+			wantReason: reapReasonOwnerDead,
+		},
+		{
+			// The same retarget with the pane closed and the embed left at ppid 1 —
+			// the live-tag shape, where reparenting is the whole authorization.
+			name: "a live tag's review embed that reparented after a retarget", sidecar: reviewRecord(4242, reapReviewFile),
+			target: reviewOfLiveTag, retargeted: reviewTargetState("/src/theirs.md"),
+			table:      reapNvimTable(4242, reviewArgv(reapReviewFile)),
+			wantKill:   true,
+			wantReason: reapReasonReparented,
+		},
+		{
 			// #583 BR-6: this record outlived its embed, and the pid it names now
 			// holds another tag's live review pane. Both argv carry review.lua, so
 			// the config's base name says "a pair review pane" and not whose; only
-			// the file this tag's own state names decides, and that pane serves
-			// another file.
-			name: "a dead tag's review record whose pid another tag's live pane holds", sidecar: "4242\n",
-			target: review, reviewState: reviewStateJSON(reapReviewFile),
+			// the file bound into this record decides, and that pane serves another.
+			name: "a dead tag's review record whose pid another tag's live pane holds", sidecar: reviewRecord(4242, reapReviewFile),
+			target:     review,
 			table:      reapNvimTable(4242, reviewArgv("/src/theirs.md")),
 			row:        func(p *fakeProcess) { p.ppid = 4000 },
 			wantReason: reapReasonOtherPath,
 		},
 		{
-			name: "a review record whose tag state names no file", sidecar: "4242\n",
-			target: review, reviewState: `{"status":"ready"}`,
-			table:      reapNvimTable(4242, reviewArgv(reapReviewFile)),
-			wantReason: reapReasonNoAttribution,
-			wantKept:   true,
-		},
-		{
-			name:       "a review record whose tag state is gone",
-			sidecar:    "4242\n",
+			// A record written before the second line existed names a pid and
+			// attributes nothing, so it is kept: dropping it would leave an embed
+			// the sweep can never find again, and review has no argv-only source.
+			name: "a legacy one-line review record", sidecar: "4242\n",
 			target:     review,
 			table:      reapNvimTable(4242, reviewArgv(reapReviewFile)),
 			wantReason: reapReasonNoAttribution,
 			wantKept:   true,
 		},
 		{
-			name: "a bare embed sitting at a review record's pid", sidecar: "4242\n",
-			target: review, reviewState: reviewStateJSON(reapReviewFile),
+			name: "a review record whose second line is empty", sidecar: "4242\n\n",
+			target:     review,
+			table:      reapNvimTable(4242, reviewArgv(reapReviewFile)),
+			wantReason: reapReasonNoAttribution,
+			wantKept:   true,
+		},
+		{
+			name: "a bare embed sitting at a review record's pid", sidecar: reviewRecord(4242, reapReviewFile),
+			target:     review,
 			table:      reapNvimTable(4242, []string{"nvim", "--embed"}),
 			wantReason: reapReasonOtherPath,
 		},
 		{
-			name: "a review embed running another config", sidecar: "4242\n",
-			target: review, reviewState: reviewStateJSON(reapReviewFile),
+			name: "a review embed running another config", sidecar: reviewRecord(4242, reapReviewFile),
+			target:     review,
 			table:      reapNvimTable(4242, []string{"nvim", "--embed", "-u", "/anywhere/nvim/init.lua", reapReviewFile}),
 			wantReason: reapReasonOtherAsset,
 		},
@@ -362,10 +397,10 @@ func TestNvimSidecarsGiveEveryKindArgvEvidence(t *testing.T) {
 	}
 	// Each kind names its owner differently. The draft's is the exact artifact
 	// path. The review pane serves a file anywhere in the user's tree, so its
-	// owner-naming field comes from the tag's own review state, and the asset its
-	// launcher passes to `-u` is only corroboration that argv is a pair pane: it
-	// is matched by base because pair's install root differs per checkout (a live
-	// embed outlives the checkout that spawned it, and its argv keeps that
+	// owner-naming field is the one its publisher bound into the record, and the
+	// asset its launcher passes to `-u` is only corroboration that argv is a pair
+	// pane: it is matched by base because pair's install root differs per checkout
+	// (a live embed outlives the checkout that spawned it, and its argv keeps that
 	// checkout's path).
 	for _, target := range targets {
 		switch target.Kind {
@@ -374,8 +409,12 @@ func TestNvimSidecarsGiveEveryKindArgvEvidence(t *testing.T) {
 				t.Fatalf("draft expects %q, want %q", target.ExpectedArgPath, paths.Draft())
 			}
 		case "review":
-			if !target.ExpectArgvPath || target.ReviewState != paths.ReviewTarget() {
-				t.Fatalf("review names no owner-naming state: %+v", target)
+			// The target says where the field comes from and carries no value of its
+			// own: a path derived from the scope here would be mutable state read at
+			// decision time again, which is what let a retargeted pane's orphan
+			// escape (#583 BR-7).
+			if !target.ExpectArgvPath || !target.ServedInRecord || target.ExpectedArgPath != "" {
+				t.Fatalf("review does not bind its attribution to its record: %+v", target)
 			}
 			if want := filepath.Base(reviewLuaAsset); target.ExpectedAssetBase != want {
 				t.Fatalf("review expects asset %q, want %q", target.ExpectedAssetBase, want)
@@ -496,12 +535,14 @@ func (s *sweepScope) record(t *testing.T, kind string, pid int) string {
 	return path
 }
 
-// reviewTarget writes the tag's review state naming file. It is the review
-// kind's owner-naming evidence: a review pane serves a file anywhere in the
-// user's tree, so only the tag's own state ties a pid to its owner (#583 BR-6).
-func (s *sweepScope) reviewTarget(t *testing.T, file string) {
+// reviewRecord writes the review kind's two-line record: pid, then the exact
+// argv field its publisher served. It is the review kind's only owner-naming
+// evidence, bound at publish time so it cannot drift from the process (#583).
+func (s *sweepScope) reviewRecord(t *testing.T, pid int, served string) string {
 	t.Helper()
-	s.write(t, s.paths.ReviewTarget(), reviewStateJSON(file))
+	path := s.paths.NvimPID("review")
+	s.write(t, path, reviewRecord(pid, served))
+	return path
 }
 
 // changelog writes the viewer's artifact-keyed record, and the opener's lock
@@ -642,8 +683,25 @@ func TestSweepOrphanNvimDecidesEachPidOnItsOwnEvidence(t *testing.T) {
 		{
 			name: "an unreaped review sidecar",
 			setup: func(t *testing.T, scope *sweepScope, table *fakeProcessTable) {
-				scope.record(t, "review", 4242)
-				scope.reviewTarget(t, "/src/post.md")
+				scope.reviewRecord(t, 4242, "/src/post.md")
+				embed(table, 4242, []string{"nvim", "--embed", "-u", "/anywhere/nvim/review.lua", "/src/post.md"})
+			},
+			wantSignals: []string{"4242:KILL"},
+		},
+		{
+			// #583 BR-7. The pane was retargeted after this embed was spawned — an
+			// Alt+C activation or a :PairReview rewrote the tag's review-target state
+			// to another file — and the pane then closed, leaving the embed at ppid 1.
+			// Attribution is what the embed's publisher bound into the record, which
+			// comes from its own argv and so still matches; the drifted state names a
+			// file no process serves. Reading the state instead (BR-6) classified this
+			// as "argv serves another path", deleted the record, and left the orphan —
+			// the issue's own class — with no path that could ever find it again.
+			name:     "a review embed that reparented after its pane retargeted",
+			liveTags: []string{"work"},
+			setup: func(t *testing.T, scope *sweepScope, table *fakeProcessTable) {
+				scope.reviewRecord(t, 4242, "/src/post.md")
+				scope.write(t, scope.paths.ReviewTarget(), reviewTargetState("/src/theirs.md"))
 				embed(table, 4242, []string{"nvim", "--embed", "-u", "/anywhere/nvim/review.lua", "/src/post.md"})
 			},
 			wantSignals: []string{"4242:KILL"},
@@ -652,24 +710,24 @@ func TestSweepOrphanNvimDecidesEachPidOnItsOwnEvidence(t *testing.T) {
 			// The sweep-level shape of #583 BR-6: a review record that outlived its
 			// embed, and the pid it names now holds another tag's live pane. Both
 			// argv carry review.lua, so the config's base name says "a pair review
-			// pane" and not whose; only the file this tag's own state names decides,
-			// and that pane serves another file. Nothing is signalled, and the stale
+			// pane" and not whose; only the file bound into this record decides, and
+			// that pane serves another one. Nothing is signalled, and the stale
 			// record goes: it names a process that is not this tag's.
-			name: "a dead tag's review record whose pid another tag's live pane holds",
+			name:     "a dead tag's review record whose pid another tag's live pane holds",
+			liveTags: []string{"work-2"},
 			setup: func(t *testing.T, scope *sweepScope, table *fakeProcessTable) {
-				scope.record(t, "review", 4242)
-				scope.reviewTarget(t, "/src/post.md")
+				scope.reviewRecord(t, 4242, "/src/post.md")
 				nvimRow(table, 4242, 4000, []string{"nvim", "--embed", "-u", "/anywhere/nvim/review.lua", "/src/theirs.md"})
 			},
 		},
 		{
-			// A review state that names no file is missing evidence, not a pass:
-			// the pane may well be the record's own, and the record stays for the
-			// next pass rather than authorizing a kill nothing attributes.
-			name: "a review sidecar whose state names no file",
+			// A record from before the second line existed names a pid and
+			// attributes nothing. Missing evidence is a skip, not a pass: the pane
+			// may well be the record's own, and the record stays for the next pass
+			// rather than authorizing a kill nothing attributes.
+			name: "a legacy one-line review record",
 			setup: func(t *testing.T, scope *sweepScope, table *fakeProcessTable) {
 				scope.record(t, "review", 4242)
-				scope.write(t, scope.paths.ReviewTarget(), `{"status":"ready","session":"sid1"}`)
 				embed(table, 4242, []string{"nvim", "--embed", "-u", "/anywhere/nvim/review.lua", "/src/post.md"})
 			},
 			wantKept: []string{"nvim-pid-work-review"},

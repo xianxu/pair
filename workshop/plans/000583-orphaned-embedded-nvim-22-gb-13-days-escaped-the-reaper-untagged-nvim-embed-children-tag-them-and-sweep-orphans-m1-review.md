@@ -337,3 +337,110 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-16T15:21:56-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 583 — Orphaned embedded nvim (22 GB, 13 days) escaped the reaper: untagged 'nvim --embed' children; tag them and sweep orphans |
+| repo | pair |
+| issue file | workshop/issues/000583-orphaned-embedded-nvim-22-gb-13-days-escaped-the-reaper-untagged-nvim-embed-children-tag-them-and-sweep-orphans.md |
+| boundary | milestone M1 |
+| milestone | M1 |
+| window | 758c4b72216ed740e7167f241e8287d2d6db25c6..b2c4283f9abffcd28acd487636e04583c9af7b8b |
+| command | sdlc milestone-close --issue 583 --milestone M1 |
+| reviewer | claude |
+| isolation | fenced |
+| timestamp | 2026-10-16T15:21:56-07:00 |
+| verdict | REWORK |
+
+## Review
+
+The main focus: verify BR-6 fix.
+
+Checking whether the BR-6 fix holds up when the review pane is retargeted to another file.
+
+I'm adding a temporary test case to confirm the retarget leak empirically.
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The BR-6 fix stops one tag's stale review record from killing another tag's live pane, as long as the two panes serve different files. It does this by making attribution come from a field that names the owner, at `cmd/internal/launcher/nvim_reap.go:103-121`. The suites for `launcher`, `reviewcmd`, `artifactpath` and `opener` are green at head. The problem is the evidence the fix chose. Review's owner-naming field is read from `review-target-<tag>.json`, and that file changes during the life of a review pane. The pane's argv keeps the file it was spawned with, but the target is rewritten in two places:
+- Alt+C activation of a live pane on another document (`nvim/review/restore_client.lua:137`, `write_target(wanted.repo..'/'..wanted.file, …)`).
+- `:PairReview` proposing a new file while the pane is alive (`nvim/init.lua` `propose` → `write_target(abs,'proposed')`).
+
+Once that happens, the pane's own orphaned embed is classified `argv serves another path`. That is a decided negative: `reapKeepsRecord` returns false, so the record is deleted and nothing is signalled. This happens both on the quit path (`osruntime.go:946` goes through the same `decideOne` → `reviewAttribution`) and in the sweep. Review embeds have no argv-only fallback, so no later pass finds that pid again. This is the 13-day orphan the issue exists to prevent, and the fix brings it back for review panes. That blocks SHIP.
+
+1. **Strengths**
+   - `ClassifyNvimReap` now treats "no owner-naming attribution" as its own skip reason (`attribution unknown`) and keeps the record for it (`nvim_reap_os.go:445`). It also correctly demotes the asset base to corroboration only.
+   - Rejecting a start stamp in the record is justified and written down (darwin uses wall clock, linux uses ticks since boot). That is measured evidence, not hand-waving.
+   - The sweep table test (`nvim_reap_os_test.go:~655`) pins the cross-tag case with a live parent. Without the fix this test fails: before it, the asset base alone plus a dead owner meant KILL.
+   - `TargetFileOf` is a small pure parser with its own tests (`reviewcmd_test.go:39-50`). On bad input it reports missing evidence rather than inventing a value (ARCH-SECURE pass).
+
+2. **Critical findings**
+   - **The review pane's own orphan escapes after a retarget, and its record is deleted** (`nvim_reap_os.go:358`, `reviewAttribution`; `nvim_reap_os.go:111`).
+     - **Scenario:** a pane is spawned on `/src/post.md` (argv). The user activates it on `/src/second.md`, so the target now names `second.md`. The session quits, or the pane's parent dies and the embed reparents to launchd. The classifier returns `argv serves another path` before it ever checks owner-dead or reparented. The record is removed and the embed stays alive.
+     - **Why the tests miss it:** this is the BR-6 test row with ppid 1 instead of 4000. The classifier cannot tell the two apart because the evidence is mutable.
+     - **Family:** this is the 2nd finding in family `kill-attribution-must-name-owner`. Earlier rounds fixed instances. The rule covering both: *attribution evidence must be bound to the pid at the moment the record is written, and must not change for the pid's lifetime.* Mutable session state may corroborate, but a mismatch against it must keep the record, never drop it.
+     - **Fix that rule:** have `review.lua` write the file it serves next to the pid when it publishes the record (`nvim/review.lua:809-810`). For example, line 2 = the activation's argv file, or `vim.v.argv`'s file. The reaper then compares process argv with the record's own line, not with `review-target`. A record with no line 2 (legacy) is `attribution unknown` and is kept.
+     - **Regression rows to add:** a reparented embed after a retarget must be KILLed, and a cross-tag live pane with a different file must still be skipped.
+     - **Residual to document in the plan:** a dead tag's record and another tag's live pane at the same recycled pid, serving the same file, still kill. That needs pid reuse plus the same file.
+     - **Not verified by running:** I could not run this scenario as a test because file edits were denied in this checkout. The conclusion comes from reading the code path: the classifier's ordering at `nvim_reap.go:103-121` and `reapKeepsRecord`.
+
+3. **Important findings:** none new.
+
+4. **Minor findings**
+   - The review-target's `File` comes from `rt.AbsFile` / `gi.abs`, while argv comes from `LogicalDir+base`. These match on the normal open path, but nothing guarantees they are spelled the same. The record-bound fix above removes this dependency too.
+
+5. **Test coverage notes:** the review rows cover a matching target, a target with a different file plus a live parent, and a target with no file. There is no row where the tag's *own* embed has a target that has drifted. That gap hid the regression. Tests pin real logic through the production `decideOne`/`ClassifyNvimReap` path against `fakeProcessTable`; nothing is mock-reasserted.
+
+6. **Architectural notes**
+   - **ARCH-DRY:** pass. The four lua VimLeave copies were disposed with a behavioural lifecycle test, which is acceptable.
+   - **ARCH-PURE:** pass. The classifier is pure. `reviewAttribution` is a thin IO read.
+   - **ARCH-PURPOSE:** flag. The fix narrows over-kill but reopens the leak the issue exists to close (the Critical finding above).
+   - **ARCH-MOCK:** pass. There is a stateful process-table fake plus the live conformance test.
+   - **ARCH-CONSTRAINTS:** pass. Each target adds one small file read.
+   - **ARCH-SECURE:** pass. The target JSON is parsed into a typed value, and failure means skip.
+   - **ARCH-ORDER:** flag, folded into the Critical finding. The evidence (target) and the subject (pid record) are written at different times by different actors, and the code assumes they stay in step. That is an unwritten interleaving.
+   - **ARCH-FUNERAL:** flag, folded into the Critical finding. Deleting the record on a drifted-evidence negative leaves an embed with no removal path.
+
+7. **Plan revision recommendations**
+   - Add a `## Revisions` entry: review attribution is the record's own co-written file line, not `review-target`. A drift between the target and argv is missing evidence, and the record is kept.
+   - Record the remaining same-file cross-tag pid-reuse residual and why it is accepted.
+
+```findings
+dispose:
+  - id: BR-6
+    disposition: addressed
+    note: |
+      Cross-tag kill with distinct files now skips. The sweep row with a live parent fails without the fix (asset base plus dead owner used to mean KILL). The remaining same-file pid-reuse case should be recorded in the plan's Revisions.
+findings:
+  - id: new
+    severity: Critical
+    kind: defect
+    family: kill-attribution-must-name-owner
+    title: |
+      Review attribution reads a mutable review-target, so a retargeted pane's own orphan is never killed and its record is deleted
+    detail: |
+      nvim_reap_os.go:358 (reviewAttribution) sets ExpectedArgPath from review-target-<tag>.json, but restore_client.lua:137 (Alt+C activation of a live pane) and init.lua propose (:PairReview) both rewrite that file while the pane's argv still names its spawn file. A reparented or quit-path embed therefore classifies "argv serves another path", reapKeepsRecord drops the record, and no later pass can find the pid (review has no argv-only fallback). That is the issue's orphan class, reopened. This is the 2nd finding in this family. The rule: attribution evidence must be bound to the pid when the record is written and must not change for its lifetime; a mismatch against mutable state keeps the record and never drops it. Fix: review.lua writes its served file into the pid record (line 2) at publish, the reaper compares process argv with that line, and a legacy one-line record is attribution unknown (kept). Add sweep and quit rows: a reparented embed after a retarget must be KILLed; a cross-tag live pane with a different file must be skipped.
+```
+
+{"type":"system","subtype":"permission_denied","tool_name":"Edit","tool_use_id":"toolu_01MCxnewDokD12xEhLZxfMZf","decision_reason_type":"mode","message":"Permission to use Edit has been denied because Claude Code is running in don't ask mode. IMPORTANT: You *may* attempt to accomplish this action using other tools that might naturally be used to accomplish this goal, e.g. using head instead of cat. But you *should not* attempt to work around this denial in malicious ways, e.g. do not use your ability to run tests to execute non-test actions. You should only try to work around this restriction in reasonable ways that do not attempt to bypass the intent behind this denial. If you believe this capability is essential to complete the user's request, STOP and explain to the user what you were trying to do and why you need this permission. Let the user decide how to proceed.","uuid":"6d138210-1a98-463c-9b29-f30fddff1684","session_id":"1f29e64f-c400-4d16-9fee-663a1cb3e426"}
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"621c58ec-0a1a-49db-9776-37749417dd44","repository":"github.com/xianxu/pair","issue_id":"000583","recipe":"milestone-review","round":4,"attempt":1,"agent":"claude","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/4598158c594d57c4","reviewed_head":"b2c4283f9abffcd28acd487636e04583c9af7b8b","slot":"pair:4","requested_at":"2026-10-16T22:18:45.001104Z"},"phase":"finished","pid":50387,"started_at":"2026-10-16T22:18:45.786389Z","finished_at":"2026-10-16T22:21:52.184304Z","session_id":"1f29e64f-c400-4d16-9fee-663a1cb3e426","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 6.295985292s
+head: "b2c4283f9abffcd28acd487636e04583c9af7b8b"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

@@ -806,8 +806,16 @@ local function start_review(buf, file, resolved)
     end,
   })
 
+  -- Line 2 is the file this embed was spawned with, taken from its own argv, and
+  -- it is the reaper's owner-naming evidence for this record: the review target
+  -- state is mutable (:PairReview and an Alt+C activation both rewrite it while
+  -- argv stays put), so a reaper that attributed through the state would miss
+  -- this pane's own orphan once the pane had been retargeted (#583).
   local pidfile = vim.env.PAIR_NVIM_PID_FILE
-  if pidfile and pidfile ~= '' then vim.fn.writefile({tostring(vim.fn.getpid())},pidfile) end
+  if pidfile and pidfile ~= '' then
+    local argv = vim.v.argv or {}
+    vim.fn.writefile({tostring(vim.fn.getpid()), argv[#argv] or ''}, pidfile)
+  end
   if restoration then restoration:publish() end
   if restoration and restoration:context(buf) then
     local snapshot,err=recovery.inspect(recovery_dir(),restoration:context(buf))

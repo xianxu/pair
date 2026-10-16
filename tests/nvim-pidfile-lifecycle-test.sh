@@ -102,6 +102,10 @@ published() { # 0 once the sidecar holds something
 
 quit() { : > "$ACK"; wait "$START_PID" 2>/dev/null; }
 
+# record_pid reads the record's first line. review.lua writes a second one (the
+# file its embed serves), so a whole-file read is not a pid (#583).
+record_pid() { head -n 1 "$SIDECAR"; }
+
 never_published() { # NAME
   report FAIL "$1: publishes its embed pid"
   log_on_fail FAIL "$LOG"
@@ -113,15 +117,30 @@ case_removes_on_clean_exit() {
   local name=$1 config=$2 file=$3 rec live
   start "$name" "$config" "$file"
   if ! published; then never_published "$name"; return; fi
-  rec=$(cat "$SIDECAR")
+  rec=$(record_pid)
   report ok "$name: publishes its embed pid ($rec)"
   if kill -0 "$rec" 2>/dev/null; then live=ok; else live=FAIL; fi
   report "$live" "$name: the record names a live process"
   log_on_fail "$live" "$LOG"
+  # The review kind's second line is the reaper's owner-naming evidence: it must
+  # be the file this embed was spawned with, byte for byte, because the reaper
+  # compares it against the process's argv (#583). The other kinds write one line.
+  local served
+  served=$(sed -n 2p "$SIDECAR")
+  if [ "$name" = review ]; then
+    if [ "$served" = "$file" ]; then report ok "$name: the record binds the file it serves"
+    else
+      report FAIL "$name: the record binds the file it serves (line 2 is '$served', want '$file')"
+      log_on_fail FAIL "$LOG"
+    fi
+  elif [ -n "$served" ]; then
+    report FAIL "$name: writes only a pid (line 2 is '$served')"
+    log_on_fail FAIL "$LOG"
+  fi
   quit
   if [ ! -e "$SIDECAR" ]; then report ok "$name: a clean exit removes the record"
   else
-    report FAIL "$name: a clean exit removes the record (still holds $(cat "$SIDECAR" 2>/dev/null))"
+    report FAIL "$name: a clean exit removes the record (still holds $(record_pid 2>/dev/null))"
     log_on_fail FAIL "$LOG"
   fi
 }
@@ -132,10 +151,10 @@ case_survives_sigkill() {
   local name=$1 config=$2 file=$3 rec held
   start "$name" "$config" "$file"
   if ! published; then never_published "$name"; return; fi
-  rec=$(cat "$SIDECAR")
+  rec=$(record_pid)
   kill -9 "$rec" 2>/dev/null
   wait "$START_PID" 2>/dev/null
-  held=$(cat "$SIDECAR" 2>/dev/null)
+  held=$(record_pid 2>/dev/null)
   if [ "$held" = "$rec" ]; then report ok "$name: a SIGKILLed embed keeps its record"
   else
     report FAIL "$name: a SIGKILLed embed keeps its record (holds '$held', want '$rec')"
@@ -154,7 +173,7 @@ case_keeps_a_republished_record() {
   survivors+=("$survivor")
   echo "$survivor" > "$SIDECAR"
   quit
-  held=$(cat "$SIDECAR" 2>/dev/null)
+  held=$(record_pid 2>/dev/null)
   if [ "$held" = "$survivor" ]; then
     report ok "$name: a clean exit keeps a record a later embed republished"
   else

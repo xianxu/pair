@@ -65,11 +65,13 @@ type nvimSidecar struct {
 	ExpectArgvTag     bool
 	ArgvScopeDir      string
 	ExpectedAssetBase string
-	// ReviewState is the tag's review-target state, and only the review kind has
-	// one: the file its embed serves is anywhere in the user's tree, so the state
-	// is where the owner-naming argv field comes from (#583 BR-6). A state that
-	// names no file leaves the target unattributable, which skips.
-	ReviewState string
+	// ServedInRecord marks the review kind, whose owner-naming argv field is not
+	// derivable from the scope's paths: the file its embed serves is anywhere in
+	// the user's tree. The publisher binds it into the record's second line, out
+	// of its own argv, so ExpectedArgPath is filled from the record when it is
+	// read and never from mutable session state (#583 BR-7). A record with no
+	// second line leaves the target unattributable, which skips and keeps it.
+	ServedInRecord bool
 }
 
 // nvimReapOutcome is one record's decided result. Killed reports a SIGKILL the
@@ -106,9 +108,9 @@ func nvimSidecarsFor(paths artifactpath.Paths, owner, scopeDir string, ownerLive
 		case nvimKindReview:
 			// The config's base name is in every tag's review argv, so it names the
 			// kind and never the owner (#583 BR-6): attribution comes from the file
-			// this tag's own review state names, resolved when the target is
-			// decided. The base stays as corroboration that argv is a pair pane.
-			target.ExpectArgvPath, target.ReviewState = true, paths.ReviewTarget()
+			// the record's publisher bound into its second line, read when the record
+			// is. The base stays as corroboration that argv is a pair pane.
+			target.ExpectArgvPath, target.ServedInRecord = true, true
 			target.ExpectedAssetBase = filepath.Base(reviewLuaAsset)
 		}
 		targets = append(targets, target)
@@ -236,7 +238,7 @@ func openerLive(records nvimSidecarIO, openlock string, byPID map[int]ProcessRow
 	if err != nil {
 		return false
 	}
-	pid, ok := sidecarPID(raw)
+	pid, _, ok := sidecarRecord(raw)
 	if !ok {
 		return false
 	}
@@ -325,7 +327,14 @@ func reapNvimRows(ctx context.Context, table ProcessTable, records nvimSidecarIO
 			if err != nil {
 				continue // no record: nothing to decide, nothing to remove
 			}
-			pid, ok = sidecarPID(raw)
+			var served string
+			pid, served, ok = sidecarRecord(raw)
+			// The review kind's owner-naming field is the one its publisher bound
+			// into this record, so it is read here, beside the pid, and not derived
+			// from any state that could have moved since (#583 BR-7).
+			if target.ServedInRecord {
+				target.ExpectedArgPath = served
+			}
 		}
 		if !ok {
 			outcomes = append(outcomes, decideOne(table, records, target, pid, reapReasonMalformed, byPID))
@@ -355,7 +364,6 @@ func decideOne(table ProcessTable, records nvimSidecarIO, target nvimSidecar, pi
 	outcome := nvimReapOutcome{Kind: target.Kind, Owner: target.Owner, Path: target.Path, PID: pid}
 	kill := false
 	if reason == "" {
-		target = reviewAttribution(records, target)
 		kill, reason = decideNvimSidecar(table, target, pid, byPID)
 	}
 	outcome.Reason = reason
@@ -370,24 +378,6 @@ func decideOne(table ProcessTable, records nvimSidecarIO, target nvimSidecar, pi
 		outcome.Removed = true
 	}
 	return outcome
-}
-
-// reviewAttribution resolves the one owner-naming field that is not derivable
-// from the scope's paths: a review embed serves a file anywhere in the user's
-// tree, so the file this tag's own review state names is what ties the pid to
-// the owner (#583 BR-6 — the config's base name is in every tag's review argv).
-// A state that is gone, unreadable or names no file leaves ExpectedArgPath
-// empty, which the classifier reads as missing evidence and skips.
-func reviewAttribution(records nvimSidecarIO, target nvimSidecar) nvimSidecar {
-	if target.ReviewState == "" {
-		return target
-	}
-	if raw, err := records.ReadFile(target.ReviewState); err == nil {
-		if file, ok := reviewcmd.TargetFileOf(raw); ok {
-			target.ExpectedArgPath = file
-		}
-	}
-	return target
 }
 
 // decideNvimSidecar is one record's decision, identity fence included: the
@@ -435,9 +425,10 @@ func argvTag(scopeDir string, args []string) string {
 
 // reapKeepsRecord reports whether an undecided outcome must leave the record on
 // disk. Evidence that is merely missing -- a live owner, an unreadable identity
-// or argv, a review state that names no file -- keeps it for the next pass; a
+// or argv, a record that binds no served file -- keeps it for the next pass; a
 // decided negative does not, because the record then names a process that is not
-// ours, or no process at all.
+// ours, or no process at all. Dropping a record on missing evidence would leave
+// an embed no later pass can find (#583 BR-7).
 // Storage GC owns whatever the passes keep finding undecided
 // (artifactpath: nvim-pid is collectable).
 func reapKeepsRecord(reason string) bool {
@@ -448,14 +439,24 @@ func reapKeepsRecord(reason string) bool {
 	return false
 }
 
-// sidecarPID reads a record's pid. Anything but one positive integer is
-// malformed, and the record is dropped rather than handed to a subprocess.
-func sidecarPID(raw string) (int, bool) {
-	pid, err := strconv.Atoi(strings.TrimSpace(raw))
+// sidecarRecord reads a record: the pid on line 1, and on line 2 the exact argv
+// field its publisher served, which only the review kind writes and only the
+// review kind reads (#583 BR-7). Binding that field at publish time, out of the
+// publishing process's own argv, is what makes it safe to compare against argv
+// later: it cannot drift from the process it names, so a mismatch proves the pid
+// is not that process. A record with no second line -- a legacy one, or a kind
+// that never writes it -- attributes nothing. Anything but a positive integer on
+// line 1 is malformed, and the record is dropped rather than handed to a signal.
+func sidecarRecord(raw string) (pid int, served string, ok bool) {
+	lines := strings.Split(raw, "\n")
+	pid, err := strconv.Atoi(strings.TrimSpace(lines[0]))
 	if err != nil || pid <= 0 {
-		return 0, false
+		return 0, "", false
 	}
-	return pid, true
+	if len(lines) > 1 {
+		served = lines[1]
+	}
+	return pid, served, true
 }
 
 // processTable is the reap's host seam: the runtime's injected process source
