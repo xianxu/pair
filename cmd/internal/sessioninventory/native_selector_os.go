@@ -4,79 +4,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/csv"
-	"errors"
 	"os/exec"
-	"path/filepath"
 )
 
-func nativeSelectorCodexRuntime(rt Runtime, home string) (Runtime, error) {
-	if !filepath.IsAbs(home) || filepath.Clean(home) != home {
-		return nil, errors.New("Codex SQLite home is not canonical")
-	}
-	if r, ok := rt.(OSRuntime); ok {
-		physical, err := filepath.EvalSymlinks(home)
-		if err != nil || physical != home {
-			return nil, errors.New("Codex SQLite home is not a verified physical directory")
-		}
-		roots := make(map[Agent][]StorageRoot, len(r.roots))
-		for agent, items := range r.roots {
-			roots[agent] = append([]StorageRoot(nil), items...)
-		}
-		filtered := roots[AgentCodex][:0]
-		for _, root := range roots[AgentCodex] {
-			if root.Name != "codex-state" {
-				filtered = append(filtered, root)
-			}
-		}
-		roots[AgentCodex] = append(filtered, StorageRoot{Agent: AgentCodex, Name: "codex-state", Path: home})
-		r.roots = roots
-		return r, nil
-	}
-	return rt, nil
-}
-func validateCodexSelectorPath(rt Runtime, id, path string) error {
-	if id == "" || !filepath.IsAbs(path) {
-		return ErrPathEscape
-	}
-	for _, root := range rt.NativeRoots(AgentCodex) {
-		if root.Name != "codex-sessions" {
-			continue
-		}
-		rel, err := filepath.Rel(root.Path, path)
-		if err != nil {
-			continue
-		}
-		a := Artifact{StorageRoot: root.Name, RelativePath: filepath.ToSlash(rel), Kind: ArtifactTranscript}
-		if !validArtifact(a) {
-			continue
-		}
-		got, ok := codexPathID(a.RelativePath)
-		if !ok || got != id {
-			continue
-		}
-		if _, err := rt.StatFile(a); err == nil {
-			return nil
-		}
-	}
-	return ErrPathEscape
-}
-
-// QueryNativeSelectorSQLite is bounded and cancellable; it neither initializes
-// Codex state nor runs its scan-and-repair fallback.
-func (r OSRuntime) QueryNativeSelectorSQLite(ctx context.Context, a Artifact, query string, limit int64) (result SQLiteResult, resultErr error) {
-	if isCodexSelectorSQLite(a) {
-		bounded, err := newNativeSelectorRuntime(ctx, r)
-		if err != nil {
-			return SQLiteResult{}, err
-		}
-		defer func() {
-			if closeErr := bounded.Close(); closeErr != nil {
-				result = SQLiteResult{}
-				resultErr = errors.Join(resultErr, closeErr)
-			}
-		}()
-		return bounded.QuerySQLite(a, query, limit)
-	}
+// QueryNativeSelectorSQLite supplies bounded, cancellable SQLite reads for
+// explicit native inventory validation.
+func (r OSRuntime) QueryNativeSelectorSQLite(ctx context.Context, a Artifact, query string, limit int64) (SQLiteResult, error) {
 	if err := ctx.Err(); err != nil {
 		return SQLiteResult{}, err
 	}

@@ -629,7 +629,7 @@ func goVocabularyViolations(rel string, fileSet *token.FileSet, file *ast.File, 
 	for _, allowance := range classification.Vocabulary {
 		if allowance.Context != GoStructTagVocabulary && allowance.Context != GoCallArgumentVocabulary &&
 			allowance.Context != GoCaseValueVocabulary && allowance.Context != GoComparisonVocabulary &&
-			allowance.Context != GoKeyValueVocabulary && allowance.Context != GoMapKeyVocabulary && allowance.Context != GoReturnVocabulary || allowance.Count <= 0 {
+			allowance.Context != GoKeyValueVocabulary && allowance.Context != GoReturnVocabulary || allowance.Count <= 0 {
 			violations = append(violations, fmt.Sprintf("%s: invalid Go vocabulary allowance %+v", rel, allowance))
 			continue
 		}
@@ -729,15 +729,6 @@ func vocabularyUseForLiteral(file *ast.File, parents map[ast.Node]ast.Node, lite
 				return "", "", 0, false
 			}
 		case *ast.KeyValueExpr:
-			// A protocol field declaration is one direct literal map key in a
-			// named function, not a key expression or path-producing call.
-			if parent.Key == literal {
-				if composite, ok := parents[parent].(*ast.CompositeLit); ok {
-					if _, ok := composite.Type.(*ast.MapType); ok {
-						return GoMapKeyVocabulary, enclosingFunction(parents, parent), 0, true
-					}
-				}
-			}
 			// Only direct named values qualify, never constructed paths or calls.
 			if key, ok := parent.Key.(*ast.Ident); ok && parent.Value == literal {
 				return GoKeyValueVocabulary, enclosingFunction(parents, parent) + "." + key.Name, 0, true
@@ -1142,35 +1133,6 @@ func TestVocabularyConsumerContract(t *testing.T) {
 		allowances    []VocabularyAllowance
 		wantViolation bool
 	}{
-		{
-			name:       "direct map key",
-			body:       `package mutation; func fields() map[string]bool { return map[string]bool{"session_id": true} }`,
-			allowances: []VocabularyAllowance{{Family: "native-session", Value: "session_id", Context: "go-map-key", Use: "fields", Count: 1}},
-		},
-		{
-			name:          "map key allowance cannot move functions",
-			body:          `package mutation; func other() map[string]bool { return map[string]bool{"session_id": true} }`,
-			allowances:    []VocabularyAllowance{{Family: "native-session", Value: "session_id", Context: "go-map-key", Use: "fields", Count: 1}},
-			wantViolation: true,
-		},
-		{
-			name:          "map key allowance counts duplicates",
-			body:          `package mutation; func fields() { a := map[string]bool{"session_id": true}; b := map[string]bool{"session_id": false}; _,_ = a,b }`,
-			allowances:    []VocabularyAllowance{{Family: "native-session", Value: "session_id", Context: "go-map-key", Use: "fields", Count: 1}},
-			wantViolation: true,
-		},
-		{
-			name:          "map key allowance cannot authorize path call",
-			body:          `package mutation; import "path/filepath"; func fields() string { return filepath.Join("root", "session_id") }`,
-			allowances:    []VocabularyAllowance{{Family: "native-session", Value: "session_id", Context: "go-map-key", Use: "fields", Count: 1}},
-			wantViolation: true,
-		},
-		{
-			name:          "map key allowance cannot authorize constructed key",
-			body:          `package mutation; func fields() map[string]bool { return map[string]bool{"session_id"+"suffix": true} }`,
-			allowances:    []VocabularyAllowance{{Family: "native-session", Value: "session_id", Context: "go-map-key", Use: "fields", Count: 1}},
-			wantViolation: true,
-		},
 		{
 			name:       "direct named struct field",
 			body:       `package mutation; type op struct { Name string }; func ops() []op { return []op{{Name: "session_id"}} }`,

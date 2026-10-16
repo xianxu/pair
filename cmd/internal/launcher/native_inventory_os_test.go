@@ -1,8 +1,10 @@
 package launcher
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
@@ -105,7 +107,7 @@ func TestNativeInventoryRelativeHomeUsesCallersDirectory(t *testing.T) {
 	r, home, _ := nativeInventoryFixture(t)
 	t.Setenv("CODEX_HOME", "custom")
 	t.Chdir(home)
-	for _, cwd := range []string{"", home} {
+	for _, cwd := range []string{home} {
 		native, err := r.nativeInventory("codex", cwd)
 		if err != nil {
 			t.Fatal(err)
@@ -116,11 +118,11 @@ func TestNativeInventoryRelativeHomeUsesCallersDirectory(t *testing.T) {
 		}
 	}
 	nativeInventoryLedger(t, r, "codex", false)
-	if entries, err := r.ReadLedger("work"); err != nil || len(entries) != 1 || entries[0].SessionID != customHomeNativeID {
-		t.Fatalf("relative home ledger=%+v %v", entries, err)
+	if entries, err := r.ReadLedger("work"); err == nil {
+		t.Fatalf("relative home ledger inferred startup cwd: %+v", entries)
 	}
-	if id, _ := r.EstablishedSessionID("scope", "work", "codex"); id != customHomeNativeID {
-		t.Fatalf("relative home ID=%q", id)
+	if id, _ := r.EstablishedSessionID("scope", "work", "codex"); id != "" {
+		t.Fatalf("relative home identity inferred startup cwd: %q", id)
 	}
 	if !r.AgentSessionExists("codex", customHomeNativeID, home) {
 		t.Fatal("relative home candidate missed")
@@ -134,5 +136,58 @@ func TestNativeInventoryRelativeHomeUsesCallersDirectory(t *testing.T) {
 	}
 	if r.AgentSessionExists("claude", customHomeNativeID, home) {
 		t.Fatal("invalid Codex namespace implied a Claude candidate")
+	}
+}
+
+func nativeValidCodexSessionMeta(id, cwd string) string {
+	return fmt.Sprintf(`{"timestamp":"2026-10-15T10:00:00Z","type":"session_meta","payload":{"id":%q,"timestamp":"2026-10-15T10:00:00Z","cwd":%q,"originator":"codex_cli_rs","cli_version":"0.162.1","source":"cli"}}`+"\n", id, cwd)
+}
+func TestNativeInventoryUnknownStartupCannotResolveRelativeHome(t *testing.T) {
+	r, home, _ := nativeInventoryFixture(t)
+	t.Setenv("CODEX_HOME", "custom")
+	t.Chdir(home)
+	nativeInventoryLedger(t, r, "codex", false)
+	if _, err := r.nativeInventory("codex", ""); err == nil {
+		t.Error("unknown historical startup cwd inferred from current process")
+	}
+	if _, err := r.ReadLedger("work"); err == nil {
+		t.Error("ledger inferred historical startup cwd")
+	}
+	if id, _ := r.EstablishedSessionID("scope", "work", "codex"); id != "" {
+		t.Error("identity inferred historical startup cwd")
+	}
+}
+
+func TestNativeInventoryOSIndirectFencePrecedesHomeResolution(t *testing.T) {
+	r, home, _ := nativeInventoryFixture(t)
+	t.Setenv("CODEX_HOME", filepath.Join(home, "missing"))
+	for _, args := range [][]string{{"resume", "--last"}, {"exec", "resume", "--last"}, {"e", "resume", "--last"}, {"resume"}, {"resume", "name"}, {"resume", "11111111"}} {
+		selector, err := ParseNativeResumeSelector("codex", args)
+		if err != nil {
+			t.Fatal(err)
+		}
+		result, err := r.ResolveNativeResume(t.Context(), NativeResumeRequest{Agent: "codex", CWD: home, Selector: selector})
+		if err != nil || result.Status != sessioninventory.NativeSelectorUnsupported || result.NativeID != "" || !strings.Contains(result.Reason, "indirect") {
+			t.Fatalf("indirect selector reached home resolution: args=%q result=%+v err=%v", args, result, err)
+		}
+	}
+}
+func TestNativeInventoryOSExactResumeUsesStartupBeforeDirectoryOverride(t *testing.T) {
+	for _, prefix := range [][]string{nil, {"exec"}, {"e"}} {
+		t.Run(strings.Join(prefix, " "), func(t *testing.T) {
+			r, home, cwd := nativeInventoryFixture(t)
+			t.Setenv("CODEX_HOME", "custom")
+			t.Chdir(cwd)
+			args := append([]string{"-C", cwd}, prefix...)
+			args = append(args, "resume", customHomeNativeID)
+			selector, err := ParseNativeResumeSelector("codex", args)
+			if err != nil {
+				t.Fatal(err)
+			}
+			result, err := r.ResolveNativeResume(t.Context(), NativeResumeRequest{Agent: "codex", CWD: home, Selector: selector})
+			if err != nil || result.Status != sessioninventory.NativeSelectorResolved || result.NativeID != customHomeNativeID {
+				t.Fatalf("startup namespace lost: result=%+v err=%v", result, err)
+			}
+		})
 	}
 }

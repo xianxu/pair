@@ -3,15 +3,9 @@ package sessioninventory
 import (
 	"context"
 	"encoding/json"
-	"strconv"
-	"strings"
-	"time"
 )
 
 func collectNativeSelector(ctx context.Context, rt Runtime, q NativeSelectorRequest) NativeSelectorSnapshot {
-	if q.Agent == AgentCodex {
-		return collectCodexNativeSelector(ctx, rt, q)
-	}
 	if q.Agent != AgentClaude && q.Agent != AgentQoder {
 		return NativeSelectorSnapshot{Unsupported: true, Reason: "native latest ordering has not been mapped for this provider"}
 	}
@@ -144,58 +138,6 @@ func collectNativeSelector(ctx context.Context, rt Runtime, q NativeSelectorRequ
 	if ctx.Err() != nil {
 		out.Complete = false
 		out.Reason = ctx.Err().Error()
-	}
-	return out
-}
-
-func collectCodexNativeSelector(ctx context.Context, rt Runtime, q NativeSelectorRequest) (collected NativeSelectorSnapshot) {
-	if !q.Config.ProviderResolved || !q.Config.SQLiteHomeResolved {
-		return NativeSelectorSnapshot{Unsupported: true, Reason: "effective Codex provider and SQLite home are not resolved"}
-	}
-	queryRT, err := nativeSelectorCodexRuntime(rt, q.Config.SQLiteHome)
-	if err != nil {
-		return NativeSelectorSnapshot{Unsupported: true, Reason: err.Error()}
-	}
-	bounded, err := newNativeSelectorRuntime(ctx, queryRT)
-	if err != nil {
-		return NativeSelectorSnapshot{Unsupported: true, Reason: err.Error()}
-	}
-	defer func() {
-		if closeErr := bounded.Close(); closeErr != nil {
-			collected.Complete = false
-			collected.Reason = "native SQLite snapshot cleanup incomplete"
-		}
-	}()
-	source := "'cli','vscode'"
-	if q.IncludeNonInteractive {
-		source += ",'exec','mcp'"
-	}
-	quote := func(s string) string { return "'" + strings.ReplaceAll(s, "'", "''") + "'" }
-	provider := ""
-	if q.Config.Provider != "" {
-		provider = " AND model_provider=" + quote(q.Config.Provider)
-	}
-	query := "SELECT id, rollout_path, updated_at_ms FROM threads WHERE archived=0 AND preview<>'' AND cwd=" + quote(q.CWD) + " AND source IN (" + source + ")" + provider + " ORDER BY updated_at_ms DESC LIMIT 2"
-	result, err := bounded.QuerySQLite(Artifact{StorageRoot: "codex-state", RelativePath: "state_5.sqlite", Kind: ArtifactMetadata}, query, 1<<20)
-	if err != nil {
-		return NativeSelectorSnapshot{Reason: "Codex state metadata unavailable or unsupported"}
-	}
-	if len(result.Columns) != 3 || result.Columns[0] != "id" || result.Columns[1] != "rollout_path" || result.Columns[2] != "updated_at_ms" || len(result.Rows) > 2 {
-		return NativeSelectorSnapshot{Reason: "unexpected Codex selector metadata shape"}
-	}
-	out := NativeSelectorSnapshot{Complete: true}
-	for _, row := range result.Rows {
-		if len(row) != 3 {
-			return NativeSelectorSnapshot{Reason: "malformed Codex selector row"}
-		}
-		ms, err := strconv.ParseInt(row[2], 10, 64)
-		if err != nil || ms <= 0 {
-			return NativeSelectorSnapshot{Reason: "Codex native activity unavailable"}
-		}
-		if err := validateCodexSelectorPath(rt, row[0], row[1]); err != nil {
-			return NativeSelectorSnapshot{Reason: "Codex selected rollout path is not an authorized canonical root"}
-		}
-		out.Candidates = append(out.Candidates, NativeSelectorCandidate{Agent: AgentCodex, NativeID: row[0], CWD: q.CWD, UpdatedAt: time.UnixMilli(ms), Eligible: true})
 	}
 	return out
 }

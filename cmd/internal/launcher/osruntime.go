@@ -40,11 +40,10 @@ import (
 // deliberately un-timed.
 type OSRuntime struct {
 	osfs.FS
-	DataDir           string
-	GlobalDataDir     string
-	PairHome          string
-	Processes         procutil.Source
-	codexConfigReader *sessioninventory.CodexConfigReader
+	DataDir       string
+	GlobalDataDir string
+	PairHome      string
+	Processes     procutil.Source
 
 	sessionQuiescence  sessionQuiescenceOps
 	sessionQuiesceWait time.Duration

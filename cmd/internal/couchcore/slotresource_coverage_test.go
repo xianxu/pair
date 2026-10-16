@@ -1,10 +1,7 @@
 package couchcore
 
 import (
-	"bytes"
-	"fmt"
 	"go/ast"
-	"go/format"
 	"go/parser"
 	"go/token"
 	"io/fs"
@@ -63,54 +60,6 @@ var slotPathRootFields = map[string]bool{"EnvironmentRoot": true, "WorktreeRoot"
 var slotPathRootAllowlist = map[string]string{
 	"cmd/internal/couchcore/workspace_identity.go:validate":          "a fleet's primary checkout <fleet>/<repo>, not slot state",
 	"cmd/internal/couchcore/repository_family.go:ResolveFamilyStart": "a family's start directory inside a checkout, not slot state",
-}
-
-// These two exact joins address native Git administrative metadata, not Pair
-// slot containers. Source, function, base expression, arity and component all
-// participate; the inventory below requires exactly one occurrence per entry.
-type slotNativeGitJoinSite struct{ source, function, base, component string }
-
-var slotNativeGitJoinAllowlist = map[slotNativeGitJoinSite]string{
-	{"cmd/internal/sessioninventory/codex_git_scope.go", "codexRepositoryIdentity", "common", "worktrees"}: "validates a registered native Git administrative directory",
-	{"cmd/internal/sessioninventory/codex_git_scope.go", "codexWorktreeCWDs", "id.common", "worktrees"}:    "enumerates native Git registrations for corresponding checkout directories",
-}
-
-func slotNativeGitJoin(src slotSourceFile, call *ast.CallExpr) (slotNativeGitJoinSite, bool) {
-	if !isFilepathJoin(call) || len(call.Args) != 2 {
-		return slotNativeGitJoinSite{}, false
-	}
-	component, ok := stringLit(call.Args[1])
-	if !ok {
-		return slotNativeGitJoinSite{}, false
-	}
-	var base bytes.Buffer
-	if err := format.Node(&base, src.fset, call.Args[0]); err != nil {
-		return slotNativeGitJoinSite{}, false
-	}
-	site := slotNativeGitJoinSite{src.rel, funcAt(src.file, call.Pos()), base.String(), component}
-	_, allowed := slotNativeGitJoinAllowlist[site]
-	return site, allowed
-}
-func slotNativeGitJoinInventoryViolations(sources []slotSourceFile) []string {
-	counts := map[slotNativeGitJoinSite]int{}
-	for _, src := range sources {
-		ast.Inspect(src.file, func(n ast.Node) bool {
-			if call, ok := n.(*ast.CallExpr); ok {
-				if site, allowed := slotNativeGitJoin(src, call); allowed {
-					counts[site]++
-				}
-			}
-			return true
-		})
-	}
-	var violations []string
-	for site, reason := range slotNativeGitJoinAllowlist {
-		if counts[site] != 1 {
-			violations = append(violations, fmt.Sprintf("native Git join exemption %s:%s base=%s component=%q (%s): occurrences=%d, want exactly 1", site.source, site.function, site.base, site.component, reason, counts[site]))
-		}
-	}
-	sort.Strings(violations)
-	return violations
 }
 
 // slotGitFiles may run git verbs that change slot state. provision.go is
@@ -206,14 +155,9 @@ func slotLayoutMethodNames() map[string]bool {
 func TestEverySlotStateSiteIsAResource(t *testing.T) {
 	t.Parallel()
 
-	for _, v := range slotStateViolations(productionGoFiles(t), slotLayoutMethodNames()) {
-		t.Error(v)
-	}
-}
-
-func slotStateViolations(sources []slotSourceFile, layoutMethods map[string]bool) []string {
+	layoutMethods := slotLayoutMethodNames()
 	var violations []string
-	for _, src := range sources {
+	for _, src := range productionGoFiles(t) {
 		if src.rel == slotLayoutFile {
 			continue
 		}
@@ -242,9 +186,6 @@ func slotStateViolations(sources []slotSourceFile, layoutMethods map[string]bool
 				if isFilepathJoin(n) && len(n.Args) > 0 {
 					for _, arg := range n.Args[1:] {
 						if v, ok := stringLit(arg); ok && (v == "worktree" || v == "worktrees") {
-							if _, allowed := slotNativeGitJoin(src, n); allowed {
-								continue
-							}
 							violations = append(violations, at(n)+": (a) slot container directory "+strconv.Quote(v)+" joined outside SlotLayout")
 						}
 					}
@@ -275,7 +216,9 @@ func slotStateViolations(sources []slotSourceFile, layoutMethods map[string]bool
 		})
 	}
 	sort.Strings(violations)
-	return violations
+	for _, v := range violations {
+		t.Error(v)
+	}
 }
 
 // TestSlotTokenAllowlistIsCurrent keeps every exemption earning its place: an
@@ -283,13 +226,9 @@ func slotStateViolations(sources []slotSourceFile, layoutMethods map[string]bool
 func TestSlotTokenAllowlistIsCurrent(t *testing.T) {
 	t.Parallel()
 
-	sources := productionGoFiles(t)
-	for _, v := range slotNativeGitJoinInventoryViolations(sources) {
-		t.Error(v)
-	}
 	seen := map[string]bool{}
 	funcs := map[string]bool{}
-	for _, src := range sources {
+	for _, src := range productionGoFiles(t) {
 		ast.Inspect(src.file, func(n ast.Node) bool {
 			if v, ok := stringLit(asExpr(n)); ok {
 				seen[v] = true
@@ -319,68 +258,4 @@ func TestSlotTokenAllowlistIsCurrent(t *testing.T) {
 func asExpr(n ast.Node) ast.Expr {
 	e, _ := n.(ast.Expr)
 	return e
-}
-
-func slotCoverageFixture(t *testing.T, rel, body string) slotSourceFile {
-	t.Helper()
-	fset := token.NewFileSet()
-	file, err := parser.ParseFile(fset, rel, "package fixture\n"+body, parser.SkipObjectResolution)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return slotSourceFile{rel: rel, fset: fset, file: file}
-}
-func TestNativeGitContainerJoinClassification(t *testing.T) {
-	native := slotCoverageFixture(t, "cmd/internal/sessioninventory/codex_git_scope.go", `func codexRepositoryIdentity(){filepath.Join(common,"worktrees")}
-func codexWorktreeCWDs(){filepath.Join(id.common,"worktrees")}`)
-	if violations := slotStateViolations([]slotSourceFile{native}, slotLayoutMethodNames()); len(violations) != 0 {
-		t.Fatalf("native Git administrative directories classified as Pair slots: %v", violations)
-	}
-	for _, tc := range []struct{ name, rel, body string }{
-		{"different source", "cmd/internal/couchcore/example.go", `func codexRepositoryIdentity(){filepath.Join(common,"worktrees")}`},
-		{"different function", native.rel, `func createSlot(){filepath.Join(common,"worktrees")}`},
-		{"different base", native.rel, `func codexRepositoryIdentity(){filepath.Join(fleet,"worktrees")}`},
-		{"different component", native.rel, `func codexRepositoryIdentity(){filepath.Join(common,"worktree")}`},
-		{"extra child", native.rel, `func codexRepositoryIdentity(){filepath.Join(common,"worktrees","slot")}`},
-		{"slot root", native.rel, `func codexWorktreeCWDs(){filepath.Join(id.WorktreeRoot,"worktrees")}`},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			src := slotCoverageFixture(t, tc.rel, tc.body)
-			violations := slotStateViolations([]slotSourceFile{src}, slotLayoutMethodNames())
-			found := false
-			for _, v := range violations {
-				found = found || strings.Contains(v, "(a) slot container directory")
-			}
-			if !found {
-				t.Fatalf("unrelated slot construction escaped guard: %v", violations)
-			}
-		})
-	}
-}
-
-func TestNativeGitJoinInventoryRejectsStaleAndDuplicateExemptions(t *testing.T) {
-	source := "cmd/internal/sessioninventory/codex_git_scope.go"
-	first := `func codexRepositoryIdentity(){filepath.Join(common,"worktrees")}`
-	second := `func codexWorktreeCWDs(){filepath.Join(id.common,"worktrees")}`
-	for _, tc := range []struct {
-		name, body string
-		want       int
-		fragment   string
-	}{
-		{"exact", first + "\n" + second, 0, ""},
-		{"missing", first, 1, "occurrences=0"},
-		{"changed base", first + "\n" + `func codexWorktreeCWDs(){filepath.Join(other.common,"worktrees")}`, 1, "occurrences=0"},
-		{"duplicate", `func codexRepositoryIdentity(){filepath.Join(common,"worktrees");filepath.Join(common,"worktrees")}` + "\n" + second, 1, "occurrences=2"},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			src := slotCoverageFixture(t, source, tc.body)
-			violations := slotNativeGitJoinInventoryViolations([]slotSourceFile{src})
-			if len(violations) != tc.want {
-				t.Fatalf("%v: want %d violations", violations, tc.want)
-			}
-			if tc.want > 0 && !strings.Contains(violations[0], tc.fragment) {
-				t.Fatalf("wrong failure: %v", violations)
-			}
-		})
-	}
 }

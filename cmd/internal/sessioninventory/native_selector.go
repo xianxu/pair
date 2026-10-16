@@ -21,10 +21,8 @@ const (
 // NativeSelectorConfig contains already resolved native configuration, not
 // Pair defaults. A positively resolved empty Provider means the native query
 // intentionally has no provider filter. False resolution flags never imply
-// openai or the default Codex home. CodexScope carries the separate complete
-// local configuration projection; nil retains the legacy contract.
+// openai or the default Codex home.
 type NativeSelectorConfig struct {
-	CodexScope         *CodexSelectionScope
 	Provider           string
 	ProviderResolved   bool
 	SQLiteHome         string
@@ -67,6 +65,9 @@ type NativeSelectorSnapshot struct {
 // SelectNativeLatest resolves only complete provider-native metadata. Recovery
 // scores, capture times and filesystem fallback activity are not selector facts.
 func SelectNativeLatest(q NativeSelectorRequest, s NativeSelectorSnapshot) NativeSelectorResolution {
+	if q.Agent == AgentCodex {
+		return NativeSelectorResolution{Status: NativeSelectorUnsupported, Reason: "Codex indirect selectors require native selection"}
+	}
 	if s.Unsupported {
 		return NativeSelectorResolution{Status: NativeSelectorUnsupported, Reason: s.Reason}
 	}
@@ -101,7 +102,7 @@ func SelectNativeLatest(q NativeSelectorRequest, s NativeSelectorSnapshot) Nativ
 // ResolveNativeSelector validates explicit canonical roots for all supported
 // scanners. Latest selection additionally requires a complete provider-native
 // metadata snapshot; unresolved internal states never authorize execution.
-func ResolveNativeSelector(ctx context.Context, rt Runtime, q NativeSelectorRequest) (result NativeSelectorResolution, resultErr error) {
+func ResolveNativeSelector(ctx context.Context, rt Runtime, q NativeSelectorRequest) (NativeSelectorResolution, error) {
 	if ctx == nil || rt == nil {
 		return NativeSelectorResolution{}, errors.New("native selector requires context and inventory")
 	}
@@ -113,8 +114,8 @@ func ResolveNativeSelector(ctx context.Context, rt Runtime, q NativeSelectorRequ
 	if !validAgent(q.Agent) {
 		return NativeSelectorResolution{Status: NativeSelectorUnsupported, Reason: "unsupported native agent"}, nil
 	}
-	if q.Agent == AgentCodex && q.Latest && q.Config.CodexScope != nil && !q.Config.Remote {
-		return resolveScopedCodexLatest(ctx, rt, q)
+	if q.Agent == AgentCodex && (q.Latest || !IsCanonicalCodexSessionID(q.NativeID)) {
+		return NativeSelectorResolution{Status: NativeSelectorUnsupported, Reason: "Codex indirect selectors require native selection"}, nil
 	}
 	if q.Config.Remote || (q.Latest && (q.Config.ScopeExpanded || q.All)) {
 		return NativeSelectorResolution{Status: NativeSelectorUnsupported, Reason: "native selector scope cannot be mapped to one local directory"}, nil
@@ -146,12 +147,6 @@ func ResolveNativeSelector(ctx context.Context, rt Runtime, q NativeSelectorRequ
 	if err != nil {
 		return NativeSelectorResolution{Status: NativeSelectorUnsupported, Reason: err.Error()}, nil
 	}
-	defer func() {
-		if closeErr := bounded.Close(); closeErr != nil {
-			result = NativeSelectorResolution{Status: NativeSelectorIncomplete, Reason: "native SQLite snapshot cleanup incomplete"}
-			resultErr = errors.Join(resultErr, closeErr)
-		}
-	}()
 	validation, diagnostics, err := NewIncrementalInventory(bounded, Catalog{}).ValidateNamedContent(q.Agent, q.NativeID)
 	if contextErr := ctx.Err(); contextErr != nil {
 		return NativeSelectorResolution{}, contextErr

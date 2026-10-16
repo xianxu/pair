@@ -28,7 +28,6 @@ const (
 	GoCaseValueVocabulary    VocabularyContext = "go-case-value"
 	GoComparisonVocabulary   VocabularyContext = "go-comparison"
 	GoKeyValueVocabulary     VocabularyContext = "go-key-value"
-	GoMapKeyVocabulary       VocabularyContext = "go-map-key"
 	GoReturnVocabulary       VocabularyContext = "go-return"
 	ExactLineVocabulary      VocabularyContext = "exact-line"
 )
@@ -243,6 +242,8 @@ var SourceClassifications = []SourceClassification{
 	{Path: "cmd/internal/couchcore/recovery_native_owner.go", Kind: ResolvedConsumer},
 	{Path: "cmd/internal/couchcore/recovery_retirement_os.go", Kind: ResolvedConsumer},
 	{Path: "cmd/internal/launcher/recovery_native_owner.go", Kind: ResolvedConsumer},
+	{Path: "cmd/internal/launcher/recovery_native_legacy.go", Kind: ResolvedConsumer},
+	{Path: "cmd/internal/launcher/recovery_native_metadata.go", Kind: ResolvedConsumer},
 	{Path: "cmd/internal/launcher/recovery_authority_os.go", Kind: ResolvedConsumer},
 	{Path: "cmd/internal/launcher/recovery_terminal.go", Kind: ResolvedConsumer},
 	{Path: "cmd/internal/launcher/recovery_terminal_confirmed.go", Kind: ResolvedConsumer},
@@ -471,9 +472,6 @@ var SourceClassifications = []SourceClassification{
 	{Path: "cmd/internal/sessionledger/record.go", Kind: VocabularyConsumer, Families: []string{"native-session"}, Vocabulary: []VocabularyAllowance{
 		goStructVocabulary("native-session", `json:"session_id"`, "SessionID", 1),
 	}},
-	{Path: "cmd/internal/sessioninventory/codex_rollout_eligibility.go", Kind: VocabularyConsumer, Families: []string{"native-session"}, Vocabulary: []VocabularyAllowance{
-		{Family: "native-session", Value: "session_id", Context: GoMapKeyVocabulary, Use: "codexNativeSessionMetaEligible", Count: 1},
-	}},
 	{Path: "cmd/internal/titlepoller/runtime.go", Kind: ResolvedConsumer, Families: []string{"pane"}, BindingNames: []string{"scoped-pane-glob"}, Vocabulary: []VocabularyAllowance{
 		goCallVocabulary("pane", "--pane-id", "os/exec.Command", 5, 1),
 	}},
@@ -632,14 +630,7 @@ var SourceClassifications = []SourceClassification{
 // pair:m5-concept pure
 var NonArtifactSources = []string{
 	"cmd/internal/launcher/native_inventory_os.go",
-	"cmd/internal/sessioninventory/codex_config.go",
-	"cmd/internal/sessioninventory/codex_config_mdm_darwin.go",
-	"cmd/internal/sessioninventory/codex_config_mdm_nocgo.go",
-	"cmd/internal/sessioninventory/codex_config_mdm_other.go",
-	"cmd/internal/sessioninventory/codex_config_os.go",
-	"cmd/internal/sessioninventory/codex_git_scope.go",
-	"cmd/internal/sessioninventory/codex_latest.go",
-	"cmd/internal/sessioninventory/codex_platform_scope.go",
+	"cmd/internal/sessioninventory/codex_home.go",
 	"cmd/internal/launcher/native_admission.go",
 	"cmd/internal/launcher/native_createflow_os.go",
 	"cmd/internal/launcher/native_resume_selector.go",
@@ -648,7 +639,6 @@ var NonArtifactSources = []string{
 	"cmd/internal/sessioninventory/native_selector_collect.go",
 	"cmd/internal/sessioninventory/native_selector_io.go",
 	"cmd/internal/sessioninventory/native_selector_os.go",
-	"cmd/internal/sessioninventory/native_selector_sqlite_snapshot.go",
 	"cmd/internal/wrapcmd/native_admission.go",
 	"internal/reporoot/root.go",
 	"cmd/internal/couchcmd/resume_candidates.go",
@@ -664,6 +654,8 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcore/recovery_resume.go",
 	"cmd/internal/couchtty/menu_recovery.go",
 	"cmd/internal/launcher/recovery_authority.go",
+	// #584: schedules already-resolved observations; no artifact paths or IO.
+	"cmd/internal/launcher/recovery_native_parallel.go",
 	"cmd/internal/orientation/recovery.go",
 	"cmd/internal/sessioninventory/recovery_candidate.go",
 	"cmd/internal/sessioninventory/recovery_collect.go",

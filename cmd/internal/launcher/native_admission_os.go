@@ -178,14 +178,11 @@ func encodeAdmissionGrant(g nativeAdmissionGrant) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if base64.RawURLEncoding.EncodedLen(len(raw)) > maxNativeAdmissionGrantBytes {
-		return "", errors.New("native admission grant too large")
-	}
 	return base64.RawURLEncoding.EncodeToString(raw), nil
 }
 func decodeAdmissionGrant(raw string) (nativeAdmissionGrant, error) {
 	var g nativeAdmissionGrant
-	if len(raw) > maxNativeAdmissionGrantBytes {
+	if len(raw) > 16384 {
 		return g, errors.New("native admission grant too large")
 	}
 	b, err := base64.RawURLEncoding.DecodeString(raw)
@@ -445,14 +442,4 @@ func withNativeAdmissionOwners(ctx context.Context, state *nativeAdmissionFile, 
 		return err
 	}
 	return ctx.Err()
-}
-
-// InspectCodexScope reads untrusted grant metadata without consuming authority.
-// Only Claim's locked comparison with the stored reservation authorizes spawn.
-func (s NativeAdmissionStore) InspectCodexScope(raw string) (string, error) {
-	grant, err := decodeAdmissionGrant(raw)
-	if err != nil {
-		return "", errors.New("invalid native admission grant")
-	}
-	return grant.Request.CodexScope, nil
 }
