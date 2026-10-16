@@ -242,3 +242,111 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-15T18:20:41-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 587 — Couch resource sampler: per-slot CPU, memory and disk writes, orphan detection, threshold alerts, couch --resources |
+| repo | pair |
+| issue file | workshop/issues/000587-couch-resource-sampler-per-slot-cpu-memory-and-disk-writes-orphan-detection-threshold-alerts-couch-resources.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 99e11ecb8c72b7e5325a58692c1efd679e50710c..0c36ccba15897f61abe5a356c3ba6dc277ada9d9 |
+| command | sdlc close --issue 587 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-15T18:20:41-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The reviewed implementation resolves BR-6 and BR-7, and no new blocking defects were found. Alerts no longer depend on checkpoint persistence, and every current core-concepts entity resolves to its declared implementation. Recorded full-suite qualification and coordinated live acceptance remain outstanding; this review does not complete those requirements or authorize landing.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Byte-budgeted cached projection remains covered by the passing maximum-cardinality socket transport regression.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      History is now advisory only; passing corrupt-read and failed-write recovery tests establish fresh-ring recovery without affecting alert authority.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Inventory completeness and omission evidence remain explicit; passing barrier and pure attribution tests prevent incomplete discovery from proving ownership loss.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      The current integration table names resource_unsupported.go, matching the implemented platform backend.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      Production dispatch applies delivery outcomes through AdvanceResourceEpisode; passing outcome-fencing and real-broker tests cover admission and uncertain retries.
+  - id: BR-6
+    disposition: addressed
+    note: |
+      The revised contract removes checkpoints entirely. resources.go:182 dispatches alerts before best-effort history persistence. The history-independence regression passes at head and fails when a temporary overlay restores persistence-before-admission gating; real-broker admission tests also pass.
+  - id: BR-7
+    disposition: addressed
+    note: |
+      Inspected the traceability correction and subsequent simplification diff, then enumerated every current Core concepts entity against its stated file. ResourceUsageObservation, resourceFakeWorld, ResourceHistoryStore and the remaining declarations all resolve; Revisions records the changes.
+```
+
+1. **Strengths**
+
+   - Alert admission and suppression remain independent of history failures (`cmd/internal/couchcmd/resources.go:181`).
+   - Delivery outcomes enter the pure episode transition function with effect-ID fencing (`resources_alert.go:56`).
+   - Native observation attempts, process selection, wire responses, and history storage have explicit bounds.
+   - README, atlas, retention documentation, and artifact registration cover the new surface.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   - `make test-make-env` passed.
+   - Resource and artifact tests passed across all six affected packages.
+   - Focused race tests passed across couchcmd, couchcore, couchmessage, and couchtty.
+   - A temporary overlay restoring persistence gating made the history-independence regression fail as expected.
+   - Near-cap history qualification passed: **68.489 ms mean**, **71.287 ms maximum** sampler-thread CPU; **0.114149%** of one core at default cadence.
+   - The recorded full suite and live scratch-slot acceptance were not completed by this review. Tracked files remain unchanged.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** shared resource model and existing broker/storage seams.
+   - **ARCH-PURE — pass:** attribution, rates, episodes, and history policies remain separate from IO.
+   - **ARCH-PURPOSE — pass:** implementation covers the revised advisory-monitoring scope.
+   - **ARCH-MOCK — pass:** stateful process seams, controlled real-broker endpoints, and owned-child native conformance.
+   - **ARCH-CONSTRAINTS — pass:** explicit bounds, visible degraded coverage, and measured representative cost.
+   - **ARCH-SECURE — pass:** generation fencing, validated bounded history, safe paths, and sanitized terminal labels.
+   - **ARCH-ORDER — pass:** explicit episode transitions, uncertain-outcome retries, cancellation, and supersession tests.
+   - **ARCH-FUNERAL — pass:** workers join at shutdown; in-memory authority ends with the supervisor; history has replacement and retention bounds.
+
+7. **Plan revision recommendations:** None. Preserve the outstanding qualification and live-acceptance checkboxes until evidenced.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"97fd5fe0-65da-4503-8d05-7a99c99cc036","repository":"github.com/xianxu/pair","issue_id":"000587","recipe":"milestone-review","round":3,"attempt":1,"agent":"codex","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/ef8b90b70652947f","reviewed_head":"0c36ccba15897f61abe5a356c3ba6dc277ada9d9","slot":"pair:1","requested_at":"2026-10-16T01:17:12.026776Z"},"phase":"finished","pid":59316,"started_at":"2026-10-16T01:17:12.131844Z","finished_at":"2026-10-16T01:20:30.350094Z","session_id":"01a14248-d726-7e82-9b6b-152be618f766","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.391585708s
+head: "0c36ccba15897f61abe5a356c3ba6dc277ada9d9"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
