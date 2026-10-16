@@ -2892,7 +2892,7 @@ argsDone:
 	// Spawn child in a fresh PTY.
 	cmd := exec.Command(argv[0], launcher.PromptArgs(argv[0], argv[1:], launchPrompt)...)
 	cmd.Env = childEnv
-	locks := newWrapperNativeLocks(os.Getenv("HOME"), p.agentBasename, nativeLockHolder())
+	locks := newWrapperNativeLocks(os.Getenv("HOME"), p.agentBasename, nativeLockHolder)
 	defer locks.Close() // registered before group cleanup: group is joined first
 	p.nativeLocks = locks
 	agentNotBefore := time.Now()
@@ -3004,15 +3004,8 @@ argsDone:
 				p.handleWinch()
 			case syscall.SIGUSR1:
 				p.armCapture()
-			case syscall.SIGUSR2:
-				if p.restartFresh.CompareAndSwap(false, true) {
-					p.traceWrap("agent-restart-request", nil)
-					locks.Stop()
-					group.StartStop()
-				}
-			case syscall.SIGTERM, syscall.SIGINT, syscall.SIGHUP, syscall.SIGQUIT:
-				locks.Stop()
-				group.StartStop()
+			case syscall.SIGUSR2, syscall.SIGTERM, syscall.SIGINT, syscall.SIGHUP, syscall.SIGQUIT:
+				p.stopForSignal(s, locks, group)
 			}
 		}
 	}()
@@ -3223,16 +3216,7 @@ func (p *proxy) masterPump() {
 				p.nativeBindingNotices = nil
 				continue
 			}
-			if event.err != nil {
-				p.nativeBindingNotices = nil
-				if p.nativeLocks.Unbound() {
-					p.emitNotification("Conversation lock discovery unavailable; relaunch to pin the conversation ID")
-				}
-				p.debug("LOCK-discovery-unavailable", event.err.Error())
-			} else if err := p.nativeLocks.Discover(event.id); err != nil {
-				p.nativeLockErr = err
-				p.ownedGroup.StartStop()
-			}
+			p.handleBindingNotice(event)
 		case message, ok := <-brokerMessages:
 			if !ok {
 				brokerMessages = nil

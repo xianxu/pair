@@ -29,13 +29,24 @@ func (g *ownedGroup) StartStop() {
 			defer close(g.done)
 			pid := g.cmd.Process.Pid
 			if err := syscall.Kill(-pid, syscall.SIGTERM); err != syscall.ESRCH {
-				timer := time.NewTimer(g.grace)
-				<-timer.C
+				for deadline := time.Now().Add(g.grace); time.Now().Before(deadline); time.Sleep(groupPoll) {
+					if !groupHasLiveMember(pid) {
+						return
+					}
+				}
 				_ = syscall.Kill(-pid, syscall.SIGKILL)
 			}
 		}()
 	})
 }
+
+const groupPoll = 10 * time.Millisecond
+
+// groupHasLiveMember reports whether the group still has a member a signal
+// reaches. Darwin answers EPERM once only zombies remain (our unreaped leader,
+// or members mid-exit) and ESRCH once it is empty; neither needs SIGKILL, so
+// cleanup ends early instead of always spending the grace.
+func groupHasLiveMember(pgid int) bool { return syscall.Kill(-pgid, 0) == nil }
 
 func (g *ownedGroup) Wait() error {
 	g.StartStop()

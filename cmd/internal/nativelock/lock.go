@@ -26,7 +26,8 @@ type Handle struct {
 // pair:m5-concept integration
 func Acquire(home string, key Key, holder string) (*Handle, error) {
 	if !validHolder(holder) {
-		return nil, fmt.Errorf("invalid native lock holder")
+		// The label is diagnostic only; an unusable one must not refuse the lock.
+		holder = "unlabelled"
 	}
 	paths, err := artifactpath.ResolvePairCache(home)
 	if err != nil {

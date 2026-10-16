@@ -4107,7 +4107,7 @@ validation remain for their other consumers.
 
 Owners: `nativelock/`, `artifactpath/native_lock.go`,
 `wrapcmd/native_lock.go`, `wrapcmd/owned_group.go`,
-`sessionwatch/binding_notice.go`, `launcher/native_lock_capability.go`,
+`sessionwatch/binding_notice.go`,
 `launcher/native_resume_selector*.go`, and Couch recovery/Relaunch. Real kernel
 contention, process-group cleanup and private-pipe checks run in ordinary Go
 package tests under the recorded suite on Darwin/Linux.

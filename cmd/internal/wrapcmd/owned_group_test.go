@@ -71,3 +71,21 @@ func TestOwnedGroupStopsDescendantsBeforeReap(t *testing.T) {
 	}
 	_ = group.Wait() // cleanup is joined and idempotent
 }
+
+// pair#595 close review BR-3: a group that exits on SIGTERM is reaped at once,
+// not after the whole grace.
+func TestOwnedGroupFinishesEarlyWhenTheGroupExits(t *testing.T) {
+	cmd := exec.Command("/bin/sh", "-c", "sleep 60 & wait")
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	defer syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+	time.Sleep(50 * time.Millisecond)
+	group := newOwnedGroup(cmd, 5*time.Second)
+	start := time.Now()
+	_ = group.Wait()
+	if elapsed := time.Since(start); elapsed > time.Second {
+		t.Fatalf("cleanup spent %s of a 5s grace on a group that exited on SIGTERM", elapsed)
+	}
+}

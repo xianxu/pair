@@ -28,8 +28,8 @@ The same lock build removes the scan and store. There is no dual-guard build, te
 | Lock cache path | PURE | cmd/internal/artifactpath/native_lock.go | new |
 | Wrapper lock acquisition / controlled shutdown | INTEGRATION | cmd/internal/wrapcmd/native_lock.go; wrap.go | replaces native_admission.go and modifies native start/exit |
 | Current-launch binding notification | INTEGRATION | cmd/internal/sessionwatch/lifecycle.go; wrapcmd watcher launch | small notification from existing discovery, not a new discovery mechanism |
-| Native-lock readiness capability | INTEGRATION | cmd/internal/readiness/record.go; wrapcmd readiness publication | modified |
-| Live legacy-slot transition guard | PURE predicate / INTEGRATION observation | cmd/internal/launcher/native_lock_capability.go; Couch recovery adapters | new; replaces global owner checks |
+| ~~Native-lock readiness capability~~ (dropped 2026-10-16) | INTEGRATION | cmd/internal/readiness/record.go; wrapcmd readiness publication | unchanged |
+| ~~Live legacy-slot transition guard~~ (dropped 2026-10-16) | PURE predicate / INTEGRATION observation | cmd/internal/launcher/native_lock_capability.go; Couch recovery adapters | new; replaces global owner checks |
 | Exact confirmed stop-set attribution | INTEGRATION | cmd/internal/launcher/recovery_terminal_confirmed_owner.go | moved, preserving existing checks |
 | Native owner forensics and admission reservations | INTEGRATION | deletion inventory below | deleted in this change |
 
@@ -144,3 +144,4 @@ Allow roughly **350–650 added production lines** for the small lock, watcher n
 - **2026-10-15 20:08 PDT, plan-quality PQ-1/2/3:** TL approval 659dde9c confirmed scope. Clarified best-effort unknown-ID handoff failures versus known-ID lock failure, named the pure lifecycle transition owner and IO effects, and compressed tests to named risk/guard strategies. Added recurring conformance and permanent inode cost measurement. No scope or guarantee expansion; code has not begun.
 
 - **2026-10-15, implementation checkpoint:** Existing cold ResumeContext does not use prepared recovery, so post-park Relaunch provenance is carried in its existing persisted/validated RecoveryIntent.Relaunch field; exact source agent/ID must match. Shared selector parsing now retains NewNativeID separately from fork source. Notification failure preserves config/lifecycle work and reports diagnostics. These clarify approved mechanisms; no new user flag, native integration or scan.
+- **2026-10-16, TL e93b109d (re-plan after #597/#600/#605/#607 landed):** supersedes the capability and migration parts above: the readiness capability, the live legacy-slot guard ("relaunch older slots first") and the confirmed-Relaunch migration marker are dropped, and no launch takes native admission. A resume whose lock another live wrapper holds refuses at native start naming the holder slot, the same "in use" refusal as Couch's registry check. Pre-#595 wrappers hold no lock until relaunched (accepted gap). The holder label resolves lazily on first lock; notices after stop or with unusable IDs are dropped; owned-group cleanup ends once no live member remains.

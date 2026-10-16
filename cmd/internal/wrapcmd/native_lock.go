@@ -3,11 +3,13 @@ package wrapcmd
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
@@ -19,21 +21,40 @@ import (
 // One serialized owner applies every lifecycle transition and lock IO effect.
 // Its caller closes it only AFTER joining owned-child group cleanup.
 type wrapperNativeLocks struct {
-	mu                  sync.Mutex
-	state               nativelock.State
-	home, agent, holder string
-	handles             []*nativelock.Handle
+	mu          sync.Mutex
+	state       nativelock.State
+	home, agent string
+	// holderFn labels this wrapper; it runs once, on the first acquisition, so
+	// a wrap that never locks a conversation never resolves it.
+	holderFn func() string
+	holder   string
+	handles  []*nativelock.Handle
 }
 
-func newWrapperNativeLocks(home, agent, holder string) *wrapperNativeLocks {
-	return &wrapperNativeLocks{home: home, agent: agent, holder: holder}
+func newWrapperNativeLocks(home, agent string, holder func() string) *wrapperNativeLocks {
+	return &wrapperNativeLocks{home: home, agent: agent, holderFn: holder}
 }
+
+func (o *wrapperNativeLocks) holderLabel() string {
+	if o.holder == "" && o.holderFn != nil {
+		o.holder = o.holderFn()
+	}
+	return o.holder
+}
+// errNoticeIgnored marks a binding notice that cannot change ownership: it
+// arrived after stop began (a restart or exit is already under way), or its ID
+// cannot name a lock. The agent keeps running; only a held lock refuses.
+var errNoticeIgnored = errors.New("binding notice ignored")
+
 func (o *wrapperNativeLocks) Discover(id string) error {
 	o.mu.Lock()
 	defer o.mu.Unlock()
+	if phase := o.state.Phase(); phase == nativelock.Stopping || phase == nativelock.Exited {
+		return fmt.Errorf("%w: wrapper is stopping", errNoticeIgnored)
+	}
 	key, err := nativelock.NewKey(o.agent, id)
 	if err != nil {
-		return err
+		return fmt.Errorf("%w: %v", errNoticeIgnored, err)
 	}
 	next, effects, err := nativelock.Advance(o.state, nativelock.Event{Kind: nativelock.Discovered, Key: key})
 	if err != nil {
@@ -43,7 +64,7 @@ func (o *wrapperNativeLocks) Discover(id string) error {
 	if effects.Acquire == nil {
 		return nil
 	}
-	h, err := nativelock.Acquire(o.home, key, o.holder)
+	h, err := nativelock.Acquire(o.home, key, o.holderLabel())
 	kind := nativelock.Acquired
 	if err != nil {
 		kind = nativelock.Failed
@@ -173,4 +194,43 @@ func nativeLockHolder() string {
 		return tag
 	}
 	return "standalone"
+}
+
+// handleBindingNotice applies one watcher binding notice (pair#595). A held
+// lock is a late collision: the owned group stops and the wrapper reports it.
+// A notice that cannot change ownership is logged and dropped, so a restart
+// already under way still re-execs and an unusable ID never kills the agent.
+func (p *proxy) handleBindingNotice(event nativeBindingEvent) {
+	if event.err != nil {
+		p.nativeBindingNotices = nil
+		if p.nativeLocks.Unbound() {
+			p.emitNotification("Conversation lock discovery unavailable; relaunch to pin the conversation ID")
+		}
+		p.debug("LOCK-discovery-unavailable", event.err.Error())
+		return
+	}
+	err := p.nativeLocks.Discover(event.id)
+	switch {
+	case err == nil:
+	case errors.Is(err, errNoticeIgnored):
+		p.debug("LOCK-notice-ignored", err.Error())
+	default:
+		p.nativeLockErr = err
+		p.ownedGroup.StartStop()
+	}
+}
+
+// stopForSignal is a controlled exit or agent restart: locks stop taking new
+// conversations first, then the owned group stops; the locks themselves are
+// released only after the group is reaped (pair#595). SIGUSR2 marks a restart,
+// so the wrapper re-execs once the group is gone.
+func (p *proxy) stopForSignal(s os.Signal, locks *wrapperNativeLocks, group *ownedGroup) {
+	if s == syscall.SIGUSR2 {
+		if !p.restartFresh.CompareAndSwap(false, true) {
+			return
+		}
+		p.traceWrap("agent-restart-request", nil)
+	}
+	locks.Stop()
+	group.StartStop()
 }

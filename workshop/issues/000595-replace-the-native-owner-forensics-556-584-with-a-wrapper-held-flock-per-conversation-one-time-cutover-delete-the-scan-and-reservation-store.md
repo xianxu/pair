@@ -37,14 +37,14 @@ A Pair wrapper holds a nonblocking exclusive flock for each exact conversation I
 
 The native agent runs in its own wrapper-owned process group. Every controlled wrapper exit terminates that group before reaping the leader and releasing locks. Wrapper SIGKILL can leave an orphan engine after the lock drops: that accepted gap belongs to #583's reaper and #587's unattributed report, not this admission guard. Agents outside Pair are outside its guarantee.
 
-One maintenance cutover, one lock build: delete the global native owner scan, legacy/unbound fallbacks and durable admission reservation store in the same change. Ordinary disk Resume refuses while the current live-wrapper registry/readiness inventory contains any wrapper without the lock capability: `relaunch older slots first: X, Y`. Startup, Continue and Fresh remain available. The existing confirmed Relaunch of the exact live old slot is the migration action, still taking the new flock after source retirement; no new override or dual-guard build. Preserve/move the narrow confirmed stop-set attribution helpers.
+One lock build: delete the global native owner scan, legacy/unbound fallbacks and durable admission reservation store in the same change; no launch takes native admission. There is no cutover gate (TL e93b109d): a resume whose conversation lock another live wrapper holds refuses at native start with `conversation X is in use by <holder>; Start fresh`, the holder named as Couch names a slot (`pair:3`), else its Pair tag, else `standalone`. That is the same refusal as Couch's registry `in use by` (#597), observed by the kernel. Wrappers started before this build hold no lock until their slot is relaunched; the gap closes as slots relaunch. Startup, Continue and Fresh remain available. Preserve/move the narrow confirmed stop-set attribution helpers.
 
 ## Done when
 
 - Real kernel and wrapper tests show one winner for two wrappers on one ID, a diagnostic holder label, no losing-writer metadata damage, and lock release on wrapper exit including SIGKILL.
 - Controlled normal/error/signal/restart exits stop only the owned agent group before reap/lock release; tests explicitly document the accepted SIGKILL orphan gap rather than promising inherited-agent protection.
 - Current-launch unknown-to-known IDs acquire through existing discovery; stale/duplicate events and a late collision are handled without a new native integration or historical scan.
-- Legacy capability tests show startup/Continue/Fresh unaffected, ordinary disk Resume names sorted live old slots, confirmed Relaunch migrates them, and Resume works once they are gone. Dead/stale readiness alone is not a blocker.
+- Startup/Continue/Fresh are unaffected; a resume of a conversation another live wrapper holds refuses naming the holder; a binding notice after stop or with an unusable ID never fails the wrapper; controlled restart still re-execs.
 - The forensic and reservation code is gone, shared consumers and stop-set safety remain, and close reports actual net production/test LOC deletion. Build, required recorded suite and SHIP review pass.
 - Operator live maintenance acceptance: restart over old live slots, migrate them once at a quiet time, resume a parked scratch conversation, and refuse a held scratch conversation with its slot named. This remains pending until performed; any landing before it requires the TL's explicit direction.
 
@@ -108,6 +108,10 @@ Measured deletion baseline: 1,777 production + 2,766 test lines in dedicated old
 
 TL approved 2833b837 via submitted receipt 659dde9c, including confirmed Relaunch as the migration path. change-code full-flow plan review requested named transition/test seams and explicit discovery-channel failure semantics (PQ-1/2/3); these are now documented without expanding the wrapper-knows-ID promise. Unknown discovery loss is visible and retains unknown status; known-ID contention/IO failure stops the owned group. No implementation before the gate passes.
 
+### 2026-10-16 — re-plan approved (TL e93b109d); close round 1 BR-1
+
+Delta to Spec and Done when: the capability cutover gate ("relaunch older slots first"), its RecoveryIntent.Relaunch marker and readiness capability are dropped; no launch takes native admission (superseding #597's Couch-only skip); the lock refusal names the holder as Couch names a slot and counts as the same "in use" refusal, not a new one. Accepted transitional gap: pre-#595 wrappers hold no lock until relaunched. The durable plan's gate rows are marked dropped in its Revisions.
+
 ## Estimate
 
 Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only; calibration marked stale by estimate-source, so provisional.
@@ -137,3 +141,13 @@ total: 2.15
 ### 2026-10-16 — re-plan against landed #597/#600/#605/#607 (pair:2, Claude; sent to TL d0e96fbc, awaiting OK)
 
 Keep the wrapper-held per-conversation flock, owned-group cleanup, watcher binding pipe, all scan/reservation/admission deletions and the moved stop-set helpers. Drop the capability cutover gate ("relaunch older slots first") and the RecoveryIntent.Relaunch marker: on Couch paths they would be a fourth refusal against #597's design, and for standalone Pair they block every resume until all slots relaunch. The accepted transitional gap: pre-#595 wrappers hold no lock until relaunched. Launcher reserves no admission for anyone; #597's couchHosted bypass and ResumeRequired/Recovery skip go with it. Open question to the TL: a Couch resume whose lock is held by another live wrapper refuses at native start as the same "in use" refusal. Merge main (14 conflicts) before building. The intermittent TestOwnedGroupStopsDescendantsBeforeReap EPERM under -race stays open until measured.
+
+### 2026-10-16 — close review round 1 (REWORK) dispositions
+
+- BR-1 (Critical), accepted: issue Spec/Done when now state the approved re-plan (Revision above); the plan's gate rows are marked dropped with a Revision; atlas Owners no longer names the deleted source.
+- BR-2 (Important), accepted: a binding notice after stop began, or with an ID that cannot name a lock, is logged and dropped (`errNoticeIgnored`), so a SIGUSR2 restart still re-execs. TestRestartThenLateBindingNoticeStillRestarts RED without the fix ("discovery after stop").
+- BR-3 (Important), accepted: owned-group cleanup polls during the grace and ends once no live member remains (darwin EPERM = only zombies, ESRCH = empty). TestOwnedGroupFinishesEarlyWhenTheGroupExits RED without (5.01s of a 5s grace).
+- BR-4 (Important), accepted: the holder label resolves lazily on the first lock, once, behind an injected function (TestHolderLabelResolvesOnlyOnFirstLock); non-native wraps never resolve it.
+- BR-5 (Important), accepted: wrapper-level tests drive notice handling and controlled signals through `handleBindingNotice` and `stopForSignal` (late collision stops the owned group and names the holder; unusable notice leaves the agent running; restart then late notice still restarts).
+- Minor, accepted: an invalid holder label falls back to "unlabelled" instead of refusing the lock.
+- Minor, deferred as follow-ups for the TL: the watcher-start-failure notice wording, and one shared rule for the three ID/label validators.
