@@ -33,7 +33,9 @@ const maxNoteFile = 1 << 20
 // it.
 func queryPaneGeometry(ctx context.Context, session string) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, "zellij", "--session", session, "action", "list-panes", "--json", "--command", "--state", "--geometry")
-	cmd.WaitDelay = 100 * time.Millisecond
+	// A short WaitDelay fails complete output whose copy lags under load
+	// (pair#613); the caller's context still bounds the query.
+	cmd.WaitDelay = time.Second
 	return cmd.Output()
 }
 
