@@ -1,6 +1,6 @@
 ---
 id: 000610
-status: codecomplete
+status: done
 created: 2026-10-16
 updated: 2026-10-16
 estimate_hours:
@@ -22,6 +22,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 39c11589ec33136d49072399466d26efb94e68cb
         evidence_commit: bfe7a8935b87f88d8a0bdfdfb5e59989ac1f4282
+        landed_commit: bd84aa32fdce1886a67e557881e3576dbb7d0c20
 ---
 
 # couchcore package takes ~10 min, at the go test timeout
