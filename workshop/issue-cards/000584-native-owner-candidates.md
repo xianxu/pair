@@ -1,6 +1,6 @@
 ---
 id: 000584
-status: codecomplete
+status: done
 created: 2026-10-15
 updated: 2026-10-15
 estimate_hours: 1.3935
@@ -22,6 +22,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: a7ce2731d8694771996b0f110f69586e04831ccd
         evidence_commit: 850c5c5d19aede124e1101e4308ef1afc63c71ba
+        landed_commit: 1bc964ac1e4ebd2b278a9839b7eaccc095fc51ee
 ---
 
 # Native owner scan blocks fleet resume on unrelated processes
