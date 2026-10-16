@@ -37,16 +37,23 @@ So a recovered slot looks healthy in `couch --list` and to the operator, yet sil
 
 ## Spec
 
-- Find why the recovered wrapper is not a connected recipient (registration on reboot/resume vs. on first turn;
-  the binding stays "provisional" after a completed turn).
-- One state, one action: a slot that can't receive shows so in `couch --list`, with the one command that fixes it.
-- The first relaunch call shouldn't strand a recover/abandon choice on a ~16 s timeout.
+- A `couch --send-to` lands, or says why it did not, whatever the machine load. The measured cause (Log) is not
+  reboot/resume-specific: the supervisor's per-admission ownership check runs ~6 synchronous `zellij list-sessions`
+  inside the 2 s admission budget, and the failure leaves no receipt.
+- The message authority reads zellij liveness from one background-polled snapshot; a stale snapshot refuses with its
+  age as the reason.
+- A failed admission leaves a `refused` receipt with its reason; `--message-status`, the send's last line and
+  `couch --list` (one state, one action: `can't receive: <reason>` and the fixing command) show it.
+- A codex slot driven only by peer messages gets a confirmed binding, so relaunch works.
+- The first `--relaunch` doesn't strand a recover/abandon choice on the 15 s park wait.
 
 ## Done when
 
-- Tests: a rebooted and a resumed slot each receive a `--send-to` without a relaunch; a completed first turn makes the
-  binding non-provisional.
-- Live: after a Couch restart, reboot one slot and resume another; both receive a send.
+- Tests: with a 1 s-per-listing stub zellij an admission lands inside the budget and reads no zellij; a failed admission
+  reports `refused` with its reason; `--list` shows the receive state; a peer-message-only codex thread confirms its
+  binding; a 20 s quit relaunches on the first call.
+- Live: under a full suite, sends to a rebooted and a resumed slot land; the supervisor's zellij listing rate drops to
+  the poller's 2 per second.
 
 ## Plan
 
@@ -88,3 +95,11 @@ Durable plan: `workshop/plans/000618-slots-recovered-by-reboot-or-resume-after-a
 - TL approved items 1-2 first, 3 minimal (the reason from 2 in `--list` with the one fixing command, no new tracking),
   4-5 after 1-2 land. Load: the 136 reading was 15:36, not 15:05; recorded suites stayed within WF_TEST_SUITES; the
   supervisor's own ~1 core is hosted-client vt ingest (`ptychild.(*Child).ingest`), out of scope, reported to the TL.
+
+## Revisions
+
+- 2026-10-16 (pair:2): Spec and Done-when rewritten to the measured cause. Before: "find why the recovered wrapper is
+  not a connected recipient (registration on reboot/resume vs. first turn)" and "a rebooted and a resumed slot each
+  receive a send without a relaunch". The Log shows registration was fine and pair:3 received before and after the
+  failures; the failures were admission timeouts under load. The relaunch and provisional items are kept; the receive
+  item now targets admission under load and its visibility.
