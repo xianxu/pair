@@ -172,6 +172,24 @@ func (f *FakeThreadArtifactCollisionChecker) SetDetachedSession(address ThreadAd
 	f.sessionPresence[address] = SessionObservation{State: SessionPresent}
 }
 
+// AttachSession models clients attaching to an existing session. The server,
+// index ownership, presence and panes survive; only its client-free status ends.
+// Repeating the transition or attaching an unknown address creates no state.
+func (f *FakeThreadArtifactCollisionChecker) AttachSession(address ThreadAddress) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	delete(f.detachedSessions, address)
+}
+
+// sessionNamesLocked projects the index associations independently of liveness.
+func (f *FakeThreadArtifactCollisionChecker) sessionNamesLocked() map[ThreadAddress]string {
+	current := make(map[ThreadAddress]string, len(f.pairSessions))
+	for address, binding := range f.pairSessions {
+		current[address] = binding.Name
+	}
+	return current
+}
+
 // DetachedSessions answers only for addresses the caller asked about, exactly
 // as the real checker does -- a fake that answered for the whole world would
 // hide a caller that forgot to pass its candidates.
@@ -215,7 +233,7 @@ func (f *FakeThreadArtifactCollisionChecker) DetachedSessions(ctx context.Contex
 	// Claims come from every thread this fake knows about, not just the ones
 	// asked for, counted by the same function production uses. The fake's map is
 	// already one binding per thread, so it has no union to take.
-	return ProjectDetachedSessions(bindings, sessions, claimsFromBindings(f.detachedSessions))
+	return ProjectDetachedSessions(bindings, sessions, claimsFromBindings(f.sessionNamesLocked()))
 }
 
 func (f *FakeThreadArtifactCollisionChecker) SetNativeBinding(address ThreadAddress, agent string, status sessioninventory.BindingStatus, nativeID string) {
@@ -564,10 +582,9 @@ func (f *FakeThreadArtifactCollisionChecker) ListedPairSessionContext(ctx contex
 	if name == "" {
 		name = binding.Name
 	}
-	current := make(map[ThreadAddress]string, len(f.pairSessions))
+	current := f.sessionNamesLocked()
 	var sessions []launcher.Session
-	for candidate, observed := range f.pairSessions {
-		current[candidate] = observed.Name
+	for _, observed := range f.pairSessions {
 		if observed.Present {
 			sessions = append(sessions, launcher.Session{Name: observed.Name, State: launcher.SessionAttached})
 		}
