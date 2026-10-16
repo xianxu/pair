@@ -702,20 +702,32 @@ func (r OSRuntime) ReadLedger(tag string) ([]LedgerEntry, error) {
 	if err != nil {
 		return nil, err
 	}
-	unavailable := map[string]bool{}
+	type namespace struct {
+		native sessioninventory.OSRuntime
+		err    error
+	}
+	namespaces := map[string]namespace{}
+	lookup := func(agent string) namespace {
+		if found, ok := namespaces[agent]; ok {
+			return found
+		}
+		native, err := r.nativeInventory(agent, "")
+		found := namespace{native: native, err: err}
+		namespaces[agent] = found
+		return found
+	}
 	entries := parseLedger(raw, func(current sessionledger.Current) sessioninventory.ResumeTarget {
-		native, err := r.nativeInventory(current.Launch.Agent, "")
-		if err != nil {
-			unavailable[current.Launch.Agent] = true
+		found := lookup(current.Launch.Agent)
+		if found.err != nil {
 			return sessioninventory.ResumeTarget{Status: sessioninventory.BindingUnbound}
 		}
-		return sessioninventory.ResumeTargetForRuntimeLaunch(native, current)
+		return sessioninventory.ResumeTargetForRuntimeLaunch(found.native, current)
 	})
-	// Namespace failures affect that agent's authority, not the whole ledger.
-	// Bound and compatibility rows must also refuse resume rather than appear
-	// Fresh or supply a saved ID after the typed projection became unavailable.
+	// Check every represented agent, including compatibility-only rows that
+	// never invoke the typed projection. Namespace failures block that agent's
+	// resume authority without discarding other agents or inventing entries.
 	for index := range entries {
-		if unavailable[entries[index].Agent] {
+		if lookup(entries[index].Agent).err != nil {
 			entries[index].SessionID = ""
 			entries[index].ResumeBlocked = true
 		}
