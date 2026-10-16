@@ -3,9 +3,12 @@ package sessionwatch
 import (
 	"bytes"
 	"errors"
+	"strings"
+	"testing"
+
+	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 	"github.com/xianxu/pair/cmd/internal/sessionledger"
-	"testing"
 )
 
 func TestBindingNoticeStrictCurrentLaunch(t *testing.T) {
@@ -63,5 +66,23 @@ func TestBindingNotificationFailurePreservesConfig(t *testing.T) {
 	resolved, err := ObserveAndPersist(ObserveInput{Owner: owner, LaunchOrdinal: 7, Inventory: inventory, LiveRounds: []sessioninventory.RoundObservation{round}, NotifyBinding: func(uint64, string) error { return errors.New("broken pipe") }}, &fakeLifecycleStore{}, func(ConfigPayload) error { cached = true; return nil })
 	if err != nil || !cached || len(resolved.Diagnostics) == 0 {
 		t.Fatalf("best effort notification lost persistence: err=%v cached=%v diagnostics=%v", err, cached, resolved.Diagnostics)
+	}
+}
+
+// pair#614: a binding notice accepts exactly the conversation IDs a lock key
+// accepts, so the wrapper never receives an ID it cannot lock.
+func TestBindingNoticeIDRuleMatchesLockKey(t *testing.T) {
+	for _, id := range []string{"019d1111-1111-7111-8111-111111111111", "has space", "zero​width", "a/b", "..", "\x01", strings.Repeat("x", 513), strings.Repeat("x", 512)} {
+		var buf bytes.Buffer
+		notifyErr := NotifyBinding(&buf, 7, id)
+		_, keyErr := artifactpath.NativeLockFilename("codex", id)
+		if (notifyErr == nil) != (keyErr == nil) {
+			t.Errorf("%q: notice err=%v, lock key err=%v", id, notifyErr, keyErr)
+		}
+		if notifyErr == nil {
+			if got, err := DecodeBindingNotice(bytes.TrimSpace(buf.Bytes()), 7); err != nil || got != id {
+				t.Errorf("%q: round trip %q %v", id, got, err)
+			}
+		}
 	}
 }

@@ -1,13 +1,21 @@
 ---
 id: 000614
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-16
 updated: 2026-10-16
 estimate_hours:
 severity: low
-card_mirror: '917c5cf98e2ae28ab51eff24d859e30371b444b8' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '18bdbb2b76a9d1cb7e2e534e7c0147332c9ea45b' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-16T07:27:14-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:2
+    worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
+    repository: github.com/xianxu/pair
 ---
 
 # One shared rule for native conversation IDs and lock holder labels
@@ -31,3 +39,8 @@ One shared rule for a native conversation ID (and one for a holder label), used 
 ## Log
 
 ### 2026-10-16
+
+### 2026-10-16 — fix (pair:2)
+
+- One rule for a native conversation ID: new leaf package `nativeid` (`Validate`), used by the lock key (`artifactpath.NativeLockFilename`) and the watcher's binding notice (`sessionwatch`). A leaf package keeps sessionwatch's binding notice a non-artifact source. The holder label already has a single rule (`nativelock.validHolder`, used by both writing and parsing).
+- Measured disagreement before the fix (TestBindingNoticeIDRuleMatchesLockKey RED): the notice accepted "has space", a zero-width format character, "a/b" and "..", all of which the lock key rejects. Now both boundaries agree on every case; `nativeid` has its own table test.

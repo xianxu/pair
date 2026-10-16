@@ -4,10 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"strings"
-	"unicode"
-	"unicode/utf8"
 
+	"github.com/xianxu/pair/cmd/internal/nativeid"
 	"github.com/xianxu/pair/cmd/internal/strictjson"
 )
 
@@ -20,7 +18,7 @@ type bindingNotice struct {
 }
 
 func validBindingNotice(n bindingNotice) bool {
-	return n.Ordinal != 0 && n.NativeID != "" && len(n.NativeID) <= 512 && utf8.ValidString(n.NativeID) && strings.IndexFunc(n.NativeID, unicode.IsControl) < 0
+	return n.Ordinal != 0 && nativeid.Validate(n.NativeID) == nil
 }
 
 // NotifyBinding only transfers an already-committed current-launch decision.
