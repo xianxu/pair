@@ -267,3 +267,43 @@ func TestResourceNativeCost(t *testing.T) {
 	}
 	t.Logf("passes=%d CPU_mean_ms=%.3f CPU_max_ms=%.3f sixty_second_mean_cpu_pct=%.6f calibration_calls=1 (process initialization)", passes, float64(sum)/passes/1e6, float64(maxCPU)/1e6, float64(sum)/passes/float64(60*time.Second)*100)
 }
+
+// A user binary's inherited environment is readable (pair#606); the test
+// binary re-execs itself as that child.
+func TestResourceEnvironmentOfAChild(t *testing.T) {
+	if os.Getenv("PAIR_RESOURCE_ENV_CHILD") == "1" {
+		time.Sleep(10 * time.Second)
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestResourceEnvironmentOfAChild$")
+	cmd.Env = append(os.Environ(), "PAIR_RESOURCE_ENV_CHILD=1", "COUCH_THREAD_SCOPE=probe-scope", "COUCH_THREAD_TAG=probe-tag")
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	defer cmd.Wait()
+	defer cmd.Process.Kill()
+	var r NativeResourceReader
+	for deadline := time.Now().Add(5 * time.Second); ; time.Sleep(20 * time.Millisecond) {
+		table, _, err := r.Table(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, p := range table {
+			if p.PID != cmd.Process.Pid {
+				continue
+			}
+			got, _, err := r.Environment(ctx, p, "COUCH_THREAD_SCOPE", "COUCH_THREAD_TAG")
+			if err == nil && got["COUCH_THREAD_SCOPE"] == "probe-scope" && got["COUCH_THREAD_TAG"] == "probe-tag" && len(got) == 2 {
+				return
+			}
+			if time.Now().After(deadline) {
+				t.Fatalf("environment %v %v", got, err)
+			}
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("child not in the process table")
+		}
+	}
+}

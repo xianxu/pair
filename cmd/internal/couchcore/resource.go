@@ -55,15 +55,17 @@ type ResourceUsageObservation struct {
 	Reason                              string
 }
 type ResourceCost struct {
-	CPUKnown      bool          `json:"cpu_known"`
-	StorageBytes  uint64        `json:"storage_bytes"`
-	StorageWrites int           `json:"storage_writes"`
-	TableCalls    int           `json:"table_calls"`
-	UsageCalls    int           `json:"usage_calls"`
-	CommandCalls  int           `json:"command_calls"`
-	NativeCalls   int           `json:"native_calls"`
-	CPUTimeNS     uint64        `json:"cpu_time_ns"`
-	WallTime      time.Duration `json:"wall_time"`
+	CPUKnown      bool   `json:"cpu_known"`
+	StorageBytes  uint64 `json:"storage_bytes"`
+	StorageWrites int    `json:"storage_writes"`
+	TableCalls    int    `json:"table_calls"`
+	UsageCalls    int    `json:"usage_calls"`
+	CommandCalls  int    `json:"command_calls"`
+	// EnvironmentCalls read launchd children's inherited thread (pair#606).
+	EnvironmentCalls int           `json:"environment_calls"`
+	NativeCalls      int           `json:"native_calls"`
+	CPUTimeNS        uint64        `json:"cpu_time_ns"`
+	WallTime         time.Duration `json:"wall_time"`
 }
 type ResourceSample struct {
 	At                time.Time

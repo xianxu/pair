@@ -1,12 +1,20 @@
 ---
 id: 000606
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-15
-updated: 2026-10-15
+updated: 2026-10-16
 estimate_hours:
-card_mirror: '50e51dbd7a58f0ed8690dbc8ece01fb2955a61c0' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '0e04b4f252bb1153c34939153905f5c31832722a' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-16T12:04:56-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:2
+    worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Resource monitor: a slot's detached test suite (sdlc local-check) is reported as orphans; attribute it to the slot

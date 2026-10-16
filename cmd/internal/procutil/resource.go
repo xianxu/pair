@@ -18,6 +18,7 @@ type resourceCalls interface {
 	usageRead(int) (ResourceUsage, error)
 	identityRead(int) (Process, error)
 	commandRead(int) (CommandInfo, error)
+	environmentRead(int) ([]byte, error)
 	selfCPURead() (uint64, error)
 }
 
@@ -147,6 +148,31 @@ func (r NativeResourceReader) Command(ctx context.Context, p Process) (CommandIn
 		return CommandInfo{}, 1 + n, err
 	}
 	return u, 1 + n, nil
+}
+
+// Environment returns the named variables of p's initial environment,
+// fenced on p's identity like Command. macOS withholds a platform binary's
+// environment (zsh, sleep), which reads as an empty map, not an error.
+func (r NativeResourceReader) Environment(ctx context.Context, p Process, keys ...string) (map[string]string, int, error) {
+	if err := resourceInput(ctx, p); err != nil {
+		return nil, 0, err
+	}
+	c := r.backend()
+	if c == nil {
+		return nil, 0, ErrUnsupported
+	}
+	raw, err := c.environmentRead(p.PID)
+	if ctx.Err() != nil {
+		return nil, 1, ctx.Err()
+	}
+	if err != nil {
+		return nil, 1, err
+	}
+	n, err := resourceFence(ctx, c, p)
+	if err != nil {
+		return nil, 1 + n, err
+	}
+	return ParseEnvironment(raw, keys...), 1 + n, nil
 }
 
 // SelfCPU measures the calling OS thread. Lock the goroutine to its OS thread

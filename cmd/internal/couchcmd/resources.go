@@ -18,6 +18,7 @@ type resourceReader interface {
 	Table(context.Context) ([]procutil.Process, int, error)
 	Usage(context.Context, procutil.Process) (procutil.ResourceUsage, int, error)
 	Command(context.Context, procutil.Process) (procutil.CommandInfo, int, error)
+	Environment(context.Context, procutil.Process, ...string) (map[string]string, int, error)
 	SelfCPU(context.Context) (uint64, int, error)
 }
 
@@ -33,6 +34,50 @@ type resourceSampler struct {
 	persist func(context.Context, couchcore.ResourceView) (couchcore.ResourceCost, error)
 	alerts  func(context.Context, *couchcore.ResourceState) error
 	cached  atomic.Pointer[couchcore.ResourceView]
+	// threads caches each launchd child's inherited thread by process
+	// generation (pair#606): an environment never changes after exec, so each
+	// process costs one read in its lifetime. Only run touches it.
+	threads map[couchcore.ResourceProcessKey]inheritedThread
+}
+
+type inheritedThread struct {
+	thread couchcore.ThreadAddress
+	ok     bool
+}
+
+// inheritedThread answers DetachedSlotRoots from each process's environment,
+// reading a generation once and forgetting generations that left the table.
+func (s *resourceSampler) inheritedThread(ctx context.Context, r resourceReader, table []procutil.Process, sample *couchcore.ResourceSample) func(procutil.Process) (couchcore.ThreadAddress, bool) {
+	live := make(map[couchcore.ResourceProcessKey]bool, len(table))
+	for _, p := range table {
+		live[couchcore.ResourceProcessKey{PID: p.PID, Identity: p.Identity}] = true
+	}
+	for k := range s.threads {
+		if !live[k] {
+			delete(s.threads, k)
+		}
+	}
+	if s.threads == nil {
+		s.threads = map[couchcore.ResourceProcessKey]inheritedThread{}
+	}
+	return func(p procutil.Process) (couchcore.ThreadAddress, bool) {
+		k := couchcore.ResourceProcessKey{PID: p.PID, Identity: p.Identity}
+		if c, ok := s.threads[k]; ok {
+			return c.thread, c.ok
+		}
+		env, calls, err := r.Environment(ctx, p, "COUCH_THREAD_SCOPE", "COUCH_THREAD_TAG")
+		sample.Cost.EnvironmentCalls += calls
+		sample.Cost.NativeCalls += calls
+		if ctx.Err() != nil {
+			return couchcore.ThreadAddress{}, false
+		}
+		// Another user's process, or one that exited, answers no thread for
+		// its lifetime; neither is worth an error line every sample.
+		c := inheritedThread{thread: couchcore.ThreadAddress{RepoScope: env["COUCH_THREAD_SCOPE"], Tag: couchcore.ThreadTag(env["COUCH_THREAD_TAG"])}}
+		c.ok = err == nil && c.thread.RepoScope != "" && c.thread.Tag != ""
+		s.threads[k] = c
+		return c.thread, c.ok
+	}
 }
 
 // run samples immediately, then serially on cadence. The service owns joining
@@ -105,6 +150,7 @@ func (s *resourceSampler) pass(ctx context.Context) {
 		sample.Errors = append(sample.Errors, "process table limit exceeded")
 	}
 	sample.Table = table
+	sample.Slots = couchcore.DetachedSlotRoots(table, sample.Slots, s.inheritedThread(ctx, r, table, &sample))
 	selection := couchcore.SelectResourceProcesses(table, sample.Slots, s.state.Provenance, sample.TableKnown, sample.InventoryComplete)
 	rows := make(map[couchcore.ResourceProcessKey]procutil.Process, len(table))
 	pidCounts := map[int]int{}
