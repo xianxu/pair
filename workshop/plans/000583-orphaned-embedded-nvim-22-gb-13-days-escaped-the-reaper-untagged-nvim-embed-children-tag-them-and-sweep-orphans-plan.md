@@ -800,3 +800,60 @@ func ClassifyOrphanNvim(row procutil.Process, args []string, cwd string, cwdKnow
   Rule taken: a fix commit is verified against every package's tests — including grep/AST guards like
   `artifactpath`'s, which read production sources no test in the touched package imports — not only the
   new targeted test.
+- **2026-10-16 — M1 boundary review round 3 (BR-6 Important): attribution has to name the owner, and the
+  review kind's did not.** Reason: round 3 disposed BR-5 and found the class under it. `nvim_reap_os.go` set
+  `ExpectedAssetBase: "review.lua"` as the review kind's whole attribution, and every tag's review pane runs
+  that config. Pid records store no start stamp, so the identity fence only catches a reuse *after* the
+  snapshot: a dead tag A's surviving `nvim-pid-A-review` naming a pid tag B's live review embed now holds
+  passed every check — owner dead, name nvim, exact `--embed`, `review.lua` present — and SIGKILLed B's
+  pane. A case in the classifier table pinned the unsafe behaviour outright ("review kind expects no scope
+  path" → kill).
+  Delta, stated once in the classifier: **a recycled pid is safe only for a kind whose argv names its
+  owner.** `NvimReapRow` gained `ExpectArgvPath`, and `ClassifyNvimReap` now requires at least one
+  owner-naming form (`ExpectArgvPath` / `ExpectArgvTag`) to be both stated and satisfied; a row stating
+  neither returns the new `attribution unknown` and is never killed. `ExpectedAssetBase` is demoted to
+  corroboration — it still refuses `argv runs another config`, but it names the kind, never the owner, so
+  it cannot satisfy the requirement alone.
+  *The review kind's owner check:* `nvimSidecarsFor` sets `ExpectArgvPath` plus
+  `ReviewState = paths.ReviewTarget()`, and `decideOne` resolves that state before deciding
+  (`reviewAttribution`), so `ExpectedArgPath` is the file **this tag's own** review state names. That state
+  is the only place recording it: a review pane serves a file anywhere in the user's tree (`RunOpen` joins
+  `LogicalDir(file)` to its base), so its argv carries no scope path. `reviewcmd.TargetFileOf` is the
+  reader, exported beside `targetJSON` and pinned to it by `TestTargetFileOf`. A state that is gone,
+  unreadable or names no file leaves the field empty — missing evidence, so the candidate skips and keeps
+  its record (`reapKeepsRecord` gained `attribution unknown`), never a pass.
+  *Residual gap, deliberate:* argv is fixed at spawn (`RunOpen` passes the file it was asked to open), while
+  the state is rewritten per `:PairReview` and per prepare receipt, so an Alt+C **retarget** to a different
+  file leaves the two naming different files and the embed unattributable — the sweep skips it and keeps the
+  record. That is the safe direction (no wrong kill), the window is one retargeted pane, the embed normally
+  dies with its pane (~31 ms on stdin EOF, Task 7 (d)), and the record is `GCCollectable`, so it does not
+  accumulate. Closing it would need the record to carry the served file — the record-format change rejected
+  below — and it is not worth a wrong-kill risk in the other direction.
+  Two remedies were measured and rejected. Storing a start stamp in the record: `procutil.Identity` is a
+  wall clock on darwin but **ticks since boot** on linux, so comparing one needs a per-OS parser and would
+  either refuse every kill on linux or be inert there. Fencing on the record's mtime measures the wrong
+  thing — a record is rewritten per activation, and mtime is not the process's start. Attribution through
+  the owner's own state needs neither a new record format nor OS-specific time parsing.
+  Tests: five review cases replace the one that pinned the kill (attributed by its tag's file → kill; argv
+  serves another tag's document → `argv serves another path`; state names no file → `attribution unknown`;
+  a kind-wide asset name attributes no owner → `attribution unknown`; argv runs another config →
+  `argv runs another config`); the drop-invariant test gained an `attribution` mutation; the sweep gained
+  the cross-tag regression at its own level (A's record and A's state, the pid holding a pane serving
+  another file → no signal, stale record gone) and a "state names no file" case that keeps the record.
+  `TestNvimSidecarsGiveEveryKindArgvEvidence`'s invariant is now "every kind carries owner-naming
+  attribution", the drift guard for a fifth kind arriving with a kind-wide predicate. Atlas: the sweep
+  paragraph (`:385`) and the sidecar row (`:1256`) now state the owner-naming rule and that the record
+  alone is not the attribution.
+  *Round 3's two Minor ARCH-DRY notes, disposed rather than silently dropped.* (i) The VimLeave
+  "remove if it still names me" block in the four lua configs stays four copies, on the reasoning Task 6/7's
+  revision (a) recorded and this round re-confirmed: `tests/nvim-pidfile-lifecycle-test.sh` runs all four
+  through the same four properties (20 assertions), which proves each copy *correct* rather than identical,
+  and a shared `nvim/pidfile.lua` would still need two entry points for the two publish shapes
+  (`VimEnter`+`pcall` vs `review.lua`'s per-activation synchronous write) plus a non-Go production source in
+  the artifact inventory. (ii) `gc.go`'s hand-listed changelog suffixes get a guard, not a refactor:
+  `TestGCChangelogSiblingsAreAllRecognized` asserts every sibling of a session-carrying base — the viewer's
+  `.nvim-pid` and the agent-keyed `.ready` included — yields a `changelog` candidate, so a suffix dropped
+  from `ownerCandidates`' list turns it red (teeth proven by deleting `.nvim-pid` from the list: red on that
+  one sibling, then reverted). Truly single-sourcing the literals in Go costs reflection, a sentinel probe,
+  or a parallel field enumeration, each of which re-lists the seven members somewhere; guarding the
+  behaviour removes the drift risk the finding names without the machinery.

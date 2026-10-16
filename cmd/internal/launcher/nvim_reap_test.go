@@ -15,8 +15,19 @@ func reapRow() NvimReapRow {
 		Args:            []string{"nvim", "--embed", "-u", "/pair/nvim/init.lua", "/data/repos/scope/draft-work.md"},
 		ArgsKnown:       true,
 		OwnerLive:       false,
+		ExpectArgvPath:  true,
 		ExpectedArgPath: "/data/repos/scope/draft-work.md",
 	}
+}
+
+// reviewRow turns the fully-evidenced draft row into a fully-evidenced review
+// row. The file a review pane serves is arbitrary, so the owner-naming evidence
+// is the file this tag's own review state names, corroborated by the config
+// every pair review pane runs.
+func reviewRow(r *NvimReapRow) {
+	r.Kind = "review"
+	r.Args = []string{"nvim", "--embed", "-u", "/pair/nvim/review.lua", "/docs/spec.md"}
+	r.ExpectedArgPath, r.ExpectedAssetBase = "/docs/spec.md", "review.lua"
 }
 
 // #583: every field of a row is untrusted input, so the table drives one field
@@ -112,10 +123,39 @@ func TestClassifyNvimReapKillsOnlyOnCompleteIdentity(t *testing.T) {
 			reason: "argv serves another path",
 		},
 		{
-			name:   "review kind expects no scope path",
-			mutate: func(r *NvimReapRow) { r.Kind = "review"; r.ExpectedArgPath = ""; r.Args = []string{"nvim", "--embed"} },
+			name:   "review kind attributed by its own tag's target file",
+			mutate: reviewRow,
 			kill:   true,
 			reason: "owner dead",
+		},
+		{
+			// #583 BR-6: the pid a dead tag's review record names can be held by
+			// another tag's live review pane by now. The config's base name is in
+			// both argv, so only the file the record's own tag state names decides.
+			name:   "review argv serves another tag's document",
+			mutate: func(r *NvimReapRow) { reviewRow(r); r.ExpectedArgPath = "/docs/theirs.md" },
+			reason: "argv serves another path",
+		},
+		{
+			name:   "review state names no file",
+			mutate: func(r *NvimReapRow) { reviewRow(r); r.ExpectedArgPath = "" },
+			reason: "attribution unknown",
+		},
+		{
+			name: "a kind-wide asset name attributes no owner",
+			mutate: func(r *NvimReapRow) {
+				r.Kind, r.Args = "review", []string{"nvim", "--embed", "-u", "/pair/nvim/review.lua", "/docs/spec.md"}
+				r.ExpectArgvPath, r.ExpectedArgPath, r.ExpectedAssetBase = false, "", "review.lua"
+			},
+			reason: "attribution unknown",
+		},
+		{
+			name: "review argv runs another config",
+			mutate: func(r *NvimReapRow) {
+				reviewRow(r)
+				r.Args = []string{"nvim", "--embed", "-u", "/pair/nvim/init.lua", "/docs/spec.md"}
+			},
+			reason: "argv runs another config",
 		},
 	}
 
@@ -150,6 +190,7 @@ func TestClassifyNvimReapNeverKillsOnMissingEvidence(t *testing.T) {
 		"argv":        func(r *NvimReapRow) { r.Args = nil },
 		"embed field": func(r *NvimReapRow) { r.Args = []string{"nvim"} },
 		"expected":    func(r *NvimReapRow) { r.Args = []string{"nvim", "--embed"} },
+		"attribution": func(r *NvimReapRow) { r.ExpectArgvPath, r.ExpectedArgPath = false, "" },
 		"live owner":  func(r *NvimReapRow) { r.OwnerLive = true; r.PPID = 99 },
 	}
 	for name, mutate := range drop {

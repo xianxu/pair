@@ -550,3 +550,70 @@ source-parsing guards, and measure a reviewer's suggested remedy before adopting
 Verified: `gofmt -l` clean on the three touched packages; the whole `go test ./cmd/internal/... -count=1`
 passes with no failures (the run that had never been made); `make runtimebundle-generate
 test-nvim-pidfile` 20/20 across the four lua configs.
+
+### 2026-10-16 — M1 boundary review round 3: BR-6, attribution named the kind and not the owner
+
+Round 3 disposed BR-5 as `addressed` (measured again in its own fenced checkout: the manifest entry is what
+keeps `TestProductionArtifactReferencesAreExactlyClassified` green) and raised one new Important finding,
+BR-6, family `kill-attribution-must-name-owner`. It is real, and it is worse than a gap in one kind: an
+existing case in my own classifier table pinned the unsafe behaviour as intended ("review kind expects no
+scope path" → kill).
+
+The defect. `nvim_reap_os.go` gave the review kind `ExpectedAssetBase: "review.lua"` as its whole
+attribution, and every tag's review pane runs that config. Pid records store no start stamp, so the
+identity fence only catches a pid reuse that happens *after* the snapshot is taken. Put the two together:
+tag A dies leaving `nvim-pid-A-review` behind, the kernel recycles that pid to tag B's live review embed,
+and the next sweep reads owner A as dead, sees the `nvim` name, an exact `--embed` field and `review.lua`
+in argv, and SIGKILLs B's pane. Every check passed and none of them said whose pane it was.
+
+The fix is stated once, in the classifier, because that is where the rule belongs: **a recycled pid is safe
+only for a kind whose argv names its owner.** `NvimReapRow` gained `ExpectArgvPath`, and
+`ClassifyNvimReap` now requires at least one owner-naming form (`ExpectArgvPath` / `ExpectArgvTag`) to be
+both stated and satisfied; a row stating neither returns the new reason `attribution unknown` and is never
+killed. `ExpectedAssetBase` is demoted to corroboration — it still refuses `argv runs another config`, but
+it names the kind, so it can no longer carry a kill by itself.
+
+The review kind's owner-naming field is the file **its own tag's** `review-target-<tag>.json` names,
+resolved in `decideOne` before the decision (`reviewAttribution`) and read by the new
+`reviewcmd.TargetFileOf`, exported beside `targetJSON` and pinned to it by `TestTargetFileOf`. That state is
+the only place recording the file: a review pane serves a path anywhere in the user's tree (`RunOpen` joins
+`LogicalDir(file)` to its base), so its argv carries no scope path at all. A state that is gone, unreadable
+or names no file leaves the field empty — missing evidence, so the candidate skips and keeps its record
+(`reapKeepsRecord` gained `attribution unknown`), never a pass.
+
+Two remedies the finding offered were measured and rejected. Storing a start stamp in the record:
+`procutil.Identity` is a wall clock on darwin (`P_starttime`) but **ticks since boot** on linux, so
+comparing one needs a per-OS parser and would either refuse every kill on linux or be inert there. Fencing
+on the record's mtime measures the wrong quantity — `review.lua` republishes per activation, and a file's
+mtime is not a process's start. Attribution through the owner's own state needs neither a new record format
+nor OS-specific time parsing.
+
+Tests. Five review cases replace the one that pinned the kill (attributed by its tag's file → kill; argv
+serves another tag's document → `argv serves another path`; state names no file → `attribution unknown`; a
+kind-wide asset name attributes no owner → `attribution unknown`; argv runs another config →
+`argv runs another config`). The drop-one-predicate invariant gained an `attribution` mutation. At the reap
+level the BR-6 shape is a case of its own, and at the sweep level too: A's record plus A's state, the pid
+holding a pane that serves another file → no signal, and the stale record removed because it names a
+process that is not this tag's. A sweep case with a state naming no file keeps the record.
+`TestNvimSidecarsGiveEveryKindArgvEvidence`'s invariant is now "every kind carries owner-naming
+attribution", which is the drift guard for a fifth kind arriving with a kind-wide predicate.
+
+Round 3's two Minor ARCH-DRY notes are disposed in the plan's `## Revisions`, not dropped: the four lua
+VimLeave copies stay copies (the lifecycle test runs all four through the same four properties, which
+proves each correct rather than identical), and `gc.go`'s hand-listed changelog suffixes get a behavioural
+guard — `TestGCChangelogSiblingsAreAllRecognized` fails if a suffix leaves `ownerCandidates`' list, teeth
+proven by deleting `.nvim-pid` from it.
+
+Verified: `gofmt -l` clean on the three touched packages; `go build ./...` and `go vet` clean;
+`go test ./cmd/internal/launcher/ ./cmd/internal/reviewcmd/ ./cmd/internal/artifactpath/ -count=1` ok
+(66.0s / 47.9s / 22.1s), with the two packages that gained tests after that run repeated in full
+(13.7s / 9.2s). `PAIR_LIVE_NVIM_REAP=1 go test ./cmd/internal/launcher/ -run TestLiveNvimReap -count=1`
+PASS 3/3 (0.305s). The whole `go test ./cmd/internal/... -count=1` (BR-5's rule) returned one failure,
+`couchcore`'s `TestPublicWarmAttachCompletionNeedsListingNotLifecycleOwner`: it sets
+`resumeRegistrationTimeout = 100ms` around a real `zellij list-sessions --short`, three other slots were
+compiling with `-race` at the time, and it passes 3/3 on a re-run (`ok 1.885s`) with the real listing
+answering in 0.14s — host load, not this diff. Teeth: the red was the new field (three `unknown field
+ExpectArgvPath` sites), and the behaviour it replaces is documented by the case this fix *deleted* —
+"review kind expects no scope path" asserted a kill on `nvim --embed` plus `review.lua` alone. Deleting
+`.nvim-pid` from `ownerCandidates`' suffix list turns the new GC guard red on exactly that sibling
+(reverted, `git diff` clean for `gc.go`).

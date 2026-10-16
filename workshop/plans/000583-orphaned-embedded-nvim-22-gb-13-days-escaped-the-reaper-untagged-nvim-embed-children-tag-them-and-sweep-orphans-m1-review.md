@@ -223,3 +223,117 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-16T14:36:49-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 583 — Orphaned embedded nvim (22 GB, 13 days) escaped the reaper: untagged 'nvim --embed' children; tag them and sweep orphans |
+| repo | pair |
+| issue file | workshop/issues/000583-orphaned-embedded-nvim-22-gb-13-days-escaped-the-reaper-untagged-nvim-embed-children-tag-them-and-sweep-orphans.md |
+| boundary | milestone M1 |
+| milestone | M1 |
+| window | 758c4b72216ed740e7167f241e8287d2d6db25c6..283e2314a2baae3ace0e1e981c1f034e2fd5d4cc |
+| command | sdlc milestone-close --issue 583 --milestone M1 |
+| reviewer | claude |
+| isolation | fenced |
+| timestamp | 2026-10-16T14:36:49-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+First, BR-5: check the last commit and run the tests.
+
+BR-5 checks out: the coverage test goes red with the fix removed and green with it in place. Next I'm reviewing the reaper code itself against the plan.
+
+Checking where the review pane's pid record gets written, and whether the classifier stays fast on the quit path.
+
+Found one likely gap: a stale review-pane record could kill another tag's live review pane after pid reuse. Running the shell lifecycle test, then writing up.
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: medium
+```
+
+BR-5 is fixed. At head, `go test ./cmd/internal/...` passes in every package the diff touches. The one failure is `broadcast/TestNamedTunnelServesFromPrivateSocket`. That package is outside the diff, and the same test fails the same way at base `758c4b72`, so it comes from this host, not this change. The fix is also confirmed by reversal: with only `manifest.go` put back to its `283e2314a^` state, `TestProductionArtifactReferencesAreExactlyClassified` goes red on `"pair-changelog-open: write %s: %v\n"`, and it goes green again at head. The four sidecar configs also pass `tests/nvim-pidfile-lifecycle-test.sh` end to end against real nvim.
+
+The reap design holds up: one closed kind set, a pure classifier and an identity fence just before the signal. One new correctness gap remains. The `review` kind's argv check proves "some pair review pane", not "this tag's review pane". A pid record holds only a pid, with no start stamp. So a stale review record from a dead tag can authorize SIGKILL of another live tag's review pane if the pid is reused. It is cheap to fix and should be closed before crossing the boundary.
+
+1. **Strengths**
+   - `ClassifyNvimReap` (`cmd/internal/launcher/nvim_reap.go:72`) is truly pure. Every skip returns a named reason, and the argv checks compare whole fields, not substrings. `TestNvimSidecarsGiveEveryKindArgvEvidence` stops any new kind that arrives without argv evidence.
+   - `NvimKinds()` (`artifactpath/paths.go:290`) is now the single source. GC, the rename inventory, the quit path, the reaper and the sweep all derive from it, and the hand-written `{draft, scrollback}` lists are gone.
+   - Every name-based kill is gone (`pkill -f`, `kill -9 <pid>` through a subprocess). The only signal left is `syscall.Kill` to a pid whose start stamp is re-read just before the kill (`nvim_reap_os.go:368-371`).
+   - The VimLeave cleanup deletes a record only if it still names this process. The shell test covers that rule for all four configs, including "a later embed republished the record".
+   - BR-2's refusal (`opener/run.go:192`) makes the openlock's absence trustworthy as evidence that the opener is dead.
+
+2. **Critical findings**: none.
+
+3. **Important findings**
+   - `cmd/internal/launcher/nvim_reap_os.go:101` (`ExpectedAssetBase` for review) and `nvim_reap.go:107`:
+     - **What's wrong:** the review kind's check is "argv carries `review.lua`". Every tag's review pane has that, so it doesn't tie the process to the record's owner. The record holds a bare pid with no stored identity. The identity fence only catches reuse *between the snapshot and the signal*, not between the record write and the snapshot.
+     - **How it fails:** tag A's review embed dies without reaching VimLeave (crash or reboot), so `nvim-pid-A-review` survives. Its pid is later reused by tag B's live review embed. The next sweep treats A as dead, all checks pass, and tag B's live pane is SIGKILLed.
+     - **Why the plan doesn't cover it:** the plan's ARCH-ORDER paragraph (plan §State, lines 122-126) says the predicates make a recycled pid safe. That holds for draft (exact path), scrollback (tag parse) and changelog (exact log path), but not for review.
+     - **Missing test:** no test covers "dead tag's review record at a pid that is another live tag's review embed".
+     - **Fix sketch, either of:**
+       - (a) attribute review to its owner by checking that argv carries the file named by the tag's own review state (`ReviewTarget`/`ReviewOpen`);
+       - (b) write the start stamp into the record and require it to match the snapshot.
+
+     Add the regression test either way. (ARCH-SECURE, ARCH-ORDER)
+
+4. **Minor findings**
+   - ARCH-DRY: the same VimLeave "remove if it still names me" block is pasted into `nvim/init.lua`, `scrollback.lua`, `review.lua` and `changelog.lua`. The VimEnter writer was already duplicated the same way. A small shared Lua helper would replace both.
+   - ARCH-DRY: `artifactpath/gc.go:265` hand-lists the changelog suffixes, now including `.nvim-pid`, in parallel with `changelogSiblings`. Deriving the list from the set would stop the two drifting apart.
+   - Environment: the `broadcast` named-tunnel test fails on this host at both base and head, so "whole suite green" claims need that caveat.
+
+5. **Test coverage notes**
+   - Classifier tests change one field at a time and assert reasons that are written down independently.
+   - Sweep tests run the production `reapNvimRows` against an injected `ProcessTable`. The record-backed vs. argv-only dedup and the reparented rule both have cases.
+   - The missing case is the review-kind cross-tag reuse above.
+   - The live conformance test skips where nvim is not available.
+
+6. **Architectural notes (per principle)**
+   - ARCH-DRY: pass for the Go side; Lua duplication is noted as Minor.
+   - ARCH-PURE: pass. The decision is pure, and the process table and the record files are injected.
+   - ARCH-PURPOSE: pass for M1. Every tag-keyed kind and the changelog viewer now leave a record and get reaped. Untagged orphans are M2, as the plan says.
+   - ARCH-MOCK: pass. A fake `ProcessTable`/`procutil.Source` sits behind the same seam production uses, and a live nvim conformance test exists.
+   - ARCH-CONSTRAINTS: pass. One snapshot per pass, one argv read per candidate, and argv reads limited to rows named nvim.
+   - ARCH-SECURE: **flag**. The review attribution doesn't name the owner (Important finding above).
+   - ARCH-ORDER: **flag**, same root cause. The "pid recycled between record write and reap" event is handled for three of the four kinds but not for review.
+   - ARCH-FUNERAL: pass. The new `changelog-*.nvim-pid` record is removed by a clean exit, by the reap, and by GC (it was added to the changelog family in `gc.go`).
+   - For M2: `UnattributedCandidate` should keep `argvCarriesField`'s exact-field `--embed` rule.
+
+7. **Plan revision recommendations**
+   - In §State, ordering and uncertainty, add a `## Revisions` entry stating that a recycled pid is safe only for kinds whose argv names the owner. Then state the review kind's owner check once the fix lands.
+
+```findings
+dispose:
+  - id: BR-5
+    disposition: addressed
+    note: |
+      manifest.go lists "pair-changelog-open: write %s: %v\n"; reverting manifest.go to 283e2314a^ turns TestProductionArtifactReferencesAreExactlyClassified red, and it is green at head; every touched package passes.
+findings:
+  - id: new
+    severity: Important
+    kind: defect
+    family: kill-attribution-must-name-owner
+    title: |
+      The review kind's argv check matches any tag's review pane, so a stale review record can kill another live tag's pane after pid reuse
+    detail: |
+      nvim_reap_os.go:101 sets ExpectedAssetBase "review.lua", which every pair review embed carries. Pid records store no start stamp, so the identity fence (nvim_reap_os.go:368) only catches reuse after the snapshot. Failure: a dead tag's surviving nvim-pid-A-review names a pid that tag B's live review embed now holds; the sweep reads owner A as dead, every check passes, and B's pane is SIGKILLed. Fix: attribute review to its owner (argv must carry the file in the tag's own review state), or store and compare the start stamp in the record. Add a cross-tag reuse regression test.
+```
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"c21e99db-6c8a-4925-be27-23b1ffc2ca14","repository":"github.com/xianxu/pair","issue_id":"000583","recipe":"milestone-review","round":3,"attempt":1,"agent":"claude","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/afeb1ecc6a482a45","reviewed_head":"283e2314a2baae3ace0e1e981c1f034e2fd5d4cc","slot":"pair:4","requested_at":"2026-10-16T21:20:31.703494Z"},"phase":"finished","pid":31489,"started_at":"2026-10-16T21:20:31.889529Z","finished_at":"2026-10-16T21:36:48.883475Z","session_id":"85886e49-ec5a-4130-861f-c0df95e294b7","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.689316625s
+head: "283e2314a2baae3ace0e1e981c1f034e2fd5d4cc"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

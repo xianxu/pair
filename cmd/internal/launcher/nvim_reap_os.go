@@ -60,10 +60,16 @@ type nvimSidecar struct {
 	// OwnerLive is false on a path that is itself the authorization to reap
 	// (quit, orphan reap); the sweep sets it from the live-tag set.
 	OwnerLive         bool
+	ExpectArgvPath    bool
 	ExpectedArgPath   string
 	ExpectArgvTag     bool
 	ArgvScopeDir      string
 	ExpectedAssetBase string
+	// ReviewState is the tag's review-target state, and only the review kind has
+	// one: the file its embed serves is anywhere in the user's tree, so the state
+	// is where the owner-naming argv field comes from (#583 BR-6). A state that
+	// names no file leaves the target unattributable, which skips.
+	ReviewState string
 }
 
 // nvimReapOutcome is one record's decided result. Killed reports a SIGKILL the
@@ -94,10 +100,15 @@ func nvimSidecarsFor(paths artifactpath.Paths, owner, scopeDir string, ownerLive
 		target := nvimSidecar{Path: paths.NvimPID(kind), Kind: kind, Owner: owner, OwnerLive: ownerLive}
 		switch kind {
 		case nvimKindDraft:
-			target.ExpectedArgPath = paths.Draft()
+			target.ExpectArgvPath, target.ExpectedArgPath = true, paths.Draft()
 		case nvimKindScrollback:
 			target.ExpectArgvTag, target.ArgvScopeDir = true, scopeDir
 		case nvimKindReview:
+			// The config's base name is in every tag's review argv, so it names the
+			// kind and never the owner (#583 BR-6): attribution comes from the file
+			// this tag's own review state names, resolved when the target is
+			// decided. The base stays as corroboration that argv is a pair pane.
+			target.ExpectArgvPath, target.ReviewState = true, paths.ReviewTarget()
 			target.ExpectedAssetBase = filepath.Base(reviewLuaAsset)
 		}
 		targets = append(targets, target)
@@ -208,6 +219,7 @@ func changelogSidecars(scope artifactpath.ScopePaths, records nvimSidecarIO, byP
 		targets = append(targets, nvimSidecar{
 			Path: set.NvimPID, Kind: nvimKindChangelog, Owner: set.Log,
 			OwnerLive:       openerLive(records, set.OpenLock, byPID),
+			ExpectArgvPath:  true,
 			ExpectedArgPath: set.Log,
 		})
 	}
@@ -257,7 +269,7 @@ func argvOnlyEmbeds(scope artifactpath.ScopePaths, table ProcessTable, scopeDir 
 		}
 		target := nvimSidecar{PID: row.PID, Owner: tag, OwnerLive: live[tag]}
 		if argvCarriesField(args, paths.Draft()) {
-			target.Kind, target.ExpectedArgPath = nvimKindDraft, paths.Draft()
+			target.Kind, target.ExpectArgvPath, target.ExpectedArgPath = nvimKindDraft, true, paths.Draft()
 		} else {
 			target.Kind, target.ExpectArgvTag, target.ArgvScopeDir = nvimKindScrollback, true, scopeDir
 		}
@@ -343,6 +355,7 @@ func decideOne(table ProcessTable, records nvimSidecarIO, target nvimSidecar, pi
 	outcome := nvimReapOutcome{Kind: target.Kind, Owner: target.Owner, Path: target.Path, PID: pid}
 	kill := false
 	if reason == "" {
+		target = reviewAttribution(records, target)
 		kill, reason = decideNvimSidecar(table, target, pid, byPID)
 	}
 	outcome.Reason = reason
@@ -357,6 +370,24 @@ func decideOne(table ProcessTable, records nvimSidecarIO, target nvimSidecar, pi
 		outcome.Removed = true
 	}
 	return outcome
+}
+
+// reviewAttribution resolves the one owner-naming field that is not derivable
+// from the scope's paths: a review embed serves a file anywhere in the user's
+// tree, so the file this tag's own review state names is what ties the pid to
+// the owner (#583 BR-6 — the config's base name is in every tag's review argv).
+// A state that is gone, unreadable or names no file leaves ExpectedArgPath
+// empty, which the classifier reads as missing evidence and skips.
+func reviewAttribution(records nvimSidecarIO, target nvimSidecar) nvimSidecar {
+	if target.ReviewState == "" {
+		return target
+	}
+	if raw, err := records.ReadFile(target.ReviewState); err == nil {
+		if file, ok := reviewcmd.TargetFileOf(raw); ok {
+			target.ExpectedArgPath = file
+		}
+	}
+	return target
 }
 
 // decideNvimSidecar is one record's decision, identity fence included: the
@@ -376,8 +407,8 @@ func decideNvimSidecar(table ProcessTable, target nvimSidecar, pid int, byPID ma
 		Kind: target.Kind, Owner: target.Owner, PID: pid, PPID: row.PPID,
 		Identity: row.Identity, Name: row.Name,
 		Args: args, ArgsKnown: argsKnown, OwnerLive: target.OwnerLive,
-		ExpectedArgPath: target.ExpectedArgPath, ExpectArgvTag: target.ExpectArgvTag,
-		ExpectedAssetBase: target.ExpectedAssetBase,
+		ExpectArgvPath: target.ExpectArgvPath, ExpectedArgPath: target.ExpectedArgPath,
+		ExpectArgvTag: target.ExpectArgvTag, ExpectedAssetBase: target.ExpectedAssetBase,
 	}
 	if candidate.ExpectArgvTag && argsKnown {
 		candidate.ArgvTag = argvTag(target.ArgvScopeDir, args)
@@ -404,13 +435,14 @@ func argvTag(scopeDir string, args []string) string {
 
 // reapKeepsRecord reports whether an undecided outcome must leave the record on
 // disk. Evidence that is merely missing -- a live owner, an unreadable identity
-// or argv -- keeps it for the next pass; a decided negative does not, because
-// the record then names a process that is not ours, or no process at all.
+// or argv, a review state that names no file -- keeps it for the next pass; a
+// decided negative does not, because the record then names a process that is not
+// ours, or no process at all.
 // Storage GC owns whatever the passes keep finding undecided
 // (artifactpath: nvim-pid is collectable).
 func reapKeepsRecord(reason string) bool {
 	switch reason {
-	case reapReasonOwnerLive, reapReasonIdentityUnknown, reapReasonArgvUnknown:
+	case reapReasonOwnerLive, reapReasonIdentityUnknown, reapReasonArgvUnknown, reapReasonNoAttribution:
 		return true
 	}
 	return false

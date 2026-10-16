@@ -177,6 +177,31 @@ func TestGCCollectableFamiliesHaveExactCandidates(t *testing.T) {
 	}
 }
 
+// Every sibling of a session-carrying changelog base must classify, the viewer's
+// pid record included (#583): ownerCandidates recovers the session by trying the
+// family's suffixes, so a suffix missing from that list leaves the sibling with
+// no candidate and invisible to retention. Ready is agent-keyed and carries no
+// session, and must classify anyway.
+func TestGCChangelogSiblingsAreAllRecognized(t *testing.T) {
+	o, _ := NewStorageOwner(t.TempDir(), "repo", "a")
+	p, _ := ResolveScoped(o.Directory(), o.Tag)
+	set, err := p.ChangelogArtifacts("codex", "sid1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, sibling := range []string{set.Log, set.Anchor, set.Cleaned, set.OpenLock, set.DistillLock, set.Status, set.NvimPID, set.Ready} {
+		found := false
+		for _, candidate := range ownerCandidates(p, sibling, []string{"codex"}) {
+			if candidate.Path == sibling && candidate.Family == "changelog" {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf("%s: no changelog candidate for this sibling", filepath.Base(sibling))
+		}
+	}
+}
+
 func TestGCAgentDraftAnchorCannotAuthorizeWrongOwner(t *testing.T) {
 	root := t.TempDir()
 	o, _ := NewStorageOwner(root, "repo", "a")

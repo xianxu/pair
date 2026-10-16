@@ -40,6 +40,18 @@ func targetJSON(file, status, session string) string {
 	return string(b)
 }
 
+// TargetFileOf reads the reviewed file back out of a target document. The
+// launcher's reap needs it as the review kind's owner-naming attribution: a
+// review embed serves a file anywhere in the user's tree, so the tag's own
+// target state is the only place that names it (#583).
+func TargetFileOf(content string) (string, bool) {
+	var doc targetDoc
+	if err := json.Unmarshal([]byte(content), &doc); err != nil || doc.File == "" {
+		return "", false
+	}
+	return doc.File, true
+}
+
 // definitionDoc is the review-definition-result-<tag>.json shape. The request
 // id disambiguates multiple requests over one tag-scoped result path.
 type definitionDoc struct {

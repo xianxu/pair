@@ -12,6 +12,7 @@ const (
 	reapReasonNotNvim         = "not nvim"
 	reapReasonArgvUnknown     = "argv unknown"
 	reapReasonNoEmbed         = "no --embed field"
+	reapReasonNoAttribution   = "attribution unknown"
 	reapReasonOtherPath       = "argv serves another path"
 	reapReasonOtherTag        = "argv serves another tag"
 	reapReasonOtherAsset      = "argv runs another config"
@@ -44,18 +45,30 @@ type NvimReapRow struct {
 	// evidence names. A kind states as much as its argv allows, and a candidate
 	// that cannot be attributed is never killed.
 	//
-	//   ExpectedArgPath   an exact argv field: the artifact the embed serves,
-	//                     for a kind whose path is deterministic (draft).
+	// Attribution has to name the *owner*, not merely the kind (#583): the pid a
+	// dead tag's record names can be held by another tag's live embed by now, so
+	// evidence every tag's embed shares authorizes no kill. ExpectArgvPath and
+	// ExpectArgvTag are the two owner-naming forms; a row stating neither is
+	// unattributable.
+	//
+	//   ExpectArgvPath    argv must carry ExpectedArgPath as an exact field: the
+	//                     artifact the embed serves. Deterministic for draft (the
+	//                     scope's own draft path) and for a changelog viewer (its
+	//                     .md); for review, whose file is anywhere in the user's
+	//                     tree, it is the file this tag's own review state names
+	//                     -- so an empty value means the state named none, which
+	//                     is missing evidence rather than a pass.
 	//   ExpectArgvTag     argv must be attributed to Owner by the scope's parser,
 	//                     for a kind whose path embeds a varying component
 	//                     (scrollback carries the agent). ArgvTag is that
 	//                     attribution; "" means argv carried no scope path.
-	//   ExpectedAssetBase the base name of the pair nvim asset argv must carry,
-	//                     for a kind whose argv names no scope path at all
-	//                     (review serves a file anywhere in the user's tree).
+	//   ExpectedAssetBase the base name of the pair nvim asset argv must carry.
+	//                     Corroboration only: every tag's review pane runs the
+	//                     same config, so it names the kind and never the owner.
 	//                     Base, not path: pair's install root differs per
 	//                     checkout, and an embed outlives the checkout that
 	//                     spawned it.
+	ExpectArgvPath    bool
 	ExpectedArgPath   string
 	ExpectArgvTag     bool
 	ArgvTag           string
@@ -64,8 +77,8 @@ type NvimReapRow struct {
 
 // ClassifyNvimReap decides one candidate. It kills only when the pid is
 // positive, the owner is identified, the identity is known, the short name is
-// nvim, argv is known and carries an exact "--embed" field, argv satisfies every
-// attribution the kind states, and the owner is dead or the process is
+// nvim, argv is known and carries an exact "--embed" field, argv carries
+// attribution naming that owner, and the owner is dead or the process is
 // reparented to launchd. Every skip returns a reason; nothing is signalled on
 // missing evidence.
 func ClassifyNvimReap(row NvimReapRow) (kill bool, reason string) {
@@ -87,11 +100,24 @@ func ClassifyNvimReap(row NvimReapRow) (kill bool, reason string) {
 	if !argvCarriesField(row.Args, "--embed") {
 		return false, reapReasonNoEmbed
 	}
-	if row.ExpectedArgPath != "" && !argvCarriesField(row.Args, row.ExpectedArgPath) {
-		return false, reapReasonOtherPath
+	attributed := false
+	if row.ExpectArgvPath {
+		if row.ExpectedArgPath == "" {
+			return false, reapReasonNoAttribution
+		}
+		if !argvCarriesField(row.Args, row.ExpectedArgPath) {
+			return false, reapReasonOtherPath
+		}
+		attributed = true
 	}
-	if row.ExpectArgvTag && row.ArgvTag != row.Owner {
-		return false, reapReasonOtherTag
+	if row.ExpectArgvTag {
+		if row.ArgvTag != row.Owner {
+			return false, reapReasonOtherTag
+		}
+		attributed = true
+	}
+	if !attributed {
+		return false, reapReasonNoAttribution
 	}
 	if row.ExpectedAssetBase != "" && !argvCarriesAssetBase(row.Args, row.ExpectedAssetBase) {
 		return false, reapReasonOtherAsset
