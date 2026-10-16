@@ -30,7 +30,8 @@ type resourceSampler struct {
 	policy  couchcore.ResourcePolicy
 	state   couchcore.ResourceState
 	now     func() time.Time
-	persist func(context.Context, couchcore.ResourceState, couchcore.ResourceView) (couchcore.ResourceState, couchcore.ResourceCost, error)
+	persist func(context.Context, couchcore.ResourceView) (couchcore.ResourceCost, error)
+	alerts  func(context.Context, *couchcore.ResourceState) error
 	cached  atomic.Pointer[couchcore.ResourceView]
 }
 
@@ -178,17 +179,21 @@ func (s *resourceSampler) pass(ctx context.Context) {
 		return
 	}
 	next, v, _ := couchcore.AdvanceResources(s.state, sample, s.policy)
-	if s.persist != nil {
-		updated, cost, err := s.persist(ctx, next, cloneResourceView(v))
-		v.Cost.StorageBytes = cost.StorageBytes
-		v.Cost.StorageWrites = cost.StorageWrites
-		next = updated // The callback preserves admitted effects even when saving fails.
-		if err != nil {
-			v.Errors = append(v.Errors, "resource persistence: "+err.Error())
+	if s.alerts != nil {
+		if err := s.alerts(ctx, &next); err != nil {
+			v.Errors = append(v.Errors, "resource alerts: "+err.Error())
 		}
 	}
 	s.state = next
 	v.Episodes = next.Episodes
+	if s.persist != nil {
+		cost, err := s.persist(ctx, cloneResourceView(v))
+		v.Cost.StorageBytes = cost.StorageBytes
+		v.Cost.StorageWrites = cost.StorageWrites
+		if err != nil {
+			v.Errors = append(v.Errors, "resource persistence: "+err.Error())
+		}
+	}
 	if s.history != nil {
 		v.HistoryOldest, v.HistoryFrames = s.history()
 	}

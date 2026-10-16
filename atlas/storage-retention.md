@@ -131,25 +131,20 @@ Verification lives beside these packages, in `nvim/retention_test.lua`, and in
 
 ## Resource monitor snapshots (#587)
 
-Couch's resource sampler owns a namespace-local checkpoint and rolling aggregate
-history, separate from `diagnosticlog` and its 365-day retention. The single
-supervisor writer uses `couchcore.ResourceSnapshotStore`: `checkpoint.json`
-(up to 2 MiB), `history.json` (up to 4 MiB), and one fixed replacement stage for
-each. Current files plus stages are bounded at 12 MiB; writes validate their
-encoded size and schema before publication. Nonregular files, symlinks,
-oversized input and malformed schemas refuse rather than being interpreted as
-empty ownership evidence.
+Couch's resource sampler owns one best-effort namespace-local aggregate history,
+separate from diagnosticlog's 365-day retention. ResourceHistoryStore writes
+resources/history.json (up to 4 MiB), with one fixed .history-stage replacement.
+Current file plus stage are bounded at 8 MiB. Existing safe-path, regular-file
+and no-follow checks protect reads and writes; oversized or invalid history is
+reported as lost continuity and a fresh bounded in-memory ring starts.
 
-The history writer prunes by sample age (24 hours), count (1,440 frames) and
-encoded bytes (4 MiB). Frames contain aggregate slot usage, orphan/unattributed
-summaries and coverage/cost metadata, not full argv or every process's history.
-The checkpoint preserves bounded generation provenance, baselines and alert
-admission state. Restart validates that state; it does not convert stale roots
-into live ownership or ambiguous delivery into permission to resend.
+History retains at most 24 hours, 1440 frames and 4 MiB of aggregate slot usage,
+orphan/unattributed summaries and coverage/cost metadata. The memory ring keeps
+advancing when a write fails. A crash may lose its tail; history failures never
+gate alerts. Ownership, rate baselines, episodes and delivery outcomes are only
+in memory. Restart re-arms advisory alerts, so a repeat is possible.
 
-While Couch is stopped the files remain bounded; the next load/write prunes
-expired history. No timer daemon runs solely to delete a stopped supervisor's
-snapshot. These namespace files are classified in `artifactpath`'s production
-source inventory as non-Pair artifacts and are not session-retention clock
-renewals or Pair tag-bearing families. The implementation and policy are mapped
-in [Couch resource monitoring](couch.md#resource-monitoring-587).
+While Couch is stopped the file remains bounded; the next load/write prunes
+expired frames. No cleanup daemon or checkpoint/intent files are created.
+Sources remain classified as namespace-owned non-Pair artifacts in artifactpath.
+See [resource monitoring](couch.md#resource-monitoring-587).

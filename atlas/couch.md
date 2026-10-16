@@ -3961,7 +3961,7 @@ or picker.
 `couchcore/resource*.go` owns pure generation-fenced attribution, deltas,
 episodes and bounded history; `couchcmd/resources_inventory.go` owns root
 refresh; `couchcmd/resources.go` owns sampling and storage; `resources_alert.go`
-owns checkpoint-before-send delivery. `procutil/resource*.go` provides the
+owns advisory broker delivery. `procutil/resource*.go` provides the
 native reader. Darwin with cgo supports cumulative process CPU, current RSS and
 physical disk-write bytes. Other builds report unsupported counters. PID reuse,
 changed parentage, zombies, partial reads and counter regression cannot become
@@ -3990,8 +3990,9 @@ Monitoring sends messages and does not kill, restart or renice anything.
 Set policy before starting Couch. Unknown or malformed resource settings refuse
 startup. Unknown measurements interrupt accumulation rather than clearing an
 already admitted incident. Alerts resolve the current owning hub and use normal
-broker delivery. Immutable envelopes are checkpointed before dispatch;
-ambiguous admission survives restart without an automatic duplicate send.
+broker delivery. Episodes live only in memory; retries within a run reuse the
+same effect ID. Restart begins fresh observations and may repeat an advisory
+alert; sustained thresholds accumulate their configured interval again.
 Unproven candidates remain report-only.
 
 The displayed cost records attempted native calls, sampler-thread CPU and wall
@@ -4001,17 +4002,16 @@ actual candidate-command calls. Sampler-thread CPU excludes concurrent GC and
 other goroutines. A native-reader-only short measurement after bulk conversion
 averaged 1.643 ms (maximum 2.391 ms), or 0.002739% of one core at 60-second
 cadence. Full sampling plus near-cap history persistence (953 frames,
-4,189,412 bytes, 27 usage observations) averaged 68.414 ms across three passes,
-maximum 69.011 ms: 0.114023% of one core per minute. The qualified target is
+4,189,412 bytes, 27 usage observations) averaged 72.438 ms across three passes,
+maximum 79.311 ms: 0.120730% of one core per minute. The qualified target is
 below 0.2%, with a 300 ms maximum pass CPU budget; the product requirement is
-well under 1%. This run used 58 native attempts and two snapshot publications
+well under 1%. This run used 58 native attempts and one history publication
 per pass. Current-pass final CPU is published in the cached view after storage
 completes; its history frame cannot include the completed cost of writing itself.
 
 History retains aggregate slot frames and orphan/unattributed summaries for at
-most 24 hours, 1,440 frames and 4 MiB. The separate checkpoint is capped at
-2 MiB. Both use fixed bounded replacement stages, at most 12 MiB including
-current files and stages. See [resource snapshot retention](storage-retention.md#resource-monitor-snapshots-587).
+most 24 hours, 1,440 frames and 4 MiB. Only history is persisted, best-effort, with one fixed replacement stage:
+at most 8 MiB including the current file and stage. See [resource snapshot retention](storage-retention.md#resource-monitor-snapshots-587).
 
 The cached response is a byte-budgeted projection (`resources_projection.go`)
 within the broker's frame envelope. It preserves all bounded slot aggregates,
@@ -4020,8 +4020,8 @@ for processes, orphans, unproven candidates, episodes and diagnostics. Projectio
 cost is included in sampling; queries only copy the cached result. Incomplete
 startup or capped inventories cannot prove owner disappearance.
 
-Checkpoint and history recovery are independent. Corrupt regular files rebuild
-with explicit continuity warnings; a valid checkpoint retains alert suppression
-when history is damaged. An invalid checkpoint starts without provenance or
-prior deduplication claims. Unsafe paths and transient I/O retry without
-replacement; restored checkpoints begin with fresh rate baselines.
+History read failures begin a fresh in-memory ring with a visible continuity
+warning. Write failures do not roll back that ring or gate alert delivery.
+Unsafe paths remain protected by the existing file checks. State, provenance,
+rate baselines and alert episodes end with the supervisor; pre-existing orphans
+remain unproven after restart unless fresh ownership evidence establishes them.

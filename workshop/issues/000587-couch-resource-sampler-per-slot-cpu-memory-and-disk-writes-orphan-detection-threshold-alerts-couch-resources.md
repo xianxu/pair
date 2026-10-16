@@ -37,10 +37,10 @@ Part of the ops project resource-observability (`ops/teams/devinfra/projects/res
 - **Thresholds → one hub alert per episode:** sustained disk writes (e.g. > 2 MB/s for 10 min), memory (e.g. one
   process > 8 GB), CPU (a slot pinned > 90% for 15 min while idle), any orphan over a memory floor. Thresholds are
   configuration with defaults; the alert names the slot, process, metric, value and duration, and is not repeated
-  until the episode ends.
+  until the episode ends within the supervisor run. Episodes are in memory; restart re-arms and may repeat advisory alerts.
 - **`couch --resources [--json]`** (light): the current per-slot table (CPU %, RSS, write rate, totals since start)
   plus orphans.
-- **A small rolling history** (bounded, e.g. last 24 h at 1-minute resolution) so the alert and the verb can show
+- **A small best-effort rolling history** (bounded, e.g. last 24 h at 1-minute resolution) so the alert and the verb can show
   rates; registered with pair's storage manifest so retention covers it.
 - Cheap by construction: the sample itself must be measured (a counted bound on syscalls per sample) and stay well
   under 1% of one core.
@@ -59,7 +59,7 @@ Durable plan: [Couch resource sampler](../plans/000587-couch-resource-sampler-pl
 - [x] Counted Darwin resource reader with real owned-child conformance.
 - [x] Pure generation-safe attribution, rates, provenance and alert episodes.
 - [x] Authenticated full-slot roots and supervisor-owned sampler lifecycle.
-- [x] Bounded restart-safe history and existing broker/hub delivery.
+- [x] Bounded best-effort history and existing broker/hub delivery.
 - [x] Cached resources CLI, configuration, docs and storage registration.
 - [ ] Targeted/full qualification, measured overhead, operator-coordinated live scratch-slot alert, SDLC review and landing.
 
@@ -139,3 +139,9 @@ Round2 accepted BR-1..BR-5, but returned REWORK for BR-6 (checkpoint byte envelo
 ### 2026-10-15 — TL-directed simplification, awaiting revised-scope approval
 
 Receipt e97f725a supersedes durable checkpoint/intent requirements: alerts are advisory, episode state stays in memory, restart re-arms, and only bounded best-effort 24h history remains durable. The detailed replacement scope is appended to the plan's Revisions. All checkpoint optimization work stopped; no simplification code yet. The steady sampling budget remains well under1% (latest normal-host test69.730ms mean,0.116217% at60s). After approval delete checkpoint/intent/codec machinery, retain simple broker admission plus pure in-memory suppression, prove history failures cannot block alerts, and report exact net line count before rerunning recorded suite/close. Live smoke and landing remain held.
+
+### 2026-10-15 — approved simplification implemented
+
+TL receipt c6eb8f79 approved6af7fb2e; change-code passed plan-quality CLEAN round5 and estimate-quality INFO. Deleted checkpoint/intent/outcome persistence, codecs/dictionaries and validation machinery. Episodes/provenance remain in memory; only bounded best-effort history is written. Real-broker advisory retry/dedup/recovery/restart tests and worker history-failure independence pass. Combined Resource|ProductionArtifact checks pass all6packages. Latest complete sampler cost with953frames/4,189,412seededbytes: mean72.438ms/max79.311ms CPU over3passes,0.120730% one core at60s;1043hostrows,27usageobservations,58nativeattempts,one history write perpass.
+
+Net tracked code/tests against pre-simplification5484a5363: +411/-991 = **580 lines deleted**, plus four discarded uncommitted codec/test files excluded from git's count. The earlier ~2000-line group included retained/replaced history and broker tests, so it was not a net-deletion promise. Current all-tracked delta before this Log is+570/-1051 (481netdeleted); close will report the code/test number. Recorded suite, finalclose and coordinated live smoke remain outstanding; no restart/stage/merge.

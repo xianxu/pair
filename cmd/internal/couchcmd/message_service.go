@@ -467,8 +467,9 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch, configur
 	service.workers.Add(1)
 	go func() { defer service.workers.Done(); rn.run(service.lifetime, reniceEvery) }()
 	inventory := newResourceInventory(console, c, service)
-	persistence := newResourcePersistence(namespace, newResourceAlertDispatcher(service))
-	sampler := &resourceSampler{reader: procutil.NativeResourceReader{}, slots: inventory.snapshot, policy: resourcePolicy, state: persistence.checkpoint.State, persist: persistence.persist, history: persistence.historySummary}
+	persistence := newResourceHistoryPersistence(namespace)
+	alerts := newResourceAlertDispatcher(service)
+	sampler := &resourceSampler{reader: procutil.NativeResourceReader{}, slots: inventory.snapshot, policy: resourcePolicy, alerts: alerts.dispatch, persist: persistence.persist, history: persistence.historySummary}
 	service.resources.Store(sampler)
 	service.workers.Add(2)
 	go func() { defer service.workers.Done(); inventory.run(service.lifetime) }()

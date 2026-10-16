@@ -3,7 +3,6 @@ package couchcore
 import (
 	"fmt"
 	"github.com/xianxu/pair/cmd/internal/procutil"
-	"math"
 	"sort"
 	"strings"
 	"time"
@@ -28,95 +27,8 @@ type ResourceState struct {
 	Previous               map[ResourceProcessKey]ResourcePrevious `json:"-"`
 }
 
-func ResetResourceBaselines(s ResourceState) ResourceState {
-	s.Previous = nil
-	s.SlotTotals = append([]ResourceSlotTotal{}, s.SlotTotals...)
-	s.Provenance = append([]ResourceProvenance{}, s.Provenance...)
-	s.Episodes = append([]ResourceEpisode{}, s.Episodes...)
-	for i, e := range s.Episodes {
-		if e.Phase == "accumulating" {
-			e.Phase = "clear"
-			e.Samples = 0
-			e.Since = time.Time{}
-			e.Last = time.Time{}
-			s.Episodes[i] = e
-		}
-	}
-	return s
-}
-func ValidateResourceState(s ResourceState) error {
-	if len(s.SlotTotals) > ResourceMaxSlots || len(s.Provenance) > ResourceMaxProcesses || len(s.Episodes) > ResourceMaxEpisodes {
-		return fmt.Errorf("resource state exceeds bounds")
-	}
-	totals := map[string]bool{}
-	for _, t := range s.SlotTotals {
-		k := t.Slot + "/" + t.Thread.RepoScope + "/" + string(t.Thread.Tag)
-		if t.Slot == "" || len(k) > 1024 || totals[k] {
-			return fmt.Errorf("invalid slot totals")
-		}
-		totals[k] = true
-	}
-	keys := map[ResourceProcessKey]bool{}
-	for _, p := range s.Provenance {
-		if p.Key.PID <= 0 || p.Key.Identity == "" || len(p.Key.Identity) > 256 || keys[p.Key] || p.Root.PID <= 0 || p.Root.Identity == "" || len(p.Slot) > 256 || p.Slot == "" {
-			return fmt.Errorf("invalid resource provenance")
-		}
-		keys[p.Key] = true
-		if err := p.Workspace.validate(); err != nil {
-			return fmt.Errorf("resource workspace: %w", err)
-		}
-	}
-	eps := map[string]bool{}
-	for _, e := range s.Episodes {
-		if e.Key == "" || len(e.Key) > 1024 || eps[e.Key] {
-			return fmt.Errorf("invalid episode key")
-		}
-		eps[e.Key] = true
-		switch e.Metric {
-		case "process-rss", "orphan-rss", "slot-write", "idle-cpu":
-		default:
-			return fmt.Errorf("invalid resource metric")
-		}
-		if e.Samples < 0 || e.Samples > 1000000 {
-			return fmt.Errorf("invalid sample count")
-		}
-		switch e.Phase {
-		case "clear", "accumulating", "pending", "notified":
-		default:
-			return fmt.Errorf("invalid episode phase")
-		}
-		switch e.Delivery {
-		case "": // Legacy checkpoints predate explicit delivery observations.
-		case ResourceDeliveryAdmitted:
-			if e.Phase != "notified" {
-				return fmt.Errorf("admitted delivery requires notified episode")
-			}
-		case ResourceDeliveryRefused, ResourceDeliveryUnknown:
-			if e.Phase != "pending" {
-				return fmt.Errorf("unadmitted delivery requires pending episode")
-			}
-		default:
-			return fmt.Errorf("invalid resource delivery outcome")
-		}
-		if (e.Phase == "pending" || e.Phase == "notified") && (e.Effect == nil || e.Effect.ID == "" || len(e.Effect.ID) > 256) {
-			return fmt.Errorf("missing episode effect")
-		}
-		if e.Effect != nil {
-			f := e.Effect
-			if len(f.Name) > 1024 || f.Metric != e.Metric || f.Slot == "" || len(f.Slot) > 256 || f.Duration < 0 || math.IsNaN(f.Value) || math.IsInf(f.Value, 0) || f.Value < 0 {
-				return fmt.Errorf("invalid resource effect")
-			}
-			if err := f.Workspace.validate(); err != nil {
-				return fmt.Errorf("effect workspace: %w", err)
-			}
-			if (e.Metric == "process-rss" || e.Metric == "orphan-rss") && (f.Process.PID <= 0 || f.Process.Identity == "") {
-				return fmt.Errorf("invalid effect generation")
-			}
-		}
-	}
-	return nil
-}
 func resourceFloat(v float64) *float64 { return &v }
+
 func AdvanceResources(state ResourceState, s ResourceSample, p ResourcePolicy) (ResourceState, ResourceView, []ResourceEffect) {
 	sel := SelectResourceProcesses(s.Table, s.Slots, state.Provenance, s.TableKnown, s.InventoryComplete && s.InventoryOmitted == 0)
 	next := ResourceState{Provenance: sel.Processes, Previous: map[ResourceProcessKey]ResourcePrevious{}, ObservedCPUTimeNS: state.ObservedCPUTimeNS, ObservedDiskWriteBytes: state.ObservedDiskWriteBytes}

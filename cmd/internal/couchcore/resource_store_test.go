@@ -2,172 +2,124 @@ package couchcore
 
 import (
 	"bytes"
-	"encoding/json"
-	"errors"
 	"os"
 	"path/filepath"
 	"testing"
 )
 
-func TestResourceSnapshotStoreValidatesBeforePublication(t *testing.T) {
-	validate := func(raw []byte) error {
-		if !json.Valid(raw) {
-			return errors.New("invalid JSON")
-		}
-		return nil
-	}
-	root, err := filepath.EvalSymlinks(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	s := ResourceSnapshotStore{Dir: filepath.Join(root, "resources"), ValidateCheckpoint: validate, ValidateHistory: validate}
-	if err := s.SaveCheckpoint([]byte(`{"generation":1}`)); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.SaveCheckpoint([]byte(`broken`)); err == nil {
-		t.Fatal("accepted corrupt checkpoint")
-	}
-	if err := s.SaveCheckpoint(bytes.Repeat([]byte(" "), ResourceCheckpointLimit+1)); err == nil {
-		t.Fatal("accepted oversized checkpoint")
-	}
-	c, h, err := s.Load()
-	if err != nil || string(c) != `{"generation":1}` || len(h) != 0 {
-		t.Fatalf("load %q %q %v", c, h, err)
-	}
-	info, err := os.Stat(filepath.Join(s.Dir, "checkpoint.json"))
-	if err != nil || info.Mode().Perm() != 0600 {
-		t.Fatalf("permissions %v %v", info, err)
-	}
-	if err := os.WriteFile(filepath.Join(s.Dir, "checkpoint.json"), []byte("corrupt"), 0600); err != nil {
-		t.Fatal(err)
-	}
-	if _, _, err := s.Load(); err == nil {
-		t.Fatal("admitted corrupt provenance")
-	}
-}
-
-func TestResourceSnapshotStoreRejectsSymlinksAndNonregularFiles(t *testing.T) {
-	for _, target := range []string{"checkpoint.json", "history.json", ".checkpoint-stage"} {
-		t.Run(target, func(t *testing.T) {
-			dir, err := filepath.EvalSymlinks(t.TempDir())
-			if err != nil {
-				t.Fatal(err)
-			}
-			outside := filepath.Join(t.TempDir(), "outside")
-			if err := os.WriteFile(outside, []byte(`{}`), 0600); err != nil {
-				t.Fatal(err)
-			}
-			if err := os.Symlink(outside, filepath.Join(dir, target)); err != nil {
-				t.Fatal(err)
-			}
-			s := ResourceSnapshotStore{Dir: dir, ValidateCheckpoint: func([]byte) error { return nil }, ValidateHistory: func([]byte) error { return nil }}
-			if target == ".checkpoint-stage" {
-				if err := s.SaveCheckpoint([]byte(`{}`)); err == nil {
-					t.Fatal("followed stage link")
-				}
-			} else {
-				if _, _, err := s.Load(); err == nil {
-					t.Fatal("followed link")
-				}
-			}
-		})
-	}
-}
-
-func TestResourceSnapshotStoreLoadsArtifactsIndependently(t *testing.T) {
-	for _, bad := range []string{"checkpoint.json", "history.json"} {
-		t.Run(bad, func(t *testing.T) {
-			dir, err := filepath.EvalSymlinks(t.TempDir())
-			if err != nil {
-				t.Fatal(err)
-			}
-			validate := func(raw []byte) error {
-				if !json.Valid(raw) {
-					return errors.New("malformed")
-				}
-				return nil
-			}
-			s := ResourceSnapshotStore{Dir: dir, ValidateCheckpoint: validate, ValidateHistory: validate}
-			for _, name := range []string{"checkpoint.json", "history.json"} {
-				raw := []byte(`{"valid":true}`)
-				if name == bad {
-					raw = []byte(`broken`)
-				}
-				if err := os.WriteFile(filepath.Join(dir, name), raw, 0600); err != nil {
-					t.Fatal(err)
-				}
-			}
-			cp, h, err := s.Load()
-			if err == nil {
-				t.Fatal("missing corruption error")
-			}
-			if bad == "checkpoint.json" && string(h) != `{"valid":true}` || bad == "history.json" && string(cp) != `{"valid":true}` {
-				t.Fatalf("valid sibling discarded: cp=%s history=%s err=%v", cp, h, err)
-			}
-		})
-	}
-}
-
-func TestResourceSnapshotStoreSeparatesCorruptionFromUnsafePaths(t *testing.T) {
-	for _, kind := range []string{"malformed", "oversized", "directory", "symlink"} {
-		t.Run(kind, func(t *testing.T) {
-			dir, err := filepath.EvalSymlinks(t.TempDir())
-			if err != nil {
-				t.Fatal(err)
-			}
-			s := ResourceSnapshotStore{Dir: dir, ValidateCheckpoint: func(b []byte) error {
-				if !json.Valid(b) {
-					return errors.New("bad JSON")
-				}
-				return nil
-			}}
-			p := filepath.Join(dir, "checkpoint.json")
-			switch kind {
-			case "malformed":
-				err = os.WriteFile(p, []byte("broken"), 0600)
-			case "oversized":
-				err = os.WriteFile(p, make([]byte, ResourceCheckpointLimit+1), 0600)
-			case "directory":
-				err = os.Mkdir(p, 0700)
-			case "symlink":
-				err = os.Symlink(filepath.Join(dir, "missing"), p)
-			}
-			if err != nil {
-				t.Fatal(err)
-			}
-			_, err = s.LoadCheckpoint()
-			var corrupt *ResourceSnapshotCorruptError
-			if err == nil || errors.As(err, &corrupt) != (kind == "malformed" || kind == "oversized") {
-				t.Fatalf("wrong recovery authority for %s: %v", kind, err)
-			}
-		})
-	}
-}
-
-func TestResourceSnapshotStoreReadPermissionFailureIsNotCorruption(t *testing.T) {
-	if os.Geteuid() == 0 {
-		t.Skip("root bypasses file permissions")
-	}
+func resourceHistoryStoreFixture(t *testing.T) ResourceHistoryStore {
+	t.Helper()
 	dir, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
-	p := filepath.Join(dir, "checkpoint.json")
-	if err := os.WriteFile(p, []byte(`{}`), 0000); err != nil {
+	return ResourceHistoryStore{Dir: filepath.Join(dir, "resources")}
+}
+func TestResourceHistoryStoreValidatesBeforePublication(t *testing.T) {
+	s := resourceHistoryStoreFixture(t)
+	good := []byte(`{"version":1,"frames":[]}`)
+	if err := s.Save(good); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = os.Chmod(p, 0600) })
-	s := ResourceSnapshotStore{Dir: dir, ValidateCheckpoint: func([]byte) error { return nil }}
-	_, err = s.LoadCheckpoint()
-	var corrupt *ResourceSnapshotCorruptError
-	if !errors.Is(err, os.ErrPermission) || errors.As(err, &corrupt) {
-		t.Fatal("read failure granted rebuild permission", err)
+	for _, bad := range [][]byte{[]byte(`broken`), []byte(`{"version":99,"frames":[]}`), bytes.Repeat([]byte(" "), ResourceHistoryLimit+1)} {
+		if err := s.Save(bad); err == nil {
+			t.Fatal("invalid history accepted")
+		}
 	}
-	if err := os.Chmod(p, 0600); err != nil {
+	raw, err := s.Load()
+	if err != nil || !bytes.Equal(raw, good) {
+		t.Fatal("failed save replaced good history", string(raw), err)
+	}
+	info, err := os.Stat(filepath.Join(s.Dir, "history.json"))
+	if err != nil || info.Mode().Perm() != 0600 {
+		t.Fatal("history permissions", info, err)
+	}
+	entries, err := os.ReadDir(s.Dir)
+	if err != nil || len(entries) != 1 || entries[0].Name() != "history.json" {
+		t.Fatal("history store created other artifacts", entries, err)
+	}
+	if err := os.WriteFile(filepath.Join(s.Dir, "history.json"), []byte("broken"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	raw, err := s.LoadCheckpoint()
-	if err != nil || string(raw) != `{}` {
-		t.Fatal("read did not recover", string(raw), err)
+	if _, err := s.Load(); err == nil {
+		t.Fatal("corrupt history accepted")
+	}
+}
+func TestResourceHistoryStoreRejectsSymlinksAndNonregularFiles(t *testing.T) {
+	for _, target := range []string{"history.json", ".history-stage"} {
+		t.Run(target, func(t *testing.T) {
+			s := resourceHistoryStoreFixture(t)
+			if err := os.Mkdir(s.Dir, 0700); err != nil {
+				t.Fatal(err)
+			}
+			outside := filepath.Join(filepath.Dir(s.Dir), "outside")
+			original := []byte(`{"version":1,"frames":[]}`)
+			if err := os.WriteFile(outside, original, 0600); err != nil {
+				t.Fatal(err)
+			}
+			path := filepath.Join(s.Dir, target)
+			if err := os.Symlink(outside, path); err != nil {
+				t.Fatal(err)
+			}
+			if target == "history.json" {
+				if _, err := s.Load(); err == nil {
+					t.Fatal("load followed symlink")
+				}
+			}
+			if err := s.Save(original); err == nil {
+				t.Fatal("save followed symlink")
+			}
+			got, err := os.ReadFile(outside)
+			if err != nil || !bytes.Equal(got, original) {
+				t.Fatal("outside target changed")
+			}
+			if err := os.Remove(path); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Mkdir(path, 0700); err != nil {
+				t.Fatal(err)
+			}
+			if err := s.Save(original); err == nil {
+				t.Fatal("nonregular path accepted")
+			}
+		})
+	}
+}
+func TestResourceHistoryStoreFixedStageAndByteBound(t *testing.T) {
+	s := resourceHistoryStoreFixture(t)
+	header := []byte(`{"version":1,"frames":[]}`)
+	bounded := append(header, bytes.Repeat([]byte(" "), ResourceHistoryLimit-len(header))...)
+	if err := s.Save(bounded); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Save(append(bounded, ' ')); err == nil {
+		t.Fatal("over-cap history accepted")
+	}
+	stage := filepath.Join(s.Dir, ".history-stage")
+	if err := os.WriteFile(stage, bounded, 0600); err != nil {
+		t.Fatal(err)
+	}
+	entries, err := os.ReadDir(s.Dir)
+	if err != nil || len(entries) != 2 {
+		t.Fatal("unbounded stage names", entries, err)
+	}
+	var total int64
+	for _, e := range entries {
+		info, err := e.Info()
+		if err != nil {
+			t.Fatal(err)
+		}
+		total += info.Size()
+	}
+	if total != 2*ResourceHistoryLimit {
+		t.Fatal("disk envelope", total)
+	}
+	// An owned regular crash residue is reused at the same fixed stage name.
+	if err := s.Save(header); err != nil {
+		t.Fatal("stale regular stage blocked publication", err)
+	}
+	entries, err = os.ReadDir(s.Dir)
+	if err != nil || len(entries) != 1 || entries[0].Name() != "history.json" {
+		t.Fatal("stage residue accumulated", entries, err)
 	}
 }

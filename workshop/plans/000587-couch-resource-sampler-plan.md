@@ -4,16 +4,16 @@
 
 **Goal:** Detect costly slot processes and proven orphan descendants within minutes, and expose the same observations through `couch --resources [--json]` without doing process IO on the request path.
 
-**Architecture:** One supervisor-owned worker takes bounded native observations every minute. A pure reducer attributes process generations, computes rates, maintains alert episodes and bounded history; the shell persists snapshots and submits alerts through Couch's existing broker. Resource evidence never authorizes killing or reassigning a process.
+**Architecture:** One supervisor-owned worker takes bounded native observations every minute. A pure reducer attributes process generations, computes rates, maintains alert episodes and bounded history; the shell best-effort persists aggregate history and submits advisory alerts through Couch's existing broker. Resource evidence never authorizes killing or reassigning a process.
 
 **Tech stack:** Go; Darwin libproc/sysctl via a small SDK-backed cgo adapter; existing procutil identities, Couch socket protocol, broker delivery, and durablefile atomic publication. Other platforms/non-cgo builds expose an explicit unsupported capability rather than fabricated zero measurements.
 
 ## Design choices for TL approval
 
 1. Use authenticated Zellij server roots, wrapper bindings, and Couch-owned launch/attach roots. Wrapper descendants alone miss draft nvim and terminal children. Capture existing `PairSessionBinding.Owner.Server` evidence during admission/lifecycle observation, rather than running Zellij or argv scans every minute. Validate the generation against each process table. Include starting/draft-only/parked slot rows even when measurements are unavailable; a missing broker connection is not proof of an orphan.
-2. Track only proven descendants as orphans. Remember `(PID, start identity, original thread/slot)` when first observed; keep attribution through reparenting and Couch restart while that exact process survives. Name-based host-wide orphan guesses would misattribute unrelated work. A child born and orphaned entirely between samples cannot be discovered from ancestry alone; state this limitation in README and JSON coverage. Previously unobserved pre-upgrade orphans likewise remain outside proven attribution.
+2. Track only proven descendants as orphans. Remember `(PID, start identity, original thread/slot)` when first observed; keep attribution through reparenting during this supervisor run while that exact process survives. Name-based host-wide orphan guesses would misattribute unrelated work. A child born and orphaned entirely between samples cannot be discovered from ancestry alone; state this limitation in README and JSON coverage. Previously unobserved pre-upgrade orphans likewise remain outside proven attribution.
 3. Initial defaults: 60s cadence; slot writes >2 MiB/s continuously for 10m; any process RSS >8 GiB for one valid sample; slot CPU >90% of one core for 15m while the wrapper reports settled and no delivery is pending; proven orphan RSS >256 MiB for two valid samples. CPU may exceed 100% for multithreaded work. These are proposed defaults, not measurements. Parse documented `COUCH_RESOURCE_*` overrides once at startup with bounded durations/values; unknown idle status cannot trigger idle-CPU alerts.
-4. Keep history as one namespace-owned bounded snapshot (24h, at most 1,440 aggregate frames, at most 4 MiB encoded), plus a bounded ownership/episode checkpoint. Reuse atomic file publication; prune oldest frames before serialization and expose the actual oldest sample when the byte cap shortens coverage. This favors a simple crash-safe store over a bespoke file ring. Count its write cost explicitly: at most 4 MiB plus checkpoint per minute, no history IO on CLI queries. If measured encoding/write CPU misses the budget, stop and revise storage before implementing a more complex ring.
+4. Keep history as one namespace-owned bounded snapshot (24h, at most 1,440 aggregate frames, at most 4 MiB encoded), with all ownership/episode state held only in memory. Reuse atomic file publication; prune oldest frames before serialization and expose the actual oldest sample when the byte cap shortens coverage. This favors a simple best-effort history store over a bespoke file ring. Count its write cost explicitly: at most 4 MiB per minute, no history IO on CLI queries. If measured encoding/write CPU misses the budget, stop and revise storage before implementing a more complex ring.
 5. Darwin adapter calls the supported `proc_pid_rusage` API using SDK types, avoiding a hand-copied ABI/raw syscall or new FFI dependency. Confirm normal builds have cgo available; document unsupported non-cgo builds explicitly. Do not silently weaken accounting there.
 
 ## Core concepts
@@ -43,12 +43,9 @@
 | ResourceRootCache / ResourceRootEvidence | `cmd/internal/couchcore/resource_roots.go` | new integration cache | revision-fenced root proof from modified artifactcollision.go ownership checker |
 | resourceInventory / Console.ResourceInventory | `cmd/internal/couchcmd/resources_inventory.go`, `cmd/internal/couchtty/console_resources.go` | new adapter methods | cached console rows, hosted roots, workspace proof and inventory completeness |
 | resourceSampler / resourceReader | `cmd/internal/couchcmd/resources.go` | new | reader, cached slot/idle snapshots, timer, reducer, store, broker |
-| ResourceSnapshotStore | `cmd/internal/couchcore/resource_store.go` | new | bounded validated namespace files + durablefile |
-| resourcePersistence | `cmd/internal/couchcmd/resources_persist.go` | new adapter | independent snapshot recovery and alert checkpoint ordering |
-| resourceCheckpoint / resourceAlertAttempt / resourceAlertDispatcher | `cmd/internal/couchcmd/resources_alert.go` | new integration records/adapter | immutable broker envelopes and pure delivery-outcome events |
-| resourceCheckpointEnvelope / encodeResourceCheckpoint / decodeResourceCheckpoint | `cmd/internal/couchcmd/resources_checkpoint.go` | new codec adapter | bounded versioned checkpoint representation |
-| resourceCheckpointPacked / resourceProvenancePacked / resourceEpisodePacked / resourceEffectPacked / resourceAttemptPacked | `cmd/internal/couchcmd/resources_checkpoint_packed.go` | new persistence-only values | typed dictionary references reconstructed before domain validation |
-| resourceCheckpointValidation | `cmd/internal/couchcmd/resources_persist.go` | new adapter cache | exact encoder-output proof, full validation for other bytes |
+| ResourceHistoryStore | `cmd/internal/couchcore/resource_store.go` | new | bounded validated namespace files + durablefile |
+| resourceHistoryPersistence | `cmd/internal/couchcmd/resources_persist.go` | new adapter | best-effort bounded history, independent of alert delivery |
+| resourceAlertDispatcher | `cmd/internal/couchcmd/resources_alert.go` | new adapter | owning-hub broker send and pure in-memory delivery outcomes |
 | projectResourceView | `cmd/internal/couchcmd/resources_projection.go` | new pure projection | existing broker frame byte envelope |
 | resources request/response | `cmd/internal/couchmessage/protocol.go`, `cmd/internal/couchcmd/cli.go`, `messages.go`, `message_service.go`, `resources_render.go` | modified/new | existing authenticated local socket |
 
@@ -58,7 +55,7 @@ resourceFakeWorld models process generations, counters, partial tables and resta
 
 - Capture the authenticated `launcher.SessionOwnerObservation.Server` already returned by the session ownership probe; retain it only after the relevant admission/lifecycle succeeds. A failed or superseded admission cannot install a root for the current binding. Replacement roots need fresh authenticated evidence.
 - Publish a small immutable root/slot inventory from the existing console and lifecycle observations, including non-connected slots, without polling all thread files on each sample. Reuse `launcher.AgentBelongsToServer` to verify wrapper/server relationships. The console's attached process is a distinct client/helper root, not a substitute for the detached server.
-- For slots discovered before root proof is available, show `unavailable: ownership unconfirmed`; never omit the row. Boot/start/resume/reattach/switch/park/removal update the same root inventory. Root proof from a previous startup is rechecked against the native table; persisted metadata alone is not ownership authority.
+- For slots discovered before root proof is available, show `unavailable: ownership unconfirmed`; never omit the row. Boot/start/resume/reattach/switch/park/removal update the same root inventory. Restart has no remembered ownership; fresh authenticated roots establish attribution.
 - A remembered process that no longer descends from an active root becomes an orphan only when ownership loss is confirmed. Unknown slot/root state retains `ownership unknown`. Parked-but-owned terminal processes remain owned. Keep original thread identity even after the numeric slot hosts another thread.
 - Sampler worker uses `messageService.lifetime` and `workers`; one synchronous pass at a time, ticker skips missed periods, cancellation joins. Read and disk IO never run holding console/broker locks. CLI returns the cached view with sample time, age, coverage and errors.
 
@@ -69,24 +66,24 @@ resourceFakeWorld models process generations, counters, partial tables and resta
 | clear + valid high | accumulating, remember interval start (immediate thresholds become pending) |
 | accumulating + continuous high at duration | pending, emit one deterministic episode-ID delivery effect |
 | accumulating + normal/gap/unknown | clear; no duration carried across missing evidence |
-| pending + accepted broker receipt | notified; remember receipt and episode ID |
+| pending + accepted broker receipt | notified; suppress repeats in memory |
 | pending + definite refusal | remain pending; bounded retry on subsequent sample while still high |
 | pending + uncertain send outcome | inspect/retry the same broker message ID; never mint a second alert |
 | pending/notified + valid recovery | clear/re-arm for the next episode |
 | notified + high or unknown | retain suppression; unknown is not recovery |
 | any + replaced process/retired owner | retire that identity's episode; preserve historical frame |
 
-Resolve the current owning hub immediately before send, as waitWatcher does; do not hardcode the main hub. Alert names slot, process PID/name, metric, value, duration, sample coverage, and `couch --resources` as the inspection action. No automatic kill/restart. Hub unavailable retains a bounded pending episode. Persist episode identity before submission and reconcile receipts after restart. Admission success, rather than text generation, establishes notification progress. Do not mutate or bypass broker busy-delivery policy.
+Resolve the current owning hub immediately before send, as waitWatcher does; do not hardcode the main hub. Alert names slot, process PID/name, metric, value, duration, sample coverage, and `couch --resources` as the inspection action. No automatic kill/restart. Hub unavailable retains a bounded pending episode. Keep episode identity in memory and retry the same ID within the run; restart re-arms from fresh observations. Admission success, rather than text generation, establishes notification progress. Do not mutate or bypass broker busy-delivery policy.
 
 ## Cost and retention envelope
 
-- Requirement: well below 1% of one core. Qualification target: mean sampler CPU <0.1% of one core at default cadence, with no sample CPU >0.5% of a 60s budget (300ms) in the bounded representative run. Report measured CPU time, elapsed time, process count, slot count and storage bytes; do not infer CPU cost from wall time alone. Measurements include traversal, reducer, encoding and persistence.
+- Requirement: well below 1% of one core. Qualification target: mean sampler CPU <0.2% of one core at default cadence, with no sample CPU >0.5% of a 60s budget (300ms) in the bounded representative run. Report measured CPU time, elapsed time, process count, slot count and storage bytes; do not infer CPU cost from wall time alone. Measurements include traversal, reducer, encoding and persistence.
 - Count at native calls, not only interface calls: table enumeration, rusage, identity validation and self-cost measurements. Existing `SysctlKinfoProcSlice` retries ENOMEM without a bound, so do not call it and claim “one syscall.” Add a bounded native table path with shared Process conversion and at most three size/read attempts. Use fixed MIBs to avoid hidden per-call name lookup. Count failed calls as well as successful ones.
 - Expected measurement-call bound: at most `6 + 2P + 2` native calls per pass (three two-call table attempts, one rusage and one identity fence per selected process, two sampler CPU measurements), subject to verifying the native adapter implementation. File IO operations and bytes are counted separately; identify any added call in the model rather than hiding it in a helper. PID reuse between table/rusage/fence invalidates that observation.
 - Default operating envelope: up to 256 displayed slots and 8,192 tracked live/provenance processes; process-table buffer capped at 65,536 rows. Hard limits produce a visible partial-coverage diagnostic, no silent all-clear or unbounded retries. Select active roots first, then known orphans, with deterministic ordering; report omitted counts. No subprocess launches on steady-state samples. No native process calls, disk writes or history decode on resources requests.
-- History snapshot: <=1,440 frames, <=24h by sample timestamp, <=4 MiB encoded. Ownership/episode checkpoint <=2 MiB and <=8,192 process records. Atomic publication may transiently retain old+new files; enforce <=12 MiB plus fixed metadata during replacement. Reject oversized/corrupt/foreign-schema files before decode; mark lost continuity and start fresh observation baselines, never use corrupt provenance to accuse a process.
-- Register all source consumers in `artifactpath/manifest.go` as exact namespace-owned non-Pair-artifact sources, matching existing Couch namespace diagnostics. Explicit rolling retention is owned by ResourceSnapshotStore (not diagnosticlog's 365-day policy); document it in `atlas/storage-retention.md`. Age/count/byte pruning occurs on load and writes; stale files left while Couch is stopped remain byte-bounded and are pruned on next open. No global unrelated-file sweep.
-- Native unsupported/permission errors disable affected measurements with reasons; the supervisor continues. Failed persistence marks the view degraded and cannot silently promise restart deduplication. No credentials or full command lines stored. All labels are escaped for terminal output; snapshots are 0600 under the namespace (ARCH-SECURE).
+- History snapshot: <=1,440 frames, <=24h by sample timestamp, <=4 MiB encoded. Only history is written. Atomic publication may transiently retain old+new files; enforce <=8 MiB plus fixed metadata during replacement. Reject oversized/corrupt/foreign-schema history, report lost continuity and begin a fresh bounded ring.
+- Register all source consumers in `artifactpath/manifest.go` as exact namespace-owned non-Pair-artifact sources, matching existing Couch namespace diagnostics. Explicit rolling retention is owned by ResourceHistoryStore (not diagnosticlog's 365-day policy); document it in `atlas/storage-retention.md`. Age/count/byte pruning occurs on load and writes; stale files left while Couch is stopped remain byte-bounded and are pruned on next open. No global unrelated-file sweep.
+- Native unsupported/permission errors disable affected measurements with reasons; the supervisor continues. Failed history persistence marks the view degraded but never blocks advisory alerts. No credentials or full command lines stored. All labels are escaped for terminal output; snapshots are 0600 under the namespace (ARCH-SECURE).
 
 ## Implementation tasks (one atomic delivery, full flow)
 
@@ -117,13 +114,13 @@ Files: `message_service.go`, `couchcore/artifactcollision.go`, new `couchtty/con
 - [x] Own one sampler goroutine and cached view; fake barrier tests prove canceled shutdown joins, blocked IO does not hold interactive locks, and slow passes never overlap or accumulate ticks.
 - [x] Count table reads independent of slot count and native calls against the declared bound. Commit.
 
-### 4. Durable bounded history and alert delivery
+### 4. Best-effort bounded history and advisory alert delivery
 
 Files: new `couchcore/resource_store.go`, `couchcmd/resources_alert.go`, tests, artifact manifest registration.
 
-- [x] Establish red for `ResourceHistory.Append` and `ResourceSnapshotStore.Load/Save` using their function contracts below.
-- [x] Implement safe bounded snapshot store and exact storage/source classification. Do not import diagnosticlog's 365-day retention into the rolling history.
-- [x] Route effects through `hubBindingFor` / `supervisionCoordinator.sendGenerated`; tests use the real broker with controlled endpoints and receipts. Cover unavailable/moved hub and busy queue.
+- [x] Establish red for `ResourceHistory.Append` and `ResourceHistoryStore.Load/Save` using their function contracts below.
+- [x] Implement safe bounded history store and exact storage/source classification. Do not import diagnosticlog's 365-day retention into the rolling history.
+- [x] Route effects through `hubBindingAt` / `supervisionCoordinator.sendGenerated`; tests use the real broker with controlled endpoints and receipts. Cover unavailable/moved hub and busy queue.
 - [x] Run artifact manifest and retention qualification immediately; commit.
 
 ### 5. Cached resources verb, configuration and docs
@@ -137,7 +134,7 @@ Files: `couchmessage/protocol.go`, `couchcmd/cli.go`, `messages.go`, `message_se
 ### 6. Qualification, review and landing
 
 - [x] Targeted command: `make test-make-env`; use a temporary Makefile including Makefile with a `test-resource-targeted` recipe running `go test ./cmd/internal/procutil ./cmd/internal/couchcore ./cmd/internal/couchcmd ./cmd/internal/couchmessage ./cmd/internal/artifactpath -run 'Resource|ProductionArtifact' -count=1` to retain hosted-test env scrubbing. Expected PASS. Run race tests for the worker/broker ownership seam.
-- [x] Add a bounded opt-in native overhead benchmark: representative fleet-size fake graph for exact operation counts, then real local roots for CPU coefficients; record mean/max CPU and counters. Target <0.1% core average at 60s cadence. No expensive sampling loop against all host processes.
+- [x] Add a bounded opt-in native overhead benchmark: representative fleet-size fake graph for exact operation counts, then real local roots for CPU coefficients; record mean/max CPU and counters. Target <0.2% core average at 60s cadence. No expensive sampling loop against all host processes.
 - [ ] Live acceptance requires TL-coordinated smoke: staged operator Couch shows every slot; a designated disposable scratch slot writes a bounded file with reduced test threshold/cadence, yielding one hub receipt, sustained silence thereafter, recovery, then one new-episode receipt. No visible window, live restart, or pair:0 staging without explicit authorization. This remains required before claiming Done when.
 - [ ] Run the exact recorded suite through `sdlc local-check run --name suite`; if a prerequisite fails, run the rest with `make -k` so no Go failures are hidden. Record all evidence.
 - [ ] Close via SDLC fresh review, fix blockers, merge main and `sdlc merge --yes` on SHIP. Report real hashes and measurements to hub. Update the ops project only through its authorized coordination workflow.
@@ -250,3 +247,16 @@ TL receipt e97f725a-c6ac-4ae2-b55f-63604207e0b4 supersedes every earlier checkpo
 4. Report exact net line count against pre-simplification commit 5484a5363, separately identifying discarded uncommitted codec work. Current checkpoint-related group is roughly 2000 lines including tests; expected net deletion is substantial, but measured git diff is the completion evidence, not this estimate.
 
 No production code has been changed for this simplification at the time this Revision is sent. Previously queued full suites were canceled before execution; no full-suite pass or live acceptance is claimed.
+
+### 2026-10-15 — approved simplification implementation map
+
+TL receipt c6eb8f79 approved Revision6af7fb2e. change-code re-ran: plan-quality CLEAN round5 and estimate-quality INFO. The original4.883h estimate remains the historical baseline; this third delta deletes machinery and replaces its tests/requalifies the same item, rather than treating already-incurred design as future work. Actuals include executing tests/reviews/subagents; only genuinely idle coordination/queue waits are excluded.
+
+Current body tables and retention prose now reflect the approved deletion. Earlier Revisions retain superseded evidence; no checkpoint-related table or strategy there describes current implementation. History may contain displayed historical orphan metadata, but it never restores ownership, counters or episodes.
+
+| Current changed function | Strategy replacing checkpoint-era contracts |
+|---|---|
+| ResourceHistoryStore.Load / Save | Real temporary filesystem: history size/schema, regular/nofollow paths and fixed-stage replacement; no checkpoint API. |
+| resourceHistoryPersistence.persist | Corrupt/unreadable initial history starts a diagnostic fresh ring; failed writes retain current memory frames and later safe writes recover. |
+| resourceAlertDispatcher.dispatch | Real broker: owning-hub notice, busy queue, refused/uncertain same-ID retries, suppression, recovery and fresh-state repeat. No retained receipt or durable intent. |
+| resourceSampler.pass | Stateful reader plus independent alert/history callbacks: history error cannot gate or repeat an admitted alert; restart begins fresh episodes; cache/CPU/native bounds remain. |

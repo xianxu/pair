@@ -678,7 +678,9 @@ and the sampler's own native-call, CPU and elapsed-time cost.
 Couch alerts the owning hub for sustained writes above 2 MiB/s for ten minutes,
 a process above 8 GiB RSS, an idle slot above 90% of one core for fifteen minutes,
 or a proven orphan above 256 MiB across two samples. Each incident is admitted
-once through normal messaging; unresolved delivery is not blindly retried.
+once per supervisor run through normal messaging; pending retries reuse the
+same effect ID. Episodes live in memory, so restarting Couch re-arms them and
+can repeat an advisory alert. History is best-effort and never gates alerts.
 Unattributed candidates are report-only. Monitoring never kills processes.
 See [resource monitoring](atlas/couch.md#resource-monitoring-587) for policy
 settings, ownership evidence, platform support and coverage limits. Aggregate

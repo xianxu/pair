@@ -11,69 +11,14 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-const ResourceCheckpointLimit = 2 << 20
 const ResourceHistoryLimit = 4 << 20
 
-// ResourceSnapshotStore has one writer: the namespace supervisor's sampler. Separate
-// snapshots let alert admission checkpoint before dispatch without rewriting
-// history. Validators are mandatory and must check schema and semantic bounds;
-// bytes never become ownership authority simply because JSON decodes.
-type ResourceSnapshotStore struct {
-	Dir                string
-	ValidateCheckpoint func([]byte) error
-	ValidateHistory    func([]byte) error
-}
+// ResourceHistoryStore publishes only advisory aggregate history. One snapshot
+// and one fixed exclusive stage bound its disk footprint to 8 MiB.
+type ResourceHistoryStore struct{ Dir string }
 
-// ResourceSnapshotCorruptError means bytes from a safely opened regular file
-// cannot be used. They may be replaced with fresh observations. Filesystem and
-// unsafe-path failures deliberately do not carry this recovery permission.
-type ResourceSnapshotCorruptError struct {
-	Name string
-	Err  error
-}
-
-func (e *ResourceSnapshotCorruptError) Error() string {
-	return fmt.Sprintf("corrupt resource snapshot %s: %v", e.Name, e.Err)
-}
-func (e *ResourceSnapshotCorruptError) Unwrap() error { return e.Err }
-
-// ResourceSnapshotLoadError preserves independent artifact failures. Load still
-// returns the validated bytes of either healthy artifact.
-type ResourceSnapshotLoadError struct{ Checkpoint, History error }
-
-func (e *ResourceSnapshotLoadError) Error() string {
-	return errors.Join(e.Checkpoint, e.History).Error()
-}
-func (e *ResourceSnapshotLoadError) Unwrap() []error {
-	var out []error
-	if e.Checkpoint != nil {
-		out = append(out, e.Checkpoint)
-	}
-	if e.History != nil {
-		out = append(out, e.History)
-	}
-	return out
-}
-func (s ResourceSnapshotStore) Load() (checkpoint, history []byte, err error) {
-	checkpoint, cpErr := s.LoadCheckpoint()
-	history, hErr := s.LoadHistory()
-	if cpErr != nil || hErr != nil {
-		err = &ResourceSnapshotLoadError{Checkpoint: cpErr, History: hErr}
-	}
-	return checkpoint, history, err
-}
-func (s ResourceSnapshotStore) LoadCheckpoint() ([]byte, error) {
-	return s.read("checkpoint.json", ResourceCheckpointLimit, s.ValidateCheckpoint)
-}
-func (s ResourceSnapshotStore) LoadHistory() ([]byte, error) {
-	return s.read("history.json", ResourceHistoryLimit, s.ValidateHistory)
-}
-
-func (s ResourceSnapshotStore) read(name string, limit int, validate func([]byte) error) ([]byte, error) {
-	if validate == nil {
-		return nil, errors.New("resource snapshot validator missing")
-	}
-	path := filepath.Join(s.Dir, name)
+func (s ResourceHistoryStore) Load() ([]byte, error) {
+	path := filepath.Join(s.Dir, "history.json")
 	if err := provisionSafePath(path); err != nil {
 		return nil, err
 	}
@@ -84,59 +29,42 @@ func (s ResourceSnapshotStore) read(name string, limit int, validate func([]byte
 	if err != nil {
 		return nil, err
 	}
-	f := os.NewFile(uintptr(fd), path)
-	defer f.Close()
-	info, err := f.Stat()
+	file := os.NewFile(uintptr(fd), path)
+	defer file.Close()
+	info, err := file.Stat()
 	if err != nil {
 		return nil, err
 	}
 	if !info.Mode().IsRegular() {
-		return nil, fmt.Errorf("unsafe resource snapshot %s", name)
+		return nil, errors.New("unsafe resource history")
 	}
-	if info.Size() > int64(limit) {
-		return nil, &ResourceSnapshotCorruptError{Name: name, Err: errors.New("byte limit exceeded")}
+	if info.Size() > ResourceHistoryLimit {
+		return nil, errors.New("resource history exceeds byte cap")
 	}
-	raw, err := io.ReadAll(io.LimitReader(f, int64(limit)+1))
+	raw, err := io.ReadAll(io.LimitReader(file, ResourceHistoryLimit+1))
 	if err != nil {
 		return nil, err
 	}
-	if len(raw) > limit {
-		return nil, &ResourceSnapshotCorruptError{Name: name, Err: errors.New("byte limit exceeded")}
-	}
-	if err := validate(raw); err != nil {
-		return nil, &ResourceSnapshotCorruptError{Name: name, Err: err}
+	if err := ValidateResourceHistory(raw); err != nil {
+		return nil, fmt.Errorf("resource history: %w", err)
 	}
 	return raw, nil
 }
-
-func (s ResourceSnapshotStore) SaveCheckpoint(raw []byte) error {
-	return s.save("checkpoint.json", ".checkpoint-stage", raw, ResourceCheckpointLimit, s.ValidateCheckpoint)
-}
-func (s ResourceSnapshotStore) SaveHistory(raw []byte) error {
-	return s.save("history.json", ".history-stage", raw, ResourceHistoryLimit, s.ValidateHistory)
-}
-func (s ResourceSnapshotStore) save(name, stage string, raw []byte, limit int, validate func([]byte) error) error {
-	if validate == nil {
-		return errors.New("resource snapshot validator missing")
-	}
-	if len(raw) > limit {
-		return fmt.Errorf("resource snapshot %s exceeds limit", name)
-	}
-	if err := validate(raw); err != nil {
+func (s ResourceHistoryStore) Save(raw []byte) error {
+	if err := ValidateResourceHistory(raw); err != nil {
 		return err
 	}
 	if err := provisionMkdirAll(s.Dir); err != nil {
 		return err
 	}
-	path := filepath.Join(s.Dir, name)
+	path := filepath.Join(s.Dir, "history.json")
 	if err := provisionSafePath(path); err != nil {
 		return err
 	}
 	if info, err := os.Lstat(path); err == nil && !info.Mode().IsRegular() {
-		return errors.New("unsafe resource snapshot")
+		return errors.New("unsafe resource history")
 	} else if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
-	// A fixed exclusive stage bounds crash residue; only this supervisor owns it.
-	return durablefile.WriteAtomicStaged(path, raw, filepath.Join(s.Dir, stage))
+	return durablefile.WriteAtomicStaged(path, raw, filepath.Join(s.Dir, ".history-stage"))
 }

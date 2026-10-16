@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
-	"github.com/xianxu/pair/cmd/internal/couchmessage"
 	"github.com/xianxu/pair/cmd/internal/procutil"
 )
 
@@ -70,9 +69,9 @@ func testResourceSampler(f *samplerReader) *resourceSampler {
 func TestResourceSamplerSelectionCallsAndImmutableView(t *testing.T) {
 	f := &samplerReader{rows: []procutil.Process{{PID: 10, Identity: "owned"}, {PID: 11, PPID: 10, Identity: "child"}, {PID: 12, PPID: 1, Identity: "vim", Name: "nvim"}, {PID: 13, PPID: 1, Identity: "other", Name: "unrelated"}}}
 	s := testResourceSampler(f)
-	s.persist = func(_ context.Context, state couchcore.ResourceState, v couchcore.ResourceView) (couchcore.ResourceState, couchcore.ResourceCost, error) {
+	s.persist = func(_ context.Context, v couchcore.ResourceView) (couchcore.ResourceCost, error) {
 		f.cpu += 500
-		return state, couchcore.ResourceCost{StorageWrites: 1, StorageBytes: 200}, nil
+		return couchcore.ResourceCost{StorageWrites: 1, StorageBytes: 200}, nil
 	}
 	s.pass(context.Background())
 	v := s.view()
@@ -179,13 +178,16 @@ func TestResourceSamplerCombinedCapKeepsOwnedFirst(t *testing.T) {
 func TestResourceSamplerPersistenceFailureKeepsAdmittedState(t *testing.T) {
 	f := &samplerReader{rows: []procutil.Process{{PID: 10, Identity: "owned"}}}
 	s := testResourceSampler(f)
-	s.persist = func(_ context.Context, state couchcore.ResourceState, v couchcore.ResourceView) (couchcore.ResourceState, couchcore.ResourceCost, error) {
+	s.alerts = func(_ context.Context, state *couchcore.ResourceState) error {
 		state.Episodes = []couchcore.ResourceEpisode{{Key: "admitted", Phase: "notified", Effect: &couchcore.ResourceEffect{ID: "stable"}}}
-		return state, couchcore.ResourceCost{StorageWrites: 1}, errors.New("checkpoint failed")
+		return nil
+	}
+	s.persist = func(_ context.Context, v couchcore.ResourceView) (couchcore.ResourceCost, error) {
+		return couchcore.ResourceCost{}, errors.New("history failed")
 	}
 	s.pass(context.Background())
 	v := s.view()
-	if len(s.state.Episodes) != 1 || s.state.Episodes[0].Phase != "notified" || !strings.Contains(strings.Join(v.Errors, " "), "checkpoint failed") {
+	if len(s.state.Episodes) != 1 || s.state.Episodes[0].Phase != "notified" || !strings.Contains(strings.Join(v.Errors, " "), "history failed") {
 		t.Fatal(s.state.Episodes, v.Errors)
 	}
 	v.Episodes[0].Effect.ID = "mutated"
@@ -242,7 +244,7 @@ func TestResourceSamplerNativeCost(t *testing.T) {
 	address := "pair:0"
 	branch := "main"
 	workspace := couchcore.WorkspaceIdentity{SchemaVersion: 2, Repo: "pair", RepoIdentity: filepath.Join(primary, ".git"), PrimaryRoot: primary, FleetRoot: dir, EnvironmentRoot: dir, WorktreeRoot: primary, Kind: "primary", Slot: &slot, Address: &address, RestingBranch: &branch}
-	persistence := newResourcePersistence(dir, resourceAlertDispatcher{resolve: func(couchcore.WorkspaceIdentity) (couchmessage.Binding, bool) { return couchmessage.Binding{}, false }})
+	persistence := newResourceHistoryPersistence(dir)
 	if persistence.loadError != nil {
 		t.Fatal(persistence.loadError)
 	}
@@ -269,7 +271,7 @@ func TestResourceSamplerNativeCost(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = persistence.store.SaveHistory(raw); err != nil {
+	if err = persistence.store.Save(raw); err != nil {
 		t.Fatal(err)
 	}
 	persistence.history = seed
@@ -285,7 +287,7 @@ func TestResourceSamplerNativeCost(t *testing.T) {
 		sampler.now = func() time.Time { return base.Add(time.Duration(pass) * time.Minute) }
 		sampler.pass(ctx)
 		v := sampler.view()
-		if !v.Cost.CPUKnown || v.Cost.StorageWrites != 2 || len(v.Processes) == 0 {
+		if !v.Cost.CPUKnown || v.Cost.StorageWrites != 1 || len(v.Processes) == 0 {
 			t.Fatalf("incomplete measurement: %+v errors=%v", v.Cost, v.Errors)
 		}
 		for _, e := range v.Errors {
@@ -308,5 +310,45 @@ func TestResourceSamplerNativeCost(t *testing.T) {
 	// Revised measured budget: below 0.2% of one core at the default minute cadence.
 	if mean >= float64(120*time.Millisecond) || maxCPU >= uint64(300*time.Millisecond) {
 		t.Errorf("resource CPU budget exceeded: mean=%.3fms max=%.3fms", mean/1e6, float64(maxCPU)/1e6)
+	}
+}
+
+func TestResourceSamplerHistoryFailureDoesNotGateAdvisoryAlerts(t *testing.T) {
+	reader := &samplerReader{rows: []procutil.Process{{PID: 10, Identity: "owned"}}}
+	sampler := testResourceSampler(reader)
+	sampler.policy.ProcessRSSBytes = 500
+	sends := 0
+	sampler.alerts = func(_ context.Context, state *couchcore.ResourceState) error {
+		for i := range state.Episodes {
+			e := &state.Episodes[i]
+			if e.Phase == "pending" && e.Effect != nil {
+				sends++
+				*e, _ = couchcore.AdvanceResourceEpisode(*e, couchcore.ResourceEpisodeEvent{Delivery: couchcore.ResourceDeliveryAdmitted, EffectID: e.Effect.ID})
+			}
+		}
+		return nil
+	}
+	sampler.persist = func(_ context.Context, v couchcore.ResourceView) (couchcore.ResourceCost, error) {
+		if sends != 1 {
+			t.Fatalf("history attempted before alert admission: %d", sends)
+		}
+		return couchcore.ResourceCost{}, errors.New("history permission denied")
+	}
+	sampler.pass(context.Background())
+	sampler.now = func() time.Time { return time.Unix(160, 0) }
+	sampler.pass(context.Background())
+	if sends != 1 {
+		t.Fatalf("history failure repeated high episode: %d", sends)
+	}
+	if !strings.Contains(strings.Join(sampler.view().Errors, " "), "history permission denied") {
+		t.Fatal("history failure hidden")
+	}
+	restarted := testResourceSampler(reader)
+	restarted.policy = sampler.policy
+	restarted.alerts = sampler.alerts
+	restarted.now = func() time.Time { return time.Unix(220, 0) }
+	restarted.pass(context.Background())
+	if sends != 2 {
+		t.Fatalf("fresh supervisor must re-arm advisory episode: %d", sends)
 	}
 }

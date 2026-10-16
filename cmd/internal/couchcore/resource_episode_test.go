@@ -85,10 +85,3 @@ func TestResourceEpisodeDeliveryDoesNotActAsUnknownMetric(t *testing.T) {
 		t.Fatal("receipt reset metric accumulation")
 	}
 }
-func TestResourceEpisodeRejectsInvalidPersistedDelivery(t *testing.T) {
-	for _, e := range []ResourceEpisode{{Key: "x", Metric: "slot-write", Phase: "clear", Delivery: "invalid"}, {Key: "x", Metric: "slot-write", Phase: "clear", Delivery: ResourceDeliveryAdmitted}, {Key: "x", Metric: "slot-write", Phase: "accumulating", Delivery: ResourceDeliveryRefused}} {
-		if err := ValidateResourceState(ResourceState{Episodes: []ResourceEpisode{e}}); err == nil {
-			t.Fatalf("accepted delivery inconsistent with episode: %+v", e)
-		}
-	}
-}

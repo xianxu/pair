@@ -1,7 +1,6 @@
 package couchcore
 
 import (
-	"encoding/json"
 	"github.com/xianxu/pair/cmd/internal/procutil"
 	"testing"
 	"time"
@@ -38,12 +37,7 @@ func TestResourceWorldResetPartialAndRestart(t *testing.T) {
 	if v.Processes[0].CPUPercent != nil {
 		t.Fatal("rate bridged partial table")
 	}
-	b, _ := json.Marshal(st)
-	var loaded ResourceState
-	if e := json.Unmarshal(b, &loaded); e != nil {
-		t.Fatal(e)
-	}
-	_, v, _ = AdvanceResources(ResetResourceBaselines(loaded), w.sample(), p)
+	_, v, _ = AdvanceResources(ResourceState{}, w.sample(), p)
 	if v.Processes[0].CPUPercent != nil {
 		t.Fatal("restart retained baseline")
 	}
@@ -51,20 +45,5 @@ func TestResourceWorldResetPartialAndRestart(t *testing.T) {
 	st, _, _ = AdvanceResources(st, w.sample(), p)
 	if len(st.Provenance) != 0 {
 		t.Fatal("dead generation retained")
-	}
-}
-func TestResourceValidationRejectsBadState(t *testing.T) {
-	if ValidateResourceState(ResourceState{Episodes: []ResourceEpisode{{Key: "x", Phase: "invalid"}}}) == nil {
-		t.Fatal("bad phase accepted")
-	}
-	if ValidateResourceState(ResourceState{Provenance: []ResourceProvenance{{ResourceRoot: ResourceRoot{Key: ResourceProcessKey{1, "a"}, Slot: "r:1"}, Root: ResourceProcessKey{1, "a"}}}}) == nil {
-		t.Fatal("unverified workspace accepted")
-	}
-}
-func TestResourceValidationRejectsMalformedEffectAndTotals(t *testing.T) {
-	for _, s := range []ResourceState{{Episodes: []ResourceEpisode{{Key: "x", Metric: "invalid", Phase: "clear"}}}, {Episodes: []ResourceEpisode{{Key: "x", Metric: "process-rss", Phase: "pending", Effect: &ResourceEffect{ID: "x", Metric: "process-rss"}}}}, {SlotTotals: []ResourceSlotTotal{{Slot: "r:1"}, {Slot: "r:1"}}}} {
-		if ValidateResourceState(s) == nil {
-			t.Fatalf("invalid state accepted: %+v", s)
-		}
 	}
 }
