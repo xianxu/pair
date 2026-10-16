@@ -1,6 +1,6 @@
 ---
 id: 000595
-status: codecomplete
+status: done
 created: 2026-10-15
 updated: 2026-10-16
 estimate_hours: 2.15
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 6e30fdbf474c2b22924ade77271eb845590ee983
         evidence_commit: 3cd8e95a16c872e38f56b1089f20ff3ec569188f
+        landed_commit: 5eaff1d99d4c1409696e8bac7ce24e45dc269b41
 ---
 
 # Replace the native-owner forensics (#556/#584) with a wrapper-held flock per conversation; one-time cutover; delete the scan and reservation store
