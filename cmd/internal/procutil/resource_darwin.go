@@ -160,17 +160,26 @@ func (darwinResourceCalls) usageRead(pid int) (ResourceUsage, error) {
 	return ResourceUsage{CPUTimeNS: ns, RSSBytes: uint64(u.ri_resident_size), DiskWriteBytes: uint64(u.ri_diskio_byteswritten)}, nil
 }
 func (darwinResourceCalls) commandRead(pid int) (CommandInfo, error) {
+	info, _, err := darwinProcArgs(pid)
+	return info, err
+}
+
+// KERN_PROCARGS2 carries the initial environment after argv.
+func (darwinResourceCalls) environmentRead(pid int) ([]byte, error) {
+	_, env, err := darwinProcArgs(pid)
+	return env, err
+}
+func darwinProcArgs(pid int) (CommandInfo, []byte, error) {
 	buf := make([]byte, C.ARG_MAX)
 	size := C.size_t(len(buf))
 	err := resourceErr(C.resource_command(C.int(pid), unsafe.Pointer(&buf[0]), &size))
 	if err != nil {
-		return CommandInfo{}, err
+		return CommandInfo{}, nil, err
 	}
 	if size > C.size_t(len(buf)) {
-		return CommandInfo{}, errors.New("invalid process argument size")
+		return CommandInfo{}, nil, errors.New("invalid process argument size")
 	}
-	info, _, err := ParseDarwinProcArgs(buf[:int(size)])
-	return info, err
+	return ParseDarwinProcArgs(buf[:int(size)])
 }
 func (darwinResourceCalls) selfCPURead() (uint64, error) {
 	var ts C.struct_timespec

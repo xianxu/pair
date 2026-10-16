@@ -2041,3 +2041,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #602 BR-1/BR-2: when centralizing build commands, enumerate each caller's cwd and original absolute/relative source semantics. Resolve the shared builder's checkout independently, preserve caller-relative output destinations, and test non-root invocation. Document the complete new test override/lifetime contract in README as well as the atlas.
 
 - #602 BR-3: a migration guard must fail against every original offender before its synthetic controls are considered sufficient. Normalize target paths in their actual working-directory context; root-relative examples alone miss package-relative recipes. Keep compact regression fixtures for the original command forms and verify the full original source bodies once.
+
+- #606: a new production .go file must be added to `cmd/internal/artifactpath/manifest.go`, or the recorded suite fails `TestProductionArtifactReferencesAreExactlyClassified` at merge. Run `go test ./cmd/internal/artifactpath` whenever a change adds a source file. Fixing review Minors after a SHIP close needs `sdlc close --fixed-then-ship` before `sdlc merge` will publish.

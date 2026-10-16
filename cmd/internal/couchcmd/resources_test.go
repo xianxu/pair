@@ -22,7 +22,9 @@ type samplerReader struct {
 	rows                           []procutil.Process
 	tableErr, errorUsage, errorCPU error
 	usages                         []int
-	commands                       []int
+	commands, environments         []int
+	env                            map[int]map[string]string
+	unstableEnv                    int
 	tables, clocks                 int
 	tableHook                      func(context.Context)
 	cpu                            uint64
@@ -53,6 +55,16 @@ func (f *samplerReader) Command(ctx context.Context, p procutil.Process) (procut
 	f.commands = append(f.commands, p.PID)
 	return procutil.CommandInfo{Args: []string{"nvim", "--embed"}}, 2, nil
 }
+func (f *samplerReader) Environment(ctx context.Context, p procutil.Process, keys ...string) (map[string]string, int, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.environments = append(f.environments, p.PID)
+	if p.PID == f.unstableEnv {
+		f.unstableEnv = 0
+		return nil, 2, &procutil.IdentityUnavailableError{Err: errors.New("process parent changed during resource observation")}
+	}
+	return f.env[p.PID], 2, nil
+}
 func (f *samplerReader) SelfCPU(context.Context) (uint64, int, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -66,6 +78,36 @@ func testResourceSampler(f *samplerReader) *resourceSampler {
 		return couchcore.ResourceSlotInventory{Complete: true, Slots: []couchcore.ResourceSlot{{Slot: "pair:1", OwnershipKnown: true, Roots: []couchcore.ResourceRoot{{Key: couchcore.ResourceProcessKey{PID: 10, Identity: "owned"}}}}}}
 	}}
 }
+
+// A slot's suite that lost its ancestry (pair#606) is the slot's, and each
+// process generation's environment is read once, not every pass.
+func TestResourceSamplerAttributesADetachedSuiteToItsSlot(t *testing.T) {
+	thread := couchcore.ThreadAddress{RepoScope: "scope", Tag: "1-pair-6"}
+	f := &samplerReader{
+		rows:        []procutil.Process{{PID: 10, Identity: "owned"}, {PID: 20, PPID: 1, Identity: "zsh", Name: "zsh"}, {PID: 21, PPID: 20, Identity: "sdlc", Name: "sdlc"}, {PID: 22, PPID: 21, Identity: "test", Name: "couchcore.test"}, {PID: 30, PPID: 1, Identity: "stray", Name: "python3"}},
+		env:         map[int]map[string]string{21: {"COUCH_THREAD_SCOPE": "scope", "COUCH_THREAD_TAG": "1-pair-6"}},
+		unstableEnv: 21, // the first read races a reparent; the next pass asks again
+	}
+	s := testResourceSampler(f)
+	s.slots = func() couchcore.ResourceSlotInventory {
+		return couchcore.ResourceSlotInventory{Complete: true, Slots: []couchcore.ResourceSlot{{Slot: "pair:6", Thread: thread, OwnershipKnown: true, Roots: []couchcore.ResourceRoot{{Key: couchcore.ResourceProcessKey{PID: 10, Identity: "owned"}}}}}}
+	}
+	s.pass(context.Background())
+	s.pass(context.Background())
+	owned := map[int]string{}
+	for _, p := range s.view().Processes {
+		owned[p.Key.PID] = p.Slot
+	}
+	if owned[21] != "pair:6" || owned[22] != "pair:6" {
+		t.Fatalf("processes %v, want the detached suite on pair:6", owned)
+	}
+	if _, ok := owned[30]; ok {
+		t.Fatal("a process naming no thread was claimed")
+	}
+	if !reflect.DeepEqual(f.environments, []int{20, 21, 30, 21}) {
+		t.Fatalf("environment reads %v, want each settled generation once across passes", f.environments)
+	}
+}
 func TestResourceSamplerSelectionCallsAndImmutableView(t *testing.T) {
 	f := &samplerReader{rows: []procutil.Process{{PID: 10, Identity: "owned"}, {PID: 11, PPID: 10, Identity: "child"}, {PID: 12, PPID: 1, Identity: "vim", Name: "nvim"}, {PID: 13, PPID: 1, Identity: "other", Name: "unrelated"}}}
 	s := testResourceSampler(f)
@@ -78,7 +120,7 @@ func TestResourceSamplerSelectionCallsAndImmutableView(t *testing.T) {
 	if !reflect.DeepEqual(f.usages, []int{10, 11, 12}) || !reflect.DeepEqual(f.commands, []int{12}) {
 		t.Fatal(f.usages, f.commands)
 	}
-	if v.Cost.NativeCalls != 12 || v.Cost.UsageCalls != 6 || v.Cost.CommandCalls != 2 || v.Cost.TableCalls != 2 || v.Cost.CPUTimeNS != 500 || !v.Cost.CPUKnown || v.Cost.StorageWrites != 1 {
+	if v.Cost.NativeCalls != 14 || v.Cost.UsageCalls != 6 || v.Cost.CommandCalls != 2 || v.Cost.EnvironmentCalls != 2 || !reflect.DeepEqual(f.environments, []int{13}) || v.Cost.TableCalls != 2 || v.Cost.CPUTimeNS != 500 || !v.Cost.CPUKnown || v.Cost.StorageWrites != 1 {
 		t.Fatalf("cost=%+v", v.Cost)
 	}
 	if len(v.Processes) != 2 || len(v.Unattributed) != 1 {
