@@ -41,8 +41,8 @@ Quick-flow scope: Cloudflared stderr ownership/completion only, expected under10
 - [x] Establish deterministic RED with the existing fake executable and real pipe: force child wait before draining and require the exact final API-failure line. Test shared stderr setup rather than a probabilistic repeat count; preserve rejection of api.trycloudflare.com as a tunnel URL.
 - [x] Replace exec-owned StderrPipe with a parent-owned os.Pipe assigned to cmd.Stderr. Close the parent's write end immediately after successful Start and both ends on failed Start. Keep one scanner owner and close its reader on completion. Publish Exited only after both process wait and stderr drain finish (ARCH-ORDER/DRY).
 - [x] Retain the existing five-second Close escalation. On that forced path, kill the existing owned groups and interrupt the owned reader before joining, so an inherited stderr writer cannot hold teardown forever. Normal early exit retains the complete final line; timeout/cancellation keeps bounded cleanup. No larger sleeps/timeouts (ARCH-CONSTRAINTS/FUNERAL).
-- [ ] Add controlled drain/completion and forced-reader-release regressions, plus guarded and unguarded fast failures. Use real fake processes and channel-held reads, exact message assertions, and bounded test deadlines only as hang guards. Run targeted/race and repeated loaded broadcast checks, then make -k build and the recorded suite.
-- [ ] Update the existing atlas ownership map if needed; close on SHIP and land before starting #586. Generated weave refresh ignore entries for xx-universal-review are bootstrap bookkeeping only.
+- [x] Add controlled drain/completion and forced-reader-release regressions, plus guarded and unguarded fast failures. Use real fake processes and channel-held reads, exact message assertions, and bounded test deadlines only as hang guards. Run targeted/race and repeated loaded broadcast checks, then make -k build and the recorded suite.
+- [x] Update the existing atlas ownership map if needed; close on SHIP and land before starting #586. Generated weave refresh ignore entries for xx-universal-review are bootstrap bookkeeping only.
 
 ## Log
 
@@ -89,3 +89,7 @@ Source02b5ef94ee83e1274d7b4ec7912261620e5acfeb: full broadcast package with race
 ### 2026-10-15 — hypothesis confirmed as a production ownership violation
 
 The original Spec states a working hypothesis. Real-process wait-before-read RED now confirms loss of the exact failure through exec-owned StderrPipe, and controlled exit-before-drain RED confirms premature completion publication independently. Scope and Done when remain unchanged: own the pipe, join process and drain, preserve the exact error and API URL refusal, and force reader disposal at the existing teardown boundary. This fixes production lifecycle behavior as requested by the hub, rather than only stabilizing a test.
+
+### Recorded suite PASS; ready for boundary review
+
+Recorded suite on02b5ef94ee83e1274d7b4ec7912261620e5acfeb passed exit0 in10m47s after536s machine-wide quota wait. Log: /Users/xianxu/workspace/pair/.git/sdlc/local-checks/02b5ef94ee83e1274d7b4ec7912261620e5acfeb/suite.log; SHA256 87e98a42d4a859ce1a91e05a393fc461ad3d37c6ddc89544d46e30a2cc78ff0d. Broadcast29.504s; all review resume/observation/fresh restore fixtures passed, as did remaining Go packages. No retries, skips, budget changes, or quota overrides. Full race package89.747s,50focused repetitions34.463s, make -k -B build and git diff --check also passed. Atlas broadcast map now describes reader ownership, joined completion, and forced teardown. Only documentation changed after the recorded source. Proceeding to the mandatory fresh-context SDLC close review, then PR/SHIP landing; remaining issue batch order is unchanged.
