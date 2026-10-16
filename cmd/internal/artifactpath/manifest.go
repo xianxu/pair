@@ -246,7 +246,6 @@ var SourceClassifications = []SourceClassification{
 	{Path: "cmd/internal/artifactpath/native_lock.go", Kind: Constructor, Families: []string{"native-lock"}},
 	{Path: "cmd/internal/nativelock/key.go", Kind: ResolvedConsumer},
 	{Path: "cmd/internal/nativelock/lock.go", Kind: ResolvedConsumer, Families: []string{"native-lock"}, BindingNames: []string{"cache-native-lock"}},
-	{Path: "cmd/internal/launcher/native_lock_capability.go", Kind: ResolvedConsumer},
 	{Path: "cmd/internal/launcher/recovery_terminal_confirmed_owner.go", Kind: ResolvedConsumer},
 	{Path: "cmd/internal/artifactpath/session_lock.go", Kind: Constructor, Families: []string{"session-lock"}},
 	{Path: "cmd/internal/launcher/session_handoff_os.go", Kind: ResolvedConsumer, Families: []string{"session-lock"}, BindingNames: []string{"cache-session-lock"}},
