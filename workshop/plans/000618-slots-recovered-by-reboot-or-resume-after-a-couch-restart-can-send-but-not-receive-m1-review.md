@@ -140,3 +140,142 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-16T16:37:21-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 618 — Slots recovered by reboot or resume after a Couch restart can send but not receive |
+| repo | pair |
+| issue file | workshop/issues/000618-slots-recovered-by-reboot-or-resume-after-a-couch-restart-can-send-but-not-receive.md |
+| boundary | milestone M1 |
+| milestone | M1 |
+| window | 5254fc022774f55cefafc6496c2bcbeef7b4d13b..19363f2714db86ef31b23e71d3678eb655a88b05 |
+| command | sdlc milestone-close --issue 618 --milestone M1 |
+| reviewer | claude |
+| isolation | fenced |
+| timestamp | 2026-10-16T16:37:21-07:00 |
+| verdict | SHIP |
+
+## Review
+
+Checking the send handler path in message_service.go, then I'll run the tests.
+
+Tests pass. Now reverting the BR-2 fix to confirm the regression test goes red.
+
+Verifying what concrete type the supervisor's `c.Artifacts` has in production, to see whether the poller actually gets wired in.
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+This range does what M1 set out to do. The supervisor's message authority now reads zellij liveness from one polled snapshot (`launcher.ListingPoller`), so an admission no longer runs zellij itself. A send that is not admitted now leaves a `refused` receipt with its reason. Round 1's Critical (BR-2, the 2 s transport clamp) is fixed on both ends of the socket by one shared per-request budget. I confirmed it by switching the `send` budget off in `requestBudget`: `TestTransportSendOutlastsAdmission` fails with `context deadline exceeded`, then passes again once restored. All affected packages pass: `launcher` and `couchmessage` with `-race`, plus the full `couchcmd` and `couchcore` suites. `go vet` is clean. The only thing still owed is the live AFTER measurement, which the plan now explicitly defers until after landing with a deadline (before M2 closes). What remains is Minor.
+
+### 1. Strengths
+- **One budget for both ends.** `requestBudget` (`cmd/internal/couchmessage/transport.go:350-370`) is the single function that both `Call` and `Server.serve` use for a request's time limit. That removes the asymmetry behind BR-2 instead of patching it in one place, and the regression test runs through the real `StartServer` and `Call`.
+- **The poller only touches the authority's copy.** `messageListedObserver` (`message_service.go:1301-1314`) attaches the poller to a copy of the artifact checker, so recovery and relaunch keep reading zellij directly. The test pins this with `checker.Zellij.Listings != nil → fail`.
+- **Old or missing liveness refuses, visibly.** `ErrListingStale` names the snapshot's age and the last error. Before the first listing completes, a check refuses as "not yet known" rather than blocking or guessing (tested in both `launcher` and `couchcmd`).
+- **Refusals are bounded on the write side.** At most 64, kept 10 minutes, swept on every `Send`/`Status`, and never counted against `MaxReceipts`. `TestBrokerRefusalsAreBoundedAndExpire` pins all four rules.
+- **The wired-resolver test would catch a regression.** `TestMessageThreadResolverChecksReadOnlyThePoller` uses a zellij stub that takes 1 s per listing. If the resolver stopped using the poller, 50 checks would take about 100 s and the test would fail.
+
+### 2. Critical findings
+None.
+
+### 3. Important findings
+None.
+
+### 4. Minor findings
+- **The send's time budget restarts mid-request** (`message_service.go:829-833`, `broker.go:523`). The exchange limit is `AdmissionTimeout + 1 s`. But `Broker.Send` starts a fresh 2 s admission clock only after the sender check (`authority.current`) has finished, instead of deriving its deadline from the exchange's deadline. If anything before `Send` takes more than 1 s, the server's context expires first and the reply is dropped. This is a sibling of BR-2.
+- **`serve` checks the request type three times** (`transport.go:192-212`). It decodes the frame for `requestBudget` and twice more for `requestIsRecoveryPreview`. `Call` also encodes the request twice. The server should apply `requestBudget` once and key only the EOF-watcher branch on the operation (ARCH-DRY).
+- **The poller's zellij path isn't taken from the checker** (`message_service.go:331`). It is built from `launcher.ZellijSource{}` rather than `c.Artifacts`' own `Zellij`, so a configured `Path` would be ignored. In production both are empty today.
+- **Failed listings are never reported.** The plan says a failed listing "is reported once per failure streak". In the code the failure only shows up inside the stale error text, and nothing logs it.
+
+### 5. Test coverage notes
+- **BR-2:** verified by the revert test described above.
+- **BR-3:** the resolver test uses a 1 s-per-listing stub, so it would fail if the poller were bypassed. A separate test for the queued-message retry rate isn't needed: once the resolver lists nothing, listings per second depend only on the poller's interval, not on how many checks run. Nothing tests that `startMessageService` passes the poller to the resolver, but that is one line.
+- **BR-5:** the fix deletes a blocking call. No cheap test would fail without it. The design behaviour it relies on (a check before the first listing refuses as "not yet known") is tested.
+- `TestListingPollerRunStopsWithItsContext` only asserts at least 2 listings. Nothing pins the upper bound on the listing rate; it holds by construction (a synchronous `Refresh` driven by a ticker).
+
+### 6. Architecture
+- **ARCH-DRY — pass, with a Minor.** `ZellijSource.listings` is the single place both listing outputs come from. The serve-path decoding is the Minor above.
+- **ARCH-PURE — pass.** Clock and runner are injected into the poller. The refusal logic is broker memory, tested without IO.
+- **ARCH-PURPOSE — pass for M1 as revised.** The authority path reads only the poller. Refusals reach the send's last line and `--message-status`. `--list` (Task 4) moved to M2 by plan revision, at the TL's request.
+- **ARCH-MOCK — pass.** The zellij stub scripts and the injected `list` function sit behind the same `ZellijSource` boundary production uses.
+- **ARCH-CONSTRAINTS — pass, with a deferral.** The rate is fixed by design: 2 listings per second, at most 2 processes at once, no overlap. The CPU and listing-rate AFTER numbers are deferred by revision. That measurement must happen before M2 closes, and should include the idle cost: the poller now lists even when no messages flow.
+- **ARCH-SECURE — pass.** Refusal reasons carry zellij error text and ownership-check messages, but no secrets.
+- **ARCH-ORDER — pass.** Turning an admission timeout into a definite refusal is justified. `Admit` (or `Enqueue`) is the only way into an inbox, and the `stored` check keeps any receipt that was actually written. One note for later: on timeout, `Release` runs on an already-expired context, so a wrapper reservation can outlive a refusal. The CLI mints a fresh ID per send, so this only matters if same-ID resends are ever used.
+- **ARCH-FUNERAL — pass.** Refusals are capped by count and age. The poller goroutine is joined through `service.workers` on the service's lifetime.
+
+### 7. Plan revision recommendations
+- Task 2: name the test file actually used (`message_listing_test.go`), and state the decided startup behaviour: a check refuses as "zellij liveness is not yet known" until the poller's first listing.
+- Core concepts, ListingPoller: either drop "reported once per failure streak" or implement it.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Decided as a distinct refusal ("zellij liveness is not yet known"); covered in zellij_listing_poller_test.go and TestMessageThreadResolverChecksReadOnlyThePoller.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      requestBudget shared by Call and Server.serve; disabling the send case turns TestTransportSendOutlastsAdmission red (context deadline exceeded), restored is green.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      TestMessageThreadResolverChecksReadOnlyThePoller drives messageThreadResolver(c, listings) with a 1s-per-listing stub; 50 checks run zero listings, so the retry-driven listing rate is bounded by the poller interval.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      BEFORE numbers are in the Log (6.1/s, 68% CPU); a plan revision defers AFTER to the post-landing restart and requires it before M2 closes. Hold M2 close to it.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      The startup Refresh on context.Background is gone; Run does the first listing in a worker on service.lifetime (message_service.go:475-476); checks refuse not-yet-known until then.
+  - id: BR-6
+    disposition: addressed
+    note: |
+      refusal now carries an explicit at time used by eviction and LatestRefusals; comparing against slot bindings belongs to the M2 --list consumer.
+findings:
+  - id: new
+    severity: Minor
+    kind: defect
+    family: transport-budget-clamps-caller-timeout
+    title: |
+      Broker.Send restarts a fresh AdmissionTimeout after the sender check instead of deriving from the exchange deadline
+    detail: |
+      2nd finding in this family. Rule: any budget nested inside a socket exchange must derive from that exchange's deadline (minus the reply margin), never start its own clock. Today the margin holds only because authority.current is cheap with the poller (message_service.go:829-833, broker.go:523).
+  - id: new
+    severity: Minor
+    kind: defect
+    family: duplicated-request-classification
+    title: |
+      Server.serve decodes the request three times to pick its budget; Call marshals the request twice
+    detail: |
+      requestBudget already returns RecoveryPreviewTimeout for resume-candidates; serve should apply it once and key only the EOF-watcher branch on the op (transport.go:192-212, 251-254). ARCH-DRY.
+  - id: new
+    severity: Minor
+    kind: defect
+    family: plan-test-not-delivered
+    title: |
+      Plan says a failed listing is reported once per failure streak; the poller never reports it
+    detail: |
+      2nd finding in this family. Rule: every behaviour the plan's Core concepts table promises is either implemented with a test or removed by a Revisions entry at the same boundary. Here the failure only appears inside ErrListingStale text (zellij_listing_poller.go:68-77).
+```
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"9398105f-5f66-4b2b-a9cf-c86a2be21a6e","repository":"github.com/xianxu/pair","issue_id":"000618","recipe":"milestone-review","round":3,"attempt":1,"agent":"claude","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/76b4167f1c28ebd3","reviewed_head":"19363f2714db86ef31b23e71d3678eb655a88b05","slot":"pair:2","requested_at":"2026-10-16T23:22:24.320167Z"},"phase":"finished","pid":24980,"started_at":"2026-10-16T23:22:24.648152Z","finished_at":"2026-10-16T23:37:19.413739Z","session_id":"f0d70dad-e3df-4600-921d-82e29411f88f","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.713318709s
+head: "19363f2714db86ef31b23e71d3678eb655a88b05"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

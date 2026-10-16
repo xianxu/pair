@@ -85,12 +85,13 @@ M1 and M2 reviews.
 
 Durable plan: `workshop/plans/000618-slots-recovered-by-reboot-or-resume-after-a-couch-restart-can-send-but-not-receive-plan.md`.
 
-- [ ] M1 — polled listing for the message authority, refused receipts with their reason (TL: land these first)
+- [x] M1 — polled listing for the message authority, refused receipts with their reason (TL: land these first)
 - [ ] M2 — receive state in `--list`; a delivered peer message confirms a codex binding; the first relaunch waits inside its operation
 
 ## Log
 
 ### 2026-10-16
+- 2026-10-16: closed M1 — Round 2 after REWORK: BR-2 send exchange budget (requestBudget, SendTransportTimeout = admission + 1 s) applied by both Call and the server; real-socket test TestTransportSendOutlastsAdmission RED without it. BR-3 TestMessageThreadResolverChecksReadOnlyThePoller: real checker + seeded thread + 1 s stub zellij, 50 checks run no zellij (RED without the poller). BR-5 no startup listing; poller loop lists at once, checks refuse not-yet-known. BR-4 before-numbers logged (6.1 zellij/s, 68% CPU); after-numbers follow the TL-scheduled restart after landing (plan revision). Minor: refusals carry explicit time. couchmessage, launcher, couchcmd Message tests green.; review verdict: SHIP
 
 - 2026-10-16 (pair:2, read-only on pair:3): pair:3's wrapper (pid 36072) is registered and connected to the live
   supervisor (71982); binding, endpoint socket hash, pid file, ready-file nonce/session and session index all match; the
