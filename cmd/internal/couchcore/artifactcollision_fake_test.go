@@ -114,7 +114,6 @@ func TestFakeAttachSessionPreservesTheSurvivingServer(t *testing.T) {
 	b := ThreadAddress{RepoScope: a.RepoScope, Tag: "couch-0000000000000002"}
 	unique := ThreadAddress{RepoScope: a.RepoScope, Tag: "couch-0000000000000003"}
 	f := NewFakeThreadArtifactCollisionChecker()
-	f.SetDetachedSession(a, "pair-shared")
 	f.SetDetachedSession(b, "pair-shared")
 	f.SetDetachedSession(unique, "pair-unique")
 	f.SetPaneSidecar(b, "claude")
@@ -135,7 +134,12 @@ func TestFakeAttachSessionPreservesTheSurvivingServer(t *testing.T) {
 	if err != nil || !reflect.DeepEqual(panes, beforePanes) {
 		t.Fatalf("attachment changed panes: %+v, %v; before %+v", panes, err, beforePanes)
 	}
+	observed, err := f.DetachedSessions(t.Context(), []DetachedCandidate{{Address: b, Agent: "claude"}})
+	if err != nil || len(observed) != 0 {
+		t.Fatalf("attached session still observed as detached: %+v, %v", observed, err)
+	}
 	// b stops being detached, still contests a, and leaves the unique session alone.
+	f.SetDetachedSession(a, "pair-shared")
 	for _, address := range []ThreadAddress{a, b, unique} {
 		observed, err := f.DetachedSessions(t.Context(), []DetachedCandidate{{Address: address, Agent: "claude"}})
 		if err != nil {
