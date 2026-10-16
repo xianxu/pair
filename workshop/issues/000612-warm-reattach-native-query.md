@@ -45,7 +45,7 @@ Proposed quick-flow design: add one atomic fake attachment transition that remov
 ## Plan
 
 - [x] Reproduce the acknowledgment transition with explicit host presence and no live TTY observations; identify the native-resolution caller and compare the production presence contract (ARCH-MOCK, ARCH-ORDER).
-- [ ] Confirm the responsible fake/fixture or product owner, then implement a minimal invariant-preserving correction with a regression that fails without it.
+- [x] Confirm the responsible fake/fixture or product owner, then implement a minimal invariant-preserving correction with a regression that fails without it.
 - [ ] Verify the relevant fake contracts and repeated complete couchcmd runs, race detection, and the recorded full suite; close review and report for landing.
 
 ## Log
@@ -64,6 +64,8 @@ Unconfirmed root-cause hypothesis from inspection: warm_reattach_test.go's After
 2026-10-16: pair:1 claimed #612 after #589 landed (PR #363). Entered planning. A read-only parallel audit compares the production session-presence checker and fake state transitions while the main agent builds a controlled measurement. No implementation changes yet.
 
 2026-10-16: Controlled measurement /tmp/pair-612-measure-r9x71iig/overlay.json failed deterministically with live PairSession Present=true, SessionPresence State=absent, followed by the real actionable inventory resolving exactly one native binding. Command: go test -trimpath -overlay=/tmp/pair-612-measure-r9x71iig/overlay.json ./cmd/internal/couchcmd -run '^TestWarmAcknowledgmentPresenceMeasurement$' -count=1 -v (FAIL 0.453s, intended assertion). This proves the inconsistent fake state and its consuming branch without a scheduler delay. Source audit confirms the production presence checker lists attached and detached live sessions as present; the zero-native-query contract remains correct. A bounded independent read-only audit found the same warm clear→set pattern in continuation acceptance, slot operations acceptance, and the readonly attached-client fixture; cold/fresh uses and disappearing-session tests are distinct. Proposed atomic fake transition and deterministic acknowledgement coverage sent to the TL for design approval before implementation.
+
+2026-10-16: Verified TL dispatch receipt 17dc19d1-c52e-4c0e-b10b-3b6c08c849ae explicitly authorizes the small plan to proceed after posting. Entered quick flow via change-code. Added a real inventory call inside warm acknowledgment before terminal adoption: original setters now deterministically fail the acceptance test (1.484s; retry produced 2 native-binding resolutions; /tmp/pair-612-deterministic-red.log). New all-index-claims regression also fails with both present and absent second owners under the old detached-only counting (/tmp/pair-612-claims-red.log). Implemented AttachSession as a mutex-protected removal of client-free state only, retained ownership from the shared pair-session index projection, migrated exactly the four planned warm-fixture sites, and added preservation/idempotence/no-creation/duplicate-claim contracts. Production presence and cold-policy code unchanged.
 
 ## Revisions
 

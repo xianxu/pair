@@ -3,6 +3,7 @@ package couchcmd
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"reflect"
 	"slices"
@@ -28,14 +29,21 @@ func TestSwitcherWarmReattachWithoutNativeBindingReachesTerminal(t *testing.T) {
 	thread := seedDetachedThread(t, rt, "/repo")
 	session := "pair-" + string(thread.Address.Tag)
 	rt.artifacts.SetDetachedSession(thread.Address, session)
-	rt.runner.AfterAcknowledge = func(string) error {
-		rt.artifacts.SetDetachedSession(thread.Address, "")
-		rt.artifacts.SetPairSession(thread.Address, session, true)
-		return nil
-	}
 	c, err := rt.NewCouch()
 	if err != nil {
 		t.Fatal(err)
+	}
+	rt.runner.AfterAcknowledge = func(string) error {
+		rt.artifacts.AttachSession(thread.Address)
+		// Inventory may refresh after host acknowledgement but before the
+		// terminal is adopted. A surviving session needs no cold proof there.
+		if _, err := c.ActionableThreadInventoryContext(context.Background(), nil); err != nil {
+			return err
+		}
+		if got := rt.artifacts.BindingResolutions(); got != 0 {
+			return fmt.Errorf("acknowledged warm session resolved native binding %d times", got)
+		}
+		return nil
 	}
 	host := hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 100})
 	reader, input := io.Pipe()

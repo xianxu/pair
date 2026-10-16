@@ -38,8 +38,7 @@ func TestSlotOperationSocketAcceptance(t *testing.T) {
 	session := "pair-" + string(thread.Address.Tag)
 	rt.artifacts.SetDetachedSession(thread.Address, session)
 	rt.runner.AfterAcknowledge = func(string) error {
-		rt.artifacts.SetDetachedSession(thread.Address, "")
-		rt.artifacts.SetPairSession(thread.Address, session, true)
+		rt.artifacts.AttachSession(thread.Address)
 		return nil
 	}
 	c, err := rt.NewCouch()
