@@ -64,3 +64,7 @@ Claimed in pair:6 and started planning from main; initial start-plan refreshed t
 ### 2026-10-16 — plan-first investigation
 
 Added the durable implementation proposal and explicit evidence gates. Original Spec and Done when remain the contract; memory cause, Go-profile method, #583 cleanup seam and live rollout are recorded as unresolved rather than assumed.
+
+### 2026-10-16 — plan handoff unavailable
+
+Plan committed at be96916a6. Couch socket disappeared before handoff. The send to hub returned uncertain outcome with receipt 15b2288f-f3ba-415e-bc7b-192ccf543f9c; status lookup also could not connect. No automatic resend, no alternative channel, no implementation. TL has not been confirmed to receive this plan; query that receipt before any later send. Earlier pair:4 coordination was queued, not confirmed read. Await transport recovery and TL review.
