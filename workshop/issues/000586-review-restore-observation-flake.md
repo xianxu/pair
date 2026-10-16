@@ -86,6 +86,12 @@ All eight diagnostics tests passed22.128s on the committed diagnostics source; t
 
 Loaded case8 retained a real asynchronous invalid exit-zero observation: status invalid, branch review/b, diagnostic “checkout HEAD changed during resolution”, mode callback, timeout2500, elapsed1810.347ms, no active request ID. The fixture passed; this is an expected refusal across an intentional checkout, not the original initial-request mismatch or proof of a deadline expiry. Its full evidence is loaded/run-0008/observations.json under the experiment root. The one-hour experiment and required suite continue; no failed case has been retried and no production fix has been selected.
 
+### Required diagnostics-source suite PASS
+
+Recorded suite7ce208b67b715382a02adcd7ffaacb6c onf6512608053de4d07e29acf206d870b31d169b51 completed exit0 in14m1s. Log /Users/xianxu/workspace/pair/.git/sdlc/local-checks/f6512608053de4d07e29acf206d870b31d169b51/suite.log; SHA2561c30fcf198d46bbc5b21bdc564b551e397f2c2409cc9b16daf2a43ceb2fbcf31. New eight-case diagnostics group, unchanged positive observation fixture, other editor tests and all Go packages passed. No source change since; later commits are issue Log only.
+
+The last suite-log write is2026-10-16T02:57:30.132529Z; confirmed command exit0 by02:57:53Z. Experiment root now includes owned-suite-finished.json so later samples can be distinguished from the true full-suite-overlap interval. At that point44loaded cases passed. The experiment continues until its one-hour boundary or first failure, under ambient fleet load after the owned suite ends; no future sample will be claimed as still overlapping that finished suite.
+
 ## Revisions
 
 ### 2026-10-15 — approved diagnostics-first timebox
