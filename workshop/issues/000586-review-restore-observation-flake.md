@@ -134,6 +134,12 @@ Latest hub hold fbd19711-0163-49d1-818b-928f51fce86b supersedes GO for publicati
 
 Required recorded suite3305926cf3ce16ff7dd15d50eda49637 is queued on exact e53bd02e6bbc8b367580379f8a370e6b93cedeff, the still-pushed PR source. Tool session30415. This is the single authorized PR-source retry after #608; baseline6e6e954f55eb8e7ba8dacebde0bf0e07 was a different-source diagnostic, not a retry. No source edits; only local issue Log commits since integration. Report4c5ce451-20cb-44fe-b5a3-34da336d05e9 is queued, not yet confirmed submitted. Do not invoke sdlc merge or publish main/cards until the hub releases the #571 hold.
 
+### 2026-10-16 — #571 landed; latest exact rerun sequence
+
+Hub837574c4-2cdf-4672-b9c9-884b15e5d347 submitted: #571 landed and #586 released to land. At that instant run3305926cf3ce16ff7dd15d50eda49637 was still queued with no recipe execution. Planning fresh integration of #571, identified the exact owned CLI PID76794 (start00:11:25, command fixed to e53bd02e), sent SIGINT and joined tool session30415 exit130 before the suite acquired a slot. No test failed or ran in that cancelled queue attempt; no foreign process touched.
+
+Before any integration or publication, latest submitted hub518e33f3-99ba-459c-9795-e9ed354b1446 clarified sequence: one unchanged rerun, then land if it passes; if the merge tool cannot classify because main is red on #590, report for the TL's decision instead of looping. Requeued exact e53bd02e6bbc8b367580379f8a370e6b93cedeff via sdlc local-check (session45606). This will be the first executed PR-source retry after #608. No code, budget, assertions or fixture changed. The publication hold is now released for #586 only; others remain held until it lands.
+
 ## Revisions
 
 ### 2026-10-15 — approved diagnostics-first timebox
