@@ -510,6 +510,216 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 7ce7e0a5-aaf8-4265-a71c-cf42d766388a
+            repository: github.com/xianxu/pair
+            issue_id: "000571"
+            recipe: milestone-review
+            round: 4
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/Library/Caches/sdlc/review-checkouts/d079df4c329f5341
+            reviewed_head: 1e3129bcbe93bb7aaf8d27b6b33785f5757ca7f3
+            slot: pair:7
+            requested_at: "2026-10-16T02:28:35.857691Z"
+          phase: finished
+          pid: 2099
+          started_at: "2026-10-16T02:28:35.949395Z"
+          finished_at: "2026-10-16T02:32:49.087685Z"
+          session_id: 01a1428a-34c2-7f83-a48d-5fd7444e9bdb
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-v1
+        repository: github.com/xianxu/pair
+        code_head: 1e3129bcbe93bb7aaf8d27b6b33785f5757ca7f3
+        tracker_head: 7a7cdeee23fe98f0fdeda9acc2f48cda1043445c
+        branch_point: 0169e962f95a932fd9884b20b2d5dd07b73022f1
+        since: "2026-10-15T10:22:13-07:00"
+        until: "2026-10-15T19:28:20-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-15T10:22:13-07:00"
+              end: "2026-10-15T19:28:20-07:00"
+              began: "2026-10-15T10:22:13-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot7/pair
+        sources:
+            - harness: codex
+              id: 01a13398-d940-72d3-8d80-c203fc8bd296
+              cwd: /Users/xianxu/workspace/worktree/pair-slot7/pair
+              digest: 4d8eb79287c8603832233344f903ad57936377c674ac862fa95043cf43288dc8
+              started: "2026-10-13T04:50:49.58Z"
+              spawned: false
+              bytes: 78016902
+              windows:
+                - start: "2026-10-15T10:22:13-07:00"
+                  end: "2026-10-15T19:28:20-07:00"
+            - harness: codex
+              id: 01a14096-6170-7e02-ae66-5b9fb3e7b182
+              cwd: /Users/xianxu/workspace/worktree/pair-slot7/pair
+              parent_id: 01a13398-d940-72d3-8d80-c203fc8bd296
+              digest: d480790ffe797d9fe00c5d49e6b4ac95d8c1ba1dbd8ae7c5a9b7ce08f642545f
+              started: "2026-10-15T17:22:39.652Z"
+              spawned: true
+              bytes: 1391734
+              windows:
+                - start: "2026-10-15T17:22:39.652Z"
+                  end: "2026-10-15T19:28:20-07:00"
+            - harness: codex
+              id: 01a14097-c211-7ce0-b051-366dd9fff257
+              cwd: /Users/xianxu/workspace/worktree/pair-slot7/pair
+              parent_id: 01a13398-d940-72d3-8d80-c203fc8bd296
+              digest: 2ea842eea9446200addfb65af85b1f8a6d3e742ab26bed90ad523fa5eedd0f28
+              started: "2026-10-15T17:24:09.928Z"
+              spawned: true
+              bytes: 4723189
+              windows:
+                - start: "2026-10-15T17:24:09.928Z"
+                  end: "2026-10-15T19:28:20-07:00"
+            - harness: codex
+              id: 01a14177-aa85-7cb3-bedb-b2a85e52af11
+              cwd: /Users/xianxu/workspace/worktree/pair-slot7/pair
+              digest: 43bbb8baac5acc685a555545857159490869cd449d01fb7111da69c67b3b9dc5
+              started: "2026-10-15T21:28:47.768Z"
+              spawned: false
+              bytes: 667373
+              windows:
+                - start: "2026-10-15T21:28:47.768Z"
+                  end: "2026-10-15T19:28:20-07:00"
+            - harness: codex
+              id: 01a1417a-a6e2-7912-8b67-8458dfe9c87c
+              cwd: /Users/xianxu/workspace/worktree/pair-slot7/pair
+              digest: 6e13a1d39624297d15c0f7a0388e25cd74a6176b9aaa00d492195956f70113e5
+              started: "2026-10-15T21:32:00.527Z"
+              spawned: false
+              bytes: 550567
+              windows:
+                - start: "2026-10-15T21:32:00.527Z"
+                  end: "2026-10-15T19:28:20-07:00"
+            - harness: codex
+              id: 01a1417c-1628-7022-a694-967d63271267
+              cwd: /Users/xianxu/workspace/worktree/pair-slot7/pair
+              digest: 907486ef0551b775f583f9c072d40e7d8c85f2dd011c2822fd58257375430eaf
+              started: "2026-10-15T21:33:35.501Z"
+              spawned: false
+              bytes: 535544
+              windows:
+                - start: "2026-10-15T21:33:35.501Z"
+                  end: "2026-10-15T19:28:20-07:00"
+            - harness: codex
+              id: 01a1417c-c082-7122-a0fa-e0e3da0cc318
+              cwd: /Users/xianxu/workspace/worktree/pair-slot7/pair
+              digest: 794442b6bc357a71c594717d55a25d15f708bcd42b0d8343224557b0c36d6d2f
+              started: "2026-10-15T21:34:18.189Z"
+              spawned: false
+              bytes: 413877
+              windows:
+                - start: "2026-10-15T21:34:18.189Z"
+                  end: "2026-10-15T19:28:20-07:00"
+            - harness: codex
+              id: 01a1417d-adca-7cd1-a945-d5965c8d2446
+              cwd: /Users/xianxu/workspace/worktree/pair-slot7/pair
+              parent_id: 01a13398-d940-72d3-8d80-c203fc8bd296
+              digest: 2ee67c0bafbd34deed4a036e45da542678d185b2f4640ba440fddc04977dd17a
+              started: "2026-10-15T21:35:18.067Z"
+              spawned: true
+              bytes: 5091628
+              windows:
+                - start: "2026-10-15T21:35:18.067Z"
+                  end: "2026-10-15T19:28:20-07:00"
+            - harness: codex
+              id: 01a1417e-6595-70e1-9dbc-1eedb485d020
+              cwd: /Users/xianxu/workspace/worktree/pair-slot7/pair
+              parent_id: 01a13398-d940-72d3-8d80-c203fc8bd296
+              digest: 1b5c9f426c219cd8746e9e83eebf452e7a5319e9e9d825a0ae6ef4269f14aaae
+              started: "2026-10-15T21:36:05.122Z"
+              spawned: true
+              bytes: 3644516
+              windows:
+                - start: "2026-10-15T21:36:05.122Z"
+                  end: "2026-10-15T19:28:20-07:00"
+            - harness: codex
+              id: 01a14276-5f69-78a1-ba4b-f58121438b6a
+              cwd: /Users/xianxu/workspace/worktree/pair-slot7/pair
+              digest: dce0b10c629da8d3a28aeeed669e0e0bb919ff129e9f2f54d82a659fbb30adc6
+              started: "2026-10-16T02:06:56.581Z"
+              spawned: false
+              bytes: 551795
+              windows:
+                - start: "2026-10-16T02:06:56.581Z"
+                  end: "2026-10-15T19:28:20-07:00"
+            - harness: codex
+              id: 01a14276-ecef-7310-a963-13ecb96db6e6
+              cwd: /Users/xianxu/workspace/worktree/pair-slot7/pair
+              digest: 1848ebd5f6e6e1b16c6279a5ac20562b4d36c2b4aaf2c967419e25d09fe5a8b0
+              started: "2026-10-16T02:07:32.798Z"
+              spawned: false
+              bytes: 455821
+              windows:
+                - start: "2026-10-16T02:07:32.798Z"
+                  end: "2026-10-15T19:28:20-07:00"
+        excluded_brain_sessions: 1
+        excluded_brain_minutes: 15.064
+        cuts:
+            - dispatched: "2026-10-15T16:35:33-07:00"
+              finalized: "2026-10-15T16:39:24-07:00"
+              finalizing: false
+            - dispatched: "2026-10-15T17:33:13-07:00"
+              finalized: "2026-10-15T17:37:50-07:00"
+              finalizing: false
+            - dispatched: "2026-10-15T18:42:48-07:00"
+              finalized: "2026-10-15T18:46:59-07:00"
+              finalizing: false
+      "n": 4
+      timestamp: "2026-10-15T19:32:49-07:00"
+      dispatched: "2026-10-15T19:28:34-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: The configuration projection and override machinery are removed; indirect Codex invocations remain native.
+          round: 4
+        - id: BR-2
+          disposition: addressed
+          note: The native-selector transcript eligibility machinery is removed; Pair no longer predicts indirect Codex targets.
+          round: 4
+        - id: BR-3
+          disposition: addressed
+          note: Codex worktree-scope emulation is removed; indirect requests return unsupported before scope observation.
+          round: 4
+        - id: BR-4
+          disposition: addressed
+          note: Codex SQLite collectors and snapshot machinery are removed; exact-ID admission uses transcript validation.
+          round: 4
+        - id: BR-5
+          disposition: addressed
+          note: Both Codex collectors are absent and indirect selection is fenced at pure and IO boundaries. Removing each guard independently made TestNativeSelectorCodexIndirectNeverProbesEvenWithResolvedConfiguration fail.
+          round: 4
+      findings:
+        - kind: defect
+          id: BR-6
+          severity: Critical
+          title: A Codex home error blocks unrelated agents sharing the ledger
+          detail: 'cmd/internal/launcher/osruntime.go:705-715 returns a whole-ledger error when any Codex owner has an unavailable home. With bound Codex and Claude entries in one tag and CODEX_HOME naming a missing directory, a temporary regression calling readSavedConfigForTag for Claude failed with "cannot read native session authority ... Codex native home unavailable". Valid relative CODEX_HOME also cannot resolve here because startup cwd is deliberately unavailable. ARCH-PURPOSE: preserve per-agent availability; represent the Codex target as unavailable without discarding usable Claude/Qoder entries, and add mixed-agent ledger launch/restart regressions.'
+          family: native-agent-error-isolation
+          round: 4
+        - kind: defect
+          id: BR-7
+          severity: Critical
+          title: Recovery discovery and validation use different Codex transcript homes
+          detail: 'cmd/internal/launcher/recovery_authority_os.go:167-171 now validates candidates under CODEX_HOME, but cmd/internal/couchcore/recovery_evidence_os.go:199-200 still discovers them through NewOSRuntime(HomeDir, DataDir), which scans HOME/.codex. A temporary production-reader regression found one valid candidate in the default home, then found zero after moving the same tree to an absolute CODEX_HOME. This contradicts the active plan''s exact/ledger/recovery consistency requirement. ARCH-PURPOSE / ARCH-DRY: share transcript namespace construction across discovery and validation, sweep remaining recovery root constructors, and add an end-to-end custom-home recovery regression.'
+          family: native-transcript-namespace-consistency
+          round: 4
+      recipe: milestone-review
+      isolation: fenced
+      blocked: true
 ---
 
 # Gate ledger — pair#571 (boundary-review)
@@ -554,6 +764,24 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-5** [Critical] `native-selector-filter-fidelity` (kind: defect) Exec latest can pin Custom or Internal conversations excluded by native selection
   cmd/internal/sessioninventory/codex_latest.go:181-190 filters only by provider and never applies native source-kind filtering. In rust-v0.162.1, exec all_thread_source_kinds feeds app-server source_kind_matches, which excludes SessionSource::Custom and SessionSource::Internal. A temporary production-selector regression with an older eligible cli conversation and a newer matching conversation reproduced wrong-ID resolution for custom atlas, custom chatgpt, internal guardian and internal memory_consolidation sources. ARCH-PURPOSE / ARCH-SECURE: decode and filter persisted DB source values according to the native selection rule, or retain compatibility when their meaning is unproven. Sweep the source-kind mapping across both collectors and add selected-ID regressions; valid transcript decoding alone does not establish selector eligibility.
 
+## Round 4 — 2026-10-15T19:32:49-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-1 — addressed — The configuration projection and override machinery are removed; indirect Codex invocations remain native.
+- BR-2 — addressed — The native-selector transcript eligibility machinery is removed; Pair no longer predicts indirect Codex targets.
+- BR-3 — addressed — Codex worktree-scope emulation is removed; indirect requests return unsupported before scope observation.
+- BR-4 — addressed — Codex SQLite collectors and snapshot machinery are removed; exact-ID admission uses transcript validation.
+- BR-5 — addressed — Both Codex collectors are absent and indirect selection is fenced at pure and IO boundaries. Removing each guard independently made TestNativeSelectorCodexIndirectNeverProbesEvenWithResolvedConfiguration fail.
+
+### Raised
+
+- **BR-6** [Critical] `native-agent-error-isolation` (kind: defect) A Codex home error blocks unrelated agents sharing the ledger
+  cmd/internal/launcher/osruntime.go:705-715 returns a whole-ledger error when any Codex owner has an unavailable home. With bound Codex and Claude entries in one tag and CODEX_HOME naming a missing directory, a temporary regression calling readSavedConfigForTag for Claude failed with "cannot read native session authority ... Codex native home unavailable". Valid relative CODEX_HOME also cannot resolve here because startup cwd is deliberately unavailable. ARCH-PURPOSE: preserve per-agent availability; represent the Codex target as unavailable without discarding usable Claude/Qoder entries, and add mixed-agent ledger launch/restart regressions.
+- **BR-7** [Critical] `native-transcript-namespace-consistency` (kind: defect) Recovery discovery and validation use different Codex transcript homes
+  cmd/internal/launcher/recovery_authority_os.go:167-171 now validates candidates under CODEX_HOME, but cmd/internal/couchcore/recovery_evidence_os.go:199-200 still discovers them through NewOSRuntime(HomeDir, DataDir), which scans HOME/.codex. A temporary production-reader regression found one valid candidate in the default home, then found zero after moving the same tree to an absolute CODEX_HOME. This contradicts the active plan's exact/ledger/recovery consistency requirement. ARCH-PURPOSE / ARCH-DRY: share transcript namespace construction across discovery and validation, sweep remaining recovery root constructors, and add an end-to-end custom-home recovery regression.
+
 ## Open findings
 
-- **BR-5** [Critical] `native-selector-filter-fidelity` (kind: defect) Exec latest can pin Custom or Internal conversations excluded by native selection
+- **BR-6** [Critical] `native-agent-error-isolation` (kind: defect) A Codex home error blocks unrelated agents sharing the ledger
+- **BR-7** [Critical] `native-transcript-namespace-consistency` (kind: defect) Recovery discovery and validation use different Codex transcript homes

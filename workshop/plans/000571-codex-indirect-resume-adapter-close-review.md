@@ -332,3 +332,123 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-15T19:32:49-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 571 — Keep Codex indirect resumes native; route exact-ID transcript homes |
+| repo | pair |
+| issue file | workshop/issues/000571-codex-indirect-resume-adapter.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 0169e962f95a932fd9884b20b2d5dd07b73022f1..1e3129bcbe93bb7aaf8d27b6b33785f5757ca7f3 |
+| command | sdlc close --issue 571 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-15T19:32:49-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The reduced native-pass-through design removes BR-5’s faulty selection mechanism, and focused normal/race tests pass. Two reproducible gaps block shipping: Codex home errors can disable unrelated Claude launches, and recovery discovery still scans the default home while recovery validation uses CODEX_HOME.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      The configuration projection and override machinery are removed; indirect Codex invocations remain native.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      The native-selector transcript eligibility machinery is removed; Pair no longer predicts indirect Codex targets.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Codex worktree-scope emulation is removed; indirect requests return unsupported before scope observation.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      Codex SQLite collectors and snapshot machinery are removed; exact-ID admission uses transcript validation.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      Both Codex collectors are absent and indirect selection is fenced at pure and IO boundaries. Removing each guard independently made TestNativeSelectorCodexIndirectNeverProbesEvenWithResolvedConfiguration fail.
+findings:
+  - id: new
+    severity: Critical
+    kind: defect
+    family: native-agent-error-isolation
+    title: |
+      A Codex home error blocks unrelated agents sharing the ledger
+    detail: |
+      cmd/internal/launcher/osruntime.go:705-715 returns a whole-ledger error when any Codex owner has an unavailable home. With bound Codex and Claude entries in one tag and CODEX_HOME naming a missing directory, a temporary regression calling readSavedConfigForTag for Claude failed with "cannot read native session authority ... Codex native home unavailable". Valid relative CODEX_HOME also cannot resolve here because startup cwd is deliberately unavailable. ARCH-PURPOSE: preserve per-agent availability; represent the Codex target as unavailable without discarding usable Claude/Qoder entries, and add mixed-agent ledger launch/restart regressions.
+  - id: new
+    severity: Critical
+    kind: defect
+    family: native-transcript-namespace-consistency
+    title: |
+      Recovery discovery and validation use different Codex transcript homes
+    detail: |
+      cmd/internal/launcher/recovery_authority_os.go:167-171 now validates candidates under CODEX_HOME, but cmd/internal/couchcore/recovery_evidence_os.go:199-200 still discovers them through NewOSRuntime(HomeDir, DataDir), which scans HOME/.codex. A temporary production-reader regression found one valid candidate in the default home, then found zero after moving the same tree to an absolute CODEX_HOME. This contradicts the active plan's exact/ledger/recovery consistency requirement. ARCH-PURPOSE / ARCH-DRY: share transcript namespace construction across discovery and validation, sweep remaining recovery root constructors, and add an end-to-end custom-home recovery regression.
+```
+
+1. **Strengths**
+
+   - Indirect Codex requests stop before inventory IO, including legacy requests carrying resolved provider/SQLite metadata.
+   - Separate guard-removal controls confirm the regression test detects both restored prediction authority and restored physical-CWD probing.
+   - Exact-ID tests cover custom homes, explicit homes without HOME, canonical aliases, and startup cwd before `-C`.
+   - README and indexed atlas updates describe the reduced scope.
+
+2. **Critical findings**
+
+   Both findings above have failing private regression reproductions at pinned head. Fix agent-local error isolation and align recovery discovery with validation.
+
+3. **Important findings**
+
+   None additional.
+
+4. **Minor findings**
+
+   None.
+
+5. **Test coverage notes**
+
+   Focused sessioninventory, launcher and wrapper tests passed normally and with `-race`; the complete artifactpath package passed. Existing tests miss mixed-agent ledgers and custom-home recovery discovery. Temporary Go overlays were removed; the checkout remains unchanged. I did not rerun the full suite.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — flag:** recovery bypasses the shared home-routing rule.
+   - **ARCH-PURE — pass:** the remaining filesystem integration is small; selector decisions remain directly testable.
+   - **ARCH-PURPOSE — flag:** recovery consistency and unchanged other-agent behavior are incomplete.
+   - **ARCH-MOCK — pass:** inspected integration tests use private files and existing stateful admission seams.
+   - **ARCH-CONSTRAINTS — pass:** indirect selection performs no probing; no new fan-out or background work.
+   - **ARCH-SECURE — pass:** invalid explicit homes refuse authority; no new credential access.
+   - **ARCH-ORDER — pass:** admission transitions remain unchanged; compatibility creates no reservation.
+   - **ARCH-FUNERAL — pass:** no new durable production artifact family.
+
+7. **Plan revision recommendations**
+
+   Add `## Revisions` entries defining per-agent ledger failure isolation and enumerating recovery namespace consumers, with mixed-agent and discovery-to-validation regression coverage. The explicit scope revision adequately supersedes the historical selector concepts table.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"7ce7e0a5-aaf8-4265-a71c-cf42d766388a","repository":"github.com/xianxu/pair","issue_id":"000571","recipe":"milestone-review","round":4,"attempt":1,"agent":"codex","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/d079df4c329f5341","reviewed_head":"1e3129bcbe93bb7aaf8d27b6b33785f5757ca7f3","slot":"pair:7","requested_at":"2026-10-16T02:28:35.857691Z"},"phase":"finished","pid":2099,"started_at":"2026-10-16T02:28:35.949395Z","finished_at":"2026-10-16T02:32:49.087685Z","session_id":"01a1428a-34c2-7f83-a48d-5fd7444e9bdb","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.244226667s
+head: "1e3129bcbe93bb7aaf8d27b6b33785f5757ca7f3"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

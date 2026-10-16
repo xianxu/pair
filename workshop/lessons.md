@@ -1988,3 +1988,9 @@ and external temporary roots rather than relying on the host's TMPDIR.
   reassess the boundary before adding another policy rule. A native database is
   evidence, not a native selection contract. Without a supported read-only
   resolver, preserve indirect native behavior and guard only proven exact IDs.
+
+- #571 reduced close: isolate a native-home failure to its agent when projecting
+  a shared ledger; a blocked Codex entry must not discard Claude/Qoder authority.
+  A home-routing change must cover recovery discovery and validation together,
+  including legacy held-file checks. Test the full candidate handoff, not only
+  each helper's root list. Historical working cwd is not startup provenance.

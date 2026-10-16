@@ -348,3 +348,29 @@ Only documentation/evidence changed after the pinned suite head. PR351 CI
 (conformance, merge-check, local-gates-guard) is green. Read-only/headless
 acceptance is approved by the TL; no pair:0 staging is required. Proceed to
 fresh full close review of the reduced scope, not a narrow fix review.
+
+### 2026-10-15 — reduced-scope close corrections (BR-6 / BR-7)
+
+Fresh close on1e3129bc returned REWORK: BR1–5 disposed by mechanism deletion;
+BR6 reproduces whole-ledger failure leaking an unavailable Codex home into
+unrelated Claude/Qoder launch authority, and BR7 reproduces recovery discovery
+using the default transcript home while validation uses CODEX_HOME. Fix the
+existing home-routing contract; do not revive selection policy or change grants.
+
+Per-agent ledger projection must retain usable other-agent entries, mark the
+affected Codex entry unavailable/blocked even when a prior binding exists, and
+never fall back to the default Codex home. Mixed-agent saved-config/restart
+regressions cover invalid and relative homes with unavailable historical cwd.
+
+Share the small transcript-runtime construction across exact launcher, ledger,
+identity, recovery discovery/validation and legacy recovery held-file checks.
+Preserve each reader's explicit default home; explicit CODEX_HOME still uses
+canonical directory semantics. A recovery working path is not proof of original
+startup cwd: historical consumers pass unknown provenance, so relative custom
+homes cannot gain recovery authority. Add discovery-to-validation custom-home
+coverage, default/invalid/relative controls and other-agent isolation. Sweep
+remaining recovery constructors; no config/database/credential probing.
+
+Run affected normal/race checks and full source audits, then fresh full suite
+and fresh full close. The prior green run remains recorded, not claimed as
+covering these corrections. TL report a53827c7 was confirmed submitted.
