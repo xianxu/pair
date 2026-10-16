@@ -79,3 +79,29 @@ func TestDetachedSuiteIsNotAnOrphanAfterReparenting(t *testing.T) {
 		}
 	}
 }
+
+// The agent that started a backgrounded suite relaunched: the remembered root
+// is dead, but the suite's detached root still names the thread.
+func TestDetachedSuiteOutlivesItsAgentsRelaunch(t *testing.T) {
+	thread := ThreadAddress{RepoScope: "s", Tag: "t"}
+	agent := ResourceRoot{Key: ResourceProcessKey{PID: 5, Identity: "agent-1"}}
+	slots := []ResourceSlot{{Slot: "pair:6", Thread: thread, OwnershipKnown: true, Roots: []ResourceRoot{agent}}}
+	before := []procutil.Process{
+		{PID: 5, PPID: 1, Identity: "agent-1", Name: "claude"},
+		{PID: 30, PPID: 5, Identity: "sdlc-3", Name: "sdlc"},
+		{PID: 31, PPID: 30, Identity: "test-3", Name: "couchcore.test"},
+	}
+	first := SelectResourceProcesses(before, slots, nil, true, true)
+	after := []procutil.Process{before[1], before[2]}
+	after[0].PPID = 1
+	attributed := DetachedSlotRoots(after, slots, func(p procutil.Process) (ThreadAddress, bool) { return thread, true })
+	sel := SelectResourceProcesses(after, attributed, first.Processes, true, true)
+	for _, p := range sel.Processes {
+		if p.Key.PID == 31 && (p.Orphan || p.Root.PID != 30 || p.Key.Identity != "test-3") {
+			t.Fatalf("test binary %+v, want it re-rooted at the detached sdlc, not orphaned", p)
+		}
+	}
+	if len(sel.Processes) != 2 {
+		t.Fatalf("selection %+v", sel.Processes)
+	}
+}

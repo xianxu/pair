@@ -2,6 +2,7 @@ package couchcmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"runtime"
@@ -68,7 +69,10 @@ func (s *resourceSampler) inheritedThread(ctx context.Context, r resourceReader,
 		env, calls, err := r.Environment(ctx, p, "COUCH_THREAD_SCOPE", "COUCH_THREAD_TAG")
 		sample.Cost.EnvironmentCalls += calls
 		sample.Cost.NativeCalls += calls
-		if ctx.Err() != nil {
+		var unstable *procutil.IdentityUnavailableError
+		if ctx.Err() != nil || errors.As(err, &unstable) {
+			// Cancellation and a generation changing mid-read are transient:
+			// ask again next pass.
 			return couchcore.ThreadAddress{}, false
 		}
 		// Another user's process, or one that exited, answers no thread for

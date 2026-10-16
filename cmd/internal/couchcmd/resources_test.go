@@ -24,6 +24,7 @@ type samplerReader struct {
 	usages                         []int
 	commands, environments         []int
 	env                            map[int]map[string]string
+	unstableEnv                    int
 	tables, clocks                 int
 	tableHook                      func(context.Context)
 	cpu                            uint64
@@ -58,6 +59,10 @@ func (f *samplerReader) Environment(ctx context.Context, p procutil.Process, key
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.environments = append(f.environments, p.PID)
+	if p.PID == f.unstableEnv {
+		f.unstableEnv = 0
+		return nil, 2, &procutil.IdentityUnavailableError{Err: errors.New("process parent changed during resource observation")}
+	}
 	return f.env[p.PID], 2, nil
 }
 func (f *samplerReader) SelfCPU(context.Context) (uint64, int, error) {
@@ -79,8 +84,9 @@ func testResourceSampler(f *samplerReader) *resourceSampler {
 func TestResourceSamplerAttributesADetachedSuiteToItsSlot(t *testing.T) {
 	thread := couchcore.ThreadAddress{RepoScope: "scope", Tag: "1-pair-6"}
 	f := &samplerReader{
-		rows: []procutil.Process{{PID: 10, Identity: "owned"}, {PID: 20, PPID: 1, Identity: "zsh", Name: "zsh"}, {PID: 21, PPID: 20, Identity: "sdlc", Name: "sdlc"}, {PID: 22, PPID: 21, Identity: "test", Name: "couchcore.test"}, {PID: 30, PPID: 1, Identity: "stray", Name: "python3"}},
-		env:  map[int]map[string]string{21: {"COUCH_THREAD_SCOPE": "scope", "COUCH_THREAD_TAG": "1-pair-6"}},
+		rows:        []procutil.Process{{PID: 10, Identity: "owned"}, {PID: 20, PPID: 1, Identity: "zsh", Name: "zsh"}, {PID: 21, PPID: 20, Identity: "sdlc", Name: "sdlc"}, {PID: 22, PPID: 21, Identity: "test", Name: "couchcore.test"}, {PID: 30, PPID: 1, Identity: "stray", Name: "python3"}},
+		env:         map[int]map[string]string{21: {"COUCH_THREAD_SCOPE": "scope", "COUCH_THREAD_TAG": "1-pair-6"}},
+		unstableEnv: 21, // the first read races a reparent; the next pass asks again
 	}
 	s := testResourceSampler(f)
 	s.slots = func() couchcore.ResourceSlotInventory {
@@ -98,8 +104,8 @@ func TestResourceSamplerAttributesADetachedSuiteToItsSlot(t *testing.T) {
 	if _, ok := owned[30]; ok {
 		t.Fatal("a process naming no thread was claimed")
 	}
-	if !reflect.DeepEqual(f.environments, []int{20, 21, 30}) {
-		t.Fatalf("environment reads %v, want each generation once across passes", f.environments)
+	if !reflect.DeepEqual(f.environments, []int{20, 21, 30, 21}) {
+		t.Fatalf("environment reads %v, want each settled generation once across passes", f.environments)
 	}
 }
 func TestResourceSamplerSelectionCallsAndImmutableView(t *testing.T) {
