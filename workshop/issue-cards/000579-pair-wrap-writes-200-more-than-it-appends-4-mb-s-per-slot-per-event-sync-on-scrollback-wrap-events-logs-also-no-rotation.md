@@ -16,6 +16,15 @@ claimant:
 actual_hours: 5.06
 tracker:
     version: 1
+    handoff:
+        token: move-e96d5c11f81f
+        repository: github.com/xianxu/pair
+        source_branch: refs/heads/main-slot3
+        source_base: d59420ed5eee5e3b94113bb8cac0c82cff5d4a59
+        source_head: d59420ed5eee5e3b94113bb8cac0c82cff5d4a59
+        source_path: workshop/issues/000579-pair-wrap-writes-200-more-than-it-appends-4-mb-s-per-slot-per-event-sync-on-scrollback-wrap-events-logs-also-no-rotation.md
+        source_blob: ab045c206f539dd9d7a8e9e9500855301a131431
+        destination: workshop/issues/000579-pair-wrap-writes-200-more-than-it-appends-4-mb-s-per-slot-per-event-sync-on-scrollback-wrap-events-logs-also-no-rotation.md
     completion:
         token: close-1eb1b62f1af8
         repository: github.com/xianxu/pair
