@@ -1,12 +1,20 @@
 ---
 id: 000587
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-15
 updated: 2026-10-15
 estimate_hours:
-card_mirror: '98275dfa3b900eff074652587ae1c981c76f5bfa' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'bcb557e6aef0c1b7fb31171256e28df9f80cdedc' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-15T16:54:15-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:1
+    worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Couch resource sampler: per-slot CPU, memory and disk writes, orphan detection, threshold alerts, couch --resources
@@ -45,8 +53,24 @@ Part of the ops project resource-observability (`ops/teams/devinfra/projects/res
 
 ## Plan
 
-- [ ]
+Durable plan: [Couch resource sampler](../plans/000587-couch-resource-sampler-plan.md).
+
+- [ ] Counted Darwin resource reader with real owned-child conformance.
+- [ ] Pure generation-safe attribution, rates, provenance and alert episodes.
+- [ ] Authenticated full-slot roots and supervisor-owned sampler lifecycle.
+- [ ] Bounded restart-safe history and existing broker/hub delivery.
+- [ ] Cached resources CLI, configuration, docs and storage registration.
+- [ ] Targeted/full qualification, measured overhead, operator-coordinated live scratch-slot alert, SDLC review and landing.
 
 ## Log
 
 ### 2026-10-15
+
+
+2026-10-15: Claimed and started design. Read ops resource-observability project and issue. Read-only seam review found authenticated Zellij server evidence already available as PairSessionBinding.Owner.Server; wrapper-only ancestry would omit draft editors. Preserve that evidence at admission/lifecycle boundaries rather than re-running Zellij during sampling. Native table currently hides an unbounded ENOMEM retry loop, so syscall accounting must live at the native boundary. Full design and proposed defaults are in the durable plan; awaiting TL approval before change-code. No implementation or live-slot changes made.
+
+## Revisions
+
+### 2026-10-15 — proposed implementation contract for TL approval
+
+Make sampling limits explicit: orphan attribution requires a previously observed generation/provenance; children born and orphaned entirely between samples and pre-upgrade unknown orphans cannot be proven. Include every known slot row, with partial/unavailable coverage where root or counter evidence is missing. Propose 60s cadence; 2 MiB/s for10m writes, 8 GiB process RSS, 90% one-core idle CPU for15m, 256 MiB orphan RSS over two valid samples. History is <=24h/1440 aggregate frames/4 MiB, plus <=2 MiB ownership/episode checkpoint, with shorter coverage disclosed at the byte cap. Count actual native attempts and persistence cost; qualify <0.1% average one-core cost at default cadence. Darwin uses the SDK libproc API through cgo; unsupported builds report that explicitly. These choices require TL plan approval, and live smoke staging remains separately coordinated.
