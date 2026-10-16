@@ -1,13 +1,13 @@
 ---
 id: 000571
-status: working
+status: codecomplete
 deps: [pair#556]
 github_issue:
 target: slot-recovery
 created: 2026-10-15
 updated: 2026-10-15
 estimate_hours: 5.9
-card_mirror: 'bdb1c5860cf83090f2321ff5564362c53bbc88ca' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '6f5440633b9c3e83add1a8120c87397fd49ec491' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-15T10:22:13-07:00
 claimant:
     operator: Xian Xu
@@ -17,6 +17,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: operator}
+actual_hours: 15.65
 ---
 
 # Keep Codex indirect resumes native; route exact-ID transcript homes
