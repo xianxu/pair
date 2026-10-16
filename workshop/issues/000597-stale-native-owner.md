@@ -1,6 +1,6 @@
 ---
 id: 000597
-status: working
+status: codecomplete
 deps: []
 github_issue:
 target: slot-recovery
@@ -8,7 +8,7 @@ created: 2026-10-15
 updated: 2026-10-15
 estimate_hours:
 severity: critical
-card_mirror: 'f83e7afcbe689cb5e7ae098f53cca30fc2a348d2' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'd4f512e4f7e5d5ec2859212a6735e122308369c1' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-15T20:32:41-07:00
 claimant:
     operator: Xian Xu
@@ -18,6 +18,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
 flow: {kind: quick, provenance: inferred, spec: "2aadeb9b", done: "105f9900"}
+actual_hours: 1.75
 ---
 
 # Reject stale legacy native owners
