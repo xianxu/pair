@@ -14,7 +14,7 @@ import (
 // TUI asks SQLite about repository scope; exec inspects the latest turn cwd.
 // Source: rust-v0.162.1 tui/src/lib.rs latest_session_lookup_params and
 // exec/src/lib.rs resolve_resume_thread_id / parse_latest_turn_context_cwd.
-func resolveScopedCodexLatest(ctx context.Context, rt Runtime, q NativeSelectorRequest) (NativeSelectorResolution, error) {
+func resolveScopedCodexLatest(ctx context.Context, rt Runtime, q NativeSelectorRequest) (result NativeSelectorResolution, resultErr error) {
 	incomplete := func() (NativeSelectorResolution, error) {
 		return NativeSelectorResolution{Status: NativeSelectorIncomplete, Reason: "Codex latest evidence is incomplete or requires native fallback"}, ctx.Err()
 	}
@@ -39,6 +39,12 @@ func resolveScopedCodexLatest(ctx context.Context, rt Runtime, q NativeSelectorR
 	if err != nil {
 		return incomplete()
 	}
+	defer func() {
+		if closeErr := bounded.Close(); closeErr != nil {
+			result = NativeSelectorResolution{Status: NativeSelectorIncomplete, Reason: "native SQLite snapshot cleanup incomplete"}
+			resultErr = errors.Join(resultErr, closeErr)
+		}
+	}()
 	var selected codexLatestRow
 	switch scope.Mode {
 	case CodexModeTUI:
@@ -69,6 +75,9 @@ func resolveScopedCodexLatest(ctx context.Context, rt Runtime, q NativeSelectorR
 		}
 	}
 
+	if err := bounded.validateSQLiteSnapshots(); err != nil {
+		return incomplete()
+	}
 	if ctx.Err() != nil {
 		return NativeSelectorResolution{}, ctx.Err()
 	}

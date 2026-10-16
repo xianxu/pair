@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 )
 
 type nativeSelectorRuntime struct {
@@ -13,6 +14,7 @@ type nativeSelectorRuntime struct {
 	bytes     int64
 	entries   int
 	failure   error
+	sqlite    map[string]NativeSelectorSQLiteSnapshot
 	snapshots map[string]FileEntry
 }
 
@@ -106,6 +108,27 @@ func (r *nativeSelectorRuntime) QuerySQLite(a Artifact, query string, limit int6
 	}
 	var out SQLiteResult
 	var err error
+	if isCodexSelectorSQLite(a) {
+		if factory, ok := r.Runtime.(nativeSelectorSQLiteSnapshotFactory); ok {
+			if r.sqlite == nil {
+				r.sqlite = map[string]NativeSelectorSQLiteSnapshot{}
+			}
+			key := targetArtifactKey(a)
+			snapshot := r.sqlite[key]
+			if snapshot == nil {
+				snapshot, err = factory.NewNativeSelectorSQLiteSnapshot(r.ctx, a, r, RecoveryTotalReadLimit-r.bytes)
+				if err != nil {
+					return out, r.fail(err)
+				}
+				r.sqlite[key] = snapshot
+			}
+			out, err = snapshot.Query(r.ctx, query, limit)
+			if err != nil {
+				return out, r.fail(err)
+			}
+			return out, r.ctx.Err()
+		}
+	}
 	if io, ok := r.Runtime.(interface {
 		QueryNativeSelectorSQLite(context.Context, Artifact, string, int64) (SQLiteResult, error)
 	}); ok {
@@ -120,4 +143,76 @@ func (r *nativeSelectorRuntime) QuerySQLite(a Artifact, query string, limit int6
 		return out, r.fail(fmt.Errorf("native selector SQLite: %w", err))
 	}
 	return out, nil
+}
+
+// Keep the metadata-only SQLite namespace out of transcript inventory listings;
+// only the fixed DB/WAL/journal snapshot probes may observe this root. In
+// particular listing this root would stat the native SHM sidecar.
+func (r *nativeSelectorRuntime) NativeRoots(agent Agent) []StorageRoot {
+	roots := r.Runtime.NativeRoots(agent)
+	if agent != AgentCodex {
+		return roots
+	}
+	filtered := make([]StorageRoot, 0, len(roots))
+	for _, root := range roots {
+		if root.Name != "codex-state" {
+			filtered = append(filtered, root)
+		}
+	}
+	return filtered
+}
+func (r *nativeSelectorRuntime) StatRecoveryFile(ctx context.Context, a Artifact) (FileEntry, error) {
+	if err := ctx.Err(); err != nil {
+		return FileEntry{}, r.fail(err)
+	}
+	if r.entries >= RecoveryMetadataLimit {
+		return FileEntry{}, r.fail(ErrReadLimit)
+	}
+	r.entries++
+	entry, err := r.io.StatRecoveryFile(ctx, a)
+	if err != nil && !os.IsNotExist(err) {
+		r.fail(err)
+	}
+	return entry, err
+}
+func (r *nativeSelectorRuntime) ReadRecoveryAt(ctx context.Context, entry FileEntry, offset, limit int64) ([]byte, bool, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, false, r.fail(err)
+	}
+	if limit <= 0 || limit > readChunkSize || limit > RecoveryTotalReadLimit-r.bytes {
+		return nil, false, r.fail(ErrReadLimit)
+	}
+	raw, eof, err := r.io.ReadRecoveryAt(ctx, entry, offset, limit)
+	if int64(len(raw)) > limit {
+		return nil, false, r.fail(ErrReadLimit)
+	}
+	r.bytes += int64(len(raw))
+	return raw, eof, r.fail(err)
+}
+func (r *nativeSelectorRuntime) validateSQLiteSnapshots() error {
+	for _, snapshot := range r.sqlite {
+		if err := snapshot.Validate(r.ctx); err != nil {
+			return r.fail(err)
+		}
+	}
+	return nil
+}
+func (r *nativeSelectorRuntime) Close() error {
+	var result error
+	for key, snapshot := range r.sqlite {
+		if err := snapshot.Close(); err != nil {
+			result = errors.Join(result, err)
+		} else {
+			delete(r.sqlite, key)
+		}
+	}
+	return result
+}
+
+func (r *nativeSelectorRuntime) ChargeNativeSelectorSQLiteBytes(count int64) error {
+	if count < 0 || count > RecoveryTotalReadLimit-r.bytes {
+		return r.fail(ErrReadLimit)
+	}
+	r.bytes += count
+	return nil
 }

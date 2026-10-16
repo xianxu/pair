@@ -41,7 +41,7 @@ func newCodexLatestFixture(t *testing.T) *codexLatestFixture {
 }
 func (f *codexLatestFixture) sql(s string) {
 	f.t.Helper()
-	if out, err := exec.Command("sqlite3", filepath.Join(f.state, "state_5.sqlite"), s).CombinedOutput(); err != nil {
+	if out, err := exec.Command("sqlite3", "-batch", "-init", "/dev/null", filepath.Join(f.state, "state_5.sqlite"), s).CombinedOutput(); err != nil {
 		f.t.Fatalf("SQLite: %v %s", err, out)
 	}
 }
@@ -59,6 +59,7 @@ func (f *codexLatestFixture) add(n, ms int, source, cwd, tail string) string {
 }
 func (f *codexLatestFixture) query(mode si.CodexInvocationMode, all bool, cwds ...string) si.NativeSelectorResolution {
 	f.t.Helper()
+	f.freezeWAL()
 	q := si.NativeSelectorRequest{Agent: si.AgentCodex, CWD: f.cwd, Latest: true, All: all, Config: si.NativeSelectorConfig{CodexScope: &si.CodexSelectionScope{CodexHome: f.state, SQLiteHome: f.state, Provider: "openai", CWD: f.cwd, CWDs: cwds, Mode: mode}}}
 	r, err := si.ResolveNativeSelector(f.t.Context(), f.rt, q)
 	if err != nil {
@@ -200,6 +201,7 @@ func TestCodexLatestCannotAuthorizeTranscriptChangedAfterCWDSelection(t *testing
 	f := newCodexLatestFixture(t)
 	want := f.add(1, 100, "exec", f.cwd, "")
 	scope := si.CodexSelectionScope{CodexHome: f.state, SQLiteHome: f.state, Provider: "openai", CWD: f.cwd, CWDs: []string{f.cwd}, Mode: si.CodexModeExec}
+	f.freezeWAL()
 	rt, err := f.rt.WithCodexScope(scope)
 	if err != nil {
 		t.Fatal(err)
@@ -236,6 +238,7 @@ func TestCodexLatestCannotIgnoreHigherCandidateChangedAfterCWDSelection(t *testi
 	higher := f.add(1, 200, "exec", filepath.Join(f.home, "other"), "")
 	f.add(2, 100, "exec", f.cwd, "")
 	scope := si.CodexSelectionScope{CodexHome: f.state, SQLiteHome: f.state, Provider: "openai", CWD: f.cwd, CWDs: []string{f.cwd}, Mode: si.CodexModeExec}
+	f.freezeWAL()
 	rt, err := f.rt.WithCodexScope(scope)
 	if err != nil {
 		t.Fatal(err)
@@ -272,10 +275,24 @@ type codexLatestQueryRuntime struct {
 	beforeQuery func()
 }
 
-func (r codexLatestQueryRuntime) QueryNativeSelectorSQLite(ctx context.Context, a si.Artifact, query string, limit int64) (si.SQLiteResult, error) {
-	r.beforeQuery()
-	return r.OSRuntime.QueryNativeSelectorSQLite(ctx, a, query, limit)
+func (r codexLatestQueryRuntime) NewNativeSelectorSQLiteSnapshot(ctx context.Context, a si.Artifact, source si.NativeSelectorSQLiteSnapshotSource, remaining int64) (si.NativeSelectorSQLiteSnapshot, error) {
+	snapshot, err := r.OSRuntime.NewNativeSelectorSQLiteSnapshot(ctx, a, source, remaining)
+	if err != nil {
+		return nil, err
+	}
+	return codexLatestQuerySnapshot{NativeSelectorSQLiteSnapshot: snapshot, beforeQuery: r.beforeQuery}, nil
 }
+
+type codexLatestQuerySnapshot struct {
+	si.NativeSelectorSQLiteSnapshot
+	beforeQuery func()
+}
+
+func (s codexLatestQuerySnapshot) Query(ctx context.Context, query string, limit int64) (si.SQLiteResult, error) {
+	s.beforeQuery()
+	return s.NativeSelectorSQLiteSnapshot.Query(ctx, query, limit)
+}
+
 func TestCodexLatestExecCursorSurvivesDatabaseChangesBetweenPages(t *testing.T) {
 	for _, mutation := range []string{"delete-higher", "arrive-higher", "delete-and-arrive"} {
 		t.Run(mutation, func(t *testing.T) {
@@ -287,6 +304,7 @@ func TestCodexLatestExecCursorSurvivesDatabaseChangesBetweenPages(t *testing.T) 
 			want := f.add(101, 100, "exec", f.cwd, "")
 			f.add(102, 50, "exec", f.cwd, "")
 			scope := si.CodexSelectionScope{CodexHome: f.state, SQLiteHome: f.state, Provider: "openai", CWD: f.cwd, CWDs: []string{f.cwd}, Mode: si.CodexModeExec}
+			f.freezeWAL()
 			native, err := f.rt.WithCodexScope(scope)
 			if err != nil {
 				t.Fatal(err)
@@ -312,8 +330,8 @@ func TestCodexLatestExecCursorSurvivesDatabaseChangesBetweenPages(t *testing.T) 
 			if err != nil {
 				t.Fatal(err)
 			}
-			if queries < 2 || got.Status != si.NativeSelectorResolved || got.NativeID != want {
-				t.Fatalf("queries=%d got=%+v want=%s", queries, got, want)
+			if queries < 2 || got.Status == si.NativeSelectorResolved || got.NativeID != "" {
+				t.Fatalf("changing source authorized queries=%d got=%+v (original candidate %s)", queries, got, want)
 			}
 		})
 	}

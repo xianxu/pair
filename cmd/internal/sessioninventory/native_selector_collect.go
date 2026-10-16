@@ -148,7 +148,7 @@ func collectNativeSelector(ctx context.Context, rt Runtime, q NativeSelectorRequ
 	return out
 }
 
-func collectCodexNativeSelector(ctx context.Context, rt Runtime, q NativeSelectorRequest) NativeSelectorSnapshot {
+func collectCodexNativeSelector(ctx context.Context, rt Runtime, q NativeSelectorRequest) (collected NativeSelectorSnapshot) {
 	if !q.Config.ProviderResolved || !q.Config.SQLiteHomeResolved {
 		return NativeSelectorSnapshot{Unsupported: true, Reason: "effective Codex provider and SQLite home are not resolved"}
 	}
@@ -160,6 +160,12 @@ func collectCodexNativeSelector(ctx context.Context, rt Runtime, q NativeSelecto
 	if err != nil {
 		return NativeSelectorSnapshot{Unsupported: true, Reason: err.Error()}
 	}
+	defer func() {
+		if closeErr := bounded.Close(); closeErr != nil {
+			collected.Complete = false
+			collected.Reason = "native SQLite snapshot cleanup incomplete"
+		}
+	}()
 	source := "'cli','vscode'"
 	if q.IncludeNonInteractive {
 		source += ",'exec','mcp'"

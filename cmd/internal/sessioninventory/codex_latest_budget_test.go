@@ -33,6 +33,11 @@ func codexLatestBudgetRuntime(t *testing.T) (*nativeSelectorRuntime, Artifact) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() {
+		if err := r.Close(); err != nil {
+			t.Error(err)
+		}
+	})
 	if _, err = r.StatFile(a); err != nil {
 		t.Fatal(err)
 	}
@@ -96,14 +101,21 @@ func TestCodexLatestSQLiteSharesReadAndMetadataBudgets(t *testing.T) {
 		t.Run(fmt.Sprint(metadata), func(t *testing.T) {
 			r, _ := codexLatestBudgetRuntime(t)
 			var home string
-			for _, root := range r.NativeRoots(AgentCodex) {
+			for _, root := range r.Runtime.NativeRoots(AgentCodex) {
 				if root.Name == "codex-state" {
 					home = root.Path
 				}
 			}
+			if home == "" {
+				t.Fatal("missing private state root")
+			}
 			sql := "CREATE TABLE threads(id TEXT, rollout_path TEXT,updated_at_ms INTEGER,cwd TEXT,archived INTEGER,preview TEXT);INSERT INTO threads VALUES('id','path',1,'cwd',0,'visible')"
 			if out, err := exec.Command("sqlite3", filepath.Join(home, "state_5.sqlite"), sql).CombinedOutput(); err != nil {
 				t.Fatalf("fixture: %s %v", out, err)
+			}
+			codexTestFreezeWAL(t, filepath.Join(home, "state_5.sqlite"))
+			if rows, err := codexLatestRows(r, "", 0, 2); err != nil || len(rows) != 1 {
+				t.Fatalf("unexhausted WAL control rows=%v err=%v", rows, err)
 			}
 			if metadata {
 				r.entries = RecoveryMetadataLimit

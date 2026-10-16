@@ -37,6 +37,7 @@ func TestCodexLatestConfigFeaturesTableReplacementSelectsLinkedCheckout(t *testi
 	if out, err := exec.Command("sqlite3", filepath.Join(home, "state_5.sqlite"), sql).CombinedOutput(); err != nil {
 		t.Fatalf("SQLite fixture: %s %v", out, err)
 	}
+	codexTestFreezeWAL(t, filepath.Join(home, "state_5.sqlite"))
 	for _, tc := range []struct {
 		name      string
 		overrides []string

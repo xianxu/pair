@@ -63,7 +63,20 @@ func validateCodexSelectorPath(rt Runtime, id, path string) error {
 
 // QueryNativeSelectorSQLite is bounded and cancellable; it neither initializes
 // Codex state nor runs its scan-and-repair fallback.
-func (r OSRuntime) QueryNativeSelectorSQLite(ctx context.Context, a Artifact, query string, limit int64) (SQLiteResult, error) {
+func (r OSRuntime) QueryNativeSelectorSQLite(ctx context.Context, a Artifact, query string, limit int64) (result SQLiteResult, resultErr error) {
+	if isCodexSelectorSQLite(a) {
+		bounded, err := newNativeSelectorRuntime(ctx, r)
+		if err != nil {
+			return SQLiteResult{}, err
+		}
+		defer func() {
+			if closeErr := bounded.Close(); closeErr != nil {
+				result = SQLiteResult{}
+				resultErr = errors.Join(resultErr, closeErr)
+			}
+		}()
+		return bounded.QuerySQLite(a, query, limit)
+	}
 	if err := ctx.Err(); err != nil {
 		return SQLiteResult{}, err
 	}

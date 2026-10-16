@@ -101,7 +101,7 @@ func SelectNativeLatest(q NativeSelectorRequest, s NativeSelectorSnapshot) Nativ
 // ResolveNativeSelector validates explicit canonical roots for all supported
 // scanners. Latest selection additionally requires a complete provider-native
 // metadata snapshot; unresolved internal states never authorize execution.
-func ResolveNativeSelector(ctx context.Context, rt Runtime, q NativeSelectorRequest) (NativeSelectorResolution, error) {
+func ResolveNativeSelector(ctx context.Context, rt Runtime, q NativeSelectorRequest) (result NativeSelectorResolution, resultErr error) {
 	if ctx == nil || rt == nil {
 		return NativeSelectorResolution{}, errors.New("native selector requires context and inventory")
 	}
@@ -146,6 +146,12 @@ func ResolveNativeSelector(ctx context.Context, rt Runtime, q NativeSelectorRequ
 	if err != nil {
 		return NativeSelectorResolution{Status: NativeSelectorUnsupported, Reason: err.Error()}, nil
 	}
+	defer func() {
+		if closeErr := bounded.Close(); closeErr != nil {
+			result = NativeSelectorResolution{Status: NativeSelectorIncomplete, Reason: "native SQLite snapshot cleanup incomplete"}
+			resultErr = errors.Join(resultErr, closeErr)
+		}
+	}()
 	validation, diagnostics, err := NewIncrementalInventory(bounded, Catalog{}).ValidateNamedContent(q.Agent, q.NativeID)
 	if contextErr := ctx.Err(); contextErr != nil {
 		return NativeSelectorResolution{}, contextErr

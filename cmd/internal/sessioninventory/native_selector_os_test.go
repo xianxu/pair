@@ -19,6 +19,7 @@ func TestNativeSelectorCodexSQLiteReadOnlyAndRootValidation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Setenv("HOME", home)
 	state := filepath.Join(home, ".codex")
 	cwd := filepath.Join(home, "work")
 	sessions := filepath.Join(state, "sessions", "2026", "08", "28")
@@ -38,6 +39,7 @@ func TestNativeSelectorCodexSQLiteReadOnlyAndRootValidation(t *testing.T) {
 	if out, err := exec.Command("sqlite3", db, query).CombinedOutput(); err != nil {
 		t.Fatalf("fixture SQLite: %s %v", out, err)
 	}
+	codexLatestFreezeWAL(t, db)
 	before, err := os.ReadFile(db)
 	if err != nil {
 		t.Fatal(err)
