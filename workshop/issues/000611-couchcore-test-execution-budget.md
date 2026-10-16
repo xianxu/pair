@@ -1,12 +1,12 @@
 ---
 id: 000611
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-16
 updated: 2026-10-16
 estimate_hours: 2.21
-card_mirror: '03dde11d6b312783803b076bf87c5326e3ef8c65' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '008577335058d38adb27c8ad5cd88d9324272afd' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-16T06:20:09-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: operator}
+actual_hours: 1.28
 ---
 
 # Bring couchcore under a measured test execution budget
