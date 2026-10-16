@@ -1,6 +1,6 @@
 ---
 id: 000605
-status: codecomplete
+status: done
 created: 2026-10-15
 updated: 2026-10-16
 estimate_hours:
@@ -22,6 +22,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 1447f7681ac0bf15d06624febae95dd346e17429
         evidence_commit: 20bf5b5251755796e3845e99a15b044524e1d812
+        landed_commit: a0b6a9622f6226277ce7ece196466f6495f1139f
 ---
 
 # Recovery resume fails workspace recheck: in-memory intent time carries a monotonic reading
