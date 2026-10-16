@@ -203,3 +203,90 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-15T21:11:35-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 593 — history-backup foundation: source inventory, encrypted self-describing bundles, catalog, local-directory sink |
+| repo | pair |
+| issue file | workshop/issues/000593-history-backup-foundation-source-inventory-encrypted-self-describing-bundles-catalog-local-directory-sink.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | a1beae74bf3c0cc2a71a2884861dadcdfc13c653..ec92c1fe36f427d3b6accd665a4b7147f79bf3ba |
+| command | sdlc close --issue 593 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-15T21:11:35-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned implementation satisfies the documented foundation scope and approved revisions. BR-3 is addressed with a producer/backend coverage rule, a broader inventory sweep, and regression tests that independently failed with the previous declarations. No new blocking findings emerged.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Retained objects remain outside staging cleanup; TestLocalSinkPutDoesNotScanRetainedObjects passed in package and race runs.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Inventory includes numeric catalog shards; TestCatalogInventoryIncludesEveryRolledShard passed against actual rollover outputs.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Production-generated global and slot-local Couch paths are covered by inventory_producers_test.go:90. Restoring the previous sources.json in a disposable checkout made these tests fail on thread.json, archived records, legacy Pair paths and webcast outputs; pinned-head tests passed. The plan Revisions entry states the producer/backend coverage rule.
+```
+
+1. **Strengths**
+   - Publication requires ciphertext and label verification before catalog append; retries preserve incomplete objects for inspection.
+   - Producer-path tests exercise real Couch creation, enrollment and archival APIs.
+   - README and atlas document the CLI, format, privacy, recovery ownership, bounds and lifecycle.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage**
+   - Package tests passed for historyarchive, archivetest, archivecmd, dispatcher, pair-go and artifactpath.
+   - Race tests passed for historyarchive, archivetest and archivecmd.
+   - Isolated real GPG/zstd round trip passed, including corruption rejection.
+   - Retained real-source smoke independently verified: one 1,715-byte ciphertext, matching label/catalog checksum and unchanged source hash.
+   - Disposable negative-control checkout was removed; reviewed checkout remained clean.
+
+6. **Architecture**
+   - **ARCH-DRY — pass:** shared inventory, format and publication helpers.
+   - **ARCH-PURE — pass:** pure models/planning separated from injected IO adapters; concept-table entities exist.
+   - **ARCH-PURPOSE — pass:** foundation delivered; inventory correction sweeps supported producer namespaces.
+   - **ARCH-MOCK — pass:** stateful doubles share production seams; real-tool conformance passed.
+   - **ARCH-CONSTRAINTS — pass:** declared metadata, payload and shard bounds enforced.
+   - **ARCH-SECURE — pass:** confined regular-file access, strict validation and shell-free encryption.
+   - **ARCH-ORDER — pass:** serialized synchronous publication, explicit evidence decisions and joined cancellation.
+   - **ARCH-FUNERAL — pass:** temporary cleanup ownership and retained-artifact costs documented.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"065e7fcc-cb86-4fa1-b9a9-1ef1b1b96482","repository":"github.com/xianxu/pair","issue_id":"000593","recipe":"milestone-review","round":3,"attempt":1,"agent":"codex","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/44db6a97dbbf196e","reviewed_head":"ec92c1fe36f427d3b6accd665a4b7147f79bf3ba","slot":"pair:1","requested_at":"2026-10-16T04:09:48.078424Z"},"phase":"finished","pid":87723,"started_at":"2026-10-16T04:09:48.212998Z","finished_at":"2026-10-16T04:11:34.484504Z","session_id":"01a142e6-dcaf-7333-8a3d-568a4933b51e","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.632816417s
+head: "ec92c1fe36f427d3b6accd665a4b7147f79bf3ba"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
