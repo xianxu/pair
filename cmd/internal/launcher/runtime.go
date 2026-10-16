@@ -241,8 +241,8 @@ type LifecycleOps interface {
 	ConfirmParkNudge(session string, timeoutSecs int) bool
 	// IsTTY reports whether stdin is a terminal (`[ -t 0 ]`, shell 1552).
 	IsTTY() bool
-	// KillTitlePoller SIGTERMs + clears the title-pid-<tag> poller, shell
-	// 1621-1627.
+	// KillTitlePoller is the legacy lifecycle callback. OSRuntime leaves
+	// title teardown to the wrapper lease; pidfiles confer no kill authority.
 	KillTitlePoller(tag string)
 	// PairOwnsCmuxWorkspace reports whether this tag owns the current cmux
 	// workspace (CMUX_WORKSPACE_ID set + cmux-owner-<id>'s tag field matches).

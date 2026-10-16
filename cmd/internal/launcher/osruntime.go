@@ -1214,20 +1214,11 @@ func (OSRuntime) IsTTY() bool {
 	return err == nil && (fi.Mode()&os.ModeCharDevice) != 0
 }
 
-// KillTitlePoller SIGTERMs (not -9: it self-cleans) + clears the poller pidfile.
-func (r OSRuntime) KillTitlePoller(tag string) {
-	paths, err := artifactpath.ResolveScoped(r.DataDir, tag)
-	if err != nil {
-		return
-	}
-	pf := paths.TitlePID()
-	if raw, err := osfs.ReadRegularMetadata(context.Background(), pf, 4096); err == nil {
-		if pid := strings.TrimSpace(string(raw)); pid != "" {
-			_ = exec.Command("kill", pid).Run()
-		}
-		r.Remove(pf)
-	}
-}
+// KillTitlePoller remains on the launcher Runtime for lifecycle compatibility.
+// A pidfile grants no signal or removal authority: the wrapper closes its own
+// child's lease, and that generation owns its metadata. Legacy processes use
+// the separately sampled, identity-fenced cleanup path.
+func (r OSRuntime) KillTitlePoller(tag string) {}
 
 func (r OSRuntime) PairOwnsCmuxWorkspace(tag string) bool {
 	wsID := os.Getenv("CMUX_WORKSPACE_ID")

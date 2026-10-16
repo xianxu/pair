@@ -1,7 +1,6 @@
 package titlepoller
 
 import (
-	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -23,7 +22,7 @@ import (
 //
 // Opt in with PAIR_TITLE_PROFILE_LIVE=1, an absolute
 // PAIR_TITLE_PROFILE_OUT and PAIR_TITLE_PROFILE_SOURCE, and explicit
-// PAIR_TITLE_PROFILE_SCOPE/TAG/AGENT. PAIR_TITLE_PROFILE_ITERATIONS defaults to 10.
+// PAIR_TITLE_PROFILE_SCOPE/TAG/AGENT/ORDINAL. PAIR_TITLE_PROFILE_ITERATIONS defaults to 10.
 // PAIR_TITLE_PROFILE_PROJECTION=1 selects the explicitly cached comparison path.
 // Profiles and stats are private local evidence; do not publish their contents.
 func TestTitleProfileLive(t *testing.T) {
@@ -46,6 +45,10 @@ func TestTitleProfileLive(t *testing.T) {
 		t.Fatal(err)
 	}
 	scope, tag, agent := required("PAIR_TITLE_PROFILE_SCOPE"), required("PAIR_TITLE_PROFILE_TAG"), required("PAIR_TITLE_PROFILE_AGENT")
+	ordinal, err := strconv.ParseUint(required("PAIR_TITLE_PROFILE_ORDINAL"), 10, 64)
+	if err != nil || ordinal == 0 {
+		t.Fatal("profile requires exact nonzero invocation ordinal")
+	}
 	iterations := 10
 	if raw := os.Getenv("PAIR_TITLE_PROFILE_ITERATIONS"); raw != "" {
 		var err error
@@ -84,13 +87,16 @@ func TestTitleProfileLive(t *testing.T) {
 	// Scope remains the original exact owner; only Pair-owned storage redirects.
 	t.Setenv("PAIR_DATA_DIR", replica)
 	t.Setenv("PAIR_SCOPE_KEY", scope)
+	t.Setenv("PAIR_LAUNCH_ORDINAL", strconv.FormatUint(ordinal, 10))
 	rt := NewOSRuntime()
 	activity, count := rt.SessionActivity, rt.ContextCount
+	projectionErr := rt.Err
 	projectionMode := os.Getenv("PAIR_TITLE_PROFILE_PROJECTION") == "1"
 	if projectionMode {
-		p := newTitleProjection(contextcmd.EnvFromOS())
-		activity = func(tag, agent string) (time.Time, bool) { return p.activity(context.Background(), tag, agent) }
-		count = func(tag, agent string) string { return p.count(context.Background(), tag, agent) }
+		p := newTitleProjection(contextcmd.EnvFromOS(), ordinal)
+		projectionErr = p.Err
+		activity = func(tag, agent string) (time.Time, bool) { return p.activity(tag, agent) }
+		count = func(tag, agent string) string { return p.count(tag, agent) }
 	}
 	privateFile := func(name string) *os.File {
 		t.Helper()
@@ -136,6 +142,16 @@ func TestTitleProfileLive(t *testing.T) {
 		started := time.Now()
 		_, found := activity(tag, agent)
 		occupancy := count(tag, agent)
+		if err := projectionErr(); err != nil || !found {
+			pprof.StopCPUProfile()
+			_ = cpu.Close()
+			t.Fatalf("profile iteration %d did not produce admitted activity: found=%v projection-error=%v", i, found, err)
+		}
+		if (agent == "claude" || agent == "codex" || agent == "grok") && occupancy == "" {
+			pprof.StopCPUProfile()
+			_ = cpu.Close()
+			t.Fatalf("profile iteration %d has no supported usage positive control", i)
+		}
 		record("iteration", i, time.Since(started), found, occupancy)
 	}
 	pprof.StopCPUProfile()

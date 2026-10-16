@@ -1,28 +1,27 @@
 package titlepoller
 
 import (
-	"bytes"
-	"context"
 	"errors"
-	"io"
-	"path/filepath"
-	"strings"
-	"time"
-
 	"github.com/xianxu/pair/cmd/internal/contextcmd"
+	"github.com/xianxu/pair/cmd/internal/ctxmeter"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
+	"path/filepath"
+	"time"
 )
 
-// titleProjection owns compact launch/activity evidence for one poller's
-// lifetime. Activity and occupancy share strict owner-ledger decoding; token
-// occupancy still uses contextcmd's complete authorized transcript scan.
+// titleProjection owns one exact invocation's compact display facts. Activity
+// begins one poll; occupancy reads that same result without a second scan.
 type titleProjection struct {
 	env        contextcmd.Env
 	runtime    sessioninventory.OSRuntime
-	activities *sessioninventory.ActivityCache
+	ordinal    uint64
+	core       *sessioninventory.TitleProjection
+	tag, agent string
+	result     sessioninventory.TitleProjectionResult
+	err        error
 }
 
-func newTitleProjection(env contextcmd.Env) *titleProjection {
+func newTitleProjection(env contextcmd.Env, ordinal uint64) *titleProjection {
 	data := env.PairDataDir
 	if data == "" {
 		base := env.XDGDataHome
@@ -31,80 +30,27 @@ func newTitleProjection(env contextcmd.Env) *titleProjection {
 		}
 		data = filepath.Join(base, "pair")
 	}
-	return &titleProjection{
-		env:        env,
-		runtime:    sessioninventory.NewOSRuntime(env.Home, data).WithOwnerLaunchCache(sessioninventory.NewOwnerLaunchCache()),
-		activities: sessioninventory.NewActivityCache(),
-	}
+	return &titleProjection{env: env, runtime: sessioninventory.NewOSRuntime(env.Home, data), ordinal: ordinal}
 }
-
-func (p *titleProjection) activity(ctx context.Context, tag, agent string) (time.Time, bool) {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	a, ok, err := p.activities.Query(ctx, titleInventoryRuntime{OSRuntime: p.runtime, ctx: ctx}, p.env.PairScopeKey, tag, sessioninventory.Agent(agent))
-	if err != nil || ctx.Err() != nil {
+func (p *titleProjection) activity(tag, agent string) (time.Time, bool) {
+	if p.err != nil {
 		return time.Time{}, false
 	}
-	return a.LastActivityAt, ok
+	if p.core == nil {
+		p.tag, p.agent = tag, agent
+		p.core = sessioninventory.NewTitleProjection(p.runtime, p.env.PairScopeKey, tag, sessioninventory.Agent(agent), p.ordinal)
+	}
+	if tag != p.tag || agent != p.agent {
+		p.err = errors.New("title projection owner changed")
+		return time.Time{}, false
+	}
+	p.result, p.err = p.core.Poll()
+	return p.result.Activity, p.err == nil && !p.result.Awaiting && !p.result.Activity.IsZero()
 }
-
-func (p *titleProjection) count(ctx context.Context, tag, agent string) string {
-	if ctx != nil && ctx.Err() != nil {
+func (p *titleProjection) count(tag, agent string) string {
+	if p.err != nil || p.core == nil || p.result.Awaiting || !p.result.HasUsage || tag != p.tag || agent != p.agent {
 		return ""
 	}
-	var b bytes.Buffer
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	contextcmd.RunWithRuntimeContext(ctx, []string{tag, agent}, p.env, titleInventoryRuntime{OSRuntime: p.runtime, ctx: ctx}, &b, io.Discard)
-	if ctx != nil && ctx.Err() != nil {
-		return ""
-	}
-	return strings.TrimSpace(b.String())
+	return ctxmeter.Humanize(p.result.Usage.InputTokens)
 }
-
-// Preserve OSRuntime's optional catalog/cache/observer capabilities while
-// checking this title lifetime at every potentially large range-read boundary.
-type titleInventoryRuntime struct {
-	sessioninventory.OSRuntime
-	ctx context.Context
-}
-
-func (r titleInventoryRuntime) ReadAt(a sessioninventory.Artifact, off, size int64) ([]byte, bool, error) {
-	if err := r.ctx.Err(); err != nil {
-		return nil, false, err
-	}
-	raw, eof, err := r.OSRuntime.ReadAt(a, off, size)
-	if e := r.ctx.Err(); e != nil {
-		return nil, false, e
-	}
-	return raw, eof, err
-}
-func (r titleInventoryRuntime) ReadFile(a sessioninventory.Artifact, size int64) ([]byte, error) {
-	if err := r.ctx.Err(); err != nil {
-		return nil, err
-	}
-	raw, err := r.OSRuntime.ReadFile(a, size)
-	if e := r.ctx.Err(); e != nil {
-		return nil, e
-	}
-	return raw, err
-}
-func (r titleInventoryRuntime) StatFile(a sessioninventory.Artifact) (sessioninventory.FileEntry, error) {
-	if err := r.ctx.Err(); err != nil {
-		return sessioninventory.FileEntry{}, err
-	}
-	entry, err := r.OSRuntime.StatFile(a)
-	return entry, errors.Join(err, r.ctx.Err())
-}
-func (r titleInventoryRuntime) ListFiles(root sessioninventory.StorageRoot) ([]sessioninventory.FileEntry, error) {
-	if err := r.ctx.Err(); err != nil {
-		return nil, err
-	}
-	entries, err := r.OSRuntime.ListFiles(root)
-	if e := r.ctx.Err(); e != nil {
-		return nil, e
-	}
-	return entries, err
-}
+func (p *titleProjection) Err() error { return p.err }

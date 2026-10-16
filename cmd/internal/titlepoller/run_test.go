@@ -1,12 +1,42 @@
 package titlepoller
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
 	"testing"
 	"time"
 )
+
+type terminalProjectionRuntime struct {
+	*fakeRuntime
+	err error
+}
+
+func (r *terminalProjectionRuntime) SessionActivity(string, string) (time.Time, bool) {
+	r.err = errors.New("admitted artifact changed identity")
+	return r.now, true
+}
+func (r *terminalProjectionRuntime) Err() error { return r.err }
+
+func TestRunTerminalProjectionCannotRename(t *testing.T) {
+	fake := withLivePane(newFake())
+	fake.panes = []PaneInfo{{Agent: "claude", PaneID: "7"}}
+	fake.counts["claude"] = "970k"
+	fake.cmuxAvail = true
+	fake.sessionAliveSeq = []bool{true, false}
+	rt := &terminalProjectionRuntime{fakeRuntime: fake}
+	opts := fixtureOpts()
+	opts.MissThreshold = 1
+	opts.CmuxWorkspaceID = "workspace"
+	if code := Run(opts, rt); code != 0 {
+		t.Fatalf("terminal projection exit = %d", code)
+	}
+	if len(fake.renamed) != 0 || len(fake.cmuxRenamed) != 0 {
+		t.Fatalf("terminal projection published titles: panes=%v workspaces=%v", fake.renamed, fake.cmuxRenamed)
+	}
+}
 
 // fakeRuntime is a scriptable Runtime for the loop + frame-meter tests. Unset
 // fields behave benignly (no-op writes, empty reads, dead processes).
@@ -64,6 +94,7 @@ func (f *fakeRuntime) Now() time.Time {
 	f.now = f.now.Add(f.nowAdvance)
 	return t
 }
+func (f *fakeRuntime) Err() error { return nil }
 func (f *fakeRuntime) Sleep(time.Duration) {
 	f.sleeps++
 	if f.sleepHook != nil {
@@ -120,6 +151,23 @@ func (f *fakeRuntime) SessionActivity(_, agent string) (time.Time, bool) {
 
 func fixtureOpts() Options {
 	return Options{Tag: "T", Agent: "claude", DataDir: "/dd"}
+}
+
+func TestFrameCacheBoundedByCurrentSelectedPanes(t *testing.T) {
+	rt := newFake()
+	cache := frameCache{}
+	for generation := 0; generation < 1000; generation++ {
+		rt.panes = []PaneInfo{{Agent: "claude", PaneID: fmt.Sprint(generation)}, {Agent: "codex", PaneID: "foreign-agent"}}
+		updateFrameTitles(fixtureOpts(), rt, cache, "fixture")
+		if len(cache) != 1 {
+			t.Fatalf("pane churn retained %d frame entries after generation %d", len(cache), generation)
+		}
+	}
+	rt.panes = nil
+	updateFrameTitles(fixtureOpts(), rt, cache, "fixture")
+	if len(cache) != 0 {
+		t.Fatalf("removed panes retained %d frame entries", len(cache))
+	}
 }
 
 // Shell harness case 6: one tick with a count → "<agent> (<count>)".
@@ -188,20 +236,20 @@ func TestUpdateFrameTitlesIgnoresStaleAgentTwin(t *testing.T) {
 	}
 }
 
-// Single-instance guard: a live poller for this tag already recorded in the
-// pidfile → Run returns immediately without ever probing the session.
-func TestRunDefersToLiveInstance(t *testing.T) {
+// A numeric PID publication is metadata, not authority over the new wrapper's
+// pipe lease. A legacy title must never suppress an admitted new generation.
+func TestRunLegacyPidfileCannotSuppressLeasedGeneration(t *testing.T) {
 	rt := newFake()
 	rt.files["/dd/title-pid-T"] = "4242\n"
 	rt.alive["4242"] = true
 	rt.commands["4242"] = "/x/bin/pair title T claude"
-	rt.sessionAliveDflt = true // would loop forever if the guard failed to short-circuit
-	code := Run(fixtureOpts(), rt)
-	if code != 0 {
+	rt.pid = "9001"
+	rt.nowAdvance = 40 * time.Second
+	if code := Run(fixtureOpts(), rt); code != 0 {
 		t.Fatalf("code = %d, want 0", code)
 	}
-	if rt.sessionAliveCalls != 0 || len(rt.wrote) != 0 {
-		t.Fatalf("guard should short-circuit before the session probe/pidfile write (probes=%d writes=%d)", rt.sessionAliveCalls, len(rt.wrote))
+	if got := rt.wrote["/dd/title-pid-T"]; got != "9001\n" {
+		t.Fatalf("legacy numeric PID suppressed new lease owner: wrote %q", got)
 	}
 }
 

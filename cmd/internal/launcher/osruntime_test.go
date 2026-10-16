@@ -542,8 +542,8 @@ func TestOSRuntimeReapAndPollerRemovePidfiles(t *testing.T) {
 		}
 	}
 	rt.KillTitlePoller("work")
-	if _, err := os.Stat(filepath.Join(dataDir, "title-pid-work")); !os.IsNotExist(err) {
-		t.Fatal("KillTitlePoller should clear the title pidfile")
+	if _, err := os.Stat(filepath.Join(dataDir, "title-pid-work")); err != nil {
+		t.Fatal("launcher should leave title-owned metadata to its lease generation")
 	}
 }
 

@@ -2067,3 +2067,10 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #617 isolation review: empty HOME also removes Go's default caches. Consume the
   shared test binary before starting timed fake agents; do not run a cache probe
   in the caller's HOME before isolation or compile Pair per fixture afterward.
+
+- #617 title review: an authority fence before IO cannot authorize facts after
+  that IO. Recheck invocation ownership after tail reads and before publication;
+  inject supersession inside the read boundary to verify the order.
+- #617 profiling review: a terminal projection's cheap no-op is not warm work.
+  Measurements must fail on terminal errors and require positive activity and
+  supported-usage controls before reporting allocation or timing improvements.

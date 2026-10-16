@@ -3,6 +3,7 @@ package titlepoller
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"github.com/xianxu/pair/cmd/internal/zellijsession"
 	"os"
 	"os/exec"
@@ -23,10 +24,25 @@ type OSRuntime struct {
 	osfs.FS
 	ctx        context.Context
 	projection *titleProjection
+	err        error
 }
 
 func NewOSRuntime() OSRuntime {
-	return OSRuntime{ctx: context.Background(), projection: newTitleProjection(contextcmd.EnvFromOS())}
+	raw := os.Getenv("PAIR_LAUNCH_ORDINAL")
+	ordinal, err := strconv.ParseUint(raw, 10, 64)
+	if err != nil || ordinal == 0 || strconv.FormatUint(ordinal, 10) != raw {
+		return OSRuntime{err: errors.New("title projection requires exact launch ordinal")}
+	}
+	return OSRuntime{ctx: context.Background(), projection: newTitleProjection(contextcmd.EnvFromOS(), ordinal)}
+}
+func (r OSRuntime) Err() error {
+	if r.err != nil {
+		return r.err
+	}
+	if r.projection != nil {
+		return r.projection.Err()
+	}
+	return errors.New("title projection unavailable")
 }
 func (r OSRuntime) WithContext(ctx context.Context) OSRuntime { r.ctx = ctx; return r }
 func (r OSRuntime) context() context.Context {
@@ -52,9 +68,13 @@ func (r OSRuntime) Sleep(d time.Duration) {
 	case <-r.context().Done():
 	}
 }
-func (OSRuntime) Getpid() string                 { return strconv.Itoa(os.Getpid()) }
-func (OSRuntime) ProcessAlive(p string) bool     { return procutil.Alive(p) }
-func (OSRuntime) ProcessCommand(p string) string { return procutil.Command(p) }
+func (OSRuntime) Getpid() string { return strconv.Itoa(os.Getpid()) }
+
+// WriteFile publishes title PID and workspace-owner records through a sibling
+// temporary file and rename, so abrupt lease termination cannot expose a prefix.
+func (r OSRuntime) WriteFile(path, data string) error { return r.FS.WriteAtomic(path, data) }
+func (OSRuntime) ProcessAlive(p string) bool          { return procutil.Alive(p) }
+func (OSRuntime) ProcessCommand(p string) string      { return procutil.Command(p) }
 
 // SessionAlive reports whether a zellij server is running session. An EXITED
 // (resurrectable) row is gone: `--short` lists those too, which kept pollers
@@ -127,9 +147,9 @@ func (OSRuntime) PaneFiles(dataDir, tag string) []PaneInfo {
 func (r OSRuntime) ContextCount(tag, agent string) string {
 	p := r.projection
 	if p == nil {
-		p = newTitleProjection(contextcmd.EnvFromOS())
+		return ""
 	}
-	return p.count(r.context(), tag, agent)
+	return p.count(tag, agent)
 }
 
 // SessionActivity returns only the established inventory root's authorized
@@ -137,7 +157,7 @@ func (r OSRuntime) ContextCount(tag, agent string) string {
 func (r OSRuntime) SessionActivity(tag, agent string) (time.Time, bool) {
 	p := r.projection
 	if p == nil {
-		p = newTitleProjection(contextcmd.EnvFromOS())
+		return time.Time{}, false
 	}
-	return p.activity(r.context(), tag, agent)
+	return p.activity(tag, agent)
 }

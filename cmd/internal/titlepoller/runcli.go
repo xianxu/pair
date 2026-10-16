@@ -20,6 +20,10 @@ import (
 // Missing CLI arguments retain the historical no-op; a real title invocation
 // requires both selected storage and the exact wrapper/pipe launch contract.
 func RunCLI(args []string, getenv func(string) string, stderr io.Writer) int {
+	return runCLI(args, getenv, stderr, func() Runtime { return NewOSRuntime() })
+}
+
+func runCLI(args []string, getenv func(string) string, stderr io.Writer, runtime func() Runtime) int {
 	opts, ok := optionsFromCLI(args, getenv)
 	if !ok {
 		return 0
@@ -60,7 +64,13 @@ func RunCLI(args []string, getenv func(string) string, stderr io.Writer) int {
 		return 1
 	}
 	result := make(chan int, 1)
-	go func() { result <- RunContext(ctx, opts, NewOSRuntime().WithContext(ctx)) }()
+	go func() {
+		rt := runtime()
+		if osrt, ok := rt.(OSRuntime); ok {
+			rt = osrt.WithContext(ctx)
+		}
+		result <- RunContext(ctx, opts, rt)
+	}()
 	var code int
 	select {
 	case code = <-result:

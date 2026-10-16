@@ -43,6 +43,7 @@ type PaneInfo struct {
 // titlepoller.go; everything here that touches zellij/cmux/fs/clock/ps is a seam
 // method so the loop is unit-testable with a fake.
 type Runtime interface {
+	Err() error
 	Now() time.Time
 	Sleep(time.Duration)
 	Getpid() string
@@ -79,6 +80,9 @@ func RunContext(ctx context.Context, opts Options, rt Runtime) int {
 	if opts.Tag == "" || opts.Agent == "" {
 		return 0
 	}
+	if rt.Err() != nil {
+		return 0
+	}
 	if opts.PollInterval <= 0 {
 		opts.PollInterval = 60 * time.Second
 	}
@@ -102,15 +106,8 @@ func RunContext(ctx context.Context, opts Options, rt Runtime) int {
 	}
 	pidfile := paths.TitlePID()
 
-	// Single-instance: bail only if a prior poller for this tag is genuinely
-	// still running. Identity-checked (not a bare liveness check) so a recycled
-	// PID left by a dead poller can't wedge the respawn.
-	if raw, err := rt.ReadFile(pidfile); err == nil {
-		old := strings.TrimSpace(raw)
-		if rt.ProcessAlive(old) && pollerArgvMatches(rt.ProcessCommand(old), opts.Tag) {
-			return 0
-		}
-	}
+	// The wrapper pipe owns this generation. A numeric PID record is only
+	// publication metadata; a legacy title cannot suppress a fresh lease owner.
 	_ = rt.WriteFile(pidfile, rt.Getpid()+"\n")
 	defer func() {
 		// A departing generation cannot erase a successor's publication.
@@ -165,6 +162,9 @@ func RunContext(ctx context.Context, opts Options, rt Runtime) int {
 		}
 
 		latest := activityMTime(opts, rt)
+		if rt.Err() != nil {
+			return 0
+		}
 		if ctx.Err() != nil {
 			return 0
 		}
@@ -235,7 +235,17 @@ func (a pollerActivity) SessionActivity(_ context.Context, t threadactivity.Thre
 // different title for the same pane every tick → alphabetical last-wins + churn
 // (the #97 bug: "claude" pane labelled "codex").
 func updateFrameTitles(opts Options, rt Runtime, cache frameCache, session string) {
-	for _, pane := range rt.PaneFiles(opts.DataDir, opts.Tag) {
+	panes := rt.PaneFiles(opts.DataDir, opts.Tag)
+	for id := range cache {
+		present := false
+		for _, pane := range panes {
+			present = present || pane.Agent == opts.Agent && pane.PaneID == id
+		}
+		if !present {
+			delete(cache, id)
+		}
+	}
+	for _, pane := range panes {
 		if pane.PaneID == "" || pane.Agent != opts.Agent {
 			continue
 		}

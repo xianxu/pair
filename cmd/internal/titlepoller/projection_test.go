@@ -1,11 +1,8 @@
 package titlepoller
 
 import (
-	"context"
 	"fmt"
-	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 	"os"
-	"strings"
 	"testing"
 
 	"github.com/xianxu/pair/cmd/internal/contextcmd"
@@ -25,14 +22,14 @@ func TestTitleProjectionRepeatedPollWorkIndependentOfLedgerHistory(t *testing.T)
 	if writeErr != nil || closeErr != nil {
 		t.Fatalf("usage fixture: %v; close: %v", writeErr, closeErr)
 	}
-	p := newTitleProjection(contextcmd.Env{Home: f.Home, PairDataDir: o.ScopeDir, PairScopeKey: o.Scope})
+	p := newTitleProjection(contextcmd.Env{Home: f.Home, PairDataDir: o.ScopeDir, PairScopeKey: o.Scope}, 1)
 	p.runtime = p.runtime.WithWorkObserver(f.Counts.Observer(o.Tag))
 	poll := func() {
 		t.Helper()
-		if at, ok := p.activity(context.Background(), o.Tag, o.Agent); !ok || at.IsZero() {
+		if at, ok := p.activity(o.Tag, o.Agent); !ok || at.IsZero() {
 			t.Fatalf("activity unresolved: %v %v", at, ok)
 		}
-		if got := p.count(context.Background(), o.Tag, o.Agent); got != "176k" {
+		if got := p.count(o.Tag, o.Agent); got != "176k" {
 			t.Fatalf("context count=%q, want 176k", got)
 		}
 	}
@@ -48,14 +45,10 @@ func TestTitleProjectionRepeatedPollWorkIndependentOfLedgerHistory(t *testing.T)
 		if delta.ReadFamily("ledger") != 0 || delta.DecodeFamily("ledger") != 0 {
 			t.Fatalf("poll %d reread/redecoded unchanged large ledger: read=%d decoded=%d", i, delta.ReadFamily("ledger"), delta.DecodeFamily("ledger"))
 		}
-		// Occupancy deliberately still scans the native transcript and reloads
-		// the compact catalog; this change claims only ledger/history reuse.
-		if delta.ReadFamily("native") == 0 || delta.ReadFamily("catalog") > 64<<10 || delta.DecodeFamily("catalog") > 64<<10 {
-			t.Fatalf("unexpected warm projection work: %+v", delta)
-		}
+		delta.RequireZero(t)
 	}
 	before := f.Counts.Snapshot()
-	if _, ok := p.activity(context.Background(), o.Tag, o.Agent); !ok {
+	if _, ok := p.activity(o.Tag, o.Agent); !ok {
 		t.Fatal("lost warm activity")
 	}
 	f.Counts.Snapshot().Delta(before).RequireZero(t)
@@ -70,55 +63,32 @@ func TestTitleProjectionRepeatedPollWorkIndependentOfLedgerHistory(t *testing.T)
 	if writeErr != nil || closeErr != nil {
 		t.Fatalf("launch fixture: %v; close: %v", writeErr, closeErr)
 	}
-	if at, ok := p.activity(context.Background(), o.Tag, o.Agent); ok {
+	if at, ok := p.activity(o.Tag, o.Agent); ok {
 		t.Fatalf("new unbound launch inherited activity %v", at)
 	}
-	if count := p.count(context.Background(), o.Tag, o.Agent); count != "" {
+	if count := p.count(o.Tag, o.Agent); count != "" {
 		t.Fatalf("new unbound launch inherited count %s", count)
 	}
 }
 
-func TestTitleProjectionCanceledPollDoesNoWork(t *testing.T) {
+func TestTitleProjectionCountReusesSamePoll(t *testing.T) {
 	f := workbenchperftest.NewFixture(t, 1, 4096)
 	o := f.Owners[0]
-	p := newTitleProjection(contextcmd.Env{Home: f.Home, PairDataDir: o.ScopeDir, PairScopeKey: o.Scope})
+	p := newTitleProjection(contextcmd.Env{Home: f.Home, PairDataDir: o.ScopeDir, PairScopeKey: o.Scope}, 1)
 	p.runtime = p.runtime.WithWorkObserver(f.Counts.Observer(o.Tag))
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-	if at, ok := p.activity(ctx, o.Tag, o.Agent); ok || !at.IsZero() {
-		t.Fatalf("canceled activity returned %v %v", at, ok)
-	}
-	if count := p.count(ctx, o.Tag, o.Agent); count != "" {
-		t.Fatalf("canceled count returned %s", count)
+	if got := p.count(o.Tag, o.Agent); got != "" {
+		t.Fatalf("count before poll=%s", got)
 	}
 	f.Counts.Snapshot().RequireZero(t)
-}
-
-type cancelTitleScanObserver struct {
-	cancel     context.CancelFunc
-	ledgerRead int64
-}
-
-func (o *cancelTitleScanObserver) ReadWork(a sessioninventory.Artifact, n int64) {
-	if strings.HasPrefix(a.RelativePath, "ledger-") {
-		o.ledgerRead += n
-		o.cancel()
+	if _, ok := p.activity(o.Tag, o.Agent); !ok {
+		t.Fatal("activity missing")
 	}
-}
-func (*cancelTitleScanObserver) DecodeWork(sessioninventory.Artifact, int64) {}
-
-func TestTitleProjectionCancelDuringScanStopsRangeReads(t *testing.T) {
-	f := workbenchperftest.NewFixture(t, 1, 10<<20)
-	owner := f.Owners[0]
-	p := newTitleProjection(contextcmd.Env{Home: f.Home, PairDataDir: owner.ScopeDir, PairScopeKey: owner.Scope})
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	observer := &cancelTitleScanObserver{cancel: cancel}
-	p.runtime = p.runtime.WithWorkObserver(observer)
-	if got := p.count(ctx, owner.Tag, owner.Agent); got != "" {
-		t.Fatalf("canceled count=%s", got)
+	before := f.Counts.Snapshot()
+	for i := 0; i < 3; i++ {
+		p.count(o.Tag, o.Agent)
 	}
-	if observer.ledgerRead <= 0 || observer.ledgerRead > 64<<10 {
-		t.Fatalf("cancelled scan read %d bytes, want one bounded range", observer.ledgerRead)
+	f.Counts.Snapshot().Delta(before).RequireZero(t)
+	if _, ok := p.activity("another", o.Agent); ok || p.Err() == nil {
+		t.Fatal("owner change not terminal")
 	}
 }
