@@ -1,13 +1,21 @@
 ---
 id: 000589
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-15
-updated: 2026-10-15
+updated: 2026-10-16
 estimate_hours:
 severity: medium
-card_mirror: '6a48f46aac4ca1bff3218e0bd7ca3cea08a95b47' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'ca5e56371b1fd8e707c21121e80338e06cb01907' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-15T20:45:41-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:1
+    worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Dormant message readmission test races its last asynchronous attempt
@@ -30,7 +38,9 @@ Measure the admission ordering with a controllable stateful fixture. Establish t
 
 ## Plan
 
-- [ ]
+- [ ] Reproduce the late final retry with a controlled authority barrier; record the expected unavailable assertion failing.
+- [ ] Synchronize retries and send-triggered readmission with channels at the existing authority/retry seams; keep launch unhealthy until the refusal is observed. No sleeps or longer deadlines (ARCH-ORDER, ARCH-DRY).
+- [ ] Run repeated race verification and the recorded full suite; close through the SDLC review, then await SHIP for landing.
 
 ## Log
 
@@ -41,3 +51,5 @@ Measure the admission ordering with a controllable stateful fixture. Establish t
 Local measurement artifacts (not required to understand the issue): /var/folders/07/b9wcwwld4_v2w9r3hk525bm80000gn/T/pair-589-measure.ljLPET/. proof.json, proof_test.go and proof.log retain the controlled case. Command: go test -race -overlay=<artifact-dir>/proof.json ./cmd/internal/couchcmd -run '^TestDormantLateFinalRetryMeasurement$' -count=10 -v.
 
 A fixture-only candidate overlay passed fifty race-detector repetitions in 5.649s (candidate.json, candidate_test.go, candidate.patch, candidate.log). It keeps launch=false, holds the seventh admission, and sends until that admission begins, requiring unavailable while held. The seventh check proves a send awakened Dormant; only then does it set launch=true, release, and await connection. This removes the sleep oracle and also prevents a fast successful readmission from racing the first-send refusal assertion. This is measurement, not a landed fix; the issue's owner should choose the smallest actual-state synchronization. TL approved keeping the fix separate from #584 and using the unchanged-head recorded rerun under the flake rule (8e95bb66).
+
+2026-10-16: pair:1 claimed the released item. Small fixture-only plan posted to ops:0; authorized to proceed after posting. Production admission behavior stays unchanged. Final landing waits behind #544, #605 and #607.
