@@ -10,6 +10,7 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -200,13 +201,17 @@ func ValidateRequest(r ArchiveRequest) error { return validateRequest(r, false) 
 // general bound, or MaxSnapshotRawBytes for snapshot kinds, which are bounded
 // by their ciphertext instead. Kind-based, so catalog reads agree with writes.
 func rawBundleLimit(kind string) int64 {
-	if inv, err := Defaults(); err == nil {
+	if inv, err := defaultInventory(); err == nil {
 		if rule, err := inv.Resolve(kind); err == nil && rule.SnapshotRequired {
 			return MaxSnapshotRawBytes
 		}
 	}
 	return MaxBundleBytes
 }
+
+// defaultInventory decodes the embedded inventory once; validation runs per
+// file and per catalog record.
+var defaultInventory = sync.OnceValues(Defaults)
 
 // validateRequest admits a snapshot-required kind only when collected: the
 // continuous pass took a coherent private snapshot itself (pair#592). Manual

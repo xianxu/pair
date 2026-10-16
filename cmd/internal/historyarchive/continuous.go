@@ -182,7 +182,7 @@ func (p ContinuousPass) archiveRoot(ctx context.Context, root SourceRoot, index 
 		if collected && errors.Is(err, ErrCiphertextLimit) {
 			// A snapshot too large even compressed is skipped, not a failed
 			// pass: it would fail the same way every day (pair#616).
-			skipped = append(skipped, fmt.Sprintf("%s: %v; skipped", root.Kind, err))
+			skipped = append(skipped, fmt.Sprintf("%s/%s: %v; skipped", root.Kind, fresh[0], err))
 			fresh = fresh[n:]
 			continue
 		}
