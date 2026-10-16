@@ -350,3 +350,65 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-15T18:38:59-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 587 — Couch resource sampler: per-slot CPU, memory and disk writes, orphan detection, threshold alerts, couch --resources |
+| repo | pair |
+| issue file | workshop/issues/000587-couch-resource-sampler-per-slot-cpu-memory-and-disk-writes-orphan-detection-threshold-alerts-couch-resources.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | a584adcdca047663c614d6e97c88d48c518c06fb..d477e4a815847e3aaea8ad4450bb4d36df0fda2f |
+| command | sdlc close --issue 587 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-15T18:38:59-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The interdiff fixes the embedded command example and records the previous review. The regression passes at head and fails with the original example restored. No new defects or scope changes were found. Previously disposed BR-1–BR-7 remain undisturbed.
+
+```findings
+{}
+```
+
+1. **Strengths**
+   - Both concrete commands in `cmd/internal/couchcmd/skills/couch/SKILL.md:30` match the production CLI parser.
+   - The existing regression extracts shipped examples and parses them through `ParseCLI`, testing actual behavior.
+   - Spec, Done when, and the implementation plan are unchanged.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage:** `TestSkillDocumentsRecovery` passes at head. Restoring the base example through a temporary overlay makes it fail specifically on `couch --resources [--json]`. `git diff --check` passes. Full-suite and live acceptance were outside this narrow review.
+
+6. **Architecture:** **ARCH-DRY — pass:** one embedded skill source. **ARCH-PURE — pass:** no IO or business-logic changes. **ARCH-PURPOSE — pass:** the correction resolves the malformed executable example without expanding scope. No new architectural or user-facing surface requires atlas or README changes.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"c4488efa-69fd-4ec1-9c0b-52c7b347a017","repository":"github.com/xianxu/pair","issue_id":"000587","recipe":"fix-review","round":4,"attempt":1,"agent":"codex","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/492710657cf676c7","reviewed_head":"d477e4a815847e3aaea8ad4450bb4d36df0fda2f","slot":"pair:1","requested_at":"2026-10-16T01:37:00.328754Z"},"phase":"finished","pid":58907,"started_at":"2026-10-16T01:37:00.493232Z","finished_at":"2026-10-16T01:38:42.365408Z","session_id":"01a1425a-f9c0-7843-be71-1c05bfd047f2","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.913075667s
+head: "d477e4a815847e3aaea8ad4450bb4d36df0fda2f"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
