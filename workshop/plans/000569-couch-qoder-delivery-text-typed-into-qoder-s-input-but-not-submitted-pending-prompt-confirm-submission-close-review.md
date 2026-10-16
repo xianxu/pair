@@ -94,3 +94,90 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-15T18:15:20-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 569 — Couch → Qoder delivery: text typed into Qoder's input but not submitted (pending * prompt); confirm submission |
+| repo | pair |
+| issue file | workshop/issues/000569-couch-qoder-delivery-text-typed-into-qoder-s-input-but-not-submitted-pending-prompt-confirm-submission.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 99e11ecb8c72b7e5325a58692c1efd679e50710c..aa4c2240dec53d735a567e90105b45b60c621433 |
+| command | sdlc close --issue 569 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-15T18:15:20-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned implementation addresses both prior findings, and no new defects were found. Retries remain bounded and key-only; Qoder confirmation requires fresh empty-composer evidence; quarantine preserves uncertainty and prevents further automatic input. This approves the prepared implementation review. The plan’s TL-directed hold on native acceptance and landing remains in force.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      AutomaticInputRecoveryHint supplies Alt+Enter advice to both receipts and supervisor notices. TestPeerQoderRecoveryAdviceRoutesToNativeSubmit follows that advice through production translateChunk and verifies consumption and quarantine release. In a disposable pinned-head copy, restoring Enter makes the test fail because routing emits backslash-CR.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      README.md:724–738 now documents fresh-empty Qoder confirmation, bounded exact-envelope key retries, prompt quarantine refusal and Alt+Enter recovery. README.md:747 distinguishes uncertain body replay. These passages agree with peer_delivery.go, peer_qoder_submission.go and the Qoder keymap in harness_tty.go:90–98.
+```
+
+1. **Strengths**
+
+   - Recovery instructions share one constant, with a regression testing the prescribed action through production routing.
+   - Stateful receiver tests independently count pasted bodies, submit attempts and accepted envelopes.
+   - Quarantine reconciliation uses existing render wakes, including after terminal receipt publication.
+   - README, atlas and artifact inventory cover the changed surface.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None remaining.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Passed focused delivery, Qoder and automatic-input tests across wrapcmd, couchmessage and couchcmd, including race runs. Full couchmessage and artifactpath suites passed. The recovery regression passed unchanged and failed with the prior instruction restored; the disposable copy was removed. The reviewed checkout remains unchanged.
+
+   Native idle, mid-turn and subsequent-delivery acceptance was not performed; it remains explicitly unchecked under the plan revision.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** existing reducers, writer and reporter reused; recovery advice centralized.
+   - **ARCH-PURE — pass:** deterministic evidence and transitions remain separate from terminal and reporting effects.
+   - **ARCH-PURPOSE — pass:** automated coverage includes retries, confirmation, residue refusal and subsequent recovery; native acceptance remains the declared held task.
+   - **ARCH-MOCK — pass:** stateful receiver shares the production writer boundary; native qualification remains pending.
+   - **ARCH-CONSTRAINTS — pass:** three attempts, minimum spacing and original deadline remain bounded.
+   - **ARCH-SECURE — pass:** incomplete, altered and unsupported evidence declines retry; reporting retains authentication.
+   - **ARCH-ORDER — pass:** reducer transitions govern retries and quarantine; tests exercise interruption, stale evidence and terminal no-ops.
+   - **ARCH-FUNERAL — pass:** no new durable runtime artifact family or worker; existing retention and queue bounds are reused.
+
+   Core-concept entities exist at the documented paths and match their declared roles.
+
+7. **Plan revision recommendations:** None; existing revisions accurately preserve the outstanding native and landing obligations.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"87c96b05-0f37-4ab5-9e75-1f51fb8aa40e","repository":"github.com/xianxu/pair","issue_id":"000569","recipe":"milestone-review","round":2,"attempt":1,"agent":"codex","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/6ab8c5ffa150519f","reviewed_head":"aa4c2240dec53d735a567e90105b45b60c621433","slot":"pair:5","requested_at":"2026-10-16T01:13:08.03883Z"},"phase":"finished","pid":17889,"started_at":"2026-10-16T01:13:08.236875Z","finished_at":"2026-10-16T01:15:19.710686Z","session_id":"01a14245-1f60-7d11-89c4-af4e610d3d9d","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.062156583s
+head: "aa4c2240dec53d735a567e90105b45b60c621433"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
