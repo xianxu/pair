@@ -4,9 +4,8 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"path/filepath"
-	"strings"
-	"unicode"
-	"unicode/utf8"
+
+	"github.com/xianxu/pair/cmd/internal/nativeid"
 )
 
 // NativeLockFilename validates an exact conversation identity and encodes it
@@ -18,13 +17,8 @@ func NativeLockFilename(agent, id string) (string, error) {
 	default:
 		return "", fmt.Errorf("invalid native lock agent %q", agent)
 	}
-	if len(id) == 0 || len(id) > 512 || !utf8.ValidString(id) || id == "." || id == ".." || strings.ContainsAny(id, "/\\") {
-		return "", fmt.Errorf("invalid native conversation ID")
-	}
-	for _, r := range id {
-		if unicode.IsControl(r) || unicode.IsSpace(r) || unicode.Is(unicode.Cf, r) {
-			return "", fmt.Errorf("invalid native conversation ID")
-		}
+	if err := nativeid.Validate(id); err != nil {
+		return "", err
 	}
 	return fmt.Sprintf("%s-%x.lock", agent, sha256.Sum256([]byte(id))), nil
 }

@@ -632,6 +632,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/wrapcmd/owned_group_linux.go",
 	"cmd/internal/wrapcmd/owned_group_other.go",
 	"cmd/internal/sessionwatch/binding_notice.go",
+	"cmd/internal/nativeid/id.go",
 	// #544 bounded input/control: pure recipes and styled markup; wrapper and
 	// Couch adapters reuse authenticated endpoints and ephemeral receipts. No
 	// new Pair artifact filenames or constructor authority.

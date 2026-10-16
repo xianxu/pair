@@ -153,7 +153,7 @@ func TestRefuseUnsafeFiles(t *testing.T) {
 	}
 }
 func TestHolderMetadataCannotChangeKernelDecision(t *testing.T) {
-	for _, data := range [][]byte{nil, []byte("bad\nvalue"), []byte("\x1b[31m"), bytes.Repeat([]byte("x"), 1025)} {
+	for _, data := range [][]byte{nil, []byte("bad\nvalue"), []byte("\x1b[31m"), bytes.Repeat([]byte("x"), 1025), []byte("pair 2"), []byte("pair\u200b2")} {
 		t.Run(fmt.Sprintf("%d", len(data)), func(t *testing.T) {
 			home := t.TempDir()
 			k := testKey(t, "id")

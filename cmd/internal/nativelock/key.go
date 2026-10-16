@@ -4,10 +4,11 @@
 package nativelock
 
 import (
-	"unicode"
+	"strings"
 	"unicode/utf8"
 
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
+	"github.com/xianxu/pair/cmd/internal/nativeid"
 )
 
 // Key is an exact validated agent/conversation pair. Its zero value is invalid.
@@ -38,10 +39,5 @@ func validHolder(holder string) bool {
 	if len(holder) == 0 || len(holder) > maxHolderBytes || !utf8.ValidString(holder) {
 		return false
 	}
-	for _, r := range holder {
-		if unicode.IsControl(r) || unicode.IsSpace(r) || unicode.Is(unicode.Cf, r) {
-			return false
-		}
-	}
-	return true
+	return strings.IndexFunc(holder, nativeid.Forbidden) < 0
 }
