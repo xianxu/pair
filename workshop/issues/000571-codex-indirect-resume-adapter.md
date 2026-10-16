@@ -417,3 +417,16 @@ the earlier net+367 measurement: the additional code/tests close the two
 reproduced home-consistency findings; production remains only net+50. Product
 docs net+55 and retained workshop history net+1985 are separate. The original
 selector/config/Git/schema/snapshot policy remains deleted.
+
+### 2026-10-15 — independent telemetry timing flake, bounded retry
+
+Full suite on03495ef700652896ff63f7e93e0ea3b239587b0a finished all recipes and
+Go packages in14m15s. Only TestSessionSyncWriteTelemetryBestEffort/timeout
+failed:531.972583ms against500ms atsession_sync_test.go335. All other packages
+passed (couchcore541.946s, launcher42.600s, wrapper73.027s); no early stop.
+Failed log /Users/xianxu/workspace/pair/.git/sdlc/test-stats/failed/6664352ee3e1ee93acd32ffd5f9c3766.log,
+SHA256prefixa8592e44188b. Filed independent unassigned #596 with head/log/first
+seen/hypothesis, no fix or timeout change in #571. One unchanged targeted repeat
+passed1.567s. TL report70f0451a confirmed submitted. Per the approved flake
+rule, one recorded rerun now targets the same exact remote head03495ef7; no
+code changed. Stop/report rather than an open-ended series if it fails again.
