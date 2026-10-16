@@ -1,12 +1,20 @@
 ---
 id: 000594
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-15
 updated: 2026-10-15
 estimate_hours:
-card_mirror: 'ce799689cb9e15744f794a4dc5e13f8ba4206382' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '1f5b350e022057237a4fa2eb6943d2c1534301a0' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-15T18:58:23-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:2
+    worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Couch: deliveries to a newly started slot (parley.nvim:4) never land, receipts 'indeterminate' (unknown field AcceptedAt)
@@ -38,8 +46,16 @@ the new slot's wrapper may be a different build. So two problems:
 
 ## Plan
 
-- [ ]
+- [ ] Omit unset AcceptedAt; prove new wrapper replies decode with the old schema.
+- [ ] Name wrapper reply incompatibility and broker release honestly; never retry commit or hide possible effects.
+- [ ] Run focused regressions, build, required recorded suite and SHIP review; land and report.
 
 ## Log
 
 ### 2026-10-15
+
+## Revisions
+
+### 2026-10-15 — measured cause and approved narrow fix
+
+Read-only investigation proved the failure is older supervisor e1311121 decoding newer wrapper receipts, not the staged CLI decoding a newer supervisor. New Message.AcceptedAt used omitempty, which still emits a zero time.Time. All five wrapper-retained receipts were cancelled before submission, with zero AcceptedAt; broker release reused the operator-input event. The exact IDs were recovered from the hub tty capture; only read-only status requests were issued to wrapper 10627. TL approved omitzero, a literal old-schema decoder regression, slot-specific restart advice on reply decode failure, and truthful broker-release cancellation. A failed reply never retries commit; possible input effects retain uncertainty. No general compatibility framework or production lifecycle action. ARCH-ORDER preserves uncertainty; ARCH-DRY reuses transport and delivery reducer.
