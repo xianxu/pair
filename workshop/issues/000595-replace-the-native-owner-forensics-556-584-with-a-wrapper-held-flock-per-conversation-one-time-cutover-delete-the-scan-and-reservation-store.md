@@ -167,3 +167,7 @@ Keep the wrapper-held per-conversation flock, owned-group cleanup, watcher bindi
 - Discovery-unavailable notice only for a supported native agent whose conversation is still unbound, and now also when the watcher cannot be made or the executable is unknown.
 - Plan: the remaining stale gate lines (deletion list, recovery test row, estimate, landing item) state the approved design.
 - Deferred to the TL as a follow-up: one shared rule for NativeLockFilename, validHolder and validBindingNotice.
+
+### 2026-10-16 — CI conformance failure at landing (PR #369)
+
+couch-zellij-conformance failed on TestNativeConsoleWrapperZellij/wrapped-zellij: "remove private native fixture: directory not empty"; main passes it. Reproduced locally (make -f Makefile.local test-native-terminal-ci). Measured: the leftover is notify/lock, recreated by the wrapper's notification broker while the test already removed the fixture; at cleanup start the wrapper (reparented to PID 1 after its zellij server exited) was still alive and exited ~60 ms later. #595's owned-group cleanup lengthened the wrapper's exit by tens of ms, exposing a teardown race: the test joined the zellij server, never the wrapper it launched. Fix in the test: join the wrapper by its pidfile (bounded 5 s) before removing the fixture. 3/3 local CI-target runs green.
