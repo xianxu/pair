@@ -265,21 +265,21 @@ func ClassifyNvimReap(row NvimReapRow) (kill bool, reason string)
 - Modify: `nvim/changelog.lua`
 - Test: `cmd/internal/artifactpath/paths_test.go`, `cmd/internal/opener/run_test.go:120`
 
-- [ ] **Step 1: Write the failing tests.** Strategy: the record is a sibling of the artifacts it belongs
+- [x] **Step 1: Write the failing tests.** Strategy: the record is a sibling of the artifacts it belongs
   to, so assert it derives from the same base (`.nvim-pid` beside `.openlock` for both the sessionless and
   the sessioned form), that GC's retention matcher recognises the new suffix as a changelog artifact, and
   that `RunChangelog` passes `PAIR_NVIM_PID_FILE=` pointing at exactly that path (the assertion shape at
   `run_test.go:120`).
-- [ ] **Step 2: Run, expect FAIL.** `go test ./cmd/internal/artifactpath/ ./cmd/internal/opener/ -count=1`
-- [ ] **Step 3: Implement** `ChangelogArtifactSet.NvimPID = base + ".nvim-pid"`, add `".nvim-pid"` to
+- [x] **Step 2: Run, expect FAIL.** `go test ./cmd/internal/artifactpath/ ./cmd/internal/opener/ -count=1`
+- [x] **Step 3: Implement** `ChangelogArtifactSet.NvimPID = base + ".nvim-pid"`, add `".nvim-pid"` to
   `gc.go:265`'s suffix list and `c.NvimPID` to `gc.go:275`'s `add`, add
   `"PAIR_NVIM_PID_FILE=" + changelog.NvimPID` to the viewer env at `opener/run.go:211-215`, and add the
   pidfile block to `nvim/changelog.lua` — a copy of `init.lua:24-34`'s VimEnter write (same three lines,
   same `pcall`, same silence on failure). The `runtimebundle` mirror is gitignored build output that
   `make runtimebundle-generate` refreshes from `nvim/` — edit the source only (see Integration points).
-- [ ] **Step 4: Run artifactpath + opener + storagegc, expect PASS.**
+- [x] **Step 4: Run artifactpath + opener + storagegc, expect PASS.**
   `go test ./cmd/internal/artifactpath/ ./cmd/internal/opener/ ./cmd/internal/storagegc/ -count=1`
-- [ ] **Step 5: Commit** `#583: give the changelog viewer an artifact-keyed nvim pid record`
+- [x] **Step 5: Commit** `#583: give the changelog viewer an artifact-keyed nvim pid record`
 
 ### Task 5: The sweep reaps per pid from one snapshot
 
@@ -607,3 +607,17 @@ func ClassifyOrphanNvim(row procutil.Process, args []string, cwd string, cwdKnow
   both `ReapNvim`'s `ResolveScoped(r.DataDir, tag)` and `SweepOrphanNvim`'s `ResolveSelectedScope(r.DataDir)`
   are reading the composite layout, not the legacy flat root. No change needed; recorded because the two calls
   look like a data-dir/scope-dir mixup and Task 5 builds on both.
+- **2026-10-16 — Task 4 landed; Task 6's "each config" is not one shape.** Reason: implementing the changelog
+  pidfile meant reading the three existing spellings, and they are not copies of each other. `init.lua:24-34`
+  and `scrollback.lua:46-56` are the identical `VimEnter` + `once` + `pcall(writefile)` block; `review.lua:791`
+  is a **synchronous** `vim.fn.writefile` with no `pcall`, sitting inside the activation/render function so it
+  re-publishes on every activation — which is load-bearing there, because the review embed can be restarted
+  and rolled back, and a pid recorded once at `VimEnter` would go stale.
+  Delta: Task 6 must not unify the four into one shared block on the assumption they are the same. The
+  `VimLeave` removal belongs beside each config's own write (an autocmd for the two `VimEnter` configs and for
+  the new changelog one; for `review.lua`, alongside its per-activation publish, and its removal must not
+  delete a record a *later* activation just wrote). Extracting a shared `nvim/pidfile.lua` was considered and
+  rejected for M1: the module would need two entry points to cover both shapes, it adds a non-Go production
+  source to the artifact inventory, and the win is three deleted copies — worth revisiting only if a fifth
+  config appears. Task 4 added the changelog block as a copy of the `init.lua`/`scrollback.lua` spelling, as
+  planned, since that viewer is a plain read-only buffer with the same fork shape and no restart path.
