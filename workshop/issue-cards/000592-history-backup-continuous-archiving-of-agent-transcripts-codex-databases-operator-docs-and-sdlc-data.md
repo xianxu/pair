@@ -1,6 +1,6 @@
 ---
 id: 000592
-status: codecomplete
+status: done
 created: 2026-10-15
 updated: 2026-10-16
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 37776a0518eeb935dd23684bc02f352ca0047b76
         evidence_commit: 81c0b25781f65363c9c3d5cdd06f6316e25b6406
+        landed_commit: c0e5cff9c544bd29e085830a0210664e6d2faa6f
 ---
 
 # history-backup: continuous archiving of agent transcripts, Codex databases, operator docs and sdlc data
