@@ -1,12 +1,20 @@
 ---
 id: 000583
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-15
-updated: 2026-10-15
+updated: 2026-10-16
 estimate_hours:
-card_mirror: '756b6075455a7e8b4293cd148aa90d74d0a291bb' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'b021eaa2904d3113cb4d659d03fdea950a99cd78' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-16T10:00:03-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:4
+    worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Orphaned embedded nvim (22 GB, 13 days) escaped the reaper: untagged 'nvim --embed' children; tag them and sweep orphans
@@ -38,8 +46,71 @@ exited without closing it.
 
 ## Plan
 
-- [ ]
+Durable plan: `workshop/plans/000583-orphan-nvim-reaper-plan.md` (two chunks = the two milestones below).
+
+- [ ] M1 — every pair-spawned embed carries an identity and is reaped by exact identity
+  - [ ] One closed kind set: `artifactpath.NvimKinds()` = {draft, scrollback, review, changelog}, with a drift pin
+    over every inline list (`paths.go:559`, `lifecycle.go:195,297`, `osruntime.go:947,973`, `gc.go:253`)
+  - [ ] Pure `ClassifyNvimReap(row)` decision table (kill only when pid + kernel identity + `nvim` name + an exact
+    `--embed` argv field + the expected artifact path all agree)
+  - [ ] `ReapNvim` / `ReapNvimContext` / `SweepOrphanNvim` kill through the `session_reap.go` identity fence;
+    **`pkillF` is deleted** (name-based kill, `osruntime.go:938,956-957`, `lifecycle_os.go:49-58`)
+  - [ ] Tag the changelog viewer (`opener/run.go:211-217` env + `nvim/changelog.lua` pidfile block +
+    `TagFromNvimEmbedArgv` changelog marker)
+  - [ ] A clean exit removes its own sidecar (VimLeave in all four lua configs)
+  - [ ] Flag-gated live conformance test: spawn a tagged embed, kill its owner, assert the reaper removed it
+  - [ ] Atlas + `atlas/storage-retention-io.md` inventory updated (`TestManagedIOInventoryAnchors` is the guard)
+- [ ] M2 — untagged orphans are reported by couch and reaped only on confirmation
+  - [ ] Prove `procutil.Identity` is a wall clock; add `ParseIdentityTime`
+  - [ ] `procutil.Cwd` via `proc_pidinfo(PROC_PIDVNODEPATHINFO)` in the existing cgo libproc block (+ live conformance)
+  - [ ] Extract `UnattributedCandidate` from #587's `ClassifyUnattributed` so both sweeps share one rule
+    (`TestResourceClassifyUnproven` stays green unchanged)
+  - [ ] Pure `ClassifyOrphanNvim` / `ManagedRoots` / `WithinManagedRoot` (managed roots come from
+    `WorkspaceIdentity`; containment is positive evidence, so an incomplete inventory narrows the sweep)
+  - [ ] `ResourcePolicy.OrphanNvimAge` (default 6h, `COUCH_RESOURCE_ORPHAN_NVIM_AGE`); sampler probe gated on
+    ppid 1 + name nvim + age ≥ threshold so the cwd cost stays inside #587's <0.2% budget
+  - [ ] Health line: `couch --resources` section + `--json`; one hub alert per episode on the existing
+    `resource_episode`/`sendGenerated` seam (#574 is still open, so its notice is not available yet)
+  - [ ] `couch --reap-orphans --confirm`: CLI refusal without confirm, server-side `confirmation-required`,
+    re-classify from a fresh sample, SIGTERM→wait→SIGKILL each identity-fenced via `ProcOps`
+  - [ ] Cost re-measured at max cardinality, docs updated, live check, full suite, close
 
 ## Log
 
 ### 2026-10-15
+
+### 2026-10-16 — claimed in pair:4, root cause identified
+
+Claimed and branched (`sdlc claim`, `sdlc start-plan --issue 583`). Durable plan written via
+`superpowers-writing-plans`: `workshop/plans/000583-orphan-nvim-reaper-plan.md`.
+
+**Spawner identified (Done-when #2).** Two classes, not one:
+
+1. *pair-spawned but untagged or unreaped.* `nvim --embed` in a bare argv is nvim's own TUI/embed fork
+   (documented at `nvim/init.lua:16-23`): the TUI process re-execs an embedded server, and when the pane dies the
+   server is reparented to launchd. pair's reaper only recognises embeds whose argv carries a slot tag
+   (`TagFromNvimEmbedArgv`), and its kind lists are drift-prone: `gc.go:253` knows {draft, scrollback, review} while
+   `osruntime.go:947,973`, `lifecycle.go:195,297` and `paths.go:559` know only {draft, scrollback}, and nothing
+   anywhere knows `changelog` — the changelog viewer passes no `PAIR_NVIM_PID_FILE` (`opener/run.go:211-217`) and
+   `nvim/changelog.lua` has no pidfile block. So a review or changelog embed survives its owner.
+2. *not pair-spawned.* A bare interactive `nvim` typed into a pane has no tag pair could ever have written.
+
+**Live evidence that shaped the safety pivot.** Right now this machine has bare `nvim --embed` rows *with live
+parents* (pids 38555, 46819, 51229), and pid 38555's cwd is `/Users/xianxu/workspace/worktree/ariadne-slot2/ariadne`
+— the 22 GB orphan's exact cwd. So neither name, nor cwd, nor age discriminates an orphan from a healthy embed;
+**ppid 1 is the pivot**, and every kill must be identity-fenced (pid + kernel start stamp) because a pid recycles.
+Consequence: the two name-based `pkill -9 -f` calls (`pkillF`, `osruntime.go:938,956-957`, and the pair at
+`lifecycle_os.go:49-58`) cannot be repaired — they are deleted, per the dispatch's "never by name alone".
+
+**Design decisions (ARCH markers in the plan).** Reuse the existing `nvim-pid-<tag>-<kind>` sidecar channel rather
+than inventing an env probe (PPID comes free from the same one-read `kern.proc.all` table). Reuse
+`session_reap.go`'s identity fence and `couchcore.ProcOps`/`FakeProcOps` instead of new kill machinery. Share #587's
+unattributed predicate by extracting it *inside* couchcore (launcher cannot import couchcore — cycle). Add
+`proc_pidinfo` to the existing cgo libproc block rather than an `lsof` subprocess per row, and gate it behind
+ppid/name/age so the sampler cost stays under #587's approved <0.2%.
+
+**Four points raised with the hub in the plan post:** the Done-when #2 reading (pair owns tagging + reaping what it
+spawns and detecting + reporting the rest; it cannot make nvim's forked embed die with its TUI), reporting through
+#587's alert seam because #574 is still open, a 6h default orphan age, and the verb name
+`couch --reap-orphans --confirm`. None of them blocks M1, so M1 proceeds per the dispatch ("post a short plan … then
+build"); a hub reply lands as a scope revision here.
