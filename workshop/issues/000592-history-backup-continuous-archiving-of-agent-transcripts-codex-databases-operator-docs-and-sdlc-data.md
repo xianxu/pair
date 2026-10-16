@@ -1,12 +1,20 @@
 ---
 id: 000592
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-15
-updated: 2026-10-15
+updated: 2026-10-16
 estimate_hours:
-card_mirror: '6442affcbc9a1c72805182d72465cf0d382a7d40' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'f538d3287ef8d775d7a762e142a06244a9297c8a' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-16T08:50:30-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:2
+    worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
+    repository: github.com/xianxu/pair
 ---
 
 # history-backup: continuous archiving of agent transcripts, Codex databases, operator docs and sdlc data
@@ -36,7 +44,7 @@ Code prunes transcripts after 30 days by default. Ops project history-backup, de
 
 ## Plan
 
-- [ ]
+Durable plan: workshop/plans/000592-history-backup-continuous-archiving-of-agent-transcripts-codex-databases-operator-docs-and-sdlc-data-plan.md (TL approval 82ac1242: daily Codex DB snapshots with -wal copied first and size/mtime stability, Couch 24h scheduler with lock, standalone command).
 
 ## Log
 
