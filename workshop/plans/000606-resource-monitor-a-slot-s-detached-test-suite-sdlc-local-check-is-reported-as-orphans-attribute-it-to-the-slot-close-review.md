@@ -108,3 +108,98 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-16T12:45:56-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 606 — Resource monitor: a slot's detached test suite (sdlc local-check) is reported as orphans; attribute it to the slot |
+| repo | pair |
+| issue file | workshop/issues/000606-resource-monitor-a-slot-s-detached-test-suite-sdlc-local-check-is-reported-as-orphans-attribute-it-to-the-slot.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 0f0abd3e95009c619bcf8d42001b20b21e1f9cb5..63babdc3e4dec229d2035224cc77000da456b7ea |
+| command | sdlc close --issue 606 |
+| reviewer | claude |
+| isolation | fenced |
+| timestamp | 2026-10-16T12:45:56-07:00 |
+| verdict | SHIP |
+
+## Review
+
+Checking the fixes against the four prior findings; next I run the tests and revert each fix to confirm its regression test fails without it.
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+This fix window covers one code commit, `63babdc3e`. It changes four files and adds no scope: `## Spec`, `## Revisions` and `## Done when` are unchanged, and the issue file only gains the close log line and status. The commit fixes BR-1 and BR-2, and each fix has a regression test that fails without it. I checked this in the disposable checkout. I reverted the commit's changes to `resource.go` and `resources.go` and ran the tests again. `TestDetachedSuiteOutlivesItsAgentsRelaunch` failed: the binary was still rooted at the dead agent (`Root:{PID:5}`), with `Orphan:true`. `TestResourceSamplerAttributesADetachedSuiteToItsSlot` also failed ("processes map[10:pair:6], want the detached suite on pair:6"). I then restored the checkout, and both test packages pass on head. BR-2 is only partly fixed: the error cache still uses a deny-list rather than the allow-list the finding asked for. BR-3 and BR-4 were not touched. All the prior findings were Minor and none blocked the gate, and the window introduces nothing Critical or Important. So it ships, with those Minors still open.
+
+1. **Strengths**
+   - `resource.go:250-261`: when the remembered root has died, ownership passes to a live root, but only one with the same slot and the same thread. A suite can't drift to a different slot, and a process with no live claimant still goes orphan.
+   - `resource_detached_test.go:83-107`: the new test replays the real sequence: select, the agent dies, the suite reparents, `DetachedSlotRoots`, select again. It goes red without the fix.
+   - `resources_test.go:107`: the expected read order `[20,21,30,21]` checks two things at once: a failed read is asked again on the next pass, and a settled generation is still read only once.
+
+2. **Critical:** none.
+
+3. **Important:** none.
+
+4. **Minor**
+   - `resource.go:253`: the handover check restates the `rootDead` check a few lines below (`resource.go:265`), but the two disagree. The handover treats a live root with an empty identity as dead and skips the `duplicate[]` guard; `rootDead` does neither. Compute `rootDead` once for the remembered root and use it for both (ARCH-DRY). The effect is harmless: only the displayed root changes.
+   - BR-2 still open: other errors from `environmentRead` are still cached as permanent (`resources.go:76-83`).
+   - BR-3 and BR-4 still open (see dispositions).
+
+5. **Test coverage:** both new behaviours have regression tests, and I confirmed both fail with their fix reverted. No test covers a non-identity transient error from `environmentRead`.
+
+6. **Architecture**
+   - **ARCH-DRY: flag (Minor).** The new handover check duplicates the root-death check (first Minor above). BR-3's duplicated name list is still there.
+   - **ARCH-PURE: pass.** The handover lives in the pure `SelectResourceProcesses`. The retry decision sits in the thin sampler shell, and its tests run on a fake reader.
+   - **ARCH-PURPOSE: pass for BR-1.** The fix covers the whole class: any dead or reused remembered root with a live claimant from the same thread. It isn't limited to the case the finding named. BR-2 fixes one instance (identity errors), not the class (see its disposition).
+
+7. **Plan revisions:** none required. Optionally, add a Log line once the live "a full suite produces no orphan alert" check has been seen (BR-4).
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      resource.go:250-261 hands a dead or reused remembered root over to a live same-slot, same-thread candidate. TestDetachedSuiteOutlivesItsAgentsRelaunch fails with the fix reverted (Root PID 5, Orphan true).
+  - id: BR-2
+    disposition: not-addressed
+    note: |
+      Only IdentityUnavailableError and ctx errors skip the cache now. Other environmentRead errors (resource.go:170-172, e.g. EINVAL from a mid-exec PROCARGS2 read) are still cached as permanent. The finding asked to cache only clean reads or known-permanent errors (EPERM/ESRCH). The partial fix has a test that goes red without it.
+  - id: BR-3
+    disposition: not-addressed
+    note: |
+      The interdiff does not touch resource_detached.go:35-38 or resource.go:324-327. The two zellij+AgentInventory sets are still duplicated.
+  - id: BR-4
+    disposition: not-addressed
+    note: |
+      The Log still says live no-orphan-alert acceptance "needs the running Couch on this build (TL after landing)". No full-suite observation is recorded.
+findings:
+  - id: new
+    severity: Minor
+    kind: defect
+    family: duplicated-root-death-predicate
+    title: |
+      Handover root-death check restates and diverges from rootDead (ARCH-DRY)
+    detail: |
+      resource.go:253 treats a live root with an empty identity as dead and ignores duplicate[], while rootDead at resource.go:265 requires a non-empty identity and checks duplicate[]. So a live root whose identity read failed is still handed over. Compute the remembered root's death once and use it for both checks.
+```
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"6f4c429b-e337-4ddf-89c4-c691ae4114ca","repository":"github.com/xianxu/pair","issue_id":"000606","recipe":"fix-review","round":2,"attempt":1,"agent":"claude","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/ac17a4a6fd8dac02","reviewed_head":"63babdc3e4dec229d2035224cc77000da456b7ea","slot":"pair:2","requested_at":"2026-10-16T19:43:52.361711Z"},"phase":"finished","pid":20696,"started_at":"2026-10-16T19:43:52.553601Z","finished_at":"2026-10-16T19:45:54.34329Z","session_id":"36dba369-6014-447a-8c60-0038cee1f06b","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.404322917s
+head: "63babdc3e4dec229d2035224cc77000da456b7ea"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

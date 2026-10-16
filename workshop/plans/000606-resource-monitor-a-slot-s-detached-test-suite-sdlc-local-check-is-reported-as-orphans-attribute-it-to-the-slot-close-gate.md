@@ -91,6 +91,94 @@ rounds:
       isolation: fenced
       reviewed: ee39876a52fc7fc8a51be8fdc89e2e5dd1dc8f84
       blocked: false
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 6f4c429b-e337-4ddf-89c4-c691ae4114ca
+            repository: github.com/xianxu/pair
+            issue_id: "000606"
+            recipe: fix-review
+            round: 2
+            attempt: 1
+            agent: claude
+            root: /Users/xianxu/Library/Caches/sdlc/review-checkouts/ac17a4a6fd8dac02
+            reviewed_head: 63babdc3e4dec229d2035224cc77000da456b7ea
+            slot: pair:2
+            requested_at: "2026-10-16T19:43:52.361711Z"
+          phase: finished
+          pid: 20696
+          started_at: "2026-10-16T19:43:52.553601Z"
+          finished_at: "2026-10-16T19:45:54.34329Z"
+          session_id: 36dba369-6014-447a-8c60-0038cee1f06b
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-v1
+        repository: github.com/xianxu/pair
+        code_head: 63babdc3e4dec229d2035224cc77000da456b7ea
+        tracker_head: 9d2afc58d5f315486db535a573e5200bb72514c5
+        branch_point: b666bef0e642caecc1a5caa21169bb823b0d6807
+        since: "2026-10-16T12:04:56-07:00"
+        until: "2026-10-16T12:41:52-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-16T12:04:56-07:00"
+              end: "2026-10-16T12:41:52-07:00"
+              began: "2026-10-16T12:04:56-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot2/pair
+        sources:
+            - harness: claude
+              id: 9073df29-d226-4140-b23c-4f03f2b4c472
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: eb8e6ad83cce603879e07112799a9fd38db5801d3a80e35628955190fffc9878
+              started: "2026-10-16T03:47:36.231Z"
+              spawned: false
+              bytes: 13414587
+              windows:
+                - start: "2026-10-16T12:04:56-07:00"
+                  end: "2026-10-16T12:41:52-07:00"
+        cuts:
+            - dispatched: "2026-10-16T12:26:07-07:00"
+              finalized: "2026-10-16T12:38:17-07:00"
+              finalizing: true
+      "n": 2
+      timestamp: "2026-10-16T12:45:56-07:00"
+      dispatched: "2026-10-16T12:43:49-07:00"
+      agent: claude
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: resource.go:250-261 hands a dead or reused remembered root over to a live same-slot, same-thread candidate. TestDetachedSuiteOutlivesItsAgentsRelaunch fails with the fix reverted (Root PID 5, Orphan true).
+          round: 2
+        - id: BR-2
+          disposition: not-addressed
+          note: Only IdentityUnavailableError and ctx errors skip the cache now. Other environmentRead errors (resource.go:170-172, e.g. EINVAL from a mid-exec PROCARGS2 read) are still cached as permanent. The finding asked to cache only clean reads or known-permanent errors (EPERM/ESRCH). The partial fix has a test that goes red without it.
+          round: 2
+        - id: BR-3
+          disposition: not-addressed
+          note: The interdiff does not touch resource_detached.go:35-38 or resource.go:324-327. The two zellij+AgentInventory sets are still duplicated.
+          round: 2
+        - id: BR-4
+          disposition: not-addressed
+          note: The Log still says live no-orphan-alert acceptance "needs the running Couch on this build (TL after landing)". No full-suite observation is recorded.
+          round: 2
+      findings:
+        - kind: defect
+          id: BR-5
+          severity: Minor
+          title: Handover root-death check restates and diverges from rootDead (ARCH-DRY)
+          detail: resource.go:253 treats a live root with an empty identity as dead and ignores duplicate[], while rootDead at resource.go:265 requires a non-empty identity and checks duplicate[]. So a live root whose identity read failed is still handed over. Compute the remembered root's death once and use it for both checks.
+          family: duplicated-root-death-predicate
+          round: 2
+      recipe: fix-review
+      isolation: fenced
+      reviewed: 63babdc3e4dec229d2035224cc77000da456b7ea
+      blocked: false
 ---
 
 # Gate ledger — pair#606 (boundary-review)
@@ -111,9 +199,23 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-4** [Minor] `done-when-evidence-missing` (kind: defect) Live Done-when (full suite raises no orphan alert) not explicitly recorded
   The Log records a live probe and claims but not an observed full suite run with zero orphan alerts; add that observation.
 
+## Round 2 — 2026-10-16T12:45:56-07:00 (claude) — passed
+
+### Disposed
+
+- BR-1 — addressed — resource.go:250-261 hands a dead or reused remembered root over to a live same-slot, same-thread candidate. TestDetachedSuiteOutlivesItsAgentsRelaunch fails with the fix reverted (Root PID 5, Orphan true).
+- BR-2 — not-addressed — Only IdentityUnavailableError and ctx errors skip the cache now. Other environmentRead errors (resource.go:170-172, e.g. EINVAL from a mid-exec PROCARGS2 read) are still cached as permanent. The finding asked to cache only clean reads or known-permanent errors (EPERM/ESRCH). The partial fix has a test that goes red without it.
+- BR-3 — not-addressed — The interdiff does not touch resource_detached.go:35-38 or resource.go:324-327. The two zellij+AgentInventory sets are still duplicated.
+- BR-4 — not-addressed — The Log still says live no-orphan-alert acceptance "needs the running Couch on this build (TL after landing)". No full-suite observation is recorded.
+
+### Raised
+
+- **BR-5** [Minor] `duplicated-root-death-predicate` (kind: defect) Handover root-death check restates and diverges from rootDead (ARCH-DRY)
+  resource.go:253 treats a live root with an empty identity as dead and ignores duplicate[], while rootDead at resource.go:265 requires a non-empty identity and checks duplicate[]. So a live root whose identity read failed is still handed over. Compute the remembered root's death once and use it for both checks.
+
 ## Open findings
 
-- **BR-1** [Minor] `claimed-process-orphaned-by-stale-root` (kind: defect) Remembered root death orphans a suite that a live detached root now claims
 - **BR-2** [Minor] `transient-error-cached-as-permanent` (kind: defect) Environment read errors cached as no-thread for the generation's lifetime
 - **BR-3** [Minor] `duplicated-process-kind-list` (kind: defect) Infrastructure name set duplicates ClassifyUnattributed's names set (ARCH-DRY)
 - **BR-4** [Minor] `done-when-evidence-missing` (kind: defect) Live Done-when (full suite raises no orphan alert) not explicitly recorded
+- **BR-5** [Minor] `duplicated-root-death-predicate` (kind: defect) Handover root-death check restates and diverges from rootDead (ARCH-DRY)
