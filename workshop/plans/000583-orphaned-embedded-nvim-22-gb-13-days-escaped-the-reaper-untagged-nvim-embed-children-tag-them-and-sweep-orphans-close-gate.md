@@ -131,6 +131,135 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 1e65fd4f-c96f-4bbe-8e52-f3d6737efd28
+            repository: github.com/xianxu/pair
+            issue_id: "000583"
+            recipe: milestone-review
+            round: 2
+            attempt: 1
+            agent: claude
+            root: /Users/xianxu/Library/Caches/sdlc/review-checkouts/e3c9306e50bcc941
+            reviewed_head: 42045692d9a2a272484f7ee9af80f882035ab67a
+            slot: pair:4
+            requested_at: "2026-10-16T21:05:16.860739Z"
+          phase: finished
+          pid: 92494
+          started_at: "2026-10-16T21:05:16.999741Z"
+          finished_at: "2026-10-16T21:07:23.811937Z"
+          session_id: bb63606c-29e5-442f-892d-59ec33dd8347
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-v1
+        repository: github.com/xianxu/pair
+        code_head: 42045692d9a2a272484f7ee9af80f882035ab67a
+        tracker_head: d2aba2205e2cca653ac0d1a1f86fad094b6a1e16
+        branch_point: 758c4b72216ed740e7167f241e8287d2d6db25c6
+        since: "2026-10-16T10:00:03-07:00"
+        until: "2026-10-16T14:04:14-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-16T10:00:03-07:00"
+              end: "2026-10-16T14:04:14-07:00"
+              began: "2026-10-16T10:00:03-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot4/pair
+        sources:
+            - harness: claude
+              id: 1ff324a8-f519-463e-91c6-eed2bb7295d3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot4/pair
+              digest: bb690dfb3f054cd9b6e7b831e86003e242e20023175ac2b6fcd0e2bc4fcc0f1a
+              started: "2026-10-16T18:00:34.517Z"
+              spawned: false
+              bytes: 613947
+              windows:
+                - start: "2026-10-16T18:00:34.517Z"
+                  end: "2026-10-16T14:04:14-07:00"
+            - harness: claude
+              id: 5c6faf1f-ecbe-4e42-8a3e-5f18673a4399
+              cwd: /Users/xianxu/workspace/worktree/pair-slot4/pair
+              digest: 4c80faadfd6cff7705e00943475d8280d3c4da71743a4c89aa86ed51ff212500
+              started: "2026-10-16T17:35:33.908Z"
+              spawned: false
+              bytes: 672305
+              windows:
+                - start: "2026-10-16T17:35:33.908Z"
+                  end: "2026-10-16T14:04:14-07:00"
+            - harness: claude
+              id: a845f300-2968-4cb8-b745-15e1c37f59df
+              cwd: /Users/xianxu/workspace/worktree/pair-slot4/pair
+              digest: ff595bab0159fd79c6c095b041ee34276cfb920a34245a085adc1c1d219baa99
+              started: "2026-10-16T18:01:06.246Z"
+              spawned: false
+              bytes: 399901
+              windows:
+                - start: "2026-10-16T18:01:06.246Z"
+                  end: "2026-10-16T14:04:14-07:00"
+            - harness: claude
+              id: ea13117c-335f-4574-9a74-7f6e505c13e2
+              cwd: /Users/xianxu/workspace/worktree/pair-slot4/pair
+              digest: 837a5683d4857e30ba3acb3f625e5c12de3abc79988376d6d02418c2ead4e222
+              started: "2026-10-16T17:52:16.809Z"
+              spawned: false
+              bytes: 623751
+              windows:
+                - start: "2026-10-16T17:52:16.809Z"
+                  end: "2026-10-16T14:04:14-07:00"
+            - harness: qoder
+              id: 948602c0-7ead-4b32-9b7f-481e804dff72
+              cwd: /Users/xianxu/workspace/worktree/pair-slot4/pair
+              digest: 39da18279c7199702cb00b697a8bc196578375fafd5f94143f50596140229e5d
+              started: "2026-10-14T15:43:14.672Z"
+              spawned: false
+              bytes: 10641918
+              windows:
+                - start: "2026-10-16T10:00:03-07:00"
+                  end: "2026-10-16T14:04:14-07:00"
+        cuts:
+            - boundary: M1
+              dispatched: "2026-10-16T13:40:16-07:00"
+              finalized: "2026-10-16T13:44:04-07:00"
+              finalizing: false
+      "n": 2
+      timestamp: "2026-10-16T14:07:24-07:00"
+      dispatched: "2026-10-16T14:05:15-07:00"
+      agent: claude
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: tagSidecars/argvOnlyEmbeds now pass live[tag]; reverting the two filters turns the two new reparented sweep cases red.
+          round: 2
+        - id: BR-2
+          disposition: addressed
+          note: The openlock write is checked (run.go:197) and TestRunChangelogRefusesAViewerItCannotClaim goes red (code = 0, want 1) on revert; the regression it introduced is raised separately below.
+          round: 2
+        - id: BR-3
+          disposition: addressed
+          note: Recorded in the plan Non-goals at :551-555; the prose matches ReapNvim, which reads pid records only (osruntime.go:946).
+          round: 2
+        - id: BR-4
+          disposition: addressed
+          note: byPID is built once (indexByPID); the second argv read is justified as authorizing evidence read beside the identity fence, with the reason commented at nvim_reap_os.go:336.
+          round: 2
+      findings:
+        - kind: defect
+          id: BR-5
+          severity: Critical
+          title: The BR-2 fix's stderr string breaks TestProductionArtifactReferencesAreExactlyClassified; the suite is red at head
+          detail: 'cmd/internal/opener/run.go:194 adds "pair-changelog-open: openlock: %v\n", which artifactpath/coverage_test.go:205 rejects as unlisted changelog vocabulary; the test passes with run.go reverted to bff93e1e9^. Reword the message without the artifact token, e.g. "claim viewer", and run the full cmd/internal suite. The rule: a fix commit is verified against every package''s tests, not only the new targeted test.'
+          family: fix-verified-by-targeted-test-only
+          round: 2
+      boundary: M1
+      recipe: milestone-review
+      isolation: fenced
+      blocked: true
 ---
 
 # Gate ledger — pair#583 (boundary-review)
@@ -151,9 +280,20 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-4** [Minor] `repeated-per-pass-work` (kind: defect) byPID is built twice per sweep and Command(pid) is read twice for each argv-only row
   sweepOrphanNvim:133 and reapNvimRows:287 each build the map, and argvOnlyEmbeds:227 and decideNvimSidecar:355 each read argv. Pass the map through and keep the argv already read.
 
+## Round 2 — 2026-10-16T14:07:24-07:00 (claude) — BLOCKED
+
+### Disposed
+
+- BR-1 — addressed — tagSidecars/argvOnlyEmbeds now pass live[tag]; reverting the two filters turns the two new reparented sweep cases red.
+- BR-2 — addressed — The openlock write is checked (run.go:197) and TestRunChangelogRefusesAViewerItCannotClaim goes red (code = 0, want 1) on revert; the regression it introduced is raised separately below.
+- BR-3 — addressed — Recorded in the plan Non-goals at :551-555; the prose matches ReapNvim, which reads pid records only (osruntime.go:946).
+- BR-4 — addressed — byPID is built once (indexByPID); the second argv read is justified as authorizing evidence read beside the identity fence, with the reason commented at nvim_reap_os.go:336.
+
+### Raised
+
+- **BR-5** [Critical] `fix-verified-by-targeted-test-only` (kind: defect) The BR-2 fix's stderr string breaks TestProductionArtifactReferencesAreExactlyClassified; the suite is red at head
+  cmd/internal/opener/run.go:194 adds "pair-changelog-open: openlock: %v\n", which artifactpath/coverage_test.go:205 rejects as unlisted changelog vocabulary; the test passes with run.go reverted to bff93e1e9^. Reword the message without the artifact token, e.g. "claim viewer", and run the full cmd/internal suite. The rule: a fix commit is verified against every package's tests, not only the new targeted test.
+
 ## Open findings
 
-- **BR-1** [Important] `plan-claim-unreachable-in-production` (kind: defect) The rule "live owner but reparented to launchd → kill" is never reached for tag-keyed kinds; the sweep drops live tags
-- **BR-2** [Minor] `absent-evidence-read-as-owner-death` (kind: defect) A failed openlock write lets another session's sweep reap a live changelog viewer
-- **BR-3** [Minor] `quit-path-coverage-narrowed` (kind: defect) Quit-path ReapNvim lost its argv fallback; an overwritten scrollback sidecar's viewer waits for the next launch sweep
-- **BR-4** [Minor] `repeated-per-pass-work` (kind: defect) byPID is built twice per sweep and Command(pid) is read twice for each argv-only row
+- **BR-5** [Critical] `fix-verified-by-targeted-test-only` (kind: defect) The BR-2 fix's stderr string breaks TestProductionArtifactReferencesAreExactlyClassified; the suite is red at head

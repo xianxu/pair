@@ -396,6 +396,7 @@ var SourceClassifications = []SourceClassification{
 				"pair-changelog-open: resolve artifact namespace: %v\n",
 				"pair-changelog-open: resolve changelog artifact: %v\n",
 				"pair-changelog-open: resolve scrollback artifact: %v\n",
+				"pair-changelog-open: write %s: %v\n",
 				"pair-changelog-open: viewer: %v\n")...)...),
 	},
 	{Path: "cmd/internal/reviewcmd/run.go", Kind: ResolvedConsumer,

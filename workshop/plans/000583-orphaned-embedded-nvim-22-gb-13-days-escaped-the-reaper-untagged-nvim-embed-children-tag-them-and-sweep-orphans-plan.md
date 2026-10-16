@@ -783,3 +783,20 @@ func ClassifyOrphanNvim(row procutil.Process, args []string, cwd string, cwdKnow
   The atlas' startup-sweep paragraph (`:385`) was edited again for (a): its first two evidence sources
   described dead tags only, and it now states the live-tag rule — a dead owner is the whole authorization,
   a live tag's embed needs reparenting on top.
+- **2026-10-16 — M1 boundary review round 2 (BR-5 Critical): the BR-2 fix tripped an inventory guard the
+  verification never ran.** Reason: round 1's four findings were all addressed, and the fix for BR-2
+  introduced a new one — `opener/run.go`'s new refusal message is a string literal in a `ResolvedConsumer`
+  of the `changelog` family, which `artifactpath`'s `TestProductionArtifactReferencesAreExactlyClassified`
+  rejects unless the exact literal is inventoried in `manifest.go`. My verification had covered
+  `./cmd/internal/launcher/` and `./cmd/internal/opener/` only, so the red guard reached the review.
+  Delta: the finding's suggested remedy was measured first and rejected — rewording to
+  `"pair-changelog-open: claim viewer: %v\n"` still fails, because the token that fires is the `changelog`
+  family token inside the *command prefix*, not the tail; no wording of a message from this file escapes
+  the inventory. The fix is therefore the sanctioned shape: a terse `"pair-changelog-open: write %s: %v\n"`
+  naming the record it could not write (parallel to `reviewcmd/run.go`'s already-listed
+  `"pair-review-definition: write %s: %v\n"`) plus its entry in the file's existing changelog
+  `goCallVocabularyValues` list, and `TestRunChangelogRefusesAViewerItCannotClaim` now asserts the refusal
+  names that record path rather than a phrase. Verified with the whole `./cmd/internal/...` suite.
+  Rule taken: a fix commit is verified against every package's tests — including grep/AST guards like
+  `artifactpath`'s, which read production sources no test in the touched package imports — not only the
+  new targeted test.

@@ -524,3 +524,29 @@ Verified: `go build ./...`; `go vet ./cmd/internal/launcher/ ./cmd/internal/open
 (0.176s), whose live-tag case now asserts exactly one decision, reason `owner live`, no kill, record
 intact. Atlas `architecture.md`'s startup-sweep paragraph re-edited for the same reason as BR-1: its first
 two evidence sources described dead tags only, and it now states the live-tag rule.
+
+### 2026-10-16 — M1 boundary review round 2: BR-5, my own regression behind an inventory guard
+
+Round 2 disposed all four round-1 findings as `addressed` and raised one new Critical. BR-5: the BR-2 fix
+added `"pair-changelog-open: openlock: %v\n"` to `opener/run.go`, which `artifactpath`'s manifest classifies
+as a `ResolvedConsumer` of the `changelog` family, and its
+`TestProductionArtifactReferencesAreExactlyClassified` rejects a literal in such a file unless that exact
+string is inventoried. The guard was red and my verification never ran it: I tested the two packages I
+edited, and the guard lives in a third one that *reads* production sources rather than importing them.
+
+The finding's suggested remedy was measured before being applied, and it does not work. Rewording the
+message to `"pair-changelog-open: claim viewer: %v\n"` reproduces both violations, because the token that
+fires is the `changelog` family token inside the command prefix — no tail wording escapes it, and every
+other message this file prints is listed in the manifest for the same reason. Fixed the sanctioned way:
+`"pair-changelog-open: write %s: %v\n"`, naming the record it could not write and matching
+`reviewcmd/run.go`'s already-listed `"pair-review-definition: write %s: %v\n"`, plus its entry in the
+file's existing changelog `goCallVocabularyValues` list. `TestRunChangelogRefusesAViewerItCannotClaim` now
+asserts the refusal names that record path instead of a phrase, so a reword that drops the evidence turns
+it red.
+
+Rule added to `workshop/lessons.md` (#583 BR-5): verify a fix against every package's tests, including
+source-parsing guards, and measure a reviewer's suggested remedy before adopting it.
+
+Verified: `gofmt -l` clean on the three touched packages; the whole `go test ./cmd/internal/... -count=1`
+passes with no failures (the run that had never been made); `make runtimebundle-generate
+test-nvim-pidfile` 20/20 across the four lua configs.

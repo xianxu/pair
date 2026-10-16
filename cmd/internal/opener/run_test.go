@@ -241,8 +241,8 @@ func TestRunChangelogRefusesAViewerItCannotClaim(t *testing.T) {
 	if len(rt.removed) != 0 {
 		t.Fatalf("a lock this opener never wrote was removed: %v", rt.removed)
 	}
-	if !strings.Contains(stderr.String(), "openlock") {
-		t.Fatalf("the refusal named no cause: %q", stderr.String())
+	if !strings.Contains(stderr.String(), base+".openlock") {
+		t.Fatalf("the refusal named no ownership record: %q", stderr.String())
 	}
 }
 

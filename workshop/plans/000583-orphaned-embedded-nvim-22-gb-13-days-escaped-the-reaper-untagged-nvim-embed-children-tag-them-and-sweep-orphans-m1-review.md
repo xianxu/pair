@@ -119,3 +119,107 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-16T14:07:24-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 583 — Orphaned embedded nvim (22 GB, 13 days) escaped the reaper: untagged 'nvim --embed' children; tag them and sweep orphans |
+| repo | pair |
+| issue file | workshop/issues/000583-orphaned-embedded-nvim-22-gb-13-days-escaped-the-reaper-untagged-nvim-embed-children-tag-them-and-sweep-orphans.md |
+| boundary | milestone M1 |
+| milestone | M1 |
+| window | 758c4b72216ed740e7167f241e8287d2d6db25c6..42045692d9a2a272484f7ee9af80f882035ab67a |
+| command | sdlc milestone-close --issue 583 --milestone M1 |
+| reviewer | claude |
+| isolation | fenced |
+| timestamp | 2026-10-16T14:07:24-07:00 |
+| verdict | REWORK |
+
+## Review
+
+Let me look at the fix commits for prior findings first.
+
+Tests mostly pass, but the BR-2 fix broke an artifact-classification test. I'm checking whether that failure comes from the fix itself, and whether the BR-1 test fails without its fix.
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The four prior findings are all handled. BR-1 and BR-2 each have a regression test, and I confirmed both tests fail when their fix is reverted. BR-3 is now recorded in the plan's Non-goals. BR-4 builds `byPID` once per pass. It still reads argv a second time, but there is a reason for that, and the reason is written at the read. One thing blocks SHIP. The BR-2 fix (`bff93e1e9`) broke a repo-wide guard test, so the suite is red at the pinned head. `go test ./cmd/internal/artifactpath/` fails `TestProductionArtifactReferencesAreExactlyClassified` because the new stderr string `"pair-changelog-open: openlock: %v\n"` (`cmd/internal/opener/run.go:194`) uses unlisted changelog artifact vocabulary. With `run.go` set back to its state before `bff93e1e9`, the same test passes. The rest of the work is sound. The launcher, opener and procutil packages pass.
+
+1. **Strengths**
+   - The BR-1 fix keeps one guard in one place. `tagSidecars`/`argvOnlyEmbeds` (`nvim_reap_os.go:230,271`) now pass liveness along as evidence instead of filtering on it. The kill rule for a live tag still sits in `ClassifyNvimReap` (`nvim_reap.go:110-115`): ppid 1, plus full attribution, plus the identity fence. I reverted the two filters and the two new sweep cases went red.
+   - The neighbouring test cases were updated so each one tests a single thing. Setting a live parent on the "live tag's draft embed" and "found through a dead tag's record" cases (`nvim_reap_os_test.go:520-567`) stops them from passing by accident under the new rule.
+   - BR-2 is fixed where it starts, in the opener, rather than by adding a second ownership check. `TestRunChangelogRefusesAViewerItCannotClaim` checks four things: exit code, that no viewer opens, that no distiller launches, and that the lock is not removed. With the fix reverted it goes red: `code = 0, want 1`.
+   - The plan's Revisions entry is precise. It also corrects the earlier claim that the 22 GB orphan was an instance of the closed-pane row.
+
+2. **Critical**
+   - `cmd/internal/opener/run.go:194`: the new error message breaks `TestProductionArtifactReferencesAreExactlyClassified` (`artifactpath/coverage_test.go:205`). The fix is to reword the message so it doesn't use the artifact vocabulary, e.g. `"pair-changelog-open: claim viewer: %v\n"`. Don't add it to `known-artifact-violations.txt`; the test itself says not to. Then run `go test ./cmd/internal/...` in full.
+
+3. **Important:** none.
+
+4. **Minor**
+   - A live tag's embed at ppid 1 could be killed during the ~31 ms when it is exiting on its own after stdin EOF. This is harmless as far as I can see; at most a record is left behind, and the next pass removes it as `gone`.
+
+5. **Test coverage**
+   - The reparented branch is covered by fake-table rows, both through a record and through argv alone. The live test still does not do a real reparenting; the plan records this as a host limitation, which is acceptable.
+   - The fix commits seem to have been checked with targeted test runs only. A full run of the affected package would have caught the Critical finding.
+
+6. **Architecture**
+   - **ARCH-DRY: pass.** `indexByPID` has a single construction site, and the liveness value is passed through `nvimSidecarsFor`.
+   - **ARCH-PURE: pass.** `ClassifyNvimReap` is pure; the IO stays in the `ProcessTable` and `nvimSidecarIO` seams.
+   - **ARCH-PURPOSE: pass.** The closed-pane case can now be reached in production for all three tag-keyed kinds.
+   - **ARCH-MOCK: pass.** The fake process table sits behind the same seam as production, and there is a gated live test.
+   - **ARCH-CONSTRAINTS: pass.** The added cost is about one record read per live tag per kind, on the launch path only.
+   - **ARCH-SECURE: pass.** The openlock write is now checked, so its absence is real evidence that the owner is gone.
+   - **ARCH-ORDER: pass.** Each pid gets one decision per snapshot, and the identity is re-read before the signal.
+   - **ARCH-FUNERAL: pass.** A live tag's record is now removed by the sweep when it names a gone or foreign pid, and kept on `owner live`.
+
+7. **Plan revisions:** none needed beyond a one-line note in the Revisions entry once the stderr string is reworded.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      tagSidecars/argvOnlyEmbeds now pass live[tag]; reverting the two filters turns the two new reparented sweep cases red.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      The openlock write is checked (run.go:197) and TestRunChangelogRefusesAViewerItCannotClaim goes red (code = 0, want 1) on revert; the regression it introduced is raised separately below.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Recorded in the plan Non-goals at :551-555; the prose matches ReapNvim, which reads pid records only (osruntime.go:946).
+  - id: BR-4
+    disposition: addressed
+    note: |
+      byPID is built once (indexByPID); the second argv read is justified as authorizing evidence read beside the identity fence, with the reason commented at nvim_reap_os.go:336.
+findings:
+  - id: new
+    severity: Critical
+    kind: defect
+    family: fix-verified-by-targeted-test-only
+    title: |
+      The BR-2 fix's stderr string breaks TestProductionArtifactReferencesAreExactlyClassified; the suite is red at head
+    detail: |
+      cmd/internal/opener/run.go:194 adds "pair-changelog-open: openlock: %v\n", which artifactpath/coverage_test.go:205 rejects as unlisted changelog vocabulary; the test passes with run.go reverted to bff93e1e9^. Reword the message without the artifact token, e.g. "claim viewer", and run the full cmd/internal suite. The rule: a fix commit is verified against every package's tests, not only the new targeted test.
+```
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"1e65fd4f-c96f-4bbe-8e52-f3d6737efd28","repository":"github.com/xianxu/pair","issue_id":"000583","recipe":"milestone-review","round":2,"attempt":1,"agent":"claude","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/e3c9306e50bcc941","reviewed_head":"42045692d9a2a272484f7ee9af80f882035ab67a","slot":"pair:4","requested_at":"2026-10-16T21:05:16.860739Z"},"phase":"finished","pid":92494,"started_at":"2026-10-16T21:05:16.999741Z","finished_at":"2026-10-16T21:07:23.811937Z","session_id":"bb63606c-29e5-442f-892d-59ec33dd8347","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.695676416s
+head: "42045692d9a2a272484f7ee9af80f882035ab67a"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
