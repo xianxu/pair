@@ -28,20 +28,19 @@ Tonight's main Couch restart parked ariadne:4, then refused its resume because l
 
 ## Spec
 
-Filter legacy ownership candidates by live child, birth after the source wrapper/launch, and matching native command before admitting them as evidence. Positively stale/reused candidates are absent; unknown possible owners retain uncertainty. A writable-file timeout for an owner whose exact claimed native ID differs from the target must not block that target. Preserve same-ID collision and uncertain possible-owner refusals. No live-slot mutation; TL restages and recovers affected slots.
-
-A park-success/resume-failure must also leave the slot startable for Resume or Fresh; stale persisted registration cannot trap the row. Reuse exact existing registration/claim rollback, preserving established identity and refusing unrelated address changes.
+Couch Resume from disk / Relaunch retire their own attributed processes, then launch the proven transcript without global native-owner/lsof/ledger forensics or reservation admission. Cross-slot checking uses only Couch's recorded conversation identities and positively live slot registry: an exact collision refuses with its slot; unknown IDs do not refuse. Fresh never runs ownership admission and advances only its validated exact reserved thread-address marker. Failed attempts remain startable through existing Fresh replacement/archiving, preserving evidence. Ordinary standalone Pair is unchanged until #595.
 
 ## Done when
 
-- A regression for successful park then failed native start leaves Resume/Fresh startable; report one supported CLI recovery for current ariadne:4 without touching it.
-- RED/GREEN fake process-table regressions cover reused legacy PID, unrelated lsof timeout, and same-ID/unknown candidate controls.
-- Targeted launcher/race checks, build, required recorded suite and mandatory close review pass; land on SHIP and report hash to hub.
+- Headless tests show stale unrelated process/readiness evidence cannot block Couch recovery; same recorded conversation in another live slot refuses, own/dead/unknown identities do not.
+- Failed native relaunch followed by Fresh consumes a validated reserved address and remains retryable; busy/kill-not-confirmed safety remains.
+- Targeted/race checks, build, required recorded suite and mandatory SHIP review pass; report the supported patched-build recovery command and landing hash to hub, then return to #595.
 
 ## Plan
 
-- Reproduce failures with existing owner-proof fakes; implement the smallest candidate filters and same-ID expensive-probe scope.
-- Verify, close, land and return to #595, whose checkpoint deletes this authority later.
+- Remove forensic/store admission from Couch recovery only, reuse existing own-process retirement and validate registry collisions at both recovery gates.
+- Keep the proven Fresh reservation fix; test exact identity, retry, false-positive controls and no forbidden scan calls.
+- Verify, close and land; TL owns restage and live recovery. Deletion of dead guard code remains #595.
 
 ## Log
 
@@ -52,3 +51,7 @@ Urgent TL dispatch 368e95f0 verified submitted. #595 checkpointed at eb6528a5; t
 ## Revisions
 
 - 2026-10-15, TL 52593bb1: include stale established registration after park-ok-resume-failed and later Fresh refusal. Read-only diagnosis first; no live mutations. Keep existing claim authority and rollback, no new recovery mechanism (ARCH-DRY). Scope remains a narrow correction while #595 replaces the guard.
+
+### 2026-10-15 — operator redirect (TL f4341d43)
+
+Supersedes the legacy PID/lsof patch: resume/relaunch retire the slot's own attributed processes and restart the proven transcript. Remove global native-owner/store admission calls from Couch recovery launch paths; deletion stays #595. The only cross-slot refusal is another positively live Couch registry entry recording the exact same agent/conversation ID, naming its slot. Unknown recorded IDs do not manufacture collisions. Fresh skips native ownership completely and consumes its validated reserved address; stale failed-attempt evidence is preserved/archived through existing Fresh replacement. Refusals are busy, own-process retirement unconfirmed, or exact conversation live elsewhere. Build/test this narrow path correction, no live mutation; TL restages and recovers ariadne:4/5.
