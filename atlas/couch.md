@@ -4147,6 +4147,18 @@ means one core. Observed cumulative totals omit unsampled lifetimes.
 Remembered process generations preserve original slot ownership after
 reparenting; confirmed root loss or thread replacement can expose proven
 orphans. A process first seen after orphaning has no invented slot owner.
+A detached command keeps its slot through its inherited environment (#606):
+`DetachedSlotRoots` makes a launchd child whose `COUCH_THREAD_SCOPE`/`TAG`
+names a live slot's thread a root of that slot, so a backgrounded or
+abandoned tool call (a recorded `sdlc local-check` suite, its test binaries, a
+leaked helper) counts toward the slot instead of raising orphan alerts. macOS
+withholds a platform binary's environment (`/bin/zsh`), so a silent launchd
+child's direct children answer instead. Zellij servers, agents and embedded
+nvim are never claimed this way; a relaunched thread's leftovers stay subject
+to the orphan and unattributed rules. Each process generation's environment is
+read once (about 0.3 s for 1,200 processes on Couch's first pass, then only new
+processes) and only the two thread keys are kept; the reads show as
+`environment_calls` in the sampler cost.
 Known process kinds parented by PID 1 above the RSS floor are shown as
 **unattributed (unproven)**, never acted on. Only candidate classification may
 inspect argv; full command lines are not retained or displayed. Sampling can

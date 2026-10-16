@@ -55,15 +55,17 @@ type ResourceUsageObservation struct {
 	Reason                              string
 }
 type ResourceCost struct {
-	CPUKnown      bool          `json:"cpu_known"`
-	StorageBytes  uint64        `json:"storage_bytes"`
-	StorageWrites int           `json:"storage_writes"`
-	TableCalls    int           `json:"table_calls"`
-	UsageCalls    int           `json:"usage_calls"`
-	CommandCalls  int           `json:"command_calls"`
-	NativeCalls   int           `json:"native_calls"`
-	CPUTimeNS     uint64        `json:"cpu_time_ns"`
-	WallTime      time.Duration `json:"wall_time"`
+	CPUKnown      bool   `json:"cpu_known"`
+	StorageBytes  uint64 `json:"storage_bytes"`
+	StorageWrites int    `json:"storage_writes"`
+	TableCalls    int    `json:"table_calls"`
+	UsageCalls    int    `json:"usage_calls"`
+	CommandCalls  int    `json:"command_calls"`
+	// EnvironmentCalls read launchd children's inherited thread (pair#606).
+	EnvironmentCalls int           `json:"environment_calls"`
+	NativeCalls      int           `json:"native_calls"`
+	CPUTimeNS        uint64        `json:"cpu_time_ns"`
+	WallTime         time.Duration `json:"wall_time"`
 }
 type ResourceSample struct {
 	At                time.Time
@@ -245,6 +247,18 @@ func SelectResourceProcesses(table []procutil.Process, slots []ResourceSlot, pri
 		if had {
 			pv = previous
 			pv.Orphan = false
+			// A remembered root that died while a live root of the same thread
+			// still reaches this process (an agent relaunched under its detached
+			// suite, #606) hands ownership over instead of orphaning it.
+			if rp, alive := rows[pv.Root.PID]; known && (!alive || rp.Zombie || rp.Identity != pv.Root.Identity) {
+				for _, c := range candidates {
+					if c.Slot == pv.Slot && c.Thread == pv.Thread {
+						pv.ResourceRoot, pv.Root = c, c.Key
+						pv.Key = k
+						break
+					}
+				}
+			}
 			_, rootAlive := rows[pv.Root.PID]
 			rp := rows[pv.Root.PID]
 			s, exists := own[pv.Slot]
