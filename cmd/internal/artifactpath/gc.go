@@ -250,7 +250,7 @@ func ownerCandidates(p Paths, path string, agents []string) []ArtifactMember {
 	add("review", p.ReviewOpen(), p.ReviewMode(), p.ReviewTarget(), p.ReviewContext(), p.ReviewHandoff(), p.ReviewLanded(), p.ReviewDefinitionRequest(), p.ReviewDefinitionResult())
 	add("codex-filter-kkp", p.CodexFilterKKP())
 	add("config", p.LegacyCodexConfig())
-	for _, kind := range []string{"draft", "scrollback", "review"} {
+	for _, kind := range NvimKinds() {
 		add("nvim-pid", p.NvimPID(kind))
 	}
 	for _, a := range agents {

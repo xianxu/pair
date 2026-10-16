@@ -393,6 +393,67 @@ func TestScopePathsOwnNvimPIDEnumerationAndEmbedParsing(t *testing.T) {
 	}
 }
 
+// #583: the sidecar kind set had three spellings — gc.go's retention match knew
+// {draft, scrollback, review} while RenameArtifacts and both editorPaths
+// spellings knew only {draft, scrollback}, so a review embed was never reaped.
+// NvimKinds() is the one spelling and every consumer derives from it, so this
+// pin asserts the set's members and one sidecar per kind at each consumer here.
+func TestNvimKindsSingleSourceTheSidecarSet(t *testing.T) {
+	t.Parallel()
+
+	want := []string{"draft", "scrollback", "review"}
+	if got := NvimKinds(); !reflect.DeepEqual(got, want) {
+		t.Fatalf("NvimKinds() = %v, want %v", got, want)
+	}
+
+	owner, err := NewStorageOwner(t.TempDir(), "repo", "work")
+	if err != nil {
+		t.Fatal(err)
+	}
+	paths, err := ResolveScoped(owner.Directory(), owner.Tag)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var sidecars []string
+	for _, kind := range NvimKinds() {
+		sidecars = append(sidecars, paths.NvimPID(kind))
+	}
+	if got := paths.NvimPIDs(); !reflect.DeepEqual(got, sidecars) {
+		t.Fatalf("NvimPIDs() = %v, want one sidecar per kind %v", got, sidecars)
+	}
+
+	carried := map[string]int{}
+	for _, member := range paths.RenameArtifacts([]string{"claude"}) {
+		carried[member]++
+	}
+	for _, kind := range NvimKinds() {
+		if carried[paths.NvimPID(kind)] != 1 {
+			t.Fatalf("RenameArtifacts carries %d copies of the %s sidecar, want 1", carried[paths.NvimPID(kind)], kind)
+		}
+		member, err := MatchArtifact(paths.NvimPID(kind), []StorageOwner{owner}, nil)
+		if err != nil || member.Family != "nvim-pid" {
+			t.Fatalf("MatchArtifact(%s sidecar) = %+v, %v", kind, member, err)
+		}
+	}
+
+	scope, err := ResolveSelectedScope(owner.Directory())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var globs []NvimPIDGlob
+	for _, kind := range NvimKinds() {
+		pattern, err := scope.NvimPIDGlob(kind)
+		if err != nil {
+			t.Fatal(err)
+		}
+		globs = append(globs, NvimPIDGlob{Kind: kind, Pattern: pattern})
+	}
+	if got, err := scope.NvimPIDGlobs(); err != nil || !reflect.DeepEqual(got, globs) {
+		t.Fatalf("NvimPIDGlobs() = %v, %v, want %v", got, err, globs)
+	}
+}
+
 func TestPathsOwnPaneSidecarParsing(t *testing.T) {
 	paths, err := ResolveScoped("/data/repos/scope", "work")
 	if err != nil {

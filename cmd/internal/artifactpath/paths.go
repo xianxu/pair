@@ -280,6 +280,31 @@ func (p ScopePaths) HistoryGlobs() []string {
 	}
 }
 
+// NvimKinds is the closed set of editor surfaces Pair spawns as `nvim --embed`
+// and records in a tag-keyed pid sidecar. It is the single spelling every
+// consumer derives from (#583): a kind absent here is a kind whose embed is
+// never reaped, which is how `review` leaked. The changelog viewer is not a
+// kind — it is per (tag, agent, session), so it carries an artifact-keyed
+// record instead (ChangelogArtifactSet.NvimPID).
+func NvimKinds() []string { return []string{"draft", "scrollback", "review"} }
+
+// NvimPIDGlob is one kind's selected-scope enumeration pattern.
+type NvimPIDGlob struct{ Kind, Pattern string }
+
+// NvimPIDGlobs returns one glob per NvimKinds entry, in kind order.
+func (p ScopePaths) NvimPIDGlobs() ([]NvimPIDGlob, error) {
+	kinds := NvimKinds()
+	out := make([]NvimPIDGlob, 0, len(kinds))
+	for _, kind := range kinds {
+		pattern, err := p.NvimPIDGlob(kind)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, NvimPIDGlob{Kind: kind, Pattern: pattern})
+	}
+	return out, nil
+}
+
 // NvimPIDGlob returns the selected-scope enumeration pattern for one nvim
 // surface. Callers may glob this pattern, but must not reconstruct its filename
 // family themselves.
@@ -556,8 +581,8 @@ func (p Paths) RenameArtifacts(agents []string) []string {
 		p.WorkbenchLayout(), p.QueueDir(), p.Quote(), p.ImageCapture(),
 		p.ImageCaptureDone(), p.Draft(), p.Log(), p.Ledger(),
 		p.LifecycleJournal(),
-		p.NvimPID("draft"), p.NvimPID("scrollback"),
 	}
+	out = append(out, p.NvimPIDs()...)
 	for _, agent := range agents {
 		out = append(out,
 			p.Config(agent), p.Pane(agent), p.ScrollbackANSI(agent),
@@ -673,6 +698,16 @@ func (p Paths) AgentFromPane(path string) (string, bool) {
 func (p Paths) NvimPID(kind string) string { return mustPath(p.NvimPIDChecked(kind)) }
 func (p Paths) NvimPIDChecked(kind string) (string, error) {
 	return p.taggedComponent("nvim-pid-", kind, "")
+}
+
+// NvimPIDs resolves one pid sidecar per NvimKinds entry, in kind order.
+func (p Paths) NvimPIDs() []string {
+	kinds := NvimKinds()
+	out := make([]string, 0, len(kinds))
+	for _, kind := range kinds {
+		out = append(out, p.NvimPID(kind))
+	}
+	return out
 }
 
 func (p Paths) ParkedScrollback(timestamp string) string {

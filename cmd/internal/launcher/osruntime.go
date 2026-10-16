@@ -944,8 +944,7 @@ func (r OSRuntime) ReapNvim(tag string) {
 	if err != nil {
 		return
 	}
-	for _, kind := range []string{"draft", "scrollback"} {
-		pf := paths.NvimPID(kind)
+	for _, pf := range paths.NvimPIDs() {
 		if raw, err := r.ReadFile(pf); err == nil {
 			if pid := strings.TrimSpace(raw); pid != "" {
 				_ = exec.Command("kill", "-9", pid).Run()
@@ -970,14 +969,14 @@ func (r OSRuntime) SweepOrphanNvim(liveTags []string) {
 		live[t] = true
 	}
 	cands := map[string]bool{}
-	for _, kind := range []string{"draft", "scrollback"} {
-		pattern, err := scope.NvimPIDGlob(kind)
-		if err != nil {
-			continue
-		}
-		matches, _ := filepath.Glob(pattern)
+	globs, globErr := scope.NvimPIDGlobs()
+	if globErr != nil {
+		return
+	}
+	for _, glob := range globs {
+		matches, _ := filepath.Glob(glob.Pattern)
 		for _, m := range matches {
-			if tag, ok := scope.TagFromNvimPID(m, kind); ok {
+			if tag, ok := scope.TagFromNvimPID(m, glob.Kind); ok {
 				cands[tag] = true
 			}
 		}

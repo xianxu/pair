@@ -528,23 +528,53 @@ func timeUnix(sec int64) time.Time { return time.Unix(sec, 0).UTC() }
 func TestOSRuntimeReapAndPollerRemovePidfiles(t *testing.T) {
 	dataDir := t.TempDir()
 	rt := NewOSRuntime(dataDir, "/pair")
+	paths, err := artifactpath.ResolveScoped(dataDir, "work")
+	if err != nil {
+		t.Fatal(err)
+	}
 	// A syntactically-valid but non-existent pid: kill(2) returns ESRCH, so this
 	// can never signal a real process; the assertion is on the pidfile removal.
 	const deadPid = "2147483646"
-	for _, name := range []string{"nvim-pid-work-draft", "nvim-pid-work-scrollback", "title-pid-work"} {
-		if err := os.WriteFile(filepath.Join(dataDir, name), []byte(deadPid+"\n"), 0o644); err != nil {
+	pidfiles := append(paths.NvimPIDs(), paths.TitlePID())
+	for _, pidfile := range pidfiles {
+		if err := os.WriteFile(pidfile, []byte(deadPid+"\n"), 0o644); err != nil {
 			t.Fatal(err)
 		}
 	}
 	rt.ReapNvim("work")
-	for _, name := range []string{"nvim-pid-work-draft", "nvim-pid-work-scrollback"} {
-		if _, err := os.Stat(filepath.Join(dataDir, name)); !os.IsNotExist(err) {
-			t.Fatalf("ReapNvim should clear the %s pidfile", name)
+	// #583: derived from NvimKinds() through NvimPIDs(), not spelled per kind —
+	// the literal {draft, scrollback} here is what let review drift out.
+	for _, pidfile := range paths.NvimPIDs() {
+		if _, err := os.Stat(pidfile); !os.IsNotExist(err) {
+			t.Fatalf("ReapNvim should clear the %s pidfile", pidfile)
 		}
 	}
 	rt.KillTitlePoller("work")
-	if _, err := os.Stat(filepath.Join(dataDir, "title-pid-work")); !os.IsNotExist(err) {
+	if _, err := os.Stat(paths.TitlePID()); !os.IsNotExist(err) {
 		t.Fatal("KillTitlePoller should clear the title pidfile")
+	}
+}
+
+// #583: the launch sweep enumerated the same two kinds, so a review sidecar was
+// never a candidate and survived every sweep. Pinned per kind from NvimKinds().
+func TestOSRuntimeSweepRemovesEveryKindsSidecar(t *testing.T) {
+	dataDir := t.TempDir()
+	rt := NewOSRuntime(dataDir, "/pair")
+	paths, err := artifactpath.ResolveScoped(dataDir, "work")
+	if err != nil {
+		t.Fatal(err)
+	}
+	const deadPid = "2147483646"
+	for _, pidfile := range paths.NvimPIDs() {
+		if err := os.WriteFile(pidfile, []byte(deadPid+"\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	rt.SweepOrphanNvim(nil)
+	for _, pidfile := range paths.NvimPIDs() {
+		if _, err := os.Stat(pidfile); !os.IsNotExist(err) {
+			t.Fatalf("SweepOrphanNvim should clear the %s pidfile", pidfile)
+		}
 	}
 }
 
