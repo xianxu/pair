@@ -7,9 +7,11 @@ import (
 	"path/filepath"
 	"reflect"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/xianxu/pair/cmd/internal/launcher"
+	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 )
 
 // recoverAcceptanceFixture is slotRecoveryOperationFixture with six slots: a
@@ -286,5 +288,80 @@ func TestRecoverPlanStepsConverge(t *testing.T) {
 	afterRecord, afterErr := w.env.Couch.Threads.PreviewThreadContext(ctx, w.records[1].Address)
 	if err != nil || call.Name != "resume" || afterErr != nil || !reflect.DeepEqual(before, afterRecord) {
 		t.Fatalf("resend admission: call=%+v err=%v recorderr=%v", call, err, afterErr)
+	}
+}
+
+// pair#597 close review BR-2: an exact registry collision refuses at both
+// recovery gates. :2 resumes and is live; :3 then tries to resume the same
+// conversation, recorded from the start (preflight) or only once :3's
+// workspace is prepared (the gate before launch). Either way :3 is refused,
+// named by its holder, and starts no child.
+func TestRecoverResumeRefusesConversationLiveInAnotherSlotAtBothGates(t *testing.T) {
+	for _, late := range []bool{false, true} {
+		t.Run(map[bool]string{false: "preflight", true: "after-prepare"}[late], func(t *testing.T) {
+			w := newRecoverWorld(t)
+			ctx := context.Background()
+			collide := func() {
+				w.env.Artifacts.SetNativeBinding(w.records[2].Address, "claude", sessioninventory.BindingEstablished, "native-slot-3")
+			}
+			prepared3 := 0
+			w.env.Couch.Workspaces = slotReadinessFunc(func(_ context.Context, r ProvisionRequest) (ProvisionResult, error) {
+				if r.Slot == 3 {
+					prepared3++
+					if late {
+						collide()
+					}
+				}
+				for _, local := range w.locals {
+					if local.slot.Number == r.Slot || filepath.Clean(local.slot.WorktreeRoot) == filepath.Clean(r.Path) {
+						return slotReadyResult(local), nil
+					}
+				}
+				return ProvisionResult{}, fmt.Errorf("no slot %d at %s", r.Slot, r.Path)
+			})
+			w.env.Couch.FreshRegistration = func(context.Context, ThreadAddress, string, string) (bool, error) { return true, nil }
+			var resuming ThreadAddress
+			for _, n := range []int{2, 3} {
+				w.env.Artifacts.SetPairSession(w.records[n].Address, fmt.Sprintf("pair-slot-%d", n), false)
+			}
+			w.env.Runner.AfterAcknowledge = func(id string) error {
+				w.env.Artifacts.SetPairSession(resuming, continuationChildSession(t, w.env.Runner, id), true)
+				w.env.Artifacts.SetSessionPresence(resuming, SessionObservation{State: SessionPresent})
+				return nil
+			}
+			executors := OperationExecutors{LiveOwner: CouchLiveOwnerExecutor(w.env.Couch), DirectStore: DirectStoreExecutor(w.env.Couch)}
+			resume := func(n int) error {
+				call, _, err := w.env.Couch.PrepareSlotOperation(ctx, "resume", w.address(n), LiveRestartOptions{})
+				if err != nil {
+					return err
+				}
+				resuming = w.records[n].Address
+				value, err := DispatchOperation(executors, call)
+				if err != nil {
+					return err
+				}
+				if started, ok := value.(StartedChild).Started(); ok {
+					w.env.Proc.Set(started.Record.PID, started.Record.Identity)
+				}
+				return nil
+			}
+			if err := resume(2); err != nil {
+				t.Fatalf(":2 resume: %v", err)
+			}
+			if !late {
+				collide()
+			}
+			children := len(w.env.Runner.order)
+			err := resume(3)
+			if err == nil || !strings.Contains(err.Error(), "conversation native-slot-3 is in use by "+w.address(2)) {
+				t.Fatalf(":3 resumed a conversation live in :2: %v", err)
+			}
+			if len(w.env.Runner.order) != children {
+				t.Fatalf(":3 started a child after refusal: %v", w.env.Runner.order)
+			}
+			if !late && prepared3 != 0 {
+				t.Fatalf("preflight refusal came after :3's workspace was prepared (%d)", prepared3)
+			}
+		})
 	}
 }

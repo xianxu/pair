@@ -6,9 +6,11 @@ home, configuration, transcript, Git or database probing. Pair does not predict
 the selected conversation or reserve a guessed identity. The wrapper prints
 one line explaining that concurrent resume is not guarded.
 
-Full canonical UUIDs use the existing exact-ID validation and
-Reserve → Claim → Publish admission flow. Strict required/recovery launches
-still require proven identity; indirect compatibility is not proof.
+Full canonical UUIDs use existing exact-ID validation. Standalone launches
+retain Reserve → Claim → Publish admission; Couch-hosted recovery keeps main's
+conversation-registry checks and exact pinning. This home route adds no
+ownership policy. Strict required/recovery launches still require proven
+identity; indirect compatibility is not proof.
 
 ## Transcript home
 

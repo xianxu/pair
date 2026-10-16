@@ -49,10 +49,6 @@ func validateRecoveryRecord(a RecoveryAuthority, r threadrecord.Record, scope Re
 }
 
 func (r OSRuntime) ValidateRecoveryAuthority(ctx context.Context, a RecoveryAuthority, scope RepoScope, tag, agent, cwd string) error {
-	return r.validateRecoveryAuthority(ctx, a, scope, tag, agent, cwd, CheckRecoveryNativeOwner)
-}
-
-func (r OSRuntime) validateRecoveryAuthority(ctx context.Context, a RecoveryAuthority, scope RepoScope, tag, agent, cwd string, checkOwner func(context.Context, RecoveryNativeOwnerCheck) error) error {
 	if ctx == nil {
 		return errors.New("recovery authority requires context")
 	}
@@ -199,9 +195,7 @@ func (r OSRuntime) validateRecoveryAuthority(ctx context.Context, a RecoveryAuth
 	if !bytes.Equal(raw, after) {
 		return errors.New("recovery start claim changed during validation")
 	}
-	if err := checkOwner(ctx, RecoveryNativeOwnerCheck{DataDir: r.globalDataDir(), RepoScope: scope.Key, Tag: tag, Agent: agent, NativeID: a.Intent.NativeID}); err != nil {
-		return err
-	}
+
 	if err := ctx.Err(); err != nil {
 		return err
 	}

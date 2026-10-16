@@ -115,17 +115,10 @@ func TestRecoveryAuthorityNativeHomeDiscoveryToFinalValidation(t *testing.T) {
 			if mode == "relative" {
 				t.Setenv("CODEX_HOME", filepath.Join("home", "custom"))
 			}
-			ownerCalls := 0
-			err = (OSRuntime{DataDir: dir}).validateRecoveryAuthority(context.Background(), a, scope, "work", "codex", dir, func(ctx context.Context, check RecoveryNativeOwnerCheck) error {
-				ownerCalls++
-				if check.Agent != "codex" || check.NativeID != id || check.RepoScope != scope.Key || check.Tag != "work" || check.DataDir != dir {
-					t.Fatalf("ownercheck=%+v", check)
-				}
-				return ctx.Err()
-			})
+			err = (OSRuntime{DataDir: dir}).ValidateRecoveryAuthority(context.Background(), a, scope, "work", "codex", dir)
 			allowed := mode == "custom" || mode == "default"
-			if (err == nil) != allowed || ownerCalls != map[bool]int{true: 1, false: 0}[allowed] {
-				t.Fatalf("authority=%v ownerCalls=%d", err, ownerCalls)
+			if (err == nil) != allowed {
+				t.Fatalf("authority=%v", err)
 			}
 		})
 	}

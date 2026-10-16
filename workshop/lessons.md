@@ -2013,3 +2013,8 @@ and external temporary roots rather than relying on the host's TMPDIR.
   projection. A typed callback cannot establish availability for compatibility-
   only records; apply authority/error policy to every represented agent and
   test the real saved-config/restart consumer, including preserved bytes.
+- #597 BR-1: removing a guard at a shared boundary (launcher, wrapper) in favour of an upstream check must cover every upstream path that reaches it. Skipping admission for all Couch-owned launches also stripped it from Couch cold resume, which lacked the registry check. List every entry point (grep the profile builders), give each the replacement check and a refusal test, in the same change.
+
+- #593: A cleanup scan budget must count transient artifacts, not retained final objects. Isolate staging before applying bounds, and test continued writes beyond the listing cap. Whenever a writer gains numbered shards, test that its source inventory includes actual rolled names while excluding locks/staging.
+
+- #593 BR-3: Inventory completeness is per supported producer/backend, not per logical kind. Sweep global, repo-scoped, slot-local, legacy and sharded layouts together; assert coverage with producer-generated paths before declaring the coverage family fixed.

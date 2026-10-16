@@ -528,3 +528,22 @@ sdlc merge --yes (no bypass); it owns the required fresh integration suite.
 If code conflicts change this patch, follow the close revalidation the binary
 names. No pair:0 action. Final full pass before the waiting integration is
 9c4fe5c4 (11m56s, f35132f334a1); the pending integration is not claimed passed.
+
+### 2026-10-15 — prioritized #597 landed; preserve its recovery gate
+
+TL submitted receiptf26d5382 releases the landing hold after #597
+(9b5598bb2785a540e13a2b545d438b5e43f06235). Merging current main conflicts
+in the source list and final old recovery-owner check. Join both source lists.
+Preserve main's deliberate owner-check deletion: Couch now checks the conversation
+registry from recovery_conversation_in_use.go through recovery_prepared.go and
+resume.go; createflow/wrapper skip old admission only on the corresponding
+Couch-hosted paths. #571 must not resurrect the old scan.
+
+Collapse the now-obsolete private injected-owner validation wrapper into the
+actual public authority method. Home/capture/record validation stays unchanged;
+the handoff regression can call the public method with private files directly
+now that this method no longer inspects unrelated live owners. Preserve custom/
+default positive and invalid/relative negatives. This records an integration
+fix, not a new selector, ownership policy or scope. Run focused normal/race,
+source guards and a fresh full suite, then narrow post-close review with the
+full-suite evidence before landing. No staging or operator look is required.

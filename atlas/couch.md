@@ -90,8 +90,11 @@ A broken message channel does not authorize restarting a functioning agent.
 Older wrappers with an unlinked endpoint remain usable by terminal, with
 “messaging unavailable until next relaunch.” New-wrapper endpoint repair is a
 separate follow-up (#557). Resume/Fresh execution and confirmation by the person
-or hub share #556's prepared recovery path, described below. Native admission
-against concurrent writers is a separate #556 M2 boundary.
+or hub share #556's prepared recovery path, described below. Couch's resume and
+recovery launches take no native admission (#597): before launching, they
+refuse only if another positively live slot in Couch's registry records the same
+conversation ("conversation X is in use by repo:N"). Every other launch, and
+ordinary Pair, keeps native admission until #595.
 
 Graceful Couch detach can retire a proven-dead helper before the next Couch
 starts. A listed-live terminal with no retained incarnation then attaches as
