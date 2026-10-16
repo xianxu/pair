@@ -43,6 +43,7 @@ Apply the hub's explicit temporary unblock: give the full suite's broad Go invoc
 ## Log
 
 ### 2026-10-16 — approved fleet unblock
+- 2026-10-16: closed — Explicit suite argv red/green; make-test-env conformance PASS (215 knobs, overrides, nested Make); clean make -k -B build on 6b7831ec5bd5d772efe0e20828e22aaae40e4fbf; recorded suite2cd9dc07fa29172d19df49c8be76332f PASS every recipe/package, 14m26, couchcore453.524s, log SHA2567e6e89a956a53b4bdc071c0a379ce4705d2077caadde65444d43ff65b03310d5; actual test binary20m. #611 filed unassigned for profiling/split/shard/removal. Atlas not applicable: no new architectural surface; ops/test-economy project is TL-owned. Budget explicitly approved in hub decision173f498b; fixture deadlines/assertions untouched.; review verdict: SHIP
 
 Hub decision 173f498b-9796-4fd6-a777-07e28ce4107c explicitly authorizes 20m as a deliberate temporary budget. #591 remains clean at 47a221c079675acc1415c1a85db3ac559fcb1722 and is not rerun yet. Integrated suite failed only the package-wide timeout; automatic main comparison passed in 946.514 s with couchcore at 580.585 s. The fixed duration is visible at the suite owner (ARCH-DRY), not injected through shared GOFLAGS or hidden retry machinery. Production behavior is unchanged.
 
