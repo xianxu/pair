@@ -1,6 +1,6 @@
 ---
 id: 000612
-status: working
+status: codecomplete
 created: 2026-10-16
 updated: 2026-10-16
 estimate_hours:
@@ -14,6 +14,14 @@ claimant:
     workspace: pair:1
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
+actual_hours: 0.44
+tracker:
+    version: 1
+    completion:
+        token: close-342f1fdf5cfc
+        repository: github.com/xianxu/pair
+        reviewed_head: 7d7e566b2ec852d97ee23759459f544715337be1
+        evidence_commit: f90583d54b3cc79bfe32a92d3b29cfe270517e5a
 ---
 
 # Warm reattach acceptance intermittently resolves native binding
