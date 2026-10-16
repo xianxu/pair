@@ -44,7 +44,9 @@ Removing the pre-cleanup publication permits loss of the current attempt if Couc
 - [x] Add caller-context admission to the storage interface, real store and stateful fake; a small injected wait boundary controls real contention in tests (ARCH-PURE). Preserve the existing safe-open and unlock ownership (ARCH-DRY).
 - [x] Red/green controlled held-lease release/cancellation tests and cleanup-before-save/immutable-evidence tests; migrate existing exact retention and unsafe/corrupt/durability coverage without relaxing assertions.
 - [x] Snapshot evidence before cleanup, enrich and publish once afterward, using a named bounded diagnostic context independent of launch cancellation. Record the explicit crash-loss tradeoff (ARCH-CONSTRAINTS); enumerate waiter cancellation versus lease release, with no background waiter surviving return (ARCH-STATE).
-- [ ] Update Atlas, run targeted/race checks and the recorded suite, close with the mandatory fresh review, prepare SHIP and wait for the hub's final merge turn.
+- [x] Update Atlas and run targeted/race checks and the recorded suite.
+
+After these implementation steps: request the mandatory close review, prepare SHIP and wait for the hub's final merge turn.
 
 ## Revisions
 
@@ -76,3 +78,10 @@ The TL accepted measured serialized contention as the bug class and proposed cle
 - TestLaunchFailureStoreWaitsBeyondFormerBudget holds a real flock, advances only testing/synctest's virtual clock by two seconds, observes another real failed acquisition, then releases. Green package 0.282s (case 0.04s). Negative control reinstating the former one-second admission check through a temporary source overlay fails with the original "launch diagnostics lock timeout: resource temporarily unavailable" (case 0.01s). Evidence overlay: `/var/folders/07/b9wcwwld4_v2w9r3hk525bm80000gn/T/pair590-red.fvEhRw/`. No wall-clock sleep or test-budget increase.
 - Additional real-lock cases control release, cancellation, spent deadline and simultaneous-ready release/cancellation. Refusal preserves history and releases every acquired descriptor. Existing concurrent fixture keeps its exact newest-sixteen assertion and supplies its test context instead of receiving a private performance budget.
 - Targeted launch-failure coverage across couchcore/couchcmd passed (4.001s / 1.009s); final race coverage passed (5.783s / 2.045s). Ten unchanged concurrent-retention iterations passed (170/170 writes, package 4.546s), compared with the measured ten-sample baseline's 170/170 successes and separately recorded broad-suite failures above. `make -k -B build` passed. Atlas documents context admission, cleanup ordering, durability and the explicit crash-loss window. Full recorded suite and boundary review remain pending; final merge still awaits the hub's landing turn.
+
+### 2026-10-16 — recorded broad suite passed
+
+- Exact source `fb047bfeb556b0c3e0224be700a14089f70489f0` (git rev-parse). `make -k -B build` rebuilt that clean source; bin/pair reports the same vcs.revision and vcs.modified=false.
+- Required `sdlc local-check run --name suite`, run `45a1dd14add46c7fa2a88560dc75044a`: PASS, exit 0, wall 888.345766292s (14m48), queue 100.791711209s. All shell/editor recipes and Go packages completed; couchcore 510.066s, couchcmd 148.912s, no failures. The broad run includes the controlled original-budget regression and exact concurrent retention fixture.
+- Retained log `/Users/xianxu/workspace/pair/.git/sdlc/local-checks/fb047bfeb556b0c3e0224be700a14089f70489f0/suite.log`; full SHA256 `c3a47b88b22be7efa5bacb61f6bee1dab8f86f21600b6b17ef7b9e83834e587f`. No repeat was needed. The previously cited startup-cancellation, review-resume, observation, fresh-restore and installed-fleet conformance failures did not recur.
+- Implementation/verification checklist is complete. Close review, SHIP and final merge are workflow checkpoints; final merge still waits for the hub. The TL owns ops/test-economy, so its project tick is reported to the hub rather than written by this worker.
