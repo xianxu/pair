@@ -41,6 +41,7 @@ func (o *wrapperNativeLocks) holderLabel() string {
 	}
 	return o.holder
 }
+
 // errNoticeIgnored marks a binding notice that cannot change ownership: it
 // arrived after stop began (a restart or exit is already under way), or its ID
 // cannot name a lock. The agent keeps running; only a held lock refuses.
