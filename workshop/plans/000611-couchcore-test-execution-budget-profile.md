@@ -69,3 +69,12 @@ Git call tracing uses a temporary shell wrapper that records cwd/argv then execs
 A read-only independent source audit supplied case counts and fixture ownership; those static counts are cross-checked against Go event names during implementation. Do not share a mutable provisioned checkout across destructive cases, cache mutable Git observations, reduce the totality domain/stride, or substitute SlotWorld for the real-Git half.
 
 Additional loaded-tail audit: TestSetAsideHoldsMatchThePlan is22.97s in the isolated profile and46.50s in the representative run so far. It constructs eight independent agent cases plus a recovered-checkout case, each with provisioned host/dependency Git state; the same identity batching applies. Independent child scheduling can remove the long serial table tail under the existing aggregate limit. The names-boundary trace completed with141 Git calls, including18 branch,23 HEAD,23 top-level and26 common-dir queries.
+
+
+### Completed full-Make pre-change baseline
+
+PASS, command wall900.89s (15m0.89s); couchcore execution539.310s. Same1,376 top-level dispositions (1,359 pass/17 skip), no lost cases. First parallel continuation321.993447s after core start; remaining217.317s. Core started15.799428s after the first Go event, which is package scheduling/build lag, not package execution. No machine-suite-lock wait was reported; do not conflate unobserved queue time with measured zero. During Go execution the focused CPU and Git-trace diagnostics ran concurrently; this is a loaded sample, not an idle comparison. All other packages and shell/editor prerequisites passed.
+
+Slowest loaded core tests: real reconcile65.76s, SetAside holds46.50s, recovery convergence41.13s, bounded continuation38.49s, host judgments34.43s, metamorphic33.94s, readoption33.67s, observer32.88s, repository names32.43s, totality30.03s, live fleet27.50s. These elapsed durations overlap.
+
+Raw full log SHA-256:9aa661a8edbdca473d6d326b8552c8a20667fc86c7706359ce2782489a254271. Files suite-before.log/suite-before.time/suite-before-summary.json in the diagnostic directory above. This is an instrumented planning baseline, not an sdlc-local/suite status on the branch.
