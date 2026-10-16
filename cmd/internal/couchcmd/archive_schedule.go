@@ -43,6 +43,9 @@ func newArchiveScheduler(pairData string, notify func(string)) *archiveScheduler
 		}
 		defer logFile.Close()
 		cmd := exec.CommandContext(ctx, "nice", "-n", "10", pair, "archive", "continuous")
+		// The command resolves its store from PAIR_DATA_DIR, which a Pair
+		// session scopes to one repository: name the global one explicitly.
+		cmd.Env = append(os.Environ(), "PAIR_DATA_DIR="+pairData)
 		cmd.Stdout, cmd.Stderr = logFile, logFile
 		cmd.WaitDelay = time.Second
 		return cmd.Run()
