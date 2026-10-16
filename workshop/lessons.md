@@ -2080,3 +2080,8 @@ and external temporary roots rather than relying on the host's TMPDIR.
   EOF watcher still has commands; fence PID/start and group leadership before
   signaling, and test with a stopped title plus an unrelated-group sentinel.
 - #606: a new production .go file must be added to `cmd/internal/artifactpath/manifest.go`, or the recorded suite fails `TestProductionArtifactReferencesAreExactlyClassified` at merge. Run `go test ./cmd/internal/artifactpath` whenever a change adds a source file. Fixing review Minors after a SHIP close needs `sdlc close --fixed-then-ship` before `sdlc merge` will publish.
+
+- #617 fixture isolation: a disposable HOME may acquire Go's read-only module
+  cache. Cleanup must restore write permission only on directories within its
+  owned tree without following symlinks; test root removal and preservation of
+  a linked caller-owned read-only directory, not just the fixture's exit code.

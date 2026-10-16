@@ -16,5 +16,13 @@ pair_test_bootstrap_status=0
 /bin/sh "$pair_test_bootstrap_repo/tests/lib/pair-test-env.sh" "${pair_test_bootstrap_root:?}" \
     "${pair_test_bootstrap_args[@]}" -- bash -c "$(tail -n +3 "$0")" \
     "$0" "$@" || pair_test_bootstrap_status=$?
-rm -rf "${pair_test_bootstrap_root:?}"
+# Go module-cache directories are deliberately read-only. Only directories
+# inside this owned root need write permission for unlink; find does not follow
+# symlinks, so fixture links cannot grant authority over their caller targets.
+find "${pair_test_bootstrap_root:?}" -type d -exec chmod u+rwx {} + || {
+    [ "$pair_test_bootstrap_status" -ne 0 ] || pair_test_bootstrap_status=1
+}
+rm -rf "${pair_test_bootstrap_root:?}" || {
+    [ "$pair_test_bootstrap_status" -ne 0 ] || pair_test_bootstrap_status=1
+}
 exit "$pair_test_bootstrap_status"
