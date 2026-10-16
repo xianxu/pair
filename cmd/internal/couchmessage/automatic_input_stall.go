@@ -9,7 +9,11 @@ import (
 	"github.com/xianxu/pair/cmd/internal/strictjson"
 )
 
+// AutomaticInputRecoveryHint names Pair's submit chord, not native Return.
+const AutomaticInputRecoveryHint = "press Alt+Enter or clear it"
+
 const (
+	AutomaticInputStallUnsubmittedComposer        = "unsubmitted-composer"
 	AutomaticInputStallNoRender                   = "no-render"
 	AutomaticInputStallUnrecognizedComposer       = "unrecognized-composer"
 	MaxAutomaticInputStallBytes                   = 2048
@@ -48,11 +52,11 @@ func ParseAutomaticInputStall(body string) (AutomaticInputStall, error) {
 	if report.Sequence == 0 || report.WaitMillis < 0 || report.WaitMillis > MaxAutomaticInputStallWaitMillis {
 		return AutomaticInputStall{}, errors.New("invalid automatic input stall sequence or wait")
 	}
-	if report.Cause != AutomaticInputStallNoRender && report.Cause != AutomaticInputStallUnrecognizedComposer {
+	if report.Cause != AutomaticInputStallNoRender && report.Cause != AutomaticInputStallUnrecognizedComposer && report.Cause != AutomaticInputStallUnsubmittedComposer {
 		return AutomaticInputStall{}, errors.New("invalid automatic input stall cause")
 	}
 	if report.Released && report.Cause != AutomaticInputStallNoRender {
-		return AutomaticInputStall{}, errors.New("unrecognized composer cannot release automatic input")
+		return AutomaticInputStall{}, errors.New("occupied or unrecognized composer cannot release automatic input")
 	}
 	return report, nil
 }

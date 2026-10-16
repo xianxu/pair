@@ -262,3 +262,59 @@ func TestAutomaticInputStallPIDReuseAdmitsBothHubMessages(t *testing.T) {
 		}
 	}
 }
+
+func TestAutomaticInputStallUnsubmittedComposerNotice(t *testing.T) {
+	r, b := hubMessageRig(t)
+	worker, hub := b[2], b[1]
+	var mu sync.Mutex
+	var notices, desktop []string
+	r.s.supervision.Store(newSupervisionCoordinator(r.s, func(body string) { mu.Lock(); notices = append(notices, body); mu.Unlock() }))
+	r.s.SetDesktopNotify(func(_ context.Context, _ string, body string) error {
+		mu.Lock()
+		desktop = append(desktop, body)
+		mu.Unlock()
+		return nil
+	})
+	req := stallRequest(worker, 2)
+	raw, err := json.Marshal(couchmessage.AutomaticInputStall{Sequence: 2, Cause: couchmessage.AutomaticInputStallUnsubmittedComposer, WaitMillis: 30000, Fence: 3, Epoch: 4})
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Body = string(raw)
+	// New causes retain the same caller authentication and sequence reservation.
+	foreign := req
+	foreign.Nonce = "foreign"
+	if got := stallCall(t, r, foreign); got.Code != "refused" {
+		t.Fatalf("foreign caller %+v", got)
+	}
+	if got := stallCall(t, r, req); got.Code != "ok" {
+		t.Fatal(got)
+	}
+	if got := stallCall(t, r, req); got.Code != "ok" {
+		t.Fatal(got)
+	}
+	older := req
+	older.ID = couchmessage.AutomaticInputStallID(worker, 1)
+	older.Body = strings.Replace(req.Body, `"Sequence":2`, `"Sequence":1`, 1)
+	if got := stallCall(t, r, older); got.Code != "ok" {
+		t.Fatal(got)
+	}
+	receipt, err := r.s.broker.Status(worker, req.ID)
+	if err != nil || receipt.Message.To != hub {
+		t.Fatalf("owning hub receipt %+v %v", receipt, err)
+	}
+	want := worker.Slot + "'s composer holds an unsubmitted automatic message; press Alt+Enter or clear it"
+	mu.Lock()
+	defer mu.Unlock()
+	if len(notices) != 1 || len(desktop) != 1 {
+		t.Fatalf("notices=%q desktop=%q", notices, desktop)
+	}
+	for _, body := range []string{notices[0], desktop[0], receipt.Message.Body} {
+		if !strings.Contains(body, want) {
+			t.Errorf("missing recovery instruction %q in %q", want, body)
+		}
+		if !strings.Contains(body, "unsubmitted-composer") || !strings.Contains(body, "sequence 2") {
+			t.Errorf("lost typed diagnostic evidence: %q", body)
+		}
+	}
+}
