@@ -1,6 +1,6 @@
 ---
 id: 000611
-status: codecomplete
+status: done
 created: 2026-10-16
 updated: 2026-10-16
 estimate_hours: 2.21
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 1d3cf3f9eafaba839cce67b2a56f55b7e8453e81
         evidence_commit: 81468f0141546b322e1b3756c989e7b823abde83
+        landed_commit: 24fe0959f4eaa6577c0d28e207953c899c2944e3
 ---
 
 # Bring couchcore under a measured test execution budget
