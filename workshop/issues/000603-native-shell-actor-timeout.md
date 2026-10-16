@@ -1,12 +1,20 @@
 ---
 id: 000603
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-15
-updated: 2026-10-15
+updated: 2026-10-16
 estimate_hours:
-card_mirror: '77f5fefc133d55634222bcbb89085bb51774162a' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '300dd3337b8800704ccb1057d17191a2f1dcb8d3' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-16T15:35:32-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:3
+    worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Native wrapped Zellij conformance times out finding shell actor
@@ -35,8 +43,11 @@ This is distinct from #601's park helper client-disconnect failure. No terminal 
 
 ## Plan
 
-- [ ]
+- [ ] Trace startup, attachment, selection and publication; reproduce the lost shell presentation with controlled ordering and bounded diagnostics.
+- [ ] Add a failing regression for the confirmed ordering and fix its owner without timeout increases or blanket retries.
+- [ ] Run targeted race tests and repeated private native conformance, then the recorded full suite and close review.
 
 ## Log
 
 - 2026-10-15: Filed unassigned per TL direction. #571 will retry only this failed CI job once on its unchanged head; a repeat failure is escalated rather than retried indefinitely.
+- 2026-10-16: Fresh dispatch from ops:0 verified. Fast-forwarded resting branch, claimed and started #603. The wait is presentation admission plus visible shell text, not OS process discovery. Original CI log remains available locally. Investigating startup/attach/selection order under ARCH-ORDER; reuse the existing fake Child and real private Zellij fixture (ARCH-MOCK), with no host session changes (ARCH-SECURE). Diagnostics and subprocesses remain test-owned (ARCH-FUNERAL); timeouts remain unchanged (ARCH-CONSTRAINTS). Keep the fix at the existing presentation seam (ARCH-DRY/ARCH-PURE), covering the actual lost-event class (ARCH-PURPOSE).
