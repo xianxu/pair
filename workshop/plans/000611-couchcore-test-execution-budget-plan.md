@@ -187,7 +187,10 @@ Active close checklist:
 
 - [x] R2 tasks1–3 implemented and focused property/identity/durable/real-fixture checks, ordered-domain fingerprints, unchanged-disposition comparison, race and mutation controls completed. Separate Git storage regression corrected and verified red/green.
 - [x] Completed before/after profiles and residual/gaps reported to hub; no unsupported quiet/control reliability claim.
-- [ ] Integrate main, retain allowance, update atlas fixture guidance, push PR and record full suite; fix any R2 regression before closure.
+- [x] Integrate main, retain allowance, update atlas fixture guidance, push PR and record full suite; fix any R2 regression before closure.
 - [ ] Full-flow close review, address findings and land through the line. TL owns the project record.
 
 Post-landing measurement remains an explicit pair:1/hub follow-through, with no runner implementation in this issue. It cannot be counted as passed before it runs.
+
+
+2026-10-16 R5 verification checkpoint: PR371 integrated recorded suite PASS303e77d6d50f79d014a56c46ab9e5921a6e556cb,11m45s total/core341.494s; focused race/domain/mutation evidence in profile. Remaining active action is the binary-owned close/landing gate, then the explicitly post-landing control. Historical R3/R4 budget work remains superseded/deferred rather than checked complete.

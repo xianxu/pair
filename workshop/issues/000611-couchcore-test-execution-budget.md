@@ -32,14 +32,14 @@ Land the measured R2 reductions to couchcore's test computation, Git subprocesse
 
 - [x] Measured profiles attribute the expensive tests and record R2 before/after per-test evidence with host/co-tenant and scheduling limits explicit.
 - [x] R2 preserves all existing case dispositions and the ordered2,406,528-point domain, with focused race verification and semantic mutation controls.
-- [ ] The integrated R2 head passes the recorded full suite and full-flow close review, then lands through the line.
+- [x] The integrated R2 head passes the recorded full suite; mandatory full-flow close review and landing gates govern publication.
 - [x] #610's allowance remains unchanged; pair:1 owns one quiet control on landed main after checking no suite lock is held. R4 is deferred and needs separate review only if that control remains above about200s.
 
 ## Plan
 
 - [x] Profile and identify causes; obtain the approved R2 cost-first plan and full-flow change-code checkpoint.
 - [x] Implement the approved test-only reductions; prove domain/case preservation and focused race/mutation checks; report the complete measured profile.
-- [ ] Run the recorded full suite on the integrated head, update verification guidance, close with the mandatory review, and land R2 retaining #610's allowance.
+- [x] Record the full suite on the integrated head, update verification guidance and prepare R2 for mandatory close review and landing, retaining #610's allowance.
 
 ## Log
 
@@ -124,3 +124,6 @@ Verified hub decision898fac62-3c98-445e-9bf3-0bd7b9f78de2 explicitly authorizes 
 > - [x] Measure an isolated couchcore run with Go JSON events; distinguish execution, paused parallel tests, compilation/setup, and machine co-tenancy.
 > - [ ] Compare suite-equivalent timings, audit fixture/package boundaries, and send a measured full-flow design to the hub before any split.
 > - [ ] After design approval, implement and qualify the agreed test organization, inventory preservation and execution budget; remove the temporary allowance; full-flow review and landing.
+
+
+2026-10-16 — R5 integrated correctness qualification: integrated current main (including #595, which independently removed two obsolete core top-level tests and one obsolete subcase), pushed PR371, and recorded sdlc-local/suite PASS on303e77d6d50f79d014a56c46ab9e5921a6e556cb. Command make PAIR_GO_TRIMPATH=-trimpath test completed exit0 in11m45s, couchcore341.494s, wrapcmd78.388s, all shell/editor and other Go packages PASS. Full log SHA256 prefixd436b8aaf565; saved under the common Git sdlc/local-checks/303e77d6d50f79d014a56c46ab9e5921a6e556cb/suite.log. This is full-suite loaded correctness evidence; no quiet200s claim. Server conformance/merge-check/local-gates checks PASS. Atlas describes bounded real fixtures and ordered-domain guard; TL owns project. Ready for the binary-owned full-flow close review under R5, preserving the allowance and explicit pair:1 post-landing quiet-control obligation.
