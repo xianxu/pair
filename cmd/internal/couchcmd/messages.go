@@ -25,6 +25,9 @@ func runMessageCLIWithCall(inv cliInvocation, rt Runtime, stdout, stderr io.Writ
 	if inv.messageOp == "keys" || inv.messageOp == "set-model" {
 		return runAgentDriveCLI(inv, rt, stdout, stderr, call)
 	}
+	if inv.messageOp == "resources" {
+		return runResourcesCLI(inv, rt, stdout, stderr, call)
+	}
 	if inv.messageOp == "notify" {
 		return runNotifyCLI(inv, rt, stdout, stderr, call)
 	}

@@ -92,7 +92,7 @@ func TestAppendPartialFailurePreservesWriterRetrySemantics(t *testing.T) {
 	}
 }
 
-func TestAppendLargeWriteUsesBoundedIntents(t *testing.T) {
+func TestAppendLargeWriteUsesBoundedReservations(t *testing.T) {
 	path, _, opts := fixture(t)
 	w, err := Open(path, opts)
 	if err != nil {
@@ -102,12 +102,12 @@ func TestAppendLargeWriteUsesBoundedIntents(t *testing.T) {
 	w.options.Fault = func(step string) error {
 		if step == "append-intent" {
 			chunks++
-			s, err := load(path)
+			r, err := readReservation(path)
 			if err != nil {
 				return err
 			}
-			if s.Appending == nil || len(s.Appending.Data) > maxAppendBytes {
-				t.Fatal("unbounded intent")
+			if r.Length > maxAppendBytes {
+				t.Fatal("unbounded reservation")
 			}
 		}
 		return nil
@@ -148,7 +148,7 @@ func TestAppendCanceledAfterPayloadRetainsRecoverableIntent(t *testing.T) {
 	}
 }
 
-func TestAppendRecoveryRejectsChangedEvidence(t *testing.T) {
+func TestLegacyAppendRecoveryRejectsChangedEvidence(t *testing.T) {
 	for _, kind := range []string{"replacement", "truncated", "foreign-tail", "oversized-tail", "timestamp-only", "oversized-intent", "zero-clock", "conflicting-intent", "before-mismatch", "invalid-current-name"} {
 		t.Run(kind, func(t *testing.T) {
 			path, _, opts := fixture(t)
@@ -159,16 +159,17 @@ func TestAppendRecoveryRejectsChangedEvidence(t *testing.T) {
 			if _, err := w.Write([]byte("base")); err != nil {
 				t.Fatal(err)
 			}
-			stop := errors.New("intent staged")
-			w.options.Fault = func(step string) error {
-				if step == "append-intent" {
-					return stop
-				}
-				return nil
-			}
-			if _, err := w.Write([]byte("tail")); !errors.Is(err, stop) {
+			// Freeze an old payload-bearing intent: new writers must still
+			// recover/refuse legacy persisted authority during rollout.
+			legacy, err := load(path)
+			if err != nil {
 				t.Fatal(err)
 			}
+			legacy.Appending = &appendIntent{Before: legacy.Current, Data: []byte("tail"), At: opts.Now().UTC()}
+			if err = save(path, legacy, true, opts); err != nil {
+				t.Fatal(err)
+			}
+
 			w.Close()
 			switch kind {
 			case "replacement":

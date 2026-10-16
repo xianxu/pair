@@ -32,7 +32,10 @@ func previewLegacyCurrent(path string, options Options) ([]Segment, error) {
 	if err := options.checkContext(); err != nil {
 		return nil, err
 	}
-	eligible := reason == "" && DecideSegment(options.Now(), st.ModTime())
+	eligible := !KeepDiagnosticsUntilBackup && reason == "" && DecideSegment(options.Now(), st.ModTime())
+	if reason == "" && KeepDiagnosticsUntilBackup {
+		reason = BackupFenceReason
+	}
 	if reason == "" && !eligible {
 		reason = RetainedReason
 	}

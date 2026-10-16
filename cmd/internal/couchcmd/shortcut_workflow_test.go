@@ -120,10 +120,12 @@ func TestConformanceWorkflowRunsWithoutSiblingMakefile(t *testing.T) {
 		t.Fatalf("standalone conformance dry-run: %v\n%s", err, output)
 	}
 	expected := map[string]string{
+		"./cmd/internal/procutil":  "TestLsofWritableNamesLiveConformance",
 		"./cmd/internal/launcher":  "TestSessionQuiescenceLive",
 		"./cmd/internal/couchcore": "TestRecoveryRealHelperAndSessionConformanceLive",
 		"./cmd/internal/couchcmd":  "TestAgentShortcutInputConformanceLive",
 	}
+	expectedCount := len(expected)
 	count := 0
 	for _, line := range strings.Split(strings.TrimSpace(string(output)), "\n") {
 		if !strings.HasPrefix(line, "PAIR_LIVE_COUCH=1 go test ") {
@@ -142,8 +144,8 @@ func TestConformanceWorkflowRunsWithoutSiblingMakefile(t *testing.T) {
 			t.Fatalf("unexpected or duplicate conformance command %q", line)
 		}
 	}
-	if count != 3 || len(expected) != 0 {
-		t.Fatalf("expected three conformance commands, got %d; missing %v", count, expected)
+	if count != expectedCount || len(expected) != 0 {
+		t.Fatalf("expected %d conformance commands, got %d; missing %v", expectedCount, count, expected)
 	}
 }
 

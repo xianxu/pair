@@ -231,6 +231,11 @@ func (s *Server) Close() error {
 	return s.closeErr
 }
 
+type replyDecodeError struct{ cause error }
+
+func (e *replyDecodeError) Error() string { return e.cause.Error() }
+func (e *replyDecodeError) Unwrap() error { return e.cause }
+
 // Call performs exactly one exchange. A failed call can have been admitted by
 // the remote handler; callers must query their request ID rather than retry it.
 func Call(ctx context.Context, socket string, request any, response any) error {
@@ -276,7 +281,10 @@ func Call(ctx context.Context, socket string, request any, response any) error {
 	if err != nil {
 		return transportContextError(ctx, err)
 	}
-	return strictjson.Decode(reply, response)
+	if err := strictjson.Decode(reply, response); err != nil {
+		return &replyDecodeError{cause: err}
+	}
+	return nil
 }
 
 func transportContextError(ctx context.Context, err error) error {

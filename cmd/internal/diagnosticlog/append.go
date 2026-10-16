@@ -17,33 +17,27 @@ type appendIntent struct {
 	At     time.Time  `json:"at"`
 }
 
-// appendChunk atomically publishes bounded byte authority before touching the
-// log. Ordinary diagnostic appends recover process death, not host power loss;
-// durable lifecycle operations explicitly sync before taking further effects.
-// Returned n counts actual payload writes, even if metadata finalization fails.
+// appendChunk reserves a bounded digest without duplicating payload. A healthy
+// batch publishes one state checkpoint; optional hot appends do not fsync.
 func appendChunk(path string, s *diskState, data []byte, o Options) (n int, err error) {
 	if len(data) == 0 || len(data) > maxAppendBytes {
 		return 0, errors.New("invalid diagnostic append chunk")
 	}
-	if err := o.checkContext(); err != nil {
+	if err = o.checkContext(); err != nil {
 		return 0, err
 	}
 	st, err := regular(path)
 	if err != nil {
 		return 0, err
 	}
-	if err := matches(st, s.Current); err != nil {
+	if err = matches(st, s.Current); err != nil {
 		return 0, err
 	}
 	at := o.Now().UTC()
-	if at.IsZero() {
-		return 0, errors.New("invalid append clock")
-	}
-	s.Appending = &appendIntent{Before: s.Current, Data: append([]byte(nil), data...), At: at}
-	if err := save(path, *s, false, o); err != nil {
+	if err = writeReservation(path, s.Current, data, at, o); err != nil {
 		return 0, err
 	}
-	if err := fault(o, "append-intent"); err != nil {
+	if err = fault(o, "append-intent"); err != nil {
 		return 0, err
 	}
 	f, err := openRegular(path, syscall.O_WRONLY|syscall.O_APPEND)
@@ -55,10 +49,10 @@ func appendChunk(path string, s *diskState, data []byte, o Options) (n int, err 
 	if err != nil {
 		return 0, err
 	}
-	if err := matches(st, s.Appending.Before); err != nil {
+	if err = matches(st, s.Current); err != nil {
 		return 0, err
 	}
-	if err := o.checkContext(); err != nil {
+	if err = o.checkContext(); err != nil {
 		return 0, err
 	}
 	if o.appendWrite != nil {
@@ -66,19 +60,27 @@ func appendChunk(path string, s *diskState, data []byte, o Options) (n int, err 
 	} else {
 		n, err = f.Write(data)
 	}
-	if err != nil {
+	o.observe("write", path, n)
+	if n < 0 || n > len(data) {
+		return 0, errors.New("invalid diagnostic write progress")
+	}
+	if n != len(data) && err == nil {
+		err = io.ErrShortWrite
+	}
+	if n == 0 {
 		return n, err
+	}
+	if e := fault(o, "append-written"); e != nil {
+		return n, errors.Join(err, e)
 	}
 	if n != len(data) {
-		return n, io.ErrShortWrite
+		// The live writer knows the actual prefix. A killed writer cannot invent
+		// this shortened digest; its uncertain partial effect remains untouched.
+		if e := writeReservation(path, s.Current, data[:n], at, o); e != nil {
+			return n, errors.Join(err, e)
+		}
 	}
-	if err := fault(o, "append-written"); err != nil {
-		return n, err
-	}
-	if err := recoverAppend(path, s, o, false); err != nil {
-		return n, err
-	}
-	return n, nil
+	return n, errors.Join(err, recoverReservedAppend(path, s, o, false))
 }
 
 // Recovery commits only the observed authorized prefix, never an unwritten
@@ -86,7 +88,7 @@ func appendChunk(path string, s *diskState, data []byte, o Options) (n int, err 
 // contract; this is not cryptographic integrity of the old file prefix.
 func recoverAppend(path string, s *diskState, o Options, durable bool) error {
 	if s.Appending == nil {
-		return nil
+		return recoverReservedAppend(path, s, o, durable)
 	}
 	if err := o.checkContext(); err != nil {
 		return err
@@ -159,5 +161,6 @@ func syncAppendPayload(f *os.File, o Options) error {
 	if o.appendSync != nil {
 		return o.appendSync(f)
 	}
+	o.observe("sync", f.Name(), 0)
 	return f.Sync()
 }

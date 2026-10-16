@@ -306,6 +306,14 @@ alias and agent.
 
 ### Live peer messages (#353)
 
+Unset admission timestamps are omitted from wrapper receipts for older supervisors.
+Wrapper commit requests omit this broker-only field entirely, while the broker
+keeps its original timestamp in sender receipts, allowing older wrappers to receive.
+Wrapper reply decoding remains strict; incompatible fields identify the wrapper slot
+and advise restarting Couch. A failed commit reply never triggers another commit;
+possible input effects remain uncertain. Broker release has its own delivery event,
+so cancellation does not falsely report operator keystrokes (#594).
+
 The automatic-input lease consumes the post-submit Empty observation that
 confirmed a delivery; publishing its receipt does not create a new render fence
 (#552). Turn-only confirmation and uncertain writes retain fresh-empty protection.
@@ -713,11 +721,15 @@ rows. Logging failure cannot fail delivery. The CLI's one write-report call is
 limited to 200 ms and cannot invalidate the file write. A missing log means
 unavailable evidence, never zero activity.
 
-The existing diagnostic writer registers the stable path with Pair GC. Its new
-opt-in hard generation limit refuses whole rows at 64 MiB if normal rotation
-cannot proceed; normal daily rotation and 365-day retention still apply. This is
-a generation cap, not a total-store cap. The writer and buffered tail end with
-the supervisor; historical generations belong to the existing diagnostic collector.
+The shared diagnostic writer registers the stable path with Pair GC and
+persists a 64 MiB current-generation cap. Whole rows refuse when proven
+rotation cannot proceed. Daily and size rotation preserve every closed
+supervision generation behind `KeepDiagnosticsUntilBackup`, shared with
+wrap-events, adapt and fullscreen diagnostics. Count and age eviction remain
+disabled pending ops `history-backup` piece 6 (archive before evict); total
+history growth is intentionally unbounded. Pre-existing oversized evidence
+is preserved. The writer and buffered tail end with the supervisor; historical
+generations remain on disk. See [storage retention](storage-retention.md).
 
 `python3 scripts/supervision-labels/labels.py LOG...` derives ten-minute labels
 from selected local segments. See its [skill](../scripts/supervision-labels/SKILL.md)
@@ -3262,6 +3274,11 @@ observation seam and explicitly requires real server discovery, session-delete
 dispatch, and an underlying OS kill dispatch against an exact-argv sentinel
 that ordinary zellij deletion does not own before accepting verified absence.
 A separate macOS workflow runs it on relevant changes and weekly/manual cadence.
+`TestLsofWritableNamesLiveConformance` shares both live targets and that cadence.
+It opens temporary read-only/writable descriptors in its own process, then closes
+and reopens them to compare the production `procutil.LsofWritableNames` result
+with actual access/lifetime. Run the focused check after macOS/lsof upgrades too:
+`PAIR_LIVE_COUCH=1 go test ./cmd/internal/procutil -run ^TestLsofWritableNamesLiveConformance$ -count=1 -v`.
 
 `Runner` was genuinely new — pair has no async process-exec seam.
 `launcher.ProcOps` is named for pair's own sidecars, and `wrapcmd` spawns its
@@ -4022,6 +4039,32 @@ terminal lifetime; different native IDs can proceed independently. Legacy owners
 remain checked through bounded Pair metadata and process evidence, including a
 retained native child whose wrapper has died.
 
+The wrapper scan first selects kernel-name candidates (`pair`, `pair-wrap`, or
+unknown names), then requires stable argv and identity for those candidates.
+Unrelated unreadable services and kernel-confirmed zombies are not live native
+owners, including zombie children referenced by retained readiness. A missing
+candidate command or changed wrapper set gets one complete re-observation under
+the same five-second budget; persistent uncertainty refuses with its PID rather
+than treating the candidate as absent (#584).
+
+Legacy readiness without a child birth can exclude a different conversation only
+through its exact launch ordinal and live direct-child relationship. A matching
+source needs the ledger ID among the native engine's positively held writable
+transcripts. When that launch genuinely has no ID, a complete held-ID set is
+used instead, including for modern owners after their full identity checks.
+Missing, partial, conflicting or malformed evidence remains uncertainty. Both
+observations recheck process births, parent edges and held IDs; nothing is
+persisted. Refusals name the legacy owner and, when uniquely resolvable, its slot
+and relaunch command. Codec filename rules stay owned by sessioninventory.
+
+Ledger snapshots use their finite observed length and the existing regular-file,
+no-symlink, unchanged-generation reader rather than an unsupported reader-only
+size ceiling. A pure projection memo lasts for one admission and reuses results
+only after a fresh snapshot has the same content digest. Each phase proves at
+most four owners concurrently, consumes their results in stable order, and joins
+all workers before returning. The shared strict JSON codec keeps full validation
+while avoiding repeated nested duplicate scans and value-token allocations.
+
 Only definitely unexposed reservations may be cancelled by their helper. On the
 next admission, an unconsumed reserved grant whose exact helper is proven dead
 is revoked under the same store lock used by wrapper Claim; a delayed wrapper
@@ -4035,10 +4078,100 @@ forgetting possible writers. Fresh remains a separate conversation.
 
 Owners: `launcher/native_admission.go`, `native_admission_os.go`,
 `native_createflow_os.go`, `native_resume_selector*.go`,
-`recovery_native_owner*.go`, `sessioninventory/native_selector*.go`, and
-`wrapcmd/native_admission.go`. Provider latest support is constrained by measured native ordering and positively
+`recovery_native_*.go`, `sessioninventory/native_selector*.go`, and
+`wrapcmd/native_admission.go`; the held-file boundary is
+`procutil.LsofWritableNames`, and full ledger validation belongs to
+`sessionledger/record.go` and `strictjson/decode.go`. Provider latest support is constrained by measured native ordering and positively
 resolved effective configuration. Unsupported/incomplete mappings for other
 agents report exact-ID/Fresh advice. Codex's approved unreserved exception is owned
 by the shared CodexIndirectResumeCompatibility policy, with one wrapper notice;
 #571 will read effective configuration from files and verify native DB semantics.
 No app-server configuration process is part of this implementation. Unsupported remote/PR/cloud and other existing-context selectors derive from the same authority as Fresh validation and refuse before launch, including both wrapper entry forms; option values and prompt text remain literal.
+
+## Resource monitoring (#587)
+
+`couch --resources [--json]` reads the running supervisor's cached resource view
+through the broker socket. Queries perform no process scan, terminal query or
+Git lookup. One joined supervisor worker samples at one-minute cadence; a
+separate inventory worker authenticates roots at startup and on changed
+thread/helper/lifecycle evidence. Routine unchanged menu refreshes do not
+repeat ownership probes.
+
+Ownership starts with an authenticated terminal server `(PID, start identity)`
+from `ScopedThreadArtifactCollisionChecker.NamedPairSessionContext`, published
+in `ResourceRootCache` before being consumed by the sampler. Probe revisions
+are assigned before I/O, so a late old result cannot replace a newer proof.
+Cached console rows include draft-only, detached, parked and never-started
+slots; hosted helper/client roots and admitted wrapper bindings supplement
+server descendants. Missing workspace or terminal evidence remains explicit
+unknown coverage. A slot's branch or quiet output alone never proves idle:
+idle requires the matching wrapper's settled state and no pending broker work
+or picker.
+
+`couchcore/resource*.go` owns pure generation-fenced attribution, deltas,
+episodes and bounded history; `couchcmd/resources_inventory.go` owns root
+refresh; `couchcmd/resources.go` owns sampling and storage; `resources_alert.go`
+owns advisory broker delivery. `procutil/resource*.go` provides the
+native reader. Darwin with cgo supports cumulative process CPU, current RSS and
+physical disk-write bytes. Other builds report unsupported counters. PID reuse,
+changed parentage, zombies, partial reads and counter regression cannot become
+valid rate samples. The first observation establishes a baseline; CPU 100%
+means one core. Observed cumulative totals omit unsampled lifetimes.
+
+Remembered process generations preserve original slot ownership after
+reparenting; confirmed root loss or thread replacement can expose proven
+orphans. A process first seen after orphaning has no invented slot owner.
+Known process kinds parented by PID 1 above the RSS floor are shown as
+**unattributed (unproven)**, never acted on. Only candidate classification may
+inspect argv; full command lines are not retained or displayed. Sampling can
+miss a process born and exited, or born and orphaned, between observations.
+Monitoring sends messages and does not kill, restart or renice anything.
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `COUCH_RESOURCE_CADENCE` | `1m` | Sample interval, 1 second through 1 hour |
+| `COUCH_RESOURCE_WRITE_BYTES_PER_SECOND` | `2097152` | Sustained disk-write threshold |
+| `COUCH_RESOURCE_WRITE_DURATION` | `10m` | Required sustained-write interval |
+| `COUCH_RESOURCE_PROCESS_RSS_BYTES` | `8589934592` | Per-process RSS threshold |
+| `COUCH_RESOURCE_IDLE_CPU_PERCENT` | `90` | Idle-slot CPU threshold, percent of one core |
+| `COUCH_RESOURCE_IDLE_CPU_DURATION` | `15m` | Required idle-CPU interval |
+| `COUCH_RESOURCE_ORPHAN_RSS_BYTES` | `268435456` | Proven-orphan RSS threshold; two samples required |
+
+Set policy before starting Couch. Unknown or malformed resource settings refuse
+startup. Unknown measurements interrupt accumulation rather than clearing an
+already admitted incident. Alerts resolve the current owning hub and use normal
+broker delivery. Episodes live only in memory; retries within a run reuse the
+same effect ID. Restart begins fresh observations and may repeat an advisory
+alert; sustained thresholds accumulate their configured interval again.
+Unproven candidates remain report-only.
+
+The displayed cost records attempted native calls, sampler-thread CPU and wall
+time. At most three table size/read attempts plus two self-CPU reads cost eight
+native calls; successful usage with identity fencing adds two per process, plus
+actual candidate-command calls. Sampler-thread CPU excludes concurrent GC and
+other goroutines. A native-reader-only short measurement after bulk conversion
+averaged 1.643 ms (maximum 2.391 ms), or 0.002739% of one core at 60-second
+cadence. Full sampling plus near-cap history persistence (953 frames,
+4,189,412 bytes, 27 usage observations) averaged 72.438 ms across three passes,
+maximum 79.311 ms: 0.120730% of one core per minute. The qualified target is
+below 0.2%, with a 300 ms maximum pass CPU budget; the product requirement is
+well under 1%. This run used 58 native attempts and one history publication
+per pass. Current-pass final CPU is published in the cached view after storage
+completes; its history frame cannot include the completed cost of writing itself.
+
+History retains aggregate slot frames and orphan/unattributed summaries for at
+most 24 hours, 1,440 frames and 4 MiB. Only history is persisted, best-effort, with one fixed replacement stage:
+at most 8 MiB including the current file and stage. See [resource snapshot retention](storage-retention.md#resource-monitor-snapshots-587).
+
+The cached response is a byte-budgeted projection (`resources_projection.go`)
+within the broker's frame envelope. It preserves all bounded slot aggregates,
+shortens long presentation labels, and reports omitted detail counts separately
+for processes, orphans, unproven candidates, episodes and diagnostics. Projection
+cost is included in sampling; queries only copy the cached result. Incomplete
+startup or capped inventories cannot prove owner disappearance.
+
+History read failures begin a fresh in-memory ring with a visible continuity
+warning. Write failures do not roll back that ring or gate alert delivery.
+Unsafe paths remain protected by the existing file checks. State, provenance,
+rate baselines and alert episodes end with the supervisor; pre-existing orphans
+remain unproven after restart unless fresh ownership evidence establishes them.

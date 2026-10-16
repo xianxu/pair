@@ -8,7 +8,7 @@ receipts. Agent-native stores and repository files are outside collection.
 | Pair drafts, queued/submitted prompts, ledger, current terminal data and recovery state | 365 days since meaningful use | Live users and Couch switcher membership, including parked or unreadable threads |
 | Archived Couch records and associated Pair session data | Fresh 365-day grace at archive, extended by later meaningful use | Live users; a restored manifest reference protects again |
 | Immutable old parked captures | 365 days per capture | Exact readers and unfinished handoffs; tag reuse and Couch visibility do not renew age |
-| Debugging logs | 365 days per generation | Writer coordination and complete legacy-process evidence |
+| Debugging logs | Keep every generation pending verified cloud backup | KeepDiagnosticsUntilBackup; ops history-backup piece 6: archive before evict |
 
 Meaningful use is explicit create/attach/resume/view, or a changed authored-content
 write. Unchanged saves, background scans, repaint, diagnostics and distillation do
@@ -97,28 +97,43 @@ The implementation map:
   captures use the latest plausible filename time or file mtime conservatively.
 - `diagnosticlog/` manages wrapper events, adaptation records and optional
   Pair/Couch traces. Current paths stay stable. Generations rotate at 24 hours or
-  64 MiB; segmentation preserves young data. Closed-generation expiry uses last
-  write, allowing up to one extra day of record-age slack. Logging is optional
-  and may skip under contention. External traces are discovered only through
-  exact writer registrations; unknown old external paths are not globbed.
-  Registry enumeration reports traversal completion separately from filtered
-  entries. Registry publishers serialize under a permanent registry lock;
-  per-log state and generation metadata serialize under the log lock. Reserved
-  unpublished stages are reclaimed only under their owning lock. Deletion
-  intents replay through missing payloads, metadata and removed ancestor
-  directories, while replacement identities and unsafe ancestors still refuse.
+  64 MiB. `KeepDiagnosticsUntilBackup` defaults to true: current and closed
+  diagnostics, including quarantines and legacy logs, remain protected from
+  count and age eviction until ops project `history-backup`, piece 6, supplies
+  archive-before-evict authority. Total disk usage is intentionally unbounded;
+  64 MiB bounds new individual generations, not retained history. Rotation
+  continues beyond the former three-generation and 64-candidate limits without
+  a pruning inventory. Persisted schema-v2 size/count fields remain readable;
+  count limits confer no deletion authority while the backup fence is active.
+  Unknown writer proof still refuses rotation and growth at the byte cap.
+  Preview reports the backup fence and unverified/oversized evidence.
+  Exact writer registrations discover external traces; unknown external paths
+  are not globbed. Registry publishers serialize under a permanent lock and
+  skip unchanged entries while reconfirming directory durability. Per-log state
+  and generation metadata serialize under the log lock. Existing deletion
+  intents cannot bypass the backup fence; ambiguous ownership retains data.
   `creation.go` publishes a reserved inode without replacement; `append.go`
-  records bounded intended bytes before payload writes and reconciles only the
-  prefix actually written. Ordinary optional appends use atomic publication for
-  process-exit recovery without per-record fsync. Host power-loss durability is
-  not promised for debug records; inconsistent evidence retains them. Rotation
-  and destructive collection sync their payload/metadata boundaries durably.
+  reserves a bounded batch with its length/hash in place, verifies complete
+  appended bytes, then publishes one checkpoint. Legacy payload intents recover
+  before migration. Uncertifiable partial batches are preserved whole as
+  explicitly unverified generations; writer proof permits a fresh current log.
+  Wrapper diagnostics coalesce at 64 KiB or dirty five-second ticks, bounded to
+  256 KiB outstanding including flight. Ordinary appends avoid per-record fsync;
+  process crashes can lose accepted pending buffers. Host power-loss durability
+  is not promised. Rotation syncs its payload/metadata boundaries durably.
 - `gcruntime/` composes Couch, process evidence, binding cleanup and diagnostic
   collection. `gccmd/` exposes the command; `storagegc/schedule.go` owns bounded
   scheduling and its durable completion/cursor state. Diagnostic path discovery
   bypasses session clock and liveness evaluation; collection supplies its own
   exact writer and generation proof. The maintenance context propagates into
   process inspections, their subprocess deadlines and recovery tree walks.
+  Protocol-aware runtime rows skip irrelevant data-root canonicalization while
+  retaining both process-generation fences; legacy missing roots still refuse.
+  This proof also feeds parked-capture expiry. End-to-end maintenance tests
+  collect expired raw/events/metadata together and preserve exact readers,
+  unfinished handoffs and the existing CaptureRetentionPeriod boundary. That
+  one constant remains 365 days; diagnostic policy never selects raw
+  recovery captures.
 
 Malformed metadata, ambiguous ownership, unknown liveness, symlinks, incomplete
 inventories and uncertain filesystem effects retain data. Exceptionally large
@@ -128,3 +143,23 @@ restore path when restoring archived records.
 
 Verification lives beside these packages, in `nvim/retention_test.lua`, and in
 `tests/retention-test.sh` and `tests/adapt-schema-test.sh`.
+
+## Resource monitor snapshots (#587)
+
+Couch's resource sampler owns one best-effort namespace-local aggregate history,
+separate from diagnosticlog's 365-day retention. ResourceHistoryStore writes
+resources/history.json (up to 4 MiB), with one fixed .history-stage replacement.
+Current file plus stage are bounded at 8 MiB. Existing safe-path, regular-file
+and no-follow checks protect reads and writes; oversized or invalid history is
+reported as lost continuity and a fresh bounded in-memory ring starts.
+
+History retains at most 24 hours, 1440 frames and 4 MiB of aggregate slot usage,
+orphan/unattributed summaries and coverage/cost metadata. The memory ring keeps
+advancing when a write fails. A crash may lose its tail; history failures never
+gate alerts. Ownership, rate baselines, episodes and delivery outcomes are only
+in memory. Restart re-arms advisory alerts, so a repeat is possible.
+
+While Couch is stopped the file remains bounded; the next load/write prunes
+expired frames. No cleanup daemon or checkpoint/intent files are created.
+Sources remain classified as namespace-owned non-Pair artifacts in artifactpath.
+See [resource monitoring](couch.md#resource-monitoring-587).

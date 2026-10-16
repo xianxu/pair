@@ -229,14 +229,16 @@ type proxy struct {
 	stderr     io.Writer
 
 	// CLI / config
-	scrollbackLog    string
-	scrollbackEvents string
-	agentBasename    string
-	debugLogPath     string
-	debugMu          sync.Mutex
-	debugWriter      *diagnosticlog.Writer
-	wrapEventsPath   string
-	bellFallback     bool
+	scrollbackLog     string
+	scrollbackEvents  string
+	agentBasename     string
+	debugLogPath      string
+	debugMu           sync.Mutex
+	debugWriter       *diagnosticlog.BufferedWriter
+	debugClosed       bool
+	diagnosticOptions func() diagnosticlog.Options
+	wrapEventsPath    string
+	bellFallback      bool
 
 	// Resolved paths (empty when env didn't provide PAIR_TAG)
 	agentOutputFile      string
@@ -311,11 +313,13 @@ type proxy struct {
 	lastNearMiss string
 
 	// Scrollback log (-1 / nil when disabled)
-	scrollbackFD    *os.File
-	eventsFD        *os.File
-	scrollbackBytes int64
-	lastTimeEvent   time.Time        // last logged scrollback "time" event (#59)
-	now             func() time.Time // clock seam; defaults to time.Now (#59)
+	capture           *captureBuffer
+	captureFlushTicks <-chan time.Time
+	scrollbackFD      *os.File
+	eventsFD          *os.File
+	scrollbackBytes   int64
+	lastTimeEvent     time.Time        // last logged scrollback "time" event (#59)
+	now               func() time.Time // clock seam; defaults to time.Now (#59)
 
 	// OSC rate limiting
 	lastEmit              time.Time
@@ -664,8 +668,11 @@ func (p *proxy) debug(label, ctx string) {
 		return
 	}
 	defer p.debugMu.Unlock()
+	if p.debugClosed {
+		return
+	}
 	if p.debugWriter == nil {
-		f, err := diagnosticlog.Open(p.debugLogPath, diagnosticlog.EnvironmentOptions(os.Getenv))
+		f, err := diagnosticlog.OpenBuffered(p.debugLogPath, p.diagnosticLogOptions())
 		if err != nil {
 			return
 		}
@@ -2399,6 +2406,12 @@ func (p *proxy) logScrollbackEvent(typ string, fields map[string]any) {
 	if p.eventsFD == nil {
 		return
 	}
+	if p.capture != nil {
+		if err := p.capture.WriteEvent(typ, fields); err != nil {
+			p.debug("EVENT-write-fail", err.Error())
+		}
+		return
+	}
 	payload := map[string]any{"type": typ, "offset": p.scrollbackBytes}
 	for k, v := range fields {
 		payload[k] = v
@@ -2756,7 +2769,7 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer, admissionGran
 		lifecycleEvents: make(chan TurnObservation, 32),
 	}
 
-	defer func() { p.debugMu.Lock(); w := p.debugWriter; p.debugMu.Unlock(); _ = w.Close() }()
+	defer func() { _ = p.closeDebug() }()
 
 	// Argv: strip our own flags before resolving the command. argparse
 	// would be heavier than needed; this matches the Python loop shape.
@@ -2807,19 +2820,11 @@ argsDone:
 
 	// Open the always-on managed adaptation recorder; young generations survive
 	// restarts. nil when PAIR_TAG is unset.
-	p.adapt = adapt.Open("pair-wrap", p.agentBasename)
+	p.adapt = adapt.OpenBuffered("pair-wrap", p.agentBasename, p.diagnosticLogOptions())
+	defer func() { _ = p.adapt.Close() }()
 
-	if p.wrapEventsPath != "" && os.Getenv("PAIR_WRAP_EVENTS") != "0" {
-		if f, err := diagnosticlog.Open(p.wrapEventsPath, diagnosticlog.EnvironmentOptions(os.Getenv)); err == nil {
-			p.wrapEventsFD = f
-			p.traceWrap("start", map[string]any{
-				"pid":  os.Getpid(),
-				"argv": append([]string(nil), argv...),
-			})
-		} else {
-			p.debug("WRAP-EVENTS-open-fail", fmt.Sprintf("%q: %v", p.wrapEventsPath, err))
-		}
-	}
+	p.openWrapEvents(argv)
+	defer func() { _ = p.closeWrapEvents() }()
 
 	// Invalidate old events authority before truncating raw (which retains its
 	// inode). A failed second open must never leave an old witness over new bytes.
@@ -2830,8 +2835,15 @@ argsDone:
 		} else {
 			p.scrollbackFD = raw
 			p.eventsFD = events
+			p.capture = newCaptureBuffer(raw, events)
 		}
 	}
+
+	defer func() {
+		if err := p.closeCapture(); err != nil {
+			p.debug("SCROLLBACK-close-fail", err.Error())
+		}
+	}()
 
 	// Pick notify mode + per-agent end-of-turn regex.
 	notify := resolveNotifyConfig(p.agentBasename, p.idleS)
@@ -3015,20 +3027,9 @@ argsDone:
 		if oldState != nil {
 			_ = term.Restore(int(p.stdinFile.Fd()), oldState)
 		}
-		if p.scrollbackFD != nil {
-			_ = p.scrollbackFD.Close()
-		}
-		if p.eventsFD != nil {
-			_ = p.eventsFD.Close()
-		}
 		if peerRun != nil {
 			peerRun.Close()
 		}
-		if p.wrapEventsFD != nil {
-			p.traceWrap("proxy-defer-close", nil)
-			_ = p.wrapEventsFD.Close()
-		}
-		_ = p.adapt.Close()
 
 		if p.agentPIDPath != "" {
 			_ = os.Remove(p.agentPIDPath)
@@ -3088,6 +3089,7 @@ argsDone:
 //
 // Returns when the master pipe closes (child exited).
 func (p *proxy) masterPump() {
+	defer p.finishCapture()
 	type readEv struct {
 		data []byte
 		err  error
@@ -3156,6 +3158,16 @@ func (p *proxy) masterPump() {
 		p.lifecycleTimer = nil
 	}()
 
+	var captureFlushTicks <-chan time.Time
+	if p.capture != nil {
+		if p.captureFlushTicks != nil {
+			captureFlushTicks = p.captureFlushTicks
+		} else {
+			ticker := time.NewTicker(250 * time.Millisecond)
+			defer ticker.Stop()
+			captureFlushTicks = ticker.C
+		}
+	}
 	captureTick := time.NewTicker(50 * time.Millisecond)
 	defer captureTick.Stop()
 	var lifecycleJournalRecords <-chan sessionwatch.LifecycleRecord
@@ -3259,6 +3271,12 @@ func (p *proxy) masterPump() {
 			// p.idleTimerToken is read HERE, before applyIdleExpiry's drain can
 			// advance it onto a newly opened turn (BR-2).
 			p.applyIdleExpiry(p.idleTimerToken)
+		case _, ok := <-captureFlushTicks:
+			if !ok {
+				captureFlushTicks = nil
+				continue
+			}
+			p.flushCapture()
 		case <-captureTick.C:
 			p.captureMu.Lock()
 			due := p.captureActive && !time.Now().Before(p.captureDeadline)
@@ -3312,7 +3330,7 @@ func (p *proxy) handleChunk(data []byte, rolling *[]byte) {
 	// terminal model has consumed it: deferred, so it lands after this chunk is
 	// fed. A submitted delivery waits for an epoch past its fence.
 	defer p.automaticRenderEpoch.Add(1)
-	offsetBefore := p.scrollbackBytes
+	offsetBefore := p.scrollbackOffset()
 	p.traceWrap("master-chunk", map[string]any{
 		"raw_len":              len(data),
 		"raw_sha256_12":        shortSHA256(data),
@@ -3347,19 +3365,22 @@ func (p *proxy) handleChunk(data []byte, rolling *[]byte) {
 	p.traceWrap("stdout-queue", map[string]any{"stdout_len": len(rewritten.Passthrough), "stdout_sha256_12": shortSHA256(rewritten.Passthrough), "filtered": len(rewritten.Passthrough) != len(data), "queued_chunks": p.stdoutPump.pendingChunks(), "queued_bytes": p.stdoutPump.pendingBytes()})
 
 	if p.scrollbackFD != nil {
-		if wn, err := p.scrollbackFD.Write(data); err == nil {
-			p.scrollbackBytes += int64(wn)
-			p.traceWrap("scrollback-write", map[string]any{
-				"write_len":             wn,
-				"scrollback_offset_out": p.scrollbackBytes,
-			})
-			p.maybeLogTime() // minute-debounced timestamp for change-log dates (#59)
+		var wn int
+		var err error
+		if p.capture != nil {
+			wn, err = p.capture.WriteRaw(data)
 		} else {
+			wn, err = p.scrollbackFD.Write(data)
+			p.scrollbackBytes += int64(wn)
+		}
+		fields := map[string]any{"write_len": wn, "scrollback_offset_out": p.scrollbackOffset()}
+		if err != nil {
 			p.debug("SCROLLBACK-write-fail", err.Error())
-			p.traceWrap("scrollback-write", map[string]any{
-				"write_len": 0,
-				"error":     err.Error(),
-			})
+			fields["error"] = err.Error()
+		}
+		p.traceWrap("scrollback-write", fields)
+		if err == nil {
+			p.maybeLogTime()
 		}
 	}
 

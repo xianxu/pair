@@ -223,3 +223,10 @@ Add recorded RED/GREEN tests for submit-vs-newline under the real protocol, reco
 **Reason:** Verified TL receipt473f6e83-ec19-4a8d-ba41-4bebe74fabde authorizes staging after #556 landed, for one operator restart covering both items. Main also brings #572's trimpath build/test contract and #577's environment-probe correction.
 
 **Delta:** Preserve #556's RecoveryConfirmation token, confirmation offers, receipt identity and prepared-recovery routing alongside #544's typed Drive intent, digest and bounded result. Keep both operation declarations and source classifications. Documentation retains current confirmed-recovery behavior and the drive instructions. Native wrapper admission remains on main's exact-grant seam; rerun actual Run conformance with that seam present (ARCH-DRY, ARCH-ORDER). Record a new suite using main's declared make PAIR_GO_TRIMPATH=-trimpath test command. Stage a clean committed merged HEAD and verify both binaries against it. The operator owns the Couch restart; live drive authorization remains enforced by the owning-hub broker guard.
+
+
+### 2026-10-15 — final restart batch excludes Qoder repair
+
+**Reason:** Verified TL receipt670622a8-d2a5-48e2-892d-9f0a7bca8494 directs immediate merge/restage after #587; do not wait for #569, which rides a later restart.
+
+**Delta:** Integrate origin/main2156c014cee0af8fa1662064ebfe32d746e6568a, carrying #573/#579/#584/#585/#594/#587. Preserve both resource and drive dispatch, source inventories and skill costs at three additive conflict sites. Main's legacy-message serialization, broker-release distinction and capture buffering remain unchanged by reconciliation. Targeted drive/recovery/protocol/resource/native ownership tests plus inventory and actual native Run conformance verify the integration before staging. The operator still owns the Couch restart and the hub runs live model/key acceptance (ARCH-DRY, ARCH-ORDER). No Qoder repair or new live input is part of this restage.

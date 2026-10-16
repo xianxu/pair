@@ -5,11 +5,16 @@
 package procutil
 
 import (
+	"bytes"
+	"context"
 	"errors"
+	"fmt"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 )
 
 func positivePID(pid string) (int, bool) {
@@ -92,6 +97,136 @@ func LsofNames(pid string) []string {
 		}
 	}
 	return names
+}
+
+// LsofWritableNames reads regular files held writable by pid. Failure or partial
+// inspection retains uncertainty as an error rather than reporting no writers.
+// Each pipe is capped at 2 MiB; the caller's budget is further capped at 2s.
+func LsofWritableNames(ctx context.Context, pid string) ([]string, error) {
+	n, ok := positivePID(pid)
+	if !ok {
+		return nil, fmt.Errorf("lsof: invalid PID %q", pid)
+	}
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	pid = strconv.Itoa(n)
+	cmd := exec.CommandContext(ctx, "lsof", "-nP", "-a", "-p", pid, "-Fpfatn")
+	// A descendant retaining the pipes must not extend the inspection budget.
+	cmd.WaitDelay = 50 * time.Millisecond
+	var stdout, stderr lsofOutput
+	cmd.Stdout, cmd.Stderr = &stdout, &stderr
+	err := cmd.Run()
+	if ctx.Err() != nil {
+		return nil, fmt.Errorf("lsof: %w", ctx.Err())
+	}
+	if stdout.exceeded || stderr.exceeded {
+		return nil, errors.New("lsof: output limit exceeded")
+	}
+	if err != nil {
+		return nil, fmt.Errorf("lsof: %w: %.4096s", err, stderr.buffer.String())
+	}
+	if stderr.buffer.Len() != 0 {
+		return nil, fmt.Errorf("lsof: incomplete inspection: %.4096s", stderr.buffer.String())
+	}
+	return parseLsofWritableNames(stdout.buffer.Bytes(), pid)
+}
+
+type lsofOutput struct {
+	buffer   bytes.Buffer
+	exceeded bool
+}
+
+func (b *lsofOutput) Write(p []byte) (int, error) {
+	remaining := maxCommandBytes - b.buffer.Len()
+	if len(p) > remaining {
+		b.exceeded = true
+		n, _ := b.buffer.Write(p[:remaining])
+		return n, errors.New("lsof: output limit exceeded")
+	}
+	return b.buffer.Write(p)
+}
+
+func parseLsofWritableNames(raw []byte, pid string) ([]string, error) {
+	malformed := errors.New("lsof: malformed or partial file inspection")
+	if len(raw) == 0 || len(raw) > maxCommandBytes || raw[len(raw)-1] != '\n' || bytes.IndexByte(raw, 0) >= 0 {
+		return nil, malformed
+	}
+	lines := strings.Split(string(raw[:len(raw)-1]), "\n")
+	if lines[0] != "p"+pid {
+		return nil, malformed
+	}
+	var names []string
+	var fd, access, typ, name, seen string
+	flush := func() error {
+		if fd == "" {
+			return nil
+		}
+		if typ == "" {
+			return malformed
+		}
+		numeric := true
+		for _, c := range fd {
+			if c < '0' || c > '9' {
+				numeric = false
+			}
+		}
+		if !numeric {
+			switch fd {
+			case "cwd", "rtd", "txt", "mem", "DEL", "ltx", "pd":
+				return nil
+			default:
+				return malformed
+			}
+		}
+		if typ == "REG" {
+			if !filepath.IsAbs(name) || (access != "r" && access != "w" && access != "u") {
+				return malformed
+			}
+			if access == "w" || access == "u" {
+				names = append(names, name)
+			}
+		}
+		return nil
+	}
+	for _, line := range lines[1:] {
+		// Darwin's non-file descriptors (for example NPOLICY) can emit
+		// an empty name field. REG names remain mandatory in flush.
+		if len(line) == 0 || (len(line) == 1 && line != "n") {
+			return nil, malformed
+		}
+		key, value := line[:1], line[1:]
+		if key == "f" {
+			if err := flush(); err != nil {
+				return nil, err
+			}
+			fd, access, typ, name, seen = value, "", "", "", ""
+			continue
+		}
+		if fd == "" || strings.Contains(seen, key) {
+			return nil, malformed
+		}
+		seen += key
+		switch key {
+		case "a":
+			if value != "r" && value != "w" && value != "u" && value != " " {
+				return nil, malformed
+			}
+			access = value
+		case "t":
+			typ = value
+		case "n":
+			name = value
+		default:
+			return nil, malformed
+		}
+	}
+	if err := flush(); err != nil {
+		return nil, err
+	}
+	return names, nil
 }
 
 // WaitCode waits for cmd and maps the result to an exit code: 0 on success, the

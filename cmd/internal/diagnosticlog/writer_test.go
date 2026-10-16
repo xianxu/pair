@@ -157,48 +157,43 @@ func TestConcurrentWritersReopenCurrent(t *testing.T) {
 		}
 	}
 }
-func TestExpiryAndStableLock(t *testing.T) {
+func TestBackupFencePreservesExpiredPayloadAndStableLock(t *testing.T) {
 	path, now, opts := fixture(t)
-	w, e := Open(path, opts)
-	if e != nil {
-		t.Fatal(e)
+	w, err := Open(path, opts)
+	if err != nil {
+		t.Fatal(err)
 	}
 	w.Write([]byte("young\n"))
 	w.Close()
-	lock, e := os.Stat(path + ".pair-diagnostics.lock")
-	if e != nil {
-		t.Fatal(e)
+	before, err := os.Stat(lockPath(path))
+	if err != nil {
+		t.Fatal(err)
 	}
-	*now = now.Add(RetentionPeriod - time.Nanosecond)
-	rows, e := Collect(path, opts, 100)
-	if e != nil {
-		t.Fatal(e)
+	for _, age := range []time.Duration{RetentionPeriod - time.Nanosecond, time.Nanosecond} {
+		*now = now.Add(age)
+		rows, err := Collect(path, opts, 100)
+		if err != nil || len(rows) != 0 {
+			t.Fatal(rows, err)
+		}
 	}
-	if len(rows) != 0 {
-		t.Fatal(rows)
+	body, err := os.ReadFile(path)
+	if err != nil || string(body) != "young\n" {
+		t.Fatal(string(body), err)
 	}
-	*now = now.Add(time.Nanosecond)
-	rows, e = Collect(path, opts, 100)
-	if e != nil {
-		t.Fatal(e)
-	}
-	if len(rows) != 1 {
-		t.Fatal(rows)
-	}
-	if _, e = os.Stat(path); !os.IsNotExist(e) {
-		t.Fatalf("current remains %v", e)
-	}
-	w, e = Open(path, opts)
-	if e != nil {
-		t.Fatal(e)
+	w, err = Open(path, opts)
+	if err != nil {
+		t.Fatal(err)
 	}
 	defer w.Close()
-	w.Write([]byte("new\n"))
-	after, _ := os.Stat(path + ".pair-diagnostics.lock")
-	if !os.SameFile(lock, after) {
-		t.Fatal("lock inode replaced")
+	if _, err = w.Write([]byte("new\n")); err != nil {
+		t.Fatal(err)
+	}
+	after, err := os.Stat(lockPath(path))
+	if err != nil || !os.SameFile(before, after) {
+		t.Fatal("stable lock changed", err)
 	}
 }
+
 func TestRejectSubstitution(t *testing.T) {
 	path, now, opts := fixture(t)
 	w, e := Open(path, opts)
@@ -219,42 +214,50 @@ func TestRejectSubstitution(t *testing.T) {
 	}
 }
 
-func TestCollectionRecoveryBeforeNextAppend(t *testing.T) {
+func TestFencedCollectionDoesNotStartDeleteBeforeNextAppend(t *testing.T) {
 	for _, point := range []string{"delete-intent", "delete-payload"} {
 		t.Run(point, func(t *testing.T) {
 			path, now, opts := fixture(t)
-			w, e := Open(path, opts)
-			if e != nil {
-				t.Fatal(e)
+			w, err := Open(path, opts)
+			if err != nil {
+				t.Fatal(err)
 			}
 			w.Write([]byte("expired\n"))
 			w.Close()
-			*now = now.Add(RetentionPeriod + 24*time.Hour)
+			*now = now.Add(RetentionPeriod + time.Hour)
+			hit := false
 			opts.Fault = func(step string) error {
 				if step == point {
+					hit = true
 					return errors.New("crash")
 				}
 				return nil
 			}
-			if _, e = Collect(path, opts, 100); e == nil {
-				t.Fatal("fault ignored")
+			rows, err := Collect(path, opts, 100)
+			if err != nil || len(rows) != 0 || hit {
+				t.Fatal("collection began eviction", rows, hit, err)
 			}
 			opts.Fault = nil
-			w, e = Open(path, opts)
-			if e != nil {
-				t.Fatal(e)
+			w, err = Open(path, opts)
+			if err != nil {
+				t.Fatal(err)
 			}
 			defer w.Close()
-			if _, e = w.Write([]byte("new\n")); e != nil {
-				t.Fatal(e)
+			if _, err = w.Write([]byte("new\n")); err != nil {
+				t.Fatal(err)
 			}
-			got, _ := os.ReadFile(path)
-			if string(got) != "new\n" {
-				t.Fatalf("current %q", got)
+			names, _, done, err := generationPage(path, "", 100, false, opts)
+			if err != nil || !done || len(names) != 1 {
+				t.Fatal(names, done, err)
+			}
+			body, err := os.ReadFile(segmentPath(path, names[0]))
+			if err != nil || string(body) != "expired\n" {
+				t.Fatal(string(body), err)
 			}
 		})
 	}
 }
+
 func TestSameSizeExternalModificationBlocks(t *testing.T) {
 	path, now, opts := fixture(t)
 	w, e := Open(path, opts)
@@ -317,12 +320,12 @@ func TestProductionWriteNeverWaitsForInspection(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	w.Write([]byte("first"))
+	w.Write([]byte("1111"))
 	returned := make(chan error, 1)
-	go func() { _, e := w.Write([]byte("second")); returned <- e }()
+	go func() { _, e := w.Write([]byte("2222")); returned <- e }()
 	select {
 	case e := <-returned:
-		if e != nil {
+		if !errors.Is(e, ErrLimit) {
 			t.Fatal(e)
 		}
 	case <-time.After(time.Second):
@@ -335,7 +338,7 @@ func TestProductionWriteNeverWaitsForInspection(t *testing.T) {
 		close(release)
 		t.Fatal("maintenance not scheduled")
 	}
-	if _, e = w.Write([]byte("optional")); !errors.Is(e, ErrBusy) {
+	if _, e = w.Write([]byte("more")); !errors.Is(e, ErrBusy) {
 		t.Fatalf("contended optional record %v", e)
 	}
 	close(release)
@@ -368,13 +371,11 @@ func TestRotationRecoveryRejectsReplacementCurrent(t *testing.T) {
 	os.WriteFile(path, []byte("replacement"), 0600)
 	opts.Fault = nil
 	w, e = Open(path, opts)
-	if e != nil {
-		t.Fatal(e)
+	if e == nil {
+		w.Close()
+		t.Fatal("replacement accepted during open recovery")
 	}
-	defer w.Close()
-	if _, e = w.Write([]byte("append")); e == nil {
-		t.Fatal("replacement accepted during recovery")
-	}
+
 	b, _ := os.ReadFile(path)
 	if string(b) != "replacement" {
 		t.Fatal("replacement changed")
@@ -402,8 +403,8 @@ func TestAbandonedMetadataTempHasBoundedLifetime(t *testing.T) {
 	if _, e = os.Stat(abandoned); !os.IsNotExist(e) {
 		t.Fatal("old abandoned metadata retained")
 	}
-	if _, e = os.Stat(directory(path)); !os.IsNotExist(e) {
-		t.Fatal("metadata did not retire")
+	if body, err := os.ReadFile(path); err != nil || string(body) != "old" {
+		t.Fatal("payload not retained while derived temp cleaned", string(body), err)
 	}
 }
 
@@ -463,7 +464,7 @@ func TestRotationRecoveryRetiresAbandonedLeafMetadataTemp(t *testing.T) {
 }
 
 func TestMaintenanceCancellationStopsBeforeNextEffect(t *testing.T) {
-	for _, point := range []string{"before", "proof", "delete-intent", "delete-payload"} {
+	for _, point := range []string{"before", "proof"} {
 		t.Run(point, func(t *testing.T) {
 			path, now, opts := fixture(t)
 			w, err := Open(path, opts)

@@ -37,6 +37,7 @@ var verbCosts = map[string]verbCost{
 	"--keys":                   costSeconds,
 	"--set-model":              costSeconds,
 	"--peek":                   costLight,
+	"--resources":              costLight,
 	"--broadcast-list":         costLight,
 	"--session-sync":           costLight,
 	"--archived":               costLight,

@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"syscall"
 	"testing"
 
@@ -17,6 +19,7 @@ type processWorld struct {
 	recycle    bool
 	envCalls   int
 	envErr     error
+	env        map[string]string
 }
 
 func (w *processWorld) Snapshot(ctx context.Context) ([]procutil.Observation, error) {
@@ -29,7 +32,49 @@ func (w *processWorld) Environment(int) (map[string]string, error) {
 	if w.recycle {
 		w.strict = "new-generation"
 	}
+	if w.env != nil {
+		return w.env, w.envErr
+	}
 	return map[string]string{"PAIR_RETENTION_PROTOCOL": "1"}, w.envErr
+}
+
+func TestRuntimeInventoryRemovedRootDoesNotBlockProtocolWriters(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "removed")
+	if err := os.Mkdir(root, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(root); err != nil {
+		t.Fatal(err)
+	}
+	for _, protocol := range []bool{true, false} {
+		t.Run(fmt.Sprintf("protocol=%t", protocol), func(t *testing.T) {
+			env := map[string]string{"PAIR_DATA_DIR": root}
+			if protocol {
+				env["PAIR_RETENTION_PROTOCOL"] = "1"
+			}
+			w := &processWorld{rows: []procutil.Observation{{Process: procutil.Process{PID: 123, Name: "zellij", Identity: "old"}, CommandInfo: procutil.CommandInfo{Executable: "/bin/zellij"}}}, generation: "old", strict: "birth", env: env}
+			probe := OSInspection{processes: w}
+			err := VerifyWriters(context.Background(), filepath.Join(t.TempDir(), "absent-trace"), []Registration{{PID: 456, Birth: "live", Root: "/live-root"}}, probe)
+			if protocol {
+				if err != nil {
+					t.Fatalf("protocol runtime with removed root blocks unrelated retention: %v", err)
+				}
+			} else if !errors.Is(err, ErrUnknownWriters) {
+				t.Fatalf("unresolved legacy runtime root accepted: %v", err)
+			}
+			// Exemption must still be based on one stable process generation.
+			w.recycle = true
+			if _, err := probe.Runtimes(context.Background()); !errors.Is(err, ErrUnknownWriters) {
+				t.Fatalf("generation changed while reading protocol: %v", err)
+			}
+			w.recycle = false
+			w.generation = "new"
+			before := w.envCalls
+			if _, err := probe.Runtimes(context.Background()); !errors.Is(err, ErrUnknownWriters) || w.envCalls != before {
+				t.Fatalf("stale snapshot read protocol: err=%v envCalls=%d, before=%d", err, w.envCalls, before)
+			}
+		})
+	}
 }
 
 func TestRuntimeInventoryUsesFullExecutableAndFencesGeneration(t *testing.T) {
