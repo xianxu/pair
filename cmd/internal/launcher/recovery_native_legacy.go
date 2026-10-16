@@ -122,7 +122,11 @@ func checkLegacyHeldNative(ctx context.Context, check RecoveryNativeOwnerCheck, 
 	if read == nil {
 		read = procutil.LsofWritableNames
 	}
-	roots := sessioninventory.NewOSRuntime(os.Getenv("HOME"), check.DataDir).NativeRoots(sessioninventory.Agent(check.Agent))
+	runtime, err := sessioninventory.NewNativeTranscriptRuntime(os.Getenv("HOME"), check.DataDir, sessioninventory.Agent(check.Agent), "", os.Getenv)
+	if err != nil {
+		return nil, nil, err
+	}
+	roots := runtime.NativeRoots(sessioninventory.Agent(check.Agent))
 	ids := []string{}
 	for _, holder := range holders {
 		if err := ctx.Err(); err != nil {

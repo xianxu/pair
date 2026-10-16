@@ -166,7 +166,10 @@ func (r OSRuntime) ValidateRecoveryAuthority(ctx context.Context, a RecoveryAuth
 			if cutoff.IsZero() {
 				cutoff = c.RawIdentity.ModifiedAt
 			}
-			native := sessioninventory.NewOSRuntime(os.Getenv("HOME"), r.DataDir)
+			native, err := r.nativeInventory(agent, "")
+			if err != nil {
+				return err
+			}
 			if err = sessioninventory.RevalidateRecoveryCandidate(ctx, native, entry, sessioninventory.Agent(agent), a.Intent.NativeID, cwd, cutoff); err != nil {
 				return err
 			}
@@ -175,7 +178,10 @@ func (r OSRuntime) ValidateRecoveryAuthority(ctx context.Context, a RecoveryAuth
 			return err
 		}
 	} else if a.Intent.Kind() == threadrecord.RecoveryProven {
-		runtime := sessioninventory.NewOSRuntime(os.Getenv("HOME"), r.DataDir)
+		runtime, err := r.nativeInventory(agent, "")
+		if err != nil {
+			return err
+		}
 		target, err := sessioninventory.QueryResumeTargetContext(ctx, runtime, scope.Key, tag, sessioninventory.Agent(agent))
 		if err != nil {
 			return err
@@ -191,6 +197,7 @@ func (r OSRuntime) ValidateRecoveryAuthority(ctx context.Context, a RecoveryAuth
 	if !bytes.Equal(raw, after) {
 		return errors.New("recovery start claim changed during validation")
 	}
+
 	if err := ctx.Err(); err != nil {
 		return err
 	}

@@ -472,6 +472,15 @@ override a current ledger generation.
 
 ### Codex root identity
 
+Exact-ID validation, ledger evidence and recovery use the same transcript home,
+routed by `launcher/native_inventory_os.go` through
+`sessioninventory.NewNativeTranscriptRuntime`, `ResolveCodexHome` and
+`WithCodexHome`. Recovery discovery and validation share this route. An explicit CODEX_HOME
+is an existing canonical directory; a relative value uses the proven startup
+working directory before native `-C`. Unset or empty uses HOME/.codex. This
+routes transcript lookup only; it does not select an indirect resume target.
+See [Codex resume](codex-resume.md).
+
 Codex scanning treats source metadata as open-world: `vscode`, unfamiliar valid
 values, and absent source fields do not by themselves reject a root. Understood parent/subagent evidence still prevents
 child transcripts from being selected as roots. Parsing checks apply to fresh

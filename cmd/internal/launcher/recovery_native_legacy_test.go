@@ -3,6 +3,7 @@ package launcher
 import (
 	"context"
 	"errors"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -16,6 +17,7 @@ func TestLegacyNativeSourceRequiresHeldOwnerTranscript(t *testing.T) {
 		t.Run(mode, func(t *testing.T) {
 			home := t.TempDir()
 			t.Setenv("HOME", home)
+			t.Setenv("CODEX_HOME", "")
 			w, check := nativeOwnerFixture(t, "codex", id)
 			check.NativeID, check.Tag = id, "other"
 			check.SourcePID, check.SourceIdentity = 7, "helper"
@@ -90,6 +92,7 @@ func TestNativeUnboundUsesCompleteHeldIDSet(t *testing.T) {
 			t.Run(map[bool]string{true: "legacy/", false: "modern/"}[legacy]+mode, func(t *testing.T) {
 				home := t.TempDir()
 				t.Setenv("HOME", home)
+				t.Setenv("CODEX_HOME", "")
 				w, check := nativeOwnerFixture(t, "codex", id)
 				launch := sessionledger.ParseLedger(w.raw).Records[0]
 				launch.RequestOrigin, launch.RequestedNativeID = "", ""
@@ -144,5 +147,43 @@ func TestNativeUnboundUsesCompleteHeldIDSet(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+func TestLegacyHeldNativeHonorsCodexHome(t *testing.T) {
+	for _, mode := range []string{"custom", "default", "invalid", "relative"} {
+		t.Run(mode, func(t *testing.T) {
+			home, err := filepath.EvalSymlinks(t.TempDir())
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Setenv("HOME", home)
+			t.Setenv("CODEX_HOME", "")
+			nativeHome := filepath.Join(home, ".codex")
+			value := ""
+			if mode == "custom" {
+				nativeHome = filepath.Join(home, "custom")
+				value = nativeHome
+			}
+			if err := os.MkdirAll(nativeHome, 0700); err != nil {
+				t.Fatal(err)
+			}
+			if mode == "invalid" {
+				value = filepath.Join(home, "missing")
+			}
+			if mode == "relative" {
+				value = ".codex"
+			}
+			t.Setenv("CODEX_HOME", value)
+			const id = "019d1111-1111-7111-8111-111111111111"
+			check := RecoveryNativeOwnerCheck{Agent: "codex", DataDir: t.TempDir(), heldFiles: func(context.Context, string) ([]string, error) {
+				return []string{filepath.Join(nativeHome, "sessions", "2026", "10", "15", "rollout-2026-10-15T00-00-00-"+id+".jsonl")}, nil
+			}}
+			ids, _, err := checkLegacyHeldNative(context.Background(), check, recoveryTerminalSnapshot{}, procutil.Process{PID: 43, Name: "codex"})
+			allowed := mode == "custom" || mode == "default"
+			if (err == nil) != allowed || (allowed && (len(ids) != 1 || ids[0] != id)) {
+				t.Fatalf("held IDs=%v err=%v", ids, err)
+			}
+		})
 	}
 }
