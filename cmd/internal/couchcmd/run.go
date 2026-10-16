@@ -1407,6 +1407,7 @@ func usageWith(w io.Writer, bindings []couchkeys.Binding) {
 	fmt.Fprintln(w, "             through the running Couch, in the background. Verify by reading")
 	fmt.Fprintln(w, "             the report again; an uncertain outcome means read it before resending.")
 	verbLine(w, "--actors", "       couch --actors [--json]")
+	verbLine(w, "--resources", "       couch --resources [--json]")
 	verbLine(w, "--broadcast-list", "       couch --broadcast-list [--json]")
 	fmt.Fprintln(w, "             The running broadcast and its viewer count, and the recordings shared for")
 	fmt.Fprintln(w, "             replay (never a link).")

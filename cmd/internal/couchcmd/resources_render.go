@@ -1,0 +1,104 @@
+package couchcmd
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"time"
+
+	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/couchmessage"
+	"github.com/xianxu/pair/cmd/internal/rowtext"
+)
+
+func runResourcesCLI(inv cliInvocation, rt Runtime, stdout, stderr io.Writer, call messageCall) int {
+	socket, err := couchmessage.SocketPath(rt.StoreDir(), "broker")
+	if err != nil {
+		fmt.Fprintln(stderr, "couch:", err)
+		return 1
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), couchmessage.AdmissionTimeout)
+	defer cancel()
+	var result couchmessage.Response
+	if err := call(ctx, socket, couchmessage.Request{Op: "resources"}, &result); err != nil {
+		fmt.Fprintf(stderr, "couch: resource query failed (%v); inspect the running Couch\n", err)
+		return 1
+	}
+	if result.Code != "ok" || result.Resources == nil {
+		fmt.Fprintf(stderr, "couch: resources unavailable: %s; inspect the running Couch\n", rowtext.Sanitize(result.Error))
+		return 1
+	}
+	if inv.jsonOutput {
+		if err := json.NewEncoder(stdout).Encode(result.Resources); err != nil {
+			fmt.Fprintln(stderr, err)
+			return 1
+		}
+		return 0
+	}
+	renderResources(stdout, *result.Resources, time.Now())
+	return 0
+}
+
+func renderResources(out io.Writer, v couchcore.ResourceView, now time.Time) {
+	if v.SampledAt.IsZero() {
+		fmt.Fprintln(out, "Resources: waiting for first sample")
+	} else {
+		fmt.Fprintf(out, "Resources sampled %s (%s ago)\n", v.SampledAt.Format(time.RFC3339), now.Sub(v.SampledAt).Round(time.Second))
+	}
+	if v.HistoryFrames > 0 {
+		fmt.Fprintf(out, "History: %d frames; oldest %s\n", v.HistoryFrames, v.HistoryOldest.Format(time.RFC3339))
+	} else {
+		fmt.Fprintln(out, "History: no retained frames")
+	}
+	fmt.Fprintln(out, "SLOT  CPU%  RSS bytes  WRITE bytes/s  PROCESSES  OBSERVED CPU s / WRITE bytes")
+	for _, s := range v.Slots {
+		fmt.Fprintf(out, "%s  %s  %s  %s  %d", rowtext.Sanitize(s.Slot), resourceNumber(s.CPUPercent), resourceBytes(s.RSSBytes), resourceNumber(s.WriteBytesPerSecond), s.ProcessCount)
+		fmt.Fprintf(out, "  %.3f / %d", float64(s.ObservedCPUTimeNS)/1e9, s.ObservedDiskWriteBytes)
+		if s.Reason != "" {
+			fmt.Fprintf(out, " (%s)", rowtext.Sanitize(s.Reason))
+		}
+		fmt.Fprintln(out)
+	}
+	for _, section := range []struct {
+		name string
+		rows []couchcore.ResourceProcessView
+	}{{"Proven orphans", v.Orphans}, {"Unattributed (unproven; report only)", v.Unattributed}} {
+		fmt.Fprintln(out, section.name+":")
+		if len(section.rows) == 0 {
+			fmt.Fprintln(out, "  none observed")
+		}
+		for _, p := range section.rows {
+			fmt.Fprintf(out, "  %s pid=%d %s RSS=%s %s\n", rowtext.Sanitize(p.Slot), p.Key.PID, rowtext.Sanitize(p.Name), resourceBytes(p.RSSBytes), rowtext.Sanitize(p.Reason))
+		}
+	}
+	fmt.Fprintf(out, "Observed since sampler start: CPU %.3fs; disk writes %d bytes (sampled, not lifetime billing)\n", float64(v.ObservedCPUTimeNS)/1e9, v.ObservedDiskWriteBytes)
+	cpuCost := "unavailable"
+	if v.Cost.CPUKnown {
+		cpuCost = fmt.Sprintf("%.3fms", float64(v.Cost.CPUTimeNS)/1e6)
+	}
+	fmt.Fprintf(out, "Sampler: %d native attempts (table %d, usage %d, command %d); CPU %s; elapsed %s\n", v.Cost.NativeCalls, v.Cost.TableCalls, v.Cost.UsageCalls, v.Cost.CommandCalls, cpuCost, v.Cost.WallTime)
+	if !v.Cost.CPUKnown {
+		fmt.Fprintln(out, "Sampler CPU measurement unavailable")
+	}
+	for _, e := range v.Episodes {
+		if e.Phase == "pending" && e.Effect != nil {
+			fmt.Fprintf(out, "Alert %s: pending or delivery unknown; inspect this snapshot\n", rowtext.Sanitize(e.Effect.ID))
+		}
+	}
+	for _, e := range v.Errors {
+		fmt.Fprintln(out, "Coverage:", rowtext.Sanitize(e))
+	}
+}
+func resourceNumber(v *float64) string {
+	if v == nil {
+		return "unavailable"
+	}
+	return fmt.Sprintf("%.1f", *v)
+}
+func resourceBytes(v *uint64) string {
+	if v == nil {
+		return "unavailable"
+	}
+	return fmt.Sprint(*v)
+}
