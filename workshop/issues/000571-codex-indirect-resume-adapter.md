@@ -55,7 +55,10 @@ Canonical approved implementation design: [durable plan](../plans/000571-codex-i
 
 - [x] Preserve native trust/discovery distinction and fail closed on unproven worktree scope (BR-3).
 - [x] Observe Codex SQLite through bounded coherent owned private snapshots with no native mutation (BR-4).
-- [ ] Resolve the native-selection mechanism re-plan and, if approved, enforce native source-kind eligibility (BR-5).
+- [x] Resolve the native-selection mechanism re-plan: TL chose native compatibility, superseding the BR-5 classifier.
+- [ ] Delete Codex prediction/config/snapshot machinery, including the old main collector; prove indirect zero-work native pass-through.
+- [ ] Retain thin exact-ID home routing and baseline admission, with transcript-only tests and other-agent controls.
+- [ ] Update final docs/line accounting and pass targeted/race, recorded full suite and fresh close before landing.
 
 ## Log
 
@@ -81,6 +84,10 @@ Source links (matching tag):
 - [Official configuration reference](https://learn.chatgpt.com/docs/config-file/config-reference)
 
 ## Revisions
+
+### 2026-10-15 — reduced scope approved; implementation resumed
+
+TL submitted receiptd27b887d-2cdd-427e-bcb9-d0287ec22e9a approves fafc33b8 and the latest reduced-scope contract. Proceed with native indirect pass-through before probing, thin CODEX_HOME transcript routing for exact IDs, removal of all Codex selection policies/snapshots/TOML and the old main SQL collector. Keep baseline global admission untouched so #595 can replace it separately. The code/test net+150 to+400 projection is a target range, not an exact measured final result; report actual counts after implementation. No staging or native resolver process is authorized or needed.
 
 ### 2026-10-15 — zero-drift scope decision; reduced proposal awaiting review
 
