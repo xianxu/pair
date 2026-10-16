@@ -36,6 +36,16 @@ func peerInputColumn(agent string) int {
 // input and overlays additionally gate delivery in the input owner. No model
 // execution-idle observation is required. Unknown screens decline.
 func peerComposerText(agent string, s terminalSnapshot) (string, bool) {
+	text, ok := qualifiedComposerText(agent, s)
+	if !ok || strings.HasPrefix(strings.TrimSpace(text), "/") || strings.HasPrefix(strings.TrimSpace(text), "!") {
+		return "", false
+	}
+	return text, true
+}
+
+// qualifiedComposerText recognizes the composer geometry without granting
+// ordinary peer delivery permission to overwrite command or shell drafts.
+func qualifiedComposerText(agent string, s terminalSnapshot) (string, bool) {
 	var top, bottom int
 	switch agent {
 	case "claude":
@@ -103,9 +113,6 @@ func peerComposerText(agent string, s terminalSnapshot) (string, bool) {
 	text := strings.Join(lines, "\n")
 	if (agent == "qoder" && peerQoderPlaceholder(s, top, text)) || (agent != "qoder" && peerPlaceholder(s, top, text)) {
 		return "", true
-	}
-	if strings.HasPrefix(strings.TrimSpace(text), "/") || strings.HasPrefix(strings.TrimSpace(text), "!") {
-		return "", false
 	}
 	return text, true
 }

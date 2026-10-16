@@ -1,0 +1,11 @@
+{
+  "agent": "codex",
+  "capture": "fresh isolated PTY; /model only; auth copies removed on cleanup",
+  "defaults_after_sha256": "bebbb86e4fe8776753175e9c1b476eadbf0c1ffbdccc7ab77e02a742549435d1",
+  "defaults_before_sha256": "bebbb86e4fe8776753175e9c1b476eadbf0c1ffbdccc7ab77e02a742549435d1",
+  "effort": "low",
+  "model": "gpt-6.1-sol",
+  "recovery": "separate ESC returned fresh empty composer",
+  "scope": "session",
+  "version": "codex-cli 0.162.1"
+}

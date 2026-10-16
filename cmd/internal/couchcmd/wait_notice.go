@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/xianxu/pair/cmd/internal/agentdrive"
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
 )
 
@@ -64,7 +65,7 @@ func classifyWait(f waitFacts, threshold time.Duration, tail []string) (waitReas
 	}
 	prose := lastProseLine(tail)
 	switch {
-	case !*f.Settled:
+	case !*f.Settled && !completedModelControl(tail, prose):
 		if title := dialogTitle(tail); title != "" {
 			return waitPrompt, title, true
 		}
@@ -75,6 +76,20 @@ func classifyWait(f waitFacts, threshold time.Duration, tail []string) (waitReas
 		return waitIdle, prose, true
 	}
 	return "", "", false
+}
+
+// completedModelControl is screen evidence, not a timed suppression. Reuse the
+// exact captured confirmation/footer/composer grammar: a draft or later prose
+// must still receive the normal wait classification even if older control
+// confirmation chrome remains visible. Local and remote tails share this form.
+func completedModelControl(tail []string, prose string) bool {
+	for _, agent := range []string{"codex", "claude"} {
+		evidence := agentdrive.ReadModelScreen(agent, agentdrive.Screen{Lines: tail, Complete: true, Idle: true})
+		if evidence.Phase == agentdrive.ScreenStatus && evidence.Confirmation == prose {
+			return true
+		}
+	}
+	return false
 }
 
 // dimRun is a faint run in tail markup.

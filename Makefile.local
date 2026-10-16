@@ -552,3 +552,9 @@ test-supervision-labels:
 .PHONY: test-without-ancestors
 test-without-ancestors:
 	python3 tests/without-ancestors-test.py
+
+# Run after changing the drive/parser/writer or upgrading Codex, before landing.
+# Both native suites use disposable configuration; no peer slot is driven.
+.PHONY: test-agent-drive-live
+test-agent-drive-live:
+	PAIR_LIVE_AGENT_DRIVE=codex PAIR_LIVE_AGENT_DRIVE_VIRTUAL=codex go test ./cmd/internal/wrapcmd -run '^TestAgentDrive(LiveConformance|VirtualTerminalLiveConformance)$$' -count=1 -v
