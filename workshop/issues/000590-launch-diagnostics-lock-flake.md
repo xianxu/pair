@@ -15,6 +15,7 @@ claimant:
     workspace: pair:3
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "855e8091", done: "a8d02e3f"}
 ---
 
 # Diagnose concurrent launch diagnostics lock timeout under load
