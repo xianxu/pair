@@ -1,6 +1,6 @@
 ---
 id: 000612
-status: codecomplete
+status: done
 created: 2026-10-16
 updated: 2026-10-16
 estimate_hours:
@@ -22,6 +22,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 7d7e566b2ec852d97ee23759459f544715337be1
         evidence_commit: f90583d54b3cc79bfe32a92d3b29cfe270517e5a
+        landed_commit: c756f3cc4429df9dd0ad3004b8fca52162243c0b
 ---
 
 # Warm reattach acceptance intermittently resolves native binding
