@@ -177,8 +177,7 @@ func runContinuationPublicationAcceptance(t *testing.T, pair, helper, assetRoot,
 		source = seedDetachedThread(t, rt, repo)
 		rt.artifacts.SetDetachedSession(source.Address, session)
 		rt.runner.AfterAcknowledge = func(string) error {
-			rt.artifacts.SetDetachedSession(source.Address, "")
-			rt.artifacts.SetPairSession(source.Address, session, true)
+			rt.artifacts.AttachSession(source.Address)
 			return nil
 		}
 		c, err = rt.NewCouch()

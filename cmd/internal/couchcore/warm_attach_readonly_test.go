@@ -320,8 +320,7 @@ func TestPublicWarmAttachDoesNotAcquireIndependentLifecycleHold(t *testing.T) {
 
 func TestPublicWarmAttachAcceptsListedTerminalWithAttachedClients(t *testing.T) {
 	env, before, session := readonlyWarmFixture(t, warmDetachedRecord(t), Live)
-	env.Artifacts.SetDetachedSession(before.Address, "")
-	env.Artifacts.SetPairSession(before.Address, session, true)
+	env.Artifacts.AttachSession(before.Address)
 	assertReadonlyWarmAttach(t, env, before, session)
 	if env.Artifacts.DetachedQueries() != 0 {
 		t.Fatal("public attach queried client attachment state")
