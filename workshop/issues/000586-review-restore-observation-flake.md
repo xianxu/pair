@@ -130,6 +130,10 @@ Merge automatically ran its diagnostic main-base suite6e6e954f55eb8e7ba8dacebde0
 
 Latest hub hold fbd19711-0163-49d1-818b-928f51fce86b supersedes GO for publication: no pair main publications (merge, issue new/publish or card changes) until the hub explicitly says #571 landed. Branch work is allowed. Keep #586 code unchanged; perform only the one authorized unchanged integrated-head suite rerun, retain its actual outcome, and do not invoke merge while the hold remains. Source hashes above rechecked with git rev-parse HEAD HEAD^2.
 
+### Unchanged integrated-source rerun started under publication hold
+
+Required recorded suite3305926cf3ce16ff7dd15d50eda49637 is queued on exact e53bd02e6bbc8b367580379f8a370e6b93cedeff, the still-pushed PR source. Tool session30415. This is the single authorized PR-source retry after #608; baseline6e6e954f55eb8e7ba8dacebde0bf0e07 was a different-source diagnostic, not a retry. No source edits; only local issue Log commits since integration. Report4c5ce451-20cb-44fe-b5a3-34da336d05e9 is queued, not yet confirmed submitted. Do not invoke sdlc merge or publish main/cards until the hub releases the #571 hold.
+
 ## Revisions
 
 ### 2026-10-15 — approved diagnostics-first timebox
