@@ -206,3 +206,7 @@ Remaining active sequence: TL resolves immediate-exit effect question361802ad (o
 ### 2026-10-16 — immediate owned-group EOF teardown approved
 
 Verified submitted TL receipt2ed371a2-2749-401b-a235-03c3f7121ed4, exact ops:0 to current pair:6. TL accepts SIGKILL of the title's own Setsid process group on lease EOF as the immediate teardown effect, superseding literal os.Exit. Commands inherit that group; one kernel effect kills title and commands even when Start races EOF. No Start/register lock, context plumbing, decoder join, grace period or bounded CLI fallback. Validate title is its own process-group leader before arming this effect; never kill a borrowed group. All title-reachable durable publication remains temp+rename. Existing blocked-proof and stubborn-command descendant RED tests precede implementation. This resolves question361802ad; legacy cleanup comparison remains separate and no live signal is authorized by this teardown decision.
+
+### 2026-10-16 — legacy cleanup acceptance complete
+
+TL approval855a869b compared the dry-run set and corrected the historical PPID1assumption. Fresh complete sampling and per-effect PID/start fences terminated only the5approved no-wrapper generations by SIGTERM; no escalation needed. All24live-wrapper controls survived and final report has0eligible/0unknown. Evidence and receipt3ed3cc1b are in the issue. Do not signal any additional generations under this approval. Remaining acceptance is the staged new lease build/live wrapper lifecycle, integrated suite and ordinary SDLC close/landing.
