@@ -126,6 +126,13 @@ Merged main2156c014cee0af8fa1662064ebfe32d746e6568a at42b2086fb040b9cbcb527fdcc9
 
 `sdlc stage --build` replaced pair:0 stage with42b2086fb040b9cbcb527fdcc91f09d8a7bbfdd1. Verified exact unchanged target HEAD and clean checkout. Pair, Couch, pair-launch-helper and pair-slug all report that revision and vcs.modified=false. The obsolete pair-hoprtt, outside current GO_BINS, retains2284b41247340aec386afa83eb998502bc14aa40/modified=true; it was not rebuilt or used. Sent the complete metadata and evidence to the hub, receipt726f3453-bc6f-4bed-9d85-f9be5391ec35. Operator restart and hub-run smoke remain pending; no live input or restart performed here. This new source requires a fresh recorded suite before landing; earlier source passes are not substituted.
 
+
+### 2026-10-15 — full-suite integration failure and fixture correction
+
+Recorded suite on926fa9083 (same production source as staged42b2086f) failed exit2 in13m11s. All other packages passed; wrapcmd panicked reading nil childIO from masterPump. Failed log `/Users/xianxu/workspace/pair/.git/sdlc/test-stats/failed/8ba015a2ee32b525ddcc938c42f47306.log`, reported SHA256 prefixf4bb40558229. Focused TestMasterPumpFlushesCaptureOnInjectedTick reproduced the identical panic. Three newly merged #579 diagnostic_buffer_test fixtures start masterPump directly but had not installed #544's owned ttyio transport. Other pump fixtures already use prepareMasterPumpTransport. Added that existing helper before each of the three new pump starts; no production changes or lazy nil fallback. Focused three-test -race count3 PASS1.945s, covering tick flush, EOF/error drain and in-flight resize after owner ends. Full-suite re-verification required; do not substitute earlier passes.
+
+Restart notices bf9e8370 and9bda8abc could not be verified or answered because couch was not on PATH (exit127). No alternate peer channel or binary path used. Stage remains42b2086fb040b9cbcb527fdcc91f09d8a7bbfdd1 with production binaries unchanged. Live model/key smoke remains pending the hub.
+
 ## Revisions
 
 ### 2026-10-15 — reconcile landed recovery and stall supervision
@@ -237,3 +244,10 @@ Add recorded RED/GREEN tests for submit-vs-newline under the real protocol, reco
 **Reason:** Verified TL receipt670622a8-d2a5-48e2-892d-9f0a7bca8494 directs immediate merge/restage after #587; do not wait for #569, which rides a later restart.
 
 **Delta:** Integrate origin/main2156c014cee0af8fa1662064ebfe32d746e6568a, carrying #573/#579/#584/#585/#594/#587. Preserve both resource and drive dispatch, source inventories and skill costs at three additive conflict sites. Main's legacy-message serialization, broker-release distinction and capture buffering remain unchanged by reconciliation. Targeted drive/recovery/protocol/resource/native ownership tests plus inventory and actual native Run conformance verify the integration before staging. The operator still owns the Couch restart and the hub runs live model/key acceptance (ARCH-DRY, ARCH-ORDER). No Qoder repair or new live input is part of this restage.
+
+
+### 2026-10-15 — adapt capture tests to the owned terminal transport
+
+**Reason:** Full-suite/focused RED exposes three #579 pump fixtures missing #544's transport initialization after the merge.
+
+**Delta:** Reuse prepareMasterPumpTransport before launching each new capture pump fixture, matching production descriptor ownership and joined teardown (ARCH-DRY, ARCH-FUNERAL). Preserve capture assertions and all production code. The test-only correction does not require restaging the operator's production binary; record a fresh passing suite before close/landing.
