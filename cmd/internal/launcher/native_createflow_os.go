@@ -8,9 +8,18 @@ import (
 )
 
 func (r OSRuntime) ResolveNativeResume(ctx context.Context, q NativeResumeRequest) (NativeResumeResolution, error) {
-	// Configuration scope must be positively resolved by the provider adapter.
-	// Unknown effective configuration is not permission to guess the latest ID.
-	return ResolveNativeResume(ctx, sessioninventory.NewOSRuntime(os.Getenv("HOME"), r.DataDir), q)
+	// Indirect Codex selection belongs to native, including direct callers of
+	// this boundary. Refuse before observing homes, transcripts or config.
+	selector := q.Selector
+	selector.Agent = q.Agent
+	if CodexIndirectResumeCompatibility(selector) {
+		return NativeResumeResolution{Status: sessioninventory.NativeSelectorUnsupported, Reason: "Codex indirect resume selection remains native"}, nil
+	}
+	native, err := r.nativeInventory(q.Agent, q.CWD)
+	if err != nil {
+		return NativeResumeResolution{Status: sessioninventory.NativeSelectorIncomplete, Reason: "native transcript scope unavailable"}, nil
+	}
+	return ResolveNativeResume(ctx, native, q)
 }
 
 func (r OSRuntime) ReserveNativeResume(ctx context.Context, q NativeAdmissionRequest) (string, error) {
