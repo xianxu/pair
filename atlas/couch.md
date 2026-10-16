@@ -91,10 +91,10 @@ Older wrappers with an unlinked endpoint remain usable by terminal, with
 “messaging unavailable until next relaunch.” New-wrapper endpoint repair is a
 separate follow-up (#557). Resume/Fresh execution and confirmation by the person
 or hub share #556's prepared recovery path, described below. Couch's resume and
-recovery launches take no native admission (#597): before launching, they
-refuse only if another positively live slot in Couch's registry records the same
-conversation ("conversation X is in use by repo:N"). Every other launch, and
-ordinary Pair, keeps native admission until #595.
+recovery launches refuse only if another positively live slot in Couch's
+registry records the same conversation ("conversation X is in use by repo:N",
+#597). No launch takes native admission (#595): the conversation lock below is
+the only other guard, and its refusal is the same "in use by" naming the holder.
 A Fresh reboot stops everything the slot owns (#607): to whatever terminal
 attribution proves, it adds the wrapper Couch's message registry names (exact pid
 and start identity), that wrapper's descendants from one process-table snapshot,
@@ -4093,16 +4093,12 @@ engine after the kernel drops the wrapper lock: #583's reaper and #587's
 unattributed report handle that accepted gap. Agents outside Pair are outside the
 guard. Exact source stop-set attribution remains separate from admission.
 
-Rollout is one maintenance cutover: restart Couch on this build first, then
-relaunch older slots once at a quiet time. Existing readiness gains an optional
-native-lock capability; host-wide listed-live sessions plus current readiness
-identify older wrappers. Ordinary disk Resume refuses with their sorted labels:
-`relaunch older slots first: X, Y`. Startup, Continue/attach and Fresh stay
-available. Confirmed Relaunch parks its exact live source first and carries the
-same agent/ID through the existing persisted, validated start intent, bypassing
-only this migration barrier; it still must acquire the flock. This avoids a
-circular migration with other older slots still live. There is no user override
-or dual-guard deployment.
+Rollout needs no cutover gate (TL e93b109d): a resume whose lock another live
+wrapper holds refuses at native start with "conversation X is in use by
+<holder>; Start fresh", where the holder is the slot address ("pair:3"), else
+its Pair tag, else "standalone". Wrappers started before this build hold no
+lock until their slot is relaunched; that transitional gap closes as slots are
+relaunched. There is no capability barrier, override or dual guard.
 
 The forensic native-owner scan and reservation store are deleted in this build.
 Their obsolete on-disk files are unused, not removed by startup; any cleanup is a
