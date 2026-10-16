@@ -48,6 +48,7 @@ Approved quick-flow investigation and fix. Keep #586 separate from #591 until re
 ## Log
 
 ### 2026-10-15 — first observed during #571 unchanged rerun
+- 2026-10-15: closed — Approved diagnostics-only fallback: 202 fresh loaded cases passed in 60.13min, original initial-request cause unproven; retained separate async 50ms WaitDelay lead. Eight deterministic diagnostics tests and positive fixture passed. make -k -B build passed; exact-source a0b3fb0de67824b57d0f42cedd32acd02a7d1778 required suite a434158b4ff3c9fcc7da7a10fc5eedff passed13m19 SHA2562cfda2445836f4ef85c8c6744d781ddbf4ace733dbcba4ecb4b5e72067e293cf. One authorized unchanged rerun after independent startup-cancellation flake #598; no fixture fix, timeout increase, retries in reproduction or skips. Atlas updated. Merge held for hub go after #597/#571. (done-when: contract moved since change-code; judged by the close review); review verdict: SHIP
 
 - Exact tested head `8bd4baa138c63cda357c3a447ddb2cba294f1df7`; run `119840be5020067f99a3413fd951e608`.
 - Log `/Users/xianxu/workspace/pair/.git/sdlc/test-stats/failed/119840be5020067f99a3413fd951e608.log`, SHA256 prefix `58ed1e657115`; suite stopped at test-review after 4m33s, before Go packages. A keep-going run was started to complete remaining checks.
