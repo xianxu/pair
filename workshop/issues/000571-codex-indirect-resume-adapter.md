@@ -53,7 +53,7 @@ Canonical approved implementation design: [durable plan](../plans/000571-codex-i
 - [x] Match native CLI leaf replacement and prove projected worktree scope/selected ID (BR-1).
 - [x] Validate native transcript record eligibility, replace incomplete positive fixtures, and rerun targeted/full verification for close (BR-2).
 
-- [ ] Preserve native trust/discovery distinction and fail closed on unproven worktree scope (BR-3).
+- [x] Preserve native trust/discovery distinction and fail closed on unproven worktree scope (BR-3).
 - [ ] Observe Codex SQLite through bounded coherent owned private snapshots with no native mutation (BR-4).
 
 ## Log
@@ -80,6 +80,12 @@ Source links (matching tag):
 - [Official configuration reference](https://learn.chatgpt.com/docs/config-file/config-reference)
 
 ## Revisions
+
+### 2026-10-15 — BR-3 integration and BR-4 headline verification
+
+BR-3 committed at bc6d485de: unknown observed current/primary/linked identities propagate whole-projection compatibility, while strict trust alias rejection and positively excluded candidates remain. Added dangling current marker regression after its separate RED. Git/config/selected-ID tests pass normally0.439s, race3.853s, no-CGO1.893s (logs /tmp/pair571-br3-git-{normal,race,nocgo}.log). The native worktrees resource joins remain exactly two counted sites.
+
+BR-4 headline real OS launcher regressions now pass for TUI and exec: correct ID, unchanged whole native directory including file bytes/identities/mtimes and no SHM; private SQLite target and hermetic flags; scratch cleanup after success/error/cancel. Absent-WAL/non-WAL controls preserve original argv and create no reservation. Broader launcher/wrapper normal17.914s/12.682s and race23.943s/15.901s pass. Full artifactpath passes normal38.766s/race34.090s; resource audit0.650s and make build pass. The new source is non-artifact native metadata IO, matching existing native-selector classification; no Pair artifact constructor exemption was added. Snapshot mutation/budget/cleanup-failure controls and final integration/full suite remain pending; prior9164e3cd suite does not verify these new changes.
 
 ### 2026-10-15 — TL approval of BR-3/BR-4 narrowed implementation
 

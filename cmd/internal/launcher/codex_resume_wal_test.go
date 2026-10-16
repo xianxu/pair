@@ -196,7 +196,10 @@ func TestCodexResumeOSWALObservationNeverMutatesNativeFiles(t *testing.T) {
 				wrapper := "#!" + python + "\n" + `import json,os,sys,time
 from pathlib import Path
 Path(os.environ['PAIR_WAL_QUERY_RECORD']+'.args').write_text(json.dumps(sys.argv[1:]))
-Path(os.environ['PAIR_WAL_QUERY_RECORD']).write_text(sys.argv[-2])
+record=Path(os.environ['PAIR_WAL_QUERY_RECORD'])
+pending=record.with_suffix('.pending')
+pending.write_text(sys.argv[-2])
+os.replace(pending,record)
 mode=os.environ['PAIR_WAL_QUERY_MODE']
 if mode=='query-error':sys.exit(43)
 if mode=='query-cancel':

@@ -16,6 +16,10 @@ func TestCodexResumeOSUsesPrivateAPIOnlyScope(t *testing.T) {
 	if _, err := exec.LookPath("sqlite3"); err != nil {
 		t.Skip("sqlite3 unavailable")
 	}
+	python, err := exec.LookPath("python3")
+	if err != nil {
+		t.Skip("python3 unavailable")
+	}
 	for _, prefix := range [][]string{nil, {"exec"}} {
 		t.Run(fmt.Sprint(prefix), func(t *testing.T) {
 			root, err := filepath.EvalSymlinks(t.TempDir())
@@ -24,7 +28,7 @@ func TestCodexResumeOSUsesPrivateAPIOnlyScope(t *testing.T) {
 			}
 			home, codex, state, cwd := filepath.Join(root, "home"), filepath.Join(root, "native"), filepath.Join(root, "state"), filepath.Join(root, "work")
 			sessions := filepath.Join(codex, "sessions", "2026", "10", "15")
-			for _, p := range []string{home, codex, state, cwd, sessions, filepath.Join(root, "system")} {
+			for _, p := range []string{home, codex, state, cwd, sessions, filepath.Join(root, "system"), filepath.Join(root, "writer")} {
 				if err := os.MkdirAll(p, 0700); err != nil {
 					t.Fatal(err)
 				}
@@ -46,10 +50,9 @@ func TestCodexResumeOSUsesPrivateAPIOnlyScope(t *testing.T) {
 				t.Fatal(err)
 			}
 			db := filepath.Join(state, "state_5.sqlite")
-			sql := fmt.Sprintf("CREATE TABLE threads(id TEXT,rollout_path TEXT,updated_at_ms INTEGER,archived INTEGER,preview TEXT,cwd TEXT,source TEXT,model_provider TEXT); INSERT INTO threads VALUES('%s','%s',100000,0,'visible','%s','cli','openai');", id, path, cwd)
-			if out, err := exec.Command("sqlite3", db, sql).CombinedOutput(); err != nil {
-				t.Fatalf("fixture %s %v", out, err)
-			}
+			// Latest admission requires a stable, present WAL. Copy while the
+			// private writer is idle and omit SHM, as in the native-mutation test.
+			copyCodexWALFixture(t, python, filepath.Join(root, "writer", "state_5.sqlite"), db, id, path, cwd, "")
 			reader := si.CodexConfigReader{SystemDir: filepath.Join(root, "system"), ManagedPolicy: func() (si.CodexManagedPolicyStatus, error) { return si.CodexManagedPolicyAbsent, nil }}
 			rt := OSRuntime{DataDir: filepath.Join(root, "pair"), codexConfigReader: &reader}
 			args := append([]string{"-p", "runtime"}, prefix...)
@@ -72,7 +75,7 @@ func TestCodexResumeOSUsesPrivateAPIOnlyScope(t *testing.T) {
 			if err != nil || pinned.NativeID != id || pinned.Kind != NativeResumeExplicit {
 				t.Fatalf("not pinned: %+v %v", pinned, err)
 			}
-			for _, variant := range []string{"malformed-session-meta", "malformed-turn-context", "mixed-scoped-flags"} {
+			for _, variant := range []string{"malformed-session-meta", "malformed-turn-context", "mixed-scoped-flags", "absent-wal", "non-wal"} {
 				if variant == "malformed-turn-context" && len(prefix) == 0 {
 					continue
 				}
@@ -86,6 +89,42 @@ func TestCodexResumeOSUsesPrivateAPIOnlyScope(t *testing.T) {
 						body = raw
 						attemptArgs = append([]string{"-p", "runtime", "--disable", "worktrees"}, prefix...)
 						attemptArgs = append(attemptArgs, "resume", "--last", "-c", "features={worktrees=true}", "continue work")
+					}
+					if variant == "absent-wal" || variant == "non-wal" {
+						body = raw
+						originalDB, err := os.ReadFile(db)
+						if err != nil {
+							t.Fatal(err)
+						}
+						originalWAL, err := os.ReadFile(db + "-wal")
+						if err != nil {
+							t.Fatal(err)
+						}
+						t.Cleanup(func() {
+							if err := os.WriteFile(db, originalDB, 0600); err != nil {
+								t.Error(err)
+							}
+							if err := os.WriteFile(db+"-wal", originalWAL, 0600); err != nil {
+								t.Error(err)
+							}
+						})
+						// The fixture writer has closed and checkpointed its own
+						// source. Copy a valid populated main DB, then omit WAL.
+						checkpointed, err := os.ReadFile(filepath.Join(root, "writer", "state_5.sqlite"))
+						if err != nil {
+							t.Fatal(err)
+						}
+						if err := os.WriteFile(db, checkpointed, 0600); err != nil {
+							t.Fatal(err)
+						}
+						if err := os.Remove(db + "-wal"); err != nil {
+							t.Fatal(err)
+						}
+						if variant == "non-wal" {
+							if output, err := exec.Command("sqlite3", db, "PRAGMA journal_mode=DELETE").CombinedOutput(); err != nil {
+								t.Fatalf("private rollback fixture: %v %s", err, output)
+							}
+						}
 					}
 					if err := os.WriteFile(path, []byte(body), 0600); err != nil {
 						t.Fatal(err)
