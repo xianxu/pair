@@ -130,3 +130,61 @@ func TestResolveCodexHomeExplicitDirectoryValidation(t *testing.T) {
 		t.Fatalf("symlink home=%q err=%v; want %q", got, err, want)
 	}
 }
+
+func TestNativeTranscriptRuntimeSharesHomeRouting(t *testing.T) {
+	fallback := t.TempDir()
+	custom := t.TempDir()
+	physical, err := filepath.EvalSymlinks(custom)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name, value, startup, want string
+		fail                       bool
+	}{
+		{name: "default", want: filepath.Join(fallback, ".codex", "sessions")},
+		{name: "custom", value: custom, want: filepath.Join(physical, "sessions")},
+		{name: "invalid", value: filepath.Join(custom, "missing"), fail: true},
+		{name: "historical relative", value: "native", fail: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			runtime, err := NewNativeTranscriptRuntime(fallback, t.TempDir(), AgentCodex, tc.startup, func(key string) string {
+				if key != "CODEX_HOME" {
+					t.Fatalf("constructor queried %q instead of explicit fallback home", key)
+				}
+				return tc.value
+			})
+			if tc.fail {
+				if err == nil {
+					t.Fatal("unavailable home accepted")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			roots := runtime.NativeRoots(AgentCodex)
+			if len(roots) != 1 || roots[0].Name != "codex-sessions" || roots[0].Path != tc.want {
+				t.Fatalf("roots=%+v; want %q", roots, tc.want)
+			}
+		})
+	}
+	for _, agent := range []Agent{AgentClaude, AgentQoder} {
+		t.Run(string(agent), func(t *testing.T) {
+			base := NewOSRuntime(fallback, "pairdata")
+			runtime, err := NewNativeTranscriptRuntime(fallback, "pairdata", agent, "", func(key string) string { t.Fatalf("non-Codex queried %q", key); return "invalid" })
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, want := runtime.NativeRoots(agent), base.NativeRoots(agent)
+			if len(got) != len(want) {
+				t.Fatalf("roots=%+v; want %+v", got, want)
+			}
+			for i := range want {
+				if got[i] != want[i] {
+					t.Fatalf("roots=%+v; want %+v", got, want)
+				}
+			}
+		})
+	}
+}

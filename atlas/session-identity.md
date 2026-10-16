@@ -474,7 +474,8 @@ override a current ledger generation.
 
 Exact-ID validation, ledger evidence and recovery use the same transcript home,
 routed by `launcher/native_inventory_os.go` through
-`sessioninventory.ResolveCodexHome` and `WithCodexHome`. An explicit CODEX_HOME
+`sessioninventory.NewNativeTranscriptRuntime`, `ResolveCodexHome` and
+`WithCodexHome`. Recovery discovery and validation share this route. An explicit CODEX_HOME
 is an existing canonical directory; a relative value uses the proven startup
 working directory before native `-C`. Unset or empty uses HOME/.codex. This
 routes transcript lookup only; it does not select an indirect resume target.

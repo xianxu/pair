@@ -19,8 +19,11 @@ still require proven identity; indirect compatibility is not proof.
   before native `-C`; missing provenance cannot be guessed from a selected cwd.
 - Empty or unset CODEX_HOME uses HOME/.codex, which need not exist yet.
 
-`launcher/native_inventory_os.go` applies that home consistently to exact-ID
-validation, ledger evidence and recovery. This changes transcript lookup only;
+`sessioninventory.NewNativeTranscriptRuntime` applies that home consistently to
+exact-ID validation, ledger evidence, recovery discovery/validation and legacy
+held-file ownership checks. Historical recovery has no proven startup directory;
+a relative custom home therefore cannot authorize a candidate. An unavailable
+Codex home blocks Codex entries only, preserving other agents in a shared ledger. This changes transcript lookup only;
 the shared admission protocol remains unchanged. Session inventory rejects
 Codex indirect selector requests before IO, including legacy requests carrying
 provider or database metadata. Other agents retain their selector behavior.

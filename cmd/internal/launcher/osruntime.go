@@ -702,17 +702,23 @@ func (r OSRuntime) ReadLedger(tag string) ([]LedgerEntry, error) {
 	if err != nil {
 		return nil, err
 	}
-	var nativeErr error
+	unavailable := map[string]bool{}
 	entries := parseLedger(raw, func(current sessionledger.Current) sessioninventory.ResumeTarget {
 		native, err := r.nativeInventory(current.Launch.Agent, "")
 		if err != nil {
-			nativeErr = err
+			unavailable[current.Launch.Agent] = true
 			return sessioninventory.ResumeTarget{Status: sessioninventory.BindingUnbound}
 		}
 		return sessioninventory.ResumeTargetForRuntimeLaunch(native, current)
 	})
-	if nativeErr != nil {
-		return nil, nativeErr
+	// Namespace failures affect that agent's authority, not the whole ledger.
+	// Bound and compatibility rows must also refuse resume rather than appear
+	// Fresh or supply a saved ID after the typed projection became unavailable.
+	for index := range entries {
+		if unavailable[entries[index].Agent] {
+			entries[index].SessionID = ""
+			entries[index].ResumeBlocked = true
+		}
 	}
 	return entries, nil
 }

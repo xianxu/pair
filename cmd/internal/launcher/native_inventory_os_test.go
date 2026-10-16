@@ -85,8 +85,8 @@ func TestNativeInventoryInvalidCustomHomeCannotReuseDefault(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Setenv("CODEX_HOME", filepath.Join(home, "missing"))
-	if entries, err := r.ReadLedger("work"); err == nil {
-		t.Fatalf("invalid custom home projected ledger: %+v", entries)
+	if entries, err := r.ReadLedger("work"); err != nil || len(entries) != 1 || entries[0].SessionID != "" || !entries[0].ResumeBlocked {
+		t.Fatalf("invalid custom home gained ledger authority: %+v %v", entries, err)
 	}
 	if id, status := r.EstablishedSessionID("scope", "work", "codex"); id != "" || status == sessioninventory.BindingEstablished {
 		t.Fatalf("invalid custom home projected identity=%q %s", id, status)
@@ -118,8 +118,8 @@ func TestNativeInventoryRelativeHomeUsesCallersDirectory(t *testing.T) {
 		}
 	}
 	nativeInventoryLedger(t, r, "codex", false)
-	if entries, err := r.ReadLedger("work"); err == nil {
-		t.Fatalf("relative home ledger inferred startup cwd: %+v", entries)
+	if entries, err := r.ReadLedger("work"); err != nil || len(entries) != 1 || entries[0].SessionID != "" || !entries[0].ResumeBlocked {
+		t.Fatalf("relative home ledger inferred startup cwd: %+v %v", entries, err)
 	}
 	if id, _ := r.EstablishedSessionID("scope", "work", "codex"); id != "" {
 		t.Fatalf("relative home identity inferred startup cwd: %q", id)
@@ -150,8 +150,8 @@ func TestNativeInventoryUnknownStartupCannotResolveRelativeHome(t *testing.T) {
 	if _, err := r.nativeInventory("codex", ""); err == nil {
 		t.Error("unknown historical startup cwd inferred from current process")
 	}
-	if _, err := r.ReadLedger("work"); err == nil {
-		t.Error("ledger inferred historical startup cwd")
+	if entries, err := r.ReadLedger("work"); err != nil || len(entries) != 1 || entries[0].SessionID != "" || !entries[0].ResumeBlocked {
+		t.Errorf("ledger inferred historical startup cwd or discarded unavailable entry: %+v %v", entries, err)
 	}
 	if id, _ := r.EstablishedSessionID("scope", "work", "codex"); id != "" {
 		t.Error("identity inferred historical startup cwd")
