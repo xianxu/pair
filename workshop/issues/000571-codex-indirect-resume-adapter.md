@@ -430,3 +430,14 @@ seen/hypothesis, no fix or timeout change in #571. One unchanged targeted repeat
 passed1.567s. TL report70f0451a confirmed submitted. Per the approved flake
 rule, one recorded rerun now targets the same exact remote head03495ef7; no
 code changed. Stop/report rather than an open-ended series if it fails again.
+
+### 2026-10-15 — integrate #594 before the bounded retry
+
+The exact03495ef7 retry waited in the machine queue and ran no recipes. While
+queued, #594 landed messaging code on main. Cancelled only owned sdlc pid30019
+(exit130 before lock acquisition), merged main cleanly at
+7e383735e01672e3aebcfeae7a385becfc955f11, and started the single final recorded
+retry there. The adapter code is unchanged; this avoids a later integration
+suite. Hub report55f6456a confirmed submitted. Inflight log:
+/Users/xianxu/workspace/pair/.git/sdlc/test-stats/inflight/b30420b01312c5b7d54bb341e95b5c09/run.log.
+#596 now carries the retained failure path and targeted pass on main.
