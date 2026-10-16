@@ -177,3 +177,17 @@ The R2 task2 identity-case enumeration is superseded by this function-level stra
 - Proposed qualification: two same-head isolated passes with **each lane<=300s**, one recorded full suite with **each lane<=420s** and full command wall<=900.89s. Current models predict190s diagnostic /237s loaded worst lanes but do not prove these. Record discovery/build, execution, machine queue and host/co-tenants separately. If these budgets fail, retain allowance/report/re-plan, never extend a deadline or increase capacity. Existing full-flow close review and landing line remain mandatory.
 
 ARCH-DRY/ARCH-PURE: ordinary Go plus pure selection/accounting, no copied test engine. ARCH-PURPOSE: full inventory and unchanged domain/assertions. ARCH-CONSTRAINTS: cap CPU, build jobs and workers separately, rather than only per-process parallelism. ARCH-ORDER/ARCH-FUNERAL: joined process groups and scoped evidence lifetime. ARCH-MOCK: retain real producer and Git conformance from R2. The additional machinery is justified only if the hub accepts this measured residual gap.
+
+
+### 2026-10-16 — R5: accepted R2 landing scope; capacity deferred
+
+**Approved decision:** verified TL receipt898fac62-3c98-445e-9bf3-0bd7b9f78de2 says close and land R2 now, retaining #610; afterwards pair:1 measures one quiet isolated control on fresh main after verifying every suite lock is free. Only a control above about200s brings R4 back as a separate item for review. R3 numerical qualification and R4 machinery are therefore explicitly not gates/tasks for this R2 landing. Historical incomplete sharding/timeout-removal tasks above are superseded, not completed. The issue's active Spec/Done when/Plan reflect the revised acceptance.
+
+Active close checklist:
+
+- [x] R2 tasks1–3 implemented and focused property/identity/durable/real-fixture checks, ordered-domain fingerprints, unchanged-disposition comparison, race and mutation controls completed. Separate Git storage regression corrected and verified red/green.
+- [x] Completed before/after profiles and residual/gaps reported to hub; no unsupported quiet/control reliability claim.
+- [ ] Integrate main, retain allowance, update atlas fixture guidance, push PR and record full suite; fix any R2 regression before closure.
+- [ ] Full-flow close review, address findings and land through the line. TL owns the project record.
+
+Post-landing measurement remains an explicit pair:1/hub follow-through, with no runner implementation in this issue. It cannot be counted as passed before it runs.

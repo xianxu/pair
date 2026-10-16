@@ -26,20 +26,20 @@ Couchcore consumes nearly Go's default ten-minute per-package timeout: #591's in
 
 ## Spec
 
-Profile couchcore's slowest tests using recorded per-test execution data under both isolated and suite-equivalent load. Distinguish real IO/setup cost, serialization and scheduling waits. Choose a measured package split or deterministic sharding strategy that preserves test inventory, fixture ownership, assertions and cancellation. Set and defend a practical execution budget with headroom, and remove #610's temporary 20m allowance when the measured suite is reliably within that budget. No retries, skips or longer sleeps as a performance fix.
+Land the measured R2 reductions to couchcore's test computation, Git subprocesses and durable fixture setup while preserving every existing assertion, domain point and case disposition. Record per-test before/after evidence and validate the integrated change through the full suite and full-flow review. Keep #610's temporary20m allowance unchanged. Quiet post-landing measurement and any conditional lane work are separate from this landing, as directed by the hub in R5 below. No production changes, new skips, sleeps, retries or longer fixture deadlines.
 
 ## Done when
 
-- [ ] Recorded profiles identify the slowest tests and quantify execution separately from suite queue wait, under idle and representative load.
-- [ ] A justified package split or sharding design preserves every test and its isolation contract, with deterministic coverage and bounded concurrency.
-- [ ] Before/after full-suite measurements demonstrate the agreed execution budget with headroom; fixture deadlines and assertions remain intact.
-- [ ] The temporary 20m allowance from #610 is removed or replaced by the measured, documented steady-state budget.
+- [x] Measured profiles attribute the expensive tests and record R2 before/after per-test evidence with host/co-tenant and scheduling limits explicit.
+- [x] R2 preserves all existing case dispositions and the ordered2,406,528-point domain, with focused race verification and semantic mutation controls.
+- [ ] The integrated R2 head passes the recorded full suite and full-flow close review, then lands through the line.
+- [x] #610's allowance remains unchanged; pair:1 owns one quiet control on landed main after checking no suite lock is held. R4 is deferred and needs separate review only if that control remains above about200s.
 
 ## Plan
 
-- [x] Measure an isolated couchcore run with Go JSON events; distinguish execution, paused parallel tests, compilation/setup, and machine co-tenancy.
-- [ ] Compare suite-equivalent timings, audit fixture/package boundaries, and send a measured full-flow design to the hub before any split.
-- [ ] After design approval, implement and qualify the agreed test organization, inventory preservation and execution budget; remove the temporary allowance; full-flow review and landing.
+- [x] Profile and identify causes; obtain the approved R2 cost-first plan and full-flow change-code checkpoint.
+- [x] Implement the approved test-only reductions; prove domain/case preservation and focused race/mutation checks; report the complete measured profile.
+- [ ] Run the recorded full suite on the integrated head, update verification guidance, close with the mandatory review, and land R2 retaining #610's allowance.
 
 ## Log
 
@@ -100,3 +100,28 @@ total: 2.21
 
 
 2026-10-16 — R2 residual report: corrected head8b9977e09121c893686f3049068b63e8357bafe8 PASS340.356s package/346.97s command under a competing full suite that began mid-run. Every old top-level/subtest name has identical terminal disposition; five new top-level guards,17 unchanged existing top-level skips. The prior package diagnostic278.599s is over200s but failed the subsequently fixed separate-storage fixture, so it is not a qualified green isolated control. Full per-test table, hashes, queue accounting and gaps are now durable in the profile. Cost-only acceptance not met; #610 retained. R4 proposes three intact-package lanes with aggregate CPU3/workers9/build jobs3 and models190s diagnostic/237s loaded worst lane; no runner code written. Await hub decision on this proposal versus first scheduling a corrected quiet control, then a new full-flow plan-quality checkpoint before any structure change. No full-suite/SHIP/landing claim.
+
+
+### 2026-10-16 — R5: land R2 independently of the residual capacity question
+
+Verified hub decision898fac62-3c98-445e-9bf3-0bd7b9f78de2 explicitly authorizes closing/landing the existing reductions now while retaining #610. This supersedes R3's200s/repeat and420s/full-wall requirements as gates for this landing; no claim is made that those performance budgets passed. R4 is deferred to a separate item/review, conditional on one quiet isolated control after landing. Pair:1 owns that control on fresh main, first checking the machine-wide suite locks are all free and observing co-tenants during the run; the hub owns any resulting project/capacity decision. Full recorded correctness suite and mandatory close review still apply. Active Spec/Done when/Plan above are reconciled to this scope. Prior criteria are preserved below as historical scope rather than erased or silently checked complete.
+
+#### Superseded pre-R5 scope
+
+## Spec
+
+Profile couchcore's slowest tests using recorded per-test execution data under both isolated and suite-equivalent load. Distinguish real IO/setup cost, serialization and scheduling waits. Choose a measured package split or deterministic sharding strategy that preserves test inventory, fixture ownership, assertions and cancellation. Set and defend a practical execution budget with headroom, and remove #610's temporary 20m allowance when the measured suite is reliably within that budget. No retries, skips or longer sleeps as a performance fix.
+
+## Done when
+
+- [ ] Recorded profiles identify the slowest tests and quantify execution separately from suite queue wait, under idle and representative load.
+- [ ] A justified package split or sharding design preserves every test and its isolation contract, with deterministic coverage and bounded concurrency.
+- [ ] Before/after full-suite measurements demonstrate the agreed execution budget with headroom; fixture deadlines and assertions remain intact.
+- [ ] The temporary 20m allowance from #610 is removed or replaced by the measured, documented steady-state budget.
+
+## Plan
+
+- [x] Measure an isolated couchcore run with Go JSON events; distinguish execution, paused parallel tests, compilation/setup, and machine co-tenancy.
+- [ ] Compare suite-equivalent timings, audit fixture/package boundaries, and send a measured full-flow design to the hub before any split.
+- [ ] After design approval, implement and qualify the agreed test organization, inventory preservation and execution budget; remove the temporary allowance; full-flow review and landing.
+
