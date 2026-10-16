@@ -111,6 +111,7 @@ type ChangelogArtifactSet struct {
 	OpenLock    string
 	DistillLock string
 	Status      string
+	NvimPID     string // viewer embed pid, keyed to the log it watches: the viewer is per session, not per nvim kind (#583)
 	Ready       string
 }
 
@@ -803,6 +804,7 @@ func (p Paths) ChangelogArtifacts(agent, sessionID string) (ChangelogArtifactSet
 		OpenLock:    base + ".openlock",
 		DistillLock: base + ".distill.lock",
 		Status:      base + ".status",
+		NvimPID:     base + ".nvim-pid",
 		Ready:       p.ChangelogReady(agent),
 	}, nil
 }

@@ -200,6 +200,9 @@ func TestRunChangelogLaunchesDetachedDistillerAndViewer(t *testing.T) {
 	if rt.viewer == nil || rt.viewer.lua != "/h/nvim/changelog.lua" || rt.viewer.file != base+".md" {
 		t.Fatalf("viewer = %+v", rt.viewer)
 	}
+	if !hasEnv(rt.viewer.env, "PAIR_NVIM_PID_FILE="+base+".nvim-pid") {
+		t.Fatalf("viewer env missing pid record: %v", rt.viewer.env)
+	}
 }
 
 func TestRunChangelogSkipsDistillerWhenRunning(t *testing.T) {

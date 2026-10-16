@@ -212,6 +212,7 @@ func RunChangelog(opts Options, rt Runtime, stderr io.Writer) int {
 		"PAIR_CHANGELOG_LOG=" + log,
 		"PAIR_CHANGELOG_DLOCK=" + dlock,
 		"PAIR_CHANGELOG_STATUS=" + status,
+		"PAIR_NVIM_PID_FILE=" + changelog.NvimPID,
 	}
 	env = append(env, retentionEnv(opts, log, "changelog-viewer")...)
 	if err := rt.RunViewer(opts.PairHome+"/nvim/changelog.lua", log, env); err != nil {

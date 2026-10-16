@@ -52,8 +52,11 @@ func TestGCExactMatchesAndAmbiguity(t *testing.T) {
 		t.Fatalf("parked: %+v %v", m, err)
 	}
 	change, _ := p.ChangelogArtifacts("codex", "session-id")
-	if _, err := MatchArtifact(change.Anchor, owners, agents); err != nil {
-		t.Fatal(err)
+	for _, path := range []string{change.Anchor, change.NvimPID} {
+		m, err := MatchArtifact(path, owners, agents)
+		if err != nil || m.Owner != a || m.Family != "changelog" {
+			t.Fatalf("%s: %+v %v", path, m, err)
+		}
 	}
 	group, err := InventoryArtifacts(a, owners, agents, []string{p.Draft(), filepath.Join(a.Directory(), "unknown-a")})
 	if err != nil || len(group.Members) != 1 || len(group.Blockers) != 1 {

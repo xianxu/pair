@@ -266,8 +266,16 @@ func TestCompanionArtifactSetsResolveEverySibling(t *testing.T) {
 		changelog.OpenLock != "/data/repos/scope/changelog-work-codex-sid.openlock" ||
 		changelog.DistillLock != "/data/repos/scope/changelog-work-codex-sid.distill.lock" ||
 		changelog.Status != "/data/repos/scope/changelog-work-codex-sid.status" ||
+		changelog.NvimPID != "/data/repos/scope/changelog-work-codex-sid.nvim-pid" ||
 		changelog.Ready != "/data/repos/scope/changelog-work-codex.ready" {
 		t.Fatalf("changelog companions = %+v", changelog)
+	}
+	sessionless, err := paths.ChangelogArtifacts("codex", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sessionless.NvimPID != "/data/repos/scope/changelog-work-codex.nvim-pid" {
+		t.Fatalf("sessionless changelog companions = %+v", sessionless)
 	}
 }
 

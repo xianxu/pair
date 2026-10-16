@@ -262,7 +262,7 @@ func ownerCandidates(p Paths, path string, agents []string) []ArtifactMember {
 		add("scrollback", scroll.Raw, scroll.Events, scroll.ANSI, scroll.Viewport, scroll.OpenLock)
 		session := ""
 		base, _ := p.ChangelogSessionChecked(a, "")
-		for _, suffix := range []string{".md", ".anchor", ".cleaned", ".openlock", ".distill.lock", ".status"} {
+		for _, suffix := range []string{".md", ".anchor", ".cleaned", ".openlock", ".distill.lock", ".status", ".nvim-pid"} {
 			if strings.HasPrefix(path, base+"-") && strings.HasSuffix(path, suffix) {
 				candidate := strings.TrimSuffix(strings.TrimPrefix(path, base+"-"), suffix)
 				if validateComponent("session", candidate) == nil {
@@ -272,7 +272,7 @@ func ownerCandidates(p Paths, path string, agents []string) []ArtifactMember {
 			}
 		}
 		c, _ := p.ChangelogArtifacts(a, session)
-		add("changelog", c.Log, c.Anchor, c.Cleaned, c.OpenLock, c.DistillLock, c.Status, c.Ready)
+		add("changelog", c.Log, c.Anchor, c.Cleaned, c.OpenLock, c.DistillLock, c.Status, c.NvimPID, c.Ready)
 	}
 	parkedBase, _ := p.ParkedScrollbackChecked("probe")
 	prefix := strings.TrimSuffix(parkedBase, "probe")
