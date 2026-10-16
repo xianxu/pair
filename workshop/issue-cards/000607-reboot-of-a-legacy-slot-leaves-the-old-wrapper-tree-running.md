@@ -1,6 +1,6 @@
 ---
 id: 000607
-status: codecomplete
+status: done
 created: 2026-10-15
 updated: 2026-10-16
 estimate_hours:
@@ -22,6 +22,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: c8e2c29a75356cb65202fd8b0f1afcc52f4b262f
         evidence_commit: f2b234218027ab0319c25c92e2dd705602819ec4
+        landed_commit: e6019bc5e0fe2ccf9317b78e2ccbe9c9b026b17e
 ---
 
 # Reboot of a legacy slot leaves the old wrapper tree running
