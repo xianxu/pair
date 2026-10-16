@@ -15,7 +15,7 @@ claimant:
     repository: github.com/xianxu/pair
 ---
 
-# Resolve Codex indirect resumes from faithful read-only configuration
+# Keep Codex indirect resumes native; route exact-ID transcript homes
 
 ## Problem
 
