@@ -89,3 +89,83 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-16T09:12:35-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 602 — Tests build the pair binary per test (11 tests): build once per suite and share it; guard against new per-test builds |
+| repo | pair |
+| issue file | workshop/issues/000602-tests-build-the-pair-binary-per-test-11-tests-build-once-per-suite-and-share-it-guard-against-new-per-test-builds.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 53c96ded8854c4da834c594a9901b08c6f8078f2..0f07e6243f86ec8807daf6c1a7991c4189bdce62 |
+| command | sdlc close --issue 602 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-16T09:12:35-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+Both prior findings are addressed, and focused shared-binary and standalone checks pass. One guard defect blocks closure: it misses six of the eleven original build sites because it does not recognize their relative package paths.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      tests/lib/pair-test-binary.sh:25-30 preserves caller-relative outputs before selecting its checkout. The new regressions at tests/lib/pair-test-binary-test.sh:31-33 pass with the fix and fail against the pre-fix builder. The real embedded-runtime script also passes from tests/ with PAIR_TEST_BINARY unset.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      README.md:1703-1713 now documents the plain suite binary, supplied absolute executable, lazy package fallback, cleanup ownership, and development linker distinction. These statements match Makefile.local:224-231, testpair.BinaryContext/Run, and the shell wrapper.
+findings:
+  - id: new
+    severity: Important
+    kind: defect
+    family: full-pair-target-normalization
+    title: |
+      Source guard accepts the relative package paths used by six original offenders
+    detail: |
+      cmd/internal/testpair/build_guard_test.go:194-196 recognizes ./cmd/pair-go and paths ending /cmd/pair-go, but misses ../../pair-go. Running the guard against all eleven original Go sources detects only five; the missed family comprises couchcmd/continuation_acceptance_test.go, couchcmd/switchagent_acceptance_test.go, hoprttcmd/hoprtt_test.go, launcher/agent_command_acceptance_test.go, launcher/couch_launch_prompt_acceptance_test.go, and launcher/selected_root_test.go, all under cmd/internal/. Additional direct, CommandContext, and table mutation controls using ../../pair-go, plus a sibling ../pair-go control from cmd/couch, all pass undetected. ARCH-PURPOSE: these per-test builds can be reintroduced without failing the guard. Normalize package targets against the relevant working directory and add regression controls covering every original recipe while retaining unrelated-build negative controls.
+```
+
+1. **Strengths**
+
+   - All eleven Go consumers and four shell consumers use the centralized binary infrastructure.
+   - Lifecycle tests verify once-only construction, supplied-binary preservation, cancellation, and cleanup.
+   - README and atlas describe the new surface and ownership.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** The target-normalization defect above leaves the guard incomplete.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes:** `testpair -race` passed. Focused artifactpath, launcher, and pair-go checks passed; standalone hoprttcmd and embedded-runtime checks passed. Review-only overlay tests demonstrated the guard gap without changing tracked files. The full suite was not rerun.
+
+6. **Architectural notes:** **ARCH-DRY: pass**—construction is centralized. **ARCH-PURE: pass**—guard analysis is separated from filesystem traversal; executable handling remains test-boundary glue. **ARCH-PURPOSE: flag**—enforcement misses the original relative-path recipes.
+
+7. **Plan revision recommendation:** Add a `## Revisions` entry requiring the guard to reject all eleven original recipes, including package-relative paths, and add those recipes to its regression controls before re-closing.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"5d552aed-d39f-41f3-8656-2faa556e8b19","repository":"github.com/xianxu/pair","issue_id":"000602","recipe":"small-diff-review","round":2,"attempt":1,"agent":"codex","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/8fe64bf90af9ddec","reviewed_head":"0f07e6243f86ec8807daf6c1a7991c4189bdce62","slot":"pair:1","requested_at":"2026-10-16T16:10:03.748738Z"},"phase":"finished","pid":535,"started_at":"2026-10-16T16:10:03.891458Z","finished_at":"2026-10-16T16:12:34.505336Z","session_id":"01a1457a-485e-7072-8bf6-0ba91087b947","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.895003167s
+head: "0f07e6243f86ec8807daf6c1a7991c4189bdce62"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

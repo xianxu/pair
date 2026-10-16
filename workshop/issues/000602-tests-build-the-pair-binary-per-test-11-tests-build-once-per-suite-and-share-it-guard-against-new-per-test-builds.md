@@ -94,6 +94,12 @@ Raw after-links.jsonl SHA256 7a87a46f26d860e1021fdc184a8a71066782d3d3335735693c9
 
 2026-10-16 R1 final verification: real standalone embedded-runtime script from tests/ PASS after clearing inherited COUCH_PAIR_DATA_DIR. Final recorded suite PASS on 52b3ed54b73720a9aa3aa48f7b508bfbd216c1d9 in 12m05s; log sha256 prefix 1a4df793016e at sdlc/local-checks/52b3ed54b73720a9aa3aa48f7b508bfbd216c1d9/suite.log. No failing tests; couchcore 367.806 s, testpair 2.927 s, wrapcmd 81.490 s. Environment scrub passes 225 derived knobs. Server checks green. BR-1 and BR-2 fixes ready for the next fresh boundary pass.
 
+2026-10-16 close round 2: prior BR-1 and BR-2 disposed. New BR-3 Important: source guard recognizes only five of the eleven complete original Go source bodies; relative package targets used by six consumers are missed. Fix the family by normalizing relative targets and pin all eleven original recipes as regression controls, retaining unrelated-build negatives. No consumer/runtime change required.
+
+2026-10-16 BR-3 qualification: temporary overlay against all eleven complete original Go files at 53c96ded observed RED 5/11 (exact six relative-target misses), then GREEN 11/11 after package-cwd normalization and bounded explicit-command-Dir facts. Portable committed fixtures cover all eleven command recipes, direct/context/table relatives, absolute/module targets, and unrelated relative/explicit-Dir negatives. Targeted guard tests pass; testpair -race PASS 9.553 s. Consumer and runtime code unchanged.
+
 ## Revisions
 
 2026-10-16 R1 — close review BR-1 reproduced the shell builder resolving source relative to caller cwd; centralize checkout selection while resolving relative output against the original cwd, with subdirectory and outside-checkout fake-compiler regression controls plus the real embedded-runtime script from tests/. BR-2 requires README coverage of the complete shared/supplied/fallback lifecycle and plain-vs-development defaults. Scope and original assertions unchanged; re-run targeted checks and the recorded full suite before re-close.
+
+2026-10-16 R2 — guard acceptance must include all eleven original Go recipes, including ../../pair-go, sibling ../pair-go and normalized relative forms. Add compact portable recipe fixtures and independently qualify the full original source bodies; preserve unrelated relative build negative controls. Re-run targeted guard/race checks and recorded suite before close.

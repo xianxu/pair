@@ -2039,3 +2039,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #602: adding a reusable Go test-support package still adds a non-_test.go source to the exhaustive artifact inventory. Classify its ownership and run the whole affected package before the full suite; a narrow acceptance -run misses inventory contracts.
 
 - #602 BR-1/BR-2: when centralizing build commands, enumerate each caller's cwd and original absolute/relative source semantics. Resolve the shared builder's checkout independently, preserve caller-relative output destinations, and test non-root invocation. Document the complete new test override/lifetime contract in README as well as the atlas.
+
+- #602 BR-3: a migration guard must fail against every original offender before its synthetic controls are considered sufficient. Normalize target paths in their actual working-directory context; root-relative examples alone miss package-relative recipes. Keep compact regression fixtures for the original command forms and verify the full original source bodies once.
