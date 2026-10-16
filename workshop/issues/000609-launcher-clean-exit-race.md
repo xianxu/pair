@@ -1,38 +1,55 @@
 ---
 id: 000609
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-16
 updated: 2026-10-16
 estimate_hours:
 severity: medium
-card_mirror: 'd745515c0d7e5e181ebb2be3af547826773d35ea' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '94b3fed43c408adcae9f0712294c24d04827a149' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-16T09:57:08-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:1
+    worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Launcher clean-exit cancellation test races TERM trap readiness
 
 ## Problem
+The clean-exit handoff fixture cancels after 100 ms. Under load TERM can arrive before the shell installs its clean-exit trap, yielding -1,nil rather than 0,nil. The sibling escalation fixture already publishes trap readiness.
 
 The recorded full suite for #589 at head ff788e65bb02408429d7e974389a2511d8492db2 failed TestCancelledHandoffReportsAChildsCleanExit in cmd/internal/launcher/osruntime_launch_test.go:85: handoff = -1, <nil>; want the child's own 0, nil. All other packages passed, including couchcmd, couchmessage and couchcore. Launcher source and tests have no diff from origin/main in #589.
 
 The fixture sends cancellation after a fixed 100 ms without confirming that its shell installed the TERM trap. A delayed shell startup could therefore receive TERM before the trap is ready. This is a hypothesis, not a controlled reproduction. The neighboring TERM-ignoring test already waits for a trap-ready file before cancellation.
 
 ## Spec
+Replace the timer with a test-owned trap-ready file written only after trap installation. Run the blocking handoff asynchronously, wait using testwait, cancel, and join before asserting the existing child exit contract. Cleanup cancels and joins even if readiness fails; the private directory owns the readiness file. Keep production, existing deadlines and assertions unchanged. ARCH-DRY: reuse the sibling readiness pattern and testwait; ARCH-ORDER/FUNERAL: readiness precedes cancellation and cleanup joins the child.
 
 Measure the failure ordering with a controllable fixture. Synchronize cancellation with the child's actual trap readiness while preserving the intended contract: a child that exits cleanly after cancellation returns its own exit status. Do not hide signalled exits, add sleeps, or extend deadlines.
 
 ## Done when
+- [ ] The clean-exit test cancels only after actual trap readiness and retains the 0,nil assertion.
+- [ ] Controlled pre-trap cancellation reproduces the signal result; corrected ordering and repeated focused/race/package checks pass.
+- [ ] Recorded full suite, CI and close review pass; land through the line.
 
 - A controlled ordering reproduction identifies why the clean-exit test observed a signalled exit.
 - Cancellation observes actual child readiness rather than elapsed time.
 - Isolated repeated and full-suite verification pass; production cancellation semantics remain covered.
 
 ## Plan
+- [ ] Record baseline and a controlled pre-trap readiness failure.
+- [ ] Replace the fixed cancellation timer with ready-file ordering and bounded join/cleanup.
+- [ ] Qualify focused repeats, race and launcher package; run recorded suite, close and land.
 
 - [ ]
 
 ## Log
+2026-10-16: Verified TL dispatch adc64359-f62a-452c-9eab-77625699f148, small plan may proceed after posting. Claimed and started from main. start-plan refreshed the stale ariadne tools and requested one canonical retry; retry succeeded. Existing sibling uses trap-ready file and testwait. Production runBlockingHandoff correctly reports child status; this is fixture ordering only.
 
 2026-10-16: Filed unassigned from pair:1 at the TL's direction, separate from #589. Failed recorded command: sdlc local-check run --name suite (make PAIR_GO_TRIMPATH=-trimpath test), head ff788e65bb02408429d7e974389a2511d8492db2. Full log: /Users/xianxu/workspace/pair/.git/sdlc/test-stats/failed/515ad3a2617b9f0f7d1aa19c39691236.log (sha256 prefix 0c6257440f80). This was the only failing test in the completed run.
 
