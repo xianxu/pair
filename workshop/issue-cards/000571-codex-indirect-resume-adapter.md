@@ -1,8 +1,8 @@
 ---
 id: 000571
-status: codecomplete
+status: done
 created: 2026-10-15
-updated: 2026-10-15
+updated: 2026-10-16
 estimate_hours: 5.9
 github_issue:
 started: 2026-10-15T10:22:13-07:00
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: f56a0d9faa0109cbabb85f0dcca8b1d5840cb135
         evidence_commit: bf58bc38f327d02aaebc6d1a0a3c046978dabdd2
+        landed_commit: b94f347b114a23faa3500a0f937e5a3637a2ae66
 ---
 
 # Keep Codex indirect resumes native; route exact-ID transcript homes
