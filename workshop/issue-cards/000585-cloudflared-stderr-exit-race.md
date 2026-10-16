@@ -1,6 +1,6 @@
 ---
 id: 000585
-status: codecomplete
+status: done
 created: 2026-10-15
 updated: 2026-10-15
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 803cfce8ecb914d4873c4b99c4da9f1bb36c7f7a
         evidence_commit: 8cc099574e42b5e778714af100209c87c6e5dc65
+        landed_commit: 27a12fec10e7df7df86e5a5fb7a4f2a2f655b199
 ---
 
 # Preserve cloudflared stderr on early process exit
