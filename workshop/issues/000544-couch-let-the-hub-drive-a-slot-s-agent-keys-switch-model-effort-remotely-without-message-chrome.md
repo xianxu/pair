@@ -114,6 +114,9 @@ Verified TL receipt07bd2c8d-c68d-4b63-9452-246f3506ed2c authorizes main merge/re
 
 `sdlc stage --build` replaced e1311121 on pair:0 with 6d65c4c4ef29bcdea3ea5b45f3dfdeed41ce1154. Verified target HEAD, clean checkout and Pair/Couch metadata at that exact revision with vcs.modified=false. The unrelated old pair-hoprtt warning remains. Started a new recorded suite on6d65c4c4 using the declared command; it is queued at the native gate, so the prior e1311121 pass is not claimed for this merge. Hub notified of the staged hash and hold. No restart, smoke, or peer input performed.
 
+
+- Recorded suite on staged6d65c4c4ef29bcdea3ea5b45f3dfdeed41ce1154 completed PASS, exit0 in11m12s, sdlc-local/suite recorded; all shell/editor/Go packages passed, including couchcmd63.316s, couchcore334.554s, wrapcmd88.520s. Log at `/Users/xianxu/workspace/pair/.git/sdlc/local-checks/6d65c4c4ef29bcdea3ea5b45f3dfdeed41ce1154/suite.log`, SHA256 prefix3108442b8880. Verified TL receipt48a986a8-1509-4793-b0b0-781f3d9473a2: wait for BOTH #587 and #569 to land, then merge origin/main, targeted verification and one restage/build for the operator's combined restart. At19:46 PDT both tracker landing outcomes remain not-landed; no merge/restage or smoke yet. #573/#579/#584/#585/#594 are already on origin/main.
+
 ## Revisions
 
 ### 2026-10-15 — reconcile landed recovery and stall supervision
