@@ -58,7 +58,7 @@ Canonical approved implementation design: [durable plan](../plans/000571-codex-i
 - [x] Resolve the native-selection mechanism re-plan: TL chose native compatibility, superseding the BR-5 classifier.
 - [x] Delete Codex prediction/config/snapshot machinery, including the old main collector; prove indirect zero-work native pass-through.
 - [x] Retain thin exact-ID home routing and baseline admission, with transcript-only tests and other-agent controls.
-- [ ] Update final docs/line accounting and pass targeted/race, recorded full suite and fresh close before landing.
+- [x] Update final docs/line accounting and pass targeted/race and recorded full suite; prepare fresh close and landing.
 
 ## Log
 
@@ -337,3 +337,14 @@ Post-main affected launcher/wrapper checks also pass: normal5.239s/3.897s,
 race6.121s/5.182s (Test.*(Native|Recovery)). Protocol/parser/createflow/wrapper
 baseline equality check against origin/main exits0. A race build launched
 during the merge had incomplete file visibility; this stable-tree rerun passes.
+
+### 2026-10-15 — fresh reduced-scope full suite passed
+
+Recorded suite on756e6233b261e51882aee68a192d1d9973e7351e completed exit0
+in11m29s, all shell/editor/Go recipes passed; no flakes or failures. Log:
+/Users/xianxu/workspace/pair/.git/sdlc/local-checks/756e6233b261e51882aee68a192d1d9973e7351e/suite.log,
+SHA256prefixf864162a0be1. Couchcore378.229s, launcher41.236s, wrapper51.147s.
+Only documentation/evidence changed after the pinned suite head. PR351 CI
+(conformance, merge-check, local-gates-guard) is green. Read-only/headless
+acceptance is approved by the TL; no pair:0 staging is required. Proceed to
+fresh full close review of the reduced scope, not a narrow fix review.
