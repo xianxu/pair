@@ -49,3 +49,18 @@ func TestArchiveSchedulerRunsDailyOnlyWhenConfigured(t *testing.T) {
 		t.Fatalf("no retry after the backoff: runs=%d", runs)
 	}
 }
+
+func TestArchiveLogHoldsTheLatestPassOnly(t *testing.T) {
+	store := t.TempDir()
+	for _, line := range []string{"first pass, a long line\n", "second\n"} {
+		f, err := openArchiveLog(store)
+		if err != nil {
+			t.Fatal(err)
+		}
+		f.WriteString(line)
+		f.Close()
+	}
+	if raw, _ := os.ReadFile(filepath.Join(store, "continuous.log")); string(raw) != "second\n" {
+		t.Fatalf("log %q, want only the latest pass", raw)
+	}
+}

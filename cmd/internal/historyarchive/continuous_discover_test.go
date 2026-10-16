@@ -96,6 +96,33 @@ func TestContinuousRootsOpsTeamsAndSharedGitCommonDirs(t *testing.T) {
 	if got := byKind["sdlc-runtime"]; len(got) != 2 {
 		t.Fatalf("sdlc roots %+v, want one per repository", got)
 	}
+	// A worktree of alpha is a sibling with the same common dir: still one
+	// root per repository, keyed without a worktree.
+	alpha := filepath.Join(workspace, "alpha")
+	if out, err := exec.Command("git", "-C", alpha, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "--allow-empty", "-m", "init").CombinedOutput(); err != nil {
+		t.Fatalf("commit: %v %s", err, out)
+	}
+	if out, err := exec.Command("git", "-C", alpha, "worktree", "add", "-q", filepath.Join(workspace, "alpha-slot1")).CombinedOutput(); err != nil {
+		t.Fatalf("worktree add: %v %s", err, out)
+	}
+	roots, err = ContinuousRoots(context.Background(), inv, cfg, "host", home, map[string]string{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var sdlc []SourceRoot
+	for _, r := range roots {
+		if r.Kind == "sdlc-runtime" {
+			sdlc = append(sdlc, r)
+		}
+	}
+	if len(sdlc) != 2 {
+		t.Fatalf("sdlc roots with a worktree sibling %+v, want one per repository", sdlc)
+	}
+	for _, r := range sdlc {
+		if r.Identity.Worktree != "" {
+			t.Fatalf("sdlc identity %+v carries a worktree; it must be stable across siblings", r.Identity)
+		}
+	}
 	for _, kind := range []string{"claude-transcripts", "codex-transcripts", "qoder-transcripts", "codex-database"} {
 		if len(byKind[kind]) != 1 {
 			t.Fatalf("%s roots %+v", kind, byKind[kind])

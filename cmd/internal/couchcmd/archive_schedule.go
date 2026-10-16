@@ -39,8 +39,7 @@ func newArchiveScheduler(pairData string, notify func(string)) *archiveScheduler
 		if err != nil {
 			return err
 		}
-		// The log holds the latest pass only.
-		logFile, err := os.OpenFile(filepath.Join(store, "continuous.log"), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
+		logFile, err := openArchiveLog(store)
 		if err != nil {
 			return err
 		}
@@ -53,6 +52,12 @@ func newArchiveScheduler(pairData string, notify func(string)) *archiveScheduler
 		cmd.WaitDelay = time.Second
 		return cmd.Run()
 	}}
+}
+
+// openArchiveLog opens the pass log fresh: it holds the latest pass only, so it
+// never grows without bound.
+func openArchiveLog(store string) (*os.File, error) {
+	return os.OpenFile(filepath.Join(store, "continuous.log"), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
 }
 
 // due reports whether a pass should start now: configured, and no completed

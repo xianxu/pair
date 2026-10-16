@@ -2,6 +2,7 @@ package historyarchive_test
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"sort"
@@ -159,4 +160,41 @@ func sameKeys(a, b map[string]string) bool {
 		}
 	}
 	return true
+}
+
+type failingSnapshotter struct{}
+
+func (failingSnapshotter) Snapshot(context.Context, string, string, string) (bool, string, error) {
+	return false, "", errors.New("snapshot store unavailable")
+}
+func (failingSnapshotter) Sweep() error { return nil }
+
+// One failing source does not starve the others, and the pass is not marked
+// complete.
+func TestContinuousPassKeepsGoingPastAFailingSource(t *testing.T) {
+	base, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	home := filepath.Join(base, "home")
+	now := time.Date(2026, 10, 16, 12, 0, 0, 0, time.UTC)
+	old := now.Add(-100 * time.Hour)
+	// The database fails; ops documents come after it in pass order.
+	for rel, body := range map[string]string{".claude/projects/p/a.jsonl": "quiet", ".codex/state_5.sqlite": "db", "ops/teams/devinfra/qa/q.md": "question"} {
+		p := filepath.Join(home, rel)
+		os.MkdirAll(filepath.Dir(p), 0o700)
+		os.WriteFile(p, []byte(body), 0o600)
+		os.Chtimes(p, old, old)
+	}
+	cfg := ha.ContinuousConfig{Version: 1, Recipients: []string{"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"}, Sink: filepath.Join(base, "sink"), Catalog: filepath.Join(base, "archive", "catalog.jsonl"), OpsRoot: filepath.Join(home, "ops")}
+	pass := ha.ContinuousPass{Archiver: ha.Archiver{Codec: testCodec(), Sink: &ha.LocalSink{Root: cfg.Sink}}, Config: cfg,
+		Store: filepath.Join(base, "archive"), SnapshotRoot: filepath.Join(base, "archive-snapshots"), Host: "h", Home: home,
+		Env: map[string]string{}, Snapshotter: failingSnapshotter{}, Now: func() time.Time { return now }}
+	r, err := pass.Run(context.Background())
+	if err == nil || r.Archived["claude-transcripts"] != 1 || r.Archived["ops-documents"] != 1 {
+		t.Fatalf("pass err=%v archived=%+v, want the failure reported and the transcript archived", err, r.Archived)
+	}
+	if _, err := os.Stat(filepath.Join(pass.Store, ha.LastRunName)); !os.IsNotExist(err) {
+		t.Fatal("a failed pass was marked complete")
+	}
 }
