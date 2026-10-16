@@ -132,3 +132,7 @@ item: milestone-review design=0.02 impl=0.20
 design-buffer: 0.15
 total: 2.15
 ```
+
+### 2026-10-16 — re-plan against landed #597/#600/#605/#607 (pair:2, Claude; sent to TL d0e96fbc, awaiting OK)
+
+Keep the wrapper-held per-conversation flock, owned-group cleanup, watcher binding pipe, all scan/reservation/admission deletions and the moved stop-set helpers. Drop the capability cutover gate ("relaunch older slots first") and the RecoveryIntent.Relaunch marker: on Couch paths they would be a fourth refusal against #597's design, and for standalone Pair they block every resume until all slots relaunch. The accepted transitional gap: pre-#595 wrappers hold no lock until relaunched. Launcher reserves no admission for anyone; #597's couchHosted bypass and ResumeRequired/Recovery skip go with it. Open question to the TL: a Couch resume whose lock is held by another live wrapper refuses at native start as the same "in use" refusal. Merge main (14 conflicts) before building. The intermittent TestOwnedGroupStopsDescendantsBeforeReap EPERM under -race stays open until measured.
