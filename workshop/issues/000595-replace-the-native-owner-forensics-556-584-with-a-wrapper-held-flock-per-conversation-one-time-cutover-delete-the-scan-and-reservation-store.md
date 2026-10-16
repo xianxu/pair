@@ -51,7 +51,7 @@ One maintenance cutover, one lock build: delete the global native owner scan, le
 
 Durable implementation plan: workshop/plans/000595-conversation-flock-plan.md (one atomic close boundary).
 
-- [ ] Obtain TL approval of the wrapper-lifetime/capability-cutover revision before change-code.
+- [x] Obtain TL approval of the wrapper-lifetime/capability-cutover revision before change-code.
 - [ ] Implement and verify the small lock, existing binding notification and owned-group cleanup; remove forensic/reservation authority in the same build, preserving moved source stop-set attribution.
 - [ ] Run full verification and SHIP review; coordinate the single operator maintenance acceptance; report actual net deletion and land as directed.
 
@@ -75,3 +75,7 @@ The original strict orphan-child and late Fresh-ID requirements remain in force.
 TL cb293d05 explicitly narrows inherited-child/orphan protection to wrapper lifetime and chooses a maintenance cutover. This supersedes the initial fd-to-native guarantee, orphan-child-keeps-lock acceptance, temporary override and proposed dual-guard milestones. Controlled exits kill the wrapper-owned group; SIGKILL/orphan recovery is #583/#587. The active Spec, Done when and durable plan now agree. Resume-only legacy capability gating leaves the existing confirmed Relaunch available to perform migration, avoiding a circular all-slots refusal; there is no new override flag. No code changed.
 
 Measured deletion baseline: 1,777 production + 2,766 test lines in dedicated old blocks, less 114 production lines moved/retained for stop-set safety, gives 1,663 replaceable production + 2,766 test lines. Allow 350–650 new production and 500–900 test lines: approximately 1,000–1,300 net production lines and 2,900–3,600 production-plus-test lines deleted, before extra bridge removals. This is a planning range, not a final diff claim. The revised plan is committed and sent before code.
+
+### 2026-10-15 20:08 PDT — approval and plan-quality clarification
+
+TL approved 2833b837 via submitted receipt 659dde9c, including confirmed Relaunch as the migration path. change-code full-flow plan review requested named transition/test seams and explicit discovery-channel failure semantics (PQ-1/2/3); these are now documented without expanding the wrapper-knows-ID promise. Unknown discovery loss is visible and retains unknown status; known-ID contention/IO failure stops the owned group. No implementation before the gate passes.

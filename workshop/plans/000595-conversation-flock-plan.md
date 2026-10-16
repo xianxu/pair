@@ -1,6 +1,6 @@
 # Conversation flock implementation plan
 
-> **For agentic workers:** Consult AGENTS.md Section 3 (Subagent Strategy). PLAN ONLY until the TL approves this revision; then use the normal change-code and close gates. This is one atomic implementation and one issue-close boundary, with no intermediate migration build.
+> **For agentic workers:** Consult AGENTS.md Section 3 (Subagent Strategy). TL approved revision 2833b837 in receipt 659dde9c; use the normal change-code and close gates before implementation. This is one atomic implementation and one issue-close boundary, with no intermediate migration build.
 
 **Goal:** Replace global native-owner forensics and durable admission reservations with wrapper-lifetime conversation locks.
 
@@ -46,6 +46,8 @@ Key/label/state tests run without IO. Kernel, watcher, liveness and process-grou
 5. Exact-ID launches acquire before the agent starts. Resolve selectors with existing adapters where supported; retain today's indirect-selector UX. For an ID only learned after startup, acquire when the existing current-launch watcher reports it. A repeated report is idempotent; keep each known ID locked until wrapper exit. A late conflict stops the wrapper's owned child group and reports the held conversation, without retrying input or continuing unguarded.
 6. Reuse the existing native binding decision, not historical ledger decoding or a new native integration. The minimal internal handoff is a private notification pipe from the already-launched Pair watcher to its wrapper, carrying the current launch ordinal and discovered ID. The watcher reports after its existing binding decision commits. It cannot notify a replacement wrapper through an old pipe. Close/join the bounded reader on wrapper shutdown; do not persist callback state or poll whole ledgers.
 
+The notification is a best-effort transfer of knowledge, not a new prerequisite for Fresh: watcher start failure, expiry, EOF before a valid binding, malformed/truncated data, or death between ledger commit and delivery leaves an unknown-ID wrapper unknown. Show a truthful notice that its conversation lock is unavailable until discovery succeeds (next Relaunch can pin the established ID); never claim a held lock. An already-held exact ID remains protected on channel failure. After one valid delivered binding, normal watcher EOF is completion, not loss of the held lock. A late held-ID or lock IO error is different: the wrapper now knows the ID and must stop its own group. No input retry, silent unsafe success or recovery scan is introduced. Bound the notification to one small record at a time and reject a foreign ordinal before any acquire. Tests exercise the production pipe and commit-to-delivery ordering.
+
 This deliberately promises nothing before an unknown Fresh ID is known. It preserves existing launch prompts/configuration and does not add an app-server bootstrap, native fd shim or conversation-ID selection policy.
 
 ### Owned process group and exit
@@ -81,6 +83,20 @@ Delete in the same code change:
 
 Keep selector classification/pinning and its UX tests, ordinary LsofNames, shared strict JSON/ledger validation, launch history, transcript bindings, native inventory and notification lifecycle consumers. Check every deletion's callers with rg; do not delete whole test files that still cover selectors, recovery confirmation or stop safety.
 
+## Named implementation and test seams
+
+| Function / boundary | Strategy and mechanical guard |
+|---|---|
+| nativelock.NewKey / ParseHolder | Fuzz malformed identifiers and metadata; canonical, bounded components and diagnostic-only decoding cannot influence lock ownership. |
+| nativelock.Advance | Sequence-test unknown / acquiring / held / stopping / exited with discovered, acquired, failed, stop and cleanup-complete events; private state plus returned effects are the only route to acquire, stop and release. A single wrapper owner serializes events and IO completions; stopping rejects discoveries, retains late-acquired handles through group cleanup, and permits release only after cleanup-complete. |
+| nativelock.Acquire / Handle.Close | Real subprocess barrier contention and kill/reap conformance; exactly one nonblocking flock, stable inode, loser cannot truncate, bounded holder text, close-on-exec. |
+| sessionwatch.NotifyBinding / wrapcmd.DecodeBindingNotice | Pipe truncation/EOF/foreign-generation sequence tests after committed ObserveAndPersist; bounded records, ordinal fence and visible unknown-versus-held status. |
+| launcher.LegacyLockSlots | Permute mixed current/live and stale readiness observations; pure filtering/sorting never derives liveness from file existence. |
+| wrapcmd.stopOwnedGroup | Real scratch descendant lifecycle tests plus injected event ordering; signal only the directly created group before leader reap, join cleanup and hold locks until cleanup-complete. |
+| existing recovery admission / confirmed Relaunch | Stateful runtime tests enforce Resume-only maintenance refusal and exact-source migration exemption, retaining stop-set confirmation. |
+
+Real flock, pipe and owned-group tests run in ordinary Go package tests, hence the existing required make test / recorded suite on Darwin and Linux CI; they do not require a new optional manual target. A temp-file measurement reports metadata bytes and filesystem allocated blocks per distinct conversation in the Log: payload bounded to 1 KiB, one inode and ordinarily one filesystem allocation unit (filesystem-dependent). Stable files are permanent during online operation; reclamation requires operator-approved quiescence of all cooperating wrappers, never an online unlink.
+
 ## Net deletion estimate
 
 Source-counted old blocks, using Python splitlines counts and rg caller verification:
@@ -100,10 +116,7 @@ Allow roughly **350–650 added production lines** for the small lock, watcher n
 ## Implementation and acceptance (one atomic close boundary)
 
 - [ ] After TL approval, run change-code; derive the full-flow estimate only after plan-quality clears.
-- [ ] TDD lock key/metadata and real kernel contention: two wrappers, one ID, exactly one starts; holder named, loser no truncation; holder normal exit/SIGKILL releases. Pin repeated same-wrapper ID reports and two-start barriers.
-- [ ] TDD unknown-to-known watcher notification and wrong/stale launch rejection through the existing watcher result; no native API integration or ledger scan. Cover late held-ID failure and stop/close ordering.
-- [ ] TDD owned process-group cleanup for normal/setup/output/panic/signal/restart paths. Fake native descendants stay in their assigned group; only scratch-owned groups may be signalled. A deliberate wrapper SIGKILL test records the accepted orphan gap rather than claiming safety it cannot provide.
-- [ ] TDD cutover: live legacy + capable + dead/stale records; sorted refusal only on disk Resume; startup/Continue/Fresh unaffected; confirmed old-slot Relaunch migrates without a bypass flag; subsequent Resume proceeds. Cover both CLI wrapper transports and ordinary Pair resume.
+- [ ] TDD the named lock, transition, notification, cutover and group-cleanup seams above, recording RED/GREEN and real scratch conformance evidence.
 - [ ] Implement lock ownership and capability/readiness, move stop-set attribution, then remove the forensic/reservation inventory in the same build. Sweep callers and artifact references; no partial dual-guard deployment.
 - [ ] Update atlas/couch.md and issue Spec/Done when to this approved scope, preserve superseded promises in Revisions, and document orphan responsibility and maintenance rollout. Update target only if its existing commitments need the accepted limit stated.
 - [ ] Build, targeted/race/conformance regressions, required recorded suite, actual LOC report and mandatory issue-close review. No code may land on REWORK.
@@ -127,3 +140,5 @@ Allow roughly **350–650 added production lines** for the small lock, watcher n
 
 - **2026-10-15, draft 484bc381:** proposed inherited-child ownership and two-boundary migration, with explicit native fd/unknown-ID gaps; no code was authorized.
 - **2026-10-15 19:58 PDT, TL cb293d05:** supersedes that draft: wrapper lifetime only, owned process-group cleanup on controlled exits, accepted SIGKILL/orphan gap handled by #583/#587; maintenance cutover with a live legacy-capability refusal; scan/store deleted in the same build. Removed native fd/ID integration, dual-guard stages and override. Added source-counted deletion estimate. Revised active plan and issue acceptance together so superseded promises do not remain closure requirements. This revision awaits TL approval before code.
+
+- **2026-10-15 20:08 PDT, plan-quality PQ-1/2/3:** TL approval 659dde9c confirmed scope. Clarified best-effort unknown-ID handoff failures versus known-ID lock failure, named the pure lifecycle transition owner and IO effects, and compressed tests to named risk/guard strategies. Added recurring conformance and permanent inode cost measurement. No scope or guarantee expansion; code has not begun.
