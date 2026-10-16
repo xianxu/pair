@@ -295,10 +295,12 @@ func TestNotificationBrokerClosedWhileMasterLives(t *testing.T) {
 		return n, e
 	})}
 	done := make(chan struct{})
+	prepareMasterPumpTransport(t, p, done)
 	go func() { p.masterPump(); close(done) }()
 	t.Cleanup(func() {
 		broker.Close()
 		writer.Close()
+		_ = p.childIO.Close()
 		reader.Close()
 		select {
 		case <-done:
@@ -399,9 +401,11 @@ func TestNotificationOutputFailureStopsRealPTYAndJoinsReader(t *testing.T) {
 			writer := &prefixWriter{limit: 3, fail: io.ErrClosedPipe}
 			p := &proxy{ptmx: master, cmd: cmd, stdout: writer, stdoutFlushEvery: time.Millisecond}
 			done := make(chan struct{})
+			prepareMasterPumpTransport(t, p, done)
 			go func() { p.masterPump(); close(done) }()
 			t.Cleanup(func() {
 				_ = cmd.Process.Kill()
+				_ = p.childIO.Close()
 				_ = master.Close()
 				select {
 				case <-done:

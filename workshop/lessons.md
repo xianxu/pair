@@ -1775,6 +1775,7 @@ Deleting the orientation delivery also deleted the only `automaticRenderEpoch.Ad
 
 - #546 multi-owner changes must enumerate observability consumers as well as routing/guards: delivery facts are part of the behavior contract, and a main-only logging predicate can silently lose confirmed secondary-owner evidence.
 
+- #544 ad-hoc review: a queued screen-driven key needs proof from one coherent terminal generation, rechecked at emission. Fence confirmation after the actual write, not after the earlier decision. Route raw keys through ordinary input accounting even when Return remapping is disabled, and prove interruption through the real input loop.
 - #545: Every new production source must join artifactpath's exhaustive source
   inventory (SourceClassifications or NonArtifactSources). Run that package
   when adding the file; focused tests in the new file's own package cannot
@@ -1791,6 +1792,7 @@ Deleting the orientation delivery also deleted the only `automaticRenderEpoch.Ad
 
 - #551: os.NewFile does not establish atomic close-on-exec for a raw descriptor. Set O_CLOEXEC at the raw open, and sweep transient binding reads and directory paging alongside locks. A final FD_CLOEXEC check alone cannot catch a post-open fork/exec race; defend atomic placement over the whole raw-open family.
 
+- #544 smoke: A native PTY conformance pass does not establish behavior under Pair's virtual terminal. Match the production terminal profile, TERM_PROGRAM and keyboard query replies, and observe the actual child input across the Run/socket/writer path. Terminal negotiation can change key interpretation even when the driver emits the same bytes.
 - #528 merge verification: a new main guard covers feature-branch sources too.
   When importing a cross-cutting invariant such as native process inspection,
   run that guard against the whole merged package, including files outside
@@ -2020,3 +2022,10 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #593 BR-3: Inventory completeness is per supported producer/backend, not per logical kind. Sweep global, repo-scoped, slot-local, legacy and sharded layouts together; assert coverage with producer-generated paths before declaring the coverage family fixed.
 
 - #589: firing the last retry callback does not prove its asynchronous result reached the terminal state. Keep evidence unhealthy until a state-dependent effect proves that transition occurred, and hold the next successful attempt until the triggering request's refusal is observed. Use the existing authority and retry seams; elapsed sleeps can race both sides of readmission.
+- #544 integration with #597: subprocess helpers that intentionally model Couch set their disposable thread identity after TestMain sanitizes inherited live identity. Run opt-in native conformance after TestMain changes; a default-suite skip cannot verify the helper startup path.
+
+- #544 BR-1/BR-2: failure recovery replaces current-screen evidence, so retain actionable observed choices in the bounded result detail and test after completed backout through receipt/CLI output. Reconcile prospective plan symbols with delivered APIs and reused conformance fixtures before close.
+
+- #544 BR-3: opt-in external conformance needs a committed target that enables every required suite, plus a named after-change/upgrade cadence. Run the exact target and confirm cases execute instead of accepting a skipped default-suite result.
+
+- #544 BR-4: conformance must requalify every new observation, then separate admission from dispatch. A known zero-input refusal can justify a distinct fresh fixture request; Step0 alone never authorizes replay of an unconfirmed write. Force both pre-admission and pre-dispatch qualification loss with controlled tests.

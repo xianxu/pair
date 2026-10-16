@@ -1,0 +1,15 @@
+{
+  "agent": "codex",
+  "version": "0.162.1",
+  "boundary": "Run socket and stdin with native PTY relay; Pair virtual terminal",
+  "term": "pair-vt-256color",
+  "term_program": "ghostty",
+  "keyboard_flags": 5,
+  "screen_phase": "model",
+  "selection_marker": "\u203a",
+  "reverse_styling": false,
+  "capture_input": "Ctrl-U, /model, 150ms quiet, CR",
+  "configuration": "disposable writable roots; existing local login copied by existing helper",
+  "sanitization": "disposable root replaced by /scratch",
+  "scope": "picker inspection only; no apply in this capture"
+}

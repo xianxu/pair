@@ -20,8 +20,9 @@ const (
 )
 
 type terminalModel struct {
-	mu       sync.Mutex
-	resizeMu sync.Mutex
+	mu         sync.Mutex
+	generation uint64
+	resizeMu   sync.Mutex
 
 	emulator     *vt.Emulator
 	observer     terminalControlObserver
@@ -116,6 +117,7 @@ func (m *terminalModel) Feed(data []byte) error {
 	writeErr := writeToEmulator(m.emulator, data)
 	m.observer.Feed(data)
 	m.altScreen = m.emulator.IsAltScreen()
+	m.generation++
 	return writeErr
 }
 
@@ -140,6 +142,7 @@ func (m *terminalModel) PrepareResize(cols, rows int) (*terminalResize, error) {
 		return nil, err
 	}
 	m.synchronized = false
+	m.generation++
 	m.emulator.Resize(cols, rows)
 	m.altScreen = m.emulator.IsAltScreen()
 	return &terminalResize{model: m}, nil
@@ -173,6 +176,7 @@ func (r *terminalResize) resolve(commit bool) error {
 		} else {
 			m.observer.visible = false
 			m.synchronized = true
+			m.generation++
 		}
 	}
 	m.mu.Unlock()
@@ -340,6 +344,7 @@ func (m *terminalModel) Close() error {
 	}
 	m.final = m.snapshotLocked()
 	m.closed = true
+	m.generation++
 	replyCloser := m.replyCloser
 	drainDone := m.drainDone
 	emulator := m.emulator

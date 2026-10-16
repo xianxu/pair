@@ -1,9 +1,12 @@
 package couchcore
 
-import "sync"
+import (
+	"context"
+	"sync"
+)
 
 // FakeLaunchFailureStore retains evidence across Couch reconstructions. Tests
-// may inject persistence failures and inspect ordered writes before cleanup.
+// may inject persistence failures and inspect ordered writes after cleanup.
 type FakeLaunchFailureStore struct {
 	mu        sync.Mutex
 	History   LaunchFailureHistory
@@ -26,9 +29,12 @@ func (s *FakeLaunchFailureStore) Read() ([]LaunchFailure, error) {
 	}
 	return out, nil
 }
-func (s *FakeLaunchFailureStore) Save(f LaunchFailure) error {
+func (s *FakeLaunchFailureStore) Save(ctx context.Context, f LaunchFailure) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	s.Writes = append(s.Writes, cloneLaunchFailure(f))
 	if s.SaveError != nil {
 		return s.SaveError

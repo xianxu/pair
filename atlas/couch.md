@@ -95,6 +95,12 @@ recovery launches take no native admission (#597): before launching, they
 refuse only if another positively live slot in Couch's registry records the same
 conversation ("conversation X is in use by repo:N"). Every other launch, and
 ordinary Pair, keeps native admission until #595.
+A Fresh reboot stops everything the slot owns (#607): to whatever terminal
+attribution proves, it adds the wrapper Couch's message registry names (exact pid
+and start identity), that wrapper's descendants from one process-table snapshot,
+and the slot's own zellij session by its recorded name unless another live slot's
+record names it. All of it is listed in the reboot confirmation; the reboot
+refuses only when an exit cannot be confirmed.
 
 Graceful Couch detach can retire a proven-dead helper before the next Couch
 starts. A listed-live terminal with no retained incarnation then attaches as
@@ -139,8 +145,8 @@ to the selected global namespace beneath the account lease.
 
 `launchfailure.go` owns bounded attempt evidence and retention independently of
 ThreadRecord. `launchfailure_store.go` atomically stores the newest 16 failures
-in `<namespace>/launch-diagnostics/failures.json` (0600), under a private bounded
-file lock. Records carry scope/tag/nonce, target, starting path and failure stage,
+in `<namespace>/launch-diagnostics/failures.json` (0600), under a private
+context-bounded file lock. Records carry scope/tag/nonce, target, starting path and failure stage,
 16 KiB raw output tail, 4 KiB per error, and separate observed pre/post-cleanup
 exit codes. The entire encoded history is capped at 1 MiB. Failed persistence is
 reported beside the original error; later success does not clear evidence.
@@ -148,7 +154,15 @@ reported beside the original error; later success does not clear evidence.
 Runner setup refusals that occur after spawning carry a `blockedStartError` with
 immutable output and pre/post-cleanup observations, even when no handle can be
 returned. The shared `launchTrackedThread` failure path consumes that evidence,
-records before its own cleanup and enriches afterward; `SwitchAgent` adds its final error by attempt identity. The typed error
+snapshots immutable evidence before cleanup, enriches afterward and publishes
+once cleanup completes (#590); `SwitchAgent` adds its final error by attempt identity.
+Storage admission follows the caller's context, with cancellable nonblocking
+flock attempts and no background waiter. Couch supplies a separate ten-second
+diagnostic admission context, including for canceled launches. This bounds
+waiting for a lease, not filesystem IO after admission. There is no store-owned
+one-second scheduling budget. A crash during cleanup or before final publication
+can lose that attempt's in-memory evidence; previously published history remains
+durable. Persistence never delays failed-helper cleanup. The typed error
 preserves errors.Is/As while its operator text names the attempt, diagnostic file, and one inspection action.
 `couch --show` reads retained evidence by exact address or canonical starting
 path, including after rollback removed the thread, without creating lifecycle
@@ -1231,6 +1245,9 @@ by its leading position and reverse-video colours (pair#521).
   inventory (`reorderMenuInventory`). `PresentThreads(rows, git, hub)` puts the
   hub row first, flags it `Hub` and adds the indent (`hubSection`). That one
   order serves the switcher, the tab bar and clicks.
+- **One chip per slot (#607):** a slot's chip is its current inventory row, as
+  in the switcher. A pane still open on a replaced address (a reboot's old
+  thread, until its client exits) gets no chip.
 - **Several hubs (#546):** explicit directories define ordered hubs. Their
   `.hub` claims and ephemeral CLI moves feed `HubOwnership`; unclaimed slots
   belong to the first hub. `Console.SetHubOwnership` supplies one section per
@@ -1603,6 +1620,119 @@ stay on the record, written by nothing in the switcher, and are neither displaye
 nor matched: `ThreadReferenceFields` is `{Address, Label, WorkingPath, Summary}`,
 store resolution leaves `Label` and `Summary` empty (tag and path only), and the
 switcher passes what a row shows.
+
+### Agent keys and model selection (#544)
+
+Typed process/input operations `keys` and `set-model` execute through the
+existing live-owner console queue and effect gate. Their remote forms are:
+
+```sh
+couch --keys repo:N STEP... [--json]
+couch --set-model repo:N --model MODEL [--effort LEVEL] [--scope session|default] --confirm [--json]
+```
+
+`couchcmd/agent_drive_cli.go` parses the bounded request;
+`agent_drive_messages.go` sends admission once and polls `operation-status`;
+`agent_drive_service.go` authenticates a verified owning hub, resolves a
+different exact slot and rechecks ownership and caller/wrapper incarnation at
+the effect gate. The wrapper must positively report settled state and a fresh
+empty agent composer. A Neovim draft is independent. Busy/unknown state, an
+existing picker, buffered paste or an occupied agent composer refuses. An old
+wrapper without the capability asks the caller to relaunch on the new build.
+The exception is a validated recovery-only key sequence: one or more `esc` or
+`clear-line` steps, with no other steps or model request. A fresh typed
+`Recoverable` projection admits a positively recognized occupied composer while
+retaining the same caller, owner, incarnation and input-exclusion guards. It
+may acquire a leftover awaiting-empty lease, never an active peer/drive lease.
+Generic keys and model selection retain the settled empty-composer requirement.
+
+`couchmessage/drive_endpoint.go` provides `drive-observe`, `drive-start`,
+`drive-status` and idempotent `drive-cancel` over the existing authenticated
+endpoint. The RPC handler admits a bounded job; it never writes the PTY.
+`wrapcmd/agent_drive.go` runs effects in the existing single stdin writer and
+shares automatic-input ownership with peer delivery. Ordinary input cancels
+the drive before entering that writer. Turn activity, owner/session changes,
+shutdown and the absolute deadline stop input. Admission/status RPC closure
+and ordinary CLI exit do not own the operation lifetime. Existing
+`ttyio.Writer.WriteContext` bounds a blocked PTY write; context-aware
+`couchmessage.Call` interrupts socket I/O and joins its cancellation callback.
+No second writer, transport or durable model-setting field is introduced.
+
+`agentdrive/{keys,recipe,screen,model}.go` owns pure validation, request intent,
+versioned screen parsing and the reducer. `tailmarkup/markup.go` is the shared
+styled-tail decoder, including literal escaped `‹‹`. Model navigation matches
+unique observed labels, rather than assumed row numbers. Each screen-derived
+write carries the atomic terminal Feed generation that supplied its evidence.
+Immediately before input the writer requires a fresh complete proof: the same
+generation, or newly parsed picker evidence identical in phase, selection,
+labels, model, effort and footer. A benign repaint can change generation while
+preserving that proof; changed recognized picker evidence refuses the cached
+action. Unknown or incomplete screens wait without keys within the absolute
+budget, allowing an owned `/model` transient to settle. Initial commands and raw
+steps likewise wait for a complete frame within that deadline.
+Success requires a new matching confirmation after apply, never old scrollback
+or a pre-existing footer. Omitted effort follows the observed picker value.
+
+Raw steps are `text:…`, `enter`, `submit`, `up`, `down`, `esc`, `clear-line`,
+and `wait:MS`. Return translation stays shared with Pair: `enter` means newline
+in the qualified composer and selection in a picker; `submit` means Alt+Return.
+A lone ESC is flushed as one separate step. Raw success confirms acknowledged
+input and the final styled observation, without claiming an arbitrary command's
+semantic result. Printable UTF-8 text cannot hide terminal controls.
+Codex Enter/submit waits at least the shared 150ms submission interval after an
+acknowledged text write, avoiding its rapid-input paste suppression. This is a
+pure effect deadline serviced by the same writer, within the absolute budget;
+reserved model cleanup can preempt an un-emitted key.
+
+Model scope defaults to `session`. Codex 0.162.1 has separate model, reasoning
+and optional Advanced Reasoning phases. A unique explicit `›` marks the selected
+row under a recognized complete heading/footer; reverse styling is compatible
+but not required by current native captures. `s` applies only to this session,
+while Enter on an effort applies defaults. Claude 2.1.299 combines model and
+effort: `❯` selects a row, `✔` marks the current model, and left/right adjusts
+effort. Its verified session action is `s`; default scope is refused before
+input until a persistence recipe is verified. Session success reports the
+observed model, effort and scope. Failed navigation backs out only through
+owned recognized phases, with at most three separate ESC steps for Codex's
+Advanced → reasoning → model → composer path. Recovery is claimed only after
+a fresh empty composer; human cancellation never writes cleanup over new input.
+Timeout cleanup may also clear this drive's acknowledged exact single-line
+`/model` command with Ctrl+U, pinned to current composer evidence. Multiline or
+changed text, uncertain write progress and possibly applied model selections
+authorize no cleanup. Explicit recovery keys are a new operator-directed action,
+not replay of the failed drive; inspect its receipt and slot first, then use
+`couch --keys repo:N clear-line` to clear the current line.
+
+Bounds: 64 raw steps, 8 KiB aggregate text, each explicit wait 0–1000 ms and
+5 seconds total; 96 recipe navigation steps, 128 labels of at most 128 bytes,
+200 observed lines and 32 KiB retained result tail. One drive can be active per
+wrapper; competing automatic input refuses. The 30-second admission budget
+includes queue wait. A model drive reserves min(3 seconds, one tenth of the budget remaining
+at execution start) within that deadline for recognized recovery;
+the CLI observes for at most 36 seconds. Couch retains at most 64 receipts for
+five minutes; the wrapper retains at most eight completed drive receipts for
+five minutes. Request IDs bind the complete keys/model/effort/scope intent.
+Read-only status polling never replays a lost admission or uncertain input.
+Inspect `couch --operation-status ID` and `couch --peek repo:N` before further
+input when the outcome is unconfirmed. Shutdown removes wrapper jobs/receipts.
+
+Recorded evidence lives in `wrapcmd/testdata/drive/{codex,claude}/<version>/`.
+Run `make test-agent-drive-live` after changing the drive, picker parser or
+input writer, and after upgrading Codex, before landing such changes. This
+opt-in target enables both `TestAgentDriveLiveConformance` (session, disposable
+default and unsupported-effort recovery) and
+`TestAgentDriveVirtualTerminalLiveConformance` (actual Run/socket writer under
+scratch and Pair virtual terminals). It requires installed Codex and an existing
+local login; it drives no peer slot. Ordinary `make test` leaves native login
+checks opt-in. Claude live fleet acceptance is owned by the hub.
+Codex live conformance uses fresh disposable repositories, PTYs and copied
+existing auth: session selection leaves scratch defaults unchanged; default
+selection changes only that disposable config. Claude styled captures come
+from hub-authorized live research, including session apply and ESC recovery.
+No new Claude credential helper, Keychain reuse or shared-default experiment
+is part of this change. Completed model-control chrome is recognized separately
+from genuine questions and pickers so it does not open a conversational turn or
+produce a false waiting notice.
 
 **Resume and Fresh share prepared recovery (#556).**
 `ResumeTargetWith` (`couchcore/resume_route.go`) gives a positively listed terminal

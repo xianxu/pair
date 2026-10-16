@@ -11,9 +11,12 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/xianxu/pair/cmd/internal/agentdrive"
 )
 
 type EndpointRequest struct {
+	Drive    *DriveStart `json:",omitempty"`
 	Op       string
 	Binding  Binding
 	ID       string
@@ -24,10 +27,12 @@ type EndpointRequest struct {
 }
 
 type EndpointResponse struct {
-	Error       string
-	Observation Observation
-	Receipt     *Receipt
-	Tail        *Tail `json:",omitempty"`
+	DriveObservation *DriveObservation  `json:",omitempty"`
+	DriveResult      *agentdrive.Result `json:",omitempty"`
+	Error            string
+	Observation      Observation
+	Receipt          *Receipt
+	Tail             *Tail `json:",omitempty"`
 }
 
 // ReceiptTimeout permits read-only outcome collection after input stops.
@@ -38,10 +43,27 @@ func ValidateEndpointRequest(r EndpointRequest) error {
 	if err := r.Binding.Validate(); err != nil {
 		return err
 	}
+	if r.Drive != nil && r.Op != "drive-start" {
+		return errors.New("drive payload applies only to drive-start")
+	}
 	if r.Lines != 0 && r.Op != "tail" {
 		return errors.New("a line count applies only to tail")
 	}
 	switch r.Op {
+	case "drive-observe":
+		if r.ID != "" || r.Sequence != 0 || r.Message != nil || r.Lines != 0 || r.Drive != nil {
+			return errors.New("drive-observe requires only a binding")
+		}
+	case "drive-status", "drive-cancel":
+		if !validMessageID(r.ID) || r.Sequence != 0 || r.Message != nil || r.Lines != 0 || r.Drive != nil {
+			return errors.New("drive status/cancel requires binding and ID")
+		}
+	case "drive-start":
+		if !validMessageID(r.ID) || r.Sequence != 0 || r.Message != nil || r.Lines != 0 || r.Drive == nil {
+			return errors.New("drive-start requires binding, ID and typed drive")
+		}
+		return r.Drive.Validate(time.Now())
+
 	case "tail":
 		if r.ID != "" || r.Sequence != 0 || r.Message != nil {
 			return errors.New("tail requires only a binding and a line count")

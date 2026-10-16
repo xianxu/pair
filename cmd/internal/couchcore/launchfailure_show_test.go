@@ -15,7 +15,7 @@ func TestShowLaunchFailureWithoutThread(t *testing.T) {
 	store := NewFakeLaunchFailureStore()
 	env.Couch.LaunchFailures = store
 	for _, scope := range []string{"scope", "other"} {
-		if err := store.Save(LaunchFailure{Address: ThreadAddress{RepoScope: scope, Tag: "removed"}, Nonce: "attempt", FailedAt: time.Now(), LaunchError: "exec refused"}); err != nil {
+		if err := store.Save(t.Context(), LaunchFailure{Address: ThreadAddress{RepoScope: scope, Tag: "removed"}, Nonce: "attempt", FailedAt: time.Now(), LaunchError: "exec refused"}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -46,7 +46,7 @@ func TestShowLaunchFailureCanonicalPath(t *testing.T) {
 	env := newTestEnv(t, "/repo")
 	store := NewFakeLaunchFailureStore()
 	env.Couch.LaunchFailures = store
-	if err := store.Save(LaunchFailure{Address: ThreadAddress{RepoScope: "different-current-scope", Tag: "gone"}, Nonce: "attempt", FailedAt: time.Now(), StartingPath: real}); err != nil {
+	if err := store.Save(t.Context(), LaunchFailure{Address: ThreadAddress{RepoScope: "different-current-scope", Tag: "gone"}, Nonce: "attempt", FailedAt: time.Now(), StartingPath: real}); err != nil {
 		t.Fatal(err)
 	}
 	result, err := dispatchTestOperation(env.Couch, "show", map[string]string{"ref": alias, "repo-scope": "scope"})
@@ -82,7 +82,7 @@ func TestShowLaunchFailureSlotAfterRollback(t *testing.T) {
 	env.Couch.Slots = NewOSSlotCatalog(s.f)
 	store := NewFakeLaunchFailureStore()
 	env.Couch.LaunchFailures = store
-	if err := store.Save(LaunchFailure{Address: ThreadAddress{RepoScope: "slot-scope", Tag: "rolled-back"}, Nonce: "attempt", StartingPath: s.layout.Host(), FailedAt: time.Now()}); err != nil {
+	if err := store.Save(t.Context(), LaunchFailure{Address: ThreadAddress{RepoScope: "slot-scope", Tag: "rolled-back"}, Nonce: "attempt", StartingPath: s.layout.Host(), FailedAt: time.Now()}); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.RemoveAll(s.layout.Env()); err != nil {

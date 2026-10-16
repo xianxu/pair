@@ -112,6 +112,11 @@ func runSwitchAgentCLI(inv cliInvocation, rt Runtime, stdout, stderr io.Writer, 
 		if result.Operation.Detail != "" {
 			fmt.Fprintln(stdout, result.Operation.Detail)
 		}
+		if result.Operation.Drive != nil {
+			for _, line := range result.Operation.Drive.Tail {
+				fmt.Fprintln(stdout, line)
+			}
+		}
 	} else {
 		fmt.Fprintf(stderr, "couch: %s: %s\n", result.Code, result.Error)
 	}

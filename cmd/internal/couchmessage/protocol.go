@@ -4,22 +4,24 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/xianxu/pair/cmd/internal/couchcore"
-	"github.com/xianxu/pair/cmd/internal/launcher"
-	"github.com/xianxu/pair/cmd/internal/notifyosc"
 	"strings"
 	"time"
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/xianxu/pair/cmd/internal/agentdrive"
+	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/launcher"
+	"github.com/xianxu/pair/cmd/internal/notifyosc"
 	core "github.com/xianxu/pair/cmd/internal/submission"
 )
 
 // Request has closed per-operation shapes. Wrapper lifecycle operations use a
 // full binding and must pass the supervisor adapter's live identity check.
 type Request struct {
-	ToHub                                            string `json:",omitempty"`
-	Persist                                          bool   `json:",omitempty"`
+	Drive                                            *agentdrive.Request `json:",omitempty"`
+	ToHub                                            string              `json:",omitempty"`
+	Persist                                          bool                `json:",omitempty"`
 	Op, Scope, Tag, Session, Nonce, ID, Target, Body string
 	Title                                            string `json:",omitempty"` // notify only
 	// Agent narrows a send or selects the switch destination harness.
@@ -139,6 +141,9 @@ func validMessageID(id string) bool {
 }
 
 func ValidateRequest(r Request) error {
+	if r.Drive != nil && r.Op != "keys" && r.Op != "set-model" {
+		return errors.New("drive intent applies only to keys and set-model")
+	}
 	if r.RecoveryConfirmation != "" && (r.Op != "recovery-confirmation" || !validMessageID(r.RecoveryConfirmation) || len(r.RecoveryConfirmation) > 128) {
 		return errors.New("recovery confirmation requires a bounded opaque token")
 	}
@@ -269,7 +274,7 @@ func ValidateRequest(r Request) error {
 	if r.Agent != "" && r.Op != "switch-agent" && (r.Op != "send" || !validFamily(r.Agent)) {
 		return errors.New("an agent filter applies only to send and must be a plain agent name")
 	}
-	if r.Confirmed && r.Op != "switch-agent" && !couchcore.IsSlotOperation(r.Op) {
+	if r.Confirmed && r.Op != "switch-agent" && r.Op != "set-model" && !couchcore.IsSlotOperation(r.Op) {
 		return errors.New("a confirmation applies only to slot operations")
 	}
 	if r.SameBinary && !couchcore.SlotOperationTakesSameBinary(r.Op) {
@@ -279,6 +284,19 @@ func ValidateRequest(r Request) error {
 		return errors.New("--force-unknown applies only to relaunch, reload-context and prepare")
 	}
 	switch {
+	case r.Op == "keys" || r.Op == "set-model":
+		if !validMessageID(r.ID) || r.Drive == nil || r.Body != "" || r.Agent != "" || r.Title != "" || r.ToHub != "" || r.Persist || r.Lines != 0 || r.TailScope != "" || r.TailTag != "" {
+			return errors.New("drive requires only exact target, request ID and typed intent")
+		}
+		if _, _, err := parseSlot(r.Target); err != nil {
+			return err
+		}
+		if err := r.Drive.Validate(); err != nil {
+			return err
+		}
+		if (r.Op == "set-model") != (r.Drive.Model != nil) || (r.Op == "set-model") != r.Confirmed {
+			return errors.New("set-model requires model intent and --confirm; keys takes no confirmation")
+		}
 	case r.Op == "recovery-confirmation":
 		if !validMessageID(r.ID) || r.RecoveryConfirmation == "" || r.Target != "" || r.Body != "" || r.Agent != "" || r.Confirmed || r.CandidateKey != "" || r.Title != "" || r.TailScope != "" || r.TailTag != "" || r.Lines != 0 {
 			return errors.New("recovery-confirmation requires only a request ID and token")
