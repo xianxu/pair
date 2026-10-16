@@ -125,7 +125,7 @@ Durability is reconfirmed for existing records as well as newly written records.
 | Selected files per request | 10,000 |
 | Request, manifest or catalog record | 4 MiB |
 | Target raw bundle payload | 256 MiB |
-| Hard raw bundle payload / individual file | 1 GiB |
+| Hard raw bundle payload / individual file | 1 GiB; database snapshot kinds 8 GiB, bounded in practice by the 2 GiB ciphertext (#616) |
 | Ciphertext per bundle | 2 GiB |
 | Catalog shard | 64 MiB, automatic rollover |
 | Sink listing result | 10,000 entries |
@@ -167,8 +167,8 @@ The operator owns decryption-key recovery. Before depending on backups:
    fixture and compare recovered file hashes. Keep the private catalog protected
    and recoverable along with the bundles.
 
-This foundation provides no deletion, schedule, live SQLite snapshot collector,
-Drive transport or restore command. A future archive-before-eviction consumer
+This foundation provides no deletion, Drive transport or restore command; the
+schedule and the SQLite snapshot collector are continuous mode's (below). A future archive-before-eviction consumer
 must require successful verified catalog evidence; mere object existence is
 insufficient. It does not change current source retention policies or lift the
 diagnostic deletion fence.
@@ -183,3 +183,38 @@ PAIR_ARCHIVE_LIVE=1 go test ./cmd/internal/historyarchive -run '^TestCodecLiveRo
 
 It needs `gpg`, `gpgconf` and `zstd`; it does not use personal private keys or
 source directories. The test cleans its temporary keyring and isolated agent.
+
+## Continuous mode (#592)
+
+`pair archive continuous [--kind KIND]` is one pass over the continuous kinds
+(`historyarchive.ContinuousKinds`): Claude, Codex and Qoder transcripts, Codex
+databases, ops documents (`teams/*/qa`, `teams/*/assets`,
+`teams/*/tl-status-*.side`) and each repository's git-common `sdlc/`. It is
+configured by `$PAIR_DATA_DIR/archive/continuous.json` (`ContinuousConfig`:
+recipients, sink, catalog, `ops_root`, `workspace`); without that file a pass
+does nothing.
+
+- **Selection:** regular files unmodified for 3 days (`ContinuousQuiet`);
+  symlinks are never followed. A pattern matching a directory takes every file
+  beneath it (Codex nests sessions by date).
+- **Dedup:** per file, by source identity (host, root, repository, worktree),
+  relative path and content hash, from the catalog's manifests
+  (`ArchivedIndex`); an unchanged size and mtime skips rehashing. A changed file
+  is a new version. Worktree slots share their repository's git common dir, so
+  sdlc data is archived once per repository.
+- **Databases:** snapshotted daily regardless of quiet. `SQLiteSnapshotter`
+  never opens the live file: it copies the `-wal` and then the database into a
+  private directory, refuses the copy if either changed meanwhile (a checkpoint
+  mid-copy), runs SQLite's `.backup` on the private copy, switches it to
+  `journal_mode=DELETE` and passes `PRAGMA integrity_check` before publishing
+  it under `$PAIR_DATA_DIR/archive-snapshots/` (outside the catalog directory).
+  A skipped database is retried on the next pass.
+- **Never deletes;** writes only the archive store, the snapshot root, the sink
+  and the catalog. One pass at a time (`continuous.lock`); a completed full pass
+  writes `continuous.last`.
+- **Schedule:** Couch checks hourly and runs the command at `nice 10` when
+  configured and the last pass is over 24 hours old (`couchcmd/archive_schedule.go`),
+  logging to `$PAIR_DATA_DIR/archive/continuous.log`. A manual run uses the same
+  lock.
+- Files over their kind's raw bound are skipped with a note. Database snapshots use the snapshot bound (`rawBundleLimit`, 8 GiB): they compress well (Codex `thread_history_1.sqlite` 1.60 GB to 115 MB), so the 2 GiB ciphertext bound is their real limit, and a snapshot whose compressed bundle exceeds it is skipped with a note (`ErrCiphertextLimit`), not a failed pass (#616). Each snapshot is its own request, so a skip never drops another database. Cost: a database that changes daily is a new version every pass, and the sink never deletes; at the measured 115 MB per `thread_history_1.sqlite` bundle that is roughly 40 GB a year for that one database. Pruning old snapshot versions is a separate, not-yet-made retention decision.
+
