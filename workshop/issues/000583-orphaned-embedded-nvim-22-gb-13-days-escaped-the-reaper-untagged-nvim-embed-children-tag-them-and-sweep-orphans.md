@@ -72,7 +72,10 @@ Durable plan: `workshop/plans/000583-orphaned-embedded-nvim-22-gb-13-days-escape
     impossible — see the plan's `## Revisions` (d): closing an embed's stdin ends it in ~31 ms and SIGKILLing
     the `nvim FILE` TUI parent removes its child, so owner death is supplied the way the sweep reads it (the
     tag absent from `liveTags`)
-  - [ ] Atlas + `atlas/storage-retention-io.md` inventory updated (`TestManagedIOInventoryAnchors` is the guard)
+  - [x] Atlas updated (`architecture.md`'s Alt+x reap, startup sweep, tag-only family list and sidecar row).
+    `atlas/storage-retention-io.md` needed nothing: it inventories retention-IO anchors, and the pid records
+    are written by lua `writefile` outside the guard, as they were before #583 — `TestManagedIOInventoryAnchors`
+    passes untouched
 - [ ] M2 — untagged orphans are reported by couch and reaped only on confirmation
   - [ ] Prove `procutil.Identity` is a wall clock; add `ParseIdentityTime`
   - [ ] `procutil.Cwd` via `proc_pidinfo(PROC_PIDVNODEPATHINFO)` in the existing cgo libproc block (+ live conformance)
@@ -438,3 +441,35 @@ Verified: `make runtimebundle-generate test-nvim-pidfile` ok 15.3s (20/20), `mak
 test-lifecycle-command test-retention` exit 0, `make test-lua` exit 0,
 `go test ./cmd/internal/launcher/ -count=1` ok 31.1s, gated live run ok 0.249s, `go vet ./cmd/internal/launcher/`
 clean, `gofmt -l cmd/internal/launcher/` clean.
+
+### 2026-10-16 — M1 Task 8: the atlas, and a plan premise that did not survive reading the file
+
+The plan's Task 8 named `atlas/storage-retention-io.md`'s "nvim-pid and changelog rows". Reading it first — as
+the step itself asked — shows there is no nvim-pid row: that file inventories **retention-IO anchors**, the
+paths that touch managed bytes under the retention guard, and its anchors are grep-checked by
+`storagegc.TestManagedIOInventoryAnchors`. The pid records are not such a path. Lua writes them with
+`writefile` outside the guard, exactly as it did before #583 (the changelog `.nvim-pid` follows its
+`.openlock` sibling's precedent), and `storagegc` classifies both for collection. So nothing there was stale,
+no row was invented to satisfy a plan sentence, and the guard passes untouched.
+
+`atlas/architecture.md` is the only atlas file that mentions `nvim-pid`, and it needed four edits:
+
+- **`:383` (cleanup on quit)** still described "a tag-scoped `pkill -f` fallback" — deleted in Task 3 — and
+  two publishing configs. Now: three kinds (`artifactpath.NvimKinds()`), four configs, each removing its own
+  record on a clean `VimLeave`, both the quit path and the sweep deciding through `ClassifyNvimReap` and
+  signalling through `ProcessTable.Signal` behind the identity fence, so no reap can kill by name.
+- **`:385` (startup orphan sweep)** still described collecting *candidate tags* and reaping *tags*. Now: the
+  decision is per pid over one snapshot and three evidence sources, two records naming one pid are one
+  decision and one signal, each candidate is attributed by the shape its kind allows (exact argv field /
+  argv-tag attribution / pair asset base name), and a bare `nvim --embed` carrying none of them is invisible
+  here by design — that untagged class is M2's report-and-confirm sweep.
+- **`:1218`** the tag-only family list still said `nvim-pid-<tag>-{draft,scrollback}`; `NvimKinds()` and the
+  rename/GC enumeration that iterates it (`gc.go`) say three, and `review` has been a kind since Task 1.
+- **`:1256`** the sidecar row now names the three kinds, notes that the review record is resolved at its
+  launch site (`reviewcmd/run.go`) rather than env-bound, states the "only a record that still names this
+  process" removal guard, and carries the changelog's artifact-keyed `<base>.nvim-pid` with the reason
+  (tag, kind) cannot serve it.
+
+Verified: `go test ./cmd/internal/storagegc/ -run TestManagedIOInventoryAnchors -count=1` ok 0.176s,
+`go test ./cmd/internal/artifactpath/ -count=1` ok 6.927s (its `TestArtifactDocsUseBindingsForCurrentConsumers`
+is the other atlas grep guard, and the edited paragraphs touch neither its required nor its forbidden phrases).

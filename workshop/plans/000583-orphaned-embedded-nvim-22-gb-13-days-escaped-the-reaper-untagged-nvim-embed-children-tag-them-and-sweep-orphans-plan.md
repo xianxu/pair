@@ -349,11 +349,18 @@ func ClassifyNvimReap(row NvimReapRow) (kill bool, reason string)
 
 ### Task 8: M1 atlas + storage inventory
 
-- [ ] **Step 1:** update `atlas/storage-retention-io.md`'s nvim-pid and changelog rows (read them first:
+- [x] **Step 1:** update `atlas/storage-retention-io.md`'s nvim-pid and changelog rows (read them first:
   the anchors are grep-checked by `storagegc.TestManagedIOInventoryAnchors`) and
   `atlas/architecture.md:1256`'s sidecar sentence to name the three tag-keyed kinds, the changelog's
   artifact-keyed `.nvim-pid` record, and identity-exact reaping (no name-based kill).
-- [ ] **Step 2:** `go test ./cmd/internal/storagegc/ -run TestManagedIOInventoryAnchors -count=1` → PASS.
+  *(Premise corrected on reading: `storage-retention-io.md` has **no** nvim-pid row — its rows are
+  retention-IO anchors, and the pid records are written by lua `writefile` outside the retention guard, as
+  they were before #583, so nothing there was stale and `TestManagedIOInventoryAnchors` passes untouched.
+  `architecture.md` is the only atlas file that mentions `nvim-pid`, and it needed four edits, not one:
+  `:383` still described the deleted `pkill -f` fallback and two publishing configs, `:385` still described
+  tag-level collection and reaping, `:1218`'s tag-only family list still said `{draft,scrollback}`, and
+  `:1256` is the sidecar row.)*
+- [x] **Step 2:** `go test ./cmd/internal/storagegc/ -run TestManagedIOInventoryAnchors -count=1` → PASS.
 - [ ] **Step 3:** `sdlc milestone-close --issue 583 --milestone M1`, then commit.
 
 ## Chunk 2: M2 — untagged orphans are reported and reaped on confirmation
@@ -699,3 +706,20 @@ func ClassifyOrphanNvim(row procutil.Process, args []string, cwd string, cwdKnow
   (`if row.OwnerLive || row.Owner != ""`) proves turns a hang into four precise failures.
   Step 2's "expect FAIL before Task 3's behaviour" could not be run as written — Task 3 was already in place —
   so the teeth were proven by that mutation instead, and reverted (`git status` clean).
+- **2026-10-16 — Task 8: the storage-inventory premise was wrong, and the atlas edits were four.** Reason:
+  Step 1 named `atlas/storage-retention-io.md`'s "nvim-pid and changelog rows"; reading it first (as the step
+  itself asked) shows there is no nvim-pid row. That file inventories **retention-IO anchors** — the paths that
+  touch managed bytes under the retention guard, grep-checked by `storagegc.TestManagedIOInventoryAnchors` —
+  and the pid records are not one: lua writes them with `writefile` outside the guard, exactly as it did
+  before #583 (the changelog `.nvim-pid` follows its `.openlock` sibling's precedent), and `storagegc`
+  classifies both (`GCClassifications["nvim-pid"]`, `gc.go`'s changelog suffix list). So the guard passes
+  untouched and no row was invented to satisfy a plan sentence.
+  Delta: `architecture.md` is the only atlas file mentioning `nvim-pid`, and it needed four edits —
+  `:383` (the Alt+x reap still described the deleted `pkill -f` fallback and two publishing configs; now
+  three kinds, four configs, `VimLeave` removal, and no subprocess seam), `:385` (the startup sweep still
+  described tag-level collection; now per-pid over three evidence sources, the three attribution shapes, and
+  the untagged class named as M2's, not this sweep's), `:1218` (the tag-only family list said
+  `{draft,scrollback}`; `NvimKinds()` and the rename/GC enumeration that iterates it say three), and `:1256`
+  (the sidecar row: three kinds, the review record resolved at its launch site rather than env-bound, the
+  "only a record that still names this process" removal guard, identity-exact reaping, and the changelog's
+  artifact-keyed record with the reason (tag, kind) cannot serve it).
