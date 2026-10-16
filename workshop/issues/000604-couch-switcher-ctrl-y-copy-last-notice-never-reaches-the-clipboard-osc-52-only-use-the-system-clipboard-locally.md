@@ -1,12 +1,12 @@
 ---
 id: 000604
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-15
 updated: 2026-10-16
 estimate_hours:
-card_mirror: '22b7204910faa5d41e6b1facc4ede86de5fe925c' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '9cd156d7c6ad54a6cd0109f9060a48d6d5157316' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-16T15:06:21-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
     repository: github.com/xianxu/pair
 flow: {kind: quick, provenance: inferred, spec: "bfa43c96", done: "10f5608e"}
+actual_hours: 1.56
 ---
 
 # Couch switcher: Ctrl+Y 'copy last notice' never reaches the clipboard (OSC 52 only); use the system clipboard locally
