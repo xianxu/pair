@@ -16,6 +16,7 @@ claimant:
     workspace: pair:1
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "92f53f2f", done: "94047817"}
 ---
 
 # Dormant message readmission test races its last asynchronous attempt
