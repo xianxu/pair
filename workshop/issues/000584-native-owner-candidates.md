@@ -1,14 +1,24 @@
 ---
 id: 000584
-status: open
+status: codecomplete
 deps: []
 github_issue:
 target: slot-recovery
 created: 2026-10-15
 updated: 2026-10-15
-estimate_hours:
+estimate_hours: 1.3935
 severity: critical
-card_mirror: '17eea3b7ad2b5aac277b975b2142a44f7a95ad0a' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '068f08c13b3c59264aadb89129f085aeb787382a' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-15T15:43:33-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:2
+    worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
+    repository: github.com/xianxu/pair
+flow: {kind: full, provenance: operator}
+actual_hours: 2.91
 ---
 
 # Native owner scan blocks fleet resume on unrelated processes
@@ -28,12 +38,100 @@ Filter native-owner candidates from kernel metadata before requiring argv; unrel
 - Candidate process churn gets one bounded retry; stable re-observation succeeds and persistent churn refuses.
 - Fake process-table regressions prove these behaviors and existing native-owner collision protections; required recorded suite and build pass, close review is SHIP.
 
+- Legacy records with a different exact owner-ledger ID do not block a resume; matching/unknown identities remain guarded.
+- Exact legacy source kinship plus held writable owner transcript permits the existing source exemption; wrong parent, PID reuse, read-only or unrelated held files, changed generations and unavailable proof refuse.
+- Legacy refusal names its exact owner (and slot when Couch can resolve it), with migration guidance; modern readiness still needs full identity.
+
 ## Plan
 
-- Add failing process-table regressions at the ownership observation boundary.
-- Filter candidates before argv certainty and retry unstable candidate observations once.
-- Run targeted tests, host read-only observation, recorded suite and build; close and land on SHIP.
+- [x] Add failing process-table regressions at the ownership observation boundary.
+- [x] Filter candidates before argv certainty and retry unstable candidate observations once.
+- [x] Run targeted tests, host read-only observation, recorded suite and build; close and land on SHIP.
 
 ## Log
 
+
+
+- 2026-10-15: closed — Narrow post-close fix updates only TestConformanceWorkflowRunsWithoutSiblingMakefile for the added procutil live command and derives the expected count from its map. All TestConformanceWorkflow cases PASS in 0.366s; production code is unchanged from the prior SHIP. Required production suite PASS at 9979945fb in 11m19s; live descriptor conformance and five race repetitions PASS; updated-head full suite at a7ce2731d869 is queued, and landing waits for it. No protected workflow/config changes, no gate waivers or production slot lifecycle effects. (fixed-then-ship); review verdict: SHIP
+- 2026-10-15: closed — Required production-code suite PASS at 9979945fb5447f522aa9286c5ff701d1ecae48d6 in 11m19s (sha256 f3367ac5877c), make build PASS, complete native-owner group PASS under race detector, host guard 8/8 PASS and exact live duplicate refused. Post-review delta changes only concept docs, one opt-in live test and its existing live target selection; production behavior unchanged. BR-1: complete table now names pure predicates separately from IO adapters. BR-2: actual descriptor conformance PASS, five race repetitions PASS in 2.230s, complete procutil PASS in 3.801s; access-policy mutant went RED. Existing macOS weekly/manual lane and make test-live select the test. A new required recorded full suite at 44b10b71dd20 is running; landing waits for its pass. No protected workflow/config edits, no gate waivers, no production slot effects. #589 remains independent.; review verdict: SHIP
 - 2026-10-15: TL authorized this fleet-blocking regression repair from main. Existing source at e1311121 and 6d65c4c4 is identical on the failing path. PID 32793 endpointsecurityd is live (exact identity 1792103969.915933), native argv EINVAL with successful identity; five other macOS services match. Eighteen kernel-confirmed zombies also exist. No production effects during diagnosis. ARCH-PURPOSE: certainty belongs to possible native owners, not every OS process; ARCH-ORDER: unknown owner evidence is not absence.
+- 2026-10-15: Added regressions for projected unreadable root services, zombie wrapper and retained child, unreadable/identity-less possible Pair owners, settling and persistent candidate churn, unrelated churn, a newly visible colliding writer, and changed wrapper ancestry. All new cases fail against the original implementation (also checked using a Go source overlay); the native-owner suite passes after the fix. One changed-generation fixture now asserts the bounded retry before its later missing-child refusal. Retained-readiness changes retain their existing strict refusal.
+- 2026-10-15: Read-only full host preflight advances past the original command-table refusal in 92–120 ms, then refuses `retained native child generation unknown`: legacy readiness repos/11873b98e33bf004/agent-ready-1-pair-7-codex.json has ordinal 71, PID 73724 and no agent_identity, while its node Codex process is still a child of live wrapper 73688. This separate #556 legacy-association blocker was reported to the hub (bc9cbbce-038e-4e6f-a942-43b444c6fdcc); no uncertainty bypass or production mutation was attempted.
+
+- 2026-10-15: Final bounded-scheduling host observation passed five consecutive read-only checks under concurrent targeted/race runs: 1.579, 1.664, 1.562, 1.496 and 4.281 seconds, all inside the unchanged five-second budget (load 12.67/16.96/20.08 at the end). Typical margin is over three seconds; the slowest measured margin is 0.719 seconds, not a guarantee under arbitrary load. No launch, reservation, park, signal or production metadata writes were performed. Earlier serial checks under concurrent build load exhausted the budget and are retained above rather than omitted.
+- 2026-10-15: Targeted affected-package run passed: couchcore 9.030s, launcher 0.725s, procutil 3.345s, sessioninventory 0.186s. The real twelve-owner/two-fence memo test and ordered worker suite pass under -race (five repetitions, 1.681s); worker-only race tests pass twenty repetitions. Sessionledger and strictjson package tests passed. Real-row differential corpus and adversarial differential fuzz pass; native ledger content is retained only locally.
+
+- 2026-10-15: Three additional host checks while two full-suite slots were occupied passed in 1.882, 2.617 and 4.731 seconds (load 16.50/16.90/19.75). Thus the worst observed final margin is 0.269 seconds; arbitrary system load can still exhaust a bounded foreground observation. This is a safe refusal, not evidence that an owner is absent. Required suite is running on 39d43995c, PR #353; both builds passed.
+
+- 2026-10-15: First recorded suite at 39d43995c found TestProductionArtifactReferencesAreExactlyClassified: the three new launcher production files were absent from the exhaustive source inventory. Classified legacy and finite metadata readers as resolved consumers and the in-memory scheduler as non-artifact source; no quarantine additions. The exact contract test then passed in 2.385s. A new recorded full suite is required for this corrected code head.
+
+- 2026-10-15: First recorded suite finished in 10m50s with only the already-fixed inventory failure; all behavioral Go packages passed (couchcore 334.393s, launcher 36.660s, procutil 3.976s, strictjson 0.157s, sessionledger 2.273s). Saved log: /Users/xianxu/workspace/pair/.git/sdlc/test-stats/failed/365104fc4bf87b313b6e646bfb089d97.log. Corrected run on 9979945fb is queued, log /Users/xianxu/workspace/pair/.git/sdlc/test-stats/inflight/79185f3a4b7716015218ff34bc63d1c8/run.log. No suite waiver requested or used.
+
+- 2026-10-15: Additional read-only live collision conformance passed in 1.798s: asking the guard about this slot's currently held native conversation refused with its exact live owner, 990458a6956a804b:1-pair-8. The test only invoked ownership observation, not resume/admission effects. Final corrected-head make build passed.
+
+- 2026-10-15: Corrected recorded run at 9979945fb passes the inventory contract but reports TestMessageSendToDormantSlotReadmits: expected unavailable, got accepted. Messaging source and test are unchanged from origin/main. Isolated thirty-repeat rerun passed in 5.061s; the prior full suite passed couchcmd. Filed unassigned pair#589 to measure and repair the suspected asynchronous retry/100 ms fixture race, with evidence, and reported to the hub. No messaging edits or gate waiver in #584. This full run is still finishing its other Go packages.
+
+- 2026-10-15: Second recorded suite finished in 11m7s: only TestMessageSendToDormantSlotReadmits failed; all #584 packages passed (core 388.649s, launcher 37.480s). Saved log /Users/xianxu/workspace/pair/.git/sdlc/test-stats/failed/79185f3a4b7716015218ff34bc63d1c8.log. Controlled fixture-race proof and candidate measurements published to #589 on main at d134ce8107e21d0b737607bcede3ed5aa06a8d51. TL 8e95bb66 authorized an unchanged-head retry under the flake rule, with #589 separate. Third recorded run remains exactly 9979945fb544 and started after 517s in queue; log /Users/xianxu/workspace/pair/.git/sdlc/test-stats/inflight/1b92a7237b51faddfe7c1b7439b90d81/run.log. No gate waived. The complete native/legacy/unbound/ordered-proof group also passed under -race in 4.367s.
+
+- 2026-10-15: Required unchanged-head recorded suite PASS at 9979945fb5447f522aa9286c5ff701d1ecae48d6, exit 0 in 11m19s, log SHA-256 f3367ac5877c; /Users/xianxu/workspace/pair/.git/sdlc/local-checks/9979945fb5447f522aa9286c5ff701d1ecae48d6/suite.log. Core 404.387s, launcher 39.706s, and couchcmd 64.419s passed; no fixture edits or test exclusions. #589 remains independent. Close review and landing follow this evidence.
+
+- 2026-10-15: BR-1 correction sweeps the entire concept table, naming actual pure helpers and all IO/scheduling adapters. BR-2 live conformance passed (0.24s), then five -race repetitions passed (2.230s total), with the complete procutil package passing (3.801s). A temporary source overlay that wrongly treated read-only descriptors as writable went RED on the new fixture (read-only descriptor was reported writable); the real production boundary went GREEN. The fixture is selected by both existing live targets and their recurring macOS workflow; no protected workflow/config paths changed. Production behavior is unchanged by this review delta.
+
+- 2026-10-15: The post-review full run caught TestConformanceWorkflowRunsWithoutSiblingMakefile, whose exhaustive expected-command map still listed the original three commands. Updated it to include the new procutil live check and derive the expected count from that map. All TestConformanceWorkflow cases passed in 0.366s. This is the companion expectation for BR-2 wiring, with no production change. The prior run remains pinned to 44b10b71 and is finishing; a fresh recorded suite and narrow post-close review are required for this test-only correction.
+
+- 2026-10-15: Final corrected-head required suite PASS at a7ce2731d8694771996b0f110f69586e04831ccd: exit 0 in 12m6s, log SHA-256 fc274b358938; core 473.229s, launcher 44.160s and couchcmd 73.059s passed. Recorded log: /Users/xianxu/workspace/pair/.git/sdlc/local-checks/a7ce2731d8694771996b0f110f69586e04831ccd/suite.log. Narrow fixed-then-ship review also returned SHIP with zero findings, committed as 850c5c5d19aede124e1101e4308ef1afc63c71ba. CI is green. No gate waivers, suite exclusions or production slot effects. Landing follows; the operator must restart Couch onto a build containing this fix before retrying ariadne:5.
+
+## Revisions
+
+### 2026-10-15 15:55 — approved narrow legacy association
+
+TL approved extending #584 (32f38ca7, refined 61032867) after the host measurement found 18/21 legacy wrappers and migration's circular preflight. Preserve exact modern identities. For legacy readiness, prove current direct child/wrapper kinship from the kernel table and exact owner argv; use its exact readiness ordinal's ledger ID to exclude a different requested ID. For a matching ID, a source exemption additionally needs that owner ID among the native engine's held writable transcript paths, with generations/parent edges rechecked. Same-agent legacy uncertainty with no exclusion remains a refusal naming its owner and relaunch migration advice. Other agent kinds do not block. This is held-file/kinship proof, never cwd/tail inference. Codex needs its node shim's direct native engine child; arbitrary tool descendants are excluded. Durable design: workshop/plans/000584-native-owner-candidates-plan.md.
+
+
+### 2026-10-15 — finite ledger snapshot reader
+
+Read-only host validation reached a further #556 reader-only limit: pair:2's valid ledger is 21,466,623 bytes, exceeding the new guard's 8 MiB whole-file cap. #508 already removed this unsupported cap from sessioninventory. Native ownership now reads the finite observed ledger snapshot through the existing regular-file, no-symlink, cancellation and unchanged-generation reader, preserving readiness's small fixed bound; a >8 MiB valid-ledger regression went red on the old reader and green after the change. No writer policy or ledger schema changed.
+
+### 2026-10-15 — unbound legacy owner, decision requested
+
+The next host check advances in 783 ms to a genuine unbound legacy source: pair:2's readiness ordinal 65 has no requested_native_id and no binding record. Its exact live chain is wrapper 4374 -> node 4461 -> Codex 4470. Writable held rollouts contain one primary source=cli ID (01a133a3-eaec-77b3-8c1e-dc4ac6b41fbd); other held metadata names that ID as its subagent parent. Sent the hub the remaining blocker and a proposed unique-primary held-header fallback; no implementation of that extra rule yet. Current guards preserve this uncertainty. This checkpoint's remaining host failure is expected and reported.
+
+
+### 2026-10-15 — approved unbound legacy ID set
+
+TL approved receipt 5d2dcac0 to use a complete positively held writable native transcript ID set only when the exact legacy launch is genuinely unbound, never conflicting or malformed. The same exact wrapper/child/engine births and parent edges, plus the sorted ID set, are compared at both observations. Matching held IDs remain collisions except the exact source exemption; missing/partial/unrecognized evidence remains unknown. New unbound/different-ID and source cases went red before implementation, and the native suite passes afterwards. Real lsof conformance also found a valid unnamed Darwin NPOLICY descriptor; its real-shaped regression went red and the parser now accepts that non-file shape without accepting unnamed REG files.
+
+
+### 2026-10-15 — approved modern unbound ID set and host timing
+
+TL approved fcda041b: the absent-only complete held-ID fallback also applies after a modern owner passes its full birth and ancestry checks. Malformed/conflicting IDs and identity mismatches still refuse. Both modern and legacy regression matrices pass. A per-admission SHA-256 projection memo retains fresh physical reads at both observations; a changed-byte mutation test proves that stale projections cannot admit changed bindings. The real five-second host check still times out: a separate read-only 15-second diagnostic reached the budget while decoding whole historical ledgers (20–33 MB each); physical reads took milliseconds. No slot effects occurred. Investigating codec cost before claiming the fleet blocker resolved; no deadline increase or weakened validation has been applied.
+
+### 2026-10-15 — shared codec performance, approved
+
+TL approved bc20aff9 the shared json.Valid/key-only duplicate scanner with differential proof against the old scanner, including real ledger rows and adversarial nesting, escaping, Unicode and trailing data. Private ledger field decoders can avoid redundant scans after the outer strict decoder, retaining all rejection semantics. The selective-generation shortcut and larger deadline are unnecessary and are not being implemented. Required host read-only evidence must show margin, beyond a single near-deadline pass.
+
+### 2026-10-15 — approved bounded owner scheduling
+
+TL approved dcac37b0 after serial observation remained marginal during a concurrent build. At most four independent owner proofs per phase; consume in stable wrapper order, cancel and join on failure, keep the memo lock off IO/decode, and retain both fences and the five-second budget. Differential scanner proof: 1,032 rows from the 21 largest retained ledgers, 326,709,546 non-newline bytes, all accepted by both scanners, SHA-256 df55dff5f68e4675c94dfed6ab77f584073e7ea7d842c5caf0b2988b591899fa; adversarial differential fuzz passed 812,261 cases. The corpus test is a local read-only overlay; native content is not committed.
+
+### 2026-10-15 — boundary review corrections
+
+Round 1 returned BR-1 (Core concepts misclassified IO orchestration as pure) and BR-2 (no recurring live lsof descriptor conformance). Correct the concept table with named pure predicates and integration adapters; add the opt-in temporary-descriptor check through the production boundary, wired into existing live targets and their weekly/manual macOS lane. No production behavior or protected workflow/configuration changes. The reviewer independently passed affected package tests, builds, race tests and 42,275 differential fuzz inputs.
+
+## Estimate
+
+Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md, Method A only (calibration marked stale by sdlc). Two smaller Go extensions cover candidate filtering/retry and legacy association; one bounded held-file IO module reuses os/exec and existing filename codecs. Thorough approved design discounts design by 0.2, standard-library availability halves the held-file module's design, implementation uses v3.1's 0.4 scale. Familiarity is 1.0. One review and one real-API discovery budget cover the boundary and host descriptor measurement; docs and issue authoring are separate primitives.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.15 impl=0.08
+item: smaller-go-module design=0.02 impl=0.20
+item: smaller-go-module design=0.02 impl=0.20
+item: greenfield-go-module design=0.05 impl=0.20
+item: atlas-docs design=0.05 impl=0.02
+item: milestone-review design=0.0 impl=0.20
+item: real-api-discovery design=0.0 impl=0.16
+design-buffer: 0.15
+total: 1.3935
+```

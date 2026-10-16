@@ -242,6 +242,8 @@ var SourceClassifications = []SourceClassification{
 	{Path: "cmd/internal/couchcore/recovery_native_owner.go", Kind: ResolvedConsumer},
 	{Path: "cmd/internal/couchcore/recovery_retirement_os.go", Kind: ResolvedConsumer},
 	{Path: "cmd/internal/launcher/recovery_native_owner.go", Kind: ResolvedConsumer},
+	{Path: "cmd/internal/launcher/recovery_native_legacy.go", Kind: ResolvedConsumer},
+	{Path: "cmd/internal/launcher/recovery_native_metadata.go", Kind: ResolvedConsumer},
 	{Path: "cmd/internal/launcher/recovery_authority_os.go", Kind: ResolvedConsumer},
 	{Path: "cmd/internal/launcher/recovery_terminal.go", Kind: ResolvedConsumer},
 	{Path: "cmd/internal/launcher/recovery_terminal_confirmed.go", Kind: ResolvedConsumer},
@@ -650,6 +652,8 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcore/recovery_resume.go",
 	"cmd/internal/couchtty/menu_recovery.go",
 	"cmd/internal/launcher/recovery_authority.go",
+	// #584: schedules already-resolved observations; no artifact paths or IO.
+	"cmd/internal/launcher/recovery_native_parallel.go",
 	"cmd/internal/orientation/recovery.go",
 	"cmd/internal/sessioninventory/recovery_candidate.go",
 	"cmd/internal/sessioninventory/recovery_collect.go",
