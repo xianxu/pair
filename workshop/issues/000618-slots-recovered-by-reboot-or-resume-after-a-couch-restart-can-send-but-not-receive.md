@@ -5,8 +5,8 @@ deps: []
 github_issue:
 created: 2026-10-16
 updated: 2026-10-16
-estimate_hours:
-card_mirror: '34a2428ab1415719a8f423d302770c1f83c1c2d2' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 4.39
+card_mirror: 'ea381246f500919a30881823574373b7a748d77c' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-16T15:08:44-07:00
 claimant:
     operator: Xian Xu
@@ -15,6 +15,7 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
+flow: {kind: full, provenance: inferred}
 ---
 
 # Slots recovered by reboot or resume after a Couch restart can send but not receive
@@ -54,6 +55,31 @@ So a recovered slot looks healthy in `couch --list` and to the operator, yet sil
   binding; a 20 s quit relaunches on the first call.
 - Live: under a full suite, sends to a rebooted and a resumed slot land; the supervisor's zellij listing rate drops to
   the poller's 2 per second.
+
+## Estimate
+
+> *Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only.*
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec              design=1.0  impl=0.1
+item: smaller-go-module       design=0.1  impl=0.16
+item: smaller-go-module       design=0.1  impl=0.12
+item: smaller-go-module       design=0.2  impl=0.16
+item: smaller-go-module       design=0.2  impl=0.16
+item: greenfield-go-module    design=0.5  impl=0.24
+item: smaller-go-module       design=0.2  impl=0.16
+item: atlas-docs              design=0.05 impl=0.04
+item: milestone-review        design=0.1  impl=0.16
+item: milestone-review        design=0.1  impl=0.16
+design-buffer: 0.15
+total: 4.39
+```
+
+Items in order: the investigation and spec (done), ListingPoller, authority wiring, refused receipts and CLI, `--list`
+receive state, peer-delivery ledger confirmation (new record kind plus watcher correlation), relaunch park wait, atlas,
+M1 and M2 reviews.
 
 ## Plan
 
