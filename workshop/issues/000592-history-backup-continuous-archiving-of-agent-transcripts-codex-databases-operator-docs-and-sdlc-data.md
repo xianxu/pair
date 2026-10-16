@@ -15,6 +15,7 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "b4ecd550", done: "a89ac3e5"}
 ---
 
 # history-backup: continuous archiving of agent transcripts, Codex databases, operator docs and sdlc data
