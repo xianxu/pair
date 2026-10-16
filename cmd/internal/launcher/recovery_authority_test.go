@@ -81,7 +81,7 @@ func TestRecoveryRecordRequiresExactDurableIntentAndHelper(t *testing.T) {
 			a.Intent.Context.ExpiresAt = a.Intent.Context.Capture.CapturedAt.Add(storagegc.CaptureRetentionPeriod)
 			record := recoveryAuthorityRecord(a, "/repo", "codex", 42, "helper")
 			change(&record)
-			err := validateRecoveryRecord(a, record, RepoScope{Key: a.Address.RepoScope}, "work", "codex", "/repo", 42, "helper", a.Intent.Context.CreatedAt.Add(time.Minute))
+			err := ValidateRecoveryRecord(a, record, RepoScope{Key: a.Address.RepoScope}, "work", "codex", "/repo", 42, "helper", a.Intent.Context.CreatedAt.Add(time.Minute))
 			if (err == nil) != (name == "none") {
 				t.Fatalf("validation=%v", err)
 			}
@@ -97,7 +97,7 @@ type recoveryGateRuntime struct {
 
 func (f *recoveryGateRuntime) ValidateRecoveryAuthority(ctx context.Context, a RecoveryAuthority, scope RepoScope, tag, agent, cwd string) error {
 	f.checks++
-	return validateRecoveryRecord(a, f.record, scope, tag, agent, cwd, 42, "helper", a.Intent.Context.CreatedAt.Add(time.Minute))
+	return ValidateRecoveryRecord(a, f.record, scope, tag, agent, cwd, 42, "helper", a.Intent.Context.CreatedAt.Add(time.Minute))
 }
 func TestRecoveryLaunchSecondGateRefusesChangedClaimBeforeEffects(t *testing.T) {
 	for _, changed := range []bool{false, true} {
@@ -208,14 +208,14 @@ func TestTaggedRecoveryProfileAndClaimWithoutCapture(t *testing.T) {
 				t.Fatal("tagged intent lost")
 			}
 			record := recoveryAuthorityRecord(a, "/repo", "codex", 42, "helper")
-			if err := validateRecoveryRecord(a, record, RepoScope{Key: a.Address.RepoScope}, "work", "codex", "/repo", 42, "helper", a.Intent.CreatedAt.Add(time.Minute)); err != nil {
+			if err := ValidateRecoveryRecord(a, record, RepoScope{Key: a.Address.RepoScope}, "work", "codex", "/repo", 42, "helper", a.Intent.CreatedAt.Add(time.Minute)); err != nil {
 				t.Fatalf("requires absent capture: %v", err)
 			}
 			if _, err := BuildCouchRecoveryLaunchProfile("work", "claude", []string{}, a); err == nil {
 				t.Fatal("profile accepted different agent")
 			}
 			record.Incarnations[0].Start.RecoveryIntent.SourceRevision++
-			if err := validateRecoveryRecord(a, record, RepoScope{Key: a.Address.RepoScope}, "work", "codex", "/repo", 42, "helper", a.Intent.CreatedAt.Add(time.Minute)); err == nil {
+			if err := ValidateRecoveryRecord(a, record, RepoScope{Key: a.Address.RepoScope}, "work", "codex", "/repo", 42, "helper", a.Intent.CreatedAt.Add(time.Minute)); err == nil {
 				t.Fatal("accepted claim drift")
 			}
 		})
@@ -242,7 +242,7 @@ func TestTaggedRecoveryClaimRejectsChangedAuthority(t *testing.T) {
 			a := taggedAuthority(threadrecord.RecoveryFresh)
 			record := recoveryAuthorityRecord(a, "/repo", "codex", 42, "helper")
 			change(&a, &record)
-			if validateRecoveryRecord(a, record, RepoScope{Key: a.Address.RepoScope}, "work", "codex", "/repo", 42, "helper", a.Intent.CreatedAt.Add(time.Minute)) == nil {
+			if ValidateRecoveryRecord(a, record, RepoScope{Key: a.Address.RepoScope}, "work", "codex", "/repo", 42, "helper", a.Intent.CreatedAt.Add(time.Minute)) == nil {
 				t.Fatal("accepted changed tagged authority")
 			}
 		})
