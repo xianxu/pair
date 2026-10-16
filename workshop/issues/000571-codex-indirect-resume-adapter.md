@@ -507,3 +507,24 @@ net+55 are separate from retained workshop evidence. Added regression coverage
 accounts for the increase after the original reduced projection. No selector
 policy, TOML, snapshot or admission-protocol changes remain. Ready for full
 close review of the complete represented-agent availability rule.
+
+### 2026-10-15 — SHIP; wait for prioritized #597 landing
+
+Close round6 returned SHIP with BR1–7 addressed, no blocking findings;
+codecomplete is bound to evidencee55a7535ceaa330f041079cd248b1089544d67eb
+and reviewed head8190469bb00c2ae6b676042414434d17e8f6f18d. Integrated
+main/#569 without conflicts at60ec394708f05b4c7dec2f7af7032a99b5df74da;
+PR351 is updated, CI passes and publish validation accepts reviewed code.
+Its required integration suite was waiting in the machine queue, with no
+recipes started.
+
+TL messagef63f8587-3f0c-4fcd-9cb2-7635fcf69351 prioritizes #597 first,
+then #571 while other pair code landings wait. Stopped only owned merge
+pid46926 (exit130) before suite acquisition/publication; no remaining process
+in owned group46926. PR351 remains OPEN, this issue codecomplete, tree clean
+before this checkpoint. Do not land before #597. When the hub confirms #597
+landed: fetch/merge main, resolve and verify any conflict, sdlc pr, then
+sdlc merge --yes (no bypass); it owns the required fresh integration suite.
+If code conflicts change this patch, follow the close revalidation the binary
+names. No pair:0 action. Final full pass before the waiting integration is
+9c4fe5c4 (11m56s, f35132f334a1); the pending integration is not claimed passed.
