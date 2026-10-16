@@ -34,3 +34,13 @@ The fixture sleeps600ms in its server and times the whole session-sync write/fol
 ## Log
 
 Filed from #571 as independent unassigned test-economy work. No fix is folded into the Codex adapter reduction. One targeted unchanged repeat is being recorded by #571.
+
+### 2026-10-15 — completed failure evidence
+
+The full run finished all recipes/packages in14m15s; only this test failed.
+Its retained failure log is /Users/xianxu/workspace/pair/.git/sdlc/test-stats/failed/6664352ee3e1ee93acd32ffd5f9c3766.log,
+SHA256prefixa8592e44188b. The anticipated local-check path above was not the
+failed run's retained path. One unchanged targeted repeat passed:
+go test ./cmd/internal/couchcmd -run '^TestSessionSyncWriteTelemetryBestEffort$' -count=1 (1.567s).
+No source or timeout change. Failure rate is one full-suite observation and one
+targeted pass, not a calibrated rate.

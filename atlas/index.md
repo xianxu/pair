@@ -12,7 +12,7 @@
 - [Go migration inventory](go-migration-inventory.md) — artifact/caller/runtime contract for the staged primary-Go-binary migration.
 - [Workflow](workflow/index.md) — issue-based development loop inherited from the ariadne base layer.
 - [How-to-bring-up-a-new-harness-cli](how-to-bring-up-a-new-harness-cli.md) — guide on integrating a new agent harness CLI.
-- [couch](couch.md) — the session supervisor (`cmd/couch`): one leased namespace, Couch-owned composite durable threads coordinated with Pair-owned address claims, recoverable pre-exec starts, stale-thread/checkpoint recovery, explicit archive, tty routing, the after-restart recover plan with resume/reboot over the message socket (#367), confirmed remote agent switching, exact previous tty reads (#517), and listing-based terminal admission, observation-only startup and capture producer witnesses (#528), plus bounded failed-launch evidence with one-line recovery guidance (#531).
+- [couch](couch.md) — the session supervisor (`cmd/couch`): one leased namespace, Couch-owned composite durable threads coordinated with Pair-owned address claims, recoverable pre-exec starts, stale-thread/checkpoint recovery, explicit archive, tty routing, the after-restart recover plan with resume/reboot over the message socket (#367), confirmed remote agent switching, exact previous tty reads (#517), and listing-based terminal admission, observation-only startup and capture producer witnesses (#528), plus bounded failed-launch evidence with one-line recovery guidance (#531), and sampled per-slot CPU/RSS/disk writes, orphan attribution and hub alerts (#587).
 - [Workspace provisioning](workspace-provisioning.md) — repeatable numbered worktree setup, local Couch state, Weave readiness and durable recovery (#305–306); the slot resource table, observation and reconcile plan (#387); repository-family admission and subdirectory propagation are mapped in [couch](couch.md).
 - [Workbench performance](workbench-performance.md) — normal-suite counted UI/message/attach invariants, scan ratchets, extension guide and separate live CPU acceptance.
 - [Agent scratch volume](agent-scratch-volume.md) — Go build cache and agent/test temp roots on an APFS volume fseventsd doesn't journal (#496): setup, verify, lifecycle, teardown.
@@ -127,7 +127,7 @@
 - `README.md` (repo root) — install and usage.
 - Design pensive (sibling repo): `~/workspace/brain/docs/vision/2026-05-02-01-pensive-nvim-as-input-field-for-tui-coding-agents.md`
 
-- [Storage retention](storage-retention.md) — Pair/Couch clocks, protected users, collection and migration.
+- [Storage retention](storage-retention.md) — Pair/Couch clocks, protected users, collection, migration and bounded 24-hour resource-monitor snapshots.
 
 - [Managed retention I/O](storage-retention-io.md) — Checked entrypoints, protected artifacts, guard call chains, meaningful-use rules and behavioral evidence.
 
