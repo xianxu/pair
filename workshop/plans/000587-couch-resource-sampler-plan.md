@@ -87,7 +87,7 @@ Resolve the current owning hub immediately before send, as waitWatcher does; do 
 
 Files: new `procutil/resource*.go` and tests; shared conversion in `table_darwin.go` if needed.
 
-- [ ] Write stateful-reader tests for unsupported counters, process replacement between reads, partial errors, and bounded table growth retries; run to establish red.
+- [ ] Write the `NativeResourceReader` function-contract tests below; run to establish red.
 - [ ] Implement SDK-backed Darwin calls with `proc_pid_rusage` and identity fence; keep a compiling explicit unsupported adapter for other builds.
 - [ ] Add owned-child conformance: CPU/memory and a bounded synced-file write produce monotonic real counters; reuse the identical reader in production and fake tests. No root required.
 - [ ] Run targeted tests and record the actual call formula. Commit the passing unit.
@@ -96,8 +96,8 @@ Files: new `procutil/resource*.go` and tests; shared conversion in `table_darwin
 
 Files: new `couchcore/resource*.go` model/reducer tests and fake.
 
-- [ ] Failing tests: multiple roots and overlapping descendants; editor plus wrapper; unrelated same-name process; retained reparented child; PID reuse; parked/disconnected versus orphan; slot reuse and cross-hub ownership changes.
-- [ ] Failing sequence tests: first sample, counter reset, uneven intervals, missing sample, observation failure, threshold duration, one alert per episode, recovery, failed/uncertain delivery, restart and delayed receipt.
+- [ ] Establish red for `SelectResourceProcesses` using its function contract below.
+- [ ] Establish red for `AdvanceResources` and `AdvanceResourceEpisode` using their function contracts below.
 - [ ] Implement immutable-input reducer and explicit episode states; test deterministic sequences rather than sleeping. Assert each process contributes at most once and unknown evidence cannot become recovery or zero.
 - [ ] Run targeted tests and commit.
 
@@ -114,7 +114,7 @@ Files: `message_service.go`, `couchcore/artifactcollision.go`, new `couchtty/con
 
 Files: new `couchcore/resource_store.go`, `couchcmd/resources_alert.go`, tests, artifact manifest registration.
 
-- [ ] Test age/count/encoded-byte limits, corrupt/truncated/oversized/symlink input, interrupted atomic replacement, persisted orphan identities and restarted alert episodes.
+- [ ] Establish red for `ResourceHistory.Append` and `ResourceStore.Load/Save` using their function contracts below.
 - [ ] Implement safe bounded snapshot store and exact storage/source classification. Do not import diagnosticlog's 365-day retention into the rolling history.
 - [ ] Route effects through `hubBindingFor` / `supervisionCoordinator.sendGenerated`; tests use the real broker with controlled endpoints and receipts. Cover unavailable/moved hub and busy queue.
 - [ ] Run artifact manifest and retention qualification immediately; commit.
@@ -123,7 +123,7 @@ Files: new `couchcore/resource_store.go`, `couchcmd/resources_alert.go`, tests, 
 
 Files: `couchmessage/protocol.go`, `couchcmd/cli.go`, `messages.go`, `message_service.go`, new `resources_render.go`, README, Atlas entries.
 
-- [ ] Add failing CLI/protocol tests for `--resources`, `--json`, incompatible flags, unsupported platform and no supervisor. Cached response must include every known slot, orphans, sampler cost, interval/age, rates, totals and coverage.
+- [ ] Establish red for `ParseCLI`, `ValidateRequest`, `renderResources` and `ParseResourcePolicy` using their function contracts below.
 - [ ] Implement one text/JSON view and strict startup policy parsing. Unknown numeric fields render unavailable; first-sample rates render warming-up.
 - [ ] Prove repeated resource queries perform zero native observations and no writes. Document defaults, counter semantics, history cap and sampled-orphan limitations. Commit.
 
@@ -158,7 +158,7 @@ Files: `couchmessage/protocol.go`, `couchcmd/cli.go`, `messages.go`, `message_se
 
 ### 2026-10-15 — TL approval and pre-existing orphan visibility
 
-TL approved bf764e14 via receipt 9f23fae9-2182-488f-8025-196b3940fa66, with one addition: a separate **unattributed (unproven)** view for large launchd-parented processes of known Couch-launched kinds (nvim --embed, Zellij, agent CLIs) that no live slot owns. This is report-only: no alerts, no fabricated slot provenance, and no cleanup authority. Use the configured orphan RSS floor (default256MiB). Classify names through the existing harness catalog; only bounded candidate argv reads distinguish nvim --embed and ambiguous executables. Revalidate identity around those reads. Candidate sampling and command-probe native attempts are counted separately, extending the bound to 8+2P+A, where P includes unproven candidates and A is the measured bounded argv-read attempts, reported explicitly rather than hidden. Cap candidate inspection within the same8192-process budget and disclose overflow. Add tests for unrelated same-name executables, PPID1 without proof, transition to proven ownership, PID reuse, and zero alert effects from unproven rows. The native conformance/overhead measurement must include this path. Include the section in both text and JSON and label it explicitly as unproven.
+TL approved bf764e14 via receipt 9f23fae9-2182-488f-8025-196b3940fa66, with one addition: a separate **unattributed (unproven)** view for large launchd-parented processes of known Couch-launched kinds (nvim --embed, Zellij, agent CLIs) that no live slot owns. This is report-only: no alerts, no fabricated slot provenance, and no cleanup authority. Use the configured orphan RSS floor (default256MiB). Classify names through the existing harness catalog; only bounded candidate argv reads distinguish nvim --embed and ambiguous executables. Revalidate identity around those reads. Candidate sampling and command-probe native attempts are counted separately, extending the bound to 8+2P+A, where P includes unproven candidates and A is the measured bounded argv-read attempts, reported explicitly rather than hidden. Cap candidate inspection within the same8192-process budget and disclose overflow. Apply the `ClassifyUnattributed` function contract below. The native conformance/overhead measurement must include this path. Include the section in both text and JSON and label it explicitly as unproven.
 
 
 ### 2026-10-15 — plan gate round1: delivery authority and test contracts
@@ -167,7 +167,7 @@ TL approved bf764e14 via receipt 9f23fae9-2182-488f-8025-196b3940fa66, with one 
 
 **PQ-2 (stable-delivery-envelope):** Freeze ID, exact from/to bindings, exact route and rendered body at first dispatch, not at threshold start. Persist this envelope and an `attempting` state before calling the broker; checkpoint failure means no send. Record accepted receipt and notified state after admission. Same-ID retries use byte-identical envelope only, including frozen metric text. Before first attempt, re-resolve hub ownership; after an attempt, ownership/hub-binding change never rewrites that envelope. `ReceiptSnapshot` reconciles in-process attempts; after restart use the existing recipient retained-receipt path (`StatusContext`, `broker.go:829`) with bounded lifetime. Confirmed accepted/submitted/indeterminate receipt suppresses a second notice. A crashed or uncertain attempt with missing/expired/unavailable receipt remains `delivery unknown` and visible for inspection; absence alone does not authorize retransmission or a new ID. Definite refusal before admission can retry the identical envelope while its sender/recipient are still current; replacement leaves it waiting/unknown rather than impersonating a newer binding. Valid metric recovery clears the episode, so a later high interval can generate a new ID. This is at-most-once admission per episode with explicit uncertain delivery, not a claim of exactly-once human receipt.
 
-**PQ-3 (function-level-test-strategy):** The following function contracts govern tasks1–5 (their earlier scenario inventories are examples, not extra task boundaries):
+**PQ-3 (function-level-test-strategy):** The following function contracts govern tasks1–5; task steps reference them rather than duplicating scenario inventories.
 
 | Function/method under test | Adversarial strategy and mechanical guard |
 |---|---|
@@ -184,3 +184,7 @@ TL approved bf764e14 via receipt 9f23fae9-2182-488f-8025-196b3940fa66, with one 
 | `ParseCLI`, `ValidateRequest`, `renderResources` | Text/JSON/query-shape parity and malicious labels; all sections/unknown states explicit, no command IO on cached request. |
 
 No new external dependency or broadened live-slot authorization is introduced by these refinements.
+
+### 2026-10-15 — plan gate round2 presentation refinement
+
+PQ-1 and PQ-2 accepted. PQ-3 required removing duplicate prose test inventories, not merely naming governing contracts. Tasks now reference the function table; integration/live requirements remain. This is a presentation consolidation with no test-coverage or implementation-scope reduction.

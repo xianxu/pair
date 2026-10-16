@@ -46,6 +46,43 @@ rounds:
           family: function-level-test-strategy
           round: 1
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: c72f653d-c997-4ac5-8606-5ab8bb5e8a65
+            repository: github.com/xianxu/pair
+            issue_id: "000587"
+            recipe: plan-quality
+            round: 2
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot1/pair
+            reviewed_head: d76a268fdcb612f34623fb92e3ec102a9cb417ba
+            slot: pair:1
+            requested_at: "2026-10-16T00:05:00.864065Z"
+          phase: finished
+          pid: 34556
+          started_at: "2026-10-16T00:05:01.123623Z"
+          finished_at: "2026-10-16T00:05:33.456757Z"
+          session_id: 01a14206-c1a3-7872-acc2-24437b8e5916
+          outcome: returned
+      "n": 2
+      timestamp: "2026-10-15T17:05:33-07:00"
+      agent: codex
+      dispose:
+        - id: PQ-1
+          disposition: addressed
+          note: The revision defines owning-hub self-notices, retained original provenance, unavailable-owner behavior and real-broker verification with the original slot disconnected.
+          round: 2
+        - id: PQ-2
+          disposition: addressed
+          note: The revision persists an immutable envelope before submission and defines receipt reconciliation, ownership-change handling and conservative suppression when evidence is unavailable.
+          round: 2
+        - id: PQ-3
+          disposition: not-addressed
+          note: Named function strategies are now present, but tasks 1–5 retain the rejected prose scenario inventories. Compress all such inventories into references to the governing function contracts, preserving separate integration and live qualification requirements.
+          round: 2
+      blocked: true
 ---
 
 # Gate ledger — pair#587 (plan-quality)
@@ -64,8 +101,14 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **PQ-3** [Important] `function-level-test-strategy` Replace prose test-case inventories with named function strategies
   Tasks 1–5 and the revision enumerate test cases, while only AdvanceResources is clearly named as a function under test. Compress these inventories into the risky function or method names with one adversarial-input or event-sequence strategy and mechanical guard per function, covering the native adapter, reducer, store validation, policy parsing and worker lifecycle; retain separate integration and live qualification requirements.
 
+## Round 2 — 2026-10-15T17:05:33-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- PQ-1 — addressed — The revision defines owning-hub self-notices, retained original provenance, unavailable-owner behavior and real-broker verification with the original slot disconnected.
+- PQ-2 — addressed — The revision persists an immutable envelope before submission and defines receipt reconciliation, ownership-change handling and conservative suppression when evidence is unavailable.
+- PQ-3 — not-addressed — Named function strategies are now present, but tasks 1–5 retain the rejected prose scenario inventories. Compress all such inventories into references to the governing function contracts, preserving separate integration and live qualification requirements.
+
 ## Open findings
 
-- **PQ-1** [Important] `supervisor-alert-authority` Define alert authority when the originating slot is disconnected or retired
-- **PQ-2** [Important] `stable-delivery-envelope` Specify the immutable delivery envelope and reconciliation policy for uncertain sends
 - **PQ-3** [Important] `function-level-test-strategy` Replace prose test-case inventories with named function strategies
