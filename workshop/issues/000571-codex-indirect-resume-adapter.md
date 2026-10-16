@@ -491,3 +491,17 @@ production-source classification3.589s and resource guard0.760s pass. Fresh
 full suite queued on9c4fe5c4 (inflight cc4a96c418c8c120039d09d12d658c9b).
 Hub reportd915a88e is indeterminate after submit, so it was not blindly resent;
 the final landed/blocked outcome will get its own confirmed report.
+
+### 2026-10-15 — complete ledger-shape full suite passed
+
+Recorded full suite9c4fe5c4ffeed3bd6c75079309735e45894c4f8a passes exit0
+in11m56s after177s queue wait. All recipes/packages passed, no failures. Log:
+/Users/xianxu/workspace/pair/.git/sdlc/local-checks/9c4fe5c4ffeed3bd6c75079309735e45894c4f8a/suite.log,
+SHA256prefixf35132f334a1. Couchcore350.885s, launcher42.844s, wrapper55.534s.
+The integrated make build and CI conformance/merge/guard pass. Only docs since
+the pinned suite head. Final production/dependencies diff vs integrated main
++180/-118 (net+62), tests+985/-110 (net+875), combined net+937; product docs
+net+55 are separate from retained workshop evidence. Added regression coverage
+accounts for the increase after the original reduced projection. No selector
+policy, TOML, snapshot or admission-protocol changes remain. Ready for full
+close review of the complete represented-agent availability rule.
