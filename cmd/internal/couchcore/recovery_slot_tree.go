@@ -25,14 +25,22 @@ func (c *Couch) withSlotTree(ctx context.Context, record ThreadRecord, r Recover
 		return r, nil, nil
 	}
 	wrapper, ok := c.SlotWrapper(record.Address)
-	if !ok || observeExactProcessOrUnknown(c.Proc, wrapper) != Live {
+	if !ok {
 		return r, nil, nil
+	}
+	switch observeExactProcessOrUnknown(c.Proc, wrapper) {
+	case Dead:
+		return r, nil, nil
+	case Unknown:
+		// An unobservable registered wrapper may still be running; starting
+		// beside it is the orphan this exists to prevent.
+		return r, nil, fmt.Errorf("slot wrapper pid %d cannot be observed, so its stop cannot be confirmed; nothing was stopped", wrapper.PID)
 	}
 	table, err := c.ProcessTable()
 	if err != nil {
 		return r, nil, fmt.Errorf("slot process tree unavailable; nothing was stopped: %w", err)
 	}
-	tree := slotWrapperTree(table, wrapper)
+	tree, unidentified := slotWrapperTree(table, wrapper)
 	if len(tree) == 0 {
 		return r, nil, errors.New("slot wrapper changed while reading its process tree; nothing was stopped")
 	}
@@ -47,6 +55,9 @@ func (c *Couch) withSlotTree(ctx context.Context, record ThreadRecord, r Recover
 		}
 	}
 	var notes []string
+	if unidentified > 0 {
+		notes = append(notes, fmt.Sprintf("%d wrapper descendant(s) without a readable identity were not stopped", unidentified))
+	}
 	session := recordSessionName(record)
 	quiescer, canQuiesce := c.Artifacts.(interface {
 		QuiesceNamed(context.Context, ThreadAddress, string) error
@@ -114,9 +125,10 @@ func (c *Couch) withSlotTree(ctx context.Context, record ThreadRecord, r Recover
 }
 
 // slotWrapperTree is the wrapper and its descendants in one process-table
-// snapshot, each with the identity the table read; empty when the table no
-// longer shows the exact registered wrapper.
-func slotWrapperTree(table []procutil.Process, wrapper ProcessIdentity) []RecoveryStopProcess {
+// snapshot, each with the identity the table read, and how many live
+// descendants had no readable identity; empty when the table no longer shows
+// the exact registered wrapper.
+func slotWrapperTree(table []procutil.Process, wrapper ProcessIdentity) ([]RecoveryStopProcess, int) {
 	children := make(map[int][]procutil.Process, len(table))
 	found := false
 	for _, p := range table {
@@ -128,16 +140,21 @@ func slotWrapperTree(table []procutil.Process, wrapper ProcessIdentity) []Recove
 		}
 	}
 	if !found {
-		return nil
+		return nil, 0
 	}
 	tree := []RecoveryStopProcess{{PID: wrapper.PID, Identity: wrapper.Identity, Role: "wrapper"}}
 	seen := map[int]bool{wrapper.PID: true}
 	queue := []int{wrapper.PID}
+	unidentified := 0
 	for len(queue) > 0 {
 		pid := queue[0]
 		queue = queue[1:]
 		for _, child := range children[pid] {
-			if seen[child.PID] || child.Zombie || child.Identity == "" {
+			if seen[child.PID] || child.Zombie {
+				continue
+			}
+			if child.Identity == "" {
+				unidentified++
 				continue
 			}
 			seen[child.PID] = true
@@ -145,7 +162,7 @@ func slotWrapperTree(table []procutil.Process, wrapper ProcessIdentity) []Recove
 			queue = append(queue, child.PID)
 		}
 	}
-	return tree
+	return tree, unidentified
 }
 
 // otherLiveSessionHolder names another positively live slot whose record names

@@ -143,3 +143,14 @@ func TestSlotSessionSharedWithAnotherLiveSlotIsLeft(t *testing.T) {
 		t.Fatalf("dead holder kept the session: %q %v", holder, err)
 	}
 }
+
+// An unobservable registered wrapper may still run: the reboot refuses rather
+// than start beside it.
+func TestRebootRefusesWhenRegisteredWrapperIsUnobservable(t *testing.T) {
+	f := slotTreeFixture(t)
+	f.Proc.SetUnknown(500)
+	_, _, err := f.rebootFresh(t)
+	if err == nil || !strings.Contains(err.Error(), "cannot be observed") || len(f.Runner.order) != 0 {
+		t.Fatalf("unobservable wrapper admitted: err=%v children=%v", err, f.Runner.order)
+	}
+}

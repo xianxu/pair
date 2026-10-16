@@ -1,14 +1,22 @@
 ---
 id: 000607
-status: open
+status: working
 deps: []
 github_issue:
 target: slot-recovery
 created: 2026-10-15
-updated: 2026-10-15
+updated: 2026-10-16
 estimate_hours:
 severity: critical
-card_mirror: '50f84b1b342dba75b25b54a7532f7828981fee5a' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '31bfa73b6d71f3296bb326ee14ff1a5af34f4eaf' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-15T23:54:34-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:2
+    worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Reboot of a legacy slot leaves the old wrapper tree running
@@ -28,7 +36,9 @@ Operator rule: reboot = kill everything belonging to the slot, then start. A reb
 
 ## Plan
 
-- [ ]
+- [x] Stop set: Fresh reboot adds the registry wrapper (exact pid + identity), its descendants and the slot's own session (shared-session guard); refuse only on an unconfirmed exit or an unobservable wrapper (couchcore/recovery_slot_tree.go, wired in couchcmd).
+- [x] Tab bar: one chip per slot from the current row (couchtty/console_presentation.go).
+- [x] Regression tests for each case; atlas couch.md.
 
 ## Log
 
@@ -42,3 +52,11 @@ Filed from the TL's report (priority 1: slot startup); design approved 016cce48.
 - Tab bar: `statusModelLocked` gives no chip to a pane whose address has no inventory row when its tree is a slot's: a slot's chip is its current row, as in the switcher. The old pane itself goes once its client exits, which the session kill now causes.
 - Tests: TestRebootLegacySlotStopsRegisteredWrapperTreeAndSession, TestRebootWithoutRegisteredWrapperIsUnchanged, TestRebootRefusesWhenSlotTreeExitIsNotConfirmed, TestSlotSessionSharedWithAnotherLiveSlotIsLeft, TestRebootedSlotShowsOneTabChip; the legacy, unconfirmed and tab-chip tests RED without the change.
 - Package run under machine load: TestParkCoordinatorCoalescesExplicitRecoveryAndRetry and TestWorkbenchPerformanceIdleUITick failed once; both pass in isolation (5x, 2x) and touch nothing changed here.
+
+### 2026-10-16 — close review round 1 (FIX-THEN-SHIP) dispositions
+
+- BR-1 (Important), accepted: a registered wrapper whose liveness is Unknown now refuses ("cannot be observed, so its stop cannot be confirmed") instead of being treated as absent. Test TestRebootRefusesWhenRegisteredWrapperIsUnobservable.
+- BR-2 (Important), accepted: TestRebootLeavesSessionSharedWithAnotherLiveSlot on the multi-slot recover world: the shared session is not listed or killed, the notice names the other slot, and the wrapper tree is still stopped.
+- Minor, accepted: descendants without a readable identity are counted and noted in the result.
+- Minor, accepted: Plan filled in.
+- Minor (tab bar hides a just-attached pane while the inventory still lists the old address), kept by design: the TL asked the tab bar to derive from the switcher's current-slot set, so the chip follows the inventory and appears at the next refresh; the base's lag fallback still applies to non-slot panes.
