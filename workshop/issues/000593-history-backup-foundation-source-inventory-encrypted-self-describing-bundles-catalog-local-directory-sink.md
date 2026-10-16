@@ -61,3 +61,7 @@ The durable plan expands the approved format into a reusable Go API and explicit
 ### 2026-10-15 — TL approval and catalog simplification
 
 TL receipt4042bd3a approves dc721f5f with two superseding changes: under the catalog lock, repair an incomplete final JSONL line by truncating to the last complete record and syncing before append. Complete records are retained and validated; a complete record conflicting with the stored bundle refuses. Any bundle whose catalog line was torn is a verified uncataloged object, handled by the existing retry adoption. Roll a full64MiB shard automatically to the next numbered shard; no operator shard selection. Shards are one logical catalog and duplicate lookup spans them by streaming reads; no unbounded in-memory index. New-shard creation is synced and serialized by the same catalog lock. Tests cover tail truncation before retry, complete-line conflict, boundary rollover, crash/retry across rollover and preserved earlier shards. These rules supersede the earlier tail-refusal/full-shard-refusal text and tests; all other approved bounds/scope remain.
+
+### 2026-10-15 — plan-quality refinements
+
+Round1 requested durability reconfirmation on retry (PQ-1) and a named function/test-strategy mapping (PQ-2). Added unconditional file/directory sync barriers to read-back/reuse/adoption and catalog reopen/repair/rollover, with repeated-sync-failure regressions. This adds no persisted machinery. The plan's function table consolidates existing test cases into production seams and independent oracles.
