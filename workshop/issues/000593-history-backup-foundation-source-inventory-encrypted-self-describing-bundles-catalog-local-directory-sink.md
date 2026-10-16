@@ -1,46 +1,59 @@
 ---
 id: 000593
-status: working
+status: open
 deps: []
 github_issue:
 created: 2026-10-15
 updated: 2026-10-15
 estimate_hours:
-card_mirror: '76220a7268e4debd60440367ef0ae0305541eccf' # card fields mirrored from issue-cards; edit via sdlc
-started: 2026-10-15T20:15:22-07:00
-claimant:
-    operator: Xian Xu
-    machine: 4716879978a7b90f6b583da1716fd0e9
-    machine_name: Xian’s MacBook Pro
-    workspace: pair:1
-    worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
-    repository: github.com/xianxu/pair
+card_mirror: 'f215de8fdb01d0fe0eec871074b6d4f912e0788d' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # history-backup foundation: source inventory, encrypted self-describing bundles, catalog, local-directory sink
 
 ## Problem
-Valuable history outside git has no common verified backup format or destination contract. Pair retention and continuous agent/operator-history backup need the same foundation before either may rely on archived bytes.
+
+Ops project history-backup (approved design: `ops/teams/devinfra/projects/history-backup/design.md`) needs its
+foundation: a declared source inventory, a self-describing encrypted bundle format, a catalog, and a first sink.
 
 ## Spec
-Implement piece 1 of the operator-approved [history-backup design](/Users/xianxu/workspace/ops/teams/devinfra/projects/history-backup/design.md): one declared source inventory, versioned self-describing tar/zstd/GPG bundles, a local-directory sink with read-back checksum verification, and a private append-only JSONL catalog. Explicit manual input and a reusable Go API exercise the complete path. No automatic scanning, retention changes, deletion, SQLite snapshotting, cloud upload, restore/find command or scheduling in this issue: those are separate project pieces (#394/#592 and later work).
 
-Files and manifests are encrypted; the approved plaintext label contains only kind, time range, counts/bytes, format/compression, recipient fingerprints and ciphertext checksum. The encryption path accepts public keys only and never asks for a password. Public-key availability is checked before reading payloads. Tests use an isolated temporary keyring, never the operator's secret key. Document the operator-owned key recovery/export checklist without performing it.
+Design sections 2.1, 2.2, 2.3 and 2.5, plus the local-directory sink from 2.4.
 
-A successful catalog record means the exact stored bundle and label were read back and matched. A failed/canceled operation never deletes source files or declares verification. Interrupted publication can leave an uncataloged encrypted object; retry verifies and adopts the same manifest identity rather than requiring a durable job journal. A corrupt existing object or catalog is an error, not permission to overwrite it.
+- **Source inventory:** one checked-in config: kind, path pattern, mode (on-expiry or continuous), local retention,
+  sink rule. Agent-agnostic, no hardcoded home paths (resolve from config and XDG/agent defaults).
+- **Bundle writer:** tar (original relative paths + `MANIFEST.json`: format version, kind, host, root, time range,
+  per-file path/size/mtime/sha256) → `zstd -19` → GPG public-key encryption to configured recipient fingerprints (never
+  prompts; no private key needed to write). Plus a plaintext label JSON beside it (format version, kind, time range,
+  file count, bytes, compression, recipient fingerprints, bundle sha256). Path
+  `<kind>/<YYYY>/<MM>/<kind>-<from>-<to>-<id>.tar.zst.gpg`; bundles ~256 MB–1 GB, cut by time range.
+- **Sink interface:** put, get, list, verify (compare the remote checksum with what was written). First sink: a local
+  directory (any mounted path).
+- **Catalog:** append-only JSONL of bundles (id, kind, time range, sink, bytes, sha256, verify time, file list),
+  itself archived daily.
+- **Operator checklist** in the docs (not automated): export the GPG secret key and passphrase to 1Password as the
+  recovery copy.
 
 ## Done when
-- [ ] Checked-in inventory covers project source kinds with owner, root/pattern, mode, local-retention policy and sink rule; unknown kinds and malformed rules refuse.
-- [ ] Explicit selected regular files produce bounded month/size-grouped bundles and encrypted MANIFEST.json with original relative paths, source identity, times, sizes and hashes.
-- [ ] Local sink put/get/list/verify and append-only catalog work with repeat, partial publication, corruption and cancellation cases; no catalog success before both objects verify.
-- [ ] Isolated real zstd/GPG round-trip recovers every fixture byte and manifest field; plaintext labels expose no file paths, and sources remain unchanged on success/failure.
-- [ ] CLI, README, atlas and artifact classifications document the usable foundation, operating bounds and key-recovery responsibility; targeted and recorded suite pass; close is SHIP.
+
+- Round trip in tests with a throwaway GPG key: files → bundle → local sink → verify → get → decrypt → identical bytes
+  and manifest; a corrupted bundle fails verify; labels parse without the key.
+- One live bundle of a small real source (ops QA files) written to a local directory and verified.
 
 ## Plan
-See [durable plan](../plans/000593-history-backup-plan.md). One whole-issue review boundary; plain task checkboxes.
+
+See [durable plan](../plans/000593-history-backup-plan.md).
+
+- [ ] Implement and qualify the foundation through one whole-issue review boundary.
 
 ## Log
 ### 2026-10-15 — claimed and shaping
-Claimed pair:1; start-plan refreshed the inherited ariadne tooling and succeeded on retry. Read operator-approved ops design and project, existing dispatcher/storagegc/artifactpath/durablefile/osfs seams. zstd, gpg and tar are installed. Ops MEMORY.md is absent; AGENTS.local.md read, no ops edits. Keep the foundation separate from retention authority: ARCH-DRY one format/inventory, ARCH-PURPOSE complete verified round-trip, ARCH-FUNERAL explicit artifact ownership without an extra job journal. Plan approval requested from hub before code.
+Claimed pair:1; start-plan refreshed the inherited ariadne tooling and succeeded on retry. Read operator-approved ops design and project, existing dispatcher/storagegc/artifactpath/durablefile/osfs seams. zstd, gpg and tar are installed. The initial sdlc issue show printed headings only; the full original issue was subsequently read and preserved. Ops MEMORY.md is absent; AGENTS.local.md read, no ops edits. Keep the foundation separate from retention authority: ARCH-DRY one format/inventory, ARCH-PURPOSE complete verified round-trip, ARCH-FUNERAL explicit artifact ownership without an extra job journal. Plan approval requested from hub before code.
 
 Read-only bounded seam review confirmed there is no general backup inventory or streaming subprocess pipeline to reuse. Reuse durablefile for small metadata/sync and commitoutcome for uncertain publication; existing session catalogs are replacement/trimmed stores and cannot serve the append-only backup contract. Plan covers parent-symlink confinement, joined pipeline shutdown, no-replace objects and explicit torn-tail refusal.
+
+## Revisions
+
+### 2026-10-15 — proposed foundation implementation scope
+
+The durable plan expands the approved format into a reusable Go API and explicit `pair archive create --request FILE` route. Original Spec and Done-when remain binding, including the live small ops-QA bundle. Daily catalog scheduling belongs to #592; this foundation declares the catalog as a continuous source and does not schedule itself. Root defaults resolve from caller config/XDG/agent defaults without hardcoded personal home paths. The live smoke reads a small selected ops QA file set and writes only an encrypted bundle/label/catalog to a private temporary local sink; never prints source content or modifies ops. Proposed bounds and incomplete-publication behavior are in the plan for TL approval.
