@@ -306,6 +306,12 @@ alias and agent.
 
 ### Live peer messages (#353)
 
+Unset admission timestamps are omitted from wrapper receipts for older supervisors.
+Wrapper reply decoding remains strict; incompatible fields identify the wrapper slot
+and advise restarting Couch. A failed commit reply never triggers another commit;
+possible input effects remain uncertain. Broker release has its own delivery event,
+so cancellation does not falsely report operator keystrokes (#594).
+
 The automatic-input lease consumes the post-submit Empty observation that
 confirmed a delivery; publishing its receipt does not create a new render fence
 (#552). Turn-only confirmation and uncertain writes retain fresh-empty protection.

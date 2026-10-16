@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 )
@@ -115,6 +116,13 @@ func (e RemoteEndpoint) call(ctx context.Context, r EndpointRequest) (EndpointRe
 	}
 	var response EndpointResponse
 	if err := Call(ctx, socket, r, &response); err != nil {
+		var decode *replyDecodeError
+		if errors.As(err, &decode) {
+			if strings.HasPrefix(decode.Error(), "json: unknown field ") {
+				return EndpointResponse{}, fmt.Errorf("wrapper %s is newer than the Couch supervisor; restart Couch: %w", e.Binding.Slot, err)
+			}
+			return EndpointResponse{}, fmt.Errorf("wrapper %s reply could not be decoded; restart Couch: %w", e.Binding.Slot, err)
+		}
 		var dial *net.OpError
 		if errors.As(err, &dial) && dial.Op == "dial" && (errors.Is(err, os.ErrNotExist) || errors.Is(err, syscall.ECONNREFUSED)) {
 			return EndpointResponse{}, fmt.Errorf("messaging unavailable until next relaunch: %w", err)

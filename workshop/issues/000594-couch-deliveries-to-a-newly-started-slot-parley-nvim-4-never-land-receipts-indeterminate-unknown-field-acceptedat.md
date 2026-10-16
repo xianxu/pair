@@ -55,6 +55,10 @@ the new slot's wrapper may be a different build. So two problems:
 
 ### 2026-10-15
 
+- Read-only cause confirmed: running supervisor e1311121 (pid 40081, 14:57) predates AcceptedAt; wrapper 10627 was started 17:12 from a newer build. All five exact IDs (7d561939-1070-4287-89e9-b939084afe25, 115b6364-6b4a-4d62-91f2-f6837896fac3, 12c756aa-4756-4632-a14a-ae533e48018a, ed7175bb-c9dd-4bf9-8ce9-d829fb2dfed4, b408e185-aa67-46b5-82f5-f152168ae991) are retained in the wrapper as cancelled with zero AcceptedAt and the misleading operator-input reason. New wrapper commit replies emit that unknown zero time; supervisor decode fails, then its release marks interrupted. Reported before changes, receipt 64c033f7. No live input or lifecycle effects.
+- TL approved the narrow plan (b5ab4618). Literal old-schema wrapper commit/status tests went RED on unknown AcceptedAt; protocol-error and broker-release tests also went RED on missing diagnostics/operator blame. Minimal fixes pass focused race tests (couchmessage 2.221s, wrapcmd 1.447s); full affected packages passed (6.814s, 53.602s), and make build passed. Status scans also preserve the exact decode diagnostic instead of a generic unanswered count. No commit retry; uncertain effects remain indeterminate.
+- Reverse direction needs a decision before landing: new broker assigns nonzero AcceptedAt and old wrappers strictly decode requests without that field. Proposed omitting the broker-only timestamp from wrapper commit requests while keeping broker evidence; sent hub receipt 9b5ba083. Current patch only omits zero values as already approved. No unapproved reverse-wire change.
+
 ## Revisions
 
 ### 2026-10-15 — measured cause and approved narrow fix

@@ -116,7 +116,7 @@ func (d *peerDelivery) handleEndpoint(_ context.Context, raw []byte) ([]byte, er
 		if d.reservation == request.ID {
 			d.reservation = ""
 			if d.current.Message.ID == request.ID && !d.current.Status.Terminal() {
-				d.interrupted = true
+				d.released = true
 			}
 		}
 		d.mu.Unlock()
