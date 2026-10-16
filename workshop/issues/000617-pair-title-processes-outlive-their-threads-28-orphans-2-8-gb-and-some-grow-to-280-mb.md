@@ -5,8 +5,8 @@ deps: []
 github_issue:
 created: 2026-10-16
 updated: 2026-10-16
-estimate_hours:
-card_mirror: '5f6c39b81a11407e9b069d75831ee207d393928a' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 3.33
+card_mirror: 'b625859c279abf3fe676c7bda8b9f1864aa0c763' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-16T12:54:47-07:00
 claimant:
     operator: Xian Xu
@@ -15,6 +15,7 @@ claimant:
     workspace: pair:6
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
+flow: {kind: full, provenance: operator}
 ---
 
 # pair title processes outlive their threads (28 orphans, 2.8 GB) and some grow to ~280 MB
@@ -41,6 +42,27 @@ monitor now flags them (orphan-rss alerts for ops:0 and pair:2).
 - A test: kill a thread's wrapper; its title process exits within seconds.
 - A title process's memory stays bounded over a long-running thread (a soak test or a measured bound).
 - After the fix and the cleanup, live: one title process per live thread, none with ppid 1 for a dead thread.
+
+## Estimate
+
+Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A primitives plus Method B on memory attribution. Calibration marked stale by estimate-source; numbers provisional. Existing os.Pipe/exec.CommandContext/procutil remove any novel library implementation. Owner lease design uses the resolved spec discount (1.0h x0.2); legacy cleanup retains mid-density design (0.8h x0.5) until #583 answers. Memory attribution has three unresolved decisions at 0.15h each (retention versus spike, which scan dominates, and the resulting work bound), with code-heavy implementation 0.45 x1.5 x0.4=0.27h. Other implementation values below use v3.1's 40% scaling once. Familiar stack, 15% design buffer for this durable plan.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: greenfield-go-module design=0.20 impl=0.32
+item: greenfield-go-module design=0.40 impl=0.32
+item: real-api-discovery design=0.00 impl=0.24
+item: method-b-decisions design=0.45 impl=0.27
+item: smaller-go-module design=0.06 impl=0.20
+item: cross-cutting-refactor design=0.10 impl=0.20
+item: atlas-docs design=0.05 impl=0.08
+item: milestone-review design=0.04 impl=0.20
+design-buffer: 0.15
+total: 3.33
+```
+
+Design subtotal 1.30h plus15%=1.495h; implementation subtotal1.83h; total3.325h, rounded3.33h. Respectively: lease, fenced cleanup, live-profile discovery, memory attribution/fix, cancellation integration, launcher ownership sweep, docs, single close review.
 
 ## Plan
 
