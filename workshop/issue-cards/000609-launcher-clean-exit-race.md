@@ -1,6 +1,6 @@
 ---
 id: 000609
-status: codecomplete
+status: done
 created: 2026-10-16
 updated: 2026-10-16
 estimate_hours:
@@ -22,6 +22,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 0d3c84021677116dd163b013db555f7dcf0b40ab
         evidence_commit: 5cd88ba456b0bbb5dad262c14c602ff1abb15f9b
+        landed_commit: 734dd7d191f05b95d75ef75726c981a3a0eb9b29
 ---
 
 # Launcher clean-exit cancellation test races TERM trap readiness
