@@ -152,3 +152,10 @@ Files: `couchmessage/protocol.go`, `couchcmd/cli.go`, `messages.go`, `message_se
 - `procutil.Table` currently uses x/sys's retrying `SysctlKinfoProcSlice`; a call to Table is not a literal one-syscall measurement.
 - `PairSessionBinding.Owner.Server` exists and is discarded in message admission after validation; the new handoff preserves already-paid-for evidence. Console pane PID alone is a client/helper, not necessarily the session server.
 - `diagnosticlog.RetentionPeriod` is 365 days; it does not supply a 24h rolling ring. Namespace source classification and explicit bounded retention avoid conflating these lifetimes.
+
+
+## Revisions
+
+### 2026-10-15 — TL approval and pre-existing orphan visibility
+
+TL approved bf764e14 via receipt 9f23fae9-2182-488f-8025-196b3940fa66, with one addition: a separate **unattributed (unproven)** view for large launchd-parented processes of known Couch-launched kinds (nvim --embed, Zellij, agent CLIs) that no live slot owns. This is report-only: no alerts, no fabricated slot provenance, and no cleanup authority. Use the configured orphan RSS floor (default256MiB). Classify names through the existing harness catalog; only bounded candidate argv reads distinguish nvim --embed and ambiguous executables. Revalidate identity around those reads. Candidate sampling and command-probe native attempts are counted separately, extending the bound to 8+2P+A, where P includes unproven candidates and A is the measured bounded argv-read attempts, reported explicitly rather than hidden. Cap candidate inspection within the same8192-process budget and disclose overflow. Add tests for unrelated same-name executables, PPID1 without proof, transition to proven ownership, PID reuse, and zero alert effects from unproven rows. The native conformance/overhead measurement must include this path. Include the section in both text and JSON and label it explicitly as unproven.

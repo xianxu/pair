@@ -74,3 +74,8 @@ Durable plan: [Couch resource sampler](../plans/000587-couch-resource-sampler-pl
 ### 2026-10-15 — proposed implementation contract for TL approval
 
 Make sampling limits explicit: orphan attribution requires a previously observed generation/provenance; children born and orphaned entirely between samples and pre-upgrade unknown orphans cannot be proven. Include every known slot row, with partial/unavailable coverage where root or counter evidence is missing. Propose 60s cadence; 2 MiB/s for10m writes, 8 GiB process RSS, 90% one-core idle CPU for15m, 256 MiB orphan RSS over two valid samples. History is <=24h/1440 aggregate frames/4 MiB, plus <=2 MiB ownership/episode checkpoint, with shorter coverage disclosed at the byte cap. Count actual native attempts and persistence cost; qualify <0.1% average one-core cost at default cadence. Darwin uses the SDK libproc API through cgo; unsupported builds report that explicitly. These choices require TL plan approval, and live smoke staging remains separately coordinated.
+
+
+### 2026-10-15 — TL plan approval and unattributed addition
+
+Plan bf764e14 approved (receipt9f23fae9-2182-488f-8025-196b3940fa66). Add report-only unattributed (unproven) large PPID1 processes matching known Couch-launched kinds, including nvim --embed, Zellij and agent CLIs; no alert or slot attribution without provenance. Candidate argv probes are bounded and counted in the cost envelope. Continue to change-code.
