@@ -6,8 +6,8 @@ github_issue:
 target: slot-recovery
 created: 2026-10-15
 updated: 2026-10-15
-estimate_hours:
-card_mirror: '5c10e8776f82ba6f238e5611dd2e084dfc5dff8b' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 2.15
+card_mirror: '320b7af3c737be1c9a5638b1e06bcd689f040f4b' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-15T19:45:21-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
+flow: {kind: full, provenance: operator}
 ---
 
 # Replace the native-owner forensics (#556/#584) with a wrapper-held flock per conversation; one-time cutover; delete the scan and reservation store
@@ -79,3 +80,29 @@ Measured deletion baseline: 1,777 production + 2,766 test lines in dedicated old
 ### 2026-10-15 20:08 PDT — approval and plan-quality clarification
 
 TL approved 2833b837 via submitted receipt 659dde9c, including confirmed Relaunch as the migration path. change-code full-flow plan review requested named transition/test seams and explicit discovery-channel failure semantics (PQ-1/2/3); these are now documented without expanding the wrapper-knows-ID promise. Unknown discovery loss is visible and retains unknown status; known-ID contention/IO failure stops the owned group. No implementation before the gate passes.
+
+## Estimate
+
+Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only; calibration marked stale by estimate-source, so provisional.
+
+- Issue/spec: base design 1.0, thorough-spec x0.2; implementation 0.2 x0.4.
+- Lock package: greenfield base design 1.5, existing x/sys/unix flock and file IO halve design, thorough-spec x0.2; base implementation 0.6 x0.4. No novel native integration remains.
+- Three smaller modules: binding notification, owned-group cleanup, capability check; each base design 0.3 x0.2 and implementation 0.5 x0.4, using existing watcher, PTY and inventory seams.
+- Cross-cutting deletion and stop-set move: base design 0.5 x0.2, implementation 0.5 x0.4; same repository only.
+- Atlas/docs: base design 0.1 x0.2, implementation 0.15 x0.4.
+- Single mandatory boundary review: design 0.1 x0.2, implementation 0.5 x0.4. Familiar codebase x1.0, thorough plan buffer +15% design. Required suite/review execution fits these integration/review primitives; operator maintenance timing is external and remains separately reported.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.20 impl=0.08
+item: greenfield-go-module design=0.15 impl=0.24
+item: smaller-go-module design=0.06 impl=0.20
+item: smaller-go-module design=0.06 impl=0.20
+item: smaller-go-module design=0.06 impl=0.20
+item: cross-cutting-refactor design=0.10 impl=0.20
+item: atlas-docs design=0.02 impl=0.06
+item: milestone-review design=0.02 impl=0.20
+design-buffer: 0.15
+total: 2.15
+```
