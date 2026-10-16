@@ -1,6 +1,6 @@
 ---
 id: 000591
-status: codecomplete
+status: done
 created: 2026-10-15
 updated: 2026-10-16
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 76d88d0a50eba470b649c4a1794bcc6859a0476f
         evidence_commit: 6481784f675e22a2b6e5491adc637f3690c8f619
+        landed_commit: 93f532229bad607a288f90c237df908945b4f839
 ---
 
 # Diagnose legacy review resume reconstruction failure
