@@ -68,3 +68,7 @@ Added the durable implementation proposal and explicit evidence gates. Original 
 ### 2026-10-16 — plan handoff unavailable
 
 Plan committed at be96916a6. Couch socket disappeared before handoff. The send to hub returned uncertain outcome with receipt 15b2288f-f3ba-415e-bc7b-192ccf543f9c; status lookup also could not connect. No automatic resend, no alternative channel, no implementation. TL has not been confirmed to receive this plan; query that receipt before any later send. Earlier pair:4 coordination was queued, not confirmed read. Await transport recovery and TL review.
+
+### 2026-10-16 — TL approved plan
+
+After restart the plan report was resent (09bd705d-e7a6-48a7-b2a2-e9f6b1804a90). Verified TL approval receipt 72aed150-a96e-46b8-8e68-8bb2dcbaa16f: proceed to change-code, implement wrapper pipe lifetime with red tests first, choose controlled production-path replica profiling using real ledger/catalog, no diagnostic rollover of live titles. Cleanup coordination with #583 remains pending. Full flow requested for this cross-process ownership and memory change.

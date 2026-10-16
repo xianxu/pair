@@ -121,3 +121,9 @@ Files: agreed legacy.go/legacy_test.go seam; atlas/architecture.md and atlas/ind
 - [ ] Update atlas to describe wrapper ownership, EOF cancellation, profile interpretation, measured memory bound and cleanup uncertainty; sweep obsolete launcher/session-only lifetime prose and spawn inventory.
 - [ ] Run targeted race tests for titlepoller/wrapcmd/launcher plus contextcmd/sessioninventory/threadactivity and artifactpath tests as touched. Push head, run declared sdlc local-check suite, and normal close with fresh review. This is one issue-close boundary, not artificial per-task milestones.
 - [ ] Before claiming Done, demonstrate disposable live wrapper death, bounded soak, and final live inventory: one title per rolled-out live wrapper, no title for proven dead threads. Report any legacy active wrappers awaiting TL rollout explicitly. Close/land through normal SDLC gates only after required acceptance is satisfied.
+
+## Revisions
+
+### 2026-10-16 — TL approval and profiling choice
+
+Verified submitted receipt 72aed150-a96e-46b8-8e68-8bb2dcbaa16f from ops:0 to this wrapper incarnation. TL approved the pipe lease, red SIGKILL/inheritance/replacement tests first, and proceeding to change-code. TL chose a controlled replica running the production title path against the real ledger/catalog with a Go heap profile. No diagnostic rollover of live titles. This resolves the approval/profile-method gates above; exact cause still requires profile attribution. Native current-versus-peak footprint is consistent with a prior spike, but does not itself attribute Go allocations. Cleanup coordination with #583 remains required.
