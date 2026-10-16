@@ -15,6 +15,7 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "57af933c", done: "664a5825"}
 ---
 
 # Couch: deliveries to a newly started slot (parley.nvim:4) never land, receipts 'indeterminate' (unknown field AcceptedAt)
