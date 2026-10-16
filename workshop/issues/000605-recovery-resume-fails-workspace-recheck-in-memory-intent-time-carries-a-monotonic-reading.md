@@ -41,6 +41,8 @@ A recovery intent equals its persisted form from the moment it is built, so ever
 
 ## Log
 
+
+- 2026-10-16: closed — Recorded suite green on 78d6bf93 (rerun; first run failed only test-review, an nvim branch-mismatch flake that did not reproduce). TestRecoveryResumeWithMonotonicClockPassesWorkspaceRecheck (inferred + proven, production SystemClock, real slot store) RED on main with the exact live error, GREEN with the fix. Class sweep: all in-memory vs persisted DeepEquals of record values are of the recovery intent, created at one site, now canonicalized there. TL approved. no-atlas: bugfix, no new surface.; review verdict: SHIP
 ### 2026-10-15
 
 Filed from the read-only diagnosis of ariadne:5's failed resume after the f136934d restart (TL priority 1: slot startup).
