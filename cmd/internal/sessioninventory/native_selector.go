@@ -65,6 +65,9 @@ type NativeSelectorSnapshot struct {
 // SelectNativeLatest resolves only complete provider-native metadata. Recovery
 // scores, capture times and filesystem fallback activity are not selector facts.
 func SelectNativeLatest(q NativeSelectorRequest, s NativeSelectorSnapshot) NativeSelectorResolution {
+	if q.Agent == AgentCodex {
+		return NativeSelectorResolution{Status: NativeSelectorUnsupported, Reason: "Codex indirect selectors require native selection"}
+	}
 	if s.Unsupported {
 		return NativeSelectorResolution{Status: NativeSelectorUnsupported, Reason: s.Reason}
 	}
@@ -110,6 +113,9 @@ func ResolveNativeSelector(ctx context.Context, rt Runtime, q NativeSelectorRequ
 	defer cancel()
 	if !validAgent(q.Agent) {
 		return NativeSelectorResolution{Status: NativeSelectorUnsupported, Reason: "unsupported native agent"}, nil
+	}
+	if q.Agent == AgentCodex && (q.Latest || !IsCanonicalCodexSessionID(q.NativeID)) {
+		return NativeSelectorResolution{Status: NativeSelectorUnsupported, Reason: "Codex indirect selectors require native selection"}, nil
 	}
 	if q.Config.Remote || (q.Latest && (q.Config.ScopeExpanded || q.All)) {
 		return NativeSelectorResolution{Status: NativeSelectorUnsupported, Reason: "native selector scope cannot be mapped to one local directory"}, nil

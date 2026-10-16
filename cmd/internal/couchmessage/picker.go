@@ -1,6 +1,7 @@
 package couchmessage
 
 import (
+	"github.com/xianxu/pair/cmd/internal/tailmarkup"
 	"regexp"
 	"strings"
 )
@@ -23,7 +24,6 @@ const (
 )
 
 var (
-	tailMarkup = regexp.MustCompile(`‹(/?dim|/?rev|cursor)›`)
 	// A picker's options are numbered; its cursor glyph marks the selected one.
 	selectedOption = regexp.MustCompile(`^[❯›>]\s*\d+\.\s`)
 	optionLine     = regexp.MustCompile(`^[❯›>]?\s*\d+\.\s`)
@@ -38,10 +38,7 @@ var (
 // StripTailMarkup renders one tail line (tail.go's grammar) as plain text,
 // without a dialog box's side borders.
 func StripTailMarkup(line string) string {
-	const escaped = "\x00"
-	line = strings.ReplaceAll(line, "‹‹", escaped)
-	line = tailMarkup.ReplaceAllString(line, "")
-	return strings.Trim(strings.ReplaceAll(line, escaped, "‹"), " \t│┃")
+	return tailmarkup.Strip(line)
 }
 
 // ReadPicker reads the screen's last picker: the block around its selected

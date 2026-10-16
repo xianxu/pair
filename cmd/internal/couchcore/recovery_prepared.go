@@ -266,6 +266,12 @@ func (c *Couch) executePreparedRecovery(ctx context.Context, selection RecoveryS
 		choice = *selected
 		intent = threadrecord.RecoveryIntent{Context: *preview.Snapshot, SelectedKey: choice.Key, NativeID: choice.NativeID, SourceRevision: record.Revision}
 	}
+	// The intent is compared with its persisted copy (start fence, workspace
+	// recheck, fresh replacement), so it must equal that copy from the start:
+	// the clock's monotonic reading survives only in memory (pair#605).
+	if intent, err = persistedRecoveryIntent(intent); err != nil {
+		return result, err
+	}
 	if err := ctx.Err(); err != nil {
 		return result, err
 	}
@@ -542,4 +548,15 @@ func (c *Couch) repairRetiredRecoveryWorkspace(ctx context.Context, record Threa
 		}
 	}
 	return nil
+}
+
+// persistedRecoveryIntent is the intent as the store will decode it: times lose
+// their monotonic reading and keep only what their encoding carries.
+func persistedRecoveryIntent(intent threadrecord.RecoveryIntent) (threadrecord.RecoveryIntent, error) {
+	raw, err := json.Marshal(intent)
+	if err != nil {
+		return threadrecord.RecoveryIntent{}, err
+	}
+	var persisted threadrecord.RecoveryIntent
+	return persisted, json.Unmarshal(raw, &persisted)
 }

@@ -16,6 +16,10 @@ import (
 func (m *terminalModel) Tail(n int) couchmessage.Tail {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	return m.tailLocked(n)
+}
+
+func (m *terminalModel) tailLocked(n int) couchmessage.Tail {
 	if m.closed {
 		s := m.final
 		rows := make([][]uv.Cell, s.Height)
@@ -47,6 +51,28 @@ func (m *terminalModel) Tail(n int) couchmessage.Tail {
 	}
 	cursor := m.emulator.Cursor()
 	return renderTail(rows, n, cursor.X, len(rows)-height+cursor.Y, cursor)
+}
+
+// terminalDriveSnapshot ties every admission cue to one terminal generation.
+type terminalDriveSnapshot struct {
+	Generation uint64
+	Snapshot   terminalSnapshot
+	Tail       couchmessage.Tail
+	Complete   bool
+}
+
+// DriveSnapshot reads display evidence under the same lock Feed owns. A proxy
+// output epoch cannot substitute: its deferred increment follows terminal Feed.
+func (m *terminalModel) DriveSnapshot(n int) terminalDriveSnapshot {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	evidence := terminalDriveSnapshot{Generation: m.generation, Tail: m.tailLocked(n), Complete: !m.closed && m.synchronized && m.observer.framed && !m.observer.frameOpen}
+	if m.closed {
+		evidence.Snapshot = cloneTerminalSnapshot(m.final)
+	} else {
+		evidence.Snapshot = m.snapshotLocked()
+	}
+	return evidence
 }
 
 // agentTail is the endpoint's tail probe. Like settledNow, it reads whichever

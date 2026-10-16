@@ -2,6 +2,7 @@ package couchcmd
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"strings"
 	"sync"
@@ -103,6 +104,97 @@ func TestClassifyWait(t *testing.T) {
 		reason, summary, waiting := classifyWait(c.f, threshold, c.tail)
 		if reason != c.reason || summary != c.summary || waiting != c.waiting {
 			t.Errorf("%s: got (%q, %q, %v), want (%q, %q, %v)", c.name, reason, summary, waiting, c.reason, c.summary, c.waiting)
+		}
+	}
+}
+
+func modelConfirmationTail(t *testing.T, agent string) []string {
+	t.Helper()
+	version := "0.162.1"
+	if agent == "claude" {
+		version = "2.1.299"
+	}
+	b, err := os.ReadFile("../wrapcmd/testdata/drive/" + agent + "/" + version + "/session-status.screen")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return strings.Split(string(b), "\n")
+}
+
+func TestClassifyWaitCompletedModelControl(t *testing.T) {
+	const threshold = 10 * time.Minute
+	for _, agent := range []string{"codex", "claude"} {
+		for _, settled := range []bool{false, true} {
+			for _, resting := range []bool{false, true} {
+				t.Run(fmt.Sprintf("%s/settled=%v/resting=%v", agent, settled, resting), func(t *testing.T) {
+					tail := modelConfirmationTail(t, agent)
+					if agent == "codex" {
+						for i, line := range tail {
+							tail[i] = strings.ReplaceAll(line, " low", " medium")
+						}
+					}
+					reason, _, waiting := classifyWait(waitFacts{Quiet: 11 * time.Minute, Settled: boolp(settled), Resting: resting}, threshold, tail)
+					if resting {
+						if waiting {
+							t.Fatalf("completed control reported %q", reason)
+						}
+					} else if !waiting || reason != waitIdle {
+						t.Fatalf("off-resting idle lost: %q %v", reason, waiting)
+					}
+				})
+			}
+		}
+	}
+}
+
+func TestClassifyWaitCompletedModelControlPending(t *testing.T) {
+	for _, agent := range []string{"codex", "claude"} {
+		for _, settled := range []bool{false, true} {
+			reason, _, waiting := classifyWait(waitFacts{Quiet: 11 * time.Minute, Settled: boolp(settled), Pending: true}, 10*time.Minute, modelConfirmationTail(t, agent))
+			if waiting {
+				t.Fatalf("%s pending slot reported %q", agent, reason)
+			}
+		}
+	}
+}
+
+func TestClassifyWaitModelConfirmationDoesNotHideLaterInput(t *testing.T) {
+	for _, agent := range []string{"codex", "claude"} {
+		base := modelConfirmationTail(t, agent)
+		for _, settled := range []bool{false, true} {
+			tail := append([]string{}, base...)
+			for i := len(tail) - 1; i >= 0; i-- {
+				line := stripTailMarkup(tail[i])
+				if strings.HasPrefix(line, "›") || strings.HasPrefix(line, "❯") {
+					tail = append(tail[:i], append([]string{"Should I merge it now?", ""}, tail[i:]...)...)
+					break
+				}
+			}
+			reason, summary, waiting := classifyWait(waitFacts{Quiet: 11 * time.Minute, Settled: boolp(settled), Resting: true}, 10*time.Minute, tail)
+			if !waiting || summary != "Should I merge it now?" || (settled && reason != waitQuestion) {
+				t.Fatalf("%s later question hidden: %q %q %v", agent, reason, summary, waiting)
+			}
+		}
+		tail := append(append([]string{}, base...), claudePermissionTail...)
+		reason, _, waiting := classifyWait(waitFacts{Quiet: 11 * time.Minute, Settled: boolp(false), Resting: true}, 10*time.Minute, tail)
+		if !waiting || reason != waitPrompt {
+			t.Fatalf("%s later permission hidden", agent)
+		}
+		reason, _, waiting = classifyWait(waitFacts{Quiet: 11 * time.Minute, Settled: boolp(true), Resting: true, Picker: true}, 10*time.Minute, tail)
+		if !waiting || reason != waitPicker {
+			t.Fatalf("%s actual picker hidden", agent)
+		}
+		tail = append([]string{}, base...)
+		for i := len(tail) - 1; i >= 0; i-- {
+			line := stripTailMarkup(tail[i])
+			if strings.HasPrefix(line, "›") || strings.HasPrefix(line, "❯") {
+				tail[i] = "❯ a real unsent draft"
+				break
+			}
+		}
+		reason, _, waiting = classifyWait(waitFacts{Quiet: 11 * time.Minute, Settled: boolp(false), Resting: true}, 10*time.Minute, tail)
+		if !waiting || reason != waitPrompt {
+			t.Fatalf("%s draft hidden", agent)
 		}
 	}
 }

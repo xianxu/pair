@@ -153,6 +153,8 @@ type StopResult struct {
 
 func Operations() []Operation {
 	return []Operation{
+		{Name: "keys", Summary: "Drive bounded named keys in an idle owned slot", Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmNone, Result: ResultConsole, Presentation: PresentationTUI},
+		{Name: "set-model", Summary: "Select and verify a model in an idle owned slot", Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmRequired, Result: ResultConsole, Presentation: PresentationTUI},
 		{
 			Name: "provision-workspace", Summary: "Prepare a durable numbered workspace",
 			Execution: ExecuteDirectStore, Effect: EffectProcess, Confirmation: ConfirmNone,

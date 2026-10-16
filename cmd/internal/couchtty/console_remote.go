@@ -36,6 +36,11 @@ type remoteOperation struct {
 // fires once when the job begins and finished exactly once after adoption.
 func (c *Console) EnqueueRemoteOperation(key, op string, prepare func(context.Context) (couchcore.OperationCall, error),
 	started func(), finished func(any, error)) error {
+	return c.EnqueueRemoteOperationDeadline(key, op, time.Time{}, prepare, started, finished)
+}
+
+// EnqueueRemoteOperationDeadline includes queue wait and effect-gate wait in one budget.
+func (c *Console) EnqueueRemoteOperationDeadline(key, op string, deadline time.Time, prepare func(context.Context) (couchcore.OperationCall, error), started func(), finished func(any, error)) error {
 	c.mu.Lock()
 	fn := c.ops
 	c.mu.Unlock()
@@ -60,6 +65,14 @@ func (c *Console) EnqueueRemoteOperation(key, op string, prepare func(context.Co
 				}
 			}()
 			ctx, cancel := context.WithCancel(c.lifetime)
+			if !deadline.IsZero() {
+				cancel()
+				ctx, cancel = context.WithDeadline(c.lifetime, deadline)
+			}
+			if err := ctx.Err(); err != nil {
+				cancel()
+				return nil, err
+			}
 			defer cancel()
 			call, err := prepare(ctx)
 			prepared = time.Since(begun)

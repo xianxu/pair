@@ -12,6 +12,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/launcher"
+	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 )
 
 type recoveryExecutionFixture struct {
@@ -394,5 +395,32 @@ func TestRecoveryNativeSourceAncestryCannotOverrideBinding(t *testing.T) {
 	check := launcher.RecoveryNativeOwnerCheck{RepoScope: w.Address.RepoScope, Tag: string(w.Address.Tag), Agent: "codex", NativeID: "native", SourcePID: 42, SourceIdentity: "helper", SourceSession: "new-session", SourceNonce: "new-nonce"}
 	if err := f.Artifacts.CheckRecoveryNativeOwner(context.Background(), check); err == nil {
 		t.Fatal("ancestry overrode different source binding generation")
+	}
+}
+
+// pair#605: production's clock carries a monotonic reading that the store
+// does not persist. A recovery resume must still pass the workspace recheck,
+// which compares the claimed record with its persisted copy.
+func TestRecoveryResumeWithMonotonicClockPassesWorkspaceRecheck(t *testing.T) {
+	for _, kind := range []string{"inferred", "proven"} {
+		t.Run(kind, func(t *testing.T) {
+			f := newRecoveryExecutionFixture(t)
+			f.registerLiveChildren(t)
+			now := time.Now()
+			f.observation.Capture.CapturedAt = now.Add(-time.Second)
+			f.observation.Ranked[0].Candidate.SemanticLast = now.Add(-time.Second)
+			f.Couch.Clock = SystemClock{}
+			key := f.preview(t).Candidates[0].Key
+			var err error
+			if kind == "inferred" {
+				_, err = f.Couch.ResumeCandidate(context.Background(), ResumeTarget{Address: f.record.Address}, key)
+			} else {
+				f.Artifacts.SetNativeBinding(f.record.Address, "codex", sessioninventory.BindingEstablished, f.observation.Ranked[0].Candidate.NativeID)
+				_, err = f.Couch.RecoverSelection(context.Background(), RecoverySelection{Target: ResumeTarget{Address: f.record.Address}, Kind: RecoveryProven})
+			}
+			if err != nil {
+				t.Fatalf("recovery resume with a monotonic clock: %v", err)
+			}
+		})
 	}
 }

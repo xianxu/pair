@@ -1,0 +1,17 @@
+
+  >_ OpenAI Codex ‹dim›(v0.162.1)‹/dim›
+     ‹dim›/scratch/repo‹/dim›
+
+  Tip: Maximize usage with GPT-6.1 Sol. Try it on complex work for near-Astra performance at a lower cost.
+
+
+  Select Reasoning Level for GPT-6.1-Sol
+
+
+‹rev›› 1. Low (default)    Fast responses with lighter reasoning                                                             ‹/rev›
+  2. Medium           ‹dim›Balances speed and reasoning depth for everyday tasks‹/dim›
+  3. High             ‹dim›Greater reasoning depth for complex problems‹/dim›
+  4. Extra high       ‹dim›Extra high reasoning depth for complex problems‹/dim›
+  5. More reasoning…  ‹dim›Max and Ultra consume usage limits faster‹/dim›
+
+  enter ‹dim›default ·‹/dim› s ‹dim›session ·‹/dim› esc ‹dim›back‹/dim›

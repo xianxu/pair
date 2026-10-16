@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/xianxu/pair/cmd/internal/agentdrive"
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 )
@@ -18,6 +19,8 @@ import (
 // drives its reducer or writes to the PTY. The admission mutex fences reader
 // observations against automatic writes, including observations not rendered yet.
 type peerDelivery struct {
+	drive         *driveMailbox
+	driveProbe    func() agentdrive.Screen
 	mu            sync.Mutex
 	binding       couchmessage.Binding
 	now           func() time.Time
@@ -118,13 +121,13 @@ func (d *peerDelivery) publish(sink peerSessionSink, o couchmessage.Observation,
 }
 
 func newPeerDelivery(binding couchmessage.Binding, now func() time.Time) *peerDelivery {
-	return &peerDelivery{binding: binding, now: now, lastActivity: now(), wake: make(chan struct{}, 1), notices: make(chan string, 1)}
+	return &peerDelivery{drive: newDriveMailbox(), binding: binding, now: now, lastActivity: now(), wake: make(chan struct{}, 1), notices: make(chan string, 1)}
 }
 
 // PeerSubmitDelay is the fixed pause between the paste and the submit key,
 // the draft pane's rule (nvim/draft_send.lua) with margin. Nothing reads how
 // the agent rendered the paste: pair renders, never classifies (pair#427).
-const PeerSubmitDelay = 150 * time.Millisecond
+const PeerSubmitDelay = agentdrive.TextSubmitDelay
 
 // peerPastedPoll paces a delivery past its paste, so the submit delay and the
 // confirmation are not quantized to the queued poll's second.
@@ -148,7 +151,11 @@ func (p *peerDeliveryPoll) update(d *peerDelivery) <-chan time.Time {
 	if d != nil {
 		d.mu.Lock()
 		active = d.current.Message.ID != "" && !d.current.Status.Terminal()
-		pasted = d.current.Status == couchmessage.Delivering
+		if d.drive != nil && d.drive.active != nil {
+			active = true
+			pasted = true
+		}
+		pasted = pasted || d.current.Status == couchmessage.Delivering
 		d.mu.Unlock()
 	}
 	if !active {
@@ -268,6 +275,7 @@ func (d *peerDelivery) admitReleased(data []byte) bool {
 
 // operatorInputLocked records a keystroke (d.mu held).
 func (d *peerDelivery) operatorInputLocked() (couchmessage.Observation, peerSessionSink, bool) {
+	d.cancelDriveLocked("operator input")
 	d.lastInput = d.now()
 	d.sequence++
 	d.lastActivity = d.now()
@@ -306,6 +314,7 @@ func (d *peerDelivery) inputForwarded(human, buffered bool) bool {
 }
 func (d *peerDelivery) admitImage() {
 	d.mu.Lock()
+	d.cancelDriveLocked("operator image input")
 	d.image = true
 	d.interrupted = d.interrupted || d.current.Status == couchmessage.Delivering
 	d.sequence++
@@ -403,6 +412,7 @@ func (p *proxy) peerComposerSubmission() bool {
 // phase's deadline before every automatic effect: paste-by before the paste,
 // the paste-relative window after it (pair#427).
 func (p *proxy) dispatchPeer(out io.Writer) {
+	p.dispatchAgentDrive(out)
 	d := p.peer
 	if d == nil {
 		return
