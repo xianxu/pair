@@ -2,9 +2,17 @@
 id: 000602
 status: open
 created: 2026-10-15
-updated: 2026-10-15
+updated: 2026-10-16
 estimate_hours:
 github_issue:
+started: 2026-10-16T08:07:27-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:1
+    worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Tests build the pair binary per test (11 tests): build once per suite and share it; guard against new per-test builds
