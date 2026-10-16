@@ -2085,3 +2085,8 @@ and external temporary roots rather than relying on the host's TMPDIR.
   cache. Cleanup must restore write permission only on directories within its
   owned tree without following symlinks; test root removal and preservation of
   a linked caller-owned read-only directory, not just the fixture's exit code.
+
+- #617 fixture isolation: include indirect Pair entrypoints such as installed
+  Couch conformance tests. Their environment must come from the shared empty
+  allowlist too; a legacy denylist can strip the helper needed by nested fixture
+  children even when the direct Pair-spawn source guard is satisfied.
