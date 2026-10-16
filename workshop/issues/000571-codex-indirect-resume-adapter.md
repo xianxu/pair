@@ -7,7 +7,7 @@ target: slot-recovery
 created: 2026-10-15
 updated: 2026-10-15
 estimate_hours: 5.9
-card_mirror: '6f5440633b9c3e83add1a8120c87397fd49ec491' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '9b83463400f7a141356001022c0ce6d36cb86420' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-15T10:22:13-07:00
 claimant:
     operator: Xian Xu
@@ -17,7 +17,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: operator}
-actual_hours: 15.65
+actual_hours: 16.61
 ---
 
 # Keep Codex indirect resumes native; route exact-ID transcript homes
