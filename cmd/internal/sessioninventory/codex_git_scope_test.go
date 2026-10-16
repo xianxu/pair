@@ -42,8 +42,10 @@ func TestCodexGitWorktreeScopeValidatesBacklinksAndCorrespondingDirectories(t *t
 		t.Fatal(err)
 	}
 	cwds, err = codexWorktreeCWDs(filepath.Join(primary, "sub"))
+	// Native's registered backlink now targets the already-seen primary
+	// checkout; this is a positive exclusion, not an unproven linked identity.
 	if err != nil || len(cwds) != 1 {
-		t.Fatalf("forged backlink widened scope: %v %v", cwds, err)
+		t.Fatalf("native-proven duplicate target: %v %v", cwds, err)
 	}
 }
 func TestCodexGitProjectTrustFallsBackToValidatedPrimary(t *testing.T) {
@@ -126,7 +128,7 @@ func TestCodexGitAliasedAdminCannotInheritPrimaryTrust(t *testing.T) {
 }
 
 func TestCodexGitUnprovenDiscoveryNeverShrinksCompleteScope(t *testing.T) {
-	for _, kind := range []string{"current-admin-alias", "linked-admin-alias", "linked-backlink-alias", "linked-common-alias", "primary-git-alias", "linked-nonregular-git", "linked-incomplete-metadata", "linked-permission-error"} {
+	for _, kind := range []string{"current-admin-alias", "current-dangling-git", "linked-admin-alias", "linked-backlink-alias", "linked-common-alias", "primary-git-alias", "linked-nonregular-git", "linked-incomplete-metadata", "linked-permission-error"} {
 		t.Run(kind, func(t *testing.T) {
 			primary, linked, admin := codexTestWorktrees(t)
 			r, q, _, _ := codexTestConfig(t, "forced_login_method='api'\n")
@@ -151,6 +153,12 @@ func TestCodexGitUnprovenDiscoveryNeverShrinksCompleteScope(t *testing.T) {
 				if kind == "current-admin-alias" {
 					q.CWD = filepath.Join(linked, "sub")
 				}
+			case "current-dangling-git":
+				original := filepath.Join(primary, ".git")
+				if err := os.Rename(original, original+"-backup"); err != nil {
+					t.Fatal(err)
+				}
+				symlink(filepath.Join(primary, "absent-admin"), original)
 			case "linked-backlink-alias":
 				alias := linked + "-alias"
 				symlink(linked, alias)
@@ -203,7 +211,7 @@ func TestCodexGitUnprovenDiscoveryNeverShrinksCompleteScope(t *testing.T) {
 	}
 }
 func TestCodexGitNativeProvenExclusionsAndNonGitRemainComplete(t *testing.T) {
-	for _, kind := range []string{"plain-non-git", "missing-corresponding-directory", "non-directory-corresponding-path", "non-directory-registration"} {
+	for _, kind := range []string{"plain-non-git", "missing-corresponding-directory", "non-directory-corresponding-path", "escaped-corresponding-path", "non-directory-registration"} {
 		t.Run(kind, func(t *testing.T) {
 			primary, linked, _ := codexTestWorktrees(t)
 			r, q, _, _ := codexTestConfig(t, "forced_login_method='api'\n")
@@ -221,6 +229,15 @@ func TestCodexGitNativeProvenExclusionsAndNonGitRemainComplete(t *testing.T) {
 					if err := os.WriteFile(p, nil, 0600); err != nil {
 						t.Fatal(err)
 					}
+				}
+			case "escaped-corresponding-path":
+				path := filepath.Join(linked, "sub")
+				if err := os.Remove(path); err != nil {
+					t.Fatal(err)
+				}
+				outside := t.TempDir()
+				if err := os.Symlink(outside, path); err != nil {
+					t.Fatal(err)
 				}
 			case "non-directory-registration":
 				want = 2

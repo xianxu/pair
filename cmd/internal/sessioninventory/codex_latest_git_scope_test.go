@@ -40,6 +40,7 @@ func TestCodexLatestGitAdminAliasCannotSelectOlderConversation(t *testing.T) {
 	if out, err := exec.Command("sqlite3", filepath.Join(home, "state_5.sqlite"), sql).CombinedOutput(); err != nil {
 		t.Fatalf("fixture: %s %v", out, err)
 	}
+	codexTestFreezeWAL(t, filepath.Join(home, "state_5.sqlite"))
 	pick := func() string {
 		t.Helper()
 		p, err := readCodexSelectionConfig(context.Background(), q, reader)

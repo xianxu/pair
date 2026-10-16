@@ -11,26 +11,42 @@ import (
 
 type codexGitIdentity struct{ common, primary, relative string }
 
-func codexGitRoot(cwd string) string {
+// codexObservedGitRoot distinguishes a proven non-repository from an
+// unobservable one. Native info.rs:773-784 skips .git directories without HEAD;
+// IO errors and exhausted ancestry do not prove absence for guarded selection.
+func codexObservedGitRoot(cwd string) (string, error) {
 	for d, n := cwd, 0; n < 128; n++ {
-		p := filepath.Join(d, ".git")
-		st, err := os.Stat(p)
+		marker := filepath.Join(d, ".git")
+		st, err := os.Stat(marker)
 		if err == nil {
 			if !st.IsDir() {
-				return d
+				return d, nil
 			}
-			if _, err := os.Stat(filepath.Join(p, "HEAD")); err == nil {
-				return d
+			if _, err = os.Stat(filepath.Join(marker, "HEAD")); err == nil {
+				return d, nil
+			} else if !os.IsNotExist(err) {
+				return "", err
+			}
+		} else if !os.IsNotExist(err) {
+			return "", err
+		} else {
+			// A dangling observed marker is unsupported metadata, not an absent
+			// repository. Keep it distinct from ordinary non-Git directories.
+			if _, linkErr := os.Lstat(marker); linkErr == nil {
+				return "", errCodexConfigObservation
+			} else if !os.IsNotExist(linkErr) {
+				return "", linkErr
 			}
 		}
 		parent := filepath.Dir(d)
 		if parent == d {
-			break
+			return "", nil
 		}
 		d = parent
 	}
-	return ""
+	return "", errCodexConfigObservation
 }
+func codexGitRoot(cwd string) string { root, _ := codexObservedGitRoot(cwd); return root }
 func codexGitPath(path, base, prefix string) (string, error) {
 	st, err := os.Lstat(path)
 	if err != nil {
@@ -121,10 +137,23 @@ func codexRepositoryIdentity(cwd string) (codexGitIdentity, bool) {
 	}
 	return codexGitIdentity{common: common, primary: primary, relative: relative}, true
 }
+
+// Native worktree.rs canonicalizes admin aliases that trust.rs rejects.
+// Our supported identity remains deliberately stricter for trust provenance.
+// A failed observed identity is therefore UNKNOWN, never proof a checkout can
+// be removed from the native candidate set. Return compatibility for the whole
+// projection rather than authorizing a narrower set.
 func codexWorktreeCWDs(cwd string) ([]string, error) {
+	root, err := codexObservedGitRoot(cwd)
+	if err != nil {
+		return nil, err
+	}
+	if root == "" {
+		return []string{cwd}, nil
+	}
 	id, ok := codexRepositoryIdentity(cwd)
 	if !ok {
-		return []string{cwd}, nil
+		return nil, errCodexConfigObservation
 	}
 	canonical, err := filepath.EvalSymlinks(cwd)
 	if err != nil {
@@ -136,22 +165,55 @@ func codexWorktreeCWDs(cwd string) ([]string, error) {
 		out = append(out, canonical)
 		seen[canonical] = true
 	}
-	appendRoot := func(root string) {
-		c, e := filepath.EvalSymlinks(filepath.Join(root, id.relative))
-		if e != nil || seen[c] {
-			return
+	appendRoot := func(root string) error {
+		checkout, e := filepath.EvalSymlinks(root)
+		if os.IsNotExist(e) {
+			return nil
 		}
-		st, e := os.Stat(c)
-		if e != nil || !st.IsDir() {
-			return
+		if e != nil {
+			return e
 		}
-		other, ok := codexRepositoryIdentity(c)
-		if ok && other.common == id.common && other.relative == id.relative {
-			seen[c] = true
-			out = append(out, c)
+		candidate, e := filepath.EvalSymlinks(filepath.Join(checkout, id.relative))
+		if os.IsNotExist(e) {
+			return nil
 		}
+		if e != nil {
+			return e
+		}
+		relative, e := filepath.Rel(checkout, candidate)
+		if e != nil {
+			return e
+		}
+		if relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+			return nil
+		}
+		st, e := os.Stat(candidate)
+		if os.IsNotExist(e) {
+			return nil
+		}
+		if e != nil {
+			return e
+		}
+		if !st.IsDir() {
+			return nil
+		}
+		if seen[candidate] {
+			return nil
+		}
+		other, ok := codexRepositoryIdentity(candidate)
+		if !ok {
+			return errCodexConfigObservation
+		}
+		if other.common != id.common || other.relative != id.relative {
+			return nil
+		}
+		seen[candidate] = true
+		out = append(out, candidate)
+		return nil
 	}
-	appendRoot(id.primary)
+	if err := appendRoot(id.primary); err != nil {
+		return nil, err
+	}
 	dir := filepath.Join(id.common, "worktrees")
 	entries, err := codexWorktreeEntries(dir)
 	if os.IsNotExist(err) {
@@ -160,34 +222,40 @@ func codexWorktreeCWDs(cwd string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	if len(entries) > 256 {
-		return nil, errCodexConfigObservation
-	}
 	sort.Slice(entries, func(i, j int) bool { return entries[i].Name() < entries[j].Name() })
-	for _, e := range entries {
-		if !e.IsDir() {
+	for _, entry := range entries {
+		if !entry.IsDir() {
 			continue
+		} // native read_dir file_type positively excludes it
+		admin, e := filepath.EvalSymlinks(filepath.Join(dir, entry.Name()))
+		if e != nil {
+			return nil, e
 		}
-		admin, err := filepath.EvalSymlinks(filepath.Join(dir, e.Name()))
-		if err != nil {
-			continue
-		}
-		parent, err := filepath.EvalSymlinks(dir)
-		if err != nil {
-			return nil, err
+		parent, e := filepath.EvalSymlinks(dir)
+		if e != nil {
+			return nil, e
 		}
 		if filepath.Dir(admin) != parent {
 			continue
-		}
+		} // native ownership comparison
 		git, e := codexGitPath(filepath.Join(admin, "gitdir"), admin, "")
-		if e != nil || filepath.Base(git) != ".git" {
-			continue
+		if e != nil {
+			return nil, e
 		}
-		appendRoot(filepath.Dir(git))
+		if filepath.Base(git) != ".git" {
+			continue
+		} // positively native-excluded target
+		if e := appendRoot(filepath.Dir(git)); e != nil {
+			return nil, e
+		}
 	}
 	return out, nil
 }
 func codexProjectConfigLayers(cwd, home string, layers []codexConfigLayer, load func(string) (codexConfigLayer, error)) ([]codexConfigLayer, error) {
+	nativeGitRoot, observationErr := codexObservedGitRoot(cwd)
+	if observationErr != nil {
+		return nil, observationErr
+	}
 	merged := map[string]any{}
 	for _, l := range layers {
 		codexMergeConfig(merged, l.values)
@@ -232,8 +300,8 @@ func codexProjectConfigLayers(cwd, home string, layers []codexConfigLayer, load 
 	primary := ""
 	if id, ok := codexRepositoryIdentity(cwd); ok {
 		primary = id.primary
-	} else if gitRoot := codexGitRoot(cwd); gitRoot != "" {
-		if st, err := os.Lstat(filepath.Join(gitRoot, ".git")); err == nil && !st.IsDir() {
+	} else if nativeGitRoot != "" {
+		if st, err := os.Lstat(filepath.Join(nativeGitRoot, ".git")); err != nil || !st.IsDir() {
 			return nil, errCodexConfigObservation
 		}
 	}

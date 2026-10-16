@@ -648,6 +648,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/sessioninventory/native_selector_collect.go",
 	"cmd/internal/sessioninventory/native_selector_io.go",
 	"cmd/internal/sessioninventory/native_selector_os.go",
+	"cmd/internal/sessioninventory/native_selector_sqlite_snapshot.go",
 	"cmd/internal/wrapcmd/native_admission.go",
 	"internal/reporoot/root.go",
 	"cmd/internal/couchcmd/resume_candidates.go",
