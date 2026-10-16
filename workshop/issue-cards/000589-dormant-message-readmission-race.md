@@ -1,6 +1,6 @@
 ---
 id: 000589
-status: working
+status: codecomplete
 created: 2026-10-15
 updated: 2026-10-16
 estimate_hours:
@@ -14,8 +14,14 @@ claimant:
     workspace: pair:1
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
+actual_hours: 4.94
 tracker:
     version: 1
+    completion:
+        token: close-bc45927f2fef
+        repository: github.com/xianxu/pair
+        reviewed_head: 8a00404d7ae9a70daba1485be3b595fb6661f7f8
+        evidence_commit: d0d0f817a8c176a2179d87427905dc02aa17dabd
 ---
 
 # Dormant message readmission test races its last asynchronous attempt
