@@ -134,3 +134,7 @@ Required suite on 8186d8abd3e02528189a1809f3793f57d682bf07 passed exit0 in 14m49
 ### 2026-10-15 — close round 2 SHIP; native and landing tasks held
 
 The combined evidence/close row now explicitly covers the authorized automated close; native evidence stays in the preceding unchecked task, preserving the TL-directed sequencing revision. Close review aa4c2240dec53d735a567e90105b45b60c621433 returned SHIP/high, disposed BR-1/BR-2 and found nothing new. Evidence commit c1f0d3cc21678e7ace1040dd216f873029461224 finalized codecomplete with measured actual 2.20h. No stage, relaunch, native acceptance or landing; wait for TL coordination.
+
+### 2026-10-15 — TL authorizes landing before coordinated native check
+
+TL receipt 824da9c5-6518-4236-9c7f-957d60c77ab7 supersedes the landing hold: land now through sdlc merge --yes on existing SHIP and required-suite evidence. A stage holds one branch, so #569 and #587 land before the shared restart. Native idle, mid-turn and subsequent-delivery probes on pair:4 remain owed on main after that restart, in Qoder's 07:00 window. This changes sequencing only; it does not claim native acceptance or authorize staging/relaunch here.

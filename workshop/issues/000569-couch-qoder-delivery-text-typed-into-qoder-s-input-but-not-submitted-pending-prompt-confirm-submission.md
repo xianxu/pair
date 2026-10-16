@@ -133,3 +133,7 @@ Recorded suite on 8186d8abd3e02528189a1809f3793f57d682bf07 passed exit0 in 14m49
 ### 2026-10-15 — close round 2 SHIP; held for native acceptance
 
 Fresh-context review of aa4c2240dec53d735a567e90105b45b60c621433 returned SHIP/high, disposed BR-1 and BR-2 addressed, and raised no findings. Reviewer independently passed focused/race checks and confirmed the routing regression fails with the prior Enter advice restored in its disposable checkout. Close finalized codecomplete with evidence commit c1f0d3cc21678e7ace1040dd216f873029461224 and measured actual 2.20h (build 1.34h / converge 0.86h). No extra lesson beyond the already-recorded recovery-routing/documentation rule arose. Required corrected-head suite remains green. TL's hold remains: native idle/mid-turn/subsequent-delivery probes, staging/relaunch and landing are pending; no native acceptance claimed.
+
+### 2026-10-15 — TL authorizes landing before coordinated native check
+
+TL receipt 824da9c5-6518-4236-9c7f-957d60c77ab7 supersedes the landing hold: land now through sdlc merge --yes on existing SHIP and required-suite evidence. A stage holds one branch, so #569 and #587 land before the shared restart. Native idle, mid-turn and subsequent-delivery probes on pair:4 remain owed on main after that restart, in Qoder's 07:00 window. This changes sequencing only; it does not claim native acceptance or authorize staging/relaunch here.
