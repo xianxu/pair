@@ -53,8 +53,9 @@ One maintenance cutover, one lock build: delete the global native owner scan, le
 Durable implementation plan: workshop/plans/000595-conversation-flock-plan.md (one atomic close boundary).
 
 - [x] Obtain TL approval of the wrapper-lifetime/capability-cutover revision before change-code.
-- [ ] Implement and verify the small lock, existing binding notification and owned-group cleanup; remove forensic/reservation authority in the same build, preserving moved source stop-set attribution.
-- [ ] Run full verification and SHIP review; coordinate the single operator maintenance acceptance; report actual net deletion and land as directed.
+- [x] Implement and verify the small lock, existing binding notification and owned-group cleanup; remove forensic/reservation authority in the same build, preserving moved source stop-set attribution.
+- [x] Run full verification and SHIP review; report actual net deletion (prod -1156, tests -2541 vs main).
+- [ ] Operator maintenance acceptance, then land as the TL directs (held for #589).
 
 ## Log
 
