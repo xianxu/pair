@@ -216,6 +216,10 @@ func TestAgentDriveRunBoundaryHelper(t *testing.T) {
 	if os.Getenv("PAIR_DRIVE_BOUNDARY_ROLE") != "wrapper" {
 		t.Skip("subprocess helper")
 	}
+	// TestMain removes inherited live Couch identity for ordinary tests (#597).
+	// This isolated helper intentionally hosts its own registry and wrapper.
+	t.Setenv("COUCH_THREAD_SCOPE", "boundary")
+	t.Setenv("COUCH_THREAD_TAG", "boundary")
 	os.Exit(Run([]string{filepath.Join(os.Getenv("PAIR_DRIVE_BOUNDARY_ROOT"), "bin", "codex"), "--no-daemon", "--no-alt-screen", "--sandbox", "read-only", "--ask-for-approval", "never", "-c", "check_for_update_on_startup=false"}, os.Stdin, os.Stdout, os.Stderr))
 }
 
@@ -285,7 +289,7 @@ func runAgentDriveBoundary(t *testing.T, virtual bool) {
 		t.Fatal(err)
 	}
 	namespace := filepath.Join(root, "namespace")
-	env = append(env, "PAIR_DRIVE_BOUNDARY_ROLE=wrapper", "PAIR_DRIVE_BOUNDARY_NATIVE="+native, "PAIR_DRIVE_BOUNDARY_ROOT="+root, "COUCH_STORE_DIR="+namespace, "COUCH_THREAD_SCOPE=boundary", "COUCH_THREAD_TAG=boundary", "PAIR_SESSION_NAME=isolated-boundary", "PAIR_LAUNCH_NONCE=boundary-launch")
+	env = append(env, "PAIR_DRIVE_BOUNDARY_ROLE=wrapper", "PAIR_DRIVE_BOUNDARY_NATIVE="+native, "PAIR_DRIVE_BOUNDARY_ROOT="+root, "COUCH_STORE_DIR="+namespace, "COUCH_THREAD_SCOPE=boundary", "COUCH_THREAD_TAG=boundary", "PAIR_SESSION_NAME=isolated-boundary", "PAIR_LAUNCH_NONCE=boundary-launch", "PAIR_WRAP_LOG="+filepath.Join(root, "wrapper.log"))
 	if virtual {
 		source := filepath.Join(root, "pair.terminfo")
 		if err := os.WriteFile(source, []byte(terminal.DefaultProfile().TerminfoSource()), 0600); err != nil {
@@ -419,6 +423,8 @@ func runAgentDriveBoundary(t *testing.T, virtual bool) {
 	case binding = <-hello:
 	case <-time.After(25 * time.Second):
 		raw := screen.bytes()
+		diagnostic, _ := os.ReadFile(filepath.Join(root, "wrapper.log"))
+		t.Logf("wrapper diagnostic=%s", strings.ReplaceAll(string(diagnostic), root, "/scratch"))
 		t.Fatalf("wrapper not registered; output=%q", strings.ReplaceAll(string(raw[max(0, len(raw)-4000):]), root, "/scratch"))
 	}
 	endpoint := couchmessage.RemoteEndpoint{Namespace: namespace, Binding: binding}

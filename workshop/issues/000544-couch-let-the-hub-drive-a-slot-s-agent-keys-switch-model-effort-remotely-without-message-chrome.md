@@ -142,7 +142,20 @@ Previous recovery screen is unavailable. Clean pushed recovery HEAD was fb11e0c8
 
 Verified submitted TL receipt35fe918a-6e29-4552-a88c-b95671e9822a from ops:0 to this incarnation directs landing now, integrating current main and using the normal review/suite/merge gates. TL reports the production-equivalent42b2086f fleet Couch ran20:27–23:13 tonight without regressions attributable to it. This is operational soak evidence, not successful model/key acceptance. Live session-only Codex and Claude set-model, raw keys/recovery and ordinary delivery handoff acceptance move to main after the next operator Couch restart, owned by TL ops:0. No live-success claim or worker-driven restart is made.
 
+### 2026-10-15 — current-main integration and native fixture reconciliation
+
+Integrated current main at2b602b9a5; only conflict was additive artifact inventory, retaining both source sets. Targeted races PASS agentdrive1.254s, couchmessage1.249s, wrapcmd6.840s, couchcmd2.430s; inventory PASS10.754s and diff check clean. PR362 opened. Recorded integrated suite started normally on2b602b9a5.
+
+Additional actual Run/native conformance RED twice: wrapper never registered, although Codex reached its empty prompt. New main #597 TestMain clears Couch thread scope/tag for ordinary tests; this subprocess fixture had depended on those inherited values. Restore only its disposable scope/tag inside the explicit boundary helper after TestMain (no production change), and retain bounded wrapper diagnostics for registration failures. Actual Run/socket/native conformance now GREEN18.770s: scratch9.18s and Pair virtual9.29s, model/effort/session confirmation, dirty recovery and joined cleanup. The final fixture change needs a recorded suite on its own source before landing; do not claim the2b602b9a5 run covers it.
+
 ## Revisions
+
+### 2026-10-15 — restore isolated conformance identity after TestMain
+
+**Reason:** Main #597 intentionally strips inherited Couch identity from test processes; the opt-in boundary helper must set up its own explicitly.
+
+**Delta:** Set the helper's existing disposable scope/tag after TestMain, preserving ordinary test isolation and all production admission guards. Keep registration failure diagnostics local to the fixture. Red/green actual Run/native conformance proves both scratch and Pair virtual protocol paths again (ARCH-DRY).
+
 
 ### 2026-10-15 — move live acceptance after landing
 

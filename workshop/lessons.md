@@ -1978,3 +1978,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #593: A cleanup scan budget must count transient artifacts, not retained final objects. Isolate staging before applying bounds, and test continued writes beyond the listing cap. Whenever a writer gains numbered shards, test that its source inventory includes actual rolled names while excluding locks/staging.
 
 - #593 BR-3: Inventory completeness is per supported producer/backend, not per logical kind. Sweep global, repo-scoped, slot-local, legacy and sharded layouts together; assert coverage with producer-generated paths before declaring the coverage family fixed.
+
+- #544 integration with #597: subprocess helpers that intentionally model Couch set their disposable thread identity after TestMain sanitizes inherited live identity. Run opt-in native conformance after TestMain changes; a default-suite skip cannot verify the helper startup path.
