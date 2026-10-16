@@ -45,6 +45,7 @@ Couch Resume from disk / Relaunch retire their own attributed processes, then la
 ## Log
 
 ### 2026-10-15
+- 2026-10-15: closed — Recorded full suite green on 7daa8f2b (sdlc-local/suite 9m4s). couchcore/wrapcmd/launcher/artifactpath ok. Round-2 BR-1 class fixed: launcher skips admission only for couchOwned resume (ResumeRequired) or recovery (Recovery) profiles, the two registry-checked paths; ordinary Couch spawn with --resume ID reserves (TestCouchSpawnWithResumeArgvStillReservesAdmission, RED under old gate); wrapper bypass only for a Couch-hosted pinned resume (hosted --continue still refused). Atlas couch.md updated. Earlier: both recovery gates and cold resume refuse a conversation live elsewhere, each RED-checked; Fresh retry scenario. TL approved diff and BR-1 approach.; review verdict: SHIP
 
 Urgent TL dispatch 368e95f0 verified submitted. #595 checkpointed at eb6528a5; this independent hotfix starts from main, with no stacked code. No live process or slot changes authorized or performed.
 
