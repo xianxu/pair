@@ -1,13 +1,13 @@
 ---
 id: 000612
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-16
 updated: 2026-10-16
 estimate_hours:
 severity: medium
-card_mirror: '1ec7b07bd65bf0ac0cdf9f9d85969acb077af3e4' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'c41511faaccf68fe61c2720694b111e0d09e064f' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-16T05:47:20-07:00
 claimant:
     operator: Xian Xu
@@ -17,6 +17,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
 flow: {kind: quick, provenance: inferred, spec: "79c256dc", done: "c955d608"}
+actual_hours: 0.44
 ---
 
 # Warm reattach acceptance intermittently resolves native binding
