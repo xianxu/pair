@@ -126,3 +126,7 @@ The recorded suite on a7b330872a80118ff1756edde74104805b07225d passed exit0 in 1
 BR-1: earlier prose/example 'press Enter' is superseded by **press Alt+Enter or clear it**. Pair's Qoder profile rewrites plain Enter to a newline; Alt+Enter produces the native submit CR. One shared AutomaticInputRecoveryHint feeds receipt and supervisor instructions. The regression follows the actual refusal's prescribed chord through production translateChunk, verifies a bare native submit and observes the stateful receiver consume the envelope/release quarantine. A string-equality assertion alone is insufficient.
 
 BR-2: sweep README's Qoder-specific confirmation exception, exact-envelope bounded key-only retries, prompt quarantine refusal and correct manual recovery. Replace its generic 'never retries uncertain input' claim with body-replay wording. Atlas and current notice/test strings agree; historical TL quotations remain unchanged. Native acceptance and landing stay held.
+
+### 2026-10-15 — corrected-head required suite passed
+
+Required suite on 8186d8abd3e02528189a1809f3793f57d682bf07 passed exit0 in 14m49s after 1719s queued, including recovery-key and README corrections. Log SHA256 56304faa904ba90b1cc393de569f97a8999bb27c34d72cc82068fb954f757dc9. Focused races and CI pass. Second close review is next; native acceptance and landing remain unchecked under TL's explicit hold.
