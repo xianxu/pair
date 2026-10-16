@@ -401,14 +401,30 @@ func ClassifyNvimReap(row NvimReapRow) (kill bool, reason string)
   unsupported-build file beside `identity_other.go`
 - Test: `cmd/internal/procutil/resource_darwin_test.go`, `source_test.go`
 
-- [ ] **Step 1: Failing live conformance test:** for an owned child started with a known `Dir`, `Cwd(pid)`
-  returns that directory; for a dead pid it returns an error, never an empty success.
-- [ ] **Step 2: Run, expect FAIL.**
-- [ ] **Step 3: Implement** `static int resource_cwd(int pid, char *buf, size_t len)` with
+- [x] **Step 1: Failing live conformance test:** for an owned child started with a known `Dir`, `Cwd(pid)`
+  returns that directory; for a dead pid it returns an error, never an empty success. *(Landed as two tests
+  beside #606's `Environment` conformance test, in its re-exec shape: `TestResourceCwdOfAChild` and
+  `TestResourceCwdRefusesAGoneChild`. The known directory is `filepath.EvalSymlinks`'d first, because the
+  kernel resolves `/var/folders/...` to `/private/var/...` and a caller comparing roots has to match.)*
+- [x] **Step 2: Run, expect FAIL.** *(Red on the missing method, and red caught one real bug in the test
+  itself — `cmd.Wait()` returns one value, not two.)*
+- [x] **Step 3: Implement** `static int resource_cwd(int pid, char *buf, size_t len)` with
   `proc_pidinfo(pid, PROC_PIDVNODEPATHINFO, 0, &vpi, sizeof vpi)` copying `vpi.pvi_cdir.vip_path`, the Go
   wrapper, the `Reader`/`Source` passthrough and the unsupported-build error. Add `Cwd` to every existing
   fake reader (`couchcmd/resources_test.go:20-66`, `procutil/source_test.go`).
-- [ ] **Step 4: Run procutil, expect PASS.** Commit `#583: read a process cwd through libproc`
+  *(Two deltas. The probe landed on the fenced `NativeResourceReader` seam — `resourceCalls.cwdRead` plus
+  `Cwd(ctx, p) (string, int, error)` — and **not** on `source.go`'s `Reader`/`Source`: that seam feeds
+  `Snapshot`, whose consumers want argv and identity, and widening an interface with no consumer forces every
+  fake to grow a method nothing calls (ARCH-DRY cuts both ways). The fence is why: the cwd is evidence for a
+  kill, so the read is checked against the same generation that produced the row, and a pid recycled
+  mid-read answers an error rather than another process's directory. Consequently the `couchcmd` fake moves
+  in Task 13, where `resourceReader` gains `Cwd`, not here.)*
+- [x] **Step 4: Run procutil, expect PASS.** Commit `#583: read a process cwd through libproc`
+  *(Also: a short `proc_pidinfo` read that leaves `errno` clean falls back to `ESRCH`; an empty path from a
+  successful call is refused as `empty process cwd`, since no process has one; and because `cwdRead` joins
+  `resourceCalls`, the probe inherits that interface's darwin+cgo boundary — `resource_unsupported.go` answers
+  `ErrUnsupported`, which the sweep must read as *unknown*, never as *outside every root*. That is the same
+  boundary #587's RSS and argv reads already have.)*
 
 ### Task 11: One unattributed rule (DRY with #587)
 
@@ -959,12 +975,18 @@ func ClassifyOrphanNvim(row procutil.Process, args []string, cwd string, cwdKnow
   rather than assumed: `table_darwin.go:31` builds `"<sec>.<usec>"` with two `FormatInt` calls, so the
   fractional field is an *integer* microsecond count (".5" is 5us, not half a second — reading it as a
   fraction would date every birth up to 100ms late, an error an hours-wide threshold absorbs silently), while
-  `command_parse.go:91` sets linux's token to field 22 of `/proc/pid/stat`, ticks since boot. A darwin-only
-  parser would have left the whole M2 sweep silently inert on linux, which is a supported platform
-  (`table_linux.go`, `identity_linux.go`) and a CI one (`merge-check.yml` runs ubuntu-latest). Silent absence
-  of a leak detector is worse than the conversion, and the package already carries the precedent for handling
-  exactly this asymmetry: `strict_identity.go` switches on `runtime.GOOS` and documents why linux adds its
-  boot ID ("start ticks repeat across reboots").
+  `command_parse.go:91` sets linux's token to field 22 of `/proc/pid/stat`, ticks since boot. The package
+  already carries the precedent for handling exactly this asymmetry: `strict_identity.go` switches on
+  `runtime.GOOS` and documents why linux adds its boot ID ("start ticks repeat across reboots"), so the age
+  derivation follows it rather than inventing a second convention.
+  Scope measured before deciding how far to go: `Table` and `Identity` exist on linux (`table_linux.go`,
+  `identity_linux.go`), so a linux caller can legitimately hold a token, but the *sampler's* per-pid probes
+  do not — `resource_unsupported.go:5` returns nil `resourceCalls` for `!darwin || !cgo`, so `Usage`,
+  `Command` and `Environment` all answer `ErrUnsupported` there, and #587's sweep already reports nothing on
+  linux for want of RSS and argv. M2's sweep inherits that boundary; converting linux's token does not enable
+  it. What the conversion buys is narrower and still worth its ~15 pure lines: one function that is honest on
+  both platforms instead of a trap for the next caller who holds a linux row, and both token shapes
+  fixture-tested everywhere.
   Delta: `procutil.StartTimeFromIdentity(identity string) (time.Time, bool)` — the token in, the birth out,
   so a caller holding a snapshot row pays no syscall, which is what Task 13's cost gate assumes. Darwin parses
   the wall clock; linux converts ticks through `/proc/stat`'s `btime` and `USER_HZ`; any other platform
@@ -972,12 +994,14 @@ func ClassifyOrphanNvim(row procutil.Process, args []string, cwd string, cwdKnow
   `ParseBootTime`) so both token shapes are fixture-tested on every platform, and `false` is contracted to
   mean *age unknown*, never *age zero* — an unknown age is not an orphan, which is M1's family rule applied
   to the new evidence.
-  Two assumptions are measured rather than trusted. `USER_HZ` is hardcoded at 100 (pure-Go linux cannot call
-  `sysconf`, and every linux target this module builds for reports 100); a wrong rate moves a just-started
-  child's birth far enough to fail the live test's 5 s window, and the live test now runs on linux in CI
-  instead of skipping there. `btime` is read per call, not cached: it is one small file, only for rows that
-  already cleared the cheap gates, and a cache would survive a reboot and then date every process from the
-  previous boot.
+  Two assumptions are stated rather than hidden, and one of them CI cannot check. `USER_HZ` is hardcoded at
+  100 (pure-Go linux cannot call `sysconf`; every linux target this module builds for reports 100, which is
+  what `ps` and gopsutil assume too). The live birth test discriminates it — a wrong rate moves a
+  just-started child's birth far outside the 5 s window — and it no longer skips on linux, but `merge-check`
+  only compiles (`bootstrap.sh` execs `weave compile`) and runs no `go test`, so nothing in CI executes it
+  today; on this host it measures darwin. `btime` is read per call, not cached: it is one small file, only
+  for rows that already cleared the cheap gates, and a cache would survive a reboot and then date every
+  process from the previous boot.
   The red step earned its keep: the first run failed because the test passed a pid where the function takes a
   token, which is why the name is `StartTimeFromIdentity` and not the plan's `ParseIdentityTime` — a function
   that does IO on one platform should not be called "parse", and the argument should not be mistakable for a

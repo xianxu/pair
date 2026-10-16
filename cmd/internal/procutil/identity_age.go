@@ -10,9 +10,10 @@ import (
 
 // linuxUserHZ is the tick rate /proc/pid/stat counts starttime in. Every linux
 // target this module builds for reports 100 from sysconf(_SC_CLK_TCK); the
-// kernel's own CONFIG_HZ does not change the userspace value. The assumption is
-// measured rather than trusted: a wrong rate moves a just-started child's birth
-// far enough to fail TestStartTimeFromIdentityNamesALiveChildsBirth's 5s window.
+// kernel's own CONFIG_HZ does not change the userspace value, and pure Go cannot
+// ask for it. TestStartTimeFromIdentityNamesALiveChildsBirth discriminates the
+// assumption on any host that runs it: a wrong rate moves a just-started child's
+// birth far outside the test's 5s window.
 const linuxUserHZ = 100
 
 // StartTimeFromIdentity turns a platform identity token — the one Table and
