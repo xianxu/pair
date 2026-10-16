@@ -1996,3 +1996,8 @@ and external temporary roots rather than relying on the host's TMPDIR.
   each helper's root list. Historical working cwd is not startup provenance.
 - #594 review: When an approved revision changes certainty guarantees or defers production acceptance, append the revision and reconcile the active Spec and every Done when clause too. A historical Log records the decision but does not supersede contradictory closure criteria; name the pending check's owner and distinguish it from the landing gate.
 - #585 BR-1: a reaped process-group leader does not prove its descendants have exited. Preserve owned-group termination across a pending stderr drain; reader interruption alone can hide a surviving child. Regression fixtures must include a real descendant retaining the FD and require both descendant death and joined drain. Reuse the test-budget event helper instead of adding another fixed scheduling guard.
+
+- #571 BR6 repeat: enumerate persisted representation shapes before fixing a
+  projection. A typed callback cannot establish availability for compatibility-
+  only records; apply authority/error policy to every represented agent and
+  test the real saved-config/restart consumer, including preserved bytes.

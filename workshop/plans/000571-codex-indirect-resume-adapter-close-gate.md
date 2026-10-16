@@ -720,6 +720,212 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: d4fe7e93-13da-43e6-be5d-ef0d33aa5acc
+            repository: github.com/xianxu/pair
+            issue_id: "000571"
+            recipe: milestone-review
+            round: 5
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/Library/Caches/sdlc/review-checkouts/9285354d67c930ab
+            reviewed_head: 701270af8026d19ea079bca8d86b45bf526e03e2
+            slot: pair:7
+            requested_at: "2026-10-16T03:23:35.684432Z"
+          phase: finished
+          pid: 53116
+          started_at: "2026-10-16T03:23:35.790001Z"
+          finished_at: "2026-10-16T03:28:59.988633Z"
+          session_id: 01a142bc-8ef1-7e01-841e-58103e6c4cfd
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-v1
+        repository: github.com/xianxu/pair
+        code_head: 701270af8026d19ea079bca8d86b45bf526e03e2
+        tracker_head: 3f43c23ac3fc49d6a7a0dffd3a6902ada551a003
+        branch_point: 5414ef47b64388d7a7db9db8448f3a836bc62f6a
+        since: "2026-10-15T10:22:13-07:00"
+        until: "2026-10-15T20:23:15-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-15T10:22:13-07:00"
+              end: "2026-10-15T20:23:15-07:00"
+              began: "2026-10-15T10:22:13-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot7/pair
+        sources:
+            - harness: codex
+              id: 01a13398-d940-72d3-8d80-c203fc8bd296
+              cwd: /Users/xianxu/workspace/worktree/pair-slot7/pair
+              digest: bca0b023f3627b802880cb87aad3b04e2c4f81888967053d9ee093dbdac1e446
+              started: "2026-10-13T04:50:49.58Z"
+              spawned: false
+              bytes: 79533189
+              windows:
+                - start: "2026-10-15T10:22:13-07:00"
+                  end: "2026-10-15T20:23:15-07:00"
+            - harness: codex
+              id: 01a14096-6170-7e02-ae66-5b9fb3e7b182
+              cwd: /Users/xianxu/workspace/worktree/pair-slot7/pair
+              parent_id: 01a13398-d940-72d3-8d80-c203fc8bd296
+              digest: d480790ffe797d9fe00c5d49e6b4ac95d8c1ba1dbd8ae7c5a9b7ce08f642545f
+              started: "2026-10-15T17:22:39.652Z"
+              spawned: true
+              bytes: 1391734
+              windows:
+                - start: "2026-10-15T17:22:39.652Z"
+                  end: "2026-10-15T20:23:15-07:00"
+            - harness: codex
+              id: 01a14097-c211-7ce0-b051-366dd9fff257
+              cwd: /Users/xianxu/workspace/worktree/pair-slot7/pair
+              parent_id: 01a13398-d940-72d3-8d80-c203fc8bd296
+              digest: 4435e4596e541bb09a95f5356393835df1becd7b095b15efe38b51bf5b3ee7d4
+              started: "2026-10-15T17:24:09.928Z"
+              spawned: true
+              bytes: 5440527
+              windows:
+                - start: "2026-10-15T17:24:09.928Z"
+                  end: "2026-10-15T20:23:15-07:00"
+            - harness: codex
+              id: 01a14177-aa85-7cb3-bedb-b2a85e52af11
+              cwd: /Users/xianxu/workspace/worktree/pair-slot7/pair
+              digest: 43bbb8baac5acc685a555545857159490869cd449d01fb7111da69c67b3b9dc5
+              started: "2026-10-15T21:28:47.768Z"
+              spawned: false
+              bytes: 667373
+              windows:
+                - start: "2026-10-15T21:28:47.768Z"
+                  end: "2026-10-15T20:23:15-07:00"
+            - harness: codex
+              id: 01a1417a-a6e2-7912-8b67-8458dfe9c87c
+              cwd: /Users/xianxu/workspace/worktree/pair-slot7/pair
+              digest: 6e13a1d39624297d15c0f7a0388e25cd74a6176b9aaa00d492195956f70113e5
+              started: "2026-10-15T21:32:00.527Z"
+              spawned: false
+              bytes: 550567
+              windows:
+                - start: "2026-10-15T21:32:00.527Z"
+                  end: "2026-10-15T20:23:15-07:00"
+            - harness: codex
+              id: 01a1417c-1628-7022-a694-967d63271267
+              cwd: /Users/xianxu/workspace/worktree/pair-slot7/pair
+              digest: 907486ef0551b775f583f9c072d40e7d8c85f2dd011c2822fd58257375430eaf
+              started: "2026-10-15T21:33:35.501Z"
+              spawned: false
+              bytes: 535544
+              windows:
+                - start: "2026-10-15T21:33:35.501Z"
+                  end: "2026-10-15T20:23:15-07:00"
+            - harness: codex
+              id: 01a1417c-c082-7122-a0fa-e0e3da0cc318
+              cwd: /Users/xianxu/workspace/worktree/pair-slot7/pair
+              digest: 794442b6bc357a71c594717d55a25d15f708bcd42b0d8343224557b0c36d6d2f
+              started: "2026-10-15T21:34:18.189Z"
+              spawned: false
+              bytes: 413877
+              windows:
+                - start: "2026-10-15T21:34:18.189Z"
+                  end: "2026-10-15T20:23:15-07:00"
+            - harness: codex
+              id: 01a1417d-adca-7cd1-a945-d5965c8d2446
+              cwd: /Users/xianxu/workspace/worktree/pair-slot7/pair
+              parent_id: 01a13398-d940-72d3-8d80-c203fc8bd296
+              digest: 2ee67c0bafbd34deed4a036e45da542678d185b2f4640ba440fddc04977dd17a
+              started: "2026-10-15T21:35:18.067Z"
+              spawned: true
+              bytes: 5091628
+              windows:
+                - start: "2026-10-15T21:35:18.067Z"
+                  end: "2026-10-15T20:23:15-07:00"
+            - harness: codex
+              id: 01a1417e-6595-70e1-9dbc-1eedb485d020
+              cwd: /Users/xianxu/workspace/worktree/pair-slot7/pair
+              parent_id: 01a13398-d940-72d3-8d80-c203fc8bd296
+              digest: 087ba968c9bd5212dcaf2e8362592ddffb0090109b8647ef014fe88ea1de98a7
+              started: "2026-10-15T21:36:05.122Z"
+              spawned: true
+              bytes: 4206118
+              windows:
+                - start: "2026-10-15T21:36:05.122Z"
+                  end: "2026-10-15T20:23:15-07:00"
+            - harness: codex
+              id: 01a14276-5f69-78a1-ba4b-f58121438b6a
+              cwd: /Users/xianxu/workspace/worktree/pair-slot7/pair
+              digest: dce0b10c629da8d3a28aeeed669e0e0bb919ff129e9f2f54d82a659fbb30adc6
+              started: "2026-10-16T02:06:56.581Z"
+              spawned: false
+              bytes: 551795
+              windows:
+                - start: "2026-10-16T02:06:56.581Z"
+                  end: "2026-10-15T20:23:15-07:00"
+            - harness: codex
+              id: 01a14276-ecef-7310-a963-13ecb96db6e6
+              cwd: /Users/xianxu/workspace/worktree/pair-slot7/pair
+              digest: 1848ebd5f6e6e1b16c6279a5ac20562b4d36c2b4aaf2c967419e25d09fe5a8b0
+              started: "2026-10-16T02:07:32.798Z"
+              spawned: false
+              bytes: 455821
+              windows:
+                - start: "2026-10-16T02:07:32.798Z"
+                  end: "2026-10-15T20:23:15-07:00"
+        excluded_brain_sessions: 1
+        excluded_brain_minutes: 15.064
+        cuts:
+            - dispatched: "2026-10-15T16:35:33-07:00"
+              finalized: "2026-10-15T16:39:24-07:00"
+              finalizing: false
+            - dispatched: "2026-10-15T17:33:13-07:00"
+              finalized: "2026-10-15T17:37:50-07:00"
+              finalizing: false
+            - dispatched: "2026-10-15T18:42:48-07:00"
+              finalized: "2026-10-15T18:46:59-07:00"
+              finalizing: false
+            - dispatched: "2026-10-15T19:28:34-07:00"
+              finalized: "2026-10-15T19:32:49-07:00"
+              finalizing: false
+      "n": 5
+      timestamp: "2026-10-15T20:29:02-07:00"
+      dispatched: "2026-10-15T20:23:34-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Remains disposed; the superseding native-pass-through design removes Codex configuration projection.
+          round: 5
+        - id: BR-2
+          disposition: addressed
+          note: Remains disposed; Codex indirect transcript selection is removed.
+          round: 5
+        - id: BR-3
+          disposition: addressed
+          note: Remains disposed; native worktree selection is delegated to Codex.
+          round: 5
+        - id: BR-4
+          disposition: addressed
+          note: Remains disposed; the Codex SQLite collector is removed and indirect requests return before IO.
+          round: 5
+        - id: BR-5
+          disposition: addressed
+          note: Remains disposed; Pair no longer applies Codex indirect source filters.
+          round: 5
+        - id: BR-6
+          disposition: not-addressed
+          note: Mixed typed ledgers now isolate unavailable Codex homes correctly, and reverting the fix makes the committed Claude/Qoder regressions fail. However, osruntime.go:705-720 populates unavailable only through parseLedger's typed-owner callback. A compatibility-only Codex ledger never invokes it. A disposable-head regression with invalid CODEX_HOME and saved configuration returned nil error, emitted “starting fresh,” and deleted config-work-codex.json. Validate namespace availability for every represented agent, including compatibility-only rows, and add saved-config/restart regressions for that case.
+          round: 5
+        - id: BR-7
+          disposition: addressed
+          note: Recovery discovery now uses NewNativeTranscriptRuntime, matching validation and legacy held-file checks. Targeted normal/race tests pass; restoring the former discovery constructor makes the committed custom/invalid/relative-home cases fail.
+          round: 5
+      recipe: milestone-review
+      isolation: fenced
+      blocked: true
 ---
 
 # Gate ledger — pair#571 (boundary-review)
@@ -781,7 +987,18 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-7** [Critical] `native-transcript-namespace-consistency` (kind: defect) Recovery discovery and validation use different Codex transcript homes
   cmd/internal/launcher/recovery_authority_os.go:167-171 now validates candidates under CODEX_HOME, but cmd/internal/couchcore/recovery_evidence_os.go:199-200 still discovers them through NewOSRuntime(HomeDir, DataDir), which scans HOME/.codex. A temporary production-reader regression found one valid candidate in the default home, then found zero after moving the same tree to an absolute CODEX_HOME. This contradicts the active plan's exact/ledger/recovery consistency requirement. ARCH-PURPOSE / ARCH-DRY: share transcript namespace construction across discovery and validation, sweep remaining recovery root constructors, and add an end-to-end custom-home recovery regression.
 
+## Round 5 — 2026-10-15T20:29:02-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-1 — addressed — Remains disposed; the superseding native-pass-through design removes Codex configuration projection.
+- BR-2 — addressed — Remains disposed; Codex indirect transcript selection is removed.
+- BR-3 — addressed — Remains disposed; native worktree selection is delegated to Codex.
+- BR-4 — addressed — Remains disposed; the Codex SQLite collector is removed and indirect requests return before IO.
+- BR-5 — addressed — Remains disposed; Pair no longer applies Codex indirect source filters.
+- BR-6 — not-addressed — Mixed typed ledgers now isolate unavailable Codex homes correctly, and reverting the fix makes the committed Claude/Qoder regressions fail. However, osruntime.go:705-720 populates unavailable only through parseLedger's typed-owner callback. A compatibility-only Codex ledger never invokes it. A disposable-head regression with invalid CODEX_HOME and saved configuration returned nil error, emitted “starting fresh,” and deleted config-work-codex.json. Validate namespace availability for every represented agent, including compatibility-only rows, and add saved-config/restart regressions for that case.
+- BR-7 — addressed — Recovery discovery now uses NewNativeTranscriptRuntime, matching validation and legacy held-file checks. Targeted normal/race tests pass; restoring the former discovery constructor makes the committed custom/invalid/relative-home cases fail.
+
 ## Open findings
 
 - **BR-6** [Critical] `native-agent-error-isolation` (kind: defect) A Codex home error blocks unrelated agents sharing the ledger
-- **BR-7** [Critical] `native-transcript-namespace-consistency` (kind: defect) Recovery discovery and validation use different Codex transcript homes

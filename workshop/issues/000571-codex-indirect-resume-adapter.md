@@ -453,3 +453,23 @@ merge-check and guard are green. Only docs/evidence changed after this suite
 head. Earlier telemetry failure remains filed independently as #596. All
 BR6/BR7 corrections now have normal/race and final integrated full-suite
 evidence; proceed to fresh full close, with no gate bypass or staging.
+
+### 2026-10-15 — BR-6 ledger-shape enumeration
+
+Round5 leaves BR6 open: mixed typed ledgers pass, but compatibility-only rows
+never invoke parseLedger's typed callback, so unavailable Codex storage becomes
+Fresh and can remove saved configuration. BR7 is addressed. Enumerate the
+same rule across typed-only, compatibility-only and mixed rows, each Codex-only
+or alongside Claude/Qoder, under invalid absolute and unproven relative homes.
+Unavailable represented agents must retain configuration and refuse restart;
+other agents and genuine storage errors retain their behavior. Valid custom/
+default compatibility rows retain baseline presentation without gaining typed
+resume authority.
+
+Keep one parse and cache transcript-runtime construction once per represented
+agent for this ReadLedger call. Typed projection uses that cache; the post-parse
+pass checks every represented agent through the same cache before clearing and
+blocking unavailable entries. Empty or unrelated ledgers do not probe Codex,
+and no synthetic authority row or new admission/config policy is introduced.
+Add failing saved-config/restart coverage for compatibility-only rows before
+production edits, then normal/race and a new full suite before full close.

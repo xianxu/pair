@@ -452,3 +452,114 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-15T20:29:02-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 571 — Keep Codex indirect resumes native; route exact-ID transcript homes |
+| repo | pair |
+| issue file | workshop/issues/000571-codex-indirect-resume-adapter.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 5414ef47b64388d7a7db9db8448f3a836bc62f6a..701270af8026d19ea079bca8d86b45bf526e03e2 |
+| command | sdlc close --issue 571 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-15T20:29:02-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The reduced scope is implemented coherently: indirect Codex resumes remain native, exact-ID routing honors custom homes, and BR-7 has meaningful regression coverage. BR-6 remains partially unresolved: compatibility-only ledgers bypass home validation, allowing an unavailable namespace to become a Fresh decision that deletes saved configuration.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Remains disposed; the superseding native-pass-through design removes Codex configuration projection.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Remains disposed; Codex indirect transcript selection is removed.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Remains disposed; native worktree selection is delegated to Codex.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      Remains disposed; the Codex SQLite collector is removed and indirect requests return before IO.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      Remains disposed; Pair no longer applies Codex indirect source filters.
+  - id: BR-6
+    disposition: not-addressed
+    note: |
+      Mixed typed ledgers now isolate unavailable Codex homes correctly, and reverting the fix makes the committed Claude/Qoder regressions fail. However, osruntime.go:705-720 populates unavailable only through parseLedger's typed-owner callback. A compatibility-only Codex ledger never invokes it. A disposable-head regression with invalid CODEX_HOME and saved configuration returned nil error, emitted “starting fresh,” and deleted config-work-codex.json. Validate namespace availability for every represented agent, including compatibility-only rows, and add saved-config/restart regressions for that case.
+  - id: BR-7
+    disposition: addressed
+    note: |
+      Recovery discovery now uses NewNativeTranscriptRuntime, matching validation and legacy held-file checks. Targeted normal/race tests pass; restoring the former discovery constructor makes the committed custom/invalid/relative-home cases fail.
+```
+
+1. **Strengths**
+
+   - Indirect inventory requests return before native IO; trap fixtures enforce this in `native_selector_test.go:186`.
+   - Home construction is shared, preserves explicit reader defaults, and rejects relative homes without startup provenance.
+   - README and atlas updates document the revised native-compatibility contract.
+   - BR-6’s mixed-agent tests exercise saved configuration and restart behavior through production ledger projection.
+
+2. **Critical findings**
+
+   - **BR-6 — compatibility-only namespace failures become Fresh.** `cmd/internal/launcher/osruntime.go:705-720` misses compatibility-only agents. Consequently, `createflow.go:1287-1291` treats unavailable authority as absence and removes saved configuration. Resolve availability independently of typed-owner callbacks, preserve configuration on uncertainty, and test compatibility-only ledgers. **ARCH-PURPOSE, ARCH-SECURE, ARCH-ORDER.**
+
+3. **Important findings**
+
+   None additional.
+
+4. **Minor findings**
+
+   None.
+
+5. **Test coverage notes**
+
+   Targeted normal and race checks passed for inventory, launcher, and Couch home/recovery behavior. Artifactpath tests and diff whitespace checks passed. Counterfactual removal confirmed the existing BR-6 and BR-7 regressions go red. The added compatibility-only reproduction fails on pinned head. The disposable copy was removed; the reviewed checkout remains unchanged.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY: pass** — shared transcript-runtime construction.
+   - **ARCH-PURE: pass** — remaining filesystem work stays in narrow IO helpers.
+   - **ARCH-PURPOSE: flag** — BR-6’s unavailable-agent rule misses compatibility-only ledgers.
+   - **ARCH-MOCK: pass** — private fixtures and injected final-owner observation.
+   - **ARCH-CONSTRAINTS: pass** — indirect prediction and its expensive collectors are removed.
+   - **ARCH-SECURE: flag** — unavailable namespace becomes fabricated absence in BR-6.
+   - **ARCH-ORDER: flag** — that uncertainty permits configuration deletion before authority is established.
+   - **ARCH-FUNERAL: pass** — no new durable production artifact family.
+
+7. **Plan revision recommendations**
+
+   Add a `## Revisions` entry enumerating typed-only, compatibility-only, and mixed ledgers under the same per-agent availability rule, with saved-config preservation and restart-refusal coverage.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"d4fe7e93-13da-43e6-be5d-ef0d33aa5acc","repository":"github.com/xianxu/pair","issue_id":"000571","recipe":"milestone-review","round":5,"attempt":1,"agent":"codex","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/9285354d67c930ab","reviewed_head":"701270af8026d19ea079bca8d86b45bf526e03e2","slot":"pair:7","requested_at":"2026-10-16T03:23:35.684432Z"},"phase":"finished","pid":53116,"started_at":"2026-10-16T03:23:35.790001Z","finished_at":"2026-10-16T03:28:59.988633Z","session_id":"01a142bc-8ef1-7e01-841e-58103e6c4cfd","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.622105625s
+head: "701270af8026d19ea079bca8d86b45bf526e03e2"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
