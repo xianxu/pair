@@ -20,7 +20,9 @@ import (
 
 const maxRecoveryRecordBytes = 2 << 20
 
-func validateRecoveryRecord(a RecoveryAuthority, r threadrecord.Record, scope RepoScope, tag, agent, cwd string, pid int, identity string, now time.Time) error {
+// ValidateRecoveryRecord is the pure check of a recovery authority against the
+// thread record it names; Couch's tests run it on the authority they launch.
+func ValidateRecoveryRecord(a RecoveryAuthority, r threadrecord.Record, scope RepoScope, tag, agent, cwd string, pid int, identity string, now time.Time) error {
 	if err := a.Validate(); err != nil {
 		return err
 	}
@@ -86,7 +88,7 @@ func (r OSRuntime) ValidateRecoveryAuthority(ctx context.Context, a RecoveryAuth
 	if actualCWD != recordCWD {
 		return errors.New("recovery physical cwd changed")
 	}
-	if err = validateRecoveryRecord(a, record, scope, tag, agent, cwd, os.Getpid(), procutil.Identity(strconv.Itoa(os.Getpid())), time.Now()); err != nil {
+	if err = ValidateRecoveryRecord(a, record, scope, tag, agent, cwd, os.Getpid(), procutil.Identity(strconv.Itoa(os.Getpid())), time.Now()); err != nil {
 		return err
 	}
 	// Tagged orientation is descriptive data. Losing an optional screen cannot
@@ -189,11 +191,8 @@ func (r OSRuntime) ValidateRecoveryAuthority(ctx context.Context, a RecoveryAuth
 	if !bytes.Equal(raw, after) {
 		return errors.New("recovery start claim changed during validation")
 	}
-	if err := CheckRecoveryNativeOwner(ctx, RecoveryNativeOwnerCheck{DataDir: r.globalDataDir(), RepoScope: scope.Key, Tag: tag, Agent: agent, NativeID: a.Intent.NativeID}); err != nil {
-		return err
-	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	return validateRecoveryRecord(a, record, scope, tag, agent, cwd, os.Getpid(), procutil.Identity(strconv.Itoa(os.Getpid())), time.Now())
+	return ValidateRecoveryRecord(a, record, scope, tag, agent, cwd, os.Getpid(), procutil.Identity(strconv.Itoa(os.Getpid())), time.Now())
 }

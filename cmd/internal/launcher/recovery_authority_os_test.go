@@ -127,7 +127,7 @@ func TestRecoveryRecordDoesNotTreatUnknownAsReady(t *testing.T) {
 	record.Incarnations[0].State = "unknown"
 	record.RecoveryContext = threadrecord.CloneRecoveryContext(&a.Intent.Context)
 	record.Incarnations[0].Start = nil
-	if validateRecoveryRecord(a, record, RepoScope{Key: a.Address.RepoScope}, "work", "codex", "/repo", 42, "helper", a.Intent.Context.CreatedAt.Add(time.Minute)) == nil {
+	if ValidateRecoveryRecord(a, record, RepoScope{Key: a.Address.RepoScope}, "work", "codex", "/repo", 42, "helper", a.Intent.Context.CreatedAt.Add(time.Minute)) == nil {
 		t.Fatal("unknown record authorized another launch")
 	}
 }

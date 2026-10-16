@@ -538,6 +538,17 @@ func TestRequiredNativeResumeBindingLaunchesExactRootWithoutDefaults(t *testing.
 	for _, status := range []sessioninventory.BindingStatus{sessioninventory.BindingEstablished, sessioninventory.BindingProvisional} {
 		t.Run(string(status), func(t *testing.T) {
 			rt := newFakeRuntime()
+			// pair#597: a Couch-owned resume takes no native admission and
+			// hands the wrapper no grant.
+			rt.nativeReserve = func(context.Context, NativeAdmissionRequest) (string, error) {
+				t.Fatal("Couch-owned resume reserved native admission")
+				return "", nil
+			}
+			rt.launchHook = func(int) {
+				if rt.env[NativeAdmissionEnv] != "" {
+					t.Fatal("Couch-owned resume exposed a native grant")
+				}
+			}
 			rt.bindingStatuses["work|codex"] = status
 			rt.establishedSessions["work|codex"] = "native-root-1"
 			args := LaunchArgs{

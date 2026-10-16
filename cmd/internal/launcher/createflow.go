@@ -643,16 +643,6 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 		}()
 	}
 	couchOwned := env.CouchThreadScope == scope.Key && env.CouchThreadTag == chosenTag
-	var addressErr error
-	if opts.Args.ResumeRequired || opts.Args.FreshRequired {
-		addressErr = rt.RegisterExistingCouchThread(scope, chosenTag)
-	} else {
-		addressErr = rt.EnsureThreadAddress(scope, chosenTag, couchOwned)
-	}
-	if addressErr != nil {
-		fmt.Fprintf(stderr, "pair: cannot claim thread '%s': %v\n", chosenTag, addressErr)
-		return launchStep{code: 1}, nil
-	}
 	if opts.Args.Recovery != nil {
 		verifier, ok := rt.(RecoveryAuthorityRuntime)
 		if !ok {
@@ -663,7 +653,22 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 			fmt.Fprintf(stderr, "pair: recovery authority changed: %v\n", err)
 			return launchStep{code: 1}, nil
 		}
-	} else if opts.Args.ResumeRequired {
+	}
+	var addressErr error
+	if opts.Args.FreshRequired && opts.Args.Recovery != nil && couchOwned {
+		// Fresh recovery allocates a new reserved address. Publish only after
+		// validating this helper's exact durable recovery start claim.
+		addressErr = rt.EnsureThreadAddress(scope, chosenTag, true)
+	} else if opts.Args.ResumeRequired || opts.Args.FreshRequired {
+		addressErr = rt.RegisterExistingCouchThread(scope, chosenTag)
+	} else {
+		addressErr = rt.EnsureThreadAddress(scope, chosenTag, couchOwned)
+	}
+	if addressErr != nil {
+		fmt.Fprintf(stderr, "pair: cannot claim thread '%s': %v\n", chosenTag, addressErr)
+		return launchStep{code: 1}, nil
+	}
+	if opts.Args.Recovery == nil && opts.Args.ResumeRequired {
 		actual, status := rt.EstablishedSessionID(scope.Key, chosenTag, agent)
 		if err := RequireNativeResumeBinding(opts.Args.RequiredSessionID, actual, status); err != nil {
 			fmt.Fprintf(stderr, "pair: %v\n", err)
@@ -813,7 +818,12 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 			}
 		}
 	}()
-	if explicitResume != "" {
+	// Couch's resume and recovery launches take no native admission (pair#597):
+	// both check Couch's registry for the same conversation in another live
+	// slot first, and only their profiles carry ResumeRequired or Recovery.
+	// Any other launch, Couch-owned or not, still reserves.
+	registryChecked := couchOwned && (opts.Args.ResumeRequired || opts.Args.Recovery != nil)
+	if explicitResume != "" && !registryChecked {
 		digest, err := NativeAdmissionCommandDigest(agent, append([]string{agent}, PromptArgs(agent, commandArgs, opts.Args.Prompt)...))
 		if err != nil {
 			fmt.Fprintf(stderr, "pair: %v\n", err)

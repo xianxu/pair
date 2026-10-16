@@ -18,7 +18,7 @@ func TestNativeAdmissionUnsupportedSelectorsNeverConsumeOrSpawn(t *testing.T) {
 		for _, grant := range []string{"", "valid-grant"} {
 			world := &nativeAdmissionWorld{state: "reserved", agent: "claude"}
 			spawns := 0
-			_, err := startNativePTY(context.Background(), world, grant, "claude", exec.Command("/native/claude", args...), io.Discard, func(*exec.Cmd) (*os.File, error) { spawns++; return nil, nil })
+			_, err := startNativePTY(context.Background(), false, world, grant, "claude", exec.Command("/native/claude", args...), io.Discard, func(*exec.Cmd) (*os.File, error) { spawns++; return nil, nil })
 			if err == nil || spawns != 0 || len(world.events) != 0 {
 				t.Errorf("unsupported %q grant=%t: spawns=%d events=%v err=%v", args, grant != "", spawns, world.events, err)
 			}
@@ -103,7 +103,7 @@ func TestNativeAdmissionUnsupportedWordsInsideValuesStillUseValidGrant(t *testin
 			t.Fatal(err)
 		}
 		world := &nativeAdmissionWorld{state: "reserved", agent: "claude", digest: digest}
-		_, err = startNativePTY(context.Background(), world, "valid-grant", "claude", cmd, io.Discard, func(cmd *exec.Cmd) (*os.File, error) {
+		_, err = startNativePTY(context.Background(), false, world, "valid-grant", "claude", cmd, io.Discard, func(cmd *exec.Cmd) (*os.File, error) {
 			world.events = append(world.events, "spawn")
 			world.childAlive = true
 			cmd.Process = &os.Process{Pid: 123}

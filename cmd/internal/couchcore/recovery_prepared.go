@@ -176,7 +176,7 @@ func (c *Couch) executePreparedRecovery(ctx context.Context, selection RecoveryS
 		}
 	}
 	if selection.Kind != RecoveryFresh {
-		if err := c.checkRecoveryNativeOwner(ctx, record, choice, true); err != nil {
+		if err := c.checkRecoveryConversationInUse(ctx, record, choice); err != nil {
 			return result, err
 		}
 		if len(retirement.Stops) == 0 {
@@ -385,7 +385,7 @@ func (c *Couch) launchRecoveryClaim(ctx context.Context, record ThreadRecord, no
 		}
 	}
 	if selection.Kind != RecoveryFresh {
-		if err := c.checkRecoveryNativeOwner(ctx, record, choice, false); err != nil {
+		if err := c.checkRecoveryConversationInUse(ctx, record, choice); err != nil {
 			return fail(err)
 		}
 	}
@@ -471,8 +471,11 @@ func (c *Couch) launchRecoveryFreshAddress(ctx context.Context, old ThreadRecord
 		prefix = filepath.Base(backend.slot.PrimaryRoot)
 	}
 	next, nonce, err := c.claimFreshRecord(ctx, freshClaimInput{ScopeKey: old.Address.RepoScope, Cwd: old.WorkingPath, RepoIdentity: repo, TagPrefix: prefix, Store: backend, Profile: LaunchProfileResolution{Profile: profile, AgentSource: AgentSourcePath, ArgvSource: ArgvSourcePath}, Commit: func(next ThreadRecord) error {
+		// The intent moves to the new address record, so its source revision
+		// is that record's (pair#600); the old record's revision is larger and
+		// the launcher refuses a source newer than the record it validates.
 		nextIntent = *threadrecord.CloneRecoveryIntent(&intent)
-		nextIntent.Address = toPersistedThreadAddress(next.Address)
+		nextIntent.Address, nextIntent.SourceRevision = toPersistedThreadAddress(next.Address), next.Revision
 		next.RecoveryIntent = threadrecord.CloneRecoveryIntent(&nextIntent)
 		next.Incarnations[0].Start.RecoveryIntent = threadrecord.CloneRecoveryIntent(&nextIntent)
 		if backend.layout.Local {

@@ -3,8 +3,10 @@ package couchcore
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/threadrecord"
+	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -91,4 +93,65 @@ func TestPreparedFreshAgentChoiceUsesNormalConfiguration(t *testing.T) {
 	if _, err = f.Couch.recoveryLaunchProfileForSelection(t.Context(), f.record, RecoverySelection{Kind: RecoveryProven, Agent: "grok"}); err == nil {
 		t.Fatal("native resume changed agent")
 	}
+}
+
+// pair#600: a Fresh recovery onto a new address launches an authority the
+// launcher accepts. Run the real launcher validation on the authority this
+// path hands the child, against the record it names, once the old record is
+// past revision 1 (an earlier launch, park or rename always moves it there).
+func TestFreshRecoveryOntoNewAddressPassesLauncherValidation(t *testing.T) {
+	f := newRecoveryExecutionFixture(t)
+	local := f.Couch.Threads
+	for i := 0; i < 4; i++ {
+		updated, err := local.updateExistingThread(f.record.Address, f.record.Revision, func(next *ThreadRecord) error { next.Description = fmt.Sprintf("edit %d", i); return nil })
+		if err != nil {
+			t.Fatal(err)
+		}
+		f.record = updated
+	}
+	validated := false
+	acknowledge := f.Runner.AfterAcknowledge
+	f.Runner.AfterAcknowledge = func(id string) error {
+		validated = requireLauncherAcceptsRecovery(t, f.Runner, id)
+		return acknowledge(id)
+	}
+	result, err := f.Couch.RecoverSelection(t.Context(), RecoverySelection{Target: ResumeTarget{Address: f.record.Address}, Kind: RecoveryFresh})
+	if err != nil || result.Start.Handle == nil {
+		t.Fatalf("result=%+v err=%v", result, err)
+	}
+	if !validated {
+		t.Fatal("no recovery child started")
+	}
+}
+
+// requireLauncherAcceptsRecovery runs the launcher's real authority check on a
+// recovery child's profile against the record it names. Call it once Couch has
+// acknowledged the child: the helper validates then, with its PID on the
+// creating incarnation. It reports whether the child carried recovery authority.
+func requireLauncherAcceptsRecovery(t *testing.T, runner *FakeRunner, id string) bool {
+	t.Helper()
+	var profile launcher.TrustedLaunchProfile
+	if err := json.Unmarshal([]byte(environmentValue(runner.Child(id).Env, launcher.CouchLaunchProfileEnv)), &profile); err != nil {
+		t.Errorf("launch profile: %v", err)
+		return false
+	}
+	if profile.Recovery == nil {
+		return false
+	}
+	a := *profile.Recovery
+	raw, err := os.ReadFile(a.RecordPath)
+	if err != nil {
+		t.Error(err)
+		return true
+	}
+	record, err := threadrecord.DecodePersisted(raw, a.Address, threadrecord.Validators{RepoScope: launcher.ValidateRepoScopeKey, Tag: launcher.ValidatePairTag})
+	if err != nil || len(record.Incarnations) != 1 {
+		t.Errorf("record: %+v %v", record, err)
+		return true
+	}
+	inc := record.Incarnations[0]
+	if err := launcher.ValidateRecoveryRecord(a, record, launcher.RepoScope{Key: a.Address.RepoScope}, a.Address.Tag, profile.Agent, record.WorkingPath, inc.PID, inc.Identity, a.Intent.CreatedAt.Add(time.Second)); err != nil {
+		t.Errorf("launcher refuses the recovery authority: %v (source revision %d, record revision %d)", err, a.Intent.SourceRevision, a.RecordRevision)
+	}
+	return true
 }

@@ -239,7 +239,6 @@ var SourceClassifications = []SourceClassification{
 	{Path: "cmd/internal/launcher/recovery_native_owner_orphans.go", Kind: ResolvedConsumer},
 	{Path: "cmd/internal/couchcore/peek_retained_os.go", Kind: ResolvedConsumer},
 	{Path: "cmd/internal/couchcore/recovery_evidence_os.go", Kind: ResolvedConsumer},
-	{Path: "cmd/internal/couchcore/recovery_native_owner.go", Kind: ResolvedConsumer},
 	{Path: "cmd/internal/couchcore/recovery_retirement_os.go", Kind: ResolvedConsumer},
 	{Path: "cmd/internal/launcher/recovery_native_owner.go", Kind: ResolvedConsumer},
 	{Path: "cmd/internal/launcher/recovery_native_legacy.go", Kind: ResolvedConsumer},
@@ -629,6 +628,19 @@ var SourceClassifications = []SourceClassification{
 // the artifact namespace requires an explicit SourceClassification.
 // pair:m5-concept pure
 var NonArtifactSources = []string{
+	"cmd/internal/historyarchive/archivetest/fakes.go",
+	"cmd/internal/archivecmd/run.go",
+	"cmd/internal/historyarchive/archive.go",
+	"cmd/internal/historyarchive/catalog.go",
+	"cmd/internal/historyarchive/codec.go",
+	"cmd/internal/historyarchive/files.go",
+	"cmd/internal/historyarchive/inventory.go",
+	"cmd/internal/historyarchive/model.go",
+	"cmd/internal/historyarchive/plan.go",
+	"cmd/internal/historyarchive/publication.go",
+	"cmd/internal/historyarchive/safefs.go",
+	"cmd/internal/historyarchive/sink.go",
+
 	// #587 resource accounting and bounded namespace snapshots are not Pair tag artifacts.
 	"cmd/internal/couchcmd/resources.go",
 	"cmd/internal/couchcmd/resources_persist.go",
@@ -668,6 +680,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcore/recovery_key.go",
 	"cmd/internal/couchcore/recovery_preview.go",
 	"cmd/internal/couchcore/recovery_native_owner_fake.go",
+	"cmd/internal/couchcore/recovery_conversation_in_use.go",
 	"cmd/internal/couchcore/recovery_resume.go",
 	"cmd/internal/couchtty/menu_recovery.go",
 	"cmd/internal/launcher/recovery_authority.go",
