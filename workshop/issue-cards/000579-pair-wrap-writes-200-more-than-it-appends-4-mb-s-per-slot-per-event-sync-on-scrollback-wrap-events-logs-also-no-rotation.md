@@ -1,6 +1,6 @@
 ---
 id: 000579
-status: codecomplete
+status: done
 created: 2026-10-15
 updated: 2026-10-15
 estimate_hours: 2.622
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: bd641b5d9b551a6baee522fb955c14ce86efb27a
         evidence_commit: 5ed5708b4837d6f1248228102bf30a94219a4370
+        landed_commit: 78b32f71004856a4fdfb5cf223d6e3e8ed41f72d
 ---
 
 # pair wrap writes ~200× more than it appends (~4 MB/s per slot): per-event sync on scrollback/wrap-events logs; also no rotation
