@@ -138,3 +138,7 @@ The combined evidence/close row now explicitly covers the authorized automated c
 ### 2026-10-15 — TL authorizes landing before coordinated native check
 
 TL receipt 824da9c5-6518-4236-9c7f-957d60c77ab7 supersedes the landing hold: land now through sdlc merge --yes on existing SHIP and required-suite evidence. A stage holds one branch, so #569 and #587 land before the shared restart. Native idle, mid-turn and subsequent-delivery probes on pair:4 remain owed on main after that restart, in Qoder's 07:00 window. This changes sequencing only; it does not claim native acceptance or authorize staging/relaunch here.
+
+### 2026-10-15 — full review of revised acceptance sequence
+
+Fix-review validated the integrated broker-release resolution but requires full close for the TL-authorized acceptance sequence (BR-3). Full review is now due on the existing full-suite pass. Pair:5 retains responsibility for the native idle, mid-turn and subsequent-delivery probes on pair:4; TL coordinates the main restart and timing in Qoder's next 07:00 window. Completion still requires Submitted receipts, consumed composers and exactly-once Qoder actions for idle/mid-turn probes, then successful subsequent delivery without a stale latch. The native task stays unchecked until observed; landing alone is not native acceptance. The next merge attempt also waits for #587's landing per TL's later direction.

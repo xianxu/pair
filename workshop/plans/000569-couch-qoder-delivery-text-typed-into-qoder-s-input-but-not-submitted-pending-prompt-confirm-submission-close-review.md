@@ -181,3 +181,81 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-15T20:14:50-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 569 — Couch → Qoder delivery: text typed into Qoder's input but not submitted (pending * prompt); confirm submission |
+| repo | pair |
+| issue file | workshop/issues/000569-couch-qoder-delivery-text-typed-into-qoder-s-input-but-not-submitted-pending-prompt-confirm-submission.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 3794a9a1e35990ea969a356b3a9011b0fb14cf83..277e5d5e7704b3fc18ad3ba9a84850b9fa9d1e72 |
+| command | sdlc close --issue 569 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-15T20:14:50-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+Both prior fixes remain valid, and the conflict resolutions preserve broker cancellation alongside Qoder retry and quarantine behavior. However, the new plan revision moves landing ahead of native acceptance. The fix-only review contract requires a full close review for that scope change.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      AutomaticInputRecoveryHint supplies Alt+Enter instructions to receipts and supervisor notices. The routing regression passes; restoring Enter in a prepared disposable checkout makes it fail because translation emits backslash-CR.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      README.md:724–738 documents fresh-empty confirmation, bounded key-only retries, quarantine and Alt+Enter recovery; line 747 distinguishes body replay. These passages remain consistent with peer_delivery.go and harness_tty.go:90–98.
+findings:
+  - id: new
+    severity: Critical
+    family: fix-review-preserves-approved-scope
+    title: |
+      scope changed after close — run a full `sdlc close`
+    detail: |
+      workshop/plans/000569-qoder-submit-confirmation-plan.md:138–140 adds a Revisions entry authorizing landing before the outstanding native idle/mid-turn/subsequent-delivery checks, superseding the previously reviewed landing hold. This changes the acceptance sequence beyond recording a fix. The fix-only scope rule requires a full sdlc close to assess that revised boundary; this narrow review cannot approve it.
+```
+
+1. **Strengths**
+   - Both conflict resolutions retain the required event and state fields.
+   - The new broker-release regression exercises the authenticated endpoint and independently checks writes, receipt, quarantine and report count.
+   - Recovery advice is tested through production key translation.
+
+2. **Critical findings:** The scope change above requires full close review.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage:** Focused peer/Qoder/automatic-input tests passed, as did targeted race checks. In prepared disposable copies, restoring Enter advice and removing broker-release dispatch each caused its corresponding regression to fail. Copies were removed.
+
+6. **Architecture:** **ARCH-DRY — pass:** existing reducer and dispatch paths reused. **ARCH-PURE — pass:** transitions remain separate from IO. **ARCH-PURPOSE — pass for the conflict resolution:** broker release stops retries and preserves uncertainty. No new runtime surface requires additional atlas or README changes.
+
+7. **Plan revision recommendations:** Assess the new landing-before-native-check revision through full `sdlc close`, retaining explicit ownership and completion criteria for the outstanding native checks.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"76e9062f-d57c-485e-bf68-a6c971e8003b","repository":"github.com/xianxu/pair","issue_id":"000569","recipe":"fix-review","round":3,"attempt":1,"agent":"codex","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/7c4dd260c4d9c99c","reviewed_head":"277e5d5e7704b3fc18ad3ba9a84850b9fa9d1e72","slot":"pair:5","requested_at":"2026-10-16T03:12:59.79744Z"},"phase":"finished","pid":70293,"started_at":"2026-10-16T03:12:59.984093Z","finished_at":"2026-10-16T03:14:48.417617Z","session_id":"01a142b2-dcab-70c2-854a-12388676da6c","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.446583667s
+head: "277e5d5e7704b3fc18ad3ba9a84850b9fa9d1e72"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
