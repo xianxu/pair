@@ -1,6 +1,6 @@
 ---
 id: 000600
-status: open
+status: working
 deps: []
 github_issue:
 target: slot-recovery
@@ -8,7 +8,15 @@ created: 2026-10-15
 updated: 2026-10-15
 estimate_hours:
 severity: critical
-card_mirror: '6c9aa8e88b256fac5cd9df62abf0b4c9673f006e' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'f8304316995dab40e5acea8ca061fb02a9f77ba7' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-15T22:46:02-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:2
+    worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Fresh reboot onto a new address fails recovery authority: SourceRevision names the old record
@@ -37,3 +45,8 @@ A Fresh recovery onto a new address writes an intent whose `SourceRevision` desc
 ### 2026-10-15
 
 Filed from the read-only diagnosis of the TL's failed ariadne:4 reboot after #597 landed (TL GO 88674e9e, priority 1: slot startup).
+
+### 2026-10-15 — fix (pair:2)
+
+- Cause confirmed in tests: the fresh-address path copied the source record's revision into the intent it commits onto the new address record (rev 1), so the launcher's existing `SourceRevision > RecordRevision` check refused. Fix: `launchRecoveryFreshAddress` sets the intent's SourceRevision to the new record's revision; the global store's replace invariant (`threadstore_replace.go`, the intent only moves to the new address) moves SourceRevision with it. No check or refusal added or changed.
+- The fake: Couch tests never validated the authority they launch; the child is a fake runner. `launcher.ValidateRecoveryRecord` (the pure check, now exported) runs from `requireLauncherAcceptsRecovery` in the slot-local fresh test (TestFreshRecoveryOntoNewAddressPassesLauncherValidation, old record at rev 5) and in the primary reboot fixture (global store). Both RED on the exact live error with the fix reverted ("source revision 5/4, record revision 1"), GREEN with it.

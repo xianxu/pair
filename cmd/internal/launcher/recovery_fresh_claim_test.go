@@ -21,7 +21,7 @@ func (r *recoveryFreshClaimRuntime) ValidateRecoveryAuthority(ctx context.Contex
 	if a.Intent.Kind() == threadrecord.RecoveryInferred {
 		at = a.Intent.Context.CreatedAt
 	}
-	return validateRecoveryRecord(a, r.record, scope, tag, agent, cwd, 42, "helper", at.Add(time.Minute))
+	return ValidateRecoveryRecord(a, r.record, scope, tag, agent, cwd, 42, "helper", at.Add(time.Minute))
 }
 
 func (r *recoveryFreshClaimRuntime) EnsureThreadAddress(scope RepoScope, tag string, owned bool) error {
