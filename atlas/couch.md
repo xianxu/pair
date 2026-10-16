@@ -4051,4 +4051,3 @@ warning. Write failures do not roll back that ring or gate alert delivery.
 Unsafe paths remain protected by the existing file checks. State, provenance,
 rate baselines and alert episodes end with the supervisor; pre-existing orphans
 remain unproven after restart unless fresh ownership evidence establishes them.
-

@@ -77,6 +77,8 @@ Durable implementation plan: workshop/plans/000595-conversation-flock-plan.md (o
 
 - Merged origin/main including #587 (2156c014): two content conflicts only. Artifact manifest retains all resource-sampler entries plus native-lock sources, deleting the obsolete admission entry. Atlas retains #587 resource monitoring and #595 replacement admission text; no sampler behavior changed. Broader recovery run passed couchcore (108.973s), wrapper (38.005s), watcher; launcher tagged fixture clock failure was fixed and its focused rerun passed.
 
+- Urgent interruption (TL 368e95f0): #584 currently blocks real parked slots after tonight restart; checkpoint #595 and take a separate hotfix from main, then return. #595 recorded full suite has NOT started. Indirect Codex selector/ambient-ID regression reproduced RED and fix applied; latest combined race run reports OwnedGroupStopsDescendantsBeforeReap EPERM on the post-cleanup group probe (intermittent; earlier race run passed). Investigate honestly after hotfix, do not call it passed. No stage/live changes.
+
 ## Revisions
 
 ### 2026-10-15 — measured constraints before implementation

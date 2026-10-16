@@ -1,6 +1,7 @@
 package wrapcmd
 
 import (
+	"bytes"
 	"io"
 	"os"
 	"os/exec"
@@ -86,5 +87,19 @@ func TestKnownNewAndForkDestinationsLockBeforeSpawn(t *testing.T) {
 		if err == nil || spawned || !strings.Contains(err.Error(), "pair:3") {
 			t.Fatalf("known destination spawned: %v spawn=%v", err, spawned)
 		}
+	}
+}
+
+func TestIndirectCodexNeverLocksASelectorOrInheritedID(t *testing.T) {
+	for _, args := range [][]string{{"resume", "--last"}, {"resume", "my-thread"}} {
+		home := t.TempDir()
+		t.Setenv("PAIR_SESSION_ID", "inherited")
+		owner := newWrapperNativeLocks(home, "codex", "pair:2")
+		var notice bytes.Buffer
+		_, err := startNativePTY(owner, exec.Command("codex", args...), &notice, func(*exec.Cmd) (*os.File, error) { return nil, nil })
+		if err != nil || !owner.Unbound() || !strings.Contains(notice.String(), "not guarded") {
+			t.Fatalf("indirect selector treated as identity: %v unbound=%v notice=%s", err, owner.Unbound(), &notice)
+		}
+		owner.Close()
 	}
 }

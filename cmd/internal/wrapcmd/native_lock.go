@@ -133,21 +133,23 @@ func startNativePTY(locks *wrapperNativeLocks, cmd *exec.Cmd, stderr io.Writer, 
 	if err != nil {
 		return nil, fmt.Errorf("native resume selection: %w", err)
 	}
+	compat := launcher.CodexIndirectResumeCompatibility(selector)
 	id := selector.NativeID
-	if selector.Kind != launcher.NativeResumeExplicit {
+	if selector.Kind != launcher.NativeResumeExplicit || compat {
 		id = ""
 	}
 	if selector.NewNativeID != "" {
 		id = selector.NewNativeID
 	}
-	if id == "" && selector.Kind != launcher.NativeResumeFork {
+	if id == "" && selector.Kind != launcher.NativeResumeFork && !compat {
 		id = os.Getenv("PAIR_SESSION_ID")
 	}
 	if id != "" {
 		if err := locks.Discover(id); err != nil {
 			return nil, err
 		}
-	} else if launcher.CodexIndirectResumeCompatibility(selector) {
+	}
+	if compat {
 		fmt.Fprintln(stderr, launcher.CodexIndirectResumeCompatibilityNotice)
 	}
 	return start(cmd)
