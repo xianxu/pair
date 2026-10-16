@@ -38,7 +38,7 @@ Apply the hub's explicit temporary unblock: give the full suite's broad Go invoc
 ## Plan
 
 - [x] From main, change only the broad suite recipe and its temporary-budget comment; verify actual Make argv before/after.
-- [ ] File the performance follow-up; run build and the recorded suite, close, and land before resuming #591 unchanged.
+- [x] File the performance follow-up; run build and the recorded suite, close, and land before resuming #591 unchanged.
 
 ## Log
 
@@ -49,3 +49,7 @@ Hub decision 173f498b-9796-4fd6-a777-07e28ce4107c explicitly authorizes 20m as a
 ### 2026-10-16 — minimal implementation and recipe verification
 
 Started independently from main a00d0ceee25e3ca0f8703e52531b20c2d112f818. Filed #611 unassigned for the measured performance remedy and eventual allowance removal. A direct Make dry-run argv check failed before the change (only go test ./... -count=1), then passed with exactly go test ./... -count=1 -timeout 20m. This configuration-only edit adds two explanatory comments and one explicit flag; no runtime code or fixture assertions/deadlines change. Existing tests/make-test-env-test.sh passed both outer Make variants, all 215 derived knobs, explicit overrides and nested Make. make -k -B build and git diff --check passed. The required recorded suite will verify the real compiler/test invocation; the outer suite budget remains 30m.
+
+### 2026-10-16 — full verification
+
+Recorded suite 2cd9dc07fa29172d19df49c8be76332f passed every recipe/package on 6b7831ec5bd5d772efe0e20828e22aaae40e4fbf, exit 0 in 865.892 s (14m26), queue 0.091 s. Couchcore passed in 453.524 s. The log shows the real broad invocation with -timeout 20m and the running test binary independently showed -test.timeout=20m0s. Log SHA256 independently verified: 7e6e89a956a53b4bdc071c0a379ce4705d2077caadde65444d43ff65b03310d5. A clean make -k -B build reported the same vcs.revision with vcs.modified=false. No speedup is claimed by the budget change; #611 owns the performance remedy. Atlas is waived because this changes no architectural surface; ops/test-economy project updates are left to its TL owner.
