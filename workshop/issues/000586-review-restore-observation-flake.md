@@ -15,6 +15,7 @@ claimant:
     workspace: pair:3
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "017f15c1", done: "76b4d5e2"}
 ---
 
 # Diagnose intermittent review restoration observation mismatch
