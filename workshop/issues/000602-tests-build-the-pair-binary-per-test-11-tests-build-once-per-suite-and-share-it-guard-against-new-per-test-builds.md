@@ -15,6 +15,7 @@ claimant:
     workspace: pair:1
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "b303d084", done: "d0781105"}
 ---
 
 # Tests build the pair binary per test (11 tests): build once per suite and share it; guard against new per-test builds
