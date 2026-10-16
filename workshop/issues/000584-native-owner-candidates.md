@@ -70,6 +70,8 @@ Filter native-owner candidates from kernel metadata before requiring argv; unrel
 
 - 2026-10-15: Required unchanged-head recorded suite PASS at 9979945fb5447f522aa9286c5ff701d1ecae48d6, exit 0 in 11m19s, log SHA-256 f3367ac5877c; /Users/xianxu/workspace/pair/.git/sdlc/local-checks/9979945fb5447f522aa9286c5ff701d1ecae48d6/suite.log. Core 404.387s, launcher 39.706s, and couchcmd 64.419s passed; no fixture edits or test exclusions. #589 remains independent. Close review and landing follow this evidence.
 
+- 2026-10-15: BR-1 correction sweeps the entire concept table, naming actual pure helpers and all IO/scheduling adapters. BR-2 live conformance passed (0.24s), then five -race repetitions passed (2.230s total), with the complete procutil package passing (3.801s). A temporary source overlay that wrongly treated read-only descriptors as writable went RED on the new fixture (read-only descriptor was reported writable); the real production boundary went GREEN. The fixture is selected by both existing live targets and their recurring macOS workflow; no protected workflow/config paths changed. Production behavior is unchanged by this review delta.
+
 ## Revisions
 
 ### 2026-10-15 15:55 — approved narrow legacy association
@@ -102,6 +104,10 @@ TL approved bc20aff9 the shared json.Valid/key-only duplicate scanner with diffe
 ### 2026-10-15 — approved bounded owner scheduling
 
 TL approved dcac37b0 after serial observation remained marginal during a concurrent build. At most four independent owner proofs per phase; consume in stable wrapper order, cancel and join on failure, keep the memo lock off IO/decode, and retain both fences and the five-second budget. Differential scanner proof: 1,032 rows from the 21 largest retained ledgers, 326,709,546 non-newline bytes, all accepted by both scanners, SHA-256 df55dff5f68e4675c94dfed6ab77f584073e7ea7d842c5caf0b2988b591899fa; adversarial differential fuzz passed 812,261 cases. The corpus test is a local read-only overlay; native content is not committed.
+
+### 2026-10-15 — boundary review corrections
+
+Round 1 returned BR-1 (Core concepts misclassified IO orchestration as pure) and BR-2 (no recurring live lsof descriptor conformance). Correct the concept table with named pure predicates and integration adapters; add the opt-in temporary-descriptor check through the production boundary, wired into existing live targets and their weekly/manual macOS lane. No production behavior or protected workflow/configuration changes. The reviewer independently passed affected package tests, builds, race tests and 42,275 differential fuzz inputs.
 
 ## Estimate
 

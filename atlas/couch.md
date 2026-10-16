@@ -3157,6 +3157,11 @@ observation seam and explicitly requires real server discovery, session-delete
 dispatch, and an underlying OS kill dispatch against an exact-argv sentinel
 that ordinary zellij deletion does not own before accepting verified absence.
 A separate macOS workflow runs it on relevant changes and weekly/manual cadence.
+`TestLsofWritableNamesLiveConformance` shares both live targets and that cadence.
+It opens temporary read-only/writable descriptors in its own process, then closes
+and reopens them to compare the production `procutil.LsofWritableNames` result
+with actual access/lifetime. Run the focused check after macOS/lsof upgrades too:
+`PAIR_LIVE_COUCH=1 go test ./cmd/internal/procutil -run ^TestLsofWritableNamesLiveConformance$ -count=1 -v`.
 
 `Runner` was genuinely new — pair has no async process-exec seam.
 `launcher.ProcOps` is named for pair's own sidecars, and `wrapcmd` spawns its

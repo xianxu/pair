@@ -12,16 +12,21 @@
 
 | Pure entity | Lives in | Status |
 |---|---|---|
-| Candidate filter / observation retry | launcher/recovery_native_owner.go | modified |
-| Legacy collision exclusion / source proof | launcher/recovery_native_legacy.go | new |
-| Native transcript filename identity | sessioninventory/target.go | modified (reuse existing codecs) |
-| Held writable file output parser | procutil/procutil.go | new |
+| Wrapper candidate filter (`recoveryNativeWrappers`) | launcher/recovery_native_owner.go | modified |
+| Exact source predicate (`recoverySourceWrapper`) | launcher/recovery_native_owner.go | reused |
+| Exact-ordinal ledger projection (`projectRecoveryNativeID`) | launcher/recovery_native_owner.go | extracted |
+| Native transcript filename identity (`NativeIDForArtifact`) | sessioninventory/target.go | modified (reuse existing codec) |
+| Held writable field parser (`parseLsofWritableNames`) | procutil/procutil.go | new |
 
 | Integration point | Lives in | Status | Wraps |
 |---|---|---|---|
-| Recovery native owner observation | launcher/recovery_native_owner.go | modified | existing process-table and metadata IO |
-| Legacy held-file reader | launcher/recovery_native_legacy.go | new | procutil lsof and native filename identity |
-| Context-bounded writable-file probe | procutil/procutil.go | new | lsof; fake executable in tests |
+| Observation/retry (`checkRecoveryNativeOwnersWithDiscovery`, `checkRecoveryNativeOwnersOnce`) | launcher/recovery_native_owner.go | modified | process snapshots, metadata and proof phases |
+| Readiness association and ordinal read (`recoveryWrapperReady`, `readRecoveryNativeID`) | launcher/recovery_native_owner.go | modified | injected metadata reads and pure projections |
+| Native proof orchestration (`recoveryNativeProofForWrapper`, `checkLegacyHeldNative`) | launcher/recovery_native_legacy.go | new | kernel lineage, ledger reads, held-file IO and filename codec |
+| Bounded ordered scheduling (`runOrderedNativeProofs`) | launcher/recovery_native_parallel.go | new | IO callbacks; cancellation and joining |
+| Finite metadata snapshot (`readNativeOwnerMetadata`) | launcher/recovery_native_metadata.go | new | shared regular-file reader |
+| Writable-file probe (`LsofWritableNames`) | procutil/procutil.go | new | real lsof; fake executable and opt-in live descriptor fixture |
+| Friendly migration advice | couchcore/recovery_native_owner.go | modified | preview-only thread inventory |
 
 ## Proof and limits
 
@@ -79,3 +84,9 @@ TL approved bc20aff9 after repeated cold-host checks exposed insufficient margin
 ### 2026-10-15 — approved bounded proof scheduling
 
 TL approved dcac37b0: prove at most four owners concurrently in each before/after phase. Consume results and business checks in stable wrapper order regardless of completion order; a stable-order failure cancels and joins every worker before returning. Context cancellation also joins. Fresh snapshot IO, whole-ledger validation and both process/evidence fences remain unchanged. The pure memo has a short mutex around map access only; never hold it over IO, hashing or decode. Add deterministic shuffled completion and cancellation/join tests, and run the real multi-owner gate under the race detector. Same five-second total budget and no persistent cache.
+
+### 2026-10-15 — BR-1/BR-2 review corrections
+
+The original Core concepts table incorrectly called "Candidate filter / observation retry" and "Legacy collision exclusion / source proof" pure entities. BR-1 correctly distinguishes their deterministic predicates from orchestration that invokes injected IO. The current table now names the actual pure helpers and classifies all retry, metadata, held-file and scheduling adapters as INTEGRATION. This is a documentation correction, not a runtime redesign.
+
+BR-2 adds TestLsofWritableNamesLiveConformance: temporary files and this test process prove writable inclusion, read-only exclusion, disappearance after close, and read-only reopen exclusion through production LsofWritableNames. PAIR_LIVE_COUCH=1 enables it. Existing make test-live discovers it; test-couch-zellij-live also explicitly runs it, so the existing macOS conformance workflow checks it on relevant changes, weekly Wednesday at 16:41 UTC, and manual dispatch. Run it after lsof/macOS changes too. No workflow or local-gate configuration is edited. A descriptor-access mutation must fail this fixture before the real boundary is accepted.

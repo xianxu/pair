@@ -1944,3 +1944,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
   processes miss fleet-wide false refusals. (#584)
 
 - #584: Before adding a whole-history proof to a foreground gate, measure cold decoding on retained production-sized metadata. Custom JSON field decoders do not inherit unknown-field checks, but need not repeat a whole-row duplicate scan already completed by the outer decoder. Preserve the validation contract with old/new differential tests before optimizing. Independent observations can overlap only with bounded workers, ordered decisions, and cancellation plus joining.
+
+- #584 close review: Classify functions by effects, not their decision-making role: injected IO still makes retry/proof orchestration INTEGRATION; name its deterministic predicates separately. For every new admission-critical external probe, commit a repeatable conformance fixture and connect it to an existing recurring live target, rather than relying only on a one-time host measurement.
