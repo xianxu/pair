@@ -1,0 +1,14 @@
+---
+id: 000591
+status: open
+created: 2026-10-15
+updated: 2026-10-15
+estimate_hours:
+github_issue:
+---
+
+# Diagnose legacy review resume reconstruction failure
+
+## Problem
+
+Recorded full suite on unchanged source74ea2d2aacf1232af3d0ae38f86353e596ae6208 failed in tests/review-resume-test.sh. The initial legacy empty-agent-round case returned placed=false hl=0 diag=0, producing three failed assertions. Later explicit resolved-identity and ambiguous-history cases passed. No identity status, diagnostic, command, stdout/stderr or timing was preserved for the first case, so the cause cannot be established from the failing artifact.
