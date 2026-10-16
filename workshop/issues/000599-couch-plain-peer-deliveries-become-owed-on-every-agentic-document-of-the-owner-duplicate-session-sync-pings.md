@@ -49,5 +49,6 @@ separately. The TL has to fold the same IDs once per file; with several agentic 
 ### 2026-10-15
 
 ### 2026-10-16 — fix (pair:2)
+- 2026-10-16: closed — Recorded suite green on 876f0f80. RED->GREEN TestPlainDeliveryOwedOnlyOnSessionFileAndSubmitOnlyOnItsDocument (one owner, session file plus registered plain QA document: before, the QA document also owed the worker report; after, the delivery is owed once on the session file and the submit only on its document). Unit TestOwedForNonSessionDocumentSkipsPlainDeliveries. Fold-size test moved to submits (its intent unchanged). sessionsync and couchcmd green. Atlas couch.md Owed rule updated. Status and Parley pings read Sync.owed, so pings follow.; review verdict: SHIP
 
 Cause: `OwedForDocument` owed every plain delivery on every session-sync document of the owner by design ("each folds it for itself"); #573 made plain registered markdown such documents, so each delivery was owed and pinged once per document. RED test reproduced it (the QA document owed the worker report). Fix keys plain deliveries to the owner's `type: session-sync` file; status and Parley pings follow from Sync.owed.
