@@ -293,8 +293,16 @@ func ClassifyNvimReap(row NvimReapRow) (kill bool, reason string)
      review.
   2. rows named `nvim` whose argv carries a scope path — `Owner` from `TagFromNvimEmbedArgv`
      (draft/scrollback only; it stays as it is), `OwnerLive` from `live`.
-  3. `<base>.nvim-pid` siblings of `<base>.openlock` — `Owner` is the base, `OwnerLive` is the openlock
-     pid being alive (`ProcessAlive`, which errs toward skipping), `ExpectedArgPath` is `<base>.md`.
+  3. `<base>.nvim-pid` siblings — `Owner` is the base, `ExpectedArgPath` is `<base>.md`, and `OwnerLive`
+     comes from the paired `<base>.openlock`: **an absent openlock means the owner is dead**, because the
+     opener removes it on a clean exit (`opener/run.go:189`) and only an abrupt death leaves it behind —
+     so absent is the *reap* case, not a skip. A present openlock whose pid is alive skips; whose pid is
+     gone reaps; whose content is not a positive integer is malformed and reaps (the opener that wrote it
+     is not the process the row describes, and the row's own predicates still gate the kill).
+  Every evidence source states its verdict for absent, present and malformed (the rule PQ-5 raised):
+  a sidecar with no numeric pid is malformed and removed without a signal; a sidecar whose pid is absent
+  from the snapshot is gone and removed; a `review` row has no `ExpectedArgPath`, so argv need not carry
+  one and the sidecar plus identity are the whole authority.
   Replace the current `cands[tag] → ReapNvim(tag)` fan-out with per-row decisions and identity-fenced
   signals; a sidecar is removed only after its row is decided.
 - [ ] **Step 4: Run, expect PASS.** `go test ./cmd/internal/launcher/ -count=1`

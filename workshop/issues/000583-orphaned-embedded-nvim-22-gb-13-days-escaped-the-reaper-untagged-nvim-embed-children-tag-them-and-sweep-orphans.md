@@ -5,8 +5,8 @@ deps: []
 github_issue:
 created: 2026-10-15
 updated: 2026-10-16
-estimate_hours:
-card_mirror: 'b021eaa2904d3113cb4d659d03fdea950a99cd78' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 7.4
+card_mirror: 'a53e4dd8ca3c0c87e3ed1848f25f6b33eb26b981' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-16T10:00:03-07:00
 claimant:
     operator: Xian Xu
@@ -79,6 +79,48 @@ Durable plan: `workshop/plans/000583-orphaned-embedded-nvim-22-gb-13-days-escape
   - [ ] `couch --reap-orphans --confirm`: CLI refusal without confirm, server-side `confirmation-required`,
     re-classify from a fresh sample, SIGTERM→wait→SIGKILL each identity-fenced via `ProcOps`
   - [ ] Cost re-measured at max cardinality, docs updated, live check, full suite, close
+
+## Estimate
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec              design=0.8  impl=0.1
+item: cross-cutting-refactor  design=0.3  impl=0.22
+item: smaller-go-module       design=0.15 impl=0.34
+item: smaller-go-module       design=0.3  impl=0.34
+item: lua-neovim              design=0.3  impl=0.3
+item: real-api-discovery      design=0.0  impl=0.2
+item: atlas-docs              design=0.15 impl=0.15
+item: milestone-review        design=0.2  impl=0.29
+item: smaller-go-module       design=0.35 impl=0.3
+item: greenfield-go-module    design=0.2  impl=0.3
+item: smaller-go-module       design=0.35 impl=0.5
+item: greenfield-go-module    design=0.4  impl=0.3
+design-buffer: 0.15
+total: 7.4
+```
+
+*Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only.*
+
+Derivation, item by item against the durable plan's 17 tasks (impl values are already the v3.1 40% scale):
+
+| item | plan tasks | why these hours |
+|---|---|---|
+| `issue-spec` 0.8/0.1 | brainstorm, the 540-line durable plan, two plan-quality rounds | design already spent; this is why every other item's design takes the ×0.2 spec-quality discount |
+| `cross-cutting-refactor` 0.3/0.22 | T1 (kind set across six consumers + drift pin), T11 (extract `UnattributedCandidate`) | both are behaviour-preserving multi-file rewires with a pin, low end of 0.2–1 / 0.2–0.5 |
+| `smaller-go-module` 0.15/0.34 | T2 (`ClassifyNvimReap` + table test), T3 (`ProcessTable` seam, reaper rewrite, delete `pkillF`) | the plan states the decision rules and the seam verbatim; mid of 0.2–0.5 each |
+| `smaller-go-module` 0.3/0.34 | T4 (changelog `.nvim-pid` record: artifactpath + gc + opener), T5 (three-source sweep) | T5 is the highest-risk logic in M1, so its design is above the discount floor |
+| `lua-neovim` 0.3/0.3 | T4's pidfile block, T6's VimLeave in four configs + the headless lifecycle test | three-line copies of `init.lua:24-34`; the primitive's 1–3 design range collapses because the pattern exists |
+| `real-api-discovery` 0.0/0.2 | T7 flag-gated live conformance against a real `nvim` fork | nvim is the external dependency whose fork/argv behaviour must be observed, not assumed |
+| `atlas-docs` 0.15/0.15 | T8 (storage inventory + architecture), T17 (couch atlas, README, env knob) | high end of 0.05–0.2 twice: the inventory anchors are grep-checked |
+| `milestone-review` 0.2/0.29 | M1 and M2 boundary reviews | two `milestone-close` rounds at 0.1/0.14 each |
+| `smaller-go-module` 0.35/0.3 | T9 (`ParseIdentityTime` + live proof), T10 (`proc_pidinfo` cwd in the existing cgo block) | cgo is novel-but-bounded: it mirrors `resource_identity`/`resource_usage`, so familiarity stays 1.0 and the hours absorb it |
+| `greenfield-go-module` 0.2/0.3 | T12 (`ClassifyOrphanNvim`, `ManagedRoots`, `WithinManagedRoot`) | a new file, but the plan fixes every signature; low end of 0.5–2 design |
+| `smaller-go-module` 0.35/0.5 | T13 (policy knob + gated sampler probe), T14 (health line + projection), T15 (episode alert) | three existing-seam extensions, mid of 0.2–0.5 impl before scaling |
+| `greenfield-go-module` 0.4/0.3 | T16 (`couch --reap-orphans --confirm` across cli, ops registry, dispatch) | a new operator verb; the house confirmation pattern is the spec, so design is discounted but not trivial |
+
+Σdesign 3.5 × 1.15 (thorough plan doc) + Σimpl 3.34 × 1.0 = 7.365 → **7.4 h**.
 
 ## Log
 

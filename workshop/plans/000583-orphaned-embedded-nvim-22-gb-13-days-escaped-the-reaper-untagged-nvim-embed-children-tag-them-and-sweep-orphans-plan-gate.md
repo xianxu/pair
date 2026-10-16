@@ -54,6 +54,56 @@ rounds:
           family: unstated-decision-input
           round: 1
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: 09f2ddf2-aa7d-4371-9bcb-83be1a8b657d
+            repository: github.com/xianxu/pair
+            issue_id: "000583"
+            recipe: plan-quality
+            round: 2
+            attempt: 1
+            agent: claude
+            root: /Users/xianxu/workspace/worktree/pair-slot4/pair
+            reviewed_head: 07000595a710527eaf4f5b79b1106f1b3b8f053f
+            slot: pair:4
+            requested_at: "2026-10-16T17:52:15.172815Z"
+          phase: finished
+          pid: 19020
+          started_at: "2026-10-16T17:52:15.390357Z"
+          finished_at: "2026-10-16T17:52:49.656348Z"
+          session_id: ea13117c-335f-4574-9a74-7f6e505c13e2
+          outcome: returned
+      "n": 2
+      timestamp: "2026-10-16T10:52:50-07:00"
+      agent: claude
+      dispose:
+        - id: PQ-1
+          disposition: addressed
+          note: Artifact-keyed <base>.nvim-pid beside .openlock (opener/run.go:188 writes opener pid); cross-tag glob hazard measured and rejected; Funeral bound restated.
+          round: 2
+        - id: PQ-2
+          disposition: addressed
+          note: TagLive renamed OwnerLive; explicit quit path passes false (Task 3 Step 3).
+          round: 2
+        - id: PQ-3
+          disposition: addressed
+          note: Test tasks now carry one adversarial-class strategy line each.
+          round: 2
+        - id: PQ-4
+          disposition: addressed
+          note: Kills move onto ProcessTable.Signal; pkillF and lifecycle_os.go:53 pkill deleted, so no subprocess seam remains on the reap path.
+          round: 2
+      findings:
+        - kind: defect
+          id: PQ-5
+          severity: Minor
+          title: Sweep source 3 does not state the verdict when .nvim-pid exists but the .openlock sibling is gone
+          detail: '3rd finding in this family. opener/run.go:189 removes .openlock on clean opener exit (defer), which is the root-cause case where the embed outlives its TUI; if the missing pair is read as skip, changelog orphans leak. Rule to apply across every evidence source: state the classifier verdict for absent, present and malformed. Here, an absent openlock means the owner is dead, and the kill stays protected by the identity, nvim name, --embed and exact <base>.md argv checks.'
+          family: unstated-decision-input
+          round: 2
+      blocked: false
+content_hash: 1f8f34e57d7b58545b9f52a1a8b212a194f754b14ebcf2b5e18b27ba196b2ed1
 ---
 
 # Gate ledger — pair#583 (plan-quality)
@@ -72,9 +122,20 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **PQ-3** [Minor] `test-plan-enumerates-cases` (kind: defect) Tasks 2, 3, 12 and 16 enumerate test cases in prose instead of one strategy line per risky function
 - **PQ-4** [Minor] `unstated-decision-input` (kind: defect) 'Assert pkill is never invoked' needs a subprocess seam that does not exist; say kills move onto ProcessTable.Signal
 
+## Round 2 — 2026-10-16T10:52:50-07:00 (claude) — passed
+
+### Disposed
+
+- PQ-1 — addressed — Artifact-keyed <base>.nvim-pid beside .openlock (opener/run.go:188 writes opener pid); cross-tag glob hazard measured and rejected; Funeral bound restated.
+- PQ-2 — addressed — TagLive renamed OwnerLive; explicit quit path passes false (Task 3 Step 3).
+- PQ-3 — addressed — Test tasks now carry one adversarial-class strategy line each.
+- PQ-4 — addressed — Kills move onto ProcessTable.Signal; pkillF and lifecycle_os.go:53 pkill deleted, so no subprocess seam remains on the reap path.
+
+### Raised
+
+- **PQ-5** [Minor] `unstated-decision-input` (kind: defect) Sweep source 3 does not state the verdict when .nvim-pid exists but the .openlock sibling is gone
+  3rd finding in this family. opener/run.go:189 removes .openlock on clean opener exit (defer), which is the root-cause case where the embed outlives its TUI; if the missing pair is read as skip, changelog orphans leak. Rule to apply across every evidence source: state the classifier verdict for absent, present and malformed. Here, an absent openlock means the owner is dead, and the kill stays protected by the identity, nvim name, --embed and exact <base>.md argv checks.
+
 ## Open findings
 
-- **PQ-1** [Important] `unverified-existing-behavior-claim` (kind: defect) Changelog kind identity is wrong: log is .md not .log, tag cannot be parsed from hyphenated changelog-<tag>-<agent>[-<session>], and one per-tag sidecar collides across per-agent viewers
-- **PQ-2** [Minor] `unstated-decision-input` (kind: defect) How ReapNvim/ReapNvimContext set NvimReapRow.TagLive is unspecified; quit-path reap may skip 'owner live'
-- **PQ-3** [Minor] `test-plan-enumerates-cases` (kind: defect) Tasks 2, 3, 12 and 16 enumerate test cases in prose instead of one strategy line per risky function
-- **PQ-4** [Minor] `unstated-decision-input` (kind: defect) 'Assert pkill is never invoked' needs a subprocess seam that does not exist; say kills move onto ProcessTable.Signal
+- **PQ-5** [Minor] `unstated-decision-input` (kind: defect) Sweep source 3 does not state the verdict when .nvim-pid exists but the .openlock sibling is gone
