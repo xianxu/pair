@@ -42,6 +42,7 @@ For database snapshots, bound the compressed bundle (ciphertext limit), not the 
 ## Log
 
 ### 2026-10-16
+- 2026-10-16: closed — Round-1 fixes: BR-1 one request per snapshot so an over-ciphertext snapshot is skipped alone (test archives the small DB and skips the big one; RED with batching); BR-2 the daily snapshot storage cost (~115 MB/day for thread_history, ~40 GB/year, never-deleting sink) stated in atlas history-backup.md and raised to the TL as a retention decision. Recorded suite green on fba9593f; historyarchive green after fixes. Live: thread_history_1.sqlite 1.60 GB -> 115 MB bundle, verified.; review verdict: FIX-THEN-SHIP
 
 ### 2026-10-16 — fix and live pass (pair:2)
 
