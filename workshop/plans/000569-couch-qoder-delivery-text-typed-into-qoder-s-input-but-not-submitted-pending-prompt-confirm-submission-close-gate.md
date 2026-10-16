@@ -413,6 +413,152 @@ rounds:
       recipe: fix-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: c3c3c444-0987-4eb5-b0c9-4889689890a2
+            repository: github.com/xianxu/pair
+            issue_id: "000569"
+            recipe: milestone-review
+            round: 4
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/Library/Caches/sdlc/review-checkouts/c5eb62e65bfe8ddb
+            reviewed_head: 1d117dfd648001b3dfda370a0bde9cf0e30f97db
+            slot: pair:5
+            requested_at: "2026-10-16T03:34:37.278415Z"
+          phase: finished
+          pid: 99213
+          started_at: "2026-10-16T03:34:37.464031Z"
+          finished_at: "2026-10-16T03:37:55.810431Z"
+          session_id: 01a142c6-a863-7b92-834f-38587f6bf973
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-v1
+        repository: github.com/xianxu/pair
+        code_head: 1d117dfd648001b3dfda370a0bde9cf0e30f97db
+        tracker_head: 9297ecacc99f5c723c4954ef79f3b3abc672d6ba
+        branch_point: 2156c014cee0af8fa1662064ebfe32d746e6568a
+        since: "2026-10-15T16:14:38-07:00"
+        until: "2026-10-15T20:34:04-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-15T16:14:38-07:00"
+              end: "2026-10-15T20:34:04-07:00"
+              began: "2026-10-15T16:14:38-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot5/pair
+        sources:
+            - harness: codex
+              id: 01a13d86-9ceb-7a10-b665-c109fdb6aa6b
+              cwd: /Users/xianxu/workspace/worktree/pair-slot5/pair
+              digest: 2483fcf34642226b90a85ebb7945c946e0153d5b14bc0a3716f7788b4d090d30
+              started: "2026-10-15T03:06:35.036Z"
+              spawned: false
+              bytes: 25510989
+              windows:
+                - start: "2026-10-15T16:14:38-07:00"
+                  end: "2026-10-15T20:34:04-07:00"
+            - harness: codex
+              id: 01a141d9-00d4-7132-96db-bd5040a227cc
+              cwd: /Users/xianxu/workspace/worktree/pair-slot5/pair
+              parent_id: 01a13d86-9ceb-7a10-b665-c109fdb6aa6b
+              digest: a2aa3f5463c058f05d0a4af43459bc2d6b49c2cf2823721a2f932c6f14f56375
+              started: "2026-10-15T23:15:03.377Z"
+              spawned: true
+              bytes: 961452
+              windows:
+                - start: "2026-10-15T23:15:03.377Z"
+                  end: "2026-10-15T20:34:04-07:00"
+            - harness: codex
+              id: 01a141de-3408-77b1-b13f-6e7b5245bb71
+              cwd: /Users/xianxu/workspace/worktree/pair-slot5/pair
+              digest: bb7c1d15c6915085faf91d0a78e5b84e863aeeeef9b56cb830bc0d30e0694008
+              started: "2026-10-15T23:20:44.041Z"
+              spawned: false
+              bytes: 600067
+              windows:
+                - start: "2026-10-15T23:20:44.041Z"
+                  end: "2026-10-15T20:34:04-07:00"
+            - harness: codex
+              id: 01a141e0-11df-7cb3-a455-ea49113b1da0
+              cwd: /Users/xianxu/workspace/worktree/pair-slot5/pair
+              digest: 3052f2043733071d96fbfee24f9e902cdb15083bb043d651dddc5cbded35393e
+              started: "2026-10-15T23:22:46.379Z"
+              spawned: false
+              bytes: 429790
+              windows:
+                - start: "2026-10-15T23:22:46.379Z"
+                  end: "2026-10-15T20:34:04-07:00"
+            - harness: codex
+              id: 01a141e0-dd24-7bd1-a2b7-830a35a14f19
+              cwd: /Users/xianxu/workspace/worktree/pair-slot5/pair
+              digest: 1ef92498c78ddcc379ea0adf41831a5e3539c22ac5b8add70dce01201e117606
+              started: "2026-10-15T23:23:38.456Z"
+              spawned: false
+              bytes: 430990
+              windows:
+                - start: "2026-10-15T23:23:38.456Z"
+                  end: "2026-10-15T20:34:04-07:00"
+            - harness: codex
+              id: 01a141e1-98d3-7063-8f57-e82ee71361f2
+              cwd: /Users/xianxu/workspace/worktree/pair-slot5/pair
+              digest: 2e710aa5677883fc47ba3e7ea4452705a12d5e529beb44c4b4c4859765f2d736
+              started: "2026-10-15T23:24:26.439Z"
+              spawned: false
+              bytes: 383674
+              windows:
+                - start: "2026-10-15T23:24:26.439Z"
+                  end: "2026-10-15T20:34:04-07:00"
+            - harness: codex
+              id: 01a141e2-a62d-7b10-b115-3fb86faaaec0
+              cwd: /Users/xianxu/workspace/worktree/pair-slot5/pair
+              parent_id: 01a13d86-9ceb-7a10-b665-c109fdb6aa6b
+              digest: 6959763d5a9a8bd3c81923765b3601cffdf3dbd3ddd8ab221e09ee667cce83d4
+              started: "2026-10-15T23:25:35.284Z"
+              spawned: true
+              bytes: 493711
+              windows:
+                - start: "2026-10-15T23:25:35.284Z"
+                  end: "2026-10-15T20:34:04-07:00"
+        excluded_brain_sessions: 1
+        excluded_brain_minutes: 0.0299
+        cuts:
+            - dispatched: "2026-10-15T17:20:24-07:00"
+              finalized: "2026-10-15T17:22:18-07:00"
+              finalizing: false
+            - dispatched: "2026-10-15T18:13:05-07:00"
+              finalized: "2026-10-15T18:15:20-07:00"
+              finalizing: true
+            - dispatched: "2026-10-15T20:12:57-07:00"
+              finalized: "2026-10-15T20:14:50-07:00"
+              finalizing: false
+      "n": 4
+      timestamp: "2026-10-15T20:37:58-07:00"
+      dispatched: "2026-10-15T20:34:34-07:00"
+      agent: codex
+      dispose:
+        - id: BR-3
+          disposition: addressed
+          note: This full committed-range close review assesses the revised acceptance sequence. Plan lines 138–144 authorize landing first while retaining explicit native acceptance criteria, ownership and coordination; the narrow-review scope restriction is resolved.
+          round: 4
+        - id: BR-1
+          disposition: addressed
+          note: 'Recovery instructions use the shared Alt+Enter hint. TestPeerQoderRecoveryAdviceRoutesToNativeSubmit passes at head and fails when the old Enter advice is restored: production translation emits backslash-CR instead of native CR.'
+          round: 4
+        - id: BR-2
+          disposition: addressed
+          note: README.md:745–767 documents fresh-empty Qoder confirmation, bounded exact-envelope key retries, quarantine recovery and uncertain-body replay policy. These passages agree with peer_delivery.go, peer_qoder_submission.go and harness_tty.go:90–98.
+          round: 4
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: 1d117dfd648001b3dfda370a0bde9cf0e30f97db
+      blocked: false
 ---
 
 # Gate ledger — pair#569 (boundary-review)
@@ -448,6 +594,14 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-3** [Critical] `fix-review-preserves-approved-scope` scope changed after close — run a full `sdlc close`
   workshop/plans/000569-qoder-submit-confirmation-plan.md:138–140 adds a Revisions entry authorizing landing before the outstanding native idle/mid-turn/subsequent-delivery checks, superseding the previously reviewed landing hold. This changes the acceptance sequence beyond recording a fix. The fix-only scope rule requires a full sdlc close to assess that revised boundary; this narrow review cannot approve it.
 
+## Round 4 — 2026-10-15T20:37:58-07:00 (codex) — passed
+
+### Disposed
+
+- BR-3 — addressed — This full committed-range close review assesses the revised acceptance sequence. Plan lines 138–144 authorize landing first while retaining explicit native acceptance criteria, ownership and coordination; the narrow-review scope restriction is resolved.
+- BR-1 — addressed — Recovery instructions use the shared Alt+Enter hint. TestPeerQoderRecoveryAdviceRoutesToNativeSubmit passes at head and fails when the old Enter advice is restored: production translation emits backslash-CR instead of native CR.
+- BR-2 — addressed — README.md:745–767 documents fresh-empty Qoder confirmation, bounded exact-envelope key retries, quarantine recovery and uncertain-body replay policy. These passages agree with peer_delivery.go, peer_qoder_submission.go and harness_tty.go:90–98.
+
 ## Open findings
 
-- **BR-3** [Critical] `fix-review-preserves-approved-scope` scope changed after close — run a full `sdlc close`
+(none — every finding has been disposed)

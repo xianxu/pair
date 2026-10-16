@@ -259,3 +259,89 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-15T20:37:58-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 569 — Couch → Qoder delivery: text typed into Qoder's input but not submitted (pending * prompt); confirm submission |
+| repo | pair |
+| issue file | workshop/issues/000569-couch-qoder-delivery-text-typed-into-qoder-s-input-but-not-submitted-pending-prompt-confirm-submission.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 2156c014cee0af8fa1662064ebfe32d746e6568a..1d117dfd648001b3dfda370a0bde9cf0e30f97db |
+| command | sdlc close --issue 569 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-15T20:37:58-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned implementation passes this full close review, including the revised landing sequence. No new defects found. Native idle, mid-turn, and subsequent-delivery acceptance remains explicitly outstanding under the plan’s revised sequence; this verdict does not establish native acceptance.
+
+```findings
+dispose:
+  - id: BR-3
+    disposition: addressed
+    note: |
+      This full committed-range close review assesses the revised acceptance sequence. Plan lines 138–144 authorize landing first while retaining explicit native acceptance criteria, ownership and coordination; the narrow-review scope restriction is resolved.
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Recovery instructions use the shared Alt+Enter hint. TestPeerQoderRecoveryAdviceRoutesToNativeSubmit passes at head and fails when the old Enter advice is restored: production translation emits backslash-CR instead of native CR.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      README.md:745–767 documents fresh-empty Qoder confirmation, bounded exact-envelope key retries, quarantine recovery and uncertain-body replay policy. These passages agree with peer_delivery.go, peer_qoder_submission.go and harness_tty.go:90–98.
+```
+
+1. **Strengths**
+   - Retry authority requires complete, unchanged composer evidence; unsupported input declines retry (`peer_qoder_submission.go:15–38`).
+   - The shared reducer bounds submit attempts and preserves indeterminate outcomes after partial progress (`couchmessage/delivery.go:85–165`).
+   - Stateful receiver tests independently count pastes, submits and accepted envelopes, including recovery and broker release (`peer_qoder_submission_test.go`).
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage**
+   - Focused delivery, Qoder, automatic-input and supervisor tests passed normally and with `-race`.
+   - Artifact inventory tests and diff whitespace checks passed.
+   - Both recovery-advice and broker-release mutation controls failed for the expected behavioral reasons.
+   - Disposable regression checkout removed; reviewed checkout remains clean.
+
+6. **Architecture**
+   - **ARCH-DRY — Pass:** existing reducers, writer and reporter reused.
+   - **ARCH-PURE — Pass:** evidence projection and transitions remain pure; effects execute at existing boundaries.
+   - **ARCH-PURPOSE — Pass:** retry, confirmation, residue refusal and recovery implemented; native acceptance remains explicitly tracked.
+   - **ARCH-MOCK — Pass:** stateful receiver uses the production writer seam; native qualification remains owed.
+   - **ARCH-CONSTRAINTS — Pass:** three attempts, minimum spacing and original deadline enforced.
+   - **ARCH-SECURE — Pass:** incomplete or unverifiable evidence declines retry; authenticated reporting retained.
+   - **ARCH-ORDER — Pass:** reducer transitions preserve uncertainty; interruption, release and late-render paths are exercised.
+   - **ARCH-FUNERAL — Pass:** transaction state is bounded; existing reporter and diagnostic lifecycles reused.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"c3c3c444-0987-4eb5-b0c9-4889689890a2","repository":"github.com/xianxu/pair","issue_id":"000569","recipe":"milestone-review","round":4,"attempt":1,"agent":"codex","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/c5eb62e65bfe8ddb","reviewed_head":"1d117dfd648001b3dfda370a0bde9cf0e30f97db","slot":"pair:5","requested_at":"2026-10-16T03:34:37.278415Z"},"phase":"finished","pid":99213,"started_at":"2026-10-16T03:34:37.464031Z","finished_at":"2026-10-16T03:37:55.810431Z","session_id":"01a142c6-a863-7b92-834f-38587f6bf973","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.950397708s
+head: "1d117dfd648001b3dfda370a0bde9cf0e30f97db"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
