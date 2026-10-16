@@ -1,6 +1,6 @@
 ---
 id: 000599
-status: codecomplete
+status: done
 created: 2026-10-15
 updated: 2026-10-16
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 876f0f80fe55981b58d7fb82a9995e6413cc19a5
         evidence_commit: 610d1b68732feff121320c400bcd56507ffa1b8b
+        landed_commit: ca722ca2af5fdafe6f1801ab9da9206a95aa1747
 ---
 
 # Couch: plain peer deliveries become owed on every agentic document of the owner (duplicate session-sync pings)
