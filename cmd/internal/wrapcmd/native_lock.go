@@ -224,14 +224,16 @@ func (p *proxy) handleBindingNotice(event nativeBindingEvent) {
 // stopForSignal is a controlled exit or agent restart: locks stop taking new
 // conversations first, then the owned group stops; the locks themselves are
 // released only after the group is reaped (pair#595). SIGUSR2 marks a restart,
-// so the wrapper re-execs once the group is gone.
-func (p *proxy) stopForSignal(s os.Signal, locks *wrapperNativeLocks, group *ownedGroup) {
+// so the wrapper re-execs once the group is gone; it reports whether this
+// signal began one.
+func (p *proxy) stopForSignal(s os.Signal, locks *wrapperNativeLocks, group *ownedGroup) (restart bool) {
 	if s == syscall.SIGUSR2 {
 		if !p.restartFresh.CompareAndSwap(false, true) {
-			return
+			return false
 		}
-		p.traceWrap("agent-restart-request", nil)
+		restart = true
 	}
 	locks.Stop()
 	group.StartStop()
+	return restart
 }

@@ -178,9 +178,16 @@ func TestHolderMetadataCannotChangeKernelDecision(t *testing.T) {
 			}
 		})
 	}
+	// An unusable label is diagnostic only: the lock is still taken, labelled
+	// "unlabelled" (pair#595).
 	home := t.TempDir()
-	if _, err := Acquire(home, testKey(t, "id"), strings.Repeat("x", 1025)); err == nil {
-		t.Fatal("oversize holder accepted")
+	h, err := Acquire(home, testKey(t, "id"), strings.Repeat("x", 1025))
+	if err != nil {
+		t.Fatalf("oversize label refused the lock: %v", err)
+	}
+	defer h.Close()
+	if _, err := Acquire(home, testKey(t, "id"), "pair:3"); err == nil || !strings.Contains(err.Error(), "in use by unlabelled") {
+		t.Fatalf("fallback label not recorded: %v", err)
 	}
 }
 func TestLockHelper(t *testing.T) {

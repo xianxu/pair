@@ -3005,7 +3005,9 @@ argsDone:
 			case syscall.SIGUSR1:
 				p.armCapture()
 			case syscall.SIGUSR2, syscall.SIGTERM, syscall.SIGINT, syscall.SIGHUP, syscall.SIGQUIT:
-				p.stopForSignal(s, locks, group)
+				if p.stopForSignal(s, locks, group) {
+					p.traceWrap("agent-restart-request", nil)
+				}
 			}
 		}
 	}()
