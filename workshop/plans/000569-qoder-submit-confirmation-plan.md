@@ -77,7 +77,7 @@ The final unreconciled-input policy is awaiting TL confirmation: safe bounded es
 
 ### 3. Verify, live check and land
 
-- [ ] Run focused couchmessage/wrapcmd/couchcmd/artifactpath tests and races; make build. Commit/push candidate and run sdlc local-check run --name suite on the pushed head.
+- [x] Run focused couchmessage/wrapcmd/couchcmd/artifactpath tests and races; make build. Commit/push candidate and run sdlc local-check run --name suite on the pushed head.
 - [ ] Send exact candidate revision to TL; stage/build only as coordinated. TL arranges pair:4 on the candidate wrapper, resolving the pre-existing residual input explicitly. Send harmless unique idle and mid-turn probes; verify receipts Submitted, composer consumed and Qoder acts once. Send a subsequent probe to prove no stale automatic-input latch. Retain failures and do not call a simulated fake a live acceptance.
 - [ ] Record live/automated evidence in issue Log; run sdlc close --issue 569 --verified with measured actuals. The gate owns fresh-context review. Fix findings by class and repeat required checks when code changes.
 - [ ] On SHIP, integrate main and run sdlc merge --yes; verify landing, report PR/revision to TL and stop. Clear staging as required by the workflow.
@@ -116,3 +116,7 @@ TL receipt 172b9532-1e96-4fc7-ab4b-a838f7469fea directs the required suite and c
 ### 2026-10-15 — implementation checkpoint, final suite queued
 
 Tasks 1–2 are complete. Candidate code a7b330872a80118ff1756edde74104805b07225d includes exact-envelope bounded retries, fresh-empty confirmation, immediate one-report quarantine and recovery, uncertainty-preserving refusal and quarantine precedence over picker holds. Native pending fixture matches the wrapped restart envelope. RED/GREEN and focused race/fuzz/inventory/build evidence is recorded in the issue Log. Required suite is queued on this pushed head (PR #352); no pass claim yet. CI is green. Final full-suite row, close review and all native live/landing rows remain unchecked. TL directs review then HOLD; no staging or relaunch.
+
+### 2026-10-15 — final required suite passed
+
+The recorded suite on a7b330872a80118ff1756edde74104805b07225d passed exit0 in 12m29s (SHA256 4d6a4760b008e2410324de2b8f660f8905cdfb00710ae5b02a2a4d21076e2895); focused/race/fuzz/build/inventory evidence and all CI checks pass. Fresh main integration added issue details only. The full-suite task is complete; close review is next. TL-directed live/landing hold remains in force, and the native live task remains unchecked.

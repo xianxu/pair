@@ -45,7 +45,7 @@ key is dropped by a paste-burst guard (compare #544's Codex paste-burst fix).
 
 - [x] Add Qoder submit retry and fresh rendered confirmation through the existing peer-delivery reducer.
 - [x] Bound unreconciled automatic-input recovery under the TL-approved policy and prove next-delivery recovery.
-- [ ] Verify focused/race/full suites, document behavior and prepare for the TL-requested close review; live acceptance remains separately pending under the revision below.
+- [x] Verify focused/race/full suites, document behavior and prepare for the TL-requested close review; live acceptance remains separately pending under the revision below.
 
 Durable plan: [Qoder submit confirmation](../plans/000569-qoder-submit-confirmation-plan.md).
 
@@ -113,3 +113,9 @@ Refreshed sdlc actual preview succeeds normally (0.59h candidate, not the final 
 ### 2026-10-15 — quarantine precedence regression
 
 An additional stateful regression showed that an open picker could turn a later quarantined delivery into Held instead of the required immediate refusal. RED receipt: held / blocked by a picker. Quarantine refusal now precedes picker holds (without any input effects), and focused Qoder/evidence/automatic-input/picker race tests pass 4.802s. Required suite on 24653fa3 was cancelled while still queued, after ownership verification: PID78181 command local-check, cwd pair-slot5, direct parent41373 matching this conversation's Codex invocation; probe inspected before separate SIGINT. No other runner signalled. The corrected code requires a replacement recorded suite; the older queued run provides no pass claim.
+
+### 2026-10-15 — required suite passed; close review requested, landing held
+
+Recorded required suite on a7b330872a80118ff1756edde74104805b07225d passed exit0 in 12m29s after 998s queued. Full shell/editor/environment and Go suites pass: couchcmd 76.459s, couchcore 435.549s, couchmessage 7.496s, wrapcmd 114.247s, sessionsync 17.111s. Log /Users/xianxu/workspace/pair/.git/sdlc/local-checks/a7b330872a80118ff1756edde74104805b07225d/suite.log; SHA256 4d6a4760b008e2410324de2b8f660f8905cdfb00710ae5b02a2a4d21076e2895. All server checks pass on the code head, native conformance 2m26s. Main added only issue details #587–#591, integrated without a code change.
+
+TL explicitly requested close review now, then HOLD (172b9532-1e96-4fc7-ab4b-a838f7469fea). The native idle, mid-turn and subsequent-delivery Done-when is still unverified: no stage, relaunch or landing. It remains TL-coordinated after #544/#584 in the next cheap window. This review assesses the implementation and automated evidence; it must not be read as native acceptance.
