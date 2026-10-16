@@ -3963,3 +3963,92 @@ Owners: `nativelock/`, `artifactpath/native_lock.go`,
 `launcher/native_resume_selector*.go`, and Couch recovery/Relaunch. Real kernel
 contention, process-group cleanup and private-pipe checks run in ordinary Go
 package tests under the recorded suite on Darwin/Linux.
+
+## Resource monitoring (#587)
+
+`couch --resources [--json]` reads the running supervisor's cached resource view
+through the broker socket. Queries perform no process scan, terminal query or
+Git lookup. One joined supervisor worker samples at one-minute cadence; a
+separate inventory worker authenticates roots at startup and on changed
+thread/helper/lifecycle evidence. Routine unchanged menu refreshes do not
+repeat ownership probes.
+
+Ownership starts with an authenticated terminal server `(PID, start identity)`
+from `ScopedThreadArtifactCollisionChecker.NamedPairSessionContext`, published
+in `ResourceRootCache` before being consumed by the sampler. Probe revisions
+are assigned before I/O, so a late old result cannot replace a newer proof.
+Cached console rows include draft-only, detached, parked and never-started
+slots; hosted helper/client roots and admitted wrapper bindings supplement
+server descendants. Missing workspace or terminal evidence remains explicit
+unknown coverage. A slot's branch or quiet output alone never proves idle:
+idle requires the matching wrapper's settled state and no pending broker work
+or picker.
+
+`couchcore/resource*.go` owns pure generation-fenced attribution, deltas,
+episodes and bounded history; `couchcmd/resources_inventory.go` owns root
+refresh; `couchcmd/resources.go` owns sampling and storage; `resources_alert.go`
+owns advisory broker delivery. `procutil/resource*.go` provides the
+native reader. Darwin with cgo supports cumulative process CPU, current RSS and
+physical disk-write bytes. Other builds report unsupported counters. PID reuse,
+changed parentage, zombies, partial reads and counter regression cannot become
+valid rate samples. The first observation establishes a baseline; CPU 100%
+means one core. Observed cumulative totals omit unsampled lifetimes.
+
+Remembered process generations preserve original slot ownership after
+reparenting; confirmed root loss or thread replacement can expose proven
+orphans. A process first seen after orphaning has no invented slot owner.
+Known process kinds parented by PID 1 above the RSS floor are shown as
+**unattributed (unproven)**, never acted on. Only candidate classification may
+inspect argv; full command lines are not retained or displayed. Sampling can
+miss a process born and exited, or born and orphaned, between observations.
+Monitoring sends messages and does not kill, restart or renice anything.
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `COUCH_RESOURCE_CADENCE` | `1m` | Sample interval, 1 second through 1 hour |
+| `COUCH_RESOURCE_WRITE_BYTES_PER_SECOND` | `2097152` | Sustained disk-write threshold |
+| `COUCH_RESOURCE_WRITE_DURATION` | `10m` | Required sustained-write interval |
+| `COUCH_RESOURCE_PROCESS_RSS_BYTES` | `8589934592` | Per-process RSS threshold |
+| `COUCH_RESOURCE_IDLE_CPU_PERCENT` | `90` | Idle-slot CPU threshold, percent of one core |
+| `COUCH_RESOURCE_IDLE_CPU_DURATION` | `15m` | Required idle-CPU interval |
+| `COUCH_RESOURCE_ORPHAN_RSS_BYTES` | `268435456` | Proven-orphan RSS threshold; two samples required |
+
+Set policy before starting Couch. Unknown or malformed resource settings refuse
+startup. Unknown measurements interrupt accumulation rather than clearing an
+already admitted incident. Alerts resolve the current owning hub and use normal
+broker delivery. Episodes live only in memory; retries within a run reuse the
+same effect ID. Restart begins fresh observations and may repeat an advisory
+alert; sustained thresholds accumulate their configured interval again.
+Unproven candidates remain report-only.
+
+The displayed cost records attempted native calls, sampler-thread CPU and wall
+time. At most three table size/read attempts plus two self-CPU reads cost eight
+native calls; successful usage with identity fencing adds two per process, plus
+actual candidate-command calls. Sampler-thread CPU excludes concurrent GC and
+other goroutines. A native-reader-only short measurement after bulk conversion
+averaged 1.643 ms (maximum 2.391 ms), or 0.002739% of one core at 60-second
+cadence. Full sampling plus near-cap history persistence (953 frames,
+4,189,412 bytes, 27 usage observations) averaged 72.438 ms across three passes,
+maximum 79.311 ms: 0.120730% of one core per minute. The qualified target is
+below 0.2%, with a 300 ms maximum pass CPU budget; the product requirement is
+well under 1%. This run used 58 native attempts and one history publication
+per pass. Current-pass final CPU is published in the cached view after storage
+completes; its history frame cannot include the completed cost of writing itself.
+
+History retains aggregate slot frames and orphan/unattributed summaries for at
+most 24 hours, 1,440 frames and 4 MiB. Only history is persisted, best-effort, with one fixed replacement stage:
+at most 8 MiB including the current file and stage. See [resource snapshot retention](storage-retention.md#resource-monitor-snapshots-587).
+
+The cached response is a byte-budgeted projection (`resources_projection.go`)
+within the broker's frame envelope. It preserves all bounded slot aggregates,
+shortens long presentation labels, and reports omitted detail counts separately
+for processes, orphans, unproven candidates, episodes and diagnostics. Projection
+cost is included in sampling; queries only copy the cached result. Incomplete
+startup or capped inventories cannot prove owner disappearance.
+
+History read failures begin a fresh in-memory ring with a visible continuity
+warning. Write failures do not roll back that ring or gate alert delivery.
+Unsafe paths remain protected by the existing file checks. State, provenance,
+rate baselines and alert episodes end with the supervisor; pre-existing orphans
+remain unproven after restart unless fresh ownership evidence establishes them.
+

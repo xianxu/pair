@@ -1,0 +1,273 @@
+package couchcmd
+
+import (
+	"context"
+	"fmt"
+	"path/filepath"
+	"runtime"
+	"sort"
+	"sync/atomic"
+	"time"
+
+	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/launcher"
+	"github.com/xianxu/pair/cmd/internal/procutil"
+)
+
+type resourceReader interface {
+	Table(context.Context) ([]procutil.Process, int, error)
+	Usage(context.Context, procutil.Process) (procutil.ResourceUsage, int, error)
+	Command(context.Context, procutil.Process) (procutil.CommandInfo, int, error)
+	SelfCPU(context.Context) (uint64, int, error)
+}
+
+// resourceSampler has one worker owner. Request handlers read only cached.
+// persist must honor ctx; its storage/alert work is included in the final cost.
+type resourceSampler struct {
+	history func() (time.Time, int)
+	reader  resourceReader
+	slots   func() couchcore.ResourceSlotInventory
+	policy  couchcore.ResourcePolicy
+	state   couchcore.ResourceState
+	now     func() time.Time
+	persist func(context.Context, couchcore.ResourceView) (couchcore.ResourceCost, error)
+	alerts  func(context.Context, *couchcore.ResourceState) error
+	cached  atomic.Pointer[couchcore.ResourceView]
+}
+
+// run samples immediately, then serially on cadence. The service owns joining
+// this goroutine; no child workers outlive run and ticks never overlap a pass.
+func (s *resourceSampler) run(ctx context.Context) {
+	cadence := s.policy.Cadence
+	if cadence <= 0 {
+		cadence = time.Minute
+	}
+	ticker := time.NewTicker(cadence)
+	defer ticker.Stop()
+	for {
+		if ctx.Err() != nil {
+			return
+		}
+		s.pass(ctx)
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+	}
+}
+func (s *resourceSampler) pass(ctx context.Context) {
+	if ctx.Err() != nil {
+		return
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	wall := time.Now()
+	at := wall
+	if s.now != nil {
+		at = s.now()
+	}
+	r := s.reader
+	if r == nil {
+		r = procutil.NativeResourceReader{}
+	}
+	sample := couchcore.ResourceSample{At: at, Commands: map[couchcore.ResourceProcessKey][]string{}}
+	start, n, cpuErr := r.SelfCPU(ctx)
+	sample.Cost.NativeCalls += n
+	if cpuErr != nil {
+		sample.Errors = append(sample.Errors, "sampler CPU start: "+cpuErr.Error())
+	}
+	if s.slots != nil {
+		inventory := s.slots()
+		sample.Slots = inventory.Slots
+		sample.InventoryComplete = inventory.Complete && inventory.Omitted == 0
+		sample.InventoryOmitted = inventory.Omitted
+		if !sample.InventoryComplete {
+			sample.Errors = append(sample.Errors, "slot inventory incomplete")
+		}
+		if inventory.Omitted > 0 {
+			sample.Errors = append(sample.Errors, fmt.Sprintf("slot inventory omitted %d rows at capacity", inventory.Omitted))
+		}
+	}
+	table, n, err := r.Table(ctx)
+	sample.Cost.TableCalls = n
+	sample.Cost.NativeCalls += n
+	if ctx.Err() != nil {
+		return
+	}
+	sample.TableKnown = err == nil
+	if err != nil {
+		sample.Errors = append(sample.Errors, "process table: "+err.Error())
+	}
+	if len(table) > couchcore.ResourceMaxTableRows {
+		table = table[:couchcore.ResourceMaxTableRows]
+		sample.TableKnown = false
+		sample.Errors = append(sample.Errors, "process table limit exceeded")
+	}
+	sample.Table = table
+	selection := couchcore.SelectResourceProcesses(table, sample.Slots, s.state.Provenance, sample.TableKnown, sample.InventoryComplete)
+	rows := make(map[couchcore.ResourceProcessKey]procutil.Process, len(table))
+	pidCounts := map[int]int{}
+	for _, p := range table {
+		rows[couchcore.ResourceProcessKey{PID: p.PID, Identity: p.Identity}] = p
+		pidCounts[p.PID]++
+	}
+	selected := map[couchcore.ResourceProcessKey]bool{}
+	observe := func(p procutil.Process) couchcore.ResourceUsageObservation {
+		key := couchcore.ResourceProcessKey{PID: p.PID, Identity: p.Identity}
+		u, calls, err := r.Usage(ctx, p)
+		sample.Cost.UsageCalls += calls
+		sample.Cost.NativeCalls += calls
+		o := couchcore.ResourceUsageObservation{Key: key}
+		if err != nil {
+			o.Reason = "resource usage: " + err.Error()
+		} else {
+			o.CPUTimeNS = u.CPUTimeNS
+			o.RSSBytes = u.RSSBytes
+			o.DiskWriteBytes = u.DiskWriteBytes
+			o.CPUKnown = true
+			o.RSSKnown = true
+			o.DiskKnown = true
+		}
+		sample.Observations = append(sample.Observations, o)
+		return o
+	}
+	for _, owned := range selection.Processes {
+		if ctx.Err() != nil {
+			return
+		}
+		selected[owned.Key] = true
+		if p, ok := rows[owned.Key]; ok {
+			observe(p)
+		}
+	}
+	names := map[string]bool{"zellij": true, "nvim": true}
+	for _, name := range launcher.AgentInventory() {
+		names[name] = true
+	}
+	candidates := make([]procutil.Process, 0)
+	for _, p := range table {
+		key := couchcore.ResourceProcessKey{PID: p.PID, Identity: p.Identity}
+		if p.PPID == 1 && !p.Zombie && p.PID > 0 && p.Identity != "" && pidCounts[p.PID] == 1 && !selected[key] && names[filepath.Base(p.Name)] {
+			candidates = append(candidates, p)
+		}
+	}
+	sort.Slice(candidates, func(i, j int) bool { return candidates[i].PID < candidates[j].PID })
+	remaining := couchcore.ResourceMaxProcesses - len(selected)
+	if len(candidates) > remaining {
+		candidates = candidates[:remaining]
+		sample.Errors = append(sample.Errors, "unattributed candidate limit exceeded")
+	}
+	for _, p := range candidates {
+		if ctx.Err() != nil {
+			return
+		}
+		o := observe(p)
+		if filepath.Base(p.Name) != "nvim" || !o.RSSKnown || o.RSSBytes <= s.policy.OrphanRSSBytes {
+			continue
+		}
+		command, calls, err := r.Command(ctx, p)
+		sample.Cost.CommandCalls += calls
+		sample.Cost.NativeCalls += calls
+		if err != nil {
+			sample.Errors = append(sample.Errors, fmt.Sprintf("candidate %d command: %v", p.PID, err))
+			continue
+		}
+		sample.Commands[o.Key] = command.Args
+	}
+	if ctx.Err() != nil {
+		return
+	}
+	next, v, _ := couchcore.AdvanceResources(s.state, sample, s.policy)
+	if s.alerts != nil {
+		if err := s.alerts(ctx, &next); err != nil {
+			v.Errors = append(v.Errors, "resource alerts: "+err.Error())
+		}
+	}
+	s.state = next
+	v.Episodes = next.Episodes
+	if s.persist != nil {
+		cost, err := s.persist(ctx, cloneResourceView(v))
+		v.Cost.StorageBytes = cost.StorageBytes
+		v.Cost.StorageWrites = cost.StorageWrites
+		if err != nil {
+			v.Errors = append(v.Errors, "resource persistence: "+err.Error())
+		}
+	}
+	if s.history != nil {
+		v.HistoryOldest, v.HistoryFrames = s.history()
+	}
+	v = cloneResourceView(projectResourceView(v)) // Include bounded wire projection and cache construction in sampler CPU.
+	end, n, endErr := r.SelfCPU(ctx)
+	v.Cost.NativeCalls += n
+	if endErr != nil {
+		v.Errors = append(v.Errors, "sampler CPU end: "+endErr.Error())
+	}
+	if cpuErr == nil && endErr == nil && end >= start {
+		v.Cost.CPUTimeNS = end - start
+		v.Cost.CPUKnown = true
+	} else if cpuErr == nil && endErr == nil {
+		v.Errors = append(v.Errors, "sampler CPU counter moved backwards")
+	}
+	v.Cost.WallTime = time.Since(wall)
+	s.cached.Store(&v)
+}
+
+func (s *resourceSampler) view() couchcore.ResourceView {
+	if s == nil {
+		return couchcore.ResourceView{Errors: []string{"resource sampler unavailable"}}
+	}
+	if v := s.cached.Load(); v != nil {
+		return cloneResourceView(*v)
+	}
+	return couchcore.ResourceView{Errors: []string{"resource sampler warming up"}}
+}
+func resourceCopyPointer[T any](p *T) *T {
+	if p == nil {
+		return nil
+	}
+	v := *p
+	return &v
+}
+func cloneResourceWorkspace(w couchcore.WorkspaceIdentity) couchcore.WorkspaceIdentity {
+	w.EnvironmentHost = resourceCopyPointer(w.EnvironmentHost)
+	w.Address = resourceCopyPointer(w.Address)
+	w.Slot = resourceCopyPointer(w.Slot)
+	w.Branch = resourceCopyPointer(w.Branch)
+	w.Head = resourceCopyPointer(w.Head)
+	w.RestingBranch = resourceCopyPointer(w.RestingBranch)
+	return w
+}
+func cloneResourceView(v couchcore.ResourceView) couchcore.ResourceView {
+	v.Errors = append([]string(nil), v.Errors...)
+	v.Slots = append([]couchcore.ResourceSlotView(nil), v.Slots...)
+	for i := range v.Slots {
+		p := &v.Slots[i]
+		p.CPUPercent = resourceCopyPointer(p.CPUPercent)
+		p.RSSBytes = resourceCopyPointer(p.RSSBytes)
+		p.WriteBytesPerSecond = resourceCopyPointer(p.WriteBytesPerSecond)
+	}
+	cloneProcesses := func(in []couchcore.ResourceProcessView) []couchcore.ResourceProcessView {
+		out := append([]couchcore.ResourceProcessView(nil), in...)
+		for i := range out {
+			p := &out[i]
+			p.CPUPercent = resourceCopyPointer(p.CPUPercent)
+			p.RSSBytes = resourceCopyPointer(p.RSSBytes)
+			p.WriteBytesPerSecond = resourceCopyPointer(p.WriteBytesPerSecond)
+			p.Workspace = cloneResourceWorkspace(p.Workspace)
+		}
+		return out
+	}
+	v.Processes = cloneProcesses(v.Processes)
+	v.Orphans = cloneProcesses(v.Orphans)
+	v.Unattributed = cloneProcesses(v.Unattributed)
+	v.Episodes = append([]couchcore.ResourceEpisode(nil), v.Episodes...)
+	for i := range v.Episodes {
+		e := &v.Episodes[i]
+		e.Effect = resourceCopyPointer(e.Effect)
+		if e.Effect != nil {
+			e.Effect.Workspace = cloneResourceWorkspace(e.Effect.Workspace)
+		}
+	}
+	return v
+}

@@ -75,6 +75,8 @@ Durable implementation plan: workshop/plans/000595-conversation-flock-plan.md (o
 
 - Checkpoint follow-through: make build passed (slot2 only; no stage). Focused race tests passed across nativelock/wrapcmd/sessionwatch/launcher/couchcore, including real lock subprocess release, pure lifecycle, owned group, pipe and migration. One test initially read cmd.Process.Pid after Wait (Go may set it to -1); it now retains the originally proved group ID. The migration fake clock now uses tagged-intent CreatedAt rather than absent inferred Context time. Broader recovery package run remains in flight; earlier launcher fixture failures in that already-running binary predate these fixes. Current counted Go diff: 1,127 production added / 2,052 removed (net -925); 1,032 tests added / 3,268 removed (net -2,236), provisional until final close. Atlas now describes the single lock and maintenance path; stale scan/store/lsof authority prose removed.
 
+- Merged origin/main including #587 (2156c014): two content conflicts only. Artifact manifest retains all resource-sampler entries plus native-lock sources, deleting the obsolete admission entry. Atlas retains #587 resource monitoring and #595 replacement admission text; no sampler behavior changed. Broader recovery run passed couchcore (108.973s), wrapper (38.005s), watcher; launcher tagged fixture clock failure was fixed and its focused rerun passed.
+
 ## Revisions
 
 ### 2026-10-15 — measured constraints before implementation
