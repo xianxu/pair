@@ -5,8 +5,8 @@ deps: []
 github_issue:
 created: 2026-10-16
 updated: 2026-10-16
-estimate_hours:
-card_mirror: 'f9e956c445e25fbd37fe378e295c66ccf6f6bbce' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 2.21
+card_mirror: '03dde11d6b312783803b076bf87c5326e3ef8c65' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-16T06:20:09-07:00
 claimant:
     operator: Xian Xu
@@ -65,3 +65,28 @@ Diagnostic causes: three domain properties each generate731,566,080 raw cells fo
 2026-10-16: Instrumented full-Make before baseline PASS,900.89s wall; couchcore539.310s (serial321.993447s, parallel217.317s), same1,376 top-level dispositions. Go package scheduling/build lag15.799428s separately; no machine-lock wait reported. Targeted CPU/Git-trace diagnostics overlapped its Go phase, explicitly recorded as loaded co-tenancy. Raw full log SHA-2569aa661a8edbdca473d6d326b8552c8a20667fc86c7706359ce2782489a254271. Profile artifact contains the completed baseline. R2 cause-based plan delivered to hub (40482e40-e68a-4f06-8b98-59f16f44943b submitted); waiting for full-flow design response before change-code.
 
 2026-10-16: R2 approved by verified TL receipt d0ece531-7c7e-4a8b-957b-977d70a46574. First full-flow plan review found PQ-1 (numerical repeat/loaded acceptance missing) and minor PQ-2 (named helper strategies). R3 appends concrete qualification: two same-head isolated passes<=200s and one recorded full suite with couchcore<=420s, preserving all cases; report/retain allowance if unqualified. Named consistency predicates and identity contract strategy now explicit. This clarifies comfortable headroom within approved cost-first scope; original mandatory-split clause is superseded by the approved conditional split policy. No implementation yet.
+
+
+## Estimate
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only. Calibration is marked stale by estimate-source; values are provisional.
+
+Primitive decomposition: issue-spec covers profiling/design/roundtrips at v2's low design0.5h and impl0.1h×0.4. Four smaller-go-module items separately cover ordered-domain pruning, real-Git identity batching, durable lifecycle/continuation fixtures, and bounded filesystem/real-producer conformance; each uses upper0.3h design×0.2 for the thorough approved spec and0.5h impl×0.4. Cross-cutting-refactor covers case scheduling/inventory and default Make timeout wiring beyond those four units (design0.2×0.2, impl0.5×0.4). Real-api-discovery budgets the one Git CLI batching/identity contract at0.3×0.4 implementation. Atlas-docs uses low0.05×0.2 design/0.05×0.4 impl; one milestone-review uses0.3×0.4 impl. No novel library required: reuse Go testing, existing stateful fixtures and standard library. Familiar territory×1.0; thorough-plan design buffer15%. No scheduler work included.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.50 impl=0.04
+item: smaller-go-module design=0.06 impl=0.20
+item: smaller-go-module design=0.06 impl=0.20
+item: smaller-go-module design=0.06 impl=0.20
+item: smaller-go-module design=0.06 impl=0.20
+item: cross-cutting-refactor design=0.04 impl=0.20
+item: real-api-discovery design=0.00 impl=0.12
+item: atlas-docs design=0.01 impl=0.02
+item: milestone-review design=0.00 impl=0.12
+design-buffer: 0.15
+total: 2.21
+```
+
+2026-10-16: Plan-quality round2 CLEAN: PQ-1/PQ-2 addressed; no new findings. Estimate derived only after plan cleared, with design subtotal0.79×1.15 + implementation1.30 =2.2085h, recorded as2.21h on the card.
