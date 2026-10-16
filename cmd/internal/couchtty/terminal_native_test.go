@@ -43,6 +43,19 @@ func TestNativeConsoleWrapperZellij(t *testing.T) {
 }
 
 func runNativeConsoleJoin(t *testing.T, wrapped bool) {
+	runNativeConsoleJoinSchedule(t, wrapped, "")
+}
+
+func TestNativeConsoleShellStartupOrdering(t *testing.T) {
+	if os.Getenv("PAIR_LIVE_COUCH_NATIVE") != "1" {
+		t.Skip("set PAIR_LIVE_COUCH_NATIVE=1 and PAIR_NATIVE_BINARY to a freshly built pair")
+	}
+	for _, schedule := range []string{"natural", "before-attach", "after-select"} {
+		t.Run(schedule, func(t *testing.T) { runNativeConsoleJoinSchedule(t, true, schedule) })
+	}
+}
+
+func runNativeConsoleJoinSchedule(t *testing.T, wrapped bool, shellSchedule string) {
 	// Register scratch ownership before any process cleanup, so exact comparison
 	// inputs survive until Console and the private server have joined.
 	evidenceDir := nativeEvidenceDirectory(t, "reattach")
@@ -231,16 +244,45 @@ func runNativeConsoleJoin(t *testing.T, wrapped bool) {
 		nextNotification = time.Now().Add(600 * time.Millisecond)
 	}
 	// A real second PTY exercises actor switching, hidden output and panel entry.
-	second, err := runner.Start(dir, []string{"/bin/sh", "-c", "printf 'shell-counterpart-ready\\r\\n'; cat"}, nil)
+	shellCommand := "printf 'shell-counterpart-ready\\r\\n'; cat"
+	if shellSchedule != "" && shellSchedule != "natural" {
+		shellCommand = "read gate; " + shellCommand
+	}
+	second, err := runner.Start(dir, []string{"/bin/sh", "-c", shellCommand}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	secondChild := second.(couchcore.TerminalHandle).Terminal()
+	t.Cleanup(func() {
+		if t.Failed() {
+			con.mu.Lock()
+			attached := con.panes[second.ID()] != nil
+			active, focus, failure := con.active, con.focus, con.terminalFailure
+			con.mu.Unlock()
+			t.Logf("shell actor pid=%d alive=%t attached=%t active=%s focus=%v failure=%v view=%+v raw=%q screen=%q diagnostics=%q", second.PID(), second.Alive(), attached, active, focus, failure, con.presenter.View(), nativeEvidenceDiagnostic(secondChild.Snapshot()), nativeEvidenceDiagnostic([]byte(host.childArea())), diagnostics.String())
+		}
+	})
+	releaseShell := func() {
+		if _, err := secondChild.Write([]byte("\n")); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if shellSchedule == "before-attach" {
+		releaseShell()
+		waitFor(t, "shell output before attachment", func() bool { return bytes.Contains(secondChild.Snapshot(), []byte("shell-counterpart-ready")) })
+	}
 	con.Attach(second.ID(), "native-shell", secondChild)
 	con.Switch(second.ID())
+	if shellSchedule == "after-select" {
+		waitFor(t, "blank shell admitted before startup output", func() bool { return con.presenter.View().Admitted == secondChild.Endpoint().ID() })
+		releaseShell()
+	}
 	waitFor(t, "real shell actor", func() bool {
 		return con.presenter.View().Admitted == secondChild.Endpoint().ID() && strings.Contains(host.childArea(), "shell-counterpart-ready")
 	})
+	if shellSchedule != "" {
+		return
+	}
 	_, _ = inputW.Write([]byte{0})
 	waitFor(t, "panel", func() bool { con.mu.Lock(); defer con.mu.Unlock(); return con.focus.IsPanel() })
 	host.SetSize(ptychild.Size{Rows: 28, Cols: 110})
