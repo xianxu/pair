@@ -1,8 +1,12 @@
 package broadcast
 
 import (
+	"context"
 	"os/exec"
+	"strings"
+	"syscall"
 	"testing"
+	"time"
 )
 
 // A small failure fits in the real pipe even when the reader has not run.
@@ -38,6 +42,117 @@ func TestCloudflaredStderrSurvivesWaitBeforeDrain(t *testing.T) {
 	}
 }
 
+func TestCloudflaredForcedCloseReleasesHeldStderr(t *testing.T) {
+	for _, processExited := range []bool{false, true} {
+		t.Run(map[bool]string{false: "running", true: "reaped"}[processExited], func(t *testing.T) {
+			body := "echo ready >&2; exec sleep 300"
+			if processExited {
+				body = "echo ready >&2; exit 1"
+			}
+			bin, _ := fakeCloudflared(t, body)
+			cmd := exec.Command(bin)
+			cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+			stderr, writer, err := cloudflaredStderrPipe(cmd)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { _ = stderr.Close(); _ = writer.Close() })
+			stdin, err := cmd.StdinPipe()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := cmd.Start(); err != nil {
+				t.Fatal(err)
+			}
+			h := &cloudflaredHandle{cmd: cmd, stdin: stdin, stderr: stderr, guarded: true, exited: make(chan struct{}), processExited: make(chan struct{})}
+			ready, drained := make(chan struct{}), make(chan struct{})
+			go func() {
+				defer close(drained)
+				defer stderr.Close()
+				h.watchStderr(stderr, false, func(line string) {
+					if line == "ready" {
+						close(ready)
+					}
+				})
+			}()
+			go h.waitForExit(func() { <-drained })
+			t.Cleanup(func() {
+				_ = writer.Close()
+				select {
+				case <-h.processExited:
+				default:
+					_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+				}
+				<-h.exited
+			})
+			awaitCloudflaredEvent(t, ready)
+			if processExited {
+				awaitCloudflaredEvent(t, h.processExited)
+			}
+			// Deliberately retain the parent's writer, modeling an inherited FD.
+			// EOF cannot complete the drain; the existing force deadline must
+			// kill the running owned group and interrupt the reader before join.
+			deadline := make(chan time.Time)
+			close(deadline)
+			closed := make(chan struct{})
+			go func() { _ = h.closeWithDeadline(deadline); close(closed) }()
+			awaitCloudflaredEvent(t, closed)
+			if cmd.ProcessState == nil || (!processExited && cmd.ProcessState.Success()) {
+				t.Fatal("owned process was not reaped after forced close")
+			}
+			if h.lastLine() != "ready" {
+				t.Fatalf("lost completed line: %q", h.lastLine())
+			}
+			if _, err := writer.Write([]byte("still open")); err == nil {
+				t.Fatal("forced close left the reader open")
+			}
+		})
+	}
+}
+
+// This deadline only reports a stuck lifecycle; no elapsed time makes a test
+// succeed. Ordering is established by process, scanner and completion events.
+func awaitCloudflaredEvent(t *testing.T, event <-chan struct{}) {
+	t.Helper()
+	budget := 10 * time.Second
+	if deadline, ok := t.Deadline(); ok && time.Until(deadline)/2 < budget {
+		budget = time.Until(deadline) / 2
+	}
+	timer := time.NewTimer(budget)
+	defer timer.Stop()
+	select {
+	case <-event:
+	case <-timer.C:
+		t.Fatal("cloudflared lifecycle did not complete")
+	}
+}
+
+func TestCloudflaredFastFailureKeepsStderr(t *testing.T) {
+	for _, guarded := range []bool{false, true} {
+		t.Run(map[bool]string{false: "direct", true: "guarded"}[guarded], func(t *testing.T) {
+			const failure = "ERR exact cloudflared startup failure"
+			bin, _ := fakeCloudflared(t, "echo '"+failure+"' >&2; exit 1")
+			c := Cloudflared{Binary: bin, RunDir: shortDir(t)}
+			if guarded {
+				c.Guard = guardArgv(t)
+			}
+			l, err := c.Listen()
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer l.Close()
+			h, err := c.Open(context.Background(), l)
+			if h != nil {
+				_ = h.Close()
+				t.Fatal("failing child opened a tunnel")
+			}
+			if err == nil || !strings.HasSuffix(err.Error(), ": "+failure) {
+				t.Fatalf("lost exact failure: %v", err)
+			}
+		})
+	}
+}
+
 func TestCloudflaredExitPublishesAfterStderrDrain(t *testing.T) {
 	const failure = "ERR final child failure"
 	bin, _ := fakeCloudflared(t, "echo '"+failure+"' >&2; exit 1")
@@ -53,7 +168,7 @@ func TestCloudflaredExitPublishesAfterStderrDrain(t *testing.T) {
 	if err := writer.Close(); err != nil {
 		t.Fatal(err)
 	}
-	h := &cloudflaredHandle{cmd: cmd, exited: make(chan struct{})}
+	h := &cloudflaredHandle{cmd: cmd, exited: make(chan struct{}), processExited: make(chan struct{})}
 	// The lifecycle owner's real wait runs first. Its drain effect performs the
 	// real scan synchronously here, forcing the delayed-reader ordering without
 	// a scheduling delay or an assertion on elapsed time.

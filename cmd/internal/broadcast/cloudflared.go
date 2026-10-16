@@ -139,44 +139,47 @@ func (c Cloudflared) Open(ctx context.Context, l net.Listener) (Handle, error) {
 	}
 	cmd := exec.Command(argv[0], argv[1:]...)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-	stdin, err := cmd.StdinPipe()
-	if err != nil {
-		rec.release()
-		return nil, err
-	}
 	stderr, stderrWriter, err := cloudflaredStderrPipe(cmd)
 	if err != nil {
 		rec.release()
 		return nil, err
 	}
-	if err := cmd.Start(); err != nil {
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
 		_ = stderr.Close()
-		if stderrWriter != nil {
-			_ = stderrWriter.Close()
-		}
+		_ = stderrWriter.Close()
 		rec.release()
 		return nil, err
 	}
-	if stderrWriter != nil {
+	if err := cmd.Start(); err != nil {
+		_ = stderr.Close()
 		_ = stderrWriter.Close()
+		rec.release()
+		return nil, err
 	}
-	h := &cloudflaredHandle{cmd: cmd, stdin: stdin, guarded: c.Guard != nil, exited: make(chan struct{}), record: rec}
+	_ = stderrWriter.Close()
+	h := &cloudflaredHandle{cmd: cmd, stdin: stdin, stderr: stderr, guarded: c.Guard != nil, exited: make(chan struct{}), processExited: make(chan struct{}), record: rec}
 	found := make(chan string, 1)
-	go h.watchStderr(stderr, c.Guard != nil, func(line string) {
-		if u := quickTunnelURL.FindString(line); ready == "" && u != "" {
-			select {
-			case found <- u:
-			default:
+	drained := make(chan struct{})
+	go func() {
+		defer close(drained)
+		defer stderr.Close()
+		h.watchStderr(stderr, c.Guard != nil, func(line string) {
+			if u := quickTunnelURL.FindString(line); ready == "" && u != "" {
+				select {
+				case found <- u:
+				default:
+				}
 			}
-		}
-		if ready != "" && strings.Contains(line, ready) {
-			select {
-			case found <- url:
-			default:
+			if ready != "" && strings.Contains(line, ready) {
+				select {
+				case found <- url:
+				default:
+				}
 			}
-		}
-	})
-	go h.waitForExit(func() {})
+		})
+	}()
+	go h.waitForExit(func() { <-drained })
 
 	timeout := c.OpenTimeout
 	if timeout <= 0 {
@@ -204,7 +207,7 @@ func (c Cloudflared) Open(ctx context.Context, l net.Listener) (Handle, error) {
 	}
 }
 
-func cloudflaredStderrPipe(cmd *exec.Cmd) (io.ReadCloser, io.Closer, error) {
+func cloudflaredStderrPipe(cmd *exec.Cmd) (io.ReadCloser, io.WriteCloser, error) {
 	r, w, err := os.Pipe()
 	if err != nil {
 		return nil, nil, err
@@ -234,12 +237,14 @@ func (c Cloudflared) tunnelArgs(pl *privateListener) (args []string, url, ready 
 }
 
 type cloudflaredHandle struct {
-	cmd     *exec.Cmd
-	stdin   io.WriteCloser
-	guarded bool
-	url     string
-	exited  chan struct{}
-	record  *runRecord
+	cmd           *exec.Cmd
+	stdin         io.WriteCloser
+	stderr        io.ReadCloser
+	guarded       bool
+	url           string
+	exited        chan struct{}
+	processExited chan struct{}
+	record        *runRecord
 
 	mu    sync.Mutex
 	child int
@@ -252,6 +257,8 @@ func (h *cloudflaredHandle) Exited() <-chan struct{} { return h.exited }
 
 func (h *cloudflaredHandle) waitForExit(drain func()) {
 	_ = h.cmd.Wait()
+	close(h.processExited)
+	drain()
 	close(h.exited)
 }
 
@@ -302,18 +309,35 @@ func (h *cloudflaredHandle) lastLine() string {
 // cloudflared gets SIGTERM. Past the budget, both groups are killed directly.
 // Idempotent.
 func (h *cloudflaredHandle) Close() error {
+	timer := time.NewTimer(closeBudget)
+	defer timer.Stop()
+	return h.closeWithDeadline(timer.C)
+}
+
+func (h *cloudflaredHandle) closeWithDeadline(deadline <-chan time.Time) error {
 	h.once.Do(func() {
 		_ = h.stdin.Close()
 		if !h.guarded {
-			_ = syscall.Kill(-h.cmd.Process.Pid, syscall.SIGTERM)
+			select {
+			case <-h.processExited:
+			default:
+				_ = syscall.Kill(-h.cmd.Process.Pid, syscall.SIGTERM)
+			}
 		}
 		select {
 		case <-h.exited:
-		case <-time.After(closeBudget):
-			_ = syscall.Kill(-h.cmd.Process.Pid, syscall.SIGKILL)
+		case <-deadline:
+			select {
+			case <-h.processExited:
+			default:
+				_ = syscall.Kill(-h.cmd.Process.Pid, syscall.SIGKILL)
+			}
 			if child := h.childPID(); child > 0 {
 				_ = syscall.Kill(-child, syscall.SIGKILL)
 			}
+			// A descendant can retain a writer after the command exits. Forced
+			// teardown must interrupt our read before joining the scanner.
+			_ = h.stderr.Close()
 			<-h.exited
 		}
 		h.record.release()

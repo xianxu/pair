@@ -301,6 +301,14 @@ Viewers see the operator's colours and font.
   (TERM, then KILL after 3s) and removes the private directory. Couch's own
   `Close` only closes the pipe, because signalling the guard would orphan the
   tunnel.
+- **Stderr lifetime** (#585): `Open` owns an `os.Pipe` assigned to `cmd.Stderr`,
+  closes its parent writer after `Start`, and joins process wait with the
+  scanner drain before publishing `Exited`. This preserves a fast child's final
+  error even when wait completes before reading. The scanner closes its reader;
+  forced `Close` at the existing five-second budget kills the owned groups and
+  interrupts that reader before joining, including a retained inherited writer.
+  Reaped commands are tracked separately from pending drain to avoid signalling
+  their process group again.
 - **Run records** (`<couch store>/broadcast/*.json`): owner, guard and
   cloudflared PIDs with `procutil.StrictIdentity`. A named tunnel's record has
   a fixed name, `named-<tunnel>.json`, and is its lock (`ErrTunnelBusy`): two
