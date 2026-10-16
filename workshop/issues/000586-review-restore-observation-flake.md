@@ -140,6 +140,10 @@ Hub837574c4-2cdf-4672-b9c9-884b15e5d347 submitted: #571 landed and #586 released
 
 Before any integration or publication, latest submitted hub518e33f3-99ba-459c-9795-e9ed354b1446 clarified sequence: one unchanged rerun, then land if it passes; if the merge tool cannot classify because main is red on #590, report for the TL's decision instead of looping. Requeued exact e53bd02e6bbc8b367580379f8a370e6b93cedeff via sdlc local-check (session45606). This will be the first executed PR-source retry after #608. No code, budget, assertions or fixture changed. The publication hold is now released for #586 only; others remain held until it lands.
 
+### Unchanged integrated-source rerun PASS; released to land
+
+The single executed unchanged PR-source retry bac15c882ca7139e51f95267e961467b on e53bd02e6bbc8b367580379f8a370e6b93cedeff passed exit0 in914.583s (15m15), queue353.312s. Log /Users/xianxu/workspace/pair/.git/sdlc/local-checks/e53bd02e6bbc8b367580379f8a370e6b93cedeff/suite.log, SHA256d3b82d143f443c6b87c6662ed9917a88388ceaccee3b40f35c63eabe6d31c0c4. All8diagnostics passed29.950s, the positive observation fixture and fresh-restore cases passed, and all Go packages passed (couchcore468.013s). Earlier integrated failure #608 and the independent main-baseline #590 failure remain preserved above; no code or budget change. Latest submitted hub518e33f3-99ba-459c-9795-e9ed354b1446 releases #586 after #571 and directs landing after this pass, with no looping if a later gate is blocked by #590. Push only local Log bookkeeping, then resume sdlc merge --yes; its latest-main validation still owns the final landing.
+
 ## Revisions
 
 ### 2026-10-15 — approved diagnostics-first timebox
