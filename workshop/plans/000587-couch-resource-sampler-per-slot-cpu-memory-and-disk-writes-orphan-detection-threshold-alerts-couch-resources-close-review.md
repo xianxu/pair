@@ -119,3 +119,126 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-15T17:53:40-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 587 — Couch resource sampler: per-slot CPU, memory and disk writes, orphan detection, threshold alerts, couch --resources |
+| repo | pair |
+| issue file | workshop/issues/000587-couch-resource-sampler-per-slot-cpu-memory-and-disk-writes-orphan-detection-threshold-alerts-couch-resources.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 99e11ecb8c72b7e5325a58692c1efd679e50710c..5e7cf327faa8276d1ceb4fa07a0948c071ab5992 |
+| command | sdlc close --issue 587 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-15T17:53:40-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+All five prior findings are addressed, with meaningful regression evidence. Two blockers remain: the checkpoint cannot accommodate the supported process count, preventing alert delivery, and the core-concepts table still contradicts implemented entity names. README and atlas updates are present.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Cached byte-budgeted projection preserves slot aggregates and discloses omitted details. TestResourceProjectionTransportCapacity passes through a real socket and fails with response exceeds frame limit when projection is disabled.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Snapshot loading preserves healthy sibling artifacts and rebuilds corrupt history. TestResourcePersistenceCorruptHistoryPreservesCheckpointAndAlerts passes; restoring all-or-nothing loading makes it fail on lost suppression state.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Inventory completeness and omission evidence reach the reducer. Startup-barrier, over-cap, cancellation and positive-root-death tests pass. Removing the completeness guard makes both the barrier and pure ownership regressions fail.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      The pinned plan diff corrects its NativeResourceReader row to resource_unsupported.go at line 41. That file exists and supplies the !darwin || !cgo fallback; Revisions records the correction.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      Production delivery observations invoke AdvanceResourceEpisode. Admission, refusal, uncertainty and restart reconciliation tests pass; substituting the previous dispatcher makes all six delivery-outcome cases fail.
+findings:
+  - id: new
+    severity: Critical
+    kind: defect
+    family: persistence-envelope-bounds
+    title: |
+      Supported process counts exceed the checkpoint cap and prevent alert admission
+    detail: |
+      cmd/internal/couchcmd/resources_alert.go:200 rejects the entire checkpoint above 2 MiB, while resources_persist.go:116 and resources_alert.go:171 require that checkpoint before sending. A disposable pinned-head regression with 8192 valid provenance rows, a short /f/pair workspace and one pending alert serialized to 3718809 bytes; persist returned resource checkpoint exceeds byte cap and left the alert pending without sending. Repeated workspace metadata makes this reachable within the advertised operating envelope. Normalize or compact persisted ownership, reserve capacity for suppression/envelopes, and test maximum-cardinality persistence plus real-broker admission. ARCH-CONSTRAINTS, ARCH-PURPOSE.
+  - id: new
+    severity: Critical
+    kind: defect
+    family: core-concept-traceability
+    title: |
+      Additional core-concepts rows still name entities absent from their stated files
+    detail: |
+      workshop/plans/000587-couch-resource-sampler-plan.md:26 names ResourceObservation instead of ResourceUsageObservation; line 45 names ResourceStore instead of ResourceSnapshotStore; line 42 names ResourceWorld instead of resourceFakeWorld. The naming Revisions paragraph already recognizes the first two renames, but the tables remain contradictory. This is the 2nd finding in family core-concept-traceability. Earlier rounds fixed an instance: apply the rule that every table entity resolves to its implemented declaration, enumerate and sweep every row, and record the corrected names/classifications in Revisions. Under the requested core-concepts gate these contradictions are Critical. ARCH-PURPOSE.
+```
+
+1. **Strengths**
+
+   - The transport regression exercises actual socket framing at maximum cardinality.
+   - Recovery tests prove valid alert suppression survives corrupt history while new alerts remain eligible.
+   - Barrier-controlled inventory tests distinguish unknown ownership from confirmed absence.
+   - README, atlas, storage retention documentation and artifact registration cover the new surface.
+
+2. **Critical findings**
+
+   - Checkpoint capacity prevents alerts within the supported process envelope. Compact the persisted representation and add a maximum-cardinality admission regression.
+   - Sweep and correct the entity tables, including the three mismatches identified above.
+
+3. **Important findings**
+
+   None additional.
+
+4. **Minor findings**
+
+   None.
+
+5. **Test coverage notes**
+
+   Resource/ProductionArtifact checks passed across procutil, couchcore, couchcmd, couchmessage, couchtty and artifactpath. Negative controls confirmed the four behavioral corrections fail without their fixes. The new checkpoint reproduction fails against restored pinned-head code. The disposable copy was removed; the reviewed checkout remains unchanged.
+
+   Full recorded-suite qualification and coordinated live acceptance remain outstanding in the tracker; neither is counted as passed here.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** existing broker, atomic writer and ownership seams are reused.
+   - **ARCH-PURE — pass:** attribution, episodes and history policy are tested separately from IO.
+   - **ARCH-PURPOSE — flag:** checkpoint capacity prevents required alert behavior.
+   - **ARCH-MOCK — pass:** injected readers, controlled broker endpoints and owned-child conformance exercise production boundaries.
+   - **ARCH-CONSTRAINTS — flag:** wire bounds are corrected; persistence bounds remain incompatible with supported cardinality.
+   - **ARCH-SECURE — pass:** bounded validation, unsafe-path rejection and terminal sanitization are present.
+   - **ARCH-ORDER — pass:** production delivery outcomes enter the pure reducer; uncertainty and incomplete inventories remain explicit.
+   - **ARCH-FUNERAL — pass:** bounded snapshots, fixed replacement stages, history pruning and joined worker lifetimes provide cleanup paths.
+
+7. **Plan revision recommendations**
+
+   Add `## Revisions` entries documenting the checkpoint representation and its verified capacity, and the complete entity-table sweep with actual names and classifications. Preserve the outstanding live-acceptance and recorded-suite requirements.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"ffa6bd7c-d63f-4826-a6c8-48b568e981ab","repository":"github.com/xianxu/pair","issue_id":"000587","recipe":"milestone-review","round":2,"attempt":1,"agent":"codex","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/f82c5d161af4a6df","reviewed_head":"5e7cf327faa8276d1ceb4fa07a0948c071ab5992","slot":"pair:1","requested_at":"2026-10-16T00:48:44.849916Z"},"phase":"finished","pid":18945,"started_at":"2026-10-16T00:48:45.153315Z","finished_at":"2026-10-16T00:53:28.945182Z","session_id":"01a1422e-cc5d-7022-a5bc-24a013651a31","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.895139667s
+head: "5e7cf327faa8276d1ceb4fa07a0948c071ab5992"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

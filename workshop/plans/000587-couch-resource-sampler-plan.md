@@ -22,30 +22,34 @@
 
 | Name | Lives in | Status |
 |---|---|---|
-| ResourceProcessKey / ResourceRoot | `cmd/internal/couchcore/resource.go` | new |
-| ResourceObservation / ResourceSample / ResourceView | `cmd/internal/couchcore/resource.go` | new |
+| ResourceProcessKey / ResourceRoot / ResourceSlot / ResourceSlotInventory / ResourceProvenance | `cmd/internal/couchcore/resource.go` | new |
+| ResourceUsageObservation / ResourceSample / ResourceView / ResourceCost / ResourceProcessView / ResourceSlotView / ResourceSelection | `cmd/internal/couchcore/resource.go` | new |
 | ResourcePolicy | `cmd/internal/couchcore/resource_policy.go` | new |
-| ResourceState / AdvanceResources | `cmd/internal/couchcore/resource_reduce.go` | new |
-| ResourceEpisode / ResourceEffect | `cmd/internal/couchcore/resource_episode.go` | new |
-| ResourceHistory | `cmd/internal/couchcore/resource_history.go` | new |
+| ResourceState / ResourcePrevious / ResourceSlotTotal / AdvanceResources | `cmd/internal/couchcore/resource_reduce.go` | new |
+| ResourceEpisode / ResourceEffect / ResourceDeliveryOutcome / ResourceEpisodeEvent | `cmd/internal/couchcore/resource_episode.go` | new |
+| ResourceHistory / ResourceFrame | `cmd/internal/couchcore/resource_history.go` | new |
 
 - A process key is PID plus kernel start identity, never PID alone. A root binds that key to an exact thread/slot incarnation and the evidence source. A process belongs to at most one slot; overlapping roots within one slot deduplicate, conflicting ownership is unknown rather than double-counted. The pure traversal reuses/extracts the existing ancestry logic where appropriate, without importing renice policy.
 - Observations carry counter capability and failure reasons. CPU is delta(user+system nanoseconds)/actual monotonic interval; RSS is a current gauge; writes are delta of `ri_diskio_byteswritten`, not logical write calls. Per-process lifetime counters and accumulated **observed since sampler start** slot totals have distinct labels. First observation establishes a baseline. Child-exit counters are not added again (no double counting).
-- ResourceState owns prior counters, provenance, episodes and history. No caller mutates its maps. Unknown/partial data, process replacement, counter decreases, clock regressions and sample gaps cannot fabricate a continuous high-rate interval. Exited-between-samples work is an explicit sampling limitation, not exact whole-lifetime billing.
+- ResourceState owns prior counters, provenance, episodes and observed totals; ResourceHistory owns retained aggregate frames. No caller mutates its maps. Unknown/partial data, process replacement, counter decreases, clock regressions and sample gaps cannot fabricate a continuous high-rate interval. Exited-between-samples work is an explicit sampling limitation, not exact whole-lifetime billing.
 - ResourceHistory stores aggregate frames and relevant offender summaries, not every process's argv/counter history. One core model feeds JSON, text, alert text and storage validation (ARCH-DRY).
 
 ### Integration points
 
 | Name | Lives in | Status | Wraps |
 |---|---|---|---|
-| NativeResourceReader | `cmd/internal/procutil/resource_darwin.go`, `resource_unsupported.go`, `resource.go` | new | libproc and bounded process table/identity sysctls |
-| ResourceWorld | `cmd/internal/couchcore/resource_fake_test.go` | new | stateful fake process generations, counters, errors and clock |
-| ResourceRoot evidence handoff | `cmd/internal/couchcmd/message_service.go`, `cmd/internal/couchcore/artifactcollision.go`, `cmd/internal/couchtty/console_resources.go` | modified/new | existing authenticated server proof and hosted process roots |
-| resourceSampler | `cmd/internal/couchcmd/resources.go` | new | reader, cached slot/idle snapshots, timer, reducer, store, broker |
-| ResourceStore | `cmd/internal/couchcore/resource_store.go` | new | bounded validated namespace files + durablefile |
+| NativeResourceReader | `cmd/internal/procutil/resource.go` (declaration), `resource_darwin.go` / `resource_unsupported.go` (platform backend) | new | libproc and bounded process table/identity sysctls |
+| resourceFakeWorld | `cmd/internal/couchcore/resource_fake_test.go` | new | stateful fake process generations, counters, errors and clock |
+| ResourceRootCache / ResourceRootEvidence | `cmd/internal/couchcore/resource_roots.go` | new integration cache | revision-fenced root proof from modified artifactcollision.go ownership checker |
+| resourceInventory / Console.ResourceInventory | `cmd/internal/couchcmd/resources_inventory.go`, `cmd/internal/couchtty/console_resources.go` | new adapter methods | cached console rows, hosted roots, workspace proof and inventory completeness |
+| resourceSampler / resourceReader | `cmd/internal/couchcmd/resources.go` | new | reader, cached slot/idle snapshots, timer, reducer, store, broker |
+| ResourceSnapshotStore | `cmd/internal/couchcore/resource_store.go` | new | bounded validated namespace files + durablefile |
+| resourcePersistence | `cmd/internal/couchcmd/resources_persist.go` | new adapter | independent snapshot recovery and alert checkpoint ordering |
+| resourceCheckpoint / resourceAlertAttempt / resourceAlertDispatcher | `cmd/internal/couchcmd/resources_alert.go` | new integration records/adapter | immutable broker envelopes and pure delivery-outcome events |
+| projectResourceView | `cmd/internal/couchcmd/resources_projection.go` | new pure projection | existing broker frame byte envelope |
 | resources request/response | `cmd/internal/couchmessage/protocol.go`, `cmd/internal/couchcmd/cli.go`, `messages.go`, `message_service.go`, `resources_render.go` | modified/new | existing authenticated local socket |
 
-The fake models fork, exec preserving birth, exit, reparenting, PID reuse, partial permission failures, failed enumeration, queued/delivered alerts and restart. Native conformance uses only owned scratch children. Storage tests use portable temporary directories; integration never reaches real Couch state.
+resourceFakeWorld models process generations, counters, partial tables and restart; selection tests model ancestry/reparenting/reuse, native fakes model permission failures, and resourceBrokerEndpoint exercises queued/delivered alerts through the real broker. Native conformance uses only owned scratch children. Storage tests use portable temporary directories; integration never reaches real Couch state.
 
 ## Ownership and lifecycle contract
 
@@ -78,7 +82,7 @@ Resolve the current owning hub immediately before send, as waitWatcher does; do 
 - Expected measurement-call bound: at most `6 + 2P + 2` native calls per pass (three two-call table attempts, one rusage and one identity fence per selected process, two sampler CPU measurements), subject to verifying the native adapter implementation. File IO operations and bytes are counted separately; identify any added call in the model rather than hiding it in a helper. PID reuse between table/rusage/fence invalidates that observation.
 - Default operating envelope: up to 256 displayed slots and 8,192 tracked live/provenance processes; process-table buffer capped at 65,536 rows. Hard limits produce a visible partial-coverage diagnostic, no silent all-clear or unbounded retries. Select active roots first, then known orphans, with deterministic ordering; report omitted counts. No subprocess launches on steady-state samples. No native process calls, disk writes or history decode on resources requests.
 - History snapshot: <=1,440 frames, <=24h by sample timestamp, <=4 MiB encoded. Ownership/episode checkpoint <=2 MiB and <=8,192 process records. Atomic publication may transiently retain old+new files; enforce <=12 MiB plus fixed metadata during replacement. Reject oversized/corrupt/foreign-schema files before decode; mark lost continuity and start fresh observation baselines, never use corrupt provenance to accuse a process.
-- Register all source consumers in `artifactpath/manifest.go` as exact namespace-owned non-Pair-artifact sources, matching existing Couch namespace diagnostics. Explicit rolling retention is owned by ResourceStore (not diagnosticlog's 365-day policy); document it in `atlas/storage-retention.md`. Age/count/byte pruning occurs on load and writes; stale files left while Couch is stopped remain byte-bounded and are pruned on next open. No global unrelated-file sweep.
+- Register all source consumers in `artifactpath/manifest.go` as exact namespace-owned non-Pair-artifact sources, matching existing Couch namespace diagnostics. Explicit rolling retention is owned by ResourceSnapshotStore (not diagnosticlog's 365-day policy); document it in `atlas/storage-retention.md`. Age/count/byte pruning occurs on load and writes; stale files left while Couch is stopped remain byte-bounded and are pruned on next open. No global unrelated-file sweep.
 - Native unsupported/permission errors disable affected measurements with reasons; the supervisor continues. Failed persistence marks the view degraded and cannot silently promise restart deduplication. No credentials or full command lines stored. All labels are escaped for terminal output; snapshots are 0600 under the namespace (ARCH-SECURE).
 
 ## Implementation tasks (one atomic delivery, full flow)
@@ -114,7 +118,7 @@ Files: `message_service.go`, `couchcore/artifactcollision.go`, new `couchtty/con
 
 Files: new `couchcore/resource_store.go`, `couchcmd/resources_alert.go`, tests, artifact manifest registration.
 
-- [x] Establish red for `ResourceHistory.Append` and `ResourceStore.Load/Save` using their function contracts below.
+- [x] Establish red for `ResourceHistory.Append` and `ResourceSnapshotStore.Load/Save` using their function contracts below.
 - [x] Implement safe bounded snapshot store and exact storage/source classification. Do not import diagnosticlog's 365-day retention into the rolling history.
 - [x] Route effects through `hubBindingFor` / `supervisionCoordinator.sendGenerated`; tests use the real broker with controlled endpoints and receipts. Cover unavailable/moved hub and busy queue.
 - [x] Run artifact manifest and retention qualification immediately; commit.
@@ -178,7 +182,7 @@ TL approved bf764e14 via receipt 9f23fae9-2182-488f-8025-196b3940fa66, with one 
 | `ClassifyUnattributed` | Known executable/argv candidates, unknown names, PPID changes and PID reuse; only large unowned PPID1 candidates appear, with no alert effects. |
 | `ParseResourcePolicy` | Boundary duration/numeric/overflow/malformed inputs; reject invalid startup policy and preserve approved defaults. |
 | `ResourceHistory.Append` | Irregular times and oversized aggregate frames; age/count/encoded-byte caps hold and shortened coverage is visible. |
-| `ResourceStore.Load`, `.Save` | Portable temp store with interrupted replacement and hostile/truncated/schema/size/symlink inputs; prior valid state survives failed publication and no unvalidated provenance is admitted. |
+| `ResourceSnapshotStore.LoadCheckpoint`, `.LoadHistory`, `.SaveCheckpoint`, `.SaveHistory` | Portable temp store with interrupted replacement and hostile/truncated/schema/size/symlink inputs; prior valid state survives failed publication and no unvalidated provenance is admitted. |
 | `resourceSampler.pass`, `.run`, `.view` | Stateful reader plus explicit barriers for cancellation/slow IO/concurrent queries; no overlap, shutdown joins, view does no IO and never holds interactive locks during probes. |
 | `resourceAlertDispatcher.dispatch` | Real Broker with original slot disconnected, moved/restarted hub and controlled retained receipts; hub self-notice succeeds, envelope stays immutable, unavailable evidence never duplicates. |
 | `ParseCLI`, `ValidateRequest`, `renderResources` | Text/JSON/query-shape parity and malicious labels; all sections/unknown states explicit, no command IO on cached request. |
@@ -210,3 +214,7 @@ BR-3: slot inventory publishes completeness and omitted counts. Startup, cancell
 BR-4: correct the integration table's unsupported platform filename to resource_unsupported.go, matching the implemented !darwin || !cgo adapter.
 
 BR-5: production delivery results and restart receipt reconciliation enter the pure episode reducer with immutable effect-ID fencing. Persist and validate admitted/refused/unknown outcomes; adapters no longer assign authoritative phases (ARCH-PURE).
+
+### 2026-10-15 — complete entity traceability sweep
+
+BR-7: enumerated every Core concepts row against its declaration and corrected ResourceUsageObservation, ResourceSnapshotStore and resourceFakeWorld throughout both tables and function contracts. ResourceRootCache/ResourceRootEvidence are the actual proof cache; resourceInventory and Console.ResourceInventory own the inventory adapter. Added the delivered state/value types, resourcePersistence, checkpoint/alert records and projectResourceView with actual files/classifications. NativeResourceReader is declared in resource.go with platform backends; the fake is test-only. ResourceState owns totals rather than history; ResourceHistory owns aggregate frames. This supersedes the earlier planned names, preserving the naming-collision rationale above.
