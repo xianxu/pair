@@ -1467,6 +1467,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/wrapcmd/terminal_model.go",
 	"cmd/internal/wrapcmd/dim.go",
 	"cmd/internal/wrapcmd/peer_settle.go",
+	"cmd/internal/wrapcmd/peer_qoder_submission.go",
 	"cmd/internal/couchcore/live_restart.go",
 	"cmd/internal/couchcmd/live_restart_probe.go",
 	"cmd/internal/couchcore/slot_prepare.go",
