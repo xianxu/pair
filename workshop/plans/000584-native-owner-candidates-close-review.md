@@ -186,3 +186,78 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-15T18:09:32-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 584 — Native owner scan blocks fleet resume on unrelated processes |
+| repo | pair |
+| issue file | workshop/issues/000584-native-owner-candidates.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 2bf3450664fe25abf8c38891e605e2ff95ac88c3..a7ce2731d8694771996b0f110f69586e04831ccd |
+| command | sdlc close --issue 584 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-15T18:09:32-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The interdiff repairs the workflow test’s stale command expectations without changing production behavior or expanding scope. Both prior findings remain addressed; no new defects were found.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Plan lines 15–28 separate deterministic predicates and parsers from IO orchestration; line 90 explains the correction. Referenced implementations support these classifications.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      The production-boundary live descriptor fixture passed against real lsof. Makefile.local:136 selects it for the recurring macOS workflow; the updated standalone workflow test also passed.
+```
+
+1. **Strengths**
+   - The expected command map now includes the procutil conformance check ([shortcut_workflow_test.go:122](cmd/internal/couchcmd/shortcut_workflow_test.go#L122)).
+   - Expected count derives from that map while preserving missing, duplicate and unexpected-command checks.
+   - The plan revision accurately records the companion test repair.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes:** Passed workflow contract tests, real lsof conformance, the live-target dry run and `git diff --check`. No mutation check or full-suite rerun performed; repository files remain unchanged.
+
+6. **Architectural notes**
+   - **ARCH-DRY — pass:** removes the separate hard-coded command count.
+   - **ARCH-PURE — pass:** workflow execution remains in an integration test.
+   - **ARCH-PURPOSE — pass:** repairs the exhaustive workflow consumer while retaining all existing command expectations.
+   
+   No new architectural or user-facing surface requires atlas or README changes.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"f1a9aa2e-0f6c-4f57-b4ba-7491a50141ac","repository":"github.com/xianxu/pair","issue_id":"000584","recipe":"fix-review","round":3,"attempt":1,"agent":"codex","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/0d530ce939734c68","reviewed_head":"a7ce2731d8694771996b0f110f69586e04831ccd","slot":"pair:2","requested_at":"2026-10-16T01:07:57.84489Z"},"phase":"finished","pid":23855,"started_at":"2026-10-16T01:07:58.33983Z","finished_at":"2026-10-16T01:09:12.739834Z","session_id":"01a14240-6667-70d1-9a3f-35a6e8457daa","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 5.074684667s
+head: "a7ce2731d8694771996b0f110f69586e04831ccd"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
