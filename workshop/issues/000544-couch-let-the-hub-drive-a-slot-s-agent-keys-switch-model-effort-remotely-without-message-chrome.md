@@ -133,6 +133,9 @@ Recorded suite on926fa9083 (same production source as staged42b2086f) failed exi
 
 Restart notices bf9e8370 and9bda8abc could not be verified or answered because couch was not on PATH (exit127). No alternate peer channel or binary path used. Stage remains42b2086fb040b9cbcb527fdcc91f09d8a7bbfdd1 with production binaries unchanged. Live model/key smoke remains pending the hub.
 
+
+- After the fixture-only correction, recorded suite on12d6b46cef82aaea977dad6a5a90325f6035ca2d PASS exit0 in10m7s (make PAIR_GO_TRIMPATH=-trimpath test), recorded sdlc-local/suite. All shell/editor and Go packages passed, including wrapcmd66.797s. Reported log `/Users/xianxu/workspace/pair/.git/sdlc/local-checks/12d6b46cef82aaea977dad6a5a90325f6035ca2d/suite.log`, SHA256 prefix876e98926efc. Production code is identical to staged42b2086fb040b9cbcb527fdcc91f09d8a7bbfdd1; only tests and issue evidence changed. Restart noticef432124b could not be verified/responded to because couch is still absent from PATH (exit127). Live acceptance and close remain pending; no replay, peer input or stage change.
+
 ## Revisions
 
 ### 2026-10-15 — reconcile landed recovery and stall supervision
