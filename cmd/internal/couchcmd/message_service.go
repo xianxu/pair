@@ -432,6 +432,16 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch, configur
 	panes := couchmessage.NewPaneMailbox()
 	probe := newLiveRestartProbe(c.Git, c.Proc)
 	c.LiveRestart = probe // before the socket opens: no request can race this write
+	// A reboot stops the slot's registered wrapper tree (pair#607); the
+	// broker's binding names it by pid and kernel start identity.
+	c.SlotWrapper = func(address couchcore.ThreadAddress) (couchcore.ProcessIdentity, bool) {
+		live, ok := probe.service.Load().LivenessForThread(address.RepoScope, string(address.Tag))
+		if !ok {
+			return couchcore.ProcessIdentity{}, false
+		}
+		return couchcore.ProcessIdentity{PID: live.Binding.PID, Identity: live.Binding.Start}, true
+	}
+	c.ProcessTable = procutil.Table
 	facts := openSupervisionFacts(artifacts.PairLifecycleDataDir(), namespace)
 	service, err := newMessageService(context.Background(), brokerSocket, registrySocket, authority, panes, console.MessageSlotGit, consoleSlotOperations(console, c, probe), facts)
 	if err != nil {

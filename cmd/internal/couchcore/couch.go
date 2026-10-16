@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/launcher"
+	"github.com/xianxu/pair/cmd/internal/procutil"
 	"github.com/xianxu/pair/cmd/internal/storagegc"
 )
 
@@ -24,12 +25,16 @@ import (
 // method on it. The terminal UI and (later) the advisor's tools are both
 // clients of these methods -- never of two separate implementations.
 type Couch struct {
-	recoveryMu             sync.Mutex
-	recoveryConfirmations  map[string]recoveryConfirmationState
-	RecoveryEvidence       RecoveryEvidenceReader
-	RecoveryPreserve       RecoveryCapturePreserver
-	RecoveryTerminal       RecoveryTerminalPreparation
-	RecoveryRetirement     RecoveryRetirementPreparer
+	recoveryMu            sync.Mutex
+	recoveryConfirmations map[string]recoveryConfirmationState
+	RecoveryEvidence      RecoveryEvidenceReader
+	RecoveryPreserve      RecoveryCapturePreserver
+	RecoveryTerminal      RecoveryTerminalPreparation
+	RecoveryRetirement    RecoveryRetirementPreparer
+	// SlotWrapper and ProcessTable let a reboot stop the slot's registered
+	// wrapper tree even when terminal attribution fails (pair#607).
+	SlotWrapper            SlotWrapperLookup
+	ProcessTable           func() ([]procutil.Process, error)
 	Identities             IdentityAllocator
 	Slots                  SlotCatalog
 	Workspaces             WorkspaceReadiness

@@ -696,6 +696,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcore/recovery_preview.go",
 	"cmd/internal/couchcore/recovery_native_owner_fake.go",
 	"cmd/internal/couchcore/recovery_conversation_in_use.go",
+	"cmd/internal/couchcore/recovery_slot_tree.go",
 	"cmd/internal/couchcore/recovery_resume.go",
 	"cmd/internal/couchtty/menu_recovery.go",
 	"cmd/internal/launcher/recovery_authority.go",

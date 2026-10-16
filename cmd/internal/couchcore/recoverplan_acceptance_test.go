@@ -2,6 +2,8 @@ package couchcore
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -9,8 +11,11 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/xianxu/pair/cmd/internal/couchidentity"
 	"github.com/xianxu/pair/cmd/internal/launcher"
+	"github.com/xianxu/pair/cmd/internal/procutil"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 )
 
@@ -363,5 +368,89 @@ func TestRecoverResumeRefusesConversationLiveInAnotherSlotAtBothGates(t *testing
 				t.Fatalf("preflight refusal came after :3's workspace was prepared (%d)", prepared3)
 			}
 		})
+	}
+}
+
+// pair#607: a reboot leaves a zellij session that another live slot's record
+// also names, says so, and still stops the rebooted slot's wrapper tree.
+func TestRebootLeavesSessionSharedWithAnotherLiveSlot(t *testing.T) {
+	w := newRecoverWorld(t)
+	ctx := context.Background()
+	w.env.Couch.Workspaces = slotReadinessFunc(func(_ context.Context, r ProvisionRequest) (ProvisionResult, error) {
+		for _, local := range w.locals {
+			if local.slot.Number == r.Slot || filepath.Clean(local.slot.WorktreeRoot) == filepath.Clean(r.Path) {
+				return slotReadyResult(local), nil
+			}
+		}
+		return ProvisionResult{}, fmt.Errorf("no slot %d at %s", r.Slot, r.Path)
+	})
+	w.env.Couch.FreshRegistration = func(context.Context, ThreadAddress, string, string) (bool, error) { return true, nil }
+	share := func(n int, live bool) {
+		updated, err := w.locals[n].updateExistingThread(w.records[n].Address, w.records[n].Revision, func(next *ThreadRecord) error {
+			next.SessionBinding = &couchidentity.SessionBinding{C: 1, M: 5, Name: "📁1-5", ScopeKey: next.Address.RepoScope, Tag: string(next.Address.Tag), StartNonce: "start-0102030405060708"}
+			if live {
+				next.Incarnations = []ThreadIncarnation{{PID: 900, Identity: "helper-3", State: IncarnationLive, LaunchProfile: next.LatestLaunchProfile}}
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		w.records[n] = updated
+	}
+	share(2, false)
+	share(3, true)
+	w.env.Proc.Set(900, "helper-3")
+	w.env.Artifacts.SetPairSession(w.records[2].Address, "📁1-5", true)
+	w.env.Couch.RecoveryRetirement = func(context.Context, ThreadRecord) (RecoveryRetirement, error) {
+		return RecoveryRetirement{}, errors.New("legacy readiness has no child birth")
+	}
+	w.env.Proc.Set(500, "wrapper")
+	w.env.Proc.Set(501, "codex")
+	w.env.Proc.DiesOn = map[int]os.Signal{500: TermSignal, 501: TermSignal}
+	w.env.Couch.SlotWrapper = func(address ThreadAddress) (ProcessIdentity, bool) {
+		return ProcessIdentity{PID: 500, Identity: "wrapper"}, address == w.records[2].Address
+	}
+	w.env.Couch.ProcessTable = func() ([]procutil.Process, error) {
+		return []procutil.Process{{PID: 500, PPID: 1, Identity: "wrapper", Name: "pair"}, {PID: 501, PPID: 500, Identity: "codex", Name: "codex"}}, nil
+	}
+	w.env.Couch.sleep = func(time.Duration) {}
+	w.env.Runner.AfterAcknowledge = func(id string) error {
+		child := w.env.Runner.Child(id)
+		var profile launcher.TrustedLaunchProfile
+		if err := json.Unmarshal([]byte(environmentValue(child.Env, launcher.CouchLaunchProfileEnv)), &profile); err != nil {
+			return err
+		}
+		fresh := ThreadAddress{RepoScope: environmentValue(child.Env, "COUCH_THREAD_SCOPE"), Tag: ThreadTag(profile.Tag)}
+		w.env.Artifacts.SetPairSession(fresh, continuationChildSession(t, w.env.Runner, id), true)
+		w.env.Artifacts.SetSessionPresence(fresh, SessionObservation{State: SessionPresent})
+		return nil
+	}
+	_, err := w.env.Couch.RecoverSelection(ctx, RecoverySelection{Target: ResumeTarget{Address: w.records[2].Address}, Kind: RecoveryFresh})
+	var required *RecoveryConfirmationRequired
+	if !errors.As(err, &required) {
+		t.Fatalf("reboot asked no confirmation: %v", err)
+	}
+	for _, stop := range required.Offer.Stops {
+		if strings.HasPrefix(stop.Role, "zellij session") {
+			t.Fatalf("shared session listed to stop: %+v", required.Offer.Stops)
+		}
+	}
+	result, err := w.env.Couch.ConfirmRecovery(ctx, required.Offer.Token)
+	if err != nil {
+		t.Fatalf("reboot: %v", err)
+	}
+	if !strings.Contains(result.Notice, "also named by "+w.address(3)) {
+		t.Fatalf("notice %q does not say the shared session was left", result.Notice)
+	}
+	for _, pid := range []int{500, 501} {
+		if w.env.Proc.Exists(pid) != Dead {
+			t.Fatalf("pid %d survived the reboot", pid)
+		}
+	}
+	for _, address := range w.env.Artifacts.Quiesces() {
+		if address == w.records[2].Address {
+			t.Fatal("the shared session was killed")
+		}
 	}
 }
