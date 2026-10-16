@@ -1,6 +1,6 @@
 ---
 id: 000606
-status: codecomplete
+status: done
 created: 2026-10-15
 updated: 2026-10-16
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 3532f6d70fdb4d4af46f6fecdbbb7fe591e66664
         evidence_commit: c0495c9be73f735da9f1b75d3d03cf857b9afcbc
+        landed_commit: a75e0ae456b881681de9fda8bd3a509a9fb1b16e
 ---
 
 # Resource monitor: a slot's detached test suite (sdlc local-check) is reported as orphans; attribute it to the slot
