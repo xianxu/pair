@@ -15,6 +15,7 @@ claimant:
     workspace: pair:3
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "f14ba7aa", done: "bca3381b"}
 ---
 
 # Native wrapped Zellij conformance times out finding shell actor
