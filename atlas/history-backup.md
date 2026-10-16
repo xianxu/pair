@@ -103,7 +103,8 @@ Changed source bytes or metadata can produce a different manifest and ID.
 
 [`Catalog`](../cmd/internal/historyarchive/catalog.go) holds one cross-process
 lock across its shards. The first shard is the requested path, followed by
-`.000001`, `.000002`, and so on. It rolls automatically before exceeding 64 MiB;
+`.000001`, `.000002`, and so on. The catalog inventory includes both the base
+JSONL and all six-digit numbered shards, excluding locks and staging. It rolls automatically before exceeding 64 MiB;
 lookup streams all shards. On open, an incomplete final JSONL line is truncated
 to the preceding complete record and synced under the lock. Complete malformed
 or conflicting records refuse; they are not silently dropped. A bundle whose
@@ -135,8 +136,9 @@ Subsequent serialized operations recover their owned staging remnants after a
 crash, without removing published objects. Catalog staging is protected by the
 catalog lock; sink publication owns its separately serialized staging recovery.
 Each sink destination directory retains one private `.archive-put.lock` inode;
-cleanup scans at most 10,000 entries and uses two transient descriptors. Internal
-lock/partial names are unavailable through object Get/Put and hidden from List.
+cleanup scans at most 10,000 temporary entries in a reserved `.archive-staging`
+subdirectory; retained final objects do not consume that budget. Internal
+lock/staging/partial names are unavailable through object Get/Put and hidden from List.
 Bundles, labels and catalog shards are retained until an explicit future
 retention decision. Disk cost includes encrypted bundles, plaintext labels and
 private catalogs, plus temporary staging while a write is active. See

@@ -57,23 +57,24 @@ func (s LocalSink) Put(ctx context.Context, key string, r io.Reader, maxBytes in
 		return e
 	}
 	defer dir.Close()
-	lock, e := lockSinkParent(ctx, dir)
+	lock, staging, e := lockSinkParent(ctx, dir)
 	if e != nil {
 		return e
 	}
 	defer lock.Close() // close releases flock only after staging cleanup
+	defer staging.Close()
 	var nonce [16]byte
 	if _, e = rand.Read(nonce[:]); e != nil {
 		return e
 	}
 	temp := ".partial-" + hex.EncodeToString(nonce[:])
-	fd, e := unix.Openat(int(dir.Fd()), temp, unix.O_WRONLY|unix.O_CREAT|unix.O_EXCL|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0600)
+	fd, e := unix.Openat(int(staging.Fd()), temp, unix.O_WRONLY|unix.O_CREAT|unix.O_EXCL|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0600)
 	if e != nil {
 		return e
 	}
 	f := os.NewFile(uintptr(fd), temp)
 	defer f.Close()
-	defer unix.Unlinkat(int(dir.Fd()), temp, 0)
+	defer unix.Unlinkat(int(staging.Fd()), temp, 0)
 	if _, _, e = fileDigest(ctx, r, f, maxBytes); e != nil {
 		return e
 	}
@@ -89,14 +90,17 @@ func (s LocalSink) Put(ctx context.Context, key string, r io.Reader, maxBytes in
 	if e = s.fault("publish"); e != nil {
 		return e
 	}
-	if e = unix.Linkat(int(dir.Fd()), temp, int(dir.Fd()), name, 0); e != nil {
+	if e = unix.Linkat(int(staging.Fd()), temp, int(dir.Fd()), name, 0); e != nil {
 		return e
 	}
 	uncertain := func(e error) error { return commitoutcome.Wrap(commitoutcome.Indeterminate, e) }
 	if e = s.fault("after-publish"); e != nil {
 		return uncertain(e)
 	}
-	if e = unix.Unlinkat(int(dir.Fd()), temp, 0); e != nil {
+	if e = unix.Unlinkat(int(staging.Fd()), temp, 0); e != nil {
+		return uncertain(e)
+	}
+	if e = staging.Sync(); e != nil {
 		return uncertain(e)
 	}
 	if e = s.syncDirectories(ctx, root, key); e != nil {
@@ -262,6 +266,9 @@ func (s LocalSink) List(ctx context.Context, prefix string) ([]string, error) {
 			}
 			entries, e := dir.ReadDir(128)
 			for _, entry := range entries {
+				if reservedSinkName(entry.Name()) {
+					continue
+				}
 				count++
 				if count > MaxFiles {
 					return errors.New("sink listing exceeds 10000 entries; use a smaller sink root")
@@ -307,7 +314,7 @@ func (s LocalSink) List(ctx context.Context, prefix string) ([]string, error) {
 }
 
 func reservedSinkName(name string) bool {
-	return name == ".archive-put.lock" || strings.HasPrefix(name, ".partial-")
+	return name == ".archive-put.lock" || name == ".archive-staging" || strings.HasPrefix(name, ".partial-")
 }
 func safeSinkKey(key string) error {
 	if e := safeRelative(key); e != nil {
@@ -324,20 +331,26 @@ func safeSinkKey(key string) error {
 // The stable lock and partial namespace are private to this adapter. A killed
 // writer releases flock automatically; cleanup therefore cannot remove a live
 // writer's staging file. Different destination directories remain independent.
-func lockSinkParent(ctx context.Context, dir *os.File) (*os.File, error) {
+func lockSinkParent(ctx context.Context, dir *os.File) (*os.File, *os.File, error) {
 	lock, e := openRegularAt(dir, ".archive-put.lock", unix.O_RDWR|unix.O_CREAT)
 	if e != nil {
-		return nil, e
+		return nil, nil, e
 	}
-	fail := func(e error) (*os.File, error) { lock.Close(); return nil, e }
+	var scan *os.File
+	fail := func(e error) (*os.File, *os.File, error) {
+		if scan != nil {
+			scan.Close()
+		}
+		lock.Close()
+		return nil, nil, e
+	}
 	if e = unix.Flock(int(lock.Fd()), unix.LOCK_EX|unix.LOCK_NB); e != nil {
 		return fail(fmt.Errorf("sink directory busy; retry publication: %w", e))
 	}
-	scan, e := childDir(dir, ".", false)
+	scan, e = childDir(dir, ".archive-staging", true)
 	if e != nil {
 		return fail(e)
 	}
-	defer scan.Close()
 	count := 0
 	for {
 		if e = ctx.Err(); e != nil {
@@ -352,12 +365,12 @@ func lockSinkParent(ctx context.Context, dir *os.File) (*os.File, error) {
 			if !strings.HasPrefix(entry.Name(), ".partial-") {
 				continue
 			}
-			f, e := openRegularAt(dir, entry.Name(), unix.O_RDONLY)
+			f, e := openRegularAt(scan, entry.Name(), unix.O_RDONLY)
 			if e != nil {
 				return fail(e)
 			}
 			f.Close()
-			if e = unix.Unlinkat(int(dir.Fd()), entry.Name(), 0); e != nil {
+			if e = unix.Unlinkat(int(scan.Fd()), entry.Name(), 0); e != nil {
 				return fail(e)
 			}
 		}
@@ -368,8 +381,11 @@ func lockSinkParent(ctx context.Context, dir *os.File) (*os.File, error) {
 			return fail(readErr)
 		}
 	}
+	if e = scan.Sync(); e != nil {
+		return fail(e)
+	}
 	if e = dir.Sync(); e != nil {
 		return fail(e)
 	}
-	return lock, nil
+	return lock, scan, nil
 }

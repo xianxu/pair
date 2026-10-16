@@ -176,3 +176,65 @@ func TestCatalogFailedOpenReleasesLock(t *testing.T) {
 	}
 	c.Close()
 }
+
+func TestCatalogInventoryIncludesEveryRolledShard(t *testing.T) {
+	ctx := context.Background()
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := filepath.Join(root, "archive", "history.jsonl")
+	record := catalogFixture(t, "one")
+	raw, _ := json.Marshal(record)
+	c, err := openCatalog(ctx, p, int64(len(raw)+1))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	for _, name := range []string{"one", "two", "six"} {
+		if err := c.Append(ctx, catalogFixture(t, name)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	inventory, err := Defaults()
+	if err != nil {
+		t.Fatal(err)
+	}
+	source, err := inventory.Resolve("archive-catalog")
+	if err != nil {
+		t.Fatal(err)
+	}
+	entries, err := os.ReadDir(filepath.Dir(p))
+	if err != nil {
+		t.Fatal(err)
+	}
+	count := 0
+	for _, entry := range entries {
+		if strings.HasSuffix(entry.Name(), ".lock") {
+			continue
+		}
+		relative := "archive/" + entry.Name()
+		matched := false
+		for _, pattern := range source.Patterns {
+			yes, err := filepath.Match(pattern, relative)
+			if err != nil {
+				t.Fatal(err)
+			}
+			matched = matched || yes
+		}
+		if !matched {
+			t.Errorf("produced catalog shard %s is absent from source inventory", relative)
+		}
+		count++
+	}
+	if count != 3 {
+		t.Fatalf("expected three actual shards, got %d", count)
+	}
+	for _, excluded := range []string{"archive/history.jsonl.lock", "archive/history.jsonl.staging", "archive/history.jsonl.abcdef"} {
+		for _, pattern := range source.Patterns {
+			if yes, _ := filepath.Match(pattern, excluded); yes {
+				t.Errorf("inventory includes internal/non-shard %s", excluded)
+			}
+		}
+	}
+}

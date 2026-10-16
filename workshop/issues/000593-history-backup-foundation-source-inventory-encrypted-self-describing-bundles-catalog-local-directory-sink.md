@@ -70,6 +70,10 @@ Targeted package and race runs passed before the final sink staging cleanup refi
 
 Built CLI live smoke: one selected real ops QA document (1,150 bytes) encrypted with the approved public recipient to a 1,715-byte bundle in /private/tmp/pair593-live-68t2s1xa. Read-back plus independent SHA256 matched 9eb1c9a746cba16d427dc6c1d0549e81c349c97fb8129dd47b93226def8322b3; source hash unchanged; repeat invocation retained exactly one catalog record. /usr/bin/time -l reported 0.86s real, 0.02s user, 0.04s system and 86,851,584-byte maximum RSS (fixture measurement, not a general bound). No personal private-key operation, source output or ops edit. Encrypted fixture, private catalog and request are retained there for inspection until host temporary-file cleanup; this temporary smoke is not durable backup storage.
 
+### 2026-10-15 — boundary review round 1
+
+REWORK on BR-1 retained-storage-must-not-exhaust-maintenance and BR-2 inventory-must-cover-produced-artifacts. Confirmed both findings; appended correction Revision and prevention lesson. The old-head recorded suite was canceled while still queued (exit130, no suite ran) to avoid spending the machine slot on superseded code. BR-2 regression failed on both actual rolled shards, then passed with explicit numeric shard pattern; lock/staging negative cases remain excluded. BR-1 regression failed with10,001 retained final files, then passed with isolated staging; focused LocalSink/SafeFS race run passed6.199s. Review itself independently passed package/race/classification/live conformance and verified the preserved real-source smoke artifact.
+
 ## Revisions
 
 ### 2026-10-15 — proposed foundation implementation scope
@@ -83,6 +87,10 @@ TL receipt4042bd3a approves dc721f5f with two superseding changes: under the cat
 ### 2026-10-15 — plan-quality refinements
 
 Round1 requested durability reconfirmation on retry (PQ-1) and a named function/test-strategy mapping (PQ-2). Added unconditional file/directory sync barriers to read-back/reuse/adoption and catalog reopen/repair/rollover, with repeated-sync-failure regressions. This adds no persisted machinery. The plan's function table consolidates existing test cases into production seams and independent oracles.
+
+### 2026-10-15 — boundary review growth corrections (BR-1/BR-2)
+
+BR-1 identified that counting retained final objects against a maintenance scan budget would stop publication after 5,000 bundles per kind/month. Keep the stable parent lock, but move all temporary sink bytes into its reserved .archive-staging subdirectory and enumerate only that transient namespace. Retained objects never consume cleanup capacity; bounded List remains an explicit query bound. Cover more than10,000 retained entries plus stale-stage recovery and concurrent-writer protection. BR-2 identified missing catalog rollover files in the source declaration: declare the base JSONL and six-digit numbered shards, excluding locks/staging. Test against actual automatically rolled shard names (ARCH-PURPOSE/ARCH-FUNERAL), not just hand-written expected strings.
 
 ## Estimate
 

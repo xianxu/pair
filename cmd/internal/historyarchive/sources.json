@@ -197,7 +197,8 @@
       "owner": "pair",
       "root_token": "pair-data",
       "patterns": [
-        "archive/*.jsonl"
+        "archive/*.jsonl",
+        "archive/*.jsonl.[0-9][0-9][0-9][0-9][0-9][0-9]"
       ],
       "mode": "continuous",
       "retention": "Explicit operator retention",

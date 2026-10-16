@@ -101,15 +101,16 @@ func (failingArchiveReader) Read([]byte) (int, error) { return 0, errors.New("so
 func TestLocalSinkFailedStreamCleansStaleAndOwnedTemps(t *testing.T) {
 	d := archiveTemp(t)
 	s := LocalSink{Root: d}
-	os.WriteFile(filepath.Join(d, ".partial-other"), []byte("retained"), 0600)
+	os.Mkdir(filepath.Join(d, ".archive-staging"), 0700)
+	os.WriteFile(filepath.Join(d, ".archive-staging", ".partial-other"), []byte("retained"), 0600)
 	if e := s.Put(context.Background(), "object", failingArchiveReader{}, 20); e == nil {
 		t.Fatal("read error ignored")
 	}
-	entries, e := os.ReadDir(d)
+	entries, e := os.ReadDir(filepath.Join(d, ".archive-staging"))
 	if e != nil {
 		t.Fatal(e)
 	}
-	if len(entries) != 1 || entries[0].Name() != ".archive-put.lock" {
+	if len(entries) != 0 {
 		t.Fatalf("unexpected cleanup: %v", entries)
 	}
 }
@@ -131,7 +132,7 @@ func TestLocalSinkLockProtectsActiveStage(t *testing.T) {
 	<-entered
 	second := LocalSink{Root: d}
 	err := second.Put(ctx, "second", bytes.NewReader(nil), 0)
-	entries, _ := os.ReadDir(d)
+	entries, _ := os.ReadDir(filepath.Join(d, ".archive-staging"))
 	partials := 0
 	for _, entry := range entries {
 		if strings.HasPrefix(entry.Name(), ".partial-") {
@@ -157,7 +158,7 @@ func TestLocalSinkLockProtectsActiveStage(t *testing.T) {
 func TestLocalSinkReservedNamesRefused(t *testing.T) {
 	s := LocalSink{Root: archiveTemp(t)}
 	ctx := context.Background()
-	for _, key := range []string{".archive-put.lock", ".partial-dead", "a/.partial-dead/file"} {
+	for _, key := range []string{".archive-put.lock", ".archive-staging/file", ".partial-dead", "a/.partial-dead/file"} {
 		if e := s.Put(ctx, key, bytes.NewReader(nil), 0); e == nil {
 			t.Fatalf("put reserved %s", key)
 		}
@@ -165,5 +166,22 @@ func TestLocalSinkReservedNamesRefused(t *testing.T) {
 			f.Close()
 			t.Fatalf("get reserved %s", key)
 		}
+	}
+}
+
+func TestLocalSinkPutDoesNotScanRetainedObjects(t *testing.T) {
+	d := archiveTemp(t)
+	for i := 0; i <= MaxFiles; i++ {
+		if e := os.WriteFile(filepath.Join(d, fmt.Sprintf("retained-%05d", i)), nil, 0600); e != nil {
+			t.Fatal(e)
+		}
+	}
+	s := LocalSink{Root: d}
+	if e := s.Put(context.Background(), "new-object", bytes.NewBufferString("abc"), 3); e != nil {
+		t.Fatal(e)
+	}
+	raw, e := os.ReadFile(filepath.Join(d, "new-object"))
+	if e != nil || string(raw) != "abc" {
+		t.Fatalf("object %q %v", raw, e)
 	}
 }
