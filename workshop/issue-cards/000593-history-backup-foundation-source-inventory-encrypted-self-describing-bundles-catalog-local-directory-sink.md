@@ -1,6 +1,6 @@
 ---
 id: 000593
-status: codecomplete
+status: done
 created: 2026-10-15
 updated: 2026-10-15
 estimate_hours: 7.2025
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: ec92c1fe36f427d3b6accd665a4b7147f79bf3ba
         evidence_commit: ab5aed090e8fcef108a311ee45588e0751161f21
+        landed_commit: a7f6418f06c749dac37fff5d694e794ef4acb7af
 ---
 
 # history-backup foundation: source inventory, encrypted self-describing bundles, catalog, local-directory sink
