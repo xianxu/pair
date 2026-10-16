@@ -51,7 +51,7 @@ Canonical approved implementation design: [durable plan](../plans/000571-codex-i
 - [x] Verify source/machine controls, targeted normal/race and full suite; update atlas and prepare close evidence.
 
 - [x] Match native CLI leaf replacement and prove projected worktree scope/selected ID (BR-1).
-- [ ] Validate native transcript record eligibility, replace incomplete positive fixtures, and rerun targeted/full verification for close (BR-2).
+- [x] Validate native transcript record eligibility, replace incomplete positive fixtures, and rerun targeted/full verification for close (BR-2).
 
 ## Log
 
@@ -161,6 +161,10 @@ A positive direct map-key vocabulary test failed before support; implemented one
 The8d79c161 recorded run completed every recipe/package in12m57s; failures were TestProductionArtifactReferencesAreExactlyClassified (corrected exact map-key vocabulary) and independent TestLaunchFailureStoreReopenConcurrent (diagnostics lock timeout, then retention assertion). Log /Users/xianxu/workspace/pair/.git/sdlc/test-stats/failed/fe1008b1860377ef1d9a72d918548b57.log; sha256 prefix73f371f8e9a9. Launcher54.917s, sessioninventory46.282s and wrapper81.477s passed. No package was skipped or stopped early.
 
 Reported the new flake to hub (fallback exact ops:0 because hub alias registration refused; receipt932423e0 submitted). TL approved filing it independently and letting the already queued9164e3cd7a2150f2f8c8a59cc481bd1939dcf2ab recorded suite proceed. Filed unassigned #590 with exact head/log/first-seen evidence and unproven serialized-IO/scheduling/inherited-lock hypotheses. One unchanged targeted count10 passed5.041s; /tmp/pair571-launchfailure-lock-check.log. No diagnostics runtime change in this issue. If the queued final suite passes, close/land; if it fails on another unrelated flake, report and STOP with no further rerun until the TL's suite-wide flake review. Current final run f7e328dbf2ee719c4503f9ac7e3ab62a is queued, session46227, log under test-stats/inflight; final code9164e3cd is pushed and unchanged.
+
+### 2026-10-15 — final recorded suite green
+
+Final recorded suite on9164e3cd7a2150f2f8c8a59cc481bd1939dcf2ab completed every recipe and Go package exit0 in12m55s, after611s in the machine queue. Log /Users/xianxu/workspace/pair/.git/sdlc/local-checks/9164e3cd7a2150f2f8c8a59cc481bd1939dcf2ab/suite.log; sha256 prefixd0dabb1482db. Artifactpath6.860s, broadcast39.731s, couchcore466.887s, launcher53.713s, sessioninventory32.700s, wrapper77.016s. All three independent flakes passed unchanged; no further repeat needed. All CI checks on this head passed, including zellij conformance2m49s (run38827720463), merge-check1m23s and local-gates guard11s. Every code change through both Critical review fixes and the approved source-vocabulary correction is covered. Remaining changes are issue evidence only. Ready for the second binary-owned close review; no staging or native configuration mutation.
 
 ### 2026-10-15 — planning under the disk restriction
 
