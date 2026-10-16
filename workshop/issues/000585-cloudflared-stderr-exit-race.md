@@ -83,3 +83,9 @@ Owned-pipe and exit/drain regressions passed together (0.365s). Forced-close reg
 ### Targeted verification and recorded-suite admission
 
 Source02b5ef94ee83e1274d7b4ec7912261620e5acfeb: full broadcast package with race detection passed (89.747s); focused ownership/drain/forced-close/guarded+direct fast failure and existing API refusal passed50repetitions (34.463s) concurrently with that package run. make -k -B build passed, rebuilding pair, couch and pair-launch-helper from this exact source. No live broadcast/conformance network test was enabled. Recorded sdlc local-check run --name suite is queued as run5cf351123b0b1e80ce3ea58061fd72b0 behind the machine-wide two-suite cap; it uses the pushed exact source head and no quota override.
+
+## Revisions
+
+### 2026-10-15 — hypothesis confirmed as a production ownership violation
+
+The original Spec states a working hypothesis. Real-process wait-before-read RED now confirms loss of the exact failure through exec-owned StderrPipe, and controlled exit-before-drain RED confirms premature completion publication independently. Scope and Done when remain unchanged: own the pipe, join process and drain, preserve the exact error and API URL refusal, and force reader disposal at the existing teardown boundary. This fixes production lifecycle behavior as requested by the hub, rather than only stabilizing a test.
