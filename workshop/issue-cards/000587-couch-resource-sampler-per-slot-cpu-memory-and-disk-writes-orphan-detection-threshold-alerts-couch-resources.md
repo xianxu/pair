@@ -1,6 +1,6 @@
 ---
 id: 000587
-status: working
+status: codecomplete
 created: 2026-10-15
 updated: 2026-10-15
 estimate_hours: 4.883
@@ -13,6 +13,14 @@ claimant:
     workspace: pair:1
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
+actual_hours: 4.22
+tracker:
+    version: 1
+    completion:
+        token: close-ae32fb9fff6f
+        repository: github.com/xianxu/pair
+        reviewed_head: 0c36ccba15897f61abe5a356c3ba6dc277ada9d9
+        evidence_commit: 9a7f9c781792a3a646c3575716ca4955cd08c8c3
 ---
 
 # Couch resource sampler: per-slot CPU, memory and disk writes, orphan detection, threshold alerts, couch --resources
