@@ -7,6 +7,9 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- A strict trust check and a native discovery rule can intentionally treat aliases differently. Failure to prove one observed discovery candidate makes the whole candidate scope unknown; silently omitting it can select an older conversation. Test the selected identity with a newer candidate behind an unsupported alias. (#571 BR-3)
+- SQLite read-only mode can create native WAL-index sidecars. A non-mutating adapter queries an owned coherent private snapshot, and a real WAL fixture must compare the entire native file set and bytes before and after success, failure and cancellation. An integrity check validates recovery, not the coherence of separately copied source files. (#571 BR-4)
+
 - Decode persisted authority into zero values and require its version/collection fields explicitly. Only file absence permits initialization: decoding `{}` over a prefilled default can erase unresolved ownership and admit a second writer. Test missing fields, top-level null and null collections separately from valid empty state. (#556 M2)
 
 - Normalize an advertised choice through its validated key before applying mode-specific admission. A shared candidate route may represent Fresh as well as resume; test explicit and keyed forms against every native-only guard and run the printed command/menu route. (#556 BR-5)

@@ -20,7 +20,7 @@ policy absent. Auth/credential files and keychains are never read.
 | Local API-only bootstrap, supported config and unique latest | Resolve once, pin UUID, reserve and verify scope before execution |
 | Cloud-unknown or unsupported managed/executor configuration | Native pass-through, one not-guarded note |
 | Picker, name/prefix, remote or worktree creation | Existing native compatibility where allowed by the selector policy |
-| Missing/incomplete DB evidence, tied activity or read limit | Native pass-through; Pair does not repair or guess |
+| Missing/incomplete DB evidence, absent/non-WAL/changing snapshot, tied activity or read limit | Native pass-through; Pair does not repair or guess |
 | Exact UUID | Existing guarded admission; custom CODEX_HOME supplies its transcript root |
 | Strict recovery/ResumeRequired with unresolved evidence | Existing refusal; no silent downgrade |
 
@@ -55,7 +55,9 @@ provider, profile and prompt syntax are not reparsed by a second argv grammar.
   the default is Codex home. Transcript and state homes remain separate.
 - Worktrees defaults on. Validated current/primary/linked checkout metadata
   supplies corresponding existing directories. Nested logical cwd aliases whose
-  native interpretation is unsupported use compatibility.
+  native interpretation is unsupported use compatibility. Any observed candidate
+  whose discovery identity cannot be proved makes the whole projection unknown;
+  trust rejection is not evidence that native discovery would exclude it.
 - Named `environments.toml`, executor-server scope and unsupported relocation
   also use compatibility. No broad Codex-home scan discovers policy.
 - The runtime-injected `--disable shell_snapshot` flag is selector-independent
@@ -92,6 +94,22 @@ before metadata or turn cwd becomes selection authority. Incomplete required
 fields, invalid typed fields and unsupported complex values retain compatibility;
 the generic legacy inventory reader is not native schema proof.
 
+## Non-mutating SQLite observation
+
+The Codex selector queries an attempt-owned private DB/WAL snapshot, never the
+native database. Guarded selection requires a stable, present WAL and WAL-mode
+DB. Source reads copy WAL first, then DB, and verify complete repeated reads plus
+identity and generation fences. Private SQLite recovery and quick_check validate
+the captured image. Native SHM is never inspected or copied.
+
+Absent WAL, non-WAL mode, a hot journal, unsafe metadata or any changed observation
+retains native compatibility. The adapter adds no source locks or repair writes.
+Safe, noninteractive SQLite options and an explicit empty init keep private queries
+independent of a user's rc and external file functions. Attempt-owned temporary
+files, including private sidecars, are removed on success, error and cancellation;
+cleanup failure cannot produce guarded authority. Pagination and selected-content
+validation share one captured DB cohort while transcript observations remain fenced.
+
 ## Handoff and budgets
 
 The existing launcher resolver pins one UUID before reservation. A serialized,
@@ -106,7 +124,8 @@ writer admission and teardown.
 Configuration reads cap files at1MiB and total observations at4MiB, with64 named
 reads and64KiB Git metadata. Selector work uses the existing30s/256MiB/10000-entry
 bounds,1MiB SQLite page output and32MiB per reverse transcript scan. Exhaustion is
-unknown, not absence. Scope JSON is bounded at8KiB and grant encoding at64KiB;
+unknown, not absence. Both snapshot copy and verification reads consume the same
+256MiB source budget. Scope JSON is bounded at8KiB and grant encoding at64KiB;
 the existing1MiB admission store cap and lifecycle remain.
 
 Custom native-home construction also feeds ledger identity and recovery

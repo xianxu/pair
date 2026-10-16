@@ -1455,7 +1455,8 @@ starting the same native conversation at once, including launches outside Couch.
 An uncertain start retains ownership; missing readiness alone never proves the
 conversation is free. Claude and Qoder latest selectors resolve uniquely before launch.
 Codex latest selectors are guarded when the [read-only adapter](atlas/codex-resume.md)
-can prove a complete local API-only configuration and a unique target. Cloud-unknown,
+can prove a complete local API-only configuration, stable private DB/WAL snapshot
+and unique target. The adapter leaves the native history directory unchanged. Cloud-unknown,
 picker/name and incomplete mappings retain native CLI behavior with one line saying
 concurrent resume is not guarded; full canonical Codex IDs remain guarded.
 Other unsupported configuration/provider mappings name
