@@ -64,6 +64,13 @@ func (p ContinuousPass) Run(ctx context.Context) (ContinuousReport, error) {
 	if err := unix.Flock(int(lock.Fd()), unix.LOCK_EX|unix.LOCK_NB); err != nil {
 		return report, ErrPassRunning
 	}
+	// Private copies a killed pass left behind can be gigabytes; drop them
+	// while holding the lock.
+	if sweeper, ok := p.Snapshotter.(interface{ Sweep() error }); ok {
+		if err := sweeper.Sweep(); err != nil {
+			return report, err
+		}
+	}
 	now := p.now()
 	quiet := p.Quiet
 	if quiet == 0 {

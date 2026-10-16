@@ -75,6 +75,11 @@ func (s SQLiteSnapshotter) Snapshot(ctx context.Context, root, rel, stagingRoot 
 	if err != nil {
 		return false, fmt.Sprintf("%s unreadable: %v", rel, err), nil
 	}
+	// Over the per-file bound the snapshot could not be archived anyway; do
+	// not copy gigabytes every pass only to skip them (pair#616 lifts this).
+	if before.DBSize+before.WALSize > MaxBundleBytes {
+		return false, fmt.Sprintf("%s exceeds the %d-byte per-file bound; skipped", rel, int64(MaxBundleBytes)), nil
+	}
 	if err := os.MkdirAll(s.Scratch, 0o700); err != nil {
 		return false, "", err
 	}
@@ -152,14 +157,61 @@ func copyRegularFile(from, to string) error {
 	return out.Close()
 }
 
+// sameContent compares two files in bounded memory.
 func sameContent(a, b string) (bool, error) {
-	x, err := os.ReadFile(a)
+	x, err := os.Open(a)
 	if err != nil {
 		return false, err
 	}
-	y, err := os.ReadFile(b)
+	defer x.Close()
+	y, err := os.Open(b)
 	if err != nil {
 		return false, err
 	}
-	return bytes.Equal(x, y), nil
+	defer y.Close()
+	xi, err := x.Stat()
+	if err != nil {
+		return false, err
+	}
+	yi, err := y.Stat()
+	if err != nil || xi.Size() != yi.Size() {
+		return false, err
+	}
+	bx, by := make([]byte, 1<<20), make([]byte, 1<<20)
+	for {
+		nx, ex := io.ReadFull(x, bx)
+		ny, ey := io.ReadFull(y, by)
+		if nx != ny || !bytes.Equal(bx[:nx], by[:ny]) {
+			return false, nil
+		}
+		if ex == io.EOF || ex == io.ErrUnexpectedEOF {
+			return ey == io.EOF || ey == io.ErrUnexpectedEOF, nil
+		}
+		if ex != nil {
+			return false, ex
+		}
+		if ey != nil {
+			return false, ey
+		}
+	}
+}
+
+// Sweep removes private working copies a killed pass left behind. The
+// continuous pass calls it under its lock, so no snapshot is in progress.
+func (s SQLiteSnapshotter) Sweep() error {
+	entries, err := os.ReadDir(s.Scratch)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	for _, e := range entries {
+		if e.IsDir() && strings.HasPrefix(e.Name(), "sqlite-") {
+			if err := os.RemoveAll(filepath.Join(s.Scratch, e.Name())); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }

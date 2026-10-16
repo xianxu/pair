@@ -96,3 +96,54 @@ func TestSQLiteSnapshotCopiesWALFirstAndRefusesAChangedSource(t *testing.T) {
 		t.Fatal("unstable copy was published")
 	}
 }
+
+// pair#592 close review: an over-limit database is skipped before any copy.
+func TestSQLiteSnapshotSkipsOverLimitDatabaseWithoutCopying(t *testing.T) {
+	src := t.TempDir()
+	db := filepath.Join(src, "big.sqlite")
+	f, err := os.Create(db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Truncate(MaxBundleBytes + 1); err != nil {
+		t.Fatal(err)
+	}
+	f.Close()
+	copies := 0
+	s := SQLiteSnapshotter{SQLite: "sqlite3", Scratch: t.TempDir(), copyFile: func(string, string) error { copies++; return nil }}
+	ok, note, err := s.Snapshot(context.Background(), src, "big.sqlite", filepath.Join(t.TempDir(), "s"))
+	if err != nil || ok || !strings.Contains(note, "per-file bound") || copies != 0 {
+		t.Fatalf("over-limit db: ok=%v note=%q err=%v copies=%d", ok, note, err, copies)
+	}
+}
+
+// A killed pass's private copies are swept; nothing else in scratch is.
+func TestSQLiteSnapshotterSweepRemovesLeftoverWorkDirs(t *testing.T) {
+	scratch := t.TempDir()
+	os.MkdirAll(filepath.Join(scratch, "sqlite-123", "x"), 0o700)
+	os.WriteFile(filepath.Join(scratch, "keep.txt"), []byte("k"), 0o600)
+	if err := (SQLiteSnapshotter{Scratch: scratch}).Sweep(); err != nil {
+		t.Fatal(err)
+	}
+	if names := dirNames(t, scratch); strings.Join(names, ",") != "keep.txt" {
+		t.Fatalf("scratch after sweep: %v", names)
+	}
+	if err := (SQLiteSnapshotter{Scratch: filepath.Join(scratch, "absent")}).Sweep(); err != nil {
+		t.Fatalf("absent scratch: %v", err)
+	}
+}
+
+func TestSameContentStreams(t *testing.T) {
+	dir := t.TempDir()
+	a, b, c := filepath.Join(dir, "a"), filepath.Join(dir, "b"), filepath.Join(dir, "c")
+	body := strings.Repeat("x", 3<<20+7)
+	os.WriteFile(a, []byte(body), 0o600)
+	os.WriteFile(b, []byte(body), 0o600)
+	os.WriteFile(c, []byte(body[:len(body)-1]+"y"), 0o600)
+	if same, err := sameContent(a, b); err != nil || !same {
+		t.Fatalf("equal files: %v %v", same, err)
+	}
+	if same, err := sameContent(a, c); err != nil || same {
+		t.Fatalf("different last byte: %v %v", same, err)
+	}
+}
