@@ -16,6 +16,7 @@ claimant:
     workspace: pair:1
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "88e45015", done: "36cf2873"}
 ---
 
 # Launcher clean-exit cancellation test races TERM trap readiness
