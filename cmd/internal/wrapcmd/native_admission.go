@@ -17,6 +17,17 @@ type nativeAdmissionStore interface {
 	PublishChild(context.Context, launcher.NativeAdmissionClaim, int) error
 }
 
+// startAgentPTY starts a Couch-hosted agent without native admission
+// (pair#597): Couch retires the slot's own processes and checks its registry
+// for the same conversation in another live slot before it launches, so the
+// launcher reserves no grant. Ordinary Pair keeps the admission boundary.
+func startAgentPTY(ctx context.Context, couchHosted bool, store nativeAdmissionStore, grant, agent string, cmd *exec.Cmd, stderr io.Writer, start func(*exec.Cmd) (*os.File, error)) (*os.File, error) {
+	if couchHosted && grant == "" {
+		return start(cmd)
+	}
+	return startNativePTY(ctx, store, grant, agent, cmd, stderr, start)
+}
+
 // startNativePTY is the single native start boundary for both wrapper command
 // forms. A successful return permits readiness; failures never release durable
 // ownership, even if the caller cleans up its newly spawned direct child.

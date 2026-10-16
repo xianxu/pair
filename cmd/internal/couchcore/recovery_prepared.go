@@ -176,7 +176,7 @@ func (c *Couch) executePreparedRecovery(ctx context.Context, selection RecoveryS
 		}
 	}
 	if selection.Kind != RecoveryFresh {
-		if err := c.checkRecoveryNativeOwner(ctx, record, choice, true); err != nil {
+		if err := c.checkRecoveryConversationInUse(ctx, record, choice); err != nil {
 			return result, err
 		}
 		if len(retirement.Stops) == 0 {
@@ -385,7 +385,7 @@ func (c *Couch) launchRecoveryClaim(ctx context.Context, record ThreadRecord, no
 		}
 	}
 	if selection.Kind != RecoveryFresh {
-		if err := c.checkRecoveryNativeOwner(ctx, record, choice, false); err != nil {
+		if err := c.checkRecoveryConversationInUse(ctx, record, choice); err != nil {
 			return fail(err)
 		}
 	}

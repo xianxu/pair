@@ -818,7 +818,10 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 			}
 		}
 	}()
-	if explicitResume != "" {
+	// A Couch-owned resume needs no native admission (pair#597): Couch retired
+	// the slot's own processes and checked its registry for the same
+	// conversation in another live slot before it launched this one.
+	if explicitResume != "" && !couchOwned {
 		digest, err := NativeAdmissionCommandDigest(agent, append([]string{agent}, PromptArgs(agent, commandArgs, opts.Args.Prompt)...))
 		if err != nil {
 			fmt.Fprintf(stderr, "pair: %v\n", err)

@@ -286,7 +286,7 @@ func slotRecordFixture(t *testing.T, env *testEnv, local *ThreadStore) ThreadRec
 	if err != nil {
 		t.Fatal(err)
 	}
-	env.Artifacts.SetNativeBinding(old.Address, "claude", sessioninventory.BindingEstablished, "native-slot")
+	env.Artifacts.SetNativeBinding(old.Address, "claude", sessioninventory.BindingEstablished, fmt.Sprintf("native-slot-%d", local.slot.Number))
 	return old
 }
 

@@ -408,3 +408,19 @@ func TestCodexIndirectCompatibilityCannotBypassConsumedGrant(t *testing.T) {
 		t.Fatalf("compatibility bypassed consumed grant: err=%v spawns=%d notice=%q world=%+v", err, spawns, notice.String(), world)
 	}
 }
+
+// pair#597: a Couch-hosted resume starts with no grant and never touches the
+// admission store; ordinary Pair still refuses an unadmitted resume.
+func TestCouchHostedResumeStartsWithoutNativeAdmission(t *testing.T) {
+	for _, hosted := range []bool{true, false} {
+		cmd, world := nativeAdmissionTestCommand(t)
+		spawns := 0
+		_, err := startAgentPTY(context.Background(), hosted, world, "", "codex", cmd, io.Discard, func(*exec.Cmd) (*os.File, error) { spawns++; return nil, nil })
+		if hosted && (err != nil || spawns != 1 || len(world.events) != 0) {
+			t.Fatalf("hosted resume: err=%v spawns=%d events=%v", err, spawns, world.events)
+		}
+		if !hosted && (err == nil || spawns != 0) {
+			t.Fatalf("ordinary resume admitted without grant: err=%v spawns=%d", err, spawns)
+		}
+	}
+}
