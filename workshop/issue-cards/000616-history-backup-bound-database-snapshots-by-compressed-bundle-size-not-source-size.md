@@ -1,6 +1,6 @@
 ---
 id: 000616
-status: codecomplete
+status: done
 created: 2026-10-16
 updated: 2026-10-16
 estimate_hours:
@@ -22,6 +22,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: bedbf0ba13f30d25b364f1feafcc5173b1970af5
         evidence_commit: 3564f8a46ece0405cf8dfe155360c02d83ffbfba
+        landed_commit: 056a0cb0a2baec0b269ff4b6366c9769c0bf1f19
 ---
 
 # history-backup: bound database snapshots by compressed bundle size, not source size
