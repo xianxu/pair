@@ -489,13 +489,14 @@ var SourceClassifications = []SourceClassification{
 			"legacy-rename-pane", "legacy-rename-queue", "legacy-rename-quote", "legacy-rename-scrollback",
 			"legacy-rename-title-pid", "scoped-queue",
 		}},
-	// #583: nvim_reap_os.go turns a resolved Paths into reap targets, so it
-	// consumes the draft and nvim-pid members on a Paths handed to it and calls
-	// no resolver of its own — hence no bindings to witness.
+	// #583: nvim_reap_os.go owns the whole reap path — it turns a resolved Paths
+	// into reap targets and enumerates the selected scope's records for the
+	// orphan sweep. Both reach members through a Paths/ScopePaths it was handed
+	// or resolved and passed on, so no binding is witnessed in-file.
 	{Path: "cmd/internal/launcher/nvim_reap_os.go", Kind: ResolvedConsumer},
 	{Path: "cmd/internal/launcher/osruntime.go", Kind: ResolvedConsumer,
-		Families:     []string{"agent", "ledger", "nvim-pid", "outer-tty", "parked", "parked-scrollback", "restart", "scrollback", "session-binding", "session-inventory-catalog", "title-pid"},
-		BindingNames: []string{"cache-restart", "scoped-agent", "scoped-ledger", "scoped-outer-tty", "scoped-parked", "scoped-parked-scrollback", "scoped-scrollback", "selected-nvim-pid-globs", "selected-session-binding", "selected-session-inventory-catalog", "scoped-title-pid"},
+		Families:     []string{"agent", "ledger", "outer-tty", "parked", "parked-scrollback", "restart", "scrollback", "session-binding", "session-inventory-catalog", "title-pid"},
+		BindingNames: []string{"cache-restart", "scoped-agent", "scoped-ledger", "scoped-outer-tty", "scoped-parked", "scoped-parked-scrollback", "scoped-scrollback", "selected-session-binding", "selected-session-inventory-catalog", "scoped-title-pid"},
 	},
 	{Path: "cmd/internal/launcher/session_index_cache.go", Kind: ResolvedConsumer,
 		Families: []string{"session-binding"}, BindingNames: []string{"legacy-session-binding", "selected-session-binding"}},

@@ -946,50 +946,13 @@ func (r OSRuntime) ReapNvim(tag string) {
 	_, _ = reapNvimSidecars(context.Background(), r.processTable(), r, nvimSidecarsFor(paths, tag, paths.ScopeDir()))
 }
 
-// SweepOrphanNvim reaps nvim --embed processes whose Pair session is not live —
-// candidates come from the nvim-pid-* sidecars and a native argv snapshot (catches
-// embeds with no pidfile), shell 1117-1158.
+// SweepOrphanNvim reaps embedded nvim processes whose Pair session is not live,
+// one pid at a time and only on verified identity (#583). Candidates come from
+// the nvim-pid sidecars, the changelog viewer's artifact-keyed record, and argv
+// that carries a scope path; the decision is per pid, so an embed is never
+// reached through a name it happens to match.
 func (r OSRuntime) SweepOrphanNvim(liveTags []string) {
-	scope, err := artifactpath.ResolveSelectedScope(r.DataDir)
-	if err != nil {
-		return
-	}
-	live := make(map[string]bool, len(liveTags))
-	for _, t := range liveTags {
-		live[t] = true
-	}
-	cands := map[string]bool{}
-	globs, globErr := scope.NvimPIDGlobs()
-	if globErr != nil {
-		return
-	}
-	for _, glob := range globs {
-		matches, _ := filepath.Glob(glob.Pattern)
-		for _, m := range matches {
-			if tag, ok := scope.TagFromNvimPID(m, glob.Kind); ok {
-				cands[tag] = true
-			}
-		}
-	}
-	if rows, err := r.Processes.Snapshot(context.Background()); err == nil {
-		for _, row := range rows {
-			if row.Err != nil {
-				continue
-			}
-			argv := strings.Join(row.Args, " ")
-			if !strings.Contains(argv, "nvim") || !strings.Contains(argv, "--embed") {
-				continue
-			}
-			if tag := scope.TagFromNvimEmbedArgv(argv); tag != "" {
-				cands[tag] = true
-			}
-		}
-	}
-	for tag := range cands {
-		if !live[tag] {
-			r.ReapNvim(tag)
-		}
-	}
+	_, _ = sweepOrphanNvim(context.Background(), r.processTable(), r, r.DataDir, liveTags)
 }
 
 // ParkScrollback preserves the .raw/.events.jsonl scrollback to a timestamped

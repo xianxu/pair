@@ -2,8 +2,11 @@ package launcher
 
 import (
 	"context"
+	"errors"
+	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"syscall"
 	"testing"
 
@@ -385,5 +388,295 @@ func TestReapNvimSidecarsSkipsAttributionWithoutAScope(t *testing.T) {
 	}
 	if _, kept := sidecars.files[target.Path]; !outcomes[0].Removed || kept {
 		t.Fatal("a decided not-ours record should be gone")
+	}
+}
+
+// sweepScope is a real scope directory on disk, because the sweep enumerates it:
+// the records it finds are the evidence, and a map-backed fake cannot stand in
+// for a glob.
+type sweepScope struct {
+	dir   string
+	paths artifactpath.Paths
+}
+
+func newSweepScope(t *testing.T, tag string) *sweepScope {
+	t.Helper()
+	dir := t.TempDir()
+	paths, err := artifactpath.ResolveScoped(dir, tag)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return &sweepScope{dir: dir, paths: paths}
+}
+
+func (s *sweepScope) write(t *testing.T, path, content string) {
+	t.Helper()
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// record writes one tag-keyed sidecar naming pid.
+func (s *sweepScope) record(t *testing.T, kind string, pid int) string {
+	t.Helper()
+	path := s.paths.NvimPID(kind)
+	s.write(t, path, strconv.Itoa(pid)+"\n")
+	return path
+}
+
+// changelog writes the viewer's artifact-keyed record, and the opener's lock
+// beside it when opener is positive.
+func (s *sweepScope) changelog(t *testing.T, agent, session string, pid, opener int) artifactpath.ChangelogArtifactSet {
+	t.Helper()
+	set, err := s.paths.ChangelogArtifacts(agent, session)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.write(t, set.NvimPID, strconv.Itoa(pid)+"\n")
+	if opener > 0 {
+		s.write(t, set.OpenLock, strconv.Itoa(opener)+"\n")
+	}
+	return set
+}
+
+func (s *sweepScope) draftArgv() []string { return draftArgv(s.paths.Draft()) }
+
+func (s *sweepScope) scrollbackArgv(t *testing.T, agent string) []string {
+	t.Helper()
+	scroll, err := s.paths.ScrollbackArtifacts(agent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return draftArgv(scroll.ANSI)
+}
+
+func (s *sweepScope) remainingRecords(t *testing.T) []string {
+	t.Helper()
+	var out []string
+	for _, pattern := range []string{"nvim-pid-*", "changelog-*.nvim-pid"} {
+		matches, err := filepath.Glob(filepath.Join(s.dir, pattern))
+		if err != nil {
+			t.Fatal(err)
+		}
+		out = append(out, matches...)
+	}
+	slices.Sort(out)
+	return out
+}
+
+// nvimRow puts one nvim in the snapshot with the given argv.
+func nvimRow(table *fakeProcessTable, pid, ppid int, args []string) *fakeProcess {
+	row := table.add(pid, ppid, reapStamp)
+	row.name, row.args, row.argsOK = reapNvimExe, args, true
+	return row
+}
+
+// embed puts one reparented embedded nvim in the snapshot: the shape a dead
+// owner leaves behind.
+func embed(table *fakeProcessTable, pid int, args []string) *fakeProcess {
+	return nvimRow(table, pid, 1, args)
+}
+
+// opener puts one live changelog opener in the snapshot: the process that holds
+// the openlock for as long as it holds the viewer.
+func opener(table *fakeProcessTable, pid int) *fakeProcess {
+	row := table.add(pid, 1, reapStamp)
+	row.name, row.args, row.argsOK = "/pair/bin/pair", []string{"pair", "changelog-open"}, true
+	return row
+}
+
+// The sweep reads the whole scope at once, so its adversarial class is
+// mis-attribution: three evidence sources over one snapshot, and a pid two
+// sources name is signalled once.
+func TestSweepOrphanNvimDecidesEachPidOnItsOwnEvidence(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name     string
+		liveTags []string
+		setup    func(t *testing.T, scope *sweepScope, table *fakeProcessTable)
+		// wantSignals is compared as a set: the snapshot's row order is not
+		// part of the contract.
+		wantSignals []string
+		// wantKept names the records that must survive, by base name.
+		wantKept []string
+	}{
+		{
+			name: "a dead tag's draft embed",
+			setup: func(t *testing.T, scope *sweepScope, table *fakeProcessTable) {
+				scope.record(t, "draft", 4242)
+				embed(table, 4242, scope.draftArgv())
+			},
+			wantSignals: []string{"4242:KILL"},
+		},
+		{
+			name:     "a live tag's draft embed",
+			liveTags: []string{"work"},
+			setup: func(t *testing.T, scope *sweepScope, table *fakeProcessTable) {
+				scope.record(t, "draft", 4242)
+				embed(table, 4242, scope.draftArgv())
+			},
+			wantKept: []string{"nvim-pid-work-draft"},
+		},
+		{
+			name: "a dead tag's scrollback embed",
+			setup: func(t *testing.T, scope *sweepScope, table *fakeProcessTable) {
+				scope.record(t, "scrollback", 4242)
+				embed(table, 4242, scope.scrollbackArgv(t, "claude"))
+			},
+			wantSignals: []string{"4242:KILL"},
+		},
+		{
+			// `scrollback-work-` is a prefix of `scrollback-work-2-`: a prefix
+			// match would hand a live tag's viewer to its dead neighbour. The
+			// dead tag's stale record is dropped, because the pid it names is
+			// not its own.
+			name:     "a live tag's scrollback embed found through a dead tag's record",
+			liveTags: []string{"work-2"},
+			setup: func(t *testing.T, scope *sweepScope, table *fakeProcessTable) {
+				scope.record(t, "scrollback", 4242)
+				other, err := artifactpath.ResolveScoped(scope.dir, "work-2")
+				if err != nil {
+					t.Fatal(err)
+				}
+				scroll, err := other.ScrollbackArtifacts("claude")
+				if err != nil {
+					t.Fatal(err)
+				}
+				embed(table, 4242, draftArgv(scroll.ANSI))
+			},
+		},
+		{
+			name: "an unreaped review sidecar",
+			setup: func(t *testing.T, scope *sweepScope, table *fakeProcessTable) {
+				scope.record(t, "review", 4242)
+				embed(table, 4242, []string{"nvim", "--embed", "-u", "/anywhere/nvim/review.lua", "/src/post.md"})
+			},
+			wantSignals: []string{"4242:KILL"},
+		},
+		{
+			name: "a changelog viewer whose opener still holds the lock",
+			setup: func(t *testing.T, scope *sweepScope, table *fakeProcessTable) {
+				set := scope.changelog(t, "claude", "sid1", 4242, 700)
+				opener(table, 700)
+				nvimRow(table, 600, 700, []string{"nvim", "-u", "/pair/nvim/changelog.lua", set.Log})
+				nvimRow(table, 4242, 600, []string{"nvim", "--embed", "-u", "/pair/nvim/changelog.lua", set.Log})
+			},
+			wantKept: []string{"changelog-work-claude-sid1.nvim-pid"},
+		},
+		{
+			name: "a changelog viewer whose opener died without clearing the lock",
+			setup: func(t *testing.T, scope *sweepScope, table *fakeProcessTable) {
+				set := scope.changelog(t, "claude", "sid1", 4242, 700)
+				embed(table, 4242, draftArgv(set.Log))
+			},
+			wantSignals: []string{"4242:KILL"},
+		},
+		{
+			// A clean exit removes the openlock (opener/run.go's defer), so its
+			// absence is the owner's death, not missing evidence.
+			name: "a changelog viewer left behind by a clean exit",
+			setup: func(t *testing.T, scope *sweepScope, table *fakeProcessTable) {
+				set := scope.changelog(t, "claude", "sid1", 4242, 0)
+				embed(table, 4242, draftArgv(set.Log))
+			},
+			wantSignals: []string{"4242:KILL"},
+		},
+		{
+			name: "a changelog viewer serving another log",
+			setup: func(t *testing.T, scope *sweepScope, table *fakeProcessTable) {
+				scope.changelog(t, "claude", "sid1", 4242, 0)
+				embed(table, 4242, draftArgv(filepath.Join(scope.dir, "changelog-work-claude-sid2.md")))
+			},
+		},
+		{
+			// M2's classifier owns an unattributed embed; the sweep must not
+			// reach it just because it is an orphan-shaped nvim.
+			name: "a bare embed with no scope path at all",
+			setup: func(t *testing.T, scope *sweepScope, table *fakeProcessTable) {
+				embed(table, 4242, []string{"nvim", "--embed"})
+			},
+		},
+		{
+			name: "one embed named by both a sidecar and its argv",
+			setup: func(t *testing.T, scope *sweepScope, table *fakeProcessTable) {
+				scope.record(t, "draft", 4242)
+				embed(table, 4242, scope.draftArgv())
+			},
+			wantSignals: []string{"4242:KILL"},
+		},
+		{
+			// Two records naming one pid are two pieces of evidence about the
+			// same process: one signal, and neither record left behind to name a
+			// pid the sweep has already accounted for.
+			name: "two sidecars naming the same embed",
+			setup: func(t *testing.T, scope *sweepScope, table *fakeProcessTable) {
+				scope.record(t, "draft", 4242)
+				scope.record(t, "review", 4242)
+				embed(table, 4242, scope.draftArgv())
+			},
+			wantSignals: []string{"4242:KILL"},
+		},
+		{
+			name: "an argv-only embed of a dead tag",
+			setup: func(t *testing.T, scope *sweepScope, table *fakeProcessTable) {
+				embed(table, 4242, scope.draftArgv())
+			},
+			wantSignals: []string{"4242:KILL"},
+		},
+		{
+			name:     "an argv-only embed of a live tag",
+			liveTags: []string{"work"},
+			setup: func(t *testing.T, scope *sweepScope, table *fakeProcessTable) {
+				embed(table, 4242, scope.draftArgv())
+			},
+		},
+		{
+			name: "a record that does not name a pid",
+			setup: func(t *testing.T, scope *sweepScope, table *fakeProcessTable) {
+				scope.write(t, scope.paths.NvimPID("draft"), "not-a-pid\n")
+				embed(table, 4242, scope.draftArgv())
+			},
+			wantSignals: []string{"4242:KILL"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			scope := newSweepScope(t, "work")
+			table := newFakeProcessTable()
+			tc.setup(t, scope, table)
+			if _, err := sweepOrphanNvim(context.Background(), table, NewOSRuntime(scope.dir, "/pair"), scope.dir, tc.liveTags); err != nil {
+				t.Fatal(err)
+			}
+			signals := slices.Clone(table.signals)
+			slices.Sort(signals)
+			want := slices.Clone(tc.wantSignals)
+			slices.Sort(want)
+			if !slices.Equal(signals, want) {
+				t.Fatalf("signals = %v, want %v", signals, want)
+			}
+			var kept []string
+			for _, path := range scope.remainingRecords(t) {
+				kept = append(kept, filepath.Base(path))
+			}
+			if !slices.Equal(kept, tc.wantKept) {
+				t.Fatalf("records left = %v, want %v", kept, tc.wantKept)
+			}
+		})
+	}
+}
+
+// The sweep is part of launch, so it reports a snapshot it cannot take instead
+// of deciding on nothing.
+func TestSweepOrphanNvimRefusesABrokenSnapshot(t *testing.T) {
+	t.Parallel()
+	scope := newSweepScope(t, "work")
+	scope.record(t, "draft", 4242)
+	table := newFakeProcessTable()
+	table.snapshotErr = errors.New("sysctl failed")
+	if _, err := sweepOrphanNvim(context.Background(), table, NewOSRuntime(scope.dir, "/pair"), scope.dir, nil); err == nil {
+		t.Fatal("swept without a snapshot")
+	}
+	if len(scope.remainingRecords(t)) != 1 {
+		t.Fatal("a failed snapshot must leave every record alone")
 	}
 }

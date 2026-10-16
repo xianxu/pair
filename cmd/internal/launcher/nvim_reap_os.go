@@ -3,7 +3,9 @@ package launcher
 import (
 	"context"
 	"fmt"
+	"maps"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -28,6 +30,10 @@ const (
 	nvimKindDraft      = "draft"
 	nvimKindScrollback = "scrollback"
 	nvimKindReview     = "review"
+	// nvimKindChangelog labels the one embedded nvim that is not a kind: the
+	// changelog viewer is per (tag, agent, session), so its record is keyed to
+	// the artifact set it serves and its owner is the opener, not a tag.
+	nvimKindChangelog = "changelog"
 )
 
 // reviewLuaAsset is the config every pair review pane passes to `-u`. It is the
@@ -41,10 +47,14 @@ type nvimSidecarIO interface {
 	Remove(path string)
 }
 
-// nvimSidecar is one pid record to reap, with the argv attribution its kind can
-// make and whether its owner is live.
+// nvimSidecar is one embedded nvim to reap, with the argv attribution its
+// evidence can make and whether its owner is live.
 type nvimSidecar struct {
+	// Path is the pid record to read and, once decided, remove. PID names the
+	// process directly instead, for an embed the snapshot found with no record
+	// behind it. A target carrying neither is nothing to decide.
 	Path  string
+	PID   int
 	Kind  string
 	Owner string
 	// OwnerLive is false on a path that is itself the authorization to reap
@@ -90,16 +100,156 @@ func nvimSidecarsFor(paths artifactpath.Paths, owner, scopeDir string) []nvimSid
 	return targets
 }
 
-// reapNvimSidecars ends the embedded nvim processes a set of pid records name,
-// and it is the whole reap path: one snapshot for pid/parent/identity/name, one
-// argv read per named pid, ClassifyNvimReap's decision, and an identity re-read
-// immediately before the signal (#399's fence). There is no subprocess seam
-// here, so no reap can reach a process by name (#583) -- the only signal it
-// sends is SIGKILL to a pid whose kernel start stamp still matches the stamp the
-// snapshot read.
+// sweepOrphanNvim reaps the embedded nvim processes whose owner is gone, one
+// snapshot shared by every evidence source (#583). The sources disagree about
+// what identifies an owner, so each states its own attribution and all three
+// decide through the same ClassifyNvimReap row:
 //
-// SIGKILL, not SIGTERM: every caller has already established that the owner is
-// gone or is quitting, so no session is left to flush, and quit is time-bounded.
+//   - a tag-keyed sidecar names a pid, and its owner is the tag in the record's
+//     own name, dead once the live-tag set does not carry it;
+//   - a changelog record's owner is the opener holding the sibling openlock, so
+//     a viewer is reaped on the opener's death and not on its tag's;
+//   - an embed that left no record is attributed by argv, the weakest evidence,
+//     which only ever reaches a scope path pair's own parser recognizes.
+//
+// An embed argv cannot attribute stays out: that is the untagged orphan M2
+// reports and reaps on confirmation, never a sweep kill.
+func sweepOrphanNvim(ctx context.Context, table ProcessTable, records nvimSidecarIO, scopeDir string, liveTags []string) ([]nvimReapOutcome, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	scope, err := artifactpath.ResolveSelectedScope(scopeDir)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := table.Snapshot(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("nvim sweep: snapshot processes: %w", err)
+	}
+	live := make(map[string]bool, len(liveTags))
+	for _, tag := range liveTags {
+		live[tag] = true
+	}
+	byPID := make(map[int]ProcessRow, len(rows))
+	for _, row := range rows {
+		byPID[row.PID] = row
+	}
+	targets := deadTagSidecars(scope, scopeDir, live)
+	targets = append(targets, changelogSidecars(scope, records, byPID)...)
+	targets = append(targets, argvOnlyEmbeds(scope, table, scopeDir, live, rows)...)
+	return reapNvimRows(ctx, table, records, targets, rows)
+}
+
+// deadTagSidecars enumerates the tag-keyed records in the scope and targets
+// every kind of the closed set for each tag that is not live. An absent record
+// decides nothing, so a dead tag's whole kind set is safe to target: it is how a
+// kind that only one surface writes still gets reaped.
+func deadTagSidecars(scope artifactpath.ScopePaths, scopeDir string, live map[string]bool) []nvimSidecar {
+	globs, err := scope.NvimPIDGlobs()
+	if err != nil {
+		return nil
+	}
+	dead := map[string]bool{}
+	for _, glob := range globs {
+		matches, err := filepath.Glob(glob.Pattern)
+		if err != nil {
+			continue
+		}
+		for _, match := range matches {
+			if tag, ok := scope.TagFromNvimPID(match, glob.Kind); ok && !live[tag] {
+				dead[tag] = true
+			}
+		}
+	}
+	tags := slices.Sorted(maps.Keys(dead))
+	targets := make([]nvimSidecar, 0, len(tags)*len(artifactpath.NvimKinds()))
+	for _, tag := range tags {
+		paths, err := artifactpath.ResolveScoped(scopeDir, tag)
+		if err != nil {
+			continue
+		}
+		targets = append(targets, nvimSidecarsFor(paths, tag, scopeDir)...)
+	}
+	return targets
+}
+
+// changelogSidecars targets the changelog viewers in the scope. The tag is not
+// the owner here: one tag can have a viewer per session, and a live tag's viewer
+// is still an orphan once the opener that held it is gone.
+func changelogSidecars(scope artifactpath.ScopePaths, records nvimSidecarIO, byPID map[int]ProcessRow) []nvimSidecar {
+	matches, err := filepath.Glob(scope.ChangelogNvimPIDGlob())
+	if err != nil {
+		return nil
+	}
+	slices.Sort(matches)
+	targets := make([]nvimSidecar, 0, len(matches))
+	for _, match := range matches {
+		set, err := scope.ChangelogSetFromNvimPID(match)
+		if err != nil {
+			continue
+		}
+		targets = append(targets, nvimSidecar{
+			Path: set.NvimPID, Kind: nvimKindChangelog, Owner: set.Log,
+			OwnerLive:       openerLive(records, set.OpenLock, byPID),
+			ExpectedArgPath: set.Log,
+		})
+	}
+	return targets
+}
+
+// openerLive reads the lock the changelog opener holds for as long as it holds
+// the viewer (RunViewer waits on it) and removes on a clean exit. So an absent
+// lock is a dead owner, and a lock naming a pid the snapshot does not carry is
+// one too; only a live pid keeps the viewer. A lock that does not name a pid is
+// not the opener's, and the row's own predicates still gate the kill.
+func openerLive(records nvimSidecarIO, openlock string, byPID map[int]ProcessRow) bool {
+	raw, err := records.ReadFile(openlock)
+	if err != nil {
+		return false
+	}
+	pid, ok := sidecarPID(raw)
+	if !ok {
+		return false
+	}
+	_, present := byPID[pid]
+	return present
+}
+
+// argvOnlyEmbeds attributes embeds that left no pid record. argv is the whole
+// evidence, so the target states the predicate argv just satisfied: the draft's
+// exact artifact path, or a tag attribution through the scope's one parser.
+func argvOnlyEmbeds(scope artifactpath.ScopePaths, table ProcessTable, scopeDir string, live map[string]bool, rows []ProcessRow) []nvimSidecar {
+	var targets []nvimSidecar
+	for _, row := range rows {
+		if filepath.Base(row.Name) != "nvim" {
+			continue
+		}
+		args, ok := table.Command(row.PID)
+		if !ok {
+			continue
+		}
+		tag := scope.TagFromNvimEmbedArgv(strings.Join(args, " "))
+		if tag == "" || live[tag] {
+			continue
+		}
+		paths, err := artifactpath.ResolveScoped(scopeDir, tag)
+		if err != nil {
+			continue
+		}
+		target := nvimSidecar{PID: row.PID, Owner: tag}
+		if argvCarriesField(args, paths.Draft()) {
+			target.Kind, target.ExpectedArgPath = nvimKindDraft, paths.Draft()
+		} else {
+			target.Kind, target.ExpectArgvTag, target.ArgvScopeDir = nvimKindScrollback, true, scopeDir
+		}
+		targets = append(targets, target)
+	}
+	return targets
+}
+
+// reapNvimSidecars ends the embedded nvim processes a set of pid records name,
+// taking the snapshot it decides against. Callers that already hold one — the
+// sweep, whose evidence sources all read it — call reapNvimRows instead.
 func reapNvimSidecars(ctx context.Context, table ProcessTable, records nvimSidecarIO, targets []nvimSidecar) ([]nvimReapOutcome, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -108,36 +258,89 @@ func reapNvimSidecars(ctx context.Context, table ProcessTable, records nvimSidec
 	if err != nil {
 		return nil, fmt.Errorf("nvim reap: snapshot processes: %w", err)
 	}
+	return reapNvimRows(ctx, table, records, targets, rows)
+}
+
+// reapNvimRows is the whole reap path: one snapshot for pid/parent/identity/name,
+// one argv read per named pid, ClassifyNvimReap's decision, and an identity
+// re-read immediately before the signal (#399's fence). There is no subprocess
+// seam here, so no reap can reach a process by name (#583) — the only signal it
+// sends is SIGKILL to a pid whose kernel start stamp still matches the stamp the
+// snapshot read.
+//
+// SIGKILL, not SIGTERM: every caller has already established that the owner is
+// gone or is quitting, so no session is left to flush, and quit is time-bounded.
+//
+// Deciding against a snapshot already taken is what lets the sweep share one
+// across its evidence sources: pid, parent, identity and the openlock liveness
+// it reads all describe the same moment.
+//
+// A pid is decided once: the sweep's sources overlap, and two records naming one
+// pid are two pieces of evidence about the same process, so a second decision
+// would only report a kill the first already made. Every record naming a decided
+// pid still follows it off disk. Record-backed targets come first, so the source
+// that owns a record is the one whose attribution decides it.
+func reapNvimRows(ctx context.Context, table ProcessTable, records nvimSidecarIO, targets []nvimSidecar, rows []ProcessRow) ([]nvimReapOutcome, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	byPID := make(map[int]ProcessRow, len(rows))
 	for _, row := range rows {
 		byPID[row.PID] = row
 	}
 	outcomes := make([]nvimReapOutcome, 0, len(targets))
+	decided := make(map[int]string, len(targets))
 	for _, target := range targets {
-		raw, err := records.ReadFile(target.Path)
-		if err != nil {
-			continue // no record: nothing to decide, nothing to remove
+		pid, ok := target.PID, target.PID > 0
+		if !ok {
+			raw, err := records.ReadFile(target.Path)
+			if err != nil {
+				continue // no record: nothing to decide, nothing to remove
+			}
+			pid, ok = sidecarPID(raw)
 		}
-		pid, ok := sidecarPID(raw)
-		outcome := nvimReapOutcome{Kind: target.Kind, Owner: target.Owner, Path: target.Path, PID: pid}
-		kill, reason := false, reapReasonMalformed
-		if ok {
-			kill, reason = decideNvimSidecar(table, target, pid, byPID)
+		if !ok {
+			outcomes = append(outcomes, decideOne(table, records, target, pid, reapReasonMalformed, byPID))
+			continue
 		}
-		outcome.Reason = reason
-		if kill {
-			// A refused signal is not a kill: the pid raced away, or the kernel
-			// will not let us. The record still goes — the decision was made and
-			// the process it named is not this tag's to keep tracking.
-			outcome.Killed = table.Signal(pid, syscall.SIGKILL) == nil
+		// Two records can name one pid — a stale sidecar beside a current one —
+		// and they are two pieces of evidence about the same process, not two
+		// processes. The first decision stands, so the pid is signalled once; the
+		// later record still follows it off disk, because it names a process the
+		// pass has already accounted for.
+		if reason, seen := decided[pid]; seen {
+			if target.Path != "" && !reapKeepsRecord(reason) {
+				records.Remove(target.Path)
+			}
+			continue
 		}
-		if !reapKeepsRecord(reason) {
-			records.Remove(target.Path)
-			outcome.Removed = true
-		}
+		outcome := decideOne(table, records, target, pid, "", byPID)
+		decided[pid] = outcome.Reason
 		outcomes = append(outcomes, outcome)
 	}
 	return outcomes, nil
+}
+
+// decideOne is one target's decision, signal and record rule. A pre-set reason
+// short-circuits the decision: it is what a record that names no pid gets.
+func decideOne(table ProcessTable, records nvimSidecarIO, target nvimSidecar, pid int, reason string, byPID map[int]ProcessRow) nvimReapOutcome {
+	outcome := nvimReapOutcome{Kind: target.Kind, Owner: target.Owner, Path: target.Path, PID: pid}
+	kill := false
+	if reason == "" {
+		kill, reason = decideNvimSidecar(table, target, pid, byPID)
+	}
+	outcome.Reason = reason
+	if kill {
+		// A refused signal is not a kill: the pid raced away, or the kernel
+		// will not let us. The record still goes — the decision was made and
+		// the process it named is not this tag's to keep tracking.
+		outcome.Killed = table.Signal(pid, syscall.SIGKILL) == nil
+	}
+	if target.Path != "" && !reapKeepsRecord(reason) {
+		records.Remove(target.Path)
+		outcome.Removed = true
+	}
+	return outcome
 }
 
 // decideNvimSidecar is one record's decision, identity fence included: the

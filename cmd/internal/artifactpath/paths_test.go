@@ -401,6 +401,49 @@ func TestScopePathsOwnNvimPIDEnumerationAndEmbedParsing(t *testing.T) {
 	}
 }
 
+// #583: the changelog viewer's pid record is keyed to its artifact set, so the
+// sweep that reads one back must land on the same siblings the opener wrote —
+// with and without a session, whose boundary the base name does not state.
+func TestScopePathsRecognizeAChangelogNvimPIDRecord(t *testing.T) {
+	scope, err := ResolveSelectedScope("/data/repos/scope")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := scope.ChangelogNvimPIDGlob(); got != "/data/repos/scope/changelog-*.nvim-pid" {
+		t.Fatalf("ChangelogNvimPIDGlob() = %q", got)
+	}
+	paths, err := ResolveScoped("/data/repos/scope", "work")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, session := range []string{"", "sid-1"} {
+		want, err := paths.ChangelogArtifacts("claude", session)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got, err := scope.ChangelogSetFromNvimPID(want.NvimPID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got.Log != want.Log || got.OpenLock != want.OpenLock || got.NvimPID != want.NvimPID {
+			t.Fatalf("session %q: %+v, want the opener's siblings %+v", session, got, want)
+		}
+		if got.Ready != "" {
+			t.Fatalf("session %q: Ready = %q, want it left to a caller that knows the agent", session, got.Ready)
+		}
+	}
+	for _, path := range []string{
+		"/other/changelog-work-claude.nvim-pid",
+		"/data/repos/scope/changelog-work-claude.md",
+		"/data/repos/scope/nvim-pid-work-draft",
+		"/data/repos/scope/changelog-../work-claude.nvim-pid",
+	} {
+		if _, err := scope.ChangelogSetFromNvimPID(path); err == nil {
+			t.Fatalf("accepted %q", path)
+		}
+	}
+}
+
 // #583: the sidecar kind set had three spellings — gc.go's retention match knew
 // {draft, scrollback, review} while RenameArtifacts and both editorPaths
 // spellings knew only {draft, scrollback}, so a review embed was never reaped.

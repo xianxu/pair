@@ -38,6 +38,9 @@ type fakeProcessTable struct {
 	// signalErr, when set, refuses every signal without delivering it — the
 	// kernel's EPERM/ESRCH, which a caller must not report as a kill.
 	signalErr error
+	// snapshotErr, when set, fails the enumeration itself — a caller that
+	// decides from a snapshot must not decide from nothing.
+	snapshotErr error
 }
 
 func newFakeProcessTable() *fakeProcessTable {
@@ -53,6 +56,9 @@ func (f *fakeProcessTable) add(pid, ppid int, identity string) *fakeProcess {
 func (f *fakeProcessTable) Snapshot(context.Context) ([]ProcessRow, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if f.snapshotErr != nil {
+		return nil, f.snapshotErr
+	}
 	var rows []ProcessRow
 	for pid, p := range f.procs {
 		rows = append(rows, ProcessRow{PID: pid, PPID: p.ppid, Identity: p.identity, Name: p.name})

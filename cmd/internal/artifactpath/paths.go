@@ -797,6 +797,20 @@ func (p Paths) ChangelogArtifacts(agent, sessionID string) (ChangelogArtifactSet
 	if err != nil {
 		return ChangelogArtifactSet{}, err
 	}
+	set := changelogSiblings(base)
+	set.Ready = p.ChangelogReady(agent)
+	return set, nil
+}
+
+// changelogNvimPIDSuffix extends a changelog base into the viewer's pid record.
+// One spelling, because the sibling construction below and the recognizer that
+// reads a record back into its set both name it (#583).
+const changelogNvimPIDSuffix = ".nvim-pid"
+
+// changelogSiblings is the changelog family's one sibling construction, over a
+// base whose tag, agent and session are already resolved. Ready is keyed by the
+// agent alone, so a caller that knows the agent sets it.
+func changelogSiblings(base string) ChangelogArtifactSet {
 	return ChangelogArtifactSet{
 		Log:         base + ".md",
 		Anchor:      base + ".anchor",
@@ -804,9 +818,32 @@ func (p Paths) ChangelogArtifacts(agent, sessionID string) (ChangelogArtifactSet
 		OpenLock:    base + ".openlock",
 		DistillLock: base + ".distill.lock",
 		Status:      base + ".status",
-		NvimPID:     base + ".nvim-pid",
-		Ready:       p.ChangelogReady(agent),
-	}, nil
+		NvimPID:     base + changelogNvimPIDSuffix,
+	}
+}
+
+// ChangelogNvimPIDGlob is the selected-scope enumeration pattern for the
+// changelog viewer's pid records (#583). Callers may glob this pattern, but must
+// not reconstruct the family's filenames themselves.
+func (p ScopePaths) ChangelogNvimPIDGlob() string {
+	return filepath.Join(p.scopeDir, "changelog-*"+changelogNvimPIDSuffix)
+}
+
+// ChangelogSetFromNvimPID recognizes one selected-scope record
+// ChangelogNvimPIDGlob returned and resolves the artifact set it belongs to.
+// Ready stays empty: it is keyed by the agent alone, and a record's base does
+// not state the tag/agent/session boundary unambiguously.
+func (p ScopePaths) ChangelogSetFromNvimPID(path string) (ChangelogArtifactSet, error) {
+	clean := filepath.Clean(path)
+	if filepath.Dir(clean) != p.scopeDir {
+		return ChangelogArtifactSet{}, fmt.Errorf("changelog pid record %q is outside scope %q", path, p.scopeDir)
+	}
+	name := filepath.Base(clean)
+	base := strings.TrimSuffix(name, changelogNvimPIDSuffix)
+	if base+changelogNvimPIDSuffix != name || !strings.HasPrefix(base, "changelog-") {
+		return ChangelogArtifactSet{}, fmt.Errorf("%q is not a changelog pid record", path)
+	}
+	return changelogSiblings(filepath.Join(p.scopeDir, base)), nil
 }
 
 func (p Paths) AgentDraft(agent string) string {
