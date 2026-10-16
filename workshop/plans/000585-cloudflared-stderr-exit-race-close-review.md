@@ -86,3 +86,83 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000411
+
+---
+
+## Re-review — 2026-10-15T19:14:30-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 585 — Preserve cloudflared stderr on early process exit |
+| repo | pair |
+| issue file | workshop/issues/000585-cloudflared-stderr-exit-race.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 0169e962f95a932fd9884b20b2d5dd07b73022f1..803cfce8ecb914d4873c4b99c4da9f1bb36c7f7a |
+| command | sdlc close --issue 585 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-15T19:14:30-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The implementation preserves stderr through process reaping, publishes completion after drain, and restores descendant cleanup. BR-1 is addressed with meaningful regression evidence. No new blocking findings remain.
+
+Done-when: current — its clauses cover diagnostic preservation, API URL refusal, deterministic ordering, and process cleanup under repeated testing.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Both leader-exit signal guards are removed at cloudflared.go:318-328; fixture cleanup now terminates the group unconditionally. The descendant regression at cloudflared_stderr_test.go:113 passes and separately fails when TERM or KILL is disabled. Atlas broadcast.md:310-311 correctly states that the group can outlive its reaped leader.
+```
+
+1. **Strengths**
+
+   - Parent-owned stderr survives `cmd.Wait`, with explicit startup-failure cleanup (`cloudflared.go:142-160`).
+   - Completion follows both process wait and scanner drain (`cloudflared.go:257-260`).
+   - Real-process tests cover exact failures in guarded and direct modes, retained writers, and surviving descendants.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   - Full broadcast package passed: 32.673s.
+   - Focused lifecycle and API-refusal tests passed ten repetitions under race detection: 12.407s.
+   - Negative controls independently disabling TERM and KILL both failed the descendant regression as expected.
+   - `git diff --check` passed; checkout remains unchanged.
+   - Recorded suite log checksum matches the tracker. Its source differs from the reviewed head only in issue documentation.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY: pass.** Shared pipe setup and completion helpers centralize lifecycle behavior.
+   - **ARCH-PURE: pass.** Changes remain thin process/IO coordination.
+   - **ARCH-PURPOSE: pass.** Diagnostic preservation and owned descendant cleanup are both delivered.
+   - Atlas describes the changed lifecycle. No new user-facing surface requires a README update.
+
+7. **Plan revision recommendations:** None; the existing revision correctly distinguishes leader, process-group, and reader lifetimes.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"a396b776-6f30-47aa-b40e-bf714018f6e3","repository":"github.com/xianxu/pair","issue_id":"000585","recipe":"small-diff-review","round":2,"attempt":1,"agent":"codex","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/de079e84e5306ca1","reviewed_head":"803cfce8ecb914d4873c4b99c4da9f1bb36c7f7a","slot":"pair:3","requested_at":"2026-10-16T02:12:52.310371Z"},"phase":"finished","pid":58417,"started_at":"2026-10-16T02:12:52.401363Z","finished_at":"2026-10-16T02:14:30.101617Z","session_id":"01a1427b-cf13-7870-b028-32705fc44012","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.3881365s
+head: "803cfce8ecb914d4873c4b99c4da9f1bb36c7f7a"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000410

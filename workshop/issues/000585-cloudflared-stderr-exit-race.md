@@ -47,6 +47,7 @@ Quick-flow scope: Cloudflared stderr ownership/completion only, expected under10
 ## Log
 
 ### 2026-10-15 — first observed during #571 verification
+- 2026-10-15: closed — Production bug: concurrent Wait with StderrPipe violated Go ownership and lost final errors. Owned pipe plus process/drain join, exact guarded/direct errors and API URL refusal pass. BR-1 corrected: preserve group TERM/KILL after leader reaping; real descendant regression RED/GREEN covers normal TERM and direct/guarded forced KILL, reader release and child death. Race package114.475s, 50 loaded repetitions67.598s, make -k -B build passed. Integrated main #584; recorded suite7e6b8f71a88c44af1851a5961b819341274ba0d3 exit0 in10m1s, sha256dd3865d4c268. Atlas and lesson updated; only docs since; no sleeps, larger budgets, retries or skips. (done-when: contract moved since change-code; judged by the close review); review verdict: SHIP
 
 - Test: `TestQuickTunnelAPIFailureIsNotAURL`, `cmd/internal/broadcast/cloudflared_test.go:434`.
 - Exact tested head: `8bd4baa138c63cda357c3a447ddb2cba294f1df7`.
