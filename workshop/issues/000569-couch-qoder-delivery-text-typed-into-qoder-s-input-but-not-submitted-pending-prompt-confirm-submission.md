@@ -152,3 +152,7 @@ TL subsequently asks #569 to wait for #587's landing before the next merge attem
 ### 2026-10-15 — #587 integrated; final full suite passed
 
 TL and pair:1 confirm #587 landed at 034b04ba489d908c8355724dac9e3ae9b2db3828 (submitted receipts 2c9530bd and 7e1c64cd), releasing the ordering hold. Main integrated cleanly into c8f34ebbbbb992e8840d2a9e621f9271ecebc60e. Its required suite passed exit0 in 13m51s after 168s queued; full log /Users/xianxu/workspace/pair/.git/sdlc/local-checks/c8f34ebbbbb992e8840d2a9e621f9271ecebc60e/suite.log. All CI checks pass. Full close, rather than fix-only review, now assesses the revised TL-authorized landing sequence and disposes BR-3. Native acceptance remains explicitly owed after the main restart; pair:5 owns the probes with TL coordinating timing.
+
+### 2026-10-15 — final full close SHIP
+
+Full review of 1d117dfd648001b3dfda370a0bde9cf0e30f97db against main including #587 returned SHIP/high, disposed BR-1/BR-2/BR-3 addressed and raised no findings. It independently passed focused/race/inventory checks and both mutation controls. Codecomplete evidence 9a943c887932fb44aa69d311829a80600278d73e; measured actual 3.28h. Final required-suite log SHA256 437440da6a5603666623cd384a9d0436a929182e3188436e23815a4258c038c0. Native acceptance remains owed under the explicitly reviewed revised sequence. Retry normal landing with no gate bypass.
