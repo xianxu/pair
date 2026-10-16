@@ -50,6 +50,8 @@ Proposed quick-flow design: add one atomic fake attachment transition that remov
 
 ## Log
 
+
+- 2026-10-16: closed — Deterministic pre-adoption inventory failed with original setters; fixed acceptance passes 100 repetitions. Fake contracts and no-op negative control verified; whole couchcmd count=5 PASS 307.952s, race PASS 118.578s. Recorded full suite PASS on 82dbf4cc98600f824ba08f556f64920438a7ba25 in 12m47s, log sha256 a0871056f9cf. Four CI checks green. Fake/test-only correction adds no production architectural surface; TL owns project records.; review verdict: SHIP
 2026-10-16: Filed unassigned by pair:1 under ops:0's explicit classification rule after ruling out a #589-only failure through this whole-package matrix. The main side used a clean detached checkout at the exact main commit, with runtimebundle generation before testing; the checkout was removed after all runs finished. No implementation or production-slot changes were made.
 
 Commands on both commits: go test -trimpath ./cmd/internal/couchcmd -count=5; go test -trimpath -race ./cmd/internal/couchcmd -count=1.
