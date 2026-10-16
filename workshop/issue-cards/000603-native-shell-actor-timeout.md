@@ -1,0 +1,20 @@
+---
+id: 000603
+status: open
+created: 2026-10-15
+updated: 2026-10-15
+estimate_hours:
+github_issue:
+---
+
+# Native wrapped Zellij conformance times out finding shell actor
+
+## Problem
+
+GitHub macOS conformance intermittently stalls waiting for the real shell actor in TestNativeConsoleWrapperZellij/wrapped-zellij. This blocks unrelated PRs after their local full suite and review pass.
+
+First observed here: 2026-10-16 06:27:17 UTC (2026-10-15 23:27:17 PDT), run 38860695250, attempt 1, head 550c434561059eeda72ed209041b5468916081f1, while landing #571. The subtest failed after 284.48 seconds at terminal_native_test.go:227: timed out waiting for real shell actor.
+
+Run: https://github.com/xianxu/pair/actions/runs/38860695250/job/116842060496
+
+Local diagnostic log: /tmp/pair571-ci-conformance-38860695250.log (ephemeral; the issue does not depend on its retention).
