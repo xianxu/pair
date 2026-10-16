@@ -203,6 +203,18 @@ their existing stores. [Couch](couch.md) maps enrollment, local storage and GC.
 - `provision_*_test.go`: real Git, stateful external outcomes, interrupted effects,
   process death and concurrency. CLI tests prove no supervisor or agent launch.
 
+The test-only ProvisionFixture reads fresh Git identity with one batched
+rev-parse invocation, retaining cancellation/lease propagation and the primary's
+actual common-directory authority (including a separate Git directory). Its
+contract tests compare complete identities against real Git across mutable and
+unread state. Independent destructive cases keep private roots. Default fleet
+inventory conformance runs the installed real SDLC against a small disposable
+fleet with local remotes, including ready, held-work, missing and recovery states;
+its cost does not scale with the operator's fleet. Recovery evidence properties
+prune only inconsistent completed prefixes and pin the pre-change ordered domain
+and stride sample, rather than reduce their cases. See the #611 profile for
+measurements; the temporary broad-suite timeout remains pending a quiet control.
+
 The live conformance test uses installed SDLC/Weave with isolated local Git
 transport and minimal manifests; it installs no packages or tools:
 

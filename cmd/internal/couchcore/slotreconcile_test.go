@@ -266,6 +266,7 @@ func TestReconcileAgreesWithRealGit(t *testing.T) {
 	sort.Strings(keys)
 	for _, key := range keys {
 		t.Run(key, func(t *testing.T) {
+			t.Parallel()
 			s := newObservedSlot(t)
 			os.MkdirAll(s.layout.Store(), 0o700)
 			s.addDep(t, fakeDep)

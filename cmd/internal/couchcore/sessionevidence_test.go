@@ -395,7 +395,7 @@ func TestReAdoptionExitsAreTotalAndCoded(t *testing.T) {
 	names := map[liveness]string{dead: "dead", unknown: "unknown", alive: "alive"}
 
 	// The dimensions are DELIBERATELY wider than the shapes anyone enumerated,
-	// and `CreateThread`'s refusal is the oracle that trims them back. Writing
+	// and `ValidateThreadRecord` is the oracle that trims them back. Writing
 	// the bounds by hand is the same mistake as writing the sweep as a list of
 	// sites: it covers the shapes the author thought of. Two of this function's
 	// defects were shapes nobody had -- a foreign-owned park, then an open park
@@ -437,7 +437,6 @@ func TestReAdoptionExitsAreTotalAndCoded(t *testing.T) {
 					}
 					name := fmt.Sprintf("%s-park/%d-incarnation/%s/%s", park, count, names[live], sh.name)
 					t.Run(name, func(t *testing.T) {
-						store, _ := newTestThreadStore(t)
 						record := actionableTestThread("couch-00000000000000e1", time.Unix(100, 0).UTC())
 						record.LatestLaunchProfile = &LaunchProfile{Agent: "muse", Argv: []string{}}
 						for i := 0; i < count; i++ {
@@ -456,6 +455,10 @@ func TestReAdoptionExitsAreTotalAndCoded(t *testing.T) {
 							record.Incarnations[0].Identity = "tok"
 						}
 						if park != "none" {
+							record.Name = "brain"
+							// Seed the revision formerly reached by naming the record
+							// through metadata, so clearing advances past the park.
+							record.Revision++
 							record.Park = wedgedParkFixture(record.Address)
 							record.Park.Identity.PID = 64734
 							record.Park.Identity.ProcessIdentity = "tok"
@@ -481,15 +484,13 @@ func TestReAdoptionExitsAreTotalAndCoded(t *testing.T) {
 								}}
 							}
 						}
-						created, err := store.CreateThread(record)
-						if err != nil {
+						if err := ValidateThreadRecord(record); err != nil {
 							t.Skipf("validateLifecycle refuses this shape, so it is outside the domain: %v", err)
 						}
-						if park != "none" {
-							label := "brain"
-							if created, err = store.ApplyThreadMetadata(created.Address, created.Revision, ThreadMetadataPatch{Name: &label}); err != nil {
-								t.Fatal(err)
-							}
+						store, _ := newTestThreadStore(t)
+						created, err := store.CreateThread(record)
+						if err != nil {
+							t.Fatal(err)
 						}
 
 						proc := NewFakeProcOps()

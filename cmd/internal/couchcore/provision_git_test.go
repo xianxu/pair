@@ -2,6 +2,7 @@ package couchcore
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -97,11 +98,50 @@ func (f *ProvisionFixture) Run(ctx context.Context, c ProvisionCommand) ([]byte,
 	switch c.Program {
 	case "sdlc":
 		// Identity is assembled from the fixture's repository plus actual membership.
-		out, err := f.IO.Run(ctx, ProvisionCommand{Dir: c.Dir, Program: "git", Args: []string{"rev-parse", "--show-toplevel"}})
+		// Preserve the caller's cancellation, timeout and lease on this one fresh
+		// observation; separate Git commands multiplied every catalog probe's cost.
+		query := c
+		query.Program = "git"
+		query.Args = []string{"rev-parse", "--show-toplevel", "--path-format=absolute", "--git-common-dir", "HEAD", "--abbrev-ref", "HEAD"}
+		out, err := f.IO.Run(ctx, query)
 		if err != nil {
 			return nil, err
 		}
-		top := strings.TrimSpace(string(out))
+		facts := strings.Split(strings.TrimSuffix(string(out), "\n"), "\n")
+		if len(facts) != 4 {
+			return nil, fmt.Errorf("fixture Git identity: expected four facts, got %d", len(facts))
+		}
+		top, common, head, branch := facts[0], facts[1], facts[2], facts[3]
+		primaryGit := filepath.Join(f.Primary, ".git")
+		info, err := os.Stat(primaryGit)
+		if err != nil {
+			return nil, err
+		}
+		if !info.IsDir() {
+			// A separate Git directory is named by the primary's Git file;
+			// compare against that authority without another subprocess/cache.
+			raw, err := os.ReadFile(primaryGit)
+			if err != nil || !strings.HasPrefix(string(raw), "gitdir: ") {
+				return nil, errors.New("fixture Git identity: invalid primary Git file")
+			}
+			primaryGit = strings.TrimSpace(strings.TrimPrefix(string(raw), "gitdir: "))
+			if !filepath.IsAbs(primaryGit) {
+				primaryGit = filepath.Join(f.Primary, primaryGit)
+			}
+		}
+		primaryGit, err = filepath.EvalSymlinks(primaryGit)
+		if err != nil {
+			return nil, err
+		}
+		if !filepath.IsAbs(top) || !filepath.IsAbs(common) || filepath.Clean(top) != top || filepath.Clean(common) != common || common != primaryGit {
+			return nil, errors.New("fixture Git identity: invalid repository membership")
+		}
+		if _, err := hex.DecodeString(head); err != nil || (len(head) != 40 && len(head) != 64) || branch == "" {
+			return nil, errors.New("fixture Git identity: invalid HEAD or branch")
+		}
+		if branch == "HEAD" {
+			branch = "" // rev-parse's detached spelling; identity uses branch --show-current.
+		}
 		slot := 0
 		kind := "primary"
 		env := filepath.Dir(f.Primary)
@@ -120,10 +160,7 @@ func (f *ProvisionFixture) Run(ctx context.Context, c ProvisionCommand) ([]byte,
 				return nil, errors.New("unknown fixture worktree")
 			}
 		}
-		common := f.git(top, "rev-parse", "--path-format=absolute", "--git-common-dir")
 		addr := fmt.Sprintf("%s:%d", filepath.Base(f.Primary), slot)
-		head := f.git(top, "rev-parse", "HEAD")
-		branch := f.git(top, "branch", "--show-current")
 		id := WorkspaceIdentity{SchemaVersion: 2, Repo: filepath.Base(f.Primary), RepoIdentity: common, PrimaryRoot: f.Primary, FleetRoot: filepath.Dir(f.Primary), EnvironmentRoot: env, WorktreeRoot: top, Kind: kind, Address: &addr, Slot: &slot, Branch: &branch, Head: &head, RestingBranch: &rest}
 		if slot > 0 {
 			id.EnvironmentHost = &EnvironmentHost{Repo: id.Repo, Slot: slot, RepoIdentity: common, PrimaryRoot: f.Primary, WorktreeRoot: top}

@@ -1,0 +1,162 @@
+---
+reviewer_runs:
+    - version: 1
+      intent:
+        id: eae71bae-58bd-40d2-bb04-ab7590cd70f2
+        repository: github.com/xianxu/pair
+        issue_id: "000611"
+        recipe: estimate-quality
+        round: 1
+        attempt: 1
+        agent: codex
+        root: /Users/xianxu/workspace/worktree/pair-slot1/pair
+        reviewed_head: 2a60102de4b2f696399aa29ac7b2e43170ccea28
+        slot: pair:1
+        requested_at: "2026-10-16T13:50:07.988678Z"
+      phase: finished
+      pid: 17238
+      started_at: "2026-10-16T13:50:08.111126Z"
+      finished_at: "2026-10-16T13:50:40.401826Z"
+      session_id: 01a144fa-2bf7-70f2-88a0-da9a05bff5af
+      outcome: returned
+gate: plan-quality
+issue: 611
+id_prefix: PQ
+rounds:
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: a4d98a76-7001-47db-a609-b12b2a192c8d
+            repository: github.com/xianxu/pair
+            issue_id: "000611"
+            recipe: plan-quality
+            round: 1
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot1/pair
+            reviewed_head: dcdcf4d40bfb9d5d8136e0a1a42bb15df53537dd
+            slot: pair:1
+            requested_at: "2026-10-16T13:45:16.095059Z"
+          phase: finished
+          pid: 94176
+          started_at: "2026-10-16T13:45:16.221037Z"
+          finished_at: "2026-10-16T13:46:20.640844Z"
+          session_id: 01a144f5-b7f5-76c3-bcf9-05a6bc025eb9
+          outcome: returned
+      "n": 1
+      timestamp: "2026-10-16T06:46:20-07:00"
+      agent: codex
+      findings:
+        - id: PQ-1
+          severity: Important
+          title: Define the active qualification budget before removing the timeout allowance
+          detail: 'ARCH-CONSTRAINTS: plan lines 101–103 supersede all earlier budgets, while line 141 permits removing the allowance after unspecified representative-load qualification and “comfortable” headroom. State numerical isolated and loaded acceptance limits, the repeat-measurement rule for reliability, and the stop/report behavior when representative load cannot be qualified; distinguish the approximately 200-second lane-decision threshold from the acceptance budget.'
+          family: measurable-acceptance-budget
+          round: 1
+        - id: PQ-2
+          severity: Minor
+          title: Replace the prose test inventory with named functions and concise strategies
+          detail: R2 task2 line 121 enumerates identity test cases, while lines 105 and 112 leave the new pure predicates unnamed. Name forEachEvidence, consistent, the extracted predicates and ProvisionFixture.Run as applicable, then state one adversarial-input class and mechanical guard per risky function; retain coverage invariants without restating the implementation procedure or enumerating cases.
+          family: function-level-test-strategy
+          round: 1
+      blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: 29dbffcd-e181-45cf-8366-69c2294eca59
+            repository: github.com/xianxu/pair
+            issue_id: "000611"
+            recipe: plan-quality
+            round: 2
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot1/pair
+            reviewed_head: e18b85eb4f91fb6230e98d1742313c1d594136a4
+            slot: pair:1
+            requested_at: "2026-10-16T13:47:34.683579Z"
+          phase: finished
+          pid: 4490
+          started_at: "2026-10-16T13:47:34.826063Z"
+          finished_at: "2026-10-16T13:48:15.989271Z"
+          session_id: 01a144f7-d55e-7d50-a1eb-347caf3c91c2
+          outcome: returned
+      "n": 2
+      timestamp: "2026-10-16T06:48:16-07:00"
+      agent: codex
+      dispose:
+        - id: PQ-1
+          disposition: addressed
+          note: R3 defines numerical isolated and loaded limits, consecutive-repeat qualification, the separate lane-decision threshold, and retain/report/re-plan behavior when qualification fails or is unavailable.
+          round: 2
+        - id: PQ-2
+          disposition: addressed
+          note: R3 names the iterator, extracted consistency predicates and ProvisionFixture.Run, supplies concise adversarial-input strategies and mechanical guards, and supersedes the identity-case inventory.
+          round: 2
+      blocked: false
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: 7b8342b7-4dc1-41e3-9ad4-71c2f03fc821
+            repository: github.com/xianxu/pair
+            issue_id: "000611"
+            recipe: plan-quality
+            round: 3
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot1/pair
+            reviewed_head: 2a60102de4b2f696399aa29ac7b2e43170ccea28
+            slot: pair:1
+            requested_at: "2026-10-16T13:49:35.617143Z"
+          phase: finished
+          pid: 15716
+          started_at: "2026-10-16T13:49:35.791056Z"
+          finished_at: "2026-10-16T13:50:06.637631Z"
+          session_id: 01a144f9-add6-7a40-86bc-f47901dbde35
+          outcome: returned
+      "n": 3
+      timestamp: "2026-10-16T06:50:06-07:00"
+      agent: codex
+      dispose:
+        - id: PQ-1
+          disposition: addressed
+          note: R3 specifies two isolated runs at or below 200s, loaded execution at or below 420s, and retain/report/re-plan behavior on failed or unavailable qualification.
+          round: 3
+        - id: PQ-2
+          disposition: addressed
+          note: R3 names the iterator, consistency predicates and ProvisionFixture.Run, provides adversarial strategies and mechanical guards, and supersedes the identity-case inventory.
+          round: 3
+      blocked: false
+content_hash: 56cc2060a66e8bdc4e8c7b7cd568086be0d532fa94ca1a8a18de4ed4f88402fd
+---
+
+# Gate ledger — pair#611 (plan-quality)
+
+Findings this gate raised, the stable ids the binary assigned them, and how
+later rounds disposed of them. Generated — edit the gate, not this file.
+
+## Round 1 — 2026-10-16T06:46:20-07:00 (codex) — BLOCKED
+
+### Raised
+
+- **PQ-1** [Important] `measurable-acceptance-budget` Define the active qualification budget before removing the timeout allowance
+  ARCH-CONSTRAINTS: plan lines 101–103 supersede all earlier budgets, while line 141 permits removing the allowance after unspecified representative-load qualification and “comfortable” headroom. State numerical isolated and loaded acceptance limits, the repeat-measurement rule for reliability, and the stop/report behavior when representative load cannot be qualified; distinguish the approximately 200-second lane-decision threshold from the acceptance budget.
+- **PQ-2** [Minor] `function-level-test-strategy` Replace the prose test inventory with named functions and concise strategies
+  R2 task2 line 121 enumerates identity test cases, while lines 105 and 112 leave the new pure predicates unnamed. Name forEachEvidence, consistent, the extracted predicates and ProvisionFixture.Run as applicable, then state one adversarial-input class and mechanical guard per risky function; retain coverage invariants without restating the implementation procedure or enumerating cases.
+
+## Round 2 — 2026-10-16T06:48:16-07:00 (codex) — passed
+
+### Disposed
+
+- PQ-1 — addressed — R3 defines numerical isolated and loaded limits, consecutive-repeat qualification, the separate lane-decision threshold, and retain/report/re-plan behavior when qualification fails or is unavailable.
+- PQ-2 — addressed — R3 names the iterator, extracted consistency predicates and ProvisionFixture.Run, supplies concise adversarial-input strategies and mechanical guards, and supersedes the identity-case inventory.
+
+## Round 3 — 2026-10-16T06:50:06-07:00 (codex) — passed
+
+### Disposed
+
+- PQ-1 — addressed — R3 specifies two isolated runs at or below 200s, loaded execution at or below 420s, and retain/report/re-plan behavior on failed or unavailable qualification.
+- PQ-2 — addressed — R3 names the iterator, consistency predicates and ProvisionFixture.Run, provides adversarial strategies and mechanical guards, and supersedes the identity-case inventory.
+
+## Open findings
+
+(none — every finding has been disposed)

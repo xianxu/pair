@@ -111,11 +111,11 @@ func TestContinuationRequestsBoundedOwnedSet(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		request := testContinuationRequest(t, created)
-		if _, err := store.PublishContinuation(created.Address, created.Revision, request); err != nil {
-			t.Fatal(err)
-		}
 		if i%10 == 0 {
+			request := testContinuationRequest(t, created)
+			if _, err := store.PublishContinuation(created.Address, created.Revision, request); err != nil {
+				t.Fatal(err)
+			}
 			addresses = append(addresses, created.Address, created.Address)
 			wanted[created.Address] = request.ID
 		}
