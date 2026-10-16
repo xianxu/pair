@@ -1,12 +1,12 @@
 ---
 id: 000586
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-15
 updated: 2026-10-15
 estimate_hours:
-card_mirror: '4be64b089094a743b85489a37e34befc5368248e' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '2eafcb02c3fb1d6899874b7d6355379d3d7d9630' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-15T19:17:48-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
 flow: {kind: quick, provenance: inferred, spec: "017f15c1", done: "76b4d5e2"}
+actual_hours: 2.19
 ---
 
 # Diagnose intermittent review restoration observation mismatch
