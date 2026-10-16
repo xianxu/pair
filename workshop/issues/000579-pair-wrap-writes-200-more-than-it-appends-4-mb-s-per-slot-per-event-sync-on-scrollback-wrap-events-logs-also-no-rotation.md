@@ -1,12 +1,12 @@
 ---
 id: 000579
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-15
 updated: 2026-10-15
 estimate_hours: 2.622
-card_mirror: '73739e1a687bd7cb0ba861036e92c0672decd7d8' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '4ab7b60513dfa8115ad460fae7e208061ce946ba' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-15T15:07:36-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: inferred}
+actual_hours: 5.06
 ---
 
 # pair wrap writes ~200× more than it appends (~4 MB/s per slot): per-event sync on scrollback/wrap-events logs; also no rotation
