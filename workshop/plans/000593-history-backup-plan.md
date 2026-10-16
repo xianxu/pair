@@ -92,3 +92,7 @@ Trust boundary (ARCH-SECURE): local user supplies roots and trusted recipient fi
 ## Revisions
 
 None yet. Proposed file/budget details await TL approval; changes will be appended here rather than erasing the original design.
+
+### 2026-10-15 — TL approval and catalog simplification
+
+TL receipt4042bd3a approves dc721f5f with two superseding changes: under the catalog lock, repair an incomplete final JSONL line by truncating to the last complete record and syncing before append. Complete records are retained and validated; a complete record conflicting with the stored bundle refuses. Any bundle whose catalog line was torn is a verified uncataloged object, handled by the existing retry adoption. Roll a full64MiB shard automatically to the next numbered shard; no operator shard selection. Shards are one logical catalog and duplicate lookup spans them by streaming reads; no unbounded in-memory index. New-shard creation is synced and serialized by the same catalog lock. Tests cover tail truncation before retry, complete-line conflict, boundary rollover, crash/retry across rollover and preserved earlier shards. These rules supersede the earlier tail-refusal/full-shard-refusal text and tests; all other approved bounds/scope remain.
