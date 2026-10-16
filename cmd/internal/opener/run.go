@@ -185,7 +185,15 @@ func RunChangelog(opts Options, rt Runtime, stderr io.Writer) int {
 			return 0
 		}
 	}
-	_ = rt.WriteFile(openlock, rt.Getpid()+"\n")
+	// The lock is the reap's only evidence that this viewer still has an owner:
+	// #583's sweep reads an absent openlock as a dead opener and kills the embed
+	// the viewer published. A viewer whose ownership could not be recorded would
+	// be reapable while it is on screen, so refusing to open one is the cheaper
+	// failure.
+	if err := rt.WriteFile(openlock, rt.Getpid()+"\n"); err != nil {
+		fmt.Fprintf(stderr, "pair-changelog-open: openlock: %v\n", err)
+		return 1
+	}
 	defer rt.Remove(openlock)
 
 	_ = rt.Touch(log)
