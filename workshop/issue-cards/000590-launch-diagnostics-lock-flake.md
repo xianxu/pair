@@ -1,6 +1,6 @@
 ---
 id: 000590
-status: codecomplete
+status: done
 created: 2026-10-15
 updated: 2026-10-16
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: a2a2337bced071aa144bc18e25b45dae944d87bb
         evidence_commit: 0ff2f81bcafb6838d8c060195bf9d2400174a4b7
+        landed_commit: 2ede2ad1d3cfc1275ad1b8b532a8fae99d9cee1e
 ---
 
 # Diagnose concurrent launch diagnostics lock timeout under load
