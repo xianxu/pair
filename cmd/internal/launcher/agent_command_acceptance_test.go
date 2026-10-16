@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/creack/pty"
+	"github.com/xianxu/pair/cmd/internal/testpair"
 )
 
 // Crosses the production create boundary, the actual embedded layout's shell
@@ -21,10 +22,7 @@ import (
 func TestCreateLayoutWrapperPreservesAgentCommand(t *testing.T) {
 	dir := t.TempDir()
 	binary := filepath.Join(dir, "pair-real")
-	build := exec.Command("go", "build", "-o", binary, "../../pair-go")
-	if out, err := build.CombinedOutput(); err != nil {
-		t.Fatalf("build wrapper: %v\n%s", err, out)
-	}
+	testpair.At(t, binary)
 	for _, layout := range []string{"main-2.kdl", "main-3.kdl"} {
 		t.Run(layout, func(t *testing.T) {
 			rt := newFakeRuntime()

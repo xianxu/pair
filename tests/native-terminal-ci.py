@@ -70,7 +70,10 @@ def main():
     subprocess.run(["npm", "ci", "--prefix", "tests/terminal-oracle", "--ignore-scripts", "--no-audit", "--no-fund"], check=True, timeout=120)
     with tempfile.TemporaryDirectory(prefix="pair-native-ci-") as scratch:
         candidate = str(Path(scratch) / "pair")
-        subprocess.run(["go", "build", "-o", candidate, "./cmd/pair-go"], check=True, timeout=180)
+        build_env = dict(os.environ)
+        build_env.pop("PAIR_TEST_BINARY", None)
+        subprocess.run(["bash", str(root / "tests/lib/pair-test-binary.sh"), candidate],
+                       env=build_env, check=True, timeout=180)
         env = dict(os.environ, PAIR_LIVE_COUCH="1", PAIR_LIVE_COUCH_NATIVE="1", PAIR_NATIVE_BINARY=candidate)
         pattern = "^(TestNativeConsoleWrapperZellij|TestLiveConsoleNvimPreservesContentAndChrome|TestLiveReservedRowSurvivesRealScrolling|TestNotificationPTYConformance)$"
         command = ["go", "test", "-race", "-json", "./cmd/internal/couchtty", "-run", pattern, "-count=1", "-timeout=5m"]

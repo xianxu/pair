@@ -16,6 +16,7 @@ import (
 	"github.com/creack/pty"
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/pairlifecycle"
+	"github.com/xianxu/pair/cmd/internal/testpair"
 )
 
 // Invoked only by couchcmd's acceptance tests with the producer's original
@@ -56,9 +57,7 @@ func TestCouchLaunchPromptTransportHelper(t *testing.T) {
 	binary := os.Getenv("PAIR184_ACCEPT_BINARY")
 	if binary == "" {
 		binary = filepath.Join(dir, "pair-real")
-		if out, err := exec.Command("go", "build", "-o", binary, "../../pair-go").CombinedOutput(); err != nil {
-			t.Fatalf("build %v %s", err, out)
-		}
+		testpair.At(t, binary)
 	}
 	executable, err := os.Executable()
 	if err != nil {

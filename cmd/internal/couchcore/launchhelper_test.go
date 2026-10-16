@@ -13,6 +13,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/xianxu/pair/cmd/internal/testpair"
 )
 
 type observedReadCloser struct {
@@ -35,7 +37,7 @@ func TestMain(m *testing.M) {
 		os.Exit(LaunchHelperMain(os.Args[1:], os.Stderr))
 	}
 	defaultParallelForSubprocessTests()
-	os.Exit(m.Run())
+	os.Exit(testpair.Run(m))
 }
 
 // defaultParallelForSubprocessTests raises -test.parallel unless the caller set

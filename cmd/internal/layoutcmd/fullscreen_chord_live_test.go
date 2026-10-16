@@ -17,6 +17,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/pairlifecycletest"
+	"github.com/xianxu/pair/cmd/internal/testpair"
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 	"github.com/xianxu/pair/cmd/internal/zellijpane"
 )
@@ -42,11 +43,7 @@ func TestFullscreenChordZellijLive(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
-	build := exec.CommandContext(ctx, "go", "build", "-o", bin, "./cmd/pair-go")
-	build.Dir = repo
-	if out, err := build.CombinedOutput(); err != nil {
-		t.Fatalf("build isolated pair: %v: %s", err, out)
-	}
+	testpair.AtContext(t, ctx, bin)
 	// Erase inherited selected-thread paths before exporting this fixture's
 	// complete canonical bindings. Neither editor nor wrapper can reach them.
 	for _, entry := range os.Environ() {

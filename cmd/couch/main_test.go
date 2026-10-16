@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/creack/pty"
+	"github.com/xianxu/pair/cmd/internal/testpair"
 )
 
 func TestBareCouchInstalledCommand(t *testing.T) {
@@ -57,8 +58,8 @@ fi
 	// This exercises the public registration handshake before Couch attaches.
 	pairBin := filepath.Join(binDir, "pair-go")
 	fixtureBin := filepath.Join(binDir, "terminal-fixture")
+	testpair.At(t, pairBin)
 	for _, command := range [][]string{
-		{"build", "-o", pairBin, "./cmd/pair-go"},
 		{"test", "-c", "-o", fixtureBin, "./cmd/internal/couchcore"},
 	} {
 		build := exec.Command("go", command...)

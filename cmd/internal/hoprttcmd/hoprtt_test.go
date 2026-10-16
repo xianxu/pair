@@ -5,21 +5,17 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"testing"
+
+	"github.com/xianxu/pair/cmd/internal/testpair"
 )
 
-// pairBin builds the REAL pair binary, because the probe is a subcommand of it.
+// pairBin uses the REAL pair binary, because the probe is a subcommand of it.
 // Testing the package function alone would not catch the thing BR-22 was about:
 // whether the probe is reachable through the binary that actually ships.
 func pairBin(t *testing.T) string {
 	t.Helper()
-	bin := filepath.Join(t.TempDir(), "pair")
-	out, err := exec.Command("go", "build", "-o", bin, "../../pair-go").CombinedOutput()
-	if err != nil {
-		t.Fatalf("build pair: %v\n%s", err, out)
-	}
-	return bin
+	return testpair.Binary(t)
 }
 
 func runPair(t *testing.T, bin string, args ...string) []float64 {

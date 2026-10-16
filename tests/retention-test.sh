@@ -4,7 +4,7 @@ repo=$(cd "$(dirname "$0")/.." && pwd)
 scratch=$(mktemp -d "${TMPDIR:-/tmp}/pair-retention.XXXXXX")
 trap 'rm -rf "$scratch"' EXIT
 mkdir -p "$scratch/bin" "$scratch/data"
-go build -o "$scratch/bin/pair-go" ./cmd/pair-go
+bash "$repo/tests/lib/pair-test-binary.sh" "$scratch/bin/pair-go"
 ln -s pair-go "$scratch/bin/pair"
 cat > "$scratch/check.lua" <<'LUA'
 local root = assert(vim.env.PAIR_DATA_DIR)
