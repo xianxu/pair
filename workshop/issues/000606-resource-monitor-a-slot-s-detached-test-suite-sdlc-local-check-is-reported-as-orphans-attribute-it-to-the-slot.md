@@ -41,8 +41,32 @@ aren't under the slot's wrapper. It exited a minute later. Every full suite on e
 
 ## Plan
 
-- [ ]
+Measured the cause live before designing: Claude Code's background shells (and a timed-out tool call's command) reparent
+to launchd, so the suite loses the ancestry that tied it to the slot; remembered provenance then turns into a proven
+orphan (`len(candidates) == 0`). The suite still carries the slot's `COUCH_THREAD_SCOPE`/`COUCH_THREAD_TAG`, readable
+from KERN_PROCARGS2 for user binaries (sdlc, python, test binaries) but withheld by macOS for platform binaries
+(`/bin/zsh`, `/bin/sleep`), so the detached root itself is often unreadable while its child is not. The runner's
+in-flight record (the spec's first idea) doesn't exist and would only cover sdlc; the environment covers every detached
+command of a slot.
+
+- [x] `couchcore.DetachedSlotRoots` (pure): a launchd child whose inherited thread names a live slot becomes that slot's
+  root; when it names none, its direct children are asked. Infrastructure (zellij, agents, nvim) is never claimed, so a
+  relaunched thread's leftovers stay visible to the #583 orphan/unattributed rules (`ClassifyUnattributed` untouched;
+  coordinated with pair:4).
+- [x] `procutil`: `NativeResourceReader.Environment`, identity-fenced like `Command`; `ParseEnvironment` keeps only the
+  named keys.
+- [x] Sampler: applies the roots before selection; caches each generation's thread (one read per process lifetime,
+  pruned with the table); new `environment_calls` cost.
+- [x] Tests: pure attribution incl. withheld-shell fallback and infrastructure exclusion; reparented suite stays the
+  slot's (orphan without the roots); sampler attributes a detached suite and reads each generation once (RED without
+  the wiring); live child environment read.
+- [x] Atlas: couch.md resource monitoring.
 
 ## Log
+
+- 2026-10-16: live probe on this machine: 1,181 processes, first pass 275 ms / 1,359 environment calls, cached pass
+  0.26 ms. Claims found beyond suites, all genuinely slot-started: `pair title` daemons, my suite's lock-helper python,
+  parley's cli-proxy-api from a couch thread, and a python pair:6 leaked on Oct 10 (now visible on its slot instead of
+  invisible).
 
 ### 2026-10-15
