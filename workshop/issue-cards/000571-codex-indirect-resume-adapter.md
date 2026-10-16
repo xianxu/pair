@@ -1,6 +1,6 @@
 ---
 id: 000571
-status: working
+status: codecomplete
 created: 2026-10-15
 updated: 2026-10-15
 estimate_hours: 5.9
@@ -13,6 +13,14 @@ claimant:
     workspace: pair:7
     worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
     repository: github.com/xianxu/pair
+actual_hours: 15.65
+tracker:
+    version: 1
+    completion:
+        token: close-337036fe8501
+        repository: github.com/xianxu/pair
+        reviewed_head: 8190469bb00c2ae6b676042414434d17e8f6f18d
+        evidence_commit: e55a7535ceaa330f041079cd248b1089544d67eb
 ---
 
 # Keep Codex indirect resumes native; route exact-ID transcript homes
