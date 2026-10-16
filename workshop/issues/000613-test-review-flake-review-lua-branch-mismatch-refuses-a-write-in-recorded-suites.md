@@ -1,13 +1,13 @@
 ---
 id: 000613
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-16
 updated: 2026-10-16
 estimate_hours:
 severity: medium
-card_mirror: 'd9302acd12f94b8280b4fce480a87048bf1a93d2' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '96ec980b77db50c02427aadd75e6c0c2cdc3a377' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-16T06:41:26-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
+actual_hours: 0.37
 ---
 
 # test-review flake: review.lua branch mismatch refuses a write in recorded suites
