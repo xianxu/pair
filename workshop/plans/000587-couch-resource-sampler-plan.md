@@ -47,6 +47,8 @@
 | resourcePersistence | `cmd/internal/couchcmd/resources_persist.go` | new adapter | independent snapshot recovery and alert checkpoint ordering |
 | resourceCheckpoint / resourceAlertAttempt / resourceAlertDispatcher | `cmd/internal/couchcmd/resources_alert.go` | new integration records/adapter | immutable broker envelopes and pure delivery-outcome events |
 | resourceCheckpointEnvelope / encodeResourceCheckpoint / decodeResourceCheckpoint | `cmd/internal/couchcmd/resources_checkpoint.go` | new codec adapter | bounded versioned checkpoint representation |
+| resourceCheckpointPacked / resourceProvenancePacked / resourceEpisodePacked / resourceEffectPacked / resourceAttemptPacked | `cmd/internal/couchcmd/resources_checkpoint_packed.go` | new persistence-only values | typed dictionary references reconstructed before domain validation |
+| resourceCheckpointValidation | `cmd/internal/couchcmd/resources_persist.go` | new adapter cache | exact encoder-output proof, full validation for other bytes |
 | projectResourceView | `cmd/internal/couchcmd/resources_projection.go` | new pure projection | existing broker frame byte envelope |
 | resources request/response | `cmd/internal/couchmessage/protocol.go`, `cmd/internal/couchcmd/cli.go`, `messages.go`, `message_service.go`, `resources_render.go` | modified/new | existing authenticated local socket |
 
@@ -227,3 +229,24 @@ BR-6: preserve the 2 MiB disk cap and encode larger checkpoint payloads in a ver
 ### 2026-10-15 — strengthen the checkpoint capacity fixture
 
 The initial sequential-ID fixture fit compression, but a production-shaped fixture (SHA256 effect IDs/generation tokens and 256 distinct escaped workspace identities) exposed that compression alone does not fit the 2 MiB envelope: 32,895,161 expanded bytes. Normalize repeated workspace, process-key and binding authority through typed dictionaries before compression; use checked indices and reconstruct exact values before semantic validation. No authority eviction. Qualify the stronger fixture, including steady persistence and new-alert burst CPU separately; the prior normal-host cost measurement does not establish maximum-cardinality cost.
+
+### 2026-10-15 — authoritative simplification: advisory alerts, no checkpoint
+
+TL receipt e97f725a-c6ac-4ae2-b55f-63604207e0b4 supersedes every earlier checkpoint, durable-intent, restart-deduplication and codec requirement in this plan. Alerts are advisory. The binding CPU budget applies to steady sampling, not a rare maximum-cardinality admission burst. This is the third design delta; simplify the shape rather than adding another persistence mechanism (ARCH-PURPOSE, ARCH-DRY).
+
+**Replacement scope:**
+
+- Keep ResourceState, provenance, rate baselines, episodes and delivery outcomes only in the sampler worker's memory. They die with the supervisor. No checkpoint file, persistent alert attempt, intent/outcome journal, compression codec, normalized dictionaries or publication-proof cache remains.
+- Send each pending episode through the existing owning-hub broker. Confirmed admission enters the pure reducer and suppresses repeats while that episode remains high. Unavailable/refused/uncertain sends remain pending for a subsequent sample; reuse the same in-memory effect ID so the broker owns its existing within-run deduplication. No retained-receipt reconciliation or restart identity promise. Recovery clears the episode and a later high interval creates a new one.
+- Restart starts fresh rates and episodes from the next observations. A high instantaneous threshold can alert again; sustained thresholds accumulate their configured duration again. A crash can duplicate or miss an advisory alert; no exactly-once claim. Historical ownership is not reconstructed: pre-existing launchd-parented candidates remain explicitly unproven until current evidence establishes ownership.
+- Keep the existing bounded ResourceHistory aggregate ring: 24 hours, 1440 frames and 4 MiB. Retain best-effort history.json publication using the existing safe bounded file adapter, with one fixed replacement stage (8 MiB including old+stage). History loss/corruption is diagnostic only; fresh samples and alerts continue. A failed write does not roll back the in-memory ring. No history or disk success gates sending an alert.
+- Preserve native sampling, counted calls, cached byte-bounded CLI, cached slot metadata, inventory completeness, unknown coverage, pure rate/episode transitions, unproven candidate reporting and existing policy defaults. No new operator controls or functionality.
+
+**Implementation and verification (after TL approval):**
+
+1. Delete checkpoint/codec/packed/proof-cache files and checkpoint-only tests; shrink the alert adapter to resolve/send/pure outcome. Replace resourcePersistence with a history-only adapter and ResourceSnapshotStore with ResourceHistoryStore. Update actual entity tables and artifact inventory in the same change.
+2. Keep real-broker tests for owning-hub notice, one admission per sustained episode, temporary refusal/retry, recovery/re-arm, and restart re-arming from a new in-memory state. Replace durable-intent/reconciliation tests with explicit restart duplicate tolerance and proof that history errors cannot block alerts. Keep corruption/unsafe-path/retention coverage only for history. Preserve transport maximum-cardinality and discovery-barrier regressions.
+3. Run targeted tests and race checks, remeasure steady sampler CPU including history, then the recorded full suite and close review. Stage/restart/merge remain held for TL's combined smoke.
+4. Report exact net line count against pre-simplification commit 5484a5363, separately identifying discarded uncommitted codec work. Current checkpoint-related group is roughly 2000 lines including tests; expected net deletion is substantial, but measured git diff is the completion evidence, not this estimate.
+
+No production code has been changed for this simplification at the time this Revision is sent. Previously queued full suites were canceled before execution; no full-suite pass or live acceptance is claimed.
