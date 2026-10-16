@@ -1,6 +1,6 @@
 ---
 id: 000607
-status: working
+status: codecomplete
 deps: []
 github_issue:
 target: slot-recovery
@@ -8,7 +8,7 @@ created: 2026-10-15
 updated: 2026-10-16
 estimate_hours:
 severity: critical
-card_mirror: '31bfa73b6d71f3296bb326ee14ff1a5af34f4eaf' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '246fab2691f3303cfa893142a88e667c4b2b0428' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-15T23:54:34-07:00
 claimant:
     operator: Xian Xu
@@ -17,6 +17,7 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
+actual_hours: 2.22
 ---
 
 # Reboot of a legacy slot leaves the old wrapper tree running
