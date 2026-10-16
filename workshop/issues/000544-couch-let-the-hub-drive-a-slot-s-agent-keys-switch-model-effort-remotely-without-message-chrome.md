@@ -172,6 +172,10 @@ Controlled wrapper tests independently enumerate sequence or screen changes befo
 
 Actual Run/socket native virtual conformance count3 PASS74.287s, covering three scratch plus three Pair virtual model/effort/session selections and explicit dirty recovery. Round4 SHIP with no new findings and all BR-1–BR-4 addressed; reviewer independently mutation-tested qualification and dispatch-refusal handling and ran exact native target PASS38.050s. Codecomplete published by sdlc close, bound to evidence2ee17868c9f3, measured actual16.95h (build16.63/converge0.32). The TL-owned post-landing fleet smoke remains outstanding. Proceed through sdlc merge --yes for fresh-main integration, required recorded suite and CI; no bypass.
 
+### 2026-10-16 — serialized landing checkpoint
+
+sdlc merge integrated main7346048a6 into535ae7f7b1e6; publish replay/instance gates and GitHub CI passed. Its required suite acquired admission after268s and progressed through shell/editor integrations without a reported failure. Main then landed #571 (PR351, main4c895c9c9), making that code integration obsolete. Interrupted this merge/suite with SIGINT/exit130 before landing; no passing full-suite claim. #586 remains codecomplete/not-landed, so take the landing turn after it rather than run another suite on an about-to-change main. Hub notified (5333dab6) and pair:3 asked to report its landing (73b0fd9b). Branch remains clean/reviewed; close binding2ee17868c9f3 is intact. Resume: sdlc pr after any log commit, then sdlc merge --yes; it owns fresh-main integration, final suite/CI and archive. No restart or live fleet acceptance performed.
+
 ## Revisions
 
 ### 2026-10-15 — synchronize conformance across qualification changes (BR-4)
