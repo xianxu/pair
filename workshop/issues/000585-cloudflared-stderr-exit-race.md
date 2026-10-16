@@ -84,6 +84,10 @@ Owned-pipe and exit/drain regressions passed together (0.365s). Forced-close reg
 
 Source02b5ef94ee83e1274d7b4ec7912261620e5acfeb: full broadcast package with race detection passed (89.747s); focused ownership/drain/forced-close/guarded+direct fast failure and existing API refusal passed50repetitions (34.463s) concurrently with that package run. make -k -B build passed, rebuilding pair, couch and pair-launch-helper from this exact source. No live broadcast/conformance network test was enabled. Recorded sdlc local-check run --name suite is queued as run5cf351123b0b1e80ce3ea58061fd72b0 behind the machine-wide two-suite cap; it uses the pushed exact source head and no quota override.
 
+### BR-1 corrected-source verification
+
+Corrected source8ea1ff75f02bba063007f3a11157fd2432576ce0: full broadcast package race run passed114.475s, and50focused loaded repetitions passed67.598s, including three real descendant cases (normal direct TERM, direct forced KILL, guarded forced KILL). Removing only direct group TERM makes its normal-path regression fail deterministically at its remaining-budget hang guard (15.00s of25s); the earlier pre-fix forced-path RED demonstrated the surviving descendant. Both negative controls kill their exact owned test group in cleanup. Original source bytes restored after the TERM mutation. make -k -B build passed on the corrected committed source. A fresh recorded suite is queued as80c2388bbd9b308cbc93f43f33980946 on that exact pushed head; no prior pass is being substituted.
+
 ## Revisions
 
 ### 2026-10-15 — hypothesis confirmed as a production ownership violation
