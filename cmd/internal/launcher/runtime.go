@@ -253,12 +253,9 @@ type LifecycleOps interface {
 	ClearCmuxOwner()
 }
 
-// NativeResumeOps resolves native selectors and admits one exact conversation
-// writer before any launch identity is published.
+// NativeResumeOps resolves native resume selectors to one exact conversation.
 type NativeResumeOps interface {
 	ResolveNativeResume(context.Context, NativeResumeRequest) (NativeResumeResolution, error)
-	ReserveNativeResume(context.Context, NativeAdmissionRequest) (string, error)
-	CancelNativeResume(context.Context, string) error
 }
 
 // Runtime is the full launcher effect seam.

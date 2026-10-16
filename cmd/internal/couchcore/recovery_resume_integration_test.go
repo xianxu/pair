@@ -355,49 +355,6 @@ func TestResumeCandidateLaunchNoticeDoesNotResend(t *testing.T) {
 	}
 }
 
-// pair#597: native-owner evidence (a reused PID, an unrelated legacy wrapper)
-// no longer gates Couch recovery at either gate; only the registry check does.
-func TestResumeCandidateIgnoresStaleNativeOwnerEvidenceAtBothGates(t *testing.T) {
-	for _, late := range []bool{false, true} {
-		t.Run(map[bool]string{false: "preflight", true: "after-prepare"}[late], func(t *testing.T) {
-			f := newRecoveryExecutionFixture(t)
-			f.registerLiveChildren(t)
-			key := f.preview(t).Candidates[0].Key
-			other := ThreadAddress{RepoScope: f.record.Address.RepoScope, Tag: "another-slot"}
-			occupy := func() {
-				f.Artifacts.SetPairSession(other, "other-live-terminal", true)
-				f.Artifacts.SetRecoveryNativeWrappers(FakeRecoveryNativeWrapper{Address: other, Agent: "codex", PID: 1111})
-			}
-			if late {
-				f.Couch.Workspaces = slotReadinessFunc(func(context.Context, ProvisionRequest) (ProvisionResult, error) {
-					f.prepared++
-					occupy()
-					return slotReadyResult(f.Couch.Threads), nil
-				})
-			} else {
-				occupy()
-			}
-			result, err := f.Couch.ResumeCandidate(context.Background(), ResumeTarget{Address: f.record.Address}, key)
-			if err != nil {
-				t.Fatalf("stale native owner evidence blocked recovery: %v", err)
-			}
-			if _, ok := result.Started(); !ok {
-				t.Fatalf("recovery did not start: %+v", result)
-			}
-		})
-	}
-}
-
-func TestRecoveryNativeSourceAncestryCannotOverrideBinding(t *testing.T) {
-	f := newRecoveryExecutionFixture(t)
-	w := FakeRecoveryNativeWrapper{Address: f.record.Address, Agent: "codex", PID: 90, Identity: "wrapper", ParentPID: 42, SourcePID: 42, SourceIdentity: "helper", ReadyPID: 91, ReadyIdentity: "agent", ReadyParentPID: 90, ReadyOrdinal: 1, ReadyNonce: "old-nonce", ReadySession: "old-session", Launches: map[uint64]FakeRecoveryNativeLaunch{1: {Nonce: "old-nonce", NativeID: "native"}}}
-	f.Artifacts.SetRecoveryNativeWrappers(w)
-	check := launcher.RecoveryNativeOwnerCheck{RepoScope: w.Address.RepoScope, Tag: string(w.Address.Tag), Agent: "codex", NativeID: "native", SourcePID: 42, SourceIdentity: "helper", SourceSession: "new-session", SourceNonce: "new-nonce"}
-	if err := f.Artifacts.CheckRecoveryNativeOwner(context.Background(), check); err == nil {
-		t.Fatal("ancestry overrode different source binding generation")
-	}
-}
-
 // pair#605: production's clock carries a monotonic reading that the store
 // does not persist. A recovery resume must still pass the workspace recheck,
 // which compares the claimed record with its persisted copy.

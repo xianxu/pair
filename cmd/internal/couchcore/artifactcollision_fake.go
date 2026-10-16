@@ -25,19 +25,19 @@ type FakeThreadArtifactCollisionChecker struct {
 	// BUDGET rather than only a result -- #198's guard is required to add no
 	// session enumeration of its own, and a budget nothing measures is a rule
 	// that cannot fail.
-	detachedQueries    int
-	released           []ThreadAddress
-	registrations      map[ThreadAddress]fakeRegistration
-	autoEstablish      bool
-	quiesced           []ThreadAddress
-	bindingResolutions int
-	detachedCandidates int
-	QuiesceHook        func(ThreadAddress) error
-	pairSessions       map[ThreadAddress]PairSessionBinding
-	nativeBindings     map[nativeBindingKey]NativeBindingResolution
-	recoveryWrappers   []FakeRecoveryNativeWrapper
-	triggeredQuit      []TriggeredQuit
-	TriggerQuitHook    func(string, launcher.QuitIntent) error
+	detachedQueries       int
+	released              []ThreadAddress
+	registrations         map[ThreadAddress]fakeRegistration
+	autoEstablish         bool
+	quiesced              []ThreadAddress
+	bindingResolutions    int
+	detachedCandidates    int
+	QuiesceHook           func(ThreadAddress) error
+	pairSessions          map[ThreadAddress]PairSessionBinding
+	nativeBindings        map[nativeBindingKey]NativeBindingResolution
+	legacyNativeLockSlots []string
+	triggeredQuit         []TriggeredQuit
+	TriggerQuitHook       func(string, launcher.QuitIntent) error
 	// BeforeRegistration lets an integration test interleave a durable state
 	// change at the registration boundary. It is called outside mu because the
 	// hook may consult another stateful fake or call back into this one.

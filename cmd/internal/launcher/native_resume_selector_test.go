@@ -196,3 +196,53 @@ func TestCodexCompatibilityLatestNeverBecomesExplicitIdentity(t *testing.T) {
 		}
 	}
 }
+
+func TestNativeResumeSelectorRetainsNewDestinationID(t *testing.T) {
+	for _, agent := range []string{"claude", "qoder", "grok"} {
+		forms := [][]string{{"--session-id", "destination"}, {"--session-id=destination"}}
+		if agent == "grok" {
+			forms = append(forms, []string{"-s", "destination"}, []string{"-s=destination"}, []string{"-sdestination"})
+		}
+		for _, args := range forms {
+			for _, fork := range []bool{false, true} {
+				t.Run(agent+"/"+strings.Join(args, " ")+"/"+map[bool]string{false: "new", true: "fork"}[fork], func(t *testing.T) {
+					invocation := append([]string{}, args...)
+					wantKind, source := NativeResumeNew, ""
+					if fork {
+						invocation = append(resumeToken(agent, "source"), append([]string{"--fork-session"}, invocation...)...)
+						wantKind, source = NativeResumeFork, "source"
+					}
+					s, err := ParseNativeResumeSelector(agent, invocation)
+					if err != nil || s.Kind != wantKind || s.NativeID != source || s.NewNativeID != "destination" {
+						t.Fatalf("source/destination changed: %+v err=%v", s, err)
+					}
+					if !reflect.DeepEqual(s.Args, invocation) {
+						t.Fatal("new destination changed invocation")
+					}
+				})
+			}
+		}
+	}
+}
+
+func TestNativeResumeSelectorNewDestinationRespectsOptionAndPromptRoles(t *testing.T) {
+	for _, agent := range []string{"claude", "qoder", "grok"} {
+		for _, args := range [][]string{
+			{"--model", "--session-id=literal"},
+			{"--model", "--session-id", "literal"},
+			{"--", "--session-id", "literal"},
+			{"--", "--session-id=literal"},
+		} {
+			s, err := ParseNativeResumeSelector(agent, args)
+			if err != nil || s.NewNativeID != "" || s.Kind != NativeResumeNone {
+				t.Errorf("%s %q promoted a literal: %+v err=%v", agent, args, s, err)
+			}
+		}
+	}
+	for _, args := range [][]string{{"--model", "-sliteral"}, {"--", "-sliteral"}, {"--", "-s", "literal"}} {
+		s, err := ParseNativeResumeSelector("grok", args)
+		if err != nil || s.NewNativeID != "" || s.Kind != NativeResumeNone {
+			t.Errorf("Grok %q promoted literal: %+v err=%v", args, s, err)
+		}
+	}
+}

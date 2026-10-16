@@ -38,8 +38,6 @@ import (
 // fake is genuinely concurrent even though production hits real files.
 type fakeRuntime struct {
 	nativeResolve func(context.Context, NativeResumeRequest) (NativeResumeResolution, error)
-	nativeReserve func(context.Context, NativeAdmissionRequest) (string, error)
-	nativeCancel  func(context.Context, string) error
 
 	mu                  sync.Mutex
 	inPane              bool
@@ -538,17 +536,6 @@ func TestRequiredNativeResumeBindingLaunchesExactRootWithoutDefaults(t *testing.
 	for _, status := range []sessioninventory.BindingStatus{sessioninventory.BindingEstablished, sessioninventory.BindingProvisional} {
 		t.Run(string(status), func(t *testing.T) {
 			rt := newFakeRuntime()
-			// pair#597: a Couch-owned resume takes no native admission and
-			// hands the wrapper no grant.
-			rt.nativeReserve = func(context.Context, NativeAdmissionRequest) (string, error) {
-				t.Fatal("Couch-owned resume reserved native admission")
-				return "", nil
-			}
-			rt.launchHook = func(int) {
-				if rt.env[NativeAdmissionEnv] != "" {
-					t.Fatal("Couch-owned resume exposed a native grant")
-				}
-			}
 			rt.bindingStatuses["work|codex"] = status
 			rt.establishedSessions["work|codex"] = "native-root-1"
 			args := LaunchArgs{
@@ -1253,8 +1240,8 @@ func TestRunLaunchFailedPreflightDoesNotAppendLedgerOrSessionIndex(t *testing.T)
 	if len(rt.pollers) != 0 || len(rt.titles) != 0 || len(rt.cmux) != 0 || rt.devRebuilt {
 		t.Fatalf("preflight failure started side effects: pollers=%v titles=%v cmux=%v dev=%v", rt.pollers, rt.titles, rt.cmux, rt.devRebuilt)
 	}
-	if len(rt.env) != 2 || rt.env[NativeAdmissionEnv] != "" { // Entry establishes PATH and drops inherited native authority.
-		t.Fatalf("preflight failure should only set PATH and clear native authority, got %+v", rt.env)
+	if len(rt.env) != 1 { // Entry establishes PATH.
+		t.Fatalf("preflight failure should only set PATH, got %+v", rt.env)
 	}
 }
 
@@ -2067,16 +2054,4 @@ func (r *fakeRuntime) ResolveNativeResume(ctx context.Context, q NativeResumeReq
 	}
 	args, err := PinNativeResumeSelector(q.Selector, q.Selector.NativeID)
 	return NativeResumeResolution{Status: sessioninventory.NativeSelectorResolved, NativeID: q.Selector.NativeID, Args: args}, err
-}
-func (r *fakeRuntime) ReserveNativeResume(ctx context.Context, q NativeAdmissionRequest) (string, error) {
-	if r.nativeReserve != nil {
-		return r.nativeReserve(ctx, q)
-	}
-	return "fake-native-admission", nil
-}
-func (r *fakeRuntime) CancelNativeResume(ctx context.Context, grant string) error {
-	if r.nativeCancel != nil {
-		return r.nativeCancel(ctx, grant)
-	}
-	return nil
 }

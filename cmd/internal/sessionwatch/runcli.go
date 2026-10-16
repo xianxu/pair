@@ -32,6 +32,16 @@ func RunCLI(args []string, getenv func(string) string, stderr io.Writer) int {
 	defer lease.Close()
 	cleanupPairTag := ensurePairTag(opts.Tag)
 	defer cleanupPairTag()
+	if raw := getenv(BindingNoticeEnv); raw != "" {
+		fd, err := strconv.Atoi(raw)
+		if err != nil || fd < 3 {
+			fmt.Fprintln(stderr, "pair-session-watch: invalid binding notification fd")
+			return 1
+		}
+		writer := os.NewFile(uintptr(fd), "binding-notice")
+		defer writer.Close()
+		opts.NotifyBinding = func(ordinal uint64, id string) error { return NotifyBinding(writer, ordinal, id) }
+	}
 	logger := adapt.Open("session-watch", opts.Agent)
 	defer logger.Close()
 	if err := Run(opts, NewOSRuntime(logger)); err != nil {

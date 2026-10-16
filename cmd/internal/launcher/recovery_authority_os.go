@@ -197,7 +197,6 @@ func (r OSRuntime) ValidateRecoveryAuthority(ctx context.Context, a RecoveryAuth
 	if !bytes.Equal(raw, after) {
 		return errors.New("recovery start claim changed during validation")
 	}
-
 	if err := ctx.Err(); err != nil {
 		return err
 	}

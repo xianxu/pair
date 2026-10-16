@@ -91,10 +91,10 @@ Older wrappers with an unlinked endpoint remain usable by terminal, with
 “messaging unavailable until next relaunch.” New-wrapper endpoint repair is a
 separate follow-up (#557). Resume/Fresh execution and confirmation by the person
 or hub share #556's prepared recovery path, described below. Couch's resume and
-recovery launches take no native admission (#597): before launching, they
-refuse only if another positively live slot in Couch's registry records the same
-conversation ("conversation X is in use by repo:N"). Every other launch, and
-ordinary Pair, keeps native admission until #595.
+recovery launches refuse only if another positively live slot in Couch's
+registry records the same conversation ("conversation X is in use by repo:N",
+#597). No launch takes native admission (#595): the conversation lock below is
+the only other guard, and its refusal is the same "in use by" naming the holder.
 A Fresh reboot stops everything the slot owns (#607): to whatever terminal
 attribution proves, it adds the wrapper Couch's message registry names (exact pid
 and start identity), that wrapper's descendants from one process-table snapshot,
@@ -3321,11 +3321,7 @@ observation seam and explicitly requires real server discovery, session-delete
 dispatch, and an underlying OS kill dispatch against an exact-argv sentinel
 that ordinary zellij deletion does not own before accepting verified absence.
 A separate macOS workflow runs it on relevant changes and weekly/manual cadence.
-`TestLsofWritableNamesLiveConformance` shares both live targets and that cadence.
-It opens temporary read-only/writable descriptors in its own process, then closes
-and reopens them to compare the production `procutil.LsofWritableNames` result
-with actual access/lifetime. Run the focused check after macOS/lsof upgrades too:
-`PAIR_LIVE_COUCH=1 go test ./cmd/internal/procutil -run ^TestLsofWritableNamesLiveConformance$ -count=1 -v`.
+
 
 `Runner` was genuinely new — pair has no async process-exec seam.
 `launcher.ProcOps` is named for pair's own sidecars, and `wrapcmd` spawns its
@@ -4061,79 +4057,60 @@ Fresh beside unknown remnants using a distinct tag and read-only checkout
 validation; its notice says workspace setup was not refreshed.
 
 
-## Native conversation admission (#556 M2)
+## Native conversation admission (#595)
 
-Every new native resume is classified at the common launcher gate, including
-ordinary Pair launches outside Couch. Exact canonical IDs and supported
-Claude/Qoder latest selectors resolve once and use an explicit canonical ID
-before launch identity is published. Codex indirect selectors (latest, picker,
-native names/search or prefixes) preserve native CLI behavior unreserved and show
-one line at actual execution saying concurrent native resume is not guarded.
-This native-compatibility boundary is deliberate (see [Codex resume](codex-resume.md));
-it never bypasses a nonempty invalid or replayed grant, and full canonical UUID
-resumes still require admission. Unknown indirect targets are not recorded as
-proven canonical IDs. The classifier follows native command positional grammar after an option terminator: a Codex/Muse resume session ID after `--` remains an identity, while latest/already-bound/top-level prompt text stays literal. Pinning preserves the real delimiter and changes only the selected identity; measured option-value rules are shared with Fresh validation. Forks and newly chosen
-session IDs have separate semantics and never claim the source conversation as
-an existing writer. Saved defaults are not rewritten by resolution.
+The wrapper holds a nonblocking exclusive flock for each exact agent/conversation
+ID it knows, from discovery until wrapper exit. The stable cache inode is
+`~/.cache/pair/native-locks/<agent>-<sha256-of-exact-ID>.lock`, constructed by
+artifactpath. Its bounded holder label is diagnostic only; the kernel decides
+ownership. A contender refuses with the holder and Start fresh advice. Files are
+never replaced or unlinked online; one permanent inode and ordinarily one
+filesystem allocation unit remain per distinct conversation (APFS measurement:
+6 metadata bytes, 4 KiB allocated). Reclamation requires operator-approved
+quiescence of every cooperating wrapper.
 
-The bounded cross-repository authority is
-`~/.cache/pair/native-admission-v1.json`, coordinated by the stable adjacent
-`native-admission-v1.lock`. A reservation binds agent, canonical native ID, launch
-attempt, strict helper generation and final argv digest. The wrapper consumes its
-opaque grant once before PTY spawn and publishes its exact child generation before
-readiness or watcher startup. The lock is never held across native spawn or the
-terminal lifetime; different native IDs can proceed independently. Legacy owners
-remain checked through bounded Pair metadata and process evidence, including a
-retained native child whose wrapper has died.
+The launcher still resolves supported latest selectors once and pins an exact
+ID. Claude/Qoder latest ordering and configuration constraints are unchanged.
+Codex indirect selectors preserve their current CLI behavior and display the
+existing not-guarded notice until #571 supplies faithful resolution. Exact resume
+IDs and known new-session destinations lock before native spawn; a fork locks its
+known destination, not the source. The shared selector parser owns option/value,
+delimiter and positional grammar. Saved startup defaults are not rewritten.
 
-The wrapper scan first selects kernel-name candidates (`pair`, `pair-wrap`, or
-unknown names), then requires stable argv and identity for those candidates.
-Unrelated unreadable services and kernel-confirmed zombies are not live native
-owners, including zombie children referenced by retained readiness. A missing
-candidate command or changed wrapper set gets one complete re-observation under
-the same five-second budget; persistent uncertainty refuses with its PID rather
-than treating the candidate as absent (#584).
+Unknown Fresh IDs remain unknown until the existing session watcher commits a
+current-launch binding and sends a bounded private-pipe notification. The wrapper
+validates the launch ordinal and locks that ID once; repeat reports are harmless.
+A known-ID conflict or lock IO failure stops the wrapper's own group. Discovery
+failure before delivery remains visibly unknown and does not interrupt the
+watcher's config or lifecycle work. No native fd adapter, bootstrap or historical
+ownership scan is involved.
 
-Legacy readiness without a child birth can exclude a different conversation only
-through its exact launch ordinal and live direct-child relationship. A matching
-source needs the ledger ID among the native engine's positively held writable
-transcripts. When that launch genuinely has no ID, a complete held-ID set is
-used instead, including for modern owners after their full identity checks.
-Missing, partial, conflicting or malformed evidence remains uncertainty. Both
-observations recheck process births, parent edges and held IDs; nothing is
-persisted. Refusals name the legacy owner and, when uniquely resolvable, its slot
-and relaunch command. Codec filename rules stay owned by sessioninventory.
+The native child already starts in its own PTY session/group. Every controlled
+wrapper exit joins TERM/grace/KILL cleanup of that directly created group before
+reaping its leader and releasing conversation locks; fresh wrapper exec follows
+cleanup. The guarantee ends with wrapper lifetime. SIGKILL can leave an orphan
+engine after the kernel drops the wrapper lock: #583's reaper and #587's
+unattributed report handle that accepted gap. Agents outside Pair are outside the
+guard. Exact source stop-set attribution remains separate from admission.
 
-Ledger snapshots use their finite observed length and the existing regular-file,
-no-symlink, unchanged-generation reader rather than an unsupported reader-only
-size ceiling. A pure projection memo lasts for one admission and reuses results
-only after a fresh snapshot has the same content digest. Each phase proves at
-most four owners concurrently, consumes their results in stable order, and joins
-all workers before returning. The shared strict JSON codec keeps full validation
-while avoiding repeated nested duplicate scans and value-token allocations.
+Rollout needs no cutover gate (TL e93b109d): a resume whose lock another live
+wrapper holds refuses at native start with "conversation X is in use by
+<holder>; Start fresh", where the holder is the slot address ("pair:3"), else
+its Pair tag, else "standalone". Wrappers started before this build hold no
+lock until their slot is relaunched; that transitional gap closes as slots are
+relaunched. There is no capability barrier, override or dual guard.
 
-Only definitely unexposed reservations may be cancelled by their helper. On the
-next admission, an unconsumed reserved grant whose exact helper is proven dead
-is revoked under the same store lock used by wrapper Claim; a delayed wrapper
-cannot execute the revoked grant. If Claim wins first, the resulting spawning
-entry stays retained. Uncertain child publication, missing readiness or a dead
-wrapper alone never releases a conversation. A running
-entry is collected only when both exact wrapper and child are proven dead; unknown
-process observations retain it. These are internal authority states, not new menu
-outcomes. Corrupt, oversized or full authority refuses admission rather than silently
-forgetting possible writers. Fresh remains a separate conversation.
+The forensic native-owner scan and reservation store are deleted in this build.
+Their obsolete on-disk files are unused, not removed by startup; any cleanup is a
+separate operator-approved quiescent operation. Shared strict JSON and ledger
+validation remain for their other consumers.
 
-Owners: `launcher/native_admission.go`, `native_admission_os.go`,
-`native_createflow_os.go`, `native_resume_selector*.go`,
-`recovery_native_*.go`, `sessioninventory/native_selector*.go`, and
-`wrapcmd/native_admission.go`; the held-file boundary is
-`procutil.LsofWritableNames`, and full ledger validation belongs to
-`sessionledger/record.go` and `strictjson/decode.go`. Provider latest support is constrained by measured native ordering and positively
-resolved effective configuration. Unsupported/incomplete mappings for other
-agents report exact-ID/Fresh advice. Codex's approved unreserved exception is owned
-by the shared CodexIndirectResumeCompatibility policy, with one wrapper notice;
-#571 will read effective configuration from files and verify native DB semantics.
-No app-server configuration process is part of this implementation. Unsupported remote/PR/cloud and other existing-context selectors derive from the same authority as Fresh validation and refuse before launch, including both wrapper entry forms; option values and prompt text remain literal.
+Owners: `nativelock/`, `artifactpath/native_lock.go`,
+`wrapcmd/native_lock.go`, `wrapcmd/owned_group.go`,
+`sessionwatch/binding_notice.go`,
+`launcher/native_resume_selector*.go`, and Couch recovery/Relaunch. Real kernel
+contention, process-group cleanup and private-pipe checks run in ordinary Go
+package tests under the recorded suite on Darwin/Linux.
 
 ## Resource monitoring (#587)
 
