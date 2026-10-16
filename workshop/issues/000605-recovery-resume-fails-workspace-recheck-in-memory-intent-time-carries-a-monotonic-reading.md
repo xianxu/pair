@@ -1,14 +1,14 @@
 ---
 id: 000605
-status: working
+status: codecomplete
 deps: []
 github_issue:
 target: slot-recovery
 created: 2026-10-15
-updated: 2026-10-15
+updated: 2026-10-16
 estimate_hours:
 severity: critical
-card_mirror: 'fba2855a78cbdccd83e44e095d48cff05bb41f98' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '736b1636d127567cb40908eac8f281707efdae7d' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-15T23:33:30-07:00
 claimant:
     operator: Xian Xu
@@ -17,6 +17,7 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
+actual_hours: 0.04
 ---
 
 # Recovery resume fails workspace recheck: in-memory intent time carries a monotonic reading
