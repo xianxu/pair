@@ -80,6 +80,12 @@ Committed sourcef6512608053de4d07e29acf206d870b31d169b51 rebuilt with make -k -B
 
 Started a one-hour, one-fixture-at-a-time experiment with the owned recorded suite plus ambient fleet load; each case is fresh isolated storage, same source/environment, no retries after a failure and no sleeps between cases. /tmp/pair586-load-probe.py preserves per-case stdout/stderr/observations and summary.json under the loaded subdirectory, records elapsed observations and host load, and stops at the first failure or the timebox between cases. The actual owned-suite overlap ends when that suite completes; later samples must not be presented as overlapping it. No production observation or authorization behavior has been changed.
 
+### Early loaded evidence (not an original-cause claim)
+
+All eight diagnostics tests passed22.128s on the committed diagnostics source; the recorded suite also passed the same eight tests27.621s and its unchanged positive observation fixture. At the eight-minute loaded checkpoint,28fresh isolated cases passed. Max wanted401.603ms; max fresh1810.347ms includes existing deliberate slow-wrapper modeling. All wanted identities and initial restoration acknowledgements remained valid.
+
+Loaded case8 retained a real asynchronous invalid exit-zero observation: status invalid, branch review/b, diagnostic “checkout HEAD changed during resolution”, mode callback, timeout2500, elapsed1810.347ms, no active request ID. The fixture passed; this is an expected refusal across an intentional checkout, not the original initial-request mismatch or proof of a deadline expiry. Its full evidence is loaded/run-0008/observations.json under the experiment root. The one-hour experiment and required suite continue; no failed case has been retried and no production fix has been selected.
+
 ## Revisions
 
 ### 2026-10-15 — approved diagnostics-first timebox
