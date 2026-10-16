@@ -520,6 +520,21 @@ remaining uncertainty is stated, never papered over:
   answer `uncertain`, not absent. One that has since exited or exec'd has
   forgotten. A receipt recovered while still in flight is reported
   `Indeterminate`, because no broker job watches it any more.
+- **Not admitted (#618).** A send that never reaches `Admit` leaves a `refused`
+  receipt naming why (a failed ownership check, or "admission timed out" when
+  the checks outrun `AdmissionTimeout`). Admission is the only way into an
+  inbox, so a refusal is definite: the send answers `refused` with the reason,
+  and `--message-status` reads it for 10 minutes. Refusals are capped at 64
+  (oldest evicted), never count against `MaxReceipts`, and a resend with the
+  same ID is a fresh attempt. The CLI waits a second past the admission budget
+  for the broker's verdict.
+- **Liveness behind the authority (#618).** The use-time ownership check runs
+  at every admission and every queued-message retry (`PromoteRetry`, 1 s). Its
+  terminal listing reads `launcher.ListingPoller`: one supervisor loop runs both
+  `zellij list-sessions` forms every second, and a snapshot older than 5 s
+  refuses as "zellij liveness is stale". The thread record, PID file, ready
+  file and session index are still read per check. Recovery and relaunch
+  decisions keep their direct zellij reads.
 - **Retries.** The CLI mints a fresh ID per send and tells the sender not to
   retry an uncertain one. A reused ID that reaches a wrapper that remembers it
   adopts the recorded outcome and is not pasted again.

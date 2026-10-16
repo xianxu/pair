@@ -85,8 +85,8 @@ M1 and M2 reviews.
 
 Durable plan: `workshop/plans/000618-slots-recovered-by-reboot-or-resume-after-a-couch-restart-can-send-but-not-receive-plan.md`.
 
-- [ ] M1 — cached listing for the message authority, refused receipts with their reason, receive state in `--list`
-- [ ] M2 — a delivered peer message confirms a codex binding; the first relaunch waits inside its operation
+- [ ] M1 — polled listing for the message authority, refused receipts with their reason (TL: land these first)
+- [ ] M2 — receive state in `--list`; a delivered peer message confirms a codex binding; the first relaunch waits inside its operation
 
 ## Log
 

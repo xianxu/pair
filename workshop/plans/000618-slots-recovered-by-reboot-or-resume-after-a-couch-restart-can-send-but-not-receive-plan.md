@@ -166,3 +166,9 @@ records go wherever the ledger goes (archive, removal) because they are ledger l
 
 The supervisor's own ~1 core is terminal emulation of the hosted session clients (`ptychild.(*Child).ingest` → vt
 parser); a separate issue.
+
+## Revisions
+
+- 2026-10-16 (pair:2): the TL made this the fleet's top priority and asked to land fix 1 and the refusal receipt
+  first, as their own milestone. M1 is now Tasks 1–3 plus Task 5; Task 4 (the `--list` receive state) moves to M2.
+  Tasks 1–3 are implemented on the branch.
