@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/base64"
 	"io"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -93,6 +95,7 @@ func TestAnExitNoticeSurvivesAnIdleConsole(t *testing.T) {
 }
 
 func TestSwitcherCopiesFullExpiredNoticeRepeatedly(t *testing.T) {
+	t.Setenv("PATH", t.TempDir()) // Exercise fallback without touching the host clipboard.
 	clock := time.Now()
 	full := "Chrome cast pointer link unavailable: broadcast: cloudflared exited while opening: " + strings.Repeat("diagnostic ", 40) + "\nfinal diagnostic tail"
 	f := newFixtureBeforeRun(t, 24, 44, func(c *Console) {
@@ -118,6 +121,85 @@ func TestSwitcherCopiesFullExpiredNoticeRepeatedly(t *testing.T) {
 	}
 	if !strings.Contains(f.screenText(), "Ctrl+Y copy last notice") {
 		t.Fatal("copy action is not discoverable")
+	}
+}
+
+func TestSwitcherCopiesFullNoticeToSystemClipboard(t *testing.T) {
+	toolDir := t.TempDir()
+	clipboard := filepath.Join(toolDir, "clipboard")
+	calls := filepath.Join(toolDir, "calls")
+	tool := "#!/bin/sh\n/bin/cat > \"$TEST_NOTICE_CLIPBOARD\"\nprintf x >> \"$TEST_NOTICE_CALLS\"\n"
+	if err := os.WriteFile(filepath.Join(toolDir, "pbcopy"), []byte(tool), 0700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", toolDir)
+	t.Setenv("TEST_NOTICE_CLIPBOARD", clipboard)
+	t.Setenv("TEST_NOTICE_CALLS", calls)
+	for _, key := range []string{"SSH_CONNECTION", "SSH_CLIENT", "SSH_TTY"} {
+		t.Setenv(key, "")
+	}
+	full := "clipboard diagnostic 界\n" + strings.Repeat("unclipped details ", 40) + "\nfinal tail"
+	f := newFixtureBeforeRun(t, 24, 44, func(c *Console) {
+		c.feed.Push(Notice{Kind: "status", Body: full})
+	})
+	_, _ = f.stdin.Write([]byte{0})
+	waitFor(t, "switcher", func() bool { f.con.mu.Lock(); defer f.con.mu.Unlock(); return f.con.focus.IsPanel() })
+	for count := 1; count <= 2; count++ {
+		f.con.onMenuKey(PanelKey{Kind: KeyCopyNotice})
+		got, err := os.ReadFile(clipboard)
+		if err != nil || string(got) != full {
+			t.Fatalf("notice did not reach system clipboard: got %q, err %v", got, err)
+		}
+		n, err := os.ReadFile(calls)
+		if err != nil || len(n) != count {
+			t.Fatalf("clipboard calls = %q, err %v; want %d", n, err, count)
+		}
+		if got := f.con.menuSnapshot().Notice.Text; got != "Full notice copied to clipboard." {
+			t.Fatalf("copy feedback = %q", got)
+		}
+	}
+	if strings.Contains(f.host.Written(), "\x1b]52;") {
+		t.Fatal("confirmed local copy also emitted an unverifiable OSC 52 request")
+	}
+}
+
+func TestSwitcherNoticeClipboardFallbackIsUnconfirmed(t *testing.T) {
+	for _, reason := range []string{"missing", "failed", "timeout", "remote"} {
+		t.Run(reason, func(t *testing.T) {
+			dir := t.TempDir()
+			t.Setenv("PATH", dir)
+			for _, key := range []string{"SSH_CONNECTION", "SSH_CLIENT", "SSH_TTY"} {
+				t.Setenv(key, "")
+			}
+			marker := filepath.Join(dir, "called")
+			t.Setenv("TEST_NOTICE_TOOL_CALLED", marker)
+			body := "exit 7"
+			if reason == "timeout" {
+				body = "exec /bin/sleep 30"
+			} else if reason == "remote" {
+				t.Setenv("SSH_CONNECTION", "remote")
+				body = `printf unexpected > "$TEST_NOTICE_TOOL_CALLED"`
+			}
+			if reason != "missing" {
+				if err := os.WriteFile(filepath.Join(dir, "pbcopy"), []byte("#!/bin/sh\n"+body+"\n"), 0700); err != nil {
+					t.Fatal(err)
+				}
+			}
+			full := "complete notice\nlast line"
+			f := newFixtureBeforeRun(t, 24, 44, func(c *Console) {
+				c.feed.Push(Notice{Kind: "status", Body: full})
+			})
+			_, _ = f.stdin.Write([]byte{0, 0x19})
+			want := "\x1b]52;c;" + base64.StdEncoding.EncodeToString([]byte(full)) + "\x1b\\"
+			waitFor(t, "unconfirmed terminal fallback", func() bool {
+				return strings.Contains(f.host.Written(), want) && f.con.menuSnapshot().Notice.Text == "Terminal copy requested; delivery is unconfirmed."
+			})
+			if reason == "remote" {
+				if _, err := os.Stat(marker); !os.IsNotExist(err) {
+					t.Fatalf("remote copy invoked local clipboard: %v", err)
+				}
+			}
+		})
 	}
 }
 

@@ -42,9 +42,9 @@ the UI can't tell. Tests only assert the escape bytes were written, never that a
 
 ## Plan
 
-- [ ] Red first: drive Ctrl+Y against a private fake clipboard executable; assert complete multiline retained text and repeat copies, with no OSC 52 on confirmed success.
-- [ ] Reuse clipcmd's command list (ARCH-DRY) via a context-aware local-copy method that distinguishes unavailable tools; preserve existing ClipboardCopy callers. Explicit SSH skips local copying. Bound the notice attempt to one second plus bounded pipe cleanup; failure falls back to Presenter.Copy without retry.
-- [ ] Cover command failure, unavailable tool, cancellation/timeout, remote fallback, empty history and focused-child Ctrl+Y; no tests touch the actual clipboard. Keep copy feedback out of retained history.
+- [x] Red first: drive Ctrl+Y against a private fake clipboard executable; assert complete multiline retained text and repeat copies, with no OSC 52 on confirmed success.
+- [x] Reuse clipcmd's command list (ARCH-DRY) via a context-aware local-copy method that distinguishes unavailable tools; preserve existing ClipboardCopy callers. Explicit SSH skips local copying. Bound the notice attempt to one second plus bounded pipe cleanup; failure falls back to Presenter.Copy without retry.
+- [x] Cover command failure, unavailable tool, cancellation/timeout, remote fallback, empty history and focused-child Ctrl+Y; no tests touch the actual clipboard. Keep copy feedback out of retained history.
 - [ ] Update the existing atlas account with confirmed local versus unverifiable OSC results and the read-only transport/config evidence. Run the recorded full suite and close review; coordinate operator Ctrl+Y acceptance through the hub before landing.
 
 
@@ -57,3 +57,9 @@ the UI can't tell. Tests only assert the escape bytes were written, never that a
 Plan posted to the hub; proceeding under the bounded quick-flow dispatch. The existing method only writes OSC 52. A private executable on PATH supplies the clipboard seam, avoiding a second tool registry or test-only production API (ARCH-PURE/ARCH-DRY). One serial user action creates no durable state or background work; the subprocess is joined before returning. Timeout/failure may be uncertain, so fallback is an explicitly requested second transport, not proof that a local copy never happened; feedback claims confirmed copying only on successful exit.
 
 Read-only investigation found installed Ghostty defaults allow clipboard-write and no local permission override; Zellij documents OSC 52 writes. The affected live chain/loss layer is not proven, so atlas must not blame either without measurement. Live acceptance remains required.
+
+### 2026-10-16 — red/green and transport behavior
+
+The regression TestSwitcherCopiesFullNoticeToSystemClipboard failed on the old implementation: the private clipboard file did not exist after the semantic Ctrl+Y action (0.04s). After the fix the same test passes and asserts exact multiline/Unicode bytes, two actual tool invocations, confirmed feedback and no OSC 52. Focused console success/fallback/empty/child tests pass (1.494s); the complete clipcmd package passes (0.392s), including successful stdin transfer, exit 7, missing tool, legacy optional behavior, each SSH marker, pre-cancellation and deadline termination. Tests use private executables/files and never the operator clipboard. The long-standing fallback regression explicitly hides system tools from PATH so it continues testing OSC 52 rather than modifying the real clipboard.
+
+Targeted race verification also passed: clipcmd (1.495s) and couchtty (2.964s), covering the notice-copy and local-clipboard regressions.

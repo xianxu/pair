@@ -1438,10 +1438,23 @@ diagnostics. Since #151 M3, Console refreshes this projection asynchronously
 from exact hosted PID/start observations and never promotes raw persisted
 lifecycle state into a user-visible `live` or `parked` row.
 
-The switcher’s `Ctrl+Y` copies the latest retained `Feed.Messages()` body through
-`Presenter.Copy` (`console_menu.go`), outside the console lock. Status-row
-clipping and expiry do not remove that diagnostic. Copy feedback stays in
-`MenuNotice`, so repeating the action does not copy its own confirmation.
+The switcher’s `Ctrl+Y` copies the latest retained `Feed.Messages()` body outside
+the console lock (`console_menu.go`, #604). Local consoles first use clipcmd's
+existing `pbcopy` / `wl-copy` / `xclip` tool cascade, with a one-second command
+budget and bounded pipe cleanup. Successful tool exit confirms local copying.
+Explicit SSH environments skip the host clipboard. Missing, failed or timed-out
+tools fall back to `Presenter.Copy` through the serialized parent writer; its
+OSC 52 request has no delivery acknowledgment, so feedback says **unconfirmed**.
+Status-row clipping and expiry do not remove the diagnostic. Copy feedback stays
+in `MenuNotice`, so repeating the action does not copy its own confirmation.
+
+A read-only investigation for #604 found Ghostty's installed default permits
+`clipboard-write` and no local permission override; Zellij documents OSC 52 write
+support. The affected live terminal chain and the layer losing the original
+request were not established. Local clipboard copying bypasses these delivery
+dependencies rather than assuming either terminal blocks OSC 52. See
+[Ghostty's clipboard permission](https://ghostty.org/docs/config/reference#clipboard-write)
+and [Zellij's clipboard support](https://zellij.dev/documentation/compatibility.html).
 
 #151 M2 added the pure core and M3 wired it into Console. One
 immutable-by-copy `MenuState` stack owns the root filter/selection plus exact
