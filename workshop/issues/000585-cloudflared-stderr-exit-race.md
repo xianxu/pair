@@ -96,6 +96,10 @@ Fetched main0169e962f95a932fd9884b20b2d5dd07b73022f1 carrying landed #584. Corre
 
 Integrated source7e6b8f71a88c44af1851a5961b819341274ba0d3 rebuilt successfully with make -k -B build. Required recorded suitea5246d3a2a70da34b43ef68ac88321c5 acquired quota after8s and is running from its detached checkout. Only issue Log documentation changed since that source. First close remains REWORK/working with BR-1 open until the next boundary reviewer verifies its correction; no SHIP, close, or landing is being claimed. Source and tests for that finding are committed, both negative controls and subsequent targeted/race passes are recorded above, and the remaining work is exact-head suite → close review → PR/SHIP/land → report to hub before #586. Deferred #579 live sample still waits for tomorrow’s hub-provided actual wrapper PIDs/build.
 
+### Corrected integrated suite PASS
+
+Required recorded suitea5246d3a2a70da34b43ef68ac88321c5 on7e6b8f71a88c44af1851a5961b819341274ba0d3 passed exit0 in10m1s after8s quota wait. Log /Users/xianxu/workspace/pair/.git/sdlc/local-checks/7e6b8f71a88c44af1851a5961b819341274ba0d3/suite.log; SHA256 dd3865d4c268d484050858b4ddc6313250cb2f00e753c9a1737d5430eef5495b. Broadcast35.160s, all editor restore fixtures and remaining Go packages passed. This run includes both the BR-1 group-cleanup correction and main #584 integration. Only issue Log documentation changed since. Re-enter normal close because round1 was REWORK (not a finalized close); require the reviewer to dispose BR-1 before SHIP/landing. No bypasses, retries of failed unchanged suites, assertion relaxation, sleeps or larger time budgets.
+
 ## Revisions
 
 ### 2026-10-15 — hypothesis confirmed as a production ownership violation
