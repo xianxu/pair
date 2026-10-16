@@ -1973,3 +1973,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #585 BR-1: a reaped process-group leader does not prove its descendants have exited. Preserve owned-group termination across a pending stderr drain; reader interruption alone can hide a surviving child. Regression fixtures must include a real descendant retaining the FD and require both descendant death and joined drain. Reuse the test-budget event helper instead of adding another fixed scheduling guard.
 
 - #593: A cleanup scan budget must count transient artifacts, not retained final objects. Isolate staging before applying bounds, and test continued writes beyond the listing cap. Whenever a writer gains numbered shards, test that its source inventory includes actual rolled names while excluding locks/staging.
+
+- #593 BR-3: Inventory completeness is per supported producer/backend, not per logical kind. Sweep global, repo-scoped, slot-local, legacy and sharded layouts together; assert coverage with producer-generated paths before declaring the coverage family fixed.

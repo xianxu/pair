@@ -6,7 +6,8 @@
       "owner": "pair",
       "root_token": "pair-data",
       "patterns": [
-        "repos/*/wrap-events*"
+        "wrap-events-*.jsonl",
+        "repos/*/wrap-events-*.jsonl"
       ],
       "mode": "on-expiry",
       "retention": "Existing Pair terminal retention",
@@ -20,7 +21,8 @@
       "owner": "pair",
       "root_token": "pair-data",
       "patterns": [
-        "repos/*/parked*"
+        "parked-*",
+        "repos/*/parked-*"
       ],
       "mode": "on-expiry",
       "retention": "Existing parked-session retention",
@@ -35,7 +37,14 @@
       "owner": "pair",
       "root_token": "pair-data",
       "patterns": [
-        "repos/*/scrollback*"
+        "scrollback-*.raw",
+        "scrollback-*.events.jsonl",
+        "scrollback-*.ansi",
+        "scrollback-*.viewport",
+        "repos/*/scrollback-*.raw",
+        "repos/*/scrollback-*.events.jsonl",
+        "repos/*/scrollback-*.ansi",
+        "repos/*/scrollback-*.viewport"
       ],
       "mode": "on-expiry",
       "retention": "Existing Pair scrollback retention",
@@ -49,6 +58,7 @@
       "owner": "couch",
       "root_token": "pair-data",
       "patterns": [
+        "session-names.jsonl",
         "repos/*/session-names.jsonl"
       ],
       "mode": "continuous",
@@ -63,6 +73,7 @@
       "owner": "couch",
       "root_token": "pair-data",
       "patterns": [
+        "ledger-*.jsonl",
         "repos/*/ledger-*.jsonl"
       ],
       "mode": "continuous",
@@ -75,20 +86,40 @@
     {
       "kind": "couch-threads",
       "owner": "couch",
-      "root_token": "pair-data",
+      "root_token": "couch-store",
       "patterns": [
-        "couch/threadstore/*"
+        "threadstore/manifest.json",
+        "threadstore/journal.json",
+        "threadstore/records/*/*.json",
+        "threadstore/archive/*/*.json",
+        "threadstore/archive-grace/*/*.json",
+        "threadstore/path-preferences/*.json"
       ],
       "mode": "continuous",
       "retention": "Existing Couch thread retention",
       "snapshot_required": false
     },
     {
+      "kind": "couch-slot-threads",
+      "owner": "couch",
+      "root_token": "slot-store",
+      "patterns": [
+        "thread.json",
+        "preferences.json",
+        "journal.json",
+        "archive/*/*.json",
+        "archive-grace/*/*.json"
+      ],
+      "mode": "continuous",
+      "retention": "Existing Couch thread retention; one explicit slot .couch store",
+      "snapshot_required": false
+    },
+    {
       "kind": "webcast-recordings",
       "owner": "pair",
-      "root_token": "pair-data",
+      "root_token": "couch-store",
       "patterns": [
-        "couch/webcast/recordings/*"
+        "webcast/recordings/*"
       ],
       "mode": "on-expiry",
       "retention": "Existing webcast retention",
@@ -99,7 +130,8 @@
       "owner": "pair",
       "root_token": "pair-data",
       "patterns": [
-        "repos/*/adapt*"
+        "adapt-*.jsonl",
+        "repos/*/adapt-*.jsonl"
       ],
       "mode": "on-expiry",
       "retention": "Existing diagnostic retention",
@@ -113,7 +145,8 @@
       "owner": "pair",
       "root_token": "pair-data",
       "patterns": [
-        "repos/*/fullscreen*"
+        "fullscreen-diagnostics-*.jsonl",
+        "repos/*/fullscreen-diagnostics-*.jsonl"
       ],
       "mode": "on-expiry",
       "retention": "Existing diagnostic retention",

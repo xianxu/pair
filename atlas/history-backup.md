@@ -17,7 +17,8 @@ pair archive create --request /private/tmp/pair-archive-request.json
 Help and inventory perform no backup writes. Inventory prints the embedded
 [`sources.json`](../cmd/internal/historyarchive/sources.json): source kinds,
 root tokens, indicative file patterns, retention owners, snapshot requirements,
-and sink routing policy. It does not scan those roots. Create reads a regular
+and sink routing policy. Patterns select matching files or directory subtrees; future collectors must
+recurse into selected directories. It does not scan those roots. Create reads a regular
 JSON request file; it refuses symlinks at the final component, nonregular files,
 unknown fields, trailing JSON and extra CLI arguments. Files are explicit paths
 relative to one source root, not glob expressions or an instruction to discover
@@ -60,12 +61,18 @@ When `source.root` is omitted, inventory resolves it using these defaults:
 | `claude-home` | `CLAUDE_CONFIG_DIR`, then `~/.claude` |
 | `codex-home` | `CODEX_HOME`, then `~/.codex` |
 | `qoder-home` | `QODER_HOME`, then `~/.qoder` |
+| `couch-store` | `COUCH_STORE_DIR`, then `XDG_DATA_HOME/pair/couch`, then `~/.local/share/pair/couch` |
+| `slot-store` | Explicit absolute path to one slot’s `.couch` store required |
 | `ops-worktree`, `git-common` | Explicit absolute root required |
 
 The inventory covers Pair terminal events, parked captures, scrollback and
 diagnostics; Couch session bindings, ledgers and threads; webcast recordings;
 Claude, Codex and Qoder transcripts; ops documents; SDLC runtime files; and the
-archive catalog. `codex-database` is declared but refuses manual selection because
+archive catalog. Pair declarations cover both legacy root-level and repo-scoped
+artifacts. Couch threads cover the global store and the separately declared
+`couch-slot-threads` backend, whose explicit root is a slot’s `.couch` directory.
+Transient locks/control files are excluded from declared artifact globs.
+`codex-database` is declared but refuses manual selection because
 it requires a snapshot collector. Inventory patterns describe policy; this CLI
 uses the supplied selection. All currently admitted kinds use public-key
 encryption. A public key is enough to create backups: no private key operation,

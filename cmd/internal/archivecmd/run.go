@@ -65,7 +65,7 @@ func RunContext(ctx context.Context, args []string, stdout, stderr io.Writer, cr
 	}
 	home, _ := os.UserHomeDir()
 	env := map[string]string{}
-	for _, key := range []string{"PAIR_DATA_DIR", "XDG_DATA_HOME", "CLAUDE_CONFIG_DIR", "CODEX_HOME", "QODER_HOME"} {
+	for _, key := range []string{"PAIR_DATA_DIR", "XDG_DATA_HOME", "CLAUDE_CONFIG_DIR", "CODEX_HOME", "QODER_HOME", "COUCH_STORE_DIR"} {
 		env[key] = os.Getenv(key)
 	}
 	request, err := historyarchive.DecodeRequestWithRoots(raw, home, env)

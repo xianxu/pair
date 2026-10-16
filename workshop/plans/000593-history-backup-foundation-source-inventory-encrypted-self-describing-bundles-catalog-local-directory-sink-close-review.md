@@ -108,3 +108,98 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-15T21:02:01-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 593 — history-backup foundation: source inventory, encrypted self-describing bundles, catalog, local-directory sink |
+| repo | pair |
+| issue file | workshop/issues/000593-history-backup-foundation-source-inventory-encrypted-self-describing-bundles-catalog-local-directory-sink.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | a1beae74bf3c0cc2a71a2884861dadcdfc13c653..1ba3df80dac53d57725156e1b34c632d127757ef |
+| command | sdlc close --issue 593 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-15T21:02:01-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+The encryption, publication, verification, and retry paths passed focused tests, race checks, and real GPG/zstd conformance. Both prior findings are addressed and their regression tests fail with the fixes removed. One additional inventory omission needs correction before close: the declared Couch sources omit slot-local thread storage.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Staging cleanup now scans the reserved .archive-staging directory. TestLocalSinkPutDoesNotScanRetainedObjects passes with 10,001 retained entries and fails with the previous sink.go; stale-stage cleanup and active-writer protection tests also pass.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      The inventory includes six-digit catalog shards. TestCatalogInventoryIncludesEveryRolledShard exercises actual rollover and passes; restoring the previous sources.json makes it fail on both produced numbered shards.
+findings:
+  - id: new
+    severity: Important
+    kind: defect
+    family: inventory-must-cover-produced-artifacts
+    title: |
+      Couch source inventory omits slot-local thread storage
+    detail: |
+      cmd/internal/historyarchive/sources.json:76-84 declares couch-threads only under pair-data/couch/threadstore. Production newSlotThreadStore uses SlotLayout.Store(), which resolves to the slot environment's .couch directory, and writes thread.json there (threadstore_layout.go:20-21, slotlayout.go:47, threadstore.go:145-149). That supported storage location has no source declaration. ARCH-PURPOSE: this is the 2nd finding in family inventory-must-cover-produced-artifacts. Earlier rounds fixed instances. Do NOT fix only this instance: state the rule covering every supported producer/backend location, enumerate and sweep the inventory against those locations, and add regression coverage using production-generated paths, including global and slot-local Couch stores.
+```
+
+1. **Strengths**
+   - Descriptor-relative filesystem access rejects symlink components and unsafe paths.
+   - Publication requires read-back checks and durability barriers before catalog success.
+   - Stateful tests exercise corruption, cancellation, partial publication, and retry adoption.
+   - README and atlas document the new commands, format, limits, recovery ownership, and lifecycle.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** The inventory omission above. Add declarations and root resolution for supported Couch storage backends, backed by producer-path coverage.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+   - Package tests passed for historyarchive, archivetest, archivecmd, dispatcher, pair-go, and artifactpath.
+   - Race tests passed for historyarchive, archivetest, and archivecmd.
+   - Isolated live encryption/decryption recovered all three fixtures and rejected corrupted ciphertext.
+   - Independently checked the preserved real-source smoke: ciphertext checksum, label/catalog agreement, and unchanged source hash.
+   - Both prior-finding negative controls failed as expected in a disposable checkout, which was removed.
+
+6. **Architectural notes**
+   - **ARCH-DRY — pass:** shared format, validation, and filesystem helpers.
+   - **ARCH-PURE — pass:** declared pure entities have tests without IO; adapters own filesystem/process work.
+   - **ARCH-PURPOSE — flag:** inventory coverage remains incomplete.
+   - **ARCH-MOCK — pass:** stateful doubles share production seams; real codec conformance passed.
+   - **ARCH-CONSTRAINTS — pass:** explicit bounds and streaming behavior; retained objects no longer exhaust cleanup capacity.
+   - **ARCH-SECURE — pass:** strict metadata validation, confined file access, isolated test keys.
+   - **ARCH-ORDER — pass:** publication decisions consume explicit evidence; cancellation joins work and retry preserves partial publication.
+   - **ARCH-FUNERAL — pass:** staging cleanup ownership and retained-artifact costs/lifetimes are documented.
+
+7. **Plan revision recommendation**
+
+   Add a `## Revisions` entry defining inventory completeness across every supported storage backend, enumerating the producer locations checked, and naming the regression coverage for global and slot-local Couch storage.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"dbae6e99-ab7d-4a2b-814f-4d3300a948f6","repository":"github.com/xianxu/pair","issue_id":"000593","recipe":"milestone-review","round":2,"attempt":1,"agent":"codex","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/741a771560fad050","reviewed_head":"1ba3df80dac53d57725156e1b34c632d127757ef","slot":"pair:1","requested_at":"2026-10-16T03:58:32.723043Z"},"phase":"finished","pid":67180,"started_at":"2026-10-16T03:58:32.926085Z","finished_at":"2026-10-16T04:01:30.121329Z","session_id":"01a142dc-8f13-7a23-b154-6c30a68e4021","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.918853667s
+head: "1ba3df80dac53d57725156e1b34c632d127757ef"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

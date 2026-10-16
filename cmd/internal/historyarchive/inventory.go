@@ -20,6 +20,11 @@ type SourceInventory struct {
 }
 
 // SourceRule describes selection policy; it does not implement a scanner.
+// Patterns are slash-separated path.Match selectors relative to RootToken.
+// A match selects that file, or the regular-file descendants of that directory.
+// Collectors must still enforce their own safe traversal and quiescence rules.
+// Every supported producer namespace/backend needs a declaration: scoped and
+// legacy Pair paths, configured global Couch stores, and explicit slot stores.
 // pair:m5-concept pure
 type SourceRule struct {
 	Kind             string   `json:"kind"`
@@ -98,7 +103,7 @@ func validKindName(k string) bool {
 }
 func validRootToken(k string) bool {
 	switch k {
-	case "pair-data", "claude-home", "codex-home", "qoder-home", "ops-worktree", "git-common":
+	case "pair-data", "claude-home", "codex-home", "qoder-home", "ops-worktree", "git-common", "couch-store", "slot-store":
 		return true
 	}
 	return false
@@ -147,6 +152,19 @@ func (i SourceInventory) ResolveRoot(kind, override, home string, env map[string
 					root = filepath.Join(base, "pair")
 				}
 			}
+		case "couch-store":
+			root = env["COUCH_STORE_DIR"]
+			if root == "" {
+				base := env["XDG_DATA_HOME"]
+				if base == "" && home != "" {
+					base = filepath.Join(home, ".local", "share")
+				}
+				if base != "" {
+					root = filepath.Join(base, "pair", "couch")
+				}
+			}
+		// slot-store intentionally has no environment fallback: COUCH_STORE_DIR
+		// identifies the global namespace, not the numbered slot backend.
 		case "claude-home":
 			root = env["CLAUDE_CONFIG_DIR"]
 			if root == "" && home != "" {

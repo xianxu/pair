@@ -75,3 +75,28 @@ func TestInventoryAgeBoundariesAndRoots(t *testing.T) {
 		t.Fatal("missing override accepted")
 	}
 }
+
+func TestInventoryCouchBackendRoots(t *testing.T) {
+	inv, err := Defaults()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, kind := range []string{"couch-threads", "webcast-recordings"} {
+		for _, tc := range []struct {
+			env  map[string]string
+			want string
+		}{{nil, "/home/me/.local/share/pair/couch"}, {map[string]string{"COUCH_STORE_DIR": "/custom/store"}, "/custom/store"}, {map[string]string{"XDG_DATA_HOME": "/data"}, "/data/pair/couch"}} {
+			root, err := inv.ResolveRoot(kind, "", "/home/me", tc.env)
+			if err != nil || root != tc.want {
+				t.Errorf("%s root %q err %v want %q", kind, root, err, tc.want)
+			}
+		}
+	}
+	if _, err := inv.ResolveRoot("couch-slot-threads", "", "/home/me", map[string]string{"COUCH_STORE_DIR": "/global"}); err == nil {
+		t.Fatal("slot root guessed from global store")
+	}
+	root, err := inv.ResolveRoot("couch-slot-threads", "/fleet/worktree/repo-slot1/.couch", "", nil)
+	if err != nil || root != "/fleet/worktree/repo-slot1/.couch" {
+		t.Fatalf("slot root %q %v", root, err)
+	}
+}

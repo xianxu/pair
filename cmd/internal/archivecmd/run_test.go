@@ -155,3 +155,32 @@ func TestArchiveCLIOutputFailure(t *testing.T) {
 		}
 	}
 }
+
+func TestArchiveCLIUsesConfiguredCouchStore(t *testing.T) {
+	t.Setenv("COUCH_STORE_DIR", "/configured/couch")
+	p := requestFile(t, "")
+	raw, err := os.ReadFile(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var req historyarchive.ArchiveRequest
+	if err := json.Unmarshal(raw, &req); err != nil {
+		t.Fatal(err)
+	}
+	req.Kind = "couch-threads"
+	raw, err = json.Marshal(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(p, raw, 0600); err != nil {
+		t.Fatal(err)
+	}
+	s := &archiveStore{}
+	var out, stderr bytes.Buffer
+	if code := RunContext(context.Background(), []string{"create", "--request", p}, &out, &stderr, s.create); code != 0 {
+		t.Fatalf("code=%d %s", code, &stderr)
+	}
+	if got := s.records["/catalog"].Manifest.Source.Root; got != "/configured/couch" {
+		t.Fatalf("root=%q", got)
+	}
+}

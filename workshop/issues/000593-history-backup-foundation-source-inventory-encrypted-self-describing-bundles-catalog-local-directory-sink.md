@@ -74,6 +74,12 @@ Built CLI live smoke: one selected real ops QA document (1,150 bytes) encrypted 
 
 REWORK on BR-1 retained-storage-must-not-exhaust-maintenance and BR-2 inventory-must-cover-produced-artifacts. Confirmed both findings; appended correction Revision and prevention lesson. The old-head recorded suite was canceled while still queued (exit130, no suite ran) to avoid spending the machine slot on superseded code. BR-2 regression failed on both actual rolled shards, then passed with explicit numeric shard pattern; lock/staging negative cases remain excluded. BR-1 regression failed with10,001 retained final files, then passed with isolated staging; focused LocalSink/SafeFS race run passed6.199s. Review itself independently passed package/race/classification/live conformance and verified the preserved real-source smoke artifact.
 
+### 2026-10-15 — boundary review round 2
+
+Reviewer disposed BR-1/BR-2 with independently failing negative controls, and repeated package/race/live smoke verification. New BR-3 exposed a second instance of inventory-must-cover-produced-artifacts: slot-local Couch stores were omitted. Close remains working despite FIX-THEN-SHIP recommendation because the ledger blocks on BR-3. Sweep supported producer/backend locations and test producer-generated paths before another close. Canceled only this slot's second queued suite (exit130, still no suite executed) because the inventory correction changes the tested head. Built corrected publication path and isolated full codec round trip passed5.704s before this inventory revision.
+
+BR-3 producer sweep: artifactpath Paths covers WrapEvents, Parked/parked scrollback raw-events-metadata, Scrollback raw-events-ANSI-viewport, SessionBindings, Ledger, AdaptLog and FullscreenDiagnostics in both legacy and scoped roots. Public ThreadStore Create/Archive and EnrollSlotRepository produce actual global and slot-local records, archive, archive-grace and manifest paths; declarations also cover preferences/journal. DirWriter produces webcast asset/stream files under configured Couch storage. Deliberate exclusions: openlocks/fullscreen control files, store locks/publication staging, saved-work checkout trees, current registry/descriptions, Chrome profiles and origin-privacy configuration. Patterns denote files or directory subtrees; no scanner. Tests first failed on missing legacy/global/local coverage, wrong global root and overbroad control inclusion, then passed. Inventory/catalog race pass2.764s. CLI COUCH_STORE_DIR propagation also failed first (used default home instead of configured store) then passed after adding the input to the CLI adapter.
+
 ## Revisions
 
 ### 2026-10-15 — proposed foundation implementation scope
@@ -91,6 +97,10 @@ Round1 requested durability reconfirmation on retry (PQ-1) and a named function/
 ### 2026-10-15 — boundary review growth corrections (BR-1/BR-2)
 
 BR-1 identified that counting retained final objects against a maintenance scan budget would stop publication after 5,000 bundles per kind/month. Keep the stable parent lock, but move all temporary sink bytes into its reserved .archive-staging subdirectory and enumerate only that transient namespace. Retained objects never consume cleanup capacity; bounded List remains an explicit query bound. Cover more than10,000 retained entries plus stale-stage recovery and concurrent-writer protection. BR-2 identified missing catalog rollover files in the source declaration: declare the base JSONL and six-digit numbered shards, excluding locks/staging. Test against actual automatically rolled shard names (ARCH-PURPOSE/ARCH-FUNERAL), not just hand-written expected strings.
+
+### 2026-10-15 — producer/backend inventory coverage (BR-3)
+
+Inventory coverage is defined over every supported location for each declared producer, not just one typical path. Sweep artifactpath root-level legacy and repo-scoped Pair layouts; Couch global and slot-local ThreadStore layouts; COUCH_STORE_DIR/default Couch roots and webcast recordings; and catalog base/numbered shard outputs. Add explicit couch-slot-threads using a caller-supplied slot-store root, honor COUCH_STORE_DIR for global threads/webcast, include legacy Pair paths, and narrow globs that accidentally included transient control/lock files. Patterns select matching files or directory subtrees; this is a declaration contract, not a new collector/scanner. Coverage tests use production-generated artifact and Couch paths; lock/staging/control exclusions remain explicit. Agent transcripts, ops and SDLC directory selectors retain their declared root-relative subtree semantics. This corrects the approved inventory surface without adding scheduling, discovery or deletion.
 
 ## Estimate
 
