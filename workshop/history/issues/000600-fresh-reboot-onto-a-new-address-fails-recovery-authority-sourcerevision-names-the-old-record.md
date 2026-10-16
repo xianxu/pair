@@ -1,6 +1,6 @@
 ---
 id: 000600
-status: codecomplete
+status: done
 deps: []
 github_issue:
 target: slot-recovery
@@ -8,7 +8,7 @@ created: 2026-10-15
 updated: 2026-10-15
 estimate_hours:
 severity: critical
-card_mirror: 'cd37bd12cea80bb0cc906931d25faa08472af222' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'a3c329961420b9d57b5fc3757a0e9cec2dffccc2' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-15T22:46:02-07:00
 claimant:
     operator: Xian Xu
