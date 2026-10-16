@@ -172,7 +172,8 @@
       "root_token": "codex-home",
       "patterns": [
         "sessions/*",
-        "archived_sessions/*"
+        "archived_sessions/*",
+        "history.jsonl"
       ],
       "mode": "continuous",
       "retention": "Agent-managed retention",
@@ -208,7 +209,7 @@
       "patterns": [
         "qa/*",
         "assets/*",
-        "*"
+        "tl-status-*.side"
       ],
       "mode": "continuous",
       "retention": "Operator-managed local documents",

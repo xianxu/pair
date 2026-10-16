@@ -60,7 +60,10 @@ func (m Manifest) Keys() (string, string, error) {
 	return base + ".tar.zst.gpg", base + ".json", nil
 }
 func PlanBundles(r ArchiveRequest, files []FileEntry) ([]Manifest, error) {
-	if err := ValidateRequest(r); err != nil {
+	return planBundles(r, files, false)
+}
+func planBundles(r ArchiveRequest, files []FileEntry, collected bool) ([]Manifest, error) {
+	if err := validateRequest(r, collected); err != nil {
 		return nil, err
 	}
 	if len(files) != len(r.Files) {

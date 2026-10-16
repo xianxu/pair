@@ -26,8 +26,14 @@ type Archiver struct {
 	Now   func() time.Time
 }
 
-func (a Archiver) Create(ctx context.Context, req ArchiveRequest) (records []CatalogRecord, err error) {
-	if err = ValidateRequest(req); err != nil {
+func (a Archiver) Create(ctx context.Context, req ArchiveRequest) ([]CatalogRecord, error) {
+	return a.create(ctx, req, false)
+}
+
+// create is Create; collected admits a snapshot kind whose files the
+// continuous pass snapshotted itself.
+func (a Archiver) create(ctx context.Context, req ArchiveRequest, collected bool) (records []CatalogRecord, err error) {
+	if err = validateRequest(req, collected); err != nil {
 		return nil, fmt.Errorf("archive request: %w; correct request", err)
 	}
 	if a.Codec == nil {
@@ -56,7 +62,7 @@ func (a Archiver) Create(ctx context.Context, req ArchiveRequest) (records []Cat
 	if err != nil {
 		return nil, fmt.Errorf("archive source: %w; retry with stable regular files", err)
 	}
-	manifests, err := PlanBundles(req, described)
+	manifests, err := planBundles(req, described, collected)
 	if err != nil {
 		return nil, err
 	}

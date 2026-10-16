@@ -486,6 +486,10 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch, configur
 	service.workers.Add(2)
 	go func() { defer service.workers.Done(); inventory.run(service.lifetime) }()
 	go func() { defer service.workers.Done(); sampler.run(service.lifetime) }()
+	// History backup (#592): a daily continuous archive pass when configured.
+	archive := newArchiveScheduler(artifacts.PairLifecycleDataDir(), func(text string) { console.Notify(couchtty.Notice{Kind: "status", Body: text}) })
+	service.workers.Add(1)
+	go func() { defer service.workers.Done(); archive.run(service.lifetime, archiveCheckEvery) }()
 	return service, nil
 }
 
