@@ -168,6 +168,10 @@ Round3 addressed BR-3 and reproduced one native fixture refusal after successful
 
 Controlled wrapper tests independently enumerate sequence or screen changes before admission and before dispatch, assert OutcomeRefused/Step0/zero writer bytes, and prove later repaint does not replay. Fixture regression and no-uncertain-replay tests plus those four production interleavings PASS -race count10 in3.918s. Exact make test-agent-drive-live GREEN42.876s, both suites/all five cases executed. Three additional actual Run/socket virtual-suite repetitions are running as a load-ordering check; no passing repetition claim yet. Final integrated suite remains due at merge.
 
+### 2026-10-16 — close cleared; integrated landing next
+
+Actual Run/socket native virtual conformance count3 PASS74.287s, covering three scratch plus three Pair virtual model/effort/session selections and explicit dirty recovery. Round4 SHIP with no new findings and all BR-1–BR-4 addressed; reviewer independently mutation-tested qualification and dispatch-refusal handling and ran exact native target PASS38.050s. Codecomplete published by sdlc close, bound to evidence2ee17868c9f3, measured actual16.95h (build16.63/converge0.32). The TL-owned post-landing fleet smoke remains outstanding. Proceed through sdlc merge --yes for fresh-main integration, required recorded suite and CI; no bypass.
+
 ## Revisions
 
 ### 2026-10-15 — synchronize conformance across qualification changes (BR-4)
