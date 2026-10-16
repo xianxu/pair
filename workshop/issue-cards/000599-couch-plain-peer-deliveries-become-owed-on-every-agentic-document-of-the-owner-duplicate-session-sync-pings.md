@@ -1,6 +1,6 @@
 ---
 id: 000599
-status: working
+status: codecomplete
 created: 2026-10-15
 updated: 2026-10-16
 estimate_hours:
@@ -13,6 +13,14 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
+actual_hours: 0.08
+tracker:
+    version: 1
+    completion:
+        token: close-0b4ea77c31b6
+        repository: github.com/xianxu/pair
+        reviewed_head: 876f0f80fe55981b58d7fb82a9995e6413cc19a5
+        evidence_commit: 610d1b68732feff121320c400bcd56507ffa1b8b
 ---
 
 # Couch: plain peer deliveries become owed on every agentic document of the owner (duplicate session-sync pings)
