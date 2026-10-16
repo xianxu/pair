@@ -47,9 +47,9 @@ the new slot's wrapper may be a different build. So two problems:
 
 ## Plan
 
-- [ ] Omit unset AcceptedAt; prove new wrapper replies decode with the old schema.
-- [ ] Name wrapper reply incompatibility and broker release honestly; never retry commit or hide possible effects.
-- [ ] Run focused regressions, build, required recorded suite and SHIP review; land and report.
+- [x] Omit unset AcceptedAt; prove new wrapper replies decode with the old schema.
+- [x] Name wrapper reply incompatibility and broker release honestly; never retry commit or hide possible effects.
+- [x] Run focused regressions, build, required recorded suite and SHIP review; land and report.
 
 ## Log
 
@@ -58,6 +58,8 @@ the new slot's wrapper may be a different build. So two problems:
 - Read-only cause confirmed: running supervisor e1311121 (pid 40081, 14:57) predates AcceptedAt; wrapper 10627 was started 17:12 from a newer build. All five exact IDs (7d561939-1070-4287-89e9-b939084afe25, 115b6364-6b4a-4d62-91f2-f6837896fac3, 12c756aa-4756-4632-a14a-ae533e48018a, ed7175bb-c9dd-4bf9-8ce9-d829fb2dfed4, b408e185-aa67-46b5-82f5-f152168ae991) are retained in the wrapper as cancelled with zero AcceptedAt and the misleading operator-input reason. New wrapper commit replies emit that unknown zero time; supervisor decode fails, then its release marks interrupted. Reported before changes, receipt 64c033f7. No live input or lifecycle effects.
 - TL approved the narrow plan (b5ab4618). Literal old-schema wrapper commit/status tests went RED on unknown AcceptedAt; protocol-error and broker-release tests also went RED on missing diagnostics/operator blame. Minimal fixes pass focused race tests (couchmessage 2.221s, wrapcmd 1.447s); full affected packages passed (6.814s, 53.602s), and make build passed. Status scans also preserve the exact decode diagnostic instead of a generic unanswered count. No commit retry; uncertain effects remain indeterminate.
 - Reverse direction needs a decision before landing: new broker assigns nonzero AcceptedAt and old wrappers strictly decode requests without that field. Proposed omitting the broker-only timestamp from wrapper commit requests while keeping broker evidence; sent hub receipt 9b5ba083. Current patch only omits zero values as already approved. No unapproved reverse-wire change.
+
+- 2026-10-15: Final required recorded suite PASS at d1a8bbbcef7d659d59eb45927d0d8164f62fa134, exit 0 in 9m37s, log SHA-256 a03eb6ac7b6b; core 323.211s, couchmessage 7.301s and couchcmd 53.006s passed. Final targeted race matrix passed (couchmessage 1.374s, wrapcmd 2.077s), including broker-to-wrapper CLI receipt timestamp preservation. Final make build PASS; all CI checks including real live conformance PASS. Log /Users/xianxu/workspace/pair/.git/sdlc/local-checks/d1a8bbbcef7d659d59eb45927d0d8164f62fa134/suite.log. Production slot acceptance remains the operator's combined restart, as directed; it does not gate this tonight landing. No gate waivers or production slot effects. Close review follows.
 
 ## Revisions
 
