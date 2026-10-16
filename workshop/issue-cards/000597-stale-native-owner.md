@@ -1,6 +1,6 @@
 ---
 id: 000597
-status: working
+status: codecomplete
 created: 2026-10-15
 updated: 2026-10-15
 estimate_hours:
@@ -14,8 +14,14 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
+actual_hours: 1.75
 tracker:
     version: 1
+    completion:
+        token: close-6e6e7c51eba5
+        repository: github.com/xianxu/pair
+        reviewed_head: 7daa8f2bf37dfd1eaf52831b5b4718d9c4b588b2
+        evidence_commit: d51982bd1e753d38f832d12d5bd1512a98ae3723
 ---
 
 # Reject stale legacy native owners
