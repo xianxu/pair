@@ -1,12 +1,21 @@
 ---
 id: 000593
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-15
 updated: 2026-10-15
-estimate_hours:
-card_mirror: 'f215de8fdb01d0fe0eec871074b6d4f912e0788d' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 7.2025
+card_mirror: '555249fd1a3404ab20e2b7df3c7053b0a1e50d63' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-15T20:15:22-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:1
+    worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
+    repository: github.com/xianxu/pair
+flow: {kind: full, provenance: operator}
 ---
 
 # history-backup foundation: source inventory, encrypted self-describing bundles, catalog, local-directory sink
@@ -65,3 +74,27 @@ TL receipt4042bd3a approves dc721f5f with two superseding changes: under the cat
 ### 2026-10-15 — plan-quality refinements
 
 Round1 requested durability reconfirmation on retry (PQ-1) and a named function/test-strategy mapping (PQ-2). Added unconditional file/directory sync barriers to read-back/reuse/adoption and catalog reopen/repair/rollover, with repeated-sync-failure regressions. This adds no persisted machinery. The plan's function table consolidates existing test cases into production seams and independent oracles.
+
+## Estimate
+
+Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only; calibration is marked stale by sdlc, so provisional.
+
+Rows in order: issue/spec; inventory/format; selected-file reader; local sink; catalog; codec integration; coordinator; CLI/dispatcher; docs; one whole-issue review; real GPG/zstd discovery plus live fixture. Greenfield design selects1h base ×0.2 thorough-spec discount; file reader also halves design for standard archive/tar and existing safe-open patterns. Codec API design2h ×0.2. Implementation values are v2 high-range ×0.4; novel-but-bounded encryption/pipeline work uses familiarity1.5. Issue/spec0.8h counts this issue’s design work; no second Method B charge. Thorough plan buffer15%; queues/idle waits excluded, actual executing suites/reviews included in qualification. No new library needed: standard tar/SHA/JSON, installed codecs, durablefile/commitoutcome.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.5
+item: issue-spec design=0.8 impl=0.08
+item: greenfield-go-module design=0.2 impl=0.32
+item: greenfield-go-module design=0.1 impl=0.32
+item: greenfield-go-module design=0.2 impl=0.32
+item: greenfield-go-module design=0.2 impl=0.32
+item: api-integration design=0.4 impl=0.6
+item: greenfield-go-module design=0.2 impl=0.32
+item: skill-or-dispatcher design=0.1 impl=0.2
+item: atlas-docs design=0.05 impl=0.08
+item: milestone-review design=0.1 impl=0.2
+item: real-api-discovery design=0 impl=0.24
+design-buffer: 0.15
+total: 7.2025
+```
