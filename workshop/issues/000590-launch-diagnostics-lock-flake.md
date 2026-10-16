@@ -1,12 +1,20 @@
 ---
 id: 000590
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-15
-updated: 2026-10-15
+updated: 2026-10-16
 estimate_hours:
-card_mirror: '7f50530700a1eacce487bc39f6a0e2916229fd8d' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '19b0be00c830c136480301e9bb1354542f092579' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-16T01:10:48-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:3
+    worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Diagnose concurrent launch diagnostics lock timeout under load
@@ -17,17 +25,40 @@ card_mirror: '7f50530700a1eacce487bc39f6a0e2916229fd8d' # card fields mirrored f
 
 ## Spec
 
-Find and reproduce why the concurrent diagnostics writer exceeds its bounded lock budget under load. Save currently retries nonblocking flock with 10ms pauses against a one-second budget, then performs the read/upsert/atomic write while holding the lease. Possible contributors include aggregate serialized IO/scheduling and inherited flock retention during another fork; neither has been measured here. Distinguish actual writer contention, scheduling, and inherited lease retention before choosing a fix. Do not merely enlarge the timeout or weaken the retention assertion.
+The production one-second admission timer conflates scheduling and serialized durable publication with a failed lock owner. Seventeen valid writers already consume about half that budget in measured critical sections. Make admission wait on the actual lease with a caller-supplied context, rather than a store-owned wall-clock guess. Retain safe open, exclusive flock, atomic publication and exact retention.
+
+Diagnostics must not postpone failed-helper cleanup: snapshot immutable evidence in memory, perform cleanup, enrich the record, then save once. The diagnostic caller supplies a separate ten-second context even when the launch was canceled; that bounds admission, not an already admitted filesystem operation. Direct storage callers supply their own context. Cancellable nonblocking flock attempts avoid an uncancellable blocking syscall or orphan waiter goroutine. The existing timer is only a wake mechanism; tests control actual failed-acquisition/release/cancellation events without sleeps.
+
+Removing the pre-cleanup publication permits loss of the current attempt if Couch crashes during cleanup or before its final publication. Existing published history remains durable. No recovery authority depends on this optional record; helper cleanup takes priority. There is no new artifact family or retention policy.
 
 ## Done when
 
-- A controlled regression establishes the contention/lifecycle cause and preserves the intended bounded admission behavior.
-- Concurrent valid diagnostics writes retain all required history, while the explicit lock-timeout test still refuses a genuinely held lease.
-- Repeated isolated and loaded runs report before/after failure counts without a timing-only fix.
+- Controlled real-lock regressions prove waiting, release, cancellation and no late acquisition or mutation after refusal; admission uses the caller's context.
+- Concurrent valid diagnostics writes keep the exact newest sixteen records. A genuinely held lease refuses on caller cancellation/deadline without changing history.
+- Failure capture performs cleanup before its one save, retaining immutable pre-cleanup evidence and separate exit observations; persistence failure preserves the original and cleanup error chains.
+- Targeted and recorded suite results report the measured baseline and final failure counts; no test sleep, retry, skip or enlarged test budget.
 
 ## Plan
 
+- [ ] Add caller-context admission to the storage interface, real store and stateful fake; a small injected wait boundary controls real contention in tests (ARCH-PURE). Preserve the existing safe-open and unlock ownership (ARCH-DRY).
+- [ ] Red/green controlled held-lease release/cancellation tests and cleanup-before-save/immutable-evidence tests; migrate existing exact retention and unsafe/corrupt/durability coverage without relaxing assertions.
+- [ ] Snapshot evidence before cleanup, enrich and publish once afterward, using a named bounded diagnostic context independent of launch cancellation. Record the explicit crash-loss tradeoff (ARCH-CONSTRAINTS); enumerate waiter cancellation versus lease release, with no background waiter surviving return (ARCH-STATE).
+- [ ] Update Atlas, run targeted/race checks and the recorded suite, close with the mandatory fresh review, prepare SHIP and wait for the hub's final merge turn.
+
+## Revisions
+
+### 2026-10-16 — measured contention and cleanup-first policy
+
+The TL accepted measured serialized contention as the bug class and proposed cleanup before a single context-bounded save. Replace the original store-owned one-second timeout contract with caller-owned cancellation, preserving refusal of a genuinely held lease. A larger test timeout alone would leave the production bug; an unbounded blocking flock before cleanup could strand a failed helper. The ten-second production diagnostic context is an explicit caller policy, not the test's scheduling oracle. ARCH-SECURE and ARCH-FUNERAL preserve current safe-path/regular-file checks and sixteen-record/one-MiB bounds; ARCH-MOCK reuses the stateful fake and real temporary-directory integration tests. No new external binary or durable state machine is introduced; the existing flock/publication protocol owns persisted history (ARCH-PURPOSE).
+
 ## Log
+
+### 2026-10-16 — bounded read-only measurement before claiming
+
+- Source verified with git rev-parse: `1a1047c89126c68fa1f9c2651bff36663f6ab656`. Overlay-only instrumentation: ten samples, 170/170 writes passed, package 5.952s. Maximum admission wait 576.162ms; median/max lease hold 26.205/55.326ms; atomic publication accounted for 98.2% of hold time; total held time per seventeen writes 386.897–537.793ms. Measurement includes descheduling and does not separate filesystem latency from scheduling. No failure was reproduced in this bounded probe. O_CLOEXEC and explicit LOCK_UN/Close are intact; inherited retention was not observed or proven.
+- Local evidence: `/var/folders/07/b9wcwwld4_v2w9r3hk525bm80000gn/T/pair590-lock-measure.ueOfd0/` (overlay, source identity, metrics, summaries and run log). No tracked code or main publication changed during the #605 hold.
+- Additional main baseline failed this test in 1.14s on `e7b676abb2083791028bed45eda22515361cca4c`, run `6e6e954f55eb8e7ba8dacebde0bf0e07`; log SHA256 `86910833ebc459007a65b3b46b05b4adcdfbd550fb1bd68efd64124da824a013`. Every remaining recipe/package completed. The one-second timer is production policy, not a test-only deadline.
+- TL released claim/start-plan while retaining the final merge hold. Released deferred #591, claimed and started #590. Posted the small context-admission/cleanup-first plan to the hub (receipt `46dd25fb-513e-4b9f-9d00-4d8924edc930`); dispatch explicitly permits proceeding after posting. Pre-cleanup persistence has no recovery consumer; its crash-window guarantee is intentionally traded for prompt cleanup.
 
 ### 2026-10-15 — first seen during #571 corrected-code full suite
 
