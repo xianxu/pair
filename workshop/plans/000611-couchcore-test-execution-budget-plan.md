@@ -145,3 +145,18 @@ Files: profile artifact, issue, Makefile.local, existing test documentation if n
 **Approval checkpoint:** send this R2 plan and per-test causes to the hub, then wait before change-code/implementation. Full flow remains explicit. Estimate is derived only after the revised design clears plan-quality.
 
 **Architecture:** ARCH-DRY shares physical predicates and existing fixtures, with no new scheduler. ARCH-PURE removes IO from rejected-shape setup and uses pure domain pruning. ARCH-PURPOSE retains all domain points, cases and write-path assertions. ARCH-MOCK keeps real Git/CLI conformance where that is the claim. ARCH-CONSTRAINTS keeps current concurrency and measures actual savings. ARCH-SECURE moves conformance from operator data into a controlled temporary fleet. ARCH-ORDER preserves accepted enumeration order and per-case ownership. ARCH-FUNERAL uses existing t.TempDir cleanup, with no new persistent cache or fixture template.
+
+
+### 2026-10-16 — R3: measurable qualification and named test strategies
+
+**Reason:** plan-quality PQ-1 requires numerical acceptance and a repeat rule; PQ-2 requests named functions instead of an identity-case inventory. This is a qualification clarification within approved R2; no scope, concurrency or deadline increase.
+
+**Active acceptance:** same flags/head, two consecutive isolated couchcore runs at or below200s, plus one recorded real full suite whose couchcore execution is at or below420s (at least30% headroom to default600s), preserving inventory/dispositions and all assertions. The full suite's normal other-package workload is the representative load; record host/co-tenant activity honestly. Full-suite wall may not regress against the900.89s before sample. The approximately200s threshold separately triggers the hub's lane discussion; passing it once does not itself authorize removing the allowance. If either repeat or representative-load qualification is unavailable/fails, retain #610's allowance, report the actual result/gap to hub and re-plan; do not claim reliability, weaken checks or extend deadlines. Do not rerun the full suite gratuitously: the single required recorded suite supplies its loaded sample, with isolated repeat checks addressing measurement reliability.
+
+**Named pure entities/strategies:**
+
+- forEachEvidence / forEachEvidenceWithDeps: retain vocabulary-derived values; compare accepted ordered count/fingerprint and stride fingerprint against the pre-change stream, with dropped/duplicate/reordered negative controls.
+- consistent / consistentActorEvidence / consistentHostEvidence / consistentDependencyEvidence: share the existing physical constraints once; impossible/unknown evidence classes remain rejected and the existing invariant tests retain their independent expectations.
+- ProvisionFixture.Run: real Git identity must remain fresh and exact across mutable/unread state; compare full records through real Git and use a bounded command-count trace to verify the batched query, retaining cancellation/error propagation.
+
+The R2 task2 identity-case enumeration is superseded by this function-level strategy. All risky source functions remain covered; the concrete executable cases are authored with the tests. The issue's original split/shard Done-when criterion is superseded by approved R2/R3: cheaper execution with preserved inventory is sufficient when these budgets pass; a split is conditional on the post-fix residual measurement and fresh hub approval.
