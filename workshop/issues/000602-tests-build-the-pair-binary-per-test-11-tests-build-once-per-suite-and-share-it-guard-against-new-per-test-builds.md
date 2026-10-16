@@ -46,9 +46,9 @@ Add a source guard against Go/table/context and shell/Python full-Pair builds ou
 
 ## Done when
 
-- [ ] Normal suite builds one shared plain Pair; all existing real-executable consumers/overrides and standalone routes still work without per-test builds.
-- [ ] The guard rejects new direct/context/table-driven and shell/Python per-test full-Pair builds; unrelated fixture builds remain allowed.
-- [ ] Before/after link time, invocation count and disk-write measurements are recorded with flags, code pin and sampling limits.
+- [x] Normal suite builds one shared plain Pair; all existing real-executable consumers/overrides and standalone routes still work without per-test builds.
+- [x] The guard rejects new direct/context/table-driven and shell/Python per-test full-Pair builds; unrelated fixture builds remain allowed.
+- [x] Before/after link time, invocation count and disk-write measurements are recorded with flags, code pin and sampling limits.
 - [ ] Focused consumer/lifetime/guard checks, recorded full suite, CI and mandatory close review pass; land through the line.
 
 - No test builds `pair-go` itself; the guard enforces it; a full suite's `link` writes drop to the per-package
@@ -59,7 +59,7 @@ Add a source guard against Go/table/context and shell/Python full-Pair builds ou
 - [x] Capture warm-cache repeated-link baseline with the ops disk-writes sampler and link-time/PID trace; preserve a same-flags after comparison.
 - [x] Add the shared builder, suite temporary wrapper and lazy package resolver with lifetime cleanup; migrate every consumer while preserving real CLI/relocation/override behavior.
 - [x] Observe the source guard red, then green after migration; verify supplied/fallback/invalid binary, once-only construction, cleanup, private aliases and mutation controls.
-- [ ] Re-measure one build plus shared placements, run focused consumers and recorded full suite, update atlas, close/review and land. TL owns project records.
+- [x] Re-measure one build plus shared placements, run focused consumers and recorded full suite, update atlas, close/review and land. TL owns project records.
 
 
 ## Log
@@ -85,3 +85,5 @@ Raw after-links.jsonl SHA256 7a87a46f26d860e1021fdc184a8a71066782d3d3335735693c9
 2026-10-16 suite finding: TestProductionArtifactReferencesAreExactlyClassified failed because any non-_test.go source must appear in the exhaustive artifact inventory, including test-support libraries. Reproduced alone RED (1.928 s), classified the compiler fixture alongside testwait as NonArtifactSources (no session-artifact ownership), then GREEN (1.927 s). Did not add to the quarantine. Continuing the full run to collect all remaining failures before the required fixed-head rerun.
 
 2026-10-16 complete diagnostic suite: 52ce2411 finished in 12m26s; only TestProductionArtifactReferencesAreExactlyClassified failed. All other packages passed, including couchcore 373.988 s, testpair 3.083 s and wrapcmd 81.905 s; all shell prerequisites passed. Failure log sha256 prefix 46f7266a14cf at sdlc/test-stats/failed/ca43791148c8cb561c8204a21b4765d3.log. The classifier fix is committed at c5e6d1742fe21eb0e605addd71e87ad49a3d1c83, whole artifactpath package passed in 6.311 s. Fixed-head recorded suite started.
+
+2026-10-16 verification complete: fixed-head recorded suite PASS on c5e6d1742fe21eb0e605addd71e87ad49a3d1c83 in 13m28s (6 s slot queue), log sha256 prefix d9d0a5955149 at sdlc/local-checks/c5e6d1742fe21eb0e605addd71e87ad49a3d1c83/suite.log. No failing tests. couchcore 351.124 s, testpair 1.989 s, artifactpath 7.075 s, wrapcmd 75.647 s. Server conformance, merge-check and both local-gates verdicts PASS. All implementation/verification steps completed; entering mandatory close review and landing. TL retains project bookkeeping.
