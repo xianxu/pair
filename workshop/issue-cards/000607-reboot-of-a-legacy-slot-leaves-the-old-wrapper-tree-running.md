@@ -1,8 +1,8 @@
 ---
 id: 000607
-status: open
+status: working
 created: 2026-10-15
-updated: 2026-10-15
+updated: 2026-10-16
 estimate_hours:
 github_issue:
 severity: critical
