@@ -39,10 +39,6 @@ func TestRecoveryConversationInUseIsRegistryOnly(t *testing.T) {
 			a.SetNativeBinding(other.Address, "codex", sessioninventory.BindingEstablished, "different")
 			a.SetNativeBinding(own.Address, "codex", sessioninventory.BindingEstablished, "native")
 		}},
-		{name: "stale native owner evidence ignored", arrange: func(_ *Couch, _ *FakeProcOps, a *FakeThreadArtifactCollisionChecker, _, other ThreadRecord) {
-			a.SetNativeBinding(other.Address, "codex", sessioninventory.BindingEstablished, "different")
-			a.SetRecoveryNativeWrappers(FakeRecoveryNativeWrapper{Address: other.Address, Agent: "codex", PID: 1111})
-		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			store, ns := newTestThreadStore(t)

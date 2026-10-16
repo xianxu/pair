@@ -22,10 +22,12 @@ const (
 
 // NativeResumeSelector retains the caller invocation. Only Explicit, Latest
 // and Picker select an existing writer; Fork and New allocate a distinct one.
+// NativeID is the resume/fork source; NewNativeID is an explicit destination.
 type NativeResumeSelector struct {
 	Agent                 string
 	Kind                  NativeResumeKind
 	NativeID              string
+	NewNativeID           string
 	Args                  []string
 	IncludeNonInteractive bool
 	All                   bool
@@ -105,11 +107,19 @@ func ParseNativeResumeSelector(agent string, args []string) (NativeResumeSelecto
 		}
 		if name == "--session-id" || (agent == "grok" && (name == "-s" || resumeform.HasSessionID(agent, []string{a}))) {
 			newID = true
-			if !inline && (name == "--session-id" || name == "-s") {
-				if i+1 >= len(flags) || strings.HasPrefix(flags[i+1], "-") {
-					return s, errors.New("missing new native session ID")
+			if name == "--session-id" || name == "-s" {
+				if inline {
+					s.NewNativeID = value
+				} else {
+					if i+1 >= len(flags) || strings.HasPrefix(flags[i+1], "-") {
+						return s, errors.New("missing new native session ID")
+					}
+					i++
+					s.NewNativeID = flags[i]
 				}
-				i++
+			} else {
+				// Grok accepts the destination glued to its short -s option.
+				s.NewNativeID = a[2:]
 			}
 			continue
 		}

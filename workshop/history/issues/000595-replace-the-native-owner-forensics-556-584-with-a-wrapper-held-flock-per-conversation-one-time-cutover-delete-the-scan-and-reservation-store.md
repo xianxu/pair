@@ -1,13 +1,13 @@
 ---
 id: 000595
-status: working
+status: done
 deps: []
 github_issue:
 target: slot-recovery
 created: 2026-10-15
-updated: 2026-10-15
+updated: 2026-10-16
 estimate_hours: 2.15
-card_mirror: '320b7af3c737be1c9a5638b1e06bcd689f040f4b' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'a0082fac8cc7d415dc0a606da1fa0ce2b41a251d' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-15T19:45:21-07:00
 claimant:
     operator: Xian Xu
@@ -17,6 +17,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: operator}
+actual_hours: 3.73
 ---
 
 # Replace the native-owner forensics (#556/#584) with a wrapper-held flock per conversation; one-time cutover; delete the scan and reservation store
@@ -37,14 +38,14 @@ A Pair wrapper holds a nonblocking exclusive flock for each exact conversation I
 
 The native agent runs in its own wrapper-owned process group. Every controlled wrapper exit terminates that group before reaping the leader and releasing locks. Wrapper SIGKILL can leave an orphan engine after the lock drops: that accepted gap belongs to #583's reaper and #587's unattributed report, not this admission guard. Agents outside Pair are outside its guarantee.
 
-One maintenance cutover, one lock build: delete the global native owner scan, legacy/unbound fallbacks and durable admission reservation store in the same change. Ordinary disk Resume refuses while the current live-wrapper registry/readiness inventory contains any wrapper without the lock capability: `relaunch older slots first: X, Y`. Startup, Continue and Fresh remain available. The existing confirmed Relaunch of the exact live old slot is the migration action, still taking the new flock after source retirement; no new override or dual-guard build. Preserve/move the narrow confirmed stop-set attribution helpers.
+One lock build: delete the global native owner scan, legacy/unbound fallbacks and durable admission reservation store in the same change; no launch takes native admission. There is no cutover gate (TL e93b109d): a resume whose conversation lock another live wrapper holds refuses at native start with `conversation X is in use by <holder>; Start fresh`, the holder named as Couch names a slot (`pair:3`), else its Pair tag, else `standalone`. That is the same refusal as Couch's registry `in use by` (#597), observed by the kernel. Wrappers started before this build hold no lock until their slot is relaunched; the gap closes as slots relaunch. Startup, Continue and Fresh remain available. Preserve/move the narrow confirmed stop-set attribution helpers.
 
 ## Done when
 
 - Real kernel and wrapper tests show one winner for two wrappers on one ID, a diagnostic holder label, no losing-writer metadata damage, and lock release on wrapper exit including SIGKILL.
 - Controlled normal/error/signal/restart exits stop only the owned agent group before reap/lock release; tests explicitly document the accepted SIGKILL orphan gap rather than promising inherited-agent protection.
 - Current-launch unknown-to-known IDs acquire through existing discovery; stale/duplicate events and a late collision are handled without a new native integration or historical scan.
-- Legacy capability tests show startup/Continue/Fresh unaffected, ordinary disk Resume names sorted live old slots, confirmed Relaunch migrates them, and Resume works once they are gone. Dead/stale readiness alone is not a blocker.
+- Startup/Continue/Fresh are unaffected; a resume of a conversation another live wrapper holds refuses naming the holder; a binding notice after stop or with an unusable ID never fails the wrapper; controlled restart still re-execs.
 - The forensic and reservation code is gone, shared consumers and stop-set safety remain, and close reports actual net production/test LOC deletion. Build, required recorded suite and SHIP review pass.
 - Operator live maintenance acceptance: restart over old live slots, migrate them once at a quiet time, resume a parked scratch conversation, and refuse a held scratch conversation with its slot named. This remains pending until performed; any landing before it requires the TL's explicit direction.
 
@@ -53,11 +54,16 @@ One maintenance cutover, one lock build: delete the global native owner scan, le
 Durable implementation plan: workshop/plans/000595-conversation-flock-plan.md (one atomic close boundary).
 
 - [x] Obtain TL approval of the wrapper-lifetime/capability-cutover revision before change-code.
-- [ ] Implement and verify the small lock, existing binding notification and owned-group cleanup; remove forensic/reservation authority in the same build, preserving moved source stop-set attribution.
-- [ ] Run full verification and SHIP review; coordinate the single operator maintenance acceptance; report actual net deletion and land as directed.
+- [x] Implement and verify the small lock, existing binding notification and owned-group cleanup; remove forensic/reservation authority in the same build, preserving moved source stop-set attribution.
+- [x] Run full verification and SHIP review; report actual net deletion (prod -1156, tests -2541 vs main).
+- [ ] Operator maintenance acceptance, then land as the TL directs (held for #589).
 
 ## Log
 
+
+
+- 2026-10-16: closed — Post-close fix for CI couch-zellij-conformance (PR #369): TestNativeConsoleWrapperZellij/wrapped-zellij left notify/lock under its fixture because the wrapper (pane child) was still finishing cleanup ~60 ms after the zellij server exited (measured with a probe; wrapper reparented to PID 1, then exited). The test now joins the wrapper by its pidfile, bounded 5 s, before removing the fixture. make -f Makefile.local test-native-terminal-ci green 3/3 locally; main passes the job; no product change. no-plan-check: the open item is the operator maintenance acceptance, pending by design. (fixed-then-ship); review verdict: SHIP
+- 2026-10-16: closed — Recorded suite green on 7a7b6086 (round-1 fixes). Round-2 fixes on c1a5e8b9: per-platform live-member probe (darwin kill probe, Linux /proc non-zombie members; TestProcStatLiveInGroup; linux vet clean), slot label resolved in the background and held locks relabelled (TestSetHolderRelabelsHeldLocks), plan states the approved design. Touched packages green: nativelock, wrapcmd, launcher, artifactpath. Suite runs on c1a5e8b9 failed only on load-sensitive tests unrelated to this change (test-review nvim branch-mismatch flake; TestPublicWarmAttach zellij list-sessions timeout at load avg 30), each passing in isolation; suite rerun before merge. Net vs main: prod -1095ish, tests -2418ish (recount at merge). no-plan-check: the open item is the operator maintenance acceptance, pending by design.; review verdict: FIX-THEN-SHIP
 ### 2026-10-15
 
 - Claimed after #594 landed (47a485ce46ffb685ce951cfb16428fef2c2f1bcd); start-plan prepares a fresh main issue branch. No stacked development or implementation.
@@ -107,6 +113,10 @@ Measured deletion baseline: 1,777 production + 2,766 test lines in dedicated old
 
 TL approved 2833b837 via submitted receipt 659dde9c, including confirmed Relaunch as the migration path. change-code full-flow plan review requested named transition/test seams and explicit discovery-channel failure semantics (PQ-1/2/3); these are now documented without expanding the wrapper-knows-ID promise. Unknown discovery loss is visible and retains unknown status; known-ID contention/IO failure stops the owned group. No implementation before the gate passes.
 
+### 2026-10-16 — re-plan approved (TL e93b109d); close round 1 BR-1
+
+Delta to Spec and Done when: the capability cutover gate ("relaunch older slots first"), its RecoveryIntent.Relaunch marker and readiness capability are dropped; no launch takes native admission (superseding #597's Couch-only skip); the lock refusal names the holder as Couch names a slot and counts as the same "in use" refusal, not a new one. Accepted transitional gap: pre-#595 wrappers hold no lock until relaunched. The durable plan's gate rows are marked dropped in its Revisions.
+
 ## Estimate
 
 Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only; calibration marked stale by estimate-source, so provisional.
@@ -132,3 +142,34 @@ item: milestone-review design=0.02 impl=0.20
 design-buffer: 0.15
 total: 2.15
 ```
+
+### 2026-10-16 — re-plan against landed #597/#600/#605/#607 (pair:2, Claude; sent to TL d0e96fbc, awaiting OK)
+
+Keep the wrapper-held per-conversation flock, owned-group cleanup, watcher binding pipe, all scan/reservation/admission deletions and the moved stop-set helpers. Drop the capability cutover gate ("relaunch older slots first") and the RecoveryIntent.Relaunch marker: on Couch paths they would be a fourth refusal against #597's design, and for standalone Pair they block every resume until all slots relaunch. The accepted transitional gap: pre-#595 wrappers hold no lock until relaunched. Launcher reserves no admission for anyone; #597's couchHosted bypass and ResumeRequired/Recovery skip go with it. Open question to the TL: a Couch resume whose lock is held by another live wrapper refuses at native start as the same "in use" refusal. Merge main (14 conflicts) before building. The intermittent TestOwnedGroupStopsDescendantsBeforeReap EPERM under -race stays open until measured.
+
+### 2026-10-16 — close review round 1 (REWORK) dispositions
+
+- BR-1 (Critical), accepted: issue Spec/Done when now state the approved re-plan (Revision above); the plan's gate rows are marked dropped with a Revision; atlas Owners no longer names the deleted source.
+- BR-2 (Important), accepted: a binding notice after stop began, or with an ID that cannot name a lock, is logged and dropped (`errNoticeIgnored`), so a SIGUSR2 restart still re-execs. TestRestartThenLateBindingNoticeStillRestarts RED without the fix ("discovery after stop").
+- BR-3 (Important), accepted: owned-group cleanup polls during the grace and ends once no live member remains (darwin EPERM = only zombies, ESRCH = empty). TestOwnedGroupFinishesEarlyWhenTheGroupExits RED without (5.01s of a 5s grace).
+- BR-4 (Important), accepted: the holder label resolves lazily on the first lock, once, behind an injected function (TestHolderLabelResolvesOnlyOnFirstLock); non-native wraps never resolve it.
+- BR-5 (Important), accepted: wrapper-level tests drive notice handling and controlled signals through `handleBindingNotice` and `stopForSignal` (late collision stops the owned group and names the holder; unusable notice leaves the agent running; restart then late notice still restarts).
+- Minor, accepted: an invalid holder label falls back to "unlabelled" instead of refusing the lock.
+- Minor, deferred as follow-ups for the TL: the watcher-start-failure notice wording, and one shared rule for the three ID/label validators.
+
+### 2026-10-16 — close review round 2 (REWORK) dispositions
+
+- BR-3 (Important), accepted as a rule: "does the owned group still have a running member" is now per platform. Darwin keeps the kill probe (EPERM = only zombies); Linux reads /proc for non-zombie members of the group, because kill(-pgid, 0) succeeds there on our unreaped zombie leader; other platforms stay conservative. The stat parser is pure and tested (TestProcStatLiveInGroup).
+- Minor (external probe on startup/I/O paths), accepted as a rule: locks are taken immediately with the fallback label (Pair tag, else "standalone"); the slot lookup runs once in the background from wrapper start and relabels held locks in place (`Handle.Relabel`, TestSetHolderRelabelsHeldLocks). Nothing waits for it.
+- Minor (plan still describes the gate), accepted: Architecture line, rollout section, test row and checklist now state the approved design; the superseded design stays in Revisions.
+
+### 2026-10-16 — close round 3 FIX-THEN-SHIP fixes
+
+- Relabel truncates before writing: a contender reading in between sees an empty label (shown as the generic holder), never a torn mix.
+- Discovery-unavailable notice only for a supported native agent whose conversation is still unbound, and now also when the watcher cannot be made or the executable is unknown.
+- Plan: the remaining stale gate lines (deletion list, recovery test row, estimate, landing item) state the approved design.
+- Deferred to the TL as a follow-up: one shared rule for NativeLockFilename, validHolder and validBindingNotice.
+
+### 2026-10-16 — CI conformance failure at landing (PR #369)
+
+couch-zellij-conformance failed on TestNativeConsoleWrapperZellij/wrapped-zellij: "remove private native fixture: directory not empty"; main passes it. Reproduced locally (make -f Makefile.local test-native-terminal-ci). Measured: the leftover is notify/lock, recreated by the wrapper's notification broker while the test already removed the fixture; at cleanup start the wrapper (reparented to PID 1 after its zellij server exited) was still alive and exited ~60 ms later. #595's owned-group cleanup lengthened the wrapper's exit by tens of ms, exposing a teardown race: the test joined the zellij server, never the wrapper it launched. Fix in the test: join the wrapper by its pidfile (bounded 5 s) before removing the fixture. 3/3 local CI-target runs green.

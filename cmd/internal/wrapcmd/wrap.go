@@ -251,10 +251,14 @@ type proxy struct {
 	readyProcessIdentity string
 
 	// PTY
-	ptmx          *os.File
-	cmd           *exec.Cmd
-	getWinsize    func(*os.File) (*pty.Winsize, error)
-	setPTYWinsize func(*os.File, *pty.Winsize) error
+	ptmx                 *os.File
+	cmd                  *exec.Cmd
+	nativeLocks          *wrapperNativeLocks
+	nativeBindingNotices <-chan nativeBindingEvent
+	nativeLockErr        error
+	ownedGroup           *ownedGroup
+	getWinsize           func(*os.File) (*pty.Winsize, error)
+	setPTYWinsize        func(*os.File, *pty.Winsize) error
 
 	restartFresh atomic.Bool
 
@@ -2541,9 +2545,10 @@ var execProcess = syscall.Exec
 // unbound for good (#329). After binding, Codex watchers keep observing lifecycle
 // events; other agents' watchers exit. Watchers also exit when the agent's process
 // identity changes or at the startup deadline if no agent pid appears.
-var startWatcherProcess = func(argv, env []string) error {
+var startWatcherProcess = func(argv, env []string, files ...*os.File) error {
 	watcher := exec.Command(argv[0], argv[1:]...)
 	watcher.Env = env
+	watcher.ExtraFiles = files
 	watcher.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
 	if err := watcher.Start(); err != nil {
 		return err
@@ -2602,7 +2607,7 @@ func freshAgentInvocation(wrapperExecutable, scrollbackLog string, currentArgv [
 		launchOrdinal = prepared.Launch.Ordinal
 	}
 
-	nextEnv := setEnv(stripNativeAdmissionEnvironment(env), "PAIR_SESSION_ID", sessionID)
+	nextEnv := setEnv(env, "PAIR_SESSION_ID", sessionID)
 	command, err := launcher.EncodeAgentCommand(launcher.AgentCommand{Executable: currentArgv[0], Argv: append([]string{}, freshArgs...)})
 	if err != nil {
 		return nil, err
@@ -2713,11 +2718,6 @@ func writeAtomic(path string, data []byte) error {
 // name). The returned int is the process exit code: the wrapped child's exit
 // code on success, or 1 on a startup/fatal error (printed to stderr).
 func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
-	grant, admissionEnvErr := consumeNativeAdmissionEnvironment(os.Getenv, os.Unsetenv)
-	if admissionEnvErr != nil {
-		fmt.Fprintf(stderr, "pair-wrap: %v\n", admissionEnvErr)
-		return 1
-	}
 	lease, retentionErr := storagegc.AcquireSelectedProcess(context.Background(), os.Getenv, "wrapper")
 	if retentionErr != nil {
 		fmt.Fprintf(stderr, "pair-wrap: protect storage: %v\n", retentionErr)
@@ -2728,7 +2728,7 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 			fmt.Fprintf(stderr, "pair-wrap: release storage: %v\n", err)
 		}
 	}()
-	code, err := run(args, stdin, stdout, stderr, grant)
+	code, err := run(args, stdin, stdout, stderr)
 	if err != nil {
 		var restart *freshExecRequest
 		if errors.As(err, &restart) {
@@ -2744,7 +2744,7 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	return code
 }
 
-func run(args []string, stdin io.Reader, stdout, stderr io.Writer, admissionGrant string) (int, error) {
+func run(args []string, stdin io.Reader, stdout, stderr io.Writer) (int, error) {
 	// Hash this executable first, before anything is spawned (#421): the hash
 	// is read by path, so the earlier it runs the smaller the window in which a
 	// rebuild could replace the file under a still-running old image. ~10ms.
@@ -2867,7 +2867,7 @@ argsDone:
 	// Signal delivery must be installed before the broker publishes the shared
 	// capture/restart PID binding. Queue signals until the child is initialized.
 	sigCh := make(chan os.Signal, 4)
-	signal.Notify(sigCh, syscall.SIGWINCH, syscall.SIGUSR1, syscall.SIGUSR2)
+	signal.Notify(sigCh, syscall.SIGWINCH, syscall.SIGUSR1, syscall.SIGUSR2, syscall.SIGTERM, syscall.SIGINT, syscall.SIGHUP, syscall.SIGQUIT)
 	var signalDone chan struct{}
 	defer func() {
 		signal.Stop(sigCh)
@@ -2892,17 +2892,21 @@ argsDone:
 	// Spawn child in a fresh PTY.
 	cmd := exec.Command(argv[0], launcher.PromptArgs(argv[0], argv[1:], launchPrompt)...)
 	cmd.Env = childEnv
+	locks := newWrapperNativeLocks(os.Getenv("HOME"), p.agentBasename, fallbackLockHolder())
+	go func() { locks.SetHolder(slotLockHolder()) }()
+	defer locks.Close() // registered before group cleanup: group is joined first
+	p.nativeLocks = locks
 	agentNotBefore := time.Now()
-	ptmx, err := startNativePTY(context.Background(), launcher.CouchHostedEnv(os.Getenv), launcher.NativeAdmissionStore{Home: os.Getenv("HOME")}, admissionGrant, p.agentBasename, cmd, stderr, pty.Start)
+	ptmx, err := startNativePTY(locks, cmd, stderr, pty.Start)
+	var group *ownedGroup
+	if cmd.Process != nil {
+		group = newOwnedGroup(cmd, time.Second)
+		p.ownedGroup = group
+		defer group.Wait() // every controlled return/panic stops and joins our group
+	}
 	if err != nil {
-		// Only this wrapper's newly created direct child is ours to clean up.
-		// Cleanup does not release a possibly committed native admission.
 		if ptmx != nil {
 			_ = ptmx.Close()
-		}
-		if cmd.Process != nil {
-			_ = cmd.Process.Kill()
-			_, _ = cmd.Process.Wait()
 		}
 		return 0, fmt.Errorf("cannot exec %s: %w", argv[0], err)
 	}
@@ -2923,8 +2927,6 @@ argsDone:
 	if err := p.configureHarnessTTY(os.Getenv("PAIR_WRAP_REMAP_RETURN") != "0", 80, 24); err != nil {
 		_ = childIO.Close()
 		_ = ptmx.Close()
-		_ = cmd.Process.Kill()
-		_, _ = cmd.Process.Wait()
 		return 0, fmt.Errorf("initialize harness terminal: %w", err)
 	}
 	defer p.closeTerminal()
@@ -2965,11 +2967,30 @@ argsDone:
 			p.agentPIDPath = ""
 		}
 	}
+	// Discovery that cannot start matters only while this wrapper still needs
+	// an ID to lock: a native agent whose conversation is not yet known.
+	discoveryUnavailable := func(label, reason string) {
+		p.debug(label, reason)
+		if launcher.IsSupportedAgent(p.agentBasename) && locks.Unbound() {
+			p.emitNotification("Conversation lock discovery unavailable; relaunch to pin the conversation ID")
+		}
+	}
 	if executable, err := os.Executable(); err != nil {
-		p.debug("WATCHER-exe-fail", err.Error())
-	} else if watcher := launchWatcherArgv(executable, argv, os.Environ(), agentNotBefore); watcher != nil {
-		if err := startWatcherProcess(watcher, os.Environ()); err != nil {
-			p.debug("WATCHER-start-fail", err.Error())
+		discoveryUnavailable("WATCHER-exe-fail", err.Error())
+	} else if watcher := launchWatcherArgv(executable, argv, os.Environ(), agentNotBefore); watcher == nil {
+		discoveryUnavailable("WATCHER-none", "no watcher for this launch")
+	} else {
+		reader, writer, err := os.Pipe()
+		if err == nil {
+			ordinal, _ := strconv.ParseUint(os.Getenv("PAIR_LAUNCH_ORDINAL"), 10, 64)
+			stream := readBindingNotices(reader, ordinal)
+			defer stream.Close()
+			p.nativeBindingNotices = stream.events
+			err = startWatcherProcess(watcher, setEnv(os.Environ(), sessionwatch.BindingNoticeEnv, "3"), writer)
+			_ = writer.Close()
+		}
+		if err != nil {
+			discoveryUnavailable("WATCHER-start-fail", err.Error())
 		}
 	}
 
@@ -2993,19 +3014,9 @@ argsDone:
 				p.handleWinch()
 			case syscall.SIGUSR1:
 				p.armCapture()
-			case syscall.SIGUSR2:
-				if p.restartFresh.CompareAndSwap(false, true) && p.cmd != nil && p.cmd.Process != nil {
+			case syscall.SIGUSR2, syscall.SIGTERM, syscall.SIGINT, syscall.SIGHUP, syscall.SIGQUIT:
+				if p.stopForSignal(s, locks, group) {
 					p.traceWrap("agent-restart-request", nil)
-					pid := p.cmd.Process.Pid
-					if err := syscall.Kill(-pid, syscall.SIGTERM); err != nil {
-						_ = p.cmd.Process.Kill()
-					}
-					go func() {
-						time.Sleep(time.Second)
-						if p.restartFresh.Load() {
-							_ = syscall.Kill(-pid, syscall.SIGKILL)
-						}
-					}()
 				}
 			}
 		}
@@ -3053,7 +3064,11 @@ argsDone:
 	// Wait for the child and propagate its exit code. The pre-extraction
 	// binary called os.Exit(exitErr.ExitCode()) here; Run now returns the
 	// code so both entrypoints (shim + `pair wrap`) propagate it identically.
-	werr := cmd.Wait()
+	locks.Stop()
+	werr := group.Wait()
+	if p.nativeLockErr != nil {
+		return 0, p.nativeLockErr
+	}
 	if p.stdoutPump != nil && p.stdoutPump.failure != nil {
 		return 0, fmt.Errorf("pane output: %w", p.stdoutPump.failure)
 	}
@@ -3208,6 +3223,12 @@ func (p *proxy) masterPump() {
 			return
 		}
 		select {
+		case event, ok := <-p.nativeBindingNotices:
+			if !ok {
+				p.nativeBindingNotices = nil
+				continue
+			}
+			p.handleBindingNotice(event)
 		case message, ok := <-brokerMessages:
 			if !ok {
 				brokerMessages = nil

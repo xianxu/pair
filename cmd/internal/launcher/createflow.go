@@ -69,7 +69,6 @@ func (t *startupTiming) handoff(phase string) {
 // user-facing messages are on the writer, the int is the exit code, the returned
 // error is always nil.
 func RunLaunch(opts LaunchOptions, rt Runtime, stderr io.Writer) (int, error) {
-	rt.SetEnv(NativeAdmissionEnv, "")
 	if opts.startupTiming == nil {
 		opts.startupTiming = newStartupTiming(os.Getenv("PAIR_STARTUP_TIMING"), stderr, time.Now, time.Now())
 	}
@@ -581,7 +580,6 @@ func launchNameTags(args LaunchArgs, base string) []string {
 // tag-restart config picker, compose the per-agent launch args, spawn the
 // sidecars, then hand off to the blocking zellij create.
 func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision LaunchDecision, base, agent string, sessionEntry SessionNameEntry, stderr io.Writer) (result launchStep, resultErr error) {
-	rt.SetEnv(NativeAdmissionEnv, "")
 	// Validate the agent here (create-only; attach re-uses an existing pane's
 	// agent, so shell 1728 defers this past the attach branch).
 	if !rt.CommandExists(agent) {
@@ -804,39 +802,6 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 		fmt.Fprintf(stderr, "pair: %v\n", commandErr)
 		return launchStep{code: 1}, nil
 	}
-	// A grant is private until the one agent handoff. Only definitely unexposed
-	// reservations can be cancelled; an uncertain terminal start retains ownership.
-	grant, exposed := "", false
-	defer func() {
-		rt.SetEnv(NativeAdmissionEnv, "")
-		if grant != "" && !exposed {
-			ctx, cancel := context.WithTimeout(context.Background(), zjTimeout)
-			defer cancel()
-			if err := rt.CancelNativeResume(ctx, grant); err != nil {
-				fmt.Fprintf(stderr, "pair: native reservation retained after failed cancellation: %v\n", err)
-				result.code = 1
-			}
-		}
-	}()
-	// Couch's resume and recovery launches take no native admission (pair#597):
-	// both check Couch's registry for the same conversation in another live
-	// slot first, and only their profiles carry ResumeRequired or Recovery.
-	// Any other launch, Couch-owned or not, still reserves.
-	registryChecked := couchOwned && (opts.Args.ResumeRequired || opts.Args.Recovery != nil)
-	if explicitResume != "" && !registryChecked {
-		digest, err := NativeAdmissionCommandDigest(agent, append([]string{agent}, PromptArgs(agent, commandArgs, opts.Args.Prompt)...))
-		if err != nil {
-			fmt.Fprintf(stderr, "pair: %v\n", err)
-			return launchStep{code: 1}, nil
-		}
-		ctx, cancel := context.WithTimeout(context.Background(), zjTimeout)
-		grant, err = rt.ReserveNativeResume(ctx, NativeAdmissionRequest{Agent: agent, NativeID: explicitResume, Attempt: rt.MintLaunchNonce(), CommandDigest: digest})
-		cancel()
-		if err != nil || grant == "" {
-			fmt.Fprintf(stderr, "pair: native admission refused: %v\n", err)
-			return launchStep{code: 1}, nil
-		}
-	}
 
 	var defaultReady <-chan error
 	// Every new Couch wrapper needs readiness evidence, including cold resume.
@@ -1035,10 +1000,6 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 	layout := filepath.Join(opts.PairHome, "zellij", "layouts", LayoutAssetBasename(layoutResolution.Mode))
 	bound := opts.birthBound()
 	opts.startupTiming.handoff("create-handoff")
-	if grant != "" {
-		exposed = true
-		rt.SetEnv(NativeAdmissionEnv, grant)
-	}
 	code, verdict, err := launchWatched(rt, opts.birthClock(), birthEvidence, session, configDir, layout, bound)
 	if err != nil {
 		restoreLayoutRecord(rt, dataDir, chosenTag, priorLayout)

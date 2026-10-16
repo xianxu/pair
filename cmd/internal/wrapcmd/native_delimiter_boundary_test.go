@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/xianxu/pair/cmd/internal/launcher"
+	"github.com/xianxu/pair/cmd/internal/nativelock"
 )
 
 func TestNativeAdmissionDelimiterCanonicalIDsNeverBypassEitherWrapperForm(t *testing.T) {
@@ -53,7 +54,6 @@ func TestNativeAdmissionDelimiterCanonicalIDsNeverBypassEitherWrapperForm(t *tes
 				t.Setenv("PAIR_TAG", "")
 				t.Setenv("PAIR_LAUNCH_ORDINAL", "")
 				t.Setenv("PAIR_RETENTION_START_ID", "")
-				t.Setenv(launcher.NativeAdmissionEnv, "")
 				t.Setenv("PAIR_WRAP_REMAP_RETURN", "0")
 				marker := filepath.Join(t.TempDir(), "spawned")
 				t.Setenv("DELIMITER_SPAWN_MARKER", marker)
@@ -69,6 +69,14 @@ func TestNativeAdmissionDelimiterCanonicalIDsNeverBypassEitherWrapperForm(t *tes
 					}
 					t.Setenv(launcher.AgentCommandEnv, encoded)
 					args = []string{"--from-launch-env"}
+				}
+				if !tc.allow {
+					key, _ := nativelock.NewKey(tc.agent, id)
+					h, err := nativelock.Acquire(os.Getenv("HOME"), key, "pair:3")
+					if err != nil {
+						t.Fatal(err)
+					}
+					defer h.Close()
 				}
 				var stderr bytes.Buffer
 				code := Run(args, bytes.NewReader(nil), io.Discard, &stderr)

@@ -12,7 +12,9 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -61,7 +63,18 @@ func runNativeConsoleJoin(t *testing.T, wrapped bool) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// The wrapper is the pane child: when the private server exits it can still
+	// be finishing its own cleanup (owned agent group, notification broker),
+	// which writes under dir. Join it by its pidfile before removing dir.
+	var wrapPIDPath string
 	t.Cleanup(func() {
+		if raw, err := os.ReadFile(wrapPIDPath); err == nil {
+			if pid, err := strconv.Atoi(strings.SplitN(strings.TrimSpace(string(raw)), ":", 2)[0]); err == nil && pid > 0 {
+				for deadline := time.Now().Add(5 * time.Second); syscall.Kill(pid, 0) == nil && time.Now().Before(deadline); {
+					time.Sleep(20 * time.Millisecond)
+				}
+			}
+		}
 		if err := os.RemoveAll(dir); err != nil {
 			t.Errorf("remove private native fixture: %v", err)
 		}
@@ -86,6 +99,7 @@ func runNativeConsoleJoin(t *testing.T, wrapped bool) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	wrapPIDPath = paths.PairWrapPID()
 	receipts := filepath.Join(dir, "receipts")
 	fixture := write("codex", "#!"+python+"\n"+nativeAgentFixture, 0700)
 	// Zellij resolves its config dir from HOME, not XDG, on macOS. When that
