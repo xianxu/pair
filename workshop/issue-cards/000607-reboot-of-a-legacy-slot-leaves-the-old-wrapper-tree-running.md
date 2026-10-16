@@ -1,6 +1,6 @@
 ---
 id: 000607
-status: working
+status: codecomplete
 created: 2026-10-15
 updated: 2026-10-16
 estimate_hours:
@@ -14,6 +14,14 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
+actual_hours: 2.22
+tracker:
+    version: 1
+    completion:
+        token: close-95a2accfb462
+        repository: github.com/xianxu/pair
+        reviewed_head: c8e2c29a75356cb65202fd8b0f1afcc52f4b262f
+        evidence_commit: f2b234218027ab0319c25c92e2dd705602819ec4
 ---
 
 # Reboot of a legacy slot leaves the old wrapper tree running
