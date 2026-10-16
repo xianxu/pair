@@ -1,12 +1,12 @@
 ---
 id: 000594
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-15
 updated: 2026-10-15
 estimate_hours:
-card_mirror: '1f5b350e022057237a4fa2eb6943d2c1534301a0' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'd8b4fb957b386892ea07886502e9a6d57a939e3e' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-15T18:58:23-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
 flow: {kind: quick, provenance: inferred, spec: "57af933c", done: "664a5825"}
+actual_hours: 0.51
 ---
 
 # Couch: deliveries to a newly started slot (parley.nvim:4) never land, receipts 'indeterminate' (unknown field AcceptedAt)
