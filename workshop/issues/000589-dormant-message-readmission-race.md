@@ -45,6 +45,8 @@ Measure the admission ordering with a controllable stateful fixture. Establish t
 
 ## Log
 
+
+- 2026-10-16: closed — Controlled late-final-admission reproduction failed the original unavailable assertion; fixed fixture passed 50 race repeats, TestMessage* -race and couchmessage -race. Recorded full suite passed unchanged ff788e65 after the sole unrelated launcher flake was filed as #609 under TL-approved one-rerun policy. Fixture-only change creates no architectural surface (--no-atlas); no production admission changes, sleeps, or extended deadlines.; review verdict: SHIP
 2026-10-15: Filed unassigned from pair:2 while #584 remains on its own branch. Failing recorded run log: /Users/xianxu/workspace/pair/.git/sdlc/test-stats/inflight/79185f3a4b7716015218ff34bc63d1c8/run.log. Isolated command: go test ./cmd/internal/couchcmd -run '^TestMessageSendToDormantSlotReadmits$' -count=30 (PASS 5.061s). No production slots were touched.
 
 2026-10-15: Controlled ordering proof: a temporary overlay held the target's sixth (last) admission at messageAuthority.launch across the test's original 100 ms sleep. It then applied the original launch=true mutation, released that admission, waited for its valid connection, and sent. Send returned accepted with exactly six target admission calls: no send-triggered readmission occurred. This deterministically proves a fixture ordering consistent with the full-suite failure, without claiming that run's exact schedule. Ten repetitions passed under the race detector in 3.279s. Messaging source and test remain unchanged from main; no production slot effects.
