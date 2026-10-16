@@ -5,8 +5,8 @@ deps: []
 github_issue:
 created: 2026-10-15
 updated: 2026-10-16
-estimate_hours: 7.4
-card_mirror: 'a53e4dd8ca3c0c87e3ed1848f25f6b33eb26b981' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 8.1
+card_mirror: '03c264c1c8644d6eaa2aa644402b620cf408fa73' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-16T10:00:03-07:00
 claimant:
     operator: Xian Xu
@@ -94,12 +94,14 @@ item: lua-neovim              design=0.3  impl=0.3
 item: real-api-discovery      design=0.0  impl=0.2
 item: atlas-docs              design=0.15 impl=0.15
 item: milestone-review        design=0.2  impl=0.29
-item: smaller-go-module       design=0.35 impl=0.3
+item: milestone-review        design=0.1  impl=0.15
+item: smaller-go-module       design=0.35 impl=0.4
 item: greenfield-go-module    design=0.2  impl=0.3
 item: smaller-go-module       design=0.35 impl=0.5
-item: greenfield-go-module    design=0.4  impl=0.3
+item: greenfield-go-module    design=0.4  impl=0.45
+item: real-api-discovery      design=0.0  impl=0.2
 design-buffer: 0.15
-total: 7.4
+total: 8.1
 ```
 
 *Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only.*
@@ -108,20 +110,27 @@ Derivation, item by item against the durable plan's 17 tasks (impl values are al
 
 | item | plan tasks | why these hours |
 |---|---|---|
-| `issue-spec` 0.8/0.1 | brainstorm, the 540-line durable plan, two plan-quality rounds | design already spent; this is why every other item's design takes the ×0.2 spec-quality discount |
+| `issue-spec` 0.8/0.1 | brainstorm, the 540-line durable plan, three plan-quality rounds | design already spent; this is why every other item's design takes the ×0.2 spec-quality discount |
 | `cross-cutting-refactor` 0.3/0.22 | T1 (kind set across six consumers + drift pin), T11 (extract `UnattributedCandidate`) | both are behaviour-preserving multi-file rewires with a pin, low end of 0.2–1 / 0.2–0.5 |
 | `smaller-go-module` 0.15/0.34 | T2 (`ClassifyNvimReap` + table test), T3 (`ProcessTable` seam, reaper rewrite, delete `pkillF`) | the plan states the decision rules and the seam verbatim; mid of 0.2–0.5 each |
 | `smaller-go-module` 0.3/0.34 | T4 (changelog `.nvim-pid` record: artifactpath + gc + opener), T5 (three-source sweep) | T5 is the highest-risk logic in M1, so its design is above the discount floor |
 | `lua-neovim` 0.3/0.3 | T4's pidfile block, T6's VimLeave in four configs + the headless lifecycle test | three-line copies of `init.lua:24-34`; the primitive's 1–3 design range collapses because the pattern exists |
 | `real-api-discovery` 0.0/0.2 | T7 flag-gated live conformance against a real `nvim` fork | nvim is the external dependency whose fork/argv behaviour must be observed, not assumed |
 | `atlas-docs` 0.15/0.15 | T8 (storage inventory + architecture), T17 (couch atlas, README, env knob) | high end of 0.05–0.2 twice: the inventory anchors are grep-checked |
-| `milestone-review` 0.2/0.29 | M1 and M2 boundary reviews | two `milestone-close` rounds at 0.1/0.14 each |
-| `smaller-go-module` 0.35/0.3 | T9 (`ParseIdentityTime` + live proof), T10 (`proc_pidinfo` cwd in the existing cgo block) | cgo is novel-but-bounded: it mirrors `resource_identity`/`resource_usage`, so familiarity stays 1.0 and the hours absorb it |
+| `milestone-review` 0.2/0.29 | M1 and M2 boundary reviews | two `milestone-close` rounds at 0.1/0.14 each, each priced as one clean pass |
+| `milestone-review` 0.1/0.15 | one extra M1 round | M1 deletes `pkill -9 -f` from a kill path and adds the identity fence — the shape of diff that draws Important findings, and the gate allows up to 3 rounds |
+| `smaller-go-module` 0.35/0.4 | T9 (`ParseIdentityTime` + live proof), T10 (`proc_pidinfo` cwd in the existing cgo block) | cgo is novel-but-bounded: it mirrors `resource_identity`/`resource_usage`, so familiarity stays 1.0, and the hours absorb the build/sandbox friction of live process proofs needing unsandboxed re-runs |
 | `greenfield-go-module` 0.2/0.3 | T12 (`ClassifyOrphanNvim`, `ManagedRoots`, `WithinManagedRoot`) | a new file, but the plan fixes every signature; low end of 0.5–2 design |
 | `smaller-go-module` 0.35/0.5 | T13 (policy knob + gated sampler probe), T14 (health line + projection), T15 (episode alert) | three existing-seam extensions, mid of 0.2–0.5 impl before scaling |
-| `greenfield-go-module` 0.4/0.3 | T16 (`couch --reap-orphans --confirm` across cli, ops registry, dispatch) | a new operator verb; the house confirmation pattern is the spec, so design is discounted but not trivial |
+| `greenfield-go-module` 0.4/0.45 | T16 (`couch --reap-orphans --confirm` across cli, ops registry, dispatch) | a new operator verb spanning three layers plus a server-side second gate and per-row SIGTERM→wait→SIGKILL; the house confirmation pattern discounts design, not impl |
+| `real-api-discovery` 0.0/0.2 | T17's cost re-measurement at maximum cardinality against #587's <0.2% budget, the full-suite runs, and the live check | measurement wall-clock the first pass left unpriced; `atlas-docs` covered only the docs half of T17 |
 
-Σdesign 3.5 × 1.15 (thorough plan doc) + Σimpl 3.34 × 1.0 = 7.365 → **7.4 h**.
+Σdesign 3.6 × 1.15 (thorough plan doc) + Σimpl 3.94 × 1.0 = 8.08 → **8.1 h**.
+
+Revised from the first pass's 7.4 h after `change-code`'s estimate-quality judge returned INFO naming four
+priced-out gaps (the second M1 review round, T17's unpriced measurement/suite/live-check wall-clock, T16's
+thin impl, T9/T10's cgo friction). Its fifth point — the ×1.15 buffer also multiplying the already-spent
+`issue-spec` design — is left as the model specifies; the buffer applies to Σdesign, not to design still ahead.
 
 ## Log
 
@@ -186,8 +195,32 @@ tasks now carry one strategy line each. PQ-4: the seam is stated — kills move 
 so the reap path holds no subprocess seam and `pkill` is unreachable, not merely unasserted. Plan
 `## Revisions` records the delta; task order moved (changelog record is now Task 4, before the sweep).
 
-**Discovery filed separately:** `cmd/internal/runtimebundle/assets/runtime/files/nvim/` is a generated
-mirror that is stale against `nvim/init.lua` (missing the `fs_watch.lua` dofile and the focus-pad
-refactor) and `nvim/review.lua`, and no Makefile target regenerates it. Out of scope here — regenerating
-would import unrelated drift into a kill-path diff — so M1 edits only `nvim/`, which is what the runtime
-loads (`opener/runtime.go:163-165` runs `PairHome + "/nvim/<config>.lua"`).
+**Corrected later the same day — no mirror discovery to file.** I first wrote that
+`cmd/internal/runtimebundle/assets/runtime/files/nvim/` is a tracked mirror gone stale against
+`nvim/init.lua`, to be filed separately. That was wrong, and the correction is measured: `.gitignore:133`
+ignores `/cmd/internal/runtimebundle/assets/` and `git ls-files` returns nothing for it, so it is
+untracked build output; `Makefile.local:263-266` defines `runtimebundle-generate`, a prerequisite of
+`build`, `test` and `$(RUNTIMEBUNDLE_ASSETS)`; and generating into a temp dir reproduces `nvim/init.lua`
+byte-for-byte (`diff` exit 0), so the generator copies lua verbatim and a differing local copy only means
+this checkout has not been built since those lua edits. Consequence for M1: the lua edits in Tasks 4 and 6
+reach the embedded bundle on the next build with no mirror diff to commit, and the runtime path is
+unchanged (`opener/runtime.go:163-165` runs `PairHome + "/nvim/<config>.lua"`).
+
+### 2026-10-16 — change-code admitted the plan; estimate revised to 8.1 h
+
+`sdlc change-code --issue 583` passed on the third plan-quality round (`VERDICT: CLEAN`, "no open blocking
+findings after 3 round(s)"). Round 2 had disposed PQ-1..PQ-4 and raised one Minor advisory, PQ-5
+(`unstated-decision-input`): Task 5's changelog source did not state the verdict when `<base>.nvim-pid`
+exists but its `.openlock` sibling is gone. Folded in — an absent openlock means the opener exited cleanly
+(`opener/run.go:189`), which *is* the root-cause orphan case, so absent reaps rather than skips; and the
+absent/present/malformed rule is now stated for every evidence source, which the round-3 judge accepted as
+closing the family.
+
+`estimate-quality` returned INFO (advisory, gate passed). It confirmed the derivation is honest — all 12
+items mapped to named plan tasks, arithmetic checked — but named four gaps it would have priced: the second
+round a kill-path boundary review usually takes, T17's unpriced cost re-measurement / suite runs / live
+check, T16's thin impl for a verb spanning three layers, and T9/T10's cgo and sandbox friction. Revised to
+**8.1 h** (Σdesign 3.6 × 1.15 + Σimpl 3.94 = 8.08) and recorded on the card with
+`sdlc issue set-estimate --issue 583 --hours 8.1`. Its fifth point — the buffer also multiplying the
+already-spent `issue-spec` design — was left alone: v3.1 applies the buffer to Σdesign, and carving spent
+design out of the multiplicand is a model change, not an issue-level choice.
