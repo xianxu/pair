@@ -1,6 +1,6 @@
 ---
 id: 000605
-status: open
+status: working
 deps: []
 github_issue:
 target: slot-recovery
@@ -8,7 +8,15 @@ created: 2026-10-15
 updated: 2026-10-15
 estimate_hours:
 severity: critical
-card_mirror: '0cbc2726266b786e6c7d39954a0c683c991b206f' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'fba2855a78cbdccd83e44e095d48cff05bb41f98' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-15T23:33:30-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:2
+    worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Recovery resume fails workspace recheck: in-memory intent time carries a monotonic reading
@@ -36,3 +44,8 @@ A recovery intent equals its persisted form from the moment it is built, so ever
 ### 2026-10-15
 
 Filed from the read-only diagnosis of ariadne:5's failed resume after the f136934d restart (TL priority 1: slot startup).
+
+### 2026-10-15 — fix (pair:2; TL approval 61111332)
+
+- Class sweep (every reflect.DeepEqual in couchcore, launcher, threadrecord): the in-memory vs persisted comparisons of thread-record values are all of the recovery intent: start fence (recovery_start_fence.go), workspace recheck (slotlaunch.go), fresh replacement invariant (threadstore_replace.go); launcher's compares two decoded copies; previous_session compares two record copies; the rest compare process snapshots. The intent has ONE creation site (executePreparedRecovery). Fix there: `persistedRecoveryIntent` canonicalizes the whole intent through its encoding before it is first persisted, which covers every time in it (CreatedAt, inferred Context times), not only CreatedAt. No check changed.
+- Test: TestRecoveryResumeWithMonotonicClockPassesWorkspaceRecheck runs inferred and proven recovery resume with production's SystemClock through the real slot store; both RED on main with the exact error, GREEN with the fix.
