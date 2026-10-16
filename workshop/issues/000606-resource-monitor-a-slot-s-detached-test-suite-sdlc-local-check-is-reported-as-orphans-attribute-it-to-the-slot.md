@@ -64,6 +64,8 @@ command of a slot.
 
 ## Log
 
+
+- 2026-10-16: closed — Unit: couchcore DetachedSlotRoots (withheld-shell child fallback, infrastructure never claimed, input not mutated); reparented suite stays the slot (orphan=true without the roots, false with); sampler attributes a detached suite to pair:6 and reads each generation once across passes (RED without the wiring); procutil live child environment read via NativeResourceReader.Environment. couchcore, procutil, couchcmd Resource tests green. Live probe: 1,181 procs, first pass 275 ms / 1,359 env calls, cached 0.26 ms; real claims include my running local-check sdlc (pid 42438 -> 1-pair-8) under a withheld /bin/zsh. Live no-orphan-alert acceptance needs the running Couch on this build (TL after landing). Recorded suite running on ee39876a5.; review verdict: SHIP
 - 2026-10-16: live probe on this machine: 1,181 processes, first pass 275 ms / 1,359 environment calls, cached pass
   0.26 ms. Claims found beyond suites, all genuinely slot-started: `pair title` daemons, my suite's lock-helper python,
   parley's cli-proxy-api from a couch thread, and a python pair:6 leaked on Oct 10 (now visible on its slot instead of
