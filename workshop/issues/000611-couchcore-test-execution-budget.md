@@ -44,6 +44,7 @@ Land the measured R2 reductions to couchcore's test computation, Git subprocesse
 ## Log
 
 ### 2026-10-16 — deferred performance work
+- 2026-10-16: closed — R5 hub decision 898fac62: land only R2 and retain #610; TL owns ops/test-economy project. Recorded integrated suite PASS on 303e77d6d50f79d014a56c46ab9e5921a6e556cb (11m45s, core341.494s), CI green; ordered2406528-point domain and every R2 baseline disposition preserved, semantic mutations fail, targeted race20.379s and separate-storage race3.160s PASS. Atlas updated. Quiet main control is explicitly post-landing; no200s qualification or lane implementation claimed.; review verdict: SHIP
 
 Filed unassigned at the hub's request (decision 173f498b-9796-4fd6-a777-07e28ce4107c). #610 is the minimal unblock and lands first, followed by unchanged #591 and #589 retries. The timeout failure alone does not identify a particular slow test; this follow-up owns profiling before choosing the package/shard boundary.
 
