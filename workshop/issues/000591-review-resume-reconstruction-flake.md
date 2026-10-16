@@ -38,8 +38,8 @@ Preserve every reconstruction/decoration, scoped/ambiguous authorization and rea
 
 ## Plan
 
-- [ ] Add the real-fixture regression with a foreign executable and caller artifact sentinels, and observe red before fixing the fixture.
-- [ ] Reuse ReviewTestEnvironment's shell re-exec to pin checkout PAIR_HOME/executable and isolate artifacts before any subprocess (ARCH-DRY, ARCH-SECURE). Preserve the complete fixture body and deadlines.
+- [x] Add the real-fixture regression with a foreign executable and caller artifact sentinels, and observe red before fixing the fixture.
+- [x] Reuse ReviewTestEnvironment's shell re-exec to pin checkout PAIR_HOME/executable and isolate artifacts before any subprocess (ARCH-DRY, ARCH-SECURE). Preserve the complete fixture body and deadlines.
 - [ ] Wire the regression into the suite, update Atlas and record targeted plus required recorded broad-suite verification. Then use the mandatory close review and land on SHIP in the hub's order.
 
 ## Revisions
@@ -69,3 +69,9 @@ The TL approved with a narrower scope (receipt 86755f4e-dd9a-4fd5-b861-d6abacdd2
 ### 2026-10-16 — approved trimmed scope
 
 TL approved the isolation fix and inherited-foreign-home red/green only. Extended tracing is deferred; no production change or assertion/deadline change is authorized. Updated the active contract and retained the original proposal above as historical revision context. Proceeding to change-code.
+
+### 2026-10-16 — isolation red/green
+
+- New real-fixture regression controls PAIR_HOME and PAIR_BIN independently, supplies caller artifact sentinels, and requires all existing success messages plus zero foreign-executable invocations. Red before the fix: both subcases failed (9.942s). PAIR_HOME produced the exact three initial failures; PAIR_BIN left the first case passing but failed the later scoped/ambiguous cases, proving both selectors need isolation.
+- The fix is exactly four entry lines reusing the existing ReviewTestEnvironment shell re-exec before any Git/editor subprocess. The original fixture body, assertions and 30s/10s watchdogs are byte-for-byte unchanged; the production 2500ms resolver deadline is untouched. No extended trace was added. The shared helper pins PAIR_HOME, removes inherited PAIR_BIN and moves writable artifacts to fixture storage.
+- Green: python3 -B tests/review-resume-isolation-test.py passed both independent selector cases in 12.080s; neither foreign executable ran, and every caller sentinel remained unchanged. Standalone bash tests/review-resume-test.sh passed all six assertion groups. bash -n and git diff --check passed. The regression is wired into test-review; Atlas maps the fixture isolation coverage. Required recorded broad-suite verification and close review remain pending.

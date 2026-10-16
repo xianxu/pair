@@ -294,6 +294,7 @@ test-review: $(BIN_DIR)/pair
 	bash tests/review-readiness-cli-test.sh
 	bash tests/review-indicator-test.sh
 	bash tests/review-resume-test.sh
+	python3 -B tests/review-resume-isolation-test.py
 	bash tests/review-definition-test.sh
 	bash tests/review-branch-restore-test.sh
 	python3 -B tests/review-observation-diagnostics-test.py
