@@ -79,3 +79,5 @@ Make sampling limits explicit: orphan attribution requires a previously observed
 ### 2026-10-15 — TL plan approval and unattributed addition
 
 Plan bf764e14 approved (receipt9f23fae9-2182-488f-8025-196b3940fa66). Add report-only unattributed (unproven) large PPID1 processes matching known Couch-launched kinds, including nvim --embed, Zellij and agent CLIs; no alert or slot attribution without provenance. Candidate argv probes are bounded and counted in the cost envelope. Continue to change-code.
+
+2026-10-15: Plan gate round1 raised PQ-1/2/3 (orphan alert sender, immutable retry envelope, named function test strategies). Durable Revisions now specify owning-hub self-addressed system notices, persisted exact envelope with conservative unknown outcomes, and per-function adversarial/mechanical contracts. Re-running plan gate before code.
