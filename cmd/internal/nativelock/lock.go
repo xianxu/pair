@@ -86,11 +86,13 @@ func (h *Handle) Relabel(holder string) error {
 	if !validHolder(holder) {
 		holder = "unlabelled"
 	}
+	// Truncate first: a contender reading in between sees an empty label, shown
+	// as the generic holder, never a mix of the old and new labels.
+	if err := h.file.Truncate(0); err != nil {
+		return fmt.Errorf("truncate native lock holder: %w", err)
+	}
 	if _, err := h.file.WriteAt([]byte(holder), 0); err != nil {
 		return fmt.Errorf("write native lock holder: %w", err)
-	}
-	if err := h.file.Truncate(int64(len(holder))); err != nil {
-		return fmt.Errorf("truncate native lock holder: %w", err)
 	}
 	return nil
 }

@@ -321,3 +321,121 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-16T05:28:35-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 595 — Replace the native-owner forensics (#556/#584) with a wrapper-held flock per conversation; one-time cutover; delete the scan and reservation store |
+| repo | pair |
+| issue file | workshop/issues/000595-replace-the-native-owner-forensics-556-584-with-a-wrapper-held-flock-per-conversation-one-time-cutover-delete-the-scan-and-reservation-store.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 1e93c3d9e0309d35f9993e3b52f5339480074081..c1a5e8b9c93b76608cd6507ae8618e38760d5458 |
+| command | sdlc close --issue 595 |
+| reviewer | claude |
+| isolation | fenced |
+| timestamp | 2026-10-16T05:28:35-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+Focus on open findings first. Let me look at the owned group code (BR-3).
+
+Now revert the BR-3 fix (make groupHasLiveMember always true) and confirm the regression test fails.
+
+I've finished checking the open findings and am writing up the verdict.
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+The one Important finding still open, BR-3, is fixed and I confirmed the fix with a revert. Restoring the old darwin behaviour (`groupHasLiveMember` always true) makes `TestOwnedGroupFinishesEarlyWhenTheGroupExits` fail: it took 5.009s against a 5s grace. With the fix in place, the wrapcmd, nativelock, sessionwatch, launcher, artifactpath, couchcore and termcmd test packages all pass at head. BR-10 is also fixed: the slot-label lookup now runs once in a background goroutine at wrapper start (`wrap.go:2896`), and the locks are relabelled when it returns (`native_lock.go:37`). Nothing runs on `masterPump` or under the lock mutex except an in-place file write. Three Minor findings are still open: BR-7 (the watcher notice isn't truthful), BR-9 (three separate ID validators) and BR-11 (plan statements still describe the dropped design). None of them blocks the gate, and all three are cheap to fix before landing.
+
+1. **Strengths**
+   - `nativelock.Advance` is the only path for lock transitions. `wrapperNativeLocks.Discover/Stop/Close` (`cmd/internal/wrapcmd/native_lock.go:55-108`) go through it, and locks are released only after `CleanupComplete`, which runs after `group.Wait()`.
+   - The live-member probe is per platform: kill(-pgid,0) on darwin, where EPERM means only zombies remain, and a /proc scan on Linux, where a zombie leader still answers kill. The Linux parser has a pure test, including command names that contain parentheses (`owned_group_test.go:94`).
+   - `nativelock.Acquire` (`lock.go:25-84`) makes one nonblocking flock attempt with dirfd/O_NOFOLLOW checks for ownership, mode and nlink. A losing contender only reads, capped at a bounded length, and holder metadata cannot change the kernel's decision.
+   - SIGUSR2 and the termination signals now share one controlled stop path (`stopForSignal`). The old delayed group-kill goroutine, which was never joined, is gone.
+
+2. **Critical:** none.
+
+3. **Important:** none new.
+
+4. **Minor**
+   - BR-7, still open: `wrap.go:2984` emits the "discovery unavailable" notice without checking `p.nativeLocks.Unbound()`. When `launchWatcherArgv` returns nil, or `os.Executable` fails (`wrap.go:2971`), there is no notice at all.
+   - BR-9, still open: the three validators still disagree. `validBindingNotice` (`binding_notice.go:23`) accepts IDs containing spaces or Cf characters, and `NativeLockFilename` then rejects them, so the notice is dropped with only a debug line.
+   - BR-11, partly fixed: three plan passages still describe the dropped capability/maintenance design.
+     - Line 72: "replace admission with the small capability check".
+     - Line 90: a test row for "Resume-only maintenance refusal and exact-source migration exemption".
+     - Line 108: the estimate includes a "capability check".
+   - New: `Handle.Relabel` writes and then truncates in place. A losing contender reading at that moment can see a torn label (e.g. "pair:2" written over "standalone" reads as "pair:2alone"). The impact is diagnostic only; truncating first, or writing a padded fixed-size record, would avoid it.
+
+5. **Test coverage**
+   - The BR-3 regression test is real and fails without the fix (verified above).
+   - The Linux `groupHasLiveMember` path is covered only through the parser on this host; Linux CI exercises the rest.
+   - `TestSetHolderRelabelsHeldLocks` covers relabelling. That the lookup stays off the I/O path is a structural property with no test that pins it, which is acceptable for a diagnostic label.
+
+6. **Architecture**
+   - ARCH-DRY: flagged, see BR-9.
+   - ARCH-PURE: pass. Key, state and holder parsing are pure; the lock and group code are thin IO shells.
+   - ARCH-PURPOSE: pass. The scan and the reservation store are fully deleted.
+   - ARCH-MOCK: pass. Flock and process groups are tested against real temporary processes, with no external service.
+   - ARCH-CONSTRAINTS: pass after BR-3. Cleanup ends early, the label lookup is capped at 2s and kept off hot paths, and the Linux /proc scan runs every 10ms only during cleanup.
+   - ARCH-SECURE: pass. Lock files are owner-only with no-follow, holder text is validated, and the notice decoder is size-bounded with an ordinal fence.
+   - ARCH-ORDER: pass. Transitions go through `Advance`; a late notice after stop is ignored and tested. Minor caveat: the label goroutine can outlive `locks.Close()`. That is harmless because `SetHolder` with no handles only sets a string, and the goroutine is bounded by the 2s timeout.
+   - ARCH-FUNERAL: pass, with a note. Lock inodes are permanent while online, one small file per distinct conversation. The plan documents this, and reclamation requires quiescence.
+
+7. **Plan revisions**
+   - Strike or rewrite plan lines 72, 90 and 108 so the "capability check" and "maintenance refusal / migration exemption" are gone.
+   - Reword item 118's "before the maintenance window" to match the rollout with no cutover.
+
+```findings
+dispose:
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Per-platform groupHasLiveMember ends cleanup early; reverting darwin probe makes TestOwnedGroupFinishesEarlyWhenTheGroupExits fail (5.009s), verified in checkout.
+  - id: BR-7
+    disposition: not-addressed
+    note: |
+      wrap.go:2984 still notifies unconditionally on start failure (no Unbound check); nil launchWatcherArgv and os.Executable failure at wrap.go:2971 still give no notice.
+  - id: BR-9
+    disposition: not-addressed
+    note: |
+      NativeLockFilename, validHolder and validBindingNotice remain separate rules; notice accepts space/Cf IDs that NewKey later rejects silently.
+  - id: BR-10
+    disposition: addressed
+    note: |
+      slotLockHolder now runs once in a background goroutine at wrap.go:2896; SetHolder only relabels under the mutex; TestSetHolderRelabelsHeldLocks covers relabel.
+  - id: BR-11
+    disposition: not-addressed
+    note: |
+      Architecture line, core concepts and checklist fixed, but plan line 72 (capability check), line 90 test row (maintenance refusal / migration exemption), line 108 estimate and item 118 (maintenance window) still describe the dropped gate.
+findings:
+  - id: new
+    severity: Minor
+    kind: defect
+    family: truthful-lock-status-notice
+    title: |
+      Relabel writes then truncates in place, so a contender can read a torn holder label
+    detail: |
+      This is the 2nd finding in family truthful-lock-status-notice. Rule: any holder text a refusal shows must be a complete label some owner actually wrote. nativelock/lock.go Relabel does WriteAt then Truncate; a loser reading between the two sees the new prefix plus the old suffix (e.g. pair:2alone). Diagnostic only; truncate first or write a fixed-size padded record.
+```
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"4ab35a34-d877-454a-b82f-916d25983253","repository":"github.com/xianxu/pair","issue_id":"000595","recipe":"milestone-review","round":3,"attempt":1,"agent":"claude","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/884f93f09763acdf","reviewed_head":"c1a5e8b9c93b76608cd6507ae8618e38760d5458","slot":"pair:2","requested_at":"2026-10-16T12:18:59.372059Z"},"phase":"finished","pid":44568,"started_at":"2026-10-16T12:18:59.536766Z","finished_at":"2026-10-16T12:28:33.800339Z","session_id":"ea43f953-be3b-4c42-83fc-1654a928e401","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.952375666s
+head: "c1a5e8b9c93b76608cd6507ae8618e38760d5458"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

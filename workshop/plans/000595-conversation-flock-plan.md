@@ -69,7 +69,7 @@ Delete in the same code change:
 
 - `launcher/native_admission.go`, `native_admission_os.go`; wrapper `native_admission.go`; `artifactpath/native_admission.go`; reservation-only tests/fakes, grant/digest/environment plumbing and runtime methods.
 - Global owner proof in `launcher/recovery_native_owner.go`, plus `recovery_native_legacy.go`, `recovery_native_metadata.go`, `recovery_native_owner_orphans.go`, `recovery_native_parallel.go` and forensic-only tests.
-- Couch's forensic diagnostic adapter/fake and calls in `couchcore/recovery_prepared.go` and `launcher/recovery_authority_os.go`; replace admission with the small capability check and wrapper lock, preserving prepared recovery/transcript/capture validation.
+- Couch's forensic diagnostic adapter/fake and calls in `couchcore/recovery_prepared.go` and `launcher/recovery_authority_os.go`; replace admission with the wrapper lock alone (no capability check; Revisions 2026-10-16), preserving prepared recovery/transcript/capture validation.
 - The now-unused `procutil.LsofWritableNames` block and its dedicated parser/live tests, `sessioninventory.NativeIDForArtifact` export, and the live Make selection/companion workflow-command expectation if the final caller sweep still finds no other consumers.
 - Artifactpath store family, bindings, source inventory entries and obsolete references. No reads/writes of native-admission-v1 remain.
 
@@ -87,7 +87,7 @@ Keep selector classification/pinning and its UX tests, ordinary LsofNames, share
 | sessionwatch.NotifyBinding / wrapcmd.DecodeBindingNotice | Pipe truncation/EOF/foreign-generation sequence tests after committed ObserveAndPersist; bounded records, ordinal fence and visible unknown-versus-held status. |
 | ~~launcher.LegacyLockSlots~~ (dropped 2026-10-16) | Permute mixed current/live and stale readiness observations; pure filtering/sorting never derives liveness from file existence. |
 | wrapcmd.stopOwnedGroup | Real scratch descendant lifecycle tests plus injected event ordering; signal only the directly created group before leader reap, join cleanup and hold locks until cleanup-complete. |
-| existing recovery admission / confirmed Relaunch | Stateful runtime tests enforce Resume-only maintenance refusal and exact-source migration exemption, retaining stop-set confirmation. |
+| existing recovery / confirmed Relaunch | Couch keeps #597's registry check; the wrapper lock refuses a held conversation naming its holder; stop-set confirmation is retained. (The maintenance refusal and migration exemption were dropped 2026-10-16.) |
 
 Real flock, pipe and owned-group tests run in ordinary Go package tests, hence the existing required make test / recorded suite on Darwin and Linux CI; they do not require a new optional manual target. A temp-file measurement reports metadata bytes and filesystem allocated blocks per distinct conversation in the Log: payload bounded to 1 KiB, one inode and ordinarily one filesystem allocation unit (filesystem-dependent). Stable files are permanent during online operation; reclamation requires operator-approved quiescence of all cooperating wrappers, never an online unlink.
 
@@ -105,7 +105,7 @@ Source-counted old blocks, using Python splitlines counts and rg caller verifica
 | Preserve/move stop-set duties | -114 | retained safety tests |
 | **Measured replaceable baseline** | **1,663** | **2,766** |
 
-Allow roughly **350–650 added production lines** for the small lock, watcher notification, capability check and group cleanup, and **500–900 new/updated test lines**. Expected net deletion is therefore about **1,000–1,300 production lines**, or **2,900–3,600 production-plus-test lines**, before additional bridge/call-site removal. These are planning ranges, not promised final counts; report actual diff against branch base at close. Docs/review artifacts are counted separately.
+Allow roughly **350–650 added production lines** for the small lock, watcher notification and group cleanup (the capability check was later dropped), and **500–900 new/updated test lines**. Expected net deletion is therefore about **1,000–1,300 production lines**, or **2,900–3,600 production-plus-test lines**, before additional bridge/call-site removal. These are planning ranges, not promised final counts; report actual diff against branch base at close. Docs/review artifacts are counted separately.
 
 ## Implementation and acceptance (one atomic close boundary)
 
@@ -115,7 +115,7 @@ Allow roughly **350–650 added production lines** for the small lock, watcher n
 - [x] Update atlas/couch.md and issue Spec/Done when to this approved scope, preserve superseded promises in Revisions, and document orphan responsibility and maintenance rollout. Update target only if its existing commitments need the accepted limit stated.
 - [x] Build, targeted/race/conformance regressions, required recorded suite, actual LOC report and mandatory issue-close review. No code may land on REWORK.
 - [ ] TL schedules the operator live acceptance: Couch restarts over live slots, slots are relaunched onto this build at a quiet time, a parked scratch conversation resumes, and a held scratch conversation refuses naming its holder slot.
-- [ ] Land on SHIP and report actual merge hash plus remaining operator acceptance, if the TL explicitly chooses landing before the maintenance window. Do not silently count an unrun live check as complete.
+- [ ] Land on SHIP as the TL directs (after #589) and report the merge hash plus the operator acceptance still pending. Do not silently count an unrun live check as complete.
 
 ## Constraints and lifecycle
 

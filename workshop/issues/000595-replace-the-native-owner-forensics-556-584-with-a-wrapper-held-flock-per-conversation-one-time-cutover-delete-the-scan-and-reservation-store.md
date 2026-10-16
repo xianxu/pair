@@ -59,6 +59,8 @@ Durable implementation plan: workshop/plans/000595-conversation-flock-plan.md (o
 
 ## Log
 
+
+- 2026-10-16: closed — Recorded suite green on 7a7b6086 (round-1 fixes). Round-2 fixes on c1a5e8b9: per-platform live-member probe (darwin kill probe, Linux /proc non-zombie members; TestProcStatLiveInGroup; linux vet clean), slot label resolved in the background and held locks relabelled (TestSetHolderRelabelsHeldLocks), plan states the approved design. Touched packages green: nativelock, wrapcmd, launcher, artifactpath. Suite runs on c1a5e8b9 failed only on load-sensitive tests unrelated to this change (test-review nvim branch-mismatch flake; TestPublicWarmAttach zellij list-sessions timeout at load avg 30), each passing in isolation; suite rerun before merge. Net vs main: prod -1095ish, tests -2418ish (recount at merge). no-plan-check: the open item is the operator maintenance acceptance, pending by design.; review verdict: FIX-THEN-SHIP
 ### 2026-10-15
 
 - Claimed after #594 landed (47a485ce46ffb685ce951cfb16428fef2c2f1bcd); start-plan prepares a fresh main issue branch. No stacked development or implementation.
@@ -157,3 +159,10 @@ Keep the wrapper-held per-conversation flock, owned-group cleanup, watcher bindi
 - BR-3 (Important), accepted as a rule: "does the owned group still have a running member" is now per platform. Darwin keeps the kill probe (EPERM = only zombies); Linux reads /proc for non-zombie members of the group, because kill(-pgid, 0) succeeds there on our unreaped zombie leader; other platforms stay conservative. The stat parser is pure and tested (TestProcStatLiveInGroup).
 - Minor (external probe on startup/I/O paths), accepted as a rule: locks are taken immediately with the fallback label (Pair tag, else "standalone"); the slot lookup runs once in the background from wrapper start and relabels held locks in place (`Handle.Relabel`, TestSetHolderRelabelsHeldLocks). Nothing waits for it.
 - Minor (plan still describes the gate), accepted: Architecture line, rollout section, test row and checklist now state the approved design; the superseded design stays in Revisions.
+
+### 2026-10-16 — close round 3 FIX-THEN-SHIP fixes
+
+- Relabel truncates before writing: a contender reading in between sees an empty label (shown as the generic holder), never a torn mix.
+- Discovery-unavailable notice only for a supported native agent whose conversation is still unbound, and now also when the watcher cannot be made or the executable is unknown.
+- Plan: the remaining stale gate lines (deletion list, recovery test row, estimate, landing item) state the approved design.
+- Deferred to the TL as a follow-up: one shared rule for NativeLockFilename, validHolder and validBindingNotice.

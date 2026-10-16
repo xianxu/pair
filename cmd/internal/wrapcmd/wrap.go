@@ -2967,9 +2967,19 @@ argsDone:
 			p.agentPIDPath = ""
 		}
 	}
+	// Discovery that cannot start matters only while this wrapper still needs
+	// an ID to lock: a native agent whose conversation is not yet known.
+	discoveryUnavailable := func(label, reason string) {
+		p.debug(label, reason)
+		if launcher.IsSupportedAgent(p.agentBasename) && locks.Unbound() {
+			p.emitNotification("Conversation lock discovery unavailable; relaunch to pin the conversation ID")
+		}
+	}
 	if executable, err := os.Executable(); err != nil {
-		p.debug("WATCHER-exe-fail", err.Error())
-	} else if watcher := launchWatcherArgv(executable, argv, os.Environ(), agentNotBefore); watcher != nil {
+		discoveryUnavailable("WATCHER-exe-fail", err.Error())
+	} else if watcher := launchWatcherArgv(executable, argv, os.Environ(), agentNotBefore); watcher == nil {
+		discoveryUnavailable("WATCHER-none", "no watcher for this launch")
+	} else {
 		reader, writer, err := os.Pipe()
 		if err == nil {
 			ordinal, _ := strconv.ParseUint(os.Getenv("PAIR_LAUNCH_ORDINAL"), 10, 64)
@@ -2980,8 +2990,7 @@ argsDone:
 			_ = writer.Close()
 		}
 		if err != nil {
-			p.debug("WATCHER-start-fail", err.Error())
-			p.emitNotification("Conversation lock discovery unavailable; relaunch to pin the conversation ID")
+			discoveryUnavailable("WATCHER-start-fail", err.Error())
 		}
 	}
 

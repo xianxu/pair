@@ -545,6 +545,256 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 4ab35a34-d877-454a-b82f-916d25983253
+            repository: github.com/xianxu/pair
+            issue_id: "000595"
+            recipe: milestone-review
+            round: 3
+            attempt: 1
+            agent: claude
+            root: /Users/xianxu/Library/Caches/sdlc/review-checkouts/884f93f09763acdf
+            reviewed_head: c1a5e8b9c93b76608cd6507ae8618e38760d5458
+            slot: pair:2
+            requested_at: "2026-10-16T12:18:59.372059Z"
+          phase: finished
+          pid: 44568
+          started_at: "2026-10-16T12:18:59.536766Z"
+          finished_at: "2026-10-16T12:28:33.800339Z"
+          session_id: ea43f953-be3b-4c42-83fc-1654a928e401
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-v1
+        repository: github.com/xianxu/pair
+        code_head: c1a5e8b9c93b76608cd6507ae8618e38760d5458
+        tracker_head: 3f22d550b52509a4ae4035a0d42189ac7e1cae35
+        branch_point: 1e93c3d9e0309d35f9993e3b52f5339480074081
+        since: "2026-10-15T19:45:21-07:00"
+        until: "2026-10-16T04:56:26-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-15T19:45:21-07:00"
+              end: "2026-10-15T20:45:21-07:00"
+              began: "2026-10-15T19:45:21-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot2/pair
+            - start: "2026-10-16T02:59:59-07:00"
+              end: "2026-10-16T04:56:26-07:00"
+              began: "2026-10-16T02:59:59-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot2/pair
+        sources:
+            - harness: claude
+              id: 9073df29-d226-4140-b23c-4f03f2b4c472
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: 52124fd49ac71ee9c300d44783448280cb4f0a57d3ffda74f4e57a8254edabb5
+              started: "2026-10-16T03:47:36.231Z"
+              spawned: false
+              bytes: 7852251
+              windows:
+                - start: "2026-10-16T02:59:59-07:00"
+                  end: "2026-10-16T04:56:26-07:00"
+            - harness: codex
+              id: 01a133a3-eaec-77b3-8c1e-dc4ac6b41fbd
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: 5737d584cf35265469b124fac2e9b0f83d6e07ffce5e088e4065e64d2b12668b
+              started: "2026-10-13T05:05:19.479Z"
+              spawned: false
+              bytes: 100097492
+              windows:
+                - start: "2026-10-15T19:45:21-07:00"
+                  end: "2026-10-15T20:45:21-07:00"
+                - start: "2026-10-16T02:59:59-07:00"
+                  end: "2026-10-16T04:56:26-07:00"
+            - harness: codex
+              id: 01a1429e-ebc8-7610-b5df-8a4d6e94c9a5
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              parent_id: 01a133a3-eaec-77b3-8c1e-dc4ac6b41fbd
+              digest: 303856442c5abae077043b1dddf05234698a6272e89f17d4add55b736976a625
+              started: "2026-10-16T02:51:13.807Z"
+              spawned: true
+              bytes: 637944
+              windows:
+                - start: "2026-10-16T02:51:13.807Z"
+                  end: "2026-10-15T20:45:21-07:00"
+            - harness: codex
+              id: 01a142ab-0b8a-7e51-8b96-2bd081084538
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: 3d4af4fd9200a90586f21a8d46f3f4562e2bf3d84e7809767ce0b9749ac9e07e
+              started: "2026-10-16T03:04:28.545Z"
+              spawned: false
+              bytes: 605962
+              windows:
+                - start: "2026-10-16T03:04:28.545Z"
+                  end: "2026-10-15T20:45:21-07:00"
+                - start: "2026-10-16T02:59:59-07:00"
+                  end: "2026-10-16T04:56:26-07:00"
+            - harness: codex
+              id: 01a142ab-8f17-75d0-9d16-9f5cb036d5e3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              parent_id: 01a133a3-eaec-77b3-8c1e-dc4ac6b41fbd
+              digest: 38d33ef511e7fc987d122ca62ae9610f13cdfb430ac9ffa7bab67f9d8de0d811
+              started: "2026-10-16T03:05:02.084Z"
+              spawned: true
+              bytes: 850604
+              windows:
+                - start: "2026-10-16T03:05:02.084Z"
+                  end: "2026-10-15T20:45:21-07:00"
+            - harness: codex
+              id: 01a142ad-01a9-7c12-af5c-200906e8cdca
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: ad55ba4d74274be3fa6970cbb4955997b27eb5f808a7484d3ad8d07d5c434dcb
+              started: "2026-10-16T03:06:37.159Z"
+              spawned: false
+              bytes: 456151
+              windows:
+                - start: "2026-10-16T03:06:37.159Z"
+                  end: "2026-10-15T20:45:21-07:00"
+                - start: "2026-10-16T02:59:59-07:00"
+                  end: "2026-10-16T04:56:26-07:00"
+            - harness: codex
+              id: 01a142ae-6330-7783-9f09-31d7ff6d2a7a
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: b71b546d1e6d10cbbda97b487230c878ffb28afe56dfcb9486d550d6615af80d
+              started: "2026-10-16T03:08:07.966Z"
+              spawned: false
+              bytes: 446084
+              windows:
+                - start: "2026-10-16T03:08:07.966Z"
+                  end: "2026-10-15T20:45:21-07:00"
+                - start: "2026-10-16T02:59:59-07:00"
+                  end: "2026-10-16T04:56:26-07:00"
+            - harness: codex
+              id: 01a142ae-d92a-7ee2-824b-b23fbbac5e37
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: 8497a635a85846893095cc0bb14dec6d92791e01a5b3b66f0333f3e18adc7b34
+              started: "2026-10-16T03:08:37.905Z"
+              spawned: false
+              bytes: 397998
+              windows:
+                - start: "2026-10-16T03:08:37.905Z"
+                  end: "2026-10-15T20:45:21-07:00"
+                - start: "2026-10-16T02:59:59-07:00"
+                  end: "2026-10-16T04:56:26-07:00"
+            - harness: codex
+              id: 01a142af-ad08-7e40-80ec-d227c3009b1c
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              parent_id: 01a133a3-eaec-77b3-8c1e-dc4ac6b41fbd
+              digest: 715da457ab79624da6910aa60f79e0029d3a7696674e47abf1a4f7de1c5c6c2d
+              started: "2026-10-16T03:09:31.922Z"
+              spawned: true
+              bytes: 642617
+              windows:
+                - start: "2026-10-16T03:09:31.922Z"
+                  end: "2026-10-15T20:45:21-07:00"
+            - harness: codex
+              id: 01a142af-eee0-7690-a5d6-7665399ff88b
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              parent_id: 01a133a3-eaec-77b3-8c1e-dc4ac6b41fbd
+              digest: c5861c3be06e7a31b005f2628f7729989e532d2bf5bbbcd1032cfaa094eb33aa
+              started: "2026-10-16T03:09:48.791Z"
+              spawned: true
+              bytes: 704235
+              windows:
+                - start: "2026-10-16T03:09:48.791Z"
+                  end: "2026-10-15T20:45:21-07:00"
+            - harness: codex
+              id: 01a142b3-1520-7c92-a180-31e3993bd485
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              parent_id: 01a133a3-eaec-77b3-8c1e-dc4ac6b41fbd
+              digest: b94fc705dc5704b435b1465cd05b14ef71067d82623f540f15bb6c5f3b63d24c
+              started: "2026-10-16T03:13:15.222Z"
+              spawned: true
+              bytes: 1266036
+              windows:
+                - start: "2026-10-16T03:13:15.222Z"
+                  end: "2026-10-15T20:45:21-07:00"
+            - harness: codex
+              id: 01a142b8-e0ea-7662-a597-05926edba15b
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              parent_id: 01a133a3-eaec-77b3-8c1e-dc4ac6b41fbd
+              digest: f007c9977d91413c421707c79fc5e86901c9e9c9b9109091e54c3174964de81c
+              started: "2026-10-16T03:19:35.005Z"
+              spawned: true
+              bytes: 623158
+              windows:
+                - start: "2026-10-16T03:19:35.005Z"
+                  end: "2026-10-15T20:45:21-07:00"
+            - harness: codex
+              id: 01a142c6-124f-7491-a52b-beb2cb26f82f
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              parent_id: 01a133a3-eaec-77b3-8c1e-dc4ac6b41fbd
+              digest: 9ca992bb23dafdecad96a56dbbb59e90918b18dc1b663443da393b4efe43467b
+              started: "2026-10-16T03:33:59.704Z"
+              spawned: true
+              bytes: 909366
+              windows:
+                - start: "2026-10-16T03:33:59.704Z"
+                  end: "2026-10-15T20:45:21-07:00"
+            - harness: codex
+              id: 01a142c8-0a54-7ae0-b8e6-c5d900157a3d
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              parent_id: 01a133a3-eaec-77b3-8c1e-dc4ac6b41fbd
+              digest: db2455471dce5c23ba032d6016d44fcec459b83f4dbaaa2dffff17405c4b7a73
+              started: "2026-10-16T03:36:08.698Z"
+              spawned: true
+              bytes: 859979
+              windows:
+                - start: "2026-10-16T03:36:08.698Z"
+                  end: "2026-10-15T20:45:21-07:00"
+        excluded_brain_sessions: 1
+        excluded_brain_minutes: 15.0299
+        cuts:
+            - dispatched: "2026-10-16T03:51:41-07:00"
+              finalized: "2026-10-16T04:07:39-07:00"
+              finalizing: false
+            - dispatched: "2026-10-16T04:29:57-07:00"
+              finalized: "2026-10-16T04:34:35-07:00"
+              finalizing: false
+      "n": 3
+      timestamp: "2026-10-16T05:28:35-07:00"
+      dispatched: "2026-10-16T05:18:57-07:00"
+      agent: claude
+      dispose:
+        - id: BR-3
+          disposition: addressed
+          note: Per-platform groupHasLiveMember ends cleanup early; reverting darwin probe makes TestOwnedGroupFinishesEarlyWhenTheGroupExits fail (5.009s), verified in checkout.
+          round: 3
+        - id: BR-7
+          disposition: not-addressed
+          note: wrap.go:2984 still notifies unconditionally on start failure (no Unbound check); nil launchWatcherArgv and os.Executable failure at wrap.go:2971 still give no notice.
+          round: 3
+        - id: BR-9
+          disposition: not-addressed
+          note: NativeLockFilename, validHolder and validBindingNotice remain separate rules; notice accepts space/Cf IDs that NewKey later rejects silently.
+          round: 3
+        - id: BR-10
+          disposition: addressed
+          note: slotLockHolder now runs once in a background goroutine at wrap.go:2896; SetHolder only relabels under the mutex; TestSetHolderRelabelsHeldLocks covers relabel.
+          round: 3
+        - id: BR-11
+          disposition: not-addressed
+          note: Architecture line, core concepts and checklist fixed, but plan line 72 (capability check), line 90 test row (maintenance refusal / migration exemption), line 108 estimate and item 118 (maintenance window) still describe the dropped gate.
+          round: 3
+      findings:
+        - kind: defect
+          id: BR-12
+          severity: Minor
+          title: Relabel writes then truncates in place, so a contender can read a torn holder label
+          detail: 'This is the 2nd finding in family truthful-lock-status-notice. Rule: any holder text a refusal shows must be a complete label some owner actually wrote. nativelock/lock.go Relabel does WriteAt then Truncate; a loser reading between the two sees the new prefix plus the old suffix (e.g. pair:2alone). Diagnostic only; truncate first or write a fixed-size padded record.'
+          family: truthful-lock-status-notice
+          round: 3
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: c1a5e8b9c93b76608cd6507ae8618e38760d5458
+      blocked: false
 ---
 
 # Gate ledger — pair#595 (boundary-review)
@@ -592,10 +842,24 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-11** [Minor] `plan-claims-undelivered-surface` (kind: defect) Plan's active Architecture line, capability sections, test row and unchecked items 120/123 still describe the dropped cutover gate
   Rule: when a revision drops scope, edit or strike every active statement where it stands (summary, unchecked checklist, test tables); only dated log entries stay as history. Item 123 would have the operator check for "legacy blockers" that this build does not produce.
 
+## Round 3 — 2026-10-16T05:28:35-07:00 (claude) — passed
+
+### Disposed
+
+- BR-3 — addressed — Per-platform groupHasLiveMember ends cleanup early; reverting darwin probe makes TestOwnedGroupFinishesEarlyWhenTheGroupExits fail (5.009s), verified in checkout.
+- BR-7 — not-addressed — wrap.go:2984 still notifies unconditionally on start failure (no Unbound check); nil launchWatcherArgv and os.Executable failure at wrap.go:2971 still give no notice.
+- BR-9 — not-addressed — NativeLockFilename, validHolder and validBindingNotice remain separate rules; notice accepts space/Cf IDs that NewKey later rejects silently.
+- BR-10 — addressed — slotLockHolder now runs once in a background goroutine at wrap.go:2896; SetHolder only relabels under the mutex; TestSetHolderRelabelsHeldLocks covers relabel.
+- BR-11 — not-addressed — Architecture line, core concepts and checklist fixed, but plan line 72 (capability check), line 90 test row (maintenance refusal / migration exemption), line 108 estimate and item 118 (maintenance window) still describe the dropped gate.
+
+### Raised
+
+- **BR-12** [Minor] `truthful-lock-status-notice` (kind: defect) Relabel writes then truncates in place, so a contender can read a torn holder label
+  This is the 2nd finding in family truthful-lock-status-notice. Rule: any holder text a refusal shows must be a complete label some owner actually wrote. nativelock/lock.go Relabel does WriteAt then Truncate; a loser reading between the two sees the new prefix plus the old suffix (e.g. pair:2alone). Diagnostic only; truncate first or write a fixed-size padded record.
+
 ## Open findings
 
-- **BR-3** [Important] `fixed-grace-instead-of-bound` (kind: defect) ownedGroup always waits the full 1s grace, adding a second to every wrapper exit and restart
 - **BR-7** [Minor] `truthful-lock-status-notice` (kind: defect) Watcher-start-failure notice fires even when an exact ID is already locked; a missing watcher gives no notice
 - **BR-9** [Minor] `shared-identifier-validation` (kind: defect) Three divergent ID/label validators (NativeLockFilename, validHolder, validBindingNotice) should share one rule
-- **BR-10** [Minor] `external-probe-on-startup-path` (kind: defect) First late lock runs the sdlc workspace label lookup on masterPump while holding the lock mutex
 - **BR-11** [Minor] `plan-claims-undelivered-surface` (kind: defect) Plan's active Architecture line, capability sections, test row and unchecked items 120/123 still describe the dropped cutover gate
+- **BR-12** [Minor] `truthful-lock-status-notice` (kind: defect) Relabel writes then truncates in place, so a contender can read a torn holder label
