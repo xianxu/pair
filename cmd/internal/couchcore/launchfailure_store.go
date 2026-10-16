@@ -1,6 +1,7 @@
 package couchcore
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -14,11 +15,16 @@ import (
 
 type LaunchFailureStorage interface {
 	Read() ([]LaunchFailure, error)
-	Save(LaunchFailure) error
+	// Save honors ctx while waiting for admission; admitted publication finishes
+	// atomically even if ctx is subsequently canceled.
+	Save(context.Context, LaunchFailure) error
 	Path() string
 }
 
-type LaunchFailureStore struct{ path string }
+type LaunchFailureStore struct {
+	path        string
+	waitForLock func(context.Context) error
+}
 
 func NewLaunchFailureStore(namespace CouchNamespace) *LaunchFailureStore {
 	return &LaunchFailureStore{path: filepath.Join(namespace.Dir(), "launch-diagnostics", "failures.json")}
@@ -71,7 +77,7 @@ func (s *LaunchFailureStore) Read() ([]LaunchFailure, error) {
 	}
 	return validated, nil
 }
-func (s *LaunchFailureStore) Save(f LaunchFailure) error {
+func (s *LaunchFailureStore) Save(ctx context.Context, f LaunchFailure) error {
 	if _, err := normalizeLaunchFailure(f); err != nil {
 		return err
 	}
@@ -88,9 +94,15 @@ func (s *LaunchFailureStore) Save(f LaunchFailure) error {
 	} else if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
-	deadline := time.Now().Add(time.Second)
+	wait := s.waitForLock
+	if wait == nil {
+		wait = waitForLaunchFailureLock
+	}
 	var lock *threadStoreLock
 	for {
+		if err := ctx.Err(); err != nil {
+			return fmt.Errorf("launch diagnostics lock wait: %w", err)
+		}
 		var err error
 		lock, err = acquireLaunchFailureLock(lockpath)
 		if err == nil {
@@ -99,12 +111,14 @@ func (s *LaunchFailureStore) Save(f LaunchFailure) error {
 		if !errors.Is(err, unix.EWOULDBLOCK) && !errors.Is(err, unix.EAGAIN) {
 			return err
 		}
-		if !time.Now().Before(deadline) {
-			return fmt.Errorf("launch diagnostics lock timeout: %w", err)
+		if err := wait(ctx); err != nil {
+			return fmt.Errorf("launch diagnostics lock wait: %w", err)
 		}
-		time.Sleep(10 * time.Millisecond)
 	}
 	defer lock.Close()
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("launch diagnostics lock wait: %w", err)
+	}
 	old, err := s.Read()
 	if err != nil {
 		return err
@@ -161,4 +175,16 @@ func acquireLaunchFailureLock(path string) (*threadStoreLock, error) {
 		return nil, err
 	}
 	return &threadStoreLock{file: file}, nil
+}
+
+// A cancellable wake avoids leaving a goroutine blocked in flock after return.
+func waitForLaunchFailureLock(ctx context.Context) error {
+	timer := time.NewTimer(10 * time.Millisecond)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }
