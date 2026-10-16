@@ -1,12 +1,12 @@
 ---
 id: 000599
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-15
 updated: 2026-10-16
 estimate_hours:
-card_mirror: 'e8e7b10d923c0446fa8e47a36e0ab15f70bfa634' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'eb73ccfe0d10346621964645c687df283146a438' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-16T08:22:54-07:00
 claimant:
     operator: Xian Xu
@@ -15,6 +15,7 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
+actual_hours: 0.08
 ---
 
 # Couch: plain peer deliveries become owed on every agentic document of the owner (duplicate session-sync pings)
