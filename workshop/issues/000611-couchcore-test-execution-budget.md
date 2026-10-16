@@ -108,20 +108,19 @@ Verified hub decision898fac62-3c98-445e-9bf3-0bd7b9f78de2 explicitly authorizes 
 
 #### Superseded pre-R5 scope
 
-## Spec
-
-Profile couchcore's slowest tests using recorded per-test execution data under both isolated and suite-equivalent load. Distinguish real IO/setup cost, serialization and scheduling waits. Choose a measured package split or deterministic sharding strategy that preserves test inventory, fixture ownership, assertions and cancellation. Set and defend a practical execution budget with headroom, and remove #610's temporary 20m allowance when the measured suite is reliably within that budget. No retries, skips or longer sleeps as a performance fix.
-
-## Done when
-
-- [ ] Recorded profiles identify the slowest tests and quantify execution separately from suite queue wait, under idle and representative load.
-- [ ] A justified package split or sharding design preserves every test and its isolation contract, with deterministic coverage and bounded concurrency.
-- [ ] Before/after full-suite measurements demonstrate the agreed execution budget with headroom; fixture deadlines and assertions remain intact.
-- [ ] The temporary 20m allowance from #610 is removed or replaced by the measured, documented steady-state budget.
-
-## Plan
-
-- [x] Measure an isolated couchcore run with Go JSON events; distinguish execution, paused parallel tests, compilation/setup, and machine co-tenancy.
-- [ ] Compare suite-equivalent timings, audit fixture/package boundaries, and send a measured full-flow design to the hub before any split.
-- [ ] After design approval, implement and qualify the agreed test organization, inventory preservation and execution budget; remove the temporary allowance; full-flow review and landing.
-
+> ## Spec
+>
+> Profile couchcore's slowest tests using recorded per-test execution data under both isolated and suite-equivalent load. Distinguish real IO/setup cost, serialization and scheduling waits. Choose a measured package split or deterministic sharding strategy that preserves test inventory, fixture ownership, assertions and cancellation. Set and defend a practical execution budget with headroom, and remove #610's temporary 20m allowance when the measured suite is reliably within that budget. No retries, skips or longer sleeps as a performance fix.
+>
+> ## Done when
+>
+> - [ ] Recorded profiles identify the slowest tests and quantify execution separately from suite queue wait, under idle and representative load.
+> - [ ] A justified package split or sharding design preserves every test and its isolation contract, with deterministic coverage and bounded concurrency.
+> - [ ] Before/after full-suite measurements demonstrate the agreed execution budget with headroom; fixture deadlines and assertions remain intact.
+> - [ ] The temporary 20m allowance from #610 is removed or replaced by the measured, documented steady-state budget.
+>
+> ## Plan
+>
+> - [x] Measure an isolated couchcore run with Go JSON events; distinguish execution, paused parallel tests, compilation/setup, and machine co-tenancy.
+> - [ ] Compare suite-equivalent timings, audit fixture/package boundaries, and send a measured full-flow design to the hub before any split.
+> - [ ] After design approval, implement and qualify the agreed test organization, inventory preservation and execution budget; remove the temporary allowance; full-flow review and landing.
