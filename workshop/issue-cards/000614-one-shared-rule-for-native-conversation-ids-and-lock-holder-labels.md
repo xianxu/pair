@@ -1,6 +1,6 @@
 ---
 id: 000614
-status: codecomplete
+status: done
 created: 2026-10-16
 updated: 2026-10-16
 estimate_hours:
@@ -22,6 +22,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 61066dc88570e5b010925faf1ef02fcefc028231
         evidence_commit: aac5cfdc3a8cc25e9f22ba5c741ac0e7735dd59f
+        landed_commit: 768c2ed403baed67b8a35045e6d39798a51771ab
 ---
 
 # One shared rule for native conversation IDs and lock holder labels
