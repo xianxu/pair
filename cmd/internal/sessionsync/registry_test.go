@@ -504,3 +504,41 @@ func TestRegisteredLeafAliasLockAndAliasRenameKeepOperatorAuthority(t *testing.T
 	}
 	checkLock(renamed)
 }
+
+// pair#599: a plain peer delivery is owed once, on the owner's session file;
+// a registered plain document owes only the submits addressed to it.
+func TestPlainDeliveryOwedOnlyOnSessionFileAndSubmitOnlyOnItsDocument(t *testing.T) {
+	r := newRig(t)
+	note := filepath.Join(filepath.Dir(r.p.File), "qa.md")
+	r.put(note, "## Work\n\nquestion\n")
+	if _, err := r.sync.Register(note, "ops:0"); err != nil {
+		t.Fatal(err)
+	}
+	at := r.now.Add(time.Minute)
+	for _, e := range []Entry{
+		{ID: "report", From: "pair:2", At: at, Head: "pair:2 #597 landed"},
+		{ID: "qa-submit", From: "ops:0", At: at, Head: SubmitPrefix + note},
+	} {
+		if err := r.sync.Ledger.Append("ops:0", e); err != nil {
+			t.Fatal(err)
+		}
+	}
+	r.now = at.Add(time.Minute)
+	ids := func(path string) []string {
+		st, err := r.sync.Status(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		out := []string{}
+		for _, e := range st.Owed {
+			out = append(out, e.ID)
+		}
+		return out
+	}
+	if got := ids(r.p.File); strings.Join(got, ",") != "report" {
+		t.Fatalf("session file owes %v, want only the plain delivery", got)
+	}
+	if got := ids(note); strings.Join(got, ",") != "qa-submit" {
+		t.Fatalf("plain document owes %v, want only its own submit", got)
+	}
+}
