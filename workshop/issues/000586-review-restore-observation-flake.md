@@ -115,3 +115,7 @@ Hub approval2db01686-340a-477c-a046-6d5dab2a3085 matches committed plan5827613c9
 ### 2026-10-15 — timebox exhausted; ship retained diagnostics
 
 Under hub approval2db01686-340a-477c-a046-6d5dab2a3085, select the diagnostics-only fallback after202passing cases/60.13minutes. Demonstrated fixture defect: exit-zero invalid wanted JSON was previously forwarded without status/identity validation; deterministic regressions now reject and retain it. Original historical trigger remains unproven. Preserve production Git deadlines, authorization and scheduling; do not broaden this issue into a WaitDelay fix without demonstrating the original causal chain. Deliver validated wanted observations, bounded wanted/fresh phase/order/process evidence, deterministic refusal regressions and positive control, then continue the assigned batch.
+
+### 2026-10-15 — landing order hold
+
+Hub receipt6a0da03a-2e89-45d7-b162-d79515f8a34a confirms diagnostics-only shipment. Complete the integrated suite and close review, but do not invoke sdlc merge until the hub explicitly releases the hold. Required landing order: #597 (operator priority), #571, #586. Continue #591 after landing; #589 is owned by pair:2.
