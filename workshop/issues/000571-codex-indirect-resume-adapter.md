@@ -55,6 +55,7 @@ Canonical approved implementation design: [durable plan](../plans/000571-codex-i
 
 - [x] Preserve native trust/discovery distinction and fail closed on unproven worktree scope (BR-3).
 - [x] Observe Codex SQLite through bounded coherent owned private snapshots with no native mutation (BR-4).
+- [ ] Resolve the native-selection mechanism re-plan and, if approved, enforce native source-kind eligibility (BR-5).
 
 ## Log
 
@@ -80,6 +81,12 @@ Source links (matching tag):
 - [Official configuration reference](https://learn.chatgpt.com/docs/config-file/config-reference)
 
 ## Revisions
+
+### 2026-10-15 — native mechanism re-plan requested before BR-5
+
+TL receiptab449251 requires stepping back after five fidelity defects, with no code until the Revision is seen. The canonical plan now records the native-surface survey first: no exposed read-only TUI/exec resume-to-UUID resolver was found in rust-v0.162.1. Resume enters live lifecycle; thread/list is a primitive requiring client-side configuration/CWD policy; native DB snapshot reads do not supply that policy; native StateRuntime listing initialization is writable. No Codex/app-server or credential access was used for the survey.
+
+The plan compares native surfaces, names the missing contract, distinguishes the existing source-derived adapter from a future native resolver, and asks the TL to choose between continuing the minimal source-filter correction and retaining native compatibility until delegation exists. It enumerates every source family and persisted form, the proposed pure eligibility rule and selected-ID tests. Four RED measurements were completed atomically before the mechanism stop; production remains unchanged. Implementation and another full suite/close wait for the TL's decision; no automatic fifth patch.
 
 ### 2026-10-15 — close round3: prior fixes verified; native source filter fidelity
 
