@@ -1,6 +1,6 @@
 ---
 id: 000587
-status: codecomplete
+status: done
 created: 2026-10-15
 updated: 2026-10-15
 estimate_hours: 4.883
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: d477e4a815847e3aaea8ad4450bb4d36df0fda2f
         evidence_commit: 82ec7d00d6df396e5d2a72bc841a48e80e236b4b
+        landed_commit: 034b04ba489d908c8355724dac9e3ae9b2db3828
 ---
 
 # Couch resource sampler: per-slot CPU, memory and disk writes, orphan detection, threshold alerts, couch --resources
