@@ -54,7 +54,7 @@ Canonical approved implementation design: [durable plan](../plans/000571-codex-i
 - [x] Validate native transcript record eligibility, replace incomplete positive fixtures, and rerun targeted/full verification for close (BR-2).
 
 - [x] Preserve native trust/discovery distinction and fail closed on unproven worktree scope (BR-3).
-- [ ] Observe Codex SQLite through bounded coherent owned private snapshots with no native mutation (BR-4).
+- [x] Observe Codex SQLite through bounded coherent owned private snapshots with no native mutation (BR-4).
 
 ## Log
 
@@ -80,6 +80,14 @@ Source links (matching tag):
 - [Official configuration reference](https://learn.chatgpt.com/docs/config-file/config-reference)
 
 ## Revisions
+
+### 2026-10-15 — BR-4 final targeted proof and recorded-suite queue
+
+Production/tests checkpoint9728b62d9, docs-only main integrationcbf6cf2e and final child-temp ownership981cfb28fc504441a6799b8f93f6424b756c07f1. Full inventory config/Git/schema/selector normal96.744s and race107.195s pass (go test with Test.*(CodexConfig|CodexGit|CodexLatest|NativeSelector), count1). Source audits, launcher/wrapper normal/race and final make build pass. Read-only machine config conformance passes12files51418bytes, compatibility/observation-incomplete, no selection/admission; no credentials or native process startup.
+
+Deterministic snapshot controls cover DB/WAL replacement/truncation, checkpoint, journal creation, coarse-metadata content changes, generation reset after second DB verification, malformed WAL checksums, no SHM observation, aggregate read budgets with positive controls, cleanup failure refusing authority, and native scratch-parent aliases refused before any creation. Actual child-process env control was RED under inherited temporary directories, then GREEN with SQLITE_TMPDIR/TMPDIR overridden to the owned snapshot; parent environment unchanged. Rc/view external effects were already blocked by this host, so retain the defensive-coverage caveat.
+
+Fresh recorded suite started on981cfb28 and is queued by the normal weighted machine gate (run75c52f80573be0b9288ea118102da3b1). No custom load polling, repeated suite or bypass. Full-suite result and fresh close review remain pending; prior green suite does not substitute for them.
 
 ### 2026-10-15 — BR-3 integration and BR-4 headline verification
 
