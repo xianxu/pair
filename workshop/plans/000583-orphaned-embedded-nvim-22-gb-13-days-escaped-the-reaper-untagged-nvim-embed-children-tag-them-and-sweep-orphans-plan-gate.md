@@ -1,4 +1,24 @@
 ---
+reviewer_runs:
+    - version: 1
+      intent:
+        id: 67a8bc4e-525f-479c-869f-2af5bca693b2
+        repository: github.com/xianxu/pair
+        issue_id: "000583"
+        recipe: estimate-quality
+        round: 1
+        attempt: 1
+        agent: claude
+        root: /Users/xianxu/workspace/worktree/pair-slot4/pair
+        reviewed_head: 8793f9f46bccacfaa8017bebc9ad1cfb541f5f20
+        slot: pair:4
+        requested_at: "2026-10-16T18:01:02.621315Z"
+      phase: finished
+      pid: 27554
+      started_at: "2026-10-16T18:01:03.158954Z"
+      finished_at: "2026-10-16T18:01:28.173613Z"
+      session_id: a845f300-2968-4cb8-b745-15e1c37f59df
+      outcome: returned
 gate: plan-quality
 issue: 583
 id_prefix: PQ
@@ -103,7 +123,36 @@ rounds:
           family: unstated-decision-input
           round: 2
       blocked: false
-content_hash: 1f8f34e57d7b58545b9f52a1a8b212a194f754b14ebcf2b5e18b27ba196b2ed1
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: 9c21ca93-dfb1-45ac-b1c2-7842b2c0f75b
+            repository: github.com/xianxu/pair
+            issue_id: "000583"
+            recipe: plan-quality
+            round: 3
+            attempt: 1
+            agent: claude
+            root: /Users/xianxu/workspace/worktree/pair-slot4/pair
+            reviewed_head: 8793f9f46bccacfaa8017bebc9ad1cfb541f5f20
+            slot: pair:4
+            requested_at: "2026-10-16T18:00:31.469615Z"
+          phase: finished
+          pid: 14750
+          started_at: "2026-10-16T18:00:31.749491Z"
+          finished_at: "2026-10-16T18:00:57.825578Z"
+          session_id: 1ff324a8-f519-463e-91c6-eed2bb7295d3
+          outcome: returned
+      "n": 3
+      timestamp: "2026-10-16T11:00:59-07:00"
+      agent: claude
+      dispose:
+        - id: PQ-5
+          disposition: addressed
+          note: Task 5 source 3 now says absent openlock = owner dead = reap (matches the defer remove at opener/run.go:189), alive = skip, malformed = reap gated by row predicates; the rule is applied to every evidence source.
+          round: 3
+      blocked: false
+content_hash: 71ab2c0ebb352010a53c4d18f09cb9623ef2c4356f8894049166fe3698281532
 ---
 
 # Gate ledger — pair#583 (plan-quality)
@@ -136,6 +185,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **PQ-5** [Minor] `unstated-decision-input` (kind: defect) Sweep source 3 does not state the verdict when .nvim-pid exists but the .openlock sibling is gone
   3rd finding in this family. opener/run.go:189 removes .openlock on clean opener exit (defer), which is the root-cause case where the embed outlives its TUI; if the missing pair is read as skip, changelog orphans leak. Rule to apply across every evidence source: state the classifier verdict for absent, present and malformed. Here, an absent openlock means the owner is dead, and the kill stays protected by the identity, nvim name, --embed and exact <base>.md argv checks.
 
+## Round 3 — 2026-10-16T11:00:59-07:00 (claude) — passed
+
+### Disposed
+
+- PQ-5 — addressed — Task 5 source 3 now says absent openlock = owner dead = reap (matches the defer remove at opener/run.go:189), alive = skip, malformed = reap gated by row predicates; the rule is applied to every evidence source.
+
 ## Open findings
 
-- **PQ-5** [Minor] `unstated-decision-input` (kind: defect) Sweep source 3 does not state the verdict when .nvim-pid exists but the .openlock sibling is gone
+(none — every finding has been disposed)
