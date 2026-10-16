@@ -15,6 +15,7 @@ claimant:
     workspace: pair:1
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
+flow: {kind: full, provenance: operator}
 ---
 
 # Bring couchcore under a measured test execution budget

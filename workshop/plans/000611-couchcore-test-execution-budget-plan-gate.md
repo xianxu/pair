@@ -1,4 +1,24 @@
 ---
+reviewer_runs:
+    - version: 1
+      intent:
+        id: eae71bae-58bd-40d2-bb04-ab7590cd70f2
+        repository: github.com/xianxu/pair
+        issue_id: "000611"
+        recipe: estimate-quality
+        round: 1
+        attempt: 1
+        agent: codex
+        root: /Users/xianxu/workspace/worktree/pair-slot1/pair
+        reviewed_head: 2a60102de4b2f696399aa29ac7b2e43170ccea28
+        slot: pair:1
+        requested_at: "2026-10-16T13:50:07.988678Z"
+      phase: finished
+      pid: 17238
+      started_at: "2026-10-16T13:50:08.111126Z"
+      finished_at: "2026-10-16T13:50:40.401826Z"
+      session_id: 01a144fa-2bf7-70f2-88a0-da9a05bff5af
+      outcome: returned
 gate: plan-quality
 issue: 611
 id_prefix: PQ
@@ -73,7 +93,40 @@ rounds:
           note: R3 names the iterator, extracted consistency predicates and ProvisionFixture.Run, supplies concise adversarial-input strategies and mechanical guards, and supersedes the identity-case inventory.
           round: 2
       blocked: false
-content_hash: 876344e5225754b3a33ba9c8020eda15c40acce0bbb76f4cb9c9dab30da2ff27
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: 7b8342b7-4dc1-41e3-9ad4-71c2f03fc821
+            repository: github.com/xianxu/pair
+            issue_id: "000611"
+            recipe: plan-quality
+            round: 3
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot1/pair
+            reviewed_head: 2a60102de4b2f696399aa29ac7b2e43170ccea28
+            slot: pair:1
+            requested_at: "2026-10-16T13:49:35.617143Z"
+          phase: finished
+          pid: 15716
+          started_at: "2026-10-16T13:49:35.791056Z"
+          finished_at: "2026-10-16T13:50:06.637631Z"
+          session_id: 01a144f9-add6-7a40-86bc-f47901dbde35
+          outcome: returned
+      "n": 3
+      timestamp: "2026-10-16T06:50:06-07:00"
+      agent: codex
+      dispose:
+        - id: PQ-1
+          disposition: addressed
+          note: R3 specifies two isolated runs at or below 200s, loaded execution at or below 420s, and retain/report/re-plan behavior on failed or unavailable qualification.
+          round: 3
+        - id: PQ-2
+          disposition: addressed
+          note: R3 names the iterator, consistency predicates and ProvisionFixture.Run, provides adversarial strategies and mechanical guards, and supersedes the identity-case inventory.
+          round: 3
+      blocked: false
+content_hash: 56cc2060a66e8bdc4e8c7b7cd568086be0d532fa94ca1a8a18de4ed4f88402fd
 ---
 
 # Gate ledger — pair#611 (plan-quality)
@@ -96,6 +149,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 - PQ-1 — addressed — R3 defines numerical isolated and loaded limits, consecutive-repeat qualification, the separate lane-decision threshold, and retain/report/re-plan behavior when qualification fails or is unavailable.
 - PQ-2 — addressed — R3 names the iterator, extracted consistency predicates and ProvisionFixture.Run, supplies concise adversarial-input strategies and mechanical guards, and supersedes the identity-case inventory.
+
+## Round 3 — 2026-10-16T06:50:06-07:00 (codex) — passed
+
+### Disposed
+
+- PQ-1 — addressed — R3 specifies two isolated runs at or below 200s, loaded execution at or below 420s, and retain/report/re-plan behavior on failed or unavailable qualification.
+- PQ-2 — addressed — R3 names the iterator, consistency predicates and ProvisionFixture.Run, provides adversarial strategies and mechanical guards, and supersedes the identity-case inventory.
 
 ## Open findings
 
