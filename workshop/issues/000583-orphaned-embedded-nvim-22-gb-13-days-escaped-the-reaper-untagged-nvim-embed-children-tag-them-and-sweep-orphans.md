@@ -51,11 +51,11 @@ Durable plan: `workshop/plans/000583-orphaned-embedded-nvim-22-gb-13-days-escape
 (two chunks = the two milestones below).
 
 - [ ] M1 — every pair-spawned embed carries an identity and is reaped by exact identity
-  - [ ] One closed kind set: `artifactpath.NvimKinds()` = {draft, scrollback, review}, with a drift pin over
+  - [x] One closed kind set: `artifactpath.NvimKinds()` = {draft, scrollback, review}, with a drift pin over
     every inline list (`paths.go:559`, `lifecycle.go:195,297`, `osruntime.go:947,973`, `gc.go:253`)
-  - [ ] Pure `ClassifyNvimReap(row)` — kill only when pid, kernel identity, the `nvim` short name, an exact
+  - [x] Pure `ClassifyNvimReap(row)` — kill only when pid, kernel identity, the `nvim` short name, an exact
     `--embed` argv field and the expected artifact path all agree, and the owner is dead or ppid is 1
-  - [ ] The `ProcessTable` seam gains `Name` and a targeted `Command(pid)`; `ReapNvim` / `ReapNvimContext`
+  - [x] The `ProcessTable` seam gains `Name` and a targeted `Command(pid)`; `ReapNvim` / `ReapNvimContext`
     signal through its identity fence. **`pkillF` and both `pkill -9 -f` patterns are deleted**
     (`osruntime.go:938,956-957`, `lifecycle_os.go:49-58`), so the reap path holds no subprocess seam
   - [ ] The changelog viewer gets an **artifact-keyed** pid record — `<changelog-base>.nvim-pid`, a sibling
@@ -224,3 +224,63 @@ check, T16's thin impl for a verb spanning three layers, and T9/T10's cgo and sa
 `sdlc issue set-estimate --issue 583 --hours 8.1`. Its fifth point — the buffer also multiplying the
 already-spent `issue-spec` design — was left alone: v3.1 applies the buffer to Σdesign, and carving spent
 design out of the multiplicand is a model change, not an issue-level choice.
+
+### 2026-10-16 — M1 Tasks 1-3 landed: one kind set, one decision, one identity-fenced reap
+
+Commits `bf84b5edb` (kind set), `8280a2084` (pure decision), `a01db5a31` (the reaper). Both reap paths —
+`OSRuntime.ReapNvim` and `OSRuntime.ReapNvimContext` — now run one core (`reapNvimSidecars`) that takes a
+single snapshot for pid/ppid/identity/name, reads that pid's argv, decides with `ClassifyNvimReap`, and
+re-reads the kernel start stamp immediately before `SIGKILL`. `pkillF` and both `pkill -9 -f` patterns are
+gone, and with them the `exec.Command("kill", "-9", pid)` calls: the reap path holds no subprocess seam, so
+nothing in it can reach a process by name.
+
+**Attribution is three-way, and each way was measured rather than assumed.** `ps -eo pid,ppid,command` on
+this host confirms `nvim FILE` forks a TUI parent plus an `nvim --embed` server child, and lua's
+`vim.fn.getpid()` returns the *embed* pid, so every sidecar names an embed. The plan's single
+"expected artifact path" predicate only fits the draft:
+
+- *draft* argv carries its exact scope path (`nvim --embed -u <pairHome>/nvim/init.lua <scopeDir>/draft-<tag>.md`).
+- *scrollback* is launched as `sh -c 'exec nvim -u "$1" "$2"' pair-viewer <lua> <ansi>`
+  (`opener/runtime.go:164`), so argv carries `<scopeDir>/scrollback-<tag>-<agent>.ansi`. The obvious
+  predicate — `Paths.ScrollbackPrefix()` — mis-attributes: `scrollback-work-` also matches
+  `scrollback-work-2-claude.ansi`, so quitting tag `work` would kill tag `work-2`'s viewer. Attribution goes
+  through `ScopePaths.TagFromNvimEmbedArgv`, the codebase's one parser, whose last-dash rule cuts the agent
+  correctly; `TestReapNvimSidecarsAttributesScrollbackByTagNotPrefix` pins all four owner/ansi pairings.
+- *review* argv carries no pair path at all (`nvim --embed -u <pairHome>/nvim/review.lua <any file in the
+  user's tree>`), and `<pairHome>` is **checkout-relative** — a live embed outlives the checkout that
+  spawned it, and this reaper runs from a different worktree than the sessions it reaps. So review matches
+  the asset's **base name** (`review.lua`, from `reviewcmd.ReviewScript`), never its path.
+
+`NvimReapRow` accordingly carries `ExpectedArgPath` / `ExpectArgvTag`+`ArgvTag` / `ExpectedAssetBase`; a
+kind states as much as its argv allows, and a kind that cannot be attributed is **skipped** (`argv serves
+another tag`, `argv runs another config`) rather than killed on `nvim --embed` alone.
+`TestNvimSidecarsGiveEveryKindArgvEvidence` is the drift guard: a kind added to `NvimKinds()` without a
+predicate fails it.
+
+**Record rule.** Evidence that is merely missing keeps the sidecar for the next pass (owner live, identity
+unreadable, argv unreadable); every *decided* outcome removes it — kill, malformed record, pid gone,
+recycled identity, not-ours. A zombie embed (identity readable, argv not) therefore leaves its record to
+storage GC, which already treats the family as collectable
+(`GCClassifications["nvim-pid"] = GCCollectable`).
+
+**SIGKILL only, no TERM escalation** — every caller has already established that the owner is gone or is
+quitting, so no session is left to flush and quit is time-bounded. `outcome.Killed` is `Signal(...) == nil`,
+so a pid that races away between the identity re-read and the signal is not reported as reaped; Task 5's
+report reads that field.
+
+**One derivation replaced two pinned spellings.** Task 1 pinned the quit path's inline spelling to
+`editorPathsOf`; Task 3 deleted the inline spelling instead, because two spellings pinned to each other is
+the exact shape that let `review` drift out of both. `editorPathsOf` →
+`nvimSidecarsFor(paths, paths.Tag(), paths.ScopeDir())` is now the only place the kind→attribution mapping
+exists. `TestNvimReapPathsDeriveEveryKindFromOneSource` went with it, redundant against
+`TestNvimSidecarsForDerivesFromTheClosedKindSet` + `TestQuitPathAndReaperShareEditorPaths`.
+Artifact-coverage consequence: `lifecycle.go` drops family `nvim-pid` / binding `scoped-nvim-pid`,
+`osruntime.go` drops `draft` / `scoped-draft` / `scoped-nvim-pids`, `nvim_reap_os.go` is a ResolvedConsumer
+with no bindings (it consumes members on a `Paths` handed to it and calls no resolver of its own), and the
+pure `nvim_reap.go` joins `NonArtifactSources`. Task 2 had left `nvim_reap.go` out of the inventory
+entirely — `TestProductionArtifactReferencesAreExactlyClassified` caught it as NEW, and `a01db5a31` pays it.
+
+**Discovery, not folded in:** `KillTitlePollerContext` (`lifecycle_os.go:62-75`) still runs `kill <pid>`
+straight from the title pidfile with no identity fence — the recycled-pid hazard just closed for the
+editors, still open for the title poller. #583's contract is embedded nvim, so this is independent work;
+raised with the hub rather than filed from this slot.

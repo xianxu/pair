@@ -172,36 +172,36 @@ reaps nothing partially: a candidate is either signalled or not, and the next pa
 - Modify: `cmd/internal/launcher/lifecycle.go:193-196,294-299`, `cmd/internal/launcher/osruntime.go:947,973`
 - Test: `cmd/internal/artifactpath/paths_test.go`, `cmd/internal/launcher/lifecycle_test.go`
 
-- [ ] **Step 1: Write the failing drift pin.** Strategy: the kind set has exactly one spelling, so no
+- [x] **Step 1: Write the failing drift pin.** Strategy: the kind set has exactly one spelling, so no
   consumer test may contain a literal `{draft, scrollback, …}` — each builds its expectation from
   `NvimKinds()`, and the pin asserts the set's members and that `Paths.NvimPIDs()` resolves one sidecar
   per kind. The consumers pinned: `gc.go`'s retention match, `RenameArtifacts`, `editorPathsOf`, and both
   `osruntime` loops.
-- [ ] **Step 2: Run it, expect FAIL** (`undefined: NvimKinds`).
+- [x] **Step 2: Run it, expect FAIL** (`undefined: NvimKinds`).
   `go test ./cmd/internal/artifactpath/ -run 'NvimKinds|NvimPID' -count=1`
-- [ ] **Step 3: Implement** `func NvimKinds() []string` (returning `{draft, scrollback, review}`),
+- [x] **Step 3: Implement** `func NvimKinds() []string` (returning `{draft, scrollback, review}`),
   `func (p Paths) NvimPIDs() []string`,
   `func (p ScopePaths) NvimPIDGlobs() ([]NvimPIDGlob, error)` (`NvimPIDGlob{Kind, Pattern string}`), and
   rewrite the six consumers to derive. Keep the quit-path literal at `lifecycle.go:193-196` spelled at its
   call site — `TestManagedIOInventoryAnchors` requires each scoped member to be consumed where resolved —
   but let it range over `NvimKinds()`. The changelog viewer is **not** a kind; Task 4 gives it an
   artifact-keyed record instead (see the root-cause note).
-- [ ] **Step 4: Run the artifactpath + launcher packages, expect PASS.**
+- [x] **Step 4: Run the artifactpath + launcher packages, expect PASS.**
   `go test ./cmd/internal/artifactpath/ ./cmd/internal/launcher/ -count=1`
-- [ ] **Step 5: Commit** `#583: single-source the nvim pid sidecar kind set`
+- [x] **Step 5: Commit** `#583: single-source the nvim pid sidecar kind set`
 
 ### Task 2: The reap decision, pure
 
 **Files:**
 - Create: `cmd/internal/launcher/nvim_reap.go`, `cmd/internal/launcher/nvim_reap_test.go`
 
-- [ ] **Step 1: Write the failing table test.** Strategy: every field of a `NvimReapRow` is untrusted
+- [x] **Step 1: Write the failing table test.** Strategy: every field of a `NvimReapRow` is untrusted
   input, so the table drives one field at a time to its boundary — absent, wrong-valued, and
   right-valued — and asserts the verdict *and* the reason string for each, with the invariant that no
   row missing any one predicate is ever a kill. The two rows that must kill: owner dead, and owner live
   but ppid 1 (the closed-pane case the 22 GB orphan is an instance of).
-- [ ] **Step 2: Run, expect FAIL.** `go test ./cmd/internal/launcher/ -run ClassifyNvimReap -count=1`
-- [ ] **Step 3: Implement**
+- [x] **Step 2: Run, expect FAIL.** `go test ./cmd/internal/launcher/ -run ClassifyNvimReap -count=1`
+- [x] **Step 3: Implement**
 
 ```go
 type NvimReapRow struct {
@@ -225,8 +225,8 @@ func ClassifyNvimReap(row NvimReapRow) (kill bool, reason string)
 
   Exact `--embed` and exact `ExpectedArgPath` matching use field comparison, not `strings.Contains`
   (the #587 classifier's rule, `couchcore/resource.go:326-332`).
-- [ ] **Step 4: Run, expect PASS.**
-- [ ] **Step 5: Commit** `#583: pure identity-exact nvim reap decision`
+- [x] **Step 4: Run, expect PASS.**
+- [x] **Step 5: Commit** `#583: pure identity-exact nvim reap decision`
 
 ### Task 3: The reaper kills on verified identity, never by name
 
@@ -236,14 +236,14 @@ func ClassifyNvimReap(row NvimReapRow) (kill bool, reason string)
 - Modify: `cmd/internal/procutil/source.go` (expose `Identity` and `Command` on `Source`)
 - Test: `cmd/internal/launcher/session_reap_test.go` (the fake), a new `nvim_reap_os_test.go`
 
-- [ ] **Step 1: Write the failing tests.** Strategy: a sidecar names a pid, and a pid is not a process —
+- [x] **Step 1: Write the failing tests.** Strategy: a sidecar names a pid, and a pid is not a process —
   the fake table makes each predicate independently false (recycled identity at signal time, non-nvim
   name, no `--embed` field, an argv serving a different draft path) and asserts that the recorded signal
   list stays empty, while a fully-evidenced dead-owner row records exactly one `SIGKILL`. The
   "never by name alone" assertion is structural: the reap path holds no subprocess seam at all, so the
   test asserts the fake's signal list and no test can observe a `pkill`.
-- [ ] **Step 2: Run, expect FAIL.**
-- [ ] **Step 3: Implement.** Extend the seam — `ProcessRow` gains `Name string`; `ProcessTable` gains
+- [x] **Step 2: Run, expect FAIL.**
+- [x] **Step 3: Implement.** Extend the seam — `ProcessRow` gains `Name string`; `ProcessTable` gains
   `Command(pid int) (args []string, ok bool)`; `OSProcessTable.Snapshot` fills `Name` from the
   `procutil.Table()` row it already reads, and `OSProcessTable.Command` calls the new
   `procutil.Source.Command` (a thin export of `nativeCommand`, argv for one pid, `ok == false` when the
@@ -253,8 +253,8 @@ func ClassifyNvimReap(row NvimReapRow) (kill bool, reason string)
   and remove the sidecar only after a decided outcome. **Delete `pkillF`** and both pattern kills
   (`osruntime.go:938,956-957`, `lifecycle_os.go:49-58`), and the `exec.Command("kill", "-9", pid)` calls
   with them: `regexp` may drop out of both files' imports.
-- [ ] **Step 4: Run launcher + procutil, expect PASS.** `go test ./cmd/internal/launcher/ ./cmd/internal/procutil/ -count=1`
-- [ ] **Step 5: Commit** `#583: reap embedded nvim on verified identity, drop name-based pkill`
+- [x] **Step 4: Run launcher + procutil, expect PASS.** `go test ./cmd/internal/launcher/ ./cmd/internal/procutil/ -count=1`
+- [x] **Step 5: Commit** `#583: reap embedded nvim on verified identity, drop name-based pkill`
 
 ### Task 4: Give the changelog viewer an artifact-keyed pid record
 
@@ -565,3 +565,45 @@ func ClassifyOrphanNvim(row procutil.Process, args []string, cwd string, cwdKnow
   returns nothing for it, `Makefile.local:263-266` regenerates it as a prerequisite of `build` and `test`,
   and a fresh generation reproduces `nvim/init.lua` byte-for-byte. Integration points, Task 4 Step 3 and
   Non-goals now say build output rather than drift; no separate issue is filed, because there is no defect.
+- **2026-10-16 — Task 3 implemented; attribution widened from one predicate to three.** Reason: the plan's
+  `ExpectedArgPath` ("the scope path argv must carry exactly") only fits the draft kind, and fitting the other
+  two to it would have been unsafe rather than merely wrong. Measured on this host
+  (`ps -eo pid,ppid,command`): the scrollback viewer's argv carries
+  `<scopeDir>/scrollback-<tag>-<agent>.ansi`, and the obvious predicate `Paths.ScrollbackPrefix()`
+  mis-attributes across tags (`scrollback-work-` also matches `scrollback-work-2-claude.ansi`, so quitting
+  `work` would kill `work-2`'s viewer); a review pane's argv carries no pair path at all except the `-u`
+  asset, and that asset's path is **checkout-relative** while a live embed outlives the checkout that spawned
+  it (this reaper runs from a different worktree than the sessions it reaps).
+  Delta: `NvimReapRow` carries `ExpectedArgPath` (exact argv field — draft), `ExpectArgvTag`+`ArgvTag`
+  (attribution through `ScopePaths.TagFromNvimEmbedArgv`, the codebase's one parser — scrollback), and
+  `ExpectedAssetBase` (base name of the pair asset in argv, from `reviewcmd.ReviewScript` — review).
+  `nvimSidecar` mirrors the three, `nvimSidecarsFor` maps kind → attribution over `NvimKinds()`, and a kind
+  that cannot be attributed is skipped (`argv serves another tag` / `argv runs another config`), never killed
+  on `nvim --embed` alone; `TestNvimSidecarsGiveEveryKindArgvEvidence` fails a kind that arrives without a
+  predicate. Task 5's three evidence sources build rows through the same three fields.
+- **2026-10-16 — Task 3: stated behaviour the plan left open.** (a) *Record rule* — evidence merely missing
+  (owner live, identity unreadable, argv unreadable) keeps the sidecar for the next pass; every decided
+  outcome (kill, malformed record, pid gone, recycled identity, not-ours) removes it, so a zombie embed
+  leaves its record to storage GC (`GCClassifications["nvim-pid"] = GCCollectable`). (b) *SIGKILL only* — no
+  TERM→KILL escalation on this path: every caller has already established the owner is gone or quitting, so
+  nothing is left to flush and quit is time-bounded. (c) *`Killed` is honest* — `nvimReapOutcome.Killed` is
+  `Signal(...) == nil`, so a pid that races away between the identity re-read and the signal is not reported
+  as reaped; Task 5's report and Task 14's health line read that field.
+- **2026-10-16 — Task 3: one derivation replaced the two pinned spellings.** Reason: Task 1 pinned the quit
+  path's inline spelling to `editorPathsOf`, and pinning two spellings to each other is the exact shape that
+  let `review` drift out of both. Delta: the inline spelling in `runCleanupContext` is deleted;
+  `lifecycleEditorPaths` is now `{sidecars []nvimSidecar}` and `editorPathsOf` →
+  `nvimSidecarsFor(paths, paths.Tag(), paths.ScopeDir())` is the only place the kind→attribution mapping
+  exists. Task 1's `TestNvimReapPathsDeriveEveryKindFromOneSource` is deleted as redundant against
+  `TestNvimSidecarsForDerivesFromTheClosedKindSet` + `TestQuitPathAndReaperShareEditorPaths`. Artifact
+  inventory follows: `lifecycle.go` drops family `nvim-pid` / binding `scoped-nvim-pid`, `osruntime.go` drops
+  `draft` / `scoped-draft` / `scoped-nvim-pids`, `nvim_reap_os.go` is a ResolvedConsumer with no bindings (it
+  consumes members on a `Paths` handed to it and calls no resolver of its own), and the pure `nvim_reap.go`
+  joins `NonArtifactSources` — Task 2 had left it out of the inventory entirely, which
+  `TestProductionArtifactReferencesAreExactlyClassified` reported as NEW.
+- **2026-10-16 — Task 3 verified a premise Task 5 depends on.** `OSRuntime.DataDir` is the **scope** directory
+  in a real launch (`runcli.go:110-139`: `env.DataDir = ScopedLaunchDataDir(dataDir, repoRoot)`), which is what
+  `ResolveScoped`'s contract asks for ("an already-selected scope directory carried by a child process"), so
+  both `ReapNvim`'s `ResolveScoped(r.DataDir, tag)` and `SweepOrphanNvim`'s `ResolveSelectedScope(r.DataDir)`
+  are reading the composite layout, not the legacy flat root. No change needed; recorded because the two calls
+  look like a data-dir/scope-dir mixup and Task 5 builds on both.
