@@ -210,3 +210,9 @@ Verified submitted TL receipt2ed371a2-2749-401b-a235-03c3f7121ed4, exact ops:0 t
 ### 2026-10-16 — legacy cleanup acceptance complete
 
 TL approval855a869b compared the dry-run set and corrected the historical PPID1assumption. Fresh complete sampling and per-effect PID/start fences terminated only the5approved no-wrapper generations by SIGTERM; no escalation needed. All24live-wrapper controls survived and final report has0eligible/0unknown. Evidence and receipt3ed3cc1b are in the issue. Do not signal any additional generations under this approval. Remaining acceptance is the staged new lease build/live wrapper lifecycle, integrated suite and ordinary SDLC close/landing.
+
+### 2026-10-16 — combined post-landing restart; no staging
+
+Received TL977e9db5-f9fe-4e8d-9e1e-2992464e4c01 in this actual turn; canonical stored sender, current recipient incarnation and exact body match. Receipt status remains indeterminate (submit observed but turn/paste confirmation timed out), so do not misstate it as submitted; transport discrepancy reported as0375f79e-6188-4aea-9c73-69d7ab77298e. The received direction is NO staging on pair:0: land #617 only after its recorded suite and normal close-review SHIP, TL rebuilds main with #617 and #618, operator restarts Couch once, then this worker runs live wrapper/title acceptance on fresh slots. This supersedes the pre-landing staging proposal and explicitly moves that live acceptance after landing; no live acceptance result is claimed now. The5-title cleanup had already completed under the earlier verified approval855a869b and was not repeated. Additional89183/grok remains outside that approved set and under separate request775cdf34.
+
+The machine test queue is legitimate: the current holder is an Ariadne worktree, whose heavy suite uses both slots; the next named waiter is Pair. Our recorded exact-head suite remains in its original queue entry. Do not bypass the machine gate or fabricate a suite result.
