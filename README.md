@@ -1700,7 +1700,7 @@ the build checkout, so executables need not be byte-identical. Tests find fixtur
 from the current checkout's validated module root. Compiled diagnostic probes run
 outside a checkout need `PAIR_PROBE_REPO=/absolute/path/to/pair` to find their assets.
 
-`make test` builds one fresh plain Pair executable for acceptance tests and
+By default, `make test` builds one fresh plain Pair executable for acceptance tests and
 shares its absolute path through `PAIR_TEST_BINARY`. This suite-owned candidate
 is removed when the suite exits. It omits the development build's `defaultPairHome`
 linker setting so embedded-runtime tests retain their installed-binary behavior.
