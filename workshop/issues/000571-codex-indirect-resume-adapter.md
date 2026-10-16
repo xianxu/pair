@@ -547,3 +547,18 @@ default positive and invalid/relative negatives. This records an integration
 fix, not a new selector, ownership policy or scope. Run focused normal/race,
 source guards and a fresh full suite, then narrow post-close review with the
 full-suite evidence before landing. No staging or operator look is required.
+
+### 2026-10-15 — post-#597 conflict verification passed
+
+Merged headb74920356ba24425da8c21347f7880cca1597910 passes the complete
+recorded suite exit0 in11m19s, all recipes/packages, no failures. Log:
+/Users/xianxu/workspace/pair/.git/sdlc/local-checks/b74920356ba24425da8c21347f7880cca1597910/suite.log,
+SHA256prefix46a491fa074d. Couchcore364.167s, launcher34.590s, wrapper65.762s.
+Focused public recovery authority home controls pass normal1.040s/race2.227s;
+make build, full artifactpath13.100s and resource guard0.513s pass. The public
+validator retains #571 home/capture checks and main's deletion of the old owner
+scan; the obsolete private fake-owner seam is gone. Source-list resolution
+retains both sides. No code changed after this full-suite head. Proceed to
+post-close conflict review with explicit full-suite evidence, then land through
+sdlc merge --yes. Read-only/headless acceptance remains sufficient; no pair:0
+action, credential read or selector/admission-policy expansion.
