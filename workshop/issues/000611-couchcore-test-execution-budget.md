@@ -1,12 +1,20 @@
 ---
 id: 000611
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-16
 updated: 2026-10-16
 estimate_hours:
-card_mirror: '0a5ec0d01a9c5ac838d44cb524e7ad967b2b01bc' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'f9e956c445e25fbd37fe378e295c66ccf6f6bbce' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-16T06:20:09-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:1
+    worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Bring couchcore under a measured test execution budget
@@ -28,10 +36,14 @@ Profile couchcore's slowest tests using recorded per-test execution data under b
 
 ## Plan
 
-- [ ]
+- [ ] Measure an isolated couchcore run with Go JSON events; distinguish execution, paused parallel tests, compilation/setup, and machine co-tenancy.
+- [ ] Compare suite-equivalent timings, audit fixture/package boundaries, and send a measured full-flow design to the hub before any split.
+- [ ] After design approval, implement and qualify the agreed test organization, inventory preservation and execution budget; remove the temporary allowance; full-flow review and landing.
 
 ## Log
 
 ### 2026-10-16 — deferred performance work
 
 Filed unassigned at the hub's request (decision 173f498b-9796-4fd6-a777-07e28ce4107c). #610 is the minimal unblock and lands first, followed by unchanged #591 and #589 retries. The timeout failure alone does not identify a particular slow test; this follow-up owns profiling before choosing the package/shard boundary.
+
+2026-10-16: Dispatched by ops:0 (verified receipt 34a5f4e7-0d39-4ada-9556-d23a2e357561). Claimed and entered planning from fresh main after #612 landed. No test-structure changes authorized before measured profile and hub plan review. A read-only independent audit will map test/helper boundaries while the main slot records an isolated JSON timing run. ARCH-CONSTRAINTS: preserve the 10-minute default with measured headroom and bounded concurrency; profile before choosing mechanism.
