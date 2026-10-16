@@ -4105,7 +4105,7 @@ Their obsolete on-disk files are unused, not removed by startup; any cleanup is 
 separate operator-approved quiescent operation. Shared strict JSON and ledger
 validation remain for their other consumers.
 
-Owners: `nativelock/`, `artifactpath/native_lock.go`,
+Owners: `nativelock/`, `nativeid/` (the one conversation-ID rule), `artifactpath/native_lock.go`,
 `wrapcmd/native_lock.go`, `wrapcmd/owned_group.go`,
 `sessionwatch/binding_notice.go`,
 `launcher/native_resume_selector*.go`, and Couch recovery/Relaunch. Real kernel
