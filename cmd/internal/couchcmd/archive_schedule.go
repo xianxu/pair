@@ -18,16 +18,18 @@ import (
 // the pass's own last-run marker, so a Couch restart neither skips nor repeats
 // a day.
 type archiveScheduler struct {
-	store  string // $PAIR_DATA_DIR/archive
-	now    func() time.Time
-	launch func(ctx context.Context) error
-	notify func(string)
-	failed bool
+	store    string // $PAIR_DATA_DIR/archive
+	now      func() time.Time
+	launch   func(ctx context.Context) error
+	notify   func(string)
+	failed   bool
+	failedAt time.Time
 }
 
 const (
 	archiveCheckEvery = time.Hour
 	archiveEvery      = 24 * time.Hour
+	archiveRetryAfter = 6 * time.Hour // a failed pass is not retried hourly
 )
 
 func newArchiveScheduler(pairData string, notify func(string)) *archiveScheduler {
@@ -37,7 +39,8 @@ func newArchiveScheduler(pairData string, notify func(string)) *archiveScheduler
 		if err != nil {
 			return err
 		}
-		logFile, err := os.OpenFile(filepath.Join(store, "continuous.log"), os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o600)
+		// The log holds the latest pass only.
+		logFile, err := os.OpenFile(filepath.Join(store, "continuous.log"), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
 		if err != nil {
 			return err
 		}
@@ -55,6 +58,9 @@ func newArchiveScheduler(pairData string, notify func(string)) *archiveScheduler
 // due reports whether a pass should start now: configured, and no completed
 // pass within the last day.
 func (s *archiveScheduler) due() bool {
+	if s.failed && s.now().Sub(s.failedAt) < archiveRetryAfter {
+		return false
+	}
 	if _, err := os.Stat(filepath.Join(s.store, historyarchive.ContinuousConfigName)); err != nil {
 		return false
 	}
@@ -72,9 +78,11 @@ func (s *archiveScheduler) tick(ctx context.Context) {
 		return
 	}
 	err := s.launch(ctx)
-	if err != nil && ctx.Err() == nil && !s.failed {
-		s.failed = true
-		s.notify("history backup pass failed; see " + filepath.Join(s.store, "continuous.log"))
+	if err != nil && ctx.Err() == nil {
+		if !s.failed {
+			s.notify("history backup pass failed; see " + filepath.Join(s.store, "continuous.log"))
+		}
+		s.failed, s.failedAt = true, s.now()
 	}
 	if err == nil {
 		s.failed = false

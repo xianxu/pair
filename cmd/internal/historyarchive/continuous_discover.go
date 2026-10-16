@@ -67,7 +67,9 @@ func ContinuousRoots(ctx context.Context, inv SourceInventory, cfg ContinuousCon
 					continue
 				}
 				seen[common] = true
-				add(SourceIdentity{Host: host, Root: common, Repository: common, Worktree: dir})
+				// Keyed by the shared common dir alone: which worktree was
+				// found first is not part of the data's identity.
+				add(SourceIdentity{Host: host, Root: common, Repository: common})
 			}
 		default:
 			root, err := inv.ResolveRoot(kind, "", home, env)

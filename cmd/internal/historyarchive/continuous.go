@@ -19,9 +19,11 @@ const ContinuousQuiet = 72 * time.Hour
 // ErrPassRunning means another continuous pass holds the lock.
 var ErrPassRunning = errors.New("a continuous archive pass is already running")
 
-// Snapshotter takes a coherent private copy of one live database.
+// Snapshotter takes a coherent private copy of one live database. Sweep drops
+// private working copies a killed pass left behind.
 type Snapshotter interface {
 	Snapshot(ctx context.Context, root, rel, stagingRoot string) (ok bool, note string, err error)
+	Sweep() error
 }
 
 // ContinuousPass archives every continuous source once (pair#592): quiet
@@ -66,8 +68,8 @@ func (p ContinuousPass) Run(ctx context.Context) (ContinuousReport, error) {
 	}
 	// Private copies a killed pass left behind can be gigabytes; drop them
 	// while holding the lock.
-	if sweeper, ok := p.Snapshotter.(interface{ Sweep() error }); ok {
-		if err := sweeper.Sweep(); err != nil {
+	if p.Snapshotter != nil {
+		if err := p.Snapshotter.Sweep(); err != nil {
 			return report, err
 		}
 	}
@@ -88,6 +90,9 @@ func (p ContinuousPass) Run(ctx context.Context) (ContinuousReport, error) {
 	if err != nil {
 		return report, err
 	}
+	// One failing source does not starve the others; the pass reports every
+	// failure and is not marked complete.
+	var failures []error
 	for _, root := range roots {
 		if !p.wants(root.Kind) {
 			continue
@@ -99,8 +104,11 @@ func (p ContinuousPass) Run(ctx context.Context) (ContinuousReport, error) {
 		report.Archived[root.Kind] += n
 		report.Skipped = append(report.Skipped, skipped...)
 		if err != nil {
-			return report, fmt.Errorf("%s at %s: %w", root.Kind, root.Identity.Root, err)
+			failures = append(failures, fmt.Errorf("%s at %s: %w", root.Kind, root.Identity.Root, err))
 		}
+	}
+	if len(failures) > 0 {
+		return report, errors.Join(failures...)
 	}
 	if len(p.Kinds) == 0 {
 		if err := os.WriteFile(filepath.Join(p.Store, LastRunName), []byte(now.UTC().Format(time.RFC3339)+"\n"), 0o600); err != nil {

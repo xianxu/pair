@@ -11,7 +11,20 @@ import (
 	ha "github.com/xianxu/pair/cmd/internal/historyarchive"
 )
 
-type fixtureSnapshotter struct{ calls int }
+type fixtureSnapshotter struct {
+	calls   int
+	scratch string
+}
+
+func (f *fixtureSnapshotter) Sweep() error {
+	matches, _ := filepath.Glob(filepath.Join(f.scratch, "sqlite-*"))
+	for _, m := range matches {
+		if err := os.RemoveAll(m); err != nil {
+			return err
+		}
+	}
+	return nil
+}
 
 func (f *fixtureSnapshotter) Snapshot(_ context.Context, root, rel, staging string) (bool, string, error) {
 	f.calls++
@@ -59,7 +72,10 @@ func TestContinuousPassArchivesQuietFilesOnceAndNewVersions(t *testing.T) {
 	fresh := write(".claude/projects/p/b.jsonl", "still writing", now.Add(-time.Hour))
 	write(".codex/state_5.sqlite", "db v1", now.Add(-time.Minute))
 	cfg := ha.ContinuousConfig{Version: 1, Recipients: []string{"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"}, Sink: filepath.Join(base, "sink"), Catalog: filepath.Join(base, "archive", "catalog.jsonl")}
-	snap := &fixtureSnapshotter{}
+	snap := &fixtureSnapshotter{scratch: filepath.Join(base, "scratch")}
+	// A killed pass left a private copy behind: the next pass sweeps it.
+	leftover := filepath.Join(snap.scratch, "sqlite-killed")
+	os.MkdirAll(leftover, 0o700)
 	pass := ha.ContinuousPass{Archiver: ha.Archiver{Codec: testCodec(), Sink: &ha.LocalSink{Root: cfg.Sink}}, Config: cfg,
 		Store: filepath.Join(base, "archive"), SnapshotRoot: filepath.Join(base, "archive-snapshots"), Host: "h", Home: home,
 		Env: map[string]string{}, Snapshotter: snap, Now: func() time.Time { return now }}
@@ -71,6 +87,9 @@ func TestContinuousPassArchivesQuietFilesOnceAndNewVersions(t *testing.T) {
 	if r.Archived["claude-transcripts"] != 1 || r.Archived["codex-database"] != 1 {
 		t.Fatalf("first pass %+v, want the quiet transcript and the database snapshot", r.Archived)
 	}
+	if _, err := os.Stat(leftover); !os.IsNotExist(err) {
+		t.Fatalf("the pass did not sweep a leftover private copy: %v", err)
+	}
 	if again, err := pass.Run(context.Background()); err != nil || sum(again.Archived) != 0 {
 		t.Fatalf("second pass archived %+v (%v); unchanged files must not be archived twice", again.Archived, err)
 	}
@@ -81,6 +100,13 @@ func TestContinuousPassArchivesQuietFilesOnceAndNewVersions(t *testing.T) {
 	third, err := pass.Run(context.Background())
 	if err != nil || third.Archived["claude-transcripts"] != 1 || third.Archived["codex-database"] != 1 {
 		t.Fatalf("third pass %+v (%v), want the settled file and the new database version", third.Archived, err)
+	}
+	// A quiet transcript whose content changed is archived again, once.
+	write(".claude/projects/p/a.jsonl", "quiet, then appended", old.Add(time.Minute))
+	sources = treeState(t, home)
+	fourth, err := pass.Run(context.Background())
+	if err != nil || fourth.Archived["claude-transcripts"] != 1 {
+		t.Fatalf("fourth pass %+v (%v), want the changed quiet transcript as a new version", fourth.Archived, err)
 	}
 	if after := treeState(t, home); !sameKeys(sources, after) {
 		t.Fatalf("a pass changed the sources")

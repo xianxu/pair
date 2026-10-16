@@ -39,7 +39,13 @@ func TestArchiveSchedulerRunsDailyOnlyWhenConfigured(t *testing.T) {
 	fail = errors.New("boom")
 	s.tick(context.Background())
 	s.tick(context.Background())
-	if runs != 3 || len(notes) != 1 {
-		t.Fatalf("stale day: runs=%d notes=%v, want two attempts and one notice", runs, notes)
+	if runs != 2 || len(notes) != 1 {
+		t.Fatalf("stale day: runs=%d notes=%v, want one failed attempt, one notice, and no hourly retry", runs, notes)
+	}
+	now = now.Add(archiveRetryAfter)
+	fail = nil
+	s.tick(context.Background())
+	if runs != 3 {
+		t.Fatalf("no retry after the backoff: runs=%d", runs)
 	}
 }
