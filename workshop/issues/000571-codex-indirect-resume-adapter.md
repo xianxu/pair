@@ -81,6 +81,12 @@ Source links (matching tag):
 
 ## Revisions
 
+### 2026-10-15 — full suite passed; new main code integrated
+
+Recorded suite on981cfb28fc504441a6799b8f93f6424b756c07f1 passed every shell/editor recipe and Go package, exit0 in12m29s after231s queue. Log: /Users/xianxu/workspace/pair/.git/sdlc/local-checks/981cfb28fc504441a6799b8f93f6424b756c07f1/suite.log; sha256prefix0aee61766901. Includes artifactpath7.007s, broadcast33.025s, couchcore471.007s, launcher55.906s, inventory114.576s and wrapper72.450s. No flakes or failures.
+
+Main then contained #579 (PR355), so integrated it without conflicts as23460512ddbb8f47af8685cbf683d9a88771fd98. This new code integration requires a fresh recorded suite; start it through the ordinary machine gate before close. No custom retry, no bypass and no duplicate concurrent suite owned by this slot. The previous run completed and released its slot first. These changes are validation of the integration, not another attempt to pass an unchanged flaky head.
+
 ### 2026-10-15 — BR-4 final targeted proof and recorded-suite queue
 
 Production/tests checkpoint9728b62d9, docs-only main integrationcbf6cf2e and final child-temp ownership981cfb28fc504441a6799b8f93f6424b756c07f1. Full inventory config/Git/schema/selector normal96.744s and race107.195s pass (go test with Test.*(CodexConfig|CodexGit|CodexLatest|NativeSelector), count1). Source audits, launcher/wrapper normal/race and final make build pass. Read-only machine config conformance passes12files51418bytes, compatibility/observation-incomplete, no selection/admission; no credentials or native process startup.
