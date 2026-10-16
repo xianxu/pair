@@ -92,6 +92,12 @@ Recorded suite7ce208b67b715382a02adcd7ffaacb6c onf6512608053de4d07e29acf206d870b
 
 The last suite-log write is2026-10-16T02:57:30.132529Z; confirmed command exit0 by02:57:53Z. Experiment root now includes owned-suite-finished.json so later samples can be distinguished from the true full-suite-overlap interval. At that point44loaded cases passed. The experiment continues until its one-hour boundary or first failure, under ambient fleet load after the owned suite ends; no future sample will be claimed as still overlapping that finished suite.
 
+### Half-hour reproduction checkpoint
+
+At 31.48minutes, 110completed fresh probes passed; failures0. Max wanted 433.950084ms; max fresh 1810.347417ms including existing slow/held effects. Source remainsf6512608053de4d07e29acf206d870b31d169b51 (only issue Log commits since); the required suite already passed14m1s. No initial-request failure or demonstrated deadline expiry has been retained. Expected async invalid statuses include writer-held index, staged/index transition and obsolete selection receipt refusals across deliberate checkout; all observed examples are callback completions without active request IDs. OSRuntime.GitContext explicitly sets GIT_OPTIONAL_LOCKS=0 and IndexGeneration observes the writer lock without acquiring it, so these samples do not show resolver-created index locks. No root fix selected.
+
+Active probe command is /tmp/pair586-load-probe.py, tool session59763; it stops on first failure or at its3600s between-case bound. Started2026-10-16T02:44:10.698010Z, so the expected final boundary is about03:44:11Z (20:44local), plus the final case. Evidence root and finished-suite marker above remain authoritative; do not count later samples as overlapping the owned suite. Continue the approved diagnostics-only fallback if the original case remains unreproduced.
+
 ## Revisions
 
 ### 2026-10-15 — approved diagnostics-first timebox
