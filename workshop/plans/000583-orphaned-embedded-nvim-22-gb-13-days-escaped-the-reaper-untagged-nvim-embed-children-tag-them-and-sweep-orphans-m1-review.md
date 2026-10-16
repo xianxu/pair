@@ -444,3 +444,91 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-16T16:18:07-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 583 — Orphaned embedded nvim (22 GB, 13 days) escaped the reaper: untagged 'nvim --embed' children; tag them and sweep orphans |
+| repo | pair |
+| issue file | workshop/issues/000583-orphaned-embedded-nvim-22-gb-13-days-escaped-the-reaper-untagged-nvim-embed-children-tag-them-and-sweep-orphans.md |
+| boundary | milestone M1 |
+| milestone | M1 |
+| window | 758c4b72216ed740e7167f241e8287d2d6db25c6..25ae5ed5385381dde0c9cab7e788e147bf5f0b8a |
+| command | sdlc milestone-close --issue 583 --milestone M1 |
+| reviewer | claude |
+| isolation | fenced |
+| timestamp | 2026-10-16T16:18:07-07:00 |
+| verdict | SHIP |
+
+## Review
+
+Focus on the BR-7 fix first.
+
+I'm checking whether every production review pane spawn puts the served file last in argv, since the BR-7 fix relies on that.
+
+Go tests for the reaper packages pass; the broadcast failure is outside this diff. Next, I'll run the nvim lifecycle test and revert the fix to confirm its regression tests fail without it.
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The BR-7 fix holds, and nothing new needs to block M1. `review.lua` now writes the file the pane was spawned with into line 2 of its pid record, taking it from its own argv (`nvim/review.lua:814-818`). The reaper reads that line next to the pid (`sidecarRecord`, `cmd/internal/launcher/nvim_reap_os.go:450`) and fills `ExpectedArgPath` from it (`nvim_reap_os.go:330-337`). Nothing reads the mutable review-target state any more: `reviewAttribution` is deleted and so is `reviewcmd.TargetFileOf`. I reverted the fix in the disposable checkout and 9 rows went red across the reap and sweep tables. They include all three retarget rows and the cross-tag "another tag's live pane holds the pid" row; the rest are review attribution rows that need the bound file. The rule BR-7 asked for now holds for every kind: attribution is fixed when the record is written, and a record that names no file is kept, not dropped. The draft path comes from the scope's paths, scrollback is attributed by the scope's argv parser, and changelog is keyed to its artifact. The changelog openlock is read only to decide whether to keep a record, so it can never cause a kill. No sibling in this family still reads mutable state.
+
+1. **Strengths**
+   - The publisher takes line 2 from its own `vim.v.argv`, so it cannot drift from the process it names. A mismatch therefore really does mean "this pid is not ours" (`nvim/review.lua:816-817`).
+   - A one-line legacy record, or an empty line 2, is treated as unknown attribution and kept. It never falls into the branch that deletes (`nvim_reap_os_test.go:275`, `:728`).
+   - The quit-path and sweep rows for retargeted panes write the mutable state as a decoy fixture (`reviewTargetState`, `nvim_reap_os_test.go:42-48`), which proves no decision reads it.
+   - The real-nvim lifecycle test pins line 2 byte for byte for review and checks that the other kinds write only one line (`tests/nvim-pidfile-lifecycle-test.sh:125-139`). It passes 21/21.
+   - The only production spawn site is `reviewcmd/runtime.go:102`, which runs `nvim -u lua absFile`. nvim puts `--embed` at index 1 of the server's argv, so the served file stays last in the embed's argv as well.
+
+2. **Critical:** none.
+
+3. **Important:** none.
+
+4. **Minor**
+   - A review embed started by a `review.lua` from before this change writes a one-line record. The reaper skips it forever, so cleanup is left to artifactpath GC (nvim-pid is collectable). This is a one-time migration leftover and acceptable.
+   - The residual the commit names is narrow and documented: two tags serving the same absolute file plus pid reuse. Closing it would need a nonce in the spawn's argv.
+   - `sidecarRecord` assumes the served path has no newline. The risk is negligible.
+
+5. **Test coverage notes**
+   - Passing: `go test` for `launcher`, `artifactpath`, `reviewcmd` and `opener`; `tests/nvim-pidfile-lifecycle-test.sh` (21/21).
+   - Mutation check (drop `target.ExpectedArgPath = served`): 9 rows in `TestReapNvimSidecarsKillsOnlyWhatTheEvidenceNames` and `TestSweepOrphanNvimDecidesEachPidOnItsOwnEvidence` go red. I restored the file afterwards, and the tree is clean.
+   - The full `./cmd/internal/...` run has one failure: `broadcast/TestNamedTunnelServesFromPrivateSocket` (the origin is TCP, not a unix socket). It also fails when run alone. No broadcast file is in the window, and the only `procutil` change is two additive methods, so I judge it environmental and outside this boundary's scope.
+
+6. **Architectural notes** (pass on all eight)
+   - **ARCH-DRY:** pass. `sidecarRecord` replaces `sidecarPID` at both call sites.
+   - **ARCH-PURE:** pass. The decision stays pure (`decideNvimSidecar`); the record read is in the IO shell.
+   - **ARCH-PURPOSE:** pass. The class rule is applied to every kind, not just the review instance.
+   - **ARCH-MOCK:** pass. The process table is a stateful fake behind `ProcessTable`, and the live conformance test exists.
+   - **ARCH-CONSTRAINTS:** pass. There is no new per-pass work: the second line is parsed from a record that is already read.
+   - **ARCH-SECURE:** pass. The record is parsed into a typed pid plus served path, a bad pid line is dropped, and missing evidence leads to keeping the record.
+   - **ARCH-ORDER:** pass. Attribution is fixed at publish, so a retarget arriving afterwards can't flip a decision.
+   - **ARCH-FUNERAL:** pass. A record kept as undecided is owned by storage GC, and a clean exit removes the record only if it still names this pid.
+
+7. **Plan revision recommendations:** none. The plan's BR-7 entry matches the code.
+
+```findings
+dispose:
+  - id: BR-7
+    disposition: addressed
+    note: |
+      review.lua binds argv's served file into record line 2; reaper reads it via sidecarRecord (nvim_reap_os.go:330-337) and never the review-target state; mutating it out reddens 9 rows including the retarget reap/sweep rows and the cross-tag-live-pane row; lifecycle test pins line 2 (21/21 green).
+```
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"d9f387c4-9145-4676-9d33-83e73cdabd12","repository":"github.com/xianxu/pair","issue_id":"000583","recipe":"milestone-review","round":5,"attempt":1,"agent":"claude","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/0c245756041611c0","reviewed_head":"25ae5ed5385381dde0c9cab7e788e147bf5f0b8a","slot":"pair:4","requested_at":"2026-10-16T23:05:16.659949Z"},"phase":"finished","pid":72053,"started_at":"2026-10-16T23:05:16.931938Z","finished_at":"2026-10-16T23:18:06.411263Z","session_id":"b5dcb61d-5ea2-4c51-9e18-88997eb4276d","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.95203s
+head: "25ae5ed5385381dde0c9cab7e788e147bf5f0b8a"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000408
