@@ -1,4 +1,24 @@
 ---
+reviewer_runs:
+    - version: 1
+      intent:
+        id: 16e91f53-6626-4ff7-b54f-889b645b1346
+        repository: github.com/xianxu/pair
+        issue_id: "000587"
+        recipe: estimate-quality
+        round: 1
+        attempt: 1
+        agent: codex
+        root: /Users/xianxu/workspace/worktree/pair-slot1/pair
+        reviewed_head: 912513ef80f6d62db5b5bcd9592ca0a61aa2fd19
+        slot: pair:1
+        requested_at: "2026-10-16T00:10:28.921024Z"
+      phase: finished
+      pid: 91460
+      started_at: "2026-10-16T00:10:29.636517Z"
+      finished_at: "2026-10-16T00:10:53.886807Z"
+      session_id: 01a1420b-c507-7382-b464-844cfa8fdf88
+      outcome: returned
 gate: plan-quality
 issue: 587
 id_prefix: PQ
@@ -83,6 +103,60 @@ rounds:
           note: Named function strategies are now present, but tasks 1–5 retain the rejected prose scenario inventories. Compress all such inventories into references to the governing function contracts, preserving separate integration and live qualification requirements.
           round: 2
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: 3f8fac4b-b002-4cb3-a1e6-242292155ddd
+            repository: github.com/xianxu/pair
+            issue_id: "000587"
+            recipe: plan-quality
+            round: 3
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot1/pair
+            reviewed_head: 912513ef80f6d62db5b5bcd9592ca0a61aa2fd19
+            slot: pair:1
+            requested_at: "2026-10-16T00:06:32.835746Z"
+          phase: finished
+          pid: 47779
+          started_at: "2026-10-16T00:06:33.056796Z"
+          finished_at: "2026-10-16T00:06:55.578284Z"
+          session_id: 01a14208-28be-7471-9672-7394cbe9bb2e
+          outcome: returned
+      "n": 3
+      timestamp: "2026-10-15T17:06:55-07:00"
+      agent: codex
+      dispose:
+        - id: PQ-3
+          disposition: addressed
+          note: Named function contracts provide adversarial strategies and mechanical guards across all requested surfaces; integration and live qualification remain separate.
+          round: 3
+      blocked: false
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: b2cd68d1-bcc4-44c6-a1b1-3e9b28569638
+            repository: github.com/xianxu/pair
+            issue_id: "000587"
+            recipe: plan-quality
+            round: 4
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot1/pair
+            reviewed_head: 912513ef80f6d62db5b5bcd9592ca0a61aa2fd19
+            slot: pair:1
+            requested_at: "2026-10-16T00:09:57.895266Z"
+          phase: finished
+          pid: 86076
+          started_at: "2026-10-16T00:09:58.047545Z"
+          finished_at: "2026-10-16T00:10:27.163423Z"
+          session_id: 01a1420b-4952-73b3-bf95-e4e25f95036e
+          outcome: returned
+      "n": 4
+      timestamp: "2026-10-15T17:10:27-07:00"
+      agent: codex
+      blocked: false
+content_hash: c4007b6e7efe692dfa88c5cc39647c8c9fe9040cb29db4c73b99b7245fabeb5e
 ---
 
 # Gate ledger — pair#587 (plan-quality)
@@ -109,6 +183,14 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - PQ-2 — addressed — The revision persists an immutable envelope before submission and defines receipt reconciliation, ownership-change handling and conservative suppression when evidence is unavailable.
 - PQ-3 — not-addressed — Named function strategies are now present, but tasks 1–5 retain the rejected prose scenario inventories. Compress all such inventories into references to the governing function contracts, preserving separate integration and live qualification requirements.
 
+## Round 3 — 2026-10-15T17:06:55-07:00 (codex) — passed
+
+### Disposed
+
+- PQ-3 — addressed — Named function contracts provide adversarial strategies and mechanical guards across all requested surfaces; integration and live qualification remain separate.
+
+## Round 4 — 2026-10-15T17:10:27-07:00 (codex) — passed
+
 ## Open findings
 
-- **PQ-3** [Important] `function-level-test-strategy` Replace prose test-case inventories with named function strategies
+(none — every finding has been disposed)

@@ -5,8 +5,8 @@ deps: []
 github_issue:
 created: 2026-10-15
 updated: 2026-10-15
-estimate_hours:
-card_mirror: 'bcb557e6aef0c1b7fb31171256e28df9f80cdedc' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 4.883
+card_mirror: 'e2f429d5d3b1adb11e269c0f705d5efa7f0995c0' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-15T16:54:15-07:00
 claimant:
     operator: Xian Xu
@@ -15,6 +15,7 @@ claimant:
     workspace: pair:1
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
+flow: {kind: full, provenance: operator}
 ---
 
 # Couch resource sampler: per-slot CPU, memory and disk writes, orphan detection, threshold alerts, couch --resources
@@ -81,3 +82,36 @@ Make sampling limits explicit: orphan attribution requires a previously observed
 Plan bf764e14 approved (receipt9f23fae9-2182-488f-8025-196b3940fa66). Add report-only unattributed (unproven) large PPID1 processes matching known Couch-launched kinds, including nvim --embed, Zellij and agent CLIs; no alert or slot attribution without provenance. Candidate argv probes are bounded and counted in the cost envelope. Continue to change-code.
 
 2026-10-15: Plan gate round1 raised PQ-1/2/3 (orphan alert sender, immutable retry envelope, named function test strategies). Durable Revisions now specify owning-hub self-addressed system notices, persisted exact envelope with conservative unknown outcomes, and per-function adversarial/mechanical contracts. Re-running plan gate before code.
+
+
+## Estimate
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only. Derived after plan-quality CLEAN (round3). This is a multi-concern supervisor extension, decomposed into independently testable adapters rather than counted again as a greenfield service.
+
+- Issue/spec: design0.8 + implementation0.12 (v2 implementation0.3 ×0.4).
+- Native adapter: API integration, design1.0 ×0.2 =0.2; implementation0.8 ×0.4 ×1.5 native-stack familiarity =0.48. SDK libproc and existing procutil parsing supply the platform seam; no third-party library replaces the counted-call/generation contract, so no speculative library discount.
+- Pure attribution/rates/episodes: greenfield module, design1.5 ×0.2 =0.3; implementation0.8 ×0.4 =0.32. No library embodies Couch ownership/episode rules.
+- Bounded store/history: greenfield module, design2.0 ×0.5 existing durablefile helper ×0.2 =0.2; implementation0.8 ×0.4 =0.32.
+- Worker, authenticated roots and broker integration: API integration, design1.5 ×0.2 =0.3; implementation1.5 ×0.4 =0.6.
+- Cached CLI/policy: smaller module, design0.1; implementation0.5 ×0.4 =0.2.
+- Docs/storage inventory: design0.04; implementation0.2 ×0.4 =0.08.
+- Boundary review: design0.08; implementation0.5 ×0.4 =0.2.
+- Real API/cost/live qualification: implementation0.6 ×0.4 =0.24.
+
+Design subtotal2.02, thorough-plan buffer15%=2.323; implementation subtotal2.56; total4.883 focused ship-hours. Familiarity is1.0 except the explicit native-adapter factor above. Coordination waiting and full-suite queue time are not estimated as active work; actual measurement owns their classification.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.80 impl=0.12
+item: api-integration design=0.20 impl=0.48
+item: greenfield-go-module design=0.30 impl=0.32
+item: greenfield-go-module design=0.20 impl=0.32
+item: api-integration design=0.30 impl=0.60
+item: smaller-go-module design=0.10 impl=0.20
+item: atlas-docs design=0.04 impl=0.08
+item: milestone-review design=0.08 impl=0.20
+item: real-api-discovery design=0.00 impl=0.24
+design-buffer: 0.15
+total: 4.883
+```
