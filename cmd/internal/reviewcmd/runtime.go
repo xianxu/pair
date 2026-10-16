@@ -157,7 +157,11 @@ func (b *limitedIdentityBuffer) Write(p []byte) (int, error) {
 }
 func (OSRuntime) GitContext(ctx context.Context, limit int, dir string, args ...string) (string, error) {
 	cmd := exec.CommandContext(ctx, "git", append([]string{"-C", dir}, args...)...)
-	cmd.WaitDelay = 50 * time.Millisecond
+	// After git exits, its output may still be draining (scheduling under load)
+	// or held briefly by a descendant git started. 50ms turned complete output
+	// into a failed read (pair#613); 1s still bounds a stuck holder within the
+	// review guard's 2.5s budget.
+	cmd.WaitDelay = time.Second
 	cmd.Env = append(os.Environ(), "GIT_OPTIONAL_LOCKS=0")
 	out := &limitedIdentityBuffer{limit: limit}
 	cmd.Stdout = out

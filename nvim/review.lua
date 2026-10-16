@@ -878,7 +878,11 @@ review.did_land=function(body,_,buf)
   restoration:did_land(body,bytes)
 end
 vim.api.nvim_create_autocmd('BufWritePre',{callback=function(ev)
-  if restoration:context(ev.buf) and not restoration:guard(ev.buf) then error('review: branch mismatch; write refused') end
+  -- Say why: a resolver failure is not a branch change (pair#613).
+  if restoration:context(ev.buf) then
+    local ok,reason=restoration:guard(ev.buf)
+    if not ok then error('review: write refused: '..(reason or 'review authorization refused')) end
+  end
 end})
 vim.api.nvim_create_autocmd('BufWritePost',{callback=function(ev)
   local ctx=restoration:context(ev.buf)

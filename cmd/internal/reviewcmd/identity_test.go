@@ -517,3 +517,18 @@ func TestIdentityUsesWorktreeLocalIndex(t *testing.T) {
 		t.Fatalf("linked index lock ignored: %+v", got)
 	}
 }
+
+// pair#613: git (or a descendant it starts) can still hold stdout briefly after
+// git itself exits; under load the copy also lags. A 50ms WaitDelay turned that
+// into "cannot read review history", which the review pane reported as a
+// branch mismatch. Complete output with a short-lived holder must succeed.
+func TestOSGitContextToleratesBrieflyHeldStdout(t *testing.T) {
+	dir := t.TempDir()
+	if out, err := exec.Command("git", "init", "-q", dir).CombinedOutput(); err != nil {
+		t.Fatalf("git init: %v %s", err, out)
+	}
+	got, err := (OSRuntime{}).GitContext(context.Background(), 1024, dir, "-c", "alias.heldout=!echo complete; (sleep 0.3) &", "heldout")
+	if err != nil || strings.TrimSpace(got) != "complete" {
+		t.Fatalf("briefly held stdout failed the read: out=%q err=%v", got, err)
+	}
+}
