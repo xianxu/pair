@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/xianxu/pair/cmd/internal/rowtext"
 )
@@ -90,8 +91,8 @@ func observedLaunchExit(h Handle) *int {
 	}
 }
 
-// captureLaunchFailure records before cleanup can erase the failed attempt,
-// then records what was observed after it. Persistence failure never skips cleanup.
+// captureLaunchFailure snapshots before cleanup can erase the failed attempt,
+// then publishes once afterward. Optional persistence never postpones cleanup.
 func (c *Couch) captureLaunchFailure(in trackedThreadLaunch, stage string, h Handle, cause error, cleanup func() error) error {
 	f := LaunchFailure{Address: in.Thread.Address, Nonce: in.Nonce, StartingPath: in.Thread.StartingPath, Agent: in.Args.Stack, Operation: "launch", Stage: stage, FailedAt: c.Clock.Now(), HelperStarted: h != nil, LaunchError: cause.Error(), BeforeExit: observedLaunchExit(h)}
 
@@ -106,7 +107,7 @@ func (c *Couch) captureLaunchFailure(in trackedThreadLaunch, stage string, h Han
 		f.Stream, f.Output = setup.Stream, append([]byte(nil), setup.Output...)
 		f.CleanupError = setup.CleanupError
 	}
-	saved := c.saveLaunchFailure(f)
+	f = cloneLaunchFailure(f)
 	var cleanupErr error
 	if cleanup != nil {
 		cleanupErr = cleanup()
@@ -115,7 +116,9 @@ func (c *Couch) captureLaunchFailure(in trackedThreadLaunch, stage string, h Han
 		f.AfterExit = observedLaunchExit(h)
 	}
 	if output, ok := h.(LaunchOutputHandle); ok {
-		f.Stream, f.Output = output.LaunchOutput()
+		if stream, raw := output.LaunchOutput(); len(raw) > 0 {
+			f.Stream, f.Output = stream, append([]byte(nil), raw...)
+		}
 	}
 	if cleanupErr != nil {
 		if f.CleanupError != "" {
@@ -123,18 +126,24 @@ func (c *Couch) captureLaunchFailure(in trackedThreadLaunch, stage string, h Han
 		}
 		f.CleanupError += cleanupErr.Error()
 	}
-	saved = errors.Join(saved, c.saveLaunchFailure(f))
+	saved := c.saveLaunchFailure(f)
 	return &launchFailureError{failure: f, cause: errors.Join(cause, cleanupErr), saveError: saved, recordPath: c.launchFailurePath()}
 }
 func (c *Couch) saveLaunchFailure(f LaunchFailure) error {
 	if c.LaunchFailures == nil {
 		return errors.New("launch diagnostic store unavailable")
 	}
-	if err := c.LaunchFailures.Save(f); err != nil {
+	// Launch cancellation must not discard its evidence. Cleanup already ran;
+	// this independent bound limits admission, not admitted filesystem IO.
+	ctx, cancel := context.WithTimeout(context.Background(), launchDiagnosticsAdmissionTimeout)
+	defer cancel()
+	if err := c.LaunchFailures.Save(ctx, f); err != nil {
 		return fmt.Errorf("write launch diagnostics %s: %w", c.LaunchFailures.Path(), err)
 	}
 	return nil
 }
+
+const launchDiagnosticsAdmissionTimeout = 10 * time.Second
 
 func (c *Couch) finishSwitchFailure(in trackedThreadLaunch, err error) error {
 	var failed *launchFailureError

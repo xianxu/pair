@@ -7,21 +7,96 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 type captureFailureStore struct {
 	records []LaunchFailure
 	err     error
+	save    func(context.Context, LaunchFailure) error
 }
 
 func (s *captureFailureStore) Path() string                   { return "/diagnostics/failures.json" }
 func (s *captureFailureStore) Read() ([]LaunchFailure, error) { return s.records, nil }
-func (s *captureFailureStore) Save(f LaunchFailure) error {
+func (s *captureFailureStore) Save(ctx context.Context, f LaunchFailure) error {
+	if s.save != nil {
+		return s.save(ctx, f)
+	}
 	s.records = append(s.records, f)
 	return s.err
 }
 
-func TestLaunchFailureCaptureBeforeCleanup(t *testing.T) {
+type erasedLaunchOutput struct {
+	Handle
+	raw []byte
+}
+
+func (h *erasedLaunchOutput) LaunchOutput() (string, []byte) { return "stderr", h.raw }
+
+func TestLaunchFailureCaptureCleanupPrecedesBlockedSave(t *testing.T) {
+	env := newTestEnv(t, "/repo")
+	child, err := env.Runner.Start("/repo", []string{"pair"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := &erasedLaunchOutput{Handle: child, raw: []byte("before cleanup")}
+	cleaned := make(chan struct{})
+	entered := make(chan LaunchFailure, 1)
+	release := make(chan struct{})
+	defer close(release)
+	store := &captureFailureStore{save: func(ctx context.Context, f LaunchFailure) error {
+		select {
+		case <-cleaned:
+		default:
+			return errors.New("save postponed cleanup")
+		}
+		if _, ok := ctx.Deadline(); !ok || ctx.Err() != nil {
+			return errors.New("diagnostic context absent or canceled with launch")
+		}
+		entered <- f
+		<-release
+		return context.DeadlineExceeded
+	}}
+	env.Couch.LaunchFailures = store
+	launchContext, cancel := context.WithCancel(t.Context())
+	cancel()
+	in := trackedThreadLaunch{Context: launchContext, Thread: ThreadRecord{StartingPath: "/repo"}, Nonce: "attempt"}
+	cleanupErr := errors.New("rollback observation failed")
+	done := make(chan error, 1)
+	go func() {
+		done <- env.Couch.captureLaunchFailure(in, "registration", h, context.Canceled, func() error {
+			for i := range h.raw {
+				h.raw[i] = 'X'
+			}
+			h.raw = nil
+			env.Runner.SetExited(h.ID(), 23)
+			close(cleaned)
+			return cleanupErr
+		})
+	}()
+	select {
+	case f := <-entered:
+		if string(f.Output) != "before cleanup" || f.BeforeExit != nil || f.AfterExit == nil || *f.AfterExit != 23 || f.CleanupError != cleanupErr.Error() {
+			t.Fatalf("lost snapshot or observations: %+v", f)
+		}
+	case err := <-done:
+		t.Fatalf("save did not observe cleanup: %v", err)
+	case <-testwait.After(t):
+		t.Fatal("save never entered after cleanup")
+	}
+	release <- struct{}{}
+	select {
+	case err := <-done:
+		if !errors.Is(err, context.Canceled) || !errors.Is(err, context.DeadlineExceeded) || !errors.Is(err, cleanupErr) {
+			t.Fatalf("lost cause chain: %v", err)
+		}
+	case <-testwait.After(t):
+		t.Fatal("capture did not join save")
+	}
+}
+
+func TestLaunchFailureCaptureSavesAfterCleanup(t *testing.T) {
 	env := newTestEnv(t, "/repo")
 	store := &captureFailureStore{}
 	env.Couch.LaunchFailures = store
@@ -32,8 +107,8 @@ func TestLaunchFailureCaptureBeforeCleanup(t *testing.T) {
 	cause := errors.New("registration refused")
 	in := trackedThreadLaunch{Thread: ThreadRecord{Address: ThreadAddress{RepoScope: "scope", Tag: "tag"}, StartingPath: "/repo"}, Nonce: "attempt", Args: StartArgs{Stack: "codex"}}
 	got := env.Couch.captureLaunchFailure(in, "registration", h, cause, func() error {
-		if len(store.records) != 1 || store.records[0].BeforeExit != nil {
-			t.Fatalf("pre-cleanup observation: %+v", store.records)
+		if len(store.records) != 0 {
+			t.Fatalf("persistence postponed cleanup: %+v", store.records)
 		}
 		env.Runner.SetExited(h.ID(), 23)
 		return nil
@@ -41,7 +116,7 @@ func TestLaunchFailureCaptureBeforeCleanup(t *testing.T) {
 	if !errors.Is(got, cause) {
 		t.Fatal(got)
 	}
-	if len(store.records) != 2 || store.records[1].BeforeExit != nil || store.records[1].AfterExit == nil || *store.records[1].AfterExit != 23 {
+	if len(store.records) != 1 || store.records[0].BeforeExit != nil || store.records[0].AfterExit == nil || *store.records[0].AfterExit != 23 {
 		t.Fatalf("observations: %+v", store.records)
 	}
 	if strings.Contains(OperatorError(got), "\n") || !strings.Contains(got.Error(), "couch --show") {

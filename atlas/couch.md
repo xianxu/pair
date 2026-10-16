@@ -139,8 +139,8 @@ to the selected global namespace beneath the account lease.
 
 `launchfailure.go` owns bounded attempt evidence and retention independently of
 ThreadRecord. `launchfailure_store.go` atomically stores the newest 16 failures
-in `<namespace>/launch-diagnostics/failures.json` (0600), under a private bounded
-file lock. Records carry scope/tag/nonce, target, starting path and failure stage,
+in `<namespace>/launch-diagnostics/failures.json` (0600), under a private
+context-bounded file lock. Records carry scope/tag/nonce, target, starting path and failure stage,
 16 KiB raw output tail, 4 KiB per error, and separate observed pre/post-cleanup
 exit codes. The entire encoded history is capped at 1 MiB. Failed persistence is
 reported beside the original error; later success does not clear evidence.
@@ -148,7 +148,15 @@ reported beside the original error; later success does not clear evidence.
 Runner setup refusals that occur after spawning carry a `blockedStartError` with
 immutable output and pre/post-cleanup observations, even when no handle can be
 returned. The shared `launchTrackedThread` failure path consumes that evidence,
-records before its own cleanup and enriches afterward; `SwitchAgent` adds its final error by attempt identity. The typed error
+snapshots immutable evidence before cleanup, enriches afterward and publishes
+once cleanup completes (#590); `SwitchAgent` adds its final error by attempt identity.
+Storage admission follows the caller's context, with cancellable nonblocking
+flock attempts and no background waiter. Couch supplies a separate ten-second
+diagnostic admission context, including for canceled launches. This bounds
+waiting for a lease, not filesystem IO after admission. There is no store-owned
+one-second scheduling budget. A crash during cleanup or before final publication
+can lose that attempt's in-memory evidence; previously published history remains
+durable. Persistence never delays failed-helper cleanup. The typed error
 preserves errors.Is/As while its operator text names the attempt, diagnostic file, and one inspection action.
 `couch --show` reads retained evidence by exact address or canonical starting
 path, including after rollback removed the thread, without creating lifecycle
