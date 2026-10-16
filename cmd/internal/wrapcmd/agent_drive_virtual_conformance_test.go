@@ -496,32 +496,9 @@ func boundaryDirtyRecovery(t *testing.T, endpoint couchmessage.RemoteEndpoint, i
 	if err != nil || !observation.Recoverable || observation.Idle {
 		t.Fatalf("dirty recovery observation %+v: %v", observation, err)
 	}
-	request := agentdrive.Request{Keys: agentdrive.KeySequence{{Kind: agentdrive.KeyClearLine}}}
-	var result agentdrive.Result
-	operationID := ""
-	for attempt := 0; attempt < 3; attempt++ {
-		observation, err = endpoint.ObserveDrive(ctx)
-		if err != nil {
-			t.Fatal(err)
-		}
-		operationID = fmt.Sprintf("boundary-recovery-%d", attempt)
-		result, err = endpoint.StartDrive(ctx, operationID, couchmessage.DriveStart{Request: request, Instance: observation.Instance, Sequence: observation.Sequence, Deadline: time.Now().Add(5 * time.Second)})
-		if err != nil {
-			t.Fatal(err)
-		}
-		// A stale admission emitted no keys. Re-observe rather than replaying any
-		// accepted operation; every admitted operation below is polled exactly once.
-		if result.Outcome != agentdrive.OutcomeRefused || result.Step != 0 || result.Detail != "wrapper observation changed; inspect the slot and send a new request" {
-			break
-		}
-	}
-
-	for !result.Terminal() && ctx.Err() == nil {
-		time.Sleep(20 * time.Millisecond)
-		result, err = endpoint.DriveStatus(ctx, operationID)
-		if err != nil {
-			t.Fatal(err)
-		}
+	result, err := boundaryRecoveryDrive(ctx, endpoint)
+	if err != nil {
+		t.Fatal(err)
 	}
 	if result.Outcome != agentdrive.OutcomeConfirmed {
 		t.Fatalf("explicit dirty recovery: %s (%s)", result.Outcome, result.Detail)
@@ -598,5 +575,129 @@ func TestBoundaryGroupSignalGoneOrUnobservable(t *testing.T) {
 				t.Fatalf("calls=%d err=%v gone=%v", calls, err, tc.gone)
 			}
 		})
+	}
+}
+
+type boundaryRecoveryEndpoint interface {
+	ObserveDrive(context.Context) (couchmessage.DriveObservation, error)
+	StartDrive(context.Context, string, couchmessage.DriveStart) (agentdrive.Result, error)
+	DriveStatus(context.Context, string) (agentdrive.Result, error)
+}
+
+func boundaryRecoveryDrive(ctx context.Context, endpoint boundaryRecoveryEndpoint) (agentdrive.Result, error) {
+	request := agentdrive.Request{Keys: agentdrive.KeySequence{{Kind: agentdrive.KeyClearLine}}}
+	var result agentdrive.Result
+	for attempt := 0; attempt < 3; attempt++ {
+		var observation couchmessage.DriveObservation
+		for {
+			if err := ctx.Err(); err != nil {
+				return result, err
+			}
+			var err error
+			observation, err = endpoint.ObserveDrive(ctx)
+			if err != nil {
+				return result, err
+			}
+			if observation.Recoverable && !observation.Idle {
+				break
+			}
+			time.Sleep(20 * time.Millisecond)
+		}
+		// Each attempt is a NEW request after a proved zero-input refusal, never
+		// replay of an accepted/uncertain effect. The outer context bounds all tries.
+		id := fmt.Sprintf("boundary-recovery-%d", attempt)
+		deadline := time.Now().Add(5 * time.Second)
+		if outer, ok := ctx.Deadline(); ok && outer.Before(deadline) {
+			deadline = outer
+		}
+		var err error
+		result, err = endpoint.StartDrive(ctx, id, couchmessage.DriveStart{Request: request, Instance: observation.Instance, Sequence: observation.Sequence, Deadline: deadline})
+		if err != nil {
+			return result, err
+		}
+		for !result.Terminal() {
+			if err := ctx.Err(); err != nil {
+				return result, err
+			}
+			time.Sleep(20 * time.Millisecond)
+			result, err = endpoint.DriveStatus(ctx, id)
+			if err != nil {
+				return result, err
+			}
+		}
+		if result.Outcome != agentdrive.OutcomeRefused || result.Step != 0 {
+			return result, nil
+		}
+		switch result.Detail {
+		case "wrapper observation changed; inspect the slot and send a new request",
+			"agent composer must be empty with no turn or picker; wait until it is idle",
+			"wait until the agent composer is empty and its turn finishes":
+			// These admission/dispatch guards precede every write. Requalify first.
+		default:
+			return result, nil
+		}
+	}
+	return result, nil
+}
+
+type boundaryRecoverySequence struct {
+	observations []couchmessage.DriveObservation
+	outcomes     []agentdrive.Result
+	starts       []couchmessage.DriveStart
+	ids          []string
+	polls        int
+}
+
+func (f *boundaryRecoverySequence) ObserveDrive(context.Context) (couchmessage.DriveObservation, error) {
+	if len(f.observations) == 0 {
+		return couchmessage.DriveObservation{}, fmt.Errorf("unexpected observation")
+	}
+	o := f.observations[0]
+	f.observations = f.observations[1:]
+	return o, nil
+}
+func (f *boundaryRecoverySequence) StartDrive(_ context.Context, id string, s couchmessage.DriveStart) (agentdrive.Result, error) {
+	f.starts = append(f.starts, s)
+	f.ids = append(f.ids, id)
+	if !s.Request.RecoveryOnly() {
+		return agentdrive.Result{}, fmt.Errorf("not recovery")
+	}
+	return agentdrive.Result{}, nil
+}
+func (f *boundaryRecoverySequence) DriveStatus(context.Context, string) (agentdrive.Result, error) {
+	f.polls++
+	if len(f.outcomes) == 0 {
+		return agentdrive.Result{}, fmt.Errorf("unexpected status")
+	}
+	r := f.outcomes[0]
+	f.outcomes = f.outcomes[1:]
+	return r, nil
+}
+func TestBoundaryRecoveryReobservesAfterZeroInputDispatchRefusal(t *testing.T) {
+	f := &boundaryRecoverySequence{
+		observations: []couchmessage.DriveObservation{
+			{Instance: "wrapper", Sequence: 1, Recoverable: true},
+			{Instance: "wrapper", Sequence: 2},
+			{Instance: "wrapper", Sequence: 3, Recoverable: true},
+		},
+		outcomes: []agentdrive.Result{
+			{Outcome: agentdrive.OutcomeRefused, Detail: "wait until the agent composer is empty and its turn finishes"},
+			{Outcome: agentdrive.OutcomeConfirmed, Step: 1},
+		},
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	result, err := boundaryRecoveryDrive(ctx, f)
+	if err != nil || result.Outcome != agentdrive.OutcomeConfirmed || len(f.starts) != 2 || f.starts[0].Sequence != 1 || f.starts[1].Sequence != 3 || f.ids[0] == f.ids[1] {
+		t.Fatalf("result=%+v err=%v starts=%+v ids=%v", result, err, f.starts, f.ids)
+	}
+}
+func TestBoundaryRecoveryDoesNotReplayUncertainInput(t *testing.T) {
+	f := &boundaryRecoverySequence{observations: []couchmessage.DriveObservation{{Instance: "wrapper", Sequence: 1, Recoverable: true}}, outcomes: []agentdrive.Result{{Outcome: agentdrive.OutcomeUnconfirmed, Detail: "write outcome unknown"}}}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	result, err := boundaryRecoveryDrive(ctx, f)
+	if err != nil || result.Outcome != agentdrive.OutcomeUnconfirmed || len(f.starts) != 1 {
+		t.Fatalf("%+v %v %+v", result, err, f.starts)
 	}
 }

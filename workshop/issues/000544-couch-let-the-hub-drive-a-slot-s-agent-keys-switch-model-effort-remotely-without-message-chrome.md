@@ -160,7 +160,20 @@ Round2 explicitly addressed BR-1/BR-2, including reviewer mutation proof that re
 
 Interrupted the superseded91b007dca suite with SIGINT/exit130 after review changed production; no passing suite claim. The queued66a653100 suite was cancelled before admission (exit130) when BR-3 changed the Makefile. Final recorded full-suite evidence will be obtained on the final integrated landing head through sdlc merge, per the TL's instruction, rather than retain obsolete queued candidates. No gate waived.
 
+### 2026-10-15 — deterministic native recovery synchronization (BR-4)
+
+Round3 addressed BR-3 and reproduced one native fixture refusal after successful model selection; two follow-up runs passed, proving an ordering-dependent fixture, not unsafe production input. Root cause: boundaryDirtyRecovery replaced its initially qualified observation without rechecking Recoverable; it also handled only admission-time stale-sequence refusal, not the dispatch-time guard. Extracted the test-only recovery endpoint seam preserving old behavior; controlled qualified→pending→zero-input dispatch-refusal regression was RED. The fixture now requalifies Recoverable/non-idle before every NEW request, polls that request to terminal, and permits at most three distinct IDs only after an exact known admission/dispatch refusal with OutcomeRefused and Step0. Unknown, cancelled, partially acknowledged or unconfirmed outcomes never retry; all observations/attempts share the outer absolute context. Production code and conservative refusal policy are unchanged.
+
+Controlled wrapper tests independently enumerate sequence or screen changes before admission and before dispatch, assert OutcomeRefused/Step0/zero writer bytes, and prove later repaint does not replay. Fixture regression and no-uncertain-replay tests plus those four production interleavings PASS -race count10 in3.918s. Exact make test-agent-drive-live GREEN42.876s, both suites/all five cases executed. Three additional actual Run/socket virtual-suite repetitions are running as a load-ordering check; no passing repetition claim yet. Final integrated suite remains due at merge.
+
 ## Revisions
+
+### 2026-10-15 — synchronize conformance across qualification changes (BR-4)
+
+**Reason:** Fresh-context review observed the native fixture fail on a legitimate zero-input refusal between admission and dispatch.
+
+**Delta:** Keep production fail-closed behavior; positively qualify each new test request, await its terminal result, and only after an exact known zero-input refusal reobserve and use a new ID within three attempts and the original outer deadline. Never replay uncertain input. Controlled endpoint and actual wrapper tests pin qualification loss before admission/dispatch and subsequent no-replay. Re-run exact native target and repeated virtual conformance (ARCH-ORDER).
+
 
 ### 2026-10-15 — native conformance target (BR-3)
 

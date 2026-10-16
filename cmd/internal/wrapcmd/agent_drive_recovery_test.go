@@ -297,3 +297,56 @@ func TestAgentDriveScreenReadersDoNotRaceInputOwnership(t *testing.T) {
 	}
 	<-done
 }
+
+func TestAgentDriveRecoveryQualificationChangesBeforeInput(t *testing.T) {
+	for _, stage := range []string{"admission", "dispatch"} {
+		for _, change := range []string{"sequence", "screen"} {
+			t.Run(stage+"/"+change, func(t *testing.T) {
+				f, d, now := driveFixture(t)
+				recoveryPaint(f, "/model")
+				d.settled = false
+				observation := d.agentDriveObservation()
+				if !observation.Recoverable {
+					t.Fatal("missing qualified baseline")
+				}
+				start := couchmessage.DriveStart{Request: agentdrive.Request{Keys: agentdrive.KeySequence{{Kind: agentdrive.KeyClearLine}}}, Instance: observation.Instance, Sequence: observation.Sequence, Deadline: now.Add(time.Second)}
+				alter := func() {
+					if change == "sequence" {
+						d.sequence++
+					} else {
+						f.output("\x1b[?2026h\x1b[2J\x1b[Hunknown\x1b[?2026l")
+					}
+				}
+				if stage == "admission" {
+					alter()
+				}
+				result, err := d.startAgentDrive("qualification", start)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if stage == "dispatch" {
+					if result.Terminal() {
+						t.Fatalf("unexpected admission refusal: %+v", result)
+					}
+					alter()
+				}
+				var out bytes.Buffer
+				f.proxy.dispatchAgentDrive(&out)
+				if stage == "dispatch" {
+					result, err = d.agentDriveResult("qualification")
+					if err != nil {
+						t.Fatal(err)
+					}
+				}
+				if result.Outcome != agentdrive.OutcomeRefused || result.Step != 0 || out.Len() != 0 {
+					t.Fatalf("unsafe changed qualification: %+v bytes=%q", result, out.String())
+				}
+				recoveryPaint(f, "/model")
+				f.proxy.dispatchAgentDrive(&out)
+				if out.Len() != 0 {
+					t.Fatalf("refused operation replayed: %q", out.String())
+				}
+			})
+		}
+	}
+}

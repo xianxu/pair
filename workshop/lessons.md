@@ -1984,3 +1984,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #544 BR-1/BR-2: failure recovery replaces current-screen evidence, so retain actionable observed choices in the bounded result detail and test after completed backout through receipt/CLI output. Reconcile prospective plan symbols with delivered APIs and reused conformance fixtures before close.
 
 - #544 BR-3: opt-in external conformance needs a committed target that enables every required suite, plus a named after-change/upgrade cadence. Run the exact target and confirm cases execute instead of accepting a skipped default-suite result.
+
+- #544 BR-4: conformance must requalify every new observation, then separate admission from dispatch. A known zero-input refusal can justify a distinct fresh fixture request; Step0 alone never authorizes replay of an unconfirmed write. Force both pre-admission and pre-dispatch qualification loss with controlled tests.

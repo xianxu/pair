@@ -199,3 +199,99 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-15T23:55:08-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 544 — couch: let the hub drive a slot's agent keys (switch model/effort remotely), without message chrome |
+| repo | pair |
+| issue file | workshop/issues/000544-couch-let-the-hub-drive-a-slot-s-agent-keys-switch-model-effort-remotely-without-message-chrome.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | e7b676abb2083791028bed45eda22515361cca4c..442d4cfdad2afbe4c5f1ee9a42101c65ad0e0fb5 |
+| command | sdlc close --issue 544 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-15T23:55:08-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+BR-3’s missing entrypoint is addressed: the committed target enables both native suites and documents their cadence. However, running it exposed an intermittent recovery-conformance failure. Focused tests and races pass; the unstable landing check needs correction before closing.
+
+```findings
+dispose:
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Makefile.local:558 enables both native conformance suites; atlas/couch.md documents prerequisites and pre-landing cadence. The base Makefile fails with “No rule to make target”; the pinned-head target executes both suites without SKIP.
+findings:
+  - id: new
+    severity: Important
+    kind: defect
+    family: deterministic-conformance-ordering
+    title: |
+      Native recovery conformance depends on uncontrolled observation-to-dispatch ordering
+    detail: |
+      cmd/internal/wrapcmd/agent_drive_virtual_conformance_test.go:503–527: make test-agent-drive-live failed in scratch dirty recovery with “refused (wait until the agent composer is empty and its turn finishes)” after successful model selection; two subsequent virtual-suite repetitions passed. The helper replaces its qualified observation without checking Recoverable again, while dispatch revalidates independently and can refuse before writing. Add a controllable regression for observation/admission/dispatch changes, establish the permitted refusal policy, and make the native fixture synchronize accordingly without replaying uncertain input. ARCH-ORDER.
+```
+
+1. **Strengths**
+
+   - Pure parsing and reducer logic remain separate from socket and PTY execution.
+   - Screen-derived effects carry evidence that is revalidated before input.
+   - Input ownership, cancellation, bounded receipts, and cleanup reuse existing machinery.
+   - README, atlas, embedded skill, and source inventory cover the new surface.
+
+2. **Critical findings**
+
+   None.
+
+3. **Important findings**
+
+   The intermittent native recovery check above blocks reliable pre-landing verification. Its observed failure establishes a test-ordering problem; it does not establish unsafe production input.
+
+4. **Minor findings**
+
+   None.
+
+5. **Test coverage notes**
+
+   Passed complete `agentdrive`, `tailmarkup`, and `artifactpath` tests, focused service/endpoint/wrapper tests, and focused races. Native session/default/recovery cases passed. The full native target failed once; two subsequent virtual-suite runs passed. The full repository suite was not rerun.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** shared translator, lease, receipts, and submission pacing.
+   - **ARCH-PURE — pass:** deterministic core with thin IO adapters.
+   - **ARCH-PURPOSE — pass:** both agents’ recorded recipes and raw-key controls are delivered; revisions explicitly assign fleet acceptance after landing.
+   - **ARCH-MOCK — pass:** stateful fixtures and executable native conformance entrypoint.
+   - **ARCH-CONSTRAINTS — pass:** bounded requests, navigation, deadlines, and retained results.
+   - **ARCH-SECURE — pass:** typed validation and caller/target incarnation checks.
+   - **ARCH-ORDER — flag:** recovery conformance lacks deterministic control over the failing interleaving.
+   - **ARCH-FUNERAL — pass:** receipt caps/expiry, cancellation, and disposable-fixture cleanup.
+
+7. **Plan revision recommendations**
+
+   Add a `## Revisions` entry specifying recovery admission behavior when screen qualification changes before dispatch, plus the deterministic regression and native-fixture synchronization that verify it.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"ae20c03c-c181-4940-9096-54a962269437","repository":"github.com/xianxu/pair","issue_id":"000544","recipe":"milestone-review","round":3,"attempt":1,"agent":"codex","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/3dab8e3385951416","reviewed_head":"442d4cfdad2afbe4c5f1ee9a42101c65ad0e0fb5","slot":"pair:6","requested_at":"2026-10-16T06:52:53.190932Z"},"phase":"finished","pid":24794,"started_at":"2026-10-16T06:52:53.397359Z","finished_at":"2026-10-16T06:55:06.00689Z","session_id":"01a1437c-2c71-7293-8062-30921667c29a","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.807269084s
+head: "442d4cfdad2afbe4c5f1ee9a42101c65ad0e0fb5"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

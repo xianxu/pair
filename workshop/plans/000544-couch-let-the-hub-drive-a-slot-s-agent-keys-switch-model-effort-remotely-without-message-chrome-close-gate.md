@@ -347,6 +347,180 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: ae20c03c-c181-4940-9096-54a962269437
+            repository: github.com/xianxu/pair
+            issue_id: "000544"
+            recipe: milestone-review
+            round: 3
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/Library/Caches/sdlc/review-checkouts/3dab8e3385951416
+            reviewed_head: 442d4cfdad2afbe4c5f1ee9a42101c65ad0e0fb5
+            slot: pair:6
+            requested_at: "2026-10-16T06:52:53.190932Z"
+          phase: finished
+          pid: 24794
+          started_at: "2026-10-16T06:52:53.397359Z"
+          finished_at: "2026-10-16T06:55:06.00689Z"
+          session_id: 01a1437c-2c71-7293-8062-30921667c29a
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-v1
+        repository: github.com/xianxu/pair
+        code_head: 442d4cfdad2afbe4c5f1ee9a42101c65ad0e0fb5
+        tracker_head: d7bb2de09e484d9628cdfa3c26a4332779410be2
+        branch_point: e7b676abb2083791028bed45eda22515361cca4c
+        since: "2026-10-14T01:55:19-07:00"
+        until: "2026-10-15T23:52:07-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-14T01:55:19-07:00"
+              end: "2026-10-15T23:52:07-07:00"
+              began: "2026-10-14T01:55:19-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot6/pair
+        sources:
+            - harness: codex
+              id: 01a13646-a9b3-7443-a36e-43f301879fd6
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              digest: 3bc91b912ac368d615bbbcac4f002a92e79d4d3096460e4c60cbdfb4e4446e5e
+              started: "2026-10-13T17:19:50.728Z"
+              spawned: false
+              bytes: 41088070
+              windows:
+                - start: "2026-10-14T01:55:19-07:00"
+                  end: "2026-10-15T23:52:07-07:00"
+            - harness: codex
+              id: 01a1399f-d2de-7bb0-9385-d1bb7828089e
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              parent_id: 01a13646-a9b3-7443-a36e-43f301879fd6
+              digest: ebe77f65bfb32c8d8bbb2dbbc91205bd4893bb3224aec9d097f53bdaae7d55f8
+              started: "2026-10-14T08:55:38.14Z"
+              spawned: true
+              bytes: 921193
+              windows:
+                - start: "2026-10-14T08:55:38.14Z"
+                  end: "2026-10-15T23:52:07-07:00"
+            - harness: codex
+              id: 01a139a8-1b95-7812-9351-a606fccfb52f
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              digest: 587007d4f178d792e96bd422b4d0d37a511a0b6b89b2467372b7991f5b3d4da4
+              started: "2026-10-14T09:04:41.052Z"
+              spawned: false
+              bytes: 589123
+              windows:
+                - start: "2026-10-14T09:04:41.052Z"
+                  end: "2026-10-15T23:52:07-07:00"
+            - harness: codex
+              id: 01a139ab-c92f-78a3-a436-1bd844e24845
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              digest: a2e2d83b0f96b0c9995abd9d0ea3cb96baee20f96fcfbf6ca8b7ce1bdb8057aa
+              started: "2026-10-14T09:08:42.444Z"
+              spawned: false
+              bytes: 424615
+              windows:
+                - start: "2026-10-14T09:08:42.444Z"
+                  end: "2026-10-15T23:52:07-07:00"
+            - harness: codex
+              id: 01a139ad-735a-7861-893e-82844d1dd5e0
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              digest: fd9b073f0a858362d89a0276ed98ade9f61bda35e85fbbb933323e8b0bd7595c
+              started: "2026-10-14T09:10:31.359Z"
+              spawned: false
+              bytes: 443324
+              windows:
+                - start: "2026-10-14T09:10:31.359Z"
+                  end: "2026-10-15T23:52:07-07:00"
+            - harness: codex
+              id: 01a139ae-0d0e-7c31-bd8f-b21743710eb6
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              digest: 2938e5c1b3c63981c274371329db28bf10d72aebdedbd84b38d4618d890bcec4
+              started: "2026-10-14T09:11:10.835Z"
+              spawned: false
+              bytes: 427850
+              windows:
+                - start: "2026-10-14T09:11:10.835Z"
+                  end: "2026-10-15T23:52:07-07:00"
+            - harness: codex
+              id: 01a139af-0dac-7640-bdaf-2f9e57885dc1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              parent_id: 01a13646-a9b3-7443-a36e-43f301879fd6
+              digest: ad309775585e5c393b0426ab9e32a086c3e62bb75cd3c5a3f822db8390838e8f
+              started: "2026-10-14T09:12:16.212Z"
+              spawned: true
+              bytes: 5483589
+              windows:
+                - start: "2026-10-14T09:12:16.212Z"
+                  end: "2026-10-15T23:52:07-07:00"
+            - harness: codex
+              id: 01a139b1-23d1-7031-a8af-6e12e6fa3b34
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              parent_id: 01a13646-a9b3-7443-a36e-43f301879fd6
+              digest: 2e966a8f784354c055da9635fec232d12ca91db8df5f8f5715657388d9e54249
+              started: "2026-10-14T09:14:32.881Z"
+              spawned: true
+              bytes: 2825547
+              windows:
+                - start: "2026-10-14T09:14:32.881Z"
+                  end: "2026-10-15T23:52:07-07:00"
+            - harness: codex
+              id: 01a139b8-5df0-7713-8cfd-9654dfd76d23
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              parent_id: 01a13646-a9b3-7443-a36e-43f301879fd6
+              digest: 4c1b098e019a135d8b7fe0a4d4ea8a00ced2726b930d92aa165b4c673fa6bf9a
+              started: "2026-10-14T09:22:26.504Z"
+              spawned: true
+              bytes: 4325228
+              windows:
+                - start: "2026-10-14T09:22:26.504Z"
+                  end: "2026-10-15T23:52:07-07:00"
+            - harness: codex
+              id: 01a14367-664d-7850-a55c-bb707864cce5
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              digest: 7a22af024f12b8d08c3610db513ebd2a4ac6cacf0a4ccd962f73df0280c95408
+              started: "2026-10-16T06:30:12.567Z"
+              spawned: false
+              bytes: 2783377
+              windows:
+                - start: "2026-10-16T06:30:12.567Z"
+                  end: "2026-10-15T23:52:07-07:00"
+        excluded_brain_sessions: 1
+        excluded_brain_minutes: 150.4081833333333
+        cuts:
+            - dispatched: "2026-10-15T23:38:49-07:00"
+              finalized: "2026-10-15T23:41:49-07:00"
+              finalizing: false
+            - dispatched: "2026-10-15T23:46:14-07:00"
+              finalized: "2026-10-15T23:49:48-07:00"
+              finalizing: false
+      "n": 3
+      timestamp: "2026-10-15T23:55:09-07:00"
+      dispatched: "2026-10-15T23:52:50-07:00"
+      agent: codex
+      dispose:
+        - id: BR-3
+          disposition: addressed
+          note: Makefile.local:558 enables both native conformance suites; atlas/couch.md documents prerequisites and pre-landing cadence. The base Makefile fails with “No rule to make target”; the pinned-head target executes both suites without SKIP.
+          round: 3
+      findings:
+        - kind: defect
+          id: BR-4
+          severity: Important
+          title: Native recovery conformance depends on uncontrolled observation-to-dispatch ordering
+          detail: 'cmd/internal/wrapcmd/agent_drive_virtual_conformance_test.go:503–527: make test-agent-drive-live failed in scratch dirty recovery with “refused (wait until the agent composer is empty and its turn finishes)” after successful model selection; two subsequent virtual-suite repetitions passed. The helper replaces its qualified observation without checking Recoverable again, while dispatch revalidates independently and can refuse before writing. Add a controllable regression for observation/admission/dispatch changes, establish the permitted refusal policy, and make the native fixture synchronize accordingly without replaying uncertain input. ARCH-ORDER.'
+          family: deterministic-conformance-ordering
+          round: 3
+      recipe: milestone-review
+      isolation: fenced
+      blocked: true
 ---
 
 # Gate ledger — pair#544 (boundary-review)
@@ -375,6 +549,17 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-3** [Important] `executable-conformance-entrypoints` (kind: defect) Native drive conformance suites are absent from committed test targets
   agent_drive_conformance_test.go:22 and agent_drive_virtual_conformance_test.go:247 require separate opt-in variables, but Makefile.local:99–102 sets only PAIR_LIVE_COUCH; no committed target or script sets either drive variable. Both suites demonstrably SKIP under ordinary invocation, leaving Plan task 4's conformance-target requirement undelivered (ARCH-MOCK). Add a documented opt-in target that enables both suites and establishes when it must run.
 
+## Round 3 — 2026-10-15T23:55:09-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-3 — addressed — Makefile.local:558 enables both native conformance suites; atlas/couch.md documents prerequisites and pre-landing cadence. The base Makefile fails with “No rule to make target”; the pinned-head target executes both suites without SKIP.
+
+### Raised
+
+- **BR-4** [Important] `deterministic-conformance-ordering` (kind: defect) Native recovery conformance depends on uncontrolled observation-to-dispatch ordering
+  cmd/internal/wrapcmd/agent_drive_virtual_conformance_test.go:503–527: make test-agent-drive-live failed in scratch dirty recovery with “refused (wait until the agent composer is empty and its turn finishes)” after successful model selection; two subsequent virtual-suite repetitions passed. The helper replaces its qualified observation without checking Recoverable again, while dispatch revalidates independently and can refuse before writing. Add a controllable regression for observation/admission/dispatch changes, establish the permitted refusal policy, and make the native fixture synchronize accordingly without replaying uncertain input. ARCH-ORDER.
+
 ## Open findings
 
-- **BR-3** [Important] `executable-conformance-entrypoints` (kind: defect) Native drive conformance suites are absent from committed test targets
+- **BR-4** [Important] `deterministic-conformance-ordering` (kind: defect) Native recovery conformance depends on uncontrolled observation-to-dispatch ordering

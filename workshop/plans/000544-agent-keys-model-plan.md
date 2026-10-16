@@ -271,3 +271,10 @@ Live fleet set-model/keys/delivery smoke remains post-landing after the next ope
 **Reason:** Boundary round2 accepted BR-1/BR-2 but found the planned opt-in conformance target absent; ordinary test execution skips native-login cases.
 
 **Delta:** Add `make test-agent-drive-live` in Makefile.local, enabling both PAIR_LIVE_AGENT_DRIVE=codex and PAIR_LIVE_AGENT_DRIVE_VIRTUAL=codex and selecting both complete suites. Run this target after drive/parser/writer changes or Codex upgrades, before landing them; retain regular suite isolation and no peer-slot input. Atlas documents prerequisites, both tested paths and that cadence (ARCH-MOCK). Verify the exact target executes all three direct-native cases and both actual Run/socket terminal variants without SKIP.
+
+
+### 2026-10-15 — native recovery observation/admission/dispatch policy (BR-4)
+
+**Reason:** Native conformance reused an unqualified newer observation and did not handle a legitimate zero-input dispatch refusal. Production refusal remains required when sequence or complete composer proof changes before the first write.
+
+**Delta:** The isolated fixture observes until Recoverable/non-idle for each new request, admits one distinct ID, and polls that ID to terminal. Only exact known stale-observation/composer guard refusals with OutcomeRefused/Step0 allow another independently qualified ID, at most three attempts within the same outer context. Unconfirmed/partial/cancelled/unknown outcomes stop immediately. Test-only boundaryRecoveryDrive owns that sequence behind boundaryRecoveryEndpoint; controlled tests force qualification loss and zero-input refusal, assert no unsafe retry, and actual wrapper regressions cover sequence/screen changes at admission and dispatch with zero bytes and no later replay. No production retry is added (ARCH-ORDER).
