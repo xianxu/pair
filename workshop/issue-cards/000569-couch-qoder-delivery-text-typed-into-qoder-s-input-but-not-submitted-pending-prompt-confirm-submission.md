@@ -1,6 +1,6 @@
 ---
 id: 000569
-status: codecomplete
+status: done
 created: 2026-10-15
 updated: 2026-10-15
 estimate_hours: 1.924
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 1d117dfd648001b3dfda370a0bde9cf0e30f97db
         evidence_commit: 9a943c887932fb44aa69d311829a80600278d73e
+        landed_commit: 704529cfab53d4fd1378687b594828110f5fecae
 ---
 
 # Couch → Qoder delivery: text typed into Qoder's input but not submitted (pending * prompt); confirm submission
