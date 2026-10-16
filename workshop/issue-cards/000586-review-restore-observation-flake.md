@@ -1,8 +1,8 @@
 ---
 id: 000586
-status: codecomplete
+status: done
 created: 2026-10-15
-updated: 2026-10-15
+updated: 2026-10-16
 estimate_hours:
 github_issue:
 started: 2026-10-15T19:17:48-07:00
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: f4818f763f4247261f413b2eb9b0748b056bedc7
         evidence_commit: 472635b1a6730885534c556c4d07968e502dca59
+        landed_commit: 26b8cd9a31a87cfa2fee916fe77fd7ac6e6df59a
 ---
 
 # Diagnose intermittent review restoration observation mismatch
