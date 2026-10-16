@@ -74,6 +74,12 @@ Delegated only the isolated Lua tracer and its standalone test to observation_tr
 
 Original historical cause remains unproven. Ready for committed-source build, recorded suite and bounded loaded sampling, with a Revision required before any root behavioral fix. #585 is landed and reported; #579 live IO sample remains deferred to the hub-provided post-restart PIDs/build.
 
+### Loaded reproduction checkpoint — 2026-10-15T19:44:11.873180-07:00
+
+Committed sourcef6512608053de4d07e29acf206d870b31d169b51 rebuilt with make -k -B build, pushed, and required recorded suite7ce208b67b715382a02adcd7ffaacb6c is actively executing (not queued). Baseline one-case probe with no additional owned full suite passed17.574s: five wanted and41fresh observations all resolved, max wanted439.447ms, max fresh1169.286ms including the existing1s slow-wrapper model. Baseline host load varied4.87–9.45, so this is not an idle-host claim. Evidence root /private/var/folders/07/b9wcwwld4_v2w9r3hk525bm80000gn/T/pair586-repro.nyUWcD.
+
+Started a one-hour, one-fixture-at-a-time experiment with the owned recorded suite plus ambient fleet load; each case is fresh isolated storage, same source/environment, no retries after a failure and no sleeps between cases. /tmp/pair586-load-probe.py preserves per-case stdout/stderr/observations and summary.json under the loaded subdirectory, records elapsed observations and host load, and stops at the first failure or the timebox between cases. The actual owned-suite overlap ends when that suite completes; later samples must not be presented as overlapping it. No production observation or authorization behavior has been changed.
+
 ## Revisions
 
 ### 2026-10-15 — approved diagnostics-first timebox
