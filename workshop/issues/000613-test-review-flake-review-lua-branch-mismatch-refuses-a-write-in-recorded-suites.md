@@ -46,6 +46,7 @@ Find why review.lua sees a branch mismatch in the suite's detached checkout and 
 ## Log
 
 ### 2026-10-16
+- 2026-10-16: closed — Recorded suite green on 0a487724. Cause measured from the second sighting own observation report: guard resolve returned invalid "cannot read review history: exec: WaitDelay expired before I/O complete" from reviewcmd GitContext WaitDelay 50ms. CPU load alone did not reproduce (0/20 at load 18 and at load 58). Fix: WaitDelay 1s; same class in two couchcmd zellij queries; BufWritePre refusal names the guard reason. TestOSGitContextToleratesBrieflyHeldStdout RED on main with the exact error, GREEN with the fix; reviewcmd, couchcmd and make test-review green. no-atlas: bugfix, no new surface.; review verdict: SHIP
 
 ### 2026-10-16 — measured cause and fix (pair:2)
 
