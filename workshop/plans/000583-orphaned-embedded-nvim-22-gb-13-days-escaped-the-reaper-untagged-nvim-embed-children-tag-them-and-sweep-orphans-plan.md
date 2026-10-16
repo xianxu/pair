@@ -23,8 +23,20 @@ Two sub-classes, two different fixes:
 
 | Class | Why it escaped | Fix |
 |---|---|---|
-| pair-spawned, untagged or unreaped | `changelog` viewer passes no `PAIR_NVIM_PID_FILE` (`opener/run.go:211-217`) and `nvim/changelog.lua` has no pidfile block; `review` writes one (`review.lua:791-792`) but `"review"` is absent from the reap/sweep kind lists (`osruntime.go:947,973`, `lifecycle.go:195,297`) and from `TagFromNvimEmbedArgv` (`artifactpath/paths.go:318`) | M1: close the kind set, tag the changelog viewer, reap all four kinds |
-| not pair-spawned (a bare interactive `nvim` typed in a pane) | pair never spawned it, so it can carry no pair tag; argv is bare, so no scope path exists to match | M2: detect by ppid 1 + managed cwd + age, report, reap on confirmation |
+| pair-spawned, untagged or unreaped | the `changelog` viewer passes no `PAIR_NVIM_PID_FILE` (`opener/run.go:211-217`) and `nvim/changelog.lua` has no pidfile block, so its embed leaves no identity at all; `review` writes one (`review.lua:791-792`) but `"review"` is absent from the reap/sweep kind lists (`osruntime.go:947,973`, `lifecycle.go:195,297`) | M1: close the sidecar kind set to `{draft, scrollback, review}`, give the changelog viewer an artifact-keyed pid record, and reap every one of them by verified identity |
+| not pair-spawned (a bare interactive `nvim` typed in a pane) | pair never spawned it, so it can carry no pair tag; argv is bare (live pid 38555: `nvim --embed`, no arguments), so no scope path exists to match | M2: detect by ppid 1 + managed cwd + age, report, reap on confirmation |
+
+**Why the changelog surface gets its own record shape.** `nvim-pid-<tag>-<kind>` is keyed by (tag, kind),
+which is unique for draft, scrollback and review but not for changelog: a changelog viewer is per
+(tag, agent, session) (`ChangelogSessionChecked`, `paths.go:738-749`), so two concurrent viewers of one
+tag would overwrite one sidecar and leak the first viewer's pid. The tag also cannot be recovered from
+the changelog *filename* or from argv: `componentPattern` admits `-` in tag, agent and session
+(`paths.go:14`) and the session component is optional, so `changelog-<tag>-<agent>[-<session>]` has no
+unambiguous split, and a `changelog-<tag>-*` glob crosses tags (`work` claims `work-x`'s file). Both of
+the plan-quality gate's options fail on that. The changelog record is therefore keyed by the **artifact
+base it already has** — `<base>.nvim-pid`, a sibling of `<base>.openlock` — which is unique by
+construction and needs no parsing: the reaper enumerates the pair, reads the opener pid from the
+openlock for owner liveness, and requires the embed's argv to carry `<base>.md` exactly.
 
 pair cannot make nvim's forked embed die with its TUI — that is upstream behaviour. What pair owns is
 (a) tagging and reaping everything it spawns, and (b) detecting and reporting the rest. This plan's
@@ -38,22 +50,24 @@ in the issue's `## Log` as a scope revision if it moves the design.
 | Name | Lives in | Status |
 |------|----------|--------|
 | `NvimKinds` / `Paths.NvimPIDs` / `ScopePaths.NvimPIDGlobs` | `cmd/internal/artifactpath/paths.go` | new |
-| `TagFromNvimEmbedArgv` (changelog marker) | `cmd/internal/artifactpath/paths.go:318` | modified |
+| `ChangelogArtifactSet.NvimPID` | `cmd/internal/artifactpath/paths.go:106-113,759-772` | modified |
 | `NvimReapRow` + `ClassifyNvimReap` | `cmd/internal/launcher/nvim_reap.go` | new |
-| `SweepOrphanNvim` / `ReapNvim` / `ReapNvimContext` | `cmd/internal/launcher/osruntime.go:942-990`, `lifecycle_os.go:34-60` | modified |
+| `ProcessRow` (gains `Name`) + `ProcessTable` (gains `Command`) | `cmd/internal/launcher/session_reap.go:29-40` | modified |
+| `SweepOrphanNvim` / `ReapNvim` / `ReapNvimContext` | `cmd/internal/launcher/osruntime.go:942-1003`, `lifecycle_os.go:34-60` | modified |
 | `editorPathsOf` + quit-path inline literal | `cmd/internal/launcher/lifecycle.go:193-196,294-299` | modified |
 | `UnattributedCandidate` (extracted from #587) | `cmd/internal/couchcore/resource.go:301` | new |
 | `OrphanNvim` + `ClassifyOrphanNvim` + `ManagedRoots` | `cmd/internal/couchcore/resource_orphan.go` | new |
 | `ResourcePolicy.OrphanNvimAge` | `cmd/internal/couchcore/resource_policy.go:11-77` | modified |
 | `ResourceView.OrphanNvim` (+ projection) | `cmd/internal/couchcore/resource.go`, `couchcmd/resources_projection.go` | modified |
-| `ClassifyNvimReap` decision table | `cmd/internal/launcher/nvim_reap_test.go` | new |
 
-- **`NvimKinds`** — the closed set `{draft, scrollback, review, changelog}` of embedded-nvim surfaces pair spawns.
+- **`NvimKinds`** — the closed set `{draft, scrollback, review}` of embedded-nvim surfaces that own a
+  `nvim-pid-<tag>-<kind>` sidecar. The changelog viewer is deliberately **not** a member: its identity is
+  keyed per artifact base (see the root-cause note above), not per (tag, kind).
   - **Relationships:** 1:N with the pid sidecar family `nvim-pid-<tag>-<kind>`; consumed by GC retention, the rename inventory, the quit path, the reaper and the sweep.
-  - **DRY rationale:** today the set is spelled in six places with three different members (`gc.go:253` has review, the reaper does not; nothing has changelog). #583 is that drift: a kind nobody reaps is a kind that leaks. ARCH-DRY.
-  - **Future extensions:** a new editor surface adds one string and derives everywhere; a drift pin fails if a consumer hardcodes a set again.
-- **`ClassifyNvimReap`** — decides one pidfile-derived candidate: kill, or skip with a reason. No IO, no clock, no signals.
-  - **Relationships:** 1:1 with a `NvimReapRow` built by the IO shell from one `procutil` snapshot; N:1 with a tag.
+  - **DRY rationale:** today the set is spelled in six places with two different members (`gc.go:253` has review, the reaper and the sweep do not). #583 is that drift: a kind nobody reaps is a kind that leaks. ARCH-DRY.
+  - **Future extensions:** a new tag-keyed editor surface adds one string and derives everywhere; a drift pin fails if a consumer hardcodes a set again. A surface whose multiplicity is not (tag, kind) follows the changelog's artifact-keyed shape instead of joining this set.
+- **`ClassifyNvimReap`** — decides one candidate: kill, or skip with a reason. No IO, no clock, no signals.
+  - **Relationships:** 1:1 with a `NvimReapRow` built by the IO shell from one process-table snapshot plus one targeted `Command` read; N:1 with an owner (a tag, or a changelog artifact base).
   - **DRY rationale:** the reaper and the sweep ask the same question; today one answers it with `kill -9 <pid>` and the other with `pkill -9 -f <pattern>`.
 - **`ClassifyOrphanNvim`** — decides one untagged candidate: report/reap-eligible, or not. Pure over row + argv + cwd + roots + now.
   - **Relationships:** 1:1 with a candidate row; N:N with `ManagedRoots` (a root may contain many candidates).
@@ -66,17 +80,22 @@ in the issue's `## Log` as a scope revision if it moves the design.
 | Name | Lives in | Status | Wraps |
 |------|----------|--------|-------|
 | `procutil.Reader.Cwd` / `Source.Cwd` | `cmd/internal/procutil/source.go`, `resource_darwin.go`, `resource_unsupported.go` | new | `proc_pidinfo(PROC_PIDVNODEPATHINFO)` |
-| `procutil.Source.Identity` | `cmd/internal/procutil/source.go` | new | existing `nativeIdentity` |
-| `launcher.ProcessTable` (`OSProcessTable`) | `cmd/internal/launcher/session_reap.go:152-175` | reused | `syscall.Kill`, `procutil.Table/Identity` |
+| `procutil.Source.Identity` / `Source.Command` | `cmd/internal/procutil/source.go` | new | existing `nativeIdentity` / `nativeCommand` |
+| `launcher.ProcessTable` (`OSProcessTable`) | `cmd/internal/launcher/session_reap.go:29-40,152-176` | modified | `syscall.Kill`, `procutil.Table/Identity/Command` |
 | `couchcore.ProcOps` / `FakeProcOps` | `cmd/internal/couchcore/procops.go:52-275` | reused | identity-fenced `Signal` |
 | `resourceSampler.pass` candidate probe | `cmd/internal/couchcmd/resources.go:144-177` | modified | one bounded `Cwd` call per gated candidate |
 | `reap-orphans` operation | `cmd/internal/couchcore/ops.go`, `couchcmd/cli.go`, `couchcmd/slot_operations.go`, `couchcmd/reap_orphans.go` | new | confirmation gate + `ProcOps` |
-| `nvim/changelog.lua` pidfile block; VimLeave removal in the four lua configs | `nvim/changelog.lua`, `nvim/init.lua:24-34`, `nvim/scrollback.lua:47`, `nvim/review.lua:791` | new/modified | `PAIR_NVIM_PID_FILE` |
+| changelog viewer pid record | `cmd/internal/opener/run.go:211-217`, `nvim/changelog.lua` | modified | `PAIR_NVIM_PID_FILE` |
+| VimLeave sidecar removal | `nvim/init.lua:24-34`, `nvim/scrollback.lua:47`, `nvim/review.lua:791`, `nvim/changelog.lua` | modified | `PAIR_NVIM_PID_FILE` |
 
+- **`launcher.ProcessTable`** — one seam for both reapers. `ProcessRow` gains `Name` (free: `procutil.Table()` already reads it) and the interface gains `Command(pid int) (args []string, ok bool)`, a **targeted** argv read for one candidate pid, so the session reaper's whole-host snapshot stays one cheap `kern.proc.all` sysctl. The nvim reaper signals through `Signal`, which makes `exec.Command("kill")` and `exec.Command("pkill")` unreachable from the reap path — that is the seam the "never by name alone" assertion is written against.
+  - **Injected into:** `Reaper` (existing) and the new nvim reap path; `fakeProcessTable` (`session_reap_test.go:28-60`) grows a `name` and a `commands` map, and already records every signal as `"pid:SIG"`.
+  - **Future extensions:** any further process evidence (cwd, rusage) joins as another targeted per-pid method rather than widening the snapshot.
 - **`procutil.Cwd`** — one `proc_pidinfo` call per pid, added to the existing `darwin && cgo` libproc block that already carries `resource_table`/`resource_identity`/`resource_usage`; unsupported builds return an explicit error like `identity_other.go`.
   - **Injected into:** the sampler's candidate loop (through `Reader`, so `samplerReader` fakes it) and nothing else — the classification stays pure.
   - **Cost:** charged to `Cost.NativeCalls` like every other native attempt, and only for rows that already pass ppid/name/argv/age, so the envelope stays inside #587's measured budget (ARCH-CONSTRAINTS).
 - **`reap-orphans`** — follows the house confirmation pattern exactly: `slotOperationFlag` wiring, refusal `"%s requires --confirm"`, the server-side second gate `Response{Code:"confirmation-required"}`, and `couchcore.OperationConfirms` as the single source (`couchcmd/cli.go:364-401`, `slot_operations.go:124-126`, `ops.go:154`).
+- **The lua mirror is not edited.** `cmd/internal/runtimebundle/assets/runtime/files/nvim/` is a generated copy that is *already stale* against `nvim/init.lua` and `nvim/review.lua` (measured 2026-10-16: `diff` shows the `fs_watch.lua` dofile and the focus-pad refactor missing from the mirror), and nothing in `Makefile` regenerates it. Regenerating would drag that unrelated drift into this diff, so M1 edits only `nvim/`, which is what the runtime loads (`opener/runtime.go:163-165` runs `PairHome + "/nvim/<config>.lua"`). Filing the stale mirror as its own issue is noted in `## Log`.
 
 ## Operating envelope (ARCH-CONSTRAINTS)
 
@@ -84,6 +103,7 @@ in the issue's `## Log` as a scope revision if it moves the design.
 - Per pass: one `kern.proc.all` sysctl (existing), `Command` only for nvim candidates over the RSS floor (existing), **plus `Cwd` only for rows that are ppid 1, name nvim, argv `--embed`, and older than `OrphanNvimAge`** — typically 0-3 rows on this machine, hard-capped by `ResourceMaxProcesses`.
 - Budget: #587 measured 0.12% of one core at 60 s against a <0.2% approval. One extra `proc_pidinfo` per gated candidate is ~1 µs; the plan re-measures at maximum cardinality and reports the number rather than assuming it.
 - Overload: an unreadable cwd yields `CwdKnown == false` → the candidate is **not** classified (never reaped on missing evidence) and the pass records one bounded error string.
+- The M1 reaper is not periodic — it runs on quit and on attach. Its extra cost is one `Command(pid)` per candidate row named `nvim` (a handful) plus one `Identity(pid)` re-read per signal, replacing two `pkill` subprocesses and one `kill` subprocess per sidecar. Net: fewer process spawns than today.
 - `N/A`: network, disk writes beyond the existing history file, concurrency (the sampler's ticks are already serial).
 
 ## State, ordering and uncertainty (ARCH-ORDER)
@@ -105,6 +125,10 @@ reaps nothing partially: a candidate is either signalled or not, and the next pa
   hand-edited or truncated file): parsed to an int at the boundary, and a non-positive or non-numeric
   value is skipped, never signalled. Its pid grants no authority by itself — authority comes from the
   kernel evidence read at reap time.
+- The changelog `.openlock` is the same kind of input, and it decides **owner liveness**: a pid that
+  reads as alive (even wrongly, through recycling) makes the reaper *skip*, so a mis-read is safe in the
+  only direction that matters. Its pid is never signalled — only the `.nvim-pid` sibling's is, and only
+  after the argv check against that sibling's exact `<base>.md`.
 - `Cwd` returns a path from the kernel, not from a config file; containment is a cleaned path-boundary
   prefix match, so `/work/tree2` is never inside `/work/tree`.
 - Nothing new reads credentials; no secret reaches a log line, an argv, or a fixture. The report names
@@ -116,10 +140,15 @@ reaps nothing partially: a candidate is either signalled or not, and the next pa
 
 ## Funeral (ARCH-FUNERAL)
 
-- `nvim-pid-<tag>-changelog` joins the existing sidecar family: created by the changelog viewer's Lua at
-  startup, last needed by the reaper, removed by the reaper after a kill and by VimLeave on a clean exit,
-  and covered by `storagegc` retention through `gc.go:253`'s kind loop — so its growth bound is the
-  family's existing one (one file per tag per kind), not a new family.
+- `<base>.nvim-pid` is a new suffix on the **existing** changelog artifact base, beside `.openlock`,
+  `.status` and `.distill.lock`: created by the changelog viewer's Lua at VimEnter, last needed by the
+  reaper, removed by the reaper after a decided outcome and by VimLeave on a clean exit, and covered by
+  `storagegc` retention through `gc.go:265-275`'s changelog suffix loop (one string added). Its growth
+  bound is therefore the changelog family's existing one — one file per (tag, agent, session), the same
+  count as `.openlock` — not a new family and not a new cardinality.
+- `nvim-pid-<tag>-review` is not new on disk (review.lua already writes it); it becomes *reaped*, so its
+  end is now named: the reaper removes it after a decided outcome, VimLeave removes it on a clean exit,
+  and `gc.go:253`'s kind loop already retains it.
 - No new durable store: the orphan classification is in-memory per pass, exactly like #587's episodes
   after its simplification. The report dies with the supervisor; the history file is unchanged.
 - The killed process is the residue this issue removes; nothing is created that outlives its owner.
@@ -131,22 +160,25 @@ reaps nothing partially: a candidate is either signalled or not, and the next pa
 ### Task 1: One closed kind set
 
 **Files:**
-- Modify: `cmd/internal/artifactpath/paths.go` (near `NvimPIDChecked:674`, `RenameArtifacts:552`, `NvimPIDGlob:286`)
+- Modify: `cmd/internal/artifactpath/paths.go` (near `NvimPIDChecked:673-676`, `RenameArtifacts:552-568`, `NvimPIDGlob:286`)
 - Modify: `cmd/internal/artifactpath/gc.go:253-255`
 - Modify: `cmd/internal/launcher/lifecycle.go:193-196,294-299`, `cmd/internal/launcher/osruntime.go:947,973`
 - Test: `cmd/internal/artifactpath/paths_test.go`, `cmd/internal/launcher/lifecycle_test.go`
 
-- [ ] **Step 1: Write the failing drift pin.** In `paths_test.go`, assert `NvimKinds()` equals
-  `{draft, scrollback, review, changelog}`, that `Paths.NvimPIDs()` resolves exactly one sidecar per kind,
-  and that `gc.go`'s retention match, `RenameArtifacts`, `editorPathsOf` and both `osruntime` loops each
-  derive from it (each consumer test builds its expectation from `NvimKinds()`, never from a literal).
+- [ ] **Step 1: Write the failing drift pin.** Strategy: the kind set has exactly one spelling, so no
+  consumer test may contain a literal `{draft, scrollback, …}` — each builds its expectation from
+  `NvimKinds()`, and the pin asserts the set's members and that `Paths.NvimPIDs()` resolves one sidecar
+  per kind. The consumers pinned: `gc.go`'s retention match, `RenameArtifacts`, `editorPathsOf`, and both
+  `osruntime` loops.
 - [ ] **Step 2: Run it, expect FAIL** (`undefined: NvimKinds`).
   `go test ./cmd/internal/artifactpath/ -run 'NvimKinds|NvimPID' -count=1`
-- [ ] **Step 3: Implement** `func NvimKinds() []string`, `func (p Paths) NvimPIDs() []string`,
+- [ ] **Step 3: Implement** `func NvimKinds() []string` (returning `{draft, scrollback, review}`),
+  `func (p Paths) NvimPIDs() []string`,
   `func (p ScopePaths) NvimPIDGlobs() ([]NvimPIDGlob, error)` (`NvimPIDGlob{Kind, Pattern string}`), and
   rewrite the six consumers to derive. Keep the quit-path literal at `lifecycle.go:193-196` spelled at its
   call site — `TestManagedIOInventoryAnchors` requires each scoped member to be consumed where resolved —
-  but let it range over `NvimKinds()`.
+  but let it range over `NvimKinds()`. The changelog viewer is **not** a kind; Task 4 gives it an
+  artifact-keyed record instead (see the root-cause note).
 - [ ] **Step 4: Run the artifactpath + launcher packages, expect PASS.**
   `go test ./cmd/internal/artifactpath/ ./cmd/internal/launcher/ -count=1`
 - [ ] **Step 5: Commit** `#583: single-source the nvim pid sidecar kind set`
@@ -156,86 +188,117 @@ reaps nothing partially: a candidate is either signalled or not, and the next pa
 **Files:**
 - Create: `cmd/internal/launcher/nvim_reap.go`, `cmd/internal/launcher/nvim_reap_test.go`
 
-- [ ] **Step 1: Write the failing table test** covering every branch, each asserting the verdict *and* the
-  reason string: pid ≤ 0; empty identity; short name not `nvim`; argv without an exact `--embed` field;
-  argv without the expected artifact path (draft/scrollback/changelog); expected path empty (review) so
-  argv need not carry one; tag live **and** ppid ≠ 1 → skip `owner live`; tag not live → kill; tag live but
-  ppid 1 → kill (the closed-pane case #583's 22 GB orphan is an instance of).
+- [ ] **Step 1: Write the failing table test.** Strategy: every field of a `NvimReapRow` is untrusted
+  input, so the table drives one field at a time to its boundary — absent, wrong-valued, and
+  right-valued — and asserts the verdict *and* the reason string for each, with the invariant that no
+  row missing any one predicate is ever a kill. The two rows that must kill: owner dead, and owner live
+  but ppid 1 (the closed-pane case the 22 GB orphan is an instance of).
 - [ ] **Step 2: Run, expect FAIL.** `go test ./cmd/internal/launcher/ -run ClassifyNvimReap -count=1`
 - [ ] **Step 3: Implement**
 
 ```go
 type NvimReapRow struct {
-	Kind, Tag       string
+	Kind, Owner     string // Owner is a tag, or a changelog artifact base
 	PID, PPID       int
 	Identity        string
 	Name            string
 	Args            []string
 	ArgsKnown       bool
-	TagLive         bool
+	OwnerLive       bool   // false on the explicit quit path: quitting authorizes the reap
 	ExpectedArgPath string // "" for kinds whose argv carries no scope path (review)
 }
 
+// ClassifyNvimReap decides one candidate. It kills only when the pid is
+// positive, the identity is known, the short name is nvim, argv is known and
+// carries an exact "--embed" field, argv carries ExpectedArgPath exactly when
+// one is expected, and the owner is dead or the process is reparented to 1.
+// Every skip returns a reason; nothing is signalled on missing evidence.
 func ClassifyNvimReap(row NvimReapRow) (kill bool, reason string)
 ```
 
-  Exact `--embed` matching uses a field comparison, not `strings.Contains` (the #587 classifier's rule,
-  `couchcore/resource.go:326-332`).
+  Exact `--embed` and exact `ExpectedArgPath` matching use field comparison, not `strings.Contains`
+  (the #587 classifier's rule, `couchcore/resource.go:326-332`).
 - [ ] **Step 4: Run, expect PASS.**
 - [ ] **Step 5: Commit** `#583: pure identity-exact nvim reap decision`
 
 ### Task 3: The reaper kills on verified identity, never by name
 
 **Files:**
-- Modify: `cmd/internal/launcher/osruntime.go:937-990`, `cmd/internal/launcher/lifecycle_os.go:34-60`
-- Modify: `cmd/internal/procutil/source.go` (expose `Identity`)
-- Test: `cmd/internal/launcher/osruntime_test.go`, `cmd/internal/launcher/session_reap_test.go` fakes
+- Modify: `cmd/internal/launcher/session_reap.go:29-40,152-176` (the `ProcessTable` seam)
+- Modify: `cmd/internal/launcher/osruntime.go:937-958`, `cmd/internal/launcher/lifecycle_os.go:34-60`
+- Modify: `cmd/internal/procutil/source.go` (expose `Identity` and `Command` on `Source`)
+- Test: `cmd/internal/launcher/session_reap_test.go` (the fake), a new `nvim_reap_os_test.go`
 
-- [ ] **Step 1: Write the failing tests** with the existing `fakeProcessTable` (`session_reap_test.go:28-60`)
-  extended with argv: a pidfile naming a live `nvim --embed` whose tag is dead → exactly one `SIGKILL`
-  recorded for that pid; a pidfile naming a recycled pid (identity differs at signal time) → **no** signal;
-  a pidfile naming a non-nvim process → no signal; a pidfile naming an nvim serving a different draft path
-  → no signal; two kinds for one tag → both reaped. Assert `pkill` is never invoked (the fake records
-  subprocess attempts).
+- [ ] **Step 1: Write the failing tests.** Strategy: a sidecar names a pid, and a pid is not a process —
+  the fake table makes each predicate independently false (recycled identity at signal time, non-nvim
+  name, no `--embed` field, an argv serving a different draft path) and asserts that the recorded signal
+  list stays empty, while a fully-evidenced dead-owner row records exactly one `SIGKILL`. The
+  "never by name alone" assertion is structural: the reap path holds no subprocess seam at all, so the
+  test asserts the fake's signal list and no test can observe a `pkill`.
 - [ ] **Step 2: Run, expect FAIL.**
-- [ ] **Step 3: Implement.** `ReapNvim`/`ReapNvimContext` build one `procutil` snapshot, one row per
-  pidfile across `NvimKinds()`, decide with `ClassifyNvimReap`, then signal through the identity-fenced
-  path (`Reaper.signalAll`'s rule) and remove the sidecar only after a decided outcome. **Delete `pkillF`**
-  and both pattern kills (`osruntime.go:938,956-957`, `lifecycle_os.go:49-58`): the argv scan is the
-  pidfile-less fallback and is now per-pid exact.
+- [ ] **Step 3: Implement.** Extend the seam — `ProcessRow` gains `Name string`; `ProcessTable` gains
+  `Command(pid int) (args []string, ok bool)`; `OSProcessTable.Snapshot` fills `Name` from the
+  `procutil.Table()` row it already reads, and `OSProcessTable.Command` calls the new
+  `procutil.Source.Command` (a thin export of `nativeCommand`, argv for one pid, `ok == false` when the
+  read fails). Then `ReapNvim`/`ReapNvimContext` take one snapshot, build a row per sidecar across
+  `NvimKinds()` with `OwnerLive: false` (the explicit path is authorized), decide with `ClassifyNvimReap`,
+  re-read `Identity(pid)` immediately before `Signal` (`Reaper.signalAll`'s rule, `session_reap.go:119-130`),
+  and remove the sidecar only after a decided outcome. **Delete `pkillF`** and both pattern kills
+  (`osruntime.go:938,956-957`, `lifecycle_os.go:49-58`), and the `exec.Command("kill", "-9", pid)` calls
+  with them: `regexp` may drop out of both files' imports.
 - [ ] **Step 4: Run launcher + procutil, expect PASS.** `go test ./cmd/internal/launcher/ ./cmd/internal/procutil/ -count=1`
 - [ ] **Step 5: Commit** `#583: reap embedded nvim on verified identity, drop name-based pkill`
 
-### Task 4: The sweep reaps untagged-by-sidecar embeds per pid
+### Task 4: Give the changelog viewer an artifact-keyed pid record
 
 **Files:**
-- Modify: `cmd/internal/launcher/osruntime.go:960-990` (`SweepOrphanNvim`)
+- Modify: `cmd/internal/artifactpath/paths.go:106-113` (`ChangelogArtifactSet`), `:759-772` (`ChangelogArtifacts`)
+- Modify: `cmd/internal/artifactpath/gc.go:265,275` (the changelog suffix loop and `add("changelog", …)`)
+- Modify: `cmd/internal/opener/run.go:211-217`
+- Modify: `nvim/changelog.lua`
+- Test: `cmd/internal/artifactpath/paths_test.go`, `cmd/internal/opener/run_test.go:120`
+
+- [ ] **Step 1: Write the failing tests.** Strategy: the record is a sibling of the artifacts it belongs
+  to, so assert it derives from the same base (`.nvim-pid` beside `.openlock` for both the sessionless and
+  the sessioned form), that GC's retention matcher recognises the new suffix as a changelog artifact, and
+  that `RunChangelog` passes `PAIR_NVIM_PID_FILE=` pointing at exactly that path (the assertion shape at
+  `run_test.go:120`).
+- [ ] **Step 2: Run, expect FAIL.** `go test ./cmd/internal/artifactpath/ ./cmd/internal/opener/ -count=1`
+- [ ] **Step 3: Implement** `ChangelogArtifactSet.NvimPID = base + ".nvim-pid"`, add `".nvim-pid"` to
+  `gc.go:265`'s suffix list and `c.NvimPID` to `gc.go:275`'s `add`, add
+  `"PAIR_NVIM_PID_FILE=" + changelog.NvimPID` to the viewer env at `opener/run.go:211-215`, and add the
+  pidfile block to `nvim/changelog.lua` — a copy of `init.lua:24-34`'s VimEnter write (same three lines,
+  same `pcall`, same silence on failure). Do **not** touch the stale `runtimebundle` mirror (see
+  Integration points).
+- [ ] **Step 4: Run artifactpath + opener + storagegc, expect PASS.**
+  `go test ./cmd/internal/artifactpath/ ./cmd/internal/opener/ ./cmd/internal/storagegc/ -count=1`
+- [ ] **Step 5: Commit** `#583: give the changelog viewer an artifact-keyed nvim pid record`
+
+### Task 5: The sweep reaps per pid from one snapshot
+
+**Files:**
+- Modify: `cmd/internal/launcher/osruntime.go:960-1003` (`SweepOrphanNvim`)
 - Test: `cmd/internal/launcher/lifecycle_test.go`
 
-- [ ] **Step 1: Failing test:** a snapshot containing an `nvim --embed` whose argv carries a dead tag's
-  draft path is reaped by pid; one whose tag is live and whose ppid is not 1 is untouched; one with no
-  scope path in argv is left to M2's classifier (no signal from the sweep).
+- [ ] **Step 1: Write the failing tests.** Strategy: the sweep sees the whole scope at once, so the
+  adversarial class is *mis-attribution* — a row whose tag is live, a row whose argv carries a tag that is
+  a prefix of a live one, a changelog pair whose opener is still alive, and a bare `nvim --embed` with no
+  scope path at all (which belongs to M2's classifier) must each leave the signal list empty, while a
+  dead tag's draft embed, a dead tag's scrollback embed, an unreaped `review` sidecar, and a changelog
+  pair with a dead opener are each signalled once.
 - [ ] **Step 2: Run, expect FAIL.** `go test ./cmd/internal/launcher/ -run SweepOrphanNvim -count=1`
-- [ ] **Step 3: Implement:** replace `cands[tag] → ReapNvim(tag)` with per-row `ClassifyNvimReap` decisions
-  (the row's tag comes from `TagFromNvimEmbedArgv`, its liveness from `liveTags`), keeping the sidecar
-  branch as the other evidence source.
-- [ ] **Step 4: Run, expect PASS.**
+- [ ] **Step 3: Implement.** One snapshot; three evidence sources feeding `ClassifyNvimReap` rows:
+  1. `nvim-pid-<tag>-<kind>` sidecars over `NvimPIDGlobs()` — `Owner` is the tag from `TagFromNvimPID`,
+     `OwnerLive` is `live[tag]`, `ExpectedArgPath` is the kind's path for draft/scrollback and `""` for
+     review.
+  2. rows named `nvim` whose argv carries a scope path — `Owner` from `TagFromNvimEmbedArgv`
+     (draft/scrollback only; it stays as it is), `OwnerLive` from `live`.
+  3. `<base>.nvim-pid` siblings of `<base>.openlock` — `Owner` is the base, `OwnerLive` is the openlock
+     pid being alive (`ProcessAlive`, which errs toward skipping), `ExpectedArgPath` is `<base>.md`.
+  Replace the current `cands[tag] → ReapNvim(tag)` fan-out with per-row decisions and identity-fenced
+  signals; a sidecar is removed only after its row is decided.
+- [ ] **Step 4: Run, expect PASS.** `go test ./cmd/internal/launcher/ -count=1`
 - [ ] **Step 5: Commit** `#583: sweep embedded nvim per pid from one snapshot`
-
-### Task 5: Tag the changelog viewer; teach the argv parser its marker
-
-**Files:**
-- Modify: `cmd/internal/opener/run.go:211-217`, `nvim/changelog.lua`, `cmd/internal/artifactpath/paths.go:318-338`
-- Test: `cmd/internal/opener/run_test.go`, `cmd/internal/artifactpath/paths_test.go:363-390`
-
-- [ ] **Step 1: Failing tests:** `RunChangelog` passes `PAIR_NVIM_PID_FILE=<scope>/nvim-pid-<tag>-changelog`
-  (mirroring `run_test.go:120`); `TagFromNvimEmbedArgv` returns the tag for a `changelog-<tag>-<agent>-<session>.log`
-  argv and still returns `""` for a foreign path.
-- [ ] **Step 2: Run, expect FAIL.**
-- [ ] **Step 3: Implement** the env entry, the parser marker, and the pidfile block in `nvim/changelog.lua`
-  (a copy of `init.lua:24-34`'s VimEnter write — the same three lines, same `pcall`, same silence on failure).
-- [ ] **Step 4: Run opener + artifactpath, expect PASS.**
-- [ ] **Step 5: Commit** `#583: tag the changelog viewer's embedded nvim`
 
 ### Task 6: A clean exit removes its own sidecar
 
@@ -268,9 +331,10 @@ func ClassifyNvimReap(row NvimReapRow) (kill bool, reason string)
 
 ### Task 8: M1 atlas + storage inventory
 
-- [ ] **Step 1:** update `atlas/storage-retention-io.md`'s nvim-pid rows (read them first: the anchors are
-  grep-checked by `storagegc.TestManagedIOInventoryAnchors`) and `atlas/architecture.md:1256`'s sidecar
-  sentence to name all four kinds and identity-exact reaping.
+- [ ] **Step 1:** update `atlas/storage-retention-io.md`'s nvim-pid and changelog rows (read them first:
+  the anchors are grep-checked by `storagegc.TestManagedIOInventoryAnchors`) and
+  `atlas/architecture.md:1256`'s sidecar sentence to name the three tag-keyed kinds, the changelog's
+  artifact-keyed `.nvim-pid` record, and identity-exact reaping (no name-based kill).
 - [ ] **Step 2:** `go test ./cmd/internal/storagegc/ -run TestManagedIOInventoryAnchors -count=1` → PASS.
 - [ ] **Step 3:** `sdlc milestone-close --issue 583 --milestone M1`, then commit.
 
@@ -326,10 +390,11 @@ func ClassifyNvimReap(row NvimReapRow) (kill bool, reason string)
 **Files:**
 - Create: `cmd/internal/couchcore/resource_orphan.go`, `resource_orphan_test.go`
 
-- [ ] **Step 1: Failing table test:** the full predicate matrix — ppid ≠ 1; zombie; empty identity; claimed
-  by a live slot; name not nvim; argv without exact `--embed`; cwd unknown; cwd outside every root;
-  cwd inside a root but a sibling prefix (`/work/tree2` vs root `/work/tree`); age below the threshold;
-  age above → classified, carrying pid, identity, age, cwd, the matching root and RSS.
+- [ ] **Step 1: Write the failing table test.** Strategy: every input to the classifier is a claim about
+  the host that may be false or missing, so the table falsifies one claim at a time — including the two
+  that look like success but are not (a cwd that is a *sibling prefix* of a managed root, and an age just
+  under the threshold) — and asserts that only a row with every claim intact is classified, carrying pid,
+  identity, age, cwd, the matching root and RSS.
 - [ ] **Step 2: Run, expect FAIL.**
 - [ ] **Step 3: Implement**
 
@@ -359,10 +424,10 @@ func ClassifyOrphanNvim(row procutil.Process, args []string, cwd string, cwdKnow
   `resource_reduce.go:258`, `cmd/internal/couchcmd/resources.go:144-177`, `resources_inventory.go`
 - Test: `resource_policy` tests, `couchcmd/resources_test.go`
 
-- [ ] **Step 1: Failing tests:** `COUCH_RESOURCE_ORPHAN_NVIM_AGE=6h` parses; `0`, `-1`, `999d` and an
-  unknown key refuse with the existing error shape; the default is 6h. A sampler pass over a fake reader
-  with one qualifying row publishes exactly one `OrphanNvim` and charges one `Cwd` call to
-  `Cost.NativeCalls`; a pass with a live-parent nvim charges none.
+- [ ] **Step 1: Write the failing tests.** Strategy: the knob is operator-supplied text and the probe is a
+  cost, so the tests attack both — a malformed or out-of-range value must refuse with the policy's existing
+  error shape rather than silently widen the sweep, and a sampler pass must pay for `Cwd` only on rows that
+  already cleared the ppid/name/age gate (charged to `Cost.NativeCalls`), never on a live-parent nvim.
 - [ ] **Step 2: Run, expect FAIL.**
 - [ ] **Step 3: Implement:** add `OrphanNvimAge time.Duration` to the policy and its env case; in the
   candidate loop, gate `Cwd` behind ppid 1 + name nvim + age ≥ threshold (age comes from the identity stamp
@@ -375,10 +440,16 @@ func ClassifyOrphanNvim(row procutil.Process, args []string, cwd string, cwdKnow
 - Modify: `cmd/internal/couchcmd/resources_render.go:43-92`, `resources_projection.go:16-68`
 - Test: `cmd/internal/couchcmd/resources_cli_test.go`, `resources_projection_test.go`
 
-- [ ] **Step 1: Failing tests:** the text output gains an `Orphan nvim (untagged; reap needs --confirm):`
-  section printing `pid=`, `age=`, `cwd=` and the matching root, and `none observed` when empty; `--json`
-  carries the rows; the wire projection stays within `MaxFrameBytes` at maximum cardinality.
-- [ ] **Step 2: Run, expect FAIL.** **Step 3: Implement.** **Step 4: Run, expect PASS.**
+- [ ] **Step 1: Write the failing tests.** Strategy: the section is an operator's only view of the sweep
+  and the projection has a byte budget, so the tests attack silence and size — an empty result must say
+  `none observed` rather than omit the section (an absent section reads as "not checked"), and the wire
+  projection must stay inside `MaxFrameBytes` at maximum cardinality, with `--json` carrying the same rows.
+- [ ] **Step 2: Run, expect FAIL.**
+- [ ] **Step 3: Implement:** an `Orphan nvim (untagged; reap needs --confirm):` section in the existing
+  section list (`resources_render.go:66`), one row per orphan printing `pid=`, `age=`, `cwd=` and the
+  matching root in the house row shape (`resources_render.go:72`), `none observed` when empty, and the
+  same rows in `--json` and in the wire projection.
+- [ ] **Step 4: Run, expect PASS.**
 - [ ] **Step 5: Commit** `#583: report orphan embedded nvim in couch --resources`
 
 ### Task 15: One hub alert per episode
@@ -387,11 +458,16 @@ func ClassifyOrphanNvim(row procutil.Process, args []string, cwd string, cwdKnow
 - Modify: `cmd/internal/couchcmd/resources_alert.go:35-59`, `cmd/internal/couchcore/resource_episode.go`
 - Test: `resources_alert_test.go`, `resources_alert_broker_test.go`
 
-- [ ] **Step 1: Failing tests:** an orphan crossing the threshold raises one hub notice naming pid, age,
-  cwd and root with the existing body shape and `Inspect with couch --resources.`; a second pass in the same
-  episode raises none; a real-broker test proves delivery and dedup by effect ID.
-- [ ] **Step 2: Run, expect FAIL.** **Step 3: Implement** on the existing episode machinery (`pending →
-  notified`, `resource-%x` effect ID). **Step 4: Run, expect PASS.**
+- [ ] **Step 1: Write the failing tests.** Strategy: an alert that repeats every 60 s is noise and one
+  that never fires is a silent leak, so the tests attack both edges of the episode — the first pass over
+  the threshold notifies the hub once, in the existing body shape with `Inspect with couch --resources.`,
+  and later passes inside the same episode notify nothing — proven end to end against the real broker
+  (delivery and dedup by effect ID), not only against a fake.
+- [ ] **Step 2: Run, expect FAIL.**
+- [ ] **Step 3: Implement** on the existing episode machinery (`pending → notified`, the `resource-%x`
+  effect ID at `resource_episode.go:112`, `sendGenerated` at `supervision.go:108-127`), with its own body
+  template beside `resources_alert.go:48`.
+- [ ] **Step 4: Run, expect PASS.**
 - [ ] **Step 5: Commit** `#583: alert the hub once per orphan nvim episode`
 - Note: #574's hub lifecycle notice does not exist yet (its Plan is empty), so this uses the #587 alert
   seam; when #574 lands, the notice moves there. Recorded in `## Log`.
@@ -404,11 +480,11 @@ func ClassifyOrphanNvim(row procutil.Process, args []string, cwd string, cwdKnow
   `cmd/internal/couchcmd/cli.go:364-401`, `slot_operations.go:124-126`
 - Test: `cmd/internal/couchcmd/reap_orphans_test.go`, `slot_operations` tests
 
-- [ ] **Step 1: Failing tests:** without `--confirm` the CLI refuses with `reap-orphans requires --confirm`
-  and the server answers `confirmation-required`; with it, each admitted row is re-verified
-  (`ProcOps.Identity(pid)` equals the classified identity) and signalled once, and `FakeProcOps.ReapedOnIdentity`
-  proves a recycled identity is **not** signalled; a row whose ppid is no longer 1 at reap time is skipped;
-  the output names every pid it ended and every pid it skipped with a reason.
+- [ ] **Step 1: Write the failing tests.** Strategy: this verb ends processes, so the tests attack the gap
+  between *deciding* and *signalling* — the confirmation gate at both the CLI and the server, and the
+  world changing in between (a recycled identity, a row that has found a parent again) — against
+  `FakeProcOps`, asserting that an unchanged world is signalled exactly once and a changed one not at all,
+  with every skip named and reasoned in the output.
 - [ ] **Step 2: Run, expect FAIL.**
 - [ ] **Step 3: Implement** the operation: re-classify from a fresh sample (never reap from a cached view),
   then signal `SIGTERM`, wait, `SIGKILL` — the `Reaper` cadence — each step identity-fenced.
@@ -433,3 +509,32 @@ func ClassifyOrphanNvim(row procutil.Process, args []string, cwd string, cwdKnow
 - No #574 lifecycle-notice implementation; the existing alert seam carries the report until #574 lands.
 - #587's proven-orphan RSS floor and alert thresholds are untouched; a tagged leak below that floor is
   still only reaped at the next launch sweep.
+- No regeneration of the `runtimebundle` lua mirror. It is already stale against `nvim/init.lua` and
+  `nvim/review.lua` and nothing in the build regenerates it; regenerating here would import unrelated
+  drift into a kill-path diff. Filed as its own issue (noted in `## Log`).
+- No change to the scrollback viewer's one-sidecar-per-tag shape, though it has the same multiplicity as
+  changelog (per agent). The class *was* considered: a scrollback embed's argv carries
+  `scrollback-<tag>-<agent>.ansi`, which `TagFromNvimEmbedArgv` splits unambiguously at the last hyphen,
+  so the argv fallback covers an overwritten sidecar. The changelog's argv has a variable trailing
+  component count and no unambiguous split, which is exactly why only changelog moves to an
+  artifact-keyed record.
+
+## Revisions
+
+- **2026-10-16 — plan-quality gate round 1 (PQ-1 Important, PQ-2/3/4 Minor).** Reason: PQ-1 showed the
+  changelog identity as designed cannot work — `ChangelogArtifactSet.Log` is `.md` not `.log`
+  (`paths.go:765`), `componentPattern` admits `-` in tag/agent/session (`paths.go:14`) with the session
+  optional (`paths.go:738-749`), so neither the filename nor argv splits unambiguously, and one
+  `nvim-pid-<tag>-changelog` sidecar collides across a tag's per-(agent, session) viewers. Both options
+  the finding offered were measured and rejected: keying the sidecar per agent/session still cannot
+  recover the tag from the filename, and matching argv against a tag's expected paths crosses tags
+  (`changelog-work-*` also claims `work-x`'s file), which is unsafe in a kill path.
+  Delta: the changelog surface leaves the kind set and gets an **artifact-keyed** record
+  (`<changelog-base>.nvim-pid`, a sibling of the existing `.openlock`), whose owner liveness comes from
+  the openlock's opener pid rather than from a tag, and whose expected argv path is the base's exact
+  `.md`; `NvimKinds()` is `{draft, scrollback, review}`. Task order changed (the changelog record is now
+  Task 4, before the sweep that consumes it in Task 5). PQ-2: `TagLive` became `OwnerLive`, and the
+  explicit quit path passes `false`. PQ-3: Tasks 2, 3, 5, 12, 13, 14, 15 and 16 now state one test
+  strategy line naming the adversarial class and the guard. PQ-4: the seam is stated — `ProcessTable`
+  gains `Command`, kills move onto `Signal`, and the reap path holds no subprocess seam, so `pkill` is
+  unreachable rather than merely unasserted.

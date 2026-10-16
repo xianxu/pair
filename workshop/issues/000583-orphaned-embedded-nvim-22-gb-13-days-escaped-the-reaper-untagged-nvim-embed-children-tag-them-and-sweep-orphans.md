@@ -46,17 +46,22 @@ exited without closing it.
 
 ## Plan
 
-Durable plan: `workshop/plans/000583-orphan-nvim-reaper-plan.md` (two chunks = the two milestones below).
+Durable plan: `workshop/plans/000583-orphaned-embedded-nvim-22-gb-13-days-escaped-the-reaper-untagged-nvim-embed-children-tag-them-and-sweep-orphans-plan.md`
+(two chunks = the two milestones below).
 
 - [ ] M1 — every pair-spawned embed carries an identity and is reaped by exact identity
-  - [ ] One closed kind set: `artifactpath.NvimKinds()` = {draft, scrollback, review, changelog}, with a drift pin
-    over every inline list (`paths.go:559`, `lifecycle.go:195,297`, `osruntime.go:947,973`, `gc.go:253`)
-  - [ ] Pure `ClassifyNvimReap(row)` decision table (kill only when pid + kernel identity + `nvim` name + an exact
-    `--embed` argv field + the expected artifact path all agree)
-  - [ ] `ReapNvim` / `ReapNvimContext` / `SweepOrphanNvim` kill through the `session_reap.go` identity fence;
-    **`pkillF` is deleted** (name-based kill, `osruntime.go:938,956-957`, `lifecycle_os.go:49-58`)
-  - [ ] Tag the changelog viewer (`opener/run.go:211-217` env + `nvim/changelog.lua` pidfile block +
-    `TagFromNvimEmbedArgv` changelog marker)
+  - [ ] One closed kind set: `artifactpath.NvimKinds()` = {draft, scrollback, review}, with a drift pin over
+    every inline list (`paths.go:559`, `lifecycle.go:195,297`, `osruntime.go:947,973`, `gc.go:253`)
+  - [ ] Pure `ClassifyNvimReap(row)` — kill only when pid, kernel identity, the `nvim` short name, an exact
+    `--embed` argv field and the expected artifact path all agree, and the owner is dead or ppid is 1
+  - [ ] The `ProcessTable` seam gains `Name` and a targeted `Command(pid)`; `ReapNvim` / `ReapNvimContext`
+    signal through its identity fence. **`pkillF` and both `pkill -9 -f` patterns are deleted**
+    (`osruntime.go:938,956-957`, `lifecycle_os.go:49-58`), so the reap path holds no subprocess seam
+  - [ ] The changelog viewer gets an **artifact-keyed** pid record — `<changelog-base>.nvim-pid`, a sibling
+    of its existing `.openlock` — because (tag, kind) is not unique for per-(agent, session) viewers and
+    neither the filename nor argv splits into a tag unambiguously
+  - [ ] The sweep decides per pid from one snapshot over three evidence sources: tag-keyed sidecars,
+    tag-parseable argv, and changelog `.nvim-pid`/`.openlock` pairs (owner liveness = the opener pid)
   - [ ] A clean exit removes its own sidecar (VimLeave in all four lua configs)
   - [ ] Flag-gated live conformance test: spawn a tagged embed, kill its owner, assert the reaper removed it
   - [ ] Atlas + `atlas/storage-retention-io.md` inventory updated (`TestManagedIOInventoryAnchors` is the guard)
@@ -114,3 +119,32 @@ spawns and detecting + reporting the rest; it cannot make nvim's forked embed di
 #587's alert seam because #574 is still open, a 6h default orphan age, and the verb name
 `couch --reap-orphans --confirm`. None of them blocks M1, so M1 proceeds per the dispatch ("post a short plan … then
 build"); a hub reply lands as a scope revision here.
+
+### 2026-10-16 — plan-quality gate round 1: changelog identity redesigned (PQ-1)
+
+`sdlc change-code --issue 583` recorded 1 Important + 3 Minor findings
+(`workshop/plans/000583-…-plan-gate.md`). PQ-1 was correct and I verified each claim in the tree:
+`ChangelogArtifactSet.Log` is `base + ".md"` (`paths.go:765`, my plan said `.log`); `componentPattern`
+admits `-` in tag, agent and session (`paths.go:14`) with the session optional (`paths.go:738-749`); and a
+changelog viewer is per (tag, agent, session), so one `nvim-pid-<tag>-changelog` sidecar collides.
+
+Both remedies the finding offered were measured and rejected. Keying the sidecar per agent/session still
+cannot recover the tag from the filename. Matching argv against a tag's expected paths crosses tags: a
+`changelog-work-*` glob also claims `work-x`'s file, so quitting tag `work` could kill a live `work-x`
+viewer — unacceptable in a kill path.
+
+The changelog surface therefore leaves the kind set and gets an **artifact-keyed** record:
+`<changelog-base>.nvim-pid`, a sibling of the `.openlock` the opener already writes per
+(tag, agent, session) (`opener/run.go:180-189`). Unique by construction, needs no parsing, and owner
+liveness comes from the openlock's opener pid rather than from a tag — a mis-read errs toward skipping.
+`NvimKinds()` is `{draft, scrollback, review}`, which is still the whole drift fix (the reaper and the
+sweep were missing `review`). PQ-2: `TagLive` → `OwnerLive`, explicit quit passes `false`. PQ-3: test
+tasks now carry one strategy line each. PQ-4: the seam is stated — kills move onto `ProcessTable.Signal`,
+so the reap path holds no subprocess seam and `pkill` is unreachable, not merely unasserted. Plan
+`## Revisions` records the delta; task order moved (changelog record is now Task 4, before the sweep).
+
+**Discovery filed separately:** `cmd/internal/runtimebundle/assets/runtime/files/nvim/` is a generated
+mirror that is stale against `nvim/init.lua` (missing the `fs_watch.lua` dofile and the focus-pad
+refactor) and `nvim/review.lua`, and no Makefile target regenerates it. Out of scope here — regenerating
+would import unrelated drift into a kill-path diff — so M1 edits only `nvim/`, which is what the runtime
+loads (`opener/runtime.go:163-165` runs `PairHome + "/nvim/<config>.lua"`).
