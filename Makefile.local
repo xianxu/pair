@@ -133,7 +133,6 @@ test-perf-budgets: $(BIN_DIR)/pair
 # and Recovery/checkpoint until it settles duplicate-quit idempotency and the
 # cold-launch ownership poll. Restore them to -run and drop -skip there.
 test-couch-zellij-live:
-	PAIR_LIVE_COUCH=1 go test ./cmd/internal/procutil -run '^TestLsofWritableNamesLiveConformance$$' -count=1 -v
 	PAIR_LIVE_COUCH=1 go test -p 20 ./cmd/internal/launcher -run '^(TestSessionQuiescenceLive|TestSessionDetachLive|TestQuitLifecycleLive|TestTheAcceptorAgreesWithRealZellijLive)$$' -count=1 -v
 	PAIR_LIVE_COUCH=1 go test -p 20 ./cmd/internal/couchcore -run '^(TestParkLifecycleLiveIntentOnlyMutation|TestRecoveryRealHelperAndSessionConformanceLive)$$' -skip '^TestRecoveryRealHelperAndSessionConformanceLive$$/^checkpoint$$' -count=1 -v
 	PAIR_LIVE_COUCH=1 go test -p 20 ./cmd/internal/couchcmd -run '^TestAgentShortcutInputConformanceLive$$' -count=1 -v

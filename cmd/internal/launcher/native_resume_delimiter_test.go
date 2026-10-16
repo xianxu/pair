@@ -102,11 +102,11 @@ func TestNativeResumeLiteralDelimiterOptionValueDoesNotHideSelector(t *testing.T
 		}
 	}
 }
-func TestNativeCreateDelimiterCanonicalIDReservesExactInvocation(t *testing.T) {
+func TestNativeCreateDelimiterCanonicalIDChecksCapabilityAndKeepsInvocation(t *testing.T) {
 	for _, args := range [][]string{{"resume", "--", delimiterNativeID}, {"exec", "resume", "--", delimiterNativeID}, {"--model", "--", "resume", "--", delimiterNativeID}} {
 		t.Run(strings.Join(args, " "), func(t *testing.T) {
 			rt := newFakeRuntime()
-			reserved := 0
+			checked := 0
 			rt.nativeResolve = func(_ context.Context, q NativeResumeRequest) (NativeResumeResolution, error) {
 				if q.Selector.Kind != NativeResumeExplicit || q.Selector.NativeID != delimiterNativeID {
 					t.Fatalf("wrong resolution %+v", q.Selector)
@@ -114,12 +114,9 @@ func TestNativeCreateDelimiterCanonicalIDReservesExactInvocation(t *testing.T) {
 				pinned, err := PinNativeResumeSelector(q.Selector, delimiterNativeID)
 				return NativeResumeResolution{Status: sessioninventory.NativeSelectorResolved, NativeID: delimiterNativeID, Args: pinned}, err
 			}
-			rt.nativeReserve = func(_ context.Context, r NativeAdmissionRequest) (string, error) {
-				reserved++
-				if r.NativeID != delimiterNativeID {
-					t.Fatalf("wrong key %+v", r)
-				}
-				return "grant", nil
+			rt.nativeCapability = func(_ context.Context, _ NativeLockExemption) error {
+				checked++
+				return nil
 			}
 			rt.launchHook = func(int) {
 				command, err := DecodeAgentCommand(rt.env[AgentCommandEnv])
@@ -134,8 +131,8 @@ func TestNativeCreateDelimiterCanonicalIDReservesExactInvocation(t *testing.T) {
 			opts.SkipConfigPicker = true
 			var stderr bytes.Buffer
 			code, err := RunLaunch(opts, rt, &stderr)
-			if err != nil || code != 0 || reserved != 1 {
-				t.Fatalf("canonical command unreserved: count=%d code=%d err=%v stderr=%s", reserved, code, err, &stderr)
+			if err != nil || code != 0 || checked != 1 {
+				t.Fatalf("canonical command unchecked: count=%d code=%d err=%v stderr=%s", checked, code, err, &stderr)
 			}
 		})
 	}

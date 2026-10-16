@@ -35,6 +35,7 @@ type Options struct {
 	PIDNotBefore    time.Time
 	FollowLifecycle bool
 	AppendLifecycle func(string, LifecycleRecord) error
+	NotifyBinding   func(uint64, string) error
 }
 
 // Runtime keeps only watcher scheduling, Pair cache IO, and access to the two
@@ -173,6 +174,11 @@ func Run(opts Options, rt Runtime) error {
 			return nil
 		}
 		if current.Binding != nil && boundRootNodeID == "" {
+			if opts.NotifyBinding != nil {
+				if err := opts.NotifyBinding(opts.LaunchOrdinal, current.Binding.RootNativeID); err != nil {
+					rt.Log(adapt.NearMiss, "binding notification unavailable: "+err.Error())
+				}
+			}
 			if opts.FollowLifecycle && agent == sessioninventory.AgentCodex {
 				validation, err := validateCurrentLifecycleTarget(rt, nativeRuntime, paths.SessionInventoryCatalog(), agent, *current.Binding)
 				if err != nil {
@@ -316,7 +322,7 @@ func Run(opts Options, rt Runtime) error {
 			rounds = retainCorroboratedRounds(rounds, beforeRoots, afterRoots)
 		}
 		resolved, persistErr := ObserveAndPersist(ObserveInput{
-			Owner: owner, LedgerPath: paths.Ledger(), LaunchOrdinal: opts.LaunchOrdinal,
+			Owner: owner, LedgerPath: paths.Ledger(), LaunchOrdinal: opts.LaunchOrdinal, NotifyBinding: opts.NotifyBinding,
 			Inventory: inventory, LiveRounds: rounds, Proofs: proofs, RequireProof: current.Launch.Version < 3, Args: opts.Args,
 			ConfirmationReason: sessionledger.ConfirmationCorrelation,
 		}, rt.LedgerAppender(), func(payload ConfigPayload) error {

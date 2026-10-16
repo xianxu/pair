@@ -162,6 +162,7 @@ func (c *Couch) Relaunch(ctx context.Context, address ThreadAddress) (RelaunchRe
 			address.Tag, err)
 	}
 
+	ctx = context.WithValue(ctx, relaunchMigrationKey{}, relaunchMigration{Agent: launchProfileAgent(thread), NativeID: binding.NativeID})
 	record, handle, err := c.ResumeContext(ctx, address)
 	if err != nil {
 		return RelaunchResult{Outcome: ParkedNotResumed}, fmt.Errorf(

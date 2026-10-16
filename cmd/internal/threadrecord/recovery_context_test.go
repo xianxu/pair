@@ -215,6 +215,7 @@ func TestTaggedRecoveryValidationAndCloning(t *testing.T) {
 	c := validRecoveryContext().Capture
 	base.Orientation = &RecoveryOrientation{Branch: "branch", Issue: "pair#556", Capture: &c}
 	for name, mutate := range map[string]func(*RecoveryIntent){
+		"fresh relaunch":  func(i *RecoveryIntent) { i.Relaunch = true; i.Mode = RecoveryFresh; i.NativeID = "" },
 		"address":         func(i *RecoveryIntent) { i.Address.Tag = "other" },
 		"revision":        func(i *RecoveryIntent) { i.SourceRevision = 0 },
 		"time":            func(i *RecoveryIntent) { i.CreatedAt = time.Time{} },

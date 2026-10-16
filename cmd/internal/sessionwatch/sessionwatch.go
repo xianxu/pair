@@ -19,6 +19,7 @@ type ConfigPayload struct {
 // the persistence boundary.
 // pair:155-concept integration modified M2
 type WatcherInventory struct {
+	NotifyBinding      func(uint64, string) error
 	ConfirmationReason sessionledger.ConfirmationReason
 	Owner              sessionledger.Owner
 	LedgerPath         string

@@ -2,6 +2,7 @@ package couchcore
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"github.com/xianxu/pair/cmd/internal/sessioninventorytest"
 	"strings"
@@ -363,6 +364,13 @@ func TestASuccessfulRelaunchKeepsTheAddressTheRowAndTheConversation(t *testing.T
 	// session id, which is the evidence pair#181 M2 used for reattach. A fresh
 	// conversation would carry none.
 	child := env.Runner.Child(result.Handle.ID())
+	var migration launcher.TrustedLaunchProfile
+	if err := json.Unmarshal([]byte(environmentValue(child.Env, launcher.CouchLaunchProfileEnv)), &migration); err != nil {
+		t.Fatal(err)
+	}
+	if migration.Recovery == nil || !migration.Recovery.Intent.Relaunch || migration.Recovery.Intent.NativeID != "native-root-1" {
+		t.Fatalf("relaunch lost exact migration authority: %+v", migration)
+	}
 	if !strings.Contains(strings.Join(child.Env, "\n"), "native-root-1") {
 		t.Fatalf("resume env = %v, want the conversation's own native session id", child.Env)
 	}

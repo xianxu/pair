@@ -194,12 +194,6 @@ func selectNamedArtifacts(agent Agent, nativeID string, observed []ArtifactObser
 	return result
 }
 
-// NativeIDForArtifact decodes the provider's root filename grammar. Callers
-// must establish storage-root and observation provenance separately.
-func NativeIDForArtifact(agent Agent, artifact Artifact) string {
-	return observationNativeID(agent, artifact)
-}
-
 func observationNativeID(agent Agent, artifact Artifact) string {
 	switch agent {
 	case AgentClaude:

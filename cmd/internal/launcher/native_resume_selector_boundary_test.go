@@ -67,9 +67,9 @@ func TestNativeCreateUnsupportedContextSelectorsPublishNothing(t *testing.T) {
 				t.Fatal("unsupported mapping reached resolution")
 				return NativeResumeResolution{}, nil
 			}
-			rt.nativeReserve = func(context.Context, NativeAdmissionRequest) (string, error) {
+			rt.nativeCapability = func(context.Context, NativeLockExemption) error {
 				t.Fatal("unsupported mapping reached admission")
-				return "", nil
+				return nil
 			}
 			opts := baseOpts(LaunchArgs{Agent: "claude", AgentExplicit: true, ForcedTag: "work", AgentArgs: args, AgentArgsExplicit: true})
 			opts.SkipConfigPicker = true

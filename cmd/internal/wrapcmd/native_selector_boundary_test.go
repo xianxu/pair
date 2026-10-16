@@ -2,29 +2,14 @@ package wrapcmd
 
 import (
 	"bytes"
-	"context"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/xianxu/pair/cmd/internal/launcher"
 )
-
-func TestNativeAdmissionUnsupportedSelectorsNeverConsumeOrSpawn(t *testing.T) {
-	for _, args := range [][]string{{"--teleport", "session"}, {"--from-pr=42"}, {"--cloud", "task"}, {"attach", "session"}, {"--resume", "id", "--teleport", "session"}, {"--fork-session", "--from-pr", "42"}, {"--session-id", "new", "--cloud", "task"}} {
-		for _, grant := range []string{"", "valid-grant"} {
-			world := &nativeAdmissionWorld{state: "reserved", agent: "claude"}
-			spawns := 0
-			_, err := startNativePTY(context.Background(), world, grant, "claude", exec.Command("/native/claude", args...), io.Discard, func(*exec.Cmd) (*os.File, error) { spawns++; return nil, nil })
-			if err == nil || spawns != 0 || len(world.events) != 0 {
-				t.Errorf("unsupported %q grant=%t: spawns=%d events=%v err=%v", args, grant != "", spawns, world.events, err)
-			}
-		}
-	}
-}
 
 func TestNativeAdmissionWrapperEntryFormsRespectUnsupportedContextBoundary(t *testing.T) {
 	cases := []struct {
@@ -58,7 +43,6 @@ func TestNativeAdmissionWrapperEntryFormsRespectUnsupportedContextBoundary(t *te
 				t.Setenv("PAIR_TAG", "")
 				t.Setenv("PAIR_LAUNCH_ORDINAL", "")
 				t.Setenv("PAIR_RETENTION_START_ID", "")
-				t.Setenv(launcher.NativeAdmissionEnv, "")
 				t.Setenv("PAIR_WRAP_REMAP_RETURN", "0")
 				marker := filepath.Join(t.TempDir(), "spawned")
 				t.Setenv("BR6_SPAWN_MARKER", marker)
@@ -91,26 +75,6 @@ func TestNativeAdmissionWrapperEntryFormsRespectUnsupportedContextBoundary(t *te
 					}
 				}
 			})
-		}
-	}
-}
-
-func TestNativeAdmissionUnsupportedWordsInsideValuesStillUseValidGrant(t *testing.T) {
-	for _, args := range [][]string{{"--resume", "id", "--system-prompt", "--teleport"}, {"--resume", "id", "--", "--from-pr"}} {
-		cmd := exec.Command("/native/claude", args...)
-		digest, err := launcher.NativeAdmissionCommandDigest("claude", cmd.Args)
-		if err != nil {
-			t.Fatal(err)
-		}
-		world := &nativeAdmissionWorld{state: "reserved", agent: "claude", digest: digest}
-		_, err = startNativePTY(context.Background(), world, "valid-grant", "claude", cmd, io.Discard, func(cmd *exec.Cmd) (*os.File, error) {
-			world.events = append(world.events, "spawn")
-			world.childAlive = true
-			cmd.Process = &os.Process{Pid: 123}
-			return nil, nil
-		})
-		if err != nil || world.state != "running" || strings.Join(world.events, ",") != "claim,spawn,publish" {
-			t.Fatalf("literal value/prompt broke valid admission: args=%q state=%s events=%v err=%v", args, world.state, world.events, err)
 		}
 	}
 }

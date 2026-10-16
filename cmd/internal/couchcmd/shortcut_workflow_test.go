@@ -120,7 +120,6 @@ func TestConformanceWorkflowRunsWithoutSiblingMakefile(t *testing.T) {
 		t.Fatalf("standalone conformance dry-run: %v\n%s", err, output)
 	}
 	expected := map[string]string{
-		"./cmd/internal/procutil":  "TestLsofWritableNamesLiveConformance",
 		"./cmd/internal/launcher":  "TestSessionQuiescenceLive",
 		"./cmd/internal/couchcore": "TestRecoveryRealHelperAndSessionConformanceLive",
 		"./cmd/internal/couchcmd":  "TestAgentShortcutInputConformanceLive",

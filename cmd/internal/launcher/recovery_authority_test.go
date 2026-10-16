@@ -97,7 +97,11 @@ type recoveryGateRuntime struct {
 
 func (f *recoveryGateRuntime) ValidateRecoveryAuthority(ctx context.Context, a RecoveryAuthority, scope RepoScope, tag, agent, cwd string) error {
 	f.checks++
-	return validateRecoveryRecord(a, f.record, scope, tag, agent, cwd, 42, "helper", a.Intent.Context.CreatedAt.Add(time.Minute))
+	at := a.Intent.Context.CreatedAt
+	if a.Intent.Kind() != threadrecord.RecoveryInferred {
+		at = a.Intent.CreatedAt
+	}
+	return validateRecoveryRecord(a, f.record, scope, tag, agent, cwd, 42, "helper", at.Add(time.Minute))
 }
 func TestRecoveryLaunchSecondGateRefusesChangedClaimBeforeEffects(t *testing.T) {
 	for _, changed := range []bool{false, true} {
@@ -244,6 +248,60 @@ func TestTaggedRecoveryClaimRejectsChangedAuthority(t *testing.T) {
 			change(&a, &record)
 			if validateRecoveryRecord(a, record, RepoScope{Key: a.Address.RepoScope}, "work", "codex", "/repo", 42, "helper", a.Intent.CreatedAt.Add(time.Minute)) == nil {
 				t.Fatal("accepted changed tagged authority")
+			}
+		})
+	}
+}
+
+// A Relaunch capability comes from the durable claim only after Couch has
+// parked its exact source. Other legacy slots must not prevent that migration.
+func TestRecoveryRelaunchSkipsResumeBarrierOnlyAfterAuthorityValidation(t *testing.T) {
+	for _, scenario := range []string{"ordinary resume", "confirmed relaunch", "changed claim"} {
+		t.Run(scenario, func(t *testing.T) {
+			a := taggedAuthority(threadrecord.RecoveryProven)
+			a.Intent.Relaunch = scenario != "ordinary resume"
+			opts := baseOpts(LaunchArgs{ForcedTag: "work"})
+			scope, _ := ResolveRepoScope(opts.Env.Cwd)
+			a.Address.RepoScope = scope.Key
+			a.Intent.Address = a.Address
+			a.Intent.Context.ExpiresAt = a.Intent.Context.Capture.CapturedAt.Add(storagegc.CaptureRetentionPeriod)
+			raw, err := BuildCouchRecoveryLaunchProfile("work", "codex", []string{}, a)
+			if err != nil {
+				t.Fatal(err)
+			}
+			opts.Args, _, err = ApplyCouchLaunchProfile(opts.Args, raw)
+			if err != nil {
+				t.Fatal(err)
+			}
+			opts.Args.CouchSessionV1 = true
+			opts.Args.CouchSession = &CouchSessionIntent{Scope: scope.Key, Tag: "work", Name: "📁1-3", Nonce: a.Attempt, Disposition: "create"}
+			opts.Env.CouchThreadScope, opts.Env.CouchThreadTag = scope.Key, "work"
+			rt := &recoveryGateRuntime{couchSessionRuntime: &couchSessionRuntime{fakeRuntime: newFakeRuntime()}, record: recoveryAuthorityRecord(a, opts.Env.Cwd, "codex", 42, "helper")}
+			if scenario == "changed claim" {
+				rt.record.Incarnations[0].Start.RecoveryIntent.Relaunch = false
+			}
+			barriers := 0
+			rt.nativeCapability = func(context.Context, NativeLockExemption) error {
+				barriers++
+				return fmt.Errorf("other legacy slots remain live")
+			}
+			var stderr bytes.Buffer
+			code, err := RunLaunch(opts, rt, &stderr)
+			if err != nil || rt.checks != 1 {
+				t.Fatalf("authority checks=%d code=%d err=%v stderr=%s", rt.checks, code, err, &stderr)
+			}
+			if scenario == "confirmed relaunch" {
+				if code != 0 || rt.launchCount != 1 || barriers != 0 {
+					t.Fatalf("migration blocked: code=%d launch=%d barriers=%d stderr=%s", code, rt.launchCount, barriers, &stderr)
+				}
+			} else {
+				wantBarriers := 0
+				if scenario == "ordinary resume" {
+					wantBarriers = 1
+				}
+				if code != 1 || rt.launchCount != 0 || barriers != wantBarriers || len(rt.preparedLaunches) != 0 || len(rt.ledger["work"]) != 0 {
+					t.Fatalf("unsafe bypass: code=%d launch=%d barriers=%d stderr=%s", code, rt.launchCount, barriers, &stderr)
+				}
 			}
 		})
 	}

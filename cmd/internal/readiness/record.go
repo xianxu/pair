@@ -11,9 +11,13 @@ import (
 	"github.com/xianxu/pair/cmd/internal/strictjson"
 )
 
+// NativeLockVersion identifies wrappers that retain the native-session lock.
+const NativeLockVersion = 1
+
 type ReadyRecord struct {
-	AgentIdentity string `json:"agent_identity,omitempty"`
-	LaunchOrdinal uint64 `json:"launch_ordinal,omitempty"`
+	NativeLockVersion int    `json:"native_lock_version,omitempty"`
+	AgentIdentity     string `json:"agent_identity,omitempty"`
+	LaunchOrdinal     uint64 `json:"launch_ordinal,omitempty"`
 	// DeprecatedOrientation is a TOMBSTONE: a wrapper before #522 published
 	// its composer-paste delivery state here. A ready record written by such a
 	// wrapper -- a slot launched by the old build, still running -- must still
@@ -55,6 +59,9 @@ func Decode(raw string) (ReadyRecord, error) {
 }
 
 func Validate(record ReadyRecord) error {
+	if record.NativeLockVersion < 0 {
+		return fmt.Errorf("ready record: native lock version must be nonnegative")
+	}
 	if len(record.AgentIdentity) > 256 || !utf8.ValidString(record.AgentIdentity) || strings.IndexFunc(record.AgentIdentity, unicode.IsControl) >= 0 {
 		return fmt.Errorf("ready record: invalid agent process identity")
 	}

@@ -226,6 +226,11 @@ func ObserveAndPersist(input ObserveInput, store LedgerAppender, writeConfig Con
 	warning := err
 	bindingInput.LedgerRootNodeID = *binding.RootNodeID
 	resolved = sessioninventory.ResolveBindings(input.Inventory, []sessioninventory.BindingInput{bindingInput})
+	if input.NotifyBinding != nil {
+		if notifyErr := input.NotifyBinding(input.LaunchOrdinal, nativeID); notifyErr != nil {
+			resolved.Diagnostics = append(resolved.Diagnostics, sessioninventory.Diagnostic{Code: sessioninventory.DiagnosticBindingStale, Agent: agent, Detail: "binding notification unavailable: " + notifyErr.Error()})
+		}
+	}
 	if writeConfig != nil {
 		write := func() error {
 			return writeConfig(ConfigPayload{Agent: input.Owner.Agent, Args: StripResumeArgs(input.Owner.Agent, input.Args), SessionID: nativeID})

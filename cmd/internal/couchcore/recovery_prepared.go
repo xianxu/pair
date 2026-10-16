@@ -176,7 +176,7 @@ func (c *Couch) executePreparedRecovery(ctx context.Context, selection RecoveryS
 		}
 	}
 	if selection.Kind != RecoveryFresh {
-		if err := c.checkRecoveryNativeOwner(ctx, record, choice, true); err != nil {
+		if err := c.checkRecoveryNativeLock(ctx, choice); err != nil {
 			return result, err
 		}
 		if len(retirement.Stops) == 0 {
@@ -262,6 +262,7 @@ func (c *Couch) executePreparedRecovery(ctx context.Context, selection RecoveryS
 	if err := ctx.Err(); err != nil {
 		return result, err
 	}
+	intent.Relaunch = selection.Kind == RecoveryProven && isRelaunchMigration(ctx, choice)
 	phase := recoveryPrepared
 	record, err = c.Threads.PreserveRecoveryBeforeRetirement(record.Address, record.Revision, intent)
 	if err != nil {
@@ -385,7 +386,7 @@ func (c *Couch) launchRecoveryClaim(ctx context.Context, record ThreadRecord, no
 		}
 	}
 	if selection.Kind != RecoveryFresh {
-		if err := c.checkRecoveryNativeOwner(ctx, record, choice, false); err != nil {
+		if err := c.checkRecoveryNativeLock(ctx, choice); err != nil {
 			return fail(err)
 		}
 	}

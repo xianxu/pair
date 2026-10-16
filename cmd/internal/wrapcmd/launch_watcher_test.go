@@ -19,7 +19,7 @@ var realStartWatcherProcess = startWatcherProcess
 // acceptance helper explicitly opts into executing the real watcher command.
 func TestMain(m *testing.M) {
 	detachWatcherHelper()
-	startWatcherProcess = func([]string, []string) error { return nil }
+	startWatcherProcess = func(_ []string, _ []string, _ ...*os.File) error { return nil }
 	os.Exit(m.Run())
 }
 
@@ -80,7 +80,7 @@ func TestWrapSpawnsOneWatcherForItsLaunch(t *testing.T) {
 	spawns := make(chan spawn, 4)
 	oldStartWatcher := startWatcherProcess
 	defer func() { startWatcherProcess = oldStartWatcher }()
-	startWatcherProcess = func(argv, _ []string) error {
+	startWatcherProcess = func(argv, _ []string, _ ...*os.File) error {
 		info, err := os.Stat(pidPath)
 		s := spawn{argv: append([]string(nil), argv...), pidErr: err}
 		if err == nil {
