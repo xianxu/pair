@@ -43,6 +43,7 @@ A Fresh recovery onto a new address writes an intent whose `SourceRevision` desc
 ## Log
 
 ### 2026-10-15
+- 2026-10-15: closed — Recorded full suite green on ae4f827e (sdlc-local/suite 9m51s); couchcore/launcher ok. Regression: launcher real ValidateRecoveryRecord on the authority Couch launches, slot-local fresh (old rev 5) and primary reboot fixture (global store); both RED with fix reverted on the exact live error (source revision 5/4 vs record revision 1), GREEN with it. No check or refusal added; global-store replace invariant moves SourceRevision with the address. no-atlas: bugfix, no new surface or terminology. TL reviewed approach.; review verdict: SHIP
 
 Filed from the read-only diagnosis of the TL's failed ariadne:4 reboot after #597 landed (TL GO 88674e9e, priority 1: slot startup).
 
