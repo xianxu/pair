@@ -111,7 +111,7 @@ func TestStartAfterReadyWorkerIsContextBoundAndJoined(t *testing.T) {
 	}
 }
 
-func TestScheduledDiagnosticsAdvanceAcrossDeletedPaths(t *testing.T) {
+func TestScheduledDiagnosticsAdvanceAcrossBackupFencedPaths(t *testing.T) {
 	s, _ := scheduleFixture(t)
 	ctx := context.Background()
 	c := s.Collector.Coordinator
@@ -149,8 +149,8 @@ func TestScheduledDiagnosticsAdvanceAcrossDeletedPaths(t *testing.T) {
 		t.Fatal("diagnostic pass did not complete")
 	}
 	for _, path := range paths {
-		if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
-			t.Fatalf("missed diagnostic path %s %v", path, err)
+		if body, err := os.ReadFile(path); err != nil || string(body) != "old diagnostic" {
+			t.Fatalf("backup-fenced diagnostic changed %s: %q %v", path, body, err)
 		}
 	}
 }

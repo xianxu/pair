@@ -11,11 +11,13 @@ import (
 )
 
 type Segment struct {
-	Path      string    `json:"path"`
-	Bytes     int64     `json:"bytes"`
-	LastWrite time.Time `json:"last_write"`
-	Eligible  bool      `json:"eligible"`
-	Reason    string    `json:"reason"`
+	Path       string    `json:"path"`
+	Bytes      int64     `json:"bytes"`
+	LastWrite  time.Time `json:"last_write"`
+	Eligible   bool      `json:"eligible"`
+	Reason     string    `json:"reason"`
+	Unverified bool      `json:"unverified,omitempty"`
+	Oversized  bool      `json:"oversized,omitempty"`
 }
 
 // DecideSegment is independent of session activity and Couch visibility.
@@ -24,8 +26,9 @@ func DecideSegment(now, lastWrite time.Time) bool {
 }
 
 // Preview is read-only: it does not create a lock, initialize or recover state.
-// At most limit segment metadata entries are visited. Callers schedule more work
-// by repeating after collection; a current file is always an additional row.
+// The requested page is bounded by limit; count-policy classification also
+// certifies at most 64 immutable candidates. Callers resume incomplete pages;
+// a current file is always an additional row.
 func Preview(path string, options Options, limit int) ([]Segment, error) {
 	rows, _, done, e := previewManagedPage(path, options, "", limit)
 	if e == nil && !done {
@@ -34,7 +37,7 @@ func Preview(path string, options Options, limit int) ([]Segment, error) {
 	return rows, e
 }
 
-// Collect revalidates and unlinks only exact expired generations. It never
+// Collect revalidates and unlinks exact age- or count-expired generations. It never
 // removes the stable lock inode or scans arbitrary external trace filenames.
 func Collect(path string, options Options, limit int) ([]Segment, error) {
 	rows, _, done, e := collectManagedPage(path, options, "", limit)
@@ -119,6 +122,9 @@ func collectManagedPage(path string, options Options, cursor string, limit int) 
 				return e
 			}
 		}
+		if e := ensureDiagnosticLimits(p, &s, options); e != nil {
+			return e
+		}
 		var rows []Segment
 		rows, next, complete, e = previewPageLocked(p, options, cursor, limit, true)
 		if e != nil {
@@ -174,6 +180,9 @@ func recoverDeletion(path string, s *diskState, o Options) error {
 	if err := o.checkContext(); err != nil {
 		return err
 	}
+	if KeepDiagnosticsUntilBackup {
+		return ErrBackupRequired
+	}
 	g := *s.Deleting
 	p := path
 	if g.Name != "" {
@@ -188,7 +197,7 @@ func recoverDeletion(path string, s *diskState, o Options) error {
 		}
 		var metadata generation
 		if e := readJSON(p+".json", &metadata); e == nil {
-			if metadata != g {
+			if !generationMetadataEqual(metadata, g) {
 				return errors.New("diagnostic deletion metadata changed")
 			}
 		} else if !os.IsNotExist(e) {
@@ -259,6 +268,9 @@ func retireEmpty(path string, s diskState, o Options) error {
 		if !definitelyDead(r) {
 			return nil
 		}
+	}
+	if e := removeReservation(path, o); e != nil {
+		return e
 	}
 	f, e := os.Open(directory(path))
 	if e != nil {

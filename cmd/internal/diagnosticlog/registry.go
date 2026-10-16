@@ -26,6 +26,12 @@ func register(ctx context.Context, root string, entry RegistryEntry) error {
 	return registerWithHook(ctx, root, entry, nil)
 }
 func registerWithHook(ctx context.Context, root string, entry RegistryEntry, hook func() error) error {
+	return registerWithDirectorySync(ctx, root, entry, hook, syncDir)
+}
+
+// Directory synchronization is an explicit IO seam so uncertain publication
+// and its identical retry can be exercised without global hooks or timing.
+func registerWithDirectorySync(ctx context.Context, root string, entry RegistryEntry, hook func() error, syncDirectory func(string) error) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -44,7 +50,26 @@ func registerWithHook(ctx context.Context, root string, entry RegistryEntry, hoo
 	}
 	sum := sha256.Sum256([]byte(entry.Path))
 	return registryLocked(ctx, root, func() error {
-		return publishJSON(dir, filepath.Join(dir, fmt.Sprintf("%x.json", sum)), entry, true, Options{Context: ctx}, hook)
+		if err := validateRegistryEntry(entry); err != nil {
+			return err
+		}
+		path := filepath.Join(dir, fmt.Sprintf("%x.json", sum))
+		var found RegistryEntry
+		if err := readJSON(path, &found); err == nil {
+			if found != entry {
+				return errors.New("diagnostic registry changed")
+			}
+			// A previous publisher may have renamed the exact declaration and
+			// failed its directory sync. Reconfirm durability without rewriting
+			// content or replacing the inode on every Open.
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+			return syncDirectory(dir)
+		} else if !os.IsNotExist(err) {
+			return err
+		}
+		return publishJSON(dir, path, entry, true, Options{Context: ctx, directorySync: syncDirectory}, hook)
 	})
 }
 
@@ -122,17 +147,27 @@ func EnumerateRoot(ctx context.Context, root string, offset, limit int) (Registr
 		if err := ctx.Err(); err != nil {
 			return RegistryPage{}, err
 		}
-		p, e := canonical(entry.Path)
-		if e != nil {
-			return RegistryPage{}, e
+		if err := validateRegistryEntry(entry); err != nil {
+			return RegistryPage{}, err
 		}
-		sum := sha256.Sum256([]byte(p))
-		if entry.Version != 1 || p != entry.Path || entry.Directory != directory(p) || entry.Lock != lockPath(p) || n != fmt.Sprintf("%x.json", sum) {
+		sum := sha256.Sum256([]byte(entry.Path))
+		if n != fmt.Sprintf("%x.json", sum) {
 			return RegistryPage{}, errors.New("invalid diagnostic registry entry")
 		}
 		entries = append(entries, entry)
 	}
 	return RegistryPage{Entries: entries, NextOffset: nextOffset, Complete: complete}, nil
+}
+
+func validateRegistryEntry(entry RegistryEntry) error {
+	p, err := canonical(entry.Path)
+	if err != nil {
+		return err
+	}
+	if entry.Version != 1 || p != entry.Path || entry.Directory != directory(p) || entry.Lock != lockPath(p) {
+		return errors.New("invalid diagnostic registry entry")
+	}
+	return nil
 }
 
 // EnvironmentOptions uses only an explicitly selected Pair directory; tests or

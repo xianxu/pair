@@ -9,7 +9,6 @@ import (
 
 func hardLimitOptions(t *testing.T, o Options) Options {
 	t.Helper()
-	o.HardMaxBytes = true
 	o.MaxBytes = 5
 	return o
 }
@@ -75,7 +74,7 @@ func TestHardLimitRotatesBeforeRecord(t *testing.T) {
 	}
 }
 
-func TestDefaultLimitAllowsGrowthWithoutProof(t *testing.T) {
+func TestDefaultLimitRefusesGrowthWithoutProof(t *testing.T) {
 	path, _, o := fixture(t)
 	o.MaxBytes = 5
 	o.Proof = func(context.Context, string, []Registration) error { return errors.New("unproven") }
@@ -84,9 +83,14 @@ func TestDefaultLimitAllowsGrowthWithoutProof(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer w.Close()
-	for range 2 {
-		if n, err := w.Write([]byte("abcdef")); n != 6 || err != nil {
-			t.Fatalf("default append: %d %v", n, err)
-		}
+	if n, err := w.Write([]byte("abc")); n != 3 || err != nil {
+		t.Fatal(n, err)
+	}
+	if n, err := w.Write([]byte("def")); n != 0 || !errors.Is(err, ErrLimit) {
+		t.Fatalf("default cap: %d %v", n, err)
+	}
+	body, err := os.ReadFile(path)
+	if err != nil || string(body) != "abc" {
+		t.Fatal(string(body), err)
 	}
 }
