@@ -50,7 +50,10 @@ So a recovered slot looks healthy in `couch --list` and to the operator, yet sil
 
 ## Plan
 
-- [ ]
+Durable plan: `workshop/plans/000618-slots-recovered-by-reboot-or-resume-after-a-couch-restart-can-send-but-not-receive-plan.md`.
+
+- [ ] M1 — cached listing for the message authority, refused receipts with their reason, receive state in `--list`
+- [ ] M2 — a delivered peer message confirms a codex binding; the first relaunch waits inside its operation
 
 ## Log
 
@@ -82,3 +85,6 @@ So a recovered slot looks healthy in `couch --list` and to the operator, yet sil
   > 5. 16 s relaunch: the park waits a fixed 15 s for the quit and child exit, then strands recover/abandon. Fix: the first call keeps waiting within the operation (async, operation-status) up to a longer bound instead of stranding.
   > Tests: a fake slow zellij (1 s per listing) still admits within budget; a failed admission reports its reason; a peer-message-only codex thread confirms; relaunch with a slow quit completes on the first call. Live: under a full suite, sends to rebooted and resumed slots land.
   > Full flow, durable plan in workshop/plans; I start with 1+2 (the root and the visibility) once you approve.
+- TL approved items 1-2 first, 3 minimal (the reason from 2 in `--list` with the one fixing command, no new tracking),
+  4-5 after 1-2 land. Load: the 136 reading was 15:36, not 15:05; recorded suites stayed within WF_TEST_SUITES; the
+  supervisor's own ~1 core is hosted-client vt ingest (`ptychild.(*Child).ingest`), out of scope, reported to the TL.
