@@ -636,27 +636,46 @@ func derivedRecoverVocabulary() []string {
 // from its own All* list, and calls visit for what consistent admits. It does
 // not materialize the domain (millions of points).
 func forEachEvidence(visit func(SlotEvidence)) {
+	forEachEvidenceWithDeps(AllEvidenceDepClaims(), AllEvidenceDepTrees(), visit)
+}
+
+func forEachEvidenceWithDeps(deps []EvidenceDepClaims, trees []EvidenceDepTree, visit func(SlotEvidence)) {
 	tri := AllEvidenceTriStates()
 	for _, dir := range AllEvidenceDirs() {
 		for _, couch := range AllEvidenceCouch() {
 			for _, agent := range AllEvidenceAgents() {
 				for _, threads := range AllEvidenceThreads() {
 					for _, offer := range AllEvidenceOffers() {
+						e := SlotEvidence{Dir: dir, Couch: couch, Agent: agent, Threads: threads, Offer: offer}
+						if !consistentActorEvidence(e) {
+							continue
+						}
 						for _, branch := range AllEvidenceBranches() {
+							e.Branch = branch
 							for _, claims := range AllEvidenceClaims() {
+								e.Claims = claims
 								for _, quality := range AllEvidenceQualities() {
+									e.Quality = quality
 									for _, source := range AllEvidenceGitSources() {
+										e.GitSource = source
 										for _, dirty := range tri {
+											e.Dirty = dirty
 											for _, unlanded := range tri {
+												e.Unlanded = unlanded
 												for _, operation := range tri {
+													e.Operation = operation
 													for _, workspace := range []bool{false, true} {
+														e.Workspace = workspace
 														for _, elsewhere := range []bool{false, true} {
-															for _, dep := range AllEvidenceDepClaims() {
-																for _, depTree := range AllEvidenceDepTrees() {
-																	e := SlotEvidence{DepClaims: dep, DepTree: depTree, Dir: dir, Couch: couch, Agent: agent, Threads: threads, Offer: offer,
-																		Branch: branch, Claims: claims, Quality: quality, GitSource: source, Dirty: dirty, Unlanded: unlanded, Operation: operation,
-																		Workspace: workspace, Elsewhere: elsewhere}
-																	if consistent(e) {
+															e.Elsewhere = elsewhere
+															if !consistentHostEvidence(e) {
+																continue
+															}
+															for _, dep := range deps {
+																e.DepClaims = dep
+																for _, tree := range trees {
+																	e.DepTree = tree
+																	if consistentDependencyEvidence(e) {
 																		visit(e)
 																	}
 																}
@@ -931,37 +950,50 @@ func TestDeriveRecoverPlanDedupesSlotsAcrossFleets(t *testing.T) {
 // prunes the totality test's domain (so it lives with the test); production
 // evidence is derived, not checked against it.
 func consistent(e SlotEvidence) bool {
+	return consistentActorEvidence(e) && consistentHostEvidence(e) && consistentDependencyEvidence(e)
+}
+
+// Each predicate depends only on its named completed coordinates. The iterator
+// can reject their impossible prefixes before crossing unrelated dimensions.
+func consistentActorEvidence(e SlotEvidence) bool {
 	switch {
 	case e.Couch == CouchUnavailable && e.Threads != ThreadsZero,
 		(e.Agent == AgentNone) != (e.Threads == ThreadsZero),
 		e.Threads != ThreadsOne && e.Offer != OfferNone,
 		(e.Agent == AgentParked || e.Agent == AgentDetached) && e.Threads == ThreadsOne && e.Offer != OfferResumeReboot,
 		e.Agent != AgentUnusable && e.Agent != AgentParked && e.Agent != AgentDetached && e.Agent != AgentOrphaned && e.Offer != OfferNone,
-		// ActorActions offers exactly reap on a lone orphaned row, and reap
-		// nowhere else (#399).
+		// ActorActions offers exactly reap on a lone orphaned row, and reap nowhere else.
 		e.Agent == AgentOrphaned && e.Threads == ThreadsOne && e.Offer != OfferReap,
-		e.Offer == OfferReap && e.Agent != AgentOrphaned,
-		e.GitSource == GitSourceUnknown && !(e.Branch == BranchUnknown && e.Dirty == TriUnknown && e.Unlanded == TriUnknown && e.Operation == TriUnknown),
+		e.Offer == OfferReap && e.Agent != AgentOrphaned:
+		return false
+	}
+	return true
+}
+
+func consistentHostEvidence(e SlotEvidence) bool {
+	switch {
+	case e.GitSource == GitSourceUnknown && !(e.Branch == BranchUnknown && e.Dirty == TriUnknown && e.Unlanded == TriUnknown && e.Operation == TriUnknown),
 		e.GitSource == GitSourceLocalProbe && (e.Unlanded != TriUnknown || e.Operation != TriUnknown || e.Dirty == TriUnknown ||
 			e.Branch == BranchTerminalIssue || e.Branch == BranchStaged || e.Branch == BranchUnknown || (e.Quality != QualityUnknown && e.Quality != QualityUnsupported)),
 		e.GitSource == GitSourceSDLC && e.Quality == QualityUnsupported,
-		// An unread host read lists no host claims, but a dependency's weaker
-		// read can lower Quality while the host's claims stand: only absent
-		// (no tracker) and unsupported (no fleet read) exclude claims.
-		// Quality is the host's own read (BR-14): an unread, unsupported or
-		// trackerless host lists no host claims.
+		// Quality is the host's own read: unread/trackerless hosts list no host claims.
 		(e.Quality == QualityUnknown || e.Quality == QualityUnsupported || e.Quality == QualityAbsent) && e.Claims != ClaimsNone,
-		(e.Quality == QualityUnsupported || e.GitSource == GitSourceLocalProbe) && (e.DepClaims != DepNone || e.DepTree != DepTreeClean),
-		e.GitSource == GitSourceUnknown && (e.DepClaims != DepNone && e.DepClaims != DepUnknown || e.DepTree != DepTreeClean),
-		// A dependency tree with dirt, an operation or unread facts is that
-		// member's own work or unread state: its judgment cannot be "nothing".
-		e.DepTree != DepTreeClean && e.DepClaims == DepNone,
-		// The resting-dirty member is itself a dirty tree.
-		e.DepClaims == DepRestingDirty && e.DepTree == DepTreeClean,
 		e.Claims == ClaimsNone && e.Workspace,
 		(e.Claims == ClaimsOneActive || e.Claims == ClaimsManyWithActive) && (e.Branch == BranchResting || e.Branch == BranchOther || e.Branch.detached()),
 		e.Elsewhere && (e.Claims == ClaimsOneActive || e.Claims == ClaimsManyWithActive || e.Branch == BranchResting || e.Branch == BranchOther || e.Branch.detached()),
 		e.Dir == DirMissing && e.GitSource != GitSourceUnknown:
+		return false
+	}
+	return true
+}
+
+func consistentDependencyEvidence(e SlotEvidence) bool {
+	switch {
+	case (e.Quality == QualityUnsupported || e.GitSource == GitSourceLocalProbe) && (e.DepClaims != DepNone || e.DepTree != DepTreeClean),
+		e.GitSource == GitSourceUnknown && (e.DepClaims != DepNone && e.DepClaims != DepUnknown || e.DepTree != DepTreeClean),
+		// Dependency work/unknown facts are that member's own finding.
+		e.DepTree != DepTreeClean && e.DepClaims == DepNone,
+		e.DepClaims == DepRestingDirty && e.DepTree == DepTreeClean:
 		return false
 	}
 	return true
@@ -1005,7 +1037,7 @@ func TestHostJudgmentsReadOnlyHostFacts(t *testing.T) {
 	t.Parallel()
 
 	checked := 0
-	forEachEvidence(func(e SlotEvidence) {
+	forEachEvidenceWithDeps([]EvidenceDepClaims{DepNone}, []EvidenceDepTree{DepTreeClean}, func(e SlotEvidence) {
 		if e.DepClaims != DepNone || e.DepTree != DepTreeClean {
 			return // each base point once; its dependency variants below
 		}
