@@ -119,6 +119,13 @@ Verified TL receipt07bd2c8d-c68d-4b63-9452-246f3506ed2c authorizes main merge/re
 
 - Evidence retention note: the suite command reported the log path and SHA256 prefix above on completion, but the file is no longer present at19:46 PDT (local-check retention keeps only the newest20 commits). The preserved command output confirms exit0 and recorded status; no full SHA256 was recomputed or inferred. A new integrated commit will require its own suite before landing.
 
+
+### 2026-10-15 — staged the requested tonight restart build
+
+Merged main2156c014cee0af8fa1662064ebfe32d746e6568a at42b2086fb040b9cbcb527fdcc91f09d8a7bbfdd1, incorporating #573/#579/#584/#585/#594/#587 and excluding #569 per verified TL instruction. Three additive conflicts resolved without changing upstream runtime semantics. Targeted races PASS agentdrive1.276s, wrapcmd22.557s, couchmessage1.267s, launcher5.335s, procutil2.581s; service drive/receipt/operation/resource/compatibility subset PASS8.433s. Core operation/resource/native-owner/recovery-confirmation checks PASS3.578s, inventory PASS16.664s. The initial broader service run failed unchanged TestAutomaticInputStallOwningHub at automatic_input_stall_test.go:156 with recipient-not-live; focused -race count3 then PASS1.699s. No baseline reproduction or passing initial aggregate is claimed. Actual Run/socket/native Codex0.162.1 conformance PASS24.968s: scratch11.48s and Pair virtual13.14s, session confirmation, dirty recovery, original CR/s bytes and joined cleanup. No source change after that merged-worktree measurement.
+
+`sdlc stage --build` replaced pair:0 stage with42b2086fb040b9cbcb527fdcc91f09d8a7bbfdd1. Verified exact unchanged target HEAD and clean checkout. Pair, Couch, pair-launch-helper and pair-slug all report that revision and vcs.modified=false. The obsolete pair-hoprtt, outside current GO_BINS, retains2284b41247340aec386afa83eb998502bc14aa40/modified=true; it was not rebuilt or used. Sent the complete metadata and evidence to the hub, receipt726f3453-bc6f-4bed-9d85-f9be5391ec35. Operator restart and hub-run smoke remain pending; no live input or restart performed here. This new source requires a fresh recorded suite before landing; earlier source passes are not substituted.
+
 ## Revisions
 
 ### 2026-10-15 — reconcile landed recovery and stall supervision
