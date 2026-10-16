@@ -7,18 +7,15 @@ estimate_hours:
 github_issue:
 severity: critical
 started: 2026-10-15T20:32:41-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:2
+    worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
+    repository: github.com/xianxu/pair
 tracker:
     version: 1
-    release:
-        by:
-            operator: Xian Xu
-            machine: 4716879978a7b90f6b583da1716fd0e9
-            machine_name: Xian’s MacBook Pro
-            workspace: pair:2
-            worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
-            repository: github.com/xianxu/pair
-        branch: 000597-stale-native-owner
-        head: 4d3318eef71999e5dcbc4b61adc48180facf2b97
 ---
 
 # Reject stale legacy native owners
