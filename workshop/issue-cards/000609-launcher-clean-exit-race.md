@@ -1,6 +1,6 @@
 ---
 id: 000609
-status: working
+status: codecomplete
 created: 2026-10-16
 updated: 2026-10-16
 estimate_hours:
@@ -14,6 +14,14 @@ claimant:
     workspace: pair:1
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
+actual_hours: 0.58
+tracker:
+    version: 1
+    completion:
+        token: close-0e7f64ba545b
+        repository: github.com/xianxu/pair
+        reviewed_head: 0d3c84021677116dd163b013db555f7dcf0b40ab
+        evidence_commit: 5cd88ba456b0bbb5dad262c14c602ff1abb15f9b
 ---
 
 # Launcher clean-exit cancellation test races TERM trap readiness
