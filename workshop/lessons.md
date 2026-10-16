@@ -2018,3 +2018,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #593: A cleanup scan budget must count transient artifacts, not retained final objects. Isolate staging before applying bounds, and test continued writes beyond the listing cap. Whenever a writer gains numbered shards, test that its source inventory includes actual rolled names while excluding locks/staging.
 
 - #593 BR-3: Inventory completeness is per supported producer/backend, not per logical kind. Sweep global, repo-scoped, slot-local, legacy and sharded layouts together; assert coverage with producer-generated paths before declaring the coverage family fixed.
+
+- #589: firing the last retry callback does not prove its asynchronous result reached the terminal state. Keep evidence unhealthy until a state-dependent effect proves that transition occurred, and hold the next successful attempt until the triggering request's refusal is observed. Use the existing authority and retry seams; elapsed sleeps can race both sides of readmission.
