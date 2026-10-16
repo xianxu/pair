@@ -46,7 +46,7 @@ Proposed quick-flow design: add one atomic fake attachment transition that remov
 
 - [x] Reproduce the acknowledgment transition with explicit host presence and no live TTY observations; identify the native-resolution caller and compare the production presence contract (ARCH-MOCK, ARCH-ORDER).
 - [x] Confirm the responsible fake/fixture or product owner, then implement a minimal invariant-preserving correction with a regression that fails without it.
-- [ ] Verify the relevant fake contracts and repeated complete couchcmd runs, race detection, and the recorded full suite; close review and report for landing.
+- [x] Verify the relevant fake contracts and repeated complete couchcmd runs, race detection, and the recorded full suite; submit close review and report for landing.
 
 ## Log
 
@@ -70,6 +70,8 @@ Unconfirmed root-cause hypothesis from inspection: warm_reattach_test.go's After
 2026-10-16: Focused fake/public warm attach/continuation/socket acceptance checks PASS (couchcore 26.254s, couchcmd 23.769s); deterministic warm acceptance PASS 100 repetitions (8.158s). Strengthened the attachment contract to observe the attached session without a duplicate claimant first; an overlay that turns AttachSession into a no-op FAILS at that exact assertion (0.245s; /tmp/pair-612-noop-mutant.log), healthy contracts PASS (0.249s). Full couchcmd count=5 and race once were started for post-fix verification.
 
 2026-10-16: Complete couchcmd race check PASS (118.578s; /tmp/pair-612-package-race.log). Complete couchcmd count=5 PASS (307.952s; /tmp/pair-612-package-count5.log). Recorded suite running on 82dbf4cc98600f824ba08f556f64920438a7ba25 (PR #370). Later local commits are documentation only.
+
+2026-10-16: Done-when reassessed against the final patch: deterministic pre-adoption inventory red proves the consuming branch; production contract audit proves fake ownership; preserved presence/panes/index claims and detached-list transition have direct tests and negative controls. Recorded full suite PASS on 82dbf4cc98600f824ba08f556f64920438a7ba25: 12m47s, sha256 prefix a0871056f9cf, log /Users/xianxu/workspace/pair/.git/sdlc/local-checks/82dbf4cc98600f824ba08f556f64920438a7ba25/suite.log. couchcmd PASS 93.573s, couchcore PASS 417.268s; all four PR checks green. Subsequent commits are documentation only. No atlas change: test fake API and fixtures add no production/user architecture. The TL owns cross-repository project records; report results to hub rather than editing them. Ready for close review.
 
 ## Revisions
 
