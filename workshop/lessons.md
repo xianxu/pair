@@ -2041,3 +2041,16 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #602 BR-1/BR-2: when centralizing build commands, enumerate each caller's cwd and original absolute/relative source semantics. Resolve the shared builder's checkout independently, preserve caller-relative output destinations, and test non-root invocation. Document the complete new test override/lifetime contract in README as well as the atlas.
 
 - #602 BR-3: a migration guard must fail against every original offender before its synthetic controls are considered sufficient. Normalize target paths in their actual working-directory context; root-relative examples alone miss package-relative recipes. Keep compact regression fixtures for the original command forms and verify the full original source bodies once.
+
+- #617: A subprocess test inherits artifact authority through environment, even
+  when HOME, PAIR_DATA_DIR and PAIR_TAG point at temporary storage. The first
+  leased-title fixture passed a temporary raw capture path while inheriting the
+  live PAIR_SCROLLBACK_EVENTS_PATH; openWitnessedCapture truncated the live
+  events file before publishing its new witness. Build subprocess environments
+  from a small host allowlist, then supply every Pair path explicitly. Prove
+  isolation with a foreign-path sentinel and a disposable-write control; changing
+  HOME alone is not an isolation boundary. Self-exec test helpers must dispatch
+  before testing.M.Run so a command invocation cannot accidentally run the suite.
+- #617: procutil.Identity and StrictIdentity are different token encodings.
+  Compare tokens from the same producer, and observe terminal process state in
+  lifecycle tests: Identity deliberately preserves a zombie's start token.

@@ -417,6 +417,7 @@ var SourceClassifications = []SourceClassification{
 	},
 	{Path: "cmd/internal/panebirth/panebirth.go", Kind: ResolvedConsumer,
 		Families: []string{"pane"}, BindingNames: []string{"scoped-pane"}},
+	{Path: "cmd/internal/wrapcmd/title_process.go", Kind: ResolvedConsumer, Families: []string{"scrollback"}, BindingNames: []string{"scoped-scrollback"}},
 	{Path: "cmd/internal/titlepoller/run.go", Kind: ResolvedConsumer,
 		Families: []string{"title-pid"}, BindingNames: []string{"scoped-title-pid"}},
 	// pair#247: the one thread-activity definition reads the Pair log (sends)
@@ -469,7 +470,7 @@ var SourceClassifications = []SourceClassification{
 		goStructVocabulary("native-session", `json:"session_id"`, "SessionID", 1),
 	}},
 	{Path: "cmd/internal/titlepoller/runtime.go", Kind: ResolvedConsumer, Families: []string{"pane"}, BindingNames: []string{"scoped-pane-glob"}, Vocabulary: []VocabularyAllowance{
-		goCallVocabulary("pane", "--pane-id", "os/exec.Command", 5, 1),
+		goCallVocabulary("pane", "--pane-id", "os/exec.CommandContext", 6, 1),
 	}},
 	{Path: "cmd/internal/launcher/legacy_live.go", Kind: ResolvedConsumer, Families: []string{"pane"}, BindingNames: []string{"legacy-pane"}},
 	{Path: "cmd/internal/launcher/lifecycle.go", Kind: ResolvedConsumer,
@@ -1488,6 +1489,9 @@ var NonArtifactSources = []string{
 	"cmd/internal/threadrecord/lifecycle.go",
 	"cmd/internal/threadrecord/record.go",
 	"cmd/internal/threadrecord/previous_session.go",
+	"cmd/internal/titlepoller/owner.go",
+	"cmd/internal/titlepoller/lifetime.go",
+	"cmd/internal/titlepoller/projection.go",
 	"cmd/internal/titlepoller/runcli.go",
 	"cmd/internal/titlepoller/titlepoller.go",
 	"cmd/internal/workbenchshortcut/generatecmd/main.go",

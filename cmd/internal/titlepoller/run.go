@@ -67,7 +67,15 @@ type Runtime interface {
 // Run drives the poller until the Pair session disappears (or its agent pane is
 // never born). Returns a process exit code (always 0 — like the shell poller,
 // it exits cleanly on session-gone and never surfaces an error).
-func Run(opts Options, rt Runtime) int {
+func Run(opts Options, rt Runtime) int { return RunContext(context.Background(), opts, rt) }
+
+func RunContext(ctx context.Context, opts Options, rt Runtime) int {
+	if ctx == nil {
+		return 1
+	}
+	if ctx.Err() != nil {
+		return 0
+	}
 	if opts.Tag == "" || opts.Agent == "" {
 		return 0
 	}
@@ -104,7 +112,12 @@ func Run(opts Options, rt Runtime) int {
 		}
 	}
 	_ = rt.WriteFile(pidfile, rt.Getpid()+"\n")
-	defer rt.Remove(pidfile)
+	defer func() {
+		// A departing generation cannot erase a successor's publication.
+		if raw, err := rt.ReadFile(pidfile); err == nil && strings.TrimSpace(raw) == rt.Getpid() {
+			rt.Remove(pidfile)
+		}
+	}()
 
 	// Birth gate (#287): no zellij call of any kind until this launch's agent
 	// pane has written its sidecar. zellij 0.45.1 panics when a connection it
@@ -124,7 +137,7 @@ func Run(opts Options, rt Runtime) int {
 	// the launcher resolves the same path from the same inputs before it
 	// spawns us, and refuses the launch if that fails.
 	panePath, err := panebirth.Evidence(opts.DataDir, opts.Tag, opts.Agent)
-	if err != nil || panebirth.Await(context.Background(), pollerClock{rt}, paneBirthPoll, opts.StartupGrace, func() (bool, error) {
+	if err != nil || panebirth.Await(ctx, pollerClock{rt}, paneBirthPoll, opts.StartupGrace, func() (bool, error) {
 		_, ok := rt.ModTime(panePath)
 		return ok, nil
 	}) != nil {
@@ -135,6 +148,9 @@ func Run(opts Options, rt Runtime) int {
 	lastPrefix := "__init__" // sentinel so the first real bucket always fires
 	misses := 0
 	for {
+		if ctx.Err() != nil {
+			return 0
+		}
 		// Self-terminate when the session is gone, debounced across misses so a
 		// single flaky IPC read (common right after sleep/wake) doesn't kill us.
 		if rt.SessionAlive(session) {
@@ -149,6 +165,9 @@ func Run(opts Options, rt Runtime) int {
 		}
 
 		latest := activityMTime(opts, rt)
+		if ctx.Err() != nil {
+			return 0
+		}
 		if latest.IsZero() {
 			// No activity source resolved yet (config not written, agent
 			// crashed pre-startup). Try again next tick.

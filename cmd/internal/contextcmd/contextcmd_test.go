@@ -2,6 +2,7 @@ package contextcmd
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -75,4 +76,14 @@ func contextRuntime(t *testing.T, established bool) *sessioninventorytest.FakeRu
 	}
 	runtime.PutFile(sessioninventory.FileEntry{Artifact: sessioninventory.Artifact{StorageRoot: pairRoot.Name, RelativePath: "ledger-T.jsonl"}}, ledger)
 	return runtime
+}
+
+func TestRunCanceledContextPrintsNothing(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	var stdout, stderr bytes.Buffer
+	code := RunWithRuntimeContext(ctx, []string{"T", "codex"}, Env{PairScopeKey: "scope"}, contextRuntime(t, true), &stdout, &stderr)
+	if code != 0 || stdout.Len() != 0 || stderr.Len() != 0 {
+		t.Fatalf("canceled context leaked count: %d %q %q", code, stdout.String(), stderr.String())
+	}
 }

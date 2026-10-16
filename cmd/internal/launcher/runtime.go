@@ -10,7 +10,6 @@ import (
 	"github.com/xianxu/pair/cmd/internal/readiness"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 	"github.com/xianxu/pair/cmd/internal/sessionledger"
-	"github.com/xianxu/pair/cmd/internal/titlepoller"
 )
 
 // The launcher.Runtime effect seam (#99 M2). Every IO the create-flow
@@ -99,7 +98,6 @@ type ProcOps interface {
 	// frame/cmux title singleton. env is its launch contract, handed to the child
 	// explicitly rather than inherited from whatever was exported first -- the
 	// inheritance is what pair#183 lost on attach.
-	SpawnTitlePoller(tag, agent, session string, env titlepoller.SessionEnv)
 	// DevRebuild rebuilds the repo Go binaries when PAIR_DEV is set (no-op
 	// otherwise) so the layout's `exec pair-wrap` resolves a fresh build (#46).
 	DevRebuild(pairHome string)
