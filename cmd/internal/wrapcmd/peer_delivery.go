@@ -29,19 +29,21 @@ type peerDelivery struct {
 	pasteSequence uint64
 	// The post-paste half of a delivery (pair#427). deliverBy is the paste
 	// time plus DeliveryTimeout; Message.Deadline only bounds the paste.
-	pastedAt         time.Time
-	deliverBy        time.Time
-	sawOccupied      bool   // the composer read occupied after the paste
-	submitSequence   uint64 // output sequence at the submit write
-	turnAtSubmit     bool   // a turn was already open when we submitted
-	outputPending    int
-	reservation      string
-	reservationUntil time.Time
-	current          couchmessage.Receipt
-	state            couchmessage.PeerDeliveryState
-	image            bool
-	interrupted      bool
-	released         bool // broker cancellation, never operator input
+	pastedAt                time.Time
+	submittedAt             time.Time
+	pasteEpoch, submitEpoch uint64
+	deliverBy               time.Time
+	sawOccupied             bool   // the composer read occupied after the paste
+	submitSequence          uint64 // output sequence at the submit write
+	turnAtSubmit            bool   // a turn was already open when we submitted
+	outputPending           int
+	reservation             string
+	reservationUntil        time.Time
+	current                 couchmessage.Receipt
+	state                   couchmessage.PeerDeliveryState
+	image                   bool
+	interrupted             bool
+	released                bool // broker cancellation, never operator input
 	// Operator holds before the paste (pair#435): heldFor is the closed
 	// hold time credited to the paste-by, heldSince the open hold's start.
 	heldFor   time.Duration
@@ -409,7 +411,12 @@ func (p *proxy) dispatchPeer(out io.Writer) {
 	defer p.inputAdmission.Unlock()
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	if d.current.Message.ID == "" || d.current.Status.Terminal() {
+	if d.current.Message.ID == "" {
+		return
+	}
+	// Normal render wakes reconcile terminal quarantine without idle polling.
+	automaticAvailable := p.automaticInputAvailable(automaticInputPeer)
+	if d.current.Status.Terminal() {
 		return
 	}
 	d.chargeWaitLocked()
@@ -421,7 +428,6 @@ func (p *proxy) dispatchPeer(out io.Writer) {
 			d.operatorHoldLocked(operatorHold)
 		}
 	}()
-	automaticAvailable := p.automaticInputAvailable(automaticInputPeer)
 	event := couchmessage.PeerDeliveryEvent{Kind: couchmessage.PeerComposerObserved}
 	switch {
 	case d.exited:
@@ -438,6 +444,11 @@ func (p *proxy) dispatchPeer(out io.Writer) {
 		event.Kind = couchmessage.PeerOperatorInput
 	case d.released:
 		event.Kind = couchmessage.PeerBrokerReleased
+	case !automaticAvailable && p.automaticInput.phase == automaticInputNeedsOperator:
+		// Quarantine is already a terminal recovery decision, not another
+		// operator hold. Refuse without touching input even under a picker.
+		event.Kind = couchmessage.PeerAutomaticInputBlocked
+		event.Ready = p.automaticInput.residueCause == couchmessage.AutomaticInputStallUnsubmittedComposer
 	case p.pickerActive.Load() && d.current.Status == couchmessage.Delivering:
 		event.Kind = couchmessage.PeerOverlayObserved
 	case p.pickerActive.Load():
@@ -472,6 +483,7 @@ func (p *proxy) dispatchPeer(out io.Writer) {
 			d.current.Detail = "waiting for terminal state"
 			return
 		}
+		epoch := p.automaticRenderEpoch.Load()
 		snapshot := p.terminal.Snapshot()
 		if d.current.Status != couchmessage.Delivering {
 			// Let just-forwarded keystrokes repaint before reading the source.
@@ -508,10 +520,14 @@ func (p *proxy) dispatchPeer(out io.Writer) {
 				d.current.Detail = ""
 			}
 		} else {
-			// Agent-agnostic evidence only: whether the composer holds
-			// anything, and whether a turn opened. Never what it holds.
+			// Shared confirmation uses composer/turn evidence; Qoder retries
+			// additionally require the unchanged complete automatic envelope.
 			composer := peerComposerState(p.agentBasename, snapshot)
-			if composer == PeerComposerOccupied && d.sequence > d.pasteSequence {
+			owned := false
+			if p.agentBasename == "qoder" {
+				composer, owned = qoderSubmissionEvidence(snapshot, peerEnvelope(d.current.Message))
+			}
+			if composer == PeerComposerOccupied && d.sequence > d.pasteSequence && (p.agentBasename != "qoder" || epoch > d.pasteEpoch) {
 				d.sawOccupied = true
 			}
 			if d.state.Phase == couchmessage.PeerDeliveryConfirming {
@@ -519,6 +535,13 @@ func (p *proxy) dispatchPeer(out io.Writer) {
 				turn := p.turnActive.Load()
 				cleared := snapshot.Complete && d.sawOccupied && composer == PeerComposerEmpty && d.sequence > d.submitSequence
 				event.Ready = cleared || (turn && !d.turnAtSubmit)
+				if p.agentBasename == "qoder" {
+					cleared = cleared && epoch > d.submitEpoch
+					event.Ready = cleared
+					if !cleared && owned && epoch > d.pasteEpoch && !d.now().Before(d.submittedAt.Add(500*time.Millisecond)) {
+						event.Kind, event.Ready = couchmessage.PeerRetrySubmit, true
+					}
+				}
 				event.EmptyConfirmed = cleared
 				d.current.Detail = peerConfirmEvidence(composer, d.sawOccupied, turn, d.turnAtSubmit)
 			} else {
@@ -548,6 +571,7 @@ func (p *proxy) advancePeer(event couchmessage.PeerDeliveryEvent, out io.Writer)
 		data := []byte(workbenchshortcut.PasteStart + peerEnvelope(d.current.Message) + workbenchshortcut.PasteEnd)
 		d.current.Status = couchmessage.Delivering
 		d.pasteSequence = d.sequence
+		d.pasteEpoch = p.automaticRenderEpoch.Load()
 		d.pastedAt, d.sawOccupied = d.now(), false
 		d.waits, d.waitAt = nil, d.now()
 		d.deliverBy = d.pastedAt.Add(couchmessage.DeliveryTimeout)
@@ -559,10 +583,15 @@ func (p *proxy) advancePeer(event couchmessage.PeerDeliveryEvent, out io.Writer)
 		}
 		data := p.ttyProfile.keymap.altCR
 		d.submitSequence, d.turnAtSubmit = d.sequence, p.turnActive.Load()
+		d.submitEpoch, d.submittedAt = p.automaticRenderEpoch.Load(), d.now()
 		n, err := out.Write(data)
 		p.advancePeer(couchmessage.PeerDeliveryEvent{Kind: couchmessage.PeerSubmitCompleted, Written: n, Expected: len(data), Failed: err != nil}, out)
 	case couchmessage.PeerPublish:
-		p.finishAutomaticInput(automaticInputPeer, state.Outcome() == couchmessage.Submitted && event.EmptyConfirmed)
+		if p.agentBasename == "qoder" && state.BodyWritten && state.Outcome() == couchmessage.Indeterminate && !d.interrupted {
+			p.quarantineQoderInput()
+		} else {
+			p.finishAutomaticInput(automaticInputPeer, state.Outcome() == couchmessage.Submitted && event.EmptyConfirmed)
+		}
 		d.current.Status = state.Outcome()
 		if d.current.Detail != "" && (event.Kind == couchmessage.PeerDeadlineElapsed || state.Outcome() == couchmessage.Indeterminate) {
 			d.current.Detail = state.Reason + ": " + d.current.Detail
