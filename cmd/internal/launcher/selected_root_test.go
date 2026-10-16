@@ -130,7 +130,7 @@ exit 0
 		defer cancel()
 		cmd := exec.CommandContext(ctx, binary, args...)
 		cmd.Dir = runDir
-		cmd.Env = append(append([]string(nil), baseEnv...), extra...)
+		cmd.Env = testpair.Environment(t, root, append(append([]string(nil), baseEnv...), extra...)...)
 		// Hosted sidecars remain in this actor-owned process group. Collect the
 		// exact group after each invocation, including timeout/failure paths.
 		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}

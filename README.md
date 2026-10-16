@@ -1712,6 +1712,18 @@ all tests finish. Private executable names use hard links (copies across
 filesystems). Standalone shell consumers use the same builder, which locates
 its checkout independently of the caller's working directory.
 
+Pair and wrapper subprocess fixtures use `testpair.Environment(t, disposableRoot,
+explicitEntries...)`. It delegates to `tests/lib/pair-test-env.sh`, the shared
+empty-environment owner for Go, shell and Python tests: only host PATH, disposable
+HOME and explicitly supplied fixture values cross the boundary. Never pass
+`os.Environ()` as the explicit entries. Shell tests enter through the same helper;
+the source guard rejects unisolated Pair/wrapper spawns. Shell entry scripts keep
+the shebang on line 1 and the bootstrap source on line 2; their remaining body
+uses `$0` for the entrypoint path. Python adapters consume the same helper's
+`--print0` output. The guard checks supported recipes with Go/Python syntax trees
+and a fixed shell entry contract. Fixture children outside the checkout use the
+parent's explicit helper path with `EnvironmentFrom`.
+
 SDLC reviews use the pinned commit’s `.sdlc/review-prepare.json` (version 1,
 `command: ["make", "runtimebundle-generate"]`, `timeout_minutes: 10`) to generate
 the ignored runtime embed assets in a disposable checkout before tests run.

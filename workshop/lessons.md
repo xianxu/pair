@@ -2054,3 +2054,16 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #617: procutil.Identity and StrictIdentity are different token encodings.
   Compare tokens from the same producer, and observe terminal process state in
   lifecycle tests: Identity deliberately preserves a zombie's start token.
+
+- #617 isolation review: a source guard must prove the environment at each actual
+  spawn, in source order and on every predecessor path. A later assignment, a
+  conditional clean alias, an unsafe dictionary update, or an unrelated helper
+  string must never bless inherited authority. Keep original-consumer audits and
+  negative provenance fixtures; use an AST when text matching loses scope/flow.
+- #617 isolation review: an argv marker cannot authorize skipping an environment
+  boundary. Always enter the empty environment and preserve original arguments
+  as data. Verify shell entry metadata against the deployed Bash version; a
+  top-level source-stack assumption can differ from a tiny function prototype.
+- #617 isolation review: empty HOME also removes Go's default caches. Consume the
+  shared test binary before starting timed fake agents; do not run a cache probe
+  in the caller's HOME before isolation or compile Pair per fixture afterward.

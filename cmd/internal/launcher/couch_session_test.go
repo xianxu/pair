@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
+	"github.com/xianxu/pair/cmd/internal/testpair"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -46,7 +47,7 @@ func TestCouchSessionProtocolSkewRejectsBeforeEffects(t *testing.T) {
 			}
 			cmd := exec.Command(old, append([]string{"launch"}, argv...)...)
 			cmd.Dir = root
-			cmd.Env = []string{"HOME=" + root, "PATH=/usr/bin:/bin", "PAIR_HOME=" + mustPairHome(t), "XDG_DATA_HOME=" + filepath.Join(root, "data"), "PAIR_COUCH_SESSION_INTENT=" + string(raw)}
+			cmd.Env = testpair.Environment(t, root, "PATH=/usr/bin:/bin", "PAIR_HOME="+mustPairHome(t), "XDG_DATA_HOME="+filepath.Join(root, "data"), "PAIR_COUCH_SESSION_INTENT="+string(raw))
 			out, err := cmd.CombinedOutput()
 			if err == nil || !bytes.Contains(out, []byte("is a flag, not an agent")) {
 				t.Fatalf("old binary did not reject protocol: %v %s", err, out)

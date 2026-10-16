@@ -23,6 +23,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/procutil"
 	"github.com/xianxu/pair/cmd/internal/readiness"
 	"github.com/xianxu/pair/cmd/internal/sessionledger"
+	"github.com/xianxu/pair/cmd/internal/testpair"
 )
 
 // Real source process/session observations, real exact ledger/readiness files,
@@ -33,18 +34,8 @@ func TestRecoveryRealHelperAndSessionConformanceLive(t *testing.T) {
 	// Darwin's default TMPDIR can exhaust Unix socket path capacity before
 	// Zellij appends the session name. Keep its socket root short and isolate
 	// configuration/data so the operator's shell and plugins do not run here.
-	t.Setenv("TMPDIR", "/tmp")
-	t.Setenv("HOME", t.TempDir())
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-	t.Setenv("XDG_DATA_HOME", t.TempDir())
-	t.Setenv("SHELL", "/bin/sh")
-	// This is a separate fixture client, not an attach from the operator's pane.
-	for _, key := range []string{"ZELLIJ", "ZELLIJ_SESSION_NAME"} {
-		t.Setenv(key, "")
-		if err := os.Unsetenv(key); err != nil {
-			t.Fatal(err)
-		}
-	}
+	testpair.ApplyEnvironment(t, t.TempDir(), "TMPDIR=/tmp", "SHELL=/bin/sh",
+		"XDG_CONFIG_HOME="+t.TempDir(), "XDG_DATA_HOME="+t.TempDir())
 	for _, warm := range []bool{true, false} {
 		name := "checkpoint"
 		if warm {
@@ -92,7 +83,7 @@ func runRecoveryLiveFixture(t *testing.T, warm bool) {
 	git := func(args ...string) {
 		t.Helper()
 		command := exec.Command("git", args...)
-		command.Env = append(os.Environ(), "GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_NOSYSTEM=1")
+		command.Env = testpair.Environment(t, base, "GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_NOSYSTEM=1")
 		if out, err := command.CombinedOutput(); err != nil {
 			t.Fatalf("git: %v %s", err, out)
 		}

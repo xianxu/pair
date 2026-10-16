@@ -1337,6 +1337,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchtty/trace.go",
 	// pair#602 compiler fixture: owns a temporary executable, no session artifacts.
 	"cmd/internal/testpair/binary.go",
+	"cmd/internal/testpair/environment.go",
 	// pair#479 test wait helper: bounds a wait by the test deadline; names no file.
 	"cmd/internal/testwait/testwait.go",
 	"cmd/internal/ctxmeter/ctxmeter.go",

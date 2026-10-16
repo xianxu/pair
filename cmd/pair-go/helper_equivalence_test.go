@@ -25,7 +25,7 @@ func TestPairGoContextRouteReachesRunner(t *testing.T) {
 	buildCommand(t, pairGo, ".")
 
 	home, data := writeContextFixture(t)
-	env := append(os.Environ(), "HOME="+home, "PAIR_DATA_DIR="+data, "PAIR_SCOPE_KEY=scope")
+	env := testpair.Environment(t, home, "PAIR_DATA_DIR="+data, "PAIR_SCOPE_KEY=scope")
 
 	r := runCommand(t, env, pairGo, "context", "T", "claude")
 	if r.code != 0 {
@@ -44,7 +44,7 @@ func TestPairGoSlugRouteReachesRunner(t *testing.T) {
 	// Empty data dir → no config → slugcmd.Run resolves no session_id and no-ops
 	// (exit 0, no output, no slug-proposed file).
 	data := t.TempDir()
-	env := append(os.Environ(),
+	env := testpair.Environment(t, t.TempDir(),
 		"PAIR_TAG=T", "PAIR_DATA_DIR="+data, "PAIR_AGENT=claude", "PAIR_SLUG_NESTED=")
 
 	r := runCommand(t, env, pairGo, "slug")

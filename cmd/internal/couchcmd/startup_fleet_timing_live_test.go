@@ -33,6 +33,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/ptychild"
 	"github.com/xianxu/pair/cmd/internal/runtimebundle"
 	pairterminal "github.com/xianxu/pair/cmd/internal/terminal"
+	"github.com/xianxu/pair/cmd/internal/testpair"
 )
 
 // The outer test captures actual parent stderr counters without replacing a
@@ -57,7 +58,7 @@ func TestStartupFleetTimingLive(t *testing.T) {
 		t.Fatal(err)
 	}
 	cmd := exec.CommandContext(t.Context(), os.Args[0], "-test.run=^TestStartupFleetTimingLive$", "-test.v", "-test.timeout=20m")
-	cmd.Env = append(os.Environ(), "PAIR_STARTUP_FLEET_CHILD=1")
+	cmd.Env = testpair.Environment(t, t.TempDir(), "PAIR_STARTUP_FLEET_CHILD=1", "PAIR_LIVE_COUCH=1", "PAIR_LIVE_STARTUP_PERF=1", "PAIR_LIVE_STARTUP_FLEET=1", "PAIR_STARTUP_FLEET_EVIDENCE="+evidence, "PAIR_STARTUP_PERF_BIN_DIR="+os.Getenv("PAIR_STARTUP_PERF_BIN_DIR"), "PAIR_STARTUP_FLEET_SMOKE_LIMIT="+os.Getenv("PAIR_STARTUP_FLEET_SMOKE_LIMIT"))
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	cmd.Stdout, cmd.Stderr = output, output
 	var identityMu sync.Mutex
@@ -1443,6 +1444,10 @@ func TestFleetParentTimingAcceptsInitialAttachWithoutContext(t *testing.T) {
 // Keep setup and spawned Pair clients in the same private fixture environment.
 func fleetFixtureEnvironment(t *testing.T, socketRoot, base string) {
 	t.Helper()
+	if err := os.MkdirAll(base, 0700); err != nil {
+		t.Fatal(err)
+	}
+	testpair.ApplyEnvironment(t, base, "TMPDIR="+socketRoot)
 	for _, key := range []string{"HOME", "XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_CACHE_HOME", "XDG_STATE_HOME"} {
 		path := filepath.Join(base, key)
 		if err := os.MkdirAll(path, 0700); err != nil {

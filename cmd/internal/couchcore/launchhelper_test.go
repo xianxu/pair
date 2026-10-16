@@ -123,7 +123,7 @@ func TestLaunchHelperSubprocess(t *testing.T) {
 	mode := os.Getenv("PAIR_TEST_LAUNCH_HELPER_MODE")
 	if mode == "helper" {
 		ack := os.NewFile(3, "launch-ack")
-		env := replaceEnv(os.Environ(), "PAIR_TEST_LAUNCH_HELPER_MODE", "target")
+		env := testpair.Environment(t, os.Getenv("HOME"), "PAIR_TEST_LAUNCH_HELPER_MODE=target", "PAIR_TEST_LAUNCH_HELPER_MARKER="+os.Getenv("PAIR_TEST_LAUNCH_HELPER_MARKER"))
 		err := RunLaunchHelper(ack, time.Second, []string{os.Args[0], "-test.run=^TestLaunchHelperSubprocess$"}, env, execLaunchTarget)
 		if err != nil {
 			t.Fatalf("helper: %v", err)
@@ -149,7 +149,7 @@ func TestLaunchHelperSubprocess(t *testing.T) {
 				t.Fatal(err)
 			}
 			cmd := exec.Command(os.Args[0], "-test.run=^TestLaunchHelperSubprocess$")
-			cmd.Env = append(os.Environ(), "PAIR_TEST_LAUNCH_HELPER_MODE=helper", "PAIR_TEST_LAUNCH_HELPER_MARKER="+marker)
+			cmd.Env = testpair.Environment(t, filepath.Dir(marker), "PAIR_TEST_LAUNCH_HELPER_MODE=helper", "PAIR_TEST_LAUNCH_HELPER_MARKER="+marker)
 			cmd.ExtraFiles = []*os.File{reader}
 			if err := cmd.Start(); err != nil {
 				t.Fatal(err)
@@ -184,15 +184,4 @@ func TestLaunchHelperSubprocess(t *testing.T) {
 			}
 		})
 	}
-}
-
-func replaceEnv(env []string, key, value string) []string {
-	prefix := key + "="
-	out := make([]string, 0, len(env)+1)
-	for _, item := range env {
-		if !strings.HasPrefix(item, prefix) {
-			out = append(out, item)
-		}
-	}
-	return append(out, prefix+value)
 }

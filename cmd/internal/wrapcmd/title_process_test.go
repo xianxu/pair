@@ -1,6 +1,7 @@
 package wrapcmd
 
 import (
+	"github.com/xianxu/pair/cmd/internal/testpair"
 	"io"
 	"os"
 	"os/exec"
@@ -80,16 +81,7 @@ func startTitleWrapperFixture(t *testing.T, root, tag string) *titleWrapperFixtu
 		t.Fatal(err)
 	}
 	cmd := exec.Command(exe, "-test.run=^TestTitleWrapperHelper$")
-	// Only ordinary host environment crosses into this disposable fixture.
-	// Pair/Couch variables name live artifacts and must never be inherited.
-	var env []string
-	for _, entry := range os.Environ() {
-		key, _, _ := strings.Cut(entry, "=")
-		switch key {
-		case "PATH", "TMPDIR", "LANG", "LC_ALL", "LC_CTYPE", "TERM":
-			env = append(env, entry)
-		}
-	}
+	env := testpair.Environment(t, root)
 	for k, v := range map[string]string{
 		"PAIR_SCROLLBACK_EVENTS_PATH": paths.ScrollbackEvents("codex"), "PAIR_617_SCROLLBACK": paths.ScrollbackRaw("codex"), "PAIR_617_TITLE_HELPER": "1", "PAIR_617_AGENT": agent, "PAIR_617_AGENT_PID": filepath.Join(root, "agent-"+tag),
 		"HOME": filepath.Join(root, "home"), "PAIR_DATA_DIR": data, "PAIR_TAG": tag, "PAIR_SCOPE_KEY": "0123456789abcdef",

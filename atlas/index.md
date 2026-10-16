@@ -46,6 +46,11 @@
   the owned fallback. Context variants preserve caller build deadlines. Shell
   consumers use `tests/lib/pair-test-binary.sh`, which owns the sole full-Pair
   test build; the source guard and lifetime contracts run in `testpair`.
+  Subprocess environments use `Environment` and the shared
+  `tests/lib/pair-test-env.sh` empty-environment boundary (PATH, disposable HOME,
+  explicit fixture values). A source guard covers Pair/wrapper spawn callers;
+  nested fixtures outside a checkout use `EnvironmentFrom` with the parent’s
+  explicit helper path.
 - `cmd/internal/testwait` — how a Go test waits for an event: bounded by the
   test's own deadline minus a margin (`After` for a select guard, `Until`/`Wait`
   to poll, `Budget` for a hand-rolled loop or a helper's timeout), never by a guess at how fast the event comes, so a loaded `-race`
