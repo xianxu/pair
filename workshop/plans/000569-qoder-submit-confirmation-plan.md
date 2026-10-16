@@ -79,7 +79,7 @@ The final unreconciled-input policy is awaiting TL confirmation: safe bounded es
 
 - [x] Run focused couchmessage/wrapcmd/couchcmd/artifactpath tests and races; make build. Commit/push candidate and run sdlc local-check run --name suite on the pushed head.
 - [ ] Send exact candidate revision to TL; stage/build only as coordinated. TL arranges pair:4 on the candidate wrapper, resolving the pre-existing residual input explicitly. Send harmless unique idle and mid-turn probes; verify receipts Submitted, composer consumed and Qoder acts once. Send a subsequent probe to prove no stale automatic-input latch. Retain failures and do not call a simulated fake a live acceptance.
-- [ ] Record live/automated evidence in issue Log; run sdlc close --issue 569 --verified with measured actuals. The gate owns fresh-context review. Fix findings by class and repeat required checks when code changes.
+- [x] Record available automated evidence in issue Log; run sdlc close --issue 569 --verified with measured actuals. The gate owns fresh-context review. Fix findings by class and repeat required checks when code changes. Native evidence remains owed in the preceding unchecked task under the TL hold.
 - [ ] On SHIP, integrate main and run sdlc merge --yes; verify landing, report PR/revision to TL and stop. Clear staging as required by the workflow.
 
 ## Approval
@@ -130,3 +130,7 @@ BR-2: sweep README's Qoder-specific confirmation exception, exact-envelope bound
 ### 2026-10-15 — corrected-head required suite passed
 
 Required suite on 8186d8abd3e02528189a1809f3793f57d682bf07 passed exit0 in 14m49s after 1719s queued, including recovery-key and README corrections. Log SHA256 56304faa904ba90b1cc393de569f97a8999bb27c34d72cc82068fb954f757dc9. Focused races and CI pass. Second close review is next; native acceptance and landing remain unchecked under TL's explicit hold.
+
+### 2026-10-15 — close round 2 SHIP; native and landing tasks held
+
+The combined evidence/close row now explicitly covers the authorized automated close; native evidence stays in the preceding unchecked task, preserving the TL-directed sequencing revision. Close review aa4c2240dec53d735a567e90105b45b60c621433 returned SHIP/high, disposed BR-1/BR-2 and found nothing new. Evidence commit c1f0d3cc21678e7ace1040dd216f873029461224 finalized codecomplete with measured actual 2.20h. No stage, relaunch, native acceptance or landing; wait for TL coordination.
