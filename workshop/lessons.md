@@ -1948,3 +1948,11 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #584 close review: Classify functions by effects, not their decision-making role: injected IO still makes retry/proof orchestration INTEGRATION; name its deterministic predicates separately. For every new admission-critical external probe, commit a repeatable conformance fixture and connect it to an existing recurring live target, rather than relying only on a one-time host measurement.
 
 - #584: After changing a live Make target, run its workflow-contract tests as well as the new probe. The standalone-checkout dry-run contract has an exhaustive command map; update that consumer with the target and derive its expected count from the same map.
+
+- #579: when persisted metadata gains optional pointer fields, sweep every equality check on that metadata type. Compare decoded evidence by value; pointer identity differs after JSON replay and can permanently block exact-generation cleanup. Defend both interrupted recovery and eventual expiry.
+
+- #579 BR-1: a pump's EOF and its child process exit are separate lifecycle events. A timer-owned buffer must drain when its scheduling owner stops, before any later child wait; test EOF with the flush clock withheld and exercise flush-error reporting.
+
+- #579 BR-2: a successful rename followed by failed directory sync is an uncertain durability outcome, even when the next read finds identical bytes. Test repeated identical publication with injected sync failures, requiring durability reconfirmation and stable inode/content; healthy no-op tests alone cannot defend this class.
+
+- #579 M2: draining an owner is insufficient if asynchronous producers can still admit after its clock stops. Stop admission atomically with the final drain. Exercise a resize whose successful IO result is delayed across PTY EOF, then require no pending or published late sidecar event.

@@ -28,7 +28,7 @@ func TestPublicApplyPreservesProtectedOwnersAndCollectsIndependentBuckets(t *tes
 	}
 	now := time.Now().UTC()
 	// Older than every retention period, so session, capture and diagnostic
-	// data are all eligible whatever the periods are set to.
+	// data all exceed their age periods; diagnostics still await backup.
 	oldest := storagegc.RetentionPeriod
 	for _, d := range []time.Duration{storagegc.CaptureRetentionPeriod, diagnosticlog.RetentionPeriod} {
 		if d > oldest {
@@ -207,14 +207,29 @@ func TestPublicApplyPreservesProtectedOwnersAndCollectsIndependentBuckets(t *tes
 	}
 	inspection.runtimes = nil
 	applied := report("--apply")
-	if applied.Storage.Collected != 3 || applied.DiagnosticCollectedBytes != int64(len("old diagnostic")) {
-		t.Fatalf("expected two owners, one capture and diagnostic: %+v", applied)
+	if applied.Storage.Collected != 3 || applied.DiagnosticCollectedBytes != 0 {
+		t.Fatalf("expected two owners and one capture collected, diagnostic retained: %+v", applied)
 	}
-	absent := []string{payloads["standalone"], payloads["old-archive"], capture.Raw, capture.Events, debug, filepath.Join(ns.Dir(), "threadstore", "archive", scope, owners["old-archive"].Tag+".json")}
+	absent := []string{payloads["standalone"], payloads["old-archive"], capture.Raw, capture.Events, filepath.Join(ns.Dir(), "threadstore", "archive", scope, owners["old-archive"].Tag+".json")}
 	for _, path := range absent {
 		if _, err := os.Lstat(path); !os.IsNotExist(err) {
 			t.Errorf("expected collected %s: %v", path, err)
 		}
+	}
+	if body, err := os.ReadFile(debug); err != nil || string(body) != "old diagnostic" {
+		t.Fatalf("backup-fenced diagnostic changed: %q %v", body, err)
+	}
+	foundDebug := false
+	for _, row := range report().Diagnostics {
+		if row.Path == debug {
+			foundDebug = true
+			if row.Eligible || row.Reason != diagnosticlog.BackupFenceReason {
+				t.Fatalf("diagnostic backup fence not reported: %+v", row)
+			}
+		}
+	}
+	if !foundDebug {
+		t.Fatal("retained diagnostic absent from preview report")
 	}
 	for _, label := range []string{"visible", "new-archive", "live"} {
 		b, err := os.ReadFile(payloads[label])
@@ -235,7 +250,7 @@ func TestPublicApplyPreservesProtectedOwnersAndCollectsIndependentBuckets(t *tes
 	if again.Storage.Collected != 0 || again.DiagnosticCollectedBytes != 0 {
 		t.Fatalf("repeat apply not idempotent: %+v", again)
 	}
-	t.Log(fmt.Sprintf("public preview/migration/apply: old standalone+archive+capture+diagnostic collected; parked/new archive/live retained; repeat collected=%d", again.Storage.Collected))
+	t.Log(fmt.Sprintf("public preview/migration/apply: old standalone+archive+capture collected; diagnostic awaits backup; parked/new archive/live retained; repeat collected=%d", again.Storage.Collected))
 }
 
 // Mutable inventories model external writers without querying unrelated host processes.
