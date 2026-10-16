@@ -139,40 +139,47 @@ func (c Cloudflared) Open(ctx context.Context, l net.Listener) (Handle, error) {
 	}
 	cmd := exec.Command(argv[0], argv[1:]...)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-	stdin, err := cmd.StdinPipe()
+	stderr, stderrWriter, err := cloudflaredStderrPipe(cmd)
 	if err != nil {
 		rec.release()
 		return nil, err
 	}
-	stderr, err := cmd.StderrPipe()
+	stdin, err := cmd.StdinPipe()
 	if err != nil {
+		_ = stderr.Close()
+		_ = stderrWriter.Close()
 		rec.release()
 		return nil, err
 	}
 	if err := cmd.Start(); err != nil {
+		_ = stderr.Close()
+		_ = stderrWriter.Close()
 		rec.release()
 		return nil, err
 	}
-	h := &cloudflaredHandle{cmd: cmd, stdin: stdin, guarded: c.Guard != nil, exited: make(chan struct{}), record: rec}
+	_ = stderrWriter.Close()
+	h := &cloudflaredHandle{cmd: cmd, stdin: stdin, stderr: stderr, guarded: c.Guard != nil, exited: make(chan struct{}), record: rec}
 	found := make(chan string, 1)
-	go h.watchStderr(stderr, c.Guard != nil, func(line string) {
-		if u := quickTunnelURL.FindString(line); ready == "" && u != "" {
-			select {
-			case found <- u:
-			default:
-			}
-		}
-		if ready != "" && strings.Contains(line, ready) {
-			select {
-			case found <- url:
-			default:
-			}
-		}
-	})
+	drained := make(chan struct{})
 	go func() {
-		_ = cmd.Wait()
-		close(h.exited)
+		defer close(drained)
+		defer stderr.Close()
+		h.watchStderr(stderr, c.Guard != nil, func(line string) {
+			if u := quickTunnelURL.FindString(line); ready == "" && u != "" {
+				select {
+				case found <- u:
+				default:
+				}
+			}
+			if ready != "" && strings.Contains(line, ready) {
+				select {
+				case found <- url:
+				default:
+				}
+			}
+		})
 	}()
+	go h.waitForExit(func() { <-drained })
 
 	timeout := c.OpenTimeout
 	if timeout <= 0 {
@@ -200,6 +207,16 @@ func (c Cloudflared) Open(ctx context.Context, l net.Listener) (Handle, error) {
 	}
 }
 
+func cloudflaredStderrPipe(cmd *exec.Cmd) (io.ReadCloser, io.WriteCloser, error) {
+	r, w, err := os.Pipe()
+	if err != nil {
+		return nil, nil, err
+	}
+	// Wait must not close this reader: the scanner owns it until drained.
+	cmd.Stderr = w
+	return r, w, nil
+}
+
 // tunnelArgs builds cloudflared's arguments, and what stderr says when the
 // tunnel is ready: a quick tunnel prints its URL; a named tunnel logs a
 // registered connection and serves at its fixed hostname.
@@ -222,6 +239,7 @@ func (c Cloudflared) tunnelArgs(pl *privateListener) (args []string, url, ready 
 type cloudflaredHandle struct {
 	cmd     *exec.Cmd
 	stdin   io.WriteCloser
+	stderr  io.ReadCloser
 	guarded bool
 	url     string
 	exited  chan struct{}
@@ -235,6 +253,12 @@ type cloudflaredHandle struct {
 
 func (h *cloudflaredHandle) URL() string             { return h.url }
 func (h *cloudflaredHandle) Exited() <-chan struct{} { return h.exited }
+
+func (h *cloudflaredHandle) waitForExit(drain func()) {
+	_ = h.cmd.Wait()
+	drain()
+	close(h.exited)
+}
 
 // watchStderr reads the guard's child line, then hands every line to look.
 // It drains to EOF so the process never blocks on a full pipe.
@@ -283,6 +307,12 @@ func (h *cloudflaredHandle) lastLine() string {
 // cloudflared gets SIGTERM. Past the budget, both groups are killed directly.
 // Idempotent.
 func (h *cloudflaredHandle) Close() error {
+	timer := time.NewTimer(closeBudget)
+	defer timer.Stop()
+	return h.closeWithDeadline(timer.C)
+}
+
+func (h *cloudflaredHandle) closeWithDeadline(deadline <-chan time.Time) error {
 	h.once.Do(func() {
 		_ = h.stdin.Close()
 		if !h.guarded {
@@ -290,11 +320,16 @@ func (h *cloudflaredHandle) Close() error {
 		}
 		select {
 		case <-h.exited:
-		case <-time.After(closeBudget):
+		case <-deadline:
+			// The group can outlive its reaped leader. Keep its original
+			// termination boundary even when only the stderr drain remains.
 			_ = syscall.Kill(-h.cmd.Process.Pid, syscall.SIGKILL)
 			if child := h.childPID(); child > 0 {
 				_ = syscall.Kill(-child, syscall.SIGKILL)
 			}
+			// A descendant can retain a writer after the command exits. Forced
+			// teardown must interrupt our read before joining the scanner.
+			_ = h.stderr.Close()
 			<-h.exited
 		}
 		h.record.release()
