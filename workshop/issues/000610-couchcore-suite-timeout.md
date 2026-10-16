@@ -1,13 +1,22 @@
 ---
 id: 000610
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-16
 updated: 2026-10-16
 estimate_hours:
 severity: high
-card_mirror: 'b78468cdaa379479cc8c5b30fe2264471ef642bb' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '18fb05e228a6566e7ed77cf87ee44e097126abd9' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-16T03:54:06-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:3
+    worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
+    repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "2ad97ea0", done: "2e9ba8a8"}
 ---
 
 # couchcore package takes ~10 min, at the go test timeout
