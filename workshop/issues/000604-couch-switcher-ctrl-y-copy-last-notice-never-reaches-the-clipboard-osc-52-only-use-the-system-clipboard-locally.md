@@ -79,3 +79,11 @@ The complete make -k run finished exit 0: all shell/editor and Go checks passed,
 The single issue-backed recorded rerun on fe4eb6d6e83bd53b9d42fcf27811a383c348b222 acquired the machine gate after 1239s, then failed exit 2 in 6m59s. Branch-restore (#620) passed. A different case failed: tests/review-observation-diagnostics-test.py::ObservationFixtureDiagnosticsTest.test_positive_control_retains_wanted_fresh_and_request_order; its nested fixture asserted `matching branch external edit did not reload; snapshot lost no-final-newline state`. Eight diagnostic cases ran, one failed. Log /Users/xianxu/workspace/pair/.git/sdlc/test-stats/failed/ffdc28f65f4aad6e6fdf5f09c7feeb01.log, SHA256 prefix 7c703e6585f2. The log retains bounded observation ordering details; root cause is not established here.
 
 The preceding complete make -k suite passed all checks, including this diagnostic command and Go packages. Per the fleet's second-unrelated-failure rule, no further rerun, independent fixture fix or timeout change is attempted. Reported to hub with receipt cd372a9e-60f4-42b8-8070-d9cf36343f96; waiting for the hub's verification decision and live-staging authorization. No stage, real clipboard probe, close or landing has occurred.
+
+## Revisions
+
+### 2026-10-16 16:02 PDT — acceptance arrangement from the hub
+
+TL delivery 2f40f35c-5099-49e9-a8f3-c3221de005e5 (accepted 15:40, delivered after the rerun failure) defers the original live-confirmation criterion and the Plan's live-before-landing step: do not stage on pair:0. Once recorded verification passes and close review is SHIP, land normally. The operator's paste-the-full-retained-notice smoke rides the next natural Couch restart, with fix-forward if needed. This is an explicit acceptance arrangement, not evidence that live smoke passed, and it does not waive the recorded-suite gate. #619 starts only after #604 lands.
+
+At receipt the recorded rerun had already failed on the second unrelated review fixture, as logged above. Thus its passing condition is not met; retain the stop for the hub's verification decision, with no new test rerun or gate bypass. No production or test code changes accompany this revision.
