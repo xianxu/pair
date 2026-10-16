@@ -15,7 +15,7 @@ gomodcache="$(go env GOMODCACHE)"
 gocache="$(go env GOCACHE)"
 
 make -C "$repo_root" runtimebundle-generate >/dev/null
-go build -o "$pairbin/pair" "$repo_root/cmd/pair-go"
+bash "$repo_root/tests/lib/pair-test-binary.sh" "$pairbin/pair"
 
 cat >"$bin_dir/zellij" <<'SH'
 #!/usr/bin/env bash

@@ -20,7 +20,7 @@ RT="$(mktemp -d "${TMPDIR:-/tmp}/pair-adapt-schema.XXXXXX")"
 trap 'rm -rf "$RT"' EXIT
 
 mkdir -p "$RT/bin"
-go build -o "$RT/bin/pair-go" ./cmd/pair-go
+bash "$ROOT/tests/lib/pair-test-binary.sh" "$RT/bin/pair-go"
 ln -s pair-go "$RT/bin/pair"
 export PATH="$RT/bin:$PATH"
 fails=0

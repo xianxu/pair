@@ -1700,6 +1700,18 @@ the build checkout, so executables need not be byte-identical. Tests find fixtur
 from the current checkout's validated module root. Compiled diagnostic probes run
 outside a checkout need `PAIR_PROBE_REPO=/absolute/path/to/pair` to find their assets.
 
+By default, `make test` builds one fresh plain Pair executable for acceptance tests and
+shares its absolute path through `PAIR_TEST_BINARY`. This suite-owned candidate
+is removed when the suite exits. It omits the development build's `defaultPairHome`
+linker setting so embedded-runtime tests retain their installed-binary behavior.
+For targeted tests, `PAIR_TEST_BINARY=/absolute/path/to/plain-pair go test ...`
+uses an existing executable without rebuilding or deleting it. With the variable
+unset, Go consumers lazily build once per package; their `TestMain` calls
+`testpair.Run` after helper dispatch to remove only that owned fallback after
+all tests finish. Private executable names use hard links (copies across
+filesystems). Standalone shell consumers use the same builder, which locates
+its checkout independently of the caller's working directory.
+
 SDLC reviews use the pinned commit’s `.sdlc/review-prepare.json` (version 1,
 `command: ["make", "runtimebundle-generate"]`, `timeout_minutes: 10`) to generate
 the ignored runtime embed assets in a disposable checkout before tests run.

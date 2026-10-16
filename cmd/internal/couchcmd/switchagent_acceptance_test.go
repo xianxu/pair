@@ -17,6 +17,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/pairlifecycle"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
+	"github.com/xianxu/pair/cmd/internal/testpair"
 )
 
 // The nested launcher helper avoids a couchcore -> launcher -> couchcore test
@@ -75,9 +76,7 @@ func runSwitchAgentTransportAcceptance(t *testing.T, liveSource bool) {
 		}
 	}
 	renderer := filepath.Join(data, "pair-renderer")
-	if out, err := exec.Command("go", "build", "-o", renderer, "../../pair-go").CombinedOutput(); err != nil {
-		t.Fatalf("build renderer %v: %s", err, out)
-	}
+	testpair.At(t, renderer)
 	c.SwitchContext = couchcore.OSSwitchContextResolver{DataDir: data, HomeDir: data, Renderer: renderer, Query: func(context.Context, sessioninventory.Runtime, string, string, sessioninventory.Agent) (sessioninventory.SessionQuery, error) {
 		return sessioninventory.SessionQuery{Status: sessioninventory.BindingEstablished, Root: &sessioninventory.Node{NativeID: "outgoing-root", Artifacts: []sessioninventory.Artifact{{Kind: sessioninventory.ArtifactTranscript}}}}, nil
 	}, NativePath: func(sessioninventory.Runtime, sessioninventory.Artifact) (string, error) { return native, nil }}

@@ -11,6 +11,8 @@ import (
 	"syscall"
 	"testing"
 	"time"
+
+	"github.com/xianxu/pair/cmd/internal/testpair"
 )
 
 func TestSelectedRootValidationBeforeNativeEffects(t *testing.T) {
@@ -63,10 +65,7 @@ func TestSelectedRootNativeCreateListAndListedResume(t *testing.T) {
 	}
 	pairHome := mustPairHome(t)
 	binary := filepath.Join(root, "pair")
-	build := exec.Command("go", "build", "-o", binary, "../../pair-go")
-	if out, err := build.CombinedOutput(); err != nil {
-		t.Fatalf("build: %v %s", err, out)
-	}
+	testpair.At(t, binary)
 	home, ambient, selected := filepath.Join(root, "home"), filepath.Join(root, "ambient"), filepath.Join(root, "selected")
 	repo, bin := filepath.Join(root, "repo"), filepath.Join(root, "bin")
 	for _, dir := range []string{home, ambient, selected, filepath.Join(repo, "subdir"), bin} {

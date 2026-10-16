@@ -6,17 +6,15 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/xianxu/pair/cmd/internal/testpair"
 )
 
 func TestCompositeBindingsIsolateGoShellNeovimAndBothLayouts(t *testing.T) {
 	repoRoot := filepath.Clean(filepath.Join("..", "..", ".."))
 	dataDir := t.TempDir()
 	binDir := t.TempDir()
-	build := exec.Command("go", "build", "-o", filepath.Join(binDir, "pair-go"), "./cmd/pair-go")
-	build.Dir = repoRoot
-	if out, err := build.CombinedOutput(); err != nil {
-		t.Fatalf("build managed emitter: %v: %s", err, out)
-	}
+	testpair.At(t, filepath.Join(binDir, "pair-go"))
 	if err := os.Symlink("pair-go", filepath.Join(binDir, "pair")); err != nil {
 		t.Fatal(err)
 	}

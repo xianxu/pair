@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/pairlifecycletest"
+	"github.com/xianxu/pair/cmd/internal/testpair"
 )
 
 func TestMain(m *testing.M) {
@@ -22,7 +23,7 @@ func TestMain(m *testing.M) {
 	// any PAIR_DATA_DIR outside it (pair#450). Tests that exercise a selected
 	// root set it themselves.
 	os.Unsetenv("COUCH_PAIR_DATA_DIR")
-	os.Exit(m.Run())
+	os.Exit(testpair.Run(m))
 }
 
 type observingLiveSessionOps struct {

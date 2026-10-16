@@ -6,7 +6,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 . "$ROOT/tests/lib/run-headless.sh"
 RT="$(mktemp -d "${TMPDIR:-/tmp}/pair-submission-transaction.XXXXXX")"
 trap 'rm -rf "$RT"' EXIT
-go build -p 20 -o "$RT/pair" ./cmd/pair-go
+bash "$ROOT/tests/lib/pair-test-binary.sh" "$RT/pair"
 
 for tx_case in focus-agent write-body submit focus-draft commit; do
   run_headless --timeout 30 -- \

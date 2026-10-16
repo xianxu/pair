@@ -37,6 +37,15 @@
   a PTY or exec `ps` (an agent sandbox), because the suite then fails in ~150
   places that look like code bugs (pair#450). A refusal it does not probe still
   fails as an ordinary test; add the probe there.
+- `cmd/internal/testpair` — real Pair test executables. `make test` owns one
+  fresh plain binary through `tests/lib/with-pair-test-binary.sh` and exports
+  `PAIR_TEST_BINARY`; the development binary has different linker defaults.
+  `Binary` shares it, while `At` hard-links a private executable name/directory
+  (copies across filesystems). Targeted Go runs build lazily once per package;
+  their `TestMain` calls `testpair.Run` after helper dispatch to clean up only
+  the owned fallback. Context variants preserve caller build deadlines. Shell
+  consumers use `tests/lib/pair-test-binary.sh`, which owns the sole full-Pair
+  test build; the source guard and lifetime contracts run in `testpair`.
 - `cmd/internal/testwait` — how a Go test waits for an event: bounded by the
   test's own deadline minus a margin (`After` for a select guard, `Until`/`Wait`
   to poll, `Budget` for a hand-rolled loop or a helper's timeout), never by a guess at how fast the event comes, so a loaded `-race`
