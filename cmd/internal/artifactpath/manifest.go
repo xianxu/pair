@@ -629,6 +629,25 @@ var SourceClassifications = []SourceClassification{
 // the artifact namespace requires an explicit SourceClassification.
 // pair:m5-concept pure
 var NonArtifactSources = []string{
+	// #587 resource accounting and bounded namespace snapshots are not Pair tag artifacts.
+	"cmd/internal/couchcmd/resources.go",
+	"cmd/internal/couchcmd/resources_persist.go",
+	"cmd/internal/couchcmd/resources_inventory.go",
+	"cmd/internal/couchcmd/resources_render.go",
+	"cmd/internal/couchcmd/resources_projection.go",
+	"cmd/internal/couchcmd/resources_alert.go",
+	"cmd/internal/couchcore/resource.go",
+	"cmd/internal/couchcore/resource_episode.go",
+	"cmd/internal/couchcore/resource_history.go",
+	"cmd/internal/couchcore/resource_policy.go",
+	"cmd/internal/couchcore/resource_reduce.go",
+	"cmd/internal/couchcore/resource_roots.go",
+	"cmd/internal/couchcore/resource_store.go",
+	"cmd/internal/couchtty/console_resources.go",
+	"cmd/internal/procutil/resource.go",
+	"cmd/internal/procutil/resource_darwin.go",
+	"cmd/internal/procutil/resource_unsupported.go",
+
 	"cmd/internal/launcher/native_admission.go",
 	"cmd/internal/launcher/native_createflow_os.go",
 	"cmd/internal/launcher/native_resume_selector.go",
@@ -1446,6 +1465,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/wrapcmd/terminal_model.go",
 	"cmd/internal/wrapcmd/dim.go",
 	"cmd/internal/wrapcmd/peer_settle.go",
+	"cmd/internal/wrapcmd/peer_qoder_submission.go",
 	"cmd/internal/couchcore/live_restart.go",
 	"cmd/internal/couchcmd/live_restart_probe.go",
 	"cmd/internal/couchcore/slot_prepare.go",

@@ -871,6 +871,7 @@ func (b *Broker) StatusContext(parent context.Context, caller Binding, id string
 	}
 	var found *Receipt
 	unanswered := 0
+	var decodeFailures []string
 	for range holders {
 		a := <-answers
 		switch {
@@ -883,6 +884,10 @@ func (b *Broker) StatusContext(parent context.Context, caller Binding, id string
 			}
 		case !errors.Is(a.err, ErrUnknownDelivery):
 			unanswered++
+			var decode *replyDecodeError
+			if errors.As(a.err, &decode) {
+				decodeFailures = append(decodeFailures, a.err.Error())
+			}
 		}
 	}
 	if found != nil {
@@ -891,6 +896,10 @@ func (b *Broker) StatusContext(parent context.Context, caller Binding, id string
 		return b.recordRecoveredLocked(*found, Route{Target: found.Message.To.Slot}), nil
 	}
 	if unanswered > 0 {
+		if len(decodeFailures) > 0 {
+			sort.Strings(decodeFailures)
+			return Receipt{}, fmt.Errorf("%w: %s", ErrUncertain, strings.Join(decodeFailures, "; "))
+		}
 		return Receipt{}, fmt.Errorf("%w: %d connected recipient(s) did not answer for message %s", ErrUncertain, unanswered, id)
 	}
 	return Receipt{}, errors.New("receipt unavailable: no connected recipient retains this message")
@@ -992,4 +1001,17 @@ func (b *Broker) SetSubmissionObserver(observe func(Binding, uint64)) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.submissionObserver = observe
+}
+
+// ResourceIdle returns pending-work evidence without observation or alias IO.
+// known is false for disconnected generations; the caller combines this with
+// the exact wrapper's settled evidence rather than inferring idle from silence.
+func (b *Broker) ResourceIdle(binding Binding) (pending, known bool) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	a := b.actors[binding]
+	if a == nil || !a.state.Connected() {
+		return false, false
+	}
+	return actorCandidate(a, b.now()).Pending, true
 }

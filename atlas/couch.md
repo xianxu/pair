@@ -306,6 +306,14 @@ alias and agent.
 
 ### Live peer messages (#353)
 
+Unset admission timestamps are omitted from wrapper receipts for older supervisors.
+Wrapper commit requests omit this broker-only field entirely, while the broker
+keeps its original timestamp in sender receipts, allowing older wrappers to receive.
+Wrapper reply decoding remains strict; incompatible fields identify the wrapper slot
+and advise restarting Couch. A failed commit reply never triggers another commit;
+possible input effects remain uncertain. Broker release has its own delivery event,
+so cancellation does not falsely report operator keystrokes (#594).
+
 The automatic-input lease consumes the post-submit Empty observation that
 confirmed a delivery; publishing its receipt does not create a new render fence
 (#552). Turn-only confirmation and uncertain writes retain fresh-empty protection.
@@ -504,11 +512,11 @@ then accepts one delivery commit. The broker polls outcome receipts; it never
 retries PTY input after uncertainty. Pair's input owner arbitrates ordinary
 typing, image admission and automatic paste/submit.
 
-**Delivery: submit like the draft pane, confirm after (pair#427).** Pair
-renders, never classifies: nothing compares what the agent drew with the
-envelope. That comparison (exact text, word-wrap projections, Claude's
-collapsed marker) broke for #418's long pastes and again for a paste into a
-still-booting Claude.
+**Delivery: submit like the draft pane, confirm after (pair#427).** Shared
+confirmation reads composer/turn evidence without projecting the body. Exact
+text projections broke for #418's long Claude pastes and boot-time rendering.
+Qoder's bounded submit-key retry below has a narrower ownership check: the
+complete pending composer must still match Couch's known envelope.
 - **Before the paste** the gates are unchanged. No other automatic input is in
   flight, no operator keystroke arrived in the last second, bracketed paste is
   on, and a recognized composer reads empty. Unknown or occupied composers wait.
@@ -597,8 +605,7 @@ auto-updates silently dropped slots). Fixtures under `wrapcmd/testdata/peer/`
 and `TestPeerLiveConformance` were captured on Claude Code 2.1.286 and Codex
 CLI 0.159.2; per-version evidence from daily use is #368. Every captured paste
 shape must read as an occupied composer
-(`TestPeerComposerCapturedPastesReadOccupied`), since that is all delivery reads
-after a paste. Qoder's profile shares the Return recognizer's ruled-box geometry,
+(`TestPeerComposerCapturedPastesReadOccupied`). Qoder's profile shares the Return recognizer's ruled-box geometry,
 reads input from its indented origin, and distinguishes its captured grey
 placeholder from authored text using the painted cursor and matching hint style.
 Qoder idle (1.1.71) and folder trust (1.1.66) fixtures are frozen from pair:4;
@@ -626,6 +633,26 @@ Peer delivery, the one automatic writer since #522 retired the orientation
 paste, holds automatic-input ownership across the entire paste/submit/confirm
 transaction. The next delivery waits for a fresh, empty composer after that
 transaction terminates, including cancellation.
+
+Qoder additionally requires a complete post-submit rendered empty composer to
+confirm (#569); an unrelated turn flag cannot confirm while text remains.
+Within the existing 30-second delivery window it can attempt CR at most three
+times, at least 500 ms apart, without repeating the body. A retry requires the
+complete composer to equal the expected envelope's word-wrapped layout and no
+admitted human input since the paste. Unknown, changed, clipped or unsupported
+renderings decline retry; the native pending fixture qualifies the ordinary
+wrapped restart notice.
+
+Unconfirmed Qoder input enters explicit operator recovery at terminal receipt
+publication. One authenticated tripwire alerts its owning hub; exact pending
+envelopes get the instruction to press Alt+Enter or clear the composer, while
+unverifiable input keeps uncertainty wording. Later deliveries refuse promptly
+without pasting. Only a later complete empty render releases this quarantine,
+observed through normal output wakes even without another delivery. There is
+no idle polling, automatic deletion or submit after the old deadline.
+`wrapcmd/peer_qoder_submission.go` owns the Qoder evidence and quarantine adapter;
+the shared delivery and automatic-input reducers own its effects and lifetimes.
+
 
 Transport frames are bounded at 577 KiB to carry all 128 actors with bounded
 4 KiB encoded bindings, or a fully escaped 8 KiB message. Receipt diagnostics
@@ -3974,3 +4001,91 @@ agents report exact-ID/Fresh advice. Codex's approved unreserved exception is ow
 by the shared CodexIndirectResumeCompatibility policy, with one wrapper notice;
 #571 will read effective configuration from files and verify native DB semantics.
 No app-server configuration process is part of this implementation. Unsupported remote/PR/cloud and other existing-context selectors derive from the same authority as Fresh validation and refuse before launch, including both wrapper entry forms; option values and prompt text remain literal.
+
+## Resource monitoring (#587)
+
+`couch --resources [--json]` reads the running supervisor's cached resource view
+through the broker socket. Queries perform no process scan, terminal query or
+Git lookup. One joined supervisor worker samples at one-minute cadence; a
+separate inventory worker authenticates roots at startup and on changed
+thread/helper/lifecycle evidence. Routine unchanged menu refreshes do not
+repeat ownership probes.
+
+Ownership starts with an authenticated terminal server `(PID, start identity)`
+from `ScopedThreadArtifactCollisionChecker.NamedPairSessionContext`, published
+in `ResourceRootCache` before being consumed by the sampler. Probe revisions
+are assigned before I/O, so a late old result cannot replace a newer proof.
+Cached console rows include draft-only, detached, parked and never-started
+slots; hosted helper/client roots and admitted wrapper bindings supplement
+server descendants. Missing workspace or terminal evidence remains explicit
+unknown coverage. A slot's branch or quiet output alone never proves idle:
+idle requires the matching wrapper's settled state and no pending broker work
+or picker.
+
+`couchcore/resource*.go` owns pure generation-fenced attribution, deltas,
+episodes and bounded history; `couchcmd/resources_inventory.go` owns root
+refresh; `couchcmd/resources.go` owns sampling and storage; `resources_alert.go`
+owns advisory broker delivery. `procutil/resource*.go` provides the
+native reader. Darwin with cgo supports cumulative process CPU, current RSS and
+physical disk-write bytes. Other builds report unsupported counters. PID reuse,
+changed parentage, zombies, partial reads and counter regression cannot become
+valid rate samples. The first observation establishes a baseline; CPU 100%
+means one core. Observed cumulative totals omit unsampled lifetimes.
+
+Remembered process generations preserve original slot ownership after
+reparenting; confirmed root loss or thread replacement can expose proven
+orphans. A process first seen after orphaning has no invented slot owner.
+Known process kinds parented by PID 1 above the RSS floor are shown as
+**unattributed (unproven)**, never acted on. Only candidate classification may
+inspect argv; full command lines are not retained or displayed. Sampling can
+miss a process born and exited, or born and orphaned, between observations.
+Monitoring sends messages and does not kill, restart or renice anything.
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `COUCH_RESOURCE_CADENCE` | `1m` | Sample interval, 1 second through 1 hour |
+| `COUCH_RESOURCE_WRITE_BYTES_PER_SECOND` | `2097152` | Sustained disk-write threshold |
+| `COUCH_RESOURCE_WRITE_DURATION` | `10m` | Required sustained-write interval |
+| `COUCH_RESOURCE_PROCESS_RSS_BYTES` | `8589934592` | Per-process RSS threshold |
+| `COUCH_RESOURCE_IDLE_CPU_PERCENT` | `90` | Idle-slot CPU threshold, percent of one core |
+| `COUCH_RESOURCE_IDLE_CPU_DURATION` | `15m` | Required idle-CPU interval |
+| `COUCH_RESOURCE_ORPHAN_RSS_BYTES` | `268435456` | Proven-orphan RSS threshold; two samples required |
+
+Set policy before starting Couch. Unknown or malformed resource settings refuse
+startup. Unknown measurements interrupt accumulation rather than clearing an
+already admitted incident. Alerts resolve the current owning hub and use normal
+broker delivery. Episodes live only in memory; retries within a run reuse the
+same effect ID. Restart begins fresh observations and may repeat an advisory
+alert; sustained thresholds accumulate their configured interval again.
+Unproven candidates remain report-only.
+
+The displayed cost records attempted native calls, sampler-thread CPU and wall
+time. At most three table size/read attempts plus two self-CPU reads cost eight
+native calls; successful usage with identity fencing adds two per process, plus
+actual candidate-command calls. Sampler-thread CPU excludes concurrent GC and
+other goroutines. A native-reader-only short measurement after bulk conversion
+averaged 1.643 ms (maximum 2.391 ms), or 0.002739% of one core at 60-second
+cadence. Full sampling plus near-cap history persistence (953 frames,
+4,189,412 bytes, 27 usage observations) averaged 72.438 ms across three passes,
+maximum 79.311 ms: 0.120730% of one core per minute. The qualified target is
+below 0.2%, with a 300 ms maximum pass CPU budget; the product requirement is
+well under 1%. This run used 58 native attempts and one history publication
+per pass. Current-pass final CPU is published in the cached view after storage
+completes; its history frame cannot include the completed cost of writing itself.
+
+History retains aggregate slot frames and orphan/unattributed summaries for at
+most 24 hours, 1,440 frames and 4 MiB. Only history is persisted, best-effort, with one fixed replacement stage:
+at most 8 MiB including the current file and stage. See [resource snapshot retention](storage-retention.md#resource-monitor-snapshots-587).
+
+The cached response is a byte-budgeted projection (`resources_projection.go`)
+within the broker's frame envelope. It preserves all bounded slot aggregates,
+shortens long presentation labels, and reports omitted detail counts separately
+for processes, orphans, unproven candidates, episodes and diagnostics. Projection
+cost is included in sampling; queries only copy the cached result. Incomplete
+startup or capped inventories cannot prove owner disappearance.
+
+History read failures begin a fresh in-memory ring with a visible continuity
+warning. Write failures do not roll back that ring or gate alert delivery.
+Unsafe paths remain protected by the existing file checks. State, provenance,
+rate baselines and alert episodes end with the supervisor; pre-existing orphans
+remain unproven after restart unless fresh ownership evidence establishes them.

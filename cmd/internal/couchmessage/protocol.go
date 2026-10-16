@@ -43,6 +43,7 @@ type Request struct {
 }
 
 type Response struct {
+	Resources       *couchcore.ResourceView `json:",omitempty"`
 	Code, Error     string
 	RecoveryPreview *couchcore.RecoveryPreview `json:",omitempty"`
 	Submission      *SubmissionStatus          `json:",omitempty"`
@@ -247,12 +248,18 @@ func ValidateRequest(r Request) error {
 		}
 		return nil
 	}
+	if r.Op == "resources" {
+		if r != (Request{Op: "resources"}) {
+			return errors.New("resources takes no fields")
+		}
+		return nil
+	}
 	if r.Op == "broadcast-status" {
 		// The operator's query from any shell (pair#413): no conversation
 		// identity, no message fields. The socket's owner-only store is the
 		// access control, and the answer is read-only.
 		if r.Binding != nil || r.Scope != "" || r.Tag != "" || r.Session != "" || r.Nonce != "" || r.ID != "" || r.Target != "" || r.Body != "" || r.Agent != "" || r.Confirmed {
-			return errors.New("broadcast-status takes no fields")
+			return errors.New(r.Op + " takes no fields")
 		}
 		return nil
 	}
