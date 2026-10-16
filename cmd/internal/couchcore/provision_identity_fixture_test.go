@@ -85,6 +85,8 @@ func TestProvisionFixtureIdentityRejectsForeignRepositoryAtSlotPath(t *testing.T
 
 func TestProvisionFixtureIdentityUsesOneGitProcess(t *testing.T) {
 	f := newProvisionFixture(t)
+	// A Git-file primary must remain supported without adding identity spawns.
+	f.git(f.Primary, "init", "--separate-git-dir", filepath.Join(filepath.Dir(f.Primary), "external-git"))
 	realGit, err := exec.LookPath("git")
 	if err != nil {
 		t.Fatal(err)

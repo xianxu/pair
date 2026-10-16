@@ -112,7 +112,28 @@ func (f *ProvisionFixture) Run(ctx context.Context, c ProvisionCommand) ([]byte,
 			return nil, fmt.Errorf("fixture Git identity: expected four facts, got %d", len(facts))
 		}
 		top, common, head, branch := facts[0], facts[1], facts[2], facts[3]
-		if !filepath.IsAbs(top) || !filepath.IsAbs(common) || filepath.Clean(top) != top || filepath.Clean(common) != common || common != filepath.Join(f.Primary, ".git") {
+		primaryGit := filepath.Join(f.Primary, ".git")
+		info, err := os.Stat(primaryGit)
+		if err != nil {
+			return nil, err
+		}
+		if !info.IsDir() {
+			// A separate Git directory is named by the primary's Git file;
+			// compare against that authority without another subprocess/cache.
+			raw, err := os.ReadFile(primaryGit)
+			if err != nil || !strings.HasPrefix(string(raw), "gitdir: ") {
+				return nil, errors.New("fixture Git identity: invalid primary Git file")
+			}
+			primaryGit = strings.TrimSpace(strings.TrimPrefix(string(raw), "gitdir: "))
+			if !filepath.IsAbs(primaryGit) {
+				primaryGit = filepath.Join(f.Primary, primaryGit)
+			}
+		}
+		primaryGit, err = filepath.EvalSymlinks(primaryGit)
+		if err != nil {
+			return nil, err
+		}
+		if !filepath.IsAbs(top) || !filepath.IsAbs(common) || filepath.Clean(top) != top || filepath.Clean(common) != common || common != primaryGit {
 			return nil, errors.New("fixture Git identity: invalid repository membership")
 		}
 		if _, err := hex.DecodeString(head); err != nil || (len(head) != 40 && len(head) != 64) || branch == "" {
