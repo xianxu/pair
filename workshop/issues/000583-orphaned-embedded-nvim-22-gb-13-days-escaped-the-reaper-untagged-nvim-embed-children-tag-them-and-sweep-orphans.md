@@ -63,8 +63,15 @@ Durable plan: `workshop/plans/000583-orphaned-embedded-nvim-22-gb-13-days-escape
     neither the filename nor argv splits into a tag unambiguously
   - [x] The sweep decides per pid from one snapshot over three evidence sources: tag-keyed sidecars,
     tag-parseable argv, and changelog `.nvim-pid`/`.openlock` pairs (owner liveness = the opener pid)
-  - [ ] A clean exit removes its own sidecar (VimLeave in all four lua configs)
-  - [ ] Flag-gated live conformance test: spawn a tagged embed, kill its owner, assert the reaper removed it
+  - [x] A clean exit removes its own sidecar (VimLeave in all four lua configs), pinned by
+    `make test-nvim-pidfile` — 20 assertions over all four configs: published, removed on `qa!`, kept after a
+    SIGKILL, and never removed when a later embed republished the same record
+  - [x] Env-gated live conformance (`PAIR_LIVE_NVIM_REAP=1`): a real tagged embed is reaped on the kernel's own
+    account (SIGKILL read back through `wait`), a live tag's embed is never decided, and a non-nvim process
+    named by a stale record is never signalled. No owner is killed, because a measured host fact makes that
+    impossible — see the plan's `## Revisions` (d): closing an embed's stdin ends it in ~31 ms and SIGKILLing
+    the `nvim FILE` TUI parent removes its child, so owner death is supplied the way the sweep reads it (the
+    tag absent from `liveTags`)
   - [ ] Atlas + `atlas/storage-retention-io.md` inventory updated (`TestManagedIOInventoryAnchors` is the guard)
 - [ ] M2 — untagged orphans are reported by couch and reaped only on confirmation
   - [ ] Prove `procutil.Identity` is a wall clock; add `ParseIdentityTime`
@@ -354,3 +361,80 @@ handed-down value cannot witness a binding there. Its header comment now says so
 Verified: `go test ./cmd/internal/launcher/` ok 55.1s, `./cmd/internal/artifactpath/` ok 8.8s,
 `./cmd/internal/opener/` ok 0.35s, `./cmd/internal/storagegc/` ok 23.6s, `make test-changelog` 3×PASS,
 `go build ./...` clean, `gofmt -l` clean for the touched packages.
+
+### 2026-10-16 — M1 Tasks 6-7 landed: a clean exit drops its own record, and the reaper meets real nvim
+
+Commits `0804a647b` (Task 6) and `74c0c832d` (Task 7).
+
+**Task 6 — VimLeave in all four configs.** `init.lua`, `scrollback.lua`, `changelog.lua` and `review.lua` now
+remove `$PAIR_NVIM_PID_FILE` on a clean exit, so a quit session does not hand the next sweep a pid that
+stopped being ours. The removal is guarded by *"only a record that still names this process"*: `review.lua`
+republishes per activation (its embed is restarted and rolled back), and a restarted embed for the same tag
+writes the same path first, so an unguarded delete would leave the survivor unnamed. A SIGKILLed embed never
+reaches VimLeave and keeps its record — that record is the reaper's only name for the process.
+
+The four copies stay four copies (the shared `nvim/pidfile.lua` stays rejected), because the new
+`tests/nvim-pidfile-lifecycle-test.sh` runs **all four configs** through the same four properties — published
+at startup, removed on `qa!`, kept after a SIGKILL, never removed when a later embed republished it — 20
+assertions, wired as `make test-nvim-pidfile` and into the aggregate `test:`. A copy that drifts now fails its
+own case, which is what pinning the copies to each other could never prove. Two mechanics worth recording:
+`-c 'qa!'` runs *before* `VimEnter`, so the autocmd under test would never register and the test would pass by
+never publishing — the script quits through an ack file (`vim.wait` on `$PAIR_PIDFILE_ACK` inside a deferred
+VimEnter callback, which fires both VimEnter and VimLeave); and the configs refuse to boot without a `pair`
+binary on PATH (`retention.lua`: "cannot protect editor storage: … ENOENT … (cmd): 'pair'"), so the script
+builds one via `tests/lib/pair-test-binary.sh`. `--remote-send ':qa!<CR>'` and `--remote-expr` were probed and
+rejected (the former does not quit a headless init.lua boot, the latter only with the client already exit 2).
+
+**Task 7 — live conformance, and three host facts that rewrote it.**
+`cmd/internal/launcher/nvim_reap_live_test.go`, gated on `PAIR_LIVE_NVIM_REAP=1` (this package's live idiom,
+not a flag: `launcher` gates on env + `t.Skip`, only `wrapcmd` uses flags). The plan said "kill the owner (the
+spawning parent)"; measured, that leaves nothing to reap:
+
+- closing an `nvim --embed --headless`'s stdin pipe ends it in **~31 ms**, exit status 1;
+- SIGKILLing a `nvim FILE` TUI parent removes its `nvim --embed` child within 3 s (`nvim --embed draft.md`
+  pid 69810, ppid 69809 → gone);
+- the `sh -c '"$@" & exit 0'` disposable owner this test first tried never published a sidecar at all — the
+  backgrounded nvim does not survive its shell, and two probes (held pipe, `/dev/null`, fifo) confirmed it.
+
+So an orphan is a process whose stdin something long-lived still holds, and the test supplies exactly that: it
+holds the pipe open, and states owner death the way the sweep reads it — **the tag absent from `liveTags`**,
+which is the sweep's whole authorization for a tag kind (it never consults ppid there). The dropped case (an
+orphaned embed of a *live* tag) became unreachable for the same reason; a live tag is never decided, which is
+the second case, and `reapReasonReparented` stays pinned by the fake table's ppid-1 rows where it *is*
+reachable.
+
+Two things only a live run can catch, both caught:
+
+1. A process that exited but was not waited on is a **zombie whose argv the kernel will not report**. The first
+   gated run hit exactly that and the sweep said `argv unknown`, killed nothing and **kept the record** —
+   real-kernel proof of the record rule (missing evidence is not a decision) and of the classifier's restraint.
+2. `waitSignal` blocked in `cmd.Wait()` for the whole 5-minute go-test timeout when no kill landed. It is now
+   deadline-bounded at 10 s. A mutation check (`if row.OwnerLive || row.Owner != ""` in `ClassifyNvimReap`)
+   proves the assertions have teeth — a clean four-message failure in 10.04 s instead of a panic trace — and
+   was reverted (`git status` clean apart from the new test).
+
+Gated output on this machine (`PAIR_LIVE_NVIM_REAP=1 go test ./cmd/internal/launcher/ -run TestLiveNvimReap
+-count=1 -v`):
+
+```
+=== RUN   TestLiveNvimReapRemovesADeadTagsEmbed
+--- PASS: TestLiveNvimReapRemovesADeadTagsEmbed (0.03s)
+=== RUN   TestLiveNvimReapLeavesALiveTagsEmbedAlone
+--- PASS: TestLiveNvimReapLeavesALiveTagsEmbedAlone (0.03s)
+=== RUN   TestLiveNvimReapLeavesANonNvimProcessAlone
+--- PASS: TestLiveNvimReapLeavesANonNvimProcessAlone (0.01s)
+PASS
+ok  	github.com/xianxu/pair/cmd/internal/launcher	0.249s
+```
+
+Ungated, all three SKIP with "set PAIR_LIVE_NVIM_REAP=1 to reap a real embedded nvim" and the package passes
+in 0.180 s, so `make test` never spawns or kills an editor. The live run also asserts what a real embed's argv
+carries before it reaps (`--embed` and the exact draft path, read back through `ProcessTable.Command`), so a
+later "not reaped" cannot be a silent argv mismatch — and it does that on a host with ~30 real pair embeds
+running, none of which any sweep here can reach, because every kill is decided from evidence under one temp
+scope directory.
+
+Verified: `make runtimebundle-generate test-nvim-pidfile` ok 15.3s (20/20), `make test-review test-changelog
+test-lifecycle-command test-retention` exit 0, `make test-lua` exit 0,
+`go test ./cmd/internal/launcher/ -count=1` ok 31.1s, gated live run ok 0.249s, `go vet ./cmd/internal/launcher/`
+clean, `gofmt -l cmd/internal/launcher/` clean.

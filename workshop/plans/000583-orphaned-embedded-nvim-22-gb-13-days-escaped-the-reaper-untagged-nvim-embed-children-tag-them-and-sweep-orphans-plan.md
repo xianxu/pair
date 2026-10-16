@@ -321,28 +321,31 @@ func ClassifyNvimReap(row NvimReapRow) (kill bool, reason string)
 - Modify: `nvim/init.lua`, `nvim/scrollback.lua`, `nvim/review.lua`, `nvim/changelog.lua`
 - Test: `tests/` lua harness for the pidfile lifecycle (the existing `nvim --headless` test shape)
 
-- [ ] **Step 1: Failing test:** a headless nvim started with `PAIR_NVIM_PID_FILE` in a temp dir writes the
+- [x] **Step 1: Failing test:** a headless nvim started with `PAIR_NVIM_PID_FILE` in a temp dir writes the
   sidecar, and after `qa!` the sidecar is gone. (A surviving embed keeps its sidecar — that is the reaper's
   evidence, so it must **not** be removed by anything but the embed's own VimLeave.)
-- [ ] **Step 2: Run, expect FAIL.**
-- [ ] **Step 3: Implement** a `VimLeave` autocmd in each config removing `vim.env.PAIR_NVIM_PID_FILE`.
-- [ ] **Step 4: Run, expect PASS.**
-- [ ] **Step 5: Commit** `#583: remove the nvim pid sidecar on clean exit`
+- [x] **Step 2: Run, expect FAIL.**
+- [x] **Step 3: Implement** a `VimLeave` autocmd in each config removing `vim.env.PAIR_NVIM_PID_FILE`.
+- [x] **Step 4: Run, expect PASS.**
+- [x] **Step 5: Commit** `#583: remove the nvim pid sidecar on clean exit`
 
 ### Task 7: Live conformance — Done-when #1
 
 **Files:**
 - Create: `cmd/internal/launcher/nvim_reap_live_test.go`
 
-- [ ] **Step 1: Write the flag-gated live test** (`-nvim-reap-live`, skipping unless set, in the
+- [x] **Step 1: Write the flag-gated live test** (`-nvim-reap-live`, skipping unless set, in the
   `peer_live_test.go` shape): spawn a real `nvim --embed --headless -u <pair init.lua> <tmp>/draft-<tag>.md`
   with `PAIR_NVIM_PID_FILE` set, wait for the sidecar, kill the owner (the spawning parent), run the reaper,
   assert the pid is gone and the sidecar removed. Second case: a real `nvim --embed` with a **live** parent
   and a live tag is still running afterwards. Third case: a non-nvim process named in a stale sidecar is
-  untouched.
-- [ ] **Step 2: Run it, expect FAIL before Task 3's behaviour is in place / PASS after.**
-- [ ] **Step 3: Run the flag-gated live test on this machine and record the output in `## Log`.**
-- [ ] **Step 4: Commit** `#583: live conformance for the tagged embed reaper`
+  untouched. *(Landed with two measured deltas — an env gate instead of a flag, and owner death supplied as
+  the tag's absence from `liveTags` instead of a killed parent; see `## Revisions`.)*
+- [x] **Step 2: Run it, expect FAIL before Task 3's behaviour is in place / PASS after.** *(Task 3's behaviour
+  was already in place, so the teeth were proven by mutation instead: `if row.OwnerLive ||` in
+  `ClassifyNvimReap` turns the reap case into a clean four-assertion failure in 10 s.)*
+- [x] **Step 3: Run the flag-gated live test on this machine and record the output in `## Log`.**
+- [x] **Step 4: Commit** `#583: live conformance for the tagged embed reaper`
 
 ### Task 8: M1 atlas + storage inventory
 
@@ -654,3 +657,45 @@ func ClassifyOrphanNvim(row procutil.Process, args []string, cwd string, cwdKnow
   sweep's own file already holds its harness, and a fake `ProcessTable` + a real temp scope directory are
   what the fifteen cases need. `fakeProcessTable` gained `snapshotErr` so a broken snapshot is provably
   refused rather than silently empty.
+- **2026-10-16 — Tasks 6 and 7 landed; the live test cannot kill an owner, so it does not pretend to.**
+  Reason: both tasks turned on measured host behaviour that the plan had assumed, and three of the plan's
+  spellings could not survive it.
+  (a) *Task 6 stayed four copies, pinned by behaviour instead of by each other.* The shared `nvim/pidfile.lua`
+  Task 4's revision rejected stays rejected, but the reason is stronger now:
+  `tests/nvim-pidfile-lifecycle-test.sh` runs **all four configs** through the same four properties
+  (published at startup / removed on a clean exit / kept after a SIGKILL / never removed when a later embed
+  republished it), 20 assertions. A copy that drifts fails its own case, which is the property the "one
+  derivation" lesson actually wanted — a shared module would have proven the copies identical, not correct.
+  The removal is guarded by "only a record that still names *this* pid", because `review.lua` republishes per
+  activation and a restarted embed for one tag writes the same path first; that hazard is a tested case
+  (`case_keeps_a_republished_record`, a `sleep 60` survivor's pid overwriting the record), not a comment.
+  (b) *The lifecycle test quits nvim through an ack file, not `-c 'qa!'`.* Measured: `-c 'qa!'` runs before
+  `VimEnter`, so the autocmd under test never registers and the test would pass by never publishing. A
+  deferred `vim.wait` on `$PAIR_PIDFILE_ACK` inside `VimEnter` fires both `VimEnter` and `VimLeave` and is
+  race-free. `--remote-send ':qa!<CR>'` does not quit a headless init.lua boot and `--remote-expr
+  'execute("qa!")'` only works with the client already exiting 2 — both rejected as unreliable. The configs
+  also refuse to boot without a `pair` binary on PATH (`retention.lua`: "cannot protect editor storage: …
+  ENOENT … (cmd): 'pair'"), so the test builds one via `tests/lib/pair-test-binary.sh`.
+  (c) *Task 7 is env-gated, not flag-gated.* `PAIR_LIVE_NVIM_REAP=1` + `t.Skip`, which is this package's live
+  idiom (`session_owner_live_test.go`, `session_quiescence_live_test.go`); the plan's `-nvim-reap-live` flag
+  belongs to `wrapcmd`'s `peer_live_test.go` shape, and adding a flag to `launcher` would have made it the
+  only package with one.
+  (d) *No owner is killed, because a dead owner takes the embed with it.* Step 1 said "kill the owner (the
+  spawning parent)". Measured on this host: closing an `nvim --embed`'s stdin pipe ends it in **~31 ms**
+  (exit status 1), and SIGKILLing a `nvim FILE` TUI parent removes its `nvim --embed` child within 3 s. The
+  `sh -c '"$@" & exit 0'` owner this test first tried therefore never published a sidecar at all — the
+  backgrounded nvim does not survive its shell. So an orphan is a process whose stdin is held open by
+  something that outlived its slot, and the test supplies exactly that: it holds the pipe, and states owner
+  death the way the sweep reads it — the tag absent from `liveTags`. That absence *is* the sweep's whole
+  authorization for a tag kind (it never consults ppid there), so the case tests the rule that ships.
+  The dropped third case (an orphaned embed of a **live** tag) became unreachable for the same reason; its
+  meaning — a live tag is never decided — is the second case, and the `reapReasonReparented` branch stays
+  pinned by the fake table's ppid-1 rows, which is where it is reachable from.
+  (e) *The live run caught two things a fake cannot.* A process that has exited but not been waited on is a
+  zombie whose argv the kernel will not report: the first gated run hit that (an embed killed by its own EOF),
+  and the sweep said `argv unknown` and **kept the record** — real-kernel proof of the record rule, on the
+  classifier's own restraint. And `waitSignal` blocked in `cmd.Wait()` for the full 5-minute go-test timeout
+  when no kill landed; it is now deadline-bounded (10 s), which the mutation check
+  (`if row.OwnerLive || row.Owner != ""`) proves turns a hang into four precise failures.
+  Step 2's "expect FAIL before Task 3's behaviour" could not be run as written — Task 3 was already in place —
+  so the teeth were proven by that mutation instead, and reverted (`git status` clean).
