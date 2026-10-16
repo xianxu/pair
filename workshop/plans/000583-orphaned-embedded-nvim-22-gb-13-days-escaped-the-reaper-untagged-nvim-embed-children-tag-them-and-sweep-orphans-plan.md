@@ -287,14 +287,14 @@ func ClassifyNvimReap(row NvimReapRow) (kill bool, reason string)
 - Modify: `cmd/internal/launcher/osruntime.go:960-1003` (`SweepOrphanNvim`)
 - Test: `cmd/internal/launcher/lifecycle_test.go`
 
-- [ ] **Step 1: Write the failing tests.** Strategy: the sweep sees the whole scope at once, so the
+- [x] **Step 1: Write the failing tests.** Strategy: the sweep sees the whole scope at once, so the
   adversarial class is *mis-attribution* — a row whose tag is live, a row whose argv carries a tag that is
   a prefix of a live one, a changelog pair whose opener is still alive, and a bare `nvim --embed` with no
   scope path at all (which belongs to M2's classifier) must each leave the signal list empty, while a
   dead tag's draft embed, a dead tag's scrollback embed, an unreaped `review` sidecar, and a changelog
   pair with a dead opener are each signalled once.
-- [ ] **Step 2: Run, expect FAIL.** `go test ./cmd/internal/launcher/ -run SweepOrphanNvim -count=1`
-- [ ] **Step 3: Implement.** One snapshot; three evidence sources feeding `ClassifyNvimReap` rows:
+- [x] **Step 2: Run, expect FAIL.** `go test ./cmd/internal/launcher/ -run SweepOrphanNvim -count=1`
+- [x] **Step 3: Implement.** One snapshot; three evidence sources feeding `ClassifyNvimReap` rows:
   1. `nvim-pid-<tag>-<kind>` sidecars over `NvimPIDGlobs()` — `Owner` is the tag from `TagFromNvimPID`,
      `OwnerLive` is `live[tag]`, `ExpectedArgPath` is the kind's path for draft/scrollback and `""` for
      review.
@@ -312,8 +312,8 @@ func ClassifyNvimReap(row NvimReapRow) (kill bool, reason string)
   one and the sidecar plus identity are the whole authority.
   Replace the current `cands[tag] → ReapNvim(tag)` fan-out with per-row decisions and identity-fenced
   signals; a sidecar is removed only after its row is decided.
-- [ ] **Step 4: Run, expect PASS.** `go test ./cmd/internal/launcher/ -count=1`
-- [ ] **Step 5: Commit** `#583: sweep embedded nvim per pid from one snapshot`
+- [x] **Step 4: Run, expect PASS.** `go test ./cmd/internal/launcher/ -count=1`
+- [x] **Step 5: Commit** `#583: sweep embedded nvim per pid from one snapshot`
 
 ### Task 6: A clean exit removes its own sidecar
 
@@ -621,3 +621,36 @@ func ClassifyOrphanNvim(row procutil.Process, args []string, cwd string, cwdKnow
   source to the artifact inventory, and the win is three deleted copies — worth revisiting only if a fifth
   config appears. Task 4 added the changelog block as a copy of the `init.lua`/`scrollback.lua` spelling, as
   planned, since that viewer is a plain read-only buffer with the same fork shape and no restart path.
+- **2026-10-16 — Task 5 landed; the sweep decides per pid, and its changelog owner is the log it serves.**
+  Reason: implementing the sweep turned up three decisions Step 3 had not stated, and one plan detail that
+  could not survive contact with the artifact inventory.
+  (a) *One snapshot, shared by all three sources.* `reapNvimSidecars` keeps its contract (ctx check +
+  `Snapshot` + delegate) but its body is now `reapNvimRows(ctx, table, records, targets, rows)`, and
+  `sweepOrphanNvim` takes the same snapshot once and hands it to the openlock liveness check, the argv
+  attribution and the identity fence alike — three sources reading three moments would have compared a
+  row against a process table the row had already moved past.
+  (b) *Two records naming one pid are decided once.* The `decided` map is `pid → reason`: the first record
+  to name a pid drives `decideOne` (and the only `Signal`), and a later record for that pid is removed
+  when the first decision removes records, but emits no second outcome. They are two pieces of evidence
+  about one process, not two processes; signalling twice would have made the report claim a reap it did
+  not perform. Pinned by the "two sidecars naming the same embed" and "one embed named by both a sidecar
+  and its argv" cases. This was found by two failing launcher tests, not by design: the first cut
+  (`if decided[pid] { continue }`) skipped later targets outright and left their records on disk.
+  (c) *Changelog `Owner` is `set.Log`, not the base.* Step 3 said "the base"; the base is a filename
+  fragment (`changelog-work-codex-sid`) that names no process, while `set.Log` is the artifact the viewer
+  holds open and the openlock it pairs with is a sibling of. `OwnerLive` comes from
+  `openerLive(records, set.OpenLock, byPID)` — `ReadFile` error or a non-positive pid means dead, so an
+  absent openlock reaps, as PQ-5 settled.
+  (d) *The recognizer lives in `artifactpath`, and the inventory follows.* `ChangelogNvimPIDGlob()` and
+  `ChangelogSetFromNvimPID(path)` join `ScopePaths` beside `NvimPIDGlob`/`TagFromNvimPID`, and
+  `changelogSiblings(base)` is now the family's one sibling construction, so the constructor and the
+  recognizer cannot drift on the `.nvim-pid` spelling (one `changelogNvimPIDSuffix` const). Enumeration
+  moving out of `osruntime.go` into `nvim_reap_os.go` cost osruntime the `nvim-pid` family and the
+  `selected-nvim-pid-globs` binding, and won nothing there: binding witnessing is per-file and
+  one-directional, and a `Paths`/`ScopePaths` received as a *parameter* is never tracked by
+  `resolverResults`, so `nvim_reap_os.go` stays a ResolvedConsumer with no bindings (its header comment
+  now says so).
+  (e) Tests landed in `nvim_reap_os_test.go`, not the `lifecycle_test.go` Step 3's Files block named: the
+  sweep's own file already holds its harness, and a fake `ProcessTable` + a real temp scope directory are
+  what the fifteen cases need. `fakeProcessTable` gained `snapshotErr` so a broken snapshot is provably
+  refused rather than silently empty.

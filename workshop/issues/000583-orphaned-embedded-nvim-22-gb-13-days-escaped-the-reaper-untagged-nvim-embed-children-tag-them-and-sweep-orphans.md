@@ -58,10 +58,10 @@ Durable plan: `workshop/plans/000583-orphaned-embedded-nvim-22-gb-13-days-escape
   - [x] The `ProcessTable` seam gains `Name` and a targeted `Command(pid)`; `ReapNvim` / `ReapNvimContext`
     signal through its identity fence. **`pkillF` and both `pkill -9 -f` patterns are deleted**
     (`osruntime.go:938,956-957`, `lifecycle_os.go:49-58`), so the reap path holds no subprocess seam
-  - [ ] The changelog viewer gets an **artifact-keyed** pid record — `<changelog-base>.nvim-pid`, a sibling
+  - [x] The changelog viewer gets an **artifact-keyed** pid record — `<changelog-base>.nvim-pid`, a sibling
     of its existing `.openlock` — because (tag, kind) is not unique for per-(agent, session) viewers and
     neither the filename nor argv splits into a tag unambiguously
-  - [ ] The sweep decides per pid from one snapshot over three evidence sources: tag-keyed sidecars,
+  - [x] The sweep decides per pid from one snapshot over three evidence sources: tag-keyed sidecars,
     tag-parseable argv, and changelog `.nvim-pid`/`.openlock` pairs (owner liveness = the opener pid)
   - [ ] A clean exit removes its own sidecar (VimLeave in all four lua configs)
   - [ ] Flag-gated live conformance test: spawn a tagged embed, kill its owner, assert the reaper removed it
@@ -284,3 +284,73 @@ entirely — `TestProductionArtifactReferencesAreExactlyClassified` caught it as
 straight from the title pidfile with no identity fence — the recycled-pid hazard just closed for the
 editors, still open for the title poller. #583's contract is embedded nvim, so this is independent work;
 raised with the hub rather than filed from this slot.
+
+### 2026-10-16 — M1 Tasks 4-5 landed: the changelog viewer is identified, and the sweep decides per pid
+
+Commits `33c6ab5a3` (changelog pid record) and `3d4df5ed6` (the sweep).
+
+**Task 4 — the changelog viewer leaves the kind set.** PQ-1 measured that `(tag, kind)` cannot identify a
+changelog embed: the viewers are per-(agent, session), and neither `changelog-work-codex-sid` nor its argv
+splits into a tag unambiguously (`componentPattern` admits `-` in all three components and the session is
+optional). So the record is **artifact-keyed** instead — `<changelog-base>.nvim-pid`, a sibling of the
+`.openlock` the opener already writes (`opener/run.go:211-216` passes it as `PAIR_NVIM_PID_FILE`;
+`nvim/changelog.lua` publishes `vim.fn.getpid()` at `VimEnter`, the `init.lua`/`scrollback.lua` spelling).
+`NvimKinds()` stays `{draft, scrollback, review}`.
+
+The family's filenames now have one construction: `changelogSiblings(base)` builds all seven from one
+`changelogNvimPIDSuffix` const, and `ScopePaths.ChangelogSetFromNvimPID` recognizes a globbed record back
+into the same set — so the constructor and the recognizer cannot drift on the spelling, which is the
+failure mode Task 1's kind-set pin exists to prevent. The recognizer `filepath.Clean`s its input and
+requires `filepath.Dir(clean) == p.scopeDir` before rebuilding from the base name alone;
+`TestScopePathsRecognizeAChangelogNvimPIDRecord` pins the glob string, round-trips a sessionless and a
+sessioned base, and rejects an outside-scope path, a `.md`, a kind sidecar, and a `../` traversal.
+Retention follows (`gc.go`'s suffix list and the exact-match set both name `.nvim-pid`), so the record is
+collectable like its siblings rather than a new unmanaged file.
+
+**Task 5 — the sweep decides per pid, from one snapshot.** `SweepOrphanNvim` was a 44-line
+`cands[tag] → ReapNvim(tag)` fan-out: a tag was the unit, so a tag that was live protected every embed
+whose argv merely mentioned it, and one that was dead condemned every record under it. It is now three
+evidence sources over **one** `Snapshot`, each producing `nvimSidecar` rows that the existing
+`ClassifyNvimReap` + identity fence decide:
+
+1. `nvim-pid-<tag>-<kind>` sidecars for tags absent from `liveTags` (`NvimPIDGlobs()` →
+   `TagFromNvimPID` → `ResolveScoped` → `nvimSidecarsFor`, Task 3's one derivation).
+2. rows named `nvim` whose argv carries a scope path — `TagFromNvimEmbedArgv` names the tag, and the row
+   states the predicate its argv *already satisfied* (`ExpectedArgPath` for draft, `ExpectArgvTag` for
+   scrollback) rather than a bare `nvim --embed` match, so the decision re-checks evidence instead of
+   trusting the source that produced it.
+3. `changelog-*.nvim-pid` records, whose `OwnerLive` is `openerLive` over the paired `.openlock`: an
+   absent lock means the owner exited **cleanly** (`opener/run.go:189`'s `defer rt.Remove(openlock)`, and
+   `RunViewer` is a held child, so the opener lives as long as its viewer) — absent is the reap case, not
+   a skip.
+
+`Owner` for source 3 is `set.Log`, not the base: the base is a filename fragment naming no process, while
+`set.Log` is the artifact the viewer holds open and whose `.openlock` it pairs with.
+
+**Two records naming one pid are decided once, signalled once.** `reapNvimRows` keeps `decided` as
+`pid → reason`; the first record to name a pid drives the decision and the only `Signal`, and a later
+record for that pid follows the same reason off disk without emitting a second outcome. They are two
+pieces of evidence about one process — a stale sidecar beside a current one — and signalling twice would
+have made the report claim a reap it did not perform. This was found by two failing launcher tests, not
+by design: the first cut skipped later targets outright and left their records behind. Pinned by
+"two sidecars naming the same embed" and "one embed named by both a sidecar and its argv".
+
+Tests live in `nvim_reap_os_test.go` (15 cases in
+`TestSweepOrphanNvimDecidesEachPidOnItsOwnEvidence`, over a real temp scope directory and a fake
+`ProcessTable`; `fakeProcessTable` gained `snapshotErr`, and
+`TestSweepOrphanNvimRefusesABrokenSnapshot` proves a failed snapshot is refused rather than read as
+empty). The kept cases are the ones that matter: a live tag's draft embed, a live tag's scrollback embed
+reached through a *dead* tag's stale record, a changelog viewer whose opener still holds the lock
+(asserted with TUI pid 600 / embed pid 4242 so ppid ≠ 1), an argv-only embed of a live tag, and a bare
+`nvim --embed` with no scope path at all — which is M2's classifier, not this sweep's business, and so
+leaves the signal list empty.
+
+**Artifact inventory:** enumerating the globs moved from `osruntime.go` into `nvim_reap_os.go`, so
+`osruntime.go` loses family `nvim-pid` and binding `selected-nvim-pid-globs`, and `nvim_reap_os.go`
+claims nothing — binding witnessing is per-file and one-directional, and a `Paths`/`ScopePaths` received
+as a *parameter* is never tracked by `resolverResults`, so a consumer that reaches members through a
+handed-down value cannot witness a binding there. Its header comment now says so.
+
+Verified: `go test ./cmd/internal/launcher/` ok 55.1s, `./cmd/internal/artifactpath/` ok 8.8s,
+`./cmd/internal/opener/` ok 0.35s, `./cmd/internal/storagegc/` ok 23.6s, `make test-changelog` 3×PASS,
+`go build ./...` clean, `gofmt -l` clean for the touched packages.
