@@ -1,13 +1,13 @@
 ---
 id: 000589
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-15
 updated: 2026-10-16
 estimate_hours:
 severity: medium
-card_mirror: 'ca5e56371b1fd8e707c21121e80338e06cb01907' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '949f2fa61004c81422d3f3e2de4d5d15371783bd' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-15T20:45:41-07:00
 claimant:
     operator: Xian Xu
@@ -17,6 +17,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
 flow: {kind: quick, provenance: inferred, spec: "92f53f2f", done: "94047817"}
+actual_hours: 4.94
 ---
 
 # Dormant message readmission test races its last asynchronous attempt
