@@ -17,18 +17,27 @@ import (
 
 // fakeProcess is one row of the fake table, with the behaviours 2026-10-06
 // showed: a child that ignores SIGTERM, reparenting to PID 1 when a parent
-// dies, and (for the bound) a process nothing can kill.
+// dies, and (for the bound) a process nothing can kill. name/args are the
+// evidence the embedded-nvim reaper reads (#583); identityAtSignal, when set,
+// makes Identity disagree with the snapshot -- a pid recycled in between.
 type fakeProcess struct {
-	ppid        int
-	identity    string
-	ignoresTERM bool
-	unkillable  bool
+	ppid             int
+	identity         string
+	identityAtSignal string
+	name             string
+	args             []string
+	argsOK           bool
+	ignoresTERM      bool
+	unkillable       bool
 }
 
 type fakeProcessTable struct {
 	mu      sync.Mutex
 	procs   map[int]*fakeProcess
 	signals []string // "pid:SIG" in delivery order
+	// signalErr, when set, refuses every signal without delivering it — the
+	// kernel's EPERM/ESRCH, which a caller must not report as a kill.
+	signalErr error
 }
 
 func newFakeProcessTable() *fakeProcessTable {
@@ -46,7 +55,7 @@ func (f *fakeProcessTable) Snapshot(context.Context) ([]ProcessRow, error) {
 	defer f.mu.Unlock()
 	var rows []ProcessRow
 	for pid, p := range f.procs {
-		rows = append(rows, ProcessRow{PID: pid, PPID: p.ppid, Identity: p.identity})
+		rows = append(rows, ProcessRow{PID: pid, PPID: p.ppid, Identity: p.identity, Name: p.name})
 	}
 	return rows, nil
 }
@@ -55,14 +64,29 @@ func (f *fakeProcessTable) Identity(pid int) string {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if p, ok := f.procs[pid]; ok {
+		if p.identityAtSignal != "" {
+			return p.identityAtSignal
+		}
 		return p.identity
 	}
 	return ""
 }
 
+func (f *fakeProcessTable) Command(pid int) ([]string, bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if p, ok := f.procs[pid]; ok && p.argsOK {
+		return p.args, true
+	}
+	return nil, false
+}
+
 func (f *fakeProcessTable) Signal(pid int, sig syscall.Signal) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if f.signalErr != nil {
+		return f.signalErr
+	}
 	p, ok := f.procs[pid]
 	if !ok {
 		return syscall.ESRCH
@@ -252,10 +276,11 @@ func (c *contextualFakeRuntime) CleanupCmuxContext(context.Context, string, stri
 	return nil
 }
 
-// #399 close review BR-17: the quit path spells its editor paths inline (the
-// artifact inventory checks each scoped member where it is resolved), and the
-// orphan reaper derives them through editorPathsOf. This pins the two to the
-// same paths, so one cannot drift from the other.
+// #399 close review BR-17, re-cut by #583: the quit path used to spell its
+// editor pidfiles inline while the orphan reaper derived them, and the pin
+// between the two held even when BOTH dropped a kind — which is how review
+// leaked. There is now one derivation (editorPathsOf → nvimSidecarsFor, over
+// artifactpath's closed kind set), and this pins the quit path to it.
 func TestQuitPathAndReaperShareEditorPaths(t *testing.T) {
 	rt := &contextualFakeRuntime{fakeRuntime: newFakeRuntime()}
 	rt.quitMarkers["pair-work"] = true

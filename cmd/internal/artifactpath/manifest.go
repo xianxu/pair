@@ -475,8 +475,8 @@ var SourceClassifications = []SourceClassification{
 	}},
 	{Path: "cmd/internal/launcher/legacy_live.go", Kind: ResolvedConsumer, Families: []string{"pane"}, BindingNames: []string{"legacy-pane"}},
 	{Path: "cmd/internal/launcher/lifecycle.go", Kind: ResolvedConsumer,
-		Families:     []string{"adapt", "agent", "draft", "image-capture", "nvim-pid", "outer-tty", "pair-wrap-pid", "pane", "scrollback", "title-pid"},
-		BindingNames: []string{"scoped-adapt", "scoped-agent", "scoped-draft", "scoped-image-capture", "scoped-nvim-pid", "scoped-outer-tty", "scoped-pair-wrap-pid", "scoped-pane", "scoped-scrollback", "scoped-title-pid"}},
+		Families:     []string{"adapt", "agent", "draft", "image-capture", "outer-tty", "pair-wrap-pid", "pane", "scrollback", "title-pid"},
+		BindingNames: []string{"scoped-adapt", "scoped-agent", "scoped-draft", "scoped-image-capture", "scoped-outer-tty", "scoped-pair-wrap-pid", "scoped-pane", "scoped-scrollback", "scoped-title-pid"}},
 	{Path: "cmd/internal/launcher/migrate.go", Kind: ResolvedConsumer,
 		Families: []string{
 			"agent", "agent-pid", "config", "draft", "image-capture", "layout", "layout-mode", "ledger", "log",
@@ -489,9 +489,13 @@ var SourceClassifications = []SourceClassification{
 			"legacy-rename-pane", "legacy-rename-queue", "legacy-rename-quote", "legacy-rename-scrollback",
 			"legacy-rename-title-pid", "scoped-queue",
 		}},
+	// #583: nvim_reap_os.go turns a resolved Paths into reap targets, so it
+	// consumes the draft and nvim-pid members on a Paths handed to it and calls
+	// no resolver of its own — hence no bindings to witness.
+	{Path: "cmd/internal/launcher/nvim_reap_os.go", Kind: ResolvedConsumer},
 	{Path: "cmd/internal/launcher/osruntime.go", Kind: ResolvedConsumer,
-		Families:     []string{"agent", "draft", "ledger", "nvim-pid", "outer-tty", "parked", "parked-scrollback", "restart", "scrollback", "session-binding", "session-inventory-catalog", "title-pid"},
-		BindingNames: []string{"cache-restart", "scoped-agent", "scoped-draft", "scoped-ledger", "scoped-nvim-pids", "scoped-outer-tty", "scoped-parked", "scoped-parked-scrollback", "scoped-scrollback", "selected-nvim-pid-globs", "selected-session-binding", "selected-session-inventory-catalog", "scoped-title-pid"},
+		Families:     []string{"agent", "ledger", "nvim-pid", "outer-tty", "parked", "parked-scrollback", "restart", "scrollback", "session-binding", "session-inventory-catalog", "title-pid"},
+		BindingNames: []string{"cache-restart", "scoped-agent", "scoped-ledger", "scoped-outer-tty", "scoped-parked", "scoped-parked-scrollback", "scoped-scrollback", "selected-nvim-pid-globs", "selected-session-binding", "selected-session-inventory-catalog", "scoped-title-pid"},
 	},
 	{Path: "cmd/internal/launcher/session_index_cache.go", Kind: ResolvedConsumer,
 		Families: []string{"session-binding"}, BindingNames: []string{"legacy-session-binding", "selected-session-binding"}},
@@ -1108,6 +1112,9 @@ var NonArtifactSources = []string{
 	"cmd/internal/launcher/session_owner_pass.go",
 	"cmd/internal/couchcore/session_owner_pass.go",
 	"cmd/internal/launcher/session_reap.go",
+	// #583: the embedded-nvim reap decision is pure — it reads a row of process
+	// evidence and a target's expected argv, and names no artifact path.
+	"cmd/internal/launcher/nvim_reap.go",
 	"cmd/internal/couchcore/reap.go",
 	"cmd/internal/couchcore/recover_action.go",
 	"cmd/internal/couchcore/progress.go",

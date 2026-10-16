@@ -184,21 +184,10 @@ func runCleanupContext(ctx context.Context, env Env, rt Runtime, step launchStep
 	if err != nil {
 		return cleanupSetupFailure(err), true
 	}
-	// Spelled inline, not through editorPathsOf: the artifact inventory checks
-	// that each scoped member is consumed where it was resolved. The kinds come
-	// from the one closed set (#583), so this spelling cannot drop a kind.
-	quitNvimPIDs := make([]string, 0, len(artifactpath.NvimKinds()))
-	for _, kind := range artifactpath.NvimKinds() {
-		quitNvimPIDs = append(quitNvimPIDs, paths.NvimPID(kind))
-	}
 	ops := &launcherCleanupOps{
 		rt: rt, env: env, step: step, scopeKey: scopeKey, parkTimeout: parkTimeout,
 		out: out, quitAgent: quitAgent, now: time.Now, scrollback: scrollback,
-		panePath: panePath,
-		editorPaths: lifecycleEditorPaths{
-			draft: paths.Draft(), scrollbackPrefix: paths.ScrollbackPrefix(),
-			pids: quitNvimPIDs,
-		},
+		panePath: panePath, editorPaths: editorPathsOf(paths),
 		outerTTY: paths.OuterTTY(), agentPath: paths.Agent(), agentOutput: paths.AgentOutput(),
 		pairWrapPID: paths.PairWrapPID(), adaptLog: paths.AdaptLog(), imageCapture: paths.ImageCapture(),
 		imageCaptureDone: paths.ImageCaptureDone(), titlePID: paths.TitlePID(),
@@ -285,22 +274,19 @@ type contextualCleanupRuntime interface {
 	CleanupCmuxContext(context.Context, string, string) error
 }
 
+// lifecycleEditorPaths is the tag's embedded-nvim reap targets, derived once and
+// handed to the runtime that owns the process table.
 type lifecycleEditorPaths struct {
-	draft            string
-	scrollbackPrefix string
-	pids             []string
+	sidecars []nvimSidecar
 }
 
-// editorPathsOf is the orphan reaper's derivation of a tag's editor pidfiles
-// and patterns (#399). Its kinds come from artifactpath.NvimKinds() (#583), the
-// same closed set the quit path ranges over in runCleanupContext, which stays
-// inline for the artifact inventory's consumed-where-resolved check;
-// TestNvimReapPathsDeriveEveryKindFromOneSource pins both to that one source.
+// editorPathsOf is the one derivation of a tag's editor reap targets (#399,
+// #583): both the quit path and the orphan reaper build through it, so a kind
+// cannot be reaped by one and missed by the other. The kinds come from
+// artifactpath.NvimKinds(), pinned by
+// TestNvimSidecarsForDerivesFromTheClosedKindSet.
 func editorPathsOf(paths artifactpath.Paths) lifecycleEditorPaths {
-	return lifecycleEditorPaths{
-		draft: paths.Draft(), scrollbackPrefix: paths.ScrollbackPrefix(),
-		pids: paths.NvimPIDs(),
-	}
+	return lifecycleEditorPaths{sidecars: nvimSidecarsFor(paths, paths.Tag(), paths.ScopeDir())}
 }
 
 type launcherCleanupOps struct {

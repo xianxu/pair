@@ -14,7 +14,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
 	"syscall"
@@ -934,26 +933,17 @@ func (r OSRuntime) DeleteSession(session string) error {
 	return r.DeleteSessionContext(context.Background(), session)
 }
 
-// pkillF runs `pkill -9 -f <pattern>` (best-effort; macOS pkill -f is BRE).
-func pkillF(pattern string) { _ = exec.Command("pkill", "-9", "-f", pattern).Run() }
-
-// ReapNvim kills this tag's nvim --embed children: the deterministic pidfiles
-// first, then a scoped pkill for the missing-pidfile case (shell 1089-1112).
+// ReapNvim ends this tag's embedded nvim processes, and only on verified
+// identity (#583): a pid record names a pid, the process table says what that
+// pid is running now, and the kernel start stamp is re-read before the signal.
+// There is no pattern kill here — the sweep that used to follow the pidfiles
+// could reach any process whose argv mentioned the draft's path.
 func (r OSRuntime) ReapNvim(tag string) {
 	paths, err := artifactpath.ResolveScoped(r.DataDir, tag)
 	if err != nil {
 		return
 	}
-	for _, pf := range paths.NvimPIDs() {
-		if raw, err := r.ReadFile(pf); err == nil {
-			if pid := strings.TrimSpace(raw); pid != "" {
-				_ = exec.Command("kill", "-9", pid).Run()
-			}
-			r.Remove(pf)
-		}
-	}
-	pkillF("nvim --embed.*" + regexp.QuoteMeta(paths.Draft()) + `$`)
-	pkillF("nvim --embed.*" + regexp.QuoteMeta(paths.ScrollbackPrefix()))
+	_, _ = reapNvimSidecars(context.Background(), r.processTable(), r, nvimSidecarsFor(paths, tag, paths.ScopeDir()))
 }
 
 // SweepOrphanNvim reaps nvim --embed processes whose Pair session is not live —

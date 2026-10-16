@@ -613,29 +613,3 @@ func TestCleanupBindsCaptureToExpectedScopeAndTag(t *testing.T) {
 		})
 	}
 }
-
-// #583: the quit path's inline spelling and editorPathsOf were pinned to each
-// other, which let the kind set itself drift — both omitted review, so a review
-// embed's sidecar survived quit. Both now derive from artifactpath.NvimKinds(),
-// and this pins them to that one source rather than to each other.
-func TestNvimReapPathsDeriveEveryKindFromOneSource(t *testing.T) {
-	paths, err := artifactpath.ResolveScoped("/data", "work")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got, want := paths.NvimPIDs(), artifactpath.NvimKinds(); len(got) != len(want) {
-		t.Fatalf("%d sidecars for %d kinds", len(got), len(want))
-	}
-	if got := editorPathsOf(paths).pids; !reflect.DeepEqual(got, paths.NvimPIDs()) {
-		t.Fatalf("editorPathsOf pids = %v, want %v", got, paths.NvimPIDs())
-	}
-
-	rt := &contextualFakeRuntime{fakeRuntime: newFakeRuntime()}
-	rt.quitMarkers["pair-work"] = true
-	if _, ran := runCleanupContext(context.Background(), Env{DataDir: "/data", Cwd: "/repo"}, rt, launchStep{tag: "work", agent: "claude", session: "pair-work"}, "scope", 0, &strings.Builder{}); !ran {
-		t.Fatal("cleanup did not run")
-	}
-	if len(rt.editors) != 1 || !reflect.DeepEqual(rt.editors[0].pids, paths.NvimPIDs()) {
-		t.Fatalf("quit path reaped %+v, want pids %v", rt.editors, paths.NvimPIDs())
-	}
-}
