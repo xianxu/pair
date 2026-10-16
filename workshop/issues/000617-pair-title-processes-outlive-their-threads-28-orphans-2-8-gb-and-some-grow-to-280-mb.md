@@ -1,12 +1,20 @@
 ---
 id: 000617
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-16
 updated: 2026-10-16
 estimate_hours:
-card_mirror: '1e87f45857cd25b22870a22dd9341e3ed40e267e' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '5f6c39b81a11407e9b069d75831ee207d393928a' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-16T12:54:47-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:6
+    worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
+    repository: github.com/xianxu/pair
 ---
 
 # pair title processes outlive their threads (28 orphans, 2.8 GB) and some grow to ~280 MB
@@ -36,8 +44,23 @@ monitor now flags them (orphan-rss alerts for ops:0 and pair:2).
 
 ## Plan
 
-- [ ]
+See [implementation plan](../plans/000617-title-process-lifetime-plan.md). TL approval required before code.
+
+- [ ] Attribute Go heap/allocations and reconcile #583 cleanup contract.
+- [ ] Red tests, then wrapper-owned title lease and cancellation.
+- [ ] Measured memory fix and bounded soak.
+- [ ] Identity-fenced legacy cleanup, live acceptance, normal SDLC close/landing.
 
 ## Log
 
 ### 2026-10-16
+
+### 2026-10-16 — planning investigation
+
+Claimed in pair:6 and started planning from main; initial start-plan refreshed the ariadne substrate and refused until rerun, then created the issue branch. No implementation changes. Detached launcher ownership and 60s/five-miss session probes do not bind title lifetime to the wrapper. PPID 1 alone is not dead-thread proof: live ops wrapper 43773 still corresponds to title 25522. Native heap/vmmap succeeded: 24.5 MiB current physical footprint, 271.8 MiB peak, about 283 MiB ps RSS, only 65 KiB native malloc. Go heap attribution remains open; native heap is not a Go pprof capture. Repeated uncached inventory/usage scans are an allocation candidate, not an established retained leak. Private evidence paths/hashes and proposed red tests are in the durable plan. Sent #583 coordination to pair:4 (receipt 6a93aca7-49d2-4fff-8a4f-07677803c112), still queued at the last read. ARCH-DRY favors existing activity caches; ARCH-ORDER/SECURE require EOF lifetime and exact generation-fenced cleanup. Await TL plan/profile-method decision before code.
+
+## Revisions
+
+### 2026-10-16 — plan-first investigation
+
+Added the durable implementation proposal and explicit evidence gates. Original Spec and Done when remain the contract; memory cause, Go-profile method, #583 cleanup seam and live rollout are recorded as unresolved rather than assumed.
