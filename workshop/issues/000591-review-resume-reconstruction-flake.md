@@ -15,6 +15,7 @@ claimant:
     workspace: pair:3
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "d8334f87", done: "e8023d2b"}
 ---
 
 # Diagnose legacy review resume reconstruction failure
