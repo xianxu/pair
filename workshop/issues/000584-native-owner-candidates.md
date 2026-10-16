@@ -1,6 +1,6 @@
 ---
 id: 000584
-status: working
+status: codecomplete
 deps: []
 github_issue:
 target: slot-recovery
@@ -8,7 +8,7 @@ created: 2026-10-15
 updated: 2026-10-15
 estimate_hours: 1.3935
 severity: critical
-card_mirror: '7405628bc6bfb48c49df259a9ea7af407806f0ff' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'd16f81e047c7e7b00fd4dd5cb1bbd33c20bf57ff' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-15T15:43:33-07:00
 claimant:
     operator: Xian Xu
@@ -18,6 +18,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: operator}
+actual_hours: 2.50
 ---
 
 # Native owner scan blocks fleet resume on unrelated processes
