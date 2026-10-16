@@ -46,7 +46,7 @@ the UI can't tell. Tests only assert the escape bytes were written, never that a
 - [x] Red first: drive Ctrl+Y against a private fake clipboard executable; assert complete multiline retained text and repeat copies, with no OSC 52 on confirmed success.
 - [x] Reuse clipcmd's command list (ARCH-DRY) via a context-aware local-copy method that distinguishes unavailable tools; preserve existing ClipboardCopy callers. Explicit SSH skips local copying. Bound the notice attempt to one second plus bounded pipe cleanup; failure falls back to Presenter.Copy without retry.
 - [x] Cover command failure, unavailable tool, cancellation/timeout, remote fallback, empty history and focused-child Ctrl+Y; no tests touch the actual clipboard. Keep copy feedback out of retained history.
-- [ ] Update the existing atlas account with confirmed local versus unverifiable OSC results and the read-only transport/config evidence. Run the recorded full suite and close review; coordinate operator Ctrl+Y acceptance through the hub before landing.
+- [x] Update the existing atlas account with confirmed local versus unverifiable OSC results and the read-only transport/config evidence. Run the recorded full suite and close review; coordinate operator Ctrl+Y acceptance through the hub before landing.
 
 
 ## Log
@@ -80,6 +80,12 @@ The complete make -k run finished exit 0: all shell/editor and Go checks passed,
 The single issue-backed recorded rerun on fe4eb6d6e83bd53b9d42fcf27811a383c348b222 acquired the machine gate after 1239s, then failed exit 2 in 6m59s. Branch-restore (#620) passed. A different case failed: tests/review-observation-diagnostics-test.py::ObservationFixtureDiagnosticsTest.test_positive_control_retains_wanted_fresh_and_request_order; its nested fixture asserted `matching branch external edit did not reload; snapshot lost no-final-newline state`. Eight diagnostic cases ran, one failed. Log /Users/xianxu/workspace/pair/.git/sdlc/test-stats/failed/ffdc28f65f4aad6e6fdf5f09c7feeb01.log, SHA256 prefix 7c703e6585f2. The log retains bounded observation ordering details; root cause is not established here.
 
 The preceding complete make -k suite passed all checks, including this diagnostic command and Go packages. Per the fleet's second-unrelated-failure rule, no further rerun, independent fixture fix or timeout change is attempted. Reported to hub with receipt cd372a9e-60f4-42b8-8070-d9cf36343f96; waiting for the hub's verification decision and live-staging authorization. No stage, real clipboard probe, close or landing has occurred.
+
+### 2026-10-16 — authorized recorded rerun passed
+
+The explicitly authorized additional sdlc local-check run on fe4eb6d6e83bd53b9d42fcf27811a383c348b222 completed exit 0 in 14m03s after 746s machine-queue wait. All shell/editor and Go checks passed, including branch-restore (#620), all eight observation diagnostic cases (#623), couchcore (559.722s), couchtty (65.305s), launcher (42.425s), and wrapper (82.858s). Recorded as sdlc-local/suite; log /Users/xianxu/workspace/pair/.git/sdlc/local-checks/fe4eb6d6e83bd53b9d42fcf27811a383c348b222/suite.log, SHA256 prefix 46dbb4bf499d. All later branch changes are atlas/issue prose only. Both failed recorded attempts remain documented above and in their unclaimed issues.
+
+Implementation/verification and acceptance coordination are complete for the revised contract; the binary-owned close review runs next. Per the hub's explicit arrangement there is no staging and no claimed live clipboard success: the paste-full-notice smoke follows the next natural Couch restart, with fix-forward.
 
 ## Revisions
 
