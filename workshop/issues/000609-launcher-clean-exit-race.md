@@ -48,6 +48,8 @@ Measure the failure ordering with a controllable fixture. Synchronize cancellati
 - [x] Qualify focused repeats, race and launcher package; run recorded suite. Close and landing remain tracked in Done when.
 
 ## Log
+
+- 2026-10-16: closed — Controlled pre-trap cancellation reproduces -1,nil; ready-ordered control passes 30; corrected clean-exit test passes 100; cancellation group passes -race count=30; whole launcher passes; recorded suite on ae59d8e43e06d43577e31da0faa17cab3b0ff417 passes (14m56s, log 3718f2999a52), CI green. Test fixture only, no new architectural surface; TL owns project records.; review verdict: SHIP
 2026-10-16: Verified TL dispatch adc64359-f62a-452c-9eab-77625699f148, small plan may proceed after posting. Claimed and started from main. start-plan refreshed the stale ariadne tools and requested one canonical retry; retry succeeded. Existing sibling uses trap-ready file and testwait. Production runBlockingHandoff correctly reports child status; this is fixture ordering only.
 
 2026-10-16: Filed unassigned from pair:1 at the TL's direction, separate from #589. Failed recorded command: sdlc local-check run --name suite (make PAIR_GO_TRIMPATH=-trimpath test), head ff788e65bb02408429d7e974389a2511d8492db2. Full log: /Users/xianxu/workspace/pair/.git/sdlc/test-stats/failed/515ad3a2617b9f0f7d1aa19c39691236.log (sha256 prefix 0c6257440f80). This was the only failing test in the completed run.
