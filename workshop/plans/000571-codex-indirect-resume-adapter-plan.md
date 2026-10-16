@@ -274,3 +274,15 @@ remaining recovery constructors; no config/database/credential probing.
 Run affected normal/race checks and full source audits, then fresh full suite
 and fresh full close. The prior green run remains recorded, not claimed as
 covering these corrections. TL report a53827c7 was confirmed submitted.
+
+### 2026-10-15 — deterministic recovery handoff verification
+
+The actual recovery authority test reaches the unrelated final native-owner
+inspection, where real live wrappers make a private fixture machine-dependent.
+Use a tiny private inner validator taking that final check as an argument; the
+public production entry passes CheckRecoveryNativeOwner unchanged. Launcher
+fixtures exercise collection → persisted candidate claim → the same validator
+with a deterministic final owner observation, asserting its exact parameters
+and that unknown homes fail before it. Couchcore tests exercise actual
+Read/Preserve and candidate revalidation. No exported seam, runtime ownership
+policy, real-wrapper mutation or production bypass is added (ARCH-MOCK).
