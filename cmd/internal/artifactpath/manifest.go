@@ -628,6 +628,19 @@ var SourceClassifications = []SourceClassification{
 // the artifact namespace requires an explicit SourceClassification.
 // pair:m5-concept pure
 var NonArtifactSources = []string{
+	"cmd/internal/historyarchive/archivetest/fakes.go",
+	"cmd/internal/archivecmd/run.go",
+	"cmd/internal/historyarchive/archive.go",
+	"cmd/internal/historyarchive/catalog.go",
+	"cmd/internal/historyarchive/codec.go",
+	"cmd/internal/historyarchive/files.go",
+	"cmd/internal/historyarchive/inventory.go",
+	"cmd/internal/historyarchive/model.go",
+	"cmd/internal/historyarchive/plan.go",
+	"cmd/internal/historyarchive/publication.go",
+	"cmd/internal/historyarchive/safefs.go",
+	"cmd/internal/historyarchive/sink.go",
+
 	// #587 resource accounting and bounded namespace snapshots are not Pair tag artifacts.
 	"cmd/internal/couchcmd/resources.go",
 	"cmd/internal/couchcmd/resources_persist.go",
@@ -1465,6 +1478,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/wrapcmd/terminal_model.go",
 	"cmd/internal/wrapcmd/dim.go",
 	"cmd/internal/wrapcmd/peer_settle.go",
+	"cmd/internal/wrapcmd/peer_qoder_submission.go",
 	"cmd/internal/couchcore/live_restart.go",
 	"cmd/internal/couchcmd/live_restart_probe.go",
 	"cmd/internal/couchcore/slot_prepare.go",
