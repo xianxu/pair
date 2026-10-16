@@ -236,3 +236,15 @@ Keep the admission protocol exactly as main: global(agent,UUID), existing argv d
 ### 2026-10-15 — reduced-scope execution approval
 
 TL submitted receiptd27b887d-2cdd-427e-bcb9-d0287ec22e9a approves the preceding reduced-scope Revision atfafc33b8. It is the active implementation contract; earlier selector/classifier tasks are superseded. Keep the exact-ID path a thin caller of main's unchanged admission protocol for #595. Implementation now resumes, with independent home, selector-deletion and launcher/wrapper tasks, followed by combined verification and a fresh full close.
+
+### 2026-10-15 — reduction implementation accounting
+
+At integrated756e6233, the measured patch versus main is production/dependencies
++133/-114 (net+19), tests+458/-110 (net+348), combined net+367. This replaces
+the projected range above with measurement, separately from product docs net+51
+and retained workshop evidence net+1507. All config/Git/provider/latest/schema/
+snapshot implementations, TOML and main's old Codex SQL collector are removed.
+Codex noncanonical requests also return unsupported before IO at the inventory
+API, so direct callers cannot revive indirect prediction. The launcher and
+wrapper admission protocol byte-match main. The fresh integrated full suite
+and close review remain required; older green suites do not cover this patch.

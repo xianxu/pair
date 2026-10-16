@@ -56,8 +56,8 @@ Canonical approved implementation design: [durable plan](../plans/000571-codex-i
 - [x] Preserve native trust/discovery distinction and fail closed on unproven worktree scope (BR-3).
 - [x] Observe Codex SQLite through bounded coherent owned private snapshots with no native mutation (BR-4).
 - [x] Resolve the native-selection mechanism re-plan: TL chose native compatibility, superseding the BR-5 classifier.
-- [ ] Delete Codex prediction/config/snapshot machinery, including the old main collector; prove indirect zero-work native pass-through.
-- [ ] Retain thin exact-ID home routing and baseline admission, with transcript-only tests and other-agent controls.
+- [x] Delete Codex prediction/config/snapshot machinery, including the old main collector; prove indirect zero-work native pass-through.
+- [x] Retain thin exact-ID home routing and baseline admission, with transcript-only tests and other-agent controls.
 - [ ] Update final docs/line accounting and pass targeted/race, recorded full suite and fresh close before landing.
 
 ## Log
@@ -311,3 +311,24 @@ Original admission/wrapper protocols are restored; exact-ID routing stays thin
 for #595. Root owns docs/guards; three bounded agents own home extraction,
 inventory collector deletion and launcher routing. No native credential reads
 or pair:0 changes.
+
+### 2026-10-15 — reduced patch integrated and measured
+
+Reduction committed as4cd9a91d5; merged origin/main without conflicts at
+756e6233b261e51882aee68a192d1d9973e7351e. Final signed diff against integrated
+main: production/dependencies +133/-114 (net+19), tests +458/-110 (net+348),
+combined code/dependencies/tests net+367, within the approved +150–400 range
+(previous mechanism net+6324). Product docs net+51; retained workshop evidence
+net+1507 is separate. No TOML dependency, new admission field, SQL selector,
+Git/resource exemption or schema policy remains.
+
+Measured regressions first failed on physical-CWD probing, supplied Codex
+metadata selecting a UUID, explicit-home HOME lookup, indirect launcher
+resolution/reservation, and relative historical homes inferred from process cwd.
+Final inventory selector controls pass normal0.155s/race1.192s; home controls
+normal0.214s/race1.379s. Earlier whole inventory normal12.031s/race122.041s
+passed before the final one-line noncanonical fence, covered by those final
+selector controls. Post-main make build, complete artifactpath package4.802s
+and exact slot-resource guard0.410s pass. The first artifactpath run preceded
+main integration and failed only on main/branch manifest skew; it passes after
+integration with no guard waiver. Fresh recorded suite is running on756e6233.
