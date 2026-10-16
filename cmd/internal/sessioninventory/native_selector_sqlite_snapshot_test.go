@@ -2,12 +2,77 @@ package sessioninventory
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 )
+
+func TestNativeSelectorSQLiteSnapshotOwnsChildTemporaryEnvironment(t *testing.T) {
+	rt, source, a, _ := codexSnapshotFixture(t)
+	sqlite, err := exec.LookPath("sqlite3")
+	if err != nil {
+		t.Fatal(err)
+	}
+	python, err := exec.LookPath("python3")
+	if err != nil {
+		t.Skip("python3 unavailable")
+	}
+	scratch := t.TempDir()
+	record := filepath.Join(scratch, "children.jsonl")
+	bin := filepath.Join(scratch, "bin")
+	if err := os.Mkdir(bin, 0700); err != nil {
+		t.Fatal(err)
+	}
+	script := "#!" + python + `
+import json,os,sys
+with open(os.environ['CODEX_TEST_CHILD_RECORD'],'a') as f:
+ f.write(json.dumps({'tmpdir':os.environ.get('TMPDIR'),'sqlite_tmpdir':os.environ.get('SQLITE_TMPDIR'),'db':sys.argv[sys.argv.index('-header')+1]})+'\n')
+os.execv(os.environ['CODEX_TEST_REAL_SQLITE'],[os.environ['CODEX_TEST_REAL_SQLITE']]+sys.argv[1:])
+`
+	if err := os.WriteFile(filepath.Join(bin, "sqlite3"), []byte(script), 0700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Setenv("CODEX_TEST_CHILD_RECORD", record)
+	t.Setenv("CODEX_TEST_REAL_SQLITE", sqlite)
+	t.Setenv("TMPDIR", scratch)
+	t.Setenv("SQLITE_TMPDIR", filepath.Join(scratch, "inherited-unowned"))
+	snapshot, err := rt.NewNativeSelectorSQLiteSnapshot(t.Context(), a, source, RecoveryTotalReadLimit)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer snapshot.Close()
+	if _, err := snapshot.Query(t.Context(), "SELECT id FROM threads", 4096); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(record)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Split(strings.TrimSpace(string(raw)), "\n")
+	if len(lines) != 2 {
+		t.Fatalf("expected quick_check and selection children, got %d", len(lines))
+	}
+	for _, line := range lines {
+		var child struct{ Tmpdir, SQLiteTmpdir, DB string }
+		var fields map[string]string
+		if err := json.Unmarshal([]byte(line), &fields); err != nil {
+			t.Fatal(err)
+		}
+		child.Tmpdir, child.SQLiteTmpdir, child.DB = fields["tmpdir"], fields["sqlite_tmpdir"], fields["db"]
+		owned := filepath.Dir(child.DB)
+		if child.Tmpdir != owned || child.SQLiteTmpdir != owned {
+			t.Errorf("child temporary paths escaped snapshot: TMPDIR=%q SQLITE_TMPDIR=%q owned=%q", child.Tmpdir, child.SQLiteTmpdir, owned)
+		}
+	}
+	if os.Getenv("TMPDIR") != scratch || os.Getenv("SQLITE_TMPDIR") != filepath.Join(scratch, "inherited-unowned") {
+		t.Fatal("snapshot changed parent temporary environment")
+	}
+}
 
 func codexSnapshotFixture(t *testing.T) (OSRuntime, *nativeSelectorRuntime, Artifact, string) {
 	t.Helper()

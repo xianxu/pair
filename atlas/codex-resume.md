@@ -99,15 +99,18 @@ the generic legacy inventory reader is not native schema proof.
 The Codex selector queries an attempt-owned private DB/WAL snapshot, never the
 native database. Guarded selection requires a stable, present WAL and WAL-mode
 DB. Source reads copy WAL first, then DB, and verify complete repeated reads plus
-identity and generation fences. Private SQLite recovery and quick_check validate
-the captured image. Native SHM is never inspected or copied.
+identity and generation fences. WAL header/frame checksums establish the supported
+committed generation; private SQLite recovery and quick_check validate the captured
+image. Native SHM is never inspected or copied.
 
 Absent WAL, non-WAL mode, a hot journal, unsafe metadata or any changed observation
 retains native compatibility. The adapter adds no source locks or repair writes.
 Safe, noninteractive SQLite options and an explicit empty init keep private queries
 independent of a user's rc and external file functions. Attempt-owned temporary
 files, including private sidecars, are removed on success, error and cancellation;
-cleanup failure cannot produce guarded authority. Pagination and selected-content
+cleanup failure cannot produce guarded authority. A scratch parent inside native
+storage, including a symlink alias, retains compatibility before creating files.
+SQLite child temporary-file locations also stay inside the owned snapshot. Pagination and selected-content
 validation share one captured DB cohort while transcript observations remain fenced.
 
 ## Handoff and budgets

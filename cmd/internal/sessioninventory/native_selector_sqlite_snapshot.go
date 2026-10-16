@@ -334,6 +334,9 @@ func (s *nativeSQLiteSnapshot) query(ctx context.Context, query string, limit in
 	// -init substitutes for default rc loading; -safe forbids external file IO
 	// functions/ATTACH/extensions even when a persisted schema contains a view.
 	command := exec.CommandContext(ctx, "sqlite3", "-batch", "-init", os.DevNull, "-safe", "-readonly", "-csv", "-header", s.path, query)
+	// exec.Cmd keeps the last duplicate environment key. Override inherited
+	// SQLite temporary storage without changing the parent process environment.
+	command.Env = append(os.Environ(), "SQLITE_TMPDIR="+s.directory, "TMPDIR="+s.directory)
 	command.Stdout = stdout
 	command.Stderr = stderr
 	if err := command.Run(); err != nil {
