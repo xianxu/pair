@@ -39,6 +39,7 @@ the UI can't tell. Tests only assert the escape bytes were written, never that a
 ## Done when
 
 - A test with a fake clipboard seam asserts the notice text reaches it; the operator confirms Ctrl+Y works live.
+- Acceptance amendment (2026-10-16; Revisions below): the live confirmation above is deferred until the next natural Couch restart. Landing requires passing recorded verification and SHIP; do not stage on pair:0, and fix forward if the later smoke fails.
 
 ## Plan
 
@@ -87,3 +88,9 @@ The preceding complete make -k suite passed all checks, including this diagnosti
 TL delivery 2f40f35c-5099-49e9-a8f3-c3221de005e5 (accepted 15:40, delivered after the rerun failure) defers the original live-confirmation criterion and the Plan's live-before-landing step: do not stage on pair:0. Once recorded verification passes and close review is SHIP, land normally. The operator's paste-the-full-retained-notice smoke rides the next natural Couch restart, with fix-forward if needed. This is an explicit acceptance arrangement, not evidence that live smoke passed, and it does not waive the recorded-suite gate. #619 starts only after #604 lands.
 
 At receipt the recorded rerun had already failed on the second unrelated review fixture, as logged above. Thus its passing condition is not met; retain the stop for the hub's verification decision, with no new test rerun or gate bypass. No production or test code changes accompany this revision.
+
+### 2026-10-16 16:03 PDT — one additional recorded attempt authorized
+
+Canonical hub decision efadcd45-6fb6-487e-9392-7fc79782168e authorizes filing the second fixture failure and exactly one additional recorded rerun on the same head; any failure stops and is reported. Filed #623 unclaimed with its log path. The hub links likely load pressure to #618 and reported load average 140; that remains a hypothesis for the specific fixture failure. No production/test changes or timeout increases are authorized by this decision. The no-staging/natural-restart acceptance arrangement remains in force, now reflected by an appended Done-when amendment.
+
+The first rerun invocation was refused before testing because fe4eb6d6e83bd53b9d42fcf27811a383c348b222 was no longer a remote tip after documentation-only checkpoints. Following the named push precondition, published temporary verification ref verify-604-suite-fe4eb6d6 at that exact commit, without rewriting the issue branch. The single test attempt then starts through sdlc local-check on the same commit. Retire the temporary ref once verification/landing evidence no longer needs it; it carries no independent development.
