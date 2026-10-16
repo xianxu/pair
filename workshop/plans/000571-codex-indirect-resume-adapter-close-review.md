@@ -220,3 +220,115 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-15T18:46:59-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 571 — Resolve Codex indirect resumes from faithful read-only configuration |
+| repo | pair |
+| issue file | workshop/issues/000571-codex-indirect-resume-adapter.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 4c6fcc8d437ce52c708b0a6bdef09ce42b86917b..2084334f6e1ecef502f755df75507d0443373189 |
+| command | sdlc close --issue 571 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-15T18:46:59-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+BR-3 and BR-4 are addressed with reachable regressions that fail when their fixes are removed. However, exec latest selection still admits source kinds that native Codex excludes, allowing Pair to pin a different conversation. README and atlas updates are present; the targeted normal, race and ownership checks passed.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Leaf-replacement logic and its projection/selected-ID regressions remain present; the targeted configuration tests passed.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Native record eligibility checks remain reachable before selection authority; malformed metadata and turn-context regressions passed. The new finding concerns filtering valid records, not decoding invalid records.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Current/primary/linked discovery uncertainty now yields whole-projection compatibility. Restoring the pre-fix Git implementation through a temporary Go overlay made TestCodexLatestGitAdminAliasCannotSelectOlderConversation fail by selecting the older ID; pinned-head tests passed.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      Production selection uses an owned private DB/WAL snapshot. Bypassing snapshot dispatch through temporary overlays made both TUI and exec WAL regressions fail with a newly created 32768-byte native SHM file; pinned-head non-mutation, cleanup and race tests passed.
+findings:
+  - id: new
+    severity: Critical
+    kind: defect
+    family: native-selector-filter-fidelity
+    title: |
+      Exec latest can pin Custom or Internal conversations excluded by native selection
+    detail: |
+      cmd/internal/sessioninventory/codex_latest.go:181-190 filters only by provider and never applies native source-kind filtering. In rust-v0.162.1, exec all_thread_source_kinds feeds app-server source_kind_matches, which excludes SessionSource::Custom and SessionSource::Internal. A temporary production-selector regression with an older eligible cli conversation and a newer matching conversation reproduced wrong-ID resolution for custom atlas, custom chatgpt, internal guardian and internal memory_consolidation sources. ARCH-PURPOSE / ARCH-SECURE: decode and filter persisted DB source values according to the native selection rule, or retain compatibility when their meaning is unproven. Sweep the source-kind mapping across both collectors and add selected-ID regressions; valid transcript decoding alone does not establish selector eligibility.
+```
+
+1. **Strengths**
+
+   - Git discovery now distinguishes uncertainty from proven exclusion and propagates uncertainty to compatibility.
+   - SQLite observation uses bounded private snapshots, hermetic invocation flags and cleanup that can refuse authority.
+   - Scope binding reuses the existing reservation/Claim flow and revalidates the child’s configuration before Claim.
+   - README and indexed atlas documentation describe the supported configuration and fallback boundaries.
+
+2. **Critical findings**
+
+   - [codex_latest.go:181](/Users/xianxu/Library/Caches/sdlc/review-checkouts/2d3f1ba50376b04a/cmd/internal/sessioninventory/codex_latest.go:181): apply native source-kind eligibility before accepting exec candidates. Native’s [exec kind enumeration](https://github.com/openai/codex/blob/rust-v0.162.1/codex-rs/exec/src/lib.rs#L1801) and [source matcher](https://github.com/openai/codex/blob/rust-v0.162.1/codex-rs/app-server/src/filters.rs#L58) exclude Custom and Internal sources. All four private reproductions selected the newer excluded ID.
+
+3. **Important findings**
+
+   None.
+
+4. **Minor findings**
+
+   None.
+
+5. **Test coverage notes**
+
+   Targeted configuration, Git, latest-selection, snapshot, launcher and wrapper tests passed normally; focused race tests also passed. Artifactpath and Couch resource guards passed. Real-machine read-only configuration conformance passed with compatibility/cloud-unknown for both modes.
+
+   Both prior fixes failed their removal controls. The new source-filter regression fails at pinned head. Temporary overlays were removed; the checkout remains unchanged. I did not rerun the full recorded suite.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** shared parser, native-root ownership and admission machinery are reused.
+   - **ARCH-PURE — pass:** projection remains pure; filesystem and subprocess work stays behind runtime seams.
+   - **ARCH-PURPOSE — flag:** source-filter drift breaks faithful native selection.
+   - **ARCH-MOCK — pass:** private real files/SQLite and injected process/admission seams exercise production paths.
+   - **ARCH-CONSTRAINTS — pass:** bounded reads, metadata counts, output and cancellation have regression coverage.
+   - **ARCH-SECURE — flag:** schema-valid persisted source data is accepted without proving selector eligibility.
+   - **ARCH-ORDER — pass:** selection is pinned once; scope mismatch prevents Claim, and cleanup failure prevents authority.
+   - **ARCH-FUNERAL — pass:** owned snapshots have cleanup paths tested across success, failure and cancellation.
+
+   The Core concepts entries exist at their stated locations; no PURE/INTEGRATION contradiction was found.
+
+7. **Plan revision recommendations**
+
+   Add a `## Revisions` entry defining the source eligibility rule separately from transcript schema validity. Enumerate every native source variant, its persisted representation and its eligibility for each collector; require selected-ID tests for excluded Custom/Internal candidates and compatibility for unproven representations.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"1012d4e3-b66e-43ed-a040-b9b8fa5e21a1","repository":"github.com/xianxu/pair","issue_id":"000571","recipe":"milestone-review","round":3,"attempt":1,"agent":"codex","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/2d3f1ba50376b04a","reviewed_head":"2084334f6e1ecef502f755df75507d0443373189","slot":"pair:7","requested_at":"2026-10-16T01:42:49.985484Z"},"phase":"finished","pid":13326,"started_at":"2026-10-16T01:42:50.079819Z","finished_at":"2026-10-16T01:46:52.36869Z","session_id":"01a14260-4ebf-73a3-9ab9-b47c486ecece","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.311152875s
+head: "2084334f6e1ecef502f755df75507d0443373189"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

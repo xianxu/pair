@@ -334,6 +334,182 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 1012d4e3-b66e-43ed-a040-b9b8fa5e21a1
+            repository: github.com/xianxu/pair
+            issue_id: "000571"
+            recipe: milestone-review
+            round: 3
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/Library/Caches/sdlc/review-checkouts/2d3f1ba50376b04a
+            reviewed_head: 2084334f6e1ecef502f755df75507d0443373189
+            slot: pair:7
+            requested_at: "2026-10-16T01:42:49.985484Z"
+          phase: finished
+          pid: 13326
+          started_at: "2026-10-16T01:42:50.079819Z"
+          finished_at: "2026-10-16T01:46:52.36869Z"
+          session_id: 01a14260-4ebf-73a3-9ab9-b47c486ecece
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-v1
+        repository: github.com/xianxu/pair
+        code_head: 2084334f6e1ecef502f755df75507d0443373189
+        tracker_head: c91a739979ba6239958bf2a9411c02c45b54a138
+        branch_point: 4c6fcc8d437ce52c708b0a6bdef09ce42b86917b
+        since: "2026-10-15T10:22:13-07:00"
+        until: "2026-10-15T18:42:23-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-15T10:22:13-07:00"
+              end: "2026-10-15T18:42:23-07:00"
+              began: "2026-10-15T10:22:13-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot7/pair
+        sources:
+            - harness: codex
+              id: 01a13398-d940-72d3-8d80-c203fc8bd296
+              cwd: /Users/xianxu/workspace/worktree/pair-slot7/pair
+              digest: 0fb5550ab97d5be02663ddc5b6e2f40478222fae9c170b5f10a8c504afbe0fad
+              started: "2026-10-13T04:50:49.58Z"
+              spawned: false
+              bytes: 75166887
+              windows:
+                - start: "2026-10-15T10:22:13-07:00"
+                  end: "2026-10-15T18:42:23-07:00"
+            - harness: codex
+              id: 01a14096-6170-7e02-ae66-5b9fb3e7b182
+              cwd: /Users/xianxu/workspace/worktree/pair-slot7/pair
+              parent_id: 01a13398-d940-72d3-8d80-c203fc8bd296
+              digest: d480790ffe797d9fe00c5d49e6b4ac95d8c1ba1dbd8ae7c5a9b7ce08f642545f
+              started: "2026-10-15T17:22:39.652Z"
+              spawned: true
+              bytes: 1391734
+              windows:
+                - start: "2026-10-15T17:22:39.652Z"
+                  end: "2026-10-15T18:42:23-07:00"
+            - harness: codex
+              id: 01a14097-c211-7ce0-b051-366dd9fff257
+              cwd: /Users/xianxu/workspace/worktree/pair-slot7/pair
+              parent_id: 01a13398-d940-72d3-8d80-c203fc8bd296
+              digest: 8ee1e389d29207757e676b4fbe995ad12a40da006a9ec08cffb0b504420c443b
+              started: "2026-10-15T17:24:09.928Z"
+              spawned: true
+              bytes: 3966706
+              windows:
+                - start: "2026-10-15T17:24:09.928Z"
+                  end: "2026-10-15T18:42:23-07:00"
+            - harness: codex
+              id: 01a14177-aa85-7cb3-bedb-b2a85e52af11
+              cwd: /Users/xianxu/workspace/worktree/pair-slot7/pair
+              digest: 43bbb8baac5acc685a555545857159490869cd449d01fb7111da69c67b3b9dc5
+              started: "2026-10-15T21:28:47.768Z"
+              spawned: false
+              bytes: 667373
+              windows:
+                - start: "2026-10-15T21:28:47.768Z"
+                  end: "2026-10-15T18:42:23-07:00"
+            - harness: codex
+              id: 01a1417a-a6e2-7912-8b67-8458dfe9c87c
+              cwd: /Users/xianxu/workspace/worktree/pair-slot7/pair
+              digest: 6e13a1d39624297d15c0f7a0388e25cd74a6176b9aaa00d492195956f70113e5
+              started: "2026-10-15T21:32:00.527Z"
+              spawned: false
+              bytes: 550567
+              windows:
+                - start: "2026-10-15T21:32:00.527Z"
+                  end: "2026-10-15T18:42:23-07:00"
+            - harness: codex
+              id: 01a1417c-1628-7022-a694-967d63271267
+              cwd: /Users/xianxu/workspace/worktree/pair-slot7/pair
+              digest: 907486ef0551b775f583f9c072d40e7d8c85f2dd011c2822fd58257375430eaf
+              started: "2026-10-15T21:33:35.501Z"
+              spawned: false
+              bytes: 535544
+              windows:
+                - start: "2026-10-15T21:33:35.501Z"
+                  end: "2026-10-15T18:42:23-07:00"
+            - harness: codex
+              id: 01a1417c-c082-7122-a0fa-e0e3da0cc318
+              cwd: /Users/xianxu/workspace/worktree/pair-slot7/pair
+              digest: 794442b6bc357a71c594717d55a25d15f708bcd42b0d8343224557b0c36d6d2f
+              started: "2026-10-15T21:34:18.189Z"
+              spawned: false
+              bytes: 413877
+              windows:
+                - start: "2026-10-15T21:34:18.189Z"
+                  end: "2026-10-15T18:42:23-07:00"
+            - harness: codex
+              id: 01a1417d-adca-7cd1-a945-d5965c8d2446
+              cwd: /Users/xianxu/workspace/worktree/pair-slot7/pair
+              parent_id: 01a13398-d940-72d3-8d80-c203fc8bd296
+              digest: d0caa4d080a01390e98c2b84e6e1785d7cdc689dad9ff1a29c4335c0f1ac0713
+              started: "2026-10-15T21:35:18.067Z"
+              spawned: true
+              bytes: 4019461
+              windows:
+                - start: "2026-10-15T21:35:18.067Z"
+                  end: "2026-10-15T18:42:23-07:00"
+            - harness: codex
+              id: 01a1417e-6595-70e1-9dbc-1eedb485d020
+              cwd: /Users/xianxu/workspace/worktree/pair-slot7/pair
+              parent_id: 01a13398-d940-72d3-8d80-c203fc8bd296
+              digest: b1ed1977413ef1ffe9d4ea6c8d89c95c68414638654ac30521eaa510595914c3
+              started: "2026-10-15T21:36:05.122Z"
+              spawned: true
+              bytes: 2769446
+              windows:
+                - start: "2026-10-15T21:36:05.122Z"
+                  end: "2026-10-15T18:42:23-07:00"
+        excluded_brain_sessions: 1
+        excluded_brain_minutes: 15.064
+        cuts:
+            - dispatched: "2026-10-15T16:35:33-07:00"
+              finalized: "2026-10-15T16:39:24-07:00"
+              finalizing: false
+            - dispatched: "2026-10-15T17:33:13-07:00"
+              finalized: "2026-10-15T17:37:50-07:00"
+              finalizing: false
+      "n": 3
+      timestamp: "2026-10-15T18:46:59-07:00"
+      dispatched: "2026-10-15T18:42:48-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Leaf-replacement logic and its projection/selected-ID regressions remain present; the targeted configuration tests passed.
+          round: 3
+        - id: BR-2
+          disposition: addressed
+          note: Native record eligibility checks remain reachable before selection authority; malformed metadata and turn-context regressions passed. The new finding concerns filtering valid records, not decoding invalid records.
+          round: 3
+        - id: BR-3
+          disposition: addressed
+          note: Current/primary/linked discovery uncertainty now yields whole-projection compatibility. Restoring the pre-fix Git implementation through a temporary Go overlay made TestCodexLatestGitAdminAliasCannotSelectOlderConversation fail by selecting the older ID; pinned-head tests passed.
+          round: 3
+        - id: BR-4
+          disposition: addressed
+          note: Production selection uses an owned private DB/WAL snapshot. Bypassing snapshot dispatch through temporary overlays made both TUI and exec WAL regressions fail with a newly created 32768-byte native SHM file; pinned-head non-mutation, cleanup and race tests passed.
+          round: 3
+      findings:
+        - kind: defect
+          id: BR-5
+          severity: Critical
+          title: Exec latest can pin Custom or Internal conversations excluded by native selection
+          detail: 'cmd/internal/sessioninventory/codex_latest.go:181-190 filters only by provider and never applies native source-kind filtering. In rust-v0.162.1, exec all_thread_source_kinds feeds app-server source_kind_matches, which excludes SessionSource::Custom and SessionSource::Internal. A temporary production-selector regression with an older eligible cli conversation and a newer matching conversation reproduced wrong-ID resolution for custom atlas, custom chatgpt, internal guardian and internal memory_consolidation sources. ARCH-PURPOSE / ARCH-SECURE: decode and filter persisted DB source values according to the native selection rule, or retain compatibility when their meaning is unproven. Sweep the source-kind mapping across both collectors and add selected-ID regressions; valid transcript decoding alone does not establish selector eligibility.'
+          family: native-selector-filter-fidelity
+          round: 3
+      recipe: milestone-review
+      isolation: fenced
+      blocked: true
 ---
 
 # Gate ledger — pair#571 (boundary-review)
@@ -364,7 +540,20 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-4** [Critical] `native-read-only-observation` (kind: defect) Read-only latest selection creates native SQLite shared-memory files
   cmd/internal/sessioninventory/codex_latest.go:103 queries the live native database through QueryNativeSelectorSQLite, whose sqlite3 -readonly invocation at native_selector_os.go:78 still creates WAL shared-memory sidecars. A private WAL fixture containing state_5.sqlite and state_5.sqlite-wal but no SHM returned a resolved ID and acquired a new 32768-byte state_5.sqlite-shm. This violates the issue's no-native-mutation contract. ARCH-PURPOSE / ARCH-MOCK / ARCH-FUNERAL: use a bounded, coherent private snapshot or another genuinely non-mutating observation mechanism, retain compatibility when safe observation is unavailable, and add WAL-backed no-mutation regression coverage.
 
+## Round 3 — 2026-10-15T18:46:59-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-1 — addressed — Leaf-replacement logic and its projection/selected-ID regressions remain present; the targeted configuration tests passed.
+- BR-2 — addressed — Native record eligibility checks remain reachable before selection authority; malformed metadata and turn-context regressions passed. The new finding concerns filtering valid records, not decoding invalid records.
+- BR-3 — addressed — Current/primary/linked discovery uncertainty now yields whole-projection compatibility. Restoring the pre-fix Git implementation through a temporary Go overlay made TestCodexLatestGitAdminAliasCannotSelectOlderConversation fail by selecting the older ID; pinned-head tests passed.
+- BR-4 — addressed — Production selection uses an owned private DB/WAL snapshot. Bypassing snapshot dispatch through temporary overlays made both TUI and exec WAL regressions fail with a newly created 32768-byte native SHM file; pinned-head non-mutation, cleanup and race tests passed.
+
+### Raised
+
+- **BR-5** [Critical] `native-selector-filter-fidelity` (kind: defect) Exec latest can pin Custom or Internal conversations excluded by native selection
+  cmd/internal/sessioninventory/codex_latest.go:181-190 filters only by provider and never applies native source-kind filtering. In rust-v0.162.1, exec all_thread_source_kinds feeds app-server source_kind_matches, which excludes SessionSource::Custom and SessionSource::Internal. A temporary production-selector regression with an older eligible cli conversation and a newer matching conversation reproduced wrong-ID resolution for custom atlas, custom chatgpt, internal guardian and internal memory_consolidation sources. ARCH-PURPOSE / ARCH-SECURE: decode and filter persisted DB source values according to the native selection rule, or retain compatibility when their meaning is unproven. Sweep the source-kind mapping across both collectors and add selected-ID regressions; valid transcript decoding alone does not establish selector eligibility.
+
 ## Open findings
 
-- **BR-3** [Critical] `native-worktree-scope-fidelity` (kind: defect) Trust-specific alias rejection silently narrows native worktree selection
-- **BR-4** [Critical] `native-read-only-observation` (kind: defect) Read-only latest selection creates native SQLite shared-memory files
+- **BR-5** [Critical] `native-selector-filter-fidelity` (kind: defect) Exec latest can pin Custom or Internal conversations excluded by native selection

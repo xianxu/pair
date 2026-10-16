@@ -81,6 +81,12 @@ Source links (matching tag):
 
 ## Revisions
 
+### 2026-10-15 — close round3: prior fixes verified; native source filter fidelity
+
+Close against2084334f6e1ecef502f755df75507d0443373189 returned REWORK with one new Critical BR-5 (native-selector-filter-fidelity), while disposing BR-1 through BR-4 as addressed. Removal overlays independently reproduced both the wrong-ID Git alias defect and native SHM mutation; the pinned fixes pass. Both recorded full suites were green.
+
+BR-5 reproduces a separate native selection rule: exec currently filters provider but admits Custom/Internal sources excluded by native all_thread_source_kinds/source_kind_matches. Four private production-selector overlays selected newer custom atlas/chatgpt and internal guardian/memory_consolidation conversations instead of an older eligible cli conversation. Begin read-only tagged-source enumeration of every SessionSource variant, its persisted DB representation and TUI/exec eligibility, plus selected-ID REDs. Schema validity is separate from selection eligibility. Production changes wait for the measured rule/revision; unknown representations must not establish guarded selection. No gate bypass; close is not finalized and the issue remains working.
+
 ### 2026-10-15 — final integrated full suite passed
 
 Recorded suite on a669a090c3b886ecf96853f3bb84e6c1e840aaeb (including main's #579) passed every shell/editor recipe and Go package, exit0 in13m7s after101s queue. Log: /Users/xianxu/workspace/pair/.git/sdlc/local-checks/a669a090c3b886ecf96853f3bb84e6c1e840aaeb/suite.log; sha256prefix3cfb5c2d56d7. Artifactpath6.860s, broadcast33.963s, couchcore489.548s, diagnostics92.226s, launcher83.033s, inventory130.357s, wrapper55.489s and workbench performance0.235s all pass. No failures or flakes. The earlier981cfb28 full suite also passed; two runs were required because main gained code, not to retry unchanged failures. Ready for fresh binary-owned close review; no approval or validation gate bypassed.
