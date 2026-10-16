@@ -120,3 +120,9 @@ Final checkpoint checks after fixture isolation/admission guard: focused race ti
 ### 2026-10-16 — awaiting revised memory decision
 
 Incomplete implementation checkpoint4863c21d457f6a21a0362f54f9a261d47177c740 committed; clean branch. Sent the active-write full-proof revalidation finding and revised streaming-projection proposal to hub, receipt d01d89b6-8321-472c-8512-12943be9bfbb (queued position2 at admission). This supersedes the scalar usage-cache proposal; do not implement that proposal merely on a delayed approval. Pending: TL revised memory scope/design decision, bounded CLI teardown fallback decision, pair:4 cleanup seam response; all final acceptance remains outstanding. Earlier no-delivery transport failure and later test-capture gap stay recorded, with no automatic resend/reconstruction.
+
+### 2026-10-16 — structural isolation directive and read-only backup check
+
+Verified TL receipt e6510de0-274d-4237-bf31-8f086d531634: replace per-fixture sanitization with one shared empty-environment helper used by all Pair/wrapper subprocess tests and a guard like #602. Added corresponding plan revision; implementation underway with behavioral RED/GREEN. Pending memory design/fallback remains separate.
+
+Read-only inspection of configured /Users/xianxu/.local/share/pair/archive/catalog.jsonl found no cataloged backup of repos/50f39cf60172c338/scrollback-1-pair-55-codex.events.jsonl. Covered all complete records: 40 bundles, 6,993 file entries, no numbered catalog shards, no matching basename or Pair-data source root. Kinds: Claude9, Codex transcripts23, Qoder2, Codex DB6; verification times 2026-10-16 09:10–11:22 PDT. Catalog SHA256 d91381c469a0cedfaa4acaea2c7f19fd9f72aabfa38561ef79e0099c2bcbaa24. No backup, restore, decryption or live writes performed. This establishes absence from the configured completed catalog; independent backups and unverified staging were not searched.
