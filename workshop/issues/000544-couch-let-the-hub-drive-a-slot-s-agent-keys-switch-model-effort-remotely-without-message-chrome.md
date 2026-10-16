@@ -117,6 +117,8 @@ Verified TL receipt07bd2c8d-c68d-4b63-9452-246f3506ed2c authorizes main merge/re
 
 - Recorded suite on staged6d65c4c4ef29bcdea3ea5b45f3dfdeed41ce1154 completed PASS, exit0 in11m12s, sdlc-local/suite recorded; all shell/editor/Go packages passed, including couchcmd63.316s, couchcore334.554s, wrapcmd88.520s. Log at `/Users/xianxu/workspace/pair/.git/sdlc/local-checks/6d65c4c4ef29bcdea3ea5b45f3dfdeed41ce1154/suite.log`, SHA256 prefix3108442b8880. Verified TL receipt48a986a8-1509-4793-b0b0-781f3d9473a2: wait for BOTH #587 and #569 to land, then merge origin/main, targeted verification and one restage/build for the operator's combined restart. At19:46 PDT both tracker landing outcomes remain not-landed; no merge/restage or smoke yet. #573/#579/#584/#585/#594 are already on origin/main.
 
+- Evidence retention note: the suite command reported the log path and SHA256 prefix above on completion, but the file is no longer present at19:46 PDT (local-check retention keeps only the newest20 commits). The preserved command output confirms exit0 and recorded status; no full SHA256 was recomputed or inferred. A new integrated commit will require its own suite before landing.
+
 ## Revisions
 
 ### 2026-10-15 — reconcile landed recovery and stall supervision
