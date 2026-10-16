@@ -1,6 +1,6 @@
 ---
 id: 000613
-status: codecomplete
+status: done
 created: 2026-10-16
 updated: 2026-10-16
 estimate_hours:
@@ -22,6 +22,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 0a4877243f96e48884c6b9c0c13764e39778e259
         evidence_commit: c2cb3860dc3d9f7a2afddfbe2cf6f016701aab2e
+        landed_commit: d9f4f04c94e8b484b58044ed785428467687b30d
 ---
 
 # test-review flake: review.lua branch mismatch refuses a write in recorded suites
