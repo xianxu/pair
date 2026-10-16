@@ -286,3 +286,34 @@ with a deterministic final owner observation, asserting its exact parameters
 and that unknown homes fail before it. Couchcore tests exercise actual
 Read/Preserve and candidate revalidation. No exported seam, runtime ownership
 policy, real-wrapper mutation or production bypass is added (ARCH-MOCK).
+
+### 2026-10-15 — BR-6 / BR-7 corrected and integrated
+
+BR6 behavioral RED reproduced whole-ledger failure for Claude/Qoder under both
+invalid absolute and valid relative/unknown-startup Codex homes (0.193s). The
+per-agent projection fix passes mixed-ledger saved-config/stateful restart,
+bound/compat Codex refusal and real storage-error controls (focused0.213s;
+broader launcher normal8.425s/race7.056s).
+
+BR7 behavioral RED reproduced custom-home discovery/legacy checks missing their
+root and invalid/relative homes exposing default candidates. One shared runtime
+constructor now covers discovery, exact/ledger/identity, validation and legacy
+held-file checks. Historical consumers pass unknown startup. Temporarily
+restoring selected cwd in recovery validation made the negative control fail
+(authority=nil, final owner check called); the fixed route refuses it. Actual
+couchcore Read→Preserve→Revalidate passes; launcher collection→persisted choice→
+authority validation passes with only the final owner observation injected.
+
+Expanded recovery/home tests pass normal(core4.696s/launcher4.421s/inventory0.404s)
+and race(5.551s/4.708s/1.530s); final Read→Preserve test normal0.916s/race2.114s.
+After committing5a8c2bba7 and merging latest main at
+03495ef700652896ff63f7e93e0ea3b239587b0a, make build, full artifactpath10.690s
+and resource guard0.417s pass. No code conflicts or protocol changes. A fresh
+recorded full suite is running on03495ef7; prior full pass remains historical.
+
+Updated actual line accounting versus integrated main: production/dependencies
++167/-117 (net+50), tests+878/-110 (net+768), combined net+818. This supersedes
+the earlier net+367 measurement: the additional code/tests close the two
+reproduced home-consistency findings; production remains only net+50. Product
+docs net+55 and retained workshop history net+1985 are separate. The original
+selector/config/Git/schema/snapshot policy remains deleted.
