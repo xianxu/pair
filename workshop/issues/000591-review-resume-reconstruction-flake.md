@@ -25,22 +25,21 @@ Recorded full suite on unchanged source74ea2d2aacf1232af3d0ae38f86353e596ae6208 
 
 ## Spec
 
-Diagnose the implicit identity-resolution/reconstruction boundary without weakening assertions or increasing timeouts. The first case invokes reconstruct_on_open without identity; nvim/review/init.lua calls identity.resolve and, for missing history, retries resolution with the selected file/head. identity.lua chooses PAIR_HOME/bin/pair when inherited, otherwise the checkout binary, and waits2500ms. Later cases call the shell PAIR_BIN explicitly then supply the resolved identity. This is an observed asymmetry, not proof of an environment or timing cause. #586 concerns another review-observation fixture and may share this seam; keep separate until evidence links them.
+Fix the demonstrated fixture isolation defect: the first reconstruction case implicitly selects PAIR_HOME/bin/pair, while later cases use PAIR_BIN. A controlled inherited foreign PAIR_HOME reproduces the exact first-case-only failure signature. Run the complete fixture through the existing ReviewTestEnvironment before any Git/editor subprocess, pinning the checkout home and executable and protecting caller-owned artifacts.
 
-Capture actionable evidence on the first failure: exact binary/root, resolver input/output/status/diagnostic, both fallback observations, reconstruction admission reason and Neovim messages/exit. Add a deterministic regression for the demonstrated cause and fix its owning boundary. No sleep, timeout increase, retry loop, skip or assertion weakening.
+Preserve every reconstruction/decoration, scoped/ambiguous authorization and read-only assertion, and all existing deadlines. Add a deterministic inherited-foreign-home red/green regression. No production resolver change, extended diagnostics trace, sleep, retry, skip or larger budget. The historical run lacked diagnostics; the controlled defect is proven, but attribution of that old run remains unknown. The TL explicitly defers additional diagnostics unless the failure recurs after isolation (#586 already supplies seam diagnostics).
 
 ## Done when
 
-- First-case failures retain enough evidence to distinguish wrong binary, incomplete/invalid observation and genuine unsupported history.
-- A deterministic red/green regression verifies the demonstrated cause.
-- Legacy empty-round reconstruction and scoped/ambiguous authorization assertions remain exact; isolated and loaded suite results are recorded.
+- The complete fixture passes with inherited foreign PAIR_HOME and PAIR_BIN; neither foreign executable is invoked and caller artifact sentinels remain unchanged.
+- The inherited-foreign-home regression fails with the old fixture and passes with isolation.
+- Every existing assertion and deadline is preserved; isolated and recorded broad-suite results are logged.
 
 ## Plan
 
-- [ ] Add first-case diagnostics before changing its admission: retain the chosen executable/root, ordered real resolver completions (including legacy fallback), exit/signal or spawn error, bounded output metadata/stderr, returned identity/status/diagnostic, reconstruction outcome and Neovim messages/exit. Reuse the existing fixture observation trace rather than a parallel observer (ARCH-DRY); flush evidence at shutdown or fixture failure, not during resolution.
-- [ ] Prove diagnostics with deterministic foreign-resolver, malformed/nonzero and silent early-editor-exit cases, plus a positive control retaining both actual missing→selected/resolved observations. Keep exact legacy decoration and scoped/ambiguous authorization assertions; do not add another resolver or change production scheduling (ARCH-PURE, ARCH-STATE).
-- [ ] Fix the demonstrated owning boundary: isolate the shell fixture through ReviewTestEnvironment before any Git/editor subprocess, pin checkout PAIR_HOME and executable selection, and preserve caller-owned artifact sentinels. Turn the controlled inherited-PAIR_HOME probe into a red/green regression. Production identity/reconstruction behavior and its 2500ms wait remain unchanged (ARCH-PURPOSE, ARCH-SECURE).
-- [ ] Record an isolated run and the required recorded full suite, update Atlas for fixture diagnostics, then request the mandatory close review and land on SHIP after the hub's turn.
+- [ ] Add the real-fixture regression with a foreign executable and caller artifact sentinels, and observe red before fixing the fixture.
+- [ ] Reuse ReviewTestEnvironment's shell re-exec to pin checkout PAIR_HOME/executable and isolate artifacts before any subprocess (ARCH-DRY, ARCH-SECURE). Preserve the complete fixture body and deadlines.
+- [ ] Wire the regression into the suite, update Atlas and record targeted plus required recorded broad-suite verification. Then use the mandatory close review and land on SHIP in the hub's order.
 
 ## Revisions
 
@@ -49,6 +48,10 @@ Capture actionable evidence on the first failure: exact binary/root, resolver in
 Read-only controlled runs demonstrate that inherited PAIR_HOME alone routes the first case to another executable and reproduces the exact three-failure signature while later explicit-binary cases pass. The clean control passes. This is sufficient to correct the fixture's owning environment boundary; it does not identify the original uninstrumented run's cause. Keep diagnostics so scheduling, malformed responses and unsupported history remain distinguishable rather than claiming they were ruled out.
 
 The work remains fixture-only and quick flow: real Git/Neovim/CLI positive controls plus controlled adverse subprocesses (ARCH-MOCK), existing phase deadlines and bounded diagnostic projections with no document bodies (ARCH-CONSTRAINTS), ephemeral owned fixture artifacts removed after their bounded report is emitted (ARCH-FUNERAL). No production durable state or external event protocol changes. The first-case missing→selected resolution and every return/refusal are observed in order without introducing callbacks or another observer request.
+
+### 2026-10-16 — TL-approved isolation-only revision
+
+The TL approved with a narrower scope (receipt 86755f4e-dd9a-4fd5-b861-d6abacdd23e2): the measured inherited-binary defect is sufficient; omit the proposed expanded diagnostics and their new adverse-response machinery. Reconcile the active Spec/Done-when/Plan to isolation and its regression only. #586 diagnostics remain available, with further instrumentation deferred until a recurrence after isolation. Production behavior, deadlines and all existing assertions remain unchanged. The existing helper owns environment and ephemeral artifacts (ARCH-DRY/ARCH-FUNERAL); real Git/Neovim/CLI exercise the same boundary (ARCH-MOCK/PURPOSE). No new state protocol or scheduling mechanism is introduced (ARCH-STATE/PURE); two bounded fixture runs exercise the two inherited executable selectors without performance assertions (ARCH-CONSTRAINTS).
 
 ## Log
 
@@ -61,3 +64,7 @@ The work remains fixture-only and quick flow: real Git/Neovim/CLI positive contr
 - Probe uses ReviewTestEnvironment to protect all caller artifacts, then invokes the unchanged complete resume fixture twice. Both use checkout PAIR_BIN; only PAIR_HOME changes between checkout and a controlled foreign executable. Checkout home: exit 0, 7.132s, all assertions pass. Foreign home: exit 1, 5.887s, exactly the initial three failures (`placed=false hl=0 diag=0`); every later explicit-identity/scoped/ambiguous/read-only assertion passes. Foreign argv records exactly the implicit readiness resolution, proving which binary produced the invalid observation. No timeout increase, sleep, retry or source edit was involved.
 - Evidence `/var/folders/07/b9wcwwld4_v2w9r3hk525bm80000gn/T/pair591-probe.Vz9GPH/`: checkout-home.json, foreign-home.json, foreign-calls.jsonl and results.json; probe `/tmp/pair591-measure.py`. The historical broad failure remains unclassified because it retained none of these observations. Two subsequent #590 broad runs passed this fixture, so those do not establish a historical cause either.
 - Proposed diagnostics-first plan fixes a demonstrated inherited-binary isolation defect after preserving evidence. Await the hub's plan decision before change-code; no product change proposed.
+
+### 2026-10-16 — approved trimmed scope
+
+TL approved the isolation fix and inherited-foreign-home red/green only. Extended tracing is deferred; no production change or assertion/deadline change is authorized. Updated the active contract and retained the original proposal above as historical revision context. Proceeding to change-code.
