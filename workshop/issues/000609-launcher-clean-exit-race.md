@@ -34,8 +34,8 @@ Replace the timer with a test-owned trap-ready file written only after trap inst
 Measure the failure ordering with a controllable fixture. Synchronize cancellation with the child's actual trap readiness while preserving the intended contract: a child that exits cleanly after cancellation returns its own exit status. Do not hide signalled exits, add sleeps, or extend deadlines.
 
 ## Done when
-- [ ] The clean-exit test cancels only after actual trap readiness and retains the 0,nil assertion.
-- [ ] Controlled pre-trap cancellation reproduces the signal result; corrected ordering and repeated focused/race/package checks pass.
+- [x] The clean-exit test cancels only after actual trap readiness and retains the 0,nil assertion.
+- [x] Controlled pre-trap cancellation reproduces the signal result; corrected ordering and repeated focused/race/package checks pass.
 - [ ] Recorded full suite, CI and close review pass; land through the line.
 
 - A controlled ordering reproduction identifies why the clean-exit test observed a signalled exit.
@@ -43,8 +43,8 @@ Measure the failure ordering with a controllable fixture. Synchronize cancellati
 - Isolated repeated and full-suite verification pass; production cancellation semantics remain covered.
 
 ## Plan
-- [ ] Record baseline and a controlled pre-trap readiness failure.
-- [ ] Replace the fixed cancellation timer with ready-file ordering and bounded join/cleanup.
+- [x] Record baseline and a controlled pre-trap readiness failure.
+- [x] Replace the fixed cancellation timer with ready-file ordering and bounded join/cleanup.
 - [ ] Qualify focused repeats, race and launcher package; run recorded suite, close and land.
 
 - [ ]
@@ -55,3 +55,9 @@ Measure the failure ordering with a controllable fixture. Synchronize cancellati
 2026-10-16: Filed unassigned from pair:1 at the TL's direction, separate from #589. Failed recorded command: sdlc local-check run --name suite (make PAIR_GO_TRIMPATH=-trimpath test), head ff788e65bb02408429d7e974389a2511d8492db2. Full log: /Users/xianxu/workspace/pair/.git/sdlc/test-stats/failed/515ad3a2617b9f0f7d1aa19c39691236.log (sha256 prefix 0c6257440f80). This was the only failing test in the completed run.
 
 Qualification on the same unchanged head: go test -trimpath ./cmd/internal/launcher -run '^TestCancelledHandoffReportsAChildsCleanExit$' -count=30 passed in 4.425s. This establishes intermittent behavior; it does not prove the suspected trap-installation ordering. No launcher changes or production slot effects. The TL authorized one unchanged recorded-suite rerun for #589 after this filing.
+
+2026-10-16: Plan receipt f993db5e-d36f-4bca-b30c-d72ecb2bf4e2 confirmed submitted to ops:0. Unchanged baseline: focused clean-exit test -trimpath -count=30 PASS (4.422s). Deterministic control uses an overlay-only test: the shell publishes startup then blocks on a FIFO before installing its TERM trap. Original 100ms cancellation while the gate remains closed FAILS with exactly handoff=-1,nil (0.14s test, 0.412s package). Releasing the FIFO, waiting for the post-trap ready file, then cancelling PASSES 30 repetitions (3.124s package). Both controls use the real killOnCancel/runBlockingHandoff. Scratch overlay: /var/folders/07/b9wcwwld4_v2w9r3hk525bm80000gn/T/pair609.jvvft6st; control_test.go SHA256 e01fbc7150c52dbae2a1faa4066950b2f9d168826cd49a6b2f51075537a063f0. Run with go test -trimpath -overlay <scratch>/overlay.json ./cmd/internal/launcher -run '^Test609TrapReadinessControl$' -count=1 -timeout=30s; set PAIR609_READY=1 and -count=30 for corrected ordering. This settles the original hypothesis as fixture ordering, not production behavior.
+
+2026-10-16: Implemented post-trap ready file, asynchronous handoff with close(done) synchronizing result reads, and LIFO cleanup cancelling/joining before TempDir removal. Early child exit fails immediately rather than waiting for readiness. Production and original child-status assertion unchanged; no new sleep or extended timeout. Focused clean-exit -trimpath -count=100 PASS (9.370s); cancellation group -trimpath -race -count=30 PASS (14.598s).
+
+2026-10-16: Whole launcher package go test -trimpath ./cmd/internal/launcher -count=1 PASS (51.710s). git diff --check clean.

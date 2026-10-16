@@ -79,9 +79,38 @@ func TestUncancelledHandoffReturnsTheChildsExitCode(t *testing.T) {
 // skipped its quit cleanup (#288 BR-2).
 func TestCancelledHandoffReportsAChildsCleanExit(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-	cmd := killOnCancel(exec.CommandContext(ctx, "sh", "-c", `trap "exit 0" TERM; while :; do sleep 0.05; done`))
-	time.AfterFunc(100*time.Millisecond, cancel)
-	if code, err := runBlockingHandoff(cmd); err != nil || code != 0 {
+	trapped := filepath.Join(t.TempDir(), "trapped")
+	cmd := killOnCancel(exec.CommandContext(ctx, "sh", "-c", `trap "exit 0" TERM; : > "$1"; while :; do sleep 0.05; done`, "sh", trapped))
+	done := make(chan struct{})
+	var code int
+	var err error
+	go func() { code, err = runBlockingHandoff(cmd); close(done) }()
+	// Join before TempDir cleanup, including when readiness fails.
+	t.Cleanup(func() {
+		cancel()
+		select {
+		case <-done:
+		case <-testwait.After(t):
+			t.Error("the handoff never returned during cleanup")
+		}
+	})
+	// A timer can signal a loaded shell before its clean-exit trap is set.
+	testwait.Until(t, "the child to set its TERM trap", func() bool {
+		select {
+		case <-done:
+			t.Fatalf("handoff ended before trap readiness: %d, %v", code, err)
+		default:
+		}
+		_, err := os.Stat(trapped)
+		return err == nil
+	})
+	cancel()
+	select {
+	case <-done:
+	case <-testwait.After(t):
+		t.Fatal("the handoff never returned from a clean-exit child")
+	}
+	if err != nil || code != 0 {
 		t.Fatalf("handoff = %d, %v; want the child's own 0, nil", code, err)
 	}
 }
