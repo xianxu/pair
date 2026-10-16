@@ -2,6 +2,8 @@ package wrapcmd
 
 import (
 	"bytes"
+	"context"
+	"encoding/json"
 	"os"
 	"strings"
 	"testing"
@@ -327,5 +329,40 @@ func TestPeerQoderRecoveryAdviceRoutesToNativeSubmit(t *testing.T) {
 	r.dispatch()
 	if r.accepted != 1 || r.f.proxy.automaticInput.phase != automaticInputIdle {
 		t.Fatalf("manual recovery left input pending: accepted=%d phase=%v", r.accepted, r.f.proxy.automaticInput.phase)
+	}
+}
+
+func TestPeerQoderBrokerReleaseStopsRetryAndQuarantines(t *testing.T) {
+	r := newQoderReceiver(t, 99)
+	r.d.binding = couchmessage.Binding{Slot: "pair:1", Repository: "/fixture/.git", Scope: "fixture", Tag: "receiver", Session: "fixture-session", Nonce: "launch", Agent: "qoder", Version: "fixture", PID: 1, Start: "birth"}
+	r.d.current.Message.To = r.d.binding
+	r.firstSubmit()
+	raw, err := json.Marshal(couchmessage.EndpointRequest{Op: "release", Binding: r.d.binding, ID: r.d.receipt().Message.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	reply, err := r.d.handleEndpoint(context.Background(), raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var response couchmessage.EndpointResponse
+	if err := json.Unmarshal(reply, &response); err != nil || response.Error != "" {
+		t.Fatalf("release response: %s / %v", reply, err)
+	}
+	r.now = r.now.Add(time.Second)
+	r.dispatch()
+	receipt := r.d.receipt()
+	if receipt.Status != couchmessage.Indeterminate || !strings.Contains(receipt.Detail, "supervisor released delivery") || strings.Contains(receipt.Detail, "operator input") {
+		t.Fatalf("release receipt: %+v", receipt)
+	}
+	if r.pastes != 1 || r.submits != 1 || r.accepted != 0 || len(r.reports) != 1 || r.f.proxy.automaticInput.phase != automaticInputNeedsOperator {
+		t.Fatalf("paste=%d submit=%d accepted=%d reports=%+v phase=%v", r.pastes, r.submits, r.accepted, r.reports, r.f.proxy.automaticInput.phase)
+	}
+	for i := 0; i < 4; i++ {
+		r.now = r.now.Add(time.Second)
+		r.dispatch()
+	}
+	if r.submits != 1 || len(r.reports) != 1 {
+		t.Fatal("release repeated input or reporting")
 	}
 }

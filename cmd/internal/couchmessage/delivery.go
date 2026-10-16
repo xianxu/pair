@@ -53,6 +53,7 @@ const (
 	PeerConfirmObserved
 	PeerRetrySubmit
 	PeerAutomaticInputBlocked
+	PeerBrokerReleased
 )
 
 // Ready is the adapter's verdict for the event's phase: on ComposerObserved,
@@ -94,8 +95,8 @@ func AdvancePeerDelivery(s PeerDeliveryState, e PeerDeliveryEvent) (PeerDelivery
 	}
 
 	switch e.Kind {
-	case PeerOperatorInput, PeerImageInput, PeerOverlayObserved, PeerDeadlineElapsed, PeerChildExited:
-		reason := map[PeerDeliveryEventKind]string{PeerOperatorInput: "operator input interrupted delivery", PeerImageInput: "image input interrupted delivery", PeerOverlayObserved: "dialog interrupted delivery", PeerDeadlineElapsed: "delivery deadline elapsed", PeerChildExited: "recipient exited"}[e.Kind]
+	case PeerOperatorInput, PeerImageInput, PeerOverlayObserved, PeerDeadlineElapsed, PeerChildExited, PeerBrokerReleased:
+		reason := map[PeerDeliveryEventKind]string{PeerOperatorInput: "operator input interrupted delivery", PeerImageInput: "image input interrupted delivery", PeerOverlayObserved: "dialog interrupted delivery", PeerDeadlineElapsed: "delivery deadline elapsed", PeerChildExited: "recipient exited", PeerBrokerReleased: "supervisor released delivery"}[e.Kind]
 		switch {
 		case s.BodyWritten:
 			// The text may sit in the recipient's composer or may have been

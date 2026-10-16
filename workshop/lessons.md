@@ -1943,3 +1943,25 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #569 process-selection mistake: a list of matching command names is not ownership evidence. Before signalling a test runner, trace its parent chain back to this slot's owned execution shell, match its command line, and inspect its exact cwd and retained log FD. Issue the signal in a separate step only if all prove ownership; prefer an owned job handle/process group. Never batch an unchecked ownership probe and kill.
 
 - #569 close review: operator advice must name the chord that the production wrapper routes to the intended native action. Test the action by following the actual notice through translateChunk; matching notice strings can consistently preserve a wrong key. Sweep README as well as Atlas when confirmation, retry or recovery behavior changes.
+- Process-table metadata and argv snapshots intentionally have different domains:
+  zombies and unreadable system services can retain metadata without commands.
+  Select possible owners before requiring argv, keep uncertainty for those owners,
+  and test new rows arriving between the reads. Fake tables containing only owned
+  processes miss fleet-wide false refusals. (#584)
+
+- #584: Before adding a whole-history proof to a foreground gate, measure cold decoding on retained production-sized metadata. Custom JSON field decoders do not inherit unknown-field checks, but need not repeat a whole-row duplicate scan already completed by the outer decoder. Preserve the validation contract with old/new differential tests before optimizing. Independent observations can overlap only with bounded workers, ordered decisions, and cancellation plus joining.
+
+- #584 close review: Classify functions by effects, not their decision-making role: injected IO still makes retry/proof orchestration INTEGRATION; name its deterministic predicates separately. For every new admission-critical external probe, commit a repeatable conformance fixture and connect it to an existing recurring live target, rather than relying only on a one-time host measurement.
+
+- #584: After changing a live Make target, run its workflow-contract tests as well as the new probe. The standalone-checkout dry-run contract has an exhaustive command map; update that consumer with the target and derive its expected count from the same map.
+
+- #579: when persisted metadata gains optional pointer fields, sweep every equality check on that metadata type. Compare decoded evidence by value; pointer identity differs after JSON replay and can permanently block exact-generation cleanup. Defend both interrupted recovery and eventual expiry.
+
+- #579 BR-1: a pump's EOF and its child process exit are separate lifecycle events. A timer-owned buffer must drain when its scheduling owner stops, before any later child wait; test EOF with the flush clock withheld and exercise flush-error reporting.
+
+- #579 BR-2: a successful rename followed by failed directory sync is an uncertain durability outcome, even when the next read finds identical bytes. Test repeated identical publication with injected sync failures, requiring durability reconfirmation and stable inode/content; healthy no-op tests alone cannot defend this class.
+
+- #579 M2: draining an owner is insufficient if asynchronous producers can still admit after its clock stops. Stop admission atomically with the final drain. Exercise a resize whose successful IO result is delayed across PTY EOF, then require no pending or published late sidecar event.
+
+- #594 review: When an approved revision changes certainty guarantees or defers production acceptance, append the revision and reconcile the active Spec and every Done when clause too. A historical Log records the decision but does not supersede contradictory closure criteria; name the pending check's owner and distinguish it from the landing gate.
+- #585 BR-1: a reaped process-group leader does not prove its descendants have exited. Preserve owned-group termination across a pending stderr drain; reader interruption alone can hide a surviving child. Regression fixtures must include a real descendant retaining the FD and require both descendant death and joined drain. Reuse the test-budget event helper instead of adding another fixed scheduling guard.

@@ -956,6 +956,17 @@ generation; gaps are not inactivity. The [offline labeling script](scripts/super
 compares observed writes within ten minutes without changing Couch decisions.
 See [the fact-log contract](atlas/couch.md#supervision-fact-log-543) for coverage and retention.
 
+Wrapper diagnostics batch at64KiB or every five seconds while dirty; raw capture
+and its offset sidecar flush every250ms. Orderly shutdown drains both. A process
+crash can lose pending buffers; optional diagnostics have no power-loss durability
+guarantee. See [storage retention and IO](atlas/storage-retention-io.md) for exact
+bounds and the synchronization kept for receipts, park and recovery. New diagnostic
+segments are capped at64MiB. Every diagnostic generation is retained behind
+the KeepDiagnosticsUntilBackup fence until ops history-backup can archive it;
+there is no total disk cap. Pre-existing oversized evidence is preserved. Unknown writer
+evidence refuses further growth at the limit. Parked recovery
+captures use their separate age policy and exact reader protections.
+
 The tab bar starts with the hub, the checkout you started Couch from, and then
 lists every other slot grouped by repository:
 `ops  ariadne  :1  :2  blog  pair  :1  :2`. In the switcher the hub is the first line and the rest sit indented

@@ -83,7 +83,7 @@ type Message struct {
 	Deadline time.Time
 	// AcceptedAt is the broker's immutable admission time, including time
 	// spent queued before promotion. Zero is accepted for legacy messages.
-	AcceptedAt time.Time `json:",omitempty"`
+	AcceptedAt time.Time `json:",omitzero"`
 }
 
 // HoldLimit is the latest paste-by that operator holds can reach.

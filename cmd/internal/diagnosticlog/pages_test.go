@@ -23,7 +23,7 @@ func fixtureSegment(t *testing.T, path, name string, last time.Time) {
 		t.Fatal(e)
 	}
 }
-func TestDiagnosticPageCursorSurvivesDeletionShrink(t *testing.T) {
+func TestDiagnosticPageCursorProgressesWhileBackupFenceRetainsAll(t *testing.T) {
 	path, now, opts := fixture(t)
 	w, e := Open(path, opts)
 	if e != nil {
@@ -43,7 +43,7 @@ func TestDiagnosticPageCursorSurvivesDeletionShrink(t *testing.T) {
 		}
 		removed += len(rows)
 		if done {
-			if removed != 3 {
+			if removed != 0 {
 				t.Fatalf("deleted %d of3", removed)
 			}
 			return
@@ -55,7 +55,7 @@ func TestDiagnosticPageCursorSurvivesDeletionShrink(t *testing.T) {
 	}
 	t.Fatal("pagination never completed")
 }
-func TestYoungFirstPageDoesNotHideExpiredLaterSegment(t *testing.T) {
+func TestBackupFencePreservesYoungAndExpiredPagedSegments(t *testing.T) {
 	path, now, opts := fixture(t)
 	w, e := Open(path, opts)
 	if e != nil {
@@ -80,14 +80,14 @@ func TestYoungFirstPageDoesNotHideExpiredLaterSegment(t *testing.T) {
 		}
 		cursor = next
 	}
-	if removed != 1 {
+	if removed != 0 {
 		t.Fatalf("removed %d", removed)
 	}
 	if _, e = os.Stat(segmentPath(path, young)); e != nil {
 		t.Fatal("young segment removed")
 	}
-	if _, e = os.Stat(segmentPath(path, old)); !os.IsNotExist(e) {
-		t.Fatal("old segment starved")
+	if _, e = os.Stat(segmentPath(path, old)); e != nil {
+		t.Fatal("old segment evicted before backup")
 	}
 }
 func TestPagedPreviewReportsIncompleteHonestly(t *testing.T) {

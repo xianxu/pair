@@ -239,7 +239,10 @@ func (o OSInspection) Runtimes(ctx context.Context) ([]Runtime, error) {
 		}
 		root := env["PAIR_DATA_DIR"]
 		protocol := pid == os.Getpid() || env["PAIR_RETENTION_PROTOCOL"] == "1"
-		if root != "" {
+		// Protocol-aware writers publish their registrations under the mutation
+		// lock. VerifyWriters exempts these transient runtimes regardless of root;
+		// resolving an obsolete root here would block retention everywhere.
+		if root != "" && !protocol {
 			if filepath.Base(filepath.Dir(root)) == "repos" {
 				root = filepath.Dir(filepath.Dir(root))
 			}

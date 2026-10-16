@@ -371,6 +371,8 @@ func Sweep(dir string, now time.Time, alive func(pid int) bool, apply bool, limi
 		switch {
 		case ext == unreported && alive(pid):
 			row.Reason = "couch that owns it is running"
+		case diagnosticlog.KeepDiagnosticsUntilBackup:
+			row.Reason = diagnosticlog.BackupFenceReason
 		case !diagnosticlog.DecideSegment(now, info.ModTime()):
 			row.Reason = diagnosticlog.RetainedReason
 		default:
