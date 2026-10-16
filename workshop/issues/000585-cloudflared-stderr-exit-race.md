@@ -88,6 +88,10 @@ Source02b5ef94ee83e1274d7b4ec7912261620e5acfeb: full broadcast package with race
 
 Corrected source8ea1ff75f02bba063007f3a11157fd2432576ce0: full broadcast package race run passed114.475s, and50focused loaded repetitions passed67.598s, including three real descendant cases (normal direct TERM, direct forced KILL, guarded forced KILL). Removing only direct group TERM makes its normal-path regression fail deterministically at its remaining-budget hang guard (15.00s of25s); the earlier pre-fix forced-path RED demonstrated the surviving descendant. Both negative controls kill their exact owned test group in cleanup. Original source bytes restored after the TERM mutation. make -k -B build passed on the corrected committed source. A fresh recorded suite is queued as80c2388bbd9b308cbc93f43f33980946 on that exact pushed head; no prior pass is being substituted.
 
+### Main integration before queued-suite execution
+
+Fetched main0169e962f95a932fd9884b20b2d5dd07b73022f1 carrying landed #584. Corrected-source suite80c2388bbd9b308cbc93f43f33980946 was still queued, with no recipe executed. Verified its owner file and process generation (PID69458, start2026-10-15T18:57:37), interrupted only that owned session group (exit130), then merged origin/main cleanly. This is source integration requiring a new exact-head run, not an unchanged retry after a failure. No foreign slot or suite was stopped. Restored descendant regression also passed (0.806s). Rebuild and fresh recorded suite follow on the integrated head; the prior source checks remain recorded above.
+
 ## Revisions
 
 ### 2026-10-15 — hypothesis confirmed as a production ownership violation

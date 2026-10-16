@@ -3,6 +3,7 @@ package couchcore
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/xianxu/pair/cmd/internal/launcher"
 )
@@ -38,5 +39,27 @@ func (c *Couch) checkRecoveryNativeOwner(ctx context.Context, record ThreadRecor
 			}
 		}
 	}
-	return checker.CheckRecoveryNativeOwner(ctx, check)
+	err := checker.CheckRecoveryNativeOwner(ctx, check)
+	var legacy *launcher.LegacyNativeOwnerError
+	if !errors.As(err, &legacy) {
+		return err
+	}
+	snapshot, previewErr := c.Threads.PreviewSnapshotContext(ctx)
+	if previewErr != nil {
+		return err
+	}
+	var friendly string
+	for _, slot := range snapshot.Slots {
+		if slot.Err != nil || slot.Address.RepoScope != legacy.Owner.RepoScope || string(slot.Address.Tag) != legacy.Owner.Tag {
+			continue
+		}
+		if friendly != "" || slot.Identity.validateLocation() != nil {
+			return err
+		}
+		friendly = fmt.Sprintf("%s:%d", slot.Identity.Repo, slot.Identity.Number)
+	}
+	if friendly == "" {
+		return err
+	}
+	return fmt.Errorf("%w; relaunch %s to migrate: couch --relaunch %s --confirm", err, friendly, friendly)
 }

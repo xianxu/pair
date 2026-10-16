@@ -3161,6 +3161,11 @@ observation seam and explicitly requires real server discovery, session-delete
 dispatch, and an underlying OS kill dispatch against an exact-argv sentinel
 that ordinary zellij deletion does not own before accepting verified absence.
 A separate macOS workflow runs it on relevant changes and weekly/manual cadence.
+`TestLsofWritableNamesLiveConformance` shares both live targets and that cadence.
+It opens temporary read-only/writable descriptors in its own process, then closes
+and reopens them to compare the production `procutil.LsofWritableNames` result
+with actual access/lifetime. Run the focused check after macOS/lsof upgrades too:
+`PAIR_LIVE_COUCH=1 go test ./cmd/internal/procutil -run ^TestLsofWritableNamesLiveConformance$ -count=1 -v`.
 
 `Runner` was genuinely new — pair has no async process-exec seam.
 `launcher.ProcOps` is named for pair's own sidecars, and `wrapcmd` spawns its
@@ -3921,6 +3926,32 @@ terminal lifetime; different native IDs can proceed independently. Legacy owners
 remain checked through bounded Pair metadata and process evidence, including a
 retained native child whose wrapper has died.
 
+The wrapper scan first selects kernel-name candidates (`pair`, `pair-wrap`, or
+unknown names), then requires stable argv and identity for those candidates.
+Unrelated unreadable services and kernel-confirmed zombies are not live native
+owners, including zombie children referenced by retained readiness. A missing
+candidate command or changed wrapper set gets one complete re-observation under
+the same five-second budget; persistent uncertainty refuses with its PID rather
+than treating the candidate as absent (#584).
+
+Legacy readiness without a child birth can exclude a different conversation only
+through its exact launch ordinal and live direct-child relationship. A matching
+source needs the ledger ID among the native engine's positively held writable
+transcripts. When that launch genuinely has no ID, a complete held-ID set is
+used instead, including for modern owners after their full identity checks.
+Missing, partial, conflicting or malformed evidence remains uncertainty. Both
+observations recheck process births, parent edges and held IDs; nothing is
+persisted. Refusals name the legacy owner and, when uniquely resolvable, its slot
+and relaunch command. Codec filename rules stay owned by sessioninventory.
+
+Ledger snapshots use their finite observed length and the existing regular-file,
+no-symlink, unchanged-generation reader rather than an unsupported reader-only
+size ceiling. A pure projection memo lasts for one admission and reuses results
+only after a fresh snapshot has the same content digest. Each phase proves at
+most four owners concurrently, consumes their results in stable order, and joins
+all workers before returning. The shared strict JSON codec keeps full validation
+while avoiding repeated nested duplicate scans and value-token allocations.
+
 Only definitely unexposed reservations may be cancelled by their helper. On the
 next admission, an unconsumed reserved grant whose exact helper is proven dead
 is revoked under the same store lock used by wrapper Claim; a delayed wrapper
@@ -3934,8 +3965,10 @@ forgetting possible writers. Fresh remains a separate conversation.
 
 Owners: `launcher/native_admission.go`, `native_admission_os.go`,
 `native_createflow_os.go`, `native_resume_selector*.go`,
-`recovery_native_owner*.go`, `sessioninventory/native_selector*.go`, and
-`wrapcmd/native_admission.go`. Provider latest support is constrained by measured native ordering and positively
+`recovery_native_*.go`, `sessioninventory/native_selector*.go`, and
+`wrapcmd/native_admission.go`; the held-file boundary is
+`procutil.LsofWritableNames`, and full ledger validation belongs to
+`sessionledger/record.go` and `strictjson/decode.go`. Provider latest support is constrained by measured native ordering and positively
 resolved effective configuration. Unsupported/incomplete mappings for other
 agents report exact-ID/Fresh advice. Codex's approved unreserved exception is owned
 by the shared CodexIndirectResumeCompatibility policy, with one wrapper notice;

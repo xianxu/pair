@@ -87,8 +87,8 @@ func TestRecoveryNativeOwnerGuard(t *testing.T) {
 			if (err == nil) != allowed {
 				t.Fatalf("guard err=%v allowed=%v", err, allowed)
 			}
-			if mode == "changed-generation" && w.observations != 2 {
-				t.Fatal("did not recheck process generation")
+			if mode == "changed-generation" && w.observations != 3 {
+				t.Fatal("did not retry the changed process generation before rejecting its missing child evidence")
 			}
 			if mode == "different-agent" && w.reads != 0 {
 				t.Fatal("read unrelated agent ledger")
