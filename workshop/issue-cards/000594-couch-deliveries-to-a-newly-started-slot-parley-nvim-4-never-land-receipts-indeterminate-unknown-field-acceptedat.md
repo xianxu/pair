@@ -1,6 +1,6 @@
 ---
 id: 000594
-status: codecomplete
+status: done
 created: 2026-10-15
 updated: 2026-10-15
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 237b26648a48c394f79bb2cff5bc16da03c3ee3c
         evidence_commit: 6d08abd64b2097a0a53da009320b7026133a4039
+        landed_commit: 47a485ce46ffb685ce951cfb16428fef2c2f1bcd
 ---
 
 # Couch: deliveries to a newly started slot (parley.nvim:4) never land, receipts 'indeterminate' (unknown field AcceptedAt)
