@@ -441,3 +441,15 @@ retry there. The adapter code is unchanged; this avoids a later integration
 suite. Hub report55f6456a confirmed submitted. Inflight log:
 /Users/xianxu/workspace/pair/.git/sdlc/test-stats/inflight/b30420b01312c5b7d54bb341e95b5c09/run.log.
 #596 now carries the retained failure path and targeted pass on main.
+
+### 2026-10-15 — final integrated full suite passed
+
+Final recorded full suite on7e383735e01672e3aebcfeae7a385becfc955f11 passes
+exit0 in11m52s after519s queue wait. All recipes/packages passed, including
+TestSessionSyncWriteTelemetryBestEffort; no failures in this retry. Log:
+/Users/xianxu/workspace/pair/.git/sdlc/local-checks/7e383735e01672e3aebcfeae7a385becfc955f11/suite.log,
+SHA256prefix8e81b7749442. Couchcore385.945s, couchcmd56.208s. CI conformance,
+merge-check and guard are green. Only docs/evidence changed after this suite
+head. Earlier telemetry failure remains filed independently as #596. All
+BR6/BR7 corrections now have normal/race and final integrated full-suite
+evidence; proceed to fresh full close, with no gate bypass or staging.
