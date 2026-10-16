@@ -460,6 +460,10 @@ couch --recovery-confirmation TOKEN [--json]
                          approve that offer from the authenticated owning hub; no repeated target or TUI is needed
 couch --switch-agent repo:N --agent NAME --confirm [--json]
                          from the hub: switch another idle, clean slot using saved target-agent settings
+couch --keys repo:N STEP... [--json]
+                         owning hub: drive named keys in an idle, empty agent composer and return its styled tail
+couch --set-model repo:N --model MODEL [--effort LEVEL] [--scope session|default] --confirm [--json]
+                         owning hub: select and verify model/effort; session scope is the default
 couch --operation-status ID [--json]   inspect an asynchronous operation receipt
 couch --reap repo:N --confirm [--json]     from a live slot: end an orphaned server's tree
 couch --recover repo:N [--json]               from a live slot: run the report's steps for it
@@ -488,6 +492,39 @@ couch --message-status ID [--json]      inspect a message receipt; a send to a b
 couch --skill            print the bundled agent coordination skill
 couch --adopt-store /absolute/store     preview adoption of an existing store
 ```
+
+`couch --keys` and `couch --set-model` require a verified owning hub and one
+other exact live slot with an idle, empty agent composer. The separate Neovim
+draft does not block these controls. A busy turn, open picker, occupied composer
+or unknown wrapper state refuses before input; relaunch an older wrapper on the
+new build if its drive capability is unavailable. Recovery-only `--keys`
+requests containing solely `clear-line` and/or `esc` may start on a positively
+recognized occupied composer, with no turn, picker, buffered input or competing
+automatic input. After inspecting an uncertain result and the slot, use
+`couch --keys pair:7 clear-line` to clear that composer's current line. Mixed
+requests and model selection still require an empty composer.
+
+```sh
+couch --keys pair:7 clear-line text:/model submit wait:200 down enter
+couch --set-model pair:7 --model gpt-6.1-sol --effort medium --confirm
+```
+
+Named raw steps are `text:…`, `enter`, `submit`, `up`, `down`, `esc`,
+`clear-line` and `wait:MS`. `enter` follows Pair's Return behavior: newline in
+the composer, selection in a picker; `submit` follows Alt+Return. Each `esc`
+is a separate input step. Raw success confirms the writes and final observation.
+Use `--set-model` when you need a confirmed model, effort and scope: it follows
+observed labels, uses the picker's current effort if omitted, and verifies a
+fresh agent confirmation. Session scope uses `s` in both agents. Explicit
+`--scope default --confirm` is supported for Codex; Claude default scope is
+refused before input because its persistence recipe is not verified.
+
+A drive has a 30-second server budget, including queue wait; the CLI observes
+for at most 36 seconds. Human input or a changed wrapper/owner cancels it.
+An uncertain outcome never permits automatic replay: inspect the printed
+receipt with `couch --operation-status ID` and the slot with `couch --peek repo:N`
+before sending anything else. Input and result bounds are documented in the
+[Couch atlas](atlas/couch.md#agent-keys-and-model-selection-544).
 
 Couch attaches only after a fresh `zellij list-sessions` result lists the
 session live (not EXITED). An absent session or failed listing never authorizes

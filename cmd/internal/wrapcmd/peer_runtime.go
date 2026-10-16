@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/xianxu/pair/cmd/internal/agentdrive"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
 	"github.com/xianxu/pair/cmd/internal/strictjson"
@@ -57,6 +58,7 @@ func (r *peerRuntime) Close() {
 		r.cancel()
 		r.delivery.mu.Lock()
 		r.delivery.exited = true
+		r.delivery.cancelDriveLocked("wrapper stopped")
 		r.delivery.mu.Unlock()
 		r.delivery.signal()
 		_ = r.server.Close()
@@ -78,6 +80,28 @@ func (d *peerDelivery) handleEndpoint(_ context.Context, raw []byte) ([]byte, er
 	}
 	var err error
 	switch request.Op {
+	case "drive-observe":
+		o := d.agentDriveObservation()
+		response.DriveObservation = &o
+	case "drive-start":
+		var result agentdrive.Result
+		result, err = d.startAgentDrive(request.ID, *request.Drive)
+		if err == nil {
+			response.DriveResult = &result
+		}
+	case "drive-status":
+		var result agentdrive.Result
+		result, err = d.agentDriveResult(request.ID)
+		if err == nil {
+			response.DriveResult = &result
+		}
+	case "drive-cancel":
+		var result agentdrive.Result
+		result, err = d.cancelAgentDrive(request.ID)
+		if err == nil {
+			response.DriveResult = &result
+		}
+
 	case "tail":
 		d.mu.Lock()
 		probe := d.tailProbe
@@ -194,6 +218,7 @@ func (p *proxy) startPeerRuntime(executable string) (*peerRuntime, error) {
 	d.session = session
 	if p.terminal != nil {
 		d.settleProbe = p.settledNow
+		d.driveProbe = p.agentDriveScreenLocked
 		d.tailProbe = p.agentTail
 		d.viewProbe = p.composerInView
 	}

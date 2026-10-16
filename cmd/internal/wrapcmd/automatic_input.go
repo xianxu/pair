@@ -14,6 +14,7 @@ type automaticInputPhase uint8
 const (
 	automaticInputIdle automaticInputPhase = iota
 	automaticInputPeer
+	automaticInputDrive
 	automaticInputAwaitingEmpty
 	automaticInputAlerted
 	automaticInputNeedsOperator
@@ -59,8 +60,10 @@ func advanceAutomaticInput(tx automaticInputTransaction, e automaticInputEvent) 
 	d := automaticInputDecision{}
 	switch e.kind {
 	case automaticBegin:
-		if tx.phase == automaticInputIdle {
-			tx.phase = e.owner
+		// A positively admitted recovery drive can replace a residual wait,
+		// including an alerted stall. Active automatic owners remain exclusive.
+		if tx.phase == automaticInputIdle || e.owner == automaticInputDrive && e.eligible && (tx.phase == automaticInputAwaitingEmpty || tx.phase == automaticInputAlerted) {
+			tx = automaticInputTransaction{phase: e.owner, sequence: tx.sequence}
 		}
 	case automaticFinish:
 		if tx.phase == e.owner {
