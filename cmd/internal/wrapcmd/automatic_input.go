@@ -17,12 +17,14 @@ const (
 	automaticInputDrive
 	automaticInputAwaitingEmpty
 	automaticInputAlerted
+	automaticInputNeedsOperator
 )
 
 type automaticInputTransaction struct {
 	phase        automaticInputPhase
 	renderFence  uint64
 	submitted    bool
+	residueCause string
 	blockedSince time.Time
 	sequence     uint64 // lifetime high-water, retained across successful transactions
 }
@@ -32,6 +34,7 @@ const (
 	automaticBegin automaticInputEventKind = iota
 	automaticFinish
 	automaticObserve
+	automaticQuarantine
 )
 
 type automaticInputEvent struct {
@@ -42,6 +45,8 @@ type automaticInputEvent struct {
 	now                       time.Time
 	composer                  PeerComposerState
 	complete, eligible        bool
+	reportCause               string
+	wait                      time.Duration
 	recoveryAfter             time.Duration // negative disables recovery in root-cause tests
 }
 type automaticInputDecision struct {
@@ -68,8 +73,17 @@ func advanceAutomaticInput(tx automaticInputTransaction, e automaticInputEvent) 
 				tx = automaticInputTransaction{phase: automaticInputAwaitingEmpty, renderFence: e.epoch, submitted: e.submitted, sequence: tx.sequence}
 			}
 		}
+	case automaticQuarantine:
+		if tx.phase == e.owner {
+			tx.phase, tx.renderFence, tx.submitted = automaticInputNeedsOperator, e.epoch, false
+			tx.residueCause = e.reportCause
+			if tx.sequence < math.MaxUint64 {
+				tx.sequence++
+				d.report = &couchmessage.AutomaticInputStall{Sequence: tx.sequence, Cause: e.reportCause, WaitMillis: min(max(e.wait.Milliseconds(), 0), couchmessage.MaxAutomaticInputStallWaitMillis), Fence: e.epoch, Epoch: e.epoch}
+			}
+		}
 	case automaticObserve:
-		if tx.phase == automaticInputAwaitingEmpty || tx.phase == automaticInputAlerted {
+		if tx.phase == automaticInputAwaitingEmpty || tx.phase == automaticInputAlerted || tx.phase == automaticInputNeedsOperator {
 			if e.complete && e.epoch > tx.renderFence && e.composer == PeerComposerEmpty {
 				clear()
 				break
@@ -81,6 +95,9 @@ func advanceAutomaticInput(tx automaticInputTransaction, e automaticInputEvent) 
 				d.cause = "composer unrecognized"
 			} else if e.composer == PeerComposerOccupied {
 				d.cause = "composer occupied"
+			}
+			if tx.phase == automaticInputNeedsOperator {
+				break
 			}
 			eligible := e.eligible && e.complete && e.composer != PeerComposerOccupied
 			if !eligible {
@@ -125,7 +142,7 @@ const automaticInputRecoveryAfter = 30 * time.Second
 // Called with inputAdmission and peer.mu held. Only captures evidence and
 // enqueues exceptional work; diagnostic and socket IO run in the runtime worker.
 func (p *proxy) automaticInputAvailable(owner automaticInputPhase) bool {
-	if p.automaticInput.phase != automaticInputAwaitingEmpty && p.automaticInput.phase != automaticInputAlerted {
+	if p.automaticInput.phase != automaticInputAwaitingEmpty && p.automaticInput.phase != automaticInputAlerted && p.automaticInput.phase != automaticInputNeedsOperator {
 		return p.automaticInput.phase == automaticInputIdle || p.automaticInput.phase == owner
 	}
 	d := p.peer
@@ -141,17 +158,21 @@ func (p *proxy) automaticInputAvailable(owner automaticInputPhase) bool {
 		e.complete = s.Complete && (d.outputPending == 0 || p.terminal.FrameComplete())
 	}
 	e.eligible = !d.exited && !d.interrupted && d.now().Before(d.deadlineLocked()) && p.childAcceptsPaste() && !p.turnActive.Load() && !p.pickerActive.Load() && !d.image && !d.holding && !d.inputBuffered && d.replies.inFlight == 0 && len(d.replies.input) == 0 && (d.lastInput.IsZero() || !d.now().Before(d.lastInput.Add(time.Second)))
-	var decision automaticInputDecision
-	p.automaticInput, decision = advanceAutomaticInput(p.automaticInput, e)
-	p.automaticInputCause = decision.cause
-	if decision.report != nil && p.automaticReport != nil {
-		p.automaticReport(*decision.report, snapshot)
-	}
-	return decision.available
+	return p.applyAutomaticInputEvent(e, snapshot).available
 }
 func (p *proxy) beginAutomaticInput(owner automaticInputPhase) {
 	p.automaticInput, _ = advanceAutomaticInput(p.automaticInput, automaticInputEvent{kind: automaticBegin, owner: owner})
 }
 func (p *proxy) finishAutomaticInput(owner automaticInputPhase, confirmedEmpty bool) {
 	p.automaticInput, _ = advanceAutomaticInput(p.automaticInput, automaticInputEvent{kind: automaticFinish, owner: owner, epoch: p.automaticRenderEpoch.Load(), confirmedEmpty: confirmedEmpty, submitted: p.peer != nil && p.peer.state.Outcome() == couchmessage.Submitted})
+}
+
+func (p *proxy) applyAutomaticInputEvent(e automaticInputEvent, snapshot terminalSnapshot) automaticInputDecision {
+	var decision automaticInputDecision
+	p.automaticInput, decision = advanceAutomaticInput(p.automaticInput, e)
+	p.automaticInputCause = decision.cause
+	if decision.report != nil && p.automaticReport != nil {
+		p.automaticReport(*decision.report, snapshot)
+	}
+	return decision
 }

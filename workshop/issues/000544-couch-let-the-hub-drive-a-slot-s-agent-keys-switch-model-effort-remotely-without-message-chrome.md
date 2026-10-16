@@ -54,7 +54,7 @@ Durable implementation plan: [agent keys and model selection](../plans/000544-ag
 
 - [x] Implement typed bounded key driving and verified per-agent model recipes through the exact-bound wrapper.
 - [x] Wire hub ownership/idle guards, receipts and model-control submission accounting; prevent false prompt waits.
-- [ ] Verify recorded screens, stateful socket/PTY sequences and isolated live conformance; update docs, close and land.
+- [x] Verify recorded screens, stateful socket/PTY sequences and isolated native conformance; update docs. Close and land through SDLC; live fleet model/keys/delivery acceptance is post-landing, owned by TL ops:0 under the revision below.
 
 ## Log
 
@@ -136,7 +136,20 @@ Restart notices bf9e8370 and9bda8abc could not be verified or answered because c
 
 - After the fixture-only correction, recorded suite on12d6b46cef82aaea977dad6a5a90325f6035ca2d PASS exit0 in10m7s (make PAIR_GO_TRIMPATH=-trimpath test), recorded sdlc-local/suite. All shell/editor and Go packages passed, including wrapcmd66.797s. Reported log `/Users/xianxu/workspace/pair/.git/sdlc/local-checks/12d6b46cef82aaea977dad6a5a90325f6035ca2d/suite.log`, SHA256 prefix876e98926efc. Production code is identical to staged42b2086fb040b9cbcb527fdcc91f09d8a7bbfdd1; only tests and issue evidence changed. Restart noticef432124b could not be verified/responded to because couch is still absent from PATH (exit127). Live acceptance and close remain pending; no replay, peer input or stage change.
 
+### 2026-10-15 — recovered state and TL landing decision
+
+Previous recovery screen is unavailable. Clean pushed recovery HEAD was fb11e0c81; saved suite log on12d6b46ce still exists and its SHA256 is876e98926efcec6328b2a0cbcda300b1212fc5f16c13a3e9c9eb0896fb49d49e. Production is identical to42b2086f. Current pair:0 has returned to main and its clean binaries report f136934d03b953354de3eab53bcb0575700897f2, so historical staging is not current runtime proof.
+
+Verified submitted TL receipt35fe918a-6e29-4552-a88c-b95671e9822a from ops:0 to this incarnation directs landing now, integrating current main and using the normal review/suite/merge gates. TL reports the production-equivalent42b2086f fleet Couch ran20:27–23:13 tonight without regressions attributable to it. This is operational soak evidence, not successful model/key acceptance. Live session-only Codex and Claude set-model, raw keys/recovery and ordinary delivery handoff acceptance move to main after the next operator Couch restart, owned by TL ops:0. No live-success claim or worker-driven restart is made.
+
 ## Revisions
+
+### 2026-10-15 — move live acceptance after landing
+
+**Reason:** Verified TL decision35fe918a accepts the recorded suite plus fleet operational soak as landing evidence and takes ownership of live feature smoke on main after the next Couch restart.
+
+**Delta:** Retain all feature acceptance criteria; change their scheduling rather than assert unmeasured success. The final implementation checkbox covers recorded/stateful/native conformance, docs and gated landing; live set-model/keys/delivery acceptance remains explicitly outstanding under TL ownership. Integrate current main including #597/#600, preserve both additive source inventories (ARCH-DRY), run targeted checks and the integrated full suite through SDLC before landing.
+
 
 ### 2026-10-15 — reconcile landed recovery and stall supervision
 

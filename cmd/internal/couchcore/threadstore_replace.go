@@ -69,7 +69,7 @@ func (s *ThreadStore) ReplaceThreadExpected(old ThreadAddress, expectedRevision 
 				return errors.New("fresh replacement lacks retained source selection")
 			}
 			expected := threadrecord.CloneRecoveryIntent(record.RecoveryIntent)
-			expected.Address = toPersistedThreadAddress(next.Address)
+			expected.Address, expected.SourceRevision = toPersistedThreadAddress(next.Address), next.Revision
 			if !reflect.DeepEqual(expected, next.RecoveryIntent) || len(next.Incarnations) != 1 || next.Incarnations[0].Start == nil || !reflect.DeepEqual(expected, next.Incarnations[0].Start.RecoveryIntent) {
 				return errors.New("fresh replacement selection changed")
 			}

@@ -361,3 +361,38 @@ func TestNativeCreateChosenNewIDBypassesSavedPicker(t *testing.T) {
 		})
 	}
 }
+
+// pair#597 close review BR-1: only Couch's resume and recovery profiles
+// (registry-checked) skip admission. An ordinary Couch spawn whose saved
+// argv names a conversation still reserves and hands the wrapper a grant.
+func TestCouchSpawnWithResumeArgvStillReservesAdmission(t *testing.T) {
+	rt := newFakeRuntime()
+	reserved := 0
+	rt.nativeReserve = func(context.Context, NativeAdmissionRequest) (string, error) {
+		reserved++
+		return "exact-grant", nil
+	}
+	rt.launchHook = func(int) {
+		if rt.env[NativeAdmissionEnv] != "exact-grant" {
+			t.Fatal("Couch spawn resume handed off without a grant")
+		}
+	}
+	raw, err := BuildCouchLaunchProfile("work", "claude", []string{"--resume", "11111111-1111-4111-8111-111111111111"}, "explicit", "explicit")
+	if err != nil {
+		t.Fatal(err)
+	}
+	opts := baseOpts(LaunchArgs{ForcedTag: "work"})
+	if opts.Args, _, err = ApplyCouchLaunchProfile(opts.Args, raw); err != nil {
+		t.Fatal(err)
+	}
+	opts.SkipConfigPicker = true
+	scope, err := ResolveRepoScope(opts.Env.Cwd)
+	if err != nil {
+		t.Fatal(err)
+	}
+	opts.Env.CouchThreadScope, opts.Env.CouchThreadTag = scope.Key, "work"
+	code, err := run(t, opts, rt)
+	if err != nil || code != 0 || reserved != 1 {
+		t.Fatalf("Couch spawn resume: code=%d err=%v reserved=%d", code, err, reserved)
+	}
+}

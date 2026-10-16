@@ -25,6 +25,7 @@ func primaryRebootFixture(t *testing.T) (*testEnv, ThreadRecord) {
 		return nonce != "" && nonce == readyNonce && address == readyAddress, nil
 	}
 	env.Runner.AfterAcknowledge = func(id string) error {
+		requireLauncherAcceptsRecovery(t, env.Runner, id)
 		child := env.Runner.Child(id)
 		var profile launcher.TrustedLaunchProfile
 		if err := json.Unmarshal([]byte(environmentValue(child.Env, launcher.CouchLaunchProfileEnv)), &profile); err != nil {
@@ -286,7 +287,7 @@ func slotRecordFixture(t *testing.T, env *testEnv, local *ThreadStore) ThreadRec
 	if err != nil {
 		t.Fatal(err)
 	}
-	env.Artifacts.SetNativeBinding(old.Address, "claude", sessioninventory.BindingEstablished, "native-slot")
+	env.Artifacts.SetNativeBinding(old.Address, "claude", sessioninventory.BindingEstablished, fmt.Sprintf("native-slot-%d", local.slot.Number))
 	return old
 }
 
