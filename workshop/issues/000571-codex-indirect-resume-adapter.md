@@ -81,6 +81,10 @@ Source links (matching tag):
 
 ## Revisions
 
+### 2026-10-15 — final integrated full suite passed
+
+Recorded suite on a669a090c3b886ecf96853f3bb84e6c1e840aaeb (including main's #579) passed every shell/editor recipe and Go package, exit0 in13m7s after101s queue. Log: /Users/xianxu/workspace/pair/.git/sdlc/local-checks/a669a090c3b886ecf96853f3bb84e6c1e840aaeb/suite.log; sha256prefix3cfb5c2d56d7. Artifactpath6.860s, broadcast33.963s, couchcore489.548s, diagnostics92.226s, launcher83.033s, inventory130.357s, wrapper55.489s and workbench performance0.235s all pass. No failures or flakes. The earlier981cfb28 full suite also passed; two runs were required because main gained code, not to retry unchanged failures. Ready for fresh binary-owned close review; no approval or validation gate bypassed.
+
 ### 2026-10-15 — full suite passed; new main code integrated
 
 Recorded suite on981cfb28fc504441a6799b8f93f6424b756c07f1 passed every shell/editor recipe and Go package, exit0 in12m29s after231s queue. Log: /Users/xianxu/workspace/pair/.git/sdlc/local-checks/981cfb28fc504441a6799b8f93f6424b756c07f1/suite.log; sha256prefix0aee61766901. Includes artifactpath7.007s, broadcast33.025s, couchcore471.007s, launcher55.906s, inventory114.576s and wrapper72.450s. No flakes or failures.
