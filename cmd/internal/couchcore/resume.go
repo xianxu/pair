@@ -596,6 +596,11 @@ func (c *Couch) resumeContextWith(ctx context.Context, address ThreadAddress, op
 		if err := launcher.RequireNativeResumeBinding(eligible.RequiredSessionID, currentBinding.NativeID, currentBinding.Status); err != nil {
 			return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(thread, nonce))
 		}
+		// The launcher takes no native admission for a Couch-owned resume
+		// (pair#597); every Couch resume passes this registry check instead.
+		if err := c.checkRecoveryConversationInUse(ctx, thread, RecoveryChoice{Agent: eligible.Profile.Agent, NativeID: eligible.RequiredSessionID}); err != nil {
+			return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(thread, nonce))
+		}
 		built, err := launcher.BuildCouchResumeLaunchProfile(string(address.Tag), eligible.Profile.Agent, eligible.Profile.Argv, eligible.RequiredSessionID)
 		if err != nil {
 			return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(thread, nonce))

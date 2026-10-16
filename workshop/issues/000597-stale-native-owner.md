@@ -1,6 +1,6 @@
 ---
 id: 000597
-status: working
+status: codecomplete
 deps: []
 github_issue:
 target: slot-recovery
@@ -8,7 +8,7 @@ created: 2026-10-15
 updated: 2026-10-15
 estimate_hours:
 severity: critical
-card_mirror: 'f83e7afcbe689cb5e7ae098f53cca30fc2a348d2' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'd4f512e4f7e5d5ec2859212a6735e122308369c1' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-15T20:32:41-07:00
 claimant:
     operator: Xian Xu
@@ -18,6 +18,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
 flow: {kind: quick, provenance: inferred, spec: "2aadeb9b", done: "105f9900"}
+actual_hours: 1.75
 ---
 
 # Reject stale legacy native owners
@@ -45,6 +46,7 @@ Couch Resume from disk / Relaunch retire their own attributed processes, then la
 ## Log
 
 ### 2026-10-15
+- 2026-10-15: closed — Recorded full suite green on 7daa8f2b (sdlc-local/suite 9m4s). couchcore/wrapcmd/launcher/artifactpath ok. Round-2 BR-1 class fixed: launcher skips admission only for couchOwned resume (ResumeRequired) or recovery (Recovery) profiles, the two registry-checked paths; ordinary Couch spawn with --resume ID reserves (TestCouchSpawnWithResumeArgvStillReservesAdmission, RED under old gate); wrapper bypass only for a Couch-hosted pinned resume (hosted --continue still refused). Atlas couch.md updated. Earlier: both recovery gates and cold resume refuse a conversation live elsewhere, each RED-checked; Fresh retry scenario. TL approved diff and BR-1 approach.; review verdict: SHIP
 
 Urgent TL dispatch 368e95f0 verified submitted. #595 checkpointed at eb6528a5; this independent hotfix starts from main, with no stacked code. No live process or slot changes authorized or performed.
 
@@ -70,3 +72,20 @@ No recorded full suite, build, close or SHIP review for #597 yet. Operator/TL ow
 ### 2026-10-15 — operator redirect (TL f4341d43)
 
 Supersedes the legacy PID/lsof patch: resume/relaunch retire the slot's own attributed processes and restart the proven transcript. Remove global native-owner/store admission calls from Couch recovery launch paths; deletion stays #595. The only cross-slot refusal is another positively live Couch registry entry recording the exact same agent/conversation ID, naming its slot. Unknown recorded IDs do not manufacture collisions. Fresh skips native ownership completely and consumes its validated reserved address; stale failed-attempt evidence is preserved/archived through existing Fresh replacement. Refusals are busy, own-process retirement unconfirmed, or exact conversation live elsewhere. Build/test this narrow path correction, no live mutation; TL restages and recovers ariadne:4/5.
+
+### 2026-10-15 — registry-only recovery built (pair:2, Claude; TL plan approval a426e5d9)
+
+- Guard calls removed from Couch start paths: couchcore recovery_prepared.go preflight + post-prepare gates (native-owner scan → `checkRecoveryConversationInUse`), launcher recovery_authority_os.go duplicate validation-time scan (deleted outright), createflow `ReserveNativeResume` skipped when the launch is Couch-owned; wrapper `startAgentPTY` starts a Couch-hosted resume without admission. Standalone Pair keeps admission (#595 deletes the scan code).
+- Registry check: Couch thread snapshot; each OTHER record with a positively live incarnation (exact PID+identity) and the same agent → its recorded conversation via the per-slot binding (`resumeEvidence`, same as its Resume row). Same ID (established or requested) refuses "conversation X is in use by repo:N"; dead/unknown/reused-PID/unreadable never refuses. Refusals on these paths: busy, kill not confirmed (existing retirement), in use by slot X.
+- Deleted dead couch glue: `Couch.checkRecoveryNativeOwner` (+ relaunch-to-migrate advice and its test) and the Scoped adapter. Production delta vs handoff 4d3318ee: +64 −72 (net −8).
+- Tests: registry unit table (9 cases); stale-native-evidence integration at both gates (RED against old gate: "live wrapper native ownership is unresolved"); Couch-owned createflow resume reserves/exposes no grant (RED with gate reverted); wrapper hosted-vs-ordinary. Fixture fix: slotRecordFixture gave every slot the same conversation ID, which the new check correctly flagged in TestRecoverPlanStepsConverge; now per-slot. wrapcmd TestMain unsets COUCH_THREAD_SCOPE/TAG so ordinary-wrapper tests stay hermetic when run from a Couch slot.
+
+### 2026-10-15 — close review round 1 (REWORK) dispositions
+
+- BR-1 (Critical), accepted, but fixed per the brief rather than as suggested: the brief puts relaunch/resume in scope, so instead of restoring admission for ordinary Couch cold resume, `resume.go`'s cold-resume path (BuildCouchResumeLaunchProfile, used by resume/relaunch) now runs the same `checkRecoveryConversationInUse` after its binding recheck, before child effects, rolling back the start claim on refusal. Every Couch resume launch builder now passes the one registry check. Test: TestColdResumeRefusesConversationLiveInAnotherSlot (RED with the call removed: collision launched couch-fake-1). Stale comments in createflow.go and wrapcmd/native_admission.go corrected.
+- BR-2 (Important), accepted: TestRecoverResumeRefusesConversationLiveInAnotherSlotAtBothGates on the real multi-slot recover world. Preflight case asserts refusal before :3's workspace is prepared; after-prepare case makes the collision appear during preparation. Each gate RED-checked by disabling it alone. Fresh retry: new "retry after refusal" scenario in recovery_fresh_claim_test (refused attempt leaves the reserved marker byte-identical, next validated attempt launches and registers).
+
+### 2026-10-15 — close review round 2 (REWORK) dispositions
+
+- BR-1 class (Critical), accepted: the launcher skip was keyed to "Couch-owned", not to "the registry check ran". An ordinary Couch spawn (BuildCouchLaunchProfile) whose argv names a conversation took no admission and no check. Launcher now skips only when `couchOwned && (ResumeRequired || Recovery != nil)`, the two profiles built by the registry-checked paths; every other launch reserves. Wrapper bypass narrowed to a Couch-hosted pinned (explicit) resume with no grant; unpinned resumes still need a grant (startAgentPTY folded into startNativePTY's couchHosted parameter). Tests: TestCouchSpawnWithResumeArgvStillReservesAdmission (RED under the old gate: "handed off without a grant"), hosted `--continue` refusal case.
+- Minor atlas: atlas/couch.md names the registry collision check and the admission scope.

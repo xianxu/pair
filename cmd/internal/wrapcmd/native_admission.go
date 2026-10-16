@@ -20,7 +20,7 @@ type nativeAdmissionStore interface {
 // startNativePTY is the single native start boundary for both wrapper command
 // forms. A successful return permits readiness; failures never release durable
 // ownership, even if the caller cleans up its newly spawned direct child.
-func startNativePTY(ctx context.Context, store nativeAdmissionStore, grant, agent string, cmd *exec.Cmd, stderr io.Writer, start func(*exec.Cmd) (*os.File, error)) (*os.File, error) {
+func startNativePTY(ctx context.Context, couchHosted bool, store nativeAdmissionStore, grant, agent string, cmd *exec.Cmd, stderr io.Writer, start func(*exec.Cmd) (*os.File, error)) (*os.File, error) {
 	selector, err := launcher.ParseNativeResumeSelector(agent, cmd.Args[1:])
 	if err != nil {
 		return nil, fmt.Errorf("native resume selection: %w", err)
@@ -33,6 +33,13 @@ func startNativePTY(ctx context.Context, store nativeAdmissionStore, grant, agen
 		return start(cmd)
 	}
 	if grant == "" {
+		// A Couch-hosted pinned resume carries no grant (pair#597): Couch's
+		// resume and recovery paths check its registry for the same
+		// conversation in another live slot instead. Any other Couch launch
+		// still gets a grant from the launcher.
+		if couchHosted && selector.Kind == launcher.NativeResumeExplicit {
+			return start(cmd)
+		}
 		if launcher.CodexIndirectResumeCompatibility(selector) {
 			fmt.Fprintln(stderr, launcher.CodexIndirectResumeCompatibilityNotice)
 			return start(cmd)

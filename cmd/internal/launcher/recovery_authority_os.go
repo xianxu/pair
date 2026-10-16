@@ -189,9 +189,6 @@ func (r OSRuntime) ValidateRecoveryAuthority(ctx context.Context, a RecoveryAuth
 	if !bytes.Equal(raw, after) {
 		return errors.New("recovery start claim changed during validation")
 	}
-	if err := CheckRecoveryNativeOwner(ctx, RecoveryNativeOwnerCheck{DataDir: r.globalDataDir(), RepoScope: scope.Key, Tag: tag, Agent: agent, NativeID: a.Intent.NativeID}); err != nil {
-		return err
-	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}

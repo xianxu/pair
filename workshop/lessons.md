@@ -1971,6 +1971,7 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 - #594 review: When an approved revision changes certainty guarantees or defers production acceptance, append the revision and reconcile the active Spec and every Done when clause too. A historical Log records the decision but does not supersede contradictory closure criteria; name the pending check's owner and distinguish it from the landing gate.
 - #585 BR-1: a reaped process-group leader does not prove its descendants have exited. Preserve owned-group termination across a pending stderr drain; reader interruption alone can hide a surviving child. Regression fixtures must include a real descendant retaining the FD and require both descendant death and joined drain. Reuse the test-budget event helper instead of adding another fixed scheduling guard.
+- #597 BR-1: removing a guard at a shared boundary (launcher, wrapper) in favour of an upstream check must cover every upstream path that reaches it. Skipping admission for all Couch-owned launches also stripped it from Couch cold resume, which lacked the registry check. List every entry point (grep the profile builders), give each the replacement check and a refusal test, in the same change.
 
 - #593: A cleanup scan budget must count transient artifacts, not retained final objects. Isolate staging before applying bounds, and test continued writes beyond the listing cap. Whenever a writer gains numbered shards, test that its source inventory includes actual rolled names while excluding locks/staging.
 
