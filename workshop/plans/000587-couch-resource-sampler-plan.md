@@ -46,6 +46,7 @@
 | ResourceSnapshotStore | `cmd/internal/couchcore/resource_store.go` | new | bounded validated namespace files + durablefile |
 | resourcePersistence | `cmd/internal/couchcmd/resources_persist.go` | new adapter | independent snapshot recovery and alert checkpoint ordering |
 | resourceCheckpoint / resourceAlertAttempt / resourceAlertDispatcher | `cmd/internal/couchcmd/resources_alert.go` | new integration records/adapter | immutable broker envelopes and pure delivery-outcome events |
+| resourceCheckpointEnvelope / encodeResourceCheckpoint / decodeResourceCheckpoint | `cmd/internal/couchcmd/resources_checkpoint.go` | new codec adapter | bounded versioned checkpoint representation |
 | projectResourceView | `cmd/internal/couchcmd/resources_projection.go` | new pure projection | existing broker frame byte envelope |
 | resources request/response | `cmd/internal/couchmessage/protocol.go`, `cmd/internal/couchcmd/cli.go`, `messages.go`, `message_service.go`, `resources_render.go` | modified/new | existing authenticated local socket |
 
@@ -218,3 +219,11 @@ BR-5: production delivery results and restart receipt reconciliation enter the p
 ### 2026-10-15 — complete entity traceability sweep
 
 BR-7: enumerated every Core concepts row against its declaration and corrected ResourceUsageObservation, ResourceSnapshotStore and resourceFakeWorld throughout both tables and function contracts. ResourceRootCache/ResourceRootEvidence are the actual proof cache; resourceInventory and Console.ResourceInventory own the inventory adapter. Added the delivered state/value types, resourcePersistence, checkpoint/alert records and projectResourceView with actual files/classifications. NativeResourceReader is declared in resource.go with platform backends; the fake is test-only. ResourceState owns totals rather than history; ResourceHistory owns aggregate frames. This supersedes the earlier planned names, preserving the naming-collision rationale above.
+
+### 2026-10-15 — checkpoint capacity correction
+
+BR-6: preserve the 2 MiB disk cap and encode larger checkpoint payloads in a versioned standard-library gzip envelope, with bounded 64 MiB expansion and full semantic validation. Small v1 JSON stays compatible. No ownership, suppression or exact delivery envelope is discarded to make room. Qualify 8192 process records plus 16896 episodes/attempts, escaped workspace labels, restart equality and real-broker admission/deduplication. Codec CPU remains inside sampler cost; malformed/oversized compressed input fails closed through independent artifact recovery. This corrects the representation rather than raising the approved disk allowance.
+
+### 2026-10-15 — strengthen the checkpoint capacity fixture
+
+The initial sequential-ID fixture fit compression, but a production-shaped fixture (SHA256 effect IDs/generation tokens and 256 distinct escaped workspace identities) exposed that compression alone does not fit the 2 MiB envelope: 32,895,161 expanded bytes. Normalize repeated workspace, process-key and binding authority through typed dictionaries before compression; use checked indices and reconstruct exact values before semantic validation. No authority eviction. Qualify the stronger fixture, including steady persistence and new-alert burst CPU separately; the prior normal-host cost measurement does not establish maximum-cardinality cost.
