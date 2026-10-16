@@ -1,6 +1,6 @@
 ---
 id: 000597
-status: codecomplete
+status: done
 created: 2026-10-15
 updated: 2026-10-15
 estimate_hours:
@@ -22,6 +22,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 7daa8f2bf37dfd1eaf52831b5b4718d9c4b588b2
         evidence_commit: d51982bd1e753d38f832d12d5bd1512a98ae3723
+        landed_commit: 9b5598bb2785a540e13a2b545d438b5e43f06235
 ---
 
 # Reject stale legacy native owners
