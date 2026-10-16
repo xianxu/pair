@@ -200,7 +200,11 @@ func (e RemoteEndpoint) Deliver(parent context.Context, m Message, progress func
 	ctx, cancel := context.WithDeadline(parent, m.Horizon().Add(ReceiptTimeout))
 	defer cancel()
 	commitCtx, stopCommit := context.WithDeadline(ctx, m.Deadline)
-	r, err := e.call(commitCtx, EndpointRequest{Op: "commit", ID: m.ID, Message: &m})
+	// Admission time belongs to the broker, not the wrapper's input protocol.
+	// Keep the original for sender evidence; legacy wrappers reject this field.
+	wire := m
+	wire.AcceptedAt = time.Time{}
+	r, err := e.call(commitCtx, EndpointRequest{Op: "commit", ID: m.ID, Message: &wire})
 	stopCommit()
 	if err != nil {
 		return Receipt{}, err

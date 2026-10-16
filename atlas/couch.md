@@ -307,6 +307,8 @@ alias and agent.
 ### Live peer messages (#353)
 
 Unset admission timestamps are omitted from wrapper receipts for older supervisors.
+Wrapper commit requests omit this broker-only field entirely, while the broker
+keeps its original timestamp in sender receipts, allowing older wrappers to receive.
 Wrapper reply decoding remains strict; incompatible fields identify the wrapper slot
 and advise restarting Couch. A failed commit reply never triggers another commit;
 possible input effects remain uncertain. Broker release has its own delivery event,
