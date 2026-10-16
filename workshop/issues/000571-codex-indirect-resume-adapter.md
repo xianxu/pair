@@ -332,3 +332,8 @@ selector controls. Post-main make build, complete artifactpath package4.802s
 and exact slot-resource guard0.410s pass. The first artifactpath run preceded
 main integration and failed only on main/branch manifest skew; it passes after
 integration with no guard waiver. Fresh recorded suite is running on756e6233.
+
+Post-main affected launcher/wrapper checks also pass: normal5.239s/3.897s,
+race6.121s/5.182s (Test.*(Native|Recovery)). Protocol/parser/createflow/wrapper
+baseline equality check against origin/main exits0. A race build launched
+during the merge had incomplete file visibility; this stable-tree rerun passes.
