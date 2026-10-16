@@ -295,3 +295,97 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-16T00:03:06-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 544 — couch: let the hub drive a slot's agent keys (switch model/effort remotely), without message chrome |
+| repo | pair |
+| issue file | workshop/issues/000544-couch-let-the-hub-drive-a-slot-s-agent-keys-switch-model-effort-remotely-without-message-chrome.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | e7b676abb2083791028bed45eda22515361cca4c..de8474b8a3c30732d6f05385c8e98846371888bc |
+| command | sdlc close --issue 544 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-16T00:03:06-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: medium
+```
+
+The pinned implementation matches the revised Spec and Plan, including recovery-only keys, session scope, ownership guards, and honest uncertain outcomes. BR-4 is addressed with controllable regression coverage and passing native conformance. No new findings. Fleet acceptance remains explicitly assigned to TL after landing.
+
+```findings
+dispose:
+  - id: BR-4
+    disposition: addressed
+    note: |
+      agent_drive_virtual_conformance_test.go:587 requalifies each request, polls admitted IDs, and permits another request only after specified zero-input refusals. Tests at :676 and :695 cover qualification loss and uncertain outcomes; agent_drive_recovery_test.go:301 covers admission/dispatch changes with zero bytes and no replay. Independently removing qualification or dispatch-refusal handling made the regression fail in a disposable copy. Both native terminal variants passed.
+  - id: BR-1
+    disposition: addressed
+    note: |
+      model.go choiceFailure preserves bounded observed choices through backout; model_test.go:607 and :649 verify model/effort choices survive recovered prompts. Receipt and CLI paths retain Detail.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      The plan's “boundary inventory reconciliation” revision explicitly supersedes the prospective table, removes Recipe, names the delivered endpoint methods and conformance files, and identifies peer_live_test.go as reused unchanged. These match the pinned source.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Makefile.local provides test-agent-drive-live and atlas/couch.md documents prerequisites and cadence. Executing the target passed all three direct-native cases and both Run/socket terminal variants without skips.
+```
+
+1. **Strengths**
+
+   - The private reducer state and declared effects keep navigation decisions separate from terminal IO.
+   - Wrapper dispatch rechecks composer evidence and input ownership before writing; interruption and partial-write tests verify that uncertain input is not replayed.
+   - README, atlas, and the bundled Couch skill document the new controls, limits, recovery exception, and scope behavior.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   - Focused drive, protocol, service, recovery, and wait tests passed normally and under `-race`.
+   - Complete `agentdrive`, `couchmessage`, artifact inventory, and tail-markup tests passed; targeted console deadline tests passed.
+   - `make test-agent-drive-live` passed in 38.050s.
+   - Two independent mutations demonstrated that BR-4’s regression detects the corrected behavior. The disposable copy was removed; the reviewed checkout remains clean.
+   - I did not rerun the repository-wide suite or fleet smoke.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** Shared translator, automatic-input ownership, receipts, and markup decoding are reused.
+   - **ARCH-PURE — pass:** Validation, screen parsing, and transitions remain IO-free; fixture-backed tests exercise them directly.
+   - **ARCH-PURPOSE — pass:** Both agents, effort/scope verification, recovery, raw keys, and wait-notice correction are delivered under the revised acceptance schedule.
+   - **ARCH-MOCK — pass:** Stateful input fixtures share production seams; executable native conformance checks the external contract.
+   - **ARCH-CONSTRAINTS — pass:** Input, navigation, result retention, and absolute execution bounds are explicit and tested.
+   - **ARCH-SECURE — pass:** Typed validation and caller, owner, and incarnation checks guard input effects.
+   - **ARCH-ORDER — pass:** Production transitions use the reducer; controlled tests cover stale observations, cancellation, partial writes, and refusal without replay.
+   - **ARCH-FUNERAL — pass:** Receipts have count/age bounds, and operation work has cancellation and teardown paths.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"032e06cf-f1e0-4130-844c-4a83cad07072","repository":"github.com/xianxu/pair","issue_id":"000544","recipe":"milestone-review","round":4,"attempt":1,"agent":"codex","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/6cb75f58ff92ef8b","reviewed_head":"de8474b8a3c30732d6f05385c8e98846371888bc","slot":"pair:6","requested_at":"2026-10-16T06:59:01.984095Z"},"phase":"finished","pid":63927,"started_at":"2026-10-16T06:59:02.205906Z","finished_at":"2026-10-16T07:02:40.128555Z","session_id":"01a14381-ce8e-7ba3-a60e-b2b17abde1e2","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.742237s
+head: "de8474b8a3c30732d6f05385c8e98846371888bc"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000409

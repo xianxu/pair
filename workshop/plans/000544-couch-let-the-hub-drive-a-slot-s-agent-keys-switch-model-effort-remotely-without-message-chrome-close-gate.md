@@ -521,6 +521,188 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 032e06cf-f1e0-4130-844c-4a83cad07072
+            repository: github.com/xianxu/pair
+            issue_id: "000544"
+            recipe: milestone-review
+            round: 4
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/Library/Caches/sdlc/review-checkouts/6cb75f58ff92ef8b
+            reviewed_head: de8474b8a3c30732d6f05385c8e98846371888bc
+            slot: pair:6
+            requested_at: "2026-10-16T06:59:01.984095Z"
+          phase: finished
+          pid: 63927
+          started_at: "2026-10-16T06:59:02.205906Z"
+          finished_at: "2026-10-16T07:02:40.128555Z"
+          session_id: 01a14381-ce8e-7ba3-a60e-b2b17abde1e2
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-v1
+        repository: github.com/xianxu/pair
+        code_head: de8474b8a3c30732d6f05385c8e98846371888bc
+        tracker_head: 31a01593efa492b3634b3c6cb32a818ed59a56d7
+        branch_point: e7b676abb2083791028bed45eda22515361cca4c
+        since: "2026-10-14T01:55:19-07:00"
+        until: "2026-10-15T23:58:17-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-14T01:55:19-07:00"
+              end: "2026-10-15T23:58:17-07:00"
+              began: "2026-10-14T01:55:19-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot6/pair
+        sources:
+            - harness: codex
+              id: 01a13646-a9b3-7443-a36e-43f301879fd6
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              digest: 3bc91b912ac368d615bbbcac4f002a92e79d4d3096460e4c60cbdfb4e4446e5e
+              started: "2026-10-13T17:19:50.728Z"
+              spawned: false
+              bytes: 41088070
+              windows:
+                - start: "2026-10-14T01:55:19-07:00"
+                  end: "2026-10-15T23:58:17-07:00"
+            - harness: codex
+              id: 01a1399f-d2de-7bb0-9385-d1bb7828089e
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              parent_id: 01a13646-a9b3-7443-a36e-43f301879fd6
+              digest: ebe77f65bfb32c8d8bbb2dbbc91205bd4893bb3224aec9d097f53bdaae7d55f8
+              started: "2026-10-14T08:55:38.14Z"
+              spawned: true
+              bytes: 921193
+              windows:
+                - start: "2026-10-14T08:55:38.14Z"
+                  end: "2026-10-15T23:58:17-07:00"
+            - harness: codex
+              id: 01a139a8-1b95-7812-9351-a606fccfb52f
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              digest: 587007d4f178d792e96bd422b4d0d37a511a0b6b89b2467372b7991f5b3d4da4
+              started: "2026-10-14T09:04:41.052Z"
+              spawned: false
+              bytes: 589123
+              windows:
+                - start: "2026-10-14T09:04:41.052Z"
+                  end: "2026-10-15T23:58:17-07:00"
+            - harness: codex
+              id: 01a139ab-c92f-78a3-a436-1bd844e24845
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              digest: a2e2d83b0f96b0c9995abd9d0ea3cb96baee20f96fcfbf6ca8b7ce1bdb8057aa
+              started: "2026-10-14T09:08:42.444Z"
+              spawned: false
+              bytes: 424615
+              windows:
+                - start: "2026-10-14T09:08:42.444Z"
+                  end: "2026-10-15T23:58:17-07:00"
+            - harness: codex
+              id: 01a139ad-735a-7861-893e-82844d1dd5e0
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              digest: fd9b073f0a858362d89a0276ed98ade9f61bda35e85fbbb933323e8b0bd7595c
+              started: "2026-10-14T09:10:31.359Z"
+              spawned: false
+              bytes: 443324
+              windows:
+                - start: "2026-10-14T09:10:31.359Z"
+                  end: "2026-10-15T23:58:17-07:00"
+            - harness: codex
+              id: 01a139ae-0d0e-7c31-bd8f-b21743710eb6
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              digest: 2938e5c1b3c63981c274371329db28bf10d72aebdedbd84b38d4618d890bcec4
+              started: "2026-10-14T09:11:10.835Z"
+              spawned: false
+              bytes: 427850
+              windows:
+                - start: "2026-10-14T09:11:10.835Z"
+                  end: "2026-10-15T23:58:17-07:00"
+            - harness: codex
+              id: 01a139af-0dac-7640-bdaf-2f9e57885dc1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              parent_id: 01a13646-a9b3-7443-a36e-43f301879fd6
+              digest: ad309775585e5c393b0426ab9e32a086c3e62bb75cd3c5a3f822db8390838e8f
+              started: "2026-10-14T09:12:16.212Z"
+              spawned: true
+              bytes: 5483589
+              windows:
+                - start: "2026-10-14T09:12:16.212Z"
+                  end: "2026-10-15T23:58:17-07:00"
+            - harness: codex
+              id: 01a139b1-23d1-7031-a8af-6e12e6fa3b34
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              parent_id: 01a13646-a9b3-7443-a36e-43f301879fd6
+              digest: 2e966a8f784354c055da9635fec232d12ca91db8df5f8f5715657388d9e54249
+              started: "2026-10-14T09:14:32.881Z"
+              spawned: true
+              bytes: 2825547
+              windows:
+                - start: "2026-10-14T09:14:32.881Z"
+                  end: "2026-10-15T23:58:17-07:00"
+            - harness: codex
+              id: 01a139b8-5df0-7713-8cfd-9654dfd76d23
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              parent_id: 01a13646-a9b3-7443-a36e-43f301879fd6
+              digest: 4c1b098e019a135d8b7fe0a4d4ea8a00ced2726b930d92aa165b4c673fa6bf9a
+              started: "2026-10-14T09:22:26.504Z"
+              spawned: true
+              bytes: 4325228
+              windows:
+                - start: "2026-10-14T09:22:26.504Z"
+                  end: "2026-10-15T23:58:17-07:00"
+            - harness: codex
+              id: 01a14367-664d-7850-a55c-bb707864cce5
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              digest: c1bfd7cd0a0e8419bca10f9e63f95aeade0f610acc913497ffa499e85db72f7b
+              started: "2026-10-16T06:30:12.567Z"
+              spawned: false
+              bytes: 3135842
+              windows:
+                - start: "2026-10-16T06:30:12.567Z"
+                  end: "2026-10-15T23:58:17-07:00"
+        excluded_brain_sessions: 1
+        excluded_brain_minutes: 150.4081833333333
+        cuts:
+            - dispatched: "2026-10-15T23:38:49-07:00"
+              finalized: "2026-10-15T23:41:49-07:00"
+              finalizing: false
+            - dispatched: "2026-10-15T23:46:14-07:00"
+              finalized: "2026-10-15T23:49:48-07:00"
+              finalizing: false
+            - dispatched: "2026-10-15T23:52:50-07:00"
+              finalized: "2026-10-15T23:55:09-07:00"
+              finalizing: false
+      "n": 4
+      timestamp: "2026-10-16T00:03:07-07:00"
+      dispatched: "2026-10-15T23:58:59-07:00"
+      agent: codex
+      dispose:
+        - id: BR-4
+          disposition: addressed
+          note: agent_drive_virtual_conformance_test.go:587 requalifies each request, polls admitted IDs, and permits another request only after specified zero-input refusals. Tests at :676 and :695 cover qualification loss and uncertain outcomes; agent_drive_recovery_test.go:301 covers admission/dispatch changes with zero bytes and no replay. Independently removing qualification or dispatch-refusal handling made the regression fail in a disposable copy. Both native terminal variants passed.
+          round: 4
+        - id: BR-1
+          disposition: addressed
+          note: model.go choiceFailure preserves bounded observed choices through backout; model_test.go:607 and :649 verify model/effort choices survive recovered prompts. Receipt and CLI paths retain Detail.
+          round: 4
+        - id: BR-2
+          disposition: addressed
+          note: The plan's “boundary inventory reconciliation” revision explicitly supersedes the prospective table, removes Recipe, names the delivered endpoint methods and conformance files, and identifies peer_live_test.go as reused unchanged. These match the pinned source.
+          round: 4
+        - id: BR-3
+          disposition: addressed
+          note: Makefile.local provides test-agent-drive-live and atlas/couch.md documents prerequisites and cadence. Executing the target passed all three direct-native cases and both Run/socket terminal variants without skips.
+          round: 4
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: de8474b8a3c30732d6f05385c8e98846371888bc
+      blocked: false
 ---
 
 # Gate ledger — pair#544 (boundary-review)
@@ -560,6 +742,15 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-4** [Important] `deterministic-conformance-ordering` (kind: defect) Native recovery conformance depends on uncontrolled observation-to-dispatch ordering
   cmd/internal/wrapcmd/agent_drive_virtual_conformance_test.go:503–527: make test-agent-drive-live failed in scratch dirty recovery with “refused (wait until the agent composer is empty and its turn finishes)” after successful model selection; two subsequent virtual-suite repetitions passed. The helper replaces its qualified observation without checking Recoverable again, while dispatch revalidates independently and can refuse before writing. Add a controllable regression for observation/admission/dispatch changes, establish the permitted refusal policy, and make the native fixture synchronize accordingly without replaying uncertain input. ARCH-ORDER.
 
+## Round 4 — 2026-10-16T00:03:07-07:00 (codex) — passed
+
+### Disposed
+
+- BR-4 — addressed — agent_drive_virtual_conformance_test.go:587 requalifies each request, polls admitted IDs, and permits another request only after specified zero-input refusals. Tests at :676 and :695 cover qualification loss and uncertain outcomes; agent_drive_recovery_test.go:301 covers admission/dispatch changes with zero bytes and no replay. Independently removing qualification or dispatch-refusal handling made the regression fail in a disposable copy. Both native terminal variants passed.
+- BR-1 — addressed — model.go choiceFailure preserves bounded observed choices through backout; model_test.go:607 and :649 verify model/effort choices survive recovered prompts. Receipt and CLI paths retain Detail.
+- BR-2 — addressed — The plan's “boundary inventory reconciliation” revision explicitly supersedes the prospective table, removes Recipe, names the delivered endpoint methods and conformance files, and identifies peer_live_test.go as reused unchanged. These match the pinned source.
+- BR-3 — addressed — Makefile.local provides test-agent-drive-live and atlas/couch.md documents prerequisites and cadence. Executing the target passed all three direct-native cases and both Run/socket terminal variants without skips.
+
 ## Open findings
 
-- **BR-4** [Important] `deterministic-conformance-ordering` (kind: defect) Native recovery conformance depends on uncontrolled observation-to-dispatch ordering
+(none — every finding has been disposed)
