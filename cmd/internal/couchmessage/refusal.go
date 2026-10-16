@@ -24,6 +24,7 @@ const (
 type refusal struct {
 	receipt Receipt
 	route   Route
+	at      time.Time
 }
 
 // RefusedError is a send that was not admitted. It is definite: the message
@@ -50,11 +51,11 @@ func (b *Broker) refuseLocked(from Binding, id string, route Route, body string,
 	reason := refusalReason(err)
 	now := b.now()
 	to := Binding{Slot: route.Target}
-	b.refusals[id] = refusal{receipt: Receipt{Message: Message{ID: id, From: from, To: to, Body: body}, Status: Refused, Detail: reason, RetainUntil: now.Add(RefusalRetention)}, route: route}
+	b.refusals[id] = refusal{receipt: Receipt{Message: Message{ID: id, From: from, To: to, Body: body}, Status: Refused, Detail: reason, RetainUntil: now.Add(RefusalRetention)}, route: route, at: now}
 	for len(b.refusals) > MaxRefusals {
 		var oldest string
 		for k, r := range b.refusals {
-			if oldest == "" || r.receipt.RetainUntil.Before(b.refusals[oldest].receipt.RetainUntil) {
+			if oldest == "" || r.at.Before(b.refusals[oldest].at) {
 				oldest = k
 			}
 		}
@@ -81,17 +82,18 @@ func (b *Broker) LatestRefusals() map[string]Receipt {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.sweep()
-	out := map[string]Receipt{}
+	latest := map[string]refusal{}
 	for _, r := range b.refusals {
 		slot := r.route.Target
-		if cur, ok := out[slot]; !ok || r.receipt.RetainUntil.After(cur.RetainUntil) {
-			out[slot] = r.receipt
+		if cur, ok := latest[slot]; !ok || r.at.After(cur.at) {
+			latest[slot] = r
 		}
 	}
-	for slot, r := range out {
-		accepted := r.RetainUntil.Add(-RefusalRetention)
+	out := map[string]Receipt{}
+	for slot, r := range latest {
+		out[slot] = r.receipt
 		for _, rec := range b.receipts {
-			if rec.Message.To.Slot == slot && !rec.Message.AcceptedAt.Before(accepted) {
+			if rec.Message.To.Slot == slot && !rec.Message.AcceptedAt.Before(r.at) {
 				delete(out, slot)
 				break
 			}

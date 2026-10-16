@@ -526,8 +526,8 @@ remaining uncertainty is stated, never papered over:
   inbox, so a refusal is definite: the send answers `refused` with the reason,
   and `--message-status` reads it for 10 minutes. Refusals are capped at 64
   (oldest evicted), never count against `MaxReceipts`, and a resend with the
-  same ID is a fresh attempt. The CLI waits a second past the admission budget
-  for the broker's verdict.
+  same ID is a fresh attempt. A send's exchange budget on both ends of the socket
+  is `SendTransportTimeout` (admission plus a second), so the verdict arrives.
 - **Liveness behind the authority (#618).** The use-time ownership check runs
   at every admission and every queued-message retry (`PromoteRetry`, 1 s). Its
   terminal listing reads `launcher.ListingPoller`: one supervisor loop runs both

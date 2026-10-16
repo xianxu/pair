@@ -121,6 +121,15 @@ Durable plan: `workshop/plans/000618-slots-recovered-by-reboot-or-resume-after-a
 - TL approved items 1-2 first, 3 minimal (the reason from 2 in `--list` with the one fixing command, no new tracking),
   4-5 after 1-2 land. Load: the 136 reading was 15:36, not 15:05; recorded suites stayed within WF_TEST_SUITES; the
   supervisor's own ~1 core is hosted-client vt ingest (`ptychild.(*Child).ingest`), out of scope, reported to the TL.
+- 2026-10-16 16:12 BEFORE (live Couch 71982, pre-#618 build): 183 zellij children in 30 s (6.1/s, a lower bound since
+  polling misses the shortest), supervisor CPU 20.3 s per 30 s (68%), load average 62. AFTER is taken once the TL
+  rebuilds pair:0 and the operator restarts Couch on the landed M1 (TL's order: land first, then measure).
+- M1 review round 1 (REWORK): BR-2 Critical, the transport clamped every call to 2 s on both ends, so the send's verdict
+  after a full admission never arrived; fixed by one per-request budget (`requestBudget`) shared by Call and the
+  server, with sends at `SendTransportTimeout` (admission + 1 s); real-socket test RED without it. BR-3: a test through
+  `messageThreadResolver` with the real checker and a 1 s stub zellij: 50 checks run no zellij (RED without the poller).
+  BR-5: the startup refresh is gone; the poller loop lists at once and checks refuse "not yet known" until then.
+  BR-4: after-numbers follow the restart (plan revision). Minor: refusals carry an explicit time.
 
 ## Revisions
 

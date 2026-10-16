@@ -84,7 +84,7 @@ func runMessageCLIWithCall(inv cliInvocation, rt Runtime, stdout, stderr io.Writ
 	// The broker spends up to AdmissionTimeout admitting a send and then
 	// answers with its verdict (pair#618); waiting exactly as long gave up at
 	// the moment the answer was due and hid the reason.
-	ctx, cancel := context.WithTimeout(context.Background(), couchmessage.AdmissionTimeout+time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), couchmessage.SendTransportTimeout)
 	defer cancel()
 	var result couchmessage.Response
 	if err := call(ctx, socket, r, &result); err != nil {

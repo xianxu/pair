@@ -172,3 +172,6 @@ parser); a separate issue.
 - 2026-10-16 (pair:2): the TL made this the fleet's top priority and asked to land fix 1 and the refusal receipt
   first, as their own milestone. M1 is now Tasks 1–3 plus Task 5; Task 4 (the `--list` receive state) moves to M2.
   Tasks 1–3 are implemented on the branch.
+- 2026-10-16 (pair:2): M1 Task 5 live measurement splits: the BEFORE numbers are in the issue Log; the AFTER numbers need
+  the landed build running, which the TL schedules after landing (rebuild pair:0, operator restart), so they are taken
+  then and reported, and recorded in the Log before M2 closes.

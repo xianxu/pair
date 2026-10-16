@@ -326,8 +326,9 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch, configur
 	// The message authority reads zellij liveness from one polled snapshot
 	// (pair#618): it runs on every admission and queued-message retry, and
 	// listing per check starved admission under load.
+	// Its loop lists at once when the service starts; until then a check refuses
+	// as not yet known rather than blocking startup on zellij.
 	listings := launcher.NewListingPoller(launcher.ZellijSource{}, messageListingInterval, messageListingMaxStale)
-	listings.Refresh(context.Background())
 	reader := couchcore.OSReadyReader{DataDir: artifacts.PairLifecycleDataDir(), Session: artifacts.PairSession, Proc: c.Proc}
 	session := func(ctx context.Context, address couchcore.ThreadAddress) (couchcore.PairSessionBinding, error) {
 		if err := ctx.Err(); err != nil {
