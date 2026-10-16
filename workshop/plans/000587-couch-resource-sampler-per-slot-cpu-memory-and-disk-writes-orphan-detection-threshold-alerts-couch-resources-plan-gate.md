@@ -19,6 +19,25 @@ reviewer_runs:
       finished_at: "2026-10-16T00:10:53.886807Z"
       session_id: 01a1420b-c507-7382-b464-844cfa8fdf88
       outcome: returned
+    - version: 1
+      intent:
+        id: 6967cb4e-b852-4a49-a014-8e699796eac3
+        repository: github.com/xianxu/pair
+        issue_id: "000587"
+        recipe: estimate-quality
+        round: 1
+        attempt: 1
+        agent: codex
+        root: /Users/xianxu/workspace/worktree/pair-slot1/pair
+        reviewed_head: 6af7fb2ee0f80f1377f3971debe57ea82d81f28c
+        slot: pair:1
+        requested_at: "2026-10-16T01:09:26.01365Z"
+      phase: finished
+      pid: 45321
+      started_at: "2026-10-16T01:09:26.380509Z"
+      finished_at: "2026-10-16T01:10:01.608136Z"
+      session_id: 01a14241-bcb0-7813-bab8-520d801847ee
+      outcome: returned
 gate: plan-quality
 issue: 587
 id_prefix: PQ
@@ -156,7 +175,44 @@ rounds:
       timestamp: "2026-10-15T17:10:27-07:00"
       agent: codex
       blocked: false
-content_hash: c4007b6e7efe692dfa88c5cc39647c8c9fe9040cb29db4c73b99b7245fabeb5e
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: edbd5581-5d22-4bd5-9341-00a41175409a
+            repository: github.com/xianxu/pair
+            issue_id: "000587"
+            recipe: plan-quality
+            round: 5
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot1/pair
+            reviewed_head: 6af7fb2ee0f80f1377f3971debe57ea82d81f28c
+            slot: pair:1
+            requested_at: "2026-10-16T01:08:48.271653Z"
+          phase: finished
+          pid: 36300
+          started_at: "2026-10-16T01:08:48.600882Z"
+          finished_at: "2026-10-16T01:09:24.17145Z"
+          session_id: 01a14241-2949-7db3-ad77-5f299664c12d
+          outcome: returned
+      "n": 5
+      timestamp: "2026-10-15T18:09:24-07:00"
+      agent: codex
+      dispose:
+        - id: PQ-1
+          disposition: addressed
+          note: Owning-hub self-notices retain authority independently of the originating slot.
+          round: 5
+        - id: PQ-2
+          disposition: addressed
+          note: The authoritative revision explicitly supersedes durable delivery guarantees with advisory in-memory broker deduplication and restart duplicate tolerance.
+          round: 5
+        - id: PQ-3
+          disposition: addressed
+          note: Named function strategies remain, with explicit replacement tests for the simplified delivery and history contracts.
+          round: 5
+      blocked: false
+content_hash: d1c2358fc39178f76eb6849e627690d07f56d569fefe5efb2dcbf3d75058e9a4
 ---
 
 # Gate ledger — pair#587 (plan-quality)
@@ -190,6 +246,14 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - PQ-3 — addressed — Named function contracts provide adversarial strategies and mechanical guards across all requested surfaces; integration and live qualification remain separate.
 
 ## Round 4 — 2026-10-15T17:10:27-07:00 (codex) — passed
+
+## Round 5 — 2026-10-15T18:09:24-07:00 (codex) — passed
+
+### Disposed
+
+- PQ-1 — addressed — Owning-hub self-notices retain authority independently of the originating slot.
+- PQ-2 — addressed — The authoritative revision explicitly supersedes durable delivery guarantees with advisory in-memory broker deduplication and restart duplicate tolerance.
+- PQ-3 — addressed — Named function strategies remain, with explicit replacement tests for the simplified delivery and history contracts.
 
 ## Open findings
 
