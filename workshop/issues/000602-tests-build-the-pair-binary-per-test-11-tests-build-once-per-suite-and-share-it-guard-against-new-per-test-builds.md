@@ -56,12 +56,11 @@ Add a source guard against Go/table/context and shell/Python full-Pair builds ou
 
 ## Plan
 
-- [ ] Capture warm-cache repeated-link baseline with the ops disk-writes sampler and link-time/PID trace; preserve a same-flags after comparison.
-- [ ] Add the shared builder, suite temporary wrapper and lazy package resolver with lifetime cleanup; migrate every consumer while preserving real CLI/relocation/override behavior.
-- [ ] Observe the source guard red, then green after migration; verify supplied/fallback/invalid binary, once-only construction, cleanup, private aliases and mutation controls.
+- [x] Capture warm-cache repeated-link baseline with the ops disk-writes sampler and link-time/PID trace; preserve a same-flags after comparison.
+- [x] Add the shared builder, suite temporary wrapper and lazy package resolver with lifetime cleanup; migrate every consumer while preserving real CLI/relocation/override behavior.
+- [x] Observe the source guard red, then green after migration; verify supplied/fallback/invalid binary, once-only construction, cleanup, private aliases and mutation controls.
 - [ ] Re-measure one build plus shared placements, run focused consumers and recorded full suite, update atlas, close/review and land. TL owns project records.
 
-- [ ]
 
 ## Log
 
@@ -70,3 +69,13 @@ Add a source guard against Go/table/context and shell/Python full-Pair builds ou
 ### 2026-10-15
 
 2026-10-16 checkpoint: Baseline at 9edd1f06cf8fdad99da25a8b925cc9857d6c056e, warm cache, GOFLAGS=-p=3 GOMAXPROCS=3, go build -trimpath with identical link tracing: 11 builds took 31.147 s; real linker wall sum 20.483 s; sampled exact linker PIDs wrote 465,285,120 logical bytes. Ops sampler covered 30 s (1.147 s of workload tail outside sample), so bytes are explicitly a lower bound. Shared-host device total 2,938,138,624 bytes is not attributable to this workload. Raw report and trace: local scratch pair602.omXdPs/before-report.json and before-links.jsonl. Consumer migrations and source guard are uncommitted partial implementation; shared helper/wrapper are still pending and compilation is not yet verified. Guard synthetic RED observed across forbidden controls; migrated repository guard passes. Context-aware APIs preserve original 2m/3m caller limits.
+
+2026-10-16 implementation: shared builder, suite wrapper/recursive test target, package resolver and all consumers implemented. Lifetime contract observed RED (missing APIs), then GREEN; shell lifecycle observed RED (missing builder), then GREEN. Guard controls reject direct/context/table/variable/shell/Python builds while preserving unrelated binaries. All eight migrated packages compile. testpair -race passed (8.626 s); make-test-env passed with 224 knobs including the new env. Original opt-in fixture contexts and dispatch order preserved.
+
+Controlled comparison (same production code, warm cache, GOFLAGS=-p=3, GOMAXPROCS=3, -trimpath and identical toolexec): eleven fresh outputs 31.147 s / 20.483 s linker sum / 465,285,120 sampled linker bytes; one output plus ten hard links 2.108 s / 1.306 s linker sum / 43,061,248 sampled linker bytes. Link count 11→1; linker time -93.6%; observed writes -90.7%. Baseline head 9edd1f06cf8fdad99da25a8b925cc9857d6c056e; comparison head e75fd5795d58cbddf8860c739fa78cee96778459 (checkpoint-only difference; in-progress changes are test infrastructure). Before sampler misses final 1.147 s; both samples are lower bounds from short-lived process observation. Device totals over 30 s: before 2,938,138,624, after 241,217,536 bytes, shared-host observations only. No claimed full-suite wall-time reduction.
+Raw before-report.json SHA256 618a1c0444b89bef9447219cdc0bdafe4970e0236d30f3ef60a03008d69eab5d.
+Raw before-links.jsonl SHA256 389bfed5a46921d9a67dcf4e755d7ae4a8654a76d7fd0948bcaffdeea59af28a.
+Raw after-report.json SHA256 878109a5a2b626575e280f5fa1657b3f5975b43b0c63297772790038ffea4fac.
+Raw after-links.jsonl SHA256 7a87a46f26d860e1021fdc184a8a71066782d3d3335735693c9a44ba3dc31685.
+
+2026-10-16 focused verification: shared supplied binary passed real executable consumers in couch (24.067 s), artifactpath (0.700 s), couchcmd (20.059 s), hoprttcmd (0.484 s), launcher (3.769 s), pair-go (0.623 s). Standalone hoprtt fallback passed (3.224 s). All four migrated shell suites passed, including embedded-runtime relocation and submission editor integration. Guard expanded to the resolver implementation itself; existing production builders remain out of scope. Reused internal/reporoot for trimpath-safe validated module discovery (ARCH-DRY). Awaiting recorded full suite and close review; no opt-in live sessions driven.

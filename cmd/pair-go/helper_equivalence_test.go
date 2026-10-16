@@ -11,6 +11,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 	"github.com/xianxu/pair/cmd/internal/sessionledger"
+	"github.com/xianxu/pair/cmd/internal/testpair"
 )
 
 // Binary-level route smokes (#104 M3: the standalone helpers are gone, so these
@@ -57,10 +58,10 @@ func TestPairGoSlugRouteReachesRunner(t *testing.T) {
 
 func buildCommand(t *testing.T, out, pkg string) {
 	t.Helper()
-	cmd := exec.Command("go", "build", "-o", out, pkg)
-	if body, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("build %s: %v\n%s", pkg, err, string(body))
+	if pkg != "." {
+		t.Fatalf("unsupported Pair test package %q", pkg)
 	}
+	testpair.At(t, out)
 }
 
 type commandResult struct {

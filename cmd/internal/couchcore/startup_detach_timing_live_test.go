@@ -17,6 +17,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/pairlifecycletest"
 	"github.com/xianxu/pair/cmd/internal/ptychild"
+	"github.com/xianxu/pair/cmd/internal/testpair"
 )
 
 type startupPhase struct {
@@ -108,6 +109,15 @@ func TestStartupManagedAttachDetachTimingLive(t *testing.T) {
 	// Keep build caches outside the private fixture HOME. They carry compiled
 	// code only; runtime files and configuration remain private.
 	buildEnv := os.Environ()
+	if os.Getenv("PAIR_STARTUP_PERF_BIN_DIR") == "" {
+		bin := filepath.Join(base, "bin")
+		if err := os.MkdirAll(bin, 0700); err != nil {
+			t.Fatal(err)
+		}
+		buildCtx, cancelBuild := context.WithTimeout(t.Context(), 3*time.Minute)
+		testpair.AtContext(t, buildCtx, filepath.Join(bin, "pair"))
+		cancelBuild()
+	}
 	for _, key := range []string{"HOME", "XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_CACHE_HOME", "XDG_STATE_HOME"} {
 		dir := filepath.Join(base, key)
 		if err := os.MkdirAll(dir, 0700); err != nil {
@@ -131,10 +141,7 @@ func TestStartupManagedAttachDetachTimingLive(t *testing.T) {
 		}
 		bin = supplied
 	} else {
-		if err := os.MkdirAll(bin, 0700); err != nil {
-			t.Fatal(err)
-		}
-		for _, target := range []struct{ name, pkg string }{{"pair", "./cmd/pair-go"}, {"pair-launch-helper", "./cmd/pair-launch-helper"}} {
+		for _, target := range []struct{ name, pkg string }{{"pair-launch-helper", "./cmd/pair-launch-helper"}} {
 			buildCtx, cancelBuild := context.WithTimeout(t.Context(), 3*time.Minute)
 			cmd := exec.CommandContext(buildCtx, "go", "build", "-o", filepath.Join(bin, target.name), target.pkg)
 			cmd.Env = buildEnv

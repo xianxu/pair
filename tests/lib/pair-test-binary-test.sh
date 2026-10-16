@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+set -euo pipefail
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+d="$(mktemp -d "${TMPDIR:-/tmp}/pair-binary-contract.XXXXXX")" || exit 1
+trap 'rm -rf "${d:?}"' EXIT
+printf '#!/bin/sh\nexit 0\n' > "$d/source"
+chmod +x "$d/source"
+PAIR_TEST_BINARY="$d/source" bash "$root/tests/lib/pair-test-binary.sh" "$d/alias"
+python3 - "$d/source" "$d/alias" <<'PY'
+import os,sys
+assert os.path.samefile(*sys.argv[1:]), 'private placement must preserve inode'
+PY
+if PAIR_TEST_BINARY=relative bash "$root/tests/lib/pair-test-binary.sh" "$d/invalid"; then exit 1; fi
+if PAIR_TEST_BINARY="$d/source" bash "$root/tests/lib/pair-test-binary.sh" "$d/alias"; then exit 1; fi
+mkdir "$d/fake"
+cat > "$d/fake/go" <<'GO'
+#!/bin/sh
+set -eu
+printf 'build\n' >> "${CALLS:?}"
+[ "$1" = build ] && [ "$2" = -o ]
+printf '#!/bin/sh\nexit 0\n' > "$3"
+chmod +x "$3"
+GO
+cat > "$d/fake/make" <<'MAKE'
+#!/bin/sh
+exit 0
+MAKE
+chmod +x "$d/fake/"*
+PATH="$d/fake:$PATH" CALLS="$d/calls" PAIR_TEST_BINARY= bash "$root/tests/lib/with-pair-test-binary.sh" sh -c 'test -x "$PAIR_TEST_BINARY"; printf "%s" "$PAIR_TEST_BINARY" > "$1"; exit 7' sh "$d/path" && exit 1 || code=$?
+[ "$code" = 7 ]
+[ "$(wc -l < "$d/calls" | tr -d ' ')" = 1 ]
+[ ! -e "$(cat "$d/path")" ]
+printf 'shared binary shell contracts passed\n'

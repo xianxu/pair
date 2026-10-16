@@ -25,6 +25,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/ptychild"
 	"github.com/xianxu/pair/cmd/internal/readiness"
 	"github.com/xianxu/pair/cmd/internal/sessionledger"
+	"github.com/xianxu/pair/cmd/internal/testpair"
 	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
@@ -122,10 +123,7 @@ func TestContinuationWriterPublishesExactCheckpointAcrossWorktrees(t *testing.T)
 	}
 	bin := t.TempDir()
 	pair := filepath.Join(bin, "pair")
-	build := exec.Command("go", "build", "-o", pair, "../../pair-go")
-	if out, err := build.CombinedOutput(); err != nil {
-		t.Fatalf("build real writer/launcher: %v\n%s", err, out)
-	}
+	testpair.At(t, pair)
 	helper, err := os.Executable()
 	if err != nil {
 		t.Fatal(err)
