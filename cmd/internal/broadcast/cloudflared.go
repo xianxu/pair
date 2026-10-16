@@ -158,7 +158,7 @@ func (c Cloudflared) Open(ctx context.Context, l net.Listener) (Handle, error) {
 		return nil, err
 	}
 	_ = stderrWriter.Close()
-	h := &cloudflaredHandle{cmd: cmd, stdin: stdin, stderr: stderr, guarded: c.Guard != nil, exited: make(chan struct{}), processExited: make(chan struct{}), record: rec}
+	h := &cloudflaredHandle{cmd: cmd, stdin: stdin, stderr: stderr, guarded: c.Guard != nil, exited: make(chan struct{}), record: rec}
 	found := make(chan string, 1)
 	drained := make(chan struct{})
 	go func() {
@@ -237,14 +237,13 @@ func (c Cloudflared) tunnelArgs(pl *privateListener) (args []string, url, ready 
 }
 
 type cloudflaredHandle struct {
-	cmd           *exec.Cmd
-	stdin         io.WriteCloser
-	stderr        io.ReadCloser
-	guarded       bool
-	url           string
-	exited        chan struct{}
-	processExited chan struct{}
-	record        *runRecord
+	cmd     *exec.Cmd
+	stdin   io.WriteCloser
+	stderr  io.ReadCloser
+	guarded bool
+	url     string
+	exited  chan struct{}
+	record  *runRecord
 
 	mu    sync.Mutex
 	child int
@@ -257,7 +256,6 @@ func (h *cloudflaredHandle) Exited() <-chan struct{} { return h.exited }
 
 func (h *cloudflaredHandle) waitForExit(drain func()) {
 	_ = h.cmd.Wait()
-	close(h.processExited)
 	drain()
 	close(h.exited)
 }
@@ -318,20 +316,14 @@ func (h *cloudflaredHandle) closeWithDeadline(deadline <-chan time.Time) error {
 	h.once.Do(func() {
 		_ = h.stdin.Close()
 		if !h.guarded {
-			select {
-			case <-h.processExited:
-			default:
-				_ = syscall.Kill(-h.cmd.Process.Pid, syscall.SIGTERM)
-			}
+			_ = syscall.Kill(-h.cmd.Process.Pid, syscall.SIGTERM)
 		}
 		select {
 		case <-h.exited:
 		case <-deadline:
-			select {
-			case <-h.processExited:
-			default:
-				_ = syscall.Kill(-h.cmd.Process.Pid, syscall.SIGKILL)
-			}
+			// The group can outlive its reaped leader. Keep its original
+			// termination boundary even when only the stderr drain remains.
+			_ = syscall.Kill(-h.cmd.Process.Pid, syscall.SIGKILL)
 			if child := h.childPID(); child > 0 {
 				_ = syscall.Kill(-child, syscall.SIGKILL)
 			}

@@ -1945,3 +1945,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #579 BR-2: a successful rename followed by failed directory sync is an uncertain durability outcome, even when the next read finds identical bytes. Test repeated identical publication with injected sync failures, requiring durability reconfirmation and stable inode/content; healthy no-op tests alone cannot defend this class.
 
 - #579 M2: draining an owner is insufficient if asynchronous producers can still admit after its clock stops. Stop admission atomically with the final drain. Exercise a resize whose successful IO result is delayed across PTY EOF, then require no pending or published late sidecar event.
+
+- #585 BR-1: a reaped process-group leader does not prove its descendants have exited. Preserve owned-group termination across a pending stderr drain; reader interruption alone can hide a surviving child. Regression fixtures must include a real descendant retaining the FD and require both descendant death and joined drain. Reuse the test-budget event helper instead of adding another fixed scheduling guard.

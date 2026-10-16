@@ -3,10 +3,14 @@ package broadcast
 import (
 	"context"
 	"os/exec"
+	"strconv"
 	"strings"
 	"syscall"
 	"testing"
 	"time"
+
+	"github.com/xianxu/pair/cmd/internal/procutil"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 // A small failure fits in the real pipe even when the reader has not run.
@@ -64,8 +68,8 @@ func TestCloudflaredForcedCloseReleasesHeldStderr(t *testing.T) {
 			if err := cmd.Start(); err != nil {
 				t.Fatal(err)
 			}
-			h := &cloudflaredHandle{cmd: cmd, stdin: stdin, stderr: stderr, guarded: true, exited: make(chan struct{}), processExited: make(chan struct{})}
-			ready, drained := make(chan struct{}), make(chan struct{})
+			h := &cloudflaredHandle{cmd: cmd, stdin: stdin, stderr: stderr, guarded: true, exited: make(chan struct{})}
+			ready, drained, waited := make(chan struct{}), make(chan struct{}), make(chan struct{})
 			go func() {
 				defer close(drained)
 				defer stderr.Close()
@@ -75,19 +79,15 @@ func TestCloudflaredForcedCloseReleasesHeldStderr(t *testing.T) {
 					}
 				})
 			}()
-			go h.waitForExit(func() { <-drained })
+			go h.waitForExit(func() { close(waited); <-drained })
 			t.Cleanup(func() {
 				_ = writer.Close()
-				select {
-				case <-h.processExited:
-				default:
-					_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
-				}
+				_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
 				<-h.exited
 			})
 			awaitCloudflaredEvent(t, ready)
 			if processExited {
-				awaitCloudflaredEvent(t, h.processExited)
+				awaitCloudflaredEvent(t, waited)
 			}
 			// Deliberately retain the parent's writer, modeling an inherited FD.
 			// EOF cannot complete the drain; the existing force deadline must
@@ -110,19 +110,86 @@ func TestCloudflaredForcedCloseReleasesHeldStderr(t *testing.T) {
 	}
 }
 
+func TestCloudflaredCloseKillsDescendantAfterLeaderWait(t *testing.T) {
+	for _, tc := range []struct {
+		name           string
+		guarded, force bool
+	}{
+		{"direct-term", false, false},
+		{"direct-kill", false, true},
+		{"guarded-kill", true, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// The descendant retains stderr after its leader exits. Forced
+			// cases ignore TERM even after exec, requiring group KILL.
+			trap := ""
+			if tc.force {
+				trap = `trap "" TERM; `
+			}
+			bin, _ := fakeCloudflared(t, "/bin/sh -c '"+trap+"echo descendant $$ >&2; exec sleep 300' &\nexit 1")
+			cmd := exec.Command(bin)
+			cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+			stderr, writer, err := cloudflaredStderrPipe(cmd)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { _ = stderr.Close(); _ = writer.Close() })
+			stdin, err := cmd.StdinPipe()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := cmd.Start(); err != nil {
+				t.Fatal(err)
+			}
+			_ = writer.Close()
+			h := &cloudflaredHandle{cmd: cmd, stdin: stdin, stderr: stderr, guarded: tc.guarded, exited: make(chan struct{})}
+			ready, drained, waited := make(chan struct{}), make(chan struct{}), make(chan struct{})
+			child := ""
+			go func() {
+				defer close(drained)
+				defer stderr.Close()
+				h.watchStderr(stderr, false, func(line string) {
+					if strings.HasPrefix(line, "descendant ") {
+						child = strings.TrimPrefix(line, "descendant ")
+						close(ready)
+					}
+				})
+			}()
+			go h.waitForExit(func() { close(waited); <-drained })
+			t.Cleanup(func() {
+				// Leader reaping never releases group ownership.
+				_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+				_ = stderr.Close()
+				<-h.exited
+			})
+			awaitCloudflaredEvent(t, ready)
+			awaitCloudflaredEvent(t, waited)
+			pid, err := strconv.Atoi(child)
+			if err != nil || pid <= 0 || !procutil.Alive(child) {
+				t.Fatalf("descendant is not live: %q %v", child, err)
+			}
+			if pgid, err := syscall.Getpgid(pid); err != nil || pgid != cmd.Process.Pid {
+				t.Fatalf("descendant group=%d err=%v, want owned group %d", pgid, err, cmd.Process.Pid)
+			}
+			deadline := make(chan time.Time)
+			if tc.force {
+				close(deadline)
+			}
+			closed := make(chan struct{})
+			go func() { _ = h.closeWithDeadline(deadline); close(closed) }()
+			awaitCloudflaredEvent(t, closed)
+			waitDead(t, child)
+		})
+	}
+}
+
 // This deadline only reports a stuck lifecycle; no elapsed time makes a test
 // succeed. Ordering is established by process, scanner and completion events.
 func awaitCloudflaredEvent(t *testing.T, event <-chan struct{}) {
 	t.Helper()
-	budget := 10 * time.Second
-	if deadline, ok := t.Deadline(); ok && time.Until(deadline)/2 < budget {
-		budget = time.Until(deadline) / 2
-	}
-	timer := time.NewTimer(budget)
-	defer timer.Stop()
 	select {
 	case <-event:
-	case <-timer.C:
+	case <-testwait.After(t):
 		t.Fatal("cloudflared lifecycle did not complete")
 	}
 }
@@ -168,7 +235,7 @@ func TestCloudflaredExitPublishesAfterStderrDrain(t *testing.T) {
 	if err := writer.Close(); err != nil {
 		t.Fatal(err)
 	}
-	h := &cloudflaredHandle{cmd: cmd, exited: make(chan struct{}), processExited: make(chan struct{})}
+	h := &cloudflaredHandle{cmd: cmd, exited: make(chan struct{})}
 	// The lifecycle owner's real wait runs first. Its drain effect performs the
 	// real scan synchronously here, forcing the delayed-reader ordering without
 	// a scheduling delay or an assertion on elapsed time.

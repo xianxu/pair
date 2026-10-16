@@ -307,8 +307,8 @@ Viewers see the operator's colours and font.
   error even when wait completes before reading. The scanner closes its reader;
   forced `Close` at the existing five-second budget kills the owned groups and
   interrupts that reader before joining, including a retained inherited writer.
-  Reaped commands are tracked separately from pending drain to avoid signalling
-  their process group again.
+  The owned process group can outlive its reaped leader, so group termination
+  remains necessary while completing a pending drain.
 - **Run records** (`<couch store>/broadcast/*.json`): owner, guard and
   cloudflared PIDs with `procutil.StrictIdentity`. A named tunnel's record has
   a fixed name, `named-<tunnel>.json`, and is its lock (`ErrTunnelBusy`): two
