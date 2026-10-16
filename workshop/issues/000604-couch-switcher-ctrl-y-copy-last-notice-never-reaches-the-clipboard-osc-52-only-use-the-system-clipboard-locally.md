@@ -87,6 +87,12 @@ The explicitly authorized additional sdlc local-check run on fe4eb6d6e83bd53b9d4
 
 Implementation/verification and acceptance coordination are complete for the revised contract; the binary-owned close review runs next. Per the hub's explicit arrangement there is no staging and no claimed live clipboard success: the paste-full-notice smoke follows the next natural Couch restart, with fix-forward.
 
+### 2026-10-16 — close review round 1: documentation and diagnostic scope
+
+The binary-owned quick review read cd7beba6916499e28d64600662660ecd000ea3d9 and returned REWORK, no code defect or Critical findings. BR-1 (spec-deliverable-traceability) requires either a proven OSC 52 loss diagnosis or an explicit scope revision across the Spec, checked Plan and atlas; smoke deferral alone does not waive that separate deliverable. BR-2 (user-surface-documentation) requires README to explain confirmed local versus unconfirmed OSC fallback. Updated the existing README paragraph with tool success, SSH/tool failure fallback and the one-second budget; no wording-presence test is appropriate. Added both general lessons to workshop/lessons.md. The reviewer independently passed the complete affected packages and focused race tests, and verified the recorded-suite log hash.
+
+Requested explicit approval to narrow diagnosis to the completed bounded read-only investigation, retain the unknown loss layer, and investigate further only if the deferred natural-restart smoke fails. Message to hub was refused with missing-registration diagnostic; fresh actors showed both slots live, so used the documented exact sender fallback ops:0. Receipt b327b1c9-3e48-47eb-a41d-a688a81cc43a is submitted. Scope reduction is only a proposal until the hub answers; no new code, tests, full-suite retry, staging or landing while it is pending.
+
 ## Revisions
 
 ### 2026-10-16 16:02 PDT — acceptance arrangement from the hub
