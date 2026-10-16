@@ -13,14 +13,14 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
-actual_hours: 0.38
+actual_hours: 0.87
 tracker:
     version: 1
     completion:
-        token: close-be31f5cf218d
+        token: close-3ae8d21db883
         repository: github.com/xianxu/pair
-        reviewed_head: 63babdc3e4dec229d2035224cc77000da456b7ea
-        evidence_commit: 7fea67d661ed856948b0c9882caf49e491325031
+        reviewed_head: 3532f6d70fdb4d4af46f6fecdbbb7fe591e66664
+        evidence_commit: c0495c9be73f735da9f1b75d3d03cf857b9afcbc
 ---
 
 # Resource monitor: a slot's detached test suite (sdlc local-check) is reported as orphans; attribute it to the slot
