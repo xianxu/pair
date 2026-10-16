@@ -45,7 +45,7 @@ Filter native-owner candidates from kernel metadata before requiring argv; unrel
 
 - [x] Add failing process-table regressions at the ownership observation boundary.
 - [x] Filter candidates before argv certainty and retry unstable candidate observations once.
-- [ ] Run targeted tests, host read-only observation, recorded suite and build; close and land on SHIP.
+- [x] Run targeted tests, host read-only observation, recorded suite and build; close and land on SHIP.
 
 ## Log
 
@@ -67,6 +67,8 @@ Filter native-owner candidates from kernel metadata before requiring argv; unrel
 - 2026-10-15: Corrected recorded run at 9979945fb passes the inventory contract but reports TestMessageSendToDormantSlotReadmits: expected unavailable, got accepted. Messaging source and test are unchanged from origin/main. Isolated thirty-repeat rerun passed in 5.061s; the prior full suite passed couchcmd. Filed unassigned pair#589 to measure and repair the suspected asynchronous retry/100 ms fixture race, with evidence, and reported to the hub. No messaging edits or gate waiver in #584. This full run is still finishing its other Go packages.
 
 - 2026-10-15: Second recorded suite finished in 11m7s: only TestMessageSendToDormantSlotReadmits failed; all #584 packages passed (core 388.649s, launcher 37.480s). Saved log /Users/xianxu/workspace/pair/.git/sdlc/test-stats/failed/79185f3a4b7716015218ff34bc63d1c8.log. Controlled fixture-race proof and candidate measurements published to #589 on main at d134ce8107e21d0b737607bcede3ed5aa06a8d51. TL 8e95bb66 authorized an unchanged-head retry under the flake rule, with #589 separate. Third recorded run remains exactly 9979945fb544 and started after 517s in queue; log /Users/xianxu/workspace/pair/.git/sdlc/test-stats/inflight/1b92a7237b51faddfe7c1b7439b90d81/run.log. No gate waived. The complete native/legacy/unbound/ordered-proof group also passed under -race in 4.367s.
+
+- 2026-10-15: Required unchanged-head recorded suite PASS at 9979945fb5447f522aa9286c5ff701d1ecae48d6, exit 0 in 11m19s, log SHA-256 f3367ac5877c; /Users/xianxu/workspace/pair/.git/sdlc/local-checks/9979945fb5447f522aa9286c5ff701d1ecae48d6/suite.log. Core 404.387s, launcher 39.706s, and couchcmd 64.419s passed; no fixture edits or test exclusions. #589 remains independent. Close review and landing follow this evidence.
 
 ## Revisions
 

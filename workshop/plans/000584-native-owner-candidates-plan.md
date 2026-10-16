@@ -43,7 +43,7 @@
 - [x] Add bounded writable-file IO and reuse native filename codecs; fake command/parser tests and read-only host conformance.
 - [x] Add exact-owner migration diagnostics, with friendly Couch slot resolution through preview reads where available; tests for known and unresolved owners.
 - [x] Update atlas and Log with justification, the 18-wrapper census, host evidence and limitations; targeted tests and build.
-- [ ] Record the full suite on the pushed final code head; close once with the mandatory SDLC review; land on SHIP and report merge to hub. No live migration or resume from this slot.
+- [x] Record the full suite on the pushed final code head; close once with the mandatory SDLC review; land on SHIP and report merge to hub. No live migration or resume from this slot.
 
 ## Revisions
 
