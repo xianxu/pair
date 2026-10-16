@@ -14,14 +14,14 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
-actual_hours: 2.50
+actual_hours: 2.91
 tracker:
     version: 1
     completion:
-        token: close-e1125004932e
+        token: close-3c4135164a47
         repository: github.com/xianxu/pair
-        reviewed_head: 44b10b71dd206c8f694724df6137f54b8c9f7cbc
-        evidence_commit: 3e73065dad3790af8005dd7877f208e47acc058d
+        reviewed_head: a7ce2731d8694771996b0f110f69586e04831ccd
+        evidence_commit: 850c5c5d19aede124e1101e4308ef1afc63c71ba
 ---
 
 # Native owner scan blocks fleet resume on unrelated processes
