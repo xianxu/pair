@@ -34,16 +34,15 @@ the new slot's wrapper may be a different build. So two problems:
 
 ## Spec
 
-- Find why parley.nvim:4 never receives (wrapper registration, delivery routing, or version skew).
-- A delivery that can't be admitted within its deadline must end in a definite failure the sender can see, never
-  "queued" forever.
-- Receipt decoding tolerates additive fields from a newer supervisor (or the CLI refuses loudly with "CLI older than
-  supervisor"), so status is never silently indeterminate.
+Omit unset AcceptedAt from wrapper receipts and omit that broker-only field from wrapper commit requests, preserving nonzero admission time in the broker's sender receipts. Keep strict decoding; incompatible wrapper replies identify the slot and advise restarting Couch. Never retry commit after a failed reply. Report a terminal protocol failure with honest uncertainty if input may have landed; broker release must not claim operator keystrokes. No general compatibility framework.
 
 ## Done when
 
-- A regression reproduces the skew (newer receipt field) and the undeliverable slot; the sender gets a definite outcome.
-- Live: a newly started slot receives a hub message.
+- Literal pre-AcceptedAt request and reply schemas reproduce both skews before repair and decode successfully after it; broker sender receipts retain their nonzero original timestamp.
+- A wrapper reply decode failure reaches the sender as a terminal receipt with the slot and restart advice; commit occurs once. Possible input effects remain indeterminate, never claimed absent. Broker release before paste is cancelled, after paste uncertain, and neither blames operator input.
+- Focused tests and race regressions, build, required recorded full suite and SHIP close review pass. No production slot mutations are needed to land.
+
+Production acceptance remains pending with the operator/hub after landing: restart Couch onto the combined stage, send one new hub message to the newly started slot and inspect its submitted receipt. TL c93fb492/1d8c54db directs tonight's landing before that restart; this deferred check is not claimed complete here.
 
 ## Plan
 
@@ -70,3 +69,7 @@ Read-only investigation proved the failure is older supervisor e1311121 decoding
 ### 2026-10-15 — approved reverse-direction compatibility
 
 TL approved c93fb492/1d8c54db: omit AcceptedAt from wrapper commit wire messages only; the broker retains its nonzero original and sender receipt. Literal old-request decoder regression went RED with terminal indeterminate/unknown AcceptedAt before the copy omission. The first RED attempt waited for Submitted rather than any terminal result and was interrupted as our own fixture; corrected the test to await terminal and assert Submitted, exposing the actual decode failure immediately. No production processes were signalled. No negotiation, capability framework or relaxed decoder introduced. Wrapper-supplied nonzero values still serialize, and zero timestamps omit in every receipt. The live check waits for the operator's combined restart; no slot mutations here.
+
+### 2026-10-15 — BR-1 acceptance criteria reconciliation
+
+Round 1 found both original Done when clauses stale: they promised an unconditionally definite delivery outcome and completed live acceptance, although TL b5ab4618 approved preserving uncertain effects and c93fb492/1d8c54db directed landing before tomorrow's live restart. Reconcile the active Spec and every Done when clause with those decisions; the old promises are recorded here as superseded, not silently erased. Automated acceptance is complete; production acceptance is explicitly pending with the operator/hub and is not a landing gate. No code changed. The reviewer independently passed both affected package suites and found no executable defect. ARCH-PURPOSE: the current acceptance contract must describe the approved deliverable, not merely leave its correction in the Log.

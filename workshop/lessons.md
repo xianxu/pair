@@ -1956,3 +1956,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #579 BR-2: a successful rename followed by failed directory sync is an uncertain durability outcome, even when the next read finds identical bytes. Test repeated identical publication with injected sync failures, requiring durability reconfirmation and stable inode/content; healthy no-op tests alone cannot defend this class.
 
 - #579 M2: draining an owner is insufficient if asynchronous producers can still admit after its clock stops. Stop admission atomically with the final drain. Exercise a resize whose successful IO result is delayed across PTY EOF, then require no pending or published late sidecar event.
+
+- #594 review: When an approved revision changes certainty guarantees or defers production acceptance, append the revision and reconcile the active Spec and every Done when clause too. A historical Log records the decision but does not supersede contradictory closure criteria; name the pending check's owner and distinguish it from the landing gate.
