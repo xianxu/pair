@@ -1,12 +1,12 @@
 ---
 id: 000606
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-15
 updated: 2026-10-16
 estimate_hours:
-card_mirror: '0e04b4f252bb1153c34939153905f5c31832722a' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '3f89cbae6e99995028a8e7ac3816ae69ebf09974' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-16T12:04:56-07:00
 claimant:
     operator: Xian Xu
@@ -15,6 +15,7 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
+actual_hours: 0.32
 ---
 
 # Resource monitor: a slot's detached test suite (sdlc local-check) is reported as orphans; attribute it to the slot
