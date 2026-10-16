@@ -155,7 +155,7 @@ func (p ContinuousPass) archiveRoot(ctx context.Context, root SourceRoot, index 
 		if index.Seen(identity, c) {
 			continue
 		}
-		described, err := (&SelectedFiles{Root: identity.Root}).Describe(ctx, []string{c.Path})
+		described, err := (&SelectedFiles{Root: identity.Root, Limit: rawBundleLimit(root.Kind)}).Describe(ctx, []string{c.Path})
 		if err != nil {
 			skipped = append(skipped, fmt.Sprintf("%s/%s: %v", root.Kind, c.Path, err))
 			continue
@@ -173,6 +173,13 @@ func (p ContinuousPass) archiveRoot(ctx context.Context, root SourceRoot, index 
 		for _, r := range records {
 			index.Add(r.Manifest)
 			archived += len(r.Manifest.Files)
+		}
+		if collected && errors.Is(err, ErrCiphertextLimit) {
+			// A snapshot too large even compressed is skipped, not a failed
+			// pass: it would fail the same way every day (pair#616).
+			skipped = append(skipped, fmt.Sprintf("%s: %v; skipped", root.Kind, err))
+			fresh = fresh[n:]
+			continue
 		}
 		if err != nil {
 			return archived, skipped, err

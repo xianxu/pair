@@ -20,6 +20,9 @@ const (
 	MaxBundleBytes     = 1 << 30
 	TargetBundleBytes  = 256 << 20
 	MaxCiphertextBytes = 2 << 30
+	// MaxSnapshotRawBytes bounds a database snapshot's raw size. Snapshots
+	// compress well, so the ciphertext bound is their real limit (pair#616).
+	MaxSnapshotRawBytes = 8 << 30
 )
 
 // ArchiveRequest explicitly selects a source and destination; it grants no deletion authority.
@@ -193,6 +196,18 @@ func DecodeRequestWithRoots(b []byte, home string, env map[string]string) (Archi
 }
 func ValidateRequest(r ArchiveRequest) error { return validateRequest(r, false) }
 
+// rawBundleLimit is the raw-size bound for a kind's files and bundles: the
+// general bound, or MaxSnapshotRawBytes for snapshot kinds, which are bounded
+// by their ciphertext instead. Kind-based, so catalog reads agree with writes.
+func rawBundleLimit(kind string) int64 {
+	if inv, err := Defaults(); err == nil {
+		if rule, err := inv.Resolve(kind); err == nil && rule.SnapshotRequired {
+			return MaxSnapshotRawBytes
+		}
+	}
+	return MaxBundleBytes
+}
+
 // validateRequest admits a snapshot-required kind only when collected: the
 // continuous pass took a coherent private snapshot itself (pair#592). Manual
 // requests never select a live database.
@@ -256,13 +271,14 @@ func ValidateManifest(m Manifest) error {
 	}
 	seen := map[string]bool{}
 	var total int64
+	limit := rawBundleLimit(m.Kind)
 	var earliest, latest time.Time
 	for _, f := range m.Files {
 		if !validPath(f.Path) || seen[f.Path] {
 			return errors.New("invalid or duplicate manifest path")
 		}
 		seen[f.Path] = true
-		if f.Size < 0 || f.Size > MaxBundleBytes-total {
+		if f.Size < 0 || f.Size > limit-total {
 			return errors.New("raw bundle exceeds limit")
 		}
 		total += f.Size
@@ -288,7 +304,7 @@ func ValidateLabel(l BundleLabel) error {
 	if err := validateKind(l.Kind); err != nil {
 		return err
 	}
-	if !validTime(l.From) || !validTime(l.To) || l.To.Before(l.From) || l.Compression != "zstd -19" || l.FileCount < 1 || l.FileCount > MaxFiles || l.RawBytes < 0 || l.RawBytes > MaxBundleBytes || l.Bytes <= 0 || l.Bytes > MaxCiphertextBytes {
+	if !validTime(l.From) || !validTime(l.To) || l.To.Before(l.From) || l.Compression != "zstd -19" || l.FileCount < 1 || l.FileCount > MaxFiles || l.RawBytes < 0 || l.RawBytes > rawBundleLimit(l.Kind) || l.Bytes <= 0 || l.Bytes > MaxCiphertextBytes {
 		return errors.New("invalid label range or bounds")
 	}
 	if err := validateRecipients(l.Recipients); err != nil {

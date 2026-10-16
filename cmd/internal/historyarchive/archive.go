@@ -57,7 +57,7 @@ func (a Archiver) create(ctx context.Context, req ArchiveRequest, collected bool
 	if sink == nil {
 		sink = &LocalSink{Root: req.Sink}
 	}
-	files := &SelectedFiles{Root: req.Source.Root}
+	files := &SelectedFiles{Root: req.Source.Root, Limit: rawBundleLimit(req.Kind)}
 	described, err := files.Describe(ctx, req.Files)
 	if err != nil {
 		return nil, fmt.Errorf("archive source: %w; retry with stable regular files", err)
@@ -238,10 +238,14 @@ func (a Archiver) writeBundle(ctx context.Context, req ArchiveRequest, m Manifes
 	pr, pw := io.Pipe()
 	done := make(chan error, 1)
 	go func() { e := files.WriteTar(ctx, pw, m); pw.CloseWithError(e); done <- e }()
-	bounded := &boundedCipherWriter{writer: f, remaining: MaxCiphertextBytes}
+	bounded := &boundedCipherWriter{writer: f, remaining: maxCiphertext}
 	encodeErr := a.Codec.Encode(ctx, pr, bounded, m.Recipients)
 	pr.CloseWithError(encodeErr)
 	tarErr := <-done
+	// The codec may not wrap the writer's error; the writer remembers.
+	if bounded.exceeded {
+		return label, ErrCiphertextLimit
+	}
 	if err = errors.Join(encodeErr, tarErr); err != nil {
 		return label, fmt.Errorf("archive transform: %w; retry", err)
 	}
@@ -287,14 +291,23 @@ func (a Archiver) writeBundle(ctx context.Context, req ArchiveRequest, m Manifes
 	return label, nil
 }
 
+// ErrCiphertextLimit means a bundle's compressed, encrypted form exceeds
+// MaxCiphertextBytes: the input is too large to archive as one bundle.
+var ErrCiphertextLimit = errors.New("compressed bundle exceeds the ciphertext bound")
+
+// maxCiphertext is MaxCiphertextBytes; tests lower it.
+var maxCiphertext int64 = MaxCiphertextBytes
+
 type boundedCipherWriter struct {
 	writer    io.Writer
 	remaining int64
+	exceeded  bool
 }
 
 func (w *boundedCipherWriter) Write(p []byte) (int, error) {
 	if int64(len(p)) > w.remaining {
-		return 0, errors.New("ciphertext exceeds bound")
+		w.exceeded = true
+		return 0, ErrCiphertextLimit
 	}
 	n, e := w.writer.Write(p)
 	w.remaining -= int64(n)

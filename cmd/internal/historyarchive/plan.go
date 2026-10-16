@@ -80,7 +80,7 @@ func planBundles(r ArchiveRequest, files []FileEntry, collected bool) ([]Manifes
 			return nil, errors.New("unexpected or duplicate described file")
 		}
 		delete(selected, f.Path)
-		if f.Size < 0 || f.Size > MaxBundleBytes || !validHex(f.SHA256, 64) || f.Mtime.IsZero() {
+		if f.Size < 0 || f.Size > rawBundleLimit(r.Kind) || !validHex(f.SHA256, 64) || f.Mtime.IsZero() {
 			return nil, errors.New("invalid described file")
 		}
 		f.Mtime = f.Mtime.UTC()

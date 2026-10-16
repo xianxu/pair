@@ -75,10 +75,10 @@ func (s SQLiteSnapshotter) Snapshot(ctx context.Context, root, rel, stagingRoot 
 	if err != nil {
 		return false, fmt.Sprintf("%s unreadable: %v", rel, err), nil
 	}
-	// Over the per-file bound the snapshot could not be archived anyway; do
-	// not copy gigabytes every pass only to skip them (pair#616 lifts this).
-	if before.DBSize+before.WALSize > MaxBundleBytes {
-		return false, fmt.Sprintf("%s exceeds the %d-byte per-file bound; skipped", rel, int64(MaxBundleBytes)), nil
+	// Over the snapshot bound the copy could not be archived anyway; do not
+	// copy gigabytes every pass only to skip them.
+	if before.DBSize+before.WALSize > MaxSnapshotRawBytes {
+		return false, fmt.Sprintf("%s exceeds the %d-byte snapshot bound; skipped", rel, int64(MaxSnapshotRawBytes)), nil
 	}
 	if err := os.MkdirAll(s.Scratch, 0o700); err != nil {
 		return false, "", err

@@ -17,7 +17,9 @@ import (
 // SelectedFiles retains prepass identities for one explicit selection. Do not
 // use it concurrently or change Root between Describe and WriteTar.
 type SelectedFiles struct {
-	Root          string
+	Root string
+	// Limit bounds one file's size; zero is the general bound.
+	Limit         int64
 	described     map[string]os.FileInfo
 	describedRoot string
 }
@@ -76,11 +78,15 @@ func (s *SelectedFiles) Describe(ctx context.Context, paths []string) ([]FileEnt
 			f.Close()
 			return nil, e
 		}
-		if before.Size() > MaxBundleBytes {
+		limit := s.Limit
+		if limit == 0 {
+			limit = MaxBundleBytes
+		}
+		if before.Size() > limit {
 			f.Close()
 			return nil, errors.New("selected file exceeds byte limit")
 		}
-		n, digest, e := fileDigest(ctx, f, nil, MaxBundleBytes)
+		n, digest, e := fileDigest(ctx, f, nil, limit)
 		after, se := f.Stat()
 		f.Close()
 		if e != nil {
