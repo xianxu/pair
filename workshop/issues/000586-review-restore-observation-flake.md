@@ -110,6 +110,10 @@ Integrated origin/main a1beae74b after the experiment; merge completed cleanly. 
 
 Required suite501ea461dee91eaad8c9ae484cbfa18d on a0b3fb0de67824b57d0f42cedd32acd02a7d1778 waited780.079s, then failed exit2 after188.925s, before any review integration fixtures. LifetimeTests.test_cancellation_during_startup (SIGINT,delay0.02) in tests/without-ancestors-test.py:103 timed out waiting3s for helper exit; five methods ran4.850s. Both helper and test are unchanged from main. Log /Users/xianxu/workspace/pair/.git/sdlc/test-stats/failed/501ea461dee91eaad8c9ae484cbfa18d.log, SHA256ddf72cf3b67ba81c2891b26c021302619c0d9120ac6b9d17f401e525646a337a. This is a failed suite, not a passing #586 verification; the previous pre-integration source suite remains historical evidence only. No suite retry launched. Read-only startup audit and an unassigned-issue draft are retained at /tmp/pair586-without-ancestors-failure.md; no cause claimed because the fixture discards stderr/process state. Report to hub for filing/rerun direction without moving main during the #597/#571 priority landings.
 
+### Authorized unchanged rerun; independent failure filed as #598
+
+Hub approval63d2b0cc-0e3e-4227-bd10-c459712f4280 (canonical submitted receipt matches sender/current recipient/body) authorizes filing the independent failure unassigned and one unchanged recorded suite rerun; no fixture fix inside #586, merge still held pending #597/#571 and explicit go. Filed #598 with complete failure evidence on origin. Targeted integrated diagnostics group passed8tests31.189s. Since only issue Log commits advanced the issue branch after the failure, local-check --rev initially refused the old source because it was no longer a remote branch tip (no suite executed). Published temporary verification ref verify-000586-unchanged-suite at exact a0b3fb0de67824b57d0f42cedd32acd02a7d1778 and launched the one authorized recorded rerun there. No code, timeout, assertion or fixture change; remove the temporary ref after its evidence is secured.
+
 ## Revisions
 
 ### 2026-10-15 — approved diagnostics-first timebox
