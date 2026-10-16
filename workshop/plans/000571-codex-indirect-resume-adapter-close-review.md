@@ -563,3 +563,108 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-15T20:51:48-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 571 — Keep Codex indirect resumes native; route exact-ID transcript homes |
+| repo | pair |
+| issue file | workshop/issues/000571-codex-indirect-resume-adapter.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 7d96738f8a9034af12459699e30c80eb02f146bc..8190469bb00c2ae6b676042414434d17e8f6f18d |
+| command | sdlc close --issue 571 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-15T20:51:48-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned implementation matches the approved reduced scope: Codex indirect resumes remain native, exact IDs retain admission, and transcript-home routing is shared across the specified launcher and recovery paths. BR-6 is addressed across typed, compatibility-only, and mixed ledgers. No new blocking findings.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Configuration projection was removed under the approved revision; zero-probe indirect-selector tests pass.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Codex predictive transcript selection was removed; indirect requests cannot obtain selected-ID authority.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Codex worktree-selection emulation was removed; indirect selection remains native.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      The Codex SQLite collector was deleted; indirect-selector trap tests verify rejection before native IO.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      Codex source-filter prediction was removed rather than extended; supplied latest metadata cannot authorize selection.
+  - id: BR-6
+    disposition: addressed
+    note: |
+      ReadLedger checks every represented agent through one cached namespace lookup. The saved-config/restart matrix passes; removing the post-parse check through a temporary overlay reproduces configuration deletion and unsafe legacy restart.
+  - id: BR-7
+    disposition: addressed
+    note: |
+      Discovery, authority validation and legacy held-file checks share NewNativeTranscriptRuntime; custom/default/invalid/relative-home regressions pass.
+```
+
+1. **Strengths**
+
+   - Per-agent availability is enforced for every returned ledger row, including compatibility-only rows (`cmd/internal/launcher/osruntime.go:705–735`).
+   - Indirect Codex requests stop before home resolution or inventory IO; tests trap lower-level probing.
+   - Home routing has one shared constructor, with explicit refusal when relative-home startup provenance is unavailable.
+   - README and atlas describe the revised behavior. Admission and wrapper protocol files remain unchanged.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Targeted launcher, inventory and recovery tests passed normally and with `-race`. The complete artifactpath package passed, and `git diff --check` was clean.
+
+   The BR-6 removal overlay failed as expected, demonstrating that the regression detects the correction’s absence. Temporary overlay files were removed; tracked files were unchanged. I did not independently rerun the full repository suite.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** shared transcript-runtime construction and cached per-agent lookup.
+   - **ARCH-PURE — pass:** filesystem observation stays in runtime boundaries; selector decisions remain separately testable.
+   - **ARCH-PURPOSE — pass:** approved native pass-through replaces prediction throughout the remaining Codex selector surfaces.
+   - **ARCH-MOCK — pass:** private filesystem fixtures and injected owner observations exercise production seams.
+   - **ARCH-CONSTRAINTS — pass:** no Codex selector scan or subprocess work; namespace construction occurs once per represented agent per ledger read.
+   - **ARCH-SECURE — pass:** invalid homes cannot fall back, and unknown historical startup context cannot authorize relative homes.
+   - **ARCH-ORDER — pass:** admission sequencing remains unchanged; unavailable namespace evidence blocks restart before effects.
+   - **ARCH-FUNERAL — pass:** no new durable production artifacts or background tasks.
+
+7. **Plan revision recommendations:** None required; the explicit approved revisions supersede the original selector design.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"0d7b8aa0-6f0b-447e-9598-c039af01b7ee","repository":"github.com/xianxu/pair","issue_id":"000571","recipe":"milestone-review","round":6,"attempt":1,"agent":"codex","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/7f8e5d01a3a87a87","reviewed_head":"8190469bb00c2ae6b676042414434d17e8f6f18d","slot":"pair:7","requested_at":"2026-10-16T03:50:00.362687Z"},"phase":"finished","pid":58943,"started_at":"2026-10-16T03:50:00.595056Z","finished_at":"2026-10-16T03:51:47.289056Z","session_id":"01a142d4-be46-7f71-9c9e-1e3b1d64cd51","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.330929125s
+head: "8190469bb00c2ae6b676042414434d17e8f6f18d"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
