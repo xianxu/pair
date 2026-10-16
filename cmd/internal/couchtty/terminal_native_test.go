@@ -259,7 +259,7 @@ func runNativeConsoleJoinSchedule(t *testing.T, wrapped bool, shellSchedule stri
 			attached := con.panes[second.ID()] != nil
 			active, focus, failure := con.active, con.focus, con.terminalFailure
 			con.mu.Unlock()
-			t.Logf("shell actor pid=%d alive=%t attached=%t active=%s focus=%v failure=%v view=%+v raw=%q screen=%q diagnostics=%q", second.PID(), second.Alive(), attached, active, focus, failure, con.presenter.View(), nativeEvidenceDiagnostic(secondChild.Snapshot()), nativeEvidenceDiagnostic([]byte(host.childArea())), diagnostics.String())
+			t.Logf("shell actor pid=%d alive=%t attached=%t active=%s focus=%v failure=%v view=%+v raw=%q screen=%q", second.PID(), second.Alive(), attached, active, focus, failure, con.presenter.View(), nativeEvidenceDiagnostic(secondChild.Snapshot()), nativeEvidenceDiagnostic([]byte(host.childArea())))
 		}
 	})
 	releaseShell := func() {
