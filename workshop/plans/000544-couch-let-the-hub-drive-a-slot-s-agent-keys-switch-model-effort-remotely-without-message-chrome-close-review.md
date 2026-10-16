@@ -389,3 +389,68 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000409
+
+---
+
+## Re-review — 2026-10-16T01:34:12-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 544 — couch: let the hub drive a slot's agent keys (switch model/effort remotely), without message chrome |
+| repo | pair |
+| issue file | workshop/issues/000544-couch-let-the-hub-drive-a-slot-s-agent-keys-switch-model-effort-remotely-without-message-chrome.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 1fb750e5eadf8d2ff4cabd931a3a0199cba10263..fa550f04ceffa5dd925ac03f28320c00ec35cf83 |
+| command | sdlc close --issue 544 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-16T01:34:12-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The interdiff preserves both sides of the artifact-inventory conflict resolution and records the completed review. It introduces no runtime behavior or scope change. All prior findings are already disposed; no new defects were found.
+
+```findings
+{}
+```
+
+1. **Strengths**
+   - `cmd/internal/artifactpath/manifest.go:630` retains all ten #544 entries and both incoming native-inventory entries.
+   - Existing inventory checks verify completeness, duplicate classifications, file existence, and non-artifact eligibility.
+   - The issue revision accurately describes the limited conflict reconciliation.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes:** `go test ./cmd/internal/artifactpath -count=1` passed in 14.897s. `git diff --check` passed. The broader suite was not rerun.
+
+6. **Architectural notes**
+   - **ARCH-DRY — pass:** Preserves the existing inventory without duplicating classification logic.
+   - **ARCH-PURE — pass:** Adds no IO or business logic.
+   - **ARCH-PURPOSE — pass:** Preserves both branches’ inventory coverage. No new user-facing surface requires README or atlas updates.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"4b979829-64bc-442f-b72c-cd8015b35402","repository":"github.com/xianxu/pair","issue_id":"000544","recipe":"fix-review","round":5,"attempt":1,"agent":"codex","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/9b166189344595ed","reviewed_head":"fa550f04ceffa5dd925ac03f28320c00ec35cf83","slot":"pair:6","requested_at":"2026-10-16T08:33:12.965914Z"},"phase":"finished","pid":12214,"started_at":"2026-10-16T08:33:13.200566Z","finished_at":"2026-10-16T08:34:09.182739Z","session_id":"01a143d8-0757-73c0-8b3b-026f3e0f4665","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.32011225s
+head: "fa550f04ceffa5dd925ac03f28320c00ec35cf83"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000411
