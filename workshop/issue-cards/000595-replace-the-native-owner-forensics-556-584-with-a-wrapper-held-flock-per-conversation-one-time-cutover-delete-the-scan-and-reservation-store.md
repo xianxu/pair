@@ -13,14 +13,14 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
-actual_hours: 3.23
+actual_hours: 3.73
 tracker:
     version: 1
     completion:
-        token: close-d3bc8645aaf5
+        token: close-8339a76a49c2
         repository: github.com/xianxu/pair
-        reviewed_head: c1a5e8b9c93b76608cd6507ae8618e38760d5458
-        evidence_commit: 889006dd3a235d2b7e5b9a5d184537c200b03c69
+        reviewed_head: 6e30fdbf474c2b22924ade77271eb845590ee983
+        evidence_commit: 3cd8e95a16c872e38f56b1089f20ff3ec569188f
 ---
 
 # Replace the native-owner forensics (#556/#584) with a wrapper-held flock per conversation; one-time cutover; delete the scan and reservation store
