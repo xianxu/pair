@@ -25,10 +25,6 @@ type Handle struct {
 // label is diagnostic only; acquisition and release are kernel decisions.
 // pair:m5-concept integration
 func Acquire(home string, key Key, holder string) (*Handle, error) {
-	if !validHolder(holder) {
-		// The label is diagnostic only; an unusable one must not refuse the lock.
-		holder = "unlabelled"
-	}
 	paths, err := artifactpath.ResolvePairCache(home)
 	if err != nil {
 		return nil, err
@@ -77,14 +73,26 @@ func Acquire(home string, key Key, holder string) (*Handle, error) {
 		}
 		return fail(fmt.Errorf("acquire native lock: %w", err))
 	}
-	// Never truncate before owning the lock. Writing in place preserves the inode.
-	if _, err := file.WriteAt([]byte(holder), 0); err != nil {
-		return fail(fmt.Errorf("write native lock holder: %w", err))
+	h := &Handle{file: file}
+	if err := h.Relabel(holder); err != nil {
+		return fail(err)
 	}
-	if err := file.Truncate(int64(len(holder))); err != nil {
-		return fail(fmt.Errorf("truncate native lock holder: %w", err))
+	return h, nil
+}
+
+// Relabel rewrites the held lock's holder label. Only the owner writes it, and
+// only after owning the lock; writing in place preserves the inode.
+func (h *Handle) Relabel(holder string) error {
+	if !validHolder(holder) {
+		holder = "unlabelled"
 	}
-	return &Handle{file: file}, nil
+	if _, err := h.file.WriteAt([]byte(holder), 0); err != nil {
+		return fmt.Errorf("write native lock holder: %w", err)
+	}
+	if err := h.file.Truncate(int64(len(holder))); err != nil {
+		return fmt.Errorf("truncate native lock holder: %w", err)
+	}
+	return nil
 }
 
 func (h *Handle) Close() error {

@@ -21,25 +21,29 @@ import (
 // One serialized owner applies every lifecycle transition and lock IO effect.
 // Its caller closes it only AFTER joining owned-child group cleanup.
 type wrapperNativeLocks struct {
-	mu          sync.Mutex
-	state       nativelock.State
-	home, agent string
-	// holderFn labels this wrapper; it runs once, on the first acquisition, so
-	// a wrap that never locks a conversation never resolves it.
-	holderFn func() string
-	holder   string
-	handles  []*nativelock.Handle
+	mu                  sync.Mutex
+	state               nativelock.State
+	home, agent, holder string
+	handles             []*nativelock.Handle
 }
 
-func newWrapperNativeLocks(home, agent string, holder func() string) *wrapperNativeLocks {
-	return &wrapperNativeLocks{home: home, agent: agent, holderFn: holder}
+func newWrapperNativeLocks(home, agent, holder string) *wrapperNativeLocks {
+	return &wrapperNativeLocks{home: home, agent: agent, holder: holder}
 }
 
-func (o *wrapperNativeLocks) holderLabel() string {
-	if o.holder == "" && o.holderFn != nil {
-		o.holder = o.holderFn()
+// SetHolder relabels this wrapper's locks, held and future. The slot address
+// is resolved off the startup and I/O paths and arrives here when ready; until
+// then the locks carry the fallback label.
+func (o *wrapperNativeLocks) SetHolder(holder string) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if holder == "" || holder == o.holder {
+		return
 	}
-	return o.holder
+	o.holder = holder
+	for _, h := range o.handles {
+		_ = h.Relabel(holder)
+	}
 }
 
 // errNoticeIgnored marks a binding notice that cannot change ownership: it
@@ -65,7 +69,7 @@ func (o *wrapperNativeLocks) Discover(id string) error {
 	if effects.Acquire == nil {
 		return nil
 	}
-	h, err := nativelock.Acquire(o.home, key, o.holderLabel())
+	h, err := nativelock.Acquire(o.home, key, o.holder)
 	kind := nativelock.Acquired
 	if err != nil {
 		kind = nativelock.Failed
@@ -180,21 +184,31 @@ func startNativePTY(locks *wrapperNativeLocks, cmd *exec.Cmd, stderr io.Writer, 
 	return start(cmd)
 }
 
-// nativeLockHolder labels this wrapper in its locks the way Couch names a slot
-// ("pair:3"), so a refused resume says "in use by pair:3" from either observer
-// (pair#595). Outside a slot it falls back to the Pair tag, then "standalone".
-func nativeLockHolder() string {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-	if cwd, err := os.Getwd(); err == nil {
-		if identity, err := couchcore.NewOSSlotCatalog(couchcore.OSProvisionIO{}).ResolveWorkspace(ctx, cwd); err == nil && identity.Address != nil {
-			return *identity.Address
-		}
-	}
+// fallbackLockHolder labels a wrapper's locks until its slot address is known:
+// the Pair tag, else "standalone".
+func fallbackLockHolder() string {
 	if tag := os.Getenv("PAIR_TAG"); tag != "" {
 		return tag
 	}
 	return "standalone"
+}
+
+// slotLockHolder is the slot address as Couch names it ("pair:3"), so a refused
+// resume says "in use by pair:3" from either observer (pair#595); "" outside a
+// slot. It execs a bounded workspace lookup, so it never runs on startup or I/O
+// paths: the wrapper calls it in the background and relabels its locks.
+func slotLockHolder() string {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	cwd, err := os.Getwd()
+	if err != nil {
+		return ""
+	}
+	identity, err := couchcore.NewOSSlotCatalog(couchcore.OSProvisionIO{}).ResolveWorkspace(ctx, cwd)
+	if err != nil || identity.Address == nil {
+		return ""
+	}
+	return *identity.Address
 }
 
 // handleBindingNotice applies one watcher binding notice (pair#595). A held

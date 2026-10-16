@@ -16,7 +16,7 @@ import (
 
 func TestWrapperKnownLocksSurviveStopUntilCleanup(t *testing.T) {
 	home := t.TempDir()
-	owner := newWrapperNativeLocks(home, "codex", func() string { return "pair:2" })
+	owner := newWrapperNativeLocks(home, "codex", "pair:2")
 	key, _ := nativelock.NewKey("codex", "id")
 	if err := owner.Discover("id"); err != nil {
 		t.Fatal(err)
@@ -63,7 +63,7 @@ func TestBindingPipeBoundsCurrentLaunchAndJoins(t *testing.T) {
 
 func TestNonNativeWrapIgnoresAmbientConversation(t *testing.T) {
 	t.Setenv("PAIR_SESSION_ID", "parent-id")
-	owner := newWrapperNativeLocks(t.TempDir(), "sh", func() string { return "standalone" })
+	owner := newWrapperNativeLocks(t.TempDir(), "sh", "standalone")
 	defer owner.Close()
 	spawned := false
 	_, err := startNativePTY(owner, exec.Command("/bin/sh"), io.Discard, func(*exec.Cmd) (*os.File, error) { spawned = true; return nil, nil })
@@ -81,7 +81,7 @@ func TestKnownNewAndForkDestinationsLockBeforeSpawn(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		owner := newWrapperNativeLocks(home, "claude", func() string { return "pair:2" })
+		owner := newWrapperNativeLocks(home, "claude", "pair:2")
 		spawned := false
 		_, err = startNativePTY(owner, exec.Command("claude", args...), io.Discard, func(*exec.Cmd) (*os.File, error) { spawned = true; return nil, nil })
 		owner.Close()
@@ -96,7 +96,7 @@ func TestIndirectCodexNeverLocksASelectorOrInheritedID(t *testing.T) {
 	for _, args := range [][]string{{"resume", "--last"}, {"resume", "my-thread"}} {
 		home := t.TempDir()
 		t.Setenv("PAIR_SESSION_ID", "inherited")
-		owner := newWrapperNativeLocks(home, "codex", func() string { return "pair:2" })
+		owner := newWrapperNativeLocks(home, "codex", "pair:2")
 		var notice bytes.Buffer
 		_, err := startNativePTY(owner, exec.Command("codex", args...), &notice, func(*exec.Cmd) (*os.File, error) { return nil, nil })
 		if err != nil || !owner.Unbound() || !strings.Contains(notice.String(), "not guarded") {
@@ -123,7 +123,7 @@ func startOwnedSleeper(t *testing.T) *ownedGroup {
 // failing; the lock taken before the restart is held until cleanup.
 func TestRestartThenLateBindingNoticeStillRestarts(t *testing.T) {
 	home := t.TempDir()
-	locks := newWrapperNativeLocks(home, "codex", func() string { return "pair:2" })
+	locks := newWrapperNativeLocks(home, "codex", "pair:2")
 	if err := locks.Discover("known"); err != nil {
 		t.Fatal(err)
 	}
@@ -145,7 +145,7 @@ func TestRestartThenLateBindingNoticeStillRestarts(t *testing.T) {
 // A notice whose ID cannot name a lock is logged and dropped; the agent keeps
 // running.
 func TestUnusableBindingNoticeLeavesAgentRunning(t *testing.T) {
-	locks := newWrapperNativeLocks(t.TempDir(), "codex", func() string { return "pair:2" })
+	locks := newWrapperNativeLocks(t.TempDir(), "codex", "pair:2")
 	group := startOwnedSleeper(t)
 	p := &proxy{nativeLocks: locks, ownedGroup: group}
 	p.handleBindingNotice(nativeBindingEvent{id: "bad/../id"})
@@ -159,12 +159,12 @@ func TestUnusableBindingNoticeLeavesAgentRunning(t *testing.T) {
 // the owned group stops and the wrapper reports the holder.
 func TestLateCollisionStopsOwnedGroupAndNamesHolder(t *testing.T) {
 	home := t.TempDir()
-	other := newWrapperNativeLocks(home, "codex", func() string { return "pair:3" })
+	other := newWrapperNativeLocks(home, "codex", "pair:3")
 	if err := other.Discover("shared"); err != nil {
 		t.Fatal(err)
 	}
 	defer other.Close()
-	locks := newWrapperNativeLocks(home, "codex", func() string { return "pair:2" })
+	locks := newWrapperNativeLocks(home, "codex", "pair:2")
 	group := startOwnedSleeper(t)
 	p := &proxy{nativeLocks: locks, ownedGroup: group}
 	p.handleBindingNotice(nativeBindingEvent{id: "shared"})
@@ -181,23 +181,21 @@ func TestLateCollisionStopsOwnedGroupAndNamesHolder(t *testing.T) {
 	locks.Close()
 }
 
-// The holder label is resolved once, and only when a conversation is locked.
-func TestHolderLabelResolvesOnlyOnFirstLock(t *testing.T) {
-	calls := 0
-	locks := newWrapperNativeLocks(t.TempDir(), "codex", func() string { calls++; return "pair:2" })
-	locks.Stop()
-	locks.Close()
-	if calls != 0 {
-		t.Fatalf("label resolved for a wrap that never locked: %d", calls)
+// The slot label arrives after startup and relabels locks already held, so a
+// contender sees the slot address without the wrapper ever waiting for it.
+func TestSetHolderRelabelsHeldLocks(t *testing.T) {
+	home := t.TempDir()
+	locks := newWrapperNativeLocks(home, "codex", "1-pair-8")
+	if err := locks.Discover("held"); err != nil {
+		t.Fatal(err)
 	}
-	locks = newWrapperNativeLocks(t.TempDir(), "codex", func() string { calls++; return "pair:2" })
-	for _, id := range []string{"a", "b"} {
-		if err := locks.Discover(id); err != nil {
-			t.Fatal(err)
-		}
+	defer locks.Close()
+	key, _ := nativelock.NewKey("codex", "held")
+	if _, err := nativelock.Acquire(home, key, "pair:3"); err == nil || !strings.Contains(err.Error(), "in use by 1-pair-8") {
+		t.Fatalf("fallback label: %v", err)
 	}
-	locks.Close()
-	if calls != 1 {
-		t.Fatalf("label resolved %d times, want once", calls)
+	locks.SetHolder("pair:2")
+	if _, err := nativelock.Acquire(home, key, "pair:3"); err == nil || !strings.Contains(err.Error(), "in use by pair:2") {
+		t.Fatalf("held lock not relabelled: %v", err)
 	}
 }

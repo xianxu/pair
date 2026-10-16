@@ -4,7 +4,7 @@
 
 **Goal:** Replace global native-owner forensics and durable admission reservations with wrapper-lifetime conversation locks.
 
-**Architecture:** A Pair wrapper takes one nonblocking exclusive flock per known conversation ID and holds it until that wrapper exits. Its agent runs in the wrapper-owned child process group, which the wrapper terminates on every controlled exit before releasing its locks. A maintenance-only compatibility check refuses ordinary disk resume while a live old wrapper lacks the lock capability; the operator migrates those slots with the existing confirmed Relaunch action.
+**Architecture:** A Pair wrapper takes one nonblocking exclusive flock per known conversation ID and holds it until that wrapper exits. Its agent runs in the wrapper-owned child process group, which the wrapper terminates on every controlled exit before releasing its locks. A resume whose lock another live wrapper holds refuses at native start naming the holder slot, the same "in use" refusal as Couch's registry check; there is no cutover gate or admission (Revisions 2026-10-16).
 
 **Tech stack:** Go, local Darwin/Linux flock, existing PTY process groups, readiness records, Pair session watcher and recovery confirmation.
 
@@ -59,15 +59,9 @@ This deliberately promises nothing before an unknown Fresh ID is known. It prese
 - Hold conversation locks throughout cleanup. Release after the group shutdown/wait path, then allow fresh wrapper re-exec to acquire new ownership. Replace the current unjoined delayed SIGUSR2 group-kill goroutine with that same owned lifecycle.
 - SIGKILL cannot execute cleanup; its orphan gap is explicit and belongs to the reaper/report paths. No process-table/argv/lsof admission proof is reintroduced.
 
-### Maintenance cutover
+### Rollout (no cutover gate)
 
-Add a small native-lock capability version to the existing readiness publication (missing = legacy). Read it for live wrappers from the existing registry/current readiness inventory, matching the current session/nonce; do not infer liveness from a leftover readiness file alone. Use the existing listed-live terminal inventory when an ordinary Pair invocation has no connected broker. Do not enumerate OS processes or decode historical launch ledgers to build this list.
-
-At ordinary disk-resume admission, including the Pair native-resume entry path, collect the live wrappers without this capability. A nonempty, deterministically sorted list refuses with `relaunch older slots first: X, Y`. Recheck at the actual launch gate, without creating a reservation. Once the operator has relaunched those old slots, the list is empty and this rule no longer fires. Continue/attach and Fresh remain available.
-
-The **existing confirmed Relaunch of a live old slot is the maintenance action**: retire that exact source first, then restart its current conversation under the new wrapper's lock. It is not blocked by the Resume-only transition rule; it cannot choose an unrelated conversation or bypass a held flock. This distinction is necessary to avoid circular migration. There is no new user override flag or permission flow; existing person-or-hub stop-set confirmation remains authoritative. A parked slot's ordinary Resume still waits for maintenance to finish.
-
-Rollout order is explicit: restart Couch onto this build before starting new wrappers, then relaunch old slots at the operator's quiet window. New readers accept old readiness records. The new readiness capability is not sent as an additive message-receipt field; no general compatibility framework. Test a Couch restart over old live slots: startup succeeds, rows remain Continue, and only disk resume shows the named migration refusal.
+Superseded 2026-10-16 (TL e93b109d): no readiness capability, no live legacy-slot guard, no Relaunch migration marker and no native admission. A wrapper started before this build holds no lock until its slot is relaunched; the gap closes as slots relaunch. The holder label falls back to the Pair tag (else "standalone") and is relabelled to the slot address once a background lookup resolves it.
 
 ## Delete and retain (verified at 484bc381)
 
@@ -91,7 +85,7 @@ Keep selector classification/pinning and its UX tests, ordinary LsofNames, share
 | nativelock.Advance | Sequence-test unknown / acquiring / held / stopping / exited with discovered, acquired, failed, stop and cleanup-complete events; private state plus returned effects are the only route to acquire, stop and release. A single wrapper owner serializes events and IO completions; stopping rejects discoveries, retains late-acquired handles through group cleanup, and permits release only after cleanup-complete. |
 | nativelock.Acquire / Handle.Close | Real subprocess barrier contention and kill/reap conformance; exactly one nonblocking flock, stable inode, loser cannot truncate, bounded holder text, close-on-exec. |
 | sessionwatch.NotifyBinding / wrapcmd.DecodeBindingNotice | Pipe truncation/EOF/foreign-generation sequence tests after committed ObserveAndPersist; bounded records, ordinal fence and visible unknown-versus-held status. |
-| launcher.LegacyLockSlots | Permute mixed current/live and stale readiness observations; pure filtering/sorting never derives liveness from file existence. |
+| ~~launcher.LegacyLockSlots~~ (dropped 2026-10-16) | Permute mixed current/live and stale readiness observations; pure filtering/sorting never derives liveness from file existence. |
 | wrapcmd.stopOwnedGroup | Real scratch descendant lifecycle tests plus injected event ordering; signal only the directly created group before leader reap, join cleanup and hold locks until cleanup-complete. |
 | existing recovery admission / confirmed Relaunch | Stateful runtime tests enforce Resume-only maintenance refusal and exact-source migration exemption, retaining stop-set confirmation. |
 
@@ -115,12 +109,12 @@ Allow roughly **350–650 added production lines** for the small lock, watcher n
 
 ## Implementation and acceptance (one atomic close boundary)
 
-- [ ] After TL approval, run change-code; derive the full-flow estimate only after plan-quality clears.
-- [ ] TDD the named lock, transition, notification, cutover and group-cleanup seams above, recording RED/GREEN and real scratch conformance evidence.
-- [ ] Implement lock ownership and capability/readiness, move stop-set attribution, then remove the forensic/reservation inventory in the same build. Sweep callers and artifact references; no partial dual-guard deployment.
-- [ ] Update atlas/couch.md and issue Spec/Done when to this approved scope, preserve superseded promises in Revisions, and document orphan responsibility and maintenance rollout. Update target only if its existing commitments need the accepted limit stated.
-- [ ] Build, targeted/race/conformance regressions, required recorded suite, actual LOC report and mandatory issue-close review. No code may land on REWORK.
-- [ ] TL schedules the single maintenance stage/restart and live acceptance: Couch starts over old live slots, ordinary parked Resume lists legacy blockers, confirmed Relaunch migrates them, parked scratch Resume works, a held scratch conversation refuses with its slot and offers Fresh. No working slot is mutated by this agent.
+- [x] After TL approval, run change-code; derive the full-flow estimate only after plan-quality clears.
+- [x] TDD the named lock, transition, notification and group-cleanup seams above, recording RED/GREEN and real scratch conformance evidence.
+- [x] Implement lock ownership, move stop-set attribution, then remove the forensic/reservation inventory in the same build. Sweep callers and artifact references; no partial dual-guard deployment.
+- [x] Update atlas/couch.md and issue Spec/Done when to this approved scope, preserve superseded promises in Revisions, and document orphan responsibility and maintenance rollout. Update target only if its existing commitments need the accepted limit stated.
+- [x] Build, targeted/race/conformance regressions, required recorded suite, actual LOC report and mandatory issue-close review. No code may land on REWORK.
+- [ ] TL schedules the operator live acceptance: Couch restarts over live slots, slots are relaunched onto this build at a quiet time, a parked scratch conversation resumes, and a held scratch conversation refuses naming its holder slot.
 - [ ] Land on SHIP and report actual merge hash plus remaining operator acceptance, if the TL explicitly chooses landing before the maintenance window. Do not silently count an unrun live check as complete.
 
 ## Constraints and lifecycle

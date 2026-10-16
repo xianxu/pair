@@ -2,6 +2,8 @@ package wrapcmd
 
 import (
 	"os/exec"
+	"strconv"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -42,15 +44,25 @@ func (g *ownedGroup) StartStop() {
 
 const groupPoll = 10 * time.Millisecond
 
-// groupHasLiveMember reports whether the group still has a member a signal
-// reaches. Darwin answers EPERM once only zombies remain (our unreaped leader,
-// or members mid-exit) and ESRCH once it is empty; neither needs SIGKILL, so
-// cleanup ends early instead of always spending the grace.
-func groupHasLiveMember(pgid int) bool { return syscall.Kill(-pgid, 0) == nil }
-
 func (g *ownedGroup) Wait() error {
 	g.StartStop()
 	<-g.done
 	g.reap.Do(func() { g.err = g.cmd.Wait() })
 	return g.err
+}
+
+// procStatLiveInGroup reads one Linux /proc/<pid>/stat line: true when that
+// process is in group pgid and not a zombie. Fields after the parenthesised
+// command are: state ppid pgrp ...
+func procStatLiveInGroup(raw []byte, pgid int) bool {
+	end := strings.LastIndexByte(string(raw), ')')
+	if end < 0 {
+		return false
+	}
+	fields := strings.Fields(string(raw[end+1:]))
+	if len(fields) < 3 || fields[0] == "Z" || fields[0] == "X" {
+		return false
+	}
+	group, err := strconv.Atoi(fields[2])
+	return err == nil && group == pgid
 }

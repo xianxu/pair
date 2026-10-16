@@ -151,3 +151,9 @@ Keep the wrapper-held per-conversation flock, owned-group cleanup, watcher bindi
 - BR-5 (Important), accepted: wrapper-level tests drive notice handling and controlled signals through `handleBindingNotice` and `stopForSignal` (late collision stops the owned group and names the holder; unusable notice leaves the agent running; restart then late notice still restarts).
 - Minor, accepted: an invalid holder label falls back to "unlabelled" instead of refusing the lock.
 - Minor, deferred as follow-ups for the TL: the watcher-start-failure notice wording, and one shared rule for the three ID/label validators.
+
+### 2026-10-16 — close review round 2 (REWORK) dispositions
+
+- BR-3 (Important), accepted as a rule: "does the owned group still have a running member" is now per platform. Darwin keeps the kill probe (EPERM = only zombies); Linux reads /proc for non-zombie members of the group, because kill(-pgid, 0) succeeds there on our unreaped zombie leader; other platforms stay conservative. The stat parser is pure and tested (TestProcStatLiveInGroup).
+- Minor (external probe on startup/I/O paths), accepted as a rule: locks are taken immediately with the fallback label (Pair tag, else "standalone"); the slot lookup runs once in the background from wrapper start and relabels held locks in place (`Handle.Relabel`, TestSetHolderRelabelsHeldLocks). Nothing waits for it.
+- Minor (plan still describes the gate), accepted: Architecture line, rollout section, test row and checklist now state the approved design; the superseded design stays in Revisions.

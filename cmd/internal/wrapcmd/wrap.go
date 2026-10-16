@@ -2892,7 +2892,8 @@ argsDone:
 	// Spawn child in a fresh PTY.
 	cmd := exec.Command(argv[0], launcher.PromptArgs(argv[0], argv[1:], launchPrompt)...)
 	cmd.Env = childEnv
-	locks := newWrapperNativeLocks(os.Getenv("HOME"), p.agentBasename, nativeLockHolder)
+	locks := newWrapperNativeLocks(os.Getenv("HOME"), p.agentBasename, fallbackLockHolder())
+	go func() { locks.SetHolder(slotLockHolder()) }()
 	defer locks.Close() // registered before group cleanup: group is joined first
 	p.nativeLocks = locks
 	agentNotBefore := time.Now()

@@ -178,3 +178,146 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000409
+
+---
+
+## Re-review — 2026-10-16T04:34:35-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 595 — Replace the native-owner forensics (#556/#584) with a wrapper-held flock per conversation; one-time cutover; delete the scan and reservation store |
+| repo | pair |
+| issue file | workshop/issues/000595-replace-the-native-owner-forensics-556-584-with-a-wrapper-held-flock-per-conversation-one-time-cutover-delete-the-scan-and-reservation-store.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 1e93c3d9e0309d35f9993e3b52f5339480074081..7a7b60867800e9c409f91bbd5c126082255655e6 |
+| command | sdlc close --issue 595 |
+| reviewer | claude |
+| isolation | fenced |
+| timestamp | 2026-10-16T04:34:35-07:00 |
+| verdict | REWORK |
+
+## Review
+
+Checking the fixes now: running the wrapcmd/nativelock tests, then reverting a fix to confirm its regression test goes red.
+
+Both BR-2 regression tests go red when the fix is reverted. Next: checking whether the holder label could come from the launch environment (BR-4).
+
+```verdict
+verdict: REWORK
+confidence: medium
+```
+
+Most of round 1 is fixed, and I checked the fixes directly rather than relying on the commit messages. One Important finding is still open. **BR-3 (cleanup waits the full grace) is fixed on Darwin only.** `groupHasLiveMember` (`cmd/internal/wrapcmd/owned_group.go:49`) treats `kill(-pgid, 0) == nil` as "a live member remains". On Darwin, a group holding only zombies returns EPERM, so cleanup ends early. On Linux, signal 0 to a group whose only remaining member is our unreaped zombie leader still succeeds, so every wrapper exit and restart there still waits the full 1s grace and then sends SIGKILL. The fix's own comment covers only Darwin, and the atlas says these suites run on Darwin and Linux (`atlas/couch.md:4113`). I could not run Linux here: the Docker daemon is not running. Nothing else blocks.
+
+1. **Strengths**
+   - **BR-2 is properly fixed and has a real regression test.** I removed the stopping-phase guard in `Discover` and `TestRestartThenLateBindingNoticeStillRestarts` failed ("discovery after stop"). I changed the unusable-ID path back to `return err` and `TestUnusableBindingNoticeLeavesAgentRunning` failed. Both pass at the pinned head.
+   - **The notice and signal logic moved into `handleBindingNotice` / `stopForSignal`** (`wrapcmd/native_lock.go:203-239`). Production (`wrap.go:3007`, `wrap.go:3221`) and the tests now call the same functions, so the wrapper-level tests exercise the real decision code (BR-5).
+   - **The pure `nativelock.Advance` state machine is unchanged and still decides every transition.** The wrapper only adds a pre-filter that classifies events to drop; it does not change state outside the model.
+   - **An unusable holder label now falls back to `"unlabelled"`** (`nativelock/lock.go:29`). The test shows the fallback label appears in the refusal message.
+   - Build, vet and the targeted suites pass: `nativelock`, `sessionwatch`, `artifactpath`, `launcher`, and the lifecycle tests in `wrapcmd`.
+
+2. **Critical:** none.
+
+3. **Important**
+   - **BR-3 is not addressed on Linux.**
+     - **Rule:** deciding whether a process group is empty must not depend on how a platform answers signal 0 for zombies.
+     - **Fix:** give `groupHasLiveMember` a Linux implementation that scans `/proc/*/stat` for members of the pgid whose state is not `Z`. Keep the kill-probe for Darwin. Run `TestOwnedGroupFinishesEarlyWhenTheGroupExits` on Linux; it should fail there today.
+
+4. **Minor**
+   - **The first late lock blocks the terminal output loop.** When a late binding notice arrives, `Discover` runs the label lookup (`sdlc workspace --json`) on `masterPump` while holding the lock mutex. That lookup took about 0.2s here and is capped at 2s. Known-ID launches also pay it before spawn.
+     - This is the 2nd finding in family `external-probe-on-startup-path`.
+     - **Rule:** a probe that only produces a diagnostic label never runs on the terminal I/O loop or before spawn. Start it once in the background when the wrapper starts, and have `Acquire` use the result if it is ready, otherwise the fallback label.
+   - **Parts of the plan still describe the dropped cutover gate as current work.** The Architecture line (plan line 7), the capability sections (lines 64-70), test row 94 and unchecked checklist items 120 and 123 still say so. Item 123 is an operator acceptance step that would check for "Resume lists legacy blockers", a behaviour this build does not have.
+     - This is the 2nd finding in family `plan-claims-undelivered-surface`.
+     - **Rule:** when a revision drops scope, every active statement (summary, unchecked checklist items, test tables) is edited or struck where it stands. Only dated log and revision entries stay as history.
+   - BR-7 and BR-9 are deferred, as the issue log records. They stay open as Minor.
+
+5. **Test coverage**
+   - BR-2 and BR-5 have regression tests that I confirmed fail without the fix.
+   - The tests for BR-3 and BR-4 are real, but the BR-3 timing test has only run on Darwin.
+   - The wrapper tests drive notice and signal handling through the production helper functions. They still see one interleaving only: a SIGUSR2 racing a notice that is mid-acquisition has no seam to control ordering. That is acceptable at this size.
+
+6. **Architecture**
+   - **ARCH-DRY:** pass. The validators are deferred under BR-9.
+   - **ARCH-PURE:** pass. `Advance` is pure; the wrapper is the thin IO layer.
+   - **ARCH-PURPOSE:** pass. Spec, Done-when and code now match the approved re-plan; see the plan Minor above.
+   - **ARCH-MOCK:** pass. The label lookup is injected as a function and tests use fakes.
+   - **ARCH-CONSTRAINTS:** flag. BR-3 on Linux, plus the minor stall on the output loop.
+   - **ARCH-SECURE:** pass. Notice IDs are parsed through `NewKey`, and invalid ones are dropped with a log line.
+   - **ARCH-ORDER:** pass with a note. Dropping notices after stop is explicit and tested; a collision that races a restart still reports a failure, which is defensible.
+   - **ARCH-FUNERAL:** pass. Locks are released after the group is reaped; the lock files are bounded per conversation as the plan records.
+
+7. **Plan revisions**
+   - Add a "## Revisions" note, and strike or edit plan lines 7, 64-70, 94, 120 and 123 so the active plan and the operator acceptance checklist no longer describe the capability gate or legacy-blocker listing.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Issue Spec line 40 and Done-when rewritten; plan rows struck and Revisions entry 147 added; leftover active plan prose raised as a new Minor.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Reverted the stopping guard and the errNoticeIgnored wrap; TestRestartThenLateBindingNoticeStillRestarts and TestUnusableBindingNoticeLeavesAgentRunning both go red, green at head.
+  - id: BR-3
+    disposition: not-addressed
+    note: |
+      Darwin only. On Linux kill(-pgid,0) succeeds while the unreaped zombie leader is in the group, so the poll still spends the full grace and SIGKILLs; the comment at owned_group.go:44 admits Darwin only, and atlas claims Darwin/Linux.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      Label resolved lazily once behind an injected func (TestHolderLabelResolvesOnlyOnFirstLock); probe measured ~0.2s; remaining placement on the pump raised as a Minor.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      handleBindingNotice/stopForSignal are the production call sites (wrap.go:3007,3221) and the new wrapper tests drive them against a real owned group.
+  - id: BR-6
+    disposition: addressed
+    note: |
+      atlas/couch.md:4108 Owners no longer lists native_lock_capability.go.
+  - id: BR-7
+    disposition: not-addressed
+    note: |
+      Deferred by the implementer; a missing watcher still gives no notice.
+  - id: BR-8
+    disposition: addressed
+    note: |
+      Acquire falls back to "unlabelled"; lock_test asserts the refusal names it.
+  - id: BR-9
+    disposition: not-addressed
+    note: |
+      Deferred by the implementer; three validators remain.
+findings:
+  - id: new
+    severity: Minor
+    kind: defect
+    family: external-probe-on-startup-path
+    title: |
+      First late lock runs the sdlc workspace label lookup on masterPump while holding the lock mutex
+    detail: |
+      2nd finding in this family. Rule: an external probe that only produces a diagnostic label never runs on the PTY I/O loop or before spawn. Start it once in the background when the wrapper starts and use its result if ready, else the fallback label. Measured about 0.2s per lookup, capped at 2s.
+  - id: new
+    severity: Minor
+    kind: defect
+    family: plan-claims-undelivered-surface
+    title: |
+      Plan's active Architecture line, capability sections, test row and unchecked items 120/123 still describe the dropped cutover gate
+    detail: |
+      Rule: when a revision drops scope, edit or strike every active statement where it stands (summary, unchecked checklist, test tables); only dated log entries stay as history. Item 123 would have the operator check for "legacy blockers" that this build does not produce.
+```
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"623c738e-ae9f-42c0-8a4f-2af648ce93b5","repository":"github.com/xianxu/pair","issue_id":"000595","recipe":"milestone-review","round":2,"attempt":1,"agent":"claude","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/6826bb3b7d0f3a67","reviewed_head":"7a7b60867800e9c409f91bbd5c126082255655e6","slot":"pair:2","requested_at":"2026-10-16T11:29:59.843353Z"},"phase":"finished","pid":44528,"started_at":"2026-10-16T11:29:59.967681Z","finished_at":"2026-10-16T11:34:12.076894Z","session_id":"f8ab1b46-694a-4e05-bc60-8af702feb6c4","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.903280667s
+head: "7a7b60867800e9c409f91bbd5c126082255655e6"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

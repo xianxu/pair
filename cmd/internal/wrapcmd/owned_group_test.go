@@ -89,3 +89,23 @@ func TestOwnedGroupFinishesEarlyWhenTheGroupExits(t *testing.T) {
 		t.Fatalf("cleanup spent %s of a 5s grace on a group that exited on SIGTERM", elapsed)
 	}
 }
+
+// The Linux probe's parser: a zombie member, including our unreaped leader,
+// does not keep the group live; a command name with spaces and parens parses.
+func TestProcStatLiveInGroup(t *testing.T) {
+	for _, tc := range []struct {
+		line string
+		want bool
+	}{
+		{"4242 (codex) S 1 4242 4242 0 -1", true},
+		{"4242 (sh) Z 1 4242 4242 0 -1", false},
+		{"4243 (sleep) S 4242 4242 4242 0 -1", true},
+		{"4244 (other) S 1 9999 9999 0 -1", false},
+		{"4245 (we (ird) name) R 1 4242 4242 0 -1", true},
+		{"garbage", false},
+	} {
+		if got := procStatLiveInGroup([]byte(tc.line), 4242); got != tc.want {
+			t.Errorf("%q: got %v want %v", tc.line, got, tc.want)
+		}
+	}
+}
