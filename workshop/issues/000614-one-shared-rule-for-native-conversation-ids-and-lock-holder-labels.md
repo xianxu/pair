@@ -34,11 +34,14 @@ One shared rule for a native conversation ID (and one for a holder label), used 
 
 ## Plan
 
-- [ ]
+- [x] One ID rule: leaf `nativeid.Validate`, used by the lock key (`artifactpath.NativeLockFilename`) and the binding notice (`sessionwatch`).
+- [x] Holder labels keep their own rule (a label is not an ID: longer bound, path characters allowed) but share the forbidden-character predicate `nativeid.Forbidden`.
+- [x] Tests at each boundary: notice vs lock key agreement, `nativeid` table, holder parser space and zero-width cases.
 
 ## Log
 
 ### 2026-10-16
+- 2026-10-16: closed — Leaf nativeid.Validate is the one rule for native conversation IDs, used by artifactpath.NativeLockFilename and sessionwatch binding notices. TestBindingNoticeIDRuleMatchesLockKey RED before (notice accepted space, zero-width, a/b, ..), GREEN after; nativeid table test; sessionwatch, nativelock, artifactpath, wrapcmd green. Recorded suite on 61066dc8 failed only TestHubStartupLaterFailureLeavesFirstUsable (couchcmd, untouched; passes 5/5 alone, load flake); suite rerun before merge. no-atlas: refactor of a validation rule, no new surface.; review verdict: FIX-THEN-SHIP
 
 ### 2026-10-16 — fix (pair:2)
 

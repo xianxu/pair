@@ -21,10 +21,15 @@ func Validate(id string) error {
 	if len(id) == 0 || len(id) > MaxLen || !utf8.ValidString(id) || id == "." || id == ".." || strings.ContainsAny(id, "/\\") {
 		return errors.New("invalid native conversation ID")
 	}
-	for _, r := range id {
-		if unicode.IsControl(r) || unicode.IsSpace(r) || unicode.Is(unicode.Cf, r) {
-			return errors.New("invalid native conversation ID")
-		}
+	if strings.IndexFunc(id, Forbidden) >= 0 {
+		return errors.New("invalid native conversation ID")
 	}
 	return nil
+}
+
+// Forbidden is the character rule shared with lock holder labels: control,
+// space and format characters never appear in an ID or a label.
+// pair:m5-concept pure
+func Forbidden(r rune) bool {
+	return unicode.IsControl(r) || unicode.IsSpace(r) || unicode.Is(unicode.Cf, r)
 }
