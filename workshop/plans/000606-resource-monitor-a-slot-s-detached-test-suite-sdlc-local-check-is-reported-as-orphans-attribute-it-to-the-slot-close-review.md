@@ -203,3 +203,84 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-16T13:22:04-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 606 — Resource monitor: a slot's detached test suite (sdlc local-check) is reported as orphans; attribute it to the slot |
+| repo | pair |
+| issue file | workshop/issues/000606-resource-monitor-a-slot-s-detached-test-suite-sdlc-local-check-is-reported-as-orphans-attribute-it-to-the-slot.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 83441b3f7f3e64f04424708149268fd804c67f5d..3532f6d70fdb4d4af46f6fecdbbb7fe591e66664 |
+| command | sdlc close --issue 606 |
+| reviewer | claude |
+| isolation | fenced |
+| timestamp | 2026-10-16T13:22:04-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+This window changes one code file. `cmd/internal/artifactpath/manifest.go` adds two entries to `NonArtifactSources`: `cmd/internal/couchcore/resource_detached.go` and `cmd/internal/procutil/environment.go`. Both files exist at head. With those entries in, `go test ./cmd/internal/artifactpath` passes on head (`ok … 10.849s`); without them, the recorded suite would fail `TestProductionArtifactReferencesAreExactlyClassified`. Everything else in the window is tracker material: the round-2 gate ledger and review record, one entry in `workshop/lessons.md`, and in the issue file a close-log line, `card_mirror` and `actual_hours`. `## Spec`, `## Revisions` and `## Done when` are unchanged, so scope did not change. There are no conflict resolutions to judge. None of BR-2, BR-3, BR-4 or BR-5 is touched, so all four stay `not-addressed`. They are all Minor and none blocks, and the window adds no Critical or Important defect, so it ships with them still open.
+
+1. **Strengths**
+   - `manifest.go:685` and `:1124`: each new production source is listed next to its siblings from the same package. That fixes the merge-time failure at the cause, rather than weakening the test.
+   - The new `workshop/lessons.md` entry records the rule behind this fix (a new `.go` file needs a manifest entry; run `go test ./cmd/internal/artifactpath`), not just this one case.
+
+2. **Critical:** none.
+
+3. **Important:** none.
+
+4. **Minor**
+   - Nit: `resource_detached.go` is listed after `resource_roots.go`, which breaks the alphabetical order of the surrounding `resource_*` entries. It has no effect on behaviour.
+
+5. **Test coverage:** the existing manifest classification test covers this change, and it passes on head. No new behaviour needs a new test.
+
+6. **Architecture (interdiff only)**
+   - **ARCH-DRY: pass.** The change only adds entries to the existing single inventory; nothing is duplicated.
+   - **ARCH-PURE: pass.** The change is declarative data with no IO.
+   - **ARCH-PURPOSE: pass.** Both new production files from this issue (`resource_detached.go`, `environment.go`) are classified, which is the full set the window needs. The open Minors are untouched and stay open; they are not deferred as follow-ups.
+
+7. **Plan revisions:** none.
+
+```findings
+dispose:
+  - id: BR-2
+    disposition: not-addressed
+    note: |
+      The interdiff does not touch resources.go or resource.go. environmentRead errors other than identity-unavailable and context errors are still cached as permanent.
+  - id: BR-3
+    disposition: not-addressed
+    note: |
+      The interdiff does not touch resource_detached.go:35-38 or resource.go. The zellij+AgentInventory name sets are still duplicated.
+  - id: BR-4
+    disposition: not-addressed
+    note: |
+      The new issue Log line records only unit tests. There is still no observation of a live full suite run with zero orphan alerts.
+  - id: BR-5
+    disposition: not-addressed
+    note: |
+      resource.go is unchanged in this window. The handover root-death check still restates rootDead and diverges from it.
+```
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"8dd0fc99-3a71-42d0-b646-55d296dd890f","repository":"github.com/xianxu/pair","issue_id":"000606","recipe":"fix-review","round":3,"attempt":1,"agent":"claude","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/461064ffcb106f8e","reviewed_head":"3532f6d70fdb4d4af46f6fecdbbb7fe591e66664","slot":"pair:2","requested_at":"2026-10-16T20:21:21.771899Z"},"phase":"finished","pid":71028,"started_at":"2026-10-16T20:21:21.921543Z","finished_at":"2026-10-16T20:22:03.4849Z","session_id":"604b4848-8eca-429f-9a55-94b78d0fe224","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.759470959s
+head: "3532f6d70fdb4d4af46f6fecdbbb7fe591e66664"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
