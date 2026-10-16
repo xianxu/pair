@@ -668,3 +668,93 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-15T23:08:27-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 571 — Keep Codex indirect resumes native; route exact-ID transcript homes |
+| repo | pair |
+| issue file | workshop/issues/000571-codex-indirect-resume-adapter.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | c7876717d7d1fee28c3d6ff4734c38b38c31554b..f56a0d9faa0109cbabb85f0dcca8b1d5840cb135 |
+| command | sdlc close --issue 571 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-15T23:08:27-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The interdiff preserves both sides’ intent: source classifications remain complete, and recovery retains shared transcript-home validation while adopting main’s registry-based admission. No new defects or scope changes found.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Configuration prediction remains removed; indirect pass-through regressions pass.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Predictive transcript selection remains removed; indirect requests cannot acquire predicted identity authority.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Worktree-selection emulation remains removed; native indirect selection is preserved.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      Codex latest rejects before native IO; the zero-probe regression passes.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      Source-filter prediction remains removed; Codex indirect selection stays native.
+  - id: BR-6
+    disposition: addressed
+    note: |
+      ReadLedger checks every represented agent through its shared namespace cache; isolation regressions pass.
+  - id: BR-7
+    disposition: addressed
+    note: |
+      The public recovery validator retains shared transcript-home routing; custom/default/invalid/relative controls pass normally and with race detection.
+```
+
+1. Strengths:
+   - Both source inventories survive the conflict resolution (`cmd/internal/artifactpath/manifest.go:630`); the full artifactpath suite passes.
+   - Recovery keeps capture, transcript, record-change and final identity checks (`cmd/internal/launcher/recovery_authority_os.go:191`).
+   - Atlas wording accurately distinguishes standalone admission from Couch recovery (`atlas/codex-resume.md:9`).
+
+2. Critical findings: none.
+
+3. Important findings: none.
+
+4. Minor findings: none.
+
+5. Test coverage: affected launcher tests, recovery-home race test, registry/cold-resume integration controls, indirect-selector and ledger-isolation regressions all pass. `git diff --check` passes. The full repository suite was not rerun during this review.
+
+6. Architecture: **ARCH-DRY — pass:** obsolete delegation seam removed; shared home construction retained. **ARCH-PURE — pass:** no new business logic mixed into IO. **ARCH-PURPOSE — pass:** both conflict resolutions preserve the approved purpose without restoring prediction or legacy ownership policy.
+
+7. Plan revisions: none required; this window records integration verification without changing the active contract.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"5a065fa9-4df3-4b9c-9380-c0395f75d4b4","repository":"github.com/xianxu/pair","issue_id":"000571","recipe":"fix-review","round":7,"attempt":1,"agent":"codex","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/6f3532bc99e07ea1","reviewed_head":"f56a0d9faa0109cbabb85f0dcca8b1d5840cb135","slot":"pair:7","requested_at":"2026-10-16T06:06:48.201691Z"},"phase":"finished","pid":99928,"started_at":"2026-10-16T06:06:48.31878Z","finished_at":"2026-10-16T06:08:23.298996Z","session_id":"01a14351-fae4-7f81-9205-252de018de2b","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.464941084s
+head: "f56a0d9faa0109cbabb85f0dcca8b1d5840cb135"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
