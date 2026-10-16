@@ -72,3 +72,7 @@ Plan committed at be96916a6. Couch socket disappeared before handoff. The send t
 ### 2026-10-16 — TL approved plan
 
 After restart the plan report was resent (09bd705d-e7a6-48a7-b2a2-e9f6b1804a90). Verified TL approval receipt 72aed150-a96e-46b8-8e68-8bb2dcbaa16f: proceed to change-code, implement wrapper pipe lifetime with red tests first, choose controlled production-path replica profiling using real ledger/catalog, no diagnostic rollover of live titles. Cleanup coordination with #583 remains pending. Full flow requested for this cross-process ownership and memory change.
+
+### 2026-10-16 — plan gate round 1
+
+Plan-quality REWORK: PQ-1 requires cancellation to cover in-process inventory/usage, not only sleep and commands; PQ-2 requires named function-level testing strategies. Revised plan compresses test inventories and specifies cooperative context throughout query/range IO plus a proposed bounded CLI-process exit fallback for indivisible decoding. Requested TL approval of that fallback (submitted receipt d4707560-510f-42d6-a747-eb62e6e2dcd0). Profiling must copy the real ledger/catalog first: QuerySession can advance catalog state, so a live PAIR_DATA_DIR would not be read-only. Real ops ledger is 10,323,719 bytes, catalog 37,403 bytes. No implementation changes.

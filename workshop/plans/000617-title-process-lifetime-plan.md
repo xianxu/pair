@@ -80,15 +80,19 @@ Files: prospective cmd/internal/titlepoller/profile_live_test.go (opt-in control
 - [ ] Replay a private snapshot of a representative large ledger/catalog/transcript in disposable HOME/data roots. Vary history size, unchanged polls, appends, giant irrelevant records, and owner rebinding separately. Compare stack-attributed allocations and post-GC retention with the live macOS evidence.
 - [ ] Append measured cause and exact memory fix to this plan and issue Log. If the candidate is disproved, stop and redesign the memory task; do not add a cache based on RSS alone.
 
-## Task 2: red tests for actual wrapper/title lifetime
+## Task 2: red lifetime regressions before implementation
 
-Files: new cmd/internal/wrapcmd/title_process_test.go; cmd/internal/titlepoller/lifetime_test.go; cmd/internal/titlepoller/run_test.go; launcher create/attach tests and poller_env_test.go.
+Files: cmd/internal/wrapcmd/title_process_test.go, cmd/internal/titlepoller/{owner,lifetime,run}_test.go, launcher poller_env_test.go.
 
-- [ ] Read @superpowers-test-driven-development before writing tests.
-- [ ] Add a subprocess regression through production wrap Run: title is observed ready; SIGKILL only its owning test wrapper; title exits and unrelated sentinel child stays alive. Exercise both scratch and Pair virtual wrapper transports if their startup ownership differs.
-- [ ] Add deterministic held-order cases: EOF during birth wait, tick sleep, blocked zellij command, and a poll result racing EOF. Assert no further rename after stopping and all workers/child handles joined.
-- [ ] Add real descriptor tests: launch unrelated child after title start, kill wrapper while that child remains, and verify it does not keep the title alive. Test graceful exit, failed agent exec, title-start failure, controlled agent restart/re-exec, duplicate attach, and replacement generation.
-- [ ] Run go test ./cmd/internal/titlepoller ./cmd/internal/wrapcmd ./cmd/internal/launcher -run 'Test.*Title|Test.*Poller' -count=1. Record the intended failing behavior before implementation; compile-only failure is not the final regression proof.
+- [ ] Read @superpowers-test-driven-development, add the production wrapper SIGKILL/inheritance/replacement acceptance regression, run it and record the intended behavioral failure.
+- [ ] Test the risky functions using the strategy table below. Run go test ./cmd/internal/titlepoller ./cmd/internal/wrapcmd ./cmd/internal/launcher -run 'Test.*Title|Test.*Poller' -count=1 and retain RED evidence.
+
+| Production function | Adversarial class and mechanical guard |
+|---|---|
+| ParseTitleOwner | malformed or borrowed owner/FD metadata: fuzz strict typed parsing and refusal before descriptor/child effects |
+| AdvanceTitleLifetime | arbitrary EOF/cancel/completion order: pure sequence tests prove terminal stop and no later poll effect |
+| startWrapperTitleProcess | wrapper death and descriptor inheritance across replacement: real production wrap subprocess SIGKILL, surviving sentinel, exact-child exit/reap oracle |
+| RunContext | cancellation at any poll phase: held stateful runtime makes scan, birth, sleep and command interruption reproducible and asserts no late rename |
 
 ## Task 3: implement owner lease and sweep old spawning/cleanup
 
@@ -101,29 +105,41 @@ Files: title_process.go, owner.go, lifetime.go, titlepoller run.go/runcli.go/run
 - [ ] Run the red tests green, then targeted package race tests. Mutation-check removing lease propagation/cancellation and prove the actual subprocess regression fails.
 - [ ] Commit lifecycle changes and evidence with model attribution.
 
-## Task 4: red/green memory regression after attribution
+## Task 4: measured memory regression and fix
 
-Files depend on Task 1 result; likely titlepoller/runtime.go, contextcmd/contextcmd.go and existing sessioninventory usage/activity seams. Approve the appended concrete delta before implementation if it changes the design.
+Files depend on Task 1 attribution; likely titlepoller/runtime.go, contextcmd/contextcmd.go and existing sessioninventory usage/activity seams. Append the measured delta before implementing this part.
 
-- [ ] Encode the measured cause as a failing work or retention regression through title's actual production path, not merely an already-warmed unrelated cache test.
-- [ ] If attribution confirms repeated inventory decode: reuse threadactivity.OSRuntime and its existing caches, sharing exact current-owner evidence with occupancy through the established runtime injection seam. If occupancy scanning dominates, add only the measured bounded mechanism; specify identity/fingerprint/invalidation and giant-record behavior first.
-- [ ] Exercise unchanged large history, append, same-size replacement/restored mtime, truncate, malformed/unterminated tail and rebound/ambiguous owner. No stale usage from a previous root may render.
-- [ ] Prune frame-cache entries to current live panes if retention measurement shows the unbounded key count matters; do not present that small map as the 280 MiB cause without evidence.
-- [ ] Run a disposable long-running title soak with fixed-phase profiles, actual read/decode counters and post-GC heap measurements. Publish sanitized measured bounds and attribution in Log, not raw session data. Commit.
+- [ ] Encode the attributed work/retention defect through the actual title production path as a failing regression.
+- [ ] Apply only the profile-supported change, favoring existing threadactivity.OSRuntime caches and contextcmd.RunWithRuntime over duplicate policy. Define any new cache/record budget and invalidation function before implementing it.
+- [ ] Run the strategy below, then the disposable helper soak with fixed-phase Go profiles, IO/decode counters and post-GC heap measurements. Log sanitized attribution/bounds and commit.
 
-## Task 5: coordinated cleanup, documentation, and acceptance
+| Production function | Adversarial class and mechanical guard |
+|---|---|
+| OSRuntime.SessionActivity / ContextCount | history growth and file/owner mutation: stateful real-file fixture plus QueryWorkObserver proves warm work bounds and current-root parity |
+| TokenUsageForRoot (if changed) | arbitrary JSONL framing/mutation: fuzz against current full-scan oracle and cancellation-aware range reader |
+| frameCache.changed (if changed) | pane churn: property test retained keys bounded by currently live panes |
 
-Files: agreed legacy.go/legacy_test.go seam; atlas/architecture.md and atlas/index.md if a new page is added; README if operator diagnostics/cleanup commands change; artifactpath inventory for every new production file.
+## Task 5: coordinated cleanup and acceptance
 
-- [ ] Reconcile #583 contract with pair:4 before implementation of shared cleanup. Existing leaves require exact executable/argv, scope/tag and PID/start stamp, fresh complete wrapper-absence evidence, and effect-time identity revalidation. Probe failure/ambiguous owner/PID reuse means keep. Never kill every PPID-1 title.
-- [ ] Add red/green stateful cleanup tests: live wrapper survives, unknown snapshot survives, stale pidfile/reused PID survives, changed generation between preview/effect refuses, and confirmed dead owner permits only that exact title. Any TERM escalation revalidates identity again.
-- [ ] Present the exact one-time live candidate set and confirmation contract to the TL. Execute only that authorized set, preserve unknowns, then remeasure every retained live owner and cleared candidate. Restart/rollout is coordinated by TL; no fleet restart is implied here.
-- [ ] Update atlas to describe wrapper ownership, EOF cancellation, profile interpretation, measured memory bound and cleanup uncertainty; sweep obsolete launcher/session-only lifetime prose and spawn inventory.
-- [ ] Run targeted race tests for titlepoller/wrapcmd/launcher plus contextcmd/sessioninventory/threadactivity and artifactpath tests as touched. Push head, run declared sdlc local-check suite, and normal close with fresh review. This is one issue-close boundary, not artificial per-task milestones.
-- [ ] Before claiming Done, demonstrate disposable live wrapper death, bounded soak, and final live inventory: one title per rolled-out live wrapper, no title for proven dead threads. Report any legacy active wrappers awaiting TL rollout explicitly. Close/land through normal SDLC gates only after required acceptance is satisfied.
+Files: titlepoller legacy.go/legacy_test.go or the landed #583 equivalent, atlas/architecture.md, README for any changed operator commands, artifactpath inventory.
+
+- [ ] Reconcile #583 with pair:4; never stack on its unlanded branch. Implement shared cleanup only after the exact identity/confirmation seam is known.
+- [ ] Red then green: DecideLegacyTitle consumes incomplete, replaced or reused process evidence in a stateful process-table fake; invariant is that only exact unchanged title generations with complete matching-wrapper absence proof may reach a confirmed signal. Unknown keeps the process. Effect-time revalidation and conditional metadata removal share the same authority.
+- [ ] Present the exact one-time live candidate set and confirmation contract to TL. Execute only that authorized set and remeasure retained owners; TL coordinates any legacy active-wrapper rollout.
+- [ ] Update atlas ownership/profile/uncertainty contracts, operator README where relevant and every new source inventory entry.
+- [ ] Run targeted affected package race tests, push head and run the declared full suite; normal close/fresh review/landing. No artificial per-task milestones.
+- [ ] Acceptance still requires production wrapper-death exit, bounded measured soak and final live inventory with one title per rolled-out live wrapper and none for proven dead threads. Explicitly report any outstanding live rollout rather than claiming Done.
 
 ## Revisions
 
 ### 2026-10-16 — TL approval and profiling choice
 
 Verified submitted receipt 72aed150-a96e-46b8-8e68-8bb2dcbaa16f from ops:0 to this wrapper incarnation. TL approved the pipe lease, red SIGKILL/inheritance/replacement tests first, and proceeding to change-code. TL chose a controlled replica running the production title path against the real ledger/catalog with a Go heap profile. No diagnostic rollover of live titles. This resolves the approval/profile-method gates above; exact cause still requires profile attribution. Native current-versus-peak footprint is consistent with a prior spike, but does not itself attribute Go allocations. Cleanup coordination with #583 remains required.
+
+### 2026-10-16 — plan-quality findings PQ-1/PQ-2
+
+PQ-2: compressed the previous detailed case lists in Tasks 2/4/5 into function-level adversarial strategies, preserving the required production SIGKILL/inheritance/replacement and mutation acceptance obligations. PQ-1: proposed the shutdown contract below to TL (receipt d4707560-510f-42d6-a747-eb62e6e2dcd0); await approval of the bounded exit fallback before implementation.
+
+**Revised shutdown contract:** Introduce RunContext for the loop. A title-lifetime context reaches QuerySessionContext and a context-aware inventory Runtime adapter that checks cancellation before/after each IO range; usage scanning uses this adapter as well. Metadata/stat and parsing boundaries check cancellation before beginning the next operation. OSRuntime Sleep and zellij/cmux calls consume that same context, with finite command timeouts and WaitDelay. No replacement poll begins after cancellation. EOF is watched independently of synchronous scans. The title CLI permits a short cooperative grace (250ms); if a non-interruptible decode remains, it finishes process teardown after cancelling and joining its owned external commands rather than waiting indefinitely for in-process decoding. The process boundary terminates remaining Go work and the wrapper reaps its exact child. No worker escapes the title process; no agent/server is killed. The ordinary joined path remains the default; the fallback is explicitly a CLI-process exit contract, not safe reuse of RunCLI as an in-process server routine. The acceptance helper executes the actual title command in a disposable child, holds production scan IO to prove the fallback, and observes both title exit and absence of owned command leftovers. Diagnostic replica invokes runtime methods directly and does not take this CLI-only exit path.
+
+Task 1 profiling isolation: copy the real selected owner's ledger and catalog into a disposable Pair scope, with real native storage read-only. QuerySession can advance its catalog, so pointing PAIR_DATA_DIR at live storage is prohibited for the replica. Capture source metadata and digests, pass the unchanged logical scope key, and let only copied catalog state mutate.
