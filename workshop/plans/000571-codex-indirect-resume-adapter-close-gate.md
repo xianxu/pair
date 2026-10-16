@@ -162,6 +162,178 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 96ffc194-c1b3-4a55-8f0e-235a5498f95c
+            repository: github.com/xianxu/pair
+            issue_id: "000571"
+            recipe: milestone-review
+            round: 2
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/Library/Caches/sdlc/review-checkouts/a5eabb22d0c795a8
+            reviewed_head: 7611621eff5cedd7df3160d62a6fa8b8f93b326b
+            slot: pair:7
+            requested_at: "2026-10-16T00:33:14.646291Z"
+          phase: finished
+          pid: 8625
+          started_at: "2026-10-16T00:33:14.753069Z"
+          finished_at: "2026-10-16T00:37:27.201852Z"
+          session_id: 01a14220-98ec-7001-9b98-3951b8611aee
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-v1
+        repository: github.com/xianxu/pair
+        code_head: 7611621eff5cedd7df3160d62a6fa8b8f93b326b
+        tracker_head: 6f59b1d966560e05c0bb3887995ce3fb23c436e5
+        branch_point: 99e11ecb8c72b7e5325a58692c1efd679e50710c
+        since: "2026-10-15T10:22:13-07:00"
+        until: "2026-10-15T17:32:46-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-15T10:22:13-07:00"
+              end: "2026-10-15T17:32:46-07:00"
+              began: "2026-10-15T10:22:13-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot7/pair
+        sources:
+            - harness: codex
+              id: 01a13398-d940-72d3-8d80-c203fc8bd296
+              cwd: /Users/xianxu/workspace/worktree/pair-slot7/pair
+              digest: 02e6e0b26c1279669099bae7955d13ccb1ebd674736aaf5a19bc182ae96a873f
+              started: "2026-10-13T04:50:49.58Z"
+              spawned: false
+              bytes: 71785258
+              windows:
+                - start: "2026-10-15T10:22:13-07:00"
+                  end: "2026-10-15T17:32:46-07:00"
+            - harness: codex
+              id: 01a14096-6170-7e02-ae66-5b9fb3e7b182
+              cwd: /Users/xianxu/workspace/worktree/pair-slot7/pair
+              parent_id: 01a13398-d940-72d3-8d80-c203fc8bd296
+              digest: d480790ffe797d9fe00c5d49e6b4ac95d8c1ba1dbd8ae7c5a9b7ce08f642545f
+              started: "2026-10-15T17:22:39.652Z"
+              spawned: true
+              bytes: 1391734
+              windows:
+                - start: "2026-10-15T17:22:39.652Z"
+                  end: "2026-10-15T17:32:46-07:00"
+            - harness: codex
+              id: 01a14097-c211-7ce0-b051-366dd9fff257
+              cwd: /Users/xianxu/workspace/worktree/pair-slot7/pair
+              parent_id: 01a13398-d940-72d3-8d80-c203fc8bd296
+              digest: 63874921497c8b76dd0f883cf9682ea5294a235a1a3f124a4d3ab1354550e800
+              started: "2026-10-15T17:24:09.928Z"
+              spawned: true
+              bytes: 3289274
+              windows:
+                - start: "2026-10-15T17:24:09.928Z"
+                  end: "2026-10-15T17:32:46-07:00"
+            - harness: codex
+              id: 01a14177-aa85-7cb3-bedb-b2a85e52af11
+              cwd: /Users/xianxu/workspace/worktree/pair-slot7/pair
+              digest: 43bbb8baac5acc685a555545857159490869cd449d01fb7111da69c67b3b9dc5
+              started: "2026-10-15T21:28:47.768Z"
+              spawned: false
+              bytes: 667373
+              windows:
+                - start: "2026-10-15T21:28:47.768Z"
+                  end: "2026-10-15T17:32:46-07:00"
+            - harness: codex
+              id: 01a1417a-a6e2-7912-8b67-8458dfe9c87c
+              cwd: /Users/xianxu/workspace/worktree/pair-slot7/pair
+              digest: 6e13a1d39624297d15c0f7a0388e25cd74a6176b9aaa00d492195956f70113e5
+              started: "2026-10-15T21:32:00.527Z"
+              spawned: false
+              bytes: 550567
+              windows:
+                - start: "2026-10-15T21:32:00.527Z"
+                  end: "2026-10-15T17:32:46-07:00"
+            - harness: codex
+              id: 01a1417c-1628-7022-a694-967d63271267
+              cwd: /Users/xianxu/workspace/worktree/pair-slot7/pair
+              digest: 907486ef0551b775f583f9c072d40e7d8c85f2dd011c2822fd58257375430eaf
+              started: "2026-10-15T21:33:35.501Z"
+              spawned: false
+              bytes: 535544
+              windows:
+                - start: "2026-10-15T21:33:35.501Z"
+                  end: "2026-10-15T17:32:46-07:00"
+            - harness: codex
+              id: 01a1417c-c082-7122-a0fa-e0e3da0cc318
+              cwd: /Users/xianxu/workspace/worktree/pair-slot7/pair
+              digest: 794442b6bc357a71c594717d55a25d15f708bcd42b0d8343224557b0c36d6d2f
+              started: "2026-10-15T21:34:18.189Z"
+              spawned: false
+              bytes: 413877
+              windows:
+                - start: "2026-10-15T21:34:18.189Z"
+                  end: "2026-10-15T17:32:46-07:00"
+            - harness: codex
+              id: 01a1417d-adca-7cd1-a945-d5965c8d2446
+              cwd: /Users/xianxu/workspace/worktree/pair-slot7/pair
+              parent_id: 01a13398-d940-72d3-8d80-c203fc8bd296
+              digest: 95af9c7ca3afea5eb6f56b04b944f2c9c6b2986bcc94eef43b7a6a7252f85a13
+              started: "2026-10-15T21:35:18.067Z"
+              spawned: true
+              bytes: 2308333
+              windows:
+                - start: "2026-10-15T21:35:18.067Z"
+                  end: "2026-10-15T17:32:46-07:00"
+            - harness: codex
+              id: 01a1417e-6595-70e1-9dbc-1eedb485d020
+              cwd: /Users/xianxu/workspace/worktree/pair-slot7/pair
+              parent_id: 01a13398-d940-72d3-8d80-c203fc8bd296
+              digest: 6a700a1e1bb3950ef80823813a995e3e758d3bd264e31b9d0100f3f045e2aa2a
+              started: "2026-10-15T21:36:05.122Z"
+              spawned: true
+              bytes: 1951703
+              windows:
+                - start: "2026-10-15T21:36:05.122Z"
+                  end: "2026-10-15T17:32:46-07:00"
+        excluded_brain_sessions: 1
+        excluded_brain_minutes: 15.064
+        cuts:
+            - dispatched: "2026-10-15T16:35:33-07:00"
+              finalized: "2026-10-15T16:39:24-07:00"
+              finalizing: false
+      "n": 2
+      timestamp: "2026-10-15T17:37:50-07:00"
+      dispatched: "2026-10-15T17:33:13-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Native leaf replacement is implemented separately from layer merging. The linked-checkout regression checks projected scope and selected ID; a temporary overlay restoring recursive table merging makes it fail.
+          round: 2
+        - id: BR-2
+          disposition: addressed
+          note: Both session metadata and turn-context authority now require native eligibility. Positive fixtures contain required native fields. Removing the eligibility guards through a temporary overlay makes the malformed-schema regressions select the invalid newer ID and fail.
+          round: 2
+      findings:
+        - kind: defect
+          id: BR-3
+          severity: Critical
+          title: Trust-specific alias rejection silently narrows native worktree selection
+          detail: 'cmd/internal/sessioninventory/codex_git_scope.go:63 rejects symlinked admin targets for both trust and worktree discovery, and appendRoot at line 148 silently excludes that checkout. Native worktree repository_identity canonicalizes these targets, although native trust discovery rejects them. With API-only configuration, an older current-checkout conversation and a newer linked-checkout conversation whose .git points through an admin alias, a private production-selector regression resolves the older ID instead of the newer native match. ARCH-PURPOSE / ARCH-SECURE: separate trust eligibility from worktree discovery semantics, and sweep current/primary/linked discovery so unsupported observations yield compatibility rather than a smaller authoritative scope.'
+          family: native-worktree-scope-fidelity
+          round: 2
+        - kind: defect
+          id: BR-4
+          severity: Critical
+          title: Read-only latest selection creates native SQLite shared-memory files
+          detail: 'cmd/internal/sessioninventory/codex_latest.go:103 queries the live native database through QueryNativeSelectorSQLite, whose sqlite3 -readonly invocation at native_selector_os.go:78 still creates WAL shared-memory sidecars. A private WAL fixture containing state_5.sqlite and state_5.sqlite-wal but no SHM returned a resolved ID and acquired a new 32768-byte state_5.sqlite-shm. This violates the issue''s no-native-mutation contract. ARCH-PURPOSE / ARCH-MOCK / ARCH-FUNERAL: use a bounded, coherent private snapshot or another genuinely non-mutating observation mechanism, retain compatibility when safe observation is unavailable, and add WAL-backed no-mutation regression coverage.'
+          family: native-read-only-observation
+          round: 2
+      recipe: milestone-review
+      isolation: fenced
+      blocked: true
 ---
 
 # Gate ledger — pair#571 (boundary-review)
@@ -178,7 +350,21 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-2** [Critical] `native-transcript-schema-fidelity` (kind: defect) Exec selection trusts transcript records rejected by native decoding
   cmd/internal/sessioninventory/codex_latest.go:330-343 treats any JSON object containing type=turn_context and payload.cwd as authoritative. Native exec only uses successfully decoded RolloutLine/TurnContextItem records, whose required fields include approval_policy, sandbox_policy, and model. A newer transcript with DB cwd elsewhere and a schema-invalid turn_context naming the current cwd is selected by Pair, while native ignores that record and can select an older conversation. TestCodexLatestTUIAndExecHaveDifferentCWDSources currently asserts this invalid record is authoritative. Validate native record eligibility or retain compatibility when it cannot be established; include validateCodexLatestFirst in the same sweep because its reused inventory validator also accepts incomplete native session_meta records. Replace positive fixtures with native-valid records and add malformed-schema regressions.
 
+## Round 2 — 2026-10-15T17:37:50-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-1 — addressed — Native leaf replacement is implemented separately from layer merging. The linked-checkout regression checks projected scope and selected ID; a temporary overlay restoring recursive table merging makes it fail.
+- BR-2 — addressed — Both session metadata and turn-context authority now require native eligibility. Positive fixtures contain required native fields. Removing the eligibility guards through a temporary overlay makes the malformed-schema regressions select the invalid newer ID and fail.
+
+### Raised
+
+- **BR-3** [Critical] `native-worktree-scope-fidelity` (kind: defect) Trust-specific alias rejection silently narrows native worktree selection
+  cmd/internal/sessioninventory/codex_git_scope.go:63 rejects symlinked admin targets for both trust and worktree discovery, and appendRoot at line 148 silently excludes that checkout. Native worktree repository_identity canonicalizes these targets, although native trust discovery rejects them. With API-only configuration, an older current-checkout conversation and a newer linked-checkout conversation whose .git points through an admin alias, a private production-selector regression resolves the older ID instead of the newer native match. ARCH-PURPOSE / ARCH-SECURE: separate trust eligibility from worktree discovery semantics, and sweep current/primary/linked discovery so unsupported observations yield compatibility rather than a smaller authoritative scope.
+- **BR-4** [Critical] `native-read-only-observation` (kind: defect) Read-only latest selection creates native SQLite shared-memory files
+  cmd/internal/sessioninventory/codex_latest.go:103 queries the live native database through QueryNativeSelectorSQLite, whose sqlite3 -readonly invocation at native_selector_os.go:78 still creates WAL shared-memory sidecars. A private WAL fixture containing state_5.sqlite and state_5.sqlite-wal but no SHM returned a resolved ID and acquired a new 32768-byte state_5.sqlite-shm. This violates the issue's no-native-mutation contract. ARCH-PURPOSE / ARCH-MOCK / ARCH-FUNERAL: use a bounded, coherent private snapshot or another genuinely non-mutating observation mechanism, retain compatibility when safe observation is unavailable, and add WAL-backed no-mutation regression coverage.
+
 ## Open findings
 
-- **BR-1** [Critical] `native-config-override-fidelity` (kind: defect) CLI table overrides merge keys that native Codex replaces
-- **BR-2** [Critical] `native-transcript-schema-fidelity` (kind: defect) Exec selection trusts transcript records rejected by native decoding
+- **BR-3** [Critical] `native-worktree-scope-fidelity` (kind: defect) Trust-specific alias rejection silently narrows native worktree selection
+- **BR-4** [Critical] `native-read-only-observation` (kind: defect) Read-only latest selection creates native SQLite shared-memory files

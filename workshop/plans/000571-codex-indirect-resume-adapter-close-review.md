@@ -102,3 +102,121 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-15T17:37:49-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 571 — Resolve Codex indirect resumes from faithful read-only configuration |
+| repo | pair |
+| issue file | workshop/issues/000571-codex-indirect-resume-adapter.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 99e11ecb8c72b7e5325a58692c1efd679e50710c..7611621eff5cedd7df3160d62a6fa8b8f93b326b |
+| command | sdlc close --issue 571 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-15T17:37:49-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+Both prior findings are addressed with meaningful regression tests. Two additional defects block shipping: worktree discovery can exclude a native-valid checkout and pin the wrong conversation, and the “read-only” selector can create a native SQLite sidecar. Focused normal/race tests and ownership audits pass.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Native leaf replacement is implemented separately from layer merging. The linked-checkout regression checks projected scope and selected ID; a temporary overlay restoring recursive table merging makes it fail.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Both session metadata and turn-context authority now require native eligibility. Positive fixtures contain required native fields. Removing the eligibility guards through a temporary overlay makes the malformed-schema regressions select the invalid newer ID and fail.
+findings:
+  - id: new
+    severity: Critical
+    kind: defect
+    family: native-worktree-scope-fidelity
+    title: |
+      Trust-specific alias rejection silently narrows native worktree selection
+    detail: |
+      cmd/internal/sessioninventory/codex_git_scope.go:63 rejects symlinked admin targets for both trust and worktree discovery, and appendRoot at line 148 silently excludes that checkout. Native worktree repository_identity canonicalizes these targets, although native trust discovery rejects them. With API-only configuration, an older current-checkout conversation and a newer linked-checkout conversation whose .git points through an admin alias, a private production-selector regression resolves the older ID instead of the newer native match. ARCH-PURPOSE / ARCH-SECURE: separate trust eligibility from worktree discovery semantics, and sweep current/primary/linked discovery so unsupported observations yield compatibility rather than a smaller authoritative scope.
+  - id: new
+    severity: Critical
+    kind: defect
+    family: native-read-only-observation
+    title: |
+      Read-only latest selection creates native SQLite shared-memory files
+    detail: |
+      cmd/internal/sessioninventory/codex_latest.go:103 queries the live native database through QueryNativeSelectorSQLite, whose sqlite3 -readonly invocation at native_selector_os.go:78 still creates WAL shared-memory sidecars. A private WAL fixture containing state_5.sqlite and state_5.sqlite-wal but no SHM returned a resolved ID and acquired a new 32768-byte state_5.sqlite-shm. This violates the issue's no-native-mutation contract. ARCH-PURPOSE / ARCH-MOCK / ARCH-FUNERAL: use a bounded, coherent private snapshot or another genuinely non-mutating observation mechanism, retain compatibility when safe observation is unavailable, and add WAL-backed no-mutation regression coverage.
+```
+
+1. **Strengths**
+
+   - CLI overrides now distinguish native leaf assignment from recursive configuration-layer merging.
+   - Rollout eligibility covers required fields, typed optional fields, and Unicode decoder differences.
+   - Scope binding reuses the existing reservation/Claim flow and verifies the wrapper’s final environment before spawning.
+   - README and indexed atlas documentation cover the new support boundary and compatibility behavior.
+
+2. **Critical findings**
+
+   - **Worktree scope:** [codex_git_scope.go:63](/Users/xianxu/Library/Caches/sdlc/review-checkouts/a5eabb22d0c795a8/cmd/internal/sessioninventory/codex_git_scope.go:63). Native [worktree discovery](https://github.com/openai/codex/blob/rust-v0.162.1/codex-rs/git-utils/src/worktree.rs) and [trust discovery](https://github.com/openai/codex/blob/rust-v0.162.1/codex-rs/git-utils/src/trust.rs) apply different alias rules. Preserve that distinction or return compatibility.
+   - **Native mutation:** [codex_latest.go:103](/Users/xianxu/Library/Caches/sdlc/review-checkouts/a5eabb22d0c795a8/cmd/internal/sessioninventory/codex_latest.go:103). Move WAL observation behind a mechanism that cannot create or modify native sidecars.
+
+3. **Important findings**
+
+   None.
+
+4. **Minor findings**
+
+   None.
+
+5. **Test coverage notes**
+
+   - Focused inventory, launcher, and wrapper tests passed normally and with `-race`.
+   - Artifactpath, native inventory, Git/platform/eligibility tests, slot-resource audits, and whitespace checks passed.
+   - Both prior fixes were independently shown necessary using temporary overlays.
+   - Temporary production-path regressions reproduced both new defects. Repository files remain unchanged.
+   - The complete suite and real-machine acceptance were not rerun.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** shared parser, root ownership, and admission machinery.
+   - **ARCH-PURE — pass:** pure projection/eligibility logic remains separate from observation and spawning.
+   - **ARCH-PURPOSE — flag:** wrong-ID selection and native mutation violate the central contract.
+   - **ARCH-MOCK — flag:** portable SQLite fixtures omit the WAL lifecycle behavior reproduced here.
+   - **ARCH-CONSTRAINTS — pass:** bounded reads, pagination, and exhaustion handling have focused coverage.
+   - **ARCH-SECURE — flag:** unsupported Git provenance becomes authoritative exclusion.
+   - **ARCH-ORDER — pass:** scoped Claim checks, transcript fences, and pinned-ID handoff preserve existing ordering safeguards.
+   - **ARCH-FUNERAL — flag:** selection creates native SHM residue without an owned removal path.
+
+   Core-concept locations and classifications otherwise match the implementation. The README/atlas update gate is satisfied.
+
+7. **Plan revision recommendations**
+
+   Add `## Revisions` entries specifying:
+
+   - Separate native trust and worktree-discovery rules; uncertainty must not silently narrow selection scope.
+   - Non-mutating WAL observation, snapshot consistency and cleanup, and regression coverage asserting unchanged native artifacts.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"96ffc194-c1b3-4a55-8f0e-235a5498f95c","repository":"github.com/xianxu/pair","issue_id":"000571","recipe":"milestone-review","round":2,"attempt":1,"agent":"codex","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/a5eabb22d0c795a8","reviewed_head":"7611621eff5cedd7df3160d62a6fa8b8f93b326b","slot":"pair:7","requested_at":"2026-10-16T00:33:14.646291Z"},"phase":"finished","pid":8625,"started_at":"2026-10-16T00:33:14.753069Z","finished_at":"2026-10-16T00:37:27.201852Z","session_id":"01a14220-98ec-7001-9b98-3951b8611aee","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.463680958s
+head: "7611621eff5cedd7df3160d62a6fa8b8f93b326b"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
