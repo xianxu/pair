@@ -87,50 +87,50 @@ Resolve the current owning hub immediately before send, as waitWatcher does; do 
 
 Files: new `procutil/resource*.go` and tests; shared conversion in `table_darwin.go` if needed.
 
-- [ ] Write the `NativeResourceReader` function-contract tests below; run to establish red.
-- [ ] Implement SDK-backed Darwin calls with `proc_pid_rusage` and identity fence; keep a compiling explicit unsupported adapter for other builds.
-- [ ] Add owned-child conformance: CPU/memory and a bounded synced-file write produce monotonic real counters; reuse the identical reader in production and fake tests. No root required.
-- [ ] Run targeted tests and record the actual call formula. Commit the passing unit.
+- [x] Write the `NativeResourceReader` function-contract tests below; run to establish red.
+- [x] Implement SDK-backed Darwin calls with `proc_pid_rusage` and identity fence; keep a compiling explicit unsupported adapter for other builds.
+- [x] Add owned-child conformance: CPU/memory and a bounded synced-file write produce monotonic real counters; reuse the identical reader in production and fake tests. No root required.
+- [x] Run targeted tests and record the actual call formula. Commit the passing unit.
 
 ### 2. Pure attribution, rates and episodes
 
 Files: new `couchcore/resource*.go` model/reducer tests and fake.
 
-- [ ] Establish red for `SelectResourceProcesses` using its function contract below.
-- [ ] Establish red for `AdvanceResources` and `AdvanceResourceEpisode` using their function contracts below.
-- [ ] Implement immutable-input reducer and explicit episode states; test deterministic sequences rather than sleeping. Assert each process contributes at most once and unknown evidence cannot become recovery or zero.
-- [ ] Run targeted tests and commit.
+- [x] Establish red for `SelectResourceProcesses` using its function contract below.
+- [x] Establish red for `AdvanceResources` and `AdvanceResourceEpisode` using their function contracts below.
+- [x] Implement immutable-input reducer and explicit episode states; test deterministic sequences rather than sleeping. Assert each process contributes at most once and unknown evidence cannot become recovery or zero.
+- [x] Run targeted tests and commit.
 
 ### 3. Root publication and supervisor worker
 
 Files: `message_service.go`, `couchcore/artifactcollision.go`, new `couchtty/console_resources.go`, new `couchcmd/resources.go` and colocated tests.
 
-- [ ] Prove current authenticated server evidence is captured once across admission/start/resume and discarded when an older completion loses its generation race.
-- [ ] Wire draft-only, starting, parked and connected slot rows through one inventory; test the full server tree includes nvim and agent children without process-name inference.
-- [ ] Own one sampler goroutine and cached view; fake barrier tests prove canceled shutdown joins, blocked IO does not hold interactive locks, and slow passes never overlap or accumulate ticks.
-- [ ] Count table reads independent of slot count and native calls against the declared bound. Commit.
+- [x] Prove current authenticated server evidence is captured once across admission/start/resume and discarded when an older completion loses its generation race.
+- [x] Wire draft-only, starting, parked and connected slot rows through one inventory; test the full server tree includes nvim and agent children without process-name inference.
+- [x] Own one sampler goroutine and cached view; fake barrier tests prove canceled shutdown joins, blocked IO does not hold interactive locks, and slow passes never overlap or accumulate ticks.
+- [x] Count table reads independent of slot count and native calls against the declared bound. Commit.
 
 ### 4. Durable bounded history and alert delivery
 
 Files: new `couchcore/resource_store.go`, `couchcmd/resources_alert.go`, tests, artifact manifest registration.
 
-- [ ] Establish red for `ResourceHistory.Append` and `ResourceStore.Load/Save` using their function contracts below.
-- [ ] Implement safe bounded snapshot store and exact storage/source classification. Do not import diagnosticlog's 365-day retention into the rolling history.
-- [ ] Route effects through `hubBindingFor` / `supervisionCoordinator.sendGenerated`; tests use the real broker with controlled endpoints and receipts. Cover unavailable/moved hub and busy queue.
-- [ ] Run artifact manifest and retention qualification immediately; commit.
+- [x] Establish red for `ResourceHistory.Append` and `ResourceStore.Load/Save` using their function contracts below.
+- [x] Implement safe bounded snapshot store and exact storage/source classification. Do not import diagnosticlog's 365-day retention into the rolling history.
+- [x] Route effects through `hubBindingFor` / `supervisionCoordinator.sendGenerated`; tests use the real broker with controlled endpoints and receipts. Cover unavailable/moved hub and busy queue.
+- [x] Run artifact manifest and retention qualification immediately; commit.
 
 ### 5. Cached resources verb, configuration and docs
 
 Files: `couchmessage/protocol.go`, `couchcmd/cli.go`, `messages.go`, `message_service.go`, new `resources_render.go`, README, Atlas entries.
 
-- [ ] Establish red for `ParseCLI`, `ValidateRequest`, `renderResources` and `ParseResourcePolicy` using their function contracts below.
-- [ ] Implement one text/JSON view and strict startup policy parsing. Unknown numeric fields render unavailable; first-sample rates render warming-up.
-- [ ] Prove repeated resource queries perform zero native observations and no writes. Document defaults, counter semantics, history cap and sampled-orphan limitations. Commit.
+- [x] Establish red for `ParseCLI`, `ValidateRequest`, `renderResources` and `ParseResourcePolicy` using their function contracts below.
+- [x] Implement one text/JSON view and strict startup policy parsing. Unknown numeric fields render unavailable; first-sample rates render warming-up.
+- [x] Prove repeated resource queries perform zero native observations and no writes. Document defaults, counter semantics, history cap and sampled-orphan limitations. Commit.
 
 ### 6. Qualification, review and landing
 
-- [ ] Targeted command: `make test-make-env`; use a temporary Makefile including Makefile with a `test-resource-targeted` recipe running `go test ./cmd/internal/procutil ./cmd/internal/couchcore ./cmd/internal/couchcmd ./cmd/internal/couchmessage ./cmd/internal/artifactpath -run 'Resource|ProductionArtifact' -count=1` to retain hosted-test env scrubbing. Expected PASS. Run race tests for the worker/broker ownership seam.
-- [ ] Add a bounded opt-in native overhead benchmark: representative fleet-size fake graph for exact operation counts, then real local roots for CPU coefficients; record mean/max CPU and counters. Target <0.1% core average at 60s cadence. No expensive sampling loop against all host processes.
+- [x] Targeted command: `make test-make-env`; use a temporary Makefile including Makefile with a `test-resource-targeted` recipe running `go test ./cmd/internal/procutil ./cmd/internal/couchcore ./cmd/internal/couchcmd ./cmd/internal/couchmessage ./cmd/internal/artifactpath -run 'Resource|ProductionArtifact' -count=1` to retain hosted-test env scrubbing. Expected PASS. Run race tests for the worker/broker ownership seam.
+- [x] Add a bounded opt-in native overhead benchmark: representative fleet-size fake graph for exact operation counts, then real local roots for CPU coefficients; record mean/max CPU and counters. Target <0.1% core average at 60s cadence. No expensive sampling loop against all host processes.
 - [ ] Live acceptance requires TL-coordinated smoke: staged operator Couch shows every slot; a designated disposable scratch slot writes a bounded file with reduced test threshold/cadence, yielding one hub receipt, sustained silence thereafter, recovery, then one new-episode receipt. No visible window, live restart, or pair:0 staging without explicit authorization. This remains required before claiming Done when.
 - [ ] Run the exact recorded suite through `sdlc local-check run --name suite`; if a prerequisite fails, run the rest with `make -k` so no Go failures are hidden. Record all evidence.
 - [ ] Close via SDLC fresh review, fix blockers, merge main and `sdlc merge --yes` on SHIP. Report real hashes and measurements to hub. Update the ops project only through its authorized coordination workflow.

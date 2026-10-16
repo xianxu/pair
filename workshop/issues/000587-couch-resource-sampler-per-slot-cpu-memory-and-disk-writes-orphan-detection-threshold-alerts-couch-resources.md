@@ -56,12 +56,13 @@ Part of the ops project resource-observability (`ops/teams/devinfra/projects/res
 
 Durable plan: [Couch resource sampler](../plans/000587-couch-resource-sampler-plan.md).
 
-- [ ] Counted Darwin resource reader with real owned-child conformance.
-- [ ] Pure generation-safe attribution, rates, provenance and alert episodes.
-- [ ] Authenticated full-slot roots and supervisor-owned sampler lifecycle.
-- [ ] Bounded restart-safe history and existing broker/hub delivery.
-- [ ] Cached resources CLI, configuration, docs and storage registration.
+- [x] Counted Darwin resource reader with real owned-child conformance.
+- [x] Pure generation-safe attribution, rates, provenance and alert episodes.
+- [x] Authenticated full-slot roots and supervisor-owned sampler lifecycle.
+- [x] Bounded restart-safe history and existing broker/hub delivery.
+- [x] Cached resources CLI, configuration, docs and storage registration.
 - [ ] Targeted/full qualification, measured overhead, operator-coordinated live scratch-slot alert, SDLC review and landing.
+
 
 ## Log
 
