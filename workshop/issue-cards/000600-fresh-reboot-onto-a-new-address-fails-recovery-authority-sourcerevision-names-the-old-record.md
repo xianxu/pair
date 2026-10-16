@@ -1,6 +1,6 @@
 ---
 id: 000600
-status: codecomplete
+status: done
 created: 2026-10-15
 updated: 2026-10-15
 estimate_hours:
@@ -22,6 +22,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: ae4f827e4fd4cb1e6d9cd23ca77ce35b0d4105e1
         evidence_commit: d9fc23c2aca3883a4b19e45c58657d30b6e4b71b
+        landed_commit: 6931d341efbeecb5b768404b9f509101c885be25
 ---
 
 # Fresh reboot onto a new address fails recovery authority: SourceRevision names the old record
