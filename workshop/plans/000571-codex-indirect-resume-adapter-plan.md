@@ -144,3 +144,7 @@ Ordered CLI overrides need native final-leaf replacement, separate from recursiv
 ### 2026-10-15 — implemented native eligibility subset and scoped flag fallback
 
 CLI leaf replacement and all four structured-feature exceptions are tested separately from config-layer merges, including selected-ID integration across linked checkouts. The parser conservatively retains native compatibility for global worktree toggles mixed with subcommand-scoped config; selector-independent Couch shell_snapshot injection remains supported. Native record eligibility validates required fields and a source-proven optional/default subset; unknown complex shapes and JSON Unicode decoder gaps retain compatibility. Generic legacy inventory semantics remain unchanged. Targeted normal/race and read-only machine checks pass; fresh recorded suite and REWORK disposition remain pending.
+
+### 2026-10-15 — TL-approved exact map-key vocabulary context
+
+Add one counted direct Go map-key context to the artifact-source vocabulary grammar (function, exact literal, count), with moved/duplicate/constructed/path-use negative controls. Classify the native record eligibility helper as native-session VocabularyConsumer. No non-artifact exemption or broad allowance. The final suite exposed this missing source classification; run the complete artifactpath package, not a name-filtered subset, before another recorded suite.
