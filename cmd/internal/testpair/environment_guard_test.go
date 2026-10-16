@@ -102,7 +102,10 @@ func TestPairSubprocessesUseIsolatedEnvironment(t *testing.T) {
 // It is deliberately source based: it never executes the subprocess under audit.
 // Unknown unrelated executables are outside its remit; known Pair origins and
 // wrapper self-exec helpers remain tainted through parameters and shell strings.
-type environmentValue struct{ pair, safe, ambient bool }
+// fixture marks an explicit opt-in to the stateful terminal fixture. Its
+// executable may be Couch, but that invocation can launch Pair/wrapper children.
+// This trait belongs to the assigned environment, never the whole test/file.
+type environmentValue struct{ pair, safe, ambient, fixture bool }
 type environmentFunction struct {
 	decl   *ast.FuncDecl
 	params []string
@@ -179,7 +182,7 @@ func pairEnvironmentFindings(path string, source []byte) ([]string, error) {
 		changed := false
 		findings = nil
 		for _, fn := range funcs {
-			returnSafeSeen, returnUnsafe, returnAmbient := false, false, false
+			returnSafeSeen, returnUnsafe, returnAmbient, returnFixture := false, false, false, false
 			values := map[string]environmentValue{}
 			for i, p := range fn.params {
 				values[p] = fn.inputs[i]
@@ -195,6 +198,7 @@ func pairEnvironmentFindings(path string, source []byte) ([]string, error) {
 			})
 			bindings := map[string]*ast.CallExpr{}
 			envs := map[*ast.CallExpr]bool{}
+			fixtureEnvs := map[*ast.CallExpr]bool{}
 			spawnedUnsafe := map[*ast.CallExpr]bool{}
 			creationAncestors := map[*ast.CallExpr][]ast.Node{}
 			var ancestors []ast.Node
@@ -208,18 +212,18 @@ func pairEnvironmentFindings(path string, source []byte) ([]string, error) {
 					if e.Sel.Name == "Env" {
 						if id, ok := e.X.(*ast.Ident); ok {
 							if c := bindings[id.Name]; c != nil {
-								return environmentValue{safe: envs[c]}
+								return environmentValue{safe: envs[c], fixture: fixtureEnvs[c]}
 							}
 						}
 					}
 				case *ast.BasicLit:
 					if e.Kind == token.STRING {
 						s, _ := strconv.Unquote(e.Value)
-						return environmentValue{pair: pairExecutableText(s)}
+						return environmentValue{pair: pairExecutableText(s), fixture: s == "PAIR_TEST_COUCH_TERMINAL_FIXTURE=1"}
 					}
 				case *ast.BinaryExpr:
 					a, b := value(e.X), value(e.Y)
-					return environmentValue{pair: a.pair || b.pair, ambient: a.ambient || b.ambient}
+					return environmentValue{pair: a.pair || b.pair, ambient: a.ambient || b.ambient, fixture: a.fixture || b.fixture}
 				case *ast.ParenExpr:
 					return value(e.X)
 				case *ast.CallExpr:
@@ -248,17 +252,20 @@ func pairEnvironmentFindings(path string, source []byte) ([]string, error) {
 							case "Binary", "At", "BinaryContext", "AtContext":
 								return environmentValue{pair: true}
 							case "Environment", "EnvironmentAt", "EnvironmentFrom":
-								ambient := false
+								ambient, fixture := false, false
 								for _, arg := range e.Args {
-									ambient = ambient || value(arg).ambient
+									v := value(arg)
+									ambient = ambient || v.ambient
+									fixture = fixture || v.fixture
 								}
-								return environmentValue{safe: !ambient, ambient: ambient}
+								return environmentValue{safe: !ambient, ambient: ambient, fixture: fixture}
 							}
 						}
 						if sel.Sel.Name == "Join" {
 							var v environmentValue
 							for _, a := range e.Args {
 								v.pair = v.pair || value(a).pair
+								v.fixture = v.fixture || value(a).fixture
 							}
 							return v
 						}
@@ -267,14 +274,22 @@ func pairEnvironmentFindings(path string, source []byte) ([]string, error) {
 						v := value(e.Args[0])
 						for _, arg := range e.Args[1:] {
 							v.ambient = v.ambient || value(arg).ambient
+							v.fixture = v.fixture || value(arg).fixture
+						}
+						if (fun.Name == "setEnv" || fun.Name == "setEnvValue") && len(e.Args) == 3 {
+							v.fixture = v.fixture || terminalFixtureEntry(e.Args[1], e.Args[2])
 						}
 						v.safe = v.safe && !v.ambient
 						return v
 					}
+				case *ast.KeyValueExpr:
+					key, entry := value(e.Key), value(e.Value)
+					return environmentValue{fixture: key.fixture || entry.fixture || terminalFixtureEntry(e.Key, e.Value)}
 				case *ast.CompositeLit:
 					var v environmentValue
 					for _, a := range e.Elts {
 						v.pair = v.pair || value(a).pair
+						v.fixture = v.fixture || value(a).fixture
 					}
 					return v
 				}
@@ -322,6 +337,7 @@ func pairEnvironmentFindings(path string, source []byte) ([]string, error) {
 								if conditional {
 									next.pair = next.pair || old.pair
 									next.ambient = next.ambient || old.ambient
+									next.fixture = next.fixture || old.fixture
 									next.safe = next.safe && old.safe
 								}
 							}
@@ -349,7 +365,10 @@ func pairEnvironmentFindings(path string, source []byte) ([]string, error) {
 						if sel, ok := lhs.(*ast.SelectorExpr); ok && sel.Sel.Name == "Env" {
 							if id, ok := sel.X.(*ast.Ident); ok {
 								if c := bindings[id.Name]; c != nil {
-									next := value(rhs).safe
+									assigned := value(rhs)
+									next := assigned.safe
+									commands[c] = commands[c] || assigned.fixture
+									fixtureEnvs[c] = assigned.fixture
 									conditional := false
 									for _, a := range ancestors {
 										switch a.(type) {
@@ -373,6 +392,7 @@ func pairEnvironmentFindings(path string, source []byte) ([]string, error) {
 					if len(n.Results) > 0 {
 						v := value(n.Results[0])
 						returnAmbient = returnAmbient || v.ambient
+						returnFixture = returnFixture || v.fixture
 						if id, ok := n.Results[0].(*ast.Ident); !ok || id.Name != "nil" {
 							returnSafeSeen = returnSafeSeen || v.safe
 							returnUnsafe = returnUnsafe || !v.safe
@@ -380,6 +400,15 @@ func pairEnvironmentFindings(path string, source []byte) ([]string, error) {
 						if v.pair && !fn.result.pair {
 							fn.result.pair = true
 							changed = true
+						}
+					}
+				case *ast.RangeStmt:
+					entry := value(n.X)
+					for _, binding := range []ast.Expr{n.Key, n.Value} {
+						if id, ok := binding.(*ast.Ident); ok {
+							bound := values[id.Name]
+							bound.fixture = bound.fixture || entry.fixture
+							values[id.Name] = bound
 						}
 					}
 				case *ast.ValueSpec:
@@ -447,7 +476,7 @@ func pairEnvironmentFindings(path string, source []byte) ([]string, error) {
 								}
 								v := value(arg)
 								old := callee.inputs[i]
-								next := environmentValue{pair: old.pair || v.pair, safe: v.safe, ambient: old.ambient || v.ambient}
+								next := environmentValue{pair: old.pair || v.pair, safe: v.safe, ambient: old.ambient || v.ambient, fixture: old.fixture || v.fixture}
 								if callee.seen[i] {
 									next.safe = old.safe && v.safe
 								}
@@ -462,6 +491,10 @@ func pairEnvironmentFindings(path string, source []byte) ([]string, error) {
 				}
 				return true
 			})
+			if returnFixture != fn.result.fixture {
+				fn.result.fixture = returnFixture
+				changed = true
+			}
 			if returnAmbient != fn.result.ambient {
 				fn.result.ambient = returnAmbient
 				changed = true
@@ -481,6 +514,18 @@ func pairEnvironmentFindings(path string, source []byte) ([]string, error) {
 		}
 	}
 	return findings, nil
+}
+
+// Map/setEnv recipes split an explicit environment entry into key and value.
+func terminalFixtureEntry(key, value ast.Expr) bool {
+	k, kok := key.(*ast.BasicLit)
+	v, vok := value.(*ast.BasicLit)
+	if !kok || !vok || k.Kind != token.STRING || v.Kind != token.STRING {
+		return false
+	}
+	name, _ := strconv.Unquote(k.Value)
+	enabled, _ := strconv.Unquote(v.Value)
+	return name == "PAIR_TEST_COUCH_TERMINAL_FIXTURE" && enabled == "1"
 }
 
 func pairExecutableText(text string) bool {
@@ -636,5 +681,81 @@ func TestPairEnvironmentBootstrapIntegration(t *testing.T) {
 	command.Env = Environment(t, t.TempDir())
 	if output, err := command.CombinedOutput(); err != nil {
 		t.Fatalf("bootstrap isolation: %v\n%s", err, output)
+	}
+}
+
+func TestPairEnvironmentGuardIndirectTerminalFixture(t *testing.T) {
+	for _, tc := range []struct {
+		name, source string
+		want         int
+	}{
+		{"unsafe direct activation", `package fixture;import "os/exec";func f(){c:=exec.Command("couch");c.Env=append(os.Environ(),"PAIR_TEST_COUCH_TERMINAL_FIXTURE=1");c.Run()}`, 1},
+		{"unsafe alias", `package fixture;import "os/exec";func f(){e:=append(os.Environ(),"PAIR_TEST_COUCH_TERMINAL_FIXTURE=1");alias:=e;c:=exec.Command("couch");c.Env=alias;c.Run()}`, 1},
+		{"unsafe helper return", `package fixture;import "os/exec";func environment()[]string{return append(os.Environ(),"PAIR_TEST_COUCH_TERMINAL_FIXTURE=1")};func f(){c:=exec.Command("couch");c.Env=environment();c.Run()}`, 1},
+		{"unsafe helper parameter", `package fixture;import "os/exec";func launch(e []string){c:=exec.Command("couch");c.Env=e;c.Run()};func f(){launch(append(os.Environ(),"PAIR_TEST_COUCH_TERMINAL_FIXTURE=1"))}`, 1},
+		{"unsafe map entries", `package fixture;import "os/exec";func f(){values:=map[string]string{"PAIR_TEST_COUCH_TERMINAL_FIXTURE":"1"};e:=os.Environ();for k,v:=range values{e=append(e,k+"="+v)};c:=exec.Command("couch");c.Env=e;c.Run()}`, 1},
+		{"safe helper alias", `package fixture;import "os/exec";import tp "github.com/xianxu/pair/cmd/internal/testpair";func environment()[]string{return append(tp.Environment(t,t.TempDir()),"PAIR_TEST_COUCH_TERMINAL_FIXTURE=1")};func f(){e:=environment();c:=exec.Command("couch");c.Env=e;c.Run()}`, 0},
+		{"safe explicit entry", `package fixture;import "os/exec";import tp "github.com/xianxu/pair/cmd/internal/testpair";func f(){c:=exec.Command("couch");c.Env=tp.Environment(t,t.TempDir(),"PAIR_TEST_COUCH_TERMINAL_FIXTURE=1");c.Run()}`, 0},
+		{"ambient explicit entry", `package fixture;import "os/exec";import tp "github.com/xianxu/pair/cmd/internal/testpair";func f(){e:=append(os.Environ(),"PAIR_TEST_COUCH_TERMINAL_FIXTURE=1");c:=exec.Command("couch");c.Env=tp.Environment(t,t.TempDir(),e...);c.Run()}`, 1},
+		{"disabled fixture", `package fixture;import "os/exec";func f(){c:=exec.Command("couch","--version");c.Env=append(os.Environ(),"PAIR_TEST_COUCH_TERMINAL_FIXTURE=0");c.Run()}`, 0},
+		{"ordinary couch", `package fixture;import "os/exec";func f(){c:=exec.Command("couch","--version");c.Env=os.Environ();c.Run()}`, 0},
+		{"unrelated flag variable", `package fixture;import "os/exec";func f(){unused:=[]string{"PAIR_TEST_COUCH_TERMINAL_FIXTURE=1"};_ = unused;c:=exec.Command("couch","--version");c.Env=os.Environ();c.Run()}`, 0},
+		{"build and git unaffected", `package fixture;import "os/exec";func f(){exec.Command("go","build","./cmd/couch").Run();exec.Command("git","init").Run();c:=exec.Command("couch");c.Env=append(os.Environ(),"PAIR_TEST_COUCH_TERMINAL_FIXTURE=1");c.Run()}`, 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := pairEnvironmentFindings("cmd/fixture/indirect_test.go", []byte(tc.source))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(got) != tc.want {
+				t.Fatalf("findings=%v want %d", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestPairEnvironmentGuardInstalledCouchFullSource(t *testing.T) {
+	source, err := os.ReadFile("../../couch/main_test.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, "cmd/couch/main_test.go", source, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var start, end int
+	for _, decl := range file.Decls {
+		if fn, ok := decl.(*ast.FuncDecl); ok && fn.Name.Name == "installedEnv" {
+			start = fset.Position(fn.Pos()).Offset
+			end = fset.Position(fn.End()).Offset
+		}
+	}
+	if end == 0 {
+		t.Fatal("installed Couch environment helper missing")
+	}
+	// The actual pre-a64b0c223 denylist, retained without requiring Git history.
+	const oldHelper = `func installedEnv(t *testing.T, binDir string) []string {
+ t.Helper()
+ root,err:=filepath.EvalSymlinks(t.TempDir());if err!=nil{t.Fatal(err)}
+ var env []string
+ for _,entry:=range os.Environ(){key,_,_:=strings.Cut(entry,"=");if !strings.HasPrefix(key,"PAIR_")&&!strings.HasPrefix(key,"COUCH_")&&!strings.HasPrefix(key,"XDG_"){env=append(env,entry)}}
+ return append(env,"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),"COUCH_ISOLATED_ROOT="+root,"HOME="+filepath.Join(root,"home"),"XDG_DATA_HOME="+filepath.Join(root,"data"),"PAIR_DATA_DIR="+filepath.Join(root,"data","pair"),"COUCH_STORE_DIR="+filepath.Join(root,"store"),"COUCH_IDENTITY_DIR="+filepath.Join(root,"identity"))
+ }`
+	old := append(append(append([]byte{}, source[:start]...), []byte(oldHelper)...), source[end:]...)
+	for _, tc := range []struct {
+		name   string
+		source []byte
+		want   int
+	}{{"original denylist", old, 1}, {"shared allowlist", source, 0}} {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := pairEnvironmentFindings("cmd/couch/main_test.go", tc.source)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(got) != tc.want {
+				t.Fatalf("findings=%v want %d (only the terminal-fixture entrypoint)", got, tc.want)
+			}
+		})
 	}
 }

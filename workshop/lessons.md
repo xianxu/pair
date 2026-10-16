@@ -2090,3 +2090,8 @@ and external temporary roots rather than relying on the host's TMPDIR.
   Couch conformance tests. Their environment must come from the shared empty
   allowlist too; a legacy denylist can strip the helper needed by nested fixture
   children even when the direct Pair-spawn source guard is satisfied.
+
+- #617 environment guard: indirect fixture activation belongs to the assigned
+  environment, not the executable name or entire test function. Propagate that
+  explicit activation through the same value analysis, and retain negative
+  controls for ordinary Couch, disabled flags, and unrelated build/git calls.
