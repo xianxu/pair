@@ -910,8 +910,10 @@ CLI. It runs in-process against the store and needs no supervisor.
   (`.<file>.sync`; without a sidecar, the shadow's mtime), minus folded IDs,
   minus submits naming another file (the owner's own pings never reach the
   ledger; see Ledger). A body `submitted: <abs path>` is a
-  submit. Only `write --fold ID` clears a delivery or a submit, never a plain
-  write. The sidecar's
+  submit, owed only by the document it names. A plain delivery is owed only by
+  the owner's session file (`type: session-sync`), never by its other agentic
+  documents, so each delivery is owed and pinged once (#599). Only
+  `write --fold ID` clears a delivery or a submit, never a plain write. The sidecar's
   `Folded` is pruned to IDs still in the ledger.
 - **`status --json`:** the Couch envelope
   `{"Code","Error","Status":{File,Owner,Holder,LastWrite,Owed[{ID,Kind,From,At}]}}`,

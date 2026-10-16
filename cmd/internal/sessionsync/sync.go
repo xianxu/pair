@@ -285,7 +285,8 @@ func (s *Sync) owed(f *file, acceptGap bool) ([]Entry, []OwedEvent, error) {
 	if f.registration != nil {
 		paths = f.registration.Paths
 	}
-	return rows, OwedForDocument(rows, f.state, f.paths.File, paths, s.Canonical), nil
+	// Plain deliveries are owed by the owner's session file only (pair#599).
+	return rows, OwedForDocument(rows, f.state, f.paths.File, paths, IsSessionSync(f.content), s.Canonical), nil
 }
 
 // folds validates ids against what is owed: folding something not owed is a
