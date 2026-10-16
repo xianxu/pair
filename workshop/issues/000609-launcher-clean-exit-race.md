@@ -45,9 +45,7 @@ Measure the failure ordering with a controllable fixture. Synchronize cancellati
 ## Plan
 - [x] Record baseline and a controlled pre-trap readiness failure.
 - [x] Replace the fixed cancellation timer with ready-file ordering and bounded join/cleanup.
-- [ ] Qualify focused repeats, race and launcher package; run recorded suite, close and land.
-
-- [ ]
+- [x] Qualify focused repeats, race and launcher package; run recorded suite. Close and landing remain tracked in Done when.
 
 ## Log
 2026-10-16: Verified TL dispatch adc64359-f62a-452c-9eab-77625699f148, small plan may proceed after posting. Claimed and started from main. start-plan refreshed the stale ariadne tools and requested one canonical retry; retry succeeded. Existing sibling uses trap-ready file and testwait. Production runBlockingHandoff correctly reports child status; this is fixture ordering only.
@@ -61,3 +59,8 @@ Qualification on the same unchanged head: go test -trimpath ./cmd/internal/launc
 2026-10-16: Implemented post-trap ready file, asynchronous handoff with close(done) synchronizing result reads, and LIFO cleanup cancelling/joining before TempDir removal. Early child exit fails immediately rather than waiting for readiness. Production and original child-status assertion unchanged; no new sleep or extended timeout. Focused clean-exit -trimpath -count=100 PASS (9.370s); cancellation group -trimpath -race -count=30 PASS (14.598s).
 
 2026-10-16: Whole launcher package go test -trimpath ./cmd/internal/launcher -count=1 PASS (51.710s). git diff --check clean.
+
+2026-10-16: Recorded suite PASS on ae59d8e43e06d43577e31da0faa17cab3b0ff417: sdlc local-check run --name suite (make PAIR_GO_TRIMPATH=-trimpath test), execution 14m56s after 755s queue wait. Full log /Users/xianxu/workspace/pair/.git/sdlc/local-checks/ae59d8e43e06d43577e31da0faa17cab3b0ff417/suite.log, SHA256 prefix 3718f2999a52. Launcher 40.129s; couchcore 376.471s. GitHub merge-check and local-gates-guard both PASS. No failures. Close review and landing pending.
+
+## Revisions
+2026-10-16: Clarified the final plan checkbox to cover completed qualification; mechanical close review and landing stay pending in Done when until their gates finish. No scope or design change. Removed an inherited empty plan checkbox.
