@@ -216,5 +216,5 @@ does nothing.
   configured and the last pass is over 24 hours old (`couchcmd/archive_schedule.go`),
   logging to `$PAIR_DATA_DIR/archive/continuous.log`. A manual run uses the same
   lock.
-- Files over their kind's raw bound are skipped with a note. Database snapshots use the snapshot bound (`rawBundleLimit`, 8 GiB): they compress well (Codex `thread_history_1.sqlite` 1.60 GB to 115 MB), so the 2 GiB ciphertext bound is their real limit, and a snapshot whose compressed bundle exceeds it is skipped with a note (`ErrCiphertextLimit`), not a failed pass (#616).
+- Files over their kind's raw bound are skipped with a note. Database snapshots use the snapshot bound (`rawBundleLimit`, 8 GiB): they compress well (Codex `thread_history_1.sqlite` 1.60 GB to 115 MB), so the 2 GiB ciphertext bound is their real limit, and a snapshot whose compressed bundle exceeds it is skipped with a note (`ErrCiphertextLimit`), not a failed pass (#616). Each snapshot is its own request, so a skip never drops another database. Cost: a database that changes daily is a new version every pass, and the sink never deletes; at the measured 115 MB per `thread_history_1.sqlite` bundle that is roughly 40 GB a year for that one database. Pruning old snapshot versions is a separate, not-yet-made retention decision.
 

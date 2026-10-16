@@ -67,13 +67,18 @@ func TestCiphertextOverflowIsTheSentinelAndASnapshotSkip(t *testing.T) {
 	// In a continuous pass, an oversized snapshot is a skip, not a failure.
 	home := filepath.Join(base, "home")
 	os.MkdirAll(filepath.Join(home, ".codex"), 0o700)
-	os.WriteFile(filepath.Join(home, ".codex", "big.sqlite"), []byte(strings.Repeat("d", 4096)), 0o600)
+	os.WriteFile(filepath.Join(home, ".codex", "big.sqlite"), []byte(strings.Repeat("d", 16384)), 0o600)
+	os.WriteFile(filepath.Join(home, ".codex", "small.sqlite"), []byte("s"), 0o600)
+	maxCiphertext = 8192 // the small snapshot's bundle fits; the big one's does not
 	cfg := ContinuousConfig{Version: Version, Recipients: req.Recipients, Sink: req.Sink, Catalog: req.Catalog}
 	pass := ContinuousPass{Archiver: a, Config: cfg, Store: filepath.Join(base, "store"), SnapshotRoot: filepath.Join(base, "snaps"),
 		Host: "h", Home: home, Env: map[string]string{}, Kinds: []string{"codex-database"}, Snapshotter: copySnapshotter{}}
 	report, err := pass.Run(context.Background())
 	if err != nil || len(report.Skipped) != 1 || !strings.Contains(report.Skipped[0], "ciphertext bound") {
 		t.Fatalf("oversized snapshot: err=%v skipped=%v, want one skip note and no failure", err, report.Skipped)
+	}
+	if report.Archived["codex-database"] != 1 {
+		t.Fatalf("archived %+v; the oversized snapshot must not take the other one with it", report.Archived)
 	}
 }
 

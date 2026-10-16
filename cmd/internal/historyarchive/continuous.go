@@ -168,6 +168,11 @@ func (p ContinuousPass) archiveRoot(ctx context.Context, root SourceRoot, index 
 	archived := 0
 	for len(fresh) > 0 {
 		n := min(len(fresh), MaxFiles)
+		if collected {
+			// One request per snapshot: an oversized one is skipped alone,
+			// never taking the rest of the batch with it.
+			n = 1
+		}
 		req := ArchiveRequest{Version: Version, Kind: root.Kind, Source: identity, Files: fresh[:n], Recipients: p.Config.Recipients, Sink: p.Config.Sink, Catalog: p.Config.Catalog}
 		records, err := p.Archiver.create(ctx, req, collected)
 		for _, r := range records {
