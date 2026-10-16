@@ -154,7 +154,20 @@ Close round1 returned REWORK with BR-1 (failure choices lost after backout) and 
 
 Targeted drive/boundary races PASS core1.271s, protocol1.343s, CLI/service3.287s, wrapper9.896s; full pure-core races after the final Claude diagnostic correction PASS1.270s. Durable plan appends the current symbol inventory and reconciles explicit per-agent parsing with the shared reducer; no nonexistent Recipe entity or RemoteEndpoint.Drive API remains in the active inventory. Prior2b602b9a5 suite was deliberately interrupted exit130 after the helper changed; it is not passing evidence. The91b007dca suite remains the earlier-source run; the production diagnostic fix needs a final recorded suite before landing.
 
+### 2026-10-15 — second boundary disposition and executable conformance
+
+Round2 explicitly addressed BR-1/BR-2, including reviewer mutation proof that removing choice preservation fails all four recovery regressions. Verdict FIX-THEN-SHIP did not finalize: BR-3 Important identified the absent committed native conformance entrypoint. Added Makefile.local test-agent-drive-live, enabling both native suites, and documented prerequisites/after-change-or-upgrade cadence in atlas and the plan revision. Exact make target GREEN41.648s with no SKIP: direct-native session5.55s/default8.70s/unsupported-effort-recovery5.86s, actual Run scratch11.05s/Pair virtual10.17s. Native Codex0.162.1; only disposable defaults changed in the explicit-default case. No fleet input.
+
+Interrupted the superseded91b007dca suite with SIGINT/exit130 after review changed production; no passing suite claim. The queued66a653100 suite was cancelled before admission (exit130) when BR-3 changed the Makefile. Final recorded full-suite evidence will be obtained on the final integrated landing head through sdlc merge, per the TL's instruction, rather than retain obsolete queued candidates. No gate waived.
+
 ## Revisions
+
+### 2026-10-15 — native conformance target (BR-3)
+
+**Reason:** The planned opt-in entrypoint was missing despite implemented and manually executed native tests.
+
+**Delta:** Commit make test-agent-drive-live enabling both direct and actual Run/socket conformance suites; atlas and durable plan name prerequisites and require execution after drive/parser/writer changes or Codex upgrades before landing. Preserve normal suite isolation; no new CI/local-gate configuration or peer input (ARCH-MOCK).
+
 
 ### 2026-10-15 — preserve choices through failure recovery (BR-1/BR-2)
 

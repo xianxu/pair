@@ -264,3 +264,10 @@ Rerun targeted races, isolated native conformance and the recorded full suite on
 | peerLiveEnvironment, peerLiveLocalAuth | INTEGRATION | cmd/internal/wrapcmd/peer_live_test.go | reused unchanged; existing disposable Codex auth/environment seam, no new Claude credential flow |
 
 Live fleet set-model/keys/delivery smoke remains post-landing after the next operator restart, owned by TL ops:0 under submitted receipt35fe918a. Recorded/native checks and the normal close review/full-suite gates remain landing prerequisites.
+
+
+### 2026-10-15 — executable native conformance entrypoint (BR-3)
+
+**Reason:** Boundary round2 accepted BR-1/BR-2 but found the planned opt-in conformance target absent; ordinary test execution skips native-login cases.
+
+**Delta:** Add `make test-agent-drive-live` in Makefile.local, enabling both PAIR_LIVE_AGENT_DRIVE=codex and PAIR_LIVE_AGENT_DRIVE_VIRTUAL=codex and selecting both complete suites. Run this target after drive/parser/writer changes or Codex upgrades, before landing them; retain regular suite isolation and no peer-slot input. Atlas documents prerequisites, both tested paths and that cadence (ARCH-MOCK). Verify the exact target executes all three direct-native cases and both actual Run/socket terminal variants without SKIP.

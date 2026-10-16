@@ -1982,3 +1982,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #544 integration with #597: subprocess helpers that intentionally model Couch set their disposable thread identity after TestMain sanitizes inherited live identity. Run opt-in native conformance after TestMain changes; a default-suite skip cannot verify the helper startup path.
 
 - #544 BR-1/BR-2: failure recovery replaces current-screen evidence, so retain actionable observed choices in the bounded result detail and test after completed backout through receipt/CLI output. Reconcile prospective plan symbols with delivered APIs and reused conformance fixtures before close.
+
+- #544 BR-3: opt-in external conformance needs a committed target that enables every required suite, plus a named after-change/upgrade cadence. Run the exact target and confirm cases execute instead of accepting a skipped default-suite result.

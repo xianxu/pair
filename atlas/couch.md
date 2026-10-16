@@ -1700,6 +1700,14 @@ Inspect `couch --operation-status ID` and `couch --peek repo:N` before further
 input when the outcome is unconfirmed. Shutdown removes wrapper jobs/receipts.
 
 Recorded evidence lives in `wrapcmd/testdata/drive/{codex,claude}/<version>/`.
+Run `make test-agent-drive-live` after changing the drive, picker parser or
+input writer, and after upgrading Codex, before landing such changes. This
+opt-in target enables both `TestAgentDriveLiveConformance` (session, disposable
+default and unsupported-effort recovery) and
+`TestAgentDriveVirtualTerminalLiveConformance` (actual Run/socket writer under
+scratch and Pair virtual terminals). It requires installed Codex and an existing
+local login; it drives no peer slot. Ordinary `make test` leaves native login
+checks opt-in. Claude live fleet acceptance is owned by the hub.
 Codex live conformance uses fresh disposable repositories, PTYs and copied
 existing auth: session selection leaves scratch defaults unchanged; default
 selection changes only that disposable config. Claude styled captures come

@@ -97,3 +97,105 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-15T23:49:47-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 544 — couch: let the hub drive a slot's agent keys (switch model/effort remotely), without message chrome |
+| repo | pair |
+| issue file | workshop/issues/000544-couch-let-the-hub-drive-a-slot-s-agent-keys-switch-model-effort-remotely-without-message-chrome.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | e7b676abb2083791028bed45eda22515361cca4c..66a65310031be5354a02314abbff68dd60e7dd95 |
+| command | sdlc close --issue 544 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-15T23:49:47-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+Both prior findings are addressed. Choice-preservation regressions fail when the fix is removed, and the revised inventory matches the delivered implementation. Focused tests and races pass. One Important gap remains: the new native conformance suites are not wired into a committed test target.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      model.go:278 preserves bounded choices independently of Tail. Completed-recovery regressions cover both agents and effort failures; removing preservation in a disposable pinned-head checkout made all four regression cases fail. Receipt/plain/JSON output tests pass.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      The plan's Revisions passage at lines 240–264 explicitly supersedes the prospective inventory and recipe-table design. Its replacement names the actual parser/reducer, StartDrive API and new conformance files, and correctly identifies peer_live_test.go as reused unchanged; these match the pinned source and diff.
+findings:
+  - id: new
+    severity: Important
+    kind: defect
+    family: executable-conformance-entrypoints
+    title: |
+      Native drive conformance suites are absent from committed test targets
+    detail: |
+      agent_drive_conformance_test.go:22 and agent_drive_virtual_conformance_test.go:247 require separate opt-in variables, but Makefile.local:99–102 sets only PAIR_LIVE_COUCH; no committed target or script sets either drive variable. Both suites demonstrably SKIP under ordinary invocation, leaving Plan task 4's conformance-target requirement undelivered (ARCH-MOCK). Add a documented opt-in target that enables both suites and establishes when it must run.
+```
+
+1. **Strengths**
+
+   - Screen-derived writes revalidate current viewport evidence before emission; retained scrollback cannot authorize picker actions.
+   - The shared writer and automatic-input lease preserve cancellation, partial-write uncertainty and subsequent ordinary delivery.
+   - Failure choices survive recovery within the existing receipt bound.
+   - README and atlas document commands, recovery limits, scope and uncertain outcomes.
+
+2. **Critical findings**
+
+   None.
+
+3. **Important findings**
+
+   The conformance-entrypoint gap above. Validate the added target by confirming both suites execute rather than skip.
+
+4. **Minor findings**
+
+   None.
+
+5. **Test coverage notes**
+
+   Passed focused driver/service/endpoint/wrapper tests and races, plus complete `agentdrive`, `tailmarkup`, `couchtty` and `artifactpath` package tests. Mutation testing confirmed BR-1’s regressions detect removal of the fix. The disposable checkout was removed; the reviewed checkout remains unchanged.
+
+   Native conformance and live fleet acceptance were not rerun. The tracker explicitly assigns fleet acceptance to TL after landing.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** shared translator, writer, receipts and markup decoder.
+   - **ARCH-PURE — pass:** validation, screen parsing and transitions remain IO-free.
+   - **ARCH-PURPOSE — pass:** both agent paths, scope and failure evidence are implemented under the revised plan.
+   - **ARCH-MOCK — flag:** native conformance exists but lacks a committed execution target.
+   - **ARCH-CONSTRAINTS — pass:** bounded inputs, navigation, diagnostics and absolute deadlines.
+   - **ARCH-SECURE — pass:** typed requests, ownership/incarnation guards and restricted recovery admission.
+   - **ARCH-ORDER — pass:** encapsulated reducer, proof-bound effects and controllable interruption tests.
+   - **ARCH-FUNERAL — pass:** capped, expiring receipts and wrapper-owned cancellation.
+
+7. **Plan revision recommendations**
+
+   Add a `## Revisions` entry naming the conformance target, its two suites and required execution cadence.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"f1e9ba64-73a8-438b-b1a7-78fd9e2eeda2","repository":"github.com/xianxu/pair","issue_id":"000544","recipe":"milestone-review","round":2,"attempt":1,"agent":"codex","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/8dcce3ba7acabe11","reviewed_head":"66a65310031be5354a02314abbff68dd60e7dd95","slot":"pair:6","requested_at":"2026-10-16T06:46:21.452702Z"},"phase":"finished","pid":71410,"started_at":"2026-10-16T06:46:21.949373Z","finished_at":"2026-10-16T06:49:45.054364Z","session_id":"01a14376-339a-7ca0-9cc5-932d174489e8","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 6.464108208s
+head: "66a65310031be5354a02314abbff68dd60e7dd95"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

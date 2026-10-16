@@ -172,6 +172,181 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: f1e9ba64-73a8-438b-b1a7-78fd9e2eeda2
+            repository: github.com/xianxu/pair
+            issue_id: "000544"
+            recipe: milestone-review
+            round: 2
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/Library/Caches/sdlc/review-checkouts/8dcce3ba7acabe11
+            reviewed_head: 66a65310031be5354a02314abbff68dd60e7dd95
+            slot: pair:6
+            requested_at: "2026-10-16T06:46:21.452702Z"
+          phase: finished
+          pid: 71410
+          started_at: "2026-10-16T06:46:21.949373Z"
+          finished_at: "2026-10-16T06:49:45.054364Z"
+          session_id: 01a14376-339a-7ca0-9cc5-932d174489e8
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-v1
+        repository: github.com/xianxu/pair
+        code_head: 66a65310031be5354a02314abbff68dd60e7dd95
+        tracker_head: 5053eb66226cb05dc4bf03aa4e113344ec110345
+        branch_point: e7b676abb2083791028bed45eda22515361cca4c
+        since: "2026-10-14T01:55:19-07:00"
+        until: "2026-10-15T23:45:13-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-14T01:55:19-07:00"
+              end: "2026-10-15T23:45:13-07:00"
+              began: "2026-10-14T01:55:19-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot6/pair
+        sources:
+            - harness: codex
+              id: 01a13646-a9b3-7443-a36e-43f301879fd6
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              digest: 3bc91b912ac368d615bbbcac4f002a92e79d4d3096460e4c60cbdfb4e4446e5e
+              started: "2026-10-13T17:19:50.728Z"
+              spawned: false
+              bytes: 41088070
+              windows:
+                - start: "2026-10-14T01:55:19-07:00"
+                  end: "2026-10-15T23:45:13-07:00"
+            - harness: codex
+              id: 01a1399f-d2de-7bb0-9385-d1bb7828089e
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              parent_id: 01a13646-a9b3-7443-a36e-43f301879fd6
+              digest: ebe77f65bfb32c8d8bbb2dbbc91205bd4893bb3224aec9d097f53bdaae7d55f8
+              started: "2026-10-14T08:55:38.14Z"
+              spawned: true
+              bytes: 921193
+              windows:
+                - start: "2026-10-14T08:55:38.14Z"
+                  end: "2026-10-15T23:45:13-07:00"
+            - harness: codex
+              id: 01a139a8-1b95-7812-9351-a606fccfb52f
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              digest: 587007d4f178d792e96bd422b4d0d37a511a0b6b89b2467372b7991f5b3d4da4
+              started: "2026-10-14T09:04:41.052Z"
+              spawned: false
+              bytes: 589123
+              windows:
+                - start: "2026-10-14T09:04:41.052Z"
+                  end: "2026-10-15T23:45:13-07:00"
+            - harness: codex
+              id: 01a139ab-c92f-78a3-a436-1bd844e24845
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              digest: a2e2d83b0f96b0c9995abd9d0ea3cb96baee20f96fcfbf6ca8b7ce1bdb8057aa
+              started: "2026-10-14T09:08:42.444Z"
+              spawned: false
+              bytes: 424615
+              windows:
+                - start: "2026-10-14T09:08:42.444Z"
+                  end: "2026-10-15T23:45:13-07:00"
+            - harness: codex
+              id: 01a139ad-735a-7861-893e-82844d1dd5e0
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              digest: fd9b073f0a858362d89a0276ed98ade9f61bda35e85fbbb933323e8b0bd7595c
+              started: "2026-10-14T09:10:31.359Z"
+              spawned: false
+              bytes: 443324
+              windows:
+                - start: "2026-10-14T09:10:31.359Z"
+                  end: "2026-10-15T23:45:13-07:00"
+            - harness: codex
+              id: 01a139ae-0d0e-7c31-bd8f-b21743710eb6
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              digest: 2938e5c1b3c63981c274371329db28bf10d72aebdedbd84b38d4618d890bcec4
+              started: "2026-10-14T09:11:10.835Z"
+              spawned: false
+              bytes: 427850
+              windows:
+                - start: "2026-10-14T09:11:10.835Z"
+                  end: "2026-10-15T23:45:13-07:00"
+            - harness: codex
+              id: 01a139af-0dac-7640-bdaf-2f9e57885dc1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              parent_id: 01a13646-a9b3-7443-a36e-43f301879fd6
+              digest: ad309775585e5c393b0426ab9e32a086c3e62bb75cd3c5a3f822db8390838e8f
+              started: "2026-10-14T09:12:16.212Z"
+              spawned: true
+              bytes: 5483589
+              windows:
+                - start: "2026-10-14T09:12:16.212Z"
+                  end: "2026-10-15T23:45:13-07:00"
+            - harness: codex
+              id: 01a139b1-23d1-7031-a8af-6e12e6fa3b34
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              parent_id: 01a13646-a9b3-7443-a36e-43f301879fd6
+              digest: 2e966a8f784354c055da9635fec232d12ca91db8df5f8f5715657388d9e54249
+              started: "2026-10-14T09:14:32.881Z"
+              spawned: true
+              bytes: 2825547
+              windows:
+                - start: "2026-10-14T09:14:32.881Z"
+                  end: "2026-10-15T23:45:13-07:00"
+            - harness: codex
+              id: 01a139b8-5df0-7713-8cfd-9654dfd76d23
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              parent_id: 01a13646-a9b3-7443-a36e-43f301879fd6
+              digest: 4c1b098e019a135d8b7fe0a4d4ea8a00ced2726b930d92aa165b4c673fa6bf9a
+              started: "2026-10-14T09:22:26.504Z"
+              spawned: true
+              bytes: 4325228
+              windows:
+                - start: "2026-10-14T09:22:26.504Z"
+                  end: "2026-10-15T23:45:13-07:00"
+            - harness: codex
+              id: 01a14367-664d-7850-a55c-bb707864cce5
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              digest: f909d1ec1308416dadd296dbe29d2b3e7084d338db68fcd8070ebaa2d765c6c3
+              started: "2026-10-16T06:30:12.567Z"
+              spawned: false
+              bytes: 2405180
+              windows:
+                - start: "2026-10-16T06:30:12.567Z"
+                  end: "2026-10-15T23:45:13-07:00"
+        excluded_brain_sessions: 1
+        excluded_brain_minutes: 150.4081833333333
+        cuts:
+            - dispatched: "2026-10-15T23:38:49-07:00"
+              finalized: "2026-10-15T23:41:49-07:00"
+              finalizing: false
+      "n": 2
+      timestamp: "2026-10-15T23:49:48-07:00"
+      dispatched: "2026-10-15T23:46:14-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: model.go:278 preserves bounded choices independently of Tail. Completed-recovery regressions cover both agents and effort failures; removing preservation in a disposable pinned-head checkout made all four regression cases fail. Receipt/plain/JSON output tests pass.
+          round: 2
+        - id: BR-2
+          disposition: addressed
+          note: The plan's Revisions passage at lines 240–264 explicitly supersedes the prospective inventory and recipe-table design. Its replacement names the actual parser/reducer, StartDrive API and new conformance files, and correctly identifies peer_live_test.go as reused unchanged; these match the pinned source and diff.
+          round: 2
+      findings:
+        - kind: defect
+          id: BR-3
+          severity: Important
+          title: Native drive conformance suites are absent from committed test targets
+          detail: agent_drive_conformance_test.go:22 and agent_drive_virtual_conformance_test.go:247 require separate opt-in variables, but Makefile.local:99–102 sets only PAIR_LIVE_COUCH; no committed target or script sets either drive variable. Both suites demonstrably SKIP under ordinary invocation, leaving Plan task 4's conformance-target requirement undelivered (ARCH-MOCK). Add a documented opt-in target that enables both suites and establishes when it must run.
+          family: executable-conformance-entrypoints
+          round: 2
+      recipe: milestone-review
+      isolation: fenced
+      blocked: true
 ---
 
 # Gate ledger — pair#544 (boundary-review)
@@ -188,7 +363,18 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-2** [Critical] `core-concept-inventory-fidelity` (kind: defect) The Core concepts table names missing entities and an unchanged implementation file
   workshop/plans/000544-agent-keys-model-plan.md:36 declares Recipe in recipe.go, but that entity and the promised per-agent recipe tables do not exist; agent decisions are branches in screen.go and model.go. Line 51 names RemoteEndpoint.Drive, whereas production exposes StartDrive, and line 58 marks peer_live_test.go modified although it is unchanged in the pinned range. Reconcile the required recipe structure and correct the inventory through an explicit Revisions entry. ARCH-PURPOSE: the plan must describe the implementation actually delivered.
 
+## Round 2 — 2026-10-15T23:49:48-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-1 — addressed — model.go:278 preserves bounded choices independently of Tail. Completed-recovery regressions cover both agents and effort failures; removing preservation in a disposable pinned-head checkout made all four regression cases fail. Receipt/plain/JSON output tests pass.
+- BR-2 — addressed — The plan's Revisions passage at lines 240–264 explicitly supersedes the prospective inventory and recipe-table design. Its replacement names the actual parser/reducer, StartDrive API and new conformance files, and correctly identifies peer_live_test.go as reused unchanged; these match the pinned source and diff.
+
+### Raised
+
+- **BR-3** [Important] `executable-conformance-entrypoints` (kind: defect) Native drive conformance suites are absent from committed test targets
+  agent_drive_conformance_test.go:22 and agent_drive_virtual_conformance_test.go:247 require separate opt-in variables, but Makefile.local:99–102 sets only PAIR_LIVE_COUCH; no committed target or script sets either drive variable. Both suites demonstrably SKIP under ordinary invocation, leaving Plan task 4's conformance-target requirement undelivered (ARCH-MOCK). Add a documented opt-in target that enables both suites and establishes when it must run.
+
 ## Open findings
 
-- **BR-1** [Critical] `preserve-actionable-failure-evidence` (kind: defect) Unknown-model recovery discards the choices required by the Spec
-- **BR-2** [Critical] `core-concept-inventory-fidelity` (kind: defect) The Core concepts table names missing entities and an unchanged implementation file
+- **BR-3** [Important] `executable-conformance-entrypoints` (kind: defect) Native drive conformance suites are absent from committed test targets
