@@ -92,6 +92,10 @@ Corrected source8ea1ff75f02bba063007f3a11157fd2432576ce0: full broadcast package
 
 Fetched main0169e962f95a932fd9884b20b2d5dd07b73022f1 carrying landed #584. Corrected-source suite80c2388bbd9b308cbc93f43f33980946 was still queued, with no recipe executed. Verified its owner file and process generation (PID69458, start2026-10-15T18:57:37), interrupted only that owned session group (exit130), then merged origin/main cleanly. This is source integration requiring a new exact-head run, not an unchanged retry after a failure. No foreign slot or suite was stopped. Restored descendant regression also passed (0.806s). Rebuild and fresh recorded suite follow on the integrated head; the prior source checks remain recorded above.
 
+### Integrated-source checkpoint
+
+Integrated source7e6b8f71a88c44af1851a5961b819341274ba0d3 rebuilt successfully with make -k -B build. Required recorded suitea5246d3a2a70da34b43ef68ac88321c5 acquired quota after8s and is running from its detached checkout. Only issue Log documentation changed since that source. First close remains REWORK/working with BR-1 open until the next boundary reviewer verifies its correction; no SHIP, close, or landing is being claimed. Source and tests for that finding are committed, both negative controls and subsequent targeted/race passes are recorded above, and the remaining work is exact-head suite → close review → PR/SHIP/land → report to hub before #586. Deferred #579 live sample still waits for tomorrow’s hub-provided actual wrapper PIDs/build.
+
 ## Revisions
 
 ### 2026-10-15 — hypothesis confirmed as a production ownership violation
