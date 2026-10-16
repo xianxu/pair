@@ -1,12 +1,12 @@
 ---
 id: 000569
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-15
 updated: 2026-10-15
 estimate_hours: 1.924
-card_mirror: '1d2707e14319bb29e117b2c8557388ade9b4d055' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '8ce39bbf76efa5a68bb65e1bb965091af9ce9969' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-15T16:14:38-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: operator}
+actual_hours: 2.20
 ---
 
 # Couch → Qoder delivery: text typed into Qoder's input but not submitted (pending * prompt); confirm submission
