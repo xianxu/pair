@@ -64,6 +64,8 @@ Add a source guard against Go/table/context and shell/Python full-Pair builds ou
 
 ## Log
 
+
+- 2026-10-16: closed — Recorded suite PASS on 31561018 in 11m11s, log d1e3299210e9; CI green. BR-3 full original source control RED 5/11 then GREEN 11/11 with byte-verified bodies and committed portable recipes; relative/context/table and unrelated-dir negatives pass, helper race passes. BR-1 non-root/relative-output and embedded-runtime pass; BR-2 README complete. Controlled 11 links to 1, 20.483s to 1.306s, sampled 465MB to 43MB; limits in Log. Atlas updated; TL owns ops project.; review verdict: SHIP
 2026-10-16: Dispatched by verified TL receiptbd4bbb53-5298-4048-87ce-4a1452a49984; claim/start-plan completed from fresh main. Small plan may proceed after posting. Read-only independent audit found ordinary build sites plus repeated helper calls and four shell scripts. Native-terminal CI is a separate once-per-lane fresh candidate; centralize its builder without weakening freshness. ops/MEMORY.md is absent; ops charter and tools/disk-writes/SKILL.md read. No implementation yet. Scope fits the quick-flow shell by keeping new non-test code in a small standard-library resolver and reusing test-owned shell lifecycle; the gate owns final sizing/review.
 
 ### 2026-10-15

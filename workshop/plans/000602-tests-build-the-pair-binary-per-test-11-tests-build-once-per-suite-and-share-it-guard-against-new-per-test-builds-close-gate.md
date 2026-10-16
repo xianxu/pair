@@ -199,6 +199,99 @@ rounds:
       recipe: small-diff-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 84bfe20c-a9c8-414f-aad8-209b2f828b5a
+            repository: github.com/xianxu/pair
+            issue_id: "000602"
+            recipe: small-diff-review
+            round: 3
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/Library/Caches/sdlc/review-checkouts/9574c3b2f70066c0
+            reviewed_head: 78826bb5fac275cc5cefa49d3b8882d66fc9821c
+            slot: pair:1
+            requested_at: "2026-10-16T16:29:19.249606Z"
+          phase: finished
+          pid: 38327
+          started_at: "2026-10-16T16:29:19.503089Z"
+          finished_at: "2026-10-16T16:33:04.385506Z"
+          session_id: 01a1458b-eae5-7fd2-8c11-23b794e60a6d
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-v1
+        repository: github.com/xianxu/pair
+        code_head: 78826bb5fac275cc5cefa49d3b8882d66fc9821c
+        tracker_head: 86846d4387b812d95571c19980dbc9078baafbf5
+        branch_point: 53c96ded8854c4da834c594a9901b08c6f8078f2
+        since: "2026-10-16T08:07:27-07:00"
+        until: "2026-10-16T09:28:28-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-16T08:07:27-07:00"
+              end: "2026-10-16T09:28:28-07:00"
+              began: "2026-10-16T08:07:27-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot1/pair
+        sources:
+            - harness: codex
+              id: 01a14367-3aab-7a22-b89b-0908f54a9846
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              digest: 89d216d91aaad9f3ca3af410142f7215be75904675cdbcdd07e96a2a032a1209
+              started: "2026-10-16T06:30:01.402Z"
+              spawned: false
+              bytes: 17005541
+              windows:
+                - start: "2026-10-16T08:07:27-07:00"
+                  end: "2026-10-16T09:28:28-07:00"
+            - harness: codex
+              id: 01a14541-1b26-7f51-aaeb-a2cf23ea6506
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              parent_id: 01a14367-3aab-7a22-b89b-0908f54a9846
+              digest: dbac292fbfd1b5c85864568a56de03cca06ab560e9dd59774e4313e640bb317f
+              started: "2026-10-16T15:07:37.322Z"
+              spawned: true
+              bytes: 950518
+              windows:
+                - start: "2026-10-16T15:07:37.322Z"
+                  end: "2026-10-16T09:28:28-07:00"
+            - harness: codex
+              id: 01a14548-543b-73d2-bf8d-5aca96f5a211
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              parent_id: 01a14367-3aab-7a22-b89b-0908f54a9846
+              digest: add827f5b2bebeb8201171f4092e7cdc577d8e16e38aa9ad677d56fe0ac22f7a
+              started: "2026-10-16T15:15:30.684Z"
+              spawned: true
+              bytes: 1010430
+              windows:
+                - start: "2026-10-16T15:15:30.684Z"
+                  end: "2026-10-16T09:28:28-07:00"
+        cuts:
+            - dispatched: "2026-10-16T08:52:26-07:00"
+              finalized: "2026-10-16T08:54:20-07:00"
+              finalizing: false
+            - dispatched: "2026-10-16T09:10:01-07:00"
+              finalized: "2026-10-16T09:12:36-07:00"
+              finalizing: false
+      "n": 3
+      timestamp: "2026-10-16T09:33:06-07:00"
+      dispatched: "2026-10-16T09:29:15-07:00"
+      agent: codex
+      dispose:
+        - id: BR-3
+          disposition: addressed
+          note: build_guard_test.go:212-260 normalizes targets against package/command working directories. Committed regression fixtures pass at head and fail with the pre-fix implementation restored through a temporary overlay. Independently testing all eleven complete base-version source files confirms detection improves from 5/11 to 11/11; unrelated-build negative controls remain green.
+          round: 3
+      recipe: small-diff-review
+      isolation: fenced
+      reviewed: 78826bb5fac275cc5cefa49d3b8882d66fc9821c
+      blocked: false
 ---
 
 # Gate ledger — pair#602 (boundary-review)
@@ -227,6 +320,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-3** [Important] `full-pair-target-normalization` (kind: defect) Source guard accepts the relative package paths used by six original offenders
   cmd/internal/testpair/build_guard_test.go:194-196 recognizes ./cmd/pair-go and paths ending /cmd/pair-go, but misses ../../pair-go. Running the guard against all eleven original Go sources detects only five; the missed family comprises couchcmd/continuation_acceptance_test.go, couchcmd/switchagent_acceptance_test.go, hoprttcmd/hoprtt_test.go, launcher/agent_command_acceptance_test.go, launcher/couch_launch_prompt_acceptance_test.go, and launcher/selected_root_test.go, all under cmd/internal/. Additional direct, CommandContext, and table mutation controls using ../../pair-go, plus a sibling ../pair-go control from cmd/couch, all pass undetected. ARCH-PURPOSE: these per-test builds can be reintroduced without failing the guard. Normalize package targets against the relevant working directory and add regression controls covering every original recipe while retaining unrelated-build negative controls.
 
+## Round 3 — 2026-10-16T09:33:06-07:00 (codex) — passed
+
+### Disposed
+
+- BR-3 — addressed — build_guard_test.go:212-260 normalizes targets against package/command working directories. Committed regression fixtures pass at head and fail with the pre-fix implementation restored through a temporary overlay. Independently testing all eleven complete base-version source files confirms detection improves from 5/11 to 11/11; unrelated-build negative controls remain green.
+
 ## Open findings
 
-- **BR-3** [Important] `full-pair-target-normalization` (kind: defect) Source guard accepts the relative package paths used by six original offenders
+(none — every finding has been disposed)

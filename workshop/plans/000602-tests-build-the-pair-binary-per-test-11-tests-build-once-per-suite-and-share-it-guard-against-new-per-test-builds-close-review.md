@@ -169,3 +169,75 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-16T09:33:06-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 602 — Tests build the pair binary per test (11 tests): build once per suite and share it; guard against new per-test builds |
+| repo | pair |
+| issue file | workshop/issues/000602-tests-build-the-pair-binary-per-test-11-tests-build-once-per-suite-and-share-it-guard-against-new-per-test-builds.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 53c96ded8854c4da834c594a9901b08c6f8078f2..78826bb5fac275cc5cefa49d3b8882d66fc9821c |
+| command | sdlc close --issue 602 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-16T09:33:06-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The shared-build migration matches the Spec and Plan. BR-3 is addressed with meaningful regression evidence: all eleven original Go sources are detected, while restoring the previous guard reproduces the six misses. No new blocking findings.
+
+```findings
+dispose:
+  - id: BR-3
+    disposition: addressed
+    note: |
+      build_guard_test.go:212-260 normalizes targets against package/command working directories. Committed regression fixtures pass at head and fail with the pre-fix implementation restored through a temporary overlay. Independently testing all eleven complete base-version source files confirms detection improves from 5/11 to 11/11; unrelated-build negative controls remain green.
+```
+
+1. **Strengths**
+
+   - Construction is centralized in `tests/lib/pair-test-binary.sh`; suite and package lifetimes own cleanup.
+   - All eleven Go consumers, four shell consumers, and the native CI candidate use the shared infrastructure while preserving explicit overrides.
+   - Guard fixtures distinguish forbidden Pair builds from unrelated helper, probe, and test-executable builds.
+   - README and atlas explain the new control, ownership, fallback, and plain-binary distinction.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None remaining.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes:** `testpair -race`, Pair CLI tests, and artifact-path tests passed. Guard regressions were verified red without the fix and green with it. Hoprtt initially exceeded its unchanged timing ceiling twice; its isolated test and final full-package rerun passed. The original helper also passed comparison runs, so the timing failures remain an observed limitation without an established connection to this diff. The full repository suite was not independently rerun.
+
+6. **Architectural notes:**
+
+   - **ARCH-DRY: pass** — one builder serves every migrated consumer.
+   - **ARCH-PURE: pass** — source analysis is separate from filesystem traversal; executable handling stays in test infrastructure.
+   - **ARCH-PURPOSE: pass** — the consumer sweep is complete, and enforcement covers every original recipe.
+
+7. **Plan revision recommendations:** None; the existing R2 revision matches the delivered correction.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"84bfe20c-a9c8-414f-aad8-209b2f828b5a","repository":"github.com/xianxu/pair","issue_id":"000602","recipe":"small-diff-review","round":3,"attempt":1,"agent":"codex","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/9574c3b2f70066c0","reviewed_head":"78826bb5fac275cc5cefa49d3b8882d66fc9821c","slot":"pair:1","requested_at":"2026-10-16T16:29:19.249606Z"},"phase":"finished","pid":38327,"started_at":"2026-10-16T16:29:19.503089Z","finished_at":"2026-10-16T16:33:04.385506Z","session_id":"01a1458b-eae5-7fd2-8c11-23b794e60a6d","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.768799667s
+head: "78826bb5fac275cc5cefa49d3b8882d66fc9821c"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
