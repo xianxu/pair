@@ -25,6 +25,7 @@ tracker:
         source_path: workshop/issues/000579-pair-wrap-writes-200-more-than-it-appends-4-mb-s-per-slot-per-event-sync-on-scrollback-wrap-events-logs-also-no-rotation.md
         source_blob: ab045c206f539dd9d7a8e9e9500855301a131431
         destination: workshop/issues/000579-pair-wrap-writes-200-more-than-it-appends-4-mb-s-per-slot-per-event-sync-on-scrollback-wrap-events-logs-also-no-rotation.md
+        main_commit: 7af5c7b16a957d41f5d6577c34b3a35cea83f0ab
     completion:
         token: close-1eb1b62f1af8
         repository: github.com/xianxu/pair
