@@ -152,3 +152,11 @@ Net tracked code/tests against pre-simplification5484a5363: +411/-991 = **580 li
 ### 2026-10-15 — recorded suite found an embedded example error
 
 Close round3 returned SHIP (evidence9a7f9c781792), with all prior findings addressed and no new findings. Recorded suite on0c36ccba acquired the machine gate after663s, passed shell/editor prerequisites including the timing and Make-env checks, then exposed TestSkillDocumentsRecovery: the new embedded example used literal bracketed optional syntax. Replaced it with the two executable commands; the existing parser regression now passes. The old full Go run is being allowed to finish so any other failures remain visible. No suite pass is claimed yet; a corrected-head recorded run follows. This is a one-line embedded reference correction, not a monitoring design delta.
+
+### 2026-10-15 — final recorded suite and close evidence
+
+The first recorded suite completed all prerequisites and Go packages; its sole failure was the embedded command example already corrected in d477e4a815847e3aaea8ad4450bb4d36df0fda2f. Narrow fixed-then-ship close returned SHIP with no findings (82ec7d00); the reviewer independently verified the parser regression passes at head and fails with the original example restored.
+
+Corrected-head recorded suite passed: sdlc-local/suite on d477e4a815847e3aaea8ad4450bb4d36df0fda2f, exit0, runtime12m21s after836s queue wait, log SHA256 prefix893467b93956. All shell/editor/Make-env prerequisites and go test ./... -count=1 passed, including couchcmd88.090s and couchcore410.348s. Saved log: .git/sdlc/local-checks/d477e4a815847e3aaea8ad4450bb4d36df0fda2f/suite.log (Git common directory).
+
+Final simplification net:580 tracked code/test lines deleted against5484a5363 (+411/-991), plus four discarded uncommitted codec/test files. Sampling cost remains0.120730% of one core at60s. Implementation and review are complete; live acceptance remains outstanding. Holding staging, restart and landing for TL's combined smoke, with cadence2s/write-duration6s and a TL-designated scratch slot.
