@@ -76,6 +76,7 @@ See [implementation plan](../plans/000617-title-process-lifetime-plan.md). TL ap
 ## Log
 
 ### 2026-10-16
+- 2026-10-16: closed — Recorded make PAIR_GO_TRIMPATH=-trimpath test PASS on2c4781e88 in12m54s, logSHA809ff22c06bd. BR-1 fixed for PID and workspace metadata via shared root-lock/private pending recovery; real title EOF during staging preserves complete target and permits post-death cleanup, active publishers protected; race and mutation checks pass. Warm activity/usage29904-31952B and100append-poll retained heap416960B. Approved5legacy generations SIGTERMed with24controls preserved. TL977e9db5 places installed live acceptance after landing/combined rollout; not yet claimed.; review verdict: SHIP
 
 ### 2026-10-16 — planning investigation
 
