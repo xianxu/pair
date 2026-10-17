@@ -1,6 +1,7 @@
 package couchtty
 
 import (
+	"github.com/xianxu/pair/cmd/internal/terminal"
 	"strconv"
 	"testing"
 )
@@ -296,6 +297,43 @@ func TestDecodePanelKeysDistinguishesCtrlBackspaceFromBackspace(t *testing.T) {
 			for i := range got {
 				if got[i] != tc.want[i] {
 					t.Fatalf("keys = %+v, want %+v", got, tc.want)
+				}
+			}
+		})
+	}
+}
+
+func TestCopyNoticeThroughTerminalDecoder(t *testing.T) {
+	for _, tc := range []struct {
+		raw    string
+		copies int
+	}{
+		{"\x19", 1}, {"\x1b[121;5u", 1}, {"\x1b[121;5:1u", 1}, {"\x1b[121;5:2u", 1}, {"\x1b[121;5:3u", 0},
+		{"\x1b[121;69u", 1}, {"\x1b[121;133u", 1}, {"\x1b[121;7u", 0}, {"\x1b[121;6u", 0}, {"\x1b[120;5u", 0}, {"y", 0},
+	} {
+		t.Run(strconv.Quote(tc.raw), func(t *testing.T) {
+			for split := 0; split <= len(tc.raw); split++ {
+				var d terminal.Decoder
+				events, err := d.Feed([]byte(tc.raw[:split]))
+				if err != nil {
+					t.Fatal(err)
+				}
+				tail, err := d.Feed([]byte(tc.raw[split:]))
+				if err != nil {
+					t.Fatal(err)
+				}
+				events = append(events, tail...)
+				copies := 0
+				for _, e := range events {
+					keys, _ := DecodePanelKeys(e.Canonical)
+					for _, k := range keys {
+						if k.Kind == KeyCopyNotice {
+							copies++
+						}
+					}
+				}
+				if copies != tc.copies {
+					t.Fatalf("split %d: copies=%d, want %d", split, copies, tc.copies)
 				}
 			}
 		})

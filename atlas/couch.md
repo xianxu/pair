@@ -1606,7 +1606,15 @@ from exact hosted PID/start observations and never promotes raw persisted
 lifecycle state into a user-visible `live` or `parked` row.
 
 The switcher’s `Ctrl+Y` copies the latest retained `Feed.Messages()` body outside
-the console lock (`console_menu.go`, #604). Local consoles first use clipcmd's
+the console lock (`console_menu.go`, #604). The panel accepts canonical Kitty
+Ctrl+Y as well as legacy 0x19 (#646); release events never trigger a copy.
+`copy_key.go` classifies only decoded Ctrl+Y press/release events before product
+routing and reports `clipboard_key` via the existing bounded supervision writer.
+Its three content-free fields are encoding class, switcher focus and release;
+all other input is ignored. `clipboard_copy` remains the later operation outcome.
+No raw key stream, notice text or clipboard content enters either diagnostic.
+The 2026-10-17 read-only probe proved the old CSI-u decoder dropped enhanced
+Ctrl+Y; the historical keystroke bytes were not captured. Local consoles first use clipcmd's
 existing `pbcopy` / `wl-copy` / `xclip` tool cascade, with a one-second command
 budget and bounded pipe cleanup. Successful tool exit confirms local copying.
 Explicit SSH environments skip the host clipboard. Missing, failed or timed-out
