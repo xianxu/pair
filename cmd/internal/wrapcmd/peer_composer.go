@@ -1,6 +1,7 @@
 package wrapcmd
 
 import (
+	"strconv"
 	"strings"
 
 	uv "github.com/charmbracelet/ultraviolet"
@@ -13,6 +14,48 @@ const (
 	PeerComposerOccupied
 	PeerComposerEmpty
 )
+
+// backgroundWorkState is display evidence, independent of composer admission.
+func backgroundWorkState(agent string, s terminalSnapshot) *bool {
+	if agent != "claude" || !s.Complete {
+		return nil
+	}
+	_, bottom, ok := ruledBoxComposerBounds(s, claudeComposerSpec())
+	if !ok {
+		return nil
+	}
+	for y := bottom + 1; y < s.Height; y++ {
+		line := strings.TrimSpace(terminalRowText(s, y))
+		if !strings.HasPrefix(line, "⏵⏵ ") {
+			continue
+		}
+		fields := strings.Split(line, " · ")
+		count, seen, manage := 0, false, false
+		for _, field := range fields[1:] {
+			field = strings.TrimSpace(field)
+			manage = manage || field == "↓ to manage"
+			if !strings.Contains(field, "shell") {
+				continue
+			}
+			parts := strings.Fields(field)
+			if seen || len(parts) != 2 || len(parts[0]) > 9 {
+				return nil
+			}
+			n, err := strconv.Atoi(parts[0])
+			if err != nil || n < 0 || strconv.Itoa(n) != parts[0] ||
+				(n == 1 && parts[1] != "shell") || (n != 1 && parts[1] != "shells") {
+				return nil
+			}
+			count, seen = n, true
+		}
+		if seen && !manage {
+			return nil
+		}
+		active := count > 0
+		return &active
+	}
+	return nil
+}
 
 func peerComposerState(agent string, s terminalSnapshot) PeerComposerState {
 	text, ok := peerComposerText(agent, s)

@@ -1001,9 +1001,12 @@ with no activity for a day is dimmed, and after three days it's dimmed further.
 Activity means your sends, the agent's recorded work and current turn, or
 launching or resuming the thread. A turn stays bright when started by a peer
 message or waiting silently on a command. After it finishes, the thread ages
-from its last work. A background command left running after the turn ends has
-no separate fade signal yet. Switching to a
-thread or merely looking at its draft doesn't count. Couch checks about once a
+from its last work. Claude Code's native running-shell footer also keeps a
+thread bright after its turn ends, including while a silent suite waits in a
+queue. Its free composer can still receive peer messages. This background-shell
+signal requires a new wrapper and Couch; older versions, Codex and Qoder keep
+their existing turn-based behavior. Once the shell finishes, the thread ages
+normally. Switching to a thread or merely looking at its draft doesn't count. Couch checks about once a
 minute. The fade blends toward your
 terminal's own background, which Couch asks the terminal for at startup, so it
 reads correctly on dark and light schemes; the amber `±`/`*` glyphs fade with

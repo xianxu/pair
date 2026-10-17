@@ -22,7 +22,7 @@ type SessionHandler struct {
 }
 
 // SessionHello is what a wrapper said when it connected. Build is non-nil
-// exactly for a hello-v2 session, the only kind that may report Settled.
+// exactly for hello-v2 and newer sessions, which may report Settled.
 type SessionHello struct {
 	Binding Binding
 	Build   *BuildIdentity
@@ -105,10 +105,10 @@ func (s *SessionServer) serve(conn *net.UnixConn, token SessionToken, full bool)
 		return
 	}
 	hello, err := readSessionFrame(conn)
-	if err != nil || (hello.Op != FrameHello && hello.Op != FrameHelloV2 && hello.Op != FrameHelloV3) {
+	if err != nil || (hello.Op != FrameHello && hello.Op != FrameHelloV2 && hello.Op != FrameHelloV3 && hello.Op != FrameHelloV4) {
 		return
 	}
-	v2, v3 := hello.Op != FrameHello, hello.Op == FrameHelloV3
+	v2, v3, v4 := hello.Op != FrameHello, hello.Op == FrameHelloV3 || hello.Op == FrameHelloV4, hello.Op == FrameHelloV4
 	refuse := func(code string, err error) {
 		_ = writeSessionFrame(conn, SessionFrame{Op: FrameAck, Code: code, Error: err.Error()})
 	}
@@ -135,7 +135,7 @@ func (s *SessionServer) serve(conn *net.UnixConn, token SessionToken, full bool)
 	}
 	for {
 		f, err := readSessionFrame(conn)
-		if err != nil || (f.Op != FrameActivity && f.Op != FrameSubmit) || (!v2 && f.Settled != nil) || (!v3 && f.Picker != nil) {
+		if err != nil || (f.Op != FrameActivity && f.Op != FrameSubmit) || (!v2 && f.Settled != nil) || (!v3 && f.Picker != nil) || (!v4 && f.BackgroundWork != nil) {
 			return // EOF is the wrapper's departure; a malformed frame ends only this session
 		}
 		s.handler.Frame(token, f)
@@ -169,16 +169,17 @@ func writeSessionFrame(conn net.Conn, f SessionFrame) error {
 // SessionClient is a wrapper's side of its session. Update and Submit only
 // record state and wake the sender, so callers on hot paths do no IO.
 type SessionClient struct {
-	mu        sync.Mutex
-	latest    Observation
-	have      bool
-	dirty     bool // activity not yet sent on the current connection
-	submit    bool // a submission not yet sent
-	build     *BuildIdentity
-	settled   bool
-	picker    bool
-	wake      chan struct{}
-	connected chan struct{} // test hook: signalled after each ack
+	mu             sync.Mutex
+	latest         Observation
+	have           bool
+	dirty          bool // activity not yet sent on the current connection
+	submit         bool // a submission not yet sent
+	build          *BuildIdentity
+	settled        bool
+	picker         bool
+	backgroundWork *bool
+	wake           chan struct{}
+	connected      chan struct{} // test hook: signalled after each ack
 }
 
 func NewSessionClient() *SessionClient {
@@ -192,7 +193,7 @@ func (c *SessionClient) signal() {
 	}
 }
 
-// SetBuild opts the client into hello-v2 (#421). Call before Run.
+// SetBuild opts the client into version negotiation. Call before Run.
 func (c *SessionClient) SetBuild(b BuildIdentity) {
 	c.mu.Lock()
 	c.build = &b
@@ -219,6 +220,29 @@ func (c *SessionClient) Picker(open bool) {
 	}
 	c.mu.Unlock()
 	c.signal()
+}
+
+// BackgroundWork records optional background evidence without IO. It copies the
+// value; nil clears prior evidence, while false means known to have no work.
+// Changes coalesce with the next activity and are sent only on hello-v4.
+func (c *SessionClient) BackgroundWork(active *bool) {
+	c.mu.Lock()
+	changed := (active == nil) != (c.backgroundWork == nil)
+	if active != nil && c.backgroundWork != nil {
+		changed = *active != *c.backgroundWork
+	}
+	if changed {
+		c.backgroundWork = nil
+		if active != nil {
+			v := *active
+			c.backgroundWork = &v
+		}
+		c.dirty = c.have || c.dirty
+	}
+	c.mu.Unlock()
+	if changed {
+		c.signal()
+	}
 }
 
 // Update records the wrapper's current observation; the sender coalesces.
@@ -264,7 +288,7 @@ func (c *SessionClient) Run(ctx context.Context, socket string, b Binding, backo
 
 var errNoAck = errors.New("broker closed before acknowledging hello")
 
-// sessionHandshake sends the hello op (build rides hello-v2 and hello-v3)
+// sessionHandshake sends the hello op (build rides hello-v2 and newer)
 // and reads the ack.
 func sessionHandshake(conn net.Conn, b Binding, build *BuildIdentity, op string) error {
 	if err := conn.SetDeadline(time.Now().Add(AdmissionTimeout)); err != nil {
@@ -302,7 +326,7 @@ func (c *SessionClient) session(ctx context.Context, socket string, b Binding, m
 	// own connection; only the one that took a hello outlives the loop.
 	hellos := []string{FrameHello}
 	if build != nil {
-		hellos = []string{FrameHelloV3, FrameHelloV2, FrameHello}
+		hellos = []string{FrameHelloV4, FrameHelloV3, FrameHelloV2, FrameHello}
 	}
 	var conn net.Conn
 	var op string
@@ -325,7 +349,7 @@ func (c *SessionClient) session(ctx context.Context, socket string, b Binding, m
 		}
 	}
 	defer conn.Close()
-	v2, v3 := op != FrameHello, op == FrameHelloV3
+	v2, v3, v4 := op != FrameHello, op == FrameHelloV3 || op == FrameHelloV4, op == FrameHelloV4
 	if err := conn.SetDeadline(time.Time{}); err != nil {
 		return err
 	}
@@ -361,7 +385,7 @@ func (c *SessionClient) session(ctx context.Context, socket string, b Binding, m
 		c.mu.Lock()
 		f := SessionFrame{}
 		obs := c.latest
-		var settled, picker *bool
+		var settled, picker, backgroundWork *bool
 		if v2 {
 			v := c.settled
 			settled = &v
@@ -370,15 +394,19 @@ func (c *SessionClient) session(ctx context.Context, socket string, b Binding, m
 			v := c.picker
 			picker = &v
 		}
+		if v4 && c.backgroundWork != nil {
+			v := *c.backgroundWork
+			backgroundWork = &v
+		}
 		switch {
 		case c.submit:
-			f = SessionFrame{Op: FrameSubmit, Observation: &obs, Settled: settled, Picker: picker}
+			f = SessionFrame{Op: FrameSubmit, Observation: &obs, Settled: settled, Picker: picker, BackgroundWork: backgroundWork}
 			c.submit, c.dirty = false, false
 		case c.dirty && throttle == nil:
 			if wait := minInterval - time.Since(last); !last.IsZero() && wait > 0 {
 				throttle = time.After(wait)
 			} else {
-				f = SessionFrame{Op: FrameActivity, Observation: &obs, Settled: settled, Picker: picker}
+				f = SessionFrame{Op: FrameActivity, Observation: &obs, Settled: settled, Picker: picker, BackgroundWork: backgroundWork}
 				c.dirty = false
 			}
 		}

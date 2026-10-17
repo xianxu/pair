@@ -67,9 +67,9 @@ Rows respectively cover spec/approval, pure native footer classification, genera
 ## Plan
 
 - [x] Design the independent display signal and its lifecycle/compatibility before implementation.
-- [ ] Implement and verify generation-fenced Claude footer display evidence, preserving free-composer admission.
-- [ ] Implement and verify negotiated transport, admitted-session fade/aging and compatibility.
-- [ ] Update docs, complete the recorded suite and ordinary review/landing; record the approved post-landing live steps.
+- [x] Implement and verify generation-fenced Claude footer display evidence, preserving free-composer admission.
+- [x] Implement and verify negotiated transport, admitted-session fade/aging and compatibility.
+- [ ] Update docs, complete the recorded suite and record the approved post-landing live steps. Ordinary review/PR/landing remain workflow gates after these pre-close checks.
 
 Proposed design: [background-work display plan](../plans/000632-background-work-fade-plan.md). A negotiated display-only field is necessary; TL a807af4c approved the design, Claude-only native coverage, full flow and post-landing live rollout without staging.
 
@@ -96,3 +96,15 @@ Read-only live peek after the plan draft found Codex0.162.1 pair:5 and ariadne:1
 ### 2026-10-16 — plan-quality accepted
 
 First plan-quality round raised PQ-1 (function-level-test-strategy), resolved by naming tested functions and their adversarial/mechanical strategies across all risky surfaces. Round2 CLEAN/high-confidence disposed PQ-1 addressed, no further findings. Normal change-code then refused only the missing estimate, as designed. Derived the itemized1.74h after that acceptance; no code has been changed.
+
+### 2026-10-16 — implementation checkpoint, targeted verification
+
+Change-code passed full flow with plan-quality CLEAN and estimate-quality INFO. Verification authoring and focused runs are included in each implementation row; suite execution/integration are covered by the validation/review allowance (the estimate is provisional and optimistic), while queue time is separately observed. The native-conformance row covers preparation and a bounded installed check once TL supplies a rollout; it does not imply a new API discovery or that deferred execution has happened. Any later worker execution is measured in its actual session, not converted to operator-attention time.
+
+Behavioral RED after API-only scaffolds: both recorded native shell footers returned unknown instead of active; malformed grammar/no-shell controls also exercised. GREEN uses only the footer below the recognized Claude composer and bounded native management/counter fields. Seeded malformed-footer/geometry fuzz PASS1574executions in4.474s. Timer RED showed unchanged Settled suppressing active background evidence and complete native footer still unknown; GREEN uses proxy.settleState to take ONE terminal snapshot for both independent observations. Existing source generation and pending-output guards fence publication; state-copy-only SessionClient publication is ordered under the delivery source lock, so newer invalidation cannot overtake it. Source activity clears positive evidence before recheck. Controlled stale-probe and terminal frame/resize/close checks pass.
+
+Actual free-composer regression replays idle-suggestion with a native running shell: settled=true plus active background; normal peer reserve/enqueue/paste/submit reaches Submitted and the shell footer remains active. Settled's rule and admission endpoints are unchanged. Wrapper focused race PASS1.755s; broad wrapper PASS73.799s, couchtty PASS66.911s (including the existing old-file/48h-silent-wait/completion/aging Console integration), artifactpath PASS12.318s. No new production files or artifact families.
+
+Protocol behavioral RED preceded hello-v4 validation/emission/fallback implementation. Strict frozen v3/v2/legacy broker schemas, independent settled+background-active state, caller ownership, nil clearing, coalescing, reconnect latest-state and refusal/malformed/timeout guards pass; focused race PASS6.900s. Registry behavioral RED preceded owned per-session hint and monotonic work/completion transitions; focused registry/activity/real-client-transport tests and race pass. Full couchmessage package PASS15.605s; full couchcmd package still running at this checkpoint. Full repository recorded suite, ordinary close review and landing are not yet claimed.
+
+Broad targeted verification completed: full couchcmd PASS127.927s with full couchmessage PASS15.605s on the final combined implementation. All earlier targeted/race/fuzz results remain applicable; only issue/atlas/README documentation changed afterward. Commit and push this candidate, then run the declared recorded full suite.

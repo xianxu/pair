@@ -105,3 +105,7 @@ All four decisions resolved: design approved, native detection Claude only (Code
 ### 2026-10-16 — PQ-1 test-strategy refinement
 
 Plan-quality accepted the design but required function-level testing strategies. Replaced the case inventories with named detector, protocol, client, registry and activity surfaces plus seeded fuzzing, controlled generation interleaving, real transport and clock-driven integration strategies. The `peerDelivery.settleFired` callback is verified with the existing fakeTimers scheduler; `proxy.backgroundWorkNow` is verified through the stateful terminal Feed/Snapshot seam. No state, field, scope, cadence or rollout change.
+
+### 2026-10-16 — implementation mapping and checklist clarification
+
+The combined runtime observation is implemented as proxy.settleState returning wrapperSettleState from one Snapshot, rather than allocating another snapshot in a separate backgroundWorkNow method; the pure backgroundWorkState boundary and existing admission rule are unchanged. Tests use the existing Console activity integration because the Console source merger did not change; new registry/client/service tests verify the typed background evidence reaching that merger. Pre-close issue checklist distinguishes recorded verification from subsequent SDLC review/landing, and keeps live acceptance explicitly post-landing under TL approval. No new state semantics, native scope, probe, timer or rollout action.
