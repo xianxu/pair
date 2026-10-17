@@ -130,7 +130,7 @@ func TestSessionStaleOutputContract(t *testing.T) {
 			t.Fatal("not identity-excluded ping")
 		}
 	}
-	for _, raw := range []string{"", "garbage", "check: landing unknown\nstale: ## Threads (old)", "stale: ## Threads\x1b[0m", strings.Repeat("x", 9000)} {
+	for _, raw := range []string{"", "garbage", "check: landing unknown\nstale: ## Threads (old)", "stale: ## Threads\x1b[0m", "stale: ## Threads\v", "fresh: every budgeted section\r", strings.Repeat("x", 9000)} {
 		if _, err := staleReminderBody("/tl.md", raw); err == nil {
 			t.Fatalf("accepted %q", raw[:min(len(raw), 80)])
 		}

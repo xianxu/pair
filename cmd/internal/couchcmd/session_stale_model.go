@@ -119,6 +119,9 @@ func staleReminderBody(file, output string) (string, error) {
 	if len(file) > couchmessage.MaxBodyBytes || len(output) > couchmessage.MaxBodyBytes {
 		return "", fmt.Errorf("tl-lead status output exceeds message limit")
 	}
+	if err := couchmessage.ValidateBody(output); err != nil {
+		return "", err
+	}
 	output = strings.TrimSpace(output)
 	if output == "fresh: every budgeted section" {
 		return "", nil

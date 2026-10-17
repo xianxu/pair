@@ -62,6 +62,8 @@ Detailed design: [stale-session reminder plan](../plans/000630-stale-session-rem
 
 - First full-suite attempt on ce41c869 found TestProductionArtifactReferencesAreExactlyClassified: the three new production files were absent from the exhaustive source inventory. A focused run reproduced exactly those three omissions. They reference operator documents and existing session-sync/broker APIs, with no Pair artifact constructor/filename vocabulary, so they are explicitly added to NonArtifactSources alongside existing session-sync/wait code; the known-violations quarantine is unchanged. The focused inventory test now passes (2.553s). The ongoing suite is retained to collect any other failures.
 
+- Plan/implementation comparison found that TrimSpace removed trailing control bytes before validation. Added red output-contract cases (vertical tab on stale output and carriage return on the fresh sentinel), then validated raw CLI output before normalization; focused three-package tests and reminder race tests pass. This restores the existing approved malformed-output contract without changing freshness policy. The queued, not-started suite on 9518a526 was explicitly interrupted because this code changed; it is retained as canceled, not a flake retry. Main #637 integrated cleanly before the corrected candidate.
+
 ## Revisions
 
 - 2026-10-17: quick-flow sizing exceeded the shell once baseline-neutral inspection and bounded asynchronous command execution were included. TL approved full flow before implementation; product behavior is unchanged.
