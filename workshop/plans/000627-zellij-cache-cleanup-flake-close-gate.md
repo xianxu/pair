@@ -69,6 +69,74 @@ rounds:
       recipe: small-diff-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 7e592cde-7edf-4317-b228-14dc9b4cc80f
+            repository: github.com/xianxu/pair
+            issue_id: "000627"
+            recipe: milestone-review
+            round: 2
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/Library/Caches/sdlc/review-checkouts/ea0a9c6e02b06df4
+            reviewed_head: f00c302c6c0937bc6101e83b79208e9a3cd87fa4
+            slot: pair:1
+            requested_at: "2026-10-17T04:12:31.568543Z"
+          phase: finished
+          pid: 8543
+          started_at: "2026-10-17T04:12:31.720959Z"
+          finished_at: "2026-10-17T04:14:47.404483Z"
+          session_id: 01a1480f-b783-72f3-835e-577c8f5a21e5
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-v1
+        repository: github.com/xianxu/pair
+        code_head: f00c302c6c0937bc6101e83b79208e9a3cd87fa4
+        tracker_head: 2dccc43dc69d5adf9270dd57cf5f1c042e4e6272
+        branch_point: 628ab0cadba9a7027130383d886fff443708c948
+        since: "2026-10-16T18:58:29-07:00"
+        until: "2026-10-16T21:11:43-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-16T18:58:29-07:00"
+              end: "2026-10-16T21:11:43-07:00"
+              began: "2026-10-16T18:58:29-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot1/pair
+        sources:
+            - harness: codex
+              id: 01a14367-3aab-7a22-b89b-0908f54a9846
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              digest: 0eb23ddfc310127ea79378606e0fff3caba2f7561ad0595c733edd0f0ef37f00
+              started: "2026-10-16T06:30:01.402Z"
+              spawned: false
+              bytes: 25562488
+              windows:
+                - start: "2026-10-16T18:58:29-07:00"
+                  end: "2026-10-16T21:11:43-07:00"
+        cuts:
+            - dispatched: "2026-10-16T20:00:31-07:00"
+              finalized: "2026-10-16T20:03:24-07:00"
+              finalizing: false
+      "n": 2
+      timestamp: "2026-10-16T21:14:48-07:00"
+      dispatched: "2026-10-16T21:12:29-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: command_procfs.go:50-62 retains PID-only rows for stat-read and parse failures. table_procfs_test.go:24 tests both failures through Table and SnapshotNamed; restoring omission makes both cases fail. live_zellij_close_test.go:210 verifies capture and shutdown polling retain owned files on unknown rows.
+          round: 2
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: f00c302c6c0937bc6101e83b79208e9a3cd87fa4
+      blocked: false
 ---
 
 # Gate ledger — pair#627 (boundary-review)
@@ -83,6 +151,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-1** [Critical] `unknown-process-read-is-not-exit` (kind: defect) Linux process-read failures can be mistaken for confirmed daemon exit
   cmd/internal/pairlifecycletest/live_zellij.go:194-206 treats an omitted PID as terminal evidence, but cmd/internal/procutil/table_linux.go:23-29 silently omits every stat-read or parse failure, including failures that do not establish disappearance. The same family has two instances in this window: the initial SnapshotNamed capture at live_zellij.go:145 can omit the daemon and leave servers empty, and the shutdown poll at :194 can falsely declare a captured daemon absent. Both paths can authorize cleanup while the writer remains alive, violating the Spec's explicit unknown-read contract (ARCH-PURPOSE). Preserve unreadable PID rows as unknown or propagate non-disappearance failures, and add regression coverage for stat-read and parse failures at both consumers.
 
+## Round 2 — 2026-10-16T21:14:48-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — command_procfs.go:50-62 retains PID-only rows for stat-read and parse failures. table_procfs_test.go:24 tests both failures through Table and SnapshotNamed; restoring omission makes both cases fail. live_zellij_close_test.go:210 verifies capture and shutdown polling retain owned files on unknown rows.
+
 ## Open findings
 
-- **BR-1** [Critical] `unknown-process-read-is-not-exit` (kind: defect) Linux process-read failures can be mistaken for confirmed daemon exit
+(none — every finding has been disposed)

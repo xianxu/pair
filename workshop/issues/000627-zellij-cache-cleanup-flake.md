@@ -15,7 +15,7 @@ claimant:
     workspace: pair:1
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "001ed5e9", done: "a42fcf6c"}
+flow: {kind: full, provenance: inferred}
 ---
 
 # Live shortcut fixture races Zellij cache removal during TempDir cleanup
@@ -46,6 +46,10 @@ Capture server PID + kernel start identity from exact --server argv/session owne
 
 ## Log
 
+
+
+- 2026-10-16: closed — Native old-daemon red and original-Close mutation fail; delayed-cache-writer regression passes. Linux actual procfs stat-read and parse regressions fail before correction, pass after; both fixture consumers preserve unknown rows and owned files. Changed packages pass with race detection; final shortcut race count=10 and complete integrated native target pass. Original-fixture native query failure filed unassigned #636 with exact differing actions and controls, retained failure plus one unchanged native-target rerun pass. Recorded integrated-source suite 4ffba844d2cccf57f0fc6eb601d0e8be59f99a94 PASS 11m14s, log sha256 b1cc17b8c66e; all CI including native conformance green. Atlas updated; TL owns project records. (done-when: contract moved since change-code; judged by the close review); review verdict: SHIP
+- 2026-10-16: flow upgraded quick → full — 106 added lines in code files (limit 100)
 All 13 shortcut input subtests passed; other live launcher/core tests passed before this teardown failure. The landing CI gate correctly refused #604. No retry or bypass has been used for this failure.
 
 2026-10-16: Verified submitted dispatch b7c6c549-80ff-4fa5-b3cf-2dad5662be74 from ops:0. Loaded tl-worker rules, claimed, started branch from main. Initial start-plan catch-up failed because installed weave lacks --defer-settings; canonical weave refresh advanced the private ariadne substrate and rebuilt its tools, and the retry started successfully (nonblocking old-weave settings-check warning). No implementation changes yet.
