@@ -14,27 +14,30 @@ import (
 // Refusal bookkeeping reuses admission's routing snapshot, even when the
 // original lookup times out; it cannot extend the request with another read.
 func TestBrokerRefusalReusesAdmissionFamilies(t *testing.T) {
-	for _, lookupTimesOut := range []bool{false, true} {
-		t.Run(fmt.Sprint("lookup-timeout=", lookupTimesOut), func(t *testing.T) {
+	for _, failure := range []string{"recipient", "lookup-timeout", "lookup-cancelled"} {
+		t.Run(failure, func(t *testing.T) {
 			now := time.Now()
 			b := NewBroker(context.Background(), nil, nil)
 			defer b.Close()
 			from, to := brokerBinding("ops:0"), brokerBinding("pair:3")
 			_ = b.Register(from, newFakeEndpoint(now))
 			_ = b.Register(to, &failingObserveEndpoint{FakeDeliveryEndpoint: newFakeEndpoint(now), err: errors.New("recipient check failed")})
+			ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+			defer cancel()
 			var calls atomic.Int32
 			b.SetFamilies(func(ctx context.Context) (map[string]string, error) {
 				if calls.Add(1) != 1 {
 					return map[string]string{"other": "p"}, nil
 				}
-				if lookupTimesOut {
+				if failure == "lookup-cancelled" {
+					cancel()
+				}
+				if failure != "recipient" {
 					<-ctx.Done()
 					return nil, ctx.Err()
 				}
 				return map[string]string{"pair": "p"}, nil
 			})
-			ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
-			defer cancel()
 			_, err := b.Send(ctx, from, "snapshot", Route{Target: "p:3"}, "work")
 			if err == nil {
 				t.Fatal("send unexpectedly admitted")
@@ -46,8 +49,11 @@ func TestBrokerRefusalReusesAdmissionFamilies(t *testing.T) {
 			if err != nil || receipt.Status != Refused {
 				t.Fatalf("refused receipt: %+v %v", receipt, err)
 			}
-			if !lookupTimesOut && receipt.Message.To.Slot != to.Slot {
+			if failure == "recipient" && receipt.Message.To.Slot != to.Slot {
 				t.Fatalf("refusal discarded original routing snapshot: %+v", receipt)
+			}
+			if failure == "lookup-cancelled" && !strings.Contains(receipt.Detail, "cancelled") {
+				t.Fatalf("cancellation reason lost: %+v", receipt)
 			}
 		})
 	}

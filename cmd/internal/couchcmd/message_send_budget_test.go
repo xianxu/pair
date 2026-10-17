@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 // sendBudgetEndpoint is healthy during enrollment, then holds Observe until
@@ -16,6 +17,32 @@ type sendBudgetEndpoint struct {
 	serviceEndpointFake
 	armed    atomic.Bool
 	deadline chan time.Time
+}
+
+// A stopped registry loop cannot keep a targeted send past its caller's
+// deadline. The fixture releases a broken implementation before joining it.
+func TestMessageSendTargetedPostHonorsCallerDeadline(t *testing.T) {
+	r := newServiceRig(t)
+	from := r.connect(1)
+	stalled := &messageService{broker: r.s.broker, authority: r.s.authority,
+		lifetime: context.Background(), inbox: make(chan messageInput)}
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	send := callerRequest(from, "send")
+	send.ID, send.Target, send.Body = "stalled-registry", "pair:2", "work"
+	done := make(chan couchmessage.Response, 1)
+	go func() { done <- stalled.handle(ctx, send) }()
+	select {
+	case response := <-done:
+		if ctx.Err() == nil || response.Code != "refused" || !strings.Contains(response.Error, "deadline exceeded") {
+			t.Fatalf("deadline refusal: %+v, caller error=%v", response, ctx.Err())
+		}
+	case <-testwait.After(t):
+		// Unblock the original lifetime-only post, then join the request.
+		<-stalled.inbox
+		response := <-done
+		t.Fatalf("targeted registry post ignored caller deadline: %+v", response)
+	}
 }
 
 func (e *sendBudgetEndpoint) Observe(ctx context.Context) (couchmessage.Observation, error) {

@@ -51,8 +51,8 @@ marshals twice (BR-8). Fold that in only if the budget change touches those line
 
 ## Plan
 
-- [ ] Measure the dropped verdict over real service sockets with a 1.5 s sender check followed by a recipient waiting for admission cancellation; retain the failing regression before production edits.
-- [ ] Start the existing admission budget before the sender check, as a child of the exchange context, and carry it into Send; return admit's families snapshot for refusal bookkeeping instead of reading again (ARCH-DRY).
+- [x] Measure the dropped verdict over real service sockets with a 1.5 s sender check followed by a recipient waiting for admission cancellation; retain the failing regression before production edits.
+- [x] Start the existing admission budget before the sender check, as a child of the exchange context, and carry it into Send; return admit's families snapshot for refusal bookkeeping instead of reading again (ARCH-DRY).
 - [ ] Regress shared deadlines, cancellation, one families read and canonical refusal reasons; run targeted race checks and the recorded full suite.
 - [ ] Update the atlas, close through fresh review and land; report to the hub. Operator restart check is deferred with #629/#631 by TL approval, with no pair:0 staging.
 
@@ -65,3 +65,13 @@ marshals twice (BR-8). Fold that in only if the budget change touches those line
 Claimed in pair:3 and started from fresh main. Inspection confirms sender authority precedes Broker.Send's new 2 s timer, and refusalFamilies starts an independent 250 ms context from broker lifetime. Share the existing admission context across authority and broker, preserving the transport's existing 1 s response margin; reuse the admission families snapshot. Increasing the transport timeout leaves the additive-budget defect; an extra deadline helper adds an owner unnecessarily. No new state, retry, persisted data or timeout value. Optional BR-8 decoding/marshalling cleanup is outside this change. TL approved this plan and deferring live validation to the operator restart alongside #629/#631 (delivery 4e1cd205-fd63-47c0-942d-41435a3c860d). The real-socket regression injects delay in the existing authority seam; no operator environment is touched.
 
 Before production edits, TestMessageSendSlowSenderStillReturnsRefusal failed over the real service socket: a 1.5 s authority delay followed by recipient Observe waiting on cancellation exhausted the CLI exchange in 3.001686625 s; response was empty and Call returned context deadline exceeded, dropping the broker verdict. Evidence: /tmp/pair634-send-budget-red.log. The separate routing-snapshot regression also exercises refusal lookup duplication and canonical target drift, including an expired initial lookup.
+
+Families regression failed on the old code with two reads both on ordinary refusal and initial lookup timeout; a changed second snapshot rewrote p:3 to other:3. After the fix it reads once and keeps pair:3. The real-socket regression passed under race at 2.00257475 s with a definite refused response and timeout reason, and exact equality of sender/recipient deadlines (/tmp/pair634-send-budget-green.log).
+
+The send-path sweep found targeted registry posting waited only on service lifetime. TL approved including caller cancellation (delivery 493d236c-3a26-4761-9978-0bab4a5ba4a1). With the registry loop deliberately absent, the new regression failed on the old post after its deadline-derived 4 s guard (/tmp/pair634-registry-red.log); the fixture then released and joined the blocked request. postContext now bounds both post/reply waits by caller and service lifetime; send returns a definite pre-admission refusal if posting fails. Existing registry callers still use service lifetime. Targeted race regressions passed, including sender deadline, stalled registry, refusal snapshot, lookup timeout/cancellation, hub routing and dormant-target re-admission (/tmp/pair634-all-regressions-green.log).
+
+## Revisions
+
+### 2026-10-17 — include targeted registry posting
+
+Inspection found an additional send step that could ignore the request deadline. Within the original every-step contract, carry the existing caller context into targeted event posting, retain service cancellation, and regress a stalled loop. No new state, retry or timeout; TL approved before this implementation delta.
