@@ -50,6 +50,7 @@ Couch CPU all the time, whether or not anyone is looking at that slot.
 
 ## Log
 
+
 ### 2026-10-16
 - 2026-10-16: closed M1 — M1 diagnostics only: recorded suite passed on aaf17569ea4005aa59502de3a3e47ecacb01dada (10m46s, log e13259c07f61); generated/concurrent counter and race checks, parser-lock barrier, production socket/JSON/text CLI conformance and exact encoded frame bounds pass. #626 retains the unrelated affected-package failure plus unchanged controls. README/atlas updated; TL owns project records. TL e6511b06 approves landing before the coordinated live restart; M2 CPU reduction and live metrics remain owed.; review verdict: SHIP
 
@@ -126,3 +127,11 @@ item: milestone-review design=0.02 impl=0.2
 design-buffer: 0.15
 total: 1.509
 ```
+
+### 2026-10-16 — post-restart measurements and M2 proposal
+
+M1 PR382 landed; TL restart dispatch4306f6e3 verified submitted to this incarnation. Fresh M2 branch000622-hosted-ingest-m2 is based on origin/main a991ba8fb2b1e30b199013aebdcdab9d237d7ed9, avoiding reuse of the merged M1 branch. start-plan delivered architectural principles without an issue argument because its default branch stem would reuse M1. No production code changed.
+
+[Live measurement and comparison](../plans/000622-live-measurement.md): server99807, 22 matched clients across75.354s and133.023s. Confirmed idle ariadne:0/parley.nvim:0 emit41–71kB/s; matched aggregate1.616/1.098MB/s. Cumulative server CPU104.16→153.46→198.65s over adjacent monotonic76.055/132.910s brackets (64.82%/34.00% of one core). Both populations changed, zero omitted; no idle-fleet or exact per-client CPU inference. Native5s samples, host contention, counter/CPU timestamp skew, failed initial broad peek and loaded-executable/disk inode mismatch are preserved. No input, process signal, rebuild, stage or restart was performed.
+
+ARCH-DRY/ORDER: reject lossy hidden rings; exact lazy replay would require preserving prompt protocol/effect/geometry authority and still consume continuous output. Profile/source support a narrower eager candidate: printable ASCII handlePrint and validateCell segmentation shortcuts, preserving all general Unicode and provisional-cluster semantics. Durable plan appends differential/generated controls, baseline/candidate complete-ingest benchmarks, full gates and coordinated live acceptance. Await TL approval before change-code/code. No whole-issue performance claim or estimate revision yet.

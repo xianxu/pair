@@ -78,7 +78,7 @@ Files: README.md, atlas/couch.md; issue Log and this plan.
 
 - [x] Document fields, counter reset/identity semantics, read-only freshness, omission behavior and the measurement recipe. Keep atlas/index links current.
 - [x] Commit/push, run the required recorded suite on the pushed head, and milestone-close M1 with measured actuals and --no-project because TL owns project records. Binary owns fresh-context review.
-- [ ] Land only M1 through normal PR/merge gates as explicitly directed; keep #622 working and M2 unchecked. Report PR/build to TL for the combined restart. No worker-initiated :0 stage/restart.
+- [x] Land only M1 through normal PR/merge gates as explicitly directed; keep #622 working and M2 unchecked. Report PR/build to TL for the combined restart. No worker-initiated :0 stage/restart.
 
 ## Measurement after M1 is live
 
@@ -111,3 +111,76 @@ TL replaced capture choreography with permanent atomic ingress counters. CPU tim
 ### 2026-10-16 — approved M1; function-specific test strategy
 
 TL approval e6511b06 confirms the atomic ingress counter, read-only hosted resources section, no per-feed CPU timing and full gates. Plan-quality PQ-1 requested function-named adversarial strategies; task verification now names each risky function, its independent oracle and its mechanical guard instead of listing cases. Scope and mechanism are unchanged.
+
+### 2026-10-16 — measured M2 proposal, awaiting TL approval
+
+M1 landed PR382; TL verified it and restarted at22:22. Dispatch4306f6e3 requests the natural measurements and M2 plan. [Measurement report](000622-live-measurement.md) retains matched per-client deltas, cumulative server CPU, both native samples, census changes, host contention and loaded-image uncertainty. The old M1 design above remains the historical scope; this revision proposes M2 and does not authorize code.
+
+**Goal:** Reduce eager terminal CPU for ordinary ASCII while retaining exact Unicode, hidden-state and protocol behavior. This is not a promise that two fast paths alone meet whole-issue acceptance.
+
+**Architecture:** Keep Endpoint as the sole eager VT authority. Optimize two existing pure computations at their current ownership boundaries. No new worker, lazy buffer, visibility policy, mode or public API. ARCH-DRY/ORDER favor retaining that authority over a protocol-only second parser; ARCH-PURPOSE requires end-to-end measurement rather than treating grapheme microbenchmarks as server savings.
+
+## M2 conceptual inventory
+
+| Name | Lives in | Status |
+|---|---|---|
+| Printable ASCII boundary/width decision (PURE) | third_party/vt/utf8.go, existing handlePrint | modified |
+| Cell grapheme validation (PURE) | cmd/internal/terminal/frame.go, existing validateCell | modified |
+
+These are local decisions, not new domain types. The first belongs 1:1 to the emulator's existing provisional cluster; the second validates each immutable Frame cell. Each bypasses only a known width1 printable ASCII segmentation result. Retain general Unicode behavior as the extension path rather than duplicating it.
+
+| Integration | Lives in | Status | Wraps |
+|---|---|---|---|
+| Eager emulator state transition | third_party/vt/utf8.go, handleGrapheme | existing/reused | cells, cursor, history, cluster amendment |
+| Authoritative feed and publication | cmd/internal/terminal/endpoint.go; cmd/internal/ptychild/terminal.go | existing/reused | parser, protocol replies/effects, snapshots and parent output |
+
+No new IO integration or fake service. Reuse real in-memory VT, existing fake Child/Endpoint and existing reply/effect recorder seams for correctness and complete-ingest benchmarks.
+
+## M2 implementation tasks after approval
+
+### 1. Establish independently checked semantics and cost
+
+Files: third_party/vt/pair_grapheme_test.go, new colocated benchmark/test file if needed; cmd/internal/terminal/frame_test.go and colocated benchmarks; existing ptychild ingest benchmark seam.
+
+- [ ] Add exhaustive95×95 printable-ASCII pair checks against the unchanged Unicode library and current slow transition reference. The expected boundary and width are independently derived; changing the shortcut predicate must break a negative/control case.
+- [ ] Build a test-only slow handlePrint reference from the pre-optimization algorithm, with explicit equivalence checks against the unmodified production method before using it as an oracle. Generated streams vary chunk partitions, geometry, cursor/pending-wrap, charset selection, control boundaries and Unicode continuations. Compare cells, cursor, modes, history, pending wrap and replies/effects through actual stateful terminals; not only returned widths.
+- [ ] Include combining marks, selectors, keycaps, ZWJ, Unicode Prepend, cluster-size overflow/drop state, split UTF-8, bottom-right width changes, alternate screen, resize and EOF ordering. Pin existing split-grapheme regressions. Fast path must retain the amendable ASCII cluster so the next non-ASCII continuation takes the original path correctly.
+- [ ] For validateCell, compare the result of every ASCII width/link/control variant and generated valid/invalid Unicode cells with the unchanged slow validator. Include nonempty width0, wrong width2, broken wide companions, control/link violations and oversize clusters, proving no validation bypass.
+- [ ] Establish committed-baseline benchmarks for ASCII redraw, mixed Unicode/control, frame validation and complete Child.ingest including Endpoint publication. Use fixed geometry/payload/chunks, GOMAXPROCS=3 and GOFLAGS=-p=3, serial repetitions with host load and suite census. No counter-only or mocked parser benchmark as the acceptance oracle. Retain logs and all repetitions.
+
+Tests of semantic equivalence should pass before optimization; benchmarks characterize the current cost. Do not manufacture a failing correctness test for unchanged behavior. The independently established oracle must detect deliberate predicate or bookkeeping mutations when qualifying its coverage.
+
+### 2. Implement the smallest measured shortcuts
+
+Files: third_party/vt/utf8.go; cmd/internal/terminal/frame.go.
+
+- [ ] In handlePrint, bypass joined-cluster and new-rune segmentation only when both the existing cluster and incoming rune are single printable ASCII (0x20..0x7e) and bounds permit them. Preserve clusterDropping reset, cluster coordinates/old cells, provisional amendment and handleGrapheme. Empty/non-ASCII predecessors and all extensions retain the slow path. Avoid adding mutable policy or a second public entry point.
+- [ ] In validateCell, retain plainText, max size, validLink and width checks; skip only grapheme segmentation when len(Content)==1, byte is0x20..0x7e and Width==1. Preserve continuation and wide-neighbor checks. Do not skip the validator or defer safety to a caller.
+- [ ] Run the differential/generated controls and existing VT, terminal, ptychild and console suites. Run targeted races through production Endpoint/Child consumers.
+- [ ] Repeat baseline/candidate benchmarks in balanced serial order. Both shortcuts must independently show the intended local effect; retain only changes with repeatable benefit. Require a complete-ingest improvement beyond run-to-run spread and no material mixed-Unicode regression. If not observed, stop and report a revised design; do not add more mechanisms under this approval.
+- [ ] Commit small coherent changes with why/model trailers. No clocks or new allocations on the per-byte path; benchmark allocations alongside elapsed time.
+
+### 3. Verify consumers and whole-server effect
+
+Files: README.md, atlas/couch.md if behavior/architecture account needs updating; issue Log and this plan. Reconcile inventory table to actual symbols before review.
+
+- [ ] Pin off-screen query reply bytes/order, exactly-once effects, sync publication, mode/input encoding, resize chronology, EOF and ring-eviction state through existing fake/real Endpoint tests. Waiting/peek use wrapper status/tails and remain independently exercised; no lazy-state flag is introduced.
+- [ ] Commit/push; run required sdlc local-check run --name suite on the pushed head. M2 milestone-close performs the mandatory fresh-context review; fix/dispute findings with evidence. No duplicate review dispatch.
+- [ ] Ask TL to coordinate candidate live check/stage/restart; worker never stages :0 unasked. Retain before/after counters, matched population, byte mix, cumulative CPU and5s sample under comparable natural load, plus console/peek/waiting checks. Server attribution must state build/selection/environment uncertainty; don't claim CPU reduction from unmatched workload or microbenchmarks.
+- [ ] Whole-issue closure requires the measured live CPU reduction and existing consumer checks, or an explicit TL-approved revision of the acceptance/landing order. Do not infer that M1's pre-restart landing exception applies to M2. Report PR/build and measurements to TL; TL owns portfolio edits.
+
+## M2 bounds and stop conditions
+
+Verification commands after approval (run VT commands with third_party/vt as cwd; others from repository root):
+
+```sh
+go test ./... -count=1
+go test ./cmd/internal/terminal ./cmd/internal/ptychild ./cmd/internal/couchtty -count=1
+go test -race ./cmd/internal/terminal ./cmd/internal/ptychild -count=1
+go test ./cmd/internal/ptychild -run '^$' -bench 'ChildIngest' -benchmem -benchtime=500ms -count=5
+sdlc local-check run --name suite
+```
+
+Add concrete benchmark names with the new tests and record their exact baseline/candidate invocations. All correctness commands must pass; benchmarks report allocation and distribution, not a pass/fail speed claim. If a new production Go file becomes necessary, include the artifact inventory check and update its manifest; prefer existing source files for this scope.
+
+No extra per-client buffer/state, worker, visibility-dependent behavior or authority. Local helpers must not become another grapheme implementation: they recognize only proven ASCII cases. A source predicate wider than that, repeated failed optimization, or need for new terminal state is a design delta requiring TL review. Lazy replay and upstream repaint reduction remain deferred alternatives. No exact per-client CPU attribution is claimed; bytes plus whole-server CPU/profile are the agreed measurement boundary.
