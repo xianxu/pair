@@ -53,8 +53,10 @@ marshals twice (BR-8). Fold that in only if the budget change touches those line
 
 - [x] Measure the dropped verdict over real service sockets with a 1.5 s sender check followed by a recipient waiting for admission cancellation; retain the failing regression before production edits.
 - [x] Start the existing admission budget before the sender check, as a child of the exchange context, and carry it into Send; return admit's families snapshot for refusal bookkeeping instead of reading again (ARCH-DRY).
-- [ ] Regress shared deadlines, cancellation, one families read and canonical refusal reasons; run targeted race checks and the recorded full suite.
-- [ ] Update the atlas, close through fresh review and land; report to the hub. Operator restart check is deferred with #629/#631 by TL approval, with no pair:0 staging.
+- [x] Regress shared deadlines, cancellation, one families read and canonical refusal reasons; run targeted race checks and the recorded full suite.
+- [x] Update the atlas and prepare acceptance evidence and deferred live-check steps.
+
+After these implementation checks: close through fresh review, land through normal gates and report to the hub. Operator restart check is deferred with #629/#631 by TL approval, with no pair:0 staging.
 
 ## Log
 
@@ -74,8 +76,16 @@ Broader race runs passed couchcmd 108.151 s and couchmessage 27.457 s (/tmp/pair
 
 Draft PR https://github.com/xianxu/pair/pull/397 opened. The final source passed all TestMessage* cases under race (12.605 s; /tmp/pair634-final-message-race.log), including the registry-post change. GitHub merge-check and local-gates-guard passed; native macOS conformance did not trigger because its path filters exclude these message-path files. Required local suite remains queued; no flaky failure or retry so far. Live-check deferral remains explicit, not a completed observation.
 
+Required recorded full suite passed, exit 0 in 13m44s, after 889 s queue wait: source f94a9ba28e70b06f3db6e6cce431641ac0272667, run 9f4aada897a31bf454d5180e8f211f0e, log /Users/xianxu/workspace/pair/.git/sdlc/local-checks/f94a9ba28e70b06f3db6e6cce431641ac0272667/suite.log, SHA256 prefix b045883b058f. couchcmd 90.910 s, couchmessage 26.765 s, wrapcmd 66.704 s, couchcore 448.351 s; no failed attempt or flake retry. Only issue documentation follows this tested source head.
+
+Deferred operator check after restarting onto the landed build: from a connected worker, send a harmless test message to the busy hub; the CLI must return its message ID and admission/queued verdict with no transport uncertainty. Query that ID while the hub's composer is occupied to see held/queued with its composer wait and queue position, then confirm submission after the composer returns. A pre-admission refusal must reach the CLI with its reason. Deterministic slow-authority and stalled-registry cases remain covered by the private real-socket/controlled-loop regressions, rather than delaying the operator's live service.
+
 ## Revisions
 
 ### 2026-10-17 — include targeted registry posting
 
 Inspection found an additional send step that could ignore the request deadline. Within the original every-step contract, carry the existing caller context into targeted event posting, retain service cancellation, and regress a stalled loop. No new state, retry or timeout; TL approved before this implementation delta.
+
+### 2026-10-17 — separate completed verification from landing actions
+
+Split the last Plan row into completed atlas/evidence work and the subsequent SDLC gate actions, so checking implementation complete does not claim that review, landing or the deferred operator check already happened.
