@@ -8,11 +8,13 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/webcast"
+	"github.com/xianxu/pair/cmd/internal/webcast/capability"
 	"github.com/xianxu/pair/cmd/internal/webcast/drive"
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
@@ -179,6 +181,9 @@ func (c *driveCast) waitDrive(t *testing.T, what string, ready func() bool) {
 }
 func awaitDrive(t *testing.T, what string, done <-chan struct{}) {
 	t.Helper()
+	if done == nil {
+		t.Fatalf("%s: action was not accepted (nil completion channel)", what)
+	}
 	select {
 	case <-done:
 	case <-time.After(5 * time.Second):
@@ -207,6 +212,164 @@ func (c *driveCast) span(t *testing.T, text string) ColumnSpan {
 		return c.con.drivePending == nil && span != (ColumnSpan{}) && span == row.WebDrive && (text == "" || model.WebDrive == text)
 	})
 	return span
+}
+
+// tryEnableDrive makes no attempt until cleanup reaches Off. Even then the
+// previous Cast worker may still own its slot: nil means no action was admitted.
+// A non-nil result owns one enable, independently of later notice delivery.
+func (c *driveCast) tryEnableDrive() <-chan struct{} {
+	if c.cast().Capabilities().Drive.Phase != capability.Off {
+		return nil
+	}
+	return c.con.onWebCapabilityClick(webcast.CapabilityDrive, false)
+}
+
+func (c *driveCast) reenableDrive(t *testing.T) {
+	t.Helper()
+	var done <-chan struct{}
+	c.waitDrive(t, "drive re-enable admitted", func() bool {
+		done = c.tryEnableDrive()
+		return done != nil
+	})
+	awaitDrive(t, "drive re-enable completed", done)
+}
+
+// heldDriveRelease pauses after reset has cleared control, before cleanup can
+// finish releasing input. Ordinary driver changes remain untouched until armed.
+type heldDriveRelease struct {
+	*webcast.FakeDriven
+	armed            atomic.Bool
+	entered, release chan struct{}
+}
+
+func (b *heldDriveRelease) WithTab(ctx context.Context, by string, fn func(drive.Tab) error) error {
+	if err := b.FakeDriven.WithTab(ctx, by, fn); err != nil {
+		return err
+	}
+	if by == "" && b.armed.CompareAndSwap(true, false) {
+		close(b.entered)
+		select {
+		case <-b.release:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+	return nil
+}
+
+func TestDriveDisableCompletionOrdering(t *testing.T) {
+	t.Run("control reset precedes cleanup completion", func(t *testing.T) {
+		b := &heldDriveRelease{entered: make(chan struct{}), release: make(chan struct{})}
+		var once sync.Once
+		release := func() { once.Do(func() { close(b.release) }) }
+		defer release()
+		c := newDriveCast(t, func(d *webcast.FakeDriven) webcast.Browser {
+			b.FakeDriven = d
+			return b
+		})
+		v := c.viewer(t, "Ana")
+		if err := c.cast().Drive().Grant(v); err != nil {
+			t.Fatal(err)
+		}
+		waitFor(t, "Chrome told Ana drives", func() bool { return c.d.Driving() == "Ana" })
+		b.armed.Store(true)
+		c.con.mu.Lock()
+		span := c.con.statusWebDriveLink
+		c.con.mu.Unlock()
+		c.mouse(0, span.End-1, 23, false)
+		c.mouse(0, span.End-1, 23, true)
+		awaitDrive(t, "input release entered", b.entered)
+		waitFor(t, "control back before cleanup settles", func() bool { return c.control().Driver == nil })
+		waitFor(t, "Chrome told nobody drives before cleanup settles", func() bool { return c.d.Driving() == "" })
+		p := c.cast().Capabilities().Project(webcast.CapabilityDrive)
+		if p.Enabled || p.Action != "wait" {
+			t.Fatalf("unfinished cleanup: %+v", p)
+		}
+		if done := c.con.onWebCapabilityClick(webcast.CapabilityDrive, false); done != nil {
+			t.Fatal("click during cleanup was accepted")
+		}
+		if done := c.tryEnableDrive(); done != nil {
+			t.Fatal("fixture admitted enable before cleanup completed")
+		}
+		release()
+		c.reenableDrive(t)
+		if !c.cast().Capabilities().Project(webcast.CapabilityDrive).Enabled {
+			t.Fatal("drive did not re-enable after cleanup")
+		}
+	})
+	t.Run("authority off precedes terminal completion", func(t *testing.T) {
+		c := newDriveCast(t)
+		entered, release, joined := make(chan struct{}), make(chan struct{}), make(chan struct{})
+		var once sync.Once
+		unblock := func() { once.Do(func() { close(release) }) }
+		defer func() { unblock(); awaitDrive(t, "terminal barrier joined", joined) }()
+		go func() {
+			defer close(joined)
+			_ = c.con.runTerminalCommand(c.con.lifetime, func() error {
+				close(entered)
+				<-release
+				return nil
+			})
+		}()
+		awaitDrive(t, "terminal barrier entered", entered)
+		done := c.con.onWebCapabilityClick(webcast.CapabilityDrive, false)
+		waitFor(t, "authority off", func() bool {
+			return c.cast().Capabilities().Drive.Phase == capability.Off
+		})
+		var enabled <-chan struct{}
+		c.waitDrive(t, "enable admitted after Off while terminal blocked", func() bool {
+			enabled = c.tryEnableDrive()
+			return enabled != nil
+		})
+		select {
+		case <-enabled:
+			t.Fatal("enable completion preceded its terminal command")
+		default:
+		}
+		unblock()
+		awaitDrive(t, "disable terminal completion", done)
+		awaitDrive(t, "enable terminal completion", enabled)
+		if !c.cast().Capabilities().Project(webcast.CapabilityDrive).Enabled {
+			t.Fatal("accepted enable did not complete")
+		}
+	})
+	t.Run("completion precedes late reset presentation", func(t *testing.T) {
+		c := newDriveCast(t)
+		cast := c.cast()
+		v := c.viewer(t, "Ana")
+		if err := cast.Drive().Grant(v); err != nil {
+			t.Fatal(err)
+		}
+		c.waitDrive(t, "grant projected before disable", func() bool {
+			c.con.pnotes.mu.Lock()
+			defer c.con.pnotes.mu.Unlock()
+			return c.con.pnotes.drive.control.Driving() == v
+		})
+		awaitDrive(t, "disable completed before late presentation", c.con.onWebCapabilityClick(webcast.CapabilityDrive, false))
+		c.waitDrive(t, "real reset projected before replay", func() bool {
+			c.con.pnotes.mu.Lock()
+			defer c.con.pnotes.mu.Unlock()
+			return c.con.pnotes.drive.control.Driver == nil
+		})
+		// Replay the valid grant/reset delivery sequence after capability
+		// completion, on the real terminal queue. This models its subscriber
+		// lagging behind the independent capability-completion worker.
+		if err := c.con.runTerminalCommand(c.con.lifetime, func() error {
+			c.con.applyDrive(cast, recording.Control{Driver: &ana})
+			c.con.applyDrive(cast, recording.Control{})
+			return nil
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if got := c.notice(); got != "Control of the cast tab is back with you." {
+			t.Fatalf("late reset did not replace completion notice: %q", got)
+		}
+		c.reenableDrive(t)
+		if !cast.Capabilities().Project(webcast.CapabilityDrive).Enabled {
+			t.Fatal("late reset presentation prevented re-enable")
+		}
+	})
+
 }
 
 // clickRow opens the drive menu (if closed) and clicks the row whose text
@@ -310,8 +473,7 @@ func TestDriveFromCouch(t *testing.T) {
 	c.mouse(0, driverSpan.End-1, 23, true)
 	waitFor(t, "control back", func() bool { return c.control().Driver == nil })
 	waitFor(t, "Chrome told nobody drives", func() bool { return c.d.Driving() == "" })
-	waitFor(t, "drive disabled", func() bool { return !c.cast().Capabilities().Project("drive").Enabled })
-	<-c.con.onWebCapabilityClick("drive", false)
+	c.reenableDrive(t)
 	waitFor(t, "drive enabled", func() bool { return c.cast().Capabilities().Project("drive").Enabled })
 
 	// Ctrl+click on the span takes control back with the menu closed, and
