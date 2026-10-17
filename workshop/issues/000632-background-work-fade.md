@@ -75,6 +75,8 @@ Proposed design: [background-work display plan](../plans/000632-background-work-
 
 ## Log
 
+
+- 2026-10-17: closed — Corrected candidate bead8f5d4368548f002be8133a907a441dda80e6 passed its first recorded full make test in 10m27s after2023s queue, log SHA256 5aa1917518d8c908480ab1f6d60829a98af98604bd3f9fa4ce4265ca983975d4. BR-1 ten behavioral RED cases now GREEN; captured active/no-shell controls, focused settle/admission race and seeded fuzz pass. BR-2 removed the unchanged Console test from changed-entity inventory and records reused validation. Lessons added for both classes. TL-approved Claude-only scope and post-landing installed live acceptance remain explicit; no pair:0 staging.; review verdict: SHIP
 2026-10-16: filed from #625 under TL decision19e11f39-5e0e-46cf-8fe8-a1fbc76d223b; current #625 lands its existing work-state projection plus approved LastActivity reconnect seed. This independent surface follows that landing; no stacked code or live rollout performed here.
 
 ### 2026-10-16 — resumed dispatch and source trace
