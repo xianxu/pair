@@ -406,10 +406,12 @@ need no registration and keep their legacy owner compatibility.
 | `forget FILE [--json]` | Removes registration, including for a deleted file; never deletes the document or operator lock |
 | `rename OLD NEW [--json]` | Updates metadata after a successful filesystem move; keeps identity, snapshots, folds and old-path submits |
 | `read --section HEADING FILE [--json]` | Prints `hash: H`, then that `## HEADING` section's body |
+| `read --frontmatter FILE [--json]` | The complete leading `---` block and its hash; acknowledges only this block |
 | `read --all FILE [--json]` | The whole file and its hash; you have now seen every edit, so `diff` goes empty |
 | `write --section HEADING BODYFILE FILE --if-hash H` | Replaces that section if it still has hash H (whole heading lines only) and prints the new hash |
+| `write --frontmatter BODYFILE FILE --if-hash H` | Replaces only the leading block; preserves body bytes and unread body edits |
 | `write --all BODYFILE FILE --if-hash H` | Replaces the whole file (keep the frontmatter) if it still has hash H |
-| `diff FILE` | The operator's edits you haven't seen: anything outside what you last wrote or read with `--all` (information, not a gate) |
+| `diff FILE` | The operator's edits you haven't seen: anything outside what you last wrote, read with `--frontmatter`, or read with `--all` (information, not a gate) |
 | `status [--json] FILE` | The lock, your last write, and the events you still owe the file |
 
 - **Refusals:** exit 3 = the operator holds the lock: queue the update until
@@ -437,9 +439,11 @@ need no registration and keep their legacy owner compatibility.
   a write without `--fold` clears nothing. Folding an ID that isn't owed
   refuses. With nothing to change, fold by writing the section back as `read`
   printed it.
-- Your write restamps the file's first `Updated` line; if that line sits in
+- **Frontmatter only:** use `read --frontmatter FILE`, then `write --frontmatter BODYFILE FILE --if-hash H` for metadata changes. BODYFILE contains the complete closed leading `---` block (optional trailing whitespace, no body). The hash includes both delimiters but excludes the closing line ending; missing or unterminated blocks refuse. Both operations acknowledge only this block, including on a first read/write without a baseline; the body stays unread. This is a **light** local operation.
+- A section or whole-file write restamps the file's first `Updated` line; if that line sits in
   a section, that section's hash changes too, and a held hash for it goes
-  `stale`: read again.
+  `stale`: read again. A frontmatter write preserves every body byte, including its `Updated` line.
+- **Publication errors:** document, shadow and state publish separately. An IO error may follow a changed document; read the target again, inspect `diff`/`status`, recompute the desired content and hash, and explicitly retry still-owed folds. Never blindly replay the old hash.
 - **Unseen edits:** a section write takes in only its own section, so the
   operator's edits elsewhere (a `🤖[…]` marker under another heading) stay in
   `diff`. Run `diff` after a submit and answer what it shows; `read --all`
