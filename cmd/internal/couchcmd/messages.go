@@ -81,7 +81,7 @@ func runMessageCLIWithCall(inv cliInvocation, rt Runtime, stdout, stderr io.Writ
 		fmt.Fprintln(stderr, "couch:", err)
 		return 1
 	}
-	// The broker spends up to AdmissionTimeout admitting a send and then
+	// The broker spends up to AdmissionTimeout checking and admitting a send, then
 	// answers with its verdict (pair#618); waiting exactly as long gave up at
 	// the moment the answer was due and hid the reason.
 	ctx, cancel := context.WithTimeout(context.Background(), couchmessage.SendTransportTimeout)

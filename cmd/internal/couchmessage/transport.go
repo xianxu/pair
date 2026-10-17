@@ -348,8 +348,8 @@ func transportWriteFrame(out io.Writer, body []byte) error {
 const RecoveryPreviewTimeout = 35 * time.Second
 
 // SendTransportTimeout is a send's exchange budget on both ends: the broker
-// spends up to AdmissionTimeout admitting it and then answers with its verdict,
-// so the exchange must outlast admission or the verdict (a refusal's reason)
+// spends up to AdmissionTimeout checking the sender and admitting it, then
+// answers with its verdict. The exchange must outlast admission or the verdict (a refusal's reason)
 // is dropped on the floor (pair#618).
 const SendTransportTimeout = AdmissionTimeout + time.Second
 
