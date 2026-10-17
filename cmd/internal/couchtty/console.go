@@ -295,6 +295,7 @@ func New(host hostty.Host, stdin io.Reader) *Console {
 		activityRequests:    make(chan struct{}, 1),
 		activityResults:     make(chan activityResult, 1),
 		activityInterval:    defaultActivityInterval,
+		probeTimeout:        activityProbeTimeout,
 		blockedUpdates:      make(chan map[couchcore.ThreadAddress]bool, 1),
 		now:                 time.Now,
 		continuationResults: make(chan continuationScanResult, 1),

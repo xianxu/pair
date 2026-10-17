@@ -38,6 +38,17 @@ func (r *deadlineProbeRuntime) SessionActivity(ctx context.Context, thread threa
 	return r.base.SessionActivity(ctx, thread)
 }
 
+// New must default the bound to the package const: a zero deadline expires
+// immediately, and under load a probe can lose that race, so a missing default
+// reads as a flake while silently failing every production probe (#628).
+func TestNewConsoleDefaultsTheProbeBound(t *testing.T) {
+	console := New(hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 80}), nil)
+	t.Cleanup(console.Stop)
+	if console.probeTimeout != activityProbeTimeout {
+		t.Fatalf("probeTimeout = %v, want the package const %v", console.probeTimeout, activityProbeTimeout)
+	}
+}
+
 func TestActivityProbeDeadlineSurfacesFailureAndRecovers(t *testing.T) {
 	const slots = 2
 	evidence := workbenchperftest.NewFixture(t, slots, 4096)
