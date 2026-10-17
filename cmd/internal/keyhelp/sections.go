@@ -126,6 +126,11 @@ func sections(src SourceReader, hosted bool) ([]Section, error) {
 // descFor resolves a row's wording from the source it names — and only that source.
 func descFor(e entry, nvimDesc, globalHelp, roleHelp map[string]string) (string, error) {
 	switch e.Source {
+	case SourceParley:
+		if d := parleyKeyHelp[e.Key]; d != "" {
+			return d, nil
+		}
+		return "", fmt.Errorf("keyhelp: %q names SourceParley but has no companion-editor metadata", e.Key)
 	case SourceNvim:
 		if d := nvimDesc[e.Key]; d != "" {
 			return d, nil
