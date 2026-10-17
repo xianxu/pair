@@ -179,3 +179,61 @@ func TestTerminalHandoffPostbirthQueryKeepsLifetimeCancellation(t *testing.T) {
 		t.Fatalf("query=%v error=%v", queried, err)
 	}
 }
+
+type postbirthExitWorld struct {
+	*handoffWorld
+	lifetime context.Context
+	queried  chan struct{}
+}
+
+func (w *postbirthExitWorld) Start(ctx context.Context) (HandoffClient, error) {
+	w.lifetime = ctx
+	return w.handoffWorld.Start(ctx)
+}
+func (w *postbirthExitWorld) Admit(readiness context.Context) error {
+	return admitTerminalAfterReady(readiness, w.lifetime, func(context.Context) error { return nil }, func(ctx context.Context) error {
+		close(w.queried)
+		<-ctx.Done()
+		w.event("postbirth-query-ended")
+		return ctx.Err()
+	})
+}
+func TestTerminalHandoffClientExitCancelsPostbirthQuery(t *testing.T) {
+	for _, callerCancel := range []bool{false, true} {
+		t.Run(map[bool]string{false: "client-exit", true: "caller-cancel"}[callerCancel], func(t *testing.T) {
+			lifetime, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			w := &postbirthExitWorld{handoffWorld: newHandoffWorld(), queried: make(chan struct{})}
+			done := make(chan error, 1)
+			go func() { _, err := coordinateTerminalHandoff(lifetime, lifetime, w, time.Minute, true); done <- err }()
+			<-w.queried
+			if callerCancel {
+				cancel()
+			} else {
+				w.exit <- HandoffExit{Code: 0}
+			}
+			select {
+			case err := <-done:
+				if err == nil {
+					t.Fatal("client exit before query admission reported success")
+				}
+			case <-time.After(time.Second):
+				cancel()
+				<-done
+				t.Fatal("client exit did not cancel and join the postbirth query")
+			}
+			ended, released := -1, -1
+			for i, e := range w.events {
+				if e == "postbirth-query-ended" {
+					ended = i
+				}
+				if e == "release" {
+					released = i
+				}
+			}
+			if ended < 0 || released <= ended {
+				t.Fatalf("query not joined before lease release: %v", w.events)
+			}
+		})
+	}
+}

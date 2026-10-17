@@ -137,6 +137,9 @@ func (c terminalOSClient) Wait() HandoffExit {
 	return HandoffExit{Code: 1, Err: err}
 }
 func (a *terminalOSAttempt) Start(ctx context.Context) (HandoffClient, error) {
+	// The coordinator cancels this attempt when its client exits. Admission
+	// starts after Start returns, so this assignment precedes every query.
+	a.lifetimeCtx = ctx
 	cmd := killOnCancel(exec.CommandContext(ctx, "zellij", terminalLaunchArgs(a.name, a.config, a.layout, a.create)...))
 	cmd.Env = append(os.Environ(), "ZELLIJ_SOCKET_DIR="+a.socketRoot)
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
@@ -230,7 +233,6 @@ func (r OSRuntime) runTerminalHandoffContext(lifetimeCtx, queryCtx context.Conte
 	if err != nil {
 		return 1, err
 	}
-	a.lifetimeCtx = lifetimeCtx
 	return coordinateTerminalHandoff(lifetimeCtx, queryCtx, a, birthBound, create)
 }
 

@@ -79,6 +79,9 @@ func coordinateTerminalHandoff(ctx, queryCtx context.Context, rt TerminalHandoff
 	go func() { admitted <- rt.Admit(admitCtx) }()
 	select {
 	case exit := <-exited:
+		// Admission work belongs to this attempt, including post-birth queries
+		// whose deadline is independent of the readiness wait.
+		stopClient()
 		stopObserver()
 		<-admitted
 		return exit.Code, errors.Join(exit.Err, errors.New("terminal client exited before admission was verified"))
