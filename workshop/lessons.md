@@ -2136,3 +2136,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 - #638: A successful subprocess exit does not prove a complete piped-input operation. exec.ErrWaitDelay can describe either unread inherited stdin or a held-open diagnostic descriptor; preserve success only after verifying the existing input reader is exhausted and context remains valid. Pair the full-read/held-stderr regression with an over-pipe-capacity unread-input negative control.
 - #643: Distinguish atomic replacement of one file from publication of a document/shadow/state bundle. A plan must name partial persisted outcomes and reconciliation after IO failure; test a controlled publication failure and prove unread baselines and owed events survive.
+
+- #638 BR-1 (advisory): When positive and negative subprocess regressions share a descriptor-holder protocol, give one test helper ownership of its environment, release handshake and bounded cleanup so lifecycle fixes do not diverge between copies.
