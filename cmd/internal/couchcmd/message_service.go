@@ -468,6 +468,7 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch, configur
 	service.SetBroadcastStatus(console.BroadcastStatus)
 	service.SetShares(console.Shares)
 	service.SetBlockedView(console.SetBlockedThreads)
+	console.SetWrapperActivity(service.WrapperActivity)
 	service.showHub(console)
 	service.SetReplay(console.ReplayShare, console.SharedReplays)
 	service.SetSubmission(console.Submission)
@@ -640,6 +641,12 @@ func (s *messageService) loop() {
 	registry := couchmessage.NewRegistry()
 	var step func(e couchmessage.RegistryEvent) error
 	step = func(e couchmessage.RegistryEvent) error {
+		if e.Kind == couchmessage.SessionActivity || e.Kind == couchmessage.SessionSubmit {
+			e.At = time.Now()
+			if s.authority.now != nil {
+				e.At = s.authority.now()
+			}
+		}
 		var before map[couchmessage.Binding]factSlotState
 		log := s.facts.Load()
 		if log != nil {
@@ -1302,6 +1309,27 @@ func (s *messageService) LivenessForThread(scope, tag string) (couchmessage.Slot
 		}
 	}
 	return couchmessage.SlotLiveness{}, false
+}
+
+// WrapperActivity reads the existing admitted-session snapshot, never probes.
+// Known-unsettled includes a silent turn/command wait; settled sessions age
+// from their last work/completion, not from refreshes of an idle screen.
+func (s *messageService) WrapperActivity(row couchcore.ActionableThreadSummary) time.Time {
+	live, admitted := s.LivenessForThread(row.Address.RepoScope, string(row.Address.Tag))
+	if !admitted || live.Settled == nil || live.Binding.Agent != row.Agent {
+		return time.Time{}
+	}
+	work := live.LastWorkAt
+	if !*live.Settled {
+		now := time.Now()
+		if s.authority.now != nil {
+			now = s.authority.now()
+		}
+		if now.After(work) {
+			work = now
+		}
+	}
+	return work
 }
 
 // Liveness behind the message authority: a fresh listing at most this often,

@@ -1279,6 +1279,21 @@ The Go launcher's `RunLaunch` prepends `$PAIR_HOME/bin` to `$PATH` once at entry
 
 The built binaries live in `$PAIR_HOME/bin` (first on PATH per *Path resolution* above). `bin/` is **gitignored** — built on demand, absent in a fresh tree. Local `make install` links `pair`, `couch`, and `pair-launch-helper` from `~/.local/bin` to that checkout, so rebuilding replaces the binary reached through the installed path. Older installations copied binaries there; those copies could shadow fresh checkout builds on PATH and remain stale until reinstalled. Shell aliases cannot fix executable lookups performed by child processes. The linked local installation requires the checkout to remain in place; packaged or separately copied binaries retain their own deployment lifecycle.
 
+Pair's three explicit binary targets share `scripts/build-go-atomic.sh` (#624).
+Go writes into an invocation-owned temporary directory beside the final binary;
+only a successful build is renamed onto that path. Failed or interrupted builds
+leave the previous executable intact and remove their staging directory. Concurrent
+builds have separate staging directories; the last successful rename wins, always
+with a complete executable. The existing `.skip-make-build` sentinels keep the
+base-layer generic scanner from overwriting these outputs a second time. No lock
+is needed for publication: the same-filesystem rename is the atomic boundary.
+The guard test exercises both direct targets and root `make build`, plus review
+asset preparation with a foreign `PAIR_HOME`; all fixture writes stay in the worker.
+A direct Go replacement probe reproduced missing/partial output. The exact caller
+behind the historical primary-checkout gaps is unknown; the TL's explicit rebuild
+around that period is a likely candidate, not a proven correlation.
+
+
 Two launch modes resolve this:
 - **Deployed** — `pair`. Runs whatever prebuilt binary PATH finds; zero toolchain dependency at launch. Local `make install` links `~/.local/bin` to the checkout’s `bin/`, so later builds are visible without reinstalling; keep that checkout in place. Already-running processes must restart to use the rebuilt binary.
 - **Dev** — `pair-dev` (#000046). Exports `PAIR_DEV=1` and execs `pair`; the launcher's `DevRebuild` then runs `make build` (still via `bin/lib/dev-rebuild.sh`'s `dev_rebuild`, sourced from Go) on the **create path**, before the layout execs pair-wrap, so `$PAIR_HOME/bin` holds a fresh build. Restart-safe: `PAIR_DEV` survives the launcher's in-process restart loop, so Alt+n rebuilds too; Shift+Alt+N only replaces the current wrapper's agent child and therefore does not rebuild Pair. A plain attach (no new wrapper spawned) correctly skips the build. Deployed launches (`PAIR_DEV` unset) invoke no toolchain.
@@ -1346,7 +1361,10 @@ ordinary contexts have no observer or new output.
 
 `cmd/internal/procutil` owns host process observations without launching `ps`.
 `Table` remains a cheap metadata snapshot (PID, parent, start identity, niceness
-and short kernel name). `Snapshot` enriches rows with native executable/argv and
+and short kernel name). Linux retains listed PIDs whose stat read or parse
+fails as PID-only unknown rows; only `ENOENT`/`ESRCH` permits omission. Unknown
+rows remain candidates for named capture and cannot prove a writer has exited.
+`Snapshot` enriches rows with native executable/argv and
 rechecks start identity, retaining unavailable evidence per live row. Native
 command reads reporting `EINVAL`, `ESRCH` and `ENOENT` mean gone and are omitted,
 including exit races during later environment reads. Identity reads retain their

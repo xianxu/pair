@@ -117,7 +117,7 @@ func TestBrokerAdmissionIsImmediateAndMailboxIsBounded(t *testing.T) {
 		t.Fatal("worker did not deliver")
 	}
 	// A second message waits behind the delivery in progress (pair#492).
-	if q, err := b.Send(context.Background(), a, "id-2", Route{Target: "pair:1"}, "second"); err != nil || q.Status != Queued || q.Detail != "position 1" {
+	if q, err := b.Send(context.Background(), a, "id-2", Route{Target: "pair:1"}, "second"); err != nil || q.Status != Queued || q.Detail != "position 2; waiting for recognized composer" {
 		t.Fatalf("second send: %+v %v", q, err)
 	}
 	duplicate, err := b.Send(context.Background(), a, "id-1", Route{Target: "pair:1"}, "hello")
@@ -151,16 +151,9 @@ func TestBrokerStatusShowsRecipientHold(t *testing.T) {
 	}
 	<-fz.delivered
 	fz.interim <- Receipt{Message: r.Message, Status: Held, Detail: "waiting for the composer to be in view"}
-	deadline := time.Now().Add(time.Second)
-	for {
-		got, err := b.Status(a, "id-held")
-		if err == nil && got.Status == Held && got.Detail == "waiting for the composer to be in view" {
-			break
-		}
-		if time.Now().After(deadline) {
-			t.Fatalf("status never showed the hold: %+v %v", got, err)
-		}
-		time.Sleep(5 * time.Millisecond)
+	waitStatus(t, b, a, "id-held", Held)
+	if got, err := b.Status(a, "id-held"); err != nil || got.Detail != "position 1; waiting for the composer to be in view" {
+		t.Fatalf("status lost the hold/position: %+v %v", got, err)
 	}
 	fz.outcomes <- Receipt{Status: Submitted}
 }

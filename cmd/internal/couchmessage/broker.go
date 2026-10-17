@@ -12,9 +12,8 @@ import (
 
 const AdmissionTimeout = 2 * time.Second
 
-// PasteTimeout bounds admission to paste: the recipient may still be booting
-// or busy. DeliveryTimeout is the window from the paste to its outcome
-// (pair#427); Message.Horizon combines them.
+// PasteTimeout bounds the initial reservation/commit exchange. Accepted
+// composer waits follow receiver lifetime; DeliveryTimeout starts at paste.
 const PasteTimeout = 90 * time.Second
 const DeliveryTimeout = 30 * time.Second
 const MaxActors = 128
@@ -264,11 +263,9 @@ func (b *Broker) disconnectLocked(a *SlotActor) {
 		if !ok || m.From != binding {
 			continue
 		}
+		status := Cancelled
 		if job := b.jobs[m.ID]; job != nil {
 			job.cancel()
-		}
-		status := Cancelled
-		if b.receipts[m.ID].Status == Delivering {
 			status = Indeterminate
 		}
 		_ = b.apply(dest, Event{Kind: DeliveryFinished, Binding: m.To, Message: m, Status: status, Detail: "sender disconnected", At: b.now()})
@@ -405,7 +402,7 @@ func (b *Broker) Status(caller Binding, id string) (Receipt, error) {
 }
 
 // ReceiptSnapshot reads the supervisor's retained receipt without a live
-// caller. It performs no endpoint IO and keeps the normal expiry/retention
+// caller. It performs no endpoint IO and keeps the normal terminal receipt retention
 // rules, including when the sender has disconnected. The final bool reports an
 // active delivery callback: disconnection can make its receipt terminal before
 // endpoint accounting finishes. Consumers must retain provenance until it ends.
@@ -417,14 +414,14 @@ func (b *Broker) ReceiptSnapshot(id string) (Receipt, bool, bool) {
 	return r, known, b.jobs[id] != nil
 }
 
-// receiptLocked is every read of a stored receipt. A queued message's expiry
-// is due whether or not the worker is free to apply it, so a read past
-// QueueWait sees it expired (pair#492).
+// receiptLocked adds the current waiting-line position and the receiver's
+// standing composer wait to nonterminal pre-paste receipts.
 func (b *Broker) receiptLocked(id string) (Receipt, bool) {
 	r, ok := b.receipts[id]
-	if a := b.actors[r.Message.To]; ok && a != nil && r.Status == Queued && !b.now().Before(r.Message.Deadline) {
-		_ = b.apply(a, Event{Kind: Tick, At: b.now()})
-		r = b.receipts[id]
+	a := b.actors[r.Message.To]
+	if ok && a != nil {
+		pending, _ := a.state.Pending()
+		r = a.state.waitingReceipt(r, b.receipts[pending.ID])
 	}
 	return r, ok
 }
@@ -707,20 +704,22 @@ func (b *Broker) tryAdmission(ctx context.Context, a *SlotActor, seq uint64, fro
 	b.destinations[id] = route
 	a.reservation = ""
 	a.inbox <- m
-	return b.receipts[id], nil
+	receipt, _ := b.receiptLocked(id)
+	return receipt, nil
 }
 
 // enqueueLocked lines an exact message up behind the recipient's delivery
 // (pair#492) and wakes the worker that promotes it.
 func (b *Broker) enqueueLocked(a *SlotActor, from Binding, id string, route Route, body string) (Receipt, error) {
 	now := b.now()
-	m := Message{ID: id, From: from, To: a.binding, Body: body, Deadline: now.Add(QueueWait), AcceptedAt: now}
+	m := Message{ID: id, From: from, To: a.binding, Body: body, Deadline: now.Add(PasteTimeout), AcceptedAt: now}
 	if err := b.apply(a, Event{Kind: Enqueue, Binding: a.binding, Message: m, At: now}); err != nil {
 		return Receipt{}, err
 	}
 	b.destinations[id] = route
 	a.wakeLocked()
-	return b.receipts[id], nil
+	receipt, _ := b.receiptLocked(id)
+	return receipt, nil
 }
 
 // wakeLocked tells the worker to look at the queue again.
@@ -954,8 +953,8 @@ func (b *Broker) runActor(ctx context.Context, a *SlotActor) {
 
 // deliver runs one delivery to its terminal outcome.
 func (b *Broker) deliver(ctx context.Context, a *SlotActor, m Message) {
-	// The broker's clock dates the horizon; the job's timer is real.
-	deliveryCtx, cancel := context.WithTimeout(ctx, m.Horizon().Sub(b.now())+ReceiptTimeout)
+	// Accepted composer waits end with this exact receiver's lifetime.
+	deliveryCtx, cancel := context.WithCancel(ctx)
 	job := &deliveryJob{cancel: cancel}
 	b.mu.Lock()
 	pending, ok := a.state.Pending()

@@ -32,7 +32,7 @@ type peerDelivery struct {
 	submissions   uint64
 	pasteSequence uint64
 	// The post-paste half of a delivery (pair#427). deliverBy is the paste
-	// time plus DeliveryTimeout; Message.Deadline only bounds the paste.
+	// time plus DeliveryTimeout; Message.Deadline bounds the initial commit.
 	pastedAt                time.Time
 	submittedAt             time.Time
 	pasteEpoch, submitEpoch uint64
@@ -48,10 +48,6 @@ type peerDelivery struct {
 	image                   bool
 	interrupted             bool
 	released                bool // broker cancellation, never operator input
-	// Operator holds before the paste (pair#435): heldFor is the closed
-	// hold time credited to the paste-by, heldSince the open hold's start.
-	heldFor   time.Duration
-	heldSince time.Time
 	// What held this half of the delivery, and for how long (pair#438):
 	// each dispatch charges the time since waitAt to the standing Detail.
 	waits  map[string]time.Duration
@@ -387,7 +383,6 @@ func (d *peerDelivery) enqueue(m couchmessage.Message) error {
 	d.state = couchmessage.PeerDeliveryState{}
 	d.interrupted = false
 	d.released = false
-	d.heldFor, d.heldSince = 0, time.Time{}
 	d.waits, d.waitAt = nil, time.Time{}
 	d.signal()
 	return nil
@@ -409,9 +404,9 @@ func (p *proxy) peerComposerSubmission() bool {
 	return known
 }
 
-// dispatchPeer is called only by the existing PTY input writer. It checks the
-// phase's deadline before every automatic effect: paste-by before the paste,
-// the paste-relative window after it (pair#427).
+// dispatchPeer is called only by the existing PTY input writer. A connected
+// receiver may wait before paste; input effects after paste share one bounded
+// submit/confirmation window.
 func (p *proxy) dispatchPeer(out io.Writer) {
 	p.dispatchAgentDrive(out)
 	d := p.peer
@@ -443,12 +438,9 @@ func (p *proxy) dispatchPeer(out io.Writer) {
 	switch {
 	case d.exited:
 		event.Kind = couchmessage.PeerChildExited
-	case !d.now().Before(d.deadlineLocked()):
+	case d.current.Status == couchmessage.Delivering && !d.now().Before(d.deliverBy):
 		event.Kind = couchmessage.PeerDeadlineElapsed
 		d.current.Detail = d.waitSummaryLocked()
-		if !d.now().Before(d.current.Message.HoldLimit()) {
-			d.current.Detail = "held past " + couchmessage.MaxHold.String() + ", " + d.current.Detail
-		}
 	case d.image && d.current.Status == couchmessage.Delivering:
 		event.Kind = couchmessage.PeerImageInput
 	case d.interrupted:
@@ -464,7 +456,7 @@ func (p *proxy) dispatchPeer(out io.Writer) {
 		event.Kind = couchmessage.PeerOverlayObserved
 	case p.pickerActive.Load():
 		// A picker holds the message like the operator's draft (pair#465):
-		// held, the paste-by clock stopped, delivered when it closes.
+		// held and delivered only when it closes and the composer is safe.
 		judged, operatorHold = true, true
 		d.current.Detail = d.pickerHoldDetailLocked(p.pickerEpisode.Load(), p.agentTail)
 		return
@@ -568,7 +560,7 @@ func (p *proxy) advancePeer(event couchmessage.PeerDeliveryEvent, out io.Writer)
 	d := p.peer
 	state, effect := couchmessage.AdvancePeerDelivery(d.state, event)
 	d.state = state
-	if (effect == couchmessage.PeerPaste || effect == couchmessage.PeerSubmit) && !d.now().Before(d.deadlineLocked()) {
+	if effect == couchmessage.PeerSubmit && !d.now().Before(d.deliverBy) {
 		p.advancePeer(couchmessage.PeerDeliveryEvent{Kind: couchmessage.PeerDeadlineElapsed}, out)
 		return
 	}
@@ -619,26 +611,12 @@ func (p *proxy) advancePeer(event couchmessage.PeerDeliveryEvent, out io.Writer)
 	}
 }
 
-// deadlineLocked (d.mu held) is the bound for the delivery's current half.
-// Before the paste, time the operator held the delivery is added back, up to
-// the message's hold limit; an open hold stops the clock (pair#435).
-func (d *peerDelivery) deadlineLocked() time.Time {
-	m := d.current.Message
-	switch {
-	case d.current.Status == couchmessage.Delivering:
-		return d.deliverBy
-	case !d.heldSince.IsZero():
-		return m.HoldLimit()
-	}
-	if by := m.Deadline.Add(d.heldFor); by.Before(m.HoldLimit()) {
-		return by
-	}
-	return m.HoldLimit()
-}
-
-// chargeWaitLocked (d.mu held) charges the time since the last dispatch to
-// the condition that stood through it.
+// chargeWaitLocked (d.mu held) accounts only for the bounded post-paste
+// window. Pre-paste receipts retain the standing reason without a history.
 func (d *peerDelivery) chargeWaitLocked() {
+	if d.current.Status != couchmessage.Delivering {
+		return
+	}
 	now := d.now()
 	if !d.waitAt.IsZero() && d.current.Detail != "" {
 		if d.waits == nil {
@@ -699,17 +677,11 @@ func pickerHoldDetail(title string) string {
 // operatorHoldLocked (d.mu held) opens or closes the operator hold as this dispatch
 // observed it, and reports it on the receipt as Held.
 func (d *peerDelivery) operatorHoldLocked(held bool) {
-	now := d.now()
 	switch {
-	case held && d.heldSince.IsZero() && d.current.Status == couchmessage.Queued:
-		d.heldSince = now
+	case held && d.current.Status == couchmessage.Queued:
 		d.current.Status = couchmessage.Held
-	case !held && !d.heldSince.IsZero():
-		d.heldFor += now.Sub(d.heldSince)
-		d.heldSince = time.Time{}
-		if d.current.Status == couchmessage.Held {
-			d.current.Status = couchmessage.Queued
-		}
+	case !held && d.current.Status == couchmessage.Held:
+		d.current.Status = couchmessage.Queued
 	}
 }
 

@@ -16,16 +16,18 @@ import (
 	"time"
 
 	"github.com/creack/pty"
+	"github.com/xianxu/pair/cmd/internal/procutil"
 )
 
 // ControlledZellij is the portable live fixture shared by lifecycle
 // conformance tests. It owns one throwaway session and its pty client.
 type ControlledZellij struct {
-	Session string
-	command *exec.Cmd
-	pty     *os.File
-	startup *zellijStartupCapture
-	stubDir string
+	Session   string
+	command   *exec.Cmd
+	pty       *os.File
+	startup   *zellijStartupCapture
+	stubDir   string
+	processes procutil.Source
 }
 
 // ZellijOptions selects fixture configuration without changing the operator's config.
@@ -130,24 +132,85 @@ func (f *ControlledZellij) Close() error {
 	if f == nil {
 		return nil
 	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	return f.close(ctx)
+}
+
+func (f *ControlledZellij) close(ctx context.Context) error {
 	var result error
+	var observationErr error
+	servers := map[int]string{}
 	if f.Session != "" {
-		result = errors.Join(result, exec.Command("zellij", "delete-session", f.Session, "--force").Run())
+		rows, err := f.processes.SnapshotNamed(ctx, "zellij")
+		observationErr = err
+		for _, row := range rows {
+			if row.Err != nil {
+				observationErr = errors.Join(observationErr, row.Err)
+			} else if len(row.Args) == 3 && row.Args[1] == "--server" && filepath.Base(row.Args[2]) == f.Session {
+				servers[row.PID] = row.Identity
+			}
+		}
+		out, err := exec.CommandContext(ctx, "zellij", "delete-session", f.Session, "--force").CombinedOutput()
+		// With serialization disabled, native Zellij kills the session but
+		// returns 2 if its resurrection directory does not exist. This says
+		// nothing about server exit: verify that separately below.
+		var exit *exec.ExitError
+		missing := fmt.Sprintf("Session: %q not found.", f.Session)
+		active := fmt.Sprintf("A session by the name %q exists and is active, but will be force killed and deleted.", f.Session)
+		diagnostic := strings.TrimSpace(string(out))
+		missingCache := errors.As(err, &exit) && exit.ExitCode() == 2 && (diagnostic == missing || diagnostic == active+"\n"+missing)
+		if err != nil && !missingCache {
+			result = errors.Join(result, fmt.Errorf("delete controlled zellij: %w: %s", err, out))
+		}
 	}
 	if f.pty != nil {
 		result = errors.Join(result, f.pty.Close())
 		f.pty = nil
-	}
-	if f.stubDir != "" {
-		result = errors.Join(result, os.RemoveAll(f.stubDir))
-		f.stubDir = ""
 	}
 	if f.command != nil && f.command.Process != nil {
 		_ = f.command.Process.Kill()
 		_, _ = f.command.Process.Wait()
 		f.command = nil
 	}
+	// The daemon is reparented to PID 1: reaping the client cannot join it.
+	// Keep its exact kernel generation until it can no longer write caches.
+	waitErr := f.waitServers(ctx, servers)
+	result = errors.Join(result, observationErr, waitErr)
+	if observationErr == nil && waitErr == nil && f.stubDir != "" {
+		result = errors.Join(result, os.RemoveAll(f.stubDir))
+		f.stubDir = ""
+	}
 	return result
+}
+
+func (f *ControlledZellij) waitServers(ctx context.Context, servers map[int]string) error {
+	if len(servers) == 0 {
+		return nil
+	}
+	ticker := time.NewTicker(25 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		rows, err := f.processes.Table()
+		if err != nil {
+			return fmt.Errorf("observe controlled zellij shutdown: %w", err)
+		}
+		running := false
+		for _, row := range rows {
+			identity, owned := servers[row.PID]
+			if owned && !row.Zombie && (row.Identity == identity || row.Identity == "") {
+				running = true
+			}
+		}
+		if !running {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("controlled zellij server did not exit: %w", ctx.Err())
+		case <-ticker.C:
+		}
+	}
 }
 
 // AddOwnerWrapperPane opens a pane whose live process is `pair wrap
