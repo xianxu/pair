@@ -51,6 +51,13 @@
   explicit fixture values). A source guard covers Pair/wrapper spawn callers;
   nested fixtures outside a checkout use `EnvironmentFrom` with the parent’s
   explicit helper path.
+- `tests/without-ancestors.py` — reparented real-process fixtures retain the
+  existing private-group cancellation and intentional-success-sidecar contract.
+  `make test-without-ancestors` checks that lifetime. Its launcher temporarily
+  normalizes SIGINT before exec and restores the caller's disposition: background
+  shells can otherwise make pre-handler cancellation disappear through inherited
+  SIG_IGN (#598). A pipe-gated bootstrap pins this ordering; failures retain
+  bounded captured output, test phase, helper PID and descendant-group evidence.
 - `cmd/internal/testwait` — how a Go test waits for an event: bounded by the
   test's own deadline minus a margin (`After` for a select guard, `Until`/`Wait`
   to poll, `Budget` for a hand-rolled loop or a helper's timeout), never by a guess at how fast the event comes, so a loaded `-race`
