@@ -71,6 +71,12 @@ RED checks confirmed the missing counter, Console method and resources types/wir
 
 Counter benchmark control: exact committed pre-counter baseline 242bd40216171712db036069ca5aae4f0c381366 and current working source ran the identical complete-ingest benchmark serially, GOMAXPROCS=3, GOFLAGS=-p=3, three 300ms repetitions. Median ns/op baseline→current: 1-byte 6170→3115, 64-byte 40004→18244, 4096-byte 1116835→959324. Baseline 1-byte spread 3584–9665ns/op and changing contention prevent credible incremental overhead attribution; apparent speedup is inconclusive. Raw logs and metadata retained in /var/folders/07/b9wcwwld4_v2w9r3hk525bm80000gn/T/pair622-ingest-bench.hqUsTx/. Temporary isolated baseline worktree removed by its owner; no peer runner was signalled. Source inspection confirms the incremental hot path is one atomic addition without new allocation/clock/native call. Counter race rerun after test-budget guards passed (1.229s).
 
+### 2026-10-16 — PR and pending gate evidence
+
+M1 candidate aaf17569ea4005aa59502de3a3e47ecacb01dada published as PR382, https://github.com/xianxu/pair/pull/382. Main integration check was already current. Required recorded suite is queued as sdlc local-check run --name suite on that pushed code head, local runner sdlc-local-2321322240; no suite pass or milestone acceptance claimed yet.
+
+Affected-package run encountered TestWorkbenchPerformanceIdleUITick: activity worker did not finish, test50.43s/package101.425s. Unchanged targeted repeat on the same code head passed30.16s with read/decode accounting intact. This fixture creates no Child and does not request resources; relevant activity/runtime/fixture files are unchanged from pre-counter242bd402. Fixed30s test guard versus sequential20×30MB cold ledger probes is a demonstrated tight boundary, but the original scheduling/progress cause remains unproven. Filed unassigned #626 with both attempts and repeat log. No unrelated fixture/production change or blind full-suite retry was made; the first recorded suite remains queued. Remaining affected packages continue to completion.
+
 ## Revisions
 
 ### 2026-10-16 — measurement milestone before optimization design
