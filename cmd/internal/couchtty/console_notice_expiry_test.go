@@ -215,6 +215,11 @@ func TestSwitcherCopyNoticeEmptyHistory(t *testing.T) {
 }
 
 func TestCopyNoticeChordStillReachesFocusedChild(t *testing.T) {
+	toolDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(toolDir, "pbcopy"), []byte("#!/bin/sh\nexit 99\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", toolDir)
 
 	for _, wire := range []string{"\x19", "\x1b[121;5u", "\x1b[121;5:3u"} {
 		t.Run(wire, func(t *testing.T) {
