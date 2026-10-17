@@ -20,7 +20,7 @@ collaboration-mode: discussion
 |------|----------|--------|
 | DocumentInfo | cmd/internal/sessionsync/registry.go | new |
 | staleReminderState / staleReminderEvent / advanceStaleReminder | cmd/internal/couchcmd/session_stale_model.go | new |
-| stale reminder output classification | cmd/internal/couchcmd/session_stale.go | new |
+| staleReminderBody | cmd/internal/couchcmd/session_stale_model.go | new |
 
 DocumentInfo is the current registration ID, canonical file, effective owner, operator-lock holder and session-sync type flag. Its ID keys the cooldown; changing a wrapper does not create a second per-file allowance. Classification accepts the known fresh sentinel or stale section lines from tl-lead, without reproducing stamp budgets. Unknown, partial, oversized or control-bearing output is a failure, never a reminder. The complete reminder must fit couchmessage.MaxBodyBytes, including its path/prefix.
 
@@ -92,3 +92,5 @@ Reuse newServiceRig and the wait-watcher admitted-session helpers, plus a dispos
 ## Revisions
 
 - 2026-10-17: plan gate PQ-1: define one authoritative pure transition boundary and enumerate all retained-state changes, including invalidated evidence, send uncertainty and cancellation. Clarify that an invalidated completion consumes no eligible-check allowance so an operator submit can be noticed on the next tick. PQ-2: name repeatable real-conformance triggers and the Git-backed isolated fixture prerequisite.
+
+- 2026-10-17: reconcile Core concepts with the implemented pure boundary: output classification is staleReminderBody in session_stale_model.go, alongside the transition model. Behavior and scope are unchanged.
