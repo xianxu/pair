@@ -74,7 +74,7 @@ type peerDelivery struct {
 	// wrapper cannot judge (no terminal model), and then nothing settles.
 	settled     bool
 	settleGen   uint64 // advanced by every source transition (armSettleLocked)
-	settleProbe func() bool
+	settleProbe func() wrapperSettleState
 	settleTimer settleTimer
 	afterFunc   func(time.Duration, func()) settleTimer
 	// tailProbe renders the agent pane's tail (pair#425); nil without a
@@ -91,6 +91,7 @@ type peerSessionSink interface {
 	Update(couchmessage.Observation)
 	Submit(couchmessage.Observation)
 	Settle(bool)
+	BackgroundWork(*bool)
 }
 
 // observationLocked is the wrapper's current evidence; d.mu must be held.

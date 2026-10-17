@@ -28,6 +28,17 @@ type recordingPeerSink struct {
 	updates, submits int
 	last             couchmessage.Observation
 	settles          []bool
+	backgrounds      []*bool
+}
+
+func (s *recordingPeerSink) BackgroundWork(v *bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if v != nil {
+		value := *v
+		v = &value
+	}
+	s.backgrounds = append(s.backgrounds, v)
 }
 
 func (s *recordingPeerSink) Settle(v bool) {
