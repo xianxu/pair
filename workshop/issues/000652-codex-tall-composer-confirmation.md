@@ -127,6 +127,26 @@ TL authorization: verified submitted delivery `00eac401-7b14-4ee8-8255-ef5cc30e0
 
 - Full-flow plan-quality round 1 found no architectural blocker but raised Important PQ-1: function-level test strategy must replace case inventories. Revised the durable plan with named generated-input/controlled-event strategies and independent guards for every risky function; kept tall acceptance regressions and native qualification. Clarified prompt-geometry projection preserves the distinction between existing short Return recognition and stricter peer text reading. No implementation code changed.
 
+## Estimate
+
+Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only. Calibration is flagged stale by `sdlc estimate-source`; treat this as provisional focused ship wall-clock, excluding test/landing queue waits.
+
+Primitive decomposition after plan-quality acceptance: issue/spec uses base design 0.6×0.5 and implementation 0.2×0.4, including the current diagnosis/plan dialogue. Two smaller well-specced Go extensions (shared geometry/footer and the two consumers with stateful regressions) each use design 0.2×0.2 and implementation 0.5×0.4. The existing native-PTY integration extension uses design 1.0×0.2 and implementation 0.5×0.4, with one Codex discovery allowance 0.3×0.4. Atlas/README maintenance uses design 0.1×0.2 and implementation 0.1×0.4; the one close/review administration uses design 0.1×0.2 and implementation 0.5×0.4. Component implementation allowances include their own tests/debugging; the review primitive does not duplicate those. Library check: the existing terminal snapshot, footer predicate, input writer/fake and native PTY capture already provide the stack; no greenfield library needed. Familiarity 1.0 from #648's exact diagnosis and native capture. Thorough accepted plan: 15% design buffer. Design subtotal 0.62; implementation subtotal 1.04; total 0.62×1.15+1.04=1.753h.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.3 impl=0.08
+item: smaller-go-module design=0.04 impl=0.2
+item: smaller-go-module design=0.04 impl=0.2
+item: api-integration design=0.2 impl=0.2
+item: real-api-discovery design=0 impl=0.12
+item: atlas-docs design=0.02 impl=0.04
+item: milestone-review design=0.02 impl=0.2
+design-buffer: 0.15
+total: 1.753
+```
+
 ## Revisions
 
 - 2026-10-17 15:36 PDT — Proposed design: preserve short-composer behavior, admit taller geometry only with a complete visible prompt/continuation block and positive trailing native footer. The initial no-footer diagnostic above remains historical evidence of the cutoff, but cannot itself authorize broader Return remapping; the accepted regression will include the native footer and remain red on main. Codex batching stays disabled; test batch-shaped text through ordinary singleton delivery, with no rollout-guard bypass. Awaiting hub approval.
