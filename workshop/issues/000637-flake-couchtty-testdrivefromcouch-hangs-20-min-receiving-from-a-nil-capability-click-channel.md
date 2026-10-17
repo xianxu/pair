@@ -1,12 +1,20 @@
 ---
 id: 000637
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-16
-updated: 2026-10-16
+updated: 2026-10-17
 estimate_hours:
-card_mirror: '1aa684524c53bdc5de2e3d0d2301355eda9fc5c2' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '66623a42c3b775407114f088767f886cf964b277' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-17T03:22:30-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:1
+    worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
+    repository: github.com/xianxu/pair
 ---
 
 # flake: couchtty TestDriveFromCouch hangs 20 min receiving from a nil capability-click channel
@@ -52,8 +60,16 @@ hangs instead of failing.
 
 ## Plan
 
-- [ ]
+- [ ] Force the premature-disabled observation with a gated fake tab release; observe the fixture regression red.
+- [ ] Wait for Off plus the disable completion notice, and reject nil completion channels before bounded awaits; keep the real mouse path and existing assertions.
+- [ ] Run targeted/race checks and 20 repetitions under concurrent suite load, then recorded suite, close review and landing.
 
 ## Log
 
 ### 2026-10-16
+
+### 2026-10-17 — root cause and quick plan
+
+The old predicate treats Disabling/Running as disabled (`Project.Enabled == false`). Cleanup resets control and notifies Chrome before releasing held input and publishing Off. Thus all three preceding waits can pass while the capability click correctly means wait and returns nil. A second window exists after Off: Cast publishes capabilities before clearing its running slot. The console's `drive capability off.` notice is set only after the result has arrived (the slot is already released), on its terminal command queue. Wait for that completion evidence and Off before the new click. No product change is required: refusing a click during cleanup is deliberate and already displayed as turning off.
+
+Use the existing stateful FakeDriven browser, with a test-local gated WithTab release, to hold the problematic ordering. Also hold the terminal command queue after authority reaches Off to prove phase alone is insufficient. Reuse awaitDrive's five-second bound and add an immediate non-nil assertion (ARCH-DRY); no new sleeps or longer deadlines. This changes fixture synchronization only (ARCH-PURPOSE, ARCH-ORDER); no new production model, external trust boundary, durable artifact or resource budget. The gate is released on all test exits and fixture teardown joins the console and cast (ARCH-FUNERAL). Plan posted to the hub, proceeding under quick-flow authorization.
