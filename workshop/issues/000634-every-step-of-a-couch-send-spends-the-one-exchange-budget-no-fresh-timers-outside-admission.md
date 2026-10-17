@@ -70,6 +70,8 @@ Families regression failed on the old code with two reads both on ordinary refus
 
 The send-path sweep found targeted registry posting waited only on service lifetime. TL approved including caller cancellation (delivery 493d236c-3a26-4761-9978-0bab4a5ba4a1). With the registry loop deliberately absent, the new regression failed on the old post after its deadline-derived 4 s guard (/tmp/pair634-registry-red.log); the fixture then released and joined the blocked request. postContext now bounds both post/reply waits by caller and service lifetime; send returns a definite pre-admission refusal if posting fails. Existing registry callers still use service lifetime. Targeted race regressions passed, including sender deadline, stalled registry, refusal snapshot, lookup timeout/cancellation, hub routing and dormant-target re-admission (/tmp/pair634-all-regressions-green.log).
 
+Broader race runs passed couchcmd 108.151 s and couchmessage 27.457 s (/tmp/pair634-messaging-race.log); that run preceded the registry-post delta, whose targeted race regression passed subsequently. Declaration-comment checks passed (0.358 s). Source head f94a9ba28e70b06f3db6e6cce431641ac0272667 is pushed; required recorded suite queued as run 9f4aada897a31bf454d5180e8f211f0e, without cancelling other holders. TL approved an early draft PR to overlap macOS CI with this wait (delivery 0423ad3e-8d82-49e3-815e-5c30149c2d9e); fresh close review and all normal landing gates remain required.
+
 ## Revisions
 
 ### 2026-10-17 — include targeted registry posting
