@@ -1,6 +1,6 @@
 ---
 id: 000626
-status: codecomplete
+status: done
 created: 2026-10-16
 updated: 2026-10-17
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 64bae95b018325198f47183bfecfd45ffd4d917d
         evidence_commit: 769c78c9244a3b17aa97b66a15cc854f561f4766
+        landed_commit: 96a28cca3a43a137159f6717849ce61f21e25748
 ---
 
 # Workbench activity invariant intermittently times out waiting for cold worker
