@@ -1,13 +1,13 @@
 ---
 id: 000650
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-17
 updated: 2026-10-17
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: 'aa7ae31ea75d72876271da1bb884148bffe5ed85' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'e2693fd703e5e413da07850c525cfee6d0d57152' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-17T12:13:29-07:00
 claimant:
     operator: Xian Xu
@@ -17,6 +17,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot8/pair
     repository: github.com/xianxu/pair
 flow: {kind: quick, provenance: inferred, spec: "d3724836", done: "d2346f2b"}
+actual_hours: 0.86
 ---
 
 # Slug line off by default under Couch (PAIR_SLUG=on to re-enable): no per-turn pair slug spawn or Haiku call
