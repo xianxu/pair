@@ -74,7 +74,11 @@ func TestAgentShortcutInputConformanceLive(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = fixture.Close() })
+	t.Cleanup(func() {
+		if err := fixture.Close(); err != nil {
+			t.Errorf("close shortcut fixture: %v", err)
+		}
+	})
 	waitShortcutCapture(t, ctx, func() bool { files, _ := filepath.Glob(filepath.Join(base, "ready-*")); return len(files) == 2 })
 	// Identify the pane that actually receives client input rather than assuming
 	// Zellij pane IDs or layout focus conventions.
