@@ -15,6 +15,7 @@ claimant:
     workspace: pair:1
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "283b4f95", done: "a42fcf6c"}
 ---
 
 # Live shortcut fixture races Zellij cache removal during TempDir cleanup
