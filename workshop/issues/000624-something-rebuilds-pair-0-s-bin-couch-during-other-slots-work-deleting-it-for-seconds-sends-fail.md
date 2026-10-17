@@ -15,6 +15,7 @@ claimant:
     workspace: pair:7
     worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "e9385e2f", done: "e8c56ece"}
 ---
 
 # Something rebuilds pair:0's bin/couch during other slots' work, deleting it for seconds (sends fail)
