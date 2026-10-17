@@ -16,6 +16,7 @@ claimant:
     workspace: pair:1
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "ee5aaba7", done: "75afa782"}
 ---
 
 # Right terminal: Alt+Shift+Return toggles Normal and Focus (75% centered) only; drop Maximize
