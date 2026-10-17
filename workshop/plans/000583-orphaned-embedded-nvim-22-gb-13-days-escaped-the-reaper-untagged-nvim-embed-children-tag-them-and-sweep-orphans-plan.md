@@ -550,20 +550,39 @@ func ClassifyOrphanNvims(table []procutil.Process, owned []ResourceProvenance,
 ### Task 14: The health line
 
 **Files:**
-- Modify: `cmd/internal/couchcmd/resources_render.go:43-92`, `resources_projection.go:16-68`
-- Test: `cmd/internal/couchcmd/resources_cli_test.go`, `resources_projection_test.go`
+- Modify: `cmd/internal/couchcmd/resources_render.go:43-92`, `resources_projection.go:16-68`,
+  `cmd/internal/couchcore/resource_history.go:10-17,63-80`
+- Test: `cmd/internal/couchcmd/resources_cli_test.go`, `resources_projection_test.go`,
+  `cmd/internal/couchcore/resource_history_test.go`
 
-- [ ] **Step 1: Write the failing tests.** Strategy: the section is an operator's only view of the sweep
+- [x] **Step 1: Write the failing tests.** Strategy: the section is an operator's only view of the sweep
   and the projection has a byte budget, so the tests attack silence and size — an empty result must say
   `none observed` rather than omit the section (an absent section reads as "not checked"), and the wire
   projection must stay inside `MaxFrameBytes` at maximum cardinality, with `--json` carrying the same rows.
-- [ ] **Step 2: Run, expect FAIL.**
-- [ ] **Step 3: Implement:** an `Orphan nvim (untagged; reap needs --confirm):` section in the existing
+  *Done: `TestResourceRenderReportsTheOrphanNvimSweep` pins both the empty section and one exact row
+  (age rounded to the minute, RSS in bytes) plus the `orphan_nvim` JSON key; the sanitize test grew an
+  orphan row carrying the terminal-injection string in `Cwd`, `Root` and `Reason`; the capacity test fills
+  all 8192 orphan rows at maximum cardinality and asserts the wire keeps a bounded non-empty prefix and
+  names the omission.*
+- [x] **Step 2: Run, expect FAIL.** *(Red on `undefined: orphanNvimSection` in three places.)*
+- [x] **Step 3: Implement:** an `Orphan nvim (untagged; reap needs --confirm):` section in the existing
   section list (`resources_render.go:66`), one row per orphan printing `pid=`, `age=`, `cwd=` and the
   matching root in the house row shape (`resources_render.go:72`), `none observed` when empty, and the
   same rows in `--json` and in the wire projection.
-- [ ] **Step 4: Run, expect PASS.**
-- [ ] **Step 5: Commit** `#583: report orphan embedded nvim in couch --resources`
+  *Delta: the header is a package constant so the tests cannot drift from it, and every string field goes
+  through `rowtext.Sanitize`. The sampler cost line gained `cwd %d` beside `table`/`usage`/`command` — the
+  health line's contract is that new IO is visible in it. The projection's budget divisor went 5 → 6 with
+  an `orphan nvim omitted` notice, matching the existing per-section pattern.
+  And `ResourceFrame` gained `OrphanNvim`: the reduce suppresses a named orphan from `Unattributed`
+  (Task 13), so without this field the persisted ring would forget the very offender it exists to record
+  — a 22 GB untagged nvim was in `frame.Unattributed` before #583 and would be nowhere after. Version stays
+  1 and the field is additive, so an upgrade reads old history fine; a downgrade loses continuity into a
+  fresh memory ring, the loud best-effort path `resources_persist.go` already has. That schema cost was
+  already paid by `ResourceCost.CwdCalls`, which the frame persists. The per-frame bound check moved into
+  `frameWithinBounds` rather than growing the 230-char condition; mutation-checked by deleting the
+  `OrphanNvim` clause, which reddened exactly `TestResourceHistoryBoundsTheOrphanSweep`.*
+- [x] **Step 4: Run, expect PASS.**
+- [x] **Step 5: Commit** `#583: report orphan embedded nvim in couch --resources`
 
 ### Task 15: One hub alert per episode
 
@@ -1079,3 +1098,12 @@ func ClassifyOrphanNvims(table []procutil.Process, owned []ResourceProvenance,
   when reported, because one process under two section headings reads as two findings. Task 12 and Task 13
   landed as one commit pair rather than the drafted two messages, since the classifier has no consumer until
   the sampler wires it.
+- **2026-10-16 — Task 14 keeps the named orphan in the persisted ring.** Reason: the suppression added in
+  Task 13 removes a swept process from `v.Unattributed`, and `ResourceFrame` persists exactly that slice, so
+  the 24 h history would have stopped recording the offender it exists to record — the ring is what an
+  operator reads to answer "did we see the 22 GB nvim before anyone acted?". Delta: `ResourceFrame` gained
+  `OrphanNvim []OrphanNvim` (additive, version stays 1; upgrade reads old history unchanged, downgrade loses
+  continuity into a fresh memory ring on the loud best-effort path, and `ResourceCost.CwdCalls` had already
+  moved the frame schema), `ValidateResourceHistory` bounds it at `ResourceMaxProcesses` via a new
+  `frameWithinBounds` predicate, and the sampler cost line reports `cwd %d`. No consumer reads the frame's
+  offender slices back — `historySummary` reads only `At` — so this is forensic value, not behaviour.
