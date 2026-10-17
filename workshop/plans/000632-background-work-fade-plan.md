@@ -72,25 +72,25 @@ ARCH-DRY: reuse composer geometry, settle generation, strict protocol fallback a
 
 Files: `cmd/internal/wrapcmd/peer_composer.go`, `peer_settle.go`, `peer_runtime.go`, `peer_delivery.go`; tests `peer_background_test.go`, `peer_settle_test.go`, existing recording sink tests.
 
-- [ ] `backgroundWorkState(agent, terminalSnapshot) *bool` (new pure detector): recorded94×39 native screens seed malformed-footer/geometry fuzzing; moving a purported counter outside qualified footer geometry must never produce positive work. Run `go test ./cmd/internal/wrapcmd -run 'Test.*Background|TestRecordedIdleScreensReadDeliverable' -count=1 -timeout 2m`; require behavioral RED before implementation.
-- [ ] Implement the pure detector and wire a separate display probe into the existing settle callback. Deterministically hold a probe while output changes to prove stale generation rejection; verify true→false/unknown changes publish even with Settled continuously true. Preserve existing idle/admission tests.
-- [ ] Run focused GREEN and race tests, then checkpoint the complete evidence slice.
+- [x] `backgroundWorkState(agent, terminalSnapshot) *bool` (new pure detector): recorded94×39 native screens seed malformed-footer/geometry fuzzing; moving a purported counter outside qualified footer geometry must never produce positive work. Run `go test ./cmd/internal/wrapcmd -run 'Test.*Background|TestRecordedIdleScreensReadDeliverable' -count=1 -timeout 2m`; require behavioral RED before implementation.
+- [x] Implement the pure detector and wire a separate display probe into the existing settle callback. Deterministically hold a probe while output changes to prove stale generation rejection; verify true→false/unknown changes publish even with Settled continuously true. Preserve existing idle/admission tests.
+- [x] Run focused GREEN and race tests, then checkpoint the complete evidence slice.
 
 ### Task 2 — negotiated transport, admitted registry and fade clock
 
 Files: `cmd/internal/couchmessage/session_protocol.go`, `session_transport.go`, `registry.go`; tests their colocated protocol/transport/registry files; `cmd/internal/couchcmd/message_service.go`, `idle_activity_test.go`; `cmd/internal/couchtty/console_activity_test.go`.
 
-- [ ] `SessionFrame.Validate`, `DecodeSessionFrame`, `SessionClient.BackgroundWork` and `SessionClient.session`: use the real socket fixtures with strict older-schema broker doubles and interrupted handshakes; assert negotiated field ownership and latest-state delivery across reconnection, without silently downgrading uncertain outcomes. Require behavioral RED before implementation.
-- [ ] `Registry.Advance` and `messageService.WrapperActivity`: table-driven event sequences with an injected broker clock independently assert incarnation isolation, monotonic completion and no renewal from idle/unknown evidence; disconnected/detached/replaced identities must obey the existing admission boundary. Require behavioral RED before implementation.
-- [ ] Console activity pass: reuse the real Console/host fixture with an injected clock and old-file baseline; positive settled background work must defeat fade without manufacturing new file activity, and loss/completion of evidence must restore ordinary aging. Keep a successful free-composer delivery integration as the admission oracle.
-- [ ] Implement the new field through the production path and registry transition. Keep message admission unchanged; integration test successfully reserves/commits/submits a peer message through a free composer whose background flag remains active.
-- [ ] Run `go test ./cmd/internal/couchmessage ./cmd/internal/couchcmd ./cmd/internal/couchtty ./cmd/internal/wrapcmd -count=1 -timeout 5m` and focused `-race` tests. Measure changed-source artifact inventory if any new production file becomes necessary. Commit the working slice.
+- [x] `SessionFrame.Validate`, `DecodeSessionFrame`, `SessionClient.BackgroundWork` and `SessionClient.session`: use the real socket fixtures with strict older-schema broker doubles and interrupted handshakes; assert negotiated field ownership and latest-state delivery across reconnection, without silently downgrading uncertain outcomes. Require behavioral RED before implementation.
+- [x] `Registry.Advance` and `messageService.WrapperActivity`: table-driven event sequences with an injected broker clock independently assert incarnation isolation, monotonic completion and no renewal from idle/unknown evidence; disconnected/detached/replaced identities must obey the existing admission boundary. Require behavioral RED before implementation.
+- [x] Console activity pass: reuse the real Console/host fixture with an injected clock and old-file baseline; positive settled background work must defeat fade without manufacturing new file activity, and loss/completion of evidence must restore ordinary aging. Keep a successful free-composer delivery integration as the admission oracle.
+- [x] Implement the new field through the production path and registry transition. Keep message admission unchanged; integration test successfully reserves/commits/submits a peer message through a free composer whose background flag remains active.
+- [x] Run `go test ./cmd/internal/couchmessage ./cmd/internal/couchcmd ./cmd/internal/couchtty ./cmd/internal/wrapcmd -count=1 -timeout 5m` and focused `-race` tests. Measure changed-source artifact inventory if any new production file becomes necessary. Commit the working slice.
 
 ### Task 3 — documentation and acceptance
 
 Files: `README.md`, `atlas/couch.md`, issue Log; no project-file edits (TL owns it).
 
-- [ ] Describe independent fade evidence, compatibility, supported native footer and unsupported-agent gap in README/atlas. Record red/green and concurrency outcomes and any approved scope revisions.
+- [x] Describe independent fade evidence, compatibility, supported native footer and unsupported-agent gap in README/atlas. Record red/green and concurrency outcomes and any approved scope revisions.
 - [ ] Push candidate and run `sdlc local-check run --name suite` to completion; keep queue/run time separate. Ordinary `sdlc close` owns the fresh review; fix blockers before PR/merge. Integrate main and land with normal `sdlc merge --yes` gates.
 - [ ] Follow the TL-approved live route: existing old-file-activity Claude slot with ended turn, native background suite running, unfocused tab and switcher bright within existing pass; successfully deliver a peer request while the suite remains running. Use actual old-file evidence, not touched mtimes or a newly born pane as the only positive control. Compare idle old row, then completion and normal aging. Record exact installed build and message receipt. Do not stage/restart :0 without TL authorization; an approved post-landing live check remains explicitly pending until performed.
 

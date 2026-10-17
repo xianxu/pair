@@ -69,7 +69,7 @@ Rows respectively cover spec/approval, pure native footer classification, genera
 - [x] Design the independent display signal and its lifecycle/compatibility before implementation.
 - [x] Implement and verify generation-fenced Claude footer display evidence, preserving free-composer admission.
 - [x] Implement and verify negotiated transport, admitted-session fade/aging and compatibility.
-- [ ] Update docs, complete the recorded suite and record the approved post-landing live steps. Ordinary review/PR/landing remain workflow gates after these pre-close checks.
+- [x] Update docs, complete the recorded suite and record the approved post-landing live steps. Ordinary review/PR/landing remain workflow gates after these pre-close checks.
 
 Proposed design: [background-work display plan](../plans/000632-background-work-fade-plan.md). A negotiated display-only field is necessary; TL a807af4c approved the design, Claude-only native coverage, full flow and post-landing live rollout without staging.
 
@@ -108,3 +108,9 @@ Actual free-composer regression replays idle-suggestion with a native running sh
 Protocol behavioral RED preceded hello-v4 validation/emission/fallback implementation. Strict frozen v3/v2/legacy broker schemas, independent settled+background-active state, caller ownership, nil clearing, coalescing, reconnect latest-state and refusal/malformed/timeout guards pass; focused race PASS6.900s. Registry behavioral RED preceded owned per-session hint and monotonic work/completion transitions; focused registry/activity/real-client-transport tests and race pass. Full couchmessage package PASS15.605s; full couchcmd package still running at this checkpoint. Full repository recorded suite, ordinary close review and landing are not yet claimed.
 
 Broad targeted verification completed: full couchcmd PASS127.927s with full couchmessage PASS15.605s on the final combined implementation. All earlier targeted/race/fuzz results remain applicable; only issue/atlas/README documentation changed afterward. Commit and push this candidate, then run the declared recorded full suite.
+
+### 2026-10-17 — recorded full suite and relaunch checkpoint
+
+Recorded suite on 134668267d85518ed21972b0753be273b2552f8e PASSED first attempt: exit0 in12m51s after4030s machine-queue wait. Retained log SHA256 de88c00992956d7ed94d1373b1cc67d2d3dbe1bf8cc6a33c46d71e238c84e17a; sdlc-local/suite recorded on that exact pushed code head. Full-log scan found no failure markers. README/atlas describe the independent Claude-only source and compatibility; the durable plan records the approved post-landing live checks. Pre-close checklist complete; close review, PR and landing still pending. Installed live acceptance remains deferred to TL's restart after landing; no pair:0 staging performed.
+
+Verified submitted TL522a65cb-010e-4727-a3db-9d0d8481f523 requests an operator-approved rolling relaunch at the next point with no queued/running suite, merge or test, before the next long wait. This suite is now finished; checkpoint/push this evidence, report idle for relaunch, then resume ordinary close review after the hub completes or dispositions the relaunch. No extra test run is needed for this documentation-only checkpoint.
