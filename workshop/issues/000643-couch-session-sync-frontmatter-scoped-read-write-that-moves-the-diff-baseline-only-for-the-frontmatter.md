@@ -1,13 +1,21 @@
 ---
 id: 000643
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-17
 updated: 2026-10-17
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: '0cfc7685c8642ae4535679eaab68b25edcfb3ffe' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'aed859a3d70d8e2b34744831d58e685fb80619b3' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-17T04:11:07-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:6
+    worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
+    repository: github.com/xianxu/pair
 ---
 
 # couch session-sync: frontmatter-scoped read/write that moves the diff baseline only for the frontmatter
@@ -32,8 +40,16 @@ The hash is the frontmatter's; a stale hash refuses. The operator's lock refuses
 
 ## Plan
 
-- [ ]
+- [ ] Add the explicit frontmatter scope and regression tests for byte preservation, scoped shadow acknowledgement, stale hashes and operator locks.
+- [ ] Verify the real CLI on disposable files in an isolated namespace, update help and atlas, run the recorded suite, close review and land.
+
+Implementation detail: [durable plan](../plans/000643-frontmatter-sync-plan.md).
 
 ## Log
 
 ### 2026-10-17
+
+- Claimed and started planning in pair:6. Recovery evidence: #632 already landed; no previous TTY capture is available. Current branch and tracker identify #643 as the active item. No implementation has started.
+- Existing section reads do not advance the shadow; whole-file reads do. Frontmatter reads will explicitly acknowledge only their block. Existing section writes without a shadow copy the whole document; the new frontmatter scope must instead start with a frontmatter-only shadow.
+- ARCH-DRY/ARCH-PURE: extend the existing guarded document transaction and atomic shadow/state publication; isolate byte splitting and replacement as pure functions. No new lock, timer, or metadata family.
+- TL approval receipt fcd4f3fa-4875-4626-93c6-fb486da60eb0 verified submitted: scope approved, full flow if needed; real new CLI from this slot against a disposable file in an isolated namespace is sufficient, no pair:0 staging. TL owns routing ariadne#424 consumer adoption after landing.
