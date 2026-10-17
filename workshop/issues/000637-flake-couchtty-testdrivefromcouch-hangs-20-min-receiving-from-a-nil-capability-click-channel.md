@@ -107,7 +107,7 @@ Reason: close R1 REWORK (Critical BR-1, family durable-completion-evidence). A d
 Approved delta: retain the actual mouse disable. Once authority is Off, attempt the real re-enable click until it returns a non-nil operation channel; nil means no operation was admitted, including the Off-before-slot-release gap, so retrying cannot duplicate an admitted action. Stop attempting immediately on a non-nil result and await that channel with the existing bound. Add a late reset-presentation regression, retain held-cleanup coverage and adapt the terminal-queue barrier to assert the accepted completion remains pending until the queue resumes. No production change. Hub approval receipt e77e19a1-3170-48e3-8b61-ebcd1328b2a8 verified submitted and exact. This is the second change to the same wait; any third problem requires stopping and bringing a re-plan to the hub, not another incremental delta.
 
 - [x] Demonstrate late reset presentation makes the notice predicate fail, then switch to operation admission and completion channels.
-- [ ] Repeat targeted/race qualification, run the recorded full suite, and return to ordinary close for BR-1 disposition.
+- [x] Repeat targeted/race qualification and run the recorded full suite; return to ordinary close for BR-1 disposition through the gate.
 
 ### 2026-10-17 — BR-1 deterministic red and channel-based fix
 
@@ -118,3 +118,7 @@ Class sweep: removed disableComplete and every notice-readiness consumer. tryEna
 ### 2026-10-17 — revised load qualification PASS; main integrated
 
 The revised drive/capability family passed all twenty repetitions with -race in 143.241 s under concurrent ariadne sharded-suite CPU load. All three deterministic orderings and the original integration test were included; no race reports, failures or retries. Merged current origin/main cleanly before the next recorded full suite. Main's intervening #631/#632 changes do not touch couchtty or webcast; only the shared lessons file needed auto-merging within this issue's edited paths. R1 sidecars, approved revision and the lesson are committed. A new full suite is required for this source change and integration; the earlier passing suite remains historical evidence only.
+
+### 2026-10-17 — revised integrated full-suite PASS
+
+The complete declared suite passed on c133069592341fe902850f4b11e6262a85ce9d8e in 13m6s, after a 322 s queue wait. No failure or retry on this revised implementation. All shell/Lua prerequisites passed, including changelog, and every Go package passed: couchtty 59.361 s, couchcore 401.278 s, couchcmd 131.636 s, wrapcmd 82.579 s. Log /Users/xianxu/workspace/pair/.git/sdlc/local-checks/c133069592341fe902850f4b11e6262a85ce9d8e/suite.log, SHA256 e283037823c382eac315398870eccdf19fa906e3700273f6eb9341a8d61bfd1d. All server CI checks on this head are green. No source changed after the recorded suite. Returning to ordinary close (R1 was REWORK, not finalized) to dispose of BR-1; no atlas surface or product change, TL owns project.
