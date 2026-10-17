@@ -217,6 +217,7 @@ type Console struct {
 	slotGitInterval time.Duration
 	// Idle-fading activity refresh (pair#247); see console_activity.go.
 	activityProbe    ActivityProbe
+	wrapperActivity  func(couchcore.ActionableThreadSummary) time.Time
 	activityRequests chan struct{}
 	activityResults  chan activityResult
 	activitySchedule RefreshSchedule
