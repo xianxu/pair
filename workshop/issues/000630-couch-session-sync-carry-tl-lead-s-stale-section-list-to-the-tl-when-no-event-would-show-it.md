@@ -5,8 +5,8 @@ deps: []
 github_issue:
 created: 2026-10-16
 updated: 2026-10-17
-estimate_hours:
-card_mirror: '08874e17f671bac7f053b0d85dba2cdc1ff62b6b' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 1.57
+card_mirror: '434dcbec590334f39b16fabaaa525692b3399f22' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-17T05:43:25-07:00
 claimant:
     operator: Xian Xu
@@ -15,6 +15,7 @@ claimant:
     workspace: pair:6
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
+flow: {kind: full, provenance: operator}
 ---
 
 # couch session-sync: carry tl-lead's stale-section list to the TL when no event would show it
@@ -58,3 +59,19 @@ Detailed design: [stale-session reminder plan](../plans/000630-stale-session-rem
 ## Revisions
 
 - 2026-10-17: quick-flow sizing exceeded the shell once baseline-neutral inspection and bounded asynchronous command execution were included. TL approved full flow before implementation; product behavior is unchanged.
+
+## Estimate
+
+Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md, Method A only. Calibration is marked stale by estimate-source; units are provisional. The new pure transition/serialized worker is one greenfield-go-module (base design 0.5 × 0.2 settled-spec discount; implementation 0.8 × 0.4). The bounded tl-lead command, real Couch transport conformance and stateful command/peer fixtures form one api-integration (design 1.0 × 0.2; implementation 1.0 × 0.4). Registered inspection/service wiring is one smaller-go-module (design 0.2 × 0.2; implementation 0.5 × 0.4). Existing sessionsync, broker, worker lifetime and standard exec/context APIs are available; no domain-specific library replaces the new reminder rules. Docs use design 0.1 × 0.2, implementation 0.1 × 0.4. One review uses zero design and implementation 0.5 × 0.4. Familiarity is 1.0 and thorough-plan design buffer is 15%; total 0.36 × 1.15 + 1.16 = 1.574, rounded 1.57 hours.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: greenfield-go-module design=0.1 impl=0.32
+item: api-integration design=0.2 impl=0.4
+item: smaller-go-module design=0.04 impl=0.2
+item: atlas-docs design=0.02 impl=0.04
+item: milestone-review design=0 impl=0.2
+design-buffer: 0.15
+total: 1.57
+```
