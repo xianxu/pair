@@ -1285,7 +1285,7 @@ func renderThreadDetails(w io.Writer, threads []couchcore.ThreadSummary) {
 	renderThreadRows(w, threads, true, nil)
 }
 
-func renderThreadRows(w io.Writer, threads []couchcore.ThreadSummary, includeAddress bool, refusals map[string]string) {
+func renderThreadRows(w io.Writer, threads []couchcore.ThreadSummary, includeAddress bool, refusals map[string]couchmessage.RefusalInfo) {
 	if len(threads) == 0 {
 		fmt.Fprintln(w, "no threads")
 		return
