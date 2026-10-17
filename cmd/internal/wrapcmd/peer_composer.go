@@ -35,8 +35,18 @@ func backgroundWorkState(agent string, s terminalSnapshot) *bool {
 		if fields[0] != permission && !cycle {
 			return nil
 		}
-		count, seen, manage := 0, false, false
-		for _, field := range fields[1:] {
+		count, seen, manage, pr := 0, false, false, false
+		for i, field := range fields[1:] {
+			// The captured PR link is the first optional field, never an
+			// arbitrary decoration accepted elsewhere in the footer.
+			if number, ok := strings.CutPrefix(field, "PR #"); ok {
+				n, err := strconv.Atoi(number)
+				if i != 0 || len(number) > 9 || err != nil || n <= 0 || strconv.Itoa(n) != number {
+					return nil
+				}
+				pr = true
+				continue
+			}
 			switch field {
 			case "esc to interrupt", "← for agents":
 				continue
@@ -60,7 +70,7 @@ func backgroundWorkState(agent string, s terminalSnapshot) *bool {
 		}
 		// Only the complete captured no-shell chrome proves absence. A
 		// missing/partial counter or an unfamiliar field remains unknown.
-		if (seen && !manage) || (!seen && (!cycle || manage)) {
+		if (seen && !manage) || (!seen && (!cycle || manage || pr)) {
 			return nil
 		}
 		active := count > 0

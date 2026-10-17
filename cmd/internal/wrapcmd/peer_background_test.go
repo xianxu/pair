@@ -2,6 +2,8 @@ package wrapcmd
 
 import (
 	"bytes"
+	"fmt"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -11,45 +13,55 @@ import (
 )
 
 func TestBackgroundWorkLeavesTheFreeComposerDeliverable(t *testing.T) {
-	f := pickerFake(t)
-	now := time.Now()
-	d := newPeerDelivery(peerTestMessage(now).To, func() time.Time { return now })
-	sink, clock := &recordingPeerSink{}, &fakeTimers{}
-	d.session, d.afterFunc, d.settleProbe = sink, clock.after, f.proxy.settleState
-	f.proxy.peer = d
-	peerRender(f, d, peerBusyScreen(t, "idle-suggestion"))
-	clock.fireAll()
-	d.mu.Lock()
-	settled := d.settled
-	d.mu.Unlock()
-	sink.mu.Lock()
-	active := len(sink.backgrounds) > 0 && backgroundName(sink.backgrounds[len(sink.backgrounds)-1]) == "active"
-	sink.mu.Unlock()
-	if !settled || !active {
-		t.Fatalf("native background-only wait: settled=%v background=%v", settled, active)
-	}
-	peerIntegrationEnqueue(t, d)
-	var out bytes.Buffer
-	f.proxy.dispatchPeer(&out)
-	if !strings.Contains(out.String(), "hello") {
-		t.Fatalf("background work prevented peer paste: %+v", d.receipt())
-	}
-	pasted := strings.Replace(peerBusyScreen(t, "idle-suggestion"), "The operator reviewed the format; proceed to close and merge", "hello", 1)
-	peerRender(f, d, strings.ReplaceAll(pasted, "\x1b[2m", ""))
-	now = now.Add(PeerSubmitDelay)
-	f.proxy.dispatchPeer(&out)
-	if !bytes.HasSuffix(out.Bytes(), f.proxy.ttyProfile.keymap.altCR) {
-		t.Fatalf("background work prevented peer submit: %+v", d.receipt())
-	}
-	now = now.Add(time.Second)
-	peerRender(f, d, peerBusyScreen(t, "idle-suggestion"))
-	f.proxy.dispatchPeer(&out)
-	if r := d.receipt(); r.Status != couchmessage.Submitted {
-		t.Fatalf("native background wait prevented confirmed receipt: %+v", r)
-	}
-	clock.fireAll()
-	if got := backgroundName(f.proxy.settleState().BackgroundWork); got != "active" {
-		t.Fatalf("confirmation lost running shell evidence: %s", got)
+	for _, name := range []string{"idle-suggestion", "pr-footer"} {
+		t.Run(name, func(t *testing.T) {
+			// Paste-mode negotiation belongs to the fake session; the minimal
+			// native fixture preserves cells/cursor, not unrelated terminal modes.
+			screen := "\x1b[?2004h" + backgroundScreen(t, name)
+			f := pickerFake(t)
+			now := time.Now()
+			d := newPeerDelivery(peerTestMessage(now).To, func() time.Time { return now })
+			sink, clock := &recordingPeerSink{}, &fakeTimers{}
+			d.session, d.afterFunc, d.settleProbe = sink, clock.after, f.proxy.settleState
+			f.proxy.peer = d
+			peerRender(f, d, screen)
+			clock.fireAll()
+			d.mu.Lock()
+			settled := d.settled
+			d.mu.Unlock()
+			sink.mu.Lock()
+			active := len(sink.backgrounds) > 0 && backgroundName(sink.backgrounds[len(sink.backgrounds)-1]) == "active"
+			sink.mu.Unlock()
+			if !settled || !active {
+				t.Fatalf("native background-only wait: settled=%v background=%v", settled, active)
+			}
+			peerIntegrationEnqueue(t, d)
+			var out bytes.Buffer
+			f.proxy.dispatchPeer(&out)
+			if !strings.Contains(out.String(), "hello") {
+				t.Fatalf("background work prevented peer paste: %+v", d.receipt())
+			}
+			// Simulate the native paste repaint without changing the observed footer.
+			cursor := f.proxy.terminal.Snapshot().Cursor
+			pasted := screen + fmt.Sprintf("\x1b[?2026h\x1b[%d;3H\x1b[0Khello\x1b[?2026l", cursor.Y+1)
+			peerRender(f, d, pasted)
+
+			now = now.Add(PeerSubmitDelay)
+			f.proxy.dispatchPeer(&out)
+			if !bytes.HasSuffix(out.Bytes(), f.proxy.ttyProfile.keymap.altCR) {
+				t.Fatalf("background work prevented peer submit: %+v", d.receipt())
+			}
+			now = now.Add(time.Second)
+			peerRender(f, d, screen)
+			f.proxy.dispatchPeer(&out)
+			if r := d.receipt(); r.Status != couchmessage.Submitted {
+				t.Fatalf("native background wait prevented confirmed receipt: %+v", r)
+			}
+			clock.fireAll()
+			if got := backgroundName(f.proxy.settleState().BackgroundWork); got != "active" {
+				t.Fatalf("confirmation lost running shell evidence: %s", got)
+			}
+		})
 	}
 }
 
@@ -132,10 +144,49 @@ func TestBackgroundWorkObservesTerminalPaintAndLifetime(t *testing.T) {
 	}
 }
 
+func backgroundScreen(t *testing.T, name string) string {
+	t.Helper()
+	if name != "pr-footer" {
+		return peerBusyScreen(t, name)
+	}
+	raw, err := os.ReadFile("testdata/peer/claude/2.1.301/pr-footer.raw")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(raw)
+}
+
+func TestBackgroundWorkRecordedPRFooter(t *testing.T) {
+	s := backgroundSnapshot(t, "pr-footer")
+	if s.Width != 94 || s.Height != 39 || s.Cursor.X != 2 || s.Cursor.Y != 34 || !s.CursorVisible || !s.Complete {
+		t.Fatalf("native geometry/cursor: %+v", s.Cursor)
+	}
+	top, bottom, ok := ruledBoxComposerBounds(s, claudeComposerSpec())
+	if !ok || top != 34 || bottom != 35 {
+		t.Fatalf("native bounds = %d,%d,%v", top, bottom, ok)
+	}
+	if peerComposerState("claude", s) != PeerComposerEmpty {
+		t.Fatal("native PR composer not empty")
+	}
+	for _, y := range []int{33, 35} {
+		if got := terminalRowText(s, y); got != strings.Repeat("─", 94) {
+			t.Fatalf("native border row %d = %q", y, got)
+		}
+	}
+	const footer = "⏵⏵ bypass permissions on · PR #387 · 2 shells · ← for agents · ↓ to manage"
+	if got := strings.TrimSpace(terminalRowText(s, 36)); got != footer {
+		t.Fatalf("native footer = %q", got)
+	}
+
+	if got := backgroundName(backgroundWorkState("claude", s)); got != "active" {
+		t.Fatalf("native PR footer = %s, want active; row=%q", got, terminalRowText(s, 36))
+	}
+}
+
 func backgroundSnapshot(t *testing.T, name string) terminalSnapshot {
 	t.Helper()
 	f := pickerFake(t)
-	f.output(peerBusyScreen(t, name))
+	f.output(backgroundScreen(t, name))
 	return f.proxy.terminal.Snapshot()
 }
 
@@ -185,6 +236,23 @@ func TestBackgroundWorkQualifiedFooterGrammar(t *testing.T) {
 		{"1 shell · ↓ to manage", "active"},
 		{"2 shells · ↓ to manage", "active"},
 		{"0 shells · ↓ to manage", "none"},
+		{"PR #387 · 2 shells · ← for agents · ↓ to manage", "active"},
+		{"PR #1 · 1 shell · ↓ to manage", "active"},
+		{"PR #387 · 0 shells · ↓ to manage", "none"},
+		{"PR #387", "unknown"},
+		{"PR #", "unknown"},
+		{"PR #0 · 2 shells · ↓ to manage", "unknown"},
+		{"PR #01 · 2 shells · ↓ to manage", "unknown"},
+		{"PR #+1 · 2 shells · ↓ to manage", "unknown"},
+		{"PR #-1 · 2 shells · ↓ to manage", "unknown"},
+		{"PR #x · 2 shells · ↓ to manage", "unknown"},
+		{"PR #99999999999999999999 · 2 shells · ↓ to manage", "unknown"},
+		{"PR #387 · 2 she", "unknown"},
+		{"PR #387 · PR #388 · 2 shells · ↓ to manage", "unknown"},
+		{"2 shells · PR #387 · ↓ to manage", "unknown"},
+		{"← for agents · PR #387 · 2 shells · ↓ to manage", "unknown"},
+		{"garbage · PR #387 · 2 shells · ↓ to manage", "unknown"},
+		{"PR #387 · 2 shells · ↓ to manage · garbage", "unknown"},
 		{"1 shells · ↓ to manage", "unknown"},
 		{"2 shell · ↓ to manage", "unknown"},
 		{"01 shell · ↓ to manage", "unknown"},
@@ -216,6 +284,9 @@ func TestBackgroundWorkUnqualifiedFooterStaysUnknown(t *testing.T) {
 	base := backgroundSnapshot(t, "permission-autodenied")
 	_, bottom, _ := ruledBoxComposerBounds(base, claudeComposerSpec())
 	for _, footer := range []string{
+		"⏵⏵ bypass permissions on (shift+tab to cycle) · PR #387",
+		"⏵⏵ bypass permissions on · PR#387 · 2 shells · ↓ to manage",
+		"⏵⏵ bypass permissions on · PR #387… · 2 shells · ↓ to manage",
 		"⏵⏵ garbage",
 		"⏵⏵ garbage · 1 shell · ↓ to manage",
 		"⏵⏵ bypass permissions on",
@@ -275,6 +346,7 @@ func TestBackgroundWorkNeverUsesBodyDraftOrIncompletePaint(t *testing.T) {
 
 func FuzzBackgroundWorkState(f *testing.F) {
 	f.Add("1 shell · ↓ to manage", uint8(37), true)
+	f.Add("PR #387 · 2 shells · ← for agents · ↓ to manage", uint8(37), true)
 	f.Add("999999999999999 shells · ↓ to manage", uint8(0), true)
 	f.Fuzz(func(t *testing.T, field string, row uint8, complete bool) {
 		if len(field) > 512 {

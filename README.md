@@ -1039,7 +1039,7 @@ launching or resuming the thread. A turn stays bright when started by a peer
 message or waiting silently on a command. After it finishes, the thread ages
 from its last work. Claude Code's native running-shell footer also keeps a
 thread bright after its turn ends, including while a silent suite waits in a
-queue. Its free composer can still receive peer messages. This background-shell
+queue. Its free composer can still receive peer messages, including with the native PR-link footer. This background-shell
 signal requires a new wrapper and Couch; older versions, Codex and Qoder keep
 their existing turn-based behavior. Once the shell finishes, the thread ages
 normally. Switching to a thread or merely looking at its draft doesn't count. Couch checks about once a

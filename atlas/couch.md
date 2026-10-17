@@ -1448,7 +1448,12 @@ generation fence; source activity invalidates the display hint, and an older
 in-flight probe cannot publish over a newer source. Display changes publish even
 when `Settled` stays true. `backgroundWorkState` reuses the Claude composer bounds
 and counts only a bounded native shell-counter field with management chrome below
-the closing rule. Body prose, drafts, incomplete synchronized paint, missing or
+the closing rule. Qualified captures include Claude 2.1.296 and the 2.1.301
+PR-link variant (94×39): canonical positive-decimal `PR #N` is accepted only
+as the first optional field, alongside a complete shell counter and management
+chrome. PR-only absence remains unknown. The shared row projection preserves
+erased blank cells while omitting wide-glyph continuation cells. Body prose,
+drafts, incomplete synchronized paint, missing or
 unqualified footer and unsupported agents grant no positive hint. Recognized
 no-shell/zero state is false; loss of qualified evidence is unknown. This is a
 native-UI observation, not a process/CPU inference or transcript scan.
