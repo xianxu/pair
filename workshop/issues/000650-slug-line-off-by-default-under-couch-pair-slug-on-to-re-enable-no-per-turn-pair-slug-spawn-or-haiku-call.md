@@ -42,8 +42,21 @@ Quick flow — a few lines.
 
 - [x] Test first (`cmd/internal/wrapcmd/slug_spawn_test.go`): couch-hosted env → `maybeSpawnSlug` spawns nothing; couch-hosted + `PAIR_SLUG=on` → spawns; non-Couch → spawns as before. `t.Setenv` pins both couch vars and `PAIR_SLUG` in every case so the ambient (hosted) test env can't leak in.
 - [x] Gate at the top of `maybeSpawnSlug` (`wrap.go`): `launcher.CouchHostedEnv(os.Getenv) && os.Getenv("PAIR_SLUG") != "on"` → return before the debounce bookkeeping or the spawn. Reuses `launcher.CouchHostedEnv` — no new env parsing (ARCH-DRY). `PAIR_SLUG` re-enables only on the exact value `on` (the knob the operator named); any other value stays off, so a hosted session fails closed to the operator's default.
-- [x] Docs: `maybeSpawnSlug`'s comment in `wrap.go`, a README line (Notifications section, next to the wrapper env knobs), and the trigger bullet in `atlas/architecture.md`'s auto-orientation slug section. `pair --help`'s usage text deliberately excludes behavior notes (its own comment says so), so "help" = the wrapper's behavior docs; flagged to the hub in the plan post.
+- [x] Docs: `maybeSpawnSlug`'s comment in `wrap.go`, a README line (Notifications section, next to the wrapper env knobs), and the trigger bullet in `atlas/architecture.md`'s auto-orientation slug section. `pair --help`'s usage text deliberately excludes behavior notes (its own comment says so), so "help" = the wrapper's behavior docs; flagged to the hub in the plan post. Hub confirmed: leave `pair --help` as is.
 - [x] Record in Log that the live fleet check needs the hub's restart + relaunch.
+- [x] Hub fold-in: the same Couch gate in `slugcmd.Run` (the body shared by the `bin/pair-slug` Stop-hook symlink and `pair slug`) + `TestRunSkipsUnderCouchHosting` + doc lines + the dispatcher slug-route test's couch-var pin.
+
+## Revisions
+
+### 2026-10-17 — hub scope fold-in (external Claude Stop-hook path)
+
+The hub ruled before close: if the Claude Stop-hook `pair-slug` path still
+spawns under Couch, #650 is not done. It does — the hook runs as claude's child,
+inherits the hosted env, and reaches `slugcmd.Run` through the surviving
+`bin/pair-slug` busybox symlink without ever passing pair-wrap. Delta: the same
+`launcher.CouchHostedEnv && PAIR_SLUG != "on"` gate now sits at the top of
+`slugcmd.Run`, so both entries no-op when hosted; plus its test, doc lines, and
+an env pin on the existing dispatcher slug-route test.
 
 ## Log
 
@@ -52,6 +65,9 @@ Quick flow — a few lines.
 - Claimed via the hub's dispatch (pair:8). Quick flow confirmed: gate + test + three doc lines.
 - `launcher` is already imported by `wrap.go`; `launcher.CouchHostedEnv` is the existing hosted predicate (scope or tag non-empty).
 - TDD: red first — couch-hosted case spawned (`spawns = 1, want 0`) — then the gate landed and all three cases pass; whole `wrapcmd` package passes (124.5s) with `go vet`/`gofmt` clean.
-- Added a `SLUG-skip` debug line in the gated branch (e2b491373): a hosted session with `PAIR_WRAP_LOG` set shows why the slug is quiet — the BEL-skip/EMIT-skip forensic pattern — instead of looking like drift. Targeted tests re-run green.
 - Docs landed: `wrap.go` comment, README "The orientation slug" paragraph in Notifications, `atlas/architecture.md` trigger bullet, plus a coherence note in `atlas/couch.md` (hosted rows carry a slug only with the knob on).
+- Added a `SLUG-skip` debug line in the gated branch (e2b491373): a hosted session with `PAIR_WRAP_LOG` set shows why the slug is quiet — the BEL-skip/EMIT-skip forensic pattern — instead of looking like drift. Targeted tests re-run green.
+- Full suite green twice (sdlc-local/suite exit 0: 12m2s on 3ee6e4199, 11m56s on b050580d6).
+- Close attempt refused on actual measurement ("suite attempt 2a875dd8 has 0 matching pinned slot engagements"); reported to the hub. Hub: ariadne:1 investigates the Qoder slot measurement gap; close with --no-actual naming it.
+- Stop-hook fold-in (see Revisions): `slugcmd.Run` gate landed with `TestRunSkipsUnderCouchHosting` — red proof against ungated HEAD showed the hosted run reaching the session lookup (`native session is unbound`) instead of the gate line; with the gate, whole `slugcmd` package green, dispatcher slug-route and `pair-go` slug-route smokes green (the latter's clean testpair env is non-hosted by design — "no ambient Pair, Couch … values cross this boundary").
 - Live fleet check (Done-when 2) needs a Couch restart + slot relaunch on the new binary — the hub's/operator's move; flagged in the landing report.

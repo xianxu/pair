@@ -15,6 +15,8 @@
 //	PAIR_AGENT                agent name (claude|codex|agy); default claude
 //	PAIR_SLUG_MODEL           small-model override; default depends on agent
 //	PAIR_SLUG_NESTED          set by the model child — makes pair-slug no-op
+//	PAIR_SLUG                 set to "on" to run under Couch hosting; hosted
+//	                          runs no-op by default (#650)
 //	OPENAI_API_KEY            optional for Codex's direct OpenAI API path
 //	cwd                       the repo (inherited from pair-wrap) — branch left
 //
@@ -32,6 +34,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/adapt"
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/diagnosticlog"
+	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/model"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 )
@@ -101,9 +104,20 @@ func inventoryTurns(runtime sessioninventory.Runtime, scopeKey, tag string, agen
 // Run is the pair-slug body: env-driven (no args, no stdout/stderr — writes
 // only to files + $PAIR_SLUG_LOG), tolerant (every path returns 0 so a hiccup
 // never disturbs the agent). Shared by the bin/pair-slug shim and `pair slug`.
+//
+// The hosted gate (#650) mirrors pair-wrap's maybeSpawnSlug gate: the external
+// Claude Stop hook reaches this body through bin/pair-slug without passing the
+// wrapper, so the body refuses on its own under Couch. pair-wrap's copy keeps
+// the hosted turn-end from even spawning the process; this copy protects every
+// other entry. PAIR_SLUG=on re-enables both; outside Couch behaviour is
+// unchanged.
 func Run() int {
 	if os.Getenv("PAIR_SLUG_NESTED") != "" {
 		logf("nested invocation (PAIR_SLUG_NESTED); skipping to avoid recursion")
+		return 0
+	}
+	if launcher.CouchHostedEnv(os.Getenv) && os.Getenv("PAIR_SLUG") != "on" {
+		logf("couch-hosted and PAIR_SLUG != on; skipping slug (#650)")
 		return 0
 	}
 

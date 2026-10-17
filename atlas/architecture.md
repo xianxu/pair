@@ -967,6 +967,8 @@ split keeps the model out of the live buffer:
   trigger is gated off by default — no `pair-slug` process, no small-model call
   (`launcher.CouchHostedEnv`; the fleet was paying ~70 spawns / ~36 model calls
   per hour) — and `PAIR_SLUG=on` re-enables it; outside Couch unchanged.
+  `slugcmd.Run` carries the same gate, so the external Claude Stop-hook entry
+  (the surviving `bin/pair-slug` busybox symlink) no-ops when hosted too.
 - **Propose** — `cmd/pair-slug` (thin shim over `cmd/internal/slugcmd`; also `pair slug`, #92). Queries the established owner through
   `sessioninventory` and consumes its bounded `NativeEvent` text window; all
   Claude, Codex, Agy, Muse, Qoder, and Grok record parsing stays in the versioned inventory

@@ -1677,9 +1677,10 @@ read as no slug). The existing inventory refresh supplies new descriptions and
 slugs, which is why a slug change redraws without ever becoming attention; no
 additional storage or polling is added. Under #650 pair's per-turn slug refresh
 is off by default when Couch hosts the thread (pair's wrapper gates the
-`pair-slug` spawn on `launcher.CouchHostedEnv`; `PAIR_SLUG=on` re-enables it),
-so a hosted row carries a slug only while that knob is on — the display path is
-unchanged.
+`pair-slug` spawn on `launcher.CouchHostedEnv`, and the `slugcmd.Run` body
+gates the external Claude Stop-hook entry the same way; `PAIR_SLUG=on`
+re-enables both), so a hosted row carries a slug only while that knob is on —
+the display path is unchanged.
 
 Both CLI resolution and in-memory menu filtering derive from
 `ClassifyThreadReferenceFields`/`MatchThreadReferenceFields`: exact opaque tags
