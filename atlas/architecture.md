@@ -1407,3 +1407,16 @@ Diagnostic inventory uses full executable names, since kernel names truncate,
 and keeps strict identity fencing across environment inspection. Its Inspection
 seam is shared by storage and diagnostic cleanup, including test compositions.
 `TestProductionDoesNotExecPS` guards production Go calls against reintroducing ps.
+
+
+Couch switcher clipboard outcomes (#638) flow from clipcmd's single executor
+(`ClipboardCopyLocalResult`) through Console's explicit Ctrl+Y attempt into
+`ReduceMenu`/`ReduceCopyFeedback`. The independent CopyFeedback banner retains
+failed/unconfirmed copy input until retry succeeds or Escape dismisses it;
+background inventory and operation notices cannot overwrite it. Presenter OSC52
+acceptance remains unconfirmed. The native call keeps its existing one-second
+budget. Local bounded stderr is screen-only; `SetCopyObserver` wires typed
+metadata (tool, exit/timeout, stderr length/hash, OSC outcome) to the existing
+bounded supervision writer's `clipboard_copy` event. No copied notice or free-form
+stderr crosses that callback. `clipboard_live_test.go` owns the explicitly opt-in
+real-tool Console conformance harness; regular tests use private stateful tools.

@@ -19,7 +19,7 @@ import (
 type sessionSyncArgs struct {
 	verb, file, section, bodyFile, ifHash string
 	owner, oldFile                        string
-	all, json                             bool
+	all, frontmatter, json                bool
 	accepts                               sessionsync.Accepts
 	fold                                  []string
 }
@@ -33,8 +33,10 @@ couch --session-sync diff FILE
 couch --session-sync status [--json] FILE
 couch --session-sync read --section HEADING FILE [--json]
 couch --session-sync read --all FILE [--json]
+couch --session-sync read --frontmatter FILE [--json]
 couch --session-sync write --section HEADING BODYFILE FILE --if-hash H [--accept-gap] [--fold ID[,ID]]
-couch --session-sync write --all BODYFILE FILE --if-hash H [--accept-gap] [--fold ID[,ID]]`
+couch --session-sync write --all BODYFILE FILE --if-hash H [--accept-gap] [--fold ID[,ID]]
+couch --session-sync write --frontmatter BODYFILE FILE --if-hash H [--accept-gap] [--fold ID[,ID]]`
 
 // parseSessionSyncCLI reads the closed forms above. Values (a heading, a
 // path) are taken verbatim even when they start with "--".
@@ -54,8 +56,8 @@ func parseSessionSyncCLI(args []string) (cliInvocation, error) {
 		"rename":   {"--json"},
 		"diff":     {},
 		"status":   {"--json"},
-		"read":     {"--section", "--all", "--json"},
-		"write":    {"--section", "--all", "--if-hash", "--accept-gap", "--fold"},
+		"read":     {"--section", "--all", "--frontmatter", "--json"},
+		"write":    {"--section", "--all", "--frontmatter", "--if-hash", "--accept-gap", "--fold"},
 		// Retired by pair#439 (no agent-held lock); accepted as a no-op
 		// with its old flags for one release so older skills don't break.
 		"release": {"--accept-edits", "--accept-gap", "--fold"},
@@ -102,6 +104,8 @@ func parseSessionSyncCLI(args []string) (cliInvocation, error) {
 			}
 		case "--all":
 			a.all = true
+		case "--frontmatter":
+			a.frontmatter = true
 		case "--accept-gap":
 			a.accepts.Gap = true
 		case "--json":
@@ -118,8 +122,16 @@ func parseSessionSyncCLI(args []string) (cliInvocation, error) {
 	if a.verb == "register" && a.owner == "" {
 		return usage("register requires --owner SLOT")
 	}
-	if (a.verb == "write" || a.verb == "read") && seen["--section"] == a.all {
-		return usage("%s takes exactly one of --section HEADING or --all", a.verb)
+	if a.verb == "write" || a.verb == "read" {
+		scopes := 0
+		for _, flag := range []string{"--section", "--all", "--frontmatter"} {
+			if seen[flag] {
+				scopes++
+			}
+		}
+		if scopes != 1 {
+			return usage("%s takes exactly one of --section HEADING, --all or --frontmatter", a.verb)
+		}
 	}
 	if a.verb == "write" {
 		if a.ifHash == "" {
@@ -250,7 +262,12 @@ func runSessionSyncCLI(a *sessionSyncArgs, rt Runtime, stdout, stderr io.Writer)
 		}
 		fmt.Fprintf(stdout, "lock: %s\n%s", lockText(holder), diff)
 	case "read":
-		r, err := s.Read(file, a.section)
+		var r sessionsync.ReadResult
+		if a.frontmatter {
+			r, err = s.ReadFrontmatter(file)
+		} else {
+			r, err = s.Read(file, a.section)
+		}
 		if err != nil {
 			return fail(err)
 		}
@@ -266,12 +283,14 @@ func runSessionSyncCLI(a *sessionSyncArgs, rt Runtime, stdout, stderr io.Writer)
 		if err != nil {
 			return fail(fmt.Errorf("reading the body: %w", err))
 		}
-		res, err := s.Write(sessionsync.WriteRequest{File: file, Section: a.section, Body: string(raw),
+		res, err := s.Write(sessionsync.WriteRequest{File: file, Section: a.section, Frontmatter: a.frontmatter, Body: string(raw),
 			IfHash: a.ifHash, Accepts: a.accepts, Fold: a.fold})
 		if err != nil {
 			return fail(err)
 		}
-		if a.section != "" {
+		if a.frontmatter {
+			fmt.Fprintln(stdout, "wrote frontmatter")
+		} else if a.section != "" {
 			fmt.Fprintf(stdout, "wrote ## %s\n", a.section)
 		} else {
 			fmt.Fprintln(stdout, "rewrote the file")

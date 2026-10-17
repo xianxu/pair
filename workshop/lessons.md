@@ -7,6 +7,12 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- Adding diagnostic pipes changes subprocess completion: a detached child can hold stderr after a successful tool exit. Separate process success from diagnostic-drain cutoff, retain capture uncertainty, and test inherited descriptors behind a release handshake. (#638)
+
+- Reserve shared banners before a menu frame windows its selected rows. Subtracting them only for some frame kinds lets final clipping hide selected actions and cursors; test every windowed frame at minimum geometry. (#638)
+
+- Keep free-form tool stderr out of metadata-only diagnostic callbacks. A truncated or transformed echo defeats full-input redaction; publish typed status plus stderr length/hash and keep bounded output on the operator screen. (#638 PQ-1)
+
 - A strict trust check and a native discovery rule can intentionally treat aliases differently. Failure to prove one observed discovery candidate makes the whole candidate scope unknown; silently omitting it can select an older conversation. Test the selected identity with a newer candidate behind an unsupported alias. (#571 BR-3)
 - SQLite read-only mode can create native WAL-index sidecars. A non-mutating adapter queries an owned coherent private snapshot, and a real WAL fixture must compare the entire native file set and bytes before and after success, failure and cancellation. An integrity check validates recovery, not the coherence of separately copied source files. (#571 BR-4)
 
@@ -2141,4 +2147,11 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #629 BR-1: A queued/held receipt describes the latest observation, not absence of input after commit handoff. Classify disconnect uncertainty from the active delivery owner; test both sender and receiver disconnect for every interim receipt status.
 - #629 BR-2: Advancing an injected business clock does not advance an existing real context timer. Test each timeout owner independently at its IO boundary and restore each removed deadline separately to prove its regression fails.
 
+- #637 BR-1: A current notice is transient presentation, not operation completion. Independent event deliveries can overwrite it after success. Fixtures synchronize on an admitted operation's completion channel and test completion-before-late-presentation ordering; observing a phase alone can also precede release of the owner's work slot.
 - #631: Removing a shared mutex from external cleanup must retain the existing per-recipient reservation until that cleanup returns. Regress cancellation emptying the old queue entry followed by a new admission, and a replacement holding its own reservation while the old cleanup finishes.
+
+- #638: A successful subprocess exit does not prove a complete piped-input operation. exec.ErrWaitDelay can describe either unread inherited stdin or a held-open diagnostic descriptor; preserve success only after verifying the existing input reader is exhausted and context remains valid. Pair the full-read/held-stderr regression with an over-pipe-capacity unread-input negative control.
+- #634: Start a request's admission budget before sender checks, then carry its context through registry posting and recipient IO. A timeout regression must include earlier work over the real transport; testing admission alone misses additive budgets. Refusal bookkeeping reuses the routing snapshot rather than starting a second lookup after expiry.
+- #643: Distinguish atomic replacement of one file from publication of a document/shadow/state bundle. A plan must name partial persisted outcomes and reconciliation after IO failure; test a controlled publication failure and prove unread baselines and owed events survive.
+
+- #638 BR-1 (advisory): When positive and negative subprocess regressions share a descriptor-holder protocol, give one test helper ownership of its environment, release handshake and bounded cleanup so lifecycle fixes do not diverge between copies.

@@ -3,6 +3,7 @@ package couchtty
 import (
 	"bytes"
 	"encoding/base64"
+	"encoding/json"
 	"io"
 	"os"
 	"path/filepath"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/couchkeys"
 	"github.com/xianxu/pair/cmd/internal/ptychild"
+	"github.com/xianxu/pair/cmd/internal/terminal"
 )
 
 // testLifetime is short because this level must let a REAL timer fire: the
@@ -154,7 +156,7 @@ func TestSwitcherCopiesFullNoticeToSystemClipboard(t *testing.T) {
 		if err != nil || len(n) != count {
 			t.Fatalf("clipboard calls = %q, err %v; want %d", n, err, count)
 		}
-		if got := f.con.menuSnapshot().Notice.Text; got != "Full notice copied to clipboard." {
+		if got := f.con.menuSnapshot().CopyFeedback.Text; got != "Full notice copied to clipboard." {
 			t.Fatalf("copy feedback = %q", got)
 		}
 	}
@@ -192,7 +194,7 @@ func TestSwitcherNoticeClipboardFallbackIsUnconfirmed(t *testing.T) {
 			_, _ = f.stdin.Write([]byte{0, 0x19})
 			want := "\x1b]52;c;" + base64.StdEncoding.EncodeToString([]byte(full)) + "\x1b\\"
 			waitFor(t, "unconfirmed terminal fallback", func() bool {
-				return strings.Contains(f.host.Written(), want) && f.con.menuSnapshot().Notice.Text == "Terminal copy requested; delivery is unconfirmed."
+				return strings.Contains(f.host.Written(), want) && strings.Contains(f.con.menuSnapshot().CopyFeedback.Text, "terminal copy requested; delivery is unconfirmed.")
 			})
 			if reason == "remote" {
 				if _, err := os.Stat(marker); !os.IsNotExist(err) {
@@ -206,7 +208,7 @@ func TestSwitcherNoticeClipboardFallbackIsUnconfirmed(t *testing.T) {
 func TestSwitcherCopyNoticeEmptyHistory(t *testing.T) {
 	f := newFixture(t, 24, 80)
 	_, _ = f.stdin.Write([]byte{0, 0x19})
-	waitFor(t, "empty notice feedback", func() bool { return f.con.menuSnapshot().Notice.Text == "No notice to copy." })
+	waitFor(t, "empty notice feedback", func() bool { return f.con.menuSnapshot().CopyFeedback.Text == "No notice to copy." })
 	if strings.Contains(f.host.Written(), "\x1b]52;") {
 		t.Fatal("empty history replaced clipboard")
 	}
@@ -218,5 +220,135 @@ func TestCopyNoticeChordStillReachesFocusedChild(t *testing.T) {
 	waitFor(t, "Ctrl+Y child input", func() bool { return bytes.Contains(bytes.Join(f.child.Writes(), nil), []byte{0x19}) })
 	if strings.Contains(f.host.Written(), "\x1b]52;") {
 		t.Fatal("actor chord copied a notice")
+	}
+}
+
+func TestSwitcherClipboardKeepsNativeFailure(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("PATH", dir)
+	for _, key := range []string{"SSH_CONNECTION", "SSH_CLIENT", "SSH_TTY"} {
+		t.Setenv(key, "")
+	}
+	if err := os.WriteFile(filepath.Join(dir, "pbcopy"), []byte("#!/bin/sh\nprintf 'pasteboard unavailable' >&2\nexit 7\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	f := newFixtureBeforeRun(t, 24, 80, func(c *Console) { c.feed.Push(Notice{Kind: "status", Body: "original notice"}) })
+	_, _ = f.stdin.Write([]byte{0})
+	waitFor(t, "switcher", func() bool { f.con.mu.Lock(); defer f.con.mu.Unlock(); return f.con.focus.IsPanel() })
+	f.con.onMenuKey(PanelKey{Kind: KeyCopyNotice})
+	if text := f.con.menuSnapshot().CopyFeedback.Text; !strings.Contains(text, "pbcopy") || !strings.Contains(text, "pasteboard unavailable") {
+		t.Fatalf("native failure was erased: %q", text)
+	}
+}
+
+func TestSwitcherClipboardRetryKeepsOriginalAndObservesOnce(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("PATH", dir)
+	for _, key := range []string{"SSH_CONNECTION", "SSH_CLIENT", "SSH_TTY"} {
+		t.Setenv(key, "")
+	}
+	tool := filepath.Join(dir, "pbcopy")
+	captured := filepath.Join(dir, "captured")
+	t.Setenv("TEST_RETRY_CAPTURE", captured)
+	if err := os.WriteFile(tool, []byte("#!/bin/sh\nprintf 'private original' >&2\nexit 7\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	observations := make(chan CopyObservation, 4)
+	f := newFixtureBeforeRun(t, 24, 80, func(c *Console) {
+		c.feed.Push(Notice{Kind: "status", Body: "private original"})
+		c.SetCopyObserver(func(o CopyObservation) { observations <- o })
+	})
+	_, _ = f.stdin.Write([]byte{0})
+	waitFor(t, "switcher", func() bool { f.con.mu.Lock(); defer f.con.mu.Unlock(); return f.con.focus.IsPanel() })
+	f.con.onMenuKey(PanelKey{Kind: KeyCopyNotice})
+	first := waitCopyObservation(t, observations)
+	raw, _ := json.Marshal(first)
+	if strings.Contains(string(raw), "private") || first.Native.Tool != "pbcopy" || first.Native.ExitCode == nil || *first.Native.ExitCode != 7 || first.OSC != "unconfirmed" {
+		t.Fatalf("unsafe or incomplete observation: %s", raw)
+	}
+	f.con.mu.Lock()
+	f.con.feed.Push(Notice{Kind: "status", Body: "new unrelated notice"})
+	f.con.mu.Unlock()
+	f.con.onMenuKey(PanelKey{Kind: KeyRune, Rune: 'z'})
+	if err := os.WriteFile(tool, []byte("#!/bin/sh\n/bin/cat > \"$TEST_RETRY_CAPTURE\"\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	f.con.onMenuKey(PanelKey{Kind: KeyCopyNotice})
+	second := waitCopyObservation(t, observations)
+	got, err := os.ReadFile(captured)
+	if err != nil || string(got) != "private original" || second.Outcome != "copied" || f.con.menuSnapshot().CopyFeedback.payload != "" {
+		t.Fatalf("retry lost its original: %q / %v / %+v", got, err, second)
+	}
+	select {
+	case extra := <-observations:
+		t.Fatalf("duplicate observation: %+v", extra)
+	default:
+	}
+}
+
+func TestSwitcherClipboardRetainsBothFailures(t *testing.T) {
+	t.Setenv("PATH", t.TempDir())
+	f := newFixtureBeforeRun(t, 24, 80, func(c *Console) {
+		c.feed.Push(Notice{Kind: "status", Body: strings.Repeat("x", terminal.MaxStringBytes+1)})
+	})
+	_, _ = f.stdin.Write([]byte{0})
+	waitFor(t, "switcher", func() bool { f.con.mu.Lock(); defer f.con.mu.Unlock(); return f.con.focus.IsPanel() })
+	f.con.onMenuKey(PanelKey{Kind: KeyCopyNotice})
+	feedback := f.con.menuSnapshot().CopyFeedback
+	if feedback.Kind != CopyFeedbackFailed || !strings.Contains(feedback.Text, "local clipboard unavailable") || !strings.Contains(feedback.Text, "terminal fallback:") {
+		t.Fatalf("both failures lost: %+v", feedback)
+	}
+	f.con.onMenuKey(PanelKey{Kind: KeyEscape})
+	if f.con.menuSnapshot().CopyFeedback.Kind != CopyFeedbackNone {
+		t.Fatal("Escape did not dismiss")
+	}
+	f.con.mu.Lock()
+	panel := f.con.focus.IsPanel()
+	f.con.mu.Unlock()
+	if !panel {
+		t.Fatal("dismissal switched away")
+	}
+}
+
+func TestSwitcherClipboardShutdownCancelsWithoutLateFeedback(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("PATH", dir)
+	for _, key := range []string{"SSH_CONNECTION", "SSH_CLIENT", "SSH_TTY"} {
+		t.Setenv(key, "")
+	}
+	started := filepath.Join(dir, "started")
+	t.Setenv("TEST_COPY_STARTED", started)
+	if err := os.WriteFile(filepath.Join(dir, "pbcopy"), []byte("#!/bin/sh\nprintf x > \"$TEST_COPY_STARTED\"\nexec /bin/sleep 30\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	observations := make(chan CopyObservation, 1)
+	f := newFixtureBeforeRun(t, 24, 80, func(c *Console) {
+		c.feed.Push(Notice{Kind: "status", Body: "original"})
+		c.SetCopyObserver(func(o CopyObservation) { observations <- o })
+	})
+	_, _ = f.stdin.Write([]byte{0, 0x19})
+	waitFor(t, "clipboard child start handshake", func() bool { _, err := os.Stat(started); return err == nil })
+	f.con.Stop()
+	select {
+	case o := <-observations:
+		if !o.Native.Canceled {
+			t.Fatalf("cancellation lost: %+v", o)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("clipboard child not reaped after cancellation")
+	}
+	if f.con.menuSnapshot().CopyFeedback.Kind != CopyFeedbackNone {
+		t.Fatal("cancelled copy resurrected feedback")
+	}
+}
+
+func waitCopyObservation(t *testing.T, observations <-chan CopyObservation) CopyObservation {
+	t.Helper()
+	select {
+	case observation := <-observations:
+		return observation
+	case <-time.After(3 * time.Second):
+		t.Fatal("copy observation missing")
+		return CopyObservation{}
 	}
 }

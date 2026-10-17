@@ -465,6 +465,7 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch, configur
 	service.installHubMoves(console)
 	service.SetDesktopNotify(console.NotifyDesktop)
 	console.SetMessageBroker(service.broker)
+	console.SetCopyObserver(facts.clipboardCopy)
 	service.SetBroadcastStatus(console.BroadcastStatus)
 	service.SetShares(console.Shares)
 	service.SetBlockedView(console.SetBlockedThreads)
@@ -616,12 +617,19 @@ func newMessageService(parent context.Context, brokerSocket, registrySocket stri
 // post hands an event to the loop; wait returns the registry's verdict. After
 // shutdown it drops the event: nothing is left to act on it.
 func (s *messageService) post(e couchmessage.RegistryEvent, wait bool) error {
+	return s.postContext(s.lifetime, e, wait)
+}
+
+// postContext bounds request-owned events by both caller and service lifetime.
+func (s *messageService) postContext(ctx context.Context, e couchmessage.RegistryEvent, wait bool) error {
 	in := messageInput{event: e}
 	if wait {
 		in.reply = make(chan error, 1)
 	}
 	select {
 	case s.inbox <- in:
+	case <-ctx.Done():
+		return ctx.Err()
 	case <-s.lifetime.Done():
 		return s.lifetime.Err()
 	}
@@ -631,6 +639,8 @@ func (s *messageService) post(e couchmessage.RegistryEvent, wait bool) error {
 	select {
 	case err := <-in.reply:
 		return err
+	case <-ctx.Done():
+		return ctx.Err()
 	case <-s.lifetime.Done():
 		return s.lifetime.Err()
 	}
@@ -802,6 +812,13 @@ func (s *messageService) connectedWorkspace(ctx context.Context, b couchmessage.
 }
 
 func (s *messageService) handle(ctx context.Context, request couchmessage.Request) (response couchmessage.Response) {
+	if request.Op == "send" {
+		// Sender authority and recipient admission spend one budget, leaving
+		// the exchange's existing margin for the broker's verdict (#634).
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, couchmessage.AdmissionTimeout)
+		defer cancel()
+	}
 	switch {
 	case request.Op == "resources":
 		if err := couchmessage.ValidateRequest(request); err != nil {
@@ -899,7 +916,9 @@ func (s *messageService) handle(ctx context.Context, request couchmessage.Reques
 		// spelled by repository alias names no binding's Slot and wakes
 		// nothing; the slot's own pane, submit or reconnect still does.
 		if request.Op == "send" && strings.Contains(request.Target, ":") {
-			_ = s.post(couchmessage.RegistryEvent{Kind: couchmessage.SendTargeted, Slot: request.Target}, false)
+			if err := s.postContext(ctx, couchmessage.RegistryEvent{Kind: couchmessage.SendTargeted, Slot: request.Target}, false); err != nil {
+				return couchmessage.Response{Code: "refused", Error: "not admitted: targeted registry post: " + err.Error()}
+			}
 		}
 	}
 	return couchmessage.Handle(ctx, s.broker, request)
