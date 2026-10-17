@@ -1,12 +1,20 @@
 ---
 id: 000634
-status: open
+status: working
 deps: [pair#618]
 github_issue:
 created: 2026-10-16
-updated: 2026-10-16
+updated: 2026-10-17
 estimate_hours:
-card_mirror: '047ebc2b2e5862089b59de7c630a431f9cfcff0b' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '350a913e42eedeb3f813254567ec1e2bbcbf430b' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-17T04:42:51-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:3
+    worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
+    repository: github.com/xianxu/pair
 ---
 
 # every step of a couch send spends the one exchange budget; no fresh timers outside admission
@@ -42,8 +50,15 @@ marshals twice (BR-8). Fold that in only if the budget change touches those line
 
 ## Plan
 
-- [ ]
+- [ ] Measure the dropped verdict over real service sockets with a 1.5 s sender check followed by a recipient waiting for admission cancellation; retain the failing regression before production edits.
+- [ ] Start the existing admission budget before the sender check, as a child of the exchange context, and carry it into Send; return admit's families snapshot for refusal bookkeeping instead of reading again (ARCH-DRY).
+- [ ] Regress shared deadlines, cancellation, one families read and canonical refusal reasons; run targeted race checks and the recorded full suite.
+- [ ] Update the atlas, close through fresh review and land; report to the hub. Operator restart check is deferred with #629/#631 by TL approval, with no pair:0 staging.
 
 ## Log
 
 ### 2026-10-16
+
+### 2026-10-17 — design
+
+Claimed in pair:3 and started from fresh main. Inspection confirms sender authority precedes Broker.Send's new 2 s timer, and refusalFamilies starts an independent 250 ms context from broker lifetime. Share the existing admission context across authority and broker, preserving the transport's existing 1 s response margin; reuse the admission families snapshot. Increasing the transport timeout leaves the additive-budget defect; an extra deadline helper adds an owner unnecessarily. No new state, retry, persisted data or timeout value. Optional BR-8 decoding/marshalling cleanup is outside this change. TL approved this plan and deferring live validation to the operator restart alongside #629/#631 (delivery 4e1cd205-fd63-47c0-942d-41435a3c860d). The real-socket regression injects delay in the existing authority seam; no operator environment is touched.
