@@ -50,7 +50,7 @@ The original OSC 52 loss layer is still undiagnosed (#604's close review).
 - [x] Deliver typed clipboard diagnostics and a pure retained-copy feedback model, with red/green tests.
 - [x] Wire bounded copy outcomes to supervision.jsonl; exercise production Console wiring with stateful clipboard doubles and retained-error sequence tests.
 - [x] ~~Obtain the actual Couch-path failure evidence through live conformance, correct the measured cause, and verify a real Ctrl+Y paste with the operator.~~ Superseded by the approved acceptance Revisions: the opt-in harness is delivered; the hub holds actual Ctrl+Y acceptance for the next restart. No historical cause is claimed fixed.
-- [ ] Run the complete recorded suite, update README/atlas and close through SDLC.
+- [x] Run the complete recorded suite and update README/atlas; close through SDLC is the final gate for this checklist.
 
 Durable design: workshop/plans/000638-couch-clipboard-copy-plan.md.
 
@@ -117,3 +117,9 @@ CI on b9a5b907 passed all checks, including zellij conformance. Final source ins
 The first recorded suite attempt on b9a5b907 was still waiting for a machine slot (inflight 17f8af91f6156202288c7f67aff01c3c, queued about 15 minutes). It was canceled intentionally as superseded, before any suite test ran, via SIGINT to this session's verified sdlc PID23102. Its owned cat/lock helper exited; no peer process was touched. The recorded cancellation is not a test flake. A new recorded suite will run the corrected code head.
 
 The central-budget correction passed the expanded menu/Console selection in the main session (0.661s), following the agent's behavioral red and green. Current pushed code head is 35219ec723e70a7c033bf0801bd7b9482d206c55 in PR394. Its recorded suite is running/queued through the normal machine gate, inflight fbbb0a170bb6e5481c03573880bfc45f, log /Users/xianxu/workspace/pair/.git/sdlc/test-stats/inflight/fbbb0a170bb6e5481c03573880bfc45f/run.log (not yet a passing result). Complete that run, handle failures under the worker rule, then close and land; no primary staging and no real clipboard rerun.
+
+### 2026-10-17 — recorded verification before close
+
+Corrected-head recorded suite PASS: 35219ec723e70a7c033bf0801bd7b9482d206c55, exit 0 in 13m14s after 1668s of machine-queue waiting, log SHA256 prefix 8b5e337d5e9a. Full retained log: /Users/xianxu/workspace/pair/.git/sdlc/local-checks/35219ec723e70a7c033bf0801bd7b9482d206c55/suite.log. All shell/editor checks and the complete Go run finished; no flake rerun or early stop. CI conformance, merge-check and local-gates guard passed on this code head. Focused race checks passed for clipboard execution, feedback and supervision wiring; complete artifactpath classification passed. The prior b9a5b907 queued attempt was intentionally superseded before execution, not a test failure.
+
+Both rollout/privacy decisions were additionally verified against canonical submitted Couch receipts 00b6f3ff-12f2-4f3e-8407-9da4c629a989 and 8429745d-ecb6-40e5-9325-a6282e0141c0 (ops:0 to pair:7). Close acceptance is the tested instrumentation, persistence and available opt-in harness. The harness was not run against the host clipboard; no further real probe or primary staging was performed. The historical live copy failure remains unknown; the hub owns next-restart real Ctrl+Y paste or measured-cause follow-up.
