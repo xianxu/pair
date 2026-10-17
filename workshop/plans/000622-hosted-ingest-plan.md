@@ -131,7 +131,7 @@ These are local decisions, not new domain types. The first belongs 1:1 to the em
 
 | Integration | Lives in | Status | Wraps |
 |---|---|---|---|
-| Eager emulator state transition | third_party/vt/utf8.go, handleGrapheme | existing/reused | cells, cursor, history, cluster amendment |
+| Eager emulator state transition | third_party/vt/utf8.go, handlePrint and handleGrapheme | modified | cells, cursor, history, cluster amendment |
 | Authoritative feed and publication | cmd/internal/terminal/endpoint.go; cmd/internal/ptychild/terminal.go | existing/reused | parser, protocol replies/effects, snapshots and parent output |
 
 No new IO integration or fake service. Reuse real in-memory VT, existing fake Child/Endpoint and existing reply/effect recorder seams for correctness and complete-ingest benchmarks.
@@ -212,3 +212,7 @@ Runner94823 completed all28 cases at00:03 PDT before the10:48 Couch restart. [Be
 ### 2026-10-17 — TL qualifies candidate and authorizes landing before live restart
 
 TL642b580a accepts the measured CPU reduction and directs suite, reviews and landing now; do not wait for rolling relaunch (dirty pensive/Codex binding still block it). Live acceptance rides the next Couch restart. Reconcile active Spec/Done-when accordingly: M2 closes/lands on candidate qualification plus semantic/race/recorded-suite/SHIP evidence; the issue remains working with a plain pending post-landing acceptance item until production CPU/sample and console/peek/waiting pass. TL schedules the restart, this worker performs the checks; no worker stage/restart and no claim that fixture gains prove live server savings. Whole-issue close follows that live evidence. This supersedes the prior before-landing live order without dropping its deliverable.
+
+### 2026-10-17 — reconcile conceptual inventory to implementation
+
+The ASCII boundary/width predicate is a pure inline decision, but handlePrint itself mutates the emulator. The integration inventory now names handlePrint alongside the retained handleGrapheme transition rather than implying the whole method is pure. TL qualification accepts the measured two-shortcut bundle; fixture CPU figures do not allocate savings between parser and validator. Separate local microbenchmarks are diagnostic, while the completed fixed-work ingest/publication experiment is the performance gate. No code, authority or acceptance scope changes.
