@@ -1,12 +1,12 @@
 ---
 id: 000628
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-16
 updated: 2026-10-17
 estimate_hours:
-card_mirror: 'b2490cd924fb53cfd68b42b23aee7760e0433a43' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'e1d81c5dbca096e15eecd80e541762a724a98235' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-17T11:26:22-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
 flow: {kind: quick, provenance: inferred, spec: "5277190d", done: "531c08b9"}
+actual_hours: 1.34
 ---
 
 # Idle UI invariant intermittently returns only 16 of 20 activity results
