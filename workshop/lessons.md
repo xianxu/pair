@@ -2166,3 +2166,23 @@ and external temporary roots rather than relying on the host's TMPDIR.
   with a process gate and retain stderr rather than relying only on sleep offsets.
 
 - Chunked JSONL framing must not search a retained newline-free prefix again on each append. Count actual delimiter bytes examined across multi-chunk records, alongside semantic boundary/limit tests; read/decode counters alone miss quadratic delimiter work. Preserve per-probe progress when diagnosing aggregate worker timeouts. (#626)
+
+- A composite-literal realignment is where initializers get silently dropped.
+  When a rename for gofmt alignment touches a constructor literal, grep every
+  field's initializer and pin each constructor default with its own assertion;
+  the feature test that sets the field explicitly cannot see a missing default.
+  (#628)
+
+- A zero `context.WithTimeout` deadline does not fail deterministically: the
+  timer arms asynchronously, so an instant probe can beat its own deadline on an
+  unloaded machine and lose on a loaded one. Read as a flake it hides a missing
+  default; verify deadline fixes under the suite's real contention (a heavy
+  sibling package run concurrently), never by unloaded local greens alone. (#628)
+
+- Under `go test -timeout`, a wait bounded by the test deadline consumes the
+  package budget and cascades: every later failure is instant with a shrinking
+  budget (remaining/2 margin). Diagnose the FIRST failure and its duration; the
+  rest is aftermath. For a mid-hang goroutine dump, SIGQUIT the test binary
+  (the package alarm fires only after testwait's margin lets the test exit);
+  stack dumps miss sub-millisecond workers, so dump state (schedules, channel
+  depths, probe outcomes) from inside a diagnostic test. (#628)
