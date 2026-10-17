@@ -53,6 +53,8 @@ Detailed design: [stale-session reminder plan](../plans/000630-stale-session-rem
 - Verified TL approval receipt 7792da29-cd2b-4de6-becc-7aeda30b307d: in-memory cooldown may reset on restart, costing at most one extra reminder; isolated real Couch acceptance here is sufficient, installed-hub smoke deferred to restart, no pair:0 staging.
 - Verified TL approval receipt 5b8479be-4ca3-41b8-9745-586c7b791da1: full flow approved for the separate serialized worker and safe IO envelope, same feature scope. No code written yet.
 
+- Plan gate PQ-1 requested an authoritative pure transition model; the durable plan now defines advanceStaleReminder and event/effect transitions for every retained state mutation. PQ-2 recurring conformance triggers and the real Git-backed fixture are specified. No implementation has started.
+
 ## Revisions
 
 - 2026-10-17: quick-flow sizing exceeded the shell once baseline-neutral inspection and bounded asynchronous command execution were included. TL approved full flow before implementation; product behavior is unchanged.
