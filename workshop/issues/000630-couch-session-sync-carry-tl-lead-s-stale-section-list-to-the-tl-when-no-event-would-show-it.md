@@ -56,6 +56,8 @@ Detailed design: [stale-session reminder plan](../plans/000630-stale-session-rem
 
 - Plan gate PQ-1 requested an authoritative pure transition model; the durable plan now defines advanceStaleReminder and event/effect transitions for every retained state mutation. PQ-2 recurring conformance triggers and the real Git-backed fixture are specified. No implementation has started.
 
+- Implementation checkpoint: observed missing inspection/model/worker/command APIs in red tests, then passed focused SessionStale/InspectRegistered tests. Pure transitions own allowance and diagnostics; a coalesced serialized worker is wired to the existing wait tick. Command fixtures cover missing/nonzero/overflow/cancel and owned descendant collection; worker barrier proves wait ticks remain responsive and service cancellation collects work without sending. The overflow test caught bytes.Buffer ReaderFrom promotion bypassing the writer bound; the private buffer now exposes only bounded Write. Full package/race and real CLI conformance are next.
+
 ## Revisions
 
 - 2026-10-17: quick-flow sizing exceeded the shell once baseline-neutral inspection and bounded asynchronous command execution were included. TL approved full flow before implementation; product behavior is unchanged.

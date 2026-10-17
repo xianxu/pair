@@ -475,7 +475,10 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch, configur
 	service.recordDeliveries(namespace)
 	service.supervision.Store(newSupervisionCoordinator(service, func(text string) { console.Notify(couchtty.Notice{Kind: "status", Body: text}) }))
 	watcher := newWaitWatcher(service, threshold, namespace)
-	service.workers.Add(1)
+	stale := newSessionStaleWatcher(service, namespace, func(text string) { console.Notify(couchtty.Notice{Kind: "status", Body: text}) })
+	watcher.staleTick = stale.offer
+	service.workers.Add(2)
+	go func() { defer service.workers.Done(); stale.run(service.lifetime) }()
 	go func() { defer service.workers.Done(); watcher.run(service.lifetime, waitTick) }()
 	service.workers.Add(1)
 	go func() { defer service.workers.Done(); listings.Run(service.lifetime) }()

@@ -22,6 +22,28 @@ type Registration struct {
 	RegisteredAt                     time.Time
 }
 
+// DocumentInfo is a fresh registered document's routing and operator-lock facts.
+// Inspecting these facts does not acknowledge any document content or delivery.
+type DocumentInfo struct {
+	ID, File, Owner string
+	Holder          Holder
+	SessionSync     bool
+}
+
+// InspectRegistered reads current facts under the document's transaction lock.
+// A legacy session-sync file is insufficient authority without a registration.
+func (s *Sync) InspectRegistered(path string) (DocumentInfo, error) {
+	return withDocument(s, path, func(f *file) (DocumentInfo, error) {
+		if f.registration == nil {
+			return DocumentInfo{}, refuse("%s is not a registered document", path)
+		}
+		if !ValidSlot(f.owner) {
+			return DocumentInfo{}, refuse("document owner %q is invalid", f.owner)
+		}
+		return DocumentInfo{ID: f.registration.ID, File: f.registration.File, Owner: f.owner, Holder: f.holder, SessionSync: IsSessionSync(f.content)}, nil
+	})
+}
+
 const registeredStateMaxBytes = 1 << 20
 
 // Preflight every prospective registered companion before publishing authority
