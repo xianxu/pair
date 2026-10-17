@@ -89,3 +89,7 @@ Approved by ops:0 (receipt 573ccccc-8f55-4d1e-ba4f-e1542c3a0cb6), with these del
 - Add a status regression for a hung-but-connected receiver: queued/held receipts must name the existing composer wait and queue position. Reuse existing wording; do not add status strings. Include the pending pre-paste head as position 1 when showing the receiver's complete waiting line, and propagate its standing composer wait to followers.
 - Remove the proposed Release-outside-b.mu change and its gated Release regression from #629. The Log has no measurement tying it to the outage window; file it as independent work. The existing per-recipient workers and the no-serial-expiry drain are the queue scope here.
 - Proceed with implementation, post-paste protections and the specified fake busy receiver regression. The next ordinary Couch restart carries the landed change; do not independently restart the hub.
+
+### 2026-10-16 — implementation evidence
+
+The approved Release exclusion is tracked separately as #631. The broker retains its existing conservative disconnect classification once a commit has been handed off: indeterminate rather than cancelled, because a previously observed pre-paste receipt cannot prove no input occurred before disconnection. Never replay that body. Fake-clock tests now cover refusal, queued and held waits, exact-binding replacement, and independent receivers; the socket test covers one commit across queued/held transitions.

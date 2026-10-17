@@ -46,8 +46,8 @@ Measured by pair:2 (18:47): after the restart, 31 hub-bound deliveries were canc
 ## Plan
 
 - Design: [busy receiver queue plan](../plans/000629-busy-receiver-queue-plan.md).
-- [ ] Reproduce connected-receiver expiry and independent-recipient blocking with controlled clocks and stateful fakes.
-- [ ] Remove accepted pre-paste expiry across model, broker, remote endpoint and wrapper; preserve post-paste uncertainty and exact binding ownership.
+- [x] Reproduce connected-receiver expiry and independent-recipient progress with controlled clocks and stateful fakes.
+- [x] Remove accepted pre-paste expiry across model, broker, remote endpoint and wrapper; preserve post-paste uncertainty and exact binding ownership.
 - [ ] Verify queue drain, cancellation, native receiver behavior and the recorded full suite; close, land and report the PR.
 
 ## Log
@@ -59,6 +59,10 @@ Measured by pair:2 (18:47): after the restart, 31 hub-bound deliveries were canc
 - Initial receipt/queue plan is committed for hub review before code. Reuses existing status strings and stateful fake endpoints; keeps FIFO per receiver, immediate promotion after confirmation, independent receiver workers, and all post-paste input protections. No body batching or unsafe mid-turn input is introduced. No implementation changes made.
 - start-plan reported a nonblocking base catch-up warning: weave refresh rejected --defer-settings; the binary allowed planning on the current checkouts. No peer tools or machine settings changed to work around it.
 - Hub approved the connection-scoped wait plan (receipt 573ccccc-8f55-4d1e-ba4f-e1542c3a0cb6). Required addition: held message status must expose the composer wait and queue position. The Release-under-lock finding is excluded: no retained measurement ties it to the 17:37–18:22 outage. File it independently; do not change that path in #629.
+
+- Implementation checkpoint: fake receiver clock jumps through 91s, 45m and one hour reproduce expiry on the prior implementation (/tmp/pair629-busy-receiver-red.log); wrapper unknown-composer, draft and picker waits at two hours reproduce it independently (/tmp/pair629-wrapper-red.log). Both regression groups pass after retiring pre-paste horizons. The full couchmessage race run passed (21.883s, /tmp/pair629-couchmessage-final.log); all TestPeer wrapper cases passed (44.009s, /tmp/pair629-peer-final.log). CLI/embedded-skill/README checks passed (0.300s, /tmp/pair629-cli-docs.log). Initial package failures were deterministic old status/position expectations, updated to the approved receipt semantics; logs retained. Full wrapper run and suite remain pending.
+- Held/queued receipt projection includes the entire receiver line and standing composer wait, using existing words and statuses. Socket tests count one commit across queued/held/queued progression. Queue capacity and terminal receipt retention remain bounded; active accepted receipts survive retention sweeps. The independent Release-lock finding was filed unclaimed as #631; this branch leaves that lock path unchanged.
+- Disconnect safety remains conservative: uncommitted queued work cancels with the exact receiver reason; a handed commit has an uncertain-input outcome (indeterminate, wrapper disconnected) because a last queued status cannot prove no subsequent paste. No body replay or rerouting to a new binding is authorized. The automatic-input watchdog keeps its own bounded diagnostic state; only its obsolete pre-paste expiry eligibility check was removed.
 
 ## Revisions
 

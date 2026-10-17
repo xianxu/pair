@@ -10,9 +10,8 @@ import (
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
 )
 
-// pair#435: holds the operator causes (the composer scrolled out of view, a
-// draft in it) stop the paste-by clock; other holds keep it running; the
-// hold limit still ends a long hold, naming it.
+// Operator holds remain visible and protect drafts/scrollback. Accepted
+// messages do not expire before paste while the receiver stays connected.
 
 // peerHoldFixture enqueues one message on a controlled clock. The composer
 // starts holding the operator's draft ("alpha").
@@ -78,9 +77,8 @@ func TestPeerScrollbackHoldStopsTheDeadline(t *testing.T) {
 	}
 }
 
-// A hold the operator didn't cause expires at the paste-by, after the time
-// the operator did hold it is added back.
-func TestPeerOtherHoldKeepsTheDeadline(t *testing.T) {
+// A draft disappearing into an unknown composer still retains the message.
+func TestPeerUnrecognizedComposerAfterDraftStillWaits(t *testing.T) {
 	f, d, now := peerHoldFixture(t)
 	var out bytes.Buffer
 	f.proxy.dispatchPeer(&out) // the draft holds from here
@@ -98,19 +96,19 @@ func TestPeerOtherHoldKeepsTheDeadline(t *testing.T) {
 	}
 	*now = deadline
 	f.proxy.dispatchPeer(&out)
-	if r := d.receipt(); r.Status != couchmessage.Expired || out.Len() != 0 {
-		t.Fatalf("non-operator hold did not expire at the deadline: %+v", r)
+	if r := d.receipt(); r.Status != couchmessage.Queued || out.Len() != 0 {
+		t.Fatalf("connected composer wait discarded mail: %+v", r)
 	}
 }
 
-func TestPeerHoldLimitExpiresNamingTheHold(t *testing.T) {
+func TestPeerLongDraftWaitNamesTheHold(t *testing.T) {
 	f, d, now := peerHoldFixture(t)
 	var out bytes.Buffer
 	f.proxy.dispatchPeer(&out)
-	*now = d.receipt().Message.HoldLimit()
+	*now = now.Add(2 * time.Hour)
 	f.proxy.dispatchPeer(&out)
 	r := d.receipt()
-	if r.Status != couchmessage.Expired || !strings.Contains(r.Detail, "held past 30m0s") || !strings.Contains(r.Detail, "empty composer") {
+	if r.Status != couchmessage.Held || !strings.Contains(r.Detail, "empty composer") {
 		t.Fatalf("hold limit: %+v", r)
 	}
 	if out.Len() != 0 {
@@ -141,19 +139,18 @@ func TestPeerTypingKeepsTheHoldOpen(t *testing.T) {
 	}
 }
 
-// Reaching the hold limit on credited time, after the hold closed, still
-// names the hold.
-func TestPeerHoldLimitAfterTheHoldClosed(t *testing.T) {
+// A closed draft hold becomes a recognized-composer wait rather than expiry.
+func TestPeerLongWaitAfterTheDraftClosed(t *testing.T) {
 	f, d, now := peerHoldFixture(t)
 	var out bytes.Buffer
 	f.proxy.dispatchPeer(&out)
-	limit := d.receipt().Message.HoldLimit()
+	limit := now.Add(2 * time.Hour)
 	*now = limit.Add(-time.Second)
 	f.output("\x1b[2Jno composer here")
-	f.proxy.dispatchPeer(&out) // closes the hold with nearly MaxHold credited
+	f.proxy.dispatchPeer(&out) // the old draft is no longer visible
 	*now = limit
 	f.proxy.dispatchPeer(&out)
-	if r := d.receipt(); r.Status != couchmessage.Expired || !strings.Contains(r.Detail, "held past 30m0s") {
+	if r := d.receipt(); r.Status != couchmessage.Queued || !strings.Contains(r.Detail, "recognized composer") {
 		t.Fatalf("closed-hold limit: %+v", r)
 	}
 }
