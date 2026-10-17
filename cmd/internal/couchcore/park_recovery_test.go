@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/xianxu/pair/cmd/internal/launcher"
@@ -108,6 +109,37 @@ func TestRecoverParkRefusesUnprovedOrReplacementOwner(t *testing.T) {
 			after, _ := env.Couch.Threads.GetThread(before.Address)
 			if !reflect.DeepEqual(expected, after) {
 				t.Fatalf("refusal destroyed state: %v", err)
+			}
+		})
+	}
+}
+
+func TestRecoverParkAbsentTerminalRefusesBeforeCompletionLock(t *testing.T) {
+	for _, owner := range []Liveness{Live, Unknown} {
+		t.Run(owner.String(), func(t *testing.T) {
+			env, before := interruptedParkEnv(t, false)
+			if owner == Live {
+				env.Proc.Set(42, "pair-helper")
+			} else {
+				env.Proc.SetUnknown(42)
+			}
+			observed := false
+			env.Lifecycle.onObserve = func(pairlifecycle.QuitRequest) {
+				observed = true
+				// A real cleanup lock can stay held until this owner exits.
+				// Recovery must refuse before entering that observation.
+				env.Proc.Kill(42)
+			}
+			_, err := env.Couch.RecoverPark(context.Background(), before.Address)
+			if err == nil || observed {
+				t.Fatalf("refusal entered completion reconciliation: observed=%t err=%v", observed, err)
+			}
+			if !strings.Contains(err.Error(), "Recover park") || (owner == Live && !strings.Contains(err.Error(), "park is still finishing")) {
+				t.Fatalf("refusal lacks finishing/retry advice: %v", err)
+			}
+			after, getErr := env.Couch.Threads.GetThread(before.Address)
+			if getErr != nil || !reflect.DeepEqual(before, after) {
+				t.Fatalf("refusal changed retained state: %+v %v", after, getErr)
 			}
 		})
 	}

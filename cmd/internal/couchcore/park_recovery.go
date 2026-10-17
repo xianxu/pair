@@ -189,6 +189,18 @@ func (c *PairLifecycleController) recoverInterruptedPark(ctx context.Context, ad
 	if binding.Name == "" {
 		return result, errors.New("exact terminal identity is unavailable")
 	}
+	// Completion reconciliation can share a lock held by the live helper's
+	// cleanup. Refuse this case before entering it: recovery is not permission
+	// to wait for an absent terminal's live/unknown owner to disappear.
+	if !binding.Present {
+		owner := observeExactProcess(c.Proc, ProcessIdentity{PID: current.Park.Identity.PID, Identity: current.Park.Identity.ProcessIdentity})
+		if owner != Dead {
+			if owner == Live {
+				return result, errors.New("park is still finishing; owner is live; inspect before retrying recovery")
+			}
+			return result, fmt.Errorf("park owner is %s; inspect before retrying recovery", owner)
+		}
+	}
 	result, completed, err := c.reconcileAttempts(result, current, binding.Name)
 	if completed {
 		return result, err

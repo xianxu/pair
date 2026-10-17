@@ -233,6 +233,9 @@ func TestParkRecoveryLiveInterruptedScrollbackCleanup(t *testing.T) {
 	if _, err := env.Couch.RecoverPark(ctx, d.current.Address); err == nil {
 		t.Fatal("retired helper still alive at cleanup gate")
 	}
+	if state := observeExactProcess(OSProcOps{}, d.childID); state != Live {
+		t.Fatalf("live-owner refusal waited for helper exit: %s", state)
+	}
 	binding, err := observeRecordSession(ctx, d.checker, d.current)
 	if err != nil || binding.Present {
 		t.Fatalf("quiescence did not precede cleanup gate: %+v %v", binding, err)
