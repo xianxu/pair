@@ -14,6 +14,7 @@ const clipboardStderrLimit = 4096
 
 // ClipboardCopyMetadata can cross diagnostic boundaries: it has no input or
 // free-form tool output. ExitCode is absent when the tool did not exit normally.
+// StderrTruncated also covers an EOF not observed before the drain cutoff.
 type ClipboardCopyMetadata struct {
 	Tool            string `json:"tool,omitempty"`
 	Executable      string `json:"executable,omitempty"`

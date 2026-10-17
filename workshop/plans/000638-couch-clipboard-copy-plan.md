@@ -107,3 +107,7 @@ TL approved the full-flow single-pass design (dd9c7097-9be3-4fca-9cc3-c7046cde42
 ### 2026-10-17 — plan-quality refinements and simpler log privacy
 
 PQ-1 identified that full-payload redaction cannot protect truncated/transformed echoes. TL receipt 8429745d-ecb6-40e5-9325-a6282e0141c0 chooses a simpler strict boundary: no free-form stderr in supervision at all. The operator screen may show bounded sanitized stderr; logs get tool/exit/timeout and stderr byte length plus a short hash only. No overlap or echo heuristics. PQ-2 is addressed by function-level adversarial strategies above, including controlled cancellation ordering and the production Console-to-log seam. These refinements supersede earlier references to logging bounded stderr.
+
+### 2026-10-17 — post-close executor correction
+
+A real private-process regression proves that adding a stderr pipe can turn a successful daemonizing tool into exec.ErrWaitDelay. Preserve successful exit when this is solely the diagnostic-drain cutoff, flag stderr capture truncated, and keep context errors authoritative. The handshake-controlled inherited-stderr fixture is the regression; existing deadline/cancellation/nonzero controls remain. Run the fresh suite and fix-only re-close before retrying landing. No approved recovery state, timeout or OSC policy changes.

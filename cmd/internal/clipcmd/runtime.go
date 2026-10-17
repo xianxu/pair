@@ -129,6 +129,13 @@ func copyClipboardResult(ctx context.Context, text string) (ClipboardCopyResult,
 			code := cmd.ProcessState.ExitCode()
 			result.Metadata.ExitCode = &code
 		}
+		// A successful tool may leave stderr open in a detached child. The
+		// drain cutoff says the diagnostic is incomplete, not that the copy
+		// failed. Preserve the process-exit contract; finish still enforces ctx.
+		if errors.Is(err, exec.ErrWaitDelay) && cmd.ProcessState != nil && cmd.ProcessState.Success() {
+			result.Metadata.StderrTruncated = true
+			err = nil
+		}
 		if err == nil {
 			result.Metadata.Status = "copied"
 		}

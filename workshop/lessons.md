@@ -7,6 +7,8 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- Adding diagnostic pipes changes subprocess completion: a detached child can hold stderr after a successful tool exit. Separate process success from diagnostic-drain cutoff, retain capture uncertainty, and test inherited descriptors behind a release handshake. (#638)
+
 - Reserve shared banners before a menu frame windows its selected rows. Subtracting them only for some frame kinds lets final clipping hide selected actions and cursors; test every windowed frame at minimum geometry. (#638)
 
 - Keep free-form tool stderr out of metadata-only diagnostic callbacks. A truncated or transformed echo defeats full-input redaction; publish typed status plus stderr length/hash and keep bounded output on the operator screen. (#638 PQ-1)

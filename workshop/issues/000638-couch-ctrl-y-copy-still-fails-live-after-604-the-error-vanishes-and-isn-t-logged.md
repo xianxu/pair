@@ -70,34 +70,6 @@ TL approved exactly one real pbcopy/pbpaste probe in receipt e82fa054-d8cb-4cf5-
 
 A bounded read-only lsof check found no outer terminal capture for PID99807. A fresh-context read-only agent independently traced the lost-error and notice-clearing paths; no implementation edits were delegated. Plan approval and real Couch-path evidence are required before inventing a timeout/PATH/bootstrap correction.
 
-## Revisions
-
-### 2026-10-17 — TL-approved instrumentation-first acceptance
-
-Receipts dd9c7097-9be3-4fca-9cc3-c7046cde424a and 00b6f3ff-12f2-4f3e-8407-9da4c629a989 approve the full-flow single-pass plan and explicitly change acceptance sequencing. Close and land on tested instrumentation, persistent CopyFeedback and the opt-in conformance harness. Do not stage on pair:0. The historical clipboard failure remains unknown and is not claimed fixed. The hub holds the actual Ctrl+Y result for the next natural restart: either a real paste, or the logged measured cause filed as a follow-up. This supersedes the pre-landing live-check steps above without guessing a mechanism or changing the 1s/OSC policy.
-
-### 2026-10-17 — strict log boundary (PQ-1/PQ-2)
-
-TL receipt 8429745d-ecb6-40e5-9325-a6282e0141c0 replaces proposed echo detection with a strict projection: supervision never carries free-form stderr. Record only tool, exit status, timeout flag, total stderr byte length and a short hash; the operator's screen may show bounded sanitized stderr. No overlap heuristics. The plan now names tested functions and adversarial strategies, including deterministic cancellation ordering, rather than enumerating case prose.
-
-## Estimate
-
-Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only; estimate-source flags calibration stale, so provisional. The plan cleared plan-quality in round 2 before deriving this estimate. One issue/spec primitive budgets the investigation and acceptance discussion (0.5 design, 0.3 impl); two smaller Go extensions budget executor and log wiring (each 0.3 design x0.2 thorough-spec discount, 0.5 impl); the TUI reducer/rendering primitive takes 1.0 design x0.2 and 1.0 impl. Real-API discovery uses the 0.6 impl upper bound for the opt-in harness; docs 0.1 design x0.2 and 0.2 impl; one review 0.2 design x0.2 and 0.5 impl. All implementation values below apply v3.1's 0.4 multiplier. Existing os/exec, rowtext, reducer and supervision writer cover the stack; no greenfield library or cross-repo work. Familiarity 1.0; thorough-plan design buffer 15%. Design 0.88 x1.15 + implementation 1.44 = 2.452 hours.
-
-```estimate
-model: estimate-logic-v3.1
-familiarity: 1.0
-item: issue-spec design=0.50 impl=0.12
-item: smaller-go-module design=0.06 impl=0.20
-item: tui-screen design=0.20 impl=0.40
-item: smaller-go-module design=0.06 impl=0.20
-item: real-api-discovery design=0 impl=0.24
-item: atlas-docs design=0.02 impl=0.08
-item: milestone-review design=0.04 impl=0.20
-design-buffer: 0.15
-total: 2.452
-```
-
 ### 2026-10-17 — implementation entry and native evidence
 
 Plan-quality rounds 2/3 CLEAN disposed PQ-1/PQ-2; estimate-quality INFO accepted the derivation, noting harness and verification allocation. The issue-spec primitive includes incurred investigation; the Go/TUI implementation items cover harness construction, and the review allowance includes recorded-suite triage and landing integration. change-code completed normally with full flow and no bypass.
@@ -125,3 +97,45 @@ The central-budget correction passed the expanded menu/Console selection in the 
 Corrected-head recorded suite PASS: 35219ec723e70a7c033bf0801bd7b9482d206c55, exit 0 in 13m14s after 1668s of machine-queue waiting, log SHA256 prefix 8b5e337d5e9a. Full retained log: /Users/xianxu/workspace/pair/.git/sdlc/local-checks/35219ec723e70a7c033bf0801bd7b9482d206c55/suite.log. All shell/editor checks and the complete Go run finished; no flake rerun or early stop. CI conformance, merge-check and local-gates guard passed on this code head. Focused race checks passed for clipboard execution, feedback and supervision wiring; complete artifactpath classification passed. The prior b9a5b907 queued attempt was intentionally superseded before execution, not a test failure.
 
 Both rollout/privacy decisions were additionally verified against canonical submitted Couch receipts 00b6f3ff-12f2-4f3e-8407-9da4c629a989 and 8429745d-ecb6-40e5-9325-a6282e0141c0 (ops:0 to pair:7). Close acceptance is the tested instrumentation, persistence and available opt-in harness. The harness was not run against the host clipboard; no further real probe or primary staging was performed. The historical live copy failure remains unknown; the hub owns next-restart real Ctrl+Y paste or measured-cause follow-up.
+
+### 2026-10-17 — post-close inherited-stderr regression
+
+A private executable probe found a branch regression before publication: the old Cmd boundary (stderr to the null device) returned nil for a zero-exit tool with a detached child holding stderr, while the new bounded stderr capture returned exec.ErrWaitDelay after its unchanged 100ms drain cutoff. The tool had completed successfully; only diagnostic EOF was unavailable. This matters for daemonizing clipboard tools and legacy ClipboardCopy callers.
+
+TestClipboardInheritedStderrKeepsSuccessfulExit failed red for both legacy/local entry points, then passed after preserving zero-exit success only for exec.ErrWaitDelay and marking stderr capture truncated. Existing finish still enforces context cancellation/deadlines, and nonzero exits remain errors. The fixture holds stderr behind an explicit release handshake, with a hard child lifetime; no real clipboard is touched. A preliminary 20ms-deadline fixture could kill the tool before it spawned a holder, so its cleanup wrongly waited for a nonexistent child; removed that invalid fixture branch and retained the existing independent deadline/cancellation controls. Full clipcmd package PASS after the fix (1.741s).
+
+The first close had returned SHIP with no findings. Main was then merged cleanly; the PR-head mismatch was repaired through the gate's named sdlc pr/retry path. CI passed on integrated 8ee7973c5ee00a2b24c109598fdda075e71d6f21. Its required suite (inflight b66166661a7ca42e485f737a77708b0a) was still queued when this regression was proven. SIGINT to this session's verified merge PID24391 canceled that superseded run and released the landing before any test executed; no peer process was touched. This is not a test flake. Hub report b5db9799-03b2-4f94-9019-baa1f88730d8 is canonically submitted.
+
+Fresh corrected-head suite and fix-only re-close are required before landing. The 1s/OSC policy, persistent feedback, metadata-only log boundary and deferred live acceptance are unchanged.
+
+## Revisions
+
+### 2026-10-17 — TL-approved instrumentation-first acceptance
+
+Receipts dd9c7097-9be3-4fca-9cc3-c7046cde424a and 00b6f3ff-12f2-4f3e-8407-9da4c629a989 approve the full-flow single-pass plan and explicitly change acceptance sequencing. Close and land on tested instrumentation, persistent CopyFeedback and the opt-in conformance harness. Do not stage on pair:0. The historical clipboard failure remains unknown and is not claimed fixed. The hub holds the actual Ctrl+Y result for the next natural restart: either a real paste, or the logged measured cause filed as a follow-up. This supersedes the pre-landing live-check steps above without guessing a mechanism or changing the 1s/OSC policy.
+
+### 2026-10-17 — strict log boundary (PQ-1/PQ-2)
+
+TL receipt 8429745d-ecb6-40e5-9325-a6282e0141c0 replaces proposed echo detection with a strict projection: supervision never carries free-form stderr. Record only tool, exit status, timeout flag, total stderr byte length and a short hash; the operator's screen may show bounded sanitized stderr. No overlap heuristics. The plan now names tested functions and adversarial strategies, including deterministic cancellation ordering, rather than enumerating case prose.
+
+### 2026-10-17 — implementation correction within the approved executor contract
+
+The inherited-stderr correction preserves the existing successful-process contract rather than adding a new recovery state: successful exit plus diagnostic-drain cutoff is copied with truncated capture metadata. Context expiry still refuses confirmation; failed process exits still fail. No retry, timeout increase, stderr logging or operator-environment action is added.
+
+## Estimate
+
+Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only; estimate-source flags calibration stale, so provisional. The plan cleared plan-quality in round 2 before deriving this estimate. One issue/spec primitive budgets the investigation and acceptance discussion (0.5 design, 0.3 impl); two smaller Go extensions budget executor and log wiring (each 0.3 design x0.2 thorough-spec discount, 0.5 impl); the TUI reducer/rendering primitive takes 1.0 design x0.2 and 1.0 impl. Real-API discovery uses the 0.6 impl upper bound for the opt-in harness; docs 0.1 design x0.2 and 0.2 impl; one review 0.2 design x0.2 and 0.5 impl. All implementation values below apply v3.1's 0.4 multiplier. Existing os/exec, rowtext, reducer and supervision writer cover the stack; no greenfield library or cross-repo work. Familiarity 1.0; thorough-plan design buffer 15%. Design 0.88 x1.15 + implementation 1.44 = 2.452 hours.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.50 impl=0.12
+item: smaller-go-module design=0.06 impl=0.20
+item: tui-screen design=0.20 impl=0.40
+item: smaller-go-module design=0.06 impl=0.20
+item: real-api-discovery design=0 impl=0.24
+item: atlas-docs design=0.02 impl=0.08
+item: milestone-review design=0.04 impl=0.20
+design-buffer: 0.15
+total: 2.452
+```
