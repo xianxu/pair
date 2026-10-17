@@ -8,7 +8,7 @@ collaboration-mode: discussion
 
 **Goal:** Read and write a document's frontmatter without acknowledging or changing its body.
 
-**Architecture:** Add an explicit frontmatter scope beside section and whole-file operations. Pure byte projection/replacement feeds the existing document lock, hash guard and atomic publication path. Scoped shadow projection preserves the old body baseline even when there was no shadow.
+**Architecture:** Add an explicit frontmatter scope beside section and whole-file operations. Pure byte projection/replacement feeds the existing document lock, hash guard and existing per-file publication path. Scoped shadow projection preserves the old body baseline even when there was no shadow.
 
 **Tech Stack:** Go, existing sessionsync file/registry stores and Couch CLI.
 
@@ -41,14 +41,14 @@ Reuse real temporary file stores, the existing test rig and registry fixtures; n
 
 ### Byte projection and guarded operations
 
-- [ ] Add tests in cmd/internal/sessionsync/file_test.go for exact block hashes, LF/CRLF, absent/unterminated blocks, no final newline, and rejection of a body payload. Add regression tests in cmd/internal/sessionsync/sync_test.go (and registry tests as appropriate) showing frontmatter read/write acknowledge only the block for legacy and registered files, with and without shadows; operator body edits and Updated bytes survive exactly.
+- [ ] Add function-level tests in cmd/internal/sessionsync/file_test.go and sync_test.go: FrontmatterBody and ReplaceFrontmatter get a byte-scanner fuzz oracle with independent suffix-preservation and round-trip invariants; ReadFrontmatter and Write get real-store state-transition tests asserting that acknowledged frontmatter never advances the body baseline. Exercise both legacy and registered routing and initial baseline creation.
 - [ ] Run `go test ./cmd/internal/sessionsync -run Frontmatter -count=1`; observe the missing behavior fail before implementing it.
-- [ ] Implement the pure helpers and explicit scope in the existing guarded path. Both content and projected shadow must be fully prepared before any write. Add stale/lock/type-owner refusal and state-horizon tests, including body-only changes not staling the frontmatter hash and malformed shadow refusal without effects.
+- [ ] Implement the pure helpers and explicit scope in the existing guarded path. Both content and projected shadow must be fully prepared before any write. Guard Write with refusal-state invariants over document/shadow/state and the owed-event horizon. Inject a publication failure by loading the real transaction fixture and directing its shadow output at an existing directory; assert that the document may contain the new frontmatter, its body and original body baseline remain unchanged, no fold is lost, and a fresh read/recomputed write completes safely.
 - [ ] Run `go test ./cmd/internal/sessionsync -count=1`; commit the implementation and verified evidence.
 
 ### CLI and documentation
 
-- [ ] Add CLI red tests in cmd/internal/couchcmd/session_sync_test.go for both new forms, mutual exclusion with section/all, duplicate/unsupported flags and the actual read/hash/write/diff sequence on disposable files. Keep all existing forms compatible.
+- [ ] Add parseSessionSyncCLI tests in cmd/internal/couchcmd/session_sync_test.go: generate combinations of scope/verb/flag tokens and assert exactly one permitted scope, preserving literal value handling. Test runSessionSyncCLI through real disposable read/hash/write/diff state transitions. Keep all existing forms compatible.
 - [ ] Run `go test ./cmd/internal/couchcmd -run 'SessionSync.*Frontmatter|Frontmatter.*SessionSync' -count=1` and observe the missing flag fail, then extend parsing and dispatch.
 - [ ] Update root `couch --help`, sessionSyncUsage, README.md, atlas/couch.md and the shipped cmd/internal/couchcmd/skills/couch/SKILL.md. Document the complete block payload, scoped acknowledgement, body timestamp exception, and light cost. Keep atlas/index.md's existing Couch link.
 - [ ] Run `go test ./cmd/internal/sessionsync ./cmd/internal/couchcmd -count=1` and targeted race tests. Build the real CLI using the existing build target; run it from this slot in an empty allowlisted environment with disposable HOME/data paths, record read/write/diff, stale and operator-lock results. TL approved this live route; no pair:0 staging.
@@ -61,3 +61,13 @@ Reuse real temporary file stores, the existing test rig and registry fixtures; n
 ## Verification details
 
 The key regression begins with an agent baseline, changes an operator section in the actual file, reads then writes only the frontmatter, and asserts the operator addition remains in real unified diff while the frontmatter edit does not. Repeat for registered and legacy routing and absent shadows. Compare body suffix bytes rather than reconstructed Markdown. Stale and lock tests compare document, shadow and state before/after the refused operation. The real CLI smoke uses disposable inputs and outputs only; it must not read or write operator session documents.
+
+## Publication and operating envelope
+
+This is synchronous local CLI work. Reuse registered document/shadow/state limits from cmd/internal/sessionsync/registry_model.go and registry.go; reject oversized registered results before publication. Legacy files retain their existing whole-file in-memory IO envelope; this change does not impose a new legacy limit or streaming path.
+
+Publication is not a multi-file transaction. sync.go publishes the document, then pinned state (if absent), shadow, and final fold/last-write state as separate file operations. A deterministic validation refusal occurs before effects; an IO error or process death may leave a changed document with old shadow/state, or an updated shadow with old final state. Scoped projection must keep the old body baseline in every such outcome. A caller treats an error as potentially applied: read the frontmatter again, inspect diff/status, recompute the desired block and hash, and explicitly retry any still-owed folds. Never replay an old hash blindly. This preserves the existing conservative acknowledgement contract rather than adding rollback or new transaction machinery.
+
+## Revisions
+
+- 2026-10-17: plan gate PQ-1/PQ-2: replace case inventories with named function-level property/state-transition strategies; correct the atomicity claim and specify partial publication, reconciliation, and controlled IO-failure verification. PQ-3: state the inherited registered limits and legacy work envelope.

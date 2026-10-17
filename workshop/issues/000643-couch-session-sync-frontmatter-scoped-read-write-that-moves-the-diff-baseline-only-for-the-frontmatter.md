@@ -53,3 +53,5 @@ Implementation detail: [durable plan](../plans/000643-frontmatter-sync-plan.md).
 - Existing section reads do not advance the shadow; whole-file reads do. Frontmatter reads will explicitly acknowledge only their block. Existing section writes without a shadow copy the whole document; the new frontmatter scope must instead start with a frontmatter-only shadow.
 - ARCH-DRY/ARCH-PURE: extend the existing guarded document transaction and atomic shadow/state publication; isolate byte splitting and replacement as pure functions. No new lock, timer, or metadata family.
 - TL approval receipt fcd4f3fa-4875-4626-93c6-fb486da60eb0 verified submitted: scope approved, full flow if needed; real new CLI from this slot against a disposable file in an isolated namespace is sufficient, no pair:0 staging. TL owns routing ariadne#424 consumer adoption after landing.
+
+- Plan review requested function-level test strategies and an explicit partial-publication/retry contract (PQ-1/PQ-2); durable plan revised before implementation. Per-file atomic replacement is distinct from the sequential document/shadow/state publications.
