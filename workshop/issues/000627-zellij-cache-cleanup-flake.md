@@ -1,12 +1,12 @@
 ---
 id: 000627
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-16
 updated: 2026-10-16
 estimate_hours:
-card_mirror: '5cf8b0570244a15da05c5d0a3d0ac6e415bdc70f' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '6f766ddadf7093a4eaa7261a32186dcfc4fac407' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-16T18:58:29-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: inferred}
+actual_hours: 2.22
 ---
 
 # Live shortcut fixture races Zellij cache removal during TempDir cleanup
