@@ -142,6 +142,12 @@ Verified TLc283e6e7: original partial qualification lacked a quiet window; one f
 
 Verified restart dispatchd7bc80ee. Runner94823 had completed normally at00:03 PDT:28/28 cases valid, all log hashes verified, exact iterations retained, one-minute load4.01–5.01. Complete ASCII redraw CPU reduced13.68–15.57%; mixed redraw2.84–6.30%, with both candidate CPU observations below both baseline observations for every case. Full results and limitations appended to the benchmark report. No lost background work and no rerun. Shelving condition does not fire. Races, full suite, reviews and coordinated live acceptance remain owed. Checkpoint then report idle for the previously requested relaunch before starting a long suite; preserve unrelated pensive.
 
+### 2026-10-17 — integrated validation and known native CI flake
+
+Integrated main without conflict, documented eager authority and TL642b580a's landing/live order, and opened PR406 on b498b3c91696570946b54e5c7932052cdb010d2c. Full VT module passed (VT0.696s, ansiparser0.159s); go test -race ./cmd/internal/terminal ./cmd/internal/ptychild -count=1 passed (64.259s/2.869s). Required recorded suite queued on that pushed head via make PAIR_GO_TRIMPATH=-trimpath test; do not start another suite or manually chase main while it waits.
+
+Remote CI run39055625434 attempt1 failed warm recovery: list-panes returned no reply, immediate fixture query succeeded with live wrapper/source panes. Native terminal/nvim/notification tests and earlier launcher+park conformance passed. This is the established #636 family, with prior unchanged-source reproduction recorded there; #622 changes none of the recovery fixture/probe sources. Retained failed-step log ci-39055625434-failed.log under the benchmark evidence directory, SHA256b9cf86c1e16cddf0df865f64c925ad65b98036058a3d7fc30333a04b7c74f029. Linked #636 and notified its owner pair:6 (receiptdfe486c3); requested one unchanged failed-job rerun on the same head under flake policy. No local native diagnostic, skipped assertions, query retry or guard relaxation. Retain both CI attempts; further unrelated flakes on this head require hub disposition.
+
 ## Estimate
 
 Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only; calibration is flagged stale by estimate-source, so provisional. Original M1 derivation was1.509h. The following cumulative derivation now includes approved M2 through live acceptance and closure; it is not a remaining-work estimate. M1's original primitives remain unchanged below.
