@@ -63,8 +63,14 @@ Live steps for TL/operator after restart (pending): verify the running Couch bui
 
 Affected package run PASS: couchmessage 11.123s, couchcmd 48.119s, couchtty 37.909s, threadactivity 0.621s, artifactpath 6.220s. Focused race checks PASS for registry work/session lifetime, wrapper activity/transport, Console activity and switcher fade. Positive Console regression includes a failed native lookup; obsolete/disconnected/legacy/scoped foreign evidence cannot brighten the idle control. README and atlas describe the broad Settled semantics and unchanged 60s schedule. Full suite and normal close remain pending.
 
+Read-only live trace before review found an independent acceptance gap: ariadne:2 (Claude 2.1.296, tag 1-ariadne-9) has an empty composer and a visible "1 shell still running" / "1 shell" footer while waiting on its recorded suite. The authenticated resource snapshot at 2026-10-16T19:33:16.792142-07:00 has idle_known=true, idle=true; resources_inventory requires the wrapper's Settled=true for that. CPU/rate evidence was partial, not used to infer work. Thus Settled currently misses detached background commands; the approved implementation alone cannot claim that Spec case. Submitted hub question8882b139-071b-444f-b1ce-54f853d4f9ed proposes the revision below. Code changes pause pending approval; the original pushed candidate's suite remains queued (position6 at last observation), no passing suite claimed.
+
 ## Revisions
 
 ### 2026-10-16 19:20 PDT — live acceptance timing
 
 TL reserves pair:0 as the restart binary. Suite plus normal review gates landing; TL/operator run the recorded live fade check after the combined restart. This changes timing, not the required visible behavior.
+
+### 2026-10-16 19:33 PDT — proposed background-wait correction, awaiting TL
+
+Reuse the already-owned terminal snapshot in the existing settle recognizer: a qualified Claude composer plus its recorded positive background-shell footer must keep Settled=false, with zero counts, body/composer quotations and unrelated footer text as negative controls. This also makes relaunch refuse a running background command. No process scan, new probe/timer or protocol. The checked-in peer/claude/2.1.296 shell-footer.raw and idle-suggestion.raw both contain a real positive shell count, so recorded-frame tests can precede code. Separately, seed the first settled report's LastWorkAt from its authenticated LastActivity (bounded by supervisor receipt time) so a supervisor reconnect retains recently completed work without inventing activity at restart. Keep session replacement isolation and settled refresh non-renewal. This changes busy admission semantics; do not implement until TL approves.
