@@ -71,7 +71,7 @@ Same-receiver messages share composer availability, so shuffling its blocked hea
 - [ ] Move promote's release RPC outside b.mu with exact actor/reservation revalidation. Keep per-actor worker ownership and bounded promotion pacing on reservation refusals.
 - [x] Add wrapper fake-clock regressions: unrecognized mid-turn composer and picker/draft remain queued/held beyond old limits, then paste/submit exactly once when safe. Update the old tests that deliberately required busy expiry; retain post-paste timeout, operator-interruption, partial-write and duplicate-ID controls.
 - [x] Add RemoteEndpoint coverage counting exactly one commit across prolonged queued/held polling, cancellation and eventual submission. Retain per-RPC timeout and identity validation controls.
-- [ ] Run go test -race ./cmd/internal/couchmessage ./cmd/internal/wrapcmd with targeted filters during iteration, then both packages in full. Record outcomes and commit the implementation.
+- [x] Run go test -race ./cmd/internal/couchmessage ./cmd/internal/wrapcmd with targeted filters during iteration, then both packages in full. Record outcomes and commit the implementation.
 
 ### 3. Document, qualify and land
 
@@ -99,3 +99,5 @@ The approved Release exclusion is tracked separately as #631. The broker retains
 Receipt b66971a3-a6c6-4dab-9503-e837f150720e explicitly forbids pair:0 staging. Finish full wrapper tests and recorded suite, then close/land; the hub and operator test busy delivery immediately after their next restart and fix forward. The issue now contains exact send bodies, expected queued/held reasons and positions beyond 90s, FIFO confirmation checks, and disconnect safety steps. This supersedes the pre-landing stage task.
 
 - Qualification: isolated native Claude Code 2.1.302 draft guard passed (6.046s) and exact-envelope submit/confirmation passed (5.073s), logs /tmp/pair629-native-peer-draft.log and /tmp/pair629-native-peer-submit.log. These exercise new disposable PTYs, not the running hub. Full race wrapper run continues; fixture sampling shows active terminal replay work. Integrated current main including #617 without conflicts. The first suite reservation on c798b537 was interrupted before admission because its code base was superseded; suite requeued on the integrated head, not retried to conceal a test failure.
+
+- Complete wrapper race run passed in 743.753s (/tmp/pair629-wrapcmd-final.log); the supplementary race run excluding only the exhaustive terminal fixture passed in 58.624s. Both package-wide race runs are now complete. The queued recorded suite remains the remaining verification gate.

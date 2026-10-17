@@ -68,6 +68,8 @@ Measured by pair:2 (18:47): after the restart, 31 hub-bound deliveries were canc
 
 - Broad-run limit: the initial manual race command used a 10-minute package limit and stopped in TestHarnessTTYFixtureConformance/qoder/1.1.60/composer.raw after terminal replay had consumed 9m51s (/tmp/pair629-packages.log). A one-second process sample resolved to active replayHarnessTTYSplit/terminal processing, not a peer wait. The later full race command uses 15 minutes; production timeouts were not increased. The recorded suite retains its existing repository-declared 20-minute package budget.
 
+- Full wrapper race verification passed: go test -race ./cmd/internal/wrapcmd -count=1 -timeout=15m (743.753s, /tmp/pair629-wrapcmd-final.log). The additional race run excluding only the exhaustive terminal fixture also passed (58.624s, /tmp/pair629-wrapper-rest-race.log), proving the remaining cases were exercised. The earlier 10-minute stop was fixture workload, not a delivery wait. The recorded repository suite remains queued.
+
 ### Post-restart live check — owned by ops:0 and operator
 
 TL explicitly deferred the real-environment check to the next ordinary Couch restart (receipt b66971a3-a6c6-4dab-9503-e837f150720e). Do not stage or rebuild pair:0 from this slot. After restarting with the landed binary:
