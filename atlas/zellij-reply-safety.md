@@ -5,7 +5,7 @@ connection finishes. Pair treats a CLI reply as untrusted evidence. The #647
 implementation proceeds through lifecycle admission, Go actions and editor
 routing; the table records the current implementation boundary.
 
-`cmd/internal/zellijreply` is the pure strict contract layer. It validates
+`cmd/internal/zellijreply` owns strict contracts and admission. Its pure decoders validate
 clients, panes and tab information without changing the tolerant
 `zellijpane.Parse` used by advisory consumers. `Confirm` validates the first
 observation before starting a second independent invocation, compares the
@@ -19,14 +19,24 @@ separate from the interactive client/helper lifetime: completing or canceling
 admission cannot terminate an established client. Cold creation has three phases:
 one pre-create query budget, the existing independent birth/readiness bound, and
 a fresh post-birth query budget. A slow healthy birth does not consume the latter.
-M1 corrections await boundary review. Existing one-second restart admission
-remains the smaller bound when that caller is migrated.
+M1 closed SHIP. Existing one-second restart admission remains the smaller bound
+and stays alive through query-derived routing or confirmation dispatch.
+
+`zellijreply.Effect` checks the same operation context immediately before each
+new effect, including native mutations and authoritative sidecar writes after
+positive local evidence. It wraps one effect at a time; cancellation inside an
+issued effect stops the next one without rolling back completed progress or
+changing the issued mutation's lifetime. The sink-manifest test covers every
+protected dispatch and explicitly identifies cleanup and diagnostic exemptions.
+The note resolver retains each slot/pass context through its final publication,
+then releases it; a valid late observation cannot outlive admission.
 
 `cmd/internal/zellijexec` owns synchronous read-only query processes. It creates
 a private process group, cancels that group, joins the direct CLI child, bounds
 pipe draining and stops owned descendants on every completion path. It is not
 used for creating a server, interactive attachment or native mutations.
 Descendants deliberately leaving the group are outside that ownership contract.
+Both Couch restart-client and note-geometry query entrypoints use this owner.
 
 | Caller | Disposition | Current authority / verification |
 |---|---|---|
@@ -41,7 +51,8 @@ Descendants deliberately leaving the group are outside that ownership contract.
 | Wait-watcher, PID/start liveness and quiescence | Re-checked | Existing OS identity and absence fences; native unknown cannot prove absence. |
 | Layout focus/toggle/split/tab forwarding and terminal shortcut fallback | M2 implemented, review pending | Strict target/state admission and existing validated local sidecar fast paths. |
 | Current-tab layout capture/restoration | M2 implemented, review pending | Correlated tab/layout facts and partial-progress refusal. |
-| Go draft routing, restart role and note anchors | M2 implemented, review pending | Explicit admitted targets; existing Couch notices. |
+| Go draft routing and restart role | M2 implemented, review pending | Explicit admitted targets; cancellation checked at actual dispatch; existing Couch notices. |
+| Note anchors | M2 REWORK; operator decision pending | Matching geometry and unchanged frame text do not prove which native tab produced a captured frame. Existing enrichment retained pending an explicit UX decision. |
 | Clipboard auto-quote / paste / query-selected flash | M2 implemented, fail-closed; review pending | Successful OS copy is separate; uncertain routing must refuse before staging, flash, focus or trigger. |
 | Lua workbench routing, poke, DOM and review visibility | M3 pending | Shared contracts, existing recipient fences and user-visible editor refusal. |
 | Title poller, wrap dim and opener viewport | Re-checked | Existing next tick/invocation and cosmetic fallback; no action authority. |
@@ -98,3 +109,9 @@ controls retained actual receiver-byte, private staging and client-focus checks;
 clipboard input was private and cosmetic reset scheduling was recorded. These
 controls bound healthy interactive cost without claiming a causal speedup,
 OS clipboard copying or native fault qualification.
+
+An attempted flash creates an owed reset-scheduling attempt even if applying
+the color fails or admission is canceled. That cleanup uses the existing
+detached lifetime; cancellation stops subsequent staging, focus or input.
+Apply and reset-start failures reach existing refusal diagnostics. Successful
+reset scheduling proves child start, not eventual native reset success.

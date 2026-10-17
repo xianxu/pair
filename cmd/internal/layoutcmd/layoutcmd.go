@@ -64,7 +64,9 @@ func FocusRightTerminalContext(ctx context.Context, rt Runtime) error {
 	if !ok {
 		return fmt.Errorf("right terminal not observed")
 	}
-	return rt.RunZellijAction("focus-pane-id", terminal.ID)
+	return zellijreply.Effect(ctx, func() error {
+		return rt.RunZellijAction("focus-pane-id", terminal.ID)
+	})
 }
 
 // resolveFromSidecars answers "which right terminal?" from the two sidecars
@@ -219,7 +221,9 @@ func SwitchRightTerminalTabContext(ctx context.Context, rt Runtime, chord workbe
 	if !ok {
 		return nil
 	}
-	return rt.RunZellijAction(args...)
+	return zellijreply.Effect(ctx, func() error {
+		return rt.RunZellijAction(args...)
+	})
 }
 
 // RunSwitchTerminalTab is the CLI entry the draft pane's Lua function calls, so

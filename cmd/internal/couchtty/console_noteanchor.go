@@ -9,6 +9,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/broadcast"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/terminal"
+	"github.com/xianxu/pair/cmd/internal/zellijreply"
 )
 
 // Terminal notes' anchors (#488), the shell around AnchorFor. A note opens
@@ -194,45 +195,68 @@ func (c *Console) resolveAnchors() {
 			return
 		}
 		c.anchors.mu.Unlock()
-		panes := map[couchcore.ThreadAddress][]PaneRect{}
-		refused := map[couchcore.ThreadAddress]bool{}
-		refuse := func(slot couchcore.ThreadAddress, reason string) {
-			if !refused[slot] {
-				c.setNotice("Note anchor unchanged: " + reason)
-				refused[slot] = true
-			}
+		c.resolveAnchorPass(jobs, rects)
+	}
+}
+
+// resolveAnchorPass owns each slot's admission token through publication. A
+// successful query is evidence, not permission to publish after cancellation.
+func (c *Console) resolveAnchorPass(jobs []anchorJob, rects PaneRects) {
+	contexts := map[couchcore.ThreadAddress]context.Context{}
+	var cancellations []context.CancelFunc
+	defer func() {
+		for _, cancel := range cancellations {
+			cancel()
 		}
-		for _, j := range jobs {
-			ps, asked := panes[j.slot]
-			if !asked {
-				ctx, cancel := context.WithTimeout(c.lifetime, paneRectsTimeout)
-				got, err := rects(ctx, j.slot)
-				cancel()
-				if err != nil {
-					got = nil // the anchor stays as it opened
-					refuse(j.slot, err.Error())
-				}
-				panes[j.slot], ps = got, got
+	}()
+	panes := map[couchcore.ThreadAddress][]PaneRect{}
+	refused := map[couchcore.ThreadAddress]bool{}
+	refuse := func(slot couchcore.ThreadAddress, reason string) {
+		if !refused[slot] {
+			c.setNotice("Note anchor unchanged: " + reason)
+			refused[slot] = true
+		}
+	}
+	for _, j := range jobs {
+		ps, asked := panes[j.slot]
+		if !asked {
+			ctx, cancel := context.WithTimeout(c.lifetime, paneRectsTimeout)
+			contexts[j.slot] = ctx
+			cancellations = append(cancellations, cancel)
+			got, err := rects(ctx, j.slot)
+			if err == nil {
+				err = ctx.Err()
 			}
-			if ps == nil {
-				continue
+			if err != nil {
+				got = nil // the anchor stays as it opened
+				refuse(j.slot, err.Error())
 			}
-			c.anchors.mu.Lock()
-			now := c.anchors.frame
-			c.anchors.mu.Unlock()
-			if now.EndpointID != j.frame.EndpointID || now.GeometryEpoch != j.frame.GeometryEpoch || now.Geometry != j.frame.Geometry || TextUnder(now, j.note.Box) != j.note.Anchor.Text {
-				refuse(j.slot, "the observed screen context changed")
-				continue // another slot in view, or resized: the panes no longer match the box
-			}
-			l := j.layout
-			l.Panes = ps
-			a := AnchorFor(j.note.Box, j.frame, l)
-			if a.Kind != broadcast.AnchorPane || !strings.HasPrefix(strings.Join(a.Path, "\x00"), strings.Join(j.note.Anchor.Path, "\x00")) {
-				refuse(j.slot, "the pane context could not be confirmed")
-				continue
-			}
-			a.Text = j.note.Anchor.Text // the text as it was when the note opened
+			panes[j.slot], ps = got, got
+		}
+		if ps == nil {
+			continue
+		}
+		ctx := contexts[j.slot]
+		c.anchors.mu.Lock()
+		now := c.anchors.frame
+		c.anchors.mu.Unlock()
+		if now.EndpointID != j.frame.EndpointID || now.GeometryEpoch != j.frame.GeometryEpoch || now.Geometry != j.frame.Geometry || TextUnder(now, j.note.Box) != j.note.Anchor.Text {
+			refuse(j.slot, "the observed screen context changed")
+			continue // another slot in view, or resized: the panes no longer match the box
+		}
+		l := j.layout
+		l.Panes = ps
+		a := AnchorFor(j.note.Box, j.frame, l)
+		if a.Kind != broadcast.AnchorPane || !strings.HasPrefix(strings.Join(a.Path, "\x00"), strings.Join(j.note.Anchor.Path, "\x00")) {
+			refuse(j.slot, "the pane context could not be confirmed")
+			continue
+		}
+		a.Text = j.note.Anchor.Text // the text as it was when the note opened
+		if err := zellijreply.Effect(ctx, func() error {
 			j.session.SetNoteAnchor(j.note.ID, a)
+			return nil
+		}); err != nil {
+			refuse(j.slot, err.Error())
 		}
 	}
 }

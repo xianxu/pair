@@ -295,15 +295,12 @@ func runDecisionContext(ctx context.Context, decision workbenchshortcut.Shortcut
 		return err
 	}
 	if decision.RecordLastLeftPaneID != "" {
-		if err := rt.RecordLastLeftPaneID(decision.RecordLastLeftPaneID); err != nil {
+		if err := zellijreply.Effect(ctx, func() error { return rt.RecordLastLeftPaneID(decision.RecordLastLeftPaneID) }); err != nil {
 			return err
 		}
 	}
 	if decision.RecordLastTerminalPaneID != "" {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-		if err := rt.RecordLastTerminalPaneID(decision.RecordLastTerminalPaneID); err != nil {
+		if err := zellijreply.Effect(ctx, func() error { return rt.RecordLastTerminalPaneID(decision.RecordLastTerminalPaneID) }); err != nil {
 			return err
 		}
 	}
@@ -323,7 +320,7 @@ func runDecisionContext(ctx context.Context, decision workbenchshortcut.Shortcut
 		if decision.TargetPaneID == "" {
 			return nil
 		}
-		return rt.RunZellijAction("focus-pane-id", decision.TargetPaneID)
+		return zellijreply.Effect(ctx, func() error { return rt.RunZellijAction("focus-pane-id", decision.TargetPaneID) })
 	case workbenchshortcut.ActionTerminalPrevTab, workbenchshortcut.ActionTerminalNextTab, workbenchshortcut.ActionTerminalNewTab:
 		chord, ok := workbenchshortcut.TabChordFor(decision.Action)
 		if !ok {
@@ -757,15 +754,17 @@ func splitTerminalDownAdmitted(ctx context.Context, rt Runtime) error {
 	// --near-current-pane: live smoke showed it makes zellij 0.44.3 create
 	// the pane invisibly (process spawned, pane absent from the layout).
 	// Quiet because new-pane prints the created pane id to stdout.
-	return rt.RunZellijActionQuiet(
-		"new-pane",
-		"--direction", "down",
-		"--name", "terminal",
-		"--",
-		"sh",
-		"-c",
-		rightTerminalPaneShell,
-	)
+	return zellijreply.Effect(ctx, func() error {
+		return rt.RunZellijActionQuiet(
+			"new-pane",
+			"--direction", "down",
+			"--name", "terminal",
+			"--",
+			"sh",
+			"-c",
+			rightTerminalPaneShell,
+		)
+	})
 }
 
 func currentRightTerminalPane(rt Runtime) (zellijpane.Pane, bool, error) {

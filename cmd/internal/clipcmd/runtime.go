@@ -192,8 +192,8 @@ func nativePaneID(id string) string {
 	}
 	return "terminal_" + id
 }
-func (OSRuntime) SetPaneColor(id, bg string) {
-	_ = exec.Command("zellij", "action", "set-pane-color", "--pane-id", nativePaneID(id), "--bg", bg).Run()
+func (OSRuntime) SetPaneColor(id, bg string) error {
+	return exec.Command("zellij", "action", "set-pane-color", "--pane-id", nativePaneID(id), "--bg", bg).Run()
 }
 
 // startDetached launches cmd in its own session (setsid) with /dev/null stdio and
@@ -202,26 +202,28 @@ func (OSRuntime) SetPaneColor(id, bg string) {
 // orchestrator (#100). Closing our devNull handle after Start() is safe — the child
 // already holds its own dup'd fds. Extracted so both detaching callers share one
 // copy (ARCH-DRY).
-func startDetached(cmd *exec.Cmd) {
+func startDetached(cmd *exec.Cmd) error {
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
 	if devNull, err := os.Open(os.DevNull); err == nil {
 		cmd.Stdin, cmd.Stdout, cmd.Stderr = devNull, devNull, devNull
 		defer devNull.Close()
 	}
-	if cmd.Start() == nil {
-		go func() { _ = cmd.Wait() }()
+	if err := cmd.Start(); err != nil {
+		return err
 	}
+	go func() { _ = cmd.Wait() }()
+	return nil
 }
 
 // ResetPaneColorAfter schedules the flash's bg reset in a detached session
 // (setsid), so it survives the caller exiting after the in-process paste. Mirrors
 // flash-pane.sh's `( sleep; reset ) & disown`, in the same idiom as opener's
 // detached changelog distiller (#93 M2).
-func (OSRuntime) ResetPaneColorAfter(id string, d time.Duration) {
+func (OSRuntime) ResetPaneColorAfter(id string, d time.Duration) error {
 	secs := fmt.Sprintf("%.3f", d.Seconds())
 	// Pass secs + id as positional args to sh so nothing is interpolated into
 	// the script text (injection-safe, though ids come from zellij's own output).
-	startDetached(exec.Command("sh", "-c",
+	return startDetached(exec.Command("sh", "-c",
 		`sleep "$1"; zellij action set-pane-color --pane-id "$2" --reset`,
 		"sh", secs, id))
 }

@@ -87,7 +87,7 @@ func TestFullscreenZellijConformance(t *testing.T) {
 			return true
 		})
 	})
-	rt := &fullscreenLiveRuntime{ctx: ctx, session: fixture.Session, store: workbenchshortcut.FullscreenReturnStore{DataDir: t.TempDir(), Tag: "conformance"}}
+	rt := &fullscreenLiveRuntime{ctx: ctx, session: fixture.Session, store: workbenchshortcut.FullscreenReturnStore{DataDir: t.TempDir(), Tag: "conformance"}, queryLog: t.Logf}
 	names := []string{"agent", "draft", "terminal-top", "terminal-bottom"}
 	var panes map[string]zellijpane.Pane
 	observe := func() map[string]zellijpane.Pane {
@@ -285,6 +285,7 @@ type fullscreenLiveRuntime struct {
 	session, caller, last string
 	terminals             []string
 	store                 workbenchshortcut.FullscreenReturnStore
+	queryLog              func(string, ...any)
 }
 
 func (r *fullscreenLiveRuntime) command(args ...string) ([]byte, error) {
@@ -301,9 +302,17 @@ func (r *fullscreenLiveRuntime) command(args ...string) ([]byte, error) {
 func (r *fullscreenLiveRuntime) queryContext(ctx context.Context, args ...string) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, "zellij", append([]string{"--session", r.session, "action"}, args...)...)
 	cmd.Env = append(os.Environ(), "ZELLIJ_PANE_ID="+r.caller)
-	var out bytes.Buffer
-	cmd.Stdout = &out
+	var out, diagnostic bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &out, &diagnostic
 	err := zellijexec.Run(cmd)
+	if r.queryLog != nil {
+		// Disposable fixture evidence only: preserve raw streams without changing
+		// the bytes the production parser sees. Bound each diagnostic field.
+		const maxQueryTrace = 8192
+		r.queryLog("native query %v stdout=%q stdout_bytes=%d stderr=%q stderr_bytes=%d error=%v", args,
+			out.Bytes()[:min(out.Len(), maxQueryTrace)], out.Len(),
+			diagnostic.Bytes()[:min(diagnostic.Len(), maxQueryTrace)], diagnostic.Len(), err)
+	}
 	return out.Bytes(), err
 }
 func (r *fullscreenLiveRuntime) ListPanesJSONContext(ctx context.Context) ([]byte, error) {

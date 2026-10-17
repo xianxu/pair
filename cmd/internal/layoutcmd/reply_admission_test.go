@@ -162,6 +162,21 @@ func TestLayoutReturnConfirmsDecisionFactsWithoutGeometry(t *testing.T) {
 }
 
 func TestLayoutReplyRefusalUsesIndependentBroker(t *testing.T) {
+	assertLayoutRefusalUsesIndependentBroker(t, `{"wrong":"kind"}`)
+}
+
+func TestLayoutMalformedNativeReplyRefusesVisiblyWithoutEffects(t *testing.T) {
+	for _, body := range []struct{ name, raw string }{
+		{"empty", ""}, {"truncated", `[{"id":3`},
+		{"warning-prefix", "warning: native diagnostic\n[]"},
+		{"plain-wrong-reply", "Connected"},
+	} {
+		t.Run(body.name, func(t *testing.T) { assertLayoutRefusalUsesIndependentBroker(t, body.raw) })
+	}
+}
+
+func assertLayoutRefusalUsesIndependentBroker(t *testing.T, wrong string) {
+	t.Helper()
 	f := zellijtest.New(t)
 	for _, e := range f.Env() {
 		k, v, _ := strings.Cut(e, "=")
@@ -174,7 +189,6 @@ func TestLayoutReplyRefusalUsesIndependentBroker(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer broker.Close()
-	wrong := `{"wrong":"kind"}`
 	f.SetModel(zellijtest.Model{Sessions: map[string]zellijtest.Session{"test": {}}})
 	f.SetFaults(zellijtest.Fault{Ordinal: 1, Reply: &wrong})
 	w := newFullscreenWorld()

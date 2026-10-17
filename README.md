@@ -316,6 +316,10 @@ the completed OS clipboard copy remains successful. This confirms the observed
 context, not where an earlier selection historically originated. Standalone
 paste also confirms its invoking pane and same-tab draft.
 
+If auto-quote stops after flashing, the flash reset is still scheduled. An
+application or reset-start failure is reported as incomplete; text already
+copied to the OS clipboard remains available.
+
 Selecting in the layout-3 **user terminal** only copies to the OS clipboard — it
 does not flash, steal focus, or insert into the draft. A selection made just to
 grab a path shouldn't hijack what you're writing.

@@ -78,11 +78,13 @@ func (f *fakeRuntime) ListClientsContext(ctx context.Context) ([]byte, error) {
 	return []byte("CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\n"), nil
 }
 func (f *fakeRuntime) NotifyRefusal(s string) error { f.notices = append(f.notices, s); return nil }
-func (f *fakeRuntime) SetPaneColor(id, bg string) {
+func (f *fakeRuntime) SetPaneColor(id, bg string) error {
 	f.setColors = append(f.setColors, paneColor{id, bg})
+	return nil
 }
-func (f *fakeRuntime) ResetPaneColorAfter(id string, d time.Duration) {
+func (f *fakeRuntime) ResetPaneColorAfter(id string, d time.Duration) error {
 	f.scheduledReset = append(f.scheduledReset, resetSched{id, d})
+	return nil
 }
 func (f *fakeRuntime) FocusPaneContext(ctx context.Context, id string) error {
 	f.focused = append(f.focused, id)

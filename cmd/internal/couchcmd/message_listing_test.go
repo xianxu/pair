@@ -21,7 +21,12 @@ func TestMessageAuthorityListedCheckReadsThePolledListing(t *testing.T) {
 	dir := t.TempDir()
 	count := filepath.Join(dir, "calls")
 	stub := filepath.Join(dir, "zellij")
-	script := "#!/bin/sh\necho x >> " + count + "\nsleep 1\nprintf '\\360\\237\\223\\2011-264\\n'\n"
+	script := "#!/bin/sh\necho x >> " + count + "\nsleep 1\n" + `case "$*" in
+ 'list-sessions --short') printf '📁1-264\n' ;;
+ 'list-sessions --no-formatting') printf '📁1-264 [Created 1s ago]\n' ;;
+ *) exit 2 ;;
+esac
+`
 	if err := os.WriteFile(stub, []byte(script), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -87,7 +92,12 @@ func TestMessageThreadResolverChecksReadOnlyThePoller(t *testing.T) {
 	dir := t.TempDir()
 	count := filepath.Join(dir, "calls")
 	stub := filepath.Join(dir, "zellij")
-	script := "#!/bin/sh\necho x >> " + count + "\nsleep 1\nprintf '\\360\\237\\223\\2011-300\\n'\n"
+	script := "#!/bin/sh\necho x >> " + count + "\nsleep 1\n" + `case "$*" in
+ 'list-sessions --short') printf '📁1-300\n' ;;
+ 'list-sessions --no-formatting') printf '📁1-300 [Created 1s ago]\n' ;;
+ *) exit 2 ;;
+esac
+`
 	if err := os.WriteFile(stub, []byte(script), 0o755); err != nil {
 		t.Fatal(err)
 	}

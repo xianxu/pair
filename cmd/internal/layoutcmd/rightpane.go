@@ -293,7 +293,9 @@ func restoreTilingContext(ctx context.Context, rt FullscreenRuntime, terminal st
 			if i == maxSwapCycle {
 				return fmt.Errorf("swap layout %q not reached (at %q dirty=%v)", target, name, dirty)
 			}
-			if err := rt.RunZellijAction("next-swap-layout", "--tab-id", strconv.Itoa(tabID)); err != nil {
+			if err := zellijreply.Effect(ctx, func() error {
+				return rt.RunZellijAction("next-swap-layout", "--tab-id", strconv.Itoa(tabID))
+			}); err != nil {
 				return fmt.Errorf("next-swap-layout: %w", err)
 			}
 		}
@@ -326,7 +328,9 @@ func restoreTilingContext(ctx context.Context, rt FullscreenRuntime, terminal st
 	if terminal == record.Order[0] {
 		direction = "up"
 	}
-	return rt.RunZellijAction("move-pane", "--pane-id", terminal, direction)
+	return zellijreply.Effect(ctx, func() error {
+		return rt.RunZellijAction("move-pane", "--pane-id", terminal, direction)
+	})
 }
 
 // Focus geometry (#417, operator): 75% of the width, centered, full height.
@@ -424,30 +428,43 @@ func RunToggleFocusedContext(ctx context.Context, args []string, rt FullscreenRu
 		var stage string
 		switch step.Kind {
 		case StepSave:
-			stage, err = "save return", store.Write(plan.Record.Encode())
+			stage, err = "save return", zellijreply.Effect(ctx, func() error { return store.Write(plan.Record.Encode()) })
 		case StepFloat, StepEmbed:
-			stage, err = "toggle-pane-embed-or-floating", rt.RunZellijAction("toggle-pane-embed-or-floating", "--pane-id", step.Pane)
+			stage, err = "toggle-pane-embed-or-floating", zellijreply.Effect(ctx, func() error {
+				return rt.RunZellijAction("toggle-pane-embed-or-floating", "--pane-id", step.Pane)
+			})
 		case StepPlace:
-			stage, err = "change-floating-pane-coordinates", rt.RunZellijAction(append([]string{"change-floating-pane-coordinates", "--pane-id", step.Pane}, focusPlacement...)...)
+			stage, err = "change-floating-pane-coordinates", zellijreply.Effect(ctx, func() error {
+				return rt.RunZellijAction(append([]string{"change-floating-pane-coordinates", "--pane-id", step.Pane}, focusPlacement...)...)
+			})
 		case StepShow:
 			// Exit 2 means "already visible": the state we want.
-			if stage, err = "show-floating-panes", rt.RunZellijAction("show-floating-panes", "--tab-id", strconv.Itoa(tabID)); exitCode(err) == 2 {
+			if stage, err = "show-floating-panes", zellijreply.Effect(ctx, func() error {
+				return rt.RunZellijAction("show-floating-panes", "--tab-id", strconv.Itoa(tabID))
+			}); exitCode(err) == 2 {
 				err = nil
 			}
 		case StepRestore:
 			stage, err = "restore tiling", restoreTilingContext(ctx, rt, step.Pane, plan.Record, tabID, tabPosition)
 		case StepFullscreen:
-			stage, err = "toggle-fullscreen", rt.RunZellijAction("toggle-fullscreen", "--pane-id", step.Pane)
+			stage, err = "toggle-fullscreen", zellijreply.Effect(ctx, func() error {
+				return rt.RunZellijAction("toggle-fullscreen", "--pane-id", step.Pane)
+			})
 		case StepFocus:
-			stage, err = "focus-pane-id", rt.RunZellijAction("focus-pane-id", step.Pane)
+			stage, err = "focus-pane-id", zellijreply.Effect(ctx, func() error {
+				return rt.RunZellijAction("focus-pane-id", step.Pane)
+			})
 			if IsAlreadyFocused(err, step.Pane) {
 				err = nil
 			}
 		case StepClear:
-			stage, err = "clear return", store.Clear()
+			stage, err = "clear return", zellijreply.Effect(ctx, func() error { return store.Clear() })
 		case StepNudge:
 			// Best effort: a missing or stale wrapper only loses the dim.
-			if err := rt.NudgeWrap(); err != nil {
+			if err := zellijreply.Effect(ctx, func() error { return rt.NudgeWrap() }); err != nil {
+				if ctx.Err() != nil {
+					return fail("nudge wrap", err)
+				}
 				store.LogFailure(fmt.Errorf("pair layout toggle-focused: nudge wrap: %w", err))
 			}
 			continue

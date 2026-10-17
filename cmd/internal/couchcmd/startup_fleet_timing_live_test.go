@@ -1566,7 +1566,7 @@ func TestFleetPostQueryClientValidationRejectsContradictoryOrUnknownEvidence(t *
 
 func TestFleetQueryCollectorScopesConcurrentParentOperations(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "zellij")
-	script := "#!/bin/sh\ncase \"$*\" in\n 'list-sessions --short') printf 'pair-fixture\\n' ;;\n 'list-sessions --no-formatting') printf 'pair-fixture [Created]\\n' ;;\n *) printf 'CLIENTS\\n1\\n' ;;\nesac\n"
+	script := "#!/bin/sh\ncase \"$*\" in\n 'list-sessions --short') printf 'pair-fixture\\n' ;;\n 'list-sessions --no-formatting') printf 'pair-fixture [Created 1s ago]\\n' ;;\n '--session pair-fixture action list-clients') printf 'CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\\n1 terminal_0 sh\\n' ;;\n *) exit 2 ;;\nesac\n"
 	if err := os.WriteFile(path, []byte(script), 0700); err != nil {
 		t.Fatal(err)
 	}

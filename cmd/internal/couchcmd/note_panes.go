@@ -1,6 +1,7 @@
 package couchcmd
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -18,6 +19,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/procutil"
 	"github.com/xianxu/pair/cmd/internal/reviewcmd"
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
+	"github.com/xianxu/pair/cmd/internal/zellijexec"
 	"github.com/xianxu/pair/cmd/internal/zellijpane"
 	"github.com/xianxu/pair/cmd/internal/zellijreply"
 )
@@ -39,7 +41,13 @@ func queryPaneGeometry(ctx context.Context, session string) ([]byte, error) {
 	// A short WaitDelay fails complete output whose copy lags under load
 	// (pair#613); the caller's context still bounds the query.
 	cmd.WaitDelay = time.Second
-	return cmd.Output()
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &stdout, &stderr
+	err := zellijexec.Run(cmd)
+	if exit, ok := err.(*exec.ExitError); ok {
+		exit.Stderr = append([]byte(nil), stderr.Bytes()...)
+	}
+	return stdout.Bytes(), err
 }
 
 // readNoteFile reads at most maxNoteFile+1 bytes of path.

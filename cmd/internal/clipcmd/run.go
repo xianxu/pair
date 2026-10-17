@@ -2,6 +2,7 @@ package clipcmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"time"
@@ -29,8 +30,8 @@ type Runtime interface {
 	// without this the right-pane gate below would miss split halves.
 	TerminalPaneIDs() ([]string, error)
 
-	SetPaneColor(id, bg string)                              // synchronous fg phase of the flash
-	ResetPaneColorAfter(id string, d time.Duration)          // detached (setsid) bg reset — survives caller exit
+	SetPaneColor(id, bg string) error                        // synchronous fg phase of the flash
+	ResetPaneColorAfter(id string, d time.Duration) error    // detached (setsid) bg reset — survives caller exit
 	FocusPaneContext(context.Context, string) error          // one canonical explicit native target
 	NotifyRefusal(string) error                              // independent existing wrapper broker
 	WritePaneKeyContext(context.Context, string, byte) error // addressed write; 31 = Ctrl-_
@@ -177,19 +178,19 @@ func pasteAdmitted(ctx context.Context, opts ClipboardToPaneOptions, plan pasteP
 	if err != nil {
 		return fmt.Errorf("resolve quote artifact: %w", err)
 	}
-	if err := rt.WriteFile(qf, text); err != nil {
+	if err := zellijreply.Effect(ctx, func() error { return rt.WriteFile(qf, text) }); err != nil {
 		return fmt.Errorf("stage quote: %w", err)
 	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if err := rt.FocusPaneContext(ctx, plan.Draft.ID); err != nil {
+	if err := zellijreply.Effect(ctx, func() error { return rt.FocusPaneContext(ctx, plan.Draft.ID) }); err != nil {
 		return fmt.Errorf("focus draft: %w", err)
 	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if err := rt.WritePaneKeyContext(ctx, plan.Draft.ID, 31); err != nil {
+	if err := zellijreply.Effect(ctx, func() error { return rt.WritePaneKeyContext(ctx, plan.Draft.ID, 31) }); err != nil {
 		return fmt.Errorf("trigger paste: %w", err)
 	}
 	return nil
@@ -246,11 +247,24 @@ func flashAdmitted(ctx context.Context, opts FlashPaneOptions, paneID string, rt
 	}
 	bg := pickFlashBG(opts.FlashBG)
 	ms := pickFlashMS(opts.FlashMS)
-	rt.SetPaneColor(paneID, bg)
-	if err := ctx.Err(); err != nil {
-		return err
+	attempted := false
+	applyErr := zellijreply.Effect(ctx, func() error {
+		attempted = true
+		return rt.SetPaneColor(paneID, bg)
+	})
+	if !attempted {
+		return applyErr
 	}
-	rt.ResetPaneColorAfter(paneID, time.Duration(ms)*time.Millisecond)
+	// Issuing a temporary color creates a cleanup obligation even if the native
+	// result is an error or admission expires during the command. Cleanup retains
+	// its existing detached lifetime; cancellation forbids only subsequent effects.
+	resetErr := rt.ResetPaneColorAfter(paneID, time.Duration(ms)*time.Millisecond)
+	if applyErr != nil {
+		applyErr = fmt.Errorf("apply flash: %w", applyErr)
+	}
+	if resetErr != nil {
+		resetErr = fmt.Errorf("schedule flash reset: %w", resetErr)
+	}
 	rt.Log(fmt.Sprintf("flash-pane: bg=%s ms=%d id=%s", bg, ms, paneID))
-	return nil
+	return errors.Join(applyErr, resetErr, ctx.Err())
 }

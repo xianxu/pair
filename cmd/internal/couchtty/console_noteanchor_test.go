@@ -161,6 +161,49 @@ func TestResolverQueryRefusalNoticesOncePerSlotPass(t *testing.T) {
 	}
 }
 
+func TestResolverCancellationAfterPositiveObservationDoesNotPublish(t *testing.T) {
+	r := newAnchorRig(t)
+	r.c.feed = NewFeed(8, nil, 0)
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	r.c.lifetime = ctx
+	r.open(1, cb(0, 0, 24, 3))
+	r.open(2, cb(0, 6, 20, 2))
+	r.layout.during = cancel
+	r.c.resolveAnchors()
+	if len(r.s.set) != 0 || r.layout.queries != 1 || !strings.Contains(r.c.feed.Row().Body, "context canceled") {
+		t.Fatalf("cancelled observation published: anchors=%v queries=%d notice=%q", r.s.set, r.layout.queries, r.c.feed.Row().Body)
+	}
+}
+
+type cancelAfterAnchor struct {
+	*fakeSession
+	cancel context.CancelFunc
+}
+
+func (s cancelAfterAnchor) SetNoteAnchor(id int, a broadcast.NoteAnchor) bool {
+	set := s.fakeSession.SetNoteAnchor(id, a)
+	s.cancel()
+	return set
+}
+
+func TestResolverCancellationAfterOnePublicationStopsTheBatch(t *testing.T) {
+	r := newAnchorRig(t)
+	r.c.feed = NewFeed(8, nil, 0)
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	r.c.lifetime = ctx
+	r.open(1, cb(0, 0, 24, 3))
+	r.open(2, cb(0, 6, 20, 2))
+	for i := range r.c.anchors.pending {
+		r.c.anchors.pending[i].session = cancelAfterAnchor{r.s, cancel}
+	}
+	r.c.resolveAnchors()
+	if len(r.s.set) != 1 || r.path(1) == "" || r.path(2) != "" || r.layout.queries != 1 {
+		t.Fatalf("cancellation must keep only completed publication: anchors=%v queries=%d", r.s.set, r.layout.queries)
+	}
+}
+
 // The events the resolver can't block: a note resolved while zellij
 // answers, a resize meanwhile, a query that fails.
 func TestResolverOrdering(t *testing.T) {

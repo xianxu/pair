@@ -43,8 +43,9 @@ type nativeClipboardRuntime struct {
 func (*nativeClipboardRuntime) ClipboardPaste() (string, bool) {
 	return "private native clipboard fixture", true
 }
-func (r *nativeClipboardRuntime) ResetPaneColorAfter(id string, _ time.Duration) {
+func (r *nativeClipboardRuntime) ResetPaneColorAfter(id string, _ time.Duration) error {
 	r.resets = append(r.resets, id)
+	return nil
 }
 func (r *nativeClipboardRuntime) ListClientsContext(ctx context.Context) ([]byte, error) {
 	start := time.Now()

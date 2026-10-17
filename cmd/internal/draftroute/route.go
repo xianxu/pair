@@ -132,7 +132,7 @@ func RouteLuaToPaneContext(ctx context.Context, rt interface{ RunZellijAction(..
 		return err
 	}
 	if focusDraft {
-		if err := rt.RunZellijAction("focus-pane-id", draftID); err != nil {
+		if err := zellijreply.Effect(ctx, func() error { return rt.RunZellijAction("focus-pane-id", draftID) }); err != nil {
 			return fmt.Errorf("focus draft pane %s: %w", draftID, err)
 		}
 	}
@@ -142,10 +142,7 @@ func RouteLuaToPaneContext(ctx context.Context, rt interface{ RunZellijAction(..
 		{"write-chars", "--pane-id", draftID, ":lua " + function + "()"},
 		{"write", "--pane-id", draftID, "13"},
 	} {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-		if err := rt.RunZellijAction(action...); err != nil {
+		if err := zellijreply.Effect(ctx, func() error { return rt.RunZellijAction(action...) }); err != nil {
 			return fmt.Errorf("route %s to draft pane %s: %w", function, draftID, err)
 		}
 	}

@@ -22,6 +22,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/terminal"
 	"github.com/xianxu/pair/cmd/internal/terminalcapture"
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
+	"github.com/xianxu/pair/cmd/internal/zellijreply"
 )
 
 // chunk is one child write on its way to the screen.
@@ -1847,6 +1848,7 @@ func (c *Console) switchToThread(thread couchcore.ThreadAddress) {
 // dispatchInputCandidate resolves ownership after prefix delivery. The route
 // callback is the input loop's existing panel/child writer, not a focus cache.
 func (c *Console) dispatchInputCandidate(before []byte, hit InterceptorHit, rawHit []byte, route func([]byte)) {
+	var admission context.Context
 	route(before)
 	if hit == HitNone {
 		return
@@ -1867,11 +1869,12 @@ func (c *Console) dispatchInputCandidate(before []byte, hit InterceptorHit, rawH
 		c.mu.Unlock()
 		if probe != nil {
 			ctx, cancel := context.WithTimeout(c.lifetime, time.Second)
+			defer cancel()
+			admission = ctx
 			role, err := probe(ctx, address)
 			if err == nil {
 				err = ctx.Err()
 			}
-			cancel()
 			if err != nil {
 				c.setNotice("Cannot determine restart-key focus: " + err.Error())
 				return
@@ -1886,7 +1889,9 @@ func (c *Console) dispatchInputCandidate(before []byte, hit InterceptorHit, rawH
 			}
 			chord, _ := workbenchshortcut.DecodeChord(rawHit)
 			if role == workbenchshortcut.PaneRoleRightTerminal || role == workbenchshortcut.PaneRoleReview && chord == workbenchshortcut.ChordAltN {
-				route(rawHit)
+				if err := zellijreply.Effect(ctx, func() error { route(rawHit); return nil }); err != nil {
+					c.setNotice("Cannot determine restart-key focus: " + err.Error())
+				}
 				return
 			}
 		}
@@ -1897,7 +1902,13 @@ func (c *Console) dispatchInputCandidate(before []byte, hit InterceptorHit, rawH
 	}
 	// The declared handler table is checked against AllInterceptorHits.
 	if handle := c.hitHandlers()[hit]; handle != nil {
-		handle()
+		if admission != nil {
+			if err := zellijreply.Effect(admission, func() error { handle(); return nil }); err != nil {
+				c.setNotice("Cannot determine restart-key focus: " + err.Error())
+			}
+		} else {
+			handle()
+		}
 	} else {
 		c.setNotice(fmt.Sprintf("chord %d is intercepted but has no handler", hit))
 	}

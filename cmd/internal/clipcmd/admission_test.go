@@ -26,8 +26,9 @@ func (r *admissionRuntime) NotifyRefusal(s string) error {
 	r.notices = append(r.notices, s)
 	return nil
 }
-func (r *admissionRuntime) ResetPaneColorAfter(id string, _ time.Duration) {
+func (r *admissionRuntime) ResetPaneColorAfter(id string, _ time.Duration) error {
 	r.resets = append(r.resets, id)
+	return nil
 }
 
 func clipboardFixture(t *testing.T) (*zellijtest.Fixture, *admissionRuntime, ClipboardToPaneOptions) {

@@ -177,6 +177,33 @@ func TestRestartFocusChangeDuringProbeRefusesCandidate(t *testing.T) {
 	}
 }
 
+func TestRestartAdmissionContextRemainsLiveThroughDispatch(t *testing.T) {
+	con, _, _ := newChordFixture(t)
+	var observed context.Context
+	con.SetShortcutFocusProbe(func(ctx context.Context, _ couchcore.ThreadAddress) (workbenchshortcut.PaneRole, error) {
+		observed = ctx
+		return workbenchshortcut.PaneRoleRightTerminal, nil
+	})
+	var forwarded int
+	if err := con.runTerminalCommand(t.Context(), func() error {
+		con.dispatchInputCandidate(nil, HitRelaunch, workbenchshortcut.ChordEncodings(workbenchshortcut.ChordAltN)[0], func(raw []byte) {
+			if len(raw) == 0 {
+				return
+			}
+			forwarded++
+			if observed == nil || observed.Err() != nil {
+				t.Errorf("admission token ended before actual dispatch: %v", observed)
+			}
+		})
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if forwarded != 1 || observed == nil || !errors.Is(observed.Err(), context.Canceled) {
+		t.Fatalf("dispatch=%d token=%v; token must end after dispatch", forwarded, observed)
+	}
+}
+
 func TestCtrlAltNBytesReachAFullScreenTUI(t *testing.T) {
 	child := ptychild.NewFakeChild([]byte("\x1b[?1049h"))
 	con, stdin, _ := newChordFixtureWithChild(t, child)
