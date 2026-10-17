@@ -51,6 +51,7 @@ Implementation detail: [durable plan](../plans/000643-frontmatter-sync-plan.md).
 ## Log
 
 ### 2026-10-17
+- 2026-10-17: closed — First-attempt recorded full suite on pushed candidate passed in 11m26s, log 7e108fb4eadf; both affected packages, focused race and 751343 fuzz executions passed. Real new CLI on isolated disposable legacy and registered files preserved exact CRLF body and Updated bytes and unread diff, stale exit 6 and operator-lock exit 3. Help, shipped reference and atlas updated. TL approved this live route and owns ariadne#424 adoption after landing.; review verdict: SHIP
 
 - Claimed and started planning in pair:6. Recovery evidence: #632 already landed; no previous TTY capture is available. Current branch and tracker identify #643 as the active item. No implementation has started.
 - Existing section reads do not advance the shadow; whole-file reads do. Frontmatter reads will explicitly acknowledge only their block. Existing section writes without a shadow copy the whole document; the new frontmatter scope must instead start with a frontmatter-only shadow.
