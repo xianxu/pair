@@ -1,13 +1,21 @@
 ---
 id: 000639
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-16
-updated: 2026-10-16
+updated: 2026-10-17
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: 'b6db56ff0af160a4f60ea83df7a8b6fbcd115a56' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '79bf6dc640bfea3e036d795e2cd01f06c9e74d57' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-17T00:09:57-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:1
+    worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Right terminal: Alt+Shift+Return toggles Normal and Focus (75% centered) only; drop Maximize
@@ -37,8 +45,14 @@ New behaviour: a two-state toggle, Normal ↔ Focus. Maximize goes away as a tar
 
 ## Plan
 
-- [ ]
+- [ ] Make planner/runtime tests require Focus → Normal and retain native-fullscreen exit coverage; observe red.
+- [ ] Reuse existing restore/focus/clear operations for Focus exit; update source-derived help, README, atlas and conformance scenarios.
+- [ ] Run affected packages and native chord conformance, coordinate real-setup smoke with hub, then recorded full suite, close and land.
 
 ## Log
 
 ### 2026-10-16
+
+### 2026-10-17 — quick design
+
+TL dispatched the operator’s explicit two-state contract and authorized quick flow. ARCH-PURE/ARCH-DRY: retain PlanRightPane as the one transition owner and reuse its existing operations. Focus exit re-embeds, restores the recorded tiling and split order, returns to the invoking pane, clears the return record and nudges dimming. Native fullscreen remains observable only for the one-press compatibility exit; no plan enters it. Existing lock, stop-on-error and degraded-restore behavior remain. No new durable artifacts, external calls or background work. Existing runtime fake and native chord/conformance tests cover single and split panes, invoking-focus restoration, failure ordering and native fullscreen. The fixed 75% centered geometry is unchanged. Plan posted to hub, proceeding unless objected.
