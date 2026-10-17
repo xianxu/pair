@@ -3,6 +3,7 @@ package couchmessage
 import (
 	"context"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"io"
 	"net"
@@ -352,5 +353,31 @@ func TestTransportRejectsOversizePayloads(t *testing.T) {
 	}
 	if calls.Load() != 1 {
 		t.Fatal("unexpected retry")
+	}
+}
+
+// A send's exchange outlasts admission on both ends, so the broker's verdict
+// after a full AdmissionTimeout still reaches the sender (pair#618).
+func TestTransportSendOutlastsAdmission(t *testing.T) {
+	socket := transportSocket(t)
+	server, err := StartServer(context.Background(), socket, func(ctx context.Context, raw []byte) ([]byte, error) {
+		select {
+		case <-time.After(AdmissionTimeout + 300*time.Millisecond):
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+		return json.Marshal(Response{Code: "refused", Error: "not admitted: admission timed out"})
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer server.Close()
+	var got Response
+	send := Request{Op: "send", Scope: "s", Tag: "t", Session: "n", Nonce: "c", ID: "slow", Target: "pair:3", Body: "x"}
+	if err := ValidateRequest(send); err != nil {
+		t.Fatalf("test request invalid: %v", err)
+	}
+	if err := Call(context.Background(), socket, send, &got); err != nil || got.Code != "refused" {
+		t.Fatalf("send verdict: %+v %v", got, err)
 	}
 }
