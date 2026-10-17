@@ -165,17 +165,21 @@ func RenderMenuView(state MenuState, width, height int, now time.Time, color256 
 		}
 		lines[0] = breadcrumb
 	}
+	banners := renderedMenuCopyLines(state)
 	if notice := renderedMenuNotice(state); notice != "" {
-		lines = append(lines, "")
-		copy(lines[2:], lines[1:])
-		lines[1] = clipMenuLine(notice, width)
-		// Every actor row moved down one. Re-based HERE rather than in
-		// renderRootMenuFrame, which cannot know what its caller inserts above
-		// it -- an extent computed before this shift is right by one line and
-		// wrong by one, the least visible way to be wrong.
+		banners = append([]string{notice}, banners...)
+	}
+	if len(banners) > 0 {
+		expanded := make([]string, 0, len(lines)+len(banners))
+		expanded = append(expanded, lines[0])
+		for _, banner := range banners {
+			expanded = append(expanded, clipMenuLine(banner, width))
+		}
+		lines = append(expanded, lines[1:]...)
+		// Actor ranges use the final line coordinates, after every independent banner.
 		for i := range extents {
-			extents[i].Start++
-			extents[i].End++
+			extents[i].Start += len(banners)
+			extents[i].End += len(banners)
 		}
 	}
 	lines = fitMenuBlock(lines, width, height)
@@ -376,7 +380,7 @@ func renderStartMenuFrame(state MenuState, frame MenuFrame, width, height int) [
 		clipMenuLine("start thread", width), "",
 		selectedMenuLine(pathMarker+"path  "+frame.Path, frame.FormField == MenuFieldPath, width),
 	}
-	fixedRows := 4
+	fixedRows := 4 + len(renderedMenuCopyLines(state))
 	if frame.PreviewResolution.ArgvSource != "" {
 		fixedRows++
 	}
@@ -518,7 +522,7 @@ func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, no
 		labels[menuRowKey(entry.Row)] = entry
 	}
 	lines := []string{"threads", clipMenuLine("Ctrl+Y copy last notice", width)}
-	rowBudget := height - len(lines)
+	rowBudget := height - len(lines) - len(renderedMenuCopyLines(state))
 	if frame.Filter != "" {
 		rowBudget--
 	}

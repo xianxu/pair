@@ -67,30 +67,30 @@ The main Console loop executes one bounded clipboard attempt synchronously, outs
 
 Files: modify cmd/internal/clipcmd/runtime.go and runtime_clipboard_test.go; create clipboard_result.go and clipboard_result_test.go. Register any new production Go file in cmd/internal/artifactpath/manifest.go.
 
-- [ ] Test copyClipboard through a stateful private executable: adversarial process outcomes and stderr streams are checked against typed metadata, bounded capture and preserved errors.Is/As; exact stdin and legacy behavior remain controls. Test ClipboardCopyError.Error and clipboardStderrSummary with arbitrary controls/oversized output: sanitize the UI and prove the exported DTO carries only count/hash.
-- [ ] Run go test ./cmd/internal/clipcmd -run 'TestClipboard' -count=1; retain expected red assertions.
-- [ ] Implement the typed result and bounded stderr capture; no retry/cascade change after a selected executable fails.
-- [ ] Rerun the focused package and commit the proven boundary change.
+- [x] Test copyClipboard through a stateful private executable: adversarial process outcomes and stderr streams are checked against typed metadata, bounded capture and preserved errors.Is/As; exact stdin and legacy behavior remain controls. Test ClipboardCopyError.Error and clipboardStderrSummary with arbitrary controls/oversized output: sanitize the UI and prove the exported DTO carries only count/hash.
+- [x] Run go test ./cmd/internal/clipcmd -run 'TestClipboard' -count=1; retain expected red assertions.
+- [x] Implement the typed result and bounded stderr capture; no retry/cascade change after a selected executable fails.
+- [x] Rerun the focused package and commit the proven boundary change.
 
 ## Task 2 — model retained copy feedback and diagnostics
 
 Files: create cmd/internal/couchtty/menu_copy.go and menu_copy_test.go; modify menu.go, menu_render.go, console_menu.go and console_notice_expiry_test.go; create cmd/internal/couchcmd/supervision_copy.go and supervision_copy_test.go; modify supervision_facts.go and message_service.go. Register new production files in the artifact manifest.
 
-- [ ] Test ReduceCopyFeedback/ReduceMenu over adversarial operator/background event sequences: the pure tagged state retains failure and original payload until explicit dismissal or successful retry, without erasing ordinary operation errors.
-- [ ] Test copyLastNotice through production Console keys and a stateful executable: captured stdin and callback DTO prove payload selection, independent failure causes and one observation per attempt. A controllable child-start handshake followed by lifetime cancellation orders shutdown deterministically; no sleep-based completion race. Test RenderMenuView with both banners at narrow/short dimensions: drawn extents and cursor remain within the fitted block.
-- [ ] Add typed MenuEvent copy outcomes and the CopyFeedback reducer; route Console results through that authority instead of assigning a notice directly. Render the independent retained banner and adjust budgets.
-- [ ] Inject a narrow Console outcome callback at the composition root; offer one typed clipboard_copy event through the existing supervision log. Test real service/Console wiring with an in-memory fact sink: clipboardCopyFact must encode tool/exit/timeout, stderr length/hash and separate fallback outcome, never free-form stderr or the copied payload.
-- [ ] Run focused clipcmd, couchtty copy/menu and couchcmd supervision tests plus artifactpath classification; commit.
+- [x] Test ReduceCopyFeedback/ReduceMenu over adversarial operator/background event sequences: the pure tagged state retains failure and original payload until explicit dismissal or successful retry, without erasing ordinary operation errors.
+- [x] Test copyLastNotice through production Console keys and a stateful executable: captured stdin and callback DTO prove payload selection, independent failure causes and one observation per attempt. A controllable child-start handshake followed by lifetime cancellation orders shutdown deterministically; no sleep-based completion race. Test RenderMenuView with both banners at narrow/short dimensions: drawn extents and cursor remain within the fitted block.
+- [x] Add typed MenuEvent copy outcomes and the CopyFeedback reducer; route Console results through that authority instead of assigning a notice directly. Render the independent retained banner and adjust budgets.
+- [x] Inject a narrow Console outcome callback at the composition root; offer one typed clipboard_copy event through the existing supervision log. Test real service/Console wiring with an in-memory fact sink: clipboardCopyFact must encode tool/exit/timeout, stderr length/hash and separate fallback outcome, never free-form stderr or the copied payload.
+- [x] Run focused clipcmd, couchtty copy/menu and couchcmd supervision tests plus artifactpath classification; commit.
 
 ## Task 3 — actual-path diagnosis and conformance
 
 Files: cmd/internal/couchtty/clipboard_live_test.go; README.md; atlas/architecture.md. Issue Revisions record any measured mechanism/budget correction.
 
-- [ ] Add an opt-in real clipboard conformance check through the production Console Ctrl+Y path in a Couch-launched context. Save/restore only as authorized; verify bytes without printing them. Normal suite never touches the real clipboard.
+- [x] Add an opt-in real clipboard conformance check through the production Console Ctrl+Y path in a Couch-launched context. Save/restore only as authorized; verify bytes without printing them. Normal suite never touches the real clipboard.
 - [ ] Ask the hub for staging: sdlc stage --build only on its word, supply exact git rev-parse HEAD and binary revisions, and show the persistent diagnostic/log path plus retry/dismiss steps.
 - [ ] Observe the actual tool outcome from the real Couch process. If it fails, diagnose the recorded tool/status/stderr and demonstrate a failing regression for that specific cause before correcting it. If it cannot be reproduced, report that limit and obtain the TL's acceptance decision; do not infer the historical cause from the worker probe.
 - [ ] Operator verifies real Ctrl+Y -> paste; force a private/fake missing-tool failure and verify persistent banner and structured log. Clear the stage when the hub is finished.
-- [ ] Update README/atlas around success, unconfirmed fallback, persistent error, explicit retry/dismiss and event location; retain original OSC52-loss uncertainty unless this investigation resolves it.
+- [x] Update README/atlas around success, unconfirmed fallback, persistent error, explicit retry/dismiss and event location; retain original OSC52-loss uncertainty unless this investigation resolves it.
 
 ## Task 4 — verification and close
 

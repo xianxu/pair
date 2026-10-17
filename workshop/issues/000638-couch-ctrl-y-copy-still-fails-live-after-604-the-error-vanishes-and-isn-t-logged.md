@@ -47,8 +47,8 @@ The original OSC 52 loss layer is still undiagnosed (#604's close review).
 
 ## Plan
 
-- [ ] Deliver typed clipboard diagnostics and a pure retained-copy feedback model, with red/green tests.
-- [ ] Wire bounded copy outcomes to supervision.jsonl; exercise production Console wiring with stateful clipboard doubles and retained-error sequence tests.
+- [x] Deliver typed clipboard diagnostics and a pure retained-copy feedback model, with red/green tests.
+- [x] Wire bounded copy outcomes to supervision.jsonl; exercise production Console wiring with stateful clipboard doubles and retained-error sequence tests.
 - [ ] Obtain the actual Couch-path failure evidence through live conformance, correct the measured cause, and verify a real Ctrl+Y paste with the operator.
 - [ ] Run the complete recorded suite, update README/atlas and close through SDLC.
 
@@ -101,3 +101,11 @@ total: 2.452
 Plan-quality rounds 2/3 CLEAN disposed PQ-1/PQ-2; estimate-quality INFO accepted the derivation, noting harness and verification allocation. The issue-spec primitive includes incurred investigation; the Go/TUI implementation items cover harness construction, and the review allowance includes recorded-suite triage and landing integration. change-code completed normally with full flow and no bypass.
 
 TestClipboardCopyLocalRetainsToolEvidence first failed with only `exit status 7` despite the fake pbcopy writing a diagnostic. The typed executor now preserves tool, process status, bounded sanitized stderr and wrapped errors; a separate metadata value exposes only byte count/full-stream hash, never free-form stderr. Whole clipcmd package passed unchanged legacy tests plus metadata/cancellation/start-failure/oversized-stream controls. One test's expected stderr length was corrected from a hand-count to literal byte length. The 1s Console policy is unchanged; no real clipboard probe was repeated.
+
+### 2026-10-17 — retained state, Console integration and conformance harness
+
+The second behavioral red reproduced native-error loss: Console showed only the unconfirmed OSC outcome. A fresh-context subagent's pure reducer reds reproduced lost feedback, Escape clearing ordinary menu state, copy results erasing ordinary notices and missing banners. ReduceMenu now owns independent CopyFeedback; held failures retain one immutable original payload, explicit retry replaces the outcome, and Escape consumes only dismissal. Both banners fit at 40x10 with extents/cursor re-based.
+
+Production Console-key tests prove original-payload retry after a new feed item, one content-free observation per attempt, both failure causes, cancellation ordered by a fake child's start handshake, and no late banner after shutdown. The observer is wired to the existing bounded supervision log; executable doubles prove real stdin/exit/stderr collection without touching the host clipboard. The log seam first failed red with no clipboard row. An initial screen assertion incorrectly assumed terminal diffs contained contiguous words; corrected it to inspect a stable rendered token while metadata assertions verify exact byte count/hash. Combined focused clipcmd/couchtty/couchcmd/artifactpath tests passed; the whole artifactpath package passed in 10.984s.
+
+The Darwin/Couch-context real conformance test is explicit opt-in and remains unrun under the approved next-restart rollout. It backs up only bounded clipboard bytes in memory and conditionally restores only if its marker remains current. The original actual-path diagnosis/paste Plan row is superseded by the acceptance Revisions; the historical failure remains unknown, not fixed.

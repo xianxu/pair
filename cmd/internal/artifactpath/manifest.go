@@ -1057,6 +1057,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcmd/supervision_fact_events.go",
 	"cmd/internal/couchcmd/supervision_factlog.go",
 	"cmd/internal/couchcmd/supervision_facts.go",
+	"cmd/internal/couchcmd/supervision_copy.go",
 	"cmd/internal/couchcmd/supervision_write.go",
 	// #490 verb costs: help text only; no artifact paths.
 	"cmd/internal/couchcmd/cost.go",
@@ -1324,6 +1325,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchtty/mouse.go",
 	"cmd/internal/couchtty/mousetrace.go",
 	"cmd/internal/couchtty/menu.go",
+	"cmd/internal/couchtty/menu_copy.go",
 	"cmd/internal/couchtty/menu_slot.go",
 	"cmd/internal/couchtty/menu_actions.go",
 	"cmd/internal/couchtty/menu_async.go",

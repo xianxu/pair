@@ -97,3 +97,29 @@ func TestClipboardCopyResultCanceledAndUnavailableAreNotExits(t *testing.T) {
 		})
 	}
 }
+
+func FuzzClipboardStderrSummary(f *testing.F) {
+	for _, seed := range []string{"", "\x1b[31mtool failed\x1b[0m\n", "\xff\x00\x9b\x1b]52;incomplete", strings.Repeat("x", 5000)} {
+		f.Add([]byte(seed))
+	}
+	f.Fuzz(func(t *testing.T, raw []byte) {
+		if len(raw) > 1<<20 {
+			t.Skip()
+		}
+		var one, split clipboardStderrSummary
+		_, _ = one.Write(raw)
+		_, _ = split.Write(raw[:len(raw)/2])
+		_, _ = split.Write(raw[len(raw)/2:])
+		var a, b ClipboardCopyResult
+		one.apply(&a)
+		split.apply(&b)
+		if a.Stderr != b.Stderr || a.Metadata.StderrBytes != b.Metadata.StderrBytes || a.Metadata.StderrHash != b.Metadata.StderrHash || int(a.Metadata.StderrBytes) != len(raw) || len(one.prefix) > clipboardStderrLimit {
+			t.Fatal("stream chunking changed evidence or exceeded capture bound")
+		}
+		for _, r := range a.Stderr {
+			if r < 32 || r == 127 || (r >= 128 && r <= 159) {
+				t.Fatal("terminal control survived UI sanitization")
+			}
+		}
+	})
+}
