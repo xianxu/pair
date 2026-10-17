@@ -1,12 +1,20 @@
 ---
 id: 000632
-status: open
+status: working
 deps: [pair#625]
 github_issue:
 created: 2026-10-16
 updated: 2026-10-16
 estimate_hours:
-card_mirror: 'ad311d1fa6bdfb6436596e48451fddb77f7d0f59' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '61d3326b5f3b219e1f86b44423837c2618e6eb40' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-16T22:52:10-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:6
+    worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Keep background-command waits bright without blocking peer admission
@@ -34,6 +42,16 @@ Provide display activity for running background commands independently of messag
 
 - [ ] Design the independent display signal and its lifecycle/compatibility before implementation.
 
+Proposed design: [background-work display plan](../plans/000632-background-work-fade-plan.md). A negotiated display-only field is necessary; awaiting TL approval of protocol, initial native-agent coverage, flow and live rollout route before code.
+
 ## Log
 
 2026-10-16: filed from #625 under TL decision19e11f39-5e0e-46cf-8fe8-a1fbc76d223b; current #625 lands its existing work-state projection plus approved LastActivity reconnect seed. This independent surface follows that landing; no stacked code or live rollout performed here.
+
+### 2026-10-16 — resumed dispatch and source trace
+
+Verified TL dispatch6aca2623, claimed #632, published slot label and started planning on fresh main. First start-plan refreshed the Ariadne substrate and refused until rerun; second succeeded. Read-only trace confirms no cached background signal in the admitted snapshot, no existing job detector and no captured Codex/Qoder positive background footer. Claude's recorded native footer is positive while admission remains free; the completion prose above the composer is not authoritative. Existing settle callback is the bounded post-Feed source, but its unchanged-Settled early return must not suppress independent display updates. No production/test code edited. Durable plan proposes hello-v4 plus nullable BackgroundWork, generation-fenced sampling and existing #625 activity consumption; explicit TL scope/rollout/flow decisions pending.
+
+## Revisions
+
+2026-10-16: added a proposed durable plan for the new cross-process display field. Original Done-when remains the contract; initial Claude-only native evidence coverage is a requested scope decision, not an assumed approval.
