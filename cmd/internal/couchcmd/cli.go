@@ -140,7 +140,7 @@ func ParseCLI(args []string, operations []couchcore.Operation) (cliInvocation, e
 			return parseSessionSyncCLI(args)
 		case "--switch-agent", "--operation-status":
 			return parseSwitchAgentCLI(args)
-		case "--recovery-confirmation", "--resume-candidates", "--actors", "--send-to", "--message-status", "--skill", "--broadcast-list", "--resources":
+		case "--recovery-confirmation", "--resume-candidates", "--actors", "--send-to", "--message-status", "--skill", "--broadcast-list", "--resources", "--reap-orphans":
 			return parseMessageCLI(args)
 		}
 		// Slot operations come from the one verb list (couchcore.IsSlotOperation).
@@ -338,6 +338,17 @@ func parseMessageCLI(args []string) (cliInvocation, error) {
 			return cliInvocation{}, fmt.Errorf("--resources accepts only --json")
 		}
 		return cliInvocation{kind: cliMessage, messageOp: "resources", jsonOutput: len(args) == 2}, nil
+	case "--reap-orphans":
+		// No slot: the sweep this confirms is fleet-wide, so the two switches are
+		// the whole surface, each at most once and in either order (#583).
+		seen := map[string]bool{}
+		for _, flag := range args[1:] {
+			if (flag != "--confirm" && flag != "--json") || seen[flag] {
+				return cliInvocation{}, fmt.Errorf("--reap-orphans accepts only --confirm and --json, once each")
+			}
+			seen[flag] = true
+		}
+		return cliInvocation{kind: cliMessage, messageOp: orphanReapOp, confirmed: seen["--confirm"], jsonOutput: seen["--json"]}, nil
 	case "--broadcast-list":
 		if len(args) != 1 && !(len(args) == 2 && args[1] == "--json") {
 			return bad()

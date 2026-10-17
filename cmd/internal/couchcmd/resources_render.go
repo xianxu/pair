@@ -12,6 +12,30 @@ import (
 	"github.com/xianxu/pair/cmd/internal/rowtext"
 )
 
+// orphanNvimSection heads the #583 sweep's rows. The header states the reap's
+// gate because the rows are the evidence an operator confirms against.
+const orphanNvimSection = "Orphan nvim (untagged; reap needs --confirm)"
+
+// orphanNvimRow is one sweep row in the one shape every surface prints: the
+// report an operator reads, the refusal that names what a reap would have ended,
+// and the outcome line of a reap that ran. Two renderings of one row would let
+// the evidence and the thing it justified drift apart (#583).
+func orphanNvimRow(o couchcore.OrphanNvim) string {
+	return fmt.Sprintf("pid=%d age=%s RSS=%s cwd=%s root=%s %s", o.Key.PID, o.Age.Round(time.Minute), resourceBytes(o.RSSBytes), rowtext.Sanitize(o.Cwd), rowtext.Sanitize(o.Root), rowtext.Sanitize(o.Reason))
+}
+
+// renderOrphanNvimRows prints the sweep under its one header. An empty sweep
+// still says it looked: an absent section reads as "not checked".
+func renderOrphanNvimRows(out io.Writer, rows []couchcore.OrphanNvim) {
+	fmt.Fprintf(out, "%s:\n", orphanNvimSection)
+	if len(rows) == 0 {
+		fmt.Fprintln(out, "  none observed")
+	}
+	for _, o := range rows {
+		fmt.Fprintf(out, "  %s\n", orphanNvimRow(o))
+	}
+}
+
 func runResourcesCLI(inv cliInvocation, rt Runtime, stdout, stderr io.Writer, call messageCall) int {
 	socket, err := couchmessage.SocketPath(rt.StoreDir(), "broker")
 	if err != nil {
@@ -81,12 +105,13 @@ func renderResources(out io.Writer, v couchcore.ResourceView, now time.Time) {
 			fmt.Fprintf(out, "  %s pid=%d %s RSS=%s %s\n", rowtext.Sanitize(p.Slot), p.Key.PID, rowtext.Sanitize(p.Name), resourceBytes(p.RSSBytes), rowtext.Sanitize(p.Reason))
 		}
 	}
+	renderOrphanNvimRows(out, v.OrphanNvim)
 	fmt.Fprintf(out, "Observed since sampler start: CPU %.3fs; disk writes %d bytes (sampled, not lifetime billing)\n", float64(v.ObservedCPUTimeNS)/1e9, v.ObservedDiskWriteBytes)
 	cpuCost := "unavailable"
 	if v.Cost.CPUKnown {
 		cpuCost = fmt.Sprintf("%.3fms", float64(v.Cost.CPUTimeNS)/1e6)
 	}
-	fmt.Fprintf(out, "Sampler: %d native attempts (table %d, usage %d, command %d); CPU %s; elapsed %s\n", v.Cost.NativeCalls, v.Cost.TableCalls, v.Cost.UsageCalls, v.Cost.CommandCalls, cpuCost, v.Cost.WallTime)
+	fmt.Fprintf(out, "Sampler: %d native attempts (table %d, usage %d, command %d, cwd %d); CPU %s; elapsed %s\n", v.Cost.NativeCalls, v.Cost.TableCalls, v.Cost.UsageCalls, v.Cost.CommandCalls, v.Cost.CwdCalls, cpuCost, v.Cost.WallTime)
 	if !v.Cost.CPUKnown {
 		fmt.Fprintln(out, "Sampler CPU measurement unavailable")
 	}

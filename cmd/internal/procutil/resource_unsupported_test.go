@@ -24,6 +24,10 @@ func TestResourceUnsupported(t *testing.T) {
 	if n != 0 || !errors.Is(err, ErrUnsupported) {
 		t.Fatal(n, err)
 	}
+	cwd, n, err := r.Cwd(ctx, p)
+	if cwd != "" || n != 0 || !errors.Is(err, ErrUnsupported) {
+		t.Fatal(cwd, n, err)
+	}
 	_, n, err = r.SelfCPU(ctx)
 	if n != 0 || !errors.Is(err, ErrUnsupported) {
 		t.Fatal(n, err)

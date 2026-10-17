@@ -4286,7 +4286,59 @@ Known process kinds parented by PID 1 above the RSS floor are shown as
 **unattributed (unproven)**, never acted on. Only candidate classification may
 inspect argv; full command lines are not retained or displayed. Sampling can
 miss a process born and exited, or born and orphaned, between observations.
-Monitoring sends messages and does not kill, restart or renice anything.
+The monitor itself sends messages and does not kill, restart or renice
+anything; the one destructive verb is the operator's, and it is confirmed.
+
+### Unattributed embedded nvim (#583)
+
+An untagged `nvim --embed` at PID 1 — what nvim's own TUI/embed fork leaves
+behind when its owner dies — is a leak the tagged reap cannot see: no sidecar
+names it and no argv carries a tag. The sweep classifies it from evidence the
+sample already holds (PID 1, the `nvim` short name, an exact `--embed` argv
+field, an age at or above `COUCH_RESOURCE_ORPHAN_NVIM_AGE`) plus one new probe,
+its cwd, read through `proc_pidinfo` only for rows that cleared those gates. A
+cwd inside a managed checkout is positive evidence that pair spawned it, and
+containment narrows the report, so an incomplete slot inventory reports less
+rather than more. The managed roots are the **inventory** slots'
+`WorktreeRoot` (`ManagedRoots`), which is also this sweep's coverage limit: an
+orphan whose slot has left the console's slot list entirely has no root left to
+match and is not named, so a worktree that outlives its slot escapes the sweep
+until some inventoried slot's root contains it again. Rows appear under
+`Orphan nvim (untagged; reap needs --confirm):` in `couch --resources` and as
+`orphan_nvim` in `--json`, and leave the generic unattributed section — one
+process under two headings reads as two findings. The persisted ring keeps them (`ResourceFrame.OrphanNvim`), so the
+24 h history still records an offender the live report suppressed. One hub alert
+fires per episode on the existing `resource_episode` seam after `OrphanSamples`
+consecutive passes, addressed by the managed checkout the sweep matched, because
+an orphan has no slot of its own to resolve a hub from.
+
+`couch --reap-orphans [--confirm] [--json]` is the destructive half and takes no
+slot: the sweep it confirms is fleet-wide. Without `--confirm` it names the rows
+from the monitor's cached report and signals nothing. With it, the supervisor
+re-classifies from a fresh pass its own worker ran — never from the cached view,
+because an operator confirmed a kill and the world is allowed to have moved in
+the minute since — and the caller ends each named tree on `launcher.TreeReaper`'s
+cadence (#399: SIGTERM, 3 s, SIGKILL, 2 s), descendants deepest first. Every
+signal is fenced on the identity the sweep recorded, so a pid that exited or was
+recycled is *skipped* with the reason printed rather than signalled on the
+strength of a number that still exists; the whole tree goes, because killing
+only the editor reparents its language servers to launchd and manufactures the
+next leak. The confirmation lives in `couchmessage.ValidateRequest`, not in the
+handler that acts on it, so a hand-written request cannot reach the
+classification at all. Outcomes are one per named row — `reaped`, `skipped` (the
+world moved; exit 0), `failed` (survived SIGKILL, or the host refused the
+snapshot; exit 1), `refused` (no `--confirm`; exit 1) — and rows the wire
+projection dropped at its detail limit are announced as `Coverage:` lines on
+stderr ahead of them.
+
+Owners: `couchcore/resource_orphan.go` (the pure classification),
+`couchcmd/resources.go` (the gated probe and the sweep seam),
+`couchcmd/reap_orphans.go` (the verb), `procutil/identity_age.go` and
+`procutil/resource_darwin.go` (the two native reads the gate pays for).
+`couchcmd/reap_orphans_live_test.go`, under `PAIR_LIVE_ORPHAN_REAP=1`, conforms
+the composition against the real host: a real reparented embed at PID 1 inside a
+managed checkout is named, an embed with a live parent in the same checkout under
+the same age gate is not, and the confirmed reap ends it.
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
@@ -4297,6 +4349,7 @@ Monitoring sends messages and does not kill, restart or renice anything.
 | `COUCH_RESOURCE_IDLE_CPU_PERCENT` | `90` | Idle-slot CPU threshold, percent of one core |
 | `COUCH_RESOURCE_IDLE_CPU_DURATION` | `15m` | Required idle-CPU interval |
 | `COUCH_RESOURCE_ORPHAN_RSS_BYTES` | `268435456` | Proven-orphan RSS threshold; two samples required |
+| `COUCH_RESOURCE_ORPHAN_NVIM_AGE` | `6h` | How old an untagged embedded nvim must be before the sweep names it; a fresh one may still be mid-launch |
 
 Set policy before starting Couch. Unknown or malformed resource settings refuse
 startup. Unknown measurements interrupt accumulation rather than clearing an

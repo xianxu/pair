@@ -433,6 +433,10 @@ couch --peek repo:N --all [--transcripts]
 couch --archived         threads removed from couch, with their records kept
 couch --actors [--json]  live peer-message receivers in this Couch namespace
 couch --resources [--json] cached process sample plus fresh hosted-ingest totals
+couch --reap-orphans [--confirm] [--json]
+                         the unattributed embedded nvim --resources named; without --confirm it lists them
+                         and ends nothing, with --confirm it ends each one and its tree, every signal fenced
+                         on the identity the sweep recorded [seconds]
 couch --broadcast-list [--json]   every link out by kind (screen, web view, web drive) and its viewers, and the
                          recordings shared for replay (pair#477); never a link
 couch --broadcast-web-query DIR dom|events|notes|link ...
@@ -743,11 +747,18 @@ output, counter history, periodic sampler or per-feed clock is added.
 
 Couch alerts the owning hub for sustained writes above 2 MiB/s for ten minutes,
 a process above 8 GiB RSS, an idle slot above 90% of one core for fifteen minutes,
-or a proven orphan above 256 MiB across two samples. Each incident is admitted
+a proven orphan above 256 MiB across two samples, or an untagged embedded nvim
+orphaned at PID 1 for six hours inside a managed checkout. Each incident is admitted
 once per supervisor run through normal messaging; pending retries reuse the
 same effect ID. Episodes live in memory, so restarting Couch re-arms them and
 can repeat an advisory alert. History is best-effort and never gates alerts.
-Unattributed candidates are report-only. Monitoring never kills processes.
+Unattributed candidates are report-only, and the monitor never kills anything.
+The one destructive verb is the operator's: `couch --reap-orphans` names the
+orphaned embedded nvim the sweep found and ends nothing, and
+`couch --reap-orphans --confirm` re-classifies from a fresh sample and then ends
+each named tree, every signal fenced on the identity the sweep recorded — a pid
+that has exited or been recycled is skipped with the reason printed, never
+signalled on the strength of a number that still exists.
 See [resource monitoring](atlas/couch.md#resource-monitoring-587) for policy
 settings, ownership evidence, platform support and coverage limits. Aggregate
 history rolls over after 24 hours and is bounded independently of debug logs.

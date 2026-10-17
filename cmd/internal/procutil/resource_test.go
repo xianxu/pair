@@ -35,6 +35,10 @@ func (f *resourceFake) environmentRead(int) ([]byte, error) {
 	f.calls++
 	return []byte("COUCH_THREAD_TAG=t\x00OTHER=x\x00"), f.err
 }
+func (f *resourceFake) cwdRead(int) (string, error) {
+	f.calls++
+	return "/owned/work", f.err
+}
 func (f *resourceFake) selfCPURead() (uint64, error) { f.calls++; return 42, f.err }
 func TestResourceBoundedTable(t *testing.T) {
 	for _, tc := range []struct {
@@ -64,6 +68,14 @@ func TestResourceGenerationFence(t *testing.T) {
 		if n != 2 || (err == nil) != good || (!good && c.Executable != "") {
 			t.Fatalf("c=%v n=%d err=%v", c, n, err)
 		}
+		// The cwd is the evidence an orphan sweep gates a kill on, so it is
+		// fenced like every other per-pid read: a generation that moved
+		// mid-read answers an error and no directory, never the directory of
+		// whichever process holds the pid now (#583).
+		wd, n, err := r.Cwd(context.Background(), p)
+		if n != 2 || (err == nil) != good || (good && wd != "/owned/work") || (!good && wd != "") {
+			t.Fatalf("wd=%q n=%d err=%v", wd, n, err)
+		}
 		if generation.Identity == "" && IsProcessGone(err) {
 			t.Fatal("empty identity falsely proves disappearance")
 		}
@@ -82,10 +94,21 @@ func TestResourceCancellationAndFailureCounts(t *testing.T) {
 	if n != 0 || !errors.Is(err, context.Canceled) {
 		t.Fatal(n, err)
 	}
+	_, n, err = r.Cwd(ctx, Process{PID: 1, Identity: "x"})
+	if n != 0 || !errors.Is(err, context.Canceled) {
+		t.Fatal(n, err)
+	}
 	f.err = syscall.EPERM
 	_, n, err = r.Usage(context.Background(), Process{PID: 1, Identity: "x"})
 	if n != 1 || !errors.Is(err, syscall.EPERM) {
 		t.Fatal(n, err)
+	}
+	// Another user's process refuses the cwd read too, and the refusal has to
+	// stay an error: an empty directory that looked like success would place
+	// the process outside every managed root, or inside none, by accident.
+	wd, n, err := r.Cwd(context.Background(), Process{PID: 1, Identity: "x"})
+	if n != 1 || wd != "" || !errors.Is(err, syscall.EPERM) {
+		t.Fatal(wd, n, err)
 	}
 	_, n, err = r.SelfCPU(ctx)
 	if n != 0 || !errors.Is(err, context.Canceled) {

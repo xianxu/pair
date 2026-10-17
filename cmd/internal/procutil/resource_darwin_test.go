@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"syscall"
@@ -305,5 +306,74 @@ func TestResourceEnvironmentOfAChild(t *testing.T) {
 		if time.Now().After(deadline) {
 			t.Fatal("child not in the process table")
 		}
+	}
+}
+
+// The orphan sweep places an untagged nvim by the directory it runs in, so the
+// probe is checked against a child whose directory is known, and against a pid
+// that is gone: a refusal has to stay a refusal, because an empty directory
+// would read as "inside no managed root" and the sweep classifies on it (#583).
+func TestResourceCwdOfAChild(t *testing.T) {
+	if os.Getenv("PAIR_RESOURCE_CWD_CHILD") == "1" {
+		time.Sleep(10 * time.Second)
+		return
+	}
+	// macOS hands out /var/folders/... and the kernel reports /private/var/...
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestResourceCwdOfAChild$")
+	cmd.Env = append(os.Environ(), "PAIR_RESOURCE_CWD_CHILD=1")
+	cmd.Dir = dir
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	defer cmd.Wait()
+	defer cmd.Process.Kill()
+	var r NativeResourceReader
+	for deadline := time.Now().Add(5 * time.Second); ; time.Sleep(20 * time.Millisecond) {
+		table, _, err := r.Table(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, p := range table {
+			if p.PID != cmd.Process.Pid {
+				continue
+			}
+			got, _, err := r.Cwd(ctx, p)
+			if err == nil && got == dir {
+				return
+			}
+			if time.Now().After(deadline) {
+				t.Fatalf("cwd %q, %v; want %q", got, err, dir)
+			}
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("child not in the process table")
+		}
+	}
+}
+
+func TestResourceCwdRefusesAGoneChild(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "sleep", "30")
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	p := Process{PID: cmd.Process.Pid, PPID: os.Getpid(), Identity: Identity(strconv.Itoa(cmd.Process.Pid))}
+	if p.Identity == "" {
+		t.Fatal("no identity for the live child")
+	}
+	_ = cmd.Process.Kill()
+	_ = cmd.Wait()
+
+	var r NativeResourceReader
+	got, _, err := r.Cwd(ctx, p)
+	if got != "" || err == nil {
+		t.Fatalf("Cwd of a gone child = %q, %v; want an error and no directory", got, err)
 	}
 }
