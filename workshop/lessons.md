@@ -2173,11 +2173,13 @@ and external temporary roots rather than relying on the host's TMPDIR.
   the feature test that sets the field explicitly cannot see a missing default.
   (#628)
 
-- A zero `context.WithTimeout` deadline does not fail deterministically: the
-  timer arms asynchronously, so an instant probe can beat its own deadline on an
-  unloaded machine and lose on a loaded one. Read as a flake it hides a missing
-  default; verify deadline fixes under the suite's real contention (a heavy
-  sibling package run concurrently), never by unloaded local greens alone. (#628)
+- A non-positive `context.WithTimeout` bound returns an already-cancelled
+  context: Go cancels synchronously when the deadline has already passed
+  (context.go cancels when `dur <= 0`), so every probe fails deterministically
+  on any machine, loaded or not. When evidence seems to contradict that
+  mechanism, doubt the record first: the "green at the broken head" was a
+  misattributed head, not a won race — inventing a scheduling story to
+  reconcile the two was the real error. (#628)
 
 - Under `go test -timeout`, a wait bounded by the test deadline consumes the
   package budget and cascades: every later failure is instant with a shrinking
@@ -2186,4 +2188,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
   (the package alarm fires only after testwait's margin lets the test exit);
   stack dumps miss sub-millisecond workers, so dump state (schedules, channel
   depths, probe outcomes) from inside a diagnostic test. (#628)
+
 - A readiness counter contract needs a stateful test through the actual readiness decision, not only isolated zero/one counts. Cover unchanged observations before growth and show that both equality-accepting and never-accepting mutations fail, especially when native acceptance is deferred. (#645 BR-1)
