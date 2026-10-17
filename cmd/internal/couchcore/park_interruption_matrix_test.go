@@ -151,7 +151,7 @@ func TestParkInterruptionBoundaryMatrix(t *testing.T) {
 				env.Artifacts.TriggerQuitHook = goodTrigger
 			}
 			if boundary == "completion-before-child-death" {
-				_, recoverErr := env.Couch.RecoverPark(context.Background(), original.Address)
+				_, recoverErr := env.Couch.recoverPark(context.Background(), original.Address)
 				still, _ := env.Couch.Threads.GetThread(original.Address)
 				if recoverErr == nil || still.Park == nil || still.VerifiedPark != nil || len(still.Incarnations) != 1 {
 					t.Fatalf("completion retired a live child: %+v %v", still, recoverErr)
@@ -160,7 +160,7 @@ func TestParkInterruptionBoundaryMatrix(t *testing.T) {
 				env.Artifacts.SetPairSession(original.Address, "pair-exact", false)
 				env.Artifacts.SetSessionPresence(original.Address, SessionObservation{State: SessionAbsent})
 			}
-			recovered, recoverErr := env.Couch.RecoverPark(context.Background(), original.Address)
+			recovered, recoverErr := env.Couch.recoverPark(context.Background(), original.Address)
 			if recoverErr != nil {
 				t.Fatalf("explicit recovery after %s: %v", boundary, recoverErr)
 			}
@@ -219,7 +219,7 @@ func TestParkInterruptionEveryCleanupStage(t *testing.T) {
 			if getErr != nil || before.Park == nil || before.VerifiedPark != nil {
 				t.Fatalf("cleanup failure evidence not retained: %+v %v", before, getErr)
 			}
-			recovered, recoverErr := env.Couch.RecoverPark(context.Background(), original.Address)
+			recovered, recoverErr := env.Couch.recoverPark(context.Background(), original.Address)
 			if recoverErr != nil {
 				t.Fatal(recoverErr)
 			}

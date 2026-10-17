@@ -27,7 +27,7 @@ Existing behavior already preserves identity and refuses unsafe starts. The defe
 | Name | Lives in | Status |
 |------|----------|--------|
 | ParkRecoveryDecision | cmd/internal/couchcore/park_recovery.go | new |
-| ParkRecoveryOutcome / ParkRecoveryResult | cmd/internal/couchcore/park_recovery.go | new |
+| ParkRecoveryResult | cmd/internal/couchcore/park_recovery.go | new |
 | RelaunchOutcome classification | cmd/internal/couchcore/relaunch.go | modified |
 
 - ParkRecoveryDecision consumes explicit observed facts: current park/attempts, matching completion disposition, exact owner status, exact terminal presence and pre-publication authority. It chooses complete, drive-existing, roll-back-unpublished, retire-interrupted, already-settled, or refuse. Unit tests are pure; no filesystem/process fakes in those tests.
@@ -94,7 +94,7 @@ Each row names the callable production boundary to verify. Concrete values and p
 | ThreadStore.RetireInterruptedPark | Inject revision/identity mismatch and journal interruption around persisted updates; assert one atomic after-image, exact owner retirement, preserved unrelated fields and reopen convergence. Actual private ThreadStore, no process mocks. |
 | PairLifecycleController.rollbackUnpublishedPark | Cancel around the publication boundary under an owned worker reservation; assert rollback only when the initiating worker holds positive no-publication authority and its bounded store update settles before reservation release. |
 | PairLifecycleController.recoverInterruptedPark | Drive adversarial asynchronous event sequences through stateful lifecycle/session/process fakes and journal hooks; assert single-owner effects, completion authority and safe repeatability, with futures settled before fixture cleanup. |
-| Couch.RecoverPark | Compare retained lifecycle and native-resume authority before/after recovery through real private storage and existing fakes; assert no automatic launch and no fabricated VerifiedPark. |
+| Couch.RecoverParkExpected | Compare retained lifecycle and native-resume authority before/after recovery through real private storage and existing fakes; assert no automatic launch and no fabricated VerifiedPark. |
 | ParkRecoveryNextAction | Vary established, absent and unavailable conversation/session observations; assert advice uses the existing continue/resume/Fresh eligibility and unavailable evidence produces inspection/refusal rather than guessed success. |
 | ParkRecoveryAdvice | Exercise arbitrary target forms and operation outcomes; parse each advertised CLI command through production ParseCLI, and resolve local action labels through the menu authority. |
 | ParseCLI / slotOperations.handle | Generate malformed argv/confirmation and authenticated-caller/receipt sequences; assert declaration-derived reachability, current owning-hub checks and idempotent receipt semantics before effects. |
@@ -168,3 +168,7 @@ Hub5175c159 permits deliberate immediate refusal or a surfaced bounded wait. Cho
 ### 2026-10-17 15:19 PDT — native fixture proof accepted, operator acceptance still deferred
 
 Finalization, publication and interrupted scrollback fixture cases have each passed in their individually hub-authorized runs after diagnosed fixes. All original failures/log hashes remain in the issue. The scrollback case proves immediate live-owner refusal and independent positive liveness before the exact owned kill; recovery then retires without VerifiedPark and is repeatable. Native terminal/storage fixture conformance is complete; genuine same-agent conversation resume remains the separate deferred operator checklist above. Completed implementation/conformance checkboxes are ticked; suite and close await current code evidence.
+
+### 2026-10-17 — integration declaration completeness
+
+Required-suite guards found missing verb cost, exhaustive source classifications and an exported wrapper with only test consumers. Complete the existing declarations, classify metadata/observer routing as non-artifact source, and keep the unbound convenience wrapper only in tests; production exposes RecoverParkExpected through the declared operation. No new authority or public CLI change. The named function strategy above now names the actual production boundary, and the concepts row drops a planned outcome type that implementation represents in the result. Cancel only the superseded queued suite, preserve the running failure evidence, and verify the corrected pushed head with a new suite.

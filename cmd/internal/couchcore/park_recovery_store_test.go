@@ -25,7 +25,7 @@ func TestParkRecoveryReadAndWriteRefuseBusyStore(t *testing.T) {
 				if op == "read" {
 					_, err = store.recoveryReadThread(ctx, current.Address)
 				} else if op == "operation" {
-					_, err = env.Couch.RecoverPark(ctx, current.Address)
+					_, err = env.Couch.recoverPark(ctx, current.Address)
 				} else {
 					_, err = store.RetireInterruptedPark(ctx, current.Address, current.Revision, current.Park.Identity, env.Now)
 				}

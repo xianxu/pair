@@ -11,6 +11,12 @@ import (
 	"github.com/xianxu/pair/cmd/internal/pairlifecycle"
 )
 
+// recoverPark exercises the shared core without admission-time identity capture.
+// Public operation tests separately require the exact captured nonce.
+func (c *Couch) recoverPark(ctx context.Context, address ThreadAddress) (ParkRecoveryResult, error) {
+	return c.recoverParkExpected(ctx, address, "", false)
+}
+
 func interruptedParkEnv(t *testing.T, failedCompletion bool) (*relaunchEnv, ThreadRecord) {
 	t.Helper()
 	env, live := envWithLiveThread(t)
@@ -46,7 +52,7 @@ func TestRecoverParkRetiresInterruptedDeadOwner(t *testing.T) {
 	for _, failed := range []bool{false, true} {
 		t.Run(map[bool]string{false: "missing", true: "failed"}[failed], func(t *testing.T) {
 			env, before := interruptedParkEnv(t, failed)
-			result, err := env.Couch.RecoverPark(context.Background(), before.Address)
+			result, err := env.Couch.recoverPark(context.Background(), before.Address)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -67,7 +73,7 @@ func TestRecoverParkRetiresInterruptedDeadOwner(t *testing.T) {
 				t.Fatalf("missing operator outcome/warning: %+v", result)
 			}
 			revision := after.Revision
-			if _, err := env.Couch.RecoverPark(context.Background(), before.Address); err != nil {
+			if _, err := env.Couch.recoverPark(context.Background(), before.Address); err != nil {
 				t.Fatal(err)
 			}
 			repeated, _ := env.Couch.Threads.GetThread(before.Address)
@@ -102,7 +108,7 @@ func TestRecoverParkRefusesUnprovedOrReplacementOwner(t *testing.T) {
 				env.Artifacts.BeforePairSession = func(ThreadAddress) error { return errors.New("terminal observation unavailable") }
 			}
 			expected, _ := env.Couch.Threads.GetThread(before.Address)
-			_, err := env.Couch.RecoverPark(context.Background(), before.Address)
+			_, err := env.Couch.recoverPark(context.Background(), before.Address)
 			if err == nil {
 				t.Fatal("unproved retirement accepted")
 			}
@@ -130,7 +136,7 @@ func TestRecoverParkAbsentTerminalRefusesBeforeCompletionLock(t *testing.T) {
 				// Recovery must refuse before entering that observation.
 				env.Proc.Kill(42)
 			}
-			_, err := env.Couch.RecoverPark(context.Background(), before.Address)
+			_, err := env.Couch.recoverPark(context.Background(), before.Address)
 			if err == nil || observed {
 				t.Fatalf("refusal entered completion reconciliation: observed=%t err=%v", observed, err)
 			}

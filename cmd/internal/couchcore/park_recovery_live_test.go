@@ -138,7 +138,7 @@ func TestParkRecoveryLivePublicationInterruption(t *testing.T) {
 	d, r := newRealParkConformance(t, ctx, false)
 	prepareRealParkRecovery(t, d, r)
 	env := realParkRecoveryCouch(t, d)
-	result, err := env.Couch.RecoverPark(ctx, d.current.Address)
+	result, err := env.Couch.recoverPark(ctx, d.current.Address)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -180,7 +180,7 @@ func TestParkRecoveryLiveFinalizationInterruption(t *testing.T) {
 		}
 		return nil
 	}
-	if _, err := env.Couch.RecoverPark(ctx, d.current.Address); !errors.Is(err, interrupted) {
+	if _, err := env.Couch.recoverPark(ctx, d.current.Address); !errors.Is(err, interrupted) {
 		t.Fatalf("missing finalization interruption: %v", err)
 	}
 	// Reopen the actual store: journal after-image, rather than the lost reply,
@@ -188,7 +188,7 @@ func TestParkRecoveryLiveFinalizationInterruption(t *testing.T) {
 	reopened := NewThreadStore(d.threads.namespace)
 	env.Couch.Threads = reopened
 	env.Couch.PairLifecycle.Threads = reopened
-	result, err := env.Couch.RecoverPark(ctx, d.current.Address)
+	result, err := env.Couch.recoverPark(ctx, d.current.Address)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -230,7 +230,7 @@ func TestParkRecoveryLiveInterruptedScrollbackCleanup(t *testing.T) {
 		}
 	}
 	env := realParkRecoveryCouch(t, d)
-	if _, err := env.Couch.RecoverPark(ctx, d.current.Address); err == nil {
+	if _, err := env.Couch.recoverPark(ctx, d.current.Address); err == nil {
 		t.Fatal("retired helper still alive at cleanup gate")
 	}
 	if state := observeExactProcess(OSProcOps{}, d.childID); state != Live {
@@ -246,14 +246,14 @@ func TestParkRecoveryLiveInterruptedScrollbackCleanup(t *testing.T) {
 	if err != nil || found {
 		t.Fatalf("interrupted cleanup fabricated completion: %+v found=%v err=%v", completion, found, err)
 	}
-	result, err := env.Couch.RecoverPark(ctx, d.current.Address)
+	result, err := env.Couch.recoverPark(ctx, d.current.Address)
 	if err != nil {
 		t.Fatal(err)
 	}
 	assertRealParkRecovered(t, env, d, false)
 	// Independently run the same semantic class through the stateful fake.
 	fake, before := interruptedParkEnv(t, false)
-	fakeResult, err := fake.Couch.RecoverPark(ctx, before.Address)
+	fakeResult, err := fake.Couch.recoverPark(ctx, before.Address)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -261,7 +261,7 @@ func TestParkRecoveryLiveInterruptedScrollbackCleanup(t *testing.T) {
 		t.Fatalf("fake/live interruption outcomes differ: fake=%+v real=%+v", fakeResult, result)
 	}
 	revision := result.Thread.Revision
-	repeated, err := env.Couch.RecoverPark(ctx, d.current.Address)
+	repeated, err := env.Couch.recoverPark(ctx, d.current.Address)
 	if err != nil || repeated.Thread.Revision != revision || repeated.Outcome != "park-already-settled" {
 		t.Fatalf("duplicate recovery changed state: %+v %v", repeated, err)
 	}

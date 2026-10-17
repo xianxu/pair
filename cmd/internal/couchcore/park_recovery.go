@@ -97,11 +97,8 @@ func (c *PairLifecycleController) parkActive(address ThreadAddress) bool {
 	return active
 }
 
-// RecoverPark is the confirmed operation's core; callers retain confirmation
-// and exact-target admission, and this method retains the lifecycle gate.
-func (c *Couch) RecoverPark(ctx context.Context, address ThreadAddress) (ParkRecoveryResult, error) {
-	return c.recoverParkExpected(ctx, address, "", false)
-}
+// RecoverParkExpected retains the admitted transaction identity and lifecycle
+// gate; callers retain confirmation and exact-target admission.
 func (c *Couch) RecoverParkExpected(ctx context.Context, address ThreadAddress, nonce string) (ParkRecoveryResult, error) {
 	return c.recoverParkExpected(ctx, address, nonce, true)
 }
