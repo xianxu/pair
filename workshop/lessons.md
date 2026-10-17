@@ -2108,3 +2108,4 @@ and external temporary roots rather than relying on the host's TMPDIR.
   before treating it as one. Preserve permission to receive messages while
   independent display activity is designed; do not overload the admission flag
   to make a busy visual look right.
+- **A new help source changes old documentation claims (#619).** When adding companion-editor metadata to a source-derived help catalog, update the README shortcut table and search for universal claims such as "every row comes from its implementing keymap". Qualify the source boundary as well as listing the feature; atlas coverage alone does not keep the user-facing contract accurate.
