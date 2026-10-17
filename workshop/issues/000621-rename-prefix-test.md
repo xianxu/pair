@@ -57,3 +57,7 @@ Investigation confirms #154 commit 33c91c1cee0cac2e6bd85c17a41517fa1214cfa3 inte
 ### 2026-10-17 — baseline reproduction
 
 bash tests/pair-rename.sh fails deterministically at T7 with no files found for tag pair-t1, exit 1; log /tmp/pair621-baseline.log. T1–T6 pass before the script exits. The shared bootstrap isolates the environment, but the script still selects checkout bin/pair and is absent from the normal Make test prerequisites. Use the existing private candidate-binary helper and retain all cases, including T8–T9 that the early failure masked. No retry or production timeout is involved.
+
+### 2026-10-17 — parked for urgent Ctrl+Y investigation
+
+Implemented the exact-prefix matrix, private candidate helper and normal-suite prerequisite; clarified help/README/atlas without changing rename behavior. Standalone shell matrix passes all 67 assertions; launcher Rename/ParseRestart tests pass (1.458s); shell syntax and diff whitespace checks pass. Negative control using a private selected-candidate wrapper that strips pair- fails deterministically at T7 (bare t2 occupied), proving both candidate selection and the new identity regression. Logs: /tmp/pair621-green.log and /tmp/pair621-negative-control.log. No full suite, close or PR yet. TL prioritized #638 live failure investigation; checkpointing cleanly for later resumption.
