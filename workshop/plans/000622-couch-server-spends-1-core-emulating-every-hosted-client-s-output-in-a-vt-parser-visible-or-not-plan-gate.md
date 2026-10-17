@@ -19,6 +19,25 @@ reviewer_runs:
       finished_at: "2026-10-17T00:19:32.368441Z"
       session_id: 01a1473a-096f-7563-8ccd-8ecf58fd1110
       outcome: returned
+    - version: 1
+      intent:
+        id: 19354bd4-60cd-47f2-a4e9-38d7831428f8
+        repository: github.com/xianxu/pair
+        issue_id: "000622"
+        recipe: estimate-quality
+        round: 1
+        attempt: 1
+        agent: codex
+        root: /Users/xianxu/workspace/worktree/pair-slot5/pair
+        reviewed_head: c4970abec52e566267ddc0e6d704a4eab29d690e
+        slot: pair:5
+        requested_at: "2026-10-17T05:33:15.316588Z"
+      phase: finished
+      pid: 16268
+      started_at: "2026-10-17T05:33:15.424034Z"
+      finished_at: "2026-10-17T05:33:34.330626Z"
+      session_id: 01a14859-a067-7201-8c40-7cb28a13e876
+      outcome: returned
 gate: plan-quality
 issue: 622
 id_prefix: PQ
@@ -112,7 +131,36 @@ rounds:
           note: Function-named adversarial strategies replace the test-case inventories throughout M1.
           round: 3
       blocked: false
-content_hash: 621b4c66f30d2a5c46de4217f7d92657b1b130a6ab7af14b26031e51b15a7195
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: 78d3b1aa-4af9-4134-ba6b-54fb5e1debc4
+            repository: github.com/xianxu/pair
+            issue_id: "000622"
+            recipe: plan-quality
+            round: 4
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot5/pair
+            reviewed_head: c4970abec52e566267ddc0e6d704a4eab29d690e
+            slot: pair:5
+            requested_at: "2026-10-17T05:32:52.420788Z"
+          phase: finished
+          pid: 8359
+          started_at: "2026-10-17T05:32:52.593297Z"
+          finished_at: "2026-10-17T05:33:13.866655Z"
+          session_id: 01a14859-4721-7b12-824a-9a8d9a8dff37
+          outcome: returned
+      "n": 4
+      timestamp: "2026-10-16T22:33:14-07:00"
+      agent: codex
+      dispose:
+        - id: PQ-1
+          disposition: addressed
+          note: Function-named adversarial strategies, independent differential oracles and mechanical mutation guards cover the proposed shortcuts.
+          round: 4
+      blocked: false
+content_hash: f6d94485a1bf99260c6615a986ad78242a3ff750b70c85ace1b957328fa336ac
 ---
 
 # Gate ledger — pair#622 (plan-quality)
@@ -138,6 +186,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 ### Disposed
 
 - PQ-1 — addressed — Function-named adversarial strategies replace the test-case inventories throughout M1.
+
+## Round 4 — 2026-10-16T22:33:14-07:00 (codex) — passed
+
+### Disposed
+
+- PQ-1 — addressed — Function-named adversarial strategies, independent differential oracles and mechanical mutation guards cover the proposed shortcuts.
 
 ## Open findings
 
