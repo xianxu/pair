@@ -81,3 +81,19 @@ Upstream cache writer is write_session_state_to_disk in https://raw.githubuserco
 
 ## Revisions
 2026-10-16 R1: TL receipt a8c8d7a3-348e-46eb-84ea-386652e8c0aa authorized original-fixture controls and fixing candidate-only failures in #627. Original helper AND original shortcut body, identical private socket root and -race count=10 PASS (30.387s); separately isolated original detach count=5 PASS. Candidate diagnostic race run reproduces the shortcut assertion: initial layout is valid, AFTER is empty despite native exit 0. Extend the test fixture's snapshot readiness to reject empty observations with the existing context/helper, retaining the exact full-layout comparison for the first nonempty response. Never wait for equality or retry input. Add deterministic empty/whitespace-read and immediate-nonempty-change controls. This is a fixture-only qualification refinement; no product behavior or deadlines change. The initial overlapping detach timeout remains unclassified until same-root isolated candidate control completes.
+
+2026-10-16 R1 qualification: original shared fixture plus original shortcut body -race count=10 PASS (30.387s), same private socket root /tmp/p627-race.k8gep9fw. Separately isolated original detach count=5 PASS, then candidate same private HOME/config/cache/runtime/socket roots isolated detach count=5 PASS (6.015s). The first detach startup timeout is not reproduced in either isolated control; its earlier run overlapped other native probes and is retained as a non-comparable qualification attempt, not evidence of a pre-existing flake. TL classification report receipt fbd7c097-f39d-4395-bc56-e14d9a195352.
+
+Candidate diagnostic -race count=10 reproduced the layout assertion with an entirely empty successful AFTER response, not a nonempty layout change. Treated as ours per TL policy. Extracted the existing snapshot read without changing its behavior; the empty/whitespace observation regression FAILED (returned empty after 1 read). The corrected helper uses existing waitShortcutCapture/context only for unavailable observations. It returns the first nonempty response unchanged; a separate control proves a nonempty changed layout is not retried. Both tests -race count=10 PASS (1.633s); final isolated live shortcut -race count=10 PASS (16.426s), preserving every input and exact layout assertion. No deadline increased, input replayed or layout difference ignored.
+
+- /var/folders/07/b9wcwwld4_v2w9r3hk525bm80000gn/T/pair627.34fmyl6i/original-fixture-overlay.json: SHA256 af6d30ccf489028e361cf8eca181d52e917ff42da4ef2cb20b579bc89402cb9e
+
+- /var/folders/07/b9wcwwld4_v2w9r3hk525bm80000gn/T/pair627.34fmyl6i/shortcut-race-original.log: SHA256 4f167a53c249489752c4243f5a4174ea26b91cc8344140013aa08dceb5e4ddbe
+
+- /var/folders/07/b9wcwwld4_v2w9r3hk525bm80000gn/T/pair627.34fmyl6i/detach-original-isolated.log: SHA256 94ede1113b8981b188eb018c859715958964996ca3c989069aa249d30b1989a2
+
+- /var/folders/07/b9wcwwld4_v2w9r3hk525bm80000gn/T/pair627.34fmyl6i/detach-candidate-isolated.log: SHA256 4ad95575fc18aa1a29f1d68402fe1b7dfb86b1890541bddefcaaf1131611826b
+
+- /var/folders/07/b9wcwwld4_v2w9r3hk525bm80000gn/T/pair627.34fmyl6i/layout-diagnostic.log: SHA256 12c1f4615624bcce6713b2e82c7033d4aa54453ac905d5c475df00788c6763e2
+
+- /var/folders/07/b9wcwwld4_v2w9r3hk525bm80000gn/T/pair627.34fmyl6i/shortcut-race-final.log: SHA256 178fc7926103434a5216bf4486b8c5b3db7607e621dc77ba0b84bc725fe9b139

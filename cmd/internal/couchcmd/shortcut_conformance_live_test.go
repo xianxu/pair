@@ -99,11 +99,9 @@ func TestAgentShortcutInputConformanceLive(t *testing.T) {
 	})
 	snapshot := func() string {
 		t.Helper()
-		out, err := exec.CommandContext(ctx, "zellij", "--session", session, "action", "dump-layout").CombinedOutput()
-		if err != nil {
-			t.Fatalf("dump fixture layout: %v", err)
-		}
-		return string(out)
+		return shortcutLayoutSnapshot(t, ctx, func() ([]byte, error) {
+			return exec.CommandContext(ctx, "zellij", "--session", session, "action", "dump-layout").CombinedOutput()
+		})
 	}
 	initial := snapshot()
 	expected := []byte("READY")
@@ -154,6 +152,51 @@ func TestAgentShortcutInputConformanceLive(t *testing.T) {
 		if t.Failed() {
 			break
 		}
+	}
+}
+
+func shortcutLayoutSnapshot(t *testing.T, ctx context.Context, read func() ([]byte, error)) string {
+	t.Helper()
+	var out []byte
+	// Native CLI acknowledgement can arrive without the requested layout.
+	// Retry only unavailable observations, never an actual layout difference.
+	waitShortcutCapture(t, ctx, func() bool {
+		var err error
+		out, err = read()
+		if err != nil {
+			t.Fatalf("dump fixture layout: %v", err)
+		}
+		return len(bytes.TrimSpace(out)) != 0
+	})
+	return string(out)
+}
+
+func TestShortcutLayoutSnapshotNeedsAnObservation(t *testing.T) {
+	want := "layout { pane }\n"
+	reads := [][]byte{nil, []byte(" \n"), []byte(want)}
+	calls := 0
+	got := shortcutLayoutSnapshot(t, t.Context(), func() ([]byte, error) {
+		out := reads[calls]
+		calls++
+		return out, nil
+	})
+	if got != want || calls != len(reads) {
+		t.Fatalf("snapshot = %q after %d reads; want %q after unavailable observations", got, calls, want)
+	}
+}
+
+func TestShortcutLayoutSnapshotReturnsTheFirstNonemptyState(t *testing.T) {
+	want := "layout { pane name=\"changed\" }\n"
+	calls := 0
+	got := shortcutLayoutSnapshot(t, t.Context(), func() ([]byte, error) {
+		calls++
+		if calls == 1 {
+			return []byte(want), nil
+		}
+		return []byte("layout { pane }\n"), nil
+	})
+	if got != want || calls != 1 {
+		t.Fatalf("snapshot = %q after %d reads; a valid changed state must not be retried", got, calls)
 	}
 }
 
