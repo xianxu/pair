@@ -1,12 +1,12 @@
 ---
 id: 000637
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-16
 updated: 2026-10-17
 estimate_hours:
-card_mirror: '66623a42c3b775407114f088767f886cf964b277' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '71d09efe4dedeb59f451848fed472543a1a06688' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-17T03:22:30-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
 flow: {kind: quick, provenance: inferred, spec: "ca144426", done: "bd7ad23b"}
+actual_hours: 1.66
 ---
 
 # flake: couchtty TestDriveFromCouch hangs 20 min receiving from a nil capability-click channel
