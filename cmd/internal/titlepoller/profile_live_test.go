@@ -86,6 +86,7 @@ func TestTitleProfileLive(t *testing.T) {
 	}
 	// Scope remains the original exact owner; only Pair-owned storage redirects.
 	t.Setenv("PAIR_DATA_DIR", replica)
+	t.Setenv("PAIR_TAG", tag)
 	t.Setenv("PAIR_SCOPE_KEY", scope)
 	t.Setenv("PAIR_LAUNCH_ORDINAL", strconv.FormatUint(ordinal, 10))
 	rt := NewOSRuntime()

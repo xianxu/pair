@@ -1,6 +1,7 @@
 package titlepoller
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"github.com/xianxu/pair/cmd/internal/zellijsession"
@@ -13,6 +14,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/contextcmd"
 	"github.com/xianxu/pair/cmd/internal/osfs"
+	"github.com/xianxu/pair/cmd/internal/storagegc"
 )
 
 // OSRuntime implements Runtime with real zellij/cmux/fs/process calls. The fs
@@ -20,8 +22,11 @@ import (
 // osfs.FS (#93 M3).
 type OSRuntime struct {
 	osfs.FS
-	projection *titleProjection
-	err        error
+	projection           *titleProjection
+	err                  error
+	publication          *storagegc.Coordinator
+	owner                artifactpath.StorageOwner
+	workspacePublication string
 }
 
 func NewOSRuntime() OSRuntime {
@@ -30,7 +35,23 @@ func NewOSRuntime() OSRuntime {
 	if err != nil || ordinal == 0 || strconv.FormatUint(ordinal, 10) != raw {
 		return OSRuntime{err: errors.New("title projection requires exact launch ordinal")}
 	}
-	return OSRuntime{projection: newTitleProjection(contextcmd.EnvFromOS(), ordinal)}
+	env := contextcmd.EnvFromOS()
+	owner, err := storagegc.SelectedOwner(env.PairDataDir, env.PairScopeKey, os.Getenv("PAIR_TAG"))
+	if err != nil {
+		return OSRuntime{err: err}
+	}
+	coordinator, err := storagegc.NewCoordinator(owner.DataDir)
+	if err != nil {
+		return OSRuntime{err: err}
+	}
+	workspace := ""
+	if id := os.Getenv("CMUX_WORKSPACE_ID"); id != "" {
+		workspace = "cmux-owner-" + id
+		if filepath.Base(workspace) != workspace {
+			return OSRuntime{err: errors.New("invalid workspace publication name")}
+		}
+	}
+	return OSRuntime{projection: newTitleProjection(env, ordinal), publication: coordinator, owner: owner, workspacePublication: workspace}
 }
 func (r OSRuntime) Err() error {
 	if r.err != nil {
@@ -45,9 +66,27 @@ func (OSRuntime) Now() time.Time        { return time.Now() }
 func (OSRuntime) Sleep(d time.Duration) { time.Sleep(d) }
 func (OSRuntime) Getpid() string        { return strconv.Itoa(os.Getpid()) }
 
-// WriteFile publishes title PID and workspace-owner records through a sibling
-// temporary file and rename, so abrupt lease termination cannot expose a prefix.
-func (r OSRuntime) WriteFile(path, data string) error { return r.FS.WriteAtomic(path, data) }
+// WriteFile publishes only this title's PID and configured workspace ownership.
+// Retention's root lock protects private staging while a publisher is alive;
+// abrupt group death releases the lock for existing bounded pending recovery.
+func (r OSRuntime) WriteFile(path, data string) error {
+	if r.publication == nil {
+		return errors.New("title metadata publisher unavailable")
+	}
+	physical, err := storagegc.OwnerFramePath(path)
+	if err != nil {
+		return err
+	}
+	paths, err := artifactpath.ResolveScoped(r.owner.Directory(), r.owner.Tag)
+	if err != nil {
+		return err
+	}
+	name := filepath.Base(physical)
+	if physical != paths.TitlePID() && (r.workspacePublication == "" || physical != filepath.Join(r.owner.Directory(), r.workspacePublication)) {
+		return errors.New("publication is outside selected title metadata")
+	}
+	return r.publication.PublishMetadata(context.Background(), r.owner, name, []byte(data))
+}
 
 // SessionAlive reports whether a zellij server is running session. An EXITED
 // (resurrectable) row is gone: `--short` lists those too, which kept pollers

@@ -2095,3 +2095,8 @@ and external temporary roots rather than relying on the host's TMPDIR.
   environment, not the executable name or entire test function. Propagate that
   explicit activation through the same value analysis, and retain negative
   controls for ordinary Couch, disabled flags, and unrelated build/git calls.
+
+- #617 BR-1: atomic visible bytes do not complete an artifact's lifecycle. A
+  process killed between temp creation and rename leaves residue; use the same
+  coordinated private staging/recovery owner as the collector recognizes, and
+  test both interrupted publishers and protection of live publishers.

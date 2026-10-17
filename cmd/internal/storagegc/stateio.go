@@ -10,12 +10,20 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/xianxu/pair/cmd/internal/artifactpath"
+
 	"golang.org/x/sys/unix"
 )
 
 // atomicJSON publishes a bounded metadata record only after syncing its bytes,
 // then syncs the rename. The caller holds coordination for the entire effect.
 func (l *Locked) atomicJSON(path string, value any) error {
+	return l.atomicBytes(path, func() ([]byte, error) { return json.Marshal(value) })
+}
+
+// atomicBytes preserves the guard/hook ordering before encoding either JSON or
+// plaintext, while all publication formats share one staging/recovery owner.
+func (l *Locked) atomicBytes(path string, encode func() ([]byte, error)) error {
 	if l.readOnly {
 		return errors.New("read-only retention snapshot")
 	}
@@ -31,7 +39,7 @@ func (l *Locked) atomicJSON(path string, value any) error {
 			return err
 		}
 	}
-	data, err := json.Marshal(value)
+	data, err := encode()
 	if err != nil {
 		return err
 	}
@@ -75,6 +83,35 @@ func (l *Locked) atomicJSON(path string, value any) error {
 		return err
 	}
 	return errors.Join(c.syncDirectory(filepath.Dir(path)), c.syncDirectory(staging))
+}
+
+// PublishMetadata atomically publishes bounded plaintext metadata in one exact
+// selected namespace. Its private pending file shares the retention root lock,
+// so ordinary recovery cannot remove an active publisher's staging bytes.
+func (c *Coordinator) PublishMetadata(ctx context.Context, owner artifactpath.StorageOwner, name string, data []byte) error {
+	if err := c.validateOwner(owner); err != nil {
+		return err
+	}
+	if name == "" || name == "." || name == ".." || filepath.Base(name) != name || strings.HasPrefix(name, ".") || strings.ContainsRune(name, 0) {
+		return errors.New("metadata publication requires a nonreserved basename")
+	}
+	if len(data) > 1<<20 {
+		return errors.New("retention metadata limit reached")
+	}
+	return c.WithLock(ctx, func(l *Locked) error {
+		if err := checkDirectory(c.Root, false); err != nil {
+			return err
+		}
+		if owner.RepoScope != "" {
+			if err := checkDirectory(filepath.Join(c.Root, "repos"), false); err != nil {
+				return err
+			}
+			if err := checkDirectory(owner.Directory(), false); err != nil {
+				return err
+			}
+		}
+		return l.atomicBytes(filepath.Join(owner.Directory(), name), func() ([]byte, error) { return data, nil })
+	})
 }
 
 // readStateJSON does not create directories or follow a final symlink. A
