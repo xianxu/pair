@@ -28,8 +28,8 @@ const (
 	// MaxBindingBytes bounds the complete JSON-encoded identity, including escaping.
 	MaxBindingBytes       = 4 * 1024
 	MaxReceiptDetailBytes = 1024
-	// Connected recipients retain accepted mail until their composer is ready.
-	// MaxQueued bounds the line without discarding accepted messages.
+	// MaxQueued bounds the receiver's waiting line without discarding accepted
+	// messages, which wait while their exact receiver remains connected.
 	MaxQueued = 32
 )
 

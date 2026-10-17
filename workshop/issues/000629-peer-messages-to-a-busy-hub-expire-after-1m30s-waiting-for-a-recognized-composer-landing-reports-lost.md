@@ -72,6 +72,8 @@ Measured by pair:2 (18:47): after the restart, 31 hub-bound deliveries were canc
 
 - Queue cleanup: interrupting the superseded suite reservation left test-lock.py PID 42255 orphaned under PID 1 with dead watched PID 42240, retaining ticket 9 for sdlc-local-1087195770. Verified the exact owned ticket/run, interrupted only that helper, and confirmed both process and ticket disappeared; no gate file was manually removed. Proposed the independent cancellation-cleanup finding to the hub for ariadne (receipt def74365-9589-4cbc-b702-d0d5b779a252); the hub filed ariadne#416 and dispatched it to ariadne:5 (receipt 7243a07f-c75b-46ae-ae60-275e0ca21a3e).
 
+- First recorded suite on 74e0a6b6e8b16e1340717f7eed17967bad161828 finished in 11m12s after a 2022s queue wait. One deterministic branch failure: termcmd/TestNoDeclarationCarriesTwoStackedGodocs interpreted the MaxQueued comment opening word Connected as another declaration. Corrected the comment to open with MaxQueued; targeted guard passed (0.581s, /tmp/pair629-godoc-green.log). All other packages passed, including couchcmd 53.406s, couchcore 291.658s, couchmessage 17.595s and wrapcmd 53.941s. Retained full failed log at .git/sdlc/test-stats/failed/c491c39823deb69a3efb0862ee8fa1c6.log (sha256 71d94bf2c651). This is a corrected branch defect, not a flake retry; run the required suite again on the corrected/integrated head.
+
 ### Post-restart live check — owned by ops:0 and operator
 
 TL explicitly deferred the real-environment check to the next ordinary Couch restart (receipt b66971a3-a6c6-4dab-9503-e837f150720e). Do not stage or rebuild pair:0 from this slot. After restarting with the landed binary:

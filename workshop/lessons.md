@@ -2102,3 +2102,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
   test both interrupted publishers and protection of live publishers.
 - #604 BR-1: Deferring a live smoke does not implicitly defer a separately promised diagnostic deliverable. Enumerate the Spec's independent obligations and explicitly reconcile any approved scope reduction across Spec, Plan, Done-when and atlas before claiming completion; keep unknown causes unknown.
 - #604 BR-2: For a changed user-visible action, update its existing README account as well as the atlas. Explain confirmed versus unconfirmed outcomes at the user entry point; internal architecture prose alone does not update the user contract.
+
+- #629: Open a declaration comment with its own symbol. Ordinary prose can accidentally name another existing declaration (Connected above MaxQueued) and trigger the stacked-godoc guard. Run the termcmd doc-comment guards when rewriting shared declaration comments.
