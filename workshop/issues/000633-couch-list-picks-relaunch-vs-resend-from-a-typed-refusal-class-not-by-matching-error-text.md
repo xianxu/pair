@@ -15,6 +15,7 @@ claimant:
     workspace: pair:7
     worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "f9d13e8d", done: "ef574bea"}
 ---
 
 # couch --list picks relaunch vs resend from a typed refusal class, not by matching error text
