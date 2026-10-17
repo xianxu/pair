@@ -1,6 +1,6 @@
 ---
 id: 000637
-status: working
+status: codecomplete
 created: 2026-10-16
 updated: 2026-10-17
 estimate_hours:
@@ -13,6 +13,14 @@ claimant:
     workspace: pair:1
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
+actual_hours: 1.66
+tracker:
+    version: 1
+    completion:
+        token: close-0aed904f4d44
+        repository: github.com/xianxu/pair
+        reviewed_head: c31542b57470ab9c5ca89cbfe8327d320287ddfa
+        evidence_commit: 0f856e3518ccf5132731c06442ae577002e2d71f
 ---
 
 # flake: couchtty TestDriveFromCouch hangs 20 min receiving from a nil capability-click channel
