@@ -74,6 +74,8 @@ Measured by pair:2 (18:47): after the restart, 31 hub-bound deliveries were canc
 
 - First recorded suite on 74e0a6b6e8b16e1340717f7eed17967bad161828 finished in 11m12s after a 2022s queue wait. One deterministic branch failure: termcmd/TestNoDeclarationCarriesTwoStackedGodocs interpreted the MaxQueued comment opening word Connected as another declaration. Corrected the comment to open with MaxQueued; targeted guard passed (0.581s, /tmp/pair629-godoc-green.log). All other packages passed, including couchcmd 53.406s, couchcore 291.658s, couchmessage 17.595s and wrapcmd 53.941s. Retained full failed log at .git/sdlc/test-stats/failed/c491c39823deb69a3efb0862ee8fa1c6.log (sha256 71d94bf2c651). This is a corrected branch defect, not a flake retry; run the required suite again on the corrected/integrated head.
 
+- Corrected integration head: 57350d7eef208c568fcabec337501e9fd6cd0a37, including current main/#619. The declaration-comment guard passed again after integration (0.372s). Required suite queued on that pushed head as run 0ee3855e9e788af24f895643528ef406, initially position 8; active log .git/sdlc/test-stats/inflight/0ee3855e9e788af24f895643528ef406/run.log. No executable message behavior changed after the first recorded run.
+
 ### Post-restart live check — owned by ops:0 and operator
 
 TL explicitly deferred the real-environment check to the next ordinary Couch restart (receipt b66971a3-a6c6-4dab-9503-e837f150720e). Do not stage or rebuild pair:0 from this slot. After restarting with the landed binary:
