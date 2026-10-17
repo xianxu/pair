@@ -1,7 +1,7 @@
 // Package threadactivity is the one definition of when a Pair thread was last
 // active (pair#247): the operator's input or its agent's work. Couch's idle
-// fading and the title poller's heat ramp both read it, so the two cannot
-// disagree about how idle a thread is.
+// fading and the title poller's heat ramp share these persisted sources.
+// Couch also uses its admitted wrapper's live work evidence during open turns.
 package threadactivity
 
 import (

@@ -1323,6 +1323,24 @@ and `MenuState.Palette`; the tab bar reads the same two through
 A thread with no activity entry is unfaded. Each slot glyph fades from its own
 base colour (`slotGlyphBase`).
 
+**Live work (#625).** The same background activity pass also reads the admitted
+wrapper's existing `SlotLiveness.Settled` snapshot through
+`messageService.WrapperActivity`; there is no new IO probe, timer or protocol.
+Known-unsettled stays current even during a silent peer-driven turn/command
+wait. The registry timestamps work reports and the busy-to-settled transition
+with supervisor receipt time, monotonically within that session. Settled
+refreshes do not advance `LastWorkAt`. The first settled report seeds it from
+that authenticated wrapper's `LastActivity`, capped at receipt time; a Couch
+reconnect does not itself invent recent work. Replacement/disconnect drops
+the prior session's evidence. Scope, exact tag and agent must match. Legacy/unknown
+wrappers contribute nothing, retaining the file-only rule. `Settled` is the
+same broad restart-safety signal used by relaunch: an occupied composer,
+picker or recent IO can also hold it false. It does not track background
+commands after their turn ends; #632 owns an independent display signal that
+must preserve free-composer message admission. The Console merges the newest
+wrapper/file evidence for both views; positive wrapper work still counts when
+the file probe fails, preserving any newer previous observation on that error.
+
 **Cost at rest (#507).** A pass probes every live thread (every 60 s, and on a
 switch or a landed inventory). The probe's runtime
 (`threadactivity.NewOSRuntime`) keeps one `sessioninventory.OwnerLaunchCache`
@@ -1408,8 +1426,8 @@ the active chip too. Precedence: placeholder > red > bell/attention > idle fadin
 - **Timing:** red appears within the session's one-second frame pacing and
   clears the same way.
 
-The data: activity is `threadactivity.Latest`, the one definition the title
-poller's heat ramp also uses. It is the newest of the bound agent transcript's
+The persisted data is `threadactivity.Latest`, shared with the title poller's
+heat ramp. It is the newest of the bound agent transcript's
 mtime, the Pair log's (sends), and the current launch's pane-birth evidence
 (rewritten on create or resume, never on attach). The draft is excluded: its
 autosave writes on every focus loss. `console_activity.go` runs it like the slot

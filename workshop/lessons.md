@@ -2104,4 +2104,9 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #604 BR-2: For a changed user-visible action, update its existing README account as well as the atlas. Explain confirmed versus unconfirmed outcomes at the user entry point; internal architecture prose alone does not update the user contract.
 
 - #627 BR-1: Before treating an omitted process row as exit evidence, inspect every native enumeration backend for silently discarded reads. Preserve listed unreadable PIDs as unknown and test actual stat-read/parse failures, then test both initial ownership capture and exit polling; an injected top-level error alone misses lossy enumeration.
+- #625: An idle flag carries a particular admission policy, not a universal
+  definition of work. Check a real empty-composer/background-command case
+  before treating it as one. Preserve permission to receive messages while
+  independent display activity is designed; do not overload the admission flag
+  to make a busy visual look right.
 - **A new help source changes old documentation claims (#619).** When adding companion-editor metadata to a source-derived help catalog, update the README shortcut table and search for universal claims such as "every row comes from its implementing keymap". Qualify the source boundary as well as listing the feature; atlas coverage alone does not keep the user-facing contract accurate.
