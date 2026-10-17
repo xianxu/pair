@@ -29,12 +29,16 @@ func codexStartupStatus(snapshot terminalSnapshot) (bool, bool) {
 	return card, !model || !directory
 }
 
-// terminalRowText is one screen row's cell contents, concatenated.
+// terminalRowText projects a screen row, preserving erased blank cells.
 func terminalRowText(snapshot terminalSnapshot, y int) string {
 	var b strings.Builder
 	for x := 0; x < snapshot.Width; x++ {
 		if c := snapshot.CellAt(x, y); c != nil {
-			b.WriteString(c.Content)
+			if c.Content == "" && c.Width > 0 {
+				b.WriteByte(' ')
+			} else {
+				b.WriteString(c.Content)
+			}
 		}
 	}
 	return b.String()
