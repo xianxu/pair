@@ -1,6 +1,6 @@
 ---
 id: 000583
-status: working
+status: codecomplete
 created: 2026-10-15
 updated: 2026-10-16
 estimate_hours: 8.1
@@ -13,6 +13,14 @@ claimant:
     workspace: pair:4
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
+actual_hours: 9.63
+tracker:
+    version: 1
+    completion:
+        token: close-948fcf87d6b9
+        repository: github.com/xianxu/pair
+        reviewed_head: 138263a18151cca105a2fdeee0c4aa6fccc0d5f0
+        evidence_commit: 7388f9fdffe40e490192246d88937041b117392d
 ---
 
 # Orphaned embedded nvim (22 GB, 13 days) escaped the reaper: untagged 'nvim --embed' children; tag them and sweep orphans
