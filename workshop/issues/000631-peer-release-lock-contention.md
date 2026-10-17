@@ -41,7 +41,7 @@ Move wrapper release IO outside the shared broker lock while preserving exact ac
 - [x] Measure the original path with a gated stateful Release endpoint: withhold promotion cleanup, observe the shared mutex and independent Send/Status completion, then open the gate and retain timings. This is the first TDD step; no production fix precedes the measurement.
 - [x] Drop b.mu only around promotion Release IO. Keep the existing actor reservation for the cleanup lifetime; reacquire the mutex and clear only this attempt's reservation. Preserve exact endpoint/ID, bounded RPC context, already-committed recovery, and PromoteRetry pacing.
 - [x] Regress independent recipient progress, same-receiver reservation ownership, disconnect/replacement during cleanup and stale completion. Sweep all broker Release calls for the same shared-lock class; run messaging race and existing promotion/duplicate/reconnect controls.
-- [ ] Record required full suite, obtain close review, follow the landing line and report the PR.
+- [x] Record required full-suite verification. Close review, landing and reporting follow through their normal gates.
 
 The existing actor reservation is the single resource excluding conflicting same-receiver work while cleanup runs (ARCH-ORDER). Keeping cleanup under the shared mutex couples unrelated recipients; detaching a goroutine adds lifetime ownership without helping this bounded worker. Reuse the existing endpoint/fake seam and pure model transitions (ARCH-DRY / ARCH-PURE / ARCH-MOCK). No protocol, status, queue, timeout, durable store or task owner is added (ARCH-CONSTRAINTS / ARCH-FUNERAL). Sweep the lock/Release class rather than only the named site (ARCH-PURPOSE).
 
@@ -66,3 +66,7 @@ The hub approved measurement-first implementation and explicitly moved the live 
 - Full couchmessage race package passed after the fix and all ordering tests: 23.799s, /tmp/pair631-couchmessage-race.log. The package run includes existing promotion pacing, already-committed/duplicate-ID recovery, queued cancellation and reconnect controls. Proceeding to the required recorded repository suite on the pushed head.
 
 - Required suite reserved on pushed head e337cb6f95dfa1b709cd8503c7298cabd6637de1 as run a3bdcffb501a6de0fbfd71c49c815b01, initially position 7 in the shared machine queue. Active log .git/sdlc/test-stats/inflight/a3bdcffb501a6de0fbfd71c49c815b01/run.log. No executable edits remain planned; retain this reservation through the wait, then close/review/land under the normal gates.
+
+### 2026-10-17 — completed verification
+
+Required recorded suite passed on e337cb6f95dfa1b709cd8503c7298cabd6637de1: exit 0 in 13m55s after 1267s queued. Recorded as sdlc-local/suite; log .git/sdlc/local-checks/e337cb6f95dfa1b709cd8503c7298cabd6637de1/suite.log, sha256 prefix fa8653e6094e. All packages passed, including couchmessage 24.134s and wrapcmd 55.098s. No flake retry needed. Only issue-log documentation changed since the tested head. The final Plan row now distinguishes completed verification from upcoming gate-owned close/landing actions; neither is claimed complete here.
