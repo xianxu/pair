@@ -115,3 +115,9 @@ ARCH-PURE/DRY: one decision core and guidance formatter, existing transition fun
 ## Approval checkpoint
 
 Plan posted before production code. Await TL approval of the public command and the dead-owner interrupted-cleanup retirement policy. In particular, incomplete scrollback must remain explicit; recovery guarantees retained conversation authority, not recovery of bytes that were never preserved. Original pair:6 receipt/error can refine evidence without blocking deterministic class coverage.
+
+## Revisions
+
+### 2026-10-17 14:45 PDT — TL approval and terminal operator outcomes
+
+Verified hub receipt4ba546a0 approves both the public confirmed recover-park/menu and the dead-owner interrupted-cleanup retirement policy. After retirement, project into exactly one existing operator outcome: continue live, resume from disk, or start fresh. Success and refusal text name the corresponding next executable command (or exact local menu action); uncertain facts cannot be turned into a guessed outcome. Reuse existing session/native-binding recovery classification for this projection; it is advice, never automatic resume or Fresh. Add tests of established/missing/unknown binding and surviving terminal so the result cannot point at an operation that its own retained record forbids. The original failed pair:6 receipt was not retained by the hub; fixture evidence is the basis, with no claim to reconstruct the original ordering. Approval checkpoint above is now satisfied; change-code owns admission.

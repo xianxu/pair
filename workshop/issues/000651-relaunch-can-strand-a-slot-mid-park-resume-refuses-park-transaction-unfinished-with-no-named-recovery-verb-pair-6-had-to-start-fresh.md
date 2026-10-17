@@ -77,3 +77,7 @@ Retained directory: /var/folders/07/b9wcwwld4_v2w9r3hk525bm80000gn/T/pair651-rep
 Verified pair:6 receipt033e6b3d: its previous recovery screen is unavailable and it never received the original failed relaunch receipt. It can substantiate only TL's earlier “stopped partway through parking scrollback” report, not a prior tag/phase or exact ordering. Do not infer original identity from its new tag.
 
 ARCH-ORDER/SECURE shape the proposed distinction between unpublished rollback, matching completion and dead-owner retirement; ARCH-DRY reuses existing worker, park transition, exact ownership and prepared resume rather than adding a parallel launch or destructive Fresh fallback. TL approval remains pending.
+
+### 2026-10-17 — plan approved before code
+
+Verified TL receipt4ba546a0: public confirmed recover-park/menu and exact-dead-owner retirement policy approved. Add the three operator outcomes after retirement (continue live, resume from disk, start fresh), with executable next-command advice on success and refusal. No automatic operation. Hub confirms it did not retain pair:6's original failed receipt; proceed on the isolated fixture proof and preserve that provenance limit. Durable plan Revisions records the delta; enter change-code before implementation.
