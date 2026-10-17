@@ -46,7 +46,7 @@ func TestActivityProbeDeadlineSurfacesFailureAndRecovers(t *testing.T) {
 	t.Cleanup(func() { console.Stop(); console.workers.Wait() })
 	// A first query costs ~40ms (native-root bootstrap) before any ledger
 	// bytes, so the injected bound must sit above that floor; the stall is 4x.
-	console.activityProbeTimeout = 100 * time.Millisecond
+	console.probeTimeout = 100 * time.Millisecond
 	rows := make([]couchcore.ActionableThreadSummary, slots)
 	for i, owner := range evidence.Owners {
 		address := couchcore.ThreadAddress{RepoScope: owner.Scope, Tag: couchcore.ThreadTag(owner.Tag)}

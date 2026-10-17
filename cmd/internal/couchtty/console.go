@@ -225,7 +225,7 @@ type Console struct {
 	activityInterval time.Duration
 	// Per-probe bound from console_activity.go; the New default is the package
 	// const and tests shrink it to exercise the deadline path (#628).
-	activityProbeTimeout time.Duration
+	probeTimeout time.Duration
 	// blockedUpdates carries the latest picker set (pair#465); see
 	// SetBlockedThreads.
 	blockedUpdates chan map[couchcore.ThreadAddress]bool
@@ -275,39 +275,38 @@ func (c *Console) errw() io.Writer {
 func New(host hostty.Host, stdin io.Reader) *Console {
 	lifetime, cancelLifetime := context.WithCancel(context.Background())
 	c := &Console{
-		host:                 host,
-		presenter:            terminal.NewPresenter(host, terminal.AnyMotion),
-		terminalCommands:     make(chan terminalCommand, 16),
-		stdin:                stdin,
-		panes:                map[string]*pane{},
-		chunks:               make(chan chunk, 256),
-		resized:              make(chan struct{}, 1),
-		switching:            make(chan string, 8),
-		input:                make(chan []byte, 64),
-		exited:               make(chan childExit, 64),
-		operationQueue:       newOperationQueue(16),
-		queueWorkers:         max(1, couchcore.LifecycleParallelism) + 1,
-		refreshRequests:      make(chan struct{}, 1),
-		refreshResults:       make(chan menuRefreshResult, 1),
-		slotGitRequests:      make(chan struct{}, 1),
-		slotGitResults:       make(chan slotGitResult, 1),
-		slotGitInterval:      defaultSlotGitInterval,
-		activityRequests:     make(chan struct{}, 1),
-		activityResults:      make(chan activityResult, 1),
-		activityInterval:     defaultActivityInterval,
-		activityProbeTimeout: activityProbeTimeout,
-		blockedUpdates:       make(chan map[couchcore.ThreadAddress]bool, 1),
-		now:                  time.Now,
-		continuationResults:  make(chan continuationScanResult, 1),
-		continuations:        make(map[couchcore.ThreadAddress]continuationWatch),
-		previewResults:       make(chan menuPreviewResult, 1),
-		directoryReader:      OSDirectoryBatchReader{},
-		completionResults:    make(chan menuCompletionResult, 1),
-		expectedExits:        exitMarks{},
-		lifetime:             lifetime,
-		cancelLifetime:       cancelLifetime,
-		stop:                 make(chan struct{}),
-		feed:                 NewFeed(8, time.Now, NoticeLifetime),
+		host:                host,
+		presenter:           terminal.NewPresenter(host, terminal.AnyMotion),
+		terminalCommands:    make(chan terminalCommand, 16),
+		stdin:               stdin,
+		panes:               map[string]*pane{},
+		chunks:              make(chan chunk, 256),
+		resized:             make(chan struct{}, 1),
+		switching:           make(chan string, 8),
+		input:               make(chan []byte, 64),
+		exited:              make(chan childExit, 64),
+		operationQueue:      newOperationQueue(16),
+		queueWorkers:        max(1, couchcore.LifecycleParallelism) + 1,
+		refreshRequests:     make(chan struct{}, 1),
+		refreshResults:      make(chan menuRefreshResult, 1),
+		slotGitRequests:     make(chan struct{}, 1),
+		slotGitResults:      make(chan slotGitResult, 1),
+		slotGitInterval:     defaultSlotGitInterval,
+		activityRequests:    make(chan struct{}, 1),
+		activityResults:     make(chan activityResult, 1),
+		activityInterval:    defaultActivityInterval,
+		blockedUpdates:      make(chan map[couchcore.ThreadAddress]bool, 1),
+		now:                 time.Now,
+		continuationResults: make(chan continuationScanResult, 1),
+		continuations:       make(map[couchcore.ThreadAddress]continuationWatch),
+		previewResults:      make(chan menuPreviewResult, 1),
+		directoryReader:     OSDirectoryBatchReader{},
+		completionResults:   make(chan menuCompletionResult, 1),
+		expectedExits:       exitMarks{},
+		lifetime:            lifetime,
+		cancelLifetime:      cancelLifetime,
+		stop:                make(chan struct{}),
+		feed:                NewFeed(8, time.Now, NoticeLifetime),
 	}
 	if s, err := host.Size(); err == nil {
 		c.size = s
