@@ -6,9 +6,52 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 )
+
+// Refusal bookkeeping reuses admission's routing snapshot, even when the
+// original lookup times out; it cannot extend the request with another read.
+func TestBrokerRefusalReusesAdmissionFamilies(t *testing.T) {
+	for _, lookupTimesOut := range []bool{false, true} {
+		t.Run(fmt.Sprint("lookup-timeout=", lookupTimesOut), func(t *testing.T) {
+			now := time.Now()
+			b := NewBroker(context.Background(), nil, nil)
+			defer b.Close()
+			from, to := brokerBinding("ops:0"), brokerBinding("pair:3")
+			_ = b.Register(from, newFakeEndpoint(now))
+			_ = b.Register(to, &failingObserveEndpoint{FakeDeliveryEndpoint: newFakeEndpoint(now), err: errors.New("recipient check failed")})
+			var calls atomic.Int32
+			b.SetFamilies(func(ctx context.Context) (map[string]string, error) {
+				if calls.Add(1) != 1 {
+					return map[string]string{"other": "p"}, nil
+				}
+				if lookupTimesOut {
+					<-ctx.Done()
+					return nil, ctx.Err()
+				}
+				return map[string]string{"pair": "p"}, nil
+			})
+			ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+			defer cancel()
+			_, err := b.Send(ctx, from, "snapshot", Route{Target: "p:3"}, "work")
+			if err == nil {
+				t.Fatal("send unexpectedly admitted")
+			}
+			if got := calls.Load(); got != 1 {
+				t.Errorf("families read %d times; refusal must reuse admission's snapshot", got)
+			}
+			receipt, err := b.Status(from, "snapshot")
+			if err != nil || receipt.Status != Refused {
+				t.Fatalf("refused receipt: %+v %v", receipt, err)
+			}
+			if !lookupTimesOut && receipt.Message.To.Slot != to.Slot {
+				t.Fatalf("refusal discarded original routing snapshot: %+v", receipt)
+			}
+		})
+	}
+}
 
 type failingObserveEndpoint struct {
 	*FakeDeliveryEndpoint
@@ -117,7 +160,9 @@ func TestLatestRefusalsAreCanonicalReasonsOnly(t *testing.T) {
 	now := time.Unix(1000, 0)
 	b := NewBroker(context.Background(), func() time.Time { return now }, nil)
 	defer b.Close()
-	b.SetFamilies(func(context.Context) (map[string]string, error) { return map[string]string{"pair": "p", "ops": ""}, nil })
+	b.SetFamilies(func(context.Context) (map[string]string, error) {
+		return map[string]string{"pair": "p", "ops": ""}, nil
+	})
 	from, to := brokerBinding("ops:0"), brokerBinding("pair:3")
 	from.Nonce = "sender-nonce-credential"
 	_ = b.Register(from, newFakeEndpoint(now))
