@@ -1,6 +1,6 @@
 ---
 id: 000639
-status: codecomplete
+status: done
 created: 2026-10-16
 updated: 2026-10-17
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 291c811c6fd76be1545c6a83e689ad3047819a1c
         evidence_commit: 276a82772b6566addebe6987488cdb0681113f2d
+        landed_commit: d325e9587634b1a81c1c9e2519af3388fc23f4d1
 ---
 
 # Right terminal: Alt+Shift+Return toggles Normal and Focus (75% centered) only; drop Maximize
