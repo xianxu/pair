@@ -59,6 +59,7 @@ Durable design: workshop/plans/000638-couch-clipboard-copy-plan.md.
 ### 2026-10-16
 
 ### 2026-10-17 — initial investigation and authorized real-tool probe
+- 2026-10-17: closed — Recorded full suite on 35219ec723e70a7c033bf0801bd7b9482d206c55 PASS exit 0 in 13m14s, log sha256 prefix 8b5e337d5e9a; CI green; behavioral red/green, focused race and artifact classification pass. Typed tool evidence, persistent retry/dismiss state and metadata-only supervision wiring proven through Console keys with private executables; opt-in real conformance harness delivered but not run. TL-approved acceptance Revisions explicitly defer actual Ctrl+Y paste or measured-cause follow-up to next natural restart; historical failure unknown, not claimed fixed. No pair:0 staging or additional real clipboard probe.; review verdict: SHIP
 
 #624 landed as PR390 before this claim. start-plan refreshed the slot's ariadne copy from 585ae4f7 to 0a1f6a45 and required a rerun; the rerun created this issue branch from main. Brew reported existing go/cue/uv; no new machine packages were chosen.
 
