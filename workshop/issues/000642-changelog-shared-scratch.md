@@ -43,6 +43,8 @@ Give each invocation ownership of its scratch paths and cleanup. Preserve all re
 
 ## Log
 
+
+- 2026-10-17: closed — Deterministic original-source control reproduces both reload failures; isolated two-Neovim regression, assertion/error cleanup and caller sentinel preservation pass; all original assertions and make test-lua pass. Recorded full suite on b623c98f1e592d37fd1e81e6de9c11df2c55924d passed first attempt in 12m5s after 485s queue; SHA256 099a68734fa4. Four server checks green. Test fixture ownership only, product code unchanged and no new architectural surface; TL owns project updates. (done-when: contract moved since change-code; judged by the close review); review verdict: SHIP
 2026-10-17: No nvim source differs in #637. Original baseline ce783cd4a474d939c174bb079bc687efc2cc457a was extracted with git archive; both test and loaded Lua modules came from it. An isolated current test passed. Forty unsynchronized concurrent-original runs also passed (not evidence of absence).
 
 A controlled original/original interleaving reproduced exactly both failures: invocation A pauses immediately after its real writefile returns; invocation B runs the unmodified original test to completion in the same private TMPDIR and removes the shared file; release A, which fails both reload assertions and exits 1. B exits 0. The gate is a test-launch Lua wrapper around writefile; all original test/product Lua bodies remain unchanged. No sleeps, production edits or foreign paths. This proves a pre-existing filename collision; the specific other remover in the original suite is unknown, so it is consistent with the suite failure rather than a traced attribution to a named peer.
