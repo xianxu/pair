@@ -1,6 +1,6 @@
 ---
 id: 000640
-status: codecomplete
+status: done
 created: 2026-10-17
 updated: 2026-10-17
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: da26fa0a8900192c0c95f0174e9fa34f57116163
         evidence_commit: 0d3fab8108a0dfd85c37c6387437395d61829323
+        landed_commit: bcf5163bdfac06a3fc51021ddb635ce52fa755a8
 ---
 
 # Native fullscreen chord fixture loses its disposable session during conformance
