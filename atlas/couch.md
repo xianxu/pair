@@ -989,6 +989,8 @@ registration, owner, lock and wrapper generation again before sending.
 Only tl-lead owns section freshness budgets. A stale result becomes one ordinary
 hub-to-self `session-sync ping: ` message; fresh results remain silent. Neither
 inspection nor the check writes the document or advances its unread baseline.
+Registered-only metadata inspection selects its route under the registry lock;
+forgotten files never enter the legacy reader.
 Checks have a five-second deadline and bounded output; their owned process group ends on
 completion or cancellation. Missing/failing tl-lead or unknown output sends nothing and
 logs one bounded diagnostic per continuous failure episode. Uncertain sends are

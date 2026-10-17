@@ -2,6 +2,7 @@ package sessionsync
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -639,5 +640,52 @@ func TestPlainDeliveryOwedOnlyOnSessionFileAndSubmitOnlyOnItsDocument(t *testing
 	}
 	if got := ids(note); strings.Join(got, ",") != "qa-submit" {
 		t.Fatalf("plain document owes %v, want only its own submit", got)
+	}
+}
+
+func TestInspectRegisteredRefusesBeforeLegacyFlock(t *testing.T) {
+	for _, forgotten := range []bool{false, true} {
+		t.Run(fmt.Sprintf("forgotten=%v", forgotten), func(t *testing.T) {
+			r := newRig(t)
+			if forgotten {
+				if _, err := r.sync.Register(r.p.File, "ops:0"); err != nil {
+					t.Fatal(err)
+				}
+				if _, err := r.sync.Forget(r.p.File); err != nil {
+					t.Fatal(err)
+				}
+			}
+			fl, err := os.OpenFile(r.p.Flock, os.O_CREATE|os.O_RDWR, 0600)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer fl.Close()
+			if err := syscall.Flock(int(fl.Fd()), syscall.LOCK_EX); err != nil {
+				t.Fatal(err)
+			}
+			defer syscall.Flock(int(fl.Fd()), syscall.LOCK_UN)
+			done := make(chan error, 1)
+			go func() { _, err := r.sync.InspectRegistered(r.p.File); done <- err }()
+			var refusal error
+			blocked := false
+			select {
+			case refusal = <-done:
+			case <-time.After(time.Second):
+				blocked = true
+			}
+			// Release and join even on the old blocking path before failing the test.
+			if err := syscall.Flock(int(fl.Fd()), syscall.LOCK_UN); err != nil {
+				t.Fatal(err)
+			}
+			if blocked {
+				refusal = <-done
+			}
+			if blocked {
+				t.Fatal("registered-only inspection waited for the legacy flock")
+			}
+			if refusal == nil || !strings.Contains(refusal.Error(), "not a registered document") {
+				t.Fatalf("refusal: %v", refusal)
+			}
+		})
 	}
 }

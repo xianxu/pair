@@ -19,6 +19,7 @@ collaboration-mode: discussion
 | Name | Lives in | Status |
 |------|----------|--------|
 | DocumentInfo | cmd/internal/sessionsync/registry.go | new |
+| documentMode | cmd/internal/sessionsync/registry.go | new |
 | staleReminderState / staleReminderEvent / advanceStaleReminder | cmd/internal/couchcmd/session_stale_model.go | new |
 | staleReminderBody | cmd/internal/couchcmd/session_stale_model.go | new |
 
@@ -28,11 +29,13 @@ DocumentInfo is the current registration ID, canonical file, effective owner, op
 
 | Name | Lives in | Status | Wraps |
 |------|----------|--------|-------|
-| Sync.InspectRegistered | cmd/internal/sessionsync/registry.go | new | existing locked document load |
+| Sync.InspectRegistered | cmd/internal/sessionsync/registry.go | new | registered-only shared document load |
+| withDocumentMode | cmd/internal/sessionsync/registry.go | new | shared metadata loader with explicit route policy |
+| withDocument | cmd/internal/sessionsync/registry.go | modified | legacy-compatible route to the shared loader |
 | sessionStaleWatcher | cmd/internal/couchcmd/session_stale.go | new | registered files, admitted liveness, tl-lead process, broker |
 | waitWatcher / message service startup | cmd/internal/couchcmd/wait_notice.go and message_service.go | modified | existing tick and worker lifetime |
 
-InspectRegistered uses the existing withDocument transaction, refuses a registration that disappeared, and returns current owner/type/lock without calling Read(all/frontmatter), saving a shadow, folding events or changing LastWrite. Status alone is unsuitable because it reads owed-delivery state and does not expose the session type/registration identity. The registered-file size and lock-alias rules remain owned by sessionsync.
+InspectRegistered uses the shared withDocumentMode transaction in registered-only mode, refuses a registration that disappeared, and returns current owner/type/lock without calling Read(all/frontmatter), saving a shadow, folding events or changing LastWrite. Status alone is unsuitable because it reads owed-delivery state and does not expose the session type/registration identity. The registered-file size and lock-alias rules remain owned by sessionsync.
 
 The watcher uses the current admitted hub binding, SessionToken, Settled signal and broker ResourceIdle evidence; unknown, disconnected, replaced, picker-held or pending-message owners are skipped. It checks effective owner rather than List's fallback owner. It re-inspects registration/type/owner/operator lock and the exact admitted generation after the external command before submitting a message. The operator lock is sampled as in existing session operations; it cannot be held across tl-lead because the command itself calls Couch reads. Broker receiver admission remains the authority at actual delivery.
 
@@ -98,3 +101,5 @@ Reuse newServiceRig and the wait-watcher admitted-session helpers, plus a dispos
 - 2026-10-17: reconcile Core concepts with the implemented pure boundary: output classification is staleReminderBody in session_stale_model.go, alongside the transition model. Behavior and scope are unchanged.
 
 - 2026-10-17: align command extent wording with the successful-parent regression, and place the close action outside the completed acceptance checkbox. Fresh review remains the next gate, not a preclaimed result.
+
+- 2026-10-17: BR-1: enforce the existing registered-only inspection contract before legacy IO under the registry lock. Keep Read/Status/Diff/Write legacy-compatible through the same loader. Add held-flock regressions for unknown/forgotten registrations and a forgotten-during-check worker shutdown regression; no fallback timeout or duplicated metadata validation.

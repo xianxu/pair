@@ -2132,3 +2132,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #643: Distinguish atomic replacement of one file from publication of a document/shadow/state bundle. A plan must name partial persisted outcomes and reconciliation after IO failure; test a controlled publication failure and prove unread baselines and owed events survive.
 
 - #630: A deadline and bounded pipe draining do not collect descendants that close their pipes before a successful parent exits. A command group owned only for a synchronous check ends on every completion, including success. Test both cancellation and a successful parent with an independently live, closed-pipe child.
+
+- #630 BR-1: A registered-only operation selects or rejects its route under the registry lock before entering a generic legacy loader. A post-load authority check cannot prevent fallback IO, side effects or unbounded locks. Regress unknown and disappeared authority while the fallback lock is held, and prove service cancellation still collects the caller.

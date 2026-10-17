@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync/atomic"
+	"syscall"
 	"testing"
 	"time"
 
@@ -214,6 +215,81 @@ func TestSessionStaleWorkerDoesNotBlockWaitTicksAndCancels(t *testing.T) {
 	select {
 	case <-r.endpoint.deliveries:
 		t.Fatal("shutdown sent a message")
+	default:
+	}
+}
+
+func TestSessionStaleWorkerForgottenRegistrationDoesNotBlockShutdown(t *testing.T) {
+	r := newSessionStaleRig(t)
+	legacy, err := os.OpenFile(sessionsync.PathsOf(r.file).Flock, os.O_CREATE|os.O_RDWR, 0600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer legacy.Close()
+	registry, err := os.OpenFile(filepath.Join(r.watcher.sync.Ledger.Dir, "documents", "registry.flock"), os.O_RDWR, 0600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer registry.Close()
+	checked := make(chan error, 1)
+	observed := make(chan struct{}, 1)
+	r.watcher.notice = func(string) { observed <- struct{}{} }
+	r.watcher.check = func(context.Context, string) (string, error) {
+		_, err := r.watcher.sync.Forget(r.file)
+		if err == nil {
+			// Forget exports the legacy companions under this same lock, so
+			// hold it only after registration removal has completed.
+			err = syscall.Flock(int(legacy.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
+		}
+		checked <- err
+		return r.output, err
+	}
+	done := make(chan struct{})
+	r.s.workers.Add(1)
+	go func() {
+		defer close(done)
+		defer r.s.workers.Done()
+		r.watcher.run(r.s.lifetime)
+	}()
+	defer func() {
+		r.s.cancel()
+		_ = syscall.Flock(int(legacy.Fd()), syscall.LOCK_UN)
+		<-done // Release even a regressed blocking fallback before fixture teardown.
+	}()
+	r.watcher.offer()
+	select {
+	case err := <-checked:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("checker did not forget registration")
+	}
+	// Do not cancel before the post-command observation: either its refusal
+	// reaches notice, or its registry transaction is held while attempting the
+	// legacy flock. The latter is the regression, not an arbitrary sleep.
+	testwait.Until(t, "post-command registration observation", func() bool {
+		select {
+		case <-observed:
+			return true
+		default:
+		}
+		err := syscall.Flock(int(registry.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
+		if err == nil {
+			_ = syscall.Flock(int(registry.Fd()), syscall.LOCK_UN)
+			return false
+		}
+		return errors.Is(err, syscall.EWOULDBLOCK) || errors.Is(err, syscall.EAGAIN)
+	})
+	r.s.cancel()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Error("forgotten registration blocked worker shutdown on a legacy flock")
+	}
+	select {
+	case <-r.endpoint.deliveries:
+		t.Error("forgotten registration sent a reminder")
 	default:
 	}
 }

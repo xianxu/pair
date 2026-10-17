@@ -72,11 +72,17 @@ Detailed design: [stale-session reminder plan](../plans/000630-stale-session-rem
 
 - Corrected full suite PASSED on 238a534c614f040f003d1f3916ddb88cd6148719: 10m57s after 705s queue, log SHA256 6ba744447b56018065b6071f061ea9c92dc0ca4008ee9cca4d3cce36e77d9146. The retained complete log has no FAIL/panic/make-error markers. Changes since that tested commit are documentation only. All behavior acceptance items are verified; fresh close review is next.
 
+- Close round 1 returned REWORK/high with one Critical BR-1 (registered-inspection-fails-closed): rejecting registration absence in the callback still entered generic legacy IO first. Direct unknown/forgotten held-flock tests reproduced it, and a controlled worker forget-during-check test proved shutdown could block. Enumeration found InspectRegistered is the sole registered-only caller; Read/Status/Diff/Write intentionally retain legacy compatibility. The shared loader now selects explicit route policy under the registry lock, refusing missing authority before legacy file IO/flock. Regression verification follows.
+
+- BR-1 fix verification: direct held-flock cases were red before the route correction; the worker regression also failed with blocked shutdown before it. Focused combined tests now pass (sessionsync 0.654s, couchcmd 1.602s), race checks pass (1.817s/2.279s), and complete packages pass (11.201s/53.253s). Existing legacy operations remain exercised by the complete sessionsync package. The shared route enforces registration presence once under the registry lock, without a racy separate Lookup.
+
 ## Revisions
 
 - 2026-10-17: quick-flow sizing exceeded the shell once baseline-neutral inspection and bounded asynchronous command execution were included. TL approved full flow before implementation; product behavior is unchanged.
 
 - 2026-10-17: put the close-review action after the acceptance checklist, so checking verified behavior does not assert a review verdict before the gate runs. Product behavior and scope are unchanged.
+
+- 2026-10-17: BR-1 refines the shared loader route to enforce the approved registered-only inspection contract before any legacy IO. Behavior scope is unchanged; bounded refusal and shutdown now have held-flock regressions.
 
 ## Estimate
 
