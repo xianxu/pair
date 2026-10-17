@@ -6,7 +6,7 @@ collaboration-mode: discussion
 
 > **For agentic workers:** Consult AGENTS.md Section 3 (Subagent Strategy) to choose subagent-driven development or execution in the current session. Steps use checkboxes for tracking.
 
-**Status:** TL approved 2026-10-17; plan-quality refinement in progress, no implementation.
+**Status:** Implementation pushed; recorded suite and close review pending. Live conformance deferred by TL to the next operator restart; no staging.
 
 **Goal:** Couch-hosted Pair starts no per-slot title process; Couch updates titles from its existing inventory and activity refreshes, preserving standalone behavior, ownership and fading.
 
@@ -46,7 +46,7 @@ TitleUpdateState records desired title, in-flight effect identity and last confi
 | Compact projection cancellation | cmd/internal/sessioninventory/title_projection.go, title_context.go and runtime_os.go | modified/new | context-aware bounded reads and SQLite child |
 | Couch title updater | cmd/internal/couchcmd/titles.go | new | compact native display facts and scoped pane/owner metadata |
 | Console display/activity pass | cmd/internal/couchtty/console_activity.go and console.go | modified | existing cancellable single-flight schedule |
-| Title effect runtime | cmd/internal/titlepoller/runtime.go and update.go | modified/new | context-bounded Zellij/cmux effects and ownership publication |
+| couchTitleIO | cmd/internal/couchcmd/titles.go | new | context-bounded Zellij/cmux effects and ownership publication |
 
 Reuse sessioninventory.TitleProjection per exact invocation; its one poll yields activity and usage together, tails append-only native bytes and rejects supersession. Retain existing user-input activity and wrapper work when computing the final activity timestamp for both idle fade and titles. Replace the current separate native activity scan for hosted rows, rather than adding a second scan. Expose CurrentTitleLaunch as a narrow typed wrapper over sessioninventory.readCurrentLaunch(ctx, runtime, scope, tag, expectedAgent), using the shared OwnerLaunchCache. Reject agent conflicts and unavailable/latest-untyped launches; QueryResumeTargetContext is unsuitable because it may return an older established launch. Reuse OwnerLaunchCache-backed current-launch resolution; no full ledger/transcript parse every event. Awaiting/invalid ownership has no title effects.
 
@@ -102,38 +102,38 @@ The old per-poller 1,000-tick acceptance is superseded by the TL-approved replac
 
 Files: wrapcmd/title_process.go and title_process_test.go; stale launcher/runtime.go comment.
 
-- [ ] Write startWrapperTitleProcess regression using the strategy above; observe RED with `go test ./cmd/internal/wrapcmd -run 'Test.*Title' -count=1`.
-- [ ] Gate with launcher.CouchHostedEnv(os.Getenv) before allocation, verify GREEN with the same command, and commit with required trailers.
+- [x] Write startWrapperTitleProcess regression using the strategy above; observe RED with `go test ./cmd/internal/wrapcmd -run 'Test.*Title' -count=1`.
+- [x] Gate with launcher.CouchHostedEnv(os.Getenv) before allocation, verify GREEN with the same command, and commit with required trailers.
 
 ### Task 2: Shared title decisions and exact targets
 
 Files under cmd/internal/: new titlepoller/update.go and update_test.go; titlepoller/titlepoller.go and run.go; new couchcore/title_target.go and title_target_test.go; actionableinventory.go/sessionevidence.go/artifactcollision.go where the real consumer needs binding/listing facts.
 
-- [ ] Write ProjectTitleTarget and AdvanceTitleUpdate tests using the strategies above; observe RED with `go test ./cmd/internal/titlepoller ./cmd/internal/couchcore -run 'Test.*(Title|SessionPresence)' -count=1`.
-- [ ] Extract shared decisions, observation-scoped targets and confirmed-only effect state. Verify GREEN, retain standalone compatibility and commit.
+- [x] Write ProjectTitleTarget and AdvanceTitleUpdate tests using the strategies above; observe RED with `go test ./cmd/internal/titlepoller ./cmd/internal/couchcore -run 'Test.*(Title|SessionPresence)' -count=1`.
+- [x] Extract shared decisions, observation-scoped targets and confirmed-only effect state. Verify GREEN, retain standalone compatibility and commit.
 
 ### Task 3: Cancellable compact queries
 
 Files under cmd/internal/sessioninventory/: new title_context.go and title_projection_test.go; title_projection.go/title_projection_test.go, runtime_os.go/runtime.go and context runtime adapters.
 
-- [ ] Write CurrentTitleLaunch and PollContext regressions using the strategies above; observe RED with `go test ./cmd/internal/sessioninventory -run 'Test.*(Title|OwnerLaunch)' -count=1`.
-- [ ] Export the narrow cached current-launch projection. Add PollContext(ctx), retaining Poll() as standalone background wrapper; propagate context into owner resolution, admission, bounded tail reads and SQLite CommandContext. Cancellation leaves valid projection state retryable, authority invalidation stops it. No detached timeout goroutine. Verify GREEN and commit.
+- [x] Write CurrentTitleLaunch and PollContext regressions using the strategies above; observe RED with `go test ./cmd/internal/sessioninventory -run 'Test.*(Title|OwnerLaunch)' -count=1`.
+- [x] Export the narrow cached current-launch projection. Add PollContext(ctx), retaining Poll() as standalone background wrapper; propagate context into owner resolution, admission, bounded tail reads and SQLite CommandContext. Cancellation leaves valid projection state retryable, authority invalidation stops it. No detached timeout goroutine. Verify GREEN and commit.
 
 ### Task 4: One combined Couch pass
 
 Files under cmd/internal/: new couchcmd/titles.go and titles_test.go; couchcmd/run.go; couchtty/console_activity.go/console.go and console_titles_test.go; titlepoller runtime boundary where required.
 
-- [ ] Write CouchTitleUpdater.Update and Console activity regressions using the strategies above; observe RED with `go test ./cmd/internal/couchcmd ./cmd/internal/couchtty -run 'Test.*(Title|Activity)' -count=1`.
-- [ ] Feed accepted title targets into the existing single-flight activity worker; share compact facts, preserve user/wrapper activity and apply bounded effects. Return shared activity through MenuEventActivity. Verify GREEN and controlled worker race tests; commit.
-- [ ] Run the isolated 1,000-tick retained-memory/work regression and retain all samples/failures.
+- [x] Write CouchTitleUpdater.Update and Console activity regressions using the strategies above; observe RED with `go test ./cmd/internal/couchcmd ./cmd/internal/couchtty -run 'Test.*(Title|Activity)' -count=1`.
+- [x] Feed accepted title targets into the existing single-flight activity worker; share compact facts, preserve user/wrapper activity and apply bounded effects. Return shared activity through MenuEventActivity. Verify GREEN and controlled worker race tests; commit.
+- [x] Run the isolated 1,000-tick retained-memory/work regression and retain all samples/failures.
 
 ### Task 5: Documentation, live evidence and landing
 
 Files: README.md, atlas/couch.md, atlas/index.md as needed, this plan and #649 Log. TL owns project files.
 
-- [ ] Document hosted ownership and existing fade cadence; search stale per-session-poller claims.
-- [ ] Finish ten-minute large-poller pre-fix measurement; record fresh/large poller RSS, CPU, ticks, query rates and fleet totals in the issue. Baseline runs before any deployed fix.
-- [ ] Ask hub for staging/live checks, run `sdlc stage --build`, report revisions. Hub checks actual hosted title/fade/cmux behavior; worker records after-rollout fleet count/RSS/CPU and supervisor memory, explicitly naming rollout coverage. Do not kill old pollers without authorization.
+- [x] Document hosted ownership and existing fade cadence; search stale per-session-poller claims.
+- [x] Finish ten-minute large-poller pre-fix measurement; record fresh/large poller RSS, CPU, ticks, query rates and fleet totals in the issue. Baseline runs before any deployed fix.
+- [x] Record TL-directed live deferral: do not stage pair:0 (shared restart binary). After landing, hub relaunches slots during the operator next restart; hub owns no-poller/title/fade/cmux observation and fleet/supervisor AFTER totals. Automated OS-seam tests and recorded suite plus close review are the pre-landing evidence. Live checks remain outstanding until that restart.
 - [ ] Run targeted/race verification, push issue head, run required recorded `sdlc local-check run --name suite`.
 - [ ] Close with specific automated/live evidence, resolve sole boundary review, open/update PR and await SHIP. Then `sdlc merge --yes` and report Git-read hashes and PR to hub.
 
@@ -147,7 +147,7 @@ Raw local evidence: /var/folders/07/b9wcwwld4_v2w9r3hk525bm80000gn/T/pair649-mea
 
 ## Approval checkpoint
 
-Full-flow approved by TL delivery 798a3ab4-b9da-465f-a516-34c291210e0a. Next action after refinement: `sdlc change-code --issue 649 --flow full`; respond to plan-quality findings before estimating or implementation. No implementation has begun.
+Full flow approved by TL delivery 798a3ab4-b9da-465f-a516-34c291210e0a; change-code passed with clean plan-quality and accepted estimate INFO. Source HEAD 85d217e1e is pushed. Next: recorded suite, close review, then landing. TL delivery 10172f8c-0c20-4200-8bfe-079e616b4400 defers actual live conformance to the operator next restart and forbids pair:0 staging.
 
 ## Revisions
 
@@ -155,3 +155,5 @@ Full-flow approved by TL delivery 798a3ab4-b9da-465f-a516-34c291210e0a. Next act
 - 2026-10-17 — PQ-2: compress test-case prose across all tasks into named functions and adversarial strategies. Correct ARCH-ORDER. No runtime design delta.
 
 - 2026-10-17 — Implementation placement: pure TitleLaunch result and CurrentTitleLaunch/context adapter share title_context.go; tests extend title_projection_test.go. Console environment wiring is titles_wiring.go. No runtime scope change.
+
+- 2026-10-17 — TL delivery 10172f8c-0c20-4200-8bfe-079e616b4400: no pair:0 staging because it is the shared restart binary. Land after suite and close review; hub owns live title/fade/cmux checks, hosted no-poller observation and AFTER fleet totals at the operator next restart. This explicitly supersedes Task5 pre-landing staging/live ordering.

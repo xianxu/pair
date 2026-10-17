@@ -49,20 +49,20 @@ The work per tick is one `zellij list-sessions --no-formatting`, sometimes a liv
 - One Couch-owned updater refreshes frame context and cmux heat from existing observations/schedule, with zero additional list-sessions/list-clients queries for normal maintenance and zero renames for stable confirmed titles.
 - Activity and usage share one compact projection per exact invocation; warm unchanged passes do not reread transcript history. Existing idle fading includes user and wrapper work.
 - Fake-backed sequence tests cover stale generations, repeated pane ids, missing pane birth, rename failure/retry, unknown liveness, foreign cmux owner, cancellation, bounded cache retirement and no UI blocking.
-- Before/after live measurements quantify poller RSS/CPU/tick/query rate and fleet totals; the hub verifies staged hosted titles, fade and ownership on the real setup.
+- BEFORE live measurements quantify poller RSS/CPU/tick/query rate and fleet totals. Per TL delivery 10172f8c-0c20-4200-8bfe-079e616b4400, AFTER fleet totals and actual hosted no-poller/title/fade/cmux checks belong to the hub at the operator next restart, after landing; no pair:0 staging. Pre-landing evidence is the recorded suite, OS-seam fixtures and close review.
 - Required recorded suite and sole close boundary review pass; documentation explains hosted ownership and standalone behavior.
 
 - Measured cause: the RSS growth per tick and the tick and query rate of one live poller over ~10 minutes, before the fix.
 - The old per-poller 1,000-tick criterion is superseded by the approved replacement: fixed-fleet Couch updater test runs 1,000 ticks with post-GC retained heap at most warm baseline plus 4 MiB, cache cardinality bounded to current targets/panes, and zero extra warm history reads, stable-title effects or liveness calls. Measure live supervisor RSS separately; preserve standalone behavior.
-- After the next restart and relaunch, the fleet's `pair title` total RSS and CPU are re-measured and recorded.
+- After the next restart and relaunch, the hub re-measures and records fleet `pair title` total RSS and CPU, plus hosted title/fade/cmux observations (explicitly deferred post-landing by TL).
 
 ## Plan
 
 - [x] Complete live baseline and submit durable full-flow plan to TL.
 - [x] After approval, pass change-code plan-quality and derive estimate.
 - [x] Suppress hosted child; share exact target/title decisions and cancellable compact facts.
-- [ ] Wire one existing-schedule updater and shared activity/fade results; verify stateful failure sequences.
-- [ ] Stage for hub live check, document, run recorded suite, close and land on SHIP.
+- [x] Wire one existing-schedule updater and shared activity/fade results; verify stateful failure sequences.
+- [ ] Run recorded suite, close review and land; hub performs deferred live checks and AFTER fleet measurement at next operator restart.
 
 ## Log
 
@@ -87,6 +87,8 @@ Read-only subagent exploration located the actual spawn in wrapcmd.startWrapperT
 ### 2026-10-17
 
 ## Revisions
+
+- 2026-10-17 — TL delivery 10172f8c-0c20-4200-8bfe-079e616b4400 supersedes pre-landing staging/live verification: pair:0 remains untouched; land on suite and close review. Hub owns post-landing no-poller/title/fade/cmux and AFTER fleet totals at the operator next restart.
 
 - 2026-10-17 — TL revised investigation into replacement: remove hosted per-slot pollers in favor of a Couch-owned updater on existing listing/state/activity observations; preserve standalone behavior, cmux ownership and idle fading. Initial durable design captures that scope.
 
@@ -131,3 +133,7 @@ Before deploying any fix, PID 26235 was measured for 600 seconds: RSS 205,856 ->
 A separate 600-second high-frequency child observer on the same PID captured ten list-sessions --no-formatting commands and no list-clients commands (1.000 queries/minute). Tick intervals: mean 60.497 seconds, range 60.275–60.950 seconds. This reproduces the intended cadence, not over-polling. Observer windows overlap but do not share identical endpoints. Local raw query series: /var/folders/07/b9wcwwld4_v2w9r3hk525bm80000gn/T/pair649-large-queries-600.json.
 
 Fleet BEFORE remains the recorded 17 pollers / 1,055.44 MiB initial sample and 16 / 1,029.28 MiB later sample as one exited; survivors used 1.388 CPU-s/min. Fleet AFTER is pending an approved staged rollout; an old running wrapper retains its old poller and cannot count as upgraded. Hub request c8ee5589-0593-4894-aa2d-9a7f812c8cea is queued awaiting image input to clear. No :0 mutation or slot relaunch performed by this worker.
+
+### 2026-10-17 — live verification deferral
+
+TL delivery 10172f8c-0c20-4200-8bfe-079e616b4400 explicitly forbids pair:0 staging (shared restart binary), directs landing on the recorded suite and close review, and takes ownership of no-poller/title/fade/cmux plus AFTER fleet measurements at the operator next restart/relaunch. This supersedes the earlier queued staging request and pre-landing live-check ordering. No live result or measured fleet reduction is claimed. The standing per-process size, rather than a large observed per-tick leak, motivates the approved replacement.
