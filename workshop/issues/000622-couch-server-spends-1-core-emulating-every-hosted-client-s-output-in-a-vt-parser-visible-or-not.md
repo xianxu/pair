@@ -36,16 +36,25 @@ Couch CPU all the time, whether or not anyone is looking at that slot.
   is showing and keep a cheap raw ring for the rest (replaying it when a slot is shown or peeked); or parse lazily
   (append raw bytes, emulate on demand). Idle/waiting detection must keep working for off-screen slots.
 - No new background workers; bounded memory per client.
+- M2 retains eager authority and optimizes only proven printable-ASCII grapheme
+  operations. TL642b580a authorizes landing after suite/review and the qualified
+  complete-workload CPU experiment; production acceptance follows the next
+  coordinated Couch restart, with TL scheduling and this worker verifying it.
 
 ## Done when
 
 - The Couch server's steady CPU with ~27 hosted clients drops by a measured amount (before/after `sample` and CPU%),
   with the console, `--peek` and waiting notices behaving as before (tests plus a live check).
+- M2 may land before that production check under TL642b580a; its landing gate is
+  qualified CPU reduction, semantic/race tests, required recorded suite and SHIP
+  review. The live criterion remains pending and whole-issue closure waits for
+  the next TL-coordinated restart; fixture timings do not satisfy live acceptance.
 
 ## Plan
 
 - [x] M1 — land permanent per-hosted-client ingest-byte diagnostics through read-only resources; no parser-policy change.
 - [ ] M2 — after the combined restart, measure natural idle/busy rates and server CPU, choose the smallest correct optimization with TL approval, then implement and verify it.
+- [ ] After M2 lands, verify production CPU/sample and console/peek/waiting at the next TL-coordinated Couch restart before whole-issue close.
 
 
 ## Log
