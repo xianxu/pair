@@ -77,18 +77,18 @@ The shared helper may return only prompt geometry to keep Return's existing shor
 
 Files: `composer_recognizers_test.go`, `codex_return_test.go`, optionally a focused `codex_tall_composer_test.go`.
 
-- [ ] Add a footer-complete tall native-shaped snapshot that is Unknown today, plus tall ordinary Return that wrongly emits CR today. Keep short, blank-continuation and existing mid-frame/status ambiguity controls.
-- [ ] Implement the function-level generated geometry/footer/Return strategies below, including the hub-required unrecognized footer drift; malformed or incomplete tall evidence grants no new authority.
-- [ ] Generate prompt/cursor distances and viewport sizes around the former cutoff; retain the existing invalid-dimension/cell-storage rejection guard. Inspect that footer discovery makes one bounded viewport pass and calls the shared signature once, rather than rescanning suffixes per candidate.
-- [ ] Run the focused Codex/composer/Return tests and retain the expected new reds before implementation.
+- [x] Add a footer-complete tall native-shaped snapshot that is Unknown today, plus tall ordinary Return that wrongly emits CR today. Keep short, blank-continuation and existing mid-frame/status ambiguity controls.
+- [x] Implement the function-level generated geometry/footer/Return strategies below, including the hub-required unrecognized footer drift; malformed or incomplete tall evidence grants no new authority.
+- [x] Generate prompt/cursor distances and viewport sizes around the former cutoff; retain the existing invalid-dimension/cell-storage rejection guard. Inspect that footer discovery makes one bounded viewport pass and calls the shared signature once, rather than rescanning suffixes per candidate.
+- [x] Run the focused Codex/composer/Return tests and retain the expected new reds before implementation.
 
 ### 2. Share qualified geometry and prove confirmation
 
 Files: `composer_recognizers.go`, `peer_composer.go`, `peer_delivery_test.go` or focused tall delivery tests; reuse `peer_integration_test.go` controls.
 
-- [ ] Implement the smallest shared pure bounds helper and delegate active recognition/text extraction to it. Preserve the local short contract; require qualified complete footer evidence for the tall extension. Move/reuse the current footer signature, without a second copy.
-- [ ] Stateful regression through actual `dispatchPeer`: 26-line singleton and five-report batch-shaped text, already-active turn, exactly one paste and one submit, then a fresh complete empty composer => Submitted. Short and initially-idle controls remain Submitted.
-- [ ] Implement the controlled event-sequence strategy for `dispatchPeer` below, extending the existing stateful fake. Independent guards are no success without fresh ordered evidence and no replay of possibly written input.
+- [x] Implement the smallest shared pure bounds helper and delegate active recognition/text extraction to it. Preserve the local short contract; require qualified complete footer evidence for the tall extension. Move/reuse the current footer signature, without a second copy.
+- [x] Stateful regression through actual `dispatchPeer`: 26-line singleton and five-report batch-shaped text, already-active turn, exactly one paste and one submit, then a fresh complete empty composer => Submitted. Short and initially-idle controls remain Submitted.
+- [x] Implement the controlled event-sequence strategy for `dispatchPeer` below, extending the existing stateful fake. Independent guards are no success without fresh ordered evidence and no replay of possibly written input.
 - [ ] Mutate away the extension to show tall positives fail, and remove a tall safety guard to show its adversarial case fails; restore before green. Run focused and race checks, then all `wrapcmd` tests once.
 
 ### 3. Native qualification, docs and normal landing
