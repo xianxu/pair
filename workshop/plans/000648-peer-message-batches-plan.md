@@ -132,6 +132,8 @@ Files: `atlas/couch.md`, its existing `atlas/index.md` entry, `cmd/internal/couc
 - [ ] With the operator/hub coordinating the restart onto the selected build, make the hub busy, send ten small numbered reports (aggregate complete envelopes below 16,384 code points), retain ten receipt IDs, and verify held/queued positions while busy. When the composer returns, verify FIFO separated headers in one user turn (at most two if a boundary arrival misses freeze), one shared confirmation and ten submitted receipts. Record the running binary revision, receiver version and observed turns; do not restart or drive the live hub unasked.
 - [ ] On SHIP and satisfied live-check arrangement, run `sdlc merge --yes`, let the landing line own main integration and authoritative suite/CI, and report the verified landing and PR to the hub. Treat unknown failures as blockers. Do not waive CI or apply operator verification labels.
 
+Verification progress: required recorded suite `f88c9df7677e5e689ac6e3b2510ceaf9` passed on `b552d869f843ff43244930bd640606d3ed5d2074` in 14m9s (log SHA256 prefix `57fb7acf0aeb`). The prior failed inventory attempt is retained in the issue Log; five new non-artifact source entries fixed the sole failure. Task 3 close/publication checkboxes remain open until those gates complete; the live busy-hub checkbox remains deferred under the explicit TL restart arrangement.
+
 ## Alternatives considered
 
 - Concatenate bodies at admission: misses reports arriving during the held head's long turn and loses independent receipt/provenance and log correlation.

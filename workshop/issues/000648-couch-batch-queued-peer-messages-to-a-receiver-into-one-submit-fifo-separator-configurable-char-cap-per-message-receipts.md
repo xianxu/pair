@@ -49,7 +49,7 @@ Durable design: [queued peer-message batches](../plans/000648-peer-message-batch
 
 - [x] Implement/test shared envelope selection, character cap and atomic pending groups.
 - [x] Implement/test writer-owned preparation, freeze-at-readiness and one batch confirmation with per-member receipts, cancellation, recovery and exact Pair-log turn correlation.
-- [ ] Complete targeted and recorded full-suite verification and document the approved post-landing busy-hub check handoff.
+- [x] Complete targeted and recorded full-suite verification and document the approved post-landing busy-hub check handoff.
 
 After these implementation checks, run the normal close review and merge gates; publication is still this slot's responsibility. The actual busy-hub check belongs to the TL after the operator's restart, under the explicit deferral recorded below.
 
@@ -91,6 +91,8 @@ After these implementation checks, run the normal close review and merge gates; 
 
 - First completed recorded suite: attempt `249d15337aeb65d24c1fb5caaf730b74` on `27fd3b5f83ff9091ff9bdcce51b2a3f9c90c117c`, FAIL after 15m37s execution, saved log `.git/sdlc/test-stats/failed/249d15337aeb65d24c1fb5caaf730b74.log`, SHA256 prefix `f0f296dbb6d5`. Enumerating that log confirms exactly one failed test/package: the inventory omission above; all shell/editor checks and all other Go packages passed, including couchcmd 158.248s, couchmessage 30.704s and wrapcmd 55.169s. Fixed/pushed head `b552d869f843` passes all PR checks: native conformance `39063495036` (2m52s), merge-check `39063494995` (1m20s), local-gates-guard `39063492608` (9s).
 - Fresh required suite on the inventory-fix head `b552d869f843`: attempt **`f88c9df7677e5e689ac6e3b2510ceaf9`**, worktree `/var/folders/07/b9wcwwld4_v2w9r3hk525bm80000gn/T/sdlc-local-3496761431`, same required command; initially queued position 5. No passing full-suite claim yet. Keeping its place and the failed predecessor evidence.
+
+- Corrected full-suite attempt **`f88c9df7677e5e689ac6e3b2510ceaf9`** PASS on **`b552d869f843ff43244930bd640606d3ed5d2074`**, exit 0 in **14m9s**, log `.git/sdlc/local-checks/b552d869f843ff43244930bd640606d3ed5d2074/suite.log`, SHA256 prefix **`57fb7acf0aeb`**. All shell/editor and Go checks passed, including artifactpath 4.707s, couchcmd 93.491s, couchmessage 25.893s, wrapcmd 51.757s. Targeted packages/race, native Claude conformance and all server CI are green as recorded above. Pre-close implementation verification is complete; actual busy-hub observation remains explicitly deferred to the TL/operator restart, with no pair:0 staging. Proceeding to the one mandatory close review and normal landing gates.
 
 ## Estimate
 
