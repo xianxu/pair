@@ -100,7 +100,28 @@ type ResourceSlotView struct {
 	Idle                   bool          `json:"idle"`
 	Reason                 string        `json:"reason,omitempty"`
 }
+
+// HostedIngestClient counts bytes admitted by one hosted Child lifetime, not
+// retained output, acknowledged rendering, or the agent wrapper's scrollback.
+type HostedIngestClient struct {
+	EndpointID  string             `json:"endpoint_id"`
+	Thread      ThreadAddress      `json:"thread"`
+	Process     ResourceProcessKey `json:"process"`
+	IngestBytes uint64             `json:"ingest_bytes"`
+}
+
+// HostedIngestSnapshot is fresh request-time diagnostics. Match both server and
+// endpoint incarnations before computing deltas; missing rows are not zeros.
+type HostedIngestSnapshot struct {
+	SampledAt       time.Time            `json:"sampled_at"`
+	ServerPID       int                  `json:"server_pid"`
+	ServerStartedAt time.Time            `json:"server_started_at"`
+	Clients         []HostedIngestClient `json:"clients"`
+	Omitted         int                  `json:"omitted"`
+}
+
 type ResourceView struct {
+	HostedIngest           *HostedIngestSnapshot `json:"hosted_ingest,omitempty"`
 	HistoryOldest          time.Time             `json:"history_oldest"`
 	HistoryFrames          int                   `json:"history_frames"`
 	SampledAt              time.Time             `json:"sampled_at"`

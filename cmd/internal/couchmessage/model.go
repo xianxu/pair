@@ -106,10 +106,13 @@ const (
 	Expired       Status = "expired"
 	Cancelled     Status = "cancelled"
 	Indeterminate Status = "indeterminate"
+	// Refused: never admitted, so delivered nowhere; the detail says why
+	// (pair#618).
+	Refused Status = "refused"
 )
 
 func (s Status) Terminal() bool {
-	return s == Submitted || s == Expired || s == Cancelled || s == Indeterminate
+	return s == Submitted || s == Expired || s == Cancelled || s == Indeterminate || s == Refused
 }
 
 type Receipt struct {

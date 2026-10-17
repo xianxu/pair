@@ -676,3 +676,24 @@ func TestMessageCLIPrintsQueuePositionAndCancelReason(t *testing.T) {
 		}
 	}
 }
+
+// The send waits past the broker's admission budget for its verdict, and a
+// refusal prints its reason last (pair#618).
+func TestMessageCLISendWaitsForTheBrokersVerdict(t *testing.T) {
+	var out, errout bytes.Buffer
+	var budget time.Duration
+	call := func(ctx context.Context, _ string, _ any, response any) error {
+		deadline, _ := ctx.Deadline()
+		budget = time.Until(deadline)
+		*(response.(*couchmessage.Response)) = couchmessage.Response{Code: "refused", Error: "not admitted: zellij liveness is stale (last listing 7s ago)"}
+		return nil
+	}
+	got := runMessageCLIWithCall(cliInvocation{kind: cliMessage, messageOp: "send", ref: "pair:3", messageBody: "work"}, messageRuntime(), &out, &errout, call)
+	if got != 1 || budget <= couchmessage.AdmissionTimeout {
+		t.Fatalf("exit %d, call budget %s (must exceed %s)", got, budget, couchmessage.AdmissionTimeout)
+	}
+	lines := strings.Split(strings.TrimSpace(errout.String()), "\n")
+	if last := lines[len(lines)-1]; !strings.Contains(last, "zellij liveness is stale") {
+		t.Fatalf("last line %q", last)
+	}
+}
