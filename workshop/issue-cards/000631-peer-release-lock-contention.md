@@ -1,6 +1,6 @@
 ---
 id: 000631
-status: codecomplete
+status: done
 created: 2026-10-16
 updated: 2026-10-17
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 2e1ab24607e87b232bcb6846081e5dcce09acad3
         evidence_commit: 7fcba1f9f11bd578e8872f46822e26ac8261d41d
+        landed_commit: bd451f73dc2729be1df774702935448d3896b3f6
 ---
 
 # Peer promotion holds broker lock during wrapper release RPC
