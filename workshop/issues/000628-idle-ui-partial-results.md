@@ -15,6 +15,7 @@ claimant:
     workspace: pair:4
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "5277190d", done: "531c08b9"}
 ---
 
 # Idle UI invariant intermittently returns only 16 of 20 activity results
