@@ -31,18 +31,24 @@ The existing SessionFrame/SlotLiveness snapshot has no independent background-wo
 
 Provide display activity for running background commands independently of message/restart admission. Reuse an already-owned observation where available; if a new wrapper field is necessary, explicitly design its negotiated compatibility, identity/lifetime and bounded cache semantics. Do not set Settled=false solely because background commands exist. Preserve message receipt to a free composer while the command runs.
 
+Approved scope (TL a807af4c): recognize Claude native shell footer only. Codex/Qoder remain unknown and retain their current behavior. The negotiated field and lifecycle are shared; additional agents require native captures plus positive/negative boundary tests. Live conformance is explicitly post-landing, after the next restart, owned/coordinated by the TL; no pair:0 staging.
+
 ## Done when
 
-- A background-command-only wait remains bright despite file activity older than a day, including a detached thread.
+- A Claude background-command-only wait remains bright despite file activity older than a day, including a detached thread.
 - The free composer continues receiving peer messages during that wait, with unchanged admission behavior.
 - Completed/zero-work state eventually ages normally; quoted body/composer text and stale/disconnected/replaced wrapper evidence do not count as work.
-- Recorded positive footer and negative controls precede code; live conformance checks both brightness and successful message receipt under a running background suite.
+- Recorded positive Claude footer and negative controls precede code; the approved post-landing live conformance checks both brightness and successful message receipt under a running background suite. Codex/Qoder remain unknown.
+- The issue records which native evidence and boundary tests would qualify additional agents; post-landing live acceptance remains explicitly pending until performed.
 
 ## Plan
 
-- [ ] Design the independent display signal and its lifecycle/compatibility before implementation.
+- [x] Design the independent display signal and its lifecycle/compatibility before implementation.
+- [ ] Implement and verify generation-fenced Claude footer display evidence, preserving free-composer admission.
+- [ ] Implement and verify negotiated transport, admitted-session fade/aging and compatibility.
+- [ ] Update docs, complete the recorded suite and ordinary review/landing; record the approved post-landing live steps.
 
-Proposed design: [background-work display plan](../plans/000632-background-work-fade-plan.md). A negotiated display-only field is necessary; awaiting TL approval of protocol, initial native-agent coverage, flow and live rollout route before code.
+Proposed design: [background-work display plan](../plans/000632-background-work-fade-plan.md). A negotiated display-only field is necessary; TL a807af4c approved the design, Claude-only native coverage, full flow and post-landing live rollout without staging.
 
 ## Log
 
@@ -55,3 +61,11 @@ Verified TL dispatch6aca2623, claimed #632, published slot label and started pla
 ## Revisions
 
 2026-10-16: added a proposed durable plan for the new cross-process display field. Original Done-when remains the contract; initial Claude-only native evidence coverage is a requested scope decision, not an assumed approval.
+
+### 2026-10-16 — approved design and coverage evidence
+
+Verified submitted TL a807af4c-ef1d-41f8-b058-5c2dd66f21a8: hello-v4 nullable BackgroundWork, independent settle callback sampling and session invalidation approved; Settled/admission unchanged; Claude only, Codex/Qoder unknown; full flow; live check after landing/restart, no pair:0 staging. This explicitly narrows native recognition while retaining the shared protocol and display mechanism.
+
+Read-only live peek after the plan draft found Codex0.162.1 pair:5 and ariadne:1 with a finished turn, free composer and native faint `1 background terminal running · /ps to view · /stop to close`; active-turn Codex0.162.1/0.163.0 slots show the same counter on the Working row. This is additional positive evidence, not a qualified parser or change to the approved scope. To add Codex, capture complete synchronized native terminal frames for ended-turn positive, completed/zero, plural, body/draft near-matches, and redraw/resize variants, establish geometry relative to its composer and test lifetime/compatibility. Qoder has no discovered positive capture: first observe/capture its native running-job UI or identify an owned native signal, then define equivalent false/unknown boundaries. No wording-only inference for either.
+
+2026-10-16 revision: approved native scope and post-landing live schedule are now reflected in Spec/Done-when/Plan rather than leaving the original generic contract ambiguous.

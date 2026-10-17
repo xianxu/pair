@@ -12,7 +12,7 @@ collaboration-mode: discussion
 
 **Tech Stack:** Go, existing terminal emulator, strict versioned Unix session protocol, pure registry reducer, existing Console activity pass.
 
-## Approval questions before implementation
+## Approval decisions
 
 1. Approve the new nullable `BackgroundWork` field and hello-v4 negotiation below.
 2. Approve initial native evidence coverage: Claude's captured shell footer. Codex/Qoder currently have no positive background-job capture or detector; return unknown there, preserve existing turn fading, and document this gap rather than infer job syntax. If those agents must be covered in this issue, gather native evidence and revise this plan before coding.
@@ -96,3 +96,7 @@ Files: `README.md`, `atlas/couch.md`, issue Log; no project-file edits (TL owns 
 ## Revisions
 
 2026-10-16: initial plan proposal; TL approval is pending. No implementation performed.
+
+### 2026-10-16 — TL approval a807af4c
+
+All four decisions resolved: design approved, native detection Claude only (Codex/Qoder stay unknown), full flow explicitly selected, installed live check deferred until the restart after landing, no staging in pair:0. Earlier questions above are preserved as the design record, superseded by this decision. Additional live Codex counter evidence is documented in the issue with the capture/qualification work needed before adding that source. Proceed to the normal full-flow change-code gate.
