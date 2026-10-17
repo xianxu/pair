@@ -5,7 +5,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
@@ -159,7 +158,7 @@ func TestSelectedAttachProductionMetadataDoesNotBlockHandoff(t *testing.T) {
 					t.Fatalf("selected attachment ran unrelated startup lifecycle: migration=%d index=%d sweeps=%d", rt.proofMigrations, rt.indexReads, len(rt.swept))
 				}
 				if kind == "healthy" {
-					if rt.env["PAIR_AGENT"] != "codex" || !strings.Contains(strings.Join(rt.pollers, " "), "|codex") {
+					if rt.env["PAIR_AGENT"] != "codex" {
 						t.Fatalf("healthy title agent lost: env=%v pollers=%v", rt.env, rt.pollers)
 					}
 					if _, err := os.Stat(paths.Draft()); err != nil {

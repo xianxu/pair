@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pair-test-bootstrap.sh"
 # Review controls through real nvim maps and a stateful pane host (#340).
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

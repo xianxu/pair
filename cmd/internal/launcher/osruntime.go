@@ -28,7 +28,6 @@ import (
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 	"github.com/xianxu/pair/cmd/internal/sessionledger"
 	"github.com/xianxu/pair/cmd/internal/sessionwatch"
-	"github.com/xianxu/pair/cmd/internal/titlepoller"
 	"github.com/xianxu/pair/cmd/internal/zellijpane"
 )
 
@@ -421,10 +420,6 @@ func (OSRuntime) SetTerminalTitle(session string) {
 
 // --- ProcOps ---------------------------------------------------------------
 
-func (r OSRuntime) SpawnTitlePoller(tag, agent, session string, env titlepoller.SessionEnv) {
-	spawnDetached(titlePollerSpawn(runningPairExe(r.PairHome), tag, agent, session, env))
-}
-
 // runningPairExe resolves the running `pair` executable for the self-exec
 // sidecar spawns (#104 M2 folded pair-title/pair-session-watch into `pair title`
 // / `pair session-watch`). The launcher is always `pair`, so os.Executable() is
@@ -438,19 +433,6 @@ func runningPairExe(pairHome string) string {
 		return exe
 	}
 	return filepath.Join(pairHome, "bin", "pair")
-}
-
-// titlePollerSpawn builds the detached spawn for the title sidecar, self-execing
-// `pair` (#104 M2): its argv and the environment it is handed. Pure (exe
-// injected) so a test pins both halves -- spawnDetached swallows a start error,
-// so a regression in the argv would go uncaught until the poller simply never
-// started, and a dropped environment is silent in exactly the way pair#183 was.
-// The argv must start "<…>/pair title <tag> <agent>", the exact shape
-// titlepoller's single-instance argv guard matches. The env entries are appended
-// after os.Environ(), and exec keeps the LAST duplicate, so the contract wins
-// over any stale inherited value.
-func titlePollerSpawn(exe, tag, agent, session string, env titlepoller.SessionEnv) ([]string, []string) {
-	return []string{exe, "title", tag, agent, session}, env.Environ()
 }
 
 func (OSRuntime) DevRebuild(pairHome string) {
@@ -1232,20 +1214,11 @@ func (OSRuntime) IsTTY() bool {
 	return err == nil && (fi.Mode()&os.ModeCharDevice) != 0
 }
 
-// KillTitlePoller SIGTERMs (not -9: it self-cleans) + clears the poller pidfile.
-func (r OSRuntime) KillTitlePoller(tag string) {
-	paths, err := artifactpath.ResolveScoped(r.DataDir, tag)
-	if err != nil {
-		return
-	}
-	pf := paths.TitlePID()
-	if raw, err := osfs.ReadRegularMetadata(context.Background(), pf, 4096); err == nil {
-		if pid := strings.TrimSpace(string(raw)); pid != "" {
-			_ = exec.Command("kill", pid).Run()
-		}
-		r.Remove(pf)
-	}
-}
+// KillTitlePoller remains on the launcher Runtime for lifecycle compatibility.
+// A pidfile grants no signal or removal authority: the wrapper closes its own
+// child's lease, and that generation owns its metadata. Legacy processes use
+// the separately sampled, identity-fenced cleanup path.
+func (r OSRuntime) KillTitlePoller(tag string) {}
 
 func (r OSRuntime) PairOwnsCmuxWorkspace(tag string) bool {
 	wsID := os.Getenv("CMUX_WORKSPACE_ID")

@@ -7,16 +7,15 @@
 //     carries the folder (#133). Always-on.
 //  2. The cmux WORKSPACE title — an activity heat-ramp emoji prefix. cmux-only.
 //
-// Single-instance per tag via a pidfile whose liveness is identity-checked (not
-// a bare kill -0), so a recycled PID left by a dead poller can't wedge the
-// respawn. Self-terminates when the Pair zellij session disappears
-// (miss-threshold debounced). Following the #78 sessionwatch template, the pure
-// decisions live here and the IO/process interaction is behind the Runtime seam.
+// Each wrapper invocation owns a title through its pipe lease and isolated
+// process group. EOF ends that group immediately; numeric PID publication is
+// metadata only. The poll loop also exits when its zellij session disappears
+// (miss-threshold debounced). Pure display decisions live here; IO/process
+// interaction lives behind Runtime and the CLI lease boundary.
 package titlepoller
 
 import (
 	"fmt"
-	"strings"
 	"time"
 )
 
@@ -73,19 +72,6 @@ func frameTitle(agent, count string) string {
 // word→emoji convention — the session name already carries its own 📁 glyph.
 func cmuxWorkspaceTitle(prefix, session string) string {
 	return prefix + session
-}
-
-// pollerArgvMatches is the single-instance identity guard: true iff argv is a
-// live title poller for THIS tag. Since #104 M2 the launcher self-execs the
-// single `pair` binary as "<…>/pair title <tag> <agent> …" (the poller folded
-// into `pair title`), so we match the substring "pair title <tag> " — the
-// trailing space keeps tag 21 from matching 211, mirroring the pre-fold
-// "pair-title <tag> " guard.
-func pollerArgvMatches(argv, tag string) bool {
-	if argv == "" || tag == "" {
-		return false
-	}
-	return strings.Contains(argv, "pair title "+tag+" ")
 }
 
 // shouldClaimWorkspace decides cmux workspace-title ownership (mirrors bin/pair's

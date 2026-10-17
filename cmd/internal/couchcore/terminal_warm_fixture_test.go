@@ -13,6 +13,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/launcher"
+	"github.com/xianxu/pair/cmd/internal/testpair"
 )
 
 func TestListedDetachedTerminalAttachesWithoutNewServer(t *testing.T) {
@@ -78,9 +79,12 @@ func TestListedDetachedTerminalAttachesWithoutNewServer(t *testing.T) {
 		"PAIR_TEST_ZELLIJ_ATTACH_READY":    attached,
 		"PAIR_TEST_ZELLIJ_ATTACH_RELEASE":  warmRelease,
 	}
+	var explicit []string
 	for key, value := range env {
-		t.Setenv(key, value)
+		explicit = append(explicit, key+"="+value)
 	}
+	fixtureEnv := testpair.Environment(t, home, explicit...)
+	testpair.ApplyEnvironment(t, home, explicit...)
 	cfg := t.TempDir()
 	if err = os.WriteFile(filepath.Join(cfg, "config.kdl"), []byte("session_serialization false\n"), 0600); err != nil {
 		t.Fatal(err)
@@ -144,6 +148,7 @@ func TestListedDetachedTerminalAttachesWithoutNewServer(t *testing.T) {
 		t.Fatal(err)
 	}
 	server = exec.Command(filepath.Join(bin, "zellij"), "--server", string(socket))
+	server.Env = fixtureEnv
 	server.Stderr = os.Stderr
 	if err = server.Start(); err != nil {
 		t.Fatal(err)

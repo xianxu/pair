@@ -2,11 +2,18 @@ package storagegc
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
+	"strings"
+
+	"github.com/xianxu/pair/cmd/internal/artifactpath"
+	"github.com/xianxu/pair/cmd/internal/testpair"
+	"golang.org/x/sys/unix"
 	"path/filepath"
 	"testing"
 	"time"
@@ -311,5 +318,271 @@ func TestCollectorLegacyPendingCancellationAndSharedBudget(t *testing.T) {
 	report, err := gc.Apply(context.Background(), 100)
 	if err != nil || report.Collected != 1 || remaining() != 0 {
 		t.Fatalf("retry did not finish residue and collection: %+v %v remaining=%d", report, err, remaining())
+	}
+}
+
+// Raw metadata publisher fixtures exit outside testing.M.Run.
+func TestMain(m *testing.M) {
+	if os.Getenv("PAIR_TEST_RAW_METADATA_ROOT") != "" {
+		os.Exit(rawMetadataPublisherMain())
+	}
+	os.Exit(m.Run())
+}
+
+func rawMetadataPublisherMain() int {
+	c, err := NewCoordinator(os.Getenv("PAIR_TEST_RAW_METADATA_ROOT"))
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
+	owner, err := artifactpath.NewStorageOwner(c.Root, os.Getenv("PAIR_TEST_RAW_METADATA_SCOPE"), "test")
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
+	c.AfterTempWrite = func(string) error {
+		fmt.Println("RAW-PENDING-READY")
+		var release [1]byte
+		_, err := io.ReadFull(os.Stdin, release[:])
+		return err
+	}
+	if err := c.PublishMetadata(context.Background(), owner, os.Getenv("PAIR_TEST_RAW_METADATA_NAME"), []byte("successor\n")); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
+	return 0
+}
+
+func TestPlaintextMetadataInterruptedPublicationRecovery(t *testing.T) {
+	for _, scope := range []string{"", "scope"} {
+		for _, name := range []string{"title-pid-test", "cmux-owner-workspace"} {
+			for _, finish := range []bool{false, true} {
+				t.Run(fmt.Sprintf("scope=%s/%s/finish=%v", scope, name, finish), func(t *testing.T) {
+					c, _ := coordinatorFixture(t)
+					owner, err := artifactpath.NewStorageOwner(c.Root, scope, "test")
+					if err != nil {
+						t.Fatal(err)
+					}
+					if err := os.MkdirAll(owner.Directory(), 0700); err != nil {
+						t.Fatal(err)
+					}
+					target := filepath.Join(owner.Directory(), name)
+					if err := os.WriteFile(target, []byte("previous\n"), 0600); err != nil {
+						t.Fatal(err)
+					}
+					child := exec.Command(os.Args[0], "-test.run=^$")
+					child.Env = testpair.Environment(t, c.Root, "PAIR_TEST_RAW_METADATA_ROOT="+c.Root, "PAIR_TEST_RAW_METADATA_SCOPE="+scope, "PAIR_TEST_RAW_METADATA_NAME="+name)
+					stdin, err := child.StdinPipe()
+					if err != nil {
+						t.Fatal(err)
+					}
+					stdout, err := child.StdoutPipe()
+					if err != nil {
+						t.Fatal(err)
+					}
+					var diagnostic strings.Builder
+					child.Stderr = &diagnostic
+					if err := child.Start(); err != nil {
+						t.Fatal(err)
+					}
+					joined := false
+					t.Cleanup(func() {
+						_ = stdin.Close()
+						if !joined {
+							_ = child.Process.Kill()
+							_ = child.Wait()
+						}
+					})
+					ready := make(chan bool, 1)
+					go func() {
+						scanner := bufio.NewScanner(stdout)
+						ready <- scanner.Scan() && scanner.Text() == "RAW-PENDING-READY"
+					}()
+					select {
+					case ok := <-ready:
+						if !ok {
+							t.Fatal("publisher exited before raw staging boundary")
+						}
+					case <-time.After(5 * time.Second):
+						t.Fatal("raw publisher failed to stage")
+					}
+					entries, err := os.ReadDir(c.PendingMetadataDir())
+					if err != nil || len(entries) != 1 {
+						t.Fatalf("staged entries=%v %v", entries, err)
+					}
+					pending := filepath.Join(c.PendingMetadataDir(), entries[0].Name())
+					recovered := false
+					err = c.TryWithLock(context.Background(), func(l *Locked) error {
+						recovered = true
+						_, err := l.RecoverPendingMetadata(context.Background(), c.PendingMetadataDir(), 10)
+						return err
+					})
+					if !errors.Is(err, ErrCoordinatorBusy) || recovered {
+						t.Fatalf("live publisher lost exclusion: %v recovered=%v", err, recovered)
+					}
+					if _, err := os.Stat(pending); err != nil {
+						t.Fatalf("active publisher staging removed: %v", err)
+					}
+					if raw, err := os.ReadFile(target); err != nil || string(raw) != "previous\n" {
+						t.Fatalf("pre-rename publication=%q %v", raw, err)
+					}
+					if finish {
+						_, err = stdin.Write([]byte("x"))
+						if err != nil {
+							t.Fatal(err)
+						}
+					} else {
+						if err := child.Process.Kill(); err != nil {
+							t.Fatal(err)
+						}
+					}
+					waitErr := child.Wait()
+					joined = true
+					if finish && waitErr != nil {
+						t.Fatalf("publisher failed: %v %s", waitErr, diagnostic.String())
+					}
+					if !finish && waitErr == nil {
+						t.Fatal("SIGKILL did not interrupt publisher")
+					}
+					if err := c.WithLock(context.Background(), func(l *Locked) error {
+						_, err := l.RecoverPendingMetadata(context.Background(), c.PendingMetadataDir(), 10)
+						return err
+					}); err != nil {
+						t.Fatal(err)
+					}
+					if entries, err := os.ReadDir(c.PendingMetadataDir()); err != nil || len(entries) != 0 {
+						t.Fatalf("unrecoverable raw staging=%v %v", entries, err)
+					}
+					want := "previous\n"
+					if finish {
+						want = "successor\n"
+					}
+					if raw, err := os.ReadFile(target); err != nil || string(raw) != want {
+						t.Fatalf("final raw publication=%q want=%q %v", raw, want, err)
+					}
+					if entries, err := os.ReadDir(owner.Directory()); err != nil {
+						t.Fatal(err)
+					} else {
+						for _, entry := range entries {
+							if strings.HasPrefix(entry.Name(), name+".") {
+								t.Fatalf("unknown sibling residue=%s", entry.Name())
+							}
+						}
+					}
+				})
+			}
+		}
+	}
+}
+
+func TestPlaintextMetadataRejectsUnsafePublication(t *testing.T) {
+	for _, kind := range []string{"foreign owner", "traversal", "absolute", "dot", "empty", "reserved", "oversize", "symlink target", "directory target", "fifo target", "symlink namespace", "symlink namespace parent", "missing namespace"} {
+		t.Run(kind, func(t *testing.T) {
+			c, owner := coordinatorFixture(t)
+			if err := os.MkdirAll(owner.Directory(), 0700); err != nil {
+				t.Fatal(err)
+			}
+			name := "title-pid-test"
+			data := []byte("123\n")
+			switch kind {
+			case "foreign owner":
+				owner.DataDir = t.TempDir()
+			case "traversal":
+				name = "../outside"
+			case "absolute":
+				name = filepath.Join(c.Root, "outside")
+			case "dot":
+				name = "."
+			case "empty":
+				name = ""
+			case "reserved":
+				name = ".pending-123"
+			case "oversize":
+				data = make([]byte, (1<<20)+1)
+			case "symlink target":
+				if err := os.Symlink(filepath.Join(t.TempDir(), "foreign"), filepath.Join(owner.Directory(), name)); err != nil {
+					t.Fatal(err)
+				}
+			case "fifo target":
+				if err := unix.Mkfifo(filepath.Join(owner.Directory(), name), 0600); err != nil {
+					t.Fatal(err)
+				}
+			case "directory target":
+				if err := os.Mkdir(filepath.Join(owner.Directory(), name), 0700); err != nil {
+					t.Fatal(err)
+				}
+			case "symlink namespace parent":
+				if err := os.Remove(owner.Directory()); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Remove(filepath.Join(c.Root, "repos")); err != nil {
+					t.Fatal(err)
+				}
+				foreign := t.TempDir()
+				if err := os.Mkdir(filepath.Join(foreign, owner.RepoScope), 0700); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Symlink(foreign, filepath.Join(c.Root, "repos")); err != nil {
+					t.Fatal(err)
+				}
+			case "symlink namespace":
+				if err := os.Remove(owner.Directory()); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Symlink(t.TempDir(), owner.Directory()); err != nil {
+					t.Fatal(err)
+				}
+			case "missing namespace":
+				if err := os.Remove(owner.Directory()); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := c.PublishMetadata(context.Background(), owner, name, data); err == nil {
+				t.Fatal("unsafe raw publication accepted")
+			}
+		})
+	}
+}
+
+func TestPlaintextMetadataPublishesMissingTargetAtLimit(t *testing.T) {
+	c, owner := coordinatorFixture(t)
+	if err := os.MkdirAll(owner.Directory(), 0700); err != nil {
+		t.Fatal(err)
+	}
+	data := bytes.Repeat([]byte("x"), 1<<20)
+	if err := c.PublishMetadata(context.Background(), owner, "title-pid-test", data); err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(filepath.Join(owner.Directory(), "title-pid-test"))
+	if err != nil || !bytes.Equal(got, data) {
+		t.Fatalf("raw bytes changed: len=%d %v", len(got), err)
+	}
+}
+
+func TestPlaintextMetadataRenameFailureCleansPending(t *testing.T) {
+	for _, name := range []string{"title-pid-test", "cmux-owner-test"} {
+		t.Run(name, func(t *testing.T) {
+			c, owner := coordinatorFixture(t)
+			if err := os.MkdirAll(owner.Directory(), 0700); err != nil {
+				t.Fatal(err)
+			}
+			target := filepath.Join(owner.Directory(), name)
+			staged := false
+			c.AfterTempWrite = func(string) error { staged = true; return os.Mkdir(target, 0700) }
+			if err := c.PublishMetadata(context.Background(), owner, name, []byte("unpublished\n")); err == nil {
+				t.Fatal("failed rename reported success")
+			}
+			if !staged {
+				t.Fatal("did not reach post-write rename failure")
+			}
+			entries, err := os.ReadDir(c.PendingMetadataDir())
+			if err != nil || len(entries) != 0 {
+				t.Fatalf("failed rename left staging: %v %v", entries, err)
+			}
+			info, err := os.Lstat(target)
+			if err != nil || !info.IsDir() {
+				t.Fatalf("failed rename modified destination: %v %v", info, err)
+			}
+		})
 	}
 }

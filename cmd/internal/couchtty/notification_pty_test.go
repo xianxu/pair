@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"os"
-	"strings"
 	"testing"
 	"time"
 
@@ -12,6 +11,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/notifyosc"
 	"github.com/xianxu/pair/cmd/internal/notifytransport"
 	"github.com/xianxu/pair/cmd/internal/ptychild"
+	"github.com/xianxu/pair/cmd/internal/testpair"
 	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
@@ -91,14 +91,8 @@ func TestNotificationPTYConformance(t *testing.T) {
 	gate := dir + "/focused"
 	message := "review ready"
 
-	var env []string
-	for _, entry := range os.Environ() {
-		key, _, _ := strings.Cut(entry, "=")
-		if strings.HasPrefix(key, "PAIR_") {
-			env = append(env, key+"=")
-		}
-	}
-	env = append(env, "PAIR_NOTIFY_SOCKET_DIR="+socketDir, "PAIR_NOTIFICATION_PTY_HELPER=1", "PAIR_TAG=conformance", "PAIR_PAIR_WRAP_PID_PATH="+binding, "PAIR_NOTIFICATION_GATE="+gate)
+	testpair.ApplyEnvironment(t, dir)
+	env := testpair.Environment(t, dir, "PAIR_NOTIFY_SOCKET_DIR="+socketDir, "PAIR_NOTIFICATION_PTY_HELPER=1", "PAIR_TAG=conformance", "PAIR_PAIR_WRAP_PID_PATH="+binding, "PAIR_NOTIFICATION_GATE="+gate)
 	child, err := ptychild.Start(ptychild.Options{
 		Argv: []string{os.Args[0], "-test.run=^TestNotificationPTYHelper$"},
 		Env:  env,

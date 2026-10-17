@@ -1,41 +1,97 @@
 package titlepoller
 
 import (
-	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"github.com/xianxu/pair/cmd/internal/zellijsession"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/contextcmd"
 	"github.com/xianxu/pair/cmd/internal/osfs"
-	"github.com/xianxu/pair/cmd/internal/procutil"
-	"github.com/xianxu/pair/cmd/internal/sessioninventory"
+	"github.com/xianxu/pair/cmd/internal/storagegc"
 )
 
 // OSRuntime implements Runtime with real zellij/cmux/fs/process calls. The fs
 // primitives (ReadFile/WriteFile/Remove/ModTime) come from the embedded
 // osfs.FS (#93 M3).
-type OSRuntime struct{ osfs.FS }
+type OSRuntime struct {
+	osfs.FS
+	projection           *titleProjection
+	err                  error
+	publication          *storagegc.Coordinator
+	owner                artifactpath.StorageOwner
+	workspacePublication string
+}
 
-func NewOSRuntime() OSRuntime { return OSRuntime{} }
+func NewOSRuntime() OSRuntime {
+	raw := os.Getenv("PAIR_LAUNCH_ORDINAL")
+	ordinal, err := strconv.ParseUint(raw, 10, 64)
+	if err != nil || ordinal == 0 || strconv.FormatUint(ordinal, 10) != raw {
+		return OSRuntime{err: errors.New("title projection requires exact launch ordinal")}
+	}
+	env := contextcmd.EnvFromOS()
+	owner, err := storagegc.SelectedOwner(env.PairDataDir, env.PairScopeKey, os.Getenv("PAIR_TAG"))
+	if err != nil {
+		return OSRuntime{err: err}
+	}
+	coordinator, err := storagegc.NewCoordinator(owner.DataDir)
+	if err != nil {
+		return OSRuntime{err: err}
+	}
+	workspace := ""
+	if id := os.Getenv("CMUX_WORKSPACE_ID"); id != "" {
+		workspace = "cmux-owner-" + id
+		if filepath.Base(workspace) != workspace {
+			return OSRuntime{err: errors.New("invalid workspace publication name")}
+		}
+	}
+	return OSRuntime{projection: newTitleProjection(env, ordinal), publication: coordinator, owner: owner, workspacePublication: workspace}
+}
+func (r OSRuntime) Err() error {
+	if r.err != nil {
+		return r.err
+	}
+	if r.projection != nil {
+		return r.projection.Err()
+	}
+	return errors.New("title projection unavailable")
+}
+func (OSRuntime) Now() time.Time        { return time.Now() }
+func (OSRuntime) Sleep(d time.Duration) { time.Sleep(d) }
+func (OSRuntime) Getpid() string        { return strconv.Itoa(os.Getpid()) }
 
-func (OSRuntime) Now() time.Time                 { return time.Now() }
-func (OSRuntime) Sleep(d time.Duration)          { time.Sleep(d) }
-func (OSRuntime) Getpid() string                 { return strconv.Itoa(os.Getpid()) }
-func (OSRuntime) ProcessAlive(p string) bool     { return procutil.Alive(p) }
-func (OSRuntime) ProcessCommand(p string) string { return procutil.Command(p) }
+// WriteFile publishes only this title's PID and configured workspace ownership.
+// Retention's root lock protects private staging while a publisher is alive;
+// abrupt group death releases the lock for existing bounded pending recovery.
+func (r OSRuntime) WriteFile(path, data string) error {
+	if r.publication == nil {
+		return errors.New("title metadata publisher unavailable")
+	}
+	physical, err := storagegc.OwnerFramePath(path)
+	if err != nil {
+		return err
+	}
+	paths, err := artifactpath.ResolveScoped(r.owner.Directory(), r.owner.Tag)
+	if err != nil {
+		return err
+	}
+	name := filepath.Base(physical)
+	if physical != paths.TitlePID() && (r.workspacePublication == "" || physical != filepath.Join(r.owner.Directory(), r.workspacePublication)) {
+		return errors.New("publication is outside selected title metadata")
+	}
+	return r.publication.PublishMetadata(context.Background(), r.owner, name, []byte(data))
+}
 
 // SessionAlive reports whether a zellij server is running session. An EXITED
 // (resurrectable) row is gone: `--short` lists those too, which kept pollers
 // ticking for days after their session ended (pair#420).
-func (OSRuntime) SessionAlive(session string) bool {
+func (r OSRuntime) SessionAlive(session string) bool {
 	out, err := exec.Command("zellij", "list-sessions", "--no-formatting").Output()
 	if err != nil {
 		return false
@@ -43,9 +99,10 @@ func (OSRuntime) SessionAlive(session string) bool {
 	return zellijsession.Live(string(out), session)
 }
 
-func (OSRuntime) RenamePane(session, paneID, title string) error {
-	return exec.Command("zellij", "--session", session, "action",
-		"rename-pane", "--pane-id", paneID, title).Run()
+func (r OSRuntime) RenamePane(session, paneID, title string) error {
+	_, err := exec.Command("zellij", "--session", session, "action",
+		"rename-pane", "--pane-id", paneID, title).Output()
+	return err
 }
 
 func (OSRuntime) CmuxAvailable() bool {
@@ -53,8 +110,9 @@ func (OSRuntime) CmuxAvailable() bool {
 	return err == nil
 }
 
-func (OSRuntime) CmuxRenameWorkspace(title string) error {
-	return exec.Command("cmux", "rename-workspace", title).Run()
+func (r OSRuntime) CmuxRenameWorkspace(title string) error {
+	_, err := exec.Command("cmux", "rename-workspace", title).Output()
+	return err
 }
 
 // PaneFiles globs pane-<tag>-*.json and decodes each into a PaneInfo (agent from
@@ -90,34 +148,22 @@ func (OSRuntime) PaneFiles(dataDir, tag string) []PaneInfo {
 	return out
 }
 
-// ContextCount returns the humanized context-window size for (tag, agent) by
-// invoking the exact `pair context` code path in-process (no subprocess) — the
-// #92-landed contextcmd.Run, captured to a buffer. Empty when unresolved.
-func (OSRuntime) ContextCount(tag, agent string) string {
-	var buf bytes.Buffer
-	// io.Discard: the poller's stdio is /dev/null. Since pair#183 its scope is
-	// handed over by the spawn contract (SessionEnv), so an empty key reaches
-	// here only when the launcher could not name this session's scope at all --
-	// no resolvable repo root and no couch record of the thread. Showing no
-	// count is then the intended degradation, because a count read under a
-	// borrowed scope could be another session's. `pair context`, run by hand,
-	// reports why.
-	contextcmd.Run([]string{tag, agent}, contextcmd.EnvFromOS(), &buf, io.Discard)
-	return strings.TrimSpace(buf.String())
+// ContextCount shares the context command's projection and this title's compact
+// owner-launch evidence. Empty denotes unresolved or cancelled evidence.
+func (r OSRuntime) ContextCount(tag, agent string) string {
+	p := r.projection
+	if p == nil {
+		return ""
+	}
+	return p.count(tag, agent)
 }
 
 // SessionActivity returns only the established inventory root's authorized
 // activity timestamp.
-func (OSRuntime) SessionActivity(tag, agent string) (time.Time, bool) {
-	env := contextcmd.EnvFromOS()
-	runtime := sessioninventory.NewOSRuntime(env.Home, env.PairDataDir)
-	query, err := sessioninventory.QuerySession(runtime, env.PairScopeKey, tag, sessioninventory.Agent(agent))
-	if err != nil {
+func (r OSRuntime) SessionActivity(tag, agent string) (time.Time, bool) {
+	p := r.projection
+	if p == nil {
 		return time.Time{}, false
 	}
-	activity, ok, err := sessioninventory.ActivityForSession(runtime, query)
-	if err != nil || !ok {
-		return time.Time{}, false
-	}
-	return activity.LastActivityAt, true
+	return p.activity(tag, agent)
 }

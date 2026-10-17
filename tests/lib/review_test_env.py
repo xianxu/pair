@@ -2,6 +2,7 @@
 import os
 import pathlib
 import tempfile
+import subprocess
 
 # Both explicitly consumed paths and defaults used by draft/review helpers.
 ARTIFACT_KEYS = tuple('PAIR_' + name for name in (
@@ -42,11 +43,12 @@ class ReviewTestEnvironment:
 
     def environment(self, fixture, product_root):
         fixture = pathlib.Path(fixture).resolve()
-        prefixes = ('PAIR_', 'ZELLIJ', 'NVIM', 'CODEX_', 'CLAUDE_', 'GIT_')
-        session_keys = {'VIMINIT', 'EXINIT', 'MYVIMRC', 'TMUX', 'TMUX_PANE', 'STY', 'WINDOW',
-                        'ITERM_SESSION_ID', 'KITTY_LISTEN_ON', 'WEZTERM_UNIX_SOCKET'}
-        env = {key: value for key, value in self.inherited.items()
-               if not key.startswith(prefixes) and key not in session_keys}
+        helper = pathlib.Path(__file__).resolve().parent / 'pair-test-env.sh'
+        explicit = (['PAIR_TEST_BINARY=' + os.environ['PAIR_TEST_BINARY']]
+                    if os.environ.get('PAIR_TEST_BINARY') else [])
+        raw = subprocess.check_output(['/bin/sh', str(helper), '--print0', str(fixture), *explicit],
+                                      env={'PATH': os.environ.get('PATH', '/usr/bin:/bin')})
+        env = dict(entry.decode().split('=', 1) for entry in raw.split(b'\0') if entry)
         artifacts = fixture / 'isolated-artifacts'
         artifacts.mkdir(parents=True, exist_ok=True)
         for key in ARTIFACT_KEYS:

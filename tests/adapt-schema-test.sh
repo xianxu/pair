@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pair-test-bootstrap.sh"
 # Cross-emitter contract test for the adaptation flight recorder (#000045 M2).
 #
 # The whole feature rests on three emitters — Go (cmd/internal/adapt), shell

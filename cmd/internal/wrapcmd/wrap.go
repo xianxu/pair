@@ -2942,6 +2942,17 @@ argsDone:
 		"child_pid": cmd.Process.Pid,
 	})
 	maintenance, readyErr := gcruntime.StartAfterReady(context.Background(), os.Getenv("PAIR_DATA_DIR"), func() error { return p.publishAgentReady(cmd.Process.Pid) })
+	titleProcess, titleErr := startTitleProcess(p.agentBasename, p.scrollbackLog, stderr)
+	if titleErr != nil {
+		p.debug("TITLE-start-fail", titleErr.Error())
+	}
+	if titleProcess != nil {
+		defer func() {
+			if err := titleProcess.Close(); err != nil {
+				p.debug("TITLE-stop-fail", err.Error())
+			}
+		}()
+	}
 	var peerRun *peerRuntime
 	if runtime, peerErr := p.startPeerRuntime(argv[0]); peerErr != nil {
 		p.debug("PEER-start-fail", peerErr.Error())

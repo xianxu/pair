@@ -59,15 +59,15 @@ func TestOptionsFromCLIRefusesAnArgvWithoutTagAndAgent(t *testing.T) {
 	}
 }
 
-func TestRunCLIRefusesUnleasedStorageBeforePolling(t *testing.T) {
+func TestRunCLIRefusesMissingWrapperLeaseBeforeStorageEffects(t *testing.T) {
 	root := t.TempDir()
 	env := map[string]string{"PAIR_DATA_DIR": filepath.Join(root, "missing"), "PAIR_TAG": "tag"}
 	var stderr bytes.Buffer
 	if code := RunCLI([]string{"tag", "codex"}, func(k string) string { return env[k] }, &stderr); code != 1 {
 		t.Fatalf("unleased poller exit %d", code)
 	}
-	if !strings.Contains(stderr.String(), "retention") {
-		t.Fatalf("missing retention error: %s", stderr.String())
+	if !strings.Contains(stderr.String(), "wrapper lease") {
+		t.Fatalf("missing wrapper lease error: %s", stderr.String())
 	}
 	entries, err := os.ReadDir(root)
 	if err != nil || len(entries) != 0 {
