@@ -1,6 +1,6 @@
 ---
 id: 000635
-status: codecomplete
+status: done
 created: 2026-10-16
 updated: 2026-10-17
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 890c9f34b9d4927eb56cc42d89f0696812925b24
         evidence_commit: bd75beae0db3b20f08162eefdcf66e42938f2f0b
+        landed_commit: 6b259c7f354877055e18bd7f6b4e9edbca0159ec
 ---
 
 # couch --message-status with a short ID reports a submitted message as unretained
