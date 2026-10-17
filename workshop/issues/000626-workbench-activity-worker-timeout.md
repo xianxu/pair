@@ -40,9 +40,9 @@ Diagnose worker progress and deadline attribution in this fixture under normal p
 
 ## Plan
 
-- [ ] Measure cold probe progress and CPU attribution; retain historical failure as unproven beyond available evidence.
-- [ ] Add deterministic search-work regressions through the shared framer's delimiter-search seam, with long records, chunk boundaries, tails, offsets, early stops and limits.
-- [ ] Make the existing shared framer search only appended bytes after a newline-free prefix (ARCH-DRY/ARCH-PURE); preserve all consumers and the existing 30s, twenty-owner workload and cold/warm accounting.
+- [x] Measure cold probe progress and CPU attribution; retain historical failure as unproven beyond available evidence.
+- [x] Add deterministic search-work regressions through the shared framer's delimiter-search seam, with long records, chunk boundaries, tails, offsets, early stops and limits.
+- [x] Make the existing shared framer search only appended bytes after a newline-free prefix (ARCH-DRY/ARCH-PURE); preserve all consumers and the existing 30s, twenty-owner workload and cold/warm accounting.
 - [ ] Verify targeted packages, record a full suite on the pushed head, close review, and land.
 
 
@@ -57,3 +57,11 @@ Authenticated TL dispatch 4bbef5d9 and claimed/start-planned in pair:6. The prev
 Unchanged targeted invariant passed 9.33s. A second diagnostic profile passed 8.69s (profile /tmp/pair626-cold.cpu; executable /tmp/pair626-baseline-couchtty.test). Of 6.34 sampled CPU seconds, 4.37s (68.9%) was under frameJSONLArtifact, including 0.87s delimiter search and 3.47s ReadAt/metadata work. The fixture places almost30MB before the first newline: the shared framer searches the entire growing pending prefix every64KiB, approximately6.87GB searched per owner,137GB total. The two-second row context is checked only after the synchronous framing stage. These demonstrate unnecessary cold work; the historical failure has no per-row trace, so its exact scheduler/IO contribution remains unknown.
 
 Quick plan sent to hub (b8bbd00e), proceeding unless objected. Alternatives: increasing a deadline violates the acceptance contract; changing cache observation authority would widen this fix and needs separate evidence/approval. Keep the metadata validator, probe deadlines and full workload unchanged; correct quadratic delimiter work in the shared reader and measure again. No new durable artifact family or external dependency is introduced.
+
+### 2026-10-17 — Red/green framing cost and progress
+
+TL approved the exact quick plan (authenticated receipt793e6b6f); automatic package installation is tracked separately as ariadne#427. The deterministic regression ran RED with the unchanged search algorithm behind an injected delimiter function:65549 input bytes caused131085 examined bytes;524301 caused2883597;30000013 caused6888539021. GREEN after remembering the already-searched prefix: examined bytes equal input bytes for every size. Production still uses bytes.IndexByte through the same framer; limits apply to the entire record, not merely its new suffix. Explicit boundary, exact-chunk EOF/tail, multi-chunk tail, CR, offsets, finite/exact limit and early-stop cases pass. Existing ledger/fuzz-seed tests pass, complete sessioninventory/threadactivity/workbenchperftest packages pass (6.171/0.417/0.270s), and new regressions pass under race (1.292s).
+
+Added per-probe elapsed/availability/context and generation-completion diagnostics to the existing UI invariant, preserving20 owners,30MB each,30s guard,2s production probe deadline and all read/decode assertions. A Go overlay restored only the original repeated-prefix search for the BEFORE measurement, without mutating the checkout. Both before/after completed120 probe calls across six generations with no context failures. Cold generation5.558s before vs2.969s after; mutation264ms vs139ms; unchanged generations approximately2ms. CPU samples at delimiter search450ms before vs40ms after. Total test6.07s vs3.40s. These wall/CPU samples include host and filesystem variability; deterministic searched-byte counts are the performance regression oracle, not a promised elapsed-time ratio. Metadata validation remains unchanged.
+
+Retained diagnostics: /tmp/pair626-progress-before.log (SHA25650b582e105199fadb7b112b9083cefe1029ba3b99da29d85d3d05ef739d670d0), /tmp/pair626-progress-after.log (SHA2560699efa4aca354453f327bcc107f9fc76436a1d8cf436304c128f5806d20f35d), corresponding .cpu files and .test executables. The original historical timeout cannot be replayed exactly from retained evidence: no original per-row trace or failed-run profile exists here. We demonstrate and remove quadratic cold framing work rather than claim a proven historical scheduler stall. Shared-reader consumers use the same corrected function; FrameJSONLSuffix is a separate pure suffix API and has no per-read chunk loop. No timeouts, retry policies or cache authority changed.
