@@ -77,7 +77,7 @@ Files: couchcore/resource.go; couchtty/console_resources.go; couchcmd/message_se
 Files: README.md, atlas/couch.md; issue Log and this plan.
 
 - [x] Document fields, counter reset/identity semantics, read-only freshness, omission behavior and the measurement recipe. Keep atlas/index links current.
-- [ ] Commit/push, run the required recorded suite on the pushed head, and milestone-close M1 with measured actuals and --no-project because TL owns project records. Binary owns fresh-context review.
+- [x] Commit/push, run the required recorded suite on the pushed head, and milestone-close M1 with measured actuals and --no-project because TL owns project records. Binary owns fresh-context review.
 - [ ] Land only M1 through normal PR/merge gates as explicitly directed; keep #622 working and M2 unchecked. Report PR/build to TL for the combined restart. No worker-initiated :0 stage/restart.
 
 ## Measurement after M1 is live

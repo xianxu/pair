@@ -88,6 +88,12 @@ Required sdlc local-check run --name suite passed on pushed code head aaf17569ea
 
 The two interim hub outcome reports a523d633 and20027db5 expired waiting for a recognized composer; those queue-state reports are now stale. A fresh final outcome will be sent after the M1 gates/landing; no peer keys or operator stage were used to force delivery.
 
+### 2026-10-16 — M1 boundary SHIP
+
+M1 milestone-close adopted measured1.21h and returned SHIP with no Critical, Important or Minor findings. Fresh reviewer independently passed targeted race/resource tests, complete ptychild tests and diff checks; all eight ARCH lenses pass. Evidence committed by the binary as53f3ee0de35a. M1 is checked; M2 remains unchecked and the issue working. Proceeding to the explicitly authorized partial landing through sdlc merge --yes. No whole-issue close, CPU reduction or live acceptance is claimed.
+
+Clarification of #626 evidence:30.16s is the targeted test's total duration including fixture preparation, not a measured worker-only time. The original timeout's cause remains unproven; neither that duration nor host load establishes causality.
+
 ## Revisions
 
 ### 2026-10-16 — measurement milestone before optimization design
