@@ -64,8 +64,21 @@ Measured by pair:2 (18:47): after the restart, 31 hub-bound deliveries were canc
 - Held/queued receipt projection includes the entire receiver line and standing composer wait, using existing words and statuses. Socket tests count one commit across queued/held/queued progression. Queue capacity and terminal receipt retention remain bounded; active accepted receipts survive retention sweeps. The independent Release-lock finding was filed unclaimed as #631; this branch leaves that lock path unchanged.
 - Disconnect safety remains conservative: uncommitted queued work cancels with the exact receiver reason; a handed commit has an uncertain-input outcome (indeterminate, wrapper disconnected) because a last queued status cannot prove no subsequent paste. No body replay or rerouting to a new binding is authorized. The automatic-input watchdog keeps its own bounded diagnostic state; only its obsolete pre-paste expiry eligibility check was removed.
 
+### Post-restart live check — owned by ops:0 and operator
+
+TL explicitly deferred the real-environment check to the next ordinary Couch restart (receipt b66971a3-a6c6-4dab-9503-e837f150720e). Do not stage or rebuild pair:0 from this slot. After restarting with the landed binary:
+
+1. Keep ops:0 in a tool-running turn for longer than 90 seconds. From an idle connected peer, send `couch --send-to hub --message 'pair#629 live check A; acknowledge once when this turn finishes'`, then a second message with body `pair#629 live check B; acknowledge after A`. Record both returned IDs. Do not resend accepted messages.
+2. While ops:0 is still mid-turn, run `couch --message-status ID` from that sender after 90 seconds. A must remain queued (or held for a visible operator blocker), with `position 1; waiting for recognized composer` or the wrapper's more specific standing wait. B must remain queued at position 2 with the same standing wait. Neither may expire due to elapsed composer-wait time. A deliberately hung connected receiver keeps this explicit waiting status indefinitely.
+3. Let the hub return to its safe empty composer. Verify A arrives once, its receipt becomes submitted, then B arrives once and becomes submitted after its confirmation. The second delivery needs no manual resend and no serial 90-second penalty. If the hub starts another turn after A, B waits for the next safe composer rather than pasting into it.
+4. If a separate disposable receiver is available, queue a message while it is busy, then disconnect/relaunch it. Uncommitted queued messages must cancel with the exact receiver/relaunch reason; a handed commit may be indeterminate because input cannot be ruled out. No old message may move into the replacement incarnation. Preserve IDs/receipts if any observation differs and fix forward.
+
 ## Revisions
 
 ### 2026-10-16 19:02 PDT — approval conditions
 
 The approved design adds composer-wait/position status coverage and defers the separately discovered Release-under-lock contention. The durable plan's Revisions section records the exact delta; no status strings or protocol fields are added.
+
+### 2026-10-16 — real-environment qualification deferred by TL
+
+The hub forbids staging in pair:0, which it is rebuilding for #617. Finish package/suite verification, close and land #629 first; ops:0 and the operator own the busy-hub live check immediately after the next restart. The executable steps above replace the plan's pre-landing staging task; no staging or restart is authorized here.

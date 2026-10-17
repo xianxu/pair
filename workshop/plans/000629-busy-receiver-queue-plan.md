@@ -93,3 +93,7 @@ Approved by ops:0 (receipt 573ccccc-8f55-4d1e-ba4f-e1542c3a0cb6), with these del
 ### 2026-10-16 — implementation evidence
 
 The approved Release exclusion is tracked separately as #631. The broker retains its existing conservative disconnect classification once a commit has been handed off: indeterminate rather than cancelled, because a previously observed pre-paste receipt cannot prove no input occurred before disconnection. Never replay that body. Fake-clock tests now cover refusal, queued and held waits, exact-binding replacement, and independent receivers; the socket test covers one commit across queued/held transitions.
+
+### 2026-10-16 — TL moves real-environment check to restart
+
+Receipt b66971a3-a6c6-4dab-9503-e837f150720e explicitly forbids pair:0 staging. Finish full wrapper tests and recorded suite, then close/land; the hub and operator test busy delivery immediately after their next restart and fix forward. The issue now contains exact send bodies, expected queued/held reasons and positions beyond 90s, FIFO confirmation checks, and disconnect safety steps. This supersedes the pre-landing stage task.
