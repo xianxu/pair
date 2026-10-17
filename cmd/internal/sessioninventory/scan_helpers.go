@@ -58,6 +58,11 @@ func visitJSONLinesAt(runtime Runtime, artifact Artifact, lineLimit int64, visit
 // hands it to ParseLedger, which records a malformed ordinal (#237).
 // stopped reports that line returned true before the end.
 func frameJSONLArtifact(runtime Runtime, artifact Artifact, recordLimit int64, line func([]byte, uint64) bool) (tail []byte, stopped bool, err error) {
+	return frameJSONLArtifactWithSearch(runtime, artifact, recordLimit, line, bytes.IndexByte)
+}
+
+// The delimiter seam makes actual search work measurable without timing guards.
+func frameJSONLArtifactWithSearch(runtime Runtime, artifact Artifact, recordLimit int64, line func([]byte, uint64) bool, search func([]byte, byte) int) (tail []byte, stopped bool, err error) {
 	var pending []byte
 	var readOffset int64
 	var pendingOffset uint64
@@ -70,17 +75,21 @@ func frameJSONLArtifact(runtime Runtime, artifact Artifact, recordLimit int64, l
 			return nil, false, errors.New("session inventory runtime returned an empty non-final range")
 		}
 		readOffset += int64(len(chunk))
+		// Every retained byte was already searched in the previous chunk.
+		searchOffset := len(pending)
 		pending = append(pending, chunk...)
 		for {
-			newline := bytes.IndexByte(pending, '\n')
+			newline := search(pending[searchOffset:], '\n')
 			if newline < 0 {
 				break
 			}
+			newline += searchOffset
 			if recordExceedsLimit(newline, recordLimit) {
 				return nil, false, ErrReadLimit
 			}
 			record := pending[:newline]
 			pending = pending[newline+1:]
+			searchOffset = 0
 			if line(record, pendingOffset) {
 				return nil, true, nil
 			}

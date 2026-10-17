@@ -566,7 +566,13 @@ remaining uncertainty is stated, never papered over:
 - **Receive state in `--list` (#618).** `couch --list` asks the running
   supervisor once (the unauthenticated `refusals` op, 250 ms, best effort) for
   each slot's latest unsuperseded refusal and prints it under the row as
-  `can't receive: <reason>` with the one command that clears it.
+  `can't receive: <reason>` with the one command that clears it. Ownership and
+  registration sources carry `couchmessage.RelaunchRequiredError`; the broker
+  records a safe `{reason,class}` projection and the list chooses relaunch from
+  that class (#633), never diagnostic phrases. Timeout/cancellation and unknown
+  classes choose resend. The op contains no sender binding or body. Mixed-version
+  response-shape mismatch omits these best-effort annotations, leaving the ordinary
+  list intact.
 - **Peer turns in the Pair log (#618).** When a delivery ends `Submitted`,
   pair-wrap appends the exact envelope it pasted to the thread's Pair log
   through the managed locked writer (`pairlog.PersistPeerTurn`, append ID
@@ -1525,6 +1531,13 @@ tests retain invalidation/security checks. See [workbench performance](workbench
 for normal-suite commands, strict selected-attach scan counts, other-path scan
 ratchets and the separate 20-slot/60-second CPU acceptance smoke. Counts do not
 claim whole-supervisor CPU behavior after rollout.
+
+The shared chunked JSONL reader searches only appended bytes after a retained
+newline-free prefix (#626). Counted-search regressions pin linear delimiter
+work across long records and chunk boundaries; the 20-owner UI fixture keeps
+its existing deadlines and logs per-probe and generation timing to distinguish
+cold IO/decoding from missing progress. Cache authority and invalidation rules
+are unchanged.
 
 ### Slots behind a picker draw red (pair#465)
 

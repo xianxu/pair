@@ -2164,3 +2164,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
   disposition before exec. Noninteractive background shells supply SIGINT ignored;
   Python preserves that until its handler is installed. Pin pre-handler delivery
   with a process gate and retain stderr rather than relying only on sleep offsets.
+
+- Chunked JSONL framing must not search a retained newline-free prefix again on each append. Count actual delimiter bytes examined across multi-chunk records, alongside semantic boundary/limit tests; read/decode counters alone miss quadratic delimiter work. Preserve per-probe progress when diagnosing aggregate worker timeouts. (#626)
