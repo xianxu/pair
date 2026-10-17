@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"sync"
+	"sync/atomic"
 
 	"github.com/creack/pty"
 
@@ -61,6 +62,7 @@ type Child struct {
 	fd          int
 	publication *publication
 	feedMu      sync.Mutex
+	ingestBytes atomic.Uint64
 
 	mu   sync.Mutex
 	ring *Ring
@@ -213,6 +215,11 @@ func (c *Child) Size() Size {
 	defer c.geom.Unlock()
 	return c.size
 }
+
+// IngestBytes returns cumulative bytes admitted at ingest entry for this Child's
+// lifetime, including bytes whose later parsing or publication fails. It is
+// independent of diagnostic retention and never waits for the parser lock.
+func (c *Child) IngestBytes() uint64 { return c.ingestBytes.Load() }
 
 // Snapshot returns the bounded raw diagnostic tail, never display state.
 func (c *Child) Snapshot() []byte {

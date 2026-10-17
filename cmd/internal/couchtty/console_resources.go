@@ -1,6 +1,8 @@
 package couchtty
 
 import (
+	"time"
+
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 )
 
@@ -37,6 +39,40 @@ func (c *Console) ResourceInventory() ResourceInventorySnapshot {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return ResourceInventorySnapshot{Generation: c.resourceGeneration, InventoryKnown: c.resourceRowsKnown, Rows: cloneResourceRows(c.resourceRows), Hosted: c.snapshotMenuObservationsLocked()}
+}
+
+// HostedIngestSnapshot copies cumulative byte totals for the current hosted
+// children. It deliberately avoids the endpoint parser mutex: diagnostics must
+// remain available while a hidden client is producing output.
+func (c *Console) HostedIngestSnapshot() couchcore.HostedIngestSnapshot {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	snapshot := couchcore.HostedIngestSnapshot{
+		SampledAt: time.Now(),
+		Clients:   make([]couchcore.HostedIngestClient, 0, min(len(c.order), couchcore.ResourceMaxSlots)),
+	}
+	for _, id := range c.order {
+		p := c.panes[id]
+		if p == nil || p.child == nil {
+			continue
+		}
+		select {
+		case <-p.child.Exited():
+			continue
+		default:
+		}
+		if len(snapshot.Clients) == couchcore.ResourceMaxSlots {
+			snapshot.Omitted++
+			continue
+		}
+		snapshot.Clients = append(snapshot.Clients, couchcore.HostedIngestClient{
+			EndpointID:  p.child.Endpoint().ID(),
+			Thread:      p.thread,
+			Process:     couchcore.ResourceProcessKey{PID: p.process.PID, Identity: p.process.Identity},
+			IngestBytes: p.child.IngestBytes(),
+		})
+	}
+	return snapshot
 }
 
 // Summary contains pointer-bearing display metadata. Copy that too, so no

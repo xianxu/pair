@@ -425,7 +425,7 @@ couch --peek repo:N --all [--transcripts]
                                            complete current recording projection [heavy]; bounded, plain text
 couch --archived         threads removed from couch, with their records kept
 couch --actors [--json]  live peer-message receivers in this Couch namespace
-couch --resources [--json] latest cached process-resource sample
+couch --resources [--json] cached process sample plus fresh hosted-ingest totals
 couch --broadcast-list [--json]   every link out by kind (screen, web view, web drive) and its viewers, and the
                          recordings shared for replay (pair#477); never a link
 couch --broadcast-web-query DIR dom|events|notes|link ...
@@ -711,6 +711,24 @@ The default interval is one minute. CPU uses 100% per core; unavailable counters
 stay unavailable. Totals cover observed intervals, so short-lived processes
 between samples are not lifetime accounting. The command also shows sample age
 and the sampler's own native-call, CPU and elapsed-time cost.
+
+The same request includes fresh cumulative hosted-terminal ingress bytes, including
+hidden clients. JSON's optional `hosted_ingest` section has its own `sampled_at`,
+`server_pid`, `server_started_at`, `clients` and `omitted`. Each client names its
+`endpoint_id`, `thread`, process PID/generation and `ingest_bytes`. A missing
+section means unavailable on that server; an empty clients list with zero omitted
+means a supported empty census. Totals count bytes arriving at Child ingress,
+including bytes whose later parsing/publication fails, independently of raw-tail
+retention or acknowledged rendering. They are not per-client CPU measurements.
+
+For rates, take two `--resources --json` observations across an idle or busy
+interval and divide byte delta by elapsed snapshot time only for matching server
+PID/start time and endpoint identities. A replacement, missing row or nonzero
+omission is incomplete evidence, not zero traffic. Counters end with each child;
+restart creates a new server incarnation. At most 256 clients are observed and
+wire limits can omit additional rows, always with an explicit count. No raw
+output, counter history, periodic sampler or per-feed clock is added.
+
 
 Couch alerts the owning hub for sustained writes above 2 MiB/s for ten minutes,
 a process above 8 GiB RSS, an idle slot above 90% of one core for fifteen minutes,
@@ -1427,7 +1445,12 @@ Space is a literal search character; it does not toggle views.
 
 In the switcher, `Ctrl+Y` copies the full last retained status notice, including
 text clipped from the status row and after that row expires. Repeating it copies
-the same notice until another arrives. In an actor, `Ctrl+Y` still goes to the actor.
+the same notice until another arrives. A local console first tries the system
+clipboard (`pbcopy` on macOS), with a one-second budget; successful tool exit
+confirms the copy. SSH sessions and missing, failed, or timed-out clipboard tools
+use a terminal OSC 52 request instead. Its feedback says **unconfirmed**, because
+Couch cannot verify that the terminal delivered it to the clipboard.
+In an actor, `Ctrl+Y` still goes to the actor.
 
 Printable input filters the current list from memory (typeahead), matching what a
 row shows: its label, its path, and the published summary in both default and

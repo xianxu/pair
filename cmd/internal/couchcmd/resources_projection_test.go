@@ -14,7 +14,10 @@ import (
 )
 
 func TestResourceProjectionTransportCapacity(t *testing.T) {
-	v := couchcore.ResourceView{}
+	v := couchcore.ResourceView{HostedIngest: &couchcore.HostedIngestSnapshot{Omitted: 3}}
+	for i := 0; i < couchcore.ResourceMaxSlots; i++ {
+		v.HostedIngest.Clients = append(v.HostedIngest.Clients, couchcore.HostedIngestClient{EndpointID: strings.Repeat("<", 4096), IngestBytes: uint64(i + 1)})
+	}
 	for i := 0; i < couchcore.ResourceMaxSlots; i++ {
 		v.Slots = append(v.Slots, couchcore.ResourceSlotView{Slot: fmt.Sprintf("pair:%d", i), ProcessCount: 32, Reason: strings.Repeat("<", 4096)})
 	}
@@ -30,6 +33,16 @@ func TestResourceProjectionTransportCapacity(t *testing.T) {
 	}
 	v.Errors = []string{strings.Repeat("<", couchmessage.MaxFrameBytes)}
 	projected := projectResourceView(v)
+	encoded, err := json.Marshal(couchmessage.Response{Code: "ok", Resources: &projected})
+	if err != nil || len(encoded) > couchmessage.MaxFrameBytes {
+		t.Fatalf("frame: %d %v", len(encoded), err)
+	}
+	if projected.HostedIngest == nil || projected.HostedIngest.Omitted != 3+len(v.HostedIngest.Clients)-len(projected.HostedIngest.Clients) {
+		t.Fatal("lost hosted omissions")
+	}
+	if v.HostedIngest.Omitted != 3 || len(v.HostedIngest.Clients) != couchcore.ResourceMaxSlots {
+		t.Fatal("mutated hosted source")
+	}
 	dir, err := os.MkdirTemp("/tmp", "r587-")
 	if err != nil {
 		t.Fatal(err)
@@ -60,5 +73,33 @@ func TestResourceProjectionTransportCapacity(t *testing.T) {
 	}
 	if v.Slots[0].Reason != strings.Repeat("<", 4096) {
 		t.Fatal("projection mutated source")
+	}
+}
+
+func TestResourceHostedProjectionAndCloneIsolation(t *testing.T) {
+	for _, n := range []int{0, 1, 27, 256} {
+		v := couchcore.ResourceView{HostedIngest: &couchcore.HostedIngestSnapshot{Clients: make([]couchcore.HostedIngestClient, 0, n)}}
+		for i := 0; i < n; i++ {
+			v.HostedIngest.Clients = append(v.HostedIngest.Clients, couchcore.HostedIngestClient{EndpointID: fmt.Sprint(i), IngestBytes: uint64(i)})
+		}
+		projected := projectResourceView(v)
+		cloned := cloneResourceView(v)
+		for _, got := range []couchcore.ResourceView{projected, cloned} {
+			if got.HostedIngest == nil || len(got.HostedIngest.Clients)+got.HostedIngest.Omitted != n {
+				t.Fatalf("census n=%d: %+v", n, got.HostedIngest)
+			}
+			for i, row := range got.HostedIngest.Clients {
+				if row != v.HostedIngest.Clients[i] {
+					t.Fatal("retained identity changed")
+				}
+			}
+			got.HostedIngest.Omitted = 99
+			if len(got.HostedIngest.Clients) > 0 {
+				got.HostedIngest.Clients[0].EndpointID = "changed"
+			}
+			if v.HostedIngest.Omitted != 0 || (n > 0 && v.HostedIngest.Clients[0].EndpointID != "0") {
+				t.Fatal("snapshot alias")
+			}
+		}
 	}
 }
