@@ -57,3 +57,9 @@ New behaviour: a two-state toggle, Normal ↔ Focus. Maximize goes away as a tar
 ### 2026-10-17 — quick design
 
 TL dispatched the operator’s explicit two-state contract and authorized quick flow. ARCH-PURE/ARCH-DRY: retain PlanRightPane as the one transition owner and reuse its existing operations. Focus exit re-embeds, restores the recorded tiling and split order, returns to the invoking pane, clears the return record and nudges dimming. Native fullscreen remains observable only for the one-press compatibility exit; no plan enters it. Existing lock, stop-on-error and degraded-restore behavior remain. No new durable artifacts, external calls or background work. Existing runtime fake and native chord/conformance tests cover single and split panes, invoking-focus restoration, failure ordering and native fullscreen. The fixed 75% centered geometry is unchanged. Plan posted to hub, proceeding unless objected.
+
+## Revisions
+
+### 2026-10-17 — native return-focus conformance
+
+Native conformance shows re-embed can already focus the invoking pane (focus-pane-id then exits 2), or move away when the terminal itself is the recorded return. TL approved always issuing StepFocus for a known return target, and accepting only exit 2 with exactly the target-specific `Pane Terminal(N) is already focused` diagnostic. Preserve native action output in typed errors; every other failure still stops. Pin the external wording and code in real-Zellij conformance, and model idempotence plus focus movement in the stateful fake. This corrects the Focus→Normal transition without new state or artifacts.
