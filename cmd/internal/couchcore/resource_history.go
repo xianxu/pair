@@ -13,8 +13,11 @@ type ResourceFrame struct {
 	Slots        []ResourceSlotView    `json:"slots"`
 	Orphans      []ResourceProcessView `json:"orphans"`
 	Unattributed []ResourceProcessView `json:"unattributed"`
-	Errors       []string              `json:"errors"`
-	Cost         ResourceCost          `json:"cost"`
+	// OrphanNvim keeps the rows the sweep named, which the view suppresses from
+	// Unattributed; without them the frame would forget the offender (#583).
+	OrphanNvim []OrphanNvim `json:"orphan_nvim"`
+	Errors     []string     `json:"errors"`
+	Cost       ResourceCost `json:"cost"`
 }
 type ResourceHistory struct {
 	Version int             `json:"version"`
@@ -34,7 +37,7 @@ func (h ResourceHistory) Append(v ResourceView) (ResourceHistory, error) {
 			next.Frames = append(next.Frames, f)
 		}
 	}
-	next.Frames = append(next.Frames, ResourceFrame{v.SampledAt, v.Slots, v.Orphans, v.Unattributed, v.Errors, v.Cost})
+	next.Frames = append(next.Frames, ResourceFrame{v.SampledAt, v.Slots, v.Orphans, v.Unattributed, v.OrphanNvim, v.Errors, v.Cost})
 	if len(next.Frames) > 1440 {
 		next.Frames = next.Frames[len(next.Frames)-1440:]
 	}
@@ -73,10 +76,18 @@ func ValidateResourceHistory(raw []byte) error {
 	}
 	var last time.Time
 	for _, f := range h.Frames {
-		if f.At.IsZero() || !last.IsZero() && !f.At.After(last) || len(f.Slots) > ResourceMaxSlots || len(f.Orphans) > ResourceMaxProcesses || len(f.Unattributed) > ResourceMaxProcesses {
+		if !frameWithinBounds(f) || !last.IsZero() && !f.At.After(last) {
 			return errors.New("invalid resource history frame")
 		}
 		last = f.At
 	}
 	return nil
+}
+
+func frameWithinBounds(f ResourceFrame) bool {
+	return !f.At.IsZero() &&
+		len(f.Slots) <= ResourceMaxSlots &&
+		len(f.Orphans) <= ResourceMaxProcesses &&
+		len(f.Unattributed) <= ResourceMaxProcesses &&
+		len(f.OrphanNvim) <= ResourceMaxProcesses
 }

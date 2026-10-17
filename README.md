@@ -433,6 +433,10 @@ couch --peek repo:N --all [--transcripts]
 couch --archived         threads removed from couch, with their records kept
 couch --actors [--json]  live peer-message receivers in this Couch namespace
 couch --resources [--json] cached process sample plus fresh hosted-ingest totals
+couch --reap-orphans [--confirm] [--json]
+                         the unattributed embedded nvim --resources named; without --confirm it lists them
+                         and ends nothing, with --confirm it ends each one and its tree, every signal fenced
+                         on the identity the sweep recorded [seconds]
 couch --broadcast-list [--json]   every link out by kind (screen, web view, web drive) and its viewers, and the
                          recordings shared for replay (pair#477); never a link
 couch --broadcast-web-query DIR dom|events|notes|link ...
@@ -451,6 +455,9 @@ couch --session-sync read|write|diff|status ... FILE
                          the one way an agent changes registered markdown or a legacy session file: refuses under the
                          operator's lock or when the section changed since `read` (write --if-hash), and
                          lists owed deliveries; locks older than 30 minutes add ping advice (see couch --skill)
+                         Couch checks registered session-sync files owned by idle hubs with tl-lead status check,
+                         at most every 30 minutes per file; stale sections produce a read-only reminder.
+                         Operator locks suppress checks; restart resets the in-memory allowance.
 couch --session-sync read --frontmatter FILE [--json]
 couch --session-sync write --frontmatter BODYFILE FILE --if-hash H
                          light: read or replace the complete leading --- block only; preserves body bytes
@@ -743,11 +750,18 @@ output, counter history, periodic sampler or per-feed clock is added.
 
 Couch alerts the owning hub for sustained writes above 2 MiB/s for ten minutes,
 a process above 8 GiB RSS, an idle slot above 90% of one core for fifteen minutes,
-or a proven orphan above 256 MiB across two samples. Each incident is admitted
+a proven orphan above 256 MiB across two samples, or an untagged embedded nvim
+orphaned at PID 1 for six hours inside a managed checkout. Each incident is admitted
 once per supervisor run through normal messaging; pending retries reuse the
 same effect ID. Episodes live in memory, so restarting Couch re-arms them and
 can repeat an advisory alert. History is best-effort and never gates alerts.
-Unattributed candidates are report-only. Monitoring never kills processes.
+Unattributed candidates are report-only, and the monitor never kills anything.
+The one destructive verb is the operator's: `couch --reap-orphans` names the
+orphaned embedded nvim the sweep found and ends nothing, and
+`couch --reap-orphans --confirm` re-classifies from a fresh sample and then ends
+each named tree, every signal fenced on the identity the sweep recorded — a pid
+that has exited or been recycled is skipped with the reason printed, never
+signalled on the strength of a number that still exists.
 See [resource monitoring](atlas/couch.md#resource-monitoring-587) for policy
 settings, ownership evidence, platform support and coverage limits. Aggregate
 history rolls over after 24 hours and is bounded independently of debug logs.
@@ -1053,7 +1067,9 @@ and asks the hub to request fresh status.
 
 Couch records content-free supervision facts locally in its namespace
 `supervision.jsonl`: hub deliveries, session-file writes, accepted submissions,
-slot changes and minute snapshots. Logging is best-effort and capped per diagnostic
+slot changes, clipboard-copy outcomes and minute snapshots. Clipboard events record
+only tool, exit/timeout status, stderr byte length/hash and the separate OSC outcome;
+free-form stderr and the copied notice never enter this log. Logging is best-effort and capped per diagnostic
 generation; gaps are not inactivity. The [offline labeling script](scripts/supervision-labels/SKILL.md)
 compares observed writes within ten minutes without changing Couch decisions.
 See [the fact-log contract](atlas/couch.md#supervision-fact-log-543) for coverage and retention.
@@ -1472,11 +1488,23 @@ Space is a literal search character; it does not toggle views.
 
 In the switcher, `Ctrl+Y` copies the full last retained status notice, including
 text clipped from the status row and after that row expires. Repeating it copies
-the same notice until another arrives. A local console first tries the system
+the same notice until another arrives. A failed or unconfirmed attempt keeps its
+original notice for **Ctrl+Y** retry even if a newer notice arrives; **Esc** dismisses
+the copy feedback without leaving the switcher. Navigation and background refreshes
+keep that feedback and ordinary operation errors independently visible.
+A local console first tries the system
 clipboard (`pbcopy` on macOS), with a one-second budget; successful tool exit
 confirms the copy. SSH sessions and missing, failed, or timed-out clipboard tools
 use a terminal OSC 52 request instead. Its feedback says **unconfirmed**, because
-Couch cannot verify that the terminal delivered it to the clipboard.
+Couch cannot verify that the terminal delivered it to the clipboard. Native tool
+failures retain bounded stderr on screen; a successful tool whose child holds stderr
+remains successful, with incomplete diagnostic capture marked truncated. Each attempt emits a content-free
+`clipboard_copy` event in the namespace supervision log.
+An authorized opt-in conformance run from a Couch slot uses
+`PAIR_LIVE_CLIPBOARD_CONFORMANCE=1 go test ./cmd/internal/couchtty -run '^TestClipboardLiveConsoleConformance$' -count=1`.
+It requires native macOS tools, keeps the previous clipboard only in memory, and
+restores it only if the clipboard still contains its test marker. Normal suites
+skip this check.
 In an actor, `Ctrl+Y` still goes to the actor.
 
 Printable input filters the current list from memory (typeahead), matching what a

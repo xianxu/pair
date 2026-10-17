@@ -7,6 +7,12 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- Adding diagnostic pipes changes subprocess completion: a detached child can hold stderr after a successful tool exit. Separate process success from diagnostic-drain cutoff, retain capture uncertainty, and test inherited descriptors behind a release handshake. (#638)
+
+- Reserve shared banners before a menu frame windows its selected rows. Subtracting them only for some frame kinds lets final clipping hide selected actions and cursors; test every windowed frame at minimum geometry. (#638)
+
+- Keep free-form tool stderr out of metadata-only diagnostic callbacks. A truncated or transformed echo defeats full-input redaction; publish typed status plus stderr length/hash and keep bounded output on the operator screen. (#638 PQ-1)
+
 - A strict trust check and a native discovery rule can intentionally treat aliases differently. Failure to prove one observed discovery candidate makes the whole candidate scope unknown; silently omitting it can select an older conversation. Test the selected identity with a newer candidate behind an unsupported alias. (#571 BR-3)
 - SQLite read-only mode can create native WAL-index sidecars. A non-mutating adapter queries an owned coherent private snapshot, and a real WAL fixture must compare the entire native file set and bytes before and after success, failure and cancellation. An integrity check validates recovery, not the coherence of separately copied source files. (#571 BR-4)
 
@@ -279,6 +285,11 @@ representative evidence, not an exhaustive index.
   A failed probe that returns `(false, nil)` silently turns "could not tell" into "no".
   Every error source on the path fails the command, or appears on the result as an
   error line. Write one test per source. (#387 `--show`, two review rounds)
+- Backgrounding a child from `sh -c` in a non-interactive shell redirects the
+  child's stdin from /dev/null, so a long-lived child (an embedded nvim) that
+  inherited an os.Pipe gets an immediate EOF and exits within ~150 ms even with
+  the write end held open. Redirect its stdin explicitly — a FIFO whose write
+  end the test holds — to keep it alive past its parent. (#583 live conformance)
 
 ## Interfaces, schemas, and data
 
@@ -387,6 +398,11 @@ representative evidence, not an exhaustive index.
 - Comments and review claims are claims. Check them against the mutation boundary,
   cite symbols rather than line numbers, and record uncertainty as uncertainty.
   (#221, #223)
+- A new production source file must be declared in artifactpath's exhaustive
+  inventory (SourceClassifications or NonArtifactSources) even when it owns no
+  artifact — absence itself is the violation. Targeted runs of the packages you
+  touched cannot see it; TestProductionArtifactReferencesAreExactlyClassified
+  is a whole-tree claim that only the full suite asserts. (#583 pre-close suite)
 
 ## Language and tool sharp edges
 
@@ -2042,6 +2058,11 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 - #602 BR-3: a migration guard must fail against every original offender before its synthetic controls are considered sufficient. Normalize target paths in their actual working-directory context; root-relative examples alone miss package-relative recipes. Keep compact regression fixtures for the original command forms and verify the full original source bodies once.
 
+- #583 BR-5: a fix commit is verified against every package's tests, not only the packages it edits. Guards that parse production sources (`artifactpath`'s inventory test reads every classified file) live in a package the edited code never imports, so a green run of the touched packages says nothing about them; run the whole `./cmd/internal/...` before a boundary review. And measure a review's suggested remedy before applying it: rewording a message to drop an "artifact token" still tripped the guard here, because the family token sat in the command prefix (`pair-changelog-open:`) — the sanctioned fix was the terse shape plus its entry in the manifest's inventory.
+
+- #583 BR-6: a kill path's attribution must name the *owner*, not the kind. Evidence every instance of a kind shares — a config's base name, an `--embed` flag, a binary path — authorizes nothing once a pid can be recycled: the record a dead owner left behind can name a pid another live owner's process now holds, and an identity fence re-read at signal time does not cover a reuse that predates the snapshot. State the owner-naming predicate as a required positive (`Expect…` flag plus its value) so a candidate that states none is a skip with its own reason instead of a pass by omission, and demote kind-wide evidence to corroboration. Then fix the class, not the site: an existing test had *pinned* the unsafe behaviour here ("review kind expects no scope path" → kill), so a site-level fix would have left the rule unstated and the next kind free to repeat it.
+
+- #583 BR-7: a kill path's attribution must be **bound to the pid at the moment its record is written**, and must not change for that process's lifetime. Mutable session state (a target/selection file a live UI rewrites) may corroborate a decision but cannot be its subject: when the state moves and the process's argv does not, the process's *own* orphan is the thing that gets classified "not ours". And check what a decided negative **deletes** before calling a skip safe — `reapReasonOtherPath` skips *and* drops the record, so for a kind with no argv-only fallback the "safe direction" removes the only name the orphan ever had and reopens the leak the issue exists to close. Two rules follow: state a mismatch against mutable evidence as missing evidence (keep the record), and prefer evidence the subject writes about itself (argv, at publish) over evidence another actor writes about it later.
 - #617: A subprocess test inherits artifact authority through environment, even
   when HOME, PAIR_DATA_DIR and PAIR_TAG point at temporary storage. The first
   leased-title fixture passed a temporary raw capture path while inheriting the
@@ -2129,7 +2150,13 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #637 BR-1: A current notice is transient presentation, not operation completion. Independent event deliveries can overwrite it after success. Fixtures synchronize on an admitted operation's completion channel and test completion-before-late-presentation ordering; observing a phase alone can also precede release of the owner's work slot.
 - #631: Removing a shared mutex from external cleanup must retain the existing per-recipient reservation until that cleanup returns. Regress cancellation emptying the old queue entry followed by a new admission, and a replacement holding its own reservation while the old cleanup finishes.
 
+- #638: A successful subprocess exit does not prove a complete piped-input operation. exec.ErrWaitDelay can describe either unread inherited stdin or a held-open diagnostic descriptor; preserve success only after verifying the existing input reader is exhausted and context remains valid. Pair the full-read/held-stderr regression with an over-pipe-capacity unread-input negative control.
 - #634: Start a request's admission budget before sender checks, then carry its context through registry posting and recipient IO. A timeout regression must include earlier work over the real transport; testing admission alone misses additive budgets. Refusal bookkeeping reuses the routing snapshot rather than starting a second lookup after expiry.
 
 - #635: Resolve human-facing receipt prefixes within the authenticated caller's visible retained set before consulting recovery holders. An unmatched query identifies an unknown lookup, not a delivery outcome; ambiguity lists only visible full IDs, with exact matches taking precedence.
 - #643: Distinguish atomic replacement of one file from publication of a document/shadow/state bundle. A plan must name partial persisted outcomes and reconciliation after IO failure; test a controlled publication failure and prove unread baselines and owed events survive.
+
+- #630: A deadline and bounded pipe draining do not collect descendants that close their pipes before a successful parent exits. A command group owned only for a synchronous check ends on every completion, including success. Test both cancellation and a successful parent with an independently live, closed-pipe child.
+
+- #630 BR-1: A registered-only operation selects or rejects its route under the registry lock before entering a generic legacy loader. A post-load authority check cannot prevent fallback IO, side effects or unbounded locks. Regress unknown and disappeared authority while the fallback lock is held, and prove service cancellation still collects the caller.
+- #638 BR-1 (advisory): When positive and negative subprocess regressions share a descriptor-holder protocol, give one test helper ownership of its environment, release handshake and bounded cleanup so lifecycle fixes do not diverge between copies.

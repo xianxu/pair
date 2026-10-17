@@ -431,29 +431,70 @@ func (c *Console) finishMenuPreview(result menuPreviewResult) {
 	}
 }
 
-// copyLastNotice reads retained history rather than the expiring/clipped row.
-// Clipboard I/O happens outside mu; feedback stays out of the feed so another
-// Ctrl+Y copies the same diagnostic, not the copy confirmation.
-func (c *Console) copyLastNotice() {
+// CopyObservation is content-free: native stderr remains on the local UI only.
+// OSC acceptance is explicitly unconfirmed; it never proves clipboard delivery.
+type CopyObservation struct {
+	Outcome string                        `json:"outcome"`
+	Native  clipcmd.ClipboardCopyMetadata `json:"native"`
+	OSC     string                        `json:"osc"`
+}
+
+func (c *Console) SetCopyObserver(observer func(CopyObservation)) {
 	c.mu.Lock()
-	messages := c.feed.Messages()
+	c.copyObserver = observer
 	c.mu.Unlock()
-	notice := infoMenuNotice("No notice to copy.")
-	if len(messages) > 0 {
-		text := messages[len(messages)-1].Body
-		ctx, cancel := context.WithTimeout(c.lifetime, time.Second)
-		err := clipcmd.NewOSRuntime().ClipboardCopyLocal(ctx, text)
-		cancel()
-		if err == nil {
-			notice = infoMenuNotice("Full notice copied to clipboard.")
-		} else if err := c.presenter.Copy(c.lifetime, []byte(text)); err != nil {
-			notice = errorMenuNotice("Couldn’t copy notice; press Ctrl+Y to retry: " + err.Error())
-		} else {
-			notice = infoMenuNotice("Terminal copy requested; delivery is unconfirmed.")
-		}
+}
+
+// copyLastNotice is owned by the Console input loop. IO stays outside mu and
+// a held failure keeps the original notice even when newer feed items arrive.
+func (c *Console) copyLastNotice() {
+	if c.lifetime.Err() != nil {
+		return
 	}
 	c.mu.Lock()
-	c.menu.Notice = notice
+	feedback := c.menu.CopyFeedback
+	text, found := feedback.payload, feedback.held()
+	if !found {
+		messages := c.feed.Messages()
+		if len(messages) > 0 {
+			text, found = messages[len(messages)-1].Body, true
+		}
+	}
+	observer := c.copyObserver
+	c.mu.Unlock()
+
+	observation := CopyObservation{Outcome: "empty", OSC: "not-requested"}
+	next := CopyFeedback{Kind: CopyFeedbackEmpty, Text: "No notice to copy."}
+	if found {
+		ctx, cancel := context.WithTimeout(c.lifetime, time.Second)
+		result, localErr := clipcmd.NewOSRuntime().ClipboardCopyLocalResult(ctx, text)
+		cancel()
+		observation.Native = result.Metadata
+		if localErr == nil {
+			observation.Outcome = "copied"
+			next = CopyFeedback{Kind: CopyFeedbackSuccess, Text: "Full notice copied to clipboard."}
+		} else {
+			next = CopyFeedback{Kind: CopyFeedbackUnconfirmed, payload: text}
+			fallbackErr := c.presenter.Copy(c.lifetime, []byte(text))
+			if fallbackErr != nil {
+				observation.Outcome, observation.OSC = "failed", "failed"
+				next.Kind = CopyFeedbackFailed
+				next.Text = "Copy failed: " + localErr.Error() + "; terminal fallback: " + fallbackErr.Error()
+			} else {
+				observation.Outcome, observation.OSC = "unconfirmed", "unconfirmed"
+				next.Text = "Local copy failed: " + localErr.Error() + "; terminal copy requested; delivery is unconfirmed."
+			}
+		}
+	}
+	if observer != nil {
+		observer(observation)
+	}
+	c.mu.Lock()
+	if c.lifetime.Err() != nil {
+		c.mu.Unlock()
+		return
+	}
+	c.menu, _ = ReduceMenu(c.menu, MenuEvent{Kind: MenuEventCopyResult, CopyFeedback: next})
 	c.mu.Unlock()
 	c.showMenu()
 }

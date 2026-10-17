@@ -224,8 +224,8 @@ type LifecycleOps interface {
 	// server processes, and returns success only after record + servers are
 	// observed absent.
 	DeleteSession(session string) error
-	// ReapNvim kills this tag's nvim --embed children (pidfiles + pattern sweep),
-	// shell 1089-1112.
+	// ReapNvim ends this tag's embedded nvim processes: one pid record at a time,
+	// each killed only on verified identity, never by name (#583).
 	ReapNvim(tag string)
 	// SweepOrphanNvim reaps nvim --embed whose Pair session is not in liveTags —
 	// startup hygiene for externally-killed sessions that left no quit marker,

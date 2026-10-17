@@ -199,6 +199,7 @@ type MenuState struct {
 	FrameSequence      uint64
 	SpinnerPhase       uint8
 	Notice             MenuNotice
+	CopyFeedback       CopyFeedback
 	// SlotGit is the last slot git observation per checkout path (pair#317),
 	// rebuilt over each refresh's probe set. Display evidence only.
 	SlotGit map[string]couchcore.SlotGitStatus
@@ -284,12 +285,14 @@ const (
 	// MenuEventHub records the hub's worktree root and reorders (pair#491).
 	MenuEventHub
 	MenuEventHubOwnership
+	MenuEventCopyResult
 )
 
 type MenuEvent struct {
 	RecoveryConfirmation *couchcore.RecoveryConfirmationOffer
 	RecoveryPreview      *couchcore.RecoveryPreview
 	RowKey               couchcore.ThreadRowKey
+	CopyFeedback         CopyFeedback
 	Kind                 MenuEventKind
 	Key                  PanelKey
 	Address              couchcore.ThreadAddress
@@ -447,6 +450,11 @@ func clearsPreviousNotice(kind MenuEventKind) bool {
 // transition so callers can retain prior states safely.
 func ReduceMenu(state MenuState, event MenuEvent) (MenuState, []MenuEffect) {
 	next := cloneMenuState(state)
+	var consumed bool
+	next.CopyFeedback, consumed = ReduceCopyFeedback(next.CopyFeedback, event)
+	if consumed {
+		return next, nil
+	}
 	if event.Kind == MenuEventTick {
 		if menuProgressMatches(next.Notice, event) {
 			next.SpinnerPhase = (next.SpinnerPhase + 1) % 4

@@ -157,7 +157,13 @@ func RenderMenuView(state MenuState, width, height int, now time.Time, color256 
 		frames = []MenuFrame{{Kind: MenuFrameRoot}}
 	}
 	frame := frames[len(frames)-1]
-	lines, extents := renderMenuFrame(state, frame, width, height, now, color256)
+	banners := renderedMenuCopyLines(state)
+	if notice := renderedMenuNotice(state); notice != "" {
+		banners = append([]string{notice}, banners...)
+	}
+	// The frame windows its selection within the space left by all banners.
+	// This is the sole banner budget, shared by every frame kind.
+	lines, extents := renderMenuFrame(state, frame, width, height-len(banners), now, color256)
 	if len(lines) > 0 {
 		breadcrumb := clipMenuLine(menuBreadcrumb(state, frame), width)
 		if color256 {
@@ -165,17 +171,17 @@ func RenderMenuView(state MenuState, width, height int, now time.Time, color256 
 		}
 		lines[0] = breadcrumb
 	}
-	if notice := renderedMenuNotice(state); notice != "" {
-		lines = append(lines, "")
-		copy(lines[2:], lines[1:])
-		lines[1] = clipMenuLine(notice, width)
-		// Every actor row moved down one. Re-based HERE rather than in
-		// renderRootMenuFrame, which cannot know what its caller inserts above
-		// it -- an extent computed before this shift is right by one line and
-		// wrong by one, the least visible way to be wrong.
+	if len(banners) > 0 {
+		expanded := make([]string, 0, len(lines)+len(banners))
+		expanded = append(expanded, lines[0])
+		for _, banner := range banners {
+			expanded = append(expanded, clipMenuLine(banner, width))
+		}
+		lines = append(expanded, lines[1:]...)
+		// Actor ranges use the final line coordinates, after every independent banner.
 		for i := range extents {
-			extents[i].Start++
-			extents[i].End++
+			extents[i].Start += len(banners)
+			extents[i].End += len(banners)
 		}
 	}
 	lines = fitMenuBlock(lines, width, height)
@@ -194,8 +200,8 @@ func RenderMenuView(state MenuState, width, height int, now time.Time, color256 
 // row the operator cannot see is a row they cannot click.
 //
 // UNREACHABLE TODAY, and kept deliberately. renderRootMenuFrame's own rowBudget
-// already subtracts the breadcrumb, the notice and the filter before choosing
-// its window, so RenderMenuView's `lines[:height]` truncation never fires while
+// already receives the height after banners and subtracts the breadcrumb and
+// filter before choosing its window, so RenderMenuView's `lines[:height]` truncation never fires while
 // extents exist -- measured across heights 3..16, where maxEnd never exceeds the
 // drawn count. It is a guard against the two bounds drifting apart, not live
 // behaviour, which is why no test can redden it: a test would have to construct
@@ -383,9 +389,6 @@ func renderStartMenuFrame(state MenuState, frame MenuFrame, width, height int) [
 	if frame.CompletionTruncated {
 		fixedRows++
 	}
-	if renderedMenuNotice(state) != "" {
-		fixedRows++
-	}
 	fixedRows += len(frame.PreviewResolution.ReuseNotices)
 	budget := max(height-fixedRows, 0)
 	if budget > len(frame.CompletionCandidates) {
@@ -520,9 +523,6 @@ func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, no
 	lines := []string{"threads", clipMenuLine("Ctrl+Y copy last notice", width)}
 	rowBudget := height - len(lines)
 	if frame.Filter != "" {
-		rowBudget--
-	}
-	if state.Notice.Text != "" || state.ProjectionPending {
 		rowBudget--
 	}
 	if rowBudget < 1 {

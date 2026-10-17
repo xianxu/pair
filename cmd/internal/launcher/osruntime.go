@@ -14,7 +14,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
 	"syscall"
@@ -916,73 +915,26 @@ func (r OSRuntime) DeleteSession(session string) error {
 	return r.DeleteSessionContext(context.Background(), session)
 }
 
-// pkillF runs `pkill -9 -f <pattern>` (best-effort; macOS pkill -f is BRE).
-func pkillF(pattern string) { _ = exec.Command("pkill", "-9", "-f", pattern).Run() }
-
-// ReapNvim kills this tag's nvim --embed children: the deterministic pidfiles
-// first, then a scoped pkill for the missing-pidfile case (shell 1089-1112).
+// ReapNvim ends this tag's embedded nvim processes, and only on verified
+// identity (#583): a pid record names a pid, the process table says what that
+// pid is running now, and the kernel start stamp is re-read before the signal.
+// There is no pattern kill here — the sweep that used to follow the pidfiles
+// could reach any process whose argv mentioned the draft's path.
 func (r OSRuntime) ReapNvim(tag string) {
 	paths, err := artifactpath.ResolveScoped(r.DataDir, tag)
 	if err != nil {
 		return
 	}
-	for _, kind := range []string{"draft", "scrollback"} {
-		pf := paths.NvimPID(kind)
-		if raw, err := r.ReadFile(pf); err == nil {
-			if pid := strings.TrimSpace(raw); pid != "" {
-				_ = exec.Command("kill", "-9", pid).Run()
-			}
-			r.Remove(pf)
-		}
-	}
-	pkillF("nvim --embed.*" + regexp.QuoteMeta(paths.Draft()) + `$`)
-	pkillF("nvim --embed.*" + regexp.QuoteMeta(paths.ScrollbackPrefix()))
+	_, _ = reapNvimSidecars(context.Background(), r.processTable(), r, nvimSidecarsFor(paths, tag, paths.ScopeDir(), false))
 }
 
-// SweepOrphanNvim reaps nvim --embed processes whose Pair session is not live —
-// candidates come from the nvim-pid-* sidecars and a native argv snapshot (catches
-// embeds with no pidfile), shell 1117-1158.
+// SweepOrphanNvim reaps embedded nvim processes whose Pair session is not live,
+// one pid at a time and only on verified identity (#583). Candidates come from
+// the nvim-pid sidecars, the changelog viewer's artifact-keyed record, and argv
+// that carries a scope path; the decision is per pid, so an embed is never
+// reached through a name it happens to match.
 func (r OSRuntime) SweepOrphanNvim(liveTags []string) {
-	scope, err := artifactpath.ResolveSelectedScope(r.DataDir)
-	if err != nil {
-		return
-	}
-	live := make(map[string]bool, len(liveTags))
-	for _, t := range liveTags {
-		live[t] = true
-	}
-	cands := map[string]bool{}
-	for _, kind := range []string{"draft", "scrollback"} {
-		pattern, err := scope.NvimPIDGlob(kind)
-		if err != nil {
-			continue
-		}
-		matches, _ := filepath.Glob(pattern)
-		for _, m := range matches {
-			if tag, ok := scope.TagFromNvimPID(m, kind); ok {
-				cands[tag] = true
-			}
-		}
-	}
-	if rows, err := r.Processes.Snapshot(context.Background()); err == nil {
-		for _, row := range rows {
-			if row.Err != nil {
-				continue
-			}
-			argv := strings.Join(row.Args, " ")
-			if !strings.Contains(argv, "nvim") || !strings.Contains(argv, "--embed") {
-				continue
-			}
-			if tag := scope.TagFromNvimEmbedArgv(argv); tag != "" {
-				cands[tag] = true
-			}
-		}
-	}
-	for tag := range cands {
-		if !live[tag] {
-			r.ReapNvim(tag)
-		}
-	}
+	_, _ = sweepOrphanNvim(context.Background(), r.processTable(), r, r.DataDir, liveTags)
 }
 
 // ParkScrollback preserves the .raw/.events.jsonl scrollback to a timestamped

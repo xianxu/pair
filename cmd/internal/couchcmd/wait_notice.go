@@ -242,6 +242,7 @@ const waitTailLines = 60
 // reads the service's memory every tick; only a slot quiet past the threshold
 // costs IO, one tail read from its own wrapper per episode.
 type waitWatcher struct {
+	staleTick func() // nonblocking offer to the serialized freshness worker
 	svc       *messageService
 	threshold time.Duration
 	optOut    string // the operator's mute list; Couch only reads it
@@ -341,6 +342,9 @@ func (s *messageService) isHubBinding(b couchmessage.Binding) bool {
 }
 
 func (w *waitWatcher) tick(ctx context.Context, now time.Time) {
+	if w.staleTick != nil {
+		w.staleTick()
+	}
 	coordinator := w.svc.supervision.Load()
 	if coordinator != nil {
 		defer func() {

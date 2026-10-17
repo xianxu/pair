@@ -465,6 +465,7 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch, configur
 	service.installHubMoves(console)
 	service.SetDesktopNotify(console.NotifyDesktop)
 	console.SetMessageBroker(service.broker)
+	console.SetCopyObserver(facts.clipboardCopy)
 	service.SetBroadcastStatus(console.BroadcastStatus)
 	service.SetShares(console.Shares)
 	service.SetBlockedView(console.SetBlockedThreads)
@@ -475,7 +476,10 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch, configur
 	service.recordDeliveries(namespace)
 	service.supervision.Store(newSupervisionCoordinator(service, func(text string) { console.Notify(couchtty.Notice{Kind: "status", Body: text}) }))
 	watcher := newWaitWatcher(service, threshold, namespace)
-	service.workers.Add(1)
+	stale := newSessionStaleWatcher(service, namespace, func(text string) { console.Notify(couchtty.Notice{Kind: "status", Body: text}) })
+	watcher.staleTick = stale.offer
+	service.workers.Add(2)
+	go func() { defer service.workers.Done(); stale.run(service.lifetime) }()
 	go func() { defer service.workers.Done(); watcher.run(service.lifetime, waitTick) }()
 	service.workers.Add(1)
 	go func() { defer service.workers.Done(); listings.Run(service.lifetime) }()
@@ -495,7 +499,7 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch, configur
 	inventory := newResourceInventory(console, c, service)
 	persistence := newResourceHistoryPersistence(namespace)
 	alerts := newResourceAlertDispatcher(service)
-	sampler := &resourceSampler{reader: procutil.NativeResourceReader{}, slots: inventory.snapshot, policy: resourcePolicy, alerts: alerts.dispatch, persist: persistence.persist, history: persistence.historySummary}
+	sampler := &resourceSampler{reader: procutil.NativeResourceReader{}, slots: inventory.snapshot, policy: resourcePolicy, alerts: alerts.dispatch, persist: persistence.persist, history: persistence.historySummary, sweeps: make(chan chan resourceSweep)}
 	hostedIngest := console.HostedIngestSnapshot
 	service.hostedIngest.Store(&hostedIngest)
 	service.resources.Store(sampler)
@@ -835,6 +839,24 @@ func (s *messageService) handle(ctx context.Context, request couchmessage.Reques
 			return couchmessage.Response{Code: "ok", Resources: &view}
 		}
 		return couchmessage.Response{Code: "unsupported", Error: "resource sampler unavailable"}
+	case request.Op == orphanReapOp:
+		// The reap's plan is a classification of its own, never the report the
+		// last cadence left behind: an operator confirmed a kill, and the world
+		// is allowed to have moved since. ValidateRequest is the confirmation
+		// gate -- refusing here is what makes a caller's --confirm presentation
+		// rather than the only authority (#583).
+		if err := couchmessage.ValidateRequest(request); err != nil {
+			return couchmessage.Response{Code: "invalid-request", Error: err.Error()}
+		}
+		sampler := s.resources.Load()
+		if sampler == nil {
+			return couchmessage.Response{Code: "unsupported", Error: "resource sampler unavailable"}
+		}
+		view, err := sampler.sweep(ctx)
+		if err != nil {
+			return couchmessage.Response{Code: "unavailable", Error: "resource sweep: " + err.Error()}
+		}
+		return couchmessage.Response{Code: "ok", Resources: &view}
 	case request.Op == "refusals":
 		// A memory read for `couch --list` (pair#618); no caller, like resources.
 		if err := couchmessage.ValidateRequest(request); err != nil {

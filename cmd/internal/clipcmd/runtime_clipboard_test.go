@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -89,4 +90,125 @@ func TestClipboardCopyLocalDoesNotWriteForRemoteOrCanceledCalls(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestClipboardCopyLocalRetainsToolEvidence(t *testing.T) {
+	privateClipboardTool(t, `printf 'pasteboard permission denied\n' >&2; exit 7`)
+	err := NewOSRuntime().ClipboardCopyLocal(context.Background(), "notice")
+	if err == nil || !strings.Contains(err.Error(), "pbcopy") || !strings.Contains(err.Error(), "pasteboard permission denied") {
+		t.Fatalf("local tool evidence lost: %v", err)
+	}
+}
+
+func TestClipboardInheritedStderrKeepsSuccessfulExit(t *testing.T) {
+	for _, mode := range []string{"legacy", "local"} {
+		t.Run(mode, func(t *testing.T) {
+			record := privateClipboardTool(t, `/bin/cat > "$TEST_CLIPBOARD"
+"$TEST_CLIPBOARD_HELPER" -test.run '^TestClipboardInheritedStderrHelper$' &
+exit 0`)
+			release := filepath.Join(filepath.Dir(record), "release")
+			done := filepath.Join(filepath.Dir(record), "done")
+			t.Setenv("TEST_CLIPBOARD_HELPER", os.Args[0])
+			t.Setenv("TEST_CLIPBOARD_DAEMON", "1")
+			t.Setenv("TEST_CLIPBOARD_RELEASE", release)
+			t.Setenv("TEST_CLIPBOARD_DONE", done)
+			t.Cleanup(func() {
+				if err := os.WriteFile(release, []byte("release"), 0600); err != nil {
+					t.Error(err)
+					return
+				}
+				deadline := time.After(4 * time.Second)
+				for {
+					if _, err := os.Stat(done); err == nil {
+						return
+					}
+					select {
+					case <-deadline:
+						t.Error("bounded stderr holder did not exit")
+						return
+					case <-time.After(10 * time.Millisecond):
+					}
+				}
+			})
+			if mode == "legacy" {
+				if err := NewOSRuntime().ClipboardCopy("notice"); err != nil {
+					t.Fatalf("stderr drain changed successful exit: %v", err)
+				}
+				return
+			}
+			result, err := NewOSRuntime().ClipboardCopyLocalResult(context.Background(), "notice")
+			if err != nil || result.Metadata.Status != "copied" || result.Metadata.ExitCode == nil || *result.Metadata.ExitCode != 0 || !result.Metadata.StderrTruncated {
+				t.Fatalf("successful process became failure: %+v / %v", result.Metadata, err)
+			}
+			got, readErr := os.ReadFile(record)
+			if readErr != nil || string(got) != "notice" {
+				t.Fatal("tool did not consume original stdin")
+			}
+		})
+	}
+}
+
+func TestClipboardInheritedUnreadStdinFails(t *testing.T) {
+	for _, mode := range []string{"legacy", "local"} {
+		t.Run(mode, func(t *testing.T) {
+			record := privateClipboardTool(t, `"$TEST_CLIPBOARD_HELPER" -test.run '^TestClipboardInheritedStderrHelper$' <&0 &
+exit 0`)
+			release := filepath.Join(filepath.Dir(record), "release")
+			done := filepath.Join(filepath.Dir(record), "done")
+			t.Setenv("TEST_CLIPBOARD_HELPER", os.Args[0])
+			t.Setenv("TEST_CLIPBOARD_DAEMON", "1")
+			t.Setenv("TEST_CLIPBOARD_RELEASE", release)
+			t.Setenv("TEST_CLIPBOARD_DONE", done)
+			t.Cleanup(func() {
+				if err := os.WriteFile(release, []byte("release"), 0600); err != nil {
+					t.Error(err)
+					return
+				}
+				deadline := time.After(4 * time.Second)
+				for {
+					if _, err := os.Stat(done); err == nil {
+						return
+					}
+					select {
+					case <-deadline:
+						t.Error("bounded stderr holder did not exit")
+						return
+					case <-time.After(10 * time.Millisecond):
+					}
+				}
+			})
+			text := strings.Repeat("x", 1<<20)
+			if mode == "legacy" {
+				if err := NewOSRuntime().ClipboardCopy(text); !errors.Is(err, exec.ErrWaitDelay) {
+					t.Fatalf("unread stdin error = %v; want incomplete input", err)
+				}
+				return
+			}
+			result, err := NewOSRuntime().ClipboardCopyLocalResult(context.Background(), text)
+			if !errors.Is(err, exec.ErrWaitDelay) || result.Metadata.Status == "copied" {
+				t.Fatalf("unread stdin reported success: %+v / %v", result.Metadata, err)
+			}
+		})
+	}
+}
+
+// The tool's child holds stderr until its test owner releases it. This proves
+// drain ordering without racing a short sleep; a hard lifetime prevents leaks.
+func TestClipboardInheritedStderrHelper(t *testing.T) {
+	if os.Getenv("TEST_CLIPBOARD_DAEMON") != "1" {
+		return
+	}
+	defer os.Exit(0)
+	deadline := time.After(3 * time.Second)
+	for {
+		if _, err := os.Stat(os.Getenv("TEST_CLIPBOARD_RELEASE")); err == nil {
+			break
+		}
+		select {
+		case <-deadline:
+			return
+		case <-time.After(10 * time.Millisecond):
+		}
+	}
+	_ = os.WriteFile(os.Getenv("TEST_CLIPBOARD_DONE"), []byte("done"), 0600)
 }

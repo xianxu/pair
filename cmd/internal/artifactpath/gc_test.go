@@ -52,8 +52,11 @@ func TestGCExactMatchesAndAmbiguity(t *testing.T) {
 		t.Fatalf("parked: %+v %v", m, err)
 	}
 	change, _ := p.ChangelogArtifacts("codex", "session-id")
-	if _, err := MatchArtifact(change.Anchor, owners, agents); err != nil {
-		t.Fatal(err)
+	for _, path := range []string{change.Anchor, change.NvimPID} {
+		m, err := MatchArtifact(path, owners, agents)
+		if err != nil || m.Owner != a || m.Family != "changelog" {
+			t.Fatalf("%s: %+v %v", path, m, err)
+		}
 	}
 	group, err := InventoryArtifacts(a, owners, agents, []string{p.Draft(), filepath.Join(a.Directory(), "unknown-a")})
 	if err != nil || len(group.Members) != 1 || len(group.Blockers) != 1 {
@@ -170,6 +173,31 @@ func TestGCCollectableFamiliesHaveExactCandidates(t *testing.T) {
 	for _, f := range Families {
 		if GCClassifications[f.Name].Disposition == GCCollectable && !seen[f.Name] {
 			t.Errorf("collectable family %s has no exact constructor candidate", f.Name)
+		}
+	}
+}
+
+// Every sibling of a session-carrying changelog base must classify, the viewer's
+// pid record included (#583): ownerCandidates recovers the session by trying the
+// family's suffixes, so a suffix missing from that list leaves the sibling with
+// no candidate and invisible to retention. Ready is agent-keyed and carries no
+// session, and must classify anyway.
+func TestGCChangelogSiblingsAreAllRecognized(t *testing.T) {
+	o, _ := NewStorageOwner(t.TempDir(), "repo", "a")
+	p, _ := ResolveScoped(o.Directory(), o.Tag)
+	set, err := p.ChangelogArtifacts("codex", "sid1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, sibling := range []string{set.Log, set.Anchor, set.Cleaned, set.OpenLock, set.DistillLock, set.Status, set.NvimPID, set.Ready} {
+		found := false
+		for _, candidate := range ownerCandidates(p, sibling, []string{"codex"}) {
+			if candidate.Path == sibling && candidate.Family == "changelog" {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf("%s: no changelog candidate for this sibling", filepath.Base(sibling))
 		}
 	}
 }

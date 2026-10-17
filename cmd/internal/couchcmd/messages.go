@@ -13,6 +13,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
+	"github.com/xianxu/pair/cmd/internal/launcher"
 )
 
 type messageCall func(context.Context, string, any, any) error
@@ -27,6 +28,13 @@ func runMessageCLIWithCall(inv cliInvocation, rt Runtime, stdout, stderr io.Writ
 	}
 	if inv.messageOp == "resources" {
 		return runResourcesCLI(inv, rt, stdout, stderr, call)
+	}
+	if inv.messageOp == orphanReapOp {
+		// The reap runs here, in the caller's process, and not in the console:
+		// its escalation waits seconds per process, which is the same reason
+		// peek is a CLI verb. The supervisor owns the classification, because
+		// only it holds the whole slot inventory a row is unattributed against.
+		return runReapOrphansCLI(inv, rt, stdout, stderr, call, launcher.TreeReaper(launcher.OSProcessTable{}))
 	}
 	if inv.messageOp == "notify" {
 		return runNotifyCLI(inv, rt, stdout, stderr, call)

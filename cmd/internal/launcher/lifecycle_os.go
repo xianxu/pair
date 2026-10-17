@@ -7,8 +7,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
-	"strings"
 	"time"
 )
 
@@ -35,28 +33,8 @@ func (r OSRuntime) ReapNvimContext(ctx context.Context, paths lifecycleEditorPat
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	var result error
-	for _, pidPath := range paths.pids {
-		if raw, readErr := r.ReadFile(pidPath); readErr == nil {
-			if pid := strings.TrimSpace(raw); pid != "" {
-				if killErr := exec.CommandContext(ctx, "kill", "-9", pid).Run(); killErr != nil && ctx.Err() != nil {
-					result = errors.Join(result, ctx.Err())
-				}
-			}
-			r.Remove(pidPath)
-		}
-	}
-	for _, pattern := range []string{
-		"nvim --embed.*" + regexp.QuoteMeta(paths.draft) + `$`,
-		"nvim --embed.*" + regexp.QuoteMeta(paths.scrollbackPrefix),
-	} {
-		_ = exec.CommandContext(ctx, "pkill", "-9", "-f", pattern).Run()
-		if ctx.Err() != nil {
-			result = errors.Join(result, ctx.Err())
-			break
-		}
-	}
-	return result
+	_, err := reapNvimSidecars(ctx, r.processTable(), r, paths.sidecars)
+	return err
 }
 
 func (r OSRuntime) KillTitlePollerContext(ctx context.Context, pidPath string) error {
