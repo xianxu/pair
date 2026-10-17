@@ -1,12 +1,20 @@
 ---
 id: 000633
-status: open
+status: working
 deps: [pair#618]
 github_issue:
 created: 2026-10-16
-updated: 2026-10-16
+updated: 2026-10-17
 estimate_hours:
-card_mirror: '468c22e4d284ab83cf811db134bb8fa6d5dcf7aa' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'db13b95160a940dffccd319e223d42f48bf881b7' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-17T07:29:55-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:7
+    worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
+    repository: github.com/xianxu/pair
 ---
 
 # couch --list picks relaunch vs resend from a typed refusal class, not by matching error text
@@ -37,8 +45,15 @@ source, into a typed value, and have consumers read that value.
 
 ## Plan
 
-- [ ]
+- [ ] Add couchmessage.RelaunchRequiredError (preserving cause text/unwrapping) and RefusalInfo {reason,class}; classify once in refuseLocked, with cancellation/deadline remaining retryable. Retain class beside the existing bounded refusal record.
+- [ ] Wrap all five source families in message_service.go, including both registration paths. Return the safe reason/class projection and make list rendering read the class only (ARCH-DRY/PURPOSE).
+- [ ] Red/green regressions: reworded typed reasons still relaunch; unclassified old phrases, unknown classes and timeout/cancellation still resend; source checks carry the type; broker JSON excludes credentials/body. Keep existing expiry/supersession tests.
+- [ ] Update atlas/README, run targeted tests and recorded full suite, close and land through SDLC. Headless acceptance: unchanged visible wording/actions, typed data path exercised through broker and list fixtures; no staging requested.
+
+The structured values replace the old refusal strings only on this best-effort diagnostic op. Mixed-version decode failure keeps the ordinary list intact and omits receive annotations, as already documented for unsupported/older supervisors; no heuristic compatibility classifier. Unknown/missing classes use send-again. Other response shapes are unchanged. No new IO, timers or retention owners (ARCH-PURE/FUNERAL); existing 250ms call, 64-entry cap and 10-minute expiry remain. Unauthenticated output stays canonical slot plus reason/class only (ARCH-SECURE). Existing ordered storage/supersession is reused (ARCH-ORDER); no new state machine. Existing fake endpoints and local protocol fixtures suffice (ARCH-MOCK); no external integration changes (ARCH-CONSTRAINTS).
 
 ## Log
 
 ### 2026-10-16
+
+Planning: all matching strings originate in message_service.go; registry.go has no corresponding error source. Existing refusalReason normalizes context failures, so classification preserves retry advice for those even inside a typed registration wrapper.
