@@ -48,6 +48,7 @@ Detailed design: [stale-session reminder plan](../plans/000630-stale-session-rem
 ### 2026-10-16
 
 ### 2026-10-17
+- 2026-10-17: closed — BR-1 corrected with one shared loader route selected under registry lock: missing registration refuses before legacy IO; Read/Status/Diff/Write retain legacy compatibility. Unknown and forgotten held-flock tests plus controlled forget-during-check shutdown regression were RED before fix and pass now; complete affected packages and focused race checks pass. Rebuilt real Couch/tl-lead isolated conformance passed. Full suite on 0892495573252d491f2e4efe82ee9a0b0fcf9f83 passed in 10m13s, log SHA256 0a6514e13874f487374aa6ded7e0ccd3e33b780155f9d15c8d6ebc7be41ab7ed, no failure markers; only issue Log changed afterward. Prior suite/failure/cancellation evidence retained. TL approved isolated acceptance and owns installed smoke after restart; steps recorded, no pair:0 staging.; review verdict: SHIP
 
 - Claimed and started planning in pair:6 after #643 landed. `tl-lead status check --help` confirms that the command owns section budgets and reports without writing. Existing wait-watcher ticks every 15 seconds; external IO must run in a separate serialized worker so it cannot delay wait notices or supervision.
 - ARCH-DRY/ARCH-PURE: keep freshness rules in tl-lead; use existing registered-document transaction for an inspection that never acknowledges edits, and existing hub identity, wrapper liveness and broker self-delivery seams. No timer-based inference of idleness.
