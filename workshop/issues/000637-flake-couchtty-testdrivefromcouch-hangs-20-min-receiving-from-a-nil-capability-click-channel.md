@@ -56,8 +56,8 @@ hangs instead of failing.
 
 ## Done when
 
-- `TestDriveFromCouch` fails fast with a named message instead of hanging when the click is a no-op.
-- The test passes 20 times in a row under `-count=20` while CPU load is applied, e.g. a parallel suite.
+- `TestDriveFromCouch` rejects a nil click completion immediately with the named action; accepted clicks retain the existing five-second wait bound.
+- Both gated regression orderings reject premature readiness and pass after completion, and the original test passes 20 times under `-race -count=20` while another suite applies CPU load.
 
 ## Plan
 
@@ -80,3 +80,8 @@ Use the existing stateful FakeDriven browser, with a test-local gated WithTab re
 Introduced a shared fixture readiness predicate with the original `!Project.Enabled` body, then ran `go test ./cmd/internal/couchtty -run '^TestDriveDisableCompletionOrdering$' -count=1 -v`. Both controlled orderings failed in 0.12 s: `fixture accepted disabled projection before cleanup completed` and `fixture accepted Off before terminal operation completion`. The first holds the fake browser's input-release return after control reset; it proves all original setup observations (no driver, Chrome told nobody, disabled projection) and the intentional nil result while Action=wait. The second holds the console command queue while authority publishes Off. Both gates release on test exit; the terminal barrier is explicitly joined.
 
 Changed only the fixture readiness body and replaced the unbounded receive with awaitDrive, which now immediately rejects nil with the named action. The disable/enable operation bounds stay five seconds. Targeted drive/capability family passed in 0.923 s, including both regression orderings and the original TestDriveFromCouch. Existing terminal-presenter teardown diagnostics occurred in passing sibling tests; no test failure. Race/count=20 qualification is running under concurrent ariadne sharded suite CPU load (sdlc.test workers observed; host load 70.33/46.76/39.52 at launch). Effective GOFLAGS=-p=3; no flag/deadline changes.
+
+
+### 2026-10-17 — load qualification
+
+go test -race ./cmd/internal/couchtty -run '^(TestDriveDisableCompletionOrdering|TestDriveFromCouch|TestWebCapability.*|TestDriveChip.*)$' -count=20 passed in 119.773 s, no race reports. This includes twenty executions of the original integration test and each deterministic interleaving, plus capability recovery, stale completion, and chip-click siblings. During execution the host load reached 71.28/52.98/42.64 and a concurrent ariadne sharded suite's sdlc.test workers were observed consuming CPU. No artificial load jobs, deadline extensions or retries were used. Read the retained original hang log too: it confirms the nil-channel receive in TestDriveFromCouch. PR #396 is open; recorded suite on b7f361ec1a8a097d500baa1241e9b88bf35a3b41 is queued behind the existing machine test line.
