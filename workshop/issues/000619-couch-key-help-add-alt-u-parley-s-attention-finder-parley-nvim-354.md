@@ -1,12 +1,12 @@
 ---
 id: 000619
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-16
 updated: 2026-10-16
 estimate_hours:
-card_mirror: '32acef3b717ceafe0533a1caeba13812bc8a54ee' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '18e4392137d3e4d6bf0b359d5ab9cc2fe7571ec3' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-16T18:18:08-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
     repository: github.com/xianxu/pair
 flow: {kind: quick, provenance: inferred, spec: "210d1afc", done: "c00501e2"}
+actual_hours: 0.31
 ---
 
 # Couch key help: add Alt+Space, parley's attention finder (parley.nvim#354)
