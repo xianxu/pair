@@ -468,12 +468,18 @@ func startParkLifecycleHelper(t *testing.T, ctx context.Context, cfg parkHelperC
 	wait := make(chan error, 1)
 	go func() { wait <- cmd.Wait() }()
 
+	waitParkHelperAttachment(t, ctx, cfg.Session, baseline, wait, drained, capture)
+	return cmd, terminal, wait
+}
+
+func waitParkHelperAttachment(t *testing.T, ctx context.Context, session string, baseline int, wait <-chan error, drained <-chan struct{}, capture *parkHelperCapture) {
+	t.Helper()
 	ticker := time.NewTicker(25 * time.Millisecond)
 	defer ticker.Stop()
 	for {
-		count, countErr := zellijClientCount(ctx, cfg.Session)
+		count, countErr := zellijClientCount(ctx, session)
 		if countErr == nil && count > baseline {
-			return cmd, terminal, wait
+			return
 		}
 		select {
 		case err := <-wait:

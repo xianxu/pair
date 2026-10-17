@@ -128,3 +128,34 @@ func TestParkUnknownBaselineProbe(t *testing.T) {
 	<-wait
 	t.Fatal("header-only response falsely established helper attachment")
 }
+
+// Exercise the exact readiness loop used after the helper starts. A complete
+// unchanged observation cannot establish attachment; only client growth can.
+func TestParkHelperAttachmentRequiresClientGrowth(t *testing.T) {
+	for _, baselineClients := range []int{0, 1} {
+		t.Run(strconv.Itoa(baselineClients), func(t *testing.T) {
+			root := t.TempDir()
+			baseline := parkClientHeader
+			if baselineClients == 1 {
+				baseline += "1 0 /bin/sh\n"
+			}
+			state := parkClientCLI(t, root, []parkClientReply{
+				{body: baseline}, {body: baseline}, {body: baseline + "2 1 /bin/sh\n"},
+			})
+			testpair.ApplyEnvironment(t, root, "PATH="+root+":/usr/bin:/bin", "PAIR_TEST_CLIENT_REPLY_STATE="+state)
+			ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+			defer cancel()
+			count, err := zellijClientCount(ctx, "pair-readiness")
+			if err != nil || count != baselineClients {
+				t.Fatalf("baseline=%d err=%v", count, err)
+			}
+			drained := make(chan struct{})
+			close(drained)
+			waitParkHelperAttachment(t, ctx, "pair-readiness", count, nil, drained, new(parkHelperCapture))
+			raw, err := os.ReadFile(state)
+			if err != nil || strings.TrimSpace(string(raw)) != "3" {
+				t.Fatalf("readiness query count=%q err=%v; want baseline, unchanged, growth", raw, err)
+			}
+		})
+	}
+}

@@ -73,6 +73,10 @@ Existing recovery ownership/deadline and explicit-empty terminal-fixture control
 
 The first recorded suite on pushed implementation head d2219c429adbad8b35855f36f26ae73e6aa64cf0 passed (exit0, 10m33s), including couchcore271.562s, launcher36.029s and wrapper50.705s. No rerun was needed. Log: /Users/xianxu/workspace/pair/.git/sdlc/local-checks/d2219c429adbad8b35855f36f26ae73e6aa64cf0/suite.log; SHA256 16a2e6257c28eff93bbd201862083e7a5441ac2e3ebe4e08ad607f783fb9b612. The native park check remains explicitly deferred under TL a7364b43, coordinated with #640; no live acceptance is claimed.
 
+### 2026-10-17 — R1 readiness branch coverage
+
+R1 returned FIX-THEN-SHIP with Important BR-1 (readiness-contract-branch-coverage): individual counter controls did not exercise the helper's unchanged-count/growth decision. Verified this gap and extracted the existing polling loop into a fixture-local helper without changing its behavior. The actual startup path and the new stateful test now share that loop. Both zero-client and one-client baselines observe unchanged counts before growth, requiring exactly three queries. Equality-accepting mutation fails both cases at query2; a never-accept-growth mutation fails both at the existing test context deadline. An initial never-growth mutation failed compilation because it removed count's use; that was discarded and the behavioral mutation rerun. Production code remains unchanged from the first suite. A fresh recorded suite follows these test changes.
+
 ## Revisions
 
 - 2026-10-17 (TL42415423): narrowed the filed broad malformed-response wording to CLI failures plus empty/whitespace replies. Preserve existing canonical production parsing; strict nonempty table grammar stays outside this counter-readiness bug. No relaxation of the empty-baseline attachment invariant.
