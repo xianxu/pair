@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pair-test-bootstrap.sh"
 # The nvim pid sidecar's lifecycle (#583).
 #
 # Every pair-spawned embedded nvim publishes its pid to $PAIR_NVIM_PID_FILE so a
