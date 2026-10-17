@@ -1,6 +1,6 @@
 ---
 id: 000643
-status: codecomplete
+status: done
 created: 2026-10-17
 updated: 2026-10-17
 estimate_hours: 0.76
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: eaada100e0cfb422a3bc3aa1859f2eb5d411b29a
         evidence_commit: 55167144630a41488088ec8ec5f4c4e50b5f0bdf
+        landed_commit: 43313c59e19feb4bf8f9f7c6287a485b2e234828
 ---
 
 # couch session-sync: frontmatter-scoped read/write that moves the diff baseline only for the frontmatter
