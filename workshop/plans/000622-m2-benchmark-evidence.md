@@ -52,3 +52,16 @@ Hold this candidate; no more mechanisms or landing. The simplest alternative to 
 5. Only after that proof proceed to races/full suite, mandatory reviews and TL-coordinated live acceptance. No operator stage/restart requested yet.
 
 This revision changes measurement qualification, not terminal behavior. It does not claim scheduler interference explains away contrary evidence.
+
+## 2026-10-16 — approved revised attempt stopped on load guard
+
+TL477ed170 approved one fixed-work CPU qualification with one-minute load below about8. The runner admitted at22:59:23 PDT with load7.9238. It completed only ingest1 baseline and first candidate (one million iterations each), then exited1 because load rose to8.3301. No ABBA workload completed and no complete-redraw case ran. This is incomplete evidence, not proof of benefit or of a CPU regression; no retry was made. Candidate remains held and is not eligible for acceptance or landing.
+
+| Control | Child user CPU | Child system CPU | Total CPU | Wall time |
+|---|---:|---:|---:|---:|
+| one-byte baseline |2.166668s|0.032001s|2.198669s|2.190251s|
+| one-byte candidate |2.117125s|0.030177s|2.147302s|2.146359s|
+
+Raw partial attempt: fixed-cpu-once/ under the existing benchmark directory. results.json SHA2567d9756872fe632d79c5084c8297294bf15b74b294f6f8bd76c080927ea4f83f5. Baseline log19d2c825c3f0c5388d4e6948a17e6c703e1184cf9def59fc18d3735232abdf25; candidate log8f947ee283dc3059a8eccfb10f6816d7b1494f99d3450226c07a8e5f18a6fba5. Original runner session25768 is finished; no signal was needed. Existing attempt directory must not be removed to repeat qualification.
+
+At TL rolling-relaunch request2e95b559 (23:39), the slot has no background test/suite/merge. Preserve the partial result, report idle for relaunch and await TL disposition before any further performance experiment. The new thread must inherit the operator's GOFLAGS setting rather than rebuild this experiment with old flags silently.
