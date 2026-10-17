@@ -98,6 +98,10 @@ First close returned REWORK/BR-1, kind unverifiable: the disposable review check
 
 Retained reproducible fixture: /var/folders/07/b9wcwwld4_v2w9r3hk525bm80000gn/T/pair624-woven-proof-4bb6qatn. Run python3 -B tests/build-go-atomic-test.py AtomicBuildTest.test_root_build_has_one_publisher_per_binary_and_no_foreign_writes from that copy. With all three sentinels, exit 0, exactly three staged writes. Removing only Couch's new sentinel gives exit 1, four writes with direct bin/couch; removing only launch-helper's gives exit 1, four writes with direct bin/pair-launch-helper; removing both gives exit 1, five writes with both direct outputs. Each mutation was in the private copy, then both sentinels restored. report.json and present.log/couch-absent.log/helper-absent.log/both-absent.log retain source identity and actual outputs for review inspection and reproduction. This supplies the measured host evidence the archive checkout lacked; no production/test change or additional full suite is needed for this evidence-only answer.
 
+### 2026-10-16 — post-close non-interactive shell resolution check
+
+TL receipt 1f5b14cf-3d5e-491c-9c9e-70f468e478ee reports disk Couch replacement at 23:39:25 (inode 752966152, same clean 712a6478 with trimpath), and a single pair:5 command-not-found around then. Checked this worker's actual non-interactive zsh command environment read-only: whence -va couch resolves first /Users/xianxu/.local/bin/couch, then /Users/xianxu/workspace/pair/bin/couch; no function or alias is reported. The installed link resolves to primary bin/couch. COUCH_TREE is this slot's checkout; the actual bare receipt lookup succeeds. This establishes pair:7's current resolution only, not pair:5's earlier environment or the cause of its transient failure. A trimpath build alone does not fingerprint the interactive function: Makefile.local also defaults PAIR_GO_TRIMPATH to -trimpath. No builder was invoked. This supplementary observation changes neither implementation nor approved bounded acceptance.
+
 ## Revisions
 
 ### 2026-10-16 — bounded writer diagnosis approved
