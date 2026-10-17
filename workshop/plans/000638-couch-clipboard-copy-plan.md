@@ -111,3 +111,7 @@ PQ-1 identified that full-payload redaction cannot protect truncated/transformed
 ### 2026-10-17 — post-close executor correction
 
 A real private-process regression proves that adding a stderr pipe can turn a successful daemonizing tool into exec.ErrWaitDelay. Preserve successful exit when this is solely the diagnostic-drain cutoff, flag stderr capture truncated, and keep context errors authoritative. The handshake-controlled inherited-stderr fixture is the regression; existing deadline/cancellation/nonzero controls remain. Run the fresh suite and fix-only re-close before retrying landing. No approved recovery state, timeout or OSC policy changes.
+
+### 2026-10-17 — completion includes consumed input
+
+TL approved the unified rule: retain the existing strings.Reader; only successful exit with no remaining stdin and a valid context permits ErrWaitDelay to become diagnostic-only truncation. A child holding unread stdin must fail; held stderr after full input must succeed with truncation flagged. No new mechanism or timeout.

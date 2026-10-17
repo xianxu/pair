@@ -122,6 +122,10 @@ TL receipt 8429745d-ecb6-40e5-9325-a6282e0141c0 replaces proposed echo detection
 
 The inherited-stderr correction preserves the existing successful-process contract rather than adding a new recovery state: successful exit plus diagnostic-drain cutoff is copied with truncated capture metadata. Context expiry still refuses confirmation; failed process exits still fail. No retry, timeout increase, stderr logging or operator-environment action is added.
 
+### 2026-10-17 — unified clipboard completion rule (TL approved)
+
+A negative control proved that exit 0 plus ErrWaitDelay can also mean an inherited stdin was never consumed. TL receipt 62f5141b-44e8-40dc-bcf3-9505d0fa95f2 approves one rule: retain the existing strings.Reader and require Len()==0 after Run, successful process exit, and a valid context before treating ErrWaitDelay as diagnostic-only stderr truncation. No new state or timeout. Add the unread-stdin negative control alongside the full-read/held-stderr positive control, rerun the suite and fix-only close review before landing.
+
 ## Estimate
 
 Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only; estimate-source flags calibration stale, so provisional. The plan cleared plan-quality in round 2 before deriving this estimate. One issue/spec primitive budgets the investigation and acceptance discussion (0.5 design, 0.3 impl); two smaller Go extensions budget executor and log wiring (each 0.3 design x0.2 thorough-spec discount, 0.5 impl); the TUI reducer/rendering primitive takes 1.0 design x0.2 and 1.0 impl. Real-API discovery uses the 0.6 impl upper bound for the opt-in harness; docs 0.1 design x0.2 and 0.2 impl; one review 0.2 design x0.2 and 0.5 impl. All implementation values below apply v3.1's 0.4 multiplier. Existing os/exec, rowtext, reducer and supervision writer cover the stack; no greenfield library or cross-repo work. Familiarity 1.0; thorough-plan design buffer 15%. Design 0.88 x1.15 + implementation 1.44 = 2.452 hours.
