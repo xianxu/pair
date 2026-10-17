@@ -44,8 +44,8 @@ would clobber a staged branch build on pair:0.
 
 ## Plan
 
-- [ ] Red first in private fixture: paused compiler exposes delete/partial publication; cover direct binary targets and full make build, failure/cancellation cleanup, concurrent publishers and foreign PAIR_HOME isolation.
-- [ ] Use one same-directory temporary-build/rename publisher for pair, couch and pair-launch-helper; opt owned binaries out of the generic direct-output scanner (ARCH-DRY). Keep old executable on failed builds and clean owned temporaries.
+- [x] Red first in private fixture: paused compiler exposes delete/partial publication; cover direct binary targets and full make build, failure/cancellation cleanup, concurrent publishers and foreign PAIR_HOME isolation.
+- [x] Use one same-directory temporary-build/rename publisher for pair, couch and pair-launch-helper; opt owned binaries out of the generic direct-output scanner (ARCH-DRY). Keep old executable on failed builds and clean owned temporaries.
 - [ ] Verify review asset preparation and worker build stay in their own fixture tree under foreign live-environment values; document observed writers versus unproven historical caller, run recorded full suite, close and land.
 
 ## Log
@@ -59,6 +59,12 @@ The installed Go source (cmd/go/internal/work/shell.go moveOrCopyFile/CopyFile) 
 The exact historical initiator at 15:40/16:06 remains unproven. PAIR_DEV plus primary PAIR_HOME can request a primary rebuild through dev_rebuild, but current hosted markers suppress it; do not label review preparation as the culprit without evidence. The proposed fixture guard covers current review preparation/build routing despite foreign environment values. Asking the hub whether this bounded diagnosis satisfies acceptance, rather than silently dropping the historical-caller clause.
 
 Start-plan refreshed dependencies and required two reruns before creating this branch; brew reported existing go/cue/uv, no new machine packages chosen.
+
+### 2026-10-16 — deterministic red/green and real Go evidence
+
+Before production edits, the new fixture suite failed five assertions: each direct binary exposed partial bytes during a paused compiler write; an unsuccessful build left partial output; root make build invoked five compiler writes instead of three. Review asset preparation stayed local. The shared publisher and two additional skip sentinels make all six tests pass, including cancellation and concurrent publishers. Canonicalized the fixture root to compare macOS /var versus /private/var by actual path; no production workaround was needed. Install-link regression passes; the complete install-layout test also passed with actual Go builds in this worker and an isolated HOME. No primary-checkout build occurred.
+
+The real Go alternating-cache fixture, now using scripts/build-go-atomic.sh, completed exit 0 with 1696 observations, zero missing and zero partial-size observations, correct executable output 33554432 and zero staging directories remaining. Logs atomic-result.json and atomic-replacement.trace are retained beside the initial failing probe evidence. This is headless temporary-copy acceptance, not a pair:0 rebuild.
 
 ## Revisions
 

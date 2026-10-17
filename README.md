@@ -383,6 +383,10 @@ with Neovim and Zellij config carried alongside it. There is no Python and no
 shell runtime; `zellij`, `nvim`, `fzf`, and the agent CLIs are the only external
 programs.
 
+`make build` publishes each of `pair`, `couch`, and `pair-launch-helper` by
+building privately beside its destination, then renaming the completed executable.
+A failed build keeps the previous executable available, including for Couch sends.
+
 `make install` links the built binaries into `~/.local/bin`, so later checkout
 builds are visible without reinstalling. Keep that checkout in place; these
 links point to its `bin/` directory. Already-running processes keep their old

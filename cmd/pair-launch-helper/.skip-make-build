@@ -1,0 +1,2 @@
+# Makefile.local owns this binary and publishes it atomically through
+# scripts/build-go-atomic.sh. The generic build scanner must not overwrite it.
