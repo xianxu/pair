@@ -101,7 +101,7 @@ func (c *Console) advanceActivity(event RefreshScheduleEvent) {
 					result.failed[row.Address] = true
 					continue
 				}
-				ctx, cancel := context.WithTimeout(c.lifetime, activityProbeTimeout)
+				ctx, cancel := context.WithTimeout(c.lifetime, c.activityProbeTimeout)
 				at, err := probe(ctx, row)
 				timedOut := ctx.Err() != nil
 				cancel()
