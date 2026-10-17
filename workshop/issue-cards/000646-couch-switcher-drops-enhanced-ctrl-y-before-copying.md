@@ -1,6 +1,6 @@
 ---
 id: 000646
-status: codecomplete
+status: done
 created: 2026-10-17
 updated: 2026-10-17
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: cb4a239ed7ab14de16a7d86cabf5644de71bc7f6
         evidence_commit: fad3056ce4a5d3339f22231cfff5c26f6f2f2b31
+        landed_commit: 59acc320b54624ecb9b72c743e3c01215681bd9e
 ---
 
 # Couch switcher drops enhanced Ctrl+Y before copying
