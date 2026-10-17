@@ -1,4 +1,24 @@
 ---
+reviewer_runs:
+    - version: 1
+      intent:
+        id: b2918838-0b38-4da0-869a-b90e8501a58d
+        repository: github.com/xianxu/pair
+        issue_id: "000638"
+        recipe: estimate-quality
+        round: 1
+        attempt: 1
+        agent: codex
+        root: /Users/xianxu/workspace/worktree/pair-slot7/pair
+        reviewed_head: c3a0247859abaf884adeedde8c10c7536552b66d
+        slot: pair:7
+        requested_at: "2026-10-17T09:15:23.800089Z"
+      phase: finished
+      pid: 98469
+      started_at: "2026-10-17T09:15:23.983032Z"
+      finished_at: "2026-10-17T09:15:49.695009Z"
+      session_id: 01a14925-012e-7092-8632-39188c636685
+      outcome: returned
 gate: plan-quality
 issue: 638
 id_prefix: PQ
@@ -73,7 +93,40 @@ rounds:
           note: Named-function adversarial strategies cover the requested surfaces, production Console wiring, and cancellation ordered through a child-start handshake.
           round: 2
       blocked: false
-content_hash: 3180b063ee177b951ca5400e7d9a547ef66c9ea4fecd63369c9f7e131b2cecb6
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: afd49991-988b-486a-918a-eae4bba206db
+            repository: github.com/xianxu/pair
+            issue_id: "000638"
+            recipe: plan-quality
+            round: 3
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot7/pair
+            reviewed_head: c3a0247859abaf884adeedde8c10c7536552b66d
+            slot: pair:7
+            requested_at: "2026-10-17T09:14:58.680354Z"
+          phase: finished
+          pid: 74972
+          started_at: "2026-10-17T09:14:58.886417Z"
+          finished_at: "2026-10-17T09:15:21.277926Z"
+          session_id: 01a14924-9f3d-79d2-98d6-353f8a5638a6
+          outcome: returned
+      "n": 3
+      timestamp: "2026-10-17T02:15:21-07:00"
+      agent: codex
+      dispose:
+        - id: PQ-1
+          disposition: addressed
+          note: Supervision receives typed metadata and stderr count/hash only; free-form stderr remains outside the logging boundary.
+          round: 3
+        - id: PQ-2
+          disposition: addressed
+          note: Tests name production functions, adversarial strategies and controllable cancellation ordering.
+          round: 3
+      blocked: false
+content_hash: e80fee2e11b58c53ddd285f5ac3ad7a521492ed455fdad65ae8f7dce70f7a150
 ---
 
 # Gate ledger — pair#638 (plan-quality)
@@ -96,6 +149,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 - PQ-1 — addressed — Strict metadata-only supervision projection removes truncated or transformed stderr echoes from the publication path; local formatting is bounded and control-stripped.
 - PQ-2 — addressed — Named-function adversarial strategies cover the requested surfaces, production Console wiring, and cancellation ordered through a child-start handshake.
+
+## Round 3 — 2026-10-17T02:15:21-07:00 (codex) — passed
+
+### Disposed
+
+- PQ-1 — addressed — Supervision receives typed metadata and stderr count/hash only; free-form stderr remains outside the logging boundary.
+- PQ-2 — addressed — Tests name production functions, adversarial strategies and controllable cancellation ordering.
 
 ## Open findings
 
