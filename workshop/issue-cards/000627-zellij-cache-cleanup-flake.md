@@ -1,8 +1,8 @@
 ---
 id: 000627
-status: codecomplete
+status: done
 created: 2026-10-16
-updated: 2026-10-16
+updated: 2026-10-17
 estimate_hours:
 github_issue:
 started: 2026-10-16T18:58:29-07:00
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: f00c302c6c0937bc6101e83b79208e9a3cd87fa4
         evidence_commit: ba305b569ee42de7b3fc5e0663764a0aada75f1f
+        landed_commit: 06f51b58dedbf7ea4d43d3a7899e8af182bb3fcf
 ---
 
 # Live shortcut fixture races Zellij cache removal during TempDir cleanup
