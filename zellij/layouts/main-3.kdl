@@ -79,7 +79,7 @@ layout {
         }
         // The user terminal. Alt+Shift+d splits it into two stacked tiled
         // terminals (see the *-split swap variants below); Alt+Shift+Enter
-        // cycles it normal → focus (floating, centered) → maximize via
+        // toggles it normal ↔ focus (floating, centered at 75%) via
         // `pair layout toggle-focused` (#417). Leaving focus re-applies the
         // swap layout recorded on entry, so the rung names below are part of
         // that contract: a dirty rung maps to "<rung>-split" ("small-split"

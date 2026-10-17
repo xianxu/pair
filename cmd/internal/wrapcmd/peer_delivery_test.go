@@ -123,6 +123,8 @@ func TestPeerDeliverySubmitsAfterDelayThenConfirms(t *testing.T) {
 			f.output(peerEmptyComposer())
 			m := peerTestMessage(now)
 			d := newPeerDelivery(m.To, func() time.Time { return now })
+			var recorded []couchmessage.Message
+			d.recordTurn = func(m couchmessage.Message) { recorded = append(recorded, m) }
 			f.proxy.peer = d
 			if err := d.reserve(m.ID, 0); err != nil {
 				t.Fatal(err)
@@ -169,6 +171,10 @@ func TestPeerDeliverySubmitsAfterDelayThenConfirms(t *testing.T) {
 			r := d.receipt()
 			if r.Status != tc.want || !strings.Contains(r.Detail, tc.evidence) || (tc.want == couchmessage.Indeterminate && !strings.HasPrefix(r.Detail, "uncertain: ")) {
 				t.Fatalf("receipt %+v, want %s with %q", r, tc.want, tc.evidence)
+			}
+			// pair#618: only a submitted turn reaches the Pair log, once.
+			if wantRecorded := tc.want == couchmessage.Submitted; (len(recorded) == 1 && recorded[0].ID == m.ID) != wantRecorded || len(recorded) > 1 {
+				t.Fatalf("recorded %+v for a %s delivery", recorded, tc.want)
 			}
 			if tc.name == "turn opens" && f.proxy.automaticInput.phase != automaticInputAwaitingEmpty {
 				t.Fatal("turn-only confirmation discarded fresh-empty protection")

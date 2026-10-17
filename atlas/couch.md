@@ -492,16 +492,18 @@ content sha256, vcs revision and dirty bit, via
   output or input (`peer_settle.go`), so a streaming agent pays nothing. Any
   activity unsettles the wrapper at once.
 - **Negotiated per connection, because every session frame decodes strictly:**
-  - A wrapper with a known build sends `hello-v2` (binding plus `Build`).
-  - An old broker drops that without an ack, and the wrapper redials with
-    plain `hello`.
-  - Only a hello-v2 session may put `Settled` on activity and submit frames.
+  - A wrapper with a known build sends its newest hello (binding plus `Build`).
+    The client tries v4, v3, v2, then plain hello, each downgrade only after an
+    old broker's ack-less close; refusal, malformed ack and timeout do not downgrade.
+  - Only hello-v2 and newer sessions may put `Settled` on activity and submit frames.
     A legacy session that does is ended as malformed.
   - `hello-v3` (pair#465) is hello-v2 that may also put `Picker` on those
-    frames. The client tries v3, then v2, then plain hello, each on an old
-    broker's ack-less close (`SessionClient.session`). A v2 session claiming
+    frames. A v2 session claiming
     `Picker` is ended as malformed, so a new wrapper never breaks a Couch that
     hasn't been restarted yet.
+  - `hello-v4` (pair#632) adds optional `BackgroundWork` on activity/submit;
+    nil is unknown, false known none, true native background work. Older sessions
+    claiming it are ended as malformed; downgraded clients omit the field.
 - **`Picker` (pair#465):** whether an input-holding picker is up: the
   wrapper's `pickerActive` latch (closed by Enter or by the composer coming
   back, pair#464). Unlike `Settled`, it is not gated on quiet. `setPickerLocked`
@@ -548,6 +550,21 @@ remaining uncertainty is stated, never papered over:
   refuses as "zellij liveness is stale". The thread record, PID file, ready
   file and session index are still read per check. Recovery and relaunch
   decisions keep their direct zellij reads.
+- **Receive state in `--list` (#618).** `couch --list` asks the running
+  supervisor once (the unauthenticated `refusals` op, 250 ms, best effort) for
+  each slot's latest unsuperseded refusal and prints it under the row as
+  `can't receive: <reason>` with the one command that clears it.
+- **Peer turns in the Pair log (#618).** When a delivery ends `Submitted`,
+  pair-wrap appends the exact envelope it pasted to the thread's Pair log
+  through the managed locked writer (`pairlog.PersistPeerTurn`, append ID
+  `couch-peer-<delivery ID>`). The session watcher correlates it like any draft
+  turn, so a slot driven only by peer messages confirms its binding and can be
+  relaunched. The draft pane's history and `!!` skip `couch-peer-` entries.
+  One launch records at most 8 (about 64 KB): a binding needs one completed
+  round after its launch, and the entries go wherever the Pair log goes.
+- **Relaunch rides out a slow quit (#618).** `--relaunch` waits up to
+  `RelaunchParkWait` (60 s) for the agent's quit inside its operation before
+  it offers recover/abandon; a plain park keeps its shorter wait.
 - **Retries.** The CLI mints a fresh ID per send and tells the sender not to
   retry an uncertain one. A reused ID that reaches a wrapper that remembers it
   adopts the recorded outcome and is not pasted again.
@@ -1334,7 +1351,7 @@ base colour (`slotGlyphBase`).
 
 **Live work (#625).** The same background activity pass also reads the admitted
 wrapper's existing `SlotLiveness.Settled` snapshot through
-`messageService.WrapperActivity`; there is no new IO probe, timer or protocol.
+`messageService.WrapperActivity`; this projection adds no IO probe or timer.
 Known-unsettled stays current even during a silent peer-driven turn/command
 wait. The registry timestamps work reports and the busy-to-settled transition
 with supervisor receipt time, monotonically within that session. Settled
@@ -1344,11 +1361,31 @@ reconnect does not itself invent recent work. Replacement/disconnect drops
 the prior session's evidence. Scope, exact tag and agent must match. Legacy/unknown
 wrappers contribute nothing, retaining the file-only rule. `Settled` is the
 same broad restart-safety signal used by relaunch: an occupied composer,
-picker or recent IO can also hold it false. It does not track background
-commands after their turn ends; #632 owns an independent display signal that
-must preserve free-composer message admission. The Console merges the newest
+picker or recent IO can also hold it false. The Console merges the newest
 wrapper/file evidence for both views; positive wrapper work still counts when
 the file probe fails, preserving any newer previous observation on that error.
+
+**Background work (#632).** `SlotLiveness.BackgroundWork` is independent display
+evidence on hello-v4. The wrapper's existing settle callback reads one complete
+current terminal snapshot for both admission and display, using the existing
+generation fence; source activity invalidates the display hint, and an older
+in-flight probe cannot publish over a newer source. Display changes publish even
+when `Settled` stays true. `backgroundWorkState` reuses the Claude composer bounds
+and counts only a bounded native shell-counter field with management chrome below
+the closing rule. Body prose, drafts, incomplete synchronized paint, missing or
+unqualified footer and unsupported agents grant no positive hint. Recognized
+no-shell/zero state is false; loss of qualified evidence is unknown. This is a
+native-UI observation, not a process/CPU inference or transcript scan.
+
+The registry owns the nullable hint per admitted connection. Active background
+work keeps the existing activity pass current; active→known-none records completion
+using monotonic supervisor receipt time. Unknown clears the hint without inventing
+completion, and idle refreshes do not renew it. Disconnect/displacement/replacement
+discard it. Neither the field nor its clock changes `Settled`, message admission or
+restart admission. Current native coverage is Claude Code; Codex/Qoder remain
+unknown until their own native captures and geometry/negative/lifetime tests qualify
+a source. The issue records the live Codex counter evidence and remaining
+qualification work. No new timer, endpoint, polling request or persisted cache.
 
 **Cost at rest (#507).** A pass probes every live thread (every 60 s, and on a
 switch or a landed inventory). The probe's runtime

@@ -805,6 +805,11 @@ func (OSRuntime) RunZellijAction(args ...string) error {
 }
 
 func (OSRuntime) RunZellijActionQuiet(args ...string) error {
+	if len(args) > 0 && args[0] == "focus-pane-id" {
+		// The layout executor consumes the exact native already-focused result.
+		// Keep that action's typed evidence identical in CLI and terminal paths.
+		return layoutcmd.OSRuntime{}.RunZellijAction(args...)
+	}
 	cmdArgs := append([]string{"action"}, args...)
 	return runZellijCaptured(cmdArgs)
 }

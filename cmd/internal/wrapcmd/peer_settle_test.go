@@ -66,7 +66,7 @@ func TestSettleTimerInterleavedActivity(t *testing.T) {
 	idle := true
 	d := newPeerDelivery(peerTestBinding(), time.Now)
 	d.afterFunc = clock.after
-	d.settleProbe = func() bool { return idle }
+	d.settleProbe = func() wrapperSettleState { return wrapperSettleState{Settled: idle} }
 	d.session = sink
 	d.mu.Lock()
 	d.armSettleLocked()
@@ -126,7 +126,7 @@ func TestSettleFollowsSilentTurnTransitions(t *testing.T) {
 	turn := false
 	d := newPeerDelivery(peerTestBinding(), time.Now)
 	d.afterFunc = clock.after
-	d.settleProbe = func() bool { return !turn }
+	d.settleProbe = func() wrapperSettleState { return wrapperSettleState{Settled: !turn} }
 	d.session = sink
 	d.mu.Lock()
 	d.armSettleLocked()
@@ -169,9 +169,9 @@ func TestSettleInFlightCheckInvalidatedBySilentTurn(t *testing.T) {
 	var d *peerDelivery
 	d = newPeerDelivery(peerTestBinding(), time.Now)
 	d.afterFunc = clock.after
-	d.settleProbe = func() bool {
+	d.settleProbe = func() wrapperSettleState {
 		d.lifecycleTurnChanged(true) // races in between probe and publish
-		return true
+		return wrapperSettleState{Settled: true}
 	}
 	d.session = sink
 	d.mu.Lock()

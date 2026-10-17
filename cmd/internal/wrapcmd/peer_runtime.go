@@ -198,11 +198,13 @@ func (p *proxy) startPeerRuntime(executable string) (*peerRuntime, error) {
 	}
 	lifetime, stop := context.WithCancel(context.Background())
 	d := newPeerDelivery(binding, time.Now)
+	r := &peerRuntime{cancel: stop, delivery: d}
 	server, err := couchmessage.StartServer(lifetime, socket, d.handleEndpoint)
 	if err != nil {
 		stop()
 		return nil, err
 	}
+	r.server = server
 	// One session for the wrapper's life (#365): the broker learns this
 	// wrapper exists from the hello and that it is gone from the close —
 	// including the close-on-exec of a SIGUSR2 re-exec. Idle, it sends nothing.
@@ -216,8 +218,11 @@ func (p *proxy) startPeerRuntime(executable string) (*peerRuntime, error) {
 	}
 	d.mu.Lock()
 	d.session = session
+	if p.pairLogPath != "" {
+		d.recordTurn = peerTurnRecorder(p.pairLogPath, os.Getenv, p.debug, &r.workers)
+	}
 	if p.terminal != nil {
-		d.settleProbe = p.settledNow
+		d.settleProbe = p.settleState
 		d.driveProbe = p.agentDriveScreenLocked
 		d.tailProbe = p.agentTail
 		d.viewProbe = p.composerInView
@@ -226,7 +231,6 @@ func (p *proxy) startPeerRuntime(executable string) (*peerRuntime, error) {
 	initial := d.observationLocked()
 	d.mu.Unlock()
 	session.Update(initial)
-	r := &peerRuntime{cancel: stop, server: server, delivery: d}
 	p.startAutomaticInputReporter(lifetime, binding, namespace, &r.workers)
 	p.peer = d
 	p.pickerSink = session

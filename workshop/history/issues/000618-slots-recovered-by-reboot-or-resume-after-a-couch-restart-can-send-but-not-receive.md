@@ -1,12 +1,12 @@
 ---
 id: 000618
-status: working
+status: done
 deps: []
 github_issue:
 created: 2026-10-16
-updated: 2026-10-16
+updated: 2026-10-17
 estimate_hours: 4.39
-card_mirror: 'ea381246f500919a30881823574373b7a748d77c' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '5a7a4d5de90e075a08053516cbafe31f46e80d2c' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-16T15:08:44-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: inferred}
+actual_hours: 3.98
 ---
 
 # Slots recovered by reboot or resume after a Couch restart can send but not receive
@@ -86,11 +87,14 @@ M1 and M2 reviews.
 Durable plan: `workshop/plans/000618-slots-recovered-by-reboot-or-resume-after-a-couch-restart-can-send-but-not-receive-plan.md`.
 
 - [x] M1 — polled listing for the message authority, refused receipts with their reason (TL: land these first)
-- [ ] M2 — receive state in `--list`; a delivered peer message confirms a codex binding; the first relaunch waits inside its operation
+- [x] M2 — receive state in `--list`; a delivered peer message confirms a codex binding; the first relaunch waits inside its operation
 
 ## Log
 
+
+- 2026-10-17: closed — Post-close fix 657acc19c: park-wait test now times the quit from the first completion poll (it measured before Park setup and failed in the pre-merge suite). go test ./cmd/internal/couchcore -run TestParkCompletionWait -count=20 passes; recorded suite sdlc-local/suite exit 0 on 657acc19 (13m30s). (fixed-then-ship); review verdict: SHIP
 ### 2026-10-16
+- 2026-10-16: closed — M2: --list receive state, keyed by canonical slot and reasons only over the unauthenticated op (list_refusals_test, refusal_test incl. no nonce/session/body in the answer and alias canonicalization); relaunch 60 s park wait (park_wait_test, relaunch_test); peer turns in the Pair log per TL decision (B), bounded at 8 per launch (peer_turn_log_test), watcher confirms a codex binding from wrapper-written log bytes and not for an unrelated round (sessionwatch peer_turn_test), wrapper records iff Submitted (mutation-checked), draft history skips couch-peer entries (nvim pairlog_test). Recorded suite green on fb8333ae; targeted packages green on ba41cd27. M1 live before/after in the Log. Live M2 steps deferred in plan Revisions to after landing (needs the landed build on pair:0; TL schedules the restart).; review verdict: FIX-THEN-SHIP
 - 2026-10-16: closed M1 — Round 2 after REWORK: BR-2 send exchange budget (requestBudget, SendTransportTimeout = admission + 1 s) applied by both Call and the server; real-socket test TestTransportSendOutlastsAdmission RED without it. BR-3 TestMessageThreadResolverChecksReadOnlyThePoller: real checker + seeded thread + 1 s stub zellij, 50 checks run no zellij (RED without the poller). BR-5 no startup listing; poller loop lists at once, checks refuse not-yet-known. BR-4 before-numbers logged (6.1 zellij/s, 68% CPU); after-numbers follow the TL-scheduled restart after landing (plan revision). Minor: refusals carry explicit time. couchmessage, launcher, couchcmd Message tests green.; review verdict: SHIP
 
 - 2026-10-16 (pair:2, read-only on pair:3): pair:3's wrapper (pid 36072) is registered and connected to the live
@@ -131,6 +135,34 @@ Durable plan: `workshop/plans/000618-slots-recovered-by-reboot-or-resume-after-a
   `messageThreadResolver` with the real checker and a 1 s stub zellij: 50 checks run no zellij (RED without the poller).
   BR-5: the startup refresh is gone; the poller loop lists at once and checks refuse "not yet known" until then.
   BR-4: after-numbers follow the restart (plan revision). Minor: refusals carry an explicit time.
+- 2026-10-16 17:42 AFTER (live Couch 63216 on 4a97b611, 6 min after the restart, load average 39): 67 zellij children
+  in 60 s (1.1/s, same lower-bound polling as BEFORE's 6.1/s), supervisor CPU 14.2 s per 60 s (24%, BEFORE 68%). Both
+  numbers also include the operator-approved session cleanup (80 sessions to 24), which cut each listing's cost
+  (0.045 s per listing at load 22) but not the call rate. The rate drop is the poller.
+- 2026-10-16 18:47 AFTER, second sample (same Couch): 43 zellij children in 60 s (0.7/s), CPU 24%, load 47 (suites).
+  Admission, from supervision.jsonl `hub_delivery` outcomes: the previous build's generation had 3 uncertain of 124 in
+  2.6 h; this one has 0 uncertain of 37 in 1.2 h. Its 31 expired deliveries are pair#629's shape, not admission: one
+  expiry exactly every 90 s from 17:37 to 18:22, from 11 senders, the hub wrapper holding its queue head for the whole
+  composer wait each time.
+- 2026-10-16 M2 item 4, TL chose (B) over a new ledger record kind ((A): older readers hard-fail on an unknown ledger
+  kind). On `Submitted`, pair-wrap appends the pasted envelope to the Pair log via `pairlog.PersistPeerTurn` (managed
+  locked writer, append ID `couch-peer-<delivery>`), async under the peer runtime's workers. Correlation is additive
+  (unique fingerprints), and the UUID in the envelope keeps the single-turn threshold met. Found while wiring: the draft
+  pane's history, `!!` and in-place comment edits index the log by position, so peer entries would have shown in
+  Alt+← history, `!!` could pick a peer message, and a delivery mid-navigation would shift the edit target. Fixed:
+  `nvim/pairlog.lua` filters `couch-peer-` entries (`operator_entries`, `replace`). Residual, unchanged by this:
+  `write_history_entry` rewrites the file without the store lock, so a comment edit racing a peer append can drop
+  that one entry (one lost correlation fact, never a delivery). Thread activity now also moves on a peer turn.
+  Tests: watcher confirms a codex binding from wrapper-written log bytes (and not for an unrelated round); every
+  delivery outcome records iff `Submitted` (mutation-checked); repeat recording adds nothing; Lua history skips peers.
+- 2026-10-16 close review round 3 (FIX-THEN-SHIP, 3 blocking):
+  - BR-10 fixed: `refusals` answers slot to reason only, with a test that the answer holds no nonce, session or body.
+  - BR-11 fixed: 8 peer turns per launch (about 64 KB), with a test.
+  - BR-12: the live steps are deferred in the plan Revisions; they need the landed build.
+  - Minor fixed (alias-spelled targets and collided labels missed in `--list`), with tests.
+  - BR-9: the clause is dropped in the plan Revisions.
+  - BR-7 and BR-8 left as non-blocking: the sender check before the admission budget, and the duplicate request
+    classification.
 
 ## Revisions
 
