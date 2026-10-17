@@ -309,6 +309,13 @@ leading `!`.
 
 Visual feedback is provided on inserted text.
 
+Auto-quote confirms the attached clients' observed source context and a unique
+draft in that tab before flashing, staging text or delivering paste input. If
+clients disagree or a reply is uncertain, a notification explains the refusal;
+the completed OS clipboard copy remains successful. This confirms the observed
+context, not where an earlier selection historically originated. Standalone
+paste also confirms its invoking pane and same-tab draft.
+
 Selecting in the layout-3 **user terminal** only copies to the OS clipboard — it
 does not flash, steal focus, or insert into the draft. A selection made just to
 grab a path shouldn't hijack what you're writing.

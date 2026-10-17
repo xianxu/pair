@@ -2,6 +2,7 @@ package termcmd
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"github.com/xianxu/pair/cmd/internal/mouseinput"
@@ -20,9 +21,9 @@ import (
 
 func TestRunTestShortcutRightTerminalActions(t *testing.T) {
 	panes := `[
-		{"id":1,"is_focused":false,"is_fullscreen":false,"is_floating":false,"is_plugin":false,"pane_x":0,"pane_columns":75,"pane_rows":39,"title":"codex","terminal_command":"pair wrap codex"},
-		{"id":2,"is_focused":false,"is_fullscreen":false,"is_floating":false,"is_plugin":false,"pane_x":0,"pane_columns":75,"pane_rows":12,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua /data/draft-t.md"},
-		{"id":4,"is_focused":true,"is_fullscreen":false,"is_floating":false,"is_plugin":false,"pane_x":75,"pane_columns":75,"pane_rows":51,"title":"terminal","terminal_command":"pair term"}
+		{"id":1,"is_focused":false,"is_fullscreen":false,"is_floating":false,"is_plugin":false,"pane_x":0,"pane_columns":75,"pane_rows":39,"title":"codex","terminal_command":"pair wrap codex","pane_y":0,"tab_id":1,"tab_position":1},
+		{"id":2,"is_focused":false,"is_fullscreen":false,"is_floating":false,"is_plugin":false,"pane_x":0,"pane_columns":75,"pane_rows":12,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua /data/draft-t.md","pane_y":0,"tab_id":1,"tab_position":1},
+		{"id":4,"is_focused":true,"is_fullscreen":false,"is_floating":false,"is_plugin":false,"pane_x":75,"pane_columns":75,"pane_rows":51,"title":"terminal","terminal_command":"pair term","pane_y":0,"tab_id":1,"tab_position":1}
 	]`
 	tests := []struct {
 		name    string
@@ -50,13 +51,13 @@ func TestRunTestShortcutRightTerminalActions(t *testing.T) {
 			// First press of the #417 cycle: normal → focus.
 			"toggle-pane-embed-or-floating --pane-id 4",
 			"change-floating-pane-coordinates --pane-id 4 -x 12% -y 0 --width 75% --height 100% --pinned true",
-			"show-floating-panes",
+			"show-floating-panes --tab-id 1",
 		}},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			rt := &fakeRuntime{panesJSON: panes, lastLeft: tt.last}
+			rt := &fakeRuntime{currentPaneID: "4", panesJSON: panes, lastLeft: tt.last}
 			var stderr bytes.Buffer
 			stdin := ""
 			if tt.chord == "Alt+r" {
@@ -75,12 +76,12 @@ func TestRunTestShortcutRightTerminalActions(t *testing.T) {
 
 func TestRunTestShortcutIgnoresNonTerminalPane(t *testing.T) {
 	panes := `[
-		{"id":2,"is_focused":false,"is_fullscreen":false,"is_floating":false,"is_plugin":false,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua /data/draft-t.md"},
-		{"id":4,"is_focused":true,"is_fullscreen":false,"is_floating":true,"is_plugin":false,"title":"review","terminal_command":"nvim -u /pair/nvim/review.lua /tmp/review.md"}
+		{"id":2,"is_focused":false,"is_fullscreen":false,"is_floating":false,"is_plugin":false,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua /data/draft-t.md","pane_x":0,"pane_y":0,"pane_columns":75,"pane_rows":39,"tab_id":1,"tab_position":1},
+		{"id":4,"is_focused":true,"is_fullscreen":false,"is_floating":true,"is_plugin":false,"title":"review","terminal_command":"nvim -u /pair/nvim/review.lua /tmp/review.md","pane_x":0,"pane_y":0,"pane_columns":75,"pane_rows":39,"tab_id":1,"tab_position":1}
 	]`
 	for _, chord := range []string{"Alt+r", "Alt+Shift+d"} {
 		t.Run(chord, func(t *testing.T) {
-			rt := &fakeRuntime{panesJSON: panes}
+			rt := &fakeRuntime{currentPaneID: "4", panesJSON: panes}
 			var stderr bytes.Buffer
 			code := RunWithRuntime([]string{"--test-shortcut", chord}, strings.NewReader(""), &bytes.Buffer{}, &stderr, rt)
 			if code != 0 {
@@ -95,10 +96,10 @@ func TestRunTestShortcutIgnoresNonTerminalPane(t *testing.T) {
 
 func TestRunTestShortcutRecordsLeftPane(t *testing.T) {
 	panes := `[
-		{"id":1,"is_focused":true,"is_fullscreen":false,"is_floating":false,"is_plugin":false,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua"},
-		{"id":3,"is_focused":false,"is_fullscreen":false,"is_floating":false,"is_plugin":false,"title":"terminal","terminal_command":"pair term"}
+		{"id":1,"is_focused":true,"is_fullscreen":false,"is_floating":false,"is_plugin":false,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua","pane_x":0,"pane_y":0,"pane_columns":75,"pane_rows":39,"tab_id":1,"tab_position":1},
+		{"id":3,"is_focused":false,"is_fullscreen":false,"is_floating":false,"is_plugin":false,"title":"terminal","terminal_command":"pair term","pane_x":0,"pane_y":0,"pane_columns":75,"pane_rows":39,"tab_id":1,"tab_position":1}
 	]`
-	rt := &fakeRuntime{panesJSON: panes}
+	rt := &fakeRuntime{currentPaneID: "1", panesJSON: panes}
 	var stderr bytes.Buffer
 	code := RunWithRuntime([]string{"--test-shortcut", "Alt+k"}, strings.NewReader(""), &bytes.Buffer{}, &stderr, rt)
 	if code != 0 {
@@ -114,11 +115,11 @@ func TestRunTestShortcutRecordsLeftPane(t *testing.T) {
 
 func TestRunTestShortcutGlobalLayoutToggle(t *testing.T) {
 	panes := `[
-		{"id":1,"is_focused":true,"is_fullscreen":false,"is_floating":false,"is_plugin":false,"title":"codex","terminal_command":"pair wrap codex"},
-		{"id":2,"is_focused":false,"is_fullscreen":false,"is_floating":false,"is_plugin":false,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua /data/draft-t.md"},
-		{"id":3,"is_focused":false,"is_fullscreen":false,"is_floating":false,"is_plugin":false,"title":"terminal","terminal_command":"pair term"}
+		{"id":1,"is_focused":true,"is_fullscreen":false,"is_floating":false,"is_plugin":false,"title":"codex","terminal_command":"pair wrap codex","pane_x":0,"pane_y":0,"pane_columns":75,"pane_rows":39,"tab_id":1,"tab_position":1},
+		{"id":2,"is_focused":false,"is_fullscreen":false,"is_floating":false,"is_plugin":false,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua /data/draft-t.md","pane_x":0,"pane_y":0,"pane_columns":75,"pane_rows":39,"tab_id":1,"tab_position":1},
+		{"id":3,"is_focused":false,"is_fullscreen":false,"is_floating":false,"is_plugin":false,"title":"terminal","terminal_command":"pair term","pane_x":0,"pane_y":0,"pane_columns":75,"pane_rows":39,"tab_id":1,"tab_position":1}
 	]`
-	rt := &fakeRuntime{panesJSON: panes}
+	rt := &fakeRuntime{currentPaneID: "1", panesJSON: panes}
 	var stderr bytes.Buffer
 	code := RunWithRuntime([]string{"--test-shortcut", "Alt+Shift+Enter"}, strings.NewReader(""), &bytes.Buffer{}, &stderr, rt)
 	if code != 0 {
@@ -132,7 +133,7 @@ func TestRunTestShortcutGlobalLayoutToggle(t *testing.T) {
 }
 
 func TestPumpStdinDecodesSplitAltChord(t *testing.T) {
-	rt := &fakeRuntime{}
+	rt := &fakeRuntime{currentPaneID: "4"}
 	stdin := splitReader{chunks: [][]byte{{0x1b}, {'t'}}}
 	mux := &fakeMux{}
 	timer := beforeDeadline()
@@ -172,7 +173,7 @@ func TestPumpStdinHandlesTerminalTabActions(t *testing.T) {
 		{name: "alt up passes through outside draft", chunks: [][]byte{[]byte("\x1b[1;3A")}, wantMux: "write:\x1b[1;3A"},
 		{name: "alt down passes through outside draft", chunks: [][]byte{[]byte("\x1b[1;3B")}, wantMux: "write:\x1b[1;3B"},
 		{name: "alt c routes review toggle to draft", chunks: [][]byte{[]byte("\x1b[99;3u")}, wantRTOps: "write --pane-id 2 28,write --pane-id 2 14,write-chars --pane-id 2 :lua PairReviewToggle(),write --pane-id 2 13"},
-		{name: "layout toggle", chunks: [][]byte{[]byte("\x1b[13;4u")}, wantRTOps: "toggle-pane-embed-or-floating --pane-id 4,change-floating-pane-coordinates --pane-id 4 -x 12% -y 0 --width 75% --height 100% --pinned true,show-floating-panes"},
+		{name: "layout toggle", chunks: [][]byte{[]byte("\x1b[13;4u")}, wantRTOps: "toggle-pane-embed-or-floating --pane-id 4,change-floating-pane-coordinates --pane-id 4 -x 12% -y 0 --width 75% --height 100% --pinned true,show-floating-panes --tab-id 1"},
 		{name: "mouse top row passes to child", chunks: [][]byte{[]byte("\x1b[<0;8;1M")}, wantMux: "write:\x1b[<0;8;1M"},
 		{name: "mouse shell row passes through", chunks: [][]byte{[]byte("\x1b[<0;8;2M")}, wantMux: "write:\x1b[<0;8;2M"},
 		{name: "mouse wheel up scrolls zellij viewport", chunks: [][]byte{[]byte("\x1b[<64;8;5M")}, wantRTOps: "scroll-up"},
@@ -211,7 +212,7 @@ func TestPumpStdinHandlesTerminalTabActions(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			rt := &fakeRuntime{}
+			rt := &fakeRuntime{currentPaneID: "4"}
 			mux := &fakeMux{appMouse: tt.appMouse}
 			var stdout bytes.Buffer
 			pumpStdinWithTimer(&splitReader{chunks: tt.chunks}, mux, rt, &stdout, beforeDeadline())
@@ -226,7 +227,7 @@ func TestPumpStdinHandlesTerminalTabActions(t *testing.T) {
 }
 
 func TestPumpStdinDoesNotRouteDraftAltNFromTheRightPane(t *testing.T) {
-	rt := &fakeRuntime{cachedDraft: "2", failFocus: true}
+	rt := &fakeRuntime{currentPaneID: "4", cachedDraft: "2", failFocus: true}
 	mux := &fakeMux{}
 	pumpStdin(&splitReader{chunks: [][]byte{[]byte("\x1b[110;3u")}}, mux, rt, io.Discard)
 	if got := strings.Join(rt.ops, ","); got != "" {
@@ -239,9 +240,9 @@ func TestPumpStdinDoesNotRouteDraftAltNFromTheRightPane(t *testing.T) {
 
 func TestSplitTerminalDownIsNativeTiledSplit(t *testing.T) {
 	panes := `[
-		{"id":1,"is_focused":false,"is_fullscreen":false,"is_floating":false,"is_plugin":false,"pane_x":0,"pane_columns":75,"pane_rows":39,"title":"codex","terminal_command":"pair wrap codex"},
-		{"id":2,"is_focused":false,"is_fullscreen":false,"is_floating":false,"is_plugin":false,"pane_x":0,"pane_columns":75,"pane_rows":12,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua /data/draft-t.md"},
-		{"id":4,"is_focused":true,"is_fullscreen":false,"is_floating":false,"is_plugin":false,"pane_x":75,"pane_columns":75,"pane_rows":51,"title":"terminal","terminal_command":"pair term"}
+		{"id":1,"is_focused":false,"is_fullscreen":false,"is_floating":false,"is_plugin":false,"pane_x":0,"pane_columns":75,"pane_rows":39,"title":"codex","terminal_command":"pair wrap codex","pane_y":0,"tab_id":1,"tab_position":1},
+		{"id":2,"is_focused":false,"is_fullscreen":false,"is_floating":false,"is_plugin":false,"pane_x":0,"pane_columns":75,"pane_rows":12,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua /data/draft-t.md","pane_y":0,"tab_id":1,"tab_position":1},
+		{"id":4,"is_focused":true,"is_fullscreen":false,"is_floating":false,"is_plugin":false,"pane_x":75,"pane_columns":75,"pane_rows":51,"title":"terminal","terminal_command":"pair term","pane_y":0,"tab_id":1,"tab_position":1}
 	]`
 	rt := &fakeRuntime{panesJSON: panes, currentPaneID: "4"}
 
@@ -260,7 +261,7 @@ func TestSplitTerminalDownIsNativeTiledSplit(t *testing.T) {
 }
 
 func TestTerminalAltKRecordsLeavingSplitHalf(t *testing.T) {
-	rt := &fakeRuntime{lastLeft: "1"}
+	rt := &fakeRuntime{currentPaneID: "4", lastLeft: "1"}
 	var stderr bytes.Buffer
 	code := RunWithRuntime([]string{"--test-shortcut", "Alt+k"}, strings.NewReader(""), &bytes.Buffer{}, &stderr, rt)
 	if code != 0 {
@@ -280,10 +281,10 @@ func TestSplitHalfChordsWorkViaRegistry(t *testing.T) {
 	// tab-strip title ("[terminal 1]") defeats the title fallback. Only the
 	// terminal-pane registry identifies it.
 	panes := `[
-		{"id":1,"is_focused":false,"is_fullscreen":false,"is_floating":false,"is_plugin":false,"pane_x":0,"pane_columns":75,"pane_rows":39,"title":"codex","terminal_command":"pair wrap codex"},
-		{"id":2,"is_focused":false,"is_fullscreen":false,"is_floating":false,"is_plugin":false,"pane_x":0,"pane_columns":75,"pane_rows":12,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua /data/draft-t.md"},
-		{"id":3,"is_focused":false,"is_fullscreen":false,"is_floating":false,"is_plugin":false,"pane_x":75,"pane_columns":75,"pane_rows":26,"title":"[terminal 1]","terminal_command":"sh -c exec pair term"},
-		{"id":4,"is_focused":true,"is_fullscreen":false,"is_floating":false,"is_plugin":false,"pane_x":75,"pane_y":26,"pane_columns":75,"pane_rows":25,"title":"[terminal 1]","terminal_command":null}
+		{"id":1,"is_focused":false,"is_fullscreen":false,"is_floating":false,"is_plugin":false,"pane_x":0,"pane_columns":75,"pane_rows":39,"title":"codex","terminal_command":"pair wrap codex","pane_y":0,"tab_id":1,"tab_position":1},
+		{"id":2,"is_focused":false,"is_fullscreen":false,"is_floating":false,"is_plugin":false,"pane_x":0,"pane_columns":75,"pane_rows":12,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua /data/draft-t.md","pane_y":0,"tab_id":1,"tab_position":1},
+		{"id":3,"is_focused":false,"is_fullscreen":false,"is_floating":false,"is_plugin":false,"pane_x":75,"pane_columns":75,"pane_rows":26,"title":"[terminal 1]","terminal_command":"sh -c exec pair term","pane_y":0,"tab_id":1,"tab_position":1},
+		{"id":4,"is_focused":true,"is_fullscreen":false,"is_floating":false,"is_plugin":false,"pane_x":75,"pane_y":26,"pane_columns":75,"pane_rows":25,"title":"[terminal 1]","terminal_command":null,"tab_id":1,"tab_position":1}
 	]`
 	rt := &fakeRuntime{panesJSON: panes, currentPaneID: "4", terminalPaneIDs: []string{"3", "4"}, lastLeft: "2"}
 	var stderr bytes.Buffer
@@ -306,9 +307,9 @@ func TestChordRoleResolvesOwnPaneUnderAmbiguousFocus(t *testing.T) {
 	// role resolution must prefer ZELLIJ_PANE_ID over the is_focused scan —
 	// otherwise the draft wins by list order and the chord silently passes.
 	panes := `[
-		{"id":1,"is_focused":false,"is_fullscreen":false,"is_floating":false,"is_plugin":false,"pane_x":0,"pane_columns":75,"pane_rows":39,"title":"codex","terminal_command":"pair wrap codex"},
-		{"id":4,"is_focused":true,"is_fullscreen":false,"is_floating":false,"is_plugin":false,"pane_x":75,"pane_columns":75,"pane_rows":51,"title":"terminal","terminal_command":"pair term"},
-		{"id":2,"is_focused":true,"is_fullscreen":false,"is_floating":false,"is_plugin":false,"pane_x":0,"pane_columns":75,"pane_rows":12,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua /data/draft-t.md"}
+		{"id":1,"is_focused":false,"is_fullscreen":false,"is_floating":false,"is_plugin":false,"pane_x":0,"pane_columns":75,"pane_rows":39,"title":"codex","terminal_command":"pair wrap codex","pane_y":0,"tab_id":1,"tab_position":1},
+		{"id":4,"is_focused":true,"is_fullscreen":false,"is_floating":false,"is_plugin":false,"pane_x":75,"pane_columns":75,"pane_rows":51,"title":"terminal","terminal_command":"pair term","pane_y":0,"tab_id":1,"tab_position":1},
+		{"id":2,"is_focused":true,"is_fullscreen":false,"is_floating":false,"is_plugin":false,"pane_x":0,"pane_columns":75,"pane_rows":12,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua /data/draft-t.md","pane_y":0,"tab_id":1,"tab_position":1}
 	]`
 	rt := &fakeRuntime{panesJSON: panes, currentPaneID: "4"}
 	var stderr bytes.Buffer
@@ -323,9 +324,9 @@ func TestChordRoleResolvesOwnPaneUnderAmbiguousFocus(t *testing.T) {
 }
 
 func TestSplitTerminalDownRefusesWithoutRightTerminal(t *testing.T) {
-	rt := &fakeRuntime{panesJSON: `[
-		{"id":1,"is_focused":true,"is_fullscreen":false,"is_floating":false,"is_plugin":false,"pane_x":0,"pane_columns":75,"pane_rows":39,"title":"codex","terminal_command":"pair wrap codex"},
-		{"id":2,"is_focused":false,"is_fullscreen":false,"is_floating":false,"is_plugin":false,"pane_x":0,"pane_columns":75,"pane_rows":12,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua /data/draft-t.md"}
+	rt := &fakeRuntime{currentPaneID: "4", panesJSON: `[
+		{"id":1,"is_focused":true,"is_fullscreen":false,"is_floating":false,"is_plugin":false,"pane_x":0,"pane_columns":75,"pane_rows":39,"title":"codex","terminal_command":"pair wrap codex","pane_y":0,"tab_id":1,"tab_position":1},
+		{"id":2,"is_focused":false,"is_fullscreen":false,"is_floating":false,"is_plugin":false,"pane_x":0,"pane_columns":75,"pane_rows":12,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua /data/draft-t.md","pane_y":0,"tab_id":1,"tab_position":1}
 	]`}
 
 	if err := splitTerminalDown(rt); err == nil {
@@ -337,8 +338,8 @@ func TestSplitTerminalDownRefusesWithoutRightTerminal(t *testing.T) {
 }
 
 func TestPumpStdinPassesDraftAltNWhenDraftMissing(t *testing.T) {
-	rt := &fakeRuntime{panesJSON: `[
-		{"id":4,"is_focused":true,"is_fullscreen":false,"is_floating":true,"is_plugin":false,"title":"terminal","terminal_command":"pair term"}
+	rt := &fakeRuntime{currentPaneID: "4", panesJSON: `[
+		{"id":4,"is_focused":true,"is_fullscreen":false,"is_floating":true,"is_plugin":false,"title":"terminal","terminal_command":"pair term","pane_x":0,"pane_y":0,"pane_columns":75,"pane_rows":39,"tab_id":1,"tab_position":1}
 	]`}
 	mux := &fakeMux{}
 
@@ -353,7 +354,7 @@ func TestPumpStdinPassesDraftAltNWhenDraftMissing(t *testing.T) {
 }
 
 func TestPumpStdinRenameCommitsInFrameWithoutChildPrompt(t *testing.T) {
-	rt := &fakeRuntime{}
+	rt := &fakeRuntime{currentPaneID: "4"}
 	mux := &fakeMux{activeName: "work"}
 	var stdout bytes.Buffer
 
@@ -373,7 +374,7 @@ func TestPumpStdinRenameCommitsInFrameWithoutChildPrompt(t *testing.T) {
 }
 
 func TestPumpStdinRenameConsumesSameReadSuffix(t *testing.T) {
-	rt := &fakeRuntime{}
+	rt := &fakeRuntime{currentPaneID: "4"}
 	mux := &fakeMux{activeName: "work"}
 
 	pumpStdin(&splitReader{chunks: [][]byte{[]byte("\x1brx\rls\n")}}, mux, rt, io.Discard)
@@ -385,7 +386,7 @@ func TestPumpStdinRenameConsumesSameReadSuffix(t *testing.T) {
 }
 
 func TestPumpStdinRenameCmdDeleteDeletesToStart(t *testing.T) {
-	rt := &fakeRuntime{}
+	rt := &fakeRuntime{currentPaneID: "4"}
 	mux := &fakeMux{activeName: "work"}
 
 	pumpStdin(&splitReader{chunks: [][]byte{
@@ -400,7 +401,7 @@ func TestPumpStdinRenameCmdDeleteDeletesToStart(t *testing.T) {
 }
 
 func TestPumpStdinRenameCancelsOnEOF(t *testing.T) {
-	rt := &fakeRuntime{}
+	rt := &fakeRuntime{currentPaneID: "4"}
 	mux := &fakeMux{activeName: "work"}
 
 	pumpStdin(&splitReader{chunks: [][]byte{[]byte("\x1br"), []byte("x")}}, mux, rt, io.Discard)
@@ -412,7 +413,7 @@ func TestPumpStdinRenameCancelsOnEOF(t *testing.T) {
 }
 
 func TestPumpStdinRenameEntryFailureConsumesInput(t *testing.T) {
-	rt := &fakeRuntime{}
+	rt := &fakeRuntime{currentPaneID: "4"}
 	mux := &fakeMux{activeName: "work", beginRenameErr: exec.ErrNotFound}
 
 	pumpStdin(&splitReader{chunks: [][]byte{[]byte("\x1brx\r")}}, mux, rt, io.Discard)
@@ -429,7 +430,7 @@ func TestPumpStdinRenameEntryFailureConsumesInput(t *testing.T) {
 // and since #199 M3 nothing on that path talks to a subprocess -- the pane title
 // is written once, on commit. The outcome must survive that one failure.
 func TestPumpStdinRenameFinishFailurePreservesOutcome(t *testing.T) {
-	rt := &fakeRuntime{}
+	rt := &fakeRuntime{currentPaneID: "4"}
 	mux := &fakeMux{
 		activeName:      "work",
 		finishRenameErr: exec.ErrNotFound,
@@ -446,7 +447,7 @@ func TestPumpStdinRenameFinishFailurePreservesOutcome(t *testing.T) {
 }
 
 func TestPumpStdinRenameConsumesShortcutMouseAndPaste(t *testing.T) {
-	rt := &fakeRuntime{}
+	rt := &fakeRuntime{currentPaneID: "4"}
 	mux := &fakeMux{activeName: "work"}
 	input := "\x1br\x1b[110;3u\x1b[<0;3;2M\x1b[200~hidden\x1b[201~\r"
 
@@ -468,7 +469,7 @@ func TestPumpStdinRenameConsumesShortcutMouseAndPaste(t *testing.T) {
 // spawn, on commit. A budget with no test is a sentence in a plan.
 
 func TestPumpStdinRenameBareEscapeCancelsOnTimer(t *testing.T) {
-	rt := &fakeRuntime{}
+	rt := &fakeRuntime{currentPaneID: "4"}
 	finished := make(chan RenameOutcome, 1)
 	mux := &fakeMux{activeName: "work", renameFinished: finished}
 	reader := &gatedEOFReader{data: []byte("\x1br\x1b"), release: make(chan struct{})}
@@ -497,7 +498,7 @@ func TestPumpStdinRenameBareEscapeCancelsOnTimer(t *testing.T) {
 }
 
 func TestPumpStdinRenameEscapeTimeoutThenNextReadForwards(t *testing.T) {
-	rt := &fakeRuntime{}
+	rt := &fakeRuntime{currentPaneID: "4"}
 	finished := make(chan RenameOutcome, 1)
 	releaseNext := make(chan struct{})
 	mux := &fakeMux{activeName: "work", renameFinished: finished}
@@ -534,7 +535,7 @@ func TestPumpStdinRenameEscapeTimeoutThenNextReadForwards(t *testing.T) {
 }
 
 func TestPumpStdinRenameEscapeContinuationBeatsTimer(t *testing.T) {
-	rt := &fakeRuntime{}
+	rt := &fakeRuntime{currentPaneID: "4"}
 	mux := &fakeMux{activeName: "work"}
 	timer := newFiringEscapeTimer()
 	timer.autoFire = false
@@ -567,7 +568,7 @@ func TestTheRenameFieldPlacesTheCaretAtTheCursor(t *testing.T) {
 }
 
 func TestTerminalMuxSetPaneTitleTargetsOwnPane(t *testing.T) {
-	rt := &fakeRuntime{}
+	rt := &fakeRuntime{currentPaneID: "4"}
 	mux := &terminalMux{rt: rt, paneID: "7"}
 	if err := mux.setPaneTitle("terminal work"); err != nil {
 		t.Fatal(err)
@@ -691,16 +692,29 @@ func (f *fakeRuntime) ListPanesJSON() ([]byte, error) {
 	}
 	if f.panesJSON == "" {
 		return []byte(`[
-			{"id":1,"is_focused":false,"is_fullscreen":false,"is_floating":false,"is_plugin":false,"pane_x":0,"pane_columns":75,"pane_rows":39,"title":"codex","terminal_command":"pair wrap codex"},
-			{"id":2,"is_focused":false,"is_fullscreen":false,"is_floating":false,"is_plugin":false,"pane_x":0,"pane_columns":75,"pane_rows":12,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua /data/draft-t.md"},
-				{"id":4,"is_focused":true,"is_fullscreen":false,"is_floating":false,"is_plugin":false,"pane_x":75,"pane_columns":75,"pane_rows":51,"title":"terminal","terminal_command":"pair term"}
+			{"id":1,"is_focused":false,"is_fullscreen":false,"is_floating":false,"is_plugin":false,"pane_x":0,"pane_columns":75,"pane_rows":39,"title":"codex","terminal_command":"pair wrap codex","pane_y":0,"tab_id":1,"tab_position":1},
+			{"id":2,"is_focused":false,"is_fullscreen":false,"is_floating":false,"is_plugin":false,"pane_x":0,"pane_columns":75,"pane_rows":12,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua /data/draft-t.md","pane_y":0,"tab_id":1,"tab_position":1},
+				{"id":4,"is_focused":true,"is_fullscreen":false,"is_floating":false,"is_plugin":false,"pane_x":75,"pane_columns":75,"pane_rows":51,"title":"terminal","terminal_command":"pair term","pane_y":0,"tab_id":1,"tab_position":1}
 		]`), nil
 	}
 	return []byte(f.panesJSON), nil
 }
 
+func (f *fakeRuntime) ListPanesJSONContext(ctx context.Context) ([]byte, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return f.ListPanesJSON()
+}
+func (f *fakeRuntime) CurrentTabJSONContext(ctx context.Context) ([]byte, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return f.CurrentTabJSON()
+}
+
 func TestPumpStdinPassesDraftAltNWithoutPaneInventory(t *testing.T) {
-	rt := &fakeRuntime{cachedDraft: "2", failList: true}
+	rt := &fakeRuntime{currentPaneID: "4", cachedDraft: "2", failList: true}
 	mux := &fakeMux{}
 
 	pumpStdin(&splitReader{chunks: [][]byte{[]byte("\x1b[110;3u")}}, mux, rt, io.Discard)
@@ -948,7 +962,7 @@ func TestEveryHandledTerminalChordIsDocumented(t *testing.T) {
 	// `chord <= ChordAltShiftEnter` silently dropped every chord appended after
 	// it (#216 PQ-3).
 	for chord := workbenchshortcut.ChordUnknown + 1; chord < workbenchshortcut.ChordMax(); chord++ {
-		rt := &fakeRuntime{}
+		rt := &fakeRuntime{currentPaneID: "4"}
 		mux := &fakeMux{}
 		if !handleTerminalChord(chord, mux, rt) {
 			continue
@@ -993,8 +1007,8 @@ func TestRightTerminalClassifierClassifiesAsARightTerminal(t *testing.T) {
 // is id 7 — distinct from every other id in the fixture — so a fast path
 // reading the wrong sidecar produces a different answer.
 const workbenchFixturePanes = `[
-	{"id":4,"is_focused":true,"is_fullscreen":false,"is_floating":false,"pane_x":75,"title":"[terminal 1]","terminal_command":"sh -c exec pair term"},
-	{"id":7,"is_focused":false,"is_fullscreen":false,"is_floating":false,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua d.md"}
+	{"id":4,"is_focused":true,"is_fullscreen":false,"is_floating":false,"pane_x":75,"title":"[terminal 1]","terminal_command":"sh -c exec pair term","is_plugin":false,"pane_y":0,"pane_columns":75,"pane_rows":39,"tab_id":1,"tab_position":1},
+	{"id":7,"is_focused":false,"is_fullscreen":false,"is_floating":false,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua d.md","is_plugin":false,"pane_x":0,"pane_y":0,"pane_columns":75,"pane_rows":39,"tab_id":1,"tab_position":1}
 ]`
 
 func TestFocusedWorkbenchPanesFastPathAnswersWhatTheSlowPathWould(t *testing.T) {
@@ -1014,8 +1028,8 @@ func TestFocusedWorkbenchPanesFastPathAnswersWhatTheSlowPathWould(t *testing.T) 
 	if fast.listCalls != 0 {
 		t.Errorf("fast path called ListPanesJSON %d times, want 0 — the 590ms is the point", fast.listCalls)
 	}
-	if slow.listCalls != 1 {
-		t.Fatalf("slow path called ListPanesJSON %d times, want 1 — the fixture is not exercising it", slow.listCalls)
+	if slow.listCalls != 2 {
+		t.Fatalf("slow path called ListPanesJSON %d times, want 2 confirmed observations", slow.listCalls)
 	}
 	if fastPanes.focused.ID != slowPanes.focused.ID || fastPanes.draft.ID != slowPanes.draft.ID {
 		t.Fatalf("fast = focused %q draft %q; slow = focused %q draft %q — the two paths disagree",
@@ -1040,11 +1054,20 @@ func TestFocusedWorkbenchPanesFallsBackWhenTheGateFails(t *testing.T) {
 		{"no cached draft", &fakeRuntime{currentPaneID: "4", terminalPaneIDs: []string{"4"}, panesJSON: workbenchFixturePanes}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
+			if test.rt.currentPaneID == "" {
+				if _, err := focusedWorkbenchPanes(test.rt); err == nil {
+					t.Fatal("missing invoking identity admitted focused fallback")
+				}
+				if test.rt.listCalls != 1 {
+					t.Fatalf("missing identity queried %d times, want immediate refusal", test.rt.listCalls)
+				}
+				return
+			}
 			if _, err := focusedWorkbenchPanes(test.rt); err != nil {
 				t.Fatal(err)
 			}
-			if test.rt.listCalls != 1 {
-				t.Errorf("ListPanesJSON called %d times, want 1 — the fast path must decline here", test.rt.listCalls)
+			if test.rt.listCalls != 2 {
+				t.Errorf("ListPanesJSON called %d times, want 2 — the native path must confirm", test.rt.listCalls)
 			}
 		})
 	}
@@ -1062,8 +1085,8 @@ func TestCurrentRightTerminalPaneFastPathAnswersWhatTheSlowPathWould(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
-	if fast.listCalls != 0 || slow.listCalls != 1 {
-		t.Fatalf("list calls fast=%d slow=%d, want 0 and 1", fast.listCalls, slow.listCalls)
+	if fast.listCalls != 0 || slow.listCalls != 2 {
+		t.Fatalf("list calls fast=%d slow=%d, want 0 and 2", fast.listCalls, slow.listCalls)
 	}
 	if fastOK != slowOK || fastPane.ID != slowPane.ID {
 		t.Fatalf("fast = %q/%v, slow = %q/%v — the two paths disagree", fastPane.ID, fastOK, slowPane.ID, slowOK)
@@ -1075,7 +1098,7 @@ func TestCurrentRightTerminalPaneFastPathAnswersWhatTheSlowPathWould(t *testing.
 
 func TestTerminalHelpAndChangelogRouteWithoutFocusChange(t *testing.T) {
 	for _, tc := range []struct{ raw, fn string }{{"\x1b[104;3u", "PairOpenHelp"}, {"\x1b[108;3u", "PairOpenChangelog"}} {
-		rt := &fakeRuntime{cachedDraft: "2", failList: true}
+		rt := &fakeRuntime{currentPaneID: "4", cachedDraft: "2", failList: true}
 		mux := &fakeMux{}
 		pumpStdin(&splitReader{chunks: [][]byte{[]byte(tc.raw)}}, mux, rt, io.Discard)
 		want := "write --pane-id 2 28,write --pane-id 2 14,write-chars --pane-id 2 :lua " + tc.fn + "(),write --pane-id 2 13"
@@ -1125,7 +1148,7 @@ func TestPumpStdinOffersLeftPressToStrip(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			mux := &fakeMux{hasStrip: true, stripY: 4}
-			pumpStdinWithTimer(&splitReader{chunks: [][]byte{[]byte(tt.input)}}, mux, &fakeRuntime{}, io.Discard, beforeDeadline())
+			pumpStdinWithTimer(&splitReader{chunks: [][]byte{[]byte(tt.input)}}, mux, &fakeRuntime{currentPaneID: "4"}, io.Discard, beforeDeadline())
 			if got := strings.Join(mux.ops, ","); got != tt.want {
 				t.Fatalf("ops = %q, want %q", got, tt.want)
 			}

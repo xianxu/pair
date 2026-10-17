@@ -6,20 +6,19 @@ import (
 	"fmt"
 	"github.com/xianxu/pair/cmd/internal/zellijpane"
 	"github.com/xianxu/pair/cmd/internal/zellijreply"
-	"sort"
 )
 
 // ConfirmWorkbenchPanesContext binds the decision to the independently known invoking
 // terminal. Focus flags on other tabs are valid and do not select this context.
 func ConfirmWorkbenchPanesContext(ctx context.Context, rt interface {
 	ListPanesJSONContext(context.Context) ([]byte, error)
-}, caller string) ([]zellijpane.Pane, int, int, error) {
-	return confirmWorkbenchPanesContext(ctx, rt, caller, nil)
+}, caller string, validate ...func([]zellijpane.Pane) error) ([]zellijpane.Pane, int, int, error) {
+	return confirmWorkbenchPanesContext(ctx, rt, caller, nil, validate...)
 }
 
 func confirmWorkbenchPanesContext(ctx context.Context, rt interface {
 	ListPanesJSONContext(context.Context) ([]byte, error)
-}, caller string, needGeometry func([]zellijpane.Pane) bool) ([]zellijpane.Pane, int, int, error) {
+}, caller string, needGeometry func([]zellijpane.Pane) bool, validate ...func([]zellijpane.Pane) error) ([]zellijpane.Pane, int, int, error) {
 	var chosen []zellijpane.Pane
 	var tabID, position int
 	_, err := zellijreply.Confirm(ctx, func(ctx context.Context) ([]byte, error) { return rt.ListPanesJSONContext(ctx) }, func(raw []byte) (string, error) {
@@ -41,12 +40,11 @@ func confirmWorkbenchPanesContext(ctx context.Context, rt interface {
 				chosen = append(chosen, p)
 			}
 		}
-		sort.Slice(chosen, func(i, j int) bool {
-			if chosen[i].IsPlugin != chosen[j].IsPlugin {
-				return !chosen[i].IsPlugin
+		for _, check := range validate {
+			if err := check(chosen); err != nil {
+				return "", err
 			}
-			return chosen[i].ID < chosen[j].ID
-		})
+		}
 		projection := append([]zellijpane.Pane(nil), chosen...)
 		geometry := needGeometry == nil || needGeometry(chosen)
 		if geometry && needGeometry != nil {

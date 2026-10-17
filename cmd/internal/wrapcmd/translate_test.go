@@ -2,6 +2,7 @@ package wrapcmd
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"io"
 	"os"
@@ -334,6 +335,14 @@ func (f *fakeDraftRouteRuntime) CachedDraftPaneID() (string, bool) {
 func (f *fakeDraftRouteRuntime) ListPanesJSON() ([]byte, error) {
 	return f.panes, nil
 }
+
+func (f *fakeDraftRouteRuntime) ListPanesJSONContext(ctx context.Context) ([]byte, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return f.ListPanesJSON()
+}
+func (f *fakeDraftRouteRuntime) CurrentPaneID() string { return "4" }
 
 func (f *fakeDraftRouteRuntime) RunZellijAction(args ...string) error {
 	f.ops = append(f.ops, strings.Join(args, " "))

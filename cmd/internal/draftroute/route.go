@@ -3,15 +3,18 @@
 package draftroute
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
+	"github.com/xianxu/pair/cmd/internal/layoutcmd"
 	"github.com/xianxu/pair/cmd/internal/procutil"
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 	"github.com/xianxu/pair/cmd/internal/zellijpane"
+	"github.com/xianxu/pair/cmd/internal/zellijreply"
 )
 
 type CachedPaneRecord struct {
@@ -71,26 +74,62 @@ func CachedDraftPaneIDFromEnv() (string, bool) {
 
 type Runtime interface {
 	CachedDraftPaneID() (string, bool)
-	ListPanesJSON() ([]byte, error)
+	CurrentPaneID() string
+	ListPanesJSONContext(context.Context) ([]byte, error)
 	RunZellijAction(args ...string) error
 }
 
 func RouteLua(rt Runtime, function string, focusDraft bool) error {
+	ctx, cancel := zellijreply.AdmissionContext(context.Background())
+	defer cancel()
+	return RouteLuaContext(ctx, rt, function, focusDraft)
+}
+
+// RouteLuaContext retains an enclosing shortcut's admission budget. A validated
+// local cache needs no query; native fallback confirms the invoking tab first.
+func RouteLuaContext(ctx context.Context, rt Runtime, function string, focusDraft bool) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	draftID, ok := rt.CachedDraftPaneID()
 	if !ok {
-		data, err := rt.ListPanesJSON()
+		_, _, _, err := layoutcmd.ConfirmWorkbenchPanesContext(ctx, rt, rt.CurrentPaneID(), func(panes []zellijpane.Pane) error {
+			var err error
+			draftID, err = UniqueDraftPaneID(panes)
+			if err == nil && draftID == "" {
+				return errors.New("draft pane not found")
+			}
+			return err
+		})
 		if err != nil {
 			return fmt.Errorf("list panes: %w", err)
 		}
-		for _, pane := range zellijpane.Parse(data) {
-			if workbenchshortcut.RoleForPane(pane) == workbenchshortcut.PaneRoleLeftDraft {
-				draftID = pane.ID
-				break
+	}
+	return RouteLuaToPaneContext(ctx, rt, draftID, function, focusDraft)
+}
+
+// UniqueDraftPaneID selects at most one draft from a scoped and confirmed tab.
+func UniqueDraftPaneID(panes []zellijpane.Pane) (string, error) {
+	draftID := ""
+	for _, pane := range panes {
+		if workbenchshortcut.RoleForPane(pane) == workbenchshortcut.PaneRoleLeftDraft {
+			if draftID != "" {
+				return "", errors.New("ambiguous draft panes")
 			}
+			draftID = pane.ID
 		}
 	}
+	return draftID, nil
+}
+
+// RouteLuaToPaneContext consumes the caller's admitted draft directly, avoiding
+// another native lookup between admission and pane-addressed input.
+func RouteLuaToPaneContext(ctx context.Context, rt interface{ RunZellijAction(...string) error }, draftID, function string, focusDraft bool) error {
 	if draftID == "" {
 		return errors.New("draft pane not found")
+	}
+	if err := ctx.Err(); err != nil {
+		return err
 	}
 	if focusDraft {
 		if err := rt.RunZellijAction("focus-pane-id", draftID); err != nil {
@@ -103,6 +142,9 @@ func RouteLua(rt Runtime, function string, focusDraft bool) error {
 		{"write-chars", "--pane-id", draftID, ":lua " + function + "()"},
 		{"write", "--pane-id", draftID, "13"},
 	} {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		if err := rt.RunZellijAction(action...); err != nil {
 			return fmt.Errorf("route %s to draft pane %s: %w", function, draftID, err)
 		}

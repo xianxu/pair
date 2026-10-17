@@ -1,43 +1,39 @@
 package clipcmd
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"time"
 
-	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
-	"github.com/xianxu/pair/cmd/internal/zellijpane"
+	"github.com/xianxu/pair/cmd/internal/zellijreply"
 )
 
 // Runtime is the IO/process boundary shared by the three clip helpers. The fs
-// primitives (WriteFile / Executable) come from an embedded osfs.FS on the
-// OSRuntime; the rest are the clipboard / zellij-IPC / spawn / exec seams.
+// primitives (WriteFile) come from an embedded osfs.FS on the
+// OSRuntime; the rest are clipboard, native commands and detached spawning.
 //
-// Two spawn modes are deliberately distinct (per the M4 plan-quality note):
-// RunSubprocess call-and-returns (flash-pane must not block the focus change
-// that follows), while ExecReplace replaces this process (the terminal
-// clipboard-to-pane hand-off, the shell's `exec`).
+// The fast copy hook detaches once. Its orchestrator admits the complete
+// source/destination plan and executes it without another process handoff.
 type Runtime interface {
 	WriteFile(path, data string) error // stage the quote file (osfs.FS)
-	Executable(path string) bool       // `[ -x $PAIR_HOME/bin/flash-pane ]` (osfs.FS)
 
-	ClipboardCopy(text string) error        // pbcopy → wl-copy → xclip -i
-	ClipboardPaste() (string, bool)         // pbpaste → wl-paste → xclip -o; ok=false when no tool
-	ListPanes(command bool) (string, error) // `zellij action list-panes --json [--command]`
+	ClipboardCopy(text string) error // pbcopy → wl-copy → xclip -i
+	ClipboardPaste() (string, bool)  // pbpaste → wl-paste → xclip -o; ok=false when no tool
+	ListPanesContext(context.Context) ([]byte, error)
+	CurrentPaneID() string
+	ListClientsContext(context.Context) ([]byte, error) // strict command/state/tab observations
 	// TerminalPaneIDs returns the live registered `pair term` pane ids (#123's
 	// registry). Needed because an Alt+Shift+d split half reports no
 	// terminal_command and a "[terminal N]" title, so neither identifies it —
 	// without this the right-pane gate below would miss split halves.
 	TerminalPaneIDs() ([]string, error)
 
-	SetPaneColor(id, bg string)                     // synchronous fg phase of the flash
-	ResetPaneColorAfter(id string, d time.Duration) // detached (setsid) bg reset — survives caller exit
-	FocusPane(id string) error                      // `zellij action focus-pane-id` (bare then terminal_ form)
-	MoveFocus(dir string)                           // fallback when the nvim pane can't be resolved
-	WriteKey(b byte)                                // `zellij action write <n>` (31 = Ctrl-_)
-
-	RunSubprocess(path string, args ...string) error // flash-pane (call-and-return)
-	ExecReplace(path string, args ...string) error   // clipboard-to-pane (process replace; only returns on error)
+	SetPaneColor(id, bg string)                              // synchronous fg phase of the flash
+	ResetPaneColorAfter(id string, d time.Duration)          // detached (setsid) bg reset — survives caller exit
+	FocusPaneContext(context.Context, string) error          // one canonical explicit native target
+	NotifyRefusal(string) error                              // independent existing wrapper broker
+	WritePaneKeyContext(context.Context, string, byte) error // addressed write; 31 = Ctrl-_
 
 	// SpawnDetached starts path in a new session (setsid) and does NOT wait — the
 	// copy-on-select hook uses it to hand the flash+paste to a process that
@@ -54,11 +50,11 @@ type Runtime interface {
 // CopyOnSelectOptions carries copy-on-select's resolved env.
 type CopyOnSelectOptions struct {
 	PairHome string
-	// SelfExe is the running `pair` executable. The orchestrator + flash + paste
-	// hand-offs self-exec it as `pair clip <leaf>` (#104 M2 folded copy-on-select
-	// / flash-pane / clipboard-to-pane into `pair clip …`), resolved at the CLI
-	// boundary so run.go stays pure.
-	SelfExe string
+	// SelfExe is the running pair executable, resolved at the CLI boundary
+	// for the hook's single detached orchestrator spawn.
+	SelfExe   string
+	Clipboard ClipboardToPaneOptions
+	Flash     FlashPaneOptions
 }
 
 // RunCopyOnSelect is zellij's copy_command body — the HOOK: mirror the selection
@@ -93,78 +89,40 @@ func RunCopyOnSelect(opts CopyOnSelectOptions, stdin io.Reader, rt Runtime, stde
 
 // RunCopyOnSelectOrchestrate is the detached second half (#100): inspect the
 // focused pane, and — unless the selection was made in the nvim draft pane — flash
-// the source pane and hand off to clipboard-to-pane for the insert into nvim. Runs
+// the admitted source pane and paste into the admitted draft in process. Runs
 // setsid'd (spawned by the hook), so zellij's reap of the copy_command child can't
 // truncate it. The selection is already on the OS clipboard (the hook mirrored it),
 // so this reads no stdin.
 func RunCopyOnSelectOrchestrate(opts CopyOnSelectOptions, rt Runtime, stderr io.Writer) int {
 	rt.Log("=== copy-on-select --orchestrate ===")
-
-	// Inspect the focused pane (where the selection happened).
-	focusedID := ""
-	inNvim := false
-	inRightTerminal := false
-	if out, err := rt.ListPanes(true); err == nil {
-		if p, ok := focusedPane(zellijpane.Parse([]byte(out))); ok {
-			focusedID = p.ID
-			inNvim = isNvimCommand(p.TerminalCommand)
-			terminalIDs, err := rt.TerminalPaneIDs()
-			if err != nil {
-				// Degrade to command/title classification — but SAY SO. This runs
-				// setsid'd with stderr on /dev/null, so the debug log is the only
-				// channel; and the degradation is behavior-changing: split halves
-				// stop being recognized and start auto-pasting again, which is
-				// the exact symptom this gate exists to remove. (LiveIDs returns
-				// (nil, nil) for a missing file, so this fires only on real IO
-				// errors — no log noise in the normal case.)
-				rt.Log("terminal registry read failed: " + err.Error())
-				terminalIDs = nil
-			}
-			inRightTerminal = workbenchshortcut.RoleForPaneWith(p, terminalIDs) == workbenchshortcut.PaneRoleRightTerminal
-		}
+	ctx, cancel := zellijreply.AdmissionContext(context.Background())
+	defer cancel()
+	plan, err := admitAutoQuote(ctx, rt)
+	if err != nil {
+		return refuseClip(rt, stderr, "Copied; auto-quote refused: uncertain Zellij reply", err)
 	}
-	rt.Log(fmt.Sprintf("in_nvim: %v in_right_terminal: %v focused_id: %q", inNvim, inRightTerminal, focusedID))
-
-	// NOTE: isNvimCommand and RoleForPaneWith deliberately overlap and must NOT
-	// be collapsed into one `switch role`. isNvimCommand is the BROADER of the
-	// two (`(?i)nvim|draft`), while RoleForPane's PaneRoleLeftDraft requires
-	// `/nvim/init.lua` — merging them would narrow the skip and start
-	// auto-pasting from the review pane and any other plain-nvim pane.
-	//
-	// When the selection happened in nvim, skip flash + hand-off — otherwise it
-	// would loop back and insert the selection beneath itself. (The "only paste
-	// in insert mode" gate lives on the nvim side; see clipboard-to-pane.)
-	if inNvim {
+	if plan.Skip {
 		return 0
 	}
-
-	// #125: a selection in the RIGHT TERMINAL does not auto-paste either. The
-	// agent pane keeps it — selecting something the agent said to quote it back
-	// is the point of the feature — but selecting a path or a command in the
-	// terminal is usually just a copy, and having that hijack the draft (flash,
-	// focus steal, `> ` insert) was distracting.
-	if inRightTerminal {
+	text, ok := rt.ClipboardPaste()
+	if !ok {
+		return refuseClip(rt, stderr, "Copied; auto-quote refused", fmt.Errorf("no clipboard tool found"))
+	}
+	if text == "" {
 		return 0
 	}
-
-	// Flash the source pane (delegated to `pair clip flash-pane` so the flash idiom
-	// lives in one place). Call-and-return: the flash's bg reset is detached, so
-	// this doesn't block the hand-off's focus change.
-	if focusedID != "" && rt.Executable(opts.SelfExe) {
-		if err := rt.RunSubprocess(opts.SelfExe, "clip", "flash-pane", focusedID); err != nil {
-			rt.Log("flash-pane failed: " + err.Error())
-		}
+	if err := ctx.Err(); err != nil {
+		return refuseClip(rt, stderr, "Copied; auto-quote refused: uncertain Zellij reply", err)
 	}
-
-	// Hand off to `pair clip clipboard-to-pane` for the insert into nvim (it reads
-	// the OS clipboard populated by the hook). This replaces the process (the
-	// shell's `exec`); it only returns here on failure.
-	if err := rt.ExecReplace(opts.SelfExe, "clip", "clipboard-to-pane"); err != nil {
-		// Detached: stderr is /dev/null, so the debug log is the ONLY channel a
-		// failed hand-off can surface on — record it there too (close-review #100).
-		rt.Log(fmt.Sprintf("exec %s clip clipboard-to-pane failed: %v", opts.SelfExe, err))
-		fmt.Fprintf(stderr, "copy-on-select: exec %s clip clipboard-to-pane: %v\n", opts.SelfExe, err)
-		return 1
+	plan.Quote, err = quotePath(opts.Clipboard)
+	if err != nil {
+		return refuseClip(rt, stderr, "Copied; auto-quote refused", err)
+	}
+	if err := flashAdmitted(ctx, opts.Flash, plan.Source.ID, rt); err != nil {
+		return refuseClip(rt, stderr, "Copied; auto-quote incomplete", err)
+	}
+	if err := pasteAdmitted(ctx, opts.Clipboard, plan, text, rt); err != nil {
+		return refuseClip(rt, stderr, "Copied; auto-quote incomplete", err)
 	}
 	return 0
 }
@@ -183,6 +141,8 @@ type ClipboardToPaneOptions struct {
 // Formatting (par reflow, `> ` prefix vs inline) is decided in nvim, keyed on
 // cursor position, so this only hands off the raw body.
 func RunClipboardToPane(opts ClipboardToPaneOptions, rt Runtime, stderr io.Writer) int {
+	ctx, cancel := zellijreply.AdmissionContext(context.Background())
+	defer cancel()
 	rt.Log("=== clipboard-to-pane ===")
 	clip, ok := rt.ClipboardPaste()
 	if !ok {
@@ -195,44 +155,56 @@ func RunClipboardToPane(opts ClipboardToPaneOptions, rt Runtime, stderr io.Write
 		return 0
 	}
 
-	// Find nvim's pane by terminal_command (its layout name is help text, not an
-	// identifier), so we can target it explicitly — zellij's copy_command child
-	// has no stable layout position for positional move-focus.
-	nvimID := ""
-	if out, err := rt.ListPanes(false); err == nil {
-		if p, ok := nvimPane(zellijpane.Parse([]byte(out))); ok {
-			nvimID = p.ID
-		}
-	}
-	rt.Log(fmt.Sprintf("resolved nvim pane id: %q clip bytes: %d", nvimID, len(clip)))
-
-	// Stage the raw selection for nvim to read.
-	dataDir := pickDataDir(opts.DataDir, opts.XDGDataHome, opts.Home)
-	tag := pickTag(opts.Tag, opts.Agent)
-	qf, err := quoteFile(dataDir, tag)
+	plan, err := admitClipboardPaste(ctx, rt)
 	if err != nil {
-		fmt.Fprintf(stderr, "clipboard-to-pane: resolve quote artifact: %v\n", err)
-		return 1
+		return refuseClip(rt, stderr, "Paste refused: uncertain Zellij reply", err)
 	}
-	if err := rt.WriteFile(qf, clip); err != nil {
-		fmt.Fprintf(stderr, "clipboard-to-pane: staging %s: %v\n", qf, err)
-		return 1
+	if err := pasteAdmitted(ctx, opts, plan, clip, rt); err != nil {
+		return refuseClip(rt, stderr, "Paste incomplete", err)
 	}
-
-	// Target nvim, then trigger PairPasteQuote. `<C-_>` is mapped to
-	// PairPasteQuote *only in insert mode* on the nvim side — that mapping IS the
-	// gate, so we don't force-normal-mode here.
-	if nvimID != "" {
-		if err := rt.FocusPane(nvimID); err != nil {
-			rt.Log("focus-pane-id failed for " + nvimID)
-		}
-	} else {
-		rt.Log("could not resolve draft pane; falling back to move-focus down")
-		rt.MoveFocus("down")
-	}
-	rt.WriteKey(31) // Ctrl-_
-	rt.Log("triggered PairPasteQuote (Ctrl-_)")
 	return 0
+}
+
+func pasteAdmitted(ctx context.Context, opts ClipboardToPaneOptions, plan pastePlan, text string, rt Runtime) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	qf := plan.Quote
+	var err error
+	if qf == "" {
+		qf, err = quotePath(opts)
+	}
+	if err != nil {
+		return fmt.Errorf("resolve quote artifact: %w", err)
+	}
+	if err := rt.WriteFile(qf, text); err != nil {
+		return fmt.Errorf("stage quote: %w", err)
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if err := rt.FocusPaneContext(ctx, plan.Draft.ID); err != nil {
+		return fmt.Errorf("focus draft: %w", err)
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if err := rt.WritePaneKeyContext(ctx, plan.Draft.ID, 31); err != nil {
+		return fmt.Errorf("trigger paste: %w", err)
+	}
+	return nil
+}
+func quotePath(opts ClipboardToPaneOptions) (string, error) {
+	return quoteFile(pickDataDir(opts.DataDir, opts.XDGDataHome, opts.Home), pickTag(opts.Tag, opts.Agent))
+}
+func refuseClip(rt Runtime, stderr io.Writer, message string, reason error) int {
+	rt.Log(message + ": " + reason.Error())
+	fmt.Fprintf(stderr, "%s: %v\n", message, reason)
+	if err := rt.NotifyRefusal(message); err != nil {
+		rt.Log("refusal notification failed: " + err.Error())
+		fmt.Fprintf(stderr, "refusal notification failed: %v\n", err)
+	}
+	return 1
 }
 
 // FlashPaneOptions carries flash-pane's resolved env.
@@ -249,21 +221,36 @@ type FlashPaneOptions struct {
 // flash may be subtle.
 func RunFlashPane(opts FlashPaneOptions, rt Runtime, stderr io.Writer) int {
 	paneID := opts.PaneID
+	ctx := context.Background()
 	if paneID == "" {
-		if out, err := rt.ListPanes(true); err == nil {
-			if p, ok := focusedPane(zellijpane.Parse([]byte(out))); ok {
-				paneID = p.ID
-			}
+		var cancel context.CancelFunc
+		ctx, cancel = zellijreply.AdmissionContext(ctx)
+		defer cancel()
+		plan, err := admitSource(ctx, rt)
+		if err != nil {
+			return refuseClip(rt, stderr, "Flash refused: uncertain Zellij reply", err)
 		}
+		if err := ctx.Err(); err != nil {
+			return refuseClip(rt, stderr, "Flash refused: uncertain Zellij reply", err)
+		}
+		paneID = plan.Source.ID
 	}
-	if paneID == "" {
-		rt.Log("flash-pane: no pane id")
-		return 0
+	if err := flashAdmitted(ctx, opts, paneID, rt); err != nil {
+		return refuseClip(rt, stderr, "Flash incomplete", err)
+	}
+	return 0
+}
+func flashAdmitted(ctx context.Context, opts FlashPaneOptions, paneID string, rt Runtime) error {
+	if err := ctx.Err(); err != nil {
+		return err
 	}
 	bg := pickFlashBG(opts.FlashBG)
 	ms := pickFlashMS(opts.FlashMS)
 	rt.SetPaneColor(paneID, bg)
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	rt.ResetPaneColorAfter(paneID, time.Duration(ms)*time.Millisecond)
 	rt.Log(fmt.Sprintf("flash-pane: bg=%s ms=%d id=%s", bg, ms, paneID))
-	return 0
+	return nil
 }

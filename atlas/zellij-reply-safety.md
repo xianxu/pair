@@ -39,10 +39,10 @@ Descendants deliberately leaving the group are outside that ownership contract.
 | Ordinary Couch warm attachment | Hardened in M1 | Existing initial, pre-spawn, pre-ack and post-ack listing fences; no additional queries or detached-client requirement. Unknown/negative confirmation cannot trigger helper retry. |
 | Explicit continuation adoption | Hardened in M1 | Existing repeated exact address/name/agent detached proof under one admission budget; no nested confirmation pairs. |
 | Wait-watcher, PID/start liveness and quiescence | Re-checked | Existing OS identity and absence fences; native unknown cannot prove absence. |
-| Layout focus/toggle/split/tab forwarding and terminal shortcut fallback | M2 pending | Strict target/state admission and existing validated local sidecar fast paths. |
-| Current-tab layout capture/restoration | M2 pending | Correlated tab/layout facts and partial-progress refusal. |
-| Go draft routing, restart role and note anchors | M2 pending | Explicit admitted targets; existing Couch notices. |
-| Clipboard auto-quote / paste / query-selected flash | M2 pending, fail-closed | Successful OS copy is separate; uncertain routing must refuse before staging, flash, focus or trigger. |
+| Layout focus/toggle/split/tab forwarding and terminal shortcut fallback | M2 implemented, review pending | Strict target/state admission and existing validated local sidecar fast paths. |
+| Current-tab layout capture/restoration | M2 implemented, review pending | Correlated tab/layout facts and partial-progress refusal. |
+| Go draft routing, restart role and note anchors | M2 implemented, review pending | Explicit admitted targets; existing Couch notices. |
+| Clipboard auto-quote / paste / query-selected flash | M2 implemented, fail-closed; review pending | Successful OS copy is separate; uncertain routing must refuse before staging, flash, focus or trigger. |
 | Lua workbench routing, poke, DOM and review visibility | M3 pending | Shared contracts, existing recipient fences and user-visible editor refusal. |
 | Title poller, wrap dim and opener viewport | Re-checked | Existing next tick/invocation and cosmetic fallback; no action authority. |
 | Peer viewport advisory check | Re-checked | Existing 500ms freshness/advisory policy; delivery retains independent recipient/composer authority. |

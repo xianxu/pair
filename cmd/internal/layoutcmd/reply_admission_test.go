@@ -4,11 +4,14 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/xianxu/pair/cmd/internal/notifytransport"
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 	"github.com/xianxu/pair/cmd/internal/zellijtest"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 type admissionRuntime struct {
@@ -153,5 +156,65 @@ func TestLayoutReturnConfirmsDecisionFactsWithoutGeometry(t *testing.T) {
 				t.Fatalf("mode=%s code=%d record=%q effects=%v", mode, code, w.record, f.Effects())
 			}
 		})
+	}
+}
+
+func TestLayoutReplyRefusalUsesIndependentBroker(t *testing.T) {
+	f := zellijtest.New(t)
+	for _, e := range f.Env() {
+		k, v, _ := strings.Cut(e, "=")
+		t.Setenv(k, v)
+	}
+	binding := filepath.Join(f.Root(), "wrapper.pid")
+	t.Setenv("PAIR_PAIR_WRAP_PID_PATH", binding)
+	broker, err := notifytransport.Start(binding, os.Getpid())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer broker.Close()
+	wrong := `{"wrong":"kind"}`
+	f.SetModel(zellijtest.Model{Sessions: map[string]zellijtest.Session{"test": {}}})
+	f.SetFaults(zellijtest.Fault{Ordinal: 1, Reply: &wrong})
+	w := newFullscreenWorld()
+	w.record = "preserved"
+	var diagnostic bytes.Buffer
+	if code := RunToggleFocused(nil, admissionRuntime{world: w}, &diagnostic); code != 1 {
+		t.Fatalf("code=%d", code)
+	}
+	select {
+	case msg := <-broker.Messages():
+		if msg != "Pair action refused: terminal context could not be confirmed." {
+			t.Fatalf("message=%q", msg)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("refusal did not reach independent wrapper transport")
+	}
+	if len(f.Effects()) != 0 || w.record != "preserved" || len(f.Queries()) != 1 {
+		t.Fatalf("effects=%v record=%q queries=%v", f.Effects(), w.record, f.Queries())
+	}
+}
+
+func TestLayoutAmbiguousFirstReplyStopsBeforeConfirmation(t *testing.T) {
+	f := zellijtest.New(t)
+	for _, e := range f.Env() {
+		k, v, _ := strings.Cut(e, "=")
+		t.Setenv(k, v)
+	}
+	t.Setenv("PAIR_PAIR_WRAP_PID_PATH", filepath.Join(f.Root(), "wrapper.pid"))
+	draft := zellijtest.DefaultPane(2, "nvim")
+	draft["title"] = "draft"
+	draft["terminal_command"] = "nvim -u /pair/nvim/init.lua"
+	a := zellijtest.DefaultPane(3, "pair term")
+	a["terminal_command"] = "pair term"
+	a["is_floating"] = true
+	b := zellijtest.DefaultPane(4, "pair term")
+	b["terminal_command"] = "pair term"
+	b["is_floating"] = true
+	f.SetModel(zellijtest.Model{Sessions: map[string]zellijtest.Session{"test": {Panes: []zellijtest.Pane{draft, a, b}, Tab: zellijtest.DefaultTab()}}})
+	w := newFullscreenWorld()
+	w.record = "preserved"
+	var diagnostic bytes.Buffer
+	if code := RunToggleFocused(nil, admissionRuntime{world: w}, &diagnostic); code != 1 || len(f.Queries()) != 1 || len(f.Effects()) != 0 || w.record != "preserved" {
+		t.Fatalf("code=%d queries=%v effects=%v record=%q", code, f.Queries(), f.Effects(), w.record)
 	}
 }

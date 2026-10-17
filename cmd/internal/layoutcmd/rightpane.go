@@ -387,16 +387,19 @@ func RunToggleFocusedContext(ctx context.Context, args []string, rt FullscreenRu
 	defer unlock()
 	last, _ := rt.LastTerminalPaneID()
 	ids, _ := rt.TerminalPaneIDs()
-	panes, tabID, tabPosition, err := confirmWorkbenchPanesContext(ctx, rt, rt.CurrentPaneID(), func(panes []zellijpane.Pane) bool {
-		mode, _, err := ObserveRightPaneMode(panes, ids)
-		return err != nil || mode == ModeNormal
-	})
-	if err != nil {
-		return fail("list panes", err)
-	}
 	recorded, err := store.Read()
 	if err != nil {
 		return fail("read return pane", err)
+	}
+	panes, tabID, tabPosition, err := confirmWorkbenchPanesContext(ctx, rt, rt.CurrentPaneID(), func(panes []zellijpane.Pane) bool {
+		mode, _, err := ObserveRightPaneMode(panes, ids)
+		return err != nil || mode == ModeNormal
+	}, func(panes []zellijpane.Pane) error {
+		_, err := PlanRightPane(RightPaneInput{Panes: panes, Caller: rt.CurrentPaneID(), Last: last, Registered: ids, Record: DecodeExpandRecord(recorded)})
+		return err
+	})
+	if err != nil {
+		return fail("list panes", err)
 	}
 	in := RightPaneInput{Panes: panes, Caller: rt.CurrentPaneID(), Last: last, Registered: ids, Record: DecodeExpandRecord(recorded)}
 	if mode, _, err := ObserveRightPaneMode(panes, ids); err == nil && mode == ModeNormal {

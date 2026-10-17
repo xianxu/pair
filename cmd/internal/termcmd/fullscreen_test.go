@@ -17,7 +17,7 @@ func (f *fakeRuntime) Write(id string) error                              { f.fu
 func (f *fakeRuntime) Clear() error                                       { f.fullscreenRecord = ""; return nil }
 func (f *fakeRuntime) TryLock() (func(), bool, error)                     { return func() {}, true, nil }
 func (f *fakeRuntime) CurrentTabJSON() ([]byte, error) {
-	return []byte(`{"active_swap_layout_name":"BASE","is_swap_layout_dirty":false}`), nil
+	return []byte(`{"tab_id":1,"position":1,"active_swap_layout_name":"BASE","is_swap_layout_dirty":false}`), nil
 }
 func (f *fakeRuntime) NudgeWrap() error { return nil }
 func (f *fakeRuntime) LogFailure(err error) {
@@ -26,7 +26,7 @@ func (f *fakeRuntime) LogFailure(err error) {
 
 func TestTerminalFullscreenFailureIsLoggedAndNotShown(t *testing.T) {
 	for _, direct := range []bool{true, false} {
-		rt := &fakeRuntime{failList: true}
+		rt := &fakeRuntime{currentPaneID: "4", failList: true}
 		mux := &fakeMux{}
 		if direct {
 			if !handleTerminalChord(workbenchshortcut.ChordAltShiftEnter, mux, rt) {
@@ -66,7 +66,7 @@ func TestTerminalNativeAlreadyFocusedReturnClearsRecord(t *testing.T) {
 	}
 	t.Setenv("PATH", dir)
 	for _, quiet := range []bool{false, true} {
-		f := &fakeRuntime{currentPaneID: "4", fullscreenRecord: "2 swap=BASE", panesJSON: `[{"id":2,"is_floating":false,"is_fullscreen":false,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua d.md"},{"id":4,"is_floating":true,"is_fullscreen":false,"title":"terminal","terminal_command":"pair term"}]`}
+		f := &fakeRuntime{currentPaneID: "4", fullscreenRecord: "2 swap=BASE", panesJSON: `[{"id":2,"is_floating":false,"is_fullscreen":false,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua d.md","is_plugin":false,"is_focused":false,"pane_x":0,"pane_y":0,"pane_columns":75,"pane_rows":39,"tab_id":1,"tab_position":1},{"id":4,"is_floating":true,"is_fullscreen":false,"title":"terminal","terminal_command":"pair term","is_plugin":false,"is_focused":false,"pane_x":0,"pane_y":0,"pane_columns":75,"pane_rows":39,"tab_id":1,"tab_position":1}]`}
 		if code := layoutcmd.RunToggleFocused(nil, nativeReturnFocusRuntime{f, quiet}, io.Discard); code != 0 || f.fullscreenRecord != "" || len(f.fullscreenErrors) != 0 {
 			t.Fatalf("quiet=%v code=%d record=%q errors=%v", quiet, code, f.fullscreenRecord, f.fullscreenErrors)
 		}

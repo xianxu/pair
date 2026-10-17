@@ -1948,8 +1948,13 @@ func (osDraftRouteRuntime) CachedDraftPaneID() (string, bool) {
 }
 
 func (osDraftRouteRuntime) ListPanesJSON() ([]byte, error) {
-	return exec.Command("zellij", "action", "list-panes", "--json", "--command", "--state").Output()
+	return osDraftRouteRuntime{}.ListPanesJSONContext(context.Background())
 }
+
+func (osDraftRouteRuntime) ListPanesJSONContext(ctx context.Context) ([]byte, error) {
+	return layoutcmd.OSRuntime{}.ListPanesJSONContext(ctx)
+}
+func (osDraftRouteRuntime) CurrentPaneID() string { return os.Getenv("ZELLIJ_PANE_ID") }
 
 func (osDraftRouteRuntime) RunZellijAction(args ...string) error {
 	return runZellijAction(args...)

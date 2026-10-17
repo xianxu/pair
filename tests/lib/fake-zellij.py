@@ -65,15 +65,20 @@ def dispatch(state, args, query):
     supported = {"focus-pane-id", "write-chars", "write", "toggle-fullscreen",
                  "toggle-pane-embed-or-floating", "change-floating-pane-coordinates",
                  "show-floating-panes", "hide-floating-panes", "toggle-floating-panes",
-                 "next-swap-layout", "previous-swap-layout", "clear", "close-pane"}
+                 "next-swap-layout", "previous-swap-layout", "clear", "close-pane", "set-pane-color"}
     if action not in supported:
         raise ValueError("unsupported action: " + action)
     pane = None
     if action in {"focus-pane-id", "write-chars", "write", "toggle-fullscreen",
-                  "toggle-pane-embed-or-floating", "change-floating-pane-coordinates", "clear", "close-pane"}:
+                  "toggle-pane-embed-or-floating", "change-floating-pane-coordinates", "clear", "close-pane", "set-pane-color"}:
         pane = target_pane(session, params[0] if action == "focus-pane-id" else option(params, "--pane-id"))
-    target = identity(pane) if pane is not None else "tab_" + str(session["tab"]["position"])
-    if action == "focus-pane-id":
+    requested_tab = option(params, "--tab-id")
+    if requested_tab is not None and requested_tab != str(session["tab"]["tab_id"]):
+        raise ValueError("requested tab is absent")
+    target = identity(pane) if pane is not None else "tab_" + str(session["tab"]["tab_id"])
+    if action == "set-pane-color":
+        pane["color"] = None if "--reset" in params else option(params, "--bg")
+    elif action == "focus-pane-id":
         for other in session.get("panes") or []:
             other["is_focused"] = other is pane
         for client in session.get("clients") or []:
