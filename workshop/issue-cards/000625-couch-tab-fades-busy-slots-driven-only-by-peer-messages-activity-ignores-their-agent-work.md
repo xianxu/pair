@@ -1,6 +1,6 @@
 ---
 id: 000625
-status: codecomplete
+status: done
 created: 2026-10-16
 updated: 2026-10-16
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: fbf3dde7424a33ca92a0559319066aebb1c23836
         evidence_commit: 3c264aa39b241b86783d31dfe7c2a2c200d6d158
+        landed_commit: 8013b93cd4782fb264fb8351a4b8b5b49d60ff28
 ---
 
 # Couch tab fades busy slots driven only by peer messages (activity ignores their agent work)
