@@ -2166,3 +2166,9 @@ and external temporary roots rather than relying on the host's TMPDIR.
   with a process gate and retain stderr rather than relying only on sleep offsets.
 
 - Chunked JSONL framing must not search a retained newline-free prefix again on each append. Count actual delimiter bytes examined across multi-chunk records, alongside semantic boundary/limit tests; read/decode counters alone miss quadratic delimiter work. Preserve per-probe progress when diagnosing aggregate worker timeouts. (#626)
+
+- #648: Batch a held receiver's queue at the input owner's readiness point,
+  then freeze membership before the first write. Admission-time concatenation
+  misses arrivals during the busy turn; per-envelope turn logging breaks exact
+  transcript correlation. Retain original receipt IDs while recording the one
+  combined turn, and test recovery of a follower through the real socket path.

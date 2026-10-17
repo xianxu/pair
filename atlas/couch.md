@@ -573,14 +573,35 @@ remaining uncertainty is stated, never papered over:
   classes choose resend. The op contains no sender binding or body. Mixed-version
   response-shape mismatch omits these best-effort annotations, leaving the ordinary
   list intact.
-- **Peer turns in the Pair log (#618).** When a delivery ends `Submitted`,
+- **Queued hub batches (#648).** Verified Claude/Codex hubs prepare the head
+  without input, then the existing wrapper input writer offers readiness at its
+  ordinary safe-composer decision. The broker freezes the current capped FIFO
+  prefix under its mutex, including reports arriving during the held head's
+  wait. One finalization enables one combined paste/submit; the writer rechecks
+  input safety before pasting. Complete unchanged envelopes are separated by
+  `\n\n---\n\n`. `COUCH_PEER_BATCH_MAX_CHARS` defaults to 16,384 Unicode code
+  points including headers/separators and accepts 1–32,768; invalid values refuse
+  startup. Over-cap single messages proceed alone, with remaining reports kept
+  for the next composer. Actual encoded requests retain the existing frame cap.
+  One confirmation updates all original receipts atomically; each member remains
+  queryable and recoverable from the wrapper's bounded 64-ID recent store.
+  Before freeze, cancellation removes only that queued sender's mail; after
+  freeze, members share one cancellation job/outcome. Uncertain writes never
+  replay. Ordinary receivers and Qoder retain single-message delivery; an old
+  wrapper's explicit pre-commit unknown-operation refusal also selects the legacy
+  path, while transport/decode errors never trigger fallback. See
+  `couchmessage/batch.go`, `broker_batch.go`, `endpoint_batch.go`,
+  `wrapcmd/peer_batch.go` and `TestPeerBatchRuntimeSocketFIFOAndReceiptRecovery`.
+- **Peer turns in the Pair log (#618, #648).** When a delivery ends `Submitted`,
   pair-wrap appends the exact envelope it pasted to the thread's Pair log
   through the managed locked writer (`pairlog.PersistPeerTurn`, append ID
   `couch-peer-<delivery ID>`). The session watcher correlates it like any draft
   turn, so a slot driven only by peer messages confirms its binding and can be
   relaunched. The draft pane's history and `!!` skip `couch-peer-` entries.
-  One launch records at most 8 (about 64 KB): a binding needs one completed
-  round after its launch, and the entries go wherever the Pair log goes.
+  A batch is one exact combined turn, using its head ID for idempotency, so
+  transcript correlation hashes the same input the agent received. One launch
+  records at most 8 turns and 256 KiB of aggregate envelope payload: a binding
+  needs one completed round after its launch, and entries follow the Pair log.
 - **Relaunch rides out a slow quit (#618).** `--relaunch` waits up to
   `RelaunchParkWait` (60 s) for the agent's quit inside its operation before
   it offers recover/abandon; a plain park keeps its shorter wait.
