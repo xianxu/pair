@@ -64,6 +64,8 @@ Detailed design: [stale-session reminder plan](../plans/000630-stale-session-rem
 
 - Plan/implementation comparison found that TrimSpace removed trailing control bytes before validation. Added red output-contract cases (vertical tab on stale output and carriage return on the fresh sentinel), then validated raw CLI output before normalization; focused three-package tests and reminder race tests pass. This restores the existing approved malformed-output contract without changing freshness policy. The queued, not-started suite on 9518a526 was explicitly interrupted because this code changed; it is retained as canceled, not a flake retry. Main #637 integrated cleanly before the corrected candidate.
 
+- Retained first suite result: ce41c869 completed in 11m59s after 676s queue; exhaustive inventory was the only failing test (all other Go packages and preceding shell/editor targets passed). Log: /Users/xianxu/workspace/pair/.git/sdlc/test-stats/failed/d1590f795f30b01aedb88e3766e89b37.log, SHA256 af71cf23bec3cced9688760d00e0b6fb2bf5cab889ed6eb66bec3c486c6bca9c. Corrected raw-output tests pass; focused reminder race passed 1.737s, 33,108 fuzz cases passed, and rebuilt real CLI conformance passed 1.254s. Full suite queued on ff9b15c8; no flake waiver used.
+
 ## Revisions
 
 - 2026-10-17: quick-flow sizing exceeded the shell once baseline-neutral inspection and bounded asynchronous command execution were included. TL approved full flow before implementation; product behavior is unchanged.
