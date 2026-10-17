@@ -112,3 +112,46 @@ func TestLayoutReplyRefusalRetainsCompletedProgress(t *testing.T) {
 		})
 	}
 }
+
+func TestLayoutReturnConfirmsDecisionFactsWithoutGeometry(t *testing.T) {
+	for _, mode := range []string{"geometry-only", "target-change", "tab-change"} {
+		t.Run(mode, func(t *testing.T) {
+			f := zellijtest.New(t)
+			for _, e := range f.Env() {
+				k, v, _ := strings.Cut(e, "=")
+				t.Setenv(k, v)
+			}
+			t.Setenv("PAIR_PAIR_WRAP_PID_PATH", filepath.Join(f.Root(), "wrapper.pid"))
+			draft := zellijtest.DefaultPane(2, "nvim")
+			draft["title"] = "draft"
+			draft["terminal_command"] = "nvim -u /pair/nvim/init.lua"
+			terminal := zellijtest.DefaultPane(3, "pair term")
+			terminal["terminal_command"] = "pair term"
+			terminal["is_floating"] = true
+			f.SetModel(zellijtest.Model{Sessions: map[string]zellijtest.Session{"test": {Panes: []zellijtest.Pane{draft, terminal}, Tab: zellijtest.DefaultTab(), FloatingVisible: true}}})
+			terminal["pane_columns"] = 100
+			if mode == "target-change" {
+				terminal["id"] = 4
+			}
+			if mode == "tab-change" {
+				terminal["tab_id"] = 9
+			}
+			b, _ := json.Marshal([]zellijtest.Pane{draft, terminal})
+			reply := string(b)
+			f.SetFaults(zellijtest.Fault{Ordinal: 2, Reply: &reply})
+			w := newFullscreenWorld()
+			w.record = "2 swap=base"
+			var diagnostic bytes.Buffer
+			code := RunToggleFocused(nil, admissionRuntime{world: w}, &diagnostic)
+			if mode == "geometry-only" {
+				if code != 0 || w.record != "" || len(f.Effects()) != 2 {
+					t.Fatalf("healthy geometry change code=%d record=%q effects=%v diagnostic=%s", code, w.record, f.Effects(), diagnostic.String())
+				}
+				return
+			}
+			if code != 1 || len(f.Effects()) != 0 || w.record != "2 swap=base" {
+				t.Fatalf("mode=%s code=%d record=%q effects=%v", mode, code, w.record, f.Effects())
+			}
+		})
+	}
+}

@@ -201,6 +201,12 @@ adds context that a one-line description cannot carry.
 | **Shift+Alt+N** | non-agent panes | Restart only the coding agent, with a new conversation. Pair, Zellij, the draft, and terminal tabs stay alive. In the review buffer's normal mode, this key instead moves to the previous marker. |
 | **Alt+Shift+C** (or **Ctrl+Alt+c**) | non-agent panes | Compact in place: distill this session into a `continuation` doc (folding in the parked draft), then reincarnate the tag with a clean conversation seeded from it. Scrollback is parked first as a recovery net. |
 
+Layout shortcuts confirm the invoking pane, tab and required native state before
+changing the workbench. If that context is uncertain, Pair shows a refusal
+instead of choosing another pane. A restore that becomes uncertain preserves
+its completed steps and recovery record. Confirmation adds a small interactive
+delay (about 100 ms for returning to normal in a disposable native timing check).
+
 The focused agent receives all workbench shortcuts except **Shift+Alt+T**,
 **Shift+Alt+Left/Right**, and **Alt+Shift+Return**, which create/switch
 right-terminal tabs or toggle the right terminal's normal/focus views. Under

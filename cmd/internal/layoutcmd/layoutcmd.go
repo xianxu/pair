@@ -44,7 +44,11 @@ type Runtime interface {
 func FocusRightTerminal(rt Runtime) error {
 	ctx, cancel := zellijreply.AdmissionContext(context.Background())
 	defer cancel()
-	return FocusRightTerminalContext(ctx, rt)
+	err := FocusRightTerminalContext(ctx, rt)
+	if err != nil {
+		reportRefusal(rt, os.Stderr)
+	}
+	return err
 }
 
 // FocusRightTerminalContext retains an enclosing shortcut admission budget.
@@ -189,7 +193,11 @@ func pickRightTerminal(panes []zellijpane.Pane, lastTerminalID string, terminalP
 func SwitchRightTerminalTab(rt Runtime, chord workbenchshortcut.Chord) error {
 	ctx, cancel := zellijreply.AdmissionContext(context.Background())
 	defer cancel()
-	return SwitchRightTerminalTabContext(ctx, rt, chord)
+	err := SwitchRightTerminalTabContext(ctx, rt, chord)
+	if err != nil {
+		reportRefusal(rt, os.Stderr)
+	}
+	return err
 }
 
 // SwitchRightTerminalTabContext retains an enclosing shortcut admission budget.
@@ -241,7 +249,6 @@ func RunSwitchTerminalTab(args []string, rt Runtime, stderr io.Writer) int {
 		return 1
 	}
 	if err := SwitchRightTerminalTab(rt, chord); err != nil {
-		reportRefusal(rt, stderr)
 		fmt.Fprintf(stderr, "pair layout switch-terminal-tab: %v\n", err)
 		return 1
 	}
@@ -254,7 +261,6 @@ func RunFocusTerminal(args []string, rt Runtime, stderr io.Writer) int {
 		return 2
 	}
 	if err := FocusRightTerminal(rt); err != nil {
-		reportRefusal(rt, stderr)
 		fmt.Fprintf(stderr, "pair layout focus-terminal: %v\n", err)
 		return 1
 	}

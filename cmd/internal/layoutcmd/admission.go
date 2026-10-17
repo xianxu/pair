@@ -14,10 +14,16 @@ import (
 func ConfirmWorkbenchPanesContext(ctx context.Context, rt interface {
 	ListPanesJSONContext(context.Context) ([]byte, error)
 }, caller string) ([]zellijpane.Pane, int, int, error) {
+	return confirmWorkbenchPanesContext(ctx, rt, caller, nil)
+}
+
+func confirmWorkbenchPanesContext(ctx context.Context, rt interface {
+	ListPanesJSONContext(context.Context) ([]byte, error)
+}, caller string, needGeometry func([]zellijpane.Pane) bool) ([]zellijpane.Pane, int, int, error) {
 	var chosen []zellijpane.Pane
 	var tabID, position int
 	_, err := zellijreply.Confirm(ctx, func(ctx context.Context) ([]byte, error) { return rt.ListPanesJSONContext(ctx) }, func(raw []byte) (string, error) {
-		panes, err := zellijreply.ParsePanes(raw, zellijreply.PaneRequirements{Command: true, State: true, Geometry: true, Tab: true})
+		panes, err := zellijreply.ParsePanes(raw, zellijreply.PaneRequirements{Command: true, State: true, Geometry: needGeometry == nil, Tab: true})
 		if err != nil {
 			return "", err
 		}
@@ -41,7 +47,25 @@ func ConfirmWorkbenchPanesContext(ctx context.Context, rt interface {
 			}
 			return chosen[i].ID < chosen[j].ID
 		})
-		projected, err := json.Marshal(chosen)
+		projection := append([]zellijpane.Pane(nil), chosen...)
+		geometry := needGeometry == nil || needGeometry(chosen)
+		if geometry && needGeometry != nil {
+			if _, err := zellijreply.ParsePanes(raw, zellijreply.PaneRequirements{Command: true, State: true, Geometry: true, Tab: true}); err != nil {
+				return "", err
+			}
+		}
+		for i := range projection {
+			// Native foreground command/cwd are not layout decision facts.
+			projection[i].PaneCommand = ""
+			projection[i].PaneCwd = ""
+			if !geometry {
+				projection[i].X = 0
+				projection[i].Y = 0
+				projection[i].Columns = 0
+				projection[i].Rows = 0
+			}
+		}
+		projected, err := json.Marshal(projection)
 		return string(projected), err
 	})
 	return chosen, tabID, position, err

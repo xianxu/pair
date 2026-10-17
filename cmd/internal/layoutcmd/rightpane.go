@@ -385,12 +385,15 @@ func RunToggleFocusedContext(ctx context.Context, args []string, rt FullscreenRu
 		return 0
 	}
 	defer unlock()
-	panes, tabID, tabPosition, err := ConfirmWorkbenchPanesContext(ctx, rt, rt.CurrentPaneID())
+	last, _ := rt.LastTerminalPaneID()
+	ids, _ := rt.TerminalPaneIDs()
+	panes, tabID, tabPosition, err := confirmWorkbenchPanesContext(ctx, rt, rt.CurrentPaneID(), func(panes []zellijpane.Pane) bool {
+		mode, _, err := ObserveRightPaneMode(panes, ids)
+		return err != nil || mode == ModeNormal
+	})
 	if err != nil {
 		return fail("list panes", err)
 	}
-	last, _ := rt.LastTerminalPaneID()
-	ids, _ := rt.TerminalPaneIDs()
 	recorded, err := store.Read()
 	if err != nil {
 		return fail("read return pane", err)

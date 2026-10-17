@@ -33,7 +33,7 @@ Descendants deliberately leaving the group are outside that ownership contract.
 | Listing poller and event-driven inventory | Re-checked | Existing cadence, cache and query count; malformed expected listing/client evidence is unknown. No projection alone authorizes an effect. |
 | Launcher name reuse and cold admission | Hardened in M1 | Strict listing contract plus independent exact-server absence; a live server defeats native listing omission. |
 | Launcher name-length probe | Hardened in M1 | Successful replies must be client tables; exact native validator/absence diagnostics retain their limited name-length meaning. |
-| Launcher Couch attachment | M1 correction, review pending | Existing positive listing fences stop on first unknown; launcher and exported attach regressions exercise actual strict native parsing before attach/launch effects. The selected operation shares one query budget through handoff, independently of the interactive client lifetime. |
+| Launcher Couch attachment | Hardened in M1 | Existing positive listing fences stop on first unknown; launcher and exported attach regressions exercise actual strict native parsing before attach/launch effects. The selected operation shares one query budget through handoff, independently of the interactive client lifetime. |
 | Session owner proof, quit and recovery | Hardened in M1 | Matching actual-command/pane-identity projections, exact server generation bracketing the pair and fresh generation revalidation before effects. |
 | Launcher live-layout inference | Hardened in M1 | Strict pane fields and matching command/title/identity/floating facts before recording a detected layout. |
 | Ordinary Couch warm attachment | Hardened in M1 | Existing initial, pre-spawn, pre-ack and post-ack listing fences; no additional queries or detached-client requirement. Unknown/negative confirmation cannot trigger helper retry. |
@@ -71,3 +71,20 @@ is not a production user-action failure probability. #640 contains the native
 diagnosis; #647 owns implementation and native refusal qualification. After a
 release includes upstream PR5630, rerun the retained raw reproduction and
 healthy/refusal/chord controls before changing compatibility assumptions.
+
+M2 layout decisions use the independently known invoking terminal to select a
+single tab; multiple focused panes on other tabs do not select the target.
+Normal entry confirms geometry before saving split order. Returning to Normal
+confirms identity, role, state and tab without comparing irrelevant pre-embed
+geometry; later restoration confirms the layout and any geometry used to move a
+split half. A refusal after embedding retains that completed progress and the
+return record, and stops before return-focus or record-clear. Supported tab
+mutations carry the admitted native tab ID. Query reads remain sequential.
+
+Disposable installed-0.45.1 timing on 2026-10-17 measured median return-to-Normal
+294 ms and Focus entry 130 ms after narrowing, versus original-binary medians
+192/91 ms in the same declared window (five samples each). An initial hardened
+attempt measured 353/171 ms. These host-load-sensitive samples do not isolate a
+causal optimization effect. Confirmation's observed interactive overhead is
+accepted by the TL; no deadline increased. Native timing controls retain all
+layout/focus/geometry assertions and do not qualify fault refusal by themselves.
