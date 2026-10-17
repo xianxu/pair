@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pair-test-bootstrap.sh"
 # Drives `pair restart` / `pair quit` (the Go ports of bin/pair-{restart,quit}.sh,
 # #94 M1) against a stubbed kill-session, asserting the marker files land where
 # the launcher's restart loop reads them (~/.cache/pair). PAIR_KILL_CMD swaps the
 # terminal `zellij kill-session` exec for `true` so the writes are observable.
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PAIR="$ROOT/bin/pair" # built by the test-pair-restart-quit prereq
 TMP="$(mktemp -d "${TMPDIR:-/tmp}/pair-restart-quit.XXXXXX")"
 trap 'rm -rf "$TMP"' EXIT

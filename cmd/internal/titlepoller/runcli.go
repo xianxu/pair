@@ -3,8 +3,11 @@ package titlepoller
 import (
 	"context"
 	"fmt"
+	"github.com/xianxu/pair/cmd/internal/procutil"
 	"io"
+	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 
 	"github.com/xianxu/pair/cmd/internal/adapt"
@@ -12,11 +15,15 @@ import (
 	"github.com/xianxu/pair/cmd/internal/storagegc"
 )
 
-// RunCLI is the pair-title command body (the launcher spawns bin/pair-title
-// directly since #94 M2), shared with any future `pair title` route. It parses
-// argv into Options and drives the poller; getenv/stderr are injected so it is
-// testable, and it no-ops (exit 0) when required args are missing.
+// RunCLI is the wrapper-owned title subprocess. The wrapper passes only a
+// pipe reader as fd3 and retains the sole CLOEXEC writer for its lifetime.
+// Missing CLI arguments retain the historical no-op; a real title invocation
+// requires both selected storage and the exact wrapper/pipe launch contract.
 func RunCLI(args []string, getenv func(string) string, stderr io.Writer) int {
+	return runCLI(args, getenv, stderr, func() Runtime { return NewOSRuntime() })
+}
+
+func runCLI(args []string, getenv func(string) string, stderr io.Writer, runtime func() Runtime) int {
 	opts, ok := optionsFromCLI(args, getenv)
 	if !ok {
 		return 0
@@ -26,6 +33,50 @@ func RunCLI(args []string, getenv func(string) string, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "pair-title: retention: PAIR_TAG differs from command tag")
 		return 1
 	}
+
+	owner, err := ParseTitleOwner(getenv(OwnerPIDEnv), getenv(OwnerStartEnv))
+	if err != nil || getenv(LeaseFDEnv) != "3" || procutil.Identity(strconv.Itoa(owner.PID)) != owner.Start {
+		fmt.Fprintln(stderr, "pair-title: wrapper lease identity unavailable")
+		return 1
+	}
+	// The wrapper creates the title with Setsid. Refuse before arming any
+	// group-wide signal unless this process owns that entire group.
+	if syscall.Getpgrp() != os.Getpid() {
+		fmt.Fprintln(stderr, "pair-title: wrapper-owned process group unavailable")
+		return 1
+	}
+	reader := os.NewFile(3, "title-wrapper-lease")
+	info, err := reader.Stat()
+	if err != nil || info.Mode()&os.ModeNamedPipe == 0 {
+		fmt.Fprintln(stderr, "pair-title: wrapper lease is not a pipe")
+		return 1
+	}
+	syscall.CloseOnExec(3)
+	defer reader.Close()
+	state, effects := AdvanceTitleLifetime(TitleLifetime{}, TitleLeaseReady)
+	if effects&TitleStartPoll == 0 {
+		return 1
+	}
+	// No Start/register gap exists: commands inherit our already-owned group.
+	// One kernel group signal ends the title and every such descendant even
+	// during an indivisible proof decode, blocking IPC, or concurrent Start.
+	go func() {
+		_, _ = io.Copy(io.Discard, reader)
+		_, effects := AdvanceTitleLifetime(state, TitleOwnerEOF)
+		if effects&TitleExit != 0 {
+			exitTitleGroup()
+		}
+	}()
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, syscall.SIGTERM, syscall.SIGINT, syscall.SIGHUP)
+	defer signal.Stop(signals)
+	go func() {
+		<-signals
+		_, effects := AdvanceTitleLifetime(state, TitleSignalled)
+		if effects&TitleExit != 0 {
+			exitTitleGroup()
+		}
+	}()
 	lease, err := storagegc.AcquireSelectedProcess(context.Background(), getenv, "title-poller")
 	if err != nil {
 		fmt.Fprintf(stderr, "pair-title: retention: %v\n", err)
@@ -33,13 +84,19 @@ func RunCLI(args []string, getenv func(string) string, stderr io.Writer) int {
 	}
 	defer lease.Close()
 
-	// Ignore SIGHUP: bin/pair spawns us with `& disown`, which only removes the
-	// job-table entry — the poller still shares a controlling tty with the
-	// launching shell, so a terminal teardown would SIGHUP us and freeze the
-	// titles. We exit only via the explicit "session gone" branch in Run.
-	signal.Ignore(syscall.SIGHUP)
+	code := Run(opts, runtime())
+	_, effects = AdvanceTitleLifetime(state, TitlePollStopped)
+	if effects&TitleExit != 0 {
+		exitTitleGroup()
+	}
+	return code
+}
 
-	return Run(opts, NewOSRuntime())
+func exitTitleGroup() {
+	_ = syscall.Kill(-os.Getpid(), syscall.SIGKILL)
+	// Only a failed group signal can reach this fallback. No cleanup/join or
+	// in-process work may delay termination after lease EOF.
+	os.Exit(1)
 }
 
 // optionsFromCLI is RunCLI's parse without its side effects, so what the poller
@@ -65,33 +122,12 @@ func optionsFromCLI(args []string, getenv func(string) string) (Options, bool) {
 	return opts, true
 }
 
-// SessionEnv is what whoever spawns a title poller must hand it: the ONE
-// declaration of its launch contract (pair#183).
-//
-// The launcher starts a poller from two places, create and attach. Both used to
-// satisfy this by exporting variables before the spawn and letting the child
-// inherit them, each from its own hand-kept list. Attach's lacked PAIR_SCOPE_KEY,
-// and every reattached thread lost its context meter with nothing to say so. It
-// lives beside optionsFromCLI because Environ is that parse, inverted.
-//
-// The environment, not argv as the session watcher's scope key travels
-// (sessionwatch.CommandArgs), for two reasons. The poller's readers are
-// environment-shaped: contextcmd.EnvFromOS reads the process environment on
-// every poll. And an entry appended to the child's environment wins over an
-// inherited duplicate, so the contract's scope key overrides a stale
-// PAIR_SCOPE_KEY from a Pair pane that `pair resume` was run inside. Its data
-// dir is only as right as the launcher's own: launcher.RunCLI honours an
-// inherited PAIR_DATA_DIR over the one it derives, so from another repo's pane
-// the two halves can still name different repos (pair#183 close review).
-//
-// Its reach is the reads made through contextcmd.EnvFrom and optionsFromCLI --
-// every env read in this package and contextcmd today. A direct os.Getenv added
-// elsewhere would not be seen by TestSessionEnvSuppliesEveryPairVariableThePollerReads.
-// (optionsFromCLI's adapt.DataDir() fallback reads PAIR_DATA_DIR in another
-// package, unseen -- harmless: the same variable, reached only when it is empty.)
-//
-// HOME, XDG_DATA_HOME and CMUX_WORKSPACE_ID are deliberately absent: they belong
-// to the operator's terminal, and inheriting them is correct.
+// SessionEnv names the exact selected storage for a title. The wrapper obtains
+// these fields from its own Pair launch; attach updates the launcher's exports
+// but never spawns a second title beside an existing wrapper. TitleOwner owns
+// the independent incarnation/lease portion of the contract. Later env entries
+// override inherited duplicates. HOME and CMUX_WORKSPACE_ID belong to the
+// operator's terminal and remain inherited.
 type SessionEnv struct {
 	dataDir  string
 	scopeKey string

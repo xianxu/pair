@@ -9,7 +9,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
 )
 
-// projectResourceView runs once per sample, inside the measured worker cost.
+// projectResourceView bounds cached samples and fresh request diagnostics.
 // Keep every bounded slot aggregate; divide the remaining wire budget among
 // detail sections so a large process list cannot crowd out orphan evidence.
 // The actual JSON encoder accounts for escaping, not just source string bytes.
@@ -41,6 +41,11 @@ func projectResourceView(v couchcore.ResourceView) couchcore.ResourceView {
 	out.OrphanNvim = nil
 	out.Episodes = nil
 	out.Errors = nil
+	if v.HostedIngest != nil {
+		hosted := *v.HostedIngest
+		hosted.Clients = nil
+		out.HostedIngest = &hosted
+	}
 	base, _ := json.Marshal(couchmessage.Response{Code: "ok", Resources: &out})
 	// Reserve space for omission notices and the final measured cost counters.
 	budget := (couchmessage.MaxFrameBytes - len(base) - 4096) / 6
@@ -63,6 +68,11 @@ func projectResourceView(v couchcore.ResourceView) couchcore.ResourceView {
 	note("episodes", omitted)
 	out.Errors, omitted = resourceDetailPrefix(v.Errors, budget)
 	note("diagnostics", omitted)
+	if v.HostedIngest != nil {
+		out.HostedIngest.Clients, omitted = resourceDetailPrefix(v.HostedIngest.Clients, budget)
+		out.HostedIngest.Omitted += omitted
+		note("hosted clients", out.HostedIngest.Omitted)
+	}
 	if shortened > 0 {
 		notices = append(notices, fmt.Sprintf("response detail limit: %d slot labels or reasons shortened", shortened))
 	}

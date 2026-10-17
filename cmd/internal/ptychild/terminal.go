@@ -48,6 +48,7 @@ func (c *Child) Endpoint() *terminal.Endpoint { return c.endpoint }
 // acknowledgment; consumers must observe the corresponding parent presentation.
 func (c *Child) FlushOutput(ctx context.Context) error { return c.publication.flush(ctx) }
 func (c *Child) ingest(p []byte) error {
+	c.ingestBytes.Add(uint64(len(p)))
 	c.feedMu.Lock()
 	defer c.feedMu.Unlock()
 	if c.endpoint.InputEnded() {

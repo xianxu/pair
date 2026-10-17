@@ -1,4 +1,5 @@
 #!/bin/sh
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pair-test-bootstrap.sh"
 # End-to-end smoke for bin/pair scrollback open (#93 M2, the Go port of the
 # floating-pane Alt+/ launcher). Fakes the captured PTY scrollback and nvim, runs
 # the launcher, and asserts it rendered the .ansi and opened the viewer on it.

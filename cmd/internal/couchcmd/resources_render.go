@@ -75,6 +75,15 @@ func renderResources(out io.Writer, v couchcore.ResourceView, now time.Time) {
 	} else {
 		fmt.Fprintln(out, "History: no retained frames")
 	}
+	if h := v.HostedIngest; h == nil {
+		fmt.Fprintln(out, "Hosted ingest: unavailable (server does not provide diagnostics)")
+	} else {
+		fmt.Fprintf(out, "Hosted ingest: %d clients; %d omitted; sampled %s; server pid=%d started=%s\n", len(h.Clients), h.Omitted, h.SampledAt.Format(time.RFC3339Nano), h.ServerPID, h.ServerStartedAt.Format(time.RFC3339Nano))
+		fmt.Fprintln(out, "ENDPOINT  THREAD  PROCESS  cumulative ingest bytes")
+		for _, client := range h.Clients {
+			fmt.Fprintf(out, "%s  %s/%s  pid=%d generation=%s  %d\n", rowtext.Sanitize(client.EndpointID), rowtext.Sanitize(client.Thread.RepoScope), rowtext.Sanitize(string(client.Thread.Tag)), client.Process.PID, rowtext.Sanitize(client.Process.Identity), client.IngestBytes)
+		}
+	}
 	fmt.Fprintln(out, "SLOT  CPU%  RSS bytes  WRITE bytes/s  PROCESSES  OBSERVED CPU s / WRITE bytes")
 	for _, s := range v.Slots {
 		fmt.Fprintf(out, "%s  %s  %s  %s  %d", rowtext.Sanitize(s.Slot), resourceNumber(s.CPUPercent), resourceBytes(s.RSSBytes), resourceNumber(s.WriteBytesPerSecond), s.ProcessCount)

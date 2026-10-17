@@ -1,12 +1,15 @@
 // Package keyhelp renders Pair's in-session keybinding help — what Alt+h shows
 // (#132).
 //
-// Wording is NOT authored here. It is derived from the sources that already own
+// Pair binding wording is derived from the sources that already own
 // it — the `desc = 'pair: …'` on each vim.keymap.set, workbenchshortcut's
 // GlobalBinding.Help and RoleBinding.Help — so the help cannot drift from the
 // bindings the way it did when #99 M5c retired bin/pair-shell and left Alt+h
 // paging a CLI usage block whose last line read "In-session keybindings are on
 // Alt+h."
+//
+// Companion-editor bindings are explicitly curated documentation metadata in
+// catalog.go; they do not install shortcuts in Pair.
 //
 // Two rules earn their keep here, both learned from real breakage:
 //
@@ -31,10 +34,13 @@ const (
 	ContextHost                     // a host (Couch) takes it from every Pair pane (#282)
 	ContextHostMenu                 // a host's own menu (Couch's switcher)
 	ContextReview                   // review buffer, with its own local mappings
+	ContextParley                   // companion Parley editor; not a Pair pane
 )
 
 func (c Context) String() string {
 	switch c {
+	case ContextParley:
+		return "parley"
 	case ContextReview:
 		return "review"
 	case ContextDraft:
@@ -60,6 +66,7 @@ const (
 	SourceNvim   Source = iota // desc = 'pair: …' in nvim/init.lua
 	SourceGlobal               // workbenchshortcut.GlobalBinding.Help
 	SourceRole                 // workbenchshortcut.RoleBinding.Help
+	SourceParley               // curated companion-editor help in catalog.go
 )
 
 // Binding is one rendered help row.

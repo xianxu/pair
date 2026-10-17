@@ -2057,4 +2057,65 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #583 BR-6: a kill path's attribution must name the *owner*, not the kind. Evidence every instance of a kind shares — a config's base name, an `--embed` flag, a binary path — authorizes nothing once a pid can be recycled: the record a dead owner left behind can name a pid another live owner's process now holds, and an identity fence re-read at signal time does not cover a reuse that predates the snapshot. State the owner-naming predicate as a required positive (`Expect…` flag plus its value) so a candidate that states none is a skip with its own reason instead of a pass by omission, and demote kind-wide evidence to corroboration. Then fix the class, not the site: an existing test had *pinned* the unsafe behaviour here ("review kind expects no scope path" → kill), so a site-level fix would have left the rule unstated and the next kind free to repeat it.
 
 - #583 BR-7: a kill path's attribution must be **bound to the pid at the moment its record is written**, and must not change for that process's lifetime. Mutable session state (a target/selection file a live UI rewrites) may corroborate a decision but cannot be its subject: when the state moves and the process's argv does not, the process's *own* orphan is the thing that gets classified "not ours". And check what a decided negative **deletes** before calling a skip safe — `reapReasonOtherPath` skips *and* drops the record, so for a kind with no argv-only fallback the "safe direction" removes the only name the orphan ever had and reopens the leak the issue exists to close. Two rules follow: state a mismatch against mutable evidence as missing evidence (keep the record), and prefer evidence the subject writes about itself (argv, at publish) over evidence another actor writes about it later.
+- #617: A subprocess test inherits artifact authority through environment, even
+  when HOME, PAIR_DATA_DIR and PAIR_TAG point at temporary storage. The first
+  leased-title fixture passed a temporary raw capture path while inheriting the
+  live PAIR_SCROLLBACK_EVENTS_PATH; openWitnessedCapture truncated the live
+  events file before publishing its new witness. Build subprocess environments
+  from a small host allowlist, then supply every Pair path explicitly. Prove
+  isolation with a foreign-path sentinel and a disposable-write control; changing
+  HOME alone is not an isolation boundary. Self-exec test helpers must dispatch
+  before testing.M.Run so a command invocation cannot accidentally run the suite.
+- #617: procutil.Identity and StrictIdentity are different token encodings.
+  Compare tokens from the same producer, and observe terminal process state in
+  lifecycle tests: Identity deliberately preserves a zombie's start token.
+
+- #617 isolation review: a source guard must prove the environment at each actual
+  spawn, in source order and on every predecessor path. A later assignment, a
+  conditional clean alias, an unsafe dictionary update, or an unrelated helper
+  string must never bless inherited authority. Keep original-consumer audits and
+  negative provenance fixtures; use an AST when text matching loses scope/flow.
+- #617 isolation review: an argv marker cannot authorize skipping an environment
+  boundary. Always enter the empty environment and preserve original arguments
+  as data. Verify shell entry metadata against the deployed Bash version; a
+  top-level source-stack assumption can differ from a tiny function prototype.
+- #617 isolation review: empty HOME also removes Go's default caches. Consume the
+  shared test binary before starting timed fake agents; do not run a cache probe
+  in the caller's HOME before isolation or compile Pair per fixture afterward.
+
+- #617 title review: an authority fence before IO cannot authorize facts after
+  that IO. Recheck invocation ownership after tail reads and before publication;
+  inject supersession inside the read boundary to verify the order.
+- #617 profiling review: a terminal projection's cheap no-op is not warm work.
+  Measurements must fail on terminal errors and require positive activity and
+  supported-usage controls before reporting allocation or timing improvements.
+
+- #617 teardown review: apply owned-group termination at every exit boundary,
+  including the wrapper's controlled-close fallback. A child unable to run its
+  EOF watcher still has commands; fence PID/start and group leadership before
+  signaling, and test with a stopped title plus an unrelated-group sentinel.
 - #606: a new production .go file must be added to `cmd/internal/artifactpath/manifest.go`, or the recorded suite fails `TestProductionArtifactReferencesAreExactlyClassified` at merge. Run `go test ./cmd/internal/artifactpath` whenever a change adds a source file. Fixing review Minors after a SHIP close needs `sdlc close --fixed-then-ship` before `sdlc merge` will publish.
+
+- #617 fixture isolation: a disposable HOME may acquire Go's read-only module
+  cache. Cleanup must restore write permission only on directories within its
+  owned tree without following symlinks; test root removal and preservation of
+  a linked caller-owned read-only directory, not just the fixture's exit code.
+
+- #617 fixture isolation: include indirect Pair entrypoints such as installed
+  Couch conformance tests. Their environment must come from the shared empty
+  allowlist too; a legacy denylist can strip the helper needed by nested fixture
+  children even when the direct Pair-spawn source guard is satisfied.
+
+- #617 environment guard: indirect fixture activation belongs to the assigned
+  environment, not the executable name or entire test function. Propagate that
+  explicit activation through the same value analysis, and retain negative
+  controls for ordinary Couch, disabled flags, and unrelated build/git calls.
+
+- #617 BR-1: atomic visible bytes do not complete an artifact's lifecycle. A
+  process killed between temp creation and rename leaves residue; use the same
+  coordinated private staging/recovery owner as the collector recognizes, and
+  test both interrupted publishers and protection of live publishers.
+- #604 BR-1: Deferring a live smoke does not implicitly defer a separately promised diagnostic deliverable. Enumerate the Spec's independent obligations and explicitly reconcile any approved scope reduction across Spec, Plan, Done-when and atlas before claiming completion; keep unknown causes unknown.
+- #604 BR-2: For a changed user-visible action, update its existing README account as well as the atlas. Explain confirmed versus unconfirmed outcomes at the user entry point; internal architecture prose alone does not update the user contract.
+
+- **A new help source changes old documentation claims (#619).** When adding companion-editor metadata to a source-derived help catalog, update the README shortcut table and search for universal claims such as "every row comes from its implementing keymap". Qualify the source boundary as well as listing the feature; atlas coverage alone does not keep the user-facing contract accurate.

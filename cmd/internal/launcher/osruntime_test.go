@@ -6,7 +6,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"reflect"
 	"strconv"
 	"strings"
 	"syscall"
@@ -550,8 +549,8 @@ func TestOSRuntimeReapAndPollerRemovePidfiles(t *testing.T) {
 		}
 	}
 	rt.KillTitlePoller("work")
-	if _, err := os.Stat(paths.TitlePID()); !os.IsNotExist(err) {
-		t.Fatal("KillTitlePoller should clear the title pidfile")
+	if _, err := os.Stat(filepath.Join(dataDir, "title-pid-work")); err != nil {
+		t.Fatal("launcher should leave title-owned metadata to its lease generation")
 	}
 }
 
@@ -593,32 +592,6 @@ func TestChildEnvironLetsTheContractBeatAnInheritedKey(t *testing.T) {
 	}
 	if string(out) != "contract" {
 		t.Fatalf("the child saw %s=%q, want the contract's %q -- an inherited value won", contextcmd.EnvScopeKey, out, "contract")
-	}
-}
-
-// The sidecar spawn argv must self-exec the single `pair` binary as a
-// subcommand — #104 M2 folded pair-title/pair-session-watch into `pair title` /
-// `pair session-watch`. spawnDetached swallows a start error, so a regression in
-// the argv shape would fail silently at runtime. Pin the subcommand + the title
-// poller's "<…>/pair title <tag> <agent>" prefix the single-instance guard matches.
-func TestSidecarSpawnArgvSelfExecsPair(t *testing.T) {
-	const exe = "/pair/bin/pair"
-	contract := titlepoller.NewSessionEnv("/data/repos/k", "k")
-	tp, tpEnv := titlePollerSpawn(exe, "work", "claude", "📁pair-work", contract)
-	wantTP := []string{exe, "title", "work", "claude", "📁pair-work"}
-	if !reflect.DeepEqual(tp, wantTP) {
-		t.Fatalf("title poller argv = %v, want %v", tp, wantTP)
-	}
-	if !reflect.DeepEqual(tpEnv, contract.Environ()) {
-		t.Fatalf("title poller env = %v, want its contract %v -- a dropped env is silent, exactly as pair#183 was", tpEnv, contract.Environ())
-	}
-
-	// Guard the invariant explicitly: no sidecar target is a standalone helper
-	// binary or a .sh shim — it self-execs `pair` with a subcommand.
-	for _, argv := range [][]string{tp} {
-		if strings.HasSuffix(argv[0], ".sh") || strings.HasSuffix(argv[0], "pair-title") || strings.HasSuffix(argv[0], "pair-session-watch") {
-			t.Fatalf("sidecar spawn target must self-exec pair, not a standalone binary: %q", argv[0])
-		}
 	}
 }
 

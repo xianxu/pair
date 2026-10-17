@@ -82,6 +82,7 @@ type Broker struct {
 	families           func(context.Context) (map[string]string, error)
 	actors             map[Binding]*SlotActor
 	receipts           map[string]Receipt
+	refusals           map[string]refusal
 	destinations       map[string]Route
 	admissions         map[string]*admission
 	jobs               map[string]*deliveryJob
@@ -156,7 +157,7 @@ func NewBroker(parent context.Context, now func() time.Time, resting func(contex
 		now = time.Now
 	}
 	ctx, cancel := context.WithCancel(parent)
-	return &Broker{ctx: ctx, cancel: cancel, now: now, resting: resting, actors: map[Binding]*SlotActor{}, receipts: map[string]Receipt{}, destinations: map[string]Route{}, admissions: map[string]*admission{}, jobs: map[string]*deliveryJob{}}
+	return &Broker{ctx: ctx, cancel: cancel, now: now, resting: resting, actors: map[Binding]*SlotActor{}, receipts: map[string]Receipt{}, refusals: map[string]refusal{}, destinations: map[string]Route{}, admissions: map[string]*admission{}, jobs: map[string]*deliveryJob{}}
 }
 
 // apply is called only under mu. Terminal receipts cannot be rewritten by late
@@ -375,6 +376,7 @@ func (b *Broker) Caller(scope, tag, session, nonce string) (Binding, error) {
 }
 func (b *Broker) sweep() {
 	now := b.now()
+	b.sweepRefusalsLocked(now)
 	for id, r := range b.receipts {
 		if r.Status.Terminal() && !r.RetainUntil.IsZero() && !now.Before(r.RetainUntil) {
 			delete(b.receipts, id)
@@ -391,6 +393,11 @@ func (b *Broker) Status(caller Binding, id string) (Receipt, error) {
 	defer b.mu.Unlock()
 	b.sweep()
 	r, ok := b.receiptLocked(id)
+	if !ok {
+		if refused, found := b.refusals[id]; found {
+			r, ok = refused.receipt, true
+		}
+	}
 	if !b.caller(caller) || !ok || (r.Message.From != caller && r.Message.To != caller) {
 		return Receipt{}, errors.New("receipt unavailable for this actor")
 	}
@@ -559,6 +566,11 @@ func (b *Broker) Send(parent context.Context, from Binding, id string, route Rou
 	b.mu.Unlock()
 	receipt, err := b.admit(ctx, from, id, route, body)
 	b.mu.Lock()
+	if _, stored := b.receipts[id]; err != nil && !stored {
+		err = b.refuseLocked(from, id, route, body, err)
+	} else if err == nil {
+		delete(b.refusals, id)
+	}
 	pending.receipt, pending.err = receipt, err
 	delete(b.admissions, id)
 	close(pending.done)

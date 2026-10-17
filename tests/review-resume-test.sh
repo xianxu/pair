@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pair-test-bootstrap.sh"
 # tests/review-resume-test.sh — reconstruct-on-open (#66 M4a' resume): opening a
 # review pane on a doc whose `review/<slug>` branch already carries an agent round
 # repaints the decorations from the commit body. Text survives across sessions via

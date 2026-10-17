@@ -1,6 +1,8 @@
 package clipcmd
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -54,16 +56,45 @@ var pasteTools = []clipboardTool{
 // If none is installed it silently does nothing, matching the shell's `command
 // -v` cascade (copy-on-select still hands off the selection either way).
 func (OSRuntime) ClipboardCopy(text string) error {
+	err := copyClipboard(context.Background(), text)
+	if errors.Is(err, errClipboardUnavailable) {
+		return nil // Preserve the existing optional clipboard contract.
+	}
+	return err
+}
+
+var errClipboardUnavailable = errors.New("local clipboard unavailable")
+
+// ClipboardCopyLocal reports success only after a local clipboard tool exits
+// successfully. SSH belongs to the client terminal's clipboard, not this host.
+func (OSRuntime) ClipboardCopyLocal(ctx context.Context, text string) error {
+	for _, key := range []string{"SSH_CONNECTION", "SSH_CLIENT", "SSH_TTY"} {
+		if os.Getenv(key) != "" {
+			return errClipboardUnavailable
+		}
+	}
+	return copyClipboard(ctx, text)
+}
+
+func copyClipboard(ctx context.Context, text string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	for _, t := range copyTools {
 		path, err := exec.LookPath(t.name)
 		if err != nil {
 			continue
 		}
-		cmd := exec.Command(path, t.args...)
+		cmd := exec.CommandContext(ctx, path, t.args...)
+		cmd.WaitDelay = 100 * time.Millisecond
 		cmd.Stdin = strings.NewReader(text)
-		return cmd.Run()
+		err = cmd.Run()
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		return err
 	}
-	return nil
+	return errClipboardUnavailable
 }
 
 // ClipboardPaste reads the OS clipboard. ok=false only when no clipboard tool is

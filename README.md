@@ -144,14 +144,16 @@ carries only the pane's own identity and never repeats the folder.
 ## Keybindings
 
 `Alt+h` in a session pops up the live list, and `pair keys` prints the same thing
-from a shell. That list is **derived** from the bindings themselves — each row's
-wording comes from the keymap or chord that implements it — so it cannot drift out
-of date. The table below is the narrative version, with the extra context a
-one-line description can't carry.
+from a shell. Pair-owned rows derive their wording from the keymap or chord that
+implements them. The list also includes curated companion-editor help for Parley,
+labeled separately; those rows do not install shortcuts in Pair. The table below
+adds context that a one-line description cannot carry.
 
 | Key | Scope | Action |
 |---|---|---|
 | **Alt+h** | non-agent panes | Pop up the keybinding list in a floating pane (`q` or `Esc` to dismiss). Same content as `pair keys`. When Couch presents the thread, Couch's keys come first. |
+| **Alt+Space** | Parley editor | Open the attention finder: documents waiting on or answered by an agent. |
+| **Ctrl+Y, then Space** | Parley editor | Open the same attention finder. |
 | **Alt+Return** | nvim (normal/insert) | Send buffer to agent. Note for consistency, claude's keybinding also changed to Alt+return as send, and return as newline |
 | **Shift+Ctrl+Alt+Return** | draft nvim (normal/insert) | Send draft text plus all open cast-tab notes, recorded context, 🤖<current box text and a PNG crop per note>{draw-time box text and each note’s saved PNG crop} to the agent in view. An empty draft can send notes. Progress appears in the draft status line; editing resumes when the operation finishes or fails (36s maximum). [Evidence and retry behavior](atlas/webcast-submission.md). |
 | **Return** | agent pane | Insert a newline in Claude, Codex, Agy, and Qoder composers; Pair translates it to Muse's native Shift+Return and Grok's native Alt+Enter. The rewrite is *positively gated* for every agent: Pair rewrites only while it can see a live composer on screen, so in a permission picker, a selection menu, or any state it doesn't recognize, Return stays a plain Enter and the dialog confirms. Set `PAIR_WRAP_REMAP_RETURN=0` to turn the rewrite off entirely (that also disables overlay detection and its telemetry). |
@@ -425,7 +427,7 @@ couch --peek repo:N --all [--transcripts]
                                            complete current recording projection [heavy]; bounded, plain text
 couch --archived         threads removed from couch, with their records kept
 couch --actors [--json]  live peer-message receivers in this Couch namespace
-couch --resources [--json] latest cached process-resource sample
+couch --resources [--json] cached process sample plus fresh hosted-ingest totals
 couch --reap-orphans [--confirm] [--json]
                          the unattributed embedded nvim --resources named; without --confirm it lists them
                          and ends nothing, with --confirm it ends each one and its tree, every signal fenced
@@ -715,6 +717,24 @@ The default interval is one minute. CPU uses 100% per core; unavailable counters
 stay unavailable. Totals cover observed intervals, so short-lived processes
 between samples are not lifetime accounting. The command also shows sample age
 and the sampler's own native-call, CPU and elapsed-time cost.
+
+The same request includes fresh cumulative hosted-terminal ingress bytes, including
+hidden clients. JSON's optional `hosted_ingest` section has its own `sampled_at`,
+`server_pid`, `server_started_at`, `clients` and `omitted`. Each client names its
+`endpoint_id`, `thread`, process PID/generation and `ingest_bytes`. A missing
+section means unavailable on that server; an empty clients list with zero omitted
+means a supported empty census. Totals count bytes arriving at Child ingress,
+including bytes whose later parsing/publication fails, independently of raw-tail
+retention or acknowledged rendering. They are not per-client CPU measurements.
+
+For rates, take two `--resources --json` observations across an idle or busy
+interval and divide byte delta by elapsed snapshot time only for matching server
+PID/start time and endpoint identities. A replacement, missing row or nonzero
+omission is incomplete evidence, not zero traffic. Counters end with each child;
+restart creates a new server incarnation. At most 256 clients are observed and
+wire limits can omit additional rows, always with an explicit count. No raw
+output, counter history, periodic sampler or per-feed clock is added.
+
 
 Couch alerts the owning hub for sustained writes above 2 MiB/s for ten minutes,
 a process above 8 GiB RSS, an idle slot above 90% of one core for fifteen minutes,
@@ -1438,7 +1458,12 @@ Space is a literal search character; it does not toggle views.
 
 In the switcher, `Ctrl+Y` copies the full last retained status notice, including
 text clipped from the status row and after that row expires. Repeating it copies
-the same notice until another arrives. In an actor, `Ctrl+Y` still goes to the actor.
+the same notice until another arrives. A local console first tries the system
+clipboard (`pbcopy` on macOS), with a one-second budget; successful tool exit
+confirms the copy. SSH sessions and missing, failed, or timed-out clipboard tools
+use a terminal OSC 52 request instead. Its feedback says **unconfirmed**, because
+Couch cannot verify that the terminal delivered it to the clipboard.
+In an actor, `Ctrl+Y` still goes to the actor.
 
 Printable input filters the current list from memory (typeahead), matching what a
 row shows: its label, its path, and the published summary in both default and
@@ -1722,6 +1747,18 @@ unset, Go consumers lazily build once per package; their `TestMain` calls
 all tests finish. Private executable names use hard links (copies across
 filesystems). Standalone shell consumers use the same builder, which locates
 its checkout independently of the caller's working directory.
+
+Pair and wrapper subprocess fixtures use `testpair.Environment(t, disposableRoot,
+explicitEntries...)`. It delegates to `tests/lib/pair-test-env.sh`, the shared
+empty-environment owner for Go, shell and Python tests: only host PATH, disposable
+HOME and explicitly supplied fixture values cross the boundary. Never pass
+`os.Environ()` as the explicit entries. Shell tests enter through the same helper;
+the source guard rejects unisolated Pair/wrapper spawns. Shell entry scripts keep
+the shebang on line 1 and the bootstrap source on line 2; their remaining body
+uses `$0` for the entrypoint path. Python adapters consume the same helper's
+`--print0` output. The guard checks supported recipes with Go/Python syntax trees
+and a fixed shell entry contract. Fixture children outside the checkout use the
+parent's explicit helper path with `EnvironmentFrom`.
 
 SDLC reviews use the pinned commit’s `.sdlc/review-prepare.json` (version 1,
 `command: ["make", "runtimebundle-generate"]`, `timeout_minutes: 10`) to generate
