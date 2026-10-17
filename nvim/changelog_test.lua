@@ -4,6 +4,11 @@ _G.PAIR_CHANGELOG_TEST = true -- skip the interactive UI wiring at load
 local here = debug.getinfo(1, 'S').source:match('@?(.*/)') or './'
 local M = dofile(here .. 'changelog.lua')
 
+-- All artifacts belong to this invocation, even when suites share TMPDIR.
+local tmp = os.getenv('TMPDIR')
+if not tmp or tmp == '' then tmp = '/tmp' end
+local scratch_root = assert(vim.uv.fs_mkdtemp(tmp .. '/pair-changelog-test-XXXXXX'))
+local function run()
 local fails = 0
 local function check(cond, msg)
   if not cond then
@@ -45,7 +50,7 @@ check(token_group('feature/53-changelog') == 'ChangelogBranch', 'branch → Chan
 -- M.reload: simulate the async background distill finishing — write a new log
 -- to disk, reload it into the read-only buffer, assert content + cursor + lock.
 do
-  local path = (os.getenv('TMPDIR') or '/tmp') .. '/pair-changelog-reload-test.md'
+  local path = scratch_root .. '/pair-changelog-reload-test.md'
   local new_lines = { '## 2026-06-12', '', '- one', '', '- two newest #99' }
   vim.fn.writefile(new_lines, path)
   local rbuf = vim.api.nvim_create_buf(false, true)
@@ -70,7 +75,7 @@ do
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, { '## 2026-06-12', '', '- M1 done for #53' })
   vim.api.nvim_set_current_buf(buf)
   M.setup(buf)
-  local pend = (os.getenv('TMPDIR') or '/tmp') .. '/pair-cl-annotate-test.md'
+  local pend = scratch_root .. '/pair-cl-annotate-test.md'
   os.remove(pend)
   annotate.attach({
     bufnr = buf, pending_path = pend,
@@ -116,7 +121,7 @@ do
 
   -- Named buffer (the real change-log file) — must be set up read-only.
   local named = vim.api.nvim_create_buf(true, false)
-  vim.api.nvim_buf_set_name(named, (os.getenv('TMPDIR') or '/tmp') .. '/pair-cl-named-test.md')
+  vim.api.nvim_buf_set_name(named, scratch_root .. '/pair-cl-named-test.md')
   vim.api.nvim_buf_set_lines(named, 0, -1, false, { '## 2026-06-12', '', '- entry' })
   vim.api.nvim_set_current_buf(named)
   check(M.on_buf_enter(named) == true, 'on_buf_enter sets up the named change-log buffer')
@@ -124,8 +129,19 @@ do
   vim.b[named].pair_annotate = false  -- stop the exit-time VimLeavePre re-emit
 end
 
-if fails > 0 then
-  io.stderr:write(string.format('changelog_test: %d failure(s)\n', fails))
+return fails
+end
+
+-- Keep cleanup outside the protected body so assertion failures and Lua errors
+-- both remove only this invocation's artifacts before returning to the suite.
+local ok, result = xpcall(run, debug.traceback)
+assert(vim.fn.delete(scratch_root, 'rf') == 0, 'could not remove changelog test scratch root')
+if not ok then
+  io.stderr:write(result .. '\n')
+  os.exit(1)
+end
+if result > 0 then
+  io.stderr:write(string.format('changelog_test: %d failure(s)\n', result))
   os.exit(1)
 end
 print('ok changelog_test')

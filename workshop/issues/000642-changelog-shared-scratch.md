@@ -37,8 +37,8 @@ Give each invocation ownership of its scratch paths and cleanup. Preserve all re
 
 ## Plan
 
-- [ ] Commit a deterministic two-process collision regression and observe the original reload failures.
-- [ ] Allocate one private scratch root per Lua invocation; derive reload, annotation and named-buffer paths from it, and clean up on success/assertion failure/Lua error.
+- [x] Commit a deterministic two-process collision regression and observe the original reload failures.
+- [x] Allocate one private scratch root per Lua invocation; derive reload, annotation and named-buffer paths from it, and clean up on success/assertion failure/Lua error.
 - [ ] Run the original assertions, concurrency and cleanup regression, then the recorded suite, close review and landing.
 
 ## Log
@@ -50,3 +50,9 @@ A controlled original/original interleaving reproduced exactly both failures: in
 Evidence directory: /tmp/pair637-ed1erwu8. Wrapper hold-original.lua, original-controlled-collision.log, original nvim source in original/nvim, and classification.json retain commands/outcomes. Failed recorded suite: /Users/xianxu/workspace/pair/.git/sdlc/test-stats/failed/7e7efa0d33e0f88288f8746ce6e1d8d3.log (SHA256 2ae07bbeb087aa0eb0fb1b1dc0c2635c5260c9a76f28402e1bd541e72a40fdbc).
 
 2026-10-17: Claimed after #637 landed. Hub quick plan submitted in receipt 7f7553c0-509a-469f-96bc-2c39b4ea94ba. Root allocation is preferred to independent per-file random names because it gives all three artifacts one cleanup owner; PID-only names would permit stale/reused identities. No product changes or new environment knobs.
+
+2026-10-17: Red-first regression ran against the unchanged fixture and reproduced both exact reload assertion failures (A paused after writefile; B completed and removed the shared file). The same committed regression against Git-archived original nvim source f823355f9b9988dfb9888eed1bac54de44edc10f fails identically. Evidence: /tmp/pair642-y5ycl0fi/red-original.log; original source and baseline-head retained there. No sleeps or increased deadlines.
+
+2026-10-17: One atomic fs_mkdtemp allocation now owns all three paths. xpcall protects the existing fixture body; cleanup runs before reporting assertion failures or Lua errors. All original check expressions remain unchanged. The Python regression runs two real headless Neovim children with private HOME/XDG/log roots and one intentionally shared TMPDIR, joins both, checks three paths per invocation share only their own root, verifies B leaves A's file present, and checks root removal and caller-sentinel preservation. Assertion-failure and Lua-error injection both prove cleanup. Native Neovim's own temporary directory is outside the fixture's ownership and remains for the enclosing Python TemporaryDirectory to remove. Product Lua unchanged.
+
+2026-10-17: Targeted verification passed: python3 -B tests/changelog-isolation-test.py (2 tests, including both failure subcases), nvim -l nvim/changelog_test.lua, make test-lua (entire Lua/editor suite), git diff --check. Retained green-isolation.log and green-lua.log beside the red control. The regression is wired into test-lua for future suites. During implementation its all-paths assertion caught the existing local scratch buffer variable shadowing a first draft's root name; the root is now scratch_root, so all three artifact paths use it.

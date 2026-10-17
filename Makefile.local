@@ -343,6 +343,7 @@ test-lua:
 	nvim -l nvim/scrollback_test.lua
 	nvim -l nvim/annotate_test.lua
 	nvim -l nvim/changelog_test.lua
+	python3 -B tests/changelog-isolation-test.py
 	nvim -l nvim/adapt_test.lua
 	nvim -l nvim/doctor_test.lua
 	nvim -l nvim/review/record_test.lua
