@@ -38,9 +38,9 @@ func (r *deadlineProbeRuntime) SessionActivity(ctx context.Context, thread threa
 	return r.base.SessionActivity(ctx, thread)
 }
 
-// New must default the bound to the package const: a zero deadline expires
-// immediately, and under load a probe can lose that race, so a missing default
-// reads as a flake while silently failing every production probe (#628).
+// New must default the bound to the package const: a zero deadline returns an
+// already-cancelled context, so every probe fails deterministically and a
+// missing default silently fails every production probe (#628).
 func TestNewConsoleDefaultsTheProbeBound(t *testing.T) {
 	console := New(hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 80}), nil)
 	t.Cleanup(console.Stop)
