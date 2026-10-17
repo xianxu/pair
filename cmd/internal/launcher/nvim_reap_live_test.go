@@ -49,9 +49,12 @@ import (
 // What decides it is the classifier's reapReasonReparented branch, pinned by the ppid-1
 // rows in TestSweepOrphanNvimDecidesEachPidOnItsOwnEvidence. The live-tag case below is
 // the other half of the same rule — a live tag's embed with its parent alive is decided
-// and kept. The live run does not attempt a real reparenting: that needs a disposable
-// parent which leaves the embed alive at ppid 1, and this host does not offer one (see
-// the measurements above).
+// and kept. The live run does not attempt a real reparenting: it is not this sweep's
+// pivot, since a reparented embed reaches it through the same tag-absence rule as any
+// other. A disposable parent that leaves the embed alive at ppid 1 does exist on this
+// host — a shell that backgrounds the embed and exits, with the embed's stdin on a
+// FIFO whose write end stays held open — and couchcmd/reap_orphans_live_test.go uses
+// it, because there PID 1 is the whole authorization.
 
 // liveEmbedPublish is the VimEnter pid publish the four pair nvim configs do,
 // reduced to the one line the reaper depends on: the record names the embed, which

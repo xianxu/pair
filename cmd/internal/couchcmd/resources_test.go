@@ -398,6 +398,14 @@ func TestResourceSamplerNativeCost(t *testing.T) {
 		t.Fatalf("fixture did not approach history cap: %d", len(raw))
 	}
 	policy, _ := couchcore.ParseResourcePolicy(nil)
+	// Maximum cardinality: the widest gates this pass has, so nothing is filtered out
+	// by a threshold this host happens to sit under. The age floor admits every PPID-1
+	// nvim to the argv read and the cwd probe, and the RSS floor -- which is also
+	// #587's unattributed report floor -- admits every known-kind launchd child to the
+	// report and its serialization. The budget below is asserted against that worst
+	// case rather than against the defaults, because the defaults are a host-shaped
+	// accident and the probe's cost is not (#583).
+	policy.OrphanNvimAge, policy.OrphanRSSBytes = time.Second, 0
 	sampler := &resourceSampler{reader: reader, policy: policy, persist: persistence.persist, slots: func() couchcore.ResourceSlotInventory {
 		return couchcore.ResourceSlotInventory{Complete: true, Slots: []couchcore.ResourceSlot{{Slot: address, Workspace: workspace, OwnershipKnown: true, Roots: []couchcore.ResourceRoot{{Key: couchcore.ResourceProcessKey{PID: owned.PID, Identity: owned.Identity}}}}}}
 	}}
@@ -422,7 +430,7 @@ func TestResourceSamplerNativeCost(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		t.Logf("pass=%d table_rows=%d slots=%d owned_processes=%d unattributed=%d calls=%d table_calls=%d usage_calls=%d command_calls=%d CPU_ms=%.3f wall_ms=%.3f storage_bytes=%d storage_writes=%d history_bytes=%d", pass+1, len(rows), len(v.Slots), len(v.Processes), len(v.Unattributed), v.Cost.NativeCalls, v.Cost.TableCalls, v.Cost.UsageCalls, v.Cost.CommandCalls, float64(v.Cost.CPUTimeNS)/1e6, float64(v.Cost.WallTime)/1e6, v.Cost.StorageBytes, v.Cost.StorageWrites, info.Size())
+		t.Logf("pass=%d table_rows=%d slots=%d owned_processes=%d unattributed=%d orphan_nvim=%d calls=%d table_calls=%d usage_calls=%d command_calls=%d cwd_calls=%d CPU_ms=%.3f wall_ms=%.3f storage_bytes=%d storage_writes=%d history_bytes=%d", pass+1, len(rows), len(v.Slots), len(v.Processes), len(v.Unattributed), len(v.OrphanNvim), v.Cost.NativeCalls, v.Cost.TableCalls, v.Cost.UsageCalls, v.Cost.CommandCalls, v.Cost.CwdCalls, float64(v.Cost.CPUTimeNS)/1e6, float64(v.Cost.WallTime)/1e6, v.Cost.StorageBytes, v.Cost.StorageWrites, info.Size())
 	}
 	mean := float64(sum) / 3
 	t.Logf("CPU_mean_ms=%.3f CPU_max_ms=%.3f sixty_second_CPU_pct=%.6f seeded_frames=%d seeded_history_bytes=%d", mean/1e6, float64(maxCPU)/1e6, mean/float64(time.Minute)*100, len(seed.Frames), len(raw))

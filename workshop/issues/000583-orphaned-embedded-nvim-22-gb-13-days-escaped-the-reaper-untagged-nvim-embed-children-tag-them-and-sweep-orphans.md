@@ -795,3 +795,117 @@ launcher mutation measures.
 Evidence: `gofmt -l` clean on every file this touched (`session_sync_test.go` stays as main left it),
 `go vet` clean over couchcmd/couchmessage/launcher, `go test -race -run 'TestReapOrphan|TestResource'` green,
 and full package runs green — couchcmd 54.7s, couchmessage 7.2s, launcher 35.1s, couchcore 255.4s.
+
+### 2026-10-16 — M2 Task 17: the cost at maximum cardinality, and a live check that had to change shape
+
+**Cost, measured at the widest gates the pass has.** `TestResourceSamplerNativeCost` now runs with
+`OrphanNvimAge = 1s` (the floor `ParseResourcePolicy` accepts) and `OrphanRSSBytes = 0`, so no row is
+filtered out by a threshold this host happens to sit under: the age floor admits every PID-1 nvim to the
+argv read and the cwd probe, and the RSS floor — which is also #587's unattributed *report* floor — admits
+every known-kind launchd child to the report and its serialization. Per-call native cost, measured
+separately: cwd 8.609 µs, argv 26.107 µs, so #583's probe is the *cheaper* of the two per-row reads. At the
+8192-row synthetic ceiling that extrapolates to ~70 ms of cwd probes on top of ~214 ms of argv reads #587
+already paid.
+
+**But the assertion is load-sensitive, and it went red mid-measurement.** The test's gate is mean < 120 ms
+and max < 300 ms across three passes (#587's "below 0.2 % of one core at the default minute cadence"). Two
+runs of the same code, hours apart, on the same host:
+
+| host state | rows | mean | max | pass 1 | pass 2 | pass 3 | calls p1 / p2 | verdict |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| load ~14 | 1270 | **90.535 ms** | 142.409 ms | 142.409 ms | 63.952 ms | 65.244 ms | 1585 / 64 | PASS, 0.150892 % |
+| load ~56 (other slots' full suites) | 1323 | 136.712 ms | 245.274 ms | 245.274 ms | 80.329 ms | 84.535 ms | 1581 / 66 | FAIL on the mean |
+
+Three things fall out:
+
+1. **It is not #583's cost.** Re-running with this task's widening removed, under the same load ~56, gave
+   mean 138.438 ms / max 265.049 ms — *worse*, so the widening is inside noise. On the widened run the whole
+   probe cost 2 argv reads + 2 cwd probes ≈ **69 µs** per pass.
+2. **Steady state is inside the budget in both runs** (64-85 ms); only pass 1 moves, from 142 ms at rest to
+   245-265 ms under load. Pass 1 makes ~1521 more native calls than a steady pass — one environment read per
+   process generation, which is #606's detached-slot attribution, and which `atlas/couch.md` already
+   documents as "about 0.3 s for 1,200 processes on Couch's first pass, then only new processes".
+3. **The budget predates that scan.** #587 landed 2026-10-15 and qualified at 71.331 ms mean / 74.264 ms max
+   over ~1007 rows and 58 native attempts; #606 landed the day after and roughly doubled the first pass. Its
+   own plan records the TL ruling that "the binding CPU budget applies to steady sampling, not a rare
+   maximum-cardinality admission burst" — and a three-pass mean now folds in a cold pass that is neither.
+
+So the answer to Step 1 is: **0.150892 % of one core at the 60 s cadence, inside the approved <0.2 %**, and
+#583's own contribution at maximum cardinality is ~69 µs. But the gate that says so is a coin flip on fleet
+load, and nothing in its output distinguishes "the host was busy" from "the sampler regressed" — a
+verification defect that belongs to #587 and #606, not here. The constant is #587's approved number and this
+issue does not move it; filed separately and reported to the hub.
+
+**What the PID-1 gate is worth.** Mutating `UnattributedShape`'s `p.PPID == 1` to `>= 1` — a one-character
+relaxation — took the same pass from 2 to **122** argv+cwd probe pairs on a host running ~30 pair embeds.
+That is the gate doing the cost containment, not the age threshold.
+
+**A real orphan on this host, found while measuring.** `ps -eo pid,ppid,etime,rss,command` names pid 89403:
+`nvim --embed -u <pair-slot6>/nvim/init.lua <scope>/draft-grok.md`, PPID 1, alive **8 days 10 h**, 5.6 MB
+RSS, cwd `/Users/xianxu/workspace/pair` (`lsof -d cwd`). Read against the classifier's gates it is a
+candidate on every one — `nvim` short name, PID 1, an exact `--embed` argv field, an age far past 6 h, and a
+cwd inside the hub slot's managed root — so a supervisor built from this branch would name it in
+`couch --resources` and offer it to `--reap-orphans`. It was *not* named by the measurement above, because
+that test's inventory holds one synthetic slot whose root is a temp dir; the managed-root gate did exactly
+what it is for and refused to reach outside it. Two things worth carrying out of this: the gate's
+containment is real and observable, and its coverage limit is real too — `ManagedRoots` is the set of
+**inventory** slots' `WorktreeRoot`, so an orphan whose slot has left the console's slot list entirely has no
+root left to match and is not named. Reported to the hub; not fixed here, since #583's spec asks for
+"cwd inside a pair-managed worktree" and this satisfies it. (It is also a *tagged* embed, so M1's launch
+sweep should recover `grok` from its argv and reap it at slot 6's next launch — the operator's call, not
+this slot's, and nothing here signalled it.)
+
+**The plan's live check was not performable as written, so it changed shape.** Step 3 said to run
+`couch --resources` and `couch --reap-orphans` on this machine. The supervisor serving this fleet was started
+from a build that predates this branch, so neither the `reap-orphans` op nor the orphan report section exists
+in it, and restarting the fleet's Couch is the operator's call, not a worker slot's. Restarting to satisfy a
+step is the wrong trade: the substitution is stronger evidence anyway. `cmd/internal/couchcmd/
+reap_orphans_live_test.go` (env-gated on `PAIR_LIVE_ORPHAN_REAP=1`, this repo's live-test idiom) asserts the
+same three claims against the real host, and all three pass:
+
+- a real reparented `nvim --embed` at PID 1, cwd inside a managed checkout, is named by the real sampler over
+  the real table — identity, cwd, root and age all read natively, no synthetic field anywhere
+  (`orphan_nvim=1`, `reason=unattributed embedded nvim`);
+- an embed with a live parent, in the same checkout, under the same age gate, is **not** named
+  (`orphan_nvim=0`) — PID 1 is the only difference between the two spawns, since both run the same script;
+- `reapOrphanNvim` over `launcher.TreeReaper(launcher.OSProcessTable{})` ends the real orphan, proven by the
+  kernel no longer reporting that generation for the pid rather than by a poll that went quiet.
+
+The refusal half of Step 3 is covered where it lives: `TestReapOrphansCLIRefusesWithoutConfirmation`.
+Mutation-checked, then reverted: relaxing the PID-1 gate makes the live-parent case fail on its own terms —
+"the sweep named 16284, whose parent was still alive".
+
+**An M1 measurement was wrong, and the reason is worth keeping.** M1's `launcher/nvim_reap_live_test.go`
+header records that a disposable parent leaving the embed alive at PID 1 is something "this host does not
+offer". It does; two constraints have to hold together, and the first two attempts each held one:
+
+1. the embed's stdin must be **held open** — M1's own measurement, ~31 ms to exit once it closes;
+2. it must be **redirected explicitly** — bash sends an asynchronous command's stdin from `/dev/null` in a
+   non-interactive shell, so an `os.Pipe` handed to `cmd.Stdin` and inherited by the backgrounded embed
+   reaches it as an immediate EOF. Measured 2026-10-16 with the write end open the whole time: the
+   inherited-pipe embed was gone from the kernel table within 150 ms of its shell exiting (`STAT UN` at
+   20 ms, absent at 180 ms, empty stderr — it was never an error, just EOF). The same embed behind `< fifo`,
+   with this process holding the write end, sat at PID 1 in state `S` for the entire poll.
+
+So `spawnEmbed` makes a FIFO in its own temp scope, opens the write end in a goroutine (a FIFO's two opens
+rendezvous, so neither side races), and reads the pid from a sidecar file rather than the shell's stdout —
+in the live-parent case the shell never exits, so there is no `Wait` to close a stdout copy against, and
+reading a buffer a copy goroutine still owns is a race. The launcher header's stale claim is corrected with
+the measurement and a pointer.
+
+**Two ways the live-parent case could have passed for the wrong reason.** (a) `exec.CommandContext` with the
+spawn function's own `defer cancel()` SIGKILLs the shell the moment that function returns — which reparents
+the embed to PID 1 *before the sweep runs*, turning "an embed with a live parent is never touched" into the
+orphan case and passing it vacuously. The spawn is plain `exec.Command` now, with the cleanup owning that
+lifetime. (b) The verdict alone cannot distinguish "the live-parent rule held" from "the embed died, or was
+reparented mid-run", so the test re-reads the kernel's table *after* the sweep and fails unless the embed is
+still there, still holding the identity it was spawned with, and still not at PID 1. Both guards were added
+after the first green run, and the mutation re-run above is from the guarded version.
+
+**Docs.** `atlas/couch.md` gains an `### Unattributed embedded nvim (#583)` subsection (classification
+evidence, the cwd probe, the report section, the persisted ring, the hub alert's addressing, the verb's two
+modes, the identity fence, the outcome/exit-code table, owners and the live conformance) plus the
+`COUCH_RESOURCE_ORPHAN_NVIM_AGE` row; its "does not kill anything" sentence now says the monitor does not,
+and the one destructive verb is the operator's and confirmed. `README.md` gains the verb in the command list
+with its `[seconds]` cost tag, the new alert trigger, and replaces "Monitoring never kills processes" with
+what the two modes actually do.

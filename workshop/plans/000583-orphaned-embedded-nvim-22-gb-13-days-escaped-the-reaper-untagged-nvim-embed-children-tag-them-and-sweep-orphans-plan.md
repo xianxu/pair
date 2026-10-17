@@ -662,15 +662,18 @@ func ClassifyOrphanNvims(table []procutil.Process, owned []ResourceProvenance,
 
 ### Task 17: Cost re-measurement and docs
 
-- [ ] **Step 1:** re-run #587's sampler cost measurement at maximum cardinality with the cwd probe enabled
+- [x] **Step 1:** re-run #587's sampler cost measurement at maximum cardinality with the cwd probe enabled
   and record mean/max CPU and the percentage of one core at 60 s in `## Log`; it must stay inside the
   approved <0.2%.
-- [ ] **Step 2:** update `atlas/couch.md` (the resource monitor section) and `README.md` where the reaper or
+- [x] **Step 2:** update `atlas/couch.md` (the resource monitor section) and `README.md` where the reaper or
   `couch --resources` is described; add the new env knob to the configuration list.
-- [ ] **Step 3:** a live check on this machine: `couch --resources` shows the current bare `nvim --embed`
-  rows as live-parent (not orphans), and `couch --reap-orphans` without `--confirm` refuses and names them.
-  Record the output in `## Log`.
-- [ ] **Step 4:** `sdlc local-check run --name suite`, then `sdlc close --issue 583`.
+- [x] **Step 3:** a live check on this machine. **Substituted** — see the 2026-10-16 Task 17 revision:
+  the running supervisor is a build from before this branch, so neither verb exists to invoke. An
+  env-gated live conformance test (`cmd/internal/couchcmd/reap_orphans_live_test.go`) runs the same three
+  claims against the real host instead: a real reparented `nvim --embed` at PPID 1 inside a managed
+  checkout is named by the real sampler, an embed with a live parent in the same checkout under the same
+  age gate is not, and the confirmed reap ends the real orphan with a real signal.
+- [x] **Step 4:** `sdlc local-check run --name suite`, then `sdlc close --issue 583`.
 
 ## Non-goals
 
@@ -1196,3 +1199,39 @@ func ClassifyOrphanNvims(table []procutil.Process, owned []ResourceProvenance,
   either way. The wire projection can truncate `OrphanNvim` at the detail limit, so the CLI prints
   `result.Resources.Errors` as `Coverage:` lines on stderr ahead of the outcomes — a row this verb did not
   consider is said before the fact, not after it.
+- **2026-10-16 — Task 17 Step 3's manual live check was not performable, and one M1 measurement was wrong.**
+  Reason (the check): Step 3 said to run `couch --resources` and `couch --reap-orphans` on this machine. The
+  supervisor serving this slot's fleet was started from a build that predates this branch, so neither the
+  `reap-orphans` op nor the orphan section exists in it, and restarting the fleet's Couch is the operator's
+  call, not a worker slot's. Delta: the check became an env-gated live conformance test in the repo's
+  established idiom (`launcher/nvim_reap_live_test.go`, `procutil/resource_darwin_test.go`),
+  `couchcmd/reap_orphans_live_test.go` under `PAIR_LIVE_ORPHAN_REAP=1`. It asserts Step 3's three claims
+  against the real host rather than against a running supervisor: a real reparented embed inside a managed
+  checkout is named by the real sampler over the real table (identity, cwd, root and age all read natively,
+  no synthetic field), an embed with a live parent in the same checkout under the same age gate is not named,
+  and `reapOrphanNvim` over `launcher.TreeReaper(launcher.OSProcessTable{})` ends the real orphan — verified
+  by the kernel no longer reporting that generation for the pid, not by a poll that went quiet. The refusal
+  half of Step 3 is already covered where it lives: `TestReapOrphansCLIRefusesWithoutConfirmation`.
+  Reason (the measurement): M1's `launcher/nvim_reap_live_test.go` header records that "a disposable parent
+  which leaves the embed alive at ppid 1 … this host does not offer one". It does. Two constraints had to be
+  satisfied together, and the first two attempts each satisfied one: the embed's stdin must be **held open**
+  (M1's own ~31 ms measurement), and it must be **redirected explicitly** — bash sends an asynchronous
+  command's stdin from `/dev/null` in a non-interactive shell, so an `os.Pipe` handed to `cmd.Stdin` and
+  inherited reaches the embed as an immediate EOF. Measured 2026-10-16 with the write end open the whole
+  time: the inherited-pipe embed was gone from the kernel table within 150 ms of its shell exiting; the same
+  embed behind `< fifo` with this process holding the write end stayed at PPID 1 in state `S` for the whole
+  poll. Delta: `spawnEmbed` builds the orphan that way (a `syscall.Mkfifo` in the test's own temp scope, the
+  write end opened in a goroutine because a FIFO's two opens rendezvous), uses one script for both cases so
+  PPID 1 is the only difference between them, and takes the pid from a sidecar file rather than the shell's
+  stdout — in the live-parent case the shell never exits, so there is no `Wait` to close a stdout copy
+  against. The launcher header's stale claim is corrected with the measurement and a pointer.
+  Two ways the live-parent case could have passed for the wrong reason, both closed after its first green
+  run: `exec.CommandContext` under the spawn function's own `defer cancel()` SIGKILLs the shell the moment
+  that function returns, reparenting the embed to PID 1 *before the sweep runs*; and the verdict alone
+  cannot distinguish "the rule held" from "the embed died or was reparented mid-run", so the test re-reads
+  the kernel's table after the sweep and fails unless the embed is still there, still holding its spawn
+  identity, and still not at PID 1.
+  The live test was mutation-checked, not just green: relaxing `UnattributedShape`'s `p.PPID == 1` to
+  `>= 1` makes the live-parent case fail on its own terms ("the sweep named 16284, whose parent was still
+  alive"), and the same mutation raised that pass's native probes from 2 to 122 argv+cwd reads
+  on a host running ~30 pair embeds — the PPID-1 gate is what bounds the probe Step 1 costs.
