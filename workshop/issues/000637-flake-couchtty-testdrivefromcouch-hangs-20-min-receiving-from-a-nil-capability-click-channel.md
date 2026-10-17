@@ -70,6 +70,7 @@ hangs instead of failing.
 ### 2026-10-16
 
 ### 2026-10-17 — root cause and quick plan
+- 2026-10-17: closed — Test fixture only, no production/architecture surface; TL owns project. BR-1 corrected across all transient-notice readiness consumers: await first admitted re-enable operation channel. Late-reset regression red with old notice wait (5.08s), green fixed; three controlled orderings and original integration included in -race -count=20 under concurrent suite CPU load, PASS 143.241s. Revised integrated declared full suite c1330695 PASS 13m6s, all shell/Lua/Go, couchtty 59.361s, all server CI green. Earlier failed suite classified/filed #642 and approved passing retry retained as historical only. No sleeps/deadline extensions; full logs/SHA256 in issue.; review verdict: SHIP
 
 The old predicate treats Disabling/Running as disabled (`Project.Enabled == false`). Cleanup resets control and notifies Chrome before releasing held input and publishing Off. Thus all three preceding waits can pass while the capability click correctly means wait and returns nil. A second window exists after Off: Cast publishes capabilities before clearing its running slot. The console's `drive capability off.` notice is set only after the result has arrived (the slot is already released), on its terminal command queue. Wait for that completion evidence and Off before the new click. No product change is required: refusing a click during cleanup is deliberate and already displayed as turning off.
 

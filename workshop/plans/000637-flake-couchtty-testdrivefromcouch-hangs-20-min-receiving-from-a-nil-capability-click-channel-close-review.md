@@ -75,3 +75,78 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-17T05:05:53-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 637 — flake: couchtty TestDriveFromCouch hangs 20 min receiving from a nil capability-click channel |
+| repo | pair |
+| issue file | workshop/issues/000637-flake-couchtty-testdrivefromcouch-hangs-20-min-receiving-from-a-nil-capability-click-channel.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 414195b345eb33569564884e297205cd00f988c0..c31542b57470ab9c5ca89cbfe8327d320287ddfa |
+| command | sdlc close --issue 637 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-17T05:05:53-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The revision resolves BR-1 with operation-specific completion evidence. The new regression fails when the old notice-dependent wait is restored. The pinned implementation passed targeted tests and twenty race repetitions, overlapping the webcast suite. No blocking findings remain.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      console_drive_test.go:220-234 retries admission only until the first non-nil operation channel, then awaits its completion. All readiness consumers use this helper. The late-reset regression at :336 passes unchanged and fails after five seconds when the old notice predicate is restored through a temporary Go overlay.
+```
+
+1. **Strengths**
+   - `awaitDrive` rejects nil immediately with the named action and preserves the five-second completion bound (`console_drive_test.go:182`).
+   - Admission retries stop at the first accepted operation, avoiding duplicate enables (`:227`).
+   - Regressions cover held cleanup, blocked terminal completion, and completion followed by late reset presentation (`:260`).
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage**
+   - Targeted drive/capability tests passed.
+   - The same family passed `-race -count=20` in 50.223 seconds, overlapping `go test -race ./cmd/internal/webcast/...`, which also passed.
+   - Restoring the old notice wait made the late-reset regression fail as expected.
+   - Verified the retained full-suite log’s recorded SHA256; only the issue record changed between that tested commit and the reviewed head.
+   - `git diff --check` passed; repository files remained unchanged.
+
+6. **Architecture**
+   - **ARCH-DRY: Pass.** Shared admission and bounded-await helpers cover the affected consumers.
+   - **ARCH-PURE: Pass.** Scheduling control stays within injected integration fixtures.
+   - **ARCH-PURPOSE: Pass.** Completion no longer depends on transient notices, and the prior failure ordering is exercised.
+   - No new user-facing or architectural surface requires README or atlas changes.
+
+7. **Plan revision recommendations:** None. The existing `## Revisions` entry accurately describes the delivered change.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"da9867e7-94f4-4eeb-a36b-c558ba568075","repository":"github.com/xianxu/pair","issue_id":"000637","recipe":"small-diff-review","round":2,"attempt":1,"agent":"codex","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/3939d63a0b5e01d3","reviewed_head":"c31542b57470ab9c5ca89cbfe8327d320287ddfa","slot":"pair:1","requested_at":"2026-10-17T12:04:03.123307Z"},"phase":"finished","pid":28543,"started_at":"2026-10-17T12:04:03.214363Z","finished_at":"2026-10-17T12:05:53.284316Z","session_id":"01a149bf-68fb-7a23-a8c6-7529b1f26114","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.383937709s
+head: "c31542b57470ab9c5ca89cbfe8327d320287ddfa"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
