@@ -1,12 +1,12 @@
 ---
 id: 000630
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-16
 updated: 2026-10-17
 estimate_hours: 1.57
-card_mirror: '434dcbec590334f39b16fabaaa525692b3399f22' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '541601ac63991213938f6801bf22c9ff672c4a05' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-17T05:43:25-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: operator}
+actual_hours: 2.28
 ---
 
 # couch session-sync: carry tl-lead's stale-section list to the TL when no event would show it
