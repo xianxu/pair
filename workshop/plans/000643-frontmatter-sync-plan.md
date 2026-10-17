@@ -41,17 +41,17 @@ Reuse real temporary file stores, the existing test rig and registry fixtures; n
 
 ### Byte projection and guarded operations
 
-- [ ] Add function-level tests in cmd/internal/sessionsync/file_test.go and sync_test.go: FrontmatterBody and ReplaceFrontmatter get a byte-scanner fuzz oracle with independent suffix-preservation and round-trip invariants; ReadFrontmatter and Write get real-store state-transition tests asserting that acknowledged frontmatter never advances the body baseline. Exercise both legacy and registered routing and initial baseline creation.
-- [ ] Run `go test ./cmd/internal/sessionsync -run Frontmatter -count=1`; observe the missing behavior fail before implementing it.
-- [ ] Implement the pure helpers and explicit scope in the existing guarded path. Both content and projected shadow must be fully prepared before any write. Guard Write with refusal-state invariants over document/shadow/state and the owed-event horizon. Inject a publication failure by loading the real transaction fixture and directing its shadow output at an existing directory; assert that the document may contain the new frontmatter, its body and original body baseline remain unchanged, no fold is lost, and a fresh read/recomputed write completes safely.
-- [ ] Run `go test ./cmd/internal/sessionsync -count=1`; commit the implementation and verified evidence.
+- [x] Add function-level tests in cmd/internal/sessionsync/file_test.go and sync_test.go: FrontmatterBody and ReplaceFrontmatter get a byte-scanner fuzz oracle with independent suffix-preservation and round-trip invariants; ReadFrontmatter and Write get real-store state-transition tests asserting that acknowledged frontmatter never advances the body baseline. Exercise both legacy and registered routing and initial baseline creation.
+- [x] Run `go test ./cmd/internal/sessionsync -run Frontmatter -count=1`; observe the missing behavior fail before implementing it.
+- [x] Implement the pure helpers and explicit scope in the existing guarded path. Both content and projected shadow must be fully prepared before any write. Guard Write with refusal-state invariants over document/shadow/state and the owed-event horizon. Inject a publication failure by loading the real transaction fixture and directing its shadow output at an existing directory; assert that the document may contain the new frontmatter, its body and original body baseline remain unchanged, no fold is lost, and a fresh read/recomputed write completes safely.
+- [x] Run `go test ./cmd/internal/sessionsync -count=1`; commit the implementation and verified evidence.
 
 ### CLI and documentation
 
-- [ ] Add parseSessionSyncCLI tests in cmd/internal/couchcmd/session_sync_test.go: generate combinations of scope/verb/flag tokens and assert exactly one permitted scope, preserving literal value handling. Test runSessionSyncCLI through real disposable read/hash/write/diff state transitions. Keep all existing forms compatible.
-- [ ] Run `go test ./cmd/internal/couchcmd -run 'SessionSync.*Frontmatter|Frontmatter.*SessionSync' -count=1` and observe the missing flag fail, then extend parsing and dispatch.
-- [ ] Update root `couch --help`, sessionSyncUsage, README.md, atlas/couch.md and the shipped cmd/internal/couchcmd/skills/couch/SKILL.md. Document the complete block payload, scoped acknowledgement, body timestamp exception, and light cost. Keep atlas/index.md's existing Couch link.
-- [ ] Run `go test ./cmd/internal/sessionsync ./cmd/internal/couchcmd -count=1` and targeted race tests. Build the real CLI using the existing build target; run it from this slot in an empty allowlisted environment with disposable HOME/data paths, record read/write/diff, stale and operator-lock results. TL approved this live route; no pair:0 staging.
+- [x] Add parseSessionSyncCLI tests in cmd/internal/couchcmd/session_sync_test.go: generate combinations of scope/verb/flag tokens and assert exactly one permitted scope, preserving literal value handling. Test runSessionSyncCLI through real disposable read/hash/write/diff state transitions. Keep all existing forms compatible.
+- [x] Run `go test ./cmd/internal/couchcmd -run 'SessionSync.*Frontmatter|Frontmatter.*SessionSync' -count=1` and observe the missing flag fail, then extend parsing and dispatch.
+- [x] Update root `couch --help`, sessionSyncUsage, README.md, atlas/couch.md and the shipped cmd/internal/couchcmd/skills/couch/SKILL.md. Document the complete block payload, scoped acknowledgement, body timestamp exception, and light cost. Keep atlas/index.md's existing Couch link.
+- [x] Run `go test ./cmd/internal/sessionsync ./cmd/internal/couchcmd -count=1` and targeted race tests. Build the real CLI using the existing build target; run it from this slot in an empty allowlisted environment with disposable HOME/data paths, record read/write/diff, stale and operator-lock results. TL approved this live route; no pair:0 staging.
 
 ### Single close boundary and landing
 

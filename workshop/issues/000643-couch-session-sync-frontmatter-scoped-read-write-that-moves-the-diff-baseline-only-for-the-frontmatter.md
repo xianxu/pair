@@ -41,7 +41,7 @@ The hash is the frontmatter's; a stale hash refuses. The operator's lock refuses
 
 ## Plan
 
-- [ ] Add the explicit frontmatter scope and regression tests for byte preservation, scoped shadow acknowledgement, stale hashes and operator locks.
+- [x] Add the explicit frontmatter scope and regression tests for byte preservation, scoped shadow acknowledgement, stale hashes and operator locks.
 - [ ] Verify the real CLI on disposable files in an isolated namespace, update help and atlas, run the recorded suite, close review and land.
 
 Implementation detail: [durable plan](../plans/000643-frontmatter-sync-plan.md).
@@ -59,6 +59,8 @@ Implementation detail: [durable plan](../plans/000643-frontmatter-sync-plan.md).
 
 - TDD: initial sessionsync run failed on the missing scoped API; CLI parser/real-runtime/help tests then failed on unsupported --frontmatter before wiring. Targeted package runs passed (sessionsync 9.466s, couchcmd 57.457s), focused race runs passed, and the 15-second byte projection/replacement fuzz run passed 751,343 executions. Added direct-first-write, ordinary registered baseline, malformed-shadow and partial-publication recovery coverage.
 - Shipped reference baseline check found no documented body-preserving metadata route. Repeating the reference retrieval after the update selected --frontmatter, the complete-block payload and hash boundary, body/Updated preservation, and safe publication-error reconciliation correctly.
+
+- Real built CLI conformance passed for legacy and registered disposable files: scoped read/write retained the exact CRLF body and Updated bytes, unread operator addition stayed in diff, stale returned 6, operator lock returned 3. Isolated namespace was initialized through normal adopt-store preview/apply; the initial smoke correctly refused an unmigrated disposable namespace. No operator store or pair:0 was touched. Scratch evidence: /private/var/folders/07/b9wcwwld4_v2w9r3hk525bm80000gn/T/pair643-live.G8sg4M; driver /tmp/pair643-live.py.
 
 ## Estimate
 
