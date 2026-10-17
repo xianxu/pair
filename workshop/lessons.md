@@ -2166,3 +2166,7 @@ and external temporary roots rather than relying on the host's TMPDIR.
   with a process gate and retain stderr rather than relying only on sleep offsets.
 
 - Chunked JSONL framing must not search a retained newline-free prefix again on each append. Count actual delimiter bytes examined across multi-chunk records, alongside semantic boundary/limit tests; read/decode counters alone miss quadratic delimiter work. Preserve per-probe progress when diagnosing aggregate worker timeouts. (#626)
+- #620: Derive an integration fixture's completion bound from the product phases
+  it actually runs, including allowed serial IO and in-flight work. A short
+  aggregate wait can reject successful bounded calls; prove that ordering with
+  controlled latency and retain a publication-failure negative control.

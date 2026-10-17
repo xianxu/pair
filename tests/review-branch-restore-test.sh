@@ -8,6 +8,7 @@ import json, os, pathlib, subprocess, sys, tempfile, time
 root=pathlib.Path(os.environ['PAIR_ROOT'])
 sys.path.insert(0,str(root/'tests/lib'))
 from review_test_env import ReviewTestEnvironment
+pane_init=pathlib.Path(os.environ.get('PAIR_TEST_REVIEW_INIT',str(root/'nvim/review.lua')))
 # macOS Unix sockets have a short path limit; keep the explicit draft endpoint
 # separate from potentially deeply nested TMPDIR fixtures.
 with ReviewTestEnvironment() as isolated, tempfile.TemporaryDirectory(prefix='pair-branch-review-') as td, tempfile.TemporaryDirectory(prefix='pair-rpc-',dir='/tmp') as rpc_td:
@@ -33,7 +34,7 @@ with ReviewTestEnvironment() as isolated, tempfile.TemporaryDirectory(prefix='pa
         PAIR_REVIEW_OPEN_PATH=str(opened),PAIR_REVIEW_HANDOFF_PATH=str(handoff),PAIR_REVIEW_LANDED_PATH=str(data/'landed.json'),
         PAIR_REVIEW_MODE_PATH=str(data/'mode'),XDG_STATE_HOME=str(temp/'state'),XDG_DATA_HOME=str(temp/'xdg'),XDG_CACHE_HOME=str(temp/'cache'))
     trace_path=temp/'pane-observations.json'; trace_init=temp/'review-init.lua'
-    trace_init.write_text('dofile('+json.dumps(str(root/'nvim/review.lua'))+')\n'+
+    trace_init.write_text('dofile('+json.dumps(str(pane_init))+')\n'+
         'dofile('+json.dumps(str(root/'tests/lib/review_observation_trace.lua'))+').install({path='+json.dumps(str(trace_path))+'})\n')
     children=[]; logs=[]; meta=None
     def launch():
@@ -59,7 +60,7 @@ with ReviewTestEnvironment() as isolated, tempfile.TemporaryDirectory(prefix='pa
         observed={'unavailable':'pane endpoint unavailable'}
         if meta is not None and children and children[0].poll() is None:
             try:
-                observed=json.loads(evaluate(meta,"luaeval('vim.json.encode({trace=PairReviewObservationTraceSnapshot(),state=PairReviewPane.controller.state,pending=PairReviewPane.has_pending(),pane=PairReviewPane.pane_state(),modified=vim.bo.modified,error=vim.v.errmsg,messages=vim.fn.execute(\"messages\"):sub(-8192)})')",timeout=2))
+                observed=json.loads(evaluate(meta,"luaeval('vim.json.encode({trace=PairReviewObservationTraceSnapshot(),state={status=PairReviewPane.controller.state.status,context=PairReviewPane.controller:context()},pending=PairReviewPane.has_pending(),pane=PairReviewPane.pane_state(),modified=vim.bo.modified,error=vim.v.errmsg,messages=vim.fn.execute(\"messages\"):sub(-8192)})')",timeout=2))
             except Exception as error: observed={'unavailable':str(error)}
         return dict(observed=observed,handoff_exists=handoff.exists(),landed_exists=(data/'landed.json').exists(),
                     children=[p.poll() for p in children],
@@ -105,13 +106,27 @@ with ReviewTestEnvironment() as isolated, tempfile.TemporaryDirectory(prefix='pa
         # happens before the pane has observed its commit.
         lua(meta,'(function() vim.bo.fileformat="dos"; vim.bo.fileencoding="utf-8"; vim.bo.bomb=true; vim.cmd("write") end)()')
         active=json.loads(opened.read_text().splitlines()[2])['context']
-        trace_sequence=int(lua(meta,'(function() local t=PairReviewObservationTraceSnapshot(); return t.events[#t.events].seq end)()'))
+        trace_before=json.loads(lua(meta,'vim.json.encode(PairReviewObservationTraceSnapshot())'))
+        trace_sequence=trace_before['events'][-1]['seq']
+        resolver_budgets={event['timeout'] for event in trace_before['events']
+                          if event['event']=='completion' and event.get('mode')=='wait' and 'timeout' in event}
+        assert len(resolver_budgets)==1,'resolver completion budget unavailable: '+repr(resolver_budgets)
+        resolver_ms=resolver_budgets.pop()
+        # Admission, on_agent_round, apply_round, BufWritePre and BufWritePost
+        # each authorize via a bounded resolver. A previous rejected handoff
+        # can still own one call: RPC may reenter vim.system:wait. One second
+        # covers the 100 ms poll, atomic publication and external observation.
+        publication_budget=6*resolver_ms/1000+1
         handoff.write_text(json.dumps(dict(context=active,records=[dict(old='A reviewed',new='A final',occurrence=1,explain='final')])) )
-        started=time.monotonic(); deadline=started+5
+        started=time.monotonic(); deadline=started+publication_budget
         while not (data/'landed.json').exists() and time.monotonic()<deadline: time.sleep(.025)
         assert (data/'landed.json').exists(),'review pane did not publish landed acknowledgment: '+json.dumps(evidence(),default=str)
-        print('landed acknowledgment seconds:',round(time.monotonic()-started,3))
-        print('handoff resolver observations:',json.dumps([event for event in evidence()['observed']['trace']['events'] if event['seq']>trace_sequence]))
+        elapsed=time.monotonic()-started
+        trace_after=json.loads(lua(meta,'vim.json.encode(PairReviewObservationTraceSnapshot())'))
+        completions=[event for event in trace_after['events'] if event['seq']>trace_sequence
+                     and event['event']=='completion' and event.get('mode')=='wait']
+        print('handoff completion:',json.dumps(dict(elapsed_seconds=round(elapsed,3),
+              budget_seconds=publication_budget,resolver_ms=resolver_ms,resolver_calls=len(completions))))
         landed=json.loads((data/'landed.json').read_text())
         assert landed['context']==active
         assert (repo/'a.md').read_bytes()==b'\xef\xbb\xbfA final\r\n','landed round changed CRLF/BOM bytes'
