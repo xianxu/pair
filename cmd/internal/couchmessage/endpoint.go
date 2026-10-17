@@ -35,10 +35,6 @@ type EndpointResponse struct {
 	Tail             *Tail `json:",omitempty"`
 }
 
-// ReceiptTimeout permits read-only outcome collection after input stops.
-// It never extends Message.Horizon or authorizes another commit/paste.
-const ReceiptTimeout = 2 * time.Second
-
 func ValidateEndpointRequest(r EndpointRequest) error {
 	if err := r.Binding.Validate(); err != nil {
 		return err
@@ -119,6 +115,7 @@ type RemoteEndpoint struct {
 	Namespace string
 	Binding   Binding
 	socket    string // isolated socket injection for package tests
+	transport func(context.Context, string, any, any) error
 }
 
 var _ DeliveryEndpoint = RemoteEndpoint{}
@@ -137,7 +134,11 @@ func (e RemoteEndpoint) call(ctx context.Context, r EndpointRequest) (EndpointRe
 		}
 	}
 	var response EndpointResponse
-	if err := Call(ctx, socket, r, &response); err != nil {
+	transport := e.transport
+	if transport == nil {
+		transport = Call
+	}
+	if err := transport(ctx, socket, r, &response); err != nil {
 		var decode *replyDecodeError
 		if errors.As(err, &decode) {
 			if strings.HasPrefix(decode.Error(), "json: unknown field ") {
@@ -214,12 +215,11 @@ func matchingReceipt(r Receipt, m Message) bool {
 	return r.Message.ID == m.ID && r.Message.From == m.From && r.Message.To == m.To && r.Message.Body == m.Body && r.Message.Deadline.Equal(m.Deadline)
 }
 
-// peerHeldPoll paces the status poll while the recipient holds a delivery,
-// which may last MaxHold.
+// peerHeldPoll paces status polling while the recipient holds a delivery.
 const peerHeldPoll = time.Second
 
 func (e RemoteEndpoint) Deliver(parent context.Context, m Message, progress func(Receipt)) (Receipt, error) {
-	ctx, cancel := context.WithDeadline(parent, m.Horizon().Add(ReceiptTimeout))
+	ctx, cancel := context.WithCancel(parent)
 	defer cancel()
 	commitCtx, stopCommit := context.WithDeadline(ctx, m.Deadline)
 	// Admission time belongs to the broker, not the wrapper's input protocol.
@@ -247,7 +247,7 @@ func (e RemoteEndpoint) Deliver(parent context.Context, m Message, progress func
 			}
 			if r.Receipt.Status != last.Status {
 				poll := 50 * time.Millisecond
-				if r.Receipt.Status == Held {
+				if r.Receipt.Status == Held || r.Receipt.Status == Queued {
 					poll = peerHeldPoll
 				}
 				ticker.Reset(poll)

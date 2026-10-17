@@ -27,8 +27,9 @@ Launches a `zellij` workbench in one of two layouts:
   remains available: `Alt+k` still returns to the left
   stack, and the global `Shift+Alt+←`/`→`/`Shift+Alt+t` still switch and create
   tabs from anywhere (#243 delivers them as globals so they survive the
-  passthrough). `Alt+Shift+Return` cycles the right terminal through focus and
-  maximize from any Pair pane, including the agent and editor overlays. At
+  passthrough). `Alt+Shift+Return` toggles the right terminal between normal
+  and centered 75% focus from any Pair pane, including the agent and editor
+  overlays. At
   a shell prompt terminal-local chords are intercepted; draft-only Alt+Up/Down
   pass through to the shell.
 
@@ -158,7 +159,7 @@ adds context that a one-line description cannot carry.
 | **Shift+Ctrl+Alt+Return** | draft nvim (normal/insert) | Send draft text plus all open cast-tab notes, recorded context, 🤖<current box text and a PNG crop per note>{draw-time box text and each note’s saved PNG crop} to the agent in view. An empty draft can send notes. Progress appears in the draft status line; editing resumes when the operation finishes or fails (36s maximum). [Evidence and retry behavior](atlas/webcast-submission.md). |
 | **Return** | agent pane | Insert a newline in Claude, Codex, Agy, and Qoder composers; Pair translates it to Muse's native Shift+Return and Grok's native Alt+Enter. The rewrite is *positively gated* for every agent: Pair rewrites only while it can see a live composer on screen, so in a permission picker, a selection menu, or any state it doesn't recognize, Return stays a plain Enter and the dialog confirms. Set `PAIR_WRAP_REMAP_RETURN=0` to turn the rewrite off entirely (that also disables overlay detection and its telemetry). |
 | **Alt+Return** | agent pane | Always submits, in every state. |
-| **Alt+Shift+Return** | any Pair pane | Cycle the selected right terminal: **focus** (floating, centered at 75% width and full height, agent pane dimmed) → **maximize** (native fullscreen; Zellij's bars remain visible) → back to the tiling, focusing the invoking pane. A split acts only on the selected half. No-op without a right terminal. |
+| **Alt+Shift+Return** | any Pair pane | Toggle the selected right terminal between **normal** tiling and **focus** (floating, centered at 75% width and full height, agent pane dimmed). Leaving focus restores the tiling and focuses the invoking pane. An already fullscreen terminal returns to normal on one press. A split acts only on the selected half. No-op without a right terminal. |
 | **Alt+j** | draft | Focus the agent pane. Click the draft to return from the agent. |
 | **Alt+k** | layout 3 draft/terminal | Move between the last-focused left Pair pane and the right terminal. |
 | **Alt+t** | layout 3 terminal | Create a Pair-owned local terminal tab. |
@@ -202,7 +203,7 @@ adds context that a one-line description cannot carry.
 
 The focused agent receives all workbench shortcuts except **Shift+Alt+T**,
 **Shift+Alt+Left/Right**, and **Alt+Shift+Return**, which create/switch
-right-terminal tabs or cycle the right terminal's focus/maximize views. Under
+right-terminal tabs or toggle the right terminal's normal/focus views. Under
 Couch, **Ctrl+Space**, **Ctrl+Backspace** (the Mac Delete key), and
 **Ctrl+Return** remain Couch navigation shortcuts. Couch owns Alt+n/Ctrl+Alt+n
 outside the right terminal, except Alt+n in the review pane (next marker in normal mode). In a right-terminal full-screen TUI, Pair retains
@@ -383,6 +384,10 @@ with Neovim and Zellij config carried alongside it. There is no Python and no
 shell runtime; `zellij`, `nvim`, `fzf`, and the agent CLIs are the only external
 programs.
 
+`make build` publishes each of `pair`, `couch`, and `pair-launch-helper` by
+building privately beside its destination, then renaming the completed executable.
+A failed build keeps the previous executable available, including for Couch sends.
+
 `make install` links the built binaries into `~/.local/bin`, so later checkout
 builds are visible without reinstalling. Keep that checkout in place; these
 links point to its `bin/` directory. Already-running processes keep their old
@@ -428,6 +433,10 @@ couch --peek repo:N --all [--transcripts]
 couch --archived         threads removed from couch, with their records kept
 couch --actors [--json]  live peer-message receivers in this Couch namespace
 couch --resources [--json] cached process sample plus fresh hosted-ingest totals
+couch --reap-orphans [--confirm] [--json]
+                         the unattributed embedded nvim --resources named; without --confirm it lists them
+                         and ends nothing, with --confirm it ends each one and its tree, every signal fenced
+                         on the identity the sweep recorded [seconds]
 couch --broadcast-list [--json]   every link out by kind (screen, web view, web drive) and its viewers, and the
                          recordings shared for replay (pair#477); never a link
 couch --broadcast-web-query DIR dom|events|notes|link ...
@@ -446,6 +455,13 @@ couch --session-sync read|write|diff|status ... FILE
                          the one way an agent changes registered markdown or a legacy session file: refuses under the
                          operator's lock or when the section changed since `read` (write --if-hash), and
                          lists owed deliveries; locks older than 30 minutes add ping advice (see couch --skill)
+                         Couch checks registered session-sync files owned by idle hubs with tl-lead status check,
+                         at most every 30 minutes per file; stale sections produce a read-only reminder.
+                         Operator locks suppress checks; restart resets the in-memory allowance.
+couch --session-sync read --frontmatter FILE [--json]
+couch --session-sync write --frontmatter BODYFILE FILE --if-hash H
+                         light: read or replace the complete leading --- block only; preserves body bytes
+                         (including Updated) and unread body edits in diff, even without a previous baseline
 couch --session-sync register FILE --owner SLOT [--json]
                          keep agentic status outside the document until explicitly forgotten
 couch --session-sync lookup FILE | list | forget FILE | rename OLD NEW [--json]
@@ -489,8 +505,8 @@ couch --notify [--title T] MESSAGE      hub only: one desktop notification (defa
 couch --send-to TARGET [--agent NAME] --message-file PATH
                          any form above, the body read verbatim from PATH (less one trailing newline):
                          write a message containing code or shell syntax with an editor, never quote it
-couch --message-status ID [--json]      inspect a message receipt; a send to a busy slot
-                         waits in line, in order (`queued`, `position N`) (pair#492)
+couch --message-status ID [--json]      inspect a receipt by full ID or unique visible prefix; a send to a busy slot
+                         waits in order while connected; status names the composer wait and position
 couch --skill            print the bundled agent coordination skill
 couch --adopt-store /absolute/store     preview adoption of an existing store
 ```
@@ -734,11 +750,18 @@ output, counter history, periodic sampler or per-feed clock is added.
 
 Couch alerts the owning hub for sustained writes above 2 MiB/s for ten minutes,
 a process above 8 GiB RSS, an idle slot above 90% of one core for fifteen minutes,
-or a proven orphan above 256 MiB across two samples. Each incident is admitted
+a proven orphan above 256 MiB across two samples, or an untagged embedded nvim
+orphaned at PID 1 for six hours inside a managed checkout. Each incident is admitted
 once per supervisor run through normal messaging; pending retries reuse the
 same effect ID. Episodes live in memory, so restarting Couch re-arms them and
 can repeat an advisory alert. History is best-effort and never gates alerts.
-Unattributed candidates are report-only. Monitoring never kills processes.
+Unattributed candidates are report-only, and the monitor never kills anything.
+The one destructive verb is the operator's: `couch --reap-orphans` names the
+orphaned embedded nvim the sweep found and ends nothing, and
+`couch --reap-orphans --confirm` re-classifies from a fresh sample and then ends
+each named tree, every signal fenced on the identity the sweep recorded — a pid
+that has exited or been recycled is skipped with the reason printed, never
+signalled on the strength of a number that still exists.
 See [resource monitoring](atlas/couch.md#resource-monitoring-587) for policy
 settings, ownership evidence, platform support and coverage limits. Aggregate
 history rolls over after 24 hours and is bounded independently of debug logs.
@@ -818,7 +841,16 @@ Couch acceptance is separate from these receiver checks.
 
 Admission prints a receipt ID and resolved destination immediately. `queued`
 means a mailbox reservation; `submitted` means bytes submitted, not completed
-work. No eligible family slot returns `not-dispatched` with exit status zero.
+work. A busy, connected receiver retains accepted mail until its composer is
+ready. `--message-status` accepts the full ID or a unique prefix (such as the
+first eight characters) among retained receipts you sent or received. An ambiguous
+prefix lists the matching full IDs; an unknown ID or prefix reports an unknown
+lookup. Keep the full ID for recipient recovery after a Couch restart.
+`--message-status` shows the wait and position in that receiver's line;
+do not resend a queued or held message. Disconnect or relaunch cancels mail
+not yet committed to the wrapper, with a receiver reason. A handed commit may
+be `indeterminate` because input cannot be ruled out. Once pasted, the existing 30-second confirmation window
+still bounds delivery. No eligible family slot returns `not-dispatched` with exit status zero.
 Other refusals return nonzero. If a send times out, query the printed ID with
 `--message-status` and inspect the recipient before sending again. Couch never
 replays an uncertain body or keeps a durable message queue across restart.
@@ -857,7 +889,11 @@ any other row labels the working directory's last segment (`brain`, `pair`,
 `arc-agi-3`), with the tag's tail appended only when two rows would otherwise
 read the same. The agent-published summary is the one summary displayed.
 
-`couch --list` stays compact and label-first. `couch --show` is the diagnostic view:
+`couch --list` stays compact and label-first. A retained receive refusal adds its
+reason and one action: relaunch for an ownership/registration failure, or send
+again for a transient failure. Advice follows the refusal's class, independent
+of its wording. These annotations are best effort; mixed CLI/supervisor versions
+may omit them while the ordinary list remains available. `couch --show` is the diagnostic view:
 it always prints the immutable `{repository scope}/{opaque tag}` address. When the
 reference names a `:1+` slot (`repo:N`, a path at or inside the slot, or the slot
 its threads start in), `--show` also prints the slot's resources in converge order:
@@ -998,9 +1034,16 @@ clones inside a slot do not get entries of their own.
 
 Live threads fade as they go idle, in the tabs and the switcher: a thread
 with no activity for a day is dimmed, and after three days it's dimmed further.
-Activity means your sends and the agent's work (its transcript), or launching
-or resuming the thread; switching to a thread or merely looking at its draft
-doesn't count. Couch checks about once a minute. The fade blends toward your
+Activity means your sends, the agent's recorded work and current turn, or
+launching or resuming the thread. A turn stays bright when started by a peer
+message or waiting silently on a command. After it finishes, the thread ages
+from its last work. Claude Code's native running-shell footer also keeps a
+thread bright after its turn ends, including while a silent suite waits in a
+queue. Its free composer can still receive peer messages, including with the native PR-link footer. This background-shell
+signal requires a new wrapper and Couch; older versions, Codex and Qoder keep
+their existing turn-based behavior. Once the shell finishes, the thread ages
+normally. Switching to a thread or merely looking at its draft doesn't count. Couch checks about once a
+minute. The fade blends toward your
 terminal's own background, which Couch asks the terminal for at startup, so it
 reads correctly on dark and light schemes; the amber `±`/`*` glyphs fade with
 their thread. The focused tab, the selected switcher row, and a thread with a
@@ -1028,7 +1071,9 @@ and asks the hub to request fresh status.
 
 Couch records content-free supervision facts locally in its namespace
 `supervision.jsonl`: hub deliveries, session-file writes, accepted submissions,
-slot changes and minute snapshots. Logging is best-effort and capped per diagnostic
+slot changes, clipboard-copy outcomes and minute snapshots. Clipboard events record
+only tool, exit/timeout status, stderr byte length/hash and the separate OSC outcome;
+free-form stderr and the copied notice never enter this log. Logging is best-effort and capped per diagnostic
 generation; gaps are not inactivity. The [offline labeling script](scripts/supervision-labels/SKILL.md)
 compares observed writes within ten minutes without changing Couch decisions.
 See [the fact-log contract](atlas/couch.md#supervision-fact-log-543) for coverage and retention.
@@ -1447,11 +1492,23 @@ Space is a literal search character; it does not toggle views.
 
 In the switcher, `Ctrl+Y` copies the full last retained status notice, including
 text clipped from the status row and after that row expires. Repeating it copies
-the same notice until another arrives. A local console first tries the system
+the same notice until another arrives. A failed or unconfirmed attempt keeps its
+original notice for **Ctrl+Y** retry even if a newer notice arrives; **Esc** dismisses
+the copy feedback without leaving the switcher. Navigation and background refreshes
+keep that feedback and ordinary operation errors independently visible.
+A local console first tries the system
 clipboard (`pbcopy` on macOS), with a one-second budget; successful tool exit
 confirms the copy. SSH sessions and missing, failed, or timed-out clipboard tools
 use a terminal OSC 52 request instead. Its feedback says **unconfirmed**, because
-Couch cannot verify that the terminal delivered it to the clipboard.
+Couch cannot verify that the terminal delivered it to the clipboard. Native tool
+failures retain bounded stderr on screen; a successful tool whose child holds stderr
+remains successful, with incomplete diagnostic capture marked truncated. Each attempt emits a content-free
+`clipboard_copy` event in the namespace supervision log.
+An authorized opt-in conformance run from a Couch slot uses
+`PAIR_LIVE_CLIPBOARD_CONFORMANCE=1 go test ./cmd/internal/couchtty -run '^TestClipboardLiveConsoleConformance$' -count=1`.
+It requires native macOS tools, keeps the previous clipboard only in memory, and
+restores it only if the clipboard still contains its test marker. Normal suites
+skip this check.
 In an actor, `Ctrl+Y` still goes to the actor.
 
 Printable input filters the current list from memory (typeahead), matching what a

@@ -27,6 +27,30 @@ do
   workbench_route.install_viewer_return()
 end
 
+-- init.lua carries the full rationale for $PAIR_NVIM_PID_FILE: this viewer has
+-- the same TUI/embed fork shape, so the embed can outlive the pane that opened
+-- it and the reaper needs its pid, not its name.
+do
+  local pidfile = vim.env.PAIR_NVIM_PID_FILE
+  if pidfile and pidfile ~= '' then
+    vim.api.nvim_create_autocmd('VimEnter', {
+      once = true,
+      callback = function()
+        pcall(vim.fn.writefile, { tostring(vim.fn.getpid()) }, pidfile)
+      end,
+    })
+    -- init.lua carries the rationale: a clean exit drops its own record, and only
+    -- one that still names this process (#583).
+    vim.api.nvim_create_autocmd('VimLeave', {
+      once = true,
+      callback = function()
+        local ok, lines = pcall(vim.fn.readfile, pidfile)
+        if ok and lines[1] == tostring(vim.fn.getpid()) then pcall(vim.fn.delete, pidfile) end
+      end,
+    })
+  end
+end
+
 -- Shared 🤖-marker subsystem (#57): the same Alt+q annotate flow + draft-sidecar
 -- emit the scrollback viewer uses. Loaded dir-relative (same pattern as the
 -- scrollback viewer) since this file is launched via `nvim -u changelog.lua` and

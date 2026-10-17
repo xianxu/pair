@@ -30,7 +30,7 @@ unexport $(SESSION_ENV)
 endif
 endif
 
-.PHONY: build install pair runtimebundle-generate runtimebundle-drift-check test-runtimebundle test-clean-bootstrap test test-race test-run-headless test-lua test-lifecycle-command test-queue test-bang-tag test-autopair test-draft-complete test-pair-doctor test-perf-key-conformance test-plan-superseded test-paint-gate-consumers test-cr test-statusline test-doctor test-perf-capture test-adapt-schema test-dev-rebuild test-pair-go-install-layout test-pair-embedded-runtime test-pair-restart-quit test-emitter-health test-session-watch test-changelog test-copy-on-select test-term-pane-shortcuts test-pair-title test-zellij-trace test-review
+.PHONY: build install pair runtimebundle-generate runtimebundle-drift-check test-runtimebundle test-clean-bootstrap test test-race test-nvim-pidfile test-run-headless test-lua test-lifecycle-command test-queue test-bang-tag test-autopair test-draft-complete test-pair-doctor test-perf-key-conformance test-plan-superseded test-paint-gate-consumers test-cr test-statusline test-doctor test-perf-capture test-adapt-schema test-dev-rebuild test-pair-go-install-layout test-pair-embedded-runtime test-pair-restart-quit test-emitter-health test-session-watch test-changelog test-copy-on-select test-term-pane-shortcuts test-pair-title test-zellij-trace test-review
 
 # Cross-cutting Go-binary targets. Every Go binary lives under cmd/<name>/
 # and ships with the `pair-` prefix so it doesn't collide with anything
@@ -225,7 +225,7 @@ ifeq ($(PAIR_TEST_BINARY),)
 test:
 	bash tests/lib/with-pair-test-binary.sh $(MAKE) test
 else
-test: test-supervision-labels test-host-preflight runtimebundle-generate test-retention test-run-headless test-lua test-lifecycle-command test-perf-capture test-queue test-submission-transaction test-bang-tag test-autopair test-draft-complete test-pair-doctor test-perf-key-conformance test-plan-superseded test-paint-gate-consumers test-cr test-statusline test-doctor test-adapt-schema test-dev-rebuild test-pair-go-install-layout test-pair-embedded-runtime test-pair-restart-quit test-emitter-health test-session-watch test-changelog test-copy-on-select test-term-pane-shortcuts test-pair-title test-zellij-trace test-review test-make-env
+test: test-build-go-atomic test-supervision-labels test-host-preflight runtimebundle-generate test-retention test-nvim-pidfile test-run-headless test-lua test-lifecycle-command test-perf-capture test-queue test-submission-transaction test-bang-tag test-autopair test-draft-complete test-pair-doctor test-perf-key-conformance test-plan-superseded test-paint-gate-consumers test-cr test-statusline test-doctor test-adapt-schema test-dev-rebuild test-pair-go-install-layout test-pair-embedded-runtime test-pair-restart-quit test-emitter-health test-session-watch test-changelog test-copy-on-select test-term-pane-shortcuts test-pair-title test-zellij-trace test-review test-make-env
 	# pair#610: temporary 20m per-package budget; couchcore is ~580s idle.
 	# pair#611 profiles/splits/shards it before removing this allowance.
 	go test ./... -count=1 -timeout 20m
@@ -343,6 +343,7 @@ test-lua:
 	nvim -l nvim/scrollback_test.lua
 	nvim -l nvim/annotate_test.lua
 	nvim -l nvim/changelog_test.lua
+	python3 -B tests/changelog-isolation-test.py
 	nvim -l nvim/adapt_test.lua
 	nvim -l nvim/doctor_test.lua
 	nvim -l nvim/review/record_test.lua
@@ -514,7 +515,7 @@ test-changelog: $(BIN_DIR)/pair
 # Staleness hint for the pair recipe (NOT the compile set — `go build` pulls
 # every dep). A find over cmd/ and internal/ avoids the drift the old hand-maintained list
 # risked; the runtime assets are a prereq so a bundle change rebuilds pair too.
-PAIR_GO_SRCS := $(shell find cmd internal -name '*.go' -not -name '*_test.go' 2>/dev/null) Makefile.local go.mod $(RUNTIMEBUNDLE_ASSETS) cmd/pair-go/main.go cmd/internal/entrypoint/asset_root.go cmd/internal/entrypoint/mode.go cmd/internal/dispatcher/dispatcher.go cmd/internal/launcher/args.go cmd/internal/launcher/datadir.go cmd/internal/launcher/decision.go cmd/internal/launcher/history.go cmd/internal/launcher/run.go cmd/internal/launcher/session.go cmd/internal/launcher/tag.go cmd/internal/launcher/zellij.go cmd/internal/contextcmd/contextcmd.go cmd/internal/scrollbackcmd/scrollbackcmd.go cmd/internal/slugcmd/slugcmd.go cmd/internal/slugcmd/slug.go cmd/internal/wrapcmd/wrap.go cmd/internal/scribecmd/scribecmd.go cmd/internal/changelogcmd/changelogcmd.go cmd/internal/changelogcmd/distill.go cmd/internal/changelogcmd/prompt.go cmd/internal/continuationcmd/continuationcmd.go cmd/internal/continuationcmd/continuation.go cmd/internal/continuationcmd/git.go cmd/internal/sessionwatch/sessionwatch.go cmd/internal/sessionwatch/run.go cmd/internal/sessionwatch/runcli.go cmd/internal/sessionwatch/runtime.go cmd/internal/procutil/procutil.go cmd/internal/model/model.go cmd/internal/adapt/adapt.go cmd/internal/runtimebundle/manifest.go cmd/internal/runtimebundle/plan.go cmd/internal/runtimebundle/cleanup.go cmd/internal/runtimebundle/store.go cmd/internal/runtimebundle/embed.go $(RUNTIMEBUNDLE_ASSETS) go.mod
+PAIR_GO_SRCS := scripts/build-go-atomic.sh $(shell find cmd internal -name '*.go' -not -name '*_test.go' 2>/dev/null) Makefile.local go.mod $(RUNTIMEBUNDLE_ASSETS) cmd/pair-go/main.go cmd/internal/entrypoint/asset_root.go cmd/internal/entrypoint/mode.go cmd/internal/dispatcher/dispatcher.go cmd/internal/launcher/args.go cmd/internal/launcher/datadir.go cmd/internal/launcher/decision.go cmd/internal/launcher/history.go cmd/internal/launcher/run.go cmd/internal/launcher/session.go cmd/internal/launcher/tag.go cmd/internal/launcher/zellij.go cmd/internal/contextcmd/contextcmd.go cmd/internal/scrollbackcmd/scrollbackcmd.go cmd/internal/slugcmd/slugcmd.go cmd/internal/slugcmd/slug.go cmd/internal/wrapcmd/wrap.go cmd/internal/scribecmd/scribecmd.go cmd/internal/changelogcmd/changelogcmd.go cmd/internal/changelogcmd/distill.go cmd/internal/changelogcmd/prompt.go cmd/internal/continuationcmd/continuationcmd.go cmd/internal/continuationcmd/continuation.go cmd/internal/continuationcmd/git.go cmd/internal/sessionwatch/sessionwatch.go cmd/internal/sessionwatch/run.go cmd/internal/sessionwatch/runcli.go cmd/internal/sessionwatch/runtime.go cmd/internal/procutil/procutil.go cmd/internal/model/model.go cmd/internal/adapt/adapt.go cmd/internal/runtimebundle/manifest.go cmd/internal/runtimebundle/plan.go cmd/internal/runtimebundle/cleanup.go cmd/internal/runtimebundle/store.go cmd/internal/runtimebundle/embed.go $(RUNTIMEBUNDLE_ASSETS) go.mod
 
 # pair — the Go-owned entrypoint. It drives the native launcher in-process (#99
 # M5c — bin/pair-shell retired); source/Homebrew builds can inject defaultPairHome,
@@ -522,17 +523,17 @@ PAIR_GO_SRCS := $(shell find cmd internal -name '*.go' -not -name '*_test.go' 2>
 # (PAIR_GO_SRCS is a staleness hint, not the compile set — `go build` pulls every
 # dep; it needn't list every cmd/internal/launcher file.)
 $(BIN_DIR)/pair: $(PAIR_GO_SRCS)
-	go build -ldflags "$(PAIR_HOME_LDFLAGS)" -o $@ ./cmd/pair-go
+	bash scripts/build-go-atomic.sh "$@" -ldflags "$(PAIR_HOME_LDFLAGS)" ./cmd/pair-go
 
 # couch — the supervisor binary (#145). Deliberately separate from pair: pair is
 # what the operator sits inside, so a couch bug must not break the ability to
 # fix it, and the fallback is always to launch pair the old way. No
 # PAIR_HOME_LDFLAGS -- couch resolves nothing from an asset root.
 $(BIN_DIR)/couch: $(PAIR_GO_SRCS)
-	go build -o $@ ./cmd/couch
+	bash scripts/build-go-atomic.sh "$@" ./cmd/couch
 
 $(BIN_DIR)/pair-launch-helper: $(PAIR_GO_SRCS)
-	go build -o $@ ./cmd/pair-launch-helper
+	bash scripts/build-go-atomic.sh "$@" ./cmd/pair-launch-helper
 
 # Busybox symlinks (pair-slug → pair): a real target each, so `build` restores a
 # deleted symlink even when bin/pair is already up-to-date (not only when the pair
@@ -548,6 +549,13 @@ $(addprefix $(BIN_DIR)/,$(BUSYBOX_LINKS)): $(BIN_DIR)/pair
 .PHONY: test-retention
 test-retention:
 	bash tests/retention-test.sh
+# The nvim pid sidecar's lifecycle (#583): published at startup, removed on a clean
+# exit, kept on a SIGKILL, and never removed when a later embed republished it.
+# Covers all four publishing configs — see the script header for why the rule is
+# spelled per config.
+.PHONY: test-nvim-pidfile
+test-nvim-pidfile:
+	bash tests/nvim-pidfile-lifecycle-test.sh
 .PHONY: test-couch-recovery-smoke
 test-couch-recovery-smoke:
 	sh tests/couch-recovery-smoke.sh $(MODE)
@@ -565,3 +573,7 @@ test-without-ancestors:
 .PHONY: test-agent-drive-live
 test-agent-drive-live:
 	PAIR_LIVE_AGENT_DRIVE=codex PAIR_LIVE_AGENT_DRIVE_VIRTUAL=codex go test ./cmd/internal/wrapcmd -run '^TestAgentDrive(LiveConformance|VirtualTerminalLiveConformance)$$' -count=1 -v
+
+.PHONY: test-build-go-atomic
+test-build-go-atomic:
+	python3 -B tests/build-go-atomic-test.py

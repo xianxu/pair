@@ -123,6 +123,8 @@ func TestPeerDeliverySubmitsAfterDelayThenConfirms(t *testing.T) {
 			f.output(peerEmptyComposer())
 			m := peerTestMessage(now)
 			d := newPeerDelivery(m.To, func() time.Time { return now })
+			var recorded []couchmessage.Message
+			d.recordTurn = func(m couchmessage.Message) { recorded = append(recorded, m) }
 			f.proxy.peer = d
 			if err := d.reserve(m.ID, 0); err != nil {
 				t.Fatal(err)
@@ -145,7 +147,7 @@ func TestPeerDeliverySubmitsAfterDelayThenConfirms(t *testing.T) {
 			if out.String() != paste {
 				t.Fatal("submitted before the delay")
 			}
-			// Past the original paste-by deadline: the window runs from the paste.
+			// Past the original commit deadline: the window runs from the paste.
 			now = now.Add(PeerSubmitDelay + time.Second)
 			f.proxy.turnActive.Store(tc.busy)
 			f.proxy.dispatchPeer(&out)
@@ -170,6 +172,10 @@ func TestPeerDeliverySubmitsAfterDelayThenConfirms(t *testing.T) {
 			if r.Status != tc.want || !strings.Contains(r.Detail, tc.evidence) || (tc.want == couchmessage.Indeterminate && !strings.HasPrefix(r.Detail, "uncertain: ")) {
 				t.Fatalf("receipt %+v, want %s with %q", r, tc.want, tc.evidence)
 			}
+			// pair#618: only a submitted turn reaches the Pair log, once.
+			if wantRecorded := tc.want == couchmessage.Submitted; (len(recorded) == 1 && recorded[0].ID == m.ID) != wantRecorded || len(recorded) > 1 {
+				t.Fatalf("recorded %+v for a %s delivery", recorded, tc.want)
+			}
 			if tc.name == "turn opens" && f.proxy.automaticInput.phase != automaticInputAwaitingEmpty {
 				t.Fatal("turn-only confirmation discarded fresh-empty protection")
 			}
@@ -185,7 +191,7 @@ func TestPeerDeliverySubmitsAfterDelayThenConfirms(t *testing.T) {
 
 // pair#427 Done-when: a send right after a restart, while the agent is still
 // booting. The composer appears only after the old 30s admission deadline;
-// the paste-by budget covers it and the window starts at the paste.
+// accepted mail waits for readiness and the window starts at the paste.
 func TestPeerDeliveryDuringSimulatedBoot(t *testing.T) {
 	now := time.Now()
 	f := newHarnessSessionFake(t, "claude", true)

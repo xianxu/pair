@@ -7,6 +7,12 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- Adding diagnostic pipes changes subprocess completion: a detached child can hold stderr after a successful tool exit. Separate process success from diagnostic-drain cutoff, retain capture uncertainty, and test inherited descriptors behind a release handshake. (#638)
+
+- Reserve shared banners before a menu frame windows its selected rows. Subtracting them only for some frame kinds lets final clipping hide selected actions and cursors; test every windowed frame at minimum geometry. (#638)
+
+- Keep free-form tool stderr out of metadata-only diagnostic callbacks. A truncated or transformed echo defeats full-input redaction; publish typed status plus stderr length/hash and keep bounded output on the operator screen. (#638 PQ-1)
+
 - A strict trust check and a native discovery rule can intentionally treat aliases differently. Failure to prove one observed discovery candidate makes the whole candidate scope unknown; silently omitting it can select an older conversation. Test the selected identity with a newer candidate behind an unsupported alias. (#571 BR-3)
 - SQLite read-only mode can create native WAL-index sidecars. A non-mutating adapter queries an owned coherent private snapshot, and a real WAL fixture must compare the entire native file set and bytes before and after success, failure and cancellation. An integrity check validates recovery, not the coherence of separately copied source files. (#571 BR-4)
 
@@ -279,6 +285,11 @@ representative evidence, not an exhaustive index.
   A failed probe that returns `(false, nil)` silently turns "could not tell" into "no".
   Every error source on the path fails the command, or appears on the result as an
   error line. Write one test per source. (#387 `--show`, two review rounds)
+- Backgrounding a child from `sh -c` in a non-interactive shell redirects the
+  child's stdin from /dev/null, so a long-lived child (an embedded nvim) that
+  inherited an os.Pipe gets an immediate EOF and exits within ~150 ms even with
+  the write end held open. Redirect its stdin explicitly — a FIFO whose write
+  end the test holds — to keep it alive past its parent. (#583 live conformance)
 
 ## Interfaces, schemas, and data
 
@@ -387,6 +398,11 @@ representative evidence, not an exhaustive index.
 - Comments and review claims are claims. Check them against the mutation boundary,
   cite symbols rather than line numbers, and record uncertainty as uncertainty.
   (#221, #223)
+- A new production source file must be declared in artifactpath's exhaustive
+  inventory (SourceClassifications or NonArtifactSources) even when it owns no
+  artifact — absence itself is the violation. Targeted runs of the packages you
+  touched cannot see it; TestProductionArtifactReferencesAreExactlyClassified
+  is a whole-tree claim that only the full suite asserts. (#583 pre-close suite)
 
 ## Language and tool sharp edges
 
@@ -2042,6 +2058,11 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 - #602 BR-3: a migration guard must fail against every original offender before its synthetic controls are considered sufficient. Normalize target paths in their actual working-directory context; root-relative examples alone miss package-relative recipes. Keep compact regression fixtures for the original command forms and verify the full original source bodies once.
 
+- #583 BR-5: a fix commit is verified against every package's tests, not only the packages it edits. Guards that parse production sources (`artifactpath`'s inventory test reads every classified file) live in a package the edited code never imports, so a green run of the touched packages says nothing about them; run the whole `./cmd/internal/...` before a boundary review. And measure a review's suggested remedy before applying it: rewording a message to drop an "artifact token" still tripped the guard here, because the family token sat in the command prefix (`pair-changelog-open:`) — the sanctioned fix was the terse shape plus its entry in the manifest's inventory.
+
+- #583 BR-6: a kill path's attribution must name the *owner*, not the kind. Evidence every instance of a kind shares — a config's base name, an `--embed` flag, a binary path — authorizes nothing once a pid can be recycled: the record a dead owner left behind can name a pid another live owner's process now holds, and an identity fence re-read at signal time does not cover a reuse that predates the snapshot. State the owner-naming predicate as a required positive (`Expect…` flag plus its value) so a candidate that states none is a skip with its own reason instead of a pass by omission, and demote kind-wide evidence to corroboration. Then fix the class, not the site: an existing test had *pinned* the unsafe behaviour here ("review kind expects no scope path" → kill), so a site-level fix would have left the rule unstated and the next kind free to repeat it.
+
+- #583 BR-7: a kill path's attribution must be **bound to the pid at the moment its record is written**, and must not change for that process's lifetime. Mutable session state (a target/selection file a live UI rewrites) may corroborate a decision but cannot be its subject: when the state moves and the process's argv does not, the process's *own* orphan is the thing that gets classified "not ours". And check what a decided negative **deletes** before calling a skip safe — `reapReasonOtherPath` skips *and* drops the record, so for a kind with no argv-only fallback the "safe direction" removes the only name the orphan ever had and reopens the leak the issue exists to close. Two rules follow: state a mismatch against mutable evidence as missing evidence (keep the record), and prefer evidence the subject writes about itself (argv, at publish) over evidence another actor writes about it later.
 - #617: A subprocess test inherits artifact authority through environment, even
   when HOME, PAIR_DATA_DIR and PAIR_TAG point at temporary storage. The first
   leased-title fixture passed a temporary raw capture path while inheriting the
@@ -2102,5 +2123,46 @@ and external temporary roots rather than relying on the host's TMPDIR.
   test both interrupted publishers and protection of live publishers.
 - #604 BR-1: Deferring a live smoke does not implicitly defer a separately promised diagnostic deliverable. Enumerate the Spec's independent obligations and explicitly reconcile any approved scope reduction across Spec, Plan, Done-when and atlas before claiming completion; keep unknown causes unknown.
 - #604 BR-2: For a changed user-visible action, update its existing README account as well as the atlas. Explain confirmed versus unconfirmed outcomes at the user entry point; internal architecture prose alone does not update the user contract.
+- #618 BR-10: an unauthenticated socket op answers with a purpose-built projection, never a stored record. Records carry caller Bindings (session and nonce are credentials) and bodies. Test that the marshalled answer holds neither.
+- #618 BR-11: a new writer into a shared durable file states its growth bound in the plan (ARCH-FUNERAL) and enforces it in code. Before trimming in place, check for byte offsets other readers keep into that file; the launch's `PairLogOffset` ruled trimming out here.
+- #618 BR-12: a milestone's Live step needs either a dated Log observation or a Revisions entry deferring it before the milestone is ticked. A step that needs the landed build gets that deferral when the close is planned, not when the review asks.
 
+- #629: Open a declaration comment with its own symbol. Ordinary prose can accidentally name another existing declaration (Connected above MaxQueued) and trigger the stacked-godoc guard. Run the termcmd doc-comment guards when rewriting shared declaration comments.
+- #627 BR-1: Before treating an omitted process row as exit evidence, inspect every native enumeration backend for silently discarded reads. Preserve listed unreadable PIDs as unknown and test actual stat-read/parse failures, then test both initial ownership capture and exit polling; an injected top-level error alone misses lossy enumeration.
+- #625: An idle flag carries a particular admission policy, not a universal
+  definition of work. Check a real empty-composer/background-command case
+  before treating it as one. Preserve permission to receive messages while
+  independent display activity is designed; do not overload the admission flag
+  to make a busy visual look right.
 - **A new help source changes old documentation claims (#619).** When adding companion-editor metadata to a source-derived help catalog, update the README shortcut table and search for universal claims such as "every row comes from its implementing keymap". Qualify the source boundary as well as listing the feature; atlas coverage alone does not keep the user-facing contract accurate.
+
+- #632 BR-1: Absence of a recognized token is not evidence of absence. For nullable native observations, validate the entire captured grammar before returning known-none; test arbitrary prefixed text, partial tokens and unknown trailing fields as unknown, alongside recorded positive and complete negative controls.
+- #632 BR-2: Reusing an existing test does not modify its artifact. Reconcile each Core concepts status against the actual name-status diff before close; list unchanged fixtures as reused validation outside the changed-entity inventory.
+- #639 BR-1: A transition change must enumerate tests by the production transition function and action identity, including opt-in conformance helpers with generic names. Searching only old state names missed a three-press rung helper. Run every native layout-cycle family and retain all geometry assertions when shortening the event sequence.
+- #624 fixture integration: run new Make fixtures in both a woven checkout and a source archive. Dependency symlinks may be absent by design; mirror the root Makefile's optional include and retain a direct sentinel contract check. Do not expose internal Make-variable overrides as apparent environment knobs in test source: the derived environment inventory treats those names as caller inputs. Satisfy fake-compiler prerequisites inside the private fixture instead.
+
+- #624 BR-1: an archive's sentinel-presence check does not prove an absent dependency scanner respects it. Retain a separate woven-copy measurement using the actual dependency, and remove each new sentinel independently to show the regression detects every duplicate publisher. Record the source hash and reproducible fixture, rather than assuming archive verification covers woven behavior.
+- #629: Removing a wait horizon also changes the lifetime of its diagnostic histories. Queue caps do not bound per-message maps of changing wait reasons. Retire histories whose expiry consumer disappeared; keep duration accounting in the bounded phase that still consumes it.
+
+- #629 BR-1: A queued/held receipt describes the latest observation, not absence of input after commit handoff. Classify disconnect uncertainty from the active delivery owner; test both sender and receiver disconnect for every interim receipt status.
+- #629 BR-2: Advancing an injected business clock does not advance an existing real context timer. Test each timeout owner independently at its IO boundary and restore each removed deadline separately to prove its regression fails.
+
+- #637 BR-1: A current notice is transient presentation, not operation completion. Independent event deliveries can overwrite it after success. Fixtures synchronize on an admitted operation's completion channel and test completion-before-late-presentation ordering; observing a phase alone can also precede release of the owner's work slot.
+- #631: Removing a shared mutex from external cleanup must retain the existing per-recipient reservation until that cleanup returns. Regress cancellation emptying the old queue entry followed by a new admission, and a replacement holding its own reservation while the old cleanup finishes.
+
+- #638: A successful subprocess exit does not prove a complete piped-input operation. exec.ErrWaitDelay can describe either unread inherited stdin or a held-open diagnostic descriptor; preserve success only after verifying the existing input reader is exhausted and context remains valid. Pair the full-read/held-stderr regression with an over-pipe-capacity unread-input negative control.
+- #634: Start a request's admission budget before sender checks, then carry its context through registry posting and recipient IO. A timeout regression must include earlier work over the real transport; testing admission alone misses additive budgets. Refusal bookkeeping reuses the routing snapshot rather than starting a second lookup after expiry.
+
+- #635: Resolve human-facing receipt prefixes within the authenticated caller's visible retained set before consulting recovery holders. An unmatched query identifies an unknown lookup, not a delivery outcome; ambiguity lists only visible full IDs, with exact matches taking precedence.
+- #643: Distinguish atomic replacement of one file from publication of a document/shadow/state bundle. A plan must name partial persisted outcomes and reconciliation after IO failure; test a controlled publication failure and prove unread baselines and owed events survive.
+
+- #630: A deadline and bounded pipe draining do not collect descendants that close their pipes before a successful parent exits. A command group owned only for a synchronous check ends on every completion, including success. Test both cancellation and a successful parent with an independently live, closed-pipe child.
+
+- #630 BR-1: A registered-only operation selects or rejects its route under the registry lock before entering a generic legacy loader. A post-load authority check cannot prevent fallback IO, side effects or unbounded locks. Regress unknown and disappeared authority while the fallback lock is held, and prove service cancellation still collects the caller.
+- #638 BR-1 (advisory): When positive and negative subprocess regressions share a descriptor-holder protocol, give one test helper ownership of its environment, release handshake and bounded cleanup so lifecycle fixes do not diverge between copies.
+- #598: A signal-cancellation fixture establishes the child's inherited signal
+  disposition before exec. Noninteractive background shells supply SIGINT ignored;
+  Python preserves that until its handler is installed. Pin pre-handler delivery
+  with a process gate and retain stderr rather than relying only on sleep offsets.
+
+- Chunked JSONL framing must not search a retained newline-free prefix again on each append. Count actual delimiter bytes examined across multi-chunk records, alongside semantic boundary/limit tests; read/decode counters alone miss quadratic delimiter work. Preserve per-probe progress when diagnosing aggregate worker timeouts. (#626)

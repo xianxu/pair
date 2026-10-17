@@ -5,31 +5,34 @@ import (
 	"errors"
 	"strings"
 	"time"
+
+	"github.com/xianxu/pair/cmd/internal/couchtty"
 )
 
 const maxFactBytes = 32 << 10
 
 // supervisionFact contains only typed, bounded observations, never source prose.
 type supervisionFact struct {
-	Version     int                   `json:"version"`
-	Generation  string                `json:"generation"`
-	Seq         uint64                `json:"seq"`
-	At          time.Time             `json:"at"`
-	ElapsedMS   int64                 `json:"elapsed_ms"`
-	Dropped     uint64                `json:"dropped"`
-	Event       string                `json:"event"`
-	Subject     string                `json:"subject,omitempty"`
-	Incarnation string                `json:"incarnation,omitempty"`
-	Sender      string                `json:"sender,omitempty"`
-	Message     string                `json:"message,omitempty"`
-	Hint        string                `json:"hint,omitempty"`
-	Outcome     string                `json:"outcome,omitempty"`
-	Generated   *bool                 `json:"generated,omitempty"`
-	Submission  uint64                `json:"submission,omitempty"`
-	Connected   *bool                 `json:"connected,omitempty"`
-	Settled     *bool                 `json:"settled"`
-	Picker      *bool                 `json:"picker"`
-	Slots       []supervisionFactSlot `json:"slots,omitempty"`
+	Version     int                       `json:"version"`
+	Generation  string                    `json:"generation"`
+	Seq         uint64                    `json:"seq"`
+	At          time.Time                 `json:"at"`
+	ElapsedMS   int64                     `json:"elapsed_ms"`
+	Dropped     uint64                    `json:"dropped"`
+	Event       string                    `json:"event"`
+	Subject     string                    `json:"subject,omitempty"`
+	Incarnation string                    `json:"incarnation,omitempty"`
+	Sender      string                    `json:"sender,omitempty"`
+	Message     string                    `json:"message,omitempty"`
+	Hint        string                    `json:"hint,omitempty"`
+	Outcome     string                    `json:"outcome,omitempty"`
+	Generated   *bool                     `json:"generated,omitempty"`
+	Submission  uint64                    `json:"submission,omitempty"`
+	Connected   *bool                     `json:"connected,omitempty"`
+	Settled     *bool                     `json:"settled"`
+	Picker      *bool                     `json:"picker"`
+	Clipboard   *couchtty.CopyObservation `json:"clipboard,omitempty"`
+	Slots       []supervisionFactSlot     `json:"slots,omitempty"`
 }
 type supervisionFactSlot struct {
 	Subject     string  `json:"subject"`

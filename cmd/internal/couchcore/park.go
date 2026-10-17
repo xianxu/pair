@@ -89,8 +89,11 @@ type PairLifecycleController struct {
 	Clock             Clock
 	Nonce             func() (string, error)
 	CompletionTimeout time.Duration
-	PollInterval      time.Duration
-	Wait              func(context.Context, time.Duration) error
+	// RelaunchWait replaces CompletionTimeout for relaunch's park (pair#618);
+	// zero means RelaunchParkWait.
+	RelaunchWait time.Duration
+	PollInterval time.Duration
+	Wait         func(context.Context, time.Duration) error
 
 	workerOnce sync.Once
 	worker     *parkWorker
@@ -798,11 +801,36 @@ func (c *PairLifecycleController) runActiveAttempt(ctx context.Context, result P
 	return c.awaitCompletionAndChildDeath(ctx, result, current, paths, request)
 }
 
+type parkCompletionWaitKey struct{}
+
+// WithParkCompletionWait lets one caller wait longer than the controller's
+// CompletionTimeout for the quit completion and the child's exit (pair#618):
+// relaunch's first call left a recover/abandon choice whenever an agent took
+// more than 15 s to quit under load.
+func WithParkCompletionWait(ctx context.Context, wait time.Duration) context.Context {
+	return context.WithValue(ctx, parkCompletionWaitKey{}, wait)
+}
+
+func (c *PairLifecycleController) relaunchWait() time.Duration {
+	if c.RelaunchWait > 0 {
+		return c.RelaunchWait
+	}
+	return RelaunchParkWait
+}
+
+func (c *PairLifecycleController) completionTimeout(ctx context.Context) time.Duration {
+	if wait, ok := ctx.Value(parkCompletionWaitKey{}).(time.Duration); ok && wait > 0 {
+		return wait
+	}
+	return c.CompletionTimeout
+}
+
 func (c *PairLifecycleController) awaitCompletionAndChildDeath(ctx context.Context, result ParkResult, current ThreadRecord, paths artifactpath.LifecyclePaths, request pairlifecycle.QuitRequest) (ParkResult, error) {
+	timeout := c.completionTimeout(ctx)
 	waitCtx := ctx
 	cancel := func() {}
-	if c.CompletionTimeout > 0 {
-		waitCtx, cancel = context.WithTimeout(ctx, c.CompletionTimeout)
+	if timeout > 0 {
+		waitCtx, cancel = context.WithTimeout(ctx, timeout)
 	}
 	defer cancel()
 
@@ -821,7 +849,7 @@ func (c *PairLifecycleController) awaitCompletionAndChildDeath(ctx context.Conte
 			diagnostic = applyErr.Error()
 		}
 
-		if c.CompletionTimeout <= 0 {
+		if timeout <= 0 {
 			failed, advanceErr := c.recordFailure(current, request.Attempt, pairlifecycle.FailureTimeout, diagnostic)
 			if advanceErr == nil {
 				result.Thread = failed

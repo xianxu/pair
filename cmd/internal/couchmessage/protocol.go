@@ -45,7 +45,10 @@ type Request struct {
 }
 
 type Response struct {
-	Resources       *couchcore.ResourceView `json:",omitempty"`
+	Resources *couchcore.ResourceView `json:",omitempty"`
+	// Refusals answers refusals: each canonical slot's newest unsuperseded
+	// reason and recovery class. No caller credentials: this is unauthenticated.
+	Refusals        map[string]RefusalInfo `json:",omitempty"`
 	Code, Error     string
 	RecoveryPreview *couchcore.RecoveryPreview `json:",omitempty"`
 	Submission      *SubmissionStatus          `json:",omitempty"`
@@ -253,9 +256,24 @@ func ValidateRequest(r Request) error {
 		}
 		return nil
 	}
-	if r.Op == "resources" {
-		if r != (Request{Op: "resources"}) {
-			return errors.New("resources takes no fields")
+	if r.Op == "resources" || r.Op == "refusals" {
+		if r != (Request{Op: r.Op}) {
+			return errors.New(r.Op + " takes no fields")
+		}
+		return nil
+	}
+	if r.Op == "reap-orphans" {
+		// The resource query's destructive half (#583): the same owner-only
+		// socket, no conversation identity, and exactly one field more. The
+		// confirmation is required HERE rather than in the handler that acts on
+		// it, because a caller's `--confirm` is presentation -- this is the
+		// authority, and a hand-written request without it must not reach a
+		// classification that ends processes.
+		if !r.Confirmed {
+			return errors.New("reap-orphans ends processes and requires --confirm")
+		}
+		if r != (Request{Op: "reap-orphans", Confirmed: true}) {
+			return errors.New("reap-orphans takes only --confirm")
 		}
 		return nil
 	}

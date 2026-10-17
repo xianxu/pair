@@ -386,9 +386,9 @@ The producer consumes exact `$PAIR_AGENT_PANE_PATH` in a shell `printf` inside t
 
 **Title.** The launcher emits an OSC 0 escape sequence right before invoking zellij, so the terminal title shows the session name on both create and attach paths (zellij itself only sets it on create).
 
-**Cleanup on quit.** zellij is run as a child (not `exec`) so the launcher resumes when zellij exits. On resume it checks for the session-cache quit marker (the marker that `pair quit` writes when Alt+x fires) and, if present, runs `zellij delete-session --force <session>` to clear the resurrect entry. It then SIGKILLs any leftover children that didn't follow the session down: a lingering `zellij --server` (rare but seen), and `nvim --embed` orphans (every `nvim FILE` is internally TUI parent + embed child; the embed sometimes survives RPC-pipe EOF and gets reparented to launchd). The embed reap is two-layered — primary path reads exact `Paths.NvimPID` bindings written by VimEnter autocmds inside `nvim/init.lua` and `nvim/scrollback.lua`; the startup sweep enumerates them through `ScopePaths.NvimPIDGlob`/`TagFromNvimPID`; fallback is a tag-scoped `pkill -f` whose argv parser is `ScopePaths.TagFromNvimEmbedArgv`. If a saved `Paths.ConfigChecked` binding was captured during the session, cleanup also prints a one-liner with the exact byte-preserved Pair tag (`pair resume <tag>`) so the user can pick the work back up later. No marker → leave the session as zellij left it (running if Alt+d detached).
+**Cleanup on quit.** zellij is run as a child (not `exec`) so the launcher resumes when zellij exits. On resume it checks for the session-cache quit marker (the marker that `pair quit` writes when Alt+x fires) and, if present, runs `zellij delete-session --force <session>` to clear the resurrect entry. It then SIGKILLs any leftover children that didn't follow the session down: a lingering `zellij --server` (rare but seen), and `nvim --embed` orphans (every `nvim FILE` is internally TUI parent + embed child; the embed sometimes survives RPC-pipe EOF and gets reparented to launchd). The embed reap reads exact `Paths.NvimPID` records — one per `artifactpath.NvimKinds()` entry (`draft`, `scrollback`, `review`) — written by the pid publish inside each config (`nvim/init.lua`, `scrollback.lua`, `changelog.lua`, `review.lua`) and removed by that config's own `VimLeave` on a clean exit, so a quit session leaves no record naming a pid that stopped being ours; the startup sweep enumerates the same records through `ScopePaths.NvimPIDGlobs`/`TagFromNvimPID`. There is no `pkill` fallback (#583 deleted both patterns): the quit path and the sweep both decide each candidate through `ClassifyNvimReap` and signal through `ProcessTable.Signal` behind the kernel identity fence, so no reap can kill by name. If a saved `Paths.ConfigChecked` binding was captured during the session, cleanup also prints a one-liner with the exact byte-preserved Pair tag (`pair resume <tag>`) so the user can pick the work back up later. No marker → leave the session as zellij left it (running if Alt+d detached).
 
-**Startup orphan sweep.** The Alt+x reaper only runs when the user quit through pair. External terminations (`zellij kill-session`, host reboot during a session, pair upgrade mid-session) leave the embed orphaned with no marker. `SweepOrphanNvim` runs once per `pair` invocation after strict session-index resolution, collects candidate tags from exact nvim-pid bindings plus running `nvim --embed` argv under the selected scope, and reaps only tags with no live current-scope session. Adding a new nvim surface means extending `artifactpath.Paths` and its exact binding, not adding another filename formula.
+**Startup orphan sweep.** The Alt+x reaper only runs when the user quit through pair. External terminations (`zellij kill-session`, host reboot during a session, pair upgrade mid-session) leave the embed orphaned with no marker. `SweepOrphanNvim` runs once per `pair` invocation after strict session-index resolution and decides **per pid, not per tag** (#583): one process snapshot feeds three evidence sources — the selected scope's nvim-pid records, each carrying the liveness of the tag in its own name; running `nvim --embed` argv that `ScopePaths.TagFromNvimEmbedArgv` parses to a tag in that scope; and the changelog viewer's artifact-keyed `.nvim-pid` beside its `.openlock`, whose owner liveness is the opener's pid (an absent openlock means a clean exit, so it reaps) — and two records naming one pid are still one decision and one signal. A dead owner is the whole authorization for the embeds its tag names; a **live** tag's embed needs reparenting to launchd (ppid 1) on top of its attribution, which is the closed pane — the editor died while its session lived on, and the embed it left can outlive it by days. Each candidate carries attribution that names its **owner**, not merely its kind, and is skipped without it: the pid a dead tag's record names can be held by another tag's live embed by now, so evidence every tag's embed shares — `nvim --embed`, or the `review.lua` base name — authorizes no kill. The owner-naming forms are an exact argv field for a kind whose path is deterministic (draft; a changelog viewer's `.md`) and argv-tag attribution for one whose path embeds a varying component (scrollback carries the agent); review, whose file is anywhere in the user's tree, takes its field from the **second line of its own pid record**, which `review.lua` writes at publish out of the embed's own argv: attribution must be bound to the pid when the record is written and must not change over that process's lifetime, so the mutable `review-target-<tag>.json` — rewritten per `:PairReview` and per Alt+C activation — may corroborate a decision but never be its subject. Reading it instead classified a retargeted pane's own orphan as "argv serves another path" and, that being a decided negative, deleted the only record naming it (#583 BR-7). A record that bound no file is missing evidence: it skips and keeps the record. An `nvim --embed` carrying no attribution at all is invisible here by design — that untagged class is M2's report-and-confirm sweep, not this one's. Adding a new nvim surface means extending `artifactpath.Paths` and its exact binding, not adding another filename formula.
 
 **Reload / restart in place (Alt+n, Shift+Alt+N).** Alt+n reloads the whole
 workbench. `pair restart` writes `~/.cache/pair/restart-<session>` alongside the
@@ -439,20 +439,20 @@ be dragged off position by its frame with no config gate, so the terminal
 moved into the tiled tree: tiled panes have no mouse-move operation at all,
 making the workbench drag-immune while keeping the agent pane's frame and full mouse support. (Since `#199` M4 the layout-3 terminal is borderless; drag-immunity comes from the tiled pivot, not from the frame.)
 The filler (and its key-swallowing focus trap) is gone. `Alt+Shift+Enter`
-invokes `pair layout toggle-focused` from any Pair pane and cycles the right
-pane through three modes (#417):
+invokes `pair layout toggle-focused` from any Pair pane and toggles the right
+pane between two modes (#639):
 - **normal**: the tiled layout.
 - **focus**: one right terminal floats, pinned, centered at 75% width and full
   height, over the dimmed agent pane.
-- **maximize**: Zellij's native `toggle-fullscreen --pane-id`, which keeps
-  Zellij's bars.
 
-A split acts on one half only. Leaving maximize restores the tiling and focuses
-the invoking pane. Without a right terminal the press is a no-op.
+A split acts on one half only. Leaving focus restores the tiling and focuses
+the invoking pane. An already native-fullscreen terminal returns to normal on
+one press; the toggle never enters fullscreen. Without a right terminal the
+press is a no-op.
 
 `cmd/internal/layoutcmd/rightpane.go` owns the cycle. `ObserveRightPaneMode`
 derives the mode from the pane report alone: a floating right terminal means
-focus, a fullscreen tiled one means maximize. Zellij owns that state, so a
+focus; a fullscreen tiled one is an exit-only compatibility observation. Zellij owns that state, so a
 native change such as a focus-away that ends fullscreen is never contradicted.
 `PlanRightPane` reuses `PlanFullscreen`'s selection (the invoking half, else the
 recorded half, else the focused one) and returns one ordered step list per
@@ -468,6 +468,13 @@ name is active and clean, then fixes swapped halves with `move-pane`. A dirty
 rung, which is the Alt+Shift+d shape, is recorded as its clean `<rung>-split`
 twin. Rung changes made while in focus are therefore undone on exit. A failed
 re-tile is logged and degrades only the layout, never the press.
+
+On return, the executor always requests focus on the recorded pane (falling
+back to the draft if it disappeared). Re-embedding may already have focused
+that pane; only native exit 2 with the exact target-specific `Pane Terminal(N)
+is already focused` diagnostic counts as success. The CLI, agent wrapper and
+terminal paths retain the same typed native evidence for this action; live
+conformance pins the wording so a Zellij upgrade fails the test loudly.
 
 The record is `workbenchshortcut.FullscreenReturnStore`'s single line,
 `<return> swap=<name> order=<id>,<id>` (`ExpandRecord`). A bare `<id>` written
@@ -861,7 +868,7 @@ Loaded via `nvim -u`, fully isolated from the user's main nvim config. Provides:
 - **`!` tag line (#337).** When the comment-stripped draft is a single line starting with `!`, `_G.submit_operator_text` sends only the text after the `!` (the Pair log keeps the authored `!` line). Inside a couch thread (`COUCH_THREAD_SCOPE` and `COUCH_THREAD_TAG` both set), it then publishes that text as the thread's description with a detached `couch --internal publish-description --description=<text>`, after dispatch is confirmed, so couch never delays or fails a send. Pure parse: `nvim/bang_tag.lua`; boundary test: `tests/bang-tag-nvim-test.sh` (stub `couch` on PATH).
 - **`!!` describe line (#358).** `!!` publishes the newest Pair log entry (comment-stripped, a leading `!` tag dropped) as the description; `!! text` publishes `text`. Both reduce to one line (`bang_tag.one_line`: first non-blank line, whitespace collapsed, 120-character cap) and never reach the agent or the log. The publish is synchronous (`vim.system`, 5 s timeout) so its result decides whether the draft clears; outside couch, with no usable previous prompt, or on failure it notifies and keeps the draft.
 - **Bare `!` clear line (#357).** A bare `!` takes the same synchronous, no-send path with an empty description: `publish-description --description=` clears only the thread's `PublishedSummary`, so `ThreadSummary.DisplaySummary` falls back to the operator-typed `Description`.
-- `<S-M-CR>` (Alt+Shift+Return, normal+insert) — generated global right-pane cycle (normal → focus → maximize, #417). It executes `pair layout toggle-focused` directly, without reading, logging or clearing the draft. The former append-without-send map and `no_submit` chain are removed; normal submission retains its staged-write, indeterminate-outcome and commit-only retry behavior.
+- `<S-M-CR>` (Alt+Shift+Return, normal+insert) — generated global right-pane toggle (normal ↔ focus, #639). It executes `pair layout toggle-focused` directly, without reading, logging or clearing the draft. The former append-without-send map and `no_submit` chain are removed; normal submission retains its staged-write, indeterminate-outcome and commit-only retry behavior.
 - `<M-Left>` / `<M-Right>` — navigate the prompt-history / queue position one slot at a time (see below).
 - `<S-M-Left>` / `<S-M-Right>` — switch the RIGHT terminal's tabs, from any pane, without moving focus (#216). These are workbench globals, not draft navigation; they replaced a region-boundary jump that was deleted with them.
 - `<M-b>` — `pair_scrollback_prev_prompt`: open the scrollback viewer already positioned on the previous agent-conversation prompt — a one-key shortcut for `Alt+/` then `Alt+b`. Shells out `zellij run --floating … -- pair-scrollback-open --jump prev`. See the scrollback section's "Jump-on-open shortcut".
@@ -1221,7 +1228,7 @@ A tag is durable but historically frozen-at-create. `pair rename <old> <new>` li
 
 **`artifactpath.Families` plus `artifactpath.Paths` are the canonical vocabulary and constructor authority for tag-bearing artifacts.** The legacy rename planner consumes resolved old/new values; the following shapes describe compatibility behavior, not a second hand-maintained constructor list:
 
-1. **Tag-only families** (filename is `<prefix>-<tag>[<ext>]`, no further structure): `agent`, `agent-pid`, `agent-output`, `agent-picks`, `outer-tty`, `pair-wrap-pid`, `title-pid`, `layout-mode`, `workbench-layout`, `queue` (dir), `quote`, `image-capture` + `.done`, `draft-<tag>.md`, `log-<tag>.md`, `nvim-pid-<tag>-{draft,scrollback}`.
+1. **Tag-only families** (filename is `<prefix>-<tag>[<ext>]`, no further structure): `agent`, `agent-pid`, `agent-output`, `agent-picks`, `outer-tty`, `pair-wrap-pid`, `title-pid`, `layout-mode`, `workbench-layout`, `queue` (dir), `quote`, `image-capture` + `.done`, `draft-<tag>.md`, `log-<tag>.md`, `nvim-pid-<tag>-{draft,scrollback,review}`.
 2. **Per-(tag, agent) legacy rename families** include config, pane, scrollback companions, and per-agent drafts. This compatibility enumeration describes old rename inputs only; current construction and consumer coverage derive from `artifactpath.Paths`, `Families`, and the shared agent inventory.
 
 **Substring safety is enforced by construction**, never by filtering. The planner compares exact paths emitted by `artifactpath`; it never uses a broad tag-prefix glob. This is why `pair rename brain newname` cannot accidentally pick up `brain-2`'s files.
@@ -1259,7 +1266,7 @@ Selected-scope artifact `config-<tag>-<agent>.json` (`$PAIR_AGENT_CONFIG_PATH`) 
 
 Selected-scope artifact `agent-pid-<tag>` (`$PAIR_AGENT_PID_PATH`) — child agent PID written by `pair wrap` immediately after `pty.Start`, removed on shutdown. Consumed by `pair session-watch` to scope `lsof` discovery to a specific process tree (issue #000020). Native watcher launches authorize its mtime against a producer-captured generation bound; the mtime is also the agent-start epoch in the watcher's birth-time fallback.
 
-Selected-scope artifacts `nvim-pid-<tag>-{draft,scrollback}` (`$PAIR_NVIM_DRAFT_PID_PATH` / `$PAIR_NVIM_SCROLLBACK_PID_PATH`) — single-line files containing the pid of an `nvim --embed` server child. The launch sites pass the selected exact path into `$PAIR_NVIM_PID_FILE`; cleanup reads the same resolved path on Alt+x to SIGKILL the embed deterministically.
+Selected-scope artifacts `nvim-pid-<tag>-{draft,scrollback,review}` (`$PAIR_NVIM_DRAFT_PID_PATH` / `$PAIR_NVIM_SCROLLBACK_PID_PATH`; the review record is resolved at its launch site in `reviewcmd/run.go`, not bound as an environment path) — files whose first line is the pid of an `nvim --embed` server child; the review record carries a second line, the file that embed was spawned with, which is the reaper's owner-naming evidence for it (#583). The launch sites pass the selected exact path into `$PAIR_NVIM_PID_FILE`; each config publishes it at startup and removes it on a clean `VimLeave`, but only when the record still names that process, because a restarted embed for the same tag republishes the same path first. Cleanup reads the same resolved path on Alt+x and SIGKILLs only after `ClassifyNvimReap` has matched the kernel start stamp, the `nvim` short name, an exact `--embed` argv field and attribution naming *this* record's owner (#583) — the pid a record names is not itself the attribution, because a stale record can outlive its embed and name a pid another tag's live embed now holds. A missing or unreadable record keeps the file for the next pass rather than licensing a kill by name. The changelog viewer's record is artifact-keyed instead: `<changelog-base>.nvim-pid`, a sibling of its `.openlock`, because (tag, kind) is not unique across one tag's per-(agent, session) viewers and neither the filename nor argv splits into a tag unambiguously.
 
 Selected-scope artifact `pair-wrap-pid-<tag>` (`$PAIR_PAIR_WRAP_PID_PATH`) — single-line file containing pair-wrap's pid, written at startup by `pair wrap`. Read by nvim's Alt+i (`attach_image`) so it can `kill -USR1 <pid>` to arm an image-capture window. Removed by pair-wrap on exit and by cleanup on Alt+x.
 
@@ -1278,6 +1285,21 @@ The Go launcher's `RunLaunch` prepends `$PAIR_HOME/bin` to `$PATH` once at entry
 ## Binary freshness: deployed vs dev (`pair-dev`)
 
 The built binaries live in `$PAIR_HOME/bin` (first on PATH per *Path resolution* above). `bin/` is **gitignored** — built on demand, absent in a fresh tree. Local `make install` links `pair`, `couch`, and `pair-launch-helper` from `~/.local/bin` to that checkout, so rebuilding replaces the binary reached through the installed path. Older installations copied binaries there; those copies could shadow fresh checkout builds on PATH and remain stale until reinstalled. Shell aliases cannot fix executable lookups performed by child processes. The linked local installation requires the checkout to remain in place; packaged or separately copied binaries retain their own deployment lifecycle.
+
+Pair's three explicit binary targets share `scripts/build-go-atomic.sh` (#624).
+Go writes into an invocation-owned temporary directory beside the final binary;
+only a successful build is renamed onto that path. Failed or interrupted builds
+leave the previous executable intact and remove their staging directory. Concurrent
+builds have separate staging directories; the last successful rename wins, always
+with a complete executable. The existing `.skip-make-build` sentinels keep the
+base-layer generic scanner from overwriting these outputs a second time. No lock
+is needed for publication: the same-filesystem rename is the atomic boundary.
+The guard test exercises both direct targets and root `make build`, plus review
+asset preparation with a foreign `PAIR_HOME`; all fixture writes stay in the worker.
+A direct Go replacement probe reproduced missing/partial output. The exact caller
+behind the historical primary-checkout gaps is unknown; the TL's explicit rebuild
+around that period is a likely candidate, not a proven correlation.
+
 
 Two launch modes resolve this:
 - **Deployed** — `pair`. Runs whatever prebuilt binary PATH finds; zero toolchain dependency at launch. Local `make install` links `~/.local/bin` to the checkout’s `bin/`, so later builds are visible without reinstalling; keep that checkout in place. Already-running processes must restart to use the rebuilt binary.
@@ -1346,7 +1368,10 @@ ordinary contexts have no observer or new output.
 
 `cmd/internal/procutil` owns host process observations without launching `ps`.
 `Table` remains a cheap metadata snapshot (PID, parent, start identity, niceness
-and short kernel name). `Snapshot` enriches rows with native executable/argv and
+and short kernel name). Linux retains listed PIDs whose stat read or parse
+fails as PID-only unknown rows; only `ENOENT`/`ESRCH` permits omission. Unknown
+rows remain candidates for named capture and cannot prove a writer has exited.
+`Snapshot` enriches rows with native executable/argv and
 rechecks start identity, retaining unavailable evidence per live row. Native
 command reads reporting `EINVAL`, `ESRCH` and `ENOENT` mean gone and are omitted,
 including exit races during later environment reads. Identity reads retain their
@@ -1382,3 +1407,16 @@ Diagnostic inventory uses full executable names, since kernel names truncate,
 and keeps strict identity fencing across environment inspection. Its Inspection
 seam is shared by storage and diagnostic cleanup, including test compositions.
 `TestProductionDoesNotExecPS` guards production Go calls against reintroducing ps.
+
+
+Couch switcher clipboard outcomes (#638) flow from clipcmd's single executor
+(`ClipboardCopyLocalResult`) through Console's explicit Ctrl+Y attempt into
+`ReduceMenu`/`ReduceCopyFeedback`. The independent CopyFeedback banner retains
+failed/unconfirmed copy input until retry succeeds or Escape dismisses it;
+background inventory and operation notices cannot overwrite it. Presenter OSC52
+acceptance remains unconfirmed. The native call keeps its existing one-second
+budget. Local bounded stderr is screen-only; `SetCopyObserver` wires typed
+metadata (tool, exit/timeout, stderr length/hash, OSC outcome) to the existing
+bounded supervision writer's `clipboard_copy` event. No copied notice or free-form
+stderr crosses that callback. `clipboard_live_test.go` owns the explicitly opt-in
+real-tool Console conformance harness; regular tests use private stateful tools.

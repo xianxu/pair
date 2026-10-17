@@ -38,6 +38,7 @@ func projectResourceView(v couchcore.ResourceView) couchcore.ResourceView {
 	out.Processes = nil
 	out.Orphans = nil
 	out.Unattributed = nil
+	out.OrphanNvim = nil
 	out.Episodes = nil
 	out.Errors = nil
 	if v.HostedIngest != nil {
@@ -61,6 +62,8 @@ func projectResourceView(v couchcore.ResourceView) couchcore.ResourceView {
 	note("orphans", omitted)
 	out.Unattributed, omitted = resourceDetailPrefix(v.Unattributed, budget)
 	note("unattributed processes", omitted)
+	out.OrphanNvim, omitted = resourceDetailPrefix(v.OrphanNvim, budget)
+	note("orphan nvim", omitted)
 	out.Episodes, omitted = resourceDetailPrefix(v.Episodes, budget)
 	note("episodes", omitted)
 	out.Errors, omitted = resourceDetailPrefix(v.Errors, budget)

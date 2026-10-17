@@ -112,7 +112,7 @@ func (a messageAuthority) current(ctx context.Context, b couchmessage.Binding) (
 		return "", err
 	}
 	if pid != b.PID {
-		return "", errors.New("wrapper does not own the current binding")
+		return "", &couchmessage.RelaunchRequiredError{Cause: errors.New("wrapper does not own the current binding")}
 	}
 	if err = a.recorded(ctx, b); err != nil {
 		return "", err
@@ -128,17 +128,17 @@ func recordedMessageAuthority(reader couchcore.OSReadyReader, sessionName func(c
 		address := couchcore.ThreadAddress{RepoScope: b.Scope, Tag: couchcore.ThreadTag(b.Tag)}
 		ready, ok, e := reader.RecordedSession(ctx, address, b.Agent, b.Nonce)
 		if e != nil {
-			return fmt.Errorf("wrapper launch registration: %w", e)
+			return &couchmessage.RelaunchRequiredError{Cause: fmt.Errorf("wrapper launch registration: %w", e)}
 		}
 		if !ok || ready != b.Session {
-			return errors.New("wrapper launch registration unavailable")
+			return &couchmessage.RelaunchRequiredError{Cause: errors.New("wrapper launch registration unavailable")}
 		}
 		name, e := sessionName(ctx, address)
 		if e != nil {
 			return e
 		}
 		if name != b.Session {
-			return errors.New("wrapper conversation changed")
+			return &couchmessage.RelaunchRequiredError{Cause: errors.New("wrapper conversation changed")}
 		}
 		return nil
 	}
@@ -413,17 +413,17 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch, configur
 			address := couchcore.ThreadAddress{RepoScope: b.Scope, Tag: couchcore.ThreadTag(b.Tag)}
 			registered, e := reader.Registered(ctx, address, b.Agent, b.Nonce)
 			if e != nil {
-				return fmt.Errorf("wrapper launch registration: %w", e)
+				return &couchmessage.RelaunchRequiredError{Cause: fmt.Errorf("wrapper launch registration: %w", e)}
 			}
 			if !registered {
-				return errors.New("wrapper launch registration unavailable")
+				return &couchmessage.RelaunchRequiredError{Cause: errors.New("wrapper launch registration unavailable")}
 			}
 			current, e := session(ctx, address)
 			if e != nil {
 				return e
 			}
 			if !current.Present || current.Name != b.Session {
-				return errors.New("wrapper conversation changed")
+				return &couchmessage.RelaunchRequiredError{Cause: errors.New("wrapper conversation changed")}
 			}
 			return nil
 		},
@@ -465,16 +465,21 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch, configur
 	service.installHubMoves(console)
 	service.SetDesktopNotify(console.NotifyDesktop)
 	console.SetMessageBroker(service.broker)
+	console.SetCopyObserver(facts.clipboardCopy)
 	service.SetBroadcastStatus(console.BroadcastStatus)
 	service.SetShares(console.Shares)
 	service.SetBlockedView(console.SetBlockedThreads)
+	console.SetWrapperActivity(service.WrapperActivity)
 	service.showHub(console)
 	service.SetReplay(console.ReplayShare, console.SharedReplays)
 	service.SetSubmission(console.Submission)
 	service.recordDeliveries(namespace)
 	service.supervision.Store(newSupervisionCoordinator(service, func(text string) { console.Notify(couchtty.Notice{Kind: "status", Body: text}) }))
 	watcher := newWaitWatcher(service, threshold, namespace)
-	service.workers.Add(1)
+	stale := newSessionStaleWatcher(service, namespace, func(text string) { console.Notify(couchtty.Notice{Kind: "status", Body: text}) })
+	watcher.staleTick = stale.offer
+	service.workers.Add(2)
+	go func() { defer service.workers.Done(); stale.run(service.lifetime) }()
 	go func() { defer service.workers.Done(); watcher.run(service.lifetime, waitTick) }()
 	service.workers.Add(1)
 	go func() { defer service.workers.Done(); listings.Run(service.lifetime) }()
@@ -494,7 +499,7 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch, configur
 	inventory := newResourceInventory(console, c, service)
 	persistence := newResourceHistoryPersistence(namespace)
 	alerts := newResourceAlertDispatcher(service)
-	sampler := &resourceSampler{reader: procutil.NativeResourceReader{}, slots: inventory.snapshot, policy: resourcePolicy, alerts: alerts.dispatch, persist: persistence.persist, history: persistence.historySummary}
+	sampler := &resourceSampler{reader: procutil.NativeResourceReader{}, slots: inventory.snapshot, policy: resourcePolicy, alerts: alerts.dispatch, persist: persistence.persist, history: persistence.historySummary, sweeps: make(chan chan resourceSweep)}
 	hostedIngest := console.HostedIngestSnapshot
 	service.hostedIngest.Store(&hostedIngest)
 	service.resources.Store(sampler)
@@ -595,7 +600,7 @@ func newMessageService(parent context.Context, brokerSocket, registrySocket stri
 			if f.Op == couchmessage.FrameSubmit {
 				kind = couchmessage.SessionSubmit
 			}
-			_ = s.post(couchmessage.RegistryEvent{Kind: kind, Token: t, Observation: *f.Observation, Settled: f.Settled, Picker: f.Picker}, false)
+			_ = s.post(couchmessage.RegistryEvent{Kind: kind, Token: t, Observation: *f.Observation, Settled: f.Settled, Picker: f.Picker, BackgroundWork: f.BackgroundWork}, false)
 		},
 		Closed: func(t couchmessage.SessionToken) {
 			_ = s.post(couchmessage.RegistryEvent{Kind: couchmessage.SessionClosed, Token: t}, false)
@@ -615,12 +620,19 @@ func newMessageService(parent context.Context, brokerSocket, registrySocket stri
 // post hands an event to the loop; wait returns the registry's verdict. After
 // shutdown it drops the event: nothing is left to act on it.
 func (s *messageService) post(e couchmessage.RegistryEvent, wait bool) error {
+	return s.postContext(s.lifetime, e, wait)
+}
+
+// postContext bounds request-owned events by both caller and service lifetime.
+func (s *messageService) postContext(ctx context.Context, e couchmessage.RegistryEvent, wait bool) error {
 	in := messageInput{event: e}
 	if wait {
 		in.reply = make(chan error, 1)
 	}
 	select {
 	case s.inbox <- in:
+	case <-ctx.Done():
+		return ctx.Err()
 	case <-s.lifetime.Done():
 		return s.lifetime.Err()
 	}
@@ -630,6 +642,8 @@ func (s *messageService) post(e couchmessage.RegistryEvent, wait bool) error {
 	select {
 	case err := <-in.reply:
 		return err
+	case <-ctx.Done():
+		return ctx.Err()
 	case <-s.lifetime.Done():
 		return s.lifetime.Err()
 	}
@@ -640,6 +654,12 @@ func (s *messageService) loop() {
 	registry := couchmessage.NewRegistry()
 	var step func(e couchmessage.RegistryEvent) error
 	step = func(e couchmessage.RegistryEvent) error {
+		if e.Kind == couchmessage.SessionActivity || e.Kind == couchmessage.SessionSubmit {
+			e.At = time.Now()
+			if s.authority.now != nil {
+				e.At = s.authority.now()
+			}
+		}
 		var before map[couchmessage.Binding]factSlotState
 		log := s.facts.Load()
 		if log != nil {
@@ -795,6 +815,13 @@ func (s *messageService) connectedWorkspace(ctx context.Context, b couchmessage.
 }
 
 func (s *messageService) handle(ctx context.Context, request couchmessage.Request) (response couchmessage.Response) {
+	if request.Op == "send" {
+		// Sender authority and recipient admission spend one budget, leaving
+		// the exchange's existing margin for the broker's verdict (#634).
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, couchmessage.AdmissionTimeout)
+		defer cancel()
+	}
 	switch {
 	case request.Op == "resources":
 		if err := couchmessage.ValidateRequest(request); err != nil {
@@ -812,6 +839,30 @@ func (s *messageService) handle(ctx context.Context, request couchmessage.Reques
 			return couchmessage.Response{Code: "ok", Resources: &view}
 		}
 		return couchmessage.Response{Code: "unsupported", Error: "resource sampler unavailable"}
+	case request.Op == orphanReapOp:
+		// The reap's plan is a classification of its own, never the report the
+		// last cadence left behind: an operator confirmed a kill, and the world
+		// is allowed to have moved since. ValidateRequest is the confirmation
+		// gate -- refusing here is what makes a caller's --confirm presentation
+		// rather than the only authority (#583).
+		if err := couchmessage.ValidateRequest(request); err != nil {
+			return couchmessage.Response{Code: "invalid-request", Error: err.Error()}
+		}
+		sampler := s.resources.Load()
+		if sampler == nil {
+			return couchmessage.Response{Code: "unsupported", Error: "resource sampler unavailable"}
+		}
+		view, err := sampler.sweep(ctx)
+		if err != nil {
+			return couchmessage.Response{Code: "unavailable", Error: "resource sweep: " + err.Error()}
+		}
+		return couchmessage.Response{Code: "ok", Resources: &view}
+	case request.Op == "refusals":
+		// A memory read for `couch --list` (pair#618); no caller, like resources.
+		if err := couchmessage.ValidateRequest(request); err != nil {
+			return couchmessage.Response{Code: "invalid-request", Error: err.Error()}
+		}
+		return couchmessage.Response{Code: "ok", Refusals: s.broker.LatestRefusals()}
 	case request.Op == "resume-candidates":
 		return s.handleResumeCandidates(ctx, request)
 	case request.Op == "move-slot":
@@ -868,7 +919,9 @@ func (s *messageService) handle(ctx context.Context, request couchmessage.Reques
 		// spelled by repository alias names no binding's Slot and wakes
 		// nothing; the slot's own pane, submit or reconnect still does.
 		if request.Op == "send" && strings.Contains(request.Target, ":") {
-			_ = s.post(couchmessage.RegistryEvent{Kind: couchmessage.SendTargeted, Slot: request.Target}, false)
+			if err := s.postContext(ctx, couchmessage.RegistryEvent{Kind: couchmessage.SendTargeted, Slot: request.Target}, false); err != nil {
+				return couchmessage.Response{Code: "refused", Error: "not admitted: targeted registry post: " + err.Error()}
+			}
 		}
 	}
 	return couchmessage.Handle(ctx, s.broker, request)
@@ -1298,6 +1351,31 @@ func (s *messageService) LivenessForThread(scope, tag string) (couchmessage.Slot
 	return couchmessage.SlotLiveness{}, false
 }
 
+// WrapperActivity reads the existing admitted-session snapshot, never probes.
+// Known-unsettled or active background work includes a silent command wait;
+// otherwise sessions age from their last work/completion, not idle refreshes.
+func (s *messageService) WrapperActivity(row couchcore.ActionableThreadSummary) time.Time {
+	live, admitted := s.LivenessForThread(row.Address.RepoScope, string(row.Address.Tag))
+	if !admitted || live.Binding.Agent != row.Agent {
+		return time.Time{}
+	}
+	activeBackground := live.BackgroundWork != nil && *live.BackgroundWork
+	if live.Settled == nil && !activeBackground {
+		return time.Time{}
+	}
+	work := live.LastWorkAt
+	if (live.Settled != nil && !*live.Settled) || activeBackground {
+		now := time.Now()
+		if s.authority.now != nil {
+			now = s.authority.now()
+		}
+		if now.After(work) {
+			work = now
+		}
+	}
+	return work
+}
+
 // Liveness behind the message authority: a fresh listing at most this often,
 // and none older than this counts as evidence (pair#618).
 const (
@@ -1342,7 +1420,7 @@ func messageThreadResolver(c *couchcore.Couch, listings *launcher.ListingPoller)
 			return "", err
 		}
 		if record.WorkingPath == "" {
-			return "", errors.New("message thread has no retained checkout")
+			return "", &couchmessage.RelaunchRequiredError{Cause: errors.New("message thread has no retained checkout")}
 		}
 		if !observable {
 			return "", errors.New("listed Pair session observer unavailable")
@@ -1352,7 +1430,7 @@ func messageThreadResolver(c *couchcore.Couch, listings *launcher.ListingPoller)
 			return "", err
 		}
 		if !session.Present || session.Name != binding.Session {
-			return "", errors.New("message terminal is not positively listed")
+			return "", &couchmessage.RelaunchRequiredError{Cause: errors.New("message terminal is not positively listed")}
 		}
 		return record.WorkingPath, ctx.Err()
 	}

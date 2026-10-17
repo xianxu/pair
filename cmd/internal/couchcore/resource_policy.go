@@ -17,17 +17,20 @@ type ResourcePolicy struct {
 	IdleCPUDuration     time.Duration
 	OrphanRSSBytes      uint64
 	OrphanSamples       int
+	// OrphanNvimAge is how old an untagged embedded nvim must be before the
+	// sweep names it: a fresh one may still be mid-launch (#583).
+	OrphanNvimAge time.Duration
 }
 
 func ParseResourcePolicy(env map[string]string) (ResourcePolicy, error) {
-	p := ResourcePolicy{time.Minute, 2 << 20, 10 * time.Minute, 8 << 30, 90, 15 * time.Minute, 256 << 20, 2}
+	p := ResourcePolicy{time.Minute, 2 << 20, 10 * time.Minute, 8 << 30, 90, 15 * time.Minute, 256 << 20, 2, 6 * time.Hour}
 	for k, v := range env {
 		if !strings.HasPrefix(k, "COUCH_RESOURCE_") {
 			continue
 		}
 		var err error
 		switch k {
-		case "COUCH_RESOURCE_CADENCE", "COUCH_RESOURCE_WRITE_DURATION", "COUCH_RESOURCE_IDLE_CPU_DURATION":
+		case "COUCH_RESOURCE_CADENCE", "COUCH_RESOURCE_WRITE_DURATION", "COUCH_RESOURCE_IDLE_CPU_DURATION", "COUCH_RESOURCE_ORPHAN_NVIM_AGE":
 			var d time.Duration
 			d, err = time.ParseDuration(v)
 			if err == nil && (d < time.Second || d > 24*time.Hour) {
@@ -41,6 +44,8 @@ func ParseResourcePolicy(env map[string]string) (ResourcePolicy, error) {
 				p.Cadence = d
 			case "COUCH_RESOURCE_WRITE_DURATION":
 				p.WriteDuration = d
+			case "COUCH_RESOURCE_ORPHAN_NVIM_AGE":
+				p.OrphanNvimAge = d
 			default:
 				p.IdleCPUDuration = d
 			}

@@ -30,6 +30,19 @@ do
         pcall(vim.fn.writefile, { tostring(vim.fn.getpid()) }, pidfile)
       end,
     })
+    -- A clean exit removes its own record, so the next sweep is not handed a pid
+    -- that stopped being ours (#583). Only a record still naming *this* process
+    -- goes: a restarted editor for the same tag republishes its own pid here
+    -- first, and deleting that would leave the survivor unnamed. A SIGKILLed
+    -- embed never reaches VimLeave and so keeps its record — that record is the
+    -- reaper's only name for the process, which is the whole point of it.
+    vim.api.nvim_create_autocmd('VimLeave', {
+      once = true,
+      callback = function()
+        local ok, lines = pcall(vim.fn.readfile, pidfile)
+        if ok and lines[1] == tostring(vim.fn.getpid()) then pcall(vim.fn.delete, pidfile) end
+      end,
+    })
   end
 end
 
@@ -527,14 +540,14 @@ end
 
 local pair_log = dofile((debug.getinfo(1, 'S').source:match('@?(.*/)') or './') .. 'pairlog.lua')
 
--- Parse log-<tag>.md into entry bodies, oldest first, through the same legacy
--- and byte-counted v1 grammar SessionLogStore writes.
+-- Parse log-<tag>.md into the operator's entry bodies, oldest first, through
+-- the same legacy and byte-counted v1 grammar SessionLogStore writes.
 local function parse_log(text)
 	if text == '' then return {} end
 	local framed = pair_log.parse(text)
 	if not framed then return {} end
 	local entries = {}
-	for _, entry in ipairs(framed) do entries[#entries + 1] = entry.body end
+	for _, entry in ipairs(pair_log.operator_entries(framed)) do entries[#entries + 1] = entry.body end
 	return entries
 end
 

@@ -390,19 +390,45 @@ count; a fresh attachment starts a new counter. No notification text is logged.
 
 `couch --actors`, `--send-to repo[:N]|hub [--agent NAME] --message TEXT|--message-file PATH` and `--message-status ID`
 use bounded Unix stream RPC, without constructing another mutable supervisor.
+The send's `AdmissionTimeout` starts before sender authority checks and is
+inherited by recipient admission, within `SendTransportTimeout`'s existing
+response margin. Refusal bookkeeping reuses admission's families snapshot;
+it performs no further store reads after admission expires (#634).
+Targeted registry events inherit that same context as well as service lifetime;
+a stalled registry loop cannot extend the send past its admission budget.
 `--message-file` (pair#486) reads the body from a file at send time, so an agent writes a message
 containing shell syntax with its editor and the call stays a bare `couch …` its sandbox exempts.
-`--actors` and `--message-status` support JSON. One delivery at a time per
-actor, a FIFO behind it (pair#492: `ActorState.queue`, at most `MaxQueued` = 32,
-each waiting at most `QueueWait` = 45 min), the inbound breaker, and bounded
-receipt retention limit the runtime. An exact send to a busy actor, or one
+`--actors` and `--message-status` support JSON.
+`Broker.StatusContext` resolves an exact visible ID before considering unique
+prefixes in the caller's retained sends, received messages and refusals. It
+uses the same locked visibility and waiting-line projection as exact reads;
+ambiguous prefixes list sorted visible full IDs, while misses identify an
+unknown lookup. Full-ID wrapper recovery after restart remains available;
+prefix resolution is limited to receipts the broker currently retains (#635).
+One delivery at a time per
+actor, a FIFO behind it (pair#492: `ActorState.queue`, at most `MaxQueued` = 32),
+the inbound breaker, and bounded terminal receipt retention limit the runtime.
+Accepted pre-paste mail has no wait horizon while its exact receiver is connected.
+An exact send to a busy actor, or one
 whose wrapper refuses the reservation, is queued (`Enqueue`); the actor's worker
 promotes the head (`Broker.promote`: Observe, Reserve, `Promote` with a fresh
-paste-by) after each delivery, retrying every `PromoteRetry` while the wrapper
-is busy. A departing sender or recipient cancels its queued messages with an
-actionable detail. Family selection requires fresh resting
+commit deadline) after each delivery, retrying every `PromoteRetry` while the wrapper
+is busy. A departing sender or recipient cancels messages not yet committed
+with an actionable detail. A handed commit retains the conservative
+`indeterminate` disconnect outcome: its last pre-paste observation cannot prove
+that no input followed. Family selection requires fresh resting
 branch and quiet-wrapper observations; exact sends allow occupied-slot
 coordination. Quietness is never acceptance of repository work.
+Receipt reads include the standing composer wait and the complete receiver-line
+position (pending pre-paste head = 1). Active receipts survive retention sweeps;
+terminal receipts receive a fresh one-hour retention period. A hung but connected
+receiver therefore retains mail until it returns or disconnects, with no silent
+expiry. Separate receiver workers remain independent.
+Promotion failure cleanup retains that actor's reservation while its bounded
+`Release` RPC runs outside the shared broker mutex. It clears only the same
+attempt's reservation after reacquiring the mutex; another receiver's admission
+and receipt reads can proceed during cleanup. Disconnect/replacement cancels the
+old worker without transferring its cleanup to the replacement endpoint.
 
 The bare target `hub` (pair#463, `couchmessage.HubTarget`) is resolved by the
 message service, not the broker: `messageService.hubRecipient` rewrites it to
@@ -479,16 +505,18 @@ content sha256, vcs revision and dirty bit, via
   output or input (`peer_settle.go`), so a streaming agent pays nothing. Any
   activity unsettles the wrapper at once.
 - **Negotiated per connection, because every session frame decodes strictly:**
-  - A wrapper with a known build sends `hello-v2` (binding plus `Build`).
-  - An old broker drops that without an ack, and the wrapper redials with
-    plain `hello`.
-  - Only a hello-v2 session may put `Settled` on activity and submit frames.
+  - A wrapper with a known build sends its newest hello (binding plus `Build`).
+    The client tries v4, v3, v2, then plain hello, each downgrade only after an
+    old broker's ack-less close; refusal, malformed ack and timeout do not downgrade.
+  - Only hello-v2 and newer sessions may put `Settled` on activity and submit frames.
     A legacy session that does is ended as malformed.
   - `hello-v3` (pair#465) is hello-v2 that may also put `Picker` on those
-    frames. The client tries v3, then v2, then plain hello, each on an old
-    broker's ack-less close (`SessionClient.session`). A v2 session claiming
+    frames. A v2 session claiming
     `Picker` is ended as malformed, so a new wrapper never breaks a Couch that
     hasn't been restarted yet.
+  - `hello-v4` (pair#632) adds optional `BackgroundWork` on activity/submit;
+    nil is unknown, false known none, true native background work. Older sessions
+    claiming it are ended as malformed; downgraded clients omit the field.
 - **`Picker` (pair#465):** whether an input-holding picker is up: the
   wrapper's `pickerActive` latch (closed by Enter or by the composer coming
   back, pair#464). Unlike `Settled`, it is not gated on quiet. `setPickerLocked`
@@ -535,6 +563,27 @@ remaining uncertainty is stated, never papered over:
   refuses as "zellij liveness is stale". The thread record, PID file, ready
   file and session index are still read per check. Recovery and relaunch
   decisions keep their direct zellij reads.
+- **Receive state in `--list` (#618).** `couch --list` asks the running
+  supervisor once (the unauthenticated `refusals` op, 250 ms, best effort) for
+  each slot's latest unsuperseded refusal and prints it under the row as
+  `can't receive: <reason>` with the one command that clears it. Ownership and
+  registration sources carry `couchmessage.RelaunchRequiredError`; the broker
+  records a safe `{reason,class}` projection and the list chooses relaunch from
+  that class (#633), never diagnostic phrases. Timeout/cancellation and unknown
+  classes choose resend. The op contains no sender binding or body. Mixed-version
+  response-shape mismatch omits these best-effort annotations, leaving the ordinary
+  list intact.
+- **Peer turns in the Pair log (#618).** When a delivery ends `Submitted`,
+  pair-wrap appends the exact envelope it pasted to the thread's Pair log
+  through the managed locked writer (`pairlog.PersistPeerTurn`, append ID
+  `couch-peer-<delivery ID>`). The session watcher correlates it like any draft
+  turn, so a slot driven only by peer messages confirms its binding and can be
+  relaunched. The draft pane's history and `!!` skip `couch-peer-` entries.
+  One launch records at most 8 (about 64 KB): a binding needs one completed
+  round after its launch, and the entries go wherever the Pair log goes.
+- **Relaunch rides out a slow quit (#618).** `--relaunch` waits up to
+  `RelaunchParkWait` (60 s) for the agent's quit inside its operation before
+  it offers recover/abandon; a plain park keeps its shorter wait.
 - **Retries.** The CLI mints a fresh ID per send and tells the sender not to
   retry an uncertain one. A reused ID that reaches a wrapper that remembers it
   adopts the recorded outcome and is not pasted again.
@@ -602,34 +651,30 @@ complete pending composer must still match Couch's known envelope.
   or exit ends the delivery `indeterminate` (`uncertain: … after the
   paste/submit`). It never ends `expired` or `cancelled` while text may still
   sit in the composer.
-- **The deadline starts at paste.** `Message.Deadline` is the paste-by time:
-  admission plus `PasteTimeout` (90s), which a booting or busy recipient may
-  use up. From the paste, the wrapper bounds submit and confirmation by
-  `DeliveryTimeout` (30s). An expiry names what held each half longest,
-  longest first with seconds (`waiting for empty composer (62s) | …`; at most
-  three, each a second or more), not the check that ran last (pair#438). `Message.Horizon()` (hold limit plus window) is
-  the one outer bound the broker reads, in its model expiry, its job context
-  and the endpoint's receipt wait.
-- **Operator holds stop the clock (pair#435).** While the wrapper waits only
-  because of the operator — a draft in the composer, or the composer scrolled
-  out of view — the paste-by doesn't advance: the held time is added back to
-  `Deadline`, up to `Message.HoldLimit()` (`Deadline + MaxHold`, 30m). The cap
-  bounds how long a scrolled-up pane can keep refusing other senders
-  (`recipient-busy`); reaching it expires with "held past 30m0s, <hold>".
-  Its cost: a recipient wrapper that hangs while still connected now keeps
-  the sender's delivery pending up to the full horizon (about 32m), not 2m.
-  Waits that can't judge the hold (input settling, forwarded input) leave
-  it as it is, so typing a draft doesn't spend the clock.
-  Other waits (paste mode, an unrecognized composer, a booting slot) keep the
-  clock running. A picker that is up before the paste is a hold too
-  (pair#465): the detail is `blocked by a picker: <title>`, where the title
+- **The input deadline starts at paste.** `Message.Deadline` bounds the initial
+  reservation/commit exchange; promotion refreshes it, and each endpoint RPC
+  remains bounded. After commit, accepted mail waits for receiver readiness
+  without a pre-paste deadline in the wrapper, broker model or status poll.
+  From the paste, the wrapper bounds submit and confirmation by
+  `DeliveryTimeout` (30s). A post-paste expiry remains indeterminate and names
+  the standing waits with durations; it never replays the body.
+- **Operator holds retain mail (pair#629).** A draft, scrollback or picker
+  remains `held` with its reason; unknown composer, paste mode or booting waits
+  remain `queued`. No hold-credit clock or 30-minute cap can discard the mail.
+  Pre-paste waits keep only the standing reason; duration history belongs to
+  the bounded post-paste window, so changing picker titles cannot grow a
+  history throughout an indefinite wait.
+  A picker detail is `blocked by a picker: <title>`, where the title
   comes from `couchmessage.ReadPicker` over the wrapper's own tail and is read
   once per picker. The check runs ahead of the transient waits, so a
   repainting picker keeps its reason. The message is delivered when the picker
-  closes, or expires with "held past 30m0s, blocked by a picker: …".
+  closes and the composer is safe.
   While held the wrapper's receipt is `held` with the reason;
   `RemoteEndpoint.Deliver` hands each interim receipt to the broker
   (`DeliveryProgress`), so the sender's `couch` status reads `held` too.
+  Queued and held status polls run at the existing one-second hold cadence;
+  active input confirmation uses the short cadence. This bounds idle wait IO
+  without extending or retrying any input operation.
 
 Receiver profiles exist for Claude Code, Codex CLI and Qoder CLI at any installed version
 (`peerReceiverAgents`; the exact-version allowlist was removed in #360 after
@@ -871,7 +916,7 @@ CLI. It runs in-process against the store and needs no supervisor.
 - **Pessimistic for the human, optimistic for the agent (#439):** parley's
   `<file>.lock` (holder `operator`) refuses every write (exit 3); a legacy
   `holder: agent` lock counts as none, and Couch never writes or deletes the
-  lock. The agent holds no lock: `read --section|--all` prints a hash (sha256,
+  lock. The agent holds no lock: `read --section|--frontmatter|--all` prints a hash (sha256,
   16 hex) of the section body as stored (or the whole file), and `write
   --if-hash H` replaces it only if it still hashes to H, else refuses `stale`
   (exit 6, current hash in `Refusal.Hash` / JSON `Hash`). A write without
@@ -894,6 +939,19 @@ CLI. It runs in-process against the store and needs no supervisor.
   shadow lacking the written section (the operator added it) stays unchanged.
   The first shadow written by `read --all` pins a sidecar-less file's horizon
   in the sidecar, since the horizon falls back to the shadow's mtime.
+- **Frontmatter scope (#643):** `read --frontmatter` and `write --frontmatter`
+  project only the closed leading `---` block (`FrontmatterBody` and
+  `ReplaceFrontmatter` in `sessionsync/file.go`). The hash includes the delimiters
+  and excludes the closing line ending. The original closing line ending and all
+  body bytes, including Updated, survive a write exactly. BODYFILE is a complete
+  block with optional trailing whitespace and no body payload. Both operations
+  advance only the frontmatter in the shadow; a first baseline contains only the
+  block, leaving the body unread. A previous plain-document baseline keeps its
+  complete body when frontmatter is later added. Malformed current/shadow blocks
+  refuse instead of acknowledging the body. Existing locks, owner/type validation,
+  folds, registry limits and per-file atomic publication apply. The document,
+  shadow and final state publish sequentially; after an IO error, reread the
+  target, inspect diff/status and recompute before retrying any still-owed folds.
 - **Ledger:** the message service's `messageEndpoint.Deliver`
   (`message_deliveries.go`) appends one row per delivery that may have
   reached the agent: submitted, indeterminate, an endpoint error, or a
@@ -935,6 +993,50 @@ CLI. It runs in-process against the store and needs no supervisor.
   agreed with parley.nvim#314; `Holder` is `operator` or `""`. `read --json`
   answers `{"Code","Error","Read":{File,Section,Hash,Holder,Body}}`. `Owed` is never null, and a refusal exits
   non-zero with a `Code` other than `ok`.
+
+### Stale-section reminders (#630)
+
+The existing 15-second wait tick offers work to one serialized
+`sessionStaleWatcher`; it never waits for an external command. For registered
+`type: session-sync` documents owned by a verified hub, the worker runs
+`tl-lead status check FILE` at most once per 30 minutes per registration while
+the admitted wrapper is known settled, outside a picker and has no pending mail.
+Unknown or busy owners and operator-held files are skipped without consuming
+that allowance, so release can be noticed on the next tick. It checks current
+registration, owner, lock and wrapper generation again before sending.
+
+Only tl-lead owns section freshness budgets. A stale result becomes one ordinary
+hub-to-self `session-sync ping: ` message; fresh results remain silent. Neither
+inspection nor the check writes the document or advances its unread baseline.
+Registered-only metadata inspection selects its route under the registry lock;
+forgotten files never enter the legacy reader.
+Checks have a five-second deadline and bounded output; their owned process group ends on
+completion or cancellation. Missing/failing tl-lead or unknown output sends nothing and
+logs one bounded diagnostic per continuous failure episode. Uncertain sends are
+not retried within the allowance. Cooldowns are in memory, so restarting Couch
+can produce one extra reminder. Service shutdown collects the worker.
+
+### Stale-section CLI conformance (#630)
+
+The stale-section reminder's real CLI contract is opt-in. Before landing changes
+to the reminder worker, Couch's session-sync CLI, tl-lead status-check output or
+the supported tl-lead binary, build Couch once and run:
+
+```sh
+make bin/couch
+PAIR_LIVE_SESSION_STALE=1 \
+  PAIR_LIVE_COUCH_BIN="$PWD/bin/couch" \
+  PAIR_LIVE_TL_LEAD_BIN=/absolute/path/to/tl-lead \
+  go test ./cmd/internal/couchcmd -run '^TestSessionStaleLiveConformance$' -count=1 -v
+```
+
+The fixture adopts a disposable isolated namespace, creates a Git-backed status
+file and admits a disposable wrapper through the real message service. It runs
+the real tl-lead and Couch commands and receives the reminder through the real
+endpoint transport with a controlled composer. It checks half-hour repeats,
+fresh silence, operator-lock release and unchanged document/shadow/state bytes.
+It builds no binaries inside tests and never contacts an installed hub. Native
+installed-hub acceptance remains the TL's check after a Couch restart.
 
 ### Recover plan after a restart (#367)
 
@@ -1323,6 +1425,49 @@ and `MenuState.Palette`; the tab bar reads the same two through
 A thread with no activity entry is unfaded. Each slot glyph fades from its own
 base colour (`slotGlyphBase`).
 
+**Live work (#625).** The same background activity pass also reads the admitted
+wrapper's existing `SlotLiveness.Settled` snapshot through
+`messageService.WrapperActivity`; this projection adds no IO probe or timer.
+Known-unsettled stays current even during a silent peer-driven turn/command
+wait. The registry timestamps work reports and the busy-to-settled transition
+with supervisor receipt time, monotonically within that session. Settled
+refreshes do not advance `LastWorkAt`. The first settled report seeds it from
+that authenticated wrapper's `LastActivity`, capped at receipt time; a Couch
+reconnect does not itself invent recent work. Replacement/disconnect drops
+the prior session's evidence. Scope, exact tag and agent must match. Legacy/unknown
+wrappers contribute nothing, retaining the file-only rule. `Settled` is the
+same broad restart-safety signal used by relaunch: an occupied composer,
+picker or recent IO can also hold it false. The Console merges the newest
+wrapper/file evidence for both views; positive wrapper work still counts when
+the file probe fails, preserving any newer previous observation on that error.
+
+**Background work (#632).** `SlotLiveness.BackgroundWork` is independent display
+evidence on hello-v4. The wrapper's existing settle callback reads one complete
+current terminal snapshot for both admission and display, using the existing
+generation fence; source activity invalidates the display hint, and an older
+in-flight probe cannot publish over a newer source. Display changes publish even
+when `Settled` stays true. `backgroundWorkState` reuses the Claude composer bounds
+and counts only a bounded native shell-counter field with management chrome below
+the closing rule. Qualified captures include Claude 2.1.296 and the 2.1.301
+PR-link variant (94×39): canonical positive-decimal `PR #N` is accepted only
+as the first optional field, alongside a complete shell counter and management
+chrome. PR-only absence remains unknown. The shared row projection preserves
+erased blank cells while omitting wide-glyph continuation cells. Body prose,
+drafts, incomplete synchronized paint, missing or
+unqualified footer and unsupported agents grant no positive hint. Recognized
+no-shell/zero state is false; loss of qualified evidence is unknown. This is a
+native-UI observation, not a process/CPU inference or transcript scan.
+
+The registry owns the nullable hint per admitted connection. Active background
+work keeps the existing activity pass current; active→known-none records completion
+using monotonic supervisor receipt time. Unknown clears the hint without inventing
+completion, and idle refreshes do not renew it. Disconnect/displacement/replacement
+discard it. Neither the field nor its clock changes `Settled`, message admission or
+restart admission. Current native coverage is Claude Code; Codex/Qoder remain
+unknown until their own native captures and geometry/negative/lifetime tests qualify
+a source. The issue records the live Codex counter evidence and remaining
+qualification work. No new timer, endpoint, polling request or persisted cache.
+
 **Cost at rest (#507).** A pass probes every live thread (every 60 s, and on a
 switch or a landed inventory). The probe's runtime
 (`threadactivity.NewOSRuntime`) keeps one `sessioninventory.OwnerLaunchCache`
@@ -1392,6 +1537,13 @@ for normal-suite commands, strict selected-attach scan counts, other-path scan
 ratchets and the separate 20-slot/60-second CPU acceptance smoke. Counts do not
 claim whole-supervisor CPU behavior after rollout.
 
+The shared chunked JSONL reader searches only appended bytes after a retained
+newline-free prefix (#626). Counted-search regressions pin linear delimiter
+work across long records and chunk boundaries; the 20-owner UI fixture keeps
+its existing deadlines and logs per-probe and generation timing to distinguish
+cold IO/decoding from missing progress. Cache authority and invalidation rules
+are unchanged.
+
 ### Slots behind a picker draw red (pair#465)
 
 A live thread whose wrapper reports `Picker` draws in the terminal's red
@@ -1408,8 +1560,8 @@ the active chip too. Precedence: placeholder > red > bell/attention > idle fadin
 - **Timing:** red appears within the session's one-second frame pacing and
   clears the same way.
 
-The data: activity is `threadactivity.Latest`, the one definition the title
-poller's heat ramp also uses. It is the newest of the bound agent transcript's
+The persisted data is `threadactivity.Latest`, shared with the title poller's
+heat ramp. It is the newest of the bound agent transcript's
 mtime, the Pair log's (sends), and the current launch's pane-birth evidence
 (rewritten on create or resume, never on attach). The draft is excluded: its
 autosave writes on every focus loss. `console_activity.go` runs it like the slot
@@ -4197,7 +4349,59 @@ Known process kinds parented by PID 1 above the RSS floor are shown as
 **unattributed (unproven)**, never acted on. Only candidate classification may
 inspect argv; full command lines are not retained or displayed. Sampling can
 miss a process born and exited, or born and orphaned, between observations.
-Monitoring sends messages and does not kill, restart or renice anything.
+The monitor itself sends messages and does not kill, restart or renice
+anything; the one destructive verb is the operator's, and it is confirmed.
+
+### Unattributed embedded nvim (#583)
+
+An untagged `nvim --embed` at PID 1 — what nvim's own TUI/embed fork leaves
+behind when its owner dies — is a leak the tagged reap cannot see: no sidecar
+names it and no argv carries a tag. The sweep classifies it from evidence the
+sample already holds (PID 1, the `nvim` short name, an exact `--embed` argv
+field, an age at or above `COUCH_RESOURCE_ORPHAN_NVIM_AGE`) plus one new probe,
+its cwd, read through `proc_pidinfo` only for rows that cleared those gates. A
+cwd inside a managed checkout is positive evidence that pair spawned it, and
+containment narrows the report, so an incomplete slot inventory reports less
+rather than more. The managed roots are the **inventory** slots'
+`WorktreeRoot` (`ManagedRoots`), which is also this sweep's coverage limit: an
+orphan whose slot has left the console's slot list entirely has no root left to
+match and is not named, so a worktree that outlives its slot escapes the sweep
+until some inventoried slot's root contains it again. Rows appear under
+`Orphan nvim (untagged; reap needs --confirm):` in `couch --resources` and as
+`orphan_nvim` in `--json`, and leave the generic unattributed section — one
+process under two headings reads as two findings. The persisted ring keeps them (`ResourceFrame.OrphanNvim`), so the
+24 h history still records an offender the live report suppressed. One hub alert
+fires per episode on the existing `resource_episode` seam after `OrphanSamples`
+consecutive passes, addressed by the managed checkout the sweep matched, because
+an orphan has no slot of its own to resolve a hub from.
+
+`couch --reap-orphans [--confirm] [--json]` is the destructive half and takes no
+slot: the sweep it confirms is fleet-wide. Without `--confirm` it names the rows
+from the monitor's cached report and signals nothing. With it, the supervisor
+re-classifies from a fresh pass its own worker ran — never from the cached view,
+because an operator confirmed a kill and the world is allowed to have moved in
+the minute since — and the caller ends each named tree on `launcher.TreeReaper`'s
+cadence (#399: SIGTERM, 3 s, SIGKILL, 2 s), descendants deepest first. Every
+signal is fenced on the identity the sweep recorded, so a pid that exited or was
+recycled is *skipped* with the reason printed rather than signalled on the
+strength of a number that still exists; the whole tree goes, because killing
+only the editor reparents its language servers to launchd and manufactures the
+next leak. The confirmation lives in `couchmessage.ValidateRequest`, not in the
+handler that acts on it, so a hand-written request cannot reach the
+classification at all. Outcomes are one per named row — `reaped`, `skipped` (the
+world moved; exit 0), `failed` (survived SIGKILL, or the host refused the
+snapshot; exit 1), `refused` (no `--confirm`; exit 1) — and rows the wire
+projection dropped at its detail limit are announced as `Coverage:` lines on
+stderr ahead of them.
+
+Owners: `couchcore/resource_orphan.go` (the pure classification),
+`couchcmd/resources.go` (the gated probe and the sweep seam),
+`couchcmd/reap_orphans.go` (the verb), `procutil/identity_age.go` and
+`procutil/resource_darwin.go` (the two native reads the gate pays for).
+`couchcmd/reap_orphans_live_test.go`, under `PAIR_LIVE_ORPHAN_REAP=1`, conforms
+the composition against the real host: a real reparented embed at PID 1 inside a
+managed checkout is named, an embed with a live parent in the same checkout under
+the same age gate is not, and the confirmed reap ends it.
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
@@ -4208,6 +4412,7 @@ Monitoring sends messages and does not kill, restart or renice anything.
 | `COUCH_RESOURCE_IDLE_CPU_PERCENT` | `90` | Idle-slot CPU threshold, percent of one core |
 | `COUCH_RESOURCE_IDLE_CPU_DURATION` | `15m` | Required idle-CPU interval |
 | `COUCH_RESOURCE_ORPHAN_RSS_BYTES` | `268435456` | Proven-orphan RSS threshold; two samples required |
+| `COUCH_RESOURCE_ORPHAN_NVIM_AGE` | `6h` | How old an untagged embedded nvim must be before the sweep names it; a fresh one may still be mid-launch |
 
 Set policy before starting Couch. Unknown or malformed resource settings refuse
 startup. Unknown measurements interrupt accumulation rather than clearing an

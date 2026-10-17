@@ -2,8 +2,10 @@ package sessionsync
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 	"syscall"
@@ -12,6 +14,104 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/testwait"
 )
+
+func TestInspectRegisteredPreservesUnreadBaseline(t *testing.T) {
+	r := newRig(t)
+	registered, err := r.sync.Register(r.p.File, "ops:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.sync.Write(WriteRequest{File: r.p.File, Section: "Trains", Body: "last written\n", IfHash: r.hash("Trains")}); err != nil {
+		t.Fatal(err)
+	}
+	// An operator edit must remain unread, including its frontmatter change.
+	r.put(r.p.File, strings.ReplaceAll(strings.ReplaceAll(r.read(r.p.File), "owner: ops:0", "owner: pair:7"), "last written", "unread operator edit"))
+	r.deliver("unfolded", SubmitPrefix+r.p.File)
+	central := filepath.Join(r.sync.registryStore().Dir, "state", registered.Registration.ID)
+	paths := []string{r.p.File, r.p.Shadow, r.p.State, filepath.Join(central, "shadow"), filepath.Join(central, "state.json"), filepath.Join(r.sync.registryStore().Dir, "registry.json")}
+	type snapshot struct {
+		Bytes    string
+		Exists   bool
+		Modified time.Time
+	}
+	capture := func() map[string]snapshot {
+		t.Helper()
+		out := map[string]snapshot{}
+		for _, path := range paths {
+			raw, err := os.ReadFile(path)
+			if errors.Is(err, os.ErrNotExist) {
+				out[path] = snapshot{}
+				continue
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			info, err := os.Stat(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			out[path] = snapshot{string(raw), true, info.ModTime()}
+		}
+		return out
+	}
+	before := capture()
+	info, err := r.sync.InspectRegistered(r.p.File)
+	canonical, canonicalErr := canonicalDocument(r.p.File)
+	if err != nil || canonicalErr != nil || info != (DocumentInfo{ID: registered.Registration.ID, File: canonical, Owner: "pair:7", SessionSync: true}) {
+		t.Fatalf("inspection: %+v %v (canonical: %v)", info, err, canonicalErr)
+	}
+	if after := capture(); !reflect.DeepEqual(before, after) {
+		t.Fatalf("inspection changed document or baseline: before=%+v after=%+v", before, after)
+	}
+	// Inspection is independent of the owed-event recording authority.
+	if err := os.Remove(filepath.Join(r.sync.Ledger.Dir, "recording.json")); err != nil && !errors.Is(err, os.ErrNotExist) {
+		t.Fatal(err)
+	}
+	if _, err := r.sync.InspectRegistered(r.p.File); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestInspectRegisteredReadsCurrentTypeAndAliasLock(t *testing.T) {
+	r := newRig(t)
+	alias := filepath.Join(filepath.Dir(r.p.File), "alias.md")
+	if err := os.Symlink(r.p.File, alias); err != nil {
+		t.Fatal(err)
+	}
+	registered, err := r.sync.Register(alias, "ops:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.put(alias+".lock", "holder: operator\n")
+	info, err := r.sync.InspectRegistered(r.p.File)
+	if err != nil || info.Holder != HolderOperator || !info.SessionSync || info.ID != registered.Registration.ID {
+		t.Fatalf("alias lock: %+v %v", info, err)
+	}
+	if err := os.Remove(alias + ".lock"); err != nil {
+		t.Fatal(err)
+	}
+	r.put(r.p.File, "## Work\n\nnow an ordinary registered document\n")
+	info, err = r.sync.InspectRegistered(alias)
+	if err != nil || info.Holder != HolderNone || info.SessionSync || info.Owner != "ops:0" || info.ID != registered.Registration.ID {
+		t.Fatalf("current plain document: %+v %v", info, err)
+	}
+}
+
+func TestInspectRegisteredRefusesUnknownAndForgotten(t *testing.T) {
+	r := newRig(t)
+	if _, err := r.sync.InspectRegistered(r.p.File); err == nil {
+		t.Fatal("unregistered legacy document admitted")
+	}
+	if _, err := r.sync.Register(r.p.File, "ops:0"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.sync.Forget(r.p.File); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.sync.InspectRegistered(r.p.File); err == nil {
+		t.Fatal("forgotten registration fell back to legacy authority")
+	}
+}
 
 func TestRegisterIsDurableAndIdempotentWithoutEditingDocument(t *testing.T) {
 	r := newRig(t)
@@ -540,5 +640,52 @@ func TestPlainDeliveryOwedOnlyOnSessionFileAndSubmitOnlyOnItsDocument(t *testing
 	}
 	if got := ids(note); strings.Join(got, ",") != "qa-submit" {
 		t.Fatalf("plain document owes %v, want only its own submit", got)
+	}
+}
+
+func TestInspectRegisteredRefusesBeforeLegacyFlock(t *testing.T) {
+	for _, forgotten := range []bool{false, true} {
+		t.Run(fmt.Sprintf("forgotten=%v", forgotten), func(t *testing.T) {
+			r := newRig(t)
+			if forgotten {
+				if _, err := r.sync.Register(r.p.File, "ops:0"); err != nil {
+					t.Fatal(err)
+				}
+				if _, err := r.sync.Forget(r.p.File); err != nil {
+					t.Fatal(err)
+				}
+			}
+			fl, err := os.OpenFile(r.p.Flock, os.O_CREATE|os.O_RDWR, 0600)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer fl.Close()
+			if err := syscall.Flock(int(fl.Fd()), syscall.LOCK_EX); err != nil {
+				t.Fatal(err)
+			}
+			defer syscall.Flock(int(fl.Fd()), syscall.LOCK_UN)
+			done := make(chan error, 1)
+			go func() { _, err := r.sync.InspectRegistered(r.p.File); done <- err }()
+			var refusal error
+			blocked := false
+			select {
+			case refusal = <-done:
+			case <-time.After(time.Second):
+				blocked = true
+			}
+			// Release and join even on the old blocking path before failing the test.
+			if err := syscall.Flock(int(fl.Fd()), syscall.LOCK_UN); err != nil {
+				t.Fatal(err)
+			}
+			if blocked {
+				refusal = <-done
+			}
+			if blocked {
+				t.Fatal("registered-only inspection waited for the legacy flock")
+			}
+			if refusal == nil || !strings.Contains(refusal.Error(), "not a registered document") {
+				t.Fatalf("refusal: %v", refusal)
+			}
+		})
 	}
 }

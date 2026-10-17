@@ -67,34 +67,83 @@ var errClipboardUnavailable = errors.New("local clipboard unavailable")
 
 // ClipboardCopyLocal reports success only after a local clipboard tool exits
 // successfully. SSH belongs to the client terminal's clipboard, not this host.
-func (OSRuntime) ClipboardCopyLocal(ctx context.Context, text string) error {
+func (r OSRuntime) ClipboardCopyLocal(ctx context.Context, text string) error {
+	_, err := r.ClipboardCopyLocalResult(ctx, text)
+	return err
+}
+
+// ClipboardCopyLocalResult uses the same executor as legacy callers while
+// retaining successful tool identity for the Console's content-free observer.
+func (OSRuntime) ClipboardCopyLocalResult(ctx context.Context, text string) (ClipboardCopyResult, error) {
 	for _, key := range []string{"SSH_CONNECTION", "SSH_CLIENT", "SSH_TTY"} {
 		if os.Getenv(key) != "" {
-			return errClipboardUnavailable
+			result := ClipboardCopyResult{Metadata: ClipboardCopyMetadata{Status: "remote"}}
+			return result, &ClipboardCopyError{Result: result, Cause: errClipboardUnavailable}
 		}
 	}
-	return copyClipboard(ctx, text)
+	return copyClipboardResult(ctx, text)
 }
 
 func copyClipboard(ctx context.Context, text string) error {
-	if err := ctx.Err(); err != nil {
-		return err
+	_, err := copyClipboardResult(ctx, text)
+	return err
+}
+
+func copyClipboardResult(ctx context.Context, text string) (ClipboardCopyResult, error) {
+	result := ClipboardCopyResult{Metadata: ClipboardCopyMetadata{Status: "unavailable"}}
+	finish := func(err error) (ClipboardCopyResult, error) {
+		if ctx.Err() != nil {
+			result.Metadata.TimedOut = errors.Is(ctx.Err(), context.DeadlineExceeded)
+			result.Metadata.Canceled = errors.Is(ctx.Err(), context.Canceled)
+			if result.Metadata.TimedOut {
+				result.Metadata.Status = "timeout"
+			} else {
+				result.Metadata.Status = "canceled"
+			}
+			err = errors.Join(ctx.Err(), err)
+		}
+		if err != nil {
+			return result, &ClipboardCopyError{Result: result, Cause: err}
+		}
+		return result, nil
+	}
+	if ctx.Err() != nil {
+		return finish(ctx.Err())
 	}
 	for _, t := range copyTools {
 		path, err := exec.LookPath(t.name)
 		if err != nil {
 			continue
 		}
+		result.Metadata.Tool, result.Metadata.Executable = t.name, path
 		cmd := exec.CommandContext(ctx, path, t.args...)
 		cmd.WaitDelay = 100 * time.Millisecond
-		cmd.Stdin = strings.NewReader(text)
+		stdin := strings.NewReader(text)
+		cmd.Stdin = stdin
+		var stderr clipboardStderrSummary
+		cmd.Stderr = &stderr
 		err = cmd.Run()
-		if ctx.Err() != nil {
-			return ctx.Err()
+		stderr.apply(&result)
+		result.Metadata.Started = cmd.Process != nil
+		result.Metadata.Status = "failed"
+		if cmd.ProcessState != nil && cmd.ProcessState.ExitCode() >= 0 {
+			code := cmd.ProcessState.ExitCode()
+			result.Metadata.ExitCode = &code
 		}
-		return err
+		// A successful tool may leave stderr open in a detached child. The
+		// drain cutoff says the diagnostic is incomplete, not that the copy
+		// failed, provided all input reached the tool. Run joins the input
+		// copier before we inspect the reader; finish still enforces ctx.
+		if errors.Is(err, exec.ErrWaitDelay) && stdin.Len() == 0 && cmd.ProcessState != nil && cmd.ProcessState.Success() {
+			result.Metadata.StderrTruncated = true
+			err = nil
+		}
+		if err == nil {
+			result.Metadata.Status = "copied"
+		}
+		return finish(err)
 	}
-	return errClipboardUnavailable
+	return finish(errClipboardUnavailable)
 }
 
 // ClipboardPaste reads the OS clipboard. ok=false only when no clipboard tool is

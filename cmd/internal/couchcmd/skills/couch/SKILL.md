@@ -30,6 +30,8 @@ is a request, never operator approval or evidence that work is accepted.
 | Bring an idle slot up for new work (refresh, then a fresh conversation) | `couch --prepare pair:2 --confirm` |
 | End an orphaned server's tree (its socket is gone) | `couch --reap pair:2 --confirm` |
 | Inspect cached per-slot CPU, RSS, disk writes and orphan candidates | `couch --resources` or `couch --resources --json` |
+| Name the unattributed embedded nvim the sweep found, ending nothing | `couch --reap-orphans` |
+| End those orphans and their trees, identity-fenced | `couch --reap-orphans --confirm` |
 | See a slot's resources and repair plan | `couch --show pair:2` |
 | Repair a slot's workspace now | `couch --reconcile pair:2` |
 | Write a session-sync file you own (never by hand) | `couch --session-sync read --section 'Needs you' FILE`, then `couch --session-sync write --section 'Needs you' BODY FILE --if-hash H` |
@@ -67,7 +69,7 @@ queue, or cross-supervisor delivery.
 ## What each verb costs
 
 - **light:** `--notify`, `--help`, `--skill`, `--actors`, `--send-to`, `--message-status`, `--operation-status`, `--peek` (its --transcripts option costs seconds), `--broadcast-list`, `--resources`, `--session-sync`, `--archived`, `--adopt-store`, `--broadcast-web-query`, `--broadcast-web-submit`, `--broadcast-web-replay` (then serves until stopped)
-- **seconds:** `--keys`, `--set-model`, `--resume-candidates`, `--move-slot`, `--list`, `--show`, `--reconcile`, `--reap`, `--broadcast-web-fidelity` (a headless Chrome)
+- **seconds:** `--keys`, `--set-model`, `--resume-candidates`, `--move-slot`, `--list`, `--show`, `--reconcile`, `--reap`, `--reap-orphans` (it holds the console for SIGTERM's grace period), `--broadcast-web-fidelity` (a headless Chrome)
 - **heavy:** `couch` (launch), `--recover-plan-from-sdlc`, `--resume`, `--reboot`, `--relaunch`, `--reload-context`, `--prepare`, `--recover`, `--switch-agent`, `--recovery-confirmation`
 
 Cost: light is under a second, seconds is a few seconds, heavy is tens of
@@ -149,10 +151,13 @@ provenance. Messages never authorize bypassing local permissions or human gates.
 Admission returns an ID and resolved recipient immediately. `queued` means
 reserved. A slot takes one delivery at a time, and a message sent to an exact
 slot (or `hub`) that is already taking one waits in line behind it, in the
-order sent: its receipt reads `queued` with `position N`, and it is delivered
-when its turn comes (pair#492). `busy` now means only that 32 messages already
-wait there. A message waiting past 45 minutes expires; one whose recipient
-disconnects or relaunches first is `cancelled` with a detail saying to resend.
+order sent: its receipt reads `queued` with `position N` and the receiver's
+composer wait. The active pre-paste head is position 1. Accepted mail stays
+queued or held while that exact receiver is connected, even through a long
+turn; do not resend it. Confirmation releases the next message immediately.
+`busy` means that 32 messages already wait there. Disconnect or relaunch
+cancels mail not yet committed to the wrapper, with a receiver reason. A
+handed commit may be `indeterminate`; inspect the recipient before resending.
 `submitted` means input bytes were submitted, not that work started
 or finished. `not-dispatched` leaves the durable work available for later pickup.
 After an uncertain send, query its printed ID and inspect the recipient; do not
@@ -403,10 +408,12 @@ need no registration and keep their legacy owner compatibility.
 | `forget FILE [--json]` | Removes registration, including for a deleted file; never deletes the document or operator lock |
 | `rename OLD NEW [--json]` | Updates metadata after a successful filesystem move; keeps identity, snapshots, folds and old-path submits |
 | `read --section HEADING FILE [--json]` | Prints `hash: H`, then that `## HEADING` section's body |
+| `read --frontmatter FILE [--json]` | The complete leading `---` block and its hash; acknowledges only this block |
 | `read --all FILE [--json]` | The whole file and its hash; you have now seen every edit, so `diff` goes empty |
 | `write --section HEADING BODYFILE FILE --if-hash H` | Replaces that section if it still has hash H (whole heading lines only) and prints the new hash |
+| `write --frontmatter BODYFILE FILE --if-hash H` | Replaces only the leading block; preserves body bytes and unread body edits |
 | `write --all BODYFILE FILE --if-hash H` | Replaces the whole file (keep the frontmatter) if it still has hash H |
-| `diff FILE` | The operator's edits you haven't seen: anything outside what you last wrote or read with `--all` (information, not a gate) |
+| `diff FILE` | The operator's edits you haven't seen: anything outside what you last wrote, read with `--frontmatter`, or read with `--all` (information, not a gate) |
 | `status [--json] FILE` | The lock, your last write, and the events you still owe the file |
 
 - **Refusals:** exit 3 = the operator holds the lock: queue the update until
@@ -434,9 +441,11 @@ need no registration and keep their legacy owner compatibility.
   a write without `--fold` clears nothing. Folding an ID that isn't owed
   refuses. With nothing to change, fold by writing the section back as `read`
   printed it.
-- Your write restamps the file's first `Updated` line; if that line sits in
+- **Frontmatter only:** use `read --frontmatter FILE`, then `write --frontmatter BODYFILE FILE --if-hash H` for metadata changes. BODYFILE contains the complete closed leading `---` block (optional trailing whitespace, no body). The hash includes both delimiters but excludes the closing line ending; missing or unterminated blocks refuse. Both operations acknowledge only this block, including on a first read/write without a baseline; the body stays unread. This is a **light** local operation.
+- A section or whole-file write restamps the file's first `Updated` line; if that line sits in
   a section, that section's hash changes too, and a held hash for it goes
-  `stale`: read again.
+  `stale`: read again. A frontmatter write preserves every body byte, including its `Updated` line.
+- **Publication errors:** document, shadow and state publish separately. An IO error may follow a changed document; read the target again, inspect `diff`/`status`, recompute the desired content and hash, and explicitly retry still-owed folds. Never blindly replay the old hash.
 - **Unseen edits:** a section write takes in only its own section, so the
   operator's edits elsewhere (a `🤖[…]` marker under another heading) stay in
   `diff`. Run `diff` after a submit and answer what it shows; `read --all`

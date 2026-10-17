@@ -217,6 +217,8 @@ type Console struct {
 	slotGitInterval time.Duration
 	// Idle-fading activity refresh (pair#247); see console_activity.go.
 	activityProbe    ActivityProbe
+	wrapperActivity  func(couchcore.ActionableThreadSummary) time.Time
+	copyObserver     func(CopyObservation)
 	activityRequests chan struct{}
 	activityResults  chan activityResult
 	activitySchedule RefreshSchedule
@@ -1072,6 +1074,7 @@ func (c *Console) teardown(restore func() error) error {
 	err := errors.Join(failure, presenterFailure, cleanupErr)
 	c.mu.Lock()
 	c.exitFailure = err
+	c.menu.CopyFeedback = CopyFeedback{}
 	c.mu.Unlock()
 	if err != nil {
 		fmt.Fprintf(c.errw(), "couch: terminal: %v\n", err)

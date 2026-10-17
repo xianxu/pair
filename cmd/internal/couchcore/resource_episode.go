@@ -15,8 +15,18 @@ type ResourceEffect struct {
 	Value     float64            `json:"value"`
 	Duration  time.Duration      `json:"duration"`
 	Workspace WorkspaceIdentity  `json:"workspace"`
+	// Age and Root are the orphan sweep's evidence: how long the process has
+	// outlived its launcher, and the managed checkout it was found in. Both are
+	// bound when the effect fires and never move afterwards (#583).
+	Age  time.Duration `json:"age,omitempty"`
+	Root string        `json:"root,omitempty"`
 }
 type ResourceDeliveryOutcome string
+
+// ResourceMetricOrphanNvim is the episode metric for the untagged embedded-nvim
+// sweep. It is a constant because the alert body is chosen from it in couchcmd
+// (#583); the other metrics are read only where they are written.
+const ResourceMetricOrphanNvim = "orphan-nvim"
 
 const (
 	ResourceDeliveryAdmitted ResourceDeliveryOutcome = "admitted"

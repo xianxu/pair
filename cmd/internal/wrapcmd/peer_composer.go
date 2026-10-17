@@ -1,6 +1,7 @@
 package wrapcmd
 
 import (
+	"strconv"
 	"strings"
 
 	uv "github.com/charmbracelet/ultraviolet"
@@ -13,6 +14,70 @@ const (
 	PeerComposerOccupied
 	PeerComposerEmpty
 )
+
+// backgroundWorkState is display evidence, independent of composer admission.
+func backgroundWorkState(agent string, s terminalSnapshot) *bool {
+	if agent != "claude" || !s.Complete {
+		return nil
+	}
+	_, bottom, ok := ruledBoxComposerBounds(s, claudeComposerSpec())
+	if !ok {
+		return nil
+	}
+	for y := bottom + 1; y < s.Height; y++ {
+		line := strings.TrimSpace(terminalRowText(s, y))
+		if !strings.HasPrefix(line, "⏵⏵ ") {
+			continue
+		}
+		fields := strings.Split(line, " · ")
+		const permission = "⏵⏵ bypass permissions on"
+		cycle := fields[0] == permission+" (shift+tab to cycle)"
+		if fields[0] != permission && !cycle {
+			return nil
+		}
+		count, seen, manage, pr := 0, false, false, false
+		for i, field := range fields[1:] {
+			// The captured PR link is the first optional field, never an
+			// arbitrary decoration accepted elsewhere in the footer.
+			if number, ok := strings.CutPrefix(field, "PR #"); ok {
+				n, err := strconv.Atoi(number)
+				if i != 0 || len(number) > 9 || err != nil || n <= 0 || strconv.Itoa(n) != number {
+					return nil
+				}
+				pr = true
+				continue
+			}
+			switch field {
+			case "esc to interrupt", "← for agents":
+				continue
+			case "↓ to manage":
+				if manage {
+					return nil
+				}
+				manage = true
+				continue
+			}
+			parts := strings.Fields(field)
+			if seen || len(parts) != 2 || len(parts[0]) > 9 {
+				return nil
+			}
+			n, err := strconv.Atoi(parts[0])
+			if err != nil || n < 0 || strconv.Itoa(n) != parts[0] ||
+				(n == 1 && parts[1] != "shell") || (n != 1 && parts[1] != "shells") {
+				return nil
+			}
+			count, seen = n, true
+		}
+		// Only the complete captured no-shell chrome proves absence. A
+		// missing/partial counter or an unfamiliar field remains unknown.
+		if (seen && !manage) || (!seen && (!cycle || manage || pr)) {
+			return nil
+		}
+		active := count > 0
+		return &active
+	}
+	return nil
+}
 
 func peerComposerState(agent string, s terminalSnapshot) PeerComposerState {
 	text, ok := peerComposerText(agent, s)

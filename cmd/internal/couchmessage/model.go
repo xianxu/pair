@@ -28,17 +28,9 @@ const (
 	// MaxBindingBytes bounds the complete JSON-encoded identity, including escaping.
 	MaxBindingBytes       = 4 * 1024
 	MaxReceiptDetailBytes = 1024
-	// MaxHold bounds how far holds the operator causes (the composer
-	// scrolled out of view, a draft in it) can push the paste-by back
-	// (pair#435). The recipient takes one message at a time, so a pane left
-	// scrolled up blocks other senders for at most this long.
-	MaxHold = 30 * time.Minute
-	// A recipient takes one delivery at a time; messages sent meanwhile wait
-	// behind it in order (pair#492). MaxQueued bounds the line. QueueWait
-	// bounds a wait: past a full hold and its delivery, inside ReceiptLifetime
-	// so the expiry stays readable.
+	// MaxQueued bounds the receiver's waiting line without discarding accepted
+	// messages, which wait while their exact receiver remains connected.
 	MaxQueued = 32
-	QueueWait = 45 * time.Minute
 )
 
 // Binding identifies one wrapper incarnation in one verified checkout. Slot is
@@ -71,11 +63,9 @@ func ValidateBody(body string) error {
 	return nil
 }
 
-// Deadline is the paste-by time: the latest moment the recipient's wrapper may
-// begin the paste. The delivery window (DeliveryTimeout) starts at the paste,
-// so a slot still booting spends PasteTimeout, not the window (pair#427).
-// Time the operator holds the delivery doesn't count against it, up to
-// HoldLimit (pair#435).
+// Deadline bounds the initial reservation/commit exchange. Once committed,
+// a connected receiver retains the message until its composer is ready;
+// DeliveryTimeout starts only when the wrapper writes the paste.
 type Message struct {
 	ID       string
 	From, To Binding
@@ -86,21 +76,13 @@ type Message struct {
 	AcceptedAt time.Time `json:",omitzero"`
 }
 
-// HoldLimit is the latest paste-by that operator holds can reach.
-func (m Message) HoldLimit() time.Time { return m.Deadline.Add(MaxHold) }
-
-// Horizon is the latest a delivery can still be in flight: a paste at the
-// hold limit plus its full window. It is the one outer bound the broker side
-// reads; the wrapper bounds its own paste-by and window.
-func (m Message) Horizon() time.Time { return m.HoldLimit().Add(DeliveryTimeout) }
-
 type Status string
 
 const (
 	Queued     Status = "queued"
 	Delivering Status = "delivering"
-	// Held: not pasted, and the paste-by clock is stopped while the operator
-	// holds it (pair#435); the detail names the hold.
+	// Held is accepted but not pasted; an operator draft, view or picker
+	// blocks it. The detail names the hold without expiring live mail.
 	Held          Status = "held"
 	Submitted     Status = "submitted"
 	Expired       Status = "expired"
@@ -141,8 +123,8 @@ type ActorState struct {
 	refilledAt          time.Time
 	pending             Message
 	phase               Status
-	// queue waits behind pending, oldest first. A queued message's Deadline is
-	// its latest promotion; Promote replaces it with the paste-by.
+	// queue waits behind pending, oldest first. Promote gives the commit
+	// exchange a fresh Deadline without expiring accepted composer waits.
 	queue                      []Message
 	registeredAt, lastActivity time.Time
 }
@@ -163,6 +145,38 @@ func (s ActorState) QueueHead() (Message, bool) {
 }
 func (s ActorState) LastActivity() time.Time { return s.lastActivity }
 func (s ActorState) RegisteredAt() time.Time { return s.registeredAt }
+
+// waitingReceipt projects the full receiver line without changing message or
+// delivery ownership. Position goes first so bounded details cannot omit it.
+func (s ActorState) waitingReceipt(r, head Receipt) Receipt {
+	if r.Status != Queued && r.Status != Held {
+		return r
+	}
+	position, offset := 0, 0
+	if s.pending.ID != "" {
+		offset = 1
+		if s.pending.ID == r.Message.ID {
+			position = 1
+		}
+	}
+	for i, m := range s.queue {
+		if m.ID == r.Message.ID {
+			position = offset + i + 1
+			break
+		}
+	}
+	if position > 0 {
+		detail := r.Detail
+		if s.pending.ID != "" && r.Message.ID != s.pending.ID {
+			detail = head.Detail
+		}
+		if detail == "" || strings.HasPrefix(detail, "position ") {
+			detail = "waiting for recognized composer"
+		}
+		r.Detail = boundedReceiptDetail(fmt.Sprintf("position %d; %s", position, detail))
+	}
+	return r
+}
 
 // RemainingAt is the allowance at now, crediting refills no event has applied.
 func (s ActorState) RemainingAt(now time.Time) int { return s.refill(now).remaining }
@@ -311,14 +325,8 @@ func Advance(s ActorState, e Event) (ActorState, []Effect, error) {
 		return s, effects, nil
 	}
 	if e.Kind == Tick {
-		if s.pending.ID != "" && !e.At.Before(s.pending.Horizon()) {
-			status := Expired
-			if s.phase == Delivering {
-				status = Indeterminate
-			}
-			finish(status, "delivery deadline elapsed")
-		}
-		dequeue(func(m Message) bool { return !e.At.Before(m.Deadline) }, Expired, "waited in the queue past "+QueueWait.String()+"; resend if still needed")
+		// Receiver lifetime owns accepted pre-paste waits. The wrapper owns
+		// the separate, paste-relative confirmation deadline.
 		return s, effects, nil
 	}
 	if !s.connected {
@@ -361,7 +369,6 @@ func Advance(s ActorState, e Event) (ActorState, []Effect, error) {
 			s.remaining--
 		}
 		if busy {
-			m.Deadline = e.At.Add(QueueWait)
 			s.queue = append(slices.Clip(s.queue), m)
 			positions(len(s.queue) - 1)
 			break
@@ -373,9 +380,6 @@ func Advance(s ActorState, e Event) (ActorState, []Effect, error) {
 		head, ok := s.QueueHead()
 		if s.pending.ID != "" || !ok || head.ID != e.Message.ID {
 			return fail(errors.New("promotion is not of the queue's head behind an idle recipient"))
-		}
-		if !e.At.Before(head.Deadline) {
-			return fail(errors.New("queued message expired before promotion"))
 		}
 		s.queue = s.queue[1:]
 		head.Deadline = e.At.Add(PasteTimeout)
@@ -394,10 +398,6 @@ func Advance(s ActorState, e Event) (ActorState, []Effect, error) {
 		if s.pending.ID == "" || e.Message != s.pending {
 			return s, nil, nil
 		}
-		if !e.At.Before(s.pending.Deadline) {
-			finish(Expired, "delivery deadline elapsed")
-			break
-		}
 		if s.phase == Queued {
 			s.phase = Delivering
 			emit(Delivering, "")
@@ -406,7 +406,7 @@ func Advance(s ActorState, e Event) (ActorState, []Effect, error) {
 		if s.pending.ID == "" || e.Message != s.pending || s.phase != Delivering {
 			return s, nil, nil
 		}
-		status := Delivering
+		status := e.Status
 		switch e.Status {
 		case Held:
 			status = Held
@@ -424,10 +424,6 @@ func Advance(s ActorState, e Event) (ActorState, []Effect, error) {
 		}
 		if e.Status == Submitted && s.phase != Delivering {
 			return fail(errors.New("submission requires delivery ownership"))
-		}
-		if !e.At.Before(s.pending.Horizon()) && e.Status == Submitted {
-			finish(Indeterminate, "delivery completion arrived after deadline")
-			break
 		}
 		finish(e.Status, e.Detail)
 	default:

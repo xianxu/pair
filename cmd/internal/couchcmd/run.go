@@ -661,6 +661,10 @@ func runTypedOperationWithConsole(op couchcore.Operation, parsed, prepareArgs ma
 		}
 		return 0
 	}
+	if threads, ok := result.([]couchcore.ThreadSummary); ok && op.Name == "list" {
+		renderThreadRows(stdout, threads, false, listRefusals(rt, couchmessage.Call))
+		return 0
+	}
 	return render(stdout, op, result)
 }
 
@@ -1271,17 +1275,17 @@ func renderSlotReport(w io.Writer, r couchcore.SlotReport) {
 // the panel and advisor. Human names lead named rows; only unnamed rows expose
 // the opaque tag as their fallback label.
 func renderThreads(w io.Writer, threads []couchcore.ThreadSummary) {
-	renderThreadRows(w, threads, false)
+	renderThreadRows(w, threads, false, nil)
 }
 
 // renderThreadDetails keeps the immutable composite address available for
 // diagnostics and exact follow-up operations. List intentionally stays
 // name-first and compact; show is the detail view.
 func renderThreadDetails(w io.Writer, threads []couchcore.ThreadSummary) {
-	renderThreadRows(w, threads, true)
+	renderThreadRows(w, threads, true, nil)
 }
 
-func renderThreadRows(w io.Writer, threads []couchcore.ThreadSummary, includeAddress bool) {
+func renderThreadRows(w io.Writer, threads []couchcore.ThreadSummary, includeAddress bool, refusals map[string]couchmessage.RefusalInfo) {
 	if len(threads) == 0 {
 		fmt.Fprintln(w, "no threads")
 		return
@@ -1320,6 +1324,14 @@ func renderThreadRows(w io.Writer, threads []couchcore.ThreadSummary, includeAdd
 		// to be a local two-case guess over a `Parked` bool, which is how one
 		// store produced two different stories about the same thread.
 		fmt.Fprintf(w, "%s  %s%s\n", open, threadStateText(thread), close)
+		// Keyed by the slot's own reference, not the row label, which gains a
+		// tag tail when labels collide.
+		if thread.Target.Kind == couchcore.ThreadTargetSlot {
+			slot := couchcore.WorkspaceReference{Repo: thread.Target.Slot.Repo, Number: thread.Target.Slot.Number}.String()
+			if reason, refused := refusals[slot]; refused {
+				fmt.Fprintf(w, "  %s\n", receiveStateText(slot, reason))
+			}
+		}
 	}
 }
 
@@ -1413,12 +1425,20 @@ func usageWith(w io.Writer, bindings []couchkeys.Binding) {
 	fmt.Fprintln(w, "             the report again; an uncertain outcome means read it before resending.")
 	verbLine(w, "--actors", "       couch --actors [--json]")
 	verbLine(w, "--resources", "       couch --resources [--json]")
+	verbLine(w, "--reap-orphans", "       couch --reap-orphans [--confirm] [--json]")
+	fmt.Fprintln(w, "             The unattributed embedded nvim --resources named. Without --confirm it")
+	fmt.Fprintln(w, "             re-classifies and lists them, ending nothing. With --confirm it ends each")
+	fmt.Fprintln(w, "             one and its descendants, every signal fenced on the identity the sweep")
+	fmt.Fprintln(w, "             recorded: a pid that moved on or was recycled is skipped, never signalled.")
 	verbLine(w, "--broadcast-list", "       couch --broadcast-list [--json]")
 	fmt.Fprintln(w, "             The running broadcast and its viewer count, and the recordings shared for")
 	fmt.Fprintln(w, "             replay (never a link).")
 	verbLine(w, "--session-sync", "       couch --session-sync register FILE --owner SLOT [--json]")
 	fmt.Fprintln(w, "             lookup FILE | list | forget FILE | rename OLD NEW [--json]")
 	fmt.Fprintln(w, "             read|diff|status|write ... FILE: registered markdown and legacy session files.")
+	verbLine(w, "--session-sync", "       couch --session-sync read --frontmatter FILE [--json]")
+	verbLine(w, "--session-sync", "       couch --session-sync write --frontmatter BODYFILE FILE --if-hash H")
+	fmt.Fprintln(w, "             Read or replace only the leading --- block; body bytes and unread body edits stay intact.")
 	fmt.Fprintln(w, "             CAS writes refuse under the operator lock; after 30 minutes, ping its holder.")
 	fmt.Fprintln(w, "             Registration lasts until forget; rename moves metadata only. See couch --skill.")
 	verbLine(w, "--adopt-store", "       couch --adopt-store <absolute-path> [--pair-data <path>] [--identity-dir <path>]")
@@ -1433,6 +1453,7 @@ func usageWith(w io.Writer, bindings []couchkeys.Binding) {
 	fmt.Fprintln(w, "             --message-file sends the file verbatim (less one trailing newline): write a")
 	fmt.Fprintln(w, "             message containing code or shell syntax with an editor, never quote it.")
 	verbLine(w, "--message-status", "       couch --message-status ID [--json]")
+	fmt.Fprintln(w, "             Full ID or unique prefix of a receipt you sent or received; ambiguous prefixes list full IDs.")
 	verbLine(w, "--notify", "       couch --notify [--title T] MESSAGE")
 	fmt.Fprintln(w, "             Only a live hub notifies (default title: Couch); other slots send to their hub.")
 	fmt.Fprintln(w, "             Slots' OSC 9/777/99 notifications are swallowed, including the hub's; BEL is unchanged.")

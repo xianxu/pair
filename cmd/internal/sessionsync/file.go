@@ -136,6 +136,39 @@ func frontmatter(s, key string) string {
 	return ""
 }
 
+// FrontmatterBody returns the closed leading block, excluding its final line
+// ending. That ending and the remaining bytes belong to the document body.
+func FrontmatterBody(s string) (string, error) {
+	offset := 0
+	for i, line := range strings.SplitAfter(s, "\n") {
+		if i == 0 {
+			if strings.TrimSpace(line) != "---" {
+				break
+			}
+		} else if strings.TrimSpace(line) == "---" {
+			return s[:offset+len(strings.TrimRight(line, "\r\n"))], nil
+		}
+		offset += len(line)
+	}
+	return "", fmt.Errorf("expected a closed leading frontmatter block")
+}
+
+// ReplaceFrontmatter changes only the block; the original body stays verbatim.
+func ReplaceFrontmatter(s, body string) (string, error) {
+	old, err := FrontmatterBody(s)
+	if err != nil {
+		return "", err
+	}
+	next, err := FrontmatterBody(body)
+	if err != nil {
+		return "", err
+	}
+	if strings.TrimSpace(body[len(next):]) != "" {
+		return "", fmt.Errorf("frontmatter payload contains body content")
+	}
+	return next + s[len(old):], nil
+}
+
 var stamp = regexp.MustCompile(`Updated \d{4}-\d\d-\d\d \d\d:\d\d`)
 
 // Restamp rewrites the first "Updated YYYY-MM-DD HH:MM" to at.

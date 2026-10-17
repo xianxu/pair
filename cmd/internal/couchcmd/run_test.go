@@ -945,7 +945,7 @@ func TestRenderThreadRowsDistinguishesParkedFromDetached(t *testing.T) {
 			var buf bytes.Buffer
 			renderThreadRows(&buf, []couchcore.ThreadSummary{{
 				Address: address, WorkingPath: "/repo", Name: "compiler", State: test.state,
-			}}, false)
+			}}, false, nil)
 			out := buf.String()
 			if !strings.Contains(out, test.want) {
 				t.Fatalf("out = %q, want it to mention %q", out, test.want)

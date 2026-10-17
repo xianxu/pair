@@ -50,6 +50,15 @@ func (c *Console) SetActivityProbe(probe ActivityProbe) {
 	c.requestActivity()
 }
 
+// SetWrapperActivity adds the admitted wrapper's in-memory work evidence to
+// the same activity pass. It adds no IO probe or polling schedule.
+func (c *Console) SetWrapperActivity(view func(couchcore.ActionableThreadSummary) time.Time) {
+	c.mu.Lock()
+	c.wrapperActivity = view
+	c.mu.Unlock()
+	c.requestActivity()
+}
+
 // requestActivity never blocks: a queued request covers this one, and one
 // arriving while a pass runs becomes the schedule's single follow-up.
 func (c *Console) requestActivity() {
@@ -79,6 +88,8 @@ func (c *Console) advanceActivity(event RefreshScheduleEvent) {
 		}
 		c.mu.Lock()
 		probe := c.activityProbe
+		wrapper := c.wrapperActivity
+		previous := c.menu.Activity
 		rows := activityProbeRows(menuRows(c.menu))
 		c.mu.Unlock()
 		c.workers.Add(1)
@@ -94,6 +105,17 @@ func (c *Console) advanceActivity(event RefreshScheduleEvent) {
 				at, err := probe(ctx, row)
 				timedOut := ctx.Err() != nil
 				cancel()
+				if wrapper != nil {
+					if work := wrapper(row); !work.IsZero() {
+						if (err != nil || timedOut) && previous[row.Address].After(at) {
+							at = previous[row.Address]
+						}
+						if work.After(at) {
+							at = work
+						}
+						err, timedOut = nil, false
+					}
+				}
 				switch {
 				case err != nil || timedOut:
 					result.failed[row.Address] = true

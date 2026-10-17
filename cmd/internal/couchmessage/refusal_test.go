@@ -2,12 +2,62 @@ package couchmessage
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 )
+
+// Refusal bookkeeping reuses admission's routing snapshot, even when the
+// original lookup times out; it cannot extend the request with another read.
+func TestBrokerRefusalReusesAdmissionFamilies(t *testing.T) {
+	for _, failure := range []string{"recipient", "lookup-timeout", "lookup-cancelled"} {
+		t.Run(failure, func(t *testing.T) {
+			now := time.Now()
+			b := NewBroker(context.Background(), nil, nil)
+			defer b.Close()
+			from, to := brokerBinding("ops:0"), brokerBinding("pair:3")
+			_ = b.Register(from, newFakeEndpoint(now))
+			_ = b.Register(to, &failingObserveEndpoint{FakeDeliveryEndpoint: newFakeEndpoint(now), err: errors.New("recipient check failed")})
+			ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+			defer cancel()
+			var calls atomic.Int32
+			b.SetFamilies(func(ctx context.Context) (map[string]string, error) {
+				if calls.Add(1) != 1 {
+					return map[string]string{"other": "p"}, nil
+				}
+				if failure == "lookup-cancelled" {
+					cancel()
+				}
+				if failure != "recipient" {
+					<-ctx.Done()
+					return nil, ctx.Err()
+				}
+				return map[string]string{"pair": "p"}, nil
+			})
+			_, err := b.Send(ctx, from, "snapshot", Route{Target: "p:3"}, "work")
+			if err == nil {
+				t.Fatal("send unexpectedly admitted")
+			}
+			if got := calls.Load(); got != 1 {
+				t.Errorf("families read %d times; refusal must reuse admission's snapshot", got)
+			}
+			receipt, err := b.Status(from, "snapshot")
+			if err != nil || receipt.Status != Refused {
+				t.Fatalf("refused receipt: %+v %v", receipt, err)
+			}
+			if failure == "recipient" && receipt.Message.To.Slot != to.Slot {
+				t.Fatalf("refusal discarded original routing snapshot: %+v", receipt)
+			}
+			if failure == "lookup-cancelled" && !strings.Contains(receipt.Detail, "cancelled") {
+				t.Fatalf("cancellation reason lost: %+v", receipt)
+			}
+		})
+	}
+}
 
 type failingObserveEndpoint struct {
 	*FakeDeliveryEndpoint
@@ -41,7 +91,7 @@ func TestBrokerRecordsWhyASendWasNotAdmitted(t *testing.T) {
 	if err != nil || r.Status != Refused || !strings.Contains(r.Detail, "zellij liveness is stale") || r.Message.To.Slot != "pair:3" {
 		t.Fatalf("status %+v %v", r, err)
 	}
-	if got := b.LatestRefusals()["pair:3"]; got.Message.ID != "m1" {
+	if got := b.LatestRefusals()["pair:3"]; !strings.Contains(got.Reason, "zellij liveness is stale") {
 		t.Fatalf("latest refusals %+v", b.LatestRefusals())
 	}
 
@@ -97,5 +147,87 @@ func TestBrokerRefusalsAreBoundedAndExpire(t *testing.T) {
 	now = now.Add(RefusalRetention)
 	if _, err := b.Status(from, fmt.Sprintf("r%d", MaxRefusals+4)); err == nil {
 		t.Fatal("a refusal outlived its retention")
+	}
+}
+
+func TestRefusalsRequestTakesNoFields(t *testing.T) {
+	if err := ValidateRequest(Request{Op: "refusals"}); err != nil {
+		t.Fatalf("bare refusals: %v", err)
+	}
+	if err := ValidateRequest(Request{Op: "refusals", Target: "pair:3"}); err == nil {
+		t.Fatal("refusals accepted a field")
+	}
+}
+
+// The refusals op is unauthenticated, so its answer is the canonical slot and
+// the reason only (pair#618 BR-10), and an alias-spelled send is listed under
+// the slot's own name, as --list labels it (BR-13).
+func TestLatestRefusalsAreCanonicalReasonsOnly(t *testing.T) {
+	now := time.Unix(1000, 0)
+	b := NewBroker(context.Background(), func() time.Time { return now }, nil)
+	defer b.Close()
+	b.SetFamilies(func(context.Context) (map[string]string, error) {
+		return map[string]string{"pair": "p", "ops": ""}, nil
+	})
+	from, to := brokerBinding("ops:0"), brokerBinding("pair:3")
+	from.Nonce = "sender-nonce-credential"
+	_ = b.Register(from, newFakeEndpoint(now))
+	_ = b.Register(to, &failingObserveEndpoint{FakeDeliveryEndpoint: newFakeEndpoint(now), err: &RelaunchRequiredError{Cause: errors.New("wrapper does not own the current binding")}})
+
+	if _, err := b.Send(context.Background(), from, "m1", Route{Target: "p:3"}, "secret body text"); err == nil {
+		t.Fatal("send was admitted")
+	}
+	latest := b.LatestRefusals()
+	if got, ok := latest["pair:3"]; !ok || !strings.Contains(got.Reason, "does not own") || got.Class != RefusalRelaunch || len(latest) != 1 {
+		t.Fatalf("latest refusals %#v", latest)
+	}
+	raw, _ := json.Marshal(Response{Code: "ok", Refusals: latest})
+	for _, leak := range []string{"sender-nonce-credential", "secret body text", "session-ops:0"} {
+		if strings.Contains(string(raw), leak) {
+			t.Fatalf("refusals answer leaks %q: %s", leak, raw)
+		}
+	}
+}
+
+func TestBrokerRefusalRetainsRecoveryClass(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		cause error
+		class RefusalClass
+	}{
+		{"ownership reworded", &RelaunchRequiredError{Cause: errors.New("different wrapper owns this launch")}, RefusalRelaunch},
+		{"conversation reworded", &RelaunchRequiredError{Cause: errors.New("native conversation identity replaced")}, RefusalRelaunch},
+		{"registration reworded", &RelaunchRequiredError{Cause: errors.New("ready evidence unavailable")}, RefusalRelaunch},
+		{"listing reworded", &RelaunchRequiredError{Cause: errors.New("terminal absent from verified listing")}, RefusalRelaunch},
+		{"checkout reworded", &RelaunchRequiredError{Cause: errors.New("retained working path missing")}, RefusalRelaunch},
+		{"unclassified old phrase", errors.New("wrapper does not own the current binding"), ""},
+		{"wrapped classification", fmt.Errorf("outer: %w", &RelaunchRequiredError{Cause: errors.New("reworded")}), RefusalRelaunch},
+		{"registration deadline", &RelaunchRequiredError{Cause: fmt.Errorf("ready: %w", context.DeadlineExceeded)}, ""},
+		{"registration cancellation", &RelaunchRequiredError{Cause: fmt.Errorf("ready: %w", context.Canceled)}, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			now := time.Unix(1000, 0)
+			b := NewBroker(context.Background(), func() time.Time { return now }, nil)
+			defer b.Close()
+			from, to := brokerBinding("ops:0"), brokerBinding("pair:3")
+			_ = b.Register(from, newFakeEndpoint(now))
+			_ = b.Register(to, &failingObserveEndpoint{FakeDeliveryEndpoint: newFakeEndpoint(now), err: tc.cause})
+			if _, err := b.Send(context.Background(), from, "refusal-class", Route{Target: "pair:3"}, "private body"); err == nil {
+				t.Fatal("send unexpectedly admitted")
+			}
+			got := b.LatestRefusals()["pair:3"]
+			if got.Class != tc.class || got.Reason != refusalReason(tc.cause) {
+				t.Fatalf("projection=%+v; want class %q and preserved diagnostic", got, tc.class)
+			}
+		})
+	}
+}
+
+func TestRelaunchRequiredErrorPreservesCause(t *testing.T) {
+	cause := errors.New("different wording")
+	err := fmt.Errorf("authority: %w", &RelaunchRequiredError{Cause: cause})
+	var relaunch *RelaunchRequiredError
+	if !errors.Is(err, cause) || !errors.As(err, &relaunch) || relaunch.Error() != cause.Error() {
+		t.Fatalf("classification lost original error: %v", err)
 	}
 }

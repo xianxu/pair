@@ -31,6 +31,22 @@ func (p *proxy) settledNow() bool {
 	return wrapperSettled(peerComposerState(p.agentBasename, p.terminal.Snapshot()), p.turnActive.Load(), p.pickerActive.Load())
 }
 
+type wrapperSettleState struct {
+	Settled        bool
+	BackgroundWork *bool
+}
+
+func (p *proxy) settleState() wrapperSettleState {
+	if p.terminal == nil {
+		return wrapperSettleState{}
+	}
+	snapshot := p.terminal.Snapshot()
+	return wrapperSettleState{
+		Settled:        wrapperSettled(peerComposerState(p.agentBasename, snapshot), p.turnActive.Load(), p.pickerActive.Load()),
+		BackgroundWork: backgroundWorkState(p.agentBasename, snapshot),
+	}
+}
+
 type settleTimer interface{ Stop() bool }
 
 // armSettleLocked (d.mu held) is the ONE entry for every source transition of
@@ -58,6 +74,9 @@ func (d *peerDelivery) armSettleLocked() {
 func (d *peerDelivery) unsettleLocked() bool {
 	changed := d.settled
 	d.settled = false
+	if d.session != nil {
+		d.session.BackgroundWork(nil)
+	}
 	d.armSettleLocked()
 	return changed
 }
@@ -71,17 +90,26 @@ func (d *peerDelivery) settleFired(seq uint64) {
 	pending := d.image || d.inputBuffered || d.replies.inFlight > 0 || d.outputPending > 0
 	probe := d.settleProbe
 	d.mu.Unlock()
-	settled := !pending && probe()
+	state := wrapperSettleState{}
+	if !pending {
+		state = probe()
+	}
 	d.mu.Lock()
-	if seq != d.settleGen || d.settled == settled {
+	if seq != d.settleGen {
 		d.mu.Unlock()
 		return
 	}
-	d.settled = settled
+	changed := d.settled != state.Settled
+	d.settled = state.Settled
 	sink := d.session
-	d.mu.Unlock()
+	// This setter only copies state and wakes the existing sender. Publish
+	// under the source lock so invalidation cannot overtake this generation.
 	if sink != nil {
-		sink.Settle(settled)
+		sink.BackgroundWork(state.BackgroundWork)
+	}
+	d.mu.Unlock()
+	if changed && sink != nil {
+		sink.Settle(state.Settled)
 	}
 }
 

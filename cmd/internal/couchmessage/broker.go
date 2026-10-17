@@ -12,9 +12,8 @@ import (
 
 const AdmissionTimeout = 2 * time.Second
 
-// PasteTimeout bounds admission to paste: the recipient may still be booting
-// or busy. DeliveryTimeout is the window from the paste to its outcome
-// (pair#427); Message.Horizon combines them.
+// PasteTimeout bounds the initial reservation/commit exchange. Accepted
+// composer waits follow receiver lifetime; DeliveryTimeout starts at paste.
 const PasteTimeout = 90 * time.Second
 const DeliveryTimeout = 30 * time.Second
 const MaxActors = 128
@@ -264,11 +263,9 @@ func (b *Broker) disconnectLocked(a *SlotActor) {
 		if !ok || m.From != binding {
 			continue
 		}
+		status := Cancelled
 		if job := b.jobs[m.ID]; job != nil {
 			job.cancel()
-		}
-		status := Cancelled
-		if b.receipts[m.ID].Status == Delivering {
 			status = Indeterminate
 		}
 		_ = b.apply(dest, Event{Kind: DeliveryFinished, Binding: m.To, Message: m, Status: status, Detail: "sender disconnected", At: b.now()})
@@ -392,20 +389,27 @@ func (b *Broker) Status(caller Binding, id string) (Receipt, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.sweep()
+	r, ok := b.statusLocked(caller, id)
+	if !b.caller(caller) || !ok {
+		return Receipt{}, errors.New("receipt unavailable for this actor")
+	}
+	return r, nil
+}
+
+// statusLocked shares receipt visibility and current waiting projections
+// between exact-ID reads and status-prefix resolution.
+func (b *Broker) statusLocked(caller Binding, id string) (Receipt, bool) {
 	r, ok := b.receiptLocked(id)
 	if !ok {
 		if refused, found := b.refusals[id]; found {
 			r, ok = refused.receipt, true
 		}
 	}
-	if !b.caller(caller) || !ok || (r.Message.From != caller && r.Message.To != caller) {
-		return Receipt{}, errors.New("receipt unavailable for this actor")
-	}
-	return r, nil
+	return r, ok && (r.Message.From == caller || r.Message.To == caller)
 }
 
 // ReceiptSnapshot reads the supervisor's retained receipt without a live
-// caller. It performs no endpoint IO and keeps the normal expiry/retention
+// caller. It performs no endpoint IO and keeps the normal terminal receipt retention
 // rules, including when the sender has disconnected. The final bool reports an
 // active delivery callback: disconnection can make its receipt terminal before
 // endpoint accounting finishes. Consumers must retain provenance until it ends.
@@ -417,14 +421,14 @@ func (b *Broker) ReceiptSnapshot(id string) (Receipt, bool, bool) {
 	return r, known, b.jobs[id] != nil
 }
 
-// receiptLocked is every read of a stored receipt. A queued message's expiry
-// is due whether or not the worker is free to apply it, so a read past
-// QueueWait sees it expired (pair#492).
+// receiptLocked adds the current waiting-line position and the receiver's
+// standing composer wait to nonterminal pre-paste receipts.
 func (b *Broker) receiptLocked(id string) (Receipt, bool) {
 	r, ok := b.receipts[id]
-	if a := b.actors[r.Message.To]; ok && a != nil && r.Status == Queued && !b.now().Before(r.Message.Deadline) {
-		_ = b.apply(a, Event{Kind: Tick, At: b.now()})
-		r = b.receipts[id]
+	a := b.actors[r.Message.To]
+	if ok && a != nil {
+		pending, _ := a.state.Pending()
+		r = a.state.waitingReceipt(r, b.receipts[pending.ID])
 	}
 	return r, ok
 }
@@ -564,10 +568,10 @@ func (b *Broker) Send(parent context.Context, from Binding, id string, route Rou
 	pending := &admission{from: from, route: route, body: body, done: make(chan struct{})}
 	b.admissions[id] = pending
 	b.mu.Unlock()
-	receipt, err := b.admit(ctx, from, id, route, body)
+	receipt, families, err := b.admit(ctx, from, id, route, body)
 	b.mu.Lock()
 	if _, stored := b.receipts[id]; err != nil && !stored {
-		err = b.refuseLocked(from, id, route, body, err)
+		err = b.refuseLocked(from, id, route, body, err, families)
 	} else if err == nil {
 		delete(b.refusals, id)
 	}
@@ -577,21 +581,21 @@ func (b *Broker) Send(parent context.Context, from Binding, id string, route Rou
 	b.mu.Unlock()
 	return receipt, err
 }
-func (b *Broker) admit(ctx context.Context, from Binding, id string, route Route, body string) (Receipt, error) {
+func (b *Broker) admit(ctx context.Context, from Binding, id string, route Route, body string) (Receipt, map[string]string, error) {
 	family := !strings.Contains(route.Target, ":")
 	families, err := b.readFamilies(ctx)
 	if err != nil {
-		return Receipt{}, err
+		return Receipt{}, families, err
 	}
 	tried := map[Binding]bool{}
 	for {
 		if err := ctx.Err(); err != nil {
-			return Receipt{}, err
+			return Receipt{}, families, err
 		}
 		b.mu.Lock()
 		if !b.caller(from) {
 			b.mu.Unlock()
-			return Receipt{}, ErrUnavailable
+			return Receipt{}, families, ErrUnavailable
 		}
 		var candidates []Candidate
 		for binding, a := range b.actors {
@@ -614,20 +618,20 @@ func (b *Broker) admit(ctx context.Context, from Binding, id string, route Route
 		to, err := ResolveRecipient(route, candidates, families, b.now(), func(to Binding) bool { return b.eligible(from, to) })
 		if err != nil {
 			b.mu.Unlock()
-			return Receipt{}, err
+			return Receipt{}, families, err
 		}
 		a := b.actors[to]
 		if !family && (a.reservation != "" || len(a.inbox) != 0 || actorCandidate(a, b.now()).Pending) {
 			receipt, err := b.enqueueLocked(a, from, id, route, body)
 			b.mu.Unlock()
-			return receipt, err
+			return receipt, families, err
 		}
 		a.reservation = id
 		seq := a.sequence
 		b.mu.Unlock()
 		receipt, err := b.tryAdmission(ctx, a, seq, from, id, route, body, family)
 		if err == nil {
-			return receipt, nil
+			return receipt, families, nil
 		}
 		b.mu.Lock()
 		a.releaseReservationLocked(id)
@@ -643,12 +647,13 @@ func (b *Broker) admit(ctx context.Context, from Binding, id string, route Route
 			b.mu.Lock()
 			defer b.mu.Unlock()
 			if b.actors[to] != a || !b.caller(to) || !b.caller(from) {
-				return Receipt{}, ErrUnavailable
+				return Receipt{}, families, ErrUnavailable
 			}
-			return b.enqueueLocked(a, from, id, route, body)
+			receipt, err := b.enqueueLocked(a, from, id, route, body)
+			return receipt, families, err
 		}
 		if !family {
-			return Receipt{}, err
+			return Receipt{}, families, err
 		}
 		tried[to] = true
 	}
@@ -703,20 +708,22 @@ func (b *Broker) tryAdmission(ctx context.Context, a *SlotActor, seq uint64, fro
 	b.destinations[id] = route
 	a.reservation = ""
 	a.inbox <- m
-	return b.receipts[id], nil
+	receipt, _ := b.receiptLocked(id)
+	return receipt, nil
 }
 
 // enqueueLocked lines an exact message up behind the recipient's delivery
 // (pair#492) and wakes the worker that promotes it.
 func (b *Broker) enqueueLocked(a *SlotActor, from Binding, id string, route Route, body string) (Receipt, error) {
 	now := b.now()
-	m := Message{ID: id, From: from, To: a.binding, Body: body, Deadline: now.Add(QueueWait), AcceptedAt: now}
+	m := Message{ID: id, From: from, To: a.binding, Body: body, Deadline: now.Add(PasteTimeout), AcceptedAt: now}
 	if err := b.apply(a, Event{Kind: Enqueue, Binding: a.binding, Message: m, At: now}); err != nil {
 		return Receipt{}, err
 	}
 	b.destinations[id] = route
 	a.wakeLocked()
-	return b.receipts[id], nil
+	receipt, _ := b.receiptLocked(id)
+	return receipt, nil
 }
 
 // wakeLocked tells the worker to look at the queue again.
@@ -771,12 +778,15 @@ func (b *Broker) promote(ctx context.Context, a *SlotActor) bool {
 		err = a.endpoint.Reserve(ctx, head.ID, obs.Sequence)
 	}
 	b.mu.Lock()
-	defer b.mu.Unlock()
 	// The worker frees its own attempt without a wake: it schedules its own
-	// retry (PromoteRetry), and a self-wake would spin on the wrapper.
-	if a.reservation == head.ID {
-		a.reservation = ""
-	}
+	// retry (PromoteRetry), and a self-wake would spin on the wrapper. Retain
+	// the reservation through cleanup IO, even while other actors can progress.
+	defer func() {
+		if a.reservation == head.ID {
+			a.reservation = ""
+		}
+		b.mu.Unlock()
+	}()
 	var committed *AlreadyCommittedError
 	if errors.As(err, &committed) {
 		// The wrapper already holds this ID: answer with its outcome.
@@ -797,9 +807,11 @@ func (b *Broker) promote(ctx context.Context, a *SlotActor) bool {
 		err = b.apply(a, Event{Kind: Promote, Binding: a.binding, Message: Message{ID: head.ID}, At: b.now()})
 	}
 	if err != nil {
+		b.mu.Unlock()
 		releaseCtx, cancel := context.WithTimeout(context.Background(), AdmissionTimeout)
 		_ = a.endpoint.Release(releaseCtx, head.ID)
 		cancel()
+		b.mu.Lock()
 		return ctx.Err() == nil
 	}
 	m, _ := a.state.Pending()
@@ -836,18 +848,50 @@ func (b *Broker) recordRecoveredLocked(r Receipt, route Route) Receipt {
 	return r
 }
 
-// StatusContext is Status, plus — for an ID this broker does not remember,
+// StatusContext resolves exact IDs or unique caller-visible receipt prefixes,
+// plus — for an ID this broker does not remember,
 // as after a Couch restart — a query of every connected recipient's retained
 // receipts. A recipient that does not answer makes the result uncertain, not
 // absent. It runs only on this request path, never in the background.
 func (b *Broker) StatusContext(parent context.Context, caller Binding, id string) (Receipt, error) {
-	if r, err := b.Status(caller, id); err == nil {
-		return r, nil
-	}
 	b.mu.Lock()
+	b.sweep()
 	if !b.caller(caller) {
 		b.mu.Unlock()
 		return Receipt{}, ErrUnavailable
+	}
+	if r, ok := b.statusLocked(caller, id); ok {
+		b.mu.Unlock()
+		return r, nil
+	}
+	matches := make(map[string]Receipt)
+	match := func(fullID string) {
+		if strings.HasPrefix(fullID, id) {
+			if r, ok := b.statusLocked(caller, fullID); ok {
+				matches[fullID] = r
+			}
+		}
+	}
+	for fullID := range b.receipts {
+		match(fullID)
+	}
+	for fullID := range b.refusals {
+		match(fullID)
+	}
+	if len(matches) == 1 {
+		for _, r := range matches {
+			b.mu.Unlock()
+			return r, nil
+		}
+	}
+	if len(matches) > 1 {
+		ids := make([]string, 0, len(matches))
+		for fullID := range matches {
+			ids = append(ids, fullID)
+		}
+		sort.Strings(ids)
+		b.mu.Unlock()
+		return Receipt{}, fmt.Errorf("ambiguous message ID prefix %q: %s", id, strings.Join(ids, ", "))
 	}
 	if _, known := b.receipts[id]; known {
 		b.mu.Unlock()
@@ -914,7 +958,7 @@ func (b *Broker) StatusContext(parent context.Context, caller Binding, id string
 		}
 		return Receipt{}, fmt.Errorf("%w: %d connected recipient(s) did not answer for message %s", ErrUncertain, unanswered, id)
 	}
-	return Receipt{}, errors.New("receipt unavailable: no connected recipient retains this message")
+	return Receipt{}, fmt.Errorf("unknown message ID or prefix %q: no matching receipt found", id)
 }
 
 func (b *Broker) runActor(ctx context.Context, a *SlotActor) {
@@ -950,8 +994,8 @@ func (b *Broker) runActor(ctx context.Context, a *SlotActor) {
 
 // deliver runs one delivery to its terminal outcome.
 func (b *Broker) deliver(ctx context.Context, a *SlotActor, m Message) {
-	// The broker's clock dates the horizon; the job's timer is real.
-	deliveryCtx, cancel := context.WithTimeout(ctx, m.Horizon().Sub(b.now())+ReceiptTimeout)
+	// Accepted composer waits end with this exact receiver's lifetime.
+	deliveryCtx, cancel := context.WithCancel(ctx)
 	job := &deliveryJob{cancel: cancel}
 	b.mu.Lock()
 	pending, ok := a.state.Pending()
