@@ -66,3 +66,7 @@ No exact per-hosted-client ingress counter exists in this running binary. Existi
 ### 2026-10-16 — measurement milestone before optimization design
 
 TL direction 9929f33e replaces the proposed capture choreography with permanent M1 ingress diagnostics. Original whole-issue CPU reduction and live consumer acceptance remain owed in M2; M1 does not claim them. One atomic byte increment per Child.ingest call; no per-chunk clock/syscall/worker or raw payload retention. CPU attribution uses the live server sample until a cheap accurate per-client CPU seam is established; wall elapsed time will not be labelled CPU. Full-flow milestone review is used because an explicit M1/M2 sequence lies outside the binary's quick-flow shell; the implementation target remains a small diagnostic diff.
+
+### 2026-10-16 — M1 plan posted; baseline controls pass
+
+Concrete M1 plan 044ec5dc278c07223a413253e32ba445e0a59fa9 sent to hub as 9c72573b-6098-4f22-aa21-833ce60f5e42; submitted confirmed. The message names fresh read-only counter snapshots, server/client identity, explicit wire omissions and omission of misleading/expensive CPU timing. Awaiting response before feature code. Existing authority/projection controls pass: go test ./cmd/internal/ptychild ./cmd/internal/couchcmd -run 'TestEndpointRetainsFrameAndModesAfterDiagnosticRingEviction|TestChildNotificationIsTypedOnceIndependentOfRawRetention|TestResourceProjection' -count=1 (ptychild 0.217s; couchcmd 0.356s). No production/test implementation changes yet.
