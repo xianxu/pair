@@ -125,6 +125,10 @@ TL477ed170 approved one revised fixed-work CPU qualification, conditional on loa
 
 The owned runner25768 exited1 at22:59:28 after its load guard fired: two ingest1 control runs completed at starting load7.9238, then load8.3301 stopped the experiment. No complete ABBA or complete-ingest redraw workload was measured. Partial CPU/log evidence and hashes are appended to the benchmark report; no repeat or acceptance claim. No background runner, queued/running suite, test or merge remains. TL2e95b559's rolling relaunch request is verified; report idle for relaunch before another long wait. Candidate remains held; one permitted revised attempt is incomplete, and any further experimental disposition belongs to TL after relaunch. An initial couch receipt read returned command-not-found transiently; subsequent bare couch lookup and receipt verification succeeded, with no alternative messaging channel or binary rebuild.
 
+### 2026-10-16 23:41 PDT — one rerun authorized; unrelated file preserved
+
+Verified TLc283e6e7: original partial qualification lacked a quiet window; one fresh rerun is authorized under the same guards and shelving rule. Durable plan records the separate runner/hash and fixed-cpu-authorized-rerun output. Owned execution session94823 waits for60s continuously below load8; startup load83.35, no benchmark admitted. Preserve original fixed-cpu-once partial evidence. Poll session/results before starting anything else; no automatic second retry. The relaunch-blocking 10-13 pensive predates this item and is marked unrelated/preserve by saved continuity; authorship unconfirmed, so leave untouched. Hub notified with submitted receipt2d59eda1. Relaunch also waits for #618 M2.
+
 ## Estimate
 
 Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only; calibration is flagged stale by estimate-source, so provisional. Original M1 derivation was1.509h. The following cumulative derivation now includes approved M2 through live acceptance and closure; it is not a remaining-work estimate. M1's original primitives remain unchanged below.
