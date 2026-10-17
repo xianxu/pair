@@ -393,16 +393,24 @@ use bounded Unix stream RPC, without constructing another mutable supervisor.
 `--message-file` (pair#486) reads the body from a file at send time, so an agent writes a message
 containing shell syntax with its editor and the call stays a bare `couch …` its sandbox exempts.
 `--actors` and `--message-status` support JSON. One delivery at a time per
-actor, a FIFO behind it (pair#492: `ActorState.queue`, at most `MaxQueued` = 32,
-each waiting at most `QueueWait` = 45 min), the inbound breaker, and bounded
-receipt retention limit the runtime. An exact send to a busy actor, or one
+actor, a FIFO behind it (pair#492: `ActorState.queue`, at most `MaxQueued` = 32),
+the inbound breaker, and bounded terminal receipt retention limit the runtime.
+Accepted pre-paste mail has no wait horizon while its exact receiver is connected.
+An exact send to a busy actor, or one
 whose wrapper refuses the reservation, is queued (`Enqueue`); the actor's worker
 promotes the head (`Broker.promote`: Observe, Reserve, `Promote` with a fresh
-paste-by) after each delivery, retrying every `PromoteRetry` while the wrapper
-is busy. A departing sender or recipient cancels its queued messages with an
-actionable detail. Family selection requires fresh resting
+commit deadline) after each delivery, retrying every `PromoteRetry` while the wrapper
+is busy. A departing sender or recipient cancels messages not yet committed
+with an actionable detail. A handed commit retains the conservative
+`indeterminate` disconnect outcome: its last pre-paste observation cannot prove
+that no input followed. Family selection requires fresh resting
 branch and quiet-wrapper observations; exact sends allow occupied-slot
 coordination. Quietness is never acceptance of repository work.
+Receipt reads include the standing composer wait and the complete receiver-line
+position (pending pre-paste head = 1). Active receipts survive retention sweeps;
+terminal receipts receive a fresh one-hour retention period. A hung but connected
+receiver therefore retains mail until it returns or disconnects, with no silent
+expiry. Separate receiver workers remain independent.
 
 The bare target `hub` (pair#463, `couchmessage.HubTarget`) is resolved by the
 message service, not the broker: `messageService.hubRecipient` rewrites it to
@@ -602,34 +610,30 @@ complete pending composer must still match Couch's known envelope.
   or exit ends the delivery `indeterminate` (`uncertain: … after the
   paste/submit`). It never ends `expired` or `cancelled` while text may still
   sit in the composer.
-- **The deadline starts at paste.** `Message.Deadline` is the paste-by time:
-  admission plus `PasteTimeout` (90s), which a booting or busy recipient may
-  use up. From the paste, the wrapper bounds submit and confirmation by
-  `DeliveryTimeout` (30s). An expiry names what held each half longest,
-  longest first with seconds (`waiting for empty composer (62s) | …`; at most
-  three, each a second or more), not the check that ran last (pair#438). `Message.Horizon()` (hold limit plus window) is
-  the one outer bound the broker reads, in its model expiry, its job context
-  and the endpoint's receipt wait.
-- **Operator holds stop the clock (pair#435).** While the wrapper waits only
-  because of the operator — a draft in the composer, or the composer scrolled
-  out of view — the paste-by doesn't advance: the held time is added back to
-  `Deadline`, up to `Message.HoldLimit()` (`Deadline + MaxHold`, 30m). The cap
-  bounds how long a scrolled-up pane can keep refusing other senders
-  (`recipient-busy`); reaching it expires with "held past 30m0s, <hold>".
-  Its cost: a recipient wrapper that hangs while still connected now keeps
-  the sender's delivery pending up to the full horizon (about 32m), not 2m.
-  Waits that can't judge the hold (input settling, forwarded input) leave
-  it as it is, so typing a draft doesn't spend the clock.
-  Other waits (paste mode, an unrecognized composer, a booting slot) keep the
-  clock running. A picker that is up before the paste is a hold too
-  (pair#465): the detail is `blocked by a picker: <title>`, where the title
+- **The input deadline starts at paste.** `Message.Deadline` bounds the initial
+  reservation/commit exchange; promotion refreshes it, and each endpoint RPC
+  remains bounded. After commit, accepted mail waits for receiver readiness
+  without a pre-paste deadline in the wrapper, broker model or status poll.
+  From the paste, the wrapper bounds submit and confirmation by
+  `DeliveryTimeout` (30s). A post-paste expiry remains indeterminate and names
+  the standing waits with durations; it never replays the body.
+- **Operator holds retain mail (pair#629).** A draft, scrollback or picker
+  remains `held` with its reason; unknown composer, paste mode or booting waits
+  remain `queued`. No hold-credit clock or 30-minute cap can discard the mail.
+  Pre-paste waits keep only the standing reason; duration history belongs to
+  the bounded post-paste window, so changing picker titles cannot grow a
+  history throughout an indefinite wait.
+  A picker detail is `blocked by a picker: <title>`, where the title
   comes from `couchmessage.ReadPicker` over the wrapper's own tail and is read
   once per picker. The check runs ahead of the transient waits, so a
   repainting picker keeps its reason. The message is delivered when the picker
-  closes, or expires with "held past 30m0s, blocked by a picker: …".
+  closes and the composer is safe.
   While held the wrapper's receipt is `held` with the reason;
   `RemoteEndpoint.Deliver` hands each interim receipt to the broker
   (`DeliveryProgress`), so the sender's `couch` status reads `held` too.
+  Queued and held status polls run at the existing one-second hold cadence;
+  active input confirmation uses the short cadence. This bounds idle wait IO
+  without extending or retrying any input operation.
 
 Receiver profiles exist for Claude Code, Codex CLI and Qoder CLI at any installed version
 (`peerReceiverAgents`; the exact-version allowlist was removed in #360 after

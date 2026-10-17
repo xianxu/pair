@@ -491,7 +491,7 @@ couch --send-to TARGET [--agent NAME] --message-file PATH
                          any form above, the body read verbatim from PATH (less one trailing newline):
                          write a message containing code or shell syntax with an editor, never quote it
 couch --message-status ID [--json]      inspect a message receipt; a send to a busy slot
-                         waits in line, in order (`queued`, `position N`) (pair#492)
+                         waits in order while connected; status names the composer wait and position
 couch --skill            print the bundled agent coordination skill
 couch --adopt-store /absolute/store     preview adoption of an existing store
 ```
@@ -819,7 +819,12 @@ Couch acceptance is separate from these receiver checks.
 
 Admission prints a receipt ID and resolved destination immediately. `queued`
 means a mailbox reservation; `submitted` means bytes submitted, not completed
-work. No eligible family slot returns `not-dispatched` with exit status zero.
+work. A busy, connected receiver retains accepted mail until its composer is
+ready. `--message-status` shows the wait and position in that receiver's line;
+do not resend a queued or held message. Disconnect or relaunch cancels mail
+not yet committed to the wrapper, with a receiver reason. A handed commit may
+be `indeterminate` because input cannot be ruled out. Once pasted, the existing 30-second confirmation window
+still bounds delivery. No eligible family slot returns `not-dispatched` with exit status zero.
 Other refusals return nonzero. If a send times out, query the printed ID with
 `--message-status` and inspect the recipient before sending again. Couch never
 replays an uncertain body or keeps a durable message queue across restart.

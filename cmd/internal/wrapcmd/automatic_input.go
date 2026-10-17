@@ -157,7 +157,7 @@ func (p *proxy) automaticInputAvailable(owner automaticInputPhase) bool {
 		e.composer = peerComposerState(p.agentBasename, s)
 		e.complete = s.Complete && (d.outputPending == 0 || p.terminal.FrameComplete())
 	}
-	e.eligible = !d.exited && !d.interrupted && d.now().Before(d.deadlineLocked()) && p.childAcceptsPaste() && !p.turnActive.Load() && !p.pickerActive.Load() && !d.image && !d.holding && !d.inputBuffered && d.replies.inFlight == 0 && len(d.replies.input) == 0 && (d.lastInput.IsZero() || !d.now().Before(d.lastInput.Add(time.Second)))
+	e.eligible = !d.exited && !d.interrupted && p.childAcceptsPaste() && !p.turnActive.Load() && !p.pickerActive.Load() && !d.image && !d.holding && !d.inputBuffered && d.replies.inFlight == 0 && len(d.replies.input) == 0 && (d.lastInput.IsZero() || !d.now().Before(d.lastInput.Add(time.Second)))
 	return p.applyAutomaticInputEvent(e, snapshot).available
 }
 func (p *proxy) beginAutomaticInput(owner automaticInputPhase) {

@@ -86,7 +86,7 @@ func TestPeerRuntimeBrokerToWrapperSubmitsOnce(t *testing.T) {
 			if code := couchcmd.RunWithRuntime([]string{"--send-to", to.Slot, "--message", "Review pair#353; preserve human acceptance."}, nil, &stdout, &stderr, rt); code != 0 {
 				t.Fatalf("CLI admission %d: %s", code, stderr.String())
 			}
-			fields := strings.Fields(stdout.String())
+			fields := strings.Fields(strings.SplitN(stdout.String(), "\n", 2)[0])
 			if len(fields) != 5 || fields[4] != "queued" {
 				t.Fatalf("CLI did not acknowledge admission: %q", stdout.String())
 			}
@@ -95,7 +95,7 @@ func TestPeerRuntimeBrokerToWrapperSubmitsOnce(t *testing.T) {
 				t.Fatalf("admission %+v %v", accepted, err)
 			}
 			// A second message waits behind the first (pair#492).
-			if second, err := broker.Send(lifetime, from, "runtime-second", couchmessage.Route{Target: to.Slot}, "Another instruction"); err != nil || second.Status != couchmessage.Queued || second.Detail != "position 1" {
+			if second, err := broker.Send(lifetime, from, "runtime-second", couchmessage.Route{Target: to.Slot}, "Another instruction"); err != nil || second.Status != couchmessage.Queued || !strings.HasPrefix(second.Detail, "position 2; ") {
 				t.Fatalf("second message not queued behind the first: %+v %v", second, err)
 			}
 			if !waitFor(t, func() bool { return receiver.receipt().Message.ID == accepted.Message.ID }) {

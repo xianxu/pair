@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 )
 
 // queueOf admits ids to b in order, the first one becoming the delivery and
@@ -34,7 +35,7 @@ func TestAdmitBehindPendingQueuesInOrder(t *testing.T) {
 	if len(fx) != 3 || fx[1].Receipt.Status != Queued || fx[1].Receipt.Detail != "position 1" || fx[2].Receipt.Detail != "position 2" {
 		t.Fatalf("receipts: %+v", fx)
 	}
-	if !fx[1].Receipt.Message.Deadline.Equal(now.Add(QueueWait)) {
+	if !fx[1].Receipt.Message.Deadline.Equal(admitEvent(b, "m2", now).Message.Deadline) {
 		t.Fatalf("queued deadline %v", fx[1].Receipt.Message.Deadline)
 	}
 	// The same message again is a no-op, queued or pending.
@@ -70,19 +71,25 @@ func TestPromoteTakesHeadWithFreshPasteBy(t *testing.T) {
 	}
 }
 
-func TestQueuedMessageExpiresAfterQueueWait(t *testing.T) {
+func TestQueuedMessageSurvivesConnectedWait(t *testing.T) {
 	now := time.Unix(100, 0)
 	b := binding("ops:0")
 	s, _ := queueOf(t, registered(t, b, now), b, now, "m1", "m2")
-	s, fx := advance(t, s, Event{Kind: Tick, At: now.Add(QueueWait)})
-	var expired *Receipt
-	for i := range fx {
-		if fx[i].Receipt.Message.ID == "m2" {
-			expired = &fx[i].Receipt
-		}
+	s, fx := advance(t, s, Event{Kind: Tick, At: now.Add(2 * time.Hour)})
+	if len(fx) != 0 || s.Queued() != 1 {
+		t.Fatalf("connected queue expired: %+v queued %d", fx, s.Queued())
 	}
-	if expired == nil || expired.Status != Expired || !strings.Contains(expired.Detail, "queue") || s.Queued() != 0 {
-		t.Fatalf("expiry: %+v queued %d", fx, s.Queued())
+}
+
+func TestWaitingReceiptKeepsPositionWithinDetailBound(t *testing.T) {
+	now := time.Unix(100, 0)
+	b := binding("ops:0")
+	s, _ := queueOf(t, registered(t, b, now), b, now, "head", "waiting")
+	r := Receipt{Message: s.queue[0], Status: Queued}
+	head := Receipt{Message: mustPending(t, s), Status: Held, Detail: "waiting for empty composer: " + strings.Repeat("界", MaxReceiptDetailBytes)}
+	got := s.waitingReceipt(r, head)
+	if got.Message != r.Message || got.Status != r.Status || len(got.Detail) > MaxReceiptDetailBytes || !utf8.ValidString(got.Detail) || !strings.HasPrefix(got.Detail, "position 2; waiting for empty composer") {
+		t.Fatalf("bounded waiting receipt: %+v", got)
 	}
 }
 
