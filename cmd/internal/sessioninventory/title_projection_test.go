@@ -198,6 +198,8 @@ func TestTitleProjectionAdmissionRejectsSnapshotDrift(t *testing.T) {
 	rt := &titleObservedRuntime{FakeRuntime: fake, transcript: a}
 	// Full proof read is64KiB; the next read initializes the boundary. Mutating
 	// after that read must not pin a snapshot different from the accepted proof.
+	// An append is growth, not mutation (#653): the admission is dropped, not
+	// the title, and the next Poll re-admits from a fresh full proof read.
 	rt.afterRead = func(_, limit int64) {
 		if limit < 64<<10 {
 			fake.AppendFile(a, []byte("{}\n"), "race")
@@ -205,8 +207,15 @@ func TestTitleProjectionAdmissionRejectsSnapshotDrift(t *testing.T) {
 		}
 	}
 	p := sessioninventory.NewTitleProjection(rt, "scope", "work", sessioninventory.AgentCodex, 1)
-	if _, err := p.Poll(); err == nil {
-		t.Fatal("admitted boundary from changed proof snapshot")
+	if _, err := p.Poll(); err != nil {
+		t.Fatalf("append during admission stopped the title: %v", err)
+	}
+	rt.reads = nil
+	if _, err := p.Poll(); err != nil {
+		t.Fatalf("re-admission: %v", err)
+	}
+	if len(rt.reads) == 0 || rt.reads[0].offset != 0 {
+		t.Fatalf("reads after drift=%+v: the drifted snapshot stayed pinned instead of re-admitting", rt.reads)
 	}
 }
 
@@ -515,5 +524,52 @@ func TestTitleProjectionAdmissionPreservesFullValidatorRules(t *testing.T) {
 	}
 	if _, err := sessioninventory.NewTitleProjection(rt, "scope", "work", sessioninventory.AgentCodex, 1).Poll(); err != nil {
 		t.Fatalf("fresh complete admission control: %v", err)
+	}
+}
+
+// An agent appends to its transcript while the title admits or tails it: that
+// is ordinary growth, never authority mutation (#653). Before the fix the
+// first growth stopped the title for good and its count vanished.
+func TestTitleProjectionGrowthNeverStopsTitle(t *testing.T) {
+	usage := func(n int) []byte {
+		return []byte(fmt.Sprintf("{\"type\":\"event_msg\",\"payload\":{\"type\":\"token_count\",\"info\":{\"last_token_usage\":{\"input_tokens\":%d}}}}\n", n))
+	}
+	for _, phase := range []string{"admit", "tail"} {
+		t.Run(phase, func(t *testing.T) {
+			at := time.Now()
+			fake, a, _ := proofBackedCodexFixtureWithGeneration(t, "019d1111-1111-7111-8111-111111111111", &at, "")
+			rt := &titleObservedRuntime{FakeRuntime: fake, transcript: a}
+			p := sessioninventory.NewTitleProjection(rt, "scope", "work", sessioninventory.AgentCodex, 1)
+			growOnce := func(n int) {
+				grown := false
+				rt.afterRead = func(int64, int64) {
+					if !grown {
+						grown = true
+						fake.AppendFile(a, usage(n), sessioninventory.MutationToken(fmt.Sprintf("grow-%d", n)))
+					}
+				}
+			}
+			if phase == "tail" {
+				if _, err := p.Poll(); err != nil {
+					t.Fatal(err)
+				}
+				fake.AppendFile(a, usage(1000), "turn")
+			}
+			growOnce(42000)
+			if _, err := p.Poll(); err != nil {
+				t.Fatalf("growth during %s stopped the title: %v", phase, err)
+			}
+			rt.afterRead = nil
+			for i := 0; i < 2; i++ {
+				got, err := p.Poll()
+				if err != nil {
+					t.Fatalf("poll %d after growth: %v", i, err)
+				}
+				if got.HasUsage && got.Usage.InputTokens == 42000 {
+					return
+				}
+			}
+			t.Fatalf("grown usage never surfaced after %s growth", phase)
+		})
 	}
 }
