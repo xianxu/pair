@@ -79,3 +79,13 @@ Same-receiver messages share composer availability, so shuffling its blocked hea
 - [ ] Stage via sdlc stage --build with hub approval; use a real busy receiver and one queued report, verify receipt while busy and one delivery when it returns. Clear the stage afterward. Do not send unsolicited test work to the hub's live composer.
 - [ ] Run the applicable native receiver conformance and required full suite via sdlc local-check on the pushed head; apply the documented flake rule to unrelated failures.
 - [ ] Close with verification evidence and the binary's mandatory fresh review, open PR, follow the landing line, merge with sdlc merge --yes and report the PR to the hub.
+
+## Revisions
+
+### 2026-10-16 19:02 PDT — TL approval conditions
+
+Approved by ops:0 (receipt 573ccccc-8f55-4d1e-ba4f-e1542c3a0cb6), with these deltas taking precedence over the initial task list:
+
+- Add a status regression for a hung-but-connected receiver: queued/held receipts must name the existing composer wait and queue position. Reuse existing wording; do not add status strings. Include the pending pre-paste head as position 1 when showing the receiver's complete waiting line, and propagate its standing composer wait to followers.
+- Remove the proposed Release-outside-b.mu change and its gated Release regression from #629. The Log has no measurement tying it to the outage window; file it as independent work. The existing per-recipient workers and the no-serial-expiry drain are the queue scope here.
+- Proceed with implementation, post-paste protections and the specified fake busy receiver regression. The next ordinary Couch restart carries the landed change; do not independently restart the hub.

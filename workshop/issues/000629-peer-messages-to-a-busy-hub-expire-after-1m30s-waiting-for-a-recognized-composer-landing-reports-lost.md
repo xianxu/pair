@@ -57,3 +57,10 @@ Measured by pair:2 (18:47): after the restart, 31 hub-bound deliveries were canc
 - Additional isolation bug: broker promotion performs a wrapper Release RPC while holding b.mu, blocking independent recipient admission/status until that RPC returns. Plan covers it with a gated receiver test, as part of the requested queue independence.
 - Initial receipt/queue plan is committed for hub review before code. Reuses existing status strings and stateful fake endpoints; keeps FIFO per receiver, immediate promotion after confirmation, independent receiver workers, and all post-paste input protections. No body batching or unsafe mid-turn input is introduced. No implementation changes made.
 - start-plan reported a nonblocking base catch-up warning: weave refresh rejected --defer-settings; the binary allowed planning on the current checkouts. No peer tools or machine settings changed to work around it.
+- Hub approved the connection-scoped wait plan (receipt 573ccccc-8f55-4d1e-ba4f-e1542c3a0cb6). Required addition: held message status must expose the composer wait and queue position. The Release-under-lock finding is excluded: no retained measurement ties it to the 17:37–18:22 outage. File it independently; do not change that path in #629.
+
+## Revisions
+
+### 2026-10-16 19:02 PDT — approval conditions
+
+The approved design adds composer-wait/position status coverage and defers the separately discovered Release-under-lock contention. The durable plan's Revisions section records the exact delta; no status strings or protocol fields are added.
