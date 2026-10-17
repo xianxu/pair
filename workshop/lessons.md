@@ -2046,3 +2046,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 - #604 BR-1: Deferring a live smoke does not implicitly defer a separately promised diagnostic deliverable. Enumerate the Spec's independent obligations and explicitly reconcile any approved scope reduction across Spec, Plan, Done-when and atlas before claiming completion; keep unknown causes unknown.
 - #604 BR-2: For a changed user-visible action, update its existing README account as well as the atlas. Explain confirmed versus unconfirmed outcomes at the user entry point; internal architecture prose alone does not update the user contract.
+
+- #627 BR-1: Before treating an omitted process row as exit evidence, inspect every native enumeration backend for silently discarded reads. Preserve listed unreadable PIDs as unknown and test actual stat-read/parse failures, then test both initial ownership capture and exit polling; an injected top-level error alone misses lossy enumeration.
