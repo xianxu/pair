@@ -1,12 +1,12 @@
 ---
 id: 000635
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-16
 updated: 2026-10-17
 estimate_hours:
-card_mirror: 'e6b898fb6cef27fc5f2d72ba21985d106b65f265' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '5ae6246dc23ff611909dace55eb3444807803a2c' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-17T06:48:43-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
 flow: {kind: quick, provenance: inferred, spec: "6103592f", done: "1aedc7d1"}
+actual_hours: 1.32
 ---
 
 # couch --message-status with a short ID reports a submitted message as unretained
