@@ -160,7 +160,9 @@ func (c *Couch) attachListedTerminalOnce(ctx, queryCtx context.Context, thread T
 	default:
 	}
 	if exited {
-		err = errors.New("Pair attachment helper exited before attachment completed")
+		// Helper exit adds evidence; it must not erase a failed authority read
+		// and let the independent helper-start retry admit a later observation.
+		err = errors.Join(err, errors.New("Pair attachment helper exited before attachment completed"))
 	}
 	steps.mark("attach-live-check")
 	if err != nil {

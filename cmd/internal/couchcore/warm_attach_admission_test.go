@@ -58,6 +58,31 @@ func TestWarmAdmissionUnknownNeverRetriesIntoAuthority(t *testing.T) {
 	}
 }
 
+func TestWarmAdmissionUnknownSurvivesConcurrentHelperExit(t *testing.T) {
+	env, before, _ := readonlyWarmFixture(t, warmDetachedRecord(t), Live)
+	runner := &retryAttachRunner{Runner: env.Runner}
+	env.Couch.Runner = runner
+	var child string
+	env.Runner.AfterAcknowledge = func(id string) error { child = id; return nil }
+	cause := errors.New("unknown final terminal observation")
+	artifacts := &admissionListedArtifacts{FakeThreadArtifactCollisionChecker: env.Artifacts, read: func(_ context.Context, n int) error {
+		if n == 4 {
+			env.Runner.SetExited(child, 0)
+			return cause
+		}
+		return nil
+	}}
+	env.Couch.Artifacts = artifacts
+	_, _, err := env.Couch.ResumeContext(context.Background(), before.Address)
+	if !errors.Is(err, cause) || runner.attempts != 1 || artifacts.reads != 4 {
+		t.Fatalf("attempts=%d reads=%d err=%v", runner.attempts, artifacts.reads, err)
+	}
+	if len(env.Couch.actorRegistry().Records()) != 0 {
+		t.Fatal("unknown final observation admitted an actor after helper exit")
+	}
+	assertWarmRecordUnchanged(t, env, before)
+}
+
 func TestWarmAdmissionSharesDeadlineWithoutCappingHelperLifetime(t *testing.T) {
 	env, before, _ := readonlyWarmFixture(t, warmDetachedRecord(t), Live)
 	var first time.Time

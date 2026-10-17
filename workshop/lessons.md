@@ -2170,3 +2170,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #647 plan review: a context-aware helper does not bound runtime methods that discard the context. Name the total operation budget and propagate it across all reads and process handoffs. For detached shortcuts, stderr/logging is not visible refusal: identify and test the existing presenter independently of the uncertain transport.
 
 - #647 M1: retain counted process-table fences when adding independent native confirmations; bracket the pair with existing generation checks rather than duplicating a host scan per read. On Darwin, group-signal EPERM can mean an empty group: reuse exact membership evidence and preserve live/unknown failures. A readiness fixture also observes the operation's completion channel so early query refusal fails promptly.
+
+- #647 M1: preserve simultaneous observation and lifecycle errors together. Replacing an authority refusal with a helper-exit error loses its no-retry classification; test the helper exiting inside the failing observation, and assert no second helper or later read is admitted.
