@@ -135,6 +135,11 @@ Durable plan: `workshop/plans/000618-slots-recovered-by-reboot-or-resume-after-a
   in 60 s (1.1/s, same lower-bound polling as BEFORE's 6.1/s), supervisor CPU 14.2 s per 60 s (24%, BEFORE 68%). Both
   numbers also include the operator-approved session cleanup (80 sessions to 24), which cut each listing's cost
   (0.045 s per listing at load 22) but not the call rate. The rate drop is the poller.
+- 2026-10-16 18:47 AFTER, second sample (same Couch): 43 zellij children in 60 s (0.7/s), CPU 24%, load 47 (suites).
+  Admission, from supervision.jsonl `hub_delivery` outcomes: the previous build's generation had 3 uncertain of 124 in
+  2.6 h; this one has 0 uncertain of 37 in 1.2 h. Its 31 expired deliveries are pair#629's shape, not admission: one
+  expiry exactly every 90 s from 17:37 to 18:22, from 11 senders, the hub wrapper holding its queue head for the whole
+  composer wait each time.
 
 ## Revisions
 
