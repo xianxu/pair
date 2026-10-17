@@ -40,7 +40,7 @@ Make the park live fixture preserve unknown query results and count actual clien
 
 - [x] Add stateful disposable CLI regressions for empty/whitespace/error baselines, header-only zero, real client rows, and refusal before helper startup.
 - [x] Expose the existing canonical one-query ClientCountContext boundary and route every park counter call through it (ARCH-DRY); preserve production parsing, deadlines and query count.
-- [ ] Run targeted and recorded full-suite checks; coordinate any native acceptance with #640's diagnostic owner.
+- [x] Run targeted and recorded full-suite checks; coordinate any native acceptance with #640's diagnostic owner.
 
 ## Log
 
@@ -68,6 +68,10 @@ Authenticated TL a7364b43 approves landing on recorded suite plus SHIP and defer
 Owner/coordinator: TL with pair:1's #640 diagnostic window. After the native slot is released and the shared trigger is classified, run the real park conformance against the landed counter adapter and record the exact build/environment/result. This is a deferred acceptance obligation, not a pre-landing gate (TL a7364b43); it does not justify retries or relaxing any native failure.
 
 Existing recovery ownership/deadline and explicit-empty terminal-fixture controls also pass5.421s. git diff --check is clean. The adapter and source rename introduce no new production file or durable artifact family.
+
+### 2026-10-17 — Recorded suite
+
+The first recorded suite on pushed implementation head d2219c429adbad8b35855f36f26ae73e6aa64cf0 passed (exit0, 10m33s), including couchcore271.562s, launcher36.029s and wrapper50.705s. No rerun was needed. Log: /Users/xianxu/workspace/pair/.git/sdlc/local-checks/d2219c429adbad8b35855f36f26ae73e6aa64cf0/suite.log; SHA256 16a2e6257c28eff93bbd201862083e7a5441ac2e3ebe4e08ad607f783fb9b612. The native park check remains explicitly deferred under TL a7364b43, coordinated with #640; no live acceptance is claimed.
 
 ## Revisions
 
