@@ -1,6 +1,6 @@
 ---
 id: 000620
-status: codecomplete
+status: done
 created: 2026-10-16
 updated: 2026-10-17
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 12d613dad701c542e87572a66425d5ddebd84f05
         evidence_commit: 6ccce44bac60ac3170c8de88241b8b7f31094e00
+        landed_commit: aacb2f315f801d0860d0c3112b21fbcd753177c8
 ---
 
 # Review branch restore intermittently misses landed acknowledgment
