@@ -72,6 +72,12 @@ First recorded suite on 5645fb1ddbc79dbd3b6de61706fe6d145ebe99a6 waited 2421s, t
 
 The fixture now mirrors root Makefile's optional workflow include: use the actual base scanner when available, remain valid in a source archive where no scanner exists. An explicit sentinel contract check remains mandatory in both layouts. Both complete fixture layouts pass (woven checkout and temporary source archive). Added a durable nested archive regression; all eight tests pass. The next recorded run completes the full suite on the corrected test head; production code is unchanged by this correction.
 
+### 2026-10-16 — derived environment-knob fixture interaction, fixed
+
+The corrected recorded run on 4b618c0c5e7b8694b50f1544c06754eebd3a14b9 acquired after 3923s. Atomic-build's eight tests passed in the archive, and the shell/editor checks passed through review-producer-context. At 4m33s the suite stopped on test-make-env: the new fixture's command-line PAIR_GO_SRCS override was discovered as a test-only environment knob, but Make's internal source-list assignment does not accept environment precedence. Failed log /Users/xianxu/workspace/pair/.git/sdlc/test-stats/failed/7f097566671506a33b7149191165d962.log, SHA256 prefix b6c720d68077. This interaction is introduced here, not an unrelated flake; Go's full package sweep had not run yet.
+
+Removed the fixture's internal-variable override. Its private Makefile now supplies a no-op default recipe for omitted fake-compiler source prerequisites, leaving the real production source-list contract intact. All eight atomic tests pass, and both real outer-Make variants of make-test-env pass (247 derived knobs preserved). No production change or environment-scan exemption was needed. A fresh recorded full run remains required before close.
+
 ## Revisions
 
 ### 2026-10-16 — bounded writer diagnosis approved

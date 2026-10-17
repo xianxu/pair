@@ -27,6 +27,11 @@ class AtomicBuildTest(unittest.TestCase):
             directory.mkdir()
         for name in ('Makefile', 'Makefile.local'):
             shutil.copyfile(ROOT / name, self.tree / name)
+        # The fake compiler needs no real source tree. Satisfy omitted source
+        # prerequisites locally instead of overriding a private Make variable
+        # (which the environment-knob inventory would mistake for an env knob).
+        with (self.tree / 'Makefile').open('a') as makefile:
+            makefile.write('\n.DEFAULT:\n\t@:\n')
         # Woven dependency links are absent in source archives; root Makefile
         # uses an optional include too. Exercise the actual scanner when present.
         workflow = ROOT / 'Makefile.workflow'
@@ -81,7 +86,7 @@ out.write_bytes(b'#!/bin/sh\\nprintf "new\\\\n"\\n');out.chmod(0o755)
                         PAIR_HOME=str(self.foreign), PAIR_DEV='1', GOFLAGS='')
 
     def make(self, *goals, **flags):
-        return subprocess.Popen(['make', '-B', *goals, 'PAIR_GO_SRCS=', 'GOFLAGS='],
+        return subprocess.Popen(['make', '-B', *goals, 'GOFLAGS='],
                                 cwd=self.tree, env=dict(self.env, **flags),
                                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                 start_new_session=True)
