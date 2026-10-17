@@ -43,7 +43,7 @@ Diagnose worker progress and deadline attribution in this fixture under normal p
 - [x] Measure cold probe progress and CPU attribution; retain historical failure as unproven beyond available evidence.
 - [x] Add deterministic search-work regressions through the shared framer's delimiter-search seam, with long records, chunk boundaries, tails, offsets, early stops and limits.
 - [x] Make the existing shared framer search only appended bytes after a newline-free prefix (ARCH-DRY/ARCH-PURE); preserve all consumers and the existing 30s, twenty-owner workload and cold/warm accounting.
-- [ ] Verify targeted packages, record a full suite on the pushed head, close review, and land.
+- [x] Verify targeted packages and record a full suite on the pushed head.
 
 
 ## Log
@@ -65,3 +65,11 @@ TL approved the exact quick plan (authenticated receipt793e6b6f); automatic pack
 Added per-probe elapsed/availability/context and generation-completion diagnostics to the existing UI invariant, preserving20 owners,30MB each,30s guard,2s production probe deadline and all read/decode assertions. A Go overlay restored only the original repeated-prefix search for the BEFORE measurement, without mutating the checkout. Both before/after completed120 probe calls across six generations with no context failures. Cold generation5.558s before vs2.969s after; mutation264ms vs139ms; unchanged generations approximately2ms. CPU samples at delimiter search450ms before vs40ms after. Total test6.07s vs3.40s. These wall/CPU samples include host and filesystem variability; deterministic searched-byte counts are the performance regression oracle, not a promised elapsed-time ratio. Metadata validation remains unchanged.
 
 Retained diagnostics: /tmp/pair626-progress-before.log (SHA25650b582e105199fadb7b112b9083cefe1029ba3b99da29d85d3d05ef739d670d0), /tmp/pair626-progress-after.log (SHA2560699efa4aca354453f327bcc107f9fc76436a1d8cf436304c128f5806d20f35d), corresponding .cpu files and .test executables. The original historical timeout cannot be replayed exactly from retained evidence: no original per-row trace or failed-run profile exists here. We demonstrate and remove quadratic cold framing work rather than claim a proven historical scheduler stall. Shared-reader consumers use the same corrected function; FrameJSONLSuffix is a separate pure suffix API and has no per-read chunk loop. No timeouts, retry policies or cache authority changed.
+
+### 2026-10-17 — Required suite
+
+Recorded full suite on pushed31bc02234c023efaa3eaea609cb7bf1fb4429c24 passed first attempt,11m40s, sdlc-local/suite. Log: /Users/xianxu/workspace/pair/.git/sdlc/local-checks/31bc02234c023efaa3eaea609cb7bf1fb4429c24/suite.log; SHA256 658ad9099da7d0e52c07bdb7022d4dfbf5d93ea895385a49ee97cec5b9695afb. Full couchtty43.308s, sessioninventory7.377s, couchcore275.874s, wrapcmd49.507s; shell/editor integration passed. Separately, direct full couchtty passed35.403s. No retry, timeout increase, exclusion or production cache-authority change. Close review and landing are the next workflow checkpoints, not assertions already completed.
+
+## Revisions
+
+- 2026-10-17: Clarified the final Plan checkbox to cover verification only; close review and landing remain subsequent gated workflow actions. No behavior, scope or Done-when change.
