@@ -2109,3 +2109,6 @@ and external temporary roots rather than relying on the host's TMPDIR.
   independent display activity is designed; do not overload the admission flag
   to make a busy visual look right.
 - **A new help source changes old documentation claims (#619).** When adding companion-editor metadata to a source-derived help catalog, update the README shortcut table and search for universal claims such as "every row comes from its implementing keymap". Qualify the source boundary as well as listing the feature; atlas coverage alone does not keep the user-facing contract accurate.
+
+- #632 BR-1: Absence of a recognized token is not evidence of absence. For nullable native observations, validate the entire captured grammar before returning known-none; test arbitrary prefixed text, partial tokens and unknown trailing fields as unknown, alongside recorded positive and complete negative controls.
+- #632 BR-2: Reusing an existing test does not modify its artifact. Reconcile each Core concepts status against the actual name-status diff before close; list unchanged fixtures as reused validation outside the changed-entity inventory.

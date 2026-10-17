@@ -193,13 +193,45 @@ func TestBackgroundWorkQualifiedFooterGrammar(t *testing.T) {
 		{"x shell · ↓ to manage", "unknown"},
 		{"1 shell", "unknown"},
 		{"1 shell · 2 shells · ↓ to manage", "unknown"},
-		{"(shift+tab to cycle) · ← for agents", "none"},
 	} {
 		t.Run(tc.field, func(t *testing.T) {
 			s := cloneTerminalSnapshot(base)
 			backgroundRow(&s, bottom+1, "  ⏵⏵ bypass permissions on · "+tc.field)
 			if got := backgroundName(backgroundWorkState("claude", s)); got != tc.want {
 				t.Fatalf("footer %q = %s, want %s", tc.field, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestBackgroundWorkRecordedNoShellFooter(t *testing.T) {
+	for _, name := range []string{"permission-autodenied", "turn-empty", "turn-paste", "turn-queued"} {
+		if got := backgroundName(backgroundWorkState("claude", backgroundSnapshot(t, name))); got != "none" {
+			t.Fatalf("recorded %s footer = %s, want none", name, got)
+		}
+	}
+}
+
+func TestBackgroundWorkUnqualifiedFooterStaysUnknown(t *testing.T) {
+	base := backgroundSnapshot(t, "permission-autodenied")
+	_, bottom, _ := ruledBoxComposerBounds(base, claudeComposerSpec())
+	for _, footer := range []string{
+		"⏵⏵ garbage",
+		"⏵⏵ garbage · 1 shell · ↓ to manage",
+		"⏵⏵ bypass permissions on",
+		"⏵⏵ bypass permissions on · 1 she",
+		"⏵⏵ bypass permissions on (shift+tab to cycle) · 1 she",
+		"⏵⏵ bypass permissions on (shift+tab to cycle) · 1",
+		"⏵⏵ bypass permissions on (shift+tab to cycle) · garbage",
+		"⏵⏵ bypass permissions on (shift+tab to cycle) · ↓ to manage",
+		"⏵⏵ bypass permissions on · 1 shell · ↓ to manage · garbage",
+		"⏵⏵ bypass permissions on · 1 shell · ↓ to manage · ↓ to manage",
+	} {
+		t.Run(footer, func(t *testing.T) {
+			s := cloneTerminalSnapshot(base)
+			backgroundRow(&s, bottom+1, footer)
+			if got := backgroundWorkState("claude", s); got != nil {
+				t.Fatalf("unqualified footer %q = %s, want unknown", footer, backgroundName(got))
 			}
 		})
 	}

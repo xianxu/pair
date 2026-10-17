@@ -30,11 +30,21 @@ func backgroundWorkState(agent string, s terminalSnapshot) *bool {
 			continue
 		}
 		fields := strings.Split(line, " · ")
+		const permission = "⏵⏵ bypass permissions on"
+		cycle := fields[0] == permission+" (shift+tab to cycle)"
+		if fields[0] != permission && !cycle {
+			return nil
+		}
 		count, seen, manage := 0, false, false
 		for _, field := range fields[1:] {
-			field = strings.TrimSpace(field)
-			manage = manage || field == "↓ to manage"
-			if !strings.Contains(field, "shell") {
+			switch field {
+			case "esc to interrupt", "← for agents":
+				continue
+			case "↓ to manage":
+				if manage {
+					return nil
+				}
+				manage = true
 				continue
 			}
 			parts := strings.Fields(field)
@@ -48,7 +58,9 @@ func backgroundWorkState(agent string, s terminalSnapshot) *bool {
 			}
 			count, seen = n, true
 		}
-		if seen && !manage {
+		// Only the complete captured no-shell chrome proves absence. A
+		// missing/partial counter or an unfamiliar field remains unknown.
+		if (seen && !manage) || (!seen && (!cycle || manage)) {
 			return nil
 		}
 		active := count > 0

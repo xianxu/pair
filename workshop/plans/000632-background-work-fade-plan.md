@@ -46,7 +46,6 @@ The registry remains the single reducer for session work evidence. Background ev
 | Existing settle callback and generation fence | `cmd/internal/wrapcmd/peer_settle.go`, `peer_runtime.go`, `peer_delivery.go` | modified | current terminal model and existing timer |
 | SessionClient/server transport | `cmd/internal/couchmessage/session_transport.go` | modified | existing authenticated connection and coalescing |
 | Admitted wrapper activity | `cmd/internal/couchcmd/message_service.go` | modified | existing atomic SlotLiveness snapshot |
-| Console activity tests | `cmd/internal/couchtty/console_activity_test.go` | modified | existing host, activity pass, injected clock |
 
 Use recorded VT replay/stateful terminal model, real Unix session fixtures and the existing waitRig/Console fixtures. No new external binary dependency or new subprocess fixture is needed. Any necessary Pair subprocess must use `testpair.Environment`.
 
@@ -109,3 +108,9 @@ Plan-quality accepted the design but required function-level testing strategies.
 ### 2026-10-16 — implementation mapping and checklist clarification
 
 The combined runtime observation is implemented as proxy.settleState returning wrapperSettleState from one Snapshot, rather than allocating another snapshot in a separate backgroundWorkNow method; the pure backgroundWorkState boundary and existing admission rule are unchanged. Tests use the existing Console activity integration because the Console source merger did not change; new registry/client/service tests verify the typed background evidence reaching that merger. Pre-close issue checklist distinguishes recorded verification from subsequent SDLC review/landing, and keeps live acceptance explicitly post-landing under TL approval. No new state semantics, native scope, probe, timer or rollout action.
+
+### 2026-10-17 — close review corrections (BR-1, BR-2)
+
+BR-1 preserves the existing unknown-evidence contract: footer classification now validates the captured permission field and every dot-separated field, rather than treating absent shell substrings as proof of no work. Known-none requires the complete captured no-shell permission/cycle chrome (or an explicit valid zero counter plus management chrome); truncated counters, unknown fields and unqualified prefixes remain unknown. Native positive and no-shell fixtures remain the controls. No new state, scope or mechanism.
+
+BR-2 reconciles the Core concepts inventory: removed unchanged console_activity_test.go from the changed Integration points table. Its existing real Console/host activity-pass tests are reused validation, with new registry/client/service tests exercising the new evidence up to that unchanged boundary. It is not a modified artifact in this issue's diff.
