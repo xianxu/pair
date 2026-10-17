@@ -144,14 +144,9 @@ type couchSessionOwnerRuntime interface {
 // verifyCouchSessionAttach accepts only an exact positive live listing. Owner
 // metadata belongs to cold creation and retirement, not Continue authorization.
 func verifyCouchSessionAttach(rt Runtime, intent CouchSessionIntent) error {
-	var sessions []Session
-	var err error
-	for attempt := 0; attempt < 2; attempt++ {
-		sessions, err = rt.SessionLiveness()
-		if err == nil {
-			break
-		}
-	}
+	// An unknown observation ends this admission. A later valid reply cannot
+	// replace it; distinct attach boundaries still make their own fresh check.
+	sessions, err := rt.SessionLiveness()
 	if err != nil {
 		return fmt.Errorf("query zellij sessions: %w", err)
 	}

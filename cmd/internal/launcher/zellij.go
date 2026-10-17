@@ -84,15 +84,18 @@ func (s ZellijSource) snapshot(ctx context.Context, ask, keep func(name string) 
 	if err != nil {
 		return nil, err
 	}
-	exited := exitedSessions(string(raw))
+	states, err := sessionListingStates(raw)
+	if err != nil {
+		return nil, err
+	}
 	var out []Session
-	for _, name := range lines(string(short)) {
+	for _, name := range shortSessionNames(short) {
 		if !isPairSessionName(name) || !keep(name) {
 			continue
 		}
 		var state SessionState
 		switch {
-		case exited[name]:
+		case states[name]:
 			state = SessionExited
 		case !ask(name):
 			state = SessionLive
@@ -119,10 +122,7 @@ func (s ZellijSource) listings(ctx context.Context) (short, raw []byte, err erro
 		if err != nil {
 			return nil, nil, err
 		}
-		if err = validateSessionListing(short, true); err != nil {
-			return nil, nil, err
-		}
-		if err = validateSessionListing(raw, false); err != nil {
+		if err = validateSessionListingAgreement(short, raw); err != nil {
 			return nil, nil, err
 		}
 		return short, raw, nil
@@ -136,7 +136,7 @@ func (s ZellijSource) listings(ctx context.Context) (short, raw []byte, err erro
 	if raw, err = s.runContext(ctx, "list-sessions", "--no-formatting"); err != nil {
 		return nil, nil, err
 	}
-	if err = validateSessionListing(raw, false); err != nil {
+	if err = validateSessionListingAgreement(short, raw); err != nil {
 		return nil, nil, err
 	}
 	return short, raw, nil
@@ -239,20 +239,6 @@ func (s ZellijSource) runContext(ctx context.Context, args ...string) (output []
 		return nil, fmt.Errorf("zellij %s: %w", strings.Join(args, " "), ErrZellijNoReply)
 	}
 	return stdout.Bytes(), nil
-}
-
-func exitedSessions(raw string) map[string]bool {
-	out := map[string]bool{}
-	for _, line := range lines(raw) {
-		fields := strings.Fields(line)
-		if len(fields) == 0 {
-			continue
-		}
-		if strings.Contains(line, "EXITED") {
-			out[fields[0]] = true
-		}
-	}
-	return out
 }
 
 func lines(s string) []string {

@@ -7,7 +7,6 @@ import (
 
 	"errors"
 	"fmt"
-	"github.com/xianxu/pair/cmd/internal/zellijsession"
 	"os"
 
 	"github.com/xianxu/pair/cmd/internal/procutil"
@@ -169,11 +168,8 @@ func (osSessionOwnerIO) SessionPresent(ctx context.Context, name string) (bool, 
 	if err != nil {
 		return false, err
 	}
-	if err := validateSessionListing(raw, false); err != nil {
-		return false, err
-	}
-	present, exited := zellijsession.RowState(string(raw), name)
-	return present && !exited, nil
+	present, exited, err := sessionListingState(raw, name)
+	return present && !exited, err
 }
 func (osSessionOwnerIO) Socket(path string) SocketState {
 	return ObserveSocket(os.Lstat(path))

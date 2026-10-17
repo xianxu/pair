@@ -154,7 +154,7 @@ func TestZellijSourceClassifiesSessions(t *testing.T) {
 printf '%s\n' "$*" >> "` + log + `"
 case "$*" in
   "list-sessions --short") printf 'pair-live\npair-detached\npair-gone\nother\n' ;;
-  "list-sessions --no-formatting") printf 'pair-live [Created 1s ago]\npair-detached [Created 1s ago]\npair-gone [Created 1s ago] (EXITED - attach to resurrect)\n' ;;
+  "list-sessions --no-formatting") printf 'pair-live [Created 1s ago]\npair-detached [Created 1s ago]\npair-gone [Created 1s ago] (EXITED - attach to resurrect)\nother [Created 1s ago]\n' ;;
   "--session pair-live action list-clients") printf 'CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\n1 terminal_0 sh\n' ;;
   "--session pair-detached action list-clients") printf 'CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\n' ;;
   *) exit 1 ;;

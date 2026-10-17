@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/xianxu/pair/cmd/internal/storagegc"
-	"github.com/xianxu/pair/cmd/internal/zellijsession"
 	"golang.org/x/sys/unix"
 	"io"
 	"os"
@@ -123,10 +122,10 @@ func (r OSRuntime) SessionBlocksReuse(session string) bool {
 	if err != nil {
 		return true
 	}
-	if validateSessionListing(raw, false) != nil {
+	present, _, err := sessionListingState(raw, session)
+	if err != nil {
 		return true
 	}
-	present, _ := zellijsession.RowState(string(raw), session)
 	// A saved layout remains evidence. Reuse never deletes it implicitly;
 	// legacy recovery creates a new terminal name after resolving ownership.
 	if present {

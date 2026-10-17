@@ -66,3 +66,63 @@ func validateSessionListing(raw []byte, short bool) error {
 	}
 	return nil
 }
+
+// sessionListingStates derives exact identity and state only after validating
+// the complete full reply. Session names are opaque; neither whitespace nor
+// EXITED within a name is metadata.
+func sessionListingStates(raw []byte) (map[string]bool, error) {
+	if err := validateSessionListing(raw, false); err != nil {
+		return nil, err
+	}
+	states := make(map[string]bool)
+	if len(raw) == 0 {
+		return states, nil
+	}
+	for _, row := range strings.Split(strings.TrimSuffix(string(raw), "\n"), "\n") {
+		delimiter := strings.LastIndex(row, " [Created ")
+		states[row[:delimiter]] = strings.HasSuffix(row[delimiter:], " (EXITED - attach to resurrect)")
+	}
+	return states, nil
+}
+
+// validateSessionListingAgreement refuses a missing, additional or replaced
+// identity before callers project any authority from a listing pair. The two
+// formats must describe the same set; row order and elapsed creation age do not
+// decide liveness. No new read can repair a contradiction within this request.
+func validateSessionListingAgreement(short, raw []byte) error {
+	if err := validateSessionListing(short, true); err != nil {
+		return err
+	}
+	states, err := sessionListingStates(raw)
+	if err != nil {
+		return err
+	}
+	names := shortSessionNames(short)
+	if len(names) != len(states) {
+		return fmt.Errorf("session listing observations disagree")
+	}
+	for _, name := range names {
+		if _, present := states[name]; !present {
+			return fmt.Errorf("session listing observations disagree")
+		}
+	}
+	return nil
+}
+
+// shortSessionNames is used only after listing validation. Preserve native row
+// order and exact names rather than trimming them into another identity.
+func shortSessionNames(raw []byte) []string {
+	if len(raw) == 0 {
+		return nil
+	}
+	return strings.Split(strings.TrimSuffix(string(raw), "\n"), "\n")
+}
+
+func sessionListingState(raw []byte, name string) (present, exited bool, err error) {
+	states, err := sessionListingStates(raw)
+	if err != nil {
+		return false, false, err
+	}
+	exited, present = states[name]
+	return present, exited, nil
+}

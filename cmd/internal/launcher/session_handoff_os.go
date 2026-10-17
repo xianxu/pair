@@ -15,7 +15,6 @@ import (
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/osfs"
 	"github.com/xianxu/pair/cmd/internal/readiness"
-	"github.com/xianxu/pair/cmd/internal/zellijsession"
 )
 
 func terminalLaunchArgs(session, config, layout string, create bool) []string {
@@ -215,10 +214,10 @@ func requireListedLiveTerminal(ctx context.Context, name string, query func(cont
 	if err != nil {
 		return fmt.Errorf("cannot attach terminal: %w", err)
 	}
-	if err := validateSessionListing(raw, false); err != nil {
+	present, exited, err := sessionListingState(raw, name)
+	if err != nil {
 		return fmt.Errorf("cannot attach terminal: %w", err)
 	}
-	present, exited := zellijsession.RowState(string(raw), name)
 	if !present || exited {
 		return fmt.Errorf("terminal %q is not listed live", name)
 	}

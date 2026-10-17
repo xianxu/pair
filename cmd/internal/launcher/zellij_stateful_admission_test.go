@@ -1,11 +1,81 @@
 package launcher
 
 import (
+	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/xianxu/pair/cmd/internal/zellijtest"
 )
+
+func TestSessionListingAgreementRefusesContradictoryNativeReplies(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		ordinal int
+		reply   string
+	}{
+		{"full replaces selected session", 2, "pair-b [Created 1s ago]\n"},
+		{"short replaces selected session", 1, "pair-b\n"},
+		{"full adds another session", 2, "pair-a [Created 1s ago]\npair-b [Created 1s ago]\n"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := installAdmissionFixture(t)
+			f.SetModel(ownerFixtureModel("pair term"))
+			f.SetFaults(zellijtest.Fault{Ordinal: tc.ordinal, Reply: &tc.reply})
+			got, err := (ZellijSource{Path: f.Path()}).SnapshotSessionsContext(t.Context(), []string{"pair-a"})
+			if err == nil || got != nil {
+				t.Fatalf("contradictory listings granted authority: sessions=%v err=%v", got, err)
+			}
+			if len(f.Queries()) != 2 || len(f.Effects()) != 0 {
+				t.Fatalf("refusal continued native work: queries=%v effects=%v", f.Queries(), f.Effects())
+			}
+		})
+	}
+}
+
+func TestCachedSessionListingAgreementRefusesBeforeNativeQuery(t *testing.T) {
+	f := installAdmissionFixture(t)
+	f.SetModel(ownerFixtureModel("pair term"))
+	now := time.Now()
+	p := &ListingPoller{now: func() time.Time { return now }, MaxStale: time.Second, list: func(context.Context) ([]byte, []byte, error) {
+		return []byte("pair-a\n"), []byte("pair-b [Created 1s ago]\n"), nil
+	}}
+	p.Refresh(t.Context())
+	got, err := (ZellijSource{Path: f.Path(), Listings: p}).SnapshotSessionsContext(t.Context(), []string{"pair-a"})
+	if err == nil || got != nil || len(f.Queries()) != 0 || len(f.Effects()) != 0 {
+		t.Fatalf("cached contradiction granted authority: sessions=%v err=%v queries=%v effects=%v", got, err, f.Queries(), f.Effects())
+	}
+}
+
+func TestSessionLivenessKeepsExactNativeNameAndExitedSuffix(t *testing.T) {
+	f := installAdmissionFixture(t)
+	f.SetModel(zellijtest.Model{Sessions: map[string]zellijtest.Session{
+		" pair-foreign":         {},
+		"pair-EXITED-is-a-name": {},
+	}})
+	got, err := (ZellijSource{Path: f.Path()}).LivenessContext(t.Context())
+	if err != nil || len(got) != 1 || got[0].Name != "pair-EXITED-is-a-name" || got[0].State != SessionLive {
+		t.Fatalf("name text became authority for a different name/state: sessions=%v err=%v", got, err)
+	}
+	if len(f.Queries()) != 2 || len(f.Effects()) != 0 {
+		t.Fatalf("liveness budget changed: queries=%v effects=%v", f.Queries(), f.Effects())
+	}
+}
+
+func TestSessionListingAgreementAcceptsReorderedNativeRows(t *testing.T) {
+	f := installAdmissionFixture(t)
+	f.SetModel(zellijtest.Model{Sessions: map[string]zellijtest.Session{"pair-a": {}, "pair-b": {}}})
+	full := "pair-b [Created 2s ago] (current)\npair-a [Created 1s ago]\n"
+	f.SetFaults(zellijtest.Fault{Ordinal: 2, Reply: &full})
+	got, err := (ZellijSource{Path: f.Path()}).SnapshotContext(t.Context())
+	if err != nil || len(got) != 2 || got[0].Name != "pair-a" || got[1].Name != "pair-b" || got[0].State != SessionDetached || got[1].State != SessionDetached {
+		t.Fatalf("compatible reordered pair refused: sessions=%v err=%v", got, err)
+	}
+	if len(f.Queries()) != 4 || len(f.Effects()) != 0 {
+		t.Fatalf("healthy query/effect budget: queries=%v effects=%v", f.Queries(), f.Effects())
+	}
+}
 
 func installAdmissionFixture(t *testing.T) *zellijtest.Fixture {
 	t.Helper()

@@ -96,7 +96,7 @@ func registrationTerminalFixture() error {
 			return err
 		}
 		defer func() { _ = child.Process.Kill(); _ = child.Wait() }()
-		pane, _ := json.Marshal([]map[string]any{{"id": 1, "pane_command": strings.Join(child.Args, " ")}})
+		pane, _ := json.Marshal([]map[string]any{{"id": 1, "is_plugin": false, "pane_command": strings.Join(child.Args, " ")}})
 		if err = (osfs.FS{}).WriteAtomic(os.Getenv("PAIR_TEST_ZELLIJ_PANES"), string(pane)); err != nil {
 			return err
 		}
@@ -144,7 +144,13 @@ func registrationTerminalFixture() error {
 			}
 			return err
 		}
-		fmt.Fprintln(os.Stdout, os.Getenv("PAIR_SESSION_NAME"))
+		if len(args) == 2 && args[1] == "--short" {
+			fmt.Fprintln(os.Stdout, os.Getenv("PAIR_SESSION_NAME"))
+		} else if len(args) == 2 && args[1] == "--no-formatting" {
+			fmt.Fprintf(os.Stdout, "%s [Created 1s ago]\n", os.Getenv("PAIR_SESSION_NAME"))
+		} else {
+			return fmt.Errorf("unsupported fixture session listing: %q", args)
+		}
 	}
 	return nil
 }

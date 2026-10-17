@@ -96,3 +96,46 @@ func TestWrongKindShortListingStopsBeforeFurtherQuery(t *testing.T) {
 		t.Fatalf("foreign first listing continued: got=%v err=%v calls=%d", got, err, f.calls(t))
 	}
 }
+
+func TestFullListingConsumersKeepExactIdentityAndState(t *testing.T) {
+	for _, tc := range []struct {
+		name, session, raw string
+		present, live      bool
+	}{
+		{"foreign leading space", "pair-a", " pair-a [Created 1s ago]\n", false, false},
+		{"EXITED text in live name", "pair-EXITED", "pair-EXITED [Created 1s ago]\n", true, true},
+		{"actual exited suffix", "pair-a", "pair-a [Created 1s ago] (EXITED - attach to resurrect)\n", true, false},
+	} {
+		for _, consumer := range []string{"owner", "quiescence", "handoff", "reuse"} {
+			t.Run(tc.name+"/"+consumer, func(t *testing.T) {
+				f := newEmptyReplyFake(t, emptyReplyFrame{Args: []string{"list-sessions", "--no-formatting"}, Stdout: tc.raw})
+				t.Setenv("PATH", filepath.Dir(f.source.Path)+string(os.PathListSeparator)+os.Getenv("PATH"))
+				switch consumer {
+				case "owner":
+					got, err := (osSessionOwnerIO{}).SessionPresent(t.Context(), tc.session)
+					if err != nil || got != tc.live {
+						t.Fatalf("live=%v err=%v want=%v", got, err, tc.live)
+					}
+				case "quiescence":
+					got, err := (osSessionQuiescenceOps{}).SessionPresent(t.Context(), tc.session)
+					if err != nil || got != tc.live {
+						t.Fatalf("live=%v err=%v want=%v", got, err, tc.live)
+					}
+				case "handoff":
+					err := requireListedLiveTerminal(t.Context(), tc.session, listTerminalSessions)
+					if (err == nil) != tc.live {
+						t.Fatalf("handoff err=%v want live=%v", err, tc.live)
+					}
+				case "reuse":
+					got := (OSRuntime{sessionQuiescence: &statefulSessionQuiescenceOps{}}).SessionBlocksReuse(tc.session)
+					if got != tc.present {
+						t.Fatalf("blocks reuse=%v want=%v", got, tc.present)
+					}
+				}
+				if f.calls(t) != 1 {
+					t.Fatalf("full listing was retried: calls=%d", f.calls(t))
+				}
+			})
+		}
+	}
+}
