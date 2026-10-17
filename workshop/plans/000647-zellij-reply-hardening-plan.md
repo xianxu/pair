@@ -361,3 +361,7 @@ Proposed smallest alternative: one private Unix-stream listener and exactly two 
 ### 2026-10-17 — Native fixture re-plan approved
 
 Authenticated TL approval f82d7d85-64bf-4632-9d5e-27f99baf9d37 accepts the proposed replacement exactly: one private Unix-stream listener, two receiver connections, role/readiness first byte followed by actual pane-input bytes. Cleanup closes listener, joins accept owner, closes tracked connections and joins readers. Preserve explicit read failures and prove actual data plus no-client/idle-reader/unread-buffer teardown under normal/race before one changed-fixture native attempt. The direct native CLI, production code and time bounds remain unchanged.
+
+### 2026-10-17 — M2 clone review exception approved
+
+Authenticated TL approval 829d7622-04fb-474b-876c-301c5ae26051 authorizes M2 milestone-close from the independent clone with --no-actual and the exact proposed reason: M2 reviewed from an independent clone while the registered checkout lands #640; clone lacks the primary checkout queue evidence. Do not wait for #640; M3 starts after M2 SHIP. Preserve the queued registered merge and import the reviewed branch/pins when it releases.
