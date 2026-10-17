@@ -1,12 +1,21 @@
 ---
 id: 000603
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-15
-updated: 2026-10-15
+updated: 2026-10-16
 estimate_hours:
-card_mirror: '77f5fefc133d55634222bcbb89085bb51774162a' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '300dd3337b8800704ccb1057d17191a2f1dcb8d3' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-16T15:35:32-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:3
+    worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
+    repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "f14ba7aa", done: "bca3381b"}
 ---
 
 # Native wrapped Zellij conformance times out finding shell actor
@@ -35,8 +44,17 @@ This is distinct from #601's park helper client-disconnect failure. No terminal 
 
 ## Plan
 
-- [ ]
+- [ ] Trace startup, attachment, selection and publication; reproduce the lost shell presentation with controlled ordering and bounded diagnostics.
+- [ ] Add a failing regression for the confirmed ordering and fix its owner without timeout increases or blanket retries.
+- [ ] Run targeted race tests and repeated private native conformance, then the recorded full suite and close review.
 
 ## Log
 
+
+- 2026-10-16: unclaimed: Parked by TL: draft PR https://github.com/xianxu/pair/pull/385 remains open with bounded diagnostics. macOS conformance run 38992512117 attempts 1 and 2 both succeeded on unchanged head 846a8490c4bbf8084ce474c5b1e04cc4d5131591; each executed all six required native tests/subtests, including direct and wrapped Zellij. No stall reproduced, no cause established, no production fix and no close. Resume on new failing-run evidence.
 - 2026-10-15: Filed unassigned per TL direction. #571 will retry only this failed CI job once on its unchanged head; a repeat failure is escalated rather than retried indefinitely.
+- 2026-10-16: Fresh dispatch from ops:0 verified. Fast-forwarded resting branch, claimed and started #603. The wait is presentation admission plus visible shell text, not OS process discovery. Original CI log remains available locally. Investigating startup/attach/selection order under ARCH-ORDER; reuse the existing fake Child and real private Zellij fixture (ARCH-MOCK), with no host session changes (ARCH-SECURE). Diagnostics and subprocesses remain test-owned (ARCH-FUNERAL); timeouts remain unchanged (ARCH-CONSTRAINTS). Keep the fix at the existing presentation seam (ARCH-DRY/ARCH-PURE), covering the actual lost-event class (ARCH-PURPOSE).
+- 2026-10-16: Startup-order probes: 60 fake-child cases passed under race detection (20 each before attach, before select, after select); 20 native wrapped cases passed under race detection (10 before attach, 10 after blank-shell selection; 74.493s). Three complete native executions passed (two with direct baseline). An exploratory five-run batch was incorrectly budgeted at 90 seconds total: two complete passes plus the third direct baseline preceded deadline exhaustion during wrapped startup; this is command sizing error, not reproduction of the reported shell-actor stall. Original failing-head comparison found no intervening presenter, endpoint, PTY transport or Console selection changes. Added test-owned bounded shell/pane/focus/presenter diagnostics and a native startup-only probe; natural startup repetitions pending. No confirmed root cause or production fix yet.
+- 2026-10-16: Natural startup passed 20/20 native wrapped cases (74.607s). Single-scheduler-thread matrix (`GOMAXPROCS=1`) passed 15/15 native wrapped cases (five each natural/before-attach/after-select; 55.145s). Local baseline: Zellij 0.45.1, Go 1.27.1, darwin/arm64; CI selects Go from go.mod (1.26.3). Asked hub for additional failing-run evidence or authorization for an early diagnostic PR, since normal publication waits until close. Current evidence does not justify a production change or issue closure.
+- 2026-10-16: Exact native CI Go test sequence passed under race detection (37.204s), including the two preceding real-nvim/scrolling tests and notification PTY conformance. Read-only GitHub checks: original run 38860695250 passed on attempt 2; recent failures 38902994504 (fixture cleanup directory-not-empty) and 38860903856 (node/xterm oracle SIGSEGV) are distinct from the shell wait. Awaiting hub response to the diagnostic-PR/evidence request (receipt a8fb681b-5dcd-48ea-b8ee-022dd132a927 submitted). HEAD contains investigation only; none of the Done when criteria is claimed complete.
+- 2026-10-16 18:49 PDT: Hub approved an early draft diagnostic PR (verified receipt 10ba8154-1bf2-4efa-861c-d07fe0856d24). Run macOS CI with bounded failure diagnostics; do not close or change production until a failing run establishes the cause. After two green runs, report for a parking decision. `sdlc pr --dry-run` validated origin/xianxu/pair and main; the binary has no draft flag, so use its printed push refspec and `gh pr create --draft` for this explicit draft requirement.
