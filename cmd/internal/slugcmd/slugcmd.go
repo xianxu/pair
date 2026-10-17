@@ -109,14 +109,14 @@ func inventoryTurns(runtime sessioninventory.Runtime, scopeKey, tag string, agen
 // Claude Stop hook reaches this body through bin/pair-slug without passing the
 // wrapper, so the body refuses on its own under Couch. pair-wrap's copy keeps
 // the hosted turn-end from even spawning the process; this copy protects every
-// other entry. PAIR_SLUG=on re-enables both; outside Couch behaviour is
-// unchanged.
+// other entry. Both consult launcher.SlugEnabled — the one owner of the rule
+// and its PAIR_SLUG=on re-enable; outside Couch behaviour is unchanged.
 func Run() int {
 	if os.Getenv("PAIR_SLUG_NESTED") != "" {
 		logf("nested invocation (PAIR_SLUG_NESTED); skipping to avoid recursion")
 		return 0
 	}
-	if launcher.CouchHostedEnv(os.Getenv) && os.Getenv("PAIR_SLUG") != "on" {
+	if !launcher.SlugEnabled(os.Getenv) {
 		logf("couch-hosted and PAIR_SLUG != on; skipping slug (#650)")
 		return 0
 	}

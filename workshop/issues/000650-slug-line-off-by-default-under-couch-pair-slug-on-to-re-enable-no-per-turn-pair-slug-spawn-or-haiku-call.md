@@ -33,8 +33,8 @@ Operator decision, 2026-10-17. The draft's slug line (line 1, a summary of what 
 
 ## Done when
 
-- A test: Couch-hosted env spawns nothing; with `PAIR_SLUG=on` it spawns; outside Couch it spawns as before.
-- After the next restart and relaunch, no `pair slug` or `claude -p` processes appear across the fleet during normal turns. Checked live.
+- A test: Couch-hosted env runs nothing — neither pair-wrap's turn-end spawn nor the `slugcmd.Run` body the Claude Stop hook reaches through `bin/pair-slug`; with `PAIR_SLUG=on` both run; outside Couch both run as before.
+- After the next restart and relaunch, no wrapper-spawned `pair slug` process and no slug model call (`claude -p`) appears across the fleet during normal turns. Checked live.
 
 ## Plan
 
@@ -58,6 +58,23 @@ inherits the hosted env, and reaches `slugcmd.Run` through the surviving
 `slugcmd.Run`, so both entries no-op when hosted; plus its test, doc lines, and
 an env pin on the existing dispatcher slug-route test.
 
+### 2026-10-17 — close review round 1 (BR-1/BR-2/BR-3, FIX-THEN-SHIP)
+
+- **BR-1 (ARCH-DRY):** the rule written out at both call sites now lives in
+  `launcher.SlugEnabled(getenv)` — one owner for the predicate, the knob name
+  and its exact `on` value; both sites call it. `TestSlugEnabledTruthTable`
+  covers hosting via scope OR tag and the fail-closed values ("ON", "1", "0",
+  "off").
+- **BR-2 (stale Done-when):** `## Done when` updated (above) to name both gates
+  and to make clause 2 about the model call and the wrapper spawn — a hosted
+  Stop hook may still start a short-lived `pair-slug` process that stops at
+  the gate, so "no pair-slug process at all" was wrong as written.
+- **BR-3 (live check):** clause 2 remains pending the hub's Couch restart +
+  slot relaunch on the new binary; the evidence it needs is process-table
+  output across the hosted slots over normal turns after relaunch, showing no
+  wrapper-spawned `pair slug` and no slug `claude -p` call. Recorded here and
+  flagged in the landing report; a review checkout cannot restart the fleet.
+
 ## Log
 
 ### 2026-10-17
@@ -70,4 +87,5 @@ an env pin on the existing dispatcher slug-route test.
 - Full suite green twice (sdlc-local/suite exit 0: 12m2s on 3ee6e4199, 11m56s on b050580d6).
 - Close attempt refused on actual measurement ("suite attempt 2a875dd8 has 0 matching pinned slot engagements"); reported to the hub. Hub: ariadne:1 investigates the Qoder slot measurement gap; close with --no-actual naming it.
 - Stop-hook fold-in (see Revisions): `slugcmd.Run` gate landed with `TestRunSkipsUnderCouchHosting` — red proof against ungated HEAD showed the hosted run reaching the session lookup (`native session is unbound`) instead of the gate line; with the gate, whole `slugcmd` package green, dispatcher slug-route and `pair-go` slug-route smokes green (the latter's clean testpair env is non-hosted by design — "no ambient Pair, Couch … values cross this boundary").
+- Close review round 1: FIX-THEN-SHIP, 3 Important + 1 Minor. Fixed the class of each: BR-1 → `launcher.SlugEnabled` + `TestSlugEnabledTruthTable` (scope-or-tag hosting, fail-closed values); BR-2 → Done-when rewritten (see Revisions); BR-3 → recorded pending the hub's restart + relaunch (see Revisions). Reviewer independently red-proofed both gate tests by reverting each gate in the review checkout.
 - Live fleet check (Done-when 2) needs a Couch restart + slot relaunch on the new binary — the hub's/operator's move; flagged in the landing report.
