@@ -1506,7 +1506,11 @@ use a terminal OSC 52 request instead. Its feedback says **unconfirmed**, becaus
 Couch cannot verify that the terminal delivered it to the clipboard. Native tool
 failures retain bounded stderr on screen; a successful tool whose child holds stderr
 remains successful, with incomplete diagnostic capture marked truncated. Each attempt emits a content-free
-`clipboard_copy` event in the namespace supervision log.
+`clipboard_copy` event in the namespace supervision log. Ctrl+Y works with
+legacy and Kitty keyboard encoding. A separate `clipboard_key` event records
+arrival before routing: encoding class, press/release and switcher focus only.
+It contains no input bytes, notice text or clipboard content. An arrival without
+a copy outcome separates input routing from clipboard-tool failures.
 An authorized opt-in conformance run from a Couch slot uses
 `PAIR_LIVE_CLIPBOARD_CONFORMANCE=1 go test ./cmd/internal/couchtty -run '^TestClipboardLiveConsoleConformance$' -count=1`.
 It requires native macOS tools, keeps the previous clipboard only in memory, and

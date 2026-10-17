@@ -78,58 +78,113 @@ func TestClipboardCopyObserverUsesExistingFactWriter(t *testing.T) {
 }
 
 func TestClipboardCopyConsoleKeysReachContentFreeFactLog(t *testing.T) {
-	toolDir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(toolDir, "pbcopy"), []byte("#!/bin/sh\nprintf 'private tool stderr' >&2\nexit 7\n"), 0700); err != nil {
-		t.Fatal(err)
+	for _, wire := range []string{"\x19", "\x1b[121;5u", "\x1b[121;5:1u"} {
+		t.Run(wire, func(t *testing.T) {
+			toolDir := t.TempDir()
+			if err := os.WriteFile(filepath.Join(toolDir, "pbcopy"), []byte("#!/bin/sh\nprintf 'private tool stderr' >&2\nexit 7\n"), 0700); err != nil {
+				t.Fatal(err)
+			}
+			t.Setenv("PATH", toolDir)
+			for _, key := range []string{"SSH_CONNECTION", "SSH_CLIENT", "SSH_TTY"} {
+				t.Setenv(key, "")
+			}
+			sink := &factSink{}
+			facts := testFactLog(t, sink)
+			host := hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 80})
+			reader, writer := io.Pipe()
+			console := couchtty.New(host, reader)
+			console.SetCopyObserver(facts.clipboardCopy)
+			console.SetCopyKeyObserver(facts.clipboardKey)
+			console.Notify(couchtty.Notice{Kind: "status", Body: "private original notice"})
+			done := make(chan struct{})
+			go func() { console.Run(); close(done) }()
+			t.Cleanup(func() {
+				console.Stop()
+				_ = writer.Close()
+				_ = reader.Close()
+				select {
+				case <-done:
+				case <-time.After(3 * time.Second):
+					t.Error("Console did not stop")
+				}
+			})
+			supervisionEventually(t, "Console not ready", func() bool { return host.RawDepth() > 0 && strings.Contains(host.Written(), "Ctrl+Y") })
+			if _, err := writer.Write([]byte(wire)); err != nil {
+				t.Fatal(err)
+			}
+			supervisionEventually(t, "key did not reach fact writer", func() bool { return len(sink.rows(t)) == 2 })
+			rows := sink.rows(t)
+			arrival := rows[0]
+			if arrival.Event != "clipboard_key" || arrival.ClipboardKey == nil || !arrival.ClipboardKey.Panel || arrival.ClipboardKey.Release {
+				t.Fatalf("missing arrival metadata: %+v", arrival)
+			}
+			expectedEncoding := "enhanced"
+			if wire == "\x19" {
+				expectedEncoding = "legacy"
+			}
+			if arrival.ClipboardKey.Encoding != expectedEncoding {
+				t.Fatalf("arrival encoding=%+v", arrival)
+			}
+			row := rows[1]
+			if row.Clipboard == nil {
+				t.Fatalf("no clipboard observation: %+v", row)
+			}
+			observation := *row.Clipboard
+			if _, err := writer.Write([]byte("\x1b[121;5:3u")); err != nil {
+				t.Fatal(err)
+			}
+			supervisionEventually(t, "release arrival missing", func() bool { return len(sink.rows(t)) == 3 })
+			released := sink.rows(t)[2]
+			if released.Event != "clipboard_key" || released.ClipboardKey == nil || !released.ClipboardKey.Release || !released.ClipboardKey.Panel {
+				t.Fatalf("release copied or lost arrival: %+v", released)
+			}
+			if row.Event != "clipboard_copy" || observation.Outcome != "unconfirmed" || observation.OSC != "unconfirmed" || observation.Native.Tool != "pbcopy" || observation.Native.ExitCode == nil || *observation.Native.ExitCode != 7 || observation.Native.StderrBytes != int64(len("private tool stderr")) || observation.Native.StderrHash == "" {
+				t.Fatalf("missing real execution evidence: %+v", row)
+			}
+			raw, err := json.Marshal(rows)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, private := range []string{"private original notice", "private tool stderr"} {
+				if strings.Contains(string(raw), private) {
+					t.Fatal("private content reached copy log")
+				}
+			}
+			supervisionEventually(t, "operator screen lost bounded tool evidence", func() bool {
+				// The Presenter writes changed terminal cells in separate cursor-addressed
+				// runs, so multiword text need not be contiguous in the byte stream.
+				return strings.Contains(host.Written(), "stderr;")
+			})
+		})
 	}
-	t.Setenv("PATH", toolDir)
-	for _, key := range []string{"SSH_CONNECTION", "SSH_CLIENT", "SSH_TTY"} {
-		t.Setenv(key, "")
-	}
+}
+
+func TestClipboardKeyFactHasOnlyFixedArrivalMetadata(t *testing.T) {
 	sink := &factSink{}
 	facts := testFactLog(t, sink)
-	host := hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 80})
-	reader, writer := io.Pipe()
-	console := couchtty.New(host, reader)
-	console.SetCopyObserver(facts.clipboardCopy)
-	console.Notify(couchtty.Notice{Kind: "status", Body: "private original notice"})
-	done := make(chan struct{})
-	go func() { console.Run(); close(done) }()
-	t.Cleanup(func() {
-		console.Stop()
-		_ = writer.Close()
-		_ = reader.Close()
-		select {
-		case <-done:
-		case <-time.After(3 * time.Second):
-			t.Error("Console did not stop")
-		}
-	})
-	supervisionEventually(t, "Console not ready", func() bool { return host.RawDepth() > 0 && strings.Contains(host.Written(), "Ctrl+Y") })
-	if _, err := writer.Write([]byte{0x19}); err != nil {
-		t.Fatal(err)
-	}
-	supervisionEventually(t, "key did not reach fact writer", func() bool { return len(sink.rows(t)) == 1 })
+	facts.clipboardKey(couchtty.CopyKeyObservation{Encoding: "enhanced", Panel: true})
+	supervisionEventually(t, "arrival fact not written", func() bool { return len(sink.rows(t)) == 1 })
 	row := sink.rows(t)[0]
-	if row.Clipboard == nil {
-		t.Fatalf("no clipboard observation: %+v", row)
+	if row.Event != "clipboard_key" || row.Seq != 1 || row.Generation == "" {
+		t.Fatalf("arrival bypassed writer: %+v", row)
 	}
-	observation := *row.Clipboard
-	if row.Event != "clipboard_copy" || observation.Outcome != "unconfirmed" || observation.OSC != "unconfirmed" || observation.Native.Tool != "pbcopy" || observation.Native.ExitCode == nil || *observation.Native.ExitCode != 7 || observation.Native.StderrBytes != int64(len("private tool stderr")) || observation.Native.StderrHash == "" {
-		t.Fatalf("missing real execution evidence: %+v", row)
-	}
-	raw, err := encodeFact(row)
+	raw, err := json.Marshal(row.ClipboardKey)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, private := range []string{"private original notice", "private tool stderr"} {
-		if strings.Contains(string(raw), private) {
-			t.Fatal("private content reached copy log")
-		}
+	var got map[string]any
+	if err := json.Unmarshal(raw, &got); err != nil {
+		t.Fatal(err)
 	}
-	supervisionEventually(t, "operator screen lost bounded tool evidence", func() bool {
-		// The Presenter writes changed terminal cells in separate cursor-addressed
-		// runs, so multiword text need not be contiguous in the byte stream.
-		return strings.Contains(host.Written(), "stderr;")
-	})
+	want := map[string]any{"encoding": "enhanced", "panel": true, "release": false}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("unexpected arrival fields: %v", got)
+	}
+	facts.Close()
+	facts.clipboardKey(couchtty.CopyKeyObservation{Encoding: "legacy"})
+	if len(sink.rows(t)) != 1 {
+		t.Fatal("closed writer admitted arrival")
+	}
+	var absent *supervisionFactLog
+	absent.clipboardKey(couchtty.CopyKeyObservation{})
 }

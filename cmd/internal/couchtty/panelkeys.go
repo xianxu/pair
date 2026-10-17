@@ -194,6 +194,10 @@ func decodeCSIu(seq []byte) (PanelKey, bool) {
 	modified := len(mods) > 0 && !bytes.Equal(mods, []byte("1"))
 
 	switch n {
+	case 'y':
+		if bytes.Equal(mods, []byte("5")) {
+			return PanelKey{Kind: KeyCopyNotice}, true
+		}
 	case 27:
 		return PanelKey{Kind: KeyEscape}, true
 	case 13:
