@@ -52,5 +52,6 @@ Quick flow — a few lines.
 - Claimed via the hub's dispatch (pair:8). Quick flow confirmed: gate + test + three doc lines.
 - `launcher` is already imported by `wrap.go`; `launcher.CouchHostedEnv` is the existing hosted predicate (scope or tag non-empty).
 - TDD: red first — couch-hosted case spawned (`spawns = 1, want 0`) — then the gate landed and all three cases pass; whole `wrapcmd` package passes (124.5s) with `go vet`/`gofmt` clean.
+- Added a `SLUG-skip` debug line in the gated branch (e2b491373): a hosted session with `PAIR_WRAP_LOG` set shows why the slug is quiet — the BEL-skip/EMIT-skip forensic pattern — instead of looking like drift. Targeted tests re-run green.
 - Docs landed: `wrap.go` comment, README "The orientation slug" paragraph in Notifications, `atlas/architecture.md` trigger bullet, plus a coherence note in `atlas/couch.md` (hosted rows carry a slug only with the knob on).
 - Live fleet check (Done-when 2) needs a Couch restart + slot relaunch on the new binary — the hub's/operator's move; flagged in the landing report.
