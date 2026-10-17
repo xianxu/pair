@@ -111,3 +111,7 @@ The resource audit found that chargeWaitLocked retains every distinct pre-paste 
 The hub approved an early draft PR so macOS CI can run while the completed-head suite waits in the machine queue (receipt 43543b66-d791-42fe-8640-cd30439d8745). Draft PR #389 is open. This changes only PR timing: required suite, close review and ordinary merge gates remain before landing. Live hub qualification remains owned by the hub/operator after their next restart.
 
 - Completed-head suite qualification: a5e6c71025f80cc04b0d8f48ac89835428cc0b9f passed the required recorded suite in 9m59s (exit 0; log sha256 prefix ef09fbe9aec9). macOS native conformance and the final peer race regressions are also green. Close review and landing remain the next gates.
+
+### 2026-10-16 — close round 1 repair
+
+BR-1: sender disconnect must use active delivery ownership to retain uncertainty after queued/held progress; test handed and uncommitted cases. BR-2: verify each outer context independently at its IO boundary; fake clock jumps alone cannot expire an existing real context timer. Use an injected endpoint transport with bounded-commit and parent-cancellation controls. This repairs the existing contract (ARCH-PURPOSE), adds no lifecycle state, and is followed by another required suite and full close review.
