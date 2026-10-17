@@ -26,9 +26,12 @@ The hub (ops:0) is a Claude pane that is mid-turn most of the time, running tool
 
 Expected: a message to a busy agent waits until its composer is next recognized (Claude Code also queues typed input mid-turn, so delivering while busy may be fine). It should never silently expire on a live, connected receiver. Expiry stays for a receiver that is gone.
 
+Measured by pair:2 (18:47): after the restart, 31 hub-bound deliveries were cancelled, exactly one every 90 s from 17:37 to 18:22, from 11 senders. The hub wrapper holds the head of its queue for the full composer wait, so one stuck head serialises every message behind it: the hub received nothing for 45 minutes. Confirmed deliveries resumed at 18:29.
+
 ## Done when
 
 - A message to a connected receiver whose turn runs past the deadline is delivered when its composer next comes back, or queued into the running turn; a test with a fake receiver busy for longer than the deadline shows it delivered once.
+- A message that cannot be delivered yet never blocks the ones behind it, or the queue drains in one go once the composer returns.
 - Expiry happens only when the receiver is disconnected or gone, and the receipt says which.
 
 ## Plan
