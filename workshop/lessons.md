@@ -2170,3 +2170,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
   it actually runs, including allowed serial IO and in-flight work. A short
   aggregate wait can reject successful bounded calls; prove that ordering with
   controlled latency and retain a publication-failure negative control.
+
+- A readiness counter contract needs a stateful test through the actual readiness decision, not only isolated zero/one counts. Cover unchanged observations before growth and show that both equality-accepting and never-accepting mutations fail, especially when native acceptance is deferred. (#645 BR-1)
