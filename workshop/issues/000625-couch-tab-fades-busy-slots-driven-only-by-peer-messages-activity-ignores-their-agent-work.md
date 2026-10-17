@@ -15,7 +15,7 @@ claimant:
     workspace: pair:6
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "fb81ef39", done: "61ec02af"}
+flow: {kind: quick, provenance: inferred, spec: "6c10da25", done: "4de037cf"}
 ---
 
 # Couch tab fades busy slots driven only by peer messages (activity ignores their agent work)
@@ -38,14 +38,17 @@ found for codex binding confirmation (only Pair-log turns written by the draft p
   "turn open" (the busy check behind relaunch's refusal) rather than adding a new probe.
 - Fading then means what the operator reads it as: nobody (operator or agent) has done anything there for a day.
 
+Approved boundary (TL19e11f39, 2026-10-16): this issue adds the admitted wrapper's existing work state, per-session completion time and a bounded authenticated LastActivity seed on reconnect. A free-composer background-only command must not change Settled or message admission. Its independent display signal requires new state and is deferred to unclaimed follow-up #632; the broad original background-only requirement above is not claimed by #625.
+
 ## Done when
 
 - Tests: a slot whose only turns come from peer messages stays bright; a slot idle for over a day fades.
 - Live: a working, TL-driven slot is not faded. Per TL approval, this acceptance runs after landing in the coordinated restart; record executable steps before close and leave the live result explicitly pending.
+- Background-only waits after the turn ends are tracked in #632 under TL approval; #625 preserves all admission behavior and verifies silent waits with a turn still open.
 
 ## Plan
 
-- [x] Retain last-work time on the existing admitted-wrapper session; combine it with file activity, treating known-unsettled as current work. No new probe/timer or protocol; legacy remains unchanged.
+- [x] Retain last-work time on the existing admitted-wrapper session plus the approved bounded reconnect seed; combine it with file activity, treating known-unsettled as current work. No new probe/timer, protocol or admission change; legacy remains unchanged.
 - [ ] Red then green: peer-only busy/completion, silent command wait beyond a day, settled idle/refresh, replacement/disconnect and exact scope; run affected tests and recorded full suite, then normal close/landing.
 - [x] Record live restart check for TL/operator: on the new Couch, send work only through a peer message to an unfocused slot with old file activity; confirm its tab and switcher stay bright while busy, including a silent command wait, and after completion. Compare an idle-over-a-day control. Live result is post-landing, owned by TL/operator.
 
@@ -71,6 +74,10 @@ Read-only live trace before review found an independent acceptance gap: ariadne:
 
 TL reserves pair:0 as the restart binary. Suite plus normal review gates landing; TL/operator run the recorded live fade check after the combined restart. This changes timing, not the required visible behavior.
 
-### 2026-10-16 19:33 PDT — proposed background-wait correction, awaiting TL
+### 2026-10-16 19:33 PDT — proposed background-wait correction (resolved below)
 
 Reuse the already-owned terminal snapshot in the existing settle recognizer: a qualified Claude composer plus its recorded positive background-shell footer must keep Settled=false, with zero counts, body/composer quotations and unrelated footer text as negative controls. This also makes relaunch refuse a running background command. No process scan, new probe/timer or protocol. The checked-in peer/claude/2.1.296 shell-footer.raw and idle-suggestion.raw both contain a real positive shell count, so recorded-frame tests can precede code. Separately, seed the first settled report's LastWorkAt from its authenticated LastActivity (bounded by supervisor receipt time) so a supervisor reconnect retains recently completed work without inventing activity at restart. Keep session replacement isolation and settled refresh non-renewal. This changes busy admission semantics; do not implement until TL approves.
+
+### 2026-10-16 19:36 PDT — preserve admission; split independent background display
+
+Verified submitted TL19e11f39-5e0e-46cf-8fe8-a1fbc76d223b approves the LastActivity seed and rejects changing Settled for background commands: a free composer must still receive messages. The existing admitted snapshot has no background-work field, and detached threads need TailReader.Tail IO for their agent footer. Filed #632 unclaimed with dependency #625 for the independent background display signal and message-receipt conformance. Current work keeps admission untouched and lands the original projection plus seed. This supersedes the proposed settle-recognizer change above; no such code was written. The original queued candidate was cancelled before execution (exit130); no remaining process mentions its disposable worktree. Final candidate gets a new recorded suite. Seed tests failed on the missing recent/old/bounded-future timestamp before implementation.
