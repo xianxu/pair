@@ -6,13 +6,18 @@ updated: 2026-10-16
 estimate_hours:
 github_issue:
 started: 2026-10-16T15:35:32-07:00
-claimant:
-    operator: Xian Xu
-    machine: 4716879978a7b90f6b583da1716fd0e9
-    machine_name: Xian’s MacBook Pro
-    workspace: pair:3
-    worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
-    repository: github.com/xianxu/pair
+tracker:
+    version: 1
+    release:
+        by:
+            operator: Xian Xu
+            machine: 4716879978a7b90f6b583da1716fd0e9
+            machine_name: Xian’s MacBook Pro
+            workspace: pair:3
+            worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
+            repository: github.com/xianxu/pair
+        branch: 000603-native-shell-actor-timeout
+        head: e0fdab4469efdd00a91a16aaa7b5b951ecf5f74d
 ---
 
 # Native wrapped Zellij conformance times out finding shell actor
