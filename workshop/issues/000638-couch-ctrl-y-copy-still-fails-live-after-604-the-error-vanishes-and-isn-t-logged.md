@@ -112,6 +112,10 @@ Fresh corrected-head suite and fix-only re-close are required before landing. Th
 
 TestClipboardInheritedUnreadStdinFails failed red in both legacy/local modes: an exit-0 tool with a child holding 1 MiB stdin unread was falsely reported copied. Retaining the existing strings.Reader and requiring Len()==0 before demoting ErrWaitDelay fixes both, while TestClipboardInheritedStderrKeepsSuccessfulExit retains successful full-read behavior and the truncation flag. Full clipcmd package PASS (3.064s); focused race tests for both descriptor cases plus cancellation/deadline controls PASS (2.560s). No real clipboard touched. The prior queued 8c suite was canceled before execution because this negative control exposed the branch defect; no passing retry is claimed.
 
+### 2026-10-17 — corrected-head full suite
+
+Recorded suite on 0e892021865cda5cf2d2b3dbb6e9ec99ab74ee9f passed exit 0 in 13m38s after an 827s machine-gate wait; log /Users/xianxu/workspace/pair/.git/sdlc/local-checks/0e892021865cda5cf2d2b3dbb6e9ec99ab74ee9f/suite.log, sha256 prefix 26e8ff759e12. All shell/editor and Go packages completed, no flakes. clipcmd 1.261s, couchcmd 79.817s, couchtty 56.296s, couchcore 452.130s. All PR CI checks green, including conformance (2m27s). This is the fresh full-suite evidence for the unified completion fix; the historical live clipboard failure remains unmeasured and the operator check stays with the next natural restart.
+
 ## Revisions
 
 ### 2026-10-17 — TL-approved instrumentation-first acceptance

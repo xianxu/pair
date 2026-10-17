@@ -95,7 +95,7 @@ Files: cmd/internal/couchtty/clipboard_live_test.go; README.md; atlas/architectu
 ## Task 4 — verification and close
 
 - [x] Push the implementation and run the declared recorded suite once. For any failure, follow the worker flake rule; fix introduced defects and retain failed attempts.
-- [ ] Record all acceptance evidence and lessons; close through sdlc with measured actuals and mandatory review. No separate duplicate boundary review.
+- [x] Record all acceptance evidence and lessons; close through sdlc with measured actuals and mandatory review. No separate duplicate boundary review.
 - [ ] On SHIP, merge main and land with sdlc merge --yes; report actual Git merge hash/PR to hub. No permission/gate bypass.
 
 ## Revisions
