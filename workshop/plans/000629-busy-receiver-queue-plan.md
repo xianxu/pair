@@ -105,3 +105,7 @@ Receipt b66971a3-a6c6-4dab-9503-e837f150720e explicitly forbids pair:0 staging. 
 ### 2026-10-16 — retire obsolete pre-paste diagnostic history
 
 The resource audit found that chargeWaitLocked retains every distinct pre-paste picker title, even though PeerPaste discards that history and pre-paste expiry has been removed. Connection-scoped waits therefore also require retiring this dead accounting. Keep the standing queued/held reason, accumulate diagnostic durations only during the existing bounded post-paste phase, and preserve its summary. Arbitrary history pruning would change those useful post-paste diagnostics; eliminating only the obsolete pre-paste consumer is simpler (ARCH-FUNERAL / ARCH-CONSTRAINTS). A fake picker churn test must show current reasons without a growing history, then paste once on return. Posted this quick-flow completion plan to the hub, proceeding unless objected (submitted receipt af93a466-55cf-455a-bfba-4cfd34f93e4a). No new state, status, store or input writer is introduced.
+
+### 2026-10-16 — early draft during required suite wait
+
+The hub approved an early draft PR so macOS CI can run while the completed-head suite waits in the machine queue (receipt 43543b66-d791-42fe-8640-cd30439d8745). Draft PR #389 is open. This changes only PR timing: required suite, close review and ordinary merge gates remain before landing. Live hub qualification remains owned by the hub/operator after their next restart.
