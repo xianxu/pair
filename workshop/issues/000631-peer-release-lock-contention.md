@@ -1,12 +1,12 @@
 ---
 id: 000631
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-16
 updated: 2026-10-17
 estimate_hours:
-card_mirror: 'edacdc16553c1f815c726bcefbcfcc85c21a2843' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '1cfae76464eafdef02f629ff43b13dc29679d04d' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-17T01:16:20-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
 flow: {kind: quick, provenance: inferred, spec: "94d91913", done: "3d36ed4e"}
+actual_hours: 0.72
 ---
 
 # Peer promotion holds broker lock during wrapper release RPC
