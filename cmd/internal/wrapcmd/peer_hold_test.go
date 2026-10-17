@@ -34,7 +34,7 @@ func TestPeerDraftHoldStopsTheDeadline(t *testing.T) {
 	if r := d.receipt(); r.Status != couchmessage.Held || r.Detail != "waiting for empty composer" {
 		t.Fatalf("draft not reported as a hold: %+v", r)
 	}
-	*now = now.Add(2 * time.Minute) // well past the paste-by
+	*now = now.Add(2 * time.Minute) // well past the initial commit deadline
 	f.proxy.dispatchPeer(&out)
 	if r := d.receipt(); r.Status != couchmessage.Held {
 		t.Fatalf("held draft spent the deadline: %+v", r)

@@ -404,7 +404,7 @@ func (b *Broker) Status(caller Binding, id string) (Receipt, error) {
 }
 
 // ReceiptSnapshot reads the supervisor's retained receipt without a live
-// caller. It performs no endpoint IO and keeps the normal expiry/retention
+// caller. It performs no endpoint IO and keeps the normal terminal receipt retention
 // rules, including when the sender has disconnected. The final bool reports an
 // active delivery callback: disconnection can make its receipt terminal before
 // endpoint accounting finishes. Consumers must retain provenance until it ends.

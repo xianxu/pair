@@ -195,13 +195,13 @@ func TestDeliveryProgressReportsHeld(t *testing.T) {
 		t.Fatalf("progress before the job owns the delivery: %+v", fx)
 	}
 	s, _ = advance(t, s, Event{Kind: DeliveryStarted, Binding: b, Message: m, At: now})
-	at := m.Deadline.Add(time.Minute) // past the paste-by: the hold stopped the clock
+	at := m.Deadline.Add(time.Minute) // past initial commit: accepted holds have no wait expiry
 	s, fx := advance(t, s, Event{Kind: DeliveryProgress, Binding: b, Message: m, Status: Held, Detail: "waiting for the composer to be in view", At: at})
 	if len(fx) != 1 || fx[0].Receipt.Status != Held || fx[0].Receipt.Detail != "waiting for the composer to be in view" {
 		t.Fatalf("held progress: %+v", fx)
 	}
 	if _, fx = advance(t, s, Event{Kind: Tick, At: at}); len(fx) != 0 {
-		t.Fatalf("broker expired a held delivery inside the hold limit: %+v", fx)
+		t.Fatalf("broker expired an accepted held delivery: %+v", fx)
 	}
 	if _, fx = advance(t, s, Event{Kind: DeliveryProgress, Binding: b, Message: m, Status: Queued, Detail: "waiting for paste mode", At: at}); len(fx) != 1 || fx[0].Receipt.Status != Queued {
 		t.Fatalf("released progress: %+v", fx)

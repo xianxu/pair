@@ -31,7 +31,7 @@ type peerDelivery struct {
 	submissions   uint64
 	pasteSequence uint64
 	// The post-paste half of a delivery (pair#427). deliverBy is the paste
-	// time plus DeliveryTimeout; Message.Deadline only bounds the paste.
+	// time plus DeliveryTimeout; Message.Deadline bounds the initial commit.
 	pastedAt                time.Time
 	submittedAt             time.Time
 	pasteEpoch, submitEpoch uint64

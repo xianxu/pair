@@ -66,6 +66,8 @@ Measured by pair:2 (18:47): after the restart, 31 hub-bound deliveries were canc
 
 - Native qualification: isolated Claude Code 2.1.302 draft and submit conformance passed (6.046s and 5.073s, /tmp/pair629-native-peer-draft.log and /tmp/pair629-native-peer-submit.log). The submit case rendered the exact envelope and confirmed one submission. The recorded suite was requeued after integrating current main/#617; its earlier reservation was interrupted before a suite slot was granted.
 
+- Broad-run limit: the initial manual race command used a 10-minute package limit and stopped in TestHarnessTTYFixtureConformance/qoder/1.1.60/composer.raw after terminal replay had consumed 9m51s (/tmp/pair629-packages.log). A one-second process sample resolved to active replayHarnessTTYSplit/terminal processing, not a peer wait. The later full race command uses 15 minutes; production timeouts were not increased. The recorded suite retains its existing repository-declared 20-minute package budget.
+
 ### Post-restart live check — owned by ops:0 and operator
 
 TL explicitly deferred the real-environment check to the next ordinary Couch restart (receipt b66971a3-a6c6-4dab-9503-e837f150720e). Do not stage or rebuild pair:0 from this slot. After restarting with the landed binary:
