@@ -535,6 +535,19 @@ remaining uncertainty is stated, never papered over:
   refuses as "zellij liveness is stale". The thread record, PID file, ready
   file and session index are still read per check. Recovery and relaunch
   decisions keep their direct zellij reads.
+- **Receive state in `--list` (#618).** `couch --list` asks the running
+  supervisor once (the unauthenticated `refusals` op, 250 ms, best effort) for
+  each slot's latest unsuperseded refusal and prints it under the row as
+  `can't receive: <reason>` with the one command that clears it.
+- **Peer turns in the Pair log (#618).** When a delivery ends `Submitted`,
+  pair-wrap appends the exact envelope it pasted to the thread's Pair log
+  through the managed locked writer (`pairlog.PersistPeerTurn`, append ID
+  `couch-peer-<delivery ID>`). The session watcher correlates it like any draft
+  turn, so a slot driven only by peer messages confirms its binding and can be
+  relaunched. The draft pane's history and `!!` skip `couch-peer-` entries.
+- **Relaunch rides out a slow quit (#618).** `--relaunch` waits up to
+  `RelaunchParkWait` (60 s) for the agent's quit inside its operation before
+  it offers recover/abandon; a plain park keeps its shorter wait.
 - **Retries.** The CLI mints a fresh ID per send and tells the sender not to
   retry an uncertain one. A reused ID that reaches a wrapper that remembers it
   adopts the recorded outcome and is not pasted again.

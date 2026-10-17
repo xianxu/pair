@@ -140,6 +140,17 @@ Durable plan: `workshop/plans/000618-slots-recovered-by-reboot-or-resume-after-a
   2.6 h; this one has 0 uncertain of 37 in 1.2 h. Its 31 expired deliveries are pair#629's shape, not admission: one
   expiry exactly every 90 s from 17:37 to 18:22, from 11 senders, the hub wrapper holding its queue head for the whole
   composer wait each time.
+- 2026-10-16 M2 item 4, TL chose (B) over a new ledger record kind ((A): older readers hard-fail on an unknown ledger
+  kind). On `Submitted`, pair-wrap appends the pasted envelope to the Pair log via `pairlog.PersistPeerTurn` (managed
+  locked writer, append ID `couch-peer-<delivery>`), async under the peer runtime's workers. Correlation is additive
+  (unique fingerprints), and the UUID in the envelope keeps the single-turn threshold met. Found while wiring: the draft
+  pane's history, `!!` and in-place comment edits index the log by position, so peer entries would have shown in
+  Alt+← history, `!!` could pick a peer message, and a delivery mid-navigation would shift the edit target. Fixed:
+  `nvim/pairlog.lua` filters `couch-peer-` entries (`operator_entries`, `replace`). Residual, unchanged by this:
+  `write_history_entry` rewrites the file without the store lock, so a comment edit racing a peer append can drop
+  that one entry (one lost correlation fact, never a delivery). Thread activity now also moves on a peer turn.
+  Tests: watcher confirms a codex binding from wrapper-written log bytes (and not for an unrelated round); every
+  delivery outcome records iff `Submitted` (mutation-checked); repeat recording adds nothing; Lua history skips peers.
 
 ## Revisions
 

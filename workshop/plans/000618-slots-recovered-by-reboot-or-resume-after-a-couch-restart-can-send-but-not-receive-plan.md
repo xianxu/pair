@@ -175,3 +175,8 @@ parser); a separate issue.
 - 2026-10-16 (pair:2): M1 Task 5 live measurement splits: the BEFORE numbers are in the issue Log; the AFTER numbers need
   the landed build running, which the TL schedules after landing (rebuild pair:0, operator restart), so they are taken
   then and reported, and recorded in the Log before M2 closes.
+- 2026-10-16 (pair:2, TL decision): Task 6 changes mechanism. Before: a `peer_delivery` ledger record kind the watcher
+  reads. After: the wrapper appends the submitted envelope to the thread's existing Pair log
+  (`pairlog.PersistPeerTurn`, append ID `couch-peer-<delivery ID>`), which the watcher already correlates; a new ledger
+  kind would hard-fail older readers. Added: the draft pane's history skips `couch-peer-` entries
+  (`nvim/pairlog.lua`), so Pair's own history, `!!` and comment edits are unchanged.

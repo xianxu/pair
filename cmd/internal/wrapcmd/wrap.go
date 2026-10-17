@@ -242,6 +242,7 @@ type proxy struct {
 
 	// Resolved paths (empty when env didn't provide PAIR_TAG)
 	agentOutputFile      string
+	pairLogPath          string
 	captureOutPath       string
 	captureDonePath      string
 	capturePIDPath       string
@@ -608,6 +609,7 @@ func (p *proxy) resolvePaths() {
 	p.agentPIDPath = paths.AgentPID()
 	p.agentReadyPath, _ = paths.AgentReadyChecked(p.agentBasename)
 	p.wrapEventsPath = paths.WrapEvents()
+	p.pairLogPath = paths.Log()
 	p.lifecycleJournalPath = paths.LifecycleJournal()
 }
 
