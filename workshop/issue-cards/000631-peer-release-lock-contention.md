@@ -1,6 +1,6 @@
 ---
 id: 000631
-status: working
+status: codecomplete
 created: 2026-10-16
 updated: 2026-10-17
 estimate_hours:
@@ -13,6 +13,14 @@ claimant:
     workspace: pair:3
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
+actual_hours: 0.72
+tracker:
+    version: 1
+    completion:
+        token: close-2a377f0443c3
+        repository: github.com/xianxu/pair
+        reviewed_head: 2e1ab24607e87b232bcb6846081e5dcce09acad3
+        evidence_commit: 7fcba1f9f11bd578e8872f46822e26ac8261d41d
 ---
 
 # Peer promotion holds broker lock during wrapper release RPC
