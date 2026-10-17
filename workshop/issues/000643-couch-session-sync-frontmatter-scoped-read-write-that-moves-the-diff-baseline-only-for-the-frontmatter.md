@@ -57,6 +57,9 @@ Implementation detail: [durable plan](../plans/000643-frontmatter-sync-plan.md).
 
 - Plan review requested function-level test strategies and an explicit partial-publication/retry contract (PQ-1/PQ-2); durable plan revised before implementation. Per-file atomic replacement is distinct from the sequential document/shadow/state publications.
 
+- TDD: initial sessionsync run failed on the missing scoped API; CLI parser/real-runtime/help tests then failed on unsupported --frontmatter before wiring. Targeted package runs passed (sessionsync 9.466s, couchcmd 57.457s), focused race runs passed, and the 15-second byte projection/replacement fuzz run passed 751,343 executions. Added direct-first-write, ordinary registered baseline, malformed-shadow and partial-publication recovery coverage.
+- Shipped reference baseline check found no documented body-preserving metadata route. Repeating the reference retrieval after the update selected --frontmatter, the complete-block payload and hash boundary, body/Updated preservation, and safe publication-error reconciliation correctly.
+
 ## Estimate
 
 Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only; calibration is marked stale by estimate-source, so the units are provisional. Two smaller-go-module extensions cover byte projection/guarded stores and CLI wiring/tests: each base design 0.2 hours discounted by 0.2 for the settled plan, implementation 0.5 hours scaled by 0.4. Existing strings/file APIs and the document transaction suffice; no greenfield library discovery. Atlas/docs uses base design 0.1 discounted by 0.2, implementation 0.1 scaled by 0.4. One review uses implementation 0.5 scaled by 0.4. Familiarity 1.0; thorough-plan design buffer 15%. Derived total 0.755, rounded 0.76 hours.
