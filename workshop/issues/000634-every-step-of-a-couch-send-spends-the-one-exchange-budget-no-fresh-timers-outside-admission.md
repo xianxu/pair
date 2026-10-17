@@ -1,12 +1,12 @@
 ---
 id: 000634
-status: working
+status: codecomplete
 deps: [pair#618]
 github_issue:
 created: 2026-10-16
 updated: 2026-10-17
 estimate_hours:
-card_mirror: '350a913e42eedeb3f813254567ec1e2bbcbf430b' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '009d2b9892dd3f78a477495fcb76c75111c7c50e' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-17T04:42:51-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
 flow: {kind: quick, provenance: inferred, spec: "2113fcef", done: "82ba6caa"}
+actual_hours: 0.58
 ---
 
 # every step of a couch send spends the one exchange budget; no fresh timers outside admission
