@@ -148,6 +148,10 @@ Integrated main without conflict, documented eager authority and TL642b580a's la
 
 Remote CI run39055625434 attempt1 failed warm recovery: list-panes returned no reply, immediate fixture query succeeded with live wrapper/source panes. Native terminal/nvim/notification tests and earlier launcher+park conformance passed. This is the established #636 family, with prior unchanged-source reproduction recorded there; #622 changes none of the recovery fixture/probe sources. Retained failed-step log ci-39055625434-failed.log under the benchmark evidence directory, SHA256b9cf86c1e16cddf0df865f64c925ad65b98036058a3d7fc30333a04b7c74f029. Linked #636 and notified its owner pair:6 (receiptdfe486c3); requested one unchanged failed-job rerun on the same head under flake policy. No local native diagnostic, skipped assertions, query retry or guard relaxation. Retain both CI attempts; further unrelated flakes on this head require hub disposition.
 
+### 2026-10-17 — unchanged native CI rerun passed
+
+Run39055625434 attempt2 completed successfully on the unchanged b498b3c91696570946b54e5c7932052cdb010d2c head, including native terminal and recovery conformance. Both attempts remain evidence; #636 was not repaired by this branch. Successful complete log ci-39055625434-attempt2.log retained under the benchmark directory (66046bytes, SHA2564c86f13f0d8771e1bd57a842e4814965e0333f4ce9f5a8691c64c3e9edd62cf3). Required local suite remains queued; its running handle is5106, worktree sdlc-local-1584895658. Do not duplicate it.
+
 ## Estimate
 
 Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only; calibration is flagged stale by estimate-source, so provisional. Original M1 derivation was1.509h. The following cumulative derivation now includes approved M2 through live acceptance and closure; it is not a remaining-work estimate. M1's original primitives remain unchanged below.
