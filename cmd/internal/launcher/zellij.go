@@ -94,7 +94,7 @@ func (s ZellijSource) snapshot(ctx context.Context, ask, keep func(name string) 
 		case !ask(name):
 			state = SessionLive
 		default:
-			clients, err := s.clientCountContext(ctx, name)
+			clients, err := s.ClientCountContext(ctx, name)
 			if err != nil {
 				return nil, err
 			}
@@ -124,11 +124,15 @@ func (s ZellijSource) listings(ctx context.Context) (short, raw []byte, err erro
 }
 
 func (s ZellijSource) clientCount(session string) int {
-	count, _ := s.clientCountContext(context.Background(), session)
+	count, _ := s.ClientCountContext(context.Background(), session)
 	return count
 }
 
-func (s ZellijSource) clientCountContext(ctx context.Context, session string) (int, error) {
+// ClientCountContext observes the attached client count for one exact session.
+// Header-only output proves zero clients; an empty successful reply remains
+// unknown. It shares the inventory query boundary, including cancellation,
+// timeout and no automatic retries, without listing unrelated sessions.
+func (s ZellijSource) ClientCountContext(ctx context.Context, session string) (int, error) {
 	out, err := s.runContext(ctx, "--session", session, "action", "list-clients")
 	if err != nil {
 		return 0, err

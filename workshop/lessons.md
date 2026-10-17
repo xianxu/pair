@@ -2166,3 +2166,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
   with a process gate and retain stderr rather than relying only on sleep offsets.
 
 - Chunked JSONL framing must not search a retained newline-free prefix again on each append. Count actual delimiter bytes examined across multi-chunk records, alongside semantic boundary/limit tests; read/decode counters alone miss quadratic delimiter work. Preserve per-probe progress when diagnosing aggregate worker timeouts. (#626)
+
+- A readiness counter contract needs a stateful test through the actual readiness decision, not only isolated zero/one counts. Cover unchanged observations before growth and show that both equality-accepting and never-accepting mutations fail, especially when native acceptance is deferred. (#645 BR-1)
