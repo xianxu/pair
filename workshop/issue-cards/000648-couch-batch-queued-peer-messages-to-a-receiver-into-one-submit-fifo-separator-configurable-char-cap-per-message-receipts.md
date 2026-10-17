@@ -1,6 +1,6 @@
 ---
 id: 000648
-status: codecomplete
+status: done
 created: 2026-10-17
 updated: 2026-10-17
 estimate_hours: 2.805
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: ace7fd5eea5fa5e1a3dce037856832607ea8f361
         evidence_commit: cc8779326bd53a3764cffac15ad3fc3b99063d00
+        landed_commit: 01851d7fc1a4f0506a04d4d07dd7a3f56d213301
 ---
 
 # Couch: batch queued peer messages to a receiver into one submit (FIFO, separator, configurable char cap), per-message receipts
