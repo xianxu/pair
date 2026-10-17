@@ -697,6 +697,12 @@ var NonArtifactSources = []string{
 	"cmd/internal/procutil/resource_darwin.go",
 	"cmd/internal/procutil/resource_unsupported.go",
 
+	// #583's orphan sweep reads the same evidence: the roots it matches are
+	// worktrees and the argv it reads is inspected, never constructed.
+	"cmd/internal/couchcmd/reap_orphans.go",
+	"cmd/internal/couchcore/resource_orphan.go",
+	"cmd/internal/procutil/identity_age.go",
+
 	"cmd/internal/launcher/native_createflow_os.go",
 	"cmd/internal/launcher/native_resume_selector.go",
 	"cmd/internal/launcher/native_resume_selector_resolve.go",
