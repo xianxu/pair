@@ -1,12 +1,20 @@
 ---
 id: 000624
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-16
 updated: 2026-10-16
 estimate_hours:
-card_mirror: 'd0b1f86105147d1b34743338e91876bdaddb372d' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'ecb3f43df4a6c8b9fcf920b477891760c3e7d958' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-16T20:02:10-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:7
+    worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Something rebuilds pair:0's bin/couch during other slots' work, deleting it for seconds (sends fail)
@@ -35,8 +43,18 @@ would clobber a staged branch build on pair:0.
 
 ## Plan
 
-- [ ]
+- [ ] Red first in private fixture: paused compiler exposes delete/partial publication; cover direct binary targets and full make build, failure/cancellation cleanup, concurrent publishers and foreign PAIR_HOME isolation.
+- [ ] Use one same-directory temporary-build/rename publisher for pair, couch and pair-launch-helper; opt owned binaries out of the generic direct-output scanner (ARCH-DRY). Keep old executable on failed builds and clean owned temporaries.
+- [ ] Verify review asset preparation and worker build stay in their own fixture tree under foreign live-environment values; document observed writers versus unproven historical caller, run recorded full suite, close and land.
 
 ## Log
 
-### 2026-10-16
+### 2026-10-16 — writer investigation and reproduction
+
+Read-only scan found two direct Couch writers: Makefile.local's explicit bin/couch target and the shared Makefile.workflow build scanner. The latter is an ariadne symlink; Pair can opt its owned binaries out through the existing .skip-make-build mechanism rather than editing the peer. Direct Pair and launch-helper targets share the same unsafe output publication. Current installed couch is a symlink to primary bin/couch, not a rebuilding wrapper. The current interactive alias generator already builds privately and renames, and skips existing binaries in COUCH_TREE. runtimebundle-generate invokes only its generator (whose subprocess is tic), not a Pair build.
+
+The installed Go source (cmd/go/internal/work/shell.go moveOrCopyFile/CopyFile) falls back to removing/truncating its final destination before copying when rename is unavailable or a cached artifact is copied. First private probe was inconclusive because the output was already current. Alternating two valid builds forced replacement: exit 0, 2753 observations, one missing destination and 418 partial-size observations, with Go -x explicitly showing cp to the final path. Evidence retained in /var/folders/07/b9wcwwld4_v2w9r3hk525bm80000gn/T/pair624-probe.r7aBha/result.json and cached-replacement.trace. No build or clipboard/GUI action ran in pair:0.
+
+The exact historical initiator at 15:40/16:06 remains unproven. PAIR_DEV plus primary PAIR_HOME can request a primary rebuild through dev_rebuild, but current hosted markers suppress it; do not label review preparation as the culprit without evidence. The proposed fixture guard covers current review preparation/build routing despite foreign environment values. Asking the hub whether this bounded diagnosis satisfies acceptance, rather than silently dropping the historical-caller clause.
+
+Start-plan refreshed dependencies and required two reruns before creating this branch; brew reported existing go/cue/uv, no new machine packages chosen.
