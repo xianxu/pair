@@ -78,3 +78,6 @@ Upstream cache writer is write_session_state_to_disk in https://raw.githubuserco
 - /var/folders/07/b9wcwwld4_v2w9r3hk525bm80000gn/T/pair627.34fmyl6i/detach-baseline.log: SHA256 c6a35987499b3a8b56eb41c37f997589021c627adbe9f67368de18ffe72237e6
 
 - /var/folders/07/b9wcwwld4_v2w9r3hk525bm80000gn/T/pair627.34fmyl6i/native-private-env.json: SHA256 87f4e679195670ec0950c17b1d7fe5e99188d3023cc284b0a9d6f4f3d0b6fa44
+
+## Revisions
+2026-10-16 R1: TL receipt a8c8d7a3-348e-46eb-84ea-386652e8c0aa authorized original-fixture controls and fixing candidate-only failures in #627. Original helper AND original shortcut body, identical private socket root and -race count=10 PASS (30.387s); separately isolated original detach count=5 PASS. Candidate diagnostic race run reproduces the shortcut assertion: initial layout is valid, AFTER is empty despite native exit 0. Extend the test fixture's snapshot readiness to reject empty observations with the existing context/helper, retaining the exact full-layout comparison for the first nonempty response. Never wait for equality or retry input. Add deterministic empty/whitespace-read and immediate-nonempty-change controls. This is a fixture-only qualification refinement; no product behavior or deadlines change. The initial overlapping detach timeout remains unclassified until same-root isolated candidate control completes.
