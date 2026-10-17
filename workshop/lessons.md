@@ -2172,3 +2172,4 @@ and external temporary roots rather than relying on the host's TMPDIR.
   misses arrivals during the busy turn; per-envelope turn logging breaks exact
   transcript correlation. Retain original receipt IDs while recording the one
   combined turn, and test recovery of a follower through the real socket path.
+- A readiness counter contract needs a stateful test through the actual readiness decision, not only isolated zero/one counts. Cover unchanged observations before growth and show that both equality-accepting and never-accepting mutations fail, especially when native acceptance is deferred. (#645 BR-1)
