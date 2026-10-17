@@ -5,9 +5,9 @@ deps: []
 github_issue:
 created: 2026-10-17
 updated: 2026-10-17
-estimate_hours:
+estimate_hours: 2.805
 collaboration-mode: collaboration
-card_mirror: 'cdfa43f91f81e7c20a1012857f2707231fbf1fe5' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '452033751fac3e86bef2e3497fa75cb839efbfcc' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-17T11:13:12-07:00
 claimant:
     operator: Xian Xu
@@ -62,3 +62,27 @@ Durable design: [queued peer-message batches](../plans/000648-peer-message-batch
 - Live check/staging is pending fresh hub coordination for #648. Earlier issues' deferred-restart/no-:0-staging instructions are historical and are not reused as authorization. Required check: after the operator-coordinated restart onto the selected build, queue ten numbered small reports while the hub is busy, inspect all ten held/queued receipts, then observe FIFO separated headers in one or two user turns and ten submitted receipts from shared confirmation.
 - Verified new TL delivery `3914bb37-e29b-49c9-a2e5-8a34fecab301`: if close refuses actuals for a pre-ariadne#420 suite attempt missing exact queue endpoints, use the precise `--no-actual` acknowledgement and name the legacy attempt/exclusion in verification; do not reconstruct evidence. Applies only if that refusal occurs.
 - Plan report `53a8f43e-1dc1-4041-a3ca-778fbabb1433` was submitted. Verified submitted approval `f937ca8e-4c96-4d1f-90df-2fd2b5d6c9f4` approves the hub-only Claude/Codex scope, readiness-time FIFO freeze, per-group cancellation/confirmation, per-member receipts, singleton legacy fallback, exact combined Pair-log turn and cap/default. The hub explicitly deferred #648's live check to its restart after landing and forbade pair:0 staging. The hub will hold a long turn while this slot and two other slots send ten numbered reports, then verify one or two turns and ten submitted receipts. Proceeding to the full-flow plan-quality gate; no production code yet.
+- Full-flow plan-quality round 1 raised Important PQ-1 (function-level test strategy). Round 2 accepted the named production functions/adversarial strategies and disposed PQ-1; no open blockers. No architectural/mechanism change. Deriving the estimate only after that acceptance, as required.
+
+## Estimate
+
+Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only. `sdlc estimate-source` flags the calibration stale, so these numbers are provisional ship wall-clock hours, not operator attention or queue wait.
+
+Primitive decomposition: issue/spec and architecture audit use base design 0.6×0.5 and impl 0.2×0.4. Four well-specced Go extensions cover shared rendering/selection/configuration, actor pending-group transitions, wrapper preparation/retention, and per-message accounting plus exact-turn recording: each design 0.2×0.2 and impl 0.5×0.4. The one batch endpoint/broker integration uses design 1.0×0.2 and impl 1.5×0.4. Native-composer discovery is two bounded integrations (Claude/Codex), each implementation 0.3×0.4 with no design charge. Atlas/protocol docs use design 0.1×0.2 and impl 0.2×0.4; the one close boundary including verification/review uses design 0.1×0.2 and impl 0.5×0.4. These are shared components, not a count of files/tests. Library check: existing reducers, endpoint transport, stateful terminal fakes, and standard Go UTF-8/JSON cover this work; no novel library stack or greenfield subsystem. Familiarity 1.0 from #629/#631/#634/#635. Thorough admitted plan: 15% design buffer. Design subtotal 0.70, implementation subtotal 2.00; 0.70×1.15+2.00=2.805 hours.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.3 impl=0.08
+item: smaller-go-module design=0.04 impl=0.2
+item: smaller-go-module design=0.04 impl=0.2
+item: smaller-go-module design=0.04 impl=0.2
+item: smaller-go-module design=0.04 impl=0.2
+item: api-integration design=0.2 impl=0.6
+item: real-api-discovery design=0 impl=0.12
+item: real-api-discovery design=0 impl=0.12
+item: atlas-docs design=0.02 impl=0.08
+item: milestone-review design=0.02 impl=0.2
+design-buffer: 0.15
+total: 2.805
+```
