@@ -496,7 +496,8 @@ couch --reload-context pair:3 --confirm
 ## Confirmed slot recovery
 
 An interrupted park has a dedicated command:
-`couch --recover-park pair:2 --confirm [--json]`. It requires a current
+`couch --recover-park pair:2 --confirm`. Add `--json` for structured output.
+It requires a current
 authenticated caller in the owning hub and resolves only the exact retained
 transaction. It never starts an agent. Follow the result's Continue, Resume from
 disk or Start fresh action; incomplete scrollback remains explicitly incomplete.
