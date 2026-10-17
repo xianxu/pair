@@ -4490,3 +4490,22 @@ Measurement procedure: preserve two complete JSON observations across natural
 and wrapper states. Report identity-matched byte rates separately from total
 server CPU. Profiles identify hot paths, not exact per-client CPU attribution.
 M1 changes no parser policy; optimization awaits the measured comparison.
+
+### Eager ASCII processing (#622 M2)
+
+Hosted endpoints keep parsing output eagerly whether visible or hidden. In
+`third_party/vt/utf8.go`, `handlePrint` skips general grapheme segmentation only
+between two single printable ASCII characters, retaining the provisional cluster
+and normal `handleGrapheme` transition for subsequent Unicode amendment. In
+`terminal/frame.go`, `validateCell` skips segmentation for a single printable
+ASCII byte of width one after its existing content/link/width checks. Queries,
+effects, modes, geometry, history and publication retain the same authority and
+ordering; there is no lazy replay, extra buffer or visibility policy.
+
+Qualification uses differential slow references plus complete Child ingest,
+publication and frame validation benchmarks. Fixed-work ABBA child CPU measured
+13.7–15.6% lower ASCII redraw cost and 2.8–6.3% lower mixed redraw cost at the
+approved quiet-load criterion. These figures are fixture results, not live
+server savings. TL-authorized landing precedes the next coordinated Couch
+restart; live server CPU/sample and console/peek/waiting acceptance remain
+pending until that check.
