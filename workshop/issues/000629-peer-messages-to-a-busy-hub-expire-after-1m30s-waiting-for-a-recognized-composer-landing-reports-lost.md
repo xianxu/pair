@@ -48,7 +48,7 @@ Measured by pair:2 (18:47): after the restart, 31 hub-bound deliveries were canc
 - Design: [busy receiver queue plan](../plans/000629-busy-receiver-queue-plan.md).
 - [x] Reproduce connected-receiver expiry and independent-recipient progress with controlled clocks and stateful fakes.
 - [x] Remove accepted pre-paste expiry across model, broker, remote endpoint and wrapper; preserve post-paste uncertainty and exact binding ownership.
-- [ ] Verify queue drain, cancellation, native receiver behavior and the recorded full suite; close, land and report the PR.
+- [x] Verify queue drain, cancellation, native receiver behavior and the recorded full suite. Close review, landing and reporting follow through their normal gates.
 
 ## Log
 
@@ -106,3 +106,7 @@ Retire pre-paste diagnostic history: distinct picker titles otherwise grow the o
 The hub explicitly approved opening an early draft during the machine-suite wait (submitted receipt 43543b66-d791-42fe-8640-cd30439d8745). Opened draft https://github.com/xianxu/pair/pull/389 on a5e6c71025f80cc04b0d8f48ac89835428cc0b9f after sdlc pr --dry-run validated the same-repository target and branch push. The binary has no draft flag, so gh pr create --draft supplies only that approved exception. The required suite, close review and normal merge gates still precede landing. Completed-head suite run bfb8ab80f2d169d8307d75e93cac91dd is queued (initial position 10), active log .git/sdlc/test-stats/inflight/bfb8ab80f2d169d8307d75e93cac91dd/run.log.
 
 - Draft #389 CI on completed code head a5e6c71025f80cc04b0d8f48ac89835428cc0b9f is green: macOS conformance run https://github.com/xianxu/pair/actions/runs/39000060905 completed successfully, along with merge-check and local-gates-guard. Saved native run log /tmp/pair629-ci-39000060905.log; all six required native cases/subcases executed and passed, including wrapped-zellij (23.21s). Required local suite remains queued; no close/landing is claimed.
+
+### 2026-10-16 — completed-head required suite
+
+Required recorded suite passed on a5e6c71025f80cc04b0d8f48ac89835428cc0b9f: exit 0 in 9m59s after 4441s waiting for shared capacity, recorded as sdlc-local/suite. Saved log .git/sdlc/local-checks/a5e6c71025f80cc04b0d8f48ac89835428cc0b9f/suite.log, sha256 prefix ef09fbe9aec9. All packages passed, including couchmessage 20.073s, wrapcmd 52.132s and the corrected termcmd declaration guard 0.613s. This completed-head run follows the retained deterministic comment failure and its correction; no flake retry was needed. Only documentation changed since the tested head. The final Plan verification row now separates completed verification from the upcoming close/landing gates; neither is claimed complete here.

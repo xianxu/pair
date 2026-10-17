@@ -77,7 +77,7 @@ Same-receiver messages share composer availability, so shuffling its blocked hea
 
 - [x] Update README, atlas/couch.md and embedded couch skill timing/receipt descriptions. Sweep obsolete 90-second, 30-minute hold and 45-minute queue promises and their tests together.
 - [ ] Stage via sdlc stage --build with hub approval; use a real busy receiver and one queued report, verify receipt while busy and one delivery when it returns. Clear the stage afterward. Do not send unsolicited test work to the hub's live composer.
-- [ ] Run the applicable native receiver conformance and required full suite via sdlc local-check on the pushed head; apply the documented flake rule to unrelated failures.
+- [x] Run the applicable native receiver conformance and required full suite via sdlc local-check on the pushed head; apply the documented flake rule to unrelated failures.
 - [ ] Close with verification evidence and the binary's mandatory fresh review, open PR, follow the landing line, merge with sdlc merge --yes and report the PR to the hub.
 
 ## Revisions
@@ -109,3 +109,5 @@ The resource audit found that chargeWaitLocked retains every distinct pre-paste 
 ### 2026-10-16 — early draft during required suite wait
 
 The hub approved an early draft PR so macOS CI can run while the completed-head suite waits in the machine queue (receipt 43543b66-d791-42fe-8640-cd30439d8745). Draft PR #389 is open. This changes only PR timing: required suite, close review and ordinary merge gates remain before landing. Live hub qualification remains owned by the hub/operator after their next restart.
+
+- Completed-head suite qualification: a5e6c71025f80cc04b0d8f48ac89835428cc0b9f passed the required recorded suite in 9m59s (exit 0; log sha256 prefix ef09fbe9aec9). macOS native conformance and the final peer race regressions are also green. Close review and landing remain the next gates.
