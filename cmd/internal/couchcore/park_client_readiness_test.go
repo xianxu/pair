@@ -59,8 +59,8 @@ func TestParkClientCountQueryContract(t *testing.T) {
 		{name: "whitespace", reply: parkClientReply{body: " \n\t"}, noReply: true},
 		{name: "CLI failure", reply: parkClientReply{body: "query failed", exit: 2}, failed: true},
 		{name: "header only", reply: parkClientReply{body: parkClientHeader}},
-		{name: "one client", reply: parkClientReply{body: parkClientHeader + "1 0 /bin/sh\n"}, want: 1},
-		{name: "two clients", reply: parkClientReply{body: parkClientHeader + "1 0 /bin/sh\n2 1 /bin/sh\n"}, want: 2},
+		{name: "one client", reply: parkClientReply{body: parkClientHeader + "1 terminal_0 /bin/sh\n"}, want: 1},
+		{name: "two clients", reply: parkClientReply{body: parkClientHeader + "1 terminal_0 /bin/sh\n2 terminal_1 /bin/sh\n"}, want: 2},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			root := t.TempDir()
@@ -137,10 +137,10 @@ func TestParkHelperAttachmentRequiresClientGrowth(t *testing.T) {
 			root := t.TempDir()
 			baseline := parkClientHeader
 			if baselineClients == 1 {
-				baseline += "1 0 /bin/sh\n"
+				baseline += "1 terminal_0 /bin/sh\n"
 			}
 			state := parkClientCLI(t, root, []parkClientReply{
-				{body: baseline}, {body: baseline}, {body: baseline + "2 1 /bin/sh\n"},
+				{body: baseline}, {body: baseline}, {body: baseline + "2 terminal_1 /bin/sh\n"},
 			})
 			testpair.ApplyEnvironment(t, root, "PATH="+root+":/usr/bin:/bin", "PAIR_TEST_CLIENT_REPLY_STATE="+state)
 			ctx, cancel := context.WithTimeout(t.Context(), time.Second)
