@@ -42,7 +42,9 @@ The hash is the frontmatter's; a stale hash refuses. The operator's lock refuses
 ## Plan
 
 - [x] Add the explicit frontmatter scope and regression tests for byte preservation, scoped shadow acknowledgement, stale hashes and operator locks.
-- [ ] Verify the real CLI on disposable files in an isolated namespace, update help and atlas, run the recorded suite, close review and land.
+- [x] Verify the real CLI on disposable files in an isolated namespace, update help and atlas, and run the recorded suite.
+
+After acceptance checks, close review and landing use the SDLC gates.
 
 Implementation detail: [durable plan](../plans/000643-frontmatter-sync-plan.md).
 
@@ -62,6 +64,8 @@ Implementation detail: [durable plan](../plans/000643-frontmatter-sync-plan.md).
 
 - Real built CLI conformance passed for legacy and registered disposable files: scoped read/write retained the exact CRLF body and Updated bytes, unread operator addition stayed in diff, stale returned 6, operator lock returned 3. Isolated namespace was initialized through normal adopt-store preview/apply; the initial smoke correctly refused an unmigrated disposable namespace. No operator store or pair:0 was touched. Scratch evidence: /private/var/folders/07/b9wcwwld4_v2w9r3hk525bm80000gn/T/pair643-live.G8sg4M; driver /tmp/pair643-live.py.
 
+- Recorded full suite passed first attempt on be287c12c50c27bc8f1c3d7fb73d1f04b33769ca: 11m26s runtime after 1406s queue wait; full log has no failure markers. Log SHA256 7e108fb4eadfb5407f59179361349ce58e9aa5eae22faf679b40bb1d90c6684d. No retry. Close review is next; landing is pending.
+
 ## Estimate
 
 Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only; calibration is marked stale by estimate-source, so the units are provisional. Two smaller-go-module extensions cover byte projection/guarded stores and CLI wiring/tests: each base design 0.2 hours discounted by 0.2 for the settled plan, implementation 0.5 hours scaled by 0.4. Existing strings/file APIs and the document transaction suffice; no greenfield library discovery. Atlas/docs uses base design 0.1 discounted by 0.2, implementation 0.1 scaled by 0.4. One review uses implementation 0.5 scaled by 0.4. Familiarity 1.0; thorough-plan design buffer 15%. Derived total 0.755, rounded 0.76 hours.
@@ -76,3 +80,7 @@ item: milestone-review design=0 impl=0.2
 design-buffer: 0.15
 total: 0.76
 ```
+
+## Revisions
+
+- 2026-10-17: separate completed verification from the subsequent SDLC close/landing verbs in the acceptance checklist, so a checked verification row does not claim that landing already happened. No behavior or acceptance contract changed.
