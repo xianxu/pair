@@ -30,6 +30,14 @@ Investigate the native fixture/server exit and make the actual-chord conformance
 
 ## Done when
 
+**Diagnosis closeout (operator decision, 2026-10-17; see Revisions):** the original fixture/product-fix criteria below are transferred to #647. This issue closes on the native diagnosis, retained reproduction, caller-impact audit and upstream/follow-up references, without claiming the native defect is fixed.
+
+- Native crossed replies and false absence/empty-success behavior are reproduced and documented with explicit limits on the inferred internal schedule.
+- One-shot and periodic caller effects are audited, and the operator's selected Pair-side hardening is tracked as #647; #636 follows that hardening.
+- Existing upstream reports/fix are linked, with no new upstream publication or local Zellij build.
+
+Historical implementation criteria (superseded for this issue's close):
+
 - A deterministic reproduction identifies why the disposable session disappears.
 - The fixture/product cause is fixed with a regression and native conformance proof.
 
@@ -160,8 +168,20 @@ func TestNativeRawProbeDiagnostic(t *testing.T) {
 
 ARCH-ORDER/FUNERAL: native connection lifetime must cover its pending cleanup and responses; freeing/reusing a numeric identity before that work finishes breaks ownership. No sleeps, longer waits, blind query retries, Pair transport changes or known-cause exemptions were introduced. Stop at this native finding and bring any dependency fix/upstream publication to the TL/operator, as required by the approved scope. Pair:6 receives the evidence and the released native-run window; #636 remains independently owned there.
 
+### 2026-10-17 — upstream search and operator disposition
+
+The native source mechanism is already reported in [zellij-org/zellij#5270](https://github.com/zellij-org/zellij/issues/5270): ConnStatus double cleanup, immediate client-ID reuse and stale instructions targeting a replacement client. [#5382](https://github.com/zellij-org/zellij/issues/5382) reports concurrent list-panes exit0 with empty output; [#5546](https://github.com/zellij-org/zellij/issues/5546) reports stale cleanup evicting a replacement attach. [PR #5272](https://github.com/zellij-org/zellij/pull/5272) closed without merge; [PR #5630](https://github.com/zellij-org/zellij/pull/5630) merged September24 with retirement of client IDs. The [main changelog](https://github.com/zellij-org/zellij/blob/main/CHANGELOG.md) lists that fix as unreleased; the latest released/installed binary remains0.45.1. Our reproduction has not qualified patched main. No upstream issue, comment, PR or local native build was produced.
+
+Read-only caller audit distinguishes periodic observations from one-shot effects. The message listing poller refreshes both listing forms nominally each second and retains last good for5 seconds on error. Inventory refreshes on lifecycle/UI events. Title liveness misses debounce across five60-second ticks. Wait-watcher is a15-second registry/self-report/tail observer, not a pane-reply authentication fence. Process PID/start checks protect lifetime and quiescence but cannot undo a wrong focus, paste, layout, note anchor or restart decision. Valid same-kind replies can differ by tab, flags, focus and time; global discovery can silently omit a live server when a probe rejects a response. The observed2.85–3.25% is a synthetic raw-request rate, not a production or user-action rate. The race is per server, not evidence of cross-daemon/session response transfer.
+
+Authenticated operator dispatch delegates Pair-side hardening to #647: classify every audited caller as re-checked/hardened/fail-closed; add request-compatible reply validation and independent confirmation before one-shot mutations; clipboard fails closed; fake-Zellij tests per hardened caller plus native refusal proof. Full-flow plan must be posted before code. #636 remains separately owned by pair:6 and follows #647. #640 now closes solely as diagnosis, with no production changes and no claim of fixing Zellij.
+
 ## Revisions
 
 ### 2026-10-17 09:30 — approved read-only native-trigger investigation
 
 TL approved bounded investigation in the existing Zellij checkout, read-only, time-boxed to approximately two hours (stop around 11:30 local and report). No upstream issue/PR, dependency edits/installation, retries/sleeps/transport machinery in Pair tests or known-cause exemption is authorized. If stale-ID race is confirmed, retain minimal reproduction in this issue and bring any upstream publication to the TL first. This replaces the assumption that the next step is necessarily a quick fixture-only implementation. Production and tests remain unchanged. Pair:6 now owns #636 and has been sent the shared empty-reply findings; native runs are serialized between slots.
+
+### 2026-10-17 — diagnosis complete; implementation transferred to #647
+
+Operator chose option(c): Pair-side hardening, with no local Zellij build and adoption of upstream PR#5630 when released. Delta: supersede #640's original implementation acceptance criteria/unchecked fix tasks with the diagnosis closeout bullets above; preserve the historical plan unchanged. Follow-up #647 owns all hardening implementation, caller atlas classifications, fake tests and native refusal acceptance. #640's verification is the retained native/protocol controls and source/caller/upstream audit; closing it does not assert native conformance passes. The narrow close plan-check acknowledgment applies only to those transferred implementation tasks.
