@@ -1,6 +1,7 @@
 package couchtty
 
 import (
+	"maps"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
@@ -80,6 +81,11 @@ func (c *Console) HostedIngestSnapshot() couchcore.HostedIngestSnapshot {
 func cloneResourceRows(rows []couchcore.ActionableThreadSummary) []couchcore.ActionableThreadSummary {
 	out := append([]couchcore.ActionableThreadSummary(nil), rows...)
 	for i := range out {
+		if rows[i].TitleTarget != nil {
+			v := *rows[i].TitleTarget
+			v.Sessions = maps.Clone(v.Sessions)
+			out[i].TitleTarget = &v
+		}
 		if rows[i].Recovery != nil {
 			v := *rows[i].Recovery
 			out[i].Recovery = &v

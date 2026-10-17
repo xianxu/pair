@@ -30,7 +30,7 @@ This is one atomic delivery and one close review, without Mx tags. Use full flow
 |------|----------|--------|
 | TitleTarget | cmd/internal/couchcore/title_target.go | new |
 | TitleUpdateState and AdvanceTitleUpdate | cmd/internal/titlepoller/update.go | new |
-| CurrentTitleLaunch | cmd/internal/sessioninventory/title_launch.go | new |
+| TitleLaunch | cmd/internal/sessioninventory/title_context.go | new |
 | Shared frame/heat/ownership decisions | cmd/internal/titlepoller/titlepoller.go | modified |
 
 TitleTarget is the observation-scoped tuple of thread address, agent, exact bound session, session/start generation and newest typed launch ordinal. It is projected from the same snapshot and resolved session evidence used by inventory; a live display row alone grants no target authority. Keep private authority fields out of JSON/display payloads. Include only hosted live sessions owned by this supervisor, never an unrelated standalone Pair.
@@ -43,7 +43,7 @@ TitleUpdateState records desired title, in-flight effect identity and last confi
 |------|----------|--------|-------|
 | Hosted wrapper title admission | cmd/internal/wrapcmd/title_process.go | modified | child pipe/process creation |
 | Inventory title-target projection | cmd/internal/couchcore/actionableinventory.go and title_target.go | modified/new | existing thread snapshot, scoped binding and session presence evidence |
-| Compact projection cancellation | cmd/internal/sessioninventory/title_projection.go, title_launch.go and runtime_os.go | modified/new | context-aware bounded reads and SQLite child |
+| Compact projection cancellation | cmd/internal/sessioninventory/title_projection.go, title_context.go and runtime_os.go | modified/new | context-aware bounded reads and SQLite child |
 | Couch title updater | cmd/internal/couchcmd/titles.go | new | compact native display facts and scoped pane/owner metadata |
 | Console display/activity pass | cmd/internal/couchtty/console_activity.go and console.go | modified | existing cancellable single-flight schedule |
 | Title effect runtime | cmd/internal/titlepoller/runtime.go and update.go | modified/new | context-bounded Zellij/cmux effects and ownership publication |
@@ -114,7 +114,7 @@ Files under cmd/internal/: new titlepoller/update.go and update_test.go; titlepo
 
 ### Task 3: Cancellable compact queries
 
-Files under cmd/internal/sessioninventory/: new title_launch.go and title_launch_test.go; title_projection.go/title_projection_test.go, runtime_os.go/runtime.go and context runtime adapters.
+Files under cmd/internal/sessioninventory/: new title_context.go and title_projection_test.go; title_projection.go/title_projection_test.go, runtime_os.go/runtime.go and context runtime adapters.
 
 - [ ] Write CurrentTitleLaunch and PollContext regressions using the strategies above; observe RED with `go test ./cmd/internal/sessioninventory -run 'Test.*(Title|OwnerLaunch)' -count=1`.
 - [ ] Export the narrow cached current-launch projection. Add PollContext(ctx), retaining Poll() as standalone background wrapper; propagate context into owner resolution, admission, bounded tail reads and SQLite CommandContext. Cancellation leaves valid projection state retryable, authority invalidation stops it. No detached timeout goroutine. Verify GREEN and commit.
@@ -153,3 +153,5 @@ Full-flow approved by TL delivery 798a3ab4-b9da-465f-a516-34c291210e0a. Next act
 
 - 2026-10-17 — PQ-1: retain ten-minute large-poller baseline and fleet before/after records; apply the original 1,000-tick retained-memory/work invariant to the approved replacement updater. Standalone behavior remains unchanged.
 - 2026-10-17 — PQ-2: compress test-case prose across all tasks into named functions and adversarial strategies. Correct ARCH-ORDER. No runtime design delta.
+
+- 2026-10-17 — Implementation placement: pure TitleLaunch result and CurrentTitleLaunch/context adapter share title_context.go; tests extend title_projection_test.go. Console environment wiring is titles_wiring.go. No runtime scope change.

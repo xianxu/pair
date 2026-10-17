@@ -462,6 +462,7 @@ func runTypedOperation(op couchcore.Operation, parsed, prepareArgs map[string]st
 		})
 	}
 	finish := func(console *couchtty.Console, c *couchcore.Couch, start couchcore.StartResult, out io.Writer) int {
+		wireTitles(console, c, rt.Getenv)
 		return runConsole(console, c, start, out, hubs)
 	}
 	return runTypedOperationWithConsole(op, parsed, prepareArgs, forceConsole, layout, inFile, outFile, stdin, stdout, stderr, rt, finish, setup...)

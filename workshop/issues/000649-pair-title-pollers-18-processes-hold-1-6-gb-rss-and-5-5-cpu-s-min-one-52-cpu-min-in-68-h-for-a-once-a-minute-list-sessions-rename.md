@@ -58,9 +58,9 @@ The work per tick is one `zellij list-sessions --no-formatting`, sometimes a liv
 
 ## Plan
 
-- [ ] Complete live baseline and submit durable full-flow plan to TL.
-- [ ] After approval, pass change-code plan-quality and derive estimate.
-- [ ] Suppress hosted child; share exact target/title decisions and cancellable compact facts.
+- [x] Complete live baseline and submit durable full-flow plan to TL.
+- [x] After approval, pass change-code plan-quality and derive estimate.
+- [x] Suppress hosted child; share exact target/title decisions and cancellable compact facts.
 - [ ] Wire one existing-schedule updater and shared activity/fade results; verify stateful failure sequences.
 - [ ] Stage for hub live check, document, run recorded suite, close and land on SHIP.
 
@@ -115,3 +115,19 @@ item: real-api-discovery design=0 impl=0.18
 design-buffer: 0.15
 total: 3.207
 ```
+
+## Implementation evidence
+
+### 2026-10-17 — automated behavior
+
+Full-flow change-code passed: plan-quality clean; estimate-quality INFO accepted (cancellation/integration/live verification allowances flagged for actuals). Shared facts, reducer and hosted admission committed in 59f7dfba3. Agent tasks supplied RED/GREEN evidence; parent reran wrapper title tests and title/sessioninventory/current-owner families successfully. Combined console/activity tests and targeted race tests for couchtty, couchcmd and sessioninventory passed. Broader affected-package checks remain running; no full-suite or live success is claimed yet.
+
+Production-seam fixture reads a disposable Codex transcript, emits exact scoped rename argv and proves 20 unchanged updates read/decode zero native history and issue no extra title/liveness command. Missing selected pane/stale agent twin does not rename. Controlled command cancellation joins its group. Console tests exercise replacement cancellation and private-target snapshot copying. Isolated 1,000-tick workload holds two targets across ten ordinal turnovers: exactly 22 expected assignments, zero stable-tick writes, retained heap 1,027,592 -> 989,160 bytes. Raw post-GC heap samples were logged every 100 ticks.
+
+### 2026-10-17 — completed large-poller baseline
+
+Before deploying any fix, PID 26235 was measured for 600 seconds: RSS 205,856 -> 206,048 KiB (201.03 -> 201.22 MiB). The only observed RSS change was +192 KiB at elapsed 477.33 seconds; averaging over approximately ten ticks gives 19.2 KiB/tick, not evidence of a sustained linear leak. CPU 676.05 -> 679.26 seconds (+3.21 seconds, approximately 0.321 CPU-s/min). No historical growth cause is inferred from this window. Local raw series: /var/folders/07/b9wcwwld4_v2w9r3hk525bm80000gn/T/pair649-tenminute-8mk6vyzy/measurement.json.
+
+A separate 600-second high-frequency child observer on the same PID captured ten list-sessions --no-formatting commands and no list-clients commands (1.000 queries/minute). Tick intervals: mean 60.497 seconds, range 60.275–60.950 seconds. This reproduces the intended cadence, not over-polling. Observer windows overlap but do not share identical endpoints. Local raw query series: /var/folders/07/b9wcwwld4_v2w9r3hk525bm80000gn/T/pair649-large-queries-600.json.
+
+Fleet BEFORE remains the recorded 17 pollers / 1,055.44 MiB initial sample and 16 / 1,029.28 MiB later sample as one exited; survivors used 1.388 CPU-s/min. Fleet AFTER is pending an approved staged rollout; an old running wrapper retains its old poller and cannot count as upgraded. Hub request c8ee5589-0593-4894-aa2d-9a7f812c8cea is queued awaiting image input to clear. No :0 mutation or slot relaunch performed by this worker.

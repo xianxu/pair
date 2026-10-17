@@ -408,6 +408,11 @@ recovery journals. Attachments use bounded parallelism and one retry; a failure
 reads `Continue · pane failed: <reason> (retry)`. While its pane is loading,
 it reads `Continue · attaching…`; an attached pane reads `Continue`. One unavailable slot does not
 prevent Couch or other slots from opening.
+Couch keeps agent-pane context titles and cmux activity heat titles current from
+its existing inventory and minute activity refreshes. Hosted Pair starts no
+separate title poller. Idle fading keeps using prompt and agent activity plus
+live wrapper work; standalone Pair retains its leased title poller.
+
 Choose **Continue** for a session Zellij lists live, **Resume from disk** for a
 recoverable stopped conversation, or the offered **Start fresh** action to begin
 again. A live session remains Continue while its agent is working on a turn;

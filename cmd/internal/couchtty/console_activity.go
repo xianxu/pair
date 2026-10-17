@@ -2,6 +2,7 @@ package couchtty
 
 import (
 	"context"
+	"reflect"
 	"strconv"
 	"time"
 
@@ -13,6 +14,48 @@ import (
 // operator's input or its agent's work. Production wires threadactivity.Latest;
 // it must honour ctx. A zero time means the thread left no signal at all.
 type ActivityProbe func(ctx context.Context, row couchcore.ActionableThreadSummary) (time.Time, error)
+
+// ActivityPass shares optional title and activity work on the existing schedule.
+// The bool map reports failed/unknown observations, preserving the previous fade.
+type ActivityPass func(context.Context, []couchcore.ActionableThreadSummary) (map[couchcore.ThreadAddress]time.Time, map[couchcore.ThreadAddress]bool)
+
+// SetActivityPass replaces per-row native probes with one combined display pass.
+func (c *Console) SetActivityPass(pass ActivityPass) {
+	c.mu.Lock()
+	c.activityPass = pass
+	c.mu.Unlock()
+	c.requestActivity()
+}
+
+// invalidateActivityRowsLocked fences a worker using an obsolete target set.
+// The caller invokes the returned cancel after releasing c.mu.
+func (c *Console) invalidateActivityRowsLocked(rows []couchcore.ActionableThreadSummary, known bool) context.CancelFunc {
+	previousKnown := c.activityRowsKnown
+	c.activityRowsKnown = known
+	if known && previousKnown && sameActivityTargets(c.resourceRows, rows) {
+		return nil
+	}
+	c.activityRowsGeneration++
+	return c.activityCancel
+}
+
+func sameActivityTargets(a, b []couchcore.ActionableThreadSummary) bool {
+	a, b = activityProbeRows(a), activityProbeRows(b)
+	if len(a) != len(b) {
+		return false
+	}
+	byAddress := map[couchcore.ThreadAddress]couchcore.ActionableThreadSummary{}
+	for _, row := range a {
+		byAddress[row.Address] = row
+	}
+	for _, row := range b {
+		old, ok := byAddress[row.Address]
+		if !ok || old.Agent != row.Agent || !reflect.DeepEqual(old.TitleTarget, row.TitleTarget) {
+			return false
+		}
+	}
+	return true
+}
 
 // ThreadActivityProbe adapts the shared thread-activity definition to Console
 // rows. Its runtime owns caches across rows and passes; each query stays scoped
@@ -37,9 +80,10 @@ const (
 )
 
 type activityResult struct {
-	generation uint64
-	observed   map[couchcore.ThreadAddress]time.Time
-	failed     map[couchcore.ThreadAddress]bool
+	generation     uint64
+	rowsGeneration uint64
+	observed       map[couchcore.ThreadAddress]time.Time
+	failed         map[couchcore.ThreadAddress]bool
 }
 
 // SetActivityProbe installs the probe and asks for a first pass.
@@ -74,7 +118,7 @@ func (c *Console) requestActivity() {
 func (c *Console) advanceActivity(event RefreshScheduleEvent) {
 	if event.Kind == RefreshRequested {
 		c.mu.Lock()
-		installed := c.activityProbe != nil
+		installed := c.activityProbe != nil || c.activityPass != nil
 		c.mu.Unlock()
 		if !installed {
 			return
@@ -88,6 +132,11 @@ func (c *Console) advanceActivity(event RefreshScheduleEvent) {
 		}
 		c.mu.Lock()
 		probe := c.activityProbe
+		pass := c.activityPass
+		rowsGeneration := c.activityRowsGeneration
+		rowsKnown := c.activityRowsKnown
+		passContext, passCancel := context.WithTimeout(c.lifetime, activityProbeTimeout)
+		c.activityCancel = passCancel
 		wrapper := c.wrapperActivity
 		previous := c.menu.Activity
 		rows := activityProbeRows(menuRows(c.menu))
@@ -95,32 +144,50 @@ func (c *Console) advanceActivity(event RefreshScheduleEvent) {
 		c.workers.Add(1)
 		go func(generation uint64) {
 			defer c.workers.Done()
-			result := activityResult{generation: generation, observed: map[couchcore.ThreadAddress]time.Time{}, failed: map[couchcore.ThreadAddress]bool{}}
-			for _, row := range rows {
-				if c.lifetime.Err() != nil {
-					result.failed[row.Address] = true
-					continue
+			defer passCancel()
+			result := activityResult{generation: generation, rowsGeneration: rowsGeneration, observed: map[couchcore.ThreadAddress]time.Time{}, failed: map[couchcore.ThreadAddress]bool{}}
+			if pass != nil && rowsKnown {
+				result.observed, result.failed = pass(passContext, rows)
+				if result.observed == nil {
+					result.observed = map[couchcore.ThreadAddress]time.Time{}
 				}
-				ctx, cancel := context.WithTimeout(c.lifetime, activityProbeTimeout)
-				at, err := probe(ctx, row)
-				timedOut := ctx.Err() != nil
-				cancel()
+				if result.failed == nil {
+					result.failed = map[couchcore.ThreadAddress]bool{}
+				}
+			}
+			for _, row := range rows {
+				at, failed := result.observed[row.Address], result.failed[row.Address]
+				if pass == nil {
+					ctx, cancel := context.WithTimeout(c.lifetime, activityProbeTimeout)
+					if probe == nil {
+						failed = true
+					} else {
+						var err error
+						at, err = probe(ctx, row)
+						failed = err != nil || ctx.Err() != nil
+					}
+					cancel()
+				} else if !rowsKnown || passContext.Err() != nil {
+					failed = true
+				}
 				if wrapper != nil {
 					if work := wrapper(row); !work.IsZero() {
-						if (err != nil || timedOut) && previous[row.Address].After(at) {
+						if failed && previous[row.Address].After(at) {
 							at = previous[row.Address]
 						}
 						if work.After(at) {
 							at = work
 						}
-						err, timedOut = nil, false
+						failed = false
 					}
 				}
-				switch {
-				case err != nil || timedOut:
+				if failed {
 					result.failed[row.Address] = true
-				case !at.IsZero():
-					result.observed[row.Address] = at
+				} else {
+					delete(result.failed, row.Address)
+					if !at.IsZero() {
+						result.observed[row.Address] = at
+					}
 				}
 			}
 			select {
@@ -136,7 +203,9 @@ func (c *Console) finishActivity(result activityResult) {
 		return
 	}
 	c.mu.Lock()
-	c.menu, _ = ReduceMenu(c.menu, MenuEvent{Kind: MenuEventActivity, Activity: result.observed, ActivityFailed: result.failed})
+	if result.rowsGeneration == c.activityRowsGeneration {
+		c.menu, _ = ReduceMenu(c.menu, MenuEvent{Kind: MenuEventActivity, Activity: result.observed, ActivityFailed: result.failed})
+	}
 	c.mu.Unlock()
 	if len(result.observed)+len(result.failed) > 0 {
 		c.traceEvent(traceActivity, couchcore.ThreadAddress{}, "ok="+strconv.Itoa(len(result.observed))+" failed="+strconv.Itoa(len(result.failed)))

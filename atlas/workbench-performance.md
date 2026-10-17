@@ -37,11 +37,12 @@ and a controlled native process reader. Context deadlines only bound a hung test
 they are not latency assertions. `make test` also runs them without a special flag.
 
 - `TestWorkbenchPerformanceIdleUITick` uses the same
-  `couchtty.ThreadActivityProbe` adapter as production `wireIdleFading`, drives
+  `couchtty.ThreadActivityProbe` compatibility adapter installed by `wireIdleFading`, drives
   the exact activity schedule events used by the UI ticker and applies results
   to the real menu reducer. It actually parses 600 MB cold, then measures every
   warm pass independently. One owner mutation performs owner-local work, followed
   by another zero-work pass.
+- Hosted production title/activity work is covered by `TestCouchTitlesOSProjectionToScopedCommand` (warm native read/decode and external-command counts) and `TestCouchTitlesRetainedHeap1000Ticks` (fixed live fleet with generation turnover, bounded retained heap and no stable-title writes). Its combined pass replaces the compatibility native activity scan.
 - `TestWorkbenchPerformanceMessageUnchangedEvidence` uses the production
   recorded-authority adapter and the existing socket-service fixture. Every send
   must reach its endpoint and a submitted receipt before measurement. Index
