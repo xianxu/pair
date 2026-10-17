@@ -1,6 +1,6 @@
 ---
 id: 000619
-status: codecomplete
+status: done
 created: 2026-10-16
 updated: 2026-10-16
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 3f5f7fed4f03aa2829be24ae339cb473260bf000
         evidence_commit: 5eea8883dbc333249ecf6e0a6519b4767449a3ca
+        landed_commit: 5bda913565235f3702f46eef1c43ecd212f1ddde
 ---
 
 # Couch key help: add Alt+Space, parley's attention finder (parley.nvim#354)
