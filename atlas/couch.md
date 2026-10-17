@@ -398,7 +398,14 @@ Targeted registry events inherit that same context as well as service lifetime;
 a stalled registry loop cannot extend the send past its admission budget.
 `--message-file` (pair#486) reads the body from a file at send time, so an agent writes a message
 containing shell syntax with its editor and the call stays a bare `couch …` its sandbox exempts.
-`--actors` and `--message-status` support JSON. One delivery at a time per
+`--actors` and `--message-status` support JSON.
+`Broker.StatusContext` resolves an exact visible ID before considering unique
+prefixes in the caller's retained sends, received messages and refusals. It
+uses the same locked visibility and waiting-line projection as exact reads;
+ambiguous prefixes list sorted visible full IDs, while misses identify an
+unknown lookup. Full-ID wrapper recovery after restart remains available;
+prefix resolution is limited to receipts the broker currently retains (#635).
+One delivery at a time per
 actor, a FIFO behind it (pair#492: `ActorState.queue`, at most `MaxQueued` = 32),
 the inbound breaker, and bounded terminal receipt retention limit the runtime.
 Accepted pre-paste mail has no wait horizon while its exact receiver is connected.
@@ -559,7 +566,13 @@ remaining uncertainty is stated, never papered over:
 - **Receive state in `--list` (#618).** `couch --list` asks the running
   supervisor once (the unauthenticated `refusals` op, 250 ms, best effort) for
   each slot's latest unsuperseded refusal and prints it under the row as
-  `can't receive: <reason>` with the one command that clears it.
+  `can't receive: <reason>` with the one command that clears it. Ownership and
+  registration sources carry `couchmessage.RelaunchRequiredError`; the broker
+  records a safe `{reason,class}` projection and the list chooses relaunch from
+  that class (#633), never diagnostic phrases. Timeout/cancellation and unknown
+  classes choose resend. The op contains no sender binding or body. Mixed-version
+  response-shape mismatch omits these best-effort annotations, leaving the ordinary
+  list intact.
 - **Peer turns in the Pair log (#618).** When a delivery ends `Submitted`,
   pair-wrap appends the exact envelope it pasted to the thread's Pair log
   through the managed locked writer (`pairlog.PersistPeerTurn`, append ID
@@ -1435,7 +1448,12 @@ generation fence; source activity invalidates the display hint, and an older
 in-flight probe cannot publish over a newer source. Display changes publish even
 when `Settled` stays true. `backgroundWorkState` reuses the Claude composer bounds
 and counts only a bounded native shell-counter field with management chrome below
-the closing rule. Body prose, drafts, incomplete synchronized paint, missing or
+the closing rule. Qualified captures include Claude 2.1.296 and the 2.1.301
+PR-link variant (94×39): canonical positive-decimal `PR #N` is accepted only
+as the first optional field, alongside a complete shell counter and management
+chrome. PR-only absence remains unknown. The shared row projection preserves
+erased blank cells while omitting wide-glyph continuation cells. Body prose,
+drafts, incomplete synchronized paint, missing or
 unqualified footer and unsupported agents grant no positive hint. Recognized
 no-shell/zero state is false; loss of qualified evidence is unknown. This is a
 native-UI observation, not a process/CPU inference or transcript scan.
@@ -1519,6 +1537,13 @@ for normal-suite commands, strict selected-attach scan counts, other-path scan
 ratchets and the separate 20-slot/60-second CPU acceptance smoke. Counts do not
 claim whole-supervisor CPU behavior after rollout.
 
+The shared chunked JSONL reader searches only appended bytes after a retained
+newline-free prefix (#626). Counted-search regressions pin linear delimiter
+work across long records and chunk boundaries; the 20-owner UI fixture keeps
+its existing deadlines and logs per-probe and generation timing to distinguish
+cold IO/decoding from missing progress. Cache authority and invalidation rules
+are unchanged.
+
 ### Slots behind a picker draw red (pair#465)
 
 A live thread whose wrapper reports `Picker` draws in the terminal's red
@@ -1581,7 +1606,15 @@ from exact hosted PID/start observations and never promotes raw persisted
 lifecycle state into a user-visible `live` or `parked` row.
 
 The switcher’s `Ctrl+Y` copies the latest retained `Feed.Messages()` body outside
-the console lock (`console_menu.go`, #604). Local consoles first use clipcmd's
+the console lock (`console_menu.go`, #604). The panel accepts canonical Kitty
+Ctrl+Y as well as legacy 0x19 (#646); release events never trigger a copy.
+`copy_key.go` classifies only decoded Ctrl+Y press/release events before product
+routing and reports `clipboard_key` via the existing bounded supervision writer.
+Its three content-free fields are encoding class, switcher focus and release;
+all other input is ignored. `clipboard_copy` remains the later operation outcome.
+No raw key stream, notice text or clipboard content enters either diagnostic.
+The 2026-10-17 read-only probe proved the old CSI-u decoder dropped enhanced
+Ctrl+Y; the historical keystroke bytes were not captured. Local consoles first use clipcmd's
 existing `pbcopy` / `wl-copy` / `xclip` tool cascade, with a one-second command
 budget and bounded pipe cleanup. Successful tool exit confirms local copying.
 Explicit SSH environments skip the host clipboard. Missing, failed or timed-out
@@ -4457,3 +4490,22 @@ Measurement procedure: preserve two complete JSON observations across natural
 and wrapper states. Report identity-matched byte rates separately from total
 server CPU. Profiles identify hot paths, not exact per-client CPU attribution.
 M1 changes no parser policy; optimization awaits the measured comparison.
+
+### Eager ASCII processing (#622 M2)
+
+Hosted endpoints keep parsing output eagerly whether visible or hidden. In
+`third_party/vt/utf8.go`, `handlePrint` skips general grapheme segmentation only
+between two single printable ASCII characters, retaining the provisional cluster
+and normal `handleGrapheme` transition for subsequent Unicode amendment. In
+`terminal/frame.go`, `validateCell` skips segmentation for a single printable
+ASCII byte of width one after its existing content/link/width checks. Queries,
+effects, modes, geometry, history and publication retain the same authority and
+ordering; there is no lazy replay, extra buffer or visibility policy.
+
+Qualification uses differential slow references plus complete Child ingest,
+publication and frame validation benchmarks. Fixed-work ABBA child CPU measured
+13.7–15.6% lower ASCII redraw cost and 2.8–6.3% lower mixed redraw cost at the
+approved quiet-load criterion. These figures are fixture results, not live
+server savings. TL-authorized landing precedes the next coordinated Couch
+restart; live server CPU/sample and console/peek/waiting acceptance remain
+pending until that check.

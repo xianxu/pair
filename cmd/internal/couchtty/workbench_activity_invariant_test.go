@@ -18,17 +18,23 @@ import (
 type countedActivityRuntime struct {
 	base   threadactivity.OSRuntime
 	counts *workbenchperftest.Counter
+	logf   func(string, ...any)
 }
 
 func (r countedActivityRuntime) ModTime(path string) (time.Time, bool) { return r.base.ModTime(path) }
 func (r countedActivityRuntime) SessionActivity(ctx context.Context, thread threadactivity.Thread) (time.Time, bool) {
-	return r.base.WithWorkObserver(r.counts.Observer(thread.Scope)).SessionActivity(ctx, thread)
+	started := time.Now()
+	at, ok := r.base.WithWorkObserver(r.counts.Observer(thread.Scope)).SessionActivity(ctx, thread)
+	if r.logf != nil {
+		r.logf("activity probe scope=%s elapsed=%s available=%t context=%v", thread.Scope, time.Since(started), ok, ctx.Err())
+	}
+	return at, ok
 }
 
 func TestWorkbenchPerformanceIdleUITick(t *testing.T) {
 	const slots, ledgerBytes = 20, 30_000_000
 	evidence := workbenchperftest.NewFixture(t, slots, ledgerBytes)
-	runtime := countedActivityRuntime{base: threadactivity.NewOSRuntime(evidence.Home), counts: evidence.Counts}
+	runtime := countedActivityRuntime{base: threadactivity.NewOSRuntime(evidence.Home), counts: evidence.Counts, logf: t.Logf}
 	console := New(hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 100}), nil)
 	t.Cleanup(func() { console.Stop(); console.workers.Wait() })
 	rows := make([]couchcore.ActionableThreadSummary, slots)
@@ -51,12 +57,14 @@ func TestWorkbenchPerformanceIdleUITick(t *testing.T) {
 			t.Fatal("no activity request")
 		}
 		// Sole scheduler owner, exactly the same event used by Console.Run's tick.
+		started := time.Now()
 		console.advanceActivity(RefreshScheduleEvent{Kind: RefreshRequested})
 		select {
 		case result := <-console.activityResults:
 			if len(result.observed) != slots || len(result.failed) != 0 {
 				t.Fatalf("pass results observed=%d failed=%v", len(result.observed), result.failed)
 			}
+			t.Logf("activity generation=%d completed=%d elapsed=%s", result.generation, len(result.observed), time.Since(started))
 			console.finishActivity(result)
 		case <-time.After(30 * time.Second):
 			t.Fatal("activity worker did not finish")

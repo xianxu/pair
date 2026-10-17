@@ -68,6 +68,7 @@ func (c *Console) routeInputEvent(event terminal.InputEvent) {
 		}
 		return
 	}
+	c.observeCopyKey(event)
 	switch event.Event.(type) {
 	case uv.MouseClickEvent, uv.MouseReleaseEvent, uv.MouseMotionEvent, uv.MouseWheelEvent:
 		c.routeMouseEvent(event)

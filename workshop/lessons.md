@@ -2152,9 +2152,25 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 - #638: A successful subprocess exit does not prove a complete piped-input operation. exec.ErrWaitDelay can describe either unread inherited stdin or a held-open diagnostic descriptor; preserve success only after verifying the existing input reader is exhausted and context remains valid. Pair the full-read/held-stderr regression with an over-pipe-capacity unread-input negative control.
 - #634: Start a request's admission budget before sender checks, then carry its context through registry posting and recipient IO. A timeout regression must include earlier work over the real transport; testing admission alone misses additive budgets. Refusal bookkeeping reuses the routing snapshot rather than starting a second lookup after expiry.
+
+- #635: Resolve human-facing receipt prefixes within the authenticated caller's visible retained set before consulting recovery holders. An unmatched query identifies an unknown lookup, not a delivery outcome; ambiguity lists only visible full IDs, with exact matches taking precedence.
 - #643: Distinguish atomic replacement of one file from publication of a document/shadow/state bundle. A plan must name partial persisted outcomes and reconciliation after IO failure; test a controlled publication failure and prove unread baselines and owed events survive.
 
 - #630: A deadline and bounded pipe draining do not collect descendants that close their pipes before a successful parent exits. A command group owned only for a synchronous check ends on every completion, including success. Test both cancellation and a successful parent with an independently live, closed-pipe child.
 
 - #630 BR-1: A registered-only operation selects or rejects its route under the registry lock before entering a generic legacy loader. A post-load authority check cannot prevent fallback IO, side effects or unbounded locks. Regress unknown and disappeared authority while the fallback lock is held, and prove service cancellation still collects the caller.
 - #638 BR-1 (advisory): When positive and negative subprocess regressions share a descriptor-holder protocol, give one test helper ownership of its environment, release handshake and bounded cleanup so lifecycle fixes do not diverge between copies.
+- #598: A signal-cancellation fixture establishes the child's inherited signal
+  disposition before exec. Noninteractive background shells supply SIGINT ignored;
+  Python preserves that until its handler is installed. Pin pre-handler delivery
+  with a process gate and retain stderr rather than relying only on sleep offsets.
+
+- Chunked JSONL framing must not search a retained newline-free prefix again on each append. Count actual delimiter bytes examined across multi-chunk records, alongside semantic boundary/limit tests; read/decode counters alone miss quadratic delimiter work. Preserve per-probe progress when diagnosing aggregate worker timeouts. (#626)
+- #620: Derive an integration fixture's completion bound from the product phases
+  it actually runs, including allowed serial IO and in-flight work. A short
+  aggregate wait can reject successful bounded calls; prove that ordering with
+  controlled latency and retain a publication-failure negative control.
+
+- #646: Shortcut verification must exercise the terminal decoder and routing boundary with both legacy and enhanced wire input. Calling the action handler directly can prove clipboard IO while missing the unsupported key encoding that prevents the handler from running. Keep a content-free arrival observation separate from operation outcome when diagnosing this boundary.
+- #622 M2 trailer audit: keep Agent and Co-Authored-By in the same final commit-message paragraph. A blank line before Co-Authored-By makes Git exclude the earlier Agent line from its trailer block. Verify with git log --format="%(trailers:only)" before publishing; preserve already-reviewed historical commits rather than rewriting measurement provenance.
+- A readiness counter contract needs a stateful test through the actual readiness decision, not only isolated zero/one counts. Cover unchanged observations before growth and show that both equality-accepting and never-accepting mutations fail, especially when native acceptance is deferred. (#645 BR-1)
