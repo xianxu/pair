@@ -54,13 +54,14 @@ No blind retries, no sleeps, no transport machinery. Reads that already re-check
 
 Durable full-flow plan: [Zellij reply hardening](../plans/000647-zellij-reply-hardening-plan.md). R1 is proposed for TL approval; no implementation has begun.
 
-- [ ] M1 — Strict reply contracts, stateful fake and lifecycle/absence admission.
+- [x] M1 — Strict reply contracts, stateful fake and lifecycle/absence admission.
 - [ ] M2 — Go one-shot action and clipboard safety, with per-caller fake refusal tests.
 - [ ] M3 — Editor admission, native refusal qualification and complete atlas caller map.
 
 ## Log
 
 ### 2026-10-17
+- 2026-10-17: closed M1 — M1 reviewed from an independent clone while the registered checkout lands #640; clone lacks the primary checkout's queue evidence. TL approval0019655b authenticated. BR-4 collector-error controls RED before and GREEN after both-consumer fix; launcher34.936s, collector4.287s, collector/observer race1.930s. Prior BR-1/2/3 disposed in round2; R3 phase/lifetime controls retained; full-Couch evidence limits in issue.; review verdict: SHIP
 
 ### 2026-10-17 — full-flow design R1
 

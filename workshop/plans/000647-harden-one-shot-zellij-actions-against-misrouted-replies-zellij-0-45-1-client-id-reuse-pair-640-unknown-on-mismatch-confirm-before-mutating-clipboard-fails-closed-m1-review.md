@@ -218,3 +218,94 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-17T13:19:47-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 647 — Harden one-shot zellij actions against misrouted replies (zellij 0.45.1 client-ID reuse, pair#640): unknown on mismatch, confirm before mutating, clipboard fails closed |
+| repo | pair647-query-fix |
+| issue file | workshop/issues/000647-harden-one-shot-zellij-actions-against-misrouted-replies-zellij-0-45-1-client-id-reuse-pair-640-unknown-on-mismatch-confirm-before-mutating-clipboard-fails-closed.md |
+| boundary | milestone M1 |
+| milestone | M1 |
+| window | c0841e1082d39731781d8a2972eeeaed41d07ade..dad70e903c4abaa882f4d38b3fa84680fa8c7bba |
+| command | sdlc milestone-close --issue 647 --milestone M1 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-17T13:19:47-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+M1 matches the Spec and revised Plan. BR-4 is addressed across both production consumers, with regression evidence that fails when the correction is removed. No new blocking findings emerged. This verdict covers M1; M2/M3 and native refusal qualification remain pending.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Terminal unknown remains final across launcher and Couch attach fences; production-path and controlled helper-exit regressions pass.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Native and cached short/full listings must agree on exact identities before granting authority; contradictory and reordered controls pass.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      The registration fixture distinguishes short/full listing forms and supplies typed pane evidence; selected registration controls pass.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      Both consumers normalize only direct ExitError values and preserve collector plus cancellation causes. TestQueryCollectionFailuresCannotBecomeDiagnosticEvidence passes at head; restoring pre-fix handling in a disposable copy produces six failing subtests. The copy was removed.
+```
+
+1. **Strengths**
+
+   - Strict response contracts remain separate from tolerant advisory parsing.
+   - Both diagnostic boundaries preserve independent cleanup failures: `cmd/internal/launcher/zellij.go:226` and `cmd/internal/launcher/osruntime.go:170`.
+   - Shared admission deadlines preserve interactive-client lifetime, with controlled cancellation and child-exit tests.
+   - Atlas documentation accurately distinguishes delivered M1 behavior from pending work and states the residual stale-reply limitation.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Passed the complete launcher package; complete `zellijreply`, `zellijexec`, and `zellijtest` packages; selected Couch warm/detached/reply/registration tests; and targeted launcher/Couch race checks. BR-4’s mutation check failed as expected in all six fault cases. The full Couch package and live native qualification were not rerun during this review.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** Shared contracts, process ownership, and exact-group inspection avoid duplicated boundary logic.
+   - **ARCH-PURE — pass:** Parsing and projections remain separate from injected process/runtime seams.
+   - **ARCH-PURPOSE — pass:** M1 covers lifecycle admission; BR-4 sweeps both production consumers.
+   - **ARCH-MOCK — pass:** Stateful fake uses the production subprocess seam; native qualification remains assigned to M3.
+   - **ARCH-CONSTRAINTS — pass:** Query budgets are shared and caller-capped, independently of client lifetime.
+   - **ARCH-SECURE — pass:** External replies require explicit typed evidence before authority.
+   - **ARCH-ORDER — pass:** Unknown observations terminate admission; tests control cancellation and helper-exit ordering.
+   - **ARCH-FUNERAL — pass:** Query work is collected; fixture artifacts have test-owned cleanup.
+
+7. **Plan revision recommendations:** None. Existing revisions explain the implementation locations, query phases, and diagnostic-normalization rule. Atlas updates cover the new architectural surface; M1 adds no user-facing syntax requiring a README update.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"25b927cd-c808-4b0c-8daa-b7932a475749","repository":"github.com/xianxu/pair","issue_id":"000647","recipe":"milestone-review","round":3,"attempt":1,"agent":"codex","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/ebe4614c77573ff9","reviewed_head":"dad70e903c4abaa882f4d38b3fa84680fa8c7bba","slot":"pair:1","requested_at":"2026-10-17T20:17:31.970583Z"},"phase":"finished","pid":16919,"started_at":"2026-10-17T20:17:32.108502Z","finished_at":"2026-10-17T20:19:46.599697Z","session_id":"01a14b83-3509-7ce1-b876-4e83c0953d92","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.808236791s
+head: "dad70e903c4abaa882f4d38b3fa84680fa8c7bba"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

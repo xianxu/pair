@@ -374,9 +374,56 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 25b927cd-c808-4b0c-8daa-b7932a475749
+            repository: github.com/xianxu/pair
+            issue_id: "000647"
+            recipe: milestone-review
+            round: 3
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/Library/Caches/sdlc/review-checkouts/ebe4614c77573ff9
+            reviewed_head: dad70e903c4abaa882f4d38b3fa84680fa8c7bba
+            slot: pair:1
+            requested_at: "2026-10-17T20:17:31.970583Z"
+          phase: finished
+          pid: 16919
+          started_at: "2026-10-17T20:17:32.108502Z"
+          finished_at: "2026-10-17T20:19:46.599697Z"
+          session_id: 01a14b83-3509-7ce1-b876-4e83c0953d92
+          outcome: returned
+      "n": 3
+      timestamp: "2026-10-17T13:19:48-07:00"
+      dispatched: "2026-10-17T13:17:29-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Terminal unknown remains final across launcher and Couch attach fences; production-path and controlled helper-exit regressions pass.
+          round: 3
+        - id: BR-2
+          disposition: addressed
+          note: Native and cached short/full listings must agree on exact identities before granting authority; contradictory and reordered controls pass.
+          round: 3
+        - id: BR-3
+          disposition: addressed
+          note: The registration fixture distinguishes short/full listing forms and supplies typed pane evidence; selected registration controls pass.
+          round: 3
+        - id: BR-4
+          disposition: addressed
+          note: Both consumers normalize only direct ExitError values and preserve collector plus cancellation causes. TestQueryCollectionFailuresCannotBecomeDiagnosticEvidence passes at head; restoring pre-fix handling in a disposable copy produces six failing subtests. The copy was removed.
+          round: 3
+      boundary: M1
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: dad70e903c4abaa882f4d38b3fa84680fa8c7bba
+      blocked: false
 ---
 
-# Gate ledger — pair#647 (boundary-review)
+# Gate ledger — pair647-query-fix#647 (boundary-review)
 
 Findings this gate raised, the stable ids the binary assigned them, and how
 later rounds disposed of them. Generated — edit the gate, not this file.
@@ -405,6 +452,15 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-4** [Critical] `unknown-observation-is-terminal` (kind: defect) Absence diagnostics erase query-process cleanup failures
   cmd/internal/launcher/zellij.go:227-230 and cmd/internal/launcher/osruntime.go:175-178 use errors.As to recognize an exit-1 diagnostic, then return success even when zellijexec.Run joined that ExitError with a cleanup failure at cmd/internal/zellijexec/run.go:45-53. Injecting EIO at the collector boundary reproduced nil errors from both production consumers. This violates ARCH-ORDER: a failed query boundary becomes successful absence or name-acceptance evidence. This is the 2nd finding in family unknown-observation-is-terminal. Do NOT fix only one instance: state and enforce the rule that diagnostic normalization may consume only the subprocess exit failure, never cancellation or collection failures. The sweep found this pattern in both of the runner's two production consumers. Preserve cleanup status separately and add regressions for both consumers.
 
+## Round 3 — 2026-10-17T13:19:48-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — Terminal unknown remains final across launcher and Couch attach fences; production-path and controlled helper-exit regressions pass.
+- BR-2 — addressed — Native and cached short/full listings must agree on exact identities before granting authority; contradictory and reordered controls pass.
+- BR-3 — addressed — The registration fixture distinguishes short/full listing forms and supplies typed pane evidence; selected registration controls pass.
+- BR-4 — addressed — Both consumers normalize only direct ExitError values and preserve collector plus cancellation causes. TestQueryCollectionFailuresCannotBecomeDiagnosticEvidence passes at head; restoring pre-fix handling in a disposable copy produces six failing subtests. The copy was removed.
+
 ## Open findings
 
-- **BR-4** [Critical] `unknown-observation-is-terminal` (kind: defect) Absence diagnostics erase query-process cleanup failures
+(none — every finding has been disposed)
