@@ -1,8 +1,8 @@
 ---
 id: 000624
-status: codecomplete
+status: done
 created: 2026-10-16
-updated: 2026-10-16
+updated: 2026-10-17
 estimate_hours:
 github_issue:
 started: 2026-10-16T20:02:10-07:00
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 8e88e3629694568666a4b6a5141c5801c65e2935
         evidence_commit: 27cf285cb135c51558dd25b0c7406d554fe67169
+        landed_commit: 872c40b3185cc45f6b008483481fae233861b9f1
 ---
 
 # Something rebuilds pair:0's bin/couch during other slots' work, deleting it for seconds (sends fail)
