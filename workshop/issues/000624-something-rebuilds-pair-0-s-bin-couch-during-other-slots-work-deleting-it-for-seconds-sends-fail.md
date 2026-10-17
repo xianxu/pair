@@ -58,3 +58,9 @@ The installed Go source (cmd/go/internal/work/shell.go moveOrCopyFile/CopyFile) 
 The exact historical initiator at 15:40/16:06 remains unproven. PAIR_DEV plus primary PAIR_HOME can request a primary rebuild through dev_rebuild, but current hosted markers suppress it; do not label review preparation as the culprit without evidence. The proposed fixture guard covers current review preparation/build routing despite foreign environment values. Asking the hub whether this bounded diagnosis satisfies acceptance, rather than silently dropping the historical-caller clause.
 
 Start-plan refreshed dependencies and required two reruns before creating this branch; brew reported existing go/cue/uv, no new machine packages chosen.
+
+## Revisions
+
+### 2026-10-16 — bounded writer diagnosis approved
+
+TL approval fdfe17db-5144-4cc2-8ad9-902345e90249 supersedes the original requirement to identify a non-explicit historical writer: acceptance is the proven direct-output writer class, one temp-sibling-plus-rename publisher, skip sentinels eliminating duplicate generic writers, deterministic atomicity tests and the foreign-PAIR_HOME isolation guard. The exact historical caller remains unknown. The TL reports running make build in pair:0 around that period while rebuilding for #618; this is a likely candidate, not an observed process-to-failure correlation. The TL owns filing the ariadne generic-build half; this issue edits Pair-owned files only.
