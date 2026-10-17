@@ -97,3 +97,14 @@ The failed recorded head was followed while queued by qualification-log-only com
 ### 2026-10-17 — full-suite retry PASS
 
 The one approved unchanged-code retry on 4b40b8953aa25f30fd67c58c85e92b3c394019e9 passed the entire declared suite in 11m1s after a 1708 s machine queue wait. Every shell/Lua prerequisite passed, including the previously failing changelog test, so the rest was exercised without needing a separate make -k. All Go packages passed: couchtty 43.581 s, couchcore 300.854 s, couchcmd 50.131 s, wrapcmd 56.979 s. No other failures, no additional retry. Recorded log: /Users/xianxu/workspace/pair/.git/sdlc/local-checks/4b40b8953aa25f30fd67c58c85e92b3c394019e9/suite.log; SHA256 01539595e9339b51e93b872cb0b8623254b0c73a722b9728747fa973ac9b163a. This passing retry and the retained failed first attempt are both reported, with #642 as the independent collision issue. No source has changed since qualification; later local commits are issue Log only. Production and architecture remain unchanged, so no atlas surface to update; the TL owns project records.
+
+## Revisions
+
+### 2026-10-17 — R1 BR-1: durable completion evidence (second change to the wait)
+
+Reason: close R1 REWORK (Critical BR-1, family durable-completion-evidence). A delayed control reset can replace the disable notice before readiness sampling. Reviewer reproduced this on a scheduling overlay despite the load qualification passing. Do not use transient presentation as operation completion.
+
+Approved delta: retain the actual mouse disable. Once authority is Off, attempt the real re-enable click until it returns a non-nil operation channel; nil means no operation was admitted, including the Off-before-slot-release gap, so retrying cannot duplicate an admitted action. Stop attempting immediately on a non-nil result and await that channel with the existing bound. Add a late reset-presentation regression, retain held-cleanup coverage and adapt the terminal-queue barrier to assert the accepted completion remains pending until the queue resumes. No production change. Hub approval receipt e77e19a1-3170-48e3-8b61-ebcd1328b2a8 verified submitted and exact. This is the second change to the same wait; any third problem requires stopping and bringing a re-plan to the hub, not another incremental delta.
+
+- [ ] Demonstrate late reset presentation makes the notice predicate fail, then switch to operation admission and completion channels.
+- [ ] Repeat targeted/race qualification, run the recorded full suite, and return to ordinary close for BR-1 disposition.

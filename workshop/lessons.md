@@ -2123,3 +2123,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 - #629 BR-1: A queued/held receipt describes the latest observation, not absence of input after commit handoff. Classify disconnect uncertainty from the active delivery owner; test both sender and receiver disconnect for every interim receipt status.
 - #629 BR-2: Advancing an injected business clock does not advance an existing real context timer. Test each timeout owner independently at its IO boundary and restore each removed deadline separately to prove its regression fails.
+
+- #637 BR-1: A current notice is transient presentation, not operation completion. Independent event deliveries can overwrite it after success. Fixtures synchronize on an admitted operation's completion channel and test completion-before-late-presentation ordering; observing a phase alone can also precede release of the owner's work slot.
