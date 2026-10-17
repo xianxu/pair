@@ -1,6 +1,6 @@
 ---
 id: 000617
-status: codecomplete
+status: done
 created: 2026-10-16
 updated: 2026-10-16
 estimate_hours: 3.33
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 20e3a811d207d6f6cd73dbb2df2df18733bd6837
         evidence_commit: eb58397bfe50e5da21a84d52c1ad75f19a5d34ae
+        landed_commit: 0fe70c1c7f131335a0ea287de353d95142d2b8b0
 ---
 
 # pair title processes outlive their threads (28 orphans, 2.8 GB) and some grow to ~280 MB
