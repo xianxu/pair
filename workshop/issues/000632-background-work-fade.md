@@ -5,8 +5,8 @@ deps: [pair#625]
 github_issue:
 created: 2026-10-16
 updated: 2026-10-16
-estimate_hours:
-card_mirror: '61d3326b5f3b219e1f86b44423837c2618e6eb40' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 1.74
+card_mirror: '7a781b98e2a9a0f3159487bebc97219c29d0ffc2' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-16T22:52:10-07:00
 claimant:
     operator: Xian Xu
@@ -41,6 +41,28 @@ Approved scope (TL a807af4c): recognize Claude native shell footer only. Codex/Q
 - Recorded positive Claude footer and negative controls precede code; the approved post-landing live conformance checks both brightness and successful message receipt under a running background suite. Codex/Qoder remain unknown.
 - The issue records which native evidence and boundary tests would qualify additional agents; post-landing live acceptance remains explicitly pending until performed.
 
+## Estimate
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only. The calibration is marked stale by estimate-source, so these values are provisional. Existing terminal geometry, Unix session coalescing, fakeTimers and Console fixtures cover the libraries/stack; no new external library is needed. Footer classification uses a greenfield single-concern budget with design halved for the existing geometry, then ×0.2 for the approved plan. Other approved extension designs receive ×0.2. Familiar territory from #625; implementation values below apply the v3.1 40% scale exactly once.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.10 impl=0.04
+item: greenfield-go-module design=0.05 impl=0.24
+item: smaller-go-module design=0.04 impl=0.20
+item: smaller-go-module design=0.06 impl=0.20
+item: smaller-go-module design=0.04 impl=0.16
+item: smaller-go-module design=0.02 impl=0.12
+item: real-api-discovery design=0.00 impl=0.12
+item: atlas-docs design=0.02 impl=0.06
+item: milestone-review design=0.02 impl=0.20
+design-buffer: 0.15
+total: 1.74
+```
+
+Rows respectively cover spec/approval, pure native footer classification, generation-fenced wrapper publication, negotiated transport compatibility, registry lifetime/completion, activity/admission integration, installed native conformance, docs, and one close review. Design0.35h ×1.15 plus implementation1.34h =1.7425h, rounded1.74h. Queue time is not execution work; machine suite and live rollout dependencies remain explicit rather than being hidden in a guessed total.
+
 ## Plan
 
 - [x] Design the independent display signal and its lifecycle/compatibility before implementation.
@@ -69,3 +91,7 @@ Verified submitted TL a807af4c-ef1d-41f8-b058-5c2dd66f21a8: hello-v4 nullable Ba
 Read-only live peek after the plan draft found Codex0.162.1 pair:5 and ariadne:1 with a finished turn, free composer and native faint `1 background terminal running · /ps to view · /stop to close`; active-turn Codex0.162.1/0.163.0 slots show the same counter on the Working row. This is additional positive evidence, not a qualified parser or change to the approved scope. To add Codex, capture complete synchronized native terminal frames for ended-turn positive, completed/zero, plural, body/draft near-matches, and redraw/resize variants, establish geometry relative to its composer and test lifetime/compatibility. Qoder has no discovered positive capture: first observe/capture its native running-job UI or identify an owned native signal, then define equivalent false/unknown boundaries. No wording-only inference for either.
 
 2026-10-16 revision: approved native scope and post-landing live schedule are now reflected in Spec/Done-when/Plan rather than leaving the original generic contract ambiguous.
+
+### 2026-10-16 — plan-quality accepted
+
+First plan-quality round raised PQ-1 (function-level-test-strategy), resolved by naming tested functions and their adversarial/mechanical strategies across all risky surfaces. Round2 CLEAN/high-confidence disposed PQ-1 addressed, no further findings. Normal change-code then refused only the missing estimate, as designed. Derived the itemized1.74h after that acceptance; no code has been changed.
