@@ -65,3 +65,23 @@ TL477ed170 approved one fixed-work CPU qualification with one-minute load below 
 Raw partial attempt: fixed-cpu-once/ under the existing benchmark directory. results.json SHA2567d9756872fe632d79c5084c8297294bf15b74b294f6f8bd76c080927ea4f83f5. Baseline log19d2c825c3f0c5388d4e6948a17e6c703e1184cf9def59fc18d3735232abdf25; candidate log8f947ee283dc3059a8eccfb10f6816d7b1494f99d3450226c07a8e5f18a6fba5. Original runner session25768 is finished; no signal was needed. Existing attempt directory must not be removed to repeat qualification.
 
 At TL rolling-relaunch request2e95b559 (23:39), the slot has no background test/suite/merge. Preserve the partial result, report idle for relaunch and await TL disposition before any further performance experiment. The new thread must inherit the operator's GOFLAGS setting rather than rebuild this experiment with old flags silently.
+
+## 2026-10-17 00:03 PDT — authorized quiet-window qualification completed
+
+TLc283e6e7 explicitly authorized one fresh attempt after the original partial lost its quiet window. The separate fixed-cpu-authorized-rerun attempt completed all28 cases at00:03:24–00:03:50 PDT. Every child exited0, emitted exactly its specified benchmark and iteration count, and matched the recorded log hash. One-minute load remained4.01–5.01 after60s sustained admission below8. Five/fifteen-minute averages initially25.49/46.16 still reflected preceding load; this is the approved one-minute quiet criterion, not proof of a fully idle host. No benchmark was restarted after the later Couch restart.
+
+CPU is child user+system time divided by the fixed work count, including test-process startup/teardown; wall time is recorded separately. ABBA per workload, two observations per variant. Both candidate CPU values are below both baseline values in each workload. Average improvement describes this experiment only; two observations are not a universal performance bound.
+
+| Workload | Baseline CPU ns/iteration (A1,A2) | Candidate CPU ns/iteration (B1,B2) | Mean CPU reduction | Mean wall reduction |
+|---|---:|---:|---:|---:|
+| ingest1 |2184.189,2175.852|2146.315,2144.777|1.58%|1.89%|
+| ingest64 |16992.400,16860.850|14856.860,14970.290|11.89%|12.54%|
+| ingest4096 |949923,942539|789885,803257|15.82%|16.86%|
+| ASCII redraw/chunk64 |412103,411804|345435,350194|15.57%|18.69%|
+| ASCII redraw/chunk4096 |345044,378555|310498,314135|13.68%|13.23%|
+| mixed redraw/chunk64 |487981,498406|477467,480866|2.84%|1.19%|
+| mixed redraw/chunk4096 |397946,414067|381367,379494|6.30%|4.89%|
+
+Original iteration counts/binaries/source remain unchanged. The complete-redraw CPU reduction repeats for ASCII and mixed input within this experiment, so the shelving condition does not fire. Mixed-input gains are smaller; do not extrapolate the ASCII improvement to all client output. No further performance variant or qualification is required. Races, full Pair suite, mandatory boundary review and coordinated live Couch CPU/consumer acceptance remain owed. Parser-only/validator-only microbenchmarks may diagnose the separate local changes, but do not supersede these complete-workload results or authorize another repeated end-to-end qualification.
+
+Results SHA2568ed9f779675554d3af6c35d0e1293a97c3696ea788234a6ff82ad0729afbce53, at fixed-cpu-authorized-rerun/results.json under the retained benchmark directory. All28 individual log hashes were verified against those rows on10:49 restart recovery; summary.json contains the derived pairs/ratios. Baseline/candidate binary hashes are unchanged from the original experiment. Runner94823 completed normally; no background suite/merge/test remained. The10:48 Couch restart lost no work and requires no rerun.

@@ -129,6 +129,10 @@ The owned runner25768 exited1 at22:59:28 after its load guard fired: two ingest1
 
 Verified TLc283e6e7: original partial qualification lacked a quiet window; one fresh rerun is authorized under the same guards and shelving rule. Durable plan records the separate runner/hash and fixed-cpu-authorized-rerun output. Owned execution session94823 waits for60s continuously below load8; startup load83.35, no benchmark admitted. Preserve original fixed-cpu-once partial evidence. Poll session/results before starting anything else; no automatic second retry. The relaunch-blocking 10-13 pensive predates this item and is marked unrelated/preserve by saved continuity; authorship unconfirmed, so leave untouched. Hub notified with submitted receipt2d59eda1. Relaunch also waits for #618 M2.
 
+### 2026-10-17 10:49 PDT — background qualification intact after Couch restart
+
+Verified restart dispatchd7bc80ee. Runner94823 had completed normally at00:03 PDT:28/28 cases valid, all log hashes verified, exact iterations retained, one-minute load4.01–5.01. Complete ASCII redraw CPU reduced13.68–15.57%; mixed redraw2.84–6.30%, with both candidate CPU observations below both baseline observations for every case. Full results and limitations appended to the benchmark report. No lost background work and no rerun. Shelving condition does not fire. Races, full suite, reviews and coordinated live acceptance remain owed. Checkpoint then report idle for the previously requested relaunch before starting a long suite; preserve unrelated pensive.
+
 ## Estimate
 
 Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only; calibration is flagged stale by estimate-source, so provisional. Original M1 derivation was1.509h. The following cumulative derivation now includes approved M2 through live acceptance and closure; it is not a remaining-work estimate. M1's original primitives remain unchanged below.
