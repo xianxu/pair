@@ -46,7 +46,7 @@ would clobber a staged branch build on pair:0.
 
 - [x] Red first in private fixture: paused compiler exposes delete/partial publication; cover direct binary targets and full make build, failure/cancellation cleanup, concurrent publishers and foreign PAIR_HOME isolation.
 - [x] Use one same-directory temporary-build/rename publisher for pair, couch and pair-launch-helper; opt owned binaries out of the generic direct-output scanner (ARCH-DRY). Keep old executable on failed builds and clean owned temporaries.
-- [ ] Verify review asset preparation and worker build stay in their own fixture tree under foreign live-environment values; document observed writers versus unproven historical caller, run recorded full suite, close and land.
+- [x] Verify review asset preparation and worker build stay in their own fixture tree under foreign live-environment values; document observed writers versus unproven historical caller, run recorded full suite.
 
 ## Log
 
@@ -86,8 +86,16 @@ Bounded active-slot scrollback tails and timestamp-selected wrap-event chunks ar
 
 Further read-only evidence resolves the exec-time ambiguity: lsof shows PID 99807's loaded Couch inode 749561659, while both of its listening message sockets were created at 22:22:49 (birth and mtime). Thus the supervisor was already listening by 22:22:49, before disk inode 749783777's 22:27:23 replacement. This excludes the initial couch-dev build merely finishing late; a subsequent writer remains unidentified. Socket paths: /tmp/pair-message-501/debdf0fb268a662a10ea064abcec7751132c8a42.sock and /tmp/pair-message-501/597a1d5494d215ea6158c1344955eb96677e7a75.sock. These are local ephemeral evidence, not an assumption about process birth.
 
+### 2026-10-16 — full recorded verification passed
+
+Corrected head f769895f18db7deb52e4e28e0bd3b8632c3724ad passed the complete declared suite (shell/editor checks plus go test ./... -count=1 -timeout 20m), exit 0 in 11m0s. Log /Users/xianxu/workspace/pair/.git/sdlc/local-checks/f769895f18db7deb52e4e28e0bd3b8632c3724ad/suite.log, SHA256 prefix 3afac57cd20f. Both introduced fixture defects are fixed; no unrelated failures were waived. The runner survived the 22:22 Couch restart. Subsequent commits only record the requested read-only writer investigation; production and tests remain exactly this passing head's versions.
+
 ## Revisions
 
 ### 2026-10-16 — bounded writer diagnosis approved
 
 TL approval fdfe17db-5144-4cc2-8ad9-902345e90249 supersedes the original requirement to identify a non-explicit historical writer: acceptance is the proven direct-output writer class, one temp-sibling-plus-rename publisher, skip sentinels eliminating duplicate generic writers, deterministic atomicity tests and the foreign-PAIR_HOME isolation guard. The exact historical caller remains unknown. The TL reports running make build in pair:0 around that period while rebuilding for #618; this is a likely candidate, not an observed process-to-failure correlation. The TL owns filing the ariadne generic-build half; this issue edits Pair-owned files only.
+
+### 2026-10-16 — verification checkbox boundary
+
+The final plan checkbox now ends at its completed verification work; close review and landing remain the subsequent binary-owned workflow gates, rather than being ticked before they occur. No implementation or acceptance scope changed.
