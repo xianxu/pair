@@ -47,6 +47,8 @@ The existing actor reservation is the single resource excluding conflicting same
 
 ## Log
 
+
+- 2026-10-17: closed — Required recorded full suite passed on e337cb6f95dfa1b709cd8503c7298cabd6637de1: exit 0 in 13m55s, log sha256 fa8653e6094e; only documentation since. Full couchmessage race passed 23.799s. Gated original promotion Release blocked both unrelated Send and Status for roughly 3s; with fix both completed before gate release (31us/159us). Sender-cancellation and replacement-reservation ordering regressions pass; restoring early reservation clearing fails its regression. Other three broker Release sites were already outside the shared mutex; RPC bound, captured endpoint/ID, recovery and retry cadence retained. Atlas updated. TL explicitly approved the live check alongside #629 after operator restart and prohibits pair:0 staging; issue records the steps. (done-when: contract moved since change-code; judged by the close review); review verdict: SHIP
 - Filed separately at the TL's direction during #629 planning; unclaimed for later dispatch.
 
 - Started from fresh main after #629 landed. start-plan refreshed the ariadne tool layer and refused until rerun with the refreshed binary; the rerun created the #631 branch successfully. Static sweep finds four broker Release call sites; promotion failure cleanup is the one inside b.mu. First collect gated contention evidence, then confirm the measured plan with the hub before production edits.
