@@ -2166,3 +2166,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
   with a process gate and retain stderr rather than relying only on sleep offsets.
 
 - Chunked JSONL framing must not search a retained newline-free prefix again on each append. Count actual delimiter bytes examined across multi-chunk records, alongside semantic boundary/limit tests; read/decode counters alone miss quadratic delimiter work. Preserve per-probe progress when diagnosing aggregate worker timeouts. (#626)
+
+- #647 plan review: a context-aware helper does not bound runtime methods that discard the context. Name the total operation budget and propagate it across all reads and process handoffs. For detached shortcuts, stderr/logging is not visible refusal: identify and test the existing presenter independently of the uncertain transport.

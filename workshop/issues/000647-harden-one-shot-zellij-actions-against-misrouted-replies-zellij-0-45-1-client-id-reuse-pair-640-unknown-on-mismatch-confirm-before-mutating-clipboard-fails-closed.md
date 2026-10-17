@@ -72,3 +72,10 @@ Upstream follow-through: [zellij#5270](https://github.com/zellij-org/zellij/issu
 ### 2026-10-17 — R1 approved; entering plan quality
 
 Authenticated TL approval accepts the three milestones, limited guarantee and clipboard boundary. Healthy toggle/paste latency must be measured; visible regression returns to TL rather than raising deadlines. No production implementation yet. #640's independent diagnosis suite continues on its pushed documentation-only head while this branch enters the full-flow gate.
+
+
+### 2026-10-17 — plan-quality R1 refused; R2 prepared
+
+The first plan-quality gate returned PQ-1/PQ-2/PQ-3 (named function test strategies, enforced total deadline, visible refusal). Source checks confirmed all three: default layout/clipboard/Lua reads do not propagate a shared deadline, and detached/shortcut stderr is discarded. Appended R2 to the durable plan with function-level strategies, one five-second total admission capped by earlier deadlines (restart remains one second), context propagation and joined query lifetime, shared auto-quote preflight before any flash/stage, and existing wrapper notification-broker presentation. Source audit also corrected ordinary warm attach versus explicit continuation adoption and native nullable/enrichment/identity schema facts. Await TL on these concrete refinements, then rerun the remembered gate; no estimate or implementation yet.
+
+Parallel closeout: #640 PR410 documentation suite is running on its unchanged pushed head in its own detached worktree (local runner session 95007); no native fixture is running. Fresh TL guidance authorizes --no-actual only if close names a legacy suite attempt lacking exact queue endpoints, with that attempt ID and ariadne#420 calibration exclusion reason. Do not reconstruct legacy timing evidence.
