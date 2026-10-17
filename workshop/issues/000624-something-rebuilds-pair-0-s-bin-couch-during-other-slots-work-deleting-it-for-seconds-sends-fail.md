@@ -84,6 +84,8 @@ TL receipt c8db71a8-f340-436b-ac01-cfde208001e2 reports another primary Couch re
 
 Bounded active-slot scrollback tails and timestamp-selected wrap-event chunks around 22:25–22:29 showed no identified primary writer. No primary build, process mutation or filesystem tracing installation was performed. The exact fresh caller remains unknown; TL explicitly keeps this follow-up nonblocking for the atomic publisher.
 
+Further read-only evidence resolves the exec-time ambiguity: lsof shows PID 99807's loaded Couch inode 749561659, while both of its listening message sockets were created at 22:22:49 (birth and mtime). Thus the supervisor was already listening by 22:22:49, before disk inode 749783777's 22:27:23 replacement. This excludes the initial couch-dev build merely finishing late; a subsequent writer remains unidentified. Socket paths: /tmp/pair-message-501/debdf0fb268a662a10ea064abcec7751132c8a42.sock and /tmp/pair-message-501/597a1d5494d215ea6158c1344955eb96677e7a75.sock. These are local ephemeral evidence, not an assumption about process birth.
+
 ## Revisions
 
 ### 2026-10-16 — bounded writer diagnosis approved
