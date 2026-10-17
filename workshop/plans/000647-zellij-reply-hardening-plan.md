@@ -184,3 +184,9 @@ The live native check supplements, rather than replaces, these deterministic fak
 ## Upstream follow-through
 
 The issue log will link zellij-org/zellij#5270, #5382, #5546 and PR#5630. When a release includes retirement of client IDs, rerun the retained raw reproducer, native refusal/healthy controls and actual-chord conformance on that released binary before changing any compatibility assumptions. No upstream post or local native build is part of #647.
+
+## Revisions
+
+### 2026-10-17 — R1 approved
+
+TL approved all three milestones and explicitly acknowledged the indistinguishable valid-stale-reply limit and the clipboard copy/auto-quote boundary. Additional acceptance emphasis: measure healthy Alt+Shift+Return and paste latency; visible slowdown returns for review instead of increasing deadlines. Proceed through change-code's plan-quality/estimate gates before production changes. The R1 proposal text above is retained as its reviewed baseline.

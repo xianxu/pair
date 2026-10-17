@@ -68,3 +68,7 @@ Claimed and started on a fresh main-based branch, separately from #640's documen
 R1 explicitly asks the TL to acknowledge the protocol limit: no native request nonce is available, and two identical valid stale replies cannot be authenticated merely by comparison. Wrong kind/context, required-field absence and observable disagreements refuse; local identity and absence fences remain independent. No claim of universal protection from arbitrary correlated false evidence, and no native mutation replay. ARCH-SECURE/ORDER shaped that boundary. No estimate is derived until plan quality passes.
 
 Upstream follow-through: [zellij#5270](https://github.com/zellij-org/zellij/issues/5270), [#5382](https://github.com/zellij-org/zellij/issues/5382), [#5546](https://github.com/zellij-org/zellij/issues/5546), [PR#5630](https://github.com/zellij-org/zellij/pull/5630). When a release includes retired client IDs, rerun the retained raw reproduction, native refusal/healthy controls and original actual-chord conformance before revising compatibility assumptions. No local native build or upstream posting is authorized.
+
+### 2026-10-17 — R1 approved; entering plan quality
+
+Authenticated TL approval accepts the three milestones, limited guarantee and clipboard boundary. Healthy toggle/paste latency must be measured; visible regression returns to TL rather than raising deadlines. No production implementation yet. #640's independent diagnosis suite continues on its pushed documentation-only head while this branch enters the full-flow gate.
