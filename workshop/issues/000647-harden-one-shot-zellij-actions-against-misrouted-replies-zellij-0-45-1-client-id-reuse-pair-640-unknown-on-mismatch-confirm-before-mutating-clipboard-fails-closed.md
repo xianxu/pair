@@ -239,3 +239,12 @@ BR-4's both-consumer class correction is ready for the remaining M1 review round
 The independent ordinary clone passed read-only milestone preflight; no review dispatched by dry-run. Its initial setup gaps (missing remote tracker ref and main publication upstream) were repaired with fetch/upstream configuration, without changing publication contents. The resulting measurement omitted the primary checkout's queue evidence. Asked the hub rather than adopting a reduced-evidence sample; outgoing receipt38a596f2-4fa0-4495-8780-cd8d2fff682a is submitted.
 
 Authenticated TL receipt0019655b-05f9-460a-aba8-ce05a2d9026f authorizes M1 round3 from the clone with --no-actual and exact reason: “M1 reviewed from an independent clone while the registered checkout lands #640; clone lacks the primary checkout's queue evidence”. Proceeding without waiting for #640. Later boundaries and landing must use the registered checkout after #640 frees it. This is an explicit calibration exclusion, not invented actuals or restored evidence.
+
+
+### 2026-10-17 — M1 SHIP; R4 approved for M2
+
+M1 round3 returned SHIP with all four findings disposed and no new findings. Binary evidence commit a237be890c228e07b4c7445301a573cdbd8beb8c is published after fetching/inspecting the stale remote ref and a normal fast-forward push; local review pin refs/sdlc/reviewed/000647/M1 is retained in the independent clone. The approved no-actual reason is recorded by the gate. This completes M1 only; native qualification and the recorded whole-issue suite remain outstanding.
+
+Read-only overlay proof /tmp/pair647-validator-stdout-proof.log found a further pre-existing validator-substring gap after the candidate was locked. Stopped and replanned the complete diagnostic class before another code delta. Outgoing receipt25538ce2-4dce-4d17-b2c5-7d11c296a71b and TL approvalc8f8d425-c96f-4305-8e85-b0ec8abe100a are submitted/authenticated. R4's complete status/body/target/error matrix is appended to the durable plan and approved folded into M2, preserving native name-budget search and valid client/absence behavior. Installed-native parse-only manifest is retained; no server connection or operator session was involved.
+
+Proceeding with independent M2 areas in the preparation clone. The registered checkout stays on #640 with its queued merge active (session87105, process73317 at last status). Later boundaries and landing must run there after it is free; transfer the reviewed M1 pin along with the branch. No M2 review or whole-issue completion is claimed.

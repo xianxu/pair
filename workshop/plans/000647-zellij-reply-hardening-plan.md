@@ -319,3 +319,25 @@ The injected collector controls reproduced six failures across empty inventory, 
 ### 2026-10-17 — Workflow revision approved: M1 review in independent clone
 
 The independent clone passed the binary's read-only milestone preflight after fetching issue-tracker and configuring main's publication upstream. Its measured-actual provenance omits the primary checkout's suite-queue evidence, so it cannot silently replace that calibration input. Authenticated TL receipt 0019655b-05f9-460a-aba8-ce05a2d9026f explicitly authorizes M1 round3 there with --no-actual and reason: “M1 reviewed from an independent clone while the registered checkout lands #640; clone lacks the primary checkout's queue evidence”. This replaces the earlier implementation choice to wait/import before M1 review. Do not wait for #640 to dispatch this review. Later boundaries and landing return to the registered checkout once #640 releases it. No review or actual-hours guard is otherwise waived.
+
+
+### 2026-10-17 — R4 approved in M2: exhaustive diagnostic authority matrix
+
+M1 round3 finalized SHIP with BR-1/BR-2/BR-3/BR-4 disposed; evidence commit a237be890c228e07b4c7445301a573cdbd8beb8c. The initial push lease was stale because the ordinary clone's remote-tracking ref came from the primary local branch; fetching showed the actual remote was an ancestor, and a normal fast-forward push published the milestone. No force push was used.
+
+A separate read-only overlay control, without changing the locked M1 candidate, reproduced pre-existing name-probe acceptance of contradictory stdout plus a validator substring: /tmp/pair647-validator-stdout-proof.log. Installed0.45.1 parse-only control (no server/session connection) retained /var/folders/07/b9wcwwld4_v2w9r3hk525bm80000gn/T/p647-validator-wwqysydw/manifest.json: exit2, empty stdout, exact requested-name-bearing Clap error and help footer. No native build or operator session was touched.
+
+Authenticated TL approval c8f8d425-c96f-4305-8e85-b0ec8abe100a folds R4 into M2. This is the second exit-diagnostic change: implement one exhaustive matrix for both consumers rather than another isolated check. A blanket unknown for every validator would break the existing native name-budget search, so retain its positive/negative evidence under an exact pure decoder.
+
+| Boundary / outcome | Admissible evidence |
+|---|---|
+| Inventory, clean exit0 | Existing strict nonempty expected listing body; empty/unrelated bodies remain unknown. |
+| Inventory, pure exit1 | Empty stdout plus exact native empty-inventory diagnostic only; wrong status/kind, mixed stdout or extra diagnostic is unknown. |
+| Name probe, clean exit0 | Strict valid client table, including header-only zero; malformed/empty body is unknown. Validator-looking text in a successful client command must not teach a negative bound. |
+| Name probe, pure exit2 | Empty stdout plus exact native validator grammar containing the requested name and a canonical numeric limit; wrong target/header/footer/status, fragment/extra body or contradictory stdout is unknown. Valid native rejection still teaches the existing negative length bound. |
+| Name probe, pure exit1 | Existing exact post-parse absence diagnostics with empty stdout retain limited name-acceptance meaning; another command's empty-inventory diagnostic does not. |
+| Either, joined/collector/cancel failure | No diagnostic may teach any authority; preserve all error causes, including simultaneous cancellation and cleanup. |
+
+Pure decoder tests cover the grammar/status/target/body matrix; production subprocess controls prove both consumers and the monotone name-budget caller preserve behavior. Retain real collector failure injection, native parse-only conformance and original positive domains. No retry, sleep, deadline increase, transport or new result state machine. ARCH-PURE/SECURE/PURPOSE/ORDER.
+
+M2 code may be prepared in this independent clone while #640 holds the registered checkout. M2/M3 reviews, whole-issue close and landing return to the registered checkout when it is free. Import the issue branch and refs/sdlc/reviewed/000647/M1 there after #640 finishes; never change its checkout while its merge is active.
