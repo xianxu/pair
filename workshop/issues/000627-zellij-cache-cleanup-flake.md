@@ -41,7 +41,7 @@ Capture server PID + kernel start identity from exact --server argv/session owne
 
 - [x] Record a real-server red control and terminal-state evidence.
 - [x] Make the shared fixture wait for its exact daemon generation before removing owned files, retaining teardown errors.
-- [ ] Add delayed-cache-writer/error/generation controls; qualify repeated live/race/package runs, recorded suite, review and landing.
+- [x] Add delayed-cache-writer/error/generation controls; qualify repeated live/race/package runs and recorded suite. Mechanical review and landing remain pending in Log.
 
 ## Log
 
@@ -99,3 +99,7 @@ Candidate diagnostic -race count=10 reproduced the layout assertion with an enti
 - /var/folders/07/b9wcwwld4_v2w9r3hk525bm80000gn/T/pair627.34fmyl6i/shortcut-race-final.log: SHA256 178fc7926103434a5216bf4486b8c5b3db7607e621dc77ba0b84bc725fe9b139
 
 2026-10-16: Final shared-fixture native fullscreen conformance PASS (8.754s package, every named focus/fullscreen scenario executed), log /var/folders/07/b9wcwwld4_v2w9r3hk525bm80000gn/T/pair627.34fmyl6i/fullscreen-live.log, SHA256 058544d72902f615e0374ca5516fcdeceb457c375472d0424c232e7cff7493fb. Hub classification report fbd7c097-f39d-4395-bc56-e14d9a195352 confirmed submitted. PR https://github.com/xianxu/pair/pull/386 opened on code head b76223d9bd95ab8eabd8a8391cf99e0d5bf615da (Git verified). Recorded suite started via sdlc local-check run --name suite and is waiting for a machine slot, position 8 initially; inflight log /Users/xianxu/workspace/pair/.git/sdlc/test-stats/inflight/3ed46c3e7f2ad30891148471a946b560/run.log . Close/review/landing remain pending.
+
+2026-10-16: Recorded full suite PASS on b76223d9bd95ab8eabd8a8391cf99e0d5bf615da, make PAIR_GO_TRIMPATH=-trimpath test via sdlc local-check run --name suite. Execution 14m33s, queue 1413s; full log /Users/xianxu/workspace/pair/.git/sdlc/local-checks/b76223d9bd95ab8eabd8a8391cf99e0d5bf615da/suite.log, SHA256 prefix ae725ec82b5e. couchcmd 154.979s, pairlifecycletest 1.455s, couchcore 522.866s. No failures. All PR #386 CI checks PASS, including native Zellij conformance. Close review and landing pending.
+
+2026-10-16 R2 (administrative): Final plan checkbox now records completed qualification only; close review and landing are explicitly pending gate actions in Log. No design or scope change.
