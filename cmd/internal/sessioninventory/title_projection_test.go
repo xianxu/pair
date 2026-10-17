@@ -544,12 +544,15 @@ func TestTitleProjectionAdmissionPreservesFullValidatorRules(t *testing.T) {
 
 // An agent appends to its transcript while the title admits or tails it: that
 // is ordinary growth, never authority mutation (#653). Before the fix the
-// first growth stopped the title for good and its count vanished.
+// first growth stopped the title for good and its count vanished. stale-proof
+// is the usual production shape: the transcript already grew past its binding
+// proof, and with no generation token (darwin st_gen 0) proof validation falls
+// back to a full read that the append races.
 func TestTitleProjectionGrowthNeverStopsTitle(t *testing.T) {
 	usage := func(n int) []byte {
 		return []byte(fmt.Sprintf("{\"type\":\"event_msg\",\"payload\":{\"type\":\"token_count\",\"info\":{\"last_token_usage\":{\"input_tokens\":%d}}}}\n", n))
 	}
-	for _, phase := range []string{"admit", "tail"} {
+	for _, phase := range []string{"admit", "stale-proof", "tail"} {
 		t.Run(phase, func(t *testing.T) {
 			at := time.Now()
 			fake, a, _ := proofBackedCodexFixtureWithGeneration(t, "019d1111-1111-7111-8111-111111111111", &at, "")
@@ -564,7 +567,10 @@ func TestTitleProjectionGrowthNeverStopsTitle(t *testing.T) {
 					}
 				}
 			}
-			if phase == "tail" {
+			switch phase {
+			case "stale-proof":
+				fake.AppendFile(a, usage(1000), "turn")
+			case "tail":
 				if _, err := p.Poll(); err != nil {
 					t.Fatal(err)
 				}
@@ -590,63 +596,72 @@ func TestTitleProjectionGrowthNeverStopsTitle(t *testing.T) {
 }
 
 // The admission sites after validation must classify an append as growth
-// (#653): between validation and the folded stat, and during the boundary read.
-// (Growth during validation is TestTitleProjectionGrowthNeverStopsTitle/admit.)
-// A clean admission's transcript operations locate each site.
+// (#653): between validation and the folded stat, and during the boundary read,
+// for proof-backed and proofless (chosen-id) bindings alike. (Growth during
+// validation is TestTitleProjectionGrowthNeverStopsTitle.) A clean admission's
+// transcript operations locate each site.
 func TestTitleProjectionGrowthAtEachAdmissionSite(t *testing.T) {
-	fixture := func() (*sessioninventorytest.FakeRuntime, *titleObservedRuntime, sessioninventory.Artifact) {
-		at := time.Now()
-		fake, a, _ := proofBackedCodexFixtureWithGeneration(t, "019d1111-1111-7111-8111-111111111111", &at, "")
-		return fake, &titleObservedRuntime{FakeRuntime: fake, transcript: a}, a
+	fixtures := map[string]func() (*sessioninventorytest.FakeRuntime, sessioninventory.Agent, sessioninventory.Artifact, []byte){
+		"proof": func() (*sessioninventorytest.FakeRuntime, sessioninventory.Agent, sessioninventory.Artifact, []byte) {
+			at := time.Now()
+			fake, a, _ := proofBackedCodexFixtureWithGeneration(t, "019d1111-1111-7111-8111-111111111111", &at, "")
+			return fake, sessioninventory.AgentCodex, a, []byte("{\"type\":\"event_msg\",\"payload\":{\"type\":\"token_count\",\"info\":{\"last_token_usage\":{\"input_tokens\":42000}}}}\n")
+		},
+		"proofless": func() (*sessioninventorytest.FakeRuntime, sessioninventory.Agent, sessioninventory.Artifact, []byte) {
+			fake, a, _, tail := titleProviderFixture(t, sessioninventory.AgentClaude)
+			return fake, sessioninventory.AgentClaude, a, tail
+		},
 	}
-	_, control, _ := fixture()
-	if _, err := sessioninventory.NewTitleProjection(control, "scope", "work", sessioninventory.AgentCodex, 1).Poll(); err != nil {
-		t.Fatal(err)
-	}
-	boundary := -1
-	for i, op := range control.ops {
-		if op == "read" {
-			boundary = i
+	for binding, fixture := range fixtures {
+		fake, agent, a, _ := fixture()
+		control := &titleObservedRuntime{FakeRuntime: fake, transcript: a}
+		if _, err := sessioninventory.NewTitleProjection(control, "scope", "work", agent, 1).Poll(); err != nil {
+			t.Fatal(err)
 		}
-	}
-	folded := -1
-	for i := range boundary {
-		if control.ops[i] == "stat" {
-			folded = i
+		boundary, folded := -1, -1
+		for i, op := range control.ops {
+			if op == "read" {
+				boundary = i
+			}
 		}
-	}
-	if boundary < 0 || folded < 0 {
-		t.Fatalf("control admission ops=%v, want a folded stat before the boundary read", control.ops)
-	}
-	grow := []byte("{\"type\":\"event_msg\",\"payload\":{\"type\":\"token_count\",\"info\":{\"last_token_usage\":{\"input_tokens\":42000}}}}\n")
-	for _, name := range []string{"post-fold", "boundary"} {
-		t.Run(name, func(t *testing.T) {
-			fake, rt, a := fixture()
-			if name == "post-fold" {
-				rt.beforeStat = func(op int) {
-					if op == folded {
-						fake.AppendFile(a, grow, "grow")
+		for i := range boundary {
+			if control.ops[i] == "stat" {
+				folded = i
+			}
+		}
+		if boundary < 0 || folded < 0 {
+			t.Fatalf("%s control admission ops=%v, want a folded stat before the boundary read", binding, control.ops)
+		}
+		for _, site := range []string{"post-fold", "boundary"} {
+			t.Run(binding+"/"+site, func(t *testing.T) {
+				fake, agent, a, grow := fixture()
+				rt := &titleObservedRuntime{FakeRuntime: fake, transcript: a}
+				if site == "post-fold" {
+					rt.beforeStat = func(op int) {
+						if op == folded {
+							fake.AppendFile(a, grow, "grow")
+						}
+					}
+				} else {
+					rt.afterRead = func(int64, int64) {
+						if len(rt.ops)-1 == boundary {
+							fake.AppendFile(a, grow, "grow")
+						}
 					}
 				}
-			} else {
-				rt.afterRead = func(int64, int64) {
-					if len(rt.ops)-1 == boundary {
-						fake.AppendFile(a, grow, "grow")
-					}
+				p := sessioninventory.NewTitleProjection(rt, "scope", "work", agent, 1)
+				if _, err := p.Poll(); err != nil {
+					t.Fatalf("growth at %s stopped the title: %v", site, err)
 				}
-			}
-			p := sessioninventory.NewTitleProjection(rt, "scope", "work", sessioninventory.AgentCodex, 1)
-			if _, err := p.Poll(); err != nil {
-				t.Fatalf("growth at %s stopped the title: %v", name, err)
-			}
-			rt.afterRead, rt.beforeStat, rt.reads = nil, nil, nil
-			got, err := p.Poll()
-			if err != nil || !got.HasUsage || got.Usage.InputTokens != 42000 {
-				t.Fatalf("re-admission after %s growth=%+v %v", name, got, err)
-			}
-			if len(rt.reads) == 0 || rt.reads[0].offset != 0 {
-				t.Fatalf("reads=%+v: %s growth did not drop the admission", rt.reads, name)
-			}
-		})
+				rt.afterRead, rt.beforeStat, rt.reads = nil, nil, nil
+				got, err := p.Poll()
+				if err != nil || !got.HasUsage {
+					t.Fatalf("re-admission after %s growth=%+v %v", site, got, err)
+				}
+				if len(rt.reads) == 0 || rt.reads[0].offset != 0 {
+					t.Fatalf("reads=%+v: %s growth did not drop the admission", rt.reads, site)
+				}
+			})
+		}
 	}
 }

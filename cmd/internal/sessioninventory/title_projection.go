@@ -25,10 +25,9 @@ type TitleProjectionResult struct {
 // TitleProjection admits existing inventory authority once, then follows only
 // its pinned append-only transcript. No transcript/event history is retained;
 // full validation is never silently invoked after admission. Ordinary growth
-// that races an admission drops the admission and re-admits on the next Poll
-// (#653). Every other failure stops the projection for good: a lost or changed
-// owner, a mutation of admitted authority, I/O and read-limit errors, malformed
-// records and failed root validation.
+// that races an admission drops the admission and re-admits on the next Poll;
+// classifyAdmission is the one rule that decides it (#653). Every other failure
+// stops the projection for good.
 type TitleProjection struct {
 	runtime      Runtime
 	ownerRuntime titleOwnerRuntime
@@ -41,6 +40,7 @@ type TitleProjection struct {
 	state        ScannerState
 	transcript   FileEntry
 	other        []FileEntry
+	since        []FileEntry
 	rawOffset    int64
 	observedSize int64
 	frame        JSONLFrameState
@@ -54,9 +54,8 @@ type titleOwnerRuntime struct {
 	cache *OwnerLaunchCache
 }
 
-// errTitleReadmit marks a change that is not a mutation of admitted authority:
-// an append that landed while admission was reading, or a rebind of the same
-// launch to a new root. Poll answers it by re-admitting, never by stopping.
+// errTitleReadmit marks an admission that failed only because its artifacts
+// grew while it read them. Poll answers it by re-admitting, never by stopping.
 var errTitleReadmit = errors.New("title projection must re-admit")
 
 // grewFrom reports that now is old's same file, only longer: an append.
@@ -79,19 +78,29 @@ func (p *TitleProjection) stop(err error) (TitleProjectionResult, error) {
 	return p.result, err
 }
 
+// classifyAdmission is the one place an admission failure becomes transient
+// (#653): an ErrArtifactChanged while every artifact admission had observed is
+// unchanged or only grown, and one grew, re-admits on the next Poll. A genuine
+// validation failure under growth therefore surfaces as terminal once the
+// transcript pauses between polls.
+func (p *TitleProjection) classifyAdmission(err error) error {
+	if err != nil && errors.Is(err, ErrArtifactChanged) && p.onlyGrew(p.since) {
+		return errTitleReadmit
+	}
+	return err
+}
+
 // onlyGrew reports that the observed artifacts changed only by appending:
-// each is unchanged or the same file grown, and at least one grew. A failed
-// full validation under growth re-admits, so a genuine validation failure
-// surfaces as terminal once the transcript pauses between polls.
-func (p *TitleProjection) onlyGrew(observed []ArtifactObservation) bool {
+// each is unchanged or the same file grown, and at least one grew.
+func (p *TitleProjection) onlyGrew(observed []FileEntry) bool {
 	grew := false
-	for _, o := range observed {
-		now, err := p.runtime.StatFile(o.Entry.Artifact)
+	for _, old := range observed {
+		now, err := p.runtime.StatFile(old.Artifact)
 		switch {
 		case err != nil:
 			return false
-		case equalFingerprint(fingerprintFromEntry(o.Entry), fingerprintFromEntry(now)):
-		case grewFrom(o.Entry, now):
+		case equalFingerprint(fingerprintFromEntry(old), fingerprintFromEntry(now)):
+		case grewFrom(old, now):
 			grew = true
 		default:
 			return false
@@ -100,23 +109,24 @@ func (p *TitleProjection) onlyGrew(observed []ArtifactObservation) bool {
 	return grew
 }
 
+// observe records what admission has validated, the baseline against which
+// classifyAdmission tells growth from mutation.
+func (p *TitleProjection) observe(v TargetValidation) {
+	p.since = make([]FileEntry, 0, len(v.Observations))
+	for _, o := range v.Observations {
+		p.since = append(p.since, o.Entry)
+	}
+}
+
 // reset drops the admission but keeps the last displayed facts, so a busy
 // slot's count stays visible until the next Poll re-admits it.
 func (p *TitleProjection) reset(last TitleProjectionResult) (TitleProjectionResult, error) {
 	p.admitted, p.nativeID, p.state = false, "", ScannerState{}
-	p.transcript, p.other = FileEntry{}, nil
+	p.transcript, p.other, p.since = FileEntry{}, nil, nil
 	p.rawOffset, p.observedSize = 0, 0
 	p.frame, p.boundary, p.boundaryHash = JSONLFrameState{}, nil, [32]byte{}
 	p.result = last
 	return p.result, nil
-}
-
-// settle classifies a Poll failure: re-admit on errTitleReadmit, else stop.
-func (p *TitleProjection) settle(last TitleProjectionResult, err error) (TitleProjectionResult, error) {
-	if errors.Is(err, errTitleReadmit) {
-		return p.reset(last)
-	}
-	return p.stop(err)
 }
 
 func (p *TitleProjection) owner() (sessionledger.Current, bool, error) {
@@ -146,29 +156,31 @@ func (p *TitleProjection) Poll() (TitleProjectionResult, error) {
 	if p.runtime == nil || p.scope == "" || p.tag == "" || !validAgent(p.agent) || p.ordinal == 0 {
 		return p.stop(errors.New("title projection requires exact invocation identity"))
 	}
-	last := p.result
 	current, ok, err := p.owner()
 	if err != nil {
-		return p.settle(last, err)
+		return p.stop(err)
 	}
 	if !p.admitted {
 		if !ok || current.Binding == nil || (current.Binding.AuthorizationProof == nil && current.Binding.Version < 3) {
 			p.result = TitleProjectionResult{Awaiting: true}
 			return p.result, nil
 		}
-		if err := p.admit(*current.Binding); err != nil {
-			return p.settle(last, err)
+		last := p.result
+		if err := p.classifyAdmission(p.admit(*current.Binding)); errors.Is(err, errTitleReadmit) {
+			return p.reset(last)
+		} else if err != nil {
+			return p.stop(err)
 		}
 		if _, _, err := p.owner(); err != nil {
-			return p.settle(last, err)
+			return p.stop(err)
 		}
 		return p.result, nil
 	}
 	if err := p.tail(); err != nil {
-		return p.settle(last, err)
+		return p.stop(err)
 	}
 	if _, _, err := p.owner(); err != nil {
-		return p.settle(last, err)
+		return p.stop(err)
 	}
 	return p.result, nil
 }
@@ -178,7 +190,13 @@ func (p *TitleProjection) admit(binding sessionledger.Record) error {
 	inventory := NewIncrementalInventory(p.runtime, Catalog{Version: CatalogVersion})
 	var v TargetValidation
 	var err error
+	p.since = nil
 	if binding.AuthorizationProof != nil {
+		for _, artifact := range binding.AuthorizationProof.Artifacts {
+			if entry, err := p.runtime.StatFile(Artifact{StorageRoot: artifact.StorageRoot, RelativePath: artifact.RelativePath}); err == nil {
+				p.since = append(p.since, entry)
+			}
+		}
 		v, _, err = inventory.ValidateBindingProof(p.agent, *binding.AuthorizationProof)
 	} else {
 		v, _, err = inventory.ValidateNamedContent(p.agent, binding.RootNativeID)
@@ -186,6 +204,7 @@ func (p *TitleProjection) admit(binding sessionledger.Record) error {
 	if err != nil {
 		return err
 	}
+	p.observe(v)
 	if !titleValidationRoot(v, p.agent, binding.RootNativeID) {
 		return ErrArtifactChanged
 	}
@@ -197,9 +216,6 @@ func (p *TitleProjection) admit(binding sessionledger.Record) error {
 	}
 	if !complete {
 		full, _ := ValidateTargetWork(p.runtime, p.agent, v.Observations)
-		if len(full) != 1 && p.onlyGrew(v.Observations) {
-			return errTitleReadmit
-		}
 		if len(full) != 1 || !titleValidationRoot(full[0], p.agent, binding.RootNativeID) || full[0].State.ScannerSchema != v.State.ScannerSchema {
 			return ErrArtifactChanged
 		}
@@ -248,9 +264,6 @@ func (p *TitleProjection) admit(binding sessionledger.Record) error {
 	if err != nil {
 		return err
 	}
-	if grewFrom(p.transcript, current) {
-		return errTitleReadmit
-	}
 	if !sameTitleIdentity(p.transcript, current) || current.Size != p.rawOffset || !equalFingerprint(fingerprintFromEntry(p.transcript), fingerprintFromEntry(current)) {
 		return ErrArtifactChanged
 	}
@@ -261,9 +274,6 @@ func (p *TitleProjection) admit(binding sessionledger.Record) error {
 	after, err := p.checkArtifacts()
 	if err != nil {
 		return err
-	}
-	if grewFrom(current, after) {
-		return errTitleReadmit
 	}
 	if !equalFingerprint(fingerprintFromEntry(current), fingerprintFromEntry(after)) {
 		return ErrArtifactChanged
