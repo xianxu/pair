@@ -94,6 +94,8 @@ func TestPlanFullscreenRefusesUnknownIdentityAndDirection(t *testing.T) {
 // layout; next-swap-layout re-tiles positionally (keeping half order) through a
 // per-pane-count cycle; move-pane swaps a half with its neighbour.
 type fullscreenWorld struct {
+	notifyError                 error
+	notices                     []string
 	panes                       []zellijpane.Pane
 	current, last, record, fail string
 	ops, logs                   []string
@@ -116,6 +118,10 @@ type exitStatus int
 func (e exitStatus) Error() string { return fmt.Sprintf("exit status %d", int(e)) }
 func (e exitStatus) ExitCode() int { return int(e) }
 
+func (w *fullscreenWorld) NotifyRefusal(message string) error {
+	w.notices = append(w.notices, message)
+	return w.notifyError
+}
 func (w *fullscreenWorld) CurrentPaneID() string                              { return w.current }
 func (w *fullscreenWorld) LastTerminalPaneID() (string, error)                { return w.last, nil }
 func (w *fullscreenWorld) TerminalPaneIDs() ([]string, error)                 { return []string{"3", "4"}, nil }

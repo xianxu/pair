@@ -3,10 +3,12 @@ package layoutcmd
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/xianxu/pair/cmd/internal/notifytransport"
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 	"github.com/xianxu/pair/cmd/internal/zellijtest"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -216,5 +218,20 @@ func TestLayoutAmbiguousFirstReplyStopsBeforeConfirmation(t *testing.T) {
 	var diagnostic bytes.Buffer
 	if code := RunToggleFocused(nil, admissionRuntime{world: w}, &diagnostic); code != 1 || len(f.Queries()) != 1 || len(f.Effects()) != 0 || w.record != "preserved" {
 		t.Fatalf("code=%d queries=%v effects=%v record=%q", code, f.Queries(), f.Effects(), w.record)
+	}
+}
+
+func TestLayoutRefusalRetainsPresenterFailureWithDiscardedStderr(t *testing.T) {
+	w := newFullscreenWorld()
+	w.fail = "save"
+	w.notifyError = errors.New("private broker unavailable")
+	if code := RunToggleFocused(nil, w, io.Discard); code != 1 {
+		t.Fatalf("code=%d", code)
+	}
+	if len(w.logs) != 2 || !strings.Contains(w.logs[1], "refusal notification failed") || !strings.Contains(w.logs[1], "private broker unavailable") {
+		t.Fatalf("retained logs=%v", w.logs)
+	}
+	if len(w.notices) != 1 {
+		t.Fatalf("notices=%v", w.notices)
 	}
 }

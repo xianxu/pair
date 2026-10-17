@@ -1882,6 +1882,9 @@ func (p *proxy) executeWorkbenchDecision(decision workbenchshortcut.ShortcutDeci
 					stderr = os.Stderr
 				}
 				fmt.Fprintf(stderr, "pair-wrap: global shortcut: %v\n", err)
+				if noticeErr := (layoutcmd.OSRuntime{}).NotifyRefusal("Pair action refused: draft context could not be confirmed."); noticeErr != nil {
+					fmt.Fprintf(stderr, "pair-wrap: refusal notification failed: %v\n", noticeErr)
+				}
 			}
 		}
 		return true

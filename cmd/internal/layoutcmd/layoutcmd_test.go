@@ -113,7 +113,8 @@ func (f *fakeRuntime) TerminalPaneIDs() ([]string, error) {
 	return f.terminalPaneIDs, nil
 }
 
-func (f *fakeRuntime) CurrentPaneID() string { return "900" }
+func (f *fakeRuntime) NotifyRefusal(string) error { return nil }
+func (f *fakeRuntime) CurrentPaneID() string      { return "900" }
 func (f *fakeRuntime) ListPanesJSONContext(ctx context.Context) ([]byte, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err

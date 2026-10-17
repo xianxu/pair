@@ -30,6 +30,7 @@ import (
 )
 
 type Runtime interface {
+	NotifyRefusal(string) error
 	CachedDraftPaneID() (string, bool)
 	CurrentPaneID() string
 	FullscreenStore() workbenchshortcut.FullscreenStore
@@ -336,8 +337,7 @@ func runDecisionContext(ctx context.Context, decision workbenchshortcut.Shortcut
 	case workbenchshortcut.ActionSplitTerminalDown:
 		return splitTerminalDownAdmitted(ctx, rt)
 	case workbenchshortcut.ActionToggleFocusedLayout:
-		_ = layoutcmd.RunToggleFocusedContext(ctx, nil, rt, io.Discard)
-		return nil
+		return toggleFocusedLayoutContext(ctx, rt)
 	default:
 		return nil
 	}
@@ -723,7 +723,9 @@ func handleTerminalChordContext(parent context.Context, chord workbenchshortcut.
 	case workbenchshortcut.ChordAltShiftEnter:
 		ctx, cancel := zellijreply.AdmissionContext(parent)
 		defer cancel()
-		_ = layoutcmd.RunToggleFocusedContext(ctx, nil, rt, io.Discard)
+		if err := toggleFocusedLayoutContext(ctx, rt); err != nil {
+			mux.reportError(err)
+		}
 		return true
 	default:
 		return false
@@ -819,6 +821,17 @@ func findSGRMousePress(data []byte) ([]byte, mouseinput.Event, []byte, []byte, b
 func isSGRMousePrefix(data []byte) bool { return mouseinput.IsPrefix(data) }
 
 type OSRuntime struct{}
+
+func (OSRuntime) NotifyRefusal(message string) error {
+	return layoutcmd.OSRuntime{}.NotifyRefusal(message)
+}
+
+func toggleFocusedLayoutContext(ctx context.Context, rt Runtime) error {
+	if code := layoutcmd.RunToggleFocusedContext(ctx, nil, rt, io.Discard); code != 0 {
+		return errors.New("layout change refused: uncertain Zellij reply")
+	}
+	return nil
+}
 
 func (OSRuntime) ListPanesJSON() ([]byte, error) {
 	return OSRuntime{}.ListPanesJSONContext(context.Background())

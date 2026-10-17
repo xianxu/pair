@@ -88,3 +88,13 @@ attempt measured 353/171 ms. These host-load-sensitive samples do not isolate a
 causal optimization effect. Confirmation's observed interactive overhead is
 accepted by the TL; no deadline increased. Native timing controls retain all
 layout/focus/geometry assertions and do not qualify fault refusal by themselves.
+
+A matched disposable native clipboard pair measured auto-quote 117 ms after
+hardening versus 103 ms for the original helpers executed in process; standalone
+paste measured 64 ms versus 84 ms. The original control excludes subprocess/exec
+overhead, and each number is one host-sensitive sample. Native observations
+changed from two to four on auto-quote and one to two on standalone paste. Both
+controls retained actual receiver-byte, private staging and client-focus checks;
+clipboard input was private and cosmetic reset scheduling was recorded. These
+controls bound healthy interactive cost without claiming a causal speedup,
+OS clipboard copying or native fault qualification.

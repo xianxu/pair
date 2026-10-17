@@ -20,6 +20,7 @@ import (
 )
 
 type Runtime interface {
+	NotifyRefusal(string) error
 	ListPanesJSONContext(context.Context) ([]byte, error)
 	CurrentPaneID() string
 	ListPanesJSON() ([]byte, error)
@@ -332,9 +333,13 @@ func (OSRuntime) NotifyRefusal(message string) error {
 }
 
 func reportRefusal(rt Runtime, stderr io.Writer) {
-	if notifier, ok := rt.(interface{ NotifyRefusal(string) error }); ok {
-		if err := notifier.NotifyRefusal("Pair action refused: terminal context could not be confirmed."); err != nil {
-			fmt.Fprintf(stderr, "pair layout: refusal notification failed: %v\n", err)
+	if err := rt.NotifyRefusal("Pair action refused: terminal context could not be confirmed."); err != nil {
+		diagnostic := fmt.Errorf("pair layout: refusal notification failed: %w", err)
+		fmt.Fprintln(stderr, diagnostic)
+		if owner, ok := rt.(interface {
+			FullscreenStore() workbenchshortcut.FullscreenStore
+		}); ok {
+			owner.FullscreenStore().LogFailure(diagnostic)
 		}
 	}
 }
