@@ -230,3 +230,39 @@ func TestHostedSectionsUseHostedWordingOnlyWhereDeclared(t *testing.T) {
 		t.Fatal("no row carried hosted wording")
 	}
 }
+
+func TestAttentionFinderKeysAreDocumentedOnlyForParley(t *testing.T) {
+	for _, build := range []struct {
+		name string
+		fn   func(SourceReader) ([]Section, error)
+	}{{"standalone", Sections}, {"hosted", HostedSections}} {
+		t.Run(build.name, func(t *testing.T) {
+			sections, err := build.fn(DefaultSources())
+			if err != nil {
+				t.Fatal(err)
+			}
+			counts := map[string]int{"Alt+Space": 0, "Ctrl+Y Space": 0}
+			for _, section := range sections {
+				for _, binding := range section.Bindings {
+					if _, wanted := counts[binding.Key]; wanted {
+						counts[binding.Key]++
+						if section.Title != "Parley editor" || binding.Context.String() != "parley" || binding.Chord != 0 {
+							t.Errorf("%s must be Parley-local, got %#v in %q", binding.Key, binding, section.Title)
+						}
+						if binding.Desc != "attention finder (documents waiting on / answered by an agent)" {
+							t.Errorf("%s description = %q", binding.Key, binding.Desc)
+						}
+					}
+					if binding.Key == "Alt+u" {
+						t.Error("obsolete Alt+u attention finder key remains")
+					}
+				}
+			}
+			for key, count := range counts {
+				if count != 1 || !strings.Contains(Render(sections), key) {
+					t.Errorf("%s appears %d times; want exactly one rendered entry", key, count)
+				}
+			}
+		})
+	}
+}

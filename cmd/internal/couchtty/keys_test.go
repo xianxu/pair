@@ -797,3 +797,13 @@ func TestShiftCtrlAltBIsTheWebcastKey(t *testing.T) {
 		t.Fatalf("Ctrl+Alt+b framed as %v", hit)
 	}
 }
+
+func TestParleyAttentionFinderKeysPassThroughCouch(t *testing.T) {
+	for _, input := range []string{"\x1b ", "\x1b[32;3u", "\x19 ", "\x1b[121;5u "} {
+		var interceptor Interceptor
+		before, hit, rest := interceptor.FeedHit([]byte(input))
+		if hit != HitNone || string(before) != input || len(rest) != 0 {
+			t.Errorf("attention finder %q: forwarded %q, hit %v, rest %q", input, before, hit, rest)
+		}
+	}
+}
