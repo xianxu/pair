@@ -520,6 +520,21 @@ remaining uncertainty is stated, never papered over:
   answer `uncertain`, not absent. One that has since exited or exec'd has
   forgotten. A receipt recovered while still in flight is reported
   `Indeterminate`, because no broker job watches it any more.
+- **Not admitted (#618).** A send that never reaches `Admit` leaves a `refused`
+  receipt naming why (a failed ownership check, or "admission timed out" when
+  the checks outrun `AdmissionTimeout`). Admission is the only way into an
+  inbox, so a refusal is definite: the send answers `refused` with the reason,
+  and `--message-status` reads it for 10 minutes. Refusals are capped at 64
+  (oldest evicted), never count against `MaxReceipts`, and a resend with the
+  same ID is a fresh attempt. A send's exchange budget on both ends of the socket
+  is `SendTransportTimeout` (admission plus a second), so the verdict arrives.
+- **Liveness behind the authority (#618).** The use-time ownership check runs
+  at every admission and every queued-message retry (`PromoteRetry`, 1 s). Its
+  terminal listing reads `launcher.ListingPoller`: one supervisor loop runs both
+  `zellij list-sessions` forms every second, and a snapshot older than 5 s
+  refuses as "zellij liveness is stale". The thread record, PID file, ready
+  file and session index are still read per check. Recovery and relaunch
+  decisions keep their direct zellij reads.
 - **Retries.** The CLI mints a fresh ID per send and tells the sender not to
   retry an uncertain one. A reused ID that reaches a wrapper that remembers it
   adopts the recorded outcome and is not pasted again.
@@ -1438,10 +1453,29 @@ diagnostics. Since #151 M3, Console refreshes this projection asynchronously
 from exact hosted PID/start observations and never promotes raw persisted
 lifecycle state into a user-visible `live` or `parked` row.
 
-The switcher’s `Ctrl+Y` copies the latest retained `Feed.Messages()` body through
-`Presenter.Copy` (`console_menu.go`), outside the console lock. Status-row
-clipping and expiry do not remove that diagnostic. Copy feedback stays in
-`MenuNotice`, so repeating the action does not copy its own confirmation.
+The switcher’s `Ctrl+Y` copies the latest retained `Feed.Messages()` body outside
+the console lock (`console_menu.go`, #604). Local consoles first use clipcmd's
+existing `pbcopy` / `wl-copy` / `xclip` tool cascade, with a one-second command
+budget and bounded pipe cleanup. Successful tool exit confirms local copying.
+Explicit SSH environments skip the host clipboard. Missing, failed or timed-out
+tools fall back to `Presenter.Copy` through the serialized parent writer; its
+OSC 52 request has no delivery acknowledgment, so feedback says **unconfirmed**.
+Status-row clipping and expiry do not remove the diagnostic. Copy feedback stays
+in `MenuNotice`, so repeating the action does not copy its own confirmation.
+
+A read-only investigation for #604 found Ghostty's installed default permits
+`clipboard-write` and no local permission override; Zellij documents OSC 52 write
+support. The current Couch parent chain was Couch → login shell → login →
+Ghostty, with no outer multiplexer. The layer losing the original request was
+not established without a live clipboard probe. Local clipboard copying bypasses these delivery
+dependencies rather than assuming either terminal blocks OSC 52. See
+[Ghostty's clipboard permission](https://ghostty.org/docs/config/reference#clipboard-write)
+and [Zellij's clipboard support](https://zellij.dev/documentation/compatibility.html).
+The approved #604 diagnostic scope ends at this read-only investigation; the
+original loss layer remains unknown. The clipboard smoke follows the next
+natural Couch restart, with further diagnosis only if it fails. Successful
+local copying bypasses OSC 52; its unresolved delivery uncertainty primarily
+concerns the SSH fallback.
 
 #151 M2 added the pure core and M3 wired it into Console. One
 immutable-by-copy `MenuState` stack owns the root filter/selection plus exact

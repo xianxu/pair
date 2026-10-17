@@ -214,7 +214,7 @@ func TestMessageUnfocusedWrappersReconnectAndExchangeWithoutAttachment(t *testin
 	}
 	start := func() {
 		authority := r.world.authority()
-		authority.thread = messageThreadResolver(c)
+		authority.thread = messageThreadResolver(c, nil)
 		authority.process = func(b couchmessage.Binding) error {
 			identity, err := (couchcore.OSProcOps{}).Identity(b.PID)
 			if err != nil || identity != b.Start || (couchcore.OSProcOps{}).Exists(b.PID) != couchcore.Live {
@@ -278,7 +278,7 @@ func TestMessageThreadResolverRefusesUnlistedAndForeignTerminal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	resolve := messageThreadResolver(c)
+	resolve := messageThreadResolver(c, nil)
 	binding := couchmessage.Binding{Scope: record.Address.RepoScope, Tag: string(record.Address.Tag), Session: "listed-session"}
 	if _, err := resolve(context.Background(), binding); err == nil {
 		t.Fatal("retained record alone granted message authority")
@@ -340,7 +340,7 @@ func TestMessageThreadResolverLeavesPendingJournalUntouched(t *testing.T) {
 	}
 	binding := couchmessage.Binding{Scope: record.Address.RepoScope, Tag: string(record.Address.Tag), Session: "listed-terminal"}
 	rt.artifacts.SetDetachedSession(record.Address, binding.Session)
-	if _, err := messageThreadResolver(c)(context.Background(), binding); err == nil {
+	if _, err := messageThreadResolver(c, nil)(context.Background(), binding); err == nil {
 		t.Fatal("automatic resolver accepted pending transaction")
 	}
 	retained, err := os.ReadFile(recordPath)

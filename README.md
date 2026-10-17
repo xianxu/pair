@@ -1445,7 +1445,12 @@ Space is a literal search character; it does not toggle views.
 
 In the switcher, `Ctrl+Y` copies the full last retained status notice, including
 text clipped from the status row and after that row expires. Repeating it copies
-the same notice until another arrives. In an actor, `Ctrl+Y` still goes to the actor.
+the same notice until another arrives. A local console first tries the system
+clipboard (`pbcopy` on macOS), with a one-second budget; successful tool exit
+confirms the copy. SSH sessions and missing, failed, or timed-out clipboard tools
+use a terminal OSC 52 request instead. Its feedback says **unconfirmed**, because
+Couch cannot verify that the terminal delivered it to the clipboard.
+In an actor, `Ctrl+Y` still goes to the actor.
 
 Printable input filters the current list from memory (typeahead), matching what a
 row shows: its label, its path, and the published summary in both default and

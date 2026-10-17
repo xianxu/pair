@@ -2043,3 +2043,6 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #602 BR-3: a migration guard must fail against every original offender before its synthetic controls are considered sufficient. Normalize target paths in their actual working-directory context; root-relative examples alone miss package-relative recipes. Keep compact regression fixtures for the original command forms and verify the full original source bodies once.
 
 - #606: a new production .go file must be added to `cmd/internal/artifactpath/manifest.go`, or the recorded suite fails `TestProductionArtifactReferencesAreExactlyClassified` at merge. Run `go test ./cmd/internal/artifactpath` whenever a change adds a source file. Fixing review Minors after a SHIP close needs `sdlc close --fixed-then-ship` before `sdlc merge` will publish.
+
+- #604 BR-1: Deferring a live smoke does not implicitly defer a separately promised diagnostic deliverable. Enumerate the Spec's independent obligations and explicitly reconcile any approved scope reduction across Spec, Plan, Done-when and atlas before claiming completion; keep unknown causes unknown.
+- #604 BR-2: For a changed user-visible action, update its existing README account as well as the atlas. Explain confirmed versus unconfirmed outcomes at the user entry point; internal architecture prose alone does not update the user contract.
