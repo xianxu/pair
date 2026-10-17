@@ -1,6 +1,6 @@
 ---
 id: 000634
-status: codecomplete
+status: done
 created: 2026-10-16
 updated: 2026-10-17
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 65ee79d1138e818704d09a3e69b1b89deaa6834a
         evidence_commit: f391241cd16026eb368ce7b362c9ecf3e6278097
+        landed_commit: f2cea06c06640dd28cdb8e38dd905ade29026649
 ---
 
 # every step of a couch send spends the one exchange budget; no fresh timers outside admission
