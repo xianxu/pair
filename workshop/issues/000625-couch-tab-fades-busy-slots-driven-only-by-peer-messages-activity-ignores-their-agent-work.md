@@ -15,6 +15,7 @@ claimant:
     workspace: pair:6
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "fb81ef39", done: "61ec02af"}
 ---
 
 # Couch tab fades busy slots driven only by peer messages (activity ignores their agent work)
