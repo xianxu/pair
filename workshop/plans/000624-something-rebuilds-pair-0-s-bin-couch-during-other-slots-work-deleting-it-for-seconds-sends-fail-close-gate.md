@@ -82,6 +82,87 @@ rounds:
       recipe: small-diff-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 7364a85d-c457-4eb3-ba4b-5d148f825f41
+            repository: github.com/xianxu/pair
+            issue_id: "000624"
+            recipe: small-diff-review
+            round: 2
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/Library/Caches/sdlc/review-checkouts/0565d3ba626c2d86
+            reviewed_head: 8e88e3629694568666a4b6a5141c5801c65e2935
+            slot: pair:7
+            requested_at: "2026-10-17T06:11:37.119988Z"
+          phase: finished
+          pid: 85495
+          started_at: "2026-10-17T06:11:37.217763Z"
+          finished_at: "2026-10-17T06:12:25.55872Z"
+          session_id: 01a1487c-bf64-75e3-81b6-2d6e3f6a82ff
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-v1
+        repository: github.com/xianxu/pair
+        code_head: 8e88e3629694568666a4b6a5141c5801c65e2935
+        tracker_head: 8e89665c5553549d94ecefff3b4344b55f647ebf
+        branch_point: fe4071b2fbf68bf1f6a0a0d8d2c22f0d8376fc12
+        since: "2026-10-16T20:02:10-07:00"
+        until: "2026-10-16T23:11:12-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-16T20:02:10-07:00"
+              end: "2026-10-16T23:11:12-07:00"
+              began: "2026-10-16T20:02:10-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot7/pair
+        sources:
+            - harness: codex
+              id: 01a13398-d940-72d3-8d80-c203fc8bd296
+              cwd: /Users/xianxu/workspace/worktree/pair-slot7/pair
+              digest: 62d632c5cc183af4761a672649528701036407e9f4b29a8b529a6019c742a715
+              started: "2026-10-13T04:50:49.58Z"
+              spawned: false
+              bytes: 95828688
+              windows:
+                - start: "2026-10-16T20:02:10-07:00"
+                  end: "2026-10-16T23:11:12-07:00"
+            - harness: codex
+              id: 01a147cf-645d-71a3-a8c9-30887e63fdfa
+              cwd: /Users/xianxu/workspace/worktree/pair-slot7/pair
+              parent_id: 01a13398-d940-72d3-8d80-c203fc8bd296
+              digest: 2456aa866906318f21a58e106a524b51486b6be2af02418c347b3e0019316680
+              started: "2026-10-17T03:02:16.475Z"
+              spawned: true
+              bytes: 1099365
+              windows:
+                - start: "2026-10-17T03:02:16.475Z"
+                  end: "2026-10-16T23:11:12-07:00"
+        excluded_brain_sessions: 2
+        excluded_brain_minutes: 0.7423500000000001
+        cuts:
+            - dispatched: "2026-10-16T23:08:07-07:00"
+              finalized: "2026-10-16T23:09:44-07:00"
+              finalizing: false
+      "n": 2
+      timestamp: "2026-10-16T23:12:27-07:00"
+      dispatched: "2026-10-16T23:11:35-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: withdrawn
+          note: Independently verified retained sources match pinned head and actual worker Makefile.workflow matches SHA256 b816fcb7c31d3426775ea583e802835c756756a97c241f4610be51d7e1b345ec. Reproduction passed with three staged writes; removing Couch’s sentinel, helper’s sentinel, or both failed with respectively four, four, and five writes, including the corresponding direct outputs. This supplies the missing scanner measurement for the complete owned-binary family.
+          round: 2
+      recipe: small-diff-review
+      isolation: fenced
+      reviewed: 8e88e3629694568666a4b6a5141c5801c65e2935
+      blocked: false
 disputes:
     - id: BR-1
       rationale: The dependency is absent only from the disposable archive. The requested actual-scanner measurement is now available in a retained private woven copy; no scanner assumption or production change is needed. Please inspect and reproduce the measured host evidence, then withdraw the unverifiable finding if it holds.
@@ -102,6 +183,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 - **BR-1** [Important] `dependency-build-path-verification` (kind: unverifiable) Generic scanner opt-out remains unverified in this checkout
   tests/build-go-atomic-test.py:37-39 conditionally omits Makefile.workflow; inspection with ls reported that dependency absent. All eight tests pass here, but in a disposable fixture the root-build regression also passes after removing both new sentinels, so it cannot verify that the generic scanner stops publishing directly. The complete consumer family is cmd/pair-go, cmd/couch, and cmd/pair-launch-helper; the latter two receive new sentinels in this window. Provide a woven checkout with the actual scanner, a passing head run, and a regression run showing that removing the new sentinels makes the root-build test fail. This answers the ARCH-PURPOSE verification gap without assuming another repository's scanner conventions.
+
+## Round 2 — 2026-10-16T23:12:27-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — withdrawn — Independently verified retained sources match pinned head and actual worker Makefile.workflow matches SHA256 b816fcb7c31d3426775ea583e802835c756756a97c241f4610be51d7e1b345ec. Reproduction passed with three staged writes; removing Couch’s sentinel, helper’s sentinel, or both failed with respectively four, four, and five writes, including the corresponding direct outputs. This supplies the missing scanner measurement for the complete owned-binary family.
 
 ## Disputes
 

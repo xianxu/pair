@@ -83,3 +83,90 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-16T23:12:26-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 624 — Something rebuilds pair:0's bin/couch during other slots' work, deleting it for seconds (sends fail) |
+| repo | pair |
+| issue file | workshop/issues/000624-something-rebuilds-pair-0-s-bin-couch-during-other-slots-work-deleting-it-for-seconds-sends-fail.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | fe4071b2fbf68bf1f6a0a0d8d2c22f0d8376fc12..8e88e3629694568666a4b6a5141c5801c65e2935 |
+| command | sdlc close --issue 624 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-16T23:12:26-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned implementation satisfies the revised contract. Atomic publication, failure preservation, worktree isolation, and generic-scanner exclusion are verified. BR-1’s missing measurement is now independently reproduced; no new findings.
+
+Done-when: current — both clauses still cover the revised scope: worker preparation leaves the primary binaries untouched, and builds publish completed binaries atomically.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: withdrawn
+    note: |
+      Independently verified retained sources match pinned head and actual worker Makefile.workflow matches SHA256 b816fcb7c31d3426775ea583e802835c756756a97c241f4610be51d7e1b345ec. Reproduction passed with three staged writes; removing Couch’s sentinel, helper’s sentinel, or both failed with respectively four, four, and five writes, including the corresponding direct outputs. This supplies the missing scanner measurement for the complete owned-binary family.
+```
+
+1. Strengths
+
+   - All three explicit targets share one publisher (`Makefile.local:524–535`).
+   - Same-filesystem staging preserves existing executables during compilation and failure (`scripts/build-go-atomic.sh:14–19`).
+   - README and atlas explain publication behavior and accurately retain uncertainty about the historical caller.
+
+2. Critical findings
+
+   None.
+
+3. Important findings
+
+   None.
+
+4. Minor findings
+
+   None.
+
+5. Test coverage notes
+
+   - All eight new tests passed.
+   - Restoring base recipes privately caused four regression failures covering all three direct targets and failed-build preservation.
+   - Independently reproduced all four scanner variants described above.
+   - A real Go build produced a runnable executable and left no staging directory.
+   - Full repository suite was not rerun during this review.
+
+6. Architectural notes
+
+   - **ARCH-DRY: pass.** One publication helper serves every owned binary.
+   - **ARCH-PURE: pass.** Changes remain within a thin build IO boundary, tested with an injected compiler.
+   - **ARCH-PURPOSE: pass.** Enumerated consumers—Pair, Couch, and launch helper—all use the publisher and exclude the generic writer. Preparation matches `.sdlc/review-prepare.json`.
+
+7. Plan revision recommendations
+
+   None. The implementation matches the revised plan; no Core concepts table requires reconciliation.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"7364a85d-c457-4eb3-ba4b-5d148f825f41","repository":"github.com/xianxu/pair","issue_id":"000624","recipe":"small-diff-review","round":2,"attempt":1,"agent":"codex","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/0565d3ba626c2d86","reviewed_head":"8e88e3629694568666a4b6a5141c5801c65e2935","slot":"pair:7","requested_at":"2026-10-17T06:11:37.119988Z"},"phase":"finished","pid":85495,"started_at":"2026-10-17T06:11:37.217763Z","finished_at":"2026-10-17T06:12:25.55872Z","session_id":"01a1487c-bf64-75e3-81b6-2d6e3f6a82ff","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.494336625s
+head: "8e88e3629694568666a4b6a5141c5801c65e2935"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
