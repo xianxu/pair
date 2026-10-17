@@ -154,9 +154,9 @@ func TestFullscreenHasOneGlobalHelpRow(t *testing.T) {
 		for _, b := range section.Bindings {
 			if b.Chord == workbenchshortcut.ChordAltShiftEnter {
 				count++
-				// The #417 cycle: the help names both expanded views.
+				// The #639 toggle names Normal and the one expanded view.
 				if b.Context != ContextGlobal || !strings.Contains(b.Desc, "right terminal") ||
-					!strings.Contains(b.Desc, "focus") || !strings.Contains(b.Desc, "maximize") || strings.Contains(b.Desc, "focused pane") {
+					!strings.Contains(b.Desc, "focus") || !strings.Contains(b.Desc, "normal") || !strings.Contains(b.Desc, "75%") || strings.Contains(b.Desc, "maximize") || strings.Contains(b.Desc, "focused pane") {
 					t.Errorf("fullscreen row: %+v", b)
 				}
 			}

@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -167,7 +168,7 @@ func TestFullscreenZellijConformance(t *testing.T) {
 			}
 			for name, want := range original {
 				p := got[name]
-				if p.ID != want.ID || p.IsFullscreen == nil || *p.IsFullscreen || p.X != want.X || p.Y != want.Y || p.Columns != want.Columns || p.Rows != want.Rows {
+				if p.ID != want.ID || p.IsFloating || p.IsFullscreen == nil || *p.IsFullscreen || p.X != want.X || p.Y != want.Y || p.Columns != want.Columns || p.Rows != want.Rows {
 					return false
 				}
 			}
@@ -200,7 +201,7 @@ func TestFullscreenZellijConformance(t *testing.T) {
 		})
 		assertFocus(target)
 	}
-	// One Alt+Shift+Enter cycle (#417): normal → focus → maximize → normal.
+	// One Alt+Shift+Enter cycle (#417): normal → focus → normal.
 	roundTrip := func(caller, target string) {
 		action("focus-pane-id", panes[caller].ID)
 		assertFocus(caller)
@@ -212,8 +213,6 @@ func TestFullscreenZellijConformance(t *testing.T) {
 		}
 		// Later presses originate in the now-focused right terminal.
 		toggle(target)
-		assertExpanded(target, original)
-		toggle(target)
 		assertTiled(original)
 		assertFocus(caller)
 		if got, err := rt.store.Read(); err != nil || got != "" {
@@ -224,6 +223,13 @@ func TestFullscreenZellijConformance(t *testing.T) {
 	// fixture starts without keystrokes; establish its real client before any
 	// CLI focus action, otherwise focus can belong to a transient CLI client.
 	assertFocus("agent")
+	// Pin the external diagnostic used by the executor's narrow idempotence rule.
+	err = rt.RunZellijAction("focus-pane-id", panes["agent"].ID)
+	var alreadyFocused *zellijActionError
+	if exitCode(err) != 2 || !errors.As(err, &alreadyFocused) ||
+		strings.TrimSpace(alreadyFocused.output) != fmt.Sprintf("Pane Terminal(%s) is already focused", panes["agent"].ID) {
+		t.Fatalf("native already-focused contract changed: %v", err)
+	}
 	for _, tc := range []struct{ name, caller, target string }{
 		{"draft-to-recorded-bottom", "draft", "terminal-bottom"},
 		{"agent-to-recorded-bottom", "agent", "terminal-bottom"},
@@ -233,27 +239,37 @@ func TestFullscreenZellijConformance(t *testing.T) {
 		t.Log(tc.name)
 		roundTrip(tc.caller, tc.target)
 	}
+	t.Log("native-fullscreen-one-press-exit")
+	{
+		original := observe()
+		if err := rt.store.Write(panes["draft"].ID); err != nil {
+			t.Fatal(err)
+		}
+		action("toggle-fullscreen", "--pane-id", panes["terminal-bottom"].ID)
+		assertExpanded("terminal-bottom", original)
+		toggle("terminal-bottom")
+		assertTiled(original)
+		assertFocus("draft")
+		if got, err := rt.store.Read(); err != nil || got != "" {
+			t.Fatalf("native fullscreen return record: %q, %v", got, err)
+		}
+	}
 	// No manually-resized case since #417: focus mode re-tiles onto the recorded
 	// swap layout, which drops a manual resize, and Pair's zellij config offers
 	// none (keybinds clear-defaults, mouse_scroll_resize false).
 	t.Log("native-focus-away-exits-fullscreen")
 	{
-		action("focus-pane-id", panes["draft"].ID)
 		assertFocus("draft")
 		original := observe()
-		toggle("draft")
-		assertFocusMode("terminal-bottom")
-		toggle("terminal-bottom")
+		// Native fullscreen can remain from an older build or a native action.
+		action("toggle-fullscreen", "--pane-id", panes["terminal-bottom"].ID)
 		assertExpanded("terminal-bottom", original)
 		action("focus-pane-id", panes["agent"].ID)
 		assertTiled(original)
 		assertFocus("agent")
-		// The record intentionally survives native focus-away; the next actual
-		// executor invocation must derive the mode from the tiled observation.
+		// The next invocation derives Normal from the tiled observation.
 		toggle("agent")
 		assertFocusMode("terminal-bottom")
-		toggle("terminal-bottom")
-		assertExpanded("terminal-bottom", original)
 		toggle("terminal-bottom")
 		assertTiled(original)
 		assertFocus("agent")
@@ -277,7 +293,7 @@ func (r *fullscreenLiveRuntime) command(args ...string) ([]byte, error) {
 	command.Env = append(os.Environ(), "ZELLIJ_PANE_ID="+r.caller)
 	out, err := command.CombinedOutput()
 	if err != nil {
-		return nil, fmt.Errorf("fixture zellij %v: %w: %s", args, err, out)
+		return out, fmt.Errorf("fixture zellij %v: %w: %s", args, err, out)
 	}
 	return out, nil
 }
@@ -285,8 +301,11 @@ func (r *fullscreenLiveRuntime) ListPanesJSON() ([]byte, error) {
 	return r.command("list-panes", "--json", "--all")
 }
 func (r *fullscreenLiveRuntime) RunZellijAction(args ...string) error {
-	_, err := r.command(args...)
-	return err
+	out, err := r.command(args...)
+	if err != nil {
+		return &zellijActionError{err, string(out)}
+	}
+	return nil
 }
 func (r *fullscreenLiveRuntime) CurrentTabJSON() ([]byte, error) {
 	return r.command("current-tab-info", "--json")

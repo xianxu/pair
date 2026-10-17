@@ -303,25 +303,12 @@ func TestFullscreenChordZellijLive(t *testing.T) {
 		if tc.nvimChild {
 			childReady()
 		}
-		input(chord) // focus → maximize
-		fullscreenLiveWait(t, ctx, tc.name+" fullscreen", func() bool {
-			p := observe()[tc.target]
-			return !p.IsFloating && p.IsFullscreen != nil && *p.IsFullscreen && p.Columns > original[tc.target].Columns && p.Rows > original[tc.target].Rows
-		})
-		fullscreenLiveWait(t, ctx, "fullscreen client focus", func() bool { return focused(tc.target) })
-		if got, err := store.Read(); err != nil || DecodeExpandRecord(got).Return != tc.caller {
-			t.Fatalf("return record = %q, %v; want %s", got, err, tc.caller)
-		}
-		strip(tc.target)
-		if tc.nvimChild {
-			childReady()
-		}
-		input(chord) // maximize → normal; always received by the real fullscreen pair term.
+		input(chord) // focus → normal; received by the real floating pair term.
 		fullscreenLiveWait(t, ctx, tc.name+" restored geometry", func() bool {
 			got := observe()
 			for _, id := range []string{agent, draft, top, bottom} {
 				p, want := got[id], original[id]
-				if p.ID != want.ID || p.IsFullscreen == nil || *p.IsFullscreen || p.X != want.X || p.Y != want.Y || p.Rows != want.Rows || p.Columns != want.Columns {
+				if p.ID != want.ID || p.IsFloating || p.IsFullscreen == nil || *p.IsFullscreen || p.X != want.X || p.Y != want.Y || p.Rows != want.Rows || p.Columns != want.Columns {
 					return false
 				}
 			}
