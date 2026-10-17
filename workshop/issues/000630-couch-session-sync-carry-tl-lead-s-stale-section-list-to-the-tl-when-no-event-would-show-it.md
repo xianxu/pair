@@ -76,6 +76,9 @@ Detailed design: [stale-session reminder plan](../plans/000630-stale-session-rem
 
 - BR-1 fix verification: direct held-flock cases were red before the route correction; the worker regression also failed with blocked shutdown before it. Focused combined tests now pass (sessionsync 0.654s, couchcmd 1.602s), race checks pass (1.817s/2.279s), and complete packages pass (11.201s/53.253s). Existing legacy operations remain exercised by the complete sessionsync package. The shared route enforces registration presence once under the registry lock, without a racy separate Lookup.
 
+- BR-1 candidate full suite PASSED on 0892495573252d491f2e4efe82ee9a0b0fcf9f83 in 10m13s after 1783s queue; retained complete log SHA256 0a6514e13874f487374aa6ded7e0ccd3e33b780155f9d15c8d6ebc7be41ab7ed, with no failure/panic/make-error markers. Rebuilt real CLI conformance also passed (1.324s). Fresh review will verify disposition of BR-1.
+- TL-owned installed smoke after restart: on an existing registered hub session file whose Threads are stale, observe a real composer self-reminder while the admitted owner is settled and picker-free; compare document/unread baseline before and after. When the allowance is due, an operator lock must suppress it and release must permit the next eligible idle tick. The isolated fixture already proves half-hour repeats/fresh silence without waiting on or altering the installed hub. No pair:0 staging was performed.
+
 ## Revisions
 
 - 2026-10-17: quick-flow sizing exceeded the shell once baseline-neutral inspection and bounded asynchronous command execution were included. TL approved full flow before implementation; product behavior is unchanged.
