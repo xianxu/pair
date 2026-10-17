@@ -55,8 +55,8 @@ Reuse real temporary file stores, the existing test rig and registry fixtures; n
 
 ### Single close boundary and landing
 
-- [ ] Push the candidate and run `sdlc local-check run --name suite`; retain its complete result. Run `sdlc close --issue 643 --verified '<concrete evidence>'`, resolving mandatory fresh-context findings and logging the verdict.
-- [ ] Open the PR, integrate main and run `sdlc merge --yes`; let it own integrated checks and the landing line. Verify the merge on origin/main and report the PR and Git-derived merge hash to the hub. TL routes ariadne#424 adoption after landing.
+- [x] Push the candidate and run `sdlc local-check run --name suite`; retain its complete result. Run `sdlc close --issue 643 --verified '<concrete evidence>'`, resolving mandatory fresh-context findings and logging the verdict.
+Landing protocol: Open the PR, integrate main and run `sdlc merge --yes`; let it own integrated checks and the landing line. Verify the merge on origin/main and report the PR and Git-derived merge hash to the hub. TL routes ariadne#424 adoption after landing.
 
 ## Verification details
 
@@ -71,3 +71,5 @@ Publication is not a multi-file transaction. sync.go publishes the document, the
 ## Revisions
 
 - 2026-10-17: plan gate PQ-1/PQ-2: replace case inventories with named function-level property/state-transition strategies; correct the atomicity claim and specify partial publication, reconciliation, and controlled IO-failure verification. PQ-3: state the inherited registered limits and legacy work envelope.
+
+- 2026-10-17: verification and close review completed (SHIP, no findings); retain landing as a protocol rather than an acceptance checkbox that would imply completion before the merge happens.

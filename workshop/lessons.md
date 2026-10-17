@@ -2127,3 +2127,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #629 BR-2: Advancing an injected business clock does not advance an existing real context timer. Test each timeout owner independently at its IO boundary and restore each removed deadline separately to prove its regression fails.
 
 - #631: Removing a shared mutex from external cleanup must retain the existing per-recipient reservation until that cleanup returns. Regress cancellation emptying the old queue entry followed by a new admission, and a replacement holding its own reservation while the old cleanup finishes.
+
+- #643: Distinguish atomic replacement of one file from publication of a document/shadow/state bundle. A plan must name partial persisted outcomes and reconciliation after IO failure; test a controlled publication failure and prove unread baselines and owed events survive.
