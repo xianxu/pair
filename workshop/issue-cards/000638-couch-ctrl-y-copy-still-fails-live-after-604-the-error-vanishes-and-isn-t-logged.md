@@ -1,6 +1,6 @@
 ---
 id: 000638
-status: codecomplete
+status: done
 created: 2026-10-16
 updated: 2026-10-17
 estimate_hours: 2.452
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: f32f89001161ce26932530f69ee6c39c96bff66c
         evidence_commit: 3cc74377e800aea2d837beb6e49c9506fad3d015
+        landed_commit: 7d4512c212f378724dea1170c881f5c4364e1975
 ---
 
 # Couch Ctrl+Y copy still fails live after #604; the error vanishes and isn't logged
