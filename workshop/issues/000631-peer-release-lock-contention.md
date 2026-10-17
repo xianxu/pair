@@ -38,7 +38,7 @@ Move wrapper release IO outside the shared broker lock while preserving exact ac
 
 ## Plan
 
-- [ ] Measure the original path with a gated stateful Release endpoint: withhold promotion cleanup, observe the shared mutex and independent Send/Status completion, then open the gate and retain timings. This is the first TDD step; no production fix precedes the measurement.
+- [x] Measure the original path with a gated stateful Release endpoint: withhold promotion cleanup, observe the shared mutex and independent Send/Status completion, then open the gate and retain timings. This is the first TDD step; no production fix precedes the measurement.
 - [ ] Drop b.mu only around promotion Release IO. Keep the existing actor reservation for the cleanup lifetime; reacquire the mutex and clear only this attempt's reservation. Preserve exact endpoint/ID, bounded RPC context, already-committed recovery, and PromoteRetry pacing.
 - [ ] Regress independent recipient progress, same-receiver reservation ownership, disconnect/replacement during cleanup and stale completion. Sweep all broker Release calls for the same shared-lock class; run messaging race and existing promotion/duplicate/reconnect controls.
 - [ ] Record required full suite, obtain close review, follow the landing line and report the PR.
@@ -50,3 +50,5 @@ The existing actor reservation is the single resource excluding conflicting same
 - Filed separately at the TL's direction during #629 planning; unclaimed for later dispatch.
 
 - Started from fresh main after #629 landed. start-plan refreshed the ariadne tool layer and refused until rerun with the refreshed binary; the rerun created the #631 branch successfully. Static sweep finds four broker Release call sites; promotion failure cleanup is the one inside b.mu. First collect gated contention evidence, then confirm the measured plan with the hub before production edits.
+
+- Measurement on unchanged production code: TestPromotionReleaseDoesNotBlockOtherReceiver, -timeout=6s, failed as intended. A stateful fake withheld the promotion Release until the test deadline budget opened its gate after 2.9996s; 0/2 unrelated operations completed while it was held. Status took 2.999679s and Send 2.999699s, both completing only after Release was allowed to return (/tmp/pair631-release-contention-red.log). This is injected contention evidence, not a claim that a real bounded RPC takes 3s or that it caused the old #629 outage. Confirms the shared mutex couples independent receivers. Hub approved the plan and operator-restart qualification, no pair:0 staging (delivery 8a90dbfa-ac48-4138-97ce-190ffba778cc).
