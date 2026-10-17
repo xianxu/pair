@@ -64,6 +64,8 @@ Measured by pair:2 (18:47): after the restart, 31 hub-bound deliveries were canc
 - Held/queued receipt projection includes the entire receiver line and standing composer wait, using existing words and statuses. Socket tests count one commit across queued/held/queued progression. Queue capacity and terminal receipt retention remain bounded; active accepted receipts survive retention sweeps. The independent Release-lock finding was filed unclaimed as #631; this branch leaves that lock path unchanged.
 - Disconnect safety remains conservative: uncommitted queued work cancels with the exact receiver reason; a handed commit has an uncertain-input outcome (indeterminate, wrapper disconnected) because a last queued status cannot prove no subsequent paste. No body replay or rerouting to a new binding is authorized. The automatic-input watchdog keeps its own bounded diagnostic state; only its obsolete pre-paste expiry eligibility check was removed.
 
+- Native qualification: isolated Claude Code 2.1.302 draft and submit conformance passed (6.046s and 5.073s, /tmp/pair629-native-peer-draft.log and /tmp/pair629-native-peer-submit.log). The submit case rendered the exact envelope and confirmed one submission. The recorded suite was requeued after integrating current main/#617; its earlier reservation was interrupted before a suite slot was granted.
+
 ### Post-restart live check — owned by ops:0 and operator
 
 TL explicitly deferred the real-environment check to the next ordinary Couch restart (receipt b66971a3-a6c6-4dab-9503-e837f150720e). Do not stage or rebuild pair:0 from this slot. After restarting with the landed binary:

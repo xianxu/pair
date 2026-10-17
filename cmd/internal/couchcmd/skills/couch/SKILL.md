@@ -154,7 +154,8 @@ composer wait. The active pre-paste head is position 1. Accepted mail stays
 queued or held while that exact receiver is connected, even through a long
 turn; do not resend it. Confirmation releases the next message immediately.
 `busy` means that 32 messages already wait there. Disconnect or relaunch
-cancels waiting mail with a detail saying to resend.
+cancels mail not yet committed to the wrapper, with a receiver reason. A
+handed commit may be `indeterminate`; inspect the recipient before resending.
 `submitted` means input bytes were submitted, not that work started
 or finished. `not-dispatched` leaves the durable work available for later pickup.
 After an uncertain send, query its printed ID and inspect the recipient; do not

@@ -400,8 +400,10 @@ An exact send to a busy actor, or one
 whose wrapper refuses the reservation, is queued (`Enqueue`); the actor's worker
 promotes the head (`Broker.promote`: Observe, Reserve, `Promote` with a fresh
 commit deadline) after each delivery, retrying every `PromoteRetry` while the wrapper
-is busy. A departing sender or recipient cancels its queued messages with an
-actionable detail. Family selection requires fresh resting
+is busy. A departing sender or recipient cancels messages not yet committed
+with an actionable detail. A handed commit retains the conservative
+`indeterminate` disconnect outcome: its last pre-paste observation cannot prove
+that no input followed. Family selection requires fresh resting
 branch and quiet-wrapper observations; exact sends allow occupied-slot
 coordination. Quietness is never acceptance of repository work.
 Receipt reads include the standing composer wait and the complete receiver-line

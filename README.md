@@ -818,8 +818,9 @@ Admission prints a receipt ID and resolved destination immediately. `queued`
 means a mailbox reservation; `submitted` means bytes submitted, not completed
 work. A busy, connected receiver retains accepted mail until its composer is
 ready. `--message-status` shows the wait and position in that receiver's line;
-do not resend a queued or held message. Disconnect or relaunch cancels waiting
-mail with a reason. Once pasted, the existing 30-second confirmation window
+do not resend a queued or held message. Disconnect or relaunch cancels mail
+not yet committed to the wrapper, with a receiver reason. A handed commit may
+be `indeterminate` because input cannot be ruled out. Once pasted, the existing 30-second confirmation window
 still bounds delivery. No eligible family slot returns `not-dispatched` with exit status zero.
 Other refusals return nonzero. If a send times out, query the printed ID with
 `--message-status` and inspect the recipient before sending again. Couch never

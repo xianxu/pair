@@ -60,22 +60,22 @@ Same-receiver messages share composer availability, so shuffling its blocked hea
 
 ### 1. Reproduce accepted-message expiry and blocked queue
 
-- [ ] Add fake busy receiver cases to model_test.go / queue_test.go / broker_queue_test.go. Jump an injected clock past 90 seconds, 45 minutes and one hour; query Status, replay Send and snapshot receipts. Assert queued IDs/body/AcceptedAt survive, no input occurs while busy, and another recipient can receive independently.
-- [ ] Cover both refusal-to-reserve and an already committed pre-paste wait with queued followers. Release readiness and assert FIFO, exactly one delivery per ID and no artificial retry delay between confirmed deliveries.
+- [x] Add fake busy receiver cases to model_test.go / queue_test.go / broker_queue_test.go. Jump an injected clock past 90 seconds, 45 minutes and one hour; query Status, replay Send and snapshot receipts. Assert queued IDs/body/AcceptedAt survive, no input occurs while busy, and another recipient can receive independently.
+- [x] Cover both refusal-to-reserve and an already committed pre-paste wait with queued followers. Release readiness and assert FIFO, exactly one delivery per ID and no artificial retry delay between confirmed deliveries.
 - [ ] Add a gated Release fake proving that one recipient's slow release does not block another recipient's Send/Status. Use channels and fake time, not wall-clock sleeps.
-- [ ] Run go test ./cmd/internal/couchmessage -run 'Busy|Queue|Promotion|Release' -count=1 and retain expected failures before implementation.
+- [x] Run go test ./cmd/internal/couchmessage -run 'Busy|Queue|Promotion|Release' -count=1 and retain expected failures before implementation.
 
 ### 2. Correct every pre-paste timing consumer, preserving uncertain-input safety
 
-- [ ] Sweep model Tick/admission/Promote/DeliveryStarted/DeliveryFinished, broker receiptLocked/deliver, RemoteEndpoint.Deliver and wrapper dispatch/deadlineLocked. Remove accepted pre-paste expiry across all of them; retain bounded commit RPC admission and paste-relative confirmation.
+- [x] Sweep model Tick/admission/Promote/DeliveryStarted/DeliveryFinished, broker receiptLocked/deliver, RemoteEndpoint.Deliver and wrapper dispatch/deadlineLocked. Remove accepted pre-paste expiry across all of them; retain bounded commit RPC admission and paste-relative confirmation.
 - [ ] Move promote's release RPC outside b.mu with exact actor/reservation revalidation. Keep per-actor worker ownership and bounded promotion pacing on reservation refusals.
-- [ ] Add wrapper fake-clock regressions: unrecognized mid-turn composer and picker/draft remain queued/held beyond old limits, then paste/submit exactly once when safe. Update the old tests that deliberately required busy expiry; retain post-paste timeout, operator-interruption, partial-write and duplicate-ID controls.
-- [ ] Add RemoteEndpoint coverage counting exactly one commit across prolonged queued/held polling, cancellation and eventual submission. Retain per-RPC timeout and identity validation controls.
+- [x] Add wrapper fake-clock regressions: unrecognized mid-turn composer and picker/draft remain queued/held beyond old limits, then paste/submit exactly once when safe. Update the old tests that deliberately required busy expiry; retain post-paste timeout, operator-interruption, partial-write and duplicate-ID controls.
+- [x] Add RemoteEndpoint coverage counting exactly one commit across prolonged queued/held polling, cancellation and eventual submission. Retain per-RPC timeout and identity validation controls.
 - [ ] Run go test -race ./cmd/internal/couchmessage ./cmd/internal/wrapcmd with targeted filters during iteration, then both packages in full. Record outcomes and commit the implementation.
 
 ### 3. Document, qualify and land
 
-- [ ] Update README, atlas/couch.md and embedded couch skill timing/receipt descriptions. Sweep obsolete 90-second, 30-minute hold and 45-minute queue promises and their tests together.
+- [x] Update README, atlas/couch.md and embedded couch skill timing/receipt descriptions. Sweep obsolete 90-second, 30-minute hold and 45-minute queue promises and their tests together.
 - [ ] Stage via sdlc stage --build with hub approval; use a real busy receiver and one queued report, verify receipt while busy and one delivery when it returns. Clear the stage afterward. Do not send unsolicited test work to the hub's live composer.
 - [ ] Run the applicable native receiver conformance and required full suite via sdlc local-check on the pushed head; apply the documented flake rule to unrelated failures.
 - [ ] Close with verification evidence and the binary's mandatory fresh review, open PR, follow the landing line, merge with sdlc merge --yes and report the PR to the hub.
@@ -97,3 +97,5 @@ The approved Release exclusion is tracked separately as #631. The broker retains
 ### 2026-10-16 — TL moves real-environment check to restart
 
 Receipt b66971a3-a6c6-4dab-9503-e837f150720e explicitly forbids pair:0 staging. Finish full wrapper tests and recorded suite, then close/land; the hub and operator test busy delivery immediately after their next restart and fix forward. The issue now contains exact send bodies, expected queued/held reasons and positions beyond 90s, FIFO confirmation checks, and disconnect safety steps. This supersedes the pre-landing stage task.
+
+- Qualification: isolated native Claude Code 2.1.302 draft guard passed (6.046s) and exact-envelope submit/confirmation passed (5.073s), logs /tmp/pair629-native-peer-draft.log and /tmp/pair629-native-peer-submit.log. These exercise new disposable PTYs, not the running hub. Full race wrapper run continues; fixture sampling shows active terminal replay work. Integrated current main including #617 without conflicts. The first suite reservation on c798b537 was interrupted before admission because its code base was superseded; suite requeued on the integrated head, not retried to conceal a test failure.
