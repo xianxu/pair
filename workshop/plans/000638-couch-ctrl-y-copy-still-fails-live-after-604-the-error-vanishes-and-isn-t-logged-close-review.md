@@ -72,3 +72,72 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-17T05:44:03-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 638 — Couch Ctrl+Y copy still fails live after #604; the error vanishes and isn't logged |
+| repo | pair |
+| issue file | workshop/issues/000638-couch-ctrl-y-copy-still-fails-live-after-604-the-error-vanishes-and-isn-t-logged.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | f948635fdf6f4fa391f4f4f00e286a4001d73282..f32f89001161ce26932530f69ee6c39c96bff66c |
+| command | sdlc close --issue 638 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-17T05:44:03-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The interdiff preserves successful clipboard completion when only stderr draining times out, while rejecting incomplete input. Both regression tests fail when their corresponding correction is removed. No blocking defects found. The revisions record this executor correction without expanding acceptance scope.
+
+```findings
+findings:
+  - id: new
+    severity: Minor
+    family: shared-test-fixture-ownership
+    title: |
+      ARCH-DRY: descriptor-holder setup and cleanup are duplicated
+    detail: |
+      cmd/internal/clipcmd/runtime_clipboard_test.go:109-132 and :156-179 repeat environment setup and release/done polling. Extract a shared test helper owning the holder lifecycle so both regressions retain consistent cleanup.
+```
+
+1. **Strengths**
+   - The shared executor correction covers legacy and local callers (`runtime.go:137`).
+   - Successful completion retains diagnostic uncertainty through `StderrTruncated`.
+   - Positive and negative fixtures exercise real subprocess descriptors without touching the host clipboard.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** Duplicated fixture lifecycle code, as recorded above.
+
+5. **Test coverage:** Full `clipcmd` package and clipboard race tests passed. Removing the success exception fails both positive-test modes; removing the input guard fails both negative-test modes. Temporary overlays were removed; checkout remains clean.
+
+6. **Architecture:** ARCH-DRY flagged only for test duplication. ARCH-PURE passes: execution remains at the existing IO boundary. ARCH-PURPOSE passes: both callers use the corrected completion rule. README documents the correction; no new architectural or user-facing surface requires an atlas addition.
+
+7. **Plan revisions:** None required. There were no prior findings to dispose.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"a2f86ae8-b962-46ce-9bee-71e21f315cfd","repository":"github.com/xianxu/pair","issue_id":"000638","recipe":"fix-review","round":2,"attempt":1,"agent":"codex","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/15a8f84cde0c0be2","reviewed_head":"f32f89001161ce26932530f69ee6c39c96bff66c","slot":"pair:7","requested_at":"2026-10-17T12:42:46.274443Z"},"phase":"finished","pid":87160,"started_at":"2026-10-17T12:42:46.467441Z","finished_at":"2026-10-17T12:44:02.690333Z","session_id":"01a149e2-dd55-75f1-9b7b-d0599379e2ea","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.694949s
+head: "f32f89001161ce26932530f69ee6c39c96bff66c"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000409
