@@ -15,6 +15,7 @@ claimant:
     workspace: pair:1
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "ca144426", done: "bd7ad23b"}
 ---
 
 # flake: couchtty TestDriveFromCouch hangs 20 min receiving from a nil capability-click channel
