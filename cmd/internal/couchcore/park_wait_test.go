@@ -24,14 +24,22 @@ func TestParkCompletionWaitOverridesTheDefault(t *testing.T) {
 			artifacts.SetPairSession(thread.Address, "pair-slow", true)
 			proc := NewFakeProcOps()
 			proc.Set(42, "pair-helper")
-			started := time.Now()
+			// The quit's clock starts at the first completion poll, not before
+			// Park's setup, which can outlast it on a loaded machine.
+			var firstPoll time.Time
 			controller := PairLifecycleController{
 				Threads: store, DataDir: t.TempDir(), Lifecycle: lifecycle, Sessions: artifacts,
 				Clock: FixedClock{T: now}, Nonce: func() (string, error) { return "park-slow-quit", nil },
 				Proc: proc, CompletionTimeout: 100 * time.Millisecond, PollInterval: 10 * time.Millisecond,
 				Wait: func(ctx context.Context, d time.Duration) error {
-					// The quit completes 300 ms in: past the default, inside the override.
-					if time.Since(started) > 300*time.Millisecond && lifecycle.completion == nil {
+					if err := ctx.Err(); err != nil {
+						return err // an expired deadline wins over a late-scheduled timer
+					}
+					if firstPoll.IsZero() {
+						firstPoll = time.Now()
+					}
+					// The quit completes 300 ms into the wait: past the default, inside the override.
+					if time.Since(firstPoll) > 300*time.Millisecond && lifecycle.completion == nil {
 						completion := successCompletion(lifecycle.lastRequest, now)
 						lifecycle.completion = &completion
 						proc.Kill(42)
