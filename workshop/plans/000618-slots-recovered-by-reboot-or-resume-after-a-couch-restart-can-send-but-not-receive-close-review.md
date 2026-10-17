@@ -271,3 +271,77 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-17T00:11:38-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 618 — Slots recovered by reboot or resume after a Couch restart can send but not receive |
+| repo | pair |
+| issue file | workshop/issues/000618-slots-recovered-by-reboot-or-resume-after-a-couch-restart-can-send-but-not-receive.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 0e408d03081d405b0db90b4a496ee8dade6940b6..657acc19c1efad0c00f501ee03733b3c462aeeaf |
+| command | sdlc close --issue 618 |
+| reviewer | claude |
+| isolation | fenced |
+| timestamp | 2026-10-17T00:11:38-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+This fix window has one code change. In `cmd/internal/couchcore/park_wait_test.go`, the park-wait test now starts its simulated quit clock at the first completion poll instead of before Park's setup, so it no longer flakes when the machine is busy. It also checks whether the context has already expired before every poll, so a deadline that has passed is reported even if a timer fires late. The other changes are the review and gate sidecar files and a reordering in `workshop/lessons.md` left by the merge with main. I ran the test 3 times in the pinned checkout and it passed each time. Three prior findings are still open: BR-7, BR-8 and BR-14. All are Minor, and nothing in this window touches them. None of them blocks the gate, and the window adds no Critical or Important defect.
+
+1. **Strengths**
+   - `park_wait_test.go:27-42`: the test now uses the right reference point. In `park.go:829-834` the deadline is created just before the poll loop, so the first `Wait` call (`park.go:870-871`) falls inside the timeout window. Timing the 300 ms quit from that call keeps both cases meaningful:
+     - **default** (100 ms): the 300 ms quit is still past the deadline, so it must fail.
+     - **relaunch-wait** (2 s): the quit lands inside the longer wait, so it must succeed.
+   - The `ctx.Err()` check on entry to `Wait` stops a timer that fires late from hiding an expired deadline. That makes the default case check the deadline itself rather than depend on timing.
+   - Conflict resolution in `workshop/lessons.md:2105-2109`: it keeps both sides. The #619 entry from main and the #618 BR-10/11/12 entries are all present; only their order changed.
+
+2. **Critical findings:** none.
+3. **Important findings:** none.
+4. **Minor findings:** none new. BR-7, BR-8 and BR-14 are still open, as described in the findings block below.
+5. **Test coverage notes:** `go test ./cmd/internal/couchcore/ -run TestParkCompletionWait -count=3` passed in 2.573 s. The test change doesn't weaken what the test checks: the default wait still has to fail and the relaunch wait still has to succeed.
+6. **Architectural notes:**
+   - **ARCH-DRY: pass.** The window adds no duplicated logic.
+   - **ARCH-PURE: pass.** The change only touches the clock in a test's injected `Wait` fake.
+   - **ARCH-PURPOSE: pass.** The window adds no scope and doesn't change the issue's Spec, Revisions or Done-when; it only fixes a flaky test.
+7. **Plan revision recommendations:** none.
+
+```findings
+dispose:
+  - id: BR-7
+    disposition: not-addressed
+    note: |
+      No change to broker.go or refusal.go in this window; Admission and refusalFamilies still start their own timers. Minor, non-blocking.
+  - id: BR-8
+    disposition: not-addressed
+    note: |
+      transport.go not touched in this window; serve still decodes the request several times and Call still marshals twice. Minor, non-blocking.
+  - id: BR-14
+    disposition: not-addressed
+    note: |
+      list_refusals.go not touched; receiveStateText still matches error-text phrases instead of a typed class. Minor, non-blocking.
+```
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"77d8cb47-6741-458b-a352-fdcc5a19a9af","repository":"github.com/xianxu/pair","issue_id":"000618","recipe":"fix-review","round":6,"attempt":1,"agent":"claude","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/8bb9d8af3d35de18","reviewed_head":"657acc19c1efad0c00f501ee03733b3c462aeeaf","slot":"pair:2","requested_at":"2026-10-17T07:10:36.897336Z"},"phase":"finished","pid":75653,"started_at":"2026-10-17T07:10:37.190359Z","finished_at":"2026-10-17T07:11:37.503214Z","session_id":"01ba66df-23aa-43f3-be1f-2a924b82a11a","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.884612208s
+head: "657acc19c1efad0c00f501ee03733b3c462aeeaf"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

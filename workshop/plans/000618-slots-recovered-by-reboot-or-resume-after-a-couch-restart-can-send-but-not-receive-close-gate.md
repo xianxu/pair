@@ -650,6 +650,145 @@ rounds:
       isolation: fenced
       reviewed: ba41cd271292567a44b4709c16f8cef65cb5db04
       blocked: false
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 77d8cb47-6741-458b-a352-fdcc5a19a9af
+            repository: github.com/xianxu/pair
+            issue_id: "000618"
+            recipe: fix-review
+            round: 6
+            attempt: 1
+            agent: claude
+            root: /Users/xianxu/Library/Caches/sdlc/review-checkouts/8bb9d8af3d35de18
+            reviewed_head: 657acc19c1efad0c00f501ee03733b3c462aeeaf
+            slot: pair:2
+            requested_at: "2026-10-17T07:10:36.897336Z"
+          phase: finished
+          pid: 75653
+          started_at: "2026-10-17T07:10:37.190359Z"
+          finished_at: "2026-10-17T07:11:37.503214Z"
+          session_id: 01ba66df-23aa-43f3-be1f-2a924b82a11a
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-v1
+        repository: github.com/xianxu/pair
+        code_head: 657acc19c1efad0c00f501ee03733b3c462aeeaf
+        tracker_head: 04bc05c598efce2afd0730887926a42d0ce3f552
+        branch_point: 628ab0cadba9a7027130383d886fff443708c948
+        since: "2026-10-16T15:08:44-07:00"
+        until: "2026-10-16T21:32:25-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-16T15:08:44-07:00"
+              end: "2026-10-16T21:32:25-07:00"
+              began: "2026-10-16T15:08:44-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot2/pair
+        sources:
+            - harness: claude
+              id: 07f507a1-f545-4353-94e5-fdb696746544
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: b165e6321f8a1d73f9389567b851cc270577e2f8ffa5048368ef347f068adb70
+              started: "2026-10-16T22:52:05.608Z"
+              spawned: false
+              bytes: 400819
+              windows:
+                - start: "2026-10-16T22:52:05.608Z"
+                  end: "2026-10-16T21:32:25-07:00"
+            - harness: claude
+              id: 160fb503-f0f1-4a8f-8326-9e0cfe725840
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: ee2a83a7d6648515c3c29745af3b57764d62397578827289264307fdd66b44c0
+              started: "2026-10-16T22:48:36.145Z"
+              spawned: false
+              bytes: 533539
+              windows:
+                - start: "2026-10-16T22:48:36.145Z"
+                  end: "2026-10-16T21:32:25-07:00"
+            - harness: claude
+              id: 5c968657-789a-43c4-ac98-9785c4f1a7d8
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: 6be6e9e7f58fb25c7b1a9f0721271b4a15aea2266429589c4d15ff1c1f1b11be
+              started: "2026-10-16T22:51:33.47Z"
+              spawned: false
+              bytes: 513772
+              windows:
+                - start: "2026-10-16T22:51:33.47Z"
+                  end: "2026-10-16T21:32:25-07:00"
+            - harness: claude
+              id: 9073df29-d226-4140-b23c-4f03f2b4c472
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: 4821463ee902281932f749e5d4b5dbeb1038b727d60bebec5d621bb925cdb945
+              started: "2026-10-16T03:47:36.231Z"
+              spawned: false
+              bytes: 20658741
+              windows:
+                - start: "2026-10-16T15:08:44-07:00"
+                  end: "2026-10-16T21:32:25-07:00"
+            - harness: claude
+              id: ef855715-99b9-41fa-8900-e650e2074c61
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: 64a17b9d26b212b883938ab33f78ba71a40471c9365508e44606078f3cbdf368
+              started: "2026-10-16T22:45:51.536Z"
+              spawned: false
+              bytes: 717215
+              windows:
+                - start: "2026-10-16T22:45:51.536Z"
+                  end: "2026-10-16T21:32:25-07:00"
+            - harness: claude
+              id: f05e1f4c-b0b9-47e7-a879-88650252a387
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: 9136de5157c597cb5a7d651a276ef2214fed0f608bc3576879406655e351a61b
+              started: "2026-10-16T22:49:27.576Z"
+              spawned: false
+              bytes: 499639
+              windows:
+                - start: "2026-10-16T22:49:27.576Z"
+                  end: "2026-10-16T21:32:25-07:00"
+        excluded_brain_sessions: 1
+        excluded_brain_minutes: 25.211683333333333
+        cuts:
+            - boundary: M1
+              dispatched: "2026-10-16T16:03:13-07:00"
+              finalized: "2026-10-16T16:17:20-07:00"
+              finalizing: false
+            - boundary: M1
+              dispatched: "2026-10-16T16:22:21-07:00"
+              finalized: "2026-10-16T16:37:21-07:00"
+              finalizing: true
+            - dispatched: "2026-10-16T19:34:50-07:00"
+              finalized: "2026-10-16T19:40:31-07:00"
+              finalizing: false
+            - dispatched: "2026-10-16T19:45:56-07:00"
+              finalized: "2026-10-16T19:57:46-07:00"
+              finalizing: true
+      "n": 6
+      timestamp: "2026-10-17T00:11:38-07:00"
+      dispatched: "2026-10-17T00:10:34-07:00"
+      agent: claude
+      dispose:
+        - id: BR-7
+          disposition: not-addressed
+          note: No change to broker.go or refusal.go in this window; Admission and refusalFamilies still start their own timers. Minor, non-blocking.
+          round: 6
+        - id: BR-8
+          disposition: not-addressed
+          note: transport.go not touched in this window; serve still decodes the request several times and Call still marshals twice. Minor, non-blocking.
+          round: 6
+        - id: BR-14
+          disposition: not-addressed
+          note: list_refusals.go not touched; receiveStateText still matches error-text phrases instead of a typed class. Minor, non-blocking.
+          round: 6
+      recipe: fix-review
+      isolation: fenced
+      reviewed: 657acc19c1efad0c00f501ee03733b3c462aeeaf
+      blocked: false
 ---
 
 # Gate ledger — pair#618 (boundary-review)
@@ -735,6 +874,14 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 - **BR-14** [Minor] `duplicated-request-classification` (kind: defect) receiveStateText picks the --list action by matching phrases in the error text
   list_refusals.go:82 matches five phrases that live in message_service.go/registry.go error strings; a rewording silently flips the suggested action from relaunch to resend. Record a typed own-registration class at refusal time instead (ARCH-DRY). This is the 2nd finding in this family; the rule: classify a request or result once at its source into a typed value, and have consumers read that value instead of re-deriving it.
+
+## Round 6 — 2026-10-17T00:11:38-07:00 (claude) — passed
+
+### Disposed
+
+- BR-7 — not-addressed — No change to broker.go or refusal.go in this window; Admission and refusalFamilies still start their own timers. Minor, non-blocking.
+- BR-8 — not-addressed — transport.go not touched in this window; serve still decodes the request several times and Call still marshals twice. Minor, non-blocking.
+- BR-14 — not-addressed — list_refusals.go not touched; receiveStateText still matches error-text phrases instead of a typed class. Minor, non-blocking.
 
 ## Open findings
 
