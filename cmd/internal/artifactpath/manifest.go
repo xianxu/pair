@@ -242,6 +242,8 @@ var SourceClassifications = []SourceClassification{
 	{Path: "cmd/internal/launcher/recovery_terminal.go", Kind: ResolvedConsumer},
 	{Path: "cmd/internal/launcher/recovery_terminal_confirmed.go", Kind: ResolvedConsumer},
 	{Path: "cmd/internal/launcher/recovery_terminal_os.go", Kind: ResolvedConsumer},
+	// #647 compares observations against the existing typed storage owner.
+	{Path: "cmd/internal/launcher/session_owner_reply.go", Kind: ResolvedConsumer},
 	{Path: "cmd/internal/threadrecord/recovery.go", Kind: ResolvedConsumer},
 
 	{Path: "cmd/internal/wrapcmd/capture_witness.go", Kind: ResolvedConsumer},
@@ -1418,6 +1420,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/launcher/scope.go",
 	"cmd/internal/launcher/session.go",
 	"cmd/internal/launcher/session_quiescence.go",
+	"cmd/internal/launcher/session_reply.go",
 	"cmd/internal/launcher/tag.go",
 	"cmd/internal/launcher/thread_claim.go",
 	"cmd/internal/launcher/zellij.go",
@@ -1436,6 +1439,8 @@ var NonArtifactSources = []string{
 	"cmd/internal/pairlifecycletest/live_zellij.go",
 	"cmd/internal/pairlifecycletest/zellij_stub.go",
 	"cmd/internal/osfs/osfs.go",
+	"cmd/internal/procutil/group_darwin.go",
+	"cmd/internal/procutil/group_other.go",
 	"cmd/internal/procutil/identity_darwin.go",
 	"cmd/internal/procutil/identity_linux.go",
 	"cmd/internal/procutil/identity_other.go",
@@ -1551,8 +1556,16 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcmd/prepare.go",
 	"cmd/internal/couchcmd/nice.go",
 	"cmd/internal/couchmessage/build.go",
+	// #647 reply contracts and synchronous query ownership name no Pair artifacts;
+	// the stateful fake's model and logs live only in its private test root.
+	"cmd/internal/zellijexec/run.go",
 	"cmd/internal/zellijpane/zellijpane.go",
+	"cmd/internal/zellijreply/clients.go",
+	"cmd/internal/zellijreply/panes.go",
+	"cmd/internal/zellijreply/reply.go",
+	"cmd/internal/zellijreply/tab.go",
 	"cmd/internal/zellijsession/zellijsession.go",
+	"cmd/internal/zellijtest/fake.go",
 	"cmd/pair-go/main.go",
 	"cmd/pair-launch-helper/main.go",
 	"cmd/probes/couchnestedrows/layout.kdl",

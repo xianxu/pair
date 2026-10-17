@@ -144,3 +144,11 @@ Latest targeted native-fixture/owner/scan/cancellation controls pass12.663s; bro
 ### 2026-10-17 — M1 qualifying checkpoint verification
 
 On code head 78da3d4c37b97cf80bce3102229d1c5704354986, fresh complete launcher/contracts/fake/process-owner package run passed: launcher55.728s, zellijexec15.996s, zellijreply0.085s, zellijtest2.431s, zellijpane0.080s. Log /tmp/pair647-m1-packages.log. Targeted Couch warm/retention/continuation/owner/pass/detached set passed28.644s, log /tmp/pair647-m1-couchcore.log. No qualifying full #647 suite or native run yet. Next mandatory M1 boundary review follows #640's already-qualified docs closeout; do not tick M1 as closed before its SDLC verdict.
+
+### 2026-10-17 — resumed M1 inventory verification and approved M2 source context
+
+Previous TTY capture is unavailable; recovered from Git, SDLC state, committed artifacts and authenticated current TL receipts. #640 received SHIP without findings and entered the landing line (PR410); its queued checkout remains unchanged. A temporary linked checkout of this branch is used only for Git edits and targeted verification, not SDLC transitions.
+
+The production-artifact coverage guard caught ten new M1 source files absent from its exhaustive inventory. Added their classifications: the owner-reply projection consumes the existing typed storage owner; strict parsers, OS group observation, query collector and private test fake do not construct Pair artifact paths. Initial temporary-checkout failures also included the absent generated embedded runtime bundle; generated it with the existing make target, without tracked changes. After the classification correction, the complete artifactpath package passed20.892s; procutil passed0.553s. A complete couchcore package run under the repository's existing20m allowance is in progress; no new timeout was introduced.
+
+TL approved the native-source-derived auto-quote context rule (39354779-66f0-4d49-9411-f7ad46f22145), now appended to the durable plan: confirm client focus plus source/draft pane role and tab together; differing client focus refuses auto-quote visibly while preserving OS copy. It confirms observed context, never historical selection provenance. M2 implementation still awaits M1's mandatory boundary review; no M2/M3 code is included here.
