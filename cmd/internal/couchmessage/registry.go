@@ -209,6 +209,12 @@ func (r *Registry) Advance(e RegistryEvent) ([]RegistryEffect, error) {
 		}
 		if s.build != nil && e.Settled != nil {
 			v := *e.Settled
+			if s.settled == nil && v && !e.At.IsZero() && e.Observation.LastActivity.After(s.lastWorkAt) {
+				s.lastWorkAt = e.Observation.LastActivity
+				if s.lastWorkAt.After(e.At) {
+					s.lastWorkAt = e.At
+				}
+			}
 			wasBusy := s.settled != nil && !*s.settled
 			if (!v || wasBusy) && e.At.After(s.lastWorkAt) {
 				s.lastWorkAt = e.At

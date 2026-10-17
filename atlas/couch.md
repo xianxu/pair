@@ -1329,11 +1329,15 @@ wrapper's existing `SlotLiveness.Settled` snapshot through
 Known-unsettled stays current even during a silent peer-driven turn/command
 wait. The registry timestamps work reports and the busy-to-settled transition
 with supervisor receipt time, monotonically within that session. Settled
-refreshes do not advance `LastWorkAt`; replacement/disconnect drops that
-session's evidence. Scope, exact tag and agent must match. Legacy/unknown
+refreshes do not advance `LastWorkAt`. The first settled report seeds it from
+that authenticated wrapper's `LastActivity`, capped at receipt time; a Couch
+reconnect does not itself invent recent work. Replacement/disconnect drops
+the prior session's evidence. Scope, exact tag and agent must match. Legacy/unknown
 wrappers contribute nothing, retaining the file-only rule. `Settled` is the
 same broad restart-safety signal used by relaunch: an occupied composer,
-picker or recent IO can also hold it false. The Console merges the newest
+picker or recent IO can also hold it false. It does not track background
+commands after their turn ends; #632 owns an independent display signal that
+must preserve free-composer message admission. The Console merges the newest
 wrapper/file evidence for both views; positive wrapper work still counts when
 the file probe fails, preserving any newer previous observation on that error.
 

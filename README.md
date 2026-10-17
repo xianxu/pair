@@ -999,8 +999,10 @@ with no activity for a day is dimmed, and after three days it's dimmed further.
 Activity means your sends and the agent's work (its transcript and the connected
 wrapper's work state), or launching or resuming the thread. An unsettled wrapper
 keeps the thread bright during peer-driven turns and silent command waits;
-after it settles, the thread ages from its last work. Switching to a thread or
-merely looking at its draft doesn't count. Couch checks about once a minute. The fade blends toward your
+after it settles, the thread ages from its last work. A background command left
+running after the turn ends has no separate fade signal yet. Switching to a
+thread or merely looking at its draft doesn't count. Couch checks about once a
+minute. The fade blends toward your
 terminal's own background, which Couch asks the terminal for at startup, so it
 reads correctly on dark and light schemes; the amber `±`/`*` glyphs fade with
 their thread. The focused tab, the selected switcher row, and a thread with a

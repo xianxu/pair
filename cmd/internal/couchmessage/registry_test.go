@@ -408,3 +408,37 @@ func TestRegistryLastWorkBelongsToTheAdmittedSession(t *testing.T) {
 		t.Fatalf("legacy session gained work evidence: %+v", got)
 	}
 }
+
+func TestRegistryReconnectSeedsWorkWithoutRenewingSettledRefreshes(t *testing.T) {
+	now := time.Date(2026, 10, 16, 12, 0, 0, 0, time.UTC)
+	for _, tc := range []struct {
+		name           string
+		activity, want time.Time
+	}{
+		{"recent completed peer turn", now.Add(-time.Hour), now.Add(-time.Hour)},
+		{"old idle stays old", now.Add(-4 * 24 * time.Hour), now.Add(-4 * 24 * time.Hour)},
+		{"unknown stays unknown", time.Time{}, time.Time{}},
+		{"future wrapper clock bounded", now.Add(time.Hour), now},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := NewRegistry()
+			b := registryBinding("pair:1", "peer-only", 101)
+			step(t, r, RegistryEvent{Kind: SessionOpened, Token: 1, Binding: b, Build: &BuildIdentity{SHA256: strings.Repeat("a", 64)}})
+			step(t, r, RegistryEvent{Kind: AdmissionDone, Token: 1})
+			settled := true
+			step(t, r, RegistryEvent{Kind: SessionActivity, Token: 1, Settled: &settled, At: now, Observation: Observation{LastActivity: tc.activity}})
+			for _, event := range []RegistryEvent{
+				{Kind: PaneChanged, Thread: b.Thread(), Pane: "new-client"},
+				{Kind: SessionActivity, Token: 1, Settled: &settled, At: now.Add(48 * time.Hour), Observation: Observation{LastActivity: now.Add(48 * time.Hour)}},
+			} {
+				if got := r.Liveness()[b.Slot].LastWorkAt; !got.Equal(tc.want) {
+					t.Fatalf("seed = %v, want %v", got, tc.want)
+				}
+				step(t, r, event)
+			}
+			if got := r.Liveness()[b.Slot].LastWorkAt; !got.Equal(tc.want) {
+				t.Fatalf("settled refresh renewed seed to %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
