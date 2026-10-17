@@ -89,14 +89,14 @@ Files: `composer_recognizers.go`, `peer_composer.go`, `peer_delivery_test.go` or
 - [x] Implement the smallest shared pure bounds helper and delegate active recognition/text extraction to it. Preserve the local short contract; require qualified complete footer evidence for the tall extension. Move/reuse the current footer signature, without a second copy.
 - [x] Stateful regression through actual `dispatchPeer`: 26-line singleton and five-report batch-shaped text, already-active turn, exactly one paste and one submit, then a fresh complete empty composer => Submitted. Short and initially-idle controls remain Submitted.
 - [x] Implement the controlled event-sequence strategy for `dispatchPeer` below, extending the existing stateful fake. Independent guards are no success without fresh ordered evidence and no replay of possibly written input.
-- [ ] Mutate away the extension to show tall positives fail, and remove a tall safety guard to show its adversarial case fails; restore before green. Run focused and race checks, then all `wrapcmd` tests once.
+- [x] Mutate away the extension to show tall positives fail, and remove a tall safety guard to show its adversarial case fails; restore before green. Run focused and race checks, then all `wrapcmd` tests once.
 
 ### 3. Native qualification, docs and normal landing
 
 Files: existing native peer capture seam/testdata, `atlas/couch.md` and index if needed, README peer-message evidence notes, issue Log, lessons for review findings.
 
-- [ ] Add an opt-in tall singleton/body scenario using a new owned Codex PTY (100x60 representative viewport), positive footer, at least 26 visible composer rows, and batch-shaped Unicode reports. Record version, capture hash and exact evidence; do not infer byte retention from a collapsed marker. Never enable the Codex batch protocol as a test shortcut.
-- [ ] Validate normal Return adds a newline and explicit submit remains distinct in the owned PTY. Any actual native submission uses a harmless explicitly approved prompt, never tools or an existing conversation.
+- [x] Add an opt-in tall singleton/body scenario using a new owned Codex PTY (100x60 representative viewport), positive footer, at least 26 visible composer rows, and batch-shaped Unicode reports. Record version, capture hash and exact evidence; do not infer byte retention from a collapsed marker. Never enable the Codex batch protocol as a test shortcut.
+- [x] Validate normal Return adds a newline and explicit submit remains distinct in the owned PTY. Any actual native submission uses a harmless explicitly approved prompt, never tools or an existing conversation.
 - [x] Hub approved this item's live arrangement: owned-PTY Return/harmless submit now, operator Return/submit smoke after its next restart, no :0 staging. Ask the hub for the shared native lane when the capture is ready; pair:1 and pair:5 also use it. Never steal focus.
 - [ ] Document safe tall evidence and remaining clipped/unknown behavior; retain #648's Claude-only rollout. Push, record the required full suite, close through the mandatory fresh-context review, then enter `sdlc merge --yes`; report verified landing to hub.
 
