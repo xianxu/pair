@@ -587,20 +587,46 @@ func ClassifyOrphanNvims(table []procutil.Process, owned []ResourceProvenance,
 ### Task 15: One hub alert per episode
 
 **Files:**
-- Modify: `cmd/internal/couchcmd/resources_alert.go:35-59`, `cmd/internal/couchcore/resource_episode.go`
-- Test: `resources_alert_test.go`, `resources_alert_broker_test.go`
+- Modify: `cmd/internal/couchcmd/resources_alert.go:35-59`, `cmd/internal/couchcore/resource_episode.go`,
+  `cmd/internal/couchcore/resource_reduce.go:89-112,155-161,227-246`
+- Test: `resources_alert_test.go`, `resources_alert_broker_test.go`, `couchcore/resource_orphan_test.go`
 
-- [ ] **Step 1: Write the failing tests.** Strategy: an alert that repeats every 60 s is noise and one
+- [x] **Step 1: Write the failing tests.** Strategy: an alert that repeats every 60 s is noise and one
   that never fires is a silent leak, so the tests attack both edges of the episode — the first pass over
   the threshold notifies the hub once, in the existing body shape with `Inspect with couch --resources.`,
   and later passes inside the same episode notify nothing — proven end to end against the real broker
   (delivery and dedup by effect ID), not only against a fake.
-- [ ] **Step 2: Run, expect FAIL.**
-- [ ] **Step 3: Implement** on the existing episode machinery (`pending → notified`, the `resource-%x`
+  *Done: `TestOrphanNvimAlertsTheHubOncePerEpisode` walks the reduce — accumulate, fire once with the
+  effect's pid/identity/name/root/age/workspace bound, three quiet samples, clear when the process goes,
+  re-arm under a recycled pid as a different effect ID. `TestResourceAlertBrokerEndToEndFromTheSweep`
+  runs the real sampler over a real broker with nothing stubbed between them and asserts the delivered
+  body, the silence before and after, and that no `nvim/` episode survives the reap.
+  `TestResourceAlertBrokerDeliversTheOrphanNvimOnce` pins the exact body and the hub-to-hub addressing;
+  `TestResourceAlertSanitizesTheOrphanRoot` proves a hostile cwd cannot inject into the hub's terminal.*
+- [x] **Step 2: Run, expect FAIL.** *(Red on the two new `ResourceEffect` fields.)*
+- [x] **Step 3: Implement** on the existing episode machinery (`pending → notified`, the `resource-%x`
   effect ID at `resource_episode.go:112`, `sendGenerated` at `supervision.go:108-127`), with its own body
   template beside `resources_alert.go:48`.
-- [ ] **Step 4: Run, expect PASS.**
-- [ ] **Step 5: Commit** `#583: alert the hub once per orphan nvim episode`
+  *Delta: `ResourceEffect` gained `Age` and `Root` (both `omitempty`, both bound when the effect fires and
+  never re-read afterwards, per the BR-7 family rule), and `orphan-nvim` is the constant
+  `ResourceMetricOrphanNvim` because couchcmd now selects a body on it. `advance`'s `value float64`
+  parameter became a `ResourceEffect` so a metric carries its own evidence instead of a float whose
+  meaning depends on the metric; the owner still supplies name/slot/process/workspace, so a new metric
+  cannot forget to identify its process. The orphan classification moved above the episode-retention loop
+  (it reads nothing the loop writes) so its episodes are `visited`, and `nvim/` joined the
+  process-keyed prefixes — now `processEpisodeKey` — so a reaped orphan's episode clears instead of
+  occupying `ResourceMaxEpisodes` forever.
+  Routing was the open question: an orphan has no owning slot, and `hubBindingAt("")` resolves nothing, so
+  a workspace-less effect would sit pending forever and the alert would be silently dead. The episode is
+  addressed by the managed checkout the sweep matched, whose `WorkspaceIdentity` is copied whole from the
+  live slot that owns that root — `ManagedRoots` only collects live slots, so the lookup always succeeds
+  and the identity is as resolvable as any slot-attributed alert. No second routing rule was added.
+  Pre-existing gap noted, not fixed here: nothing tests `newResourceAlertDispatcher`'s resolve
+  (`hubBindingAt(authority.owner(id))`) — that needs a full `messageService` rig and is #587's seam.*
+- [x] **Step 4: Run, expect PASS.** Mutation-checked: dropping `nvim/` from `processEpisodeKey`, firing on
+  one sample instead of `OrphanSamples`, and removing the body's `rowtext.Sanitize` each reddened exactly
+  their own guard; reverted, green.
+- [x] **Step 5: Commit** `#583: alert the hub once per orphan nvim episode`
 - Note: #574's hub lifecycle notice does not exist yet (its Plan is empty), so this uses the #587 alert
   seam; when #574 lands, the notice moves there. Recorded in `## Log`.
 
@@ -1107,3 +1133,14 @@ func ClassifyOrphanNvims(table []procutil.Process, owned []ResourceProvenance,
   moved the frame schema), `ValidateResourceHistory` bounds it at `ResourceMaxProcesses` via a new
   `frameWithinBounds` predicate, and the sampler cost line reports `cwd %d`. No consumer reads the frame's
   offender slices back — `historySummary` reads only `At` — so this is forensic value, not behaviour.
+- **2026-10-16 — Task 15 had to solve alert routing, which the draft did not name.** Reason: every #587
+  effect carries the owning slot's `WorkspaceIdentity`, and the dispatcher resolves the hub from it; an
+  orphan's slot is gone by definition, so a workspace-less effect resolves to nothing and its alert would
+  sit pending forever — silently dead, which is the failure mode this issue exists to end. Delta: the
+  orphan episode is addressed by the managed checkout the sweep matched, taking that root's live slot's
+  `WorkspaceIdentity` whole, so the existing `hubBindingAt(owner(id))` path resolves it and no second
+  routing rule exists (ARCH-DRY). `ResourceEffect` gained `Age` and `Root` for the body's evidence, and
+  `advance`'s `value float64` became a `ResourceEffect` so each metric carries its own evidence rather
+  than a float whose unit depends on the metric. Two structural moves fell out: the orphan classification
+  now runs above the episode-retention loop so its episodes are `visited`, and `nvim/` joined the
+  process-keyed prefixes (extracted as `processEpisodeKey`) so a reaped orphan's episode clears.

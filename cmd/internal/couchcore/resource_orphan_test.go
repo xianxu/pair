@@ -1,6 +1,7 @@
 package couchcore
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -167,5 +168,73 @@ func TestAdvanceResourcesReportsTheOrphanNvimSweep(t *testing.T) {
 	wide.OrphanNvimAge = 30 * 24 * time.Hour
 	if _, v, _ = AdvanceResources(ResourceState{}, s, wide); len(v.OrphanNvim) != 0 {
 		t.Fatalf("an age below the threshold was reported: %+v", v.OrphanNvim)
+	}
+}
+
+// A leak that pages every cadence is noise and one that never pages is the
+// 13-day silence #583 exists to end, so this walks both edges of the episode:
+// accumulate, fire once, stay quiet, clear when the process goes, and re-arm
+// under a recycled pid as the different process it is.
+func TestOrphanNvimAlertsTheHubOncePerEpisode(t *testing.T) {
+	t.Parallel()
+	p, err := ParseResourcePolicy(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const root = "/fleet/worktree/pair-slot1/pair"
+	sample := func(at time.Time, identity string) ResourceSample {
+		s := ResourceSample{
+			At: at, TableKnown: true, InventoryComplete: true,
+			Slots: []ResourceSlot{{Slot: "pair:1", OwnershipKnown: true, Workspace: WorkspaceIdentity{WorktreeRoot: root}}},
+		}
+		if identity == "" {
+			return s
+		}
+		key := ResourceProcessKey{PID: 4242, Identity: identity}
+		s.Table = []procutil.Process{{PID: key.PID, PPID: 1, Identity: identity, Name: "/opt/homebrew/bin/nvim"}}
+		s.Observations = []ResourceUsageObservation{{Key: key, RSSKnown: true, RSSBytes: 22 << 30}}
+		s.Commands = map[ResourceProcessKey][]string{key: {"nvim", "--embed"}}
+		s.OrphanProbes = map[ResourceProcessKey]ResourceOrphanProbe{key: {Cwd: root + "/cmd", CwdKnown: true, Age: 13 * 24 * time.Hour, AgeKnown: true}}
+		return s
+	}
+	at := time.Unix(1760100000, 0)
+	key := ResourceProcessKey{PID: 4242, Identity: "1760000000.5"}
+	state, v, effects := AdvanceResources(ResourceState{}, sample(at, key.Identity), p)
+	if len(effects) != 0 || len(v.OrphanNvim) != 1 {
+		t.Fatalf("one sample alerted %+v; reported %d", effects, len(v.OrphanNvim))
+	}
+	state, _, effects = AdvanceResources(state, sample(at.Add(time.Minute), key.Identity), p)
+	if len(effects) != 1 {
+		t.Fatalf("effects %+v; episodes %+v", effects, state.Episodes)
+	}
+	effect := effects[0]
+	if effect.Metric != "orphan-nvim" || effect.Process != key || effect.Name != "/opt/homebrew/bin/nvim" ||
+		effect.Root != root || effect.Age != 13*24*time.Hour || effect.Workspace.WorktreeRoot != root || effect.ID == "" {
+		t.Fatalf("effect %+v", effect)
+	}
+	for i := 2; i < 5; i++ {
+		state, _, effects = AdvanceResources(state, sample(at.Add(time.Duration(i)*time.Minute), key.Identity), p)
+		if len(effects) != 0 {
+			t.Fatalf("sample %d repeated the alert: %+v", i, effects)
+		}
+	}
+	// Reaped: the episode must clear rather than linger as a permanent row.
+	state, _, effects = AdvanceResources(state, sample(at.Add(5*time.Minute), ""), p)
+	if len(effects) != 0 {
+		t.Fatalf("a gone orphan alerted %+v", effects)
+	}
+	for _, e := range state.Episodes {
+		if strings.HasPrefix(e.Key, "nvim/") {
+			t.Fatalf("episode survived the reap: %+v", e)
+		}
+	}
+	recycled := ResourceProcessKey{PID: key.PID, Identity: "1760200000.25"}
+	state, _, effects = AdvanceResources(state, sample(at.Add(6*time.Minute), recycled.Identity), p)
+	if len(effects) != 0 {
+		t.Fatalf("a recycled pid alerted on one sample: %+v", effects)
+	}
+	state, _, effects = AdvanceResources(state, sample(at.Add(7*time.Minute), recycled.Identity), p)
+	if len(effects) != 1 || effects[0].ID == effect.ID || effects[0].Process != recycled {
+		t.Fatalf("recycled pid did not re-arm: %+v (first %s)", effects, effect.ID)
 	}
 }

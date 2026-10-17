@@ -88,7 +88,7 @@ func AdvanceResources(state ResourceState, s ResourceSample, p ResourcePolicy) (
 	}
 	var effects []ResourceEffect
 	visited := map[string]bool{}
-	advance := func(key, metric string, known, high bool, value float64, d time.Duration, n int, owner ResourceRoot) {
+	advance := func(key, metric string, known, high bool, d time.Duration, n int, owner ResourceRoot, effect ResourceEffect) {
 		e, exists := episodes[key]
 		if !exists && len(episodes) >= ResourceMaxEpisodes {
 			episodeLimit()
@@ -98,7 +98,10 @@ func AdvanceResources(state ResourceState, s ResourceSample, p ResourcePolicy) (
 		e.Process = owner.Key
 		e.Slot = owner.Slot
 		e.Metric = metric
-		event := ResourceEpisodeEvent{At: s.At, Known: known, High: high, RequiredDuration: d, RequiredSamples: n, MaxGap: p.Cadence * 2, Effect: ResourceEffect{Name: names[owner.Key], Slot: owner.Slot, Process: owner.Key, Value: value, Workspace: owner.Workspace}}
+		// The owner supplies the address and the caller only what its metric
+		// measured, so a new metric cannot forget to identify its process.
+		effect.Name, effect.Slot, effect.Process, effect.Workspace = names[owner.Key], owner.Slot, owner.Key, owner.Workspace
+		event := ResourceEpisodeEvent{At: s.At, Known: known, High: high, RequiredDuration: d, RequiredSamples: n, MaxGap: p.Cadence * 2, Effect: effect}
 		e, f := AdvanceResourceEpisode(e, event)
 		if e.Phase == "clear" {
 			delete(episodes, key)
@@ -156,8 +159,8 @@ func AdvanceResources(state ResourceState, s ResourceSample, p ResourcePolicy) (
 			v.Orphans = append(v.Orphans, r)
 		}
 		key := fmt.Sprintf("%d/%s", pv.Key.PID, pv.Key.Identity)
-		advance("rss/"+key, "process-rss", ok && o.RSSKnown, o.RSSBytes > p.ProcessRSSBytes, float64(o.RSSBytes), 0, 1, pv.ResourceRoot)
-		advance("orphan/"+key, "orphan-rss", ok && o.RSSKnown && pv.OrphanKnown, pv.Orphan && o.RSSBytes > p.OrphanRSSBytes, float64(o.RSSBytes), 0, p.OrphanSamples, pv.ResourceRoot)
+		advance("rss/"+key, "process-rss", ok && o.RSSKnown, o.RSSBytes > p.ProcessRSSBytes, 0, 1, pv.ResourceRoot, ResourceEffect{Value: float64(o.RSSBytes)})
+		advance("orphan/"+key, "orphan-rss", ok && o.RSSKnown && pv.OrphanKnown, pv.Orphan && o.RSSBytes > p.OrphanRSSBytes, 0, p.OrphanSamples, pv.ResourceRoot, ResourceEffect{Value: float64(o.RSSBytes)})
 	}
 	slots := append([]ResourceSlot(nil), s.Slots...)
 	sort.Slice(slots, func(i, j int) bool { return slots[i].Slot < slots[j].Slot })
@@ -227,34 +230,10 @@ func AdvanceResources(state ResourceState, s ResourceSample, p ResourcePolicy) (
 		owner := ResourceRoot{Slot: slot.Slot, Thread: slot.Thread, Workspace: slot.Workspace}
 		suffix := slot.Slot + "/" + string(slot.Thread.Tag)
 		owner.Key = writeKey
-		advance("write/"+suffix, "slot-write", wk, write > p.WriteBytesPerSecond, write, p.WriteDuration, 1, owner)
+		advance("write/"+suffix, "slot-write", wk, write > p.WriteBytesPerSecond, p.WriteDuration, 1, owner, ResourceEffect{Value: write})
 		owner.Key = cpuKey
-		advance("cpu/"+suffix, "idle-cpu", ck && slot.IdleKnown, slot.Idle && cpu > p.IdleCPUPercent, cpu, p.IdleCPUDuration, 1, owner)
+		advance("cpu/"+suffix, "idle-cpu", ck && slot.IdleKnown, slot.Idle && cpu > p.IdleCPUPercent, p.IdleCPUDuration, 1, owner, ResourceEffect{Value: cpu})
 	}
-	deathRows := map[int]procutil.Process{}
-	ambiguousPID := map[int]bool{}
-	for _, row := range s.Table {
-		if _, ok := deathRows[row.PID]; ok {
-			ambiguousPID[row.PID] = true
-		}
-		deathRows[row.PID] = row
-	}
-	for key, e := range episodes {
-		if !visited[key] {
-			dead := false
-			if s.TableKnown && len(s.Table) <= ResourceMaxTableRows && (strings.HasPrefix(key, "rss/") || strings.HasPrefix(key, "orphan/")) && e.Process.PID > 0 {
-				row, exists := deathRows[e.Process.PID]
-				dead = !ambiguousPID[e.Process.PID] && (!exists || row.Zombie || row.Identity != "" && row.Identity != e.Process.Identity)
-			}
-
-			if dead || s.TableKnown && e.Phase == "clear" {
-				continue
-			}
-			e, _ = AdvanceResourceEpisode(e, ResourceEpisodeEvent{At: s.At})
-		}
-		next.Episodes = append(next.Episodes, e)
-	}
-	sort.Slice(next.Episodes, func(i, j int) bool { return next.Episodes[i].Key < next.Episodes[j].Key })
 	v.Unattributed = ClassifyUnattributed(s.Table, sel.Processes, s.Observations, s.Commands, p.OrphanRSSBytes)
 	v.OrphanNvim = ClassifyOrphanNvims(s.Table, sel.Processes, s.Observations, s.Commands, s.OrphanProbes, ManagedRoots(s.Slots), p.OrphanNvimAge)
 	if len(v.OrphanNvim) > 0 {
@@ -272,6 +251,48 @@ func AdvanceResources(state ResourceState, s ResourceSample, p ResourcePolicy) (
 		}
 		v.Unattributed = kept
 	}
+	// A swept orphan has no owning slot, so its episode is addressed by the
+	// managed checkout it was found in. That root belongs to a live slot by
+	// construction — ManagedRoots only collects live ones — so the alert reaches
+	// the supervisor that can act on the leak instead of nobody (#583). Naming is
+	// itself the threshold, so the episode is always known and high; requiring
+	// OrphanSamples consecutive passes is what keeps one racing probe from paging.
+	rootWorkspace := map[string]WorkspaceIdentity{}
+	for _, slot := range s.Slots {
+		if r := slot.Workspace.WorktreeRoot; r != "" {
+			if _, seen := rootWorkspace[r]; !seen {
+				rootWorkspace[r] = slot.Workspace
+			}
+		}
+	}
+	for _, o := range v.OrphanNvim {
+		owner := ResourceRoot{Key: o.Key, Workspace: rootWorkspace[o.Root]}
+		advance(fmt.Sprintf("nvim/%d/%s", o.Key.PID, o.Key.Identity), ResourceMetricOrphanNvim, true, true, 0, p.OrphanSamples, owner, ResourceEffect{Age: o.Age, Root: o.Root})
+	}
+	deathRows := map[int]procutil.Process{}
+	ambiguousPID := map[int]bool{}
+	for _, row := range s.Table {
+		if _, ok := deathRows[row.PID]; ok {
+			ambiguousPID[row.PID] = true
+		}
+		deathRows[row.PID] = row
+	}
+	for key, e := range episodes {
+		if !visited[key] {
+			dead := false
+			if s.TableKnown && len(s.Table) <= ResourceMaxTableRows && processEpisodeKey(key) && e.Process.PID > 0 {
+				row, exists := deathRows[e.Process.PID]
+				dead = !ambiguousPID[e.Process.PID] && (!exists || row.Zombie || row.Identity != "" && row.Identity != e.Process.Identity)
+			}
+
+			if dead || s.TableKnown && e.Phase == "clear" {
+				continue
+			}
+			e, _ = AdvanceResourceEpisode(e, ResourceEpisodeEvent{At: s.At})
+		}
+		next.Episodes = append(next.Episodes, e)
+	}
+	sort.Slice(next.Episodes, func(i, j int) bool { return next.Episodes[i].Key < next.Episodes[j].Key })
 	totalKeys := make([]string, 0, len(totals))
 	for k := range totals {
 		totalKeys = append(totalKeys, k)
@@ -298,6 +319,13 @@ func AdvanceResources(state ResourceState, s ResourceSample, p ResourcePolicy) (
 	v.ObservedDiskWriteBytes = next.ObservedDiskWriteBytes
 	v.Episodes = append([]ResourceEpisode{}, next.Episodes...)
 	return next, v, effects
+}
+
+// processEpisodeKey reports whether an episode is keyed to one process, which is
+// what lets its retention be decided from the process table: a pid that is gone,
+// a zombie, or recycled into another generation ends the episode (#587, #583).
+func processEpisodeKey(key string) bool {
+	return strings.HasPrefix(key, "rss/") || strings.HasPrefix(key, "orphan/") || strings.HasPrefix(key, "nvim/")
 }
 
 func resourceSaturatingAdd(a, b uint64) uint64 {

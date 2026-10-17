@@ -662,3 +662,70 @@ reverted, green. The plan's round-3 "Residual gap, deliberate" paragraph is mark
 deleted, so the false premise stays visible; `workshop/lessons.md` gains the BR-7 rule, including the half
 that would have caught it before the judge did: check what a decided negative *deletes* before calling a
 skip safe.
+
+### 2026-10-16 — M2: the sweep classifies, reports, remembers and pages
+
+**The classifier is pure, and measurement is what kept it that way.** The draft had `ClassifyOrphanNvim`
+derive the process's age from its identity stamp; `procutil.StartTimeFromIdentity` switches on GOOS and
+reads `/proc/stat` on every linux call, so that "pure" step would have done IO and its table test would
+have needed a platform-shaped token. Instead the sampler — which already owns the IO and the sample
+instant — derives the age from the stamp the process table already carries (no extra syscall) and hands
+it over in a `ResourceOrphanProbe{Cwd, CwdKnown, Age, AgeKnown}`. A missing claim refuses the candidate;
+it never widens it. `ClassifyOrphanNvim` is falsified one claim per row across 20 cases, including the
+two that carry the safety claim: a cwd that merely *shares a string prefix* with a managed checkout
+(`/fleet/pair-slot1/pair/cmd` vs `/fleet/pair`) is refused, and a nested checkout reports the most
+specific root. Containment reuses `RelativeFamilyPath` — the fleet's existing segment-safe rule — rather
+than a new prefix test. Mutation check: swapping in a string-prefix match and first-match-wins reddened
+exactly those guards; reverted, green.
+
+**The probe stays inside #587's measured budget.** A cwd read is paid only by a row that already proved
+ppid 1 + name nvim + age ≥ `OrphanNvimAge` (default 6h, `COUCH_RESOURCE_ORPHAN_NVIM_AGE`, on the existing
+1s..24h bound). Reading argv widened from "resident above the floor" to "old *or* above the floor",
+because a small untagged orphan is still an orphan and the floor was only ever #587's reason to look.
+`ResourceCost.CwdCalls` makes the new call attributable in the measurement instead of inferred from the
+total, and it is printed in the sampler line beside the counters it joins.
+
+**One row per process.** A swept nvim leaves the generic `Unattributed` section: the same pid under two
+headings reads as two findings. `couch --resources` gains `Orphan nvim (untagged; reap needs --confirm):`
+— the heading states the gate because those rows are what an operator confirms against — and prints
+`none observed` when empty, since an absent section reads as "not checked". The wire projection gained a
+sixth bounded detail section on the existing budget split, proven at maximum cardinality (8192 rows) with
+an explicit `orphan nvim omitted` notice.
+
+**The persisted ring keeps the offender.** Because the reduce suppresses a swept pid from
+`v.Unattributed` and `ResourceFrame` stores exactly that slice, the 24h history would have stopped
+recording the process it exists to record — a 22 GB untagged nvim sat in `frame.Unattributed` before this
+issue and would have been nowhere after. `ResourceFrame` gained `OrphanNvim`, bounded at
+`ResourceMaxProcesses` by a new `frameWithinBounds`. Additive at version 1: an upgrade reads old history
+unchanged; a downgrade loses continuity into a fresh memory ring on the loud best-effort path
+`resources_persist.go` already has — a cost `ResourceCost.CwdCalls` had already incurred, since the frame
+persists `Cost`.
+
+**One hub alert per episode, routed by the checkout.** The open design question was routing: every #587
+effect carries its owning slot's workspace and the dispatcher resolves the hub from it, but an orphan's
+slot is gone by definition, so a workspace-less effect would resolve to nothing and sit pending forever —
+a silently dead alert, which is the failure mode this issue exists to end. The episode is addressed by the
+managed checkout the sweep matched, taking that root's live slot's `WorkspaceIdentity` whole, so the
+existing `hubBindingAt(owner(id))` path resolves it and there is still exactly one routing rule. The
+metric is `orphan-nvim` (`couchcore.ResourceMetricOrphanNvim`), it requires `OrphanSamples` consecutive
+passes so one racing probe cannot page the hub, and its episode clears when the pid is gone, a zombie, or
+recycled into another generation — `nvim/` joined the process-keyed prefixes, now `processEpisodeKey`.
+Body: `unattributed embedded nvim pid=… age=… in <root>; no live slot owns it. Inspect with couch
+--resources; reap with couch --reap-orphans --confirm.` — every host-sourced string sanitized, because a
+cwd is not trusted text and the body lands in the hub's terminal.
+`ResourceEffect` gained `Age` and `Root` (omitempty, bound when the effect fires and never re-read, per
+the BR-7 family rule), and `advance`'s `value float64` became a `ResourceEffect` so each metric carries
+its own evidence rather than a float whose unit depends on the metric.
+Proven end to end with nothing stubbed between the ends: `TestResourceAlertBrokerEndToEndFromTheSweep`
+runs the real sampler over a real broker and asserts the delivered body, the silence on the first and
+third samples, and that no `nvim/` episode survives the reap. Pre-existing gap noted, not fixed here:
+nothing tests `newResourceAlertDispatcher`'s resolve — that needs a full `messageService` rig and belongs
+to #587's seam.
+
+**#574 note (as the plan records):** #574's hub lifecycle notice does not exist yet — its `## Plan` is
+empty — so the orphan notice uses #587's alert seam. When #574 lands, this notice moves there; the
+episode machinery and the effect ID stay, only the body's delivery changes.
+
+Commits: `104279f61` classifier, `549eb3f07` sampler + policy, `f28f2d34f` health line + ring,
+and this one for the alert. Evidence for each: `go build ./...`, `go vet`, targeted `go test -run`, and a
+full `go test ./cmd/internal/couchcore/` (517s, exit 0) before the health-line commit.
