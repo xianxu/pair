@@ -1,12 +1,12 @@
 ---
 id: 000624
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-16
 updated: 2026-10-16
 estimate_hours:
-card_mirror: 'ecb3f43df4a6c8b9fcf920b477891760c3e7d958' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'f38bdb5f6d78bfbb095431d8f8a4a02138c03333' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-16T20:02:10-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
     repository: github.com/xianxu/pair
 flow: {kind: quick, provenance: inferred, spec: "e9385e2f", done: "e8c56ece"}
+actual_hours: 3.44
 ---
 
 # Something rebuilds pair:0's bin/couch during other slots' work, deleting it for seconds (sends fail)
