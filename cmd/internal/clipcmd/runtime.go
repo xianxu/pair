@@ -118,7 +118,8 @@ func copyClipboardResult(ctx context.Context, text string) (ClipboardCopyResult,
 		result.Metadata.Tool, result.Metadata.Executable = t.name, path
 		cmd := exec.CommandContext(ctx, path, t.args...)
 		cmd.WaitDelay = 100 * time.Millisecond
-		cmd.Stdin = strings.NewReader(text)
+		stdin := strings.NewReader(text)
+		cmd.Stdin = stdin
 		var stderr clipboardStderrSummary
 		cmd.Stderr = &stderr
 		err = cmd.Run()
@@ -131,8 +132,9 @@ func copyClipboardResult(ctx context.Context, text string) (ClipboardCopyResult,
 		}
 		// A successful tool may leave stderr open in a detached child. The
 		// drain cutoff says the diagnostic is incomplete, not that the copy
-		// failed. Preserve the process-exit contract; finish still enforces ctx.
-		if errors.Is(err, exec.ErrWaitDelay) && cmd.ProcessState != nil && cmd.ProcessState.Success() {
+		// failed, provided all input reached the tool. Run joins the input
+		// copier before we inspect the reader; finish still enforces ctx.
+		if errors.Is(err, exec.ErrWaitDelay) && stdin.Len() == 0 && cmd.ProcessState != nil && cmd.ProcessState.Success() {
 			result.Metadata.StderrTruncated = true
 			err = nil
 		}

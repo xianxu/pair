@@ -108,6 +108,10 @@ The first close had returned SHIP with no findings. Main was then merged cleanly
 
 Fresh corrected-head suite and fix-only re-close are required before landing. The 1s/OSC policy, persistent feedback, metadata-only log boundary and deferred live acceptance are unchanged.
 
+### 2026-10-17 — unified completion red/green
+
+TestClipboardInheritedUnreadStdinFails failed red in both legacy/local modes: an exit-0 tool with a child holding 1 MiB stdin unread was falsely reported copied. Retaining the existing strings.Reader and requiring Len()==0 before demoting ErrWaitDelay fixes both, while TestClipboardInheritedStderrKeepsSuccessfulExit retains successful full-read behavior and the truncation flag. Full clipcmd package PASS (3.064s); focused race tests for both descriptor cases plus cancellation/deadline controls PASS (2.560s). No real clipboard touched. The prior queued 8c suite was canceled before execution because this negative control exposed the branch defect; no passing retry is claimed.
+
 ## Revisions
 
 ### 2026-10-17 — TL-approved instrumentation-first acceptance
