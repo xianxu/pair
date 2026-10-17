@@ -94,10 +94,6 @@ type UIOps interface {
 
 // ProcOps spawns the (already-Go) sidecar children and the dev rebuild.
 type ProcOps interface {
-	// SpawnTitlePoller backgrounds `pair title` (detached), the per-tag
-	// frame/cmux title singleton. env is its launch contract, handed to the child
-	// explicitly rather than inherited from whatever was exported first -- the
-	// inheritance is what pair#183 lost on attach.
 	// DevRebuild rebuilds the repo Go binaries when PAIR_DEV is set (no-op
 	// otherwise) so the layout's `exec pair-wrap` resolves a fresh build (#46).
 	DevRebuild(pairHome string)

@@ -2,6 +2,8 @@ package sessioninventory_test
 
 import (
 	"bytes"
+	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"strings"
@@ -515,5 +517,136 @@ func TestTitleProjectionAdmissionPreservesFullValidatorRules(t *testing.T) {
 	}
 	if _, err := sessioninventory.NewTitleProjection(rt, "scope", "work", sessioninventory.AgentCodex, 1).Poll(); err != nil {
 		t.Fatalf("fresh complete admission control: %v", err)
+	}
+}
+
+func TestCurrentTitleLaunchExactCachedOwner(t *testing.T) {
+	rt, ledger := launchCacheFixture()
+	got, ok, err := sessioninventory.CurrentTitleLaunch(context.Background(), rt, "scope", "work", sessioninventory.AgentCodex)
+	if err != nil || !ok || got.Ordinal != 1 || got.Agent != sessioninventory.AgentCodex {
+		t.Fatalf("current=%+v %v %v", got, ok, err)
+	}
+	reads := rt.OperationCount(sessioninventorytest.OperationReadAt, "pair-data:ledger-work.jsonl")
+	if _, ok, err := sessioninventory.CurrentTitleLaunch(context.Background(), rt, "scope", "work", sessioninventory.AgentCodex); err != nil || !ok {
+		t.Fatalf("cached=%v %v", ok, err)
+	}
+	if n := rt.OperationCount(sessioninventorytest.OperationReadAt, "pair-data:ledger-work.jsonl"); n != reads {
+		t.Fatalf("cached read %d -> %d", reads, n)
+	}
+	rt.AppendFile(ledger, []byte(strings.ReplaceAll(v1Launch, "codex", "claude")), "new-agent")
+	if got, ok, _ := sessioninventory.CurrentTitleLaunch(context.Background(), rt, "scope", "work", sessioninventory.AgentCodex); ok {
+		t.Fatalf("stale launch accepted: %+v", got)
+	}
+	if got, ok, err := sessioninventory.CurrentTitleLaunch(context.Background(), rt, "scope", "work", sessioninventory.AgentClaude); err != nil || !ok || got.Ordinal != 2 {
+		t.Fatalf("new agent=%+v %v %v", got, ok, err)
+	}
+	rt.AppendFile(ledger, []byte("{}\n"), "untyped")
+	if got, ok, _ := sessioninventory.CurrentTitleLaunch(context.Background(), rt, "scope", "work", sessioninventory.AgentClaude); ok {
+		t.Fatalf("untyped latest accepted: %+v", got)
+	}
+}
+
+func TestTitleProjectionPollContextCancellationResumes(t *testing.T) {
+	at := time.Now()
+	fake, a, _ := proofBackedCodexFixtureWithGeneration(t, "019d1111-1111-7111-8111-111111111111", &at, "")
+	rt := &titleObservedRuntime{FakeRuntime: fake, transcript: a}
+	p := sessioninventory.NewTitleProjection(rt, "scope", "work", sessioninventory.AgentCodex, 1)
+	ctx, cancel := context.WithCancel(context.Background())
+	rt.afterRead = func(_, _ int64) { cancel() }
+	if _, err := p.PollContext(ctx); !errors.Is(err, context.Canceled) {
+		t.Fatalf("admission cancellation=%v", err)
+	}
+	rt.afterRead = nil
+	if _, err := p.Poll(); err != nil {
+		t.Fatalf("resume admission=%v", err)
+	}
+	fake.AppendFile(a, []byte(`{"type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":117}}}}`+"\n"), "append")
+	ctx, cancel = context.WithCancel(context.Background())
+	rt.afterRead = func(offset, _ int64) {
+		if offset > 0 {
+			cancel()
+		}
+	}
+	if _, err := p.PollContext(ctx); !errors.Is(err, context.Canceled) {
+		t.Fatalf("tail cancellation=%v", err)
+	}
+	rt.afterRead = nil
+	if got, err := p.Poll(); err != nil || !got.HasUsage || got.Usage.InputTokens != 117 {
+		t.Fatalf("resume tail=%+v %v", got, err)
+	}
+}
+
+type titleSQLiteRuntime struct {
+	*sessioninventorytest.FakeRuntime
+	entered chan struct{}
+}
+
+func (r *titleSQLiteRuntime) QuerySQLiteContext(ctx context.Context, a sessioninventory.Artifact, q string, n int64) (sessioninventory.SQLiteResult, error) {
+	if r.entered != nil {
+		close(r.entered)
+		<-ctx.Done()
+		return sessioninventory.SQLiteResult{}, ctx.Err()
+	}
+	return r.FakeRuntime.QuerySQLite(a, q, n)
+}
+func TestTitleProjectionPollContextCancelsSQLiteAdmission(t *testing.T) {
+	fake, _, _, _ := titleProviderFixture(t, sessioninventory.AgentAgy)
+	rt := &titleSQLiteRuntime{FakeRuntime: fake, entered: make(chan struct{})}
+	p := sessioninventory.NewTitleProjection(rt, "scope", "work", sessioninventory.AgentAgy, 1)
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { _, err := p.PollContext(ctx); done <- err }()
+	select {
+	case <-rt.entered:
+	case <-time.After(2 * time.Second):
+		cancel()
+		t.Fatal("SQLite context seam not called")
+	}
+	cancel()
+	select {
+	case err := <-done:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("SQLite cancellation=%v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("SQLite cancellation blocked")
+	}
+	rt.entered = nil
+	if got, err := p.Poll(); err != nil || got.Awaiting {
+		t.Fatalf("SQLite resume=%+v %v", got, err)
+	}
+}
+
+func TestCurrentTitleLaunchRejectsConflictingGeneration(t *testing.T) {
+	rt, _, ledger, _ := titleProviderFixture(t, sessioninventory.AgentCodex)
+	binding, err := sessionledger.EncodeRecord(sessionledger.Record{Version: 3, Kind: sessionledger.RecordBinding, ScopeKey: "scope", Tag: "work", Agent: "codex", LaunchOrdinal: 1, RootNativeID: "019d2222-2222-7222-8222-222222222222", ConfirmationReason: sessionledger.ConfirmationChosen})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rt.AppendFile(ledger, append(binding, '\n'), "conflict")
+	if got, ok, err := sessioninventory.CurrentTitleLaunch(context.Background(), rt, "scope", "work", sessioninventory.AgentCodex); err != nil || ok {
+		t.Fatalf("conflict=%+v %v %v", got, ok, err)
+	}
+}
+func TestCurrentTitleLaunchDoesNotFallBackToEstablishedGeneration(t *testing.T) {
+	rt, _, ledger, _ := titleProviderFixture(t, sessioninventory.AgentCodex)
+	launch, err := sessionledger.EncodeRecord(sessionledger.Record{Version: 3, Kind: sessionledger.RecordLaunch, ScopeKey: "scope", Tag: "work", Agent: "codex", RequestedNativeID: "019d2222-2222-7222-8222-222222222222", RequestOrigin: sessionledger.RequestOriginChosen, BaselineComplete: true, LaunchArtifactBoundaries: []sessionledger.LaunchArtifactBoundary{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rt.AppendFile(ledger, append(launch, '\n'), "new-fresh")
+	got, ok, err := sessioninventory.CurrentTitleLaunch(context.Background(), rt, "scope", "work", sessioninventory.AgentCodex)
+	if err != nil || !ok || got.Ordinal != 3 {
+		t.Fatalf("fresh current=%+v %v %v", got, ok, err)
+	}
+	if n := rt.OperationCount(sessioninventorytest.OperationListFiles, "codex-sessions"); n != 0 {
+		t.Fatalf("current launch scanned native storage %d times", n)
+	}
+}
+
+func TestTitleProjectionPollContextRejectsNilRuntime(t *testing.T) {
+	p := sessioninventory.NewTitleProjection(nil, "scope", "work", sessioninventory.AgentCodex, 1)
+	if _, err := p.PollContext(context.Background()); err == nil {
+		t.Fatal("nil runtime accepted")
 	}
 }

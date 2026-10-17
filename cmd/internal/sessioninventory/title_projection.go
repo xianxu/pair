@@ -55,7 +55,11 @@ func (r titleOwnerRuntime) DecodeWork(a Artifact, n int64) {
 	observeDecodeWork(r.Runtime, a, n)
 }
 func NewTitleProjection(rt Runtime, scope, tag string, agent Agent, ordinal uint64) *TitleProjection {
-	return &TitleProjection{runtime: rt, ownerRuntime: titleOwnerRuntime{rt, NewOwnerLaunchCache()}, scope: scope, tag: tag, agent: agent, ordinal: ordinal}
+	cache := ownerLaunchCacheOf(rt)
+	if cache == nil {
+		cache = NewOwnerLaunchCache()
+	}
+	return &TitleProjection{runtime: rt, ownerRuntime: titleOwnerRuntime{rt, cache}, scope: scope, tag: tag, agent: agent, ordinal: ordinal}
 }
 func (p *TitleProjection) stop(err error) (TitleProjectionResult, error) {
 	p.err = err
@@ -64,8 +68,8 @@ func (p *TitleProjection) stop(err error) (TitleProjectionResult, error) {
 	p.frame.IncompleteTail = nil
 	return p.result, err
 }
-func (p *TitleProjection) owner() (sessionledger.Current, bool, error) {
-	current, ok, _, err := readCurrentLaunch(context.Background(), p.ownerRuntime, p.scope, p.tag, p.agent)
+func (p *TitleProjection) owner(ctx context.Context) (sessionledger.Current, bool, error) {
+	current, ok, _, err := readCurrentLaunch(ctx, p.ownerRuntime, p.scope, p.tag, "")
 	if err != nil {
 		return current, false, err
 	}
@@ -75,7 +79,7 @@ func (p *TitleProjection) owner() (sessionledger.Current, bool, error) {
 		}
 		return current, false, nil
 	}
-	if current.Launch.Ordinal != p.ordinal || current.Conflict {
+	if current.Launch.Ordinal != p.ordinal || Agent(current.Launch.Agent) != p.agent || current.Conflict {
 		return current, false, ErrArtifactChanged
 	}
 	p.ownerSeen = true
@@ -85,13 +89,53 @@ func (p *TitleProjection) owner() (sessionledger.Current, bool, error) {
 	return current, ok, nil
 }
 func (p *TitleProjection) Poll() (TitleProjectionResult, error) {
+	return p.PollContext(context.Background())
+}
+
+// PollContext bounds one poll. Cancellation discards uncommitted display state
+// and leaves a valid projection reusable; authority failures remain terminal.
+func (p *TitleProjection) PollContext(ctx context.Context) (TitleProjectionResult, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if p.err != nil {
+		return TitleProjectionResult{}, p.err
+	}
+	if err := ctx.Err(); err != nil {
+		return TitleProjectionResult{}, err
+	}
+	if p.runtime == nil || p.scope == "" || p.tag == "" || !validAgent(p.agent) || p.ordinal == 0 {
+		return p.stop(errors.New("title projection requires exact invocation identity"))
+	}
+	next := *p
+	next.state = cloneScannerState(p.state)
+	next.other = append([]FileEntry(nil), p.other...)
+	next.boundary = append([]byte(nil), p.boundary...)
+	// Framing only appends beyond the retained partial prefix, and completed
+	// records are copied. Sharing that prefix preserves geometric growth while
+	// a canceled transaction leaves the original slice length/content intact.
+	next.runtime = titleContextRuntime{Runtime: p.runtime, ctx: ctx}
+	next.ownerRuntime = titleOwnerRuntime{Runtime: titleContextRuntime{Runtime: p.runtime, ctx: ctx}, cache: p.ownerRuntime.cache}
+	result, err := next.poll(ctx)
+	if ctx.Err() != nil {
+		return TitleProjectionResult{}, ctx.Err()
+	}
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return TitleProjectionResult{}, err
+	}
+	next.runtime = p.runtime
+	next.ownerRuntime = p.ownerRuntime
+	*p = next
+	return result, err
+}
+func (p *TitleProjection) poll(ctx context.Context) (TitleProjectionResult, error) {
 	if p.err != nil {
 		return TitleProjectionResult{}, p.err
 	}
 	if p.runtime == nil || p.scope == "" || p.tag == "" || !validAgent(p.agent) || p.ordinal == 0 {
 		return p.stop(errors.New("title projection requires exact invocation identity"))
 	}
-	current, ok, err := p.owner()
+	current, ok, err := p.owner(ctx)
 	if err != nil {
 		return p.stop(err)
 	}
@@ -100,23 +144,26 @@ func (p *TitleProjection) Poll() (TitleProjectionResult, error) {
 			p.result = TitleProjectionResult{Awaiting: true}
 			return p.result, nil
 		}
-		if err := p.admit(*current.Binding); err != nil {
+		if err := p.admit(ctx, *current.Binding); err != nil {
 			return p.stop(err)
 		}
-		if _, _, err := p.owner(); err != nil {
+		if _, _, err := p.owner(ctx); err != nil {
 			return p.stop(err)
 		}
 		return p.result, nil
 	}
-	if err := p.tail(); err != nil {
+	if err := p.tail(ctx); err != nil {
 		return p.stop(err)
 	}
-	if _, _, err := p.owner(); err != nil {
+	if _, _, err := p.owner(ctx); err != nil {
 		return p.stop(err)
 	}
 	return p.result, nil
 }
-func (p *TitleProjection) admit(binding sessionledger.Record) error {
+func (p *TitleProjection) admit(ctx context.Context, binding sessionledger.Record) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	// Preserve existing proof/path/provider authority checks. A proof-only or
 	// suffix-only result needs one unchanged full validation to seed display facts.
 	inventory := NewIncrementalInventory(p.runtime, Catalog{Version: CatalogVersion})
@@ -126,6 +173,9 @@ func (p *TitleProjection) admit(binding sessionledger.Record) error {
 		v, _, err = inventory.ValidateBindingProof(p.agent, *binding.AuthorizationProof)
 	} else {
 		v, _, err = inventory.ValidateNamedContent(p.agent, binding.RootNativeID)
+	}
+	if err := ctx.Err(); err != nil {
+		return err
 	}
 	if err != nil {
 		return err
@@ -183,6 +233,9 @@ func (p *TitleProjection) admit(binding sessionledger.Record) error {
 	p.observedSize = p.rawOffset
 	p.frame = JSONLFrameState{ParserCompleteOffset: transcript.FrameState.ParserCompleteOffset}
 	for _, record := range transcript.Records {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		p.usage(record.Bytes)
 	}
 	current, err := p.checkArtifacts()
@@ -242,7 +295,10 @@ func (p *TitleProjection) checkArtifacts() (FileEntry, error) {
 	p.observedSize = now.Size
 	return now, nil
 }
-func (p *TitleProjection) tail() error {
+func (p *TitleProjection) tail(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	current, err := p.checkArtifacts()
 	if err != nil {
 		return err
@@ -255,6 +311,9 @@ func (p *TitleProjection) tail() error {
 	}
 	target := current.Size
 	for p.rawOffset < target {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		before, err := p.checkArtifacts()
 		if err != nil {
 			return err
@@ -289,7 +348,7 @@ func (p *TitleProjection) tail() error {
 		if err != nil {
 			return err
 		}
-		if err = p.apply(current, records); err != nil {
+		if err = p.apply(ctx, current, records); err != nil {
 			return err
 		}
 		p.frame = next
@@ -356,7 +415,10 @@ func (p *TitleProjection) usage(line []byte) {
 		p.result.Usage, p.result.HasUsage = u, true
 	}
 }
-func (p *TitleProjection) apply(entry FileEntry, records []FramedJSONLRecord) error {
+func (p *TitleProjection) apply(ctx context.Context, entry FileEntry, records []FramedJSONLRecord) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	observeRecordsDecodeWork(p.runtime, p.transcript.Artifact, records)
 	var state ScannerState
 	var err error
@@ -381,11 +443,17 @@ func (p *TitleProjection) apply(entry FileEntry, records []FramedJSONLRecord) er
 	if err != nil {
 		return err
 	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if state.Disputed || state.NativeID != p.nativeID || state.Role != RoleRoot {
 		return ErrArtifactChanged
 	}
 	p.state = state
 	for _, record := range records {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		p.usage(record.Bytes)
 	}
 	return nil
