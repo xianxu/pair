@@ -15,6 +15,7 @@ claimant:
     workspace: pair:6
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "e50e865d", done: "6e40b30e"}
 ---
 
 # Workbench activity invariant intermittently times out waiting for cold worker
