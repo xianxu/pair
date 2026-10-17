@@ -39,7 +39,7 @@ Give each invocation ownership of its scratch paths and cleanup. Preserve all re
 
 - [x] Commit a deterministic two-process collision regression and observe the original reload failures.
 - [x] Allocate one private scratch root per Lua invocation; derive reload, annotation and named-buffer paths from it, and clean up on success/assertion failure/Lua error.
-- [ ] Run the original assertions, concurrency and cleanup regression, then the recorded suite, close review and landing.
+- [x] Run the original assertions, concurrency and cleanup regression, then the recorded suite. Close review and landing follow through the workflow gates.
 
 ## Log
 
@@ -56,3 +56,9 @@ Evidence directory: /tmp/pair637-ed1erwu8. Wrapper hold-original.lua, original-c
 2026-10-17: One atomic fs_mkdtemp allocation now owns all three paths. xpcall protects the existing fixture body; cleanup runs before reporting assertion failures or Lua errors. All original check expressions remain unchanged. The Python regression runs two real headless Neovim children with private HOME/XDG/log roots and one intentionally shared TMPDIR, joins both, checks three paths per invocation share only their own root, verifies B leaves A's file present, and checks root removal and caller-sentinel preservation. Assertion-failure and Lua-error injection both prove cleanup. Native Neovim's own temporary directory is outside the fixture's ownership and remains for the enclosing Python TemporaryDirectory to remove. Product Lua unchanged.
 
 2026-10-17: Targeted verification passed: python3 -B tests/changelog-isolation-test.py (2 tests, including both failure subcases), nvim -l nvim/changelog_test.lua, make test-lua (entire Lua/editor suite), git diff --check. Retained green-isolation.log and green-lua.log beside the red control. The regression is wired into test-lua for future suites. During implementation its all-paths assertion caught the existing local scratch buffer variable shadowing a first draft's root name; the root is now scratch_root, so all three artifact paths use it.
+
+2026-10-17: Recorded full suite passed first attempt on Git-verified b623c98f1e592d37fd1e81e6de9c11df2c55924d: make PAIR_GO_TRIMPATH=-trimpath test, exit 0, 12m5s execution after 485s queue wait. All shell/Lua/Python checks and go test ./... passed; couchcmd 143.250s, couchcore 371.340s, couchtty 59.898s, wrapcmd 65.266s. Log: /Users/xianxu/workspace/pair/.git/sdlc/local-checks/b623c98f1e592d37fd1e81e6de9c11df2c55924d/suite.log; SHA256 099a68734fa4e41e7a6a33d3fb1664973ad2d64577bdb4b879debb59995e6820. All four server checks passed, including conformance. Close review and landing remain pending.
+
+## Revisions
+
+2026-10-17: Clarified the final checkbox to mark completed verification; close review and landing remain workflow gates, so the checkbox does not claim a future landing. Scope, Spec and Done when unchanged.
