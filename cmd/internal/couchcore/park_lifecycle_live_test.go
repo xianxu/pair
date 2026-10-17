@@ -512,6 +512,10 @@ func zellijClientCount(ctx context.Context, session string) (int, error) {
 }
 
 func runParkLifecycleHelper() int {
+	return runParkLifecycleHelperWithAttach(launcher.AttachExistingSession)
+}
+
+func runParkLifecycleHelperWithAttach(attach func(launcher.LaunchOptions, launcher.Env, launcher.Runtime, string, string, string) (int, error)) int {
 	attempt, err := strconv.ParseUint(os.Getenv("PAIR_TEST_PARK_ATTEMPT"), 10, 64)
 	if err != nil {
 		return 2
@@ -530,7 +534,9 @@ func runParkLifecycleHelper() int {
 	scoped := launcher.NewScopedPaths(globalDataDir, launcher.RepoScope{Key: scope}, tag)
 	runtime := launcher.NewScopedOSRuntime(globalDataDir, scoped.ScopeDir(), pairHome)
 	env := launcher.Env{DataDir: scoped.ScopeDir()}
-	if code, err := launcher.AttachExistingSession(launcher.LaunchOptions{Env: env, PairHome: pairHome}, env, runtime, tag, session, "claude"); err != nil || code != 0 {
+	// Match RunLaunch: any completed attach (err == nil) hands off to quit
+	// cleanup, even when the client exits nonzero after losing its server.
+	if code, err := attach(launcher.LaunchOptions{Env: env, PairHome: pairHome}, env, runtime, tag, session, "claude"); err != nil {
 		fmt.Fprintf(os.Stderr, "park helper attach returned code=%d error=%v\n", code, err)
 		return 3
 	}
