@@ -13,14 +13,14 @@ claimant:
     workspace: pair:7
     worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
     repository: github.com/xianxu/pair
-actual_hours: 1.70
+actual_hours: 4.00
 tracker:
     version: 1
     completion:
-        token: close-773d824c16f8
+        token: close-5181d41ac68b
         repository: github.com/xianxu/pair
-        reviewed_head: ee8083d5ce6a5bc13d903040fbacd99c47b84095
-        evidence_commit: 5a1a9787d74ecdf576de50a831456e2420582fa2
+        reviewed_head: f32f89001161ce26932530f69ee6c39c96bff66c
+        evidence_commit: 3cc74377e800aea2d837beb6e49c9506fad3d015
 ---
 
 # Couch Ctrl+Y copy still fails live after #604; the error vanishes and isn't logged
