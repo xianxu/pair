@@ -1,12 +1,20 @@
 ---
 id: 000629
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-16
 updated: 2026-10-16
 estimate_hours:
-card_mirror: '55f9417d809c37fa966a3650488d672558b647f9' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '6e4bce549dff28db28517486e64ba633addee2e5' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-16T18:58:38-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:3
+    worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Peer messages to a busy hub expire after 1m30s waiting for a recognized composer; landing reports lost
@@ -36,8 +44,16 @@ Measured by pair:2 (18:47): after the restart, 31 hub-bound deliveries were canc
 
 ## Plan
 
-- [ ]
+- Design: [busy receiver queue plan](../plans/000629-busy-receiver-queue-plan.md).
+- [ ] Reproduce connected-receiver expiry and independent-recipient blocking with controlled clocks and stateful fakes.
+- [ ] Remove accepted pre-paste expiry across model, broker, remote endpoint and wrapper; preserve post-paste uncertainty and exact binding ownership.
+- [ ] Verify queue drain, cancellation, native receiver behavior and the recorded full suite; close, land and report the PR.
 
 ## Log
 
 ### 2026-10-16
+
+- Claimed in pair:3 after parking/releasing #603 with its two CI attempts and draft PR recorded. Started a fresh branch from main. Root cause trace: wrapper reservation accepts before composer readiness; its accepted pre-paste message expires after 90s, while broker queue/model and RemoteEndpoint impose additional 45m/hold horizons. Every layer must agree on connection-scoped waiting; changing one timeout would strand or misclassify the same work elsewhere.
+- Additional isolation bug: broker promotion performs a wrapper Release RPC while holding b.mu, blocking independent recipient admission/status until that RPC returns. Plan covers it with a gated receiver test, as part of the requested queue independence.
+- Initial receipt/queue plan is committed for hub review before code. Reuses existing status strings and stateful fake endpoints; keeps FIFO per receiver, immediate promotion after confirmation, independent receiver workers, and all post-paste input protections. No body batching or unsafe mid-turn input is introduced. No implementation changes made.
+- start-plan reported a nonblocking base catch-up warning: weave refresh rejected --defer-settings; the binary allowed planning on the current checkouts. No peer tools or machine settings changed to work around it.
