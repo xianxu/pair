@@ -5,8 +5,8 @@ deps: []
 github_issue:
 created: 2026-10-16
 updated: 2026-10-16
-estimate_hours: 1.509
-card_mirror: '7c0b7bf4443d3d7dee4ca642af786ccf17a62a32' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 3.55725
+card_mirror: '292820b92517d7e8cac87c0a964a0560c4c86c0f' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-16T17:03:46-07:00
 claimant:
     operator: Xian Xu
@@ -111,7 +111,7 @@ TL e6511b06-0db1-4dae-a695-ca1c364c46f5 (submitted) approves M1 as planned, expl
 
 ## Estimate
 
-Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only; calibration is flagged stale by estimate-source, so provisional. This estimates the admitted M1 scope only; M2 will be derived after live measurements settle its mechanism, before its implementation gate. It is not a whole-issue optimization estimate.
+Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only; calibration is flagged stale by estimate-source, so provisional. Original M1 derivation was1.509h. The following cumulative derivation now includes approved M2 through live acceptance and closure; it is not a remaining-work estimate. M1's original primitives remain unchanged below.
 
 Decomposition: issue-spec/audit uses design 0.6 ×0.5 (initial mixed-density dispatch) and impl 0.3 ×0.4. Three smaller-go-module extensions are counter, Console snapshot, and resources transport/projection/rendering: each design 0.2 ×0.2 and impl 0.5 ×0.4. Atlas docs use design 0.1 ×0.2 and impl 0.15 ×0.4. Milestone review uses design 0.1 ×0.2 and impl 0.5 ×0.4, including required checks. Existing sync/atomic, fake Child/Console and JSON budget helpers cover the stack; no greenfield/library discovery. Familiarity 1.0, thorough-plan design buffer 15%. Design subtotal 0.46; implementation subtotal 0.98; 0.46×1.15+0.98=1.509 hours.
 
@@ -125,8 +125,23 @@ item: smaller-go-module design=0.04 impl=0.2
 item: atlas-docs design=0.02 impl=0.06
 item: milestone-review design=0.02 impl=0.2
 design-buffer: 0.15
-total: 1.509
+item: issue-spec design=0.375 impl=0.12
+item: smaller-go-module design=0.06 impl=0.2
+item: smaller-go-module design=0.06 impl=0.2
+item: smaller-go-module design=0.06 impl=0.2
+item: atlas-docs design=0.02 impl=0.06
+item: milestone-review design=0.04 impl=0.2
+item: milestone-review design=0.04 impl=0.2
+total: 3.55725
 ```
+
+M2 addition: issue-spec/audit covers post-restart measurement, profile comparison and proposal (design0.75×0.5, implementation0.3×0.4). Three smaller-go-module extensions cover VT differential shortcut, frame validation differential shortcut, and reproducible complete-ingest benchmark qualification (each design0.3×0.2, implementation0.5×0.4). Existing ANSI/UAX29 library and real fake-terminal seams suffice; no novel library or external API. Atlas/docs add design0.1×0.2, implementation0.15×0.4. Two review primitives cover M2 milestone and whole-issue close/landing with full-suite and coordinated live acceptance (each design0.2×0.2, implementation0.5×0.4). Familiarity1.0, design buffer15%. M2 design0.755 and implementation1.18 yield2.04825h; cumulative design1.215×1.15 plus implementation2.16 yields3.55725h. Benchmark, review, suite and live execution consume ship wall-clock; no parallelism or operator-attention discount. Review/check time remains optimistic under machine contention; uncertain operator scheduling is not a new code mechanism.
+
+## Revisions
+
+### 2026-10-16 — M2 approved and cumulative estimate derived
+
+TL approval4f9a9b31 confirmed; plan-quality CLEAN at change-code. Estimate-quality INFO correctly identifies that M1-only1.509h does not cover M2, so derive cumulative3.55725h before implementation. TL6d5eb120 supplied the canonical branch continuation: start-plan recreated the deleted M1 branch at fresh main, plan/measurement commit cherry-picked, ad-hoc branch removed. Landing awaits ariadne#418's matching fix. No review bypass.
 
 ### 2026-10-16 — post-restart measurements and M2 proposal
 
