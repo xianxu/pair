@@ -39,7 +39,7 @@ The watcher uses the current admitted hub binding, SessionToken, Settled signal 
 ## Runtime contract
 
 - The existing 15-second watcher tick offers work to a capacity-one channel without blocking. One worker owns all scan/cooldown state; no overlapping commands or per-tick goroutines. Worker lifetime is service.lifetime and service.workers owns shutdown. A coalesced tick processes current facts, not a captured stale liveness map.
-- Registration enumeration retains the existing registry bounds. A pass has a 30-second deadline and advances a fair cursor if it cannot visit all registrations. One tl-lead check has a five-second deadline, bounded stdout/stderr, and bounded pipe draining; its owned process group is killed on cancellation so child Couch/git processes cannot outlive the check.
+- Registration enumeration retains the existing registry bounds. A pass has a 30-second deadline and advances a fair cursor if it cannot visit all registrations. One tl-lead check has a five-second deadline, bounded stdout/stderr, and bounded pipe draining; its owned process group is collected on completion or cancellation so child Couch/git processes cannot outlive the check.
 - A due file is inspected before any command. Held operator locks and unavailable/busy owners do not consume the check allowance, so release/idle can be noticed on the next tick. Completed eligible fresh/stale checks and failed command attempts each consume a 30-minute per-registration check allowance, preventing probes or repeated errors every tick. A stale result produces at most one send attempt per allowance; uncertainty consumes that allowance rather than blindly resending under a fresh ID.
 - Send one ordinary exact hub-to-self generated message containing sessionsync.PingPrefix, the file path and the stale output. This reuses existing identity-based ping exclusion from owed-event recording and normal message validation/admission. No new bypass of the broker, message capacity, or wrapper input checks.
 - Missing/failing tl-lead or invalid output produces no message and logs one bounded diagnostic per continuous failure episode; success clears failure suppression. Registry/file failures remain conservative skips with a diagnostic, never evidence of freshness.
@@ -58,7 +58,9 @@ The watcher uses the current admitted hub binding, SessionToken, Settled signal 
 
 - [x] Exercise the real new Couch/message-service fixture and real tl-lead CLI against disposable registered session files in an isolated namespace, using an admitted disposable wrapper endpoint. Advance only the reminder clock to test the 30-minute allowance; tl-lead reads real old/fresh stamps. Verify actual receipt/body, fresh suppression, operator-lock suppression and delivery after release. The complete document and its unread baseline must stay unchanged. No live hub is messaged; installed-hub smoke is deferred to the restart by TL approval.
 - [x] Update atlas/couch.md and the shipped Couch reference/README where they explain session reminders; state cadence, idle/lock skips, diagnostic behavior, restart cooldown reset and read-only scope. Keep the existing atlas index link.
-- [ ] Push the candidate and run `sdlc local-check run --name suite`. Close through `sdlc close --issue 630 --verified '<evidence>'`; resolve fresh-context review findings and record their class in lessons.
+- [x] Push the candidate and run `sdlc local-check run --name suite`.
+
+Close through `sdlc close --issue 630 --verified '<evidence>'`; resolve fresh-context review findings and record their class in lessons.
 
 Landing protocol: open/update the PR through sdlc, integrate main, run `sdlc merge --yes`, verify the merge and archival on origin/main and report the outcome to the hub. The TL owns the installed-hub smoke after restart.
 
@@ -94,3 +96,5 @@ Reuse newServiceRig and the wait-watcher admitted-session helpers, plus a dispos
 - 2026-10-17: plan gate PQ-1: define one authoritative pure transition boundary and enumerate all retained-state changes, including invalidated evidence, send uncertainty and cancellation. Clarify that an invalidated completion consumes no eligible-check allowance so an operator submit can be noticed on the next tick. PQ-2: name repeatable real-conformance triggers and the Git-backed isolated fixture prerequisite.
 
 - 2026-10-17: reconcile Core concepts with the implemented pure boundary: output classification is staleReminderBody in session_stale_model.go, alongside the transition model. Behavior and scope are unchanged.
+
+- 2026-10-17: align command extent wording with the successful-parent regression, and place the close action outside the completed acceptance checkbox. Fresh review remains the next gate, not a preclaimed result.

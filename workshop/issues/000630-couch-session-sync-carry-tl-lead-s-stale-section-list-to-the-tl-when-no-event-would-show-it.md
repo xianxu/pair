@@ -39,9 +39,9 @@ For a registered session-sync file whose owner is a hub, Couch runs `tl-lead sta
 ## Plan
 
 - [x] Add baseline-neutral registered session inspection and a bounded serialized stale-section reminder worker, with tests for cooldown, idle/hub identity, operator locks, command failures and cancellation.
-- [ ] Verify real isolated Couch/tl-lead conformance, update atlas/help-facing documentation, and pass the recorded suite and close review.
+- [x] Verify real isolated Couch/tl-lead conformance, update atlas/help-facing documentation, and pass the recorded suite.
 
-Detailed design: [stale-session reminder plan](../plans/000630-stale-session-reminder-plan.md). Landing follows the normal SDLC gates.
+Detailed design: [stale-session reminder plan](../plans/000630-stale-session-reminder-plan.md). Close review follows verified acceptance through sdlc close; landing follows the normal SDLC gates.
 
 ## Log
 
@@ -70,9 +70,13 @@ Detailed design: [stale-session reminder plan](../plans/000630-stale-session-rem
 
 - Final command-group correction reverified: reminder race tests passed (1.980s), rebuilt real CLI conformance passed (1.626s), and the replacement full suite is queued on 238a534c. The successful-parent/closed-pipe descendant lesson is recorded in workshop/lessons.md.
 
+- Corrected full suite PASSED on 238a534c614f040f003d1f3916ddb88cd6148719: 10m57s after 705s queue, log SHA256 6ba744447b56018065b6071f061ea9c92dc0ca4008ee9cca4d3cce36e77d9146. The retained complete log has no FAIL/panic/make-error markers. Changes since that tested commit are documentation only. All behavior acceptance items are verified; fresh close review is next.
+
 ## Revisions
 
 - 2026-10-17: quick-flow sizing exceeded the shell once baseline-neutral inspection and bounded asynchronous command execution were included. TL approved full flow before implementation; product behavior is unchanged.
+
+- 2026-10-17: put the close-review action after the acceptance checklist, so checking verified behavior does not assert a review verdict before the gate runs. Product behavior and scope are unchanged.
 
 ## Estimate
 
