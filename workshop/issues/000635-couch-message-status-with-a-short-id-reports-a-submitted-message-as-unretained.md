@@ -15,6 +15,7 @@ claimant:
     workspace: pair:3
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "6103592f", done: "1aedc7d1"}
 ---
 
 # couch --message-status with a short ID reports a submitted message as unretained
