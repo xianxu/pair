@@ -79,3 +79,82 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-17T01:16:53-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 639 — Right terminal: Alt+Shift+Return toggles Normal and Focus (75% centered) only; drop Maximize |
+| repo | pair |
+| issue file | workshop/issues/000639-right-terminal-alt-shift-return-toggles-normal-and-focus-75-centered-only-drop-maximize.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 7607d02eaf742a5a9fb527e71c0bce15a0c67947..291c811c6fd76be1545c6a83e689ad3047819a1c |
+| command | sdlc close --issue 639 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-17T01:16:53-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The implementation delivers Normal ↔ Focus and preserves the one-press native-fullscreen exit. BR-1 is verified addressed: all six rung cases pass, and restoring the extra press through a temporary overlay reproduces the failure. No new findings.
+
+Done-when: current — it covers the revised behavior, return focus, documentation, live conformance, and explicitly deferred operator smoke.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      rightpane_rungs_live_test.go:175 removes the third press while preserving restore assertions. All six cases pass. Reintroducing that press through a temporary Go overlay fails with “timed out waiting for base restored” after 11.31s.
+```
+
+1. **Strengths**
+
+   - `rightpane.go:162` restores tiling and return focus, clears the record, and nudges dimming without entering fullscreen.
+   - `fullscreen.go:93` shares return-pane lookup between both exit paths.
+   - `rightpane.go:417` accepts only the target-specific already-focused diagnostic with exit status 2; negative tests reject unrelated errors.
+   - README, atlas, and source-derived key help consistently describe two states.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   - Passed affected packages: `layoutcmd`, `termcmd`, `keyhelp`, and `workbenchshortcut`.
+   - Passed actual-chord conformance across five paths, direct native conformance, and all six rung cases.
+   - Confirmed BR-1 fails without its correction.
+   - Full repository suite was not rerun. Operator smoke remains deferred as documented. Repository files remain unchanged.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY: pass** — shared return lookup and existing restore operations are reused.
+   - **ARCH-PURE: pass** — deterministic planning remains separate from injected native actions.
+   - **ARCH-PURPOSE: pass** — production and enumerated test consumers implement the two-state contract while preserving the compatibility exit.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"2542deb2-1360-45fa-b09a-73aae4bb2d88","repository":"github.com/xianxu/pair","issue_id":"000639","recipe":"small-diff-review","round":2,"attempt":1,"agent":"codex","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/17d2a0f9ff5fb381","reviewed_head":"291c811c6fd76be1545c6a83e689ad3047819a1c","slot":"pair:1","requested_at":"2026-10-17T08:15:34.524975Z"},"phase":"finished","pid":64226,"started_at":"2026-10-17T08:15:34.676438Z","finished_at":"2026-10-17T08:16:47.432679Z","session_id":"01a148ee-3c66-7971-ba70-d6646e097095","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.601078209s
+head: "291c811c6fd76be1545c6a83e689ad3047819a1c"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
