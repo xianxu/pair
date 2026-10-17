@@ -1,6 +1,6 @@
 ---
 id: 000630
-status: codecomplete
+status: done
 created: 2026-10-16
 updated: 2026-10-17
 estimate_hours: 1.57
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: e87b903a0ab15c4b7c3e3e3da6e151e88c9e7659
         evidence_commit: 122984a73dacace9954fc3e9fd513278895c4d1a
+        landed_commit: 423c08912c9f4734a69a5ba8b5908dcbd70a274e
 ---
 
 # couch session-sync: carry tl-lead's stale-section list to the TL when no event would show it
