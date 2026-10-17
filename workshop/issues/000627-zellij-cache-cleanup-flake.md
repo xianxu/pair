@@ -110,3 +110,19 @@ Candidate diagnostic -race count=10 reproduced the layout assertion with an enti
 2026-10-16 R3 approved: TL receipt 0868ff15-0ae9-46ce-a457-99bcbd613b90 is submitted and verified. Expand into shared procutil because its native Linux enumeration discards the uncertainty required by both fixture consumers. Preserve PID-only rows on non-disappearance read and parse failures; no new row state or public API. Proceed with portable native-reader regression controls, both consumers, fresh suite and ordinary re-close.
 
 2026-10-16 R3 implementation: extracted existing Linux table loop without behavioral change into the existing portable procfs adapter; new native-reader regressions FAILED for both deterministic EISDIR stat-read failure and malformed stat data (Table and SnapshotNamed both lost the listed PID). Corrected enumeration to preserve PID-only unknown rows except ENOENT/ESRCH. Reader regressions now PASS, including disappeared numeric entries and retained zombie generation. Both fixture capture and shutdown-poll controls retain owned files on unknown rows. Focused regressions -race count=3 PASS (procutil 1.549s, pairlifecycletest 1.647s); both full packages -race count=1 PASS (6.904s, 2.156s). Final isolated live shortcut -race count=10 PASS (10.089s), r3-shortcut-race.log in the existing scratch root. Linux amd64 procutil test binary cross-compiles successfully; the actual portable procfs reader and named capture run on this Darwin host, not a claimed Linux execution. Native full target is running; fresh suite/re-close pending. Atlas native-process contract now documents retained unknown rows.
+
+2026-10-16 R3 native qualification: initial private-root target passed launcher (4.692s) and park, then warm recovery failed with ErrZellijNoReply from list-panes before cleanup. Original helper byte-for-byte verified against fc899cd5d40530707ffe2577a2e0d392c8e7dd31. Warm-only original count=10 PASS (34.375s); matching original park+warm sequence count=10 FAIL (47.705s), one warm failure at list-clients with the same ErrZellijNoReply, while immediate diagnostic panes query succeeded. Candidate matching sequence count=10 PASS (48.288s). Actions differ, so evidence establishes the pre-existing unanswered-native-query family, not an identical CLI action or its root cause. Filed unassigned #636 with exact commands, same private roots, sequential controls and hashes. Hub classification receipt 23cc401d-fdd9-4c3e-b1a6-af9c7a36d933 confirmed submitted.
+
+One unchanged full native-target rerun PASS on source head 8847a4c0501a8ea19daf142445f555c29a433ff2: launcher 17.085s, couchcore 4.673s, couchcmd 1.684s; every shortcut case retained. Recorded full suite on that pushed source head remains queued (initial position 7). Review BR-1 fixed; re-close waits for the new suite.
+
+- /var/folders/07/b9wcwwld4_v2w9r3hk525bm80000gn/T/pair627.34fmyl6i/r3-live-target.log: SHA256 89d52bd636f2c6694c47f0e3e279ae05bed9efe23d2bc49504513a69e9bd19cf
+
+- /var/folders/07/b9wcwwld4_v2w9r3hk525bm80000gn/T/pair627.34fmyl6i/r3-recovery-original.log: SHA256 362b4eeaed6676e8839b52930f1e72fab8bf21aac26932e91cf7925b37d09676
+
+- /var/folders/07/b9wcwwld4_v2w9r3hk525bm80000gn/T/pair627.34fmyl6i/r3-core-original.log: SHA256 a4700a0f4aada38e80878549dfd9b03be429ba55509cc1194a3e665d562ec7e8
+
+- /var/folders/07/b9wcwwld4_v2w9r3hk525bm80000gn/T/pair627.34fmyl6i/r3-core-candidate.log: SHA256 8c28e75af317e1a7f9064f98d35515133c65fa617252227710052a9a47cbdc46
+
+- /var/folders/07/b9wcwwld4_v2w9r3hk525bm80000gn/T/pair627.34fmyl6i/r3-shortcut-race.log: SHA256 54f57c0bd67c9fbe90e48cda2164ca39859a0f5740e2f9ed871a10d2eb979ec9
+
+- /var/folders/07/b9wcwwld4_v2w9r3hk525bm80000gn/T/pair627.34fmyl6i/r3-live-target-rerun.log: SHA256 7c20dfffaade908a9aef752674002783aa449d63d48b209ad6c23f09b8d6153a
