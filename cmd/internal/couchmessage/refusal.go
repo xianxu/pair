@@ -44,16 +44,6 @@ func refusalReason(err error) string {
 	return err.Error()
 }
 
-// refusalFamilies reads the enrolled families for canonicalizing a refused
-// route's target, outside the broker lock and on a short budget of its own: the
-// send's context may be the one that just ran out.
-func (b *Broker) refusalFamilies() map[string]string {
-	ctx, cancel := context.WithTimeout(b.ctx, 250*time.Millisecond)
-	defer cancel()
-	families, _ := b.readFamilies(ctx)
-	return families
-}
-
 // refuseLocked records why id was not admitted and returns the sender's error.
 // Errors that are already definite keep their own code; an uncertain or
 // interrupted admission becomes a definite refusal, because no receipt exists.

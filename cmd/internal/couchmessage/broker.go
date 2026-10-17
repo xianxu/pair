@@ -561,11 +561,7 @@ func (b *Broker) Send(parent context.Context, from Binding, id string, route Rou
 	pending := &admission{from: from, route: route, body: body, done: make(chan struct{})}
 	b.admissions[id] = pending
 	b.mu.Unlock()
-	receipt, err := b.admit(ctx, from, id, route, body)
-	var families map[string]string
-	if err != nil {
-		families = b.refusalFamilies()
-	}
+	receipt, families, err := b.admit(ctx, from, id, route, body)
 	b.mu.Lock()
 	if _, stored := b.receipts[id]; err != nil && !stored {
 		err = b.refuseLocked(from, id, route, body, err, families)
@@ -578,21 +574,21 @@ func (b *Broker) Send(parent context.Context, from Binding, id string, route Rou
 	b.mu.Unlock()
 	return receipt, err
 }
-func (b *Broker) admit(ctx context.Context, from Binding, id string, route Route, body string) (Receipt, error) {
+func (b *Broker) admit(ctx context.Context, from Binding, id string, route Route, body string) (Receipt, map[string]string, error) {
 	family := !strings.Contains(route.Target, ":")
 	families, err := b.readFamilies(ctx)
 	if err != nil {
-		return Receipt{}, err
+		return Receipt{}, families, err
 	}
 	tried := map[Binding]bool{}
 	for {
 		if err := ctx.Err(); err != nil {
-			return Receipt{}, err
+			return Receipt{}, families, err
 		}
 		b.mu.Lock()
 		if !b.caller(from) {
 			b.mu.Unlock()
-			return Receipt{}, ErrUnavailable
+			return Receipt{}, families, ErrUnavailable
 		}
 		var candidates []Candidate
 		for binding, a := range b.actors {
@@ -615,20 +611,20 @@ func (b *Broker) admit(ctx context.Context, from Binding, id string, route Route
 		to, err := ResolveRecipient(route, candidates, families, b.now(), func(to Binding) bool { return b.eligible(from, to) })
 		if err != nil {
 			b.mu.Unlock()
-			return Receipt{}, err
+			return Receipt{}, families, err
 		}
 		a := b.actors[to]
 		if !family && (a.reservation != "" || len(a.inbox) != 0 || actorCandidate(a, b.now()).Pending) {
 			receipt, err := b.enqueueLocked(a, from, id, route, body)
 			b.mu.Unlock()
-			return receipt, err
+			return receipt, families, err
 		}
 		a.reservation = id
 		seq := a.sequence
 		b.mu.Unlock()
 		receipt, err := b.tryAdmission(ctx, a, seq, from, id, route, body, family)
 		if err == nil {
-			return receipt, nil
+			return receipt, families, nil
 		}
 		b.mu.Lock()
 		a.releaseReservationLocked(id)
@@ -644,12 +640,13 @@ func (b *Broker) admit(ctx context.Context, from Binding, id string, route Route
 			b.mu.Lock()
 			defer b.mu.Unlock()
 			if b.actors[to] != a || !b.caller(to) || !b.caller(from) {
-				return Receipt{}, ErrUnavailable
+				return Receipt{}, families, ErrUnavailable
 			}
-			return b.enqueueLocked(a, from, id, route, body)
+			receipt, err := b.enqueueLocked(a, from, id, route, body)
+			return receipt, families, err
 		}
 		if !family {
-			return Receipt{}, err
+			return Receipt{}, families, err
 		}
 		tried[to] = true
 	}
