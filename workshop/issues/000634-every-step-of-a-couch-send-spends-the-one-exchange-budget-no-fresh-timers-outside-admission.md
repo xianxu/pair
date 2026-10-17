@@ -15,6 +15,7 @@ claimant:
     workspace: pair:3
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "2113fcef", done: "82ba6caa"}
 ---
 
 # every step of a couch send spends the one exchange budget; no fresh timers outside admission
