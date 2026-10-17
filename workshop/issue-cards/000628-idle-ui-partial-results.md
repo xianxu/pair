@@ -1,6 +1,6 @@
 ---
 id: 000628
-status: codecomplete
+status: done
 created: 2026-10-16
 updated: 2026-10-17
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 892463df63d657addb89400f4d1cfd3f2e60dc91
         evidence_commit: ee6ceb02435c2c34ee20b9f107802ebd227837fa
+        landed_commit: 01621ab05662dcd3de7ee1dbbe650c46b91fc022
 ---
 
 # Idle UI invariant intermittently returns only 16 of 20 activity results
