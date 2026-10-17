@@ -50,7 +50,7 @@ New behaviour: a two-state toggle, Normal ↔ Focus. Maximize goes away as a tar
 
 - [x] Make planner/runtime tests require Focus → Normal and retain native-fullscreen exit coverage; observe red.
 - [x] Reuse existing restore/focus/clear operations for Focus exit; update source-derived help, README, atlas and conformance scenarios.
-- [ ] Run affected packages and native chord conformance, coordinate real-setup smoke with hub, then recorded full suite, close and land.
+- [x] Run affected packages and native chord conformance, coordinate real-setup smoke with hub, and pass the recorded full suite. Mandatory close review and landing follow through their SDLC gates.
 
 ## Log
 
@@ -85,3 +85,7 @@ Qualification failures retained: first candidate chord lost session before input
 Recorded suite passed exit0 in 13m25s on 0bad7dee0ea7ab202adb00e055dbc6585cd4a109 (make PAIR_GO_TRIMPATH=-trimpath test). Log /Users/xianxu/workspace/pair/.git/sdlc/local-checks/0bad7dee0ea7ab202adb00e055dbc6585cd4a109/suite.log; SHA256 02007bddd16aefcb1a54a1d69b8d16fce1f9c5717ac2c9247fc8d0940e336655. All GitHub checks are green, including native conformance. The recorded suite completed with couchcore446.903s, layoutcmd0.300s, termcmd0.997s, keyhelp0.160s, workbenchshortcut1.130s and wrapcmd53.334s. No test failures in this suite. PR #391 is open.
 
 No background work remains. Reporting idle for relaunch at the requested checkpoint, before starting another long wait. Mandatory close review and landing are still pending; no acceptance verdict has been claimed. Last relaunch was refused pending #618 M2, after which TL authorized starting #639. Real-setup smoke remains scheduled for the next Couch restart per the approved revision.
+
+### 2026-10-17 — resume close and landing
+
+Relaunch was again refused due to provisional Codex binding. TL explicitly directed continuing close review and landing, and no more relaunch stops until the hub announces #618 M2 landed. Verification checkbox now records completed checks; close/landing remain their mandatory gates rather than an unchecked implementation task. No requirements or implementation changed.
