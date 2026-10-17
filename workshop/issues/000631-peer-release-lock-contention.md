@@ -15,6 +15,7 @@ claimant:
     workspace: pair:3
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "94d91913", done: "3d36ed4e"}
 ---
 
 # Peer promotion holds broker lock during wrapper release RPC
