@@ -20,6 +20,7 @@ import (
 // observations against automatic writes, including observations not rendered yet.
 type peerDelivery struct {
 	drive         *driveMailbox
+	recordTurn    func(couchmessage.Message) // submitted turns into the Pair log (pair#618); nil without a log path
 	driveProbe    func() agentdrive.Screen
 	mu            sync.Mutex
 	binding       couchmessage.Binding
@@ -595,6 +596,9 @@ func (p *proxy) advancePeer(event couchmessage.PeerDeliveryEvent, out io.Writer)
 			p.finishAutomaticInput(automaticInputPeer, state.Outcome() == couchmessage.Submitted && event.EmptyConfirmed)
 		}
 		d.current.Status = state.Outcome()
+		if d.current.Status == couchmessage.Submitted && d.recordTurn != nil && !d.exited {
+			d.recordTurn(d.current.Message)
+		}
 		if d.current.Detail != "" && (event.Kind == couchmessage.PeerDeadlineElapsed || state.Outcome() == couchmessage.Indeterminate) {
 			d.current.Detail = state.Reason + ": " + d.current.Detail
 		} else {

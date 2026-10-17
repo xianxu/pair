@@ -77,9 +77,30 @@ local function encode(entry, body)
   return entry.timestamp .. '\n\n' .. body .. separator
 end
 
+-- pair-wrap records each submitted Couch peer message under this append ID
+-- prefix (pair#618, pairlog.PeerAppendIDPrefix): a turn the agent took, kept
+-- for round correlation, but not the operator's prompt, so history skips it.
+M.PEER_PREFIX = 'couch-peer-'
+
+function M.is_peer(entry)
+  return entry.append_id ~= nil and entry.append_id:sub(1, #M.PEER_PREFIX) == M.PEER_PREFIX
+end
+
+-- The operator's entries, oldest first: what the draft pane's history shows.
+function M.operator_entries(entries)
+  local out = {}
+  for _, entry in ipairs(entries) do
+    if not M.is_peer(entry) then out[#out + 1] = entry end
+  end
+  return out
+end
+
+-- Rewrite the newest_index-th most recent operator entry; peer entries are
+-- not counted, so a delivery landing mid-navigation can't shift the target.
 function M.replace(text, newest_index, body)
   local entries, err = M.parse(text)
   if not entries then return nil, err end
+  entries = M.operator_entries(entries)
   local index = #entries - newest_index + 1
   local target = entries[index]
   if not target then return nil, 'history index out of range' end
