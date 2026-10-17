@@ -1,6 +1,6 @@
 ---
 id: 000618
-status: codecomplete
+status: done
 created: 2026-10-16
 updated: 2026-10-17
 estimate_hours: 4.39
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 657acc19c1efad0c00f501ee03733b3c462aeeaf
         evidence_commit: 8b708cbe72c193665312ec753669e967f9f497df
+        landed_commit: e2acd1eed2e5eedc25b8551c09390dd2622bcd3e
 ---
 
 # Slots recovered by reboot or resume after a Couch restart can send but not receive
