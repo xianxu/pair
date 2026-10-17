@@ -1,6 +1,6 @@
 ---
 id: 000627
-status: working
+status: codecomplete
 created: 2026-10-16
 updated: 2026-10-16
 estimate_hours:
@@ -13,6 +13,14 @@ claimant:
     workspace: pair:1
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
+actual_hours: 2.22
+tracker:
+    version: 1
+    completion:
+        token: close-40e9fbc24182
+        repository: github.com/xianxu/pair
+        reviewed_head: f00c302c6c0937bc6101e83b79208e9a3cd87fa4
+        evidence_commit: ba305b569ee42de7b3fc5e0663764a0aada75f1f
 ---
 
 # Live shortcut fixture races Zellij cache removal during TempDir cleanup
