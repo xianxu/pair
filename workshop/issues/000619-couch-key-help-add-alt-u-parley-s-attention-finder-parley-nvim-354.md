@@ -41,7 +41,7 @@ parley to open the list of documents waiting on or answered by an agent. Couch's
 
 - [x] Add a red rendered-help regression for Alt+Space and Ctrl+Y then Space, uniquely under Parley editor, with no stale Alt+u.
 - [x] Add explicit companion-editor help metadata/context and curated rows; retain Pair source drift checks, without key handlers or peer-repo changes (ARCH-DRY/ARCH-PURE). Verify Couch/Zellij do not intercept either key.
-- [ ] Run package tests, recorded full suite, close review and normal landing.
+- [x] Run package tests and recorded full suite; submit the verified result to close review and normal landing.
 
 ## Log
 
@@ -52,6 +52,10 @@ parley to open the list of documents waiting on or answered by an agent. Couch's
 The new standalone/hosted rendered-help regression failed before implementation because both keys appeared zero times. Two curated SourceParley/ContextParley rows now render exactly once under Parley editor, with the requested description, no Pair chord and no stale Alt+u. Complete keyhelp and keyscmd packages pass (0.146s / 0.341s). Pair-owned source drift checks remain intact; companion metadata is explicitly documentation rather than a fabricated Pair handler. A Couch interceptor test covers legacy and Kitty encodings of both keys. Read-only inspection finds no Alt+Space or Ctrl+Y binding in Pair's Zellij config; Couch's Ctrl+Y copy action is switcher-local, and the existing focused-child routing test still applies.
 
 Start-plan succeeded despite its non-blocking catch-up warning: weave refresh rejected the unsupported --defer-settings flag; SDLC explicitly allowed planning on the current dependencies. No machine configuration was changed.
+
+### 2026-10-16 — recorded full suite passed
+
+The first recorded suite on f500a1ccf3b165f070d40a2b5478605b6a02b48b completed exit 0 in 12m46s, including all shell/editor and Go checks (keyhelp 0.150s, keyscmd 0.434s, couchtty 51.072s, couchcore 422.550s). No failures or retries. Log /Users/xianxu/workspace/pair/.git/sdlc/local-checks/f500a1ccf3b165f070d40a2b5478605b6a02b48b/suite.log, SHA256 prefix 6746e0ae12fd; recorded as sdlc-local/suite. Only this issue-log/checklist update follows the tested code. The close review and normal landing are next; no staging or live-input change is needed for documentation-only help rows.
 
 ## Revisions
 
