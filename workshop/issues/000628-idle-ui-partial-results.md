@@ -40,8 +40,8 @@ Determine why the real activity fixture returns failed rows under a package run 
 - [x] Attribute the four failed rows: confirm probe errors cannot occur (Latest swallows per-signal errors) and the rows hit the per-probe 2s deadline; tie the dominant cost to #626's measured quadratic framing (Log).
 - [x] Reproduce the partial-results class at current main by restoring the pre-#626 framer through a Go overlay under the retained multi-package command.
 - [x] Deterministic regression for the deadline path itself: an injected per-pass deadline shows a slow probe surfacing as failed (never silently dropped), keeping previous UI evidence and recovering on the next pass; no production deadline or accounting change.
-- [ ] Verify: the retained multi-package command green at current main; recorded full suite on the pushed head.
-- [ ] Close and land.
+- [x] Verify: the retained multi-package command green at current main; recorded full suite on the pushed head.
+- [x] Close and land.
 
 ## Log
 
