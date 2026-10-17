@@ -61,12 +61,27 @@ type titleObservedRuntime struct {
 	transcript sessioninventory.Artifact
 	reads      []titleRead
 	afterRead  func(int64, int64)
+	ops        []string
+	beforeStat func(int)
+}
+
+// StatFile records transcript stats in ops alongside reads, so a test can time
+// an append before one particular stat of an admission.
+func (r *titleObservedRuntime) StatFile(a sessioninventory.Artifact) (sessioninventory.FileEntry, error) {
+	if a.StorageRoot == r.transcript.StorageRoot && a.RelativePath == r.transcript.RelativePath {
+		if r.beforeStat != nil {
+			r.beforeStat(len(r.ops))
+		}
+		r.ops = append(r.ops, "stat")
+	}
+	return r.FakeRuntime.StatFile(a)
 }
 
 func (r *titleObservedRuntime) ReadAt(a sessioninventory.Artifact, offset, limit int64) ([]byte, bool, error) {
 	raw, eof, err := r.FakeRuntime.ReadAt(a, offset, limit)
 	if a.StorageRoot == r.transcript.StorageRoot && a.RelativePath == r.transcript.RelativePath {
 		r.reads = append(r.reads, titleRead{offset, limit})
+		r.ops = append(r.ops, "read")
 		if r.afterRead != nil {
 			r.afterRead(offset, limit)
 		}
@@ -570,6 +585,68 @@ func TestTitleProjectionGrowthNeverStopsTitle(t *testing.T) {
 				}
 			}
 			t.Fatalf("grown usage never surfaced after %s growth", phase)
+		})
+	}
+}
+
+// The admission sites after validation must classify an append as growth
+// (#653): between validation and the folded stat, and during the boundary read.
+// (Growth during validation is TestTitleProjectionGrowthNeverStopsTitle/admit.)
+// A clean admission's transcript operations locate each site.
+func TestTitleProjectionGrowthAtEachAdmissionSite(t *testing.T) {
+	fixture := func() (*sessioninventorytest.FakeRuntime, *titleObservedRuntime, sessioninventory.Artifact) {
+		at := time.Now()
+		fake, a, _ := proofBackedCodexFixtureWithGeneration(t, "019d1111-1111-7111-8111-111111111111", &at, "")
+		return fake, &titleObservedRuntime{FakeRuntime: fake, transcript: a}, a
+	}
+	_, control, _ := fixture()
+	if _, err := sessioninventory.NewTitleProjection(control, "scope", "work", sessioninventory.AgentCodex, 1).Poll(); err != nil {
+		t.Fatal(err)
+	}
+	boundary := -1
+	for i, op := range control.ops {
+		if op == "read" {
+			boundary = i
+		}
+	}
+	folded := -1
+	for i := range boundary {
+		if control.ops[i] == "stat" {
+			folded = i
+		}
+	}
+	if boundary < 0 || folded < 0 {
+		t.Fatalf("control admission ops=%v, want a folded stat before the boundary read", control.ops)
+	}
+	grow := []byte("{\"type\":\"event_msg\",\"payload\":{\"type\":\"token_count\",\"info\":{\"last_token_usage\":{\"input_tokens\":42000}}}}\n")
+	for _, name := range []string{"post-fold", "boundary"} {
+		t.Run(name, func(t *testing.T) {
+			fake, rt, a := fixture()
+			if name == "post-fold" {
+				rt.beforeStat = func(op int) {
+					if op == folded {
+						fake.AppendFile(a, grow, "grow")
+					}
+				}
+			} else {
+				rt.afterRead = func(int64, int64) {
+					if len(rt.ops)-1 == boundary {
+						fake.AppendFile(a, grow, "grow")
+					}
+				}
+			}
+			p := sessioninventory.NewTitleProjection(rt, "scope", "work", sessioninventory.AgentCodex, 1)
+			if _, err := p.Poll(); err != nil {
+				t.Fatalf("growth at %s stopped the title: %v", name, err)
+			}
+			rt.afterRead, rt.beforeStat, rt.reads = nil, nil, nil
+			got, err := p.Poll()
+			if err != nil || !got.HasUsage || got.Usage.InputTokens != 42000 {
+				t.Fatalf("re-admission after %s growth=%+v %v", name, got, err)
+			}
+			if len(rt.reads) == 0 || rt.reads[0].offset != 0 {
+				t.Fatalf("reads=%+v: %s growth did not drop the admission", rt.reads, name)
+			}
 		})
 	}
 }

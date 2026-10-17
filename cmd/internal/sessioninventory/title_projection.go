@@ -25,9 +25,10 @@ type TitleProjectionResult struct {
 // TitleProjection admits existing inventory authority once, then follows only
 // its pinned append-only transcript. No transcript/event history is retained;
 // full validation is never silently invoked after admission. Ordinary growth
-// that races an admission, or a ledger-authorized rebind under the same launch,
-// drops the admission and re-admits on the next Poll (#653); only a lost owner
-// or a mutation of admitted authority stops the projection for good.
+// that races an admission drops the admission and re-admits on the next Poll
+// (#653). Every other failure stops the projection for good: a lost or changed
+// owner, a mutation of admitted authority, I/O and read-limit errors, malformed
+// records and failed root validation.
 type TitleProjection struct {
 	runtime      Runtime
 	ownerRuntime titleOwnerRuntime
@@ -79,7 +80,9 @@ func (p *TitleProjection) stop(err error) (TitleProjectionResult, error) {
 }
 
 // onlyGrew reports that the observed artifacts changed only by appending:
-// each is unchanged or the same file grown, and at least one grew.
+// each is unchanged or the same file grown, and at least one grew. A failed
+// full validation under growth re-admits, so a genuine validation failure
+// surfaces as terminal once the transcript pauses between polls.
 func (p *TitleProjection) onlyGrew(observed []ArtifactObservation) bool {
 	grew := false
 	for _, o := range observed {
@@ -131,11 +134,8 @@ func (p *TitleProjection) owner() (sessionledger.Current, bool, error) {
 		return current, false, ErrArtifactChanged
 	}
 	p.ownerSeen = true
-	if p.admitted && current.Binding == nil {
+	if p.admitted && (current.Binding == nil || current.Binding.RootNativeID != p.nativeID) {
 		return current, false, ErrArtifactChanged
-	}
-	if p.admitted && current.Binding.RootNativeID != p.nativeID {
-		return current, false, errTitleReadmit
 	}
 	return current, ok, nil
 }

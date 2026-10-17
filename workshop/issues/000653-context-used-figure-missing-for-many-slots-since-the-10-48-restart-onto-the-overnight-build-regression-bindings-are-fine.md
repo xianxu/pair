@@ -47,7 +47,8 @@ Suspects among the landings in that build, unverified:
 ## Plan
 
 - [x] RED: `TestTitleProjectionGrowthNeverStopsTitle` (admit + tail): a transcript line appended during a read must not stop the projection; usage surfaces within two polls. Red on main (admit).
-- [x] Fix in the shared projection (TL placement rule, so pair#649 inherits it): growth racing admission, or a same-launch rebind, resets and re-admits on the next Poll; only a lost owner or a mutation of admitted authority stays terminal.
+- [x] Fix in the shared projection (TL placement rule, so pair#649 inherits it): growth racing admission resets and re-admits on the next Poll; every other failure stays terminal.
+- [x] Pin each growth site separately (close review BR-1): `TestTitleProjectionGrowthAtEachAdmissionSite` covers post-fold and boundary growth; mutation-checked, each disabled site turns one test red.
 - [x] Rewrite `TestTitleProjectionAdmissionRejectsSnapshotDrift`: keep the invariant (no drifted pin), drop the stickiness (the next Poll re-admits from offset 0).
 
 ## Log
@@ -56,5 +57,7 @@ Suspects among the landings in that build, unverified:
 
 - Root cause: #617 (PR #383, 0fe70c1c, landed 2026-10-16 19:13) replaced the stateless per-tick `contextcmd.Run` in the title poller with the stateful `sessioninventory.TitleProjection`. Its admission rejected ordinary transcript growth as `ErrArtifactChanged` (main `title_projection.go:144` `len(full) != 1` from ValidateTargetWork, `:189` `current.Size != p.rawOffset`, and the current/after fingerprint check), `stop()` (`:60`) makes the first error sticky, and `titlepoller/run.go:152` exits the poller on it; `wrapcmd/title_process.go` never respawns it. Binding confirmation follows an agent turn, so admission routinely races growth: the 10:48 restart was the first fleet-wide relaunch onto a build with #617.
 - Live evidence: 1-pair-6 probe, 100 admissions against a live transcript: 2/100 terminal failures on main, 0/100 with the fix.
-- Classification agreed with pair:6 (#649): growth and same-launch rebind are transient; shrink, identity change, boundary-hash mismatch, same-size fingerprint change, short read and failed root validation stay terminal. The poller's exit stays only for a lost owner identity.
+- Classification agreed with pair:6 (#649): growth is transient; shrink, identity change, boundary-hash mismatch, same-size fingerprint change, short read and failed root validation stay terminal. The poller's exit stays only for a lost owner identity.
 - Out of scope, filed: pair#654 (Qoder has no usage parsing), pair#655 (hoprttcmd timing flake).
+- Close review round 1 (FIX-THEN-SHIP): BR-1, three re-admit sites survived mutation. Growth sites: added `TestTitleProjectionGrowthAtEachAdmissionSite`. Times appends with a transcript stat/read op log from a clean control admission. Disabling each of the three growth sites now fails a test. Same-launch rebind: dropped instead of tested. `sessionledger.generation` (record.go:622) turns a second root under one launch into `Conflict`, which `owner()` already rejects, so a non-conflicting different root after admission is unreachable. The reclassification was dead code that loosened a terminal check; `owner()` is back to main's behavior, and the existing "conflict" case still pins it.
+- Minors: TitleProjection comment now lists every terminal class; `onlyGrew` notes that a genuine validation failure surfaces once growth pauses. agy database growth (p.other in checkArtifacts) is still terminal; same family, outside Claude/Codex scope, filed as pair#656. The live post-restart fleet check stays open per Done when; it waits on the next Couch restart onto a build with this fix.
