@@ -6,6 +6,7 @@ import (
 	"math/rand"
 	"strings"
 	"testing"
+	"time"
 )
 
 func registryBinding(slot, tag string, pid int) Binding {
@@ -361,5 +362,49 @@ func TestRegistryLiveness(t *testing.T) {
 	admit(3, next, nil, "h3")
 	if l, ok := r.Liveness()["pair:1"]; !ok || l.Binding != next || l.Build != nil || l.Settled != nil {
 		t.Fatalf("new incarnation: %+v %v", l, ok)
+	}
+}
+
+func TestRegistryLastWorkBelongsToTheAdmittedSession(t *testing.T) {
+	r := NewRegistry()
+	b := registryBinding("pair:1", "peer-only", 101)
+	build := &BuildIdentity{SHA256: strings.Repeat("0", 64)}
+	admit := func(token SessionToken, build *BuildIdentity) {
+		step(t, r, RegistryEvent{Kind: SessionOpened, Token: token, Binding: b, Build: build})
+		step(t, r, RegistryEvent{Kind: AdmissionDone, Token: token})
+	}
+	admit(1, build)
+	busy, settled := false, true
+	at := time.Date(2026, 10, 16, 12, 0, 0, 0, time.UTC)
+	report := func(token SessionToken, state *bool, observed time.Time) {
+		// No genuine operator submission or Pair-log activity is involved.
+		step(t, r, RegistryEvent{Kind: SessionActivity, Token: token, Settled: state, At: observed})
+	}
+	report(1, &busy, at)
+	if got := r.Liveness()[b.Slot].LastWorkAt; !got.Equal(at) {
+		t.Fatalf("peer-only work = %v, want %v", got, at)
+	}
+	done := at.Add(30 * time.Hour)
+	report(1, &settled, done) // silent command wait ends without transcript/output change
+	for _, refresh := range []time.Time{done.Add(-time.Hour), done.Add(48 * time.Hour)} {
+		report(1, &settled, refresh)
+		if got := r.Liveness()[b.Slot].LastWorkAt; !got.Equal(done) {
+			t.Fatalf("settled refresh moved last work to %v, want completion %v", got, done)
+		}
+	}
+	admit(2, build) // even a byte-identical binding is a new connection
+	report(2, &settled, done.Add(50*time.Hour))
+	report(1, &busy, done.Add(51*time.Hour)) // displaced source cannot lend work
+	if got := r.Liveness()[b.Slot].LastWorkAt; !got.IsZero() {
+		t.Fatalf("replacement inherited old session activity: %v", got)
+	}
+	step(t, r, RegistryEvent{Kind: SessionClosed, Token: 2})
+	if _, ok := r.Liveness()[b.Slot]; ok {
+		t.Fatal("disconnected session kept activity authority")
+	}
+	admit(3, nil)
+	report(3, &busy, done)
+	if got := r.Liveness()[b.Slot]; got.Settled != nil || !got.LastWorkAt.IsZero() {
+		t.Fatalf("legacy session gained work evidence: %+v", got)
 	}
 }

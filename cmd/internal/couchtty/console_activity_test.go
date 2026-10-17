@@ -281,3 +281,55 @@ func TestActivitySurvivesACouchRestartThroughItsSources(t *testing.T) {
 		}
 	}
 }
+
+func TestWrapperWorkKeepsPeerDrivenThreadBrightAndThenAges(t *testing.T) {
+	clock := &testClock{now: idleNow}
+	probe := newFakeActivityProbe()
+	f := activityFixtureWith(t, probe, clock)
+	probe.set(f.attached.Address, idleNow.Add(-4*24*time.Hour), false)
+	waitFor(t, "old file activity fades", func() bool { return f.chipIdle(t) == IdleStale })
+	var work struct {
+		sync.Mutex
+		busy bool
+		at   time.Time
+	}
+	f.con.SetWrapperActivity(func(row couchcore.ActionableThreadSummary) time.Time {
+		if row.Address != f.attached.Address {
+			return time.Time{}
+		}
+		work.Lock()
+		defer work.Unlock()
+		if work.busy {
+			return clock.Now()
+		}
+		return work.at
+	})
+	work.Lock()
+	work.busy = true
+	work.Unlock()
+	f.con.requestActivity()
+	waitFor(t, "peer-only turn brightens the chip", func() bool { return f.chipIdle(t) == IdleFresh })
+	// No operator send, file update or agent output during a long command wait.
+	clock.advance(48 * time.Hour)
+	f.con.requestActivity()
+	waitFor(t, "silent command wait remains current", func() bool { return f.activity()[f.attached.Address].Equal(clock.Now()) })
+	clock.advance(time.Minute)
+	work.Lock()
+	work.busy = false
+	work.at = clock.Now()
+	work.Unlock()
+	// A failed native lookup must not hide positive admitted-wrapper work.
+	probe.set(f.attached.Address, time.Time{}, true)
+	f.con.requestActivity()
+	waitFor(t, "completion work survives failed native lookup", func() bool { return f.activity()[f.attached.Address].Equal(clock.Now()) && f.chipIdle(t) == IdleFresh })
+	clock.advance(30 * time.Hour)
+	f.con.requestActivity()
+	waitFor(t, "settled refreshes do not renew completed work", func() bool { return f.chipIdle(t) == IdleDay })
+	// Unknown/disconnected wrapper evidence returns to the file-only rule.
+	probe.set(f.attached.Address, idleNow.Add(-4*24*time.Hour), false)
+	work.Lock()
+	work.at = time.Time{}
+	work.Unlock()
+	f.con.requestActivity()
+	waitFor(t, "no wrapper evidence leaves old idle control faded", func() bool { return f.chipIdle(t) == IdleStale })
+}

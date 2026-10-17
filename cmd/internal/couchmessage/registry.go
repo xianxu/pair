@@ -56,6 +56,7 @@ type registrySession struct {
 	// pickerSince is the wrapper's LastActivity on the frame that opened it.
 	picker      *bool
 	pickerSince time.Time
+	lastWorkAt  time.Time
 	phase       AdmissionPhase
 	pane        PaneHandle // optional client metadata captured when admission began
 	attempt     int        // failed admissions since the last event that reset it
@@ -93,6 +94,7 @@ type RegistryEvent struct {
 	Build       *BuildIdentity // SessionOpened: non-nil for a hello-v2 session
 	Settled     *bool          // SessionActivity/SessionSubmit on a hello-v2 session
 	Picker      *bool          // SessionActivity/SessionSubmit on a hello-v3 session
+	At          time.Time      // supervisor receipt time; display activity only
 }
 
 type RegistryEffectKind int
@@ -207,6 +209,10 @@ func (r *Registry) Advance(e RegistryEvent) ([]RegistryEffect, error) {
 		}
 		if s.build != nil && e.Settled != nil {
 			v := *e.Settled
+			wasBusy := s.settled != nil && !*s.settled
+			if (!v || wasBusy) && e.At.After(s.lastWorkAt) {
+				s.lastWorkAt = e.At
+			}
 			s.settled = &v
 		}
 		if s.build != nil && e.Picker != nil {
@@ -319,8 +325,11 @@ func (r *Registry) Phase(t SessionToken) (AdmissionPhase, bool) {
 // which is never "idle".
 type SlotLiveness struct {
 	Binding Binding
-	Build   *BuildIdentity
-	Settled *bool
+	// LastWorkAt is the last observed work/completion of this session (#625).
+	// Settled refreshes cannot advance it; replacement sessions start empty.
+	LastWorkAt time.Time
+	Build      *BuildIdentity
+	Settled    *bool
 	// Picker: an input-holding picker is up (pair#465); nil is unknown.
 	Picker *bool
 	// PickerSince is when the picker opened, on the wrapper's clock: its
@@ -348,7 +357,7 @@ func (r *Registry) Liveness() map[string]SlotLiveness {
 			ambiguous[slot] = true
 			continue
 		}
-		out[slot] = SlotLiveness{Binding: s.binding, Build: s.build, Settled: s.settled, Picker: s.picker, PickerSince: s.pickerSince, Session: t}
+		out[slot] = SlotLiveness{Binding: s.binding, LastWorkAt: s.lastWorkAt, Build: s.build, Settled: s.settled, Picker: s.picker, PickerSince: s.pickerSince, Session: t}
 	}
 	for slot := range ambiguous {
 		delete(out, slot)

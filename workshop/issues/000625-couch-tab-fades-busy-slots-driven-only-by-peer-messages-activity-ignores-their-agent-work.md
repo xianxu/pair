@@ -45,9 +45,9 @@ found for codex binding confirmation (only Pair-log turns written by the draft p
 
 ## Plan
 
-- [ ] Retain last-work time on the existing admitted-wrapper session; combine it with file activity, treating known-unsettled as current work. No new probe/timer or protocol; legacy remains unchanged.
+- [x] Retain last-work time on the existing admitted-wrapper session; combine it with file activity, treating known-unsettled as current work. No new probe/timer or protocol; legacy remains unchanged.
 - [ ] Red then green: peer-only busy/completion, silent command wait beyond a day, settled idle/refresh, replacement/disconnect and exact scope; run affected tests and recorded full suite, then normal close/landing.
-- [ ] Record live restart check for TL/operator: on the new Couch, send work only through a peer message to an unfocused slot with old file activity; confirm its tab and switcher stay bright while busy, including a silent command wait, and after completion. Compare an idle-over-a-day control. Live result is post-landing, owned by TL/operator.
+- [x] Record live restart check for TL/operator: on the new Couch, send work only through a peer message to an unfocused slot with old file activity; confirm its tab and switcher stay bright while busy, including a silent command wait, and after completion. Compare an idle-over-a-day control. Live result is post-landing, owned by TL/operator.
 
 ## Log
 
@@ -56,6 +56,12 @@ found for codex binding confirmation (only Pair-log turns written by the draft p
 Claimed and started from main. `weave refresh` catch-up reported unsupported --defer-settings; start-plan explicitly allowed current checkouts (missing changes recent/docs-only). No substrate edits. ARCH-DRY: activity currently uses threadactivity.Latest (Pair-log sends, pane birth, established native activity); the UI never reads wrapper Settled. Reuse the existing authenticated admitted session and its Settled signal used by relaunch. It includes open turns, occupied composers/pickers and recent IO, not a distinct background-command count. Keep the current file sources and legacy behavior; completed work remains recent through a session-scoped timestamp, while idle refreshes cannot advance it. Unknown/replaced/disconnected sessions supply no borrowed activity.
 
 TL approved this quick plan in delivery f7100a95-50db-4297-917a-9362a2c5b506: no pair:0 staging, land on suite and review; TL/operator own the post-landing restart and live check above. The issue's live criterion remains outstanding until their result; no pre-landing live claim.
+
+Red evidence: with only the new API fields/scaffold present, registry test failed because peer-only last work was zero and the fade adapter returned the old four-day timestamp for busy/completed turns. After implementation, the Console regression passes; a disposable Go overlay disabling only the wrapper merge fails specifically waiting for the peer-only chip to brighten (10.02s under a 20s test deadline). Evidence overlay: /var/folders/07/b9wcwwld4_v2w9r3hk525bm80000gn/T/pair625-red.7xg4my/overlay.json. An initial mutation invocation used the default 10m deadline and was deliberately interrupted; that interrupted attempt is not the RED proof. No worktree source was reverted or stashed.
+
+Live steps for TL/operator after restart (pending): verify the running Couch build includes #625; use an unfocused existing slot whose file activity is older than a day (the reported ariadne:2 is a candidate), keeping its connected wrapper so launch evidence does not make this a vacuous fresh-slot check. Send a peer-only request to run a silent 90s command and then report completion. Observe its tab and switcher within the existing 60s refresh while busy and after completion; both must be unfaded. Compare an actually idle-over-a-day slot, which must remain faded. Do not touch live artifact mtimes to manufacture age. If no old-file control exists after restart, report that live gap rather than calling a fresh-slot check conclusive.
+
+Affected package run PASS: couchmessage 11.123s, couchcmd 48.119s, couchtty 37.909s, threadactivity 0.621s, artifactpath 6.220s. Focused race checks PASS for registry work/session lifetime, wrapper activity/transport, Console activity and switcher fade. Positive Console regression includes a failed native lookup; obsolete/disconnected/legacy/scoped foreign evidence cannot brighten the idle control. README and atlas describe the broad Settled semantics and unchanged 60s schedule. Full suite and normal close remain pending.
 
 ## Revisions
 
