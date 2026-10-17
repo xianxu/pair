@@ -294,6 +294,13 @@ There is **no silent auto-attach**. Every reattach goes through the picker so th
 
 Detection of attached-vs-detached uses `zellij --session NAME action list-clients`, which prints a header plus one row per connected client. Zero rows = detached. That call costs about 250 ms against a real detached session (`pair#228`, `cmd/probes/reattachcost`), and `list-sessions` carries no client information, so one snapshot routine (`ZellijSource.snapshot`) serves three forms by who needs what. The full form (`SnapshotContext`, `OSRuntime.Sessions`) asks every session; bare `pair`'s picker uses it, as do `pair rename`'s gate and the create flow's re-check after deleting a conflicting session. `SnapshotSessionsContext` asks only named sessions and is used by couch's detached proof. `LivenessContext` asks none, reporting `SessionLive`, and is used by `pair resume`, the orphan-nvim sweep, and couch's registration poll. `DecideLaunch`'s `launchShape` switch is what decides which form `runOnce` takes. Every reader of attached-versus-detached (`DecideLaunch`'s bare branch, the picker, couch's `ProjectDetachedSessions`) first applies `launcher.RequireAttachState`, which refuses a `SessionLive` row. `pair list` is a separate full scan (`OSRuntime.ListSessions`) with its own `list-clients` per session.
 
+`ZellijSource.ClientCountContext` exposes that same one-session count without
+listing other sessions. The park live fixture shares it for baseline and
+post-start observations (#645): an unanswered baseline stops before helper
+startup, while header-only output proves zero clients. Counting excludes the
+header, and the existing CLI parsing, cancellation and per-query budget are
+shared with production inventory.
+
 **Tag reuse & stale-EXITED residue (#67).** A repo-local Pair tag maps to a public zellij session name assigned by `session-names.jsonl` (`pair-<repo>-<tag>` with suffixes when needed). `Alt+x` can leave a resurrect record like `pair-pair-work (EXITED - attach to resurrect)`; that row still shows in `list-sessions`, so collision checks run against the assigned public name, not a reconstructed `pair-<tag>`. The single helper `session_blocks_reuse <session>` centralizes the decision (`ARCH-DRY`): an `EXITED` row is stale full-quit residue — it deletes the zellij record (`delete-session --force`) and reports the session name reusable; a running/detached row still blocks; an absent session never blocks. `pair rename` keeps its own offline-only resurrectable-session contract and gates by current-scope tag ownership.
 
 **Keybind help — `Alt+h` → `pair keys` → `cmd/internal/keyhelp` (#132, #245, #282).**
