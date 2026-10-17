@@ -1,4 +1,5 @@
 #!/bin/sh
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pair-test-bootstrap.sh"
 # End-to-end smoke test for bin/pair changelog open (#53/#58).
 #
 # The orchestrator launches render+distill as a DETACHED background process

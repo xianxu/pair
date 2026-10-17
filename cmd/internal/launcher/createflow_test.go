@@ -909,7 +909,7 @@ func TestRunLaunchForcedCreateClaude(t *testing.T) {
 	if rt.env["PAIR_LAUNCH_ORDINAL"] != "1" || rt.env["PAIR_SCOPE_KEY"] == "" {
 		t.Fatalf("watcher launch contract: ordinal=%q scope=%q", rt.env["PAIR_LAUNCH_ORDINAL"], rt.env["PAIR_SCOPE_KEY"])
 	}
-	if len(rt.pollers) != 1 || rt.pollers[0] != "bugfix|claude" {
+	if rt.env["PAIR_TAG"] != "bugfix" || rt.env["PAIR_AGENT"] != "claude" {
 		t.Fatalf("pollers = %v", rt.pollers)
 	}
 	if len(rt.titles) != 1 || len(rt.cmux) != 1 || !reflect.DeepEqual(rt.ttyRecorded, []string{"bugfix|false"}) {
@@ -1109,7 +1109,7 @@ func TestRunLaunchBareAttachesLegacyLiveSessionWithCurrentRepoPaneEvidence(t *te
 	if !reflect.DeepEqual(rt.attached, []string{"pair-work"}) {
 		t.Fatalf("attached = %v, want legacy live pair-work", rt.attached)
 	}
-	if len(rt.pollers) != 1 || rt.pollers[0] != "work|codex" {
+	if rt.env["PAIR_TAG"] != "work" || rt.env["PAIR_AGENT"] != "codex" {
 		t.Fatalf("pollers = %v, want codex inferred from legacy tag", rt.pollers)
 	}
 }
@@ -1135,7 +1135,7 @@ func TestRunLaunchResumePublicSessionNameResolvesThroughIndex(t *testing.T) {
 	if !reflect.DeepEqual(rt.attached, []string{"📁work-demo"}) {
 		t.Fatalf("attached = %v, want indexed public session name", rt.attached)
 	}
-	if len(rt.pollers) != 1 || rt.pollers[0] != "demo|codex" {
+	if rt.env["PAIR_TAG"] != "demo" || rt.env["PAIR_AGENT"] != "codex" {
 		t.Fatalf("pollers = %v, want tag/agent resolved through index", rt.pollers)
 	}
 }

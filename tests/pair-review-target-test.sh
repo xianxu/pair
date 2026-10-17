@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pair-test-bootstrap.sh"
 # tests/pair-review-target-test.sh — review-target session stamping.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

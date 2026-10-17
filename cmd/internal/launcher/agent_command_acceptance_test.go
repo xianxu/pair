@@ -71,7 +71,7 @@ func TestCreateLayoutWrapperPreservesAgentCommand(t *testing.T) {
 			cmd := exec.Command("sh", "-c", stanza)
 			cmd.Stdin = tty
 			// Use only the launcher's encoded production output as command authority.
-			cmd.Env = []string{"PATH=" + dir + ":" + os.Getenv("PATH"), "HOME=" + dir, AgentCommandEnv + "=" + rt.env[AgentCommandEnv], "PAIR_REAL=" + binary, "WRAPPER_ARGS=" + filepath.Join(dir, "wrapper.args"), "CHILD_ARGS=" + filepath.Join(dir, "child.args"), "PAIR_AGENT_PANE_PATH=" + filepath.Join(dir, "pane.json"), "PAIR_SCROLLBACK_RAW_PATH=" + filepath.Join(dir, "scroll.raw")}
+			cmd.Env = testpair.Environment(t, dir, "PATH="+dir+":"+os.Getenv("PATH"), "HOME="+dir, AgentCommandEnv+"="+rt.env[AgentCommandEnv], "PAIR_REAL="+binary, "WRAPPER_ARGS="+filepath.Join(dir, "wrapper.args"), "CHILD_ARGS="+filepath.Join(dir, "child.args"), "PAIR_AGENT_PANE_PATH="+filepath.Join(dir, "pane.json"), "PAIR_SCROLLBACK_RAW_PATH="+filepath.Join(dir, "scroll.raw"))
 			if out, err := cmd.CombinedOutput(); err != nil {
 				t.Fatalf("layout/wrapper: %v\n%s", err, out)
 			}

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pair-test-bootstrap.sh"
 # Regression test for copy-on-select's in_nvim detection.
 #
 # Bug: the agent (e.g. claude) overwrites its zellij pane title with

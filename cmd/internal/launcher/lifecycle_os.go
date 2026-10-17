@@ -60,18 +60,9 @@ func (r OSRuntime) ReapNvimContext(ctx context.Context, paths lifecycleEditorPat
 }
 
 func (r OSRuntime) KillTitlePollerContext(ctx context.Context, pidPath string) error {
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	if raw, readErr := r.ReadFile(pidPath); readErr == nil {
-		if pid := strings.TrimSpace(raw); pid != "" {
-			if killErr := exec.CommandContext(ctx, "kill", pid).Run(); killErr != nil && ctx.Err() != nil {
-				return ctx.Err()
-			}
-		}
-		r.Remove(pidPath)
-	}
-	return nil
+	// Cancellation remains part of the existing lifecycle interface. Teardown
+	// belongs to the wrapper lease, never a launcher reading a numeric pidfile.
+	return ctx.Err()
 }
 
 func (r OSRuntime) CleanupCmuxContext(ctx context.Context, tag, title string) error {

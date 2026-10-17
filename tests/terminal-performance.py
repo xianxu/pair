@@ -61,7 +61,9 @@ def trial(binary,cols,rows,bulk,idle,hover_seconds,hover_hz,memory_tabs=0):
  with tempfile.TemporaryDirectory(prefix='pair-terminal-perf-') as directory:
   root=pathlib.Path(directory);shell=root/'shell'
   shell.write_text('#!'+sys.executable+'\n'+HELPER);shell.chmod(0o700)
-  env={k:v for k,v in os.environ.items() if not k.startswith(('PAIR_','ZELLIJ','COUCH_'))}
+  helper=pathlib.Path(__file__).resolve().parent/'lib/pair-test-env.sh'
+  raw=subprocess.check_output(['/bin/sh',str(helper),'--print0',str(root)],env={'PATH':os.environ.get('PATH','/usr/bin:/bin')})
+  env=dict(entry.decode().split('=',1) for entry in raw.split(b'\0') if entry)
   env.update(SHELL=str(shell),TERM='xterm-256color',PAIR_PERF_ROOT=directory,PAIR_DATA_DIR=str(root/'data'),XDG_CACHE_HOME=str(root/'cache'))
   oracle=Oracle(cols,rows);master,slave=pty.openpty()
   fcntl.ioctl(slave,termios.TIOCSWINSZ,struct.pack('HHHH',rows,cols,0,0))

@@ -20,7 +20,9 @@ func pairBin(t *testing.T) string {
 
 func runPair(t *testing.T, bin string, args ...string) []float64 {
 	t.Helper()
-	out, err := exec.Command(bin, args...).Output()
+	cmd := exec.Command(bin, args...)
+	cmd.Env = testpair.Environment(t, t.TempDir())
+	out, err := cmd.Output()
 	if err != nil {
 		t.Fatalf("run %v: %v", args, err)
 	}
@@ -85,7 +87,9 @@ func TestPipeHopIsFarCheaperThanSpawn(t *testing.T) {
 // number in the report.
 func TestAllFailingInvocationsExitNonZeroRatherThanReportingSpeed(t *testing.T) {
 	bin := pairBin(t)
-	if err := exec.Command(bin, "hoprtt", "-spawn", "3", "--", "/usr/bin/false").Run(); err == nil {
+	cmd := exec.Command(bin, "hoprtt", "-spawn", "3", "--", "/usr/bin/false")
+	cmd.Env = testpair.Environment(t, t.TempDir())
+	if err := cmd.Run(); err == nil {
 		t.Fatal("a probe whose command always failed exited 0, reporting its speed as healthy")
 	}
 }

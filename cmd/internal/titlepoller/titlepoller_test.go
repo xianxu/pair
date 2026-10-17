@@ -53,28 +53,6 @@ func TestCmuxWorkspaceTitle(t *testing.T) {
 		t.Errorf("a legacy name must not be rewritten either: %q", got)
 	}
 }
-func TestPollerArgvMatches(t *testing.T) {
-	const bin = "/Users/x/.local/share/pair/runtime/abc/pair-home/bin/pair"
-	cases := []struct {
-		name string
-		argv string
-		tag  string
-		want bool
-	}{
-		{"live poller for the tag", bin + " title 211 claude", "211", true},
-		{"recycled pid (unrelated process)", "/usr/sbin/cupsd", "211", false},
-		{"tag prefix collision 21 vs 211", bin + " title 211 claude", "21", false},
-		{"empty argv", "", "211", false},
-		{"empty tag", bin + " title 211 claude", "", false},
-		{"the pre-fold pair-title binary is not the running poller", "/x/bin/pair-title 211 claude", "211", false},
-	}
-	for _, c := range cases {
-		if got := pollerArgvMatches(c.argv, c.tag); got != c.want {
-			t.Errorf("%s: pollerArgvMatches(%q, %q) = %v, want %v", c.name, c.argv, c.tag, got, c.want)
-		}
-	}
-}
-
 func TestShouldClaimWorkspace(t *testing.T) {
 	cases := []struct {
 		owner, tag string

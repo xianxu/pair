@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -25,10 +26,13 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/pairlifecycletest"
+	"github.com/xianxu/pair/cmd/internal/testpair"
 )
 
 func TestQuiesceLeavesTheBindingAndEndsTheSessionLive(t *testing.T) {
 	liveOnly(t)
+	testpair.ApplyEnvironment(t, t.TempDir(), "TMPDIR=/tmp", "SHELL=/bin/sh",
+		"XDG_CONFIG_HOME="+t.TempDir(), "XDG_DATA_HOME="+t.TempDir(), "XDG_CACHE_HOME="+t.TempDir())
 
 	dataDir := t.TempDir()
 	address := ThreadAddress{RepoScope: "0123456789abcdef", Tag: ThreadTag(fmt.Sprintf("couch-%016x", os.Getpid()))}
@@ -107,13 +111,42 @@ func indexSessionForConformance(t *testing.T, dataDir string, address ThreadAddr
 // script carries the environment and execs the binary, so the pane's argv is
 // only the binary and an unanchored -test.run prefix.
 func standInPaneScript(dir string, env []string, executable, test string) (string, error) {
+	clean, err := testpair.EnvironmentFrom(os.Getenv("PAIR_TEST_ENV_SCRIPT"), dir, env...)
+	if err != nil {
+		return "", err
+	}
 	quote := func(v string) string { return "'" + strings.ReplaceAll(v, "'", `'\''`) + "'" }
 	var b strings.Builder
-	b.WriteString("#!/bin/sh\nexec env")
-	for _, entry := range env {
+	b.WriteString("#!/bin/sh\nexec /usr/bin/env -i")
+	for _, entry := range clean {
 		b.WriteString(" " + quote(entry))
 	}
 	b.WriteString(" " + quote(executable) + " " + quote("-test.run=^"+test) + "\n")
 	path := filepath.Join(dir, "stand-in-"+test+".sh")
 	return path, os.WriteFile(path, []byte(b.String()), 0o700)
+}
+
+func TestStandInPaneScriptDropsAmbientAuthority(t *testing.T) {
+	root := t.TempDir()
+	testpair.ApplyEnvironment(t, root)
+	executable, report := filepath.Join(root, "agent"), filepath.Join(root, "report")
+	body := "#!/bin/sh\nprintf '%s\\n' \"$HOME\" \"${PAIR_SCROLLBACK_EVENTS_PATH-unset}\" \"$FIXTURE_EXPLICIT\" \"${UNLISTED_FIXTURE_SECRET-unset}\" > \"$FIXTURE_REPORT\"\n"
+	if err := os.WriteFile(executable, []byte(body), 0700); err != nil {
+		t.Fatal(err)
+	}
+	script, err := standInPaneScript(root, []string{"FIXTURE_EXPLICIT=literal space $(no-run)", "FIXTURE_REPORT=" + report}, executable, "fixture")
+	if err != nil {
+		t.Fatal(err)
+	}
+	command := exec.Command(script)
+	command.Env = testpair.Environment(t, root,
+		"PAIR_SCROLLBACK_EVENTS_PATH="+filepath.Join(t.TempDir(), "foreign-events"),
+		"UNLISTED_FIXTURE_SECRET=never-forward")
+	if out, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("stand-in: %v %s", err, out)
+	}
+	raw, err := os.ReadFile(report)
+	if err != nil || string(raw) != root+"\nunset\nliteral space $(no-run)\nunset\n" {
+		t.Fatalf("stand-in environment=%q error=%v", raw, err)
+	}
 }

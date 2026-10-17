@@ -118,6 +118,7 @@ func TestCouchLaunchPromptTransportHelper(t *testing.T) {
 	env["PAIR184_ACCEPT_OUTPUT"] = os.Getenv("PAIR184_ACCEPT_OUTPUT")
 	env["PAIR184_CAPTURE_CHILD"] = "1"
 	env["ZELLIJ_SESSION_NAME"] = rt.launched
+	cmd.Env = testpair.Environment(t, dir)
 	for k, v := range env {
 		cmd.Env = append(cmd.Env, k+"="+v)
 	}

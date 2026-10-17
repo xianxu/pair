@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/xianxu/pair/cmd/internal/testpair"
 	"io"
 	"os"
 	"os/exec"
@@ -357,7 +358,7 @@ func runPublicPairCommand(t *testing.T, timeout time.Duration, dir string, env [
 	helperArgs := append([]string{filepath.Join(dir, "tests", "without-ancestors.py"), "--timeout", fmt.Sprint(timeout.Seconds() - 1), name}, args...)
 	cmd := exec.CommandContext(ctx, python, helperArgs...)
 	cmd.Dir = dir
-	cmd.Env = env
+	cmd.Env = testpair.Environment(t, t.TempDir(), env...)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
