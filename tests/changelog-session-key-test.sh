@@ -1,4 +1,5 @@
 #!/bin/sh
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pair-test-bootstrap.sh"
 # Focused keying test for bin/pair changelog open (#63): the change-log base is
 # keyed on the resolved session id (PAIR_SESSION_ID -> established inventory -> none). No model
 # or distiller runs -- $RAW is empty, so the orchestrator's distiller block is

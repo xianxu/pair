@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pair-test-bootstrap.sh"
 # Regression test for doctor/emitter-health.sh — the stale-emitter-binary probe
 # (#000047).
 #

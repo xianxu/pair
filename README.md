@@ -144,14 +144,16 @@ carries only the pane's own identity and never repeats the folder.
 ## Keybindings
 
 `Alt+h` in a session pops up the live list, and `pair keys` prints the same thing
-from a shell. That list is **derived** from the bindings themselves — each row's
-wording comes from the keymap or chord that implements it — so it cannot drift out
-of date. The table below is the narrative version, with the extra context a
-one-line description can't carry.
+from a shell. Pair-owned rows derive their wording from the keymap or chord that
+implements them. The list also includes curated companion-editor help for Parley,
+labeled separately; those rows do not install shortcuts in Pair. The table below
+adds context that a one-line description cannot carry.
 
 | Key | Scope | Action |
 |---|---|---|
 | **Alt+h** | non-agent panes | Pop up the keybinding list in a floating pane (`q` or `Esc` to dismiss). Same content as `pair keys`. When Couch presents the thread, Couch's keys come first. |
+| **Alt+Space** | Parley editor | Open the attention finder: documents waiting on or answered by an agent. |
+| **Ctrl+Y, then Space** | Parley editor | Open the same attention finder. |
 | **Alt+Return** | nvim (normal/insert) | Send buffer to agent. Note for consistency, claude's keybinding also changed to Alt+return as send, and return as newline |
 | **Shift+Ctrl+Alt+Return** | draft nvim (normal/insert) | Send draft text plus all open cast-tab notes, recorded context, 🤖<current box text and a PNG crop per note>{draw-time box text and each note’s saved PNG crop} to the agent in view. An empty draft can send notes. Progress appears in the draft status line; editing resumes when the operation finishes or fails (36s maximum). [Evidence and retry behavior](atlas/webcast-submission.md). |
 | **Return** | agent pane | Insert a newline in Claude, Codex, Agy, and Qoder composers; Pair translates it to Muse's native Shift+Return and Grok's native Alt+Enter. The rewrite is *positively gated* for every agent: Pair rewrites only while it can see a live composer on screen, so in a permission picker, a selection menu, or any state it doesn't recognize, Return stays a plain Enter and the dialog confirms. Set `PAIR_WRAP_REMAP_RETURN=0` to turn the rewrite off entirely (that also disables overlay detection and its telemetry). |
@@ -1734,6 +1736,18 @@ unset, Go consumers lazily build once per package; their `TestMain` calls
 all tests finish. Private executable names use hard links (copies across
 filesystems). Standalone shell consumers use the same builder, which locates
 its checkout independently of the caller's working directory.
+
+Pair and wrapper subprocess fixtures use `testpair.Environment(t, disposableRoot,
+explicitEntries...)`. It delegates to `tests/lib/pair-test-env.sh`, the shared
+empty-environment owner for Go, shell and Python tests: only host PATH, disposable
+HOME and explicitly supplied fixture values cross the boundary. Never pass
+`os.Environ()` as the explicit entries. Shell tests enter through the same helper;
+the source guard rejects unisolated Pair/wrapper spawns. Shell entry scripts keep
+the shebang on line 1 and the bootstrap source on line 2; their remaining body
+uses `$0` for the entrypoint path. Python adapters consume the same helper's
+`--print0` output. The guard checks supported recipes with Go/Python syntax trees
+and a fixed shell entry contract. Fixture children outside the checkout use the
+parent's explicit helper path with `EnvironmentFrom`.
 
 SDLC reviews use the pinned commit’s `.sdlc/review-prepare.json` (version 1,
 `command: ["make", "runtimebundle-generate"]`, `timeout_minutes: 10`) to generate

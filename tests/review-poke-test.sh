@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pair-test-bootstrap.sh"
 # tests/review-poke-test.sh — pair_poke writes to the agent pane by ABSOLUTE id
 # without moving focus away from the review pane.
 # zellij is stubbed on $PATH: list-panes returns a canned pane set, every other

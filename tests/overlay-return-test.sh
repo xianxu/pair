@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pair-test-bootstrap.sh"
 # Actual viewer shutdown must hide older floating panes and return to draft.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

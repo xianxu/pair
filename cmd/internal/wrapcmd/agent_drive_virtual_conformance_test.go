@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/xianxu/pair/cmd/internal/testpair"
 	"io"
 	"os"
 	"os/exec"
@@ -274,7 +275,7 @@ func runAgentDriveBoundary(t *testing.T, virtual bool) {
 	if err := exec.Command("git", "init", "-q", "-b", "main", cwd).Run(); err != nil {
 		t.Fatal(err)
 	}
-	env := peerLiveEnvironment(os.Environ(), root)
+	env := peerLiveEnvironment(testpair.Environment(t, root), root)
 	env = peerLiveLocalAuth(t, "codex", root, cwd, env)
 	native, err := exec.LookPath("codex")
 	if err != nil {
@@ -320,7 +321,7 @@ func runAgentDriveBoundary(t *testing.T, virtual bool) {
 	}
 	t.Cleanup(func() { server.Close() })
 	wrapper := exec.Command(exe, "-test.run=^TestAgentDriveRunBoundaryHelper$")
-	wrapper.Env = env
+	wrapper.Env = testpair.Environment(t, root, env...)
 	wrapper.Dir = cwd
 	master, err := pty.StartWithSize(wrapper, &pty.Winsize{Rows: 38, Cols: 120})
 	if err != nil {

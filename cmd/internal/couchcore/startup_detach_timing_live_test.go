@@ -118,18 +118,22 @@ func TestStartupManagedAttachDetachTimingLive(t *testing.T) {
 		testpair.AtContext(t, buildCtx, filepath.Join(bin, "pair"))
 		cancelBuild()
 	}
+	var explicit []string
+	for _, key := range []string{"PAIR_STARTUP_PERF_BIN_DIR", "PAIR_STARTUP_PERF_ISOLATE_SOCKET", "PAIR_STARTUP_PERF_DIAGNOSTICS", "PAIR_STARTUP_PERF_DIAG_DIR"} {
+		if value, ok := os.LookupEnv(key); ok {
+			explicit = append(explicit, key+"="+value)
+		}
+	}
+	home := filepath.Join(base, "HOME")
 	for _, key := range []string{"HOME", "XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_CACHE_HOME", "XDG_STATE_HOME"} {
 		dir := filepath.Join(base, key)
 		if err := os.MkdirAll(dir, 0700); err != nil {
 			t.Fatal(err)
 		}
-		t.Setenv(key, dir)
+		explicit = append(explicit, key+"="+dir)
 	}
-	t.Setenv("SHELL", "/bin/sh")
-	t.Setenv("PAIR_STARTUP_TIMING", "1")
-	for _, key := range []string{"ZELLIJ", "ZELLIJ_SESSION_NAME", "PAIR_DATA_DIR", "COUCH_TREE", "COUCH_STORE_DIR", "COUCH_THREAD_TAG", "COUCH_THREAD_SCOPE", "PAIR_COUCH_LAUNCH_PROFILE"} {
-		t.Setenv(key, "")
-	}
+	explicit = append(explicit, "SHELL=/bin/sh", "TMPDIR=/tmp", "PAIR_STARTUP_TIMING=1")
+	testpair.ApplyEnvironment(t, home, explicit...)
 	root, err := filepath.Abs("../../..")
 	if err != nil {
 		t.Fatal(err)

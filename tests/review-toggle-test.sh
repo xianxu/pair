@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pair-test-bootstrap.sh"
 # tests/review-toggle-test.sh — the Alt+c review/collaboration toggle, now a draft-nvim lua
 # fn (#66 M3 rework; the old transient pair-review-toggle floating pane caused
 # the open delay / auto-hide / half-size / mis-fire smoke bugs).
