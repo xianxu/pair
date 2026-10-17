@@ -69,6 +69,74 @@ rounds:
       recipe: small-diff-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: ecc5ffe0-efcc-4de4-9c71-32858dd4689c
+            repository: github.com/xianxu/pair
+            issue_id: "000619"
+            recipe: small-diff-review
+            round: 2
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/Library/Caches/sdlc/review-checkouts/5fabcfbca16e215a
+            reviewed_head: 3f5f7fed4f03aa2829be24ae339cb473260bf000
+            slot: pair:7
+            requested_at: "2026-10-17T01:37:17.755325Z"
+          phase: finished
+          pid: 44559
+          started_at: "2026-10-17T01:37:17.898522Z"
+          finished_at: "2026-10-17T01:39:30.431374Z"
+          session_id: 01a14781-9960-7871-8ade-430a4a8c28fa
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-v1
+        repository: github.com/xianxu/pair
+        code_head: 3f5f7fed4f03aa2829be24ae339cb473260bf000
+        tracker_head: c47dd7e1ac57b0a89626cd7874cb088263cf7e17
+        branch_point: 4bac247c5738e44c0c5d6d4eb4a6511800a5bdee
+        since: "2026-10-16T18:18:08-07:00"
+        until: "2026-10-16T18:36:55-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-16T18:18:08-07:00"
+              end: "2026-10-16T18:36:55-07:00"
+              began: "2026-10-16T18:18:08-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot7/pair
+        sources:
+            - harness: codex
+              id: 01a13398-d940-72d3-8d80-c203fc8bd296
+              cwd: /Users/xianxu/workspace/worktree/pair-slot7/pair
+              digest: dbafe62b8cec7248f53bd4cd94c2711a1dc694cd36e1d030e92e7d12c9c59a78
+              started: "2026-10-13T04:50:49.58Z"
+              spawned: false
+              bytes: 90137257
+              windows:
+                - start: "2026-10-16T18:18:08-07:00"
+                  end: "2026-10-16T18:36:55-07:00"
+        cuts:
+            - dispatched: "2026-10-16T18:34:42-07:00"
+              finalized: "2026-10-16T18:36:08-07:00"
+              finalizing: false
+      "n": 2
+      timestamp: "2026-10-16T18:39:41-07:00"
+      dispatched: "2026-10-16T18:37:16-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: README.md:147–150 now distinguishes curated companion-editor metadata from implementing keymaps; lines 155–156 document both Parley-local shortcuts. These passages match catalog.go:43–47 and 95–96, and sections.go's SourceParley resolution. This is a prose-only correction.
+          round: 2
+      recipe: small-diff-review
+      isolation: fenced
+      reviewed: 3f5f7fed4f03aa2829be24ae339cb473260bf000
+      blocked: false
 ---
 
 # Gate ledger — pair#619 (boundary-review)
@@ -83,6 +151,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-1** [Important] `user-facing-surface-documentation` (kind: defect) README update appears missing for the Parley attention-finder bindings
   cmd/internal/keyhelp/catalog.go:95–96 adds Alt+Space and Ctrl+Y followed by Space, but README.md is unchanged. The complete family in this window is both missing keybinding entries and README.md:146–149's now-inaccurate claim that every help row derives from an implementing keymap or chord. Add both keys with Parley-local scope and qualify that claim to distinguish curated companion-editor metadata.
 
+## Round 2 — 2026-10-16T18:39:41-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — README.md:147–150 now distinguishes curated companion-editor metadata from implementing keymaps; lines 155–156 document both Parley-local shortcuts. These passages match catalog.go:43–47 and 95–96, and sections.go's SourceParley resolution. This is a prose-only correction.
+
 ## Open findings
 
-- **BR-1** [Important] `user-facing-surface-documentation` (kind: defect) README update appears missing for the Parley attention-finder bindings
+(none — every finding has been disposed)

@@ -68,3 +68,72 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000411
+
+---
+
+## Re-review — 2026-10-16T18:39:40-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 619 — Couch key help: add Alt+Space, parley's attention finder (parley.nvim#354) |
+| repo | pair |
+| issue file | workshop/issues/000619-couch-key-help-add-alt-u-parley-s-attention-finder-parley-nvim-354.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 4bac247c5738e44c0c5d6d4eb4a6511800a5bdee..3f5f7fed4f03aa2829be24ae339cb473260bf000 |
+| command | sdlc close --issue 619 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-16T18:39:40-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The implementation fulfills the revised requirements: both attention-finder bindings appear uniquely under Parley editor, without adding Pair handlers. BR-1’s README omissions and inaccurate derivation claim are corrected. No new findings.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      README.md:147–150 now distinguishes curated companion-editor metadata from implementing keymaps; lines 155–156 document both Parley-local shortcuts. These passages match catalog.go:43–47 and 95–96, and sections.go's SourceParley resolution. This is a prose-only correction.
+```
+
+1. **Strengths**
+   - Explicit `SourceParley` and `ContextParley` preserve ownership and scope.
+   - The regression checks both standalone and hosted help, exact descriptions, uniqueness, zero chords, and absence of obsolete Alt+u.
+   - README and atlas both document the new surface accurately.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None remaining.
+
+4. **Minor findings:** None.
+
+5. **Test coverage:** Keyhelp, keyscmd, and couchkeys suites passed. The couchtty suite initially failed in unchanged `TestWorkbenchPerformanceIdleUITick`; that test passed in isolation alongside both relevant pass-through/routing tests. Zellij configuration binds neither shortcut. `git diff --check` passed.
+
+6. **Architecture**
+   - **ARCH-DRY — pass:** Both keys share one description and existing rendering.
+   - **ARCH-PURE — pass:** Metadata resolution introduces no IO; source access remains injected.
+   - **ARCH-PURPOSE — pass:** Both bindings reach standalone and Couch-presented help with Parley-local scope.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"ecc5ffe0-efcc-4de4-9c71-32858dd4689c","repository":"github.com/xianxu/pair","issue_id":"000619","recipe":"small-diff-review","round":2,"attempt":1,"agent":"codex","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/5fabcfbca16e215a","reviewed_head":"3f5f7fed4f03aa2829be24ae339cb473260bf000","slot":"pair:7","requested_at":"2026-10-17T01:37:17.755325Z"},"phase":"finished","pid":44559,"started_at":"2026-10-17T01:37:17.898522Z","finished_at":"2026-10-17T01:39:30.431374Z","session_id":"01a14781-9960-7871-8ade-430a4a8c28fa","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.642831792s
+head: "3f5f7fed4f03aa2829be24ae339cb473260bf000"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

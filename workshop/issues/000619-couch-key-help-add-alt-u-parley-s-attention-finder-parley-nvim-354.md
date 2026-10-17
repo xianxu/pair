@@ -46,6 +46,7 @@ parley to open the list of documents waiting on or answered by an agent. Couch's
 ## Log
 
 ### 2026-10-16
+- 2026-10-16: closed — Red-green rendered help regression; keyhelp/keyscmd and Couch legacy/Kitty pass-through tests passed. Recorded full suite on f500a1cc passed exit 0 in 12m46s, log SHA256 6746e0ae12fd, no failures or retries. Reviewer independently passed four affected packages. BR-1 fixed across README key table and the old universal source-derivation claim; atlas and source metadata agree on Parley-local scope. Later changes are prose only. No key handlers or actual operator environment changed.; review verdict: SHIP
 
 ### 2026-10-16 — red/green help metadata
 
