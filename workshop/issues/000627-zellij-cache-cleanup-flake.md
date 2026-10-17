@@ -42,7 +42,7 @@ Capture server PID + kernel start identity from exact --server argv/session owne
 - [x] Record a real-server red control and terminal-state evidence.
 - [x] Make the shared fixture wait for its exact daemon generation before removing owned files, retaining teardown errors.
 - [x] Add delayed-cache-writer/error/generation controls; qualify repeated live/race/package runs and recorded suite. Mechanical review and landing remain pending in Log.
-- [ ] R3: preserve Linux enumeration uncertainty, verify native-reader and both-consumer controls, then qualify a fresh pushed-head suite before re-close.
+- [x] R3: preserve Linux enumeration uncertainty, verify native-reader and both-consumer controls, then qualify a fresh pushed-head suite before re-close.
 
 ## Log
 
@@ -130,3 +130,5 @@ One unchanged full native-target rerun PASS on source head 8847a4c0501a8ea19daf1
 2026-10-16 integration: GitHub marked PR #386 DIRTY, preventing its ordinary merge/native CI jobs. Cancelled only our queued (not executing) source-head suite after 332s waiting; exit 130 records intentional cancellation, not a test failure. Merged origin/main cleanly (no manual conflict resolution), Git-verified integrated source head 4ffba844d2cccf57f0fc6eb601d0e8be59f99a94, pushed via sdlc pr. Updated main includes test environment isolation and title lifetime work; #627 code unchanged. Environment guard and both changed packages PASS (testpair 5.706s, procutil 0.731s, pairlifecycletest 1.825s). Complete integrated native target PASS: launcher 12.110s, couchcore 4.161s, couchcmd 1.761s, all shortcut cases retained. GitHub merge/native jobs now run. New recorded full suite pinned to integrated source head queued at initial position 10; inflight 5827c51405d91edee78048b1e686ae7c. No second full suite was executed for the superseded head.
 
 - /var/folders/07/b9wcwwld4_v2w9r3hk525bm80000gn/T/pair627.34fmyl6i/integrated-live-target.log: SHA256 f655d265417da705f5ae94c9a7f39cceff4f1d752d0001eb5f0c4b1b0556ad31
+
+2026-10-16 R3 final verification: recorded integrated-source full suite PASS on 4ffba844d2cccf57f0fc6eb601d0e8be59f99a94 in 11m14s, exit 0, log /Users/xianxu/workspace/pair/.git/sdlc/local-checks/4ffba844d2cccf57f0fc6eb601d0e8be59f99a94/suite.log, SHA256 b1cc17b8c66e1cd138bbf1868cfb5957d93dd80c77bbc62a52304a8285e1a14a. All GitHub CI checks PASS on that source head, including native conformance (2m22s) and merge-check (1m26s). Current subsequent branch change is issue evidence only. Re-close review and landing remain pending.
