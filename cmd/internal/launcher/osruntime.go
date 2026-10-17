@@ -262,7 +262,7 @@ func (r OSRuntime) ListSessions() ([]ListRow, error) {
 			return 0
 		}
 		var count int
-		count, queryErr = source.clientCountContext(context.Background(), session)
+		count, queryErr = source.ClientCountContext(context.Background(), session)
 		return count
 	})
 	if queryErr != nil {
