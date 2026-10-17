@@ -15,6 +15,9 @@ import (
 // process group on every completion path. The caller owns its context budget,
 // arguments, environment, and output observers. Use only for synchronous
 // read-only queries, never server creation, attach, or native mutations.
+// With successful collection it returns the original subprocess error unchanged.
+// Cancellation/collection failures are joined; callers normalizing an exit
+// diagnostic must require a direct *exec.ExitError, never search a joined error.
 func Run(cmd *exec.Cmd) error {
 	if cmd.Process != nil {
 		return fmt.Errorf("zellij query command already started")

@@ -43,6 +43,8 @@ type OSRuntime struct {
 	GlobalDataDir string
 	PairHome      string
 	Processes     procutil.Source
+	// nameQueryRun owns the name probe process; nil uses the OS collector.
+	nameQueryRun func(*exec.Cmd) error
 
 	sessionQuiescence  sessionQuiescenceOps
 	sessionQuiesceWait time.Duration
@@ -154,28 +156,35 @@ func (r OSRuntime) ProbeSessionName(session string) error {
 	return r.ProbeSessionNameContext(ctx, session)
 }
 
-func (OSRuntime) ProbeSessionNameContext(ctx context.Context, session string) error {
+func (r OSRuntime) ProbeSessionNameContext(ctx context.Context, session string) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
 	cmd := exec.CommandContext(ctx, "zellij", "--session", session, "action", "list-clients")
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
-	err := zellijexec.Run(cmd)
-	if ctx.Err() != nil {
-		return fmt.Errorf("could not ask zellij about session name %q: %w", session, ctx.Err())
+	run := r.nameQueryRun
+	if run == nil {
+		run = zellijexec.Run
 	}
-	out := append(stdout.Bytes(), stderr.Bytes()...)
-	if sessionNameRejected(string(out)) {
-		return fmt.Errorf("%w: %s", errSessionNameTooLong, session)
+	err := run(cmd)
+	if ctx.Err() != nil {
+		return fmt.Errorf("could not ask zellij about session name %q: %w", session, errors.Join(err, ctx.Err()))
 	}
 	if err != nil {
-		// Clap validates --session before action dispatch. These exact
-		// post-parse absence diagnostics prove length acceptance only.
-		var exit *exec.ExitError
-		if errors.As(err, &exit) && exit.ExitCode() == 1 && stdout.Len() == 0 &&
-			sessionNameAbsentDiagnostic(session, stderr.String()) {
-			return nil
+		// Diagnostic evidence may consume only a pure subprocess exit. Joined
+		// cancellation/collection failures cannot teach either length bound.
+		if exit, pureExit := err.(*exec.ExitError); pureExit {
+			out := append(stdout.Bytes(), stderr.Bytes()...)
+			if sessionNameRejected(string(out)) {
+				return fmt.Errorf("%w: %s", errSessionNameTooLong, session)
+			}
+			// Clap validates --session before action dispatch. These exact
+			// post-parse absence diagnostics prove length acceptance only.
+			if exit.ExitCode() == 1 && stdout.Len() == 0 &&
+				sessionNameAbsentDiagnostic(session, stderr.String()) {
+				return nil
+			}
 		}
 		return fmt.Errorf("could not ask zellij about session name %q: %w", session, err)
 	}

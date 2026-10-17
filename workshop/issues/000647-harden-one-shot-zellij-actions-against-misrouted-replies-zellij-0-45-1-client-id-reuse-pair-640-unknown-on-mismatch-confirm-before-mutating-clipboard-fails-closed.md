@@ -217,3 +217,17 @@ BR-1/BR-2/BR-3 fixes, the R3 phase decision and cancellation ownership controls 
 The binary review disposed BR-1/BR-2/BR-3 as addressed and returned REWORK for BR-4: both diagnostic-normalizing consumers can suppress a joined cleanup failure because errors.As still finds the subprocess ExitError. Source inspection confirms the class at ZellijSource.runContext and ProbeSessionNameContext. Appended the class rule, both-consumer regression strategy and minimal direct-exit classification to the durable plan. Candidate actual2.18h was measured by the binary; no milestone close finalized. Review ledger and sidecar are retained unchanged.
 
 The registered checkout is now free of background work. Checkpointing this result and requeuing #640's already closed PR410 landing, per TL R3. BR-4 preparation can continue in a disposable independent clone without changing the landing checkout. M1 remains open; M2/M3 have not started.
+
+
+### 2026-10-17 — BR-4 RED and targeted GREEN in isolated preparation clone
+
+The clone /Users/xianxu/workspace/worktree/pair-slot1/pair647-query-fix is independent Git storage sharing only immutable objects; the registered checkout remains held by #640's queued merge. /tmp/pair647-br4-red.log reproduced six failures: collection errors were normalized to empty inventory, name acceptance or too-long evidence, and collection+cancel lost EIO. Both process consumers now normalize only direct ExitError, validate successful client tables normally, and join context cancellation with collector errors. Private per-instance runner seams call the real zellijexec.Run before injecting the collector error; no global hook, native process, sleep, retry or deadline increase was introduced. The producer's unchanged raw-exit-versus-joined-failure contract is documented.
+
+Targeted production-boundary/legacy name/observer/attach controls passed17.256s (/tmp/pair647-br4-green.log); corresponding collector/observer race controls passed1.930s (/tmp/pair647-br4-race.log). Pure diagnostic positive controls remain accepted; collector-failed diagnostics prove neither positive nor negative name bounds. Full launcher qualification and M1 round3 remain pending. Hub coordination receipt 0fc4b53a-58bd-4a85-ae28-72e5937f8939 is submitted. #640 remains queued behind #622/#646/#620, without changes to its registered checkout.
+
+
+### 2026-10-17 — BR-4 complete package qualification
+
+The first broad clone run failed only two shared-Pair-build setup controls because its ignored runtime assets had not been generated (/tmp/pair647-br4-packages.log; TestCreateLayoutWrapperPreservesAgentCommand and TestSelectedRootNativeCreateListAndListedResume). Ran the declared make runtimebundle-generate target in the disposable clone, then the unchanged package command passed: launcher34.936s, zellijexec4.287s (/tmp/pair647-br4-packages-green.log). The targeted collector/observer race control remains pass1.930s. This was environment bootstrap, not a flake retry; both logs are retained. No registered-checkout or operator binary was built or changed.
+
+BR-4's both-consumer class correction is ready for the remaining M1 review round. #640's merge still holds the registered checkout, queued behind #622/#646/#620. Check whether the binary admits a read-only dry-run from this independent ordinary clone; if it requires the registered checkout, wait for landing and import the committed correction as planned. No review or lifecycle transition has yet run in the clone.

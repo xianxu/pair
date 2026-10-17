@@ -33,6 +33,8 @@ var errSessionNameTooLong = errors.New("session name too long")
 // ZellijSource reads zellij session state through the zellij CLI.
 type ZellijSource struct {
 	Path string
+	// queryRun is the synchronous process-ownership boundary. Nil uses the OS collector.
+	queryRun func(*exec.Cmd) error
 	// Listings, when set, answers both list-sessions forms from a poller's
 	// latest snapshot instead of running zellij (pair#618). Nil lists on every
 	// read. Per-session queries (list-clients) always run.
@@ -217,15 +219,21 @@ func (s ZellijSource) runContext(ctx context.Context, args ...string) (output []
 			})
 		}()
 	}
-	if err := zellijexec.Run(cmd); err != nil {
+	run := s.queryRun
+	if run == nil {
+		run = zellijexec.Run
+	}
+	if err := run(cmd); err != nil {
 		if ctx.Err() != nil {
-			err = ctx.Err()
+			err = errors.Join(err, ctx.Err())
 		} else {
 			// Zellij reports a successfully observed empty inventory with exit
 			// 1 and this exact diagnostic. Other failures are not absence proof.
-			var exitErr *exec.ExitError
+			// Only the direct process exit can be normalized. A joined collector
+			// failure remains unknown even if it contains this same exit code.
+			exitErr, pureExit := err.(*exec.ExitError)
 			if len(args) > 0 && args[0] == "list-sessions" &&
-				errors.As(err, &exitErr) && exitErr.ExitCode() == 1 &&
+				pureExit && exitErr.ExitCode() == 1 &&
 				stdout.Len() == 0 && strings.TrimSpace(stderr.String()) == "No active zellij sessions found." {
 				return nil, nil
 			}
