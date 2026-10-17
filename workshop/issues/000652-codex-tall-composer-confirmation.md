@@ -140,6 +140,8 @@ TL authorization: verified submitted delivery `00eac401-7b14-4ee8-8255-ef5cc30e0
 - Exact native commands: `PAIR_LIVE_PEER_HARNESS=codex PAIR_LIVE_PEER_SCENARIO=paste-tall go test ./cmd/internal/wrapcmd -run '^TestPeerLiveConformance$' -count=1 -timeout=90s -v -peer-live-use-local-auth -peer-live-capture-dir=<private-absolute-dir>` (PASS 1.520s), then `PAIR_LIVE_PEER_HARNESS=codex go test ./cmd/internal/wrapcmd -run '^TestPeerLiveConformance$' -count=1 -timeout=90s -v -peer-live-use-local-auth -peer-live-submit -peer-live-capture-dir=<same-dir>` (PASS 1.567s).
 - All wrapper tests PASS 71.867s (`/tmp/pair652-wrapcmd.log`); broader core/native-fixture race checks PASS 3.990s (`/tmp/pair652-all-race.log`). README and atlas now map the shared tall authority and unknown behavior, retaining Claude-only batching and deferred operator restart smoke. Preparing pushed code head for the required recorded suite.
 
+- Lane release `4f8e6bdb-b0b1-4874-af2a-16ca77166c64` confirmed Submitted. Recorded pre-close suite attempt `8e42cbc6659b6298be33f6e03d89d05d` queued on pushed code head dbd1abb87. Fresh Submitted hub approval `35128107-2a46-492b-a515-ee6359537e3d` authorizes an early draft PR for macOS CI overlap; suite, close review and merge gates still precede landing.
+
 ## Estimate
 
 Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only. Calibration is flagged stale by `sdlc estimate-source`; treat this as provisional focused ship wall-clock, excluding test/landing queue waits.
