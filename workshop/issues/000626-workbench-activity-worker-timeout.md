@@ -51,6 +51,7 @@ Diagnose worker progress and deadline attribution in this fixture under normal p
 2026-10-16: Filed unassigned from #622 after one package-run failure and one unchanged targeted pass. No related production or fixture change is included in #622; its recorded full suite remains queued.
 
 ### 2026-10-17 — Recovery and measured baseline
+- 2026-10-17: closed — Counted delimiter regression RED at 6,888,539,021 searched bytes for 30,000,013 input, GREEN at exactly input size; boundaries/limits/tails and race pass. Full sessioninventory/threadactivity/workbenchperftest and couchtty pass. Recorded suite on pushed 31bc02234c023efaa3eaea609cb7bf1fb4429c24 passed first attempt in 11m40, log 658ad9099da7. The existing 20x30MB UI workload, 30s guard, 2s probe deadline and zero-read warm assertions are unchanged. Before/after CPU/probe traces retained; exact historical stall attribution remains unavailable as documented. Atlas and lesson updated. (done-when: contract moved since change-code; judged by the close review); review verdict: SHIP
 
 Authenticated TL dispatch 4bbef5d9 and claimed/start-planned in pair:6. The previous TTY is unavailable; branch/issue evidence is authoritative. Initial start-plan catch-up advanced only the slot-local ariadne dependency and automatically invoked Homebrew; interrupted the owned runner before dependency installation (Homebrew/tap metadata had auto-updated), reported to TL. Ordinary start-plan repeat succeeded.
 
