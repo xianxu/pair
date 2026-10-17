@@ -15,6 +15,7 @@ claimant:
     workspace: pair:3
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "e699b34a", done: "afad8e96"}
 ---
 
 # Peer messages to a busy hub expire after 1m30s waiting for a recognized composer; landing reports lost
