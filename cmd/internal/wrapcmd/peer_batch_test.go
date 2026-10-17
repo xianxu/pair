@@ -34,6 +34,24 @@ func peerBatchFixture(t *testing.T) (*harnessSessionFake, *peerDelivery, []couch
 	}
 	return f, d, messages, &now
 }
+
+func TestPeerBatchRefusesUnqualifiedCodexAndQoderProfiles(t *testing.T) {
+	for _, agent := range []string{"codex", "qoder"} {
+		m := peerTestMessage(time.Now())
+		m.To = peerBatchTestBinding("ops:0")
+		m.To.Agent = agent
+		d := newPeerDelivery(m.To, time.Now)
+		if err := d.reserve(m.ID, d.sequence); err != nil {
+			t.Fatal(err)
+		}
+		if err := d.prepareBatch(m); err == nil {
+			t.Fatalf("accepted unqualified %s batch", agent)
+		}
+		if d.current.Message.ID != "" || d.batch != nil {
+			t.Fatal("profile refusal mutated delivery ownership")
+		}
+	}
+}
 func TestPeerBatchOnePasteOneConfirmationAndRetention(t *testing.T) {
 	f, d, messages, now := peerBatchFixture(t)
 	recorded := 0

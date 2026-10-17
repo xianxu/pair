@@ -92,6 +92,9 @@ func TestPeerLiveConformance(t *testing.T) {
 	if !valid[scenario] {
 		t.Fatalf("unknown scenario %q", scenario)
 	}
+	if scenario == "paste-batch" && agent != "claude" {
+		t.Skip("peer batches are Claude-only until Codex tall-composer confirmation is qualified (pair#652)")
+	}
 	executable, err := exec.LookPath(agent)
 	if err != nil {
 		t.Fatal(err)

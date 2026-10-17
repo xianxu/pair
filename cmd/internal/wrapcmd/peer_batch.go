@@ -16,6 +16,9 @@ type peerDeliveryBatch struct {
 func (d *peerDelivery) prepareBatch(head couchmessage.Message) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	if d.binding.Agent != "claude" {
+		return errors.New("wrapper does not support peer batches")
+	}
 	if err := d.enqueueLocked(head); err != nil {
 		return err
 	}

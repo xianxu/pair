@@ -130,10 +130,6 @@ func (d *peerDelivery) handleEndpoint(_ context.Context, raw []byte) ([]byte, er
 			response.Receipt = &r
 		}
 	case "prepare-batch":
-		if d.batchUnsupported {
-			err = errors.New("wrapper does not support peer batches")
-			break
-		}
 		err = d.prepareBatch(*request.Message)
 		if err == nil {
 			receipt := d.receipt()
@@ -221,7 +217,6 @@ func (p *proxy) startPeerRuntime(executable string) (*peerRuntime, error) {
 	}
 	lifetime, stop := context.WithCancel(context.Background())
 	d := newPeerDelivery(binding, time.Now)
-	d.batchUnsupported = p.agentBasename != "claude" && p.agentBasename != "codex"
 	r := &peerRuntime{cancel: stop, delivery: d}
 	server, err := couchmessage.StartServer(lifetime, socket, d.handleEndpoint)
 	if err != nil {

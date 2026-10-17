@@ -189,7 +189,7 @@ func (b *Broker) RegisterWithAllowance(binding Binding, endpoint DeliveryEndpoin
 
 // RegisterWithBatching is selected by the verified hub adapter, never by senders.
 func (b *Broker) RegisterWithBatching(binding Binding, endpoint DeliveryEndpoint, allowance, maxChars int) error {
-	if maxChars < 1 || maxChars > MaxPeerBatchChars || (binding.Agent != "claude" && binding.Agent != "codex") {
+	if maxChars < 1 || maxChars > MaxPeerBatchChars || binding.Agent != "claude" {
 		return errors.New("invalid peer batch receiver or character cap")
 	}
 	return b.register(binding, endpoint, allowance, maxChars)

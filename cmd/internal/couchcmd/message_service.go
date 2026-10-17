@@ -752,7 +752,7 @@ func (s *messageService) execute(e couchmessage.RegistryEffect) *couchmessage.Re
 		}
 		endpoint := messageEndpoint{service: s, binding: e.Binding, endpoint: p.endpoint}
 		var err error
-		if s.authority.isHub(p.identity) && (e.Binding.Agent == "claude" || e.Binding.Agent == "codex") {
+		if s.authority.isHub(p.identity) && e.Binding.Agent == "claude" {
 			err = s.broker.RegisterWithBatching(e.Binding, endpoint, allowance, s.authority.batchMaxChars)
 		} else {
 			err = s.broker.RegisterWithAllowance(e.Binding, endpoint, allowance)

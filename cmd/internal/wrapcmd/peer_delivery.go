@@ -19,21 +19,20 @@ import (
 // drives its reducer or writes to the PTY. The admission mutex fences reader
 // observations against automatic writes, including observations not rendered yet.
 type peerDelivery struct {
-	drive            *driveMailbox
-	recordBatch      func([]couchmessage.Message)
-	batch            *peerDeliveryBatch
-	batchUnsupported bool
-	recordTurn       func(couchmessage.Message) // submitted turns into the Pair log (pair#618); nil without a log path
-	driveProbe       func() agentdrive.Screen
-	mu               sync.Mutex
-	binding          couchmessage.Binding
-	now              func() time.Time
-	lastActivity     time.Time
-	sequence         uint64
-	lastInput        time.Time
-	inputBuffered    bool
-	submissions      uint64
-	pasteSequence    uint64
+	drive         *driveMailbox
+	recordBatch   func([]couchmessage.Message)
+	batch         *peerDeliveryBatch
+	recordTurn    func(couchmessage.Message) // submitted turns into the Pair log (pair#618); nil without a log path
+	driveProbe    func() agentdrive.Screen
+	mu            sync.Mutex
+	binding       couchmessage.Binding
+	now           func() time.Time
+	lastActivity  time.Time
+	sequence      uint64
+	lastInput     time.Time
+	inputBuffered bool
+	submissions   uint64
+	pasteSequence uint64
 	// The post-paste half of a delivery (pair#427). deliverBy is the paste
 	// time plus DeliveryTimeout; Message.Deadline bounds the initial commit.
 	pastedAt                time.Time

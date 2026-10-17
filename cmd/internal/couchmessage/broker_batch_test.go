@@ -60,6 +60,7 @@ func batchBrokerFixture(t *testing.T, cap int) (*Broker, Binding, *batchReceiver
 	b := NewBroker(context.Background(), time.Now, nil)
 	t.Cleanup(func() { _ = b.Close() })
 	hub := brokerBinding("ops:0")
+	hub.Agent = "claude"
 	f := newBatchReceiverFake(now)
 	if err := b.RegisterWithBatching(hub, f, HubAllowance, cap); err != nil {
 		t.Fatal(err)
@@ -299,6 +300,7 @@ func TestBrokerBatchHeldHubDoesNotBlockAnotherReceiver(t *testing.T) {
 	batchSend(t, b, senders[0], hub, "held", "long turn")
 	batchPrepared(t, f)
 	other := brokerBinding("bench:0")
+	other.Agent = "claude"
 	endpoint := newBatchReceiverFake(time.Now())
 	if err := b.RegisterWithBatching(other, endpoint, HubAllowance, DefaultPeerBatchMaxChars); err != nil {
 		t.Fatal(err)
@@ -313,5 +315,18 @@ func TestBrokerBatchHeldHubDoesNotBlockAnotherReceiver(t *testing.T) {
 	batchWaitStatus(t, b, other, m.ID, Submitted)
 	if r, err := b.Status(hub, "held"); err != nil || r.Status.Terminal() {
 		t.Fatalf("other receiver changed held head: %+v err=%v", r, err)
+	}
+}
+
+func TestBrokerBatchRejectsUnqualifiedReceiverProfiles(t *testing.T) {
+	for _, agent := range []string{"codex", "qoder"} {
+		b := NewBroker(context.Background(), time.Now, nil)
+		binding := brokerBinding("ops:0")
+		binding.Agent = agent
+		err := b.RegisterWithBatching(binding, newBatchReceiverFake(time.Now()), HubAllowance, DefaultPeerBatchMaxChars)
+		_ = b.Close()
+		if err == nil {
+			t.Fatalf("enabled unqualified %s batching", agent)
+		}
 	}
 }

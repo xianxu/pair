@@ -573,7 +573,7 @@ remaining uncertainty is stated, never papered over:
   classes choose resend. The op contains no sender binding or body. Mixed-version
   response-shape mismatch omits these best-effort annotations, leaving the ordinary
   list intact.
-- **Queued hub batches (#648).** Verified Claude/Codex hubs prepare the head
+- **Queued hub batches (#648).** Verified Claude hubs prepare the head
   without input, then the existing wrapper input writer offers readiness at its
   ordinary safe-composer decision. The broker freezes the current capped FIFO
   prefix under its mutex, including reports arriving during the held head's
@@ -587,11 +587,15 @@ remaining uncertainty is stated, never papered over:
   queryable and recoverable from the wrapper's bounded 64-ID recent store.
   Before freeze, cancellation removes only that queued sender's mail; after
   freeze, members share one cancellation job/outcome. Uncertain writes never
-  replay. Ordinary receivers and Qoder retain single-message delivery; an old
+  replay. Ordinary receivers, Codex and Qoder retain single-message delivery; an old
   wrapper's explicit pre-commit unknown-operation refusal also selects the legacy
   path, while transport/decode errors never trigger fallback. See
   `couchmessage/batch.go`, `broker_batch.go`, `endpoint_batch.go`,
   `wrapcmd/peer_batch.go` and `TestPeerBatchRuntimeSocketFIFOAndReceiptRecovery`.
+  Codex retention measurements passed, but its preexisting 20-row composer
+  recognizer can miss occupied evidence for tall pastes during an active turn
+  (#652); batching stays disabled there until confirmation and Return-remapping
+  safety are qualified together.
 - **Peer turns in the Pair log (#618, #648).** When a delivery ends `Submitted`,
   pair-wrap appends the exact envelope it pasted to the thread's Pair log
   through the managed locked writer (`pairlog.PersistPeerTurn`, append ID

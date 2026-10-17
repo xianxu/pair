@@ -133,12 +133,12 @@ func serviceBatchWaitSubmitted(t *testing.T, r *serviceRig, m couchmessage.Messa
 	}
 }
 
-func TestMessageBatchServiceSelectsOnlyVerifiedClaudeCodexHub(t *testing.T) {
+func TestMessageBatchServiceSelectsOnlyVerifiedClaudeHub(t *testing.T) {
 	for _, tc := range []struct {
 		name, agent, hub string
 		batch            bool
 	}{
-		{"codex hub", "codex", "/repo0", true},
+		{"codex hub", "codex", "/repo0", false},
 		{"claude hub", "claude", "/repo0", true},
 		{"codex worker", "codex", "/repo99", false},
 		{"claude worker", "claude", "/repo99", false},
@@ -184,7 +184,7 @@ func TestMessageBatchServiceFreezesFiveAndAccountsEachAfterConfirmation(t *testi
 	log := testFactLog(t, sink)
 	r := newServiceRig(t, func(a messageAuthority) messageAuthority { a.hub = "/repo0"; return a })
 	fake := newServiceBatchReceiver()
-	hub := serviceBatchConnect(t, r, 0, "codex", fake)
+	hub := serviceBatchConnect(t, r, 0, "claude", fake)
 	senders := make([]couchmessage.Binding, 6)
 	for i := range senders {
 		senders[i] = r.connect(i + 1)
@@ -301,7 +301,7 @@ func (f serviceBatchLegacyEndpoint) Deliver(ctx context.Context, m couchmessage.
 func TestMessageBatchServiceLegacyUnderlyingEndpointRemainsSingleton(t *testing.T) {
 	r := newServiceRig(t, func(a messageAuthority) messageAuthority { a.hub = "/repo0"; return a })
 	legacy := serviceBatchLegacyEndpoint{delivered: make(chan couchmessage.Message, 1)}
-	to := serviceBatchConnect(t, r, 0, "codex", legacy)
+	to := serviceBatchConnect(t, r, 0, "claude", legacy)
 	from := r.connect(1)
 	m := serviceBatchSend(t, r, from, to, "old-endpoint")
 	got := serviceBatchReceive(t, legacy.delivered)
@@ -347,7 +347,7 @@ func TestMessageBatchAdapterChecksLiveIdentityBeforePreparation(t *testing.T) {
 func TestMessageBatchServiceUsesConfiguredCap(t *testing.T) {
 	r := newServiceRig(t, func(a messageAuthority) messageAuthority { a.hub = "/repo0"; a.batchMaxChars = 1; return a })
 	fake := newServiceBatchReceiver()
-	hub := serviceBatchConnect(t, r, 0, "codex", fake)
+	hub := serviceBatchConnect(t, r, 0, "claude", fake)
 	from := r.connect(1)
 	first := serviceBatchSend(t, r, from, hub, "cap-first")
 	select {

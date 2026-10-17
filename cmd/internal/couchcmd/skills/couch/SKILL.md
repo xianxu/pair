@@ -154,13 +154,13 @@ slot (or `hub`) that is already taking one waits in line behind it, in the
 order sent: its receipt reads `queued` with `position N` and the receiver's
 composer wait. The active pre-paste head is position 1. Accepted mail stays
 queued or held while that exact receiver is connected, even through a long
-turn; do not resend it. Claude and Codex hubs collect the ready receiver's
+turn; do not resend it. Claude hubs collect the ready receiver's
 current FIFO prefix into one batch, preserving each complete header and adding
 a `---` separator line. One paste and confirmation submit every member; each
 ID still has its own receipt. `COUCH_PEER_BATCH_MAX_CHARS` sets the complete
 batch's Unicode code-point cap (default 16384, range 1–32768). An over-cap
 message goes alone; remaining messages wait for the next free composer.
-Other receivers and older wrappers keep individual submissions. Confirmation
+Codex, Qoder, other receivers and older wrappers keep individual submissions. Confirmation
 releases the next waiting group immediately. After a batch is frozen, a member's
 disconnect cancels its whole group conservatively; an uncertain paste or submit
 never reports any member submitted and is never replayed automatically.
