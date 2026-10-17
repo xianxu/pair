@@ -1,6 +1,6 @@
 ---
 id: 000625
-status: working
+status: codecomplete
 created: 2026-10-16
 updated: 2026-10-16
 estimate_hours:
@@ -13,6 +13,14 @@ claimant:
     workspace: pair:6
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
+actual_hours: 1.29
+tracker:
+    version: 1
+    completion:
+        token: close-1b68100bf1dd
+        repository: github.com/xianxu/pair
+        reviewed_head: fbf3dde7424a33ca92a0559319066aebb1c23836
+        evidence_commit: 3c264aa39b241b86783d31dfe7c2a2c200d6d158
 ---
 
 # Couch tab fades busy slots driven only by peer messages (activity ignores their agent work)
