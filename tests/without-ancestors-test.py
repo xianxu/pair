@@ -3,6 +3,7 @@
 import fcntl
 import os
 from pathlib import Path
+import select
 import signal
 import subprocess
 import sys
@@ -28,12 +29,14 @@ if sys.argv[3] == 'wait':
 
 
 class LifetimeTests(unittest.TestCase):
-    def launch(self, directory, mode="wait", timeout="0.5", wait_ready=True):
+    def launch(self, directory, mode="wait", timeout="0.5", wait_ready=True,
+               helper=HELPER, pass_fds=()):
         lease = Path(directory) / "lease"
         process = subprocess.Popen(
-            [sys.executable, str(HELPER), "--timeout", timeout,
+            [sys.executable, str(helper), "--timeout", timeout,
              sys.executable, "-c", PARENT, CHILD, str(lease), mode],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            pass_fds=pass_fds)
         # Register cleanup after the directory, so process cleanup runs first.
         self.addCleanup(self.cleanup, process, lease)
         if not wait_ready:
@@ -106,6 +109,44 @@ class LifetimeTests(unittest.TestCase):
                     time.sleep(0.05)
                     if lease.exists() and lease.read_text():
                         self.assert_terminated(lease)
+
+    def test_ignored_parent_sigint_cancels_before_helper_entry(self):
+        directory = self.directory()
+        ready_read, ready_write = os.pipe()
+        release_read, release_write = os.pipe()
+        self.addCleanup(os.close, ready_read)
+        self.addCleanup(os.close, release_write)
+        bootstrap = Path(directory) / "before-helper.py"
+        bootstrap.write_text(
+            "import os, runpy, signal, sys\n"
+            f"os.write({ready_write}, str(signal.getsignal(signal.SIGINT)).encode())\n"
+            f"if os.read({release_read}, 1) != b'x': raise SystemExit(1)\n"
+            f"sys.argv[0] = {str(HELPER.resolve())!r}\n"
+            "runpy.run_path(sys.argv[0], run_name='__main__')\n")
+        inherited = signal.signal(signal.SIGINT, signal.SIG_IGN)
+        try:
+            try:
+                process, lease = self.launch(
+                    directory, timeout="20", wait_ready=False, helper=bootstrap,
+                    pass_fds=(ready_write, release_read))
+            finally:
+                os.close(ready_write)
+                os.close(release_read)
+            self.assertEqual(signal.getsignal(signal.SIGINT), signal.SIG_IGN,
+                             "launch changed the caller's signal disposition")
+            readable, _, _ = select.select([ready_read], [], [], 3)
+            self.assertTrue(readable, "pre-handler bootstrap did not start")
+            disposition = os.read(ready_read, 1024).decode()
+            process.send_signal(signal.SIGINT)
+            try:
+                code = process.wait(timeout=3)
+            except subprocess.TimeoutExpired:
+                self.fail("SIGINT was lost before helper entry; "
+                          f"child disposition={disposition}, pid={process.pid}")
+            self.assertNotEqual(code, 0)
+            self.assertFalse(lease.exists(), "command started before gate release")
+        finally:
+            signal.signal(signal.SIGINT, inherited)
 
     def test_success_preserves_sidecar(self):
         directory = self.directory()
