@@ -68,6 +68,8 @@ Detailed design: [stale-session reminder plan](../plans/000630-stale-session-rem
 
 - Command extent check added a red fixture whose successful shell leaves a child with closed output pipes. Cancellation/WaitDelay alone did not collect it. The same already-owned process group is now ended after every command completion, including success; focused reminder tests passed (0.840s). The queued suite on ff9b15c8 was interrupted before acquiring capacity so it cannot be mistaken for verification of this corrected code. No new process mechanism or product scope was introduced.
 
+- Final command-group correction reverified: reminder race tests passed (1.980s), rebuilt real CLI conformance passed (1.626s), and the replacement full suite is queued on 238a534c. The successful-parent/closed-pipe descendant lesson is recorded in workshop/lessons.md.
+
 ## Revisions
 
 - 2026-10-17: quick-flow sizing exceeded the shell once baseline-neutral inspection and bounded asynchronous command execution were included. TL approved full flow before implementation; product behavior is unchanged.

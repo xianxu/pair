@@ -2130,3 +2130,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #631: Removing a shared mutex from external cleanup must retain the existing per-recipient reservation until that cleanup returns. Regress cancellation emptying the old queue entry followed by a new admission, and a replacement holding its own reservation while the old cleanup finishes.
 
 - #643: Distinguish atomic replacement of one file from publication of a document/shadow/state bundle. A plan must name partial persisted outcomes and reconciliation after IO failure; test a controlled publication failure and prove unread baselines and owed events survive.
+
+- #630: A deadline and bounded pipe draining do not collect descendants that close their pipes before a successful parent exits. A command group owned only for a synchronous check ends on every completion, including success. Test both cancellation and a successful parent with an independently live, closed-pipe child.
