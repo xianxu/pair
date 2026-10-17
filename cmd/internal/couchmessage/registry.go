@@ -50,8 +50,9 @@ type registrySession struct {
 	binding Binding
 	// build and settled are the wrapper's self-report (#421): build is nil
 	// for a pre-hello-v2 wrapper, settled nil until a hello-v2 session says.
-	build   *BuildIdentity
-	settled *bool
+	build          *BuildIdentity
+	settled        *bool
+	backgroundWork *bool
 	// picker is the hello-v3 self-report (pair#465): nil until one says.
 	// pickerSince is the wrapper's LastActivity on the frame that opened it.
 	picker      *bool
@@ -95,6 +96,8 @@ type RegistryEvent struct {
 	Settled     *bool          // SessionActivity/SessionSubmit on a hello-v2 session
 	Picker      *bool          // SessionActivity/SessionSubmit on a hello-v3 session
 	At          time.Time      // supervisor receipt time; display activity only
+
+	BackgroundWork *bool // SessionActivity/SessionSubmit on a hello-v4 session
 }
 
 type RegistryEffectKind int
@@ -221,6 +224,13 @@ func (r *Registry) Advance(e RegistryEvent) ([]RegistryEffect, error) {
 			}
 			s.settled = &v
 		}
+		if s.build != nil {
+			wasActive := s.backgroundWork != nil && *s.backgroundWork
+			s.backgroundWork = copyBackgroundWork(e.BackgroundWork)
+			if s.backgroundWork != nil && (*s.backgroundWork || wasActive) && e.At.After(s.lastWorkAt) {
+				s.lastWorkAt = e.At
+			}
+		}
 		if s.build != nil && e.Picker != nil {
 			v := *e.Picker
 			switch {
@@ -336,6 +346,8 @@ type SlotLiveness struct {
 	LastWorkAt time.Time
 	Build      *BuildIdentity
 	Settled    *bool
+	// BackgroundWork is display-only hello-v4 evidence; nil is unknown.
+	BackgroundWork *bool
 	// Picker: an input-holding picker is up (pair#465); nil is unknown.
 	Picker *bool
 	// PickerSince is when the picker opened, on the wrapper's clock: its
@@ -363,10 +375,19 @@ func (r *Registry) Liveness() map[string]SlotLiveness {
 			ambiguous[slot] = true
 			continue
 		}
-		out[slot] = SlotLiveness{Binding: s.binding, LastWorkAt: s.lastWorkAt, Build: s.build, Settled: s.settled, Picker: s.picker, PickerSince: s.pickerSince, Session: t}
+		out[slot] = SlotLiveness{Binding: s.binding, LastWorkAt: s.lastWorkAt, Build: s.build, Settled: s.settled, BackgroundWork: copyBackgroundWork(s.backgroundWork), Picker: s.picker, PickerSince: s.pickerSince, Session: t}
 	}
 	for slot := range ambiguous {
 		delete(out, slot)
 	}
 	return out
+}
+
+// copyBackgroundWork keeps nullable display evidence owned by each snapshot.
+func copyBackgroundWork(v *bool) *bool {
+	if v == nil {
+		return nil
+	}
+	owned := *v
+	return &owned
 }

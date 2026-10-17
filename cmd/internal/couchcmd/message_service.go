@@ -596,7 +596,7 @@ func newMessageService(parent context.Context, brokerSocket, registrySocket stri
 			if f.Op == couchmessage.FrameSubmit {
 				kind = couchmessage.SessionSubmit
 			}
-			_ = s.post(couchmessage.RegistryEvent{Kind: kind, Token: t, Observation: *f.Observation, Settled: f.Settled, Picker: f.Picker}, false)
+			_ = s.post(couchmessage.RegistryEvent{Kind: kind, Token: t, Observation: *f.Observation, Settled: f.Settled, Picker: f.Picker, BackgroundWork: f.BackgroundWork}, false)
 		},
 		Closed: func(t couchmessage.SessionToken) {
 			_ = s.post(couchmessage.RegistryEvent{Kind: couchmessage.SessionClosed, Token: t}, false)
@@ -1312,15 +1312,19 @@ func (s *messageService) LivenessForThread(scope, tag string) (couchmessage.Slot
 }
 
 // WrapperActivity reads the existing admitted-session snapshot, never probes.
-// Known-unsettled includes a silent turn/command wait; settled sessions age
-// from their last work/completion, not from refreshes of an idle screen.
+// Known-unsettled or active background work includes a silent command wait;
+// otherwise sessions age from their last work/completion, not idle refreshes.
 func (s *messageService) WrapperActivity(row couchcore.ActionableThreadSummary) time.Time {
 	live, admitted := s.LivenessForThread(row.Address.RepoScope, string(row.Address.Tag))
-	if !admitted || live.Settled == nil || live.Binding.Agent != row.Agent {
+	if !admitted || live.Binding.Agent != row.Agent {
+		return time.Time{}
+	}
+	activeBackground := live.BackgroundWork != nil && *live.BackgroundWork
+	if live.Settled == nil && !activeBackground {
 		return time.Time{}
 	}
 	work := live.LastWorkAt
-	if !*live.Settled {
+	if (live.Settled != nil && !*live.Settled) || activeBackground {
 		now := time.Now()
 		if s.authority.now != nil {
 			now = s.authority.now()

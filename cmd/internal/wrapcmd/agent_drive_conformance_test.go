@@ -228,7 +228,7 @@ func runIsolatedDriveConformance(t *testing.T, request agentdrive.ModelRequest, 
 				b := couchmessage.Binding{Slot: "isolated:1", Repository: filepath.Join(cwd, ".git"), Scope: "conformance", Tag: "isolated", Session: "isolated-session", Nonce: "isolated-launch", Agent: "codex", Version: strings.TrimSpace(string(v)), PID: cmd.Process.Pid, Start: "isolated-start"}
 				delivery = newPeerDelivery(b, time.Now)
 				delivery.driveProbe = p.agentDriveScreenLocked
-				delivery.settleProbe = p.settledNow
+				delivery.settleProbe = p.settleState
 				p.peer = delivery
 				delivery.mu.Lock()
 				delivery.armSettleLocked()

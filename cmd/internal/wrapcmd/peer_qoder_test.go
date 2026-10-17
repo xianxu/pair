@@ -182,7 +182,7 @@ func TestPeerQoderTrustThenPasteSubmitOnce(t *testing.T) {
 	clock := &fakeTimers{}
 	d.session = sink
 	d.afterFunc = clock.after
-	d.settleProbe = f.proxy.settledNow
+	d.settleProbe = f.proxy.settleState
 	f.proxy.peer = d
 	now := time.Now()
 	d.now = func() time.Time { return now }
