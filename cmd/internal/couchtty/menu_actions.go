@@ -187,7 +187,7 @@ func menuRowAdviceOf(f menuRowFacts) menuRowAdvice {
 	var a menuRowAdvice
 	switch {
 	case f.Actor.HasOpenPark:
-		a.Notice.Text = "park interrupted; Recover park preserves the conversation"
+		a.Notice.Text = "unfinished transaction; Recover park preserves the conversation"
 		a.Enter.Text = "Tab → Recover park"
 	case f.Phase == menuPhaseNeedsRelaunch:
 		a.Notice.Text = "terminal unavailable; previous conversation may be recoverable"

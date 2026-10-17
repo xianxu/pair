@@ -223,6 +223,12 @@ func TestEnterUsesContinuityOutcome(t *testing.T) {
 	for _, s := range everyMenuRowShape(t) {
 		state := NewMenuState([]couchcore.ActionableThreadSummary{s.row}, s.row.Address)
 		next, effects := reduceKey(state, PanelKey{Kind: KeyEnter})
+		if s.row.HasOpenPark && enterOperationFor(s.row) == "" {
+			if len(effects) != 0 || !strings.Contains(next.Notice.Text, "Tab → Recover park") {
+				t.Errorf("%s: unfinished park must name confirmed recovery: %+v %q", s.name, effects, next.Notice.Text)
+			}
+			continue
+		}
 		switch couchcore.ContinuityOutcome(s.row) {
 		case couchcore.Continue:
 			want := "resume"
@@ -481,7 +487,7 @@ func TestRowAdviceNamesOnlyReachableActions(t *testing.T) {
 			vocabulary[action] = true
 		}
 		switch {
-		case s.slot || s.phase != "":
+		case s.slot || s.phase != "" || s.row.HasOpenPark:
 		case s.state == couchcore.ThreadLive, s.state == couchcore.ThreadParked, s.state == couchcore.ThreadDetached:
 			primaryOffers[s.state] = offered
 		}
@@ -499,7 +505,16 @@ func TestRowAdviceNamesOnlyReachableActions(t *testing.T) {
 	}
 	names := func(text, action string) bool {
 		for _, word := range []string{action, menuItemLabel(action)} {
-			if regexp.MustCompile(`(^|[^\pL\pN-])` + regexp.QuoteMeta(word) + `($|[^\pL\pN-])`).MatchString(text) {
+			candidate := text
+			// Labels can contain another action's name: "Recover park"
+			// names that complete action, not separate recover/park actions.
+			for other := range vocabulary {
+				label := menuItemLabel(other)
+				if other != action && len(label) > len(word) && strings.Contains(label, word) {
+					candidate = strings.ReplaceAll(candidate, label, "")
+				}
+			}
+			if regexp.MustCompile(`(^|[^\pL\pN-])` + regexp.QuoteMeta(word) + `($|[^\pL\pN-])`).MatchString(candidate) {
 				return true
 			}
 		}

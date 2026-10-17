@@ -1,9 +1,21 @@
 package couchtty
 
 import (
+	"github.com/xianxu/pair/cmd/internal/checkpoint"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"strings"
 	"testing"
+	"time"
 )
+
+func TestOpenParkStatusRetainsContinuationStatus(t *testing.T) {
+	row := couchcore.ActionableThreadSummary{State: couchcore.ThreadLive, HasOpenPark: true,
+		Continuation: &couchcore.ContinuationStatus{Phase: checkpoint.Running}}
+	status := rootStateText(row, time.Now())
+	if !strings.Contains(status, "Recover park") || !strings.Contains(status, "continuing…") {
+		t.Fatalf("unfinished transaction hid retained status: %q", status)
+	}
+}
 
 func TestRecoverParkMenuConfirmsAndBindsExactTransaction(t *testing.T) {
 	for _, row := range []couchcore.ActionableThreadSummary{{Address: menuAddress("ordinary"), State: couchcore.ThreadUnusable}, menuSlotRow(2, "slot-thread")} {

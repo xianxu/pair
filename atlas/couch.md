@@ -4533,3 +4533,9 @@ execution and receipt wiring in `couchcmd/console_slot_operations.go` and
 `slot_operations.go`; row authority and confirmation in `couchtty/menu_actions.go`
 and `menu.go`. The recovery decision/controller and journaled store mutation live
 in `couchcore/park_recovery.go` and `threadstore.go`.
+
+An open transaction's row shows the shared unfinished-transaction/Recover park
+advice, including on a still-live row; retained continuation status stays appended.
+With an absent terminal and live or unknown exact owner, explicit recovery
+refuses before entering cleanup reconciliation. A live-owner refusal says the
+transaction is still finishing and names the same recovery action to retry after inspection.
