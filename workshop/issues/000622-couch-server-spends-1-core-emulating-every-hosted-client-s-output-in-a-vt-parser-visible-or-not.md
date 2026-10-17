@@ -44,13 +44,14 @@ Couch CPU all the time, whether or not anyone is looking at that slot.
 
 ## Plan
 
-- [ ] M1 — land permanent per-hosted-client ingest-byte diagnostics through read-only resources; no parser-policy change.
+- [x] M1 — land permanent per-hosted-client ingest-byte diagnostics through read-only resources; no parser-policy change.
 - [ ] M2 — after the combined restart, measure natural idle/busy rates and server CPU, choose the smallest correct optimization with TL approval, then implement and verify it.
 
 
 ## Log
 
 ### 2026-10-16
+- 2026-10-16: closed M1 — M1 diagnostics only: recorded suite passed on aaf17569ea4005aa59502de3a3e47ecacb01dada (10m46s, log e13259c07f61); generated/concurrent counter and race checks, parser-lock barrier, production socket/JSON/text CLI conformance and exact encoded frame bounds pass. #626 retains the unrelated affected-package failure plus unchanged controls. README/atlas updated; TL owns project records. TL e6511b06 approves landing before the coordinated live restart; M2 CPU reduction and live metrics remain owed.; review verdict: SHIP
 
 ### 2026-10-16 — initial measurement and consumer audit
 
