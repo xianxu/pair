@@ -1,6 +1,6 @@
 ---
 id: 000630
-status: working
+status: codecomplete
 created: 2026-10-16
 updated: 2026-10-17
 estimate_hours: 1.57
@@ -13,6 +13,14 @@ claimant:
     workspace: pair:6
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
+actual_hours: 2.28
+tracker:
+    version: 1
+    completion:
+        token: close-7ea065a1a599
+        repository: github.com/xianxu/pair
+        reviewed_head: e87b903a0ab15c4b7c3e3e3da6e151e88c9e7659
+        evidence_commit: 122984a73dacace9954fc3e9fd513278895c4d1a
 ---
 
 # couch session-sync: carry tl-lead's stale-section list to the TL when no event would show it
