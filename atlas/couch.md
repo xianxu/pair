@@ -398,7 +398,14 @@ Targeted registry events inherit that same context as well as service lifetime;
 a stalled registry loop cannot extend the send past its admission budget.
 `--message-file` (pair#486) reads the body from a file at send time, so an agent writes a message
 containing shell syntax with its editor and the call stays a bare `couch …` its sandbox exempts.
-`--actors` and `--message-status` support JSON. One delivery at a time per
+`--actors` and `--message-status` support JSON.
+`Broker.StatusContext` resolves an exact visible ID before considering unique
+prefixes in the caller's retained sends, received messages and refusals. It
+uses the same locked visibility and waiting-line projection as exact reads;
+ambiguous prefixes list sorted visible full IDs, while misses identify an
+unknown lookup. Full-ID wrapper recovery after restart remains available;
+prefix resolution is limited to receipts the broker currently retains (#635).
+One delivery at a time per
 actor, a FIFO behind it (pair#492: `ActorState.queue`, at most `MaxQueued` = 32),
 the inbound breaker, and bounded terminal receipt retention limit the runtime.
 Accepted pre-paste mail has no wait horizon while its exact receiver is connected.
@@ -986,6 +993,50 @@ CLI. It runs in-process against the store and needs no supervisor.
   agreed with parley.nvim#314; `Holder` is `operator` or `""`. `read --json`
   answers `{"Code","Error","Read":{File,Section,Hash,Holder,Body}}`. `Owed` is never null, and a refusal exits
   non-zero with a `Code` other than `ok`.
+
+### Stale-section reminders (#630)
+
+The existing 15-second wait tick offers work to one serialized
+`sessionStaleWatcher`; it never waits for an external command. For registered
+`type: session-sync` documents owned by a verified hub, the worker runs
+`tl-lead status check FILE` at most once per 30 minutes per registration while
+the admitted wrapper is known settled, outside a picker and has no pending mail.
+Unknown or busy owners and operator-held files are skipped without consuming
+that allowance, so release can be noticed on the next tick. It checks current
+registration, owner, lock and wrapper generation again before sending.
+
+Only tl-lead owns section freshness budgets. A stale result becomes one ordinary
+hub-to-self `session-sync ping: ` message; fresh results remain silent. Neither
+inspection nor the check writes the document or advances its unread baseline.
+Registered-only metadata inspection selects its route under the registry lock;
+forgotten files never enter the legacy reader.
+Checks have a five-second deadline and bounded output; their owned process group ends on
+completion or cancellation. Missing/failing tl-lead or unknown output sends nothing and
+logs one bounded diagnostic per continuous failure episode. Uncertain sends are
+not retried within the allowance. Cooldowns are in memory, so restarting Couch
+can produce one extra reminder. Service shutdown collects the worker.
+
+### Stale-section CLI conformance (#630)
+
+The stale-section reminder's real CLI contract is opt-in. Before landing changes
+to the reminder worker, Couch's session-sync CLI, tl-lead status-check output or
+the supported tl-lead binary, build Couch once and run:
+
+```sh
+make bin/couch
+PAIR_LIVE_SESSION_STALE=1 \
+  PAIR_LIVE_COUCH_BIN="$PWD/bin/couch" \
+  PAIR_LIVE_TL_LEAD_BIN=/absolute/path/to/tl-lead \
+  go test ./cmd/internal/couchcmd -run '^TestSessionStaleLiveConformance$' -count=1 -v
+```
+
+The fixture adopts a disposable isolated namespace, creates a Git-backed status
+file and admits a disposable wrapper through the real message service. It runs
+the real tl-lead and Couch commands and receives the reminder through the real
+endpoint transport with a controlled composer. It checks half-hour repeats,
+fresh silence, operator-lock release and unchanged document/shadow/state bytes.
+It builds no binaries inside tests and never contacts an installed hub. Native
+installed-hub acceptance remains the TL's check after a Couch restart.
 
 ### Recover plan after a restart (#367)
 

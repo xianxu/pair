@@ -389,16 +389,23 @@ func (b *Broker) Status(caller Binding, id string) (Receipt, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.sweep()
+	r, ok := b.statusLocked(caller, id)
+	if !b.caller(caller) || !ok {
+		return Receipt{}, errors.New("receipt unavailable for this actor")
+	}
+	return r, nil
+}
+
+// statusLocked shares receipt visibility and current waiting projections
+// between exact-ID reads and status-prefix resolution.
+func (b *Broker) statusLocked(caller Binding, id string) (Receipt, bool) {
 	r, ok := b.receiptLocked(id)
 	if !ok {
 		if refused, found := b.refusals[id]; found {
 			r, ok = refused.receipt, true
 		}
 	}
-	if !b.caller(caller) || !ok || (r.Message.From != caller && r.Message.To != caller) {
-		return Receipt{}, errors.New("receipt unavailable for this actor")
-	}
-	return r, nil
+	return r, ok && (r.Message.From == caller || r.Message.To == caller)
 }
 
 // ReceiptSnapshot reads the supervisor's retained receipt without a live
@@ -841,18 +848,50 @@ func (b *Broker) recordRecoveredLocked(r Receipt, route Route) Receipt {
 	return r
 }
 
-// StatusContext is Status, plus — for an ID this broker does not remember,
+// StatusContext resolves exact IDs or unique caller-visible receipt prefixes,
+// plus — for an ID this broker does not remember,
 // as after a Couch restart — a query of every connected recipient's retained
 // receipts. A recipient that does not answer makes the result uncertain, not
 // absent. It runs only on this request path, never in the background.
 func (b *Broker) StatusContext(parent context.Context, caller Binding, id string) (Receipt, error) {
-	if r, err := b.Status(caller, id); err == nil {
-		return r, nil
-	}
 	b.mu.Lock()
+	b.sweep()
 	if !b.caller(caller) {
 		b.mu.Unlock()
 		return Receipt{}, ErrUnavailable
+	}
+	if r, ok := b.statusLocked(caller, id); ok {
+		b.mu.Unlock()
+		return r, nil
+	}
+	matches := make(map[string]Receipt)
+	match := func(fullID string) {
+		if strings.HasPrefix(fullID, id) {
+			if r, ok := b.statusLocked(caller, fullID); ok {
+				matches[fullID] = r
+			}
+		}
+	}
+	for fullID := range b.receipts {
+		match(fullID)
+	}
+	for fullID := range b.refusals {
+		match(fullID)
+	}
+	if len(matches) == 1 {
+		for _, r := range matches {
+			b.mu.Unlock()
+			return r, nil
+		}
+	}
+	if len(matches) > 1 {
+		ids := make([]string, 0, len(matches))
+		for fullID := range matches {
+			ids = append(ids, fullID)
+		}
+		sort.Strings(ids)
+		b.mu.Unlock()
+		return Receipt{}, fmt.Errorf("ambiguous message ID prefix %q: %s", id, strings.Join(ids, ", "))
 	}
 	if _, known := b.receipts[id]; known {
 		b.mu.Unlock()
@@ -919,7 +958,7 @@ func (b *Broker) StatusContext(parent context.Context, caller Binding, id string
 		}
 		return Receipt{}, fmt.Errorf("%w: %d connected recipient(s) did not answer for message %s", ErrUncertain, unanswered, id)
 	}
-	return Receipt{}, errors.New("receipt unavailable: no connected recipient retains this message")
+	return Receipt{}, fmt.Errorf("unknown message ID or prefix %q: no matching receipt found", id)
 }
 
 func (b *Broker) runActor(ctx context.Context, a *SlotActor) {

@@ -1,0 +1,67 @@
+---
+id: 000642
+status: done
+deps: []
+github_issue:
+created: 2026-10-17
+updated: 2026-10-17
+estimate_hours:
+collaboration-mode: collaboration
+card_mirror: 'e2138b2cc121df75be4c40517fcd738648ffa804' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-17T06:23:56-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:1
+    worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
+    repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "5f2c74c5", done: "222d8155"}
+actual_hours: 0.41
+---
+
+# Changelog Lua test shares reload scratch path across concurrent suites
+
+## Problem
+
+During pair#637 PR #396 recorded suite on b7f361ec1a8a097d500baa1241e9b88bf35a3b41, nvim/changelog_test.lua failed `reload replaced buffer with file contents` and `reload put cursor at newest entry`. This happened after a 1466 s queue wait; the test execution stopped after 27 s, before Go tests. The fixture uses the fixed TMPDIR filename pair-changelog-reload-test.md, writes it, reloads it, then removes it. Another concurrent invocation shares/removes that path. Other fixture paths in the same file are fixed too.
+
+## Spec
+
+Give each invocation ownership of its scratch paths and cleanup. Preserve all reload, annotation, read-only and cursor assertions. Add a deterministic concurrent-original control or equivalent collision regression. Use one atomic mkdtemp allocation beneath TMPDIR (fall back to /tmp when unset or empty); remove only that owned root after the fixture body, including assertion failures and Lua errors. ARCH-DRY: all three paths derive from one owner. ARCH-FUNERAL: cleanup follows the protected fixture body. ARCH-ORDER: the regression pauses A after its reload write, completes B in the same private TMPDIR, then releases and joins A. A fake editor would miss this real filesystem/process ownership seam; no product behavior changes.
+
+## Done when
+
+- Concurrent invocations do not overwrite or remove one another's reload/annotation scratch files.
+- Original assertion set passes independently and concurrently.
+- Each invocation removes its own scratch root on success, assertion failure and Lua error, without removing a sibling invocation or caller sentinel.
+
+## Plan
+
+- [x] Commit a deterministic two-process collision regression and observe the original reload failures.
+- [x] Allocate one private scratch root per Lua invocation; derive reload, annotation and named-buffer paths from it, and clean up on success/assertion failure/Lua error.
+- [x] Run the original assertions, concurrency and cleanup regression, then the recorded suite. Close review and landing follow through the workflow gates.
+
+## Log
+
+
+- 2026-10-17: closed — Deterministic original-source control reproduces both reload failures; isolated two-Neovim regression, assertion/error cleanup and caller sentinel preservation pass; all original assertions and make test-lua pass. Recorded full suite on b623c98f1e592d37fd1e81e6de9c11df2c55924d passed first attempt in 12m5s after 485s queue; SHA256 099a68734fa4. Four server checks green. Test fixture ownership only, product code unchanged and no new architectural surface; TL owns project updates. (done-when: contract moved since change-code; judged by the close review); review verdict: SHIP
+2026-10-17: No nvim source differs in #637. Original baseline ce783cd4a474d939c174bb079bc687efc2cc457a was extracted with git archive; both test and loaded Lua modules came from it. An isolated current test passed. Forty unsynchronized concurrent-original runs also passed (not evidence of absence).
+
+A controlled original/original interleaving reproduced exactly both failures: invocation A pauses immediately after its real writefile returns; invocation B runs the unmodified original test to completion in the same private TMPDIR and removes the shared file; release A, which fails both reload assertions and exits 1. B exits 0. The gate is a test-launch Lua wrapper around writefile; all original test/product Lua bodies remain unchanged. No sleeps, production edits or foreign paths. This proves a pre-existing filename collision; the specific other remover in the original suite is unknown, so it is consistent with the suite failure rather than a traced attribution to a named peer.
+
+Evidence directory: /tmp/pair637-ed1erwu8. Wrapper hold-original.lua, original-controlled-collision.log, original nvim source in original/nvim, and classification.json retain commands/outcomes. Failed recorded suite: /Users/xianxu/workspace/pair/.git/sdlc/test-stats/failed/7e7efa0d33e0f88288f8746ce6e1d8d3.log (SHA256 2ae07bbeb087aa0eb0fb1b1dc0c2635c5260c9a76f28402e1bd541e72a40fdbc).
+
+2026-10-17: Claimed after #637 landed. Hub quick plan submitted in receipt 7f7553c0-509a-469f-96bc-2c39b4ea94ba. Root allocation is preferred to independent per-file random names because it gives all three artifacts one cleanup owner; PID-only names would permit stale/reused identities. No product changes or new environment knobs.
+
+2026-10-17: Red-first regression ran against the unchanged fixture and reproduced both exact reload assertion failures (A paused after writefile; B completed and removed the shared file). The same committed regression against Git-archived original nvim source f823355f9b9988dfb9888eed1bac54de44edc10f fails identically. Evidence: /tmp/pair642-y5ycl0fi/red-original.log; original source and baseline-head retained there. No sleeps or increased deadlines.
+
+2026-10-17: One atomic fs_mkdtemp allocation now owns all three paths. xpcall protects the existing fixture body; cleanup runs before reporting assertion failures or Lua errors. All original check expressions remain unchanged. The Python regression runs two real headless Neovim children with private HOME/XDG/log roots and one intentionally shared TMPDIR, joins both, checks three paths per invocation share only their own root, verifies B leaves A's file present, and checks root removal and caller-sentinel preservation. Assertion-failure and Lua-error injection both prove cleanup. Native Neovim's own temporary directory is outside the fixture's ownership and remains for the enclosing Python TemporaryDirectory to remove. Product Lua unchanged.
+
+2026-10-17: Targeted verification passed: python3 -B tests/changelog-isolation-test.py (2 tests, including both failure subcases), nvim -l nvim/changelog_test.lua, make test-lua (entire Lua/editor suite), git diff --check. Retained green-isolation.log and green-lua.log beside the red control. The regression is wired into test-lua for future suites. During implementation its all-paths assertion caught the existing local scratch buffer variable shadowing a first draft's root name; the root is now scratch_root, so all three artifact paths use it.
+
+2026-10-17: Recorded full suite passed first attempt on Git-verified b623c98f1e592d37fd1e81e6de9c11df2c55924d: make PAIR_GO_TRIMPATH=-trimpath test, exit 0, 12m5s execution after 485s queue wait. All shell/Lua/Python checks and go test ./... passed; couchcmd 143.250s, couchcore 371.340s, couchtty 59.898s, wrapcmd 65.266s. Log: /Users/xianxu/workspace/pair/.git/sdlc/local-checks/b623c98f1e592d37fd1e81e6de9c11df2c55924d/suite.log; SHA256 099a68734fa4e41e7a6a33d3fb1664973ad2d64577bdb4b879debb59995e6820. All four server checks passed, including conformance. Close review and landing remain pending.
+
+## Revisions
+
+2026-10-17: Clarified the final checkbox to mark completed verification; close review and landing remain workflow gates, so the checkbox does not claim a future landing. Scope, Spec and Done when unchanged.
