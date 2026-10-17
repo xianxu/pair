@@ -661,6 +661,10 @@ func runTypedOperationWithConsole(op couchcore.Operation, parsed, prepareArgs ma
 		}
 		return 0
 	}
+	if threads, ok := result.([]couchcore.ThreadSummary); ok && op.Name == "list" {
+		renderThreadRows(stdout, threads, false, listRefusals(rt, couchmessage.Call))
+		return 0
+	}
 	return render(stdout, op, result)
 }
 
@@ -1271,17 +1275,17 @@ func renderSlotReport(w io.Writer, r couchcore.SlotReport) {
 // the panel and advisor. Human names lead named rows; only unnamed rows expose
 // the opaque tag as their fallback label.
 func renderThreads(w io.Writer, threads []couchcore.ThreadSummary) {
-	renderThreadRows(w, threads, false)
+	renderThreadRows(w, threads, false, nil)
 }
 
 // renderThreadDetails keeps the immutable composite address available for
 // diagnostics and exact follow-up operations. List intentionally stays
 // name-first and compact; show is the detail view.
 func renderThreadDetails(w io.Writer, threads []couchcore.ThreadSummary) {
-	renderThreadRows(w, threads, true)
+	renderThreadRows(w, threads, true, nil)
 }
 
-func renderThreadRows(w io.Writer, threads []couchcore.ThreadSummary, includeAddress bool) {
+func renderThreadRows(w io.Writer, threads []couchcore.ThreadSummary, includeAddress bool, refusals map[string]couchmessage.Receipt) {
 	if len(threads) == 0 {
 		fmt.Fprintln(w, "no threads")
 		return
@@ -1320,6 +1324,9 @@ func renderThreadRows(w io.Writer, threads []couchcore.ThreadSummary, includeAdd
 		// to be a local two-case guess over a `Parked` bool, which is how one
 		// store produced two different stories about the same thread.
 		fmt.Fprintf(w, "%s  %s%s\n", open, threadStateText(thread), close)
+		if r, refused := refusals[labels[thread.Address]]; refused {
+			fmt.Fprintf(w, "  %s\n", receiveStateText(labels[thread.Address], r.Detail))
+		}
 	}
 }
 

@@ -99,3 +99,12 @@ func TestBrokerRefusalsAreBoundedAndExpire(t *testing.T) {
 		t.Fatal("a refusal outlived its retention")
 	}
 }
+
+func TestRefusalsRequestTakesNoFields(t *testing.T) {
+	if err := ValidateRequest(Request{Op: "refusals"}); err != nil {
+		t.Fatalf("bare refusals: %v", err)
+	}
+	if err := ValidateRequest(Request{Op: "refusals", Target: "pair:3"}); err == nil {
+		t.Fatal("refusals accepted a field")
+	}
+}
