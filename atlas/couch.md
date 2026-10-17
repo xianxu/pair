@@ -411,6 +411,11 @@ position (pending pre-paste head = 1). Active receipts survive retention sweeps;
 terminal receipts receive a fresh one-hour retention period. A hung but connected
 receiver therefore retains mail until it returns or disconnects, with no silent
 expiry. Separate receiver workers remain independent.
+Promotion failure cleanup retains that actor's reservation while its bounded
+`Release` RPC runs outside the shared broker mutex. It clears only the same
+attempt's reservation after reacquiring the mutex; another receiver's admission
+and receipt reads can proceed during cleanup. Disconnect/replacement cancels the
+old worker without transferring its cleanup to the replacement endpoint.
 
 The bare target `hub` (pair#463, `couchmessage.HubTarget`) is resolved by the
 message service, not the broker: `messageService.hubRecipient` rewrites it to
