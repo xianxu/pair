@@ -1,4 +1,24 @@
 ---
+reviewer_runs:
+    - version: 1
+      intent:
+        id: eb4f83c7-7439-4a9e-a793-e0a654c48e8d
+        repository: github.com/xianxu/pair
+        issue_id: "000647"
+        recipe: estimate-quality
+        round: 1
+        attempt: 1
+        agent: codex
+        root: /Users/xianxu/workspace/worktree/pair-slot1/pair
+        reviewed_head: dc252eba5ca3deea25f448db09518a30f49b64ed
+        slot: pair:1
+        requested_at: "2026-10-17T18:25:13.107315Z"
+      phase: finished
+      pid: 38084
+      started_at: "2026-10-17T18:25:13.306481Z"
+      finished_at: "2026-10-17T18:25:35.191542Z"
+      session_id: 01a14b1c-61b8-78a0-a243-f2e794ef47b3
+      outcome: returned
 gate: plan-quality
 issue: 647
 id_prefix: PQ
@@ -83,7 +103,31 @@ rounds:
           note: R2 specifies the existing broker and wrapper presenter for detached shortcuts, existing Couch/editor channels, and production-entry presentation verification.
           round: 2
       blocked: false
-content_hash: 53a9b5db04a48fea17c0913ac2f7ed96af6f41158939ed385f10d5c43123ac28
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: a39c74c1-4c0d-43d5-846d-431385ae4a4c
+            repository: github.com/xianxu/pair
+            issue_id: "000647"
+            recipe: plan-quality
+            round: 3
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot1/pair
+            reviewed_head: dc252eba5ca3deea25f448db09518a30f49b64ed
+            slot: pair:1
+            requested_at: "2026-10-17T18:24:49.526108Z"
+          phase: finished
+          pid: 31745
+          started_at: "2026-10-17T18:24:49.684699Z"
+          finished_at: "2026-10-17T18:25:11.227543Z"
+          session_id: 01a14b1c-04fb-71c0-a664-55b826acf5ad
+          outcome: returned
+      "n": 3
+      timestamp: "2026-10-17T11:25:11-07:00"
+      agent: codex
+      blocked: false
+content_hash: 81220f8d2b20d52ff280fb9aa65811da7b2a3d9682eda55dfd08daa6486dbf6b
 ---
 
 # Gate ledger — pair#647 (plan-quality)
@@ -109,6 +153,8 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - PQ-1 — addressed — R2 supersedes historical case inventories with named validator, projection, orchestration and production-entry test strategies.
 - PQ-2 — addressed — R2 specifies a shared five-second admission deadline capped by earlier deadlines, remaining-budget propagation, and caller-owned subprocess cancellation and collection.
 - PQ-3 — addressed — R2 specifies the existing broker and wrapper presenter for detached shortcuts, existing Couch/editor channels, and production-entry presentation verification.
+
+## Round 3 — 2026-10-17T11:25:11-07:00 (codex) — passed
 
 ## Open findings
 
