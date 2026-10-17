@@ -16,6 +16,7 @@ claimant:
     workspace: pair:1
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "5f2c74c5", done: "222d8155"}
 ---
 
 # Changelog Lua test shares reload scratch path across concurrent suites
