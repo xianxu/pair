@@ -998,9 +998,13 @@ clones inside a slot do not get entries of their own.
 
 Live threads fade as they go idle, in the tabs and the switcher: a thread
 with no activity for a day is dimmed, and after three days it's dimmed further.
-Activity means your sends and the agent's work (its transcript), or launching
-or resuming the thread; switching to a thread or merely looking at its draft
-doesn't count. Couch checks about once a minute. The fade blends toward your
+Activity means your sends, the agent's recorded work and current turn, or
+launching or resuming the thread. A turn stays bright when started by a peer
+message or waiting silently on a command. After it finishes, the thread ages
+from its last work. A background command left running after the turn ends has
+no separate fade signal yet. Switching to a
+thread or merely looking at its draft doesn't count. Couch checks about once a
+minute. The fade blends toward your
 terminal's own background, which Couch asks the terminal for at startup, so it
 reads correctly on dark and light schemes; the amber `±`/`*` glyphs fade with
 their thread. The focused tab, the selected switcher row, and a thread with a
