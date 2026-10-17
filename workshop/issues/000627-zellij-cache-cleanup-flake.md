@@ -1,12 +1,20 @@
 ---
 id: 000627
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-16
 updated: 2026-10-16
 estimate_hours:
-card_mirror: 'e5d89d56424ea85d73df3d7de09cb901a8942677' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '5cf8b0570244a15da05c5d0a3d0ac6e415bdc70f' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-16T18:58:29-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:1
+    worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Live shortcut fixture races Zellij cache removal during TempDir cleanup
@@ -33,3 +41,7 @@ Investigate and eliminate the isolated real-Zellij fixture cleanup race. TestAge
 ## Log
 
 All 13 shortcut input subtests passed; other live launcher/core tests passed before this teardown failure. The landing CI gate correctly refused #604. No retry or bypass has been used for this failure.
+
+2026-10-16: Verified submitted dispatch b7c6c549-80ff-4fa5-b3cf-2dad5662be74 from ops:0. Loaded tl-worker rules, claimed, started branch from main. Initial start-plan catch-up failed because installed weave lacks --defer-settings; canonical weave refresh advanced the private ariadne substrate and rebuilt its tools, and the retry started successfully (nonblocking old-weave settings-check warning). No implementation changes yet.
+
+Investigating the real daemon lifetime: ControlledZellij.Close deletes the session, closes the PTY and reaps the client, but has no explicit daemon exit join. This is a hypothesis until measured. A scratch overlay logs exact unique-session process rows before/after Close. First 3-run probe could not start: inherited ZELLIJ_SOCKET_DIR points under macOS's long /var/folders path and Zellij 0.45.1 rejected the session name as exceeding its computed limit. Qualification reruns explicitly unset that inherited override, preserving the fixture's existing TMPDIR=/tmp policy; no source workaround added.
