@@ -1,13 +1,13 @@
 ---
 id: 000638
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-16
 updated: 2026-10-17
 estimate_hours: 2.452
 collaboration-mode: collaboration
-card_mirror: '715646a6a88655dc43305c1d4e23287693f51086' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '3201915f6e11da48e8f6ba624645e140ec657143' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-17T02:01:20-07:00
 claimant:
     operator: Xian Xu
@@ -17,6 +17,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: operator}
+actual_hours: 1.70
 ---
 
 # Couch Ctrl+Y copy still fails live after #604; the error vanishes and isn't logged
