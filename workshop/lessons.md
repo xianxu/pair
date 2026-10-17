@@ -2046,3 +2046,6 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 - #604 BR-1: Deferring a live smoke does not implicitly defer a separately promised diagnostic deliverable. Enumerate the Spec's independent obligations and explicitly reconcile any approved scope reduction across Spec, Plan, Done-when and atlas before claiming completion; keep unknown causes unknown.
 - #604 BR-2: For a changed user-visible action, update its existing README account as well as the atlas. Explain confirmed versus unconfirmed outcomes at the user entry point; internal architecture prose alone does not update the user contract.
+- #618 BR-10: an unauthenticated socket op answers with a purpose-built projection, never a stored record. Records carry caller Bindings (session and nonce are credentials) and bodies. Test that the marshalled answer holds neither.
+- #618 BR-11: a new writer into a shared durable file states its growth bound in the plan (ARCH-FUNERAL) and enforces it in code. Before trimming in place, check for byte offsets other readers keep into that file; the launch's `PairLogOffset` ruled trimming out here.
+- #618 BR-12: a milestone's Live step needs either a dated Log observation or a Revisions entry deferring it before the milestone is ticked. A step that needs the landed build gets that deferral when the close is planned, not when the review asks.

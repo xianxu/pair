@@ -565,9 +565,13 @@ func (b *Broker) Send(parent context.Context, from Binding, id string, route Rou
 	b.admissions[id] = pending
 	b.mu.Unlock()
 	receipt, err := b.admit(ctx, from, id, route, body)
+	var families map[string]string
+	if err != nil {
+		families = b.refusalFamilies()
+	}
 	b.mu.Lock()
 	if _, stored := b.receipts[id]; err != nil && !stored {
-		err = b.refuseLocked(from, id, route, body, err)
+		err = b.refuseLocked(from, id, route, body, err, families)
 	} else if err == nil {
 		delete(b.refusals, id)
 	}

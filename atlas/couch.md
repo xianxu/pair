@@ -545,6 +545,8 @@ remaining uncertainty is stated, never papered over:
   `couch-peer-<delivery ID>`). The session watcher correlates it like any draft
   turn, so a slot driven only by peer messages confirms its binding and can be
   relaunched. The draft pane's history and `!!` skip `couch-peer-` entries.
+  One launch records at most 8 (about 64 KB): a binding needs one completed
+  round after its launch, and the entries go wherever the Pair log goes.
 - **Relaunch rides out a slow quit (#618).** `--relaunch` waits up to
   `RelaunchParkWait` (60 s) for the agent's quit inside its operation before
   it offers recover/abandon; a plain park keeps its shorter wait.

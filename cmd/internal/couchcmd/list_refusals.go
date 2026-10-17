@@ -11,7 +11,7 @@ import (
 // listRefusals asks the running supervisor, from memory, which slots' latest
 // sends were refused (pair#618). Best effort: no Couch, an older one, or a slow
 // answer leaves the list exactly as the store reads it.
-func listRefusals(rt Runtime, call messageCall) map[string]couchmessage.Receipt {
+func listRefusals(rt Runtime, call messageCall) map[string]string {
 	socket, err := couchmessage.SocketPath(rt.StoreDir(), "broker")
 	if err != nil {
 		return nil

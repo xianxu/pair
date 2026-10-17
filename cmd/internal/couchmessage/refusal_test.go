@@ -2,6 +2,7 @@ package couchmessage
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -41,7 +42,7 @@ func TestBrokerRecordsWhyASendWasNotAdmitted(t *testing.T) {
 	if err != nil || r.Status != Refused || !strings.Contains(r.Detail, "zellij liveness is stale") || r.Message.To.Slot != "pair:3" {
 		t.Fatalf("status %+v %v", r, err)
 	}
-	if got := b.LatestRefusals()["pair:3"]; got.Message.ID != "m1" {
+	if got := b.LatestRefusals()["pair:3"]; !strings.Contains(got, "zellij liveness is stale") {
 		t.Fatalf("latest refusals %+v", b.LatestRefusals())
 	}
 
@@ -106,5 +107,33 @@ func TestRefusalsRequestTakesNoFields(t *testing.T) {
 	}
 	if err := ValidateRequest(Request{Op: "refusals", Target: "pair:3"}); err == nil {
 		t.Fatal("refusals accepted a field")
+	}
+}
+
+// The refusals op is unauthenticated, so its answer is the canonical slot and
+// the reason only (pair#618 BR-10), and an alias-spelled send is listed under
+// the slot's own name, as --list labels it (BR-13).
+func TestLatestRefusalsAreCanonicalReasonsOnly(t *testing.T) {
+	now := time.Unix(1000, 0)
+	b := NewBroker(context.Background(), func() time.Time { return now }, nil)
+	defer b.Close()
+	b.SetFamilies(func(context.Context) (map[string]string, error) { return map[string]string{"pair": "p", "ops": ""}, nil })
+	from, to := brokerBinding("ops:0"), brokerBinding("pair:3")
+	from.Nonce = "sender-nonce-credential"
+	_ = b.Register(from, newFakeEndpoint(now))
+	_ = b.Register(to, &failingObserveEndpoint{FakeDeliveryEndpoint: newFakeEndpoint(now), err: errors.New("wrapper does not own the current binding")})
+
+	if _, err := b.Send(context.Background(), from, "m1", Route{Target: "p:3"}, "secret body text"); err == nil {
+		t.Fatal("send was admitted")
+	}
+	latest := b.LatestRefusals()
+	if got, ok := latest["pair:3"]; !ok || !strings.Contains(got, "does not own") || len(latest) != 1 {
+		t.Fatalf("latest refusals %#v", latest)
+	}
+	raw, _ := json.Marshal(Response{Code: "ok", Refusals: latest})
+	for _, leak := range []string{"sender-nonce-credential", "secret body text", "session-ops:0"} {
+		if strings.Contains(string(raw), leak) {
+			t.Fatalf("refusals answer leaks %q: %s", leak, raw)
+		}
 	}
 }

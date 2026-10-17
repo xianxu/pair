@@ -1285,7 +1285,7 @@ func renderThreadDetails(w io.Writer, threads []couchcore.ThreadSummary) {
 	renderThreadRows(w, threads, true, nil)
 }
 
-func renderThreadRows(w io.Writer, threads []couchcore.ThreadSummary, includeAddress bool, refusals map[string]couchmessage.Receipt) {
+func renderThreadRows(w io.Writer, threads []couchcore.ThreadSummary, includeAddress bool, refusals map[string]string) {
 	if len(threads) == 0 {
 		fmt.Fprintln(w, "no threads")
 		return
@@ -1324,8 +1324,13 @@ func renderThreadRows(w io.Writer, threads []couchcore.ThreadSummary, includeAdd
 		// to be a local two-case guess over a `Parked` bool, which is how one
 		// store produced two different stories about the same thread.
 		fmt.Fprintf(w, "%s  %s%s\n", open, threadStateText(thread), close)
-		if r, refused := refusals[labels[thread.Address]]; refused {
-			fmt.Fprintf(w, "  %s\n", receiveStateText(labels[thread.Address], r.Detail))
+		// Keyed by the slot's own reference, not the row label, which gains a
+		// tag tail when labels collide.
+		if thread.Target.Kind == couchcore.ThreadTargetSlot {
+			slot := couchcore.WorkspaceReference{Repo: thread.Target.Slot.Repo, Number: thread.Target.Slot.Number}.String()
+			if reason, refused := refusals[slot]; refused {
+				fmt.Fprintf(w, "  %s\n", receiveStateText(slot, reason))
+			}
 		}
 	}
 }

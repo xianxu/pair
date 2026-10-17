@@ -19,9 +19,9 @@ func TestListShowsAReceiveStateFromTheSupervisorsRefusals(t *testing.T) {
 		{Address: couchcore.ThreadAddress{RepoScope: "s3", Tag: "1-pair-58"}, WorkingPath: "/w/pair-slot3/pair", Target: couchcore.ThreadTarget{Kind: couchcore.ThreadTargetSlot, Slot: couchcore.SlotIdentity{Repo: "pair", Number: 3}}, State: couchcore.ThreadLive},
 		{Address: couchcore.ThreadAddress{RepoScope: "s4", Tag: "1-pair-60"}, WorkingPath: "/w/pair-slot4/pair", Target: couchcore.ThreadTarget{Kind: couchcore.ThreadTargetSlot, Slot: couchcore.SlotIdentity{Repo: "pair", Number: 4}}, State: couchcore.ThreadLive},
 	}
-	refusals := map[string]couchmessage.Receipt{
-		"pair:3": {Status: couchmessage.Refused, Detail: "wrapper does not own the current binding"},
-		"pair:4": {Status: couchmessage.Refused, Detail: "admission timed out before the recipient accepted it"},
+	refusals := map[string]string{
+		"pair:3": "wrapper does not own the current binding",
+		"pair:4": "admission timed out before the recipient accepted it",
 	}
 	var out bytes.Buffer
 	renderThreadRows(&out, rows, false, refusals)
@@ -31,6 +31,15 @@ func TestListShowsAReceiveStateFromTheSupervisorsRefusals(t *testing.T) {
 	}
 	if !strings.Contains(text, "can't receive: admission timed out before the recipient accepted it -- fix: send again") {
 		t.Fatalf("pair:4 receive state missing:\n%s", text)
+	}
+	// A second pair:3 row (a stale record) makes the labels collide and gain a
+	// tag tail; the receive state still finds the slot (BR-13).
+	stale := rows[0]
+	stale.Address.Tag = "1-pair-12"
+	out.Reset()
+	renderThreadRows(&out, append([]couchcore.ThreadSummary{stale}, rows...), false, refusals)
+	if strings.Count(out.String(), "fix: couch --relaunch pair:3 --confirm") != 2 {
+		t.Fatalf("collided labels lost the receive state:\n%s", out.String())
 	}
 	out.Reset()
 	renderThreadRows(&out, rows, false, nil)
@@ -44,10 +53,10 @@ func TestListRefusalsIsBestEffort(t *testing.T) {
 		if r := request.(couchmessage.Request); r != (couchmessage.Request{Op: "refusals"}) {
 			t.Fatalf("request %+v", r)
 		}
-		*(response.(*couchmessage.Response)) = couchmessage.Response{Code: "ok", Refusals: map[string]couchmessage.Receipt{"pair:3": {Detail: "x"}}}
+		*(response.(*couchmessage.Response)) = couchmessage.Response{Code: "ok", Refusals: map[string]string{"pair:3": "x"}}
 		return nil
 	}
-	if got := listRefusals(broadcastListRuntime(), answer); got["pair:3"].Detail != "x" {
+	if got := listRefusals(broadcastListRuntime(), answer); got["pair:3"] != "x" {
 		t.Fatalf("refusals %v", got)
 	}
 	down := func(context.Context, string, any, any) error { return errors.New("no running couch") }

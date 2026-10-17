@@ -46,9 +46,10 @@ type Request struct {
 
 type Response struct {
 	Resources *couchcore.ResourceView `json:",omitempty"`
-	// Refusals answers refusals (pair#618): each slot's newest refusal that no
-	// later admission superseded, keyed by the slot the senders named.
-	Refusals        map[string]Receipt `json:",omitempty"`
+	// Refusals answers refusals (pair#618): each slot's newest refusal reason
+	// that no later admission superseded, keyed by canonical slot. Reasons
+	// only: the op is unauthenticated.
+	Refusals        map[string]string `json:",omitempty"`
 	Code, Error     string
 	RecoveryPreview *couchcore.RecoveryPreview `json:",omitempty"`
 	Submission      *SubmissionStatus          `json:",omitempty"`

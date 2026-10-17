@@ -151,6 +151,14 @@ Durable plan: `workshop/plans/000618-slots-recovered-by-reboot-or-resume-after-a
   that one entry (one lost correlation fact, never a delivery). Thread activity now also moves on a peer turn.
   Tests: watcher confirms a codex binding from wrapper-written log bytes (and not for an unrelated round); every
   delivery outcome records iff `Submitted` (mutation-checked); repeat recording adds nothing; Lua history skips peers.
+- 2026-10-16 close review round 3 (FIX-THEN-SHIP, 3 blocking):
+  - BR-10 fixed: `refusals` answers slot to reason only, with a test that the answer holds no nonce, session or body.
+  - BR-11 fixed: 8 peer turns per launch (about 64 KB), with a test.
+  - BR-12: the live steps are deferred in the plan Revisions; they need the landed build.
+  - Minor fixed (alias-spelled targets and collided labels missed in `--list`), with tests.
+  - BR-9: the clause is dropped in the plan Revisions.
+  - BR-7 and BR-8 left as non-blocking: the sender check before the admission budget, and the duplicate request
+    classification.
 
 ## Revisions
 
