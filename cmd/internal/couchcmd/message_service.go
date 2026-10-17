@@ -20,6 +20,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
 	"github.com/xianxu/pair/cmd/internal/couchtty"
+	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/procutil"
 	"github.com/xianxu/pair/cmd/internal/strictjson"
 	core "github.com/xianxu/pair/cmd/internal/submission"
@@ -322,6 +323,12 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch, configur
 	if err != nil {
 		return nil, err
 	}
+	// The message authority reads zellij liveness from one polled snapshot
+	// (pair#618): it runs on every admission and queued-message retry, and
+	// listing per check starved admission under load.
+	// Its loop lists at once when the service starts; until then a check refuses
+	// as not yet known rather than blocking startup on zellij.
+	listings := launcher.NewListingPoller(launcher.ZellijSource{}, messageListingInterval, messageListingMaxStale)
 	reader := couchcore.OSReadyReader{DataDir: artifacts.PairLifecycleDataDir(), Session: artifacts.PairSession, Proc: c.Proc}
 	session := func(ctx context.Context, address couchcore.ThreadAddress) (couchcore.PairSessionBinding, error) {
 		if err := ctx.Err(); err != nil {
@@ -359,7 +366,7 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch, configur
 			}
 			return messageFamilies(names), nil
 		},
-		thread: messageThreadResolver(c), workspace: resolver.ResolveWorkspace,
+		thread: messageThreadResolver(c, listings), workspace: resolver.ResolveWorkspace,
 		record: func(ctx context.Context, address couchcore.ThreadAddress) (couchcore.ThreadRecord, error) {
 			if c.Threads == nil {
 				return couchcore.ThreadRecord{}, errors.New("no thread store")
@@ -465,6 +472,8 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch, configur
 	watcher := newWaitWatcher(service, threshold, namespace)
 	service.workers.Add(1)
 	go func() { defer service.workers.Done(); watcher.run(service.lifetime, waitTick) }()
+	service.workers.Add(1)
+	go func() { defer service.workers.Done(); listings.Run(service.lifetime) }()
 	// The slot renicer (#502): what each slot's agent spawns runs at
 	// COUCH_SLOT_NICE; Couch, the wrapper, zellij and the agent stay at
 	// normal priority.
@@ -1276,9 +1285,37 @@ func (s *messageService) LivenessForThread(scope, tag string) (couchmessage.Slot
 	return couchmessage.SlotLiveness{}, false
 }
 
+// Liveness behind the message authority: a fresh listing at most this often,
+// and none older than this counts as evidence (pair#618).
+const (
+	messageListingInterval = time.Second
+	messageListingMaxStale = 5 * time.Second
+)
+
+type listedSessionObserver interface {
+	ListedPairSessionContext(context.Context, couchcore.ThreadAddress, string) (couchcore.PairSessionBinding, error)
+}
+
+// messageListedObserver is the artifact checker reading zellij through the
+// message authority's poller. Other supervisor paths keep their own reads.
+func messageListedObserver(artifacts couchcore.ThreadArtifactController, listings *launcher.ListingPoller) (listedSessionObserver, bool) {
+	switch checker := artifacts.(type) {
+	case couchcore.ScopedThreadArtifactCollisionChecker:
+		checker.Zellij.Listings = listings
+		return checker, true
+	case *couchcore.ScopedThreadArtifactCollisionChecker:
+		copied := *checker
+		copied.Zellij.Listings = listings
+		return copied, true
+	}
+	observer, ok := artifacts.(listedSessionObserver)
+	return observer, ok
+}
+
 // messageThreadResolver proves the retained thread and its positively listed
 // terminal without requiring this Couch to attach a local client pane.
-func messageThreadResolver(c *couchcore.Couch) func(context.Context, couchmessage.Binding) (string, error) {
+func messageThreadResolver(c *couchcore.Couch, listings *launcher.ListingPoller) func(context.Context, couchmessage.Binding) (string, error) {
+	observer, observable := messageListedObserver(c.Artifacts, listings)
 	return func(ctx context.Context, binding couchmessage.Binding) (string, error) {
 		if err := ctx.Err(); err != nil {
 			return "", err
@@ -1294,10 +1331,7 @@ func messageThreadResolver(c *couchcore.Couch) func(context.Context, couchmessag
 		if record.WorkingPath == "" {
 			return "", errors.New("message thread has no retained checkout")
 		}
-		observer, ok := c.Artifacts.(interface {
-			ListedPairSessionContext(context.Context, couchcore.ThreadAddress, string) (couchcore.PairSessionBinding, error)
-		})
-		if !ok {
+		if !observable {
 			return "", errors.New("listed Pair session observer unavailable")
 		}
 		session, err := observer.ListedPairSessionContext(ctx, address, binding.Session)

@@ -189,6 +189,15 @@ func (s *Server) serve(conn net.Conn) {
 	if strictjson.Decode(raw, &value) != nil {
 		return
 	}
+	if budget := requestBudget(raw); budget != TransportTimeout && !requestIsRecoveryPreview(raw) {
+		cancel()
+		ctx, cancel = context.WithTimeout(s.ctx, budget)
+		defer cancel()
+		deadline, _ = ctx.Deadline()
+		if err := conn.SetDeadline(deadline); err != nil {
+			return
+		}
+	}
 	if requestIsRecoveryPreview(raw) {
 		cancel()
 		ctx, cancel = context.WithTimeout(s.ctx, RecoveryPreviewTimeout)
@@ -240,9 +249,8 @@ func (e *replyDecodeError) Unwrap() error { return e.cause }
 // the remote handler; callers must query their request ID rather than retry it.
 func Call(ctx context.Context, socket string, request any, response any) error {
 	timeout := TransportTimeout
-	encoded, encodeErr := json.Marshal(request)
-	if encodeErr == nil && requestIsRecoveryPreview(encoded) {
-		timeout = RecoveryPreviewTimeout
+	if encoded, encodeErr := json.Marshal(request); encodeErr == nil {
+		timeout = requestBudget(encoded)
 	}
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
@@ -338,6 +346,28 @@ func transportWriteFrame(out io.Writer, body []byte) error {
 // Recovery preview is read-only and owns a bounded transcript scan. Frame
 // reception retains the ordinary timeout; only its handler gets the scan bound.
 const RecoveryPreviewTimeout = 35 * time.Second
+
+// SendTransportTimeout is a send's exchange budget on both ends: the broker
+// spends up to AdmissionTimeout admitting it and then answers with its verdict,
+// so the exchange must outlast admission or the verdict (a refusal's reason)
+// is dropped on the floor (pair#618).
+const SendTransportTimeout = AdmissionTimeout + time.Second
+
+// requestBudget is the one per-request exchange budget the client and the
+// server both apply.
+func requestBudget(raw []byte) time.Duration {
+	var request Request
+	if json.Unmarshal(raw, &request) != nil || ValidateRequest(request) != nil {
+		return TransportTimeout
+	}
+	switch request.Op {
+	case "resume-candidates":
+		return RecoveryPreviewTimeout
+	case "send":
+		return SendTransportTimeout
+	}
+	return TransportTimeout
+}
 
 func requestIsRecoveryPreview(raw []byte) bool {
 	var request Request

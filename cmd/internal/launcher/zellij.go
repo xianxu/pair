@@ -30,6 +30,10 @@ var errSessionNameTooLong = errors.New("session name too long")
 // ZellijSource reads zellij session state through the zellij CLI.
 type ZellijSource struct {
 	Path string
+	// Listings, when set, answers both list-sessions forms from a poller's
+	// latest snapshot instead of running zellij (pair#618). Nil lists on every
+	// read. Per-session queries (list-clients) always run.
+	Listings *ListingPoller
 }
 
 func (s ZellijSource) Snapshot() ([]Session, error) {
@@ -73,11 +77,7 @@ func (s ZellijSource) LivenessContext(ctx context.Context) ([]Session, error) {
 // is SessionLive, because an attach state that was not asked must not be
 // guessed.
 func (s ZellijSource) snapshot(ctx context.Context, ask, keep func(name string) bool) ([]Session, error) {
-	short, err := s.runContext(ctx, "list-sessions", "--short")
-	if err != nil {
-		return nil, err
-	}
-	raw, err := s.runContext(ctx, "list-sessions", "--no-formatting")
+	short, raw, err := s.listings(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -107,6 +107,20 @@ func (s ZellijSource) snapshot(ctx context.Context, ask, keep func(name string) 
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
 	return out, nil
+}
+
+// listings is the one source of both list-sessions outputs for snapshot.
+func (s ZellijSource) listings(ctx context.Context) (short, raw []byte, err error) {
+	if s.Listings != nil {
+		return s.Listings.Listings()
+	}
+	if short, err = s.runContext(ctx, "list-sessions", "--short"); err != nil {
+		return nil, nil, err
+	}
+	if raw, err = s.runContext(ctx, "list-sessions", "--no-formatting"); err != nil {
+		return nil, nil, err
+	}
+	return short, raw, nil
 }
 
 func (s ZellijSource) clientCount(session string) int {
