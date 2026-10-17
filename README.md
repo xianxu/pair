@@ -494,7 +494,7 @@ couch --send-to TARGET [--agent NAME] --message-file PATH
                          any form above, the body read verbatim from PATH (less one trailing newline):
                          write a message containing code or shell syntax with an editor, never quote it
 couch --message-status ID [--json]      inspect a message receipt; a send to a busy slot
-                         waits in line, in order (`queued`, `position N`) (pair#492)
+                         waits in order while connected; status names the composer wait and position
 couch --skill            print the bundled agent coordination skill
 couch --adopt-store /absolute/store     preview adoption of an existing store
 ```
@@ -822,7 +822,12 @@ Couch acceptance is separate from these receiver checks.
 
 Admission prints a receipt ID and resolved destination immediately. `queued`
 means a mailbox reservation; `submitted` means bytes submitted, not completed
-work. No eligible family slot returns `not-dispatched` with exit status zero.
+work. A busy, connected receiver retains accepted mail until its composer is
+ready. `--message-status` shows the wait and position in that receiver's line;
+do not resend a queued or held message. Disconnect or relaunch cancels mail
+not yet committed to the wrapper, with a receiver reason. A handed commit may
+be `indeterminate` because input cannot be ruled out. Once pasted, the existing 30-second confirmation window
+still bounds delivery. No eligible family slot returns `not-dispatched` with exit status zero.
 Other refusals return nonzero. If a send times out, query the printed ID with
 `--message-status` and inspect the recipient before sending again. Couch never
 replays an uncertain body or keeps a durable message queue across restart.
@@ -1002,9 +1007,13 @@ clones inside a slot do not get entries of their own.
 
 Live threads fade as they go idle, in the tabs and the switcher: a thread
 with no activity for a day is dimmed, and after three days it's dimmed further.
-Activity means your sends and the agent's work (its transcript), or launching
-or resuming the thread; switching to a thread or merely looking at its draft
-doesn't count. Couch checks about once a minute. The fade blends toward your
+Activity means your sends, the agent's recorded work and current turn, or
+launching or resuming the thread. A turn stays bright when started by a peer
+message or waiting silently on a command. After it finishes, the thread ages
+from its last work. A background command left running after the turn ends has
+no separate fade signal yet. Switching to a
+thread or merely looking at its draft doesn't count. Couch checks about once a
+minute. The fade blends toward your
 terminal's own background, which Couch asks the terminal for at startup, so it
 reads correctly on dark and light schemes; the amber `±`/`*` glyphs fade with
 their thread. The focused tab, the selected switcher row, and a thread with a

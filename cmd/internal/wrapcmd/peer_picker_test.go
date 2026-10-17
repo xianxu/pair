@@ -233,8 +233,8 @@ func TestPeerDeliveryHeldByAPickerNamesIt(t *testing.T) {
 	}
 }
 
-// A picker that outlasts the hold limit expires the message with its reason.
-func TestPeerDeliveryExpiresBehindAPickerWithItsReason(t *testing.T) {
+// A long-lived picker retains the message and reports its reason.
+func TestPeerDeliveryWaitsBehindAPickerWithItsReason(t *testing.T) {
 	f := pickerFake(t)
 	now := time.Now()
 	d := newPeerDelivery(peerTestMessage(now).To, func() time.Time { return now })
@@ -243,10 +243,10 @@ func TestPeerDeliveryExpiresBehindAPickerWithItsReason(t *testing.T) {
 	peerIntegrationEnqueue(t, d)
 	var out bytes.Buffer
 	f.proxy.dispatchPeer(&out)
-	now = now.Add(couchmessage.DeliveryTimeout + couchmessage.MaxHold + time.Second)
+	now = now.Add(2 * time.Hour)
 	f.proxy.dispatchPeer(&out)
 	r := d.receipt()
-	if r.Status != couchmessage.Expired || !strings.Contains(r.Detail, "held past 30m0s, blocked by a picker: Do you want to proceed?") {
+	if r.Status != couchmessage.Held || !strings.Contains(r.Detail, "blocked by a picker: Do you want to proceed?") {
 		t.Fatalf("receipt %+v", r)
 	}
 }

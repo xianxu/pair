@@ -117,6 +117,8 @@ func WaitCode(cmd *exec.Cmd) int {
 
 // Process is one row of Table: a pid, its parent, start identity, niceness,
 // and short kernel Name, all from the same read. Name may be truncated.
+// Listed PIDs whose metadata cannot be read retain only PID; their identity,
+// name and terminal state are unknown. Only confirmed disappearance omits a PID.
 type Process struct {
 	PID, PPID int
 	Identity  string

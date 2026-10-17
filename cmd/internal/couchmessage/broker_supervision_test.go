@@ -47,7 +47,7 @@ func TestSupervisionSubmission(t *testing.T) {
 }
 
 func TestSupervisionReceiptSnapshot(t *testing.T) {
-	for _, end := range []string{"queue expires", "sender disconnects"} {
+	for _, end := range []string{"receiver disconnects", "sender disconnects"} {
 		t.Run(end, func(t *testing.T) {
 			var clock atomic.Int64
 			clock.Store(time.Unix(1000, 0).UnixNano())
@@ -78,7 +78,7 @@ func TestSupervisionReceiptSnapshot(t *testing.T) {
 			if got, ok, _ := view.ReceiptSnapshot("prompt"); !ok || got.Status != Queued || got.Message != r.Message {
 				t.Fatalf("queued snapshot: %+v, %v", got, ok)
 			}
-			want := Expired
+			want := Cancelled
 			if end == "sender disconnects" {
 				b.Disconnect(hub)
 				want = Cancelled
@@ -86,7 +86,7 @@ func TestSupervisionReceiptSnapshot(t *testing.T) {
 					t.Fatal("disconnected caller retained ordinary status access")
 				}
 			} else {
-				clock.Add(int64(QueueWait))
+				b.Disconnect(worker)
 			}
 			got, ok, _ := view.ReceiptSnapshot("prompt")
 			if !ok || got.Status != want {

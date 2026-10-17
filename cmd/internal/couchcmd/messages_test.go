@@ -642,6 +642,7 @@ func TestMessageCLIPrintsQueuePositionAndCancelReason(t *testing.T) {
 	defer os.RemoveAll(root)
 	socket := filepath.Join(root, "broker.sock")
 	const reason = "ops:0 disconnected (relaunched or exited) before delivery; resend"
+	const heldID = "00000000-0000-4000-8000-000000000001"
 	s, err := couchmessage.StartServer(context.Background(), socket, func(_ context.Context, raw []byte) ([]byte, error) {
 		var request couchmessage.Request
 		if err := strictjson.Decode(raw, &request); err != nil {
@@ -652,6 +653,8 @@ func TestMessageCLIPrintsQueuePositionAndCancelReason(t *testing.T) {
 		if request.Op == "send" {
 			response.Code = "accepted"
 			response.Receipt = &couchmessage.Receipt{Message: message, Status: couchmessage.Queued, Detail: "position 2"}
+		} else if request.ID == heldID {
+			response.Receipt = &couchmessage.Receipt{Message: message, Status: couchmessage.Held, Detail: "position 1; waiting for recognized composer"}
 		}
 		return json.Marshal(response)
 	})
@@ -668,6 +671,7 @@ func TestMessageCLIPrintsQueuePositionAndCancelReason(t *testing.T) {
 	}{
 		{cliInvocation{kind: cliMessage, messageOp: "send", ref: "hub", messageBody: "report"}, "queued\nposition 2\n"},
 		{cliInvocation{kind: cliMessage, messageOp: "status", ref: "00000000-0000-4000-8000-000000000000"}, "cancelled\n" + reason + "\n"},
+		{cliInvocation{kind: cliMessage, messageOp: "status", ref: heldID}, "held\nposition 1; waiting for recognized composer\n"},
 	} {
 		var out, errout bytes.Buffer
 		runMessageCLIWithCall(tc.inv, messageRuntime(), &out, &errout, call)

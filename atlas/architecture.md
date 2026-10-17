@@ -1361,7 +1361,10 @@ ordinary contexts have no observer or new output.
 
 `cmd/internal/procutil` owns host process observations without launching `ps`.
 `Table` remains a cheap metadata snapshot (PID, parent, start identity, niceness
-and short kernel name). `Snapshot` enriches rows with native executable/argv and
+and short kernel name). Linux retains listed PIDs whose stat read or parse
+fails as PID-only unknown rows; only `ENOENT`/`ESRCH` permits omission. Unknown
+rows remain candidates for named capture and cannot prove a writer has exited.
+`Snapshot` enriches rows with native executable/argv and
 rechecks start identity, retaining unavailable evidence per live row. Native
 command reads reporting `EINVAL`, `ESRCH` and `ENOENT` mean gone and are omitted,
 including exit races during later environment reads. Identity reads retain their
