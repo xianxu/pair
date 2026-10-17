@@ -263,11 +263,9 @@ func (b *Broker) disconnectLocked(a *SlotActor) {
 		if !ok || m.From != binding {
 			continue
 		}
+		status := Cancelled
 		if job := b.jobs[m.ID]; job != nil {
 			job.cancel()
-		}
-		status := Cancelled
-		if b.receipts[m.ID].Status == Delivering {
 			status = Indeterminate
 		}
 		_ = b.apply(dest, Event{Kind: DeliveryFinished, Binding: m.To, Message: m, Status: status, Detail: "sender disconnected", At: b.now()})

@@ -115,6 +115,7 @@ type RemoteEndpoint struct {
 	Namespace string
 	Binding   Binding
 	socket    string // isolated socket injection for package tests
+	transport func(context.Context, string, any, any) error
 }
 
 var _ DeliveryEndpoint = RemoteEndpoint{}
@@ -133,7 +134,11 @@ func (e RemoteEndpoint) call(ctx context.Context, r EndpointRequest) (EndpointRe
 		}
 	}
 	var response EndpointResponse
-	if err := Call(ctx, socket, r, &response); err != nil {
+	transport := e.transport
+	if transport == nil {
+		transport = Call
+	}
+	if err := transport(ctx, socket, r, &response); err != nil {
 		var decode *replyDecodeError
 		if errors.As(err, &decode) {
 			if strings.HasPrefix(decode.Error(), "json: unknown field ") {

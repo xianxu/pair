@@ -233,3 +233,22 @@ func TestBusyReceiverDisconnectOrReplacementCancelsOldWork(t *testing.T) {
 		}
 	}
 }
+
+func TestBusyReceiverSenderDisconnectPreservesHandoffUncertainty(t *testing.T) {
+	for _, progress := range []Status{"", Queued, Held} {
+		t.Run(string(progress), func(t *testing.T) {
+			f := newBusyReceiverFixture(t, progress)
+			f.broker.Disconnect(f.from)
+			for i, m := range f.messages {
+				r, known, _ := f.broker.ReceiptSnapshot(m.ID)
+				want := Cancelled
+				if i == 0 && f.committed {
+					want = Indeterminate
+				}
+				if !known || r.Status != want || !strings.Contains(r.Detail, "sender disconnected") {
+					t.Errorf("sender disconnect: receipt=%+v known=%v, want %s", r, known, want)
+				}
+			}
+		})
+	}
+}
