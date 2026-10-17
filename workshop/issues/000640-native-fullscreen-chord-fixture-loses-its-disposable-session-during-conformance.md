@@ -50,6 +50,7 @@ Historical implementation criteria (superseded for this issue's close):
 ## Log
 
 ### 2026-10-17 — #639 qualification controls
+- 2026-10-17: closed — Diagnosis-only close per operator transfer to #647: retained native first-response controls reproduce crossed replies (65/2000 parallel, 57/2000 sequential), protocol controls connect false absence and empty success, and source/caller/upstream audits state residual limits. No production or test change; original implementation checklist retained as historical and transferred to #647. TL owns project updates. Exact-head da26fa0a8900192c0c95f0174e9fa34f57116163 recorded suite passed (11m59s); native defect is not claimed fixed.; review verdict: SHIP
 
 Candidate first run: PAIR_LIVE_ZELLIJ=1 go test ./cmd/internal/layoutcmd -run '^(TestFullscreenZellijLive|TestFullscreenChordZellijLive)$' -count=1 -v (the first named test does not exist; only chord ran). Failed after 11.18s at fullscreen_chord_live_test.go:149, before toggle input, list-panes reports no active session.
 
