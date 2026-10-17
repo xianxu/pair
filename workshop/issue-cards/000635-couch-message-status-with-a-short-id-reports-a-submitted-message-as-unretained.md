@@ -1,6 +1,6 @@
 ---
 id: 000635
-status: working
+status: codecomplete
 created: 2026-10-16
 updated: 2026-10-17
 estimate_hours:
@@ -13,6 +13,14 @@ claimant:
     workspace: pair:3
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
+actual_hours: 1.32
+tracker:
+    version: 1
+    completion:
+        token: close-ed6c8bf81577
+        repository: github.com/xianxu/pair
+        reviewed_head: 890c9f34b9d4927eb56cc42d89f0696812925b24
+        evidence_commit: bd75beae0db3b20f08162eefdcf66e42938f2f0b
 ---
 
 # couch --message-status with a short ID reports a submitted message as unretained
