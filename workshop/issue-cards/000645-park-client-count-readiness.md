@@ -1,6 +1,6 @@
 ---
 id: 000645
-status: codecomplete
+status: done
 created: 2026-10-17
 updated: 2026-10-17
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 0c0e924a7c8323e60f7490c540c7947d292d264d
         evidence_commit: 904406d1e12d8217c91430da27df94a5d51f29f3
+        landed_commit: 8f99f3b477be55f0318a7612cc34294daee1fcf6
 ---
 
 # Park fixture accepts empty client baseline as attachment readiness
