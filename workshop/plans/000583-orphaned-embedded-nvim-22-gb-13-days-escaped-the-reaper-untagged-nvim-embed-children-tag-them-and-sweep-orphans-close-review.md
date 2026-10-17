@@ -102,3 +102,93 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-17T05:56:02-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 583 — Orphaned embedded nvim (22 GB, 13 days) escaped the reaper: untagged 'nvim --embed' children; tag them and sweep orphans |
+| repo | pair |
+| issue file | workshop/issues/000583-orphaned-embedded-nvim-22-gb-13-days-escaped-the-reaper-untagged-nvim-embed-children-tag-them-and-sweep-orphans.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 1dc8d6c4aec48cf6fc1e89a574202ae6f5b322d4..c1f399ca89b85cf38b1284f5a7966973f4a75cd7 |
+| command | sdlc close --issue 583 |
+| reviewer | claude |
+| isolation | fenced |
+| timestamp | 2026-10-17T05:56:02-07:00 |
+| verdict | SHIP |
+
+## Review
+
+Build and the artifactpath/launcher tests pass. Next I'm running the couchcmd tests and checking how the conflicts were resolved.
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+This window doesn't change what the close review covered. The base commit (`1dc8d6c4a`, "sdlc: reviewed patch rebased") contained committed conflict markers. Most of the interdiff resolves them in six files. The rest is a bootstrap line added to `tests/nvim-pidfile-lifecycle-test.sh` and some bookkeeping (lessons, close-gate and close-review notes, issue status, and a close Log entry). Each resolution keeps what both sides meant:
+
+- **`message_service.go`:** keeps main's hosted-ingest wiring and the branch's `sweeps` channel. It also keeps both the `refusals` case and the `orphanReapOp` case.
+- **`README.md`:** keeps main's `--resources` line and the branch's `--reap-orphans` block.
+- **`resources_cli_test.go`:** keeps main's hosted-ingest tests, their imports, and the branch's orphan-sweep render test.
+- **`osruntime_test.go`:** keeps main's #617 title-lease behaviour.
+- **`Makefile.local`:** adds `test-build-go-atomic` and `test-nvim-pidfile` to the test target.
+- **`manifest.go`:** drops `draft`/`nvim-pid`/`title-pid` from the `osruntime.go` classification. The exact-classification guard confirms this matches what `osruntime.go` actually references at head.
+
+None of the six files contains conflict markers any more. `go build ./...` and `go vet` are clean. These all pass at head:
+
+- `go test ./cmd/internal/artifactpath`, which includes `TestProductionArtifactReferencesAreExactlyClassified`
+- `go test ./cmd/internal/launcher`
+- the `couchcmd` resource, orphan and reap tests
+- `tests/nvim-pidfile-lifecycle-test.sh`
+
+`## Spec` and `## Done when` are unchanged. The issue edits only tick M2 and add the close Log entry, so the scope didn't change. The window doesn't touch `run.go`, `SKILL.md` or `resource_orphan.go`, so the three open Minors (BR-8, BR-9, BR-10) are still open. They are Minor and don't block.
+
+1. **Strengths**
+   - Each conflict resolution keeps both sides' intent. In `message_service.go`, both the `refusals` and `orphanReapOp` ops are handled, and the sampler keeps both `hostedIngest` and `sweeps`.
+   - The manifest resolution is checked by the exhaustive inventory test rather than chosen by hand, and that test passes.
+   - The pidfile lifecycle shell test now sources the shared bootstrap, so it runs under the same test-binary environment as the rest of `make test`.
+   - The new lesson entries are accurate. The BR-5/6/7 entries were moved to sit next to the other #583 lessons, not lost.
+2. **Critical:** none.
+3. **Important:** none.
+4. **Minor:** BR-8, BR-9 and BR-10 are still open (see the dispositions).
+5. **Test coverage:** the conflict resolutions are covered by existing tests that run green at head (artifactpath inventory, launcher, couchcmd resource and orphan tests, and the nvim-pidfile shell test). I only ran targeted packages, not the whole `./...` suite.
+6. **Architecture:**
+   - ARCH-DRY passes: the resolutions don't duplicate anything, and the `refusals` case appears once.
+   - ARCH-PURE passes: the window adds no new logic.
+   - ARCH-PURPOSE passes for this window, which only resolves conflicts. BR-10 is the remaining coverage gap against the purpose of sweeping orphans, and it is tracked as Minor.
+7. **Plan revisions:** none needed.
+
+```findings
+dispose:
+  - id: BR-8
+    disposition: not-addressed
+    note: |
+      run.go:1429-1430 still says "Without --confirm it re-classifies and lists them"; run.go is untouched in this window.
+  - id: BR-9
+    disposition: not-addressed
+    note: |
+      SKILL.md:72 still says --reap-orphans "holds the console for SIGTERM's grace period"; SKILL.md is untouched in this window.
+  - id: BR-10
+    disposition: not-addressed
+    note: |
+      couchcore/resource_orphan.go:37 still uses slot.Workspace.WorktreeRoot unresolved (no EvalSymlinks in the file); untouched in this window.
+```
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"d7650925-5257-415a-9a40-cefc8cdbae2e","repository":"github.com/xianxu/pair","issue_id":"000583","recipe":"fix-review","round":7,"attempt":1,"agent":"claude","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/36fe33ff47581ca5","reviewed_head":"c1f399ca89b85cf38b1284f5a7966973f4a75cd7","slot":"pair:4","requested_at":"2026-10-17T12:53:14.127977Z"},"phase":"finished","pid":81549,"started_at":"2026-10-17T12:53:14.342207Z","finished_at":"2026-10-17T12:56:01.913404Z","session_id":"93adf487-ceb2-432c-a117-f68686035fc8","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.32053675s
+head: "c1f399ca89b85cf38b1284f5a7966973f4a75cd7"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000411

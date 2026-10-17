@@ -149,6 +149,8 @@ thin impl, T9/T10's cgo friction). Its fifth point — the ×1.15 buffer also mu
 
 ## Log
 
+
+- 2026-10-17: closed — Merge of origin/main 414195b34 resolved two conflicts: message_service.go keeps both the orphan-reap and refusals op cases; Makefile.local unions the test prerequisites (test-build-go-atomic + test-nvim-pidfile). No conflict markers remain; go build ./... clean; targeted couchcmd, couchmessage, testpair and artifactpath green; make test-nvim-pidfile 21/21 under the isolated environment. The first suite run on c1f399ca8 failed only TestListedDetachedTerminalAttachesWithoutNewServer, a live warm-fixture test whose launch helper acked EOF under suite load (3/3 green in isolation, no code in the window touches it); the rerun passed. (fixed-then-ship; full suite: sdlc-local/suite pass on c1f399ca8 (exit 0 in 11m07s, log sha256:f4c45bb0f060, Mac.localdomain)); review verdict: SHIP
 ### 2026-10-15
 
 ### 2026-10-16 — claimed in pair:4, root cause identified
