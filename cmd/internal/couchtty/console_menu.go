@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/xianxu/pair/cmd/internal/clipcmd"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/terminal"
 )
@@ -439,10 +440,16 @@ func (c *Console) copyLastNotice() {
 	c.mu.Unlock()
 	notice := infoMenuNotice("No notice to copy.")
 	if len(messages) > 0 {
-		if err := c.presenter.Copy(c.lifetime, []byte(messages[len(messages)-1].Body)); err != nil {
+		text := messages[len(messages)-1].Body
+		ctx, cancel := context.WithTimeout(c.lifetime, time.Second)
+		err := clipcmd.NewOSRuntime().ClipboardCopyLocal(ctx, text)
+		cancel()
+		if err == nil {
+			notice = infoMenuNotice("Full notice copied to clipboard.")
+		} else if err := c.presenter.Copy(c.lifetime, []byte(text)); err != nil {
 			notice = errorMenuNotice("Couldn’t copy notice; press Ctrl+Y to retry: " + err.Error())
 		} else {
-			notice = infoMenuNotice("Full notice copy requested; your terminal may not support it.")
+			notice = infoMenuNotice("Terminal copy requested; delivery is unconfirmed.")
 		}
 	}
 	c.mu.Lock()
