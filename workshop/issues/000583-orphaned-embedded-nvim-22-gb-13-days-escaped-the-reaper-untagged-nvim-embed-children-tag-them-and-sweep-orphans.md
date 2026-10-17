@@ -76,7 +76,7 @@ Durable plan: `workshop/plans/000583-orphaned-embedded-nvim-22-gb-13-days-escape
     `atlas/storage-retention-io.md` needed nothing: it inventories retention-IO anchors, and the pid records
     are written by lua `writefile` outside the guard, as they were before #583 — `TestManagedIOInventoryAnchors`
     passes untouched
-- [ ] M2 — untagged orphans are reported by couch and reaped only on confirmation
+- [x] M2 — untagged orphans are reported by couch and reaped only on confirmation
   - [x] Prove `procutil.Identity` is a wall clock; add `StartTimeFromIdentity` (renamed from the draft's
     `ParseIdentityTime`: it does IO on linux, and its argument is a token, not a pid)
   - [x] `procutil.Cwd` via `proc_pidinfo(PROC_PIDVNODEPATHINFO)` in the existing cgo libproc block (+ live conformance)
@@ -93,7 +93,7 @@ Durable plan: `workshop/plans/000583-orphaned-embedded-nvim-22-gb-13-days-escape
     from a fresh pass the sampler's own worker ran, then SIGTERM→wait→SIGKILL over the whole tree, each signal
     identity-fenced via `launcher.ProcessTable` — not `ProcOps`, which has no `Snapshot` and so cannot drive
     `Reaper`'s same-moment pid/parent/identity read
-  - [ ] Cost re-measured at max cardinality, docs updated, live check, full suite, close
+  - [x] Cost re-measured at max cardinality, docs updated, live check, full suite, close
 
 ## Estimate
 
@@ -151,6 +151,7 @@ thin impl, T9/T10's cgo friction). Its fifth point — the ×1.15 buffer also mu
 ### 2026-10-15
 
 ### 2026-10-16 — claimed in pair:4, root cause identified
+- 2026-10-16: closed — Live conformance on the real host, 3/3 passing: a reparented nvim --embed at PID 1 with cwd inside a managed checkout is named by the real sampler with identity, cwd, root and age all read natively; an embed with a live parent in the same checkout, same argv and same age gate is not named, mutation-proved (relaxing p.PPID == 1 to >= 1 names it and takes cwd_calls from 2 to 122); and a confirmed reap ends the real orphan through launcher.TreeReaper, verified by the kernel no longer reporting that generation for the pid. Untagged orphans report without confirmation and are reaped only with it: ValidateRequest refuses an unconfirmed reap-orphans request. Cost at maximum cardinality is 0.150892 percent of one core at the 60s cadence, inside the under-0.2-percent budget. Full suite green on 138263a18.; review verdict: SHIP
 - 2026-10-16: closed M1 — M1 round 5: BR-7 fixed by binding review attribution into the pid record at publish, which is what the family rule demands. review.lua writes the served file as the record second line out of its own argv (last element of vim.v.argv); the reaper reads that line beside the pid via sidecarRecord and never reads review-target state; a record that binds no file (legacy one-line, or empty field) is "attribution unknown", which skips and KEEPS the record. reviewcmd.TargetFileOf is deleted - nothing in production reads the mutable state any more, so a mismatch can no longer land on the side that deletes. New rows: sweep and quit paths for a reparented embed after a retarget (KILL), a cross-tag live pane holding a dead tag pid (skip), a legacy one-line record (kept), an empty second line (kept). Evidence: mutation check - restoring BR-6 semantics (state read overriding the record line) reddens exactly three rows, reap "a review embed whose pane retargeted after it was spawned", reap "a live tag review embed that reparented after a retarget", sweep "a review embed that reparented after its pane retargeted", and nothing else; then reverted and green. go test ./cmd/internal/launcher/ ./cmd/internal/reviewcmd/ ./cmd/internal/artifactpath/ -count=1 ok; make test-nvim-pidfile 21/21 across the four lua configs including the new "review: the record binds the file it serves"; PAIR_LIVE_NVIM_REAP=1 go test -run TestLiveNvimReap 3/3 PASS; whole go test ./cmd/internal/... -count=1 exit 0 with 0 FAIL lines; gofmt clean, go build ./... ok, go vet on the three touched packages clean. Prose: atlas/architecture.md review attribution now names the second line of the pid record and states that mutable state may corroborate but never be the subject; workshop/lessons.md gains the BR-7 rule (bind attribution at write time; check what a decided negative DELETES before calling a skip safe); the plan appends a round-4 revision and marks round-3 "residual gap, deliberate" as wrong and superseded. Residual, deliberate: two tags serving the same absolute file plus a pid wrap could still collide - strictly narrower than what BR-6 fired on (any retargeted pane); closing it needs a spawner-minted nonce in argv, a spawn-contract change, deferred out of M1.; review verdict: SHIP
 
 Claimed and branched (`sdlc claim`, `sdlc start-plan --issue 583`). Durable plan written via
@@ -909,3 +910,32 @@ modes, the identity fence, the outcome/exit-code table, owners and the live conf
 and the one destructive verb is the operator's and confirmed. `README.md` gains the verb in the command list
 with its `[seconds]` cost tag, the new alert trigger, and replaces "Monitoring never kills processes" with
 what the two modes actually do.
+
+### 2026-10-16 — the pre-close suite named three sources the artifact inventory had never heard of
+
+The first `sdlc local-check run --name suite` on `31266f94a` failed, in a package none of my targeted runs
+had touched:
+
+```
+--- FAIL: TestProductionArtifactReferencesAreExactlyClassified (1.19s)
+    coverage_test.go:205: NEW unclassified artifact references (fix them; do not add them to
+    testdata/known-artifact-violations.txt):
+        cmd/internal/couchcmd/reap_orphans.go: production source is absent from the exhaustive inventory
+        cmd/internal/couchcore/resource_orphan.go: production source is absent from the exhaustive inventory
+        cmd/internal/procutil/identity_age.go: production source is absent from the exhaustive inventory
+FAIL	github.com/xianxu/pair/cmd/internal/artifactpath	3.942s
+```
+
+The production-source inventory is exhaustive, so a new source has to declare itself **even when it owns no
+Pair artifact** — absence is the violation, not the artifact vocabulary. All three went into
+`NonArtifactSources` beside #587's resource block (`artifactpath/manifest.go:699`), which is where they
+belong on the merits and not just by adjacency: they read the same evidence, the roots they match are
+worktrees rather than artifact paths, and the argv they read is inspected, never constructed. Nothing was
+quarantined in `known-artifact-violations.txt`; that list is a ratchet that may only shrink. Fixed in
+`138263a18`, gate green in 3.3 s.
+
+The lesson is about the gate, not the fix: this is a **cross-package claim about the whole tree**, asserted
+from `artifactpath` over every production root. The four packages I had been iterating on (couchcmd,
+couchcore, launcher, couchmessage) cannot see it, so a green targeted run was never evidence about it. M1's
+files did not trip it because M1 added no new production source outside the packages already inventoried;
+M2 added three.
