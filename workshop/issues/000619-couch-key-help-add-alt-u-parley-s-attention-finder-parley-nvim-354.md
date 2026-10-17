@@ -67,6 +67,10 @@ Round 1 found no code defect and independently passed the four affected packages
 
 Round 2 disposed BR-1 and returned SHIP with no new findings. The reviewer's couchtty package run observed unchanged TestWorkbenchPerformanceIdleUITick timing out; its unchanged isolated repeat passed alongside the relevant routing/pass-through tests. Existing open #626 records that same activity-worker timeout. The review sidecar retains both outcomes; this is independent from help metadata, and no timeout or fixture change is folded into #619. The first recorded full suite above passed without retries.
 
+### 2026-10-16 — precise review failure evidence
+
+Correction to the preceding timeout classification: inspection of the reviewer's retained tool output shows pass results observed=16 with four failed rows (work-01, work-03, work-04, work-20), not #626's outer activity-worker wait assertion. Filed distinct unassigned #628; common causality is unknown. The failing record is retained at /tmp/pair619-review-activity-failure.json. Both the unchanged isolated repeat and the first recorded full suite passed, as the review records. Interrupted only this slot's queued merge to correct prose, without changing code, tests, timeouts or the SHIP verdict; normal landing resumes after publishing this correction.
+
 ## Revisions
 
 ### 2026-10-16 — operator selects Alt+Space
