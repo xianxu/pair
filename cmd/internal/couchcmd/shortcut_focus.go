@@ -2,6 +2,7 @@ package couchcmd
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os/exec"
 	"strconv"
@@ -13,36 +14,13 @@ import (
 	"github.com/xianxu/pair/cmd/internal/procutil"
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 	"github.com/xianxu/pair/cmd/internal/zellijpane"
+	"github.com/xianxu/pair/cmd/internal/zellijreply"
 )
 
 type shortcutFocusArtifacts interface {
 	PairSessionContext(context.Context, couchcore.ThreadAddress) (couchcore.PairSessionBinding, error)
 	PairLifecycleDataDir() string
-}
-
-// Query only the exact thread's client focus, not list-panes' per-client union
-// of is_focused flags. More than one client is ambiguous until Zellij exposes
-// the presenting client's identity; report that rather than choose arbitrarily.
-func focusedClientPane(raw []byte) (string, error) {
-	lines := strings.Split(strings.TrimSpace(string(raw)), "\n")
-	if len(lines) != 2 || strings.Join(strings.Fields(lines[0]), " ") != "CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND" {
-		return "", fmt.Errorf("expected exactly one attached Zellij client; use Couch's switcher to relaunch")
-	}
-	fields := strings.Fields(lines[1])
-	if len(fields) < 2 {
-		return "", fmt.Errorf("invalid Zellij client row")
-	}
-	if _, err := strconv.ParseUint(fields[0], 10, 64); err != nil {
-		return "", fmt.Errorf("invalid Zellij client id")
-	}
-	kind, id, ok := strings.Cut(fields[1], "_")
-	if _, err := strconv.ParseUint(id, 10, 64); !ok || err != nil || (kind != "terminal" && kind != "plugin") {
-		return "", fmt.Errorf("invalid focused Zellij pane")
-	}
-	if kind == "plugin" {
-		return "", nil
-	}
-	return id, nil
+	RevalidatePairSession(context.Context, couchcore.PairSessionBinding) error
 }
 
 func queryShortcutClients(ctx context.Context, session string) ([]byte, error) {
@@ -53,6 +31,9 @@ func queryShortcutClients(ctx context.Context, session string) ([]byte, error) {
 	return cmd.Output()
 }
 
+// Query only the exact thread's client focus, not list-panes' per-client union
+// of is_focused flags. More than one client is ambiguous until Zellij exposes
+// the presenting client's identity; report that rather than choose arbitrarily.
 func shortcutFocusProbe(artifacts shortcutFocusArtifacts, query func(context.Context, string) ([]byte, error)) func(context.Context, couchcore.ThreadAddress) (workbenchshortcut.PaneRole, error) {
 	return func(ctx context.Context, address couchcore.ThreadAddress) (workbenchshortcut.PaneRole, error) {
 		if artifacts == nil {
@@ -65,36 +46,61 @@ func shortcutFocusProbe(artifacts shortcutFocusArtifacts, query func(context.Con
 		if !binding.Present || binding.Name == "" {
 			return workbenchshortcut.PaneRoleOther, fmt.Errorf("Pair session binding unavailable")
 		}
-		raw, err := query(ctx, binding.Name)
-		if err != nil {
-			return workbenchshortcut.PaneRoleOther, err
-		}
-		id, err := focusedClientPane(raw)
-		if err != nil {
-			return workbenchshortcut.PaneRoleOther, err
-		}
-		if id == "" { // A positively identified plugin cannot be a right terminal.
-			return workbenchshortcut.PaneRoleOther, ctx.Err()
-		}
 		paths, err := artifactpath.Resolve(artifactpath.Address{DataDir: artifacts.PairLifecycleDataDir(), RepoScope: address.RepoScope, Tag: string(address.Tag)})
 		if err != nil {
 			return workbenchshortcut.PaneRoleOther, err
 		}
-		ids, err := (workbenchshortcut.TerminalPaneRegistry{DataDir: paths.ScopeDir(), Tag: string(address.Tag)}).LiveIDs(func(pid int) bool { return procutil.Alive(strconv.Itoa(pid)) })
+		var role workbenchshortcut.PaneRole
+		var ids []string
+		read := func(ctx context.Context) ([]byte, error) {
+			raw, err := query(ctx, binding.Name)
+			if err != nil {
+				return nil, err
+			}
+			ids, err = (workbenchshortcut.TerminalPaneRegistry{DataDir: paths.ScopeDir(), Tag: string(address.Tag)}).LiveIDs(func(pid int) bool { return procutil.Alive(strconv.Itoa(pid)) })
+			return raw, err
+		}
+		_, err = zellijreply.Confirm(ctx, read, func(raw []byte) (string, error) {
+			clients, err := zellijreply.ParseClients(raw)
+			if err != nil {
+				return "", err
+			}
+			if len(clients) != 1 {
+				return "", fmt.Errorf("expected exactly one attached Zellij client; use Couch's switcher to relaunch")
+			}
+			client := clients[0]
+			kind, id, _ := strings.Cut(client.PaneID, "_")
+			role = workbenchshortcut.PaneRoleOther
+			registered := false
+			command := ""
+			if kind != "plugin" {
+				registered = workbenchshortcut.Registered(ids, id)
+				if registered {
+					role = workbenchshortcut.PaneRoleRightTerminal
+				} else {
+					command = strings.Join(strings.Fields(client.RunningCommand), " ")
+					role = workbenchshortcut.RoleForPane(zellijpane.Pane{TerminalCommand: command})
+					if role != workbenchshortcut.PaneRoleLeftDraft && role != workbenchshortcut.PaneRoleLeftAgent && role != workbenchshortcut.PaneRoleReview {
+						return "", fmt.Errorf("focused pane has no confirmed Pair role; use Couch's switcher to relaunch")
+					}
+				}
+			}
+			proof := struct {
+				Client     int
+				Pane       string
+				Role       workbenchshortcut.PaneRole
+				Registered bool
+				Command    string
+			}{client.ID, client.PaneID, role, registered, command}
+			encoded, err := json.Marshal(proof)
+			return string(encoded), err
+		})
 		if err != nil {
 			return workbenchshortcut.PaneRoleOther, err
 		}
-		if workbenchshortcut.Registered(ids, id) {
-			return workbenchshortcut.PaneRoleRightTerminal, ctx.Err()
+		if err := artifacts.RevalidatePairSession(ctx, binding); err != nil {
+			return workbenchshortcut.PaneRoleOther, err
 		}
-		// Absence from a best-effort registry is not proof of another role:
-		// registration can fail, and LiveIDs skips malformed/dead entries.
-		line := strings.Split(strings.TrimSpace(string(raw)), "\n")[1]
-		fields := strings.Fields(line)
-		role := workbenchshortcut.RoleForPane(zellijpane.Pane{TerminalCommand: strings.Join(fields[2:], " ")})
-		if role == workbenchshortcut.PaneRoleLeftDraft || role == workbenchshortcut.PaneRoleLeftAgent || role == workbenchshortcut.PaneRoleReview {
-			return role, ctx.Err()
-		}
-		return workbenchshortcut.PaneRoleOther, fmt.Errorf("focused pane has no confirmed Pair role; use Couch's switcher to relaunch")
+		return role, ctx.Err()
 	}
 }

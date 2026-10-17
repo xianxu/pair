@@ -182,7 +182,7 @@ func (c *Console) queueAnchorJobs(s anchorSetter, notes []broadcast.Note, l Scre
 }
 
 // resolveAnchors is the resolver: one pass per batch of waiting notes, one
-// pane query per slot in a pass, until none wait.
+// pane observation per slot in a pass, until none wait.
 func (c *Console) resolveAnchors() {
 	for {
 		c.anchors.mu.Lock()
@@ -195,6 +195,13 @@ func (c *Console) resolveAnchors() {
 		}
 		c.anchors.mu.Unlock()
 		panes := map[couchcore.ThreadAddress][]PaneRect{}
+		refused := map[couchcore.ThreadAddress]bool{}
+		refuse := func(slot couchcore.ThreadAddress, reason string) {
+			if !refused[slot] {
+				c.setNotice("Note anchor unchanged: " + reason)
+				refused[slot] = true
+			}
+		}
 		for _, j := range jobs {
 			ps, asked := panes[j.slot]
 			if !asked {
@@ -203,6 +210,7 @@ func (c *Console) resolveAnchors() {
 				cancel()
 				if err != nil {
 					got = nil // the anchor stays as it opened
+					refuse(j.slot, err.Error())
 				}
 				panes[j.slot], ps = got, got
 			}
@@ -212,13 +220,15 @@ func (c *Console) resolveAnchors() {
 			c.anchors.mu.Lock()
 			now := c.anchors.frame
 			c.anchors.mu.Unlock()
-			if now.EndpointID != j.frame.EndpointID || now.GeometryEpoch != j.frame.GeometryEpoch || now.Geometry != j.frame.Geometry {
+			if now.EndpointID != j.frame.EndpointID || now.GeometryEpoch != j.frame.GeometryEpoch || now.Geometry != j.frame.Geometry || TextUnder(now, j.note.Box) != j.note.Anchor.Text {
+				refuse(j.slot, "the observed screen context changed")
 				continue // another slot in view, or resized: the panes no longer match the box
 			}
 			l := j.layout
 			l.Panes = ps
 			a := AnchorFor(j.note.Box, j.frame, l)
 			if a.Kind != broadcast.AnchorPane || !strings.HasPrefix(strings.Join(a.Path, "\x00"), strings.Join(j.note.Anchor.Path, "\x00")) {
+				refuse(j.slot, "the pane context could not be confirmed")
 				continue
 			}
 			a.Text = j.note.Anchor.Text // the text as it was when the note opened

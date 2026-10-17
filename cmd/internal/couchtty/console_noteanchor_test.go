@@ -115,6 +115,52 @@ func TestResolverFillsThePanePathAndKeepsTheOpeningText(t *testing.T) {
 	}
 }
 
+func TestResolverRejectsRelevantFrameChangeAndExplainsRefusal(t *testing.T) {
+	for _, relevant := range []bool{true, false} {
+		t.Run(map[bool]string{true: "inside-note", false: "elsewhere"}[relevant], func(t *testing.T) {
+			r := newAnchorRig(t)
+			r.c.feed = NewFeed(8, nil, 0)
+			r.open(1, cb(0, 0, 24, 3))
+			r.layout.during = func() {
+				f := r.frame.Clone()
+				f.Generation++
+				index := 5 * f.Geometry.Cols
+				if relevant {
+					index = 0
+				}
+				f.Cells[index].Content = "X"
+				r.c.keepNoteFrame(f)
+			}
+			r.c.resolveAnchors()
+			if relevant {
+				if r.path(1) != "" || !strings.Contains(r.c.feed.Row().Body, "Note anchor unchanged") {
+					t.Fatalf("path=%q notice=%q", r.path(1), r.c.feed.Row().Body)
+				}
+			} else if r.path(1) == "" {
+				t.Fatal("unrelated output refused anchor")
+			}
+			if r.layout.queries != 1 {
+				t.Fatalf("queries=%d", r.layout.queries)
+			}
+		})
+	}
+}
+
+func TestResolverQueryRefusalNoticesOncePerSlotPass(t *testing.T) {
+	r := newAnchorRig(t)
+	r.c.feed = NewFeed(8, nil, 0)
+	r.open(1, cb(0, 0, 24, 3))
+	r.open(2, cb(0, 6, 20, 2))
+	r.layout.err = errors.New("pane observations disagree")
+	r.c.resolveAnchors()
+	if r.path(1) != "" || r.path(2) != "" || r.layout.queries != 1 || !strings.Contains(r.c.feed.Row().Body, "pane observations disagree") {
+		t.Fatalf("paths=%q/%q queries=%d notice=%q", r.path(1), r.path(2), r.layout.queries, r.c.feed.Row().Body)
+	}
+	if len(r.c.feed.queue) != 1 {
+		t.Fatalf("notices=%d", len(r.c.feed.queue))
+	}
+}
+
 // The events the resolver can't block: a note resolved while zellij
 // answers, a resize meanwhile, a query that fails.
 func TestResolverOrdering(t *testing.T) {

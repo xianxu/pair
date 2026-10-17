@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/xianxu/pair/cmd/internal/zellijexec"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -296,6 +297,20 @@ func (r *fullscreenLiveRuntime) command(args ...string) ([]byte, error) {
 		return out, fmt.Errorf("fixture zellij %v: %w: %s", args, err, out)
 	}
 	return out, nil
+}
+func (r *fullscreenLiveRuntime) queryContext(ctx context.Context, args ...string) ([]byte, error) {
+	cmd := exec.CommandContext(ctx, "zellij", append([]string{"--session", r.session, "action"}, args...)...)
+	cmd.Env = append(os.Environ(), "ZELLIJ_PANE_ID="+r.caller)
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	err := zellijexec.Run(cmd)
+	return out.Bytes(), err
+}
+func (r *fullscreenLiveRuntime) ListPanesJSONContext(ctx context.Context) ([]byte, error) {
+	return r.queryContext(ctx, "list-panes", "--json", "--command", "--state", "--geometry")
+}
+func (r *fullscreenLiveRuntime) CurrentTabJSONContext(ctx context.Context) ([]byte, error) {
+	return r.queryContext(ctx, "current-tab-info", "--json")
 }
 func (r *fullscreenLiveRuntime) ListPanesJSON() ([]byte, error) {
 	return r.command("list-panes", "--json", "--all")

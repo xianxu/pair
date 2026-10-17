@@ -20,11 +20,26 @@ func TestFamilyRows(t *testing.T) {
 }
 
 func TestSessionNameRejected(t *testing.T) {
-	if !sessionNameRejected("error: session name must be less than 0 characters") {
-		t.Fatal("should detect the too-long rejection")
+	for _, tc := range diagnosticMatrix() {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := sessionNameRejected("pair-new", tc.status, tc.stdout, tc.stderr); got != tc.rejectsName {
+				t.Fatalf("validator rejection=%v, want %v", got, tc.rejectsName)
+			}
+		})
 	}
-	if sessionNameRejected("There is no active session!") {
-		t.Fatal("a not-found error is not a name-length rejection")
+}
+
+func TestSessionNameRejectedNumericBoundary(t *testing.T) {
+	for _, tc := range []struct {
+		limit string
+		valid bool
+	}{
+		{"18446744073709551615", true},
+		{"18446744073709551616", false},
+	} {
+		if got := sessionNameRejected("pair-new", 2, "", nativeNameValidator("pair-new", tc.limit)); got != tc.valid {
+			t.Fatalf("native uint64 limit %q valid=%v, want %v", tc.limit, got, tc.valid)
+		}
 	}
 }
 

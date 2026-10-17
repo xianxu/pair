@@ -2,6 +2,7 @@ package layoutcmd
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -153,14 +154,36 @@ func (w *fullscreenWorld) NudgeWrap() error {
 	w.nudges++
 	return nil
 }
+func (w *fullscreenWorld) CurrentTabJSONContext(ctx context.Context) ([]byte, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return w.CurrentTabJSON()
+}
+func (w *fullscreenWorld) ListPanesJSONContext(ctx context.Context) ([]byte, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return w.ListPanesJSON()
+}
 func (w *fullscreenWorld) CurrentTabJSON() ([]byte, error) {
-	return json.Marshal(map[string]any{"active_swap_layout_name": w.swap, "is_swap_layout_dirty": w.dirty})
+	return json.Marshal(map[string]any{"tab_id": 0, "position": 0, "active_swap_layout_name": w.swap, "is_swap_layout_dirty": w.dirty})
 }
 func (w *fullscreenWorld) ListPanesJSON() ([]byte, error) {
 	w.lists++
 	var out []map[string]any
 	for _, p := range w.panes {
-		out = append(out, map[string]any{"id": p.ID, "title": p.Title, "terminal_command": p.TerminalCommand, "is_plugin": p.IsPlugin, "is_focused": p.IsFocused, "is_floating": p.IsFloating, "is_fullscreen": p.IsFullscreen, "pane_columns": p.Columns, "pane_rows": p.Rows, "pane_y": p.Y})
+		if p.IsPlugin {
+			off := false
+			p.IsFullscreen = &off
+			if p.Columns == 0 {
+				p.Columns = 80
+			}
+			if p.Rows == 0 {
+				p.Rows = 1
+			}
+		}
+		out = append(out, map[string]any{"id": p.ID, "title": p.Title, "terminal_command": p.TerminalCommand, "is_plugin": p.IsPlugin, "is_focused": p.IsFocused, "is_floating": p.IsFloating, "is_fullscreen": p.IsFullscreen, "pane_columns": p.Columns, "pane_rows": p.Rows, "pane_y": p.Y, "pane_x": p.X, "tab_id": 0, "tab_position": 0})
 	}
 	return json.Marshal(out)
 }
@@ -330,13 +353,13 @@ func TestRightPaneRuntimeFailures(t *testing.T) {
 			t.Fatalf("%d/%s continued after failure: %v", tc.presses, tc.failure, w.ops)
 		}
 	}
-	// A restore that cannot reach its layout degrades, never blocks the return to Normal.
+	// A failed restore retains partial progress and the recovery record; no guessed return focus.
 	w := newFullscreenWorld()
 	if RunToggleFocused(nil, w, &bytes.Buffer{}) != 0 {
 		t.Fatal("focus")
 	}
 	w.record = ExpandRecord{Return: "2", Swap: "nonexistent"}.Encode()
-	if code := RunToggleFocused(nil, w, &bytes.Buffer{}); code != 0 || *w.pane("4").IsFullscreen || w.pane("4").IsFloating || w.current != "2" || w.record != "" {
+	if code := RunToggleFocused(nil, w, &bytes.Buffer{}); code == 0 || *w.pane("4").IsFullscreen || w.pane("4").IsFloating || w.record == "" {
 		t.Fatalf("degraded restore blocked Normal: %d %v", code, w.logs)
 	}
 	if len(w.logs) != 1 || !strings.Contains(w.logs[0], "restore tiling") {

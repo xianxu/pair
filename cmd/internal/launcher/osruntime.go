@@ -175,8 +175,7 @@ func (r OSRuntime) ProbeSessionNameContext(ctx context.Context, session string) 
 		// Diagnostic evidence may consume only a pure subprocess exit. Joined
 		// cancellation/collection failures cannot teach either length bound.
 		if exit, pureExit := err.(*exec.ExitError); pureExit {
-			out := append(stdout.Bytes(), stderr.Bytes()...)
-			if sessionNameRejected(string(out)) {
+			if sessionNameRejected(session, exit.ExitCode(), stdout.String(), stderr.String()) {
 				return fmt.Errorf("%w: %s", errSessionNameTooLong, session)
 			}
 			// Clap validates --session before action dispatch. These exact

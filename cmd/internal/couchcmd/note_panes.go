@@ -2,7 +2,9 @@ package couchcmd
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -17,6 +19,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/reviewcmd"
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 	"github.com/xianxu/pair/cmd/internal/zellijpane"
+	"github.com/xianxu/pair/cmd/internal/zellijreply"
 )
 
 // The pane layout behind a terminal note's anchor (#488): which pane of the
@@ -66,19 +69,61 @@ func paneRectsOf(artifacts shortcutFocusArtifacts, query func(context.Context, s
 		if !binding.Present || binding.Name == "" {
 			return nil, errors.New("Pair session binding unavailable")
 		}
-		raw, err := query(ctx, binding.Name)
-		if err != nil {
-			return nil, err
-		}
-		panes := zellijpane.Parse(raw)
-		if len(panes) == 0 {
-			return nil, errors.New("zellij reported no panes")
-		}
 		paths, err := artifactpath.Resolve(artifactpath.Address{DataDir: artifacts.PairLifecycleDataDir(), RepoScope: address.RepoScope, Tag: string(address.Tag)})
 		if err != nil {
 			return nil, err
 		}
-		ids, _ := (workbenchshortcut.TerminalPaneRegistry{DataDir: paths.ScopeDir(), Tag: string(address.Tag)}).LiveIDs(func(pid int) bool { return procutil.Alive(strconv.Itoa(pid)) })
+		var panes []zellijpane.Pane
+		var ids []string
+		readPanes := func(ctx context.Context) ([]byte, error) {
+			raw, err := query(ctx, binding.Name)
+			if err != nil {
+				return nil, err
+			}
+			ids, err = (workbenchshortcut.TerminalPaneRegistry{DataDir: paths.ScopeDir(), Tag: string(address.Tag)}).LiveIDs(func(pid int) bool { return procutil.Alive(strconv.Itoa(pid)) })
+			return raw, err
+		}
+		_, err = zellijreply.Confirm(ctx, readPanes, func(raw []byte) (string, error) {
+			var err error
+			panes, err = zellijreply.ParsePanes(raw, zellijreply.PaneRequirements{Command: true, State: true, Geometry: true, Tab: true})
+			if err != nil {
+				return "", err
+			}
+			if len(panes) == 0 {
+				return "", errors.New("zellij reported no panes")
+			}
+			type fact struct {
+				ID                   string
+				Plugin               bool
+				Role                 workbenchshortcut.PaneRole
+				Command, File        string
+				TabID, TabPosition   *int
+				X, Y, W, H           int
+				Floating, Fullscreen bool
+			}
+			facts := make([]fact, 0, len(panes))
+			for _, p := range panes {
+				role := workbenchshortcut.RoleForPaneWith(p, ids)
+				file := ""
+				if role == workbenchshortcut.PaneRoleLeftDraft {
+					file = paths.Draft()
+				} else if role == workbenchshortcut.PaneRoleReview {
+					file = reviewFile(p.TerminalCommand)
+				}
+				facts = append(facts, fact{p.ID, p.IsPlugin, role, p.TerminalCommand, file, p.TabID, p.TabPosition, p.X, p.Y, p.Columns, p.Rows, p.IsFloating, *p.IsFullscreen})
+			}
+			encoded, err := json.Marshal(facts)
+			return string(encoded), err
+		})
+		if err != nil {
+			return nil, fmt.Errorf("cannot confirm note panes: %w", err)
+		}
+		if err := artifacts.RevalidatePairSession(ctx, binding); err != nil {
+			return nil, err
+		}
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		return notePanes(panes, ids, paths.Draft(), read), ctx.Err()
 	}
 }

@@ -75,10 +75,10 @@ func TestPaneRectsOfAsksTheSlotsSession(t *testing.T) {
 	var asked []string
 	rects := paneRectsOf(f, func(_ context.Context, session string) ([]byte, error) {
 		asked = append(asked, session)
-		return []byte(`[{"id":1,"is_plugin":false,"terminal_command":"pair wrap claude","pane_x":0,"pane_y":0,"pane_columns":80,"pane_rows":23}]`), nil
+		return []byte(`[{"id":1,"is_plugin":false,"terminal_command":"pair wrap claude","is_focused":true,"is_floating":false,"is_fullscreen":false,"tab_id":0,"tab_position":0,"pane_x":0,"pane_y":0,"pane_columns":80,"pane_rows":23}]`), nil
 	}, readNoteFile)
 	got, err := rects(context.Background(), a)
-	if err != nil || len(got) != 1 || got[0].Role != couchtty.PaneAgent || len(asked) != 1 || asked[0] != "exact-session" {
+	if err != nil || len(got) != 1 || got[0].Role != couchtty.PaneAgent || len(asked) != 2 || asked[0] != "exact-session" {
 		t.Fatalf("%+v %v asked %v", got, err, asked)
 	}
 	failing := paneRectsOf(f, func(context.Context, string) ([]byte, error) { return nil, errors.New("no server") }, readNoteFile)

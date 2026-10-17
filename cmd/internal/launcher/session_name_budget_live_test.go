@@ -1,11 +1,44 @@
 package launcher
 
 import (
+	"bytes"
+	"context"
 	"os"
 	"os/exec"
 	"strings"
 	"testing"
+
+	"github.com/xianxu/pair/cmd/internal/zellijexec"
 )
+
+// This check cannot reach a server: native --session validation rejects a
+// synthetic name beyond any supported socket-name budget before action dispatch.
+// Keep all native roots private and use the existing opt-in conformance gate.
+func TestNativeSessionNameValidatorParseOnlyLive(t *testing.T) {
+	if os.Getenv("PAIR_LIVE_COUCH") != "1" {
+		t.Skip("set PAIR_LIVE_COUCH=1 for native parse-only conformance")
+	}
+	path, err := exec.LookPath("zellij")
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := t.TempDir()
+	name := sessionNameProbeMarker + strings.Repeat("z", 300)
+	ctx, cancel := context.WithTimeout(context.Background(), zellijQueryTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, path, "--session", name, "action", "list-clients")
+	cmd.Env = []string{"PATH=" + os.Getenv("PATH"), "HOME=" + root, "TMPDIR=" + root, "XDG_CACHE_HOME=" + root, "XDG_CONFIG_HOME=" + root, "XDG_RUNTIME_DIR=" + root, "ZELLIJ_CONFIG_DIR=" + root}
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &stdout, &stderr
+	err = zellijexec.Run(cmd)
+	exit, pure := err.(*exec.ExitError)
+	if !pure || ctx.Err() != nil {
+		t.Fatalf("native parse-only process: error=%v context=%v", err, ctx.Err())
+	}
+	if !sessionNameRejected(name, exit.ExitCode(), stdout.String(), stderr.String()) {
+		t.Fatalf("native validator no longer conforms: status=%d stdout=%q stderr=%q", exit.ExitCode(), &stdout, &stderr)
+	}
+}
 
 // The acceptor agrees with REAL zellij, not just with fakeRuntime (#215 BR-2).
 //
@@ -16,9 +49,9 @@ import (
 // arithmetic question answered from observations of this machine. Before, every
 // candidate was probed, so a missed rejection mis-accepted ONE name; now one
 // wrong observation decides every candidate of that length or longer. The whole
-// chain rests on sessionNameRejected (zellijparse.go) matching one substring of
-// zellij's stderr, and a zellij release rewording that message would silently
-// turn the oracle into "accept everything" with every unit test still green.
+// chain rests on sessionNameRejected (zellijparse.go) recognizing the complete
+// native validator reply. A release rewording it must remain unknown rather than
+// teaching the arithmetic oracle a false length bound.
 //
 // It drives the PRODUCTION acceptor rather than a helper, so what is pinned is
 // what runs.
@@ -33,8 +66,8 @@ func TestTheAcceptorAgreesWithRealZellijLive(t *testing.T) {
 	pad := func(n int) string { return marker + strings.Repeat("z", n-len(marker)) }
 
 	// A name no socket path can hold must be refused. If sessionNameRejected has
-	// stopped recognising zellij's message, ProbeSessionName returns nil and this
-	// is the assertion that catches it.
+	// stopped recognising zellij's message, the missing measured refusal below
+	// catches the resulting unknown query.
 	if accepts(pad(200)) {
 		out, _ := exec.Command("zellij", "--session", pad(200), "action", "list-clients").CombinedOutput()
 		t.Fatalf("a 200-byte session name was ACCEPTED, so over-long names now read as "+

@@ -3,12 +3,16 @@
 package layoutcmd
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"github.com/xianxu/pair/cmd/internal/zellijexec"
+	"github.com/xianxu/pair/cmd/internal/zellijreply"
 	"io"
 	"os"
 	"os/exec"
 
+	"github.com/xianxu/pair/cmd/internal/notifytransport"
 	"github.com/xianxu/pair/cmd/internal/procutil"
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 	"github.com/xianxu/pair/cmd/internal/zellijpane"
@@ -16,6 +20,8 @@ import (
 )
 
 type Runtime interface {
+	ListPanesJSONContext(context.Context) ([]byte, error)
+	CurrentPaneID() string
 	ListPanesJSON() ([]byte, error)
 	RunZellijAction(args ...string) error
 	// LastTerminalPaneID returns the recorded pane id of the split half the
@@ -36,12 +42,22 @@ type Runtime interface {
 // to target a specific half. When no right terminal exists (layout2), fall
 // back to the relative move so two-pane layouts keep their old behavior.
 func FocusRightTerminal(rt Runtime) error {
-	terminal, ok, err := resolveRightTerminal(rt)
+	ctx, cancel := zellijreply.AdmissionContext(context.Background())
+	defer cancel()
+	return FocusRightTerminalContext(ctx, rt)
+}
+
+// FocusRightTerminalContext retains an enclosing shortcut admission budget.
+func FocusRightTerminalContext(ctx context.Context, rt Runtime) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	terminal, ok, err := resolveRightTerminalContext(ctx, rt)
 	if err != nil {
 		return err
 	}
 	if !ok {
-		return rt.RunZellijAction("move-focus", "right")
+		return fmt.Errorf("right terminal not observed")
 	}
 	return rt.RunZellijAction("focus-pane-id", terminal.ID)
 }
@@ -86,8 +102,8 @@ func resolveFromSidecars(liveIDs []string, lastTerminal string) (string, bool) {
 // Sidecar reads degrade gracefully by design: a missing or corrupt record or
 // registry must never break the action — the picker just loses its preference
 // signal and falls back to zellij focus, then pane order.
-func resolveRightTerminal(rt Runtime) (zellijpane.Pane, bool, error) {
-	id, ok, err := resolveRightTerminalID(rt)
+func resolveRightTerminalContext(ctx context.Context, rt Runtime) (zellijpane.Pane, bool, error) {
+	id, ok, err := resolveRightTerminalIDContext(ctx, rt)
 	if err != nil || !ok {
 		return zellijpane.Pane{}, false, err
 	}
@@ -99,6 +115,11 @@ func resolveRightTerminal(rt Runtime) (zellijpane.Pane, bool, error) {
 // that need observed fullscreen state (RunToggleFocused) still list panes
 // unconditionally, because no sidecar carries that state.
 func resolveRightTerminalID(rt Runtime) (string, bool, error) {
+	ctx, cancel := zellijreply.AdmissionContext(context.Background())
+	defer cancel()
+	return resolveRightTerminalIDContext(ctx, rt)
+}
+func resolveRightTerminalIDContext(ctx context.Context, rt Runtime) (string, bool, error) {
 	// Sidecar reads degrade gracefully: a missing record or registry costs the
 	// resolution its fast path, never its correctness.
 	lastTerminal, err := rt.LastTerminalPaneID()
@@ -112,11 +133,11 @@ func resolveRightTerminalID(rt Runtime) (string, bool, error) {
 	if id, ok := resolveFromSidecars(terminalIDs, lastTerminal); ok {
 		return id, true, nil
 	}
-	panesJSON, err := rt.ListPanesJSON()
+	panes, _, _, err := ConfirmWorkbenchPanesContext(ctx, rt, rt.CurrentPaneID())
 	if err != nil {
 		return "", false, err
 	}
-	terminal, ok := pickRightTerminal(zellijpane.Parse(panesJSON), lastTerminal, terminalIDs)
+	terminal, ok := pickRightTerminal(panes, lastTerminal, terminalIDs)
 	if !ok {
 		return "", false, nil
 	}
@@ -166,7 +187,17 @@ func pickRightTerminal(panes []zellijpane.Pane, lastTerminalID string, terminalP
 // yields a stale id and the write fails. That is the right trade — the
 // alternative is an error for a pane the operator just closed.
 func SwitchRightTerminalTab(rt Runtime, chord workbenchshortcut.Chord) error {
-	terminal, ok, err := resolveRightTerminal(rt)
+	ctx, cancel := zellijreply.AdmissionContext(context.Background())
+	defer cancel()
+	return SwitchRightTerminalTabContext(ctx, rt, chord)
+}
+
+// SwitchRightTerminalTabContext retains an enclosing shortcut admission budget.
+func SwitchRightTerminalTabContext(ctx context.Context, rt Runtime, chord workbenchshortcut.Chord) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	terminal, ok, err := resolveRightTerminalContext(ctx, rt)
 	if err != nil {
 		return err
 	}
@@ -210,6 +241,7 @@ func RunSwitchTerminalTab(args []string, rt Runtime, stderr io.Writer) int {
 		return 1
 	}
 	if err := SwitchRightTerminalTab(rt, chord); err != nil {
+		reportRefusal(rt, stderr)
 		fmt.Fprintf(stderr, "pair layout switch-terminal-tab: %v\n", err)
 		return 1
 	}
@@ -222,6 +254,7 @@ func RunFocusTerminal(args []string, rt Runtime, stderr io.Writer) int {
 		return 2
 	}
 	if err := FocusRightTerminal(rt); err != nil {
+		reportRefusal(rt, stderr)
 		fmt.Fprintf(stderr, "pair layout focus-terminal: %v\n", err)
 		return 1
 	}
@@ -252,7 +285,11 @@ func execZellij(args ...string) ([]byte, error) {
 }
 
 func execZellijContext(ctx context.Context, args ...string) ([]byte, error) {
-	return exec.CommandContext(ctx, "zellij", append([]string{"action"}, args...)...).Output()
+	cmd := exec.CommandContext(ctx, "zellij", append([]string{"action"}, args...)...)
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	err := zellijexec.Run(cmd)
+	return out.Bytes(), err
 }
 
 func (OSRuntime) LastTerminalPaneID() (string, error) {
@@ -282,3 +319,16 @@ type zellijActionError struct {
 
 func (e *zellijActionError) Error() string { return fmt.Sprintf("%v: %s", e.err, e.output) }
 func (e *zellijActionError) Unwrap() error { return e.err }
+
+// NotifyRefusal uses the wrapper's independently owned presentation transport.
+func (OSRuntime) NotifyRefusal(message string) error {
+	return notifytransport.Send(os.Getenv("PAIR_PAIR_WRAP_PID_PATH"), message)
+}
+
+func reportRefusal(rt Runtime, stderr io.Writer) {
+	if notifier, ok := rt.(interface{ NotifyRefusal(string) error }); ok {
+		if err := notifier.NotifyRefusal("Pair action refused: terminal context could not be confirmed."); err != nil {
+			fmt.Fprintf(stderr, "pair layout: refusal notification failed: %v\n", err)
+		}
+	}
+}

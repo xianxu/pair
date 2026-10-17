@@ -1858,16 +1858,30 @@ func (c *Console) dispatchInputCandidate(before []byte, hit InterceptorHit, rawH
 		c.mu.Lock()
 		probe := c.shortcutFocused
 		var address couchcore.ThreadAddress
-		if p := c.panes[c.active]; p != nil {
+		observedActor := c.active
+		var observedEndpoint *terminal.Endpoint
+		if p := c.panes[observedActor]; p != nil {
 			address = p.thread
+			observedEndpoint = p.child.Endpoint()
 		}
 		c.mu.Unlock()
 		if probe != nil {
 			ctx, cancel := context.WithTimeout(c.lifetime, time.Second)
 			role, err := probe(ctx, address)
+			if err == nil {
+				err = ctx.Err()
+			}
 			cancel()
 			if err != nil {
 				c.setNotice("Cannot determine restart-key focus: " + err.Error())
+				return
+			}
+			c.mu.Lock()
+			current := c.panes[c.active]
+			unchanged := !c.focus.IsPanel() && c.active == observedActor && current != nil && current.thread == address && current.child.Endpoint() == observedEndpoint && !observedEndpoint.InputEnded()
+			c.mu.Unlock()
+			if !unchanged {
+				c.setNotice("Cannot determine restart-key focus: focus changed during observation")
 				return
 			}
 			chord, _ := workbenchshortcut.DecodeChord(rawHit)
