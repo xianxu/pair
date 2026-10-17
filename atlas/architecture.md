@@ -963,7 +963,10 @@ split keeps the model out of the live buffer:
   turn-end it spawns `pair-slug` in the background (debounced `slugDebounceS`,
   `PAIR_AGENT` set, repo cwd inherited). This is agent-agnostic by design — *not*
   a claude `Stop` hook — so the slug works for every agent and needs no
-  `~/.claude` config (pair-wrap wraps every session).
+  `~/.claude` config (pair-wrap wraps every session). Under Couch (#650) the
+  trigger is gated off by default — no `pair-slug` process, no small-model call
+  (`launcher.CouchHostedEnv`; the fleet was paying ~70 spawns / ~36 model calls
+  per hour) — and `PAIR_SLUG=on` re-enables it; outside Couch unchanged.
 - **Propose** — `cmd/pair-slug` (thin shim over `cmd/internal/slugcmd`; also `pair slug`, #92). Queries the established owner through
   `sessioninventory` and consumes its bounded `NativeEvent` text window; all
   Claude, Codex, Agy, Muse, Qoder, and Grok record parsing stays in the versioned inventory
