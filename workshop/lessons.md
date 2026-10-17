@@ -2177,3 +2177,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 - #651: A new public operation must close every existing declaration surface, including help cost and exhaustive source inventory. Run those guards before queueing the full suite; behavior-focused name filters skip them. Keep convenience entrypoints with only test consumers in test code instead of retaining an unused production API.
 - #651 native proof: A helper that reproduces a production handoff must preserve its nonzero-exit policy. Retain bounded post-attach PTY diagnostics before fixture cleanup. A lock held by cleanup can postpone a liveness decision until the owner exits; screen any policy that promises immediate live-owner refusal before entering that lock, and assert independent liveness after refusal.
+
+- #651 suite scheduling: when a full suite finds a branch defect, finish collecting that attempt before queueing the corrected head. Fix the whole failure inventory together. Extend shared derived test domains for new action facts; an isolated new-feature test does not update the existing exhaustive sweep.

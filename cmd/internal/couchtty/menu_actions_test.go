@@ -31,7 +31,7 @@ type menuRowShape struct {
 // kinds {:0, :1} x AllThreadStates() (minus archived) x AllThreadReasons() ∪ ""
 // (only the combinations the projection produces: a reason exactly when
 // unusable) x AllPhases() ∪ none, plus Recovery.Recover on unusable :0 rows,
-// plus an orphaned server on every live row (the live orphan, #399; an
+// x open-park presence, plus an orphaned server on every live row (the live orphan, #399; an
 // orphaned-server row always carries one). A new state, reason or phase lands
 // here without anyone listing it.
 func everyMenuRowShape(t *testing.T) []menuRowShape {
@@ -99,11 +99,22 @@ func everyMenuRowShape(t *testing.T) []menuRowShape {
 			}
 		}
 	}
+	// Park authority is independent of the projected state/continuation phase.
+	// Sweep both values over the same domain rather than adding one example.
+	for _, shape := range shapes {
+		shape.name += "/open-park"
+		shape.row.HasOpenPark = true
+		shape.row.ParkNonce = "sweep-park"
+		shapes = append(shapes, shape)
+	}
 	return shapes
 }
 
 // expectedRowActions is the Spec table, written out as its own statement.
 func expectedRowActions(s menuRowShape) []string {
+	if s.row.HasOpenPark {
+		return []string{"recover-park"}
+	}
 	unfinished := s.phase != "" && s.phase != checkpoint.Complete
 	switch s.state {
 	case couchcore.ThreadBusy:
