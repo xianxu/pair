@@ -76,8 +76,6 @@ func TestSessionStaleCommandCancellationKillsDescendant(t *testing.T) {
 		pid, _ = strconv.Atoi(string(raw))
 		return pid > 0
 	})
-	// Cleanup is confined to this fixture's known child if the assertion fails.
-	defer syscall.Kill(pid, syscall.SIGKILL)
 	cancel()
 	select {
 	case err := <-done:
@@ -88,4 +86,39 @@ func TestSessionStaleCommandCancellationKillsDescendant(t *testing.T) {
 		t.Fatal("check did not stop")
 	}
 	testwait.Until(t, "owned descendant collected", func() bool { return errors.Is(syscall.Kill(pid, 0), syscall.ESRCH) })
+}
+
+func TestSessionStaleCommandSuccessCollectsClosedPipeDescendant(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	root := t.TempDir()
+	pidFile := filepath.Join(root, "child.pid")
+	cmd := exec.CommandContext(ctx, "/bin/sh", "-c", `/bin/sleep 30 >/dev/null 2>&1 & child=$!; printf '%s' "$child" > "$1"; exit 0`, "fixture", pidFile)
+	cmd.Env = testpair.Environment(t, root)
+	if _, err := runStaleCommand(cmd); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(pidFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pid, err := strconv.Atoi(string(raw))
+	if err != nil || pid <= 0 {
+		t.Fatalf("child PID %q: %v", raw, err)
+	}
+	collected := false
+	defer func() {
+		if !collected {
+			_ = syscall.Kill(pid, syscall.SIGKILL)
+		}
+	}()
+	until := time.Now().Add(time.Second)
+	for time.Now().Before(until) {
+		if errors.Is(syscall.Kill(pid, 0), syscall.ESRCH) {
+			collected = true
+			return
+		}
+		time.Sleep(time.Millisecond)
+	}
+	t.Fatal("successful command left a live child after closing its output pipes")
 }

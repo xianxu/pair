@@ -49,9 +49,9 @@ func runStaleCommand(cmd *exec.Cmd) (string, error) {
 	cmd.Cancel = kill
 	cmd.WaitDelay = time.Second
 	err := cmd.Run()
-	if errors.Is(err, exec.ErrWaitDelay) {
-		_ = kill()
-	}
+	// The command owns its group through completion, including descendants
+	// that closed their pipes before the parent exited successfully.
+	_ = kill()
 	if err != nil {
 		return stdout.buffer.String(), fmt.Errorf("tl-lead status check: %w; stderr %q", err, stderr.buffer.String())
 	}
