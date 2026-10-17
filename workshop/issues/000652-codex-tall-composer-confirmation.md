@@ -104,6 +104,8 @@ Durable design: [Codex tall composer](../plans/000652-codex-tall-composer-plan.m
 
 ## Log
 
+
+- 2026-10-17: closed — Tall busy singleton and batch-shaped input now confirm through the actual writer after fresh qualified occupied and post-submit clear; generated geometry and controlled failure sequences preserve conservative Return/peer authority. Focused, race and full wrapper tests passed; owned Codex 0.163.0 PTY proved exact 33-row input at 100x60, Return LF growing to 34 rows, and separate harmless explicit submission. Recorded full suite attempt 8e42cbc6659b6298be33f6e03d89d05d passed on dbd1abb8734ed2115942f3b9947160ca668c2595 in 11m12s, log cc9c5558c08e; all PR416 server checks passed. README/atlas updated. Hub approved deferred operator restart smoke and no staging; Codex batching remains disabled.; review verdict: SHIP
 2026-10-17, discovered while validating #648. Claude Code 2.1.302 and Codex CLI0.163.0 retained measured large pastes exactly through external-editor export, so this is confirmation evidence, not a measured truncation limit. A fresh native Codex five-envelope paste rendered fully but was Unknown to the same production parser; narrowing the native fixture alone would hide this risk.
 
 Actual writer/stateful fake diagnostic, four cases (all had one submit write):
