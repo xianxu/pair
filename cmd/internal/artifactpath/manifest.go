@@ -1166,6 +1166,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/clipcmd/run.go",
 	"cmd/internal/clipcmd/runcli.go",
 	"cmd/internal/clipcmd/runtime.go",
+	"cmd/internal/clipcmd/clipboard_result.go",
 	"cmd/internal/commitoutcome/outcome.go",
 	"cmd/internal/continuationcmd/draft.go",
 	"cmd/internal/contextcmd/contextcmd.go",

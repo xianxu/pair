@@ -95,3 +95,9 @@ item: milestone-review design=0.04 impl=0.20
 design-buffer: 0.15
 total: 2.452
 ```
+
+### 2026-10-17 — implementation entry and native evidence
+
+Plan-quality rounds 2/3 CLEAN disposed PQ-1/PQ-2; estimate-quality INFO accepted the derivation, noting harness and verification allocation. The issue-spec primitive includes incurred investigation; the Go/TUI implementation items cover harness construction, and the review allowance includes recorded-suite triage and landing integration. change-code completed normally with full flow and no bypass.
+
+TestClipboardCopyLocalRetainsToolEvidence first failed with only `exit status 7` despite the fake pbcopy writing a diagnostic. The typed executor now preserves tool, process status, bounded sanitized stderr and wrapped errors; a separate metadata value exposes only byte count/full-stream hash, never free-form stderr. Whole clipcmd package passed unchanged legacy tests plus metadata/cancellation/start-failure/oversized-stream controls. One test's expected stderr length was corrected from a hand-count to literal byte length. The 1s Console policy is unchanged; no real clipboard probe was repeated.

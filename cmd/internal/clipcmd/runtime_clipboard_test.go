@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -88,5 +89,13 @@ func TestClipboardCopyLocalDoesNotWriteForRemoteOrCanceledCalls(t *testing.T) {
 				t.Fatalf("unexpected clipboard write: %v", err)
 			}
 		})
+	}
+}
+
+func TestClipboardCopyLocalRetainsToolEvidence(t *testing.T) {
+	privateClipboardTool(t, `printf 'pasteboard permission denied\n' >&2; exit 7`)
+	err := NewOSRuntime().ClipboardCopyLocal(context.Background(), "notice")
+	if err == nil || !strings.Contains(err.Error(), "pbcopy") || !strings.Contains(err.Error(), "pasteboard permission denied") {
+		t.Fatalf("local tool evidence lost: %v", err)
 	}
 }
