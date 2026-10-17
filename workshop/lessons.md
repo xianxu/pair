@@ -2173,3 +2173,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
   transcript correlation. Retain original receipt IDs while recording the one
   combined turn, and test recovery of a follower through the real socket path.
 - A readiness counter contract needs a stateful test through the actual readiness decision, not only isolated zero/one counts. Cover unchanged observations before growth and show that both equality-accepting and never-accepting mutations fail, especially when native acceptance is deferred. (#645 BR-1)
+
+- #648 BR-1: A new user-facing configuration variable needs README documentation as well as atlas and agent protocol text. Before close, check scope, units, default, accepted range, invalid-value behavior and compatibility against the parser and rollout policy.
