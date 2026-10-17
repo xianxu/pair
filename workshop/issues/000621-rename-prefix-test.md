@@ -44,6 +44,8 @@ ARCH-DRY/PURPOSE: current exact-tag validation is authoritative; reuse shared bo
 
 ## Log
 
+
+- 2026-10-17: closed — Recorded full suite passed on 4f1401d8dfc62498dbe895a30162b3426dbfcb99 in 11m11s, log 831dd65136ed; all 67 rename assertions included. Targeted launcher Rename/ParseRestart passed; a private prefix-stripping selected candidate deterministically fails T7. Existing exact-tag production behavior preserved, help/README/atlas clarified; no staging needed for this offline test correction. (done-when: contract moved since change-code; judged by the close review); review verdict: SHIP
 ### 2026-10-16 — discovered during #617 isolation sweep
 
 Observed pair rename: no files found for tag 'pair-t1' at T7. Original pre-change source reproduces the same failure under the shared empty-environment helper. Original and current logs are retained locally under /var/folders/07/b9wcwwld4_v2w9r3hk525bm80000gn/T/pair-617-isolation-checks.S2Vwcq/pair-rename-baseline.log and pair-rename-final.log; no private conversation or live capture is needed for reproduction. Remaining57 assertions pass in pair-rename-remaining-final.log. Filed separately at the TL’s request; no implementation started.
