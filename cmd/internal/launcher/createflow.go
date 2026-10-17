@@ -16,7 +16,6 @@ import (
 	"github.com/xianxu/pair/cmd/internal/panebirth"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 	"github.com/xianxu/pair/cmd/internal/sessionledger"
-	"github.com/xianxu/pair/cmd/internal/titlepoller"
 )
 
 // Consecutive deltas partition the measured startup. elapsed_ms is cumulative,
@@ -988,7 +987,6 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 	rt.SetTerminalTitle(session)
 	rt.RecordOuterTTY(chosenTag, PresentedByCouch(env, chosenTag))
 	rt.CmuxRename(chosenTag, session)
-	rt.SpawnTitlePoller(chosenTag, agent, session, titlepoller.NewSessionEnv(dataDir, scope.Key))
 	// A Couch launch never rebuilds (pair#489): the rebuild ran inside Couch's
 	// registration wait, once per slot, and at load ~200 its no-op alone took
 	// 9.6s. A sweep builds once by hand; relaunch's freshness gate says so.

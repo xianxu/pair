@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pair-test-bootstrap.sh"
 set -euo pipefail
 
-repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+repo_root="$(cd "$(dirname "$0")/.." && pwd)"
 tmp_home="$(mktemp -d "${TMPDIR:-/tmp}/pair-go-install-layout.XXXXXX")"
 trap 'rm -rf "$tmp_home"' EXIT
 tmp_home="$(cd "$tmp_home" && pwd -P)"

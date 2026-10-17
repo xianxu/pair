@@ -4239,7 +4239,7 @@ The cached response is a byte-budgeted projection (`resources_projection.go`)
 within the broker's frame envelope. It preserves all bounded slot aggregates,
 shortens long presentation labels, and reports omitted detail counts separately
 for processes, orphans, unproven candidates, episodes and diagnostics. Projection
-cost is included in sampling; queries only copy the cached result. Incomplete
+cost is included in sampling. Incomplete
 startup or capped inventories cannot prove owner disappearance.
 
 History read failures begin a fresh in-memory ring with a visible continuity
@@ -4247,3 +4247,33 @@ warning. Write failures do not roll back that ring or gate alert delivery.
 Unsafe paths remain protected by the existing file checks. State, provenance,
 rate baselines and alert episodes end with the supervisor; pre-existing orphans
 remain unproven after restart unless fresh ownership evidence establishes them.
+
+
+### Hosted terminal ingress diagnostics (#622 M1)
+
+`ResourceView.HostedIngest` is an optional, read-only request-time section beside
+the cached process sample. `ptychild.Child.ingest` adds len(p) once to the child's
+atomic counter at entry, including later failed parsing/publication; it retains
+no payload and adds no clock or worker. `Child.IngestBytes` reads atomically.
+`couchtty.Console.HostedIngestSnapshot` copies ordered hosted panes, including
+hidden ones, under the existing console mutex without acquiring the endpoint
+parser lock. Reaped children disappear; a replacement has a fresh endpoint ID.
+The section retains at most ResourceMaxSlots (256) clients and counts omissions.
+
+The resources handler adds supervisor PID/start time and projects the fresh
+section through the shared encoded-byte budget in resources_projection.go.
+The JSON `hosted_ingest` object names `sampled_at`, `server_pid`,
+`server_started_at`, `clients` and `omitted`; each row has `endpoint_id`, `thread`,
+`process` (PID/identity), and `ingest_bytes`. A missing section is unavailable;
+a supported empty snapshot remains present. Server and endpoint identities must
+match between samples before computing bytes/s; disappeared or omitted clients
+cannot count as zero. This timestamp is independent of the minute-cached
+ResourceView.SampledAt. Query-time snapshot/projection cost is outside the
+periodic sampler's reported cost. No hosted counters enter persisted history.
+
+Measurement procedure: preserve two complete JSON observations across natural
+60-second idle and busy intervals, bracket with cumulative server CPU plus a
+5-second native sample, and record host load, concurrent suites, visible console
+and wrapper states. Report identity-matched byte rates separately from total
+server CPU. Profiles identify hot paths, not exact per-client CPU attribution.
+M1 changes no parser policy; optimization awaits the measured comparison.

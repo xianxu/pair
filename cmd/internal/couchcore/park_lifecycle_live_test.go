@@ -21,6 +21,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/pairlifecycle"
 	"github.com/xianxu/pair/cmd/internal/pairlifecycletest"
 	"github.com/xianxu/pair/cmd/internal/procutil"
+	"github.com/xianxu/pair/cmd/internal/testpair"
 	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
@@ -285,6 +286,8 @@ func liveParkContext(t *testing.T, timeout time.Duration) (context.Context, cont
 
 func newRealParkConformance(t *testing.T, ctx context.Context, intentOnly bool) (*realParkConformanceDriver, pairlifecycle.QuitRequest) {
 	t.Helper()
+	testpair.ApplyEnvironment(t, t.TempDir(), "TMPDIR=/tmp", "SHELL=/bin/sh",
+		"XDG_CONFIG_HOME="+t.TempDir(), "XDG_DATA_HOME="+t.TempDir(), "XDG_CACHE_HOME="+t.TempDir())
 	variant := "ok"
 	if intentOnly {
 		variant = "mut"
@@ -438,7 +441,11 @@ func startParkLifecycleHelper(t *testing.T, ctx context.Context, cfg parkHelperC
 		t.Fatal(err)
 	}
 	cmd := exec.Command(os.Args[0])
-	cmd.Env = append(os.Environ(),
+	cmd.Env = testpair.Environment(t, os.Getenv("HOME"),
+		"TMPDIR=/tmp", "SHELL=/bin/sh", "TERM=xterm-256color",
+		"XDG_CONFIG_HOME="+os.Getenv("XDG_CONFIG_HOME"),
+		"XDG_DATA_HOME="+os.Getenv("XDG_DATA_HOME"),
+		"XDG_CACHE_HOME="+os.Getenv("XDG_CACHE_HOME"),
 		"PAIR_TEST_COUCH_PARK_HELPER=1",
 		"PAIR_TEST_COUCH_LAUNCH_NATIVE_SIDECAR=1",
 		"PAIR_TEST_PARK_GLOBAL_DATA_DIR="+cfg.GlobalDataDir,

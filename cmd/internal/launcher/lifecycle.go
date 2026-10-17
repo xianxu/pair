@@ -12,7 +12,6 @@ import (
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/pairlifecycle"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
-	"github.com/xianxu/pair/cmd/internal/titlepoller"
 )
 
 // The attach + quit-cleanup orchestrators behind RunLaunch's in-process restart
@@ -122,7 +121,6 @@ func attachWithRetention(opts LaunchOptions, env Env, rt Runtime, tag, session, 
 	}
 	rt.SetEnv("PAIR_SCOPE_KEY", scopeKey)
 	rt.SetEnv("PAIR_AGENT", agent)
-	rt.SpawnTitlePoller(tag, agent, session, titlepoller.NewSessionEnv(env.DataDir, scopeKey))
 	defer func() {
 		if resultErr != nil || code != 0 {
 			rt.KillTitlePoller(tag)

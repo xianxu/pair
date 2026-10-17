@@ -12,6 +12,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/pairlifecycletest"
+	"github.com/xianxu/pair/cmd/internal/testpair"
 )
 
 type startupOwnerIOPhase struct {
@@ -55,6 +56,7 @@ func TestStartupOwnerTimingLive(t *testing.T) {
 	if os.Getenv("PAIR_LIVE_COUCH") != "1" || os.Getenv("PAIR_LIVE_STARTUP_PERF") != "1" {
 		t.Skip("set PAIR_LIVE_COUCH=1 PAIR_LIVE_STARTUP_PERF=1")
 	}
+	testpair.ApplyEnvironment(t, t.TempDir())
 	t.Setenv("TMPDIR", "/tmp")
 	t.Setenv("SHELL", "/bin/sh")
 	for _, key := range []string{"HOME", "XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_CACHE_HOME", "XDG_STATE_HOME"} {

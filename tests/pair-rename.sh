@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pair-test-bootstrap.sh"
 # Integration test for `pair rename <old> <new>` (issue #000022, M1).
 #
 # Builds a fixtured $PAIR_DATA_DIR with representative tag-scoped files,
@@ -13,7 +14,7 @@
 
 set -euo pipefail
 
-SELF_DIR="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SELF_DIR="$(cd -P "$(dirname "$0")" && pwd)"
 PAIR_BIN="$SELF_DIR/../bin/pair"
 [ -x "$PAIR_BIN" ] || { echo "FAIL: $PAIR_BIN not executable" >&2; exit 1; }
 

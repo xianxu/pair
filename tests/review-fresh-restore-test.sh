@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pair-test-bootstrap.sh"
 # Fresh Alt+C crosses the real draft, Go opener, review process and RPC boundary.
 # Only Zellij's process/visibility API is faked; the fake persists its children.
 set -euo pipefail

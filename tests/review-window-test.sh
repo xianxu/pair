@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pair-test-bootstrap.sh"
 # tests/review-window-test.sh — the M3 review pane wiring (#66 Task 1):
 #   1. :PairReview exists in the draft init with complete=file
 #   2. pair review open validates + spawns `zellij run --floating ... nvim -u review.lua`

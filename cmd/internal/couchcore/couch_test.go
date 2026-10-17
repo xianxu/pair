@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/launcher"
+	"github.com/xianxu/pair/cmd/internal/testpair"
 	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
@@ -441,21 +442,18 @@ func testComposedPairRegistrationBoundary(t *testing.T, freshSlot bool) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = os.RemoveAll(socketRoot) })
-	t.Setenv("ZELLIJ_SOCKET_DIR", socketRoot)
-	t.Setenv("PAIR_TEST_COUCH_TERMINAL_FIXTURE", "1")
-	t.Setenv("PAIR_TEST_ZELLIJ_PANES", filepath.Join(t.TempDir(), "panes.json"))
-
-	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
-	t.Setenv("HOME", home)
-	t.Setenv("XDG_DATA_HOME", "")
-	t.Setenv("PAIR_DATA_DIR", "")
-	t.Setenv("COUCH_PAIR_DATA_DIR", pairData)
-	t.Setenv("PAIR_TEST_ZELLIJ_READY", ready)
-	t.Setenv("PAIR_TEST_ZELLIJ_RELEASE", release)
-	t.Setenv("PAIR_TEST_ZELLIJ_LOG", zellijLog)
-	t.Setenv("PAIR_TEST_COUCH_LAUNCH_NATIVE_SIDECAR", "1")
-	t.Setenv("PAIR_DEV", "")
-	t.Setenv("CMUX_WORKSPACE_ID", "")
+	fixtureEnv := testpair.Environment(t, home,
+		"ZELLIJ_SOCKET_DIR="+socketRoot,
+		"PAIR_TEST_COUCH_TERMINAL_FIXTURE=1",
+		"PAIR_TEST_ZELLIJ_PANES="+filepath.Join(t.TempDir(), "panes.json"),
+		"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
+		"COUCH_PAIR_DATA_DIR="+pairData,
+		"PAIR_TEST_ZELLIJ_READY="+ready,
+		"PAIR_TEST_ZELLIJ_RELEASE="+release,
+		"PAIR_TEST_ZELLIJ_LOG="+zellijLog,
+		"PAIR_TEST_COUCH_LAUNCH_NATIVE_SIDECAR=1",
+	)
+	testpair.ApplyEnvironment(t, home, fixtureEnv...)
 	expectedProcessEnv := processEnvironmentForTest()
 
 	ns := testCouchNamespace(t)

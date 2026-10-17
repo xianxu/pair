@@ -427,7 +427,7 @@ couch --peek repo:N --all [--transcripts]
                                            complete current recording projection [heavy]; bounded, plain text
 couch --archived         threads removed from couch, with their records kept
 couch --actors [--json]  live peer-message receivers in this Couch namespace
-couch --resources [--json] latest cached process-resource sample
+couch --resources [--json] cached process sample plus fresh hosted-ingest totals
 couch --broadcast-list [--json]   every link out by kind (screen, web view, web drive) and its viewers, and the
                          recordings shared for replay (pair#477); never a link
 couch --broadcast-web-query DIR dom|events|notes|link ...
@@ -713,6 +713,24 @@ The default interval is one minute. CPU uses 100% per core; unavailable counters
 stay unavailable. Totals cover observed intervals, so short-lived processes
 between samples are not lifetime accounting. The command also shows sample age
 and the sampler's own native-call, CPU and elapsed-time cost.
+
+The same request includes fresh cumulative hosted-terminal ingress bytes, including
+hidden clients. JSON's optional `hosted_ingest` section has its own `sampled_at`,
+`server_pid`, `server_started_at`, `clients` and `omitted`. Each client names its
+`endpoint_id`, `thread`, process PID/generation and `ingest_bytes`. A missing
+section means unavailable on that server; an empty clients list with zero omitted
+means a supported empty census. Totals count bytes arriving at Child ingress,
+including bytes whose later parsing/publication fails, independently of raw-tail
+retention or acknowledged rendering. They are not per-client CPU measurements.
+
+For rates, take two `--resources --json` observations across an idle or busy
+interval and divide byte delta by elapsed snapshot time only for matching server
+PID/start time and endpoint identities. A replacement, missing row or nonzero
+omission is incomplete evidence, not zero traffic. Counters end with each child;
+restart creates a new server incarnation. At most 256 clients are observed and
+wire limits can omit additional rows, always with an explicit count. No raw
+output, counter history, periodic sampler or per-feed clock is added.
+
 
 Couch alerts the owning hub for sustained writes above 2 MiB/s for ten minutes,
 a process above 8 GiB RSS, an idle slot above 90% of one core for fifteen minutes,
@@ -1718,6 +1736,18 @@ unset, Go consumers lazily build once per package; their `TestMain` calls
 all tests finish. Private executable names use hard links (copies across
 filesystems). Standalone shell consumers use the same builder, which locates
 its checkout independently of the caller's working directory.
+
+Pair and wrapper subprocess fixtures use `testpair.Environment(t, disposableRoot,
+explicitEntries...)`. It delegates to `tests/lib/pair-test-env.sh`, the shared
+empty-environment owner for Go, shell and Python tests: only host PATH, disposable
+HOME and explicitly supplied fixture values cross the boundary. Never pass
+`os.Environ()` as the explicit entries. Shell tests enter through the same helper;
+the source guard rejects unisolated Pair/wrapper spawns. Shell entry scripts keep
+the shebang on line 1 and the bootstrap source on line 2; their remaining body
+uses `$0` for the entrypoint path. Python adapters consume the same helper's
+`--print0` output. The guard checks supported recipes with Go/Python syntax trees
+and a fixed shell entry contract. Fixture children outside the checkout use the
+parent's explicit helper path with `EnvironmentFrom`.
 
 SDLC reviews use the pinned commit’s `.sdlc/review-prepare.json` (version 1,
 `command: ["make", "runtimebundle-generate"]`, `timeout_minutes: 10`) to generate

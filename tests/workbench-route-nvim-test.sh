@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pair-test-bootstrap.sh"
 # Process-level coverage for global shortcut routing from Pair-owned nvim panes.
 set -euo pipefail
 

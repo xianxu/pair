@@ -23,6 +23,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/ptychild"
 	"github.com/xianxu/pair/cmd/internal/runtimebundle"
 	"github.com/xianxu/pair/cmd/internal/terminal"
+	"github.com/xianxu/pair/cmd/internal/testpair"
 	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
@@ -120,18 +121,10 @@ func runNativeConsoleJoin(t *testing.T, wrapped bool) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// ptychild overlays rather than replaces the parent environment. Blank all
-	// inherited Pair session metadata before supplying this private fixture's
-	// paths, so wrapper event logs and lifecycle watchers cannot touch a host
-	// session merely because its environment launched this test process.
-	var env []string
-	for _, entry := range os.Environ() {
-		key, _, _ := strings.Cut(entry, "=")
-		if strings.HasPrefix(key, "PAIR_") {
-			env = append(env, key+"=")
-		}
-	}
-	env = append(env, "PAIR_NOTIFY_SOCKET_DIR="+filepath.Join(dir, "notify"), "PAIR_PAIR_WRAP_PID_PATH="+paths.PairWrapPID(), "PAIR_SCROLLBACK_EVENTS_PATH="+filepath.Join(dir, "scrollback.events.jsonl"), "PAIR_WRAP_LOG="+filepath.Join(dir, "wrapper.log"), "ZELLIJ=", "ZELLIJ_SESSION_NAME=", "ZELLIJ_PANE_ID=", "XDG_CACHE_HOME="+filepath.Join(dir, "cache"), "XDG_CONFIG_HOME="+filepath.Join(dir, "config"), "ZELLIJ_SOCKET_DIR="+filepath.Join(dir, "socket"), "PAIR_TAG=native-fixture", "PAIR_SCOPE_KEY=", "PAIR_HOME="+dir, "PAIR_DATA_DIR="+filepath.Join(dir, "pair-data"))
+	// The production PTY runner overlays its parent, so establish the same
+	// empty boundary before it can create any wrapper descendants.
+	testpair.ApplyEnvironment(t, dir)
+	env := testpair.Environment(t, dir, "PAIR_NOTIFY_SOCKET_DIR="+filepath.Join(dir, "notify"), "PAIR_PAIR_WRAP_PID_PATH="+paths.PairWrapPID(), "PAIR_SCROLLBACK_EVENTS_PATH="+filepath.Join(dir, "scrollback.events.jsonl"), "PAIR_WRAP_LOG="+filepath.Join(dir, "wrapper.log"), "ZELLIJ=", "ZELLIJ_SESSION_NAME=", "ZELLIJ_PANE_ID=", "XDG_CACHE_HOME="+filepath.Join(dir, "cache"), "XDG_CONFIG_HOME="+filepath.Join(dir, "config"), "ZELLIJ_SOCKET_DIR="+filepath.Join(dir, "socket"), "PAIR_TAG=native-fixture", "PAIR_SCOPE_KEY=", "PAIR_HOME="+dir, "PAIR_DATA_DIR="+filepath.Join(dir, "pair-data"))
 	session := filepath.Base(dir)
 	host := newVTHost(24, 100)
 	inputR, inputW, err := os.Pipe()
@@ -182,7 +175,7 @@ func runNativeConsoleJoin(t *testing.T, wrapped bool) {
 		killCtx, cancelKill := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancelKill()
 		kill := exec.CommandContext(killCtx, zellij, "kill-session", session)
-		kill.Env = append(os.Environ(), env...)
+		kill.Env = testpair.Environment(t, dir, env...)
 		_ = kill.Run()
 	})
 	readReceipts := func() string { b, _ := os.ReadFile(receipts); return string(b) }
@@ -289,7 +282,7 @@ func runNativeConsoleJoin(t *testing.T, wrapped bool) {
 	waitFor(t, "shell holds Console during detach", func() bool { return con.presenter.View().Admitted == secondChild.Endpoint().ID() })
 	detachCtx, cancelDetach := context.WithTimeout(context.Background(), 5*time.Second)
 	detach := exec.CommandContext(detachCtx, zellij, "--session", session, "action", "detach")
-	detach.Env = append(os.Environ(), env...)
+	detach.Env = testpair.Environment(t, dir, env...)
 	detachedOutput, detachErr := detach.CombinedOutput()
 	cancelDetach()
 	if detachErr != nil {
@@ -460,7 +453,7 @@ func runNativeConsoleJoin(t *testing.T, wrapped bool) {
 			}
 			hookCtx, cancelHook := context.WithTimeout(context.Background(), 3*time.Second)
 			hook := exec.CommandContext(hookCtx, binary, "notify", message)
-			hook.Env = append(os.Environ(), env...)
+			hook.Env = testpair.Environment(t, dir, env...)
 			out, hookErr := hook.CombinedOutput()
 			cancelHook()
 			if hookErr != nil || len(out) != 0 {
