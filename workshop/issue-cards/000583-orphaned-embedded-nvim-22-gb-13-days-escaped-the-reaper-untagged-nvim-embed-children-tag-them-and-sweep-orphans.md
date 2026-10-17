@@ -1,6 +1,6 @@
 ---
 id: 000583
-status: codecomplete
+status: done
 created: 2026-10-15
 updated: 2026-10-17
 estimate_hours: 8.1
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: c1f399ca89b85cf38b1284f5a7966973f4a75cd7
         evidence_commit: 273cbeae06cf984cde97a54021781bf0608d281a
+        landed_commit: c1a84d097b9582f06e33813a17ca899f3175bce8
 ---
 
 # Orphaned embedded nvim (22 GB, 13 days) escaped the reaper: untagged 'nvim --embed' children; tag them and sweep orphans
