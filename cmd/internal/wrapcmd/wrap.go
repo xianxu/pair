@@ -751,6 +751,7 @@ func (p *proxy) traceWrap(label string, fields map[string]any) {
 // Couch behaviour is unchanged.
 func (p *proxy) maybeSpawnSlug() {
 	if launcher.CouchHostedEnv(os.Getenv) && os.Getenv("PAIR_SLUG") != "on" {
+		p.debug("SLUG-skip", "couch-hosted and PAIR_SLUG != on (#650)")
 		return
 	}
 	now := p.clock()
