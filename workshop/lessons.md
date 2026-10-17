@@ -2112,6 +2112,9 @@ and external temporary roots rather than relying on the host's TMPDIR.
   to make a busy visual look right.
 - **A new help source changes old documentation claims (#619).** When adding companion-editor metadata to a source-derived help catalog, update the README shortcut table and search for universal claims such as "every row comes from its implementing keymap". Qualify the source boundary as well as listing the feature; atlas coverage alone does not keep the user-facing contract accurate.
 
+- #624 fixture integration: run new Make fixtures in both a woven checkout and a source archive. Dependency symlinks may be absent by design; mirror the root Makefile's optional include and retain a direct sentinel contract check. Do not expose internal Make-variable overrides as apparent environment knobs in test source: the derived environment inventory treats those names as caller inputs. Satisfy fake-compiler prerequisites inside the private fixture instead.
+
+- #624 BR-1: an archive's sentinel-presence check does not prove an absent dependency scanner respects it. Retain a separate woven-copy measurement using the actual dependency, and remove each new sentinel independently to show the regression detects every duplicate publisher. Record the source hash and reproducible fixture, rather than assuming archive verification covers woven behavior.
 - #629: Removing a wait horizon also changes the lifetime of its diagnostic histories. Queue caps do not bound per-message maps of changing wait reasons. Retire histories whose expiry consumer disappeared; keep duration accounting in the bounded phase that still consumes it.
 
 - #629 BR-1: A queued/held receipt describes the latest observation, not absence of input after commit handoff. Classify disconnect uncertainty from the active delivery owner; test both sender and receiver disconnect for every interim receipt status.
