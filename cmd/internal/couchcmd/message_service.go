@@ -169,6 +169,10 @@ type messageService struct {
 	inbox     chan messageInput
 	admitting chan struct{}
 	connected atomic.Pointer[map[couchmessage.Binding]bool]
+
+	// hostedIngest is installed once the Console is ready; requests take a fresh snapshot.
+	hostedIngest atomic.Pointer[func() couchcore.HostedIngestSnapshot]
+
 	// liveness is the registry's per-slot self-report snapshot (#421),
 	// republished after every step like connected.
 	liveness atomic.Pointer[map[string]couchmessage.SlotLiveness]
@@ -482,6 +486,8 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch, configur
 	persistence := newResourceHistoryPersistence(namespace)
 	alerts := newResourceAlertDispatcher(service)
 	sampler := &resourceSampler{reader: procutil.NativeResourceReader{}, slots: inventory.snapshot, policy: resourcePolicy, alerts: alerts.dispatch, persist: persistence.persist, history: persistence.historySummary}
+	hostedIngest := console.HostedIngestSnapshot
+	service.hostedIngest.Store(&hostedIngest)
 	service.resources.Store(sampler)
 	service.workers.Add(2)
 	go func() { defer service.workers.Done(); inventory.run(service.lifetime) }()
@@ -787,6 +793,13 @@ func (s *messageService) handle(ctx context.Context, request couchmessage.Reques
 		}
 		if sampler := s.resources.Load(); sampler != nil {
 			view := sampler.view()
+			if snapshot := s.hostedIngest.Load(); snapshot != nil {
+				hosted := (*snapshot)()
+				hosted.ServerPID = os.Getpid()
+				hosted.ServerStartedAt = processStartedAt
+				view.HostedIngest = &hosted
+				view = projectResourceView(view)
+			}
 			return couchmessage.Response{Code: "ok", Resources: &view}
 		}
 		return couchmessage.Response{Code: "unsupported", Error: "resource sampler unavailable"}

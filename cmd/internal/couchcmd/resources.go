@@ -289,6 +289,11 @@ func cloneResourceWorkspace(w couchcore.WorkspaceIdentity) couchcore.WorkspaceId
 	return w
 }
 func cloneResourceView(v couchcore.ResourceView) couchcore.ResourceView {
+	if v.HostedIngest != nil {
+		hosted := *v.HostedIngest
+		hosted.Clients = append([]couchcore.HostedIngestClient(nil), hosted.Clients...)
+		v.HostedIngest = &hosted
+	}
 	v.Errors = append([]string(nil), v.Errors...)
 	v.Slots = append([]couchcore.ResourceSlotView(nil), v.Slots...)
 	for i := range v.Slots {

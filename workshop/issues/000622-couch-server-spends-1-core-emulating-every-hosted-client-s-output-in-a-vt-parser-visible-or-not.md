@@ -62,6 +62,15 @@ Read-only consumer audit: selected console frame/history, mouse/key encoding, qu
 
 No exact per-hosted-client ingress counter exists in this running binary. Existing capture could provide bytes but requires startup opt-in. TL instead directs permanent always-on atomic byte counters as M1, exposed read-only through resources/debug; optional emulator CPU timing only if cheap. They land before the #618/#617 combined restart, then measurement and optimization design follow. The posted direction's canonical sender/body matched receipt 9929f33e; its delivery outcome is indeterminate, even though this turn received the text. No capture restart was performed.
 
+
+### 2026-10-16 — M1 implementation and targeted evidence
+
+Plan-quality resolved PQ-1 CLEAN; change-code admitted at 242bd40216171712db036069ca5aae4f0c381366. Estimate-quality INFO calls the resources/check budget optimistic; 1.509h is cumulative M1 effort including initial shaping, not a remaining-work or whole-issue forecast. M2 remains unestimated until its measured design exists.
+
+RED checks confirmed the missing counter, Console method and resources types/wiring before implementation. GREEN: fresh fake Child → Console → production resources handler → real socket → JSON/text CLI totals advance independently of an intentionally stale process sample; request leaves cache unchanged. Encoded maximum-detail response remains in MaxFrameBytes and reports hosted omissions without mutating its source. Clone/projection identity/isolation checks pass at 0/1/27/256 rows. Counter tests cover generated chunk partitions, eviction, later refusal/publication failure, independent incarnations and concurrent exact totals. Real Child observer barrier proves the diagnostic snapshot completes while the parser mutex is held. Targeted race command go test -race ./cmd/internal/couchcmd ./cmd/internal/couchtty ./cmd/internal/ptychild -run 'TestResourcesHosted|TestResourceHosted|TestResourceProjection|TestHostedIngest|TestChildIngest|TestResourceInventory' -count=1 passes all three packages. No parser policy, live restart or per-client CPU attribution changed.
+
+Counter benchmark control: exact committed pre-counter baseline 242bd40216171712db036069ca5aae4f0c381366 and current working source ran the identical complete-ingest benchmark serially, GOMAXPROCS=3, GOFLAGS=-p=3, three 300ms repetitions. Median ns/op baseline→current: 1-byte 6170→3115, 64-byte 40004→18244, 4096-byte 1116835→959324. Baseline 1-byte spread 3584–9665ns/op and changing contention prevent credible incremental overhead attribution; apparent speedup is inconclusive. Raw logs and metadata retained in /var/folders/07/b9wcwwld4_v2w9r3hk525bm80000gn/T/pair622-ingest-bench.hqUsTx/. Temporary isolated baseline worktree removed by its owner; no peer runner was signalled. Source inspection confirms the incremental hot path is one atomic addition without new allocation/clock/native call. Counter race rerun after test-budget guards passed (1.229s).
+
 ## Revisions
 
 ### 2026-10-16 — measurement milestone before optimization design

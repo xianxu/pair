@@ -60,23 +60,23 @@ The diagnostic snapshot names server PID/start time, its own sampled-at time, an
 
 Files: modify cmd/internal/ptychild/child.go and terminal.go; tests in existing ptychild test files.
 
-- [ ] Child.ingest / proposed Child.IngestBytes: generate byte streams and chunk partitions through production fake Child Feed, comparing totals to an independently summed admitted-byte oracle. Concurrent sampling must be monotone and end exact; vary ring capacity and publication failure to guard against deriving totals from retained/published bytes.
-- [ ] Add the one Child-owned atomic.Uint64 and accessor, incrementing at ingest admission. Run focused normal/race tests; prove the count does not derive from ring length or snapshots.
+- [x] Child.ingest / proposed Child.IngestBytes: generate byte streams and chunk partitions through production fake Child Feed, comparing totals to an independently summed admitted-byte oracle. Concurrent sampling must be monotone and end exact; vary ring capacity and publication failure to guard against deriving totals from retained/published bytes.
+- [x] Add the one Child-owned atomic.Uint64 and accessor, incrementing at ingest admission. Run focused normal/race tests; prove the count does not derive from ring length or snapshots.
 
 ### 2. Expose a bounded fresh resources section
 
 Files: couchcore/resource.go; couchtty/console_resources.go; couchcmd/message_service.go, resources_projection.go, resources_render.go; colocated tests.
 
-- [ ] Proposed Console.HostedIngestSnapshot: drive controlled child replacement/removal and event order through the production fake Console, checking incarnation changes and snapshot isolation against the admitted child inventory. Hold an endpoint parser lock while observing to mechanically guard against parser-lock acquisition.
-- [ ] messageService.handle plus runResourcesCLI/renderResources: use production fake Child/Console and socket/CLI transport to compare fresh byte totals against the deliberately stale cached resource sample; assert JSON identity/freshness and sanitized cumulative text output.
-- [ ] projectResourceView/resourceDetailPrefix: generate oversized census/labels and competing optional detail, then encode the actual socket response to enforce MaxFrameBytes, explicit omission accounting and source snapshot isolation. Compare retained identities to the original inventory.
-- [ ] Run affected package/race/inventory checks. Benchmark counter overhead at the existing Child ingest seam without inventing CPU-time fields.
+- [x] Proposed Console.HostedIngestSnapshot: drive controlled child replacement/removal and event order through the production fake Console, checking incarnation changes and snapshot isolation against the admitted child inventory. Hold an endpoint parser lock while observing to mechanically guard against parser-lock acquisition.
+- [x] messageService.handle plus runResourcesCLI/renderResources: use production fake Child/Console and socket/CLI transport to compare fresh byte totals against the deliberately stale cached resource sample; assert JSON identity/freshness and sanitized cumulative text output.
+- [x] projectResourceView/resourceDetailPrefix: generate oversized census/labels and competing optional detail, then encode the actual socket response to enforce MaxFrameBytes, explicit omission accounting and source snapshot isolation. Compare retained identities to the original inventory.
+- [x] Run affected package/race/inventory checks. Benchmark counter overhead at the existing Child ingest seam without inventing CPU-time fields.
 
 ### 3. Review and land the diagnostic milestone
 
 Files: README.md, atlas/couch.md; issue Log and this plan.
 
-- [ ] Document fields, counter reset/identity semantics, read-only freshness, omission behavior and the measurement recipe. Keep atlas/index links current.
+- [x] Document fields, counter reset/identity semantics, read-only freshness, omission behavior and the measurement recipe. Keep atlas/index links current.
 - [ ] Commit/push, run the required recorded suite on the pushed head, and milestone-close M1 with measured actuals and --no-project because TL owns project records. Binary owns fresh-context review.
 - [ ] Land only M1 through normal PR/merge gates as explicitly directed; keep #622 working and M2 unchecked. Report PR/build to TL for the combined restart. No worker-initiated :0 stage/restart.
 
