@@ -2,7 +2,6 @@ package couchcmd
 
 import (
 	"context"
-	"strings"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
@@ -11,7 +10,7 @@ import (
 // listRefusals asks the running supervisor, from memory, which slots' latest
 // sends were refused (pair#618). Best effort: no Couch, an older one, or a slow
 // answer leaves the list exactly as the store reads it.
-func listRefusals(rt Runtime, call messageCall) map[string]string {
+func listRefusals(rt Runtime, call messageCall) map[string]couchmessage.RefusalInfo {
 	socket, err := couchmessage.SocketPath(rt.StoreDir(), "broker")
 	if err != nil {
 		return nil
@@ -32,13 +31,10 @@ func listRefusals(rt Runtime, call messageCall) map[string]string {
 // that ran out of time under load) clears by itself, so the action is to send
 // again.
 // pair:m5-concept pure
-func receiveStateText(slot, reason string) string {
+func receiveStateText(slot string, refusal couchmessage.RefusalInfo) string {
 	action := "send again; if it repeats, check couch --resources"
-	for _, own := range []string{"does not own", "conversation changed", "launch registration", "not positively listed", "no retained checkout"} {
-		if strings.Contains(reason, own) {
-			action = "couch --relaunch " + slot + " --confirm"
-			break
-		}
+	if refusal.Class == couchmessage.RefusalRelaunch {
+		action = "couch --relaunch " + slot + " --confirm"
 	}
-	return "can't receive: " + reason + " -- fix: " + action
+	return "can't receive: " + refusal.Reason + " -- fix: " + action
 }

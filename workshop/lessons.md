@@ -2152,6 +2152,8 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 - #638: A successful subprocess exit does not prove a complete piped-input operation. exec.ErrWaitDelay can describe either unread inherited stdin or a held-open diagnostic descriptor; preserve success only after verifying the existing input reader is exhausted and context remains valid. Pair the full-read/held-stderr regression with an over-pipe-capacity unread-input negative control.
 - #634: Start a request's admission budget before sender checks, then carry its context through registry posting and recipient IO. A timeout regression must include earlier work over the real transport; testing admission alone misses additive budgets. Refusal bookkeeping reuses the routing snapshot rather than starting a second lookup after expiry.
+
+- #635: Resolve human-facing receipt prefixes within the authenticated caller's visible retained set before consulting recovery holders. An unmatched query identifies an unknown lookup, not a delivery outcome; ambiguity lists only visible full IDs, with exact matches taking precedence.
 - #643: Distinguish atomic replacement of one file from publication of a document/shadow/state bundle. A plan must name partial persisted outcomes and reconciliation after IO failure; test a controlled publication failure and prove unread baselines and owed events survive.
 
 - #630: A deadline and bounded pipe draining do not collect descendants that close their pipes before a successful parent exits. A command group owned only for a synchronous check ends on every completion, including success. Test both cancellation and a successful parent with an independently live, closed-pipe child.

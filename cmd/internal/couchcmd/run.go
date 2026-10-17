@@ -1285,7 +1285,7 @@ func renderThreadDetails(w io.Writer, threads []couchcore.ThreadSummary) {
 	renderThreadRows(w, threads, true, nil)
 }
 
-func renderThreadRows(w io.Writer, threads []couchcore.ThreadSummary, includeAddress bool, refusals map[string]string) {
+func renderThreadRows(w io.Writer, threads []couchcore.ThreadSummary, includeAddress bool, refusals map[string]couchmessage.RefusalInfo) {
 	if len(threads) == 0 {
 		fmt.Fprintln(w, "no threads")
 		return
@@ -1453,6 +1453,7 @@ func usageWith(w io.Writer, bindings []couchkeys.Binding) {
 	fmt.Fprintln(w, "             --message-file sends the file verbatim (less one trailing newline): write a")
 	fmt.Fprintln(w, "             message containing code or shell syntax with an editor, never quote it.")
 	verbLine(w, "--message-status", "       couch --message-status ID [--json]")
+	fmt.Fprintln(w, "             Full ID or unique prefix of a receipt you sent or received; ambiguous prefixes list full IDs.")
 	verbLine(w, "--notify", "       couch --notify [--title T] MESSAGE")
 	fmt.Fprintln(w, "             Only a live hub notifies (default title: Couch); other slots send to their hub.")
 	fmt.Fprintln(w, "             Slots' OSC 9/777/99 notifications are swallowed, including the hub's; BEL is unchanged.")

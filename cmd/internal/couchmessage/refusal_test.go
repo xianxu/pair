@@ -91,7 +91,7 @@ func TestBrokerRecordsWhyASendWasNotAdmitted(t *testing.T) {
 	if err != nil || r.Status != Refused || !strings.Contains(r.Detail, "zellij liveness is stale") || r.Message.To.Slot != "pair:3" {
 		t.Fatalf("status %+v %v", r, err)
 	}
-	if got := b.LatestRefusals()["pair:3"]; !strings.Contains(got, "zellij liveness is stale") {
+	if got := b.LatestRefusals()["pair:3"]; !strings.Contains(got.Reason, "zellij liveness is stale") {
 		t.Fatalf("latest refusals %+v", b.LatestRefusals())
 	}
 
@@ -172,13 +172,13 @@ func TestLatestRefusalsAreCanonicalReasonsOnly(t *testing.T) {
 	from, to := brokerBinding("ops:0"), brokerBinding("pair:3")
 	from.Nonce = "sender-nonce-credential"
 	_ = b.Register(from, newFakeEndpoint(now))
-	_ = b.Register(to, &failingObserveEndpoint{FakeDeliveryEndpoint: newFakeEndpoint(now), err: errors.New("wrapper does not own the current binding")})
+	_ = b.Register(to, &failingObserveEndpoint{FakeDeliveryEndpoint: newFakeEndpoint(now), err: &RelaunchRequiredError{Cause: errors.New("wrapper does not own the current binding")}})
 
 	if _, err := b.Send(context.Background(), from, "m1", Route{Target: "p:3"}, "secret body text"); err == nil {
 		t.Fatal("send was admitted")
 	}
 	latest := b.LatestRefusals()
-	if got, ok := latest["pair:3"]; !ok || !strings.Contains(got, "does not own") || len(latest) != 1 {
+	if got, ok := latest["pair:3"]; !ok || !strings.Contains(got.Reason, "does not own") || got.Class != RefusalRelaunch || len(latest) != 1 {
 		t.Fatalf("latest refusals %#v", latest)
 	}
 	raw, _ := json.Marshal(Response{Code: "ok", Refusals: latest})
@@ -186,5 +186,48 @@ func TestLatestRefusalsAreCanonicalReasonsOnly(t *testing.T) {
 		if strings.Contains(string(raw), leak) {
 			t.Fatalf("refusals answer leaks %q: %s", leak, raw)
 		}
+	}
+}
+
+func TestBrokerRefusalRetainsRecoveryClass(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		cause error
+		class RefusalClass
+	}{
+		{"ownership reworded", &RelaunchRequiredError{Cause: errors.New("different wrapper owns this launch")}, RefusalRelaunch},
+		{"conversation reworded", &RelaunchRequiredError{Cause: errors.New("native conversation identity replaced")}, RefusalRelaunch},
+		{"registration reworded", &RelaunchRequiredError{Cause: errors.New("ready evidence unavailable")}, RefusalRelaunch},
+		{"listing reworded", &RelaunchRequiredError{Cause: errors.New("terminal absent from verified listing")}, RefusalRelaunch},
+		{"checkout reworded", &RelaunchRequiredError{Cause: errors.New("retained working path missing")}, RefusalRelaunch},
+		{"unclassified old phrase", errors.New("wrapper does not own the current binding"), ""},
+		{"wrapped classification", fmt.Errorf("outer: %w", &RelaunchRequiredError{Cause: errors.New("reworded")}), RefusalRelaunch},
+		{"registration deadline", &RelaunchRequiredError{Cause: fmt.Errorf("ready: %w", context.DeadlineExceeded)}, ""},
+		{"registration cancellation", &RelaunchRequiredError{Cause: fmt.Errorf("ready: %w", context.Canceled)}, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			now := time.Unix(1000, 0)
+			b := NewBroker(context.Background(), func() time.Time { return now }, nil)
+			defer b.Close()
+			from, to := brokerBinding("ops:0"), brokerBinding("pair:3")
+			_ = b.Register(from, newFakeEndpoint(now))
+			_ = b.Register(to, &failingObserveEndpoint{FakeDeliveryEndpoint: newFakeEndpoint(now), err: tc.cause})
+			if _, err := b.Send(context.Background(), from, "refusal-class", Route{Target: "pair:3"}, "private body"); err == nil {
+				t.Fatal("send unexpectedly admitted")
+			}
+			got := b.LatestRefusals()["pair:3"]
+			if got.Class != tc.class || got.Reason != refusalReason(tc.cause) {
+				t.Fatalf("projection=%+v; want class %q and preserved diagnostic", got, tc.class)
+			}
+		})
+	}
+}
+
+func TestRelaunchRequiredErrorPreservesCause(t *testing.T) {
+	cause := errors.New("different wording")
+	err := fmt.Errorf("authority: %w", &RelaunchRequiredError{Cause: cause})
+	var relaunch *RelaunchRequiredError
+	if !errors.Is(err, cause) || !errors.As(err, &relaunch) || relaunch.Error() != cause.Error() {
+		t.Fatalf("classification lost original error: %v", err)
 	}
 }

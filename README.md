@@ -505,7 +505,7 @@ couch --notify [--title T] MESSAGE      hub only: one desktop notification (defa
 couch --send-to TARGET [--agent NAME] --message-file PATH
                          any form above, the body read verbatim from PATH (less one trailing newline):
                          write a message containing code or shell syntax with an editor, never quote it
-couch --message-status ID [--json]      inspect a message receipt; a send to a busy slot
+couch --message-status ID [--json]      inspect a receipt by full ID or unique visible prefix; a send to a busy slot
                          waits in order while connected; status names the composer wait and position
 couch --skill            print the bundled agent coordination skill
 couch --adopt-store /absolute/store     preview adoption of an existing store
@@ -842,7 +842,11 @@ Couch acceptance is separate from these receiver checks.
 Admission prints a receipt ID and resolved destination immediately. `queued`
 means a mailbox reservation; `submitted` means bytes submitted, not completed
 work. A busy, connected receiver retains accepted mail until its composer is
-ready. `--message-status` shows the wait and position in that receiver's line;
+ready. `--message-status` accepts the full ID or a unique prefix (such as the
+first eight characters) among retained receipts you sent or received. An ambiguous
+prefix lists the matching full IDs; an unknown ID or prefix reports an unknown
+lookup. Keep the full ID for recipient recovery after a Couch restart.
+`--message-status` shows the wait and position in that receiver's line;
 do not resend a queued or held message. Disconnect or relaunch cancels mail
 not yet committed to the wrapper, with a receiver reason. A handed commit may
 be `indeterminate` because input cannot be ruled out. Once pasted, the existing 30-second confirmation window
@@ -885,7 +889,11 @@ any other row labels the working directory's last segment (`brain`, `pair`,
 `arc-agi-3`), with the tag's tail appended only when two rows would otherwise
 read the same. The agent-published summary is the one summary displayed.
 
-`couch --list` stays compact and label-first. `couch --show` is the diagnostic view:
+`couch --list` stays compact and label-first. A retained receive refusal adds its
+reason and one action: relaunch for an ownership/registration failure, or send
+again for a transient failure. Advice follows the refusal's class, independent
+of its wording. These annotations are best effort; mixed CLI/supervisor versions
+may omit them while the ordinary list remains available. `couch --show` is the diagnostic view:
 it always prints the immutable `{repository scope}/{opaque tag}` address. When the
 reference names a `:1+` slot (`repo:N`, a path at or inside the slot, or the slot
 its threads start in), `--show` also prints the slot's resources in converge order:
