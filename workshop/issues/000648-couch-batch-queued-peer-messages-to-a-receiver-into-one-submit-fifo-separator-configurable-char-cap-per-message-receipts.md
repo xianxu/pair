@@ -89,6 +89,9 @@ After these implementation checks, run the normal close review and merge gates; 
 
 - Inventory fix verification: `go test ./cmd/internal/artifactpath -count=1` PASS, 33.094s; `git diff --check` clean. Existing exhaustive coverage remains the regression guard. Production batching behavior is unchanged.
 
+- First completed recorded suite: attempt `249d15337aeb65d24c1fb5caaf730b74` on `27fd3b5f83ff9091ff9bdcce51b2a3f9c90c117c`, FAIL after 15m37s execution, saved log `.git/sdlc/test-stats/failed/249d15337aeb65d24c1fb5caaf730b74.log`, SHA256 prefix `f0f296dbb6d5`. Enumerating that log confirms exactly one failed test/package: the inventory omission above; all shell/editor checks and all other Go packages passed, including couchcmd 158.248s, couchmessage 30.704s and wrapcmd 55.169s. Fixed/pushed head `b552d869f843` passes all PR checks: native conformance `39063495036` (2m52s), merge-check `39063494995` (1m20s), local-gates-guard `39063492608` (9s).
+- Fresh required suite on the inventory-fix head `b552d869f843`: attempt **`f88c9df7677e5e689ac6e3b2510ceaf9`**, worktree `/var/folders/07/b9wcwwld4_v2w9r3hk525bm80000gn/T/sdlc-local-3496761431`, same required command; initially queued position 5. No passing full-suite claim yet. Keeping its place and the failed predecessor evidence.
+
 ## Estimate
 
 Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only. `sdlc estimate-source` flags the calibration stale, so these numbers are provisional ship wall-clock hours, not operator attention or queue wait.
