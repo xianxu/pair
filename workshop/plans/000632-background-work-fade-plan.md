@@ -72,7 +72,7 @@ ARCH-DRY: reuse composer geometry, settle generation, strict protocol fallback a
 
 Files: `cmd/internal/wrapcmd/peer_composer.go`, `peer_settle.go`, `peer_runtime.go`, `peer_delivery.go`; tests `peer_background_test.go`, `peer_settle_test.go`, existing recording sink tests.
 
-- [ ] Replay both recorded positive footers at94×39; add negative body/draft, malformed/huge/zero counts, absent chrome, unsupported agents, incomplete synchronized paint, close and resize cases. Run `go test ./cmd/internal/wrapcmd -run 'Test.*Background|TestRecordedIdleScreensReadDeliverable' -count=1 -timeout 2m`; require behavioral RED before detector implementation.
+- [ ] `backgroundWorkState(agent, terminalSnapshot) *bool` (new pure detector): recorded94×39 native screens seed malformed-footer/geometry fuzzing; moving a purported counter outside qualified footer geometry must never produce positive work. Run `go test ./cmd/internal/wrapcmd -run 'Test.*Background|TestRecordedIdleScreensReadDeliverable' -count=1 -timeout 2m`; require behavioral RED before implementation.
 - [ ] Implement the pure detector and wire a separate display probe into the existing settle callback. Deterministically hold a probe while output changes to prove stale generation rejection; verify true→false/unknown changes publish even with Settled continuously true. Preserve existing idle/admission tests.
 - [ ] Run focused GREEN and race tests, then checkpoint the complete evidence slice.
 
@@ -80,8 +80,9 @@ Files: `cmd/internal/wrapcmd/peer_composer.go`, `peer_settle.go`, `peer_runtime.
 
 Files: `cmd/internal/couchmessage/session_protocol.go`, `session_transport.go`, `registry.go`; tests their colocated protocol/transport/registry files; `cmd/internal/couchcmd/message_service.go`, `idle_activity_test.go`; `cmd/internal/couchtty/console_activity_test.go`.
 
-- [ ] Write RED for v4 round trip, strict field/version rejection, every supported older fallback, no downgrade on refusal/timeout, and positive state reconnect resend. Use existing real socket fixtures.
-- [ ] Write RED for settled+background-active despite old files and detached row, silent long wait, known completion/aging, unchanged false refresh, unknown invalidation, displacement/disconnect/same-binding replacement and wrong scope/tag/agent. Reuse injected broker/Console clocks.
+- [ ] `SessionFrame.Validate`, `DecodeSessionFrame`, `SessionClient.BackgroundWork` and `SessionClient.session`: use the real socket fixtures with strict older-schema broker doubles and interrupted handshakes; assert negotiated field ownership and latest-state delivery across reconnection, without silently downgrading uncertain outcomes. Require behavioral RED before implementation.
+- [ ] `Registry.Advance` and `messageService.WrapperActivity`: table-driven event sequences with an injected broker clock independently assert incarnation isolation, monotonic completion and no renewal from idle/unknown evidence; disconnected/detached/replaced identities must obey the existing admission boundary. Require behavioral RED before implementation.
+- [ ] Console activity pass: reuse the real Console/host fixture with an injected clock and old-file baseline; positive settled background work must defeat fade without manufacturing new file activity, and loss/completion of evidence must restore ordinary aging. Keep a successful free-composer delivery integration as the admission oracle.
 - [ ] Implement the new field through the production path and registry transition. Keep message admission unchanged; integration test successfully reserves/commits/submits a peer message through a free composer whose background flag remains active.
 - [ ] Run `go test ./cmd/internal/couchmessage ./cmd/internal/couchcmd ./cmd/internal/couchtty ./cmd/internal/wrapcmd -count=1 -timeout 5m` and focused `-race` tests. Measure changed-source artifact inventory if any new production file becomes necessary. Commit the working slice.
 
@@ -100,3 +101,7 @@ Files: `README.md`, `atlas/couch.md`, issue Log; no project-file edits (TL owns 
 ### 2026-10-16 — TL approval a807af4c
 
 All four decisions resolved: design approved, native detection Claude only (Codex/Qoder stay unknown), full flow explicitly selected, installed live check deferred until the restart after landing, no staging in pair:0. Earlier questions above are preserved as the design record, superseded by this decision. Additional live Codex counter evidence is documented in the issue with the capture/qualification work needed before adding that source. Proceed to the normal full-flow change-code gate.
+
+### 2026-10-16 — PQ-1 test-strategy refinement
+
+Plan-quality accepted the design but required function-level testing strategies. Replaced the case inventories with named detector, protocol, client, registry and activity surfaces plus seeded fuzzing, controlled generation interleaving, real transport and clock-driven integration strategies. The `peerDelivery.settleFired` callback is verified with the existing fakeTimers scheduler; `proxy.backgroundWorkNow` is verified through the stateful terminal Feed/Snapshot seam. No state, field, scope, cadence or rollout change.
