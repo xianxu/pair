@@ -70,3 +70,7 @@ TL direction 9929f33e replaces the proposed capture choreography with permanent 
 ### 2026-10-16 — M1 plan posted; baseline controls pass
 
 Concrete M1 plan 044ec5dc278c07223a413253e32ba445e0a59fa9 sent to hub as 9c72573b-6098-4f22-aa21-833ce60f5e42; submitted confirmed. The message names fresh read-only counter snapshots, server/client identity, explicit wire omissions and omission of misleading/expensive CPU timing. Awaiting response before feature code. Existing authority/projection controls pass: go test ./cmd/internal/ptychild ./cmd/internal/couchcmd -run 'TestEndpointRetainsFrameAndModesAfterDiagnosticRingEviction|TestChildNotificationIsTypedOnceIndependentOfRawRetention|TestResourceProjection' -count=1 (ptychild 0.217s; couchcmd 0.356s). No production/test implementation changes yet.
+
+### 2026-10-16 — M1 approved; plan-quality refinement
+
+TL e6511b06-0db1-4dae-a695-ca1c364c46f5 (submitted) approves M1 as planned, explicitly without per-feed CPU timing and with full gates. Plan-quality round 1 raised only Important PQ-1: replace test-case inventories with function-named adversarial strategies. Refined Child.ingest/IngestBytes, Console.HostedIngestSnapshot, projection and request/CLI strategies with independent oracles and mechanical guards. No scope/mechanism change; no implementation started before gate admission.

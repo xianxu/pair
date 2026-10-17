@@ -60,16 +60,16 @@ The diagnostic snapshot names server PID/start time, its own sampled-at time, an
 
 Files: modify cmd/internal/ptychild/child.go and terminal.go; tests in existing ptychild test files.
 
-- [ ] Add RED tests through the production fake Child Feed path for arbitrary chunk partition, zero bytes, raw-ring eviction, parser/publication failure, independent children, concurrent read/feed and final closed snapshot.
+- [ ] Child.ingest / proposed Child.IngestBytes: generate byte streams and chunk partitions through production fake Child Feed, comparing totals to an independently summed admitted-byte oracle. Concurrent sampling must be monotone and end exact; vary ring capacity and publication failure to guard against deriving totals from retained/published bytes.
 - [ ] Add the one Child-owned atomic.Uint64 and accessor, incrementing at ingest admission. Run focused normal/race tests; prove the count does not derive from ring length or snapshots.
 
 ### 2. Expose a bounded fresh resources section
 
 Files: couchcore/resource.go; couchtty/console_resources.go; couchcmd/message_service.go, resources_projection.go, resources_render.go; colocated tests.
 
-- [ ] Add RED fake-console/service tests proving endpoint/thread/process identity, server incarnation, distinct observation time, hidden-client inclusion, replacement/reset, ended-client policy and snapshot isolation.
-- [ ] Project fresh atomic totals through resources with no native/process discovery. Exercise the production resources request and JSON/text CLI paths, not only helper field assertions.
-- [ ] Extend existing wire-limit tests with maximum census, long labels and many process/episode rows; exact encoded response must stay within MaxFrameBytes and omissions remain visible. Guard the same clients that the untruncated observation reports.
+- [ ] Proposed Console.HostedIngestSnapshot: drive controlled child replacement/removal and event order through the production fake Console, checking incarnation changes and snapshot isolation against the admitted child inventory. Hold an endpoint parser lock while observing to mechanically guard against parser-lock acquisition.
+- [ ] messageService.handle plus runResourcesCLI/renderResources: use production fake Child/Console and socket/CLI transport to compare fresh byte totals against the deliberately stale cached resource sample; assert JSON identity/freshness and sanitized cumulative text output.
+- [ ] projectResourceView/resourceDetailPrefix: generate oversized census/labels and competing optional detail, then encode the actual socket response to enforce MaxFrameBytes, explicit omission accounting and source snapshot isolation. Compare retained identities to the original inventory.
 - [ ] Run affected package/race/inventory checks. Benchmark counter overhead at the existing Child ingest seam without inventing CPU-time fields.
 
 ### 3. Review and land the diagnostic milestone
@@ -107,3 +107,7 @@ ARCH-DRY: reuse Console inventory and resource projection, no second terminal pa
 ### 2026-10-16 — M1 diagnostics authorized before optimization
 
 TL replaced capture choreography with permanent atomic ingress counters. CPU timing remains optional only if cheap and truthful; M1 omits it. The mechanism comparison follows measured rates after the combined restart.
+
+### 2026-10-16 — approved M1; function-specific test strategy
+
+TL approval e6511b06 confirms the atomic ingress counter, read-only hosted resources section, no per-feed CPU timing and full gates. Plan-quality PQ-1 requested function-named adversarial strategies; task verification now names each risky function, its independent oracle and its mechanical guard instead of listing cases. Scope and mechanism are unchanged.
