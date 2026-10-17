@@ -215,11 +215,27 @@ func TestSwitcherCopyNoticeEmptyHistory(t *testing.T) {
 }
 
 func TestCopyNoticeChordStillReachesFocusedChild(t *testing.T) {
-	f := newFixture(t, 24, 80)
-	_, _ = f.stdin.Write([]byte{0x19})
-	waitFor(t, "Ctrl+Y child input", func() bool { return bytes.Contains(bytes.Join(f.child.Writes(), nil), []byte{0x19}) })
-	if strings.Contains(f.host.Written(), "\x1b]52;") {
-		t.Fatal("actor chord copied a notice")
+
+	for _, wire := range []string{"\x19", "\x1b[121;5u", "\x1b[121;5:3u"} {
+		t.Run(wire, func(t *testing.T) {
+			observations := make(chan CopyKeyObservation, 4)
+			f := newFixtureBeforeRun(t, 24, 80, func(c *Console) { c.SetCopyKeyObserver(func(o CopyKeyObservation) { observations <- o }) })
+			_, _ = f.stdin.Write([]byte(wire))
+			select {
+			case o := <-observations:
+				if o.Panel || o.Release != (wire == "\x1b[121;5:3u") {
+					t.Fatalf("arrival=%+v", o)
+				}
+			case <-time.After(time.Second):
+				t.Fatal("no child-focus arrival")
+			}
+			if wire != "\x1b[121;5:3u" {
+				waitFor(t, "Ctrl+Y child input", func() bool { return bytes.Contains(bytes.Join(f.child.Writes(), nil), []byte{0x19}) })
+			}
+			if strings.Contains(f.host.Written(), "\x1b]52;") || f.con.menuSnapshot().CopyFeedback.Kind != CopyFeedbackNone {
+				t.Fatal("actor chord copied a notice")
+			}
+		})
 	}
 }
 

@@ -42,8 +42,8 @@ No clipboard probes, live key injection or pair:0 staging. Historical bytes are 
 
 ## Plan
 
-- [ ] Qualify the read-only key path and retain a red regression for the Kitty canonical input; no runtime behavior edits before that evidence.
-- [ ] Extend the existing strict panel decoder for enhanced Ctrl+Y only. Add a narrow CopyKeyObservation callback at decoded Console input arrival and wire it to clipboard_key facts via the existing supervision writer.
+- [x] Qualify the read-only key path and retain a red regression for the Kitty canonical input; no runtime behavior edits before that evidence.
+- [x] Extend the existing strict panel decoder for enhanced Ctrl+Y only. Add a narrow CopyKeyObservation callback at decoded Console input arrival and wire it to clipboard_key facts via the existing supervision writer.
 - [ ] Test whole Console routing with fake clipboard tools, split enhanced input, release/lock-modifier/extra-modifier controls, child forwarding and metadata privacy. Update README/atlas; recorded suite, close, normal landing.
 
 ARCH-DRY/PURE: reuse terminal.Decoder, existing panel grammar, Console and bounded supervision writer; recognition remains pure over decoded input. ARCH-PURPOSE: fix the pre-handler loss and separately expose arrival, rather than adding more tool diagnostics. ARCH-MOCK/SECURE: only fake tools in private headless fixtures; a diagnostic contains fixed classifications, never key bytes or copied text. ARCH-CONSTRAINTS: one bounded fact per Ctrl+Y event, existing queue/size cap, no IO or clocks in the recognizer. ARCH-ORDER: no new runtime state or timers; release remains child-only and grants no copy authority. ARCH-FUNERAL: no new file family or lifecycle; existing diagnostic retention and fixture cleanup own the added data.
@@ -53,3 +53,13 @@ ARCH-DRY/PURE: reuse terminal.Decoder, existing panel grammar, Console and bound
 #621 is parked cleanly on 000621-rename-prefix-test (f04a2de1c), with targeted evidence recorded and no suite/merge runner active.
 
 Read-only Go overlay probe log /tmp/pair-ctrl-y-readonly-probe.log: 0x19 passes, CSI 121;5u and CSI 121;5:1u fail because canonical CSI 121;5u yields no PanelKey. No repository mutation, live input or clipboard tool in the probe. Read-only config/process investigation: Ghostty user/effective/default bindings do not intercept Ctrl+Y; ancestry is Ghostty -> login -> zsh -> Couch, with zellij and nvim downstream. Pair zellij config has no Ctrl+Y binding. Thus Parley's C-y chord cannot intercept Couch's outer switcher. These observations establish the defect and topology, not the historical received bytes.
+
+### 2026-10-17 — approved implementation and red evidence
+
+TL approved the quick plan (86b6ec05-260e-4ae6-bc7c-6c5a4cc41db7), including arrival facts and fake-only tests; live verification is on the next natural restart, no staging. Resume parked #621 afterwards. Checked-in TestCopyNoticeThroughTerminalDecoder failed before the fix for plain enhanced, explicit press, repeat and Caps/Num-lock forms; legacy passed. It covers every byte split, key release, extra modifiers, unrelated control letters and ordinary y. The parser change is one explicit canonical Ctrl+Y case; no general modified-printable fallback.
+
+### 2026-10-17 — targeted verification
+
+Targeted copy/decoder/panel tests passed under race: go test -race ./cmd/internal/couchtty ./cmd/internal/couchcmd -run 'CopyNotice|CopyKey|ClipboardCopy|Decode|Panel' -count=1 (3.905s / 1.938s). Full packages passed, log /tmp/pair646-packages.log. Separate metadata-shape/lifetime test also passes. Complete Console fixtures use private fake pbcopy only; each legacy/enhanced press produces one arrival record followed by one outcome, and a release produces arrival without copying. Actor-focus tests preserve Ctrl+Y child delivery; unrelated input and paste produce no observation. No existing copy tool policy changed.
+
+An overlay that removes only observeCopyKey from routeInputEvent makes all three complete Console record tests fail at missing arrival (retained /tmp/pair646-arrival-negative.log); production files were unchanged by the control. This demonstrates the diagnostic wiring, not merely its projection helper. Decoder red evidence preceded its fix; the original read-only probe remains /tmp/pair-ctrl-y-readonly-probe.log. Both no-clipboard/no-staging constraints remain in force.

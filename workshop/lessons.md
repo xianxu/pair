@@ -2166,3 +2166,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
   with a process gate and retain stderr rather than relying only on sleep offsets.
 
 - Chunked JSONL framing must not search a retained newline-free prefix again on each append. Count actual delimiter bytes examined across multi-chunk records, alongside semantic boundary/limit tests; read/decode counters alone miss quadratic delimiter work. Preserve per-probe progress when diagnosing aggregate worker timeouts. (#626)
+
+- #646: Shortcut verification must exercise the terminal decoder and routing boundary with both legacy and enhanced wire input. Calling the action handler directly can prove clipboard IO while missing the unsupported key encoding that prevents the handler from running. Keep a content-free arrival observation separate from operation outcome when diagnosing this boundary.
