@@ -52,12 +52,15 @@ func TestNewConsoleDefaultsTheProbeBound(t *testing.T) {
 func TestActivityProbeDeadlineSurfacesFailureAndRecovers(t *testing.T) {
 	const slots = 2
 	evidence := workbenchperftest.NewFixture(t, slots, 4096)
-	rt := &deadlineProbeRuntime{base: threadactivity.NewOSRuntime(evidence.Home), slow: evidence.Owners[0].Scope, delay: 400 * time.Millisecond}
+	rt := &deadlineProbeRuntime{base: threadactivity.NewOSRuntime(evidence.Home), slow: evidence.Owners[0].Scope, delay: 10 * time.Second}
 	console := New(hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 80}), nil)
 	t.Cleanup(func() { console.Stop(); console.workers.Wait() })
 	// A first query costs ~40ms (native-root bootstrap) before any ledger
-	// bytes, so the injected bound must sit above that floor; the stall is 4x.
-	console.probeTimeout = 100 * time.Millisecond
+	// bytes; the 1s injected bound sits ~25x above that floor so a loaded host
+	// cannot push the healthy row over it — the #628 report itself came from a
+	// loaded host. The stall is ctx-bound (the delay is only a backstop), so
+	// an overrunning row returns exactly at its deadline.
+	console.probeTimeout = 1 * time.Second
 	rows := make([]couchcore.ActionableThreadSummary, slots)
 	for i, owner := range evidence.Owners {
 		address := couchcore.ThreadAddress{RepoScope: owner.Scope, Tag: couchcore.ThreadTag(owner.Tag)}
