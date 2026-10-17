@@ -1,6 +1,6 @@
 ---
 id: 000637
-status: codecomplete
+status: done
 created: 2026-10-16
 updated: 2026-10-17
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: c31542b57470ab9c5ca89cbfe8327d320287ddfa
         evidence_commit: 0f856e3518ccf5132731c06442ae577002e2d71f
+        landed_commit: 79604d475775f02d25da2ed3fcbd202044f28a1a
 ---
 
 # flake: couchtty TestDriveFromCouch hangs 20 min receiving from a nil capability-click channel
