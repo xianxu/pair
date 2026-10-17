@@ -62,7 +62,7 @@ Existing stateful harness fake owns the terminal, repaint sequence, writer and c
 Files: `composer_recognizers_test.go`, `codex_return_test.go`, optionally a focused `codex_tall_composer_test.go`.
 
 - [ ] Add a footer-complete tall native-shaped snapshot that is Unknown today, plus tall ordinary Return that wrongly emits CR today. Keep short, blank-continuation and existing mid-frame/status ambiguity controls.
-- [ ] Add adversarial tall cases: historical prompt with indented output and no footer, nearer unrelated painted left edge, unbold menu marker, footer/status cursor, stale prompt below a replacement composer, hidden/out-of-range cursor, clipped prompt, missing footer, unfinished synchronized frame, truncated cell storage, operator overlay. Independent expectation: none gains new newline/peer permission.
+- [ ] Add adversarial tall cases: historical prompt with indented output and no footer, nearer unrelated painted left edge, unbold menu marker, footer/status cursor, stale prompt below a replacement composer, hidden/out-of-range cursor, clipped prompt, missing or changed/unrecognized footer wording, unfinished synchronized frame, truncated cell storage, operator overlay. Independent expectation: none gains new newline/peer permission.
 - [ ] Generate prompt/cursor distances and viewport sizes, with positive geometry and a single broken guard per case; add bounds-work protection against quadratic footer rescanning.
 - [ ] Run the focused Codex/composer/Return tests and retain the expected new reds before implementation.
 
@@ -81,7 +81,7 @@ Files: existing native peer capture seam/testdata, `atlas/couch.md` and index if
 
 - [ ] Add an opt-in tall singleton/body scenario using a new owned Codex PTY (100x60 representative viewport), positive footer, at least 26 visible composer rows, and batch-shaped Unicode reports. Record version, capture hash and exact evidence; do not infer byte retention from a collapsed marker. Never enable the Codex batch protocol as a test shortcut.
 - [ ] Validate normal Return adds a newline and explicit submit remains distinct in the owned PTY. Any actual native submission uses a harmless explicitly approved prompt, never tools or an existing conversation.
-- [ ] Ask the hub for this item's real-environment check arrangement: propose native owned-PTY checks now and operator Return/submit smoke after its next restart, no :0 staging unless explicitly requested. Do not reuse #648's exception.
+- [x] Hub approved this item's live arrangement: owned-PTY Return/harmless submit now, operator Return/submit smoke after its next restart, no :0 staging. Ask the hub for the shared native lane when the capture is ready; pair:1 and pair:5 also use it. Never steal focus.
 - [ ] Document safe tall evidence and remaining clipped/unknown behavior; retain #648's Claude-only rollout. Push, record the required full suite, close through the mandatory fresh-context review, then enter `sdlc merge --yes`; report verified landing to hub.
 
 ## Verification commands
@@ -91,3 +91,7 @@ Files: existing native peer capture seam/testdata, `atlas/couch.md` and index if
 - Affected package: `go test ./cmd/internal/wrapcmd -count=1`.
 - Native: existing `TestPeerLiveConformance` opt-in flags/environment, new tall scenario; record the exact command after the harness addition is settled.
 - Recorded suite: `sdlc local-check run --name suite` on the pushed code head, then normal close/merge gates. Follow the issue-backed flake rule, retain every failed attempt; no blind retry or main chasing after a pass.
+
+## Revisions
+
+- 2026-10-17 15:38 PDT — Hub approval `8acc22f6-c522-4333-bd5e-250e5ddb66c4` adds an explicit changed/unrecognized footer-wording negative. Both design and live arrangement approved; native work must first obtain the shared lane, with no focus stealing. Real operator Return/submit smoke is deferred to its next restart. No production code changed.
