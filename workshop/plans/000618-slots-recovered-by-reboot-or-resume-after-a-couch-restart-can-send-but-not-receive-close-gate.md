@@ -490,6 +490,166 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: ac3de512-900c-4995-bd85-71781379f8de
+            repository: github.com/xianxu/pair
+            issue_id: "000618"
+            recipe: milestone-review
+            round: 5
+            attempt: 1
+            agent: claude
+            root: /Users/xianxu/Library/Caches/sdlc/review-checkouts/801f97af5e405455
+            reviewed_head: ba41cd271292567a44b4709c16f8cef65cb5db04
+            slot: pair:2
+            requested_at: "2026-10-17T02:45:57.898919Z"
+          phase: finished
+          pid: 17807
+          started_at: "2026-10-17T02:45:58.017444Z"
+          finished_at: "2026-10-17T02:57:30.137171Z"
+          session_id: bdd13819-a009-4cdb-ba28-911458e60f08
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-v1
+        repository: github.com/xianxu/pair
+        code_head: ba41cd271292567a44b4709c16f8cef65cb5db04
+        tracker_head: f61a56c2bdb1543ac8ca34741ceeee1e112563e9
+        branch_point: 9e5c1bd33ac31606f68fdc5bc3c1f0485d1d98e0
+        since: "2026-10-16T15:08:44-07:00"
+        until: "2026-10-16T19:43:49-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-16T15:08:44-07:00"
+              end: "2026-10-16T19:43:49-07:00"
+              began: "2026-10-16T15:08:44-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot2/pair
+        sources:
+            - harness: claude
+              id: 07f507a1-f545-4353-94e5-fdb696746544
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: b165e6321f8a1d73f9389567b851cc270577e2f8ffa5048368ef347f068adb70
+              started: "2026-10-16T22:52:05.608Z"
+              spawned: false
+              bytes: 400819
+              windows:
+                - start: "2026-10-16T22:52:05.608Z"
+                  end: "2026-10-16T19:43:49-07:00"
+            - harness: claude
+              id: 160fb503-f0f1-4a8f-8326-9e0cfe725840
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: ee2a83a7d6648515c3c29745af3b57764d62397578827289264307fdd66b44c0
+              started: "2026-10-16T22:48:36.145Z"
+              spawned: false
+              bytes: 533539
+              windows:
+                - start: "2026-10-16T22:48:36.145Z"
+                  end: "2026-10-16T19:43:49-07:00"
+            - harness: claude
+              id: 5c968657-789a-43c4-ac98-9785c4f1a7d8
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: 6be6e9e7f58fb25c7b1a9f0721271b4a15aea2266429589c4d15ff1c1f1b11be
+              started: "2026-10-16T22:51:33.47Z"
+              spawned: false
+              bytes: 513772
+              windows:
+                - start: "2026-10-16T22:51:33.47Z"
+                  end: "2026-10-16T19:43:49-07:00"
+            - harness: claude
+              id: 9073df29-d226-4140-b23c-4f03f2b4c472
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: 9d9c4fe402faf8c1aa4d585bca501878d36171a956bc0f98421421170d35b194
+              started: "2026-10-16T03:47:36.231Z"
+              spawned: false
+              bytes: 19134530
+              windows:
+                - start: "2026-10-16T15:08:44-07:00"
+                  end: "2026-10-16T19:43:49-07:00"
+            - harness: claude
+              id: ef855715-99b9-41fa-8900-e650e2074c61
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: 64a17b9d26b212b883938ab33f78ba71a40471c9365508e44606078f3cbdf368
+              started: "2026-10-16T22:45:51.536Z"
+              spawned: false
+              bytes: 717215
+              windows:
+                - start: "2026-10-16T22:45:51.536Z"
+                  end: "2026-10-16T19:43:49-07:00"
+            - harness: claude
+              id: f05e1f4c-b0b9-47e7-a879-88650252a387
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: 9136de5157c597cb5a7d651a276ef2214fed0f608bc3576879406655e351a61b
+              started: "2026-10-16T22:49:27.576Z"
+              spawned: false
+              bytes: 499639
+              windows:
+                - start: "2026-10-16T22:49:27.576Z"
+                  end: "2026-10-16T19:43:49-07:00"
+        excluded_brain_sessions: 1
+        excluded_brain_minutes: 25.211683333333333
+        cuts:
+            - boundary: M1
+              dispatched: "2026-10-16T16:03:13-07:00"
+              finalized: "2026-10-16T16:17:20-07:00"
+              finalizing: false
+            - boundary: M1
+              dispatched: "2026-10-16T16:22:21-07:00"
+              finalized: "2026-10-16T16:37:21-07:00"
+              finalizing: true
+            - dispatched: "2026-10-16T19:34:50-07:00"
+              finalized: "2026-10-16T19:40:31-07:00"
+              finalizing: false
+      "n": 5
+      timestamp: "2026-10-16T19:57:46-07:00"
+      dispatched: "2026-10-16T19:45:56-07:00"
+      agent: claude
+      dispose:
+        - id: BR-7
+          disposition: not-addressed
+          note: 'Still open, and a second instance landed in this window: refusalFamilies (refusal.go:50) starts its own 250 ms timer from b.ctx after admit has spent up to AdmissionTimeout, and repeats admit''s families read. The margin holds today (2.25 s < 3 s). Fix both by deriving from the exchange deadline.'
+          round: 5
+        - id: BR-8
+          disposition: not-addressed
+          note: Unchanged in this window. serve still decodes the request through requestBudget and requestIsRecoveryPreview, and Call marshals twice (transport.go:192, 252-260).
+          round: 5
+        - id: BR-9
+          disposition: addressed
+          note: The plan Revisions (round 3) drop the "reported once per failure streak" clause; a stale read refuses with the listing's age instead.
+          round: 5
+        - id: BR-10
+          disposition: addressed
+          note: LatestRefusals now returns map[string]string of reasons (refusal.go:98). TestLatestRefusalsAreCanonicalReasonsOnly checks the marshalled Response holds no nonce, session or body; the old Receipt-typed API cannot compile against it.
+          round: 5
+        - id: BR-11
+          disposition: addressed
+          note: peerTurnRecordLimit=8 per launch, stated in Revisions and atlas; TestPeerTurnRecorderIsBoundedPerLaunch went RED when I disabled the cap.
+          round: 5
+        - id: BR-12
+          disposition: addressed
+          note: The plan Revisions entry (close review round 3) defers the Task 8 live steps and the rebooted-slot half of Task 5 to after landing; M1's after-numbers are logged at 17:42 and 18:47.
+          round: 5
+        - id: BR-13
+          disposition: addressed
+          note: refuseLocked canonicalizes via canonicalTarget, and renderThreadRows looks up by WorkspaceReference. TestLatestRefusalsAreCanonicalReasonsOnly (p:3 to pair:3) went RED when I disabled canonicalization; the collided-label case is covered in list_refusals_test.go.
+          round: 5
+      findings:
+        - kind: defect
+          id: BR-14
+          severity: Minor
+          title: receiveStateText picks the --list action by matching phrases in the error text
+          detail: 'list_refusals.go:82 matches five phrases that live in message_service.go/registry.go error strings; a rewording silently flips the suggested action from relaunch to resend. Record a typed own-registration class at refusal time instead (ARCH-DRY). This is the 2nd finding in this family; the rule: classify a request or result once at its source into a typed value, and have consumers read that value instead of re-deriving it.'
+          family: duplicated-request-classification
+          round: 5
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: ba41cd271292567a44b4709c16f8cef65cb5db04
+      blocked: false
 ---
 
 # Gate ledger — pair#618 (boundary-review)
@@ -559,12 +719,25 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-13** [Minor] `lookup-key-not-canonicalized` (kind: defect) LatestRefusals keys by the raw route target, so alias- or family-spelled refusals never match a --list row
   refusal.go:87 keys by route.Target before canonicalTarget runs; supersession compares that raw key with the resolved To.Slot (refusal.go:96); disambiguated duplicate labels also miss (run.go renderThreadRows lookup).
 
+## Round 5 — 2026-10-16T19:57:46-07:00 (claude) — passed
+
+### Disposed
+
+- BR-7 — not-addressed — Still open, and a second instance landed in this window: refusalFamilies (refusal.go:50) starts its own 250 ms timer from b.ctx after admit has spent up to AdmissionTimeout, and repeats admit's families read. The margin holds today (2.25 s < 3 s). Fix both by deriving from the exchange deadline.
+- BR-8 — not-addressed — Unchanged in this window. serve still decodes the request through requestBudget and requestIsRecoveryPreview, and Call marshals twice (transport.go:192, 252-260).
+- BR-9 — addressed — The plan Revisions (round 3) drop the "reported once per failure streak" clause; a stale read refuses with the listing's age instead.
+- BR-10 — addressed — LatestRefusals now returns map[string]string of reasons (refusal.go:98). TestLatestRefusalsAreCanonicalReasonsOnly checks the marshalled Response holds no nonce, session or body; the old Receipt-typed API cannot compile against it.
+- BR-11 — addressed — peerTurnRecordLimit=8 per launch, stated in Revisions and atlas; TestPeerTurnRecorderIsBoundedPerLaunch went RED when I disabled the cap.
+- BR-12 — addressed — The plan Revisions entry (close review round 3) defers the Task 8 live steps and the rebooted-slot half of Task 5 to after landing; M1's after-numbers are logged at 17:42 and 18:47.
+- BR-13 — addressed — refuseLocked canonicalizes via canonicalTarget, and renderThreadRows looks up by WorkspaceReference. TestLatestRefusalsAreCanonicalReasonsOnly (p:3 to pair:3) went RED when I disabled canonicalization; the collided-label case is covered in list_refusals_test.go.
+
+### Raised
+
+- **BR-14** [Minor] `duplicated-request-classification` (kind: defect) receiveStateText picks the --list action by matching phrases in the error text
+  list_refusals.go:82 matches five phrases that live in message_service.go/registry.go error strings; a rewording silently flips the suggested action from relaunch to resend. Record a typed own-registration class at refusal time instead (ARCH-DRY). This is the 2nd finding in this family; the rule: classify a request or result once at its source into a typed value, and have consumers read that value instead of re-deriving it.
+
 ## Open findings
 
 - **BR-7** [Minor] `transport-budget-clamps-caller-timeout` (kind: defect) Broker.Send restarts a fresh AdmissionTimeout after the sender check instead of deriving from the exchange deadline
 - **BR-8** [Minor] `duplicated-request-classification` (kind: defect) Server.serve decodes the request three times to pick its budget; Call marshals the request twice
-- **BR-9** [Minor] `plan-test-not-delivered` (kind: defect) Plan says a failed listing is reported once per failure streak; the poller never reports it
-- **BR-10** [Important] `unauthenticated-op-exposes-credentials` (kind: defect) The unauthenticated refusals op returns full sender Bindings (session and nonce) and message bodies
-- **BR-11** [Important] `writer-growth-unbounded` (kind: defect) Every submitted peer delivery now appends up to 8 KB to the Pair log, with no stated bound or removal
-- **BR-12** [Important] `unmeasured-operating-claim` (kind: defect) M2 is ticked without the Task 8 / Done-when live observation (rebooted and resumed codex slots receive; relaunch after peer messages only)
-- **BR-13** [Minor] `lookup-key-not-canonicalized` (kind: defect) LatestRefusals keys by the raw route target, so alias- or family-spelled refusals never match a --list row
+- **BR-14** [Minor] `duplicated-request-classification` (kind: defect) receiveStateText picks the --list action by matching phrases in the error text

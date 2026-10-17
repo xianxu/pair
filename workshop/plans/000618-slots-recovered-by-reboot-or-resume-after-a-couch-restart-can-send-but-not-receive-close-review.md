@@ -141,3 +141,133 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-16T19:57:46-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 618 — Slots recovered by reboot or resume after a Couch restart can send but not receive |
+| repo | pair |
+| issue file | workshop/issues/000618-slots-recovered-by-reboot-or-resume-after-a-couch-restart-can-send-but-not-receive.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 9e5c1bd33ac31606f68fdc5bc3c1f0485d1d98e0..ba41cd271292567a44b4709c16f8cef65cb5db04 |
+| command | sdlc close --issue 618 |
+| reviewer | claude |
+| isolation | fenced |
+| timestamp | 2026-10-16T19:57:46-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+Disposing prior findings: checking canonicalization and supersession logic in refusal.go now.
+
+Running the affected test packages now.
+
+Tests pass. Reverting the BR-13 and BR-11 fixes to confirm their tests go red.
+
+Wrapping up: one last check that the plan's ListingPoller row no longer promises per-streak reporting.
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+All three blocking findings from round 3 are fixed, and each fix comes with a test that fails without it. Two Minor findings (BR-7, BR-8) stay open; neither blocks the gate.
+- **BR-10:** the `refusals` op now answers with slot → reason only. `TestLatestRefusalsAreCanonicalReasonsOnly` checks the encoded answer contains no nonce, session or body.
+- **BR-11:** a wrapper launch now records at most 8 peer turns (about 64 KB). The plan states this bound and the code enforces it. I disabled the cap and `TestPeerTurnRecorderIsBoundedPerLaunch` failed.
+- **BR-12:** a Revisions entry defers the Task 8 live steps, and the partial observations so far are recorded.
+- **BR-13:** refusal targets are now converted to the canonical slot name before they are stored, and `--list` looks rows up by slot reference rather than by label. I turned the conversion off and `TestLatestRefusalsAreCanonicalReasonsOnly` failed; the test with colliding labels covers the `run.go` side.
+
+The affected Go packages all pass (`couchmessage`, `couchcmd`, `couchcore`, `pairlog`, `sessionwatch`, `wrapcmd`, `artifactpath`), and so does `nvim/pairlog_test.lua`.
+
+The new code adds one more case of BR-7's pattern: `refusalFamilies` starts its own 250 ms timer instead of using the send's deadline. I've folded it into BR-7 rather than raising it separately.
+
+1. **Strengths**
+   - `nvim/pairlog.lua:80-103`: `operator_entries` hides the `couch-peer-` entries from history. `replace` counts operator entries only, so a delivery that lands mid-edit can't move the edit target, and the test confirms the peer entry survives the rewrite.
+   - `cmd/internal/sessionwatch/peer_turn_test.go`: the test builds its log with the real writer (`pairlog.PersistPeerTurn`) rather than a hand-written string. It also checks the negative case: an unrelated rollout turn confirms nothing.
+   - Recording peer turns in the existing Pair log, instead of adding a new ledger record kind, avoids breaking older readers. Refusing to trim the log in place, because that would shift the launch's `PairLogOffset`, is correct reasoning.
+   - `couchcore/park.go:804-828`: relaunch passes its longer wait through the context, so a plain park keeps its shorter timeout. The relaunch test still covers the path where the quit never completes.
+
+2. **Critical:** none.
+
+3. **Important:** none new.
+
+4. **Minor**
+   - BR-7, still open, now has a second instance. `refusal.go:50` (`refusalFamilies`) starts a fresh 250 ms timer from `b.ctx` after `admit` has already used up to `AdmissionTimeout`. It also reads the families store a second time, when `admit` already read it. The total (2 s + 0.25 s) still fits inside `SendTransportTimeout` (3 s), so nothing breaks today. The fix is to have `admit` return the families it read, and to give any follow-up read a budget taken from the exchange deadline minus the reply margin.
+   - BR-8, still open, unchanged: `transport.go:192, 252-260`.
+   - `list_refusals.go:82`: `receiveStateText` picks the suggested action by matching phrases in the error text from `message_service.go`. All five phrases exist today, but a rewording would silently change the advice. Recording a typed "own-registration" class when the refusal is stored would be sturdier (ARCH-DRY).
+   - Plan line 47 still says "reported once per failure streak". The Revisions entry drops it, so it's acceptable, but an inline strike-through would help readers.
+
+5. **Test coverage notes**
+   - Every Done-when test item has a matching test. The 20 s / 60 s numbers are scaled down to 200 ms / 5 s, which is reasonable.
+   - The race the Log mentions (`write_history_entry` rewriting the log without the store lock while a peer turn is appended) has no test. It's recorded as accepted residual risk, costing at most one correlation fact.
+
+6. **Architectural notes**
+   - ARCH-DRY: flag, Minor (the families read is duplicated; the action is classified from error text).
+   - ARCH-PURE: pass. `receiveStateText` and `operator_entries` are pure, and the recorder is a thin async shell.
+   - ARCH-PURPOSE: pass. The receive state, peer-turn confirmation and relaunch wait are all delivered; only the live steps are deferred, through Revisions.
+   - ARCH-MOCK: pass. The tests use the existing fake runtimes and real-file writers.
+   - ARCH-CONSTRAINTS: pass. The 250 ms `--list` probe is best effort and peer turns are capped. The one new nested budget is folded into BR-7.
+   - ARCH-SECURE: pass. The unauthenticated op returns only what `--list` needs, and a test checks it.
+   - ARCH-ORDER: pass. Duplicate recording is guarded by the append ID ("already submitted"), and recording is gated on `Submitted && !exited` under `d.mu`.
+   - ARCH-FUNERAL: pass. Growth is bounded per launch, the entries are removed with the Pair log, and in-memory refusals keep their 64-entry / 10-minute limits.
+
+7. **Plan revision recommendations:** none required. Optionally, add a one-line Revisions note for the `refusalFamilies` budget if BR-7 is deferred past close.
+
+```findings
+dispose:
+  - id: BR-7
+    disposition: not-addressed
+    note: |
+      Still open, and a second instance landed in this window: refusalFamilies (refusal.go:50) starts its own 250 ms timer from b.ctx after admit has spent up to AdmissionTimeout, and repeats admit's families read. The margin holds today (2.25 s < 3 s). Fix both by deriving from the exchange deadline.
+  - id: BR-8
+    disposition: not-addressed
+    note: |
+      Unchanged in this window. serve still decodes the request through requestBudget and requestIsRecoveryPreview, and Call marshals twice (transport.go:192, 252-260).
+  - id: BR-9
+    disposition: addressed
+    note: |
+      The plan Revisions (round 3) drop the "reported once per failure streak" clause; a stale read refuses with the listing's age instead.
+  - id: BR-10
+    disposition: addressed
+    note: |
+      LatestRefusals now returns map[string]string of reasons (refusal.go:98). TestLatestRefusalsAreCanonicalReasonsOnly checks the marshalled Response holds no nonce, session or body; the old Receipt-typed API cannot compile against it.
+  - id: BR-11
+    disposition: addressed
+    note: |
+      peerTurnRecordLimit=8 per launch, stated in Revisions and atlas; TestPeerTurnRecorderIsBoundedPerLaunch went RED when I disabled the cap.
+  - id: BR-12
+    disposition: addressed
+    note: |
+      The plan Revisions entry (close review round 3) defers the Task 8 live steps and the rebooted-slot half of Task 5 to after landing; M1's after-numbers are logged at 17:42 and 18:47.
+  - id: BR-13
+    disposition: addressed
+    note: |
+      refuseLocked canonicalizes via canonicalTarget, and renderThreadRows looks up by WorkspaceReference. TestLatestRefusalsAreCanonicalReasonsOnly (p:3 to pair:3) went RED when I disabled canonicalization; the collided-label case is covered in list_refusals_test.go.
+findings:
+  - id: new
+    severity: Minor
+    kind: defect
+    family: duplicated-request-classification
+    title: |
+      receiveStateText picks the --list action by matching phrases in the error text
+    detail: |
+      list_refusals.go:82 matches five phrases that live in message_service.go/registry.go error strings; a rewording silently flips the suggested action from relaunch to resend. Record a typed own-registration class at refusal time instead (ARCH-DRY). This is the 2nd finding in this family; the rule: classify a request or result once at its source into a typed value, and have consumers read that value instead of re-deriving it.
+```
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"ac3de512-900c-4995-bd85-71781379f8de","repository":"github.com/xianxu/pair","issue_id":"000618","recipe":"milestone-review","round":5,"attempt":1,"agent":"claude","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/801f97af5e405455","reviewed_head":"ba41cd271292567a44b4709c16f8cef65cb5db04","slot":"pair:2","requested_at":"2026-10-17T02:45:57.898919Z"},"phase":"finished","pid":17807,"started_at":"2026-10-17T02:45:58.017444Z","finished_at":"2026-10-17T02:57:30.137171Z","session_id":"bdd13819-a009-4cdb-ba28-911458e60f08","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.452279042s
+head: "ba41cd271292567a44b4709c16f8cef65cb5db04"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
