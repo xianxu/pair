@@ -175,3 +175,23 @@ parser); a separate issue.
 - 2026-10-16 (pair:2): M1 Task 5 live measurement splits: the BEFORE numbers are in the issue Log; the AFTER numbers need
   the landed build running, which the TL schedules after landing (rebuild pair:0, operator restart), so they are taken
   then and reported, and recorded in the Log before M2 closes.
+- 2026-10-16 (pair:2, TL decision): Task 6 changes mechanism. Before: a `peer_delivery` ledger record kind the watcher
+  reads. After: the wrapper appends the submitted envelope to the thread's existing Pair log
+  (`pairlog.PersistPeerTurn`, append ID `couch-peer-<delivery ID>`), which the watcher already correlates; a new ledger
+  kind would hard-fail older readers. Added: the draft pane's history skips `couch-peer-` entries
+  (`nvim/pairlog.lua`), so Pair's own history, `!!` and comment edits are unchanged.
+- 2026-10-16 (pair:2, close review round 3):
+  - Task 6 growth bound (ARCH-FUNERAL): a wrapper launch records at most 8 peer turns, each at most `MaxBodyBytes`
+    plus its header, so about 64 KB per launch; correlation needs one completed round per launch. The entries live
+    and die with the Pair log (thread archive and removal). Trimming old entries in place was rejected, because it
+    shifts the launch's `PairLogOffset`.
+  - Task 4: the `refusals` op answers slot to reason only (it is unauthenticated; the sender binding is a caller
+    credential). Targets are canonicalized at refusal time, and `--list` looks up by the slot reference, not the row
+    label.
+  - ListingPoller: the "reported once per failure streak" clause is dropped. A stale read already refuses with the
+    listing's age, and that refusal is the report the operator sees.
+  - Live steps deferred: Task 8 (reboot a codex slot and resume another, each receives; relaunch after peer-only
+    turns) and the rebooted-slot half of Task 5 need the landed build on pair:0 and an operator restart, which the TL
+    schedules after landing. Observed so far, after the 17:35 restart that resumed every slot: deliveries to resumed
+    pair:2 landed (TL messages ece90faa, 2d5956fe), and the hub confirmed again from 18:29. The observations go in the
+    issue Log when taken.
