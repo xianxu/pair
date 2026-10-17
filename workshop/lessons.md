@@ -279,6 +279,11 @@ representative evidence, not an exhaustive index.
   A failed probe that returns `(false, nil)` silently turns "could not tell" into "no".
   Every error source on the path fails the command, or appears on the result as an
   error line. Write one test per source. (#387 `--show`, two review rounds)
+- Backgrounding a child from `sh -c` in a non-interactive shell redirects the
+  child's stdin from /dev/null, so a long-lived child (an embedded nvim) that
+  inherited an os.Pipe gets an immediate EOF and exits within ~150 ms even with
+  the write end held open. Redirect its stdin explicitly — a FIFO whose write
+  end the test holds — to keep it alive past its parent. (#583 live conformance)
 
 ## Interfaces, schemas, and data
 
@@ -387,6 +392,11 @@ representative evidence, not an exhaustive index.
 - Comments and review claims are claims. Check them against the mutation boundary,
   cite symbols rather than line numbers, and record uncertainty as uncertainty.
   (#221, #223)
+- A new production source file must be declared in artifactpath's exhaustive
+  inventory (SourceClassifications or NonArtifactSources) even when it owns no
+  artifact — absence itself is the violation. Targeted runs of the packages you
+  touched cannot see it; TestProductionArtifactReferencesAreExactlyClassified
+  is a whole-tree claim that only the full suite asserts. (#583 pre-close suite)
 
 ## Language and tool sharp edges
 

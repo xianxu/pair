@@ -940,3 +940,19 @@ from `artifactpath` over every production root. The four packages I had been ite
 couchcore, launcher, couchmessage) cannot see it, so a green targeted run was never evidence about it. M1's
 files did not trip it because M1 added no new production source outside the packages already inventoried;
 M2 added three.
+
+### 2026-10-16 — M2 boundary review: SHIP, three advisory findings, all deferred
+
+`Review-Window: 73e97b02..138263a1`, round 6 of the issue's gate ledger, verdict **SHIP** with no open
+blocking findings and 0 repeat families — BR-1 through BR-7 stayed closed. Measured actual 9.63 h (est
+8.10, ratio 0.84×). Three **Minor** advisories, disposition: deferred as follow-up candidates, none worth
+another close cycle (each would touch a tracked file and force a suite re-run for a doc line):
+
+1. `run.go:1417` help text says `--reap-orphans` without `--confirm` "re-classifies and lists"; the code
+   reads the cached `resources` report (README and atlas say this). Fix the help line.
+2. `skills/couch/SKILL.md:72` says the verb "holds the console for SIGTERM's grace period";
+   `messages.go` runs the reaper in the CLI process, not the console. Pick one description.
+3. `ManagedRoots` compares the unresolved `WorktreeRoot` against the kernel's symlink-resolved cwd
+   (`resource_darwin.go`'s own comment says callers must resolve roots the same way). A checkout under a
+   symlinked path never matches, silently — the safe direction, but a coverage hole. `EvalSymlinks` each
+   root.
