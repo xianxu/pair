@@ -498,7 +498,7 @@ couch --notify [--title T] MESSAGE      hub only: one desktop notification (defa
 couch --send-to TARGET [--agent NAME] --message-file PATH
                          any form above, the body read verbatim from PATH (less one trailing newline):
                          write a message containing code or shell syntax with an editor, never quote it
-couch --message-status ID [--json]      inspect a message receipt; a send to a busy slot
+couch --message-status ID [--json]      inspect a receipt by full ID or unique visible prefix; a send to a busy slot
                          waits in order while connected; status names the composer wait and position
 couch --skill            print the bundled agent coordination skill
 couch --adopt-store /absolute/store     preview adoption of an existing store
@@ -828,7 +828,11 @@ Couch acceptance is separate from these receiver checks.
 Admission prints a receipt ID and resolved destination immediately. `queued`
 means a mailbox reservation; `submitted` means bytes submitted, not completed
 work. A busy, connected receiver retains accepted mail until its composer is
-ready. `--message-status` shows the wait and position in that receiver's line;
+ready. `--message-status` accepts the full ID or a unique prefix (such as the
+first eight characters) among retained receipts you sent or received. An ambiguous
+prefix lists the matching full IDs; an unknown ID or prefix reports an unknown
+lookup. Keep the full ID for recipient recovery after a Couch restart.
+`--message-status` shows the wait and position in that receiver's line;
 do not resend a queued or held message. Disconnect or relaunch cancels mail
 not yet committed to the wrapper, with a receiver reason. A handed commit may
 be `indeterminate` because input cannot be ruled out. Once pasted, the existing 30-second confirmation window

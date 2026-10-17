@@ -398,7 +398,14 @@ Targeted registry events inherit that same context as well as service lifetime;
 a stalled registry loop cannot extend the send past its admission budget.
 `--message-file` (pair#486) reads the body from a file at send time, so an agent writes a message
 containing shell syntax with its editor and the call stays a bare `couch …` its sandbox exempts.
-`--actors` and `--message-status` support JSON. One delivery at a time per
+`--actors` and `--message-status` support JSON.
+`Broker.StatusContext` resolves an exact visible ID before considering unique
+prefixes in the caller's retained sends, received messages and refusals. It
+uses the same locked visibility and waiting-line projection as exact reads;
+ambiguous prefixes list sorted visible full IDs, while misses identify an
+unknown lookup. Full-ID wrapper recovery after restart remains available;
+prefix resolution is limited to receipts the broker currently retains (#635).
+One delivery at a time per
 actor, a FIFO behind it (pair#492: `ActorState.queue`, at most `MaxQueued` = 32),
 the inbound breaker, and bounded terminal receipt retention limit the runtime.
 Accepted pre-paste mail has no wait horizon while its exact receiver is connected.
