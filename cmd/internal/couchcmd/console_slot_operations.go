@@ -46,6 +46,35 @@ func consoleSlotOperations(console *couchtty.Console, c *couchcore.Couch, probe 
 		}
 		return c.Threads.RepositoryNamesContext(ctx)
 	}, time.Now)
+	ops.preparePark = func(ctx context.Context, target string, guard func(context.Context) error) (slotOperationRunner, error) {
+		bound, _, err := c.PrepareSlotOperation(ctx, couchcore.OpRecoverPark, target, couchcore.LiveRestartOptions{})
+		if err != nil {
+			return nil, err
+		}
+		check := func(ctx context.Context) error {
+			if guard != nil {
+				if err := guard(ctx); err != nil {
+					return err
+				}
+			}
+			current, _, err := c.PrepareSlotOperation(ctx, couchcore.OpRecoverPark, target, couchcore.LiveRestartOptions{})
+			if err != nil {
+				return err
+			}
+			return validateParkRecoveryTarget(bound, current)
+		}
+		return func(key, op, _ string, _ couchcore.LiveRestartOptions, started func(), finished func(any, error)) error {
+			return console.EnqueueRemoteOperation(key, op, func(ctx context.Context) (couchcore.OperationCall, error) {
+				if err := check(ctx); err != nil {
+					return couchcore.OperationCall{}, err
+				}
+				call := bound
+				call.Context = ctx
+				call.TypedPayload = hubMutationPayload{guard: check}
+				return call, nil
+			}, started, finished)
+		}, nil
+	}
 	ops.reference = c.RecoveryConfirmationReference
 	ops.recovery = func(key, actor string, request couchmessage.Request, guard func(context.Context) error, started func(), finished func(any, error)) error {
 		return console.EnqueueRemoteOperation(key, request.Op, func(ctx context.Context) (couchcore.OperationCall, error) {
@@ -128,4 +157,14 @@ func consoleSlotOperations(console *couchtty.Console, c *couchcore.Couch, probe 
 		}, started, finished)
 	}
 	return ops
+}
+
+// A settled transaction is an idempotent repeat; a different conversation or
+// newly opened park is not the transaction the operator confirmed.
+func validateParkRecoveryTarget(bound, current couchcore.OperationCall) error {
+	if current.Args["repo-scope"] != bound.Args["repo-scope"] || current.Args["tag"] != bound.Args["tag"] ||
+		(current.Args["park-nonce"] != "" && current.Args["park-nonce"] != bound.Args["park-nonce"]) {
+		return errors.New("park recovery target changed; inspect the current thread before recovering")
+	}
+	return nil
 }

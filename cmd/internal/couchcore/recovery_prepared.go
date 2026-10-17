@@ -121,7 +121,7 @@ func (c *Couch) executePreparedRecovery(ctx context.Context, selection RecoveryS
 	}
 	if selection.Kind != RecoveryFresh {
 		if record.Park != nil {
-			return result, errors.New("a park transaction is unfinished; recover that park or Start fresh preserving it")
+			return result, refuseResume(ResumeParking, "a park transaction is unfinished; "+c.ParkRecoveryAdvice(ctx, record.Address))
 		}
 		if err := continuationGuard(record); err != nil {
 			return result, err

@@ -88,11 +88,11 @@ func (s *messageService) handleHubSlotOperation(ctx context.Context, caller couc
 			}
 		}
 	}
-	if (s.authority.hubs == nil && r.Op != "recovery-confirmation") || r.Op == "operation-status" {
+	if (s.authority.hubs == nil && r.Op != "recovery-confirmation" && r.Op != couchcore.OpRecoverPark) || r.Op == "operation-status" {
 		return s.slotOps.handle(ctx, caller, r)
 	}
 	guard := func(ctx context.Context) error {
-		if r.Op == "recovery-confirmation" {
+		if r.Op == "recovery-confirmation" || r.Op == couchcore.OpRecoverPark {
 			current, err := s.switchCaller(ctx, r)
 			if err != nil {
 				return err

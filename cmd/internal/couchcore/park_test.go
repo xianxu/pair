@@ -491,8 +491,8 @@ func TestParkCoordinatorTransitionMatrix(t *testing.T) {
 			t.Fatal("publication failure returned success")
 		}
 		kept, _ := store.GetThread(thread.Address)
-		if kept.Park == nil || kept.Park.Phase != ParkRequested || len(kept.Incarnations) != 1 || len(artifacts.TriggeredQuits()) != 0 {
-			t.Fatalf("publication failure state = %+v", kept)
+		if kept.Park != nil || len(kept.ParkHistory) != 1 || !kept.ParkHistory[0].Tombstoned || len(kept.Incarnations) != 1 || len(artifacts.TriggeredQuits()) != 0 {
+			t.Fatalf("definitely unpublished failure did not roll back: %+v", kept)
 		}
 	})
 

@@ -526,9 +526,13 @@ func (c *PairLifecycleController) parkExpected(ctx context.Context, address Thre
 		if advanceErr == nil {
 			result.Thread = failed
 		}
-		return result, errors.Join(errors.New("park requested commit exceeded 1s deadline"), advanceErr)
+		cause := errors.Join(errors.New("park requested commit exceeded 1s deadline"), advanceErr)
+		if advanceErr == nil {
+			return c.rollbackUnpublishedPark(result, failed, cause)
+		}
+		return result, cause
 	}
-	return c.runActiveAttempt(ctx, result, begun, binding, true)
+	return c.runActiveAttempt(ctx, result, begun, binding, true, true)
 }
 
 func (c *PairLifecycleController) Retry(ctx context.Context, address ThreadAddress) (ParkResult, error) {
@@ -577,7 +581,7 @@ func (c *PairLifecycleController) retry(ctx context.Context, address ThreadAddre
 			return ParkResult{Thread: current}, err
 		}
 	}
-	return c.runActiveAttempt(ctx, ParkResult{Thread: current}, current, binding, true)
+	return c.runActiveAttempt(ctx, ParkResult{Thread: current}, current, binding, true, false)
 }
 
 func (c *PairLifecycleController) Recover(ctx context.Context, address ThreadAddress) (ParkResult, error) {
@@ -630,7 +634,7 @@ func (c *PairLifecycleController) recover(ctx context.Context, address ThreadAdd
 			return ParkResult{Thread: current}, err
 		}
 	}
-	return c.runActiveAttempt(ctx, ParkResult{Thread: current}, current, binding, true)
+	return c.runActiveAttempt(ctx, ParkResult{Thread: current}, current, binding, true, false)
 }
 
 func (c *PairLifecycleController) Abandon(ctx context.Context, address ThreadAddress) (ParkResult, error) {
@@ -707,7 +711,7 @@ func (c *PairLifecycleController) reconcileActive(ctx context.Context, address T
 	if parkResult.Thread.Park.Phase == ParkUnknown || last.Closed {
 		return parkResult, nil
 	}
-	return c.runActiveAttempt(ctx, parkResult, parkResult.Thread, binding, false)
+	return c.runActiveAttempt(ctx, parkResult, parkResult.Thread, binding, false, false)
 }
 
 func (c *PairLifecycleController) submit(ctx context.Context, address ThreadAddress, nonce string, work parkWork) (ParkResult, error) {
@@ -727,8 +731,11 @@ func (c *PairLifecycleController) submitFuture(ctx context.Context, address Thre
 	return c.worker.Submit(ctx, address, nonce, work)
 }
 
-func (c *PairLifecycleController) runActiveAttempt(ctx context.Context, result ParkResult, current ThreadRecord, binding PairSessionBinding, await bool) (ParkResult, error) {
+func (c *PairLifecycleController) runActiveAttempt(ctx context.Context, result ParkResult, current ThreadRecord, binding PairSessionBinding, await bool, unpublished bool) (ParkResult, error) {
 	if err := ctx.Err(); err != nil {
+		if unpublished {
+			return c.rollbackUnpublishedPark(result, current, err)
+		}
 		return result, err
 	}
 	if binding.Present {
@@ -736,16 +743,25 @@ func (c *PairLifecycleController) runActiveAttempt(ctx context.Context, result P
 			RevalidatePairSession(context.Context, PairSessionBinding) error
 		}); ok {
 			if err := verifier.RevalidatePairSession(ctx, binding); err != nil {
+				if unpublished {
+					return c.rollbackUnpublishedPark(result, current, err)
+				}
 				return result, err
 			}
 		}
 	}
 	request, paths, err := c.requestFor(current, binding.Name)
 	if err != nil {
+		if unpublished {
+			return c.rollbackUnpublishedPark(result, current, err)
+		}
 		return result, err
 	}
 	if current.Park.Phase == ParkRequested {
 		if err := c.Lifecycle.PublishRequest(paths, request); err != nil {
+			if unpublished && knownUnpublished(err) {
+				return c.rollbackUnpublishedPark(result, current, err)
+			}
 			code := pairlifecycle.FailureRequestPublishFailed
 			if pairlifecycle.PublicationOutcomeOf(err) == pairlifecycle.Indeterminate {
 				code = pairlifecycle.FailureCompletionMissing
@@ -893,7 +909,7 @@ func (c *PairLifecycleController) applyCompletion(result ParkResult, current Thr
 	if completion.Outcome == pairlifecycle.CompletionFailure {
 		failed, err := c.recordFailure(current, request.Attempt, completion.FailureCode, "Pair cleanup failed")
 		result.Thread = failed
-		return result, errors.Join(errors.New("Pair cleanup failed"), err)
+		return result, errors.Join(errParkCleanupFailed, err)
 	}
 	if observeExactProcess(c.Proc, ProcessIdentity{PID: current.Park.Identity.PID, Identity: current.Park.Identity.ProcessIdentity}) != Dead {
 		return result, errParkChildNotGone

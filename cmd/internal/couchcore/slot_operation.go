@@ -31,7 +31,7 @@ func (e *SlotOperationError) Error() string { return e.Code + ": " + e.Detail }
 // slotOperations are the actor operations a slot target may request: the ONE
 // list the protocol, the socket and admission all read (IsSlotOperation), so a
 // new verb cannot be half-added.
-var slotOperations = []string{"resume", OpReboot, "reap", "recover", OpRelaunch, OpReloadContext, OpPrepare, "switch-agent"}
+var slotOperations = []string{OpRecoverPark, "resume", OpReboot, "reap", "recover", OpRelaunch, OpReloadContext, OpPrepare, "switch-agent"}
 
 // IsSlotOperation reports whether op is a remote slot operation.
 func IsSlotOperation(op string) bool { return slices.Contains(slotOperations, op) }
@@ -79,6 +79,9 @@ func SelectSlotRow(rows []ActionableThreadSummary, number int, path string) (Act
 // detached one resumes warm-only: it may be reattached, never cold-started,
 // even if the record changes before the queued operation runs.
 func ActorOperationArgs(row ActionableThreadSummary, op string) map[string]string {
+	if op == OpRecoverPark {
+		return map[string]string{"repo-scope": row.Address.RepoScope, "tag": string(row.Address.Tag), "park-nonce": row.ParkNonce}
+	}
 	if row.Target.Kind == ThreadTargetSlot {
 		scope := row.Address.RepoScope
 		if resolved, err := launcher.ResolveRepoScope(row.Target.Slot.WorktreeRoot); err == nil {
@@ -163,7 +166,7 @@ func (c *Couch) prepareSlotOperation(ctx context.Context, op, target string, opt
 		return c.prepareLiveRestart(ctx, op, target, row, path, RestingBranch(ref.Number), opts)
 	}
 	offered := ActorActions(ActorRowFactsOf(row))
-	if op != "resume" && op != OpReboot && !slices.Contains(offered, op) && !(op == "recover" && RecoverOffered(offered)) {
+	if op != OpRecoverPark && op != "resume" && op != OpReboot && !slices.Contains(offered, op) && !(op == "recover" && RecoverOffered(offered)) {
 		state := string(row.State)
 		if row.Reason != "" {
 			state += " (" + string(row.Reason) + ")"

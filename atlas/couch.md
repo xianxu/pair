@@ -4501,3 +4501,27 @@ approved quiet-load criterion. These figures are fixture results, not live
 server savings. TL-authorized landing precedes the next coordinated Couch
 restart; live server CPU/sample and console/peek/waiting acceptance remain
 pending until that check.
+
+### Interrupted park recovery (#651)
+
+`couch --recover-park repo:N --confirm [--json]` resolves the current interrupted
+park through the authenticated owning-hub operation queue and receipt protocol.
+The switcher offers the same confirmed **Recover park** action only while a
+thread has an open park. Both carry the exact repository scope, tag and park
+nonce; queued effects refuse a replacement transaction or changed ownership.
+A repeated request uses its original receipt; recovering an already settled park
+has no effect. Unknown receipt status calls for inspection, not an automatic resend.
+
+Recovery never starts a replacement agent. A verified completion finalizes the
+park; positively dead exact owners with positively absent terminals may retire
+interrupted bookkeeping while preserving incomplete-cleanup diagnostics. Missing
+or failed completion is never reported as verified cleanup, and uncertain or
+foreign ownership refuses. The result names the available Continue, Resume from
+disk or Start fresh action after normal recovery evidence is checked. Conversation
+identity survives; missing scrollback bytes cannot be reconstructed.
+
+Public declaration/admission lives in `couchcore/ops.go` and `slot_operation.go`;
+execution and receipt wiring in `couchcmd/console_slot_operations.go` and
+`slot_operations.go`; row authority and confirmation in `couchtty/menu_actions.go`
+and `menu.go`. The recovery decision/controller and journaled store mutation live
+in `couchcore/park_recovery.go` and `threadstore.go`.

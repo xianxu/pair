@@ -156,7 +156,7 @@ func (c *Couch) resumeRouted(ctx context.Context, target ResumeTarget, opts Resu
 		return c.RecoverThread(ctx, record.Address, "")
 	}
 	if record.Park != nil {
-		return nil, refuseResume(ResumeParking, "a park transaction is unfinished; recover that park or Start fresh")
+		return nil, refuseResume(ResumeParking, "a park transaction is unfinished; "+c.ParkRecoveryAdvice(ctx, record.Address))
 	}
 	if startClaimed(record) {
 		transaction, err := CurrentStartTransaction(record)

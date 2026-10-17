@@ -216,10 +216,16 @@ func TestParkWorkerBeginDeadlineHasZeroExternalEffectsAtOneSecond(t *testing.T) 
 				t.Fatalf("lifecycle effects = %v", lifecycle.trace)
 			}
 			persisted, getErr := store.GetThread(thread.Address)
-			if getErr != nil || persisted.Park == nil || len(persisted.Incarnations) != 1 {
+			if getErr != nil || len(persisted.Incarnations) != 1 {
 				t.Fatalf("deadline occupancy = %+v, %v", persisted, getErr)
 			}
-			if !result.SoftTargetMissed || persisted.Park.Phase != test.wantPhase {
+			if test.elapsed >= time.Second {
+				if persisted.Park != nil || len(persisted.ParkHistory) != 1 || !persisted.ParkHistory[0].Tombstoned || !result.SoftTargetMissed {
+					t.Fatalf("expired unpublished begin not rolled back: %+v", persisted)
+				}
+				return
+			}
+			if persisted.Park == nil || !result.SoftTargetMissed || persisted.Park.Phase != test.wantPhase {
 				t.Fatalf("deadline result = %+v, thread=%+v", result, persisted)
 			}
 		})

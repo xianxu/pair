@@ -54,6 +54,8 @@ type realLifecycleOps struct {
 	fault     *conformanceFaultRuntime
 	stages    []pairlifecycle.CleanupStage
 	completed time.Time
+	// gatePath is derived from the private fixture stage path, never operator input.
+	gatePath string
 }
 
 func (o *realLifecycleOps) step(stage pairlifecycle.CleanupStage, effect func() error) error {
@@ -74,7 +76,10 @@ func (o *realLifecycleOps) QuiesceSession(ctx context.Context) error {
 func (o *realLifecycleOps) ReapEditors(context.Context) error {
 	return o.step(pairlifecycle.StageEditorReap, nil)
 }
-func (o *realLifecycleOps) PreserveScrollback(context.Context, pairlifecycle.CleanupIntent) error {
+func (o *realLifecycleOps) PreserveScrollback(ctx context.Context, _ pairlifecycle.CleanupIntent) error {
+	if err := awaitParkRecoveryCleanupGate(ctx, o.gatePath); err != nil {
+		return err
+	}
 	return o.step(pairlifecycle.StageScrollbackPreserve, nil)
 }
 func (o *realLifecycleOps) CleanupSidecars(context.Context) error {
@@ -463,6 +468,11 @@ func startParkLifecycleHelper(t *testing.T, ctx context.Context, cfg parkHelperC
 		t.Fatal(err)
 	}
 	capture := new(parkHelperCapture)
+	t.Cleanup(func() {
+		if t.Failed() {
+			t.Logf("owned helper PTY diagnostics: %q", capture.String())
+		}
+	})
 	drained := make(chan struct{})
 	go func() { _, _ = io.Copy(capture, terminal); close(drained) }()
 	wait := make(chan error, 1)
@@ -544,6 +554,7 @@ func runParkLifecycleHelper() int {
 	fault := &conformanceFaultRuntime{}
 	ops := &realLifecycleOps{
 		session: session, runtime: *runtime, fault: fault, completed: time.Unix(completedUnix, 0).UTC(),
+		gatePath: stagePath + ".pause-scrollback",
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()

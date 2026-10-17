@@ -204,6 +204,7 @@ func TestRelaunchStopsAtAFailedParkAndNamesTheRecovery(t *testing.T) {
 
 	for _, tc := range []struct {
 		name   string
+		want   RelaunchOutcome
 		breaks func(*relaunchEnv)
 	}{
 		{
@@ -238,6 +239,7 @@ func TestRelaunchStopsAtAFailedParkAndNamesTheRecovery(t *testing.T) {
 		},
 		{
 			name: "the request cannot be published",
+			want: ParkRolledBack,
 			breaks: func(env *relaunchEnv) {
 				env.Lifecycle.publishErr = errors.New("publish refused")
 			},
@@ -249,8 +251,12 @@ func TestRelaunchStopsAtAFailedParkAndNamesTheRecovery(t *testing.T) {
 
 			result, err := env.Couch.Relaunch(context.Background(), live.Address)
 
-			if result.Outcome != ParkIncomplete || err == nil {
-				t.Fatalf("outcome = %q, err = %v; want ParkIncomplete and a refusal", result.Outcome, err)
+			want := tc.want
+			if want == "" {
+				want = ParkIncomplete
+			}
+			if result.Outcome != want || err == nil {
+				t.Fatalf("outcome = %q, err = %v; want %s and a refusal", result.Outcome, err, want)
 			}
 			// The resume must NOT be attempted. A thread with an open park
 			// transaction is not resumable, so trying reports a second,
@@ -263,9 +269,16 @@ func TestRelaunchStopsAtAFailedParkAndNamesTheRecovery(t *testing.T) {
 			// And the message names PARK's recovery, not Enter -- Enter is
 			// refused with ResumeParking, so naming it would be the
 			// unnavigable-refusal class (pair#181 M3).
-			for _, want := range []string{"retry", "recover", "abandon"} {
-				if !strings.Contains(err.Error(), want) {
-					t.Fatalf("error %q does not name park's recovery: missing %q", err, want)
+			if want == ParkIncomplete && !strings.Contains(err.Error(), env.Couch.ParkRecoveryAdvice(context.Background(), live.Address)) {
+				t.Fatalf("error %q does not name executable park recovery", err)
+			}
+			if want == ParkRolledBack {
+				after, getErr := env.Couch.Threads.GetThread(live.Address)
+				if getErr != nil {
+					t.Fatal(getErr)
+				}
+				if after.Park != nil || len(after.ParkHistory) != 1 || !after.ParkHistory[0].Tombstoned || env.Proc.Exists(42) != Live {
+					t.Fatalf("rollback did not retain original live owner: %+v", after)
 				}
 			}
 			if strings.Contains(err.Error(), "Enter") {

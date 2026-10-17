@@ -141,3 +141,18 @@ Verified hub receipt4ba546a0 approves both the public confirmed recover-park/men
 ### 2026-10-17 — PQ-1 function-level test strategy
 
 Replace prose test inventories in Tasks1–2 with one strategy per named risky function, keeping the existing transition table and acceptance invariants. Concrete cases remain in executable regressions. Clarify that bounded rollback/retirement reuses the existing checked coordinator/journal primitives through a context-aware update, since ordinary updateExistingThread uses blocking Background lock semantics. This is implementation detail within the approved bounded-cleanup policy, not a new recovery authority.
+
+### 2026-10-17 — implementation locations and deferred native/live acceptance
+
+Implementation places bounded checked store IO in park_recovery_store.go and pure recovery facts/results alongside the thin controller in park_recovery.go; shared advice is park_recovery_advice.go. Existing persisted park phases/schema remain unchanged. Permanent fake/real-store interruption matrix and new opt-in native fixture live in park_interruption_matrix_test.go and park_recovery_live_test.go. Generic ordinary store writers retain blocking semantics; only recovery updates/readback select the checked context-aware route.
+
+Hub3e82aae1 andc3d1f43e explicitly defer native conformance/live acceptance while permitting full suite and close review on fake/journal proof. The single scheduled native attempt failed before reaching recovery gates; no passing claim or automatic rerun. Native diagnostics and synchronized private scrollback gate are implemented, with cause classification and a separately scheduled diagnostic run still owed. Do not treat fake/native conversation evidence as a real agent resume.
+
+## Deferred operator live acceptance (hub-coordinated)
+
+- [ ] At the next operator Couch restart, hub identifies the running binary revision and obtains approval for one idle disposable slot; no agent stages :0 or restarts Couch itself.
+- [ ] Hub records slot/current tag, native conversation ID and a submitted marker. Confirm no draft/turn/permission prompt, then request normal confirmed relaunch; verify the same native conversation and marker remain accessible, old helper exits and subsequent delivery submits once.
+- [ ] On that approved disposable fixture, coordinate an observed park/scrollback interruption with the operator. Record the exact operation receipt and retained thread/attempt before any recovery. Do not signal a process selected by text or touch an unapproved slot. If the intended boundary was not reached, report the observation rather than calling it an interrupted-park pass.
+- [ ] Run the refusal's exact recover-park command from the hub with confirmation. Verify complete park or interrupted-cleanup-retired outcome, retained native binding/history and an executable next command; incomplete scrollback is visible, and no child/Fresh starts automatically.
+- [ ] Execute the offered continue/resume-from-disk action explicitly; verify the original conversation marker. For a deliberately known-missing conversation, verify Start fresh is offered as an explicit separate confirmation, never automatic. Unknown evidence must refuse instead of choosing Fresh.
+- [ ] Repeat the same recovery request; verify no extra quit/start and no replacement transaction is consumed. Confirm a later delivery and normal relaunch still work. Save receipts/observations in the issue Log; hub updates portfolio acceptance. Native and operator acceptance remain unchecked until observed.

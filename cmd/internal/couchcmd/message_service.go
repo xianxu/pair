@@ -1151,8 +1151,8 @@ func (s *messageService) handleSlotOperation(ctx context.Context, request couchm
 	}
 	if authenticated, authErr := s.switchCaller(ctx, request); authErr == nil {
 		caller = authenticated
-	} else if request.Op == "recovery-confirmation" {
-		return couchmessage.Response{Code: "refused", Error: "recovery confirmation requires an authenticated live hub binding"}
+	} else if request.Op == "recovery-confirmation" || request.Op == couchcore.OpRecoverPark {
+		return couchmessage.Response{Code: "refused", Error: request.Op + " requires an authenticated live hub binding"}
 	}
 	if request.Op == "recovery-confirmation" {
 		identity, err := s.connectedWorkspace(ctx, caller)
