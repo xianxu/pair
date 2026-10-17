@@ -1,6 +1,6 @@
 ---
 id: 000617
-status: working
+status: codecomplete
 created: 2026-10-16
 updated: 2026-10-16
 estimate_hours: 3.33
@@ -13,6 +13,14 @@ claimant:
     workspace: pair:6
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
+actual_hours: 8.28
+tracker:
+    version: 1
+    completion:
+        token: close-7eeae96c0967
+        repository: github.com/xianxu/pair
+        reviewed_head: 20e3a811d207d6f6cd73dbb2df2df18733bd6837
+        evidence_commit: eb58397bfe50e5da21a84d52c1ad75f19a5d34ae
 ---
 
 # pair title processes outlive their threads (28 orphans, 2.8 GB) and some grow to ~280 MB
