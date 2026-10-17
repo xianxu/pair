@@ -23,6 +23,9 @@ type samplerReader struct {
 	tableErr, errorUsage, errorCPU error
 	usages                         []int
 	commands, environments         []int
+	cwds                           []int
+	cwdPath                        string
+	cwdErr                         error
 	env                            map[int]map[string]string
 	unstableEnv                    int
 	tables, clocks                 int
@@ -34,11 +37,22 @@ func (f *samplerReader) Table(ctx context.Context) ([]procutil.Process, int, err
 	f.mu.Lock()
 	f.tables++
 	hook := f.tableHook
+	rows, err := f.rows, f.tableErr
 	f.mu.Unlock()
 	if hook != nil {
 		hook(ctx)
 	}
-	return f.rows, 2, f.tableErr
+	return rows, 2, err
+}
+
+// setRows swaps the whole table the sampler will see next. The sampler runs on
+// its own worker, so a sweep test writes the table concurrently with the pass
+// that reads it; replacing the slice rather than appending to it keeps both
+// sides of that race holding a complete, immutable view.
+func (f *samplerReader) setRows(rows []procutil.Process) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.rows = rows
 }
 func (f *samplerReader) Usage(ctx context.Context, p procutil.Process) (procutil.ResourceUsage, int, error) {
 	f.mu.Lock()
@@ -54,6 +68,12 @@ func (f *samplerReader) Command(ctx context.Context, p procutil.Process) (procut
 	defer f.mu.Unlock()
 	f.commands = append(f.commands, p.PID)
 	return procutil.CommandInfo{Args: []string{"nvim", "--embed"}}, 2, nil
+}
+func (f *samplerReader) Cwd(ctx context.Context, p procutil.Process) (string, int, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.cwds = append(f.cwds, p.PID)
+	return f.cwdPath, 3, f.cwdErr
 }
 func (f *samplerReader) Environment(ctx context.Context, p procutil.Process, keys ...string) (map[string]string, int, error) {
 	f.mu.Lock()
@@ -135,6 +155,63 @@ func TestResourceSamplerSelectionCallsAndImmutableView(t *testing.T) {
 	}
 	if f.tables != 1 {
 		t.Fatal("view queried native reader")
+	}
+}
+
+// The cwd probe is a cost, so only a row that already cleared the ppid/name/age
+// gate pays for it: a live-parent nvim, a young one and an unparseable stamp are
+// never probed, and only the proven orphan is reported (#583).
+func TestResourceSamplerProbesCwdOnlyForAnOldOrphanNvim(t *testing.T) {
+	const old = "1760000000.5"
+	f := &samplerReader{
+		rows: []procutil.Process{
+			{PID: 40, PPID: 1, Identity: old, Name: "nvim"},
+			{PID: 41, PPID: 1, Identity: "1760099999.5", Name: "nvim"},
+			{PID: 42, PPID: 40, Identity: "1760000000.6", Name: "nvim"},
+			{PID: 43, PPID: 1, Identity: "unparseable", Name: "nvim"},
+			{PID: 44, PPID: 1, Identity: old, Name: "zellij"},
+		},
+		cwdPath: "/fleet/worktree/pair-slot1/pair/cmd",
+	}
+	s := testResourceSampler(f)
+	at := time.Unix(1760100000, 0)
+	s.now = func() time.Time { return at }
+	s.slots = func() couchcore.ResourceSlotInventory {
+		return couchcore.ResourceSlotInventory{Complete: true, Slots: []couchcore.ResourceSlot{{Slot: "pair:1", OwnershipKnown: true, Workspace: couchcore.WorkspaceIdentity{WorktreeRoot: "/fleet/worktree/pair-slot1/pair"}}}}
+	}
+	s.pass(context.Background())
+	v := s.view()
+	if !reflect.DeepEqual(f.cwds, []int{40}) {
+		t.Fatalf("cwd probes %v, want only the old orphan nvim", f.cwds)
+	}
+	if !reflect.DeepEqual(f.commands, []int{40, 41, 43}) {
+		t.Fatalf("argv reads %v, want every nvim candidate", f.commands)
+	}
+	if len(v.OrphanNvim) != 1 || v.OrphanNvim[0].Key.PID != 40 || v.OrphanNvim[0].Root != "/fleet/worktree/pair-slot1/pair" || v.OrphanNvim[0].Age != at.Sub(time.Unix(1760000000, 5000)) {
+		t.Fatalf("orphans %+v errors %v", v.OrphanNvim, v.Errors)
+	}
+	if len(v.Unattributed) != 3 {
+		t.Fatalf("unattributed %+v", v.Unattributed)
+	}
+	for _, row := range v.Unattributed {
+		if row.Key.PID == 40 {
+			t.Fatalf("the specific sweep must subsume the generic row: %+v", v.Unattributed)
+		}
+	}
+	if v.Cost.CwdCalls != 3 || v.Cost.NativeCalls < 3 {
+		t.Fatalf("cost=%+v; the probe must be charged", v.Cost)
+	}
+	*v.OrphanNvim[0].RSSBytes = 0
+	v.OrphanNvim[0].Cwd = "mutated"
+	if again := s.view(); *again.OrphanNvim[0].RSSBytes != 1000 || again.OrphanNvim[0].Cwd == "mutated" {
+		t.Fatal("caller mutated the cached orphan row")
+	}
+	// An unread cwd is an unproven orphan, and the failure is visible.
+	f.cwds, f.cwdPath, f.cwdErr = nil, "", errors.New("cwd denied")
+	s.pass(context.Background())
+	v = s.view()
+	if len(v.OrphanNvim) != 0 || !strings.Contains(strings.Join(v.Errors, " "), "candidate 40 cwd: cwd denied") {
+		t.Fatalf("orphans %+v errors %v", v.OrphanNvim, v.Errors)
 	}
 }
 func TestResourceSamplerFailuresRemainUnknown(t *testing.T) {
@@ -321,6 +398,14 @@ func TestResourceSamplerNativeCost(t *testing.T) {
 		t.Fatalf("fixture did not approach history cap: %d", len(raw))
 	}
 	policy, _ := couchcore.ParseResourcePolicy(nil)
+	// Maximum cardinality: the widest gates this pass has, so nothing is filtered out
+	// by a threshold this host happens to sit under. The age floor admits every PPID-1
+	// nvim to the argv read and the cwd probe, and the RSS floor -- which is also
+	// #587's unattributed report floor -- admits every known-kind launchd child to the
+	// report and its serialization. The budget below is asserted against that worst
+	// case rather than against the defaults, because the defaults are a host-shaped
+	// accident and the probe's cost is not (#583).
+	policy.OrphanNvimAge, policy.OrphanRSSBytes = time.Second, 0
 	sampler := &resourceSampler{reader: reader, policy: policy, persist: persistence.persist, slots: func() couchcore.ResourceSlotInventory {
 		return couchcore.ResourceSlotInventory{Complete: true, Slots: []couchcore.ResourceSlot{{Slot: address, Workspace: workspace, OwnershipKnown: true, Roots: []couchcore.ResourceRoot{{Key: couchcore.ResourceProcessKey{PID: owned.PID, Identity: owned.Identity}}}}}}
 	}}
@@ -345,7 +430,7 @@ func TestResourceSamplerNativeCost(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		t.Logf("pass=%d table_rows=%d slots=%d owned_processes=%d unattributed=%d calls=%d table_calls=%d usage_calls=%d command_calls=%d CPU_ms=%.3f wall_ms=%.3f storage_bytes=%d storage_writes=%d history_bytes=%d", pass+1, len(rows), len(v.Slots), len(v.Processes), len(v.Unattributed), v.Cost.NativeCalls, v.Cost.TableCalls, v.Cost.UsageCalls, v.Cost.CommandCalls, float64(v.Cost.CPUTimeNS)/1e6, float64(v.Cost.WallTime)/1e6, v.Cost.StorageBytes, v.Cost.StorageWrites, info.Size())
+		t.Logf("pass=%d table_rows=%d slots=%d owned_processes=%d unattributed=%d orphan_nvim=%d calls=%d table_calls=%d usage_calls=%d command_calls=%d cwd_calls=%d CPU_ms=%.3f wall_ms=%.3f storage_bytes=%d storage_writes=%d history_bytes=%d", pass+1, len(rows), len(v.Slots), len(v.Processes), len(v.Unattributed), len(v.OrphanNvim), v.Cost.NativeCalls, v.Cost.TableCalls, v.Cost.UsageCalls, v.Cost.CommandCalls, v.Cost.CwdCalls, float64(v.Cost.CPUTimeNS)/1e6, float64(v.Cost.WallTime)/1e6, v.Cost.StorageBytes, v.Cost.StorageWrites, info.Size())
 	}
 	mean := float64(sum) / 3
 	t.Logf("CPU_mean_ms=%.3f CPU_max_ms=%.3f sixty_second_CPU_pct=%.6f seeded_frames=%d seeded_history_bytes=%d", mean/1e6, float64(maxCPU)/1e6, mean/float64(time.Minute)*100, len(seed.Frames), len(raw))

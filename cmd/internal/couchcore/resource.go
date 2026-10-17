@@ -62,10 +62,12 @@ type ResourceCost struct {
 	UsageCalls    int    `json:"usage_calls"`
 	CommandCalls  int    `json:"command_calls"`
 	// EnvironmentCalls read launchd children's inherited thread (pair#606).
-	EnvironmentCalls int           `json:"environment_calls"`
-	NativeCalls      int           `json:"native_calls"`
-	CPUTimeNS        uint64        `json:"cpu_time_ns"`
-	WallTime         time.Duration `json:"wall_time"`
+	EnvironmentCalls int `json:"environment_calls"`
+	// CwdCalls read a candidate's working directory (pair#583).
+	CwdCalls    int           `json:"cwd_calls"`
+	NativeCalls int           `json:"native_calls"`
+	CPUTimeNS   uint64        `json:"cpu_time_ns"`
+	WallTime    time.Duration `json:"wall_time"`
 }
 type ResourceSample struct {
 	At                time.Time
@@ -76,8 +78,11 @@ type ResourceSample struct {
 	Slots             []ResourceSlot
 	Observations      []ResourceUsageObservation
 	Commands          map[ResourceProcessKey][]string
-	Errors            []string
-	Cost              ResourceCost
+	// OrphanProbes carries the cwd/age evidence the sampler gathered for the
+	// candidates worth probing; a row with no entry is unproven, not clean.
+	OrphanProbes map[ResourceProcessKey]ResourceOrphanProbe
+	Errors       []string
+	Cost         ResourceCost
 }
 type ResourceProcessView struct {
 	ResourceProvenance
@@ -129,6 +134,7 @@ type ResourceView struct {
 	Processes              []ResourceProcessView `json:"processes"`
 	Orphans                []ResourceProcessView `json:"orphans"`
 	Unattributed           []ResourceProcessView `json:"unattributed"`
+	OrphanNvim             []OrphanNvim          `json:"orphan_nvim"`
 	Errors                 []string              `json:"errors"`
 	Cost                   ResourceCost          `json:"cost"`
 	ObservedCPUTimeNS      uint64                `json:"observed_cpu_time_ns"`
@@ -331,6 +337,60 @@ func SelectResourceProcesses(table []procutil.Process, slots []ResourceSlot, pri
 	return out
 }
 
+// unattributedKinds is the closed set of process kinds this supervisor knows the
+// shape of, built once from the shared agent inventory instead of per pass: the
+// classifier walks the whole process table, and rebuilding the set for every row
+// would be the sampler's most pointless allocation. `nvim` is deliberately absent
+// — its kind is only known once argv has been read, which is UnattributedKind's
+// job to say and UnattributedCandidate's to prove.
+var unattributedKinds = func() map[string]bool {
+	kinds := map[string]bool{"zellij": true}
+	for _, name := range launcher.AgentInventory() {
+		kinds[name] = true
+	}
+	return kinds
+}()
+
+// UnattributedKind reports whether a process name is a kind this supervisor
+// knows the shape of, before its argv has been read. The sampler uses it to
+// decide which rows are worth a Command read; UnattributedCandidate then applies
+// the argv rule the kind needs. Two callers, one kind set (#583, ARCH-DRY).
+func UnattributedKind(name string) bool { return name == "nvim" || unattributedKinds[name] }
+
+// UnattributedShape reports the row-level half of the candidate rule: at launchd,
+// not a zombie, a generation worth fencing on, and unclaimed by any slot. It says
+// nothing about kind, so the sampler can use it to decide which rows are worth an
+// argv read before any argv exists.
+func UnattributedShape(p procutil.Process, claimed map[ResourceProcessKey]bool) bool {
+	return p.PPID == 1 && !p.Zombie && p.PID > 0 && p.Identity != "" && !claimed[resourceKey(p)]
+}
+
+// UnattributedCandidate reports whether p is a process of a known kind, sitting
+// at launchd with no owner this supervisor can name: UnattributedShape, plus the
+// kind rule — and for nvim, whose kind argv alone reveals, an exact `--embed`
+// field. It grants no ownership and decides nothing on its own; it is the shared
+// rule behind #587's unattributed report and #583's orphan sweep, so the two
+// cannot drift apart.
+//
+// A pid that is not positive cannot arrive from either platform's table, and the
+// predicate now also gates a kill path, so it refuses rather than trusting the
+// caller's filter.
+func UnattributedCandidate(p procutil.Process, claimed map[ResourceProcessKey]bool, args []string) bool {
+	if !UnattributedShape(p, claimed) {
+		return false
+	}
+	name := filepath.Base(p.Name)
+	if name != "nvim" {
+		return unattributedKinds[name]
+	}
+	for _, arg := range args {
+		if arg == "--embed" {
+			return true
+		}
+	}
+	return false
+}
+
 // ClassifyUnattributed reports known launchd children only; it grants no ownership.
 // commands must have been generation-fenced by the caller around command IO.
 func ClassifyUnattributed(table []procutil.Process, owned []ResourceProvenance, observations []ResourceUsageObservation, commands map[ResourceProcessKey][]string, floor uint64) []ResourceProcessView {
@@ -342,10 +402,6 @@ func ClassifyUnattributed(table []procutil.Process, owned []ResourceProvenance, 
 	for _, o := range observations {
 		obs[o.Key] = o
 	}
-	names := map[string]bool{"zellij": true}
-	for _, n := range launcher.AgentInventory() {
-		names[n] = true
-	}
 	var out []ResourceProcessView
 	for i, p := range table {
 		if i >= ResourceMaxTableRows || len(out) >= ResourceMaxProcesses-len(owned) {
@@ -353,23 +409,14 @@ func ClassifyUnattributed(table []procutil.Process, owned []ResourceProvenance, 
 		}
 		k := resourceKey(p)
 		o := obs[k]
-		if p.PPID != 1 || p.Zombie || k.Identity == "" || claimed[k] || !o.RSSKnown || o.RSSBytes <= floor {
+		if !o.RSSKnown || o.RSSBytes <= floor {
 			continue
 		}
-		name := filepath.Base(p.Name)
-		valid := names[name]
-		if name == "nvim" {
-			for _, arg := range commands[k] {
-				if arg == "--embed" {
-					valid = true
-				}
-			}
-		}
-		if !valid {
+		if !UnattributedCandidate(p, claimed, commands[k]) {
 			continue
 		}
 		rss := o.RSSBytes
-		out = append(out, ResourceProcessView{ResourceProvenance: ResourceProvenance{ResourceRoot: ResourceRoot{Key: k}}, Name: name, RSSBytes: &rss, Reason: "unattributed (unproven)"})
+		out = append(out, ResourceProcessView{ResourceProvenance: ResourceProvenance{ResourceRoot: ResourceRoot{Key: k}}, Name: filepath.Base(p.Name), RSSBytes: &rss, Reason: "unattributed (unproven)"})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Key.PID < out[j].Key.PID })
 	return out

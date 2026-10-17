@@ -61,6 +61,20 @@ static int resource_command(int pid, void *buf, size_t *size) {
  if (sysctl(mib, 3, buf, size, NULL, 0) == -1) return errno;
  return 0;
 }
+// A short read from proc_pidinfo is a failure even when it leaves errno alone,
+// so a zero errno falls back to ESRCH: "no such process" is the honest answer
+// for a pid that died between the table read and this one.
+static int resource_cwd(int pid, char *buf, size_t len) {
+ struct proc_vnodepathinfo vpi = {0};
+ if (len == 0) return EINVAL;
+ errno = 0;
+ if (proc_pidinfo(pid, PROC_PIDVNODEPATHINFO, 0, &vpi, sizeof vpi) != (int)sizeof vpi) {
+  return errno ? errno : ESRCH;
+ }
+ strncpy(buf, vpi.pvi_cdir.vip_path, len - 1);
+ buf[len - 1] = 0;
+ return 0;
+}
 static int resource_cpu(struct timespec *p) {
  if (clock_gettime(CLOCK_THREAD_CPUTIME_ID, p) == -1) return errno;
  return 0;
@@ -168,6 +182,23 @@ func (darwinResourceCalls) commandRead(pid int) (CommandInfo, error) {
 func (darwinResourceCalls) environmentRead(pid int) ([]byte, error) {
 	_, env, err := darwinProcArgs(pid)
 	return env, err
+}
+
+// The kernel's path is already resolved, so this reports /private/var/... where
+// a shell says /var/...; a caller comparing it against managed roots has to
+// resolve them the same way. An empty path is refused rather than returned: no
+// process has an empty cwd, so "" here means the read produced nothing.
+func (darwinResourceCalls) cwdRead(pid int) (string, error) {
+	buf := make([]byte, C.MAXPATHLEN)
+	err := resourceErr(C.resource_cwd(C.int(pid), (*C.char)(unsafe.Pointer(&buf[0])), C.size_t(len(buf))))
+	if err != nil {
+		return "", err
+	}
+	wd := C.GoString((*C.char)(unsafe.Pointer(&buf[0])))
+	if wd == "" {
+		return "", errors.New("empty process cwd")
+	}
+	return wd, nil
 }
 func darwinProcArgs(pid int) (CommandInfo, []byte, error) {
 	buf := make([]byte, C.ARG_MAX)

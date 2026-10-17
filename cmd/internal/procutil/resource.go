@@ -19,6 +19,7 @@ type resourceCalls interface {
 	identityRead(int) (Process, error)
 	commandRead(int) (CommandInfo, error)
 	environmentRead(int) ([]byte, error)
+	cwdRead(int) (string, error)
 	selfCPURead() (uint64, error)
 }
 
@@ -173,6 +174,33 @@ func (r NativeResourceReader) Environment(ctx context.Context, p Process, keys .
 		return nil, 1 + n, err
 	}
 	return ParseEnvironment(raw, keys...), 1 + n, nil
+}
+
+// Cwd returns the directory p is running in, fenced on p's identity like Command
+// and Environment. An orphan sweep places an untagged process by its cwd, so a
+// refusal stays a refusal: "" with no error would read as "inside no managed
+// root", which is a claim about the host rather than an admission that the read
+// failed (#583).
+func (r NativeResourceReader) Cwd(ctx context.Context, p Process) (string, int, error) {
+	if err := resourceInput(ctx, p); err != nil {
+		return "", 0, err
+	}
+	c := r.backend()
+	if c == nil {
+		return "", 0, ErrUnsupported
+	}
+	wd, err := c.cwdRead(p.PID)
+	if ctx.Err() != nil {
+		return "", 1, ctx.Err()
+	}
+	if err != nil {
+		return "", 1, err
+	}
+	n, err := resourceFence(ctx, c, p)
+	if err != nil {
+		return "", 1 + n, err
+	}
+	return wd, 1 + n, nil
 }
 
 // SelfCPU measures the calling OS thread. Lock the goroutine to its OS thread

@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
@@ -27,6 +28,12 @@ func TestResourceProjectionTransportCapacity(t *testing.T) {
 		v.Processes = append(v.Processes, p)
 		v.Orphans = append(v.Orphans, p)
 		v.Unattributed = append(v.Unattributed, p)
+		rss := uint64(i)
+		v.OrphanNvim = append(v.OrphanNvim, couchcore.OrphanNvim{
+			Key: p.Key, Age: time.Duration(i) * time.Hour,
+			Cwd: "/" + strings.Repeat("<", 128), Root: "/" + strings.Repeat("<", 128),
+			RSSBytes: &rss, Reason: "unattributed embedded nvim",
+		})
 	}
 	for i := 0; i < couchcore.ResourceMaxEpisodes; i++ {
 		v.Episodes = append(v.Episodes, couchcore.ResourceEpisode{Key: fmt.Sprint(i), Phase: "pending"})
@@ -70,6 +77,14 @@ func TestResourceProjectionTransportCapacity(t *testing.T) {
 	}
 	if len(got.Resources.Processes) >= len(v.Processes) || len(got.Resources.Errors) == 0 {
 		t.Fatal("expected explicit bounded detail")
+	}
+	// The sweep is the operator's evidence for a reap, so the wire keeps a
+	// bounded prefix of it and says how much it dropped rather than the section.
+	if len(got.Resources.OrphanNvim) == 0 || len(got.Resources.OrphanNvim) >= len(v.OrphanNvim) {
+		t.Fatalf("sweep rows on the wire: %d of %d", len(got.Resources.OrphanNvim), len(v.OrphanNvim))
+	}
+	if !strings.Contains(strings.Join(got.Resources.Errors, " "), "orphan nvim omitted") {
+		t.Fatalf("no omission notice for the sweep: %v", got.Resources.Errors)
 	}
 	if v.Slots[0].Reason != strings.Repeat("<", 4096) {
 		t.Fatal("projection mutated source")

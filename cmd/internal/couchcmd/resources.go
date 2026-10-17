@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
-	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/procutil"
 )
 
@@ -19,6 +18,7 @@ type resourceReader interface {
 	Table(context.Context) ([]procutil.Process, int, error)
 	Usage(context.Context, procutil.Process) (procutil.ResourceUsage, int, error)
 	Command(context.Context, procutil.Process) (procutil.CommandInfo, int, error)
+	Cwd(context.Context, procutil.Process) (string, int, error)
 	Environment(context.Context, procutil.Process, ...string) (map[string]string, int, error)
 	SelfCPU(context.Context) (uint64, int, error)
 }
@@ -35,10 +35,23 @@ type resourceSampler struct {
 	persist func(context.Context, couchcore.ResourceView) (couchcore.ResourceCost, error)
 	alerts  func(context.Context, *couchcore.ResourceState) error
 	cached  atomic.Pointer[couchcore.ResourceView]
+	// sweeps carries a confirmed reap's request for a classification of its own
+	// (#583). Only run reads it, so the plan a kill is decided from is built by
+	// the one owner of state and provenance rather than by a copy of them.
+	sweeps chan chan resourceSweep
 	// threads caches each launchd child's inherited thread by process
 	// generation (pair#606): an environment never changes after exec, so each
 	// process costs one read in its lifetime. Only run touches it.
 	threads map[couchcore.ResourceProcessKey]inheritedThread
+}
+
+// resourceSweep is a reap's answer: the view one pass produced, and whether that
+// pass ran to completion. A pass cut short leaves the cache holding an older
+// view, and `fresh` is what stops that older view from being handed over as a
+// classification to kill from.
+type resourceSweep struct {
+	view  couchcore.ResourceView
+	fresh bool
 }
 
 type inheritedThread struct {
@@ -86,6 +99,9 @@ func (s *resourceSampler) inheritedThread(ctx context.Context, r resourceReader,
 
 // run samples immediately, then serially on cadence. The service owns joining
 // this goroutine; no child workers outlive run and ticks never overlap a pass.
+// A reap's sweep is served in the same loop, so it is serial with the cadence
+// too: two passes never read the host at once, and a sweep never waits behind
+// more than the pass already in flight.
 func (s *resourceSampler) run(ctx context.Context) {
 	cadence := s.policy.Cadence
 	if cadence <= 0 {
@@ -93,21 +109,60 @@ func (s *resourceSampler) run(ctx context.Context) {
 	}
 	ticker := time.NewTicker(cadence)
 	defer ticker.Stop()
+	if ctx.Err() == nil {
+		s.pass(ctx)
+	}
 	for {
+		select {
+		case <-ctx.Done():
+			return
+		case reply := <-s.sweeps:
+			// The pass this reply carries is the loop's own next one, so a sweep
+			// does not cost an extra sample of the host.
+			fresh := s.pass(ctx)
+			reply <- resourceSweep{fresh: fresh, view: s.view()}
+			continue
+		case <-ticker.C:
+		}
 		if ctx.Err() != nil {
 			return
 		}
 		s.pass(ctx)
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-		}
 	}
 }
-func (s *resourceSampler) pass(ctx context.Context) {
+
+// sweep asks the worker for a classification of its own and returns the view it
+// produced. The wait is bounded by ctx; the pass itself runs on the sampler's
+// lifetime, so a caller that hangs up cannot leave the worker mid-read and then
+// be answered from the cache it never refreshed (#583).
+func (s *resourceSampler) sweep(ctx context.Context) (couchcore.ResourceView, error) {
+	if s == nil || s.sweeps == nil {
+		return couchcore.ResourceView{}, errors.New("resource sampler has no worker")
+	}
+	reply := make(chan resourceSweep, 1)
+	select {
+	case s.sweeps <- reply:
+	case <-ctx.Done():
+		return couchcore.ResourceView{}, ctx.Err()
+	}
+	select {
+	case swept := <-reply:
+		if !swept.fresh {
+			return couchcore.ResourceView{}, errors.New("the sampler stopped before it could classify")
+		}
+		return swept.view, nil
+	case <-ctx.Done():
+		return couchcore.ResourceView{}, ctx.Err()
+	}
+}
+
+// pass reads the host once and publishes the view. It reports whether it
+// classified anything: a ctx cut short returns without storing, and a caller
+// that acts on the answer -- a reap -- must be able to tell that from a pass
+// that saw an empty host (#583).
+func (s *resourceSampler) pass(ctx context.Context) bool {
 	if ctx.Err() != nil {
-		return
+		return false
 	}
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -120,7 +175,7 @@ func (s *resourceSampler) pass(ctx context.Context) {
 	if r == nil {
 		r = procutil.NativeResourceReader{}
 	}
-	sample := couchcore.ResourceSample{At: at, Commands: map[couchcore.ResourceProcessKey][]string{}}
+	sample := couchcore.ResourceSample{At: at, Commands: map[couchcore.ResourceProcessKey][]string{}, OrphanProbes: map[couchcore.ResourceProcessKey]couchcore.ResourceOrphanProbe{}}
 	start, n, cpuErr := r.SelfCPU(ctx)
 	sample.Cost.NativeCalls += n
 	if cpuErr != nil {
@@ -142,7 +197,7 @@ func (s *resourceSampler) pass(ctx context.Context) {
 	sample.Cost.TableCalls = n
 	sample.Cost.NativeCalls += n
 	if ctx.Err() != nil {
-		return
+		return false
 	}
 	sample.TableKnown = err == nil
 	if err != nil {
@@ -184,21 +239,22 @@ func (s *resourceSampler) pass(ctx context.Context) {
 	}
 	for _, owned := range selection.Processes {
 		if ctx.Err() != nil {
-			return
+			return false
 		}
 		selected[owned.Key] = true
 		if p, ok := rows[owned.Key]; ok {
 			observe(p)
 		}
 	}
-	names := map[string]bool{"zellij": true, "nvim": true}
-	for _, name := range launcher.AgentInventory() {
-		names[name] = true
-	}
 	candidates := make([]procutil.Process, 0)
 	for _, p := range table {
-		key := couchcore.ResourceProcessKey{PID: p.PID, Identity: p.Identity}
-		if p.PPID == 1 && !p.Zombie && p.PID > 0 && p.Identity != "" && pidCounts[p.PID] == 1 && !selected[key] && names[filepath.Base(p.Name)] {
+		// The row shape and the kind set are couchcore's rules, not the
+		// sampler's: #583's orphan sweep classifies through the same predicate,
+		// so a row this filter admits and the classifier refuses (or the
+		// reverse) would be a disagreement between two copies of one rule.
+		// UnattributedKind is the wide half — an nvim row is worth an argv read
+		// before anything knows whether it is an embed (#583, ARCH-DRY).
+		if pidCounts[p.PID] == 1 && couchcore.UnattributedShape(p, selected) && couchcore.UnattributedKind(filepath.Base(p.Name)) {
 			candidates = append(candidates, p)
 		}
 	}
@@ -210,10 +266,19 @@ func (s *resourceSampler) pass(ctx context.Context) {
 	}
 	for _, p := range candidates {
 		if ctx.Err() != nil {
-			return
+			return false
 		}
 		o := observe(p)
-		if filepath.Base(p.Name) != "nvim" || !o.RSSKnown || o.RSSBytes <= s.policy.OrphanRSSBytes {
+		if filepath.Base(p.Name) != "nvim" {
+			continue
+		}
+		// The age comes from the generation stamp the table already carries, so
+		// the orphan gate costs nothing; only a row that clears it, or one big
+		// enough for the unattributed report, pays for a probe (#583).
+		start, ageKnown := procutil.StartTimeFromIdentity(p.Identity)
+		age := at.Sub(start)
+		old := ageKnown && age >= s.policy.OrphanNvimAge
+		if !old && (!o.RSSKnown || o.RSSBytes <= s.policy.OrphanRSSBytes) {
 			continue
 		}
 		command, calls, err := r.Command(ctx, p)
@@ -224,9 +289,22 @@ func (s *resourceSampler) pass(ctx context.Context) {
 			continue
 		}
 		sample.Commands[o.Key] = command.Args
+		if !old {
+			continue
+		}
+		cwd, calls, err := r.Cwd(ctx, p)
+		sample.Cost.CwdCalls += calls
+		sample.Cost.NativeCalls += calls
+		probe := couchcore.ResourceOrphanProbe{Age: age, AgeKnown: ageKnown}
+		if err != nil {
+			sample.Errors = append(sample.Errors, fmt.Sprintf("candidate %d cwd: %v", p.PID, err))
+		} else {
+			probe.Cwd, probe.CwdKnown = cwd, true
+		}
+		sample.OrphanProbes[o.Key] = probe
 	}
 	if ctx.Err() != nil {
-		return
+		return false
 	}
 	next, v, _ := couchcore.AdvanceResources(s.state, sample, s.policy)
 	if s.alerts != nil {
@@ -261,6 +339,7 @@ func (s *resourceSampler) pass(ctx context.Context) {
 	}
 	v.Cost.WallTime = time.Since(wall)
 	s.cached.Store(&v)
+	return true
 }
 
 func (s *resourceSampler) view() couchcore.ResourceView {
@@ -316,6 +395,10 @@ func cloneResourceView(v couchcore.ResourceView) couchcore.ResourceView {
 	v.Processes = cloneProcesses(v.Processes)
 	v.Orphans = cloneProcesses(v.Orphans)
 	v.Unattributed = cloneProcesses(v.Unattributed)
+	v.OrphanNvim = append([]couchcore.OrphanNvim(nil), v.OrphanNvim...)
+	for i := range v.OrphanNvim {
+		v.OrphanNvim[i].RSSBytes = resourceCopyPointer(v.OrphanNvim[i].RSSBytes)
+	}
 	v.Episodes = append([]couchcore.ResourceEpisode(nil), v.Episodes...)
 	for i := range v.Episodes {
 		e := &v.Episodes[i]
