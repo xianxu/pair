@@ -365,3 +365,89 @@ Authenticated TL approval f82d7d85-64bf-4632-9d5e-27f99baf9d37 accepts the propo
 ### 2026-10-17 — M2 clone review exception approved
 
 Authenticated TL approval 829d7622-04fb-474b-876c-301c5ae26051 authorizes M2 milestone-close from the independent clone with --no-actual and the exact proposed reason: M2 reviewed from an independent clone while the registered checkout lands #640; clone lacks the primary checkout queue evidence. Do not wait for #640; M3 starts after M2 SHIP. Preserve the queued registered merge and import the reviewed branch/pins when it releases.
+
+### 2026-10-17 — R6 proposed: complete M2 REWORK plan; approval required before code
+
+**Reason and boundary.** M2 review returned REWORK on reviewed head bf0524122b46540e2db6d2e0f80d6503e4fbf1d1, with BR-5/6/7/8. Its sidecar and ledger are retained in commit 75b3f75ccf33b94f0a5397ec4eb16ab82e79399a. BR-6 is the third finding in the unknown-observation-is-terminal family: stop incremental patches and replace the scattered effect checks with one enforced rule. Authenticated hub instruction e803df50-f010-4772-8934-1fca435a33b8 requires this complete plan before implementation. M2 remains open; M3 has not started.
+
+#640 landed as PR410, merge bcf5163bdfac06a3fc51021ddb635ce52fa755a8. The clean registered pair:1 checkout now holds the exact clone branch at 75b3f75ccf33b94f0a5397ec4eb16ab82e79399a and M1 reviewed pin a237be890c228e07b4c7445301a573cdbd8beb8c. Subsequent source edits, boundaries and landing return here. The previous TTY capture is unavailable; committed source, gate artifacts and authenticated receipts supply continuity. No review-fix code or new native run preceded this plan.
+
+#### Core concepts and integration changes
+
+| Name | Lives in | Status | Contract / integration |
+|---|---|---|---|
+| Pre-effect admission gate | cmd/internal/zellijreply/effect.go | new | Thin synchronous integration: Effect(ctx, invoke) checks the existing token immediately before invoking exactly one new effect; no new context or timer. |
+| Guarded M2 dispatch | layoutcmd/layoutcmd.go, rightpane.go; termcmd/run.go; draftroute/route.go; clipcmd/run.go; couchtty/console.go | modified | Every classified native action, authoritative sidecar write or query-derived UI publication uses that gate. |
+| Temporary flash cleanup obligation | clipcmd/run.go, runtime.go | modified | Once color application is attempted, one reset scheduling attempt is owed independently of admission cancellation. Apply/reset errors become observable. |
+| Native note enrichment adapter | couchcmd/note_panes.go and run.go wiring | deleted | Existing frames cannot correlate native client/tab observations; retain original screen anchors instead of inventing semantic authority. |
+| Asynchronous note pane resolver | couchtty/console_noteanchor.go | deleted in part | Remove PaneRects/SetPaneRects and query/job owners once their only production provider is removed; retain synchronous frame capture and screen/status/tab-bar anchoring. |
+| Couch restart query owner | couchcmd/shortcut_focus.go | modified | Caller-owned buffer plus existing zellijexec.Run replaces cmd.Output; existing command arguments and one-second enclosing budget remain. |
+| Cancellation coverage manifest | cmd/internal/zellijreply/effect_coverage_test.go | new | Test-only enumeration of actual protected sinks and explicit exemptions, with structural rejection of unguarded/unclassified effects. |
+
+No new pure observation schema, durable artifact family, native protocol, credential, retry or deadline is introduced. Existing pure AnchorFor/ScreenLayout algorithms remain distinct from the removed unproven native adapter; existing parser, selector and planner tests remain. Tests do not treat preserved pure geometry examples as proof of native frame provenance. ARCH-PURE/DRY.
+
+#### One cancellation rule, not two more checks (BR-6)
+
+Use the already owned operation context as the single cancellation token. Implement the synchronous primitive:
+
+```go
+func Effect(ctx context.Context, invoke func() error) error {
+    if err := ctx.Err(); err != nil { return err }
+    return invoke()
+}
+```
+
+Each invocation encloses one actual effect, not a whole sequence or loop. Local evidence is not a cancellation exemption: after sidecar/path/registry reads and pure selection, the actual dispatch still passes the gate. Nested operations retain the same context. A cancellation observed before dispatch forbids that new effect; cancellation inside an already dispatched effect permits that effect to finish under its existing lifetime, then forbids the next one. This is not an atomic transaction with cancellation racing between the check and external dispatch, and it does not undo possibly completed effects.
+
+| Owner | Complete authority-to-effect enumeration |
+|---|---|
+| FocusRightTerminalContext / SwitchRightTerminalTabContext | Explicit pane focus; addressed terminal-tab chord write, including positive sidecar-only resolution. |
+| RunToggleFocusedContext / restore helpers | Return-record write and clear; float/embed; coordinates; show visibility; fullscreen; focus; wrapper nudge; every swap-layout advance; final pane move. Clearing a return record publishes authority and is not cleanup. |
+| Terminal shortcut executor / split | Last-left and last-terminal record writes; selected pane focus; actual terminal split; nested layout/draft operations retain the same token and guard their own dispatches. |
+| RouteLuaToPaneContext | Optional draft focus and each of the four addressed input actions independently. |
+| Clipboard orchestrator / paste / flash | Actual color application, actual quote-file write after quote-path resolution, destination focus and Ctrl-_ trigger. |
+| Couch restart routing | Observed-role chord forwarding or opening relaunch confirmation, after final local endpoint/focus checks. Retain the original one-second token until dispatch completes instead of cancelling it immediately after the probe. Later human confirmation retains its separate existing lifecycle operation. |
+| Note semantic publication | Retired by the fail-closed BR-5 change below; no SetNoteAnchor enrichment survives outside a guarded owner. Ordinary synchronous screen-note creation remains independent of native queries. |
+
+Explicit exemptions: collection of an owned query group; release/unlock; already-owed flash reset; refusal presentation/diagnostics. Initial OS clipboard mirroring and its detached orchestrator spawn, ordinary terminal input/scroll/local tabs, and startup registration do not derive authority from these protected observations; preserve their existing ownership. No admission expiry kills an interactive child or native mutator already issued.
+
+**Simplest alternatives rejected.** Two ctx.Err checks at the reported layout sites leave the third-round class unresolved. Context-bound runtime adapters would duplicate wrappers for actions, stores, files and Couch callbacks, and risk suppressing cleanup or changing in-flight mutation lifetimes. A lock cannot make an independently cancelling context and external Zellij dispatch atomic; holding one adds serialization without the missing guarantee. The shared gate plus an enforced sink enumeration is the chosen mechanism. ARCH-PURPOSE/ORDER/CONSTRAINTS.
+
+**One exhaustive coverage test.** A single manifest names the protected production functions and every sink above (including layout step variants and draft input positions), plus justified exemptions. A scoped Go-AST check requires actual sinks to be directly enclosed in Effect with the enclosing admission token, rejects unclassified/raw sinks and stale manifest entries, and rejects effect loops enclosed by one guard. The manifest is not the behavioral oracle: package stateful fixtures separately cancel in the last evidence getter while returning valid authority, and inside effect N before return, asserting no next effect. Include native-observed and zero-query local paths, live-token healthy controls, partial-progress records and cleanup exemptions. Removing any guard must fail the structural test; disabling the shared cancellation check must fail behavioral controls.
+
+#### Note anchors: admit the provenance gap and fail closed (BR-5)
+
+Source audit: terminal.Frame contains endpoint, frame generation, geometry epoch, cells and cursor, but no native client/tab identity. Couch's hosted pane has thread/process/PTY ownership, also no native client/tab identity. list-panes includes all tabs, and notePanes discards that identity. A new list-clients/current-tab-info observation, unanimous clients or matching cells cannot establish which tab produced a previously captured frame; a tab switch may precede repaint, and different tabs can display identical text.
+
+**Chosen proposal:** remove automatic native semantic enrichment for hosted notes. Preserve the original note box, exact opening text and Couch slot label, and all Couch-owned status/tab-bar anchors. Native pane-role, filename, line and section attribution becomes unavailable. Explain that fallback visibly once per newly opened note batch using the existing session/note bookkeeping lifetime, without a worker or native query. This is a deliberate user-visible reduction requiring TL approval, not a claimed positive correlation fix.
+
+Remove the adapter's only production root at couchcmd/run.go SetPaneRects, its native query/file-read/parser helpers, and the now-providerless asynchronous PaneRects jobs/pending/running resolver. Retain synchronous public-frame capture and AnchorFor/ScreenLayout logic. Delete the obsolete adapter tests/live geometry-only acceptance; replace them with production composition/broadcast refusal tests. Do not retain unreachable native query code or introduce an unused provenance API. Future enrichment requires independently supplied captured-frame/client/tab provenance and a separately reviewed design, not more snapshots in this revision. ARCH-SECURE/PURPOSE/FUNERAL.
+
+Tests first reproduce the hidden-review-tab attribution against the current production composition, then require the opening screen anchor to survive overlapping panes, tab changes, multiple clients, identical text and repeated valid native rectangles. Assert zero note-related native queries, file reads or semantic SetNoteAnchor updates; preserve note text/box/slot and owned status/tab-bar positive controls. Keep tests proving pure AnchorFor behavior separate from native acceptance. Update README and atlas/broadcast.md plus the caller map with this explicit limitation.
+
+#### Owned Couch queries (BR-7)
+
+The native note query is removed with its consumer, structurally eliminating one bypass. Route the remaining queryShortcutClients through the existing zellijexec.Run with a caller-owned stdout buffer. Preserve argv, output/error semantics and the existing collector's one-second pipe-drain cap; do not add a query supervisor or change native mutation ownership.
+
+Use the existing collector test's independently observed process-group/descendant pattern through the actual production queryShortcutClients entrypoint. A private PATH shim and local Go helper own readiness/release IPC and redirected descendants. Cover parent success, parent exit7, cancellation after readiness and inherited-output drain cutoff; require descendants collected before return and original errors retained. Join fixture goroutines and clean only identity-fenced owned processes. No production injection seam is needed. A scoped source check rejects reintroduced raw Output/Run calls at protected query boundaries. ARCH-DRY/MOCK/ORDER/FUNERAL.
+
+#### Owed cleanup survives admission cancellation (BR-8)
+
+All three color paths—auto-quote, queried no-argument flash and explicit-ID zero-query flash—share flashAdmitted. Guard the actual color attempt. Once attempted, schedule the existing detached reset exactly once before returning apply/cancellation errors, even when color application reports failure: an error does not prove no color was applied. Never gate owed reset on the admission token. Then return any cancellation and stop subsequent staging/focus/input; preserve already completed effects.
+
+Make SetPaneColor and ResetPaneColorAfter return errors, and let private startDetached return its start error while SpawnDetached retains its existing best-effort hook contract. Join apply/reset/cancellation failures for the existing visible refusal path. The guarantee is a reset scheduling attempt; a failed spawn cannot guarantee actual cleanup and must be reported as incomplete. Existing configured delay, explicit target, detached child lifetime and reap ownership remain. No retry or synchronous reset fallback is added.
+
+Stateful deterministic controls enumerate cancellation before apply (no color/reset), during apply (one reset; no paste), after apply/during reset scheduling (reset survives; no paste), apply failure (reset still attempted; error preserved), reset-start failure (visible incomplete cleanup; no paste), and healthy auto-quote/queried/explicit paths with unchanged targets, delays and query counts. Production OS shim tests cover apply exit and reset spawn failure without touching the real clipboard or native sessions. ARCH-ORDER/FUNERAL.
+
+#### Execution and qualification, after approval only
+
+- [ ] Add and run RED regressions for BR-5/6/7/8 against this checkpoint; retain logs and name each failure. Add the shared guard unit/coverage tests before migrating consumers.
+- [ ] Implement the shared effect gate and sweep every enumerated boundary, with package behavioral cancellation controls. Remove native note enrichment and its orphaned async owner; verify screen/status/tab-bar behavior and visible fallback.
+- [ ] Adopt the existing collector at the remaining Couch query boundary; verify process-lifetime matrix normal and race. Implement owed flash cleanup/error reporting and its complete matrix normal and race.
+- [ ] Update workshop/lessons.md, README and per-surface atlas records; append dispositions with tests to the issue without editing the gate's finding records by hand.
+- [ ] Run `go test ./cmd/internal/zellijreply ./cmd/internal/layoutcmd ./cmd/internal/termcmd ./cmd/internal/draftroute ./cmd/internal/clipcmd ./cmd/internal/couchcmd ./cmd/internal/couchtty -count=1` plus focused `-race` runs for the new ordering/process/cleanup fixtures. Generate existing runtime assets first when required.
+- [ ] Classify the review's three broader Couch listing-fixture failures by exact test names and controlled source/base runs. The pinned review base includes our M1 code: inherited from that base is not proof of a pre-existing main defect. Fix branch regressions here; report independent failures with evidence under the fleet flake rule, never use a blind green retry.
+- [ ] Use the TL-owned native lane only for bounded disposable qualification on installed0.45.1. Current lane grant is authenticated receipt 0a7eb7b6-1705-49f9-ac54-f2d997a44daf; no native run has started. Re-run affected healthy layout/clipboard controls and record observed latency without increasing budgets or concurrent native reads; note anchoring now has a zero-query refusal oracle. Report lane release when done. No operator sessions, OS clipboard, local Zellij build or :0 changes.
+- [ ] Commit/push the qualified source on the registered branch and run M2 milestone-close with its fresh-context review. M3 starts only after SHIP. Full recorded suite/whole-issue close/native misrouting acceptance remain the existing later requirements, not waived by targeted M2 checks.
+
+Operating envelope: existing five-second per-decision budgets (Couch restart one second) and original interactive/birth lifetimes remain; no new timers or background owners. Cleanup uses the already existing detached reset lifetime. Removed note query workers reduce work/residue rather than introduce caches. Native request-nonce limitations and identical correlated stale-reply limitations remain explicitly unchanged. Await hub approval of this entire revision before implementation.

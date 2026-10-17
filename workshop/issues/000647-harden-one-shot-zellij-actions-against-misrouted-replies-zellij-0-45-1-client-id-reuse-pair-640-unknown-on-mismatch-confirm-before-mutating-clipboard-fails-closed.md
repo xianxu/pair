@@ -308,3 +308,17 @@ The registered checkout is still clean on the #640 branch, with its original mer
 ### 2026-10-17 — M2 review-location approval received
 
 Authenticated TL receipt 829d7622-04fb-474b-876c-301c5ae26051 answers the queued request: review and milestone-close M2 in the clone using --no-actual, reason "M2 reviewed from an independent clone while the registered checkout lands #640; clone lacks the primary checkout queue evidence". #646 and #620 have landed. Do not hold M2 for #640; start M3 only after M2 SHIP. No exception is inferred for later whole-issue close/landing.
+
+### 2026-10-17 — M2 REWORK recovered; registered checkout restored
+
+M2 review of bf0524122b46540e2db6d2e0f80d6503e4fbf1d1 returned REWORK: BR-5 displayed-tab/frame provenance, BR-6 cancellation after positive sidecar reads, BR-7 two unmanaged Couch query descendants, BR-8 owed flash reset skipped on cancellation. Sidecar and ledger retained in 75b3f75ccf33b94f0a5397ec4eb16ab82e79399a. No findings disposed yet. Three broader Couch listing-fixture failures also need classification: their pinned review base includes M1, so inherited does not establish a main defect.
+
+#640 landed PR410 at bcf5163bdfac06a3fc51021ddb635ce52fa755a8, verified by Git and hub receipt e803df50-f010-4772-8934-1fca435a33b8. Imported the exact #647 branch and M1 reviewed pin into the clean registered checkout, without modifying the resting branch or running another integration. Previous TTY descriptor unavailable; committed source/review evidence and authenticated receipts supply recovery. All three delegated audits were read-only. No review-fix source or native run started.
+
+## Revisions
+
+### 2026-10-17 — R6 complete M2 mechanism re-plan proposed
+
+Reason: BR-6 is the third finding in unknown-observation-is-terminal; hub explicitly requires a complete plan before code. Appended R6 to the durable plan, covering BR-5/6/7/8 together. One shared pre-effect context gate covers native actions, authoritative sidecar writes and Couch query-derived dispatch, enforced by one exhaustive sink manifest and deterministic per-boundary cancellation tests. Already-issued flash owes reset independent of admission cancellation; apply/reset errors become visible, with no retry or changed mutation lifetime.
+
+Native note frames carry no client/tab provenance. Proposed deliberate fail-closed behavior removes automatic native pane/file enrichment and its now-orphaned async owner, retaining exact screen note text/box/slot and Couch-owned status/tab-bar anchors with visible explanation. This requires hub approval; adding current client queries alone would falsely claim correlation. Removing the note query eliminates one BR-7 bypass; remaining restart client queries adopt the existing collector and real descendant lifetime tests. Native lane is granted by authenticated receipt 0a7eb7b6-1705-49f9-ac54-f2d997a44daf, but no run is needed before plan approval. M2 remains open; M3 stays behind SHIP.
