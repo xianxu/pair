@@ -144,14 +144,16 @@ carries only the pane's own identity and never repeats the folder.
 ## Keybindings
 
 `Alt+h` in a session pops up the live list, and `pair keys` prints the same thing
-from a shell. That list is **derived** from the bindings themselves — each row's
-wording comes from the keymap or chord that implements it — so it cannot drift out
-of date. The table below is the narrative version, with the extra context a
-one-line description can't carry.
+from a shell. Pair-owned rows derive their wording from the keymap or chord that
+implements them. The list also includes curated companion-editor help for Parley,
+labeled separately; those rows do not install shortcuts in Pair. The table below
+adds context that a one-line description cannot carry.
 
 | Key | Scope | Action |
 |---|---|---|
 | **Alt+h** | non-agent panes | Pop up the keybinding list in a floating pane (`q` or `Esc` to dismiss). Same content as `pair keys`. When Couch presents the thread, Couch's keys come first. |
+| **Alt+Space** | Parley editor | Open the attention finder: documents waiting on or answered by an agent. |
+| **Ctrl+Y, then Space** | Parley editor | Open the same attention finder. |
 | **Alt+Return** | nvim (normal/insert) | Send buffer to agent. Note for consistency, claude's keybinding also changed to Alt+return as send, and return as newline |
 | **Shift+Ctrl+Alt+Return** | draft nvim (normal/insert) | Send draft text plus all open cast-tab notes, recorded context, 🤖<current box text and a PNG crop per note>{draw-time box text and each note’s saved PNG crop} to the agent in view. An empty draft can send notes. Progress appears in the draft status line; editing resumes when the operation finishes or fails (36s maximum). [Evidence and retry behavior](atlas/webcast-submission.md). |
 | **Return** | agent pane | Insert a newline in Claude, Codex, Agy, and Qoder composers; Pair translates it to Muse's native Shift+Return and Grok's native Alt+Enter. The rewrite is *positively gated* for every agent: Pair rewrites only while it can see a live composer on screen, so in a permission picker, a selection menu, or any state it doesn't recognize, Return stays a plain Enter and the dialog confirms. Set `PAIR_WRAP_REMAP_RETURN=0` to turn the rewrite off entirely (that also disables overlay detection and its telemetry). |

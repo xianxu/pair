@@ -2046,3 +2046,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 - #604 BR-1: Deferring a live smoke does not implicitly defer a separately promised diagnostic deliverable. Enumerate the Spec's independent obligations and explicitly reconcile any approved scope reduction across Spec, Plan, Done-when and atlas before claiming completion; keep unknown causes unknown.
 - #604 BR-2: For a changed user-visible action, update its existing README account as well as the atlas. Explain confirmed versus unconfirmed outcomes at the user entry point; internal architecture prose alone does not update the user contract.
+
+- **A new help source changes old documentation claims (#619).** When adding companion-editor metadata to a source-derived help catalog, update the README shortcut table and search for universal claims such as "every row comes from its implementing keymap". Qualify the source boundary as well as listing the feature; atlas coverage alone does not keep the user-facing contract accurate.

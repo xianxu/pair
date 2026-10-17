@@ -57,6 +57,10 @@ Start-plan succeeded despite its non-blocking catch-up warning: weave refresh re
 
 The first recorded suite on f500a1ccf3b165f070d40a2b5478605b6a02b48b completed exit 0 in 12m46s, including all shell/editor and Go checks (keyhelp 0.150s, keyscmd 0.434s, couchtty 51.072s, couchcore 422.550s). No failures or retries. Log /Users/xianxu/workspace/pair/.git/sdlc/local-checks/f500a1ccf3b165f070d40a2b5478605b6a02b48b/suite.log, SHA256 prefix 6746e0ae12fd; recorded as sdlc-local/suite. Only this issue-log/checklist update follows the tested code. The close review and normal landing are next; no staging or live-input change is needed for documentation-only help rows.
 
+### 2026-10-16 — close review README correction
+
+Round 1 found no code defect and independently passed the four affected packages, but its Important BR-1 blocks finalization: README omitted both companion-editor bindings and claimed every help row derives from an implementing keymap. Added both Parley-local shortcuts to the key table and qualified the derivation claim for curated external metadata. Added the general source-boundary lesson. This is a prose-only correction after the passing recorded suite; no wording-presence test or repeat suite is warranted. Running ordinary close again because round 1 did not finalize.
+
 ## Revisions
 
 ### 2026-10-16 — operator selects Alt+Space
