@@ -1,6 +1,6 @@
 ---
 id: 000632
-status: codecomplete
+status: done
 created: 2026-10-16
 updated: 2026-10-17
 estimate_hours: 1.74
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: c4519837b3f7ddd3d2a8527b07c73b035601efc7
         evidence_commit: 3df46afd618588c77a8a3b0afc385e2e883ecb22
+        landed_commit: 1606ded780fe94c2040c34e98b73268164ceaefb
 ---
 
 # Keep background-command waits bright without blocking peer admission
