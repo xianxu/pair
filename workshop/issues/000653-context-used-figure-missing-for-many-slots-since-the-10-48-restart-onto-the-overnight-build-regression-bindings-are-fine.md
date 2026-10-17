@@ -1,13 +1,22 @@
 ---
 id: 000653
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-17
 updated: 2026-10-17
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: '41fc27fc634128c669e6baab1758d1a44290fe2b' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'd6962e812bcfc25de412b790ad6833eb987143c4' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-17T14:37:15-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:2
+    worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
+    repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "0e44a709", done: "0499a5ac"}
 ---
 
 # Context-used figure missing for many slots since the 10:48 restart onto the overnight build (regression; bindings are fine)
@@ -37,8 +46,15 @@ Suspects among the landings in that build, unverified:
 
 ## Plan
 
-- [ ]
+- [x] RED: `TestTitleProjectionGrowthNeverStopsTitle` (admit + tail): a transcript line appended during a read must not stop the projection; usage surfaces within two polls. Red on main (admit).
+- [x] Fix in the shared projection (TL placement rule, so pair#649 inherits it): growth racing admission, or a same-launch rebind, resets and re-admits on the next Poll; only a lost owner or a mutation of admitted authority stays terminal.
+- [x] Rewrite `TestTitleProjectionAdmissionRejectsSnapshotDrift`: keep the invariant (no drifted pin), drop the stickiness (the next Poll re-admits from offset 0).
 
 ## Log
 
 ### 2026-10-17
+
+- Root cause: #617 (PR #383, 0fe70c1c, landed 2026-10-16 19:13) replaced the stateless per-tick `contextcmd.Run` in the title poller with the stateful `sessioninventory.TitleProjection`. Its admission rejected ordinary transcript growth as `ErrArtifactChanged` (main `title_projection.go:144` `len(full) != 1` from ValidateTargetWork, `:189` `current.Size != p.rawOffset`, and the current/after fingerprint check), `stop()` (`:60`) makes the first error sticky, and `titlepoller/run.go:152` exits the poller on it; `wrapcmd/title_process.go` never respawns it. Binding confirmation follows an agent turn, so admission routinely races growth: the 10:48 restart was the first fleet-wide relaunch onto a build with #617.
+- Live evidence: 1-pair-6 probe, 100 admissions against a live transcript: 2/100 terminal failures on main, 0/100 with the fix.
+- Classification agreed with pair:6 (#649): growth and same-launch rebind are transient; shrink, identity change, boundary-hash mismatch, same-size fingerprint change, short read and failed root validation stay terminal. The poller's exit stays only for a lost owner identity.
+- Out of scope, filed: pair#654 (Qoder has no usage parsing), pair#655 (hoprttcmd timing flake).
