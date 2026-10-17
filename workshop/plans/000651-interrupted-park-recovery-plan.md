@@ -106,24 +106,24 @@ Each row names the callable production boundary to verify. Concrete values and p
 
 **Files:** cmd/internal/couchcore/park_recovery.go, park_recovery_test.go, relaunch_test.go, park.go, threadstore.go, storejournal_test.go; existing lifecycle fakes/helpers.
 
-- [ ] Promote the retained diagnostic into independent regression assertions following the function strategies above; run and retain the expected red output before production edits.
-- [ ] Implement the pure decision and thin recovery/atomic store operation using existing transitions, exact ownership screening and worker reservation. Add a context-aware checked update only for the bounded recovery/rollback store path, reusing existing checked journal and coordinator primitives; ordinary writers retain their existing semantics.
-- [ ] Make Relaunch classify current durable state after failure and wire the three operator outcomes; rerun the function strategies and inspect independently stated invariants.
-- [ ] Run go test ./cmd/internal/couchcore -run 'Park|Relaunch|LifecycleDebris|Resume' -count=1; commit code/proof.
+- [x] Promote the retained diagnostic into independent regression assertions following the function strategies above; run and retain the expected red output before production edits.
+- [x] Implement the pure decision and thin recovery/atomic store operation using existing transitions, exact ownership screening and worker reservation. Add a context-aware checked update only for the bounded recovery/rollback store path, reusing existing checked journal and coordinator primitives; ordinary writers retain their existing semantics.
+- [x] Make Relaunch classify current durable state after failure and wire the three operator outcomes; rerun the function strategies and inspect independently stated invariants.
+- [x] Run go test ./cmd/internal/couchcore -run 'Park|Relaunch|LifecycleDebris|Resume' -count=1; commit code/proof.
 
 ## Task 2: Public recovery and actionable guidance
 
 **Files:** cmd/internal/couchcore/ops.go, operationdispatch.go, slot_operation.go, actor-action projection/advice, resume_route.go, recovery_prepared.go; cmd/internal/couchcmd/cli.go, slot_operations.go, help/skill sources; cmd/internal/couchmessage protocol declaration/validation; cmd/internal/couchtty/menu_actions.go and execution; corresponding colocated tests.
 
-- [ ] Write and run the named CLI/socket/menu/advice strategy regressions red, then wire the single declared operation to existing authenticated admission/queue and recovery core.
-- [ ] Centralize guidance for the open-park refusal/partial-result class. Verify production transport and local menu conformance, without treating a recovery result as StartedChild.
-- [ ] Update atlas/couch.md, user-facing help/skill and README where behavior changes; keep atlas/index links current if adding a page.
-- [ ] Run go test ./cmd/internal/couchcore ./cmd/internal/couchcmd ./cmd/internal/couchmessage ./cmd/internal/couchtty -run 'Park|Relaunch|SlotOperation|Resume|Operation' -count=1; commit.
+- [x] Write and run the named CLI/socket/menu/advice strategy regressions red, then wire the single declared operation to existing authenticated admission/queue and recovery core.
+- [x] Centralize guidance for the open-park refusal/partial-result class. Verify production transport and local menu conformance, without treating a recovery result as StartedChild.
+- [x] Update atlas/couch.md, user-facing help/skill and README where behavior changes; keep atlas/index links current if adding a page.
+- [x] Run go test ./cmd/internal/couchcore ./cmd/internal/couchcmd ./cmd/internal/couchmessage ./cmd/internal/couchtty -run 'Park|Relaunch|SlotOperation|Resume|Operation' -count=1; commit.
 
 ## Task 3: Conformance, required suite, review and live acceptance
 
 - [ ] Run targeted races over new ordering/recovery tests. Run ordinary complete relevant packages once after targeted verification.
-- [ ] Extend the real helper conformance fixture with owned, synchronized interrupt gates at park publication/cleanup/finalization boundaries, comparing fake and real retained outcomes. Each kill is only an exact owned child/group verified from the fixture handle and identity; never select a PID by text search. Preserve diagnostics before fixture cleanup. Private namespace only; coordinate local native fixture scheduling with the hub before running.
+- [x] Extend the real helper conformance fixture with owned, synchronized interrupt gates at park publication/cleanup/finalization boundaries, comparing fake and real retained outcomes. Each kill is only an exact owned child/group verified from the fixture handle and identity; never select a PID by text search. Preserve diagnostics before fixture cleanup. Private namespace only; coordinate local native fixture scheduling with the hub before running.
 - [ ] Push exact head and run sdlc local-check run --name suite. Retain every failure; known flakes follow tl-worker's issue-backed one-rerun policy. No gate bypass or operator label.
 - [ ] Ask hub to schedule a staged live check on an idle disposable/approved slot: normal relaunch, interrupted scrollback/park, named recover-park, same-conversation resume, duplicate recovery and subsequent delivery. No touch to :0 or live peer without hub coordination. No live acceptance claimed from fake results.
 - [ ] Record evidence and any review lessons; run sdlc close --issue 651 --verified '<exact proof>' with project ownership respected. Binary owns fresh-context review. On SHIP run sdlc pr then sdlc merge --yes; report actual merge SHA/PR to hub and stop. No whole-issue landing exception presumed.
@@ -164,3 +164,7 @@ The one hub-approved finalization diagnostic proves a test-only helper exits bef
 ### 2026-10-17 15:18 PDT — explicit live-owner refusal policy
 
 Hub5175c159 permits deliberate immediate refusal or a surfaced bounded wait. Choose the original immediate-refusal policy when the exact terminal is positively absent and the exact owner is live or unknown. The observed10s was an existing blocking lifecycle reconciliation lock held during helper cleanup, not an intentional bound and not a promise to wait N seconds. Screen that refusal before completion reconciliation so this path cannot silently wait for live ownership to turn dead. Terminal-present recovery retains existing bounded drive/wait behavior; exact-dead recovery still reconciles matching completion before any retirement. Error advice names the same recovery command; no automatic retry. A deterministic lifecycle callback models owner death during completion inspection and must never be reached for live/unknown absent-terminal owners. Keep the native negative assertion, independently verify helper still live after refusal, then interrupt only the exact owned helper and recover. Native rerun remains hub-scheduled.
+
+### 2026-10-17 15:19 PDT — native fixture proof accepted, operator acceptance still deferred
+
+Finalization, publication and interrupted scrollback fixture cases have each passed in their individually hub-authorized runs after diagnosed fixes. All original failures/log hashes remain in the issue. The scrollback case proves immediate live-owner refusal and independent positive liveness before the exact owned kill; recovery then retires without VerifiedPark and is repeatable. Native terminal/storage fixture conformance is complete; genuine same-agent conversation resume remains the separate deferred operator checklist above. Completed implementation/conformance checkboxes are ticked; suite and close await current code evidence.

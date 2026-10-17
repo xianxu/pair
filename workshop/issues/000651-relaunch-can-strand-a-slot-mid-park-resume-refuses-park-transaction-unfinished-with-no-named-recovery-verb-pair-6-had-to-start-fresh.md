@@ -55,12 +55,10 @@ Wanted:
 ## Plan
 See [durable implementation plan](../plans/000651-interrupted-park-recovery-plan.md). Await TL approval before change-code or production edits.
 
-- [ ] Promote the isolated interruption matrix to regressions and implement bounded rollback/recovery over the existing park authority.
-- [ ] Expose recover-park through confirmed CLI/menu/receipts and make all interrupted-park advice actionable.
-- [ ] Run targeted/race, fake/native conformance and required suite; coordinate live acceptance, close review and landing.
+- [x] Promote the isolated interruption matrix to regressions and implement bounded rollback/recovery over the existing park authority.
+- [x] Expose recover-park through confirmed CLI/menu/receipts and make all interrupted-park advice actionable.
+- [ ] Complete the required suite and prepare close review with targeted/race and native fixture proof; record operator acceptance explicitly deferred by the hub.
 
-
-- [ ]
 
 ## Log
 
@@ -136,3 +134,17 @@ Verified hube73ba424 authorized one fixed finalization case, then each other cas
 Hub5175c159 correctly identified the wait as a production policy difference from the approved live-owner refusal. It allowed deliberate immediate refusal or surfaced bounded wait; chose immediate refusal before completion reconciliation for absent-terminal/live-or-unknown owner. Hub767c5636 explicitly agrees and requires finishing/retry advice. Plan Revisions records rationale: existing blocking lock does not promise a truthful wait bound. Deterministic TestRecoverParkAbsentTerminalRefusesBeforeCompletionLock initially fails for both live and unknown owners because completion callback is entered; it models death while that lock is held. Early owner screening now refuses without entering it or changing the record. Live error says park is still finishing; common error wrapper supplies exact retry command/menu action. Terminal-present recovery and exact-dead completion reconciliation remain unchanged. Native negative assertion now independently checks owner still live before the owned kill; a new native lane is required.
 
 Recovery/interruption/retention focused races passed (core7.097s/storagegc1.184s); final wording assertion checked separately. New retention regression uses actual InventoryRoot and unchanged Decide policy to prove incomplete historical request/trigger/lock/journal evidence remains enumerated, visible-protected, archive-graced and eligible after ordinary retention. It proves eligibility, not physical deletion. No new retention mechanism or production GC change.
+
+### 2026-10-17 15:19 PDT — native fixture conformance complete
+
+Verified hub7bf18e25 granted exactly one scrollback run after the deliberate immediate-refusal fix. TestParkRecoveryLiveInterruptedScrollbackCleanup passes0.98s on8fc9b2112424f455bab793f543ca8aa47cd17930. /tmp/pair651-scrollback-fixed.log SHA25687aedfff047532e70f7b93c58a2a960b8e6f3036744c2582f51a44a22c899214 records the exact helper/group interruption and retained tombstoned history without VerifiedPark. It independently verifies live-owner refusal before interruption, fake/live operator-outcome agreement, retained conversation configuration and harmless repeat recovery. Lane-release report22705cf9 verified submitted. Finalization and publication already passed their granted runs; all earlier failed attempts remain retained.
+
+These fixtures use actual native terminal/helper, lifecycle files and journal IO, with synthetic native-conversation resolution. They do not establish actual agent resume or the original pair:6 ordering. Operator normal relaunch/interruption/recovery/same-conversation/subsequent-delivery acceptance is still owed at the next hub-coordinated Couch restart.
+
+Latest pushed code head8fc9b2112424f455bab793f543ca8aa47cd17930 has recorded suite queued as session45085, worktree sdlc-local-548023597, inflight623465d9cc0aa46db70ba021a7a7ce9b. Earlier b4b25013 suite session72622 was already queued before code changed and continues unchanged; its result cannot satisfy the newer code. No manual main chasing or duplicate same-head run. CI on the new head is pending.
+
+## Revisions
+
+### 2026-10-17 15:19 PDT — acceptance scheduling and plan bookkeeping
+
+Hub3e82aae1/c3d1f43e permitted suite and close on fake/journal proof with native/live owed; subsequent scheduled native fixtures now pass. Real operator acceptance stays deferred to next restart under the same explicit TL scheduling exception in Done when. Tick completed implementation rows, remove the empty scaffold checkbox, and replace the combined verification/landing row with a concrete pre-close verification row. This avoids representing future landing or deferred operator acceptance as already observed; the Log and durable plan retain those commitments.
