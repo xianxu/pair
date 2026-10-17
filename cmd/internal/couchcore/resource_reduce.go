@@ -256,6 +256,22 @@ func AdvanceResources(state ResourceState, s ResourceSample, p ResourcePolicy) (
 	}
 	sort.Slice(next.Episodes, func(i, j int) bool { return next.Episodes[i].Key < next.Episodes[j].Key })
 	v.Unattributed = ClassifyUnattributed(s.Table, sel.Processes, s.Observations, s.Commands, p.OrphanRSSBytes)
+	v.OrphanNvim = ClassifyOrphanNvims(s.Table, sel.Processes, s.Observations, s.Commands, s.OrphanProbes, ManagedRoots(s.Slots), p.OrphanNvimAge)
+	if len(v.OrphanNvim) > 0 {
+		// The sweep names the checkout, the age and the reap path, so the generic
+		// "unattributed (unproven)" row for the same process would be noise.
+		swept := make(map[ResourceProcessKey]bool, len(v.OrphanNvim))
+		for _, orphan := range v.OrphanNvim {
+			swept[orphan.Key] = true
+		}
+		kept := make([]ResourceProcessView, 0, len(v.Unattributed))
+		for _, row := range v.Unattributed {
+			if !swept[row.Key] {
+				kept = append(kept, row)
+			}
+		}
+		v.Unattributed = kept
+	}
 	totalKeys := make([]string, 0, len(totals))
 	for k := range totals {
 		totalKeys = append(totalKeys, k)

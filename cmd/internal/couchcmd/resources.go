@@ -18,6 +18,7 @@ type resourceReader interface {
 	Table(context.Context) ([]procutil.Process, int, error)
 	Usage(context.Context, procutil.Process) (procutil.ResourceUsage, int, error)
 	Command(context.Context, procutil.Process) (procutil.CommandInfo, int, error)
+	Cwd(context.Context, procutil.Process) (string, int, error)
 	Environment(context.Context, procutil.Process, ...string) (map[string]string, int, error)
 	SelfCPU(context.Context) (uint64, int, error)
 }
@@ -119,7 +120,7 @@ func (s *resourceSampler) pass(ctx context.Context) {
 	if r == nil {
 		r = procutil.NativeResourceReader{}
 	}
-	sample := couchcore.ResourceSample{At: at, Commands: map[couchcore.ResourceProcessKey][]string{}}
+	sample := couchcore.ResourceSample{At: at, Commands: map[couchcore.ResourceProcessKey][]string{}, OrphanProbes: map[couchcore.ResourceProcessKey]couchcore.ResourceOrphanProbe{}}
 	start, n, cpuErr := r.SelfCPU(ctx)
 	sample.Cost.NativeCalls += n
 	if cpuErr != nil {
@@ -213,7 +214,16 @@ func (s *resourceSampler) pass(ctx context.Context) {
 			return
 		}
 		o := observe(p)
-		if filepath.Base(p.Name) != "nvim" || !o.RSSKnown || o.RSSBytes <= s.policy.OrphanRSSBytes {
+		if filepath.Base(p.Name) != "nvim" {
+			continue
+		}
+		// The age comes from the generation stamp the table already carries, so
+		// the orphan gate costs nothing; only a row that clears it, or one big
+		// enough for the unattributed report, pays for a probe (#583).
+		start, ageKnown := procutil.StartTimeFromIdentity(p.Identity)
+		age := at.Sub(start)
+		old := ageKnown && age >= s.policy.OrphanNvimAge
+		if !old && (!o.RSSKnown || o.RSSBytes <= s.policy.OrphanRSSBytes) {
 			continue
 		}
 		command, calls, err := r.Command(ctx, p)
@@ -224,6 +234,19 @@ func (s *resourceSampler) pass(ctx context.Context) {
 			continue
 		}
 		sample.Commands[o.Key] = command.Args
+		if !old {
+			continue
+		}
+		cwd, calls, err := r.Cwd(ctx, p)
+		sample.Cost.CwdCalls += calls
+		sample.Cost.NativeCalls += calls
+		probe := couchcore.ResourceOrphanProbe{Age: age, AgeKnown: ageKnown}
+		if err != nil {
+			sample.Errors = append(sample.Errors, fmt.Sprintf("candidate %d cwd: %v", p.PID, err))
+		} else {
+			probe.Cwd, probe.CwdKnown = cwd, true
+		}
+		sample.OrphanProbes[o.Key] = probe
 	}
 	if ctx.Err() != nil {
 		return
@@ -311,6 +334,10 @@ func cloneResourceView(v couchcore.ResourceView) couchcore.ResourceView {
 	v.Processes = cloneProcesses(v.Processes)
 	v.Orphans = cloneProcesses(v.Orphans)
 	v.Unattributed = cloneProcesses(v.Unattributed)
+	v.OrphanNvim = append([]couchcore.OrphanNvim(nil), v.OrphanNvim...)
+	for i := range v.OrphanNvim {
+		v.OrphanNvim[i].RSSBytes = resourceCopyPointer(v.OrphanNvim[i].RSSBytes)
+	}
 	v.Episodes = append([]couchcore.ResourceEpisode(nil), v.Episodes...)
 	for i := range v.Episodes {
 		e := &v.Episodes[i]

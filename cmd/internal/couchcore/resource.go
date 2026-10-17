@@ -62,10 +62,12 @@ type ResourceCost struct {
 	UsageCalls    int    `json:"usage_calls"`
 	CommandCalls  int    `json:"command_calls"`
 	// EnvironmentCalls read launchd children's inherited thread (pair#606).
-	EnvironmentCalls int           `json:"environment_calls"`
-	NativeCalls      int           `json:"native_calls"`
-	CPUTimeNS        uint64        `json:"cpu_time_ns"`
-	WallTime         time.Duration `json:"wall_time"`
+	EnvironmentCalls int `json:"environment_calls"`
+	// CwdCalls read a candidate's working directory (pair#583).
+	CwdCalls    int           `json:"cwd_calls"`
+	NativeCalls int           `json:"native_calls"`
+	CPUTimeNS   uint64        `json:"cpu_time_ns"`
+	WallTime    time.Duration `json:"wall_time"`
 }
 type ResourceSample struct {
 	At                time.Time
@@ -76,8 +78,11 @@ type ResourceSample struct {
 	Slots             []ResourceSlot
 	Observations      []ResourceUsageObservation
 	Commands          map[ResourceProcessKey][]string
-	Errors            []string
-	Cost              ResourceCost
+	// OrphanProbes carries the cwd/age evidence the sampler gathered for the
+	// candidates worth probing; a row with no entry is unproven, not clean.
+	OrphanProbes map[ResourceProcessKey]ResourceOrphanProbe
+	Errors       []string
+	Cost         ResourceCost
 }
 type ResourceProcessView struct {
 	ResourceProvenance
@@ -108,6 +113,7 @@ type ResourceView struct {
 	Processes              []ResourceProcessView `json:"processes"`
 	Orphans                []ResourceProcessView `json:"orphans"`
 	Unattributed           []ResourceProcessView `json:"unattributed"`
+	OrphanNvim             []OrphanNvim          `json:"orphan_nvim"`
 	Errors                 []string              `json:"errors"`
 	Cost                   ResourceCost          `json:"cost"`
 	ObservedCPUTimeNS      uint64                `json:"observed_cpu_time_ns"`

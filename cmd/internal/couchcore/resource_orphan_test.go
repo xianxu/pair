@@ -126,3 +126,46 @@ func TestWithinManagedRootIsSegmentSafe(t *testing.T) {
 		t.Fatalf("no managed checkout contains %q, %v", got, ok)
 	}
 }
+
+// The view is the operator's only window on the sweep, so a pass that probed
+// nothing must report nothing: silence there means "not proven", never "clean".
+func TestAdvanceResourcesReportsTheOrphanNvimSweep(t *testing.T) {
+	t.Parallel()
+	p, err := ParseResourcePolicy(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	key := ResourceProcessKey{PID: 4242, Identity: "1760000000.5"}
+	probe := ResourceOrphanProbe{Cwd: "/fleet/worktree/pair-slot1/pair/cmd", CwdKnown: true, Age: 13 * 24 * time.Hour, AgeKnown: true}
+	s := ResourceSample{
+		At: time.Unix(1760100000, 0), TableKnown: true, InventoryComplete: true,
+		Table:        []procutil.Process{{PID: key.PID, PPID: 1, Identity: key.Identity, Name: "/opt/homebrew/bin/nvim"}},
+		Slots:        []ResourceSlot{{Slot: "pair:1", OwnershipKnown: true, Workspace: WorkspaceIdentity{WorktreeRoot: "/fleet/worktree/pair-slot1/pair"}}},
+		Observations: []ResourceUsageObservation{{Key: key, RSSKnown: true, RSSBytes: 22 << 30}},
+		Commands:     map[ResourceProcessKey][]string{key: {"nvim", "--embed"}},
+		OrphanProbes: map[ResourceProcessKey]ResourceOrphanProbe{key: probe},
+	}
+	_, v, _ := AdvanceResources(ResourceState{}, s, p)
+	if len(v.OrphanNvim) != 1 {
+		t.Fatalf("orphans %+v; errors %v", v.OrphanNvim, v.Errors)
+	}
+	got := v.OrphanNvim[0]
+	if got.Key != key || got.Root != "/fleet/worktree/pair-slot1/pair" || got.Cwd != probe.Cwd || got.Age != probe.Age || got.RSSBytes == nil || *got.RSSBytes != 22<<30 || got.Reason == "" {
+		t.Fatalf("orphan %+v", got)
+	}
+	for _, row := range v.Unattributed {
+		if row.Key == key {
+			t.Fatalf("the specific sweep must subsume the generic row: %+v", v.Unattributed)
+		}
+	}
+	s.OrphanProbes = nil
+	if _, v, _ = AdvanceResources(ResourceState{}, s, p); len(v.OrphanNvim) != 0 {
+		t.Fatalf("an unprobed pass reported %+v", v.OrphanNvim)
+	}
+	s.OrphanProbes = map[ResourceProcessKey]ResourceOrphanProbe{key: probe}
+	wide := p
+	wide.OrphanNvimAge = 30 * 24 * time.Hour
+	if _, v, _ = AdvanceResources(ResourceState{}, s, wide); len(v.OrphanNvim) != 0 {
+		t.Fatalf("an age below the threshold was reported: %+v", v.OrphanNvim)
+	}
+}

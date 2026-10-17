@@ -463,18 +463,24 @@ func ClassifyNvimReap(row NvimReapRow) (kill bool, reason string)
 **Files:**
 - Create: `cmd/internal/couchcore/resource_orphan.go`, `resource_orphan_test.go`
 
-- [ ] **Step 1: Write the failing table test.** Strategy: every input to the classifier is a claim about
+- [x] **Step 1: Write the failing table test.** Strategy: every input to the classifier is a claim about
   the host that may be false or missing, so the table falsifies one claim at a time — including the two
   that look like success but are not (a cwd that is a *sibling prefix* of a managed root, and an age just
   under the threshold) — and asserts that only a row with every claim intact is classified, carrying pid,
   identity, age, cwd, the matching root and RSS.
-- [ ] **Step 2: Run, expect FAIL.**
-- [ ] **Step 3: Implement**
+  *Done: 20 rows in `TestClassifyOrphanNvimFalsifiesOneClaimPerRow` (including the two traps, plus "exactly
+  at the threshold", "a start stamp in the future is not an age", "an unread RSS does not hide an orphan" and
+  "the most specific checkout wins"), `TestManagedRootsCollectsEverySlotCheckout` and
+  `TestWithinManagedRootIsSegmentSafe` (8 rows: the root itself, a descendant, a nested root, a shared string
+  prefix, a shorter sibling, an ancestor of a root, a relative path and a non-canonical `..` path). Containment
+  reuses `RelativeFamilyPath` (`repository_family.go:79`) rather than a new prefix rule — it already requires
+  canonical absolute paths and refuses `..`, which is the segment safety the trap row attacks (ARCH-DRY).*
+- [x] **Step 2: Run, expect FAIL.** *(Red for the right reason: 8 undefined symbols, no other failure.)*
+- [x] **Step 3: Implement**
 
 ```go
 type OrphanNvim struct {
 	Key      ResourceProcessKey
-	Name     string
 	Age      time.Duration
 	Cwd      string
 	Root     string
@@ -482,13 +488,31 @@ type OrphanNvim struct {
 	Reason   string
 }
 
-func ManagedRoots(slots ResourceSlotInventory) []string
+// ResourceOrphanProbe is what the sampler's IO proved about one candidate beyond
+// its usage row and argv.
+type ResourceOrphanProbe struct {
+	Cwd      string
+	CwdKnown bool
+	Age      time.Duration
+	AgeKnown bool
+}
+
+func ManagedRoots(slots []ResourceSlot) []string
 func WithinManagedRoot(cwd string, roots []string) (string, bool)
-func ClassifyOrphanNvim(row procutil.Process, args []string, cwd string, cwdKnown bool,
-	claimed map[ResourceProcessKey]bool, rss *uint64, roots []string, now time.Time, minAge time.Duration) (OrphanNvim, bool)
+func ClassifyOrphanNvim(row procutil.Process, args []string, claimed map[ResourceProcessKey]bool,
+	probe ResourceOrphanProbe, rss *uint64, roots []string, minAge time.Duration) (OrphanNvim, bool)
+func ClassifyOrphanNvims(table []procutil.Process, owned []ResourceProvenance,
+	observations []ResourceUsageObservation, commands map[ResourceProcessKey][]string,
+	probes map[ResourceProcessKey]ResourceOrphanProbe, roots []string, minAge time.Duration) []OrphanNvim
 ```
 
-- [ ] **Step 4: Run, expect PASS.** Commit `#583: classify untagged embedded-nvim orphans`
+  *Delta (see `## Revisions`): the classifier takes a probe bundle instead of `(cwd, cwdKnown, now)` and
+  derives no age itself, `Name` is dropped from `OrphanNvim` (it is provably `nvim`), `ManagedRoots` takes the
+  slot slice, and the plural sweeper mirrors `ClassifyUnattributed`'s shape and caps.*
+- [x] **Step 4: Run, expect PASS.** Commit `#583: classify untagged embedded-nvim orphans`
+  *Green. Mutation check: replacing `RelativeFamilyPath` with a string-prefix match and longest-match with
+  first-match reddened exactly `cwd shares a prefix with a managed checkout`, `the most specific checkout
+  wins` and `TestWithinManagedRootIsSegmentSafe` — the three guards that carry the safety claim.*
 
 ### Task 13: Policy knob and sampler wiring
 
@@ -497,15 +521,31 @@ func ClassifyOrphanNvim(row procutil.Process, args []string, cwd string, cwdKnow
   `resource_reduce.go:258`, `cmd/internal/couchcmd/resources.go:144-177`, `resources_inventory.go`
 - Test: `resource_policy` tests, `couchcmd/resources_test.go`
 
-- [ ] **Step 1: Write the failing tests.** Strategy: the knob is operator-supplied text and the probe is a
+- [x] **Step 1: Write the failing tests.** Strategy: the knob is operator-supplied text and the probe is a
   cost, so the tests attack both — a malformed or out-of-range value must refuse with the policy's existing
   error shape rather than silently widen the sweep, and a sampler pass must pay for `Cwd` only on rows that
   already cleared the ppid/name/age gate (charged to `Cost.NativeCalls`), never on a live-parent nvim.
-- [ ] **Step 2: Run, expect FAIL.**
-- [ ] **Step 3: Implement:** add `OrphanNvimAge time.Duration` to the policy and its env case; in the
+  *Done: `TestResourcePolicyStrict` grew a 6h default, a `90m` override and five refusals (`""`, `13 days`,
+  `0s`, `-6h`, `25h`); `TestAdvanceResourcesReportsTheOrphanNvimSweep` proves the view carries pid/root/cwd/
+  age/RSS, that an unprobed pass reports nothing (silence means "not proven", never "clean") and that a wider
+  threshold suppresses the row; `TestResourceSamplerProbesCwdOnlyForAnOldOrphanNvim` runs five rows (an old
+  orphan nvim, a one-second-old nvim, a live-parent nvim, an nvim whose stamp will not parse, an old zellij)
+  and asserts `cwd` probes `[40]` only, argv reads `[40 41 43]`, `Cost.CwdCalls` charged, the generic
+  `Unattributed` row for pid 40 suppressed while the other three survive, and the cached row is immutable.*
+- [x] **Step 2: Run, expect FAIL.** *(Red on the undefined policy field, sample field and view field; then on
+  the two expectations I had wrong — the darwin identity fraction is microseconds, not nanoseconds, so the
+  expected age was off by 4.995µs, and `Unattributed` keeps every other big candidate rather than only the
+  zellij row. Both were test bugs, fixed against measured behaviour.)*
+- [x] **Step 3: Implement:** add `OrphanNvimAge time.Duration` to the policy and its env case; in the
   candidate loop, gate `Cwd` behind ppid 1 + name nvim + age ≥ threshold (age comes from the identity stamp
   already in the row, so the gate costs no syscall), then classify with the roots from `s.slots()`.
-- [ ] **Step 4: Run couchcore + couchcmd, expect PASS.** Commit `#583: sample untagged nvim orphans within the measured budget`
+  *Delta: `COUCH_RESOURCE_ORPHAN_NVIM_AGE` joins the existing duration case, so it inherits the 1s..24h bound
+  rather than adding a second range rule. The argv gate widened from "RSS above the floor" to "old OR above
+  the floor", because a small untagged orphan is still an orphan; the floor still decides the argv read for
+  #587's report. `ResourceCost` gained `CwdCalls`, `ResourceSample` gained `OrphanProbes`, `ResourceView`
+  gained `OrphanNvim`, and `cloneResourceView` copies the new rows so a handler cannot mutate the cache.
+  `resources_inventory.go` needed no change: `Workspace.WorktreeRoot` is already populated per slot there.*
+- [x] **Step 4: Run couchcore + couchcmd, expect PASS.** Commit `#583: sample untagged nvim orphans within the measured budget`
 
 ### Task 14: The health line
 
@@ -1023,3 +1063,19 @@ func ClassifyOrphanNvim(row procutil.Process, args []string, cwd string, cwdKnow
   token, which is why the name is `StartTimeFromIdentity` and not the plan's `ParseIdentityTime` — a function
   that does IO on one platform should not be called "parse", and the argument should not be mistakable for a
   pid.
+- **2026-10-16 — Task 12/13 signatures corrected by measurement.** Reason: the drafted classifier derived
+  its own age from `row.Identity`, but `procutil.StartTimeFromIdentity` switches on GOOS and reads
+  `/proc/stat` on every linux call (`identity_age.go`), so Task 12's "pure" step would have done IO off
+  darwin and its table test would have needed a platform-shaped identity token to stay deterministic.
+  Delta: the sampler — which already owns the IO and the sample instant — derives the age from the stamp the
+  table carries (still no extra syscall) and hands it over in a `ResourceOrphanProbe` (cwd, cwdKnown, age,
+  ageKnown); `ClassifyOrphanNvim` consumes that bundle plus the argv and RSS the sample already holds, so no
+  fact is stored twice (ARCH-DRY) and couchcore stays free of platform switches. `OrphanNvim.Name` was dropped
+  (provably `nvim`; the section header says it), and `ManagedRoots` takes `[]ResourceSlot` rather than the
+  inventory, whose `Complete`/`Omitted` are not this rule's business — an incomplete inventory narrows the
+  report, which is the safe direction, and it is already an error line in the sample.
+  Two additions the draft did not name: `ResourceCost.CwdCalls`, so Task 17's re-measurement attributes the
+  new probe instead of inferring it from the total; and the sweep's rows are removed from `v.Unattributed`
+  when reported, because one process under two section headings reads as two findings. Task 12 and Task 13
+  landed as one commit pair rather than the drafted two messages, since the classifier has no consumer until
+  the sampler wires it.
