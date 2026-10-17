@@ -1532,6 +1532,13 @@ for normal-suite commands, strict selected-attach scan counts, other-path scan
 ratchets and the separate 20-slot/60-second CPU acceptance smoke. Counts do not
 claim whole-supervisor CPU behavior after rollout.
 
+The shared chunked JSONL reader searches only appended bytes after a retained
+newline-free prefix (#626). Counted-search regressions pin linear delimiter
+work across long records and chunk boundaries; the 20-owner UI fixture keeps
+its existing deadlines and logs per-probe and generation timing to distinguish
+cold IO/decoding from missing progress. Cache authority and invalidation rules
+are unchanged.
+
 ### Slots behind a picker draw red (pair#465)
 
 A live thread whose wrapper reports `Picker` draws in the terminal's red
