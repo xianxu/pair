@@ -1,12 +1,12 @@
 ---
 id: 000583
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-15
 updated: 2026-10-16
 estimate_hours: 8.1
-card_mirror: '03c264c1c8644d6eaa2aa644402b620cf408fa73' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '90d2931e9ba44e4da9630ffb701555b9b27f8fba' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-16T10:00:03-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: inferred}
+actual_hours: 9.63
 ---
 
 # Orphaned embedded nvim (22 GB, 13 days) escaped the reaper: untagged 'nvim --embed' children; tag them and sweep orphans
