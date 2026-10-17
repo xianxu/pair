@@ -1,7 +1,7 @@
 ---
 id: 000649
 status: working
-deps: []
+deps: ["#653"]
 github_issue:
 created: 2026-10-17
 updated: 2026-10-17
@@ -62,7 +62,7 @@ The work per tick is one `zellij list-sessions --no-formatting`, sometimes a liv
 - [x] After approval, pass change-code plan-quality and derive estimate.
 - [x] Suppress hosted child; share exact target/title decisions and cancellable compact facts.
 - [x] Wire one existing-schedule updater and shared activity/fade results; verify stateful failure sequences.
-- [ ] Run recorded suite, close review and land; hub performs deferred live checks and AFTER fleet measurement at next operator restart.
+- [ ] Integrate landed #653, make updater growth-recovery regression green, then run recorded suite, close review and land; hub performs deferred live checks and AFTER fleet measurement at next operator restart.
 
 ## Log
 
@@ -87,6 +87,8 @@ Read-only subagent exploration located the actual spawn in wrapcmd.startWrapperT
 ### 2026-10-17
 
 ## Revisions
+
+- 2026-10-17 — TL deliveries 2a740922-b8ca-4002-a3e4-7bee1ec191d2 and 750adbca-ede5-45bf-9fdf-799ce6db93c5 add #653 as a landing dependency. Do not edit the shared projection until synchronized; #653 lands first, #649 then merges landed main and verifies recovery through PollContext. Cancel the obsolete queued suite.
 
 - 2026-10-17 — TL delivery 10172f8c-0c20-4200-8bfe-079e616b4400 supersedes pre-landing staging/live verification: pair:0 remains untouched; land on suite and close review. Hub owns post-landing no-poller/title/fade/cmux and AFTER fleet totals at the operator next restart.
 
@@ -141,3 +143,11 @@ TL delivery 10172f8c-0c20-4200-8bfe-079e616b4400 explicitly forbids pair:0 stagi
 ### 2026-10-17 — affected packages and race verification
 
 Broader checks passed: go test ./cmd/internal/couchcore ./cmd/internal/couchtty ./cmd/internal/couchcmd ./cmd/internal/titlepoller ./cmd/internal/sessioninventory ./cmd/internal/wrapcmd -count=1. Slowest package was couchcore at 571.950s under fleet IO load; no test failed. Targeted race families for couchtty/couchcmd/sessioninventory passed. Storage ManagedIOInventoryAnchors passed after adding the new existing-family publication edge. Recorded full suite remains queued under the two-suite machine gate on source commit 85d217e1e.
+
+### 2026-10-17 — dependency and canceled suite
+
+TL ordered #653 first. Pair:2 owns the projection change, narrowly treating same-identity admission growth and same-launch authorized root rebind as transient; identity/shrink/boundary/invalid-proof failures remain terminal. #649 has not edited title_projection.go since this coordination. Its existing PollContext transaction/cancellation and newest-agent fencing will be preserved when integrating the landed fix.
+
+Canceled obsolete queued run 9a8db73ed1bffc246eddc65352d76333 on source 85d217e1e by matching the run inflight owner (PID 54033) and sending SIGINT. sdlc exited with suite lock interrupted: context canceled; owner/wait children gone. No tests in that recorded attempt ran. This was directed cancellation, not a flaky test failure; a new run is required after #653 integration.
+
+New updater-level OS-seam test TestCouchTitlesOSRecoversGrowthDuringAdmission deterministically appends usage43k after the native boundary read, before final admission metadata check. It currently fails as expected (RED: no command ever emitted after three updater calls), while the existing stable source-to-command conformance test passes. Only couchcmd/titles_test.go changed; shared projection remains untouched. This test must pass after landed #653 is integrated.

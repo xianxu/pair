@@ -6,7 +6,7 @@ collaboration-mode: discussion
 
 > **For agentic workers:** Consult AGENTS.md Section 3 (Subagent Strategy) to choose subagent-driven development or execution in the current session. Steps use checkboxes for tracking.
 
-**Status:** Implementation pushed; recorded suite and close review pending. Live conformance deferred by TL to the next operator restart; no staging.
+**Status:** Waiting for landed #653; updater growth-recovery regression is RED. Recorded suite and close review follow integration. Live conformance deferred by TL to the next operator restart; no staging.
 
 **Goal:** Couch-hosted Pair starts no per-slot title process; Couch updates titles from its existing inventory and activity refreshes, preserving standalone behavior, ownership and fading.
 
@@ -127,6 +127,12 @@ Files under cmd/internal/: new couchcmd/titles.go and titles_test.go; couchcmd/r
 - [x] Feed accepted title targets into the existing single-flight activity worker; share compact facts, preserve user/wrapper activity and apply bounded effects. Return shared activity through MenuEventActivity. Verify GREEN and controlled worker race tests; commit.
 - [x] Run the isolated 1,000-tick retained-memory/work regression and retain all samples/failures.
 
+### Dependency checkpoint: #653
+
+- [ ] Wait for pair:2 to land #653 on main. No projection edit or unlanded stacking before that handoff.
+- [ ] Merge landed main into this branch, preserving #653 narrow transient recovery and #649 PollContext transaction/cancellation plus newest-owner fencing. Notify pair:2 before resolving the shared file.
+- [ ] Make TestCouchTitlesOSRecoversGrowthDuringAdmission GREEN, rerun affected projection/updater/console race families, push the new source head and run the recorded suite there. The canceled pre-dependency run provides no suite evidence.
+
 ### Task 5: Documentation, live evidence and landing
 
 Files: README.md, atlas/couch.md, atlas/index.md as needed, this plan and #649 Log. TL owns project files.
@@ -157,3 +163,5 @@ Full flow approved by TL delivery 798a3ab4-b9da-465f-a516-34c291210e0a; change-c
 - 2026-10-17 — Implementation placement: pure TitleLaunch result and CurrentTitleLaunch/context adapter share title_context.go; tests extend title_projection_test.go. Console environment wiring is titles_wiring.go. No runtime scope change.
 
 - 2026-10-17 — TL delivery 10172f8c-0c20-4200-8bfe-079e616b4400: no pair:0 staging because it is the shared restart binary. Land after suite and close review; hub owns live title/fade/cmux checks, hosted no-poller observation and AFTER fleet totals at the operator next restart. This explicitly supersedes Task5 pre-landing staging/live ordering.
+
+- 2026-10-17 — TL added #653 landing dependency and canceled the obsolete queued suite. Pair:2 owns narrow same-identity admission-growth/same-launch rebind recovery. #649 adds OS-seam updater regression, waits for landing, then merges and preserves both recovery and cancellation APIs before re-verifying.

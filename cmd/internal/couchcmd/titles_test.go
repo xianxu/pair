@@ -311,7 +311,15 @@ func titleFixtureWrite(t *testing.T, path string, raw []byte) {
 		t.Fatal(err)
 	}
 }
-func TestCouchTitlesOSProjectionToScopedCommand(t *testing.T) {
+
+type couchTitleOSFixture struct {
+	home, data, log, native string
+	row                     couchcore.ActionableThreadSummary
+	paths                   artifactpath.Paths
+}
+
+func newCouchTitleOSFixture(t *testing.T) couchTitleOSFixture {
+	t.Helper()
 	root := t.TempDir()
 	testpair.ApplyEnvironment(t, root)
 	home := os.Getenv("HOME")
@@ -348,6 +356,11 @@ func TestCouchTitlesOSProjectionToScopedCommand(t *testing.T) {
 		ledger = append(ledger, append(raw, '\n')...)
 	}
 	titleFixtureWrite(t, paths.Ledger(), ledger)
+	return couchTitleOSFixture{home: home, data: data, log: log, native: native, row: row, paths: paths}
+}
+func TestCouchTitlesOSProjectionToScopedCommand(t *testing.T) {
+	f := newCouchTitleOSFixture(t)
+	home, data, log, row, paths := f.home, f.data, f.log, f.row, f.paths
 	// A stale twin cannot establish selected-agent birth.
 	titleFixtureWrite(t, paths.Pane("claude"), []byte(`{"pane_id":"99"}`))
 	u := newCouchTitleUpdater(data, home, "", func(context.Context, couchcore.TitleTarget) bool { return true })
@@ -434,4 +447,83 @@ wait
 		t.Fatal("title command did not join")
 	}
 	testwait.Until(t, "title command group collected", func() bool { return errors.Is(syscall.Kill(pid, 0), syscall.ESRCH) })
+}
+
+// growingCouchNative appends after admission reads its boundary, before the
+// following fingerprint check. It changes neither the file nor owner identity.
+type growingCouchNative struct {
+	sessioninventory.OSRuntime
+	path string
+	grew bool
+}
+
+func (r *growingCouchNative) ReadAt(a sessioninventory.Artifact, offset, limit int64) ([]byte, bool, error) {
+	raw, eof, err := r.OSRuntime.ReadAt(a, offset, limit)
+	if err == nil && !r.grew && a.StorageRoot == "codex-sessions" && offset > 0 && limit == 4096 {
+		r.grew = true
+		f, e := os.OpenFile(r.path, os.O_APPEND|os.O_WRONLY, 0600)
+		if e != nil {
+			return nil, false, e
+		}
+		_, e = f.WriteString(`{"type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":43000}}}}` + "\n")
+		closeErr := f.Close()
+		if e != nil {
+			return nil, false, e
+		}
+		if closeErr != nil {
+			return nil, false, closeErr
+		}
+	}
+	return raw, eof, err
+}
+
+type growingOSTitles struct {
+	*osCouchTitles
+	native string
+	source *growingCouchNative
+}
+
+func (o *growingOSTitles) Open(t couchcore.TitleTarget) (couchTitleSource, error) {
+	src, err := o.osCouchTitles.Open(t)
+	if err != nil {
+		return nil, err
+	}
+	s := src.(*osCouchTitleSource)
+	o.source = &growingCouchNative{OSRuntime: s.runtime, path: o.native}
+	s.projection = sessioninventory.NewTitleProjection(o.source, t.Address.RepoScope, string(t.Address.Tag), sessioninventory.Agent(t.Agent), t.LaunchOrdinal)
+	return s, nil
+}
+func TestCouchTitlesOSRecoversGrowthDuringAdmission(t *testing.T) {
+	f := newCouchTitleOSFixture(t)
+	// Force the boundary read to have a nonzero offset, distinct from the full
+	// validation read, so the growth injection is a deterministic interleaving.
+	file, err := os.OpenFile(f.native, os.O_APPEND|os.O_WRONLY, 0600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = file.WriteString(`{"type":"event_msg","payload":{"type":"ignored","text":"` + strings.Repeat("x", 5000) + `"}}` + "\n")
+	closeErr := file.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if closeErr != nil {
+		t.Fatal(closeErr)
+	}
+	titleFixtureWrite(t, f.paths.Pane("codex"), []byte(`{"pane_id":"7"}`))
+	u := newCouchTitleUpdater(f.data, f.home, "", func(context.Context, couchcore.TitleTarget) bool { return true })
+	io := &growingOSTitles{osCouchTitles: u.io.(*osCouchTitles), native: f.native}
+	u.io = io
+	for i := 0; i < 3; i++ {
+		u.Update(t.Context(), []couchcore.ActionableThreadSummary{f.row})
+	}
+	if io.source == nil || !io.source.grew {
+		t.Fatal("growth interleaving did not run")
+	}
+	raw, err := os.ReadFile(f.log)
+	if err != nil {
+		t.Fatalf("updater never recovered from ordinary growth: %v", err)
+	}
+	if !strings.Contains(string(raw), "codex (43k)") {
+		t.Fatalf("updater retained stale usage after growth: %s", raw)
+	}
 }
