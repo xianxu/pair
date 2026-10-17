@@ -439,20 +439,20 @@ be dragged off position by its frame with no config gate, so the terminal
 moved into the tiled tree: tiled panes have no mouse-move operation at all,
 making the workbench drag-immune while keeping the agent pane's frame and full mouse support. (Since `#199` M4 the layout-3 terminal is borderless; drag-immunity comes from the tiled pivot, not from the frame.)
 The filler (and its key-swallowing focus trap) is gone. `Alt+Shift+Enter`
-invokes `pair layout toggle-focused` from any Pair pane and cycles the right
-pane through three modes (#417):
+invokes `pair layout toggle-focused` from any Pair pane and toggles the right
+pane between two modes (#639):
 - **normal**: the tiled layout.
 - **focus**: one right terminal floats, pinned, centered at 75% width and full
   height, over the dimmed agent pane.
-- **maximize**: Zellij's native `toggle-fullscreen --pane-id`, which keeps
-  Zellij's bars.
 
-A split acts on one half only. Leaving maximize restores the tiling and focuses
-the invoking pane. Without a right terminal the press is a no-op.
+A split acts on one half only. Leaving focus restores the tiling and focuses
+the invoking pane. An already native-fullscreen terminal returns to normal on
+one press; the toggle never enters fullscreen. Without a right terminal the
+press is a no-op.
 
 `cmd/internal/layoutcmd/rightpane.go` owns the cycle. `ObserveRightPaneMode`
 derives the mode from the pane report alone: a floating right terminal means
-focus, a fullscreen tiled one means maximize. Zellij owns that state, so a
+focus; a fullscreen tiled one is an exit-only compatibility observation. Zellij owns that state, so a
 native change such as a focus-away that ends fullscreen is never contradicted.
 `PlanRightPane` reuses `PlanFullscreen`'s selection (the invoking half, else the
 recorded half, else the focused one) and returns one ordered step list per
@@ -468,6 +468,13 @@ name is active and clean, then fixes swapped halves with `move-pane`. A dirty
 rung, which is the Alt+Shift+d shape, is recorded as its clean `<rung>-split`
 twin. Rung changes made while in focus are therefore undone on exit. A failed
 re-tile is logged and degrades only the layout, never the press.
+
+On return, the executor always requests focus on the recorded pane (falling
+back to the draft if it disappeared). Re-embedding may already have focused
+that pane; only native exit 2 with the exact target-specific `Pane Terminal(N)
+is already focused` diagnostic counts as success. The CLI, agent wrapper and
+terminal paths retain the same typed native evidence for this action; live
+conformance pins the wording so a Zellij upgrade fails the test loudly.
 
 The record is `workbenchshortcut.FullscreenReturnStore`'s single line,
 `<return> swap=<name> order=<id>,<id>` (`ExpandRecord`). A bare `<id>` written
@@ -861,7 +868,7 @@ Loaded via `nvim -u`, fully isolated from the user's main nvim config. Provides:
 - **`!` tag line (#337).** When the comment-stripped draft is a single line starting with `!`, `_G.submit_operator_text` sends only the text after the `!` (the Pair log keeps the authored `!` line). Inside a couch thread (`COUCH_THREAD_SCOPE` and `COUCH_THREAD_TAG` both set), it then publishes that text as the thread's description with a detached `couch --internal publish-description --description=<text>`, after dispatch is confirmed, so couch never delays or fails a send. Pure parse: `nvim/bang_tag.lua`; boundary test: `tests/bang-tag-nvim-test.sh` (stub `couch` on PATH).
 - **`!!` describe line (#358).** `!!` publishes the newest Pair log entry (comment-stripped, a leading `!` tag dropped) as the description; `!! text` publishes `text`. Both reduce to one line (`bang_tag.one_line`: first non-blank line, whitespace collapsed, 120-character cap) and never reach the agent or the log. The publish is synchronous (`vim.system`, 5 s timeout) so its result decides whether the draft clears; outside couch, with no usable previous prompt, or on failure it notifies and keeps the draft.
 - **Bare `!` clear line (#357).** A bare `!` takes the same synchronous, no-send path with an empty description: `publish-description --description=` clears only the thread's `PublishedSummary`, so `ThreadSummary.DisplaySummary` falls back to the operator-typed `Description`.
-- `<S-M-CR>` (Alt+Shift+Return, normal+insert) — generated global right-pane cycle (normal → focus → maximize, #417). It executes `pair layout toggle-focused` directly, without reading, logging or clearing the draft. The former append-without-send map and `no_submit` chain are removed; normal submission retains its staged-write, indeterminate-outcome and commit-only retry behavior.
+- `<S-M-CR>` (Alt+Shift+Return, normal+insert) — generated global right-pane toggle (normal ↔ focus, #639). It executes `pair layout toggle-focused` directly, without reading, logging or clearing the draft. The former append-without-send map and `no_submit` chain are removed; normal submission retains its staged-write, indeterminate-outcome and commit-only retry behavior.
 - `<M-Left>` / `<M-Right>` — navigate the prompt-history / queue position one slot at a time (see below).
 - `<S-M-Left>` / `<S-M-Right>` — switch the RIGHT terminal's tabs, from any pane, without moving focus (#216). These are workbench globals, not draft navigation; they replaced a region-boundary jump that was deleted with them.
 - `<M-b>` — `pair_scrollback_prev_prompt`: open the scrollback viewer already positioned on the previous agent-conversation prompt — a one-key shortcut for `Alt+/` then `Alt+b`. Shells out `zellij run --floating … -- pair-scrollback-open --jump prev`. See the scrollback section's "Jump-on-open shortcut".
@@ -1279,6 +1286,21 @@ The Go launcher's `RunLaunch` prepends `$PAIR_HOME/bin` to `$PATH` once at entry
 
 The built binaries live in `$PAIR_HOME/bin` (first on PATH per *Path resolution* above). `bin/` is **gitignored** — built on demand, absent in a fresh tree. Local `make install` links `pair`, `couch`, and `pair-launch-helper` from `~/.local/bin` to that checkout, so rebuilding replaces the binary reached through the installed path. Older installations copied binaries there; those copies could shadow fresh checkout builds on PATH and remain stale until reinstalled. Shell aliases cannot fix executable lookups performed by child processes. The linked local installation requires the checkout to remain in place; packaged or separately copied binaries retain their own deployment lifecycle.
 
+Pair's three explicit binary targets share `scripts/build-go-atomic.sh` (#624).
+Go writes into an invocation-owned temporary directory beside the final binary;
+only a successful build is renamed onto that path. Failed or interrupted builds
+leave the previous executable intact and remove their staging directory. Concurrent
+builds have separate staging directories; the last successful rename wins, always
+with a complete executable. The existing `.skip-make-build` sentinels keep the
+base-layer generic scanner from overwriting these outputs a second time. No lock
+is needed for publication: the same-filesystem rename is the atomic boundary.
+The guard test exercises both direct targets and root `make build`, plus review
+asset preparation with a foreign `PAIR_HOME`; all fixture writes stay in the worker.
+A direct Go replacement probe reproduced missing/partial output. The exact caller
+behind the historical primary-checkout gaps is unknown; the TL's explicit rebuild
+around that period is a likely candidate, not a proven correlation.
+
+
 Two launch modes resolve this:
 - **Deployed** — `pair`. Runs whatever prebuilt binary PATH finds; zero toolchain dependency at launch. Local `make install` links `~/.local/bin` to the checkout’s `bin/`, so later builds are visible without reinstalling; keep that checkout in place. Already-running processes must restart to use the rebuilt binary.
 - **Dev** — `pair-dev` (#000046). Exports `PAIR_DEV=1` and execs `pair`; the launcher's `DevRebuild` then runs `make build` (still via `bin/lib/dev-rebuild.sh`'s `dev_rebuild`, sourced from Go) on the **create path**, before the layout execs pair-wrap, so `$PAIR_HOME/bin` holds a fresh build. Restart-safe: `PAIR_DEV` survives the launcher's in-process restart loop, so Alt+n rebuilds too; Shift+Alt+N only replaces the current wrapper's agent child and therefore does not rebuild Pair. A plain attach (no new wrapper spawned) correctly skips the build. Deployed launches (`PAIR_DEV` unset) invoke no toolchain.
@@ -1346,7 +1368,10 @@ ordinary contexts have no observer or new output.
 
 `cmd/internal/procutil` owns host process observations without launching `ps`.
 `Table` remains a cheap metadata snapshot (PID, parent, start identity, niceness
-and short kernel name). `Snapshot` enriches rows with native executable/argv and
+and short kernel name). Linux retains listed PIDs whose stat read or parse
+fails as PID-only unknown rows; only `ENOENT`/`ESRCH` permits omission. Unknown
+rows remain candidates for named capture and cannot prove a writer has exited.
+`Snapshot` enriches rows with native executable/argv and
 rechecks start identity, retaining unavailable evidence per live row. Native
 command reads reporting `EINVAL`, `ESRCH` and `ENOENT` mean gone and are omitted,
 including exit races during later environment reads. Identity reads retain their

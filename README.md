@@ -27,8 +27,9 @@ Launches a `zellij` workbench in one of two layouts:
   remains available: `Alt+k` still returns to the left
   stack, and the global `Shift+Alt+←`/`→`/`Shift+Alt+t` still switch and create
   tabs from anywhere (#243 delivers them as globals so they survive the
-  passthrough). `Alt+Shift+Return` cycles the right terminal through focus and
-  maximize from any Pair pane, including the agent and editor overlays. At
+  passthrough). `Alt+Shift+Return` toggles the right terminal between normal
+  and centered 75% focus from any Pair pane, including the agent and editor
+  overlays. At
   a shell prompt terminal-local chords are intercepted; draft-only Alt+Up/Down
   pass through to the shell.
 
@@ -158,7 +159,7 @@ adds context that a one-line description cannot carry.
 | **Shift+Ctrl+Alt+Return** | draft nvim (normal/insert) | Send draft text plus all open cast-tab notes, recorded context, 🤖<current box text and a PNG crop per note>{draw-time box text and each note’s saved PNG crop} to the agent in view. An empty draft can send notes. Progress appears in the draft status line; editing resumes when the operation finishes or fails (36s maximum). [Evidence and retry behavior](atlas/webcast-submission.md). |
 | **Return** | agent pane | Insert a newline in Claude, Codex, Agy, and Qoder composers; Pair translates it to Muse's native Shift+Return and Grok's native Alt+Enter. The rewrite is *positively gated* for every agent: Pair rewrites only while it can see a live composer on screen, so in a permission picker, a selection menu, or any state it doesn't recognize, Return stays a plain Enter and the dialog confirms. Set `PAIR_WRAP_REMAP_RETURN=0` to turn the rewrite off entirely (that also disables overlay detection and its telemetry). |
 | **Alt+Return** | agent pane | Always submits, in every state. |
-| **Alt+Shift+Return** | any Pair pane | Cycle the selected right terminal: **focus** (floating, centered at 75% width and full height, agent pane dimmed) → **maximize** (native fullscreen; Zellij's bars remain visible) → back to the tiling, focusing the invoking pane. A split acts only on the selected half. No-op without a right terminal. |
+| **Alt+Shift+Return** | any Pair pane | Toggle the selected right terminal between **normal** tiling and **focus** (floating, centered at 75% width and full height, agent pane dimmed). Leaving focus restores the tiling and focuses the invoking pane. An already fullscreen terminal returns to normal on one press. A split acts only on the selected half. No-op without a right terminal. |
 | **Alt+j** | draft | Focus the agent pane. Click the draft to return from the agent. |
 | **Alt+k** | layout 3 draft/terminal | Move between the last-focused left Pair pane and the right terminal. |
 | **Alt+t** | layout 3 terminal | Create a Pair-owned local terminal tab. |
@@ -202,7 +203,7 @@ adds context that a one-line description cannot carry.
 
 The focused agent receives all workbench shortcuts except **Shift+Alt+T**,
 **Shift+Alt+Left/Right**, and **Alt+Shift+Return**, which create/switch
-right-terminal tabs or cycle the right terminal's focus/maximize views. Under
+right-terminal tabs or toggle the right terminal's normal/focus views. Under
 Couch, **Ctrl+Space**, **Ctrl+Backspace** (the Mac Delete key), and
 **Ctrl+Return** remain Couch navigation shortcuts. Couch owns Alt+n/Ctrl+Alt+n
 outside the right terminal, except Alt+n in the review pane (next marker in normal mode). In a right-terminal full-screen TUI, Pair retains
@@ -383,6 +384,10 @@ with Neovim and Zellij config carried alongside it. There is no Python and no
 shell runtime; `zellij`, `nvim`, `fzf`, and the agent CLIs are the only external
 programs.
 
+`make build` publishes each of `pair`, `couch`, and `pair-launch-helper` by
+building privately beside its destination, then renaming the completed executable.
+A failed build keeps the previous executable available, including for Couch sends.
+
 `make install` links the built binaries into `~/.local/bin`, so later checkout
 builds are visible without reinstalling. Keep that checkout in place; these
 links point to its `bin/` directory. Already-running processes keep their old
@@ -494,7 +499,7 @@ couch --send-to TARGET [--agent NAME] --message-file PATH
                          any form above, the body read verbatim from PATH (less one trailing newline):
                          write a message containing code or shell syntax with an editor, never quote it
 couch --message-status ID [--json]      inspect a message receipt; a send to a busy slot
-                         waits in line, in order (`queued`, `position N`) (pair#492)
+                         waits in order while connected; status names the composer wait and position
 couch --skill            print the bundled agent coordination skill
 couch --adopt-store /absolute/store     preview adoption of an existing store
 ```
@@ -829,7 +834,12 @@ Couch acceptance is separate from these receiver checks.
 
 Admission prints a receipt ID and resolved destination immediately. `queued`
 means a mailbox reservation; `submitted` means bytes submitted, not completed
-work. No eligible family slot returns `not-dispatched` with exit status zero.
+work. A busy, connected receiver retains accepted mail until its composer is
+ready. `--message-status` shows the wait and position in that receiver's line;
+do not resend a queued or held message. Disconnect or relaunch cancels mail
+not yet committed to the wrapper, with a receiver reason. A handed commit may
+be `indeterminate` because input cannot be ruled out. Once pasted, the existing 30-second confirmation window
+still bounds delivery. No eligible family slot returns `not-dispatched` with exit status zero.
 Other refusals return nonzero. If a send times out, query the printed ID with
 `--message-status` and inspect the recipient before sending again. Couch never
 replays an uncertain body or keeps a durable message queue across restart.
@@ -1009,9 +1019,16 @@ clones inside a slot do not get entries of their own.
 
 Live threads fade as they go idle, in the tabs and the switcher: a thread
 with no activity for a day is dimmed, and after three days it's dimmed further.
-Activity means your sends and the agent's work (its transcript), or launching
-or resuming the thread; switching to a thread or merely looking at its draft
-doesn't count. Couch checks about once a minute. The fade blends toward your
+Activity means your sends, the agent's recorded work and current turn, or
+launching or resuming the thread. A turn stays bright when started by a peer
+message or waiting silently on a command. After it finishes, the thread ages
+from its last work. Claude Code's native running-shell footer also keeps a
+thread bright after its turn ends, including while a silent suite waits in a
+queue. Its free composer can still receive peer messages. This background-shell
+signal requires a new wrapper and Couch; older versions, Codex and Qoder keep
+their existing turn-based behavior. Once the shell finishes, the thread ages
+normally. Switching to a thread or merely looking at its draft doesn't count. Couch checks about once a
+minute. The fade blends toward your
 terminal's own background, which Couch asks the terminal for at startup, so it
 reads correctly on dark and light schemes; the amber `±`/`*` glyphs fade with
 their thread. The focused tab, the selected switcher row, and a thread with a

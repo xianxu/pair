@@ -110,11 +110,11 @@ func TestObserveRightPaneMode(t *testing.T) {
 	}
 	panes = modePanes()
 	panes[3].IsFullscreen = &on
-	if mode, id, err := ObserveRightPaneMode(panes, nil); err != nil || mode != ModeMaximize || id != "3" {
+	if mode, id, err := ObserveRightPaneMode(panes, nil); err != nil || mode != ModeFullscreen || id != "3" {
 		t.Fatalf("fullscreen: %v %s %v", mode, id, err)
 	}
 	if FocusModeActive(panes, nil) {
-		t.Fatal("maximize reported as focus")
+		t.Fatal("native fullscreen reported as focus")
 	}
 	panes = append(modePanes(), zellijpane.Pane{ID: "4", Title: "terminal 2", IsFloating: true})
 	panes[3].IsFloating = true
@@ -183,16 +183,22 @@ func TestPlanRightPaneCycle(t *testing.T) {
 		{"normal-to-focus-clean-base-split", RightPaneInput{Panes: split(), Caller: "2", Last: "4", Registered: registered, Swap: "BASE"}, ModeNormal, ModeFocus,
 			ExpandRecord{Return: "2", Swap: "BASE", Order: []string{"3", "4"}},
 			[]Step{{StepSave, ""}, {StepFloat, "4"}, {StepPlace, "4"}, {StepShow, ""}, {StepNudge, ""}}},
-		{"focus-to-maximize", RightPaneInput{Panes: floating(modePanes(), "3"), Caller: "3", Record: ExpandRecord{Return: "2", Swap: "third"}}, ModeFocus, ModeMaximize,
+		{"focus-to-normal", RightPaneInput{Panes: floating(modePanes(), "3"), Caller: "3", Record: ExpandRecord{Return: "2", Swap: "third"}}, ModeFocus, ModeNormal,
 			ExpandRecord{Return: "2", Swap: "third"},
-			[]Step{{StepEmbed, "3"}, {StepRestore, "3"}, {StepFullscreen, "3"}, {StepNudge, ""}}},
-		{"focus-to-maximize-split", RightPaneInput{Panes: floating(split(), "4"), Caller: "4", Registered: registered, Record: ExpandRecord{Return: "2", Swap: "BASE", Order: []string{"3", "4"}}}, ModeFocus, ModeMaximize,
+			[]Step{{StepEmbed, "3"}, {StepRestore, "3"}, {StepFocus, "2"}, {StepClear, ""}, {StepNudge, ""}}},
+		{"focus-to-normal-split", RightPaneInput{Panes: floating(split(), "4"), Caller: "4", Registered: registered, Record: ExpandRecord{Return: "2", Swap: "BASE", Order: []string{"3", "4"}}}, ModeFocus, ModeNormal,
 			ExpandRecord{Return: "2", Swap: "BASE", Order: []string{"3", "4"}},
-			[]Step{{StepEmbed, "4"}, {StepRestore, "4"}, {StepFullscreen, "4"}, {StepNudge, ""}}},
-		{"maximize-to-normal", RightPaneInput{Panes: fullscreen(modePanes(), "3"), Caller: "3", Record: ExpandRecord{Return: "2", Swap: "third"}}, ModeMaximize, ModeNormal,
+			[]Step{{StepEmbed, "4"}, {StepRestore, "4"}, {StepFocus, "2"}, {StepClear, ""}, {StepNudge, ""}}},
+		{"focus-to-normal-same-pane", RightPaneInput{Panes: floating(modePanes(), "3"), Caller: "3", Record: ExpandRecord{Return: "3"}}, ModeFocus, ModeNormal,
+			ExpandRecord{Return: "3"},
+			[]Step{{StepEmbed, "3"}, {StepRestore, "3"}, {StepFocus, "3"}, {StepClear, ""}, {StepNudge, ""}}},
+		{"focus-to-normal-stale-return", RightPaneInput{Panes: floating(modePanes(), "3"), Caller: "3", Record: ExpandRecord{Return: "99"}}, ModeFocus, ModeNormal,
+			ExpandRecord{Return: "99"},
+			[]Step{{StepEmbed, "3"}, {StepRestore, "3"}, {StepFocus, "2"}, {StepClear, ""}, {StepNudge, ""}}},
+		{"native-fullscreen-to-normal", RightPaneInput{Panes: fullscreen(modePanes(), "3"), Caller: "3", Record: ExpandRecord{Return: "2", Swap: "third"}}, ModeFullscreen, ModeNormal,
 			ExpandRecord{Return: "2", Swap: "third"},
 			[]Step{{StepFullscreen, "3"}, {StepFocus, "2"}, {StepClear, ""}}},
-		{"maximize-to-normal-same-pane", RightPaneInput{Panes: fullscreen(modePanes(), "3"), Caller: "3", Record: ExpandRecord{Return: "3"}}, ModeMaximize, ModeNormal,
+		{"native-fullscreen-to-normal-same-pane", RightPaneInput{Panes: fullscreen(modePanes(), "3"), Caller: "3", Record: ExpandRecord{Return: "3"}}, ModeFullscreen, ModeNormal,
 			ExpandRecord{Return: "3"},
 			[]Step{{StepFullscreen, "3"}, {StepClear, ""}}},
 		{"no-right-terminal", RightPaneInput{Panes: modePanes()[:3], Caller: "2"}, ModeNormal, ModeNormal, ExpandRecord{}, nil},
@@ -204,6 +210,9 @@ func TestPlanRightPaneCycle(t *testing.T) {
 			}
 			if plan.From != tc.from || plan.To != tc.to || !reflect.DeepEqual(plan.Record, tc.record) || !reflect.DeepEqual(plan.Steps, tc.steps) {
 				t.Fatalf("got %+v\nwant from=%v to=%v record=%+v steps=%+v", plan, tc.from, tc.to, tc.record, tc.steps)
+			}
+			if plan.To == ModeFullscreen {
+				t.Fatal("toggle targets native fullscreen")
 			}
 		})
 	}

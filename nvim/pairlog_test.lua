@@ -33,3 +33,18 @@ assert(prepared_entries[1].append_id == 'attempt-b' and prepared_entries[1].stat
 assert(assert(pairlog.replace(prepared, 1, 'edited')):match('state=prepared'))
 
 print('pairlog_test ok')
+
+-- pair#618: pair-wrap's peer-turn entries stay out of the operator's history,
+-- and a history edit addresses operator entries only.
+local function v1_entry(id, text)
+  return '## 2026-10-16 18:00:00\n<!-- pair-log-v1 bytes=' .. #text .. ' append_id=' .. id .. ' state=submitted -->\n\n' .. text .. old_separator
+end
+local mixed = v1_entry('aaa', 'older prompt') .. v1_entry('bbb', 'newer prompt') .. v1_entry(pairlog.PEER_PREFIX .. 'd-1', '[Couch peer from ops:0; delivery d-1]\nhi')
+local operator = pairlog.operator_entries(assert(pairlog.parse(mixed)))
+assert(#operator == 2 and operator[2].body == 'newer prompt', 'peer entry leaked into history')
+local edited = assert(pairlog.replace(mixed, 1, 'newer prompt === note'))
+local after = assert(pairlog.parse(edited))
+assert(#after == 3)
+assert(after[2].body == 'newer prompt === note', 'edit missed the newest operator entry')
+assert(after[3].body == '[Couch peer from ops:0; delivery d-1]\nhi', 'edit rewrote the peer entry')
+print('pairlog_test peer ok')

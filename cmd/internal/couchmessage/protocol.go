@@ -45,7 +45,11 @@ type Request struct {
 }
 
 type Response struct {
-	Resources       *couchcore.ResourceView `json:",omitempty"`
+	Resources *couchcore.ResourceView `json:",omitempty"`
+	// Refusals answers refusals (pair#618): each slot's newest refusal reason
+	// that no later admission superseded, keyed by canonical slot. Reasons
+	// only: the op is unauthenticated.
+	Refusals        map[string]string `json:",omitempty"`
 	Code, Error     string
 	RecoveryPreview *couchcore.RecoveryPreview `json:",omitempty"`
 	Submission      *SubmissionStatus          `json:",omitempty"`
@@ -253,9 +257,9 @@ func ValidateRequest(r Request) error {
 		}
 		return nil
 	}
-	if r.Op == "resources" {
-		if r != (Request{Op: "resources"}) {
-			return errors.New("resources takes no fields")
+	if r.Op == "resources" || r.Op == "refusals" {
+		if r != (Request{Op: r.Op}) {
+			return errors.New(r.Op + " takes no fields")
 		}
 		return nil
 	}

@@ -468,6 +468,7 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch, configur
 	service.SetBroadcastStatus(console.BroadcastStatus)
 	service.SetShares(console.Shares)
 	service.SetBlockedView(console.SetBlockedThreads)
+	console.SetWrapperActivity(service.WrapperActivity)
 	service.showHub(console)
 	service.SetReplay(console.ReplayShare, console.SharedReplays)
 	service.SetSubmission(console.Submission)
@@ -595,7 +596,7 @@ func newMessageService(parent context.Context, brokerSocket, registrySocket stri
 			if f.Op == couchmessage.FrameSubmit {
 				kind = couchmessage.SessionSubmit
 			}
-			_ = s.post(couchmessage.RegistryEvent{Kind: kind, Token: t, Observation: *f.Observation, Settled: f.Settled, Picker: f.Picker}, false)
+			_ = s.post(couchmessage.RegistryEvent{Kind: kind, Token: t, Observation: *f.Observation, Settled: f.Settled, Picker: f.Picker, BackgroundWork: f.BackgroundWork}, false)
 		},
 		Closed: func(t couchmessage.SessionToken) {
 			_ = s.post(couchmessage.RegistryEvent{Kind: couchmessage.SessionClosed, Token: t}, false)
@@ -640,6 +641,12 @@ func (s *messageService) loop() {
 	registry := couchmessage.NewRegistry()
 	var step func(e couchmessage.RegistryEvent) error
 	step = func(e couchmessage.RegistryEvent) error {
+		if e.Kind == couchmessage.SessionActivity || e.Kind == couchmessage.SessionSubmit {
+			e.At = time.Now()
+			if s.authority.now != nil {
+				e.At = s.authority.now()
+			}
+		}
 		var before map[couchmessage.Binding]factSlotState
 		log := s.facts.Load()
 		if log != nil {
@@ -830,6 +837,12 @@ func (s *messageService) handle(ctx context.Context, request couchmessage.Reques
 			return couchmessage.Response{Code: "unavailable", Error: "resource sweep: " + err.Error()}
 		}
 		return couchmessage.Response{Code: "ok", Resources: &view}
+	case request.Op == "refusals":
+		// A memory read for `couch --list` (pair#618); no caller, like resources.
+		if err := couchmessage.ValidateRequest(request); err != nil {
+			return couchmessage.Response{Code: "invalid-request", Error: err.Error()}
+		}
+		return couchmessage.Response{Code: "ok", Refusals: s.broker.LatestRefusals()}
 	case request.Op == "resume-candidates":
 		return s.handleResumeCandidates(ctx, request)
 	case request.Op == "move-slot":
@@ -1314,6 +1327,31 @@ func (s *messageService) LivenessForThread(scope, tag string) (couchmessage.Slot
 		}
 	}
 	return couchmessage.SlotLiveness{}, false
+}
+
+// WrapperActivity reads the existing admitted-session snapshot, never probes.
+// Known-unsettled or active background work includes a silent command wait;
+// otherwise sessions age from their last work/completion, not idle refreshes.
+func (s *messageService) WrapperActivity(row couchcore.ActionableThreadSummary) time.Time {
+	live, admitted := s.LivenessForThread(row.Address.RepoScope, string(row.Address.Tag))
+	if !admitted || live.Binding.Agent != row.Agent {
+		return time.Time{}
+	}
+	activeBackground := live.BackgroundWork != nil && *live.BackgroundWork
+	if live.Settled == nil && !activeBackground {
+		return time.Time{}
+	}
+	work := live.LastWorkAt
+	if (live.Settled != nil && !*live.Settled) || activeBackground {
+		now := time.Now()
+		if s.authority.now != nil {
+			now = s.authority.now()
+		}
+		if now.After(work) {
+			work = now
+		}
+	}
+	return work
 }
 
 // Liveness behind the message authority: a fresh listing at most this often,

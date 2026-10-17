@@ -172,8 +172,7 @@ func TestRightPaneRungsZellijConformance(t *testing.T) {
 		if _, got := observe(); !strings.Contains(got.geometry, target+":") || !strings.Contains(got.geometry, "float=true") {
 			t.Fatalf("%s: focus not entered: %s", name, got.geometry)
 		}
-		press(target)
-		press(target)
+		press(target) // Focus → Normal; a third press would re-enter Focus.
 		fullscreenLiveWait(t, ctx, name+" restored", func() bool {
 			_, got := observe()
 			return got.geometry == want.geometry

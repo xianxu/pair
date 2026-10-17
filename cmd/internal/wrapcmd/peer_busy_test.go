@@ -137,9 +137,9 @@ func TestPeerBusyAgentStreamingMinutesLands(t *testing.T) {
 	}
 }
 
-// A stream that never frames its output can't be read mid-flight: the
-// delivery expires at the paste-by and says so.
-func TestPeerUnframedStreamExpiresNamingOutput(t *testing.T) {
+// A stream that never frames its output cannot be read mid-flight; it keeps
+// its receipt queued and names the standing wait.
+func TestPeerUnframedStreamWaitsNamingOutput(t *testing.T) {
 	f, d, now, screen := peerBusyFixture(t, false)
 	var out bytes.Buffer
 	deadline := d.receipt().Message.Deadline
@@ -147,15 +147,13 @@ func TestPeerUnframedStreamExpiresNamingOutput(t *testing.T) {
 		peerRender(f, d, screen("turn-empty"))
 		f.proxy.dispatchPeer(&out)
 	}
-	if r := d.receipt(); r.Status != couchmessage.Expired || !strings.Contains(r.Detail, "waiting for rendered output (") || out.Len() != 0 {
+	if r := d.receipt(); r.Status != couchmessage.Queued || r.Detail != "waiting for rendered output" || out.Len() != 0 {
 		t.Fatalf("unframed stream: %+v %q", r, out.String())
 	}
 }
 
-// The expiry names the condition that held the delivery longest, not the
-// check that ran last: here the composer, though the final reading caught a
-// frame half-drawn.
-func TestPeerExpiryNamesTheLongestWait(t *testing.T) {
+// Changing output/composer waits cannot consume an accepted message's life.
+func TestPeerChangingWaitsDoNotExpire(t *testing.T) {
 	f, d, now, _ := peerBusyFixture(t, true)
 	var out bytes.Buffer
 	deadline := d.receipt().Message.Deadline
@@ -170,7 +168,7 @@ func TestPeerExpiryNamesTheLongestWait(t *testing.T) {
 	}
 	f.proxy.dispatchPeer(&out)
 	r := d.receipt()
-	if r.Status != couchmessage.Expired || !strings.HasPrefix(r.Detail, "delivery deadline elapsed: waiting for recognized composer (") || !strings.Contains(r.Detail, " | waiting for rendered output (") {
-		t.Fatalf("expiry detail: %+v", r)
+	if r.Status != couchmessage.Queued || r.Detail == "" || out.Len() != 0 {
+		t.Fatalf("connected wait: %+v", r)
 	}
 }

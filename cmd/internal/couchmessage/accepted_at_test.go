@@ -50,7 +50,7 @@ func TestBrokerAcceptanceTimeSurvivesQueuedPromotion(t *testing.T) {
 	}
 	elapsed.Store(10)
 	queued, err := b.Send(context.Background(), from, "queued", Route{Target: hub.Slot}, "second")
-	if err != nil || queued.Status != Queued || queued.Detail != "position 1" {
+	if err != nil || queued.Status != Queued || queued.Detail != "position 2; waiting for recognized composer" {
 		t.Fatalf("queued receipt: %+v, %v", queued, err)
 	}
 	accepted := base.Add(10 * time.Second)

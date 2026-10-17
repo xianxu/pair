@@ -2,6 +2,7 @@ package couchmessage
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -53,7 +54,7 @@ func TestHubQueuesSeveralSendersAndDeliversInOrder(t *testing.T) {
 	fh.interim <- Receipt{Status: Held, Detail: "draft in the composer"}
 	for i, slot := range []string{"pair:1", "pair:2", "pair:3"} {
 		r, err := b.Send(context.Background(), from[slot], "report-"+slot, Route{Target: "ops:0"}, "plan from "+slot)
-		if err != nil || r.Status != Queued || r.Detail != "position "+string(rune('1'+i)) {
+		if err != nil || r.Status != Queued || !strings.HasPrefix(r.Detail, "position "+string(rune('2'+i))+"; ") {
 			t.Fatalf("%s: %+v %v", slot, r, err)
 		}
 	}
@@ -107,7 +108,7 @@ func TestPromotionHoldsWhileWrapperBusy(t *testing.T) {
 		t.Fatal(err)
 	}
 	r, err := b.Send(context.Background(), sender, "typed-over", Route{Target: "ops:0"}, "report")
-	if err != nil || r.Status != Queued || r.Detail != "position 1" {
+	if err != nil || r.Status != Queued || r.Detail != "position 1; waiting for recognized composer" {
 		t.Fatalf("send to a busy wrapper: %+v %v", r, err)
 	}
 	testwait.Until(t, "two refusals", func() bool { wrapper.mu.Lock(); defer wrapper.mu.Unlock(); return wrapper.refusals >= 2 })
@@ -209,7 +210,7 @@ func TestMessageQueuedBehindAFailingAttemptIsDelivered(t *testing.T) {
 		t.Fatal("first attempt never reached the wrapper")
 	}
 	r, err := b.Send(context.Background(), second, "behind", Route{Target: "ops:0"}, "second")
-	if err != nil || r.Status != Queued || r.Detail != "position 1" {
+	if err != nil || r.Status != Queued || r.Detail != "position 1; waiting for recognized composer" {
 		t.Fatalf("second send: %+v %v", r, err)
 	}
 	// The worker has seen the queue blocked by the attempt in flight, so
@@ -254,9 +255,8 @@ func TestPromotionAdoptsAnAlreadyCommittedMessage(t *testing.T) {
 	}
 }
 
-// A queued message reads expired once QueueWait passes, even while the
-// worker is still inside a long held delivery (pair#492).
-func TestQueuedMessageReadsExpiredWhileTheWorkerIsBusy(t *testing.T) {
+// Reads and replayed sends cannot discard work while the receiver is busy.
+func TestQueuedMessageRemainsWhileTheWorkerIsBusy(t *testing.T) {
 	var mu sync.Mutex
 	now := time.Date(2026, 10, 12, 11, 0, 0, 0, time.UTC)
 	clock := func() time.Time { mu.Lock(); defer mu.Unlock(); return now }
@@ -278,14 +278,12 @@ func TestQueuedMessageReadsExpiredWhileTheWorkerIsBusy(t *testing.T) {
 		t.Fatal(err)
 	}
 	mu.Lock()
-	now = now.Add(QueueWait)
+	now = now.Add(2 * time.Hour)
 	mu.Unlock()
-	// Every read of the receipt sees the expiry: a status query, and the
-	// same send replayed (close review round 3).
-	if r, err := b.Send(context.Background(), sender, "waiting", Route{Target: "ops:0"}, "second"); err != nil || r.Status != Expired {
-		t.Fatalf("replayed send past QueueWait: %+v %v", r, err)
+	if r, err := b.Send(context.Background(), sender, "waiting", Route{Target: "ops:0"}, "second"); err != nil || r.Status != Queued {
+		t.Fatalf("replayed send lost queued work: %+v %v", r, err)
 	}
-	if r, err := b.Status(sender, "waiting"); err != nil || r.Status != Expired {
-		t.Fatalf("past QueueWait: %+v %v", r, err)
+	if r, err := b.Status(sender, "waiting"); err != nil || r.Status != Queued {
+		t.Fatalf("status lost queued work: %+v %v", r, err)
 	}
 }
