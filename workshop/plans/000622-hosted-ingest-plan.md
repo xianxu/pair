@@ -184,3 +184,9 @@ sdlc local-check run --name suite
 Add concrete benchmark names with the new tests and record their exact baseline/candidate invocations. All correctness commands must pass; benchmarks report allocation and distribution, not a pass/fail speed claim. If a new production Go file becomes necessary, include the artifact inventory check and update its manifest; prefer existing source files for this scope.
 
 No extra per-client buffer/state, worker, visibility-dependent behavior or authority. Local helpers must not become another grapheme implementation: they recognize only proven ASCII cases. A source predicate wider than that, repeated failed optimization, or need for new terminal state is a design delta requiring TL review. Lazy replay and upstream repaint reduction remain deferred alternatives. No exact per-client CPU attribution is claimed; bytes plus whole-server CPU/profile are the agreed measurement boundary.
+
+### 2026-10-16 — repeated benchmark benefit not established; implementation held
+
+The approved stop condition fired after a complete ABBA experiment: narrow shortcuts are built and semantic controls pass, but complete-redraw wall-time benefit did not repeat. [Evidence and proposed measurement revision](000622-m2-benchmark-evidence.md) retains all runs, broad candidate B2 deterioration, mixed/ASCII contrary evidence even before B2, host load, source/binary/log hashes and the failed test-only oracle qualification corrected before production. No full suite, review, stage or live acceptance is claimed.
+
+Proposed next action is measurement-only: fixed identical work counts per case, paired ABBA order per workload and owned-child cumulative CPU outside the hot path, alongside wall time and contention metadata. This distinguishes CPU cost from descheduling without changing the candidate mechanism. Await TL approval; no blind benchmark retry or wider optimization.

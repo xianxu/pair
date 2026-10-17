@@ -109,6 +109,14 @@ Concrete M1 plan 044ec5dc278c07223a413253e32ba445e0a59fa9 sent to hub as 9c72573
 
 TL e6511b06-0db1-4dae-a695-ca1c364c46f5 (submitted) approves M1 as planned, explicitly without per-feed CPU timing and with full gates. Plan-quality round 1 raised only Important PQ-1: replace test-case inventories with function-named adversarial strategies. Refined Child.ingest/IngestBytes, Console.HostedIngestSnapshot, projection and request/CLI strategies with independent oracles and mechanical guards. No scope/mechanism change; no implementation started before gate admission.
 
+### 2026-10-16 — M2 built; repeatability guard stops qualification
+
+TL approval4f9a9b31 confirmed, canonical-branch recovery6d5eb120 applied. Plan-quality CLEAN; cumulative3.55725h estimate recorded via setter, estimate-quality INFO retains optimistic verification-budget caveat. Baseline qualification a9cf0d192590ab9195aecded9ba3f043dca8154c, candidate b721874da1b87dbc731b7b6fc6bb2da4e8bf1e4e. Both shortcuts preserve existing state and safety boundaries. Full VT module and targeted frame semantics pass; the independent oracle caught a non-distinguishing test-only Prepend mutant and was corrected to a real keycap continuation before production.
+
+[Complete-ingest ABBA evidence](../plans/000622-m2-benchmark-evidence.md) shows no repeated complete-redraw benefit. B1 ingest4096 improves11.5%, but ASCII redraw is mixed and mixed/chunk64 regresses; B2 broadly slows by an order of magnitude while host load rises16.41→35.19. All runs retained; no causal scheduling attribution or selective exclusion. Approved stop/re-plan condition fired. Candidate held, no full suite/close/stage/landing/live acceptance attempted.
+
+Proposed measurement-only revision brackets fixed identical work with owning-child cumulative user+system CPU outside the hot path, alongside wall time and ABBA order per workload. This needs TL approval before execution. Existing temporary benchmark worktree/binaries/logs remain invocation-owned for that decision; no runner remains and no process was signalled.
+
 ## Estimate
 
 Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only; calibration is flagged stale by estimate-source, so provisional. Original M1 derivation was1.509h. The following cumulative derivation now includes approved M2 through live acceptance and closure; it is not a remaining-work estimate. M1's original primitives remain unchanged below.
