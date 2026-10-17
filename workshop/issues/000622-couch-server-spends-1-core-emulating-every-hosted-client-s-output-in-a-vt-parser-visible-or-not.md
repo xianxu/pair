@@ -81,6 +81,12 @@ Affected-package run encountered TestWorkbenchPerformanceIdleUITick: activity wo
 
 The remaining affected packages completed: couchcore passed531.520s and artifactpath passed11.803s. The aggregate command exited1; its only failure was TestWorkbenchPerformanceIdleUITick (#626). Preserve it as a failed run, alongside the unchanged targeted pass, without calling the aggregate green. Full recorded suite is still queued.
 
+### 2026-10-16 — recorded full suite passes
+
+Required sdlc local-check run --name suite passed on pushed code head aaf17569ea4005aa59502de3a3e47ecacb01dada, execution10m46s after queue1671s. Recorded sdlc-local/suite; log /Users/xianxu/workspace/pair/.git/sdlc/local-checks/aaf17569ea4005aa59502de3a3e47ecacb01dada/suite.log, SHA256 prefix e13259c07f61. All shell/editor checks and Go packages completed. couchcmd51.455s, couchcore316.270s, couchtty45.657s, ptychild0.837s, wrapcmd49.269s. The earlier #626 affected-package failure remains retained; the unchanged full recorded run passes, including that activity test. No retry, timeout increase, test exclusion or production change was used. PR382 CI conformance/merge/local-gates checks also passed on the docs-only descendant. Preparing M1 boundary review, keeping M2 unchecked.
+
+The two interim hub outcome reports a523d633 and20027db5 expired waiting for a recognized composer; those queue-state reports are now stale. A fresh final outcome will be sent after the M1 gates/landing; no peer keys or operator stage were used to force delivery.
+
 ## Revisions
 
 ### 2026-10-16 — measurement milestone before optimization design
