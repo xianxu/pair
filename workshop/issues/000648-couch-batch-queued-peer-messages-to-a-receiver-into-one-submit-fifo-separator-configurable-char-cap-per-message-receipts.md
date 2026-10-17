@@ -16,6 +16,7 @@ claimant:
     workspace: pair:3
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
+flow: {kind: full, provenance: operator}
 ---
 
 # Couch: batch queued peer messages to a receiver into one submit (FIFO, separator, configurable char cap), per-message receipts
