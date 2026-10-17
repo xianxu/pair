@@ -1,6 +1,6 @@
 ---
 id: 000598
-status: codecomplete
+status: done
 created: 2026-10-15
 updated: 2026-10-17
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 88fbac6183549f2aad6ab5e5ad98c61965617f07
         evidence_commit: 09342bb66d1eae5af855ebf802507a61fd1054b6
+        landed_commit: 555014c077da941ef567cb8c8274a241dcd6276b
 ---
 
 # Diagnose helper startup cancellation timeout
