@@ -95,6 +95,7 @@ var ResolvedBindings = append([]ResolvedBinding{
 	{Name: "composite-slug-proposed", Family: "slug", Resolver: "Resolve", Member: "SlugProposed"},
 	{Name: "scoped-log", Family: "log", Resolver: "ResolveScoped", Member: "Log"},
 	{Name: "scoped-nvim-pid", Family: "nvim-pid", Resolver: "ResolveScoped", Member: "NvimPID"},
+	{Name: "scoped-nvim-pids", Family: "nvim-pid", Resolver: "ResolveScoped", Member: "NvimPIDs"},
 	{Name: "scoped-outer-tty", Family: "outer-tty", Resolver: "ResolveScoped", Member: "OuterTTY"},
 	{Name: "scoped-pair-wrap-pid", Family: "pair-wrap-pid", Resolver: "ResolveScoped", Member: "PairWrapPID"},
 	{Name: "scoped-pane", Family: "pane", Resolver: "ResolveScoped", Member: "PaneChecked"},
@@ -120,6 +121,7 @@ var ResolvedBindings = append([]ResolvedBinding{
 	{Name: "composite-lifecycle-completion", Family: "lifecycle-completion", Resolver: "Resolve", Member: "Lifecycle"},
 	{Name: "composite-lifecycle-native-session", Family: "native-session", Resolver: "Resolve", Member: "Lifecycle"},
 	{Name: "selected-nvim-pid", Family: "nvim-pid", Resolver: "ResolveSelectedScope", Member: "NvimPIDGlob"},
+	{Name: "selected-nvim-pid-globs", Family: "nvim-pid", Resolver: "ResolveSelectedScope", Member: "NvimPIDGlobs"},
 	{Name: "selected-agent-default", Family: "agent-default", Resolver: "ResolveSelectedScope", Member: "AgentDefault"},
 	{Name: "selected-history-draft", Family: "draft", Resolver: "ResolveSelectedScope", Member: "HistoryGlobs"},
 	{Name: "selected-history-ledger", Family: "ledger", Resolver: "ResolveSelectedScope", Member: "HistoryGlobs"},
@@ -395,6 +397,7 @@ var SourceClassifications = []SourceClassification{
 				"pair-changelog-open: resolve artifact namespace: %v\n",
 				"pair-changelog-open: resolve changelog artifact: %v\n",
 				"pair-changelog-open: resolve scrollback artifact: %v\n",
+				"pair-changelog-open: write %s: %v\n",
 				"pair-changelog-open: viewer: %v\n")...)...),
 	},
 	{Path: "cmd/internal/reviewcmd/run.go", Kind: ResolvedConsumer,
@@ -476,8 +479,8 @@ var SourceClassifications = []SourceClassification{
 	}},
 	{Path: "cmd/internal/launcher/legacy_live.go", Kind: ResolvedConsumer, Families: []string{"pane"}, BindingNames: []string{"legacy-pane"}},
 	{Path: "cmd/internal/launcher/lifecycle.go", Kind: ResolvedConsumer,
-		Families:     []string{"adapt", "agent", "draft", "image-capture", "nvim-pid", "outer-tty", "pair-wrap-pid", "pane", "scrollback", "title-pid"},
-		BindingNames: []string{"scoped-adapt", "scoped-agent", "scoped-draft", "scoped-image-capture", "scoped-nvim-pid", "scoped-outer-tty", "scoped-pair-wrap-pid", "scoped-pane", "scoped-scrollback", "scoped-title-pid"}},
+		Families:     []string{"adapt", "agent", "draft", "image-capture", "outer-tty", "pair-wrap-pid", "pane", "scrollback", "title-pid"},
+		BindingNames: []string{"scoped-adapt", "scoped-agent", "scoped-draft", "scoped-image-capture", "scoped-outer-tty", "scoped-pair-wrap-pid", "scoped-pane", "scoped-scrollback", "scoped-title-pid"}},
 	{Path: "cmd/internal/launcher/migrate.go", Kind: ResolvedConsumer,
 		Families: []string{
 			"agent", "agent-pid", "config", "draft", "image-capture", "layout", "layout-mode", "ledger", "log",
@@ -490,9 +493,14 @@ var SourceClassifications = []SourceClassification{
 			"legacy-rename-pane", "legacy-rename-queue", "legacy-rename-quote", "legacy-rename-scrollback",
 			"legacy-rename-title-pid", "scoped-queue",
 		}},
+	// #583: nvim_reap_os.go owns the whole reap path — it turns a resolved Paths
+	// into reap targets and enumerates the selected scope's records for the
+	// orphan sweep. Both reach members through a Paths/ScopePaths it was handed
+	// or resolved and passed on, so no binding is witnessed in-file.
+	{Path: "cmd/internal/launcher/nvim_reap_os.go", Kind: ResolvedConsumer},
 	{Path: "cmd/internal/launcher/osruntime.go", Kind: ResolvedConsumer,
-		Families:     []string{"agent", "draft", "ledger", "nvim-pid", "outer-tty", "parked", "parked-scrollback", "restart", "scrollback", "session-binding", "session-inventory-catalog"},
-		BindingNames: []string{"cache-restart", "scoped-agent", "scoped-draft", "scoped-ledger", "scoped-nvim-pid", "scoped-outer-tty", "scoped-parked", "scoped-parked-scrollback", "scoped-scrollback", "selected-nvim-pid", "selected-session-binding", "selected-session-inventory-catalog"},
+		Families:     []string{"agent", "ledger", "outer-tty", "parked", "parked-scrollback", "restart", "scrollback", "session-binding", "session-inventory-catalog"},
+		BindingNames: []string{"cache-restart", "scoped-agent", "scoped-ledger", "scoped-outer-tty", "scoped-parked", "scoped-parked-scrollback", "scoped-scrollback", "selected-session-binding", "selected-session-inventory-catalog"},
 	},
 	{Path: "cmd/internal/launcher/session_index_cache.go", Kind: ResolvedConsumer,
 		Families: []string{"session-binding"}, BindingNames: []string{"legacy-session-binding", "selected-session-binding"}},
@@ -694,6 +702,12 @@ var NonArtifactSources = []string{
 	"cmd/internal/procutil/resource.go",
 	"cmd/internal/procutil/resource_darwin.go",
 	"cmd/internal/procutil/resource_unsupported.go",
+
+	// #583's orphan sweep reads the same evidence: the roots it matches are
+	// worktrees and the argv it reads is inspected, never constructed.
+	"cmd/internal/couchcmd/reap_orphans.go",
+	"cmd/internal/couchcore/resource_orphan.go",
+	"cmd/internal/procutil/identity_age.go",
 
 	"cmd/internal/launcher/native_createflow_os.go",
 	"cmd/internal/launcher/native_resume_selector.go",
@@ -1127,6 +1141,9 @@ var NonArtifactSources = []string{
 	"cmd/internal/launcher/session_owner_pass.go",
 	"cmd/internal/couchcore/session_owner_pass.go",
 	"cmd/internal/launcher/session_reap.go",
+	// #583: the embedded-nvim reap decision is pure — it reads a row of process
+	// evidence and a target's expected argv, and names no artifact path.
+	"cmd/internal/launcher/nvim_reap.go",
 	"cmd/internal/couchcore/reap.go",
 	"cmd/internal/couchcore/recover_action.go",
 	"cmd/internal/couchcore/progress.go",

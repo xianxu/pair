@@ -111,6 +111,7 @@ type ChangelogArtifactSet struct {
 	OpenLock    string
 	DistillLock string
 	Status      string
+	NvimPID     string // viewer embed pid, keyed to the log it watches: the viewer is per session, not per nvim kind (#583)
 	Ready       string
 }
 
@@ -278,6 +279,31 @@ func (p ScopePaths) HistoryGlobs() []string {
 		filepath.Join(p.scopeDir, "log-*.md"),
 		filepath.Join(p.scopeDir, "ledger-*.jsonl"),
 	}
+}
+
+// NvimKinds is the closed set of editor surfaces Pair spawns as `nvim --embed`
+// and records in a tag-keyed pid sidecar. It is the single spelling every
+// consumer derives from (#583): a kind absent here is a kind whose embed is
+// never reaped, which is how `review` leaked. The changelog viewer is not a
+// kind — it is per (tag, agent, session), so it carries an artifact-keyed
+// record instead (ChangelogArtifactSet.NvimPID).
+func NvimKinds() []string { return []string{"draft", "scrollback", "review"} }
+
+// NvimPIDGlob is one kind's selected-scope enumeration pattern.
+type NvimPIDGlob struct{ Kind, Pattern string }
+
+// NvimPIDGlobs returns one glob per NvimKinds entry, in kind order.
+func (p ScopePaths) NvimPIDGlobs() ([]NvimPIDGlob, error) {
+	kinds := NvimKinds()
+	out := make([]NvimPIDGlob, 0, len(kinds))
+	for _, kind := range kinds {
+		pattern, err := p.NvimPIDGlob(kind)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, NvimPIDGlob{Kind: kind, Pattern: pattern})
+	}
+	return out, nil
 }
 
 // NvimPIDGlob returns the selected-scope enumeration pattern for one nvim
@@ -556,8 +582,8 @@ func (p Paths) RenameArtifacts(agents []string) []string {
 		p.WorkbenchLayout(), p.QueueDir(), p.Quote(), p.ImageCapture(),
 		p.ImageCaptureDone(), p.Draft(), p.Log(), p.Ledger(),
 		p.LifecycleJournal(),
-		p.NvimPID("draft"), p.NvimPID("scrollback"),
 	}
+	out = append(out, p.NvimPIDs()...)
 	for _, agent := range agents {
 		out = append(out,
 			p.Config(agent), p.Pane(agent), p.ScrollbackANSI(agent),
@@ -675,6 +701,16 @@ func (p Paths) NvimPIDChecked(kind string) (string, error) {
 	return p.taggedComponent("nvim-pid-", kind, "")
 }
 
+// NvimPIDs resolves one pid sidecar per NvimKinds entry, in kind order.
+func (p Paths) NvimPIDs() []string {
+	kinds := NvimKinds()
+	out := make([]string, 0, len(kinds))
+	for _, kind := range kinds {
+		out = append(out, p.NvimPID(kind))
+	}
+	return out
+}
+
 func (p Paths) ParkedScrollback(timestamp string) string {
 	return mustPath(p.ParkedScrollbackChecked(timestamp))
 }
@@ -761,6 +797,20 @@ func (p Paths) ChangelogArtifacts(agent, sessionID string) (ChangelogArtifactSet
 	if err != nil {
 		return ChangelogArtifactSet{}, err
 	}
+	set := changelogSiblings(base)
+	set.Ready = p.ChangelogReady(agent)
+	return set, nil
+}
+
+// changelogNvimPIDSuffix extends a changelog base into the viewer's pid record.
+// One spelling, because the sibling construction below and the recognizer that
+// reads a record back into its set both name it (#583).
+const changelogNvimPIDSuffix = ".nvim-pid"
+
+// changelogSiblings is the changelog family's one sibling construction, over a
+// base whose tag, agent and session are already resolved. Ready is keyed by the
+// agent alone, so a caller that knows the agent sets it.
+func changelogSiblings(base string) ChangelogArtifactSet {
 	return ChangelogArtifactSet{
 		Log:         base + ".md",
 		Anchor:      base + ".anchor",
@@ -768,8 +818,32 @@ func (p Paths) ChangelogArtifacts(agent, sessionID string) (ChangelogArtifactSet
 		OpenLock:    base + ".openlock",
 		DistillLock: base + ".distill.lock",
 		Status:      base + ".status",
-		Ready:       p.ChangelogReady(agent),
-	}, nil
+		NvimPID:     base + changelogNvimPIDSuffix,
+	}
+}
+
+// ChangelogNvimPIDGlob is the selected-scope enumeration pattern for the
+// changelog viewer's pid records (#583). Callers may glob this pattern, but must
+// not reconstruct the family's filenames themselves.
+func (p ScopePaths) ChangelogNvimPIDGlob() string {
+	return filepath.Join(p.scopeDir, "changelog-*"+changelogNvimPIDSuffix)
+}
+
+// ChangelogSetFromNvimPID recognizes one selected-scope record
+// ChangelogNvimPIDGlob returned and resolves the artifact set it belongs to.
+// Ready stays empty: it is keyed by the agent alone, and a record's base does
+// not state the tag/agent/session boundary unambiguously.
+func (p ScopePaths) ChangelogSetFromNvimPID(path string) (ChangelogArtifactSet, error) {
+	clean := filepath.Clean(path)
+	if filepath.Dir(clean) != p.scopeDir {
+		return ChangelogArtifactSet{}, fmt.Errorf("changelog pid record %q is outside scope %q", path, p.scopeDir)
+	}
+	name := filepath.Base(clean)
+	base := strings.TrimSuffix(name, changelogNvimPIDSuffix)
+	if base+changelogNvimPIDSuffix != name || !strings.HasPrefix(base, "changelog-") {
+		return ChangelogArtifactSet{}, fmt.Errorf("%q is not a changelog pid record", path)
+	}
+	return changelogSiblings(filepath.Join(p.scopeDir, base)), nil
 }
 
 func (p Paths) AgentDraft(agent string) string {

@@ -31,12 +31,16 @@ var ErrServerChanged = errors.New("zellij server changed since it was observed")
 type ProcessRow struct {
 	PID, PPID int
 	Identity  string
+	Name      string
 }
 
-// ProcessTable is the reaper's view of the host.
+// ProcessTable is the reaper's view of the host. Command reports whether argv
+// could be read at all: a caller that attributes a process by its argv must not
+// mistake an unreadable one for an empty one.
 type ProcessTable interface {
 	Snapshot(ctx context.Context) ([]ProcessRow, error)
 	Identity(pid int) string
+	Command(pid int) (args []string, ok bool)
 	Signal(pid int, sig syscall.Signal) error
 }
 
@@ -71,6 +75,14 @@ func PlanReap(server SessionServerIdentity, rows []ProcessRow) []ReapStep {
 	}
 	sort.SliceStable(steps, func(i, j int) bool { return steps[i].depth > steps[j].depth })
 	return steps
+}
+
+// TreeReaper is the escalation cadence #399 measured: SIGTERM, three seconds for
+// a clean exit, SIGKILL, two more for the kernel to collect the process. Every
+// reaper of a process tree builds through it, so the cadence has one home and a
+// second reaper cannot quietly invent a shorter fuse.
+func TreeReaper(table ProcessTable) Reaper {
+	return Reaper{Table: table, TermWait: 3 * time.Second, KillWait: 2 * time.Second, Poll: 50 * time.Millisecond}
 }
 
 // Reaper signals one planned tree with bounded escalation.
@@ -149,27 +161,31 @@ func (r Reaper) await(ctx context.Context, steps []ReapStep, wait time.Duration)
 	}
 }
 
-// OSProcessTable reads the real host.
-type OSProcessTable struct{}
+// OSProcessTable reads the real host. Source is the process IO it reads
+// through; the zero value reads natively, and an injected one lets a test own
+// the host (#583's reaper runs on this seam).
+type OSProcessTable struct{ Source procutil.Source }
 
 // Snapshot reads pid, parent and start identity together (procutil.Table: one
 // kern.proc.all sysctl on macOS), so a planned row's parent and identity
 // describe the same process at the same moment (#399 close review BR-15).
-func (OSProcessTable) Snapshot(ctx context.Context) ([]ProcessRow, error) {
+func (t OSProcessTable) Snapshot(ctx context.Context) ([]ProcessRow, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	procs, err := procutil.Table()
+	procs, err := t.Source.Table()
 	if err != nil {
 		return nil, err
 	}
 	rows := make([]ProcessRow, len(procs))
 	for i, p := range procs {
-		rows[i] = ProcessRow{PID: p.PID, PPID: p.PPID, Identity: p.Identity}
+		rows[i] = ProcessRow{PID: p.PID, PPID: p.PPID, Identity: p.Identity, Name: p.Name}
 	}
 	return rows, nil
 }
 
-func (OSProcessTable) Identity(pid int) string { return procutil.Identity(strconv.Itoa(pid)) }
+func (t OSProcessTable) Identity(pid int) string { return t.Source.Identity(pid) }
 
-func (OSProcessTable) Signal(pid int, sig syscall.Signal) error { return syscall.Kill(pid, sig) }
+func (t OSProcessTable) Command(pid int) ([]string, bool) { return t.Source.Command(pid) }
+
+func (t OSProcessTable) Signal(pid int, sig syscall.Signal) error { return syscall.Kill(pid, sig) }

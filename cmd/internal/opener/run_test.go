@@ -1,6 +1,7 @@
 package opener
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -37,12 +38,14 @@ type fakeRuntime struct {
 	viewer        *viewerCall
 	sessionID     string
 	sessionStatus sessioninventory.BindingStatus
+	writeErr      map[string]error
 }
 
 func newFake() *fakeRuntime {
 	return &fakeRuntime{
 		alive: map[string]bool{}, files: map[string]string{}, wrote: map[string]string{},
 		sizes: map[string]int64{}, executable: map[string]bool{}, dumpByPane: map[string]string{},
+		writeErr: map[string]error{},
 	}
 }
 
@@ -55,7 +58,13 @@ func (f *fakeRuntime) ReadFile(p string) (string, error) {
 	}
 	return "", fmt.Errorf("no such file: %s", p)
 }
-func (f *fakeRuntime) WriteFile(p, d string) error   { f.wrote[p] = d; return nil }
+func (f *fakeRuntime) WriteFile(p, d string) error {
+	if err := f.writeErr[p]; err != nil {
+		return err
+	}
+	f.wrote[p] = d
+	return nil
+}
 func (f *fakeRuntime) WriteAtomic(p, d string) error { f.wrote[p] = d; return nil }
 func (f *fakeRuntime) Remove(p string)               { f.removed = append(f.removed, p) }
 func (f *fakeRuntime) FileSize(p string) (int64, bool) {
@@ -199,6 +208,41 @@ func TestRunChangelogLaunchesDetachedDistillerAndViewer(t *testing.T) {
 	}
 	if rt.viewer == nil || rt.viewer.lua != "/h/nvim/changelog.lua" || rt.viewer.file != base+".md" {
 		t.Fatalf("viewer = %+v", rt.viewer)
+	}
+	if !hasEnv(rt.viewer.env, "PAIR_NVIM_PID_FILE="+base+".nvim-pid") {
+		t.Fatalf("viewer env missing pid record: %v", rt.viewer.env)
+	}
+}
+
+// A viewer whose openlock could not be written must not open: #583's sweep reads
+// an absent openlock as a dead opener and kills the embed the viewer published,
+// so opening one would hand a live viewer to another session's reap.
+func TestRunChangelogRefusesAViewerItCannotClaim(t *testing.T) {
+	rt := newFake()
+	rt.pid = "100"
+	rt.sizes["/dd/scrollback-t-claude.raw"] = 50
+	rt.executable["/h/bin/pair"] = true
+	rt.detachedPID = "999"
+	base := "/dd/changelog-t-claude-sid1"
+	rt.writeErr[base+".openlock"] = errors.New("read-only file system")
+	opts := Options{Tag: "t", Agent: "claude", DataDir: "/dd", PairHome: "/h", SessionID: "sid1"}
+
+	var stderr strings.Builder
+	code := RunChangelog(opts, rt, &stderr)
+	if code != 1 {
+		t.Fatalf("code = %d, want 1", code)
+	}
+	if rt.viewer != nil {
+		t.Fatalf("the viewer opened with no ownership record: %+v", rt.viewer)
+	}
+	if len(rt.detached) != 0 {
+		t.Fatalf("the distiller launched for a viewer that will not open: %v", rt.detached)
+	}
+	if len(rt.removed) != 0 {
+		t.Fatalf("a lock this opener never wrote was removed: %v", rt.removed)
+	}
+	if !strings.Contains(stderr.String(), base+".openlock") {
+		t.Fatalf("the refusal named no ownership record: %q", stderr.String())
 	}
 }
 
