@@ -53,13 +53,15 @@ Couch CPU all the time, whether or not anyone is looking at that slot.
 ## Plan
 
 - [x] M1 — land permanent per-hosted-client ingest-byte diagnostics through read-only resources; no parser-policy change.
-- [ ] M2 — after the combined restart, measure natural idle/busy rates and server CPU, choose the smallest correct optimization with TL approval, then implement and verify it.
+- [x] M2 — after the combined restart, measure natural idle/busy rates and server CPU, choose the smallest correct optimization with TL approval, then implement and verify it.
 - [ ] After M2 lands, verify production CPU/sample and console/peek/waiting at the next TL-coordinated Couch restart before whole-issue close.
 
 
 ## Log
 
 
+
+- 2026-10-17: closed M2 — Required suite on b498b3c91696570946b54e5c7932052cdb010d2c passed12m53s, log f015c1dc152dff569bab9043151aab45dfb3b8fa8acc8cc81068ef826a483732; later prose only. Full VT and terminal/ptychild races pass. Differential/generated semantics pass. Quiet28-case fixed-work ABBA complete ASCII redraw CPU -13.68 to -15.57%, mixed -2.84 to -6.30%, every candidate below both baselines. Native CI #636 initial failure retained, unchanged attempt2 passes. Atlas updated; TL owns portfolio. TL642b580a authorizes M2 landing before next restart; live server CPU/sample and console/peek/waiting remain pending whole-issue acceptance. TL0b14e067 approves no-actual: legacy suite attempt 29229556 lacks exact queue endpoints; excluded from calibration per ariadne#420.; review verdict: SHIP
 ### 2026-10-16
 - 2026-10-16: closed M1 — M1 diagnostics only: recorded suite passed on aaf17569ea4005aa59502de3a3e47ecacb01dada (10m46s, log e13259c07f61); generated/concurrent counter and race checks, parser-lock barrier, production socket/JSON/text CLI conformance and exact encoded frame bounds pass. #626 retains the unrelated affected-package failure plus unchanged controls. README/atlas updated; TL owns project records. TL e6511b06 approves landing before the coordinated live restart; M2 CPU reduction and live metrics remain owed.; review verdict: SHIP
 
