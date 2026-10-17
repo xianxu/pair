@@ -111,3 +111,110 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-17T13:05:40-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 647 — Harden one-shot zellij actions against misrouted replies (zellij 0.45.1 client-ID reuse, pair#640): unknown on mismatch, confirm before mutating, clipboard fails closed |
+| repo | pair |
+| issue file | workshop/issues/000647-harden-one-shot-zellij-actions-against-misrouted-replies-zellij-0-45-1-client-id-reuse-pair-640-unknown-on-mismatch-confirm-before-mutating-clipboard-fails-closed.md |
+| boundary | milestone M1 |
+| milestone | M1 |
+| window | c0841e1082d39731781d8a2972eeeaed41d07ade..daac3160b931f3344bae2adc31afd21c8ec07153 |
+| command | sdlc milestone-close --issue 647 --milestone M1 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-17T13:05:40-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+BR-1, BR-2 and BR-3 are addressed, with regressions verified to fail when their fixes are removed. The strict contracts, listing reconciliation and cancellation tests provide solid coverage. One blocking error-composition gap remains: both query-runner consumers can discard a process-cleanup failure and return successful admission evidence.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      The retry is removed. TestCouchSessionAttachStopsAtFirstUnknownListing passes at HEAD and fails at all five production/exported attach fences when the retry is restored in a disposable copy.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Native and cached short/full listings now require exact identity-set agreement before projection or client queries. Removing reconciliation makes the contradictory-listing and production RunLaunch regressions fail.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      The shared fixture now emits native-valid full listings and is_plugin fields. Listed-detached and composed-launch consumers pass with isolated Git discovery; reverting the fixture makes TestRegistrationTerminalFixtureDistinguishesListingForms fail.
+findings:
+  - id: new
+    severity: Critical
+    kind: defect
+    family: unknown-observation-is-terminal
+    title: |
+      Absence diagnostics erase query-process cleanup failures
+    detail: |
+      cmd/internal/launcher/zellij.go:227-230 and cmd/internal/launcher/osruntime.go:175-178 use errors.As to recognize an exit-1 diagnostic, then return success even when zellijexec.Run joined that ExitError with a cleanup failure at cmd/internal/zellijexec/run.go:45-53. Injecting EIO at the collector boundary reproduced nil errors from both production consumers. This violates ARCH-ORDER: a failed query boundary becomes successful absence or name-acceptance evidence. This is the 2nd finding in family unknown-observation-is-terminal. Do NOT fix only one instance: state and enforce the rule that diagnostic normalization may consume only the subprocess exit failure, never cancellation or collection failures. The sweep found this pattern in both of the runner's two production consumers. Preserve cleanup status separately and add regressions for both consumers.
+```
+
+1. **Strengths**
+
+   - Listing reconciliation preserves exact names, rejects missing/additional identities and accepts reordered compatible rows.
+   - Attachment regressions exercise actual strict parsing through production orchestration.
+   - Handoff tests control cancellation and child-exit ordering, including joining post-birth queries before lease release.
+
+2. **Critical findings**
+
+   - The finding above blocks M1. Separate subprocess status from collector errors so accepted native diagnostics cannot suppress ownership failures.
+
+3. **Important findings**
+
+   None.
+
+4. **Minor findings**
+
+   None.
+
+5. **Test coverage notes**
+
+   Complete launcher, reply, process-owner, fake, pane and procutil package tests passed. Targeted Couch lifecycle tests passed, as did launcher admission/handoff race tests and reply/fake race tests.
+
+   The composed-launch tests initially failed because temporary repositories discovered the enclosing review checkout. They passed with a disposable Git-discovery barrier. All mutation controls ran in disposable copies that were removed; the pinned checkout remains unchanged. Native qualification and the whole-issue suite were not run.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** shared validators and process-group observation avoid parallel implementations.
+   - **ARCH-PURE — pass:** parsing/projection logic is separate from process execution.
+   - **ARCH-PURPOSE — flag:** terminal-unknown handling still misses joined collector failures.
+   - **ARCH-MOCK — pass for M1:** stateful CLI tests use the production subprocess boundary; native qualification remains M3 work.
+   - **ARCH-CONSTRAINTS — pass:** shared query budgets and independent client lifetimes have deterministic coverage.
+   - **ARCH-SECURE — pass:** strict parsing preserves missing facts and rejects contradictory identities.
+   - **ARCH-ORDER — flag:** diagnostic normalization collapses failed collection into successful evidence.
+   - **ARCH-FUNERAL — pass structurally:** explicit process cleanup and temporary-root ownership exist; cleanup failures must remain visible.
+
+   Atlas updates cover the new internal surfaces. This range introduces no user-facing command, flag or configuration requiring a README update.
+
+7. **Plan revision recommendations**
+
+   Add a `## Revisions` entry specifying that subprocess diagnostic normalization cannot suppress cancellation or collection failures, enumerating both `zellijexec.Run` consumers and requiring regression coverage at each.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"ff41bbe4-d232-453e-ace3-310896fa8f77","repository":"github.com/xianxu/pair","issue_id":"000647","recipe":"milestone-review","round":2,"attempt":1,"agent":"codex","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/9c75f4d5e27995bc","reviewed_head":"daac3160b931f3344bae2adc31afd21c8ec07153","slot":"pair:1","requested_at":"2026-10-17T20:01:49.243621Z"},"phase":"finished","pid":90232,"started_at":"2026-10-17T20:01:49.461273Z","finished_at":"2026-10-17T20:05:39.167824Z","session_id":"01a14b74-d389-7ed3-b767-c5c1be0263a0","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.738749542s
+head: "daac3160b931f3344bae2adc31afd21c8ec07153"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

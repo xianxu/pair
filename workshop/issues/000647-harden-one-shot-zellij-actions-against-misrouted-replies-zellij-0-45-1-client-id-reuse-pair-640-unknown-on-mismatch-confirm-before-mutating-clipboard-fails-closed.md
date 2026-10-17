@@ -210,3 +210,10 @@ The extended race selection passed1.653s (/tmp/pair647-r3-final-cancel-race.log)
 Full Couch package control passed371.419s with no failing tests (go test -json ./cmd/internal/couchcore -count=1 -timeout 20m; /tmp/pair647-m1-couchcore-control.json). It used the existing20m allowance, not a raised deadline, and ran concurrently with another full suite; this is not an idle-host performance measurement. This control started in the R3 working tree before the final post-birth cancellation correction and qualifies the BR-3 shared fixture across the entire package. That final narrow ownership correction is independently covered by the latest complete launcher package pass74.983s (/tmp/pair647-r3-final-launcher.log) and deterministic race selection1.653s. No exact-head full-suite claim is made here; the required recorded complete suite remains a whole-issue close/landing obligation after M2/M3.
 
 BR-1/BR-2/BR-3 fixes, the R3 phase decision and cancellation ownership controls are committed. Submitting M1 round2 with those evidence limits visible. No milestone completion is claimed before the binary's fresh-context verdict and finding dispositions.
+
+
+### 2026-10-17 — M1 round2 REWORK: preserve query collector errors
+
+The binary review disposed BR-1/BR-2/BR-3 as addressed and returned REWORK for BR-4: both diagnostic-normalizing consumers can suppress a joined cleanup failure because errors.As still finds the subprocess ExitError. Source inspection confirms the class at ZellijSource.runContext and ProbeSessionNameContext. Appended the class rule, both-consumer regression strategy and minimal direct-exit classification to the durable plan. Candidate actual2.18h was measured by the binary; no milestone close finalized. Review ledger and sidecar are retained unchanged.
+
+The registered checkout is now free of background work. Checkpointing this result and requeuing #640's already closed PR410 landing, per TL R3. BR-4 preparation can continue in a disposable independent clone without changing the landing checkout. M1 remains open; M2/M3 have not started.

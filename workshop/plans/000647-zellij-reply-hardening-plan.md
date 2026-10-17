@@ -300,3 +300,12 @@ The explicit launcher seams are SessionLivenessContext, ProbeSessionNameContext,
 | admitTerminalAfterReady | Controlled readiness completion invalidates its own wait context; post-birth native admission must still obtain a fresh bounded context under the original caller, while cancellation of that original caller prevents the query. Existing readiness-file polling cadence and birth bound are retained. |
 
 These thin context plumbing helpers add no artifact source or lifecycle state. ARCH-ORDER/FUNERAL: the owner that cancels a query is distinct from the owner of an interactive child. R3 does not alter retained periodic-observer cadence or give a failed query another attempt.
+
+
+### 2026-10-17 — M1 round2 revision: diagnostics cannot erase collector failures
+
+Round2 disposed BR-1/BR-2/BR-3 and opened BR-4 (Critical, unknown-observation-is-terminal). Both production consumers of zellijexec.Run—ZellijSource.runContext and OSRuntime.ProbeSessionNameContext—use errors.As to find an ExitError inside a joined failure, then normalize its diagnostic to successful absence/name-acceptance. That discards the runner's independent cancel/collection failure.
+
+Rule: diagnostic normalization may consume only a pure subprocess exit failure. Cancellation, pipe/collection errors and joined failures remain terminal unknown even when stdout/stderr also contains an established absence or validator diagnostic. The simplest correction is a direct ExitError classification at both normalization boundaries; a joined/wrapped multi-cause error cannot qualify. A new result state machine or expanded runner API is unnecessary because the current runner returns the direct subprocess error only when cancellation/collection succeeded. Keep ordinary valid exit1 diagnostics and strict client tables compatible. Add injected collector-failure regressions for both consumers plus pure-exit positive controls, and audit every zellijexec.Run use before M1 round3 (ARCH-PURPOSE/ORDER/FUNERAL).
+
+First checkpoint the review and requeue #640 from the registered checkout as TL directed. While that checkout is held by landing, BR-4 code/tests may be prepared in a disposable independent Git clone at /Users/xianxu/workspace/worktree/pair-slot1/pair647-query-fix; no SDLC gate runs there. Import its narrow diff into the owned #647 branch after #640's landing releases the registered checkout, verify and commit there, then submit the remaining M1 boundary round. No M2 edits occur before M1 closes.
