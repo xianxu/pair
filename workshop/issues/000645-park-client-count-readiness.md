@@ -77,6 +77,8 @@ The first recorded suite on pushed implementation head d2219c429adbad8b35855f36f
 
 R1 returned FIX-THEN-SHIP with Important BR-1 (readiness-contract-branch-coverage): individual counter controls did not exercise the helper's unchanged-count/growth decision. Verified this gap and extracted the existing polling loop into a fixture-local helper without changing its behavior. The actual startup path and the new stateful test now share that loop. Both zero-client and one-client baselines observe unchanged counts before growth, requiring exactly three queries. Equality-accepting mutation fails both cases at query2; a never-accept-growth mutation fails both at the existing test context deadline. An initial never-growth mutation failed compilation because it removed count's use; that was discarded and the behavioral mutation rerun. Production code remains unchanged from the first suite. A fresh recorded suite follows these test changes.
 
+The first recorded suite after BR-1 changes passed on pushed head69f62789ae83426b320fbe35dc523d0c947ba2d3 (exit0, 14m7s, after166s machine queue); no failed attempt or retry. It survived the operator Couch restart. Log /Users/xianxu/workspace/pair/.git/sdlc/local-checks/69f62789ae83426b320fbe35dc523d0c947ba2d3/suite.log; SHA256 ddfcefa65d5b5634438287cc0d872119e39d1566b47b4806163c875e273ccb22. Focused readiness/unknown-baseline checks passed0.772s and race2.411s.
+
 ## Revisions
 
 - 2026-10-17 (TL42415423): narrowed the filed broad malformed-response wording to CLI failures plus empty/whitespace replies. Preserve existing canonical production parsing; strict nonempty table grammar stays outside this counter-readiness bug. No relaxation of the empty-baseline attachment invariant.
