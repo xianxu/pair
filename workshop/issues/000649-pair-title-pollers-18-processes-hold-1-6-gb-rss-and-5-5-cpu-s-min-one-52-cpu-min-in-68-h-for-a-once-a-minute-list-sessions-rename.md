@@ -5,9 +5,9 @@ deps: []
 github_issue:
 created: 2026-10-17
 updated: 2026-10-17
-estimate_hours:
+estimate_hours: 3.207
 collaboration-mode: collaboration
-card_mirror: '31fc67d3784a9bc018c24b15e49f377573408618' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '4132487808148cbb588b7bb022661607ad1d67b8' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-17T11:43:27-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     workspace: pair:6
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
+flow: {kind: full, provenance: operator}
 ---
 
 # pair title pollers: 18 processes hold 1.6 GB RSS and ~5.5 CPU-s/min (one 52 CPU-min in 68 h) for a once-a-minute list-sessions + rename
@@ -90,3 +91,27 @@ Read-only subagent exploration located the actual spawn in wrapcmd.startWrapperT
 - 2026-10-17 — TL revised investigation into replacement: remove hosted per-slot pollers in favor of a Couch-owned updater on existing listing/state/activity observations; preserve standalone behavior, cmux ownership and idle fading. Initial durable design captures that scope.
 
 - 2026-10-17 — Plan-quality reconciliation: retain ten-minute pre-fix and fleet after-rollout measurement; transfer 1,000-tick retained-memory/work invariant to the approved Couch updater, with explicit deterministic limits. No change to standalone scope.
+
+## Estimate
+
+Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only; calibration is flagged stale by sdlc estimate-source.
+
+Decomposition after clean plan-quality: issue/spec; three smaller modules (hosted admission, exact-current launch, cancellation); shared decision module; title-effect API integration; console activity integration; docs; one close review; live discovery for Zellij and cmux. Existing projection, scheduler, parsers and Go context/exec APIs cover library availability: shared module design is halved for reuse. Thorough spec multiplies base design by 0.2; familiar Go integration uses familiarity 1.0; v3.1 impl is 40% of the v2.1 table. Representative choices are smaller module base 0.15 design/0.35 impl, greenfield base 1.25/0.55 with library discount, API base 2/1, TUI base 1.25/0.65. Docs and review use corresponding table midpoints. Two external live-discovery allowances use 0.45 x 0.4 each. This is a provisional approximately 3-hour estimate, derived from those primitives, not observed elapsed time.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.2 impl=0.08
+item: smaller-go-module design=0.03 impl=0.14
+item: smaller-go-module design=0.03 impl=0.14
+item: smaller-go-module design=0.03 impl=0.14
+item: greenfield-go-module design=0.125 impl=0.22
+item: api-integration design=0.4 impl=0.4
+item: tui-screen design=0.25 impl=0.26
+item: atlas-docs design=0.025 impl=0.05
+item: milestone-review design=0.02 impl=0.14
+item: real-api-discovery design=0 impl=0.18
+item: real-api-discovery design=0 impl=0.18
+design-buffer: 0.15
+total: 3.207
+```
