@@ -63,6 +63,10 @@ The first recorded suite on f500a1ccf3b165f070d40a2b5478605b6a02b48b completed e
 
 Round 1 found no code defect and independently passed the four affected packages, but its Important BR-1 blocks finalization: README omitted both companion-editor bindings and claimed every help row derives from an implementing keymap. Added both Parley-local shortcuts to the key table and qualified the derivation claim for curated external metadata. Added the general source-boundary lesson. This is a prose-only correction after the passing recorded suite; no wording-presence test or repeat suite is warranted. Running ordinary close again because round 1 did not finalize.
 
+### 2026-10-16 — review SHIP and independent timeout
+
+Round 2 disposed BR-1 and returned SHIP with no new findings. The reviewer's couchtty package run observed unchanged TestWorkbenchPerformanceIdleUITick timing out; its unchanged isolated repeat passed alongside the relevant routing/pass-through tests. Existing open #626 records that same activity-worker timeout. The review sidecar retains both outcomes; this is independent from help metadata, and no timeout or fixture change is folded into #619. The first recorded full suite above passed without retries.
+
 ## Revisions
 
 ### 2026-10-16 — operator selects Alt+Space
