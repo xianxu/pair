@@ -36,6 +36,7 @@ New behaviour: a two-state toggle, Normal ↔ Focus. Maximize goes away as a tar
 - A pane already fullscreen when the cycle runs, left over from a previous build or set natively, still returns to Normal. Don't strand it.
 - Update the README key table, the atlas and the key help.
 - Keep the split rule: a split acts only on the selected half.
+- TL authorized landing on recorded suite + close review without staging in pair:0. Operator real-setup smoke belongs to the next Couch restart; it remains pending after landing and any defect is fixed forward.
 
 ## Done when
 
@@ -43,11 +44,12 @@ New behaviour: a two-state toggle, Normal ↔ Focus. Maximize goes away as a tar
 - An existing fullscreen right terminal returns to Normal on one press; a test covers it.
 - The live chord conformance test passes on the two-state cycle.
 - README, the atlas and the key help describe two states.
+- Next-restart operator smoke steps are recorded; execution is explicitly deferred by TL and does not block landing.
 
 ## Plan
 
-- [ ] Make planner/runtime tests require Focus → Normal and retain native-fullscreen exit coverage; observe red.
-- [ ] Reuse existing restore/focus/clear operations for Focus exit; update source-derived help, README, atlas and conformance scenarios.
+- [x] Make planner/runtime tests require Focus → Normal and retain native-fullscreen exit coverage; observe red.
+- [x] Reuse existing restore/focus/clear operations for Focus exit; update source-derived help, README, atlas and conformance scenarios.
 - [ ] Run affected packages and native chord conformance, coordinate real-setup smoke with hub, then recorded full suite, close and land.
 
 ## Log
@@ -63,3 +65,17 @@ TL dispatched the operator’s explicit two-state contract and authorized quick 
 ### 2026-10-17 — native return-focus conformance
 
 Native conformance shows re-embed can already focus the invoking pane (focus-pane-id then exits 2), or move away when the terminal itself is the recorded return. TL approved always issuing StepFocus for a known return target, and accepting only exit 2 with exactly the target-specific `Pane Terminal(N) is already focused` diagnostic. Preserve native action output in typed errors; every other failure still stops. Pin the external wording and code in real-Zellij conformance, and model idempotence plus focus movement in the stateful fake. This corrects the Focus→Normal transition without new state or artifacts.
+
+### 2026-10-17 — real-setup acceptance scheduling
+
+TL explicitly prohibited staging/building in pair:0, which supplies the running Couch and its next restart. Land after recorded suite and close review; operator owns the pending real-setup check at the next Couch restart, with fixes forward if needed. This supersedes the Plan's pre-landing smoke coordination: coordination is complete and execution is deferred.
+
+Operator smoke after restart: (1) In a split right terminal, press Alt+Shift+Return in each half separately: only the selected half floats, centered at 75% width, full height, with background agent activity still visible. (2) From Focus press once: both halves return to their original tiled order and the invoking pane regains focus; repeat twice to prove the cycle has only Normal and Focus. Include an invoking draft/agent pane and a full-screen child app in the terminal. (3) Leave a right terminal natively fullscreen, then press once: it returns directly to Normal, without visiting Focus. Check return focus and absence of new failure diagnostics.
+
+### 2026-10-17 — implementation and targeted verification
+
+Initial pure-plan red showed Focus still targeted Maximize. Added same-pane return red, and stateful fake controls reproduced native re-embed focus movement and exact already-focused exit2. Implemented direct Normal↔Focus, preserving the native-fullscreen exit-only observation. Shared the existing recorded-return lookup between both exits. Both native action producers (layout CLI/agent and terminal) now retain identical typed focus evidence. No new exported API or artifact family.
+
+Affected layoutcmd/termcmd/keyhelp/workbenchshortcut packages pass normally and under race (latest 1.674s/3.024s/1.148s/1.245s). Old-adapter overlays make the new terminal record-clear regression and layout evidence regression fail; controls are retained in /tmp/pair639-7xyqf5rg. Direct native conformance passes 2.66s, pinning exit2 and the exact target-specific diagnostic, all four caller/split cases, native one-press exit and native focus-away. Corrected actual-chord live test passes all five paths (draft mapping, generic wrapper, terminal bottom/top, nvim child) in 4.41s, with exact geometry/focus/record-clear assertions after the second press.
+
+Qualification failures retained: first candidate chord lost session before input; original-layoutcmd binary/body control reproduced session loss later (4.22s), filed unassigned #640, root cause unknown. Original-test-only/candidate-binary control is excluded. Direct conformance with inherited long socket root was refused before render; short private socket qualification passes. Candidate's already-focused and same-pane return failures were corrected here. Direct shell shortcut check initially used old local bin/pair; after make build in this worker slot it passes. No primary-slot build or stage occurred.

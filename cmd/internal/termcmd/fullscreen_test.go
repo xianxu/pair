@@ -1,7 +1,10 @@
 package termcmd
 
 import (
+	"github.com/xianxu/pair/cmd/internal/layoutcmd"
 	"io"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -37,6 +40,35 @@ func TestTerminalFullscreenFailureIsLoggedAndNotShown(t *testing.T) {
 		}
 		if len(rt.fullscreenErrors) != 1 || len(mux.reported) != 0 || len(rt.ops) != 0 {
 			t.Fatalf("logs=%v UI=%v actions=%v", rt.fullscreenErrors, mux.reported, rt.ops)
+		}
+	}
+}
+
+type nativeReturnFocusRuntime struct {
+	*fakeRuntime
+	quiet bool
+}
+
+func (r nativeReturnFocusRuntime) RunZellijAction(args ...string) error {
+	if args[0] == "focus-pane-id" {
+		if r.quiet {
+			return (OSRuntime{}).RunZellijActionQuiet(args...)
+		}
+		return (OSRuntime{}).RunZellijAction(args...)
+	}
+	return r.fakeRuntime.RunZellijAction(args...)
+}
+
+func TestTerminalNativeAlreadyFocusedReturnClearsRecord(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "zellij"), []byte("#!/bin/sh\nprintf 'Pane Terminal(2) is already focused\\n' >&2\nexit 2\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", dir)
+	for _, quiet := range []bool{false, true} {
+		f := &fakeRuntime{currentPaneID: "4", fullscreenRecord: "2 swap=BASE", panesJSON: `[{"id":2,"is_floating":false,"is_fullscreen":false,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua d.md"},{"id":4,"is_floating":true,"is_fullscreen":false,"title":"terminal","terminal_command":"pair term"}]`}
+		if code := layoutcmd.RunToggleFocused(nil, nativeReturnFocusRuntime{f, quiet}, io.Discard); code != 0 || f.fullscreenRecord != "" || len(f.fullscreenErrors) != 0 {
+			t.Fatalf("quiet=%v code=%d record=%q errors=%v", quiet, code, f.fullscreenRecord, f.fullscreenErrors)
 		}
 	}
 }

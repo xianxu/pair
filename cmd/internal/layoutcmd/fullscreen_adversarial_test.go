@@ -232,9 +232,9 @@ func TestFullscreenRuntimeOverlappingEntryUsesRealStoreLock(t *testing.T) {
 	// A subsequent press must acquire the released lock and advance the cycle,
 	// proving the ignored press wasn't queued and cannot cause a delayed step.
 	if code := RunToggleFocused(nil, r, io.Discard); code != 0 {
-		t.Fatalf("maximize exit=%d", code)
+		t.Fatalf("normal exit=%d", code)
 	}
-	if !*r.pane("4").IsFullscreen || r.pane("4").IsFloating || r.current != "4" {
-		t.Fatalf("second press did not maximize: ops=%v", r.ops)
+	if *r.pane("4").IsFullscreen || r.pane("4").IsFloating || r.current != "2" {
+		t.Fatalf("second press did not restore Normal: ops=%v", r.ops)
 	}
 }

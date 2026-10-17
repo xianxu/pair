@@ -19,7 +19,7 @@ import (
 // RightPaneMode is the right terminal's view, derived from zellij's pane report
 // alone (#417). Zellij owns the state; nothing persists it, so a native change
 // (focus-away leaving fullscreen, a pane closed) can never leave Pair believing
-// a stale mode. Alt+Shift+Enter cycles Normal → Focus → Maximize → Normal.
+// a stale mode. Alt+Shift+Enter toggles Normal ↔ Focus; native fullscreen is exit-only.
 type RightPaneMode uint8
 
 const (
@@ -27,8 +27,8 @@ const (
 	ModeNormal RightPaneMode = iota
 	// ModeFocus: one right terminal floats, centered over the dimmed workbench.
 	ModeFocus
-	// ModeMaximize: one tiled right terminal is zellij-fullscreen.
-	ModeMaximize
+	// ModeFullscreen: a native/legacy fullscreen pane, observed only to exit it.
+	ModeFullscreen
 )
 
 // ObserveRightPaneMode classifies a pane report. A floating right terminal
@@ -59,7 +59,7 @@ func ObserveRightPaneMode(panes []zellijpane.Pane, registered []string) (RightPa
 	case floating != "":
 		return ModeFocus, floating, nil
 	case fullscreen != "":
-		return ModeMaximize, fullscreen, nil
+		return ModeFullscreen, fullscreen, nil
 	}
 	return ModeNormal, "", nil
 }
@@ -133,8 +133,9 @@ type Step struct {
 	Pane string
 }
 
-// RightPanePlan is the single owner of operation order for all three
-// transitions. The executor runs Steps in order and stops at the first failure;
+// RightPanePlan is the single owner of operation order for the toggle and
+// native-fullscreen compatibility exit. The executor runs Steps in order and
+// stops at the first failure;
 // a failed or unconfirmed effect never authorizes an inverse one.
 type RightPanePlan struct {
 	From, To RightPaneMode
@@ -159,9 +160,12 @@ func PlanRightPane(in RightPaneInput) (RightPanePlan, error) {
 		return RightPanePlan{}, err
 	}
 	if mode == ModeFocus {
-		return RightPanePlan{From: ModeFocus, To: ModeMaximize, Record: in.Record, Steps: []Step{
-			{StepEmbed, id}, {StepRestore, id}, {StepFullscreen, id}, {StepNudge, ""},
-		}}, nil
+		steps := []Step{{StepEmbed, id}, {StepRestore, id}}
+		if ret := fullscreenReturnPane(in.Panes, in.Record.Return); ret != "" {
+			steps = append(steps, Step{StepFocus, ret})
+		}
+		return RightPanePlan{From: ModeFocus, To: ModeNormal, Record: in.Record,
+			Steps: append(steps, Step{StepClear, ""}, Step{StepNudge, ""})}, nil
 	}
 	fp, err := PlanFullscreen(in.Panes, in.Caller, in.Last, in.Registered, in.Record.Return)
 	if err != nil {
@@ -173,7 +177,7 @@ func PlanRightPane(in RightPaneInput) (RightPanePlan, error) {
 		if fp.ReturnID != "" && fp.ReturnID != fp.TerminalID {
 			steps = append(steps, Step{StepFocus, fp.ReturnID})
 		}
-		return RightPanePlan{From: ModeMaximize, To: ModeNormal, Record: in.Record, Steps: append(steps, Step{StepClear, ""})}, nil
+		return RightPanePlan{From: ModeFullscreen, To: ModeNormal, Record: in.Record, Steps: append(steps, Step{StepClear, ""})}, nil
 	case FullscreenExpand:
 		order := splitOrder(in.Panes, in.Registered)
 		swap := in.Swap
@@ -329,9 +333,8 @@ func exitCode(err error) int {
 	return -1
 }
 
-// RunToggleFocused is the Alt+Shift+Enter executor. Maximize uses native
-// fullscreen rather than toggle-no-ui-fullscreen: UI bars cost rows, while this
-// action is for gaining columns.
+// RunToggleFocused is the Alt+Shift+Enter Normal ↔ Focus executor. Native
+// fullscreen is toggled only to return an already fullscreen pane to Normal.
 func RunToggleFocused(args []string, rt FullscreenRuntime, stderr io.Writer) int {
 	if len(args) != 0 {
 		fmt.Fprintln(stderr, "usage: pair layout toggle-focused")
@@ -402,7 +405,7 @@ func RunToggleFocused(args []string, rt FullscreenRuntime, stderr io.Writer) int
 			}
 		case StepRestore:
 			// The pane is embedded and usable either way; a degraded re-tile is
-			// logged, and the cycle continues to maximize.
+			// logged, and the return to Normal continues.
 			if err := restoreTiling(rt, step.Pane, plan.Record); err != nil {
 				store.LogFailure(fmt.Errorf("pair layout toggle-focused: restore tiling target=%s: %w", step.Pane, err))
 			}
@@ -411,6 +414,12 @@ func RunToggleFocused(args []string, rt FullscreenRuntime, stderr io.Writer) int
 			stage, err = "toggle-fullscreen", rt.RunZellijAction("toggle-fullscreen", "--pane-id", step.Pane)
 		case StepFocus:
 			stage, err = "focus-pane-id", rt.RunZellijAction("focus-pane-id", step.Pane)
+			var actionErr *zellijActionError
+			id := strings.TrimPrefix(step.Pane, "terminal_")
+			if exitCode(err) == 2 && errors.As(err, &actionErr) &&
+				strings.TrimSpace(actionErr.output) == fmt.Sprintf("Pane Terminal(%s) is already focused", id) {
+				err = nil
+			}
 		case StepClear:
 			stage, err = "clear return", store.Clear()
 		case StepNudge:
