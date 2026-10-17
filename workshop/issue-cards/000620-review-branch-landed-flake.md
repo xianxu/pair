@@ -6,13 +6,6 @@ updated: 2026-10-17
 estimate_hours:
 github_issue:
 started: 2026-10-17T10:31:09-07:00
-claimant:
-    operator: Xian Xu
-    machine: 4716879978a7b90f6b583da1716fd0e9
-    machine_name: Xian’s MacBook Pro
-    workspace: pair:3
-    worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
-    repository: github.com/xianxu/pair
 actual_hours: 0.41
 tracker:
     version: 1
@@ -21,6 +14,16 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 12d613dad701c542e87572a66425d5ddebd84f05
         evidence_commit: 6ccce44bac60ac3170c8de88241b8b7f31094e00
+    release:
+        by:
+            operator: Xian Xu
+            machine: 4716879978a7b90f6b583da1716fd0e9
+            machine_name: Xian’s MacBook Pro
+            workspace: pair:3
+            worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
+            repository: github.com/xianxu/pair
+        branch: 000620-review-branch-landed-flake
+        head: d84dec9b85a5958eb5e3c1163dc18cf755a9ae6b
 ---
 
 # Review branch restore intermittently misses landed acknowledgment
