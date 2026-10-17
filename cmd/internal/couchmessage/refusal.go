@@ -23,7 +23,7 @@ const (
 
 type refusal struct {
 	receipt Receipt
-	route   Route
+	target  string // the route's target in canonical slot spelling, as --list labels slots
 	at      time.Time
 }
 
@@ -44,14 +44,34 @@ func refusalReason(err error) string {
 	return err.Error()
 }
 
+// refusalFamilies reads the enrolled families for canonicalizing a refused
+// route's target, outside the broker lock and on a short budget of its own: the
+// send's context may be the one that just ran out.
+func (b *Broker) refusalFamilies() map[string]string {
+	ctx, cancel := context.WithTimeout(b.ctx, 250*time.Millisecond)
+	defer cancel()
+	families, _ := b.readFamilies(ctx)
+	return families
+}
+
 // refuseLocked records why id was not admitted and returns the sender's error.
 // Errors that are already definite keep their own code; an uncertain or
 // interrupted admission becomes a definite refusal, because no receipt exists.
-func (b *Broker) refuseLocked(from Binding, id string, route Route, body string, err error) error {
+// The target is canonicalized against the connected slots and enrolled
+// families, as admission resolves it, so an alias-spelled send is listed
+// under the slot's own name; one that doesn't resolve keeps its spelling.
+func (b *Broker) refuseLocked(from Binding, id string, route Route, body string, err error, families map[string]string) error {
 	reason := refusalReason(err)
 	now := b.now()
-	to := Binding{Slot: route.Target}
-	b.refusals[id] = refusal{receipt: Receipt{Message: Message{ID: id, From: from, To: to, Body: body}, Status: Refused, Detail: reason, RetainUntil: now.Add(RefusalRetention)}, route: route, at: now}
+	var candidates []Candidate
+	for binding := range b.actors {
+		candidates = append(candidates, Candidate{Binding: binding})
+	}
+	target := route.Target
+	if canonical, ok, cerr := canonicalTarget(route.Target, candidates, families); cerr == nil && ok {
+		target = canonical
+	}
+	b.refusals[id] = refusal{receipt: Receipt{Message: Message{ID: id, From: from, To: Binding{Slot: target}, Body: body}, Status: Refused, Detail: reason, RetainUntil: now.Add(RefusalRetention)}, target: target, at: now}
 	for len(b.refusals) > MaxRefusals {
 		var oldest string
 		for k, r := range b.refusals {
@@ -75,23 +95,24 @@ func (b *Broker) sweepRefusalsLocked(now time.Time) {
 	}
 }
 
-// LatestRefusals is each requested slot's newest retained refusal that no
-// later admission to that slot has superseded, read from memory (for
-// `couch --list`). Keys are the route targets the senders named.
-func (b *Broker) LatestRefusals() map[string]Receipt {
+// LatestRefusals is each requested slot's newest retained refusal reason that
+// no later admission to that slot has superseded, read from memory (for
+// `couch --list`). It answers an unauthenticated request, so it carries only
+// the canonical target and the reason: never the sender's binding, which is
+// a caller credential, nor the body.
+func (b *Broker) LatestRefusals() map[string]string {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.sweep()
 	latest := map[string]refusal{}
 	for _, r := range b.refusals {
-		slot := r.route.Target
-		if cur, ok := latest[slot]; !ok || r.at.After(cur.at) {
-			latest[slot] = r
+		if cur, ok := latest[r.target]; !ok || r.at.After(cur.at) {
+			latest[r.target] = r
 		}
 	}
-	out := map[string]Receipt{}
+	out := map[string]string{}
 	for slot, r := range latest {
-		out[slot] = r.receipt
+		out[slot] = r.receipt.Detail
 		for _, rec := range b.receipts {
 			if rec.Message.To.Slot == slot && !rec.Message.AcceptedAt.Before(r.at) {
 				delete(out, slot)

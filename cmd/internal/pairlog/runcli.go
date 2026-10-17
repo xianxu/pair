@@ -18,6 +18,20 @@ func RunCLI(args []string, stdin io.Reader, getenv func(string) string, now time
 	})
 }
 
+// PeerAppendIDPrefix marks the entry pair-wrap records for a submitted Couch
+// peer message (pair#618): the agent took that turn, so round correlation must
+// see it, but the operator didn't write it, so the draft pane's history skips
+// it (nvim/pairlog.lua names the same prefix).
+const PeerAppendIDPrefix = "couch-peer-"
+
+// PersistPeerTurn records one submitted peer message's envelope through the
+// same retention-managed, locked writer as `pair session-log append` and
+// `commit`; the delivery ID makes a repeat a no-op error, never a duplicate.
+func PersistPeerTurn(getenv func(string) string, path string, envelope []byte, now time.Time, deliveryID string) error {
+	appendID := PeerAppendIDPrefix + deliveryID
+	return managedLogWrite(getenv, path, func(store SessionLogStore) error { return store.PersistWithID(path, envelope, now, appendID) })
+}
+
 // RunCommitCLI implements `pair session-log commit` after input dispatch.
 func RunCommitCLI(args []string, getenv func(string) string, stderr io.Writer) int {
 	if len(args) != 2 || args[0] != "--append-id" || !sessioninventory.ValidPairLogAppendID(args[1]) {

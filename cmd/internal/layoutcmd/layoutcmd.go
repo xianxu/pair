@@ -268,5 +268,17 @@ func (OSRuntime) TerminalPaneIDs() ([]string, error) {
 
 func (OSRuntime) RunZellijAction(args ...string) error {
 	cmdArgs := append([]string{"action"}, args...)
-	return exec.Command("zellij", cmdArgs...).Run()
+	out, err := exec.Command("zellij", cmdArgs...).CombinedOutput()
+	if err != nil {
+		return &zellijActionError{err, string(out)}
+	}
+	return nil
 }
+
+type zellijActionError struct {
+	err    error
+	output string
+}
+
+func (e *zellijActionError) Error() string { return fmt.Sprintf("%v: %s", e.err, e.output) }
+func (e *zellijActionError) Unwrap() error { return e.err }

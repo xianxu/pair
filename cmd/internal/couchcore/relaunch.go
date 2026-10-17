@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 )
 
 // RelaunchOutcome is which of four states a relaunch left the thread in.
@@ -152,7 +153,7 @@ func (c *Couch) Relaunch(ctx context.Context, address ThreadAddress) (RelaunchRe
 		return refused, err
 	}
 	// Only now is anything destroyed.
-	if _, err := c.PairLifecycle.ParkExpected(ctx, address, thread.Revision); err != nil {
+	if _, err := c.PairLifecycle.ParkExpected(WithParkCompletionWait(ctx, c.PairLifecycle.relaunchWait()), address, thread.Revision); err != nil {
 		return RelaunchResult{Outcome: ParkIncomplete}, fmt.Errorf(
 			"relaunch %s: the park did not complete, so its Pair was stopped but the thread is not resumable yet: %w\n"+
 				"  the transaction is still open; recover it with park's own modes:\n"+
@@ -171,6 +172,11 @@ func (c *Couch) Relaunch(ctx context.Context, address ThreadAddress) (RelaunchRe
 	}
 	return RelaunchResult{Outcome: Relaunched, Record: record, Handle: handle}, nil
 }
+
+// RelaunchParkWait bounds relaunch's wait for its agent to quit (pair#618). A
+// park's default 15 s stranded the first call under load; past this bound the
+// recover/abandon choice still stands.
+const RelaunchParkWait = 60 * time.Second
 
 // withRebootHint names reboot on the refusals only a fresh session gets past
 // (pair#456): a conversation never bound, or one a pre-hello-v2 wrapper left

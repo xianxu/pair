@@ -262,6 +262,45 @@ func TestRemoteEndpointCollectsOutcomeAfterInputDeadline(t *testing.T) {
 	}
 }
 
+func TestRemoteEndpointCommitsOnceAcrossComposerWaitStates(t *testing.T) {
+	m := endpointMessage()
+	socket := transportSocket(t)
+	var mu sync.Mutex
+	commits, polls := 0, 0
+	s, err := StartServer(context.Background(), socket, func(_ context.Context, raw []byte) ([]byte, error) {
+		var req EndpointRequest
+		if err := strictjson.Decode(raw, &req); err != nil {
+			return nil, err
+		}
+		mu.Lock()
+		defer mu.Unlock()
+		status := Queued
+		if req.Op == "commit" {
+			commits++
+		} else if req.Op == "status" {
+			polls++
+			status = []Status{Held, Queued, Submitted}[min(polls-1, 2)]
+		}
+		return json.Marshal(EndpointResponse{Receipt: &Receipt{Message: m, Status: status, Detail: "waiting for recognized composer"}})
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	var seen []Status
+	r, err := (RemoteEndpoint{Binding: m.To, socket: socket}).Deliver(ctx, m, func(r Receipt) { seen = append(seen, r.Status) })
+	if err != nil || r.Status != Submitted || fmt.Sprint(seen) != "[queued held queued]" {
+		t.Fatalf("receipt=%+v progress=%v error=%v", r, seen, err)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if commits != 1 || polls != 3 {
+		t.Fatalf("commits=%d polls=%d", commits, polls)
+	}
+}
+
 // A wrapper's busy refusal crosses the socket as ErrRecipientBusy, so the
 // broker queues the message rather than refusing its sender (pair#492).
 func TestRemoteEndpointBusyReservationIsRecipientBusy(t *testing.T) {

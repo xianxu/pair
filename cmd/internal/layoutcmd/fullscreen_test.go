@@ -224,11 +224,15 @@ func (w *fullscreenWorld) RunZellijAction(args ...string) error {
 		}
 		w.current = p.ID
 	case "focus-pane-id":
+		if w.current == p.ID {
+			return &zellijActionError{exitStatus(2), fmt.Sprintf("Pane Terminal(%s) is already focused\n", p.ID)}
+		}
 		w.current = p.ID
 	case "toggle-pane-embed-or-floating":
 		w.dirty = true
 		if p.IsFloating {
 			p.IsFloating, p.Y = false, 99
+			w.current = "2"
 		} else {
 			p.IsFloating, w.visible, w.current = true, false, p.ID
 		}
@@ -286,14 +290,13 @@ func TestRightPaneRuntimeCycleRestoresWorkbench(t *testing.T) {
 			if got := DecodeExpandRecord(w.record); got.Return != tc.caller || got.Swap != wantSwap || strings.Join(got.Order, ",") != "3,4" {
 				t.Fatalf("record %q", w.record)
 			}
-			press() // focus → maximize
+			press() // focus → normal
 			p := w.pane(tc.target)
 			// Re-embedding the top half scrambles the order; the move-pane that
 			// fixes it leaves the swap layout dirty (as live zellij does).
-			if p.IsFloating || !*p.IsFullscreen || w.swap != wantSwap || w.dirty != (tc.target == "3") || w.order() != "3,4" || w.nudges != 2 {
-				t.Fatalf("maximize: %+v swap=%s dirty=%v order=%s logs=%v", p, w.swap, w.dirty, w.order(), w.logs)
+			if p.IsFloating || *p.IsFullscreen || w.swap != wantSwap || w.dirty != (tc.target == "3") || w.order() != "3,4" || w.nudges != 2 {
+				t.Fatalf("restored tiling: %+v swap=%s dirty=%v order=%s logs=%v", p, w.swap, w.dirty, w.order(), w.logs)
 			}
-			press() // maximize → normal
 			if *p.IsFullscreen || w.current != tc.caller || w.record != "" || w.order() != "3,4" || len(w.logs) != 0 {
 				t.Fatalf("normal: %+v current=%s record=%q order=%s logs=%v", p, w.current, w.record, w.order(), w.logs)
 			}
@@ -308,8 +311,7 @@ func TestRightPaneRuntimeFailures(t *testing.T) {
 		failure string
 	}{
 		{0, "save"}, {0, "toggle-pane-embed-or-floating"}, {0, "change-floating-pane-coordinates"},
-		{1, "toggle-pane-embed-or-floating"}, {1, "toggle-fullscreen"},
-		{2, "toggle-fullscreen"}, {2, "focus-pane-id"}, {2, "clear"},
+		{1, "toggle-pane-embed-or-floating"}, {1, "focus-pane-id"}, {1, "clear"},
 	} {
 		w := newFullscreenWorld()
 		for i := 0; i < tc.presses; i++ {
@@ -328,14 +330,14 @@ func TestRightPaneRuntimeFailures(t *testing.T) {
 			t.Fatalf("%d/%s continued after failure: %v", tc.presses, tc.failure, w.ops)
 		}
 	}
-	// A restore that cannot reach its layout degrades, never blocks maximize.
+	// A restore that cannot reach its layout degrades, never blocks the return to Normal.
 	w := newFullscreenWorld()
 	if RunToggleFocused(nil, w, &bytes.Buffer{}) != 0 {
 		t.Fatal("focus")
 	}
 	w.record = ExpandRecord{Return: "2", Swap: "nonexistent"}.Encode()
-	if code := RunToggleFocused(nil, w, &bytes.Buffer{}); code != 0 || !*w.pane("4").IsFullscreen {
-		t.Fatalf("degraded restore blocked maximize: %d %v", code, w.logs)
+	if code := RunToggleFocused(nil, w, &bytes.Buffer{}); code != 0 || *w.pane("4").IsFullscreen || w.pane("4").IsFloating || w.current != "2" || w.record != "" {
+		t.Fatalf("degraded restore blocked Normal: %d %v", code, w.logs)
 	}
 	if len(w.logs) != 1 || !strings.Contains(w.logs[0], "restore tiling") {
 		t.Fatalf("logs %v", w.logs)
@@ -345,6 +347,68 @@ func TestRightPaneRuntimeFailures(t *testing.T) {
 	w.busy = true
 	if code := RunToggleFocused(nil, w, &bytes.Buffer{}); code != 0 || len(w.ops) != 0 || w.lists != 0 {
 		t.Fatal("busy toggle did work")
+	}
+}
+
+func TestRightPaneRuntimeNativeFullscreenExit(t *testing.T) {
+	for _, failure := range []string{"", "toggle-fullscreen", "focus-pane-id", "clear"} {
+		t.Run(failure, func(t *testing.T) {
+			w := newFullscreenWorld()
+			on := true
+			w.pane("4").IsFullscreen = &on
+			w.current, w.record, w.fail = "4", "2", failure
+			code := RunToggleFocused(nil, w, &bytes.Buffer{})
+			if failure == "" {
+				if code != 0 || *w.pane("4").IsFullscreen || w.pane("4").IsFloating || w.current != "2" || w.record != "" {
+					t.Fatalf("native fullscreen did not return to Normal: code=%d ops=%v", code, w.ops)
+				}
+			} else if code != 1 || len(w.logs) != 1 || !strings.HasPrefix(w.ops[len(w.ops)-1], failure) || w.busy {
+				t.Fatalf("continued after %s failure: code=%d ops=%v logs=%v", failure, code, w.ops, w.logs)
+			}
+		})
+	}
+}
+
+type focusResultRuntime struct {
+	*fullscreenWorld
+	err error
+}
+
+func (r focusResultRuntime) RunZellijAction(args ...string) error {
+	if args[0] == "focus-pane-id" {
+		r.ops = append(r.ops, strings.Join(args, " "))
+		return r.err
+	}
+	return r.fullscreenWorld.RunZellijAction(args...)
+}
+
+func TestRightPaneRuntimeAlreadyFocusedIsTargetSpecific(t *testing.T) {
+	for _, tc := range []struct {
+		name, output string
+		status       int
+		ok           bool
+	}{
+		{"same-target", "Pane Terminal(2) is already focused\n", 2, true},
+		{"other-target", "Pane Terminal(3) is already focused\n", 2, false},
+		{"other-status", "Pane Terminal(2) is already focused\n", 1, false},
+		{"extra-error", "Pane Terminal(2) is already focused\nfailed later", 2, false},
+		{"other-error", "Pane Terminal(2) not found", 2, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			w := newFullscreenWorld()
+			if RunToggleFocused(nil, w, &bytes.Buffer{}) != 0 {
+				t.Fatal("enter Focus")
+			}
+			r := focusResultRuntime{w, &zellijActionError{exitStatus(tc.status), tc.output}}
+			code := RunToggleFocused(nil, r, &bytes.Buffer{})
+			if tc.ok {
+				if code != 0 || w.record != "" || len(w.logs) != 0 || w.nudges != 2 {
+					t.Fatalf("already-focused return failed: code=%d record=%q logs=%v", code, w.record, w.logs)
+				}
+			} else if code != 1 || w.record == "" || len(w.logs) != 1 || w.nudges != 1 {
+				t.Fatalf("unrelated failure accepted: code=%d record=%q logs=%v", code, w.record, w.logs)
+			}
+		})
 	}
 }
 

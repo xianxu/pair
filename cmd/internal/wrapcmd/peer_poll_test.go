@@ -9,7 +9,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
 )
 
-func TestPeerExpiryReportsBlockedInputState(t *testing.T) {
+func TestPeerWaitReportsBlockedInputState(t *testing.T) {
 	f, d := peerIntegrationFixture(t)
 	now := time.Now()
 	d.now = func() time.Time { return now }
@@ -21,11 +21,11 @@ func TestPeerExpiryReportsBlockedInputState(t *testing.T) {
 	if !strings.Contains(d.receipt().Detail, "incomplete terminal input") {
 		t.Fatal("missing pending reason", d.receipt())
 	}
-	now = now.Add(couchmessage.DeliveryTimeout)
+	now = now.Add(2 * time.Hour)
 	f.proxy.dispatchPeer(&out)
 	r := d.receipt()
-	if r.Status != couchmessage.Expired || !strings.Contains(r.Detail, "incomplete terminal input") {
-		t.Fatalf("expiry lost the blocking reason: %+v", r)
+	if r.Status != couchmessage.Queued || !strings.Contains(r.Detail, "incomplete terminal input") {
+		t.Fatalf("wait lost the blocking reason: %+v", r)
 	}
 	if out.Len() != 0 {
 		t.Fatal("diagnostic changed input")

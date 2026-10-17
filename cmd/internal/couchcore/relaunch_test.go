@@ -213,6 +213,7 @@ func TestRelaunchStopsAtAFailedParkAndNamesTheRecovery(t *testing.T) {
 				// times out waiting for proof it worked.
 				env.Artifacts.TriggerQuitHook = func(string, launcher.QuitIntent) error { return nil }
 				env.Couch.PairLifecycle.CompletionTimeout = 5 * time.Millisecond
+				env.Couch.PairLifecycle.RelaunchWait = 5 * time.Millisecond
 			},
 		},
 		{
@@ -232,6 +233,7 @@ func TestRelaunchStopsAtAFailedParkAndNamesTheRecovery(t *testing.T) {
 					})
 				}
 				env.Couch.PairLifecycle.CompletionTimeout = 5 * time.Millisecond
+				env.Couch.PairLifecycle.RelaunchWait = 5 * time.Millisecond
 			},
 		},
 		{
@@ -458,5 +460,41 @@ func TestCouchChosenUnknownMetadataRefusesBeforePark(t *testing.T) {
 	result, err := env.Couch.Relaunch(context.Background(), live.Address)
 	if err == nil || !strings.Contains(err.Error(), "storage observation is unreadable or incomplete") || result.Outcome != RefusedBeforePark || len(env.Runner.Ops) != 0 || env.Proc.Exists(42) != Live {
 		t.Fatalf("unknown metadata destroyed live session: result=%+v err=%v ops=%v", result, err, env.Runner.Ops)
+	}
+}
+
+// An agent slower to quit than a park's default bound still relaunches on the
+// first call (pair#618): relaunch waits RelaunchWait, not CompletionTimeout.
+func TestRelaunchRidesOutASlowQuitOnTheFirstCall(t *testing.T) {
+	t.Parallel()
+
+	env, live := envWithLiveThread(t)
+	quit := env.Artifacts.TriggerQuitHook
+	started := time.Now()
+	var pending []func()
+	env.Artifacts.TriggerQuitHook = func(session string, intent launcher.QuitIntent) error {
+		pending = append(pending, func() { _ = quit(session, intent) })
+		return nil
+	}
+	env.Couch.PairLifecycle.CompletionTimeout = 50 * time.Millisecond
+	env.Couch.PairLifecycle.RelaunchWait = 5 * time.Second
+	env.Couch.PairLifecycle.Wait = func(ctx context.Context, d time.Duration) error {
+		if time.Since(started) > 200*time.Millisecond && len(pending) > 0 {
+			for _, f := range pending {
+				f()
+			}
+			pending = nil
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(5 * time.Millisecond):
+			return nil
+		}
+	}
+
+	result, err := env.Couch.Relaunch(context.Background(), live.Address)
+	if err != nil || result.Outcome != Relaunched {
+		t.Fatalf("Relaunch = %+v, %v; want the first call to ride out a 200 ms quit", result, err)
 	}
 }

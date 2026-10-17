@@ -149,10 +149,13 @@ provenance. Messages never authorize bypassing local permissions or human gates.
 Admission returns an ID and resolved recipient immediately. `queued` means
 reserved. A slot takes one delivery at a time, and a message sent to an exact
 slot (or `hub`) that is already taking one waits in line behind it, in the
-order sent: its receipt reads `queued` with `position N`, and it is delivered
-when its turn comes (pair#492). `busy` now means only that 32 messages already
-wait there. A message waiting past 45 minutes expires; one whose recipient
-disconnects or relaunches first is `cancelled` with a detail saying to resend.
+order sent: its receipt reads `queued` with `position N` and the receiver's
+composer wait. The active pre-paste head is position 1. Accepted mail stays
+queued or held while that exact receiver is connected, even through a long
+turn; do not resend it. Confirmation releases the next message immediately.
+`busy` means that 32 messages already wait there. Disconnect or relaunch
+cancels mail not yet committed to the wrapper, with a receiver reason. A
+handed commit may be `indeterminate`; inspect the recipient before resending.
 `submitted` means input bytes were submitted, not that work started
 or finished. `not-dispatched` leaves the durable work available for later pickup.
 After an uncertain send, query its printed ID and inspect the recipient; do not

@@ -2,6 +2,9 @@ package layoutcmd
 
 import (
 	"bytes"
+	"errors"
+	"os"
+	"path/filepath"
 
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 	"github.com/xianxu/pair/cmd/internal/zellijpane"
@@ -403,5 +406,18 @@ func TestSidecarFastPathFallsBackWhenItCannotAnswer(t *testing.T) {
 				t.Errorf("ListPanesJSON called %d times, want %d", rt.listCalls, test.wantList)
 			}
 		})
+	}
+}
+
+func TestOSRuntimePreservesFocusActionEvidence(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "zellij"), []byte("#!/bin/sh\nprintf 'Pane Terminal(2) is already focused\\n' >&2\nexit 2\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", dir)
+	err := (OSRuntime{}).RunZellijAction("focus-pane-id", "2")
+	var actionErr *zellijActionError
+	if exitCode(err) != 2 || !errors.As(err, &actionErr) || actionErr.output != "Pane Terminal(2) is already focused\n" {
+		t.Fatalf("native evidence lost: %v", err)
 	}
 }
