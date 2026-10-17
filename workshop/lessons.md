@@ -2186,3 +2186,4 @@ and external temporary roots rather than relying on the host's TMPDIR.
   (the package alarm fires only after testwait's margin lets the test exit);
   stack dumps miss sub-millisecond workers, so dump state (schedules, channel
   depths, probe outcomes) from inside a diagnostic test. (#628)
+- A readiness counter contract needs a stateful test through the actual readiness decision, not only isolated zero/one counts. Cover unchanged observations before growth and show that both equality-accepting and never-accepting mutations fail, especially when native acceptance is deferred. (#645 BR-1)
