@@ -79,7 +79,7 @@ func (p *TitleProjection) stop(err error) (TitleProjectionResult, error) {
 }
 
 // classifyAdmission is the one place an admission failure becomes transient
-// (#653): an ErrArtifactChanged while every artifact admission had observed is
+// (#653): an ErrArtifactChanged while every artifact in the baseline is
 // unchanged or only grown, and one grew, re-admits on the next Poll. A genuine
 // validation failure under growth therefore surfaces as terminal once the
 // transcript pauses between polls.
@@ -109,13 +109,25 @@ func (p *TitleProjection) onlyGrew(observed []FileEntry) bool {
 	return grew
 }
 
-// observe records what admission has validated, the baseline against which
-// classifyAdmission tells growth from mutation.
-func (p *TitleProjection) observe(v TargetValidation) {
-	p.since = make([]FileEntry, 0, len(v.Observations))
-	for _, o := range v.Observations {
-		p.since = append(p.since, o.Entry)
+// baseline stats the artifacts admission is about to validate, before its
+// first read: the reference against which classifyAdmission tells growth from
+// mutation. A proof names its artifacts; a proofless binding's are found the
+// way ValidateNamedContent finds them, at the cost of one walk per admission.
+func (p *TitleProjection) baseline(inventory IncrementalInventory, binding sessionledger.Record) []FileEntry {
+	var entries []FileEntry
+	if binding.AuthorizationProof != nil {
+		for _, artifact := range binding.AuthorizationProof.Artifacts {
+			if entry, err := p.runtime.StatFile(Artifact{StorageRoot: artifact.StorageRoot, RelativePath: artifact.RelativePath}); err == nil {
+				entries = append(entries, entry)
+			}
+		}
+		return entries
 	}
+	selected := inventory.Select(TargetRequest{Mode: TargetExplicitResume, Agent: p.agent, NativeID: binding.RootNativeID}, inventory.Observe(p.agent))
+	for _, o := range selected.Eligible {
+		entries = append(entries, o.Entry)
+	}
+	return entries
 }
 
 // reset drops the admission but keeps the last displayed facts, so a busy
@@ -190,13 +202,8 @@ func (p *TitleProjection) admit(binding sessionledger.Record) error {
 	inventory := NewIncrementalInventory(p.runtime, Catalog{Version: CatalogVersion})
 	var v TargetValidation
 	var err error
-	p.since = nil
+	p.since = p.baseline(inventory, binding)
 	if binding.AuthorizationProof != nil {
-		for _, artifact := range binding.AuthorizationProof.Artifacts {
-			if entry, err := p.runtime.StatFile(Artifact{StorageRoot: artifact.StorageRoot, RelativePath: artifact.RelativePath}); err == nil {
-				p.since = append(p.since, entry)
-			}
-		}
 		v, _, err = inventory.ValidateBindingProof(p.agent, *binding.AuthorizationProof)
 	} else {
 		v, _, err = inventory.ValidateNamedContent(p.agent, binding.RootNativeID)
@@ -204,7 +211,6 @@ func (p *TitleProjection) admit(binding sessionledger.Record) error {
 	if err != nil {
 		return err
 	}
-	p.observe(v)
 	if !titleValidationRoot(v, p.agent, binding.RootNativeID) {
 		return ErrArtifactChanged
 	}

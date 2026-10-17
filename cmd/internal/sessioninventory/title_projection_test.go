@@ -547,15 +547,19 @@ func TestTitleProjectionAdmissionPreservesFullValidatorRules(t *testing.T) {
 // first growth stopped the title for good and its count vanished. stale-proof
 // is the usual production shape: the transcript already grew past its binding
 // proof, and with no generation token (darwin st_gen 0) proof validation falls
-// back to a full read that the append races.
+// back to a full read that the append races. proofless is a chosen-id binding
+// whose admission finds its transcript by walking storage.
 func TestTitleProjectionGrowthNeverStopsTitle(t *testing.T) {
 	usage := func(n int) []byte {
 		return []byte(fmt.Sprintf("{\"type\":\"event_msg\",\"payload\":{\"type\":\"token_count\",\"info\":{\"last_token_usage\":{\"input_tokens\":%d}}}}\n", n))
 	}
-	for _, phase := range []string{"admit", "stale-proof", "tail"} {
+	for _, phase := range []string{"admit", "stale-proof", "proofless", "tail"} {
 		t.Run(phase, func(t *testing.T) {
 			at := time.Now()
 			fake, a, _ := proofBackedCodexFixtureWithGeneration(t, "019d1111-1111-7111-8111-111111111111", &at, "")
+			if phase == "proofless" {
+				fake, a, _, _ = titleProviderFixture(t, sessioninventory.AgentCodex)
+			}
 			rt := &titleObservedRuntime{FakeRuntime: fake, transcript: a}
 			p := sessioninventory.NewTitleProjection(rt, "scope", "work", sessioninventory.AgentCodex, 1)
 			growOnce := func(n int) {
