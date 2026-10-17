@@ -38,6 +38,25 @@ reviewer_runs:
       finished_at: "2026-10-17T05:33:34.330626Z"
       session_id: 01a14859-a067-7201-8c40-7cb28a13e876
       outcome: returned
+    - version: 1
+      intent:
+        id: 6ec45926-3d38-4c16-8bfe-b81f61f28c58
+        repository: github.com/xianxu/pair
+        issue_id: "000622"
+        recipe: estimate-quality
+        round: 1
+        attempt: 1
+        agent: codex
+        root: /Users/xianxu/workspace/worktree/pair-slot5/pair
+        reviewed_head: 2b3c8f92e4e17dbdc69ae64390ebc5b518441866
+        slot: pair:5
+        requested_at: "2026-10-17T05:34:55.449936Z"
+      phase: finished
+      pid: 42478
+      started_at: "2026-10-17T05:34:55.572453Z"
+      finished_at: "2026-10-17T05:35:18.197639Z"
+      session_id: 01a1485b-2747-7fd2-9f56-b3c20b45510d
+      outcome: returned
 gate: plan-quality
 issue: 622
 id_prefix: PQ
@@ -160,7 +179,36 @@ rounds:
           note: Function-named adversarial strategies, independent differential oracles and mechanical mutation guards cover the proposed shortcuts.
           round: 4
       blocked: false
-content_hash: f6d94485a1bf99260c6615a986ad78242a3ff750b70c85ace1b957328fa336ac
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: 33014c84-6be0-4abc-81c5-d20987a8b5d7
+            repository: github.com/xianxu/pair
+            issue_id: "000622"
+            recipe: plan-quality
+            round: 5
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot5/pair
+            reviewed_head: 2b3c8f92e4e17dbdc69ae64390ebc5b518441866
+            slot: pair:5
+            requested_at: "2026-10-17T05:34:26.010653Z"
+          phase: finished
+          pid: 36066
+          started_at: "2026-10-17T05:34:26.132754Z"
+          finished_at: "2026-10-17T05:34:53.746608Z"
+          session_id: 01a1485a-b470-7123-ab16-f8f85b94864b
+          outcome: returned
+      "n": 5
+      timestamp: "2026-10-16T22:34:54-07:00"
+      agent: codex
+      dispose:
+        - id: PQ-1
+          disposition: addressed
+          note: Named function strategies establish independent differential oracles and mechanical guards; the prior finding remains resolved.
+          round: 5
+      blocked: false
+content_hash: 24e15e4bb75447514f8b8e9e916091fd84531f1de9fe2c3c2751c642abc0ab85
 ---
 
 # Gate ledger — pair#622 (plan-quality)
@@ -192,6 +240,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 ### Disposed
 
 - PQ-1 — addressed — Function-named adversarial strategies, independent differential oracles and mechanical mutation guards cover the proposed shortcuts.
+
+## Round 5 — 2026-10-16T22:34:54-07:00 (codex) — passed
+
+### Disposed
+
+- PQ-1 — addressed — Named function strategies establish independent differential oracles and mechanical guards; the prior finding remains resolved.
 
 ## Open findings
 
