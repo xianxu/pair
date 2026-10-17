@@ -131,6 +131,10 @@ Durable plan: `workshop/plans/000618-slots-recovered-by-reboot-or-resume-after-a
   `messageThreadResolver` with the real checker and a 1 s stub zellij: 50 checks run no zellij (RED without the poller).
   BR-5: the startup refresh is gone; the poller loop lists at once and checks refuse "not yet known" until then.
   BR-4: after-numbers follow the restart (plan revision). Minor: refusals carry an explicit time.
+- 2026-10-16 17:42 AFTER (live Couch 63216 on 4a97b611, 6 min after the restart, load average 39): 67 zellij children
+  in 60 s (1.1/s, same lower-bound polling as BEFORE's 6.1/s), supervisor CPU 14.2 s per 60 s (24%, BEFORE 68%). Both
+  numbers also include the operator-approved session cleanup (80 sessions to 24), which cut each listing's cost
+  (0.045 s per listing at load 22) but not the call rate. The rate drop is the poller.
 
 ## Revisions
 
