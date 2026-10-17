@@ -39,13 +39,19 @@ parley to open the list of documents waiting on or answered by an agent. Couch's
 
 ## Plan
 
-- [ ] Add a red rendered-help regression for Alt+Space and Ctrl+Y then Space, uniquely under Parley editor, with no stale Alt+u.
-- [ ] Add explicit companion-editor help metadata/context and curated rows; retain Pair source drift checks, without key handlers or peer-repo changes (ARCH-DRY/ARCH-PURE). Verify Couch/Zellij do not intercept either key.
+- [x] Add a red rendered-help regression for Alt+Space and Ctrl+Y then Space, uniquely under Parley editor, with no stale Alt+u.
+- [x] Add explicit companion-editor help metadata/context and curated rows; retain Pair source drift checks, without key handlers or peer-repo changes (ARCH-DRY/ARCH-PURE). Verify Couch/Zellij do not intercept either key.
 - [ ] Run package tests, recorded full suite, close review and normal landing.
 
 ## Log
 
 ### 2026-10-16
+
+### 2026-10-16 — red/green help metadata
+
+The new standalone/hosted rendered-help regression failed before implementation because both keys appeared zero times. Two curated SourceParley/ContextParley rows now render exactly once under Parley editor, with the requested description, no Pair chord and no stale Alt+u. Complete keyhelp and keyscmd packages pass (0.146s / 0.341s). Pair-owned source drift checks remain intact; companion metadata is explicitly documentation rather than a fabricated Pair handler. A Couch interceptor test covers legacy and Kitty encodings of both keys. Read-only inspection finds no Alt+Space or Ctrl+Y binding in Pair's Zellij config; Couch's Ctrl+Y copy action is switcher-local, and the existing focused-child routing test still applies.
+
+Start-plan succeeded despite its non-blocking catch-up warning: weave refresh rejected the unsupported --defer-settings flag; SDLC explicitly allowed planning on the current dependencies. No machine configuration was changed.
 
 ## Revisions
 

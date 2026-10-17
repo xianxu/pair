@@ -309,6 +309,12 @@ metadata also declares `AgentReserved`, so help scope and the three retained
 agent tab actions derive from the same rows. No terminal-role or focus query
 enters agent key delivery.
 
+The help also documents Parley's attention finder under **Parley editor** (#619):
+`Alt+Space` and `Ctrl+Y` then `Space`. These companion-editor rows use explicit
+`SourceParley` metadata in `keyhelp/catalog.go` and `ContextParley`, with no Pair
+chord or key handler. Pair-owned rows retain their source-derived wording and
+drift checks; the companion keys are curated documentation of Parley's contract.
+
 Under Couch the page has two layers, decided by two independent facts (#282):
 
 - **Presenter.** The attaching client records whether Couch launched it for

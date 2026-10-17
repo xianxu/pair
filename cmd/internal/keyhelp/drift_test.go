@@ -58,6 +58,9 @@ func TestZellijRunBindsAreDocumented(t *testing.T) {
 // the same class of lie as missing help, pointing the other way.
 func TestEveryCatalogEntryStillExists(t *testing.T) {
 	live := map[string]bool{}
+	for key := range parleyKeyHelp {
+		live[key] = true
+	}
 	scan := ParseNvimKeymaps(mustReadTreeSource(t, "nvim/init.lua"))
 	for _, km := range scan.Resolved {
 		live[km.Key] = true
