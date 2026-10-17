@@ -15,6 +15,7 @@ claimant:
     workspace: pair:3
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "ddfa5bf7", done: "e0800183"}
 ---
 
 # Review branch restore intermittently misses landed acknowledgment
