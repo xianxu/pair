@@ -72,6 +72,8 @@ The send-path sweep found targeted registry posting waited only on service lifet
 
 Broader race runs passed couchcmd 108.151 s and couchmessage 27.457 s (/tmp/pair634-messaging-race.log); that run preceded the registry-post delta, whose targeted race regression passed subsequently. Declaration-comment checks passed (0.358 s). Source head f94a9ba28e70b06f3db6e6cce431641ac0272667 is pushed; required recorded suite queued as run 9f4aada897a31bf454d5180e8f211f0e, without cancelling other holders. TL approved an early draft PR to overlap macOS CI with this wait (delivery 0423ad3e-8d82-49e3-815e-5c30149c2d9e); fresh close review and all normal landing gates remain required.
 
+Draft PR https://github.com/xianxu/pair/pull/397 opened. The final source passed all TestMessage* cases under race (12.605 s; /tmp/pair634-final-message-race.log), including the registry-post change. GitHub merge-check and local-gates-guard passed; native macOS conformance did not trigger because its path filters exclude these message-path files. Required local suite remains queued; no flaky failure or retry so far. Live-check deferral remains explicit, not a completed observation.
+
 ## Revisions
 
 ### 2026-10-17 — include targeted registry posting
