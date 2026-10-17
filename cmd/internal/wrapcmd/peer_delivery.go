@@ -607,9 +607,12 @@ func (p *proxy) advancePeer(event couchmessage.PeerDeliveryEvent, out io.Writer)
 	}
 }
 
-// chargeWaitLocked (d.mu held) charges the time since the last dispatch to
-// the condition that stood through it.
+// chargeWaitLocked (d.mu held) accounts only for the bounded post-paste
+// window. Pre-paste receipts retain the standing reason without a history.
 func (d *peerDelivery) chargeWaitLocked() {
+	if d.current.Status != couchmessage.Delivering {
+		return
+	}
 	now := d.now()
 	if !d.waitAt.IsZero() && d.current.Detail != "" {
 		if d.waits == nil {

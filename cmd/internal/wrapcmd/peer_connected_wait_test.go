@@ -2,6 +2,7 @@ package wrapcmd
 
 import (
 	"bytes"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -37,5 +38,33 @@ func TestPeerConnectedBusyReceiverWaitsAndPastesOnce(t *testing.T) {
 				t.Fatalf("post-paste deadline/replay protection changed: %+v bytes=%q", r, out.String())
 			}
 		})
+	}
+}
+
+func TestPeerConnectedWaitDoesNotAccumulatePickerHistory(t *testing.T) {
+	f, d, now := peerHoldFixture(t)
+	var out bytes.Buffer
+	for i := 1; i <= 200; i++ {
+		title := fmt.Sprintf("Do you want to run command %d?", i)
+		peerRender(f, d, "\x1b[?2026h\x1b[2J\x1b[H\r\n\r\n"+title+"\r\n❯ 1. Yes\r\n  2. No\x1b[?2026l")
+		f.proxy.pickerActive.Store(true)
+		f.proxy.pickerEpisode.Store(uint64(i))
+		*now = now.Add(time.Minute)
+		f.proxy.dispatchPeer(&out)
+		if r := d.receipt(); r.Status != couchmessage.Held || !strings.Contains(r.Detail, title) || out.Len() != 0 {
+			t.Fatalf("picker %d lost its standing wait: %+v bytes=%q episodes=%d/%d tail=%v", i, r, out.String(), f.proxy.pickerEpisode.Load(), d.pickerTitleEpisode, f.proxy.agentTail(60).Lines)
+		}
+	}
+	d.mu.Lock()
+	count := len(d.waits)
+	d.mu.Unlock()
+	if count != 0 {
+		t.Fatalf("unbounded pre-paste wait retained %d obsolete picker reasons", count)
+	}
+	f.proxy.pickerActive.Store(false)
+	peerRender(f, d, peerEmptyComposer())
+	f.proxy.dispatchPeer(&out)
+	if r := d.receipt(); r.Status != couchmessage.Delivering || strings.Count(out.String(), peerEnvelope(r.Message)) != 1 {
+		t.Fatalf("picker return did not paste once: %+v bytes=%q", r, out.String())
 	}
 }

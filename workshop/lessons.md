@@ -2105,3 +2105,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 - #629: Open a declaration comment with its own symbol. Ordinary prose can accidentally name another existing declaration (Connected above MaxQueued) and trigger the stacked-godoc guard. Run the termcmd doc-comment guards when rewriting shared declaration comments.
 - **A new help source changes old documentation claims (#619).** When adding companion-editor metadata to a source-derived help catalog, update the README shortcut table and search for universal claims such as "every row comes from its implementing keymap". Qualify the source boundary as well as listing the feature; atlas coverage alone does not keep the user-facing contract accurate.
+
+- #629: Removing a wait horizon also changes the lifetime of its diagnostic histories. Queue caps do not bound per-message maps of changing wait reasons. Retire histories whose expiry consumer disappeared; keep duration accounting in the bounded phase that still consumes it.

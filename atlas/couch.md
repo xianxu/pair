@@ -620,6 +620,9 @@ complete pending composer must still match Couch's known envelope.
 - **Operator holds retain mail (pair#629).** A draft, scrollback or picker
   remains `held` with its reason; unknown composer, paste mode or booting waits
   remain `queued`. No hold-credit clock or 30-minute cap can discard the mail.
+  Pre-paste waits keep only the standing reason; duration history belongs to
+  the bounded post-paste window, so changing picker titles cannot grow a
+  history throughout an indefinite wait.
   A picker detail is `blocked by a picker: <title>`, where the title
   comes from `couchmessage.ReadPicker` over the wrapper's own tail and is read
   once per picker. The check runs ahead of the transient waits, so a
