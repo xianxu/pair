@@ -61,8 +61,8 @@ hangs instead of failing.
 
 ## Plan
 
-- [ ] Force the premature-disabled observation with a gated fake tab release; observe the fixture regression red.
-- [ ] Wait for Off plus the disable completion notice, and reject nil completion channels before bounded awaits; keep the real mouse path and existing assertions.
+- [x] Force the premature-disabled observation with a gated fake tab release; observe the fixture regression red.
+- [x] Wait for Off plus the disable completion notice, and reject nil completion channels before bounded awaits; keep the real mouse path and existing assertions.
 - [ ] Run targeted/race checks and 20 repetitions under concurrent suite load, then recorded suite, close review and landing.
 
 ## Log
@@ -74,3 +74,9 @@ hangs instead of failing.
 The old predicate treats Disabling/Running as disabled (`Project.Enabled == false`). Cleanup resets control and notifies Chrome before releasing held input and publishing Off. Thus all three preceding waits can pass while the capability click correctly means wait and returns nil. A second window exists after Off: Cast publishes capabilities before clearing its running slot. The console's `drive capability off.` notice is set only after the result has arrived (the slot is already released), on its terminal command queue. Wait for that completion evidence and Off before the new click. No product change is required: refusing a click during cleanup is deliberate and already displayed as turning off.
 
 Use the existing stateful FakeDriven browser, with a test-local gated WithTab release, to hold the problematic ordering. Also hold the terminal command queue after authority reaches Off to prove phase alone is insufficient. Reuse awaitDrive's five-second bound and add an immediate non-nil assertion (ARCH-DRY); no new sleeps or longer deadlines. This changes fixture synchronization only (ARCH-PURPOSE, ARCH-ORDER); no new production model, external trust boundary, durable artifact or resource budget. The gate is released on all test exits and fixture teardown joins the console and cast (ARCH-FUNERAL). Plan posted to the hub, proceeding under quick-flow authorization.
+
+### 2026-10-17 — deterministic red/green
+
+Introduced a shared fixture readiness predicate with the original `!Project.Enabled` body, then ran `go test ./cmd/internal/couchtty -run '^TestDriveDisableCompletionOrdering$' -count=1 -v`. Both controlled orderings failed in 0.12 s: `fixture accepted disabled projection before cleanup completed` and `fixture accepted Off before terminal operation completion`. The first holds the fake browser's input-release return after control reset; it proves all original setup observations (no driver, Chrome told nobody, disabled projection) and the intentional nil result while Action=wait. The second holds the console command queue while authority publishes Off. Both gates release on test exit; the terminal barrier is explicitly joined.
+
+Changed only the fixture readiness body and replaced the unbounded receive with awaitDrive, which now immediately rejects nil with the named action. The disable/enable operation bounds stay five seconds. Targeted drive/capability family passed in 0.923 s, including both regression orderings and the original TestDriveFromCouch. Existing terminal-presenter teardown diagnostics occurred in passing sibling tests; no test failure. Race/count=20 qualification is running under concurrent ariadne sharded suite CPU load (sdlc.test workers observed; host load 70.33/46.76/39.52 at launch). Effective GOFLAGS=-p=3; no flag/deadline changes.
