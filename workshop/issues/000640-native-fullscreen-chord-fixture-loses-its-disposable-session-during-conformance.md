@@ -1,13 +1,13 @@
 ---
 id: 000640
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-17
 updated: 2026-10-17
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: '5ce80c5ae0b92f2b93053dae03deae2f27acf9b5' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '5616e249d1c12a4fc64af426bc8cee1b425e442e' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-17T09:08:23-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     workspace: pair:1
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
+actual_hours: 2.25
 ---
 
 # Native fullscreen chord fixture loses its disposable session during conformance
