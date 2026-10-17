@@ -5,8 +5,8 @@ deps: []
 github_issue:
 created: 2026-10-16
 updated: 2026-10-16
-estimate_hours:
-card_mirror: 'e60acf923f81c394c448ccf87f55887cb352bdd9' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 1.509
+card_mirror: '7c0b7bf4443d3d7dee4ca642af786ccf17a62a32' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-16T17:03:46-07:00
 claimant:
     operator: Xian Xu
@@ -15,6 +15,7 @@ claimant:
     workspace: pair:5
     worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
     repository: github.com/xianxu/pair
+flow: {kind: full, provenance: operator}
 ---
 
 # Couch server spends ~1 core emulating every hosted client's output in a vt parser, visible or not
@@ -74,3 +75,22 @@ Concrete M1 plan 044ec5dc278c07223a413253e32ba445e0a59fa9 sent to hub as 9c72573
 ### 2026-10-16 — M1 approved; plan-quality refinement
 
 TL e6511b06-0db1-4dae-a695-ca1c364c46f5 (submitted) approves M1 as planned, explicitly without per-feed CPU timing and with full gates. Plan-quality round 1 raised only Important PQ-1: replace test-case inventories with function-named adversarial strategies. Refined Child.ingest/IngestBytes, Console.HostedIngestSnapshot, projection and request/CLI strategies with independent oracles and mechanical guards. No scope/mechanism change; no implementation started before gate admission.
+
+## Estimate
+
+Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only; calibration is flagged stale by estimate-source, so provisional. This estimates the admitted M1 scope only; M2 will be derived after live measurements settle its mechanism, before its implementation gate. It is not a whole-issue optimization estimate.
+
+Decomposition: issue-spec/audit uses design 0.6 ×0.5 (initial mixed-density dispatch) and impl 0.3 ×0.4. Three smaller-go-module extensions are counter, Console snapshot, and resources transport/projection/rendering: each design 0.2 ×0.2 and impl 0.5 ×0.4. Atlas docs use design 0.1 ×0.2 and impl 0.15 ×0.4. Milestone review uses design 0.1 ×0.2 and impl 0.5 ×0.4, including required checks. Existing sync/atomic, fake Child/Console and JSON budget helpers cover the stack; no greenfield/library discovery. Familiarity 1.0, thorough-plan design buffer 15%. Design subtotal 0.46; implementation subtotal 0.98; 0.46×1.15+0.98=1.509 hours.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.3 impl=0.12
+item: smaller-go-module design=0.04 impl=0.2
+item: smaller-go-module design=0.04 impl=0.2
+item: smaller-go-module design=0.04 impl=0.2
+item: atlas-docs design=0.02 impl=0.06
+item: milestone-review design=0.02 impl=0.2
+design-buffer: 0.15
+total: 1.509
+```
