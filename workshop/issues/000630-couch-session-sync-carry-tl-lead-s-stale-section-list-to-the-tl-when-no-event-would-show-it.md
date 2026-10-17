@@ -38,7 +38,7 @@ For a registered session-sync file whose owner is a hub, Couch runs `tl-lead sta
 
 ## Plan
 
-- [ ] Add baseline-neutral registered session inspection and a bounded serialized stale-section reminder worker, with tests for cooldown, idle/hub identity, operator locks, command failures and cancellation.
+- [x] Add baseline-neutral registered session inspection and a bounded serialized stale-section reminder worker, with tests for cooldown, idle/hub identity, operator locks, command failures and cancellation.
 - [ ] Verify real isolated Couch/tl-lead conformance, update atlas/help-facing documentation, and pass the recorded suite and close review.
 
 Detailed design: [stale-session reminder plan](../plans/000630-stale-session-reminder-plan.md). Landing follows the normal SDLC gates.
@@ -57,6 +57,8 @@ Detailed design: [stale-session reminder plan](../plans/000630-stale-session-rem
 - Plan gate PQ-1 requested an authoritative pure transition model; the durable plan now defines advanceStaleReminder and event/effect transitions for every retained state mutation. PQ-2 recurring conformance triggers and the real Git-backed fixture are specified. No implementation has started.
 
 - Implementation checkpoint: observed missing inspection/model/worker/command APIs in red tests, then passed focused SessionStale/InspectRegistered tests. Pure transitions own allowance and diagnostics; a coalesced serialized worker is wired to the existing wait tick. Command fixtures cover missing/nonzero/overflow/cancel and owned descendant collection; worker barrier proves wait ticks remain responsive and service cancellation collects work without sending. The overflow test caught bytes.Buffer ReaderFrom promotion bypassing the writer bound; the private buffer now exposes only bounded Write. Full package/race and real CLI conformance are next.
+
+- Verification: both complete affected packages passed (couchcmd 61.748s, sessionsync 12.854s); focused race tests passed (2.278s/1.732s). The env-gated real CLI fixture passed (1.880s package) using this slot's once-built Couch and installed tl-lead, a disposable adopted namespace, a Git-backed status file, admitted wrapper and real RemoteEndpoint transport. It verified repeated stale delivery, fresh silence, lock suppression/release and exact document/shadow/state byte preservation. Installed-hub smoke remains TL-owned after restart.
 
 ## Revisions
 
