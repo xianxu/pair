@@ -1,12 +1,12 @@
 ---
 id: 000617
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-16
 updated: 2026-10-16
 estimate_hours: 3.33
-card_mirror: 'b625859c279abf3fe676c7bda8b9f1864aa0c763' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '77eef9de9c2c48511735df23d086cba2fb8e518c' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-16T12:54:47-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: operator}
+actual_hours: 8.28
 ---
 
 # pair title processes outlive their threads (28 orphans, 2.8 GB) and some grow to ~280 MB
