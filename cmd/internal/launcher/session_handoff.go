@@ -28,10 +28,18 @@ type TerminalHandoffRuntime interface {
 // lifetime. Every failed admission reaps its own client and joins its observer
 // before releasing the lease. Process death releases the OS-backed lease.
 func CoordinateTerminalHandoff(ctx context.Context, rt TerminalHandoffRuntime, bound time.Duration) (int, error) {
+	return coordinateTerminalHandoff(ctx, ctx, rt, bound, true)
+}
+
+// The query budget ends at admission; it never owns the interactive client.
+func coordinateTerminalHandoff(ctx, queryCtx context.Context, rt TerminalHandoffRuntime, bound time.Duration, create bool) (int, error) {
 	if bound <= 0 {
 		return 1, errors.New("terminal admission bound must be positive")
 	}
-	lease, err := rt.Acquire(ctx)
+	if err := queryCtx.Err(); err != nil {
+		return 1, err
+	}
+	lease, err := rt.Acquire(queryCtx)
 	if err != nil {
 		return 1, err
 	}
@@ -44,7 +52,13 @@ func CoordinateTerminalHandoff(ctx context.Context, rt TerminalHandoffRuntime, b
 		return l.Close()
 	}
 	defer release()
-	if err = rt.Check(ctx); err != nil {
+	if err = rt.Check(queryCtx); err != nil {
+		return 1, err
+	}
+	if err := queryCtx.Err(); err != nil {
+		return 1, err
+	}
+	if err := ctx.Err(); err != nil {
 		return 1, err
 	}
 	clientCtx, stopClient := context.WithCancel(ctx)
@@ -55,7 +69,11 @@ func CoordinateTerminalHandoff(ctx context.Context, rt TerminalHandoffRuntime, b
 	}
 	exited := make(chan HandoffExit, 1)
 	go func() { exited <- client.Wait() }()
-	admitCtx, stopObserver := context.WithTimeout(ctx, bound)
+	observerParent := queryCtx
+	if create {
+		observerParent = ctx
+	}
+	admitCtx, stopObserver := context.WithTimeout(observerParent, bound)
 	defer stopObserver()
 	admitted := make(chan error, 1)
 	go func() { admitted <- rt.Admit(admitCtx) }()
@@ -66,6 +84,9 @@ func CoordinateTerminalHandoff(ctx context.Context, rt TerminalHandoffRuntime, b
 		return exit.Code, errors.Join(exit.Err, errors.New("terminal client exited before admission was verified"))
 	case err = <-admitted:
 		stopObserver()
+		if err == nil && !create {
+			err = queryCtx.Err()
+		}
 		if err == nil {
 			err = ctx.Err()
 		}

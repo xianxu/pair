@@ -286,3 +286,17 @@ Authenticated TL delivery 7c0d5560-3f2d-40ec-b9d8-7984c09ead76 approves the expl
 Cold creation has distinct phases: pre-create admission owns one five-second query budget; birth/readiness retains its existing bound; post-birth admission owns a separate five-second query budget beginning after readiness. A slow healthy birth must not cause a new early refusal. The rule is query work bounded per decision, not launch completion within five seconds. No retry, sleep, longer deadline or new transport is introduced (ARCH-ORDER/FUNERAL).
 
 Implement RED-first production-path regressions for shared warm deadlines and cancellation before effects, earlier caller cancellation, interactive-client lifetime independent of admission cancellation, and cold readiness followed by a fresh bounded post-birth query phase. Then re-run the lifecycle controls and M1 boundary review. M2/M3 remain behind their existing boundaries. Requeue #640's already closed merge when the registered checkout is free, as TL directed.
+
+
+### 2026-10-17 — R3 implementation map and function strategies
+
+The explicit launcher seams are SessionLivenessContext, ProbeSessionNameContext, AttachSessionContext and LaunchSessionContext. LaunchOptions.Context supplies the original caller lifetime; its private queryContext is created only for the selected decision. runOnce, attachWithRetention and launchWatchedContext carry those two lifetimes without encoding deadlines in environment variables. Legacy concrete OS entry points remain compatibility wrappers, while Runtime's blocking handoff contract requires the explicit contexts.
+
+| Changed integration | Verification strategy |
+|---|---|
+| runOnce / attachWithRetention / context-aware liveness and attach | Actual launcher orchestration records the same bounded context at every native fence and handoff; an earlier caller deadline remains exact, cancellation refuses before effects, and query completion does not cancel the caller/client lifetime. Existing strict native CLI refusal controls remain in the path. |
+| assignLaunchSessionNamesContext / assignCouchSessionNameContext / verifyCouchSessionCreate / ProbeSessionNameContext | Record the shared pre-create context across listing, name validation and owner observations through RunLaunch; cancellation during positive foreign-owner observation must still refuse. Retain the existing name-validator subprocess controls. |
+| launchWatchedContext / runTerminalHandoffContext / coordinateTerminalHandoff | Preserve the existing birth watch and joined child/observer ownership; controlled channels prove Check cannot admit after cancellation, warm completion rechecks the query budget, and established clients survive admission cancellation. |
+| admitTerminalAfterReady | Controlled readiness completion invalidates its own wait context; post-birth native admission must still obtain a fresh bounded context under the original caller, while cancellation of that original caller prevents the query. Existing readiness-file polling cadence and birth bound are retained. |
+
+These thin context plumbing helpers add no artifact source or lifecycle state. ARCH-ORDER/FUNERAL: the owner that cancels a query is distinct from the owner of an interactive child. R3 does not alter retained periodic-observer cadence or give a failed query another attempt.

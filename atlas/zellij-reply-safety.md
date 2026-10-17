@@ -12,14 +12,15 @@ observation before starting a second independent invocation, compares the
 caller's decision projection and returns the admitted second snapshot. Unknown
 first evidence terminates the request; there is no observation retry.
 
-A five-second admission context is shared by Couch admission and owner-proof
-observations, capped by earlier caller deadlines. Launcher selected-operation
-context plumbing remains an open M1 correction: its context-free runtime can
-currently reset the query budget at successive fences. The cold-birth phase
-boundary is awaiting the R3 design decision; M1 has not closed. Couch carries query admission separately
-from helper lifetime: completing or canceling admission cannot terminate an
-established client. Existing one-second restart admission remains the smaller
-bound when that caller is migrated.
+A five-second admission context is shared by the observations of one decision,
+capped by earlier caller deadlines. A selected launcher warm attachment carries
+the same context through listing fences and handoff Check. Query admission is
+separate from the interactive client/helper lifetime: completing or canceling
+admission cannot terminate an established client. Cold creation has three phases:
+one pre-create query budget, the existing independent birth/readiness bound, and
+a fresh post-birth query budget. A slow healthy birth does not consume the latter.
+M1 corrections await boundary review. Existing one-second restart admission
+remains the smaller bound when that caller is migrated.
 
 `cmd/internal/zellijexec` owns synchronous read-only query processes. It creates
 a private process group, cancels that group, joins the direct CLI child, bounds
@@ -32,7 +33,7 @@ Descendants deliberately leaving the group are outside that ownership contract.
 | Listing poller and event-driven inventory | Re-checked | Existing cadence, cache and query count; malformed expected listing/client evidence is unknown. No projection alone authorizes an effect. |
 | Launcher name reuse and cold admission | Hardened in M1 | Strict listing contract plus independent exact-server absence; a live server defeats native listing omission. |
 | Launcher name-length probe | Hardened in M1 | Successful replies must be client tables; exact native validator/absence diagnostics retain their limited name-length meaning. |
-| Launcher Couch attachment | M1 correction, review pending | Existing positive listing fences stop on first unknown; launcher and exported attach regressions exercise actual strict native parsing before attach/launch effects. Shared operation budget is pending R3. |
+| Launcher Couch attachment | M1 correction, review pending | Existing positive listing fences stop on first unknown; launcher and exported attach regressions exercise actual strict native parsing before attach/launch effects. The selected operation shares one query budget through handoff, independently of the interactive client lifetime. |
 | Session owner proof, quit and recovery | Hardened in M1 | Matching actual-command/pane-identity projections, exact server generation bracketing the pair and fresh generation revalidation before effects. |
 | Launcher live-layout inference | Hardened in M1 | Strict pane fields and matching command/title/identity/floating facts before recording a detected layout. |
 | Ordinary Couch warm attachment | Hardened in M1 | Existing initial, pre-spawn, pre-ack and post-ack listing fences; no additional queries or detached-client requirement. Unknown/negative confirmation cannot trigger helper retry. |

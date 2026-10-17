@@ -461,8 +461,11 @@ type couchSessionListingRuntime struct {
 }
 
 func (r *couchSessionListingRuntime) SessionLiveness() ([]Session, error) {
+	return r.SessionLivenessContext(context.Background())
+}
+func (r *couchSessionListingRuntime) SessionLivenessContext(ctx context.Context) ([]Session, error) {
 	r.listingCalls++
-	return r.source.LivenessContext(context.Background())
+	return r.source.LivenessContext(ctx)
 }
 
 func TestCouchSessionAttachStopsAtFirstUnknownListing(t *testing.T) {

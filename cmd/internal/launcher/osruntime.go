@@ -112,7 +112,11 @@ func zj(args ...string) string {
 func (OSRuntime) Sessions() ([]Session, error) { return ZellijSource{}.Snapshot() }
 
 func (OSRuntime) SessionLiveness() ([]Session, error) {
-	return ZellijSource{}.LivenessContext(context.Background())
+	return (OSRuntime{}).SessionLivenessContext(context.Background())
+}
+
+func (OSRuntime) SessionLivenessContext(ctx context.Context) ([]Session, error) {
+	return ZellijSource{}.LivenessContext(ctx)
 }
 
 func (r OSRuntime) SessionBlocksReuse(session string) bool {
@@ -144,9 +148,16 @@ func (r OSRuntime) SessionBlocksReuse(session string) bool {
 // ProbeSessionName asks zellij whether it accepts session's length, at the cost
 // of one list-clients. AssignSessionName skips it for a name a live session
 // already runs under (acceptingLiveNames, pair#228): that session is the proof.
-func (OSRuntime) ProbeSessionName(session string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), zjTimeout)
+func (r OSRuntime) ProbeSessionName(session string) error {
+	ctx, cancel := zellijreply.AdmissionContext(context.Background())
 	defer cancel()
+	return r.ProbeSessionNameContext(ctx, session)
+}
+
+func (OSRuntime) ProbeSessionNameContext(ctx context.Context, session string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	cmd := exec.CommandContext(ctx, "zellij", "--session", session, "action", "list-clients")
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
@@ -185,6 +196,10 @@ func (OSRuntime) ProbeSessionName(session string) error {
 // Cancelling ctx ends the client (#288): see killOnCancel.
 func (r OSRuntime) LaunchSession(ctx context.Context, session, configDir, layout string) (int, error) {
 	return r.runTerminalHandoff(ctx, session, configDir, layout, true)
+}
+
+func (r OSRuntime) LaunchSessionContext(lifetime, admission context.Context, session, configDir, layout string) (int, error) {
+	return r.runTerminalHandoffContext(lifetime, admission, session, configDir, layout, true)
 }
 
 // clientKillGrace is how long a cancelled client gets to exit on SIGTERM
@@ -887,6 +902,10 @@ func (r OSRuntime) EstablishedSessionID(scopeKey, tag, agent string) (string, se
 // AttachSession is the BLOCKING attach twin of LaunchSession.
 func (r OSRuntime) AttachSession(session, configDir string) (int, error) {
 	return r.runTerminalHandoff(context.Background(), session, configDir, "", false)
+}
+
+func (r OSRuntime) AttachSessionContext(lifetime, admission context.Context, session, configDir string) (int, error) {
+	return r.runTerminalHandoffContext(lifetime, admission, session, configDir, "", false)
 }
 
 // restartMarkerPath and quitMarkerPath keep compatibility cache paths behind

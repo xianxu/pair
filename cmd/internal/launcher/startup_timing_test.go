@@ -2,6 +2,7 @@ package launcher
 
 import (
 	"bytes"
+	"context"
 	"strings"
 	"testing"
 	"time"
@@ -82,4 +83,11 @@ func TestStartupTimingDeltasPartitionElapsedAndExcludeClientLifetime(t *testing.
 			t.Fatal("disabled timing constructed")
 		}
 	}
+}
+
+func (r *startupTimingAttachRuntime) AttachSessionContext(lifetime, admission context.Context, session, config string) (int, error) {
+	if err := admission.Err(); err != nil {
+		return 1, err
+	}
+	return r.AttachSession(session, config)
 }

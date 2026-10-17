@@ -15,6 +15,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/osfs"
 	"github.com/xianxu/pair/cmd/internal/readiness"
+	"github.com/xianxu/pair/cmd/internal/zellijreply"
 )
 
 func terminalLaunchArgs(session, config, layout string, create bool) []string {
@@ -36,6 +37,7 @@ type terminalOSAttempt struct {
 	rt                                                                 OSRuntime
 	name, config, layout, socket, socketRoot, scope, tag, agent, nonce string
 	create                                                             bool
+	lifetimeCtx                                                        context.Context
 }
 
 func newTerminalOSAttempt(rt OSRuntime, name, config, layout string, create bool) (*terminalOSAttempt, error) {
@@ -78,6 +80,9 @@ func (a *terminalOSAttempt) Acquire(ctx context.Context) (io.Closer, error) {
 	return AcquireTerminalLease(ctx, path)
 }
 func (a *terminalOSAttempt) Check(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if !a.create {
 		return requireListedLiveTerminal(ctx, a.name, listTerminalSessions)
 	}
@@ -144,18 +149,39 @@ func (a *terminalOSAttempt) Admit(ctx context.Context) error {
 	if !a.create {
 		return ctx.Err()
 	}
+	lifetime := a.lifetimeCtx
+	if lifetime == nil {
+		lifetime = ctx
+	}
+	return admitTerminalAfterReady(ctx, lifetime, a.observeAdmission, func(queryCtx context.Context) error {
+		return requireListedLiveTerminal(queryCtx, a.name, listTerminalSessions)
+	})
+}
+
+// Readiness keeps its existing bound. Only after positive local evidence does
+// native admission receive a fresh budget under the original caller lifetime.
+func admitTerminalAfterReady(readinessCtx, lifetimeCtx context.Context, ready func(context.Context) error, query func(context.Context) error) error {
 	ticker := time.NewTicker(birthPoll)
 	defer ticker.Stop()
 	var last error
 	for {
-		if err := a.observeAdmission(ctx); err == nil {
-			return requireListedLiveTerminal(ctx, a.name, listTerminalSessions)
+		if err := readinessCtx.Err(); err != nil {
+			return fmt.Errorf("terminal admission unverified: %w", errors.Join(last, err))
+		}
+		if err := ready(readinessCtx); err == nil {
+			queryCtx, cancel := zellijreply.AdmissionContext(lifetimeCtx)
+			defer cancel()
+			if err := queryCtx.Err(); err != nil {
+				return err
+			}
+			err := query(queryCtx)
+			return errors.Join(err, queryCtx.Err())
 		} else {
 			last = err
 		}
 		select {
-		case <-ctx.Done():
-			return fmt.Errorf("terminal admission unverified: %w", errors.Join(last, ctx.Err()))
+		case <-readinessCtx.Done():
+			return fmt.Errorf("terminal admission unverified: %w", errors.Join(last, readinessCtx.Err()))
 		case <-ticker.C:
 		}
 	}
@@ -188,11 +214,24 @@ func (a *terminalOSAttempt) observeAdmission(ctx context.Context) error {
 }
 
 func (r OSRuntime) runTerminalHandoff(ctx context.Context, name, config, layout string, create bool) (int, error) {
+	queryCtx, cancel := zellijreply.AdmissionContext(ctx)
+	defer cancel()
+	return r.runTerminalHandoffContext(ctx, queryCtx, name, config, layout, create)
+}
+
+func (r OSRuntime) runTerminalHandoffContext(lifetimeCtx, queryCtx context.Context, name, config, layout string, create bool) (int, error) {
+	if err := queryCtx.Err(); err != nil {
+		return 1, err
+	}
+	if err := lifetimeCtx.Err(); err != nil {
+		return 1, err
+	}
 	a, err := newTerminalOSAttempt(r, name, config, layout, create)
 	if err != nil {
 		return 1, err
 	}
-	return CoordinateTerminalHandoff(ctx, a, birthBound)
+	a.lifetimeCtx = lifetimeCtx
+	return coordinateTerminalHandoff(lifetimeCtx, queryCtx, a, birthBound, create)
 }
 
 const maxAgentReadyBytes int64 = 8192

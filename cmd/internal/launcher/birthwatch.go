@@ -119,12 +119,21 @@ func watchBirth(ctx context.Context, rt Runtime, clock panebirth.Clock, evidence
 // just before the blocking LaunchSession and is stopped and joined as soon as
 // it returns, so nothing it spawned outlives the call.
 func launchWatched(rt Runtime, clock panebirth.Clock, evidence, session, configDir, layout string, bound time.Duration) (int, birthVerdict, error) {
-	launchCtx, abort := context.WithCancel(context.Background())
+	return launchWatchedContext(context.Background(), nil, rt, clock, evidence, session, configDir, layout, bound)
+}
+
+func launchWatchedContext(lifetime, admission context.Context, rt Runtime, clock panebirth.Clock, evidence, session, configDir, layout string, bound time.Duration) (int, birthVerdict, error) {
+	if admission == nil {
+		var cancel context.CancelFunc
+		admission, cancel = context.WithTimeout(lifetime, zjTimeout)
+		defer cancel()
+	}
+	launchCtx, abort := context.WithCancel(lifetime)
 	defer abort()
-	watchCtx, stopWatch := context.WithCancel(context.Background())
+	watchCtx, stopWatch := context.WithCancel(lifetime)
 	verdict := make(chan birthVerdict, 1)
 	go func() { verdict <- watchBirth(watchCtx, rt, clock, evidence, session, bound, abort) }()
-	code, err := rt.LaunchSession(launchCtx, session, configDir, layout)
+	code, err := rt.LaunchSessionContext(launchCtx, admission, session, configDir, layout)
 	stopWatch()
 	return code, <-verdict, err
 }
