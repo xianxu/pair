@@ -1,6 +1,6 @@
 ---
 id: 000628
-status: working
+status: codecomplete
 created: 2026-10-16
 updated: 2026-10-17
 estimate_hours:
@@ -13,6 +13,14 @@ claimant:
     workspace: pair:4
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
+actual_hours: 1.34
+tracker:
+    version: 1
+    completion:
+        token: close-fa1d11e6f4f3
+        repository: github.com/xianxu/pair
+        reviewed_head: 892463df63d657addb89400f4d1cfd3f2e60dc91
+        evidence_commit: ee6ceb02435c2c34ee20b9f107802ebd227837fa
 ---
 
 # Idle UI invariant intermittently returns only 16 of 20 activity results
