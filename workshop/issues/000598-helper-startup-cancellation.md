@@ -1,12 +1,20 @@
 ---
 id: 000598
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-15
-updated: 2026-10-15
+updated: 2026-10-17
 estimate_hours:
-card_mirror: '247f8b92c5c9cdfae2da29279f0fdc355d5ace0b' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '319ecc1462ca4fc4e7a92efde30acf93e679a7b5' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-17T09:39:41-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:3
+    worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Diagnose helper startup cancellation timeout
@@ -27,8 +35,20 @@ Diagnose the helper startup/cancellation boundary and retain actionable evidence
 
 ## Plan
 
+- [ ] Reproduce early SIGINT loss with an ignored-SIGINT parent and pin the pre-handler ordering with a pipe gate.
+- [ ] Normalize the fixture child's inherited SIGINT without changing its caller; retain failure output and startup/lease observations.
+- [ ] Verify both signal dispositions, bounded descendant cancellation and successful sidecars; record the full suite, close review and landing.
+
 ## Log
 
 2026-10-15: observed in required recorded suite501ea461dee91eaad8c9ae484cbfa18d, source a0b3fb0de67824b57d0f42cedd32acd02a7d1778. Queue780.079s, execution188.925s, makeexit2, not an overall timeout. Log /Users/xianxu/workspace/pair/.git/sdlc/test-stats/failed/501ea461dee91eaad8c9ae484cbfa18d.log, SHA256ddf72cf3b67ba81c2891b26c021302619c0d9120ac6b9d17f401e525646a337a. Python3.14.5. Five unittest methods ran4.850s, one subcase error. tests/without-ancestors-test.py:103 subprocess.TimeoutExpired from process.wait(timeout=3), helper --timeout20, modewait. Files unchanged from origin/main; independent of #586's review diagnostics, which were not reached. Prior #586 diagnostics-source suite f6512608053de4d07e29acf206d870b31d169b51 passed14m1. No unchanged full-suite retry yet.
 
 Read-only audit: the startup test launches wait_ready=False, sleeps0/10/20/40ms, sends TERM/INT and requires nonzero within3s. The helper installs signal handlers after imports, creates ready/start pipe handshake, forks/setsid/doubleforks, waits ready, sends start only if not cancelled. Finally closes handshake, kills owned group on failure and waitpid(intermediate). Fixture discards stdout/stderr; cleanup kills only a group whose descendant lease was written and kills the helper if it remains alive. No retained process state proves which startup phase failed.
+
+2026-10-17: claimed after #635 landed. Unchanged source launched through a Python parent that explicitly ignores SIGINT reproduces TimeoutExpired at delays 0, 0.01 and 0.02 (one test, 9.699 s, three errors). Python preserves an inherited ignored SIGINT across exec until the helper installs its handler. Sending before that point cannot cancel; the helper then legitimately waits for its 20 s command. The direct interactive fixture parent has default_int_handler instead. Historical logs cannot establish their discarded initial disposition. This supplies a demonstrated cause of the identical failure, rather than evidence of a product cancellation defect.
+
+2026-10-17 design: fixture-only quick fix, posted to hub as proceeding unless objected. Normalize SIGINT around helper launch, restoring the parent immediately afterward. A real-process bootstrap gate before helper entry pins the vulnerable window under an ignored-SIGINT parent; assert cancellation before gate release and preservation of the parent's disposition. Keep existing real descendant and success controls. Capture streams in an owned temporary file; timeout diagnostics report signal/disposition, process and lease observations plus captured output, without longer waits or retries. ARCH-DRY/PURPOSE: reuse the owned-group helper unchanged and fix the fixture's launch precondition. ARCH-PURE/MOCK: the boundary is real OS process/signal IO, not mocked signal calls. ARCH-CONSTRAINTS: retain 3 s exit and 2 s descendant budgets. ARCH-SECURE: signal only owned children/groups. ARCH-STATE: explicitly order pre-handler gate, cancellation and gate release. ARCH-FUNERAL: close diagnostic files and collect owned helper/descendants before removing their private directory. Headless real-process verification needs no operator environment change; no pair:0 staging proposed.
+
+## Revisions
+
+2026-10-17: refined the initial hypotheses with the ignored-SIGINT reproduction. The implementation scope is the fixture's signal inheritance and failure evidence; preserve the helper's existing handshake, bounded cleanup and successful-sidecar contract.
