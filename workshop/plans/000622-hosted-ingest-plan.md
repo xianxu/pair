@@ -165,7 +165,7 @@ Files: third_party/vt/utf8.go; cmd/internal/terminal/frame.go.
 Files: README.md, atlas/couch.md if behavior/architecture account needs updating; issue Log and this plan. Reconcile inventory table to actual symbols before review.
 
 - [x] Pin off-screen query reply bytes/order, exactly-once effects, sync publication, mode/input encoding, resize chronology, EOF and ring-eviction state through existing fake/real Endpoint tests. Waiting/peek use wrapper status/tails and remain independently exercised; no lazy-state flag is introduced.
-- [ ] Commit/push; run required sdlc local-check run --name suite on the pushed head. M2 milestone-close performs the mandatory fresh-context review; fix/dispute findings with evidence. No duplicate review dispatch.
+- [x] Commit/push; run required sdlc local-check run --name suite on the pushed head. M2 milestone-close performs the mandatory fresh-context review; fix/dispute findings with evidence. No duplicate review dispatch.
 - [ ] Ask TL to coordinate candidate live check/stage/restart; worker never stages :0 unasked. Retain before/after counters, matched population, byte mix, cumulative CPU and5s sample under comparable natural load, plus console/peek/waiting checks. Server attribution must state build/selection/environment uncertainty; don't claim CPU reduction from unmatched workload or microbenchmarks.
 - [ ] Whole-issue closure requires the measured live CPU reduction and existing consumer checks, or an explicit TL-approved revision of the acceptance/landing order. Do not infer that M1's pre-restart landing exception applies to M2. Report PR/build and measurements to TL; TL owns portfolio edits.
 

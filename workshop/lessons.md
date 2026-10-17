@@ -2166,3 +2166,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
   with a process gate and retain stderr rather than relying only on sleep offsets.
 
 - Chunked JSONL framing must not search a retained newline-free prefix again on each append. Count actual delimiter bytes examined across multi-chunk records, alongside semantic boundary/limit tests; read/decode counters alone miss quadratic delimiter work. Preserve per-probe progress when diagnosing aggregate worker timeouts. (#626)
+
+- #622 M2 trailer audit: keep Agent and Co-Authored-By in the same final commit-message paragraph. A blank line before Co-Authored-By makes Git exclude the earlier Agent line from its trailer block. Verify with git log --format="%(trailers:only)" before publishing; preserve already-reviewed historical commits rather than rewriting measurement provenance.
