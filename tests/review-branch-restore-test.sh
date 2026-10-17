@@ -32,19 +32,22 @@ with ReviewTestEnvironment() as isolated, tempfile.TemporaryDirectory(prefix='pa
     env=dict(base_env,PATH=str(bindir)+':'+str(root/'bin')+':'+os.environ['PATH'],HOST_LOG=str(temp/'host.log'),PAIR_HOME=str(root),PAIR_DATA_DIR=str(data),PAIR_TAG='restore',PAIR_SESSION_ID='session',
         PAIR_REVIEW_OPEN_PATH=str(opened),PAIR_REVIEW_HANDOFF_PATH=str(handoff),PAIR_REVIEW_LANDED_PATH=str(data/'landed.json'),
         PAIR_REVIEW_MODE_PATH=str(data/'mode'),XDG_STATE_HOME=str(temp/'state'),XDG_DATA_HOME=str(temp/'xdg'),XDG_CACHE_HOME=str(temp/'cache'))
-    children=[]; logs=[]
+    trace_path=temp/'pane-observations.json'; trace_init=temp/'review-init.lua'
+    trace_init.write_text('dofile('+json.dumps(str(root/'nvim/review.lua'))+')\n'+
+        'dofile('+json.dumps(str(root/'tests/lib/review_observation_trace.lua'))+').install({path='+json.dumps(str(trace_path))+'})\n')
+    children=[]; logs=[]; meta=None
     def launch():
         e=dict(env,PAIR_REVIEW_IDENTITY=json.dumps(resolve()))
         log=open(temp/('nvim-'+str(len(children))+'.log'),'w'); logs.append(log)
-        p=subprocess.Popen(['nvim','--headless','-u',str(root/'nvim/review.lua'),str(repo/'a.md')],cwd=repo,env=e,stdout=log,stderr=log); children.append(p)
+        p=subprocess.Popen(['nvim','--headless','-u',str(trace_init),str(repo/'a.md')],cwd=repo,env=e,stdout=log,stderr=log); children.append(p)
         deadline=time.monotonic()+8
         while time.monotonic()<deadline:
             if opened.exists() and len(opened.read_text().splitlines())>=3: return json.loads(opened.read_text().splitlines()[2])
             if p.poll() is not None: break
             time.sleep(.025)
         raise AssertionError('pane did not publish readiness: '+(temp/('nvim-'+str(len(children)-1)+'.log')).read_text())
-    def evaluate(meta,expr):
-        return subprocess.check_output(['nvim','--server',meta['endpoint'],'--remote-expr',expr],env=env,text=True,timeout=8).strip()
+    def evaluate(meta,expr,timeout=8):
+        return subprocess.check_output(['nvim','--server',meta['endpoint'],'--remote-expr',expr],env=env,text=True,timeout=timeout).strip()
     def lua(meta,code):
         return evaluate(meta,"luaeval('"+code.replace("'","''")+"')")
     def restore(meta,observed):
@@ -52,6 +55,15 @@ with ReviewTestEnvironment() as isolated, tempfile.TemporaryDirectory(prefix='pa
         return json.loads(evaluate(meta,"luaeval('vim.json.encode(PairReviewPane.restore(_A))', '"+req.replace("'","''")+"')"))
     def snapshot(meta):
         return json.loads(lua(meta,'vim.json.encode({file=vim.api.nvim_buf_get_name(0),text=vim.api.nvim_buf_get_lines(0,0,-1,false),marks=#vim.api.nvim_buf_get_extmarks(0,vim.api.nvim_create_namespace("review"),0,-1,{})})'))
+    def evidence():
+        observed={'unavailable':'pane endpoint unavailable'}
+        if meta is not None and children and children[0].poll() is None:
+            try:
+                observed=json.loads(evaluate(meta,"luaeval('vim.json.encode({trace=PairReviewObservationTraceSnapshot(),state=PairReviewPane.controller.state,pending=PairReviewPane.has_pending(),pane=PairReviewPane.pane_state(),modified=vim.bo.modified,error=vim.v.errmsg,messages=vim.fn.execute(\"messages\"):sub(-8192)})')",timeout=2))
+            except Exception as error: observed={'unavailable':str(error)}
+        return dict(observed=observed,handoff_exists=handoff.exists(),landed_exists=(data/'landed.json').exists(),
+                    children=[p.poll() for p in children],
+                    logs={p.name:p.read_text(errors='replace')[-8192:] for p in temp.glob('*.log')})
     try:
         meta=launch()
         draft=temp/'draft.md'; draft.write_text('draft\n'); draft_socket=str(pathlib.Path(rpc_td)/'draft.sock')
@@ -93,9 +105,13 @@ with ReviewTestEnvironment() as isolated, tempfile.TemporaryDirectory(prefix='pa
         # happens before the pane has observed its commit.
         lua(meta,'(function() vim.bo.fileformat="dos"; vim.bo.fileencoding="utf-8"; vim.bo.bomb=true; vim.cmd("write") end)()')
         active=json.loads(opened.read_text().splitlines()[2])['context']
+        trace_sequence=int(lua(meta,'(function() local t=PairReviewObservationTraceSnapshot(); return t.events[#t.events].seq end)()'))
         handoff.write_text(json.dumps(dict(context=active,records=[dict(old='A reviewed',new='A final',occurrence=1,explain='final')])) )
-        deadline=time.monotonic()+5
+        started=time.monotonic(); deadline=started+5
         while not (data/'landed.json').exists() and time.monotonic()<deadline: time.sleep(.025)
+        assert (data/'landed.json').exists(),'review pane did not publish landed acknowledgment: '+json.dumps(evidence(),default=str)
+        print('landed acknowledgment seconds:',round(time.monotonic()-started,3))
+        print('handoff resolver observations:',json.dumps([event for event in evidence()['observed']['trace']['events'] if event['seq']>trace_sequence]))
         landed=json.loads((data/'landed.json').read_text())
         assert landed['context']==active
         assert (repo/'a.md').read_bytes()==b'\xef\xbb\xbfA final\r\n','landed round changed CRLF/BOM bytes'
@@ -128,8 +144,7 @@ with ReviewTestEnvironment() as isolated, tempfile.TemporaryDirectory(prefix='pa
         assert (repo/'a.md').read_bytes()==b'\xef\xbb\xbfhuman unsaved\r\n'
         print('review-branch-restore-test ok')
     except Exception:
-        if (temp/"draft.log").exists():
-            print("draft Neovim log:\n"+(temp/"draft.log").read_text(),file=sys.stderr)
+        print('review branch evidence: '+json.dumps(evidence(),default=str),file=sys.stderr)
         raise
     finally:
         for p in children:
