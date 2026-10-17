@@ -247,17 +247,13 @@ func installedEnv(t *testing.T, binDir string) []string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var env []string
-	for _, entry := range os.Environ() {
-		key, _, _ := strings.Cut(entry, "=")
-		if !strings.HasPrefix(key, "PAIR_") && !strings.HasPrefix(key, "COUCH_") && !strings.HasPrefix(key, "XDG_") {
-			env = append(env, entry)
-		}
+	home := filepath.Join(root, "home")
+	if err := os.MkdirAll(home, 0700); err != nil {
+		t.Fatal(err)
 	}
-	return append(env,
+	return testpair.Environment(t, home,
 		"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
 		"COUCH_ISOLATED_ROOT="+root,
-		"HOME="+filepath.Join(root, "home"),
 		"XDG_DATA_HOME="+filepath.Join(root, "data"),
 		"PAIR_DATA_DIR="+filepath.Join(root, "data", "pair"),
 		"COUCH_STORE_DIR="+filepath.Join(root, "store"),

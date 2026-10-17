@@ -13,7 +13,7 @@ import (
 // session. Asserted as what the poller STARTS WITH, on both launch paths, so the
 // two cannot drift again -- and against the names the contract itself declares,
 // never a list kept here: two hand-kept lists are what drifted.
-func TestTitlePollerStartsWithItsWholeContractOnBothPaths(t *testing.T) {
+func TestWrapperInheritsTitleScopeOnCreateAndAttach(t *testing.T) {
 	want := mustScope(t, "/home/u/work").Key // baseOpts' Cwd; RepoRoot unset
 
 	t.Run("attach", func(t *testing.T) {
@@ -22,7 +22,7 @@ func TestTitlePollerStartsWithItsWholeContractOnBothPaths(t *testing.T) {
 		if _, err := AttachExistingSession(opts, opts.Env, rt, "live", "📁work-live", "claude"); err != nil {
 			t.Fatal(err)
 		}
-		assertPollerStartsWith(t, rt, want, opts.Env.DataDir)
+		assertWrapperTitleEnvironment(t, rt, want, opts.Env.DataDir)
 	})
 
 	t.Run("create", func(t *testing.T) {
@@ -32,7 +32,7 @@ func TestTitlePollerStartsWithItsWholeContractOnBothPaths(t *testing.T) {
 		if code, err := run(t, opts, rt); err != nil || code != 0 {
 			t.Fatalf("create = %d, %v", code, err)
 		}
-		assertPollerStartsWith(t, rt, want, opts.Env.DataDir)
+		assertWrapperTitleEnvironment(t, rt, want, opts.Env.DataDir)
 	})
 }
 
@@ -73,10 +73,7 @@ func TestTitlePollerScopeWhenAttachCannotResolveARoot(t *testing.T) {
 			if _, err := AttachExistingSession(opts, opts.Env, rt, "live", "📁x-live", "claude"); err != nil {
 				t.Fatal(err)
 			}
-			if len(rt.pollerEnvs) != 1 {
-				t.Fatalf("title pollers spawned = %d, want 1", len(rt.pollerEnvs))
-			}
-			got, present := rt.pollerEnvs[0][contextcmd.EnvScopeKey]
+			got, present := rt.env[contextcmd.EnvScopeKey]
 			if !present {
 				t.Fatalf("the poller starts with no %s at all -- the contract must say something", contextcmd.EnvScopeKey)
 			}
@@ -87,12 +84,9 @@ func TestTitlePollerScopeWhenAttachCannotResolveARoot(t *testing.T) {
 	}
 }
 
-func assertPollerStartsWith(t *testing.T, rt *fakeRuntime, scopeKey, dataDir string) {
+func assertWrapperTitleEnvironment(t *testing.T, rt *fakeRuntime, scopeKey, dataDir string) {
 	t.Helper()
-	if len(rt.pollerEnvs) != 1 {
-		t.Fatalf("title pollers spawned = %d, want 1", len(rt.pollerEnvs))
-	}
-	started := rt.pollerEnvs[0]
+	started := rt.env
 
 	// Every name the contract declares arrives non-empty. The names come from
 	// the contract, so a new field joins this check without anyone listing it,
@@ -109,5 +103,27 @@ func assertPollerStartsWith(t *testing.T, rt *fakeRuntime, scopeKey, dataDir str
 	got := contextcmd.EnvFrom(func(name string) string { return started[name] })
 	if got.PairScopeKey != scopeKey || got.PairDataDir != dataDir {
 		t.Errorf("the poller reads scope %q / data dir %q, want %q / %q", got.PairScopeKey, got.PairDataDir, scopeKey, dataDir)
+	}
+}
+
+func TestLauncherLeavesTitleLifetimeToWrapper(t *testing.T) {
+	for _, mode := range []string{"create", "attach"} {
+		t.Run(mode, func(t *testing.T) {
+			rt := newFakeRuntime()
+			opts := baseOpts(LaunchArgs{Agent: "claude", ForcedTag: "title-owner"})
+			if mode == "create" {
+				rt.uuids = []string{"MINTED-1"}
+				if code, err := run(t, opts, rt); code != 0 || err != nil {
+					t.Fatalf("create %d %v", code, err)
+				}
+			} else {
+				if _, err := AttachExistingSession(opts, opts.Env, rt, "live", "fixture-session", "claude"); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if len(rt.pollerEnvs) != 0 {
+				t.Fatal("launcher detached a title outside the wrapper lease")
+			}
+		})
 	}
 }

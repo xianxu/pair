@@ -41,18 +41,15 @@ func TestCreateClearsTheAgentPaneSidecarBeforeSpawningAnything(t *testing.T) {
 	if code, err := run(t, opts, rt); err != nil || code != 0 {
 		t.Fatalf("create = %d, %v", code, err)
 	}
-	if len(rt.filesAtPollerSpawn) != 1 || len(rt.filesAtLaunch) != 1 {
-		t.Fatalf("spawns = %d, launches = %d, want 1 each", len(rt.filesAtPollerSpawn), len(rt.filesAtLaunch))
-	}
-	if _, ok := rt.filesAtPollerSpawn[0][stale]; ok {
-		t.Fatalf("the previous launch's %s survived to the poller's spawn", stale)
+	if len(rt.filesAtLaunch) != 1 {
+		t.Fatalf("launches=%d", len(rt.filesAtLaunch))
 	}
 	if _, ok := rt.filesAtLaunch[0][stale]; ok {
 		t.Fatalf("the previous launch's %s survived to LaunchSession", stale)
 	}
 	// Only this agent's sidecar is the poller's evidence; a twin left by
 	// another agent is not the create path's to remove.
-	if _, ok := rt.filesAtPollerSpawn[0][twin]; !ok {
+	if _, ok := rt.filesAtLaunch[0][twin]; !ok {
 		t.Fatalf("the create path removed another agent's sidecar %s", twin)
 	}
 }
@@ -77,12 +74,10 @@ func TestAttachLeavesTheLivePaneSidecar(t *testing.T) {
 	if slices.Contains(rt.removed, live) {
 		t.Fatalf("attach removed the live pane's sidecar %s", live)
 	}
-	if len(rt.filesAtPollerSpawn) != 1 {
-		t.Fatalf("title pollers spawned = %d, want 1", len(rt.filesAtPollerSpawn))
+	if _, ok := rt.files[live]; !ok {
+		t.Fatal("attach lost the wrapper title's birth evidence")
 	}
-	if _, ok := rt.filesAtPollerSpawn[0][live]; !ok {
-		t.Fatalf("the attach-path poller would find no pane sidecar to pass its gate")
-	}
+
 }
 
 // #288: while LaunchSession blocks, the create path watches for its pane's

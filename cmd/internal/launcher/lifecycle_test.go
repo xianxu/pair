@@ -76,7 +76,7 @@ func TestRunLaunchAttach(t *testing.T) {
 	if rt.env["PAIR_TAG"] != "live" {
 		t.Fatalf("PAIR_TAG = %q", rt.env["PAIR_TAG"])
 	}
-	if len(rt.pollers) != 1 || rt.pollers[0] != "live|codex" {
+	if rt.env["PAIR_TAG"] != "live" || rt.env["PAIR_AGENT"] != "codex" {
 		t.Fatalf("title poller = %v (want the inferred codex agent)", rt.pollers)
 	}
 	if len(rt.titles) != 1 || len(rt.cmux) != 1 || !reflect.DeepEqual(rt.ttyRecorded, []string{"live|false"}) {

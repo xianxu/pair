@@ -70,11 +70,16 @@ def main():
     subprocess.run(["npm", "ci", "--prefix", "tests/terminal-oracle", "--ignore-scripts", "--no-audit", "--no-fund"], check=True, timeout=120)
     with tempfile.TemporaryDirectory(prefix="pair-native-ci-") as scratch:
         candidate = str(Path(scratch) / "pair")
-        build_env = dict(os.environ)
-        build_env.pop("PAIR_TEST_BINARY", None)
+        # Native fixtures inherit the same empty allowlist as every Pair test.
+        helper = root / "tests/lib/pair-test-env.sh"
+        caches = [key + "=" + subprocess.check_output(["go", "env", key], text=True).strip()
+                  for key in ("GOCACHE", "GOMODCACHE")]
+        raw = subprocess.check_output(["/bin/sh", str(helper), "--print0", scratch, *caches],
+                                      env={"PATH": os.environ.get("PATH", "/usr/bin:/bin")})
+        build_env = dict(entry.decode().split("=", 1) for entry in raw.split(b"\0") if entry)
         subprocess.run(["bash", str(root / "tests/lib/pair-test-binary.sh"), candidate],
                        env=build_env, check=True, timeout=180)
-        env = dict(os.environ, PAIR_LIVE_COUCH="1", PAIR_LIVE_COUCH_NATIVE="1", PAIR_NATIVE_BINARY=candidate)
+        env = dict(build_env, PAIR_LIVE_COUCH="1", PAIR_LIVE_COUCH_NATIVE="1", PAIR_NATIVE_BINARY=candidate)
         pattern = "^(TestNativeConsoleWrapperZellij|TestLiveConsoleNvimPreservesContentAndChrome|TestLiveReservedRowSurvivesRealScrolling|TestNotificationPTYConformance)$"
         command = ["go", "test", "-race", "-json", "./cmd/internal/couchtty", "-run", pattern, "-count=1", "-timeout=5m"]
         # Stream diagnostics; retain JSON only until validation and process exit.

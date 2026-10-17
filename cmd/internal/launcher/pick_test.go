@@ -218,7 +218,7 @@ func TestRunLaunchPickAttachInfersAgent(t *testing.T) {
 	if len(rt.attached) != 1 || rt.attached[0] != "📁work-svc" {
 		t.Fatalf("attached = %v, want [📁work-svc]", rt.attached)
 	}
-	if len(rt.pollers) != 1 || rt.pollers[0] != "svc|codex" {
+	if rt.env["PAIR_TAG"] != "svc" || rt.env["PAIR_AGENT"] != "codex" {
 		t.Fatalf("pollers = %v, want [svc|codex] (agent inferred from the picked tag)", rt.pollers)
 	}
 }
@@ -238,7 +238,7 @@ func TestRunLaunchPickNewCreates(t *testing.T) {
 	if rt.launched != "📁work-2" {
 		t.Fatalf("launched = %q, want 📁work-2 (prompted free-slot create)", rt.launched)
 	}
-	if len(rt.pollers) != 1 || rt.pollers[0] != "work-2|claude" {
+	if rt.env["PAIR_TAG"] != "work-2" || rt.env["PAIR_AGENT"] != "claude" {
 		t.Fatalf("pollers = %v, want [work-2|claude]", rt.pollers)
 	}
 }
@@ -261,7 +261,7 @@ func TestRunLaunchPickHistoricalCreatesByName(t *testing.T) {
 	if rt.launched != "📁work-gone" {
 		t.Fatalf("launched = %q, want 📁work-gone", rt.launched)
 	}
-	if len(rt.pollers) != 1 || rt.pollers[0] != "gone|codex" {
+	if rt.env["PAIR_TAG"] != "gone" || rt.env["PAIR_AGENT"] != "codex" {
 		t.Fatalf("pollers = %v, want [gone|codex] (agent inferred)", rt.pollers)
 	}
 	if rt.family != nil { // no name prompt for a resume-by-name create
@@ -286,7 +286,7 @@ func TestRunLaunchExplicitAgentDifferentHistoricalUsesContinuation(t *testing.T)
 	if rt.launched != "📁work-old" {
 		t.Fatalf("launched = %q, want 📁work-old", rt.launched)
 	}
-	if len(rt.pollers) != 1 || rt.pollers[0] != "old|codex" {
+	if rt.env["PAIR_TAG"] != "old" || rt.env["PAIR_AGENT"] != "codex" {
 		t.Fatalf("pollers = %v, want [old|codex]", rt.pollers)
 	}
 	if got := rt.files["/data/draft-old.md"]; !strings.Contains(got, "/continuations/20260816-old.md") {
@@ -311,7 +311,7 @@ func TestRunLaunchExplicitAgentDifferentHistoricalSynthesizesContinuationWhenDoc
 	if rt.launched != "📁work-old" {
 		t.Fatalf("launched = %q, want 📁work-old", rt.launched)
 	}
-	if len(rt.pollers) != 1 || rt.pollers[0] != "old|codex" {
+	if rt.env["PAIR_TAG"] != "old" || rt.env["PAIR_AGENT"] != "codex" {
 		t.Fatalf("pollers = %v, want [old|codex]", rt.pollers)
 	}
 	draft := rt.files["/data/draft-old.md"]

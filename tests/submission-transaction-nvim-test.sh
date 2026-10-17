@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pair-test-bootstrap.sh"
 # Full init.lua → delivery sequencer → Pair-log transaction failure matrix.
 set -euo pipefail
 

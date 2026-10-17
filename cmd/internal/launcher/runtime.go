@@ -10,7 +10,6 @@ import (
 	"github.com/xianxu/pair/cmd/internal/readiness"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 	"github.com/xianxu/pair/cmd/internal/sessionledger"
-	"github.com/xianxu/pair/cmd/internal/titlepoller"
 )
 
 // The launcher.Runtime effect seam (#99 M2). Every IO the create-flow
@@ -99,7 +98,6 @@ type ProcOps interface {
 	// frame/cmux title singleton. env is its launch contract, handed to the child
 	// explicitly rather than inherited from whatever was exported first -- the
 	// inheritance is what pair#183 lost on attach.
-	SpawnTitlePoller(tag, agent, session string, env titlepoller.SessionEnv)
 	// DevRebuild rebuilds the repo Go binaries when PAIR_DEV is set (no-op
 	// otherwise) so the layout's `exec pair-wrap` resolves a fresh build (#46).
 	DevRebuild(pairHome string)
@@ -243,8 +241,8 @@ type LifecycleOps interface {
 	ConfirmParkNudge(session string, timeoutSecs int) bool
 	// IsTTY reports whether stdin is a terminal (`[ -t 0 ]`, shell 1552).
 	IsTTY() bool
-	// KillTitlePoller SIGTERMs + clears the title-pid-<tag> poller, shell
-	// 1621-1627.
+	// KillTitlePoller is the legacy lifecycle callback. OSRuntime leaves
+	// title teardown to the wrapper lease; pidfiles confer no kill authority.
 	KillTitlePoller(tag string)
 	// PairOwnsCmuxWorkspace reports whether this tag owns the current cmux
 	// workspace (CMUX_WORKSPACE_ID set + cmux-owner-<id>'s tag field matches).

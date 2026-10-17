@@ -2,6 +2,7 @@ package wrapcmd
 
 import (
 	"bytes"
+	"io"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -21,7 +22,11 @@ var realStartWatcherProcess = startWatcherProcess
 // variables, which would make the wrapper Couch-hosted; tests that want a
 // Couch-hosted wrapper set them.
 func TestMain(m *testing.M) {
+	titleProcessTestCommand()
 	detachWatcherHelper()
+	if os.Getenv("PAIR_617_TITLE_HELPER") != "1" {
+		startTitleProcess = func(string, string, io.Writer) (*wrapperTitleProcess, error) { return nil, nil }
+	}
 	os.Unsetenv("COUCH_THREAD_SCOPE")
 	os.Unsetenv("COUCH_THREAD_TAG")
 	startWatcherProcess = func(_ []string, _ []string, _ ...*os.File) error { return nil }
