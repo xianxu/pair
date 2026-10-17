@@ -2103,6 +2103,7 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #604 BR-1: Deferring a live smoke does not implicitly defer a separately promised diagnostic deliverable. Enumerate the Spec's independent obligations and explicitly reconcile any approved scope reduction across Spec, Plan, Done-when and atlas before claiming completion; keep unknown causes unknown.
 - #604 BR-2: For a changed user-visible action, update its existing README account as well as the atlas. Explain confirmed versus unconfirmed outcomes at the user entry point; internal architecture prose alone does not update the user contract.
 
+- #629: Open a declaration comment with its own symbol. Ordinary prose can accidentally name another existing declaration (Connected above MaxQueued) and trigger the stacked-godoc guard. Run the termcmd doc-comment guards when rewriting shared declaration comments.
 - #627 BR-1: Before treating an omitted process row as exit evidence, inspect every native enumeration backend for silently discarded reads. Preserve listed unreadable PIDs as unknown and test actual stat-read/parse failures, then test both initial ownership capture and exit polling; an injected top-level error alone misses lossy enumeration.
 - #625: An idle flag carries a particular admission policy, not a universal
   definition of work. Check a real empty-composer/background-command case
@@ -2110,3 +2111,8 @@ and external temporary roots rather than relying on the host's TMPDIR.
   independent display activity is designed; do not overload the admission flag
   to make a busy visual look right.
 - **A new help source changes old documentation claims (#619).** When adding companion-editor metadata to a source-derived help catalog, update the README shortcut table and search for universal claims such as "every row comes from its implementing keymap". Qualify the source boundary as well as listing the feature; atlas coverage alone does not keep the user-facing contract accurate.
+
+- #629: Removing a wait horizon also changes the lifetime of its diagnostic histories. Queue caps do not bound per-message maps of changing wait reasons. Retire histories whose expiry consumer disappeared; keep duration accounting in the bounded phase that still consumes it.
+
+- #629 BR-1: A queued/held receipt describes the latest observation, not absence of input after commit handoff. Classify disconnect uncertainty from the active delivery owner; test both sender and receiver disconnect for every interim receipt status.
+- #629 BR-2: Advancing an injected business clock does not advance an existing real context timer. Test each timeout owner independently at its IO boundary and restore each removed deadline separately to prove its regression fails.

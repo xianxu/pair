@@ -136,7 +136,7 @@ func TestProtocolHandleSendStatusAndNoFree(t *testing.T) {
 	request.Target = to.Slot
 	request.Body = "work"
 	// A busy recipient queues it (pair#492).
-	if result := Handle(context.Background(), b, request); result.Code != "accepted" || result.Receipt == nil || result.Receipt.Status != Queued || result.Receipt.Detail != "position 1" {
+	if result := Handle(context.Background(), b, request); result.Code != "accepted" || result.Receipt == nil || result.Receipt.Status != Queued || result.Receipt.Detail != "position 2; waiting for recognized composer" {
 		t.Fatalf("queued: %#v", result)
 	}
 	request.ID = "third"

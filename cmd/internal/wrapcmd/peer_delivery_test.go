@@ -145,7 +145,7 @@ func TestPeerDeliverySubmitsAfterDelayThenConfirms(t *testing.T) {
 			if out.String() != paste {
 				t.Fatal("submitted before the delay")
 			}
-			// Past the original paste-by deadline: the window runs from the paste.
+			// Past the original commit deadline: the window runs from the paste.
 			now = now.Add(PeerSubmitDelay + time.Second)
 			f.proxy.turnActive.Store(tc.busy)
 			f.proxy.dispatchPeer(&out)
@@ -185,7 +185,7 @@ func TestPeerDeliverySubmitsAfterDelayThenConfirms(t *testing.T) {
 
 // pair#427 Done-when: a send right after a restart, while the agent is still
 // booting. The composer appears only after the old 30s admission deadline;
-// the paste-by budget covers it and the window starts at the paste.
+// accepted mail waits for readiness and the window starts at the paste.
 func TestPeerDeliveryDuringSimulatedBoot(t *testing.T) {
 	now := time.Now()
 	f := newHarnessSessionFake(t, "claude", true)

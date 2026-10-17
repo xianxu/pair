@@ -84,8 +84,8 @@ func TestReconnectRetainsBudgetAndReplacementRejectsStaleEvents(t *testing.T) {
 		t.Fatal("stale incarnation accepted")
 	}
 }
-func TestDeadlineAndDisconnectAfterDeliveryAreIndeterminate(t *testing.T) {
-	for _, event := range []EventKind{Tick, Disconnect} {
+func TestDisconnectAfterDeliveryIsIndeterminate(t *testing.T) {
+	for _, event := range []EventKind{Disconnect} {
 		t.Run(string(event), func(t *testing.T) {
 			now := time.Unix(100, 0)
 			b := binding("pair:1")
@@ -93,7 +93,7 @@ func TestDeadlineAndDisconnectAfterDeliveryAreIndeterminate(t *testing.T) {
 			m := Message{ID: "m", From: binding("brain:0"), To: b, Body: "work", Deadline: now.Add(time.Second)}
 			s, _ = advance(t, s, Event{Kind: Admit, Binding: b, Message: m, At: now})
 			s, _ = advance(t, s, Event{Kind: DeliveryStarted, Binding: b, Message: m, At: now})
-			_, fx := advance(t, s, Event{Kind: event, Binding: b, At: m.Horizon()})
+			_, fx := advance(t, s, Event{Kind: event, Binding: b, At: now.Add(2 * time.Hour)})
 			if len(fx) != 1 || fx[0].Receipt.Status != Indeterminate {
 				t.Fatalf("effects %#v", fx)
 			}
@@ -148,38 +148,34 @@ func TestBudgetCannotBeResetByReconnectOrTraffic(t *testing.T) {
 	}
 }
 
-func TestLateCompletionCannotClaimSubmission(t *testing.T) {
+func TestConfirmedSubmissionAfterLongComposerWait(t *testing.T) {
 	now := time.Unix(100, 0)
 	b := binding("pair:1")
 	s := registered(t, b, now)
 	m := Message{ID: "late", From: binding("brain:0"), To: b, Body: "work", Deadline: now.Add(time.Second)}
 	s, _ = advance(t, s, Event{Kind: Admit, Binding: b, Message: m, At: now})
 	s, _ = advance(t, s, Event{Kind: DeliveryStarted, Binding: b, Message: m, At: now})
-	_, fx := advance(t, s, Event{Kind: DeliveryFinished, Binding: b, Message: m, Status: Submitted, At: m.Horizon()})
-	if len(fx) != 1 || fx[0].Receipt.Status != Indeterminate {
-		t.Fatal("late completion upgraded to submitted")
+	_, fx := advance(t, s, Event{Kind: DeliveryFinished, Binding: b, Message: m, Status: Submitted, At: now.Add(2 * time.Hour)})
+	if len(fx) != 1 || fx[0].Receipt.Status != Submitted {
+		t.Fatal("confirmed completion discarded after composer wait")
 	}
 }
 
-// pair#427: the deadline is paste-by; the window runs from the paste. A
-// submission completing after the paste-by time but inside the horizon stands,
-// and the broker's own expiry waits for the horizon.
+// The wrapper owns paste-relative timing; the broker cannot derive it from
+// the message's original reservation/commit deadline.
 func TestDeliveryWindowRunsPastThePasteDeadline(t *testing.T) {
 	now := time.Unix(100, 0)
 	b := binding("pair:1")
 	s := registered(t, b, now)
 	m := Message{ID: "window", From: binding("brain:0"), To: b, Body: "work", Deadline: now.Add(time.Second)}
-	if m.Horizon() != m.Deadline.Add(MaxHold+DeliveryTimeout) {
-		t.Fatal(m.Horizon())
-	}
 	s, _ = advance(t, s, Event{Kind: Admit, Binding: b, Message: m, At: now})
 	s, _ = advance(t, s, Event{Kind: DeliveryStarted, Binding: b, Message: m, At: now})
 	ticked, fx := advance(t, s, Event{Kind: Tick, At: m.Deadline.Add(time.Second)})
 	if len(fx) != 0 {
 		t.Fatalf("expired at the paste deadline: %+v", fx)
 	}
-	if _, fx = advance(t, ticked, Event{Kind: Tick, At: m.Horizon()}); len(fx) != 1 || fx[0].Receipt.Status != Indeterminate {
-		t.Fatalf("no expiry at the horizon: %+v", fx)
+	if _, fx = advance(t, ticked, Event{Kind: Tick, At: now.Add(2 * time.Hour)}); len(fx) != 0 {
+		t.Fatalf("connected delivery expired: %+v", fx)
 	}
 	if _, fx = advance(t, ticked, Event{Kind: DeliveryFinished, Binding: b, Message: m, Status: Submitted, At: m.Deadline.Add(time.Second)}); len(fx) != 1 || fx[0].Receipt.Status != Submitted {
 		t.Fatalf("in-window submission downgraded: %+v", fx)
@@ -187,8 +183,8 @@ func TestDeliveryWindowRunsPastThePasteDeadline(t *testing.T) {
 }
 
 // pair#435: the recipient's interim receipt reaches the sender's view, so a
-// held delivery reads "held" with its reason; the broker's horizon covers
-// the longest hold, and a late Held never rewrites a terminal receipt.
+// held delivery reads "held" with its reason, and late progress cannot
+// rewrite a terminal receipt.
 func TestDeliveryProgressReportsHeld(t *testing.T) {
 	now := time.Unix(100, 0)
 	b := binding("pair:1")
@@ -199,15 +195,15 @@ func TestDeliveryProgressReportsHeld(t *testing.T) {
 		t.Fatalf("progress before the job owns the delivery: %+v", fx)
 	}
 	s, _ = advance(t, s, Event{Kind: DeliveryStarted, Binding: b, Message: m, At: now})
-	at := m.Deadline.Add(time.Minute) // past the paste-by: the hold stopped the clock
+	at := m.Deadline.Add(time.Minute) // past initial commit: accepted holds have no wait expiry
 	s, fx := advance(t, s, Event{Kind: DeliveryProgress, Binding: b, Message: m, Status: Held, Detail: "waiting for the composer to be in view", At: at})
 	if len(fx) != 1 || fx[0].Receipt.Status != Held || fx[0].Receipt.Detail != "waiting for the composer to be in view" {
 		t.Fatalf("held progress: %+v", fx)
 	}
 	if _, fx = advance(t, s, Event{Kind: Tick, At: at}); len(fx) != 0 {
-		t.Fatalf("broker expired a held delivery inside the hold limit: %+v", fx)
+		t.Fatalf("broker expired an accepted held delivery: %+v", fx)
 	}
-	if _, fx = advance(t, s, Event{Kind: DeliveryProgress, Binding: b, Message: m, Status: Queued, Detail: "waiting for paste mode", At: at}); len(fx) != 1 || fx[0].Receipt.Status != Delivering {
+	if _, fx = advance(t, s, Event{Kind: DeliveryProgress, Binding: b, Message: m, Status: Queued, Detail: "waiting for paste mode", At: at}); len(fx) != 1 || fx[0].Receipt.Status != Queued {
 		t.Fatalf("released progress: %+v", fx)
 	}
 	if _, _, err := Advance(s, Event{Kind: DeliveryProgress, Binding: b, Message: m, Status: Submitted, At: at}); err == nil {
