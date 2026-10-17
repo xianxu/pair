@@ -1049,7 +1049,9 @@ and asks the hub to request fresh status.
 
 Couch records content-free supervision facts locally in its namespace
 `supervision.jsonl`: hub deliveries, session-file writes, accepted submissions,
-slot changes and minute snapshots. Logging is best-effort and capped per diagnostic
+slot changes, clipboard-copy outcomes and minute snapshots. Clipboard events record
+only tool, exit/timeout status, stderr byte length/hash and the separate OSC outcome;
+free-form stderr and the copied notice never enter this log. Logging is best-effort and capped per diagnostic
 generation; gaps are not inactivity. The [offline labeling script](scripts/supervision-labels/SKILL.md)
 compares observed writes within ten minutes without changing Couch decisions.
 See [the fact-log contract](atlas/couch.md#supervision-fact-log-543) for coverage and retention.
@@ -1468,11 +1470,23 @@ Space is a literal search character; it does not toggle views.
 
 In the switcher, `Ctrl+Y` copies the full last retained status notice, including
 text clipped from the status row and after that row expires. Repeating it copies
-the same notice until another arrives. A local console first tries the system
+the same notice until another arrives. A failed or unconfirmed attempt keeps its
+original notice for **Ctrl+Y** retry even if a newer notice arrives; **Esc** dismisses
+the copy feedback without leaving the switcher. Navigation and background refreshes
+keep that feedback and ordinary operation errors independently visible.
+A local console first tries the system
 clipboard (`pbcopy` on macOS), with a one-second budget; successful tool exit
 confirms the copy. SSH sessions and missing, failed, or timed-out clipboard tools
 use a terminal OSC 52 request instead. Its feedback says **unconfirmed**, because
-Couch cannot verify that the terminal delivered it to the clipboard.
+Couch cannot verify that the terminal delivered it to the clipboard. Native tool
+failures retain bounded stderr on screen; a successful tool whose child holds stderr
+remains successful, with incomplete diagnostic capture marked truncated. Each attempt emits a content-free
+`clipboard_copy` event in the namespace supervision log.
+An authorized opt-in conformance run from a Couch slot uses
+`PAIR_LIVE_CLIPBOARD_CONFORMANCE=1 go test ./cmd/internal/couchtty -run '^TestClipboardLiveConsoleConformance$' -count=1`.
+It requires native macOS tools, keeps the previous clipboard only in memory, and
+restores it only if the clipboard still contains its test marker. Normal suites
+skip this check.
 In an actor, `Ctrl+Y` still goes to the actor.
 
 Printable input filters the current list from memory (typeahead), matching what a

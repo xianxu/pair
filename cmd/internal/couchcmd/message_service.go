@@ -465,6 +465,7 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch, configur
 	service.installHubMoves(console)
 	service.SetDesktopNotify(console.NotifyDesktop)
 	console.SetMessageBroker(service.broker)
+	console.SetCopyObserver(facts.clipboardCopy)
 	service.SetBroadcastStatus(console.BroadcastStatus)
 	service.SetShares(console.Shares)
 	service.SetBlockedView(console.SetBlockedThreads)
