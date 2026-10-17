@@ -1,6 +1,6 @@
 ---
 id: 000642
-status: codecomplete
+status: done
 created: 2026-10-17
 updated: 2026-10-17
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: c03fe7d4d8121e1b1b1850fb250da0d0c2b121f6
         evidence_commit: 3e3ca5ebe6d8e70281eb0abf1471cd74d0e1b2e0
+        landed_commit: a580bcc44cf6a2098d5676a08c9f8c3bff70441d
 ---
 
 # Changelog Lua test shares reload scratch path across concurrent suites
