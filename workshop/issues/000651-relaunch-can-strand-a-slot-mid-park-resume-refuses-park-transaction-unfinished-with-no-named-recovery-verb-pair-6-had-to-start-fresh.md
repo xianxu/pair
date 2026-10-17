@@ -81,3 +81,7 @@ ARCH-ORDER/SECURE shape the proposed distinction between unpublished rollback, m
 ### 2026-10-17 — plan approved before code
 
 Verified TL receipt4ba546a0: public confirmed recover-park/menu and exact-dead-owner retirement policy approved. Add the three operator outcomes after retirement (continue live, resume from disk, start fresh), with executable next-command advice on success and refusal. No automatic operation. Hub confirms it did not retain pair:6's original failed receipt; proceed on the isolated fixture proof and preserve that provenance limit. Durable plan Revisions records the delta; enter change-code before implementation.
+
+### 2026-10-17 — plan-quality refinement PQ-1
+
+First change-code plan review accepted all architectural lenses but blocked on prose test inventories. Replace them with named function-level adversarial strategies and mechanical guards, retaining transition model/acceptance invariants. No production code written. Refined plan names the existing checked-store primitives required for the already-approved bounded rollback policy; ordinary writer semantics stay unchanged. Rerun change-code for remembered disposition.

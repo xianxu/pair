@@ -83,25 +83,41 @@ ARCH-FUNERAL: no new persisted sidecar family or background process. Closed park
 
 ARCH-PURE/DRY: one decision core and guidance formatter, existing transition function/store journal/worker/ownership checks reused. ARCH-SECURE: input records and uncertain observations are not trusted absence; confirmation is not ownership proof. ARCH-ORDER: journal/identity/publication uncertainty and all late events are first-class. ARCH-PURPOSE: cover missing/failed completion and all named callers, not only adding words to the refusal. ARCH-MOCK: stateful fakes plus opt-in real helper conformance; no function-call count as the only recovery oracle.
 
+## Test strategies by function
+
+Each row names the callable production boundary to verify. Concrete values and permutations belong in executable tests, not this plan.
+
+| Function | Strategy and mechanical guard |
+|---|---|
+| DecideParkRecovery | Generate the cross-product of transaction/evidence states; assert effects require explicit publication/identity/death authority and unknown evidence never authorizes retirement. Pure unit tests, without IO fakes. |
+| ClassifyRelaunchParkOutcome | Vary original/current record and active-work observations independently; assert outcomes describe current durable state rather than the error channel. Pure unit tests. |
+| ThreadStore.RetireInterruptedPark | Inject revision/identity mismatch and journal interruption around persisted updates; assert one atomic after-image, exact owner retirement, preserved unrelated fields and reopen convergence. Actual private ThreadStore, no process mocks. |
+| PairLifecycleController.rollbackUnpublishedPark | Cancel around the publication boundary under an owned worker reservation; assert rollback only when the initiating worker holds positive no-publication authority and its bounded store update settles before reservation release. |
+| PairLifecycleController.recoverInterruptedPark | Drive adversarial asynchronous event sequences through stateful lifecycle/session/process fakes and journal hooks; assert single-owner effects, completion authority and safe repeatability, with futures settled before fixture cleanup. |
+| Couch.RecoverPark | Compare retained lifecycle and native-resume authority before/after recovery through real private storage and existing fakes; assert no automatic launch and no fabricated VerifiedPark. |
+| ParkRecoveryNextAction | Vary established, absent and unavailable conversation/session observations; assert advice uses the existing continue/resume/Fresh eligibility and unavailable evidence produces inspection/refusal rather than guessed success. |
+| ParkRecoveryAdvice | Exercise arbitrary target forms and operation outcomes; parse each advertised CLI command through production ParseCLI, and resolve local action labels through the menu authority. |
+| ParseCLI / slotOperations.handle | Generate malformed argv/confirmation and authenticated-caller/receipt sequences; assert declaration-derived reachability, current owning-hub checks and idempotent receipt semantics before effects. |
+| PrepareSlotOperation / ActorActions / menuRowActions | Generate row/park/lifecycle interleavings with changed targets; assert offered actions and executable admission share the same exact address and authority. |
+| RunConformanceScenario / realParkConformanceDriver | Gate owned private helper effects and interrupt/reopen them; compare semantic traces and independently checked conversation/ownership invariants with the stateful fake. |
+| lifecycleCandidates / storagegc.Decide | Use an interrupted historical owner bundle; assert ownership enumeration and unchanged visible protection/archived retention policy govern its lifetime. |
+
 ## Task 1: Permanent interruption proofs and recovery core
 
 **Files:** cmd/internal/couchcore/park_recovery.go, park_recovery_test.go, relaunch_test.go, park.go, threadstore.go, storejournal_test.go; existing lifecycle fakes/helpers.
 
-- [ ] Promote the retained twelve-boundary reproduction into permanent independent assertions. Add every cleanup-stage failure and actual context cancellation; distinguish fake fault injection from native interruption.
-- [ ] Add failing regressions for pre-publication rollback, missing-completion/dead-owner recovery, failed scrollback cleanup, repeated recovery, delayed success and journal roll-forward. Assert exact native binding/profile preserved, no second child/trigger, no fake VerifiedPark, truthful receipt and retained evidence.
-- [ ] Add adversarial cases: owner unknown/live, terminal query failure, replaced PID identity, foreign park, zero/multiple incarnations, revision race, competing start, coalesced recovery, canceled caller while old worker remains, late completion after retirement and next incarnation.
-- [ ] Run targeted red cases and retain output; implement pure decision + thin recovery/atomic store operation with existing transitions. Re-run green and journal-fault cases including crash between intent and each target write. Verify interrupted artifacts remain discoverable by lifecycleCandidates and the owner-bundle collector under the unchanged retention policy.
-- [ ] Correct relaunch classification from fresh durable state after errors; test before-begin failure, canceled return while worker active, finalized journal loss and cleanup-time cancellation. No state claim based only on return error.
+- [ ] Promote the retained diagnostic into independent regression assertions following the function strategies above; run and retain the expected red output before production edits.
+- [ ] Implement the pure decision and thin recovery/atomic store operation using existing transitions, exact ownership screening and worker reservation. Add a context-aware checked update only for the bounded recovery/rollback store path, reusing existing checked journal and coordinator primitives; ordinary writers retain their existing semantics.
+- [ ] Make Relaunch classify current durable state after failure and wire the three operator outcomes; rerun the function strategies and inspect independently stated invariants.
 - [ ] Run go test ./cmd/internal/couchcore -run 'Park|Relaunch|LifecycleDebris|Resume' -count=1; commit code/proof.
 
 ## Task 2: Public recovery and actionable guidance
 
 **Files:** cmd/internal/couchcore/ops.go, operationdispatch.go, slot_operation.go, actor-action projection/advice, resume_route.go, recovery_prepared.go; cmd/internal/couchcmd/cli.go, slot_operations.go, help/skill sources; cmd/internal/couchmessage protocol declaration/validation; cmd/internal/couchtty/menu_actions.go and execution; corresponding colocated tests.
 
-- [ ] Add failing CLI parse/confirmation, authenticated socket/receipt and row-menu tests for recover-park. Test missing confirmation, wrong hub, ambiguous/unknown slot, changed current target, unknown receipt and duplicate intent. Derive command reachability/confirmation from declarations, not another independent allowlist.
-- [ ] Wire the single typed operation to existing admission/queue; never treat a recovery result as StartedChild. Add exact scope/tag menu admission; offer recovery only when the durable park is open, including unusable/busy-looking rows whose worker can be joined safely.
-- [ ] Centralize advice and sweep each open-park refusal/partial receipt. Test advertised command through production ParseCLI → socket → dispatch → controller and confirm it resolves the reproduced dead end. Test ordinary-thread menu path separately.
-- [ ] Verify a second recover is harmless, and resume uses normal binding/owner checks after recovery without creating a new conversation. Update atlas/index link only if adding a page; update atlas/couch.md, user-facing help/skill and README where behavior changes.
+- [ ] Write and run the named CLI/socket/menu/advice strategy regressions red, then wire the single declared operation to existing authenticated admission/queue and recovery core.
+- [ ] Centralize guidance for the open-park refusal/partial-result class. Verify production transport and local menu conformance, without treating a recovery result as StartedChild.
+- [ ] Update atlas/couch.md, user-facing help/skill and README where behavior changes; keep atlas/index links current if adding a page.
 - [ ] Run go test ./cmd/internal/couchcore ./cmd/internal/couchcmd ./cmd/internal/couchmessage ./cmd/internal/couchtty -run 'Park|Relaunch|SlotOperation|Resume|Operation' -count=1; commit.
 
 ## Task 3: Conformance, required suite, review and live acceptance
@@ -121,3 +137,7 @@ Plan posted before production code. Await TL approval of the public command and 
 ### 2026-10-17 14:45 PDT — TL approval and terminal operator outcomes
 
 Verified hub receipt4ba546a0 approves both the public confirmed recover-park/menu and the dead-owner interrupted-cleanup retirement policy. After retirement, project into exactly one existing operator outcome: continue live, resume from disk, or start fresh. Success and refusal text name the corresponding next executable command (or exact local menu action); uncertain facts cannot be turned into a guessed outcome. Reuse existing session/native-binding recovery classification for this projection; it is advice, never automatic resume or Fresh. Add tests of established/missing/unknown binding and surviving terminal so the result cannot point at an operation that its own retained record forbids. The original failed pair:6 receipt was not retained by the hub; fixture evidence is the basis, with no claim to reconstruct the original ordering. Approval checkpoint above is now satisfied; change-code owns admission.
+
+### 2026-10-17 — PQ-1 function-level test strategy
+
+Replace prose test inventories in Tasks1–2 with one strategy per named risky function, keeping the existing transition table and acceptance invariants. Concrete cases remain in executable regressions. Clarify that bounded rollback/retirement reuses the existing checked coordinator/journal primitives through a context-aware update, since ordinary updateExistingThread uses blocking Background lock semantics. This is implementation detail within the approved bounded-cleanup policy, not a new recovery authority.
