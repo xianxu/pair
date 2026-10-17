@@ -36,8 +36,8 @@ Diagnose the helper startup/cancellation boundary and retain actionable evidence
 
 ## Plan
 
-- [ ] Reproduce early SIGINT loss with an ignored-SIGINT parent and pin the pre-handler ordering with a pipe gate.
-- [ ] Normalize the fixture child's inherited SIGINT without changing its caller; retain failure output and startup/lease observations.
+- [x] Reproduce early SIGINT loss with an ignored-SIGINT parent and pin the pre-handler ordering with a pipe gate.
+- [x] Normalize the fixture child's inherited SIGINT without changing its caller; retain failure output and startup/lease observations.
 - [ ] Verify both signal dispositions, bounded descendant cancellation and successful sidecars; record the full suite, close review and landing.
 
 ## Log
@@ -51,6 +51,10 @@ Read-only audit: the startup test launches wait_ready=False, sleeps0/10/20/40ms,
 2026-10-17 design: fixture-only quick fix, posted to hub as proceeding unless objected. Normalize SIGINT around helper launch, restoring the parent immediately afterward. A real-process bootstrap gate before helper entry pins the vulnerable window under an ignored-SIGINT parent; assert cancellation before gate release and preservation of the parent's disposition. Keep existing real descendant and success controls. Capture streams in an owned temporary file; timeout diagnostics report signal/disposition, process and lease observations plus captured output, without longer waits or retries. ARCH-DRY/PURPOSE: reuse the owned-group helper unchanged and fix the fixture's launch precondition. ARCH-PURE/MOCK: the boundary is real OS process/signal IO, not mocked signal calls. ARCH-CONSTRAINTS: retain 3 s exit and 2 s descendant budgets. ARCH-SECURE: signal only owned children/groups. ARCH-STATE: explicitly order pre-handler gate, cancellation and gate release. ARCH-FUNERAL: close diagnostic files and collect owned helper/descendants before removing their private directory. Headless real-process verification needs no operator environment change; no pair:0 staging proposed.
 
 2026-10-17 deterministic RED: test_ignored_parent_sigint_cancels_before_helper_entry starts a real child with a pipe gate before runpy enters the helper. The child reports SIGINT disposition 1 (SIG_IGN), then the parent sends SIGINT and waits without releasing the gate. Failure is the expected lost cancellation after 3 s, not a fixture setup error (3.049 s total first measurement). Retained second reproduction: /tmp/pair598-gated-red.log. Cleanup kills only that owned gated child; no helper command or descendant starts.
+
+2026-10-17 GREEN: all six real-process lifetime methods pass under normal parent (2.156 s) and explicitly ignored-SIGINT parent (2.241 s), including exact post-ready TERM/INT exit codes, timeout cleanup, intentional-success-sidecar survival and command exit status. A real noninteractive Bash background launch reports inherited SIGINT=1 and passes all six in 2.201 s (/tmp/pair598-background-green.log). Running origin/main's original startup test in that same background form reproduces the old 3 s TimeoutExpired at delays 0 and 0.01 (6.732 s total; /tmp/pair598-background-original-red.log). An initial diagnostic bootstrap used the wrong __main__ namespace and failed unittest discovery; corrected before this behavioral measurement.
+
+2026-10-17 final targeted verification: make test-without-ancestors passes six methods in 1.851 s (/tmp/pair598-final-make.log); git diff --check passes. The new gate also verifies captured stderr and caller-disposition preservation. Replacing only the normalization call with getsignal (in-memory source mutant; no tracked mutation) fails the gate in 3.031 s. Its failure names phase=before helper entry, child_SIGINT=1, helper PID, no published descendant group, caller_SIGINT=1, and the retained pre-handler stderr marker (/tmp/pair598-reverted-normalization.log). Diagnostic reads use positional IO, bounded to 64 KiB, so observing output cannot move the child's write offset. tests/without-ancestors.py is unchanged. atlas/index.md maps the fixture contract; lesson records the inherited-signal class.
 
 ## Revisions
 
