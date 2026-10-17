@@ -23,7 +23,7 @@ flow: {kind: quick, provenance: inferred, spec: "d6f20eaa", done: "ea33b815"}
 
 ## Problem
 
-Read-only #636 audit found that cmd/internal/couchcore/park_lifecycle_live_test.go zellijClientCount directly invokes list-clients, counts every nonempty stdout line (including the header), and accepts successful empty stdout as count0. startProductionParkHelper snapshots that baseline, starts a helper, and accepts any later count greater than baseline as attachment. If baseline is an empty successful reply and the next response is only CLIENT_ID / ZELLIJ_PANE_ID / RUNNING_COMMAND header, the count moves0 to1 even with no attached client. Source behavior establishes this false-readiness sequence; no native reproduction or causal link to #636/#640 is claimed.
+Read-only #636 audit found that cmd/internal/couchcore/park_lifecycle_live_test.go zellijClientCount directly invokes list-clients, counts every nonempty stdout line (including the header), and accepts successful empty stdout as count0. startParkLifecycleHelper snapshots that baseline, starts a helper, and accepts any later count greater than baseline as attachment. If baseline is an empty successful reply and the next response is only CLIENT_ID / ZELLIJ_PANE_ID / RUNNING_COMMAND header, the count moves0 to1 even with no attached client. Source behavior establishes this false-readiness sequence; no native reproduction or causal link to #636/#640 is claimed.
 
 ## Spec
 
@@ -44,7 +44,7 @@ Make the park live fixture preserve unknown query results and count actual clien
 
 ## Log
 
-2026-10-17: Filed unclaimed from #636 read-only audit. Relevant source: cmd/internal/couchcore/park_lifecycle_live_test.go zellijClientCount and startProductionParkHelper; canonical production semantics in cmd/internal/launcher/zellij.go and zellijparse.go reject empty stdout before counting rows. No code, test fixture or native environment changed.
+2026-10-17: Filed unclaimed from #636 read-only audit. Relevant source: cmd/internal/couchcore/park_lifecycle_live_test.go zellijClientCount and startParkLifecycleHelper; canonical production semantics in cmd/internal/launcher/zellij.go and zellijparse.go reject empty stdout before counting rows. No code, test fixture or native environment changed.
 
 ### 2026-10-17 — Approved quick design
 
@@ -54,11 +54,6 @@ Use the existing launcher.ZellijSource clientCountContext as exported ClientCoun
 
 Tests use stateful shell CLI fixtures in temporary allowlisted environments, never the real Zellij binary. A subprocess exercises startParkLifecycleHelper's real baseline guard: first empty reply and queued header-only second reply must fail before any helper starts/second query. Direct counter controls cover valid zero and actual added rows. Targeted checks precede the pushed recorded suite. Native runs stay held until pair:1 releases the shared diagnostic slot; no pair:0 staging or native dependency change is requested.
 
-## Revisions
-
-- 2026-10-17 (TL a7364b43): native park acceptance moves to #640's later shared window; recorded suite plus SHIP authorize this fixture-only landing. Deferred acceptance remains explicit below.
-
-- 2026-10-17 (TL42415423): narrowed the filed broad malformed-response wording to CLI failures plus empty/whitespace replies. Preserve existing canonical production parsing; strict nonempty table grammar stays outside this counter-readiness bug. No relaxation of the empty-baseline attachment invariant.
 
 ### 2026-10-17 — Red/green evidence and deferred native acceptance
 
@@ -71,3 +66,10 @@ Authenticated TL a7364b43 approves landing on recorded suite plus SHIP and defer
 ### Deferred acceptance — native park check
 
 Owner/coordinator: TL with pair:1's #640 diagnostic window. After the native slot is released and the shared trigger is classified, run the real park conformance against the landed counter adapter and record the exact build/environment/result. This is a deferred acceptance obligation, not a pre-landing gate (TL a7364b43); it does not justify retries or relaxing any native failure.
+
+Existing recovery ownership/deadline and explicit-empty terminal-fixture controls also pass5.421s. git diff --check is clean. The adapter and source rename introduce no new production file or durable artifact family.
+
+## Revisions
+
+- 2026-10-17 (TL42415423): narrowed the filed broad malformed-response wording to CLI failures plus empty/whitespace replies. Preserve existing canonical production parsing; strict nonempty table grammar stays outside this counter-readiness bug. No relaxation of the empty-baseline attachment invariant.
+- 2026-10-17 (TL a7364b43): native park acceptance moves to #640's later shared window; recorded suite plus SHIP authorize this fixture-only landing. Deferred acceptance remains explicit in the Log.

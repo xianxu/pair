@@ -492,17 +492,7 @@ func startParkLifecycleHelper(t *testing.T, ctx context.Context, cfg parkHelperC
 }
 
 func zellijClientCount(ctx context.Context, session string) (int, error) {
-	out, err := exec.CommandContext(ctx, "zellij", "--session", session, "action", "list-clients").Output()
-	if err != nil {
-		return 0, err
-	}
-	count := 0
-	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
-		if strings.TrimSpace(line) != "" {
-			count++
-		}
-	}
-	return count, nil
+	return (launcher.ZellijSource{}).ClientCountContext(ctx, session)
 }
 
 func runParkLifecycleHelper() int {
