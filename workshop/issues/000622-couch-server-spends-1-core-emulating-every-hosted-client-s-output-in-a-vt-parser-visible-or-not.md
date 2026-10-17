@@ -117,6 +117,10 @@ TL approval4f9a9b31 confirmed, canonical-branch recovery6d5eb120 applied. Plan-q
 
 Proposed measurement-only revision brackets fixed identical work with owning-child cumulative user+system CPU outside the hot path, alongside wall time and ABBA order per workload. This needs TL approval before execution. Existing temporary benchmark worktree/binaries/logs remain invocation-owned for that decision; no runner remains and no process was signalled.
 
+### 2026-10-16 22:51 PDT — approved qualification waiting for quiet machine
+
+TL477ed170 approved one revised fixed-work CPU qualification, conditional on load below about8. The prepared runner's source/hash and once-only output guard are recorded in the durable plan. It is currently the owned execution session25768, running run-fixed-cpu.py in /var/folders/07/b9wcwwld4_v2w9r3hk525bm80000gn/T/pair622-m2-bench.AMTYLq; poll that session before starting anything else. It has launched no benchmark: load initially fell19.91→11, then rose and remained near50 through22:51. No fixed-cpu-once attempt directory exists yet. The runner waits30s between load checks and will run exactly the approved28 child cases once admitted. Read fixed-cpu-once/results.json and every retained log on completion; an existing attempt must never be silently repeated. No new candidate, full suite, close or live acceptance is admitted until these results are assessed. If complete-workload CPU does not improve repeatably, shelve these shortcuts as directed.
+
 ## Estimate
 
 Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only; calibration is flagged stale by estimate-source, so provisional. Original M1 derivation was1.509h. The following cumulative derivation now includes approved M2 through live acceptance and closure; it is not a remaining-work estimate. M1's original primitives remain unchanged below.
