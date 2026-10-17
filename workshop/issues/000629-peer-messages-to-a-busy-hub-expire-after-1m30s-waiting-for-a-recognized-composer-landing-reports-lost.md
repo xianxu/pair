@@ -94,3 +94,7 @@ The approved design adds composer-wait/position status coverage and defers the s
 ### 2026-10-16 — real-environment qualification deferred by TL
 
 The hub forbids staging in pair:0, which it is rebuilding for #617. Finish package/suite verification, close and land #629 first; ops:0 and the operator own the busy-hub live check immediately after the next restart. The executable steps above replace the plan's pre-landing staging task; no staging or restart is authorized here.
+
+### 2026-10-16 — complete the indefinite-wait resource bound
+
+Retire pre-paste diagnostic history: distinct picker titles otherwise grow the old expiry accumulator indefinitely, despite its reset at paste. The standing receipt reason remains; duration summaries remain only in the bounded post-paste phase. The plan's latest Revisions entry records the evidence and minimal choice. Cancelled the superseded queued suite on 57350d7e before admission and cleaned only its own orphan helper (watch 16752; helper 16769); confirmed both and ticket 22 were gone. Requeue the completed head after its regression passes.
