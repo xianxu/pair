@@ -57,6 +57,7 @@ Normal close review and PR/merge follow the verified implementation steps above;
 ## Log
 
 ### 2026-10-16
+- 2026-10-16: closed — Peer-only open/completed turns and bounded reconnect seed pass registry, real session transport, Console fade and focused race regressions; idle controls age and foreign/legacy/replaced evidence is excluded. Recorded full suite9d6f1e0d39db PASS11m20s, SHA256c67152c6cd1018632c2a942c518268b65101071ca3d93863c01192cda35b04a8. README/atlas updated. Admission unchanged; background-only signal tracked in unclaimed#632 per TL19e11f39. Live steps recorded and explicitly post-landing under TL f7100a95; no pair:0 staging. (done-when: contract moved since change-code; judged by the close review); review verdict: SHIP
 
 Claimed and started from main. `weave refresh` catch-up reported unsupported --defer-settings; start-plan explicitly allowed current checkouts (missing changes recent/docs-only). No substrate edits. ARCH-DRY: activity currently uses threadactivity.Latest (Pair-log sends, pane birth, established native activity); the UI never reads wrapper Settled. Reuse the existing authenticated admitted session and its Settled signal used by relaunch. It includes open turns, occupied composers/pickers and recent IO, not a distinct background-command count. Keep the current file sources and legacy behavior; completed work remains recent through a session-scoped timestamp, while idle refreshes cannot advance it. Unknown/replaced/disconnected sessions supply no borrowed activity.
 
