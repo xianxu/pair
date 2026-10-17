@@ -87,11 +87,26 @@ No detached batch workers or new persistent queue are created. Prepared state di
 
 ## Implementation and verification
 
+### Function-level test contract
+
+| Production function | Adversarial strategy and mechanical guard |
+|---|---|
+| `couchmessage.Envelope`, `BatchEnvelope` | Fuzz valid Unicode message text; independently construct expected unchanged headers and separators and compare complete output. |
+| `couchmessage.SelectBatch` | Fuzz bounded valid FIFO queues, character caps and JSON-escaped identities/bodies; assert the result is the maximal contiguous prefix under both the code-point and actual encoded-request bounds, except the documented over-cap singleton. |
+| `couchcmd.peerBatchMaxChars` | Table-test the parser's integer domain and absent/malformed input classes; assert the precise startup error or allowed range, independently of batching implementation. |
+| `couchmessage.Advance` with `FreezeBatch` | Generate admission/freeze/progress/cancellation/finish/disconnect sequences; assert per-ID allowance, immutable original identity, FIFO membership, one group outcome and terminal-receipt monotonicity. |
+| `couchmessage.AdvanceBatchPreparation` | Generate eligibility/finalization/late events through the tagged preparation phase; assert no unfrozen state can produce a paste and frozen membership never changes. |
+| `couchmessage.ValidateEndpointRequest`, `ValidateBatch` | Fuzz operation/payload mismatches and mutated identity/membership against a valid batch seed; strict decoding and encoded/count/body bounds must reject before any state or input effect. |
+| `Broker.freezeBatch`, group delivery/cancellation path | Use the stateful fake's busy, readiness, freeze, finalization and confirmation gates to force competing arrivals and sender/receiver loss on both sides of freeze; assert complete per-group accounting and independent receiver progress. |
+| `RemoteEndpoint.DeliverBatch`, `messageEndpoint.DeliverBatch` | Real Unix sockets plus a stateful recipient drive partial/lost/mismatched replies and explicit legacy refusal; count prepare/finalize effects and prove uncertain exchanges never trigger fallback or replay. |
+| `peerDelivery.prepareBatch`, `finalizeBatch`, `retainedLocked`, `proxy.dispatchPeer` | Existing terminal/session fake controls eligibility and input ownership between protocol steps; compare complete output writes with an independent FIFO oracle and require one confirmation before any member can report submitted. |
+| `peerTurnRecorder` | Compare the persisted user turn with the exact combined paste; drive enough variable-width turns to hit both writer budgets and assert bounded total persisted bytes/count. |
+
 ### Task 1: Pure selection, group transitions and configuration
 
 Files: create `cmd/internal/couchmessage/batch.go`, `batch_test.go`, `model_batch_test.go`; modify `model.go`; create `cmd/internal/couchcmd/message_batch.go`, `message_batch_test.go`.
 
-- [ ] Write failing table tests for exact headers/separator, Unicode count, exact boundary, cap splitting, oversized singleton/follower, no skipped head, and worst-case escaped JSON/frame bounds. Write group reducer tests for FIFO freeze, five original receipts, duplicate allowance, progress/finish fan-out, queue positions, cancellation and stale completions. Cover default/valid/invalid environment values.
+- [ ] Write failing tests for the pure/configuration functions above, using their stated generated-input and transition strategies. Include the issue's cap-split and over-cap singleton acceptance oracles.
 - [ ] Run `go test ./cmd/internal/couchmessage ./cmd/internal/couchcmd -run 'TestPeerBatch|TestActorBatch|TestPeerBatchConfig' -count=1` and retain the initial failure.
 - [ ] Implement pure rendering/selection and group reducer transitions; extract singleton rendering into the shared owner. Parse configuration at existing message-service startup and enable batching only for verified Claude/Codex hub bindings. Preserve existing public statuses and the eight-unit ordinary allowance.
 - [ ] Re-run the targeted tests and existing queue/model/routing tests; commit the coherent pure/configuration change with required trailers.
@@ -101,7 +116,7 @@ Files: create `cmd/internal/couchmessage/batch.go`, `batch_test.go`, `model_batc
 Files: create `cmd/internal/couchmessage/endpoint_batch.go`, `endpoint_batch_test.go`, `broker_batch.go`, `broker_batch_test.go`; modify `endpoint.go`, `broker.go`, `cmd/internal/couchcmd/message_service.go`; create `cmd/internal/wrapcmd/peer_batch.go`, `peer_batch_test.go`; modify `peer_runtime.go`, `peer_delivery.go`, `peer_turn_log.go` and its tests.
 
 - [ ] First add the required failing stateful-fake scenario: hold the head, admit four more reports, expose readiness, observe exactly one FIFO paste and one submit, then one confirmation yielding five individually visible submitted receipts. Explicit gates force late-arrival, disconnect and lost-reply interleavings; no sleeps are used to manufacture order.
-- [ ] Add cap-split and over-cap singleton scenarios, failed/short paste and submit, stalled confirmation, operator draft/picker/image/viewport, post-freeze arrival, cancellation of every member position, receiver replacement, restart recovery by follower ID, conflicting retained ID and two independent receivers. Assert no member is submitted before confirmation and no uncertain batch is replayed.
+- [ ] Add the controlled-ordering and protocol tests for the integration functions above. The independent invariants are no receipt success before shared confirmation, no uncertain batch replay, preserved per-ID recovery and input ownership, and progress of unrelated receivers.
 - [ ] Run `go test ./cmd/internal/couchmessage ./cmd/internal/wrapcmd ./cmd/internal/couchcmd -run 'Test.*Batch' -count=1` and retain the failures before implementation.
 - [ ] Implement the optional batch endpoint seam with one freeze callback; add prepare/status/finalize validation and the wrapper's writer-owned preparation barrier. Share existing readiness, delivery reducer, ownership and post-paste confirmation. Keep old endpoint singleton behavior intact.
 - [ ] Fan out existing supervision/facts/delivery recorder accounting per original message through one shared accounting helper. Update the Pair-log recorder for one exact batch turn and bounded total bytes.
@@ -109,7 +124,7 @@ Files: create `cmd/internal/couchmessage/endpoint_batch.go`, `endpoint_batch_tes
 
 ### Task 3: Documentation, recorded suite, real hub and landing
 
-Files: `atlas/couch.md`, its existing `atlas/index.md` entry, and the actual source that generates `couch --skill`'s peer-delivery protocol (locate its single owner rather than editing generated copies); issue Log; relevant lesson if a class of design mistake is found.
+Files: `atlas/couch.md`, its existing `atlas/index.md` entry, `cmd/internal/couchcmd/skills/couch/SKILL.md` (embedded protocol source); issue Log; relevant lesson if a class of design mistake is found.
 
 - [ ] Document the scope/cap, complete-batch receipt semantics, compatibility and character-vs-byte bound. Extend the existing opt-in `TestPeerLiveConformance` scenario to exercise a complete representative batch in an owned new Claude and Codex PTY; use the same renderer as production and retain full-composer evidence. No live prompt submission is needed for retention; the real hub check below proves submission/turn count.
 - [ ] Push the implementation and run `sdlc local-check run --name suite` on the issue branch; keep the required recorded suite and all attempt IDs. Close the tested branch through the normal fresh-context SDLC review, without manually integrating newer main or bypassing gates.
@@ -124,3 +139,7 @@ Files: `atlas/couch.md`, its existing `atlas/index.md` entry, and the actual sou
 - Move the entire broker queue into a second mutable wrapper queue: duplicates FIFO/cancellation/allowance ownership and permits membership races after a paste. The preparation barrier lets the existing broker own selection and the existing input writer own input.
 
 The chosen design adds a preparation barrier and immutable group; it does not add a second scheduler or copy readiness policy (ARCH-DRY). Atomic receipts and retained member identities fulfill the motivating hub goal rather than only reducing some submits (ARCH-PURPOSE).
+
+## Revisions
+
+- 2026-10-17 11:24 PDT — Plan-quality round 1, PQ-1: replaced test-case inventories with named production functions, one adversarial strategy/mechanical guard per risky function, generated reducer sequences and explicit IO ordering gates. Preserved the required five-message acceptance scenario. Located the embedded Couch protocol's exact source. No mechanism, scope, cap or ownership change from the hub-approved design.
