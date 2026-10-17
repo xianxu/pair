@@ -54,6 +54,7 @@ Suspects among the landings in that build, unverified:
 ## Log
 
 ### 2026-10-17
+- 2026-10-17: closed — RED: GrowthNeverStopsTitle/admit and /stale-proof fail on main code; /proofless fails without the proofless baseline. GREEN: go test -race sessioninventory + titlepoller pass, wrapcmd passes. Mutation-checked: the classifier and both baseline branches are each pinned. Full suite exit 0 on f9f2302f; later commits change only the title projection and its tests, and merge reruns the suite. Live: 1-pair-6 probe 2/100 terminal on main, 0/100 with the fix. Post-restart fleet check follows landing (BR-4 disputed).; review verdict: SHIP
 
 - Root cause: #617 (PR #383, 0fe70c1c, landed 2026-10-16 19:13) replaced the stateless per-tick `contextcmd.Run` in the title poller with the stateful `sessioninventory.TitleProjection`. Its admission rejected ordinary transcript growth as `ErrArtifactChanged` (main `title_projection.go:144` `len(full) != 1` from ValidateTargetWork, `:189` `current.Size != p.rawOffset`, and the current/after fingerprint check), `stop()` (`:60`) makes the first error sticky, and `titlepoller/run.go:152` exits the poller on it; `wrapcmd/title_process.go` never respawns it. Binding confirmation follows an agent turn, so admission routinely races growth: the 10:48 restart was the first fleet-wide relaunch onto a build with #617.
 - Live evidence: 1-pair-6 probe, 100 admissions against a live transcript: 2/100 terminal failures on main, 0/100 with the fix.
