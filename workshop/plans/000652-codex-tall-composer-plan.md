@@ -98,7 +98,9 @@ Files: existing native peer capture seam/testdata, `atlas/couch.md` and index if
 - [x] Add an opt-in tall singleton/body scenario using a new owned Codex PTY (100x60 representative viewport), positive footer, at least 26 visible composer rows, and batch-shaped Unicode reports. Record version, capture hash and exact evidence; do not infer byte retention from a collapsed marker. Never enable the Codex batch protocol as a test shortcut.
 - [x] Validate normal Return adds a newline and explicit submit remains distinct in the owned PTY. Any actual native submission uses a harmless explicitly approved prompt, never tools or an existing conversation.
 - [x] Hub approved this item's live arrangement: owned-PTY Return/harmless submit now, operator Return/submit smoke after its next restart, no :0 staging. Ask the hub for the shared native lane when the capture is ready; pair:1 and pair:5 also use it. Never steal focus.
-- [ ] Document safe tall evidence and remaining clipped/unknown behavior; retain #648's Claude-only rollout. Push, record the required full suite, close through the mandatory fresh-context review, then enter `sdlc merge --yes`; report verified landing to hub.
+- [x] Document safe tall evidence and remaining clipped/unknown behavior; retain #648's Claude-only rollout. Push and record the required full suite before the mandatory fresh-context close review.
+
+After close grants SHIP, enter `sdlc merge --yes` and report verified landing to the hub.
 
 ## Verification commands
 
@@ -113,3 +115,5 @@ Files: existing native peer capture seam/testdata, `atlas/couch.md` and index if
 - 2026-10-17 15:38 PDT — Hub approval `8acc22f6-c522-4333-bd5e-250e5ddb66c4` adds an explicit changed/unrecognized footer-wording negative. Both design and live arrangement approved; native work must first obtain the shared lane, with no focus stealing. Real operator Return/submit smoke is deferred to its next restart. No production code changed.
 
 - 2026-10-17 15:40 PDT — Plan-quality PQ-1: replace enumerated edge-case lists with one adversarial strategy and independent guard per risky function, including generated geometry, unknown footer drift, short-contract differential checks, exact text, Return authority and ordered confirmation without replay. Clarify the shared helper may return prompt geometry while peer text reading retains its existing additional bounds checks; no policy or rollout change.
+
+- 2026-10-17 16:25 PDT — Final verification is complete; separated its checked prerequisite from the future close/landing instruction so the checklist does not claim a premature landing. Required gates and approved scope are unchanged.

@@ -100,7 +100,7 @@ Durable design: [Codex tall composer](../plans/000652-codex-tall-composer-plan.m
 
 - [x] Pin complete tall geometry and adversarial Return/peer evidence in tests.
 - [x] Share bounded positive recognition and verify actual writer confirmation without changing delivery ordering.
-- [ ] Complete native qualification, documentation and recorded verification, then close and land through normal gates.
+- [x] Complete native qualification, documentation and recorded verification before the normal close and landing gates.
 
 ## Log
 
@@ -146,6 +146,8 @@ TL authorization: verified submitted delivery `00eac401-7b14-4ee8-8255-ef5cc30e0
 
 - Deferred operator restart smoke (hub owns execution): in a fresh Codex slot on the rebuilt binary, use a viewport tall enough to keep prompt, 26+ body lines and native footer visible. Paste harmless numbered text asking only for a brief reply without tools. At the end of that draft, ordinary Return must add a visible blank composer line and retain the body without opening a turn; Alt+Return must submit once. Check an open picker keeps native Return selection and a clipped/unrecognized composer retains existing native Return behavior. This manual check does not enable Codex batching or drive an existing operator draft automatically.
 
+- Recorded pre-close suite attempt `8e42cbc6659b6298be33f6e03d89d05d` PASSED on dbd1abb8734ed2115942f3b9947160ca668c2595: 11m12s execution after 1324s machine queue, log SHA256 prefix `cc9c5558c08e`, status `sdlc-local/suite`. All shell/Lua and Go stages passed, including wrapcmd 52.233s; no retry. macOS conformance and all other PR #416 checks passed. No code changed after the tested head; subsequent commits are issue Log only. Entering mandatory close review, with landing still pending.
+
 ## Estimate
 
 Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only. Calibration is flagged stale by `sdlc estimate-source`; treat this as provisional focused ship wall-clock, excluding test/landing queue waits.
@@ -169,3 +171,5 @@ total: 1.753
 ## Revisions
 
 - 2026-10-17 15:36 PDT — Proposed design: preserve short-composer behavior, admit taller geometry only with a complete visible prompt/continuation block and positive trailing native footer. The initial no-footer diagnostic above remains historical evidence of the cutoff, but cannot itself authorize broader Return remapping; the accepted regression will include the native footer and remain red on main. Codex batching stays disabled; test batch-shaped text through ordinary singleton delivery, with no rollout-guard bypass. Awaiting hub approval.
+
+- 2026-10-17 16:25 PDT — Checklist bookkeeping: make the final Plan row the completed verification prerequisite, rather than ticking a row that also promises the future close and landing. The normal close review and merge remain required; no scope or design change.
