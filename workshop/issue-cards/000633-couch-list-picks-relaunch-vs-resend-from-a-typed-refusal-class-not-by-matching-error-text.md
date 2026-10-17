@@ -1,6 +1,6 @@
 ---
 id: 000633
-status: working
+status: codecomplete
 created: 2026-10-16
 updated: 2026-10-17
 estimate_hours:
@@ -13,6 +13,14 @@ claimant:
     workspace: pair:7
     worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
     repository: github.com/xianxu/pair
+actual_hours: 0.89
+tracker:
+    version: 1
+    completion:
+        token: close-f3dcc2b25c2b
+        repository: github.com/xianxu/pair
+        reviewed_head: b9071aba1f20096e3a37e08b35e77e52d82b2e2f
+        evidence_commit: c187617de0f0f6cbb4199d71fe83baa27056d8cc
 ---
 
 # couch --list picks relaunch vs resend from a typed refusal class, not by matching error text
