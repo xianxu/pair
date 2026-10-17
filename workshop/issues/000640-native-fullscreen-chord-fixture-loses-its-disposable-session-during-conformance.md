@@ -75,6 +75,91 @@ protocol-control.py drives the installed, unchanged Zellij 0.45.1 CLI against an
 
 Version-pinned server source has a concrete stale-ID candidate: ConnStatus both removes the client in its handler and queues a second RemoveClient on router exit; IDs reuse the lowest free integer. ServerOsInputOutput clones share one numeric-ID-to-sender map; send_to_client resolves the current sender, and remove_client unconditionally deletes by number. Thus delayed cleanup/response can target a replacement connection. This remains a candidate until the real bad frame/interleaving is captured. No sleeps, deadlines, native installation, Pair production code or conformance assertions changed. The present evidence exceeds a simple fixture-readiness diagnosis; request hub scope guidance before any native dependency change or new transport/serialization mechanism.
 
+### 2026-10-17 — native response misrouting reproduced without Pair or a proxy
+
+The bounded read-only investigation established native cross-connection response misrouting. No Pair implementation or fixture fix is proposed, and this issue is not ready for close/landing. Its original “session disappears” premise is not valid for the fresh observed failure: the native server stays alive while discovery rejects its response.
+
+The minimal diagnostic starts one owned quiet native session with the existing ControlledZellij helper, then sends only the real CLI's ConnStatus and ListPanes protobuf messages over independent Unix sockets. Each query sends ClientExited on completion. No Pair child, chord, proxy, sleep, failed-operation retry, native rebuild, source edit or installed-setting change is involved. Every request records its own first response. Independent requests continue for the declared sample budget; a failure is never retried as a passing observation.
+
+| Control | Independent requests | Bad first replies | Exact crossed replies | Other premature replies | Duration |
+| --- | ---: | ---: | --- | --- | --- |
+| 8 workers × 250 | 2,000 | 65 | 8 pane queries receive Connected; 1 probe receives pane JSON Log | 39 probes + 17 queries receive Exit(Disconnect) | 1.04 s |
+| 1 worker × 2,000, requests sequential | 2,000 | 57 | 1 pane query receives Connected; 1 probe receives pane JSON Log | 54 probes + 1 query receive Exit(Disconnect) | 1.21 s |
+
+Both controls fail on their first recorded attempt. The sequential result rules out merely serializing callers as an adequate fixture fix: native cleanup outlives a successful response. Crossed request-specific replies are stronger evidence than disconnects alone; neither a probe-only connection legitimately receiving pane JSON nor a query-only connection receiving Connected has a valid dispatch path in the audited implementation.
+
+Native source-supported mechanism (zellij-server/src paths, release-tag source core files byte-identical to the existing checkout):
+
+1. lib.rs:655–672 allocates the lowest unused numeric ClientId. Listener acceptance inserts the current sender for that number (lib.rs:949–960; os_input_output.rs:464–475).
+2. Both ordinary ClientExited and ConnStatus cause duplicate cleanup. ClientExited queues RemoveClient at route.rs:2676–2678 and queues it again after breaking the router at :2941. ConnStatus queues its instruction at :2685–2687 and the router's final RemoveClient at :2941; the server's ConnStatus handler itself already sends Connected and removes that client (lib.rs:1617–1619).
+3. ServerOsInputOutput clones share Arc<Mutex<HashMap<ClientId, ClientSender>>> (os_input_output.rs:273–276). send_to_client resolves the current sender solely by number (:448–460), while remove_client deletes that number unconditionally (:495–503). Neither operation carries a connection generation.
+4. A valid interleaving is: old O's first cleanup frees n; A reuses n; O's delayed second cleanup removes A; B reuses n; A's pending response addressed to n reaches B. This directly explains both crossed reply kinds. Removing A's sender drops its channel; its sender thread sends Exit(Disconnect) after draining (os_input_output.rs:233–243).
+
+The exact internal schedule of each native sample was not instrumented. Observed native cross-connection misrouting is proven; duplicate cleanup plus reusable unversioned IDs is the source-supported cause, not a claim that a native debugger captured every instruction in that interleaving. A skeptical independent source audit found no legitimate alternative routing for those crossed replies.
+
+The fresh deterministic CLI protocol controls now replay the actual native first frame Exit(Disconnect), hex 1a020805, as well as the earlier Unblock control. A live listener sending Disconnect before Connected causes the unchanged installed CLI to emit exit1 / “There is no active session!”; Connected then Disconnect before the query's JSON causes exit0 / empty stdout. Normal Connected + JSON returns exit0 / valid []. This links the captured native frames to both #640's false absence and #636's empty reply family. It does not prove every historical #636/#640 failure shares this cause.
+
+Installed Zellij is 0.45.1, binary SHA256 604c684330fe097bc1363ada020d1b9b0ad17caa48d633e838869dfe9fc49e9c. Source release tag v0.45.1 dereferences via Git to efd8fd5a89a20c07a111d248ad7fce53848d2c18; existing source checkout HEAD is a162323384dff3fbd9c68a4c0971f4f6efca424a. This is source-version provenance, not proof of the Homebrew binary's build commit. The checkout remains clean.
+
+Retained artifacts under /tmp/pair640-mi9l7uyn: native_raw_probe_test.go and raw-overlay.json are the exact tested parallel diagnostic; native_raw_sequential_test.go/raw-sequential-overlay.json change only worker/sample counts and output path. raw-run.log/raw-probe-parallel.jsonl and raw-sequential-run.log/raw-sequential.jsonl retain every bad first reply. protocol-control-expanded.jsonl retains all five fake controls. native-trigger-manifest.json pins artifact SHA256s. Parallel result log SHA256 f2f61a6262577b04b3ffb109b0ae7c31aeb1bbfbb9ec2bdf20edd4e7fa9782e5; sequential result log SHA256 5f8336dc8012dfeab4bf1ef64d8f647ae56c88e5ff2fe712c0b7a283dbd0cc82.
+
+To reproduce locally from this branch: replace fullscreen_chord_live_test.go through the retained Go overlay, compile ./cmd/internal/layoutcmd with go test -trimpath -overlay /tmp/pair640-mi9l7uyn/raw-overlay.json -c, then run only TestNativeRawProbeDiagnostic from cmd/internal/layoutcmd under retained native-env.json. That sterile environment supplies the unchanged exec-only native wrapper and owned short socket/log roots. This is a diagnostic overlay, never a proposed test transport or assertion relaxation. The exact small diagnostic source is preserved below so the proof is not only an ephemeral path reference; change its evidence root when moving machines. Existing helper owns session shutdown, and both runs completed cleanup. No owned native process remains. The operator's 10:48 Couch restart lost no background work.
+
+```go
+package layoutcmd
+
+import (
+ "context"
+ "encoding/binary"
+ "encoding/hex"
+ "encoding/json"
+ "fmt"
+ "io"
+ "net"
+ "os"
+ "path/filepath"
+ "sync"
+ "testing"
+ "time"
+
+ "github.com/xianxu/pair/cmd/internal/pairlifecycletest"
+)
+
+func TestNativeRawProbeDiagnostic(t *testing.T) {
+ ctx,cancel:=context.WithTimeout(context.Background(),2*time.Minute);defer cancel()
+ t.Setenv("SHELL","/bin/sh")
+ for _,k:=range []string{"HOME","XDG_CONFIG_HOME","XDG_DATA_HOME","XDG_CACHE_HOME","XDG_RUNTIME_DIR"} {t.Setenv(k,t.TempDir())}
+ config:=filepath.Join(t.TempDir(),"config.kdl")
+ if err:=os.WriteFile(config,[]byte("pane_frames false\nshow_startup_tips false\nshow_release_notes false\n"),0600);err!=nil {t.Fatal(err)}
+ session:=fmt.Sprintf("raw-%d",os.Getpid())
+ fixture,err:=pairlifecycletest.StartControlledZellijWithOptions(ctx,session,pairlifecycletest.ZellijOptions{ConfigFile:config});if err!=nil {t.Fatal(err)}
+ defer func(){if err:=fixture.Close();err!=nil {t.Log(err)}}()
+ path:=filepath.Join("/tmp/pair640-mi9l7uyn/sock/contract_version_1",session)
+ log,err:=os.Create("/tmp/pair640-mi9l7uyn/raw-probe.jsonl");if err!=nil {t.Fatal(err)};defer log.Close()
+ var mu sync.Mutex;var wg sync.WaitGroup;bad:=0;total:=0
+ query,_:=hex.DecodeString("4a0b0a07920604280130012001")
+ send:=func(c net.Conn,p []byte)error {frame:=make([]byte,4+len(p));binary.LittleEndian.PutUint32(frame,uint32(len(p)));copy(frame[4:],p);_,err:=c.Write(frame);return err}
+ for worker:=0;worker<8;worker++ {wg.Add(1);go func(worker int){defer wg.Done()
+  for sample:=0;sample<250;sample++ {
+   probe:=(sample+worker)%2==0;payload:=query;if probe {payload=[]byte{0x6a,0}}
+   c,err:=net.DialTimeout("unix",path,time.Second)
+   var reply []byte
+   if err==nil { _=c.SetDeadline(time.Now().Add(time.Second));err=send(c,payload)
+    if err==nil {var header [4]byte;_,err=io.ReadFull(c,header[:]);if err==nil {n:=binary.LittleEndian.Uint32(header[:]);if n>1048576 {err=fmt.Errorf("oversize %d",n)} else {reply=make([]byte,n);_,err=io.ReadFull(c,reply)}}}
+    if !probe { _=send(c,[]byte{0x5a,0}) };_ =c.Close()
+   }
+   ok:=err==nil&&len(reply)>0&&((probe&&reply[0]==0x22)||(!probe&&reply[0]==0x2a))
+   mu.Lock();total++;if !ok {bad++;shown:=reply;if len(shown)>200 {shown=shown[:200]};_ =json.NewEncoder(log).Encode(map[string]any{"worker":worker,"sample":sample,"probe":probe,"error":fmt.Sprint(err),"reply":hex.EncodeToString(shown),"time":time.Now().Format(time.RFC3339Nano)})};mu.Unlock()
+   if ctx.Err()!=nil {return}
+  }
+ }(worker)}
+ wg.Wait();t.Logf("independent requests=%d bad-first-responses=%d",total,bad)
+ if bad>0 {t.Fatalf("native protocol misroutes: see raw-probe.jsonl")}
+}
+```
+
+ARCH-ORDER/FUNERAL: native connection lifetime must cover its pending cleanup and responses; freeing/reusing a numeric identity before that work finishes breaks ownership. No sleeps, longer waits, blind query retries, Pair transport changes or known-cause exemptions were introduced. Stop at this native finding and bring any dependency fix/upstream publication to the TL/operator, as required by the approved scope. Pair:6 receives the evidence and the released native-run window; #636 remains independently owned there.
+
 ## Revisions
 
 ### 2026-10-17 09:30 — approved read-only native-trigger investigation
