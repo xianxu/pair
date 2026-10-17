@@ -122,7 +122,10 @@ type ActorState struct {
 	remaining, capacity int
 	refilledAt          time.Time
 	pending             Message
-	phase               Status
+	// batch is the frozen active group, including pending as its first member.
+	// Nil retains singleton ownership until the readiness-time freeze.
+	batch []Message
+	phase Status
 	// queue waits behind pending, oldest first. Promote gives the commit
 	// exchange a fresh Deadline without expiring accepted composer waits.
 	queue                      []Message
@@ -135,6 +138,19 @@ func (s ActorState) Remaining() int           { return s.remaining }
 func (s ActorState) Capacity() int            { return s.capacity }
 func (s ActorState) Pending() (Message, bool) { return s.pending, s.pending.ID != "" }
 func (s ActorState) Queued() int              { return len(s.queue) }
+
+// PendingMessages returns the active ownership group without exposing its slice.
+func (s ActorState) PendingMessages() []Message {
+	if s.pending.ID == "" {
+		return nil
+	}
+	if s.batch != nil {
+		return slices.Clone(s.batch)
+	}
+	return []Message{s.pending}
+}
+
+func (s ActorState) QueuedMessages() []Message { return slices.Clone(s.queue) }
 
 // QueueHead is the next message to promote.
 func (s ActorState) QueueHead() (Message, bool) {
@@ -154,9 +170,13 @@ func (s ActorState) waitingReceipt(r, head Receipt) Receipt {
 	}
 	position, offset := 0, 0
 	if s.pending.ID != "" {
-		offset = 1
-		if s.pending.ID == r.Message.ID {
-			position = 1
+		active := s.PendingMessages()
+		offset = len(active)
+		for i, m := range active {
+			if m.ID == r.Message.ID {
+				position = i + 1
+				break
+			}
 		}
 	}
 	for i, m := range s.queue {
@@ -217,6 +237,8 @@ const (
 	// Enqueue is Admit that always joins the queue: the wrapper refused a
 	// reservation, so the worker promotes it once the wrapper settles.
 	Enqueue EventKind = "enqueue"
+	// FreezeBatch attaches a contiguous queued prefix to the prepared head.
+	FreezeBatch EventKind = "freeze-batch"
 )
 
 type Event struct {
@@ -225,6 +247,7 @@ type Event struct {
 	// Allowance is a Register's bucket size; zero means InboundAllowance.
 	Allowance int
 	Message   Message
+	Messages  []Message // FreezeBatch only: complete head-first ownership group
 	At        time.Time
 	Status    Status
 	Detail    string
@@ -243,7 +266,11 @@ func Advance(s ActorState, e Event) (ActorState, []Effect, error) {
 	emitFor := func(m Message, status Status, detail string) {
 		effects = append(effects, Effect{Receipt: Receipt{Message: m, Status: status, Detail: boundedReceiptDetail(detail), RetainUntil: e.At.Add(ReceiptLifetime)}})
 	}
-	emit := func(status Status, detail string) { emitFor(s.pending, status, detail) }
+	emit := func(status Status, detail string) {
+		for _, m := range s.PendingMessages() {
+			emitFor(m, status, detail)
+		}
+	}
 	// positions re-reports each queued message's place from index from on.
 	positions := func(from int) {
 		for i := from; i < len(s.queue); i++ {
@@ -277,6 +304,7 @@ func Advance(s ActorState, e Event) (ActorState, []Effect, error) {
 		if s.pending.ID != "" {
 			emit(status, detail)
 			s.pending = Message{}
+			s.batch = nil
 			s.phase = ""
 		}
 	}
@@ -346,8 +374,10 @@ func Advance(s ActorState, e Event) (ActorState, []Effect, error) {
 		if !validMessageID(m.ID) || m.To != s.binding || m.From.Validate() != nil || ValidateBody(m.Body) != nil || !m.Deadline.After(e.At) {
 			return fail(errors.New("invalid message admission"))
 		}
-		if m.ID == s.pending.ID {
-			return s, nil, nil
+		for _, active := range s.PendingMessages() {
+			if m.ID == active.ID {
+				return s, nil, nil
+			}
 		}
 		for _, q := range s.queue {
 			if q.ID == m.ID {
@@ -386,6 +416,22 @@ func Advance(s ActorState, e Event) (ActorState, []Effect, error) {
 		s.pending = head
 		s.phase = Queued
 		emit(Queued, "")
+		positions(0)
+	case FreezeBatch:
+		group := e.Messages
+		if s.batch != nil || s.pending.ID == "" || e.Message != s.pending || len(group) == 0 || len(group) > len(s.queue)+1 || group[0] != s.pending {
+			return fail(errors.New("batch freeze is not of the active head and queued prefix"))
+		}
+		for i, m := range group[1:] {
+			original := s.queue[i]
+			original.Deadline = m.Deadline
+			if original != m || !m.Deadline.Equal(e.At.Add(PasteTimeout)) {
+				return fail(errors.New("batch freeze changed queued identity or exchange deadline"))
+			}
+		}
+		s.batch = slices.Clone(group)
+		s.queue = s.queue[len(group)-1:]
+		emit(s.phase, "")
 		positions(0)
 	case Cancel:
 		dequeue(func(m Message) bool {

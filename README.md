@@ -855,6 +855,17 @@ Other refusals return nonzero. If a send times out, query the printed ID with
 `--message-status` and inspect the recipient before sending again. Couch never
 replays an uncertain body or keeps a durable message queue across restart.
 
+For a verified Claude hub, reports queued while its composer is busy can share
+one submission. Couch freezes a FIFO prefix when the composer becomes ready,
+keeps each message's header, and separates messages with a `---` line. Every
+member keeps its own receipt; one confirmation determines the whole batch.
+Set `COUCH_PEER_BATCH_MAX_CHARS` before starting Couch to cap combined envelopes,
+including headers and separators: the default is 16,384 Unicode code points,
+and the accepted range is 1–32,768. An invalid value fails startup. A message
+larger than the cap goes alone, and the remaining messages wait in FIFO order.
+Codex, Qoder and non-hub receivers keep singleton delivery, as do older wrappers
+that explicitly refuse the batch protocol.
+
 For agent setup, run `couch --skill` in an existing conversation and have the
 agent read the output. For discovery in future sessions, save the output as
 `couch/SKILL.md` under that agent's configured skill directory. This is an

@@ -50,6 +50,7 @@ type SlotActor struct {
 	// another attempt's reservation: the interleaving the close review
 	// required a test of, observable without timing.
 	blockedPromotions int
+	batchMaxChars     int // nonzero only for explicitly enabled hub receivers
 	cancel            context.CancelFunc
 	// The latest observation the wrapper pushed (#365), kept so an actor
 	// listing reads memory instead of probing every slot. It stays current
@@ -183,6 +184,18 @@ func (b *Broker) Register(binding Binding, endpoint DeliveryEndpoint) error {
 // RegisterWithAllowance sizes a new incarnation's bucket; a reconnecting one
 // keeps its own (#433).
 func (b *Broker) RegisterWithAllowance(binding Binding, endpoint DeliveryEndpoint, allowance int) error {
+	return b.register(binding, endpoint, allowance, 0)
+}
+
+// RegisterWithBatching is selected by the verified hub adapter, never by senders.
+func (b *Broker) RegisterWithBatching(binding Binding, endpoint DeliveryEndpoint, allowance, maxChars int) error {
+	if maxChars < 1 || maxChars > MaxPeerBatchChars || binding.Agent != "claude" {
+		return errors.New("invalid peer batch receiver or character cap")
+	}
+	return b.register(binding, endpoint, allowance, maxChars)
+}
+
+func (b *Broker) register(binding Binding, endpoint DeliveryEndpoint, allowance, batchMaxChars int) error {
 	if err := binding.Validate(); err != nil {
 		return err
 	}
@@ -220,7 +233,7 @@ func (b *Broker) RegisterWithAllowance(binding Binding, endpoint DeliveryEndpoin
 		return err
 	}
 	ctx, cancel := context.WithCancel(b.ctx)
-	a := &SlotActor{binding: binding, state: next, endpoint: endpoint, inbox: make(chan Message, 1), wake: make(chan struct{}, 1), cancel: cancel}
+	a := &SlotActor{binding: binding, state: next, endpoint: endpoint, inbox: make(chan Message, 1), wake: make(chan struct{}, 1), cancel: cancel, batchMaxChars: batchMaxChars}
 	if old != nil {
 		a.submission = old.submission
 	}
@@ -260,7 +273,14 @@ func (b *Broker) disconnectLocked(a *SlotActor) {
 	// have not yet reached a destination worker.
 	for _, dest := range b.actors {
 		m, ok := dest.state.Pending()
-		if !ok || m.From != binding {
+		if !ok {
+			continue
+		}
+		owns := false
+		for _, member := range dest.state.PendingMessages() {
+			owns = owns || member.From == binding
+		}
+		if !owns {
 			continue
 		}
 		status := Cancelled
@@ -1015,7 +1035,13 @@ func (b *Broker) deliver(ctx context.Context, a *SlotActor, m Message) {
 		_ = b.apply(a, Event{Kind: DeliveryProgress, Binding: m.To, Message: m, Status: r.Status, Detail: r.Detail, At: b.now()})
 	}
 	if valid {
-		result, err = a.endpoint.Deliver(deliveryCtx, m, progress)
+		if endpoint, ok := a.endpoint.(BatchDeliveryEndpoint); ok && a.batchMaxChars > 0 {
+			result, err = endpoint.DeliverBatch(deliveryCtx, m, func() ([]Message, error) {
+				return b.freezeBatch(deliveryCtx, a, m, job)
+			}, progress)
+		} else {
+			result, err = a.endpoint.Deliver(deliveryCtx, m, progress)
+		}
 	} else {
 		result.Status = Cancelled
 		result.Detail = "delivery binding unavailable"
@@ -1034,8 +1060,10 @@ func (b *Broker) deliver(ctx context.Context, a *SlotActor, m Message) {
 	_ = a.endpoint.Release(releaseCtx, m.ID)
 	releaseCancel()
 	b.mu.Lock()
-	if b.jobs[m.ID] == job {
-		delete(b.jobs, m.ID)
+	for id, active := range b.jobs {
+		if active == job {
+			delete(b.jobs, id)
+		}
 	}
 	_ = b.apply(a, Event{Kind: DeliveryFinished, Binding: m.To, Message: m, Status: status, Detail: detail, At: b.now()})
 	b.mu.Unlock()
