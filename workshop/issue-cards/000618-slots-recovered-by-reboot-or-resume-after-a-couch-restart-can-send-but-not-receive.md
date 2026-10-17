@@ -1,6 +1,6 @@
 ---
 id: 000618
-status: working
+status: codecomplete
 created: 2026-10-16
 updated: 2026-10-16
 estimate_hours: 4.39
@@ -13,6 +13,14 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
+actual_hours: 3.14
+tracker:
+    version: 1
+    completion:
+        token: close-7ba29d91d774
+        repository: github.com/xianxu/pair
+        reviewed_head: ba41cd271292567a44b4709c16f8cef65cb5db04
+        evidence_commit: f1979269f52f7ca430e9cfafbf5b15eab841ec3f
 ---
 
 # Slots recovered by reboot or resume after a Couch restart can send but not receive
