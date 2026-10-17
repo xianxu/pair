@@ -60,6 +60,8 @@ Detailed design: [stale-session reminder plan](../plans/000630-stale-session-rem
 
 - Verification: both complete affected packages passed (couchcmd 61.748s, sessionsync 12.854s); focused race tests passed (2.278s/1.732s). The env-gated real CLI fixture passed (1.880s package) using this slot's once-built Couch and installed tl-lead, a disposable adopted namespace, a Git-backed status file, admitted wrapper and real RemoteEndpoint transport. It verified repeated stale delivery, fresh silence, lock suppression/release and exact document/shadow/state byte preservation. Installed-hub smoke remains TL-owned after restart.
 
+- First full-suite attempt on ce41c869 found TestProductionArtifactReferencesAreExactlyClassified: the three new production files were absent from the exhaustive source inventory. A focused run reproduced exactly those three omissions. They reference operator documents and existing session-sync/broker APIs, with no Pair artifact constructor/filename vocabulary, so they are explicitly added to NonArtifactSources alongside existing session-sync/wait code; the known-violations quarantine is unchanged. The focused inventory test now passes (2.553s). The ongoing suite is retained to collect any other failures.
+
 ## Revisions
 
 - 2026-10-17: quick-flow sizing exceeded the shell once baseline-neutral inspection and bounded asynchronous command execution were included. TL approved full flow before implementation; product behavior is unchanged.

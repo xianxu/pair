@@ -1041,6 +1041,11 @@ var NonArtifactSources = []string{
 	// beside the operator's own file; no Pair artifact filenames.
 	"cmd/internal/couchcmd/message_deliveries.go",
 	"cmd/internal/couchcmd/session_sync.go",
+	// #630 reminders inspect registered operator files and use the existing
+	// broker; command and transition state introduce no Pair artifact paths.
+	"cmd/internal/couchcmd/session_stale.go",
+	"cmd/internal/couchcmd/session_stale_command.go",
+	"cmd/internal/couchcmd/session_stale_model.go",
 	"cmd/internal/sessionsync/file.go",
 	"cmd/internal/sessionsync/gap.go",
 	"cmd/internal/sessionsync/ledger.go",
