@@ -1,13 +1,21 @@
 ---
 id: 000652
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-17
 updated: 2026-10-17
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: '5461880772bcf05cad9711020d01dac989b2a2a9' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '9525b2b8b63c13a87c1a4181147d9ab112b979b4' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-17T15:33:36-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:3
+    worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Codex tall composer misses submission confirmation beyond 20 rows
@@ -87,7 +95,11 @@ func TestCodexTallComposerConfirmationRegression(t *testing.T) {
 
 ## Plan
 
-Unclaimed follow-up, per the TL's explicit #648 scope revision. Diagnose/plan before code; #648 initially enables only Claude hubs. Codex remains singleton until its own rollout can be qualified.
+Durable design: [Codex tall composer](../plans/000652-codex-tall-composer-plan.md). One atomic close boundary. Await hub approval before implementation; Codex batch rollout remains disabled.
+
+- [ ] Pin complete tall geometry and adversarial Return/peer evidence in tests.
+- [ ] Share bounded positive recognition and verify actual writer confirmation without changing delivery ordering.
+- [ ] Complete native qualification, documentation and recorded verification, then close and land through normal gates.
 
 ## Log
 
@@ -107,3 +119,10 @@ Detail: `uncertain: delivery deadline elapsed after the submit: submitted; compo
 Local full diagnostic: `/tmp/pair648-peer-batch-viewport-diagnostic_test.go`; result `/tmp/pair648-viewport-diagnostic.log`; native failure `/tmp/pair648-wrapper-native-codex.log`. These scratch files are supplementary; the complete main-compatible singleton reproduction and result table above are durable. No production fix or new timeout/retry was made. The full batch diagnostic uses #648's new fixture helpers after that issue lands; the singleton defect and reproduction predate it.
 
 TL authorization: verified submitted delivery `00eac401-7b14-4ee8-8255-ef5cc30e078e`, explicitly asks for a separate unclaimed pair issue and the Return-remapping safety note.
+
+
+- Fresh submitted dispatch `886c2aa5-23ca-4be1-a058-8e6c43d316e9` confirms #648 landed and assigns #652, requiring plan before code and Return safety. Ran fresh `tl-worker --help`, claimed and published slot description. First `start-plan` refreshed ariadne and stopped before branching because the binary was stale; reran as directed, creating this fresh main-based branch and starting the issue. Inspected both consumers of `codexComposerActive`, existing status/left-edge guards, footer signature and sequence-based confirmation. No implementation code changed.
+
+## Revisions
+
+- 2026-10-17 15:36 PDT — Proposed design: preserve short-composer behavior, admit taller geometry only with a complete visible prompt/continuation block and positive trailing native footer. The initial no-footer diagnostic above remains historical evidence of the cutoff, but cannot itself authorize broader Return remapping; the accepted regression will include the native footer and remain red on main. Codex batching stays disabled; test batch-shaped text through ordinary singleton delivery, with no rollout-guard bypass. Awaiting hub approval.
