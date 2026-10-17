@@ -55,6 +55,22 @@ Existing stateful harness fake owns the terminal, repaint sequence, writer and c
 - **ARCH-ORDER:** parser is stateless. Existing delivery ordering remains reserve -> full paste -> fresh qualified occupied -> submit -> fresh complete empty (or new turn if initially idle). Unknown/stale/partial observations do not advance confirmation. Operator input cancels owned input; incomplete writes and identity loss retain their current refusal/uncertainty paths. Use explicit repaint/clock events, not scheduling sleeps.
 - **ARCH-FUNERAL:** no new runtime artifacts or growing state. Native PTY and disposable auth/home are owned by the existing capture fixture and collected on all exits; committed raw fixtures are bounded representative captures, not full logs.
 
+## Function-level test strategies
+
+The tall singleton and batch-shaped confirmation regressions, old short/idle controls and native PTY qualification remain acceptance anchors. These strategies govern the malformed-input classes behind them, rather than a case inventory.
+
+| Risky function | Adversarial strategy | Mechanical/independent guard |
+|---|---|---|
+| Shared Codex geometry helper (`codexComposerBounds` / prompt-row projection) | Generate valid viewport blocks over cursor distance/width/height, then independently remove or corrupt one authority component: styled prompt, nearest left edge, cursor placement, complete frame, separated trailing footer. Include clipped history and replacement prompt surfaces. | Valid constructed tall blocks qualify; every corrupted tall block declines. Existing invalid-dimension/tiny-cell tests must return within the test bound, without panic. Production validates storage first and makes bounded viewport passes, with one footer-signature check after finding the final painted row. |
+| `codexComposerActive` | Differentially compare unchanged short snapshot fixtures, including blank continuation and deliberately ambiguous mid-frame/status screens, with the existing expectations; cross generated tall geometry with cursor visibility. | No changed short answers. Tall activation is exactly the shared helper result; no alternate scan or authority path. |
+| Shared footer predicate (current `peerCodexFooter`) | Generate rows from the existing captured model-footer signature, then perturb the prefix/separator/position and append painted rows. Include changed native wording that no longer matches the existing format. | A malformed/unknown signature or nontrailing footer never admits tall input. Existing signature compatibility is preserved; no independent model/version allowlist. |
+| `qualifiedComposerText` | Paint generated Unicode/blank-line bodies and footer boundaries into the actual terminal model, with the same valid/invalid geometry families and slash/shell draft prefixes. | Exact original text is recovered only for qualified geometry; footer rows never become body text, and failed geometry or forbidden draft forms remain unknown. |
+| `decidePlainReturn` / `emitPlainCR` | Cross generated tall/short/unknown snapshots with overlay state and remap setting; exercise through the actual proxy byte decision. | Qualified tall composer emits LF; unknown or picker keeps today's CR behavior. Explicit submit remains distinct and an overlay always wins. |
+| `dispatchPeer` | Drive actual writer and reducer with controlled repaint, output sequence, frame completion, turn, operator-input, binding-loss and clock events; inject partial paste/submit writes. Reorder or omit required occupied/clear events. | Already-busy submit needs a fresh qualified occupied repaint followed by a fresh complete post-submit empty composer. No success from write alone/stale/partial evidence, no second paste/submit after uncertainty, and existing cancellation/identity guards remain effective. |
+| Native tall conformance callback | Reuse the owned PTY's observed terminal state and writer boundary; capture version/hash and require the representative viewport to render qualified before native Return/explicit submit. | Only the newly created empty-root session is driven, after hub grants its lane; cleanup owns PTY/auth files, no focus/clipboard change, no existing slot input. |
+
+The shared helper may return only prompt geometry to keep Return's existing short-input contract distinct from peer delivery's fuller text-reading requirements; both consumers still derive prompt authority from it. This is a projection of the approved bounds design, not a second recognition policy.
+
 ## Tasks
 
 ### 1. Pin the recognition and Return contract
@@ -62,8 +78,8 @@ Existing stateful harness fake owns the terminal, repaint sequence, writer and c
 Files: `composer_recognizers_test.go`, `codex_return_test.go`, optionally a focused `codex_tall_composer_test.go`.
 
 - [ ] Add a footer-complete tall native-shaped snapshot that is Unknown today, plus tall ordinary Return that wrongly emits CR today. Keep short, blank-continuation and existing mid-frame/status ambiguity controls.
-- [ ] Add adversarial tall cases: historical prompt with indented output and no footer, nearer unrelated painted left edge, unbold menu marker, footer/status cursor, stale prompt below a replacement composer, hidden/out-of-range cursor, clipped prompt, missing or changed/unrecognized footer wording, unfinished synchronized frame, truncated cell storage, operator overlay. Independent expectation: none gains new newline/peer permission.
-- [ ] Generate prompt/cursor distances and viewport sizes, with positive geometry and a single broken guard per case; add bounds-work protection against quadratic footer rescanning.
+- [ ] Implement the function-level generated geometry/footer/Return strategies below, including the hub-required unrecognized footer drift; malformed or incomplete tall evidence grants no new authority.
+- [ ] Generate prompt/cursor distances and viewport sizes around the former cutoff; retain the existing invalid-dimension/cell-storage rejection guard. Inspect that footer discovery makes one bounded viewport pass and calls the shared signature once, rather than rescanning suffixes per candidate.
 - [ ] Run the focused Codex/composer/Return tests and retain the expected new reds before implementation.
 
 ### 2. Share qualified geometry and prove confirmation
@@ -72,7 +88,7 @@ Files: `composer_recognizers.go`, `peer_composer.go`, `peer_delivery_test.go` or
 
 - [ ] Implement the smallest shared pure bounds helper and delegate active recognition/text extraction to it. Preserve the local short contract; require qualified complete footer evidence for the tall extension. Move/reuse the current footer signature, without a second copy.
 - [ ] Stateful regression through actual `dispatchPeer`: 26-line singleton and five-report batch-shaped text, already-active turn, exactly one paste and one submit, then a fresh complete empty composer => Submitted. Short and initially-idle controls remain Submitted.
-- [ ] Negative sequences: no occupied repaint, stale empty, open frame, partial paste/submit writer, intervening operator input, picker and binding loss; no false Submitted and no replay. Extend/reuse existing stateful tests rather than asserting callback counts.
+- [ ] Implement the controlled event-sequence strategy for `dispatchPeer` below, extending the existing stateful fake. Independent guards are no success without fresh ordered evidence and no replay of possibly written input.
 - [ ] Mutate away the extension to show tall positives fail, and remove a tall safety guard to show its adversarial case fails; restore before green. Run focused and race checks, then all `wrapcmd` tests once.
 
 ### 3. Native qualification, docs and normal landing
@@ -95,3 +111,5 @@ Files: existing native peer capture seam/testdata, `atlas/couch.md` and index if
 ## Revisions
 
 - 2026-10-17 15:38 PDT — Hub approval `8acc22f6-c522-4333-bd5e-250e5ddb66c4` adds an explicit changed/unrecognized footer-wording negative. Both design and live arrangement approved; native work must first obtain the shared lane, with no focus stealing. Real operator Return/submit smoke is deferred to its next restart. No production code changed.
+
+- 2026-10-17 15:40 PDT — Plan-quality PQ-1: replace enumerated edge-case lists with one adversarial strategy and independent guard per risky function, including generated geometry, unknown footer drift, short-contract differential checks, exact text, Return authority and ordered confirmation without replay. Clarify the shared helper may return prompt geometry while peer text reading retains its existing additional bounds checks; no policy or rollout change.
