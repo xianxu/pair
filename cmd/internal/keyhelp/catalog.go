@@ -10,9 +10,10 @@ const (
 	groupPanes    = "Panes and layout"
 	groupTerminal = "Terminal tabs (right terminal; tab keys reach a full-screen app; focus & switch still work)"
 	groupSession  = "Session"
+	groupParley   = "Parley editor"
 )
 
-var groupOrder = []string{groupAgent, groupDraft, groupHistory, groupPanes, groupTerminal, groupSession}
+var groupOrder = []string{groupAgent, groupDraft, groupHistory, groupPanes, groupTerminal, groupSession, groupParley}
 
 // entry is one curated row. It holds NO wording: Desc comes from the named Source.
 type entry struct {
@@ -35,6 +36,15 @@ type entry struct {
 type catalog struct {
 	include  []entry
 	internal []string
+}
+
+// Parley's companion-editor bindings are documentation metadata, not Pair key
+// handlers. Keep them distinct from sources that this binary owns and bundles.
+const parleyAttentionHelp = "attention finder (documents waiting on / answered by an agent)"
+
+var parleyKeyHelp = map[string]string{
+	"<M-Space>":    parleyAttentionHelp,
+	"<C-y><Space>": parleyAttentionHelp,
 }
 
 // Catalog is the curated help table.
@@ -81,6 +91,9 @@ var Catalog = catalog{
 		{Key: "<S-M-Left>", Display: "Shift+Alt+←", Group: groupTerminal, Order: 7, Context: ContextGlobal, Source: SourceGlobal},
 		{Key: "<S-M-Right>", Display: "Shift+Alt+→", Group: groupTerminal, Order: 8, Context: ContextGlobal, Source: SourceGlobal},
 		{Key: "<M-T>", Display: "Shift+Alt+t", Group: groupTerminal, Order: 9, Context: ContextGlobal, Source: SourceGlobal},
+
+		{Key: "<M-Space>", Display: "Alt+Space", Group: groupParley, Order: 10, Context: ContextParley, Source: SourceParley},
+		{Key: "<C-y><Space>", Display: "Ctrl+Y Space", Group: groupParley, Order: 20, Context: ContextParley, Source: SourceParley},
 
 		// --- Session ------------------------------------------------------
 		{Key: "<M-h>", Display: "Alt+h", Group: groupSession, Order: 10, Source: SourceGlobal},
