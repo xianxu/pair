@@ -15,6 +15,7 @@ claimant:
     workspace: pair:7
     worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "210d1afc", done: "c00501e2"}
 ---
 
 # Couch key help: add Alt+Space, parley's attention finder (parley.nvim#354)
