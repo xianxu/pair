@@ -62,6 +62,8 @@ type messageAuthority struct {
 	hub       string
 	hubs      *hubRuntime
 	hubTarget func(context.Context, string) (couchcore.HubSlot, error)
+	// batchMaxChars is immutable startup policy; zero uses the qualified default.
+	batchMaxChars int
 }
 
 // live is the full check, run once per wrapper admission: a lifecycle event, never a
@@ -308,6 +310,10 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch, configur
 	if err != nil {
 		return nil, err
 	}
+	batchChars, err := peerBatchMaxChars(os.Getenv)
+	if err != nil {
+		return nil, err
+	}
 	reniceLevel, err := slotNiceSettings(os.Getenv)
 	if err != nil {
 		return nil, err
@@ -359,7 +365,8 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch, configur
 		sessionName = source.PairSessionName
 	}
 	authority := messageAuthority{
-		hub: hubWorktree(os.Getwd, c.ResolveTree),
+		hub:           hubWorktree(os.Getwd, c.ResolveTree),
+		batchMaxChars: batchChars,
 		families: func(ctx context.Context) (map[string]string, error) {
 			if c.Threads == nil {
 				return nil, nil
@@ -466,6 +473,7 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch, configur
 	service.SetDesktopNotify(console.NotifyDesktop)
 	console.SetMessageBroker(service.broker)
 	console.SetCopyObserver(facts.clipboardCopy)
+	console.SetCopyKeyObserver(facts.clipboardKey)
 	service.SetBroadcastStatus(console.BroadcastStatus)
 	service.SetShares(console.Shares)
 	service.SetBlockedView(console.SetBlockedThreads)
@@ -521,6 +529,12 @@ func (s *messageService) showHub(view interface{ SetHub(root string) }) {
 }
 
 func newMessageService(parent context.Context, brokerSocket, registrySocket string, authority messageAuthority, panes *couchmessage.PaneMailbox, slotGit func(string) (couchcore.SlotGitStatus, bool), slotOps *slotOperations, factLogs ...*supervisionFactLog) (*messageService, error) {
+	if authority.batchMaxChars == 0 {
+		authority.batchMaxChars = couchmessage.DefaultPeerBatchMaxChars
+	}
+	if authority.batchMaxChars < 1 || authority.batchMaxChars > couchmessage.MaxPeerBatchChars {
+		return nil, errors.New("COUCH_PEER_BATCH_MAX_CHARS must be from 1 through 32768")
+	}
 	if authority.thread == nil || authority.agent == nil || authority.workspace == nil || authority.process == nil || authority.wrapperPID == nil || authority.launch == nil || authority.recorded == nil || authority.endpoint == nil || authority.branch == nil || panes == nil || slotGit == nil {
 		return nil, errors.New("message authority is incomplete")
 	}
@@ -737,7 +751,14 @@ func (s *messageService) execute(e couchmessage.RegistryEffect) *couchmessage.Re
 		if s.authority.isHub(p.identity) {
 			allowance = couchmessage.HubAllowance
 		}
-		if err := s.broker.RegisterWithAllowance(e.Binding, messageEndpoint{service: s, binding: e.Binding, endpoint: p.endpoint}, allowance); err != nil {
+		endpoint := messageEndpoint{service: s, binding: e.Binding, endpoint: p.endpoint}
+		var err error
+		if s.authority.isHub(p.identity) && e.Binding.Agent == "claude" {
+			err = s.broker.RegisterWithBatching(e.Binding, endpoint, allowance, s.authority.batchMaxChars)
+		} else {
+			err = s.broker.RegisterWithAllowance(e.Binding, endpoint, allowance)
+		}
+		if err != nil {
 			return &couchmessage.RegistryEvent{Kind: couchmessage.ConnectFailed, Token: e.Token, Pane: e.Pane, Err: err}
 		}
 		s.mu.Lock()
@@ -1242,6 +1263,38 @@ func (e messageEndpoint) Deliver(ctx context.Context, m couchmessage.Message, pr
 	// Explicit cross-hub messages are still deliveries to an active hub.
 	toHub := e.service.isHubBinding(m.To)
 	receipt, err := e.endpoint.Deliver(ctx, m, progress)
+	e.accountDelivery(m, receipt, err, log, toHub)
+	return receipt, err
+}
+
+func (e messageEndpoint) DeliverBatch(ctx context.Context, head couchmessage.Message, freeze func() ([]couchmessage.Message, error), progress func(couchmessage.Receipt)) (couchmessage.Receipt, error) {
+	endpoint, ok := e.endpoint.(couchmessage.BatchDeliveryEndpoint)
+	if !ok {
+		return e.Deliver(ctx, head, progress)
+	}
+	if err := e.check(ctx); err != nil {
+		return couchmessage.Receipt{Status: couchmessage.Cancelled, Detail: err.Error()}, nil
+	}
+	log, toHub := e.service.facts.Load(), e.service.isHubBinding(head.To)
+	group := []couchmessage.Message{head}
+	receipt, err := endpoint.DeliverBatch(ctx, head, func() ([]couchmessage.Message, error) {
+		members, err := freeze()
+		if err == nil {
+			group = append([]couchmessage.Message(nil), members...)
+		}
+		return members, err
+	}, progress)
+	for _, member := range group {
+		projected := receipt
+		projected.Message = member
+		e.accountDelivery(member, projected, err, log, toHub)
+	}
+	return receipt, err
+}
+
+// accountDelivery preserves every original message's supervision and document
+// ledger provenance, even when several messages share one physical input turn.
+func (e messageEndpoint) accountDelivery(m couchmessage.Message, receipt couchmessage.Receipt, err error, log *supervisionFactLog, toHub bool) {
 	system := false
 	if c := e.service.supervision.Load(); c != nil {
 		c.delivered(m, receipt, err)
@@ -1253,7 +1306,6 @@ func (e messageEndpoint) Deliver(ctx context.Context, m couchmessage.Message, pr
 	if r := e.service.deliveries.Load(); r != nil && !system {
 		r.record(m, receipt, err)
 	}
-	return receipt, err
 }
 
 func readMessageWrapperPID(path string) (int, error) {

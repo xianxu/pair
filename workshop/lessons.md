@@ -2166,6 +2166,10 @@ and external temporary roots rather than relying on the host's TMPDIR.
   with a process gate and retain stderr rather than relying only on sleep offsets.
 
 - Chunked JSONL framing must not search a retained newline-free prefix again on each append. Count actual delimiter bytes examined across multi-chunk records, alongside semantic boundary/limit tests; read/decode counters alone miss quadratic delimiter work. Preserve per-probe progress when diagnosing aggregate worker timeouts. (#626)
+- #620: Derive an integration fixture's completion bound from the product phases
+  it actually runs, including allowed serial IO and in-flight work. A short
+  aggregate wait can reject successful bounded calls; prove that ordering with
+  controlled latency and retain a publication-failure negative control.
 
 - A composite-literal realignment is where initializers get silently dropped.
   When a rename for gofmt alignment touches a constructor literal, grep every
@@ -2189,4 +2193,13 @@ and external temporary roots rather than relying on the host's TMPDIR.
   stack dumps miss sub-millisecond workers, so dump state (schedules, channel
   depths, probe outcomes) from inside a diagnostic test. (#628)
 
+- #648: Batch a held receiver's queue at the input owner's readiness point,
+  then freeze membership before the first write. Admission-time concatenation
+  misses arrivals during the busy turn; per-envelope turn logging breaks exact
+  transcript correlation. Retain original receipt IDs while recording the one
+  combined turn, and test recovery of a follower through the real socket path.
+- #646: Shortcut verification must exercise the terminal decoder and routing boundary with both legacy and enhanced wire input. Calling the action handler directly can prove clipboard IO while missing the unsupported key encoding that prevents the handler from running. Keep a content-free arrival observation separate from operation outcome when diagnosing this boundary.
+- #622 M2 trailer audit: keep Agent and Co-Authored-By in the same final commit-message paragraph. A blank line before Co-Authored-By makes Git exclude the earlier Agent line from its trailer block. Verify with git log --format="%(trailers:only)" before publishing; preserve already-reviewed historical commits rather than rewriting measurement provenance.
 - A readiness counter contract needs a stateful test through the actual readiness decision, not only isolated zero/one counts. Cover unchanged observations before growth and show that both equality-accepting and never-accepting mutations fail, especially when native acceptance is deferred. (#645 BR-1)
+
+- #648 BR-1: A new user-facing configuration variable needs README documentation as well as atlas and agent protocol text. Before close, check scope, units, default, accepted range, invalid-value behavior and compatibility against the parser and rollout policy.

@@ -636,6 +636,13 @@ var SourceClassifications = []SourceClassification{
 // the artifact namespace requires an explicit SourceClassification.
 // pair:m5-concept pure
 var NonArtifactSources = []string{
+	// #648 batching carries peer envelopes and receipts over existing endpoints;
+	// these files introduce no artifact paths or filename vocabulary.
+	"cmd/internal/couchcmd/message_batch.go",
+	"cmd/internal/couchmessage/batch.go",
+	"cmd/internal/couchmessage/broker_batch.go",
+	"cmd/internal/couchmessage/endpoint_batch.go",
+	"cmd/internal/wrapcmd/peer_batch.go",
 	"cmd/internal/nativelock/state.go",
 	"cmd/internal/wrapcmd/native_lock.go",
 	"cmd/internal/wrapcmd/owned_group.go",
@@ -1350,6 +1357,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchtty/mousetrace.go",
 	"cmd/internal/couchtty/menu.go",
 	"cmd/internal/couchtty/menu_copy.go",
+	"cmd/internal/couchtty/copy_key.go",
 	"cmd/internal/couchtty/menu_slot.go",
 	"cmd/internal/couchtty/menu_actions.go",
 	"cmd/internal/couchtty/menu_async.go",

@@ -573,14 +573,39 @@ remaining uncertainty is stated, never papered over:
   classes choose resend. The op contains no sender binding or body. Mixed-version
   response-shape mismatch omits these best-effort annotations, leaving the ordinary
   list intact.
-- **Peer turns in the Pair log (#618).** When a delivery ends `Submitted`,
+- **Queued hub batches (#648).** Verified Claude hubs prepare the head
+  without input, then the existing wrapper input writer offers readiness at its
+  ordinary safe-composer decision. The broker freezes the current capped FIFO
+  prefix under its mutex, including reports arriving during the held head's
+  wait. One finalization enables one combined paste/submit; the writer rechecks
+  input safety before pasting. Complete unchanged envelopes are separated by
+  `\n\n---\n\n`. `COUCH_PEER_BATCH_MAX_CHARS` defaults to 16,384 Unicode code
+  points including headers/separators and accepts 1–32,768; invalid values refuse
+  startup. Over-cap single messages proceed alone, with remaining reports kept
+  for the next composer. Actual encoded requests retain the existing frame cap.
+  One confirmation updates all original receipts atomically; each member remains
+  queryable and recoverable from the wrapper's bounded 64-ID recent store.
+  Before freeze, cancellation removes only that queued sender's mail; after
+  freeze, members share one cancellation job/outcome. Uncertain writes never
+  replay. Ordinary receivers, Codex and Qoder retain single-message delivery; an old
+  wrapper's explicit pre-commit unknown-operation refusal also selects the legacy
+  path, while transport/decode errors never trigger fallback. See
+  `couchmessage/batch.go`, `broker_batch.go`, `endpoint_batch.go`,
+  `wrapcmd/peer_batch.go` and `TestPeerBatchRuntimeSocketFIFOAndReceiptRecovery`.
+  Codex retention measurements passed, but its preexisting 20-row composer
+  recognizer can miss occupied evidence for tall pastes during an active turn
+  (#652); batching stays disabled there until confirmation and Return-remapping
+  safety are qualified together.
+- **Peer turns in the Pair log (#618, #648).** When a delivery ends `Submitted`,
   pair-wrap appends the exact envelope it pasted to the thread's Pair log
   through the managed locked writer (`pairlog.PersistPeerTurn`, append ID
   `couch-peer-<delivery ID>`). The session watcher correlates it like any draft
   turn, so a slot driven only by peer messages confirms its binding and can be
   relaunched. The draft pane's history and `!!` skip `couch-peer-` entries.
-  One launch records at most 8 (about 64 KB): a binding needs one completed
-  round after its launch, and the entries go wherever the Pair log goes.
+  A batch is one exact combined turn, using its head ID for idempotency, so
+  transcript correlation hashes the same input the agent received. One launch
+  records at most 8 turns and 256 KiB of aggregate envelope payload: a binding
+  needs one completed round after its launch, and entries follow the Pair log.
 - **Relaunch rides out a slow quit (#618).** `--relaunch` waits up to
   `RelaunchParkWait` (60 s) for the agent's quit inside its operation before
   it offers recover/abandon; a plain park keeps its shorter wait.
@@ -1606,7 +1631,15 @@ from exact hosted PID/start observations and never promotes raw persisted
 lifecycle state into a user-visible `live` or `parked` row.
 
 The switcher’s `Ctrl+Y` copies the latest retained `Feed.Messages()` body outside
-the console lock (`console_menu.go`, #604). Local consoles first use clipcmd's
+the console lock (`console_menu.go`, #604). The panel accepts canonical Kitty
+Ctrl+Y as well as legacy 0x19 (#646); release events never trigger a copy.
+`copy_key.go` classifies only decoded Ctrl+Y press/release events before product
+routing and reports `clipboard_key` via the existing bounded supervision writer.
+Its three content-free fields are encoding class, switcher focus and release;
+all other input is ignored. `clipboard_copy` remains the later operation outcome.
+No raw key stream, notice text or clipboard content enters either diagnostic.
+The 2026-10-17 read-only probe proved the old CSI-u decoder dropped enhanced
+Ctrl+Y; the historical keystroke bytes were not captured. Local consoles first use clipcmd's
 existing `pbcopy` / `wl-copy` / `xclip` tool cascade, with a one-second command
 budget and bounded pipe cleanup. Successful tool exit confirms local copying.
 Explicit SSH environments skip the host clipboard. Missing, failed or timed-out
@@ -4482,3 +4515,22 @@ Measurement procedure: preserve two complete JSON observations across natural
 and wrapper states. Report identity-matched byte rates separately from total
 server CPU. Profiles identify hot paths, not exact per-client CPU attribution.
 M1 changes no parser policy; optimization awaits the measured comparison.
+
+### Eager ASCII processing (#622 M2)
+
+Hosted endpoints keep parsing output eagerly whether visible or hidden. In
+`third_party/vt/utf8.go`, `handlePrint` skips general grapheme segmentation only
+between two single printable ASCII characters, retaining the provisional cluster
+and normal `handleGrapheme` transition for subsequent Unicode amendment. In
+`terminal/frame.go`, `validateCell` skips segmentation for a single printable
+ASCII byte of width one after its existing content/link/width checks. Queries,
+effects, modes, geometry, history and publication retain the same authority and
+ordering; there is no lazy replay, extra buffer or visibility policy.
+
+Qualification uses differential slow references plus complete Child ingest,
+publication and frame validation benchmarks. Fixed-work ABBA child CPU measured
+13.7–15.6% lower ASCII redraw cost and 2.8–6.3% lower mixed redraw cost at the
+approved quiet-load criterion. These figures are fixture results, not live
+server savings. TL-authorized landing precedes the next coordinated Couch
+restart; live server CPU/sample and console/peek/waiting acceptance remain
+pending until that check.

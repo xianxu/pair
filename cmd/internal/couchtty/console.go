@@ -219,6 +219,7 @@ type Console struct {
 	activityProbe    ActivityProbe
 	wrapperActivity  func(couchcore.ActionableThreadSummary) time.Time
 	copyObserver     func(CopyObservation)
+	copyKeyObserver  func(CopyKeyObservation)
 	activityRequests chan struct{}
 	activityResults  chan activityResult
 	activitySchedule RefreshSchedule

@@ -9,3 +9,7 @@ func clipboardCopyFact(observation couchtty.CopyObservation) supervisionFact {
 func (l *supervisionFactLog) clipboardCopy(observation couchtty.CopyObservation) {
 	l.offer(clipboardCopyFact(observation))
 }
+
+func (l *supervisionFactLog) clipboardKey(observation couchtty.CopyKeyObservation) {
+	l.offer(supervisionFact{Event: "clipboard_key", ClipboardKey: &observation})
+}
