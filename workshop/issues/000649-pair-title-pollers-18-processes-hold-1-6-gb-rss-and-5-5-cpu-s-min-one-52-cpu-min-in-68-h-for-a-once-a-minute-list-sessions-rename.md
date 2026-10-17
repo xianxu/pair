@@ -137,3 +137,7 @@ Fleet BEFORE remains the recorded 17 pollers / 1,055.44 MiB initial sample and 1
 ### 2026-10-17 — live verification deferral
 
 TL delivery 10172f8c-0c20-4200-8bfe-079e616b4400 explicitly forbids pair:0 staging (shared restart binary), directs landing on the recorded suite and close review, and takes ownership of no-poller/title/fade/cmux plus AFTER fleet measurements at the operator next restart/relaunch. This supersedes the earlier queued staging request and pre-landing live-check ordering. No live result or measured fleet reduction is claimed. The standing per-process size, rather than a large observed per-tick leak, motivates the approved replacement.
+
+### 2026-10-17 — affected packages and race verification
+
+Broader checks passed: go test ./cmd/internal/couchcore ./cmd/internal/couchtty ./cmd/internal/couchcmd ./cmd/internal/titlepoller ./cmd/internal/sessioninventory ./cmd/internal/wrapcmd -count=1. Slowest package was couchcore at 571.950s under fleet IO load; no test failed. Targeted race families for couchtty/couchcmd/sessioninventory passed. Storage ManagedIOInventoryAnchors passed after adding the new existing-family publication edge. Recorded full suite remains queued under the two-suite machine gate on source commit 85d217e1e.
