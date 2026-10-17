@@ -90,6 +90,12 @@ Further read-only evidence resolves the exec-time ambiguity: lsof shows PID 9980
 
 Corrected head f769895f18db7deb52e4e28e0bd3b8632c3724ad passed the complete declared suite (shell/editor checks plus go test ./... -count=1 -timeout 20m), exit 0 in 11m0s. Log /Users/xianxu/workspace/pair/.git/sdlc/local-checks/f769895f18db7deb52e4e28e0bd3b8632c3724ad/suite.log, SHA256 prefix 3afac57cd20f. Both introduced fixture defects are fixed; no unrelated failures were waived. The runner survived the 22:22 Couch restart. Subsequent commits only record the requested read-only writer investigation; production and tests remain exactly this passing head's versions.
 
+### 2026-10-16 — BR-1 woven generic-scanner measurement
+
+First close returned REWORK/BR-1, kind unverifiable: the disposable review checkout lacks Makefile.workflow, so its archive-only run could not exercise generic scanner admission. The reviewer independently confirmed the direct atomic publisher red/green and real Go build. Re-ran the missing dependency path in a private woven copy with the actual file resolved from this worker: /Users/xianxu/workspace/worktree/pair-slot7/ariadne/Makefile.workflow, SHA256 b816fcb7c31d3426775ea583e802835c756756a97c241f4610be51d7e1b345ec. No peer source was changed or scanner code reimplemented.
+
+Retained reproducible fixture: /var/folders/07/b9wcwwld4_v2w9r3hk525bm80000gn/T/pair624-woven-proof-4bb6qatn. Run python3 -B tests/build-go-atomic-test.py AtomicBuildTest.test_root_build_has_one_publisher_per_binary_and_no_foreign_writes from that copy. With all three sentinels, exit 0, exactly three staged writes. Removing only Couch's new sentinel gives exit 1, four writes with direct bin/couch; removing only launch-helper's gives exit 1, four writes with direct bin/pair-launch-helper; removing both gives exit 1, five writes with both direct outputs. Each mutation was in the private copy, then both sentinels restored. report.json and present.log/couch-absent.log/helper-absent.log/both-absent.log retain source identity and actual outputs for review inspection and reproduction. This supplies the measured host evidence the archive checkout lacked; no production/test change or additional full suite is needed for this evidence-only answer.
+
 ## Revisions
 
 ### 2026-10-16 — bounded writer diagnosis approved
