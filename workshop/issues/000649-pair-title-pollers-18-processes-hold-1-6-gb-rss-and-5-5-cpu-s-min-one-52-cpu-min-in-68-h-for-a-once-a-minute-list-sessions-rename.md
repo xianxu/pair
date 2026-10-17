@@ -30,7 +30,7 @@ Per the TL's fresh dispatch on 2026-10-17, Couch-hosted Pair starts no title pol
 
 Use exact scope/tag/session/start generation/launch ordinal and current pane birth evidence. Unknown or superseded authority produces no title effect. Run all optional IO outside console locks and input paths, cancel and join on supervisor shutdown, and cache only confirmed successful titles. Reuse shared rendering and cached current-launch resolution (ARCH-DRY, ARCH-PURE); no extra per-slot timer/process or liveness query (ARCH-CONSTRAINTS).
 
-Full-flow implementation plan: [Couch-owned titles](../plans/000649-couch-owned-titles-plan.md). Await TL approval before change-code/code. Do not cost an unapproved plan.
+Full-flow implementation plan: [Couch-owned titles](../plans/000649-couch-owned-titles-plan.md). TL approved the design and 2-second fair pass budget; pass change-code plan-quality before code. Do not cost an unapproved plan.
 
 Measured by pair:2, 2026-10-17 ~10:50–11:00, across the live fleet (22 slots). The `pair title` pollers (`titlepoller`, which keeps each zellij frame title current on a 60 s tick) are:
 - 18 processes holding **1.6 GB RSS** in total, the largest about 185 MB each;
@@ -52,7 +52,7 @@ The work per tick is one `zellij list-sessions --no-formatting`, sometimes a liv
 - Required recorded suite and sole close boundary review pass; documentation explains hosted ownership and standalone behavior.
 
 - Measured cause: the RSS growth per tick and the tick and query rate of one live poller over ~10 minutes, before the fix.
-- The fix keeps a poller's RSS flat over 1,000 simulated ticks, with a test, and its CPU at about one tick's work a minute.
+- The old per-poller 1,000-tick criterion is superseded by the approved replacement: fixed-fleet Couch updater test runs 1,000 ticks with post-GC retained heap at most warm baseline plus 4 MiB, cache cardinality bounded to current targets/panes, and zero extra warm history reads, stable-title effects or liveness calls. Measure live supervisor RSS separately; preserve standalone behavior.
 - After the next restart and relaunch, the fleet's `pair title` total RSS and CPU are re-measured and recorded.
 
 ## Plan
@@ -63,9 +63,17 @@ The work per tick is one `zellij list-sessions --no-formatting`, sometimes a liv
 - [ ] Wire one existing-schedule updater and shared activity/fade results; verify stateful failure sequences.
 - [ ] Stage for hub live check, document, run recorded suite, close and land on SHIP.
 
-- [ ]
-
 ## Log
+
+### 2026-10-17 — approval, review and additional baseline
+
+TL delivery 798a3ab4-b9da-465f-a516-34c291210e0a approved the full-flow replacement and 2-second fair display pass, requested a large-poller sample and fleet before/after totals. The fresh sample grew 128 KiB total over two ticks (64 KiB mean per tick), not 128 KiB per tick.
+
+Large poller PID 26235 preliminary 130-second observation: RSS 205,856 KiB throughout (201.03 MiB), CPU 675.11 -> 675.73 seconds (+0.62). Two actual list-sessions calls at 9.134 and 69.514 seconds: 60.38-second interval, 0.994/minute; two calls/130-second observation = 0.923/minute. No RSS growth in this short sample; it does not rule out historical growth. Raw: /var/folders/07/b9wcwwld4_v2w9r3hk525bm80000gn/T/pair649-large-bs_7d2th/measurement.json. A ten-minute pre-fix RSS/CPU series and query observer are running before any deployed fix.
+
+Fresh PID 24228 child observation over 66 seconds captured one real zellij list-sessions call (0.91/minute finite-window rate). Another child was observed pre-exec and cannot be classified. First observer attempt misinterpreted macOS proc_listchildpids return units; controlled child proved it returns PID count, and the corrected attempt captured the query. Empty first attempt is not evidence. Raw corrected observation: /var/folders/07/b9wcwwld4_v2w9r3hk525bm80000gn/T/pair649-query-observation-v2.json.
+
+Plan-quality PQ-1 verified that original ten-minute and 1,000-tick obligations remained in the issue; retained ten-minute measurement and explicitly translated the obsolete per-poller regression to the approved replacement updater. PQ-2 verified procedural case lists; all tasks now use named functions and adversarial strategy table. No code begun.
 
 ### 2026-10-17 — recovery and design
 
@@ -80,3 +88,5 @@ Read-only subagent exploration located the actual spawn in wrapcmd.startWrapperT
 ## Revisions
 
 - 2026-10-17 — TL revised investigation into replacement: remove hosted per-slot pollers in favor of a Couch-owned updater on existing listing/state/activity observations; preserve standalone behavior, cmux ownership and idle fading. Initial durable design captures that scope.
+
+- 2026-10-17 — Plan-quality reconciliation: retain ten-minute pre-fix and fleet after-rollout measurement; transfer 1,000-tick retained-memory/work invariant to the approved Couch updater, with explicit deterministic limits. No change to standalone scope.

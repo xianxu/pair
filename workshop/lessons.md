@@ -2168,3 +2168,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - Chunked JSONL framing must not search a retained newline-free prefix again on each append. Count actual delimiter bytes examined across multi-chunk records, alongside semantic boundary/limit tests; read/decode counters alone miss quadratic delimiter work. Preserve per-probe progress when diagnosing aggregate worker timeouts. (#626)
 
 - A readiness counter contract needs a stateful test through the actual readiness decision, not only isolated zero/one counts. Cover unchanged observations before growth and show that both equality-accepting and never-accepting mutations fail, especially when native acceptance is deferred. (#645 BR-1)
+
+- #649 PQ-1: Read the full issue body before writing its plan: sdlc issue show prints section headings without the requirements beneath them. When replacing a mechanism, reconcile every old Done-when obligation explicitly; a revised Spec does not supersede acceptance text left unchanged.
