@@ -1,6 +1,6 @@
 ---
 id: 000641
-status: codecomplete
+status: done
 created: 2026-10-17
 updated: 2026-10-17
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: cdc5a2ddfad9443e85f3dbbfd3c17c474de25d96
         evidence_commit: f621c057d1ceaff9d3dcd928e2a33e60e995bed6
+        landed_commit: 74fdb8e218b720c8c989f9418e5fabfd23d91ddb
 ---
 
 # Qualify Claude PR footer background work
