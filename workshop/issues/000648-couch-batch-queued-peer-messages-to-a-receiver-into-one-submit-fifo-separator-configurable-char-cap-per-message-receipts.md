@@ -1,13 +1,13 @@
 ---
 id: 000648
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-17
 updated: 2026-10-17
 estimate_hours: 2.805
 collaboration-mode: collaboration
-card_mirror: '452033751fac3e86bef2e3497fa75cb839efbfcc' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '3d469fd878a8649743d09fbe630fa1a0956ff9a4' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-17T11:13:12-07:00
 claimant:
     operator: Xian Xu
@@ -17,6 +17,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: operator}
+actual_hours: 2.20
 ---
 
 # Couch: batch queued peer messages to a receiver into one submit (FIFO, separator, configurable char cap), per-message receipts
