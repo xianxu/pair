@@ -66,3 +66,5 @@ The fixed real-CLI prefix query returned exit 0 with the full submitted receipt 
 Full couchmessage race passed 28.665 s (/tmp/pair635-couchmessage-race.log), all TestMessage* CLI/service tests passed under race 12.869 s (/tmp/pair635-cli-race.log), and declaration-comment checks passed 0.317 s. Added a terminal-receipt expiry case and verified it separately under race (/tmp/pair635-expired-prefix.log). The bundled agent skill's existing full-ID advice remains valid; the new CLI lookup behavior is documented in README, CLI help and atlas.
 
 Pushed source head 0789c0e55d73633a7d40c0aa420d925c9d8a40e9; required recorded suite queued as f627daf4bcfe82d7bf2e837dd713c4fa (sixth initially). TL approved opening an early draft PR for CI overlap, with fresh close review and normal gates still required (delivery 9296ee09-223f-4970-95d7-f43adf073120). No flake attempt or retry so far.
+
+Draft PR https://github.com/xianxu/pair/pull/400 is open; merge-check and local-gates-guard passed. Native conformance did not trigger for this patch. The suite advanced to fifth in the machine line; the queued source remains unchanged.
