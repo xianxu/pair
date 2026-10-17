@@ -218,15 +218,15 @@ func BenchmarkPairPrintRedraw(b *testing.B) {
 }
 
 // Faulty test-only transitions qualify the oracle against lost amendment and
-// a shortcut incorrectly broadened to Unicode Prepend predecessors.
+// a shortcut incorrectly broadened to non-ASCII continuations.
 func TestPairASCIIOracleRejectsMutants(t *testing.T) {
 	for _, tc := range []struct {
 		name, stream string
 		mutant       func(*Emulator, rune)
 	}{
 		{"seals-every-print", "AB\u0301", func(e *Emulator, r rune) { slowPairHandlePrint(e, r); e.flushGrapheme() }},
-		{"non-ASCII-predecessor", "AB\u0600C", func(e *Emulator, r rune) {
-			if r >= 0x20 && r <= 0x7e {
+		{"non-ASCII-next", "AB1\ufe0f\u20e3", func(e *Emulator, r rune) {
+			if len(e.cluster) == 1 && e.cluster[0] >= 0x20 && e.cluster[0] <= 0x7e {
 				e.flushGrapheme()
 			}
 			slowPairHandlePrint(e, r)
