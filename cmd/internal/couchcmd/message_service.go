@@ -112,7 +112,7 @@ func (a messageAuthority) current(ctx context.Context, b couchmessage.Binding) (
 		return "", err
 	}
 	if pid != b.PID {
-		return "", errors.New("wrapper does not own the current binding")
+		return "", &couchmessage.RelaunchRequiredError{Cause: errors.New("wrapper does not own the current binding")}
 	}
 	if err = a.recorded(ctx, b); err != nil {
 		return "", err
@@ -128,17 +128,17 @@ func recordedMessageAuthority(reader couchcore.OSReadyReader, sessionName func(c
 		address := couchcore.ThreadAddress{RepoScope: b.Scope, Tag: couchcore.ThreadTag(b.Tag)}
 		ready, ok, e := reader.RecordedSession(ctx, address, b.Agent, b.Nonce)
 		if e != nil {
-			return fmt.Errorf("wrapper launch registration: %w", e)
+			return &couchmessage.RelaunchRequiredError{Cause: fmt.Errorf("wrapper launch registration: %w", e)}
 		}
 		if !ok || ready != b.Session {
-			return errors.New("wrapper launch registration unavailable")
+			return &couchmessage.RelaunchRequiredError{Cause: errors.New("wrapper launch registration unavailable")}
 		}
 		name, e := sessionName(ctx, address)
 		if e != nil {
 			return e
 		}
 		if name != b.Session {
-			return errors.New("wrapper conversation changed")
+			return &couchmessage.RelaunchRequiredError{Cause: errors.New("wrapper conversation changed")}
 		}
 		return nil
 	}
@@ -413,17 +413,17 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch, configur
 			address := couchcore.ThreadAddress{RepoScope: b.Scope, Tag: couchcore.ThreadTag(b.Tag)}
 			registered, e := reader.Registered(ctx, address, b.Agent, b.Nonce)
 			if e != nil {
-				return fmt.Errorf("wrapper launch registration: %w", e)
+				return &couchmessage.RelaunchRequiredError{Cause: fmt.Errorf("wrapper launch registration: %w", e)}
 			}
 			if !registered {
-				return errors.New("wrapper launch registration unavailable")
+				return &couchmessage.RelaunchRequiredError{Cause: errors.New("wrapper launch registration unavailable")}
 			}
 			current, e := session(ctx, address)
 			if e != nil {
 				return e
 			}
 			if !current.Present || current.Name != b.Session {
-				return errors.New("wrapper conversation changed")
+				return &couchmessage.RelaunchRequiredError{Cause: errors.New("wrapper conversation changed")}
 			}
 			return nil
 		},
@@ -1399,7 +1399,7 @@ func messageThreadResolver(c *couchcore.Couch, listings *launcher.ListingPoller)
 			return "", err
 		}
 		if record.WorkingPath == "" {
-			return "", errors.New("message thread has no retained checkout")
+			return "", &couchmessage.RelaunchRequiredError{Cause: errors.New("message thread has no retained checkout")}
 		}
 		if !observable {
 			return "", errors.New("listed Pair session observer unavailable")
@@ -1409,7 +1409,7 @@ func messageThreadResolver(c *couchcore.Couch, listings *launcher.ListingPoller)
 			return "", err
 		}
 		if !session.Present || session.Name != binding.Session {
-			return "", errors.New("message terminal is not positively listed")
+			return "", &couchmessage.RelaunchRequiredError{Cause: errors.New("message terminal is not positively listed")}
 		}
 		return record.WorkingPath, ctx.Err()
 	}

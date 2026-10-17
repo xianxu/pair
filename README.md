@@ -871,7 +871,11 @@ any other row labels the working directory's last segment (`brain`, `pair`,
 `arc-agi-3`), with the tag's tail appended only when two rows would otherwise
 read the same. The agent-published summary is the one summary displayed.
 
-`couch --list` stays compact and label-first. `couch --show` is the diagnostic view:
+`couch --list` stays compact and label-first. A retained receive refusal adds its
+reason and one action: relaunch for an ownership/registration failure, or send
+again for a transient failure. Advice follows the refusal's class, independent
+of its wording. These annotations are best effort; mixed CLI/supervisor versions
+may omit them while the ordinary list remains available. `couch --show` is the diagnostic view:
 it always prints the immutable `{repository scope}/{opaque tag}` address. When the
 reference names a `:1+` slot (`repo:N`, a path at or inside the slot, or the slot
 its threads start in), `--show` also prints the slot's resources in converge order:
