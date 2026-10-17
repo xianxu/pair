@@ -774,12 +774,15 @@ func (b *Broker) promote(ctx context.Context, a *SlotActor) bool {
 		err = a.endpoint.Reserve(ctx, head.ID, obs.Sequence)
 	}
 	b.mu.Lock()
-	defer b.mu.Unlock()
 	// The worker frees its own attempt without a wake: it schedules its own
-	// retry (PromoteRetry), and a self-wake would spin on the wrapper.
-	if a.reservation == head.ID {
-		a.reservation = ""
-	}
+	// retry (PromoteRetry), and a self-wake would spin on the wrapper. Retain
+	// the reservation through cleanup IO, even while other actors can progress.
+	defer func() {
+		if a.reservation == head.ID {
+			a.reservation = ""
+		}
+		b.mu.Unlock()
+	}()
 	var committed *AlreadyCommittedError
 	if errors.As(err, &committed) {
 		// The wrapper already holds this ID: answer with its outcome.
@@ -800,9 +803,11 @@ func (b *Broker) promote(ctx context.Context, a *SlotActor) bool {
 		err = b.apply(a, Event{Kind: Promote, Binding: a.binding, Message: Message{ID: head.ID}, At: b.now()})
 	}
 	if err != nil {
+		b.mu.Unlock()
 		releaseCtx, cancel := context.WithTimeout(context.Background(), AdmissionTimeout)
 		_ = a.endpoint.Release(releaseCtx, head.ID)
 		cancel()
+		b.mu.Lock()
 		return ctx.Err() == nil
 	}
 	m, _ := a.state.Pending()

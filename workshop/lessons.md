@@ -2125,3 +2125,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 - #629 BR-1: A queued/held receipt describes the latest observation, not absence of input after commit handoff. Classify disconnect uncertainty from the active delivery owner; test both sender and receiver disconnect for every interim receipt status.
 - #629 BR-2: Advancing an injected business clock does not advance an existing real context timer. Test each timeout owner independently at its IO boundary and restore each removed deadline separately to prove its regression fails.
+
+- #631: Removing a shared mutex from external cleanup must retain the existing per-recipient reservation until that cleanup returns. Regress cancellation emptying the old queue entry followed by a new admission, and a replacement holding its own reservation while the old cleanup finishes.
