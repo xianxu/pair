@@ -38,6 +38,27 @@ func (s Source) runtime() processReader {
 	return nativeReader{}
 }
 func (s Source) Table() ([]Process, error) { return s.runtime().table() }
+
+// Identity returns the kernel start stamp for one pid, or "" when it cannot be
+// read. Callers fence pid reuse by comparing it against a stamp they already
+// hold, and "" never matches: an unreadable identity is uncertainty, not
+// absence.
+func (s Source) Identity(pid int) string {
+	identity, _ := s.runtime().identity(pid)
+	return identity
+}
+
+// Command returns one pid's argv and whether the read succeeded. ok == false is
+// not an empty argv: a caller that attributes a process by its argv must treat
+// an unreadable one as unattributed, never as a match.
+func (s Source) Command(pid int) (args []string, ok bool) {
+	info, err := s.runtime().command(pid)
+	if err != nil {
+		return nil, false
+	}
+	return info.Args, true
+}
+
 func (s Source) Snapshot(ctx context.Context) ([]Observation, error) {
 	return snapshotCapture(ctx, s.runtime(), nil, os.Getenv("PAIR_STARTUP_TIMING"), os.Stderr, time.Now)
 }

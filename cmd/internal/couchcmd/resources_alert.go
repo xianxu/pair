@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
@@ -45,7 +46,7 @@ func (d resourceAlertDispatcher) dispatch(ctx context.Context, state *couchcore.
 		outcome := couchcore.ResourceDeliveryUnknown
 		hub, available := d.resolve(effect.Workspace)
 		if available {
-			body := fmt.Sprintf("Couch resource monitor: %s pid=%d name=%s %s %.3f for %s; sampled coverage. Inspect with couch --resources.", rowtext.Sanitize(effect.Slot), effect.Process.PID, rowtext.Sanitize(effect.Name), rowtext.Sanitize(effect.Metric), effect.Value, effect.Duration)
+			body := resourceAlertBody(effect)
 			receipt, err := d.send(ctx, hub, effect.ID, body)
 			if err == nil && receipt.Message.ID == effect.ID && receipt.Message.From == hub && receipt.Message.To == hub && receipt.Message.Body == body {
 				outcome = couchcore.ResourceDeliveryAdmitted
@@ -56,4 +57,18 @@ func (d resourceAlertDispatcher) dispatch(ctx context.Context, state *couchcore.
 		*e, _ = couchcore.AdvanceResourceEpisode(*e, couchcore.ResourceEpisodeEvent{Delivery: outcome, EffectID: effect.ID})
 	}
 	return ctx.Err()
+}
+
+// resourceAlertBody is the hub's whole view of one effect, so it carries the
+// evidence and the next action. The orphan sweep is the only metric whose rows
+// the monitor may end, and ending one always needs confirmation (#583); every
+// other metric points at the report alone. Both bodies sanitize host-sourced
+// strings: a process name or a cwd is not trusted text.
+func resourceAlertBody(effect *couchcore.ResourceEffect) string {
+	if effect.Metric == couchcore.ResourceMetricOrphanNvim {
+		return fmt.Sprintf("Couch resource monitor: unattributed embedded nvim pid=%d age=%s in %s; no live slot owns it. Inspect with couch --resources; reap with couch --reap-orphans --confirm.",
+			effect.Process.PID, effect.Age.Round(time.Minute), rowtext.Sanitize(effect.Root))
+	}
+	return fmt.Sprintf("Couch resource monitor: %s pid=%d name=%s %s %.3f for %s; sampled coverage. Inspect with couch --resources.",
+		rowtext.Sanitize(effect.Slot), effect.Process.PID, rowtext.Sanitize(effect.Name), rowtext.Sanitize(effect.Metric), effect.Value, effect.Duration)
 }

@@ -30,7 +30,7 @@ unexport $(SESSION_ENV)
 endif
 endif
 
-.PHONY: build install pair runtimebundle-generate runtimebundle-drift-check test-runtimebundle test-clean-bootstrap test test-race test-run-headless test-lua test-lifecycle-command test-queue test-bang-tag test-autopair test-draft-complete test-pair-doctor test-perf-key-conformance test-plan-superseded test-paint-gate-consumers test-cr test-statusline test-doctor test-perf-capture test-adapt-schema test-dev-rebuild test-pair-go-install-layout test-pair-embedded-runtime test-pair-restart-quit test-emitter-health test-session-watch test-changelog test-copy-on-select test-term-pane-shortcuts test-pair-title test-zellij-trace test-review
+.PHONY: build install pair runtimebundle-generate runtimebundle-drift-check test-runtimebundle test-clean-bootstrap test test-race test-nvim-pidfile test-run-headless test-lua test-lifecycle-command test-queue test-bang-tag test-autopair test-draft-complete test-pair-doctor test-perf-key-conformance test-plan-superseded test-paint-gate-consumers test-cr test-statusline test-doctor test-perf-capture test-adapt-schema test-dev-rebuild test-pair-go-install-layout test-pair-embedded-runtime test-pair-restart-quit test-emitter-health test-session-watch test-changelog test-copy-on-select test-term-pane-shortcuts test-pair-title test-zellij-trace test-review
 
 # Cross-cutting Go-binary targets. Every Go binary lives under cmd/<name>/
 # and ships with the `pair-` prefix so it doesn't collide with anything
@@ -225,7 +225,7 @@ ifeq ($(PAIR_TEST_BINARY),)
 test:
 	bash tests/lib/with-pair-test-binary.sh $(MAKE) test
 else
-test: test-build-go-atomic test-supervision-labels test-host-preflight runtimebundle-generate test-retention test-run-headless test-lua test-lifecycle-command test-perf-capture test-queue test-submission-transaction test-bang-tag test-autopair test-draft-complete test-pair-doctor test-perf-key-conformance test-plan-superseded test-paint-gate-consumers test-cr test-statusline test-doctor test-adapt-schema test-dev-rebuild test-pair-go-install-layout test-pair-embedded-runtime test-pair-restart-quit test-emitter-health test-session-watch test-changelog test-copy-on-select test-term-pane-shortcuts test-pair-title test-zellij-trace test-review test-make-env
+test: test-build-go-atomic test-supervision-labels test-host-preflight runtimebundle-generate test-retention test-nvim-pidfile test-run-headless test-lua test-lifecycle-command test-perf-capture test-queue test-submission-transaction test-bang-tag test-autopair test-draft-complete test-pair-doctor test-perf-key-conformance test-plan-superseded test-paint-gate-consumers test-cr test-statusline test-doctor test-adapt-schema test-dev-rebuild test-pair-go-install-layout test-pair-embedded-runtime test-pair-restart-quit test-emitter-health test-session-watch test-changelog test-copy-on-select test-term-pane-shortcuts test-pair-title test-zellij-trace test-review test-make-env
 	# pair#610: temporary 20m per-package budget; couchcore is ~580s idle.
 	# pair#611 profiles/splits/shards it before removing this allowance.
 	go test ./... -count=1 -timeout 20m
@@ -549,6 +549,13 @@ $(addprefix $(BIN_DIR)/,$(BUSYBOX_LINKS)): $(BIN_DIR)/pair
 .PHONY: test-retention
 test-retention:
 	bash tests/retention-test.sh
+# The nvim pid sidecar's lifecycle (#583): published at startup, removed on a clean
+# exit, kept on a SIGKILL, and never removed when a later embed republished it.
+# Covers all four publishing configs — see the script header for why the rule is
+# spelled per config.
+.PHONY: test-nvim-pidfile
+test-nvim-pidfile:
+	bash tests/nvim-pidfile-lifecycle-test.sh
 .PHONY: test-couch-recovery-smoke
 test-couch-recovery-smoke:
 	sh tests/couch-recovery-smoke.sh $(MODE)

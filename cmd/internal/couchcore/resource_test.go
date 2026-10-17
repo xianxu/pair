@@ -2,6 +2,7 @@ package couchcore
 
 import (
 	"fmt"
+	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/procutil"
 	"reflect"
 	"testing"
@@ -100,6 +101,59 @@ func TestResourceClassifyUnproven(t *testing.T) {
 	table[0].Identity = "new"
 	if len(ClassifyUnattributed(table, nil, obs, map[ResourceProcessKey][]string{key: {"--embed"}}, 256<<20)) != 0 {
 		t.Fatal("reuse attributed")
+	}
+}
+
+// One rule names "a process this supervisor knows the shape of, sitting at
+// launchd, with no owner it can name": #587's report and #583's orphan sweep
+// both classify through it, so it is tested directly rather than only through
+// whichever report happens to consume it today. Every row falsifies one claim.
+func TestUnattributedCandidate(t *testing.T) {
+	t.Parallel()
+	claimed := map[ResourceProcessKey]bool{{PID: 21, Identity: "claimed"}: true}
+	embed := []string{"nvim", "--embed"}
+	row := func(mutate func(*procutil.Process)) procutil.Process {
+		p := procutil.Process{PID: 20, PPID: 1, Identity: "b", Name: "nvim"}
+		mutate(&p)
+		return p
+	}
+	keep := func(*procutil.Process) {}
+	for _, test := range []struct {
+		name string
+		p    procutil.Process
+		args []string
+		want bool
+	}{
+		{name: "an embedded nvim at launchd", p: row(keep), args: embed, want: true},
+		{name: "a plain nvim is the operator's own", p: row(keep), args: []string{"nvim", "file.md"}},
+		{name: "argv not read", p: row(keep)},
+		{name: "--embed inside a longer field", p: row(keep), args: []string{"nvim", "/tmp/--embed"}},
+		{name: "a zellij server needs no argv", p: row(func(p *procutil.Process) { p.Name = "zellij" }), want: true},
+		{name: "a supported agent needs no argv", p: row(func(p *procutil.Process) { p.Name = launcher.AgentInventory()[0] }), want: true},
+		{name: "an unknown kind", p: row(func(p *procutil.Process) { p.Name = "bash" }), args: embed},
+		{name: "a name that merely contains nvim", p: row(func(p *procutil.Process) { p.Name = "nvim-qt" }), args: embed},
+		{name: "a full path still names its kind", p: row(func(p *procutil.Process) { p.Name = "/opt/homebrew/bin/nvim" }), args: embed, want: true},
+		{name: "still has a parent", p: row(func(p *procutil.Process) { p.PPID = 10 }), args: embed},
+		{name: "a zombie", p: row(func(p *procutil.Process) { p.Zombie = true }), args: embed},
+		{name: "no generation to fence on", p: row(func(p *procutil.Process) { p.Identity = "" }), args: embed},
+		{name: "no pid", p: row(func(p *procutil.Process) { p.PID = 0 }), args: embed},
+		{name: "claimed by a slot", p: row(func(p *procutil.Process) { p.PID, p.Identity = 21, "claimed" }), args: embed},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			if got := UnattributedCandidate(test.p, claimed, test.args); got != test.want {
+				t.Fatalf("UnattributedCandidate(%+v, %v) = %v; want %v", test.p, test.args, got, test.want)
+			}
+		})
+	}
+	for _, name := range []string{"nvim", "zellij", launcher.AgentInventory()[0]} {
+		if !UnattributedKind(name) {
+			t.Fatalf("UnattributedKind(%q) = false; the sampler would never read its argv", name)
+		}
+	}
+	for _, name := range []string{"bash", "nvim-qt", "", "Vim"} {
+		if UnattributedKind(name) {
+			t.Fatalf("UnattributedKind(%q) = true; want an unknown kind", name)
+		}
 	}
 }
 func TestResourceSelectionOrderIndependent(t *testing.T) {

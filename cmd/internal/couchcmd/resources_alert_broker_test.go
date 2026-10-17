@@ -2,11 +2,14 @@ package couchcmd
 
 import (
 	"context"
-	"github.com/xianxu/pair/cmd/internal/couchcore"
-	"github.com/xianxu/pair/cmd/internal/couchmessage"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/couchmessage"
+	"github.com/xianxu/pair/cmd/internal/procutil"
 )
 
 type resourceBrokerEndpoint struct {
@@ -74,6 +77,38 @@ func TestResourceAlertBrokerExactHubSelfDeliveryWithoutWorker(t *testing.T) {
 	default:
 	}
 }
+
+// The sweep's alert must survive the real broker exactly once per episode, in a
+// body that names both the evidence and the reap's gate (#583).
+func TestResourceAlertBrokerDeliversTheOrphanNvimOnce(t *testing.T) {
+	d, _, ep, hub := resourceBrokerRig(t)
+	state := orphanNvimAlertState(time.Now(), "/fleet/worktree/pair-slot1/pair")
+	if err := d.dispatch(context.Background(), &state); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case m := <-ep.deliveries:
+		want := "Couch resource monitor: unattributed embedded nvim pid=4242 age=312h5m0s in /fleet/worktree/pair-slot1/pair; no live slot owns it. Inspect with couch --resources; reap with couch --reap-orphans --confirm."
+		if m.Body != want {
+			t.Fatalf("body %q", m.Body)
+		}
+		if m.From != *hub || m.To != *hub {
+			t.Fatalf("impersonated worker: %+v", m.From)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("no orphan alert")
+	}
+	if state.Episodes[0].Phase != "notified" || state.Episodes[0].Delivery != couchcore.ResourceDeliveryAdmitted {
+		t.Fatalf("episode %+v", state.Episodes[0])
+	}
+	_ = d.dispatch(context.Background(), &state)
+	select {
+	case m := <-ep.deliveries:
+		t.Fatalf("duplicate orphan alert %+v", m)
+	default:
+	}
+}
+
 func TestResourceAlertBrokerBusyQueuesOnce(t *testing.T) {
 	d, b, ep, _ := resourceBrokerRig(t)
 	ep.busy.Store(true)
@@ -164,6 +199,72 @@ func TestResourceAlertBrokerRecoveryAndFreshRestartRearm(t *testing.T) {
 	for _, id := range []string{first, second, third} {
 		if _, ok, _ := b.ReceiptSnapshot(id); !ok {
 			t.Fatal("missing rearmed admission")
+		}
+	}
+}
+
+// The whole chain with nothing stubbed between its ends: a sample of a real
+// process table must reach the hub as one alert, and only one, inside the
+// episode. Every seam in between is where a future change could silently drop
+// the only notice a 13-day leak ever gets (#583).
+func TestResourceAlertBrokerEndToEndFromTheSweep(t *testing.T) {
+	d, _, ep, _ := resourceBrokerRig(t)
+	f := &samplerReader{
+		rows:    []procutil.Process{{PID: 4242, PPID: 1, Identity: "1760000000.5", Name: "/opt/homebrew/bin/nvim"}},
+		cwdPath: "/fleet/worktree/pair-slot1/pair/cmd",
+	}
+	s := testResourceSampler(f)
+	at := time.Unix(1760100000, 0)
+	s.alerts = d.dispatch
+	s.slots = func() couchcore.ResourceSlotInventory {
+		return couchcore.ResourceSlotInventory{Complete: true, Slots: []couchcore.ResourceSlot{{Slot: "pair:1", OwnershipKnown: true, Workspace: couchcore.WorkspaceIdentity{WorktreeRoot: "/fleet/worktree/pair-slot1/pair"}}}}
+	}
+	delivered := func(when string) couchmessage.Message {
+		t.Helper()
+		select {
+		case m := <-ep.deliveries:
+			return m
+		case <-time.After(time.Second):
+			t.Fatalf("%s: nothing reached the hub", when)
+		}
+		return couchmessage.Message{}
+	}
+	quiet := func(when string) {
+		t.Helper()
+		select {
+		case m := <-ep.deliveries:
+			t.Fatalf("%s: repeated alert %q", when, m.Body)
+		default:
+		}
+	}
+	s.now = func() time.Time { return at }
+	s.pass(context.Background())
+	select {
+	case m := <-ep.deliveries:
+		t.Fatalf("one sample alerted the hub: %q", m.Body)
+	default:
+	}
+	s.now = func() time.Time { return at.Add(time.Minute) }
+	s.pass(context.Background())
+	body := delivered("the second sample").Body
+	// The effect binds the age at the sample that fired it — 100059.999995s, the
+	// darwin stamp's fraction being microseconds — rounded to a readable minute.
+	for _, want := range []string{"pid=4242", "age=27h48m0s", "in /fleet/worktree/pair-slot1/pair", "couch --reap-orphans --confirm"} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("body lost %q: %q", want, body)
+		}
+	}
+	s.now = func() time.Time { return at.Add(2 * time.Minute) }
+	s.pass(context.Background())
+	quiet("the third sample")
+	// Reaped: the episode clears, so a later leak by the same pid is a new alert.
+	f.rows = nil
+	s.now = func() time.Time { return at.Add(3 * time.Minute) }
+	s.pass(context.Background())
+	quiet("after the reap")
+	for _, e := range s.state.Episodes {
+		if strings.HasPrefix(e.Key, "nvim/") {
+			t.Fatalf("episode survived the reap: %+v", e)
 		}
 	}
 }

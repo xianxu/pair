@@ -22,6 +22,25 @@ type Registration struct {
 	RegisteredAt                     time.Time
 }
 
+// DocumentInfo is a fresh registered document's routing and operator-lock facts.
+// Inspecting these facts does not acknowledge any document content or delivery.
+type DocumentInfo struct {
+	ID, File, Owner string
+	Holder          Holder
+	SessionSync     bool
+}
+
+// InspectRegistered reads current facts under the document's transaction lock.
+// A legacy session-sync file is insufficient authority without a registration.
+func (s *Sync) InspectRegistered(path string) (DocumentInfo, error) {
+	return withDocumentMode(s, path, registeredOnly, func(f *file) (DocumentInfo, error) {
+		if !ValidSlot(f.owner) {
+			return DocumentInfo{}, refuse("document owner %q is invalid", f.owner)
+		}
+		return DocumentInfo{ID: f.registration.ID, File: f.registration.File, Owner: f.owner, Holder: f.holder, SessionSync: IsSessionSync(f.content)}, nil
+	})
+}
+
 const registeredStateMaxBytes = 1 << 20
 
 // Preflight every prospective registered companion before publishing authority
@@ -547,9 +566,22 @@ func (t *registryTxn) validateMetadata(d DocumentRegistration) error {
 	return validateRegisteredMetadata(string(shadow), st, d.Paths)
 }
 
+type documentMode uint8
+
+const (
+	legacyCompatible documentMode = iota
+	registeredOnly
+)
+
+func withDocument[T any](s *Sync, path string, fn func(*file) (T, error)) (T, error) {
+	return withDocumentMode(s, path, legacyCompatible, fn)
+}
+
 // Every new-version command selects its route under the registry lock. During
 // a legacy export, central metadata remains authoritative until registry removal.
-func withDocument[T any](s *Sync, path string, fn func(*file) (T, error)) (T, error) {
+// The route is selected under the same registry lock as the metadata load.
+// Registered-only callers must refuse before any legacy IO or blocking flock.
+func withDocumentMode[T any](s *Sync, path string, mode documentMode, fn func(*file) (T, error)) (T, error) {
 	return withRegistry(s, func(t *registryTxn) (T, error) {
 		var zero T
 		canonical, err := canonicalDocument(path)
@@ -558,6 +590,9 @@ func withDocument[T any](s *Sync, path string, fn func(*file) (T, error)) (T, er
 		}
 		d := t.find(canonical)
 		if d == nil {
+			if mode == registeredOnly {
+				return zero, refuse("%s is not a registered document", path)
+			}
 			return locked(path, fn)
 		}
 		raw, err := readRegular(d.File, documentMaxBytes)

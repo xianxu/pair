@@ -185,13 +185,7 @@ func runCleanupContext(ctx context.Context, env Env, rt Runtime, step launchStep
 	ops := &launcherCleanupOps{
 		rt: rt, env: env, step: step, scopeKey: scopeKey, parkTimeout: parkTimeout,
 		out: out, quitAgent: quitAgent, now: time.Now, scrollback: scrollback,
-		panePath: panePath,
-		// Spelled inline, not through editorPathsOf: the artifact inventory
-		// checks that each scoped member is consumed where it was resolved.
-		editorPaths: lifecycleEditorPaths{
-			draft: paths.Draft(), scrollbackPrefix: paths.ScrollbackPrefix(),
-			pids: []string{paths.NvimPID("draft"), paths.NvimPID("scrollback")},
-		},
+		panePath: panePath, editorPaths: editorPathsOf(paths),
 		outerTTY: paths.OuterTTY(), agentPath: paths.Agent(), agentOutput: paths.AgentOutput(),
 		pairWrapPID: paths.PairWrapPID(), adaptLog: paths.AdaptLog(), imageCapture: paths.ImageCapture(),
 		imageCaptureDone: paths.ImageCaptureDone(), titlePID: paths.TitlePID(),
@@ -278,22 +272,21 @@ type contextualCleanupRuntime interface {
 	CleanupCmuxContext(context.Context, string, string) error
 }
 
+// lifecycleEditorPaths is the tag's embedded-nvim reap targets, derived once and
+// handed to the runtime that owns the process table.
 type lifecycleEditorPaths struct {
-	draft            string
-	scrollbackPrefix string
-	pids             []string
+	sidecars []nvimSidecar
 }
 
-// editorPathsOf is the orphan reaper's derivation of a tag's editor pidfiles
-// and patterns (#399). It matches the quit path's inline literal in
-// runCleanupContext, which stays inline for the artifact inventory's
-// consumed-where-resolved check; TestReapTagHelpersEndsTheHelpersOutsideTheTree
-// pins this one.
+// editorPathsOf is the one derivation of a tag's editor reap targets (#399,
+// #583): both the quit path and the orphan reaper build through it, so a kind
+// cannot be reaped by one and missed by the other. The kinds come from
+// artifactpath.NvimKinds(), pinned by
+// TestNvimSidecarsForDerivesFromTheClosedKindSet. Owner liveness is false here
+// because this derivation serves the explicit quit path, which is itself the
+// authorization to reap.
 func editorPathsOf(paths artifactpath.Paths) lifecycleEditorPaths {
-	return lifecycleEditorPaths{
-		draft: paths.Draft(), scrollbackPrefix: paths.ScrollbackPrefix(),
-		pids: []string{paths.NvimPID("draft"), paths.NvimPID("scrollback")},
-	}
+	return lifecycleEditorPaths{sidecars: nvimSidecarsFor(paths, paths.Tag(), paths.ScopeDir(), false)}
 }
 
 type launcherCleanupOps struct {
@@ -520,7 +513,7 @@ func (r OSOrphanReaper) ReapOrphan(ctx context.Context, server SessionServerIden
 	if r.DataDir == "" {
 		return errors.New("reap: no Pair data directory for the thread's helpers")
 	}
-	reaper := Reaper{Table: OSProcessTable{}, TermWait: 3 * time.Second, KillWait: 2 * time.Second, Poll: 50 * time.Millisecond}
+	reaper := TreeReaper(OSProcessTable{})
 	if err := reaper.Reap(ctx, server); err != nil {
 		return err
 	}
