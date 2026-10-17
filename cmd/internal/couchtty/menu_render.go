@@ -157,17 +157,19 @@ func RenderMenuView(state MenuState, width, height int, now time.Time, color256 
 		frames = []MenuFrame{{Kind: MenuFrameRoot}}
 	}
 	frame := frames[len(frames)-1]
-	lines, extents := renderMenuFrame(state, frame, width, height, now, color256)
+	banners := renderedMenuCopyLines(state)
+	if notice := renderedMenuNotice(state); notice != "" {
+		banners = append([]string{notice}, banners...)
+	}
+	// The frame windows its selection within the space left by all banners.
+	// This is the sole banner budget, shared by every frame kind.
+	lines, extents := renderMenuFrame(state, frame, width, height-len(banners), now, color256)
 	if len(lines) > 0 {
 		breadcrumb := clipMenuLine(menuBreadcrumb(state, frame), width)
 		if color256 {
 			breadcrumb = "\x1b[38;5;245m" + breadcrumb + "\x1b[0m"
 		}
 		lines[0] = breadcrumb
-	}
-	banners := renderedMenuCopyLines(state)
-	if notice := renderedMenuNotice(state); notice != "" {
-		banners = append([]string{notice}, banners...)
 	}
 	if len(banners) > 0 {
 		expanded := make([]string, 0, len(lines)+len(banners))
@@ -198,8 +200,8 @@ func RenderMenuView(state MenuState, width, height int, now time.Time, color256 
 // row the operator cannot see is a row they cannot click.
 //
 // UNREACHABLE TODAY, and kept deliberately. renderRootMenuFrame's own rowBudget
-// already subtracts the breadcrumb, the notice and the filter before choosing
-// its window, so RenderMenuView's `lines[:height]` truncation never fires while
+// already receives the height after banners and subtracts the breadcrumb and
+// filter before choosing its window, so RenderMenuView's `lines[:height]` truncation never fires while
 // extents exist -- measured across heights 3..16, where maxEnd never exceeds the
 // drawn count. It is a guard against the two bounds drifting apart, not live
 // behaviour, which is why no test can redden it: a test would have to construct
@@ -380,14 +382,11 @@ func renderStartMenuFrame(state MenuState, frame MenuFrame, width, height int) [
 		clipMenuLine("start thread", width), "",
 		selectedMenuLine(pathMarker+"path  "+frame.Path, frame.FormField == MenuFieldPath, width),
 	}
-	fixedRows := 4 + len(renderedMenuCopyLines(state))
+	fixedRows := 4
 	if frame.PreviewResolution.ArgvSource != "" {
 		fixedRows++
 	}
 	if frame.CompletionTruncated {
-		fixedRows++
-	}
-	if renderedMenuNotice(state) != "" {
 		fixedRows++
 	}
 	fixedRows += len(frame.PreviewResolution.ReuseNotices)
@@ -522,11 +521,8 @@ func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, no
 		labels[menuRowKey(entry.Row)] = entry
 	}
 	lines := []string{"threads", clipMenuLine("Ctrl+Y copy last notice", width)}
-	rowBudget := height - len(lines) - len(renderedMenuCopyLines(state))
+	rowBudget := height - len(lines)
 	if frame.Filter != "" {
-		rowBudget--
-	}
-	if state.Notice.Text != "" || state.ProjectionPending {
 		rowBudget--
 	}
 	if rowBudget < 1 {

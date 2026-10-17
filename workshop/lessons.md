@@ -7,6 +7,8 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- Reserve shared banners before a menu frame windows its selected rows. Subtracting them only for some frame kinds lets final clipping hide selected actions and cursors; test every windowed frame at minimum geometry. (#638)
+
 - Keep free-form tool stderr out of metadata-only diagnostic callbacks. A truncated or transformed echo defeats full-input redaction; publish typed status plus stderr length/hash and keep bounded output on the operator screen. (#638 PQ-1)
 
 - A strict trust check and a native discovery rule can intentionally treat aliases differently. Failure to prove one observed discovery candidate makes the whole candidate scope unknown; silently omitting it can select an older conversation. Test the selected identity with a newer candidate behind an unsupported alias. (#571 BR-3)

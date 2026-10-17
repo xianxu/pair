@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/ansi"
+	"github.com/xianxu/pair/cmd/internal/couchcore"
 )
 
 func TestMenuCopyFailureSurvivesOperatorAndBackgroundEvents(t *testing.T) {
@@ -119,5 +120,59 @@ func TestMenuCopyRenderBothBannersWithinBounds(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+func TestMenuCopyBannersReserveSpaceBeforeActionWindowing(t *testing.T) {
+	for _, kind := range []MenuFrameKind{MenuFrameActions, MenuFrameConfirmation, MenuFrameSwitchAgent, MenuFrameRecovery} {
+		t.Run(fmt.Sprint(kind), func(t *testing.T) {
+			state := NewMenuState(menuThreads(), menuAddress("couch-one"))
+			state.Notice = errorMenuNotice("ordinary failure")
+			state.CopyFeedback = CopyFeedback{Kind: CopyFeedbackFailed, Text: "clipboard failed", payload: "private"}
+			frame := MenuFrame{Kind: kind, Thread: state.Inventory[0].Address}
+			selectedLabel := ""
+			switch kind {
+			case MenuFrameActions:
+				items := menuActionsFor(state, state.Inventory[0])
+				frame.SelectedItem = menuItemID(items[len(items)-1])
+				selectedLabel = menuItemLabel(items[len(items)-1])
+			case MenuFrameConfirmation:
+				frame.Action, frame.SelectedItem = "leave", "leave"
+				selectedLabel = "leave couch"
+			case MenuFrameSwitchAgent:
+				frame.Agent = "grok"
+				selectedLabel = "grok"
+			case MenuFrameRecovery:
+				frame.RecoveryPreview = &couchcore.RecoveryPreview{
+					Candidates: []couchcore.RecoveryChoice{{Key: "candidate", Label: "Resume candidate"}},
+					Fresh:      &couchcore.RecoveryChoice{Label: "Start fresh"},
+				}
+				frame.SelectedItem = "1"
+				selectedLabel = "Start fresh"
+			}
+			state.Frames = []MenuFrame{frame}
+			rendered := RenderMenuView(state, 40, 10, time.Time{}, false)
+			plain := string(ansi.Strip([]byte(rendered.Body)))
+			assertRenderedBounds(t, plain, 40, 10)
+			if !strings.Contains(plain, "▸ "+selectedLabel) {
+				t.Fatalf("retained banners hid selected action %q: %q", selectedLabel, plain)
+			}
+			if !strings.Contains(plain, "ordinary failure") || !strings.Contains(plain, "Esc dismiss") {
+				t.Fatalf("lost banner: %q", plain)
+			}
+		})
+	}
+}
+
+func TestMenuCopyBannersKeepSwitchParameterCursorVisible(t *testing.T) {
+	state := NewMenuState(menuThreads(), menuAddress("couch-one"))
+	state.Notice = errorMenuNotice("ordinary failure")
+	state.CopyFeedback = CopyFeedback{Kind: CopyFeedbackFailed, Text: "clipboard failed"}
+	state.Frames = []MenuFrame{{Kind: MenuFrameSwitchAgent, Agent: "codex", SwitchStage: 1, SelectedItem: "parameters", Input: "a界b"}}
+	view := RenderMenuView(state, 40, 10, time.Time{}, false)
+	plain := string(ansi.Strip([]byte(view.Body)))
+	assertRenderedBounds(t, plain, 40, 10)
+	if view.Cursor == nil || view.Cursor.Row > 10 || !strings.Contains(plain, "▸ parameters  a界b") {
+		t.Fatalf("parameters hidden: cursor=%+v render=%q", view.Cursor, plain)
 	}
 }

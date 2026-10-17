@@ -49,7 +49,7 @@ The original OSC 52 loss layer is still undiagnosed (#604's close review).
 
 - [x] Deliver typed clipboard diagnostics and a pure retained-copy feedback model, with red/green tests.
 - [x] Wire bounded copy outcomes to supervision.jsonl; exercise production Console wiring with stateful clipboard doubles and retained-error sequence tests.
-- [ ] Obtain the actual Couch-path failure evidence through live conformance, correct the measured cause, and verify a real Ctrl+Y paste with the operator.
+- [x] ~~Obtain the actual Couch-path failure evidence through live conformance, correct the measured cause, and verify a real Ctrl+Y paste with the operator.~~ Superseded by the approved acceptance Revisions: the opt-in harness is delivered; the hub holds actual Ctrl+Y acceptance for the next restart. No historical cause is claimed fixed.
 - [ ] Run the complete recorded suite, update README/atlas and close through SDLC.
 
 Durable design: workshop/plans/000638-couch-clipboard-copy-plan.md.
@@ -109,3 +109,9 @@ The second behavioral red reproduced native-error loss: Console showed only the 
 Production Console-key tests prove original-payload retry after a new feed item, one content-free observation per attempt, both failure causes, cancellation ordered by a fake child's start handshake, and no late banner after shutdown. The observer is wired to the existing bounded supervision log; executable doubles prove real stdin/exit/stderr collection without touching the host clipboard. The log seam first failed red with no clipboard row. An initial screen assertion incorrectly assumed terminal diffs contained contiguous words; corrected it to inspect a stable rendered token while metadata assertions verify exact byte count/hash. Combined focused clipcmd/couchtty/couchcmd/artifactpath tests passed; the whole artifactpath package passed in 10.984s.
 
 The Darwin/Couch-context real conformance test is explicit opt-in and remains unrun under the approved next-restart rollout. It backs up only bounded clipboard bytes in memory and conditionally restores only if its marker remains current. The original actual-path diagnosis/paste Plan row is superseded by the acceptance Revisions; the historical failure remains unknown, not fixed.
+
+### 2026-10-17 — pre-close frame-budget regression and superseded queued run
+
+CI on b9a5b907 passed all checks, including zellij conformance. Final source inspection found that only root/start frames reserved copy-banner rows; action and coding-agent menus still windowed at full height and then lost selected rows during final clipping. A new behavioral red at 40x10 reproduced hidden selected resume-candidates and grok entries. The fix moves banner reservation to the single RenderMenuView owner before every frame windows its items, replacing local deductions.
+
+The first recorded suite attempt on b9a5b907 was still waiting for a machine slot (inflight 17f8af91f6156202288c7f67aff01c3c, queued about 15 minutes). It was canceled intentionally as superseded, before any suite test ran, via SIGINT to this session's verified sdlc PID23102. Its owned cat/lock helper exited; no peer process was touched. The recorded cancellation is not a test flake. A new recorded suite will run the corrected code head.
