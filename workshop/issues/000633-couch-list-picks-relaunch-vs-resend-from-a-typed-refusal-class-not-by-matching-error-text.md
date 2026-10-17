@@ -1,12 +1,12 @@
 ---
 id: 000633
-status: working
+status: codecomplete
 deps: [pair#618]
 github_issue:
 created: 2026-10-16
 updated: 2026-10-17
 estimate_hours:
-card_mirror: 'db13b95160a940dffccd319e223d42f48bf881b7' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'ba7c21b706c51ee82c9a6da6f7a3ddbee2571ccc' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-17T07:29:55-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
     repository: github.com/xianxu/pair
 flow: {kind: quick, provenance: inferred, spec: "f9d13e8d", done: "ef574bea"}
+actual_hours: 0.89
 ---
 
 # couch --list picks relaunch vs resend from a typed refusal class, not by matching error text
