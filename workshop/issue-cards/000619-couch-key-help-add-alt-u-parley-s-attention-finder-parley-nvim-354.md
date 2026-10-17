@@ -7,7 +7,7 @@ estimate_hours:
 github_issue:
 ---
 
-# Couch key help: add Alt+u, parley's attention finder (parley.nvim#354)
+# Couch key help: add Alt+Space, parley's attention finder (parley.nvim#354)
 
 ## Problem
 
