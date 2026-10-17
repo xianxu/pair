@@ -16,6 +16,7 @@ claimant:
     workspace: pair:8
     worktree: /Users/xianxu/workspace/worktree/pair-slot8/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "d3724836", done: "d2346f2b"}
 ---
 
 # Slug line off by default under Couch (PAIR_SLUG=on to re-enable): no per-turn pair slug spawn or Haiku call
@@ -39,10 +40,10 @@ Operator decision, 2026-10-17. The draft's slug line (line 1, a summary of what 
 
 Quick flow — a few lines.
 
-- [ ] Test first (`cmd/internal/wrapcmd/slug_spawn_test.go`): couch-hosted env → `maybeSpawnSlug` spawns nothing; couch-hosted + `PAIR_SLUG=on` → spawns; non-Couch → spawns as before. `t.Setenv` pins both couch vars and `PAIR_SLUG` in every case so the ambient (hosted) test env can't leak in.
-- [ ] Gate at the top of `maybeSpawnSlug` (`wrap.go`): `launcher.CouchHostedEnv(os.Getenv) && os.Getenv("PAIR_SLUG") != "on"` → return before the debounce bookkeeping or the spawn. Reuses `launcher.CouchHostedEnv` — no new env parsing (ARCH-DRY). `PAIR_SLUG` re-enables only on the exact value `on` (the knob the operator named); any other value stays off, so a hosted session fails closed to the operator's default.
-- [ ] Docs: `maybeSpawnSlug`'s comment in `wrap.go`, a README line (Notifications section, next to the wrapper env knobs), and the trigger bullet in `atlas/architecture.md`'s auto-orientation slug section. `pair --help`'s usage text deliberately excludes behavior notes (its own comment says so), so "help" = the wrapper's behavior docs; flagged to the hub in the plan post.
-- [ ] The live fleet check (no `pair slug` / `claude -p` after restart + relaunch) is the hub's/operator's relaunch; recorded in Log and reported with the landing.
+- [x] Test first (`cmd/internal/wrapcmd/slug_spawn_test.go`): couch-hosted env → `maybeSpawnSlug` spawns nothing; couch-hosted + `PAIR_SLUG=on` → spawns; non-Couch → spawns as before. `t.Setenv` pins both couch vars and `PAIR_SLUG` in every case so the ambient (hosted) test env can't leak in.
+- [x] Gate at the top of `maybeSpawnSlug` (`wrap.go`): `launcher.CouchHostedEnv(os.Getenv) && os.Getenv("PAIR_SLUG") != "on"` → return before the debounce bookkeeping or the spawn. Reuses `launcher.CouchHostedEnv` — no new env parsing (ARCH-DRY). `PAIR_SLUG` re-enables only on the exact value `on` (the knob the operator named); any other value stays off, so a hosted session fails closed to the operator's default.
+- [x] Docs: `maybeSpawnSlug`'s comment in `wrap.go`, a README line (Notifications section, next to the wrapper env knobs), and the trigger bullet in `atlas/architecture.md`'s auto-orientation slug section. `pair --help`'s usage text deliberately excludes behavior notes (its own comment says so), so "help" = the wrapper's behavior docs; flagged to the hub in the plan post.
+- [x] Record in Log that the live fleet check needs the hub's restart + relaunch.
 
 ## Log
 
@@ -50,3 +51,6 @@ Quick flow — a few lines.
 
 - Claimed via the hub's dispatch (pair:8). Quick flow confirmed: gate + test + three doc lines.
 - `launcher` is already imported by `wrap.go`; `launcher.CouchHostedEnv` is the existing hosted predicate (scope or tag non-empty).
+- TDD: red first — couch-hosted case spawned (`spawns = 1, want 0`) — then the gate landed and all three cases pass; whole `wrapcmd` package passes (124.5s) with `go vet`/`gofmt` clean.
+- Docs landed: `wrap.go` comment, README "The orientation slug" paragraph in Notifications, `atlas/architecture.md` trigger bullet, plus a coherence note in `atlas/couch.md` (hosted rows carry a slug only with the knob on).
+- Live fleet check (Done-when 2) needs a Couch restart + slot relaunch on the new binary — the hub's/operator's move; flagged in the landing report.
