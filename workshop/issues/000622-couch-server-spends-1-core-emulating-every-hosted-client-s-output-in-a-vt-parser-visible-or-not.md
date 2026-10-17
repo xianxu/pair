@@ -152,6 +152,10 @@ Remote CI run39055625434 attempt1 failed warm recovery: list-panes returned no r
 
 Run39055625434 attempt2 completed successfully on the unchanged b498b3c91696570946b54e5c7932052cdb010d2c head, including native terminal and recovery conformance. Both attempts remain evidence; #636 was not repaired by this branch. Successful complete log ci-39055625434-attempt2.log retained under the benchmark directory (66046bytes, SHA2564c86f13f0d8771e1bd57a842e4814965e0333f4ce9f5a8691c64c3e9edd62cf3). Required local suite remains queued; its running handle is5106, worktree sdlc-local-1584895658. Do not duplicate it.
 
+### 2026-10-17 — required recorded suite passed before M2 review
+
+Recorded suite passed unchanged pushed code head b498b3c91696570946b54e5c7932052cdb010d2c: make PAIR_GO_TRIMPATH=-trimpath test, exit0,12m53s execution after644s machine-budget queue. Log saved under .git/sdlc/local-checks/b498b3c91696570946b54e5c7932052cdb010d2c/suite.log, recorded sdlc-local/suite success. Every later branch change is issue/plan prose only. All Go packages, editor/runtime/packaging/lifecycle checks passed. VT module and terminal/ptychild race proof are recorded above. Remote native CI attempt1 known #636 failure and unchanged attempt2 pass are retained. No new code since these checks; enter mandatory M2 milestone review, then normal landing under TL642b580a. Whole-issue live acceptance remains pending, not waived.
+
 ## Estimate
 
 Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only; calibration is flagged stale by estimate-source, so provisional. Original M1 derivation was1.509h. The following cumulative derivation now includes approved M2 through live acceptance and closure; it is not a remaining-work estimate. M1's original primitives remain unchanged below.

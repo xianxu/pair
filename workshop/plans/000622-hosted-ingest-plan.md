@@ -156,15 +156,15 @@ Files: third_party/vt/utf8.go; cmd/internal/terminal/frame.go.
 
 - [x] In handlePrint, bypass joined-cluster and new-rune segmentation only when both the existing cluster and incoming rune are single printable ASCII (0x20..0x7e) and bounds permit them. Preserve clusterDropping reset, cluster coordinates/old cells, provisional amendment and handleGrapheme. Empty/non-ASCII predecessors and all extensions retain the slow path. Avoid adding mutable policy or a second public entry point.
 - [x] In validateCell, retain plainText, max size, validLink and width checks; skip only grapheme segmentation when len(Content)==1, byte is0x20..0x7e and Width==1. Preserve continuation and wide-neighbor checks. Do not skip the validator or defer safety to a caller.
-- [ ] Run the differential/generated controls and existing VT, terminal, ptychild and console suites. Run targeted races through production Endpoint/Child consumers.
-- [ ] Repeat baseline/candidate benchmarks in balanced serial order. Both shortcuts must independently show the intended local effect; retain only changes with repeatable benefit. Require a complete-ingest improvement beyond run-to-run spread and no material mixed-Unicode regression. If not observed, stop and report a revised design; do not add more mechanisms under this approval.
+- [x] Run the differential/generated controls and existing VT, terminal, ptychild and console suites. Run targeted races through production Endpoint/Child consumers.
+- [x] Repeat baseline/candidate benchmarks in balanced serial order. Both shortcuts must independently show the intended local effect; retain only changes with repeatable benefit. Require a complete-ingest improvement beyond run-to-run spread and no material mixed-Unicode regression. If not observed, stop and report a revised design; do not add more mechanisms under this approval.
 - [x] Commit small coherent changes with why/model trailers. No clocks or new allocations on the per-byte path; benchmark allocations alongside elapsed time.
 
 ### 3. Verify consumers and whole-server effect
 
 Files: README.md, atlas/couch.md if behavior/architecture account needs updating; issue Log and this plan. Reconcile inventory table to actual symbols before review.
 
-- [ ] Pin off-screen query reply bytes/order, exactly-once effects, sync publication, mode/input encoding, resize chronology, EOF and ring-eviction state through existing fake/real Endpoint tests. Waiting/peek use wrapper status/tails and remain independently exercised; no lazy-state flag is introduced.
+- [x] Pin off-screen query reply bytes/order, exactly-once effects, sync publication, mode/input encoding, resize chronology, EOF and ring-eviction state through existing fake/real Endpoint tests. Waiting/peek use wrapper status/tails and remain independently exercised; no lazy-state flag is introduced.
 - [ ] Commit/push; run required sdlc local-check run --name suite on the pushed head. M2 milestone-close performs the mandatory fresh-context review; fix/dispute findings with evidence. No duplicate review dispatch.
 - [ ] Ask TL to coordinate candidate live check/stage/restart; worker never stages :0 unasked. Retain before/after counters, matched population, byte mix, cumulative CPU and5s sample under comparable natural load, plus console/peek/waiting checks. Server attribution must state build/selection/environment uncertainty; don't claim CPU reduction from unmatched workload or microbenchmarks.
 - [ ] Whole-issue closure requires the measured live CPU reduction and existing consumer checks, or an explicit TL-approved revision of the acceptance/landing order. Do not infer that M1's pre-restart landing exception applies to M2. Report PR/build and measurements to TL; TL owns portfolio edits.
