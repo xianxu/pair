@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/xianxu/pair/cmd/internal/storagegc"
@@ -27,7 +28,8 @@ import (
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 	"github.com/xianxu/pair/cmd/internal/sessionledger"
 	"github.com/xianxu/pair/cmd/internal/sessionwatch"
-	"github.com/xianxu/pair/cmd/internal/zellijpane"
+	"github.com/xianxu/pair/cmd/internal/zellijexec"
+	"github.com/xianxu/pair/cmd/internal/zellijreply"
 )
 
 // OSRuntime is the concrete create-flow Runtime: real zellij/fzf/cmux/tty/exec
@@ -114,17 +116,30 @@ func (OSRuntime) SessionLiveness() ([]Session, error) {
 	return ZellijSource{}.LivenessContext(context.Background())
 }
 
-func (OSRuntime) SessionBlocksReuse(session string) bool {
+func (r OSRuntime) SessionBlocksReuse(session string) bool {
 	ctx, cancel := context.WithTimeout(context.Background(), zjTimeout)
 	defer cancel()
 	raw, err := (ZellijSource{}).runContext(ctx, "list-sessions", "--no-formatting")
 	if err != nil {
 		return true
 	}
+	if validateSessionListing(raw, false) != nil {
+		return true
+	}
 	present, _ := zellijsession.RowState(string(raw), session)
 	// A saved layout remains evidence. Reuse never deletes it implicitly;
 	// legacy recovery creates a new terminal name after resolving ownership.
-	return present
+	if present {
+		return true
+	}
+	// Native discovery may silently omit a still-live exact server. Listing
+	// absence cannot release its name without independent process evidence.
+	ops := r.sessionQuiescence
+	if ops == nil {
+		ops = newOSSessionQuiescenceOps(r.Processes)
+	}
+	servers, err := ops.SessionServers(ctx, session)
+	return err != nil || ctx.Err() != nil || len(servers) != 0
 }
 
 // ProbeSessionName asks zellij whether it accepts session's length, at the cost
@@ -136,7 +151,7 @@ func (OSRuntime) ProbeSessionName(session string) error {
 	cmd := exec.CommandContext(ctx, "zellij", "--session", session, "action", "list-clients")
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
-	err := cmd.Run()
+	err := zellijexec.Run(cmd)
 	if ctx.Err() != nil {
 		return fmt.Errorf("could not ask zellij about session name %q: %w", session, ctx.Err())
 	}
@@ -158,6 +173,10 @@ func (OSRuntime) ProbeSessionName(session string) error {
 	// nor unrelated stderr may teach the assignment's monotone length bounds.
 	if len(bytes.TrimSpace(stdout.Bytes())) == 0 {
 		return fmt.Errorf("could not ask zellij about session name %q: %w", session, ErrZellijNoReply)
+	}
+	_, parseErr := zellijreply.ParseClients(stdout.Bytes())
+	if parseErr != nil {
+		return fmt.Errorf("could not validate zellij name probe: %w", parseErr)
 	}
 	return nil
 }
@@ -186,18 +205,52 @@ func killOnCancel(cmd *exec.Cmd) *exec.Cmd {
 }
 
 func (OSRuntime) ProbeLiveLayout(session string) (LayoutMode, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), zjTimeout)
+	ctx, cancel := zellijreply.AdmissionContext(context.Background())
 	defer cancel()
-	out, err := (ZellijSource{}).runContext(ctx, "--session", session, "action",
-		"list-panes", "--json", "--command", "--state")
+	read := func(ctx context.Context) ([]byte, error) {
+		return (ZellijSource{}).runContext(ctx, "--session", session, "action", "list-panes", "--json", "--command", "--state")
+	}
+	out, err := zellijreply.Confirm(ctx, read, projectLiveLayoutReply)
 	if err != nil {
 		return "", err
 	}
-	mode, ok := ClassifyLiveLayout(zellijpane.Parse(out))
+	panes, err := zellijreply.ParsePanes(out, zellijreply.PaneRequirements{Command: true, Floating: true})
+	if err != nil {
+		return "", err
+	}
+	mode, ok := ClassifyLiveLayout(panes)
 	if !ok {
 		return "", fmt.Errorf("unrecognized pane signature")
 	}
 	return mode, nil
+}
+
+// projectLiveLayoutReply retains precisely the command/title/identity/floating
+// facts used by ClassifyLiveLayout; geometry and output cannot identify layout.
+func projectLiveLayoutReply(raw []byte) (string, error) {
+	panes, err := zellijreply.ParsePanes(raw, zellijreply.PaneRequirements{Command: true, Floating: true})
+	if err != nil {
+		return "", err
+	}
+	if _, ok := ClassifyLiveLayout(panes); !ok {
+		return "", fmt.Errorf("unrecognized pane signature")
+	}
+	type fact struct {
+		ID, Command, Title string
+		Plugin, Floating   bool
+	}
+	facts := make([]fact, 0, len(panes))
+	for _, p := range panes {
+		facts = append(facts, fact{p.ID, p.TerminalCommand, p.Title, p.IsPlugin, p.IsFloating})
+	}
+	sort.Slice(facts, func(i, j int) bool {
+		if facts[i].Plugin != facts[j].Plugin {
+			return !facts[i].Plugin
+		}
+		return facts[i].ID < facts[j].ID
+	})
+	data, err := json.Marshal(facts)
+	return string(data), err
 }
 
 // runBlockingHandoff runs cmd with the tty passed straight through (NOT

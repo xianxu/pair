@@ -71,7 +71,7 @@ func TestZellijNameProbeRecognizesOnlyEstablishedValidatorReplies(t *testing.T) 
 		exit                 int
 		accepted             bool
 	}{
-		{"clients", "CLIENT_ID\n", "", 0, true},
+		{"clients", "CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\n", "", 0, true},
 		{"no-active", "", "There is no active session!\n", 1, true},
 		{"one-other-active", "", missing, 1, true},
 		{"wrong-status", "", "There is no active session!\n", 2, false},

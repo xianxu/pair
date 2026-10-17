@@ -9,6 +9,9 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/xianxu/pair/cmd/internal/zellijexec"
+	"github.com/xianxu/pair/cmd/internal/zellijreply"
 )
 
 // zellijQueryTimeout bounds one zellij CLI query.
@@ -112,20 +115,31 @@ func (s ZellijSource) snapshot(ctx context.Context, ask, keep func(name string) 
 // listings is the one source of both list-sessions outputs for snapshot.
 func (s ZellijSource) listings(ctx context.Context) (short, raw []byte, err error) {
 	if s.Listings != nil {
-		return s.Listings.Listings()
+		short, raw, err = s.Listings.Listings()
+		if err != nil {
+			return nil, nil, err
+		}
+		if err = validateSessionListing(short, true); err != nil {
+			return nil, nil, err
+		}
+		if err = validateSessionListing(raw, false); err != nil {
+			return nil, nil, err
+		}
+		return short, raw, nil
 	}
 	if short, err = s.runContext(ctx, "list-sessions", "--short"); err != nil {
+		return nil, nil, err
+	}
+	if err = validateSessionListing(short, true); err != nil {
 		return nil, nil, err
 	}
 	if raw, err = s.runContext(ctx, "list-sessions", "--no-formatting"); err != nil {
 		return nil, nil, err
 	}
+	if err = validateSessionListing(raw, false); err != nil {
+		return nil, nil, err
+	}
 	return short, raw, nil
-}
-
-func (s ZellijSource) clientCount(session string) int {
-	count, _ := s.clientCountContext(context.Background(), session)
-	return count
 }
 
 func (s ZellijSource) clientCountContext(ctx context.Context, session string) (int, error) {
@@ -133,7 +147,11 @@ func (s ZellijSource) clientCountContext(ctx context.Context, session string) (i
 	if err != nil {
 		return 0, err
 	}
-	return parseClientCount(string(out)), nil // one parser for both call sites (ARCH-DRY)
+	clients, err := zellijreply.ParseClients(out)
+	if err != nil {
+		return 0, fmt.Errorf("observe session clients: %w", err)
+	}
+	return len(clients), nil
 }
 
 func (s ZellijSource) run(args ...string) ([]byte, error) {
@@ -195,7 +213,7 @@ func (s ZellijSource) runContext(ctx context.Context, args ...string) (output []
 			})
 		}()
 	}
-	if err := cmd.Run(); err != nil {
+	if err := zellijexec.Run(cmd); err != nil {
 		if ctx.Err() != nil {
 			err = ctx.Err()
 		} else {

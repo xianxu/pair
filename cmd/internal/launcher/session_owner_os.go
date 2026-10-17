@@ -4,13 +4,14 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+
 	"errors"
 	"fmt"
 	"github.com/xianxu/pair/cmd/internal/zellijsession"
 	"os"
 
 	"github.com/xianxu/pair/cmd/internal/procutil"
-	"github.com/xianxu/pair/cmd/internal/zellijpane"
+	"github.com/xianxu/pair/cmd/internal/zellijreply"
 )
 
 type SessionOwnerIO interface {
@@ -85,26 +86,58 @@ func (p SessionOwnerProbe) probe(ctx context.Context, name, globalDataDir, scope
 		result.Diagnostic = "session server socket unreadable"
 		return result, nil
 	}
-	raw, err := io.SessionPanes(ctx, name)
-	if err != nil {
-		return result, fmt.Errorf("observe live session panes: %w", err)
+	// The existing exact-generation checks bracket the complete observation pair.
+	// Confirmation never retries invalid first evidence or adds host table scans.
+	const generationChanged = "session server changed during observation"
+	read := func(ctx context.Context) ([]byte, error) {
+		raw, err := io.SessionPanes(ctx, name)
+		if err != nil {
+			return nil, err
+		}
+
+		if len(bytes.TrimSpace(raw)) == 0 {
+			return nil, ErrZellijNoReply
+		}
+		return raw, nil
 	}
-	after, err := io.SessionServers(ctx, name)
+	var invalidObservation error
+	raw, err := zellijreply.Confirm(ctx, read, func(raw []byte) (string, error) {
+		projection, err := projectSessionOwnerReply(expected, raw)
+		if err != nil {
+			invalidObservation = err
+			if !json.Valid(raw) {
+				invalidObservation = errors.New("invalid live pane JSON")
+			}
+		}
+		return projection, err
+	})
+	if ctx.Err() != nil {
+		return result, ctx.Err()
+	}
+	after, generationErr := io.SessionServers(ctx, name)
+	if generationErr != nil {
+		return result, generationErr
+	}
+	if len(after) != 1 || before[0] != after[0] {
+		result.Diagnostic = generationChanged
+		return result, nil
+	}
+	if err != nil {
+		if invalidObservation != nil {
+			result.Diagnostic = invalidObservation.Error()
+			return result, nil
+		}
+		if errors.Is(err, zellijreply.ErrMismatch) {
+			result.Diagnostic = "session owner observations disagree"
+			return result, nil
+		}
+		return result, fmt.Errorf("observe live session owner: %w", err)
+	}
+	panes, err := zellijreply.ParsePanes(raw, zellijreply.PaneRequirements{})
 	if err != nil {
 		return result, err
 	}
-	if len(after) != 1 || before[0] != after[0] {
-		result.Diagnostic = "session server changed during observation"
-		return result, nil
-	}
-	if len(bytes.TrimSpace(raw)) == 0 {
-		return result, fmt.Errorf("observe live session panes: %w", ErrZellijNoReply)
-	}
-	if !json.Valid(raw) {
-		result.Diagnostic = "invalid live pane JSON"
-		return result, nil
-	}
-	result = ClassifySessionOwner(expected, zellijpane.Parse(raw))
+	result = ClassifySessionOwner(expected, panes)
 	result.Name = name
 	result.Server = before[0]
 	return result, nil
@@ -134,6 +167,9 @@ func (o osSessionOwnerIO) SessionServers(ctx context.Context, name string) ([]Se
 func (osSessionOwnerIO) SessionPresent(ctx context.Context, name string) (bool, error) {
 	raw, err := (ZellijSource{}).runContext(ctx, "list-sessions", "--no-formatting")
 	if err != nil {
+		return false, err
+	}
+	if err := validateSessionListing(raw, false); err != nil {
 		return false, err
 	}
 	present, exited := zellijsession.RowState(string(raw), name)

@@ -82,7 +82,10 @@ func TestSelectedRootNativeCreateListAndListedResume(t *testing.T) {
 case "$1" in
   list-sessions)
     if [ "$PAIR_ROOT_TEST_LIST_FAIL" = 1 ]; then exit 1; fi
-    if [ -f "$PAIR_ROOT_TEST_STATE" ]; then cat "$PAIR_ROOT_TEST_STATE"; exit 0; fi
+    if [ -f "$PAIR_ROOT_TEST_STATE" ]; then
+      if [ "$2" = --short ]; then cat "$PAIR_ROOT_TEST_STATE"; else printf '%s [Created 1s ago]\n' "$(cat "$PAIR_ROOT_TEST_STATE")"; fi
+      exit 0
+    fi
     printf 'No active zellij sessions found.\n' >&2
     exit 1 ;;
   --session)
@@ -90,7 +93,7 @@ case "$1" in
       list-clients) printf 'CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\n' ;;
       list-panes)
         # Legacy panes have no launch policy; positive panes permit attach.
-        printf '%s\n' '{"0":[{"id":0,"title":"claude","terminal_command":"pair wrap claude"},{"id":1,"title":"draft","terminal_command":"nvim draft.md"},{"id":2,"title":"terminal","terminal_command":"pair term"}]}' ;;
+        printf '%s\n' '{"0":[{"id":0,"is_plugin":false,"is_floating":false,"title":"claude","terminal_command":"pair wrap claude"},{"id":1,"is_plugin":false,"is_floating":false,"title":"draft","terminal_command":"nvim draft.md"},{"id":2,"is_plugin":false,"is_floating":false,"title":"terminal","terminal_command":"pair term"}]}' ;;
     esac
     exit 0 ;;
   --config-dir)

@@ -143,9 +143,9 @@ func TestOSRuntimeProbeLiveLayoutUsesSessionScopedPaneReport(t *testing.T) {
 	argsLog := filepath.Join(bin, "args")
 	script := "#!/bin/sh\nprintf '%s\\n' \"$@\" > " + argsLog + "\n" +
 		"printf '%s\\n' '{\"0\":[" +
-		"{\"id\":0,\"title\":\"codex\",\"terminal_command\":\"pair wrap codex\"}," +
-		"{\"id\":1,\"title\":\"draft\",\"terminal_command\":\"nvim /data/draft-work.md\"}," +
-		"{\"id\":3,\"title\":\"terminal\",\"terminal_command\":\"pair term\"}" +
+		"{\"id\":0,\"is_plugin\":false,\"is_floating\":false,\"title\":\"codex\",\"terminal_command\":\"pair wrap codex\"}," +
+		"{\"id\":1,\"is_plugin\":false,\"is_floating\":false,\"title\":\"draft\",\"terminal_command\":\"nvim /data/draft-work.md\"}," +
+		"{\"id\":3,\"is_plugin\":false,\"is_floating\":false,\"title\":\"terminal\",\"terminal_command\":\"pair term\"}" +
 		"]}'\n"
 	zellij := filepath.Join(bin, "zellij")
 	if err := os.WriteFile(zellij, []byte(script), 0o755); err != nil {

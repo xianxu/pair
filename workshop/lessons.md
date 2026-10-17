@@ -2168,3 +2168,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - Chunked JSONL framing must not search a retained newline-free prefix again on each append. Count actual delimiter bytes examined across multi-chunk records, alongside semantic boundary/limit tests; read/decode counters alone miss quadratic delimiter work. Preserve per-probe progress when diagnosing aggregate worker timeouts. (#626)
 
 - #647 plan review: a context-aware helper does not bound runtime methods that discard the context. Name the total operation budget and propagate it across all reads and process handoffs. For detached shortcuts, stderr/logging is not visible refusal: identify and test the existing presenter independently of the uncertain transport.
+
+- #647 M1: retain counted process-table fences when adding independent native confirmations; bracket the pair with existing generation checks rather than duplicating a host scan per read. On Darwin, group-signal EPERM can mean an empty group: reuse exact membership evidence and preserve live/unknown failures. A readiness fixture also observes the operation's completion channel so early query refusal fails promptly.

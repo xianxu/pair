@@ -177,7 +177,7 @@ func TestWorkbenchPerformanceOwnerPassCountsEveryNativeFence(t *testing.T) {
 			if tables > 1+2*n {
 				t.Fatalf("tables=%d budget=%d", tables, 1+2*n)
 			}
-			if tables == 0 || commands == 0 || identities == 0 || commands != n*tables || identities != commands || world.paneReads != n {
+			if tables == 0 || commands == 0 || identities == 0 || commands != n*tables || identities != commands || world.paneReads != 2*n {
 				t.Fatalf("tables=%d budget=%d argv=%d identities=%d panes=%d", tables, 1+2*n, commands, identities, world.paneReads)
 			}
 			// Explicit IO precedence is behavioral: replacing native IO must not inspect

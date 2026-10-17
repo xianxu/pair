@@ -85,7 +85,7 @@ func (w *ownerWorld) SessionPanes(context.Context, string) ([]byte, error) {
 // {ok, error}. Only gone yields orphaned, and an orphan is never asked for panes
 // (it has no socket); unknown is unknown; present keeps today's behaviour.
 func TestSessionOwnerProbeNamesAnOrphanedServer(t *testing.T) {
-	panes := []byte(`[{"id":1,"pane_command":"nvim /tmp/data/repos/0123456789abcdef/draft-1-repo-1.md"}]`)
+	panes := []byte(`[{"id":1,"is_plugin":false,"pane_command":"nvim /tmp/data/repos/0123456789abcdef/draft-1-repo-1.md"}]`)
 	server := SessionServerIdentity{PID: 7, Identity: "t7", Session: "📁1-37", Socket: "/T/zellij-501/contract_version_1/📁1-37"}
 	for _, tc := range []struct {
 		socket    SocketState
@@ -118,7 +118,7 @@ func TestSessionOwnerProbeNamesAnOrphanedServer(t *testing.T) {
 }
 
 func TestSessionOwnerProbeRevalidatesServerGeneration(t *testing.T) {
-	w := &ownerWorld{present: true, generation: SessionServerIdentity{PID: 42, Identity: "first", Session: "📁1-2"}, panes: []byte(`[{"id":1,"pane_command":"nvim /tmp/data/repos/0123456789abcdef/draft-1-repo-1.md"}]`)}
+	w := &ownerWorld{present: true, generation: SessionServerIdentity{PID: 42, Identity: "first", Session: "📁1-2"}, panes: []byte(`[{"id":1,"is_plugin":false,"pane_command":"nvim /tmp/data/repos/0123456789abcdef/draft-1-repo-1.md"}]`)}
 	p := SessionOwnerProbe{IO: w}
 	got, err := p.Probe(context.Background(), "📁1-2", "/tmp/data", "0123456789abcdef", "1-repo-1")
 	if err != nil || got.State != SessionOwnerOwned {
@@ -192,7 +192,7 @@ func (w *competingOwnerWorld) SessionPanes(ctx context.Context, name string) ([]
 }
 func TestSessionOwnerFreshChecksRefuseNewClaimant(t *testing.T) {
 	original := SessionServerIdentity{PID: 42, Identity: "original", Session: "session", Socket: "/tmp/session"}
-	w := &competingOwnerWorld{ownerWorld: ownerWorld{present: true, generation: original, panes: []byte(`[{"id":1,"pane_command":"nvim /tmp/data/repos/0123456789abcdef/draft-1-repo-1.md"}]`)}, competitor: SessionServerIdentity{PID: 43, Identity: "competitor", Session: "session", Socket: "/other/session"}}
+	w := &competingOwnerWorld{ownerWorld: ownerWorld{present: true, generation: original, panes: []byte(`[{"id":1,"is_plugin":false,"pane_command":"nvim /tmp/data/repos/0123456789abcdef/draft-1-repo-1.md"}]`)}, competitor: SessionServerIdentity{PID: 43, Identity: "competitor", Session: "session", Socket: "/other/session"}}
 	p := SessionOwnerProbe{IO: w}
 	observed, err := p.Probe(t.Context(), "session", "/tmp/data", "0123456789abcdef", "1-repo-1")
 	if err != nil || observed.State != SessionOwnerOwned {

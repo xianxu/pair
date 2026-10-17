@@ -239,3 +239,15 @@ R2 requires TL approval of the concrete admission budget, shared auto-quote orch
 ### 2026-10-17 — R2 approved and plan-quality clean
 
 TL approved R2's function strategies, single five-second total admission capped by tighter callers, shared auto-quote preflight, existing broker refusal presentation and ordinary warm attach query budget (authenticated delivery 073e88c1-0bf0-4967-8e69-b37cc6758b67). The second plan-quality round disposed PQ-1/PQ-2/PQ-3 as addressed with CLEAN verdict. Deriving the estimate now; implementation remains behind change-code.
+
+
+### 2026-10-17 — M1 implementation detail: shared query process ownership
+
+R2's cancellation/collection clause is implemented by thin `cmd/internal/zellijexec.Run`, reused by native read callers while pure `zellijreply` remains free of IO. Existing process-group runners are Couch-specific and importing them from launcher would cycle. The new runner owns only synchronous read-only CLI children, uses no new transport/deadline/retry, preserves earlier pipe-drain bounds, and stops the private group on success as well as failure. This avoids repeating cancellation/cleanup in each M2 runtime (ARCH-DRY/PURE/FUNERAL). Native creation, attachment and mutator lifetimes remain with their existing owners.
+
+
+### 2026-10-17 — M1 revision: reuse exact-group absence evidence
+
+The first broader package run exposed Darwin returning EPERM for a successful query's empty process group. A fixed 600-command control reproduced it once with a valid positive PID and exit0. The existing Couch #542 helper already resolves this ambiguity through kern.proc.pgrp. Extract that unchanged OS observation to procutil.ProcessGroupMembers and delegate both existing Couch helpers and the query runner to it. Only EPERM triggers the independent lookup; an observed empty group completes cleanup, while live/zombie/unreadable groups retain the error. No retry, sleep, new deadline or normal-path process scan. The unchanged fixed control now passes600/600, and deterministic empty/live/unknown regression plus race controls pass. This narrow shared ownership extraction follows ARCH-DRY and R2's collection contract.
+
+A separate counted guard caught an extra host table scan per ownership probe. Keep the existing before/after exact-generation fence around the complete native pair, plus effect-time revalidation; do not add a scan after each individual pane read. Native pane observations double as designed, but initial capture plus live process-table fences stay at the existing 1+2N budget.

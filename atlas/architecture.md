@@ -1420,3 +1420,8 @@ metadata (tool, exit/timeout, stderr length/hash, OSC outcome) to the existing
 bounded supervision writer's `clipboard_copy` event. No copied notice or free-form
 stderr crosses that callback. `clipboard_live_test.go` owns the explicitly opt-in
 real-tool Console conformance harness; regular tests use private stateful tools.
+
+
+### Native query evidence (#647)
+
+[Zellij reply admission](zellij-reply-safety.md) maps protected callers and retained advisory observers. Pure `zellijreply` contracts and decision projections refuse unknown/disagreeing observations; `zellijexec` is the thin synchronous read-only process owner. Couch query budgets are separate from interactive helper lifetime. These mechanisms preserve the native transport and do not authenticate indistinguishable valid stale replies.

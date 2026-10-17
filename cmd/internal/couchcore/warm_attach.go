@@ -9,11 +9,25 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/launcher"
+	"github.com/xianxu/pair/cmd/internal/zellijreply"
 )
+
+// terminalObservationRefusal prevents a failed authority read from being
+// retried by the independent helper-start retry policy.
+type terminalObservationRefusal struct{ cause error }
+
+func (e *terminalObservationRefusal) Error() string { return e.cause.Error() }
+func (e *terminalObservationRefusal) Unwrap() error { return e.cause }
 
 // attachListedTerminal owns a client helper, never the terminal's lifecycle.
 // In particular, an independently owned start or park transaction is unchanged.
-func (c *Couch) attachListedTerminal(ctx context.Context, thread ThreadRecord, session string, opts ResumeOptions) (result ActorRecord, handle Handle, resultErr error) {
+func (c *Couch) attachListedTerminal(ctx context.Context, thread ThreadRecord, session string, opts ResumeOptions) (ActorRecord, Handle, error) {
+	queryCtx, cancel := zellijreply.AdmissionContext(ctx)
+	defer cancel()
+	return c.attachListedTerminalAdmitted(ctx, queryCtx, thread, session, opts)
+}
+
+func (c *Couch) attachListedTerminalAdmitted(ctx, queryCtx context.Context, thread ThreadRecord, session string, opts ResumeOptions) (result ActorRecord, handle Handle, resultErr error) {
 	// Timing is a context-only observation, not retained lifecycle state. Avoid
 	// timing allocations on ordinary Continue, and never report a cold claim.
 	var steps *launchSteps
@@ -24,13 +38,14 @@ func (c *Couch) attachListedTerminal(ctx context.Context, thread ThreadRecord, s
 		if err := ctx.Err(); err != nil {
 			return result, handle, errors.Join(resultErr, err)
 		}
-		result, handle, resultErr = c.attachListedTerminalOnce(ctx, thread, session, opts, steps)
+		result, handle, resultErr = c.attachListedTerminalOnce(ctx, queryCtx, thread, session, opts, steps)
 		if resultErr == nil {
 			return result, handle, nil
 		}
 		// A committed client or an unquiesced helper cannot be repeated without
 		// duplicating effects. Cancellation likewise owns cleanup, never retry.
-		if result.ID != "" || (handle != nil && handle.Alive()) || ctx.Err() != nil {
+		var observationRefusal *terminalObservationRefusal
+		if errors.As(resultErr, &observationRefusal) || result.ID != "" || (handle != nil && handle.Alive()) || ctx.Err() != nil || queryCtx.Err() != nil {
 			return result, handle, errors.Join(resultErr, ctx.Err())
 		}
 		if attempt == 2 {
@@ -49,7 +64,7 @@ func (c *Couch) attachListedTerminal(ctx context.Context, thread ThreadRecord, s
 	panic("unreachable attachment attempt")
 }
 
-func (c *Couch) attachListedTerminalOnce(ctx context.Context, thread ThreadRecord, session string, opts ResumeOptions, steps *launchSteps) (result ActorRecord, handle Handle, resultErr error) {
+func (c *Couch) attachListedTerminalOnce(ctx, queryCtx context.Context, thread ThreadRecord, session string, opts ResumeOptions, steps *launchSteps) (result ActorRecord, handle Handle, resultErr error) {
 
 	args := StartArgs{Worktree: Worktree(thread.StartingPath), Cwd: thread.WorkingPath}
 	if profile := thread.LatestLaunchProfile; profile != nil {
@@ -76,7 +91,7 @@ func (c *Couch) attachListedTerminalOnce(ctx context.Context, thread ThreadRecor
 		dir = string(filepath.Separator)
 	}
 	steps.mark("attach-prepare")
-	if err := c.confirmListedTerminal(ctx, thread, session); err != nil {
+	if err := c.confirmListedTerminal(queryCtx, thread, session); err != nil {
 		return ActorRecord{}, nil, err
 	}
 	finishRetention, err := c.beginResumeRetention(ctx, thread.Address, !opts.WarmOnly)
@@ -88,6 +103,9 @@ func (c *Couch) attachListedTerminalOnce(ctx context.Context, thread ThreadRecor
 		resultErr = errors.Join(resultErr, finishRetention(resultErr == nil))
 		steps.mark("attach-cleanup+release")
 	}()
+	if err := queryCtx.Err(); err != nil {
+		return ActorRecord{}, nil, &terminalObservationRefusal{err}
+	}
 	h, err := c.Runner.StartBlocked(ctx, dir, []string{"pair", launcher.CouchSessionFlag, "resume", string(thread.Address.Tag)}, env, 10*time.Second)
 	steps.mark("attach-spawn")
 	if err != nil {
@@ -110,7 +128,7 @@ func (c *Couch) attachListedTerminalOnce(ctx context.Context, thread ThreadRecor
 	if err := ctx.Err(); err != nil {
 		return abort(err, false)
 	}
-	if err := c.confirmListedTerminal(ctx, thread, session); err != nil {
+	if err := c.confirmListedTerminal(queryCtx, thread, session); err != nil {
 		return abort(err, false)
 	}
 	ackErr := h.Acknowledge()
@@ -130,7 +148,10 @@ func (c *Couch) attachListedTerminalOnce(ctx context.Context, thread ThreadRecor
 	attachment, cancel := deadline(attachment, budget)
 	// A public Continue borrows the listed terminal; lifecycle registration
 	// and wrapper ownership are neither prerequisites nor effects of attachment.
-	err = c.confirmListedTerminal(attachment, thread, session)
+	queryDeadline, _ := queryCtx.Deadline()
+	confirmation, stopConfirmation := context.WithDeadline(attachment, queryDeadline)
+	err = c.confirmListedTerminal(confirmation, thread, session)
+	stopConfirmation()
 	cancel()
 	exited := stopWatch()
 	select {
@@ -236,31 +257,21 @@ func (c *Couch) listedTerminal(ctx context.Context, thread ThreadRecord) (string
 		ListedPairSessionContext(context.Context, ThreadAddress, string) (PairSessionBinding, error)
 	})
 	if !ok {
-		return "", false, errors.New("selected session listing unavailable")
+		return "", false, &terminalObservationRefusal{errors.New("selected session listing unavailable")}
 	}
-	// Observation and execution have separate bounds: one retry of a failed
-	// listing read, and at most two client-helper attempts in attachment.
-	// A successful absent listing is final and never launches a helper.
-	for attempt := 1; attempt <= 2; attempt++ {
-		if err := ctx.Err(); err != nil {
-			return "", false, err
-		}
-		observed, err := observer.ListedPairSessionContext(ctx, thread.Address, recordSessionName(thread))
-		if err == nil {
-			return observed.Name, observed.Present && observed.Name != "", nil
-		}
-		if attempt == 2 || ctx.Err() != nil {
-			return "", false, errors.Join(err, ctx.Err())
-		}
-		timer := time.NewTimer(100 * time.Millisecond)
-		select {
-		case <-ctx.Done():
-			timer.Stop()
-			return "", false, errors.Join(err, ctx.Err())
-		case <-timer.C:
-		}
+	// Each failed observation is final. A later valid reply cannot authorize
+	// this request after its first evidence was unknown.
+	if err := ctx.Err(); err != nil {
+		return "", false, &terminalObservationRefusal{err}
 	}
-	panic("unreachable listing attempt")
+	observed, err := observer.ListedPairSessionContext(ctx, thread.Address, recordSessionName(thread))
+	if err != nil {
+		return "", false, &terminalObservationRefusal{errors.Join(err, ctx.Err())}
+	}
+	if err := ctx.Err(); err != nil {
+		return "", false, &terminalObservationRefusal{err}
+	}
+	return observed.Name, observed.Present && observed.Name != "", nil
 }
 
 func (c *Couch) confirmListedTerminal(ctx context.Context, thread ThreadRecord, session string) error {
@@ -269,7 +280,7 @@ func (c *Couch) confirmListedTerminal(ctx context.Context, thread ThreadRecord, 
 		return err
 	}
 	if !present || name != session {
-		return refuseResume(ResumeSessionGone, "the same terminal is no longer uniquely listed live")
+		return &terminalObservationRefusal{refuseResume(ResumeSessionGone, "the same terminal is no longer uniquely listed live")}
 	}
 	return nil
 }

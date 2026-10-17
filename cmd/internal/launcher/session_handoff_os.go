@@ -202,26 +202,25 @@ func listTerminalSessions(ctx context.Context) ([]byte, error) {
 	return (ZellijSource{}).runContext(ctx, "list-sessions", "--no-formatting")
 }
 
-// Retry observation once, never the interactive attachment. A failed query is
-// not evidence even if it produced partial output containing the desired name.
+// Each existing handoff fence consumes one fresh positive observation. Unknown
+// is final for that fence, never a reason to try again inside this request.
 func requireListedLiveTerminal(ctx context.Context, name string, query func(context.Context) ([]byte, error)) error {
-	var last error
-	for attempt := 0; attempt < 2; attempt++ {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-		raw, err := query(ctx)
-		if contextErr := ctx.Err(); contextErr != nil {
-			return contextErr
-		}
-		if err == nil {
-			present, exited := zellijsession.RowState(string(raw), name)
-			if present && !exited {
-				return nil
-			}
-			err = fmt.Errorf("terminal %q is not listed live", name)
-		}
-		last = err
+	if err := ctx.Err(); err != nil {
+		return err
 	}
-	return fmt.Errorf("cannot attach terminal: %w", last)
+	raw, err := query(ctx)
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+	if err != nil {
+		return fmt.Errorf("cannot attach terminal: %w", err)
+	}
+	if err := validateSessionListing(raw, false); err != nil {
+		return fmt.Errorf("cannot attach terminal: %w", err)
+	}
+	present, exited := zellijsession.RowState(string(raw), name)
+	if !present || exited {
+		return fmt.Errorf("terminal %q is not listed live", name)
+	}
+	return nil
 }

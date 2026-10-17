@@ -26,8 +26,8 @@ if [ "$*" = '` + stage + `' ]; then
 fi
 case "$*" in
   'list-sessions --short') printf 'pair-a\npair-b\n' ;;
-  'list-sessions --no-formatting') printf 'pair-a [Created]\npair-b [Created]\n' ;;
-  *) printf 'CLIENTS\n' ;;
+  'list-sessions --no-formatting') printf 'pair-a [Created 1s ago]\npair-b [Created 1s ago]\n' ;;
+  *) printf 'CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\n' ;;
 esac
 `
 			if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
@@ -78,8 +78,8 @@ if [ "$*" = '` + stage + `' ]; then
 fi
 case "$*" in
   'list-sessions --short') printf 'pair-a\npair-b\n' ;;
-  'list-sessions --no-formatting') printf 'pair-a [Created]\npair-b [Created]\n' ;;
-  *) printf 'CLIENTS\n' ;;
+  'list-sessions --no-formatting') printf 'pair-a [Created 1s ago]\npair-b [Created 1s ago]\n' ;;
+  *) printf 'CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\n' ;;
 esac
 `
 			if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
@@ -102,6 +102,8 @@ esac
 					break
 				}
 				select {
+				case <-done:
+					t.Fatalf("query exited before cancellation barrier: %v", err)
 				case <-tick.C:
 				case <-limit:
 					cancel()
@@ -152,9 +154,9 @@ func TestZellijSourceClassifiesSessions(t *testing.T) {
 printf '%s\n' "$*" >> "` + log + `"
 case "$*" in
   "list-sessions --short") printf 'pair-live\npair-detached\npair-gone\nother\n' ;;
-  "list-sessions --no-formatting") printf 'pair-live [Created]\npair-detached [Created]\npair-gone [Created] (EXITED - attach to resurrect)\n' ;;
-  "--session pair-live action list-clients") printf 'CLIENTS\n1\n' ;;
-  "--session pair-detached action list-clients") printf 'CLIENTS\n' ;;
+  "list-sessions --no-formatting") printf 'pair-live [Created 1s ago]\npair-detached [Created 1s ago]\npair-gone [Created 1s ago] (EXITED - attach to resurrect)\n' ;;
+  "--session pair-live action list-clients") printf 'CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\n1 terminal_0 sh\n' ;;
+  "--session pair-detached action list-clients") printf 'CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\n' ;;
   *) exit 1 ;;
 esac
 `

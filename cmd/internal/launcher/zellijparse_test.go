@@ -40,21 +40,3 @@ func TestPairSessionNames(t *testing.T) {
 		t.Fatalf("empty input → nil, got %v", names)
 	}
 }
-
-func TestClientCount(t *testing.T) {
-	cases := []struct {
-		raw  string
-		want int
-	}{
-		{"", 0},                                  // query failed → detached
-		{"CLIENT_ID ...\n", 0},                   // header only → 0 clients
-		{"CLIENT_ID ...\nc1 ...\n", 1},           // one client
-		{"CLIENT_ID ...\nc1 ...\nc2 ...\n", 2},   // two clients
-		{"CLIENT_ID ...\nc1 ...\n\nc2 ...\n", 2}, // blank lines don't count
-	}
-	for _, c := range cases {
-		if got := parseClientCount(c.raw); got != c.want {
-			t.Errorf("parseClientCount(%q) = %d, want %d", c.raw, got, c.want)
-		}
-	}
-}

@@ -151,7 +151,7 @@ func TestZellijEmptyReplySnapshotIsNotAbsenceOrDetached(t *testing.T) {
 					frames = append(frames, emptyReplyFrame{Args: short, Stdout: "pair-a\n"})
 				}
 				if stage == "clients" {
-					frames = append(frames, emptyReplyFrame{Args: full, Stdout: "pair-a [Created]\n"})
+					frames = append(frames, emptyReplyFrame{Args: full, Stdout: "pair-a [Created 1s ago]\n"})
 				}
 				args := short
 				if stage == "full" {
@@ -162,7 +162,7 @@ func TestZellijEmptyReplySnapshotIsNotAbsenceOrDetached(t *testing.T) {
 				}
 				frames = append(frames, earlyUnblockFrame(args, empty))
 				firstCalls := len(frames)
-				frames = append(frames, emptyReplyFrame{Args: short, Events: []string{"Log", "UnblockInput"}, Stdout: "pair-a\n"}, emptyReplyFrame{Args: full, Stdout: "pair-a [Created]\n"}, emptyReplyFrame{Args: clients, Stdout: "CLIENT_ID\n1\n"})
+				frames = append(frames, emptyReplyFrame{Args: short, Events: []string{"Log", "UnblockInput"}, Stdout: "pair-a\n"}, emptyReplyFrame{Args: full, Stdout: "pair-a [Created 1s ago]\n"}, emptyReplyFrame{Args: clients, Stdout: "CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\n1 terminal_0 sh\n"})
 				fake := newEmptyReplyFake(t, frames...)
 				got, err := fake.source.Snapshot()
 				assertEmptyReply(t, err)
@@ -197,7 +197,7 @@ func TestZellijEmptyReplyLivenessIsNotAbsence(t *testing.T) {
 				args = full
 			}
 			frames = append(frames, earlyUnblockFrame(args, ""))
-			frames = append(frames, emptyReplyFrame{Args: short, Stdout: "pair-a\n"}, emptyReplyFrame{Args: full, Stdout: "pair-a [Created]\n"})
+			frames = append(frames, emptyReplyFrame{Args: short, Stdout: "pair-a\n"}, emptyReplyFrame{Args: full, Stdout: "pair-a [Created 1s ago]\n"})
 			fake := newEmptyReplyFake(t, frames...)
 			got, err := fake.source.LivenessContext(context.Background())
 			assertEmptyReply(t, err)
@@ -243,10 +243,10 @@ func (w *emptyReplyOwnerIO) SessionPanes(ctx context.Context, name string) ([]by
 func TestZellijEmptyReplyOwnerProbeGrantsNoAuthority(t *testing.T) {
 	const name = "📁1-37"
 	panes := []string{"--session", name, "action", "list-panes", "--json", "--command"}
-	valid := `[{"id":1,"pane_command":"nvim /tmp/data/repos/0123456789abcdef/draft-1-repo-1.md"}]`
+	valid := `[{"id":1,"is_plugin":false,"pane_command":"nvim /tmp/data/repos/0123456789abcdef/draft-1-repo-1.md"}]`
 	for _, empty := range []string{"", " \t\n"} {
 		t.Run(fmt.Sprintf("%q", empty), func(t *testing.T) {
-			fake := newEmptyReplyFake(t, earlyUnblockFrame(panes, empty), emptyReplyFrame{Args: panes, Events: []string{"Log", "UnblockInput"}, Stdout: valid})
+			fake := newEmptyReplyFake(t, earlyUnblockFrame(panes, empty), emptyReplyFrame{Args: panes, Events: []string{"Log", "UnblockInput"}, Stdout: valid}, emptyReplyFrame{Args: panes, Stdout: valid})
 			io := &emptyReplyOwnerIO{source: fake.source, hasServer: true, server: SessionServerIdentity{PID: 37, Identity: "generation", Session: name, Socket: "/fake/socket"}}
 			probe := SessionOwnerProbe{IO: io}
 			got, err := probe.Probe(context.Background(), name, "/tmp/data", "0123456789abcdef", "1-repo-1")
@@ -258,7 +258,7 @@ func TestZellijEmptyReplyOwnerProbeGrantsNoAuthority(t *testing.T) {
 				t.Fatal("uncertain ownership revalidated")
 			}
 			got, err = probe.Probe(context.Background(), name, "/tmp/data", "0123456789abcdef", "1-repo-1")
-			if err != nil || got.State != SessionOwnerOwned || fake.calls(t) != 2 {
+			if err != nil || got.State != SessionOwnerOwned || fake.calls(t) != 3 {
 				t.Fatalf("fresh ownership = %+v %v", got, err)
 			}
 		})
@@ -299,8 +299,8 @@ func TestZellijEmptyReplyExplicitNoSessionsRemainsValid(t *testing.T) {
 func TestZellijEmptyReplyOwnerPassAllowsFreshCLIObservation(t *testing.T) {
 	const name = "pair-a"
 	args := []string{"--session", name, "action", "list-panes", "--json", "--command"}
-	valid := `[{"id":1,"pane_command":"nvim /tmp/data/repos/0123456789abcdef/draft-1-repo-1.md"}]`
-	fake := newEmptyReplyFake(t, earlyUnblockFrame(args, ""), emptyReplyFrame{Args: args, Events: []string{"Log", "UnblockInput"}, Stdout: valid})
+	valid := `[{"id":1,"is_plugin":false,"pane_command":"nvim /tmp/data/repos/0123456789abcdef/draft-1-repo-1.md"}]`
+	fake := newEmptyReplyFake(t, earlyUnblockFrame(args, ""), emptyReplyFrame{Args: args, Events: []string{"Log", "UnblockInput"}, Stdout: valid}, emptyReplyFrame{Args: args, Stdout: valid})
 	world := &emptyReplyOwnerIO{source: fake.source, hasServer: true, server: SessionServerIdentity{PID: 7, Identity: "same", Session: name, Socket: "/fake/socket"}}
 	captures := 0
 	source := ownerPassSourceFunc(func(context.Context) (map[string]ServerState, error) {
@@ -314,7 +314,7 @@ func TestZellijEmptyReplyOwnerPassAllowsFreshCLIObservation(t *testing.T) {
 		t.Fatal("pass authorized empty CLI reply")
 	}
 	got, err = pass.Probe(t.Context(), name, "/tmp/data", "0123456789abcdef", "1-repo-1")
-	if err != nil || got.State != SessionOwnerOwned || fake.calls(t) != 2 || captures != 1 {
+	if err != nil || got.State != SessionOwnerOwned || fake.calls(t) != 3 || captures != 1 {
 		t.Fatalf("fresh pane observation=%+v,%v; captures=%d", got, err, captures)
 	}
 }

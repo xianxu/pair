@@ -115,3 +115,27 @@ item: real-api-discovery design=0 impl=0.24
 design-buffer: 0.15
 total: 7.13
 ```
+
+
+### 2026-10-17 — M1 implementation checkpoint (not a closed milestone)
+
+Change-code passed after CLEAN plan quality (three rounds, PQ-1/PQ-2/PQ-3 addressed) and INFO estimate quality. R2 approval authenticated as 073e88c1-0bf0-4967-8e69-b37cc6758b67. Estimate INFO warned about integration/verification optimism; actuals will remain measured rather than fitted to the estimate.
+
+Added strict pure native contracts and shared 52-case corpus, a stateful fake CLI/model/effect log and a synchronous read-only process owner. Native-positive tests retain nullable templates, absent optional enrichment, plugin/terminal ID namespaces, tab identity and unknown extra fields. Duplicate JSON keys reject through the existing strictjson scanner. Targeted parser fuzz/race and fake transition/race checks passed; process-owner real helper regressions failed before implementation then passed normal/race tests.
+
+Lifecycle RED proof: wrong-kind pane/tab JSON became detached clients; a changing owner was accepted from the first snapshot; listing omission freed a live server name; unknown listing retried into warm authority; a changing live-layout signature was accepted. These regressions also fail under a production-file overlay of Git-verified original base 7ee0fa320e14236d01850ed42ad67b1976752a7c (overlay retained under /var/folders/07/b9wcwwld4_v2w9r3hk525bm80000gn/T/pair647-red-control-0qv2tfbm). The current targeted regressions pass. Unknown first listing also now terminates before another native query.
+
+Couch context regressions separately reproduced unknown observations recovering into successful attachment at all four fences. The fix shares query admission while preserving original helper lifetime, uses existing detached-adoption fences, and prevents query refusal entering the unrelated helper-start retry policy. Agent-targeted warm/retention controls passed, including race and unchanged ordinary warm budget (zero client queries/eight listings). All query-side blind retries were removed; ordinary successful read counts remain unchanged. Native-positive abbreviated fixtures were upgraded rather than weakening strict contracts.
+
+Current parent verification: targeted launcher observation/lifecycle set passed before final process-owner wiring; final wired launcher and Couch warm/retention/owner reruns are in progress. Pure modules/fake race passed. M1 remains open pending those results, a coherent checkpoint and mandatory SDLC boundary review. No native conformance run or full #647 suite has started; M2/M3 are untouched.
+
+#640 closeout: docs-only PR410 suite passed on da26fa0a8900192c0c95f0174e9fa34f57116163, exit0 in11m59s, logsha256 prefix df3e66215d0f; saved suite log in Git common-dir local-checks for that head. An auxiliary checkout was rejected as an environment dependency (a linked worktree is not an independent clone there), then removed cleanly. Close #640 from the registered pair:1 checkout after this code checkpoint; keep the successful exact-head suite record. Fresh TL permits no-actual only on a named legacy endpoint refusal, with ariadne#420 exclusion reason.
+
+
+### 2026-10-17 — M1 broader-check correction and checkpoint
+
+The first whole launcher package run failed an owner-pass scan ratchet and hit an intermittent query-group cleanup EPERM; its cancellation fixture then waited for a readiness file after the query had already failed. Captured the owned test's goroutine dump with SIGQUIT at124s (diagnostic interruption, not a qualifying pass). Fixed the scan regression by preserving the original before/after generation bracket around the native observation pair; retained the 1+2N host-table budget and doubled only intended native pane reads. The cancellation fixture now reports query completion before readiness instead of waiting to the package timeout. Native create/list/resume's abbreviated full-list/pane fixture was upgraded and its isolated control passes.
+
+EPERM was ours to handle, not classified as a native flake: the new query-process collector encountered known Darwin empty-group semantics already handled by Couch #542. Fixed600 control reproduced1/600 (background/group PID68716, shell and Go PID identities agree, exit0); unchanged control after the narrow shared procutil extraction passed600/600 in12.212s. Logs: /tmp/pair647-zellijexec-fast-exit-control.log and -green.log; race log /tmp/pair647-zellijexec-race-green.log. Exact-group membership is read only after EPERM; only known-empty suppresses it, live/zombie/unknown remains failure. Existing Couch semantics and normal-path scan cost stay unchanged. Native kernel evidence: https://raw.githubusercontent.com/apple-oss-distributions/xnu/main/bsd/kern/kern_sig.c (killpg1 filters zombies before its no-signalable-members EPERM).
+
+Latest targeted native-fixture/owner/scan/cancellation controls pass12.663s; broader warm/retention checks passed15.654s before the helper correction, with admission and process-owner race controls already passing. The subsequent full package and Couch reruns failed the now-reproduced EPERM, so they are not qualifying evidence. Next: one fresh full launcher/contracts/fake/process-owner run and Couch targeted run after this fix, then #640 docs closeout and M1's mandatory boundary review. M1 remains unclosed; M2/M3 unchanged.

@@ -19,8 +19,8 @@ printf '%s\n' "$*" >> "$PAIR562_CALLS"
 if [ "$*" = "$PAIR562_EMPTY_STAGE" ]; then exit 0; fi
 case "$*" in
  'list-sessions --short') printf 'pair-work\n' ;;
- 'list-sessions --no-formatting') printf 'pair-work [Created]\n' ;;
- '--session pair-work action list-clients') printf 'CLIENTS\n1\n' ;;
+ 'list-sessions --no-formatting') printf 'pair-work [Created 1s ago]\n' ;;
+ '--session pair-work action list-clients') printf 'CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\n1 terminal_0 sh\n' ;;
  *) exit 1 ;;
 esac
 `

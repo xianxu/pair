@@ -163,6 +163,9 @@ func (osSessionQuiescenceOps) SessionPresent(ctx context.Context, session string
 	if err != nil {
 		return false, err
 	}
+	if err := validateSessionListing(out, false); err != nil {
+		return false, err
+	}
 	present, exited := zellijsession.RowState(string(out), session)
 	return present && !exited, nil
 }
