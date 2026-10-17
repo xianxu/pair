@@ -5,9 +5,9 @@ deps: []
 github_issue:
 created: 2026-10-17
 updated: 2026-10-17
-estimate_hours:
+estimate_hours: 0.76
 collaboration-mode: collaboration
-card_mirror: 'aed859a3d70d8e2b34744831d58e685fb80619b3' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'bb0f84a67cd7d43a5b1f0fb75c8034cb0d29f40a' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-17T04:11:07-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     workspace: pair:6
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
+flow: {kind: full, provenance: operator}
 ---
 
 # couch session-sync: frontmatter-scoped read/write that moves the diff baseline only for the frontmatter
@@ -55,3 +56,18 @@ Implementation detail: [durable plan](../plans/000643-frontmatter-sync-plan.md).
 - TL approval receipt fcd4f3fa-4875-4626-93c6-fb486da60eb0 verified submitted: scope approved, full flow if needed; real new CLI from this slot against a disposable file in an isolated namespace is sufficient, no pair:0 staging. TL owns routing ariadne#424 consumer adoption after landing.
 
 - Plan review requested function-level test strategies and an explicit partial-publication/retry contract (PQ-1/PQ-2); durable plan revised before implementation. Per-file atomic replacement is distinct from the sequential document/shadow/state publications.
+
+## Estimate
+
+Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only; calibration is marked stale by estimate-source, so the units are provisional. Two smaller-go-module extensions cover byte projection/guarded stores and CLI wiring/tests: each base design 0.2 hours discounted by 0.2 for the settled plan, implementation 0.5 hours scaled by 0.4. Existing strings/file APIs and the document transaction suffice; no greenfield library discovery. Atlas/docs uses base design 0.1 discounted by 0.2, implementation 0.1 scaled by 0.4. One review uses implementation 0.5 scaled by 0.4. Familiarity 1.0; thorough-plan design buffer 15%. Derived total 0.755, rounded 0.76 hours.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: smaller-go-module design=0.04 impl=0.2
+item: smaller-go-module design=0.04 impl=0.2
+item: atlas-docs design=0.02 impl=0.04
+item: milestone-review design=0 impl=0.2
+design-buffer: 0.15
+total: 0.76
+```
