@@ -78,6 +78,12 @@ The corrected recorded run on 4b618c0c5e7b8694b50f1544c06754eebd3a14b9 acquired 
 
 Removed the fixture's internal-variable override. Its private Makefile now supplies a no-op default recipe for omitted fake-compiler source prerequisites, leaving the real production source-list contract intact. All eight atomic tests pass, and both real outer-Make variants of make-test-env pass (247 derived knobs preserved). No production change or environment-scan exemption was needed. A fresh recorded full run remains required before close.
 
+### 2026-10-16 — fresh 22:27 occurrence, bounded read-only follow-up
+
+TL receipt c8db71a8-f340-436b-ac01-cfde208001e2 reports another primary Couch replacement after the 22:22 restart, with no TL build: bin/couch mtime 22:27:23, inode 749783777, unchanged vcs.revision 712a6478; pair:5 observed that the loaded Couch inode differs. Read-only stat confirms Couch's mtime/inode, pair-launch-helper mtime 22:22:47 and pair mtime 20:01:58. A timestamp-filtered shell-history search found couch-dev at 22:22:40 and no make/stage command in 22:20–22:30. This dev command is another candidate: couch-dev calls the proven make-build writer, but process birth at 22:22:40 does not establish when its build or exec finished (PID birth survives exec). Uneven binary mtimes and the generic scanner's duplicate Couch build do not prove a causal timeline.
+
+Bounded active-slot scrollback tails and timestamp-selected wrap-event chunks around 22:25–22:29 showed no identified primary writer. No primary build, process mutation or filesystem tracing installation was performed. The exact fresh caller remains unknown; TL explicitly keeps this follow-up nonblocking for the atomic publisher.
+
 ## Revisions
 
 ### 2026-10-16 — bounded writer diagnosis approved
