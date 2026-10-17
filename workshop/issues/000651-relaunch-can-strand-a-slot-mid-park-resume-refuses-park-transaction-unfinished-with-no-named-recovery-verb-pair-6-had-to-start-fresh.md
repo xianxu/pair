@@ -5,9 +5,9 @@ deps: []
 github_issue:
 created: 2026-10-17
 updated: 2026-10-17
-estimate_hours:
+estimate_hours: 2.5965
 collaboration-mode: collaboration
-card_mirror: 'f89b2484b85403f651081300d7516d9fabb75e75' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '449c114d1e05bbf8433f23a06d9ebdc1dd8d58a1' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-17T13:48:48-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     workspace: pair:5
     worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
     repository: github.com/xianxu/pair
+flow: {kind: full, provenance: operator}
 ---
 
 # Relaunch can strand a slot mid-park: resume refuses 'park transaction unfinished' with no named recovery verb (pair:6 had to start fresh)
@@ -85,3 +86,25 @@ Verified TL receipt4ba546a0: public confirmed recover-park/menu and exact-dead-o
 ### 2026-10-17 — plan-quality refinement PQ-1
 
 First change-code plan review accepted all architectural lenses but blocked on prose test inventories. Replace them with named function-level adversarial strategies and mechanical guards, retaining transition model/acceptance invariants. No production code written. Refined plan names the existing checked-store primitives required for the already-approved bounded rollback policy; ordinary writer semantics stay unchanged. Rerun change-code for remembered disposition.
+
+## Estimate
+
+Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only. estimate-source flags this calibration stale, so provisional. Plan-quality cleared PQ-1 CLEAN before deriving numbers.
+
+Issue-spec investigation uses design0.5×0.5 and implementation0.3×0.4. Three smaller-Go extensions are recovery decision/controller, atomic checked store transition, and relaunch rollback/outcome classification; each uses design0.3×0.2 and implementation0.5×0.4. The TUI operation/menu extension uses design0.5×0.2 and implementation1.0×0.4. Confirmed CLI/socket/receipt integration is a smaller-Go extension at0.3×0.2 design and0.5×0.4 implementation. Stateful fake/native conformance is another at the same rates. Atlas/help uses design0.1×0.2 and implementation0.15×0.4. One close-review primitive includes full verification/landing at design0.2×0.2 and implementation0.5×0.4. Existing Go context, journal, lifecycle fake, native helper and typed-operation seams cover the stack; no greenfield dependency/library or cross-repo propagation. Familiarity1.0. Thorough-plan design buffer15%. Design subtotal0.71; implementation subtotal1.78; 0.71×1.15+1.78=2.5965 hours. This estimates the whole issue including diagnosis, tests and live acceptance, not only remaining typing; queue/operator delays are not fabricated active work.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.25 impl=0.12
+item: smaller-go-module design=0.06 impl=0.2
+item: smaller-go-module design=0.06 impl=0.2
+item: smaller-go-module design=0.06 impl=0.2
+item: tui-screen design=0.1 impl=0.4
+item: smaller-go-module design=0.06 impl=0.2
+item: smaller-go-module design=0.06 impl=0.2
+item: atlas-docs design=0.02 impl=0.06
+item: milestone-review design=0.04 impl=0.2
+design-buffer: 0.15
+total: 2.5965
+```
