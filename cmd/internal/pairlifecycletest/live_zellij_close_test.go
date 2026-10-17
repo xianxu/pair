@@ -204,3 +204,46 @@ func TestControlledZellijCloseRetainsCaptureFailure(t *testing.T) {
 		t.Fatalf("removed owned files without server-exit evidence: %v", err)
 	}
 }
+
+// Linux enumeration represents both failed stat reads and malformed stat data
+// as a listed PID with unknown metadata. Both consumers must preserve it.
+func TestControlledZellijCloseRetainsUnknownProcess(t *testing.T) {
+	for _, phase := range []string{"capture", "shutdown poll"} {
+		t.Run(phase, func(t *testing.T) {
+			closeZellijStub(t, "exit 0")
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			calls := 0
+			reader := closeProcessReader{
+				command: procutil.CommandInfo{Args: []string{"zellij", "--server", "/fixture/owned-test"}},
+				table: func() ([]procutil.Process, error) {
+					calls++
+					if phase == "shutdown poll" && calls == 1 {
+						return []procutil.Process{{PID: 42, Identity: "birth", Name: "zellij"}}, nil
+					}
+					if phase == "shutdown poll" {
+						cancel() // A bounded poll must fail rather than infer exit.
+					}
+					return []procutil.Process{{PID: 42}}, nil
+				},
+			}
+			cache := t.TempDir()
+			fixture := &ControlledZellij{Session: "owned-test", stubDir: cache, processes: procutil.NewSource(reader)}
+			if err := fixture.close(ctx); err == nil {
+				t.Fatal("unknown process authorized successful cleanup")
+			} else if phase == "shutdown poll" && !errors.Is(err, context.Canceled) {
+				t.Fatalf("poll lost cancellation: %v", err)
+			}
+			if _, err := os.Stat(cache); err != nil {
+				t.Fatalf("removed owned files without exit evidence: %v", err)
+			}
+			want := 1
+			if phase == "shutdown poll" {
+				want = 2
+			}
+			if calls != want {
+				t.Fatalf("table reads=%d, want %d", calls, want)
+			}
+		})
+	}
+}
