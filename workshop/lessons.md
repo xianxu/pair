@@ -2171,4 +2171,6 @@ and external temporary roots rather than relying on the host's TMPDIR.
   aggregate wait can reject successful bounded calls; prove that ordering with
   controlled latency and retain a publication-failure negative control.
 
+- #646: Shortcut verification must exercise the terminal decoder and routing boundary with both legacy and enhanced wire input. Calling the action handler directly can prove clipboard IO while missing the unsupported key encoding that prevents the handler from running. Keep a content-free arrival observation separate from operation outcome when diagnosing this boundary.
+- #622 M2 trailer audit: keep Agent and Co-Authored-By in the same final commit-message paragraph. A blank line before Co-Authored-By makes Git exclude the earlier Agent line from its trailer block. Verify with git log --format="%(trailers:only)" before publishing; preserve already-reviewed historical commits rather than rewriting measurement provenance.
 - A readiness counter contract needs a stateful test through the actual readiness decision, not only isolated zero/one counts. Cover unchanged observations before growth and show that both equality-accepting and never-accepting mutations fail, especially when native acceptance is deferred. (#645 BR-1)

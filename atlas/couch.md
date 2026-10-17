@@ -1606,7 +1606,15 @@ from exact hosted PID/start observations and never promotes raw persisted
 lifecycle state into a user-visible `live` or `parked` row.
 
 The switcher’s `Ctrl+Y` copies the latest retained `Feed.Messages()` body outside
-the console lock (`console_menu.go`, #604). Local consoles first use clipcmd's
+the console lock (`console_menu.go`, #604). The panel accepts canonical Kitty
+Ctrl+Y as well as legacy 0x19 (#646); release events never trigger a copy.
+`copy_key.go` classifies only decoded Ctrl+Y press/release events before product
+routing and reports `clipboard_key` via the existing bounded supervision writer.
+Its three content-free fields are encoding class, switcher focus and release;
+all other input is ignored. `clipboard_copy` remains the later operation outcome.
+No raw key stream, notice text or clipboard content enters either diagnostic.
+The 2026-10-17 read-only probe proved the old CSI-u decoder dropped enhanced
+Ctrl+Y; the historical keystroke bytes were not captured. Local consoles first use clipcmd's
 existing `pbcopy` / `wl-copy` / `xclip` tool cascade, with a one-second command
 budget and bounded pipe cleanup. Successful tool exit confirms local copying.
 Explicit SSH environments skip the host clipboard. Missing, failed or timed-out
@@ -4482,3 +4490,22 @@ Measurement procedure: preserve two complete JSON observations across natural
 and wrapper states. Report identity-matched byte rates separately from total
 server CPU. Profiles identify hot paths, not exact per-client CPU attribution.
 M1 changes no parser policy; optimization awaits the measured comparison.
+
+### Eager ASCII processing (#622 M2)
+
+Hosted endpoints keep parsing output eagerly whether visible or hidden. In
+`third_party/vt/utf8.go`, `handlePrint` skips general grapheme segmentation only
+between two single printable ASCII characters, retaining the provisional cluster
+and normal `handleGrapheme` transition for subsequent Unicode amendment. In
+`terminal/frame.go`, `validateCell` skips segmentation for a single printable
+ASCII byte of width one after its existing content/link/width checks. Queries,
+effects, modes, geometry, history and publication retain the same authority and
+ordering; there is no lazy replay, extra buffer or visibility policy.
+
+Qualification uses differential slow references plus complete Child ingest,
+publication and frame validation benchmarks. Fixed-work ABBA child CPU measured
+13.7–15.6% lower ASCII redraw cost and 2.8–6.3% lower mixed redraw cost at the
+approved quiet-load criterion. These figures are fixture results, not live
+server savings. TL-authorized landing precedes the next coordinated Couch
+restart; live server CPU/sample and console/peek/waiting acceptance remain
+pending until that check.
