@@ -54,10 +54,11 @@ type Accepts struct {
 	Gap bool
 }
 
-// WriteRequest replaces one section (Section != "") or the whole file, if
-// that section (or file) still has IfHash, the hash `read` gave.
+// WriteRequest replaces frontmatter, one section (Section != ""), or the
+// whole file, if that scope still has IfHash, the hash `read` gave.
 type WriteRequest struct {
 	File, Section, Body, IfHash string
+	Frontmatter                 bool
 	Accepts
 	Fold []string
 }
@@ -221,7 +222,14 @@ func (f *file) guard(now time.Time) error {
 }
 
 // target is the section's body (or the whole file) that a hash names.
-func (f *file) target(section string) (string, error) {
+func (f *file) target(section string, frontmatter bool) (string, error) {
+	if frontmatter {
+		body, err := FrontmatterBody(f.content)
+		if err != nil {
+			return "", refuse("%v", err)
+		}
+		return body, nil
+	}
 	if section == "" {
 		return f.content, nil
 	}
@@ -244,12 +252,31 @@ type ReadResult struct {
 // Reading the whole file is the agent seeing every edit in it, so it
 // refreshes the shadow and `diff` goes empty (pair#448).
 func (s *Sync) Read(path, section string) (ReadResult, error) {
+	return s.read(path, section, false)
+}
+
+// ReadFrontmatter acknowledges only the leading block, retaining unread body edits.
+func (s *Sync) ReadFrontmatter(path string) (ReadResult, error) {
+	return s.read(path, "", true)
+}
+
+func (s *Sync) read(path, section string, frontmatter bool) (ReadResult, error) {
 	return withDocument(s, path, func(f *file) (ReadResult, error) {
-		body, err := f.target(section)
+		body, err := f.target(section, frontmatter)
 		if err != nil {
 			return ReadResult{}, err
 		}
-		if section == "" && (!f.hasShadow || f.shadow != f.content) {
+		if frontmatter {
+			shadow, err := f.frontmatterShadow(body)
+			if err != nil {
+				return ReadResult{}, err
+			}
+			if !f.hasShadow || shadow != f.shadow {
+				if err := f.saveShadow(shadow); err != nil {
+					return ReadResult{}, err
+				}
+			}
+		} else if section == "" && (!f.hasShadow || f.shadow != f.content) {
 			if err := f.saveShadow(f.content); err != nil {
 				return ReadResult{}, err
 			}
@@ -338,11 +365,14 @@ func (s *Sync) DiffText(path string) (Holder, string, error) {
 	return holder, out, err
 }
 
-// Write replaces a section or the whole file if it still has the hash the
-// agent read, restamps it, records what it wrote in the shadow, and folds
+// Write replaces its target if it still has the hash the agent read,
+// restamps section/whole-file writes, records its scoped shadow, and folds
 // the given owed events. Edits elsewhere in the file don't block a section
 // write, and stay in `diff` until the agent reads or writes them.
 func (s *Sync) Write(req WriteRequest) (Result, error) {
+	if req.Frontmatter && req.Section != "" {
+		return Result{}, refuse("frontmatter and section scopes are mutually exclusive")
+	}
 	if strings.TrimSpace(req.Body) == "" {
 		return Result{}, refuse("the body is empty")
 	}
@@ -369,7 +399,23 @@ func (f *file) shadowAfter(section, body, next string, now time.Time) string {
 	return Restamp(shadow, now)
 }
 
-// saveShadow prepares a read-all baseline before publishing it. Writes use
+// frontmatterShadow advances only the block, even before the first baseline.
+func (f *file) frontmatterShadow(block string) (string, error) {
+	if !f.hasShadow {
+		return block, nil
+	}
+	first, _, _ := strings.Cut(f.shadow, "\n")
+	if strings.TrimSpace(first) != "---" {
+		return block + "\n" + f.shadow, nil
+	}
+	shadow, err := ReplaceFrontmatter(f.shadow, block)
+	if err != nil {
+		return "", refuse("shadow frontmatter: %v", err)
+	}
+	return shadow, nil
+}
+
+// saveShadow prepares a read baseline before publishing it. Writes use
 // their prepared bundle, including already-encoded horizon and fold state.
 func (f *file) saveShadow(content string) error {
 	if f.registration != nil {
@@ -412,7 +458,11 @@ type preparedWrite struct {
 func (f *file) prepareWrite(req WriteRequest, rows []Entry, now time.Time) (preparedWrite, error) {
 	next := req.Body
 	var err error
-	if req.Section != "" {
+	if req.Frontmatter {
+		if next, err = ReplaceFrontmatter(f.content, req.Body); err != nil {
+			return preparedWrite{}, refuse("%v", err)
+		}
+	} else if req.Section != "" {
 		if next, err = ReplaceSection(f.content, req.Section, req.Body); err != nil {
 			return preparedWrite{}, refuse("%v", err)
 		}
@@ -427,8 +477,16 @@ func (f *file) prepareWrite(req WriteRequest, rows []Entry, now time.Time) (prep
 		}
 		return preparedWrite{}, refuse("the new content must keep the frontmatter (`type: session-sync` and owner %q, as `couch-owner:` or legacy `owner:`)", f.owner)
 	}
-	next = Restamp(next, now)
+	if !req.Frontmatter {
+		next = Restamp(next, now)
+	}
 	shadow := f.shadowAfter(req.Section, req.Body, next, now)
+	if req.Frontmatter {
+		block, _ := FrontmatterBody(next) // replacement already validated the block
+		if shadow, err = f.frontmatterShadow(block); err != nil {
+			return preparedWrite{}, err
+		}
+	}
 	state := f.state
 	state.LastWrite = &now
 	state.Fold(req.Fold, rows)
@@ -441,7 +499,12 @@ func (f *file) prepareWrite(req WriteRequest, rows []Entry, now time.Time) (prep
 		}
 	}
 	target := next
-	if req.Section != "" {
+	if req.Frontmatter {
+		target, err = FrontmatterBody(next)
+		if err != nil {
+			return preparedWrite{}, refuse("%v", err)
+		}
+	} else if req.Section != "" {
 		if target, err = SectionBody(next, req.Section); err != nil {
 			return preparedWrite{}, refuse("%v", err)
 		}
@@ -461,7 +524,7 @@ func (s *Sync) write(f *file, req WriteRequest) (Result, error) {
 	if err := f.guard(s.now()); err != nil {
 		return Result{}, err
 	}
-	current, err := f.target(req.Section)
+	current, err := f.target(req.Section, req.Frontmatter)
 	if err != nil {
 		return Result{}, err
 	}

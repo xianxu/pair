@@ -451,6 +451,10 @@ couch --session-sync read|write|diff|status ... FILE
                          the one way an agent changes registered markdown or a legacy session file: refuses under the
                          operator's lock or when the section changed since `read` (write --if-hash), and
                          lists owed deliveries; locks older than 30 minutes add ping advice (see couch --skill)
+couch --session-sync read --frontmatter FILE [--json]
+couch --session-sync write --frontmatter BODYFILE FILE --if-hash H
+                         light: read or replace the complete leading --- block only; preserves body bytes
+                         (including Updated) and unread body edits in diff, even without a previous baseline
 couch --session-sync register FILE --owner SLOT [--json]
                          keep agentic status outside the document until explicitly forgotten
 couch --session-sync lookup FILE | list | forget FILE | rename OLD NEW [--json]

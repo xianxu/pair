@@ -897,7 +897,7 @@ CLI. It runs in-process against the store and needs no supervisor.
 - **Pessimistic for the human, optimistic for the agent (#439):** parley's
   `<file>.lock` (holder `operator`) refuses every write (exit 3); a legacy
   `holder: agent` lock counts as none, and Couch never writes or deletes the
-  lock. The agent holds no lock: `read --section|--all` prints a hash (sha256,
+  lock. The agent holds no lock: `read --section|--frontmatter|--all` prints a hash (sha256,
   16 hex) of the section body as stored (or the whole file), and `write
   --if-hash H` replaces it only if it still hashes to H, else refuses `stale`
   (exit 6, current hash in `Refusal.Hash` / JSON `Hash`). A write without
@@ -920,6 +920,19 @@ CLI. It runs in-process against the store and needs no supervisor.
   shadow lacking the written section (the operator added it) stays unchanged.
   The first shadow written by `read --all` pins a sidecar-less file's horizon
   in the sidecar, since the horizon falls back to the shadow's mtime.
+- **Frontmatter scope (#643):** `read --frontmatter` and `write --frontmatter`
+  project only the closed leading `---` block (`FrontmatterBody` and
+  `ReplaceFrontmatter` in `sessionsync/file.go`). The hash includes the delimiters
+  and excludes the closing line ending. The original closing line ending and all
+  body bytes, including Updated, survive a write exactly. BODYFILE is a complete
+  block with optional trailing whitespace and no body payload. Both operations
+  advance only the frontmatter in the shadow; a first baseline contains only the
+  block, leaving the body unread. A previous plain-document baseline keeps its
+  complete body when frontmatter is later added. Malformed current/shadow blocks
+  refuse instead of acknowledging the body. Existing locks, owner/type validation,
+  folds, registry limits and per-file atomic publication apply. The document,
+  shadow and final state publish sequentially; after an IO error, reread the
+  target, inspect diff/status and recompute before retrying any still-owed folds.
 - **Ledger:** the message service's `messageEndpoint.Deliver`
   (`message_deliveries.go`) appends one row per delivery that may have
   reached the agent: submitted, indeterminate, an endpoint error, or a
