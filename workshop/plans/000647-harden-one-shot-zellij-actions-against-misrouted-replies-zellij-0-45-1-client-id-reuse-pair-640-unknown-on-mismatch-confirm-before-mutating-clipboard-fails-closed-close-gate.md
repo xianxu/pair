@@ -421,6 +421,60 @@ rounds:
       isolation: fenced
       reviewed: dad70e903c4abaa882f4d38b3fa84680fa8c7bba
       blocked: false
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: c9ec3e69-b4c4-4adf-9208-83f7ed32043a
+            repository: github.com/xianxu/pair
+            issue_id: "000647"
+            recipe: milestone-review
+            round: 1
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/Library/Caches/sdlc/review-checkouts/9893a6a93c44c1d6
+            reviewed_head: bf0524122b46540e2db6d2e0f80d6503e4fbf1d1
+            slot: pair:1
+            requested_at: "2026-10-17T21:45:51.843065Z"
+          phase: finished
+          pid: 27829
+          started_at: "2026-10-17T21:45:52.051494Z"
+          finished_at: "2026-10-17T21:52:53.66775Z"
+          session_id: 01a14bd4-13d3-78a3-87cb-c9b972817aa6
+          outcome: returned
+      "n": 4
+      timestamp: "2026-10-17T14:52:59-07:00"
+      dispatched: "2026-10-17T14:45:48-07:00"
+      agent: codex
+      findings:
+        - id: BR-5
+          severity: Critical
+          title: Confirmed note panes are not bound to the displayed tab
+          detail: cmd/internal/couchcmd/note_panes.go:127 passes every tab's panes to notePanes, which discards tab identity. AnchorFor then chooses the first overlapping rectangle. A stateful reproduction with a hidden review pane in tab 0 and the attached client focused on an agent in tab 1 produced Path:[pane work review nvim hidden.md]. Matching snapshots and the unchanged-frame check do not establish which tab those rectangles describe. Bind admission to the presenting client's tab and captured context, or retain the screen anchor when that correlation is unavailable. Add multi-tab and tab-switch regressions. ARCH-PURPOSE, ARCH-SECURE.
+          family: action-authority-requires-context-binding
+          round: 4
+        - id: BR-6
+          severity: Critical
+          title: Sidecar fast paths issue native actions after admission cancellation
+          detail: 'cmd/internal/layoutcmd/layoutcmd.go:67 and :222 invoke native actions without checking cancellation after resolveRightTerminalContext. Canceling the context inside TerminalPaneIDs while returning a valid registered ID still issued focus-pane-id 3 and an addressed tab-switch write in deterministic tests. This is the 3rd finding in family unknown-observation-is-terminal. Do not fix only one instance: state and sweep the rule that cancellation or expiry terminates every M2 admission path, including positive local authority, before its next new effect. Check the context immediately before both mutations and add fast-path cancellation regressions. ARCH-PURPOSE, ARCH-CONSTRAINTS, ARCH-ORDER.'
+          family: unknown-observation-is-terminal
+          round: 4
+        - id: BR-7
+          severity: Important
+          title: Couch's protected queries bypass the shared process collector
+          detail: cmd/internal/couchcmd/shortcut_focus.go:31 and cmd/internal/couchcmd/note_panes.go:42 still use cmd.Output instead of zellijexec.Run. Both query functions returned while an owned, redirected child remained alive in a private fake-binary reproduction. CommandContext and WaitDelay do not collect descendants, contrary to R2's query-lifetime contract. Route both through the existing collector and test descendant cleanup on success, cancellation and failure through these production entry points. ARCH-DRY, ARCH-ORDER, ARCH-FUNERAL.
+          family: query-processes-require-owned-collection
+          round: 4
+        - id: BR-8
+          severity: Minor
+          title: Cancellation after applying a flash skips its reset
+          detail: cmd/internal/clipcmd/run.go:250 returns on cancellation after SetPaneColor but before ResetPaneColorAfter. A deterministic test canceling during SetPaneColor reproduced an applied color with no scheduled reset. Once the flash is issued, guarantee its cleanup independently of whether further paste effects remain permitted. ARCH-FUNERAL.
+          family: temporary-effects-require-cleanup
+          round: 4
+      boundary: M2
+      recipe: milestone-review
+      isolation: fenced
+      blocked: true
 ---
 
 # Gate ledger — pair647-query-fix#647 (boundary-review)
@@ -461,6 +515,22 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-3 — addressed — The registration fixture distinguishes short/full listing forms and supplies typed pane evidence; selected registration controls pass.
 - BR-4 — addressed — Both consumers normalize only direct ExitError values and preserve collector plus cancellation causes. TestQueryCollectionFailuresCannotBecomeDiagnosticEvidence passes at head; restoring pre-fix handling in a disposable copy produces six failing subtests. The copy was removed.
 
+## Round 4 — 2026-10-17T14:52:59-07:00 (codex) — BLOCKED
+
+### Raised
+
+- **BR-5** [Critical] `action-authority-requires-context-binding` Confirmed note panes are not bound to the displayed tab
+  cmd/internal/couchcmd/note_panes.go:127 passes every tab's panes to notePanes, which discards tab identity. AnchorFor then chooses the first overlapping rectangle. A stateful reproduction with a hidden review pane in tab 0 and the attached client focused on an agent in tab 1 produced Path:[pane work review nvim hidden.md]. Matching snapshots and the unchanged-frame check do not establish which tab those rectangles describe. Bind admission to the presenting client's tab and captured context, or retain the screen anchor when that correlation is unavailable. Add multi-tab and tab-switch regressions. ARCH-PURPOSE, ARCH-SECURE.
+- **BR-6** [Critical] `unknown-observation-is-terminal` Sidecar fast paths issue native actions after admission cancellation
+  cmd/internal/layoutcmd/layoutcmd.go:67 and :222 invoke native actions without checking cancellation after resolveRightTerminalContext. Canceling the context inside TerminalPaneIDs while returning a valid registered ID still issued focus-pane-id 3 and an addressed tab-switch write in deterministic tests. This is the 3rd finding in family unknown-observation-is-terminal. Do not fix only one instance: state and sweep the rule that cancellation or expiry terminates every M2 admission path, including positive local authority, before its next new effect. Check the context immediately before both mutations and add fast-path cancellation regressions. ARCH-PURPOSE, ARCH-CONSTRAINTS, ARCH-ORDER.
+- **BR-7** [Important] `query-processes-require-owned-collection` Couch's protected queries bypass the shared process collector
+  cmd/internal/couchcmd/shortcut_focus.go:31 and cmd/internal/couchcmd/note_panes.go:42 still use cmd.Output instead of zellijexec.Run. Both query functions returned while an owned, redirected child remained alive in a private fake-binary reproduction. CommandContext and WaitDelay do not collect descendants, contrary to R2's query-lifetime contract. Route both through the existing collector and test descendant cleanup on success, cancellation and failure through these production entry points. ARCH-DRY, ARCH-ORDER, ARCH-FUNERAL.
+- **BR-8** [Minor] `temporary-effects-require-cleanup` Cancellation after applying a flash skips its reset
+  cmd/internal/clipcmd/run.go:250 returns on cancellation after SetPaneColor but before ResetPaneColorAfter. A deterministic test canceling during SetPaneColor reproduced an applied color with no scheduled reset. Once the flash is issued, guarantee its cleanup independently of whether further paste effects remain permitted. ARCH-FUNERAL.
+
 ## Open findings
 
-(none — every finding has been disposed)
+- **BR-5** [Critical] `action-authority-requires-context-binding` Confirmed note panes are not bound to the displayed tab
+- **BR-6** [Critical] `unknown-observation-is-terminal` Sidecar fast paths issue native actions after admission cancellation
+- **BR-7** [Important] `query-processes-require-owned-collection` Couch's protected queries bypass the shared process collector
+- **BR-8** [Minor] `temporary-effects-require-cleanup` Cancellation after applying a flash skips its reset
