@@ -66,6 +66,12 @@ Before production edits, the new fixture suite failed five assertions: each dire
 
 The real Go alternating-cache fixture, now using scripts/build-go-atomic.sh, completed exit 0 with 1696 observations, zero missing and zero partial-size observations, correct executable output 33554432 and zero staging directories remaining. Logs atomic-result.json and atomic-replacement.trace are retained beside the initial failing probe evidence. This is headless temporary-copy acceptance, not a pair:0 rebuild.
 
+### 2026-10-16 — recorded archive fixture failure, fixed in this item
+
+First recorded suite on 5645fb1ddbc79dbd3b6de61706fe6d145ebe99a6 waited 2421s, then failed in 3s: all six atomic-build fixtures raised FileNotFoundError copying Makefile.workflow. The local-check archive intentionally lacks woven dependency symlinks. Failed log /Users/xianxu/workspace/pair/.git/sdlc/test-stats/failed/9b4bf99e3d93959063fb8b4d43c1a98e.log, SHA256 prefix 2644910bcffd. This is a reproducible test defect introduced here, not an unrelated flake.
+
+The fixture now mirrors root Makefile's optional workflow include: use the actual base scanner when available, remain valid in a source archive where no scanner exists. An explicit sentinel contract check remains mandatory in both layouts. Both complete fixture layouts pass (woven checkout and temporary source archive). Added a durable nested archive regression; all eight tests pass. The next recorded run completes the full suite on the corrected test head; production code is unchanged by this correction.
+
 ## Revisions
 
 ### 2026-10-16 — bounded writer diagnosis approved

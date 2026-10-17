@@ -25,8 +25,13 @@ class AtomicBuildTest(unittest.TestCase):
         self.control = self.base / 'control'
         for directory in (self.tree, self.foreign, self.control):
             directory.mkdir()
-        for name in ('Makefile', 'Makefile.local', 'Makefile.workflow'):
+        for name in ('Makefile', 'Makefile.local'):
             shutil.copyfile(ROOT / name, self.tree / name)
+        # Woven dependency links are absent in source archives; root Makefile
+        # uses an optional include too. Exercise the actual scanner when present.
+        workflow = ROOT / 'Makefile.workflow'
+        if workflow.is_file():
+            shutil.copyfile(workflow, self.tree / workflow.name)
         for name in ('pair-go', 'couch', 'pair-launch-helper'):
             directory = self.tree / 'cmd' / name
             directory.mkdir(parents=True)
@@ -124,6 +129,10 @@ out.write_bytes(b'#!/bin/sh\\nprintf "new\\\\n"\\n');out.chmod(0o755)
                 self.assertEqual(subprocess.check_output([self.tree/'bin'/binary]), b'new\n')
                 self.assert_clean()
 
+    def test_owned_binaries_opt_out_of_generic_scanner(self):
+        for binary in ('pair-go', 'couch', 'pair-launch-helper'):
+            self.assertTrue((ROOT/'cmd'/binary/'.skip-make-build').is_file(), binary)
+
     def test_failed_build_retains_old_binary_and_cleans_staging(self):
         process = self.make('bin/couch', BUILD_FAIL='1')
         code, output = self.finish(process)
@@ -176,6 +185,21 @@ out.write_bytes(b'#!/bin/sh\\nprintf "new\\\\n"\\n');out.chmod(0o755)
             self.assertEqual(code, 0, output)
         self.assertEqual(subprocess.check_output([self.tree/'bin/couch']), b'new\n')
         self.assert_clean()
+
+    def test_source_archive_without_workflow_link(self):
+        archive = self.base/'archive'
+        files = ['Makefile', 'Makefile.local', 'scripts/build-go-atomic.sh',
+                 'tests/build-go-atomic-test.py']
+        files += ['cmd/'+binary+'/.skip-make-build'
+                  for binary in ('pair-go', 'couch', 'pair-launch-helper')]
+        for name in files:
+            target = archive/name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(ROOT/name, target)
+        result = subprocess.run([sys.executable, '-B', str(archive/'tests/build-go-atomic-test.py'),
+                                 'AtomicBuildTest.test_root_build_has_one_publisher_per_binary_and_no_foreign_writes'],
+                                capture_output=True, timeout=20)
+        self.assertEqual(result.returncode, 0, result.stdout.decode()+result.stderr.decode())
 
     def test_review_prepare_stays_in_worker_despite_foreign_pair_home(self):
         process = self.make('runtimebundle-generate')
