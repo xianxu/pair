@@ -1,4 +1,24 @@
 ---
+reviewer_runs:
+    - version: 1
+      intent:
+        id: 6cb6f68a-27e5-43a9-a1df-0b17735c17e6
+        repository: github.com/xianxu/pair
+        issue_id: "000652"
+        recipe: estimate-quality
+        round: 1
+        attempt: 1
+        agent: codex
+        root: /Users/xianxu/workspace/worktree/pair-slot3/pair
+        reviewed_head: 402a6cbc9ff95d7d3fd004f2a238063e0cb3faef
+        slot: pair:3
+        requested_at: "2026-10-17T22:40:31.084471Z"
+      phase: finished
+      pid: 52418
+      started_at: "2026-10-17T22:40:31.229265Z"
+      finished_at: "2026-10-17T22:40:53.974171Z"
+      session_id: 01a14c06-1d0c-7983-87d1-937bb5ea2321
+      outcome: returned
 gate: plan-quality
 issue: 652
 id_prefix: PQ
@@ -63,7 +83,36 @@ rounds:
           note: Named function strategies replace the inventories, with adversarial input classes and independent guards; tall regressions and native qualification remain acceptance anchors.
           round: 2
       blocked: false
-content_hash: b37236bb53310e7d7b59e6d6c634b78771b8512a42f91449d324a18eba0d02f1
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: 1bfe89d9-b833-4f37-9f43-dfd75d8a4efd
+            repository: github.com/xianxu/pair
+            issue_id: "000652"
+            recipe: plan-quality
+            round: 3
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot3/pair
+            reviewed_head: 402a6cbc9ff95d7d3fd004f2a238063e0cb3faef
+            slot: pair:3
+            requested_at: "2026-10-17T22:40:13.978797Z"
+          phase: finished
+          pid: 22772
+          started_at: "2026-10-17T22:40:14.123811Z"
+          finished_at: "2026-10-17T22:40:29.2863Z"
+          session_id: 01a14c05-da5f-7ee2-a874-fa3645245223
+          outcome: returned
+      "n": 3
+      timestamp: "2026-10-17T15:40:29-07:00"
+      agent: codex
+      dispose:
+        - id: PQ-1
+          disposition: addressed
+          note: Named-function adversarial strategies and independent guards replace the prior test-case inventories.
+          round: 3
+      blocked: false
+content_hash: 2c2c8a552ccc21a8f48140a6f5dddff06f062e1510db1ae05e7525e9fdeaf7c9
 ---
 
 # Gate ledger — pair#652 (plan-quality)
@@ -83,6 +132,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 ### Disposed
 
 - PQ-1 — addressed — Named function strategies replace the inventories, with adversarial input classes and independent guards; tall regressions and native qualification remain acceptance anchors.
+
+## Round 3 — 2026-10-17T15:40:29-07:00 (codex) — passed
+
+### Disposed
+
+- PQ-1 — addressed — Named-function adversarial strategies and independent guards replace the prior test-case inventories.
 
 ## Open findings
 

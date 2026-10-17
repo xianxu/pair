@@ -5,9 +5,9 @@ deps: []
 github_issue:
 created: 2026-10-17
 updated: 2026-10-17
-estimate_hours:
+estimate_hours: 1.753
 collaboration-mode: collaboration
-card_mirror: '9525b2b8b63c13a87c1a4181147d9ab112b979b4' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'fd420de4d6af87de947a42f823cc38814dde48ee' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-17T15:33:36-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     workspace: pair:3
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
+flow: {kind: full, provenance: operator}
 ---
 
 # Codex tall composer misses submission confirmation beyond 20 rows
