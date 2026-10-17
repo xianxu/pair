@@ -49,7 +49,9 @@ Durable design: [queued peer-message batches](../plans/000648-peer-message-batch
 
 - [x] Implement/test shared envelope selection, character cap and atomic pending groups.
 - [x] Implement/test writer-owned preparation, freeze-at-readiness and one batch confirmation with per-member receipts, cancellation, recovery and exact Pair-log turn correlation.
-- [ ] Run targeted and recorded full-suite verification, coordinate the real busy-hub restart check with the hub, close review and land through the normal gates.
+- [ ] Complete targeted and recorded full-suite verification and document the approved post-landing busy-hub check handoff.
+
+After these implementation checks, run the normal close review and merge gates; publication is still this slot's responsibility. The actual busy-hub check belongs to the TL after the operator's restart, under the explicit deferral recorded below.
 
 ## Log
 
@@ -81,6 +83,7 @@ Durable design: [queued peer-message batches](../plans/000648-peer-message-batch
 - Early-draft CI overlap: only `local-gates-guard` appeared automatically on the PR; its run `39059902585` passed on the revised head. The existing native workflow is active and supports dispatch, so explicitly requested `couch-zellij-conformance.yml` on the pushed issue branch under the approved CI-overlap exception. Run **`39059908816`** is in progress on exact head `a1038df9c24ed2f2d04333ef0610a0515e9ffc6a`. No workflow/gate configuration or verification label was changed.
 - Native conformance run `39059908816` PASS on `a1038df9c24ed2f2d04333ef0610a0515e9ffc6a`, first attempt. Local full-suite attempt `114c07c6682171ae5b5d6931a2eb7878` was still queued, next in line, at its 302-second report. Close will occur after the noon freshness cutoff and this branch lacked main's already landed #645 readiness code, so integrated current main **before the first full suite could start**, rather than claim coverage on a known-stale composition. Verified this attempt's PID 85265, exact command, 11:50:54 start and pair-slot3 cwd before cancelling only that queued local-check; it exited context-cancelled without running tests. This is a pre-verification base update, not a failed-test rerun or chasing main after a passing branch suite.
 - Fetched/pinned main `0dc92957af516764a525718ae52f86e493ff86a3` and merged it without conflicts (only an automatic lessons merge). The incoming code is #645's readiness/client-count work; #649–652 and archive changes are process artifacts. Own batching code is unchanged by the integration. A fresh recorded suite on this combined head is required; no old attempt is treated as passing.
+- Combined verification head is `27fd3b5f83ff9091ff9bdcce51b2a3f9c90c117c`, pushed to draft PR #411. Required recorded suite attempt **`249d15337aeb65d24c1fb5caaf730b74`**, worktree `/var/folders/07/b9wcwwld4_v2w9r3hk525bm80000gn/T/sdlc-local-3306248735`, is queued at position 2 at its 30-second report. Fresh native conformance run **`39060366463`** was also dispatched on that combined head. The prior code-only native conformance pass remains recorded separately; neither cancelled local-suite attempt ran tests or supplies a pass.
 
 ## Estimate
 
@@ -108,3 +111,4 @@ total: 2.805
 ## Revisions
 
 - 2026-10-17 11:44 PDT — TL-approved scope reduction, delivery `00eac401-7b14-4ee8-8255-ef5cc30e078e`: enable batching only on verified **Claude hubs**, including the current ops hub. Codex remains singleton because its existing 20-row composer recognizer can miss a tall paste's occupied evidence during an active turn; the resulting genuine submit becomes Indeterminate after 30 seconds. File that recognizer/Return-remapping safety fix separately, unclaimed (#652). The original Spec's hub-first scope remains the acceptance surface; the implementation plan is revised to name the one qualified receiver profile. Retention measurements, cap/default, FIFO, per-message receipts and deferred busy-hub live-check arrangement stay the same.
+- 2026-10-17 11:58 PDT — Close checklist clarification: keep the issue's implementation checkbox about completed verification and the documented handoff; normal close/merge publication stays explicit prose until it actually happens. This avoids marking a future landing complete merely to enter the close gate. The original live-check Done-when remains owed after landing: TL approval `f937ca8e-4c96-4d1f-90df-2fd2b5d6c9f4` explicitly defers it to the operator's restart, and `00eac401-7b14-4ee8-8255-ef5cc30e078e` says to carry on to close. No :0 staging or claim of completed live acceptance is implied.
