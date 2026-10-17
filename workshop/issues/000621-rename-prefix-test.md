@@ -38,7 +38,7 @@ Reconcile the legacy-prefixed rename contract with the current tag/address model
 
 - [x] Replace stale T7 with deterministic literal-prefix coverage: distinguish bare and prefixed source families, retain the bare family and refuse a missing exact source, and protect bare destination content.
 - [x] Retain shared empty-environment bootstrap and use its selected private test binary; run this shell matrix in the normal suite.
-- [ ] Clarify help, README and atlas; run shell matrix, launcher rename tests and recorded suite, close and land.
+- [x] Clarify help, README and atlas; run shell matrix, launcher rename tests and recorded suite, close and land.
 
 ARCH-DRY/PURPOSE: current exact-tag validation is authoritative; reuse shared bootstrap and candidate-binary helper instead of reintroducing prefix aliases. ARCH-PURE: no production logic changes; test the existing pure parser and offline CLI boundary. ARCH-MOCK/SECURE: synthetic artifact directories and no-session Zellij stub, no operator data. ARCH-CONSTRAINTS: small fixed offline matrix, no sleeps or timing thresholds. ARCH-ORDER: no new runtime state or interleaving; this is a deterministic stale oracle. ARCH-FUNERAL: one trap-owned fixture root removes all generated cases/shims and candidate executable.
 
@@ -65,3 +65,7 @@ Implemented the exact-prefix matrix, private candidate helper and normal-suite p
 ### 2026-10-17 — resumed after #646 landed
 
 Resumed as TL directed after #646 / PR #409 landed. Integrated current origin/main cleanly before verification (no conflict resolutions); this is the initial baseline refresh after parking, not repeated pre-close main chasing. make test-pair-rename now passes all 67 assertions against a fresh private candidate, log /tmp/pair621-resumed-matrix.log. Launcher Rename/ParseRestart tests pass again (1.197s); diff whitespace checks pass. Prior /tmp/pair621-negative-control.log demonstrates that a selected prefix-stripping candidate fails T7 deterministically. Publishing the branch and running the required recorded suite next; no live setup or staging is needed for this test/help/documentation correction.
+
+### 2026-10-17 — full-suite acceptance
+
+Recorded local suite passed unchanged on 4f1401d8dfc62498dbe895a30162b3426dbfcb99 in 11m11s (attempt 903acd31ab815377c68939dfb31f24ae, log sha256 831dd65136ed). The normal suite ran and passed the 67-assertion rename matrix, all shell/workbench checks and all Go packages. Log: /Users/xianxu/workspace/pair/.git/sdlc/local-checks/4f1401d8dfc62498dbe895a30162b3426dbfcb99/suite.log. Targeted launcher Rename/ParseRestart checks and the prefix-stripping negative control are recorded above. No production rename behavior changed; no live staging is needed.
