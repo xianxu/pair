@@ -1,8 +1,8 @@
 ---
 id: 000629
-status: codecomplete
+status: done
 created: 2026-10-16
-updated: 2026-10-16
+updated: 2026-10-17
 estimate_hours:
 github_issue:
 started: 2026-10-16T18:58:38-07:00
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: acce298254c4f151c1c355f0dccd8a6084eef0dd
         evidence_commit: e1c476872c9951a65414139d6e3c276b77d5f20d
+        landed_commit: a720d59144debb2fc97b73c9ff994dc5460c087e
 ---
 
 # Peer messages to a busy hub expire after 1m30s waiting for a recognized composer; landing reports lost
