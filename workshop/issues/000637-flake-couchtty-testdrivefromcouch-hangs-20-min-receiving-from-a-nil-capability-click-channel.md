@@ -63,7 +63,7 @@ hangs instead of failing.
 
 - [x] Force the premature-disabled observation with a gated fake tab release; observe the fixture regression red.
 - [x] Wait for Off plus the disable completion notice, and reject nil completion channels before bounded awaits; keep the real mouse path and existing assertions.
-- [ ] Run targeted/race checks and 20 repetitions under concurrent suite load, then recorded suite, close review and landing.
+- [x] Run targeted/race checks and 20 repetitions under concurrent suite load, then the recorded suite. Close review and landing follow through their gates.
 
 ## Log
 
@@ -93,3 +93,7 @@ First recorded suite on b7f361ec1a8a097d500baa1241e9b88bf35a3b41 acquired its sl
 Classified as pre-existing fixture collision and filed unassigned #642 with original-source proof. Original baseline ce783cd4a474d939c174bb079bc687efc2cc457a (git archive of every loaded nvim module and test), shared private TMPDIR, two unmodified test invocations: A paused after real writefile, B completes and removes the same fixed reload filename, then A fails exactly both recorded assertions. Forty unsynchronized concurrent controls passed; an isolated current test passed. The original failed suite's particular remover remains unknown. Evidence /tmp/pair637-ed1erwu8 includes wrapper, exact original source, all logs and classification.json. #637 changes no nvim code.
 
 The failed recorded head was followed while queued by qualification-log-only commit 4b40b8953aa2 (no source difference). Hub explicitly approved the one unchanged retry recorded on current tip 4b40b895 rather than manufacturing another ref at b7f361ec; receipt a7fa88db-97d5-420e-83d7-b8e13b0005ea verified submitted and exact. Retry command unchanged: sdlc local-check run --name suite. If the same collision recurs, stop and report; do not retry again. All server CI checks currently green. No separate make -k started yet: the approved full retry can cover the remaining targets if the prerequisite passes; additional failures will be named and classified under the worker rule.
+
+### 2026-10-17 — full-suite retry PASS
+
+The one approved unchanged-code retry on 4b40b8953aa25f30fd67c58c85e92b3c394019e9 passed the entire declared suite in 11m1s after a 1708 s machine queue wait. Every shell/Lua prerequisite passed, including the previously failing changelog test, so the rest was exercised without needing a separate make -k. All Go packages passed: couchtty 43.581 s, couchcore 300.854 s, couchcmd 50.131 s, wrapcmd 56.979 s. No other failures, no additional retry. Recorded log: /Users/xianxu/workspace/pair/.git/sdlc/local-checks/4b40b8953aa25f30fd67c58c85e92b3c394019e9/suite.log; SHA256 01539595e9339b51e93b872cb0b8623254b0c73a722b9728747fa973ac9b163a. This passing retry and the retained failed first attempt are both reported, with #642 as the independent collision issue. No source has changed since qualification; later local commits are issue Log only. Production and architecture remain unchanged, so no atlas surface to update; the TL owns project records.
