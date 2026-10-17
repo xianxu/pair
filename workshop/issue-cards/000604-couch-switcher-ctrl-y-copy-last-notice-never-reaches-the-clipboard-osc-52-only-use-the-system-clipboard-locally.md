@@ -1,6 +1,6 @@
 ---
 id: 000604
-status: codecomplete
+status: done
 created: 2026-10-15
 updated: 2026-10-16
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: b0a05d4aba95172bf272930c74280409f928706e
         evidence_commit: 8b30c1daa71f54702c5f9181132422bf3369c24c
+        landed_commit: 5bc21628859572b5b4fd75410896670abdd7b074
 ---
 
 # Couch switcher: Ctrl+Y 'copy last notice' never reaches the clipboard (OSC 52 only); use the system clipboard locally
