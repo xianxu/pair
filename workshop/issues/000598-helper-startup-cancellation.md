@@ -38,7 +38,7 @@ Diagnose the helper startup/cancellation boundary and retain actionable evidence
 
 - [x] Reproduce early SIGINT loss with an ignored-SIGINT parent and pin the pre-handler ordering with a pipe gate.
 - [x] Normalize the fixture child's inherited SIGINT without changing its caller; retain failure output and startup/lease observations.
-- [ ] Verify both signal dispositions, bounded descendant cancellation and successful sidecars; record the full suite, close review and landing.
+- [x] Verify both signal dispositions, bounded descendant cancellation and successful sidecars; record the full suite and regression evidence.
 
 ## Log
 
@@ -56,6 +56,10 @@ Read-only audit: the startup test launches wait_ready=False, sleeps0/10/20/40ms,
 
 2026-10-17 final targeted verification: make test-without-ancestors passes six methods in 1.851 s (/tmp/pair598-final-make.log); git diff --check passes. The new gate also verifies captured stderr and caller-disposition preservation. Replacing only the normalization call with getsignal (in-memory source mutant; no tracked mutation) fails the gate in 3.031 s. Its failure names phase=before helper entry, child_SIGINT=1, helper PID, no published descendant group, caller_SIGINT=1, and the retained pre-handler stderr marker (/tmp/pair598-reverted-normalization.log). Diagnostic reads use positional IO, bounded to 64 KiB, so observing output cannot move the child's write offset. tests/without-ancestors.py is unchanged. atlas/index.md maps the fixture contract; lesson records the inherited-signal class.
 
+2026-10-17 recorded full suite: sdlc local-check run --name suite on pushed source 3063379300e0a3925df13f80eeef1bd1b4ac0a23 passed first attempt, exit 0 in 12m55s, log SHA256 prefix b8368b47aeb9. Log: /Users/xianxu/workspace/pair/.git/sdlc/local-checks/3063379300e0a3925df13f80eeef1bd1b4ac0a23/suite.log. No test-slot queue wait. All six lifetime methods passed in 1.897 s; complete shell/editor suite and go test ./... passed, including couchcmd 86.425 s, couchcore 424.878 s and wrapcmd 50.546 s. No failure or retry; no product binary/environment change is part of this fixture-only patch.
+
 ## Revisions
 
 2026-10-17: refined the initial hypotheses with the ignored-SIGINT reproduction. The implementation scope is the fixture's signal inheritance and failure evidence; preserve the helper's existing handshake, bounded cleanup and successful-sidecar contract.
+
+2026-10-17: made the final Plan checkbox describe the completed verification deliverable. Close review and landing are the subsequent SDLC gates, whose outcomes will be appended to Log; they are not claimed complete by ticking the verification task.
