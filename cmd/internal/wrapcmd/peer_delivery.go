@@ -20,6 +20,8 @@ import (
 // observations against automatic writes, including observations not rendered yet.
 type peerDelivery struct {
 	drive         *driveMailbox
+	recordBatch   func([]couchmessage.Message)
+	batch         *peerDeliveryBatch
 	recordTurn    func(couchmessage.Message) // submitted turns into the Pair log (pair#618); nil without a log path
 	driveProbe    func() agentdrive.Screen
 	mu            sync.Mutex
@@ -345,8 +347,14 @@ func (d *peerDelivery) retained(id string) (couchmessage.Receipt, bool) {
 	return d.retainedLocked(id)
 }
 func (d *peerDelivery) retainedLocked(id string) (couchmessage.Receipt, bool) {
-	if d.current.Message.ID == id && id != "" {
-		return d.current, true
+	if id != "" {
+		for _, m := range d.membersLocked() {
+			if m.ID == id {
+				r := d.current
+				r.Message = m
+				return r, true
+			}
+		}
 	}
 	return d.recent.Get(id)
 }
@@ -370,6 +378,9 @@ func (d *peerDelivery) reserve(id string, sequence uint64) error {
 func (d *peerDelivery) enqueue(m couchmessage.Message) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	return d.enqueueLocked(m)
+}
+func (d *peerDelivery) enqueueLocked(m couchmessage.Message) error {
 	if m.To != d.binding || m.ID != d.reservation || !d.now().Before(d.reservationUntil) || !d.now().Before(m.Deadline) {
 		return errors.New("peer reservation expired or identity changed")
 	}
@@ -379,7 +390,12 @@ func (d *peerDelivery) enqueue(m couchmessage.Message) error {
 	if _, ok := d.retainedLocked(m.ID); ok {
 		return errors.New("delivery already committed")
 	}
-	d.recent.Add(d.current)
+	for _, member := range d.membersLocked() {
+		r := d.current
+		r.Message = member
+		d.recent.Add(r)
+	}
+	d.batch = nil
 	d.current = couchmessage.Receipt{Message: m, Status: couchmessage.Queued}
 	d.state = couchmessage.PeerDeliveryState{}
 	d.interrupted = false
@@ -394,7 +410,7 @@ func (d *peerDelivery) receipt() couchmessage.Receipt {
 	return d.current
 }
 func peerEnvelope(m couchmessage.Message) string {
-	return fmt.Sprintf("[Couch peer from %s; delivery %s]\n%s", m.From.Slot, m.ID, m.Body)
+	return couchmessage.Envelope(m)
 }
 
 func (p *proxy) peerComposerSubmission() bool {
@@ -555,6 +571,12 @@ func (p *proxy) dispatchPeer(out io.Writer) {
 			}
 		}
 	}
+	if d.batch != nil && d.batch.phase != couchmessage.BatchFrozen && event.Kind == couchmessage.PeerComposerObserved {
+		if event.Ready {
+			d.batch.phase, _ = couchmessage.AdvanceBatchPreparation(d.batch.phase, couchmessage.BatchAvailable)
+		}
+		return // preparation cannot write input; finalization rechecks every guard
+	}
 	p.advancePeer(event, out)
 }
 func (p *proxy) advancePeer(event couchmessage.PeerDeliveryEvent, out io.Writer) {
@@ -572,7 +594,7 @@ func (p *proxy) advancePeer(event couchmessage.PeerDeliveryEvent, out io.Writer)
 			p.advancePeer(couchmessage.PeerDeliveryEvent{Kind: couchmessage.PeerOverlayObserved}, out)
 			return
 		}
-		data := []byte(workbenchshortcut.PasteStart + peerEnvelope(d.current.Message) + workbenchshortcut.PasteEnd)
+		data := []byte(workbenchshortcut.PasteStart + couchmessage.BatchEnvelope(d.membersLocked()) + workbenchshortcut.PasteEnd)
 		d.current.Status = couchmessage.Delivering
 		d.pasteSequence = d.sequence
 		d.pasteEpoch = p.automaticRenderEpoch.Load()
@@ -597,8 +619,12 @@ func (p *proxy) advancePeer(event couchmessage.PeerDeliveryEvent, out io.Writer)
 			p.finishAutomaticInput(automaticInputPeer, state.Outcome() == couchmessage.Submitted && event.EmptyConfirmed)
 		}
 		d.current.Status = state.Outcome()
-		if d.current.Status == couchmessage.Submitted && d.recordTurn != nil && !d.exited {
-			d.recordTurn(d.current.Message)
+		if d.current.Status == couchmessage.Submitted && (d.recordTurn != nil || d.recordBatch != nil) && !d.exited {
+			if d.batch != nil && d.recordBatch != nil {
+				d.recordBatch(d.membersLocked())
+			} else if d.recordTurn != nil {
+				d.recordTurn(d.current.Message)
+			}
 		}
 		if d.current.Detail != "" && (event.Kind == couchmessage.PeerDeadlineElapsed || state.Outcome() == couchmessage.Indeterminate) {
 			d.current.Detail = state.Reason + ": " + d.current.Detail

@@ -17,7 +17,7 @@ import (
 
 var (
 	peerLiveHarnessFlag  = flag.String("peer-live-harness", "", "isolated live peer receiver: claude or codex")
-	peerLiveScenarioFlag = flag.String("peer-live-scenario", "", "startup, paste-short, paste-multiline, paste-wrapped, draft, menu, or image-admission")
+	peerLiveScenarioFlag = flag.String("peer-live-scenario", "", "startup, paste-short, paste-multiline, paste-wrapped, paste-batch, draft, menu, or image-admission")
 	peerLiveSubmitFlag   = flag.Bool("peer-live-submit", false, "permit one harmless no-tools prompt submission in a new isolated PTY")
 	peerLiveCaptureFlag  = flag.String("peer-live-capture-dir", "", "absolute directory for successful live captures")
 	peerLiveBodyFlag     = flag.String("peer-live-body", "", "submit body: short (default), hyphen-wrap (about 625 chars, rendered wrapped), collapsed (about 1300 chars, which Claude summarizes) or overwidth (a 160-column token)")
@@ -88,9 +88,12 @@ func TestPeerLiveConformance(t *testing.T) {
 	if scenario == "" {
 		scenario = "startup"
 	}
-	valid := map[string]bool{"startup": true, "paste-short": true, "paste-multiline": true, "paste-wrapped": true, "draft": true, "menu": true, "image-admission": true, "submit": true}
+	valid := map[string]bool{"startup": true, "paste-short": true, "paste-multiline": true, "paste-wrapped": true, "paste-batch": true, "draft": true, "menu": true, "image-admission": true, "submit": true}
 	if !valid[scenario] {
 		t.Fatalf("unknown scenario %q", scenario)
+	}
+	if scenario == "paste-batch" && agent != "claude" {
+		t.Skip("peer batches are Claude-only until Codex tall-composer confirmation is qualified (pair#652)")
 	}
 	executable, err := exec.LookPath(agent)
 	if err != nil {
@@ -164,6 +167,30 @@ func TestPeerLiveConformance(t *testing.T) {
 	ready, sent, finished := false, false, false
 	seeded := false
 	trustStep := 0
+	if scenario == "paste-batch" {
+		binding := peerBatchTestBinding("pair:1")
+		binding.Repository = cwd
+		binding.Agent = agent
+		d.binding = binding
+		m.To = binding
+		m.From = peerBatchTestBinding("pair:0")
+	}
+	messages := []couchmessage.Message{m}
+	if scenario == "paste-batch" {
+		// Keep this admission scenario within the viewport recognizer's small
+		// composer domain. The initial five-member multiline Codex probe pasted
+		// fully but moved the cursor to row 33 and lost the post-paste oracle;
+		// it made no submit. Large-body retention is measured separately via
+		// native editor export, never inferred from a collapsed paste marker.
+		for i := 1; i < 3; i++ {
+			member := m
+			member.ID = fmt.Sprintf("peer-live-batch-%d", i)
+			member.From.Slot = fmt.Sprintf("pair:%d", i+2)
+			member.Body = fmt.Sprintf("FIFO report %d: Unicode 界 🦉", i)
+			messages = append(messages, member)
+		}
+	}
+	envelope := couchmessage.BatchEnvelope(messages)
 	var trustInput []byte
 	var failure error
 	renderClass := "unobserved"
@@ -175,7 +202,13 @@ func TestPeerLiveConformance(t *testing.T) {
 			failure = err
 			return false
 		}
-		if err := d.enqueue(m); err != nil {
+		var err error
+		if scenario == "paste-batch" {
+			err = d.prepareBatch(m)
+		} else {
+			err = d.enqueue(m)
+		}
+		if err != nil {
 			failure = err
 			return false
 		}
@@ -233,7 +266,7 @@ func TestPeerLiveConformance(t *testing.T) {
 				if scenario == "submit" && expectedWrites == 2 && d.receipt().Status.Terminal() {
 					finished = true
 				}
-				if known && strings.TrimSpace(text) == strings.TrimSpace(peerEnvelope(m)) {
+				if known && strings.TrimSpace(text) == strings.TrimSpace(envelope) {
 					renderClass = "exact"
 					rendered = text
 					if scenario != "submit" {
@@ -308,7 +341,20 @@ func TestPeerLiveConformance(t *testing.T) {
 				}
 				var writes bytes.Buffer
 				p.dispatchPeer(&writes)
-				if !strings.Contains(writes.String(), peerEnvelope(m)) {
+				if scenario == "paste-batch" {
+					if writes.Len() != 0 || !d.batchReady() {
+						failure = fmt.Errorf("batch preparation did not stop at safe composer")
+						finished = true
+						return nil
+					}
+					if err := d.finalizeBatch(m.ID, messages); err != nil {
+						failure = err
+						finished = true
+						return nil
+					}
+					p.dispatchPeer(&writes)
+				}
+				if !strings.Contains(writes.String(), envelope) {
 					failure = fmt.Errorf("empty composer produced no peer paste")
 					finished = true
 					return nil
