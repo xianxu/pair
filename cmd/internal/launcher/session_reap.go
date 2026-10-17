@@ -77,6 +77,14 @@ func PlanReap(server SessionServerIdentity, rows []ProcessRow) []ReapStep {
 	return steps
 }
 
+// TreeReaper is the escalation cadence #399 measured: SIGTERM, three seconds for
+// a clean exit, SIGKILL, two more for the kernel to collect the process. Every
+// reaper of a process tree builds through it, so the cadence has one home and a
+// second reaper cannot quietly invent a shorter fuse.
+func TreeReaper(table ProcessTable) Reaper {
+	return Reaper{Table: table, TermWait: 3 * time.Second, KillWait: 2 * time.Second, Poll: 50 * time.Millisecond}
+}
+
 // Reaper signals one planned tree with bounded escalation.
 type Reaper struct {
 	Table              ProcessTable

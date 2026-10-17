@@ -481,7 +481,7 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch, configur
 	inventory := newResourceInventory(console, c, service)
 	persistence := newResourceHistoryPersistence(namespace)
 	alerts := newResourceAlertDispatcher(service)
-	sampler := &resourceSampler{reader: procutil.NativeResourceReader{}, slots: inventory.snapshot, policy: resourcePolicy, alerts: alerts.dispatch, persist: persistence.persist, history: persistence.historySummary}
+	sampler := &resourceSampler{reader: procutil.NativeResourceReader{}, slots: inventory.snapshot, policy: resourcePolicy, alerts: alerts.dispatch, persist: persistence.persist, history: persistence.historySummary, sweeps: make(chan chan resourceSweep)}
 	service.resources.Store(sampler)
 	service.workers.Add(2)
 	go func() { defer service.workers.Done(); inventory.run(service.lifetime) }()
@@ -790,6 +790,24 @@ func (s *messageService) handle(ctx context.Context, request couchmessage.Reques
 			return couchmessage.Response{Code: "ok", Resources: &view}
 		}
 		return couchmessage.Response{Code: "unsupported", Error: "resource sampler unavailable"}
+	case request.Op == orphanReapOp:
+		// The reap's plan is a classification of its own, never the report the
+		// last cadence left behind: an operator confirmed a kill, and the world
+		// is allowed to have moved since. ValidateRequest is the confirmation
+		// gate -- refusing here is what makes a caller's --confirm presentation
+		// rather than the only authority (#583).
+		if err := couchmessage.ValidateRequest(request); err != nil {
+			return couchmessage.Response{Code: "invalid-request", Error: err.Error()}
+		}
+		sampler := s.resources.Load()
+		if sampler == nil {
+			return couchmessage.Response{Code: "unsupported", Error: "resource sampler unavailable"}
+		}
+		view, err := sampler.sweep(ctx)
+		if err != nil {
+			return couchmessage.Response{Code: "unavailable", Error: "resource sweep: " + err.Error()}
+		}
+		return couchmessage.Response{Code: "ok", Resources: &view}
 	case request.Op == "resume-candidates":
 		return s.handleResumeCandidates(ctx, request)
 	case request.Op == "move-slot":

@@ -515,7 +515,7 @@ func (r OSOrphanReaper) ReapOrphan(ctx context.Context, server SessionServerIden
 	if r.DataDir == "" {
 		return errors.New("reap: no Pair data directory for the thread's helpers")
 	}
-	reaper := Reaper{Table: OSProcessTable{}, TermWait: 3 * time.Second, KillWait: 2 * time.Second, Poll: 50 * time.Millisecond}
+	reaper := TreeReaper(OSProcessTable{})
 	if err := reaper.Reap(ctx, server); err != nil {
 		return err
 	}

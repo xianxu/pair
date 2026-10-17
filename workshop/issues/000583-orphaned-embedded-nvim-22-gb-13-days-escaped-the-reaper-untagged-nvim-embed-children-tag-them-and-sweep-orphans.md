@@ -77,18 +77,22 @@ Durable plan: `workshop/plans/000583-orphaned-embedded-nvim-22-gb-13-days-escape
     are written by lua `writefile` outside the guard, as they were before #583 — `TestManagedIOInventoryAnchors`
     passes untouched
 - [ ] M2 — untagged orphans are reported by couch and reaped only on confirmation
-  - [ ] Prove `procutil.Identity` is a wall clock; add `ParseIdentityTime`
-  - [ ] `procutil.Cwd` via `proc_pidinfo(PROC_PIDVNODEPATHINFO)` in the existing cgo libproc block (+ live conformance)
-  - [ ] Extract `UnattributedCandidate` from #587's `ClassifyUnattributed` so both sweeps share one rule
+  - [x] Prove `procutil.Identity` is a wall clock; add `StartTimeFromIdentity` (renamed from the draft's
+    `ParseIdentityTime`: it does IO on linux, and its argument is a token, not a pid)
+  - [x] `procutil.Cwd` via `proc_pidinfo(PROC_PIDVNODEPATHINFO)` in the existing cgo libproc block (+ live conformance)
+  - [x] Extract `UnattributedCandidate` from #587's `ClassifyUnattributed` so both sweeps share one rule
     (`TestResourceClassifyUnproven` stays green unchanged)
-  - [ ] Pure `ClassifyOrphanNvim` / `ManagedRoots` / `WithinManagedRoot` (managed roots come from
+  - [x] Pure `ClassifyOrphanNvim` / `ManagedRoots` / `WithinManagedRoot` (managed roots come from
     `WorkspaceIdentity`; containment is positive evidence, so an incomplete inventory narrows the sweep)
-  - [ ] `ResourcePolicy.OrphanNvimAge` (default 6h, `COUCH_RESOURCE_ORPHAN_NVIM_AGE`); sampler probe gated on
+  - [x] `ResourcePolicy.OrphanNvimAge` (default 6h, `COUCH_RESOURCE_ORPHAN_NVIM_AGE`); sampler probe gated on
     ppid 1 + name nvim + age ≥ threshold so the cwd cost stays inside #587's <0.2% budget
-  - [ ] Health line: `couch --resources` section + `--json`; one hub alert per episode on the existing
+  - [x] Health line: `couch --resources` section + `--json`; one hub alert per episode on the existing
     `resource_episode`/`sendGenerated` seam (#574 is still open, so its notice is not available yet)
-  - [ ] `couch --reap-orphans --confirm`: CLI refusal without confirm, server-side `confirmation-required`,
-    re-classify from a fresh sample, SIGTERM→wait→SIGKILL each identity-fenced via `ProcOps`
+  - [x] `couch --reap-orphans --confirm`: CLI refusal without confirm, the confirmation gate in
+    `couchmessage.ValidateRequest` (so a hand-written request cannot reach the classification), re-classify
+    from a fresh pass the sampler's own worker ran, then SIGTERM→wait→SIGKILL over the whole tree, each signal
+    identity-fenced via `launcher.ProcessTable` — not `ProcOps`, which has no `Snapshot` and so cannot drive
+    `Reaper`'s same-moment pid/parent/identity read
   - [ ] Cost re-measured at max cardinality, docs updated, live check, full suite, close
 
 ## Estimate
@@ -729,3 +733,65 @@ episode machinery and the effect ID stay, only the body's delivery changes.
 Commits: `104279f61` classifier, `549eb3f07` sampler + policy, `f28f2d34f` health line + ring,
 and this one for the alert. Evidence for each: `go build ./...`, `go vet`, targeted `go test -run`, and a
 full `go test ./cmd/internal/couchcore/` (517s, exit 0) before the health-line commit.
+
+### 2026-10-16 — M2 Task 16: `couch --reap-orphans --confirm`
+
+**The plan's registry instruction was wrong, and its named fake cannot drive the reaper.** The draft said to
+declare the verb in `couchcore/ops.go` with `ConfirmRequired` and route it through `operationdispatch.go` /
+`slot_operations.go`. `TestDispatchTableIsIdenticalToTheDeclaredOperationSet` (`run_test.go:578`) audits
+`Dispatch()` ≡ `couchcore.OperationNames()`, so declaring it obliges a dispatch entry — and the verb this one
+is a sibling of, `--resources`, is declared nowhere: it is a `cliMessage` op parsed in `cli.go` and answered
+by the supervisor over the broker socket. So `--reap-orphans` follows that shape (parse in `cli.go`, route in
+`messages.go`, answer in `message_service.handle`) and the three registry files are untouched. The draft also
+named `couchcore.FakeProcOps`, which implements `ProcOps` and has no `Snapshot`; `Reaper` plans from a
+snapshot precisely because #399's BR-15 requires pid, parent and start identity to describe the same process
+at the same moment, so no `ProcOps` fake can drive it. The reap is tested against a `launcher.ProcessTable`
+fake instead. Both are recorded in the plan's `## Revisions`.
+
+**Who classifies, and who kills.** The supervisor classifies: whether a process is unattributed is a fact
+about the whole slot inventory, and under-claiming there means killing a process a live slot owns. The CLI
+signals, on `peek`'s precedent — seconds of escalation must not sit on the console's serial queue, and
+`couchmessage.AdmissionTimeout` is 2 s (`broker.go:13`), far short of a fresh pass plus a SIGTERM grace, so
+the CLI holds its own 2-minute `orphanReapBudget`.
+
+**The fresh pass belongs to the sampler's worker.** `resourceSampler`'s invariant is one worker owner with
+handlers reading only the cache, and `pass` reads `s.state.Provenance`, so a throwaway second sampler was not
+available. The worker now serves a `sweeps chan chan resourceSweep` inside `run`: a request hands it a reply
+channel and the worker performs the pass, which *is* the loop's next pass rather than a second one. `pass`
+returns whether it completed, because a pass the lifetime cut short leaves an older view cached and reporting
+that as fresh is how a reap would kill from a minute-old decision; `sweep` turns `fresh == false` into an
+error, and a sampler with no worker fails loudly instead of hanging to the deadline.
+`TestReapOrphansSupervisorClassifiesFresh` proves the freshness on a sampler whose `Cadence` is an hour: the
+cached report holds one process, the confirmed reap answers two, so the answer cannot have come from the
+cache.
+
+**The confirmation is the protocol's, not the handler's.** `couchmessage.ValidateRequest` refuses an
+unconfirmed `reap-orphans` and refuses any second field, which is stronger than a registry flag would have
+been: a hand-written request cannot reach the classification at all. The `resources` op's reflection audit —
+set every `Request` field in turn, expect refusal — now covers the new one too.
+
+**The cadence has one home.** `lifecycle.go:518`'s inline `Reaper` literal became `launcher.TreeReaper(table)`
+(3 s SIGTERM, 2 s SIGKILL, 50 ms poll), so this second reaper inherits #399's measured fuse rather than
+inventing a shorter one. The tree is reaped, not the pid: killing only the editor reparents its language
+servers to launchd and manufactures the next #583.
+
+**Outcomes, and what each costs the exit code.** Every row the plan named gets exactly one outcome
+(`reaped`, `skipped`, `failed`, or `refused` when unconfirmed), because the operator confirmed each of them
+and a row that vanished from the output is a row they cannot account for. A skip — the pid is gone, or
+recycled into another generation — exits 0: that is the world having moved and the leak they confirmed
+against is gone either way. A SIGKILL survivor or a refusal exits 1. The wire projection can truncate
+`OrphanNvim` at its detail-limit budget, so the CLI prints `Resources.Errors` as `Coverage:` lines on stderr
+*ahead* of the outcomes: a row this verb did not consider is said before the fact, not after it as an excuse.
+
+**Mutation-checked, each reverted:** dropping the protocol gate (caught by the gate test *and* end to end by
+`…SupervisorClassifiesFresh`: "an unconfirmed reap was answered ok"); answering from `sampler.view()` instead
+of `sweep` (caught on process count); removing `Reaper`'s identity fences (caught by
+`TestReapOrphanNvimFencesEveryRowOnItsIdentity` and by `TestReapOrphansCLIWithConfirmationReapsAndReports`,
+which names the unsafe signal — "a recycled pid was signalled: [terminated]" — alongside #399's own
+`TestReapNeverSignalsARecycledPid` / `TestReapRefusesAChangedServer`). Passing an empty identity from the new
+code fails *closed*: every row is skipped and nothing is signalled, so the dangerous direction is the one the
+launcher mutation measures.
+
+Evidence: `gofmt -l` clean on every file this touched (`session_sync_test.go` stays as main left it),
+`go vet` clean over couchcmd/couchmessage/launcher, `go test -race -run 'TestReapOrphan|TestResource'` green,
+and full package runs green — couchcmd 54.7s, couchmessage 7.2s, launcher 35.1s, couchcore 255.4s.

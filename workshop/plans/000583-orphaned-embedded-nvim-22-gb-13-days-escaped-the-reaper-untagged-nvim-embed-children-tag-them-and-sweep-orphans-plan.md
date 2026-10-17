@@ -634,19 +634,31 @@ func ClassifyOrphanNvims(table []procutil.Process, owned []ResourceProvenance,
 
 **Files:**
 - Create: `cmd/internal/couchcmd/reap_orphans.go`
-- Modify: `cmd/internal/couchcore/ops.go:154` (registry + `ConfirmRequired`), `operationdispatch.go`,
-  `cmd/internal/couchcmd/cli.go:364-401`, `slot_operations.go:124-126`
-- Test: `cmd/internal/couchcmd/reap_orphans_test.go`, `slot_operations` tests
+- Modify: `cmd/internal/couchcmd/cli.go` (the pre-scan list and `parseMessageCLI`), `messages.go` (the route),
+  `message_service.go` (the handler and the sampler's construction), `resources.go` (the sweep seam),
+  `resources_render.go` (the shared row renderer), `cost.go` + `run.go` + `skills/couch/SKILL.md` (the verb-cost
+  triple), `cmd/internal/couchmessage/protocol.go` (the confirmation gate),
+  `cmd/internal/launcher/session_reap.go` + `lifecycle.go` (`TreeReaper`)
+- Test: `cmd/internal/couchcmd/reap_orphans_test.go`, `resources_test.go`
 
-- [ ] **Step 1: Write the failing tests.** Strategy: this verb ends processes, so the tests attack the gap
+- [x] **Step 1: Write the failing tests.** Strategy: this verb ends processes, so the tests attack the gap
   between *deciding* and *signalling* — the confirmation gate at both the CLI and the server, and the
   world changing in between (a recycled identity, a row that has found a parent again) — against
-  `FakeProcOps`, asserting that an unchanged world is signalled exactly once and a changed one not at all,
-  with every skip named and reasoned in the output.
-- [ ] **Step 2: Run, expect FAIL.**
-- [ ] **Step 3: Implement** the operation: re-classify from a fresh sample (never reap from a cached view),
+  a `launcher.ProcessTable` fake, asserting that an unchanged world is signalled exactly once and a changed
+  one not at all, with every skip named and reasoned in the output.
+- [x] **Step 2: Run, expect FAIL.** `go vet` named it: `undefined: orphanReapOp`.
+- [x] **Step 3: Implement** the operation: re-classify from a fresh sample (never reap from a cached view),
   then signal `SIGTERM`, wait, `SIGKILL` — the `Reaper` cadence — each step identity-fenced.
-- [ ] **Step 4: Run couchcmd, expect PASS.** Commit `#583: reap orphan embedded nvim only on confirmation`
+- [x] **Step 4: Run couchcmd, expect PASS.** Commit `#583: reap orphan embedded nvim only on confirmation`
+- Mutation-checked, each reverted: dropping `protocol.go`'s confirmation gate (caught by both
+  `TestReapOrphansConfirmationIsAProtocolGate` and the end-to-end `…SupervisorClassifiesFresh`, which reports
+  "an unconfirmed reap was answered ok"); answering from `sampler.view()` instead of `sweep` (caught by
+  `…SupervisorClassifiesFresh` on process count); removing `Reaper`'s identity fences (caught by
+  `TestReapOrphanNvimFencesEveryRowOnItsIdentity` and by `TestReapOrphansCLIWithConfirmationReapsAndReports`,
+  which names the unsafe signal: "a recycled pid was signalled: [terminated]", alongside #399's own
+  `TestReapNeverSignalsARecycledPid` and `TestReapRefusesAChangedServer`). Passing an empty identity instead
+  fails closed — every row is skipped, nothing is signalled — so the fence's dangerous direction is the one
+  the launcher mutation measures.
 
 ### Task 17: Cost re-measurement and docs
 
@@ -1144,3 +1156,43 @@ func ClassifyOrphanNvims(table []procutil.Process, owned []ResourceProvenance,
   than a float whose unit depends on the metric. Two structural moves fell out: the orphan classification
   now runs above the episode-retention loop so its episodes are `visited`, and `nvim/` joined the
   process-keyed prefixes (extracted as `processEpisodeKey`) so a reaped orphan's episode clears.
+- **2026-10-16 — Task 16's registry instruction was wrong, and its named fake cannot drive the reaper.**
+  Reason (registry): the draft said to declare the verb in `couchcore/ops.go:154` with `ConfirmRequired` and
+  route it through `operationdispatch.go` / `slot_operations.go`. `TestDispatchTableIsIdenticalToTheDeclaredOperationSet`
+  (`run_test.go:578`) audits `Dispatch()` ≡ `couchcore.OperationNames()`, so declaring it obliges a dispatch
+  entry — and the verb it is a sibling of, `--resources`, is declared nowhere: it is a `cliMessage` op parsed in
+  `cli.go` and answered by the supervisor over the broker socket. Delta: `--reap-orphans` follows that shape
+  exactly (parse in `cli.go`, route in `messages.go`, answer in `message_service.handle`), and `ops.go`,
+  `operationdispatch.go` and `slot_operations.go` are untouched. The confirmation authority moved with it:
+  `couchmessage.ValidateRequest` refuses an unconfirmed `reap-orphans` and refuses any second field, which is
+  strictly stronger than a registry flag — a hand-written request cannot reach the classification at all, and
+  the reflection audit the `resources` op already had now covers the new one.
+  Reason (fake): the draft named `couchcore.FakeProcOps`, which implements `ProcOps` (`Current`, `Exists`,
+  `Identity`, `Signal`, `SignalGroup`) and has no `Snapshot`. `launcher.Reaper` plans from a snapshot precisely
+  because #399's close review BR-15 requires pid, parent and start identity to describe the same process at the
+  same moment, so no `ProcOps` fake can drive it. Delta: the reap is tested against a `launcher.ProcessTable`
+  fake (`fakeOrphanTable`: rows, per-pid current identity, `diesOn` for the escalation cases, recorded signals,
+  injectable snapshot error), which is the seam `Reaper` actually holds.
+  Three structural decisions the draft did not name, all forced by measurement:
+  - **Who classifies vs who kills.** The supervisor classifies — whether a process is unattributed is a fact
+    about the whole slot inventory, and a caller guessing it from a projected report would be guessing about a
+    kill. The CLI signals, on `peek`'s precedent: seconds of escalation must not sit on the console's serial
+    queue, and `couchmessage.AdmissionTimeout` is 2 s (`broker.go:13`), far short of a fresh pass plus a
+    SIGTERM grace. Hence the 2-minute `orphanReapBudget` on the CLI side.
+  - **The fresh pass belongs to the worker.** `resourceSampler`'s invariant is one worker owner with handlers
+    reading only the cache, and `pass` reads `s.state.Provenance`, so a throwaway second sampler was not
+    available. Delta: a `sweeps chan chan resourceSweep` served inside `run` — the request hands the worker a
+    reply channel and the worker performs the pass, so the sweep *is* the loop's next pass rather than a second
+    one. `pass` now returns whether it completed, because a pass the lifetime cut short leaves an older view in
+    the cache and reporting that as fresh is how a reap would kill from a minute-old decision; `sweep` turns
+    `fresh == false` into an error, and a sampler with no worker fails loudly rather than hanging to the
+    deadline.
+  - **The cadence gets one home.** `lifecycle.go:518`'s inline `Reaper` literal became `launcher.TreeReaper(table)`,
+    so the second reaper inherits #399's measured 3 s / 2 s / 50 ms instead of quietly inventing a shorter fuse
+    (ARCH-DRY).
+  Two smaller ones: the whole tree is reaped, not the pid, because killing only the editor reparents its
+  language servers to launchd and manufactures the next #583; and a skip exits 0 while a SIGKILL survivor or a
+  refusal exits 1, since a skip is the world having moved and the leak the operator confirmed against is gone
+  either way. The wire projection can truncate `OrphanNvim` at the detail limit, so the CLI prints
+  `result.Resources.Errors` as `Coverage:` lines on stderr ahead of the outcomes — a row this verb did not
+  consider is said before the fact, not after it.

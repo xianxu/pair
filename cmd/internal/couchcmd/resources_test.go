@@ -37,11 +37,22 @@ func (f *samplerReader) Table(ctx context.Context) ([]procutil.Process, int, err
 	f.mu.Lock()
 	f.tables++
 	hook := f.tableHook
+	rows, err := f.rows, f.tableErr
 	f.mu.Unlock()
 	if hook != nil {
 		hook(ctx)
 	}
-	return f.rows, 2, f.tableErr
+	return rows, 2, err
+}
+
+// setRows swaps the whole table the sampler will see next. The sampler runs on
+// its own worker, so a sweep test writes the table concurrently with the pass
+// that reads it; replacing the slice rather than appending to it keeps both
+// sides of that race holding a complete, immutable view.
+func (f *samplerReader) setRows(rows []procutil.Process) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.rows = rows
 }
 func (f *samplerReader) Usage(ctx context.Context, p procutil.Process) (procutil.ResourceUsage, int, error) {
 	f.mu.Lock()
