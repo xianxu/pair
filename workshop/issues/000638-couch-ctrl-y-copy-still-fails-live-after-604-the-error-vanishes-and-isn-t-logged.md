@@ -39,9 +39,10 @@ The original OSC 52 loss layer is still undiagnosed (#604's close review).
 
 ## Done when
 
-- In the operator's Couch, Ctrl+Y puts the last notice on the clipboard. Live check: paste it.
-- A forced failure, such as a missing tool, shows a notice that persists and logs the tool, exit status and stderr; a test covers it.
-- A live conformance check runs the real clipboard tool from a Couch-launched process environment.
+- Typed native tool/exit/bounded-stderr evidence survives through the production Console path and one content-free clipboard_copy supervision event.
+- Failed or unconfirmed CopyFeedback persists until explicit dismissal or successful retry; stateful fake tests prove retry, payload retention and menu transitions.
+- An opt-in real Console clipboard conformance harness is available; the normal suite never touches the real clipboard.
+- Recorded full suite and close review pass. No pair:0 staging. The historical copy failure is not yet fixed: after landing, the next natural Couch restart carries the operator's Ctrl+Y check (real paste, or measured logged cause filed as a follow-up), owned by the hub.
 
 ## Plan
 
@@ -65,3 +66,9 @@ Source proves three evidence defects: copyLastNotice discards the ClipboardCopyL
 TL approved exactly one real pbcopy/pbpaste probe in receipt e82fa054-d8cb-4cf5-8b21-970e0c91884e: original bytes only in memory, no clipboard contents printed/logged, restore only while the clipboard still contains the marker. From this Couch-launched worker's non-interactive environment, /usr/bin/pbcopy and /usr/bin/pbpaste resolve and SSH markers are unset. The exit-only probe completed exit 0 in 0.077s, verified its marker and restored the previous bytes. This confirms that one worker-launched path works; it does not reproduce or explain the operator's original Couch failure. No further clipboard write, primary build, visible window or slot drive was performed.
 
 A bounded read-only lsof check found no outer terminal capture for PID99807. A fresh-context read-only agent independently traced the lost-error and notice-clearing paths; no implementation edits were delegated. Plan approval and real Couch-path evidence are required before inventing a timeout/PATH/bootstrap correction.
+
+## Revisions
+
+### 2026-10-17 — TL-approved instrumentation-first acceptance
+
+Receipts dd9c7097-9be3-4fca-9cc3-c7046cde424a and 00b6f3ff-12f2-4f3e-8407-9da4c629a989 approve the full-flow single-pass plan and explicitly change acceptance sequencing. Close and land on tested instrumentation, persistent CopyFeedback and the opt-in conformance harness. Do not stage on pair:0. The historical clipboard failure remains unknown and is not claimed fixed. The hub holds the actual Ctrl+Y result for the next natural restart: either a real paste, or the logged measured cause filed as a follow-up. This supersedes the pre-landing live-check steps above without guessing a mechanism or changing the 1s/OSC policy.

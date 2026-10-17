@@ -100,4 +100,6 @@ Files: cmd/internal/couchtty/clipboard_live_test.go; README.md; atlas/architectu
 
 ## Revisions
 
-None yet. This design awaits TL approval before change-code.
+### 2026-10-17 — approved scope and rollout
+
+TL approved the full-flow single-pass design (dd9c7097-9be3-4fca-9cc3-c7046cde424a), then clarified gate sequencing (00b6f3ff-12f2-4f3e-8407-9da4c629a989). Task 3 staging and pre-close real-paste requirements are superseded: no pair:0 staging. Implement and test instrumentation, persistence and the opt-in conformance harness, then close and land normally. The hub owns the actual Ctrl+Y acceptance at the next natural restart: real paste, or the measured logged cause filed as a follow-up. The historical failure is not yet fixed; do not claim it is. Keep the 1s/OSC policy unchanged. The issue's revised Done when is the landing contract.
