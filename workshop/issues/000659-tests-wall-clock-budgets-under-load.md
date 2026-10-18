@@ -135,7 +135,7 @@ cost gate now does for the sampler.
 - [x] broadcast `TestPointerRateLimit`: a rate-limit window measured in real time —
       inject the clock or assert the limiter's decision, not a count inside a
       wall-clock window.
-- [ ] Soak: 20 runs of the touched packages under the named load generator, plus one
+- [x] Soak: 20 runs of the touched packages under the named load generator, plus one
       full `make test` under the same load, recorded here with its loadavg.
 
 ## Log
@@ -182,6 +182,10 @@ Recorded suite attempt is queued on the same implementation head: `sdlc local-ch
 The recorded suite acquired its slot after1089s. All shell/native-editor/review prerequisites passed, including observation diagnostics. Go's exhaustive `TestProductionArtifactReferencesAreExactlyClassified` found a branch defect: new `cmd/internal/testwait/host.go` lacked source classification. Added that exact file beside the existing testwait helper in `NonArtifactSources`: host-load diagnostics construct no Pair session artifact. No vocabulary allowance or guard bypass. The original failing guard plus `TestNonArtifactSourceCannotImportArtifactpath` now pass (`/tmp/pair659-inventory-fix.log`,4.533s). Added the prevention rule to lessons. The first suite continues to completion to collect all other failures; it will not count as a passing record, and the corrected code needs a fresh recorded run. Measured full-suite start load `{ 19.70 31.67 43.92 }`.
 
 The first suite completed exit2 in13m16s, log SHA256 prefix `5429b2148e38`: **only** the inventory guard failed. All other packages passed, including couchcmd137.455s, couchcore372.809s, couchtty52.271s and diagnosticlog41.168s. Full failed log retained under the earlier evidence directory as `suite193e8727-failed.log` as well as SDLC's saved attempt. This is a corrected branch defect, not a flake waiver. New recorded suite on corrected head `75277904ed4f07d4914d34cd4a6bb3a65b119e2c` is queued (attempt `c5ff20b0a514c353698bd714be553db5`); its CI checks all pass, including conformance2m45s. Sample at queue entry `{ 14.81 11.88 23.18 }`.
+
+### 2026-10-17 — corrected recorded suite passes
+
+Attempt `c5ff20b0a514c353698bd714be553db5` acquired after711s and **passed exit0 in15m29s** on `75277904ed4f07d4914d34cd4a6bb3a65b119e2c`, recorded as `sdlc-local/suite`; log `/Users/xianxu/workspace/pair/.git/sdlc/local-checks/75277904ed4f07d4914d34cd4a6bb3a65b119e2c/suite.log`, SHA256 prefix `bffa54097006`. The inventory guard passed4.601s, couchcore422.989s, couchcmd76.837s, couchtty49.638s and diagnosticlog52.973s. All prerequisites and Go packages completed. Load sample after acquisition `{ 24.12 31.50 31.92 }`, completion `{ 11.88 16.65 22.88 }`. Only documentation changed after that source head. Draft PR420 is open; close review is next. No flake waiver or manually posted status.
 
 ## Revisions
 

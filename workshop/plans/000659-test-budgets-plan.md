@@ -95,12 +95,12 @@ No new production hot path: rate checks O(1), unchanged UI tick read/decode0 at2
 
 ## Tasks (one close)
 
-- [ ] Preserve historical log in task-owned temp directory; record hash/head/load. Collect old failing controls before their corresponding edits.
-- [ ] Write red tests for clock/default/verdict/diagnostic seams, implement minimum changes and verify unchanged product budgets. Commit each coherent group with Agent trailers.
-- [ ] Run `go test ./cmd/internal/testwait ./cmd/internal/broadcast -run 'Test.*(Host|PointerRateLimit|RateLimit)' -count=1`; exact counts and diagnostic controls pass.
-- [ ] Run `go test ./cmd/internal/couchcore -run 'Test(RecoveryFreshOrdinarySlotKeepsOrdinaryLaunch|RecoveryFreshMissingRecordLeavesForeignOwnersUntouched|ParkHelperAttachmentRequiresClientGrowth|ParkClientCountQueryContract)' -count=1`; all ownership/growth checks pass.
-- [ ] Run `go test ./cmd/internal/couchcmd ./cmd/internal/clipcmd -run 'Test(ContinuationWriterPublishesExactCheckpointAcrossWorktrees|ClipboardCopyConsoleKeysReachContentFreeFactLog|.*Clipboard.*)' -count=1`; exact checkpoint and typed metadata pass.
-- [ ] Run `go test ./cmd/internal/couchtty ./cmd/internal/diagnosticlog -run 'Test(WorkbenchPerformanceIdleUITick|ConsoleActivity.*|OpenFileInspectionConformance|UnregisteredChildOpenFileBlocksLegacyExpiry)' -count=1`; count invariants pass, native pass/named optional skip. Run required lsof mode separately and retain verdict.
-- [ ] Run all nine named functions20 times, subtests included. Generate load with one normal gate-controlled make -k suite alongside sequential targeted repetitions, name commands and measured load. Don't claim near100 if not observed; ask hub if fleet load is insufficient for the issue's acceptance. Injected delays are separate proof, not a substitute load claim.
-- [ ] Push head, run recorded suite `sdlc local-check run --name suite` with make -k under the same named load when practical. Retain all failures and follow flake rule. No early exit on cited failures.
+- [x] Preserve historical log in task-owned temp directory; record hash/head/load. Collect old failing controls before their corresponding edits.
+- [x] Write red tests for clock/default/verdict/diagnostic seams, implement minimum changes and verify unchanged product budgets. Commit each coherent group with Agent trailers.
+- [x] Run `go test ./cmd/internal/testwait ./cmd/internal/broadcast -run 'Test.*(Host|PointerRateLimit|RateLimit)' -count=1`; exact counts and diagnostic controls pass.
+- [x] Run `go test ./cmd/internal/couchcore -run 'Test(RecoveryFreshOrdinarySlotKeepsOrdinaryLaunch|RecoveryFreshMissingRecordLeavesForeignOwnersUntouched|ParkHelperAttachmentRequiresClientGrowth|ParkClientCountQueryContract)' -count=1`; all ownership/growth checks pass.
+- [x] Run `go test ./cmd/internal/couchcmd ./cmd/internal/clipcmd -run 'Test(ContinuationWriterPublishesExactCheckpointAcrossWorktrees|ClipboardCopyConsoleKeysReachContentFreeFactLog|.*Clipboard.*)' -count=1`; exact checkpoint and typed metadata pass.
+- [x] Run `go test ./cmd/internal/couchtty ./cmd/internal/diagnosticlog -run 'Test(WorkbenchPerformanceIdleUITick|ConsoleActivity.*|OpenFileInspectionConformance|UnregisteredChildOpenFileBlocksLegacyExpiry)' -count=1`; count invariants pass, native pass/named optional skip. Run required lsof mode separately and retain verdict.
+- [x] Run all nine named functions20 times, subtests included. Generate load with one normal gate-controlled make -k suite alongside sequential targeted repetitions, name commands and measured load. Don't claim near100 if not observed; ask hub if fleet load is insufficient for the issue's acceptance. Injected delays are separate proof, not a substitute load claim.
+- [x] Push head, run recorded suite `sdlc local-check run --name suite` with make -k under the same named load when practical. Retain all failures and follow flake rule. No early exit on cited failures.
 - [ ] Update issue/atlas for any new seam, close through mandatory review, land on SHIP with `sdlc merge --yes`, report merge/PR. #576 preemption overrides continuation at any point.
