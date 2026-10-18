@@ -136,6 +136,13 @@ Draft detailed plan: [suite write budget](../plans/000658-suite-write-budget-pla
 
 - Whole couchcore run completed successfully in395.352s; together with couchcmd57.525s/couchtty47.434s and the earlier full supporting package runs, all seven normal budgeted package suites pass. No test retry or timeout change was used. Matched measurements and recorded suite remain separate pending evidence.
 
+
+### 2026-10-18 — native CI flake retained as #660
+
+- CI39105463917 attempt1 on7de3dec6684644b5114278ac92c53106d45345f2 failed in TestNativeConsoleWrapperZellij/direct-zellij-baseline:285.86s waiting for persistent native frame after reattach, with child output reporting the private session absent. Initial BOOT/CPR/input/STATE:1 had succeeded. Wrapped reattach retained its PID:nonce and counter1→2; subsequent package5m timeout is a cascade after the first wait. No native write cap failure occurred.
+- Conformance39105228904 on d9c9bab5bb60d3cf68b753bbe079606e8139ac0f and39105295728 on eeedca6731051353d4314ab056da6ba2b200d0f9 both passed. Git diff from first green to failed head contains only this issue's Markdown. Thus this is an established intermittent native-reattach failure on unchanged issue code, distinct from #603/#361. Filed unclaimed #660 with exact failure and passing controls. Public failed run: https://github.com/xianxu/pair/actions/runs/39105463917/job/117610220213 ; local full log/metadata ci-39105463917* retained under the diagnostic root.
+- One unchanged failed-job rerun requested under the fleet flake rule, on the same7de3dec head. Retain both attempts; if it repeats, stop and report rather than retrying or modifying deadlines. This does not replace the required local recorded suite or device comparison.
+
 ## Revisions
 
 - 2026-10-17 — Measured dominant fixture construction rather than assuming fsync/logging churn. Candidate design preserves full30MB files and decoder/authority checks by CoW cloning private all-space templates. Reject fixture shrinking, hardlinks and NUL sparse files because they weaken the actual coverage. A shared native-counter runner defends the whole normal-run callback in the large-fixture consumer packages; final numeric caps await the queued distribution and hub approval.
