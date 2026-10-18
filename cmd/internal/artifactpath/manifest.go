@@ -235,6 +235,10 @@ var Families = []Family{
 // shell, Lua, and KDL sources.
 // pair:m5-concept pure
 var SourceClassifications = []SourceClassification{
+	// #649 title adapters resolve scoped roots and storage ownership through
+	// artifactpath; neither constructs a tracked artifact filename family.
+	{Path: "cmd/internal/couchcmd/titles.go", Kind: ResolvedConsumer},
+	{Path: "cmd/internal/couchcore/title_target.go", Kind: ResolvedConsumer},
 	{Path: "cmd/internal/couchcmd/lifecycle_notices.go", Kind: VocabularyConsumer, Families: []string{"restart"}, Vocabulary: []VocabularyAllowance{
 		goCaseVocabulary("restart", "restart-armed", "observe", 1),
 		goCaseVocabulary("restart", "restart-drained", "observe", 1),
@@ -645,6 +649,11 @@ var SourceClassifications = []SourceClassification{
 // the artifact namespace requires an explicit SourceClassification.
 // pair:m5-concept pure
 var NonArtifactSources = []string{
+	// #649 wiring, contextual runtime delegation, and the pure title reducer
+	// introduce no artifact constructors or filename vocabulary.
+	"cmd/internal/couchcmd/titles_wiring.go",
+	"cmd/internal/sessioninventory/title_context.go",
+	"cmd/internal/titlepoller/update.go",
 	// #574 lifecycle observations/projections carry no artifact filename vocabulary.
 	"cmd/internal/couchcore/lifecycle_notice.go",
 	// #648 batching carries peer envelopes and receipts over existing endpoints;
