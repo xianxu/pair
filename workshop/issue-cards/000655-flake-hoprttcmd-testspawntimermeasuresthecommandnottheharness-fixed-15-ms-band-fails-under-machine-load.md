@@ -1,6 +1,6 @@
 ---
 id: 000655
-status: codecomplete
+status: done
 created: 2026-10-17
 updated: 2026-10-17
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 2481722ff4e7b7ddd282c0d54b375289679f65f5
         evidence_commit: fb3a506055d7c662c716d8dc1e00367fa2d40e64
+        landed_commit: f16ecfe6c009be187ed7a1cdc03b9e90328e367f
 ---
 
 # Flake: hoprttcmd TestSpawnTimerMeasuresTheCommandNotTheHarness fixed 15 ms band fails under machine load
