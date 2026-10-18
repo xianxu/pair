@@ -32,7 +32,7 @@
   - Every record resolves against `base`. The offset is the Nth plain, non-overlapping byte match (`reconstruct.nth_offset` semantics).
   - Records sort by base offset. An overlap with the previous accepted span is bad.
   - **Difference from Lua:** any bad record means `next` is unused, and the caller refuses the batch (`edits-invalid`). The Lua pane drops bad records instead, and keeps doing so until M2 retires it.
-  - `ResolvedEdit{Index, BaseStart, BaseEnd, NewStart, NewEnd, Explain}` gives the edit's range in `next`. That range is how `DeriveRound` attaches reasons.
+  - `ResolvedEdit{Index, BaseStart, BaseEnd, Explain}` gives the edit's byte range in `base`. `DeriveRound` attaches reasons by that range.
   - **Future:** the same function serves M2's pane and any other edit producer.
 - **LineDiff(a, b) → []Hunk:**
   1. Split into lines, keeping the newlines. A trailing newline is part of the text, as the design requires.
@@ -46,9 +46,14 @@
   2. `Span{Start, End [2]int; Old, New, Explain string}`. Positions are 0-based [line, byte column] in `after`.
   3. **Byte columns:** nvim extmark columns are bytes. This must be confirmed with parley.nvim:3; see "Contract with parley" below.
   4. A deletion has `Start == End`.
-  5. Reasons are attached by overlap. A span takes the `Explain` of every resolved edit whose `[NewStart, NewEnd)` overlaps it (an empty edit range touches its point). Several distinct reasons join with `"; "`.
+  5. Reasons are attached by overlap **in base coordinates**, one rule for every presentation (`attachReasons(spans, resolved)`):
+     - each span keeps the byte range of its narrowed old text in the baseline;
+     - a span takes the `Explain` of every resolved edit whose `[BaseStart, BaseEnd)` overlaps that range (an empty range touches its point);
+     - several distinct reasons join with `"; "`.
+
+     The restamp only rewrites the stamp in place, so baseline and base offsets agree everywhere outside the stamp line, which never forms a span.
   6. Exclusion and no-ops:
-     - **Restamp:** `DeriveRound` diffs `Restamp(before, now)` against `after`. `Restamp` only replaces the first `Updated …` stamp in place (`file.go:175`), so the stamp line never differs.
+     - **Restamp, one baseline for every consumer (PQ-1):** `prepareWrite` computes `baseline := before`, and `baseline = Restamp(before, now)` exactly when the write restamps (every scope except `--frontmatter`, `sync.go:480`). Both `DeriveRound` and `ProposeMarkers` take `baseline`, never raw `before`. `Restamp` replaces the first `Updated …` stamp in place (`file.go:175`), so the stamp line never differs. Tests: a frontmatter write and a propose write on a stamped document each give no stamp span and no stamp marker.
      - **No-op:** if no hunk remains, the result is `ok=false`. The caller then keeps the previous round, as the design says a no-op write must.
   - **DRY rationale:** one source of positions for every verb. `write` spans simply carry no reasons.
 - **ProposeMarkers(before, after) → (content string, err):** used when the document's `presentation:` is `propose` (read with the existing `frontmatter(next, "presentation")`).
@@ -63,7 +68,16 @@
     - Rejecting an inserted line leaves an empty line.
     - Accepting a deleted whole line leaves an empty line.
     - This is the "no newline encoding" choice the operator made. It goes in the Log, to tune.
-  - **Interaction with the round:** under propose, the written content is `ProposeMarkers(before, after)`, and the round is derived from `before` to that written content. The spans are therefore the inserted markers, with reasons attached through the resolved edits' base ranges mapped by hunk.
+  - **Interaction with the round, shadow and hash (PQ-2):**
+    - Under propose, the **written** content is `ProposeMarkers(baseline, after)`. Everything downstream follows the written bytes, not the clean proposal:
+      - the round is derived from `baseline` to the written content, so the spans are the inserted markers;
+      - the shadow is the written content (a section write's shadow body is `SectionBody(written, heading)`, fed to `shadowAfter` in place of `req.Body`);
+      - the returned `Hash(target)` is taken over the written content's scope.
+    - That keeps the agent's own markers out of the next `diff`, and keeps the next `--if-hash` valid.
+    - The substitution runs in `prepareWrite`, right after the content is built and before the content checks, so the 4 MiB and owner checks see the written bytes.
+    - Reasons attach by the base-coordinate rule above.
+    - **Frontmatter writes are never proposed:** markers inside frontmatter would corrupt it. A frontmatter write is direct under every presentation, and its round is still derived.
+    - Test: a propose section write, then `diff`, shows nothing of the agent's own markers, and the returned hash passes the next write's `--if-hash`.
 - **submitsOfDocument(rows, file, paths, plain, canonical) → []Entry:** the path and spelling matching lifted out of `OwedForDocument` (`owed.go:79-102`). `OwedForDocument` keeps its behaviour by calling it (**ARCH-DRY**). `round` uses it on the raw ledger rows: `cleared` means any submit has `At` after `round.At`, and folded submits count.
 
 ### Integration points
@@ -104,8 +118,8 @@
     - If the removal itself fails, the write refuses before touching the document.
     - A no-op write (no hunks) removes nothing and keeps the previous round.
   - **ARCH-FUNERAL:** the sidecar is overwritten by each changing write and ends with its document's metadata. It accumulates nothing.
-  - **ARCH-SECURE:** the sidecar is Couch-written metadata in the same trust domain as the shadow. `round` validates the sidecar's JSON shape on read, and a malformed sidecar reports `Code: "round-invalid"`. It is never passed through unchecked.
-- **Sync.Round(file) → (Round, cleared bool, err):** `withDocument` in read mode, so no write lock is needed. It loads the sidecar and reads `s.Ledger.Read(f.owner)` → `submitsOfDocument`. A missing sidecar returns a null `Round` with `cleared=false`. It refuses `not-recording` like `status` does.
+  - **ARCH-SECURE / ARCH-CONSTRAINTS:** the sidecar is Couch-written metadata in the same trust domain as the shadow. `round` and `Register`'s import read it through a size cap (`roundMaxBytes`, 16 MiB, enough for a 4 MiB document's old and new text plus JSON escaping) and validate its shape. Over the cap or malformed, it reports `Code: "round-invalid"` (import skips it). A round that would encode past the cap is not written, with a warning, so it never exceeds the cap. It is never passed through unchecked.
+- **Sync.Round(file) → (Round, cleared bool, err):** goes through `withDocument`, which takes the registry flock and the document flock like every verb, so it reads a consistent sidecar and ledger. It loads the sidecar and reads `s.Ledger.Read(f.owner)` → `submitsOfDocument`. A missing sidecar returns a null `Round` with `cleared=false`. It refuses `not-recording` like `status` does.
 - **CLI:**
   - Verbs: `apply EDITS.json FILE --if-hash H [--fold ID] [--json]` and `round FILE --json`.
   - The reply contract that parley.nvim:3 planned against: `{Code, Error, Round, Cleared}`. `apply --json` adds `Hash` and `Invalid`.
@@ -257,6 +271,8 @@ M2 is outlined here and refined in a `## Revisions` entry at its start, once M1'
 
 ### Task 8: register-on-first-apply for reviewed files
 
+_Seam change, stated: this gives `apply` a registration side effect. On an unregistered file it creates a registry entry, which gives it an owner. The M2 revision decides whose ownership that is (the reviewing slot) and confirms that `write` keeps its refuse-unregistered behaviour._
+
 - [ ] A reviewed file that isn't registered is registered on its first `apply`, through S1's registry (`Sync.Register`). Test: an `apply` on a fresh, unregistered markdown file registers it and writes a round.
 
 ### Task 9: the review agent writes EDITS.json and runs apply
@@ -293,3 +309,4 @@ M2 is outlined here and refined in a `## Revisions` entry at its start, once M1'
   - **(5) M1 lands alone first,** to unblock parley#383 and ariadne#437. M2 follows on its own branch.
     - Under "one issue, one branch", that means M1 lands through `sdlc merge` at the milestone, and M2 continues on #661 from main.
     - Task 7 step 4 becomes "land M1".
+- **2026-10-18, plan-quality round 1.** PQ-1: one restamp-aware baseline feeds both `DeriveRound` and `ProposeMarkers`; frontmatter writes don't restamp, so they are diffed raw. PQ-2: under propose, the shadow, the returned hash and the round all follow the written marker bytes, and frontmatter is never proposed. Minors: `Round` takes the flocks; the sidecar has a 16 MiB read and write cap; reasons attach by one base-coordinate rule (`attachReasons`); M2's registration side effect is stated. The prose test lists stay: they double as each task's RED checklist.
