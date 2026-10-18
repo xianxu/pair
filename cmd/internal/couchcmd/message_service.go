@@ -158,6 +158,7 @@ const (
 // timers in arrival order. Request goroutines read
 // only the published snapshot of connected bindings.
 type messageService struct {
+	lifecycle atomic.Pointer[lifecyclePublisher]
 	resources atomic.Pointer[resourceSampler]
 	hubMoves  atomic.Pointer[hubMoveService]
 	facts     atomic.Pointer[supervisionFactLog]
@@ -307,6 +308,10 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch, configur
 		return nil, err
 	}
 	threshold, err := waitNoticeThreshold(os.Getenv)
+	if err != nil {
+		return nil, err
+	}
+	lifecycleOn, err := lifecycleNoticesEnabled(os.Getenv)
 	if err != nil {
 		return nil, err
 	}
@@ -483,6 +488,10 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch, configur
 	service.SetSubmission(console.Submission)
 	service.recordDeliveries(namespace)
 	service.supervision.Store(newSupervisionCoordinator(service, func(text string) { console.Notify(couchtty.Notice{Kind: "status", Body: text}) }))
+	if lifecycleOn {
+		publisher := startLifecyclePublisher(service, func(text string) { console.Notify(couchtty.Notice{Kind: "status", Body: text}) })
+		console.SetLifecycleObserver(publisher.observe)
+	}
 	watcher := newWaitWatcher(service, threshold, namespace)
 	stale := newSessionStaleWatcher(service, namespace, func(text string) { console.Notify(couchtty.Notice{Kind: "status", Body: text}) })
 	watcher.staleTick = stale.offer
@@ -695,6 +704,9 @@ func (s *messageService) loop() {
 			if next := s.execute(effect); next != nil {
 				followUps = append(followUps, *next)
 			}
+		}
+		if publisher := s.lifecycle.Load(); publisher != nil {
+			publisher.signal()
 		}
 		if e.Kind == couchmessage.AdmissionDone {
 			s.mu.Lock()
@@ -1295,10 +1307,12 @@ func (e messageEndpoint) DeliverBatch(ctx context.Context, head couchmessage.Mes
 // accountDelivery preserves every original message's supervision and document
 // ledger provenance, even when several messages share one physical input turn.
 func (e messageEndpoint) accountDelivery(m couchmessage.Message, receipt couchmessage.Receipt, err error, log *supervisionFactLog, toHub bool) {
-	system := false
+	system := m.Origin == couchmessage.OriginSystem
+	if publisher := e.service.lifecycle.Load(); publisher != nil {
+		publisher.signal()
+	}
 	if c := e.service.supervision.Load(); c != nil {
 		c.delivered(m, receipt, err)
-		system = c.systemMessage(m)
 	}
 	if log != nil && toHub {
 		log.delivery(m, receipt, err, system)

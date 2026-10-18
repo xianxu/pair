@@ -203,8 +203,8 @@ Negative controls remove origin matching, adoption gating and pass-drain gating 
 
 ### Current execution steps (one close boundary)
 
-- [ ] Write and run failing origin/admission/receipt/batch tests; implement internal origin and delivery preservation; run targeted couchmessage/wrapcmd tests and commit.
-- [ ] Write failing pure collector and stateful lifecycle tests; implement confirmed completion hooks, restart drain and bounded publication; run focused core/tty/cmd tests and commit.
+- [x] Write and run failing origin/admission/receipt/batch tests; implement internal origin and delivery preservation; run targeted couchmessage/wrapcmd tests and commit.
+- [x] Write failing pure collector and stateful lifecycle tests; implement confirmed completion hooks, restart drain and bounded publication; run focused core/tty/cmd tests and commit.
 - [ ] Wire the single setting and startup availability origin; exercise owned socket/Console children, failure cases and negative controls; update docs/inventory and record the hub's tl-lead companion.
 - [ ] Run focused/race checks, push and open an early draft PR for CI overlap, then recorded full suite, close review and normal merge gates. Never hand-post gate status.
 
@@ -237,3 +237,7 @@ The broker's existing admitted receipt/active queue is the only system-origin au
 | opt-out/shutdown | Suppress/discard unsent projections; shutdown cancels and joins shell work. Already accepted input follows existing broker cancellation semantics. |
 
 The existing body/encoded-frame/cap constraints apply at freeze. Formatting uses bounded fields so each row fits; body parts are complete rows, not truncated events. At most one part is outstanding per hub, preserving FIFO and bounded receipt use; #648 still batches with other queued messages at readiness. A new current snapshot may mention a later changed slot state after an uncertain part, but does not replay that part or claim the earlier event was delivered.
+
+## Revisions — implementation evidence
+
+- 2026-10-17 — Reuse the existing final Console ParkResult carrying VerifiedPark instead of installing a second callback in PairLifecycleController; its success is already produced only after FinalizePark. This removes duplicate event authority and relaunch substep notifications (ARCH-DRY). Callback observations remain post-adoption. At restart drain, facts lacking any typed slot target or verified cached identity are diagnosed locally rather than guessed or allowed to hold the cohort indefinitely. No external discovery is added.

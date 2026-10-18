@@ -1,0 +1,355 @@
+package couchcmd
+
+import (
+	"context"
+	"crypto/sha256"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"sync"
+	"time"
+
+	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/couchmessage"
+	"github.com/xianxu/pair/cmd/internal/couchtty"
+)
+
+func lifecycleNoticesEnabled(getenv func(string) string) (bool, error) {
+	switch getenv("COUCH_LIFECYCLE_NOTICES") {
+	case "", "on":
+		return true, nil
+	case "off":
+		return false, nil
+	default:
+		return false, errors.New("COUCH_LIFECYCLE_NOTICES must be on or off")
+	}
+}
+
+type lifecycleAttempt struct {
+	id       string
+	hub      string
+	from     couchmessage.Binding
+	cancel   context.CancelFunc
+	admitted bool
+	retired  bool
+}
+type lifecycleAdmission struct {
+	token   uint64
+	receipt couchmessage.Receipt
+	err     error
+}
+
+// lifecyclePublisher owns bounded Slots projections, not message history. Its
+// callbacks reduce memory only; admission runs on owned, cancellable workers.
+type lifecyclePublisher struct {
+	mu          sync.Mutex
+	service     *messageService
+	state       couchcore.LifecycleNoticeState
+	ready       map[uint64]couchcore.LifecycleNoticeEffect
+	attempts    map[uint64]lifecycleAttempt
+	roots       map[string]bool
+	identities  map[string]couchcore.WorkspaceIdentity
+	unresolved  map[string]couchtty.LifecycleObservation
+	diagnostics map[string]string
+	wake        chan struct{}
+	results     chan lifecycleAdmission
+	notice      func(string)
+}
+
+func startLifecyclePublisher(s *messageService, notice func(string)) *lifecyclePublisher {
+	p := &lifecyclePublisher{service: s, ready: map[uint64]couchcore.LifecycleNoticeEffect{}, attempts: map[uint64]lifecycleAttempt{}, roots: map[string]bool{}, identities: map[string]couchcore.WorkspaceIdentity{}, unresolved: map[string]couchtty.LifecycleObservation{}, diagnostics: map[string]string{}, wake: make(chan struct{}, 1), results: make(chan lifecycleAdmission, 128), notice: notice}
+	s.lifecycle.Store(p)
+	s.workers.Add(1)
+	go func() { defer s.workers.Done(); p.run(s.lifetime) }()
+	return p
+}
+func (p *lifecyclePublisher) signal() {
+	select {
+	case p.wake <- struct{}{}:
+	default:
+	}
+}
+func lifecycleBindingKey(b couchmessage.Binding) string {
+	raw, _ := json.Marshal(b)
+	return fmt.Sprintf("%x", sha256.Sum256(raw))
+}
+
+func (p *lifecyclePublisher) advanceLocked(e couchcore.LifecycleNoticeEvent) {
+	var effects []couchcore.LifecycleNoticeEffect
+	p.state, effects = couchcore.AdvanceLifecycleNotices(p.state, e)
+	for _, fx := range effects {
+		switch fx.Kind {
+		case couchcore.LifecycleNoticePublish:
+			p.ready[fx.Token] = fx
+		case couchcore.LifecycleNoticeDiagnostic:
+			p.diagnostics[fx.Hub] = fx.Body
+		case couchcore.LifecycleNoticeCancel:
+			_, unstarted := p.ready[fx.Token]
+			delete(p.ready, fx.Token)
+			if unstarted {
+				// This part never left memory: settle cancellation so the
+				// reducer can freeze against the replacement recipient.
+				p.advanceLocked(couchcore.LifecycleNoticeEvent{Kind: couchcore.LifecycleNoticeAdmission, Hub: fx.Hub, Token: fx.Token, Outcome: "unavailable"})
+			}
+			if a, ok := p.attempts[fx.Token]; ok && !a.admitted {
+				a.cancel()
+			}
+		}
+	}
+}
+
+// workspaceSnapshot copies verified cached identities only. It performs no
+// discovery, and may also be used at the drain boundary before freezing facts.
+func (p *lifecyclePublisher) workspaceSnapshot() map[string]couchcore.WorkspaceIdentity {
+	p.service.mu.Lock()
+	defer p.service.mu.Unlock()
+	identities := make(map[string]couchcore.WorkspaceIdentity, len(p.service.workspaces))
+	for _, id := range p.service.workspaces {
+		identities[id.WorktreeRoot] = id
+	}
+	return identities
+}
+func (p *lifecyclePublisher) cacheIdentitiesLocked(identities map[string]couchcore.WorkspaceIdentity) {
+	for path, id := range identities {
+		if len(p.identities) < 128 || p.identities[path].WorktreeRoot != "" {
+			p.identities[path] = id
+		}
+	}
+}
+func (p *lifecyclePublisher) observe(e couchtty.LifecycleObservation) {
+	var identities map[string]couchcore.WorkspaceIdentity
+	if e.Kind == "restart-drained" {
+		identities = p.workspaceSnapshot()
+	}
+	p.mu.Lock()
+	switch e.Kind {
+	case "restart-armed":
+		p.advanceLocked(couchcore.LifecycleNoticeEvent{Kind: couchcore.LifecycleNoticeArm})
+	case "restart-drained":
+		p.cacheIdentitiesLocked(identities)
+		p.reducePendingLocked()
+		// Missing cached metadata cannot establish slot ownership. Ordinary or
+		// unrouteable paths must not hold the completed reattach pass indefinitely.
+		if len(p.unresolved) > 0 {
+			p.diagnostics[""] = fmt.Sprintf("Couch lifecycle: %d observations lacked verified slot metadata at restart drain", len(p.unresolved))
+			clear(p.unresolved)
+		}
+		p.advanceLocked(couchcore.LifecycleNoticeEvent{Kind: couchcore.LifecycleNoticeDrain, Reason: fmt.Sprintf("restart reattachments complete; %d failed", e.Failures)})
+	default:
+		p.observeFactLocked(e)
+	}
+	p.mu.Unlock()
+	p.signal()
+}
+func (p *lifecyclePublisher) observeFactLocked(e couchtty.LifecycleObservation) {
+	if e.Path == "" || e.Path == p.service.authority.hub {
+		return
+	}
+	// A typed Console target already has the canonical slot location. Prefer it
+	// over a cache entry that may still describe the preceding incarnation.
+	id, ok := p.identities[e.Path]
+	if e.Target.Kind == couchcore.ThreadTargetSlot {
+		slot := e.Target.Slot
+		n := slot.Number
+		id = couchcore.WorkspaceIdentity{Repo: slot.Repo, PrimaryRoot: slot.PrimaryRoot, WorktreeRoot: slot.WorktreeRoot, Slot: &n}
+		ok = true
+	}
+	if !ok && e.Target.Kind == couchcore.ThreadTargetOrdinary {
+		return
+	}
+	if !ok {
+		previous, exists := p.unresolved[e.Path]
+		if len(e.Path) <= 4096 && (!exists || e.Observation > previous.Observation) && (len(p.unresolved) < 128 || exists) {
+			p.unresolved[e.Path] = e
+		}
+		return
+	}
+	hub := p.service.authority.owner(id)
+	if hub == "" || hub == id.WorktreeRoot {
+		return
+	}
+	slot := ""
+	if id.Address != nil {
+		slot = *id.Address
+	}
+	if slot == "" && id.Slot != nil {
+		slot = fmt.Sprintf("%s:%d", id.Repo, *id.Slot)
+	}
+	if slot == "" {
+		return
+	}
+	if e.Kind == "needs-relaunch" {
+		if live := p.service.liveness.Load(); live != nil {
+			if current, exists := (*live)[slot]; exists && e.Address != (couchcore.ThreadAddress{RepoScope: current.Binding.Scope, Tag: couchcore.ThreadTag(current.Binding.Tag)}) {
+				return
+			}
+		}
+	}
+	if !p.roots[hub] && len(p.roots) >= 128 {
+		p.diagnostics[""] = "Couch lifecycle: hub projection capacity reached; inspect Slots"
+		return
+	}
+	p.roots[hub] = true
+	p.advanceLocked(couchcore.LifecycleNoticeEvent{Kind: couchcore.LifecycleNoticeConfirmed, Fact: couchcore.LifecycleNoticeFact{
+		Hub: hub, Slot: slot, Address: e.Address, Incarnation: e.Incarnation, Observation: e.Observation, Kind: couchcore.LifecycleNoticeKind(e.Kind), Operation: e.Operation, Agent: e.Agent, Model: e.Model, Branch: e.Branch, Issue: e.Issue, Initiation: e.Initiation, Mode: e.Mode,
+	}})
+}
+func (p *lifecyclePublisher) reducePendingLocked() {
+	// Reduce the complete resolvable set while holding the collector lock. Drain
+	// must not race a batch removed from unresolved but not yet reduced.
+	for path, e := range p.unresolved {
+		if _, ok := p.identities[path]; ok {
+			delete(p.unresolved, path)
+			p.observeFactLocked(e)
+		}
+	}
+}
+
+// refresh reads only already verified registry/workspace snapshots; it never
+// discovers a slot or invokes a native/Git subprocess.
+func (p *lifecyclePublisher) refresh() {
+	identities := p.workspaceSnapshot()
+	p.mu.Lock()
+	p.cacheIdentitiesLocked(identities)
+	p.reducePendingLocked()
+	var roots []string
+	for root := range p.roots {
+		roots = append(roots, root)
+	}
+	p.mu.Unlock()
+	for _, root := range roots {
+		b, ok := p.service.hubBindingAt(root)
+		p.mu.Lock()
+		p.advanceLocked(couchcore.LifecycleNoticeEvent{Kind: couchcore.LifecycleNoticeHubReady, Hub: root, Ready: ok, Incarnation: lifecycleBindingKey(b)})
+		p.mu.Unlock()
+	}
+}
+
+func (p *lifecyclePublisher) run(ctx context.Context) {
+	var workers sync.WaitGroup
+	defer workers.Wait()
+	// This ticker observes bounded in-memory receipt state only. Registry
+	// changes and new facts also wake immediately; no extra discovery is polled.
+	tick := time.NewTicker(time.Second)
+	defer tick.Stop()
+	for {
+		p.refresh()
+		p.mu.Lock()
+		for token, a := range p.attempts {
+			if !a.admitted {
+				continue
+			}
+			r, known, delivering := p.service.broker.ReceiptSnapshot(a.id)
+			if known && r.Status.Terminal() && !delivering {
+				if !a.retired {
+					kind := couchcore.LifecycleNoticeReceipt
+					if r.Status == couchmessage.Refused {
+						kind = couchcore.LifecycleNoticeAdmission
+					}
+					p.advanceLocked(couchcore.LifecycleNoticeEvent{Kind: kind, Hub: a.hub, Token: token, Outcome: string(r.Status)})
+				}
+				a.cancel()
+				delete(p.attempts, token)
+			}
+		}
+		jobs := p.ready
+		p.ready = map[uint64]couchcore.LifecycleNoticeEffect{}
+		diagnostics := p.diagnostics
+		p.diagnostics = map[string]string{}
+		p.mu.Unlock()
+		for _, message := range diagnostics {
+			if p.notice != nil {
+				p.notice(message)
+			}
+		}
+		for token, fx := range jobs {
+			p.mu.Lock()
+			full := len(p.attempts) >= 128
+			if full {
+				p.advanceLocked(couchcore.LifecycleNoticeEvent{Kind: couchcore.LifecycleNoticeAdmission, Hub: fx.Hub, Token: token, Outcome: "capacity"})
+			}
+			p.mu.Unlock()
+			if full {
+				continue
+			}
+			b, connected := p.service.hubBindingAt(fx.Hub)
+			if !connected || lifecycleBindingKey(b) != fx.Incarnation {
+				p.mu.Lock()
+				p.advanceLocked(couchcore.LifecycleNoticeEvent{Kind: couchcore.LifecycleNoticeAdmission, Hub: fx.Hub, Token: token, Outcome: "unavailable"})
+				p.mu.Unlock()
+				continue
+			}
+			id, err := newRequestID()
+			if err != nil {
+				p.mu.Lock()
+				p.advanceLocked(couchcore.LifecycleNoticeEvent{Kind: couchcore.LifecycleNoticeAdmission, Hub: fx.Hub, Token: token, Outcome: "refused"})
+				p.mu.Unlock()
+				continue
+			}
+			admissionCtx, cancel := context.WithCancel(ctx)
+			p.mu.Lock()
+			p.attempts[token] = lifecycleAttempt{id: id, hub: fx.Hub, from: b, cancel: cancel}
+			p.mu.Unlock()
+			workers.Add(1)
+			go func(token uint64, body string, b couchmessage.Binding, id string) {
+				defer workers.Done()
+				r, err := p.service.broker.SendSystem(admissionCtx, b, id, couchmessage.Route{Target: b.Slot}, body)
+				select {
+				case p.results <- lifecycleAdmission{token: token, receipt: r, err: err}:
+				case <-ctx.Done():
+				}
+			}(token, fx.Body, b, id)
+		}
+		select {
+		case <-ctx.Done():
+			p.mu.Lock()
+			p.advanceLocked(couchcore.LifecycleNoticeEvent{Kind: couchcore.LifecycleNoticeShutdown})
+			for _, a := range p.attempts {
+				a.cancel()
+			}
+			p.mu.Unlock()
+			return
+		case result := <-p.results:
+			p.mu.Lock()
+			if a, ok := p.attempts[result.token]; ok {
+				outcome := "accepted"
+				if result.err != nil {
+					outcome = "refused"
+					if errors.Is(result.err, couchmessage.ErrUnsupported) {
+						outcome = "unsupported"
+					}
+					if errors.Is(result.err, couchmessage.ErrUnavailable) {
+						outcome = "unavailable"
+					}
+					if errors.Is(result.err, context.DeadlineExceeded) || errors.Is(result.err, context.Canceled) || errors.Is(result.err, couchmessage.ErrUncertain) {
+						outcome = "uncertain"
+					}
+					if outcome == "uncertain" {
+						// Retire uncertain input once, allowing genuinely newer
+						// projections. Keep this old ID for read-only polling;
+						// its eventual receipt cannot change the collector again.
+						if !a.retired {
+							p.advanceLocked(couchcore.LifecycleNoticeEvent{Kind: couchcore.LifecycleNoticeAdmission, Hub: a.hub, Token: result.token, Outcome: "uncertain"})
+						}
+						a.admitted = true
+						a.retired = true
+						p.attempts[result.token] = a
+						p.diagnostics[a.hub] = "Couch lifecycle admission uncertain; polling canonical receipt without retry"
+					} else {
+						a.cancel()
+						delete(p.attempts, result.token)
+					}
+				} else {
+					a.admitted = true
+					p.attempts[result.token] = a
+				}
+				if outcome != "uncertain" {
+					p.advanceLocked(couchcore.LifecycleNoticeEvent{Kind: couchcore.LifecycleNoticeAdmission, Hub: a.hub, Token: result.token, Outcome: outcome})
+				}
+			}
+			p.mu.Unlock()
+		case <-p.wake:
+		case <-tick.C:
+		}
+	}
+}

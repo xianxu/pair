@@ -781,6 +781,35 @@ table (`couchcmd/cost.go`, pair#490, from timings in that issue's Log).
 which panics on an untagged verb; the skill's "What each verb costs" section
 lists the same tiers, and `cost_test.go` keeps both equal to the table.
 
+### Lifecycle system notices (#574)
+
+`couchtty/console_lifecycle.go` observes final successful operation results after
+Console adoption, successful park results carrying `VerifiedPark`, and confirmed
+needs-relaunch inventory transitions. It emits no native-agent-exit fact from an
+attachment ending; #657 owns that missing evidence. Completion carries cached
+slot/branch metadata and known initiation. The existing `ReattachDone` transition
+closes a startup cohort; no debounce or additional native discovery is used.
+
+`couchcore/lifecycle_notice.go` owns the pure bounded collector and its publication
+transitions. It keeps at most 128 current facts, coalesces unsent changes, freezes
+immutable numbered parts within the existing body limit and retires each part
+from its receipt. `couchcmd/lifecycle_notices.go` routes through existing hub
+ownership and the message broker/#648 batching. Its callbacks only reduce bounded
+memory; owned admission workers and bounded receipt-memory checks stop/join with
+the service. Busy/absent hubs retain current facts; input uncertainty never permits
+replay. This is a Slots projection, not an audit log. `COUCH_LIFECYCLE_NOTICES`
+accepts `on` (default) or `off`; there is no additional ownership/mute store.
+
+`couchmessage.Message.Origin` is immutable: peer is omitted/zero, system is created
+only through internal server admission. External requests cannot carry origin.
+Envelopes, batch matching, deduplication and canonical receipts preserve it.
+Unknown system receipts returned only by a wrapper cannot be imported as server
+provenance after restart/eviction; retained promotion needs the matching original
+server-admitted queue head. Copied headings remain peer body text. No wrapper PID
+authentication or new terminal frame is introduced. The hub verifies the canonical
+receipt and updates Slots without replying; source-owned TL help is ariadne#433.
+Worker startup availability also uses the internal system producer.
+
 ### Unanswered-report rules (#530)
 
 `couchcmd/supervision_model.go` owns volatile report episodes and the per-lifetime
@@ -808,8 +837,8 @@ busy-recipient queue is unchanged. Attempts are marked before sending, so an
 uncertain result or reconnect cannot regenerate the prompt. Original reports
 are never replayed or retained across Couch restarts. The same tick reads terminal
 broker receipts, reports startup cancellation/expiry/uncertainty once, and drops
-the completed send metadata. There is no separate capped report history. Pending generated IDs
-keep both prompts and ordinary waiting notices out of session-file obligations; matching prose from a real agent
+the completed send metadata. There is no separate capped report history. Immutable system origin
+keeps generated notices out of session-file obligations; matching prose from a real agent
 is not exempt. All episode/attempt metadata dies with the supervisor; disconnected
 bindings lose their report episodes. The separate fact log below does not drive
 these rules. Parley's sole file-ping watcher is parley.nvim#321.

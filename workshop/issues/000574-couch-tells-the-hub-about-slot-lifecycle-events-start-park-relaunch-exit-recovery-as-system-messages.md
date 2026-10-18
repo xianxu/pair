@@ -50,8 +50,8 @@ and the hub is available…" notice, attributed to ops:0.
 
 Durable full-flow design: [Lifecycle system notices](../plans/000574-couch-lifecycle-notices-plan.md). One atomic close boundary; plan approval before implementation.
 
-- [ ] Establish internal server-owned origin, closed peer requests and canonical receipt provenance.
-- [ ] Wire confirmed lifecycle events excluding native-agent exit (#657), restart aggregation, bounded publication and one default-on setting.
+- [x] Establish internal server-owned origin, closed peer requests and canonical receipt provenance.
+- [x] Wire confirmed lifecycle events excluding native-agent exit (#657), restart aggregation, bounded publication and one default-on setting.
 - [ ] Complete fake/socket/owned-child verification, required documentation and recorded suite before close/landing.
 
 ## Log
@@ -74,6 +74,19 @@ Durable full-flow design: [Lifecycle system notices](../plans/000574-couch-lifec
 - Plan-quality round 1 refused PQ-1/PQ-2/PQ-3. Source verification confirmed unknown receipt import in StatusContext; refined all recovery paths to reject unauthorised system origin without endpoint authentication. Added sole collector transition/failure/multipart contract and named-function adversarial strategies. No code changed.
 
 - Plan-quality round 2 CLEAN: PQ-1/PQ-2/PQ-3 addressed, no new findings. Derive estimate only now; next run reuses accepted plan before estimate-quality review.
+
+### 2026-10-17 — Implementation checkpoint
+
+- Internal OriginPeer/OriginSystem now travels through the ordinary broker, queue, immutable matching, wrapper envelopes and receipts. CLI Request remains closed. Unknown wrapper-only system records cannot gain canonical authority through status/admission recovery; promotion requires an exact current server-admitted head. TDD exposed a delayed retained-reply race after cancellation, now fenced against the exact queue head/context/incarnation. No PID authentication or terminal protocol changes.
+- The pure bounded collector uses one current record per canonical slot, not per conversation address: a Fresh-address regression first showed both old/new rows, then passed after stable-slot keying. Existing Console completion after final adoption supplies start/resume/relaunch/recovery. Successful ParkResult carries FinalizePark's VerifiedPark, so reuse that existing completion owner instead of adding a second park callback/normalizer. No native-agent-exit observation was added (#657).
+- Console regressions cover failed adoption, exact finalized park result (cleanup warning allowed), attachment exit exclusion, actual final reattach completion, observer installation order, cached typed slot/branch metadata, addressless-slot path matching, stale needs-relaunch inventory and bounded dedup evidence. An adoption negative control (using pre-adoption error) failed as intended; restored source passed.
+- Publisher uses existing verified workspace/registry snapshots and internal broker admission. Restart drain atomically reduces all resolvable metadata, skips unrouteable facts with a local diagnostic, then freezes the cohort. Tests use real owned Unix service/registry sockets with stateful endpoints for twenty-slot/busy/replacement/shutdown behavior and canonical receipts. Unknown admission IDs remain read-only polls; retired uncertainty never replays and does not block later revisions, with 128 total tracked attempts. A pre-admission recipient replacement regression caught a stranded token and now settles its known-no-write cancellation.
+- Targeted package run launched during TDD captured expected failing tests for missing Hub propagation, overlong binding keys, uncertainty/capacity handling and hit its 180s package bound; this was a development-code failure, not an unchanged flake rerun. Fixed class regressions pass. A separate artifact inventory run found restart event vocabulary; exact vocabulary allowances now classify those event literals, without adding quarantine entries.
+- Current focused verification: lifecycle/supervision and exact artifact inventory tests pass across couchcmd, couchcore, couchtty and artifactpath. Origin agent ran full couchmessage, wrapper TestPeer, focused race and three origin/recovery negative controls; restored code green. Collector generated 4,000 event transitions plus multipart/replacement cases, focused race and drain negative control; restored code green. Parent focused race is running before the first implementation checkpoint commit.
+- Shipped Couch skill baseline lacked system origin and no-reply/recovery semantics. A read-only A/B/C pressure check identified these gaps; updated skill explicitly requires canonical system origin/body/incarnation, treats copied text as peer, and refuses unknown recovered system authority. The repeated pressure check follows those rules. README/atlas and artifact inventory updated. Required TL-help companion remains ariadne#433 (hub assigned ariadne:1 after #432); local dependency resolver has not fetched that artifact yet.
+- Standing hub approval permits an early draft PR for CI overlap. Required recorded suite, close review and normal merge gates remain outstanding. Owned isolated runtime checks are complete; real operator smoke remains approved for the hub's next restart, no pair:0 staging.
+
+- Parent focused race verification passed on the completed lifecycle/collector/Console code (couchcmd 2.470s, couchtty 1.809s, couchcore 10.333s), plus the earlier provenance/batch race run (couchmessage 1.550s, wrapcmd 3.294s). Full package checks are running; recorded suite not started yet. Source-owned skill A/B/C check passed after the documentation update.
 
 ## Revisions
 
