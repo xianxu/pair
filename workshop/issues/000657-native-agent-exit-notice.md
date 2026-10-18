@@ -44,7 +44,7 @@ Durable plan: `workshop/plans/000657-native-agent-exit-notice-plan.md` (a single
 - [x] Couch handler, with stateful negative cases
 - [x] wrapper report after Wait (self-exit only) plus compatibility
 - [x] owned-child conformance test
-- [ ] atlas, guards, suite, close
+- [x] atlas, guards, suite, close
 
 ## Log
 
