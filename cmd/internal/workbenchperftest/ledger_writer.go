@@ -32,7 +32,7 @@ func (w *ledgerWriter) write(path, records string) error {
 		return w.stream(path, records, w.size)
 	}
 	if w.template == "" {
-		seed := filepath.Join(w.directory, "ledger-padding")
+		seed := filepath.Join(w.directory, "padding-seed")
 		if err := w.stream(seed, "", w.size); err != nil {
 			return err
 		}
