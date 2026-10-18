@@ -40,6 +40,41 @@ rounds:
       recipe: small-diff-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: c4d2f279-28d6-4f52-ae92-8d6fb1f9de1a
+            repository: github.com/xianxu/pair
+            issue_id: "000636"
+            recipe: small-diff-review
+            round: 2
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/Library/Caches/sdlc/review-checkouts/8b67ddf6bac0d95a
+            reviewed_head: 823bafe3b328613b8016edd9baebe32be5b23a38
+            slot: pair:6
+            requested_at: "2026-10-18T16:18:59.092567Z"
+          phase: finished
+          pid: 12027
+          started_at: "2026-10-18T16:18:59.275562Z"
+          finished_at: "2026-10-18T16:22:11.024289Z"
+          session_id: 01a14fcf-2c46-7623-9d57-a65ce8e2dbde
+          outcome: returned
+      "n": 2
+      timestamp: "2026-10-18T09:22:12-07:00"
+      dispatched: "2026-10-18T09:18:55-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: zellij.go:199–217 supplies actual caller and effective deadlines; recovery_query_capture_test.go:266–277 consumes them for warm/checkpoint and both park modes. TestRecoveryQueryCaptureUsesQueryChildDeadline passes at head and fails under a temporary overlay restoring installation-context capture, reporting the one-minute parent instead of the four-second child. Adapter tests also cover absent, shorter and longer caller deadlines.
+          round: 2
+      recipe: small-diff-review
+      isolation: fenced
+      reviewed: 823bafe3b328613b8016edd9baebe32be5b23a38
+      blocked: false
 ---
 
 # Gate ledger — pair#636 (boundary-review)
@@ -54,6 +89,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-1** [Important] `observation-context-fidelity` (kind: defect) Query capture records the installation deadline instead of the query deadline
   cmd/internal/couchcore/recovery_query_capture_test.go:234 closes over the context supplied to Context; lines 250–251 then report that context's deadline for every query. Recovery creates shorter observation contexts (recovery_execute.go:105,133), and the native adapter also bounds queries to five seconds. The affected consumers are warm/checkpoint recovery (recovery_conformance_live_test.go:70), normal park (park_lifecycle_live_test.go:227), and intent-only park (:249), whose later 750ms context is likewise invisible to this closure. This violates plan task 3's call-context measurement contract and ARCH-PURPOSE. Carry the actual query caller/effective deadline in the observer event and consume that value. Add a regression installing capture on a longer-lived parent, querying through a shorter-lived child, and asserting the recorded deadline; it must fail with the current closure.
 
+## Round 2 — 2026-10-18T09:22:12-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — zellij.go:199–217 supplies actual caller and effective deadlines; recovery_query_capture_test.go:266–277 consumes them for warm/checkpoint and both park modes. TestRecoveryQueryCaptureUsesQueryChildDeadline passes at head and fails under a temporary overlay restoring installation-context capture, reporting the one-minute parent instead of the four-second child. Adapter tests also cover absent, shorter and longer caller deadlines.
+
 ## Open findings
 
-- **BR-1** [Important] `observation-context-fidelity` (kind: defect) Query capture records the installation deadline instead of the query deadline
+(none — every finding has been disposed)

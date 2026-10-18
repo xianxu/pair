@@ -67,3 +67,71 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-18T09:22:11-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 636 — Warm recovery live conformance intermittently receives no Zellij query reply |
+| repo | pair |
+| issue file | workshop/issues/000636-warm-recovery-query-no-reply.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 861e4f1de857889c0d55d716b026828f88338f58..823bafe3b328613b8016edd9baebe32be5b23a38 |
+| command | sdlc close --issue 636 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-18T09:22:11-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned range delivers the approved diagnostic and isolation scope. BR-1 is fixed with a regression that detects the original error. No new findings block shipping.
+
+Done-when: current — it covers diagnostic capture, fixture isolation and refusal behavior, while explicitly deferring native cause qualification.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      zellij.go:199–217 supplies actual caller and effective deadlines; recovery_query_capture_test.go:266–277 consumes them for warm/checkpoint and both park modes. TestRecoveryQueryCaptureUsesQueryChildDeadline passes at head and fails under a temporary overlay restoring installation-context capture, reporting the one-minute parent instead of the four-second child. Adapter tests also cover absent, shorter and longer caller deadlines.
+```
+
+1. **Strengths**
+   - Twelve reply-fault cases exercise production recovery and verify unchanged durable state, no effects and no retry.
+   - Private roots survive direct and nested child environments; tests cover poisoned ambient values, restoration, cleanup and socket capacity.
+   - Capture owns bounded response copies, flushes after cleanup and retains the original failed query without adding another query.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage:** Focused recovery, isolation, capture and observer tests passed normally and with race detection. Complete launcher, zellijreply, zellijtest, testpair and pairlifecycletest packages passed. Additional recovery decision/refusal/deadline checks and diff whitespace checks passed. The mutation overlay was removed; tracked files remain unchanged. Native qualification and the full recorded suite were not rerun during this review.
+
+6. **Architecture:** ARCH-DRY passes through reuse of the shared fake, environment boundary and observer. ARCH-PURE passes: integration measurement stays at the boundary, with existing pure recovery decisions unchanged. ARCH-PURPOSE passes against the explicitly revised delivery; deadline fidelity now applies across all capture consumers. Atlas covers the new surface; no README-facing interface was introduced.
+
+7. **Plan revision recommendations:** None required; the existing revisions document the scope and BR-1 correction.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"c4d2f279-28d6-4f52-ae92-8d6fb1f9de1a","repository":"github.com/xianxu/pair","issue_id":"000636","recipe":"small-diff-review","round":2,"attempt":1,"agent":"codex","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/8b67ddf6bac0d95a","reviewed_head":"823bafe3b328613b8016edd9baebe32be5b23a38","slot":"pair:6","requested_at":"2026-10-18T16:18:59.092567Z"},"phase":"finished","pid":12027,"started_at":"2026-10-18T16:18:59.275562Z","finished_at":"2026-10-18T16:22:11.024289Z","session_id":"01a14fcf-2c46-7623-9d57-a65ce8e2dbde","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.501091667s
+head: "823bafe3b328613b8016edd9baebe32be5b23a38"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
