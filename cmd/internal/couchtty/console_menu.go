@@ -142,6 +142,10 @@ func (c *Console) finishMenuRefresh(result menuRefreshResult) {
 	}
 	cancelPass := c.completedReattachPassLocked()
 	c.mu.Unlock()
+	if result.err == nil {
+		c.observeLifecycleInventory(result.inventory)
+	}
+	c.observeLifecyclePass()
 	landed := "rows=" + strconv.Itoa(len(result.inventory))
 	if cancelPass != nil {
 		cancelPass()

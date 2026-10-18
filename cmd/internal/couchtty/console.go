@@ -128,7 +128,11 @@ type Console struct {
 	// and the asynchronous operation-completion channel. Marks are counted per
 	// owner (pair#205), so an operation that undoes its own mark never removes
 	// one that another operation set on the same pane.
-	expectedExits exitMarks
+	expectedExits     exitMarks
+	lifecycleObserver func(LifecycleObservation)
+	lifecycleSequence uint64
+	lifecyclePassDone bool
+	lifecycleNeeds    map[string]bool
 
 	// Run orders product input, output notifications, and focus transitions.
 	// Presenter alone owns the host writer.
@@ -1988,6 +1992,7 @@ func (c *Console) finishOperation(completed operationCompletion) bool {
 			}
 		}
 	}
+	c.observeLifecycleCompletion(completed, address, err)
 	event := MenuEvent{
 		Kind: MenuEventOperationResult, Operation: completed.origin.Operation,
 		Attempt: completed.origin.Attempt, Address: address, Success: err == nil,
@@ -2054,6 +2059,7 @@ func (c *Console) finishOperation(completed operationCompletion) bool {
 	panelFocused := c.focus.IsPanel()
 	cancelPass := c.completedReattachPassLocked()
 	c.mu.Unlock()
+	c.observeLifecyclePass()
 	// A completion can start the reattach pass's next attempt (pair#206).
 	if cancelPass != nil {
 		cancelPass()
