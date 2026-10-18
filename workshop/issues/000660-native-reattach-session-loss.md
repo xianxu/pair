@@ -1,13 +1,13 @@
 ---
 id: 000660
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-18
 updated: 2026-10-18
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: 'a1fb3b8cdcae2d92f6f7c81eab5cb1f92e5817a9' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '3f196f40e9fcb3dae95e03da4625d4d70be2201c' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-18T06:05:07-07:00
 claimant:
     operator: Xian Xu
@@ -17,6 +17,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
 flow: {kind: quick, provenance: inferred, spec: "9ae9c647", done: "9a5fe6cc"}
+actual_hours: 0.86
 ---
 
 # Native direct Zellij session disappears after detach
