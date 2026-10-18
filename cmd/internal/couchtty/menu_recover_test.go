@@ -18,7 +18,9 @@ func TestRecoverIsOfferedExactlyWhereActorActionsOffersAnything(t *testing.T) {
 		// A live row's lifecycle actions come from the switcher; only the
 		// live orphan, whose lifecycle actions all refuse, is offered recover.
 		live := shape.row.State == couchcore.ThreadLive && shape.row.Orphan == nil
-		want := !live && len(actor) > 0
+		// Open parks offer their own confirmed action, never the generic
+		// unconfirmed recovery composition.
+		want := !shape.row.HasOpenPark && !live && len(actor) > 0
 		has := len(items) > 0 && items[0] == "recover"
 		if has != want {
 			t.Errorf("%s: items %v, actor actions %v", shape.name, items, actor)

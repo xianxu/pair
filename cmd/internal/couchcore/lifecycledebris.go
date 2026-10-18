@@ -1,6 +1,9 @@
 package couchcore
 
-import "errors"
+import (
+	"errors"
+	"fmt"
+)
 
 // ErrThreadRolledBack reports that clearing the debris removed the record
 // itself, because the only thing it carried was a start that never completed.
@@ -74,7 +77,7 @@ func (c *Couch) clearLifecycleDebris(thread ThreadRecord) (*ThreadRecord, error)
 	if thread.Park != nil {
 		abandoned, err := c.Threads.AbandonPark(thread.Address, thread.Revision, thread.Park.Identity)
 		if err != nil {
-			return nil, refuseResume(ResumeParking, "orphaned park could not be abandoned: "+err.Error())
+			return nil, c.withParkRecoveryAdvice(nil, thread, fmt.Errorf("%w: %w", refuseResume(ResumeParking, "orphaned park could not be abandoned"), err))
 		}
 		thread = abandoned
 	}
@@ -117,7 +120,8 @@ type lifecycleDebris struct {
 	rollback    string
 }
 
-func (c *Couch) inspectLifecycleDebris(thread ThreadRecord) (lifecycleDebris, error) {
+func (c *Couch) inspectLifecycleDebris(thread ThreadRecord) (plan lifecycleDebris, retErr error) {
+	defer func() { retErr = c.withParkRecoveryAdvice(nil, thread, retErr) }()
 	// ---- screen ----
 	var incarnation *ThreadIncarnation
 	// Two values, not one: whether to roll the claim back, and which nonce to

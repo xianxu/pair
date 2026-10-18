@@ -525,6 +525,9 @@ couch --set-model repo:N --model MODEL [--effort LEVEL] [--scope session|default
 couch --operation-status ID [--json]   inspect an asynchronous operation receipt
 couch --reap repo:N --confirm [--json]     from a live slot: end an orphaned server's tree
 couch --recover repo:N [--json]               from a live slot: run the report's steps for it
+couch --recover-park repo:N --confirm [--json]
+                         authenticated owning hub: resolve an interrupted park without launching an agent;
+                         retain the conversation and follow the reported Continue, Resume from disk or Start fresh action
 couch --relaunch repo:N --confirm [--same-binary] [--force-unknown] [--json]
                          from a live slot: restart an idle slot on the current binary, same conversation (Alt+n);
                          refuses busy, dirty or an unchanged binary, naming the fix (under couch-dev too:
@@ -2166,7 +2169,8 @@ profile is `pair-vt-256color` (`terminfo/`). Run the fork's tests from that modu
 as well as the root tests. The runtime build compiles `terminfo/pair-vt-256color.ti` with `tic`; copied binaries include that profile and need no runtime compiler. `sh tests/terminal-oracle/run.sh` installs the locked
 test-only xterm-headless dependency and checks actual renderer output against an
 independent terminal implementation. See [terminal ownership](atlas/terminal.md)
-for the current migration boundary.
+for the current migration boundary. For headless diagnostic controls, exact-request
+replay and Node report limits, see the [oracle guide](tests/terminal-oracle/README.md).
 
 The default Go suite includes short production-path soak tests for Couch and Pair
 term. A scheduled or pre-release sustained run can use disposable synthetic PTY
@@ -2219,7 +2223,12 @@ required tests. It needs Go, Python, Node with the pinned `tests/terminal-oracle
 dependencies, nvim and Zellij. The macOS `couch-zellij-conformance` workflow
 installs the dependencies, pins Zellij 0.45.1, and invokes the target on relevant
 pull requests, main changes, scheduled runs and manual dispatch. Scratch state
-is invocation-owned; native checks do not attach operator sessions.
+is invocation-owned; native checks do not attach operator sessions. Failed oracle
+requests, phase markers and available Node reports are published in the CI job
+log before scratch cleanup. For manual Go runs, add `-artifacts -outputdir
+<owned-dir>` to retain the complete oracle files; successful calls remove theirs.
+The [oracle guide](tests/terminal-oracle/README.md) covers replay, headless controls
+and report limitations; a diagnostic pass does not establish a crash fix.
 
 `tests/terminal-performance.py --help` describes isolated baseline/candidate
 measurements using real Pair terminal processes and independent screen receipts.

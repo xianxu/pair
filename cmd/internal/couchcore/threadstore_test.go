@@ -1,6 +1,7 @@
 package couchcore
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"os"
@@ -529,24 +530,24 @@ func TestThreadStoreParkLifecycleUsesRevisionCASAndFinalizesExactIncarnation(t *
 		t.Fatal("captured profile aliases incarnation profile")
 	}
 
-	awaiting, err := store.AdvancePark(begun.Address, begun.Revision, ParkEvent{
+	awaiting, err := store.AdvancePark(context.Background(), begun.Address, begun.Revision, ParkEvent{
 		Kind: ParkRequestCommitted, Identity: identity, Attempt: 1,
 	})
 	if err != nil || awaiting.Park.Phase != ParkAwaitingCompletion || awaiting.Park.RecordRevision != awaiting.Revision {
 		t.Fatalf("AdvancePark(request): %+v, %v", awaiting, err)
 	}
-	timedOut, err := store.AdvancePark(awaiting.Address, awaiting.Revision, ParkEvent{
+	timedOut, err := store.AdvancePark(context.Background(), awaiting.Address, awaiting.Revision, ParkEvent{
 		Kind: ParkFailureObserved, Identity: identity, Attempt: 1,
 		Failure: &ParkFailure{Code: "timeout", Diagnostic: "cleanup deadline"},
 	})
 	if err != nil || !timedOut.Park.Attempts[0].TimedOut {
 		t.Fatalf("AdvancePark(timeout): %+v, %v", timedOut, err)
 	}
-	second, err := store.AppendParkAttempt(timedOut.Address, timedOut.Revision, identity)
+	second, err := store.AppendParkAttempt(context.Background(), timedOut.Address, timedOut.Revision, identity)
 	if err != nil || len(second.Park.Attempts) != 2 || second.Park.Attempts[1].Number != 2 {
 		t.Fatalf("AppendParkAttempt: %+v, %v", second, err)
 	}
-	second, err = store.AdvancePark(second.Address, second.Revision, ParkEvent{
+	second, err = store.AdvancePark(context.Background(), second.Address, second.Revision, ParkEvent{
 		Kind: ParkRequestCommitted, Identity: identity, Attempt: 2,
 	})
 	if err != nil {
@@ -554,7 +555,7 @@ func TestThreadStoreParkLifecycleUsesRevisionCASAndFinalizesExactIncarnation(t *
 	}
 
 	parkedAt := time.Unix(40, 0).UTC()
-	finalized, err := store.FinalizePark(second.Address, second.Revision, identity, 1, parkedAt)
+	finalized, err := store.FinalizePark(context.Background(), second.Address, second.Revision, identity, 1, parkedAt)
 	if err != nil {
 		t.Fatalf("FinalizePark: %v", err)
 	}
@@ -609,7 +610,7 @@ func TestThreadStoreParkConflictsAndAbandonNeverReleaseOccupancy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.FinalizePark(begun.Address, begun.Revision, identity, 1, time.Unix(60, 0).UTC()); err == nil {
+	if _, err := store.FinalizePark(context.Background(), begun.Address, begun.Revision, identity, 1, time.Unix(60, 0).UTC()); err == nil {
 		t.Fatal("stale FinalizePark succeeded")
 	}
 	kept, _ = store.GetThread(begun.Address)
@@ -625,7 +626,7 @@ func TestThreadStoreParkConflictsAndAbandonNeverReleaseOccupancy(t *testing.T) {
 		len(abandoned.ParkHistory) != 1 || !abandoned.ParkHistory[0].Closed || !abandoned.ParkHistory[0].Tombstoned {
 		t.Fatalf("abandoned = %+v", abandoned)
 	}
-	if _, err := store.FinalizePark(abandoned.Address, abandoned.Revision, identity, 1, time.Unix(61, 0).UTC()); err == nil {
+	if _, err := store.FinalizePark(context.Background(), abandoned.Address, abandoned.Revision, identity, 1, time.Unix(61, 0).UTC()); err == nil {
 		t.Fatal("tombstoned transaction finalized")
 	}
 	after, _ := store.GetThread(abandoned.Address)

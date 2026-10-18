@@ -91,6 +91,7 @@ func TestTheContinuationGuardsReachMatchesEveryRowAction(t *testing.T) {
 		"prepare-switch-agent": {args: map[string]string{"agent": "codex"}}, // SwitchAgent re-runs this preview (switchagent.go)
 		"park":                 {args: map[string]string{}},
 		"detach":               {args: map[string]string{}},
+		"recover-park":         {args: map[string]string{}}, // settled recovery is a no-op; never starts a replacement
 	}
 	rowActionDrivenAs := map[string]string{"switch-agent": "prepare-switch-agent"}
 	exempt := map[string]string{

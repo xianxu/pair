@@ -662,6 +662,7 @@ var SourceClassifications = []SourceClassification{
 // pair:m5-concept pure
 var NonArtifactSources = []string{
 	"internal/testbinary/cache.go",
+	"internal/testoracle/run.go",
 	// #649 wiring, contextual runtime delegation, and the pure title reducer
 	// introduce no artifact constructors or filename vocabulary.
 	"cmd/internal/couchcmd/titles_wiring.go",
@@ -1283,6 +1284,11 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcore/naming.go",
 	"cmd/internal/couchcore/parktransaction.go",
 	"cmd/internal/couchcore/parkworker.go",
+	// #651 routes existing thread/lifecycle authorities; it constructs no
+	// artifact filenames or new artifact family.
+	"cmd/internal/couchcore/park_recovery.go",
+	"cmd/internal/couchcore/park_recovery_advice.go",
+	"cmd/internal/couchcore/park_recovery_store.go",
 	"cmd/internal/couchcore/path.go",
 	"cmd/internal/couchcore/pathops.go",
 	"cmd/internal/couchcore/relaunch.go",

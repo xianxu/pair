@@ -31,7 +31,7 @@ type menuRowShape struct {
 // kinds {:0, :1} x AllThreadStates() (minus archived) x AllThreadReasons() ∪ ""
 // (only the combinations the projection produces: a reason exactly when
 // unusable) x AllPhases() ∪ none, plus Recovery.Recover on unusable :0 rows,
-// plus an orphaned server on every live row (the live orphan, #399; an
+// x open-park presence, plus an orphaned server on every live row (the live orphan, #399; an
 // orphaned-server row always carries one). A new state, reason or phase lands
 // here without anyone listing it.
 func everyMenuRowShape(t *testing.T) []menuRowShape {
@@ -99,11 +99,22 @@ func everyMenuRowShape(t *testing.T) []menuRowShape {
 			}
 		}
 	}
+	// Park authority is independent of the projected state/continuation phase.
+	// Sweep both values over the same domain rather than adding one example.
+	for _, shape := range shapes {
+		shape.name += "/open-park"
+		shape.row.HasOpenPark = true
+		shape.row.ParkNonce = "sweep-park"
+		shapes = append(shapes, shape)
+	}
 	return shapes
 }
 
 // expectedRowActions is the Spec table, written out as its own statement.
 func expectedRowActions(s menuRowShape) []string {
+	if s.row.HasOpenPark {
+		return []string{"recover-park"}
+	}
 	unfinished := s.phase != "" && s.phase != checkpoint.Complete
 	switch s.state {
 	case couchcore.ThreadBusy:
@@ -212,6 +223,12 @@ func TestEnterUsesContinuityOutcome(t *testing.T) {
 	for _, s := range everyMenuRowShape(t) {
 		state := NewMenuState([]couchcore.ActionableThreadSummary{s.row}, s.row.Address)
 		next, effects := reduceKey(state, PanelKey{Kind: KeyEnter})
+		if s.row.HasOpenPark && enterOperationFor(s.row) == "" {
+			if len(effects) != 0 || !strings.Contains(next.Notice.Text, "Tab → Recover park") {
+				t.Errorf("%s: unfinished park must name confirmed recovery: %+v %q", s.name, effects, next.Notice.Text)
+			}
+			continue
+		}
 		switch couchcore.ContinuityOutcome(s.row) {
 		case couchcore.Continue:
 			want := "resume"
@@ -470,7 +487,7 @@ func TestRowAdviceNamesOnlyReachableActions(t *testing.T) {
 			vocabulary[action] = true
 		}
 		switch {
-		case s.slot || s.phase != "":
+		case s.slot || s.phase != "" || s.row.HasOpenPark:
 		case s.state == couchcore.ThreadLive, s.state == couchcore.ThreadParked, s.state == couchcore.ThreadDetached:
 			primaryOffers[s.state] = offered
 		}
@@ -488,7 +505,16 @@ func TestRowAdviceNamesOnlyReachableActions(t *testing.T) {
 	}
 	names := func(text, action string) bool {
 		for _, word := range []string{action, menuItemLabel(action)} {
-			if regexp.MustCompile(`(^|[^\pL\pN-])` + regexp.QuoteMeta(word) + `($|[^\pL\pN-])`).MatchString(text) {
+			candidate := text
+			// Labels can contain another action's name: "Recover park"
+			// names that complete action, not separate recover/park actions.
+			for other := range vocabulary {
+				label := menuItemLabel(other)
+				if other != action && len(label) > len(word) && strings.Contains(label, word) {
+					candidate = strings.ReplaceAll(candidate, label, "")
+				}
+			}
+			if regexp.MustCompile(`(^|[^\pL\pN-])` + regexp.QuoteMeta(word) + `($|[^\pL\pN-])`).MatchString(candidate) {
 				return true
 			}
 		}

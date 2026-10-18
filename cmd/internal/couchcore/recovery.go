@@ -31,7 +31,7 @@ func DecideRecovery(in RecoveryEvidence) RecoveryDecision {
 		d.CheckpointPath, d.CheckpointDigest = r.Checkpoint.SourcePath, r.Checkpoint.Digest
 	}
 	if in.Thread.Park != nil {
-		d.Diagnosis = "a park transaction is still open; let lifecycle recovery finish"
+		d.Diagnosis = "a park transaction is unfinished"
 		return d
 	}
 	if len(in.Thread.Incarnations) > 1 {

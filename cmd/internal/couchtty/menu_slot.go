@@ -71,7 +71,7 @@ func dispatchMenuRow(state MenuState, operation string, row couchcore.Actionable
 // actorOperation names the operations whose arguments come from
 // couchcore.ActorOperationArgs.
 func actorOperation(operation string) bool {
-	return operation == "resume" || operation == "reboot" || operation == "reap" || operation == "recover"
+	return operation == couchcore.OpRecoverPark || operation == "resume" || operation == "reboot" || operation == "reap" || operation == "recover"
 }
 
 // menuOperationReplacesAddress names an in-flight operation whose success may

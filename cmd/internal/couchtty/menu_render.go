@@ -469,6 +469,9 @@ func threadStateText(thread couchcore.ActionableThreadSummary, now time.Time) st
 	if thread.State == couchcore.ThreadArchived {
 		return "archived"
 	}
+	if thread.HasOpenPark {
+		return menuRowAdviceOf(menuRowFactsOf(thread)).Notice.Text
+	}
 	switch couchcore.ContinuityOutcome(thread) {
 	case couchcore.Continue:
 		if thread.State == couchcore.ThreadDetached && hasRecordedActivity(thread.LastActiveAt) {

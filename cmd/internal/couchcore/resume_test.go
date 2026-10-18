@@ -22,7 +22,7 @@ func verifiedResumeThread(t *testing.T) ThreadRecord {
 	if err != nil {
 		t.Fatal(err)
 	}
-	parked, err := store.FinalizePark(thread.Address, begun.Revision, identity, 1, time.Unix(600, 0).UTC())
+	parked, err := store.FinalizePark(context.Background(), thread.Address, begun.Revision, identity, 1, time.Unix(600, 0).UTC())
 	if err != nil {
 		t.Fatal(err)
 	}

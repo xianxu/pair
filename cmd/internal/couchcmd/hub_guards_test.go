@@ -71,10 +71,13 @@ func TestHubSwitchMutationAdmissionAndQueuedMove(t *testing.T) {
 }
 
 func TestHubSlotMutationGuardsEveryOperationAndQueuedMove(t *testing.T) {
-	for _, op := range []string{"resume", "reboot", "reap", "relaunch", "reload-context", "prepare"} {
+	for _, op := range []string{"resume", "reboot", "reap", "relaunch", "reload-context", "prepare", "recover-park"} {
 		t.Run(op, func(t *testing.T) {
 			r, runner, _ := slotRig(t)
 			caller := r.world.add(3)
+			if op == "recover-park" {
+				caller = r.connect(3)
+			}
 			r.world.set(caller, func(s *worldSlot) { n := 3; s.workspace.PrimaryRoot = "/repo"; s.workspace.Slot = &n })
 			r.s.authority.hubs = guardHubState(t)
 			r.s.authority.hubTarget = func(context.Context, string) (couchcore.HubSlot, error) {

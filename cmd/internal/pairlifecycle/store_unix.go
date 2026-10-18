@@ -3,8 +3,11 @@
 package pairlifecycle
 
 import (
+	"context"
 	"errors"
+	"github.com/xianxu/pair/cmd/internal/osfs"
 	"os"
+	"time"
 
 	"golang.org/x/sys/unix"
 )
@@ -50,4 +53,48 @@ func (l *osLock) Close() error {
 	file := l.file
 	l.file = nil
 	return errors.Join(unix.Flock(int(file.Fd()), unix.LOCK_UN), file.Close())
+}
+
+// LockContext never enters the kernel's unbounded flock wait. The stable inode
+// and exclusive-lock protocol are identical to Lock; cancellation only stops
+// admission and never removes or replaces that inode.
+func (OSRuntime) LockContext(ctx context.Context, path string) (Unlocker, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0600)
+	if err != nil {
+		return nil, err
+	}
+	unix.CloseOnExec(int(file.Fd()))
+	for {
+		if err := ctx.Err(); err != nil {
+			_ = file.Close()
+			return nil, err
+		}
+		err := unix.Flock(int(file.Fd()), unix.LOCK_EX|unix.LOCK_NB)
+		if err == nil {
+			lock := &osLock{file: file}
+			if err := ctx.Err(); err != nil {
+				_ = lock.Close()
+				return nil, err
+			}
+			return lock, nil
+		}
+		if !errors.Is(err, unix.EWOULDBLOCK) && !errors.Is(err, unix.EAGAIN) && !errors.Is(err, unix.EINTR) {
+			_ = file.Close()
+			return nil, err
+		}
+		timer := time.NewTimer(10 * time.Millisecond)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			_ = file.Close()
+			return nil, ctx.Err()
+		case <-timer.C:
+		}
+	}
+}
+func (OSRuntime) ReadFileContext(ctx context.Context, path string) ([]byte, error) {
+	return osfs.ReadRegularMetadata(ctx, path, 1<<20)
 }

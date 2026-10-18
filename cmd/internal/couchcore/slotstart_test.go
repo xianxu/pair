@@ -587,7 +587,7 @@ func TestManagedCreateReusesHoleWithParkedSiblingNotice(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := local.FinalizePark(old.Record.Address, begun.Revision, identity, 1, env.Now); err != nil {
+	if _, err := local.FinalizePark(context.Background(), old.Record.Address, begun.Revision, identity, 1, env.Now); err != nil {
 		t.Fatal(err)
 	}
 	// A completed park ends both the helper and the ready terminal.

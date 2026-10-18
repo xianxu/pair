@@ -227,6 +227,15 @@ this alongside existing lifecycle conformance, installing the pinned native and
 independent-oracle dependencies. Terminal, backend, consumer, runtime and oracle
 source paths trigger it. Temporary state is removed after the invocation.
 
+Snapshot-oracle calls share `internal/testoracle.Run`, which keeps stdout JSON
+separate from synchronous stderr phase/runtime markers and enables Node reports.
+A failing process or subsequent frame assertion preserves its full request and
+streams in Go's artifact directory. Native CI uses `-artifacts -outputdir` and
+publishes the failed bundle into its retained job log before removing scratch;
+successful calls remove their evidence. A raw SIGSEGV may produce no Node report,
+so the last phase and exact request remain essential. Replay and report limits
+are mapped in `tests/terminal-oracle/README.md` (#668).
+
 The direct/wrapped persistent-reattach fixture records detach and client exits,
 owned actor liveness, socket metadata and bounded wire/server-log tails before
 failure cleanup. Actor exit receipts retain the original signal/exception outcome.

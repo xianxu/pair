@@ -92,6 +92,7 @@ type MenuFrame struct {
 	SelectedAddress couchcore.ThreadAddress
 	SelectedItem    string
 	Thread          couchcore.ThreadAddress
+	ParkNonce       string
 	Action          string
 	// Mode qualifies Action for a confirmation whose verb is not enough on its
 	// own: a `leave` frame has to remember whether the operator asked to detach
@@ -924,7 +925,7 @@ func reduceActionKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
 			}
 			if confirms {
 				appendMenuFrame(&state, MenuFrame{
-					Kind: MenuFrameConfirmation, RowKey: menuRowKey(thread), Thread: thread.Address, Action: frame.SelectedItem, SelectedItem: "cancel",
+					Kind: MenuFrameConfirmation, RowKey: menuRowKey(thread), Thread: thread.Address, Action: frame.SelectedItem, ParkNonce: thread.ParkNonce, SelectedItem: "cancel",
 				})
 				return state, nil
 			}
@@ -999,6 +1000,9 @@ func reduceConfirmationKey(state MenuState, key PanelKey) (MenuState, []MenuEffe
 		}
 		if frame.Action == "leave" {
 			return dispatchMenuOperation(state, leaveEffect(couchcore.LeaveDisposition(frame.Mode)), couchcore.ThreadAddress{})
+		}
+		if frame.Action == couchcore.OpRecoverPark && (thread.Address != frame.Thread || thread.ParkNonce != frame.ParkNonce) {
+			return discardThreadFrames(state, frame.Thread, "park transaction changed; inspect the current thread before recovering"), nil
 		}
 		return dispatchMenuRow(state, frame.Action, thread)
 	}
@@ -1494,6 +1498,9 @@ func filterMenuItems(items []string, query string) []string {
 }
 
 func menuItemLabel(item string) string {
+	if item == couchcore.OpRecoverPark || strings.HasPrefix(item, couchcore.OpRecoverPark+" ") {
+		return "Recover park" + strings.TrimPrefix(item, couchcore.OpRecoverPark)
+	}
 	if item == "resume" {
 		return "Resume from disk"
 	}
@@ -1853,7 +1860,7 @@ func reduceOperationResult(state MenuState, event MenuEvent) MenuState {
 // child a recover's resume starts is excluded by handle at completion.
 func endsItsOwnChild(operation string) bool {
 	switch operation {
-	case "park", "detach", "relaunch", "switch-agent", "continue-thread", "reap", "recover", "recovery-confirmation":
+	case couchcore.OpRecoverPark, "park", "detach", "relaunch", "switch-agent", "continue-thread", "reap", "recover", "recovery-confirmation":
 		return true
 	}
 	return false
@@ -2005,6 +2012,8 @@ func menuOperationProgressText(state MenuState, operation string, address couchc
 		return "rebooting " + label
 	case "reap":
 		return "reaping " + label + "'s orphaned server…"
+	case couchcore.OpRecoverPark:
+		return "recovering park for " + label + "…"
 	case "recover":
 		return "recovering " + label + "…"
 	default:
