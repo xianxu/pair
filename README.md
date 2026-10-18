@@ -874,6 +874,33 @@ larger than the cap goes alone, and the remaining messages wait in FIFO order.
 Codex, Qoder and non-hub receivers keep singleton delivery, as do older wrappers
 that explicitly refuse the batch protocol.
 
+Couch also sends its configured hub system notices for confirmed slot starts,
+resumes, parks, relaunches, recovery and needs-relaunch transitions. Restart
+reattachments form one summary after the existing pass drains; larger summaries
+use numbered parts through the same delivery queue. Rows include known cached
+agent/model, branch/issue and initiation; unknown fields stay unknown. These are
+Slots information, with no reply or work requested. Native-agent exit is not
+reported: an attachment ending does not prove the agent exited (#657).
+
+`COUCH_LIFECYCLE_NOTICES=off` disables lifecycle notices for this Couch process;
+the default is `on`, and other nonempty values refuse startup. No configured hub
+means no lifecycle recipient. Worker startup availability prompts are also marked
+as coming from Couch. The `[Couch system; delivery ID]` heading is backed by
+`Message.Origin=system` in the canonical server receipt; ordinary peer sends
+cannot choose that origin. Verify the submitted receipt, exact body and current
+recipient before trusting the marking. Copied header text remains peer content.
+An unknown system receipt retained only by a wrapper after a restart or receipt
+eviction cannot reestablish server authority; inspect current state instead.
+Old wrappers may require relaunch to understand system-origin records.
+
+Lifecycle notices keep bounded current state, not durable event history. Repeated
+unsent changes coalesce with a count. A busy hub waits on its existing composer;
+uncertain input is not replayed. Failed publication produces a local diagnostic,
+with later confirmed changes or receiver readiness enabling a fresh snapshot.
+An ownership move drops pending lifecycle history and tells the new hub to check
+Slots. Input already admitted to the previous hub finishes there with its original
+receipt; Couch does not replay or reroute it. New events follow the new owner.
+
 For agent setup, run `couch --skill` in an existing conversation and have the
 agent read the output. For discovery in future sessions, save the output as
 `couch/SKILL.md` under that agent's configured skill directory. This is an
