@@ -800,6 +800,13 @@ the service. Busy/absent hubs retain current facts; input uncertainty never perm
 replay. This is a Slots projection, not an audit log. `COUCH_LIFECYCLE_NOTICES`
 accepts `on` (default) or `off`; there is no additional ownership/mute store.
 
+The confirmed `executeHubMove` producer drops the old unadmitted projection and
+queues one check-Slots line for the new owner. Admitted receipts finish at their
+original hub without replay. The existing cancellable hub effect gate serializes
+bounded admission against moves; the ownership mutex is not held across IO.
+Projection generations fence jobs extracted before the drop. Restart collection
+survives the drop, and only genuinely new lifecycle facts follow the new owner.
+
 `couchmessage.Message.Origin` is immutable: peer is omitted/zero, system is created
 only through internal server admission. External requests cannot carry origin.
 Envelopes, batch matching, deduplication and canonical receipts preserve it.

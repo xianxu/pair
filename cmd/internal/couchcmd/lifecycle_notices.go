@@ -32,6 +32,7 @@ type lifecycleAttempt struct {
 	cancel   context.CancelFunc
 	admitted bool
 	retired  bool
+	started  bool
 }
 type lifecycleAdmission struct {
 	token   uint64
@@ -49,6 +50,7 @@ type lifecyclePublisher struct {
 	attempts    map[uint64]lifecycleAttempt
 	roots       map[string]bool
 	identities  map[string]couchcore.WorkspaceIdentity
+	generation  uint64
 	unresolved  map[string]couchtty.LifecycleObservation
 	diagnostics map[string]string
 	wake        chan struct{}
@@ -115,6 +117,26 @@ func (p *lifecyclePublisher) cacheIdentitiesLocked(identities map[string]couchco
 			p.identities[path] = id
 		}
 	}
+}
+
+// ownershipChanged is called by the successful move producer while it holds
+// the existing hub effect gate. Drop history; keep only admitted receipts.
+func (p *lifecyclePublisher) ownershipChanged(newOwner string) {
+	p.mu.Lock()
+	p.generation++
+	clear(p.ready)
+	clear(p.unresolved)
+	for token, a := range p.attempts {
+		a.retired = true
+		if !a.started {
+			a.cancel()
+		}
+		p.attempts[token] = a
+	}
+	p.roots[newOwner] = true // current configured hub; bounded by HubOwnership
+	p.advanceLocked(couchcore.LifecycleNoticeEvent{Kind: couchcore.LifecycleNoticeDiscard, Hubs: []string{newOwner}})
+	p.mu.Unlock()
+	p.signal()
 }
 func (p *lifecyclePublisher) observe(e couchtty.LifecycleObservation) {
 	var identities map[string]couchcore.WorkspaceIdentity
@@ -253,6 +275,7 @@ func (p *lifecyclePublisher) run(ctx context.Context) {
 			}
 		}
 		jobs := p.ready
+		generation := p.generation
 		p.ready = map[uint64]couchcore.LifecycleNoticeEffect{}
 		diagnostics := p.diagnostics
 		p.diagnostics = map[string]string{}
@@ -264,6 +287,10 @@ func (p *lifecyclePublisher) run(ctx context.Context) {
 		}
 		for token, fx := range jobs {
 			p.mu.Lock()
+			if generation != p.generation {
+				p.mu.Unlock()
+				continue
+			}
 			full := len(p.attempts) >= 128
 			if full {
 				p.advanceLocked(couchcore.LifecycleNoticeEvent{Kind: couchcore.LifecycleNoticeAdmission, Hub: fx.Hub, Token: token, Outcome: "capacity"})
@@ -288,12 +315,36 @@ func (p *lifecyclePublisher) run(ctx context.Context) {
 			}
 			admissionCtx, cancel := context.WithCancel(ctx)
 			p.mu.Lock()
+			if generation != p.generation {
+				p.mu.Unlock()
+				cancel()
+				continue
+			}
 			p.attempts[token] = lifecycleAttempt{id: id, hub: fx.Hub, from: b, cancel: cancel}
 			p.mu.Unlock()
 			workers.Add(1)
 			go func(token uint64, body string, b couchmessage.Binding, id string) {
 				defer workers.Done()
-				r, err := p.service.broker.SendSystem(admissionCtx, b, id, couchmessage.Route{Target: b.Slot}, body)
+				var r couchmessage.Receipt
+				release, err := holdHubEffect(admissionCtx, p.service.authority.hubs)
+				if err == nil {
+					p.mu.Lock()
+					a := p.attempts[token]
+					valid := !a.retired && admissionCtx.Err() == nil
+					if valid {
+						a.started = true
+						p.attempts[token] = a
+					}
+					p.mu.Unlock()
+					if valid {
+						r, err = p.service.broker.SendSystem(admissionCtx, b, id, couchmessage.Route{Target: b.Slot}, body)
+					} else {
+						err = couchmessage.ErrUnavailable // proven not admitted
+					}
+					release()
+				} else {
+					err = couchmessage.ErrUnavailable // gate never acquired; no write
+				}
 				select {
 				case p.results <- lifecycleAdmission{token: token, receipt: r, err: err}:
 				case <-ctx.Done():

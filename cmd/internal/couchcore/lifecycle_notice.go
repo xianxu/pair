@@ -42,10 +42,12 @@ const (
 	LifecycleNoticeAdmission
 	LifecycleNoticeReceipt
 	LifecycleNoticeShutdown
+	LifecycleNoticeDiscard
 )
 
 type LifecycleNoticeEvent struct {
 	Kind             LifecycleNoticeEventKind
+	Hubs             []string
 	Fact             LifecycleNoticeFact
 	Hub, Incarnation string
 	Ready            bool
@@ -121,6 +123,40 @@ func AdvanceLifecycleNotices(s LifecycleNoticeState, e LifecycleNoticeEvent) (Li
 			}
 		}
 		return LifecycleNoticeState{stopped: true}, effects
+	case LifecycleNoticeDiscard:
+		// The shell retains already-admitted attempts solely for their receipts.
+		// None of those tokens may complete or replay this new projection.
+		if len(e.Hubs) > 128 {
+			return s, nil
+		}
+		roots := make(map[string]bool, len(e.Hubs))
+		for _, hub := range e.Hubs {
+			if hub == "" || len(hub) > 4096 {
+				return s, nil
+			}
+			roots[hub] = true
+		}
+		count := len(s.hubs)
+		for hub := range roots {
+			if _, exists := s.hubs[hub]; !exists {
+				count++
+			}
+		}
+		if count > 128 {
+			return s, nil
+		}
+		s.facts = make(map[string]lifecycleNoticeCurrent)
+		s.overflow = 0
+		for hub, h := range s.hubs {
+			h.parts, h.token, h.target = nil, 0, ""
+			h.suppressed = false
+			s.hubs[hub] = h
+		}
+		for hub := range roots {
+			h := s.hubs[hub]
+			h.parts = []lifecycleNoticePart{{body: "Couch hub changed; earlier lifecycle notices were dropped; check Slots"}}
+			s.hubs[hub] = h
+		}
 	case LifecycleNoticeArm:
 		s.collecting = true
 	case LifecycleNoticeDrain:
@@ -198,6 +234,9 @@ func AdvanceLifecycleNotices(s LifecycleNoticeState, e LifecycleNoticeEvent) (Li
 		changedRecipient := h.target != h.incarnation
 		submitted := e.Kind == LifecycleNoticeReceipt && e.Outcome == "submitted"
 		knownNoWrite := (e.Kind == LifecycleNoticeAdmission && (e.Outcome == "refused" || e.Outcome == "unavailable" || e.Outcome == "capacity" || e.Outcome == "unsupported")) || (e.Kind == LifecycleNoticeReceipt && (e.Outcome == "expired" || e.Outcome == "cancelled"))
+		// The owner-change line has no backing facts to freeze again. Keep it
+		// only when the outcome proves no write; uncertainty still retires it.
+		preserveInfo := knownNoWrite && len(h.parts[0].revisions) == 0
 		if submitted || !knownNoWrite {
 			for _, r := range h.parts[0].revisions {
 				c := s.facts[r.key]
@@ -213,7 +252,9 @@ func AdvanceLifecycleNotices(s LifecycleNoticeState, e LifecycleNoticeEvent) (Li
 			}
 			h.parts = h.parts[1:]
 		} else {
-			h.parts = nil
+			if !preserveInfo {
+				h.parts = nil
+			}
 			h.suppressed = true
 		}
 		if !submitted {
@@ -223,7 +264,9 @@ func AdvanceLifecycleNotices(s LifecycleNoticeState, e LifecycleNoticeEvent) (Li
 			h.unsupported = true
 		}
 		if changedRecipient {
-			h.parts = nil
+			if !preserveInfo {
+				h.parts = nil
+			}
 			h.suppressed = false
 		}
 		h.token = 0

@@ -86,6 +86,138 @@ func lifecyclePublisherRig(t *testing.T, ep couchmessage.DeliveryEndpoint, notic
 	}
 	return r, startLifecyclePublisher(r.s, notice), hub
 }
+
+func TestLifecyclePublisherDropsMovedOwnership(t *testing.T) {
+	for _, phase := range []string{"before-drain", "frozen", "admitted", "uncertain"} {
+		t.Run(phase, func(t *testing.T) {
+			h, defs, slot := moveFixture(t)
+			r := newServiceRig(t)
+			r.s.authority.hubs = h
+			r.s.hubMoves.Store(&hubMoveService{})
+			endpoints := []*controlledEndpoint{newControlledEndpoint(), newControlledEndpoint()}
+			var bindings []couchmessage.Binding
+			for i := range endpoints {
+				b := r.world.add(i)
+				r.world.set(b, func(s *worldSlot) {
+					n := 0
+					s.root, s.workspace.WorktreeRoot = defs[i].Root, defs[i].Root
+					s.workspace.PrimaryRoot, s.workspace.Slot = defs[i].Slot.Repository, &n
+				})
+				r.world.endpoints[b] = endpoints[i]
+				r.attach(b, couchmessage.PaneHandle(fmt.Sprintf("hub-%d", i)))
+				r.wrapper(b)
+				r.waitConnected(b, true)
+				bindings = append(bindings, b)
+			}
+			p := startLifecyclePublisher(r.s, func(string) {})
+			p.observe(couchtty.LifecycleObservation{Kind: "restart-armed"})
+			e := lifecycleSlotObservation(7, 1)
+			e.Target.Slot.PrimaryRoot = slot.Repository
+			p.observe(e)
+			var release func()
+			if phase == "frozen" {
+				var err error
+				release, err = holdHubEffect(t.Context(), h)
+				if err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(func() {
+					if release != nil {
+						release()
+					}
+				})
+			}
+			var old couchmessage.Message
+			if phase != "before-drain" {
+				p.observe(couchtty.LifecycleObservation{Kind: "restart-drained"})
+				if phase == "frozen" {
+					testwait.Until(t, "frozen part waiting at admission gate", func() bool {
+						p.mu.Lock()
+						defer p.mu.Unlock()
+						for _, a := range p.attempts {
+							if !a.started {
+								return true
+							}
+						}
+						return false
+					})
+				} else {
+					old = lifecycleNextMessage(t, endpoints[0])
+					if phase == "uncertain" {
+						endpoints[0].finish <- couchmessage.Receipt{Status: couchmessage.Indeterminate}
+						testwait.Until(t, "original uncertain receipt", func() bool {
+							receipt, known, busy := r.s.broker.ReceiptSnapshot(old.ID)
+							return known && !busy && receipt.Status == couchmessage.Indeterminate
+						})
+					}
+				}
+			}
+			move := func(gated bool) {
+				t.Helper()
+				call := couchcore.OperationCall{Name: "move-slot", Context: t.Context(), TypedPayload: hubMoveCall{service: r.s, caller: bindings[1], move: couchcore.HubMove{Caller: defs[1].Root, Target: defs[1].Root, Slots: []couchcore.HubSlot{slot}, Revision: h.snapshot().Revision()}}}
+				var err error
+				if gated {
+					_, err = dispatchHubOperation(h, call, executeHubMove)
+				} else {
+					_, err = executeHubMove(call)
+				}
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			move(release == nil)
+			if release != nil {
+				release()
+				release = nil
+			}
+			if phase == "before-drain" {
+				p.observe(couchtty.LifecycleObservation{Kind: "restart-drained"})
+			}
+			var m couchmessage.Message
+			select {
+			case m = <-endpoints[1].started:
+			case stale := <-endpoints[0].started:
+				t.Fatalf("pending projection reached previous owner: %+v", stale)
+			case <-testwait.After(t):
+				t.Fatal("no ownership-change notice")
+			}
+			if m.Body != "Couch hub changed; earlier lifecycle notices were dropped; check Slots" {
+				t.Fatalf("moved projection replayed instead of resnapshot notice: %+v", m)
+			}
+			endpoints[1].finish <- couchmessage.Receipt{Status: couchmessage.Submitted}
+			lifecycleCanonicalSubmitted(t, r, m)
+			if phase == "admitted" {
+				endpoints[0].finish <- couchmessage.Receipt{Status: couchmessage.Submitted}
+				lifecycleCanonicalSubmitted(t, r, old)
+			}
+			wantOld := 0
+			if phase == "admitted" || phase == "uncertain" {
+				wantOld = 1
+			}
+			if endpoints[0].deliveries() != wantOld {
+				t.Fatal("old projection was submitted or replayed after move")
+			}
+			e.Observation, e.Kind = 2, "parked"
+			p.observe(e)
+			next := lifecycleNextMessage(t, endpoints[1])
+			if !strings.Contains(next.Body, "pair:7: parked") || strings.Contains(next.Body, "recovered") {
+				t.Fatalf("new fact routing: %+v", next)
+			}
+			endpoints[1].finish <- couchmessage.Receipt{Status: couchmessage.Submitted}
+			lifecycleCanonicalSubmitted(t, r, next)
+			p.mu.Lock()
+			generation := p.generation
+			p.mu.Unlock()
+			move(true) // an idempotent move does not drop new state or announce again
+			p.mu.Lock()
+			unchanged := generation == p.generation
+			p.mu.Unlock()
+			if !unchanged {
+				t.Fatal("idempotent ownership move discarded projection")
+			}
+		})
+	}
+}
 func lifecycleSlotObservation(n int, observation uint64) couchtty.LifecycleObservation {
 	return couchtty.LifecycleObservation{Kind: "recovered", Path: fmt.Sprintf("/repo%d", n), Target: couchcore.ThreadTarget{Kind: couchcore.ThreadTargetSlot, Slot: couchcore.SlotIdentity{Repo: "pair", Number: n, PrimaryRoot: "/repo1", WorktreeRoot: fmt.Sprintf("/repo%d", n)}}, Address: couchcore.ThreadAddress{RepoScope: "scope", Tag: couchcore.ThreadTag(fmt.Sprintf("t%d", n))}, Incarnation: fmt.Sprintf("%d:start", n), Observation: observation, Initiation: "automatic"}
 }

@@ -254,3 +254,152 @@ func TestLifecycleNoticeFreshAddressReplacesSlotCurrentState(t *testing.T) {
 		t.Fatalf("old address survived replacement: facts=%d parts=%+v", len(s.facts), parts)
 	}
 }
+
+func TestLifecycleNoticeDiscardBeforeDrain(t *testing.T) {
+	var s LifecycleNoticeState
+	noticeStep(&s, LifecycleNoticeEvent{Kind: LifecycleNoticeArm})
+	noticeReady(&s)
+	noticeStep(&s, noticeFact("old-slot", 1))
+	noticeStep(&s, LifecycleNoticeEvent{Kind: LifecycleNoticeHubReady, Hub: "/new", Incarnation: "new-one", Ready: true})
+	before := s
+	if ps := noticePublications(noticeStep(&s, LifecycleNoticeEvent{Kind: LifecycleNoticeDiscard, Hubs: []string{"/new"}})); len(ps) != 0 {
+		t.Fatal("discard bypassed restart barrier")
+	}
+	if len(s.facts) != 0 || len(before.facts) != 1 {
+		t.Fatal("discard lost immutability or retained old facts")
+	}
+	ps := noticePublications(noticeStep(&s, LifecycleNoticeEvent{Kind: LifecycleNoticeDrain}))
+	if len(ps) != 1 || ps[0].Hub != "/new" || ps[0].Body != "Couch hub changed; earlier lifecycle notices were dropped; check Slots" {
+		t.Fatalf("move summary: %+v", ps)
+	}
+}
+func TestLifecycleNoticeDiscardFrozenAndSubmitted(t *testing.T) {
+	for _, submitted := range []bool{false, true} {
+		t.Run(fmt.Sprint(submitted), func(t *testing.T) {
+			var s LifecycleNoticeState
+			noticeStep(&s, noticeFact("old-slot", 1))
+			old := noticePublications(noticeReady(&s))[0]
+			if submitted {
+				noticeStep(&s, LifecycleNoticeEvent{Kind: LifecycleNoticeReceipt, Hub: "/hub", Token: old.Token, Outcome: "submitted"})
+			}
+			noticeStep(&s, LifecycleNoticeEvent{Kind: LifecycleNoticeHubReady, Hub: "/new", Incarnation: "new-one", Ready: true})
+			before := s
+			ps := noticePublications(noticeStep(&s, LifecycleNoticeEvent{Kind: LifecycleNoticeDiscard, Hubs: []string{"/new"}}))
+			if len(ps) != 1 || ps[0].Token <= old.Token || strings.Contains(ps[0].Body, "old-slot") {
+				t.Fatalf("old payload replayed: %+v", ps)
+			}
+			if !submitted && before.hubs["/hub"].token != old.Token {
+				t.Fatal("mutated previous state")
+			}
+			if got := noticeStep(&s, LifecycleNoticeEvent{Kind: LifecycleNoticeReceipt, Hub: "/hub", Token: old.Token, Outcome: "submitted"}); len(got) != 0 {
+				t.Fatalf("stale completion changed projection: %+v", got)
+			}
+			if got := noticePublications(noticeStep(&s, LifecycleNoticeEvent{Kind: LifecycleNoticeReceipt, Hub: "/new", Token: ps[0].Token, Outcome: "submitted"})); len(got) != 0 {
+				t.Fatal("old facts replayed after info receipt")
+			}
+			e := noticeFact("new-slot", 2)
+			e.Fact.Hub = "/new"
+			if got := noticePublications(noticeStep(&s, e)); len(got) != 1 || !strings.Contains(got[0].Body, "new-slot") {
+				t.Fatalf("new fact suppressed: %+v", got)
+			}
+		})
+	}
+}
+func TestLifecycleNoticeDiscardBoundsAndReadiness(t *testing.T) {
+	var s LifecycleNoticeState
+	noticeReady(&s)
+	for i := 0; i < 200; i++ {
+		ps := noticePublications(noticeStep(&s, LifecycleNoticeEvent{Kind: LifecycleNoticeDiscard, Hubs: []string{"/hub", "/hub"}}))
+		if len(ps) != 1 || len(s.hubs) != 1 || len(s.hubs["/hub"].parts) != 1 || len(s.facts) != 0 {
+			t.Fatalf("discard not bounded: %+v", s)
+		}
+	}
+	before := s
+	for _, roots := range [][]string{make([]string, 129), {""}, {strings.Repeat("x", 4097)}} {
+		noticeStep(&s, LifecycleNoticeEvent{Kind: LifecycleNoticeDiscard, Hubs: roots})
+		if !reflect.DeepEqual(s, before) {
+			t.Fatal("invalid roots mutated state")
+		}
+	}
+	noticeStep(&s, LifecycleNoticeEvent{Kind: LifecycleNoticeDiscard, Hubs: []string{"/unknown"}})
+	if s.hubs["/unknown"].token != 0 {
+		t.Fatal("unknown hub published before ready")
+	}
+	if ps := noticePublications(noticeStep(&s, LifecycleNoticeEvent{Kind: LifecycleNoticeHubReady, Hub: "/unknown", Incarnation: "ready", Ready: true})); len(ps) != 1 {
+		t.Fatal("info did not wait for readiness")
+	}
+}
+
+func TestLifecycleNoticeDiscardKnownHubBoundAndIncarnation(t *testing.T) {
+	var s LifecycleNoticeState
+	for i := 0; i < 128; i++ {
+		noticeStep(&s, LifecycleNoticeEvent{Kind: LifecycleNoticeHubReady, Hub: fmt.Sprint("/", i), Incarnation: "old"})
+	}
+	h := s.hubs["/0"]
+	h.unsupported = true
+	s.hubs["/0"] = h
+	before := s
+	noticeStep(&s, LifecycleNoticeEvent{Kind: LifecycleNoticeDiscard, Hubs: []string{"/new"}})
+	if !reflect.DeepEqual(s, before) {
+		t.Fatal("overflowing known hubs mutated state")
+	}
+	noticeStep(&s, LifecycleNoticeEvent{Kind: LifecycleNoticeDiscard, Hubs: []string{"/0"}})
+	if !s.hubs["/0"].unsupported || s.hubs["/0"].incarnation != "old" || len(s.hubs) != 128 {
+		t.Fatal("discard erased recipient metadata")
+	}
+	if ps := noticePublications(noticeStep(&s, LifecycleNoticeEvent{Kind: LifecycleNoticeHubReady, Hub: "/0", Incarnation: "old", Ready: true})); len(ps) != 0 {
+		t.Fatal("unsupported incarnation retried")
+	}
+	if ps := noticePublications(noticeStep(&s, LifecycleNoticeEvent{Kind: LifecycleNoticeHubReady, Hub: "/0", Incarnation: "new", Ready: true})); len(ps) != 1 {
+		t.Fatal("new incarnation did not receive queued info")
+	}
+}
+
+func TestLifecycleNoticeDiscardInfoKnownNoWriteSurvivesReadiness(t *testing.T) {
+	for _, outcome := range []string{"unavailable", "indeterminate"} {
+		t.Run(outcome, func(t *testing.T) {
+			var s LifecycleNoticeState
+			noticeReady(&s)
+			ps := noticePublications(noticeStep(&s, LifecycleNoticeEvent{Kind: LifecycleNoticeDiscard, Hubs: []string{"/hub"}}))
+			if len(ps) != 1 {
+				t.Fatal("missing initial info")
+			}
+			old := ps[0]
+			// Readiness changes while the admission's final result is outstanding.
+			if got := noticePublications(noticeStep(&s, LifecycleNoticeEvent{Kind: LifecycleNoticeHubReady, Hub: "/hub", Incarnation: "replacement", Ready: true})); len(got) != 0 {
+				t.Fatal("replacement published before final admission outcome")
+			}
+			got := noticePublications(noticeStep(&s, LifecycleNoticeEvent{Kind: LifecycleNoticeAdmission, Hub: "/hub", Token: old.Token, Outcome: outcome}))
+			if outcome == "indeterminate" {
+				if len(got) != 0 {
+					t.Fatal("uncertain info replayed")
+				}
+				if next := noticePublications(noticeStep(&s, LifecycleNoticeEvent{Kind: LifecycleNoticeHubReady, Hub: "/hub", Incarnation: "third", Ready: true})); len(next) != 0 {
+					t.Fatal("uncertain info replayed after readiness changed")
+				}
+				return
+			}
+			if len(got) != 1 || got[0].Body != old.Body || got[0].Token <= old.Token {
+				t.Fatalf("known-no-write info lost: %+v", got)
+			}
+			if next := noticePublications(noticeStep(&s, LifecycleNoticeEvent{Kind: LifecycleNoticeReceipt, Hub: "/hub", Token: got[0].Token, Outcome: "submitted"})); len(next) != 0 {
+				t.Fatal("submitted info replayed")
+			}
+		})
+	}
+}
+func TestLifecycleNoticeDiscardInfoNoWriteWaitsForReadinessChange(t *testing.T) {
+	var s LifecycleNoticeState
+	noticeReady(&s)
+	old := noticePublications(noticeStep(&s, LifecycleNoticeEvent{Kind: LifecycleNoticeDiscard, Hubs: []string{"/hub"}}))[0]
+	if ps := noticePublications(noticeStep(&s, LifecycleNoticeEvent{Kind: LifecycleNoticeAdmission, Hub: "/hub", Token: old.Token, Outcome: "unavailable"})); len(ps) != 0 {
+		t.Fatal("immediate retry")
+	}
+	if ps := noticePublications(noticeReady(&s)); len(ps) != 0 {
+		t.Fatal("same readiness retried")
+	}
+	ps := noticePublications(noticeStep(&s, LifecycleNoticeEvent{Kind: LifecycleNoticeHubReady, Hub: "/hub", Incarnation: "replacement", Ready: true}))
+	if len(ps) != 1 || ps[0].Body != old.Body {
+		t.Fatalf("lost suppressed info: %+v", ps)
+	}
+}

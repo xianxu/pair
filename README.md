@@ -897,6 +897,9 @@ Lifecycle notices keep bounded current state, not durable event history. Repeate
 unsent changes coalesce with a count. A busy hub waits on its existing composer;
 uncertain input is not replayed. Failed publication produces a local diagnostic,
 with later confirmed changes or receiver readiness enabling a fresh snapshot.
+An ownership move drops pending lifecycle history and tells the new hub to check
+Slots. Input already admitted to the previous hub finishes there with its original
+receipt; Couch does not replay or reroute it. New events follow the new owner.
 
 For agent setup, run `couch --skill` in an existing conversation and have the
 agent read the output. For discovery in future sessions, save the output as
