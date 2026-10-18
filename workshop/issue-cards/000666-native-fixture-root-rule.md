@@ -1,6 +1,6 @@
 ---
 id: 000666
-status: codecomplete
+status: done
 created: 2026-10-18
 updated: 2026-10-18
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: ed4453bdd51193696f695905c38a378ae956ca7a
         evidence_commit: 54b03ac828945439f5b4787c90c06196b2183093
+        landed_commit: 8a269b34b05c903aa19090f383e6c41bb3b2a449
 ---
 
 # Guard native fixture root handoffs
