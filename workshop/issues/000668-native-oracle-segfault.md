@@ -32,21 +32,22 @@ This is distinct from #660's missing session during reattach and #603's shell-ac
 
 ## Done when
 
-- Retained diagnostics identify the crashing subprocess/runtime and causal input or environment.
-- A deterministic regression protects the measured cause without relaxing terminal checks or increasing deadlines.
-- Native conformance passes with before/after failure counts reported.
+Diagnostic-stage landing only (hub-approved2026-10-18); the causal bug stays open afterward:
+
+- Every driver.cjs snapshot invocation enables Node fatal-error/signal reports in its owned artifact directory and preserves complete request JSON, separate streams and runtime/phase evidence on failure. Success still returns only the unchanged JSON oracle result.
+- Deterministic owned-child regressions show input beyond4KB survives byte-for-byte, stderr never corrupts JSON output, failed artifacts remain available through reporting, and successful evidence directories are removed. Real headless Node verifies phase order/report configuration without changing frame expectations or deadlines.
+- The native CI runner emits the failed oracle bundle into its retained job log before removing invocation scratch; its regression proves complete final input/report markers survive. No workflow/gate configuration change.
+- Recorded suite, native CI and ordinary close/merge gates pass. Then restore the causal acceptance contract below, reopen and unclaim/park this issue for the next failing CI evidence. A diagnostic pass does not prove the historical SIGSEGV fixed.
 
 ## Plan
 
-Classification stage, pending hub approval before implementation:
+Approved diagnostic stage; the proposed runtime replay/download is withdrawn.
 
-- [ ] Compare official Node22.23.3 darwin-arm64 against the installed Node26.0.0 with no global installation or configuration change. Download the CI version only into one invocation-owned TMPDIR directory, verify the archive against the official SHA256 manifest, and remove that directory after reporting. This runtime download is part of the approval request.
-- [ ] Bound the headless probe to120 sequential child invocations and60s execution time:30 bare-start controls,27 complete driver requests and3 malformed-JSON controls per runtime. The one private runtime download has its own120s bound. Rotate empty, ordinary110x28, and Unicode/control-sequence frame requests; retain each exact generated input, runtime identity, return code/signal, and separate stdout/stderr. Add malformed-JSON controls to distinguish ordinary JavaScript rejection from fatal process termination. No native Zellij/PTY invocation, production data, concurrency load, retry-on-failure, or timeout changes.
-- [ ] If a child crashes, stop the matrix at the first crash, preserve its exact request and process facts, and reduce that cause before choosing a fix. A bare-start failure would exclude the frame/xterm path; a driver-only failure still needs isolation of import/write/snapshot/dispose stages. Count outcomes separately by runtime and control; do not turn a later pass into a causal explanation.
-- [ ] If the bounded probe stays green, report the remaining uncertainty and propose a separate diagnostic implementation stage before code: one shared subprocess boundary for all five driver.cjs snapshot consumers, exact failure-request preservation, runtime provenance, separated streams and bounded phase breadcrumbs. No speculative Node upgrade/pin, oracle skip, assertion weakening or retry. The different stream.cjs performance protocol is outside that proposed snapshot boundary.
-- [ ] Once a cause and fix plan are approved, add a deterministic regression at the measured seam, retain the independent terminal assertions, and obtain a fresh native lane grant before native conformance. Close/merge only with the corresponding acceptance evidence or an explicitly approved diagnostic-stage landing/park arrangement.
-
-
+- [ ] Add failing subprocess/evidence regressions in internal/testoracle/run_test.go: actual controlled owned children, independent stdout/stderr, complete Unicode/control-byte JSON over4KB, abnormal exit, post-return assertion failure, report flags/directory, success cleanup and failure retention under Go's artifacts flag. Count retained bytes atN and2N; no timing ceiling.
+- [ ] Implement one small internal/testoracle.Run(t, cmd, request) IO helper for all five snapshot callers (three couchtty/terminal_native_test.go sites and terminal/render_oracle_test.go + history_oracle_test.go). Use unique subdirectories of t.ArtifactDir; enable --report-on-fatalerror, --report-on-signal, --report-directory, --report-filename, --report-exclude-env and --report-exclude-network. Keep each caller's command/context/deadline and every existing frame assertion. Capture stdout/stderr separately; save exact request and streams when the owning test fails, including a later frame/decode failure. Remove successful call directories. Register the new Go helper as a non-artifact source in the existing manifest.
+- [ ] Add synchronous stderr phase markers in driver.cjs for startup (runtime identity), import, write, snapshot and dispose. Keep stdout exclusively the existing JSON response. Regressions use the real headless driver, check ordered markers and valid frame JSON, and prove flags configure report creation with an owned signal/report control. No Node download, version pin, exception masking or retry.
+- [ ] Extend tests/native-terminal-ci.py to invoke Go with -artifacts and -outputdir under its owned scratch, then publish the failed oracle files into the existing retained CI log before scratch cleanup. Extend native-terminal-ci-test.py with full request/report final-marker and cleanup-order controls. Update terminal-oracle README and atlas map for replay/evidence limits.
+- [ ] Run targeted helper, Python, renderer-oracle and repository guard tests, preserving red/green evidence. Open early draft for existing macOS native CI. Run the recorded suite and close/merge through ordinary gates; no local native lane is spent without a fresh hub grant. After landing restore causal acceptance, reopen/park/unclaim and report exact merge plus unresolved-cause status.
 
 ## Log
 
@@ -75,3 +76,19 @@ The authorized historical CI retry succeeded on the unchanged branch head: run39
 Local headless control on installed Node26.0.0 darwin/arm64: PAIR_TERMINAL_ORACLE=1 go test ./cmd/internal/terminal -run ^TestRendererIndependentWireOracle$ -count=20 -timeout=60s passed in3.895s. This confirms only those complete generated renderer requests on the different local runtime; it does not replay the lost CI request or qualify native conformance. Read-only source audit enumerated five snapshot exec sites (three couchtty, two terminal); all use CombinedOutput and omit complete request/runtime provenance from their failure reports. A primary-source upstream search found no matching demonstrated cause; unrelated Node SIGSEGV reports are not evidence for this incident.
 
 2026-10-18 plan clarification before approval: count malformed controls inside the120-child envelope (per runtime:30 bare +27 complete +3 malformed), and distinguish the60s execution bound from the one120s-bounded runtime download. No additional process family or unbounded download is implied.
+
+### 2026-10-18 — hub-approved diagnostic-stage revision
+
+Verified hub receipt0ada5fa1-a48d-4d23-9c84-acaf5facf536 directs skipping the120-run probe and Node download, landing small diagnostics, then reopening/parking for the next CI hit. The active Plan and temporary diagnostic Done-when reflect that direction. The causal contract to restore after landing is:
+
+#### Causal acceptance to restore
+
+- Retained diagnostics identify the crashing subprocess/runtime and causal input or environment.
+- A deterministic regression protects the measured cause without relaxing terminal checks or increasing deadlines.
+- Native conformance passes with before/after failure counts reported.
+
+The Node report flags do not guarantee a report on raw SIGSEGV: report-on-signal defaults to SIGUSR2 and report-on-fatalerror covers internal runtime fatal errors. Exact request plus last observed phase remain necessary even when no report exists. Official API: https://nodejs.org/api/report.html (exclude-env available since22.13, exclude-network since22.0). Go1.26 ArtifactDir is temporary without -artifacts; native CI currently uploads no artifacts and removes scratch, so the runner must copy failure evidence to its existing retained job log before removal. Manual -artifacts/-outputdir runs can retain the original files. No protected workflow edit is required.
+
+ARCH-DRY: one snapshot subprocess owner across five callers; stream.cjs has a different long-lived protocol and is unchanged. ARCH-PURE: request/report data stay distinct from the thin synchronous subprocess shell. ARCH-PURPOSE: preserve the next failure, never claim that diagnostics fix this cause. ARCH-MOCK: controlled owned subprocesses model report/exit/stream outcomes through the actual helper; real Node checks driver/report compatibility and native CI supplies native conformance. ARCH-CONSTRAINTS: one existing Node process per call, no new probes or retries; phase writes grow2 per chunk plus constant setup/dispose, failure artifact bytes grow linearly with exact request/streams, counted atN/2N. Normal success adds only the unique report-directory setup and removes it. ARCH-SECURE: request is synthetic fixture data; exclude report environment/network data, preserve separate quoted streams, use private invocation paths and never inspect arbitrary user reports. ARCH-ORDER: cmd.Run joins before cleanup observes outcomes; later assertion failure retains that exact call, success removes it; no effect outlives its owner. ARCH-FUNERAL: Go owns artifact lifetime; CI reports failures before removing scratch, manual retained artifacts belong to the explicit output directory, no persistent automatic cache.
+
+Diagnostic actions: inspect bundle, replay exact request, or wait for the next CI hit. Complete request + phase/report permits replay; missing report is reported as missing and still permits request replay; absent startup marker leaves execution stage unknown; evidence-write failure is explicit and calls for fixing that IO before relying on a later run. No such observation authorizes an automatic retry.
