@@ -1282,6 +1282,11 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcore/naming.go",
 	"cmd/internal/couchcore/parktransaction.go",
 	"cmd/internal/couchcore/parkworker.go",
+	// #651 routes existing thread/lifecycle authorities; it constructs no
+	// artifact filenames or new artifact family.
+	"cmd/internal/couchcore/park_recovery.go",
+	"cmd/internal/couchcore/park_recovery_advice.go",
+	"cmd/internal/couchcore/park_recovery_store.go",
 	"cmd/internal/couchcore/path.go",
 	"cmd/internal/couchcore/pathops.go",
 	"cmd/internal/couchcore/relaunch.go",
@@ -1436,6 +1441,8 @@ var NonArtifactSources = []string{
 	"cmd/internal/testpair/environment.go",
 	// pair#479 test wait helper: bounds a wait by the test deadline; names no file.
 	"cmd/internal/testwait/testwait.go",
+	// Test failure diagnostics inspect host load, not session artifacts.
+	"cmd/internal/testwait/host.go",
 	"cmd/internal/ctxmeter/ctxmeter.go",
 	"cmd/internal/dispatcher/dispatcher.go",
 	"cmd/internal/entrypoint/alias.go",

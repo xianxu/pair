@@ -192,6 +192,12 @@ func (r OSRuntime) ProbeSessionNameContext(ctx context.Context, session string) 
 	if len(bytes.TrimSpace(stdout.Bytes())) == 0 {
 		return fmt.Errorf("could not ask zellij about session name %q: %w", session, ErrZellijNoReply)
 	}
+	if stderr.String() == "Session '"+session+"' not found. The following sessions are active:\n" {
+		if !sessionNameAbsentListing(session, stdout.String()) {
+			return fmt.Errorf("could not validate zellij name probe: invalid absent-session listing")
+		}
+		return nil
+	}
 	_, parseErr := zellijreply.ParseClients(stdout.Bytes())
 	if parseErr != nil {
 		return fmt.Errorf("could not validate zellij name probe: %w", parseErr)

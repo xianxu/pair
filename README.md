@@ -525,6 +525,9 @@ couch --set-model repo:N --model MODEL [--effort LEVEL] [--scope session|default
 couch --operation-status ID [--json]   inspect an asynchronous operation receipt
 couch --reap repo:N --confirm [--json]     from a live slot: end an orphaned server's tree
 couch --recover repo:N [--json]               from a live slot: run the report's steps for it
+couch --recover-park repo:N --confirm [--json]
+                         authenticated owning hub: resolve an interrupted park without launching an agent;
+                         retain the conversation and follow the reported Continue, Resume from disk or Start fresh action
 couch --relaunch repo:N --confirm [--same-binary] [--force-unknown] [--json]
                          from a live slot: restart an idle slot on the current binary, same conversation (Alt+n);
                          refuses busy, dirty or an unchanged binary, naming the fix (under couch-dev too:
@@ -1889,6 +1892,17 @@ all tests finish. Private executable names use hard links (copies across
 filesystems). Standalone shell consumers use the same builder, which locates
 its checkout independently of the caller's working directory.
 
+Native diagnostic-log open-file conformance skips with a named reason when `lsof`
+cannot provide a complete observation. Require fresh native evidence with:
+
+```bash
+PAIR_REQUIRE_LSOF_CONFORMANCE=1 go test ./cmd/internal/diagnosticlog -count=1 \
+  -run 'Test(OpenFileInspectionConformance|UnregisteredChildOpenFileBlocksLegacyExpiry)$'
+```
+
+Required mode fails instead of skipping an unavailable/incomplete probe. A complete
+answer with a wrong holder or process identity fails in both modes.
+
 `make test` also runs ariadne's pinned Go lint catalog over tracked Go sources.
 For a focused check, run `go test ./internal/repolint -count=1 -v`. Use a full Git
 checkout with the configured main tracking ref available: the sleep-debt ratchet
@@ -2077,6 +2091,16 @@ A working agent produces output continuously, so the floor does not fire on one;
 it is the quiet cases — a menu waiting for an answer, a turn that silently went
 nowhere — that reach it. Set `PAIR_WRAP_IDLE_S` to change the interval, or
 `PAIR_WRAP_IDLE_S=0` to switch the floor off entirely.
+
+**The orientation slug.** The same turn-end sink also refreshes the session's
+orientation slug — the `=== <branch> | <focus> ===` header the draft keeps on
+line 1 — with a background small-model call per turn-end (debounced). Under
+Couch this is off by default: the operator doesn't use the slug there, and the
+fleet was paying for ~70 `pair slug` spawns and ~36 model calls an hour. Both
+entries no-op — the wrapper's turn-end spawn and the `pair slug` command body
+itself, which is also what an external Claude Stop hook invokes — so a hosted
+session never spends a model call on the slug. Set `PAIR_SLUG=on` to turn it
+back on under Couch. Outside Couch it stays on.
 
 Under Couch, ordinary BEL attention still colors the source actor's status label.
 `Ctrl-Space` selects the newest unread actor; a successful switch acknowledges

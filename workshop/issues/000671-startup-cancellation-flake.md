@@ -1,13 +1,13 @@
 ---
 id: 000671
-status: open
+status: wontfix
 deps: []
 github_issue:
 created: 2026-10-18
 updated: 2026-10-18
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: 'a3df65094da790a030e0c2cad2821768f0abe00f' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'f2c3227e78b3db4da9b76890f7b04de0fe4d7250' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # Startup SIGINT can leave without-ancestors helper alive in cancellation test
@@ -35,3 +35,4 @@ This helper and its tests arrived from newer main and have no #659 diff. Root ca
 ## Log
 
 - 2026-10-18: Filed unclaimed per hub direction. #659 retains this failed attempt, makes one unchanged recorded-suite rerun on the same head, then stops/reports if it fails again. A separate targeted repeat is diagnostic only, not replacement evidence.
+- 2026-10-18: Duplicate of pair#674, which holds this evidence, the root cause (a pre-handler SIGINT swallowed by interpreter startup) and the fix.

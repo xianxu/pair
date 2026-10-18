@@ -8,6 +8,7 @@ import "github.com/xianxu/pair/cmd/internal/checkpoint"
 // all read ActorActions, so a step the report suggests is one the switcher
 // would offer on the same row (ARCH-DRY).
 type ActorRowFacts struct {
+	HasOpenPark bool
 	// Slot is a :1+ slot row; otherwise the row is a repository's :0.
 	Slot   bool
 	State  ActionableThreadState
@@ -27,6 +28,7 @@ type ActorRowFacts struct {
 // ActorRowFactsOf reads the admission facts off one actionable row.
 func ActorRowFactsOf(row ActionableThreadSummary) ActorRowFacts {
 	f := ActorRowFacts{
+		HasOpenPark:      row.HasOpenPark,
 		Slot:             row.Target.Kind == ThreadTargetSlot,
 		State:            row.State,
 		Reason:           row.Reason,
@@ -56,6 +58,9 @@ func ActorRowFactsOf(row ActionableThreadSummary) ActorRowFacts {
 // unusable/unknown rows get nothing ("checking…" is not a verdict, and reboot
 // stops a session).
 func ActorActions(f ActorRowFacts) []string {
+	if f.HasOpenPark {
+		return []string{OpRecoverPark}
+	}
 	if f.Reason == ReasonNeedsRelaunch {
 		return nil
 	}

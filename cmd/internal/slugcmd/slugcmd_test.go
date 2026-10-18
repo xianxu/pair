@@ -3,6 +3,8 @@ package slugcmd
 import (
 	"bytes"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -10,6 +12,52 @@ import (
 	"github.com/xianxu/pair/cmd/internal/sessioninventorytest"
 	"github.com/xianxu/pair/cmd/internal/sessionledger"
 )
+
+// The body self-gates under Couch hosting (#650): the external Claude Stop
+// hook reaches Run through bin/pair-slug without passing pair-wrap, so a
+// hosted invocation must no-op before any session lookup or model call. The
+// PAIR_SLUG_LOG skip line distinguishes the hosted gate from the no-session
+// skip that sits behind it, so each case pins which guard fired.
+func TestRunSkipsUnderCouchHosting(t *testing.T) {
+	cases := []struct {
+		name   string
+		hosted bool
+		slug   string
+		tag    string
+		want   string
+	}{
+		{"hosted skips before the session lookup", true, "", "T", "couch-hosted"},
+		{"hosted with PAIR_SLUG=on passes the gate", true, "on", "", "no PAIR_TAG"},
+		{"outside couch unchanged", false, "", "", "no PAIR_TAG"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Pin the couch vars in every case: the test process may itself be
+			// hosted, and the ambient env must not leak in.
+			scope := ""
+			if tc.hosted {
+				scope = "pair:8"
+			}
+			t.Setenv("COUCH_THREAD_SCOPE", scope)
+			t.Setenv("COUCH_THREAD_TAG", "")
+			t.Setenv("PAIR_SLUG", tc.slug)
+			t.Setenv("PAIR_TAG", tc.tag)
+			t.Setenv("PAIR_DATA_DIR", t.TempDir())
+			log := filepath.Join(t.TempDir(), "slug.log")
+			t.Setenv("PAIR_SLUG_LOG", log)
+			if code := Run(); code != 0 {
+				t.Fatalf("Run() = %d, want 0", code)
+			}
+			b, err := os.ReadFile(log)
+			if err != nil {
+				t.Fatalf("no skip line logged: %v", err)
+			}
+			if !strings.Contains(string(b), tc.want) {
+				t.Fatalf("log = %q, want it to contain %q", b, tc.want)
+			}
+		})
+	}
+}
 
 func TestInventoryTurnsNeverFallsBackFromProvisional(t *testing.T) {
 	t.Parallel()

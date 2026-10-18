@@ -23,6 +23,8 @@ const contentSecurityPolicy = "default-src 'none'; script-src 'self'; style-src 
 const DefaultPing = 15 * time.Second
 
 type ServerOptions struct {
+	// Now supplies logical rate-limit time. Socket deadlines use real time.
+	Now   func() time.Time
 	Token string
 	// Locks guards the view and pointer links (pair#495); nil serves them
 	// unlocked.
@@ -197,7 +199,11 @@ func (s *Server) readPointerBody(w http.ResponseWriter, r *http.Request, allow f
 		return nil, nil, false
 	}
 	release := s.opts.Pointer.leave
-	if !allow(time.Now()) {
+	now := time.Now()
+	if s.opts.Now != nil {
+		now = s.opts.Now()
+	}
+	if !allow(now) {
 		release()
 		http.Error(w, refuseBusy, http.StatusTooManyRequests)
 		return nil, nil, false
