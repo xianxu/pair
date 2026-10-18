@@ -1,13 +1,13 @@
 ---
 id: 000670
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-18
 updated: 2026-10-18
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: '49303845ed66b0b93f560c9e2b7fa3780eecb0ca' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'bb07276485f96413b7bc2f3805a5655478475547' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-18T11:33:23-07:00
 claimant:
     operator: Xian Xu
@@ -17,6 +17,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
 flow: {kind: quick, provenance: inferred, spec: "222d3bbc", done: "69353fb4"}
+actual_hours: 0.07
 ---
 
 # couch --notify never reaches the desktop; pair review --help fails on the bare group
