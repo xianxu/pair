@@ -9,6 +9,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/hostty"
 	"github.com/xianxu/pair/cmd/internal/ptychild"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 	"github.com/xianxu/pair/cmd/internal/threadactivity"
 	"github.com/xianxu/pair/cmd/internal/workbenchperftest"
 )
@@ -32,10 +33,18 @@ func (r countedActivityRuntime) SessionActivity(ctx context.Context, thread thre
 }
 
 func TestWorkbenchPerformanceIdleUITick(t *testing.T) {
+	t.Cleanup(func() {
+		if t.Failed() {
+			t.Logf("host state: %s", testwait.HostState())
+		}
+	})
 	const slots, ledgerBytes = 20, 30_000_000
 	evidence := workbenchperftest.NewFixture(t, slots, ledgerBytes)
 	runtime := countedActivityRuntime{base: threadactivity.NewOSRuntime(evidence.Home), counts: evidence.Counts, logf: t.Logf}
 	console := New(hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 100}), nil)
+	// This test owns byte/decode counts, not the product latency ceiling.
+	// Dedicated deadline tests retain the unchanged production bound.
+	console.probeTimeout = testwait.Budget(t)
 	t.Cleanup(func() { console.Stop(); console.workers.Wait() })
 	rows := make([]couchcore.ActionableThreadSummary, slots)
 	for i, owner := range evidence.Owners {
@@ -66,7 +75,7 @@ func TestWorkbenchPerformanceIdleUITick(t *testing.T) {
 			}
 			t.Logf("activity generation=%d completed=%d elapsed=%s", result.generation, len(result.observed), time.Since(started))
 			console.finishActivity(result)
-		case <-time.After(30 * time.Second):
+		case <-testwait.After(t):
 			t.Fatal("activity worker did not finish")
 		}
 		if console.activitySchedule.Running != 0 {

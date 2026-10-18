@@ -1436,6 +1436,8 @@ var NonArtifactSources = []string{
 	"cmd/internal/testpair/environment.go",
 	// pair#479 test wait helper: bounds a wait by the test deadline; names no file.
 	"cmd/internal/testwait/testwait.go",
+	// Test failure diagnostics inspect host load, not session artifacts.
+	"cmd/internal/testwait/host.go",
 	"cmd/internal/ctxmeter/ctxmeter.go",
 	"cmd/internal/dispatcher/dispatcher.go",
 	"cmd/internal/entrypoint/alias.go",

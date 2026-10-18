@@ -482,10 +482,18 @@ func startParkLifecycleHelper(t *testing.T, ctx context.Context, cfg parkHelperC
 
 func waitParkHelperAttachment(t *testing.T, ctx context.Context, session string, baseline int, wait <-chan error, drained <-chan struct{}, capture *parkHelperCapture) {
 	t.Helper()
+	waitParkHelperAttachmentWithQuery(t, ctx, session, baseline, wait, drained, capture, zellijClientCount)
+}
+
+// The readiness loop is shared by native conformance and deterministic semantic
+// tests. Query injection lives only in this test file; product query deadlines
+// remain owned by launcher.ZellijSource.
+func waitParkHelperAttachmentWithQuery(t *testing.T, ctx context.Context, session string, baseline int, wait <-chan error, drained <-chan struct{}, capture *parkHelperCapture, query func(context.Context, string) (int, error)) {
+	t.Helper()
 	ticker := time.NewTicker(25 * time.Millisecond)
 	defer ticker.Stop()
 	for {
-		count, countErr := zellijClientCount(ctx, session)
+		count, countErr := query(ctx, session)
 		if countErr == nil && count > baseline {
 			return
 		}
@@ -497,9 +505,9 @@ func waitParkHelperAttachment(t *testing.T, ctx context.Context, session string,
 			case <-drained:
 			case <-time.After(100 * time.Millisecond):
 			}
-			t.Fatalf("production handoff helper exited before attaching: %v; PTY=%q", err, capture.String())
+			t.Fatalf("production handoff helper exited before attaching: %v; PTY=%q; %s", err, capture.String(), testwait.HostState())
 		case <-ctx.Done():
-			t.Fatalf("production handoff helper did not attach: %v (last query: %v); PTY=%q", ctx.Err(), countErr, capture.String())
+			t.Fatalf("production handoff helper did not attach: %v (last query: %v); PTY=%q; %s", ctx.Err(), countErr, capture.String(), testwait.HostState())
 		case <-ticker.C:
 		}
 	}
