@@ -1,12 +1,12 @@
 ---
 id: 000636
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-16
 updated: 2026-10-18
 estimate_hours:
-card_mirror: '44be611b0dde4f34541c83c108e36b7cd4d7c292' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '42eb1bd0f8b7aebe25321111ba8345369bf30eda' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-17T10:14:59-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
 flow: {kind: quick, provenance: inferred, spec: "fb20d267", done: "9f6648a3"}
+actual_hours: N/A
 ---
 
 # Warm recovery live conformance intermittently receives no Zellij query reply
