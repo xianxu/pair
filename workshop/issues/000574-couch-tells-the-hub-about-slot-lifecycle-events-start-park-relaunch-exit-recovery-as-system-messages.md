@@ -5,8 +5,8 @@ deps: []
 github_issue:
 created: 2026-10-15
 updated: 2026-10-17
-estimate_hours:
-card_mirror: 'e161339e6f34ce44dbb258f65ab04306727b3e02' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 3.19
+card_mirror: 'a76884f97b5fa57a8f465ab8e44bd8b544401950' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-17T18:43:29-07:00
 claimant:
     operator: Xian Xu
@@ -15,6 +15,7 @@ claimant:
     workspace: pair:3
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
+flow: {kind: full, provenance: operator}
 ---
 
 # Couch tells the hub about slot lifecycle events (start, park, relaunch, exit, recovery) as system messages
@@ -72,8 +73,30 @@ Durable full-flow design: [Lifecycle system notices](../plans/000574-couch-lifec
 
 - Plan-quality round 1 refused PQ-1/PQ-2/PQ-3. Source verification confirmed unknown receipt import in StatusContext; refined all recovery paths to reject unauthorised system origin without endpoint authentication. Added sole collector transition/failure/multipart contract and named-function adversarial strategies. No code changed.
 
+- Plan-quality round 2 CLEAN: PQ-1/PQ-2/PQ-3 addressed, no new findings. Derive estimate only now; next run reuses accepted plan before estimate-quality review.
+
 ## Revisions
 
 - 2026-10-17 — Proposed design adds an explicit native-exit observation because Console attachment exit cannot substantiate the requested agent-exit notice, and kernel provenance because a visual system flag alone is forgeable. Full requested scope retained; operator smoke deferral and ariadne TL-lead companion await hub agreement.
 
 - 2026-10-17 — At hub request, the current Spec and Done-when exclude native-agent exit (unclaimed #657); require start/resume, park, relaunch, recovery and confirmed needs-relaunch notices plus restart coalescing. One global default-on setting replaces per-hub opt-out. Internal producer-only origin and canonical receipts replace endpoint PID authentication. All other verification/docs requirements remain; the approved operator smoke is deferred to the hub’s next restart.
+
+## Estimate
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only; calibration marked stale by estimate-source, so provisional. Derived after plan-quality round 2 accepted all findings. Full scope includes design, implementation/tests, docs and one close review; hub's separate ariadne companion is not charged here.
+
+Decomposition: issue/spec and revision dialogue uses 0.75 design + 0.2 v2 implementation; origin/recovery and lifecycle hooks are two smaller Go extensions (0.3 design ×0.2 spec quality; 0.5 implementation each). Collector is one greenfield Go concern: reuse existing reducers/formatting and Go stdlib, so 1.0 design ×0.5 library availability ×0.2 thorough-spec discount, plus 0.8 implementation. Broker publisher/socket integration is one API integration: 1.0 design ×0.2 spec quality, 1.5 implementation. Docs use 0.1 design ×0.2 and 0.2 implementation; one review uses 0.02 design and 0.5 implementation. No novel stack or external API discovery; familiarity 1.0 (recent #629/#648). All implementation values below scale v2 by 0.40 once. Thorough plan gives 15% design buffer: 1.31 ×1.15 +1.68 =3.1865, rounded 3.19 hours.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.75 impl=0.08
+item: smaller-go-module design=0.06 impl=0.2
+item: smaller-go-module design=0.06 impl=0.2
+item: greenfield-go-module design=0.1 impl=0.32
+item: api-integration design=0.2 impl=0.6
+item: atlas-docs design=0.02 impl=0.08
+item: milestone-review design=0.02 impl=0.2
+design-buffer: 0.15
+total: 3.19
+```
