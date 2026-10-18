@@ -170,6 +170,12 @@ Authorized M1 round4 returned REWORK only for BR-4 (kind unverifiable): the disp
 
 The requested host evidence is checkpointed in [M1 host catalog evidence](../plans/000665-m1-host-catalog-evidence.md): exact reviewed head6d7314450a44b1a84a84605c691678390398e10e, real origin/main authoritya5bc8e64a82776647060495425ec311dee235b23 and merge-based8ccc4577351b3dde5f829e83f5d83e4fedced5d, source/module diff exit0, ordinary catalog PASS2.659s (2559sources/five rules/100sites), retained log SHA256e6bf6bc27dd850a817c7a59b48e318df7478ffe6f74d3ecce3935b7b34edd694. No code/ref/config change is proposed. BR-4 remains for fresh review disposition; no SHIP or full-suite PASS is claimed for the corrected head yet.
 
+### 2026-10-18 — BR-4 measured dispute and conditional evidence review
+
+Authenticated hub390c1e57 directs answering BR-4 through sdlc finding dispute using the host evidence and log hash. The verb recorded the Important finding as disputed and no longer ledger-blocking. Its help also states that a REWORK verdict still holds the boundary and that an unverifiable dispute requires explicit fresh-review disposition. Therefore use the hub's conditional authorization for one evidence-only M1 round with command-only WF_BOUNDARY_ROUND_CAP=5. No review skip or code change. The fresh reviewer must answer the measured host evidence; dispute alone is not SHIP.
+
+Corrected-source recorded suite is already queued on evidence head49977424e, attempt972703181dd1ef16ddc349bce15bac37. These later dispute/log records are docs-only; no cancellation/retry is needed for unchanged source. M1 remains unlanded and M2 code remains untouched.
+
 ## Revisions
 
 ### 2026-10-18 — R1: two approved milestones
