@@ -1,13 +1,21 @@
 ---
 id: 000666
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-18
 updated: 2026-10-18
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: 'bc97ce9902fd9422129fda400f275a555c24ef5a' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'dd660943cd13ce670525e811484e768725fec953' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-18T10:34:48-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:6
+    worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Guard native fixture root handoffs
@@ -31,8 +39,27 @@ Evidence is landed in PR431, merge 1e90001c06796ba600c77d3cde3255ad6818f611, ver
 
 ## Plan
 
-Unassigned follow-up after landed #636. Design the local extension boundary before code; any ariadne change is routed through the hub as a cross-repository proposal.
+- [ ] Add a Pair-local cross-file native-fixture-roots rule in internal/repolint, consuming the three protected source files and emitting located findings through the ordinary repository lint test.
+- [ ] Qualify clean source fixtures, the existing six mutations, all seven omitted root reads, and missing/unreadable/malformed source failures; preserve the real poisoned parent/nested child and socket-budget tests.
+- [ ] After equivalent lint coverage passes, remove the old couchcore source matcher/mutation test so there is one owner; keep environment builders and runtime regression unchanged.
+- [ ] Update atlas ownership/interface documentation, run targeted lint and runtime tests plus races, then recorded suite and sole close review/normal landing.
 
 ## Log
 
 Hub ded49f45 requested this one follow-up after #636 lands and leaned Pair-local. Pair:6 delivery2fd83608 supplied landed paths and evidence; independently verified the merge and inspected the source. This is outside #665's implementation scope and does not block it.
+
+## Design
+
+Recommend a Pair-local repository rule: the defect depends on Pair's empty-environment builder and a cross-file helper handoff. Shared golint.Rule matches one AST, so putting these identifiers there would impose Pair contracts on other repos. Keeping only the existing guard would miss the requested lint ownership. A generic configurable cross-file lint framework is unnecessary for one known contract.
+
+nativeFixtureRootFindings consumes source bytes keyed by the three protected repository paths and returns located findings for rule native-fixture-roots (incident #636). It is pure parsing/inspection; absent or malformed required sources fail visibly. A thin reader in internal/repolint reuses the repository test root and injected readFile seam, reading each of those files once without extra Git/native queries. TestTrackedGoFilesPassCatalog consumes this local check alongside the unchanged shared catalog/debt scan. No suppression path is added.
+
+The manifest protects warm setup, park setup, the child cmd.Env handoff and all seven explicit root reads in recoveryLiveChildEnvironment. This is bounded source-contract checking, not a general data-flow proof or automatic discovery of future native fixtures. Keep the existing matcher until the new rule passes its six original mutations and a real-source equivalent; then remove the duplicate matcher/mutation test in the same issue (ARCH-DRY). The actual poisoned direct/nested-child, restoration/cleanup and socket-budget regressions stay in couchcore (ARCH-PURPOSE).
+
+Pure rule tests use source fixtures with no IO (ARCH-PURE); the reader uses injected reads for missing/unreadable inputs. The existing repo catalog boundary owns Git and its stateful fake; no new binary/service dependency is introduced (ARCH-MOCK). Cost is one pass over three bounded source files per repository lint run; no runtime hot path or additional process query (ARCH-CONSTRAINTS). Source parse/read failures refuse rather than treating unknown as clean (ARCH-SECURE). The check holds no state between events and creates no durable resources because it is one synchronous in-memory lint invocation (ARCH-ORDER, ARCH-FUNERAL).
+
+Visible results are clean (continue), finding (restore the named setup/handoff/root read and rerun), or unreadable/malformed source (restore the source and rerun); no user data is changed or lost. No native window, deadline change, operator-environment access or shared ariadne edit is needed.
+
+## Revisions
+
+- 2026-10-18 — Dispatched by verified hub receipt39404527; unowned card checked, claimed and start-plan completed. Chose Pair-local cross-file lint ownership; equivalent deterministic qualification precedes retiring the old duplicate guard. Quick flow, no milestones or estimate.
