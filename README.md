@@ -1889,6 +1889,17 @@ all tests finish. Private executable names use hard links (copies across
 filesystems). Standalone shell consumers use the same builder, which locates
 its checkout independently of the caller's working directory.
 
+Native diagnostic-log open-file conformance skips with a named reason when `lsof`
+cannot provide a complete observation. Require fresh native evidence with:
+
+```bash
+PAIR_REQUIRE_LSOF_CONFORMANCE=1 go test ./cmd/internal/diagnosticlog -count=1 \
+  -run 'Test(OpenFileInspectionConformance|UnregisteredChildOpenFileBlocksLegacyExpiry)$'
+```
+
+Required mode fails instead of skipping an unavailable/incomplete probe. A complete
+answer with a wrong holder or process identity fails in both modes.
+
 `make test` also runs ariadne's pinned Go lint catalog over tracked Go sources.
 For a focused check, run `go test ./internal/repolint -count=1 -v`. Use a full Git
 checkout with the configured main tracking ref available: the sleep-debt ratchet
