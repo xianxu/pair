@@ -227,3 +227,26 @@ also discovers unregistered subprocess fake producers and rejects independent
 positive serializers. Pure parser inputs and real native passthrough diagnostics
 remain separate, explicitly classified test surfaces. The guard is verified by
 malformed-positive and unregistered-producer mutation controls.
+
+
+### Recovery fixture diagnostics (#636)
+
+The warm-recovery and park conformance fixtures explicitly select disposable
+HOME/config/data/cache/runtime/socket roots through the existing empty-environment
+test boundary. Their nested park helper receives the same selected roots;
+outer shell overrides alone are not fixture authority. A poisoned-ambient child
+regression and a local source guard defend that propagation.
+
+Recovery admission is tested through the production scoped query adapter and
+shared stateful native fake, including unknown replies at both ownership reads
+and the detached-client read. A later healthy response cannot rescue the failed
+operation; the complete durable record and launch/quiescence effects remain
+unchanged on refusal.
+
+Live fixture diagnostics reuse the existing context-scoped launcher query
+observer. It retains bounded copies of the original query bytes, process status
+and timing alongside local lifecycle markers, then writes the test log after the
+measured path and cleanup. Capture is limited to64 records and8MiB of response
+bytes with explicit dropped counts. It adds no native queries, retries or timing
+policy. Local client wait remains distinct from server detach acknowledgement;
+the trace records evidence and does not prove the upstream trigger fixed.
