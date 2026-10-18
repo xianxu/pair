@@ -76,6 +76,8 @@ Final normal repolint package passed17.127s; catalog check after adding the new 
 
 Review found no code defect but returned REWORK BR-1 (kind unverifiable): its disposable checkout lacks configured/remote main authority, so the pre-existing debt ratchet refuses before the new lint hook. Re-ran on exact reviewed head7cb980f5ea0c51ebf5888864f8296c351b7bdcdb in this configured checkout: go test ./internal/repolint -count=1 passed17.539s. Separately go test ./internal/repolint -run '^TestTrackedGoFilesPassCatalog$' -count=1 -v passed4.217s; its log explicitly reports2580 tracked Go sources,5 shared rules plus Pair native-fixture-roots and100 exact sleep debt sites. git rev-parse confirmed HEAD7cb980f5ea0c51ebf5888864f8296c351b7bdcdb and origin/main9b841c43452eafa93b5613f0d93feb677e0b4a2f; both main/main-slot6 track origin refs/heads/main. No production change or loosened authority gate is justified. Submit this measured host evidence via the dispute path for explicit reviewer disposition. The recorded suite remains queued on the same code head.
 
+Close round2 returned SHIP, withdrawing BR-1 with the exact-head host evidence; no code fix was needed. Minor BR-2 corrected atlas wording from every entrypoint omission to the actual missing/bodyless warm entrypoint cases; all root/source omissions remain covered. Added the lesson; this is prose only and the queued suite code is unchanged.
+
 ## Revisions
 
 - 2026-10-18 — Dispatched by verified hub receipt39404527; unowned card checked, claimed and start-plan completed. Chose Pair-local cross-file lint ownership; equivalent deterministic qualification precedes retiring the old duplicate guard. Quick flow, no milestones or estimate.

@@ -58,8 +58,8 @@ adding another protected entrypoint. The shared single-file catalog remains
 independent of Pair helper names.
 
 The six original #636 source mutations now run at this lint boundary. Synthetic
-source tests also omit each root, entrypoint and source, and exercise malformed
-and bodyless declarations. The actual poisoned parent/nested child environment,
+source tests also omit each root and source, plus a missing warm entrypoint,
+and exercise malformed sources and a bodyless warm declaration. The actual poisoned parent/nested child environment,
 cleanup/restoration and Unix socket-budget regression stays in couchcore; it
 proves runtime propagation, complementing the source rule. The original duplicate
 couchcore matcher was retired after both boundaries passed equivalent mutations.

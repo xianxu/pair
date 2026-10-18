@@ -2288,3 +2288,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #636 BR-1: A context-installed observer must receive per-operation deadline facts from the query boundary; closing over its installation context misreports shorter inherited deadlines. Test a shorter child through the actual adapter and separately cover absent, shorter and longer caller deadlines against the adapter cap.
 
 - #666 BR-1: Repository lint may require verified main-ref authority. A disposable reviewer checkout without that authority cannot prove the ordinary lint consumer ran; retain a successful exact-head package run and named-consumer output from the configured checkout, and present it through the measured-evidence dispute path rather than weakening the repository guard.
+
+- #666 BR-2: Match universal coverage claims to actual cases. A missing warm entrypoint plus omitted park setup does not establish individual omission of every protected function; name the exact coverage or add the missing cases.
