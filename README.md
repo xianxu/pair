@@ -204,7 +204,10 @@ adds context that a one-line description cannot carry.
 Layout shortcuts confirm the invoking pane, tab and required native state before
 changing the workbench. If that context is uncertain, Pair shows a refusal
 instead of choosing another pane. A restore that becomes uncertain preserves
-its completed steps and recovery record. Confirmation adds a small interactive
+its completed steps and recovery record. For example, a refusal during return
+from Focus can leave the terminal tiled again before explicit focus restoration;
+Pair shows the refusal and stops. The next press observes the resulting state.
+Confirmation adds a small interactive
 delay (about 100 ms for returning to normal in a disposable native timing check).
 
 Editor shortcut routing, review pokes and review visibility also refuse uncertain

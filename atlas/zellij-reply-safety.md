@@ -178,3 +178,32 @@ not authorize an irreversible action or authenticate a same-kind reply.
 | `titlepoller.SessionAlive`, wrap dim, opener viewport | full listing / screen dump / agent pane lookup | Re-checked cosmetic/advisory consumers; title debounce, next paint/invocation or viewport render can repair a bad display. They supply no launch/ownership/routing authority. |
 | `wrapcmd.composerInView` | exact pane `dump-screen` | Existing 500ms advisory freshness; delivery still owns independent recipient/composer authority. `peer_input_test.go` and peer-delivery integration controls. |
 | Terminal note capture | none | Native query removed. Deterministic frame/owned-layout data only; zero-query broadcast composition tests. |
+
+## Native sample and mid-toggle refusal
+
+The single granted 2026-10-18 installed-0.45.1 sample observed 31 misrouted first
+frames in 830 raw requests: **3.7%** (31/830), all wrong response kinds with no
+transport error. Breakdown: 24 exit frames, six Connected responses and one
+ListPanes output delivered to the other request kind. This is a measured
+synthetic raw-request misroute rate, not a production user-action probability or
+proof of independent faults. Retained evidence: /tmp/p647nr-3940343646/result.json
+and /tmp/pair647-m3-native-attempt.log. No upstream publication or native rebuild.
+
+The first production toggle succeeded with a PTY marker delivered only to the
+expected terminal. During the second, embedding and layout steps completed;
+then current-tab-info returned exit1, “There is no active session!” Pair displayed
+its fixed refusal, kept the return record and made no mutation after unknown.
+The final snapshot showed original tiling and agent focus. That is a permitted
+completed-prefix outcome: embedding can change native focus before the explicit
+return-focus step, which refusal prevents. There is no rollback or automatic
+continuation, and no guarantee that every refusal ends in the same focus state.
+The next shortcut observes current state; from Normal it starts Focus anew.
+
+The fixture initially expected the previous Focus mode after this partial
+restore and stopped before its final PTY witness. Preserve that attempt as
+**stopped/inconclusive for clean-path qualification**, not a clean test pass.
+The hub accepted its retained refusal/record/effect-order trace as safety
+evidence. Offline oracle corrections model completed prefixes; they cannot
+retroactively supply the missing final witness. Clean-path qualification is
+assigned to the real-setup check at the next restart; no further native run is
+authorized for this sample.
