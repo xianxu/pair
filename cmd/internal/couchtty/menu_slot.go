@@ -92,7 +92,7 @@ func menuFrameTargetsInFlight(state MenuState, frame MenuFrame) bool {
 }
 
 // menuFrameOperationInFlight is the frame whose OWN operation is running:
-// same target and same action.
+// same target, action and original frame instance.
 func menuFrameOperationInFlight(state MenuState, frame MenuFrame) bool {
 	return menuFrameRunningOrigin(state, frame).Operation == frame.Action && menuFrameTargetsInFlight(state, frame)
 }
@@ -104,7 +104,7 @@ func menuRowNeedsRecoveryPreview(row couchcore.ActionableThreadSummary, operatio
 func menuFrameRunningOrigin(state MenuState, frame MenuFrame) MenuOperationOrigin {
 	for _, job := range state.Operations {
 		origin := job.Origin
-		if job.Phase != MenuOperationRunning {
+		if job.Phase != MenuOperationRunning || origin.FrameInstance != frame.Instance {
 			continue
 		}
 		if origin.RowKey.Kind == couchcore.ThreadTargetSlot {

@@ -217,7 +217,7 @@ func seedReattach(state MenuState, inventory []couchcore.ActionableThreadSummary
 // advanceReattach starts attempts, up to the pass's Limit in flight at once
 // (pair#205; one at a time before).
 //
-// It emits nothing while the OPERATOR has an operation in flight (cell 10).
+// It emits nothing during global leave, and skips each operator-owned row.
 // That hold is what makes quitting safe: without it a leave dispatched mid-pass
 // would be followed by more reattaches that are then cancelled. Attempts
 // already in flight finish; Leave waits for each thread's hold.
@@ -225,6 +225,11 @@ func advanceReattach(state MenuState) (MenuState, []MenuEffect) {
 	pass := state.Reattach
 	if pass.Phase != ReattachRunning {
 		return state, nil
+	}
+	for target, job := range state.Operations {
+		if target.Couch && job.Phase == MenuOperationRunning {
+			return state, nil
+		}
 	}
 	limit := max(1, pass.Limit)
 	// Copy before writing: the reducer is pure, and the previous MenuState must

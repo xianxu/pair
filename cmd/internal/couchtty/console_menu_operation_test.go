@@ -75,6 +75,9 @@ func TestConsoleMenuStartAttachesBeforeSuccessfulRestoration(t *testing.T) {
 	if !appendMenuFrame(&state, MenuFrame{Kind: MenuFrameStart}) {
 		t.Fatal("could not build start form")
 	}
+	state.Frames[len(state.Frames)-1].PreviewResolution = couchcore.StartResolution{
+		CanonicalPath: "/repo", Worktree: "/repo", Fingerprint: "accepted",
+	}
 	state, effects := dispatchMenuOperation(state, MenuEffect{
 		Operation: "start", Args: startCommitArgs("accepted"),
 	}, couchcore.ThreadAddress{})
@@ -300,7 +303,13 @@ func TestConsoleMenuAttachRefusalPaintsLocalErrorBanner(t *testing.T) {
 	f.con.mu.Unlock()
 	state := NewMenuState([]couchcore.ActionableThreadSummary{{Address: existing, Name: "root", State: couchcore.ThreadLive}}, existing)
 	state, _ = reduceKey(state, PanelKey{Kind: KeyCtrlSpace})
+	state.Frames[len(state.Frames)-1].PreviewResolution = couchcore.StartResolution{
+		CanonicalPath: "/repo", Worktree: "/repo", Fingerprint: "accepted",
+	}
 	state, effects := dispatchMenuOperation(state, MenuEffect{Operation: "start", Args: startCommitArgs("accepted")}, couchcore.ThreadAddress{})
+	if len(effects) != 1 {
+		t.Fatalf("start dispatch effects = %+v", effects)
+	}
 	started, _ := attachStartResult(t, "duplicate-actor", existing)
 	setTestOps(f.con, func(name string, _ map[string]string) (any, error) {
 		if name != "start" {
@@ -321,12 +330,15 @@ func TestConsoleMenuAttachRefusalPaintsLocalErrorBanner(t *testing.T) {
 	// Reducer completion precedes its paint; wait for the observable result.
 	waitFor(t, "attach refusal banner", func() bool {
 		screen := string(ansi.Strip([]byte(f.screenText())))
-		return strings.Contains(screen, "start thread\nerror: thread ") && strings.Contains(screen, "already attached")
+		return strings.Contains(screen, "error: thread ") && strings.Contains(screen, "already attached")
 	})
 	f.con.mu.Lock()
 	focus, inflight := f.con.focus, f.con.menu.operationForTest().Operation
 	f.con.mu.Unlock()
 	if !focus.IsPanel() || inflight != "" {
 		t.Fatalf("attach refusal focus=%+v inflight=%q, want restored switcher", focus, inflight)
+	}
+	if frame := f.con.menuSnapshot().CurrentFrame(); frame.Kind != MenuFrameRoot {
+		t.Fatalf("completed start restored stale form: %+v", frame)
 	}
 }

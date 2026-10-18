@@ -412,11 +412,9 @@ func TestRelaunchResultIsAdoptedByTheConsole(t *testing.T) {
 	}
 }
 
-// A refused relaunch must leave the operator on the confirmation that refused,
-// carrying the reason. The operator's report was "the screen flashes and goes
-// back to that menu" -- a failure that moved them somewhere they did not choose
-// and said nothing they could act on.
-func TestRefusedRelaunchKeepsItsConfirmationAndSaysWhy(t *testing.T) {
+// An admitted relaunch closes its confirmation immediately; refusal must retain
+// the reason on its exact root row rather than silently returning to the list.
+func TestRefusedRelaunchKeepsItsRowResultAndSaysWhy(t *testing.T) {
 	con, stdin, address := newChordFixture(t)
 	setTestOps(con, func(name string, _ map[string]string) (any, error) {
 		if name == "relaunch" {
@@ -429,14 +427,21 @@ func TestRefusedRelaunchKeepsItsConfirmationAndSaysWhy(t *testing.T) {
 	if _, err := stdin.Write([]byte("\x00\x1b[110;3u\x1b[B\r")); err != nil {
 		t.Fatalf("write chord, arrow and enter: %v", err)
 	}
-	waitFor(t, "the refusal notice on its own confirmation", func() bool {
+	waitFor(t, "the refusal notice on its exact row", func() bool {
 		snapshot := con.menuSnapshot()
-		return strings.Contains(snapshot.Notice.Text, "has not completed a turn yet") &&
-			snapshot.CurrentFrame().Kind == MenuFrameConfirmation
+		if !strings.Contains(snapshot.Notice.Text, "has not completed a turn yet") || snapshot.CurrentFrame().Kind != MenuFrameRoot {
+			return false
+		}
+		for _, job := range snapshot.Operations {
+			if job.Origin.Operation == "relaunch" && job.Origin.Address == address && job.Phase == MenuOperationFailed && strings.Contains(job.Detail, "has not completed a turn yet") {
+				return true
+			}
+		}
+		return false
 	})
 	frame := con.menuSnapshot().CurrentFrame()
-	if frame.Kind != MenuFrameConfirmation || frame.Action != "relaunch" || frame.Thread != address {
-		t.Fatalf("refused relaunch left frame = %+v, want its own confirmation restored", frame)
+	if frame.Kind != MenuFrameRoot || con.menuSnapshot().SelectedThreadAddress() != address {
+		t.Fatalf("refused relaunch left frame = %+v, want its root row selected", frame)
 	}
 }
 

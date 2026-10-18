@@ -101,7 +101,7 @@ func reduceRecoveryKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) 
 			if choice.NativeID == "" {
 				if row, ok := menuThreadTarget(state, frame.RowKey, frame.Thread); ok {
 					args := couchcore.ActorOperationArgs(row, "reboot")
-					return dispatchMenuOperation(state, MenuEffect{Operation: "reboot", Args: args}, row.Address)
+					return dispatchMenuOperation(state, MenuEffect{RowKey: menuRowKey(row), Operation: "reboot", Args: args}, row.Address)
 				}
 				return state, nil
 			}

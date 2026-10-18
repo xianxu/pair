@@ -124,29 +124,29 @@ The UI reservation spans this stage. Remote callbacks and #574 final observation
 
 Files: create `cmd/internal/couchtty/menu_operations.go` and `menu_operations_test.go`; modify `menu.go`, `menu_slot.go`, `menu_render.go`, `menu_actions.go` only as needed for shared row projection; extend `menu_render_test.go`.
 
-- [ ] Write red tests: A relaunch followed by B/hub switch emits B's effect; same-A mutation yields busy; two attempts finish in either order with isolated progress/failure.
-- [ ] Run `go test ./cmd/internal/couchtty -run 'TestMenu.*(Operation|Background|Busy|Progress)' -count=1`; verify the new assertions fail on the current global guard.
-- [ ] Implement the pure collection, target admission before enqueue, immediate root return and row projection. Convert every `InFlight` consumer, including reconciliation and attention bookkeeping.
-- [ ] Add tests for changed frame/row ordering, missing/replaced address, stale progress/result, hidden recovery offer and busy-row landing intent. Render at minimum geometry and check full failure access.
-- [ ] Run the reducer/render tests green; commit with issue and Agent trailers.
+- [x] Write red tests: A relaunch followed by B/hub switch emits B's effect; same-A mutation yields busy; two attempts finish in either order with isolated progress/failure.
+- [x] Run `go test ./cmd/internal/couchtty -run 'TestMenu.*(Operation|Background|Busy|Progress)' -count=1`; verify the new assertions fail on the current global guard.
+- [x] Implement the pure collection, target admission before enqueue, immediate root return and row projection. Convert every `InFlight` consumer, including reconciliation and attention bookkeeping.
+- [x] Add tests for changed frame/row ordering, missing/replaced address, stale progress/result, hidden recovery offer and busy-row landing intent. Render at minimum geometry and check full failure access.
+- [x] Run the reducer/render tests green; commit with issue and Agent trailers.
 
 ### 2. Console execution, adoption and navigation
 
 Files: modify `console.go`, `console_remote.go`, `operation_queue.go`, `terminal.go` as required; extend `console_menu_operation_test.go`, `console_run_menu_test.go`, `console_attach_transaction_test.go`, `operation_queue_test.go`; create `console_slot_jobs_test.go`.
 
-- [ ] Write channel-handshake red tests through Console.Run: hold A's lifecycle call, select B then hub, observe terminal cells/input delivery before releasing A. Hold adoption separately and repeat. No sleep-based ordering.
-- [ ] Implement bounded worker/preparation and short validated adoption commit; keep one final completion path and reserved navigation capacity.
-- [ ] Test same-row duplicate before execution, during effect and during adoption; independent B progress; queue overload; shutdown with work held; duplicate/stale result and cleanup ownership.
-- [ ] Test choosing busy A then remaining there lands after completion; navigating away before completion/adoption never steals focus or restores an old frame.
-- [ ] Test exit/result in both orders, startup reattach and continuation unaffected, and remote CLI callback waits through adoption while other UI input proceeds.
+- [x] Write channel-handshake red tests through Console.Run: hold A's lifecycle call, select B then hub, observe terminal cells/input delivery before releasing A. Hold adoption separately and repeat. No sleep-based ordering.
+- [x] Implement bounded worker/preparation and short validated adoption commit; keep one final completion path and reserved navigation capacity.
+- [x] Test same-row duplicate before execution, during effect and during adoption; independent B progress; queue overload; shutdown with work held; duplicate/stale result and cleanup ownership.
+- [x] Test choosing busy A then remaining there lands after completion; navigating away before completion/adoption never steals focus or restores an old frame.
+- [x] Test exit/result in both orders, startup reattach and continuation unaffected, and remote CLI callback waits through adoption while other UI input proceeds.
 - [ ] Run `go test ./cmd/internal/couchtty ./cmd/internal/couchcmd ./cmd/internal/couchcore -run 'Test.*(Menu|OperationQueue|Attach|Reattach|Continuation|Remote|RecoverPark|Lifecycle)' -count=1`; expected pass. Commit.
 
 ### 3. Integration, documentation and acceptance
 
 Files: `atlas/couch.md`, README's switcher/lifecycle guidance if behavior is described there; issue Log/plan.
 
-- [ ] Merge main after #651 lands before production work; recheck exact recover-park tests and preserve #574 observer ordering whenever it arrives. Do not build from peer branches.
-- [ ] Enumerate root Enter/mouse, confirmations, hotkeys, recovery, start/add-slot, switch-agent and leave; prove each uses the shared admission/ownership rules. Check no stale global-InFlight comments or consumers remain.
+- [x] Merge main after #651 lands before production work; recheck exact recover-park tests and preserve #574 observer ordering whenever it arrives. Do not build from peer branches.
+- [x] Enumerate root Enter/mouse, confirmations, hotkeys, recovery, start/add-slot, switch-agent and leave; prove each uses the shared admission/ownership rules. Check no stale global-InFlight comments or consumers remain.
 - [ ] Run targeted packages normally and focused race tests for new ordering cases. Update atlas and operator guidance with progress, busy refusal and no focus stealing.
 - [ ] Push head; run recorded full suite via `sdlc local-check run --name suite` (the configured suite is make -k); follow the hub's flake rule.
 - [ ] Proposed live acceptance, only when hub schedules it: start a slot relaunch, switch another slot and hub immediately, return to see progress/result; attempt duplicate action; observe a controlled refusal without losing UI. No pair:0 staging without hub instruction. Headless stateful fixtures remain the deterministic proof of held lifecycle/adoption orderings.

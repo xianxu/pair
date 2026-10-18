@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/rowtext"
@@ -32,6 +33,8 @@ type MenuOperation struct {
 	Origin        MenuOperationOrigin
 	Phase         MenuOperationPhase
 	StartedAt     time.Time
+	DisplayLabel  string
+	LandingFrame  uint64
 	Detail        string
 	ResultAddress couchcore.ThreadAddress
 	Recovery      *couchcore.RecoveryConfirmationOffer
@@ -62,14 +65,6 @@ func menuOperationForAttempt(state MenuState, attempt uint64) (menuOperationTarg
 func menuOriginForAttempt(state MenuState, attempt uint64) MenuOperationOrigin {
 	_, job, _ := menuOperationForAttempt(state, attempt)
 	return job.Origin
-}
-func menuHasRunningOperation(state MenuState) bool {
-	for _, job := range state.Operations {
-		if job.Phase == MenuOperationRunning {
-			return true
-		}
-	}
-	return false
 }
 func menuOperationForRow(state MenuState, row couchcore.ActionableThreadSummary) (MenuOperation, bool) {
 	if job, ok := state.Operations[menuOperationTarget{RowKey: menuRowKey(row)}]; ok {
@@ -143,6 +138,14 @@ func selectBusyMenuRow(state MenuState, row couchcore.ActionableThreadSummary) (
 		return state, false
 	}
 	state.LandingAttempt = job.Origin.Attempt
+	state.Operations = cloneMenuOperations(state.Operations)
+	for key, current := range state.Operations {
+		if current.Origin.Attempt == job.Origin.Attempt {
+			current.LandingFrame = state.Frames[0].Instance
+			state.Operations[key] = current
+			break
+		}
+	}
 	state.Frames = append([]MenuFrame(nil), state.Frames[:1]...)
 	selectMenuRow(&state.Frames[0], row)
 	state.Notice = MenuNotice{Level: MenuNoticeProgress, Text: menuOperationProgressText(state, job.Origin.Operation, job.Origin.Address), Owner: MenuProgressOwner{OperationAttempt: job.Origin.Attempt}}
@@ -164,6 +167,10 @@ func dispatchMenuOperation(state MenuState, effect MenuEffect, address couchcore
 			return state, nil
 		}
 	}
+	if address != (couchcore.ThreadAddress{}) && state.Reattach.isLoading(address) {
+		state.Notice = errorMenuNotice("busy: attaching")
+		return state, nil
+	}
 	if state.OperationSequence == ^uint64(0) {
 		state.Notice = errorMenuNotice("operation attempt identity exhausted")
 		return state, nil
@@ -178,7 +185,11 @@ func dispatchMenuOperation(state MenuState, effect MenuEffect, address couchcore
 	if state.Operations == nil {
 		state.Operations = make(map[menuOperationTarget]MenuOperation)
 	}
-	state.Operations[target] = MenuOperation{Origin: origin, Phase: MenuOperationRunning, StartedAt: state.ObservedAt}
+	label := ""
+	if row, exists := menuThreadTarget(state, target.RowKey, address); exists {
+		label = boundMenuOperationText(row.Label())
+	}
+	state.Operations[target] = MenuOperation{Origin: origin, Phase: MenuOperationRunning, StartedAt: state.ObservedAt, DisplayLabel: label, LandingFrame: state.Frames[0].Instance}
 	if menuOperationLands(effect.Operation) {
 		state.LandingAttempt = origin.Attempt
 	}
@@ -202,6 +213,9 @@ func reduceOperationResult(state MenuState, event MenuEvent) MenuState {
 	if !ok || !menuOperationMatches(job.Origin, event) {
 		return state
 	}
+	if state.LandingAttempt == job.Origin.Attempt && (len(state.Frames) != 1 || state.Frames[0].Instance != job.LandingFrame) {
+		state.LandingAttempt = 0
+	}
 	job.ResultAddress = event.Address
 	job.Phase = MenuOperationSucceeded
 	job.Detail = event.Operation + " complete"
@@ -210,7 +224,7 @@ func reduceOperationResult(state MenuState, event MenuEvent) MenuState {
 		if event.Unconfirmed {
 			job.Phase = MenuOperationUnconfirmed
 		}
-		job.Detail = event.Error
+		job.Detail = boundMenuOperationText(event.Error)
 		if job.Detail == "" {
 			job.Detail = event.Operation + " failed"
 		}
@@ -234,7 +248,8 @@ func reduceOperationResult(state MenuState, event MenuEvent) MenuState {
 	}
 	// Only a still-current landing may change the selected row. Newer frames,
 	// filtering and operator navigation are independent of this completion.
-	if event.Success && state.LandingAttempt == job.Origin.Attempt && len(state.Frames) == 1 {
+	if event.Success && state.LandingAttempt == job.Origin.Attempt && len(state.Frames) == 1 && state.Frames[0].Instance == job.LandingFrame {
+		state.Frames = append([]MenuFrame(nil), state.Frames...)
 		state.Frames[0].SelectedAddress = event.Address
 		if job.Origin.RowKey.Kind == couchcore.ThreadTargetSlot {
 			state.Frames[0].SelectedKey = job.Origin.RowKey
@@ -251,10 +266,10 @@ func updateOperationProgress(state MenuState, attempt uint64, detail string) Men
 		return state
 	}
 	state.Operations = cloneMenuOperations(state.Operations)
-	job.Detail = detail
+	job.Detail = boundMenuOperationText(detail)
 	state.Operations[key] = job
 	if state.Notice.Level == MenuNoticeProgress && state.Notice.Owner.OperationAttempt == attempt {
-		state.Notice.Text = menuOperationProgressText(state, job.Origin.Operation, job.Origin.Address) + " " + detail
+		state.Notice.Text = menuOperationProgressText(state, job.Origin.Operation, job.Origin.Address) + " " + job.Detail
 	}
 	return state
 }
@@ -271,8 +286,10 @@ func menuOperationRowText(job MenuOperation, now time.Time) string {
 			text += " · " + detail
 		}
 		return text
-	case MenuOperationFailed, MenuOperationUnconfirmed:
+	case MenuOperationFailed:
 		return "failed: " + detail
+	case MenuOperationUnconfirmed:
+		return "unconfirmed: " + detail
 	case MenuOperationNeedsConfirmation:
 		return "confirmation needed"
 	default:
@@ -282,15 +299,30 @@ func menuOperationRowText(job MenuOperation, now time.Time) string {
 
 // menuOperationRows indexes result addresses once rather than scanning all jobs
 // separately for every rendered row. Work is one pass over rows plus jobs.
+// menuOperationWork counts actual projection/pruning visits for deterministic
+// hot-path regressions. Production callers pass nil; it carries no menu state.
+type menuOperationWork struct{ Rows, Jobs int }
+
 func menuOperationRows(state MenuState) map[couchcore.ThreadRowKey]MenuOperation {
-	byAddress := make(map[couchcore.ThreadAddress]couchcore.ThreadRowKey, len(menuRows(state)))
-	for _, row := range menuRows(state) {
+	return menuOperationRowsMeasured(state, nil)
+}
+
+func menuOperationRowsMeasured(state MenuState, work *menuOperationWork) map[couchcore.ThreadRowKey]MenuOperation {
+	rows := menuRows(state)
+	byAddress := make(map[couchcore.ThreadAddress]couchcore.ThreadRowKey, len(rows))
+	for _, row := range rows {
+		if work != nil {
+			work.Rows++
+		}
 		if row.Address != (couchcore.ThreadAddress{}) {
 			byAddress[row.Address] = menuRowKey(row)
 		}
 	}
 	out := make(map[couchcore.ThreadRowKey]MenuOperation, len(state.Operations))
 	for target, job := range state.Operations {
+		if work != nil {
+			work.Jobs++
+		}
 		key := target.RowKey
 		if resolved, ok := byAddress[job.ResultAddress]; ok {
 			key = resolved
@@ -305,25 +337,111 @@ func menuOperationRows(state MenuState) map[couchcore.ThreadRowKey]MenuOperation
 }
 
 func pruneMenuOperations(state MenuState) MenuState {
+	return pruneMenuOperationsMeasured(state, nil)
+}
+
+func pruneMenuOperationsMeasured(state MenuState, work *menuOperationWork) MenuState {
 	if len(state.Operations) == 0 {
 		return state
 	}
-	keys := make(map[couchcore.ThreadRowKey]bool, len(menuRows(state)))
-	addresses := make(map[couchcore.ThreadAddress]bool, len(menuRows(state)))
-	for _, row := range menuRows(state) {
-		keys[menuRowKey(row)] = true
+	rows := menuRows(state)
+	keys := make(map[couchcore.ThreadRowKey]bool, len(rows))
+	addresses := make(map[couchcore.ThreadAddress]couchcore.ThreadRowKey, len(rows))
+	for _, row := range rows {
+		if work != nil {
+			work.Rows++
+		}
+		key := menuRowKey(row)
+		keys[key] = true
 		if row.Address != (couchcore.ThreadAddress{}) {
-			addresses[row.Address] = true
+			addresses[row.Address] = key
 		}
 	}
 	retained := make(map[menuOperationTarget]MenuOperation, len(state.Operations))
+	var missing MenuOperation
+	var missingTarget menuOperationTarget
+	missingFound := false
 	for key, job := range state.Operations {
-		if job.Phase == MenuOperationRunning || keys[key.RowKey] || addresses[job.ResultAddress] {
+		if work != nil {
+			work.Jobs++
+		}
+		if job.Phase == MenuOperationRunning {
 			retained[key] = job
-		} else if job.Detail != "" {
-			state.Notice = infoMenuNotice(fmt.Sprintf("%s/%s: %s", job.Origin.Address.RepoScope, job.Origin.Address.Tag, job.Detail))
+			continue
+		}
+		canonical := key.RowKey
+		if !keys[canonical] {
+			canonical = addresses[job.ResultAddress]
+		}
+		if canonical != (couchcore.ThreadRowKey{}) {
+			target := menuOperationTarget{RowKey: canonical}
+			previous, exists := retained[target]
+			if !exists || previous.Phase != MenuOperationRunning && previous.Origin.Attempt < job.Origin.Attempt {
+				retained[target] = job
+			}
+		} else if job.Detail != "" && (!missingFound || missing.Origin.Attempt < job.Origin.Attempt) {
+			missing, missingTarget, missingFound = job, key, true
+		}
+	}
+	if missingFound {
+		detail := menuOperationTargetLabel(missingTarget, missing) + ": " + missing.Detail
+		if missing.Phase == MenuOperationFailed || missing.Phase == MenuOperationUnconfirmed {
+			state.Notice = errorMenuNotice(detail)
+		} else {
+			state.Notice = infoMenuNotice(detail)
 		}
 	}
 	state.Operations = retained
 	return state
+}
+
+func menuOperationTargetLabel(target menuOperationTarget, job MenuOperation) string {
+	identity := target.StartPath
+	if identity == "" {
+		identity = target.RowKey.SlotPath
+	}
+	if identity == "" && job.Origin.Address != (couchcore.ThreadAddress{}) {
+		identity = fmt.Sprintf("%s/%s", job.Origin.Address.RepoScope, job.Origin.Address.Tag)
+	}
+	if target.Couch {
+		identity = "Couch"
+	}
+	if job.DisplayLabel != "" && job.DisplayLabel != identity {
+		return job.DisplayLabel + " [" + identity + "]"
+	}
+	return identity
+}
+
+// selectedMenuOperationDetail keeps Ctrl+Y useful after navigating away from a
+// global notice: the selected row owns its retained full diagnostic.
+func selectedMenuOperationDetail(state MenuState) (string, bool) {
+	if len(state.Frames) == 0 {
+		return "", false
+	}
+	frame := state.CurrentFrame()
+	key := frame.SelectedKey
+	if menuFrameBindsThread(frame) {
+		key = frame.RowKey
+	}
+	row, ok := menuThreadTarget(state, key, state.SelectedThreadAddress())
+	if !ok {
+		return "", false
+	}
+	job, ok := menuOperationForRow(state, row)
+	if !ok || job.Phase != MenuOperationFailed && job.Phase != MenuOperationUnconfirmed {
+		return "", false
+	}
+	return job.Detail, job.Detail != ""
+}
+
+func boundMenuOperationText(text string) string {
+	text = strings.ToValidUTF8(text, "�")
+	if len(text) <= menuTextLimit {
+		return text
+	}
+	end := menuTextLimit - len("…")
+	for end > 0 && !utf8.RuneStart(text[end]) {
+		end--
+	}
+	return text[:end] + "…"
 }

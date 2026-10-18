@@ -92,7 +92,7 @@ func TestSwitchAgentFrameSurvivesOwnParkButRejectsUnrelatedLoss(t *testing.T) {
 	// from elsewhere does not, because parked rows no longer offer
 	// switch-agent (#363).
 	inFlight := state
-	setTestMenuOperation(&inFlight, MenuOperationOrigin{Operation: "switch-agent", Attempt: 1, Address: menuAddress("couch-one")})
+	setTestMenuOperation(&inFlight, MenuOperationOrigin{Operation: "switch-agent", Attempt: 1, Address: menuAddress("couch-one"), FrameInstance: state.CurrentFrame().Instance})
 	next, _ := ReduceMenu(inFlight, MenuEvent{Kind: MenuEventInventory, Inventory: parked, Generation: 1})
 	if next.CurrentFrame().Kind != MenuFrameSwitchAgent {
 		t.Fatal("the switch's own park lost its form")

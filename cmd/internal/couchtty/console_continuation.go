@@ -162,7 +162,7 @@ func (c *Console) acceptContinuationRequests(result continuationScanResult) {
 			continue
 		}
 		fn := c.ops
-		origin := MenuOperationOrigin{Operation: operation, Address: status.Address, ContinuationID: status.RequestID, PreserveFocus: true}
+		origin := MenuOperationOrigin{Operation: operation, Address: status.Address, ContinuationID: status.RequestID, NavigationGeneration: c.navigationGeneration, PreserveFocus: true}
 		for id, p := range c.panes {
 			if p.thread == status.Address && c.focus == FocusActor(id) {
 				origin.PreserveFocus = false

@@ -89,3 +89,12 @@ func TestLegacyMenuOperationFixtureProjectsLatestRunningOnly(t *testing.T) {
 		t.Fatalf("finished operation projected as running: %+v", got)
 	}
 }
+
+func menuHasRunningOperation(state MenuState) bool {
+	for _, job := range state.Operations {
+		if job.Phase == MenuOperationRunning {
+			return true
+		}
+	}
+	return false
+}

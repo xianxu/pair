@@ -276,11 +276,10 @@ type Console struct {
 	stop                 chan struct{}
 	once                 sync.Once
 	workers              sync.WaitGroup
-	// queueWorkers is how many goroutines drain operationQueue (pair#205):
-	// the reattach pass's limit plus one, so the pass alone can never occupy
-	// every worker. (Remote and continuation jobs share the spare, so an
-	// operator's gesture can still wait behind those.)
-	queueWorkers int
+	// queueWorkers retains the existing total. All but the final worker own
+	// lifecycle/adoption; the final worker owns hosted navigation only (#576).
+	queueWorkers         int
+	navigationGeneration uint64
 }
 
 // errw is where the console reports its own failures. Separate from the host
@@ -705,6 +704,12 @@ func (c *Console) forceSwitch(id string) { c.switchTo(id, true, arrivalOrdinary)
 // notification-acknowledgement rule deliberately does not (every landing clears
 // the bell). Separating them is what keeps ctrl+backspace home from leaving the
 // actor the operator is sitting in marked as still paging.
+type menuOperationContextKey struct{}
+type menuOperationContext struct {
+	origin MenuOperationOrigin
+	hosted string
+}
+
 type arrival uint8
 
 const (
@@ -811,12 +816,13 @@ func (c *Console) Run() (code int) {
 	go func() { defer c.workers.Done(); c.watchContinuations() }()
 	go func() { defer c.workers.Done(); c.pumpStdin() }()
 	go func() { defer c.workers.Done(); c.watchResize() }()
-	// Several workers drain the operation queue (pair#205): operations on
-	// different threads run at once, bounded; the thread gate in couchcore
-	// keeps two off one thread, and results still reach this goroutine
-	// through q.results.
-	for i := 0; i < queueWorkers; i++ {
+	// Lifecycle/adoption workers and the reserved hosted-navigation worker
+	// share the bounded queue. Only Run reduces their final outcomes.
+	for i := 0; i < max(1, queueWorkers-1); i++ {
 		go func() { defer c.workers.Done(); c.operationQueue.Run(c.stop) }()
+	}
+	if queueWorkers > 1 {
+		go func() { defer c.workers.Done(); c.operationQueue.RunNavigation(c.stop) }()
 	}
 	slotGitTicker := time.NewTicker(c.slotGitInterval)
 	defer slotGitTicker.Stop()
@@ -913,6 +919,13 @@ func (c *Console) Run() (code int) {
 	syncSpinner := func() {
 		c.mu.Lock()
 		notice := c.menu.Notice
+		if notice.Level != MenuNoticeProgress {
+			for _, job := range c.menu.Operations {
+				if job.Phase == MenuOperationRunning && (notice.Level != MenuNoticeProgress || job.Origin.Attempt < notice.Owner.OperationAttempt) {
+					notice = MenuNotice{Level: MenuNoticeProgress, Owner: MenuProgressOwner{OperationAttempt: job.Origin.Attempt}}
+				}
+			}
+		}
 		focused := c.focus.IsPanel()
 		c.mu.Unlock()
 		active := focused && notice.Level == MenuNoticeProgress && notice.Owner != (MenuProgressOwner{})
@@ -1599,6 +1612,8 @@ func (c *Console) onHotkey() {
 	}
 
 	c.mu.Lock()
+	c.menu.LandingAttempt = 0
+	c.navigationGeneration++
 	c.focus = FocusPanel()
 	// Open focused on whoever paged. This used to run only when the ladder
 	// happened to land on the panel; now it is the point of the key, so it runs
@@ -1887,12 +1902,13 @@ func (c *Console) runMenuOperation(effect MenuEffect) {
 	}
 	requestArgs := cloneOperationArgs(effect.Args)
 	key := fmt.Sprintf("menu\x00%d\x00%s", effect.Attempt, effect.Operation)
-	_, err := c.operationQueue.Enqueue(operationRequest{key: key, name: effect.Operation, origin: origin, run: func() (any, error) {
+	request := operationRequest{key: key, name: effect.Operation, origin: origin, run: func() (any, error) {
 		operationContext, cancelOperation := context.WithCancel(c.lifetime)
 		defer cancelOperation()
 		// A long operation reports its current step onto its own progress
 		// notice (#399); the reducer ignores a line that arrives after the
 		// notice became a result.
+		operationContext = context.WithValue(operationContext, menuOperationContextKey{}, menuOperationContext{origin: origin})
 		operationContext = couchcore.WithOperationProgress(operationContext, func(detail string) {
 			c.mu.Lock()
 			c.menu = updateOperationProgress(c.menu, origin.Attempt, detail)
@@ -1900,7 +1916,19 @@ func (c *Console) runMenuOperation(effect MenuEffect) {
 			c.repaint()
 		})
 		return fn(couchcore.OperationCall{Name: effect.Operation, Args: requestArgs, Implicit: true, Context: operationContext})
-	}})
+	}}
+	if effect.Operation == "switch" {
+		c.mu.Lock()
+		hosted := c.switchTargetForAddressLocked(origin.Address)
+		c.mu.Unlock()
+		if hosted != "" {
+			request.navigation = func() (any, error) {
+				ctx := context.WithValue(c.lifetime, menuOperationContextKey{}, menuOperationContext{origin: origin, hosted: hosted})
+				return fn(couchcore.OperationCall{Name: effect.Operation, Args: requestArgs, Implicit: true, Context: ctx})
+			}
+		}
+	}
+	_, err := c.operationQueue.Enqueue(request)
 	if err != nil {
 		c.finishOperation(operationCompletion{key: key, name: effect.Operation, origin: origin, err: err})
 	}
@@ -2112,14 +2140,10 @@ func (c *Console) finishOperation(completed operationCompletion) bool {
 		}
 	}
 	if completed.origin.Operation == "switch" {
-		// Success is acknowledged by switchTo, which is the only place that
-		// knows a landing actually happened -- two authorities for one rule is
-		// how they drift. Failure still has to release the capture here,
-		// because no landing occurred to do it.
-		if !event.Success {
-			c.attention.Cancel(completed.origin.AttentionCapture)
-			c.syncAttentionLocked()
-		}
+		// Only the selection owner acknowledges. Finishing always releases this
+		// job's capture, including a successful switch superseded before landing.
+		c.attention.Cancel(completed.origin.AttentionCapture)
+		c.syncAttentionLocked()
 	}
 	if event.Success && operationNeedsProjectionRefresh(event.Operation) {
 		event.ProjectionAfterGeneration = c.refreshSchedule.Sequence
@@ -2127,8 +2151,8 @@ func (c *Console) finishOperation(completed operationCompletion) bool {
 	// A lifecycle operation's child exit is expected in EITHER event order.
 	// c.exited and c.operationQueue.results are separate select cases and Go
 	// picks uniformly among ready ones, so roughly half the time the completion
-	// wins the race, ReduceMenu clears InFlight, and the exit falls through to
-	// consumeExpectedParkExitLocked's InFlight arm with nothing to match. This
+	// wins the race, ReduceMenu completes the row job, and the exit falls through to
+	// consumeExpectedParkExitLocked's running-job arm with nothing to match. This
 	// bridge is the other half of that rule, and detach needs it as much as
 	// park does -- both end their child deliberately.
 	if err == nil && endsItsOwnChild(completed.origin.Operation) {
@@ -2149,6 +2173,8 @@ func (c *Console) finishOperation(completed operationCompletion) bool {
 		c.menu, menuEffects = ReduceMenu(c.menu, event)
 	}
 	panelFocused := c.focus.IsPanel()
+	land := completed.origin.Attempt != 0 && c.menu.LandingAttempt == completed.origin.Attempt && len(c.menu.Frames) == 1
+	continuationLand := completed.origin.ContinuationID != "" && !completed.origin.PreserveFocus && completed.origin.NavigationGeneration == c.navigationGeneration
 	cancelPass := c.completedReattachPassLocked()
 	c.mu.Unlock()
 	c.observeLifecyclePass()
@@ -2176,7 +2202,7 @@ func (c *Console) finishOperation(completed operationCompletion) bool {
 		c.reduceMenu(MenuEvent{Kind: MenuEventNotice, Error: warned.Warning()})
 		c.setNotice(warned.Warning())
 	}
-	if completed.origin.Operation == "resume" && err == nil && startedHandleID != "" && !completed.origin.Background && !completed.origin.PreserveFocus {
+	if err == nil && startedHandleID != "" && !completed.origin.Background && !completed.origin.PreserveFocus && (land || continuationLand) {
 		c.requestMenuRefresh()
 		c.forceSwitch(startedHandleID)
 		return false
@@ -2234,6 +2260,10 @@ func (c *Console) ExecuteConsoleOperation(call couchcore.OperationCall) (any, er
 	address := couchcore.ThreadAddress{RepoScope: call.Args["repo-scope"], Tag: couchcore.ThreadTag(call.Args["tag"])}
 	switch call.Name {
 	case "switch":
+		if call.Context == nil {
+			call.Context = c.lifetime
+		}
+		menuCall, _ := call.Context.Value(menuOperationContextKey{}).(menuOperationContext)
 		c.mu.Lock()
 		target := c.switchTargetForAddressLocked(address)
 		// A notification hop is a landing on an actor that HAD a pending
@@ -2248,6 +2278,9 @@ func (c *Console) ExecuteConsoleOperation(call couchcore.OperationCall) (any, er
 			how = arrivalNotification
 		}
 		c.mu.Unlock()
+		if menuCall.hosted != "" && target != menuCall.hosted {
+			return nil, errNavigationNeedsLifecycle
+		}
 		if target == "" {
 			// A restored registry entry does not restore its PTY handle. Route
 			// through resume's fresh terminal proof and let normal completion
@@ -2268,7 +2301,20 @@ func (c *Console) ExecuteConsoleOperation(call couchcore.OperationCall) (any, er
 			return fn(couchcore.OperationCall{Name: "resume", Context: call.Context, Implicit: true,
 				Args: map[string]string{"repo-scope": address.RepoScope, "tag": string(address.Tag), "warm-only": "true"}})
 		}
-		err := c.runTerminalCommand(call.Context, func() error { _, err := c.selectActorContext(call.Context, target, true, how); return err })
+		err := c.runTerminalCommand(call.Context, func() error {
+			c.mu.Lock()
+			current := c.switchTargetForAddressLocked(address)
+			allowed := menuCall.origin.Attempt == 0 || c.menu.LandingAttempt == menuCall.origin.Attempt
+			c.mu.Unlock()
+			if menuCall.hosted != "" && current != menuCall.hosted {
+				return errNavigationNeedsLifecycle
+			}
+			if !allowed {
+				return nil
+			}
+			_, err := c.selectActorContext(call.Context, target, true, how)
+			return err
+		})
 		return address, err
 	case "attach":
 		start, ok := call.TypedPayload.(couchcore.StartResult)

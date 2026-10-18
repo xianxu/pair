@@ -67,11 +67,11 @@ func TestRecoveryAndRebootUseExistingOwnerQueue(t *testing.T) {
 	for _, operation := range []string{"resume", "reboot"} {
 		t.Run(operation, func(t *testing.T) {
 			f := newFixture(t, 24, 100)
-			// Pause EVERY queue worker (pair#205: the queue has several), so an
-			// operation that goes through the owner queue must wait behind them.
+			// Pause every lifecycle worker; the extra reserved hosted-navigation
+			// worker cannot consume these lifecycle requests.
 			release := make(chan struct{})
 			defer close(release)
-			workers := max(1, f.con.queueWorkers)
+			workers := max(1, f.con.queueWorkers-1)
 			entered := make(chan struct{}, workers)
 			for i := 0; i < workers; i++ {
 				_, err := f.con.operationQueue.Enqueue(operationRequest{key: fmt.Sprintf("paused-lifecycle-%d", i), name: "park", run: func() (any, error) { entered <- struct{}{}; <-release; return nil, nil }})

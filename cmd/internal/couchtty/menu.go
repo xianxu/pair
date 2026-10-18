@@ -230,14 +230,15 @@ type MenuOperationOrigin struct {
 	PanelOrigin bool
 	// ContinuationID correlates durable automatic work without routing it
 	// through the reattachment pass. PreserveFocus controls child adoption.
-	ContinuationID string
-	PreserveFocus  bool
+	NavigationGeneration uint64
+	ContinuationID       string
+	PreserveFocus        bool
 	// Manual suppresses the attention capture, so the landing is classified
 	// arrivalOrdinary even on a paging actor. A click is always a manual switch;
 	// Enter on a paging actor is not.
 	Manual bool
 	// Background marks an attempt couch dispatched on its own, not the
-	// operator: the reattach pass (pair#206). It never occupies InFlight, and
+	// operator: the reattach pass (pair#206). It never owns an operator row job, and
 	// its completion never takes focus.
 	Background bool
 
@@ -1813,47 +1814,6 @@ func operationNeedsProjectionRefresh(operation string) bool {
 		// Fail safe: a new successful operation may have changed the inventory.
 		return true
 	}
-}
-
-func restoreMenuPrefixPreservingStart(state MenuState, keep int, origin MenuOperationOrigin) MenuState {
-	overlays := make([]MenuFrame, 0, 1)
-	for _, frame := range state.Frames {
-		if frame.Kind == MenuFrameStart && frame.Instance != origin.FrameInstance {
-			overlays = append(overlays, frame)
-		}
-	}
-	if keep < 0 {
-		keep = 0
-	}
-	if keep > len(state.Frames) {
-		keep = len(state.Frames)
-	}
-	frames := append([]MenuFrame(nil), state.Frames[:keep]...)
-	for _, overlay := range overlays {
-		alreadyPresent := false
-		for _, frame := range frames {
-			if frame.Instance == overlay.Instance {
-				alreadyPresent = true
-				break
-			}
-		}
-		if !alreadyPresent {
-			frames = append(frames, overlay)
-		}
-	}
-	state.Frames = frames
-	return state
-}
-
-func menuOperationOriginFrame(state MenuState, origin MenuOperationOrigin) (MenuFrame, bool) {
-	if origin.Depth < 1 || origin.Depth > len(state.Frames) {
-		return MenuFrame{}, false
-	}
-	frame := state.Frames[origin.Depth-1]
-	if frame.Instance != origin.FrameInstance || frame.Kind != origin.FrameKind {
-		return MenuFrame{}, false
-	}
-	return frame, true
 }
 
 func menuOperationMatches(origin MenuOperationOrigin, event MenuEvent) bool {
