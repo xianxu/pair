@@ -146,6 +146,64 @@ func TestUnknownInnerFocusDoesNotForwardOrRelaunch(t *testing.T) {
 	}
 }
 
+func TestRestartFocusChangeDuringProbeRefusesCandidate(t *testing.T) {
+	for _, role := range []workbenchshortcut.PaneRole{workbenchshortcut.PaneRoleRightTerminal, workbenchshortcut.PaneRoleLeftDraft} {
+		t.Run(fmt.Sprint(role), func(t *testing.T) {
+			child := ptychild.NewFakeChild(nil)
+			con, _, _ := newChordFixtureWithChild(t, child)
+			con.SetShortcutFocusProbe(func(context.Context, couchcore.ThreadAddress) (workbenchshortcut.PaneRole, error) {
+				con.mu.Lock()
+				con.focus = FocusPanel()
+				con.mu.Unlock()
+				return role, nil
+			})
+			var forwarded []byte
+			if err := con.runTerminalCommand(t.Context(), func() error {
+				con.dispatchInputCandidate(nil, HitRelaunch, workbenchshortcut.ChordEncodings(workbenchshortcut.ChordAltN)[0], func(raw []byte) { forwarded = append(forwarded, raw...) })
+				return nil
+			}); err != nil {
+				t.Fatal(err)
+			}
+			con.mu.Lock()
+			notice := con.feed.Row().Body
+			con.mu.Unlock()
+			if !strings.Contains(notice, "focus changed") || len(forwarded) != 0 {
+				t.Errorf("forwarded=%q notice=%q", forwarded, notice)
+			}
+			if len(child.Writes()) != 0 || con.menuSnapshot().CurrentFrame().Kind == MenuFrameConfirmation {
+				t.Fatal("stale focus forwarded or relaunched")
+			}
+		})
+	}
+}
+
+func TestRestartAdmissionContextRemainsLiveThroughDispatch(t *testing.T) {
+	con, _, _ := newChordFixture(t)
+	var observed context.Context
+	con.SetShortcutFocusProbe(func(ctx context.Context, _ couchcore.ThreadAddress) (workbenchshortcut.PaneRole, error) {
+		observed = ctx
+		return workbenchshortcut.PaneRoleRightTerminal, nil
+	})
+	var forwarded int
+	if err := con.runTerminalCommand(t.Context(), func() error {
+		con.dispatchInputCandidate(nil, HitRelaunch, workbenchshortcut.ChordEncodings(workbenchshortcut.ChordAltN)[0], func(raw []byte) {
+			if len(raw) == 0 {
+				return
+			}
+			forwarded++
+			if observed == nil || observed.Err() != nil {
+				t.Errorf("admission token ended before actual dispatch: %v", observed)
+			}
+		})
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if forwarded != 1 || observed == nil || !errors.Is(observed.Err(), context.Canceled) {
+		t.Fatalf("dispatch=%d token=%v; token must end after dispatch", forwarded, observed)
+	}
+}
+
 func TestCtrlAltNBytesReachAFullScreenTUI(t *testing.T) {
 	child := ptychild.NewFakeChild([]byte("\x1b[?1049h"))
 	con, stdin, _ := newChordFixtureWithChild(t, child)

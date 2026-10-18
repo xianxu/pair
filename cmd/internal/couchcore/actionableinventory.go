@@ -173,6 +173,10 @@ type ThreadEvidence struct {
 // ActionableThreadSummary contains only fields the ordinary switcher needs.
 // It deliberately excludes diagnostic lifecycle state.
 type ActionableThreadSummary struct {
+	HasOpenPark bool   `json:"has_open_park,omitempty"`
+	ParkNonce   string `json:"park_nonce,omitempty"`
+	// TitleTarget is private, observation-scoped display authority.
+	TitleTarget  *TitleTarget        `json:"-"`
 	Target       ThreadTarget        `json:"target"`
 	RowKey       ThreadRowKey        `json:"row_key"`
 	Recovery     *RecoveryDecision   `json:"recovery,omitempty"`
@@ -325,6 +329,8 @@ func ProjectActionableThreads(input ThreadProjectionInput) []ActionableThreadSum
 	for _, record := range records {
 		state, reason := ClassifyThread(record, evidence[record.Address])
 		rows = append(rows, ActionableThreadSummary{
+			HasOpenPark:        record.Park != nil,
+			ParkNonce:          openParkNonce(record),
 			Address:            record.Address,
 			Continuation:       continuationStatus(record),
 			ContinuationMissed: cloneMiss(record.ContinuationMissed),
@@ -754,6 +760,7 @@ func (c *Couch) ActionableThreadInventoryContext(ctx context.Context, observatio
 		return nil, err
 	}
 	rows := ProjectActionableThreads(FromSnapshot(snapshot, evidence))
+	rows = c.applyTitleTargets(ctx, rows, snapshot, evidence)
 	// Aliases are display-only: an unreadable alias file must not take the
 	// switcher down, and reference resolution reports it on its own path.
 	if names, err := c.repositoryNames(); err == nil {
@@ -1188,4 +1195,11 @@ func ContinuityOutcome(row ActionableThreadSummary) ContinuityAction {
 	default:
 		return Fresh
 	}
+}
+
+func openParkNonce(record ThreadRecord) string {
+	if record.Park == nil {
+		return ""
+	}
+	return record.Park.Identity.Nonce
 }

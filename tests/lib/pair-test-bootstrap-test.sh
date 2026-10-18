@@ -31,7 +31,9 @@ ln -s "$4" "$HOME/foreign"
 exit 23
 CHILD
 status=0
-TMPDIR="$scratch" HOME="$scratch/caller" PAIR_SCROLLBACK_EVENTS_PATH="$scratch/caller/capture" COUCH_THREAD_SCOPE=foreign ZELLIJ_SESSION_NAME=foreign \
+# This cleanup-only fixture has no Go work; avoid Go telemetry/config writes
+# in the synthetic caller HOME while the cache contract tests cover resolution.
+GOCACHE=off GOMODCACHE="$scratch/modules" GOTMPDIR= TMPDIR="$scratch" HOME="$scratch/caller" PAIR_SCROLLBACK_EVENTS_PATH="$scratch/caller/capture" COUCH_THREAD_SCOPE=foreign ZELLIJ_SESSION_NAME=foreign \
   bash "$fixture" --pair-test-isolated-child "$scratch/home" 'argument with spaces' "$scratch/caller/readonly" || status=$?
 [ "$status" = 23 ]
 child_home=$(cat "$scratch/home")

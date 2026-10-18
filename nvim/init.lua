@@ -1066,7 +1066,9 @@ do
   local client = dofile(nvim_dir .. 'review/restore_client.lua').new({
     state_file = state_file, read_target = read_target, write_target = write_target,
     session = current_session_id, pair_bin = pair_bin,
-    hide = function() dofile(nvim_dir .. 'workbench_route.lua').return_to_draft() end,
+    hide = function(budget, admitted)
+      return dofile(nvim_dir .. 'workbench_route.lua').return_to_draft(budget, admitted)
+    end,
     prompt = function() vim.api.nvim_feedkeys(':PairReview ', 'n', false) end,
   })
   _G._pair_review.client = client

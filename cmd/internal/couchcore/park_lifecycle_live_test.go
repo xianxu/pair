@@ -21,7 +21,6 @@ import (
 	"github.com/xianxu/pair/cmd/internal/pairlifecycle"
 	"github.com/xianxu/pair/cmd/internal/pairlifecycletest"
 	"github.com/xianxu/pair/cmd/internal/procutil"
-	"github.com/xianxu/pair/cmd/internal/testpair"
 	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
@@ -54,6 +53,8 @@ type realLifecycleOps struct {
 	fault     *conformanceFaultRuntime
 	stages    []pairlifecycle.CleanupStage
 	completed time.Time
+	// gatePath is derived from the private fixture stage path, never operator input.
+	gatePath string
 }
 
 func (o *realLifecycleOps) step(stage pairlifecycle.CleanupStage, effect func() error) error {
@@ -74,7 +75,10 @@ func (o *realLifecycleOps) QuiesceSession(ctx context.Context) error {
 func (o *realLifecycleOps) ReapEditors(context.Context) error {
 	return o.step(pairlifecycle.StageEditorReap, nil)
 }
-func (o *realLifecycleOps) PreserveScrollback(context.Context, pairlifecycle.CleanupIntent) error {
+func (o *realLifecycleOps) PreserveScrollback(ctx context.Context, _ pairlifecycle.CleanupIntent) error {
+	if err := awaitParkRecoveryCleanupGate(ctx, o.gatePath); err != nil {
+		return err
+	}
 	return o.step(pairlifecycle.StageScrollbackPreserve, nil)
 }
 func (o *realLifecycleOps) CleanupSidecars(context.Context) error {
@@ -126,7 +130,7 @@ func (d *realParkConformanceDriver) CommitRequest(request pairlifecycle.QuitRequ
 	if err != nil {
 		return err
 	}
-	current, err = d.threads.AdvancePark(current.Address, current.Revision, ParkEvent{
+	current, err = d.threads.AdvancePark(context.Background(), current.Address, current.Revision, ParkEvent{
 		Kind: ParkRequestCommitted, Identity: current.Park.Identity, Attempt: request.Attempt,
 	})
 	d.current = current
@@ -151,7 +155,7 @@ func (d *realParkConformanceDriver) CleanupAndPrepareCompletion(ctx context.Cont
 	ticker := time.NewTicker(25 * time.Millisecond)
 	defer ticker.Stop()
 	for {
-		completion, found, err := observer.ObserveCompletion(d.paths, request)
+		completion, found, err := observer.ObserveCompletion(context.Background(), d.paths, request)
 		if err != nil {
 			return pairlifecycle.CleanupResult{}, nil, err
 		}
@@ -224,6 +228,8 @@ func (d *realParkConformanceDriver) Finalize(request pairlifecycle.QuitRequest) 
 func TestParkLifecycleLive(t *testing.T) {
 	ctx, cancel := liveParkContext(t, 20*time.Second)
 	defer cancel()
+	capture := newRecoveryQueryCapture(t)
+	ctx = capture.Context(ctx)
 	driver, request := newRealParkConformance(t, ctx, false)
 
 	liveTrace, err := pairlifecycletest.RunConformanceScenario(ctx, driver, request)
@@ -244,6 +250,8 @@ func TestParkLifecycleLive(t *testing.T) {
 func TestParkLifecycleLiveIntentOnlyMutation(t *testing.T) {
 	setupCtx, cancelSetup := liveParkContext(t, 20*time.Second)
 	defer cancelSetup()
+	capture := newRecoveryQueryCapture(t)
+	setupCtx = capture.Context(setupCtx)
 	driver, request := newRealParkConformance(t, setupCtx, true)
 
 	// The short deadline proves missing completion after intent publication.
@@ -286,18 +294,24 @@ func liveParkContext(t *testing.T, timeout time.Duration) (context.Context, cont
 
 func newRealParkConformance(t *testing.T, ctx context.Context, intentOnly bool) (*realParkConformanceDriver, pairlifecycle.QuitRequest) {
 	t.Helper()
-	testpair.ApplyEnvironment(t, t.TempDir(), "TMPDIR=/tmp", "SHELL=/bin/sh",
-		"XDG_CONFIG_HOME="+t.TempDir(), "XDG_DATA_HOME="+t.TempDir(), "XDG_CACHE_HOME="+t.TempDir())
+	setupRecoveryLiveEnvironment(t)
+	markRecoveryQuery(ctx, recoveryLiveEnvironmentMark())
 	variant := "ok"
 	if intentOnly {
 		variant = "mut"
 	}
 	session := fmt.Sprintf("pair-park-%d-%s", os.Getpid(), variant)
+	markRecoveryQuery(ctx, "park-session-start-enter")
 	zellij, err := pairlifecycletest.StartControlledZellij(ctx, session)
+	markRecoveryQuery(ctx, fmt.Sprintf("park-session-start-return err=%v", err))
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = zellij.Close() })
+	t.Cleanup(func() {
+		markRecoveryQuery(ctx, "park-session-cleanup-enter")
+		err := zellij.Close()
+		markRecoveryQuery(ctx, fmt.Sprintf("park-session-cleanup-return err=%v", err))
+	})
 
 	namespace := testCouchNamespace(t)
 	threads := NewThreadStore(namespace)
@@ -350,6 +364,7 @@ func newRealParkConformance(t *testing.T, ctx context.Context, intentOnly bool) 
 		StagePath: stagePath, CompletedAt: time.Unix(100, 0).UTC(),
 	})
 	identity := procutil.Identity(strconv.Itoa(child.Process.Pid))
+	markRecoveryQuery(ctx, fmt.Sprintf("park-helper-started pid=%d identity=%q", child.Process.Pid, identity))
 	if identity == "" {
 		t.Fatal("production handoff helper identity is unavailable")
 	}
@@ -390,12 +405,14 @@ func newRealParkConformance(t *testing.T, ctx context.Context, intentOnly bool) 
 	t.Cleanup(func() {
 		runtime := launcher.NewScopedOSRuntime(dataDir, scoped.ScopeDir(), pairHome)
 		_, _, _ = runtime.TakeQuitIntent(session)
+		markRecoveryQuery(ctx, "park-helper-cleanup-enter")
 		if child.Process != nil {
 			_ = child.Process.Kill()
 		}
 		if childPTY != nil {
 			_ = childPTY.Close()
 		}
+		markRecoveryQuery(ctx, "park-helper-cleanup-issued; local wait not observed here")
 	})
 	return driver, request
 }
@@ -441,11 +458,7 @@ func startParkLifecycleHelper(t *testing.T, ctx context.Context, cfg parkHelperC
 		t.Fatal(err)
 	}
 	cmd := exec.Command(os.Args[0])
-	cmd.Env = testpair.Environment(t, os.Getenv("HOME"),
-		"TMPDIR=/tmp", "SHELL=/bin/sh", "TERM=xterm-256color",
-		"XDG_CONFIG_HOME="+os.Getenv("XDG_CONFIG_HOME"),
-		"XDG_DATA_HOME="+os.Getenv("XDG_DATA_HOME"),
-		"XDG_CACHE_HOME="+os.Getenv("XDG_CACHE_HOME"),
+	cmd.Env = recoveryLiveChildEnvironment(t,
 		"PAIR_TEST_COUCH_PARK_HELPER=1",
 		"PAIR_TEST_COUCH_LAUNCH_NATIVE_SIDECAR=1",
 		"PAIR_TEST_PARK_GLOBAL_DATA_DIR="+cfg.GlobalDataDir,
@@ -463,6 +476,11 @@ func startParkLifecycleHelper(t *testing.T, ctx context.Context, cfg parkHelperC
 		t.Fatal(err)
 	}
 	capture := new(parkHelperCapture)
+	t.Cleanup(func() {
+		if t.Failed() {
+			t.Logf("owned helper PTY diagnostics: %q", capture.String())
+		}
+	})
 	drained := make(chan struct{})
 	go func() { _, _ = io.Copy(capture, terminal); close(drained) }()
 	wait := make(chan error, 1)
@@ -474,10 +492,18 @@ func startParkLifecycleHelper(t *testing.T, ctx context.Context, cfg parkHelperC
 
 func waitParkHelperAttachment(t *testing.T, ctx context.Context, session string, baseline int, wait <-chan error, drained <-chan struct{}, capture *parkHelperCapture) {
 	t.Helper()
+	waitParkHelperAttachmentWithQuery(t, ctx, session, baseline, wait, drained, capture, zellijClientCount)
+}
+
+// The readiness loop is shared by native conformance and deterministic semantic
+// tests. Query injection lives only in this test file; product query deadlines
+// remain owned by launcher.ZellijSource.
+func waitParkHelperAttachmentWithQuery(t *testing.T, ctx context.Context, session string, baseline int, wait <-chan error, drained <-chan struct{}, capture *parkHelperCapture, query func(context.Context, string) (int, error)) {
+	t.Helper()
 	ticker := time.NewTicker(25 * time.Millisecond)
 	defer ticker.Stop()
 	for {
-		count, countErr := zellijClientCount(ctx, session)
+		count, countErr := query(ctx, session)
 		if countErr == nil && count > baseline {
 			return
 		}
@@ -489,9 +515,9 @@ func waitParkHelperAttachment(t *testing.T, ctx context.Context, session string,
 			case <-drained:
 			case <-time.After(100 * time.Millisecond):
 			}
-			t.Fatalf("production handoff helper exited before attaching: %v; PTY=%q", err, capture.String())
+			t.Fatalf("production handoff helper exited before attaching: %v; PTY=%q; %s", err, capture.String(), testwait.HostState())
 		case <-ctx.Done():
-			t.Fatalf("production handoff helper did not attach: %v (last query: %v); PTY=%q", ctx.Err(), countErr, capture.String())
+			t.Fatalf("production handoff helper did not attach: %v (last query: %v); PTY=%q; %s", ctx.Err(), countErr, capture.String(), testwait.HostState())
 		case <-ticker.C:
 		}
 	}
@@ -502,6 +528,10 @@ func zellijClientCount(ctx context.Context, session string) (int, error) {
 }
 
 func runParkLifecycleHelper() int {
+	return runParkLifecycleHelperWithAttach(launcher.AttachExistingSession)
+}
+
+func runParkLifecycleHelperWithAttach(attach func(launcher.LaunchOptions, launcher.Env, launcher.Runtime, string, string, string) (int, error)) int {
 	attempt, err := strconv.ParseUint(os.Getenv("PAIR_TEST_PARK_ATTEMPT"), 10, 64)
 	if err != nil {
 		return 2
@@ -520,7 +550,9 @@ func runParkLifecycleHelper() int {
 	scoped := launcher.NewScopedPaths(globalDataDir, launcher.RepoScope{Key: scope}, tag)
 	runtime := launcher.NewScopedOSRuntime(globalDataDir, scoped.ScopeDir(), pairHome)
 	env := launcher.Env{DataDir: scoped.ScopeDir()}
-	if code, err := launcher.AttachExistingSession(launcher.LaunchOptions{Env: env, PairHome: pairHome}, env, runtime, tag, session, "claude"); err != nil || code != 0 {
+	// Match RunLaunch: any completed attach (err == nil) hands off to quit
+	// cleanup, even when the client exits nonzero after losing its server.
+	if code, err := attach(launcher.LaunchOptions{Env: env, PairHome: pairHome}, env, runtime, tag, session, "claude"); err != nil {
 		fmt.Fprintf(os.Stderr, "park helper attach returned code=%d error=%v\n", code, err)
 		return 3
 	}
@@ -544,6 +576,7 @@ func runParkLifecycleHelper() int {
 	fault := &conformanceFaultRuntime{}
 	ops := &realLifecycleOps{
 		session: session, runtime: *runtime, fault: fault, completed: time.Unix(completedUnix, 0).UTC(),
+		gatePath: stagePath + ".pause-scrollback",
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()

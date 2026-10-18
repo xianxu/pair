@@ -462,6 +462,7 @@ func runTypedOperation(op couchcore.Operation, parsed, prepareArgs map[string]st
 		})
 	}
 	finish := func(console *couchtty.Console, c *couchcore.Couch, start couchcore.StartResult, out io.Writer) int {
+		wireTitles(console, c, rt.Getenv)
 		return runConsole(console, c, start, out, hubs)
 	}
 	return runTypedOperationWithConsole(op, parsed, prepareArgs, forceConsole, layout, inFile, outFile, stdin, stdout, stderr, rt, finish, setup...)
@@ -947,7 +948,6 @@ func wireResolver(console *couchtty.Console, c *couchcore.Couch, configuredHubs 
 	console.SetSessionOwnerPass(c.WithSessionOwnerPass)
 	artifacts, _ := c.Artifacts.(shortcutFocusArtifacts)
 	console.SetShortcutFocusProbe(shortcutFocusProbe(artifacts, queryShortcutClients))
-	console.SetPaneRects(paneRectsOf(artifacts, queryPaneGeometry, readNoteFile))
 	console.SetContinuationProvider(c.ContinuationRequests)
 	console.SetActionableProvider(func(ctx context.Context, observations []couchcore.LiveTTYObservation) ([]couchcore.ActionableThreadSummary, error) {
 		select {
@@ -1419,6 +1419,9 @@ func usageWith(w io.Writer, bindings []couchkeys.Binding) {
 	fmt.Fprintln(w, "             Bring an idle, clean slot on its resting branch up for new work:")
 	fmt.Fprintln(w, "             weave refresh in it, then a fresh agent conversation.")
 	verbLine(w, "--reap", "       couch --reap repo:N --confirm [--json]")
+	verbLine(w, "--recover-park", "       couch --recover-park repo:N --confirm [--json]")
+	fmt.Fprintln(w, "             Resolve an interrupted park, retaining its conversation. Never starts an agent;")
+	fmt.Fprintln(w, "             follow the receipt’s next action. Read --operation-status ID if the reply is lost.")
 	verbLine(w, "--recover", "       couch --recover repo:N [--json]")
 	fmt.Fprintln(w, "             From a live Couch slot only: run the report's step on one slot")
 	fmt.Fprintln(w, "             through the running Couch, in the background. Verify by reading")
@@ -1440,6 +1443,11 @@ func usageWith(w io.Writer, bindings []couchkeys.Binding) {
 	verbLine(w, "--session-sync", "       couch --session-sync write --frontmatter BODYFILE FILE --if-hash H")
 	fmt.Fprintln(w, "             Read or replace only the leading --- block; body bytes and unread body edits stay intact.")
 	fmt.Fprintln(w, "             CAS writes refuse under the operator lock; after 30 minutes, ping its holder.")
+	verbLine(w, "--session-sync", "       couch --session-sync apply EDITS.json FILE --if-hash H [--fold ID] [--json]")
+	fmt.Fprintln(w, "             Apply {old, occurrence, new, explain} records to the whole file, all or none")
+	fmt.Fprintln(w, "             (edits-invalid lists each bad record). Every agent write keeps a round.")
+	verbLine(w, "--session-sync", "       couch --session-sync round FILE --json")
+	fmt.Fprintln(w, "             The last agent round's spans, and whether a submit has cleared it.")
 	fmt.Fprintln(w, "             Registration lasts until forget; rename moves metadata only. See couch --skill.")
 	verbLine(w, "--adopt-store", "       couch --adopt-store <absolute-path> [--pair-data <path>] [--identity-dir <path>]")
 	fmt.Fprintln(w, "             [--legacy-store <path>]... [--exclude-store <path>]... [--apply <digest>]")

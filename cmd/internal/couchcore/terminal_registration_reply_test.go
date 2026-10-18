@@ -45,6 +45,31 @@ func TestRegistrationTerminalFixtureReturnsExplicitEmptyObservations(t *testing.
 	}
 }
 
+func TestRegistrationTerminalFixtureDistinguishesListingForms(t *testing.T) {
+	binary, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	path := filepath.Join(dir, "zellij")
+	if err := os.Symlink(binary, path); err != nil {
+		t.Fatal(err)
+	}
+	ready := filepath.Join(dir, "ready")
+	if err := os.WriteFile(ready, []byte("ready"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	env := testpair.Environment(t, dir, "PAIR_TEST_COUCH_TERMINAL_FIXTURE=1", "PAIR_SESSION_NAME=pair-fixture", "PAIR_TEST_ZELLIJ_READY="+ready, "PAIR_TEST_ZELLIJ_LOG="+filepath.Join(dir, "calls"))
+	for _, row := range []struct{ flag, want string }{{"--short", "pair-fixture\n"}, {"--no-formatting", "pair-fixture [Created 1s ago]\n"}} {
+		cmd := exec.CommandContext(t.Context(), path, "list-sessions", row.flag)
+		cmd.Env = env
+		out, err := cmd.Output()
+		if err != nil || string(out) != row.want {
+			t.Errorf("%s = %q, %v; want %q", row.flag, out, err, row.want)
+		}
+	}
+}
+
 func TestRegistrationNestedWrapperUsesDisposableEnvironment(t *testing.T) {
 	root := t.TempDir()
 	exe, err := os.Executable()

@@ -2,6 +2,7 @@ package sessioninventory
 
 import (
 	"bytes"
+	"context"
 	"encoding/csv"
 	"errors"
 	"fmt"
@@ -264,6 +265,14 @@ func (r OSRuntime) ReadAt(artifact Artifact, offset, limit int64) ([]byte, bool,
 // QuerySQLite accepts -1 for unlimited CSV output. Queries remain read-only,
 // and stderr diagnostics retain their independent bound in either mode.
 func (r OSRuntime) QuerySQLite(artifact Artifact, query string, limit int64) (SQLiteResult, error) {
+	return r.QuerySQLiteContext(context.Background(), artifact, query, limit)
+}
+
+// QuerySQLiteContext cancels and joins the read-only SQLite subprocess.
+func (r OSRuntime) QuerySQLiteContext(ctx context.Context, artifact Artifact, query string, limit int64) (SQLiteResult, error) {
+	if err := ctx.Err(); err != nil {
+		return SQLiteResult{}, err
+	}
 	filePath, err := r.resolveArtifact(artifact)
 	if err != nil {
 		return SQLiteResult{}, err
@@ -273,10 +282,13 @@ func (r OSRuntime) QuerySQLite(artifact Artifact, query string, limit int64) (SQ
 	}
 	stdout := newBoundedBuffer(limit)
 	stderr := newBoundedBuffer(8192)
-	command := exec.Command("sqlite3", "-readonly", "-csv", "-header", filePath, query)
+	command := exec.CommandContext(ctx, "sqlite3", "-readonly", "-csv", "-header", filePath, query)
 	command.Stdout = stdout
 	command.Stderr = stderr
 	if err := command.Run(); err != nil {
+		if ctx.Err() != nil {
+			return SQLiteResult{}, ctx.Err()
+		}
 		if stdout.exceeded || stderr.exceeded {
 			return SQLiteResult{}, ErrReadLimit
 		}

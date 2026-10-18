@@ -59,6 +59,7 @@ var verbCosts = map[string]verbCost{
 	"--reload-context":         costHeavy,
 	"--prepare":                costHeavy,
 	"--recover":                costHeavy,
+	"--recover-park":           costHeavy,
 	fidelityFlag:               costSeconds,
 }
 

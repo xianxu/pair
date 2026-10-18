@@ -311,32 +311,17 @@ function M.apply(buf, records)
   if not records or #records == 0 then return {}, dropped end
   local base = buf_content(buf)
 
-  -- resolve old@occurrence → base byte offset (document order, ascending)
-  local resolved = {}
-  for _, r in ipairs(records) do
-    if not r.old or r.old == '' then
-      dropped[#dropped + 1] = { rec = r, reason = 'empty old' }
-    else
-      local off = reconstruct.nth_offset(base, r.old, r.occurrence or 1)
-      if off then resolved[#resolved + 1] = { rec = r, base_off = off }
-      else dropped[#dropped + 1] = { rec = r, reason = 'not found' } end
-    end
-  end
-  table.sort(resolved, function(a, b) return a.base_off < b.base_off end)
-
-  -- bottom-to-top with base coordinates is correct only for NON-overlapping
-  -- records; drop (and report) any whose [base_off, base_off+#old) intersects an
-  -- already-accepted neighbor, else the higher edit clobbers bytes the lower one
-  -- still addresses by base coords (silent corruption otherwise).
-  local items, prev_end = {}, 0
-  for _, it in ipairs(resolved) do
-    if it.base_off < prev_end then
-      dropped[#dropped + 1] = { rec = it.rec, reason = 'overlap' }
-    else
-      it.new_text = display_new_for_record(it.rec)
-      items[#items + 1] = it
-      prev_end = it.base_off + #it.rec.old
-    end
+  -- resolve old@occurrence → base byte offset (document order, ascending).
+  -- Bottom-to-top with base coordinates is correct only for NON-overlapping
+  -- records, so the shared resolver reports any whose [base_off, base_off+#old)
+  -- intersects an accepted neighbor, else the higher edit would clobber bytes
+  -- the lower one still addresses by base coords (silent corruption otherwise).
+  local kept, bad = reconstruct.resolve(base, records)
+  for _, b in ipairs(bad) do dropped[#dropped + 1] = { rec = b.rec, reason = b.reason } end
+  local items = {}
+  for _, it in ipairs(kept) do
+    it.new_text = display_new_for_record(it.rec)
+    items[#items + 1] = it
   end
   if #items == 0 then return {}, dropped end
 

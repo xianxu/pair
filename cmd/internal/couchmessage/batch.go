@@ -17,6 +17,13 @@ const (
 
 // Envelope preserves the provenance header and original body of one message.
 func Envelope(m Message) string {
+	switch m.Origin {
+	case OriginSystem:
+		return fmt.Sprintf("[Couch system; delivery %s]\n%s", m.ID, m.Body)
+	case OriginPeer:
+	default:
+		return ""
+	}
 	return fmt.Sprintf("[Couch peer from %s; delivery %s]\n%s", m.From.Slot, m.ID, m.Body)
 }
 
@@ -74,7 +81,7 @@ func ValidateBatch(messages []Message, to Binding, id string) error {
 	}
 	seen := make(map[string]bool, len(messages))
 	for _, m := range messages {
-		if !validMessageID(m.ID) || seen[m.ID] || m.To != to || m.From.Validate() != nil || m.Deadline.IsZero() {
+		if !m.Origin.Valid() || !validMessageID(m.ID) || seen[m.ID] || m.To != to || m.From.Validate() != nil || m.Deadline.IsZero() {
 			return errors.New("batch member identity mismatch")
 		}
 		if err := ValidateBody(m.Body); err != nil {

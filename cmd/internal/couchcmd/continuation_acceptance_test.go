@@ -141,6 +141,11 @@ func TestContinuationWriterPublishesExactCheckpointAcrossWorktrees(t *testing.T)
 
 func runContinuationPublicationAcceptance(t *testing.T, pair, helper, assetRoot, mode string) {
 	t.Helper()
+	t.Cleanup(func() {
+		if t.Failed() {
+			t.Logf("continuation publication failure host: %s", testwait.HostState())
+		}
+	})
 	base := t.TempDir()
 	home, repo, worktree := filepath.Join(base, "home"), filepath.Join(base, "outer-checkout"), filepath.Join(base, "writer-worktree")
 	if err := os.MkdirAll(home, 0700); err != nil {
@@ -242,7 +247,7 @@ func runContinuationPublicationAcceptance(t *testing.T, pair, helper, assetRoot,
 	if err := os.WriteFile(fixturePath, raw, 0600); err != nil {
 		t.Fatal(err)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), testwait.Budget(t))
 	defer cancel()
 	command := exec.CommandContext(ctx, pair, "continuation", "--repo-root", worktree, "--slug", "publication", "--agent", "claude", "--issues", "249", "--body-file", "-")
 	command.Dir = repo // deliberately differs from --repo-root and the checkpoint path
@@ -325,9 +330,9 @@ type continuationAcceptanceLifecycle struct {
 	request pairlifecycle.QuitRequest
 }
 
-func (l *continuationAcceptanceLifecycle) PublishRequest(paths artifactpath.LifecyclePaths, request pairlifecycle.QuitRequest) error {
+func (l *continuationAcceptanceLifecycle) PublishRequest(ctx context.Context, paths artifactpath.LifecyclePaths, request pairlifecycle.QuitRequest) error {
 	l.paths, l.request = paths, request
-	return l.PairLifecycleStoreIO.PublishRequest(paths, request)
+	return l.PairLifecycleStoreIO.PublishRequest(ctx, paths, request)
 }
 
 func completeContinuationAcceptance(t *testing.T, rt testRT, c *couchcore.Couch, source couchcore.ThreadRecord, old couchcore.Handle, data string, scope launcher.RepoScope, committed string, pair string) {

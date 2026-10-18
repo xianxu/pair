@@ -87,7 +87,7 @@ func ValidateEndpointRequest(r EndpointRequest) error {
 			return errors.New("commit requires binding, ID and message")
 		}
 		m := r.Message
-		if m.ID != r.ID || m.To != r.Binding || m.From.Validate() != nil || m.Deadline.IsZero() {
+		if !m.Origin.Valid() || m.ID != r.ID || m.To != r.Binding || m.From.Validate() != nil || m.Deadline.IsZero() {
 			return errors.New("commit message identity mismatch")
 		}
 		return ValidateBody(m.Body)
@@ -225,7 +225,7 @@ func (e RemoteEndpoint) Release(ctx context.Context, id string) error {
 }
 
 func matchingReceipt(r Receipt, m Message) bool {
-	return r.Message.ID == m.ID && r.Message.From == m.From && r.Message.To == m.To && r.Message.Body == m.Body && r.Message.Deadline.Equal(m.Deadline)
+	return m.Origin.Valid() && r.Message.Origin == m.Origin && r.Message.ID == m.ID && r.Message.From == m.From && r.Message.To == m.To && r.Message.Body == m.Body && r.Message.Deadline.Equal(m.Deadline)
 }
 
 // peerHeldPoll paces status polling while the recipient holds a delivery.

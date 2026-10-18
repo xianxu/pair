@@ -58,10 +58,9 @@ type Config struct {
 	// AnchorNote says what a note placed on a cols×rows grid is about
 	// (#488): the operator's program knows its own screen. It is called as
 	// the note is accepted, before it opens, and must answer from memory
-	// (a request's goroutine waits on it); a slower answer comes later
-	// through SetNoteAnchor. nil leaves notes without an anchor.
+	// (a request's goroutine waits on it). nil leaves notes without an anchor.
 	AnchorNote func(n Note, cols, rows int) NoteAnchor
-	// Now stamps when a note was saved; nil is time.Now. Couch passes the
+	// Now stamps notes and rate-limit decisions; nil is time.Now. Couch passes the
 	// clock it draws with, so flash timing has one source.
 	Now func() time.Time
 	// OnCodeRotated is told when a link's code rotates (pair#495): by
@@ -148,7 +147,7 @@ func Start(ctx context.Context, cfg Config) (*Session, error) {
 	}
 	hub := NewHub(hubOpts)
 	server := NewServer(ServerOptions{Token: token, Locks: locks, Hub: hub, Ping: cfg.Ping, Theme: cfg.Theme,
-		Pointer: s.pointer, OnPoint: s.acceptPoint, OnNote: s.acceptNote, OnResolve: s.resolveNote, OnNoteEdit: s.editNote})
+		Pointer: s.pointer, Now: s.now, OnPoint: s.acceptPoint, OnNote: s.acceptNote, OnResolve: s.resolveNote, OnNoteEdit: s.editNote})
 	mount, err := host.Mount(ctx, server, token+"/")
 	if err != nil {
 		hub.Close(err)
@@ -468,18 +467,6 @@ func (s *Session) acceptNote(req NoteRequest) error {
 	}
 	s.notesChanged()
 	return nil
-}
-
-// SetNoteAnchor replaces open note id's anchor (#488: the operator's
-// program finished resolving it). A note resolved or cleared since is gone,
-// and the anchor is dropped: a session never reuses an id, so it can't land
-// on another note. It reports whether the note was there.
-func (s *Session) SetNoteAnchor(id int, a NoteAnchor) bool {
-	changed := s.pointer.setNoteAnchor(id, a)
-	if changed {
-		s.notesChanged()
-	}
-	return changed
 }
 
 // ResolveNote resolves note id for the operator (the terminal's notes menu),

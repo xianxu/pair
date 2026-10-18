@@ -3,6 +3,8 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
+export PAIR_TEST_ZELLIJ_REPLIES="$repo_root/tests/lib/zellij_fixture_replies.py"
+export PAIR_TEST_ZELLIJ_PYTHON="$(command -v python3)"
 tmp="$(mktemp -d "${TMPDIR:-/tmp}/pair-embedded-runtime.XXXXXX")"
 trap 'rm -rf "$tmp"' EXIT
 
@@ -24,12 +26,10 @@ set -eu
 printf '%s\n' "$*" >> "${ZELLIJ_LOG:?}"
 case "$*" in
   "list-sessions --no-formatting"|"list-sessions --short")
-    printf 'No active zellij sessions found.\n' >&2
-    exit 1
+    exec "$PAIR_TEST_ZELLIJ_PYTHON" "$PAIR_TEST_ZELLIJ_REPLIES" --case embedded-runtime.no-sessions
     ;;
   --session*" action list-clients")
-    printf 'CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\n'
-    exit 0
+    exec "$PAIR_TEST_ZELLIJ_PYTHON" "$PAIR_TEST_ZELLIJ_REPLIES" --case embedded-runtime.clients-empty
     ;;
   --config-dir*)
     config=""

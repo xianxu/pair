@@ -145,16 +145,9 @@ func TestStartupManagedAttachDetachTimingLive(t *testing.T) {
 		}
 		bin = supplied
 	} else {
-		for _, target := range []struct{ name, pkg string }{{"pair-launch-helper", "./cmd/pair-launch-helper"}} {
-			buildCtx, cancelBuild := context.WithTimeout(t.Context(), 3*time.Minute)
-			cmd := exec.CommandContext(buildCtx, "go", "build", "-o", filepath.Join(bin, target.name), target.pkg)
-			cmd.Env = buildEnv
-			cmd.Dir = root
-			out, err := cmd.CombinedOutput()
-			cancelBuild()
-			if err != nil {
-				t.Fatalf("build %s: %v %s", target.name, err, out)
-			}
+		helper := startupHelperExecutable(t, &startupHelperCache, root, buildEnv)
+		if err := os.Symlink(helper, filepath.Join(bin, "pair-launch-helper")); err != nil {
+			t.Fatal(err)
 		}
 	}
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))

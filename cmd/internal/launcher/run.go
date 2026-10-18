@@ -29,6 +29,16 @@ func CouchHostedEnv(getenv func(string) string) bool {
 	return Env{CouchThreadScope: getenv("COUCH_THREAD_SCOPE"), CouchThreadTag: getenv("COUCH_THREAD_TAG")}.CouchHosted()
 }
 
+// SlugEnabled reports whether the orientation slug may run in this
+// environment (#650): yes outside Couch, and under Couch only on the explicit
+// re-enable PAIR_SLUG=on — the exact value, so any other spelling ("ON", "1",
+// "off") stays off and a hosted session fails closed to the operator's
+// default. The one source of the rule; pair-wrap's turn-end spawn and the
+// slugcmd body (the Claude Stop-hook entry) both consult it.
+func SlugEnabled(getenv func(string) string) bool {
+	return !CouchHostedEnv(getenv) || getenv("PAIR_SLUG") == "on"
+}
+
 // SessionSource supplies zellij session state.
 type SessionSource interface {
 	Snapshot() ([]Session, error)

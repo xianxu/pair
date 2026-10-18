@@ -262,6 +262,9 @@ type proxy struct {
 	setPTYWinsize        func(*os.File, *pty.Winsize) error
 
 	restartFresh atomic.Bool
+	// stoppedByWrapper is set when the wrapper itself stops the native child
+	// (a signal), so its exit is not reported as the agent leaving (pair#657).
+	stoppedByWrapper atomic.Bool
 
 	// Notify
 	notifyModeActive string
@@ -743,7 +746,19 @@ func (p *proxy) traceWrap(label string, fields map[string]any) {
 // repeatedly can re-arm and alert more than once. The 1s debounce only
 // collapses bursts, not the baseline; that's the accepted price of an
 // always-current slug.
+//
+// Under Couch (#650) the slug is off by default — the operator doesn't use it
+// there, and the fleet was paying ~70 pair-slug spawns / ~36 small-model calls
+// per hour for it. The gate returns before the debounce bookkeeping and the
+// spawn, so nothing runs. PAIR_SLUG=on re-enables it under Couch; outside
+// Couch behaviour is unchanged. launcher.SlugEnabled owns the rule;
+// slugcmd.Run consults the same helper so the external Claude Stop-hook entry
+// (bin/pair-slug) also no-ops when hosted.
 func (p *proxy) maybeSpawnSlug() {
+	if !launcher.SlugEnabled(os.Getenv) {
+		p.debug("SLUG-skip", "couch-hosted and PAIR_SLUG != on (#650)")
+		return
+	}
 	now := p.clock()
 	if !p.lastSlug.IsZero() && now.Sub(p.lastSlug) < slugDebounceS {
 		return
@@ -1882,6 +1897,9 @@ func (p *proxy) executeWorkbenchDecision(decision workbenchshortcut.ShortcutDeci
 					stderr = os.Stderr
 				}
 				fmt.Fprintf(stderr, "pair-wrap: global shortcut: %v\n", err)
+				if noticeErr := (layoutcmd.OSRuntime{}).NotifyRefusal("Pair action refused: draft context could not be confirmed."); noticeErr != nil {
+					fmt.Fprintf(stderr, "pair-wrap: refusal notification failed: %v\n", noticeErr)
+				}
 			}
 		}
 		return true
@@ -1948,8 +1966,13 @@ func (osDraftRouteRuntime) CachedDraftPaneID() (string, bool) {
 }
 
 func (osDraftRouteRuntime) ListPanesJSON() ([]byte, error) {
-	return exec.Command("zellij", "action", "list-panes", "--json", "--command", "--state").Output()
+	return osDraftRouteRuntime{}.ListPanesJSONContext(context.Background())
 }
+
+func (osDraftRouteRuntime) ListPanesJSONContext(ctx context.Context) ([]byte, error) {
+	return layoutcmd.OSRuntime{}.ListPanesJSONContext(ctx)
+}
+func (osDraftRouteRuntime) CurrentPaneID() string { return os.Getenv("ZELLIJ_PANE_ID") }
 
 func (osDraftRouteRuntime) RunZellijAction(args ...string) error {
 	return runZellijAction(args...)
@@ -3085,6 +3108,9 @@ argsDone:
 	if p.stdoutPump != nil && p.stdoutPump.failure != nil {
 		return 0, fmt.Errorf("pane output: %w", p.stdoutPump.failure)
 	}
+	// The child is reaped and the registry session is still open (peerRun
+	// closes in the deferred cleanup): report a self exit now (pair#657).
+	p.afterChildReaped(peerRun, werr)
 	if p.restartFresh.Load() {
 		executable, err := os.Executable()
 		if err != nil {

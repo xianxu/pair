@@ -40,7 +40,7 @@ func (c *Couch) startFreshRecoveryWithoutRecord(ctx context.Context, selection R
 		return RecoveryResumeResult{}, err
 	}
 	started, err := c.startFreshSlotWithPrompt(ctx, selection.Target.Path, selection.Agent, false, nil, nil, prompt, freshSlotRecordlessRecovery)
-	return RecoveryResumeResult{Start: started, Notice: "started fresh; previous TTY capture unavailable; use branch and issue evidence; any unproved owners were left untouched under their original identities; workspace setup was not refreshed"}, err
+	return RecoveryResumeResult{Mode: Fresh, Start: started, Notice: "started fresh; previous TTY capture unavailable; use branch and issue evidence; any unproved owners were left untouched under their original identities; workspace setup was not refreshed"}, err
 }
 
 // recoveryExistingWorkspace proves the retained checkout without converging

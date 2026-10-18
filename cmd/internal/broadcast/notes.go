@@ -55,9 +55,8 @@ type Note struct {
 	Owner  string  `json:"owner,omitempty"`
 	Edited bool    `json:"edited,omitempty"`
 	// Anchor is what the box is on (#488), from the operator's program
-	// (Config.AnchorNote); nil when it gives none. It is the agent's
-	// context (file names, a heading off screen), never on the pages'
-	// wire: a page neither sends nor receives it.
+	// (Config.AnchorNote); nil when it gives none. It is operator-side
+	// context, never on the pages' wire: a page neither sends nor receives it.
 	Anchor *NoteAnchor `json:"-"`
 	// Author is the name the viewer gave the lock page (pair#495); "" when
 	// none was sent. It is attribution, not authentication.
@@ -218,17 +217,6 @@ func (b *NoteBoard) Resolve(id int) bool {
 	for i, n := range b.notes {
 		if n.ID == id {
 			b.notes = append(b.notes[:i], b.notes[i+1:]...)
-			return true
-		}
-	}
-	return false
-}
-
-// SetAnchor replaces open note id's anchor, reporting whether it is open.
-func (b *NoteBoard) SetAnchor(id int, a NoteAnchor) bool {
-	for i := range b.notes {
-		if b.notes[i].ID == id {
-			b.notes[i].Anchor = &a
 			return true
 		}
 	}

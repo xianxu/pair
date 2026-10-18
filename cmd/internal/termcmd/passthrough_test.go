@@ -41,12 +41,12 @@ func TestActiveChildOwnsScreenTriState(t *testing.T) {
 // is what the user typed. At a shell Alt+j is the focus chord and is swallowed.
 func TestEscThenJReachesAFullScreenChildAsTwoKeys(t *testing.T) {
 	mux := &fakeMux{ownsScreen: true}
-	pumpStdin(&splitReader{chunks: [][]byte{[]byte("\x1bj")}}, mux, &fakeRuntime{}, io.Discard)
+	pumpStdin(&splitReader{chunks: [][]byte{[]byte("\x1bj")}}, mux, &fakeRuntime{currentPaneID: "4"}, io.Discard)
 	if got := strings.Join(mux.ops, ","); got != "write:\x1bj" {
 		t.Fatalf("ops = %q, want the Alt+j bytes forwarded to the full-screen child", got)
 	}
 	shell := &fakeMux{ownsScreen: false}
-	pumpStdin(&splitReader{chunks: [][]byte{[]byte("\x1bj")}}, shell, &fakeRuntime{}, io.Discard)
+	pumpStdin(&splitReader{chunks: [][]byte{[]byte("\x1bj")}}, shell, &fakeRuntime{currentPaneID: "4"}, io.Discard)
 	for _, op := range shell.ops {
 		if strings.HasPrefix(op, "write:") {
 			t.Fatalf("shell ops = %v: Alt+j must not reach the child at a shell", shell.ops)
@@ -59,7 +59,7 @@ func TestEscThenJReachesAFullScreenChildAsTwoKeys(t *testing.T) {
 // keyboard path back to the agent pane (PQ-1).
 func TestFocusLeftNeverPassesThroughToAFullScreenChild(t *testing.T) {
 	mux := &fakeMux{ownsScreen: true}
-	pumpStdin(&splitReader{chunks: [][]byte{[]byte("\x1b[107;3u")}}, mux, &fakeRuntime{}, io.Discard) // Alt+k
+	pumpStdin(&splitReader{chunks: [][]byte{[]byte("\x1b[107;3u")}}, mux, &fakeRuntime{currentPaneID: "4"}, io.Discard) // Alt+k
 	for _, op := range mux.ops {
 		if strings.HasPrefix(op, "write:") {
 			t.Fatalf("ops = %v: M-k must fire focus-left, never reach the full-screen child", mux.ops)
@@ -70,7 +70,7 @@ func TestFocusLeftNeverPassesThroughToAFullScreenChild(t *testing.T) {
 // Explicit Pair controls remain available even under a full-screen child.
 func TestExplicitPairControlFiresUnderAFullScreenChild(t *testing.T) {
 	mux := &fakeMux{ownsScreen: true}
-	pumpStdin(&splitReader{chunks: [][]byte{[]byte("\x1b[84;4u")}}, mux, &fakeRuntime{}, io.Discard) // Alt+Shift+t
+	pumpStdin(&splitReader{chunks: [][]byte{[]byte("\x1b[84;4u")}}, mux, &fakeRuntime{currentPaneID: "4"}, io.Discard) // Alt+Shift+t
 	for _, op := range mux.ops {
 		if strings.HasPrefix(op, "write:") {
 			t.Fatalf("ops = %v: explicit Pair control must not pass through to the child", mux.ops)
@@ -81,13 +81,13 @@ func TestExplicitPairControlFiresUnderAFullScreenChild(t *testing.T) {
 func TestAltNReachesAFullScreenRightTerminalTUI(t *testing.T) {
 	const seq = "\x1b[110;3u"
 	mux := &fakeMux{ownsScreen: true}
-	pumpStdin(&splitReader{chunks: [][]byte{[]byte(seq)}}, mux, &fakeRuntime{}, io.Discard)
+	pumpStdin(&splitReader{chunks: [][]byte{[]byte(seq)}}, mux, &fakeRuntime{currentPaneID: "4"}, io.Discard)
 	if got := strings.Join(mux.ops, ","); got != "write:"+seq {
 		t.Fatalf("fullscreen Alt+n ops = %q, want the raw bytes forwarded to the TUI", got)
 	}
 
 	shell := &fakeMux{ownsScreen: false}
-	pumpStdin(&splitReader{chunks: [][]byte{[]byte(seq)}}, shell, &fakeRuntime{}, io.Discard)
+	pumpStdin(&splitReader{chunks: [][]byte{[]byte(seq)}}, shell, &fakeRuntime{currentPaneID: "4"}, io.Discard)
 	if got := strings.Join(shell.ops, ","); got != "write:"+seq {
 		t.Fatalf("shell ops = %q, want Alt+n forwarded outside the draft", got)
 	}
@@ -109,7 +109,7 @@ func TestEveryChordAgainstBothAltScreenStates(t *testing.T) {
 
 		t.Run("fullscreen/"+workbenchshortcut.ChordName(chord)+"/"+seq, func(t *testing.T) {
 			mux := &fakeMux{ownsScreen: true, activeName: "work"}
-			pumpStdin(&splitReader{chunks: [][]byte{[]byte(seq)}}, mux, &fakeRuntime{}, io.Discard)
+			pumpStdin(&splitReader{chunks: [][]byte{[]byte(seq)}}, mux, &fakeRuntime{currentPaneID: "4"}, io.Discard)
 			got := strings.Join(mux.ops, ",")
 			if pass {
 				if got != "write:"+seq {
@@ -126,7 +126,7 @@ func TestEveryChordAgainstBothAltScreenStates(t *testing.T) {
 
 		t.Run("shell/"+workbenchshortcut.ChordName(chord)+"/"+seq, func(t *testing.T) {
 			mux := &fakeMux{ownsScreen: false, activeName: "work"}
-			pumpStdin(&splitReader{chunks: [][]byte{[]byte(seq)}}, mux, &fakeRuntime{}, io.Discard)
+			pumpStdin(&splitReader{chunks: [][]byte{[]byte(seq)}}, mux, &fakeRuntime{currentPaneID: "4"}, io.Discard)
 			if draftOnly {
 				if got := strings.Join(mux.ops, ","); got != "write:"+seq {
 					t.Fatalf("draft-only chord %q: shell ops = %q, want the raw bytes forwarded", seq, got)
@@ -152,7 +152,7 @@ func TestFromAnywhereChordsDriveTheRightTerminalUnderFullScreen(t *testing.T) {
 		{"\x1b[84;4u", "new-tab"}, // Alt+Shift+t
 	} {
 		mux := &fakeMux{ownsScreen: true}
-		pumpStdin(&splitReader{chunks: [][]byte{[]byte(tt.seq)}}, mux, &fakeRuntime{}, io.Discard)
+		pumpStdin(&splitReader{chunks: [][]byte{[]byte(tt.seq)}}, mux, &fakeRuntime{currentPaneID: "4"}, io.Discard)
 		if got := strings.Join(mux.ops, ","); got != tt.want {
 			t.Errorf("%q under fullscreen -> ops=%q, want %q (must NOT pass through)", tt.seq, got, tt.want)
 		}

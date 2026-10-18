@@ -33,6 +33,7 @@ func TestListedDetachedTerminalAttachesWithoutNewServer(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	//lint:allow tmp-literal — the terminal fixture appends contract_version_1 and a session name containing this basename; macOS TMPDIR would exceed AF_UNIX limits
 	sockets, err := os.MkdirTemp("/tmp", "pair-warm-")
 	if err != nil {
 		t.Fatal(err)

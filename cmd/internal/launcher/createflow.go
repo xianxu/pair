@@ -16,6 +16,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/panebirth"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 	"github.com/xianxu/pair/cmd/internal/sessionledger"
+	"github.com/xianxu/pair/cmd/internal/zellijreply"
 )
 
 // Consecutive deltas partition the measured startup. elapsed_ms is cumulative,
@@ -325,13 +326,19 @@ type launchStep struct {
 // natively (#99 M5c — no shell to fall back to): a handled abort/error returns
 // handedOff=false with the exit code already messaged on stderr.
 func runOnce(opts LaunchOptions, env Env, rt Runtime, stderr io.Writer) (launchStep, error) {
+	if opts.Args.CouchSession != nil {
+		var cancel context.CancelFunc
+		opts.queryContext, cancel = zellijreply.AdmissionContext(opts.lifetimeContext())
+		defer cancel()
+	}
+
 	if intent := opts.Args.CouchSession; intent != nil && intent.Disposition == "attach" {
 		// This is already a selected terminal, never a native launch request.
 		// History, saved agent configuration and cwd cannot choose another one.
 		// Keep the timing partition for phases whose result the intent supplies.
 		opts.startupTiming.mark("discovery")
 		opts.startupTiming.mark("decision")
-		if err := verifyCouchSessionAttach(rt, *intent); err != nil {
+		if err := verifyCouchSessionAttach(opts.queryContext, rt, *intent); err != nil {
 			fmt.Fprintf(stderr, "pair: %v\n", err)
 			return launchStep{code: 1}, nil
 		}
@@ -353,7 +360,13 @@ func runOnce(opts LaunchOptions, env Env, rt Runtime, stderr io.Writer) (launchS
 	scopeRoot := envScopeRoot(env)
 	base := DefaultTag(scopeRoot)
 	cutoff := env.Now.Add(-time.Duration(env.HistoryD) * 24 * time.Hour)
-	sessions, err := sessionsFor(rt, opts.Args)
+	var sessions []Session
+	var err error
+	if opts.queryContext != nil {
+		sessions, err = rt.SessionLivenessContext(opts.queryContext)
+	} else {
+		sessions, err = sessionsFor(rt, opts.Args)
+	}
 	if err != nil {
 		fmt.Fprintf(stderr, "pair: failed to query zellij sessions: %v\n", err)
 		return launchStep{code: 1}, nil
@@ -376,7 +389,7 @@ func runOnce(opts LaunchOptions, env Env, rt Runtime, stderr io.Writer) (launchS
 		}
 		return launchStep{code: 1}, nil
 	}
-	scopedSessions, sessionNames, sessionNameEntries, ok := assignLaunchSessionNames(rt, sessions, scopeRoot, opts.GlobalDataDir, opts.Args, base, stderr)
+	scopedSessions, sessionNames, sessionNameEntries, ok := assignLaunchSessionNamesContext(opts.queryContext, rt, sessions, scopeRoot, opts.GlobalDataDir, opts.Args, base, stderr)
 	if !ok {
 		return launchStep{code: 1}, nil
 	}
@@ -498,12 +511,18 @@ func oppositeLayout(mode LayoutMode) LayoutMode {
 }
 
 func assignLaunchSessionNames(rt Runtime, live []Session, repoRoot, globalDataDir string, args LaunchArgs, base string, stderr io.Writer) ([]Session, map[string]string, map[string]SessionNameEntry, bool) {
+	ctx, cancel := zellijreply.AdmissionContext(context.Background())
+	defer cancel()
+	return assignLaunchSessionNamesContext(ctx, rt, live, repoRoot, globalDataDir, args, base, stderr)
+}
+
+func assignLaunchSessionNamesContext(ctx context.Context, rt Runtime, live []Session, repoRoot, globalDataDir string, args LaunchArgs, base string, stderr io.Writer) ([]Session, map[string]string, map[string]SessionNameEntry, bool) {
 	if args.CouchSession != nil {
-		if err := verifyCouchSessionCreate(rt, globalDataDir, *args.CouchSession); err != nil {
+		if err := verifyCouchSessionCreate(ctx, rt, globalDataDir, *args.CouchSession); err != nil {
 			fmt.Fprintf(stderr, "pair: %v\n", err)
 			return nil, nil, nil, false
 		}
-		name, entry, err := assignCouchSessionName(rt, live, repoRoot, args.ForcedTag, args.CouchSession)
+		name, entry, err := assignCouchSessionNameContext(ctx, rt, live, repoRoot, args.ForcedTag, args.CouchSession)
 		if err != nil {
 			fmt.Fprintf(stderr, "pair: %v\n", err)
 			return nil, nil, nil, false
@@ -608,7 +627,13 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 	// A too-long tag makes zellij reject the session name (#54); probe its own
 	// validator and translate the rejection before writing sidecars or spawning
 	// helpers.
-	if err := rt.ProbeSessionName(session); err != nil {
+	var nameErr error
+	if opts.queryContext != nil {
+		nameErr = rt.ProbeSessionNameContext(opts.queryContext, session)
+	} else {
+		nameErr = rt.ProbeSessionName(session)
+	}
+	if err := nameErr; err != nil {
 		if errors.Is(err, errSessionNameTooLong) {
 			fmt.Fprintf(stderr, "pair: tag '%s' makes zellij's session name too long for this\n", chosenTag)
 			fmt.Fprintf(stderr, "      machine's socket path (%s). Pick a shorter tag.\n", session)
@@ -675,7 +700,7 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 	// Guard the name before source-of-truth writes. Saved layouts are retained;
 	// final locked admission also refuses orphaned or contested servers.
 	if opts.Args.CouchSession != nil {
-		current, err := rt.SessionLiveness()
+		current, err := rt.SessionLivenessContext(opts.queryContext)
 		if err != nil || sessionNamePresent(current, session) {
 			fmt.Fprintf(stderr, "pair: couch session name %q is occupied or unavailable: %v\n", session, err)
 			return launchStep{code: 1}, nil
@@ -828,7 +853,7 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 	repoRoot := envScopeRoot(env)
 	repoName := DefaultTag(repoRoot)
 	if intent := opts.Args.CouchSession; intent != nil {
-		if err := verifyCouchSessionCreate(rt, opts.GlobalDataDir, *intent); err != nil {
+		if err := verifyCouchSessionCreate(opts.queryContext, rt, opts.GlobalDataDir, *intent); err != nil {
 			fmt.Fprintf(stderr, "pair: %v\n", err)
 			return launchStep{code: 1}, nil
 		}
@@ -998,7 +1023,12 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 	layout := filepath.Join(opts.PairHome, "zellij", "layouts", LayoutAssetBasename(layoutResolution.Mode))
 	bound := opts.birthBound()
 	opts.startupTiming.handoff("create-handoff")
-	code, verdict, err := launchWatched(rt, opts.birthClock(), birthEvidence, session, configDir, layout, bound)
+	if opts.queryContext == nil {
+		var cancel context.CancelFunc
+		opts.queryContext, cancel = zellijreply.AdmissionContext(opts.lifetimeContext())
+		defer cancel()
+	}
+	code, verdict, err := launchWatchedContext(opts.lifetimeContext(), opts.queryContext, rt, opts.birthClock(), birthEvidence, session, configDir, layout, bound)
 	if err != nil {
 		restoreLayoutRecord(rt, dataDir, chosenTag, priorLayout)
 		fmt.Fprintf(stderr, "pair: failed to launch zellij session '%s': %v\n", session, err)

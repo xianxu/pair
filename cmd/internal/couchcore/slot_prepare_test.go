@@ -8,11 +8,14 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/xianxu/pair/cmd/internal/testgit"
 )
 
 // prepareWorld is a slot over real git: an origin a commit ahead of the slot's
 // resting branch, and one declared substrate beside the host.
 type prepareWorld struct {
+	constructorTree testgit.FixtureTreeStats
 	host, substrate string
 }
 
@@ -64,6 +67,7 @@ func newPrepareWorld(t *testing.T) prepareWorld {
 	writePrepareFile(t, filepath.Join(w.substrate, "construct", "base.manifest"), "")
 	prepareGit(t, w.substrate, "add", "-A")
 	prepareGit(t, w.substrate, "commit", "-q", "-m", "substrate old")
+	w.constructorTree = checkFixtureTree(t, root, prepareWorldBudget)
 	return w
 }
 

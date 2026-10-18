@@ -12,6 +12,20 @@ the pty console, actor panel, notices, and complete local lifecycle shipped in
 
 ## What exists today
 
+### Load-independent lifecycle test evidence (#659)
+
+The recovery ownership fixtures use `SlotCatalogFake`; a separate catalog-timeout
+regression checks refusal without changing retained state. Park client-growth
+semantics inject queries into a test-only readiness helper while fake-CLI tests
+keep the native query contract. Clipboard key/fact tests exercise the unchanged
+product timeout and fallback. Activity byte-count invariants configure the existing
+probe-budget seam, with production deadline tests kept separately.
+
+Affected failures include best-effort `testwait.HostState()` load information.
+Native open-file conformance skips only unavailable/incomplete lsof observations;
+run `PAIR_REQUIRE_LSOF_CONFORMANCE=1 go test ./cmd/internal/diagnosticlog -count=1 -run 'Test(OpenFileInspectionConformance|UnregisteredChildOpenFileBlocksLegacyExpiry)$'`
+to require that native evidence. An answered wrong holder or identity always fails.
+
 ### Slot continuity and capture provenance (#528)
 
 The [slot-continuity target](../workshop/targets/slot-continuity.md) defines
@@ -781,6 +795,57 @@ table (`couchcmd/cost.go`, pair#490, from timings in that issue's Log).
 which panics on an untagged verb; the skill's "What each verb costs" section
 lists the same tiers, and `cost_test.go` keeps both equal to the table.
 
+### Lifecycle system notices (#574)
+
+`couchtty/console_lifecycle.go` observes final successful operation results after
+Console adoption, successful park results carrying `VerifiedPark`, and confirmed
+needs-relaunch inventory transitions. It never infers agent exit from an attachment
+ending, EOF or an orphaned session.
+
+**Native agent exit (#657)** has one source: the wrapper that owns the child.
+- **Wrapper:** after `group.Wait()` reaps a child that exited on its own, and before its registry session closes, the wrapper (`wrapcmd/native_exit_report.go`) sends one broker RPC, `native-exit`, carrying `{LaunchOrdinal, AgentIdentity, ExitCode}`, bounded at 2 s.
+  - Its shape follows `automatic-input-stall`.
+  - A SIGUSR2 restart or any wrapper-initiated stop (the `stoppedByWrapper` flag) sends none.
+- **Couch:** `couchcmd/native_exit.go` admits the report only from the authenticated current wrapper (`switchCaller`) when:
+  - the ID matches `NativeExitID(binding, ordinal)`;
+  - the ordinal and identity match the ready record (`authority.child`, file-only), which fences the child before a restart, since the binding survives that exec;
+  - the session is still connected;
+  - the same (binding, launch) hasn't already been reported.
+- **Notice:** Couch then calls `Console.ObserveNativeExit`, which emits an `exited` fact with `Mode` "code N" in the Console's observation sequence.
+- **Not covered:** agents without a registry session (agy, muse, grok) produce no exit notice.
+- **Compatibility:** an older Couch answers `invalid-request` and the wrapper ignores it.
+
+Completion carries cached
+slot/branch metadata and known initiation. The existing `ReattachDone` transition
+closes a startup cohort; no debounce or additional native discovery is used.
+
+`couchcore/lifecycle_notice.go` owns the pure bounded collector and its publication
+transitions. It keeps at most 128 current facts, coalesces unsent changes, freezes
+immutable numbered parts within the existing body limit and retires each part
+from its receipt. `couchcmd/lifecycle_notices.go` routes through existing hub
+ownership and the message broker/#648 batching. Its callbacks only reduce bounded
+memory; owned admission workers and bounded receipt-memory checks stop/join with
+the service. Busy/absent hubs retain current facts; input uncertainty never permits
+replay. This is a Slots projection, not an audit log. `COUCH_LIFECYCLE_NOTICES`
+accepts `on` (default) or `off`; there is no additional ownership/mute store.
+
+The confirmed `executeHubMove` producer drops the old unadmitted projection and
+queues one check-Slots line for the new owner. Admitted receipts finish at their
+original hub without replay. The existing cancellable hub effect gate serializes
+bounded admission against moves; the ownership mutex is not held across IO.
+Projection generations fence jobs extracted before the drop. Restart collection
+survives the drop, and only genuinely new lifecycle facts follow the new owner.
+
+`couchmessage.Message.Origin` is immutable: peer is omitted/zero, system is created
+only through internal server admission. External requests cannot carry origin.
+Envelopes, batch matching, deduplication and canonical receipts preserve it.
+Unknown system receipts returned only by a wrapper cannot be imported as server
+provenance after restart/eviction; retained promotion needs the matching original
+server-admitted queue head. Copied headings remain peer body text. No wrapper PID
+authentication or new terminal frame is introduced. The hub verifies the canonical
+receipt and updates Slots without replying; source-owned TL help is ariadne#433.
+Worker startup availability also uses the internal system producer.
+
 ### Unanswered-report rules (#530)
 
 `couchcmd/supervision_model.go` owns volatile report episodes and the per-lifetime
@@ -808,8 +873,8 @@ busy-recipient queue is unchanged. Attempts are marked before sending, so an
 uncertain result or reconnect cannot regenerate the prompt. Original reports
 are never replayed or retained across Couch restarts. The same tick reads terminal
 broker receipts, reports startup cancellation/expiry/uncertainty once, and drops
-the completed send metadata. There is no separate capped report history. Pending generated IDs
-keep both prompts and ordinary waiting notices out of session-file obligations; matching prose from a real agent
+the completed send metadata. There is no separate capped report history. Immutable system origin
+keeps generated notices out of session-file obligations; matching prose from a real agent
 is not exempt. All episode/attempt metadata dies with the supervisor; disconnected
 bindings lose their report episodes. The separate fact log below does not drive
 these rules. Parley's sole file-ping watcher is parley.nvim#321.
@@ -983,6 +1048,31 @@ CLI. It runs in-process against the store and needs no supervisor.
   folds, registry limits and per-file atomic publication apply. The document,
   shadow and final state publish sequentially; after an IO error, reread the
   target, inspect diff/status and recompute before retrying any still-owed folds.
+- **One edit path: `apply` and the round (#661):** `apply EDITS.json FILE --if-hash H` (H is the whole-file hash) takes the review pane's records `{old, occurrence, new, explain}`, as `[...]` or `{"records": [...]}`.
+  - `ResolveEdits` (`sessionsync/edits.go`) resolves every record against the file, all or nothing: an empty, not-found or overlapping record refuses the batch as `edits-invalid`, listing each one (`Refusal.Invalid`, JSON `Invalid`), and nothing is written.
+  - The review pane's Lua resolver (`reconstruct.resolve`) runs the same fixtures, in `testdata/edit-records`.
+  - Apply resolves after the lock, hash and owed checks, then writes through the same prepared write as `write`.
+  - **The round:** every agent write that changes the file (`write --all|--section|--frontmatter` and `apply`) replaces the round sidecar.
+    - Where it lives: `.<file>.round`, or `state/<ID>/round.json` for a registered document. It is carried by register and forget, and kept by rename.
+    - What it holds: `{base_hash, result_hash, at, presentation, spans}`, derived by `DeriveRound` (`round.go`) from a capped line diff (`linediff.go`) narrowed to the changed bytes.
+    - Positions are 0-based [line, byte column] in the result.
+    - The stamp is excluded: the diff baseline is restamped exactly when the write restamps.
+    - `explain` attaches by base-range overlap (`attachReasons`).
+    - A no-op write keeps the previous round.
+    - **No stale round:** the old sidecar is removed before the document moves, so a failed round write (a warning) leaves none.
+  - `round FILE --json` answers `{Code, Error, Round, Cleared}` (the parley.nvim#383 contract). `Cleared` is any submit of the file after `at` in the raw ledger, folded submits included, through `submitNames`, which `OwedForDocument` also uses.
+  - **Propose:** under the document's `presentation: propose`, a non-frontmatter write keeps the base text and writes the body's diff as markers (`ProposeDocument`, `propose.go`), one per changed line. Unpaired blank lines are not marked.
+    - **The engine:** `BuildEdit`/`contentStep` (`round.go`) is shared with `pair review apply`, so both paths behave identically.
+    - **Applied directly** (`directUnderPropose`):
+      - records wholly inside the frontmatter, which is never proposed;
+      - a side-doc answer (`answersSideDoc`): a ready operator marker (`readyMarkerIn`, `marker.go`, the markers.lua grammar) replaced by a new `→ [proposal|discussion](PATH)` link;
+      - the fold a link's `🤖[fold in]` asks for, which keeps the link with ` (folded DATE)` (S3).
+    - **Refused:** a record crossing the frontmatter's end, or a body write changing the frontmatter (`propose-unencodable`).
+    - **Operator-owned keys:** `presentation` and `collaboration-mode` refuse any agent change on every path, `write --frontmatter` included (`operator-owned`).
+    - **Conformance:** `testdata/edit-records/conformance` holds ariadne#437's universal-review examples byte for byte. The file, shadow, hash and round all follow the written marker bytes.
+    - A hunk over 3 lines refuses with `propose-too-large`.
+    - A line the marker grammar can't carry refuses with `propose-unencodable`.
+    - Both refusals name the one fallback, a side-doc proposal.
 - **Ledger:** the message service's `messageEndpoint.Deliver`
   (`message_deliveries.go`) appends one row per delivery that may have
   reached the agent: submitted, indeterminate, an endpoint error, or a
@@ -1440,6 +1530,41 @@ roots are recovered from the immutable starting path and repository scope via
 `presentationRoot`, not the child's current working directory. They use `main`
 as their resting branch, just like a slot group's primary checkout.
 
+### Hosted title ownership (#649)
+
+Hosted wrappers skip title-child allocation through the shared Couch-hosted
+predicate. The sole updater lives in `couchcmd/titles.go`, called from
+`Console.advanceActivity` on the existing single-flight activity schedule.
+Accepted inventory changes request a pass; the existing minute tick advances
+idle heat. No separate timer, process, session listing or client query is added.
+
+`couchcore/title_target.go` projects private display authority from the current
+thread binding, successful session observation and newest typed launch. A
+pre-effect local check revalidates session/start nonce/agent/ordinal; unknown
+inventory cancels obsolete work. Target metadata is excluded from row JSON.
+One `sessioninventory.TitleProjection.PollContext` per invocation supplies both
+native activity and usage. The worker snapshots admitted live wrapper work once
+and merges it with prompt/pane/native activity before title and fading decisions,
+so both consumers use the same latest activity. Warm unchanged projections decode
+no native history. Agy database growth invalidates admission and keeps the last
+valid display until the next scheduled poll fully revalidates its database and
+transcript (#656); true mutations still stop the source.
+
+The optional pass has a two-second deadline and rotates its first target under
+load. Commands use the existing joined process-group runner; failures leave
+idempotent assignments unconfirmed for the next pass. The shared
+`titlepoller.AdvanceTitleUpdate` records only confirmed successful titles and
+retires replaced targets. cmux keeps scoped owner metadata, heat thresholds and
+foreign-live-owner deferral using the inventory's existing host listing;
+unresolved ownership defers. Standalone wrappers retain their pipe-leased title
+poller and cadence. Older already-running wrappers keep their pollers until
+restarted; rollout measurements name that coverage.
+
+Tests: `couchcmd/titles_test.go` exercises the production native projection and
+command seam, zero-work warm passes, bounded cancellation and an isolated
+1,000-tick heap/cache regression with generation turnover. The console tests
+exercise shared activity scheduling and cancellation on inventory replacement.
+
 ### Idle fading of live threads (#247)
 
 Live thread labels recede as they go idle, in both views: under 1 day normal,
@@ -1714,7 +1839,12 @@ the one definition of that line format. `ApplySlugs` fills
 `Couch.Slug` seam (`OSSlugReader`: bounded, no-follow, display-only, so errors
 read as no slug). The existing inventory refresh supplies new descriptions and
 slugs, which is why a slug change redraws without ever becoming attention; no
-additional storage or polling is added.
+additional storage or polling is added. Under #650 pair's per-turn slug refresh
+is off by default when Couch hosts the thread (pair's wrapper gates the
+`pair-slug` spawn on `launcher.CouchHostedEnv`, and the `slugcmd.Run` body
+gates the external Claude Stop-hook entry the same way; `PAIR_SLUG=on`
+re-enables both), so a hosted row carries a slug only while that knob is on —
+the display path is unchanged.
 
 Both CLI resolution and in-memory menu filtering derive from
 `ClassifyThreadReferenceFields`/`MatchThreadReferenceFields`: exact opaque tags
@@ -4381,9 +4511,10 @@ withholds a platform binary's environment (`/bin/zsh`), so a silent launchd
 child's direct children answer instead. Zellij servers, agents and embedded
 nvim are never claimed this way; a relaunched thread's leftovers stay subject
 to the orphan and unattributed rules. Each process generation's environment is
-read once (about 0.3 s for 1,200 processes on Couch's first pass, then only new
-processes) and only the two thread keys are kept; the reads show as
-`environment_calls` in the sampler cost.
+read once — two native calls per read, at most one read per table row on the first
+pass and afterwards only for generations the memo has not seen (#644) — and only
+the two thread keys are kept; the reads show as `environment_calls` in the sampler
+cost.
 Known process kinds parented by PID 1 above the RSS floor are shown as
 **unattributed (unproven)**, never acted on. Only candidate classification may
 inspect argv; full command lines are not retained or displayed. Sampling can
@@ -4463,17 +4594,30 @@ Unproven candidates remain report-only.
 
 The displayed cost records attempted native calls, sampler-thread CPU and wall
 time. At most three table size/read attempts plus two self-CPU reads cost eight
-native calls; successful usage with identity fencing adds two per process, plus
-actual candidate-command calls. Sampler-thread CPU excludes concurrent GC and
-other goroutines. A native-reader-only short measurement after bulk conversion
-averaged 1.643 ms (maximum 2.391 ms), or 0.002739% of one core at 60-second
-cadence. Full sampling plus near-cap history persistence (953 frames,
-4,189,412 bytes, 27 usage observations) averaged 72.438 ms across three passes,
-maximum 79.311 ms: 0.120730% of one core per minute. The qualified target is
-below 0.2%, with a 300 ms maximum pass CPU budget; the product requirement is
-well under 1%. This run used 58 native attempts and one history publication
-per pass. Current-pass final CPU is published in the cached view after storage
-completes; its history frame cannot include the completed cost of writing itself.
+native calls; successful usage with identity fencing adds two per process, as does
+a successful environment, argv or cwd read, and a read that fails before its fence
+adds one. Sampler-thread CPU excludes concurrent GC and other goroutines.
+The cost conformance (`TestResourceSamplerNativeCost`, env-gated on
+`PAIR_RESOURCE_COST=1`) gates work, and steady CPU as a ratio to a same-run
+baseline, rather than absolute CPU (#644). Absolute CPU cannot give one verdict on
+an idle host and on one running the rest of the fleet:
+measured across a wide load range, a pass's native call counts barely moved while
+its CPU moved by tens of percent, which flipped a fixed budget on unchanged code.
+What the conformance asserts instead is load-invariant. Every pass's native calls
+must equal the sum of its per-category counters plus the two self-CPU reads, so no
+native work goes unaccounted; no category may read a row more than once, at two
+native calls per read over at most the table's rows; and each pass writes the
+near-cap history exactly once. The first pass — #606's one-time environment scan,
+the admission burst #587's budget deliberately excluded — is bounded by that work
+alone, and its CPU is reported rather than asserted. Steady passes are gated
+against a baseline taken in the same run: at most twice the thread CPU of the
+history write the pass itself performs. Every pass reports the host state it was
+measured in (table rows and load average) and every failure names it, so a red run
+distinguishes a busy host from a sampler regression without a second
+investigation. The measurements behind each constant are recorded in #644. The
+product requirement is unchanged: well under 1% of one core. Current-pass final CPU
+is published in the cached view after storage completes; its history frame cannot
+include the completed cost of writing itself.
 
 History retains aggregate slot frames and orphan/unattributed summaries for at
 most 24 hours, 1,440 frames and 4 MiB. Only history is persisted, best-effort, with one fixed replacement stage:
@@ -4540,3 +4684,40 @@ approved quiet-load criterion. These figures are fixture results, not live
 server savings. TL-authorized landing precedes the next coordinated Couch
 restart; live server CPU/sample and console/peek/waiting acceptance remain
 pending until that check.
+
+### Interrupted park recovery (#651)
+
+`couch --recover-park repo:N --confirm [--json]` resolves the current interrupted
+park through the authenticated owning-hub operation queue and receipt protocol.
+The switcher offers the same confirmed **Recover park** action only while a
+thread has an open park. Both carry the exact repository scope, tag and park
+nonce; queued effects refuse a replacement transaction or changed ownership.
+A repeated request uses its original receipt; recovering an already settled park
+has no effect. Unknown receipt status calls for inspection, not an automatic resend.
+
+Recovery never starts a replacement agent. A verified completion finalizes the
+park; positively dead exact owners with positively absent terminals may retire
+interrupted bookkeeping while preserving incomplete-cleanup diagnostics. Missing
+or failed completion is never reported as verified cleanup, and uncertain or
+foreign ownership refuses. The result names the available Continue, Resume from
+disk or Start fresh action after normal recovery evidence is checked. Conversation
+identity survives; missing scrollback bytes cannot be reconstructed.
+
+Public declaration/admission lives in `couchcore/ops.go` and `slot_operation.go`;
+execution and receipt wiring in `couchcmd/console_slot_operations.go` and
+`slot_operations.go`; row authority and confirmation in `couchtty/menu_actions.go`
+and `menu.go`. The recovery decision/controller and journaled store mutation live
+in `couchcore/park_recovery.go` and `threadstore.go`.
+
+An open transaction's row shows the shared unfinished-transaction/Recover park
+advice, including on a still-live row; retained continuation status stays appended.
+With an absent terminal and live or unknown exact owner, explicit recovery
+refuses before entering cleanup reconciliation. A live-owner refusal says the
+transaction is still finishing and names the same recovery action to retry after inspection.
+
+Recovery carries its worker context through lifecycle lock admission, protocol
+observation/publication/cleanup, and checked threadstore mutations. Contended
+locks cannot retain an abandoned recovery worker; existing synchronous filesystem
+work and owned temporary cleanup finish before its reservation is released.
+Continuation, switch, detach, leave and direct recovery refusals reuse the same
+bounded exact-target advice without changing their ownership guards.

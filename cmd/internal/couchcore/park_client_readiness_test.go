@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/xianxu/pair/cmd/internal/zellijtest"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -14,18 +15,12 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/testpair"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
-
-type parkClientReply struct {
-	body string
-	exit int
-}
-
-const parkClientHeader = "CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\n"
 
 // The fake retains its invocation index across processes. An unexpected query
 // fails instead of falling through to any installed native binary.
-func parkClientCLI(t *testing.T, root string, replies []parkClientReply) string {
+func parkClientCLI(t *testing.T, root string, replies []string) string {
 	t.Helper()
 	state := filepath.Join(root, "query-count")
 	if err := os.WriteFile(state, []byte("0\n"), 0600); err != nil {
@@ -33,14 +28,10 @@ func parkClientCLI(t *testing.T, root string, replies []parkClientReply) string 
 	}
 	var script strings.Builder
 	script.WriteString("#!/bin/sh\ncase \"$*\" in '--session pair-readiness action list-clients') ;; *) exit 99 ;; esac\nIFS= read -r n < \"$PAIR_TEST_CLIENT_REPLY_STATE\" || exit 98\nprintf '%s\\n' \"$((n+1))\" > \"$PAIR_TEST_CLIENT_REPLY_STATE\"\ncase $n in\n")
-	quote := func(s string) string { return "'" + strings.ReplaceAll(s, "'", "'\"'\"'") + "'" }
-	for i, reply := range replies {
-		redirect := ""
-		if reply.exit != 0 {
-			redirect = " >&2"
-		}
-		fmt.Fprintf(&script, "%d) printf '%%s' %s%s; exit %d ;;\n", i, quote(reply.body), redirect, reply.exit)
+	for i, name := range replies {
+		fmt.Fprintf(&script, "%d) %s ;;\n", i, zellijtest.ShellCase(t, name))
 	}
+
 	script.WriteString("*) exit 97 ;;\nesac\n")
 	if err := os.WriteFile(filepath.Join(root, "zellij"), []byte(script.String()), 0700); err != nil {
 		t.Fatal(err)
@@ -51,20 +42,20 @@ func parkClientCLI(t *testing.T, root string, replies []parkClientReply) string 
 func TestParkClientCountQueryContract(t *testing.T) {
 	for _, tc := range []struct {
 		name            string
-		reply           parkClientReply
+		reply           string
 		want            int
 		noReply, failed bool
 	}{
-		{name: "empty", noReply: true},
-		{name: "whitespace", reply: parkClientReply{body: " \n\t"}, noReply: true},
-		{name: "CLI failure", reply: parkClientReply{body: "query failed", exit: 2}, failed: true},
-		{name: "header only", reply: parkClientReply{body: parkClientHeader}},
-		{name: "one client", reply: parkClientReply{body: parkClientHeader + "1 0 /bin/sh\n"}, want: 1},
-		{name: "two clients", reply: parkClientReply{body: parkClientHeader + "1 0 /bin/sh\n2 1 /bin/sh\n"}, want: 2},
+		{name: "empty", reply: "park.empty", noReply: true},
+		{name: "whitespace", reply: "park.whitespace", noReply: true},
+		{name: "CLI failure", reply: "park.cli-failure", failed: true},
+		{name: "header only", reply: "park.zero"},
+		{name: "one client", reply: "park.one", want: 1},
+		{name: "two clients", reply: "park.two", want: 2},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			root := t.TempDir()
-			state := parkClientCLI(t, root, []parkClientReply{tc.reply})
+			state := parkClientCLI(t, root, []string{tc.reply})
 			testpair.ApplyEnvironment(t, root, "PATH="+root+":/usr/bin:/bin", "PAIR_TEST_CLIENT_REPLY_STATE="+state)
 			got, err := zellijClientCount(t.Context(), "pair-readiness")
 			if tc.noReply {
@@ -89,7 +80,7 @@ func TestParkClientCountQueryContract(t *testing.T) {
 func TestParkHelperRejectsUnknownBaselineBeforeStarting(t *testing.T) {
 	root := t.TempDir()
 	// A later header must never turn an unanswered baseline into attachment.
-	state := parkClientCLI(t, root, []parkClientReply{{}, {body: parkClientHeader}})
+	state := parkClientCLI(t, root, []string{"park.empty", "park.zero"})
 	binary, err := os.Executable()
 	if err != nil {
 		t.Fatal(err)
@@ -134,27 +125,66 @@ func TestParkUnknownBaselineProbe(t *testing.T) {
 func TestParkHelperAttachmentRequiresClientGrowth(t *testing.T) {
 	for _, baselineClients := range []int{0, 1} {
 		t.Run(strconv.Itoa(baselineClients), func(t *testing.T) {
-			root := t.TempDir()
-			baseline := parkClientHeader
-			if baselineClients == 1 {
-				baseline += "1 0 /bin/sh\n"
-			}
-			state := parkClientCLI(t, root, []parkClientReply{
-				{body: baseline}, {body: baseline}, {body: baseline + "2 1 /bin/sh\n"},
-			})
-			testpair.ApplyEnvironment(t, root, "PATH="+root+":/usr/bin:/bin", "PAIR_TEST_CLIENT_REPLY_STATE="+state)
-			ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+			ctx, cancel := context.WithTimeout(t.Context(), testwait.Budget(t))
 			defer cancel()
-			count, err := zellijClientCount(ctx, "pair-readiness")
-			if err != nil || count != baselineClients {
-				t.Fatalf("baseline=%d err=%v", count, err)
+			growthRequested := make(chan struct{})
+			releaseGrowth := make(chan struct{})
+			done := make(chan struct{})
+			calls := 0
+			query := func(ctx context.Context, session string) (int, error) {
+				if session != "pair-readiness" {
+					return 0, fmt.Errorf("unexpected session %q", session)
+				}
+				calls++
+				switch calls {
+				case 1, 2:
+					return baselineClients, nil // baseline, then a complete unchanged observation
+				case 3:
+					return 0, launcher.ErrZellijNoReply // unknown is not attachment either
+				case 4:
+					close(growthRequested)
+					select {
+					case <-releaseGrowth:
+						return baselineClients + 1, nil
+					case <-ctx.Done():
+						return 0, ctx.Err()
+					}
+				default:
+					return 0, fmt.Errorf("unexpected query %d", calls)
+				}
 			}
-			drained := make(chan struct{})
-			close(drained)
-			waitParkHelperAttachment(t, ctx, "pair-readiness", count, nil, drained, new(parkHelperCapture))
-			raw, err := os.ReadFile(state)
-			if err != nil || strings.TrimSpace(string(raw)) != "3" {
-				t.Fatalf("readiness query count=%q err=%v; want baseline, unchanged, growth", raw, err)
+			go func() {
+				defer close(done)
+				count, err := query(ctx, "pair-readiness")
+				if err != nil || count != baselineClients {
+					t.Errorf("baseline=%d err=%v; %s", count, err, testwait.HostState())
+					return
+				}
+				drained := make(chan struct{})
+				close(drained)
+				waitParkHelperAttachmentWithQuery(t, ctx, "pair-readiness", count, nil, drained, new(parkHelperCapture), query)
+			}()
+			t.Cleanup(func() { cancel(); <-done })
+			select {
+			case <-growthRequested:
+			case <-done:
+				t.Fatalf("readiness stopped before querying growth; %s", testwait.HostState())
+			case <-ctx.Done():
+				t.Fatalf("readiness did not query growth: %v; %s", ctx.Err(), testwait.HostState())
+			}
+			select {
+			case <-done:
+				t.Fatalf("unchanged or unanswered query established attachment; %s", testwait.HostState())
+			default:
+			}
+			close(releaseGrowth)
+			select {
+			case <-done:
+			case <-ctx.Done():
+				t.Fatalf("readiness did not accept released growth: %v; %s", ctx.Err(), testwait.HostState())
+			}
+			if calls != 4 {
+				t.Fatalf("readiness query count=%d; want baseline, unchanged, unknown, growth; %s", calls, testwait.HostState())
 			}
 		})
 	}

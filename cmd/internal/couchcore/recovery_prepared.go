@@ -88,7 +88,7 @@ func (c *Couch) executePreparedRecovery(ctx context.Context, selection RecoveryS
 		listed, listErr := c.observeRecoverySession(ctx, record, RecoveryEvidence{})
 		if listErr == nil && listed.Presence == PresencePresent {
 			actor, handle, err := c.ResumeContextWith(ctx, record.Address, ResumeOptions{WarmOnly: true})
-			return RecoveryResumeResult{Start: StartResult{Record: actor, Handle: handle}, Notice: "Continue"}, err
+			return RecoveryResumeResult{Mode: Continue, Start: StartResult{Record: actor, Handle: handle}, Notice: "Continue"}, err
 		}
 	}
 	// Resolve an advertised key before mode-specific profile and lifecycle
@@ -121,7 +121,7 @@ func (c *Couch) executePreparedRecovery(ctx context.Context, selection RecoveryS
 	}
 	if selection.Kind != RecoveryFresh {
 		if record.Park != nil {
-			return result, errors.New("a park transaction is unfinished; recover that park or Start fresh preserving it")
+			return result, refuseResume(ResumeParking, "a park transaction is unfinished; "+c.ParkRecoveryAdvice(ctx, record.Address))
 		}
 		if err := continuationGuard(record); err != nil {
 			return result, err
@@ -428,11 +428,13 @@ func (c *Couch) launchRecoveryClaim(ctx context.Context, record ThreadRecord, no
 		return result, err
 	}
 	result.Start = StartResult{Record: actor, Handle: handle}
+	result.Mode = ResumeDisk
 	result.Notice = fmt.Sprintf("resumed %s", intent.NativeID)
 	if selection.Kind == RecoveryInferred {
 		result.Notice = fmt.Sprintf("resumed %s: last active %s, %.0f%% tail match", intent.NativeID, choice.LastActivity.Local().Format("15:04 MST"), choice.TailMatch)
 	}
 	if selection.Kind == RecoveryFresh {
+		result.Mode = Fresh
 		result.Notice = "started fresh"
 		if orient.Unavailable != "" {
 			notes = append(notes, orient.Unavailable)

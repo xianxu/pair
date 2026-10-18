@@ -242,6 +242,20 @@ func (r OSReadyReader) RecordedSession(ctx context.Context, address ThreadAddres
 	return ready.Session, true, nil
 }
 
+// RecordedChild names the native child the launch's ready file records:
+// its launch ordinal and process identity, from the file alone (pair#657).
+// ok is false when no current ready file exists.
+func (r OSReadyReader) RecordedChild(ctx context.Context, address ThreadAddress, agent, attempt string) (ordinal uint64, identity string, ok bool, err error) {
+	ready, err := r.readReadyFile(ctx, address, agent, attempt)
+	if errors.Is(err, errObsoleteReady) || (err == nil && ready == nil) {
+		return 0, "", false, nil
+	}
+	if err != nil {
+		return 0, "", false, err
+	}
+	return ready.LaunchOrdinal, ready.AgentIdentity, true, nil
+}
+
 func (r OSReadyReader) Registered(ctx context.Context, address ThreadAddress, agent, attempt string) (bool, error) {
 	ready, err := r.readReady(ctx, address, agent, attempt)
 	if errors.Is(err, errObsoleteReady) {

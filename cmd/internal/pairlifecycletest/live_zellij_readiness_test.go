@@ -2,6 +2,7 @@ package pairlifecycletest
 
 import (
 	"context"
+	"github.com/xianxu/pair/cmd/internal/zellijtest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -15,7 +16,7 @@ case "$1" in
  delete-session) exit 0;;
  list-sessions)
   if [ ! -f "$FIXTURE_READY" ]; then : > "$FIXTURE_EARLY_PROBE"; exit 1; fi
-  printf 'owned-test [Created 0s ago]\n'; exit 0;;
+  ` + zellijtest.ShellCase(t, "lifecycle-readiness-full") + `;;
  --session)
   printf '\033[?2004h'
   sleep 0.1

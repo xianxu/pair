@@ -204,6 +204,7 @@ func TestRelaunchStopsAtAFailedParkAndNamesTheRecovery(t *testing.T) {
 
 	for _, tc := range []struct {
 		name   string
+		want   RelaunchOutcome
 		breaks func(*relaunchEnv)
 	}{
 		{
@@ -212,8 +213,9 @@ func TestRelaunchStopsAtAFailedParkAndNamesTheRecovery(t *testing.T) {
 				// The trigger fires but no completion is committed, so the park
 				// times out waiting for proof it worked.
 				env.Artifacts.TriggerQuitHook = func(string, launcher.QuitIntent) error { return nil }
-				env.Couch.PairLifecycle.CompletionTimeout = 5 * time.Millisecond
-				env.Couch.PairLifecycle.RelaunchWait = 5 * time.Millisecond
+				// The quit has already been requested when Wait runs; spend
+				// its budget there, after observing the intended missing proof.
+				env.Couch.PairLifecycle.Wait = func(context.Context, time.Duration) error { return context.DeadlineExceeded }
 			},
 		},
 		{
@@ -232,12 +234,14 @@ func TestRelaunchStopsAtAFailedParkAndNamesTheRecovery(t *testing.T) {
 						Outcome: pairlifecycle.CompletionSuccess, CompletedAt: env.Now,
 					})
 				}
-				env.Couch.PairLifecycle.CompletionTimeout = 5 * time.Millisecond
-				env.Couch.PairLifecycle.RelaunchWait = 5 * time.Millisecond
+				// The quit has already been requested when Wait runs; spend
+				// its budget there, after observing the intended missing proof.
+				env.Couch.PairLifecycle.Wait = func(context.Context, time.Duration) error { return context.DeadlineExceeded }
 			},
 		},
 		{
 			name: "the request cannot be published",
+			want: ParkRolledBack,
 			breaks: func(env *relaunchEnv) {
 				env.Lifecycle.publishErr = errors.New("publish refused")
 			},
@@ -249,8 +253,12 @@ func TestRelaunchStopsAtAFailedParkAndNamesTheRecovery(t *testing.T) {
 
 			result, err := env.Couch.Relaunch(context.Background(), live.Address)
 
-			if result.Outcome != ParkIncomplete || err == nil {
-				t.Fatalf("outcome = %q, err = %v; want ParkIncomplete and a refusal", result.Outcome, err)
+			want := tc.want
+			if want == "" {
+				want = ParkIncomplete
+			}
+			if result.Outcome != want || err == nil {
+				t.Fatalf("outcome = %q, err = %v; want %s and a refusal", result.Outcome, err, want)
 			}
 			// The resume must NOT be attempted. A thread with an open park
 			// transaction is not resumable, so trying reports a second,
@@ -263,9 +271,16 @@ func TestRelaunchStopsAtAFailedParkAndNamesTheRecovery(t *testing.T) {
 			// And the message names PARK's recovery, not Enter -- Enter is
 			// refused with ResumeParking, so naming it would be the
 			// unnavigable-refusal class (pair#181 M3).
-			for _, want := range []string{"retry", "recover", "abandon"} {
-				if !strings.Contains(err.Error(), want) {
-					t.Fatalf("error %q does not name park's recovery: missing %q", err, want)
+			if want == ParkIncomplete && !strings.Contains(err.Error(), env.Couch.ParkRecoveryAdvice(context.Background(), live.Address)) {
+				t.Fatalf("error %q does not name executable park recovery", err)
+			}
+			if want == ParkRolledBack {
+				after, getErr := env.Couch.Threads.GetThread(live.Address)
+				if getErr != nil {
+					t.Fatal(getErr)
+				}
+				if after.Park != nil || len(after.ParkHistory) != 1 || !after.ParkHistory[0].Tombstoned || env.Proc.Exists(42) != Live {
+					t.Fatalf("rollback did not retain original live owner: %+v", after)
 				}
 			}
 			if strings.Contains(err.Error(), "Enter") {
@@ -470,31 +485,36 @@ func TestRelaunchRidesOutASlowQuitOnTheFirstCall(t *testing.T) {
 
 	env, live := envWithLiveThread(t)
 	quit := env.Artifacts.TriggerQuitHook
-	started := time.Now()
 	var pending []func()
 	env.Artifacts.TriggerQuitHook = func(session string, intent launcher.QuitIntent) error {
 		pending = append(pending, func() { _ = quit(session, intent) })
 		return nil
 	}
-	env.Couch.PairLifecycle.CompletionTimeout = 50 * time.Millisecond
+	// A default-budget wait expires in this fake; only the relaunch override
+	// admits completion. This preserves the slow-quit distinction without a
+	// wall-clock window in which the test must be scheduled.
 	env.Couch.PairLifecycle.RelaunchWait = 5 * time.Second
-	env.Couch.PairLifecycle.Wait = func(ctx context.Context, d time.Duration) error {
-		if time.Since(started) > 200*time.Millisecond && len(pending) > 0 {
-			for _, f := range pending {
-				f()
-			}
-			pending = nil
+	var selected time.Duration
+	env.Couch.PairLifecycle.completionDeadline = func(parent context.Context, d time.Duration) (context.Context, context.CancelFunc) {
+		selected = d
+		return context.WithCancel(parent)
+	}
+	env.Couch.PairLifecycle.Wait = func(ctx context.Context, _ time.Duration) error {
+		if selected != env.Couch.PairLifecycle.RelaunchWait {
+			return context.DeadlineExceeded
 		}
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(5 * time.Millisecond):
-			return nil
+		if len(pending) == 0 {
+			return errors.New("completion wait ran before the quit trigger")
 		}
+		for _, f := range pending {
+			f()
+		}
+		pending = nil
+		return nil
 	}
 
 	result, err := env.Couch.Relaunch(context.Background(), live.Address)
 	if err != nil || result.Outcome != Relaunched {
-		t.Fatalf("Relaunch = %+v, %v; want the first call to ride out a 200 ms quit", result, err)
+		t.Fatalf("Relaunch = %+v, %v; want the first call to admit the quit beyond the default budget", result, err)
 	}
 }

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/terminal"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 type pointerSession struct {
@@ -49,9 +50,13 @@ func startPointerSession(t *testing.T) *pointerSession {
 }
 
 func startPointerSessionWith(t *testing.T, hub HubOptions) *pointerSession {
+	return startPointerSessionAt(t, hub, nil)
+}
+
+func startPointerSessionAt(t *testing.T, hub HubOptions, now func() time.Time) *pointerSession {
 	t.Helper()
 	p := &pointerSession{}
-	s, err := Start(context.Background(), Config{Tunnel: &FakeTunnel{}, Ping: 20 * time.Millisecond, Hub: hub,
+	s, err := Start(context.Background(), Config{Tunnel: &FakeTunnel{}, Ping: 20 * time.Millisecond, Hub: hub, Now: now,
 		OnNotes: func(_ *Session, notes []Note, version uint64) {
 			p.mu.Lock()
 			p.notes = append(p.notes, notesCall{notes, version})
@@ -263,7 +268,14 @@ func TestPointerPostRejects(t *testing.T) {
 }
 
 func TestPointerRateLimit(t *testing.T) {
-	p := startPointerSession(t)
+	t.Cleanup(func() {
+		if t.Failed() {
+			t.Log(testwait.HostState())
+		}
+	})
+	var clockMu sync.Mutex
+	now := time.Unix(100, 0)
+	p := startPointerSessionAt(t, HubOptions{}, func() time.Time { clockMu.Lock(); defer clockMu.Unlock(); return now })
 	link, _ := p.enablePointer(t)
 	p.showPointer(t)
 	limited := 0
@@ -272,8 +284,14 @@ func TestPointerRateLimit(t *testing.T) {
 			limited++
 		}
 	}
-	if limited < 15 {
-		t.Fatalf("only %d of %d rapid posts were limited", limited, PointRatePerSec+20)
+	if limited != 20 {
+		t.Fatalf("limited %d of %d same-time posts, want20; %s", limited, PointRatePerSec+20, testwait.HostState())
+	}
+	clockMu.Lock()
+	now = now.Add(time.Second)
+	clockMu.Unlock()
+	if code, _ := post(t, link+"point", "application/json", tapBody); code != http.StatusNoContent {
+		t.Fatalf("refilled request=%d; %s", code, testwait.HostState())
 	}
 }
 

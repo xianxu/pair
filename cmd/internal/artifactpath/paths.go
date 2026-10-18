@@ -564,6 +564,8 @@ func (p Paths) ReviewTarget() string          { return p.tagged("review-target-"
 func (p Paths) ReviewContext() string         { return p.tagged("review-context-", ".md") }
 func (p Paths) ReviewHandoff() string         { return p.tagged("review-handoff-", ".json") }
 func (p Paths) ReviewLanded() string          { return p.tagged("review-landed-", ".json") }
+func (p Paths) ReviewRound() string           { return p.tagged("review-round-", ".json") }
+func (p Paths) ReviewApplyLock() string       { return p.tagged("review-apply-", ".flock") }
 func (p Paths) ReviewDefinitionRequest() string {
 	return p.tagged("review-definition-request-", ".json")
 }
@@ -651,6 +653,7 @@ func (p Paths) EnvironmentBindings(agent string) ([]Binding, error) {
 		{Name: "PAIR_REVIEW_CONTEXT_PATH", Path: p.ReviewContext()},
 		{Name: "PAIR_REVIEW_HANDOFF_PATH", Path: p.ReviewHandoff()},
 		{Name: "PAIR_REVIEW_LANDED_PATH", Path: p.ReviewLanded()},
+		{Name: "PAIR_REVIEW_ROUND_PATH", Path: p.ReviewRound()},
 		{Name: "PAIR_REVIEW_DEFINITION_REQUEST_PATH", Path: p.ReviewDefinitionRequest()},
 		{Name: "PAIR_REVIEW_DEFINITION_RESULT_PATH", Path: p.ReviewDefinitionResult()},
 		{Name: "PAIR_CODEX_FILTER_KKP_PATH", Path: p.CodexFilterKKP()},

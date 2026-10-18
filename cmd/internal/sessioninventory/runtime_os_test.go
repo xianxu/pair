@@ -1,6 +1,7 @@
 package sessioninventory
 
 import (
+	"context"
 	"errors"
 	"os"
 	"os/exec"
@@ -10,6 +11,7 @@ import (
 	"strings"
 	"syscall"
 	"testing"
+	"time"
 )
 
 func TestOSRuntimeBoundaries(t *testing.T) {
@@ -212,5 +214,28 @@ func TestOSRuntimeStatFileMatchesListFiles(t *testing.T) {
 	}
 	if _, err := runtime.StatFile(Artifact{StorageRoot: "nope", RelativePath: "-repo/s.jsonl"}); !errors.Is(err, ErrRootUnknown) {
 		t.Fatalf("unknown root err = %v", err)
+	}
+}
+
+func TestOSRuntimeSQLiteContextJoinsBlockedChild(t *testing.T) {
+	bin := t.TempDir()
+	if err := os.WriteFile(filepath.Join(bin, "sqlite3"), []byte("#!/bin/sh\nexec /bin/sleep 10\n"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	rt := NewOSRuntime(t.TempDir(), t.TempDir())
+	root := rt.NativeRoots(AgentAgy)[0]
+	if err := os.MkdirAll(root.Path, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root.Path, "blocked.db"), nil, 0644); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	started := time.Now()
+	_, err := rt.QuerySQLiteContext(ctx, Artifact{StorageRoot: root.Name, RelativePath: "blocked.db"}, "select 1", -1)
+	if !errors.Is(err, context.DeadlineExceeded) || time.Since(started) > 2*time.Second {
+		t.Fatalf("blocked SQLite=%v elapsed=%v", err, time.Since(started))
 	}
 }

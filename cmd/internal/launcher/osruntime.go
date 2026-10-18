@@ -5,10 +5,10 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/xianxu/pair/cmd/internal/storagegc"
-	"github.com/xianxu/pair/cmd/internal/zellijsession"
 	"golang.org/x/sys/unix"
 	"io"
 	"os"
@@ -27,7 +27,8 @@ import (
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 	"github.com/xianxu/pair/cmd/internal/sessionledger"
 	"github.com/xianxu/pair/cmd/internal/sessionwatch"
-	"github.com/xianxu/pair/cmd/internal/zellijpane"
+	"github.com/xianxu/pair/cmd/internal/zellijexec"
+	"github.com/xianxu/pair/cmd/internal/zellijreply"
 )
 
 // OSRuntime is the concrete create-flow Runtime: real zellij/fzf/cmux/tty/exec
@@ -42,6 +43,8 @@ type OSRuntime struct {
 	GlobalDataDir string
 	PairHome      string
 	Processes     procutil.Source
+	// nameQueryRun owns the name probe process; nil uses the OS collector.
+	nameQueryRun func(*exec.Cmd) error
 
 	sessionQuiescence  sessionQuiescenceOps
 	sessionQuiesceWait time.Duration
@@ -111,46 +114,76 @@ func zj(args ...string) string {
 func (OSRuntime) Sessions() ([]Session, error) { return ZellijSource{}.Snapshot() }
 
 func (OSRuntime) SessionLiveness() ([]Session, error) {
-	return ZellijSource{}.LivenessContext(context.Background())
+	return (OSRuntime{}).SessionLivenessContext(context.Background())
 }
 
-func (OSRuntime) SessionBlocksReuse(session string) bool {
+func (OSRuntime) SessionLivenessContext(ctx context.Context) ([]Session, error) {
+	return ZellijSource{}.LivenessContext(ctx)
+}
+
+func (r OSRuntime) SessionBlocksReuse(session string) bool {
 	ctx, cancel := context.WithTimeout(context.Background(), zjTimeout)
 	defer cancel()
 	raw, err := (ZellijSource{}).runContext(ctx, "list-sessions", "--no-formatting")
 	if err != nil {
 		return true
 	}
-	present, _ := zellijsession.RowState(string(raw), session)
+	present, _, err := sessionListingState(raw, session)
+	if err != nil {
+		return true
+	}
 	// A saved layout remains evidence. Reuse never deletes it implicitly;
 	// legacy recovery creates a new terminal name after resolving ownership.
-	return present
+	if present {
+		return true
+	}
+	// Native discovery may silently omit a still-live exact server. Listing
+	// absence cannot release its name without independent process evidence.
+	ops := r.sessionQuiescence
+	if ops == nil {
+		ops = newOSSessionQuiescenceOps(r.Processes)
+	}
+	servers, err := ops.SessionServers(ctx, session)
+	return err != nil || ctx.Err() != nil || len(servers) != 0
 }
 
 // ProbeSessionName asks zellij whether it accepts session's length, at the cost
 // of one list-clients. AssignSessionName skips it for a name a live session
 // already runs under (acceptingLiveNames, pair#228): that session is the proof.
-func (OSRuntime) ProbeSessionName(session string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), zjTimeout)
+func (r OSRuntime) ProbeSessionName(session string) error {
+	ctx, cancel := zellijreply.AdmissionContext(context.Background())
 	defer cancel()
+	return r.ProbeSessionNameContext(ctx, session)
+}
+
+func (r OSRuntime) ProbeSessionNameContext(ctx context.Context, session string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	cmd := exec.CommandContext(ctx, "zellij", "--session", session, "action", "list-clients")
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
-	err := cmd.Run()
-	if ctx.Err() != nil {
-		return fmt.Errorf("could not ask zellij about session name %q: %w", session, ctx.Err())
+	run := r.nameQueryRun
+	if run == nil {
+		run = zellijexec.Run
 	}
-	out := append(stdout.Bytes(), stderr.Bytes()...)
-	if sessionNameRejected(string(out)) {
-		return fmt.Errorf("%w: %s", errSessionNameTooLong, session)
+	err := run(cmd)
+	if ctx.Err() != nil {
+		return fmt.Errorf("could not ask zellij about session name %q: %w", session, errors.Join(err, ctx.Err()))
 	}
 	if err != nil {
-		// Clap validates --session before action dispatch. These exact
-		// post-parse absence diagnostics prove length acceptance only.
-		var exit *exec.ExitError
-		if errors.As(err, &exit) && exit.ExitCode() == 1 && stdout.Len() == 0 &&
-			sessionNameAbsentDiagnostic(session, stderr.String()) {
-			return nil
+		// Diagnostic evidence may consume only a pure subprocess exit. Joined
+		// cancellation/collection failures cannot teach either length bound.
+		if exit, pureExit := err.(*exec.ExitError); pureExit {
+			if sessionNameRejected(session, exit.ExitCode(), stdout.String(), stderr.String()) {
+				return fmt.Errorf("%w: %s", errSessionNameTooLong, session)
+			}
+			// Clap validates --session before action dispatch. These exact
+			// post-parse absence diagnostics prove length acceptance only.
+			if exit.ExitCode() == 1 && stdout.Len() == 0 &&
+				sessionNameAbsentDiagnostic(session, stderr.String()) {
+				return nil
+			}
 		}
 		return fmt.Errorf("could not ask zellij about session name %q: %w", session, err)
 	}
@@ -158,6 +191,16 @@ func (OSRuntime) ProbeSessionName(session string) error {
 	// nor unrelated stderr may teach the assignment's monotone length bounds.
 	if len(bytes.TrimSpace(stdout.Bytes())) == 0 {
 		return fmt.Errorf("could not ask zellij about session name %q: %w", session, ErrZellijNoReply)
+	}
+	if stderr.String() == "Session '"+session+"' not found. The following sessions are active:\n" {
+		if !sessionNameAbsentListing(session, stdout.String()) {
+			return fmt.Errorf("could not validate zellij name probe: invalid absent-session listing")
+		}
+		return nil
+	}
+	_, parseErr := zellijreply.ParseClients(stdout.Bytes())
+	if parseErr != nil {
+		return fmt.Errorf("could not validate zellij name probe: %w", parseErr)
 	}
 	return nil
 }
@@ -167,6 +210,10 @@ func (OSRuntime) ProbeSessionName(session string) error {
 // Cancelling ctx ends the client (#288): see killOnCancel.
 func (r OSRuntime) LaunchSession(ctx context.Context, session, configDir, layout string) (int, error) {
 	return r.runTerminalHandoff(ctx, session, configDir, layout, true)
+}
+
+func (r OSRuntime) LaunchSessionContext(lifetime, admission context.Context, session, configDir, layout string) (int, error) {
+	return r.runTerminalHandoffContext(lifetime, admission, session, configDir, layout, true)
 }
 
 // clientKillGrace is how long a cancelled client gets to exit on SIGTERM
@@ -186,18 +233,52 @@ func killOnCancel(cmd *exec.Cmd) *exec.Cmd {
 }
 
 func (OSRuntime) ProbeLiveLayout(session string) (LayoutMode, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), zjTimeout)
+	ctx, cancel := zellijreply.AdmissionContext(context.Background())
 	defer cancel()
-	out, err := (ZellijSource{}).runContext(ctx, "--session", session, "action",
-		"list-panes", "--json", "--command", "--state")
+	read := func(ctx context.Context) ([]byte, error) {
+		return (ZellijSource{}).runContext(ctx, "--session", session, "action", "list-panes", "--json", "--command", "--state")
+	}
+	out, err := zellijreply.Confirm(ctx, read, projectLiveLayoutReply)
 	if err != nil {
 		return "", err
 	}
-	mode, ok := ClassifyLiveLayout(zellijpane.Parse(out))
+	panes, err := zellijreply.ParsePanes(out, zellijreply.PaneRequirements{Command: true, Floating: true})
+	if err != nil {
+		return "", err
+	}
+	mode, ok := ClassifyLiveLayout(panes)
 	if !ok {
 		return "", fmt.Errorf("unrecognized pane signature")
 	}
 	return mode, nil
+}
+
+// projectLiveLayoutReply retains precisely the command/title/identity/floating
+// facts used by ClassifyLiveLayout; geometry and output cannot identify layout.
+func projectLiveLayoutReply(raw []byte) (string, error) {
+	panes, err := zellijreply.ParsePanes(raw, zellijreply.PaneRequirements{Command: true, Floating: true})
+	if err != nil {
+		return "", err
+	}
+	if _, ok := ClassifyLiveLayout(panes); !ok {
+		return "", fmt.Errorf("unrecognized pane signature")
+	}
+	type fact struct {
+		ID, Command, Title string
+		Plugin, Floating   bool
+	}
+	facts := make([]fact, 0, len(panes))
+	for _, p := range panes {
+		facts = append(facts, fact{p.ID, p.TerminalCommand, p.Title, p.IsPlugin, p.IsFloating})
+	}
+	sort.Slice(facts, func(i, j int) bool {
+		if facts[i].Plugin != facts[j].Plugin {
+			return !facts[i].Plugin
+		}
+		return facts[i].ID < facts[j].ID
+	})
+	data, err := json.Marshal(facts)
+	return string(data), err
 }
 
 // runBlockingHandoff runs cmd with the tty passed straight through (NOT
@@ -835,6 +916,10 @@ func (r OSRuntime) EstablishedSessionID(scopeKey, tag, agent string) (string, se
 // AttachSession is the BLOCKING attach twin of LaunchSession.
 func (r OSRuntime) AttachSession(session, configDir string) (int, error) {
 	return r.runTerminalHandoff(context.Background(), session, configDir, "", false)
+}
+
+func (r OSRuntime) AttachSessionContext(lifetime, admission context.Context, session, configDir string) (int, error) {
+	return r.runTerminalHandoffContext(lifetime, admission, session, configDir, "", false)
 }
 
 // restartMarkerPath and quitMarkerPath keep compatibility cache paths behind

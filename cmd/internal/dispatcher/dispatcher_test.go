@@ -270,7 +270,11 @@ func TestDispatchScrollbackRenderUsage(t *testing.T) {
 
 func TestDispatchSlugRoutesToRunner(t *testing.T) {
 	// No PAIR_TAG/PAIR_DATA_DIR → slug no-ops and returns 0; it writes only to
-	// files, so the buffered Result carries no stdout/stderr.
+	// files, so the buffered Result carries no stdout/stderr. The couch vars are
+	// pinned so the no-session skip (not #650's hosted gate) is the one under
+	// test regardless of the machine's ambient Couch env.
+	t.Setenv("COUCH_THREAD_SCOPE", "")
+	t.Setenv("COUCH_THREAD_TAG", "")
 	t.Setenv("PAIR_TAG", "")
 	t.Setenv("PAIR_DATA_DIR", "")
 	res := Dispatch([]string{"slug"})

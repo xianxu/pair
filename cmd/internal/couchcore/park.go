@@ -22,19 +22,22 @@ const (
 )
 
 type LifecycleIO interface {
-	PublishRequest(artifactpath.LifecyclePaths, pairlifecycle.QuitRequest) error
-	ObserveCompletion(artifactpath.LifecyclePaths, pairlifecycle.QuitRequest) (pairlifecycle.QuitCompletion, bool, error)
-	CleanupAttempt(artifactpath.LifecyclePaths, pairlifecycle.QuitRequest) error
+	PublishRequest(context.Context, artifactpath.LifecyclePaths, pairlifecycle.QuitRequest) error
+	ObserveCompletion(context.Context, artifactpath.LifecyclePaths, pairlifecycle.QuitRequest) (pairlifecycle.QuitCompletion, bool, error)
+	CleanupAttempt(context.Context, artifactpath.LifecyclePaths, pairlifecycle.QuitRequest) error
 }
 
 type PairLifecycleStoreIO struct{ Store pairlifecycle.Store }
 
-func (io PairLifecycleStoreIO) PublishRequest(paths artifactpath.LifecyclePaths, request pairlifecycle.QuitRequest) error {
-	return io.Store.PublishRequest(paths, request)
+func (io PairLifecycleStoreIO) PublishRequest(ctx context.Context, paths artifactpath.LifecyclePaths, request pairlifecycle.QuitRequest) error {
+	return io.Store.WithContext(ctx).PublishRequest(paths, request)
 }
 
-func (io PairLifecycleStoreIO) ObserveCompletion(paths artifactpath.LifecyclePaths, request pairlifecycle.QuitRequest) (pairlifecycle.QuitCompletion, bool, error) {
-	if err := io.Store.Reconcile(paths, pairlifecycle.RecordCompletion, request.Attempt); err != nil {
+func (io PairLifecycleStoreIO) ObserveCompletion(ctx context.Context, paths artifactpath.LifecyclePaths, request pairlifecycle.QuitRequest) (pairlifecycle.QuitCompletion, bool, error) {
+	if err := io.Store.WithContext(ctx).Reconcile(paths, pairlifecycle.RecordCompletion, request.Attempt); err != nil {
+		if ctx.Err() != nil {
+			return pairlifecycle.QuitCompletion{}, false, ctx.Err()
+		}
 		if pairlifecycle.PublicationOutcomeOf(err) == pairlifecycle.NotCommitted {
 			return pairlifecycle.QuitCompletion{}, false, nil
 		}
@@ -44,7 +47,7 @@ func (io PairLifecycleStoreIO) ObserveCompletion(paths artifactpath.LifecyclePat
 	if err != nil {
 		return pairlifecycle.QuitCompletion{}, false, err
 	}
-	raw, err := io.Store.Runtime.ReadFile(path)
+	raw, err := io.Store.WithContext(ctx).Runtime.ReadFile(path)
 	if err != nil {
 		return pairlifecycle.QuitCompletion{}, false, err
 	}
@@ -61,7 +64,7 @@ func (io PairLifecycleStoreIO) ObserveCompletion(paths artifactpath.LifecyclePat
 	return completion, true, nil
 }
 
-func (io PairLifecycleStoreIO) CleanupAttempt(paths artifactpath.LifecyclePaths, request pairlifecycle.QuitRequest) error {
+func (io PairLifecycleStoreIO) CleanupAttempt(ctx context.Context, paths artifactpath.LifecyclePaths, request pairlifecycle.QuitRequest) error {
 	requestPath, err := paths.Request(request.Attempt)
 	if err != nil {
 		return err
@@ -71,7 +74,10 @@ func (io PairLifecycleStoreIO) CleanupAttempt(paths artifactpath.LifecyclePaths,
 		return err
 	}
 	remove := func(path string) error {
-		err := io.Store.Runtime.Remove(path)
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		err := io.Store.WithContext(ctx).Runtime.Remove(path)
 		if errors.Is(err, os.ErrNotExist) {
 			return nil
 		}
@@ -89,6 +95,10 @@ type PairLifecycleController struct {
 	Clock             Clock
 	Nonce             func() (string, error)
 	CompletionTimeout time.Duration
+	// completionDeadline is the completion wait's timeout source. Tests spend
+	// the selected budget after observing the missing proof; production uses
+	// context.WithTimeout.
+	completionDeadline func(context.Context, time.Duration) (context.Context, context.CancelFunc)
 	// RelaunchWait replaces CompletionTimeout for relaunch's park (pair#618);
 	// zero means RelaunchParkWait.
 	RelaunchWait time.Duration
@@ -279,11 +289,20 @@ dispatch:
 // before acting, and it may close in between, so a normal park on the joining
 // path becomes Retry, which refuses a thread with no active transaction
 // instead of minting a new one (parkJoinMode).
-func (c *Couch) Park(ctx context.Context, address ThreadAddress, mode string) (ParkResult, error) {
+func (c *Couch) Park(ctx context.Context, address ThreadAddress, mode string) (result ParkResult, retErr error) {
+	var retained ThreadRecord
+	defer func() {
+		proof := result.Thread
+		if proof.Park == nil {
+			proof = retained
+		}
+		retErr = c.withParkRecoveryAdvice(ctx, proof, retErr)
+	}()
 	if c == nil || c.PairLifecycle == nil || c.Threads == nil {
 		return ParkResult{}, errors.New("Pair lifecycle controller is unavailable")
 	}
 	if current, err := c.Threads.GetThread(address); err == nil && current.Park != nil {
+		retained = current
 		mode = parkJoinMode(mode)
 	} else {
 		held, release, holdErr := c.hold(ctx, address, "park")
@@ -373,10 +392,10 @@ func (c *Couch) leaveOne(ctx context.Context, address ThreadAddress, disposition
 		}
 		parkResult, parkErr := c.PairLifecycle.Recover(ctx, record.Address)
 		if parkErr != nil {
-			return leaveNone, fmt.Errorf("leave couch: recover park %s: %w", record.Address.Tag, parkErr)
+			return leaveNone, c.withParkRecoveryAdvice(ctx, record, fmt.Errorf("leave couch: recover park %s: %w", record.Address.Tag, parkErr))
 		}
 		if parkResult.Thread.VerifiedPark == nil || parkResult.Thread.Park != nil {
-			return leaveNone, fmt.Errorf("leave couch: park %s did not produce verified inactive history", record.Address.Tag)
+			return leaveNone, c.withParkRecoveryAdvice(ctx, parkResult.Thread, fmt.Errorf("leave couch: park %s did not produce verified inactive history", record.Address.Tag))
 		}
 		return leaveParked, nil
 	}
@@ -399,10 +418,10 @@ func (c *Couch) leaveOne(ctx context.Context, address ThreadAddress, disposition
 		}
 		parkResult, parkErr := c.PairLifecycle.Park(ctx, record.Address)
 		if parkErr != nil {
-			return leaveNone, fmt.Errorf("leave couch: park %s: %w", record.Address.Tag, parkErr)
+			return leaveNone, c.withParkRecoveryAdvice(ctx, parkResult.Thread, fmt.Errorf("leave couch: park %s: %w", record.Address.Tag, parkErr))
 		}
 		if parkResult.Thread.VerifiedPark == nil || parkResult.Thread.Park != nil {
-			return leaveNone, fmt.Errorf("leave couch: park %s did not produce verified inactive history", record.Address.Tag)
+			return leaveNone, c.withParkRecoveryAdvice(ctx, parkResult.Thread, fmt.Errorf("leave couch: park %s did not produce verified inactive history", record.Address.Tag))
 		}
 		return leaveParked, nil
 	}
@@ -519,16 +538,20 @@ func (c *PairLifecycleController) parkExpected(ctx context.Context, address Thre
 		return result, err
 	}
 	if duration >= parkCommitDeadline {
-		failed, advanceErr := c.Threads.AdvancePark(address, begun.Revision, ParkEvent{
+		failed, advanceErr := c.Threads.AdvancePark(ctx, address, begun.Revision, ParkEvent{
 			Kind: ParkFailureObserved, Identity: identity, Attempt: 1,
 			Failure: &ParkFailure{Code: pairlifecycle.FailureRequestPublishFailed, Diagnostic: "requested commit exceeded 1s deadline"},
 		})
 		if advanceErr == nil {
 			result.Thread = failed
 		}
-		return result, errors.Join(errors.New("park requested commit exceeded 1s deadline"), advanceErr)
+		cause := errors.Join(errors.New("park requested commit exceeded 1s deadline"), advanceErr)
+		if advanceErr == nil {
+			return c.rollbackUnpublishedPark(result, failed, cause)
+		}
+		return result, cause
 	}
-	return c.runActiveAttempt(ctx, result, begun, binding, true)
+	return c.runActiveAttempt(ctx, result, begun, binding, true, true)
 }
 
 func (c *PairLifecycleController) Retry(ctx context.Context, address ThreadAddress) (ParkResult, error) {
@@ -559,7 +582,7 @@ func (c *PairLifecycleController) retry(ctx context.Context, address ThreadAddre
 	if err != nil {
 		return ParkResult{Thread: current}, err
 	}
-	result, completed, err := c.reconcileAttempts(ParkResult{Thread: current}, current, binding.Name)
+	result, completed, err := c.reconcileAttempts(ctx, ParkResult{Thread: current}, current, binding.Name)
 	if err != nil || completed {
 		return result, err
 	}
@@ -572,12 +595,12 @@ func (c *PairLifecycleController) retry(ctx context.Context, address ThreadAddre
 		if !binding.Present {
 			return ParkResult{Thread: current}, errors.New("closed park attempt requires Recover because exact session is absent")
 		}
-		current, err = c.Threads.AppendParkAttempt(address, current.Revision, current.Park.Identity)
+		current, err = c.Threads.AppendParkAttempt(ctx, address, current.Revision, current.Park.Identity)
 		if err != nil {
 			return ParkResult{Thread: current}, err
 		}
 	}
-	return c.runActiveAttempt(ctx, ParkResult{Thread: current}, current, binding, true)
+	return c.runActiveAttempt(ctx, ParkResult{Thread: current}, current, binding, true, false)
 }
 
 func (c *PairLifecycleController) Recover(ctx context.Context, address ThreadAddress) (ParkResult, error) {
@@ -597,7 +620,7 @@ func (c *PairLifecycleController) Recover(ctx context.Context, address ThreadAdd
 }
 
 func (c *PairLifecycleController) recover(ctx context.Context, address ThreadAddress) (ParkResult, error) {
-	current, err := c.Threads.GetThread(address)
+	current, err := c.Threads.recoveryReadThread(ctx, address)
 	if err != nil {
 		return ParkResult{}, err
 	}
@@ -608,7 +631,7 @@ func (c *PairLifecycleController) recover(ctx context.Context, address ThreadAdd
 	if err != nil {
 		return ParkResult{Thread: current}, err
 	}
-	result, completed, err := c.reconcileAttempts(ParkResult{Thread: current}, current, binding.Name)
+	result, completed, err := c.reconcileAttempts(ctx, ParkResult{Thread: current}, current, binding.Name)
 	if err != nil || completed {
 		return result, err
 	}
@@ -619,18 +642,18 @@ func (c *PairLifecycleController) recover(ctx context.Context, address ThreadAdd
 			return ParkResult{Thread: current}, requestErr
 		}
 		if current.Park.Phase != ParkUnknown {
-			current, err = c.recordFailure(current, request.Attempt, pairlifecycle.FailureCompletionMissing, "exact session absent without completion")
+			current, err = c.recordFailure(ctx, current, request.Attempt, pairlifecycle.FailureCompletionMissing, "exact session absent without completion")
 		}
 		return ParkResult{Thread: current}, errors.Join(errors.New("exact session absent without matching completion"), err)
 	}
 	last := current.Park.Attempts[len(current.Park.Attempts)-1]
 	if current.Park.Phase == ParkUnknown || last.Closed {
-		current, err = c.Threads.AppendParkAttempt(address, current.Revision, current.Park.Identity)
+		current, err = c.Threads.AppendParkAttempt(ctx, address, current.Revision, current.Park.Identity)
 		if err != nil {
 			return ParkResult{Thread: current}, err
 		}
 	}
-	return c.runActiveAttempt(ctx, ParkResult{Thread: current}, current, binding, true)
+	return c.runActiveAttempt(ctx, ParkResult{Thread: current}, current, binding, true, false)
 }
 
 func (c *PairLifecycleController) Abandon(ctx context.Context, address ThreadAddress) (ParkResult, error) {
@@ -699,7 +722,7 @@ func (c *PairLifecycleController) reconcileActive(ctx context.Context, address T
 	if bindingErr != nil {
 		return ParkResult{Thread: record}, bindingErr
 	}
-	parkResult, completed, reconcileErr := c.reconcileAttempts(ParkResult{Thread: record}, record, binding.Name)
+	parkResult, completed, reconcileErr := c.reconcileAttempts(ctx, ParkResult{Thread: record}, record, binding.Name)
 	if reconcileErr != nil || completed {
 		return parkResult, reconcileErr
 	}
@@ -707,7 +730,7 @@ func (c *PairLifecycleController) reconcileActive(ctx context.Context, address T
 	if parkResult.Thread.Park.Phase == ParkUnknown || last.Closed {
 		return parkResult, nil
 	}
-	return c.runActiveAttempt(ctx, parkResult, parkResult.Thread, binding, false)
+	return c.runActiveAttempt(ctx, parkResult, parkResult.Thread, binding, false, false)
 }
 
 func (c *PairLifecycleController) submit(ctx context.Context, address ThreadAddress, nonce string, work parkWork) (ParkResult, error) {
@@ -727,8 +750,11 @@ func (c *PairLifecycleController) submitFuture(ctx context.Context, address Thre
 	return c.worker.Submit(ctx, address, nonce, work)
 }
 
-func (c *PairLifecycleController) runActiveAttempt(ctx context.Context, result ParkResult, current ThreadRecord, binding PairSessionBinding, await bool) (ParkResult, error) {
+func (c *PairLifecycleController) runActiveAttempt(ctx context.Context, result ParkResult, current ThreadRecord, binding PairSessionBinding, await bool, unpublished bool) (ParkResult, error) {
 	if err := ctx.Err(); err != nil {
+		if unpublished {
+			return c.rollbackUnpublishedPark(result, current, err)
+		}
 		return result, err
 	}
 	if binding.Present {
@@ -736,25 +762,34 @@ func (c *PairLifecycleController) runActiveAttempt(ctx context.Context, result P
 			RevalidatePairSession(context.Context, PairSessionBinding) error
 		}); ok {
 			if err := verifier.RevalidatePairSession(ctx, binding); err != nil {
+				if unpublished {
+					return c.rollbackUnpublishedPark(result, current, err)
+				}
 				return result, err
 			}
 		}
 	}
 	request, paths, err := c.requestFor(current, binding.Name)
 	if err != nil {
+		if unpublished {
+			return c.rollbackUnpublishedPark(result, current, err)
+		}
 		return result, err
 	}
 	if current.Park.Phase == ParkRequested {
-		if err := c.Lifecycle.PublishRequest(paths, request); err != nil {
+		if err := c.Lifecycle.PublishRequest(ctx, paths, request); err != nil {
+			if unpublished && knownUnpublished(err) {
+				return c.rollbackUnpublishedPark(result, current, err)
+			}
 			code := pairlifecycle.FailureRequestPublishFailed
 			if pairlifecycle.PublicationOutcomeOf(err) == pairlifecycle.Indeterminate {
 				code = pairlifecycle.FailureCompletionMissing
 			}
-			failed, advanceErr := c.recordFailure(current, request.Attempt, code, err.Error())
+			failed, advanceErr := c.recordFailure(ctx, current, request.Attempt, code, err.Error())
 			result.Thread = failed
 			return result, errors.Join(err, advanceErr)
 		}
-		current, err = c.Threads.AdvancePark(current.Address, current.Revision, ParkEvent{
+		current, err = c.Threads.AdvancePark(ctx, current.Address, current.Revision, ParkEvent{
 			Kind: ParkRequestCommitted, Identity: current.Park.Identity, Attempt: request.Attempt,
 		})
 		if err != nil {
@@ -762,17 +797,17 @@ func (c *PairLifecycleController) runActiveAttempt(ctx context.Context, result P
 		}
 		result.Thread = current
 	}
-	result, completed, err := c.reconcileAttempts(result, current, binding.Name)
+	result, completed, err := c.reconcileAttempts(ctx, result, current, binding.Name)
 	if err != nil || completed {
 		return result, err
 	}
 	current = result.Thread
 	if !await {
-		completion, found, err := c.Lifecycle.ObserveCompletion(paths, request)
+		completion, found, err := c.Lifecycle.ObserveCompletion(ctx, paths, request)
 		if err != nil || !found {
 			return result, err
 		}
-		next, err := c.applyCompletion(result, current, paths, request, completion)
+		next, err := c.applyCompletion(ctx, result, current, paths, request, completion)
 		if errors.Is(err, errParkChildNotGone) {
 			return next, nil
 		}
@@ -830,18 +865,22 @@ func (c *PairLifecycleController) awaitCompletionAndChildDeath(ctx context.Conte
 	waitCtx := ctx
 	cancel := func() {}
 	if timeout > 0 {
-		waitCtx, cancel = context.WithTimeout(ctx, timeout)
+		deadline := c.completionDeadline
+		if deadline == nil {
+			deadline = context.WithTimeout
+		}
+		waitCtx, cancel = deadline(ctx, timeout)
 	}
 	defer cancel()
 
 	diagnostic := "matching completion was not observed"
 	for {
-		completion, found, err := c.Lifecycle.ObserveCompletion(paths, request)
+		completion, found, err := c.Lifecycle.ObserveCompletion(waitCtx, paths, request)
 		if err != nil {
 			return result, err
 		}
 		if found {
-			next, applyErr := c.applyCompletion(result, current, paths, request, completion)
+			next, applyErr := c.applyCompletion(waitCtx, result, current, paths, request, completion)
 			if !errors.Is(applyErr, errParkChildNotGone) {
 				return next, applyErr
 			}
@@ -850,14 +889,14 @@ func (c *PairLifecycleController) awaitCompletionAndChildDeath(ctx context.Conte
 		}
 
 		if timeout <= 0 {
-			failed, advanceErr := c.recordFailure(current, request.Attempt, pairlifecycle.FailureTimeout, diagnostic)
+			failed, advanceErr := c.recordFailure(ctx, current, request.Attempt, pairlifecycle.FailureTimeout, diagnostic)
 			if advanceErr == nil {
 				result.Thread = failed
 			}
 			return result, errors.Join(errors.New("park completion deadline exceeded: "+diagnostic), advanceErr)
 		}
 		if err := c.wait(waitCtx); err != nil {
-			failed, advanceErr := c.recordFailure(current, request.Attempt, pairlifecycle.FailureTimeout, diagnostic)
+			failed, advanceErr := c.recordFailure(ctx, current, request.Attempt, pairlifecycle.FailureTimeout, diagnostic)
 			if advanceErr == nil {
 				result.Thread = failed
 			}
@@ -884,23 +923,23 @@ func (c *PairLifecycleController) wait(ctx context.Context) error {
 	}
 }
 
-func (c *PairLifecycleController) applyCompletion(result ParkResult, current ThreadRecord, paths artifactpath.LifecyclePaths, request pairlifecycle.QuitRequest, completion pairlifecycle.QuitCompletion) (ParkResult, error) {
+func (c *PairLifecycleController) applyCompletion(ctx context.Context, result ParkResult, current ThreadRecord, paths artifactpath.LifecyclePaths, request pairlifecycle.QuitRequest, completion pairlifecycle.QuitCompletion) (ParkResult, error) {
 	if err := pairlifecycle.MatchQuitCompletion(request, completion); err != nil {
-		failed, advanceErr := c.recordFailure(current, request.Attempt, pairlifecycle.FailureStaleCompletion, err.Error())
+		failed, advanceErr := c.recordFailure(ctx, current, request.Attempt, pairlifecycle.FailureStaleCompletion, err.Error())
 		result.Thread = failed
 		return result, errors.Join(err, advanceErr)
 	}
 	if completion.Outcome == pairlifecycle.CompletionFailure {
-		failed, err := c.recordFailure(current, request.Attempt, completion.FailureCode, "Pair cleanup failed")
+		failed, err := c.recordFailure(ctx, current, request.Attempt, completion.FailureCode, "Pair cleanup failed")
 		result.Thread = failed
-		return result, errors.Join(errors.New("Pair cleanup failed"), err)
+		return result, errors.Join(errParkCleanupFailed, err)
 	}
 	if observeExactProcess(c.Proc, ProcessIdentity{PID: current.Park.Identity.PID, Identity: current.Park.Identity.ProcessIdentity}) != Dead {
 		return result, errParkChildNotGone
 	}
-	finalized, err := c.Threads.FinalizePark(current.Address, current.Revision, current.Park.Identity, request.Attempt, completion.CompletedAt, completion.Scrollback)
+	finalized, err := c.Threads.FinalizePark(ctx, current.Address, current.Revision, current.Park.Identity, request.Attempt, completion.CompletedAt, completion.Scrollback)
 	if err != nil {
-		latest, getErr := c.Threads.GetThread(current.Address)
+		latest, getErr := c.Threads.recoveryReadThread(ctx, current.Address)
 		if getErr != nil {
 			return result, errors.Join(err, getErr)
 		}
@@ -913,14 +952,14 @@ func (c *PairLifecycleController) applyCompletion(result ParkResult, current Thr
 		if !hasExactParkIncarnation(latest, current.Park.Identity) {
 			code = pairlifecycle.FailureReplacementIncarnation
 		}
-		failed, advanceErr := c.recordFailure(latest, request.Attempt, code, err.Error())
+		failed, advanceErr := c.recordFailure(ctx, latest, request.Attempt, code, err.Error())
 		if advanceErr == nil {
 			result.Thread = failed
 		}
 		return result, errors.Join(err, advanceErr)
 	}
 	result.Thread = finalized
-	result.CleanupError = c.Lifecycle.CleanupAttempt(paths, request)
+	result.CleanupError = c.Lifecycle.CleanupAttempt(ctx, paths, request)
 	return result, nil
 }
 
@@ -935,8 +974,8 @@ func hasExactParkIncarnation(record ThreadRecord, identity ParkIdentity) bool {
 	return matches == 1
 }
 
-func (c *PairLifecycleController) recordFailure(current ThreadRecord, attempt uint64, code pairlifecycle.FailureCode, diagnostic string) (ThreadRecord, error) {
-	return c.Threads.AdvancePark(current.Address, current.Revision, ParkEvent{
+func (c *PairLifecycleController) recordFailure(ctx context.Context, current ThreadRecord, attempt uint64, code pairlifecycle.FailureCode, diagnostic string) (ThreadRecord, error) {
+	return c.Threads.AdvancePark(ctx, current.Address, current.Revision, ParkEvent{
 		Kind: ParkFailureObserved, Identity: current.Park.Identity, Attempt: attempt,
 		Failure: &ParkFailure{Code: code, Diagnostic: diagnostic},
 	})
@@ -995,7 +1034,7 @@ func (c *PairLifecycleController) requestForAttempt(current ThreadRecord, sessio
 // reconcileAttempts checks every durable attempt before a newer trigger is
 // delivered. A late success from an older attempt closes the transaction and
 // suppresses all newer work.
-func (c *PairLifecycleController) reconcileAttempts(result ParkResult, current ThreadRecord, session string) (ParkResult, bool, error) {
+func (c *PairLifecycleController) reconcileAttempts(ctx context.Context, result ParkResult, current ThreadRecord, session string) (ParkResult, bool, error) {
 	if current.Park == nil {
 		return result, true, nil
 	}
@@ -1008,10 +1047,10 @@ func (c *PairLifecycleController) reconcileAttempts(result ParkResult, current T
 		if err != nil {
 			return result, false, err
 		}
-		completion, found, err := c.Lifecycle.ObserveCompletion(paths, request)
+		completion, found, err := c.Lifecycle.ObserveCompletion(ctx, paths, request)
 		if err != nil {
 			if pairlifecycle.PublicationOutcomeOf(err) == pairlifecycle.Indeterminate {
-				failed, advanceErr := c.recordFailure(current, attempt.Number, pairlifecycle.FailureCompletionMissing, err.Error())
+				failed, advanceErr := c.recordFailure(ctx, current, attempt.Number, pairlifecycle.FailureCompletionMissing, err.Error())
 				if advanceErr == nil {
 					result.Thread = failed
 				}
@@ -1022,7 +1061,7 @@ func (c *PairLifecycleController) reconcileAttempts(result ParkResult, current T
 		if !found {
 			continue
 		}
-		next, applyErr := c.applyCompletion(result, current, paths, request, completion)
+		next, applyErr := c.applyCompletion(ctx, result, current, paths, request, completion)
 		if errors.Is(applyErr, errParkChildNotGone) {
 			return next, false, nil
 		}

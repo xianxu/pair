@@ -97,7 +97,7 @@ assert(not blocked_ok and blocked_phase == 'indeterminate', 'indeterminate body 
 do
   local state = { focus = 'other-pane', composer = '', dispatched = {}, writes = 0, checks = 0 }
   local incarnation = 'original'
-  local target = { pane_id = 41, validate = function()
+  local target = { pane_id = 41, effect=function(invoke)return invoke()end, validate = function()
     state.checks = state.checks + 1
     return incarnation == 'original', 'target replaced'
   end }
@@ -130,10 +130,49 @@ end
 
 do
   local checks, actions = 0, 0
-  local target = { pane_id = 4, validate = function() checks = checks + 1; return checks == 1, 'pane replaced after paste' end }
+  local target = { pane_id = 4, effect=function(invoke)return invoke()end, validate = function() checks = checks + 1; return checks == 1, 'pane replaced after paste' end }
   local sent, phase = delivery.send('body', function() actions = actions + 1; return { code = 0 } end,
     function() end, 'start', target)
   assert(not sent and phase == 'written' and actions == 1, 'target is checked again after paste before submit')
+end
+
+
+-- A validated target must retain its admission through the actual dispatch.
+do
+  local actions = 0
+  local target = {pane_id=4, validate=function()return true end}
+  local sent,phase = delivery.send('body',function()actions=actions+1;return {code=0}end,function()end,'start',target)
+  assert(not sent and phase=='start' and actions==0,'unguarded target must not dispatch')
+end
+for _,expired_after in ipairs({0,1}) do
+  local actions,checks=0,0
+  local target={pane_id=4,validate=function()checks=checks+1;return true end,
+    effect=function(invoke)
+      if actions>=expired_after then return nil,'admission expired after local validation' end
+      return invoke()
+    end}
+  local sent,phase,err=delivery.send('body',function()actions=actions+1;return {code=0}end,function()end,'start',target)
+  assert(not sent and actions==expired_after and phase==(expired_after==0 and 'start' or 'written'), 'guard refusal must preserve completed effect prefix')
+  assert(err:find('admission expired',1,true),'guard refusal must retain diagnostic')
+end
+
+-- Missing status after a dispatched write is uncertain, not pre-dispatch refusal.
+do
+ local target={pane_id=4,validate=function()return true end,effect=function(invoke)return invoke()end}
+ local calls=0
+ local sent,phase=delivery.send('body',function()calls=calls+1;return nil end,function()end,'start',target)
+ assert(not sent and phase=='indeterminate' and calls==1,'missing dispatched write status must remain indeterminate')
+end
+
+for _,inside in ipairs({false,true}) do
+ local calls=0
+ local target={pane_id=4,validate=function()return true end,effect=function(invoke)
+  if not inside then error('guard fixture failure') end
+  return invoke()
+ end}
+ local sent,phase,reason=delivery.send('body',function()calls=calls+1;error('native fixture failure')end,function()end,'start',target)
+ assert(not sent and calls==(inside and 1 or 0) and phase==(inside and 'indeterminate' or 'start'),'exception lost dispatch boundary')
+ assert(reason:find(inside and 'native fixture failure' or 'guard fixture failure',1,true),'exception diagnostic lost')
 end
 
 print('draft_send_test ok')

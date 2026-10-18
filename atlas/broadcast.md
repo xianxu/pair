@@ -542,47 +542,26 @@ watch) or the broadcast ends.
 
 ### Note anchors (#488)
 
-A note's `Anchor` (`broadcast.NoteAnchor{kind, path, text}`) is what its box is on. It has the same shape as the
-web cast's element anchor (`recording.NoteAt` kind/path), so #455's and #483's submissions read alike.
-- **Example paths:**
-  - `tab bar › tabs: pair:1, pair:3 ●`
-  - `status line` (Couch's last row past the chips: the broadcast's and Chrome's controls)
-  - `pane pair:3 › agent (claude)`
-  - `pane pair:3 › draft nvim › draft-pair-3.md, lines 12–13 › section: Review`
-  - `pane pair:3 › draft nvim › statusline`
-  - `pane pair:3 › review nvim › plan.md …`
-  - `pane pair:3 › terminal`
-- **`text`:** the screen's text under the box, at most 1 KiB.
-- **Pure core** (`couchtty/noteanchor.go`): `AnchorFor(box, frame, ScreenLayout)`, with `TextUnder`, `locate` and
-  `sectionOf`.
-  - A nvim pane's lines are found by locating the rows under the box in its file on disk: sequential substring
-    matches, so wrapped lines work. An unsaved buffer or a fold names the file only.
-  - The section is the nearest Markdown heading above.
-  - No nvim side channel is needed.
-- **At accept (synchronous):** `Config.AnchorNote` is Couch's `anchorNote`, called from `Session.acceptNote` on the
-  request goroutine and answered from memory:
-  - the text, from the last public frame (`keepNoteFrame`, kept by the note overlay);
-  - the last row's tab bar or status line;
-  - above the last row, `kind: screen` with `pane <slot>`.
-- **Pane path (asynchronous):** `queueAnchors` (from `applyNotes`) queues each such note once. The single-flight
-  `resolveAnchors` makes one `PaneRects` query per slot per pass, and `Session.SetNoteAnchor(id, a)` applies the
-  result.
-  - **Dropped results:**
-    - a note resolved or cleared since (a session never reuses an id; `tried` is keyed by session and id);
-    - another slot in view or a resize since the job's frame (endpoint and geometry epoch).
-  - **Each job carries its exact frame.** The anchor is computed from that frame, and a job is made only while
-    the text under the box is still the note's.
-  - **Failures:** a failed or timed-out query (2 s) leaves the opening anchor, with no retry.
-  - **Tests:** `console_noteanchor_test.go` covers completion order, a resize mid-pass, a resolve mid-pass, two
-    notes per pass, and a note opened mid-pass.
-- **`PaneRects` seam** (`couchcmd/note_panes.go`, `paneRectsOf`): the slot's own session
-  (`PairSessionContext` → `zellij --session NAME action list-panes --json --command --state --geometry`, about
-  590 ms), mapped to roles by `workbenchshortcut.RoleForPaneWith`.
-  - Floating panes come first.
-  - The draft's file is the slot's `Paths.Draft()`. The review's is the argument after `/nvim/review.lua`.
-  - Files are read up to 1 MiB.
-  - `TestNotePanesZellijConformance` (`PAIR_LIVE_ZELLIJ=1`) checks real geometry and roles on a disposable session.
-  - Pair runs one zellij tab, so panes aren't filtered by tab.
+A terminal note retains its box position/size, slot and draw-time text from
+Couch's published frame. Its internal `Anchor` has `kind`, `path` and `text`:
+`pane pair:3` for the slot's screen, `tab bar › tabs: pair:1, pair:3` for
+Couch's own chips, or `status line` for the rest of Couch's last row. Text under
+the box is bounded to 1 KiB. Existing frame/PNG capture paths are independent
+and unchanged.
+
+`Config.AnchorNote` invokes `couchtty.anchorNote` synchronously at acceptance.
+It uses the last public frame (`keepNoteFrame`) and Couch-owned layout through
+the pure `AnchorFor`/`TextUnder` functions. Notes cause no native Zellij query,
+file read, role/filename/line/section inference or asynchronous enrichment.
+The production composition and broadcast tests enforce that boundary.
+
+The operator chose this deterministic capture contract in #647. Native pane
+rectangles include other tabs and hidden floating layers, while captured frames
+carry no native tab/client provenance. Matching snapshots or matching disk text
+cannot supply that provenance. Internal anchors are excluded from browser note
+JSON and the terminal notes menu renders the authored note text; removing the
+guesses does not remove a displayed breadcrumb. DOM web-cast element anchors
+use their separate browser-owned interfaces.
 
 ## Listing (`couch --broadcast-list`, pair#413)
 

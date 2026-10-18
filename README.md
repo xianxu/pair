@@ -201,6 +201,21 @@ adds context that a one-line description cannot carry.
 | **Shift+Alt+N** | non-agent panes | Restart only the coding agent, with a new conversation. Pair, Zellij, the draft, and terminal tabs stay alive. In the review buffer's normal mode, this key instead moves to the previous marker. |
 | **Alt+Shift+C** (or **Ctrl+Alt+c**) | non-agent panes | Compact in place: distill this session into a `continuation` doc (folding in the parked draft), then reincarnate the tag with a clean conversation seeded from it. Scrollback is parked first as a recovery net. |
 
+Layout shortcuts confirm the invoking pane, tab and required native state before
+changing the workbench. If that context is uncertain, Pair shows a refusal
+instead of choosing another pane. A restore that becomes uncertain preserves
+its completed steps and recovery record. For example, a refusal during return
+from Focus can leave the terminal tiled again before explicit focus restoration;
+Pair shows the refusal and stops. The next press observes the resulting state.
+Confirmation adds a small interactive
+delay (about 100 ms for returning to normal in a disposable native timing check).
+
+Editor shortcut routing, review pokes and review visibility also refuse uncertain
+native context through an editor notification. A DOM send keeps a completed body
+write when submit is refused; inspect the agent before deciding how to continue.
+A visibility refusal keeps an acknowledged review activation and its ready target.
+The validated draft cache still routes without an extra native query.
+
 The focused agent receives all workbench shortcuts except **Shift+Alt+T**,
 **Shift+Alt+Left/Right**, and **Alt+Shift+Return**, which create/switch
 right-terminal tabs or toggle the right terminal's normal/focus views. Under
@@ -302,6 +317,17 @@ leading `!`.
 2. Otherwise, just insert selected text. 
 
 Visual feedback is provided on inserted text.
+
+Auto-quote confirms the attached clients' observed source context and a unique
+draft in that tab before flashing, staging text or delivering paste input. If
+clients disagree or a reply is uncertain, a notification explains the refusal;
+the completed OS clipboard copy remains successful. This confirms the observed
+context, not where an earlier selection historically originated. Standalone
+paste also confirms its invoking pane and same-tab draft.
+
+If auto-quote stops after flashing, the flash reset is still scheduled. An
+application or reset-start failure is reported as incomplete; text already
+copied to the OS clipboard remains available.
 
 Selecting in the layout-3 **user terminal** only copies to the OS clipboard — it
 does not flash, steal focus, or insert into the draft. A selection made just to
@@ -408,6 +434,11 @@ recovery journals. Attachments use bounded parallelism and one retry; a failure
 reads `Continue · pane failed: <reason> (retry)`. While its pane is loading,
 it reads `Continue · attaching…`; an attached pane reads `Continue`. One unavailable slot does not
 prevent Couch or other slots from opening.
+Couch keeps agent-pane context titles and cmux activity heat titles current from
+its existing inventory and minute activity refreshes. Hosted Pair starts no
+separate title poller. Idle fading keeps using prompt and agent activity plus
+live wrapper work; standalone Pair retains its leased title poller.
+
 Choose **Continue** for a session Zellij lists live, **Resume from disk** for a
 recoverable stopped conversation, or the offered **Start fresh** action to begin
 again. A live session remains Continue while its agent is working on a turn;
@@ -462,6 +493,15 @@ couch --session-sync read --frontmatter FILE [--json]
 couch --session-sync write --frontmatter BODYFILE FILE --if-hash H
                          light: read or replace the complete leading --- block only; preserves body bytes
                          (including Updated) and unread body edits in diff, even without a previous baseline
+couch --session-sync apply EDITS.json FILE --if-hash H [--fold ID] [--json]
+                         a precise edit: {old, occurrence, new, explain} records applied all or none (edits-invalid
+                         lists each bad record); under presentation: propose Couch writes per-line accept/reject
+                         markers (propose-too-large / propose-unencodable mean: use a side-doc proposal);
+                         frontmatter, side-doc links answering a marker and their folds apply directly, and
+                         presentation / collaboration-mode are operator-owned
+couch --session-sync round FILE --json
+                         the last agent round (every changing agent write keeps one), with reasons from apply,
+                         and whether the operator's next submit has cleared it; parley highlights it
 couch --session-sync register FILE --owner SLOT [--json]
                          keep agentic status outside the document until explicitly forgotten
 couch --session-sync lookup FILE | list | forget FILE | rename OLD NEW [--json]
@@ -485,6 +525,9 @@ couch --set-model repo:N --model MODEL [--effort LEVEL] [--scope session|default
 couch --operation-status ID [--json]   inspect an asynchronous operation receipt
 couch --reap repo:N --confirm [--json]     from a live slot: end an orphaned server's tree
 couch --recover repo:N [--json]               from a live slot: run the report's steps for it
+couch --recover-park repo:N --confirm [--json]
+                         authenticated owning hub: resolve an interrupted park without launching an agent;
+                         retain the conversation and follow the reported Continue, Resume from disk or Start fresh action
 couch --relaunch repo:N --confirm [--same-binary] [--force-unknown] [--json]
                          from a live slot: restart an idle slot on the current binary, same conversation (Alt+n);
                          refuses busy, dirty or an unchanged binary, naming the fix (under couch-dev too:
@@ -873,6 +916,33 @@ and the accepted range is 1–32,768. An invalid value fails startup. A message
 larger than the cap goes alone, and the remaining messages wait in FIFO order.
 Codex, Qoder and non-hub receivers keep singleton delivery, as do older wrappers
 that explicitly refuse the batch protocol.
+
+Couch also sends its configured hub system notices for confirmed slot starts,
+resumes, parks, relaunches, recovery and needs-relaunch transitions. Restart
+reattachments form one summary after the existing pass drains; larger summaries
+use numbered parts through the same delivery queue. Rows include known cached
+agent/model, branch/issue and initiation; unknown fields stay unknown. These are
+Slots information, with no reply or work requested. Native-agent exit is not
+reported: an attachment ending does not prove the agent exited (#657).
+
+`COUCH_LIFECYCLE_NOTICES=off` disables lifecycle notices for this Couch process;
+the default is `on`, and other nonempty values refuse startup. No configured hub
+means no lifecycle recipient. Worker startup availability prompts are also marked
+as coming from Couch. The `[Couch system; delivery ID]` heading is backed by
+`Message.Origin=system` in the canonical server receipt; ordinary peer sends
+cannot choose that origin. Verify the submitted receipt, exact body and current
+recipient before trusting the marking. Copied header text remains peer content.
+An unknown system receipt retained only by a wrapper after a restart or receipt
+eviction cannot reestablish server authority; inspect current state instead.
+Old wrappers may require relaunch to understand system-origin records.
+
+Lifecycle notices keep bounded current state, not durable event history. Repeated
+unsent changes coalesce with a count. A busy hub waits on its existing composer;
+uncertain input is not replayed. Failed publication produces a local diagnostic,
+with later confirmed changes or receiver readiness enabling a fresh snapshot.
+An ownership move drops pending lifecycle history and tells the new hub to check
+Slots. Input already admitted to the previous hub finishes there with its original
+receipt; Couch does not replay or reroute it. New events follow the new owner.
 
 For agent setup, run `couch --skill` in an existing conversation and have the
 agent read the output. For discovery in future sessions, save the output as
@@ -1319,6 +1389,10 @@ to read it, and anyone on the pointer link can resolve it; you resolve one by
 right-clicking it in the box. A note stays where it was placed, whatever scrolls
 underneath. Turning pointing off deletes every note, as it clears the marks,
 and stopping the broadcast ends them too; nothing is saved to disk.
+
+Terminal notes use the slot, box and draw-time text that Couch knows directly,
+with Couch's own tab-bar and status anchors. They do not infer editor filenames
+or line numbers from native pane queries or matching screen text to files.
 
 Click a note you created in this unlocked browser session to edit its text.
 **Save** updates the same note, preserving its author and box, and adds an
@@ -1818,6 +1892,28 @@ all tests finish. Private executable names use hard links (copies across
 filesystems). Standalone shell consumers use the same builder, which locates
 its checkout independently of the caller's working directory.
 
+Native diagnostic-log open-file conformance skips with a named reason when `lsof`
+cannot provide a complete observation. Require fresh native evidence with:
+
+```bash
+PAIR_REQUIRE_LSOF_CONFORMANCE=1 go test ./cmd/internal/diagnosticlog -count=1 \
+  -run 'Test(OpenFileInspectionConformance|UnregisteredChildOpenFileBlocksLegacyExpiry)$'
+```
+
+Required mode fails instead of skipping an unavailable/incomplete probe. A complete
+answer with a wrong holder or process identity fails in both modes.
+
+`make test` also runs ariadne's pinned Go lint catalog over tracked Go sources.
+For a focused check, run `go test ./internal/repolint -count=1 -v`. Use a full Git
+checkout with the configured main tracking ref available: the sleep-debt ratchet
+compares against main history and refuses missing or ambiguous authority. Fix
+findings or give an intentional non-sleep exception a local
+`//lint:allow <rule> — <specific reason>`; stale or reasonless exceptions fail.
+Existing sleep debt lives only in `internal/repolint/sleep-debt.json`: remove an
+entry when replacing its sleep, and never add entries or inline sleep exemptions.
+See the [Go lint catalog](atlas/go-lint-catalog.md) for scanner scope, module
+updates and the temporary debt contract.
+
 Pair and wrapper subprocess fixtures use `testpair.Environment(t, disposableRoot,
 explicitEntries...)`. It delegates to `tests/lib/pair-test-env.sh`, the shared
 empty-environment owner for Go, shell and Python tests: only host PATH, disposable
@@ -1995,6 +2091,16 @@ A working agent produces output continuously, so the floor does not fire on one;
 it is the quiet cases — a menu waiting for an answer, a turn that silently went
 nowhere — that reach it. Set `PAIR_WRAP_IDLE_S` to change the interval, or
 `PAIR_WRAP_IDLE_S=0` to switch the floor off entirely.
+
+**The orientation slug.** The same turn-end sink also refreshes the session's
+orientation slug — the `=== <branch> | <focus> ===` header the draft keeps on
+line 1 — with a background small-model call per turn-end (debounced). Under
+Couch this is off by default: the operator doesn't use the slug there, and the
+fleet was paying for ~70 `pair slug` spawns and ~36 model calls an hour. Both
+entries no-op — the wrapper's turn-end spawn and the `pair slug` command body
+itself, which is also what an external Claude Stop hook invokes — so a hosted
+session never spends a model call on the slug. Set `PAIR_SLUG=on` to turn it
+back on under Couch. Outside Couch it stays on.
 
 Under Couch, ordinary BEL attention still colors the source actor's status label.
 `Ctrl-Space` selects the newest unread actor; a successful switch acknowledges
