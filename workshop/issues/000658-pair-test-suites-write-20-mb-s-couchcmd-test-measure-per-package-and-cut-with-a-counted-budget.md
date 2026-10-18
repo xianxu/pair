@@ -48,7 +48,7 @@ Draft detailed plan: [suite write budget](../plans/000658-suite-write-budget-pla
 - [x] Preserve caller Go cache resolution across isolated HOME with a counted stateful cache regression; keep cold-cache conformance.
 - [x] Preserve exact fixture bytes, logical sizes and independent files using fixture-local CoW templates with portable streaming fallback; add N/2N write-growth regression.
 - [x] Enforce own-process physical write budgets in the measured large-writer package TestMain paths; cover failed/unsupported counter evidence and over-budget refusal.
-- [ ] Record matching after-measurement, run recorded suite/CI, close review and land.
+- [x] Record matching after-measurements and required suite/CI evidence; file the remaining-share follow-up, ready for SDLC close review and landing.
 
 ## Log
 
@@ -170,6 +170,14 @@ Draft detailed plan: [suite write budget](../plans/000658-suite-write-budget-pla
 - Required recorded suite attempt6badaf5420c2a820c885246c313554d4 completed exit0 in10m52s on pushed053761c7eeef666ca2b5f75173b564853a5d0d27; recorded as sdlc-local/suite, log SHA256 prefix10c4b2ec28fe. Saved log has120 ok package rows (118 final Go packages plus earlier titlepoller/procutil), no FAIL/panic rows. Review-observation diagnostic10/10 and primary fixture both passed unchanged. Log: .git/sdlc/local-checks/053761c7eeef666ca2b5f75173b564853a5d0d27/suite.log. Docs-only descendants retain identical tested code.
 - Launched the one hub-approved #662 issue-backed unchanged device rerun after recorded suite completion, exec88469; prepared root pair658-662-device-attempt2.DViNQs, same observer scripts byte-for-byte and same Make body/bounds. Normal machine queue admission still applies. Quiet start/end notices are owed when it actually acquires/releases both tokens. This run is not another recorded suite and cannot replace the preserved first failure.
 
+
+### 2026-10-18 — complete after comparison; ready for close review
+
+- Approved #662-backed unchanged device attempt2 completed exit0, all118 final Go packages plus two earlier targeted package runs passed, no failure rows; supervisor49234 exited0 after post-window observation and reaped every direct child. Same Make body/normal cache/two tokens/30s windows; source030bdf8a41810d07df15ba68bd5d8295c056b22f clean at body start. Hub startb389d04a/end7c691ddc notices verified Submitted; tokens released.
+- Exact device comparison19,768,967,168→15,098,630,144 bytes (4,670,337,024/23.624588% lower),844.188058→643.772099s. Average rates23.417729→23.453378MB/s are nearly unchanged; this is an observed shorter-run difference, not an isolated causal payload saving. Quiet slopes/process sampling/APFS boundaries and both distinct phase methods are recorded in the whole-device report.
+- Largest remaining interval:13,312,307,200 final-Go device bytes (event boundary, about88.2% of after total). Sampled owned descendants total1,038,913,536/825 generations;14,059,716,608 device-minus-lower-bound remains unexplained. Filed unclaimed #663 with exact evidence and limitations, satisfying the requested follow-up without guessing a producer or continuing open-ended probes.
+- Pre-close evidence complete: matched116 root bytes1,640,353,792→445,779,968 (72.824% lower); couchcmd625,799,168→56,639,488 (90.949% lower), native96MiB cap; fixture-tree/N8/16/cache budgets and native negative control; exact ledger sizes/content/independence and real decoding retained;548,331,520 allocated real-cache bytes avoided with identical output-size inventory. Required recorded suite exit0/10m52s on053761c7, all current PR checks green. Close’s fresh-context review and normal merge/integration gates still pending; no acceptance or landing claim yet.
+
 ## Revisions
 
 - 2026-10-17 — Measured dominant fixture construction rather than assuming fsync/logging churn. Candidate design preserves full30MB files and decoder/authority checks by CoW cloning private all-space templates. Reject fixture shrinking, hardlinks and NUL sparse files because they weaken the actual coverage. A shared native-counter runner defends the whole normal-run callback in the large-fixture consumer packages; final numeric caps await the queued distribution and hub approval.
@@ -181,3 +189,5 @@ Draft detailed plan: [suite write budget](../plans/000658-suite-write-budget-pla
 - 2026-10-17 — Hub approval added explicit post-change whole-device comparison, direct Go-cache measurement and an unclaimed follow-up for the largest remaining attribution gap. The~2.5GB rough lever estimate is not a complete accounting of19.8GB/device suite.
 
 - 2026-10-18 — First after-profile found the mandatory source inventory omission and an auxiliary padding filename colliding with a reserved artifact prefix. Retain that attempt, correct the exact inventory and neutral name, and refresh all affected package measurements; unchanged rows remain explicitly attributed to the original after source. Full recorded suite and same-body whole-device comparison remain mandatory on the corrected source.
+
+- 2026-10-18 — The final checklist now describes completed pre-close evidence and the filed remaining-share follow-up. Close review and landing remain explicitly pending binary-owned gates rather than being prematurely checked as already finished.

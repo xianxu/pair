@@ -131,6 +131,44 @@ The first corrected-source after attempt used clean91d46ca2f5c0c3b1d5537fbb5b28c
 
 Raw evidence and explicit-anchor analysis: /var/folders/07/b9wcwwld4_v2w9r3hk525bm80000gn/T/pair658-device-after.SjFHBp/device-suite/{result.json,device.jsonl,make.log,analysis.json,counter-checks.json,body-source.json,supervisor-exit.json}. Supervisor exited2 and reaped all direct children after the post-window observer. Hub approvala26d5339 authorizes exactly one issue-backed unchanged device rerun after the recorded suite, same body/bounds; a repeated pre-Go failure means stop/report. That approved attempt is queued separately at pair658-662-device-attempt2.DViNQs and is not yet a comparison result.
 
+
+## Complete same-body after comparison
+
+The single hub-approved #662-backed unchanged device rerun completed Make/supervisor exit0,118 final Go package passes plus two earlier titlepoller/procutil runs, no FAIL/panic rows, and all direct children reaped. Source030bdf8a41810d07df15ba68bd5d8295c056b22f was clean immediately before Make; code is unchanged from the corrected package profile/recorded suite. It used the same make -k WF_TEST_WEIGHT=2 test body, normal caches, original native read-only probe, APFS observer and30s quiet windows. Queue1754.536273s; both real suite tokens acquired at epoch1792313068.679295, body source pinned at1792313098.748662, supervisor exit1792313778.691938. Hub startb389d04a/end7c691ddc notices both verified Submitted.
+
+| Whole Make observation | Before | After |
+|---|---:|---:|
+| Physical disk0 bytes |19,768,967,168|15,098,630,144|
+| Body seconds |844.188058|643.772099|
+| Average MB/s |23.417729|23.453378|
+| Sampled descendant own bytes, lower bound |2,288,795,648|1,038,913,536|
+| Discovered process generations |832|825|
+| Quiet-before MB/s |3.943917|2.882504|
+| Quiet-after MB/s |2.481531|0.889555|
+
+Observed raw device difference is4,670,337,024 bytes (23.624588%), with a200.415959s shorter body. The nearly unchanged write rate, different quiet slopes, normal cache state and incomplete process sampling prevent treating that difference as an isolated payload or causal device saving. No exact background subtraction, additive ledger/cache/device accounting, or NAND-wear claim is made. Matched serial own-test-process evidence separately shows72.824% lower bytes across116 packages, including couchcmd90.949% lower; the two added helper packages are separately reported.
+
+After exact disk0 endpoints are35,673,760,194,560→35,688,858,824,704, registry4294970125 stable. All976 raw samples match embedded samples, counters never decrease, and endpoint subtraction agrees. The matched original116 package names are all present; new testdisk/testgit add two final packages. The earlier incomplete exit2 attempt and its passing unchanged recorded-suite control remain separate evidence above.
+
+Using the original event-boundary method (nearest device sample to the final-Go recipe event, exact Make endpoints):
+
+| Interval | Before bytes | After bytes |
+|---|---:|---:|
+| Before final Go |4,214,910,976|1,786,322,944|
+| Final Go through completion |15,554,056,192|13,312,307,200|
+
+Nearest-sample errors are+0.201017s before/+0.202169s after. The separate later-sample phase-label partition gives a Go bucket of15,640,170,496→13,390,426,112 bytes; that bucket includes earlier targeted Go work and boundary increments. Both are approximations of phase scope; never substitute one method for the other baseline.
+
+After sampled own-process categories are: test398,409,728; link545,906,688; Go73,302,016; Git2,834,432; nvim9,707,520; Pair2,228,224; shell688,128; other5,836,800; discovered compiler0. Missing short processes/final samples make these lower bounds; zero observed compiler bytes is not proof compilation wrote nothing. Device minus discovered own lower bound is14,059,716,608 bytes (93.119%), which is unexplained, not an attributed filesystem/child/host charge. Paths remain sampled writable-FD high-water marks, not per-path byte totals.
+
+After APFS nearest-window errors are−11.024661s/+6.077542s. Data deltas:1,468,684,556 user bytes,2,733,666,304 block bytes,4,515,151,872 metadata bytes. AgentScratch:1,409,522,673 user,1,669,398,528 block,84,103,168 metadata. These overlap and cannot be added to device/process totals. Swapouts/Pageouts unchanged;16 Swapins are a distinct VM observation, not an inferred write charge.
+
+Filed unclaimed **pair#663**, remaining-suite-device-writes, naming the largest remaining observed interval:13,312,307,200 final-Go device bytes, about88.2% of the after total. It requires bounded attribution before another optimization and retains the process/metadata/host uncertainty; no additional probe or durability change is part of658.
+
+Raw after evidence:/var/folders/07/b9wcwwld4_v2w9r3hk525bm80000gn/T/pair658-662-device-attempt2.DViNQs/device-suite/{result.json,device.jsonl,phases.jsonl,volumes.jsonl,make.log,analysis.json,counter-checks.json,body-source.json,supervisor-exit.json}. Original tools/scripts and the failed attempt are preserved. These temporary files are not the durable record; the exact comparison, pass/failure disposition and limits in this report are.
+
 ## Revisions
 
 - 2026-10-17 — Append the completed direct real-cache before/after comparison, separate cache allocations from fresh executable outputs and physical-device traffic, and record canonical empty-template behavior plus cleanup-fixture input isolation. Earlier diagnostic results and their original scope remain preserved.
+
+- 2026-10-18 — Append the complete approved unchanged after comparison, distinguish shorter-run raw totals from independently measured payload/counter savings, retain both phase-boundary methods and file unclaimed #663 for the remaining final-Go attribution.
