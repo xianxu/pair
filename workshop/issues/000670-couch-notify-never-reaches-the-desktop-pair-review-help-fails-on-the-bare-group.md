@@ -168,3 +168,21 @@ both behavior fixes via overlays and observed the new regressions fail. Its
 catalog host-metadata gap was qualified with process-only Git configuration.
 No new lesson from findings (none). PR 436 opened; suite remains queued, no pass
 claimed. Live presentation remains unconfirmed as approved.
+
+### 2026-10-18 — recorded suite failure and one authorized rerun
+
+Attempt 9989aa4b1c7d8bcec0eddeb488549f8c on bcc7af1de155c07a8bf07066863c4d9964490e6a
+waited 2877s, then failed after 2m57s, log SHA256 b8462fdea8a6. Retained log:
+.git/sdlc/test-stats/failed/9989aa4b1c7d8bcec0eddeb488549f8c.log.
+Only failure: tests/without-ancestors-test.py LifetimeTests.test_cancellation_during_startup,
+SIGINT delay0.02s; helper33008 stayed live (returncodeNone), descendant_group33031,
+zipimport KeyboardInterrupt. All six methods completed, one subtest failed;
+make stopped before Go, so no full suite pass is claimed.
+
+Hub 35472371-02ab-4c10-8748-6899b5edc48b verified submitted: #671 was its
+wontfix duplicate of #674; #674 backs ONE unchanged rerun. Same failure again
+means stop/report, with no qualification around it. Exact source --rev was
+refused before execution because bcc7af1d is no longer a remote branch tip;
+current head e56956f06dee2ea66466ce0474b7699c8db55b5d differs only in issue
+Log/close records. The rerun uses that current pushed head with identical code,
+tests, configuration and suite command. No retry result yet.
