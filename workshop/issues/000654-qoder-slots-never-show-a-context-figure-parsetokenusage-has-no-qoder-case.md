@@ -66,6 +66,7 @@ Qoder transcripts are parsed like Claude's elsewhere (`event.go` groups `AgentCl
 ### 2026-10-17
 
 ### 2026-10-18
+- 2026-10-18: closed — ParseTokenUsage(AgentQoder) reads usage.context_usage_ratio (Qoder token fields are always 0); fixture from a captured pair:8 usage block plus 8 negatives; provider parity fixture uses Qoder real shape; TokenUsage.Figure renders NN% and replaces the three Humanize call sites; full real transcripts give 42% (pair:4) and 40% (pair:8) matching last ratios; recorded suite green on 07df865f. --no-plan-check: the one open item is the live pane-title check, which joins the TL-scheduled next Couch restart (BR-1 disputed). BR-2 fixed with a Revisions entry. (done-when: contract moved since change-code; judged by the close review); review verdict: SHIP
 
 - TL chose A, the percentage (ops:0). Built as planned with one tightening: the parser rejects a ratio of exactly 0 as well as anything outside (0, 1]. A zero ratio would render as `0%` with no real occupancy behind it, and it never appears in the 2,746 records.
 - `ContextRatio` is a plain float64 rather than a pointer, so `TokenUsage` stays comparable (`==`) for the parity tests.
