@@ -66,7 +66,9 @@ Durable full-flow design: [Lifecycle system notices](../plans/000574-couch-lifec
 
 - Verified hub feedback 2b740f16-29c2-4e8a-89ee-6571e0a4dcb2 Submitted. Removed wrapper PID authentication, connection leases, new terminal frames and per-hub mute storage from the implementation contract; canonical server receipts establish system origin. No implementation code changed.
 - Filed unclaimed #657 (depends on #574) for reliable native-agent exit. Existing Console.onExit observes attachment-client exit, which cannot prove native-agent exit. #574 will neither emit nor test agent-exit success from that evidence.
-- One default-on COUCH_LIFECYCLE_NOTICES setting replaces per-hub opt-out. Retain collector, confirmed lifecycle hooks, restart drain summary through #648 and negative/integration tests. Hub approved owned-child checks now and real operator smoke at its next restart, without pair:0 staging; hub owns the ariadne tl-lead companion. Awaiting trimmed-plan approval before code.
+- One default-on COUCH_LIFECYCLE_NOTICES setting replaces per-hub opt-out. Retain collector, confirmed lifecycle hooks, restart drain summary through #648 and negative/integration tests. Hub approved owned-child checks now and real operator smoke at its next restart, without pair:0 staging; hub owns the ariadne tl-lead companion. Awaiting trimmed-plan approval before code (subsequently approved below).
+
+- Verified fresh hub approval 309f3843-1a12-41ae-85a1-d92afab1c80c Submitted: trimmed plan approved, proceed to change-code. TL-help companion is ariadne#433, assigned ariadne:1 after ariadne#432; required before close.
 
 ## Revisions
 
