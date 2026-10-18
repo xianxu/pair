@@ -186,3 +186,12 @@ refused before execution because bcc7af1d is no longer a remote branch tip;
 current head e56956f06dee2ea66466ce0474b7699c8db55b5d differs only in issue
 Log/close records. The rerun uses that current pushed head with identical code,
 tests, configuration and suite command. No retry result yet.
+
+One authorized unchanged-code rerun b44358d2252bc8799463939dd441ddfe PASSED on
+e56956f06dee2ea66466ce0474b7699c8db55b5d: queue2173s, runtime11m35s,
+log SHA256 ab0545e940a5. Retained log:
+.git/sdlc/local-checks/e56956f06dee2ea66466ce0474b7699c8db55b5d/suite.log.
+All six without-ancestors tests passed in1.841s, shell/editor phases and final
+Go packages passed; no second failure. This is the only rerun, backed by #674
+and hub approval. Source/tests/config are identical between failed and passed
+attempts; intervening changes are issue/close logs only. Entering normal merge.
