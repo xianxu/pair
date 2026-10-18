@@ -161,3 +161,7 @@ Pair:2 delivery 27309298-d874-4e46-9f31-ee87617550cd supersedes its earlier tran
 Hub and pair:2 confirmed #653 landed as PR 415, merge a5c7ae6f718c90172911fe6e39a5aba923b158b0; Git verified that commit and origin/main 3851b7338ff107d9b676d1db4eda7c7f21a2aa62. Integrated main with classifyAdmission/baseline-before-first-read inside next.poll(ctx), retaining cancellation rollback and newest-owner/agent fences. Console conflicts preserve incoming per-row probeTimeout, copy-key and lifecycle observations alongside the hosted combined pass.
 
 TestCouchTitlesOSRecoversGrowthDuringAdmission is now GREEN. Focused TitleProjection/CurrentTitle/updater-growth tests passed in sessioninventory and couchcmd; Console TitleActivity/Activity/deadline/Lifecycle/CopyKey tests passed. Affected-package and race checks are running; recorded suite remains required on the pushed integrated head. No live rollout or AFTER fleet result is claimed.
+
+### 2026-10-18 — integrated-head verification
+
+Source 8641e428d2b85044173053dcfda33dcf273267eb is pushed; PR 424 opened. All six affected packages passed after integration: couchcore (308.783s), couchtty (45.624s), couchcmd (65.390s), titlepoller (1.279s), sessioninventory (6.490s), wrapcmd (72.766s). Targeted race families Title/CurrentTitle/OwnerLaunch/Activity passed for couchtty, couchcmd and sessioninventory. ManagedIOInventoryAnchors passed. Required recorded suite c0796f4dfe80368cf357507b001784e5 is queued on this source head; no recorded full-suite pass yet.
