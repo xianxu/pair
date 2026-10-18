@@ -61,6 +61,7 @@ type SlotActor struct {
 	disconnectedAt time.Time
 }
 type admission struct {
+	origin  Origin
 	from    Binding
 	route   Route
 	body    string
@@ -544,6 +545,20 @@ func (b *Broker) Actors(parent context.Context, caller Binding) ([]Candidate, er
 
 // Send acknowledges mailbox admission, never model or task completion.
 func (b *Broker) Send(parent context.Context, from Binding, id string, route Route, body string) (Receipt, error) {
+	return b.send(parent, from, id, route, body, OriginPeer)
+}
+
+// SendSystem admits a supervisor-generated notice through the ordinary mailbox.
+// It is deliberately absent from the external request protocol.
+func (b *Broker) SendSystem(parent context.Context, from Binding, id string, route Route, body string) (Receipt, error) {
+	return b.send(parent, from, id, route, body, OriginSystem)
+}
+
+func (b *Broker) send(parent context.Context, from Binding, id string, route Route, body string, origin Origin) (Receipt, error) {
+	if !origin.Valid() {
+		return Receipt{}, errors.New("unknown message origin")
+	}
+
 	ctx, cancel := context.WithTimeout(parent, AdmissionTimeout)
 	defer cancel()
 	stop := context.AfterFunc(b.ctx, cancel)
@@ -561,7 +576,7 @@ func (b *Broker) Send(parent context.Context, from Binding, id string, route Rou
 		return Receipt{}, ErrUnavailable
 	}
 	if old, ok := b.receiptLocked(id); ok {
-		same := old.Message.From == from && old.Message.Body == body && b.destinations[id] == route
+		same := old.Message.Origin == origin && old.Message.From == from && old.Message.Body == body && b.destinations[id] == route
 		b.mu.Unlock()
 		if !same {
 			return Receipt{}, errors.New("conflicting message ID")
@@ -569,7 +584,7 @@ func (b *Broker) Send(parent context.Context, from Binding, id string, route Rou
 		return old, nil
 	}
 	if existing := b.admissions[id]; existing != nil {
-		same := existing.from == from && existing.body == body && existing.route == route
+		same := existing.origin == origin && existing.from == from && existing.body == body && existing.route == route
 		b.mu.Unlock()
 		if !same {
 			return Receipt{}, errors.New("conflicting message ID")
@@ -585,13 +600,13 @@ func (b *Broker) Send(parent context.Context, from Binding, id string, route Rou
 		b.mu.Unlock()
 		return Receipt{}, errors.New("receipt capacity reached")
 	}
-	pending := &admission{from: from, route: route, body: body, done: make(chan struct{})}
+	pending := &admission{origin: origin, from: from, route: route, body: body, done: make(chan struct{})}
 	b.admissions[id] = pending
 	b.mu.Unlock()
-	receipt, families, err := b.admit(ctx, from, id, route, body)
+	receipt, families, err := b.admit(ctx, from, id, route, body, origin)
 	b.mu.Lock()
 	if _, stored := b.receipts[id]; err != nil && !stored {
-		err = b.refuseLocked(from, id, route, body, err, families)
+		err = b.refuseLocked(from, id, route, body, err, families, origin)
 	} else if err == nil {
 		delete(b.refusals, id)
 	}
@@ -601,7 +616,7 @@ func (b *Broker) Send(parent context.Context, from Binding, id string, route Rou
 	b.mu.Unlock()
 	return receipt, err
 }
-func (b *Broker) admit(ctx context.Context, from Binding, id string, route Route, body string) (Receipt, map[string]string, error) {
+func (b *Broker) admit(ctx context.Context, from Binding, id string, route Route, body string, origin Origin) (Receipt, map[string]string, error) {
 	family := !strings.Contains(route.Target, ":")
 	families, err := b.readFamilies(ctx)
 	if err != nil {
@@ -642,14 +657,14 @@ func (b *Broker) admit(ctx context.Context, from Binding, id string, route Route
 		}
 		a := b.actors[to]
 		if !family && (a.reservation != "" || len(a.inbox) != 0 || actorCandidate(a, b.now()).Pending) {
-			receipt, err := b.enqueueLocked(a, from, id, route, body)
+			receipt, err := b.enqueueLocked(a, from, id, route, body, origin)
 			b.mu.Unlock()
 			return receipt, families, err
 		}
 		a.reservation = id
 		seq := a.sequence
 		b.mu.Unlock()
-		receipt, err := b.tryAdmission(ctx, a, seq, from, id, route, body, family)
+		receipt, err := b.tryAdmission(ctx, a, seq, from, id, route, body, family, origin)
 		if err == nil {
 			return receipt, families, nil
 		}
@@ -669,7 +684,7 @@ func (b *Broker) admit(ctx context.Context, from Binding, id string, route Route
 			if b.actors[to] != a || !b.caller(to) || !b.caller(from) {
 				return Receipt{}, families, ErrUnavailable
 			}
-			receipt, err := b.enqueueLocked(a, from, id, route, body)
+			receipt, err := b.enqueueLocked(a, from, id, route, body, origin)
 			return receipt, families, err
 		}
 		if !family {
@@ -678,7 +693,7 @@ func (b *Broker) admit(ctx context.Context, from Binding, id string, route Route
 		tried[to] = true
 	}
 }
-func (b *Broker) tryAdmission(ctx context.Context, a *SlotActor, seq uint64, from Binding, id string, route Route, body string, family bool) (Receipt, error) {
+func (b *Broker) tryAdmission(ctx context.Context, a *SlotActor, seq uint64, from Binding, id string, route Route, body string, family bool, origin Origin) (Receipt, error) {
 	// The binding itself never changes on a SlotActor; reconnect installs a new
 	// actor retaining the old actor's model state.
 	to := a.binding
@@ -699,7 +714,7 @@ func (b *Broker) tryAdmission(ctx context.Context, a *SlotActor, seq uint64, fro
 	if err = a.endpoint.Reserve(ctx, id, obs.Sequence); err != nil {
 		var committed *AlreadyCommittedError
 		if errors.As(err, &committed) {
-			return b.adoptRetained(a, from, id, route, body, committed.Receipt)
+			return b.adoptRetained(a, from, id, route, body, committed.Receipt, origin)
 		}
 		return Receipt{}, err
 	}
@@ -721,7 +736,7 @@ func (b *Broker) tryAdmission(ctx context.Context, a *SlotActor, seq uint64, fro
 		return Receipt{}, ErrRecipientBusy
 	}
 	now := b.now()
-	m := Message{ID: id, From: from, To: to, Body: body, Deadline: now.Add(PasteTimeout), AcceptedAt: now}
+	m := Message{Origin: origin, ID: id, From: from, To: to, Body: body, Deadline: now.Add(PasteTimeout), AcceptedAt: now}
 	if err = b.apply(a, Event{Kind: Admit, Binding: to, Message: m, At: now}); err != nil {
 		return Receipt{}, err
 	}
@@ -734,9 +749,9 @@ func (b *Broker) tryAdmission(ctx context.Context, a *SlotActor, seq uint64, fro
 
 // enqueueLocked lines an exact message up behind the recipient's delivery
 // (pair#492) and wakes the worker that promotes it.
-func (b *Broker) enqueueLocked(a *SlotActor, from Binding, id string, route Route, body string) (Receipt, error) {
+func (b *Broker) enqueueLocked(a *SlotActor, from Binding, id string, route Route, body string, origin Origin) (Receipt, error) {
 	now := b.now()
-	m := Message{ID: id, From: from, To: a.binding, Body: body, Deadline: now.Add(PasteTimeout), AcceptedAt: now}
+	m := Message{Origin: origin, ID: id, From: from, To: a.binding, Body: body, Deadline: now.Add(PasteTimeout), AcceptedAt: now}
 	if err := b.apply(a, Event{Kind: Enqueue, Binding: a.binding, Message: m, At: now}); err != nil {
 		return Receipt{}, err
 	}
@@ -809,11 +824,35 @@ func (b *Broker) promote(ctx context.Context, a *SlotActor) bool {
 	}()
 	var committed *AlreadyCommittedError
 	if errors.As(err, &committed) {
+		// Network IO cannot restore authority after cancellation, replacement,
+		// or removal of the exact admitted queue head.
+		current, queued := a.state.QueueHead()
+		if !queued || current != head || ctx.Err() != nil || a.sequence != seq ||
+			b.actors[a.binding] != a || !b.caller(a.binding) || !b.caller(head.From) {
+			return false
+		}
 		// The wrapper already holds this ID: answer with its outcome.
+		retained := committed.Receipt
+		// System authority comes only from the already admitted queue head.
+		// Peer recovery remains compatible with legacy wrapper deadlines.
+		match := retained.Message.Origin.Valid() && retained.Message.Origin == head.Origin &&
+			retained.Message.ID == head.ID && retained.Message.From == head.From &&
+			retained.Message.To == head.To && retained.Message.Body == head.Body
+		if head.Origin == OriginSystem {
+			match = match && retained.Message.Deadline.Equal(head.Deadline) &&
+				(retained.Message.AcceptedAt.IsZero() || retained.Message.AcceptedAt.Equal(head.AcceptedAt))
+		}
+		if !match {
+			_ = b.apply(a, Event{Kind: Cancel, Binding: a.binding, Message: Message{ID: head.ID}, Detail: "conflicting message ID retained by recipient", At: b.now()})
+			a.wakeLocked()
+			return false
+		}
 		route := b.destinations[head.ID]
 		_ = b.apply(a, Event{Kind: Cancel, Binding: a.binding, Message: Message{ID: head.ID}, At: b.now()})
 		delete(b.receipts, head.ID)
-		b.recordRecoveredLocked(committed.Receipt, route)
+		// Keep the broker's exact immutable identity, including admission time.
+		retained.Message = head
+		b.recordRecoveredLocked(retained, route)
 		a.wakeLocked()
 		return false
 	}
@@ -842,11 +881,11 @@ func (b *Broker) promote(ctx context.Context, a *SlotActor) bool {
 // adoptRetained answers a reused ID with the recipient's own outcome instead
 // of delivering again: the wrapper already holds this delivery. Only the same
 // sender and body may adopt it; anything else is a conflicting ID.
-func (b *Broker) adoptRetained(a *SlotActor, from Binding, id string, route Route, body string, r Receipt) (Receipt, error) {
+func (b *Broker) adoptRetained(a *SlotActor, from Binding, id string, route Route, body string, r Receipt, origin Origin) (Receipt, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	a.releaseReservationLocked(id)
-	if r.Message.ID != id || r.Message.From != from || r.Message.To != a.binding || r.Message.Body != body {
+	if origin != OriginPeer || r.Message.Origin != OriginPeer || r.Message.ID != id || r.Message.From != from || r.Message.To != a.binding || r.Message.Body != body {
 		return Receipt{}, errors.New("conflicting message ID")
 	}
 	return b.recordRecoveredLocked(r, route), nil
@@ -954,7 +993,7 @@ func (b *Broker) StatusContext(parent context.Context, caller Binding, id string
 		case a.err == nil:
 			// A wrapper vouches only for deliveries addressed to itself; a
 			// receipt naming another recipient is untrusted input (#365 BR-13).
-			if a.r.Message.ID == id && a.r.Message.To == a.from && (a.r.Message.From == caller || a.r.Message.To == caller) {
+			if a.r.Message.Origin == OriginPeer && a.r.Message.ID == id && a.r.Message.To == a.from && (a.r.Message.From == caller || a.r.Message.To == caller) {
 				r := a.r
 				found = &r
 			}

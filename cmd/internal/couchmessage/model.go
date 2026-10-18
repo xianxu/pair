@@ -63,10 +63,22 @@ func ValidateBody(body string) error {
 	return nil
 }
 
+// Origin is immutable server-assigned provenance. Its zero value preserves
+// legacy peer messages; external requests cannot choose an origin.
+type Origin string
+
+const (
+	OriginPeer   Origin = ""
+	OriginSystem Origin = "system"
+)
+
+func (o Origin) Valid() bool { return o == OriginPeer || o == OriginSystem }
+
 // Deadline bounds the initial reservation/commit exchange. Once committed,
 // a connected receiver retains the message until its composer is ready;
 // DeliveryTimeout starts only when the wrapper writes the paste.
 type Message struct {
+	Origin   Origin `json:",omitempty"`
 	ID       string
 	From, To Binding
 	Body     string
@@ -371,16 +383,22 @@ func Advance(s ActorState, e Event) (ActorState, []Effect, error) {
 		activity()
 	case Admit, Enqueue:
 		m := e.Message
-		if !validMessageID(m.ID) || m.To != s.binding || m.From.Validate() != nil || ValidateBody(m.Body) != nil || !m.Deadline.After(e.At) {
+		if !m.Origin.Valid() || !validMessageID(m.ID) || m.To != s.binding || m.From.Validate() != nil || ValidateBody(m.Body) != nil || !m.Deadline.After(e.At) {
 			return fail(errors.New("invalid message admission"))
 		}
 		for _, active := range s.PendingMessages() {
 			if m.ID == active.ID {
+				if m != active {
+					return fail(errors.New("conflicting message ID"))
+				}
 				return s, nil, nil
 			}
 		}
 		for _, q := range s.queue {
 			if q.ID == m.ID {
+				if m != q {
+					return fail(errors.New("conflicting message ID"))
+				}
 				return s, nil, nil
 			}
 		}
