@@ -51,6 +51,10 @@ type peerRuntime struct {
 	server    *couchmessage.Server
 	workers   sync.WaitGroup
 	delivery  *peerDelivery
+	// binding and namespace address this wrapper's one-shot reports to the
+	// broker (pair#657: native exit).
+	binding   couchmessage.Binding
+	namespace string
 }
 
 func (r *peerRuntime) Close() {
@@ -217,7 +221,7 @@ func (p *proxy) startPeerRuntime(executable string) (*peerRuntime, error) {
 	}
 	lifetime, stop := context.WithCancel(context.Background())
 	d := newPeerDelivery(binding, time.Now)
-	r := &peerRuntime{cancel: stop, delivery: d}
+	r := &peerRuntime{cancel: stop, delivery: d, binding: binding, namespace: namespace}
 	server, err := couchmessage.StartServer(lifetime, socket, d.handleEndpoint)
 	if err != nil {
 		stop()

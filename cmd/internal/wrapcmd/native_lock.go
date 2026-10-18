@@ -241,6 +241,9 @@ func (p *proxy) handleBindingNotice(event nativeBindingEvent) {
 // so the wrapper re-execs once the group is gone; it reports whether this
 // signal began one.
 func (p *proxy) stopForSignal(s os.Signal, locks *wrapperNativeLocks, group *ownedGroup) (restart bool) {
+	// Any wrapper-initiated stop means the child's exit is not the agent
+	// leaving on its own (pair#657), so no native-exit report is sent.
+	p.stoppedByWrapper.Store(true)
 	if s == syscall.SIGUSR2 {
 		if !p.restartFresh.CompareAndSwap(false, true) {
 			return false

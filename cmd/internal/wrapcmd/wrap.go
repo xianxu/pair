@@ -262,6 +262,9 @@ type proxy struct {
 	setPTYWinsize        func(*os.File, *pty.Winsize) error
 
 	restartFresh atomic.Bool
+	// stoppedByWrapper is set when the wrapper itself stops the native child
+	// (a signal), so its exit is not reported as the agent leaving (pair#657).
+	stoppedByWrapper atomic.Bool
 
 	// Notify
 	notifyModeActive string
@@ -3092,6 +3095,13 @@ argsDone:
 	}
 	if p.stdoutPump != nil && p.stdoutPump.failure != nil {
 		return 0, fmt.Errorf("pane output: %w", p.stdoutPump.failure)
+	}
+	// The child is reaped and the registry session is still open (peerRun
+	// closes in the deferred cleanup): report a self exit now (pair#657).
+	if peerRun != nil && classifyChildExit(p.restartFresh.Load(), p.stoppedByWrapper.Load()) == childExitSelf {
+		if code, ok := childExitCode(werr); ok {
+			p.reportNativeExit(peerRun, code)
+		}
 	}
 	if p.restartFresh.Load() {
 		executable, err := os.Executable()
