@@ -117,7 +117,7 @@ func (c *supervisionCoordinator) sendGenerated(ctx context.Context, from, to cou
 		c.sends[id] = v
 	}
 	c.mu.Unlock()
-	receipt, err := c.service.broker.Send(ctx, from, id, couchmessage.Route{Target: to.Slot}, body)
+	receipt, err := c.service.broker.SendSystem(ctx, from, id, couchmessage.Route{Target: to.Slot}, body)
 	if err != nil {
 		c.admitted(id, nil)
 	} else {
@@ -163,12 +163,6 @@ func (c *supervisionCoordinator) reconcile() {
 			c.notice(fmt.Sprintf("startup resend prompt to %s unconfirmed: %s; hub should request fresh status", v.prompt, detail))
 		}
 	}
-}
-func (c *supervisionCoordinator) systemMessage(m couchmessage.Message) bool {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	v, ok := c.sends[m.ID]
-	return ok && v.from == m.From && v.system
 }
 func (c *supervisionCoordinator) delivered(m couchmessage.Message, r couchmessage.Receipt, err error) {
 	if err != nil || r.Status != couchmessage.Submitted {

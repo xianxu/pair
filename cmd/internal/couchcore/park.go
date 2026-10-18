@@ -89,6 +89,10 @@ type PairLifecycleController struct {
 	Clock             Clock
 	Nonce             func() (string, error)
 	CompletionTimeout time.Duration
+	// completionDeadline is the completion wait's timeout source. Tests spend
+	// the selected budget after observing the missing proof; production uses
+	// context.WithTimeout.
+	completionDeadline func(context.Context, time.Duration) (context.Context, context.CancelFunc)
 	// RelaunchWait replaces CompletionTimeout for relaunch's park (pair#618);
 	// zero means RelaunchParkWait.
 	RelaunchWait time.Duration
@@ -830,7 +834,11 @@ func (c *PairLifecycleController) awaitCompletionAndChildDeath(ctx context.Conte
 	waitCtx := ctx
 	cancel := func() {}
 	if timeout > 0 {
-		waitCtx, cancel = context.WithTimeout(ctx, timeout)
+		deadline := c.completionDeadline
+		if deadline == nil {
+			deadline = context.WithTimeout
+		}
+		waitCtx, cancel = deadline(ctx, timeout)
 	}
 	defer cancel()
 

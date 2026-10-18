@@ -38,6 +38,8 @@ type LaunchOptions struct {
 	StartTimeout time.Duration
 	// Headless is for tests only: the cast is a window the operator uses.
 	Headless bool
+	// noPagesAfter lets protocol tests fire page-loss grace after observed events; nil uses time.After.
+	noPagesAfter func(time.Duration) <-chan time.Time
 	// Record, when set, records the cast tab while live (#458).
 	Record *RecordOptions
 }
@@ -241,6 +243,9 @@ func Launch(ctx context.Context, opts LaunchOptions) (*Chrome, error) {
 
 // start runs the loop over an open connection to a started process.
 func start(conn *cdp.Conn, proc process, output *tail, opts LaunchOptions) *Chrome {
+	if opts.noPagesAfter == nil {
+		opts.noPagesAfter = time.After
+	}
 	loopCtx, cancel := context.WithCancel(context.Background())
 	c := &Chrome{
 		opts: opts, proc: proc, conn: conn, output: output,
@@ -447,7 +452,7 @@ func (c *Chrome) handle(s *loopState, ev cdp.Event) {
 		case TargetDestroyed:
 			s.tracker.Apply(in)
 			if s.hadPage && s.tracker.Pages() == 0 && s.noPages == nil {
-				s.noPages = time.After(noPagesGrace)
+				s.noPages = c.opts.noPagesAfter(noPagesGrace)
 			}
 		case TrackerInput:
 			s.tracker.Apply(in)

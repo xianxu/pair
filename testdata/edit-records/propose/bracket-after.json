@@ -1,0 +1,6 @@
+{
+ "name": "bracket-after",
+ "base": "a b[c]\n",
+ "after": "a B[c]\n",
+ "refuse": "propose-unencodable"
+}

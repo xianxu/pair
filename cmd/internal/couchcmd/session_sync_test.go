@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"sort"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -15,6 +16,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
 	"github.com/xianxu/pair/cmd/internal/sessionsync"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 func TestParseSessionSyncForms(t *testing.T) {
@@ -29,6 +31,8 @@ func TestParseSessionSyncForms(t *testing.T) {
 		{[]string{"write", "--all", "b", "f.md", "--if-hash", "h"}, sessionSyncArgs{verb: "write", all: true, bodyFile: "b", file: "f.md", ifHash: "h"}},
 		{[]string{"read", "--section", "Needs you", "f.md", "--json"}, sessionSyncArgs{verb: "read", section: "Needs you", file: "f.md", json: true}},
 		{[]string{"read", "--all", "f.md"}, sessionSyncArgs{verb: "read", all: true, file: "f.md"}},
+		{[]string{"apply", "e.json", "f.md", "--if-hash", "h", "--fold", "a", "--json"}, sessionSyncArgs{verb: "apply", bodyFile: "e.json", file: "f.md", ifHash: "h", fold: []string{"a"}, json: true}},
+		{[]string{"round", "f.md", "--json"}, sessionSyncArgs{verb: "round", file: "f.md", json: true}},
 		// release is a retired no-op that still takes its old flags.
 		{[]string{"release", "f.md", "--fold", "x"}, sessionSyncArgs{verb: "release", file: "f.md", fold: []string{"x"}}},
 		{[]string{"release", "--accept-edits", "--accept-gap", "f.md"}, sessionSyncArgs{verb: "release", file: "f.md", accepts: sessionsync.Accepts{Gap: true}}},
@@ -49,6 +53,9 @@ func TestParseSessionSyncForms(t *testing.T) {
 		// An unconditional write, and the retired --accept-edits.
 		{"write", "--all", "b", "f"}, {"write", "--all", "b", "f", "--if-hash", "h", "--accept-edits"},
 		{"read", "f"}, {"read", "--all", "--section", "h", "f"}, {"read", "--all", "f", "--if-hash", "h"},
+		// apply needs the whole-file hash and both paths; round answers only as JSON.
+		{"apply", "e.json", "f"}, {"apply", "f", "--if-hash", "h"}, {"apply", "--all", "e.json", "f", "--if-hash", "h"},
+		{"round", "f"}, {"round", "--if-hash", "h", "f", "--json"},
 	} {
 		if _, err := ParseCLI(append([]string{"--session-sync"}, bad...), couchcore.Operations()); err == nil {
 			t.Fatalf("%v must be a usage error", bad)
@@ -167,12 +174,18 @@ func TestSessionSyncRegistryLookupFailureCannotBeAbsence(t *testing.T) {
 }
 
 func TestSessionSyncLookupJSONUsageFailureIsUnavailable(t *testing.T) {
-	rt,_:=sessionSyncRT(t)
-	code,out,_:=runSS(t,rt,"lookup","--json")
-	if code==0{t.Fatal("invalid lookup succeeded")}
+	rt, _ := sessionSyncRT(t)
+	code, out, _ := runSS(t, rt, "lookup", "--json")
+	if code == 0 {
+		t.Fatal("invalid lookup succeeded")
+	}
 	var response map[string]any
-	if err:=json.Unmarshal([]byte(out),&response);err!=nil{t.Fatalf("missing refusal envelope: %q: %v",out,err)}
-	if response["Code"]=="ok"||response["Error"]==""{t.Fatalf("invalid lookup looked absent: %+v",response)}
+	if err := json.Unmarshal([]byte(out), &response); err != nil {
+		t.Fatalf("missing refusal envelope: %q: %v", out, err)
+	}
+	if response["Code"] == "ok" || response["Error"] == "" {
+		t.Fatalf("invalid lookup looked absent: %+v", response)
+	}
 }
 
 func TestSessionSyncStatusJSONIsTheAgreedEnvelope(t *testing.T) {
@@ -305,6 +318,8 @@ func TestSessionSyncWriteTelemetryBestEffort(t *testing.T) {
 			}
 			var calls atomic.Int32
 			requests := make(chan couchmessage.Request, 4)
+			release := make(chan struct{})
+			returned := make(chan struct{})
 			if mode != "missing" {
 				server, err := couchmessage.StartServer(context.Background(), socket, func(ctx context.Context, raw []byte) ([]byte, error) {
 					calls.Add(1)
@@ -313,8 +328,9 @@ func TestSessionSyncWriteTelemetryBestEffort(t *testing.T) {
 						return nil, err
 					}
 					requests <- req
+					defer close(returned)
 					if mode == "timeout" {
-						time.Sleep(600 * time.Millisecond)
+						<-release
 					}
 					code := "ok"
 					if mode == "older" {
@@ -326,13 +342,32 @@ func TestSessionSyncWriteTelemetryBestEffort(t *testing.T) {
 					t.Fatal(err)
 				}
 				defer server.Close()
+				defer close(release)
 			}
 			body := filepath.Join(t.TempDir(), "body")
 			os.WriteFile(body, []byte("handled d1"), 0600)
-			start := time.Now()
-			code, out, errout := runSS(t, rt, "write", "--section", "Needs you", body, file, "--fold", "d1", "--if-hash", sessionsync.Hash("\nold\n"))
-			if elapsed := time.Since(start); elapsed > 500*time.Millisecond {
-				t.Fatalf("telemetry exceeded budget: %v", elapsed)
+			type result struct {
+				code        int
+				out, errout string
+			}
+			done := make(chan result, 1)
+			go func() {
+				code, out, errout := runSS(t, rt, "write", "--section", "Needs you", body, file, "--fold", "d1", "--if-hash", sessionsync.Hash("\nold\n"))
+				done <- result{code, out, errout}
+			}()
+			var got result
+			select {
+			case got = <-done:
+			case <-testwait.After(t):
+				t.Fatal("session write waited for the unreleased telemetry handler")
+			}
+			code, out, errout := got.code, got.out, got.errout
+			if mode == "timeout" {
+				select {
+				case <-returned:
+					t.Fatal("write did not finish while telemetry was blocked")
+				default:
+				}
 			}
 			if code != 0 || errout != "" || !strings.Contains(out, "wrote ## Needs you") {
 				t.Fatalf("write %d %q %q", code, out, errout)
@@ -420,5 +455,65 @@ func TestSessionWriteServiceAuthenticatesOwner(t *testing.T) {
 				t.Fatalf("writes=%d want=%d", count, want)
 			}
 		})
+	}
+}
+
+// apply and round through the CLI: a good batch lands and leaves a round with
+// its reason, a bad batch refuses with every bad record listed and nothing
+// written, and round --json is exactly the parley.nvim#383 contract.
+func TestSessionSyncApplyAndRoundCLIContract(t *testing.T) {
+	rt, file := sessionSyncRT(t)
+	edits := filepath.Join(t.TempDir(), "edits.json")
+	os.WriteFile(edits, []byte(`{"records":[{"old":"old","occurrence":1,"new":"fresh","explain":"answer"}]}`), 0o644)
+	raw, _ := os.ReadFile(file)
+	code, out, errout := runSS(t, rt, "apply", edits, file, "--if-hash", sessionsync.Hash(string(raw)), "--json")
+	if code != 0 {
+		t.Fatalf("apply exit %d: %s %s", code, out, errout)
+	}
+	var applied map[string]any
+	if err := json.Unmarshal([]byte(out), &applied); err != nil || applied["Code"] != "ok" || applied["Hash"] == "" {
+		t.Fatalf("apply reply %q", out)
+	}
+	code, out, _ = runSS(t, rt, "round", file, "--json")
+	var reply map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(out), &reply); err != nil || code != 0 {
+		t.Fatalf("round reply %q exit %d", out, code)
+	}
+	keys := []string{}
+	for k := range reply {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	if strings.Join(keys, ",") != "Cleared,Code,Error,Round" {
+		t.Fatalf("round reply keys %v, want exactly Code, Error, Round, Cleared", keys)
+	}
+	var round sessionsync.Round
+	if err := json.Unmarshal(reply["Round"], &round); err != nil || len(round.Spans) != 1 || round.Spans[0].Explain != "answer" {
+		t.Fatalf("round %s", reply["Round"])
+	}
+	// A bad batch: exit 1, edits-invalid, each bad record listed, file intact.
+	before, _ := os.ReadFile(file)
+	os.WriteFile(edits, []byte(`[{"old":"fresh","new":"x"},{"old":"absent","new":"y"},{"old":"","new":"z"}]`), 0o644)
+	code, out, _ = runSS(t, rt, "apply", edits, file, "--if-hash", sessionsync.Hash(string(before)), "--json")
+	var refused struct {
+		Code    string
+		Invalid []sessionsync.BadEdit
+	}
+	if err := json.Unmarshal([]byte(out), &refused); err != nil || code != 1 || refused.Code != "edits-invalid" || len(refused.Invalid) != 2 {
+		t.Fatalf("bad batch exit %d reply %q", code, out)
+	}
+	if after, _ := os.ReadFile(file); string(after) != string(before) {
+		t.Fatal("a refused batch wrote")
+	}
+	// Stale: exit 6 with the current hash.
+	code, out, _ = runSS(t, rt, "apply", edits, file, "--if-hash", "0000000000000000", "--json")
+	if code != 6 || !strings.Contains(out, `"stale"`) {
+		t.Fatalf("stale apply exit %d %q", code, out)
+	}
+	// A malformed sidecar: round-invalid in the same envelope.
+	os.WriteFile(sessionsync.PathsOf(file).Round, []byte("{"), 0o644)
+	code, out, _ = runSS(t, rt, "round", file, "--json")
+	if code != 1 || !strings.Contains(out, `"round-invalid"`) || !strings.Contains(out, `"Round":null`) {
+		t.Fatalf("malformed round exit %d %q", code, out)
 	}
 }

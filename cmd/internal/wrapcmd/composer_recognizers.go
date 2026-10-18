@@ -18,8 +18,8 @@ const (
 	// text: the prompt owns column 0 and column 1 is its trailing space.
 	// Continuation rows keep both columns blank and align text here.
 	codexComposerTextColumn = 2
-	// codexComposerMaxRows bounds how far above the cursor a prompt may sit
-	// before the block stops reading as one composer.
+	// codexComposerMaxRows is the existing local evidence domain. A taller
+	// block additionally needs a complete native trailing footer.
 	codexComposerMaxRows = 20
 )
 
@@ -36,20 +36,79 @@ const (
 // rather than by style: the status line is the last painted row on the screen
 // and has a blank row above it, which no composer row inside a block can be.
 func codexComposerActive(snapshot terminalSnapshot) bool {
+	_, _, ok := codexComposerBounds(snapshot)
+	return ok
+}
+
+// codexComposerBounds shares prompt authority between Return and peer input.
+// A negative footer row preserves the existing short-composer contract; a
+// nonnegative row identifies the positive footer required for tall input.
+func codexComposerBounds(snapshot terminalSnapshot) (promptRow, footerRow int, ok bool) {
 	if !snapshot.CursorVisible || !snapshotCoordinatesValid(snapshot) ||
 		snapshot.Cursor.X < codexComposerTextColumn ||
 		codexCursorOnTrailingStatusRow(snapshot) {
-		return false
+		return 0, 0, false
 	}
 
-	for promptY := snapshot.Cursor.Y; promptY >= 0 && snapshot.Cursor.Y-promptY < codexComposerMaxRows; promptY-- {
-		if codexComposerRowPaintsLeftEdge(snapshot, promptY) {
-			prompt := snapshot.CellAt(0, promptY)
-			return prompt != nil && prompt.Content == codexComposerPrompt &&
-				prompt.Style.Attrs&uv.AttrBold != 0
+	for promptY := snapshot.Cursor.Y; promptY >= 0; promptY-- {
+		if !codexComposerRowPaintsLeftEdge(snapshot, promptY) {
+			continue
+		}
+		prompt := snapshot.CellAt(0, promptY)
+		if prompt == nil || prompt.Content != codexComposerPrompt || prompt.Style.Attrs&uv.AttrBold == 0 {
+			return 0, 0, false
+		}
+		if snapshot.Cursor.Y-promptY < codexComposerMaxRows {
+			return promptY, -1, true
+		}
+		if !snapshot.Complete || rowPaintedBetween(snapshot, promptY, 1, codexComposerTextColumn) {
+			return 0, 0, false
+		}
+		// Find the last painted row once. Testing every row as a footer would
+		// repeatedly scan its suffix and make this keystroke path quadratic.
+		footer := snapshot.Height - 1
+		for footer > snapshot.Cursor.Y && !snapshotRowPainted(snapshot, footer) {
+			footer--
+		}
+		if footer <= snapshot.Cursor.Y+1 || codexComposerRowPaintsLeftEdge(snapshot, footer) ||
+			snapshotRowPainted(snapshot, footer-1) || !codexComposerFooter(snapshot, footer) {
+			return 0, 0, false
+		}
+		for y := snapshot.Cursor.Y + 1; y < footer; y++ {
+			if codexComposerRowPaintsLeftEdge(snapshot, y) {
+				return 0, 0, false
+			}
+		}
+		return promptY, footer, true
+	}
+	return 0, 0, false
+}
+
+// codexComposerFooter is the existing native model/path footer signature.
+// Unknown wording and any later painted row decline rather than grant input.
+func codexComposerFooter(s terminalSnapshot, row int) bool {
+	var b strings.Builder
+	for x := 2; x < s.Width; x++ {
+		c := s.CellAt(x, row)
+		if c == nil {
+			return false
+		}
+		if c.Content == "" {
+			b.WriteByte(' ')
+		} else {
+			b.WriteString(c.Content)
 		}
 	}
-	return false
+	line := strings.TrimSpace(b.String())
+	if !strings.HasPrefix(strings.ToLower(line), "gpt-") || !strings.Contains(line, " · ") {
+		return false
+	}
+	for y := row + 1; y < s.Height; y++ {
+		if snapshotRowPainted(s, y) {
+			return false
+		}
+	}
+	return true
 }
 
 // codexCursorOnTrailingStatusRow reports whether the cursor sits on Codex's

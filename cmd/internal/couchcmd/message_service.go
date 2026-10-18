@@ -43,6 +43,10 @@ type messageAuthority struct {
 	// recorded is launch's file evidence alone — the ready file's nonce and
 	// the session index's name — for use-time checks. It spawns nothing.
 	recorded func(context.Context, couchmessage.Binding) error
+	// child names the native child the caller's ready file records (launch
+	// ordinal, process identity), fencing a native-exit report to it
+	// (pair#657); nil refuses native-exit reports.
+	child    func(context.Context, couchmessage.Binding) (uint64, string, error)
 	endpoint func(couchmessage.Binding) couchmessage.DeliveryEndpoint
 	branch   func(context.Context, string) (couchcore.SlotGitStatus, error)
 	// families lists every enrolled message family with its alias ("" when
@@ -62,6 +66,8 @@ type messageAuthority struct {
 	hub       string
 	hubs      *hubRuntime
 	hubTarget func(context.Context, string) (couchcore.HubSlot, error)
+	// batchMaxChars is immutable startup policy; zero uses the qualified default.
+	batchMaxChars int
 }
 
 // live is the full check, run once per wrapper admission: a lifecycle event, never a
@@ -156,6 +162,7 @@ const (
 // timers in arrival order. Request goroutines read
 // only the published snapshot of connected bindings.
 type messageService struct {
+	lifecycle atomic.Pointer[lifecyclePublisher]
 	resources atomic.Pointer[resourceSampler]
 	hubMoves  atomic.Pointer[hubMoveService]
 	facts     atomic.Pointer[supervisionFactLog]
@@ -198,6 +205,15 @@ type messageService struct {
 		sync.Mutex
 		records map[string]automaticInputStallRecord
 	}
+	// exits remembers the native exit last reported per slot, so a repeat of
+	// the same (binding, launch) posts nothing (pair#657).
+	exits struct {
+		sync.Mutex
+		records map[string]nativeExitRecord
+	}
+	// exited hands a confirmed native exit, with the caller's verified slot,
+	// to the lifecycle notices; nil when lifecycle notices are off.
+	exited atomic.Pointer[func(couchmessage.Binding, couchcore.WorkspaceIdentity, couchmessage.NativeExit)]
 
 	// broadcastStatus answers broadcast-status (pair#413). Installed after the
 	// service is serving, so it is an atomic pointer; nil answers unsupported.
@@ -308,6 +324,14 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch, configur
 	if err != nil {
 		return nil, err
 	}
+	lifecycleOn, err := lifecycleNoticesEnabled(os.Getenv)
+	if err != nil {
+		return nil, err
+	}
+	batchChars, err := peerBatchMaxChars(os.Getenv)
+	if err != nil {
+		return nil, err
+	}
 	reniceLevel, err := slotNiceSettings(os.Getenv)
 	if err != nil {
 		return nil, err
@@ -359,7 +383,8 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch, configur
 		sessionName = source.PairSessionName
 	}
 	authority := messageAuthority{
-		hub: hubWorktree(os.Getwd, c.ResolveTree),
+		hub:           hubWorktree(os.Getwd, c.ResolveTree),
+		batchMaxChars: batchChars,
 		families: func(ctx context.Context) (map[string]string, error) {
 			if c.Threads == nil {
 				return nil, nil
@@ -428,6 +453,16 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch, configur
 			return nil
 		},
 		recorded: recordedMessageAuthority(reader, sessionName),
+		child: func(ctx context.Context, b couchmessage.Binding) (uint64, string, error) {
+			ordinal, identity, ok, err := reader.RecordedChild(ctx, couchcore.ThreadAddress{RepoScope: b.Scope, Tag: couchcore.ThreadTag(b.Tag)}, b.Agent, b.Nonce)
+			if err != nil {
+				return 0, "", err
+			}
+			if !ok {
+				return 0, "", errors.New("wrapper launch registration unavailable")
+			}
+			return ordinal, identity, nil
+		},
 		endpoint: func(b couchmessage.Binding) couchmessage.DeliveryEndpoint {
 			return couchmessage.RemoteEndpoint{Namespace: namespace, Binding: b}
 		},
@@ -466,6 +501,7 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch, configur
 	service.SetDesktopNotify(console.NotifyDesktop)
 	console.SetMessageBroker(service.broker)
 	console.SetCopyObserver(facts.clipboardCopy)
+	console.SetCopyKeyObserver(facts.clipboardKey)
 	service.SetBroadcastStatus(console.BroadcastStatus)
 	service.SetShares(console.Shares)
 	service.SetBlockedView(console.SetBlockedThreads)
@@ -475,6 +511,11 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch, configur
 	service.SetSubmission(console.Submission)
 	service.recordDeliveries(namespace)
 	service.supervision.Store(newSupervisionCoordinator(service, func(text string) { console.Notify(couchtty.Notice{Kind: "status", Body: text}) }))
+	if lifecycleOn {
+		publisher := startLifecyclePublisher(service, func(text string) { console.Notify(couchtty.Notice{Kind: "status", Body: text}) })
+		console.SetLifecycleObserver(publisher.observe)
+		wireNativeExitNotices(service, console)
+	}
 	watcher := newWaitWatcher(service, threshold, namespace)
 	stale := newSessionStaleWatcher(service, namespace, func(text string) { console.Notify(couchtty.Notice{Kind: "status", Body: text}) })
 	watcher.staleTick = stale.offer
@@ -521,6 +562,12 @@ func (s *messageService) showHub(view interface{ SetHub(root string) }) {
 }
 
 func newMessageService(parent context.Context, brokerSocket, registrySocket string, authority messageAuthority, panes *couchmessage.PaneMailbox, slotGit func(string) (couchcore.SlotGitStatus, bool), slotOps *slotOperations, factLogs ...*supervisionFactLog) (*messageService, error) {
+	if authority.batchMaxChars == 0 {
+		authority.batchMaxChars = couchmessage.DefaultPeerBatchMaxChars
+	}
+	if authority.batchMaxChars < 1 || authority.batchMaxChars > couchmessage.MaxPeerBatchChars {
+		return nil, errors.New("COUCH_PEER_BATCH_MAX_CHARS must be from 1 through 32768")
+	}
 	if authority.thread == nil || authority.agent == nil || authority.workspace == nil || authority.process == nil || authority.wrapperPID == nil || authority.launch == nil || authority.recorded == nil || authority.endpoint == nil || authority.branch == nil || panes == nil || slotGit == nil {
 		return nil, errors.New("message authority is incomplete")
 	}
@@ -682,6 +729,9 @@ func (s *messageService) loop() {
 				followUps = append(followUps, *next)
 			}
 		}
+		if publisher := s.lifecycle.Load(); publisher != nil {
+			publisher.signal()
+		}
 		if e.Kind == couchmessage.AdmissionDone {
 			s.mu.Lock()
 			delete(s.prepared, preparedKey{e.Token, e.Pane})
@@ -737,7 +787,14 @@ func (s *messageService) execute(e couchmessage.RegistryEffect) *couchmessage.Re
 		if s.authority.isHub(p.identity) {
 			allowance = couchmessage.HubAllowance
 		}
-		if err := s.broker.RegisterWithAllowance(e.Binding, messageEndpoint{service: s, binding: e.Binding, endpoint: p.endpoint}, allowance); err != nil {
+		endpoint := messageEndpoint{service: s, binding: e.Binding, endpoint: p.endpoint}
+		var err error
+		if s.authority.isHub(p.identity) && e.Binding.Agent == "claude" {
+			err = s.broker.RegisterWithBatching(e.Binding, endpoint, allowance, s.authority.batchMaxChars)
+		} else {
+			err = s.broker.RegisterWithAllowance(e.Binding, endpoint, allowance)
+		}
+		if err != nil {
 			return &couchmessage.RegistryEvent{Kind: couchmessage.ConnectFailed, Token: e.Token, Pane: e.Pane, Err: err}
 		}
 		s.mu.Lock()
@@ -871,6 +928,8 @@ func (s *messageService) handle(ctx context.Context, request couchmessage.Reques
 		return s.handleSessionWrite(ctx, request)
 	case request.Op == "automatic-input-stall":
 		return s.handleAutomaticInputStall(ctx, request)
+	case request.Op == "native-exit":
+		return s.handleNativeExit(ctx, request)
 	case request.Op == "notify":
 		return s.handleNotify(ctx, request)
 	case request.Op == "switch-agent":
@@ -1242,10 +1301,44 @@ func (e messageEndpoint) Deliver(ctx context.Context, m couchmessage.Message, pr
 	// Explicit cross-hub messages are still deliveries to an active hub.
 	toHub := e.service.isHubBinding(m.To)
 	receipt, err := e.endpoint.Deliver(ctx, m, progress)
-	system := false
+	e.accountDelivery(m, receipt, err, log, toHub)
+	return receipt, err
+}
+
+func (e messageEndpoint) DeliverBatch(ctx context.Context, head couchmessage.Message, freeze func() ([]couchmessage.Message, error), progress func(couchmessage.Receipt)) (couchmessage.Receipt, error) {
+	endpoint, ok := e.endpoint.(couchmessage.BatchDeliveryEndpoint)
+	if !ok {
+		return e.Deliver(ctx, head, progress)
+	}
+	if err := e.check(ctx); err != nil {
+		return couchmessage.Receipt{Status: couchmessage.Cancelled, Detail: err.Error()}, nil
+	}
+	log, toHub := e.service.facts.Load(), e.service.isHubBinding(head.To)
+	group := []couchmessage.Message{head}
+	receipt, err := endpoint.DeliverBatch(ctx, head, func() ([]couchmessage.Message, error) {
+		members, err := freeze()
+		if err == nil {
+			group = append([]couchmessage.Message(nil), members...)
+		}
+		return members, err
+	}, progress)
+	for _, member := range group {
+		projected := receipt
+		projected.Message = member
+		e.accountDelivery(member, projected, err, log, toHub)
+	}
+	return receipt, err
+}
+
+// accountDelivery preserves every original message's supervision and document
+// ledger provenance, even when several messages share one physical input turn.
+func (e messageEndpoint) accountDelivery(m couchmessage.Message, receipt couchmessage.Receipt, err error, log *supervisionFactLog, toHub bool) {
+	system := m.Origin == couchmessage.OriginSystem
+	if publisher := e.service.lifecycle.Load(); publisher != nil {
+		publisher.signal()
+	}
 	if c := e.service.supervision.Load(); c != nil {
 		c.delivered(m, receipt, err)
-		system = c.systemMessage(m)
 	}
 	if log != nil && toHub {
 		log.delivery(m, receipt, err, system)
@@ -1253,7 +1346,6 @@ func (e messageEndpoint) Deliver(ctx context.Context, m couchmessage.Message, pr
 	if r := e.service.deliveries.Load(); r != nil && !system {
 		r.record(m, receipt, err)
 	}
-	return receipt, err
 }
 
 func readMessageWrapperPID(path string) (int, error) {

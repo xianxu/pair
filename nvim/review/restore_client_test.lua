@@ -4,6 +4,9 @@ assert(ok, 'draft restoration client must exist')
 local root = vim.fn.tempname(); vim.fn.mkdir(root, 'p')
 local identity = { status='resolved', repo='/repo', branch='review/a', head='sha-a', file="a's.md" }
 local context = { repo=identity.repo, branch=identity.branch, file=identity.file, activation='active-a' }
+local uv = vim.uv or vim.loop
+local original_pane_id = vim.env.ZELLIJ_PANE_ID
+vim.env.ZELLIJ_PANE_ID = '2'
 local function scenario(config)
   config = config or {}
   local active_identity=vim.deepcopy(identity)
@@ -16,7 +19,14 @@ local function scenario(config)
     vim.fn.writefile({tostring(vim.fn.getpid()),'/repo/old.md',config.legacy and '' or vim.json.encode(metadata)}, sf)
   else vim.fn.delete(sf) end
   local effects, calls, notifications, published, resolve_count = {}, {}, {}, nil, 0
+  local native_session=vim.env.ZELLIJ_SESSION_NAME
   local session='session-a'
+  local pane_reads, visibility_reads = 0, 0
+  local original_clock = uv.hrtime
+  local clock_shift = 0
+  if config.expire_visibility then
+    uv.hrtime=function() return original_clock()+clock_shift end
+  end
   local client = module.new({
     state_file=function() return sf end,
     session=function() return session end,
@@ -24,7 +34,14 @@ local function scenario(config)
     write_target=function(file,status,id) published={file=file,status=status,identity=id}; effects[#effects+1]='publish' end,
     pair_bin=function() return '/pair' end,
     cwd=function() return '/checkout' end,
-    hide=function() effects[#effects+1]='hide' end,
+    hide=function(budget, admitted)
+      effects[#effects+1]='hide'
+      assert(budget and type(budget.check)=='function', 'restore must forward its visibility budget')
+      budget.check()
+      assert(admitted.id==2 and admitted.tab_id==4 and admitted.tab_position==1, 'restore must forward admitted draft/tab')
+      if config.hide_error then return false end
+      return true
+    end,
     prompt=function() effects[#effects+1]='prompt' end,
     notify=function(msg) notifications[#notifications+1]=msg end,
     run=function(cmd, opts, cb)
@@ -32,6 +49,7 @@ local function scenario(config)
       local result={code=0,stdout='',stderr=''}
       if vim.tbl_contains(cmd,'--resolve') then
         resolve_count=resolve_count+1
+        if config.nativeenv_before_activation and resolve_count==1 then vim.env.ZELLIJ_SESSION_NAME='replacement-before-activation' end
         local observed=vim.deepcopy(active_identity)
         if config.peer and cmd[5]=='/checkout' then
           observed={status='non_review',repo='/checkout',branch='main',head='checkout-sha'}
@@ -58,6 +76,7 @@ local function scenario(config)
         end}
         result.stdout=vim.fn.eval(cmd[#cmd])
         if config.sessiondrift then session='session-new' end
+        if config.nativeenvdrift then vim.env.ZELLIJ_SESSION_NAME='replacement-native-session' end
         if config.panedrift then metadata.token='new-token'; vim.fn.writefile({tostring(vim.fn.getpid()),'/repo/old.md',vim.json.encode(metadata)},sf) end
         if config.badack then local a=vim.json.decode(result.stdout); a.context.branch='review/wrong'; result.stdout=vim.json.encode(a) end
         if config.timeout then result={code=124,stderr='timeout'} end
@@ -67,14 +86,31 @@ local function scenario(config)
         assert(vim.json.decode(opts.env.PAIR_REVIEW_IDENTITY).head==active_identity.head)
         vim.fn.writefile({tostring(vim.fn.getpid()),'/repo/'..identity.file,vim.json.encode(metadata)},sf)
         effects[#effects+1]='open'
+      elseif vim.tbl_contains(cmd,'list-panes') then
+        pane_reads=pane_reads+1
+        local id=(config.changed_panes and pane_reads==2) and 9 or 2
+        result.stdout=config.pane_reply or vim.json.encode({
+          {id=id,is_plugin=false,is_floating=false,terminal_command='nvim -u /pair/nvim/init.lua',tab_id=4,tab_position=1},
+          {id=7,is_plugin=false,is_floating=true,terminal_command='nvim -u /pair/nvim/review.lua',tab_id=4,tab_position=1},
+        })
+        assert(opts.timeout>0 and opts.timeout<=5000, 'pane observation needs shared bounded query timeout')
       elseif vim.tbl_contains(cmd,'are-floating-panes-visible') then
+        visibility_reads=visibility_reads+1
+        assert(opts.timeout>0 and opts.timeout<=5000, 'visibility query needs shared bounded query timeout')
         result.stdout=config.visible==false and 'false\n' or 'true\n'
         result.code=config.visible==false and 1 or 0
         if config.visibility_result then result=config.visibility_result end
         if config.visibility_error then result={code=1,stdout='',stderr='disconnected'} end
         if config.visibility_malformed then result={code=0,stdout='not true',stderr=''} end
+        if config.visibility_changes and visibility_reads==2 then result={code=1,stdout='false',stderr=''} end
+        if config.activation_after_visibility then
+          metadata.context=vim.deepcopy(context); metadata.context.activation='replaced-activation'
+          vim.fn.writefile({tostring(vim.fn.getpid()),'/repo/old.md',vim.json.encode(metadata)},sf)
+        end
+        if config.expire_visibility then clock_shift=6e9 end
         effects[#effects+1]='visibility'
-      elseif vim.tbl_contains(cmd,'show-floating-panes') then effects[#effects+1]='show'
+      elseif vim.tbl_contains(cmd,'show-floating-panes') then
+        effects[#effects+1]='show'
       else error('unexpected command '..vim.inspect(cmd)) end
       vim.schedule(function() cb(result) end)
       return {}
@@ -83,10 +119,35 @@ local function scenario(config)
   client:toggle()
   client:toggle() -- duplicate calls cannot start a second transaction
   assert(vim.wait(1500,function() return not client.busy end,10),'client did not finish')
-  return {effects=effects,calls=calls,notifications=notifications,published=published,resolves=resolve_count}
+  uv.hrtime=original_clock
+  vim.env.ZELLIJ_SESSION_NAME=native_session
+  return {effects=effects,calls=calls,notifications=notifications,published=published,resolves=resolve_count,pane_reads=pane_reads,visibility_reads=visibility_reads}
 end
+-- Activation is completed before visibility admission. Bad evidence must retain
+-- that progress while refusing every query-derived visibility effect.
+for _,config in ipairs({
+  {pane_reply='Connected'}, {pane_reply='[]'}, {pane_reply='{}'},
+  {changed_panes=true}, {visibility_changes=true},
+  {activation_after_visibility=true}, {expire_visibility=true}, {nativeenvdrift=true}, {nativeenv_before_activation=true},
+}) do
+  local refused=scenario(config)
+  assert(refused.published, 'visibility refusal must retain completed activation')
+  assert(not vim.tbl_contains(refused.effects,'show') and not vim.tbl_contains(refused.effects,'hide'),
+    'uncertain visibility must not act: '..vim.inspect(config)..' '..vim.inspect(refused.effects))
+  assert(#refused.notifications==1, 'visibility refusal needs one visible result')
+  if config.pane_reply then assert(refused.pane_reads==1 and refused.visibility_reads==0, 'invalid first context must stop') end
+end
+local cold_refused=scenario({pane=false,nativeenv_before_activation=true})
+assert(not cold_refused.published and not vim.tbl_contains(cold_refused.effects,'open'), 'changed invoking context must refuse new pane birth')
+assert(#cold_refused.notifications==1)
 local r=scenario()
-assert(vim.deep_equal(r.effects,{'resolve','rpc','resolve','publish','visibility','hide'}),vim.inspect(r.effects))
+assert(r.pane_reads==2 and r.visibility_reads==2, 'healthy toggle needs matching context and visibility')
+for _,cmd in ipairs(r.calls) do
+  if vim.tbl_contains(cmd,'are-floating-panes-visible') or vim.tbl_contains(cmd,'show-floating-panes') then
+    assert(cmd[#cmd-1]=='--tab-id' and cmd[#cmd]=='4', 'visibility must address admitted tab')
+  end
+end
+assert(vim.deep_equal(r.effects,{'resolve','rpc','resolve','publish','visibility','visibility','hide'}),vim.inspect(r.effects))
 r=scenario({switched=true})
 assert(vim.deep_equal(r.effects,{'resolve','rpc','resolve','publish','show'}))
 r=scenario({visible=false})
@@ -158,5 +219,6 @@ for _, mode in ipairs({'foreign','legacy'}) do
   r=scenario({missing=true,advance=true,target=receipt,[mode]=true})
   assert(not r.published and r.resolves==1,'untrusted pane cannot supply selection: '..mode)
 end
+vim.env.ZELLIJ_PANE_ID = original_pane_id
 vim.fn.delete(root,'rf')
 print('restore client tests passed')

@@ -30,7 +30,7 @@ unexport $(SESSION_ENV)
 endif
 endif
 
-.PHONY: build install pair runtimebundle-generate runtimebundle-drift-check test-runtimebundle test-clean-bootstrap test test-race test-nvim-pidfile test-run-headless test-lua test-lifecycle-command test-queue test-bang-tag test-autopair test-draft-complete test-pair-doctor test-perf-key-conformance test-plan-superseded test-paint-gate-consumers test-cr test-statusline test-doctor test-perf-capture test-adapt-schema test-dev-rebuild test-pair-go-install-layout test-pair-embedded-runtime test-pair-restart-quit test-emitter-health test-session-watch test-changelog test-copy-on-select test-term-pane-shortcuts test-pair-title test-zellij-trace test-review
+.PHONY: build install pair runtimebundle-generate runtimebundle-drift-check test-runtimebundle test-clean-bootstrap test test-race test-nvim-pidfile test-run-headless test-lua test-lifecycle-command test-queue test-bang-tag test-autopair test-draft-complete test-pair-doctor test-perf-key-conformance test-plan-superseded test-paint-gate-consumers test-cr test-statusline test-doctor test-perf-capture test-adapt-schema test-dev-rebuild test-pair-go-install-layout test-pair-embedded-runtime test-pair-restart-quit test-pair-rename test-emitter-health test-session-watch test-changelog test-copy-on-select test-term-pane-shortcuts test-pair-title test-zellij-trace test-review
 
 # Cross-cutting Go-binary targets. Every Go binary lives under cmd/<name>/
 # and ships with the `pair-` prefix so it doesn't collide with anything
@@ -225,7 +225,7 @@ ifeq ($(PAIR_TEST_BINARY),)
 test:
 	bash tests/lib/with-pair-test-binary.sh $(MAKE) test
 else
-test: test-build-go-atomic test-supervision-labels test-host-preflight runtimebundle-generate test-retention test-nvim-pidfile test-run-headless test-lua test-lifecycle-command test-perf-capture test-queue test-submission-transaction test-bang-tag test-autopair test-draft-complete test-pair-doctor test-perf-key-conformance test-plan-superseded test-paint-gate-consumers test-cr test-statusline test-doctor test-adapt-schema test-dev-rebuild test-pair-go-install-layout test-pair-embedded-runtime test-pair-restart-quit test-emitter-health test-session-watch test-changelog test-copy-on-select test-term-pane-shortcuts test-pair-title test-zellij-trace test-review test-make-env
+test: test-build-go-atomic test-supervision-labels test-host-preflight runtimebundle-generate test-retention test-nvim-pidfile test-run-headless test-lua test-lifecycle-command test-perf-capture test-queue test-submission-transaction test-bang-tag test-autopair test-draft-complete test-pair-doctor test-perf-key-conformance test-plan-superseded test-paint-gate-consumers test-cr test-statusline test-doctor test-adapt-schema test-dev-rebuild test-pair-go-install-layout test-pair-embedded-runtime test-pair-restart-quit test-pair-rename test-emitter-health test-session-watch test-changelog test-copy-on-select test-term-pane-shortcuts test-pair-title test-zellij-trace test-review test-make-env
 	# pair#610: temporary 20m per-package budget; couchcore is ~580s idle.
 	# pair#611 profiles/splits/shards it before removing this allowance.
 	go test ./... -count=1 -timeout 20m
@@ -289,6 +289,7 @@ test-review: $(BIN_DIR)/pair
 	bash tests/review-reconcile-test.sh
 	bash tests/review-handoff-test.sh
 	bash tests/review-loop-test.sh
+	bash tests/review-applied-round-test.sh
 	bash tests/review-projection-test.sh
 	bash tests/review-poke-test.sh
 	bash tests/review-window-test.sh
@@ -303,6 +304,7 @@ test-review: $(BIN_DIR)/pair
 	python3 -B tests/review-resume-isolation-test.py
 	bash tests/review-definition-test.sh
 	bash tests/review-branch-restore-test.sh
+	python3 -B tests/review-branch-restore-diagnostics-test.py
 	python3 -B tests/review-observation-diagnostics-test.py
 	bash tests/review-observation-test.sh
 	python3 -B tests/review-fresh-restore-diagnostics-test.py
@@ -327,6 +329,12 @@ test-run-headless:
 # runs a Lua script in nvim's interpreter with the full vim.api available, so
 # pure logic AND buffer-manipulation can be asserted without a UI.
 test-lua:
+	nvim -l tests/zellij-observation_test.lua
+	nvim -l tests/review-restore-admission-test.lua
+	bash tests/nvim-route-poke-admission-test.sh
+	nvim -l nvim/dom_transport_test.lua
+	nvim -l nvim/dom_admission_test.lua
+	nvim -l nvim/dom_admission_cli_test.lua
 	nvim -l nvim/fs_watch_test.lua
 	nvim -l nvim/retention_test.lua
 	nvim -l nvim/confirm_quit_test.lua
@@ -348,6 +356,8 @@ test-lua:
 	nvim -l nvim/doctor_test.lua
 	nvim -l nvim/review/record_test.lua
 	nvim -l nvim/review/reconstruct_test.lua
+	nvim -l nvim/review/resolve_fixtures_test.lua
+	nvim -l nvim/review/round_watch_test.lua
 	nvim -l nvim/review/define_test.lua
 	nvim -l nvim/review/markers_test.lua
 	nvim -l nvim/review/comment_codec_test.lua
@@ -366,6 +376,7 @@ test-lua:
 	nvim -l nvim/review/reconcile_test.lua
 	nvim -l nvim/review/gate_test.lua
 	nvim -l nvim/review/restore_test.lua
+	nvim -l nvim/review/identity_test.lua
 	nvim -l nvim/review/restore_client_test.lua
 	nvim -l nvim/review/restore_controller_test.lua
 	nvim -l nvim/review/document_bytes_test.lua
@@ -577,3 +588,7 @@ test-agent-drive-live:
 .PHONY: test-build-go-atomic
 test-build-go-atomic:
 	python3 -B tests/build-go-atomic-test.py
+
+# Offline rename matrix uses the same private candidate as the full suite.
+test-pair-rename:
+	bash tests/pair-rename.sh

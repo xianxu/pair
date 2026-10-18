@@ -189,24 +189,38 @@ func dispatchHubOperation(h *hubRuntime, call couchcore.OperationCall, dispatch 
 	if !ok || op.Effect != couchcore.EffectProcess && call.Name != "move-slot" {
 		return dispatch(call)
 	}
-	h.effectOnce.Do(func() { h.effects = make(chan struct{}, 1) })
 	ctx := call.Context
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	select {
-	case h.effects <- struct{}{}:
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	}
-	defer func() { <-h.effects }()
-	if err := ctx.Err(); err != nil {
+	release, err := holdHubEffect(ctx, h)
+	if err != nil {
 		return nil, err
 	}
+	defer release()
 	payload, err := unwrapHubMutation(ctx, call.TypedPayload)
 	if err != nil {
 		return nil, err
 	}
 	call.TypedPayload = payload
 	return dispatch(call)
+}
+
+// holdHubEffect also fences bounded system-message admission against an
+// ownership move. It never holds the ownership snapshot mutex across IO.
+func holdHubEffect(ctx context.Context, h *hubRuntime) (func(), error) {
+	if h == nil {
+		return func() {}, ctx.Err()
+	}
+	h.effectOnce.Do(func() { h.effects = make(chan struct{}, 1) })
+	select {
+	case h.effects <- struct{}{}:
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+	if err := ctx.Err(); err != nil {
+		<-h.effects
+		return nil, err
+	}
+	return func() { <-h.effects }, nil
 }

@@ -121,7 +121,9 @@ func validateCell(cells []Cell, i int) error {
 	if c.Width < 0 || c.Width > 2 {
 		return fmt.Errorf("terminal: unsupported cell width at %d", i)
 	}
-	if c.Content != "" {
+	// A single printable ASCII byte is already one grapheme of width one.
+	// Keep content and link safety checks above this shortcut.
+	if c.Content != "" && !(len(c.Content) == 1 && c.Content[0] >= 0x20 && c.Content[0] <= 0x7e && c.Width == 1) {
 		cluster, width := ansi.FirstGraphemeCluster(c.Content, ansi.GraphemeWidth)
 		if len(cluster) != len(c.Content) || width != c.Width {
 			return fmt.Errorf("terminal: content does not fit cell %d", i)

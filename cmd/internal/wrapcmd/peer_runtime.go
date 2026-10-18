@@ -51,6 +51,10 @@ type peerRuntime struct {
 	server    *couchmessage.Server
 	workers   sync.WaitGroup
 	delivery  *peerDelivery
+	// binding and namespace address this wrapper's one-shot reports to the
+	// broker (pair#657: native exit).
+	binding   couchmessage.Binding
+	namespace string
 }
 
 func (r *peerRuntime) Close() {
@@ -129,6 +133,25 @@ func (d *peerDelivery) handleEndpoint(_ context.Context, raw []byte) ([]byte, er
 			r := d.receipt()
 			response.Receipt = &r
 		}
+	case "prepare-batch":
+		err = d.prepareBatch(*request.Message)
+		if err == nil {
+			receipt := d.receipt()
+			response.Receipt = &receipt
+		}
+	case "batch-status":
+		if receipt, ok, ready := d.batchStatus(request.ID); ok {
+			response.Receipt = &receipt
+			response.BatchReady = ready
+		} else {
+			err = couchmessage.ErrUnknownDelivery
+		}
+	case "commit-batch":
+		err = d.finalizeBatch(request.ID, request.Messages)
+		if err == nil {
+			receipt := d.receipt()
+			response.Receipt = &receipt
+		}
 	case "status":
 		if r, ok := d.retained(request.ID); ok {
 			response.Receipt = &r
@@ -198,7 +221,7 @@ func (p *proxy) startPeerRuntime(executable string) (*peerRuntime, error) {
 	}
 	lifetime, stop := context.WithCancel(context.Background())
 	d := newPeerDelivery(binding, time.Now)
-	r := &peerRuntime{cancel: stop, delivery: d}
+	r := &peerRuntime{cancel: stop, delivery: d, binding: binding, namespace: namespace}
 	server, err := couchmessage.StartServer(lifetime, socket, d.handleEndpoint)
 	if err != nil {
 		stop()
@@ -219,7 +242,7 @@ func (p *proxy) startPeerRuntime(executable string) (*peerRuntime, error) {
 	d.mu.Lock()
 	d.session = session
 	if p.pairLogPath != "" {
-		d.recordTurn = peerTurnRecorder(p.pairLogPath, os.Getenv, p.debug, &r.workers)
+		d.recordTurn, d.recordBatch = peerTurnRecorders(p.pairLogPath, os.Getenv, p.debug, &r.workers)
 	}
 	if p.terminal != nil {
 		d.settleProbe = p.settleState

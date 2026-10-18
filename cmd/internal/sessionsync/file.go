@@ -25,7 +25,7 @@ import (
 // flock file (serializing couch's own commands) are the agent's, and die
 // with the file.
 type Paths struct {
-	File, Lock, Shadow, State, Flock string
+	File, Lock, Shadow, State, Flock, Round string
 }
 
 func PathsOf(file string) Paths {
@@ -36,6 +36,7 @@ func PathsOf(file string) Paths {
 		Shadow: filepath.Join(dir, "."+base+".shadow"),
 		State:  filepath.Join(dir, "."+base+".sync"),
 		Flock:  filepath.Join(dir, "."+base+".flock"),
+		Round:  filepath.Join(dir, "."+base+".round"),
 	}
 }
 

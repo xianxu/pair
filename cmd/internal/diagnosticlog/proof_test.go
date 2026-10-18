@@ -11,6 +11,8 @@ import (
 	"strconv"
 	"testing"
 	"time"
+
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 func TestWriterProofRejectsLegacyAndUnknownHolders(t *testing.T) {
@@ -180,28 +182,45 @@ func TestCanceledProofDoesNotStartNextInspection(t *testing.T) {
 		t.Fatalf("cancellation deleted payload: %v", err)
 	}
 }
+
+// cuedInspectionDeadline expires only after the real command proves readiness.
+type cuedInspectionDeadline struct{ context.Context }
+
+func (c cuedInspectionDeadline) Err() error {
+	if c.Context.Err() != nil {
+		return context.DeadlineExceeded
+	}
+	return nil
+}
+
 func TestOSInspectionCommandHonorsMaintenanceDeadline(t *testing.T) {
 	for _, name := range []string{"lsof"} {
 		t.Run(name, func(t *testing.T) {
 			dir := t.TempDir()
 			path := filepath.Join(dir, "trace")
+			ready := filepath.Join(dir, "ready")
 			if err := os.WriteFile(path, nil, 0600); err != nil {
 				t.Fatal(err)
 			}
-			if err := os.WriteFile(filepath.Join(dir, name), []byte("#!/bin/sh\nexec /bin/sleep 10\n"), 0700); err != nil {
+			if err := os.WriteFile(filepath.Join(dir, name), []byte("#!/bin/sh\nprintf ready > \"$PAIR_TEST_INSPECTION_READY\"\nexec /bin/sleep 10\n"), 0700); err != nil {
 				t.Fatal(err)
 			}
 			t.Setenv("PATH", dir)
-			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
-			defer cancel()
-			start := time.Now()
-			var err error
-			_, err = (OSInspection{}).OpenFiles(ctx, path)
-			if !errors.Is(err, context.DeadlineExceeded) {
-				t.Fatalf("deadline error=%v", err)
-			}
-			if elapsed := time.Since(start); elapsed > 500*time.Millisecond {
-				t.Fatalf("inspection ignored worker deadline: %s", elapsed)
+			t.Setenv("PAIR_TEST_INSPECTION_READY", ready)
+			parent, expire := context.WithCancel(t.Context())
+			defer expire()
+			ctx := cuedInspectionDeadline{parent}
+			done := make(chan error, 1)
+			go func() { _, err := (OSInspection{}).OpenFiles(ctx, path); done <- err }()
+			testwait.Until(t, "inspection command readiness", func() bool { _, err := os.Stat(ready); return err == nil })
+			expire()
+			select {
+			case err := <-done:
+				if !errors.Is(err, context.DeadlineExceeded) {
+					t.Fatalf("deadline error=%v", err)
+				}
+			case <-testwait.After(t):
+				t.Fatal("inspection command did not finish after maintenance deadline")
 			}
 		})
 	}

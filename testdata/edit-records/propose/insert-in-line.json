@@ -1,0 +1,8 @@
+{
+ "name": "insert-in-line",
+ "base": "ab\n",
+ "after": "aXb\n",
+ "markers": "a🤖{X}b\n",
+ "accepted": "aXb\n",
+ "rejected": "ab\n"
+}

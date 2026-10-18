@@ -7,42 +7,63 @@ local M = {}
 local here = debug.getinfo(1, 'S').source:sub(2):match('(.*/)') or './'
 M.global_maps = dofile(here .. 'workbench_actions.lua')
 
-local function pane_id(pane)
-  local id = pane.id
-  if id == nil then id = pane.pane_id end
-  return id == nil and nil or tostring(id)
+local observation = dofile(here .. 'zellij_observation.lua')
+local trace = dofile(here .. 'zellij_trace.lua')
+local identity = dofile(here .. 'pane_identity.lua')
+
+local function report(message)
+  vim.schedule(function() vim.notify('pair shortcut: ' .. message, vim.log.levels.ERROR) end)
 end
 
-function M.find_draft_pane(root)
-  if type(root) ~= 'table' then return nil end
-  local command = root.terminal_command
-  if type(command) == 'string'
-      and command:find('nvim', 1, true)
-      and command:find('/nvim/init.lua', 1, true) then
-    return pane_id(root)
-  end
-  for _, child in pairs(root) do
-    if type(child) == 'table' then
-      local id = M.find_draft_pane(child)
-      if id then return id end
-    end
-  end
-  return nil
+local function operation_budget(parent)
+  return observation.capture_environment(vim.env)(observation.budget(parent))
 end
 
--- Hide the review overlay and return to the draft's positively identified pane.
-function M.return_to_draft()
-  local raw = vim.fn.system({ 'zellij', 'action', 'list-panes', '--json', '--command' })
-  local ok, panes = pcall(vim.json.decode, raw)
-  local id = ok and M.find_draft_pane(panes) or nil
-  if not id then
-    vim.notify('review: could not find the draft pane', vim.log.levels.ERROR)
-    return false
+local function confirmed_draft(b)
+  local source_id = vim.env.ZELLIJ_PANE_ID
+  return observation.confirm(b, function()
+    local result, reason = observation.query(b, 'workbench.route.list-panes',
+      {'zellij','action','list-panes','--json','--command','--state','--tab'}, trace.action)
+    if not result then return nil, reason end
+    if result.code ~= 0 then return nil, 'cannot inspect panes' end
+    return result.stdout
+  end, function(raw)
+    local rows, reason = observation.panes(raw, {Command=true,State=true,Tab=true})
+    if not rows then return nil, reason end
+    local target, source = identity.select_in_tab(rows, source_id, identity.is_draft)
+    if not target then return nil, source end
+    return {draft=identity.context(target),source=identity.context(source)}
+  end)
+end
+
+local function mutate(b, label, argv)
+  local called, result, reason = pcall(observation.effect, b, function() return trace.action(label, argv) end)
+  if not called then return nil, tostring(result) end
+  if not result then return nil, reason end
+  if result.code ~= 0 then return nil, 'native action failed' end
+  return true
+end
+
+-- An internal admitted draft from review restoration shares that operation's
+-- token and skips another observation pair. Ordinary callers confirm once.
+function M.return_to_draft(parent_budget, admitted_draft)
+  if admitted_draft and not parent_budget then report('admitted draft has no operation budget'); return false end
+  local b = admitted_draft and parent_budget or operation_budget(parent_budget)
+  if not b then report('admitted draft has no operation budget'); return false end
+  local draft = admitted_draft
+  if not draft then
+    local facts, reason = confirmed_draft(b)
+    if not facts then report(reason); return false end
+    draft = facts.draft
   end
-  vim.fn.system({ 'zellij', 'action', 'hide-floating-panes' })
-  if vim.v.shell_error ~= 0 then return false end
-  vim.fn.system({ 'zellij', 'action', 'focus-pane-id', id })
-  return vim.v.shell_error == 0
+  for _, argv in ipairs({
+    {'zellij','action','hide-floating-panes','--tab-id',tostring(draft.tab_id)},
+    {'zellij','action','focus-pane-id',tostring(draft.id)},
+  }) do
+    local ok, reason = mutate(b, 'workbench.return', argv)
+    if not ok then report(reason); return false end
+  end
+  return true
 end
 
 -- Viewer annotations emit on VimLeavePre; return afterwards so draft focus
@@ -95,40 +116,21 @@ local function cached_draft_pane()
   end)
 end
 
-local function report(message)
-  vim.schedule(function()
-    vim.notify('pair shortcut: ' .. message, vim.log.levels.ERROR)
-  end)
-end
-
-local function send_to_draft(id, fn, focus)
+local function send_to_draft(b, id, fn, focus)
   for _, command in ipairs(M.draft_commands(id, fn, focus)) do
-    vim.fn.system(command)
-    if vim.v.shell_error ~= 0 then
-      report('failed to route ' .. fn)
-      return false
-    end
+    local ok, reason = mutate(b, 'workbench.route.input', command)
+    if not ok then report(reason .. ': failed to route ' .. fn); return false end
   end
   return true
 end
 
-function M.route(fn, focus)
+function M.route(fn, focus, parent_budget)
+  local b = operation_budget(parent_budget)
   local id = cached_draft_pane()
-  if id then return send_to_draft(id, fn, focus) end
-  local raw = vim.fn.system({
-    'zellij', 'action', 'list-panes', '--json', '--command', '--state',
-  })
-  if vim.v.shell_error ~= 0 then
-    report('cannot inspect panes')
-    return false
-  end
-  local ok, panes = pcall(vim.json.decode, raw)
-  id = ok and M.find_draft_pane(panes) or nil
-  if not id then
-    report('draft pane not found')
-    return false
-  end
-  return send_to_draft(id, fn, focus)
+  if id then return send_to_draft(b, id, fn, focus) end
+  local facts, reason = confirmed_draft(b)
+  if not facts then report(reason); return false end
+  return send_to_draft(b, facts.draft.id, fn, focus)
 end
 
 function M.install_global_maps(is_draft)

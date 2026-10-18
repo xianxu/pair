@@ -4,6 +4,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+export PAIR_TEST_ZELLIJ_REPLIES="$ROOT/tests/lib/zellij_fixture_replies.py"
 . "$ROOT/tests/lib/run-headless.sh"
 tmp="$(mktemp -d "${TMPDIR:-/tmp}/pair-nvim-route.XXXXXX")"
 trap 'rm -rf "$tmp"' EXIT
@@ -14,9 +15,8 @@ export PAIR_TEST_REAL_BIN="$ROOT/bin/pair"
 cat > "$tmp/bin/zellij" <<EOF
 #!/bin/sh
 printf '%s\n' "\$*" >> "$tmp/all-actions"
-if [ "\$*" = "action list-panes --json --command --state" ]; then
-  printf '%s\n' '[{"id":9,"title":"terminal","terminal_command":"pair term"},{"id":42,"title":"draft","terminal_command":"nvim -u $ROOT/nvim/init.lua /tmp/draft.md"}]'
-  exit 0
+if [ "\$1" = action ] && [ "\$2" = list-panes ]; then
+  exec python3 "\$PAIR_TEST_ZELLIJ_REPLIES" --case workbench-route.panes
 fi
 if [ "\${FAIL_VIEW:-}" = "1" ] && [ "\$1" = "run" ]; then
   printf 'view launch failed\n'

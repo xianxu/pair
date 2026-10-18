@@ -5,12 +5,9 @@
 // spawn/exec, or fs sits behind the Runtime seam (runtime.go) so the three
 // orchestrations are unit-testable with a fake.
 //
-// The three helpers stay a chain: copy-on-select mirrors the selection to the
-// OS clipboard, and (unless the selection was made in the nvim draft pane)
-// flashes the source pane and hands off to clipboard-to-pane, which stages the
-// text and triggers nvim's PairPasteQuote. The hand-off keeps exec'ing the
-// bin/*.sh names so the by-path stubs in tests/copy-on-select-test.sh still
-// drive the real chain.
+// The fast copy hook mirrors the OS selection and detaches one orchestrator.
+// That orchestrator confirms source and destination before flashing or pasting;
+// standalone paste and flash commands reuse the same admission/effect helpers.
 package clipcmd
 
 import (

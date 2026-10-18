@@ -134,7 +134,7 @@ func TestResourcesHostedFreshThroughCLI(t *testing.T) {
 	cached := couchcore.ResourceView{SampledAt: time.Unix(100, 0)}
 	sampler.cached.Store(&cached)
 	service.resources.Store(sampler)
-	dir, err := os.MkdirTemp("/tmp", "r622-")
+	dir, err := os.MkdirTemp("", "r622-")
 	if err != nil {
 		t.Fatal(err)
 	}

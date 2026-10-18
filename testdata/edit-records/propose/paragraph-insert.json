@@ -1,0 +1,8 @@
+{
+ "name": "paragraph-insert",
+ "base": "a\nb\n",
+ "after": "a\n\nnew para\nb\n",
+ "markers": "a\n\n🤖{new para}\nb\n",
+ "accepted": "a\n\nnew para\nb\n",
+ "rejected": "a\n\n\nb\n"
+}

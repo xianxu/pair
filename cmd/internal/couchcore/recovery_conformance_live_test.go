@@ -34,8 +34,7 @@ func TestRecoveryRealHelperAndSessionConformanceLive(t *testing.T) {
 	// Darwin's default TMPDIR can exhaust Unix socket path capacity before
 	// Zellij appends the session name. Keep its socket root short and isolate
 	// configuration/data so the operator's shell and plugins do not run here.
-	testpair.ApplyEnvironment(t, t.TempDir(), "TMPDIR=/tmp", "SHELL=/bin/sh",
-		"XDG_CONFIG_HOME="+t.TempDir(), "XDG_DATA_HOME="+t.TempDir())
+	setupRecoveryLiveEnvironment(t)
 	for _, warm := range []bool{true, false} {
 		name := "checkpoint"
 		if warm {
@@ -67,16 +66,25 @@ func runRecoveryLiveFixture(t *testing.T, warm bool) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(t.Context(), 35*time.Second)
 	defer cancel()
+	capture := newRecoveryQueryCapture(t)
+	ctx = capture.Context(ctx)
+	capture.Mark(recoveryLiveEnvironmentMark())
 	var entropy [10]byte
 	if _, err := rand.Read(entropy[:]); err != nil {
 		t.Fatal(err)
 	}
 	session := "pair-recovery-" + hex.EncodeToString(entropy[:])
+	capture.Mark("source-session-start-enter")
 	fixture, err := pairlifecycletest.StartControlledZellij(ctx, session)
+	capture.Mark(fmt.Sprintf("source-session-start-return err=%v", err))
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = fixture.Close() })
+	t.Cleanup(func() {
+		capture.Mark("controlled-session-cleanup-enter")
+		err := fixture.Close()
+		capture.Mark(fmt.Sprintf("controlled-session-cleanup-return err=%v", err))
+	})
 	base := t.TempDir()
 	repo := filepath.Join(base, "repo")
 	sibling := filepath.Join(base, "other-worktree")
@@ -193,13 +201,19 @@ while IFS= read -r line; do printf '%s\n' "$line" >> "$2"; printf 'AGENT:%s\n' "
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := fixture.KillClient(); err != nil {
-		t.Fatal(err)
+	capture.Mark(fmt.Sprintf("source-agent pid=%d identity=%q", agentPID, agentIdentity))
+	capture.Mark("local-client-stop-enter")
+	stopErr := fixture.KillClient()
+	capture.Mark(fmt.Sprintf("local-client-stop-return err=%v; server detach unconfirmed", stopErr))
+	if stopErr != nil {
+		t.Fatal(stopErr)
 	}
+	capture.Mark("source-helper-kill-enter")
 	if err := helper.Process.Kill(); err != nil {
 		t.Fatal(err)
 	}
 	_ = helper.Wait()
+	capture.Mark("source-helper-wait-return")
 	if c.Proc.Exists(helper.Process.Pid) != Dead {
 		t.Fatal("actual source helper not dead")
 	}
@@ -226,7 +240,9 @@ while IFS= read -r line; do printf '%s\n' "$line" >> "$2"; printf 'AGENT:%s\n' "
 		if warm {
 			return nil
 		}
+		capture.Mark("checkpoint-session-start-enter")
 		fixture, err = pairlifecycletest.StartControlledZellij(ctx, session)
+		capture.Mark(fmt.Sprintf("checkpoint-session-start-return err=%v", err))
 		if err != nil {
 			return err
 		}
@@ -266,15 +282,13 @@ while IFS= read -r line; do printf '%s\n' "$line" >> "$2"; printf 'AGENT:%s\n' "
 		}
 		return nil
 	}
+	capture.Mark("recover-thread-enter")
 	result, err := c.RecoverThread(ctx, source.Address, checkpointPath)
+	capture.Mark(fmt.Sprintf("recover-thread-return err=%v", err))
 	if err != nil {
-		// Preserve the fail-closed result and expose the fixture's own query
-		// bytes on CI; an exit-zero non-JSON response otherwise hides its cause.
-		diagnostic, queryErr := exec.CommandContext(ctx, "zellij", "--session", session, "action", "list-panes", "--json", "--command").CombinedOutput()
-		if len(diagnostic) > 8192 {
-			diagnostic = diagnostic[:8192]
-		}
-		t.Fatalf("%v; fixture pane query: %v output=%q", err, queryErr, diagnostic)
+		// The deferred recorder retains the failed request itself; another native
+		// query would observe a later state and cannot explain its missing reply.
+		t.Fatal(err)
 	}
 	if result.Handle == nil || result.Record.Thread != source.Address || starts != 1 {
 		t.Fatalf("recovery result=%+v starts=%d", result, starts)

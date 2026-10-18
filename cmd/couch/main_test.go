@@ -19,12 +19,7 @@ import (
 func TestBareCouchInstalledCommand(t *testing.T) {
 	root := repoRoot(t)
 	binDir := t.TempDir()
-	couchBin := filepath.Join(binDir, "couch")
-	build := exec.Command("go", "build", "-o", couchBin, "./cmd/couch")
-	build.Dir = root
-	if out, err := build.CombinedOutput(); err != nil {
-		t.Fatalf("build couch: %v\n%s", err, out)
-	}
+	couchBin, fixtureBin := installedExecutables(t)
 
 	// Bare Couch launches its selected hub in an isolated repository.
 	fleet, err := filepath.EvalSymlinks(t.TempDir())
@@ -57,17 +52,8 @@ fi
 	// a server socket, live wrapper/agent processes and a readiness publication.
 	// This exercises the public registration handshake before Couch attaches.
 	pairBin := filepath.Join(binDir, "pair-go")
-	fixtureBin := filepath.Join(binDir, "terminal-fixture")
 	testpair.At(t, pairBin)
-	for _, command := range [][]string{
-		{"test", "-c", "-o", fixtureBin, "./cmd/internal/couchcore"},
-	} {
-		build := exec.Command("go", command...)
-		build.Dir = root
-		if out, err := build.CombinedOutput(); err != nil {
-			t.Fatalf("build registration fixture: %v\n%s", err, out)
-		}
-	}
+
 	for _, name := range []string{"zellij", "pair-wrap", "claude"} {
 		if err := os.Symlink(fixtureBin, filepath.Join(binDir, name)); err != nil {
 			t.Fatal(err)
@@ -81,6 +67,7 @@ exec %q launch "$@"
 	fixtureFiles := t.TempDir()
 	release := filepath.Join(fixtureFiles, "release")
 	// Darwin Unix sockets must fit their pathname limit.
+	//lint:allow tmp-literal — the terminal fixture binds contract_version_1 plus its session name below this root; macOS TMPDIR can exceed AF_UNIX limits
 	sockets, err := os.MkdirTemp("/tmp", "couch-installed-")
 	if err != nil {
 		t.Fatal(err)

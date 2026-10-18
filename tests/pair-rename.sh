@@ -15,8 +15,11 @@
 set -euo pipefail
 
 SELF_DIR="$(cd -P "$(dirname "$0")" && pwd)"
-PAIR_BIN="$SELF_DIR/../bin/pair"
-[ -x "$PAIR_BIN" ] || { echo "FAIL: $PAIR_BIN not executable" >&2; exit 1; }
+export PAIR_TEST_ZELLIJ_REPLIES="$SELF_DIR/lib/zellij_fixture_replies.py"
+fixture_root="$(mktemp -d "${TMPDIR:-/tmp}/pair-rename.XXXXXX")" || exit 1
+trap 'rm -rf "${fixture_root:?}"' EXIT
+PAIR_BIN="$fixture_root/pair"
+bash "$SELF_DIR/lib/pair-test-binary.sh" "$PAIR_BIN"
 
 pass=0
 fail=0
@@ -31,7 +34,7 @@ bad()  { printf '  %s %s\n' "$(red FAIL)" "$1"; fail=$((fail + 1)); }
 case_begin() { case_name="$1"; printf '%s %s\n' "$(yellow ::)" "$case_name"; }
 
 # Drop a representative file set for (tag, agent) into $1. Files mirror
-# the families enumerated in bin/pair's `rename_paths_for` helper.
+# the families enumerated by launcher.renamePathsFor.
 seed_tag() {
     local dd="$1" tag="$2" agent="${3:-claude}"
     : > "$dd/agent-$tag"; echo "$agent" > "$dd/agent-$tag"
@@ -62,7 +65,7 @@ shim_zellij() {
     local shim_dir="$1"
     cat > "$shim_dir/zellij" <<'STUB'
 #!/usr/bin/env bash
-exit 0
+exec python3 "$PAIR_TEST_ZELLIJ_REPLIES" --case rename.no-sessions
 STUB
     chmod +x "$shim_dir/zellij"
 }
@@ -72,7 +75,7 @@ STUB
 run_rename() {
     local dd="$1"; shift
     local shim
-    shim="$(mktemp -d "${TMPDIR:-/tmp}/pair-rename-shim.XXXXXX")"
+    shim="$(mktemp -d "${fixture_root:?}/shim.XXXXXX")" || exit 1
     shim_zellij "$shim"
     PAIR_DATA_DIR="$dd" PATH="$shim:$PATH" "$PAIR_BIN" rename "$@"
     local rc=$?
@@ -93,7 +96,7 @@ assert_exits_nonzero() {
 
 # ── T1: clean rename ─────────────────────────────────────────────────────────
 case_begin "T1 clean rename"
-DD="$(mktemp -d "${TMPDIR:-/tmp}/pair-rename-t1.XXXXXX")"
+DD="$(mktemp -d "${fixture_root:?}/t1.XXXXXX")" || exit 1
 seed_tag "$DD" t1 claude
 run_rename "$DD" t1 t2 >/dev/null
 for f in agent-t1 agent-pid-t1 outer-tty-t1 draft-t1.md log-t1.md \
@@ -116,7 +119,7 @@ rm -rf "$DD"
 
 # ── T2: substring safety (brain vs brain-2) — the marquee correctness case ──
 case_begin "T2 substring safety (brain vs brain-2)"
-DD="$(mktemp -d "${TMPDIR:-/tmp}/pair-rename-t2.XXXXXX")"
+DD="$(mktemp -d "${fixture_root:?}/t2.XXXXXX")" || exit 1
 seed_tag "$DD" brain claude
 seed_tag "$DD" brain-2 claude
 # Rename only `brain`. `brain-2`'s files must be untouched.
@@ -139,7 +142,7 @@ rm -rf "$DD"
 
 # ── T3: NEW tag occupied → refuse ────────────────────────────────────────────
 case_begin "T3 refuse when new tag is occupied"
-DD="$(mktemp -d "${TMPDIR:-/tmp}/pair-rename-t3.XXXXXX")"
+DD="$(mktemp -d "${fixture_root:?}/t3.XXXXXX")" || exit 1
 seed_tag "$DD" src claude
 seed_tag "$DD" dst claude
 assert_exits_nonzero run_rename "$DD" src dst
@@ -150,20 +153,20 @@ rm -rf "$DD"
 
 # ── T4: OLD tag empty → refuse ───────────────────────────────────────────────
 case_begin "T4 refuse when old tag has no files"
-DD="$(mktemp -d "${TMPDIR:-/tmp}/pair-rename-t4.XXXXXX")"
+DD="$(mktemp -d "${fixture_root:?}/t4.XXXXXX")" || exit 1
 assert_exits_nonzero run_rename "$DD" ghost newname
 rm -rf "$DD"
 
 # ── T5: same tag → refuse ────────────────────────────────────────────────────
 case_begin "T5 refuse when old == new"
-DD="$(mktemp -d "${TMPDIR:-/tmp}/pair-rename-t5.XXXXXX")"
+DD="$(mktemp -d "${fixture_root:?}/t5.XXXXXX")" || exit 1
 seed_tag "$DD" t1 claude
 assert_exits_nonzero run_rename "$DD" t1 t1
 rm -rf "$DD"
 
 # ── T6: invalid charset → refuse ─────────────────────────────────────────────
 case_begin "T6 refuse invalid tag charset"
-DD="$(mktemp -d "${TMPDIR:-/tmp}/pair-rename-t6.XXXXXX")"
+DD="$(mktemp -d "${fixture_root:?}/t6.XXXXXX")" || exit 1
 seed_tag "$DD" t1 claude
 assert_exits_nonzero run_rename "$DD" t1 'bad name'
 assert_exits_nonzero run_rename "$DD" t1 'bad/slash'
@@ -172,18 +175,35 @@ assert_exits_nonzero run_rename "$DD" '' newname
 assert_exists "$DD/agent-t1"
 rm -rf "$DD"
 
-# ── T7: `pair-` prefix is stripped ───────────────────────────────────────────
-case_begin "T7 accepts pair-<tag> form"
-DD="$(mktemp -d "${TMPDIR:-/tmp}/pair-rename-t7.XXXXXX")"
+# ── T7: pair- is literal tag content, not a removable prefix ────────────────
+case_begin "T7 preserves exact pair-prefixed identities"
+DD="$(mktemp -d "${fixture_root:?}/t7.XXXXXX")" || exit 1
 seed_tag "$DD" t1 claude
+seed_tag "$DD" t2 claude
+seed_tag "$DD" pair-t1 claude
+printf 'bare source\n' > "$DD/draft-t1.md"
+printf 'bare destination\n' > "$DD/draft-t2.md"
+printf 'exact source\n' > "$DD/draft-pair-t1.md"
 run_rename "$DD" pair-t1 pair-t2 >/dev/null
-assert_gone   "$DD/agent-t1"
+assert_gone "$DD/agent-pair-t1"
+assert_exists "$DD/agent-pair-t2"
+assert_exists "$DD/agent-t1"
 assert_exists "$DD/agent-t2"
+for entry in 't1:bare source' 't2:bare destination' 'pair-t2:exact source'; do
+    tag="${entry%%:*}"; expected="${entry#*:}"
+    actual="$(cat "$DD/draft-$tag.md")"
+    [ "$actual" = "$expected" ] && ok "exact content: $tag" \
+        || bad "wrong content for $tag: $actual"
+done
+# Once the exact source is gone, a bare lookalike must not become a fallback.
+assert_exits_nonzero run_rename "$DD" pair-t1 another
+assert_exists "$DD/draft-t1.md"
+assert_gone "$DD/draft-another.md"
 rm -rf "$DD"
 
 # ── T8: multiple agents under one tag ────────────────────────────────────────
 case_begin "T8 renames all agents under one tag"
-DD="$(mktemp -d "${TMPDIR:-/tmp}/pair-rename-t8.XXXXXX")"
+DD="$(mktemp -d "${fixture_root:?}/t8.XXXXXX")" || exit 1
 seed_tag "$DD" multi claude
 # Add codex + agy on top (overwriting the agent-multi file is fine).
 printf '{"agent":"codex","args":[],"session_id":"x"}\n' \
@@ -203,7 +223,7 @@ rm -rf "$DD"
 
 # ── T9: --restart-check validates but doesn't move ──────────────────────────
 case_begin "T9 --restart-check is a dry-run validate"
-DD="$(mktemp -d "${TMPDIR:-/tmp}/pair-rename-t9.XXXXXX")"
+DD="$(mktemp -d "${fixture_root:?}/t9.XXXXXX")" || exit 1
 seed_tag "$DD" src claude
 run_rename "$DD" --restart-check src dst >/dev/null
 # Files untouched.

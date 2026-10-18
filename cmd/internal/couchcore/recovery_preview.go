@@ -55,6 +55,8 @@ type RecoveryObservation struct {
 type RecoveryEvidenceReader func(context.Context, ThreadRecord) (RecoveryObservation, error)
 
 type RecoveryResumeResult struct {
+	// Mode records the completed operation, independently of the requested evidence kind.
+	Mode   ContinuityAction
 	Start  StartResult
 	Notice string
 }

@@ -1,0 +1,202 @@
+[
+  {
+    "name": "shared.panes.0",
+    "source": "tests/lib/fake-zellij.py",
+    "kind": "panes",
+    "payload": [
+      {
+        "id": 0,
+        "terminal_command": "pair wrap codex"
+      },
+      {
+        "id": 3,
+        "terminal_command": "nvim -u /pair/nvim/init.lua",
+        "is_focused": true
+      },
+      {
+        "id": 4,
+        "terminal_command": "pair term",
+        "is_floating": true
+      }
+    ],
+    "expect": "accept"
+  },
+  {
+    "name": "shared.panes.1",
+    "source": "tests/lib/fake-zellij.py",
+    "kind": "panes",
+    "payload": [],
+    "expect": "accept"
+  },
+  {
+    "name": "shared.clients.2",
+    "source": "tests/lib/fake-zellij.py",
+    "kind": "clients",
+    "payload": [
+      {
+        "id": 1,
+        "pane_id": "terminal_3",
+        "running_command": "nvim draft.md"
+      }
+    ],
+    "expect": "accept"
+  },
+  {
+    "name": "shared.clients.3",
+    "source": "tests/lib/fake-zellij.py",
+    "kind": "clients",
+    "payload": [],
+    "expect": "accept"
+  },
+  {
+    "name": "shared.tab.4",
+    "source": "tests/lib/fake-zellij.py",
+    "kind": "tab",
+    "payload": {
+      "tab_id": 2,
+      "position": 1,
+      "active_swap_layout_name": null
+    },
+    "expect": "accept"
+  },
+  {
+    "name": "shared.sessions-short.5",
+    "source": "tests/lib/fake-zellij.py",
+    "kind": "sessions-short",
+    "payload": [
+      "pair-test"
+    ],
+    "expect": "accept"
+  },
+  {
+    "name": "shared.sessions-full.6",
+    "source": "tests/lib/fake-zellij.py",
+    "kind": "sessions-full",
+    "payload": [
+      "pair-test"
+    ],
+    "expect": "accept"
+  },
+  {
+    "name": "shared.no-sessions.7",
+    "source": "tests/lib/fake-zellij.py",
+    "kind": "no-sessions",
+    "payload": null,
+    "expect": "accept"
+  },
+  {
+    "name": "shared.no-session.8",
+    "source": "tests/lib/fake-zellij.py",
+    "kind": "no-session",
+    "payload": null,
+    "expect": "accept"
+  },
+  {
+    "name": "shared.not-found.9",
+    "source": "tests/lib/fake-zellij.py",
+    "kind": "not-found",
+    "payload": {
+      "name": "pair-missing",
+      "active": [
+        "pair-test"
+      ]
+    },
+    "expect": "accept"
+  },
+  {
+    "name": "shared.visibility.10",
+    "source": "tests/lib/fake-zellij.py",
+    "kind": "visibility",
+    "payload": true,
+    "expect": "accept"
+  },
+  {
+    "name": "shared.visibility.11",
+    "source": "tests/lib/fake-zellij.py",
+    "kind": "visibility",
+    "payload": false,
+    "expect": "accept"
+  },
+  {
+    "name": "shared.explicit-wrong-kind",
+    "source": "tests/lib/fake-zellij.py",
+    "kind": "fault",
+    "payload": {
+      "stdout": "{}",
+      "stderr": "",
+      "code": 0
+    },
+    "expect": "reject",
+    "decoder": "panes"
+  },
+  {
+    "name": "shared.consumer.route",
+    "source": "nvim/route_poke_admission_test.lua",
+    "kind": "panes",
+    "payload": [
+      {
+        "id": 3,
+        "terminal_command": "nvim -u /pair/nvim/init.lua",
+        "tab_id": 2
+      },
+      {
+        "id": 7,
+        "terminal_command": "pair wrap codex",
+        "tab_id": 2
+      }
+    ],
+    "expect": "accept"
+  },
+  {
+    "name": "shared.consumer.dom",
+    "source": "nvim/dom_admission_cli_test.lua",
+    "kind": "panes",
+    "payload": [
+      {
+        "id": 1,
+        "terminal_command": "nvim -u /pair/nvim/init.lua"
+      },
+      {
+        "id": 7,
+        "terminal_command": "pair wrap codex"
+      },
+      {
+        "id": 9,
+        "terminal_command": "pair wrap claude",
+        "tab_id": 3
+      }
+    ],
+    "expect": "accept"
+  },
+  {
+    "name": "shared.consumer.restore",
+    "source": "tests/review-restore-admission-test.lua",
+    "kind": "panes",
+    "payload": [
+      {
+        "id": 3,
+        "terminal_command": "nvim -u /pair/nvim/init.lua",
+        "tab_id": 4
+      },
+      {
+        "id": 42,
+        "terminal_command": "nvim -u /pair/nvim/review.lua",
+        "tab_id": 4,
+        "is_floating": true
+      }
+    ],
+    "expect": "accept"
+  },
+  {
+    "name": "layout.raw-query-capture",
+    "source": "cmd/internal/layoutcmd/live_query_capture_test.go",
+    "kind": "fault",
+    "decoder": "panes",
+    "expect": "reject",
+    "payload": {
+      "stdout": "[{\"id\":3",
+      "stderr": "fixture warning",
+      "code": 0
+    }
+  }
+]

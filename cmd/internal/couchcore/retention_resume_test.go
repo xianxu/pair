@@ -14,8 +14,8 @@ func retentionResumeThread(t *testing.T) (*testEnv, ThreadAddress) {
 	t.Helper()
 	env, address := warmDetachedThread(t)
 	// Retention semantics do not depend on startup latency. The caller's test
-	// budget and cancellation still bound the wait; failure fixtures retain
-	// warmDetachedThread's independent 200ms registration deadline.
+	// budget and cancellation still bound the wait; failure controls spend
+	// warmDetachedThread's 200ms sentinel through registrationDeadline.
 	env.Couch.registrationDeadline = func(parent context.Context, _ time.Duration) (context.Context, context.CancelFunc) {
 		return context.WithCancel(parent)
 	}
@@ -48,8 +48,8 @@ func TestRetentionResumeBudgetCanExpireBeforeAttachment(t *testing.T) {
 	if !errors.Is(err, context.DeadlineExceeded) || !strings.Contains(err.Error(), "await Pair attachment") {
 		t.Fatalf("resume = %v, want an attachment deadline failure", err)
 	}
-	if armed != 2 {
-		t.Fatalf("attachment attempts = %d, want both attempts to encounter the spent budget", armed)
+	if armed != 1 {
+		t.Fatalf("attachment attempts = %d, want an unanswered observation to end admission", armed)
 	}
 }
 

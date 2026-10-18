@@ -262,6 +262,9 @@ type proxy struct {
 	setPTYWinsize        func(*os.File, *pty.Winsize) error
 
 	restartFresh atomic.Bool
+	// stoppedByWrapper is set when the wrapper itself stops the native child
+	// (a signal), so its exit is not reported as the agent leaving (pair#657).
+	stoppedByWrapper atomic.Bool
 
 	// Notify
 	notifyModeActive string
@@ -1894,6 +1897,9 @@ func (p *proxy) executeWorkbenchDecision(decision workbenchshortcut.ShortcutDeci
 					stderr = os.Stderr
 				}
 				fmt.Fprintf(stderr, "pair-wrap: global shortcut: %v\n", err)
+				if noticeErr := (layoutcmd.OSRuntime{}).NotifyRefusal("Pair action refused: draft context could not be confirmed."); noticeErr != nil {
+					fmt.Fprintf(stderr, "pair-wrap: refusal notification failed: %v\n", noticeErr)
+				}
 			}
 		}
 		return true
@@ -1960,8 +1966,13 @@ func (osDraftRouteRuntime) CachedDraftPaneID() (string, bool) {
 }
 
 func (osDraftRouteRuntime) ListPanesJSON() ([]byte, error) {
-	return exec.Command("zellij", "action", "list-panes", "--json", "--command", "--state").Output()
+	return osDraftRouteRuntime{}.ListPanesJSONContext(context.Background())
 }
+
+func (osDraftRouteRuntime) ListPanesJSONContext(ctx context.Context) ([]byte, error) {
+	return layoutcmd.OSRuntime{}.ListPanesJSONContext(ctx)
+}
+func (osDraftRouteRuntime) CurrentPaneID() string { return os.Getenv("ZELLIJ_PANE_ID") }
 
 func (osDraftRouteRuntime) RunZellijAction(args ...string) error {
 	return runZellijAction(args...)
@@ -3097,6 +3108,9 @@ argsDone:
 	if p.stdoutPump != nil && p.stdoutPump.failure != nil {
 		return 0, fmt.Errorf("pane output: %w", p.stdoutPump.failure)
 	}
+	// The child is reaped and the registry session is still open (peerRun
+	// closes in the deferred cleanup): report a self exit now (pair#657).
+	p.afterChildReaped(peerRun, werr)
 	if p.restartFresh.Load() {
 		executable, err := os.Executable()
 		if err != nil {

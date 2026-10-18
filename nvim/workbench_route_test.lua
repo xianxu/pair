@@ -2,21 +2,23 @@ local here = debug.getinfo(1, 'S').source:sub(2):match('(.*/)') or './'
 local route = dofile(here .. 'workbench_route.lua')
 
 local panes = {
-  { id = 7, title = 'codex', terminal_command = 'pair wrap codex' },
+  { id = 7, is_plugin = false, is_floating = false, title = 'codex', terminal_command = 'pair wrap codex' },
   {
-    id = 42,
+    id = 42, is_plugin = false, is_floating = false,
     title = 'draft',
     terminal_command = 'nvim -u /opt/pair/nvim/init.lua /tmp/draft.md',
   },
   {
-    id = 81,
+    id = 81, is_plugin = false, is_floating = true,
     title = 'review',
     terminal_command = 'nvim -u /opt/pair/nvim/review.lua /tmp/review.md',
   },
 }
 
-assert(route.find_draft_pane(panes) == '42')
-assert(route.find_draft_pane({ panes[1], panes[3] }) == nil)
+local identity = dofile(here .. 'pane_identity.lua')
+for _, p in ipairs(panes) do p.tab_id, p.tab_position = 2, 1 end
+assert(identity.select_in_tab(panes, '81', identity.is_draft).id == 42)
+assert(identity.select_in_tab({ panes[1], panes[3] }, '81', identity.is_draft) == nil)
 
 local expected = {
   ['<M-h>'] = { fn = 'PairOpenHelp', focus = false },

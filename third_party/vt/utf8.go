@@ -15,6 +15,15 @@ func (e *Emulator) handlePrint(r rune) {
 		e.flushGrapheme()
 		return
 	}
+	// Two printable ASCII characters always have a grapheme boundary and
+	// width one. Keep the new cluster provisional: a later Unicode selector,
+	// combining mark or keycap must still amend it through the general path.
+	if r >= 0x20 && r <= 0x7e && len(e.cluster) == 1 && e.cluster[0] >= 0x20 && e.cluster[0] <= 0x7e {
+		e.clusterDropping = false
+		e.cluster = next
+		e.handleGrapheme(next, 1)
+		return
+	}
 	if e.cluster != "" {
 		joined := e.cluster + next
 		first, width := ansi.FirstGraphemeCluster(joined, ansi.GraphemeWidth)

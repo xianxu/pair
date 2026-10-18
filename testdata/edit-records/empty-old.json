@@ -1,0 +1,24 @@
+{
+ "name": "empty-old",
+ "base": "hello\n",
+ "records": [
+  {
+   "old": "",
+   "new": "x"
+  },
+  {
+   "old": "zzz",
+   "new": "y"
+  }
+ ],
+ "invalid": [
+  {
+   "index": 1,
+   "reason": "empty old"
+  },
+  {
+   "index": 2,
+   "reason": "not found"
+  }
+ ]
+}

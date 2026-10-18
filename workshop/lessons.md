@@ -7,6 +7,25 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- When migrating a temporary root, inspect every helper consumer, including ones that reuse its directory with a longer generated basename. Budget the complete native socket address and qualify the entire affected package under the OS's normal TMPDIR; a focused helper-name regex can omit the consumers that break. (#665 R8)
+- An ordering fixture must not require every real subprocess to beat a product
+  deadline. Use a stateful double for identity/byte changes and controlled
+  completion order; keep native timeout and real backend conformance separate.
+  Count synchronous waits for UI blocking assertions rather than measuring
+  host speed. Lua empty strings are truthy: a failed process needs a nonempty
+  diagnostic fallback even when stderr exists. (#662)
+
+- A subprocess double models kill and owner teardown separately: native kill
+  still delivers completion, while fixture teardown may suppress late delivery.
+  Verify that distinction against the installed runtime so cancellation cannot
+  strand a callback gate in its started state. (#662)
+
+- Before adding text validation to a fixture double, check the existing pure
+  document decoder. Reuse its UTF-8/NUL contract rather than copying the
+  algorithm into a second implementation. (#662 close advisory)
+
+- Ordinary Go files in test-helper packages still belong to the exhaustive production-source inventory. Classify every new file, including build-tag variants, and keep auxiliary scratch names outside reserved artifact prefixes; do not quarantine a missing inventory entry as a known violation. (#658)
+
 - Adding diagnostic pipes changes subprocess completion: a detached child can hold stderr after a successful tool exit. Separate process success from diagnostic-drain cutoff, retain capture uncertainty, and test inherited descriptors behind a release handshake. (#638)
 
 - Reserve shared banners before a menu frame windows its selected rows. Subtracting them only for some frame kinds lets final clipping hide selected actions and cursors; test every windowed frame at minimum geometry. (#638)
@@ -2166,8 +2185,110 @@ and external temporary roots rather than relying on the host's TMPDIR.
   with a process gate and retain stderr rather than relying only on sleep offsets.
 
 - Chunked JSONL framing must not search a retained newline-free prefix again on each append. Count actual delimiter bytes examined across multi-chunk records, alongside semantic boundary/limit tests; read/decode counters alone miss quadratic delimiter work. Preserve per-probe progress when diagnosing aggregate worker timeouts. (#626)
+- #620: Derive an integration fixture's completion bound from the product phases
+  it actually runs, including allowed serial IO and in-flight work. A short
+  aggregate wait can reject successful bounded calls; prove that ordering with
+  controlled latency and retain a publication-failure negative control.
 
+- #647 plan review: a context-aware helper does not bound runtime methods that discard the context. Name the total operation budget and propagate it across all reads and process handoffs. For detached shortcuts, stderr/logging is not visible refusal: identify and test the existing presenter independently of the uncertain transport.
+
+- #647 M1: retain counted process-table fences when adding independent native confirmations; bracket the pair with existing generation checks rather than duplicating a host scan per read. On Darwin, group-signal EPERM can mean an empty group: reuse exact membership evidence and preserve live/unknown failures. A readiness fixture also observes the operation's completion channel so early query refusal fails promptly.
+
+- #647 M1: preserve simultaneous observation and lifecycle errors together. Replacing an authority refusal with a helper-exit error loses its no-retry classification; test the helper exiting inside the failing observation, and assert no second helper or later read is admitted.
+
+- #647 BR-1/BR-2: sweep complete launcher entry paths as well as leaf validators. An outer retry can replace unknown evidence after a strict parser rejects it. Two valid listing shapes must also agree on exact identities before projection; preserve opaque names and interpret EXITED only as a validated suffix.
+- #647 BR-3: upgrade every shared native fixture consumer when tightening a contract, including composed production launch controls. Retain JSON progress for long package runs: an early fixture failure can otherwise consume the package deadline during cleanup and conceal which test caused the delay.
 - A readiness counter contract needs a stateful test through the actual readiness decision, not only isolated zero/one counts. Cover unchanged observations before growth and show that both equality-accepting and never-accepting mutations fail, especially when native acceptance is deferred. (#645 BR-1)
 
 - #650 BR-1: When a second call site needs the same env-gate rule, extract the predicate into the owning package in the same round. Two hand-written copies of hosted-and-knob differ silently; one helper (e.g. launcher.SlugEnabled) plus one truth-table test — covering the fail-closed spellings like ON/1/0 — owns the rule for every entry point.
 - #650 BR-2: A mid-issue scope fold-in updates ## Done when in the same edit, via ## Revisions. Otherwise the close review judges stale acceptance criteria, and literal wording can turn wrong: a gated Stop-hook path may still start a short-lived process that stops at the gate, so "no process at all" is not the correct contract.
+- #647 BR-4: errors.As proves a joined error contains an exit status, not that the subprocess boundary otherwise succeeded. Diagnostic normalization must accept only a pure subprocess exit error; preserve cancellation and collector failures as terminal unknown. Sweep every consumer of the shared runner and inject collector failure alongside otherwise accepted diagnostics.
+
+- #647 native fixture: Darwin Go deliberately excludes FIFO descriptors from runtime polling. Blocking reads can defeat Close/join, while O_NONBLOCK can return EAGAIN immediately; cleanup-only or descriptor-flag checks can pass without transmitting any bytes. Prove actual readiness/data delivery and no-client/idle-reader/unread-buffer teardown. Prefer an ordinary owned Unix stream with standard cancellation over adding FIFO polling or retry logic.
+
+- #647 BR-6: admission cancellation is checked at each actual effect, including authoritative sidecar writes and positive local fast paths. One shared pre-effect gate and an exhaustive sink manifest prevent an instance-only repair; cancel inside effect N and prove effect N+1 never starts. Keep the admission token alive through the final dispatch rather than canceling it when observation returns.
+- #647 BR-5: unchanged local frame generation or text cannot authenticate an asynchronously observed native tab. A native switch may precede PTY repaint, or another tab may show identical cells. Missing frame/client/tab provenance requires an explicit behavior decision, not a claim that a stronger snapshot bracket supplied it.
+- #647 BR-7/8: owned synchronous query groups end on success and failure, including descendants with redirected output; use the shared collector at every query entrypoint. Temporary effects create cleanup obligations at dispatch: cancellation forbids new work but must not skip owed cleanup. Report cleanup-start failures without claiming that a successful spawn proves eventual reset.
+- #647 native evidence: a parser error without retained raw streams cannot classify malformed external output. Disposable conformance fixtures preserve bounded stdout, stderr, byte counts and subprocess errors separately; a later passing sample does not explain the missing earlier body. Keep private short native socket/log roots explicit when reproducing controls.
+- #647 BR-5 final decision: when deterministic local capture already supplies the needed note evidence, remove unused native inference rather than infer file/line/role from unrelated rectangles or disk substrings. Audit actual consumers before presenting a UX tradeoff: internal metadata excluded from JSON and absent from menus is not an existing displayed breadcrumb. Associate retained frames with owned endpoint identity, not replacement active state; reuse the existing publication owner for committed local layout.
+
+- #647 BR-9: confirmation compares explicit decision facts, including derived roles, rather than serializing whole external rows. Cosmetic titles must not refuse a valid action when an independent launch template or existing registration preserves the role; retain refusal when title is the only evidence and the role changes. Thread the existing registration snapshot through every consumer without additional reads, and test the actual action as well as the shared projection.
+
+- #647 M3: carry independently known local pane/session context from intent or candidate pin across asynchronous phases; capturing it only at the final query can bless a replacement context. Decorate existing parent tokens without mutating preparation/receipt ownership or starting the native query budget early. When a shared native schema tightens, sweep every positive review shell fixture as well as direct module tests; retain negative fixtures and all old behavior assertions.
+
+- #647 native oracle: a refused multi-step action does not restore its prior whole-operation mode. Derive allowed outcomes from completed mutation results, distinguish intended dispatch from authenticated completion, and retain exact healthy-state assertions. Missing independent witnesses remain missing after an offline correction; never relabel the retained failed run as a clean pass.
+
+- When a Lua test gains a Neovim API dependency, audit every entrypoint, including shell integration aggregators: passing its test-lua invocation does not prove the same file still runs under standalone lua. Keep pure tests standalone and run Neovim integrations with nvim -l. (#647)
+
+- Tightening an external query decoder requires auditing every positive CLI shell fixture against the full requested schema and state transitions, not only Go consumers or the fixtures reached by a targeted test. Separate query observations from effects and keep exact confirmation counts. (#647)
+
+- After tightening an external reply contract, make every CLI test double serialize semantic models through one generator and enumerate producer-specific positive/fault cases against production decoders. A source inventory must catch newly introduced unregistered stubs before the full suite; verify the guard with malformed-positive and new-producer mutations. (#647 R7)
+- A composite-literal realignment is where initializers get silently dropped.
+  When a rename for gofmt alignment touches a constructor literal, grep every
+  field's initializer and pin each constructor default with its own assertion;
+  the feature test that sets the field explicitly cannot see a missing default.
+  (#628)
+
+- A non-positive `context.WithTimeout` bound returns an already-cancelled
+  context: Go cancels synchronously when the deadline has already passed
+  (context.go cancels when `dur <= 0`), so every probe fails deterministically
+  on any machine, loaded or not. When evidence seems to contradict that
+  mechanism, doubt the record first: the "green at the broken head" was a
+  misattributed head, not a won race — inventing a scheduling story to
+  reconcile the two was the real error. (#628)
+
+- Under `go test -timeout`, a wait bounded by the test deadline consumes the
+  package budget and cascades: every later failure is instant with a shrinking
+  budget (remaining/2 margin). Diagnose the FIRST failure and its duration; the
+  rest is aftermath. For a mid-hang goroutine dump, SIGQUIT the test binary
+  (the package alarm fires only after testwait's margin lets the test exit);
+  stack dumps miss sub-millisecond workers, so dump state (schedules, channel
+  depths, probe outcomes) from inside a diagnostic test. (#628)
+
+- #648: Batch a held receiver's queue at the input owner's readiness point,
+  then freeze membership before the first write. Admission-time concatenation
+  misses arrivals during the busy turn; per-envelope turn logging breaks exact
+  transcript correlation. Retain original receipt IDs while recording the one
+  combined turn, and test recovery of a follower through the real socket path.
+- #646: Shortcut verification must exercise the terminal decoder and routing boundary with both legacy and enhanced wire input. Calling the action handler directly can prove clipboard IO while missing the unsupported key encoding that prevents the handler from running. Keep a content-free arrival observation separate from operation outcome when diagnosing this boundary.
+- #622 M2 trailer audit: keep Agent and Co-Authored-By in the same final commit-message paragraph. A blank line before Co-Authored-By makes Git exclude the earlier Agent line from its trailer block. Verify with git log --format="%(trailers:only)" before publishing; preserve already-reviewed historical commits rather than rewriting measurement provenance.
+- A readiness counter contract needs a stateful test through the actual readiness decision, not only isolated zero/one counts. Cover unchanged observations before growth and show that both equality-accepting and never-accepting mutations fail, especially when native acceptance is deferred. (#645 BR-1)
+
+- #649 PQ-1: Read the full issue body before writing its plan: sdlc issue show prints section headings without the requirements beneath them. When replacing a mechanism, reconcile every old Done-when obligation explicitly; a revised Spec does not supersede acceptance text left unchanged.
+- #653: To make an error class transient, classify it once, at the boundary, against a baseline taken before the first read. Don't add checks at each site you know about. The validator under the boundary has its own read paths: here, the empty-generation-token fallback re-read the whole file. A per-site check misses them, and only a baseline compared after the failure covers every path. Mutation-check each piece of the rule (classifier, each baseline branch) with fixtures shaped like production: a stale proof, an empty token, a proofless binding.
+
+- #648 BR-1: A new user-facing configuration variable needs README documentation as well as atlas and agent protocol text. Before close, check scope, units, default, accepted range, invalid-value behavior and compatibility against the parser and rollout policy.
+
+- #652 PQ-1: Before submitting a plan-quality gate, replace edge-case inventories with one named-function adversarial-input strategy and independent mechanical guard per risky function. Retain concrete acceptance regressions as anchors; inventories alone repeat the #648 planning failure.
+
+- #623: A fixture's artificial child sleep spends the product's real process deadline. To test delayed observation delivery, hold the completed result at a test-only callback seam; keep native deadlines and timeout failures unchanged. Synchronize on start/result/release/application facts rather than settlement sleeps.
+- #623: Arming asynchronous work and reading its ID in separate RPCs creates a gap in which the work can already start. Capture the pre-arm ID and arm atomically; force a start inside that RPC in the regression, rather than hoping host load selects the race.
+- #655: A timer-boundary regression must assert which operation is measured, not certify host speed. Use virtual time across varied setup and command durations, retain the shipped-binary smoke without a fixed ceiling, and prove a subprocess-clock mutation fails.
+
+- #574 plan/implementation: adding trusted provenance to a message requires checking every retained-receipt import, not only caller admission and rendering. A wrapper-only record cannot grant server origin after restart. Current Slots state keys by the stable slot across Fresh addresses; cancellation of a frozen but unstarted publication must feed its known-no-write outcome back to the reducer, or replacement leaves the slot blocked.
+- #574 close BR-1/BR-2: a shared result type does not identify the completed recovery mode, and a cached inventory row can predate an adopted agent switch. Carry the actual typed outcome at every successful producer and prefer completion-owned metadata in projections. Test all successful constructors and final completion paths with empty/conflicting cached metadata; presentation strings and requested mode are not outcome evidence.
+- #574 close BR-3: a pending informational projection needs an explicit ownership-move rule. Prefer the successful move producer and the existing admission/effect gate over polling or migrating old history. Dropping pending information must preserve the restart barrier and exact admitted receipts; fence extracted jobs as well as queued jobs. Tell the new owner to resnapshot Slots and prove before-drain, frozen, admitted and uncertain cases with two stateful receivers.
+- #661: The pair repo's guard tests catch new files only in the full suite. A new production source must be classified in `cmd/internal/artifactpath/manifest.go`: in the exhaustive inventory, as a ResolvedConsumer with its own binding when it imports artifactpath, or as a VocabularyConsumer at a permitted call site for a family literal. Its generated runtime-bundle mirror needs an entry too. A shell test that runs pair needs the `pair-test-bootstrap.sh` line as line 2. Before pushing a new file, run `go test ./cmd/internal/artifactpath ./cmd/internal/testpair` alongside the targeted tests.
+
+- #649: Register every new production source in artifactpath SourceClassifications or NonArtifactSources before the first suite; retention IO anchors alone do not cover the exhaustive source inventory.
+
+- #649 BR-1: When multiple display consumers share activity, merge every admitted source before branching into title/fade decisions; test consumers together with stale persisted facts and recent wrapper work.
+- #649 BR-2: Resource acceptance tests must instantiate the production state being bounded. A fake returning constant facts cannot prove projection retention or warm-history work; use actual compact projections and counted IO.
+
+- #665 PQ-1: a plan that introduces validation or a ratchet names each function and gives one adversarial strategy and mechanical guard per risky seam. A prose case matrix does not identify who owns parsing, identity or authority checks.
+
+- #665 BR-1: when enforcing an exclusive authorization path alongside an upstream parser, recognize the upstream grammar, including its whitespace normalization. Regress the accepted spelling class against that parser; a literal prefix check can leave alternate valid spellings as a bypass.
+
+- #665 BR-3: check the registry's concrete dependency examples before claiming a local-tool exemption. ARCH-MOCK explicitly includes Git: keep policy above a typed read seam, use a bounded stateful fake there, and run the same contract against disposable real repositories as conformance.
+- #660: Read the complete failed CI job, including successful failure-diagnostic steps, before classifying an external process as dead. A filtered failed-step log hid server activity after a missing-session reply. Keep query absence, client exit, socket state and server/actor lifetime as separate observations; a dead replacement child cannot later paint its awaited frame.
+
+- #660 BR-1: Bounded readers do not preserve evidence when the reporting consumer still prints a prefix. Test the actual failure collector with oversized child/parent wire, command output, wrapper log and actor receipts ending in distinct final markers; sweep every event-history consumer while keeping deliberate first-difference frame diagnostics separate.
+- #656 BR-1: A transient classification must run after every terminal check it can bypass. Carry the immediate pre-read fingerprint through recovery classification, and bracket any new evidence read with metadata checks for every dependent artifact. Test same-size mutation during both existing reads and replacements during the added recovery read; mutations staged only before the poll cannot expose these gaps.
+
+- #636: An outer private environment file does not survive an empty-environment constructor. Name every native storage/socket root at the fixture's actual setup boundary and again at nested child construction; poison ambient roots and inspect real child reports to catch missing propagation. A local client Wait is not a server detach acknowledgement, so retain the failed query's own bounded bytes/status and lifecycle ordering rather than adding a later diagnostic query as a substitute.
+
+- #636 BR-1: A context-installed observer must receive per-operation deadline facts from the query boundary; closing over its installation context misreports shorter inherited deadlines. Test a shorter child through the actual adapter and separately cover absent, shorter and longer caller deadlines against the adapter cap.
+
+- #666 BR-1: Repository lint may require verified main-ref authority. A disposable reviewer checkout without that authority cannot prove the ordinary lint consumer ran; retain a successful exact-head package run and named-consumer output from the configured checkout, and present it through the measured-evidence dispute path rather than weakening the repository guard.
+
+- #666 BR-2: Match universal coverage claims to actual cases. A missing warm entrypoint plus omitted park setup does not establish individual omission of every protected function; name the exact coverage or add the missing cases.

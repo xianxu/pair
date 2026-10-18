@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/procutil"
-	"github.com/xianxu/pair/cmd/internal/zellijsession"
 )
 
 // sessionQuiescenceOps observes liveness and signals only exact authorized
@@ -163,8 +162,8 @@ func (osSessionQuiescenceOps) SessionPresent(ctx context.Context, session string
 	if err != nil {
 		return false, err
 	}
-	present, exited := zellijsession.RowState(string(out), session)
-	return present && !exited, nil
+	present, exited, err := sessionListingState(out, session)
+	return present && !exited, err
 }
 
 func (o osSessionQuiescenceOps) SessionServers(ctx context.Context, session string) ([]SessionServerIdentity, error) {

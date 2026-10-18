@@ -1,6 +1,7 @@
 package draftroute
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -81,6 +82,14 @@ func (f *fakeRuntime) ListPanesJSON() ([]byte, error) {
 	return f.panes, nil
 }
 
+func (f *fakeRuntime) CurrentPaneID() string { return "4" }
+func (f *fakeRuntime) ListPanesJSONContext(ctx context.Context) ([]byte, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return f.ListPanesJSON()
+}
+
 func (f *fakeRuntime) CachedDraftPaneID() (string, bool) {
 	return f.cached, f.cached != ""
 }
@@ -95,9 +104,9 @@ func (f *fakeRuntime) RunZellijAction(args ...string) error {
 
 func TestRouteLuaFocusesBeforeAddressingEveryWriteToDraft(t *testing.T) {
 	rt := &fakeRuntime{panes: []byte(`[
-		{"id":1,"is_focused":false,"is_plugin":false,"terminal_command":"pair wrap codex"},
-		{"id":2,"is_focused":false,"is_plugin":false,"terminal_command":"nvim -u /pair/nvim/init.lua /data/draft.md"},
-		{"id":4,"is_focused":true,"is_floating":true,"is_plugin":false,"terminal_command":"pair term"}
+		{"id":1,"is_focused":false,"is_plugin":false,"terminal_command":"pair wrap codex","is_floating":false,"is_fullscreen":false,"pane_x":0,"pane_y":0,"pane_columns":75,"pane_rows":39,"tab_id":1,"tab_position":1},
+		{"id":2,"is_focused":false,"is_plugin":false,"terminal_command":"nvim -u /pair/nvim/init.lua /data/draft.md","is_floating":false,"is_fullscreen":false,"pane_x":0,"pane_y":0,"pane_columns":75,"pane_rows":39,"tab_id":1,"tab_position":1},
+		{"id":4,"is_focused":true,"is_floating":true,"is_plugin":false,"terminal_command":"pair term","is_fullscreen":false,"pane_x":0,"pane_y":0,"pane_columns":75,"pane_rows":39,"tab_id":1,"tab_position":1}
 	]`)}
 
 	if err := RouteLua(rt, "PairConfirmRestart", true); err != nil {
@@ -151,7 +160,7 @@ func TestRouteLuaNonConfirmationDoesNotFocus(t *testing.T) {
 }
 
 func TestRouteLuaReportsMissingDraft(t *testing.T) {
-	rt := &fakeRuntime{panes: []byte(`[{"id":4,"is_focused":true,"terminal_command":"pair term"}]`)}
+	rt := &fakeRuntime{panes: []byte(`[{"id":4,"is_focused":true,"terminal_command":"pair term","is_plugin":false,"is_floating":false,"is_fullscreen":false,"pane_x":0,"pane_y":0,"pane_columns":75,"pane_rows":39,"tab_id":1,"tab_position":1}]`)}
 	err := RouteLua(rt, "PairConfirmRestart", true)
 	if err == nil || !strings.Contains(err.Error(), "draft pane") {
 		t.Fatalf("error = %v, want missing draft pane", err)
@@ -163,7 +172,7 @@ func TestRouteLuaReportsMissingDraft(t *testing.T) {
 
 func TestRouteLuaStopsAndReturnsActionFailure(t *testing.T) {
 	rt := &fakeRuntime{
-		panes: []byte(`[{"id":2,"is_focused":false,"is_plugin":false,"terminal_command":"nvim -u /pair/nvim/init.lua /data/draft.md"}]`),
+		panes: []byte(`[{"id":2,"is_focused":false,"is_plugin":false,"terminal_command":"nvim -u /pair/nvim/init.lua /data/draft.md","is_floating":false,"is_fullscreen":false,"pane_x":0,"pane_y":0,"pane_columns":75,"pane_rows":39,"tab_id":1,"tab_position":1},{"id":4,"is_focused":true,"is_plugin":false,"terminal_command":"pair term","is_floating":false,"is_fullscreen":false,"pane_x":75,"pane_y":0,"pane_columns":75,"pane_rows":39,"tab_id":1,"tab_position":1}]`),
 		errAt: 2,
 	}
 	err := RouteLua(rt, "PairConfirmRestart", false)
@@ -172,5 +181,26 @@ func TestRouteLuaStopsAndReturnsActionFailure(t *testing.T) {
 	}
 	if len(rt.ops) != 2 {
 		t.Fatalf("ops = %v, want stop after second action", rt.ops)
+	}
+}
+
+type canceledAfterFocusRuntime struct {
+	*fakeRuntime
+	cancel context.CancelFunc
+}
+
+func (r canceledAfterFocusRuntime) RunZellijAction(args ...string) error {
+	err := r.fakeRuntime.RunZellijAction(args...)
+	r.cancel()
+	return err
+}
+
+func TestRouteLuaStopsBeforeWritesAfterFocusCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	base := &fakeRuntime{cached: "42"}
+	err := RouteLuaContext(ctx, canceledAfterFocusRuntime{base, cancel}, "PairConfirmRestart", true)
+	if !errors.Is(err, context.Canceled) || strings.Join(base.ops, ",") != "focus-pane-id 42" {
+		t.Fatalf("error=%v actions=%v", err, base.ops)
 	}
 }

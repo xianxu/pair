@@ -269,7 +269,8 @@ func updateWorkspaceTitle(opts Options, rt Runtime, age time.Duration, session, 
 	return prefix
 }
 
-func parseCmuxOwner(raw string) (tag, session string) {
+// ParseCmuxOwner reads current and legacy workspace owner records.
+func ParseCmuxOwner(raw string) (tag, session string) {
 	fields := strings.Fields(strings.TrimSpace(raw))
 	if len(fields) == 0 {
 		return "", ""
@@ -281,9 +282,13 @@ func parseCmuxOwner(raw string) (tag, session string) {
 	return tag, session
 }
 
-func formatCmuxOwner(tag, session string) string {
+// FormatCmuxOwner renders a workspace owner record.
+func FormatCmuxOwner(tag, session string) string {
 	if session == "" {
 		return tag + "\n"
 	}
 	return tag + "\t" + session + "\n"
 }
+
+func parseCmuxOwner(raw string) (tag, session string) { return ParseCmuxOwner(raw) }
+func formatCmuxOwner(tag, session string) string      { return FormatCmuxOwner(tag, session) }

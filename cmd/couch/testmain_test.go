@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"testing"
 
@@ -8,5 +9,10 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	os.Exit(testpair.Run(m))
+	code := testpair.Run(m)
+	if err := installedBinaryCache.Close(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		code = 1
+	}
+	os.Exit(code)
 }

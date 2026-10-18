@@ -1,0 +1,355 @@
+{
+  "cases": [
+    {
+      "name": "native pane",
+      "kind": "panes",
+      "input": "[{\"id\":0,\"is_plugin\":false,\"terminal_command\":null,\"is_focused\":true,\"is_floating\":false,\"is_fullscreen\":false,\"pane_x\":0,\"pane_y\":0,\"pane_columns\":80,\"pane_rows\":24,\"tab_id\":2,\"tab_position\":1}]",
+      "valid": true,
+      "requirements": {
+        "Command": true,
+        "State": true,
+        "Geometry": true,
+        "Tab": true
+      }
+    },
+    {
+      "name": "native empty panes",
+      "kind": "panes",
+      "input": "[]",
+      "valid": true
+    },
+    {
+      "name": "plugin zero coexists",
+      "kind": "panes",
+      "input": "[{\"id\":0,\"is_plugin\":false,\"terminal_command\":null,\"is_focused\":true,\"is_floating\":false,\"is_fullscreen\":false,\"pane_x\":0,\"pane_y\":0,\"pane_columns\":80,\"pane_rows\":24,\"tab_id\":2,\"tab_position\":1},{\"id\":0,\"is_plugin\":true}]",
+      "valid": true
+    },
+    {
+      "name": "multiple focused legitimate",
+      "kind": "panes",
+      "input": "[{\"id\":0,\"is_plugin\":false,\"terminal_command\":null,\"is_focused\":true,\"is_floating\":false,\"is_fullscreen\":false,\"pane_x\":0,\"pane_y\":0,\"pane_columns\":80,\"pane_rows\":24,\"tab_id\":2,\"tab_position\":1},{\"id\":1,\"is_plugin\":false,\"terminal_command\":null,\"is_focused\":true,\"is_floating\":false,\"is_fullscreen\":false,\"pane_x\":0,\"pane_y\":0,\"pane_columns\":80,\"pane_rows\":24,\"tab_id\":2,\"tab_position\":1}]",
+      "valid": true
+    },
+    {
+      "name": "legacy tab map",
+      "kind": "panes",
+      "input": "{\"0\":[{\"id\":0,\"is_plugin\":false,\"terminal_command\":null,\"is_focused\":true,\"is_floating\":false,\"is_fullscreen\":false,\"pane_x\":0,\"pane_y\":0,\"pane_columns\":80,\"pane_rows\":24,\"tab_id\":2,\"tab_position\":1,\"pane_id\":\"terminal_0\"}]}",
+      "valid": true
+    },
+    {
+      "name": "legacy prefixed identity",
+      "kind": "panes",
+      "input": "[{\"pane_id\":\"terminal_7\",\"is_plugin\":false}]",
+      "valid": true
+    },
+    {
+      "name": "unknown wrapper",
+      "kind": "panes",
+      "input": "{\"panes\":[{\"id\":0,\"is_plugin\":false,\"terminal_command\":null,\"is_focused\":true,\"is_floating\":false,\"is_fullscreen\":false,\"pane_x\":0,\"pane_y\":0,\"pane_columns\":80,\"pane_rows\":24,\"tab_id\":2,\"tab_position\":1}]}",
+      "valid": false
+    },
+    {
+      "name": "foreign empty object",
+      "kind": "panes",
+      "input": "{}",
+      "valid": false
+    },
+    {
+      "name": "missing role",
+      "kind": "panes",
+      "input": "[{\"id\":1}]",
+      "valid": false
+    },
+    {
+      "name": "fractional id",
+      "kind": "panes",
+      "input": "[{\"id\":1.5,\"is_plugin\":false,\"terminal_command\":null,\"is_focused\":true,\"is_floating\":false,\"is_fullscreen\":false,\"pane_x\":0,\"pane_y\":0,\"pane_columns\":80,\"pane_rows\":24,\"tab_id\":2,\"tab_position\":1}]",
+      "valid": false
+    },
+    {
+      "name": "negative id",
+      "kind": "panes",
+      "input": "[{\"id\":-1,\"is_plugin\":false,\"terminal_command\":null,\"is_focused\":true,\"is_floating\":false,\"is_fullscreen\":false,\"pane_x\":0,\"pane_y\":0,\"pane_columns\":80,\"pane_rows\":24,\"tab_id\":2,\"tab_position\":1}]",
+      "valid": false
+    },
+    {
+      "name": "duplicate identity",
+      "kind": "panes",
+      "input": "[{\"id\":0,\"is_plugin\":false,\"terminal_command\":null,\"is_focused\":true,\"is_floating\":false,\"is_fullscreen\":false,\"pane_x\":0,\"pane_y\":0,\"pane_columns\":80,\"pane_rows\":24,\"tab_id\":2,\"tab_position\":1},{\"id\":0,\"is_plugin\":false,\"terminal_command\":null,\"is_focused\":true,\"is_floating\":false,\"is_fullscreen\":false,\"pane_x\":0,\"pane_y\":0,\"pane_columns\":80,\"pane_rows\":24,\"tab_id\":2,\"tab_position\":1}]",
+      "valid": false
+    },
+    {
+      "name": "contradictory alias",
+      "kind": "panes",
+      "input": "[{\"id\":0,\"is_plugin\":false,\"terminal_command\":null,\"is_focused\":true,\"is_floating\":false,\"is_fullscreen\":false,\"pane_x\":0,\"pane_y\":0,\"pane_columns\":80,\"pane_rows\":24,\"tab_id\":2,\"tab_position\":1,\"pane_id\":\"terminal_1\"}]",
+      "valid": false
+    },
+    {
+      "name": "contradictory role",
+      "kind": "panes",
+      "input": "[{\"id\":0,\"is_plugin\":false,\"terminal_command\":null,\"is_focused\":true,\"is_floating\":false,\"is_fullscreen\":false,\"pane_x\":0,\"pane_y\":0,\"pane_columns\":80,\"pane_rows\":24,\"tab_id\":2,\"tab_position\":1,\"pane_id\":\"plugin_0\"}]",
+      "valid": false
+    },
+    {
+      "name": "arbitrary id",
+      "kind": "panes",
+      "input": "[{\"id\":\"cat\",\"is_plugin\":false,\"terminal_command\":null,\"is_focused\":true,\"is_floating\":false,\"is_fullscreen\":false,\"pane_x\":0,\"pane_y\":0,\"pane_columns\":80,\"pane_rows\":24,\"tab_id\":2,\"tab_position\":1}]",
+      "valid": false
+    },
+    {
+      "name": "missing id",
+      "kind": "panes",
+      "input": "[{\"is_plugin\":false}]",
+      "valid": false
+    },
+    {
+      "name": "typed flag",
+      "kind": "panes",
+      "input": "[{\"id\":0,\"is_plugin\":false,\"terminal_command\":null,\"is_focused\":\"true\",\"is_floating\":false,\"is_fullscreen\":false,\"pane_x\":0,\"pane_y\":0,\"pane_columns\":80,\"pane_rows\":24,\"tab_id\":2,\"tab_position\":1}]",
+      "valid": false
+    },
+    {
+      "name": "null geometry",
+      "kind": "panes",
+      "input": "[{\"id\":0,\"is_plugin\":false,\"terminal_command\":null,\"is_focused\":true,\"is_floating\":false,\"is_fullscreen\":false,\"pane_x\":null,\"pane_y\":0,\"pane_columns\":80,\"pane_rows\":24,\"tab_id\":2,\"tab_position\":1}]",
+      "valid": false
+    },
+    {
+      "name": "empty tab wrapper",
+      "kind": "panes",
+      "input": "{\"wat\":[]}",
+      "valid": false
+    },
+    {
+      "name": "missing terminal_command",
+      "kind": "panes",
+      "input": "[{\"id\":0,\"is_plugin\":false,\"is_focused\":true,\"is_floating\":false,\"is_fullscreen\":false,\"pane_x\":0,\"pane_y\":0,\"pane_columns\":80,\"pane_rows\":24,\"tab_id\":2,\"tab_position\":1}]",
+      "valid": false,
+      "requirements": {
+        "Command": true
+      }
+    },
+    {
+      "name": "missing pane_command",
+      "kind": "panes",
+      "input": "[{\"id\":0,\"is_plugin\":false,\"terminal_command\":null,\"is_focused\":true,\"is_floating\":false,\"is_fullscreen\":false,\"pane_x\":0,\"pane_y\":0,\"pane_columns\":80,\"pane_rows\":24,\"tab_id\":2,\"tab_position\":1}]",
+      "valid": false,
+      "requirements": {
+        "ActualCommand": true
+      }
+    },
+    {
+      "name": "missing is_focused",
+      "kind": "panes",
+      "input": "[{\"id\":0,\"is_plugin\":false,\"terminal_command\":null,\"is_floating\":false,\"is_fullscreen\":false,\"pane_x\":0,\"pane_y\":0,\"pane_columns\":80,\"pane_rows\":24,\"tab_id\":2,\"tab_position\":1}]",
+      "valid": false,
+      "requirements": {
+        "Focus": true
+      }
+    },
+    {
+      "name": "missing is_floating",
+      "kind": "panes",
+      "input": "[{\"id\":0,\"is_plugin\":false,\"terminal_command\":null,\"is_focused\":true,\"is_fullscreen\":false,\"pane_x\":0,\"pane_y\":0,\"pane_columns\":80,\"pane_rows\":24,\"tab_id\":2,\"tab_position\":1}]",
+      "valid": false,
+      "requirements": {
+        "Floating": true
+      }
+    },
+    {
+      "name": "missing is_fullscreen",
+      "kind": "panes",
+      "input": "[{\"id\":0,\"is_plugin\":false,\"terminal_command\":null,\"is_focused\":true,\"is_floating\":false,\"pane_x\":0,\"pane_y\":0,\"pane_columns\":80,\"pane_rows\":24,\"tab_id\":2,\"tab_position\":1}]",
+      "valid": false,
+      "requirements": {
+        "Fullscreen": true
+      }
+    },
+    {
+      "name": "missing pane_x",
+      "kind": "panes",
+      "input": "[{\"id\":0,\"is_plugin\":false,\"terminal_command\":null,\"is_focused\":true,\"is_floating\":false,\"is_fullscreen\":false,\"pane_y\":0,\"pane_columns\":80,\"pane_rows\":24,\"tab_id\":2,\"tab_position\":1}]",
+      "valid": false,
+      "requirements": {
+        "Geometry": true
+      }
+    },
+    {
+      "name": "missing tab_id",
+      "kind": "panes",
+      "input": "[{\"id\":0,\"is_plugin\":false,\"terminal_command\":null,\"is_focused\":true,\"is_floating\":false,\"is_fullscreen\":false,\"pane_x\":0,\"pane_y\":0,\"pane_columns\":80,\"pane_rows\":24,\"tab_position\":1}]",
+      "valid": false,
+      "requirements": {
+        "Tab": true
+      }
+    },
+    {
+      "name": "missing tab_position",
+      "kind": "panes",
+      "input": "[{\"id\":0,\"is_plugin\":false,\"terminal_command\":null,\"is_focused\":true,\"is_floating\":false,\"is_fullscreen\":false,\"pane_x\":0,\"pane_y\":0,\"pane_columns\":80,\"pane_rows\":24,\"tab_id\":2}]",
+      "valid": false,
+      "requirements": {
+        "Tab": true
+      }
+    },
+    {
+      "name": "actual command",
+      "kind": "panes",
+      "input": "[{\"id\":0,\"is_plugin\":false,\"terminal_command\":null,\"is_focused\":true,\"is_floating\":false,\"is_fullscreen\":false,\"pane_x\":0,\"pane_y\":0,\"pane_columns\":80,\"pane_rows\":24,\"tab_id\":2,\"tab_position\":1,\"pane_command\":\"nvim\"}]",
+      "valid": true,
+      "requirements": {
+        "ActualCommand": true
+      }
+    },
+    {
+      "name": "empty actual command",
+      "kind": "panes",
+      "input": "[{\"id\":0,\"is_plugin\":false,\"terminal_command\":null,\"is_focused\":true,\"is_floating\":false,\"is_fullscreen\":false,\"pane_x\":0,\"pane_y\":0,\"pane_columns\":80,\"pane_rows\":24,\"tab_id\":2,\"tab_position\":1,\"pane_command\":\"\"}]",
+      "valid": false,
+      "requirements": {
+        "ActualCommand": true
+      }
+    },
+    {
+      "name": "native clients",
+      "kind": "clients",
+      "input": "CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\n0 terminal_7 nvim file\n1 plugin_0 plugin command\n",
+      "valid": true
+    },
+    {
+      "name": "header only clients",
+      "kind": "clients",
+      "input": " CLIENT_ID\tZELLIJ_PANE_ID   RUNNING_COMMAND\n",
+      "valid": true
+    },
+    {
+      "name": "empty clients",
+      "kind": "clients",
+      "input": "",
+      "valid": false
+    },
+    {
+      "name": "foreign clients",
+      "kind": "clients",
+      "input": "[]",
+      "valid": false
+    },
+    {
+      "name": "wrong header",
+      "kind": "clients",
+      "input": "CLIENT_ID PANE_ID RUNNING_COMMAND\n",
+      "valid": false
+    },
+    {
+      "name": "duplicate clients",
+      "kind": "clients",
+      "input": "CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\n0 terminal_1 sh\n0 terminal_2 sh",
+      "valid": false
+    },
+    {
+      "name": "bad client id",
+      "kind": "clients",
+      "input": "CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\n-1 terminal_1 sh",
+      "valid": false
+    },
+    {
+      "name": "bad pane id",
+      "kind": "clients",
+      "input": "CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\n1 terminal_-1 sh",
+      "valid": false
+    },
+    {
+      "name": "missing command",
+      "kind": "clients",
+      "input": "CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\n1 terminal_1",
+      "valid": false
+    },
+    {
+      "name": "native tab",
+      "kind": "tab",
+      "input": "{\"active_swap_layout_name\":null,\"is_swap_layout_dirty\":false,\"tab_id\":0,\"position\":0}",
+      "valid": true
+    },
+    {
+      "name": "legacy layout only",
+      "kind": "tab",
+      "input": "{\"active_swap_layout_name\":\"default\",\"is_swap_layout_dirty\":true}",
+      "valid": true
+    },
+    {
+      "name": "missing layout",
+      "kind": "tab",
+      "input": "{\"is_swap_layout_dirty\":false}",
+      "valid": false
+    },
+    {
+      "name": "missing dirty",
+      "kind": "tab",
+      "input": "{\"active_swap_layout_name\":null}",
+      "valid": false
+    },
+    {
+      "name": "wrong dirty",
+      "kind": "tab",
+      "input": "{\"active_swap_layout_name\":null,\"is_swap_layout_dirty\":0,\"tab_id\":0,\"position\":0}",
+      "valid": false
+    },
+    {
+      "name": "negative tab",
+      "kind": "tab",
+      "input": "{\"active_swap_layout_name\":null,\"is_swap_layout_dirty\":false,\"tab_id\":-1,\"position\":0}",
+      "valid": false
+    },
+    {
+      "name": "fractional position",
+      "kind": "tab",
+      "input": "{\"active_swap_layout_name\":null,\"is_swap_layout_dirty\":false,\"tab_id\":0,\"position\":0.5}",
+      "valid": false
+    },
+    {
+      "name": "contradictory position",
+      "kind": "tab",
+      "input": "{\"active_swap_layout_name\":null,\"is_swap_layout_dirty\":false,\"tab_id\":0,\"position\":0,\"tab_position\":1}",
+      "valid": false
+    },
+    {
+      "name": "null tab",
+      "kind": "tab",
+      "input": "{\"active_swap_layout_name\":null,\"is_swap_layout_dirty\":false,\"tab_id\":null,\"position\":0}",
+      "valid": false
+    },
+    {
+      "name": "wrong kind tab",
+      "kind": "tab",
+      "input": "[]",
+      "valid": false
+    },
+    {
+      "name": "duplicate pane id key",
+      "kind": "panes",
+      "input": "[{\"id\":1,\"id\":2,\"is_plugin\":false}]",
+      "valid": false
+    },
+    {
+      "name": "duplicate tab dirty key",
+      "kind": "tab",
+      "input": "{\"active_swap_layout_name\":null,\"is_swap_layout_dirty\":true,\"is_swap_layout_dirty\":false}",
+      "valid": false
+    },
+    {
+      "name": "focus only without unrelated fields",
+      "kind": "panes",
+      "input": "[{\"id\":1,\"is_plugin\":false,\"is_focused\":true}]",
+      "requirements": {
+        "Focus": true
+      },
+      "valid": true
+    },
+    {
+      "name": "unknown pane extension",
+      "kind": "panes",
+      "input": "[{\"id\":1,\"is_plugin\":false,\"future_native\":{\"value\":null}}]",
+      "valid": true
+    }
+  ]
+}

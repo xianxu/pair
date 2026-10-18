@@ -1,0 +1,13 @@
+{
+ "name": "nth-occurrence",
+ "base": "a b a b a\n",
+ "records": [
+  {
+   "old": "a",
+   "occurrence": 3,
+   "new": "A",
+   "explain": ""
+  }
+ ],
+ "result": "a b a b A\n"
+}

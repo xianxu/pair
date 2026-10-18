@@ -127,7 +127,7 @@ func (l *sessionLog) count(prefix string) int {
 
 func sessionSocket(t *testing.T) string {
 	t.Helper()
-	dir, err := os.MkdirTemp("/tmp", "pair-session-test-")
+	dir, err := os.MkdirTemp("", "pst-")
 	if err != nil {
 		t.Fatal(err)
 	}
