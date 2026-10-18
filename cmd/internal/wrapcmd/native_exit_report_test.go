@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -59,15 +60,24 @@ func exitBinding() couchmessage.Binding {
 	return couchmessage.Binding{Slot: "pair:2", Repository: "/repo/.git", Scope: "scope", Tag: "tag", Session: "session", Nonce: "nonce", Agent: "codex", Version: "test", PID: os.Getpid(), Start: "fixture"}
 }
 
-// startOwnedChild runs a real native child in its own group, as run does.
-func startOwnedChild(t *testing.T, script string) *ownedGroup {
+// startOwnedChild runs a real native child in its own group, as run does. The
+// returned reader reaches EOF when the child exits, as run's PTY master does.
+func startOwnedChild(t *testing.T, script string) (*ownedGroup, *os.File) {
 	t.Helper()
-	cmd := exec.Command("/bin/sh", "-c", script)
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-	if err := cmd.Start(); err != nil {
+	out, in, err := os.Pipe()
+	if err != nil {
 		t.Fatal(err)
 	}
-	return newOwnedGroup(cmd, time.Second)
+	t.Cleanup(func() { out.Close() })
+	cmd := exec.Command("/bin/sh", "-c", script)
+	cmd.Stdout = in
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	err = cmd.Start()
+	in.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return newOwnedGroup(cmd, time.Second), out
 }
 
 // The owned-child conformance check (pair#657), through run's own decision
@@ -91,10 +101,12 @@ func TestNativeExitReportOwnedChildConformance(t *testing.T) {
 	}
 
 	p := &proxy{agentBasename: "codex", wrapEventsFD: file, readyProcessIdentity: "123:child"}
-	group := startOwnedChild(t, "exit 3")
+	group, out := startOwnedChild(t, "exit 3")
 	// run calls Wait only after the PTY master reaches EOF, that is, after the
 	// child has exited; Wait's stop signal then cannot change its status.
-	time.Sleep(300 * time.Millisecond)
+	if _, err := io.Copy(io.Discard, out); err != nil {
+		t.Fatal(err)
+	}
 	if !p.afterChildReaped(rt, group.Wait()) {
 		t.Fatal("a self exit was not reported")
 	}
@@ -111,7 +123,7 @@ func TestNativeExitReportOwnedChildConformance(t *testing.T) {
 
 	for _, sig := range []syscall.Signal{syscall.SIGHUP, syscall.SIGUSR2} {
 		stopped := &proxy{agentBasename: "codex", wrapEventsFD: file, readyProcessIdentity: "124:child"}
-		group := startOwnedChild(t, "sleep 30")
+		group, _ := startOwnedChild(t, "sleep 30")
 		locks := newWrapperNativeLocks(t.TempDir(), "codex", "test")
 		stopped.stopForSignal(sig, locks, group)
 		if stopped.afterChildReaped(rt, group.Wait()) {
@@ -141,6 +153,7 @@ func TestNativeExitReportCompatibilityAndDeadline(t *testing.T) {
 	}
 
 	saved := nativeExitTimeout
+	//lint:allow test-shrunk-deadline — the broker never answers, so the deadline always fires; the test asserts only its bound
 	nativeExitTimeout = 200 * time.Millisecond
 	defer func() { nativeExitTimeout = saved }()
 	silent, _ := fakeBroker(t, "ok", 10*time.Second)
