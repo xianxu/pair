@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func (r *rig) round(path string) *Round {
@@ -219,4 +220,46 @@ func TestRoundSidecarFollowsRegistration(t *testing.T) {
 	if round := r.round(PathsOf(moved).Round); round == nil || round.Spans[0].New != "central" {
 		t.Fatalf("forget did not export the round: %+v", round)
 	}
+}
+
+// cleared is "a submit of this file after the round", from the raw ledger:
+// an earlier submit doesn't clear, a folded one still does, another file's
+// never does.
+func TestRoundClearsOnTheNextSubmit(t *testing.T) {
+	r := newRig(t)
+	if got, err := r.sync.Round(r.p.File); err != nil || got.Round != nil || got.Cleared {
+		t.Fatalf("no sidecar: %+v %v", got, err)
+	}
+	r.deliver("early", SubmitPrefix+r.p.File) // stamped t0+1m, before the round
+	if _, err := r.sync.Write(WriteRequest{File: r.p.File, Section: "Needs you", Body: "new\n", IfHash: r.hash("Needs you")}); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := r.sync.Round(r.p.File); got.Round == nil || got.Cleared {
+		t.Fatalf("an earlier submit cleared the round: %+v", got)
+	}
+	later := func(id, head string) {
+		if err := r.sync.Ledger.Append("ops:0", Entry{ID: id, From: "parley", At: r.now.Add(time.Minute), Head: head}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	later("other", SubmitPrefix+filepath.Join(filepath.Dir(r.p.File), "other.md"))
+	if got, _ := r.sync.Round(r.p.File); got.Cleared {
+		t.Fatal("another file's submit cleared the round")
+	}
+	later("next", SubmitPrefix+r.p.File)
+	if _, err := r.sync.Write(WriteRequest{File: r.p.File, Section: "Trains", Body: "trains\n", IfHash: r.hash("Trains"), Fold: []string{"early", "next"}}); err != nil {
+		t.Fatal(err)
+	}
+	// That write changed nothing (same body), so the round stands, and the
+	// submit, now folded, still clears it.
+	if got, _ := r.sync.Round(r.p.File); got.Round == nil || !got.Cleared {
+		t.Fatalf("a folded later submit did not clear: %+v", got)
+	}
+}
+
+func TestRoundRefusesAMalformedSidecar(t *testing.T) {
+	r := newRig(t)
+	r.put(r.p.Round, `{"base_hash":"","spans":[]}`)
+	_, err := r.sync.Round(r.p.File)
+	wantRefusal(t, err, ExitRefused, "round-invalid")
 }

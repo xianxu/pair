@@ -371,6 +371,40 @@ func (s *Sync) Status(path string) (Status, error) {
 	})
 }
 
+// RoundResult is `round --json`'s answer: the round sidecar, nil when there
+// is none, and whether a submit of the file was recorded after it.
+type RoundResult struct {
+	Round   *Round
+	Cleared bool
+}
+
+// Round reads the round sidecar and whether the next submit cleared it.
+// Cleared reads the raw ledger rows, so a folded submit still clears.
+func (s *Sync) Round(path string) (RoundResult, error) {
+	return withDocument(s, path, func(f *file) (RoundResult, error) {
+		if err := s.Ledger.Recording(); err != nil {
+			return RoundResult{}, err
+		}
+		raw, err := readRound(f.paths.Round)
+		if err != nil || raw == nil {
+			return RoundResult{}, err
+		}
+		round, err := decodeRound(raw)
+		if err != nil {
+			return RoundResult{}, err
+		}
+		rows, err := s.Ledger.Read(f.owner)
+		if err != nil {
+			return RoundResult{}, err
+		}
+		paths := f.state.SubmitPaths
+		if f.registration != nil {
+			paths = f.registration.Paths
+		}
+		return RoundResult{Round: round, Cleared: SubmittedSince(rows, f.paths.File, paths, round.At, s.Canonical)}, nil
+	})
+}
+
 // DiffText is the operator's edits the agent hasn't seen. It is
 // information, not a gate: a write checks only its own section's hash.
 func (s *Sync) DiffText(path string) (Holder, string, error) {
@@ -585,7 +619,7 @@ func (f *file) prepareWrite(req WriteRequest, rows []Entry, now time.Time) (prep
 	if spans, ok := DeriveRound(baseline, next, req.resolved); ok {
 		prepared.roundChanged = true
 		prepared.round, _ = encodeRound(Round{
-			BaseHash: Hash(f.content), ResultHash: Hash(next), At: now.UTC().Truncate(time.Second),
+			BaseHash: Hash(f.content), ResultHash: Hash(next), At: now.UTC(),
 			Presentation: presentation, Spans: spans,
 		})
 	}

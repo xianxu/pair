@@ -36,7 +36,9 @@ couch --session-sync read --all FILE [--json]
 couch --session-sync read --frontmatter FILE [--json]
 couch --session-sync write --section HEADING BODYFILE FILE --if-hash H [--accept-gap] [--fold ID[,ID]]
 couch --session-sync write --all BODYFILE FILE --if-hash H [--accept-gap] [--fold ID[,ID]]
-couch --session-sync write --frontmatter BODYFILE FILE --if-hash H [--accept-gap] [--fold ID[,ID]]`
+couch --session-sync write --frontmatter BODYFILE FILE --if-hash H [--accept-gap] [--fold ID[,ID]]
+couch --session-sync apply EDITS.json FILE --if-hash H [--accept-gap] [--fold ID[,ID]] [--json]
+couch --session-sync round FILE --json`
 
 // parseSessionSyncCLI reads the closed forms above. Values (a heading, a
 // path) are taken verbatim even when they start with "--".
@@ -58,6 +60,8 @@ func parseSessionSyncCLI(args []string) (cliInvocation, error) {
 		"status":   {"--json"},
 		"read":     {"--section", "--all", "--frontmatter", "--json"},
 		"write":    {"--section", "--all", "--frontmatter", "--if-hash", "--accept-gap", "--fold"},
+		"apply":    {"--if-hash", "--accept-gap", "--fold", "--json"},
+		"round":    {"--json"},
 		// Retired by pair#439 (no agent-held lock); accepted as a no-op
 		// with its old flags for one release so older skills don't break.
 		"release": {"--accept-edits", "--accept-gap", "--fold"},
@@ -133,6 +137,15 @@ func parseSessionSyncCLI(args []string) (cliInvocation, error) {
 			return usage("%s takes exactly one of --section HEADING, --all or --frontmatter", a.verb)
 		}
 	}
+	if a.verb == "apply" {
+		if a.ifHash == "" {
+			return usage("apply needs --if-hash H, the whole-file hash `read --all` printed")
+		}
+		want = 2
+	}
+	if a.verb == "round" && !a.json {
+		return usage("round answers only as JSON: pass --json")
+	}
 	if a.verb == "write" {
 		if a.ifHash == "" {
 			return usage("write needs --if-hash H, the hash `read` printed (an unconditional write could overwrite an edit you never saw)")
@@ -165,10 +178,20 @@ func runSessionSyncCLI(a *sessionSyncArgs, rt Runtime, stdout, stderr io.Writer)
 		if errors.As(err, &r) {
 			code, exit = r.Code, r.Exit
 		}
-		if a.json {
-			_ = json.NewEncoder(stdout).Encode(sessionSyncResponse{Code: code, Error: err.Error(), Hash: refusalHash(err)})
-		} else {
+		var invalid []sessionsync.BadEdit
+		if r != nil {
+			invalid = r.Invalid
+		}
+		switch {
+		case a.json && a.verb == "round":
+			_ = json.NewEncoder(stdout).Encode(roundResponse{Code: code, Error: err.Error()})
+		case a.json:
+			_ = json.NewEncoder(stdout).Encode(sessionSyncResponse{Code: code, Error: err.Error(), Hash: refusalHash(err), Invalid: invalid})
+		default:
 			fmt.Fprintln(stderr, "couch: refused:", err)
+			for _, b := range invalid {
+				fmt.Fprintf(stderr, "  record %d: %s\n", b.Index, b.Reason)
+			}
 			if h := refusalHash(err); h != "" {
 				fmt.Fprintln(stdout, "hash:", h)
 			}
@@ -278,6 +301,36 @@ func runSessionSyncCLI(a *sessionSyncArgs, rt Runtime, stdout, stderr io.Writer)
 			return 0
 		}
 		fmt.Fprintf(stdout, "hash: %s\n%s", r.Hash, r.Body)
+	case "round":
+		res, err := s.Round(file)
+		if err != nil {
+			return fail(err)
+		}
+		if err := json.NewEncoder(stdout).Encode(roundResponse{Code: "ok", Round: res.Round, Cleared: res.Cleared}); err != nil {
+			return fail(err)
+		}
+	case "apply":
+		raw, err := os.ReadFile(a.bodyFile)
+		if err != nil {
+			return fail(fmt.Errorf("reading the edits: %w", err))
+		}
+		edits, err := sessionsync.ParseEdits(raw)
+		if err != nil {
+			return fail(&sessionsync.Refusal{Exit: sessionsync.ExitRefused, Code: "edits-invalid", Reason: err.Error()})
+		}
+		res, err := s.Apply(sessionsync.ApplyRequest{File: file, IfHash: a.ifHash, Edits: edits, Accepts: a.accepts, Fold: a.fold})
+		if err != nil {
+			return fail(err)
+		}
+		if a.json {
+			if err := json.NewEncoder(stdout).Encode(sessionSyncResponse{Code: "ok", Hash: res.Hash}); err != nil {
+				return fail(err)
+			}
+		} else {
+			fmt.Fprintf(stdout, "applied %d record(s)\nhash: %s\n", len(edits), res.Hash)
+		}
+		reportFolds(stdout, stderr, res)
+		reportSessionWrite(rt, namespace.Dir(), res.Owner)
 	case "write":
 		raw, err := os.ReadFile(a.bodyFile)
 		if err != nil {
@@ -314,6 +367,18 @@ type sessionSyncResponse struct {
 	Registration  *sessionsync.Registration
 	Registrations []sessionsync.Registration
 	Changed       bool
+	// Invalid lists the bad records of an `edits-invalid` apply.
+	Invalid []sessionsync.BadEdit `json:",omitempty"`
+}
+
+// roundResponse is `round --json`, the contract parley.nvim#383 reads:
+// Round is the sidecar (null when there is none), Cleared whether a submit
+// of the file came after it.
+type roundResponse struct {
+	Code    string
+	Error   string
+	Round   *sessionsync.Round
+	Cleared bool
 }
 
 func refusalHash(err error) string {
