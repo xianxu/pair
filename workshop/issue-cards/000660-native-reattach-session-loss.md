@@ -1,6 +1,6 @@
 ---
 id: 000660
-status: codecomplete
+status: done
 created: 2026-10-18
 updated: 2026-10-18
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: b575589513eb20a7eec304f2ef803c55a209a069
         evidence_commit: b8fe3d0451f156fca0275100835a52eb4f74076d
+        landed_commit: b386574636297f0529f0e4c0d7cbc29b1ff58e4d
 ---
 
 # Native direct Zellij session disappears after detach
