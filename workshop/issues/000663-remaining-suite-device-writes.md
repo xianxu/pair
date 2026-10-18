@@ -1,13 +1,21 @@
 ---
 id: 000663
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-18
 updated: 2026-10-18
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: '831c8c4738f1f9c4acc48257272dfba8d1faa948' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '413dfa993fff27cd81fe0f02f983721f6eed66a8' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-18T02:55:47-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:3
+    worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Attribute remaining final-Go suite device writes after fixture and cache reductions
@@ -28,9 +36,18 @@ Attribute the remaining final-Go device interval with a bounded measurement befo
 
 ## Plan
 
-- [ ]
+- [ ] Obtain hub approval for workshop/plans/000663-device-attribution-plan.md before measurement code or new runs.
+- [ ] Compare observation modes on identical completed couchcore work, then use a bounded native host census if needed; retain coverage limits and raw counter endpoints.
+- [ ] Assess one versus two active suites using bytes per equal completed work; obtain approval before any full-suite comparison.
+- [ ] Report the measured producer or the precise operator trace needed; revise the fix plan before implementation.
+
+## Revisions
+
+- 2026-10-18: Hub assigned attribution first and added the machine concurrency question. Both existing complete windows already ran one Make holding both tokens. No production fix or global concurrency change is selected. Start with a bounded workload observation control; reserve a full equal-completion concurrency comparison for a separate approval.
 
 ## Log
+
+2026-10-18 planning: claimed and ran start-plan on branch 000663-remaining-suite-device-writes. Read-only analysis of retained evidence found final-Go rates of 43.392 MB/s before and 40.851 MB/s after, over 358.452 s and 325.877 s. Tail rates fell to 3.222/3.409 MB/s while sampling continued at about 1.46 Hz and the retained PID set grew. This contradicts a simple fixed write cost per observer tick but does not exclude workload-dependent observer effects. NativeResourceReader already provides bounded enumeration and identity-fenced disk counters; reuse that seam (ARCH-DRY). Existing process totals miss short-lived processes and exclude the observer and unrelated host processes. No new measurement or implementation has run for this issue.
 
 From pair#658’s approved unchanged #662-backed rerun, source030bdf8a41810d07df15ba68bd5d8295c056b22f, clean at Make start. Original116 final Go packages all pass before; after118 all pass, adding testdisk/testgit. Make/supervisor exit0, all direct children reaped, both ordinary suite tokens held through30s before/after windows. The first incomplete resolver-failure attempt is retained separately in #662.
 
