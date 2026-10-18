@@ -96,3 +96,32 @@ The arm64 thunk tail-forwards every nonmatching fcntl call unchanged. For F_FULL
 File events for those four tests observed623 distinct created files and349 directories, zero dropped/scan flags. Last native own sample23,777,280 bytes is a lower bound. Neither file-event counts nor these bytes represent the whole package. Raw local evidence is flush-probe/{test.log,fs-events.jsonl,output-events.json,result.json}; the safe temporary thunk source/binary is fcntl-thunk.UNQeGX/. These diagnostic tools do not ship. Pre-implementation measurement is finished.
 
 Installed default sample-hook contents total26,788 bytes across14 files per template copy; the542 copies observed in the partial probe imply14,519,096 logical hook bytes (35,520,512 bytes of source allocated-size equivalents). These are estimates from fixture copy count and installed source sizes, not measured per-path writes; metadata amplification remains unknown. The replacement plan ranks this churn reduction alongside cache reuse and the proved ledger payload saving without adding them into an exact device-byte decomposition.
+
+
+## Direct cache comparison after implementation
+
+The matched direct-cache diagnostic completed both real shell fixtures, `tests/pair-go-install-layout-test.sh` and `tests/pair-embedded-runtime-test.sh`, before and after the cache-boundary change; both passed in each run. Each run executed six real Go build commands. The before source receipt records HEAD `d025e19ee8b23058ef11cefa2cb918827e4f8489`; the after receipt records HEAD `af5ef64f31f21d84229b7647cb99407ed8a36c79` plus hashes of the uncommitted cache helper changes. The two fixture scripts and `Makefile.local` hashes match across the receipts.
+
+The harness used an invocation-owned Go env file, compiler cache and GOTMPDIR. GOCACHE/GOTMPDIR were unset in the fixture caller, so the real caller-side `go env` resolution was exercised before replacing HOME. Existing module input was explicitly forwarded to avoid introducing downloads. An owned priming run prepared the configured compiler cache before the comparison; the operator's compiler cache was neither inventoried nor copied. Before cleanup, the wrapper inventoried private compiler-cache files and fresh executable outputs; the after run inventoried additions to the same owned configured cache.
+
+| Direct inventory | Before | After |
+|---|---:|---:|
+| New compiler-cache files | 5,347 in private homes | 22 in configured cache; no private cache bytes created |
+| New compiler-cache logical bytes | 530,303,396 | 672,620 |
+| New compiler-cache allocated bytes | 549,085,184 | 753,664 |
+| Fresh executable output logical bytes | 77,109,896 | 77,109,896 |
+| Sum of six build-command durations | 86.077 seconds | 11.832 seconds |
+
+The configured cache started the after run at 3,903 files /471,693,421 logical /485,199,872 allocated bytes and ended at 3,925 files /472,366,041 logical /485,953,536 allocated bytes. The net file creation avoided in this pair of real fixtures is **5,325 files, 529,630,776 logical bytes and 548,331,520 allocated bytes**. All recorded Go invocations exited0. The four fresh output files retained the same individual sizes (19,966,818;32,868,194;4,242,018;20,032,866 bytes), and the fixture scripts retained their real install/runtime assertions.
+
+This measures completed cache-file inventory additions for two normal-cache fixtures. Allocated bytes are filesystem allocation, not physical-device traffic, NAND wear or a complete count of transient build writes. Build-command durations are sums from this run, not a controlled suite-speed benchmark. Warm configured-cache reuse is intentional; clean-source tests that explicitly request a fresh compiler cache keep that override. Neither these bytes nor the ledger/Git observations establish an additive decomposition or a matched reduction of the19,768,967,168-byte whole-device baseline. A whole-suite after measurement remains required.
+
+The portable stateful fake-Go regression separately checks8/16 constructions per boundary (32 fresh HOME directories total): one fixed payload for the shared cache key, one separate payload for a distinct explicit key, literal values/spaces, GOCACHE=off, explicit empty GOTMPDIR, missing Go and resolution-error status37. No real builds run in this regression. Existing bootstrap assertions still cover original argv/$0, status23, read-only cleanup and refusal to follow linked caller trees. Its cleanup-only fixture now explicitly supplies Go tool settings because real `go env` can create telemetry/config state in its synthetic caller HOME; this isolates test inputs without removing any caller-state assertions.
+
+The canonical empty-environment boundary also supplies `GIT_TEMPLATE_DIR=`. Real-Git regressions first reproduced operator hooks materializing through both `testpair.Environment` and `ApplyEnvironment`, then passed with the empty setting even when the fixture HOME's global `init.templateDir` names a populated template. Explicit fixture assignments may still override the default. The empty setting requires no additional directory or cleanup owner and does not inherit the operator's template path.
+
+Raw evidence remains in `direct-cache.95x7rwyt/` under the diagnostic root above: `before.summary.json`, `after.summary.json`, source receipts, configured-start inventory, per-Go records, logs, `goenv` and `run.sh`. These temporary files are not the durable record; the figures and limits in this section are.
+
+## Revisions
+
+- 2026-10-17 — Append the completed direct real-cache before/after comparison, separate cache allocations from fresh executable outputs and physical-device traffic, and record canonical empty-template behavior plus cleanup-fixture input isolation. Earlier diagnostic results and their original scope remain preserved.
