@@ -1,8 +1,8 @@
 ---
 id: 000644
-status: codecomplete
+status: done
 created: 2026-10-17
-updated: 2026-10-17
+updated: 2026-10-18
 estimate_hours:
 github_issue:
 severity: medium
@@ -22,6 +22,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 9f0c6eec78e7b9417a08817df5e273d0982f3784
         evidence_commit: 6f44be436b9092ceba1d2ca805020888b5a927bc
+        landed_commit: 4d3bec7f90c8af4af19b05973ca1e33a74010386
 ---
 
 # The resource sampler cost gate flaps with fleet load: first pass is not steady state and nothing names the load
