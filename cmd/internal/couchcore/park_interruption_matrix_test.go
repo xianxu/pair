@@ -32,6 +32,7 @@ func TestParkInterruptionBoundaryMatrix(t *testing.T) {
 			stop := errors.New("injected park boundary interruption")
 			goodTrigger := env.Artifacts.TriggerQuitHook
 			var pending *parkFuture
+			completionDeadlineSpent := false
 			captureAndCancel := func() {
 				w := env.Couch.PairLifecycle.worker
 				w.mu.Lock()
@@ -70,8 +71,22 @@ func TestParkInterruptionBoundaryMatrix(t *testing.T) {
 					return stop
 				}
 			case "completion-before-child-death":
-				env.Couch.PairLifecycle.RelaunchWait = time.Millisecond
-				env.Couch.PairLifecycle.CompletionTimeout = time.Millisecond
+				// Spend the existing budget only after the matching completion
+				// is observed while the exact child remains live. Fixture startup
+				// and machine scheduling cannot consume this ordering proof.
+				var budget *spendableBudget
+				env.Couch.PairLifecycle.completionDeadline = func(parent context.Context, _ time.Duration) (context.Context, context.CancelFunc) {
+					budget = newSpendableBudget()
+					return budget.bind(parent)
+				}
+				env.Couch.PairLifecycle.Wait = func(ctx context.Context, _ time.Duration) error {
+					if budget == nil || env.Lifecycle.completion == nil || env.Proc.Exists(42) != Live {
+						return errors.New("deadline preceded matching completion and live-child proof")
+					}
+					completionDeadlineSpent = true
+					budget.spend()
+					return ctx.Err()
+				}
 				env.Artifacts.TriggerQuitHook = func(string, launcher.QuitIntent) error {
 					if err := env.model.DeliverTrigger(env.Lifecycle.lastRequest); err != nil {
 						return err
@@ -113,6 +128,9 @@ func TestParkInterruptionBoundaryMatrix(t *testing.T) {
 			_, err := env.Couch.Relaunch(ctx, original.Address)
 			if err == nil {
 				t.Fatal("injected interruption was reported as successful relaunch")
+			}
+			if boundary == "completion-before-child-death" && (!completionDeadlineSpent || !errors.Is(err, context.DeadlineExceeded)) {
+				t.Fatalf("completion/live-child boundary did not spend its deadline: spent=%t err=%v", completionDeadlineSpent, err)
 			}
 			// Caller cancellation can return ahead of the worker's bounded settlement.
 			if pending != nil {
