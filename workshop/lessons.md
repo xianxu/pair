@@ -7,6 +7,8 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- A successful subprocess status does not identify its reply kind. Qualify diagnostics with multiple live sessions as well as zero/one: Zellij list_sessions exits internally, so a missing-target action can return exit0 with a session listing and not-found stderr. Keep that exception at the name probe, with captured bytes and strict whole-reply validation; never relax the clients decoder. (#672)
+
 - When migrating a temporary root, inspect every helper consumer, including ones that reuse its directory with a longer generated basename. Budget the complete native socket address and qualify the entire affected package under the OS's normal TMPDIR; a focused helper-name regex can omit the consumers that break. (#665 R8)
 - An ordering fixture must not require every real subprocess to beat a product
   deadline. Use a stateful double for identity/byte changes and controlled

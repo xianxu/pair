@@ -64,6 +64,24 @@ func sessionNameAbsentDiagnostic(session, stderr string) bool {
 		active != "No active zellij sessions found." && !strings.HasPrefix(active, "Error occurred:")
 }
 
+// Zellij's multi-session not-found branch calls list_sessions, which exits
+// zero before the caller can exit one. Accept only its complete listing kind;
+// this teaches name acceptance, never session liveness or ownership (#672).
+func sessionNameAbsentListing(session, stdout string) bool {
+	if stdout == "" || !strings.HasSuffix(stdout, "\n") {
+		return false
+	}
+	// Only the SGR sequences emitted by 0.45.1's print_sessions are metadata.
+	// Other escapes remain and fail the existing strict row decoder.
+	plain := strings.NewReplacer("\x1b[32;1m", "", "\x1b[35;1m", "", "\x1b[31;1m", "", "\x1b[m", "").Replace(stdout)
+	states, err := sessionListingStates([]byte(plain))
+	if err != nil || len(states) == 0 {
+		return false
+	}
+	_, present := states[session]
+	return !present
+}
+
 // pairSessionNames extracts the Pair session names from `zellij
 // list-sessions --short` output — sorted + deduped, matching the shell's
 // `awk '/^pair-/' | sort` (list flow, shell 1235/232), widened to pair's

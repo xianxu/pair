@@ -47,6 +47,12 @@ Capture the real list-clients bytes including header and the exact probe context
 
 2026-10-18: urgent dispatch hubda698b0e. #665 M2 clean checkpoint da22f58a48e89393717f617a30d51f867997a884; new work begins from fresh main, not stacked. Disposable nonexistent-session control on installed0.45.1 emits exit1, empty stdout, stderr There is no active session!; this is already an accepted diagnostic and does not reproduce the reported successful malformed-header path. Keep diagnosis open until real bytes are captured.
 
+### 2026-10-18 — Captured cause, red/green and native qualification
+
+Exact read-only probe for requested absent 📁1-292 returned exit0, a colored complete session listing on stdout, and only the requested-name not-found heading on stderr. The clients header itself is unchanged; private owned-session control emits the standard three-column header. Native source zellij/src/commands.rs:438–442 calls list_sessions(false,false,true); zellij-utils/src/sessions.rs:367–401 exits with its own0 before the intended outer exit1. This is the confirmed production launch failure, not evidence that list-clients changed format. Raw capture is preserved verbatim under cmd/internal/launcher/testdata/zellij-0.45.1-name-absence/ with the header positive control.
+
+Regression RED reproduced invalid Zellij clients header on the captured absence and exposed a contradictory clients-table/not-found pair being accepted. GREEN uses the exact complete stderr heading only on successful collected replies, then strictly validates the full colored session listing through existing sessionListingStates after removing only native SGR metadata. The requested identity must be absent; malformed/wrong-kind/truncated/unknown-escape/duplicate/contradictory/failed/cancelled replies remain unknown. ParseClients is unchanged. Final focused normal PASS0.194s/race PASS1.232s; /tmp/pair672-final-focused{,-race}.log. Installed0.45.1 parse-only validator and production name acceptor conformance PASS6.808s, /tmp/pair672-native.log; read-only probes only, no operator mutations. Full affected normal/race and repository catalog checks are running; no full-suite result claimed. Quick close review may overlap the required recorded suite; final PASS still gates landing.
+
 ## Revisions
 
 ### 2026-10-18 — R1: exact native absence classification, clients parser unchanged
