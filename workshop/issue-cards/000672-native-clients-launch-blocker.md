@@ -1,6 +1,6 @@
 ---
 id: 000672
-status: codecomplete
+status: done
 created: 2026-10-18
 updated: 2026-10-18
 estimate_hours:
@@ -22,6 +22,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: dd8355c685a473acd7ba76a1d803cf36a6c7898b
         evidence_commit: 155ad43082b79e778aa5687d8f8dcd7faeca84dd
+        landed_commit: 5c8030d2545a89c26cd57411695a5d4b3aca229a
 ---
 
 # Accept native Zellij client replies without blocking launches
