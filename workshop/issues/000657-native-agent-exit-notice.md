@@ -16,7 +16,7 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "0061ed0d", done: "15703b86"}
+flow: {kind: full, provenance: inferred}
 ---
 
 # Couch reports native agent exit without mistaking attach disconnect
@@ -48,6 +48,10 @@ Durable plan: `workshop/plans/000657-native-agent-exit-notice-plan.md` (a single
 
 ## Log
 
+
+
+- 2026-10-18: closed — Recorded suite: sdlc-local/suite success on c6d4526d; review fixes since are tested: go test wrapcmd, couchcmd, couchtty lifecycle, artifactpath and testpair green; the merge reruns the suite. BR-1: afterChildReaped (run calls it unconditionally) is driven by the real owned-child conformance test: self exit 3 gives one report; SIGHUP, SIGUSR2, a wait error and a missing session give none. BR-2: report-to-hub chain test through the production wiring and a real Console gives one hub system notice "<slot>: exited (code 3)"; a duplicate gives none. It found and fixed the slot naming, now from the admitted binding.; review verdict: SHIP
+- 2026-10-18: flow upgraded quick → full — 336 added lines in code files (limit 100); an earlier round of this close already ran the full review
 - 2026-10-17: Filed unclaimed at the hub's request while simplifying #574. Relevant seams: cmd/internal/couchtty/console.go:onExit (attachment client); cmd/internal/wrapcmd/wrap.go native child group.Wait (actual child); couchmessage registry session currently has no terminal child-exit observation. No implementation or protocol change is included in #574.
 - 2026-10-18: Built per the TL-approved plan.
   - **Commits:** the Couch side is b20efa96 and the wrapper side 554b7b35.
