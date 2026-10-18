@@ -7,6 +7,9 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- Classify a concept by every operation its implementation performs: environment reads, test verdicts, diagnostics and subprocess policy checks belong to integration even when their decision rule is simple. When acceptance is revised, synchronize Done when, task rows and new README test switches in the same documentation pass, retaining the original decision in Revisions. (#659 close review)
+
+- Register every new non-`_test.go` source in artifactpath's exhaustive inventory, including helpers used only by tests. Run that guard before queueing a full suite; a test-support package is still production-shaped source to the inventory. (#659)
 - When migrating a temporary root, inspect every helper consumer, including ones that reuse its directory with a longer generated basename. Budget the complete native socket address and qualify the entire affected package under the OS's normal TMPDIR; a focused helper-name regex can omit the consumers that break. (#665 R8)
 - An ordering fixture must not require every real subprocess to beat a product
   deadline. Use a stateful double for identity/byte changes and controlled

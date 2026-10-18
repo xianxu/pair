@@ -12,6 +12,20 @@ the pty console, actor panel, notices, and complete local lifecycle shipped in
 
 ## What exists today
 
+### Load-independent lifecycle test evidence (#659)
+
+The recovery ownership fixtures use `SlotCatalogFake`; a separate catalog-timeout
+regression checks refusal without changing retained state. Park client-growth
+semantics inject queries into a test-only readiness helper while fake-CLI tests
+keep the native query contract. Clipboard key/fact tests exercise the unchanged
+product timeout and fallback. Activity byte-count invariants configure the existing
+probe-budget seam, with production deadline tests kept separately.
+
+Affected failures include best-effort `testwait.HostState()` load information.
+Native open-file conformance skips only unavailable/incomplete lsof observations;
+run `PAIR_REQUIRE_LSOF_CONFORMANCE=1 go test ./cmd/internal/diagnosticlog -count=1 -run 'Test(OpenFileInspectionConformance|UnregisteredChildOpenFileBlocksLegacyExpiry)$'`
+to require that native evidence. An answered wrong holder or identity always fails.
+
 ### Slot continuity and capture provenance (#528)
 
 The [slot-continuity target](../workshop/targets/slot-continuity.md) defines

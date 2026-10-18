@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/xianxu/pair/cmd/internal/ctxmeter"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 )
 
@@ -70,7 +69,7 @@ func RunWithRuntime(args []string, env Env, runtime sessioninventory.Runtime, st
 		return 0
 	}
 	if usage, ok, usageErr := sessioninventory.TokenUsageForRoot(runtime, *query.Root); usageErr == nil && ok {
-		fmt.Fprintln(stdout, ctxmeter.Humanize(usage.InputTokens))
+		fmt.Fprintln(stdout, usage.Figure())
 	}
 	return 0
 }

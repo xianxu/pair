@@ -3,7 +3,6 @@ package titlepoller
 import (
 	"errors"
 	"github.com/xianxu/pair/cmd/internal/contextcmd"
-	"github.com/xianxu/pair/cmd/internal/ctxmeter"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 	"path/filepath"
 	"time"
@@ -51,6 +50,6 @@ func (p *titleProjection) count(tag, agent string) string {
 	if p.err != nil || p.core == nil || p.result.Awaiting || !p.result.HasUsage || tag != p.tag || agent != p.agent {
 		return ""
 	}
-	return ctxmeter.Humanize(p.result.Usage.InputTokens)
+	return p.result.Usage.Figure()
 }
 func (p *titleProjection) Err() error { return p.err }

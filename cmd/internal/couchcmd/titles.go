@@ -15,7 +15,6 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
-	"github.com/xianxu/pair/cmd/internal/ctxmeter"
 	"github.com/xianxu/pair/cmd/internal/panebirth"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 	"github.com/xianxu/pair/cmd/internal/storagegc"
@@ -340,7 +339,7 @@ func (s *osCouchTitleSource) Poll(ctx context.Context) (couchTitleFacts, error) 
 	activity := threadactivity.Latest(ctx, couchTitleActivity{native: result.Activity}, threadactivity.Thread{ScopeDir: s.paths.ScopeDir(), Tag: string(t.Address.Tag), Agent: t.Agent})
 	count := ""
 	if !result.Awaiting && result.HasUsage {
-		count = ctxmeter.Humanize(result.Usage.InputTokens)
+		count = result.Usage.Figure()
 	}
 	return couchTitleFacts{Ready: true, PaneID: info.PaneID, Count: count, Activity: activity}, nil
 }
