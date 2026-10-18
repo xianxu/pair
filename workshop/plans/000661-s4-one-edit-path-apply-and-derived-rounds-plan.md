@@ -58,7 +58,7 @@
     - An old line with no partner becomes `🤖~old~` on that line.
     - A new line with no partner becomes its own line, `🤖{new}`.
   - **Escaping:** marker text escapes `\ < > [ ] { }` the way `marker_codec.esc_quote` does.
-  - **Unencodable text:** a changed line whose old text holds `~`, or whose text holds a newline inside a marker, can't be encoded, because the Lua parser doesn't unescape `~` inside a strike. It refuses with `propose-unencodable`. **For the TL:** this refusal code is not in the design.
+  - **Unencodable text:** a changed line whose old text holds `~`, or whose text holds a newline inside a marker, can't be encoded, because the Lua parser doesn't unescape `~` inside a strike. It refuses with `propose-unencodable`. The remedy is the same as for `propose-too-large`: the agent writes that change as a side-doc proposal. The refusal says so, and every edit that can't be a one-line marker takes that one fallback.
   - **Accept/reject asymmetry (try-out cost):**
     - Rejecting an inserted line leaves an empty line.
     - Accepting a deleted whole line leaves an empty line.
@@ -100,7 +100,9 @@
     - Forget's `exportLegacy` copies it to `.BASE.round`.
     - `Register` imports `.BASE.round`.
     - `cleanup` removes it with the directory.
-  - **Write order (ARCH-ORDER):** the round is written last, after the shadow and state, through `writeAtomic`. A failure there becomes a `Result.Warning`, not an error. The document write has already committed, and `result_hash` lets a reader tell that a sidecar is stale.
+  - **Write order (ARCH-ORDER):** a changing write first removes the previous sidecar, *before* the document is replaced. The new round is then written last, after the shadow and state, through `writeAtomic`. If that final write fails, the result is a `Result.Warning` and no round at all. An old round never sits over new text.
+    - If the removal itself fails, the write refuses before touching the document.
+    - A no-op write (no hunks) removes nothing and keeps the previous round.
   - **ARCH-FUNERAL:** the sidecar is overwritten by each changing write and ends with its document's metadata. It accumulates nothing.
   - **ARCH-SECURE:** the sidecar is Couch-written metadata in the same trust domain as the shadow. `round` validates the sidecar's JSON shape on read, and a malformed sidecar reports `Code: "round-invalid"`. It is never passed through unchecked.
 - **Sync.Round(file) → (Round, cleared bool, err):** `withDocument` in read mode, so no write lock is needed. It loads the sidecar and reads `s.Ledger.Read(f.owner)` → `submitsOfDocument`. A missing sidecar returns a null `Round` with `cleared=false`. It refuses `not-recording` like `status` does.
@@ -206,7 +208,8 @@ Rig tests:
 - The registered layout writes `round.json`.
 - After `rename`, `round.json` is still there.
 - After `forget`, `.BASE.round` is there, and after `register` it is back.
-- A round-write failure (the round path made a directory) gives a `Result.Warning`, and the document is still written.
+- A round-write failure gives a `Result.Warning`, the document is still written, and **no** sidecar remains. To force the failure, the write seam makes the new round's write fail.
+- A failure to remove the previous sidecar refuses with nothing written.
 
 - [ ] **Step 1:** Write the tests. Expected: FAIL.
 - [ ] **Step 2:** Implement. Expected: PASS. Also run the whole `./cmd/internal/sessionsync` package to show that existing write behaviour is unchanged.
@@ -244,7 +247,7 @@ Tests:
   - a bad record changes nothing (compare `shasum` before and after).
   - Record it in the Log.
 - [ ] **Step 3:** Run the recorded suite (`sdlc local-check run --name suite`), then `sdlc milestone-close --issue 661 --milestone M1`.
-- [ ] **Step 4:** Tell parley.nvim:3 and the ariadne skill owner (via the hub) that M1 has landed on the branch and give the contract. Both issues depend on M1 landing on main. Land M1 first only if the TL wants the dependents unblocked before M2; otherwise both milestones land together.
+- [ ] **Step 4:** Land M1 (`sdlc pr`, then `sdlc merge --yes`), then report the merge hash to the hub so parley#383 and ariadne#437 can start.
 
 ## Chunk 2: M2, the review pane on apply
 
@@ -274,10 +277,19 @@ M2 is outlined here and refined in a `## Revisions` entry at its start, once M1'
 
 ---
 
-## Decisions to confirm with the TL
+## Decisions (TL, 2026-10-18)
 
 1. **Byte columns** in span positions, to be confirmed with parley.nvim:3 before `round.go`.
 2. **`propose-unencodable`:** a new refusal code for a changed line with `~` in its old text. The design doesn't have it, and the Lua grammar can't express it.
 3. **Reasons on a shared span:** a span touched by several records joins their `explain` with `"; "`.
 4. **Round-write failure is a warning, not an error:** the document write has already committed, and `result_hash` exposes staleness.
 5. **Landing:** M1 and M2 land together by default. M1 lands alone if the TL wants parley #383 and the ariadne skill unblocked sooner.
+
+## Revisions
+
+- **2026-10-18, TL approval.** All five decisions were accepted, with two refinements and a landing order:
+  - **(2) `propose-unencodable`** takes the same side-doc proposal remedy as `propose-too-large`: one fallback for every edit that can't be a one-line marker.
+  - **(4) No stale round may survive a failed round write:** the previous sidecar is removed before the document is replaced. Task 5's tests were changed to match.
+  - **(5) M1 lands alone first,** to unblock parley#383 and ariadne#437. M2 follows on its own branch.
+    - Under "one issue, one branch", that means M1 lands through `sdlc merge` at the milestone, and M2 continues on #661 from main.
+    - Task 7 step 4 becomes "land M1".
