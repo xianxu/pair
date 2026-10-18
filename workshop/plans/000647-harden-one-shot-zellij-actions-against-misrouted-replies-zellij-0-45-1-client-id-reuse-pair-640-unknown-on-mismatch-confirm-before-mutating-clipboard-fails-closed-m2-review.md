@@ -220,3 +220,86 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-18T00:08:36-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 647 — Harden one-shot zellij actions against misrouted replies (zellij 0.45.1 client-ID reuse, pair#640): unknown on mismatch, confirm before mutating, clipboard fails closed |
+| repo | pair |
+| issue file | workshop/issues/000647-harden-one-shot-zellij-actions-against-misrouted-replies-zellij-0-45-1-client-id-reuse-pair-640-unknown-on-mismatch-confirm-before-mutating-clipboard-fails-closed.md |
+| boundary | milestone M2 |
+| milestone | M2 |
+| window | a13b19e43bff90d460caf49c3d07353fb2406661..50e85e14617d41a620c64441a01f9aeee60030b1 |
+| command | sdlc milestone-close --issue 647 --milestone M2 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-18T00:08:36-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+M2 is ready to close. BR-9 is addressed by a shared decision-fact projection, and executable regressions demonstrate that restoring raw title comparison breaks valid layout and terminal actions. No new blocking findings. M3’s editor and native fault qualification remain outside this boundary.
+
+```findings
+dispose:
+  - id: BR-9
+    disposition: addressed
+    note: |
+      admission.go:63-88 compares derived role and explicit decision facts rather than cosmetic titles. Layout, terminal, restoration and draft consumers use the shared helper. Both production-path regression tests pass at head and fail with ErrMismatch when raw pane serialization is restored in disposable checkouts, which were removed afterward.
+```
+
+1. **Strengths**
+
+   - The [shared projection](/Users/xianxu/Library/Caches/sdlc/review-checkouts/cf7803dcf844e3a1/cmd/internal/layoutcmd/admission.go:63) preserves identity, native order, tab, state, required geometry, launch template and derived role while excluding cosmetic fields.
+   - Stateful tests exercise production query/action seams and inspect effects, targets and recovery records.
+   - Cancellation guards preserve completed progress; attempted flashes retain their cleanup obligation.
+   - README and atlas changes document refusal behavior, timing limits and the approved removal of native note inference.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None raised.
+
+5. **Test coverage notes**
+
+   - Complete tests passed for layout, terminal, draft routing, clipboard, reply contracts, Couch, Couch TTY, artifact inventory, launcher and wrapper.
+   - Focused race checks passed across the five action/admission packages.
+   - BR-9 mutation controls failed as expected for cosmetic and registered-terminal title changes.
+   - Broadcast’s full run had one unrelated private-socket failure. The pinned base reproduces it under the review’s long `TMPDIR`; head passes that test with `TMPDIR=/tmp`. Its implementation and test are unchanged in this range.
+   - `git diff --check` passed. Native opt-in tests were not rerun.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** Consumers share projection, admission and effect guards.
+   - **ARCH-PURE — pass:** Pure selectors/planners remain separate from injected runtime IO.
+   - **ARCH-PURPOSE — pass:** BR-9’s shared consumers were swept; M2 delivers its approved scope.
+   - **ARCH-MOCK — pass:** Stateful fake queries and effects use production seams.
+   - **ARCH-CONSTRAINTS — pass:** Shared admission deadlines and bounded query counts remain enforced.
+   - **ARCH-SECURE — pass:** Strict parsing and context binding precede query-derived effects; refusal notices exclude content.
+   - **ARCH-ORDER — pass:** Confirmation, effect ordering, cancellation and partial-progress behavior have deterministic controls.
+   - **ARCH-FUNERAL — pass:** Query collection and owed flash cleanup retain explicit owners; obsolete note workers are removed.
+
+7. **Plan revision recommendations:** None required for M2.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"b65e8bb8-1c9b-4ec8-bcd0-bbc1478faf13","repository":"github.com/xianxu/pair","issue_id":"000647","recipe":"milestone-review","round":3,"attempt":1,"agent":"codex","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/cf7803dcf844e3a1","reviewed_head":"50e85e14617d41a620c64441a01f9aeee60030b1","slot":"pair:1","requested_at":"2026-10-18T07:04:37.019217Z"},"phase":"finished","pid":91781,"started_at":"2026-10-18T07:04:37.308059Z","finished_at":"2026-10-18T07:08:31.637259Z","session_id":"01a14dd3-a32d-7972-a2eb-4c7c7770b003","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 4.006435917s
+head: "50e85e14617d41a620c64441a01f9aeee60030b1"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

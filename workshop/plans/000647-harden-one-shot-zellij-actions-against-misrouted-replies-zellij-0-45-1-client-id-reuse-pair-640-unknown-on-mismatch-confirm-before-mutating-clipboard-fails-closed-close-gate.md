@@ -688,6 +688,204 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: b65e8bb8-1c9b-4ec8-bcd0-bbc1478faf13
+            repository: github.com/xianxu/pair
+            issue_id: "000647"
+            recipe: milestone-review
+            round: 3
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/Library/Caches/sdlc/review-checkouts/cf7803dcf844e3a1
+            reviewed_head: 50e85e14617d41a620c64441a01f9aeee60030b1
+            slot: pair:1
+            requested_at: "2026-10-18T07:04:37.019217Z"
+          phase: finished
+          pid: 91781
+          started_at: "2026-10-18T07:04:37.308059Z"
+          finished_at: "2026-10-18T07:08:31.637259Z"
+          session_id: 01a14dd3-a32d-7972-a2eb-4c7c7770b003
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-queue-v1
+        repository: github.com/xianxu/pair
+        code_head: 50e85e14617d41a620c64441a01f9aeee60030b1
+        tracker_head: 9f6bdd0616aa2988a7e1ad205f99bb37a5a5b207
+        branch_point: c0841e1082d39731781d8a2972eeeaed41d07ade
+        since: "2026-10-17T11:09:41-07:00"
+        until: "2026-10-18T00:03:44-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-17T11:09:41-07:00"
+              end: "2026-10-18T00:03:44-07:00"
+              began: "2026-10-17T11:09:41-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot1/pair
+        sources:
+            - harness: codex
+              id: 01a14367-3aab-7a22-b89b-0908f54a9846
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              digest: dcf3ec61672fde5f6d67773dce71d2c909599b3d179c4f411c836c7858ebf93b
+              started: "2026-10-16T06:30:01.402Z"
+              spawned: false
+              bytes: 65227032
+              windows:
+                - start: "2026-10-17T11:09:41-07:00"
+                  end: "2026-10-18T00:03:44-07:00"
+            - harness: codex
+              id: 01a14b16-22e0-7d71-b7cf-dd6d298acc07
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              digest: a10d3fdd9f3f8f52d18b6669bfd73202ec2ac9383eeff7e9e64e790663687dda
+              started: "2026-10-17T18:18:24.815Z"
+              spawned: false
+              bytes: 669765
+              windows:
+                - start: "2026-10-17T18:18:24.815Z"
+                  end: "2026-10-18T00:03:44-07:00"
+            - harness: codex
+              id: 01a14b1a-ca03-7672-8af5-23bfb7b3ae31
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              digest: 7d9baec896379ebacfcf35681f375babd28cc59822a61d4269e9d55dc51dd69c
+              started: "2026-10-17T18:23:29.721Z"
+              spawned: false
+              bytes: 495668
+              windows:
+                - start: "2026-10-17T18:23:29.721Z"
+                  end: "2026-10-18T00:03:44-07:00"
+            - harness: codex
+              id: 01a14b1c-04fb-71c0-a664-55b826acf5ad
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              digest: db426a236f0a35a1baeadcdd881e4c6f34a7f26857c7eb5c79eeea5c2e0858d2
+              started: "2026-10-17T18:24:50.437Z"
+              spawned: false
+              bytes: 447881
+              windows:
+                - start: "2026-10-17T18:24:50.437Z"
+                  end: "2026-10-18T00:03:44-07:00"
+            - harness: codex
+              id: 01a14b1c-61b8-78a0-a243-f2e794ef47b3
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              digest: 8fab00af97f195cbf2312c17dc0d28e36f9d9a3bdc8bdb15494d01af4969d9a4
+              started: "2026-10-17T18:25:14.067Z"
+              spawned: false
+              bytes: 452686
+              windows:
+                - start: "2026-10-17T18:25:14.067Z"
+                  end: "2026-10-18T00:03:44-07:00"
+            - harness: codex
+              id: 01a14b1d-52ba-7730-abf6-0067df228cad
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              parent_id: 01a14367-3aab-7a22-b89b-0908f54a9846
+              digest: 1ce6d9cedfed3c96f161e982e9454cade37cd2096cc31effeb858bef732bcf40
+              started: "2026-10-17T18:26:15.671Z"
+              spawned: true
+              bytes: 501418
+              windows:
+                - start: "2026-10-17T18:26:15.671Z"
+                  end: "2026-10-18T00:03:44-07:00"
+            - harness: codex
+              id: 01a14b1d-781d-7fa2-b666-bfeba707f5cb
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              parent_id: 01a14367-3aab-7a22-b89b-0908f54a9846
+              digest: 2cc7bd3852e982668cab809ff9a009457b3ca25f05a3d740164a5bdf1f08121b
+              started: "2026-10-17T18:26:25.034Z"
+              spawned: true
+              bytes: 508430
+              windows:
+                - start: "2026-10-17T18:26:25.034Z"
+                  end: "2026-10-18T00:03:44-07:00"
+            - harness: codex
+              id: 01a14b21-5374-7d40-b911-a7c8855612df
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              parent_id: 01a14367-3aab-7a22-b89b-0908f54a9846
+              digest: 3c3d8c983eb723a1c8c176ce02af9397ad3fe1a5bccc4e388f260a7e73f950c9
+              started: "2026-10-17T18:30:37.799Z"
+              spawned: true
+              bytes: 491935
+              windows:
+                - start: "2026-10-17T18:30:37.799Z"
+                  end: "2026-10-18T00:03:44-07:00"
+            - harness: codex
+              id: 01a14b28-ecf4-7ab3-a74a-48d1aa733056
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              parent_id: 01a14367-3aab-7a22-b89b-0908f54a9846
+              digest: f0182edbe56baf4b647e422272d31bb73eb06ce5c0d65920e32f8e6c694725e2
+              started: "2026-10-17T18:38:55.891Z"
+              spawned: true
+              bytes: 4210373
+              windows:
+                - start: "2026-10-17T18:38:55.891Z"
+                  end: "2026-10-18T00:03:44-07:00"
+        queue_waits:
+            - attempt_id: 3c2d468ef5dbd6af994b5071e7c1e3ec
+              slot: pair:1
+              record_digest: f999cfb089ac0b1c1a7c8b11f0e79562319f7546a721da587e8d02a2f1cced74
+              start: "2026-10-17T18:11:36.368971Z"
+              end: "2026-10-17T18:16:18.343583Z"
+              queue_seconds: 281.974612
+              raw_seconds: 281.974612
+              exact: true
+            - attempt_id: ea1e8acd46ed7edb7e6a76bb72f15387
+              slot: pair:1
+              record_digest: 2377c57116c6253a7d83f2479998e0818faa8bdd9991be5f074bb0fb6e25708b
+              start: "2026-10-17T21:38:43.463969Z"
+              end: "2026-10-17T21:38:43.525434Z"
+              queue_seconds: 0.061465
+              raw_seconds: 0.061465
+              exact: true
+        excluded_brain_sessions: 1
+        excluded_brain_minutes: 164.93396666666666
+        cuts:
+            - boundary: M1
+              dispatched: "2026-10-17T12:20:48-07:00"
+              finalized: "2026-10-17T12:23:54-07:00"
+              finalizing: false
+            - boundary: M1
+              dispatched: "2026-10-17T13:01:46-07:00"
+              finalized: "2026-10-17T13:05:40-07:00"
+              finalizing: false
+            - boundary: M1
+              dispatched: "2026-10-17T13:17:29-07:00"
+              finalized: "2026-10-17T13:19:48-07:00"
+              finalizing: true
+            - boundary: M2
+              dispatched: "2026-10-17T14:45:48-07:00"
+              finalized: "2026-10-17T14:52:59-07:00"
+              finalizing: false
+            - boundary: M2
+              dispatched: "2026-10-17T23:51:56-07:00"
+              finalized: "2026-10-17T23:56:23-07:00"
+              finalizing: false
+      "n": 6
+      timestamp: "2026-10-18T00:08:37-07:00"
+      dispatched: "2026-10-18T00:04:33-07:00"
+      agent: codex
+      dispose:
+        - id: BR-9
+          disposition: addressed
+          note: admission.go:63-88 compares derived role and explicit decision facts rather than cosmetic titles. Layout, terminal, restoration and draft consumers use the shared helper. Both production-path regression tests pass at head and fail with ErrMismatch when raw pane serialization is restored in disposable checkouts, which were removed afterward.
+          round: 6
+      boundary: M2
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: 50e85e14617d41a620c64441a01f9aeee60030b1
+      blocked: false
 ---
 
 # Gate ledger — pair#647 (boundary-review)
@@ -755,6 +953,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-9** [Important] `admission-compares-only-decision-facts` (kind: defect) Cosmetic pane titles can refuse valid layout actions
   cmd/internal/layoutcmd/admission.go:55-66 serializes raw Title values into the confirmation projection, including titles whose pane role is already established by terminal_command. A disposable regression through RunToggleFocusedContext passes with stable replies but returns code 1 and ErrMismatch when only pane 2's title changes; excluding that cosmetic field makes it pass. Compare derived role and actual decision facts instead of raw cosmetic titles, preserving title-based role changes where relevant. Add this regression and sweep consumers of the shared helper. ARCH-PURPOSE: the plan explicitly excludes cosmetic titles from admission comparisons.
 
+## Round 6 — 2026-10-18T00:08:37-07:00 (codex) — passed
+
+### Disposed
+
+- BR-9 — addressed — admission.go:63-88 compares derived role and explicit decision facts rather than cosmetic titles. Layout, terminal, restoration and draft consumers use the shared helper. Both production-path regression tests pass at head and fail with ErrMismatch when raw pane serialization is restored in disposable checkouts, which were removed afterward.
+
 ## Open findings
 
-- **BR-9** [Important] `admission-compares-only-decision-facts` (kind: defect) Cosmetic pane titles can refuse valid layout actions
+(none — every finding has been disposed)
