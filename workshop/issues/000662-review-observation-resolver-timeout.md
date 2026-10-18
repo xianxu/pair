@@ -48,7 +48,7 @@ If the controlled reproduction confirms a product budget defect, keep command ex
 - [x] Keep decisions pure and use the existing callback gate (ARCH-PURE/DRY). Separate stateful fixture ordering from real Git/native timeout coverage (ARCH-MOCK/ORDER). Every owned native child and fake callback has teardown (ARCH-FUNERAL).
 - [x] Bound the real phase check and native tests; touch no operator UI or slot (ARCH-SECURE). No production query/fan-out changes; fake queries have counted linear reads/waits at 8 and 16 (ARCH-CONSTRAINTS).
 - [x] Record the Lua/Python fixture mistake class in the Log; hub waived a Go-only catalog rule. No peer repository edits.
-- [ ] Run focused Go/Lua/diagnostic tests, then the recorded full suite and normal close/merge gates. A fixture-only fix uses owned headless validation; any product/editor behavior change needs a live-check arrangement approved by the hub. Report the landing.
+- [x] Run focused Go/Lua/diagnostic tests and the recorded full suite. Owned installed-Neovim conformance validates the unchanged native deadline and useful timeout refusal; no operator UI or staging is driven. Normal close/merge gates and the landing report follow verification.
 
 Existing visible states remain unchanged: a verified current identity permits the guarded write; unknown/deadline/changed-branch observations refuse it, retaining edits and activation. Recovery is retrying the action after a fresh successful observation. No new user or automation state is proposed. This plan fixes the refusal diagnostic as part of the same failing path, not a new authorization policy (ARCH-PURPOSE).
 
@@ -61,6 +61,8 @@ Existing visible states remain unchanged: a verified current identity permits th
 - 2026-10-18: Hub assigned #662 after parking #663. Initial investigation identifies a falsifiable deadline/drain composition issue and independent empty-stderr diagnostic loss. Prove the phase interaction before choosing a product versus fixture fix; no historical-phase attribution is claimed.
 
 ## Log
+
+2026-10-18 recorded suite PASS: e94827f1ecba408d9be2e740d5d37ac4 completed on e80398194bd6e51d8e1cd4288fd9cbb853335876 with exit 0 in 13m5s, log SHA256 prefix 391938f5b37e, recorded as sdlc-local/suite. Retained log: /Users/xianxu/workspace/pair/.git/sdlc/local-checks/e80398194bd6e51d8e1cd4288fd9cbb853335876/suite.log. All 13 diagnostics pass in the complete Make run; real readiness CLI, restoration, Lua and Go phases all passed, including reviewcmd and wrapcmd. No completed suite retry was needed; the earlier obsolete-code run was cancelled in its queue. Only docs/accepted design changed after the tested implementation. Proceeding to the binary-owned fresh-context close review, then normal merge gates.
 
 2026-10-18 recorded verification running: suite attempt e94827f1ecba408d9be2e740d5d37ac4 on e80398194bd6e51d8e1cd4288fd9cbb853335876 acquired admission after 1,034 seconds. Log: /Users/xianxu/workspace/pair/.git/sdlc/test-stats/inflight/e94827f1ecba408d9be2e740d5d37ac4/run.log. All server checks on this head are green (macOS conformance 3m30s, merge-check 1m2s, local-gates guard 9s). Re-ran change-code to checkpoint the approved final Spec/Done-when; it remains inferred quick flow, with only documentation changes after the tested implementation. The suite remains the required pre-close record; no additional suite was started.
 
