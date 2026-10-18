@@ -785,8 +785,23 @@ lists the same tiers, and `cost_test.go` keeps both equal to the table.
 
 `couchtty/console_lifecycle.go` observes final successful operation results after
 Console adoption, successful park results carrying `VerifiedPark`, and confirmed
-needs-relaunch inventory transitions. It emits no native-agent-exit fact from an
-attachment ending; #657 owns that missing evidence. Completion carries cached
+needs-relaunch inventory transitions. It never infers agent exit from an attachment
+ending, EOF or an orphaned session.
+
+**Native agent exit (#657)** has one source: the wrapper that owns the child.
+- **Wrapper:** after `group.Wait()` reaps a child that exited on its own, and before its registry session closes, the wrapper (`wrapcmd/native_exit_report.go`) sends one broker RPC, `native-exit`, carrying `{LaunchOrdinal, AgentIdentity, ExitCode}`, bounded at 2 s.
+  - Its shape follows `automatic-input-stall`.
+  - A SIGUSR2 restart or any wrapper-initiated stop (the `stoppedByWrapper` flag) sends none.
+- **Couch:** `couchcmd/native_exit.go` admits the report only from the authenticated current wrapper (`switchCaller`) when:
+  - the ID matches `NativeExitID(binding, ordinal)`;
+  - the ordinal and identity match the ready record (`authority.child`, file-only), which fences the child before a restart, since the binding survives that exec;
+  - the session is still connected;
+  - the same (binding, launch) hasn't already been reported.
+- **Notice:** Couch then calls `Console.ObserveNativeExit`, which emits an `exited` fact with `Mode` "code N" in the Console's observation sequence.
+- **Not covered:** agents without a registry session (agy, muse, grok) produce no exit notice.
+- **Compatibility:** an older Couch answers `invalid-request` and the wrapper ignores it.
+
+Completion carries cached
 slot/branch metadata and known initiation. The existing `ReattachDone` transition
 closes a startup cohort; no debounce or additional native discovery is used.
 

@@ -1,13 +1,23 @@
 ---
 id: 000657
-status: open
+status: codecomplete
 deps: [pair#574]
 github_issue:
 created: 2026-10-17
-updated: 2026-10-17
+updated: 2026-10-18
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: '9329ea390f72797e50249bf78d365a03b5286802' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '5a75b01868b11e52f26c0a460a4a2882d7231b80' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-18T07:05:50-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:2
+    worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
+    repository: github.com/xianxu/pair
+flow: {kind: full, provenance: inferred}
+actual_hours: 1.13
 ---
 
 # Couch reports native agent exit without mistaking attach disconnect
@@ -28,8 +38,29 @@ After #574 lands, extend its lifecycle notices to confirmed native agent exit. E
 
 ## Plan
 
-- [ ]
+Durable plan: `workshop/plans/000657-native-agent-exit-notice-plan.md` (a single pass, one close).
+
+- [x] couchmessage `native-exit` op plus ID
+- [x] lifecycle `exited` kind
+- [x] Couch handler, with stateful negative cases
+- [x] wrapper report after Wait (self-exit only) plus compatibility
+- [x] owned-child conformance test
+- [x] atlas, guards, suite, close
 
 ## Log
 
+
+
+
+- 2026-10-18: closed — Post-close fix 137152db for the #665 Go lint catalog: native-exit wrapper test now waits on child stdout EOF instead of a fixed sleep, and the bound-only deadline test carries a reasoned lint:allow. go test -count=3 NativeExit/ClassifyChildExit in wrapcmd green; repolint TestTrackedGoFilesPassCatalog green. (fixed-then-ship); review verdict: SHIP
+- 2026-10-18: closed — Recorded suite: sdlc-local/suite success on c6d4526d; review fixes since are tested: go test wrapcmd, couchcmd, couchtty lifecycle, artifactpath and testpair green; the merge reruns the suite. BR-1: afterChildReaped (run calls it unconditionally) is driven by the real owned-child conformance test: self exit 3 gives one report; SIGHUP, SIGUSR2, a wait error and a missing session give none. BR-2: report-to-hub chain test through the production wiring and a real Console gives one hub system notice "<slot>: exited (code 3)"; a duplicate gives none. It found and fixed the slot naming, now from the admitted binding.; review verdict: SHIP
+- 2026-10-18: flow upgraded quick → full — 336 added lines in code files (limit 100); an earlier round of this close already ran the full review
 - 2026-10-17: Filed unclaimed at the hub's request while simplifying #574. Relevant seams: cmd/internal/couchtty/console.go:onExit (attachment client); cmd/internal/wrapcmd/wrap.go native child group.Wait (actual child); couchmessage registry session currently has no terminal child-exit observation. No implementation or protocol change is included in #574.
+- 2026-10-18: Built per the TL-approved plan.
+  - **Commits:** the Couch side is b20efa96 and the wrapper side 554b7b35.
+  - **Conformance found:** `ownedGroup.Wait` signals the group before reaping. `run` calls it only after master EOF, when the child has already exited, so the status holds. An agent that closes its PTY but keeps running would be stopped by Wait and reported as exited (code 143); it has left the pane, so that is accepted.
+  - **couchtty write budget:** run directly (outside the isolated test environment), couchtty exceeds its disk-write budget even with this change's test removed, so it is environmental. The recorded suite decides.
+- **Close review round 1 (FIX-THEN-SHIP):**
+  - **BR-1:** run's post-Wait decision is now one helper, `afterChildReaped`, which `run` calls unconditionally. The owned-child conformance test drives it with a real self exit (one report), SIGHUP and SIGUSR2 stops (none), a wait error (none) and no registry session (none).
+  - **BR-2:** the chain test `TestNativeExitReachesTheHubAsOneLifecycleNotice` runs a real report through the handler, the production wiring (`wireNativeExitNotices`), a real Console and the publisher, ending in one system notice at the hub "<slot>: exited (code 3)". A duplicate posts nothing.
+  - **The chain test found a real bug:** the fact relied on the Console having a menu row and on workspace metadata for the slot name, and it came out as ":0". Couch now passes the caller's verified slot: the name from the admitted `Binding.Slot`, the roots from the workspace identity. The Console uses that target when it has no row.
