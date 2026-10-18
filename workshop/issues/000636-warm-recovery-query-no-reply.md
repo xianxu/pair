@@ -98,6 +98,10 @@ New fixture isolation evidence: testpair.ApplyEnvironment clears inherited envir
 
 Read-only baseline: launcher/fake selected empty-reply/client/owner/diagnostic tests passed (launcher26.092s, zellijtest5.091s; zellijreply selector matched no tests). Full zellijreply/zellijtest tests then passed0.136s/13.564s. No native Zellij commands executed. Diagnostic plan pending hub approval; no production retry/deadline/parser change proposed.
 
+### 2026-10-18 — reopened after diagnostic landing
+
+Reopened per hub receipt3d185bf9-4735-409e-afc0-51281a306e7d, verified submitted. PR431 landed the diagnostic and fixture-isolation phase (merge1e90001c06796ba600c77d3cde3255ad6818f611); authoritative integrated suite passed13m01s, log75d0b1b32f85, all five checks green. The original native no-reply cause remains unproved: its own failed-query bytes and IPC ordering were not retained. Leave the issue available for the next recurrence, which now captures its own bounded bytes, query deadlines and local lifecycle ordering. No separate native window is approved; no further experiment or operator restart is requested. Release the claim and stay idle pending hub dispatch.
+
 ## Revisions
 
 - 2026-10-18 — Hub approval5a7cb535-36ce-47e9-963b-4195132eb96e, receipt verified submitted, revises this delivery to diagnostics plus isolation fix first, normal gates/landing, then ask whether native work remains worthwhile. Current Done-when now names that concrete delivery; the original cause/repeated-native objectives are retained above as deferred historical scope. Durable plan tasks1-4 and final gates are executable now; proposed native/cause phases require a later hub decision. No permission to use a native lane or stage/restart was given. This is explicit scope authorization, not an inference from a quiet slot.
