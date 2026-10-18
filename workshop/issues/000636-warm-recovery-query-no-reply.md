@@ -1,12 +1,12 @@
 ---
 id: 000636
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-16
-updated: 2026-10-17
+updated: 2026-10-18
 estimate_hours:
-card_mirror: '44344bdc20af013f8214e635730ad318c253276d' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '44be611b0dde4f34541c83c108e36b7cd4d7c292' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-17T10:14:59-07:00
 claimant:
     operator: Xian Xu
@@ -33,6 +33,14 @@ Diagnose empty native list-clients/list-panes replies during warm recovery and m
 - Original observed failure cases and repeated isolated warm recovery conformance pass with every existing assertion retained.
 
 ## Plan
+
+Diagnostic proposal, awaiting hub approval: [durable plan](../plans/000636-warm-recovery-query-no-reply-plan.md). First pin production recovery's unknown-reply refusal through the shared native fake and explicitly isolate the live fixture environment. Then instrument existing queries and the local detach boundary without extra queries, and request a separately approved bounded native window. A cause-level readiness/product correction is conditional on the resulting evidence and requires an approved design revision; no guessed fix, automatic retry or longer deadline.
+
+- [ ] Approve diagnostic plan; use change-code before test/helper edits.
+- [ ] Prove complete production recovery refuses targeted native reply faults with no durable mutation/launch/quiescence or retry, with a healthy detached control.
+- [ ] Prove private roots survive actual fixture environment setup; bound deferred diagnostic capture and preserve existing conformance assertions.
+- [ ] Obtain native-lane approval, execute only the declared isolated controls, and classify every retained outcome.
+- [ ] Revise the design around a reproduced cause, verify its correction and unchanged-assertion native conformance, then recorded suite/close review/landing. If the cause remains unproved, report the exact evidence gap to the hub before further experiments.
 
 ## Log
 
@@ -63,3 +71,15 @@ Pair:1's /tmp/pair640-mi9l7uyn/protocol-control.jsonl was inspected read-only (S
 Independent source-level fixture weakness filed unclaimed as #645: park_lifecycle_live_test.go zellijClientCount accepts empty stdout as0 and counts the header; baseline0 followed by header-only count1 can falsely prove helper attachment. No causal connection to #636/#640 is claimed and no fixture edits were made.
 
 If more #636 evidence is needed after native coordination, use the existing WithZellijQueryObserver for bounded in-memory argv/exit/stdout/stderr/timing capture, retaining fixture client PID/start and PTY-close/signal/wait timestamps. Flush after the run: synchronous observer IO or extra queries/proxies can alter scheduling. Do not add retries or infer detachment/absence from silence. Implementation planning remains pending shared native-cause classification and hub scope guidance.
+
+### 2026-10-18 — resumed after #647 / #656
+
+Hub dispatch f21bd6b6 retained pair:6 ownership after an accidental pair:1 dispatch; follow-up700ec68b directs diagnosis on strict decoding/shared fake now on main, plan before code and hub approval before any native lane. #656 landed PR427, Git-verified merge9265395740b065c03a2ff0fc317a9dbf754616a9, and this branch starts from861e4f1de857889c0d55d716b026828f88338f58. start-plan first refreshed the local ariadne tool dependency and instructed a repeat; repeat succeeded. No #636 code edits or native runs yet.
+
+All five retained pair627 logs still exist with the original filed hashes; original overlay/native-private-env files also survive. Protocol control /tmp/pair640-mi9l7uyn/protocol-control.jsonl still hashes e8de734728e0dabe1e7dfd59ab1ad2cf1dd18cad4edd9135d12dd4edf348acef. The historical failed query's own stdout/stderr, native IPC ordering and exact detach timing were not retained; later successful pane output cannot fill that gap. Original overlay paths refer to slot1 and older sources, so it is not a current-main control without reconstruction.
+
+Read-only source audit confirms strict client/pane decoding and unknown preservation now exist, including no automatic retry. Existing high-level recovery observer-error tests bypass the production native query adapter; the missing cross-layer regression is RecoverThread with ScopedThreadArtifactCollisionChecker plus shared zellijtest faults at owned-pane and list-clients observations. Current ControlledZellij.KillClient still closes PTY, signals SIGTERM and waits locally without a server detach acknowledgement; this is a hypothesis boundary, not the proved cause (ARCH-ORDER).
+
+New fixture isolation evidence: testpair.ApplyEnvironment clears inherited environment via tests/lib/pair-test-env.sh. The warm fixture names only TMPDIR/SHELL/config/data overrides; park adds cache. Neither explicitly retains ZELLIJ_SOCKET_DIR/XDG_RUNTIME_DIR, so the historical outer environment file does not establish current effective socket/runtime isolation. Before native testing, explicitly private roots must cross this existing boundary and be asserted. The old failed run also shows first-run setup wizard panes; it is a fixture-state difference to retain, not a cause claim (ARCH-SECURE).
+
+Read-only baseline: launcher/fake selected empty-reply/client/owner/diagnostic tests passed (launcher26.092s, zellijtest5.091s; zellijreply selector matched no tests). Full zellijreply/zellijtest tests then passed0.136s/13.564s. No native Zellij commands executed. Diagnostic plan pending hub approval; no production retry/deadline/parser change proposed.
