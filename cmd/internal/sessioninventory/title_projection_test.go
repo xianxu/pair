@@ -372,19 +372,16 @@ func TestTitleProjectionProviderAppendParity(t *testing.T) {
 }
 
 func TestTitleProjectionAgyDatabaseMutationIsTerminal(t *testing.T) {
-	rt, _, _, _ := titleProviderFixture(t, sessioninventory.AgentAgy)
-	p := sessioninventory.NewTitleProjection(rt, "scope", "work", sessioninventory.AgentAgy, 1)
-	if _, err := p.Poll(); err != nil {
-		t.Fatal(err)
-	}
-	root := rt.NativeRoots(sessioninventory.AgentAgy)[0]
-	files, err := rt.ListFiles(root)
-	if err != nil || len(files) != 1 {
-		t.Fatalf("db fixture %v", err)
-	}
-	rt.AppendFile(files[0].Artifact, []byte("changed"), "db mutation")
-	if _, err := p.Poll(); err == nil {
-		t.Fatal("nonappend-only database mutation retained authority")
+	for _, mode := range []string{"shrink", "replacement", "same-size", "birth", "generation", "missing"} {
+		t.Run(mode, func(t *testing.T) {
+			rt, _, _, _ := titleProviderFixture(t, sessioninventory.AgentAgy)
+			p := sessioninventory.NewTitleProjection(rt, "scope", "work", sessioninventory.AgentAgy, 1)
+			if _, err := p.Poll(); err != nil {
+				t.Fatal(err)
+			}
+			mutateAgyTitleFile(t, rt, agyTitleDatabase(), mode)
+			requireAgyTitleTerminal(t, p)
+		})
 	}
 }
 

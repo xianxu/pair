@@ -2271,3 +2271,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 - #649 BR-1: When multiple display consumers share activity, merge every admitted source before branching into title/fade decisions; test consumers together with stale persisted facts and recent wrapper work.
 - #649 BR-2: Resource acceptance tests must instantiate the production state being bounded. A fake returning constant facts cannot prove projection retention or warm-history work; use actual compact projections and counted IO.
+
+- #656 BR-1: A transient classification must run after every terminal check it can bypass. Carry the immediate pre-read fingerprint through recovery classification, and bracket any new evidence read with metadata checks for every dependent artifact. Test same-size mutation during both existing reads and replacements during the added recovery read; mutations staged only before the poll cannot expose these gaps.

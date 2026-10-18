@@ -1517,7 +1517,9 @@ One `sessioninventory.TitleProjection.PollContext` per invocation supplies both
 native activity and usage. The worker snapshots admitted live wrapper work once
 and merges it with prompt/pane/native activity before title and fading decisions,
 so both consumers use the same latest activity. Warm unchanged projections decode
-no native history.
+no native history. Agy database growth invalidates admission and keeps the last
+valid display until the next scheduled poll fully revalidates its database and
+transcript (#656); true mutations still stop the source.
 
 The optional pass has a two-second deadline and rotates its first target under
 load. Commands use the existing joined process-group runner; failures leave
