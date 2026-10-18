@@ -1,6 +1,6 @@
 ---
 id: 000636
-status: working
+status: codecomplete
 created: 2026-10-16
 updated: 2026-10-18
 estimate_hours:
@@ -13,6 +13,14 @@ claimant:
     workspace: pair:6
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
+actual_hours: N/A
+tracker:
+    version: 1
+    completion:
+        token: close-215034b98246
+        repository: github.com/xianxu/pair
+        reviewed_head: 823bafe3b328613b8016edd9baebe32be5b23a38
+        evidence_commit: 71ee0920cf7f30b74005ec6851ea3e682d3fa22a
 ---
 
 # Warm recovery live conformance intermittently receives no Zellij query reply
