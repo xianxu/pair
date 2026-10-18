@@ -95,3 +95,81 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-17T23:35:31-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 644 — The resource sampler cost gate flaps with fleet load: first pass is not steady state and nothing names the load |
+| repo | pair |
+| issue file | workshop/issues/000644-sampler-cost-gate-flaps-with-fleet-load.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | af0e0473d97390df336a3359df91dac5633dd0a1..9f0c6eec78e7b9417a08817df5e273d0982f3784 |
+| command | sdlc close --issue 644 |
+| reviewer | claude |
+| isolation | fenced |
+| timestamp | 2026-10-17T23:35:31-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+Both prior findings are fixed in this window, and the window adds no new defects. On BR-1, all four wrong or stale claims are rewritten so they cite #644 instead of restating numbers. The atlas now says the gate checks work, plus steady CPU as a ratio to a same-run baseline, instead of absolute CPU. I swept the test's comments and the atlas paragraph for other restated measurements and found none. On BR-2, the persistence-error failure now uses `t.Fatalf("%s (%s)", e, host)`, the same host string as the other failures in the pass loop. Nothing else in the window is code: two comment blocks and one format string in a test file. Both platform targets still vet. The issue file only gained Log entries, the `codecomplete` status and `actual_hours`. `## Spec`, `## Revisions` and `## Done when` are unchanged, so the scope is the same.
+
+**Strengths**
+1. `resources_test.go:333-338` keeps what the reader needs (K is headroom over the worst steady ratio across the load range; a cold-shaped pass fails the gate) and moves the measurements to the issue's Log. That is the right fix for this family, not another number that goes stale.
+2. `resources_test.go:452-455` now says plainly that the slack is measured, not guaranteed. That matches what the code actually enforces: the bounds are multiples of the row count.
+3. The atlas sentence (`atlas/couch.md:4471-4473`) now describes the gate's real shape and agrees with the test.
+
+**Critical:** none.
+
+**Important:** none.
+
+**Minor:** none new. One leftover from the BR-2 sweep, below.
+
+**Test coverage notes**
+- Neither change alters what the test decides. BR-1 is comments only, and BR-2 only changes a failure message. Per the claimed-fixes rule, no regression test is needed for either. `go vet` passes on darwin and on `GOOS=linux`.
+
+**Architecture (interdiff only)**
+- **ARCH-DRY: pass.** Nothing duplicated is added.
+- **ARCH-PURE: pass.** Test comments and a message string only.
+- **ARCH-PURPOSE: pass.** For BR-1, every instance in the class was fixed, not just the one cited. For BR-2, two `t.Fatal(err)` calls in the pass loop still don't append the host string:
+  - The `reader.Table` error comes before `host` exists, and there's no row count to report yet.
+  - The `os.Stat` error is a setup file-system failure, not a measurement verdict. "Busy host or regression?" doesn't apply to it.
+
+  Neither is a gate verdict, so the atlas claim that every failure names the host state holds for every measurement failure.
+
+**Plan revisions:** none.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      All four instances fixed (atlas/couch.md:4471-4473, resources_test.go:333-338, 346-354, 452-455); they now cite the issue 644 Log instead of restating numbers, and a sweep of the test comments and atlas paragraph found no other restated measurement.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      The persistence error now calls t.Fatalf with the host string. The two t.Fatal(err) calls left in the loop are a table-read error raised before host exists and an os.Stat setup error; neither is a measurement verdict.
+```
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"44dfc06b-546a-4b44-89ac-422bc5438b61","repository":"github.com/xianxu/pair","issue_id":"000644","recipe":"fix-review","round":2,"attempt":1,"agent":"claude","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/85ee5b0da3e511b5","reviewed_head":"9f0c6eec78e7b9417a08817df5e273d0982f3784","slot":"pair:4","requested_at":"2026-10-18T06:34:43.016476Z"},"phase":"finished","pid":87153,"started_at":"2026-10-18T06:34:43.254956Z","finished_at":"2026-10-18T06:35:29.421945Z","session_id":"097011ba-878f-44d0-b975-8a2f032f7506","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 4.0909175s
+head: "9f0c6eec78e7b9417a08817df5e273d0982f3784"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000410
