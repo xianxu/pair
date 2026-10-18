@@ -7,6 +7,22 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- An ordering fixture must not require every real subprocess to beat a product
+  deadline. Use a stateful double for identity/byte changes and controlled
+  completion order; keep native timeout and real backend conformance separate.
+  Count synchronous waits for UI blocking assertions rather than measuring
+  host speed. Lua empty strings are truthy: a failed process needs a nonempty
+  diagnostic fallback even when stderr exists. (#662)
+
+- A subprocess double models kill and owner teardown separately: native kill
+  still delivers completion, while fixture teardown may suppress late delivery.
+  Verify that distinction against the installed runtime so cancellation cannot
+  strand a callback gate in its started state. (#662)
+
+- Before adding text validation to a fixture double, check the existing pure
+  document decoder. Reuse its UTF-8/NUL contract rather than copying the
+  algorithm into a second implementation. (#662 close advisory)
+
 - Ordinary Go files in test-helper packages still belong to the exhaustive production-source inventory. Classify every new file, including build-tag variants, and keep auxiliary scratch names outside reserved artifact prefixes; do not quarantine a missing inventory entry as a known violation. (#658)
 
 - Adding diagnostic pipes changes subprocess completion: a detached child can hold stderr after a successful tool exit. Separate process success from diagnostic-drain cutoff, retain capture uncertainty, and test inherited descriptors behind a release handshake. (#638)

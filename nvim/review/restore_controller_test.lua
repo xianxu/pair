@@ -26,6 +26,22 @@ vim.cmd.edit(tmp .. '/a.md'); local abuf=vim.api.nvim_get_current_buf()
 assert(not pcall(function() C.new({}):init(abuf,b,true) end),'startup must not bind B context to A buffer')
 ctl:init(abuf, a)
 local original_resolve=ctl.opts.resolve
+local decoder=dofile('nvim/review/identity.lua')
+local state_before=vim.deepcopy(ctl.state)
+local lines_before=vim.api.nvim_buf_get_lines(abuf,0,-1,false)
+for _, observed in ipairs({
+  decoder.decode({code=124,signal=9,stdout='',stderr=''}),
+  decoder.decode({code=0,signal=0,stdout='not JSON',stderr=''}),
+  b,
+}) do
+  ctl.opts.resolve=function() return observed end
+  local allowed,reason=ctl:guard(abuf,true)
+  assert(not allowed and type(reason)=='string' and reason~='', 'unknown identity allowed or lost its refusal cause')
+  assert(vim.deep_equal(ctl.state,state_before), 'failed observation changed activation')
+  assert(vim.deep_equal(vim.api.nvim_buf_get_lines(abuf,0,-1,false),lines_before), 'failed observation changed document')
+  assert(vim.fn.readfile(tmp..'/a.md')[1]=='A', 'failed observation changed checkout bytes')
+end
+ctl.opts.resolve=original_resolve
 ctl.opts.resolve=function(_,selected)
   if not selected then return {status='missing',repo=tmp,branch='review/a',head='empty-human-round'} end
   if selected.head~='empty-human-round' then return {status='invalid'} end

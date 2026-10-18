@@ -25,7 +25,7 @@ def identity_problem(value):
     return 'incomplete resolved identity: ' + ', '.join(missing) if missing else None
 
 
-def observe_wanted(command, env, history, phase, timeout=4):
+def observe_wanted(command, env, history, phase, timeout=4, runner=None):
     # Only the resolver's positional directory belongs in the diagnostic.
     # Arbitrary executable arguments can themselves contain document bytes.
     args = command[:5] if command[1:4] == ['review', 'readiness', '--resolve'] else command[:1]
@@ -35,8 +35,8 @@ def observe_wanted(command, env, history, phase, timeout=4):
     history.append(record)
     value = None
     try:
-        result = subprocess.run(command, env=env, text=True, capture_output=True,
-                                timeout=timeout)
+        result = (runner or subprocess.run)(command, env=env, text=True,
+                                            capture_output=True, timeout=timeout)
         record.update(returncode=result.returncode, stderr=result.stderr[-4096:],
                       stdout_bytes=len(result.stdout.encode()))
         try:

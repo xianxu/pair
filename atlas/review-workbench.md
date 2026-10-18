@@ -359,7 +359,7 @@ persistent agent's recognition and round-trip behavior.
   `PAIR_TEST_OBSERVATION_REPORT` retains a successful probe report too. This
   instrumentation changes no production resolver deadline or admission rule.
   `tests/lib/review_observation_gate.lua` (#623) controls only delivery of an
-  already-completed real asynchronous resolver result. Fixture phases capture
+  already-completed asynchronous resolver result. Fixture phases capture
   their ID boundary atomically with arming, then retain start, result, release,
   settled and byte-application evidence. No artificial child sleep spends the
   native 2500ms resolver budget. The gate retains at most one held result,
@@ -367,6 +367,18 @@ persistent agent's recognition and round-trip behavior.
   timeout results pass through unchanged. Its lifecycle and forced arm-order
   tests run through the diagnostics command in the normal suite. There is no
   production hook.
+- The observation ordering fixture (#662) uses the test-only stateful resolver
+  in `tests/lib/review_resolver_fake.lua` and its Python wanted-observation
+  transport. Both read a shared catalog of the fixture's two known commits,
+  actual loose HEAD/ref files and current document bytes. Async results capture
+  identity and bytes before callback release; unknown refs or heads refuse.
+  UI assertions count synchronous waits rather than requiring a host to finish
+  within 250 ms. Its fake unit checks 8/16 query costs and bounds retained
+  metadata. Real Git identity collection remains covered by `reviewcmd` tests;
+  `review-resolver-native-deadline-test.lua` separately verifies native Neovim
+  sync/async timeout outcomes with the unchanged 2500 ms deadline. Native empty
+  stderr now retains an explicit timeout/exit refusal reason; authorization
+  still rejects unknown observations without changing edits or activation.
 - `review-branch-restore-diagnostics-test.py` (#620) exercises the complete
   branch fixture with slow successful real resolver calls and a refused landed
   publication. Acknowledgment waiting derives its bound from the observed
