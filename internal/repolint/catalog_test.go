@@ -301,7 +301,12 @@ func scanTracked(root string, readFile func(string) ([]byte, error)) ([]locatedF
 		if !ast.IsGenerated(parsed) {
 			for _, group := range parsed.Comments {
 				for _, c := range group.List {
-					if strings.HasPrefix(c.Text, "//lint:allow "+sleepRule) {
+					// Match Check's directive grammar exactly: the prefix includes
+					// one ASCII space, the remainder is TrimSpace'd, and the
+					// rule ends at the next ASCII space (not arbitrary fields).
+					text, directive := strings.CutPrefix(c.Text, "//lint:allow ")
+					name, _, _ := strings.Cut(strings.TrimSpace(text), " ")
+					if directive && name == sleepRule {
 						return nil, nil, count, fmt.Errorf("%s: inline sleep suppression bypasses tracked debt", filename)
 					}
 				}

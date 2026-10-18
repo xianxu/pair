@@ -2256,3 +2256,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #649 BR-2: Resource acceptance tests must instantiate the production state being bounded. A fake returning constant facts cannot prove projection retention or warm-history work; use actual compact projections and counted IO.
 
 - #665 PQ-1: a plan that introduces validation or a ratchet names each function and gives one adversarial strategy and mechanical guard per risky seam. A prose case matrix does not identify who owns parsing, identity or authority checks.
+
+- #665 BR-1: when enforcing an exclusive authorization path alongside an upstream parser, recognize the upstream grammar, including its whitespace normalization. Regress the accepted spelling class against that parser; a literal prefix check can leave alternate valid spellings as a bypass.

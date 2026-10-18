@@ -13,7 +13,7 @@ import (
 	"github.com/xianxu/ariadne/pkg/golint"
 )
 
-func fixtureGit(t *testing.T) string {
+func fixtureGit(t testing.TB) string {
 	t.Helper()
 	root := t.TempDir()
 	for _, args := range [][]string{{"init", "-b", "main"}, {"config", "user.name", "Fixture"}, {"config", "user.email", "fixture@example.invalid"}, {"config", "commit.gpgsign", "false"}, {"config", "branch.main.remote", "."}, {"config", "branch.main.merge", "refs/heads/main"}} {
@@ -23,7 +23,7 @@ func fixtureGit(t *testing.T) string {
 	}
 	return root
 }
-func fixtureWrite(t *testing.T, root, name, text string) {
+func fixtureWrite(t testing.TB, root, name, text string) {
 	t.Helper()
 	p := filepath.Join(root, filepath.FromSlash(name))
 	if err := os.MkdirAll(filepath.Dir(p), 0700); err != nil {
@@ -33,7 +33,7 @@ func fixtureWrite(t *testing.T, root, name, text string) {
 		t.Fatal(err)
 	}
 }
-func fixtureCommit(t *testing.T, root string) {
+func fixtureCommit(t testing.TB, root string) {
 	t.Helper()
 	for _, args := range [][]string{{"add", "."}, {"commit", "-m", "fixture"}} {
 		if _, err := gitOutput(root, args...); err != nil {
@@ -224,4 +224,97 @@ func TestDebtBaselineDetachedRemoteMain(t *testing.T) {
 	if _, err := debtBaseline(root); err == nil {
 		t.Fatal("missing remote main admitted")
 	}
+}
+
+// Upstream owns suppression syntax. These cases first prove that its checker
+// accepts each spelling, then require the repository boundary to refuse every
+// one as an alternative authority for sleep debt.
+func TestScanTrackedSleepSuppressionGrammar(t *testing.T) {
+	root := fixtureGit(t)
+	fixtureWrite(t, root, "bad_test.go", "package p\n")
+	fixtureCommit(t, root)
+	for _, padding := range []struct{ name, text string }{
+		{"none", ""}, {"extra-space", " "}, {"many-spaces", "    "}, {"tab", "\t"}, {"mixed", " \t "}, {"vertical-tab", "\v"}, {"form-feed", "\f"}, {"nonbreaking-space", "\u00a0"}, {"em-space", "\u2003"}, {"narrow-nonbreaking-space", "\u202f"},
+	} {
+		for _, placement := range []string{"previous-line", "same-line"} {
+			t.Run(padding.name+"/"+placement, func(t *testing.T) {
+				directive := "//lint:allow " + padding.text + sleepRule + " -- this must not bypass debt"
+				body := directive + "\ntime.Sleep(time.Second)"
+				if placement == "same-line" {
+					body = "time.Sleep(time.Second) " + directive
+				}
+				source := "package p\nimport \"time\"\nfunc TestBad(){\n" + body + "\n}\n"
+				accepted, err := golint.Check("bad_test.go", []byte(source), golint.Catalog)
+				if err != nil || len(accepted) != 0 {
+					t.Fatalf("case is not an upstream-accepted suppression: %v %v", accepted, err)
+				}
+				fixtureWrite(t, root, "bad_test.go", source)
+				if _, _, _, err := scanTracked(root, os.ReadFile); err == nil || !strings.Contains(err.Error(), "bypasses") {
+					t.Fatalf("accepted inline suppression authority: %v", err)
+				}
+			})
+		}
+	}
+}
+
+func TestScanTrackedSleepSuppressionNonDirectives(t *testing.T) {
+	root := fixtureGit(t)
+	fixtureWrite(t, root, "bad_test.go", "package p\n")
+	fixtureCommit(t, root)
+	for _, comment := range []string{
+		"// lint:allow test-fixed-sleep -- ordinary comment",
+		"//lint:allow\ttest-fixed-sleep -- missing exact directive prefix",
+		"// mentions //lint:allow test-fixed-sleep -- ordinary prose",
+		"/* //lint:allow test-fixed-sleep -- block comment */",
+		"//lint:allow test-fixed-sleep-extra -- a different, unknown rule",
+		"//lint:allow test-fixed-sleep\t-- upstream requires a literal space after the name",
+	} {
+		t.Run(comment, func(t *testing.T) {
+			source := "package p\nimport \"time\"\nfunc TestBad(){\n" + comment + "\ntime.Sleep(time.Second)\n}\n"
+			fixtureWrite(t, root, "bad_test.go", source)
+			findings, _, _, err := scanTracked(root, os.ReadFile)
+			if err != nil {
+				t.Fatalf("ordinary text was treated as sleep authorization: %v", err)
+			}
+			found := false
+			for _, finding := range findings {
+				found = found || finding.Finding.Rule == sleepRule
+			}
+			if !found {
+				t.Fatalf("sleep concealed by non-directive: %v", findings)
+			}
+		})
+	}
+	source := "package p\nfunc TestText(){_ = \"//lint:allow  test-fixed-sleep -- only a string\"}\n"
+	fixtureWrite(t, root, "bad_test.go", source)
+	findings, _, _, err := scanTracked(root, os.ReadFile)
+	if err != nil || len(findings) != 0 {
+		t.Fatalf("string literal rejected: %v %v", findings, err)
+	}
+}
+
+func FuzzSleepSuppressionCannotAdmitDebt(f *testing.F) {
+	for _, padding := range []string{"", " ", "\t", "\u00a0", "\u2003", "\t \u202f"} {
+		f.Add(padding)
+	}
+	// Reuse the real inventory boundary without rewriting or committing sources
+	// per input. Each fuzz worker owns its disposable inventory independently.
+	root := fixtureGit(f)
+	fixtureWrite(f, root, "bad_test.go", "package p\n")
+	fixtureCommit(f, root)
+	f.Fuzz(func(t *testing.T, padding string) {
+		source := []byte("package p\nimport \"time\"\nfunc TestBad(){\n//lint:allow " + padding + sleepRule + " -- reason\ntime.Sleep(time.Second)\n}\n")
+		findings, err := golint.Check("bad_test.go", source, golint.Catalog)
+		if err != nil || len(findings) != 0 {
+			return
+		} // Only genuinely accepted suppressions matter.
+		sites, err := sleepSites("bad_test.go", source)
+		if err != nil || len(sites) != 1 {
+			return
+		}
+		_, _, _, err = scanTracked(root, func(string) ([]byte, error) { return source, nil })
+		if err == nil || !strings.Contains(err.Error(), "bypasses") {
+			t.Fatalf("upstream accepted suppression escaped exclusive debt authority: padding=%q err=%v", padding, err)
+		}
+	})
 }

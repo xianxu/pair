@@ -1887,6 +1887,17 @@ all tests finish. Private executable names use hard links (copies across
 filesystems). Standalone shell consumers use the same builder, which locates
 its checkout independently of the caller's working directory.
 
+`make test` also runs ariadne's pinned Go lint catalog over tracked Go sources.
+For a focused check, run `go test ./internal/repolint -count=1 -v`. Use a full Git
+checkout with the configured main tracking ref available: the sleep-debt ratchet
+compares against main history and refuses missing or ambiguous authority. Fix
+findings or give an intentional non-sleep exception a local
+`//lint:allow <rule> — <specific reason>`; stale or reasonless exceptions fail.
+Existing sleep debt lives only in `internal/repolint/sleep-debt.json`: remove an
+entry when replacing its sleep, and never add entries or inline sleep exemptions.
+See the [Go lint catalog](atlas/go-lint-catalog.md) for scanner scope, module
+updates and the temporary debt contract.
+
 Pair and wrapper subprocess fixtures use `testpair.Environment(t, disposableRoot,
 explicitEntries...)`. It delegates to `tests/lib/pair-test-env.sh`, the shared
 empty-environment owner for Go, shell and Python tests: only host PATH, disposable

@@ -114,6 +114,20 @@ Broader affected non-core package normal run passed: broadcast33.678s, webcast12
 PR428 is open on the M1 source commit. Recorded suite attempt fad7b8eea081451df8064a47db8affc5 is queued in the machine test line; its clone is /var/folders/07/b9wcwwld4_v2w9r3hk525bm80000gn/T/sdlc-local-2861851668. Authenticated hub deliveryc9aae4fb explicitly authorizes M1 milestone-close review overlapping this queue, with recorded PASS mandatory before landing and a new final-head suite required if review changes code; this is now a standing hub rule. Source is frozen. The review verification names targeted and mutation evidence only, never labels the pending full suite a pass. M2 preparation is read-only while M1 is outstanding.
 
 
+### 2026-10-18 — M1 review round1 REWORK
+
+Round1 inspected the complete M1 branch and reproduced BR-1's whitespace-authorized inline sleep bypass. BR-1 will be repaired across the upstream-accepted grammar, red first, and BR-2 gets README developer guidance including history prerequisites. The full staged source count is2556, independently confirmed by the reviewer and Git inventory; earlier2553was the intermediate staged scanner count. All GitHub checks on the original source passed, including native conformance, but no local full-suite PASS is claimed. Queued attempt fad7b8eea081451df8064a47db8affc5 was canceled by the owned local-check verb before admission because this fix requires a new source head; other checkouts were left running.
+
+Authenticated hub delivery76f460c7 directs a BR-3 dispute, retaining fast disposable real Git repositories rather than implementing a second Git model. Plan R4 records the exact rationale, every-run conformance cadence and reconsideration criterion; the fresh reviewer will answer evidence. M1 remains unticked; source is editable for these findings only, M2 remains read-only.
+
+
+### 2026-10-18 — M1 round1 fixes verified
+
+BR-1 now derives rule identity with upstream's exact prefix, TrimSpace and ASCII-space token boundary. Twenty accepted whitespace/placement controls first prove upstream accepts the suppression and then require the scanner to refuse it; six lookalike/non-directive controls plus a string-literal control prevent a broader false-positive detector. RED retained at /tmp/pair665-br1-suppression-red.log. Final scanner package PASS9.236s, race PASS39.354s, suppression fuzz8074executions PASS; no new debt/parser/production helper. BR-2 README documents ordinary/focused check, exact non-sleep reason, exclusive debt file, full history/main-ref prerequisite and atlas link.
+
+BR-3 dispute was recorded by sdlc finding dispute with fresh3.607s real-repository countermeasurement: tracked/untracked/deleted inventory and read/parser errors, exact8/16reads, candidate-vs-main authority, malformed/deleted/missing history and detached/ambiguous main refs. No fake Git or additional model was built, per hub76f460c7. The next reviewer must answer this evidence; dispute is not a fix or SHIP. Source restored and frozen; new code head must be pushed and receive its own recorded suite before landing.
+
+
 ## Revisions
 
 ### 2026-10-18 — R1: two approved milestones
