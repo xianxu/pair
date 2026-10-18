@@ -87,10 +87,10 @@ local ok, failure = xpcall(function()
   assert(process:is_closing())
   local metadata = fake:metadata()
   assert(metadata[#metadata].timeout == 2500, 'async deadline option lost')
-  local cancelled = false
-  process = vim.system(command(), {timeout=2500}, function() cancelled = true end)
+  local cancelled
+  process = vim.system(command(), {timeout=2500}, function(value) cancelled = value end)
   process:kill(15); settle()
-  assert(not cancelled and process:is_closing(), 'cancelled callback delivered')
+  assert(cancelled and cancelled.signal==15 and process:is_closing(), 'killed process lost its completion callback')
   assert(vim.system({'git', 'status'}, {}) == sentinel and delegated==1, 'unrelated command did not delegate')
   for _, n in ipairs({8, 16}) do
     local before = fake:counts()

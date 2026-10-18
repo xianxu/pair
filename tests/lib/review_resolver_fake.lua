@@ -89,7 +89,7 @@ function M.install(opts)
   function fake:counts() return vim.deepcopy(totals) end
   function fake:metadata() return vim.deepcopy(entries) end
   local native, wrapper = vim.system
-  local function cancelled() return {code=143, signal=15, stdout='', stderr='fixture resolver cancelled'} end
+  local function cancelled(signal) return {code=0, signal=signal or 15, stdout='', stderr=''} end
   function fake:close()
     if self.closed then return end
     self.closed = true
@@ -113,19 +113,19 @@ function M.install(opts)
       totals.waits = totals.waits + 1
       entry.wait_timeout = timeout
       self.closed = true
-      return vim.deepcopy((fake.closed or self.killed) and cancelled() or self.result)
+      return vim.deepcopy(fake.closed and cancelled() or self.result)
     end
     function process:kill(signal)
-      self.killed, self.closed, self.callback, self.result = true, true, nil, nil
+      if self.closed or fake.closed then return false end
+      self.killed, self.result = true, cancelled(signal)
       entry.killed, entry.signal = true, signal
-      pending[self] = nil
       return true
     end
     function process:is_closing() return self.closed or fake.closed end
     if callback then
       pending[process] = true
       vim.schedule(function()
-        if fake.closed or process.killed or not process.callback then return end
+        if fake.closed or not process.callback then return end
         local deliver, value = process.callback, process.result
         process.callback, process.closed = nil, true
         pending[process] = nil
