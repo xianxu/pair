@@ -64,6 +64,8 @@ The work per tick is one `zellij list-sessions --no-formatting`, sometimes a liv
 - [x] Wire one existing-schedule updater and shared activity/fade results; verify stateful failure sequences.
 - [x] Integrate landed #653, make updater growth-recovery regression green, run the required recorded suite, and prepare PR/close evidence. Close review and landing follow as acceptance gates; hub performs deferred live checks and AFTER fleet measurement at next operator restart.
 
+- [ ] Verify BR-1/BR-2 corrections with the fresh recorded suite, then repeat close review.
+
 ## Log
 
 ### 2026-10-17 — approval, review and additional baseline
@@ -187,3 +189,5 @@ First close review found BR-1 Critical (shared-activity-consumer-consistency): t
 BR-2 Important (production-path-resource-verification): the prior 1,000-tick fixed-facts fake bounded reducer retention but never constructed TitleProjection, so its heap/count claims did not establish the specified combined production path. Replacing it with actual OS-backed compact projections, growing transcripts, ledger ordinal turnover and a stable neighbor, with retained heap/cache and per-tick native-work/command assertions. Review remains REWORK; required suite and close must rerun after these corrections. The earlier production-resource acceptance claim is superseded by this finding until the new workload passes.
 
 BR-1 correction passed updater/Console focused checks and targeted races. BR-2 replacement passed in a fresh parent-run isolated child: 1,000 ticks, two real compact projections, 50 x128KiB appends (6,562,109-byte final transcript), ten physical ledger launch/binding turnovers (ordinal1→21), 940 stable ticks with zero native history read/decode delta. Exactly62 scoped commands (steady neighbor1), exactly2 current entries/one desired title each, neighbor projection identity/history counters unchanged. Parent heap samples: warm1,360,888 bytes; all ten turnover samples1,289,864–1,314,760; final1,169,328, within warm+4MiB. All sample/counter lines retained in test output. Affected couchcmd/couchtty/artifactpath package run passed (47.551s/40.412s/5.940s). Fresh full recorded suite remains required after the code/test fix.
+
+Review corrections pushed as aec1efb1b224fba130faa7ae9ec5e41cfaf863b5. Required recorded suite e870e668582e734772bf8b6d58f866e5 is queued on that exact source. Targeted post-fix races passed couchcmd (10.651s) and couchtty (3.738s). No passing pre-fix suite is reused as verification of the review changes.

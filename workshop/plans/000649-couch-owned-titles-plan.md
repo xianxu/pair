@@ -141,6 +141,8 @@ Files: README.md, atlas/couch.md, atlas/index.md as needed, this plan and #649 L
 - [x] Finish ten-minute large-poller pre-fix measurement; record fresh/large poller RSS, CPU, ticks, query rates and fleet totals in the issue. Baseline runs before any deployed fix.
 - [x] Record TL-directed live deferral: do not stage pair:0 (shared restart binary). After landing, hub relaunches slots during the operator next restart; hub owns no-poller/title/fade/cmux observation and fleet/supervisor AFTER totals. Automated OS-seam tests and recorded suite plus close review are the pre-landing evidence. Live checks remain outstanding until that restart.
 - [x] Run targeted/race verification, push issue head, run required recorded `sdlc local-check run --name suite`.
+- [ ] Run the fresh recorded suite for BR-1/BR-2 corrections and record the result before re-closing.
+
 Next acceptance gates: close with the recorded automated evidence and TL live deferral, resolve sole boundary review, update PR 424 and await SHIP. Then `sdlc merge --yes` and report Git-read hashes and PR to hub.
 
 ## Baseline evidence (2026-10-17)
