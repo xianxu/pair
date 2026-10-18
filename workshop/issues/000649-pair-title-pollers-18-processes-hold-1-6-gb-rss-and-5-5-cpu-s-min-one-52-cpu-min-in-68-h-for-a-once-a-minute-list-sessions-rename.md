@@ -68,6 +68,8 @@ The work per tick is one `zellij list-sessions --no-formatting`, sometimes a liv
 
 ## Log
 
+
+- 2026-10-18: closed — Post-review recorded suite e870e668582e734772bf8b6d58f866e5 passed on aec1efb1b224fba130faa7ae9ec5e41cfaf863b5 (13m47s). BR-1 stale-native/recent-wrapper regression now drives frame, cmux heat and fading from one wrapper snapshot; Console delivery and targeted races pass. BR-2 actual two-target file-backed projections complete1000 ticks with50 transcript appends,10 ledger turnovers,940 zero-history-work stable ticks,2 current entries,62 scoped writes and retained heap below warm+4MiB. All affected packages, artifact/storage inventory and growth recovery tests pass. BEFORE fleet/poller RSS CPU tick/query evidence is recorded. TL explicitly deferred actual hosted no-poller/title/fade/cmux and AFTER fleet totals to hub next operator restart, with no pair:0 staging.; review verdict: SHIP
 ### 2026-10-17 — approval, review and additional baseline
 
 TL delivery 798a3ab4-b9da-465f-a516-34c291210e0a approved the full-flow replacement and 2-second fair display pass, requested a large-poller sample and fleet before/after totals. The fresh sample grew 128 KiB total over two ticks (64 KiB mean per tick), not 128 KiB per tick.
