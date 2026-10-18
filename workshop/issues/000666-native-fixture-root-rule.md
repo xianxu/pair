@@ -1,13 +1,23 @@
 ---
 id: 000666
-status: open
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-18
 updated: 2026-10-18
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: 'bc97ce9902fd9422129fda400f275a555c24ef5a' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'a2111ec50d72d9200b40c9cf181dedb7ebb2a265' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-18T10:34:48-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:6
+    worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
+    repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "dc5c215c", done: "dac51d13"}
+actual_hours: 0.19
 ---
 
 # Guard native fixture root handoffs
@@ -22,6 +32,17 @@ Decide whether this belongs in a small Pair-local catalog extension or ariadne's
 
 Evidence is landed in PR431, merge 1e90001c06796ba600c77d3cde3255ad6818f611, verified reachable from origin/main. See cmd/internal/couchcore/recovery_live_environment_test.go: recoveryLiveEnvironmentViolations, TestRecoveryLiveEnvironmentSourceGuard (six mutations), and TestRecoveryLiveEnvironmentOwnsRoots (poisoned ambient roots, direct/nested children, cleanup/restoration, real AF_UNIX endpoint-budget bind). Actual entrypoints are recovery_conformance_live_test.go and park_lifecycle_live_test.go. Archived #636 details retain RED/GREEN and mutation evidence. No native run is needed merely to reproduce the guard's deterministic behavior.
 
+
+Recommend a Pair-local repository rule: the defect depends on Pair's empty-environment builder and a cross-file helper handoff. Shared golint.Rule matches one AST, so putting these identifiers there would impose Pair contracts on other repos. Keeping only the existing guard would miss the requested lint ownership. A generic configurable cross-file lint framework is unnecessary for one known contract.
+
+nativeFixtureRootFindings consumes source bytes keyed by the three protected repository paths and returns located findings for rule native-fixture-roots (incident #636). It is pure parsing/inspection; absent or malformed required sources fail visibly. A thin reader in internal/repolint reuses the repository test root and injected readFile seam, reading each of those files once without extra Git/native queries. TestTrackedGoFilesPassCatalog consumes this local check alongside the unchanged shared catalog/debt scan. No suppression path is added.
+
+The manifest protects warm setup, park setup, the child cmd.Env handoff and all seven explicit root reads in recoveryLiveChildEnvironment. This is bounded source-contract checking, not a general data-flow proof or automatic discovery of future native fixtures. Keep the existing matcher until the new rule passes its six original mutations and a real-source equivalent; then remove the duplicate matcher/mutation test in the same issue (ARCH-DRY). The actual poisoned direct/nested-child, restoration/cleanup and socket-budget regressions stay in couchcore (ARCH-PURPOSE).
+
+Pure rule tests use source fixtures with no IO (ARCH-PURE); the reader uses injected reads for missing/unreadable inputs. The existing repo catalog boundary owns Git and its stateful fake; no new binary/service dependency is introduced (ARCH-MOCK). Cost is one pass over three bounded source files per repository lint run; no runtime hot path or additional process query (ARCH-CONSTRAINTS). Source parse/read failures refuse rather than treating unknown as clean (ARCH-SECURE). The check holds no state between events and creates no durable resources because it is one synchronous in-memory lint invocation (ARCH-ORDER, ARCH-FUNERAL).
+
+Visible results are clean (continue), finding (restore the named setup/handoff/root read and rerun), or unreadable/malformed source (restore the source and rerun); no user data is changed or lost. No native window, deadline change, operator-environment access or shared ariadne edit is needed.
+
 ## Done when
 
 - Rule ownership and the consumption interface are documented, with Pair-specific identifiers kept local unless a justified shared abstraction is approved.
@@ -31,8 +52,40 @@ Evidence is landed in PR431, merge 1e90001c06796ba600c77d3cde3255ad6818f611, ver
 
 ## Plan
 
-Unassigned follow-up after landed #636. Design the local extension boundary before code; any ariadne change is routed through the hub as a cross-repository proposal.
+- [x] Add a Pair-local cross-file native-fixture-roots rule in internal/repolint, consuming the three protected source files and emitting located findings through the ordinary repository lint test.
+- [x] Qualify clean source fixtures, the existing six mutations, all seven omitted root reads, and missing/unreadable/malformed source failures; preserve the real poisoned parent/nested child and socket-budget tests.
+- [x] After equivalent lint coverage passes, remove the old couchcore source matcher/mutation test so there is one owner; keep environment builders and runtime regression unchanged.
+- [x] Update atlas ownership/interface documentation and verify targeted lint/runtime tests plus races.
+
+Recorded suite and sole close review precede normal landing. The review may overlap the suite per current tl-worker contract; any review code fix requeues the final-head suite.
 
 ## Log
 
 Hub ded49f45 requested this one follow-up after #636 lands and leaned Pair-local. Pair:6 delivery2fd83608 supplied landed paths and evidence; independently verified the merge and inspected the source. This is outside #665's implementation scope and does not block it.
+
+### 2026-10-18 — implementation and deterministic evidence
+- 2026-10-18: closed — BR-1 host evidence at exact reviewed7cb980f5ea0c51ebf5888864f8296c351b7bdcdb: complete go test ./internal/repolint -count=1 PASS17.539s; named TestTrackedGoFilesPassCatalog -count=1 -v PASS4.217s reports2580 tracked sources,5 shared rules plus Pair native-fixture-roots and100 sleep debt sites. Git confirmed configured origin main authority; reviewer checkout lacks that authority. No code changed; dispute and output retained in Log for explicit disposition. Rule protects both setup calls, child cmd.Env and seven roots; six original real-source mutations and synthetic missing/bodyless/malformed/read-failure fixtures pass. Actual poisoned parent/nested child and socket budget test unchanged. Full lint package and targeted races green. Atlas ownership/interface updated. Recorded suite queued on unchanged7cb980f5 and required before landing; tl-worker permits review overlap. No native/operator/deadline/suppression or shared-catalog change. (done-when: contract moved since change-code; judged by the close review); review verdict: SHIP
+
+Hub plan receipt94f5503e verified submitted; quick-flow change-code passed. Chose a Pair-local repository check rather than put Pair identifiers in the shared single-file catalog. Native fixture source bytes feed a pure checker; the existing repository lint test consumes its findings via a thin injected three-file reader. Required source absence, read errors and parse errors fail visibly; there is no new suppression path, native query or Git process.
+
+TDD RED: the no-op checker missed all ten setup/handoff/root omissions plus missing/malformed required files; the no-op reader failed its actual reads assertion. GREEN focused lint4.476s. The original six real-source mutations passed at the new lint boundary while the original couchcore matcher also passed, and actual environment regression remained green (lint4.560s/couchcore0.383s). Only then removed the duplicate matcher/mutation test; setup/child builders and the real poisoned roots/cleanup/socket-budget test remain unchanged. Added bodyless/missing entry coverage; bodyless AST RED exposed a nil-body panic, fixed by reporting the missing contract rather than walking a nil body. A scripted extraction briefly matched the old mutation-case string instead of the actual child function; corrected the line-anchored boundary before verification. Current lint/runtime focused checks pass4.565s/0.540s; targeted race pass45.598s/1.753s. Added a reader-level negative case proving it returns rule findings, and final package/race checks follow.
+
+Final normal repolint package passed17.127s; catalog check after adding the new file to the index passed6.292s. Updated targeted race family passed repolint47.424s and couchcore1.594s. git diff --check passed. Source rule consumes all six original real-source mutations plus all seven root omissions, missing/bodyless entrypoints, missing/malformed files, and injected reader failures/findings. Implementation complete; recorded suite/CI and boundary review remain for publication. No native commands or operator environment used.
+
+### 2026-10-18 — close round1 verification evidence
+
+Review found no code defect but returned REWORK BR-1 (kind unverifiable): its disposable checkout lacks configured/remote main authority, so the pre-existing debt ratchet refuses before the new lint hook. Re-ran on exact reviewed head7cb980f5ea0c51ebf5888864f8296c351b7bdcdb in this configured checkout: go test ./internal/repolint -count=1 passed17.539s. Separately go test ./internal/repolint -run '^TestTrackedGoFilesPassCatalog$' -count=1 -v passed4.217s; its log explicitly reports2580 tracked Go sources,5 shared rules plus Pair native-fixture-roots and100 exact sleep debt sites. git rev-parse confirmed HEAD7cb980f5ea0c51ebf5888864f8296c351b7bdcdb and origin/main9b841c43452eafa93b5613f0d93feb677e0b4a2f; both main/main-slot6 track origin refs/heads/main. No production change or loosened authority gate is justified. Submit this measured host evidence via the dispute path for explicit reviewer disposition. The recorded suite remains queued on the same code head.
+
+Close round2 returned SHIP, withdrawing BR-1 with the exact-head host evidence; no code fix was needed. Minor BR-2 corrected atlas wording from every entrypoint omission to the actual missing/bodyless warm entrypoint cases; all root/source omissions remain covered. Added the lesson; this is prose only and the queued suite code is unchanged.
+
+### 2026-10-18 — suite and sequencing
+
+Recorded suite on7cb980f5ea0c51ebf5888864f8296c351b7bdcdb passed exit0 in11m18s, log sha256 prefix c9064c3853af, after662s queue wait. One attempt, no failures/retries. Full repolint passed6.131s in that suite. Log: /Users/xianxu/workspace/pair/.git/sdlc/local-checks/7cb980f5ea0c51ebf5888864f8296c351b7bdcdb/suite.log. Only prose/ledger changes followed this code head. PR433 server CI is green, including macOS conformance2m55s. No native/operator lane used.
+
+Verified hub97bfc16e directs landing this current manifest without waiting for #665 M2. Pair:1 verified30a55a01 will add continuation/quiesce entrypoints to this same rule in #665 M2 alongside their helper substitutions after #666 lands; no stacked work or duplicated matcher. Send the landed path/API after publication. Hubfb044b56 also confirmed that the disposable-review main-authority gap is tracked in ariadne; the host-evidence dispute is the approved response here.
+
+## Revisions
+
+- 2026-10-18 — Dispatched by verified hub receipt39404527; unowned card checked, claimed and start-plan completed. Chose Pair-local cross-file lint ownership; equivalent deterministic qualification precedes retiring the old duplicate guard. Quick flow, no milestones or estimate.
+
+- 2026-10-18 — Relocated the existing design paragraphs into canonical Spec; no content, scope or acceptance change.

@@ -235,7 +235,8 @@ The warm-recovery and park conformance fixtures explicitly select disposable
 HOME/config/data/cache/runtime/socket roots through the existing empty-environment
 test boundary. Their nested park helper receives the same selected roots;
 outer shell overrides alone are not fixture authority. A poisoned-ambient child
-regression and a local source guard defend that propagation.
+regression and the Pair-local repository lint rule defend that propagation
+(see [Go lint catalog](go-lint-catalog.md)).
 
 Recovery admission is tested through the production scoped query adapter and
 shared stateful native fake, including unknown replies at both ownership reads
