@@ -703,7 +703,7 @@ func (r contextStoreRuntime) CreateTemp(dir, pattern string) (StoreFile, error) 
 	return contextStoreFile{StoreFile: file, ctx: r.ctx}, nil
 }
 
-// Store uses Remove only to collect its own unpublished temporary files.
+// Remove collects the store's own unpublished temporary files.
 // Complete that synchronous cleanup even after cancellation; callers removing
 // published request/completion evidence screen their operation context first.
 func (r contextStoreRuntime) Remove(path string) error {

@@ -38,9 +38,16 @@ func TestRelaunchBeforeBeginFailureDoesNotInventAnOpenPark(t *testing.T) {
 
 func TestRelaunchFinalizedJournalWithLostReplyReportsParked(t *testing.T) {
 	env, live := envWithLiveThread(t)
+	armed := false
+	env.Couch.Threads.hooks.AfterJournal = func() error {
+		if armed {
+			return errors.New("lost finalization reply")
+		}
+		return nil
+	}
 	env.Couch.Threads.hooks.BeforeUpdate = func(old, next ThreadRecord) error {
 		if old.Park != nil && next.Park == nil && next.VerifiedPark != nil {
-			env.Couch.Threads.hooks.AfterJournal = func() error { return errors.New("lost finalization reply") }
+			armed = true
 		}
 		return nil
 	}

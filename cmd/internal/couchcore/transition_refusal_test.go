@@ -171,6 +171,14 @@ func TestEveryLifecycleTransitionIsDrivenIntoItsOwnRefusal(t *testing.T) {
 			},
 			want: "does not match an active non-tombstoned transaction",
 		},
+		"RetireInterruptedPark": {
+			shape: noShape,
+			call: func(t *testing.T, s *ThreadStore, r ThreadRecord) error {
+				_, err := s.RetireInterruptedPark(context.Background(), r.Address, r.Revision, park(r), time.Unix(300, 0).UTC())
+				return err
+			},
+			want: "interrupted park owner was replaced",
+		},
 		"AbandonPark": {
 			shape: noShape,
 			call: func(t *testing.T, s *ThreadStore, r ThreadRecord) error {
@@ -310,7 +318,8 @@ func TestEveryLifecycleTransitionIsDrivenIntoItsOwnRefusal(t *testing.T) {
 }
 
 // lifecycleTransitionsReachingTheDoor is the domain: exported *ThreadStore
-// methods whose call graph, within the store, reaches updateExistingThread.
+// methods whose call graph reaches the shared journal/CAS backend, including
+// both legacy and context-bearing update routes.
 // A fixed point rather than one hop, because two transitions reach it through
 // an unexported helper (retireIncarnation, advanceSuccessfulStart).
 func lifecycleTransitionsReachingTheDoor(t *testing.T) []string {
@@ -354,7 +363,7 @@ func lifecycleTransitionsReachingTheDoor(t *testing.T) []string {
 			calls[fn.Name.Name] = callees
 		}
 	}
-	reaches := map[string]bool{"updateExistingThread": true}
+	reaches := map[string]bool{"updateExistingThreadOnBackend": true}
 	for changed := true; changed; {
 		changed = false
 		for method, callees := range calls {
