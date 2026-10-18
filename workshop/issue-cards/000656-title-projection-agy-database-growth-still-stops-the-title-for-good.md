@@ -1,6 +1,6 @@
 ---
 id: 000656
-status: codecomplete
+status: done
 created: 2026-10-17
 updated: 2026-10-18
 estimate_hours:
@@ -22,6 +22,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 35c214922cd6b66920d0042a4165e816e8ad5fa3
         evidence_commit: fa6480eda38e4734c7ef05c0dfa3f3a2137086d2
+        landed_commit: 9265395740b065c03a2ff0fc317a9dbf754616a9
 ---
 
 # Title projection: agy database growth still stops the title for good
