@@ -75,6 +75,41 @@ rounds:
       isolation: fenced
       reviewed: 823bafe3b328613b8016edd9baebe32be5b23a38
       blocked: false
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 70983eb1-f791-42b1-a2e1-b9202c4ff552
+            repository: github.com/xianxu/pair
+            issue_id: "000636"
+            recipe: fix-review
+            round: 3
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/Library/Caches/sdlc/review-checkouts/fbaf4c690bbbb1c2
+            reviewed_head: bf4af0d3b6ae83ca87b249e00148f7a903d28227
+            slot: pair:6
+            requested_at: "2026-10-18T16:50:51.056979Z"
+          phase: finished
+          pid: 61396
+          started_at: "2026-10-18T16:50:51.152981Z"
+          finished_at: "2026-10-18T16:52:15.722521Z"
+          session_id: 01a14fec-5779-7fd2-9cf6-cee75bba9f64
+          outcome: returned
+      "n": 3
+      timestamp: "2026-10-18T09:52:17-07:00"
+      dispatched: "2026-10-18T09:50:49-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: launcher/zellij.go:199–217 supplies query caller/effective deadlines; recovery_query_capture_test.go:266–277 consumes them. The shorter-child regression passes at head and fails under a temporary overlay restoring installation-context capture, reporting the one-minute parent instead of the four-second child.
+          round: 3
+      recipe: fix-review
+      isolation: fenced
+      reviewed: bf4af0d3b6ae83ca87b249e00148f7a903d28227
+      blocked: false
 ---
 
 # Gate ledger — pair#636 (boundary-review)
@@ -94,6 +129,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 ### Disposed
 
 - BR-1 — addressed — zellij.go:199–217 supplies actual caller and effective deadlines; recovery_query_capture_test.go:266–277 consumes them for warm/checkpoint and both park modes. TestRecoveryQueryCaptureUsesQueryChildDeadline passes at head and fails under a temporary overlay restoring installation-context capture, reporting the one-minute parent instead of the four-second child. Adapter tests also cover absent, shorter and longer caller deadlines.
+
+## Round 3 — 2026-10-18T09:52:17-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — launcher/zellij.go:199–217 supplies query caller/effective deadlines; recovery_query_capture_test.go:266–277 consumes them. The shorter-child regression passes at head and fails under a temporary overlay restoring installation-context capture, reporting the one-minute parent instead of the four-second child.
 
 ## Open findings
 

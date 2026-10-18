@@ -135,3 +135,72 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-18T09:52:16-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 636 — Warm recovery live conformance intermittently receives no Zellij query reply |
+| repo | pair |
+| issue file | workshop/issues/000636-warm-recovery-query-no-reply.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 19457fcdc3a298b967cac0bbc775b6540ceacd63..bf4af0d3b6ae83ca87b249e00148f7a903d28227 |
+| command | sdlc close --issue 636 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-18T09:52:16-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The interdiff adds two justified lint exceptions and review records. Both exceptions apply to existing short Unix socket roots and preserve private allocation and cleanup. No new blocking defects or scope expansion found.
+
+Done-when: current — the revision records lint integration for the approved diagnostic/isolation delivery; acceptance remains unchanged.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      launcher/zellij.go:199–217 supplies query caller/effective deadlines; recovery_query_capture_test.go:266–277 consumes them. The shorter-child regression passes at head and fails under a temporary overlay restoring installation-context capture, reporting the one-minute parent instead of the four-second child.
+```
+
+1. **Strengths**
+
+   - Exceptions at `recovery_live_environment_test.go:23` and `recovery_native_reply_test.go:70` identify concrete socket-length constraints.
+   - Removing each directive in memory produces exactly one `tmp-literal` finding; both original files pass that check.
+   - Existing tests verify real socket binding, private-root propagation and cleanup.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage:** Focused recovery, isolation, child-deadline and adapter-deadline tests passed. BR-1 mutation failed as expected. Diff whitespace checks passed. The repository-wide catalog test could not complete because this checkout has no remote main ref; direct catalog checks verified both changed files. Temporary artifacts were removed; tracked files remain unchanged.
+
+6. **Architecture:** ARCH-DRY passes: both sites use the shared catalog mechanism. ARCH-PURE passes: no business logic or IO boundaries change. ARCH-PURPOSE passes: the exceptions preserve tested socket constraints without weakening runtime assertions. No new surface requires atlas or README updates.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"70983eb1-f791-42b1-a2e1-b9202c4ff552","repository":"github.com/xianxu/pair","issue_id":"000636","recipe":"fix-review","round":3,"attempt":1,"agent":"codex","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/fbaf4c690bbbb1c2","reviewed_head":"bf4af0d3b6ae83ca87b249e00148f7a903d28227","slot":"pair:6","requested_at":"2026-10-18T16:50:51.056979Z"},"phase":"finished","pid":61396,"started_at":"2026-10-18T16:50:51.152981Z","finished_at":"2026-10-18T16:52:15.722521Z","session_id":"01a14fec-5779-7fd2-9cf6-cee75bba9f64","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.481425291s
+head: "bf4af0d3b6ae83ca87b249e00148f7a903d28227"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
