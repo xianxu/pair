@@ -12,6 +12,8 @@ collaboration-mode: discussion
 
 **Tech stack:** Go, existing Console operation/reattach reducers, Pair lifecycle controller, Unix peer credentials, wrapper registry sessions, #648 FIFO batches and stateful socket/PTY fakes.
 
+> **Superseded initial proposal:** The material below through the first Revisions entry records the initial proposal, not the implementation contract. The appended “Current trimmed plan” replaces it following hub feedback; removed tasks are not acceptance requirements.
+
 ## Decisions and alternatives
 
 - Use completion hooks, not request logs or inventory diffs as a substitute for successful start/park/relaunch. Registration alone precedes Console adoption; attach-client exit alone does not prove native agent exit.
@@ -123,10 +125,10 @@ Mutate away origin guards, adoption gating and pass-drain gating independently; 
 
 ## Tasks
 
-- [ ] Add failing provenance/receipt/kernel-caller tests; implement typed origin, internal admission, compatibility and exact batch/log preservation. Commit.
-- [ ] Add failing native-exit and operation/cohort stateful tests; implement authentic exit reporting, post-adoption and exact park hooks, normalized event reducer and bounded publisher. Commit.
-- [ ] Wire startup cohort completion, multi-hub ownership and per-hub opt-out; exercise real socket/Console fake integration and negative controls. Commit.
-- [ ] Update README, atlas/index/Couch map, `couch --skill`, and the source-owned TL lead help (an ariadne companion coordinated by the hub, required before this issue closes), add artifact inventory entries, then focused/race and recorded suite verification. Close and land through normal gates.
+- Historical proposed task (superseded): Add failing provenance/receipt/kernel-caller tests; implement typed origin, internal admission, compatibility and exact batch/log preservation. Commit.
+- Historical proposed task (superseded): Add failing native-exit and operation/cohort stateful tests; implement authentic exit reporting, post-adoption and exact park hooks, normalized event reducer and bounded publisher. Commit.
+- Historical proposed task (superseded): Wire startup cohort completion, multi-hub ownership and per-hub opt-out; exercise real socket/Console fake integration and negative controls. Commit.
+- Historical proposed task (superseded): Update README, atlas/index/Couch map, `couch --skill`, and the source-owned TL lead help (an ariadne companion coordinated by the hub, required before this issue closes), add artifact inventory entries, then focused/race and recorded suite verification. Close and land through normal gates.
 
 ## Live arrangement requiring hub approval
 
@@ -135,3 +137,73 @@ Propose isolated owned Console/registry/wrapper/socket checks before close, with
 ## Revisions
 
 - 2026-10-17 — Initial design for approval. Read-only exploration found provisional launch/adoption and attachment/native-exit distinctions, and the direct-endpoint spoofing hole for any new system flag. These are addressed in the plan before code; no implementation changed.
+
+- 2026-10-17 — Hub feedback 2b740f16-29c2-4e8a-89ee-6571e0a4dcb2, verified Submitted: simplify before code. The current plan below supersedes the initial architecture, entity tables, tasks and live proposal. Remove wrapper PID authentication, broker-connection leases, the negotiated native-exit frame and per-hub opt-out storage. Native-agent exit is deferred to unclaimed #657 because attachment exit is insufficient evidence. Owned-child checks now and operator smoke at the hub's next restart are approved; the hub owns the ariadne tl-lead companion.
+
+## Current trimmed plan
+
+**Goal:** Send confirmed slot lifecycle information to its existing owning hub, coalescing restart reattachments, through the existing message broker.
+
+**Architecture:** Existing successful lifecycle boundaries feed a bounded collector. Its internal publisher creates system-origin records and sends them through the existing broker and #648 batching. Canonical server receipts establish origin; the closed external request cannot select it. No terminal/session protocol extension or wrapper process authentication is added.
+
+### Core concepts
+
+| Pure entity | Lives in | Status |
+|---|---|---|
+| Message origin and immutable identity | `cmd/internal/couchmessage/model.go`, `batch.go` | modified |
+| Lifecycle fact and bounded collector | `cmd/internal/couchcore/lifecycle_notice.go` | new |
+
+Origin is omitted/zero for peers, with one known system value and unknown values rejected. External sends always construct peer-origin messages; only the server's internal generated-notice producer constructs system origin. Propagate this immutable field through queues, retained receipts, deduplication, batch comparisons and envelopes. The wrapper receives it in the server's delivery record. A copied heading is ordinary peer body text; canonical receipt origin is the authority, not text. A direct endpoint payload cannot create a canonical server system receipt. Preserve origin on singleton fallback; an old strict wrapper refuses unsupported system records without a write or silent downgrade.
+
+The collector owns at most the existing slot bound (128) of current facts and dirty updates, plus one frozen outstanding summary per existing hub. Facts carry exact slot/incarnation, kind, operation identity, known cached metadata and initiation (operator/peer/automatic/unknown). Unknown metadata stays unknown. For repeated unsent slot changes, coalesce to current confirmed state plus change count; this is a Slots update, not an audit history. Freeze accepted payloads: later facts belong to the next projection. Do not change existing thread or receipt status enums.
+
+### Integration points
+
+| Integration | Lives in | Status | Wraps |
+|---|---|---|---|
+| Internal notice admission and accounting | `cmd/internal/couchcmd/supervision.go`, `message_service.go`; `couchmessage/broker.go`, `endpoint.go`; `wrapcmd/peer_batch.go` | modified | existing broker admission, immutable matching and exact delivery log |
+| Confirmed completion observations | `cmd/internal/couchtty/console.go`, `console_menu.go`, `console_reattach.go`; `couchcore/park.go` | modified | final adoption, successful park, existing inventory and restart pass |
+| Collector publisher | `cmd/internal/couchcmd/lifecycle_notices.go`, `run.go` | new/modified | existing hub routing, lifetime cancellation, configuration and broker |
+
+Use existing stateful Console/core/registry/PTY fakes and owned Unix sockets/children. No alternate paste writer, new periodic discovery, native scan or per-event Git subprocess. Callbacks copy evidence and invoke the collector outside existing locks. One service-owned worker performs admission and joins on shutdown; preserve the existing hub ownership resolver without a new ownership store. Extend the collector later for #657 without prebuilding a terminal protocol.
+
+### Event evidence and ordering
+
+| Event | Confirmed boundary |
+|---|---|
+| started/resumed | final successful Console operation after adoption; initial attach explicitly seeds equivalent evidence |
+| parked | exact quit completion and successful `FinalizePark`; cleanup warnings do not undo the fact |
+| relaunched | typed `Relaunched` plus successful replacement adoption |
+| recovered | successful Continue/Resume/Fresh result plus adoption, preserving mode |
+| needs-relaunch | transition into the existing confirmed actionable inventory reason; repeated/unknown/stale observations do not notify |
+
+Attachment exit is not an agent-exit event. #657 owns reliable native-agent exit evidence and its tests. Failed adoption never produces success. Normalize a relaunch/recovery's correlated substeps into its final notice, without duplicate park/start notices; partial failures may report confirmed park without claiming successful relaunch. Operator initiation requires existing operator-origin evidence, otherwise say peer, automatic or unknown.
+
+Arm restart collection with the existing reattach pass. Flush at `ReattachDone`, including empty, failed and cancelled outcomes, never a debounce deadline. Twenty normal rows should form one summary. Format bounded fields and respect the existing 8 KiB message body limit; a larger snapshot uses numbered parts and existing #648 capped FIFO batching. Claude batching remains enabled as today; Codex/Qoder remain singleton. Pair logging retains the exact combined submitted turn.
+
+A busy or absent hub retains bounded unsent current facts; it does not block lifecycle completion. Freeze only for the current resolved hub incarnation. Submitted receipts retire the frozen projection, leaving newer changes dirty. Known pre-write cancellation may produce a fresh current snapshot; indeterminate input is never replayed. Stale incarnations cannot overwrite replacements. Shutdown cancels and joins publication and discards ephemeral state.
+
+### Configuration, docs and verification
+
+One process setting: `COUCH_LIFECYCLE_NOTICES`, default on; explicit `off` disables lifecycle notices. Accept `on`/`off` only, with an actionable startup error for other nonempty values. No per-hub mute file. No configured hub means no lifecycle recipient; avoid self-notification loops. Existing worker startup availability notices also use the internal system producer, retaining their body. Do not reclassify unrelated peer sends or expand other generated-notice behavior unnecessarily.
+
+Update README, `couch --skill`, atlas/Couch map and index, and artifact inventory for new files. Hub supplies the ariadne tl-lead companion (Slots information, no reply); record its link and completion before close.
+
+| Boundary | Test strategy and required assertion |
+|---|---|
+| Origin/envelope/admission | Closed CLI request rejects forged origin; copied system header remains peer; only internal producer creates canonical system receipt; unknown origins reject. |
+| Receipt/batch retention | Alter origin under same ID in queued/completed/retained records and prepared batches; never deduplicate/adopt mismatched origin. Exact combined envelope/log and individual receipts retain it; unsupported wrapper cannot downgrade. |
+| Lifecycle hooks | Stateful completed/adopted operations, exact park and inventory transitions; failed/stale operations produce no success, correlated relaunch emits once; attachment exit alone emits no agent exit. |
+| Collector and publisher | Empty/20/128-slot restart passes, out-of-order completion, failed/cancelled pass, bounded overflow, repeated inventory, busy/absent/replaced hub, opt-out and shutdown. Assert drain barrier, final state, limits, no replay after uncertainty and no blocking of lifecycle completion. |
+| Runtime wiring | Owned Console/registry/socket stack verifies real hook invocation, one normal restart summary and actual broker/#648 delivery, exact Pair turn and per-message receipts. |
+
+Negative controls remove origin matching, adoption gating and pass-drain gating independently; the corresponding tests must fail. ARCH-DRY: existing message path and routing. ARCH-PURE: one collector reducer. ARCH-ORDER: explicit adoption/pass/receipt boundaries. ARCH-SECURE: internal origin, closed external requests and canonical receipts. ARCH-FUNERAL: service owns bounded state and joins its worker.
+
+### Current execution steps (one close boundary)
+
+- [ ] Write and run failing origin/admission/receipt/batch tests; implement internal origin and delivery preservation; run targeted couchmessage/wrapcmd tests and commit.
+- [ ] Write failing pure collector and stateful lifecycle tests; implement confirmed completion hooks, restart drain and bounded publication; run focused core/tty/cmd tests and commit.
+- [ ] Wire the single setting and startup availability origin; exercise owned socket/Console children, failure cases and negative controls; update docs/inventory and record the hub's tl-lead companion.
+- [ ] Run focused/race checks, push and open an early draft PR for CI overlap, then recorded full suite, close review and normal merge gates. Never hand-post gate status.
+
+**Approved live arrangement:** Owned children and isolated sockets now, no existing slot focus/clipboard input. Real start/park/relaunch/recovery and restart-summary smoke runs with the operator at the hub's next restart after landing, with no pair:0 staging. Native-agent exit is outside that smoke and outside this issue. Plan revision goes to the hub before change-code; full-flow plan-quality acceptance precedes the estimate and implementation.

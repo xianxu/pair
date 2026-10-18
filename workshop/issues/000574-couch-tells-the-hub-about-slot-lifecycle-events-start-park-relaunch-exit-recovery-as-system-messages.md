@@ -45,10 +45,12 @@ and the hub is available…" notice, attributed to ops:0.
 
 ## Plan
 
+**Current contract:** The 2026-10-17 revision below and the durable plan’s “Current trimmed plan” supersede the original agent-exit and per-hub opt-out requirements.
+
 Durable full-flow design: [Lifecycle system notices](../plans/000574-couch-lifecycle-notices-plan.md). One atomic close boundary; plan approval before implementation.
 
-- [ ] Establish server-owned origin and protect system delivery against peer/body/direct-endpoint forgery.
-- [ ] Wire confirmed lifecycle and native-exit events, restart pass aggregation, bounded multi-hub publication and opt-out.
+- [ ] Establish internal server-owned origin, closed peer requests and canonical receipt provenance.
+- [ ] Wire confirmed lifecycle events excluding native-agent exit (#657), restart aggregation, bounded publication and one default-on setting.
 - [ ] Complete fake/socket/owned-child verification, required documentation and recorded suite before close/landing.
 
 ## Log
@@ -60,6 +62,14 @@ Durable full-flow design: [Lifecycle system notices](../plans/000574-couch-lifec
 - Read-only provenance exploration found that a new message flag alone would be forgeable through a direct wrapper endpoint call. Proposed immutable server-owned origin plus kernel caller matching against the exact live broker connection; canonical receipt verification remains required. Existing peer wire shape and Codex batching rollout remain unchanged.
 - Durable plan covers core concepts, transition/ownership/lifetime rules, per-function adversarial strategies, multipart overflow bounds, opt-out, compatibility and the separate real operator smoke arrangement. Awaiting hub approval before code. TL-lead help is source-owned by ariadne; propose a companion through the hub rather than filing a peer issue or leaving that Done-when item deferred.
 
+### 2026-10-17 — Trimmed design
+
+- Verified hub feedback 2b740f16-29c2-4e8a-89ee-6571e0a4dcb2 Submitted. Removed wrapper PID authentication, connection leases, new terminal frames and per-hub mute storage from the implementation contract; canonical server receipts establish system origin. No implementation code changed.
+- Filed unclaimed #657 (depends on #574) for reliable native-agent exit. Existing Console.onExit observes attachment-client exit, which cannot prove native-agent exit. #574 will neither emit nor test agent-exit success from that evidence.
+- One default-on COUCH_LIFECYCLE_NOTICES setting replaces per-hub opt-out. Retain collector, confirmed lifecycle hooks, restart drain summary through #648 and negative/integration tests. Hub approved owned-child checks now and real operator smoke at its next restart, without pair:0 staging; hub owns the ariadne tl-lead companion. Awaiting trimmed-plan approval before code.
+
 ## Revisions
 
 - 2026-10-17 — Proposed design adds an explicit native-exit observation because Console attachment exit cannot substantiate the requested agent-exit notice, and kernel provenance because a visual system flag alone is forgeable. Full requested scope retained; operator smoke deferral and ariadne TL-lead companion await hub agreement.
+
+- 2026-10-17 — At hub request, the current Spec and Done-when exclude native-agent exit (unclaimed #657); require start/resume, park, relaunch, recovery and confirmed needs-relaunch notices plus restart coalescing. One global default-on setting replaces per-hub opt-out. Internal producer-only origin and canonical receipts replace endpoint PID authentication. All other verification/docs requirements remain; the approved operator smoke is deferred to the hub’s next restart.
