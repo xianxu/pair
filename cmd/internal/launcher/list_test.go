@@ -92,7 +92,7 @@ func TestBuildListRowsForScopeFiltersBySessionNameIndex(t *testing.T) {
 
 	rows := buildListRowsForScope(
 		[]string{"📁pair-work", "📁📁work-2", "pair-unindexed"},
-		"📁pair-work [Created]\n📁📁work-2 [Created]\npair-unindexed [Created]\n",
+		"📁pair-work [Created 1s ago]\n📁📁work-2 [Created 1s ago]\npair-unindexed [Created 1s ago]\n",
 		index,
 		scope.Key,
 		func(tag string) string {

@@ -1501,6 +1501,39 @@ roots are recovered from the immutable starting path and repository scope via
 `presentationRoot`, not the child's current working directory. They use `main`
 as their resting branch, just like a slot group's primary checkout.
 
+### Hosted title ownership (#649)
+
+Hosted wrappers skip title-child allocation through the shared Couch-hosted
+predicate. The sole updater lives in `couchcmd/titles.go`, called from
+`Console.advanceActivity` on the existing single-flight activity schedule.
+Accepted inventory changes request a pass; the existing minute tick advances
+idle heat. No separate timer, process, session listing or client query is added.
+
+`couchcore/title_target.go` projects private display authority from the current
+thread binding, successful session observation and newest typed launch. A
+pre-effect local check revalidates session/start nonce/agent/ordinal; unknown
+inventory cancels obsolete work. Target metadata is excluded from row JSON.
+One `sessioninventory.TitleProjection.PollContext` per invocation supplies both
+native activity and usage. The worker snapshots admitted live wrapper work once
+and merges it with prompt/pane/native activity before title and fading decisions,
+so both consumers use the same latest activity. Warm unchanged projections decode
+no native history.
+
+The optional pass has a two-second deadline and rotates its first target under
+load. Commands use the existing joined process-group runner; failures leave
+idempotent assignments unconfirmed for the next pass. The shared
+`titlepoller.AdvanceTitleUpdate` records only confirmed successful titles and
+retires replaced targets. cmux keeps scoped owner metadata, heat thresholds and
+foreign-live-owner deferral using the inventory's existing host listing;
+unresolved ownership defers. Standalone wrappers retain their pipe-leased title
+poller and cadence. Older already-running wrappers keep their pollers until
+restarted; rollout measurements name that coverage.
+
+Tests: `couchcmd/titles_test.go` exercises the production native projection and
+command seam, zero-work warm passes, bounded cancellation and an isolated
+1,000-tick heap/cache regression with generation turnover. The console tests
+exercise shared activity scheduling and cancellation on inventory replacement.
+
 ### Idle fading of live threads (#247)
 
 Live thread labels recede as they go idle, in both views: under 1 day normal,

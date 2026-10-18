@@ -23,7 +23,7 @@ func (f *fakeListings) list(context.Context) ([]byte, []byte, error) {
 	if f.err != nil {
 		return nil, nil, f.err
 	}
-	return []byte(f.short), []byte(f.short + " [Created 1s ago]\n"), nil
+	return []byte(f.short), []byte(strings.TrimSuffix(f.short, "\n") + " [Created 1s ago]\n"), nil
 }
 
 func testPoller(f *fakeListings, now *time.Time) *ListingPoller {

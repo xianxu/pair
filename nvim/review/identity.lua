@@ -12,7 +12,14 @@ function M.command(dir, selected, snapshot)
   return cmd
 end
 function M.decode(result)
-  if result.code ~= 0 then return {status='invalid',diagnostic=result.stderr or 'review resolver failed'} end
+  if result.code ~= 0 then
+    local diagnostic = result.stderr
+    if type(diagnostic) ~= 'string' or diagnostic == '' then
+      diagnostic = result.code == 124 and 'review resolver timed out'
+        or ('review resolver failed (exit ' .. tostring(result.code) .. ')')
+    end
+    return {status='invalid',diagnostic=diagnostic}
+  end
   local ok, out = pcall(vim.json.decode, result.stdout or '')
   if not ok or type(out) ~= 'table' or not out.status then
     return {status='invalid',diagnostic='invalid review resolver response'}

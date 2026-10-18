@@ -329,6 +329,12 @@ test-run-headless:
 # runs a Lua script in nvim's interpreter with the full vim.api available, so
 # pure logic AND buffer-manipulation can be asserted without a UI.
 test-lua:
+	nvim -l tests/zellij-observation_test.lua
+	nvim -l tests/review-restore-admission-test.lua
+	bash tests/nvim-route-poke-admission-test.sh
+	nvim -l nvim/dom_transport_test.lua
+	nvim -l nvim/dom_admission_test.lua
+	nvim -l nvim/dom_admission_cli_test.lua
 	nvim -l nvim/fs_watch_test.lua
 	nvim -l nvim/retention_test.lua
 	nvim -l nvim/confirm_quit_test.lua
@@ -370,6 +376,7 @@ test-lua:
 	nvim -l nvim/review/reconcile_test.lua
 	nvim -l nvim/review/gate_test.lua
 	nvim -l nvim/review/restore_test.lua
+	nvim -l nvim/review/identity_test.lua
 	nvim -l nvim/review/restore_client_test.lua
 	nvim -l nvim/review/restore_controller_test.lua
 	nvim -l nvim/review/document_bytes_test.lua

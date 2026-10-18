@@ -1,0 +1,977 @@
+[
+  {
+    "name": "review-window.panes",
+    "source": "tests/review-window-test.sh",
+    "kind": "panes",
+    "payload": [
+      {
+        "id": 7,
+        "tab_id": 2,
+        "tab_position": 1,
+        "is_fullscreen": false,
+        "is_plugin": false,
+        "is_floating": false,
+        "is_focused": false,
+        "title": "claude",
+        "terminal_command": "/bin/pair wrap --agent claude"
+      },
+      {
+        "id": 3,
+        "tab_id": 2,
+        "tab_position": 1,
+        "is_fullscreen": false,
+        "is_plugin": false,
+        "is_floating": false,
+        "is_focused": false,
+        "title": "draft",
+        "terminal_command": "nvim -u /pair/nvim/init.lua draft.md"
+      },
+      {
+        "id": 9,
+        "tab_id": 2,
+        "tab_position": 1,
+        "is_fullscreen": false,
+        "is_plugin": false,
+        "is_floating": true,
+        "is_focused": true,
+        "title": "review",
+        "terminal_command": "nvim -u /pair/nvim/review.lua review.md"
+      }
+    ],
+    "expect": "accept"
+  },
+  {
+    "name": "review-poke.panes",
+    "source": "tests/review-poke-test.sh",
+    "kind": "panes",
+    "payload": [
+      {
+        "id": 4,
+        "tab_id": 2,
+        "tab_position": 1,
+        "is_fullscreen": false,
+        "is_plugin": false,
+        "is_floating": false,
+        "is_focused": false,
+        "title": "terminal",
+        "terminal_command": "/bin/pair term"
+      },
+      {
+        "id": 7,
+        "tab_id": 2,
+        "tab_position": 1,
+        "is_fullscreen": false,
+        "is_plugin": false,
+        "is_floating": false,
+        "is_focused": false,
+        "title": "claude",
+        "terminal_command": "/bin/pair wrap --agent claude"
+      },
+      {
+        "id": 3,
+        "tab_id": 2,
+        "tab_position": 1,
+        "is_fullscreen": false,
+        "is_plugin": false,
+        "is_floating": false,
+        "is_focused": false,
+        "title": "draft",
+        "terminal_command": "nvim -u /p/nvim/init.lua draft.md"
+      },
+      {
+        "id": 9,
+        "tab_id": 2,
+        "tab_position": 1,
+        "is_fullscreen": false,
+        "is_plugin": false,
+        "is_floating": true,
+        "is_focused": true,
+        "title": "review",
+        "terminal_command": "nvim -u /p/nvim/review.lua review.md"
+      }
+    ],
+    "expect": "accept"
+  },
+  {
+    "name": "review-window.missing-agent",
+    "source": "tests/review-window-test.sh",
+    "kind": "panes",
+    "payload": [
+      {
+        "id": 9,
+        "tab_id": 2,
+        "tab_position": 1,
+        "is_fullscreen": false,
+        "is_plugin": false,
+        "is_floating": true,
+        "is_focused": true,
+        "title": "review",
+        "terminal_command": "nvim -u /pair/nvim/review.lua review.md"
+      }
+    ],
+    "expect": "accept"
+  },
+  {
+    "name": "review-controls.panes",
+    "source": "tests/review-controls-test.sh",
+    "kind": "panes",
+    "payload": [
+      {
+        "id": 4,
+        "tab_id": 2,
+        "tab_position": 1,
+        "is_fullscreen": false,
+        "is_focused": false,
+        "is_plugin": false,
+        "is_floating": false,
+        "title": "terminal",
+        "terminal_command": "/bin/pair term"
+      },
+      {
+        "id": 7,
+        "tab_id": 2,
+        "tab_position": 1,
+        "is_fullscreen": false,
+        "is_focused": false,
+        "is_plugin": false,
+        "is_floating": false,
+        "title": "codex",
+        "terminal_command": "/bin/pair wrap --agent codex"
+      },
+      {
+        "id": 3,
+        "tab_id": 2,
+        "tab_position": 1,
+        "is_fullscreen": false,
+        "is_focused": false,
+        "is_plugin": false,
+        "is_floating": false,
+        "title": "draft",
+        "terminal_command": "nvim -u /pair/nvim/init.lua draft.md"
+      },
+      {
+        "id": 9,
+        "tab_id": 2,
+        "tab_position": 1,
+        "is_fullscreen": false,
+        "is_focused": true,
+        "is_plugin": false,
+        "is_floating": true,
+        "title": "review",
+        "terminal_command": "nvim -u /pair/nvim/review.lua review.md"
+      }
+    ],
+    "expect": "accept"
+  },
+  {
+    "name": "overlay-return.panes",
+    "source": "tests/overlay-return-test.sh",
+    "kind": "panes",
+    "payload": [
+      {
+        "id": 7,
+        "tab_id": 2,
+        "tab_position": 1,
+        "is_fullscreen": false,
+        "is_focused": false,
+        "is_plugin": false,
+        "is_floating": false,
+        "title": "agent",
+        "terminal_command": "/bin/pair wrap"
+      },
+      {
+        "id": 3,
+        "tab_id": 2,
+        "tab_position": 1,
+        "is_fullscreen": false,
+        "is_focused": false,
+        "is_plugin": false,
+        "is_floating": false,
+        "title": "draft",
+        "terminal_command": "/pair/bin/nvim -u /pair/nvim/init.lua draft.md"
+      },
+      {
+        "id": 9,
+        "tab_id": 2,
+        "tab_position": 1,
+        "is_fullscreen": false,
+        "is_focused": false,
+        "is_plugin": false,
+        "is_floating": true,
+        "title": "review",
+        "terminal_command": "nvim -u /pair/nvim/review.lua review.md"
+      },
+      {
+        "id": 11,
+        "tab_id": 2,
+        "tab_position": 1,
+        "is_fullscreen": false,
+        "is_focused": true,
+        "is_plugin": false,
+        "is_floating": true,
+        "title": "viewer",
+        "terminal_command": "nvim -u /pair/nvim/scrollback.lua"
+      }
+    ],
+    "expect": "accept"
+  },
+  {
+    "name": "review-toggle.panes",
+    "source": "tests/review-toggle-test.sh",
+    "kind": "panes",
+    "payload": [
+      {
+        "id": 7,
+        "is_plugin": false,
+        "is_floating": false,
+        "is_focused": false,
+        "is_fullscreen": false,
+        "tab_id": 2,
+        "tab_position": 1,
+        "terminal_command": "/bin/pair wrap"
+      },
+      {
+        "id": 3,
+        "is_plugin": false,
+        "is_floating": false,
+        "is_focused": true,
+        "is_fullscreen": false,
+        "tab_id": 2,
+        "tab_position": 1,
+        "terminal_command": "nvim -u /pair/nvim/init.lua"
+      }
+    ],
+    "expect": "accept"
+  },
+  {
+    "name": "review-toggle.visible-true",
+    "source": "tests/review-toggle-test.sh",
+    "kind": "visibility",
+    "payload": true,
+    "expect": "accept"
+  },
+  {
+    "name": "review-toggle.visible-false",
+    "source": "tests/review-toggle-test.sh",
+    "kind": "visibility",
+    "payload": false,
+    "expect": "accept"
+  },
+  {
+    "name": "review-fresh-restore.panes",
+    "source": "tests/review-fresh-restore-test.sh",
+    "kind": "panes",
+    "payload": [
+      {
+        "id": 3,
+        "is_plugin": false,
+        "is_floating": false,
+        "is_focused": true,
+        "is_fullscreen": false,
+        "tab_id": 2,
+        "tab_position": 1,
+        "terminal_command": "nvim -u /pair/nvim/init.lua"
+      },
+      {
+        "id": 42,
+        "is_plugin": false,
+        "is_floating": true,
+        "is_focused": false,
+        "is_fullscreen": false,
+        "tab_id": 2,
+        "tab_position": 1,
+        "terminal_command": "nvim -u /pair/nvim/review.lua"
+      },
+      {
+        "id": 4,
+        "is_plugin": false,
+        "is_floating": false,
+        "is_focused": false,
+        "is_fullscreen": false,
+        "tab_id": 2,
+        "tab_position": 1,
+        "terminal_command": "pair wrap"
+      }
+    ],
+    "expect": "accept"
+  },
+  {
+    "name": "review-fresh-restore.visible-true",
+    "source": "tests/review-fresh-restore-test.sh",
+    "kind": "visibility",
+    "payload": true,
+    "expect": "accept"
+  },
+  {
+    "name": "review-fresh-restore.visible-false",
+    "source": "tests/review-fresh-restore-test.sh",
+    "kind": "visibility",
+    "payload": false,
+    "expect": "accept"
+  },
+  {
+    "name": "review-branch-restore.panes",
+    "source": "tests/review-branch-restore-test.sh",
+    "kind": "panes",
+    "payload": [
+      {
+        "id": 3,
+        "is_plugin": false,
+        "is_floating": false,
+        "is_focused": true,
+        "is_fullscreen": false,
+        "tab_id": 2,
+        "tab_position": 1,
+        "terminal_command": "nvim -u /pair/nvim/init.lua"
+      },
+      {
+        "id": 42,
+        "is_plugin": false,
+        "is_floating": true,
+        "is_focused": false,
+        "is_fullscreen": false,
+        "tab_id": 2,
+        "tab_position": 1,
+        "terminal_command": "nvim -u /pair/nvim/review.lua"
+      }
+    ],
+    "expect": "accept"
+  },
+  {
+    "name": "review-branch-restore.visible",
+    "source": "tests/review-branch-restore-test.sh",
+    "kind": "visibility",
+    "payload": true,
+    "expect": "accept"
+  },
+  {
+    "name": "copy-on-select.agent",
+    "source": "tests/copy-on-select-test.sh",
+    "kind": "panes",
+    "payload": [
+      {
+        "id": 0,
+        "is_plugin": false,
+        "tab_id": 0,
+        "tab_position": 0,
+        "is_focused": true,
+        "is_floating": false,
+        "title": "claude [~/workspace/parley.nvim]",
+        "terminal_command": "sh -c zellij action rename-pane --pane-id \"$ZELLIJ_PANE_ID\" \"${PAIR_PANE_TITLE:-agent}\" 2>/dev/null; exec pair wrap --scrollback-log \"/data/scrollback-t-claude.raw\" claude"
+      },
+      {
+        "id": 1,
+        "is_plugin": false,
+        "tab_id": 0,
+        "tab_position": 0,
+        "is_focused": false,
+        "is_floating": false,
+        "title": "draft",
+        "terminal_command": "sh -c export PAIR_NVIM_PID_FILE=\"/data/nvim-pid-t-draft\" && exec nvim -u \"$PAIR_HOME/nvim/init.lua\" \"/data/draft-t.md\""
+      }
+    ],
+    "expect": "accept"
+  },
+  {
+    "name": "copy-on-select.clients-agent",
+    "source": "tests/copy-on-select-test.sh",
+    "kind": "clients",
+    "payload": [
+      {
+        "id": 1,
+        "pane_id": "terminal_0",
+        "running_command": "shell"
+      }
+    ],
+    "expect": "accept"
+  },
+  {
+    "name": "copy-on-select.draft",
+    "source": "tests/copy-on-select-test.sh",
+    "kind": "panes",
+    "payload": [
+      {
+        "id": 0,
+        "is_plugin": false,
+        "tab_id": 0,
+        "tab_position": 0,
+        "is_focused": false,
+        "is_floating": false,
+        "title": "claude [~/workspace/parley.nvim]",
+        "terminal_command": "sh -c zellij action rename-pane --pane-id \"$ZELLIJ_PANE_ID\" \"${PAIR_PANE_TITLE:-agent}\" 2>/dev/null; exec pair wrap --scrollback-log \"/data/scrollback-t-claude.raw\" claude"
+      },
+      {
+        "id": 1,
+        "is_plugin": false,
+        "tab_id": 0,
+        "tab_position": 0,
+        "is_focused": true,
+        "is_floating": false,
+        "title": "draft",
+        "terminal_command": "sh -c export PAIR_NVIM_PID_FILE=\"/data/nvim-pid-t-draft\" && exec nvim -u \"$PAIR_HOME/nvim/init.lua\" \"/data/draft-t.md\""
+      }
+    ],
+    "expect": "accept"
+  },
+  {
+    "name": "copy-on-select.clients-draft",
+    "source": "tests/copy-on-select-test.sh",
+    "kind": "clients",
+    "payload": [
+      {
+        "id": 1,
+        "pane_id": "terminal_1",
+        "running_command": "shell"
+      }
+    ],
+    "expect": "accept"
+  },
+  {
+    "name": "copy-on-select.terminal",
+    "source": "tests/copy-on-select-test.sh",
+    "kind": "panes",
+    "payload": [
+      {
+        "id": 0,
+        "is_plugin": false,
+        "tab_id": 0,
+        "tab_position": 0,
+        "is_focused": false,
+        "is_floating": false,
+        "title": "claude [~/workspace/parley.nvim]",
+        "terminal_command": "sh -c zellij action rename-pane --pane-id \"$ZELLIJ_PANE_ID\" \"${PAIR_PANE_TITLE:-agent}\" 2>/dev/null; exec pair wrap --scrollback-log \"/data/scrollback-t-claude.raw\" claude"
+      },
+      {
+        "id": 1,
+        "is_plugin": false,
+        "tab_id": 0,
+        "tab_position": 0,
+        "is_focused": false,
+        "is_floating": false,
+        "title": "draft",
+        "terminal_command": "sh -c export PAIR_NVIM_PID_FILE=\"/data/nvim-pid-t-draft\" && exec nvim -u \"$PAIR_HOME/nvim/init.lua\" \"/data/draft-t.md\""
+      },
+      {
+        "id": 4,
+        "is_plugin": false,
+        "tab_id": 0,
+        "tab_position": 0,
+        "is_focused": true,
+        "is_floating": false,
+        "title": "terminal",
+        "terminal_command": "sh -c exec pair term"
+      }
+    ],
+    "expect": "accept"
+  },
+  {
+    "name": "copy-on-select.clients-terminal",
+    "source": "tests/copy-on-select-test.sh",
+    "kind": "clients",
+    "payload": [
+      {
+        "id": 1,
+        "pane_id": "terminal_4",
+        "running_command": "shell"
+      }
+    ],
+    "expect": "accept"
+  },
+  {
+    "name": "term-shortcuts.agent",
+    "source": "tests/term-pane-shortcuts-test.sh",
+    "kind": "panes",
+    "payload": [
+      {
+        "id": 1,
+        "is_plugin": false,
+        "is_focused": true,
+        "is_floating": false,
+        "is_fullscreen": false,
+        "tab_id": 2,
+        "tab_position": 1,
+        "pane_x": 0,
+        "pane_y": 0,
+        "pane_columns": 75,
+        "pane_rows": 39,
+        "title": "codex",
+        "terminal_command": "pair wrap codex"
+      },
+      {
+        "id": 2,
+        "is_plugin": false,
+        "is_focused": false,
+        "is_floating": false,
+        "is_fullscreen": false,
+        "tab_id": 2,
+        "tab_position": 1,
+        "pane_x": 0,
+        "pane_y": 39,
+        "pane_columns": 75,
+        "pane_rows": 12,
+        "title": "draft",
+        "terminal_command": "nvim -u /pair/nvim/init.lua /data/draft-t.md"
+      },
+      {
+        "id": 4,
+        "is_plugin": false,
+        "is_focused": false,
+        "is_fullscreen": false,
+        "is_floating": false,
+        "tab_id": 2,
+        "tab_position": 1,
+        "pane_x": 75,
+        "pane_y": 0,
+        "pane_columns": 75,
+        "pane_rows": 51,
+        "title": "terminal",
+        "terminal_command": "pair term"
+      },
+      {
+        "id": 5,
+        "is_plugin": false,
+        "is_focused": false,
+        "is_floating": true,
+        "is_fullscreen": false,
+        "tab_id": 2,
+        "tab_position": 1,
+        "pane_x": 15,
+        "pane_y": 5,
+        "pane_columns": 120,
+        "pane_rows": 40,
+        "title": "review",
+        "terminal_command": "nvim -u /pair/nvim/review.lua /tmp/review.md"
+      }
+    ],
+    "expect": "accept"
+  },
+  {
+    "name": "term-shortcuts.draft",
+    "source": "tests/term-pane-shortcuts-test.sh",
+    "kind": "panes",
+    "payload": [
+      {
+        "id": 1,
+        "is_plugin": false,
+        "is_focused": false,
+        "is_floating": false,
+        "is_fullscreen": false,
+        "tab_id": 2,
+        "tab_position": 1,
+        "pane_x": 0,
+        "pane_y": 0,
+        "pane_columns": 75,
+        "pane_rows": 39,
+        "title": "codex",
+        "terminal_command": "pair wrap codex"
+      },
+      {
+        "id": 2,
+        "is_plugin": false,
+        "is_focused": true,
+        "is_floating": false,
+        "is_fullscreen": false,
+        "tab_id": 2,
+        "tab_position": 1,
+        "pane_x": 0,
+        "pane_y": 39,
+        "pane_columns": 75,
+        "pane_rows": 12,
+        "title": "draft",
+        "terminal_command": "nvim -u /pair/nvim/init.lua /data/draft-t.md"
+      },
+      {
+        "id": 4,
+        "is_plugin": false,
+        "is_focused": false,
+        "is_fullscreen": false,
+        "is_floating": false,
+        "tab_id": 2,
+        "tab_position": 1,
+        "pane_x": 75,
+        "pane_y": 0,
+        "pane_columns": 75,
+        "pane_rows": 51,
+        "title": "terminal",
+        "terminal_command": "pair term"
+      },
+      {
+        "id": 5,
+        "is_plugin": false,
+        "is_focused": false,
+        "is_floating": true,
+        "is_fullscreen": false,
+        "tab_id": 2,
+        "tab_position": 1,
+        "pane_x": 15,
+        "pane_y": 5,
+        "pane_columns": 120,
+        "pane_rows": 40,
+        "title": "review",
+        "terminal_command": "nvim -u /pair/nvim/review.lua /tmp/review.md"
+      }
+    ],
+    "expect": "accept"
+  },
+  {
+    "name": "term-shortcuts.terminal",
+    "source": "tests/term-pane-shortcuts-test.sh",
+    "kind": "panes",
+    "payload": [
+      {
+        "id": 1,
+        "is_plugin": false,
+        "is_focused": false,
+        "is_floating": false,
+        "is_fullscreen": false,
+        "tab_id": 2,
+        "tab_position": 1,
+        "pane_x": 0,
+        "pane_y": 0,
+        "pane_columns": 75,
+        "pane_rows": 39,
+        "title": "codex",
+        "terminal_command": "pair wrap codex"
+      },
+      {
+        "id": 2,
+        "is_plugin": false,
+        "is_focused": false,
+        "is_floating": false,
+        "is_fullscreen": false,
+        "tab_id": 2,
+        "tab_position": 1,
+        "pane_x": 0,
+        "pane_y": 39,
+        "pane_columns": 75,
+        "pane_rows": 12,
+        "title": "draft",
+        "terminal_command": "nvim -u /pair/nvim/init.lua /data/draft-t.md"
+      },
+      {
+        "id": 4,
+        "is_plugin": false,
+        "is_focused": true,
+        "is_fullscreen": false,
+        "is_floating": false,
+        "tab_id": 2,
+        "tab_position": 1,
+        "pane_x": 75,
+        "pane_y": 0,
+        "pane_columns": 75,
+        "pane_rows": 51,
+        "title": "terminal",
+        "terminal_command": "pair term"
+      },
+      {
+        "id": 5,
+        "is_plugin": false,
+        "is_focused": false,
+        "is_floating": true,
+        "is_fullscreen": false,
+        "tab_id": 2,
+        "tab_position": 1,
+        "pane_x": 15,
+        "pane_y": 5,
+        "pane_columns": 120,
+        "pane_rows": 40,
+        "title": "review",
+        "terminal_command": "nvim -u /pair/nvim/review.lua /tmp/review.md"
+      }
+    ],
+    "expect": "accept"
+  },
+  {
+    "name": "term-shortcuts.review",
+    "source": "tests/term-pane-shortcuts-test.sh",
+    "kind": "panes",
+    "payload": [
+      {
+        "id": 1,
+        "is_plugin": false,
+        "is_focused": false,
+        "is_floating": false,
+        "is_fullscreen": false,
+        "tab_id": 2,
+        "tab_position": 1,
+        "pane_x": 0,
+        "pane_y": 0,
+        "pane_columns": 75,
+        "pane_rows": 39,
+        "title": "codex",
+        "terminal_command": "pair wrap codex"
+      },
+      {
+        "id": 2,
+        "is_plugin": false,
+        "is_focused": false,
+        "is_floating": false,
+        "is_fullscreen": false,
+        "tab_id": 2,
+        "tab_position": 1,
+        "pane_x": 0,
+        "pane_y": 39,
+        "pane_columns": 75,
+        "pane_rows": 12,
+        "title": "draft",
+        "terminal_command": "nvim -u /pair/nvim/init.lua /data/draft-t.md"
+      },
+      {
+        "id": 4,
+        "is_plugin": false,
+        "is_focused": false,
+        "is_fullscreen": false,
+        "is_floating": false,
+        "tab_id": 2,
+        "tab_position": 1,
+        "pane_x": 75,
+        "pane_y": 0,
+        "pane_columns": 75,
+        "pane_rows": 51,
+        "title": "terminal",
+        "terminal_command": "pair term"
+      },
+      {
+        "id": 5,
+        "is_plugin": false,
+        "is_focused": true,
+        "is_floating": true,
+        "is_fullscreen": false,
+        "tab_id": 2,
+        "tab_position": 1,
+        "pane_x": 15,
+        "pane_y": 5,
+        "pane_columns": 120,
+        "pane_rows": 40,
+        "title": "review",
+        "terminal_command": "nvim -u /pair/nvim/review.lua /tmp/review.md"
+      }
+    ],
+    "expect": "accept"
+  },
+  {
+    "name": "term-shortcuts.fullscreen-terminal",
+    "source": "tests/term-pane-shortcuts-test.sh",
+    "kind": "panes",
+    "payload": [
+      {
+        "id": 1,
+        "is_plugin": false,
+        "is_focused": false,
+        "is_floating": false,
+        "is_fullscreen": false,
+        "tab_id": 2,
+        "tab_position": 1,
+        "pane_x": 0,
+        "pane_y": 0,
+        "pane_columns": 75,
+        "pane_rows": 39,
+        "title": "codex",
+        "terminal_command": "pair wrap codex"
+      },
+      {
+        "id": 2,
+        "is_plugin": false,
+        "is_focused": false,
+        "is_floating": false,
+        "is_fullscreen": false,
+        "tab_id": 2,
+        "tab_position": 1,
+        "pane_x": 0,
+        "pane_y": 39,
+        "pane_columns": 75,
+        "pane_rows": 12,
+        "title": "draft",
+        "terminal_command": "nvim -u /pair/nvim/init.lua /data/draft-t.md"
+      },
+      {
+        "id": 4,
+        "is_plugin": false,
+        "is_focused": true,
+        "is_fullscreen": true,
+        "is_floating": false,
+        "tab_id": 2,
+        "tab_position": 1,
+        "pane_x": 75,
+        "pane_y": 0,
+        "pane_columns": 75,
+        "pane_rows": 51,
+        "title": "terminal",
+        "terminal_command": "pair term"
+      },
+      {
+        "id": 5,
+        "is_plugin": false,
+        "is_focused": false,
+        "is_floating": true,
+        "is_fullscreen": false,
+        "tab_id": 2,
+        "tab_position": 1,
+        "pane_x": 15,
+        "pane_y": 5,
+        "pane_columns": 120,
+        "pane_rows": 40,
+        "title": "review",
+        "terminal_command": "nvim -u /pair/nvim/review.lua /tmp/review.md"
+      }
+    ],
+    "expect": "accept"
+  },
+  {
+    "name": "term-shortcuts.focus-terminal",
+    "source": "tests/term-pane-shortcuts-test.sh",
+    "kind": "panes",
+    "payload": [
+      {
+        "id": 1,
+        "is_plugin": false,
+        "is_focused": false,
+        "is_floating": false,
+        "is_fullscreen": false,
+        "tab_id": 2,
+        "tab_position": 1,
+        "pane_x": 0,
+        "pane_y": 0,
+        "pane_columns": 75,
+        "pane_rows": 39,
+        "title": "codex",
+        "terminal_command": "pair wrap codex"
+      },
+      {
+        "id": 2,
+        "is_plugin": false,
+        "is_focused": false,
+        "is_floating": false,
+        "is_fullscreen": false,
+        "tab_id": 2,
+        "tab_position": 1,
+        "pane_x": 0,
+        "pane_y": 39,
+        "pane_columns": 75,
+        "pane_rows": 12,
+        "title": "draft",
+        "terminal_command": "nvim -u /pair/nvim/init.lua /data/draft-t.md"
+      },
+      {
+        "id": 4,
+        "is_plugin": false,
+        "is_focused": true,
+        "is_fullscreen": false,
+        "is_floating": true,
+        "tab_id": 2,
+        "tab_position": 1,
+        "pane_x": 18,
+        "pane_y": 0,
+        "pane_columns": 112,
+        "pane_rows": 51,
+        "title": "terminal",
+        "terminal_command": "pair term"
+      },
+      {
+        "id": 5,
+        "is_plugin": false,
+        "is_focused": false,
+        "is_floating": true,
+        "is_fullscreen": false,
+        "tab_id": 2,
+        "tab_position": 1,
+        "pane_x": 15,
+        "pane_y": 5,
+        "pane_columns": 120,
+        "pane_rows": 40,
+        "title": "review",
+        "terminal_command": "nvim -u /pair/nvim/review.lua /tmp/review.md"
+      }
+    ],
+    "expect": "accept"
+  },
+  {
+    "name": "term-shortcuts.tab-normal",
+    "source": "tests/term-pane-shortcuts-test.sh",
+    "kind": "tab",
+    "payload": {
+      "tab_id": 2,
+      "position": 1,
+      "active_swap_layout_name": "small",
+      "is_swap_layout_dirty": false,
+      "is_fullscreen_active": false,
+      "are_floating_panes_visible": true
+    },
+    "expect": "accept"
+  },
+  {
+    "name": "term-shortcuts.tab-fullscreen",
+    "source": "tests/term-pane-shortcuts-test.sh",
+    "kind": "tab",
+    "payload": {
+      "tab_id": 2,
+      "position": 1,
+      "active_swap_layout_name": "small",
+      "is_swap_layout_dirty": false,
+      "is_fullscreen_active": true,
+      "are_floating_panes_visible": true
+    },
+    "expect": "accept"
+  },
+  {
+    "name": "workbench-route.panes",
+    "source": "tests/workbench-route-nvim-test.sh",
+    "kind": "panes",
+    "payload": [
+      {
+        "id": 9,
+        "is_plugin": false,
+        "is_floating": false,
+        "is_focused": false,
+        "is_fullscreen": false,
+        "tab_id": 2,
+        "tab_position": 1,
+        "terminal_command": "pair term"
+      },
+      {
+        "id": 42,
+        "is_plugin": false,
+        "is_floating": false,
+        "is_focused": false,
+        "is_fullscreen": false,
+        "tab_id": 2,
+        "tab_position": 1,
+        "terminal_command": "nvim -u /pair/nvim/init.lua /tmp/draft.md"
+      }
+    ],
+    "expect": "accept"
+  },
+  {
+    "name": "embedded-runtime.no-sessions",
+    "source": "tests/pair-embedded-runtime-test.sh",
+    "kind": "no-sessions",
+    "payload": {},
+    "expect": "accept"
+  },
+  {
+    "name": "embedded-runtime.clients-empty",
+    "source": "tests/pair-embedded-runtime-test.sh",
+    "kind": "clients",
+    "payload": [],
+    "expect": "accept"
+  },
+  {
+    "name": "rename.no-sessions",
+    "source": "tests/pair-rename.sh",
+    "kind": "no-sessions",
+    "payload": {},
+    "expect": "accept"
+  },
+  {
+    "name": "review-comments.absent-wrapper",
+    "source": "tests/review-comments-test.sh",
+    "kind": "fault",
+    "payload": {
+      "stdout": "{\"panes\":[]}\n",
+      "stderr": "",
+      "code": 0
+    },
+    "expect": "reject",
+    "decoder": "panes"
+  }
+]

@@ -7,6 +7,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/couchidentity"
 	"github.com/xianxu/pair/cmd/internal/strictjson"
+	"github.com/xianxu/pair/cmd/internal/zellijreply"
 )
 
 const CouchSessionFlag = "--couch-session-v1"
@@ -107,6 +108,12 @@ func sessionNamePresent(live []Session, name string) bool {
 }
 
 func assignCouchSessionName(rt Runtime, live []Session, root, tag string, intent *CouchSessionIntent) (string, SessionNameEntry, error) {
+	ctx, cancel := zellijreply.AdmissionContext(context.Background())
+	defer cancel()
+	return assignCouchSessionNameContext(ctx, rt, live, root, tag, intent)
+}
+
+func assignCouchSessionNameContext(ctx context.Context, rt Runtime, live []Session, root, tag string, intent *CouchSessionIntent) (string, SessionNameEntry, error) {
 	if err := intent.Validate(); err != nil {
 		return "", SessionNameEntry{}, err
 	}
@@ -119,7 +126,7 @@ func assignCouchSessionName(rt Runtime, live []Session, root, tag string, intent
 		if occupied {
 			return "", SessionNameEntry{}, fmt.Errorf("couch session name %q is occupied", intent.Name)
 		}
-		if err := rt.ProbeSessionName(intent.Name); err != nil {
+		if err := rt.ProbeSessionNameContext(ctx, intent.Name); err != nil {
 			return "", SessionNameEntry{}, fmt.Errorf("couch session exact name %q is not accepted: %w", intent.Name, err)
 		}
 	} else {
@@ -143,14 +150,15 @@ type couchSessionOwnerRuntime interface {
 
 // verifyCouchSessionAttach accepts only an exact positive live listing. Owner
 // metadata belongs to cold creation and retirement, not Continue authorization.
-func verifyCouchSessionAttach(rt Runtime, intent CouchSessionIntent) error {
-	var sessions []Session
-	var err error
-	for attempt := 0; attempt < 2; attempt++ {
-		sessions, err = rt.SessionLiveness()
-		if err == nil {
-			break
-		}
+func verifyCouchSessionAttach(ctx context.Context, rt Runtime, intent CouchSessionIntent) error {
+	// An unknown observation ends this admission. A later valid reply cannot
+	// replace it; distinct attach boundaries still make their own fresh check.
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	sessions, err := rt.SessionLivenessContext(ctx)
+	if ctx.Err() != nil {
+		return ctx.Err()
 	}
 	if err != nil {
 		return fmt.Errorf("query zellij sessions: %w", err)
@@ -184,15 +192,21 @@ func publishLaunchSessionName(rt Runtime, entry SessionNameEntry, managed bool) 
 // verifyCouchSessionCreate checks the conversation's current association before
 // replacing it. The index identifies candidates; live pane ownership decides
 // whether a candidate still belongs to this conversation.
-func verifyCouchSessionCreate(rt Runtime, globalDataDir string, intent CouchSessionIntent) error {
+func verifyCouchSessionCreate(ctx context.Context, rt Runtime, globalDataDir string, intent CouchSessionIntent) error {
 	if intent.Disposition != "create" {
 		return nil
+	}
+	if err := ctx.Err(); err != nil {
+		return err
 	}
 	index, err := rt.ReadSessionNameIndex()
 	if err != nil {
 		return fmt.Errorf("couch session current association: %w", err)
 	}
-	live, err := rt.SessionLiveness()
+	live, err := rt.SessionLivenessContext(ctx)
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
 	if err != nil {
 		return fmt.Errorf("couch session current liveness: %w", err)
 	}
@@ -210,8 +224,11 @@ func verifyCouchSessionCreate(rt Runtime, globalDataDir string, intent CouchSess
 		if !ok {
 			return errors.New("couch session owner observer unavailable")
 		}
-		observed, err := observer.ObserveSessionOwner(context.Background(), session.Name, globalDataDir, intent.Scope, intent.Tag)
+		observed, err := observer.ObserveSessionOwner(ctx, session.Name, globalDataDir, intent.Scope, intent.Tag)
 		if err != nil {
+			return err
+		}
+		if err := ctx.Err(); err != nil {
 			return err
 		}
 		switch observed.State {
@@ -221,5 +238,5 @@ func verifyCouchSessionCreate(rt Runtime, globalDataDir string, intent CouchSess
 			return fmt.Errorf("couch conversation terminal %q is live or unresolved; refusing another terminal", session.Name)
 		}
 	}
-	return nil
+	return ctx.Err()
 }

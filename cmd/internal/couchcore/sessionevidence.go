@@ -58,7 +58,10 @@ func (s SessionState) String() string {
 // milestone already, so it is deleted; M2's action work re-adds it together with
 // the consumer that needs it.
 type SessionObservation struct {
-	State SessionState
+	// Name and Listing reuse inventory evidence for optional title effects.
+	Name    string
+	Listing map[string]bool
+	State   SessionState
 	// Orphan is the orphaned server, set only with SessionOrphaned: the
 	// diagnostic names its pid and reap acts on its exact identity (#399).
 	Orphan *launcher.SessionServerIdentity
@@ -110,6 +113,17 @@ func ProjectSessionPresence(bindings []SessionNameBinding, sessions []launcher.S
 	}
 
 	index := indexSessionsByName(sessions)
+	listing := map[string]bool{}
+	for _, session := range sessions {
+		if session.State != launcher.SessionExited {
+			listing[session.Name] = true
+		}
+	}
+	for name, state := range servers {
+		if state.Verdict == launcher.ServerOrphaned || state.Verdict == launcher.ServerContested || state.Verdict == launcher.ServerUnresolved {
+			listing[name] = true
+		}
+	}
 
 	for _, binding := range bindings {
 		var observation SessionObservation
@@ -120,6 +134,8 @@ func ProjectSessionPresence(bindings []SessionNameBinding, sessions []launcher.S
 			observation.State = SessionUnresolved
 		case index.live[binding.SessionName]:
 			observation.State = SessionPresent
+			observation.Name = binding.SessionName
+			observation.Listing = listing
 		case hasServer(servers, binding.SessionName, launcher.ServerContested):
 			observation.State = SessionUnresolved
 		case hasServer(servers, binding.SessionName, launcher.ServerOrphaned):

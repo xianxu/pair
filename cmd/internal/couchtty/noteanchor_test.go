@@ -40,13 +40,8 @@ func screenFrame(cols int, lines ...string) terminal.Frame {
 	return f
 }
 
-// draftLines is the draft on disk: the screen shows lines 12–13.
-var draftLines = append(append(make([]string, 0, 14), "# Plan", "", "- [ ] one", "", "## Review", "", "the header", "", "", "", ""),
-	"Please also check the 漢字 footer", "and the nav.")
-
-// A 40×10 Couch screen: the slot's zellij session above (an agent pane on
-// rows 0–5, the draft nvim on rows 6–8 with its statusline on 8), and the
-// last row: the controls, then the tab bar's chips.
+// A 40×10 Couch screen: hosted output above and Couch's own controls and
+// tab chips on the last row. Hosted text carries no pane/file attribution.
 func anchorScreen() (terminal.Frame, ScreenLayout) {
 	f := screenFrame(40,
 		"> fix the header color",
@@ -63,11 +58,6 @@ func anchorScreen() (terminal.Frame, ScreenLayout) {
 	l := ScreenLayout{
 		Chips: []ColumnSpan{{10, 16}, {18, 26}, {28, 36}},
 		Slot:  "pair:3",
-		Agent: "claude",
-		Panes: []PaneRect{
-			{Role: PaneAgent, X: 0, Y: 0, W: 40, H: 6},
-			{Role: PaneDraft, X: 0, Y: 6, W: 40, H: 3, File: "/data/repos/x/draft-pair-3.md", Lines: draftLines},
-		},
 	}
 	return f, l
 }
@@ -81,10 +71,10 @@ func TestAnchorForEachPartOfCouchsScreen(t *testing.T) {
 		path string
 		text string
 	}{
-		{"agent pane", cb(0, 0, 24, 3), broadcast.AnchorPane, "pane pair:3 › agent (claude)", "> fix the header color\n⏺ Edited header.css\n  12 lines changed"},
-		{"draft lines", cb(0, 6, 20, 2), broadcast.AnchorPane, "pane pair:3 › draft nvim › draft-pair-3.md, lines 12–13 › section: Review", "Please also check th\nand the nav."},
-		{"one draft line", cb(10, 6, 8, 1), broadcast.AnchorPane, "pane pair:3 › draft nvim › draft-pair-3.md, line 12 › section: Review", "o check"},
-		{"draft statusline", cb(0, 8, 16, 1), broadcast.AnchorPane, "pane pair:3 › draft nvim › statusline", "draft-pair-3.md"},
+		{"agent pane", cb(0, 0, 24, 3), broadcast.AnchorScreen, "pane pair:3", "> fix the header color\n⏺ Edited header.css\n  12 lines changed"},
+		{"draft lines", cb(0, 6, 20, 2), broadcast.AnchorScreen, "pane pair:3", "Please also check th\nand the nav."},
+		{"one draft line", cb(10, 6, 8, 1), broadcast.AnchorScreen, "pane pair:3", "o check"},
+		{"draft statusline", cb(0, 8, 16, 1), broadcast.AnchorScreen, "pane pair:3", "draft-pair-3.md"},
 		{"tab bar", cb(10, 9, 16, 1), broadcast.AnchorTabBar, "tab bar › tabs: pair:1, pair:3 ●", "pair:1  pair:3 ●"},
 		{"status line", cb(0, 9, 10, 1), broadcast.AnchorStatusLine, "status line", "LIVE ⏸ 👆"},
 	} {
@@ -95,11 +85,9 @@ func TestAnchorForEachPartOfCouchsScreen(t *testing.T) {
 	}
 }
 
-// Before the pane layout is known (the anchor taken as a note opens), a
-// box above the last row names the slot and is AnchorScreen.
-func TestAnchorForWithoutPanes(t *testing.T) {
+// A box above Couch's last row names only the slot and is AnchorScreen.
+func TestAnchorForScreenAndUnknownSlot(t *testing.T) {
 	f, l := anchorScreen()
-	l.Panes = nil
 	a := AnchorFor(cb(0, 0, 10, 2), f, l)
 	if a.Kind != broadcast.AnchorScreen || strings.Join(a.Path, " › ") != "pane pair:3" || a.Text != "> fix the\n⏺ Edited h" {
 		t.Errorf("%+v", a)
@@ -107,18 +95,6 @@ func TestAnchorForWithoutPanes(t *testing.T) {
 	l.Slot = ""
 	if a := AnchorFor(cb(0, 0, 10, 2), f, l); a.Path[0] != "pane the slot in view" {
 		t.Errorf("no active chip: %+v", a)
-	}
-	// A draft whose file is unknown stops at "draft nvim"; one whose text
-	// isn't on disk (unsaved) names the file only.
-	f, l = anchorScreen()
-	l.Panes[1].File = ""
-	if a := AnchorFor(cb(0, 6, 10, 1), f, l); strings.Join(a.Path, " › ") != "pane pair:3 › draft nvim" {
-		t.Errorf("no file: %+v", a)
-	}
-	f, l = anchorScreen()
-	l.Panes[1].Lines = []string{"something else"}
-	if a := AnchorFor(cb(0, 6, 10, 1), f, l); strings.Join(a.Path, " › ") != "pane pair:3 › draft nvim › draft-pair-3.md" {
-		t.Errorf("unsaved: %+v", a)
 	}
 }
 
@@ -134,31 +110,5 @@ func TestTextUnderIsBoundedAndKeepsWideCharacters(t *testing.T) {
 	}
 	if got := TextUnder(f, cb(0, 3, 10, 2)); got != "" {
 		t.Errorf("blank rows: %q", got)
-	}
-}
-
-func TestLocateFindsScreenRowsInTheFile(t *testing.T) {
-	lines := []string{"alpha", "a long line that the editor wraps onto two rows", "beta", "alpha", "gamma"}
-	for _, c := range []struct {
-		rows        []string
-		first, last int
-		ok          bool
-	}{
-		{[]string{"beta"}, 2, 2, true},
-		{[]string{"alpha", "gamma"}, 3, 4, true}, // the first alpha isn't followed by gamma… it is, later: either answer holds the rows
-		{[]string{"a long line that", "wraps onto two rows"}, 1, 1, true},
-		{[]string{"delta"}, 0, 0, false},
-		{nil, 0, 0, false},
-	} {
-		first, last, ok := locate(c.rows, lines)
-		if ok != c.ok || (ok && (first > last || !strings.Contains(lines[first], c.rows[0]) || !strings.Contains(lines[last], c.rows[len(c.rows)-1]))) {
-			t.Errorf("locate(%q) = %d %d %v", c.rows, first, last, ok)
-		}
-	}
-	if got := sectionOf([]string{"# Top", "x", "## Sub", "y"}, 3); got != "Sub" {
-		t.Errorf("section %q", got)
-	}
-	if got := sectionOf([]string{"x"}, 0); got != "" {
-		t.Errorf("no section %q", got)
 	}
 }
