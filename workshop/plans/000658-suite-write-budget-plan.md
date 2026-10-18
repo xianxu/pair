@@ -14,7 +14,7 @@ collaboration-mode: discussion
 
 **Approval status:** Baseline completed:116/116 packages passed,1,640,353,792 observed own-process physical bytes. Exact proposed caps are below. Await hub approval before change-code.
 
-**Current design:** The earlier ledger-only candidate below is historical and suspended. The authoritative proposed replacement is [the whole-suite revision](#2026-10-17--whole-suite-replacement-design); it awaits hub approval.
+**Current design:** The earlier ledger-only candidate below is historical and suspended. The authoritative proposed replacement is [the whole-suite revision](#2026-10-17--whole-suite-replacement-design); hub approved it in receipt b835c6cc-0386-4592-8787-babadea817ba; change-code accepted it in d025e19ee.
 
 ## Measurement and operating envelope
 

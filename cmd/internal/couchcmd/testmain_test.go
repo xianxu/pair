@@ -4,9 +4,14 @@ import (
 	"os"
 	"testing"
 
+	"github.com/xianxu/pair/cmd/internal/testdisk"
 	"github.com/xianxu/pair/cmd/internal/testpair"
 )
 
 func TestMain(m *testing.M) {
-	os.Exit(testpair.Run(m))
+	run := func() int { return testpair.Run(m) }
+	if os.Getenv("PAIR_CAPTURE_CHILD_HELPER") == "1" || os.Getenv(continuationPublicationFixtureEnv) != "" || os.Getenv("PAIR_PROVISION_SIGNAL_HELPER") == "1" {
+		os.Exit(run())
+	}
+	os.Exit(testdisk.RunWithWriteBudget("couchcmd", testdisk.CouchCmd, run))
 }
