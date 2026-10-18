@@ -1,0 +1,6 @@
+{
+ "name": "tilde-in-old",
+ "base": "use ~x~ here\n",
+ "after": "use y here\n",
+ "refuse": "propose-unencodable"
+}

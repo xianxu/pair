@@ -1,0 +1,8 @@
+{
+ "name": "escape",
+ "base": "x\n",
+ "after": "x {y} [z]\n",
+ "markers": "x🤖{ \\{y\\} \\[z\\]}\n",
+ "accepted": "x {y} [z]\n",
+ "rejected": "x\n"
+}
