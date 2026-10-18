@@ -6,13 +6,6 @@ updated: 2026-10-18
 estimate_hours:
 github_issue:
 started: 2026-10-18T14:16:34-07:00
-claimant:
-    operator: Xian Xu
-    machine: 4716879978a7b90f6b583da1716fd0e9
-    machine_name: Xian’s MacBook Pro
-    workspace: pair:3
-    worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
-    repository: github.com/xianxu/pair
 actual_hours: 0.66
 tracker:
     version: 1
@@ -22,6 +15,16 @@ tracker:
         reviewed_head: 3853781e7f2f3c95c6b6e6b31448dbb6df3f46fe
         evidence_commit: 4d8ce9832b61a7a061b5f93ba82661f9dcd83d6b
         landed_commit: c5245132b9eb26588c56b05a19f733261368f69e
+    release:
+        by:
+            operator: Xian Xu
+            machine: 4716879978a7b90f6b583da1716fd0e9
+            machine_name: Xian’s MacBook Pro
+            workspace: pair:3
+            worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
+            repository: github.com/xianxu/pair
+        branch: 000668-native-oracle-segfault
+        head: 8b8303879804d502b7c8003b76a8d1522735c0ae
 ---
 
 # Native terminal oracle subprocess crashes with SIGSEGV in macOS conformance
