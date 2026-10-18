@@ -165,3 +165,7 @@ TestCouchTitlesOSRecoversGrowthDuringAdmission is now GREEN. Focused TitleProjec
 ### 2026-10-18 — integrated-head verification
 
 Source 8641e428d2b85044173053dcfda33dcf273267eb is pushed; PR 424 opened. All six affected packages passed after integration: couchcore (308.783s), couchtty (45.624s), couchcmd (65.390s), titlepoller (1.279s), sessioninventory (6.490s), wrapcmd (72.766s). Targeted race families Title/CurrentTitle/OwnerLaunch/Activity passed for couchtty, couchcmd and sessioninventory. ManagedIOInventoryAnchors passed. Required recorded suite c0796f4dfe80368cf357507b001784e5 is queued on this source head; no recorded full-suite pass yet.
+
+### 2026-10-18 — recorded-suite artifact inventory defect
+
+Recorded suite c0796f4dfe80368cf357507b001784e5 on 8641e428d found TestProductionArtifactReferencesAreExactlyClassified failing: five new production files were absent from the exhaustive artifact inventory. Root cause was omitted source classification, not a runtime title failure. Added ResolvedConsumer entries for couchcmd/titles.go and couchcore/title_target.go, and NonArtifactSources entries for titles_wiring.go, title_context.go and titlepoller/update.go; no known-violation allowance added. Agent reproduced the five failures, then full artifactpath package passed (12.820s). The original suite continues to completion to retain all other results; replacement recorded suite is required after this source fix.
