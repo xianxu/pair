@@ -263,3 +263,27 @@ func TestRoundRefusesAMalformedSidecar(t *testing.T) {
 	_, err := r.sync.Round(r.p.File)
 	wantRefusal(t, err, ExitRefused, "round-invalid")
 }
+
+// Frontmatter is never proposed, whichever verb changes it: an apply that
+// edits `presentation:` and the body writes the frontmatter as is and only
+// the body as a marker (BR-2).
+func TestProposeNeverMarksFrontmatter(t *testing.T) {
+	r := newRig(t)
+	r.put(r.p.File, proposeDoc)
+	r.put(r.p.Shadow, proposeDoc)
+	_, err := r.sync.Apply(ApplyRequest{File: r.p.File, IfHash: r.hash(""), Edits: []EditRecord{
+		{Old: "presentation: propose", Occurrence: 1, New: "presentation: direct"},
+		{Old: "\nold\n", Occurrence: 1, New: "\nnew\n"},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := r.read(r.p.File)
+	block, _ := FrontmatterBody(got)
+	if strings.Contains(block, "🤖") || !strings.Contains(block, "presentation: direct") {
+		t.Fatalf("frontmatter %q", block)
+	}
+	if !strings.Contains(got, "🤖~old~{new}") {
+		t.Fatalf("body not proposed: %q", got)
+	}
+}

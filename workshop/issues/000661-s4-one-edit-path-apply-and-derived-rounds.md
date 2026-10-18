@@ -97,3 +97,9 @@ Design is the low end of each range, because the durable plan already resolved t
   - `write --section`: the round was replaced with a span that carries no explain.
   - Under `presentation: propose`: `apply` wrote `The 🤖~quick~{slow} brown fox.`, and a 4-line section write refused with `propose-too-large`, naming the side-doc remedy.
   - **Not exercised live:** `cleared`. A submit needs another slot's `submitted:` message to pair:2, and self-sends aren't recorded. The rig test covers it against a real ledger (`TestRoundClearsOnTheNextSubmit`).
+- M1 review round 1 (REWORK):
+  - **BR-2 (Critical):** propose marked frontmatter on `apply` and `write --all`. Now `ProposeDocument` proposes the body only. Test: `TestProposeNeverMarksFrontmatter`, which fails with `ProposeMarkers` in its place.
+  - **BR-3 (Critical):** a blank-line insert or delete wrote a bare 🤖. Unpaired blank lines are now unmarked. Fixtures: `blank-line-insert`, `blank-line-delete`, `paragraph-insert`. The Lua check now requires every 🤖 to parse.
+  - **BR-4:** a plan Revisions entry.
+  - **Minor:** `ParseEdits` refuses `occurrence < 1`.
+  - **Minor, not changed:** a no-op write keeps the round while the file hash moves with the restamp. That is by contract: parley re-anchors by span text when `result_hash` differs (design §4). The stamp is fixed width, so the positions stay exact.

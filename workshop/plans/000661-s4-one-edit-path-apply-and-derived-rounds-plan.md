@@ -310,3 +310,11 @@ _Seam change, stated: this gives `apply` a registration side effect. On an unreg
     - Under "one issue, one branch", that means M1 lands through `sdlc merge` at the milestone, and M2 continues on #661 from main.
     - Task 7 step 4 becomes "land M1".
 - **2026-10-18, plan-quality round 1.** PQ-1: one restamp-aware baseline feeds both `DeriveRound` and `ProposeMarkers`; frontmatter writes don't restamp, so they are diffed raw. PQ-2: under propose, the shadow, the returned hash and the round all follow the written marker bytes, and frontmatter is never proposed. Minors: `Round` takes the flocks; the sidecar has a 16 MiB read and write cap; reasons attach by one base-coordinate rule (`attachReasons`); M2's registration side effect is stated. The prose test lists stay: they double as each task's RED checklist.
+- **2026-10-18, implementation and M1 review round 1.** The code departs from Core concepts as follows:
+  - **Myers cap:** D ≤ 1024 (`maxDiffEdits`), not 4096. The trace grows as D², and 4096 would cost about 128 MB at the cap.
+  - **Submit matching:** `submitsOfDocument → []Entry` became `submitNames` (the per-row matching shared with `OwedForDocument`) plus `SubmittedSince` (the `cleared` query).
+  - **No restamp shift:** the `Updated` stamp is fixed width, so `DeriveRound(baseline, after, resolved)` takes no `before`.
+  - **`at`** keeps full precision.
+  - **Propose proposes the body only** (`ProposeDocument`). The new frontmatter is written as is, so no verb can mark it and flip `presentation:` (BR-2).
+  - **Unpaired blank lines** are not marked. An inserted blank line is written as is, and a removed one is kept (BR-3; a bare 🤖 never settles). The Lua fixture test now requires every 🤖 Couch writes to parse.
+  - **`ParseEdits`** refuses `occurrence < 1`.

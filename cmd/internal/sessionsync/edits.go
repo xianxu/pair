@@ -72,6 +72,9 @@ func ParseEdits(raw []byte) ([]EditRecord, error) {
 			if err != nil {
 				return nil, fmt.Errorf("edits: record %d occurrence must be an integer", i+1)
 			}
+			if n < 1 {
+				return nil, fmt.Errorf("edits: record %d occurrence must be 1 or more", i+1)
+			}
 			occurrence = int(n)
 		}
 		records[i] = EditRecord{Old: *w.Old, Occurrence: occurrence, New: *w.New, Explain: w.Explain}

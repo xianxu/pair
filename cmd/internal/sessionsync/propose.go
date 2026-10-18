@@ -58,11 +58,36 @@ func ProposeMarkers(baseline, after string) (string, error) {
 	return out.String(), nil
 }
 
+// ProposeDocument proposes only the body: frontmatter is never proposed (a
+// marker there would corrupt it, even flip `presentation:` itself), so the
+// new frontmatter is written as is and the body after it as markers. A
+// document without frontmatter is proposed whole.
+func ProposeDocument(baseline, after string) (string, error) {
+	fb, errB := FrontmatterBody(baseline)
+	fa, errA := FrontmatterBody(after)
+	if errB != nil || errA != nil {
+		return ProposeMarkers(baseline, after)
+	}
+	body, err := ProposeMarkers(baseline[len(fb):], after[len(fa):])
+	if err != nil {
+		return "", err
+	}
+	return fa + body, nil
+}
+
 // markLine writes one changed line. old or new is "" for an unpaired line.
+// An unpaired blank line has nothing to mark: an inserted one is written as
+// is, a removed one is kept (the empty-line cost of no newline encoding).
 func markLine(old, new string) (string, error) {
 	oldBody, oldNL := strings.CutSuffix(old, "\n")
 	newBody, newNL := strings.CutSuffix(new, "\n")
 	nl := ""
+	switch {
+	case old == "" && newBody == "":
+		return new, nil
+	case new == "" && oldBody == "":
+		return old, nil
+	}
 	switch {
 	case old == "":
 		if newNL {

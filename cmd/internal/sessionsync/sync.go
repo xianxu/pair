@@ -556,7 +556,7 @@ func (f *file) prepareWrite(req WriteRequest, rows []Entry, now time.Time) (prep
 	if presentation == "propose" && !req.Frontmatter {
 		// Couch keeps the base text and writes the diff as markers; the
 		// written bytes are what every check, the shadow and the hash see.
-		if next, err = ProposeMarkers(baseline, Restamp(next, now)); err != nil {
+		if next, err = ProposeDocument(baseline, Restamp(next, now)); err != nil {
 			return preparedWrite{}, err
 		}
 		if req.Section != "" {

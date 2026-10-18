@@ -54,7 +54,9 @@ for _, file in ipairs(vim.fn.glob(dir .. 'propose/*.json', false, true)) do
     proposed = proposed + 1
     local acc, n = settle(fx.markers, true)
     local rej = settle(fx.markers, false)
-    if n == 0 then fail(fx.name, 'no marker parsed') end
+    -- Every 🤖 Couch writes must parse; a bare or broken one never settles.
+    local _, robots = fx.markers:gsub('🤖', '')
+    if n ~= robots then fail(fx.name, string.format('%d of %d markers parsed', n, robots)) end
     if acc ~= fx.accepted then fail(fx.name, string.format('accepted %q want %q', acc, fx.accepted)) end
     if rej ~= fx.rejected then fail(fx.name, string.format('rejected %q want %q', rej, fx.rejected)) end
   end
