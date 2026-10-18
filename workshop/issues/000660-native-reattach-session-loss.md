@@ -100,6 +100,12 @@ Required suite on corrected e2f8bca989ecd6fa6b1c22f3cd82b3e9f0333018 passed exit
 
 Normal close round 2 returned SHIP, high confidence, no Critical/Important/Minor findings remaining. BR-1 was explicitly disposed addressed after the reviewer ran the actual collector regression with a temporary prefix mutation; all five streams failed under that mutation. The reviewer also reran targeted tests normally (1.190s) and with race detection (3.565s). Close published codecomplete bound to b8fe3d0451f156fca0275100835a52eb4f74076d and adopted measured actual 0.86h, excluding 21.99 recorded queue minutes across the two passing suites. Proceeding directly to normal landing. Afterwards reopen/release the underlying discovery cause as directed; next CI failure, read the retained facts. No causal fix is claimed by this SHIP.
 
+### 2026-10-18 — reopened for parked causal investigation
+
+Reopened per hub directive 75b0dbdf-a6a2-4d97-b7d4-013501c3c4fc: only the diagnostic stage landed as PR429, merge b386574636297f0529f0e4c0d7cbc29b1ff58e4d (GitHub and Git agree). Authoritative integrated-head suite on 5762aacb23916e687332bafc92fbd0078b40c732 passed exit 0 in 11m9s, log SHA256 prefix ddc803f0a234, with all five CI checks green. Integration suite queued 913s; saved log is in the common Git directory under `.git/sdlc/local-checks/5762aacb23916e687332bafc92fbd0078b40c732/suite.log`. No suite failed or was retried blindly.
+
+The discovery flake's cause is still unresolved. Park and release ownership now: next CI failure, read the retained detach/client/actor/socket/server facts before choosing a fix. The original server was alive in the historical failure; the known upstream client-ID reuse family remains a hypothesis for this incident. Do not build an upstream controlled reproduction or a production accommodation until a failure points at it. The local native lane was released after the single granted attempt; no live resources or running checks remain owned by this issue.
+
 ## Revisions
 
 ### 2026-10-18 — BR-1 consumer sweep
