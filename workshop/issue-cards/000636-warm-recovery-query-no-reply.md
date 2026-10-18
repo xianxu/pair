@@ -6,13 +6,6 @@ updated: 2026-10-18
 estimate_hours:
 github_issue:
 started: 2026-10-17T10:14:59-07:00
-claimant:
-    operator: Xian Xu
-    machine: 4716879978a7b90f6b583da1716fd0e9
-    machine_name: Xian’s MacBook Pro
-    workspace: pair:6
-    worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
-    repository: github.com/xianxu/pair
 actual_hours: N/A
 tracker:
     version: 1
@@ -22,6 +15,16 @@ tracker:
         reviewed_head: bf4af0d3b6ae83ca87b249e00148f7a903d28227
         evidence_commit: 670aea8343da03e32e1ea1c62d21934891c80a98
         landed_commit: 1e90001c06796ba600c77d3cde3255ad6818f611
+    release:
+        by:
+            operator: Xian Xu
+            machine: 4716879978a7b90f6b583da1716fd0e9
+            machine_name: Xian’s MacBook Pro
+            workspace: pair:6
+            worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
+            repository: github.com/xianxu/pair
+        branch: 000636-warm-recovery-query-no-reply
+        head: d07b94ebdbebb83dc9ac004be899efe9ed4579a1
 ---
 
 # Warm recovery live conformance intermittently receives no Zellij query reply
