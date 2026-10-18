@@ -143,6 +143,8 @@ Draft detailed plan: [suite write budget](../plans/000658-suite-write-budget-pla
 - Conformance39105228904 on d9c9bab5bb60d3cf68b753bbe079606e8139ac0f and39105295728 on eeedca6731051353d4314ab056da6ba2b200d0f9 both passed. Git diff from first green to failed head contains only this issue's Markdown. Thus this is an established intermittent native-reattach failure on unchanged issue code, distinct from #603/#361. Filed unclaimed #660 with exact failure and passing controls. Public failed run: https://github.com/xianxu/pair/actions/runs/39105463917/job/117610220213 ; local full log/metadata ci-39105463917* retained under the diagnostic root.
 - One unchanged failed-job rerun requested under the fleet flake rule, on the same7de3dec head. Retain both attempts; if it repeats, stop and report rather than retrying or modifying deadlines. This does not replace the required local recorded suite or device comparison.
 
+- CI39105463917 attempt2 completed success on the same7de3dec head; one issue-backed unchanged rerun, no timeout/assertion/code changes. Attempt1 failure and attempt2 metadata are retained. All current merge/local-gate/conformance checks are green; local matched measurements/recorded suite/close remain pending.
+
 ## Revisions
 
 - 2026-10-17 — Measured dominant fixture construction rather than assuming fsync/logging churn. Candidate design preserves full30MB files and decoder/authority checks by CoW cloning private all-space templates. Reject fixture shrinking, hardlinks and NUL sparse files because they weaken the actual coverage. A shared native-counter runner defends the whole normal-run callback in the large-fixture consumer packages; final numeric caps await the queued distribution and hub approval.
