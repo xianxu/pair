@@ -19,12 +19,12 @@ type EditRecord struct {
 	Explain    string
 }
 
-// ResolvedEdit is a record that resolved: its index in the batch (1-based)
-// and the byte range of its Old in the base text.
+// ResolvedEdit is a record that resolved: its index in the batch (1-based),
+// the byte range of its Old in the base text, and its replacement.
 type ResolvedEdit struct {
 	Index              int
 	BaseStart, BaseEnd int
-	Explain            string
+	New, Explain       string
 }
 
 // BadEdit is a record that did not resolve, and why: `empty old`,
@@ -112,7 +112,7 @@ func ResolveEdits(base string, records []EditRecord) (next string, resolved []Re
 		case off < 0:
 			bad = append(bad, BadEdit{i + 1, "not found"})
 		default:
-			resolved = append(resolved, ResolvedEdit{Index: i + 1, BaseStart: off, BaseEnd: off + len(r.Old), Explain: r.Explain})
+			resolved = append(resolved, ResolvedEdit{Index: i + 1, BaseStart: off, BaseEnd: off + len(r.Old), New: r.New, Explain: r.Explain})
 		}
 	}
 	sort.SliceStable(resolved, func(a, b int) bool { return resolved[a].BaseStart < resolved[b].BaseStart })
@@ -128,13 +128,18 @@ func ResolveEdits(base string, records []EditRecord) (next string, resolved []Re
 		sort.Slice(bad, func(a, b int) bool { return bad[a].Index < bad[b].Index })
 		return "", nil, bad
 	}
+	return applyResolved(base, kept), kept, nil
+}
+
+// applyResolved writes resolved, non-overlapping edits (in base order) into base.
+func applyResolved(base string, edits []ResolvedEdit) string {
 	var b strings.Builder
 	at := 0
-	for _, e := range kept {
+	for _, e := range edits {
 		b.WriteString(base[at:e.BaseStart])
-		b.WriteString(records[e.Index-1].New)
+		b.WriteString(e.New)
 		at = e.BaseEnd
 	}
 	b.WriteString(base[at:])
-	return b.String(), kept, nil
+	return b.String()
 }

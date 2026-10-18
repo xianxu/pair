@@ -62,7 +62,7 @@ func TestResolveEditsRangesAndReasons(t *testing.T) {
 	if len(bad) != 0 || next != "1 two 3\n" {
 		t.Fatalf("next=%q bad=%+v", next, bad)
 	}
-	want := []ResolvedEdit{{Index: 2, BaseStart: 0, BaseEnd: 3}, {Index: 1, BaseStart: 8, BaseEnd: 13, Explain: "digit"}}
+	want := []ResolvedEdit{{Index: 2, BaseStart: 0, BaseEnd: 3, New: "1"}, {Index: 1, BaseStart: 8, BaseEnd: 13, New: "3", Explain: "digit"}}
 	if !reflect.DeepEqual(resolved, want) {
 		t.Fatalf("resolved=%+v, want %+v", resolved, want)
 	}

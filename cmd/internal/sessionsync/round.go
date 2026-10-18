@@ -258,6 +258,8 @@ func resolveBatch(base string, edits []EditRecord) (string, []ResolvedEdit, erro
 // The baseline is base restamped exactly when the write restamps, so the stamp
 // never forms a span; under `presentation: propose` (never for a frontmatter
 // write) the body is written as markers, and the round follows those bytes.
+// A record answering the operator's own request marker is the one exception:
+// it applies directly (answersOperator).
 func contentStep(base, next string, resolved []ResolvedEdit, now time.Time, restamp, frontmatter bool) (Edit, error) {
 	baseline := base
 	if restamp {
@@ -265,8 +267,18 @@ func contentStep(base, next string, resolved []ResolvedEdit, now time.Time, rest
 	}
 	presentation := Presentation(base)
 	if presentation == "propose" && !frontmatter {
+		// Direct records are applied on both sides, so the proposal diff holds
+		// only the rest.
+		proposeBase := baseline
+		if direct := answersOperator(base, resolved); len(direct) != 0 {
+			proposeBase = applyResolved(base, direct)
+			if restamp {
+				proposeBase = Restamp(proposeBase, now)
+			}
+			proposeBase = adoptDiscussionsChange(base, proposeBase, next, direct)
+		}
 		var err error
-		if next, err = ProposeDocument(baseline, next); err != nil {
+		if next, err = ProposeDocument(proposeBase, next); err != nil {
 			return Edit{}, err
 		}
 	}
@@ -276,4 +288,86 @@ func contentStep(base, next string, resolved []ResolvedEdit, now time.Time, rest
 		e.Round = Round{BaseHash: Hash(base), ResultHash: Hash(next), At: now.UTC(), Presentation: presentation, Spans: spans}
 	}
 	return e, nil
+}
+
+// answersOperator picks, under propose, the records that answer an operator
+// request: those whose old text, verified in base, holds a complete ready
+// marker (readyMarkerIn) — the ready marker answered by a side-doc proposal
+// link, or the fold-in marker on that link answered by the folded text. The
+// operator approved exactly that change by writing the marker; every other
+// record stays a proposal.
+func answersOperator(base string, resolved []ResolvedEdit) []ResolvedEdit {
+	var direct []ResolvedEdit
+	for _, e := range resolved {
+		if readyMarkerIn(base[e.BaseStart:e.BaseEnd]) {
+			direct = append(direct, e)
+		}
+	}
+	return direct
+}
+
+// adoptDiscussionsChange lets the side-doc index ride in the same apply as the
+// operator-approved link or fold-in (S3): when next's frontmatter differs from
+// proposeBase's only in `discussions:` entries, and every added entry is the
+// link target of a direct record's new text and every removed one the link
+// target of its old text, the new frontmatter is taken directly. Any other
+// frontmatter change is left for ProposeDocument to refuse.
+func adoptDiscussionsChange(base, proposeBase, next string, direct []ResolvedEdit) string {
+	fp, errP := FrontmatterBody(proposeBase)
+	fn, errN := FrontmatterBody(next)
+	if errP != nil || errN != nil || fp == fn {
+		return proposeBase
+	}
+	restP, docsP := splitDiscussions(fp)
+	restN, docsN := splitDiscussions(fn)
+	if restP != restN {
+		return proposeBase
+	}
+	linked := func(path string, text func(ResolvedEdit) string) bool {
+		for _, e := range direct {
+			if strings.Contains(text(e), "]("+path+")") {
+				return true
+			}
+		}
+		return false
+	}
+	newText := func(e ResolvedEdit) string { return e.New }
+	oldText := func(e ResolvedEdit) string { return base[e.BaseStart:e.BaseEnd] }
+	for doc := range docsN {
+		if !docsP[doc] && !linked(doc, newText) {
+			return proposeBase
+		}
+	}
+	for doc := range docsP {
+		if !docsN[doc] && !linked(doc, oldText) {
+			return proposeBase
+		}
+	}
+	return fn + proposeBase[len(fp):]
+}
+
+// splitDiscussions separates a frontmatter block's `discussions:` index (S3:
+// `discussions:` then `  - doc: PATH` lines, or `discussions: []`) from the
+// rest, which it returns with the index collapsed to its key line.
+func splitDiscussions(block string) (string, map[string]bool) {
+	docs := map[string]bool{}
+	var rest []string
+	in := false
+	for _, line := range strings.Split(block, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if in {
+			if doc, ok := strings.CutPrefix(trimmed, "- doc:"); ok && line != trimmed {
+				docs[strings.TrimSpace(doc)] = true
+				continue
+			}
+			in = false
+		}
+		if key, ok := strings.CutPrefix(line, "discussions:"); ok && (strings.TrimSpace(key) == "" || strings.TrimSpace(key) == "[]") {
+			in = true
+			rest = append(rest, "discussions:")
+			continue
+		}
+		rest = append(rest, line)
+	}
+	return strings.Join(rest, "\n"), docs
 }
