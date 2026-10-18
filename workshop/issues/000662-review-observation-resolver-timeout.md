@@ -1,13 +1,21 @@
 ---
 id: 000662
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-18
 updated: 2026-10-18
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: 'a2c912999900020be4226aee8c56320392c7aa87' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '9d181b2aaecb076f0f5feb58fdcf7111d0759dab' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-18T03:46:30-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:3
+    worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Review observation diagnostic positive control times out in real BufWritePre resolver
@@ -20,6 +28,10 @@ The normal make test shell/review phase can fail in ObservationFixtureDiagnostic
 
 Determine why this positive control sometimes exhausts the resolver budget, distinguishing host capacity, the fixture’s own synchronization, and product RPC reentrancy. Preserve genuine write-refusal and branch-identity safety; no blanket timeout bump or blind retry.
 
+First test the concrete budget-composition hypothesis: identity.lua waits 2500 ms, resolveIdentityWithSnapshot owns a shared two-second context, and OSRuntime.GitContext allows another second of os/exec WaitDelay after cancellation. Retained call-level evidence does not establish which Git/pipe phase consumed the historical timeout. Add phase evidence only at an owned test seam, and demonstrate the candidate with controlled process/descriptor handshakes before selecting its fix. Preserve the existing successful brief-output-holder case from #613 and all final branch/HEAD/index checks.
+
+If the controlled reproduction confirms a product budget defect, keep command execution and output draining within one explicit owner/budget rather than increasing the Lua deadline. If it instead demonstrates legitimate product refusal under host delay, isolate the fixture's ordering assertions from real resolver speed and preserve real resolver conformance separately; bring that scope revision to the hub before code. In either case, a timeout with empty stderr must produce a useful refusal diagnostic while leaving the document and activation unchanged.
+
 ## Done when
 
 - Root cause is demonstrated with retained resolver phase evidence and a deterministic regression.
@@ -27,9 +39,24 @@ Determine why this positive control sometimes exhausts the resolver budget, dist
 
 ## Plan
 
-- [ ]
+- [ ] Post this plan to the hub before code. Treat the budget mismatch as a hypothesis, not the historical root cause.
+- [ ] Add a deterministic owned process/descriptor-holder regression beside TestOSGitContextToleratesBrieflyHeldStdout. Handshake on child start, held output, context cancellation and release; retain phase events. Use a package-derived hang ceiling only for a stuck test, not a fixed performance assertion. Do not introduce CPU stress or repeat suites to chase the flake.
+- [ ] Exercise the same controlled failure through identity decoding and the write guard: timeout/unknown identity refuses with a nonempty reason; changed branch remains refused; exact document bytes and activation remain intact. Retain the positive completed-result gate sequence and brief-holder success control.
+- [ ] With that evidence, choose the smallest fix at the budget owner. No deadline increase, skipped final identity checks, stale-authority cache or blind retry. If the candidate is disproved or requires a new mechanism, stop and revise with the hub.
+- [ ] Keep the core decision pure (ARCH-PURE), reuse the existing Runtime and callback gate seams (ARCH-DRY), and retain real controlled native-process coverage (ARCH-MOCK). Enumerate execution, cancellation, pipe drain and teardown as distinct phases (ARCH-ORDER). All owned children/descriptor holders have unconditional release/termination/reaping (ARCH-FUNERAL).
+- [ ] Bound each real diagnostic invocation at 60 seconds with owned cleanup, preserving the product's two-second context and 2500 ms Lua wait. No UI or operator slot is touched (ARCH-SECURE). No new production fan-out or scan is planned: resolved observations use nine Git queries; normal pre/post-write guards use eighteen. If collection changes, count calls at N and 2N rather than asserting host speed (ARCH-CONSTRAINTS).
+- [ ] If a mechanical budget mistake class is confirmed, send the hub the precise ariadne/pkg/golint rule proposal with #662 evidence; the catalog is Go-AST based and peer-owned, so do not silently add a Lua-only exception or edit that repository under this issue.
+- [ ] Run focused Go/Lua/diagnostic tests, then the recorded full suite and normal close/merge gates. A fixture-only fix uses owned headless validation; any product/editor behavior change needs a live-check arrangement approved by the hub. Report the landing.
+
+Existing visible states remain unchanged: a verified current identity permits the guarded write; unknown/deadline/changed-branch observations refuse it, retaining edits and activation. Recovery is retrying the action after a fresh successful observation. No new user or automation state is proposed. This plan fixes the refusal diagnostic as part of the same failing path, not a new authorization policy (ARCH-PURPOSE).
+
+## Revisions
+
+- 2026-10-18: Hub assigned #662 after parking #663. Initial investigation identifies a falsifiable deadline/drain composition issue and independent empty-stderr diagnostic loss. Prove the phase interaction before choosing a product versus fixture fix; no historical-phase attribution is claimed.
 
 ## Log
+
+2026-10-18 planning: claimed and ran start-plan from main on 000662-review-observation-resolver-timeout. Read-only call-graph inspection: BufWritePre -> restoration:guard -> identity.resolve -> review readiness --resolve -> resolveIdentityWithSnapshot. This route does not invoke the headless-Neovim classifier. Successful resolution performs nine sequential Git calls, plus two index-generation checks; ordinary writes call guards before and after. The async callback gate holds completed results and is already released before the failing synchronous write, so it does not deliberately hold that native process. The historical trace records whole resolver calls only; it cannot distinguish native startup, Git execution, pipe draining and scheduler delay. OSRuntime.GitContext sets WaitDelay to one second despite the collector's shared two-second context and outer 2500 ms Lua wait. The empty diagnostic is explained by result.stderr or fallback accepting the empty string in Lua. These are source findings; no new reproduction, test run or implementation has occurred yet. Peer ariadne AGENTS.local.md was read to inspect its lint catalog; MEMORY.md is absent. The catalog handles Go ASTs, not arbitrary Lua/Python files.
 
 Observed 2026-10-18 around01:02 PDT in pair#658’s same-body make -k WF_TEST_WEIGHT=2 test, source HEAD91d46ca2f5c0c3b1d5537fbb5b28c2a95b079bb1. Owned quiet two-token device diagnostic: /var/folders/07/b9wcwwld4_v2w9r3hk525bm80000gn/T/pair658-device-after.SjFHBp/device-suite/make.log lines855–905. Make exit2 after312.427012s; all ten diagnostic tests enumerated, exactly this positive control failed. Remaining Make prerequisites completed; final go test ./... recipe was suppressed by failed prerequisites.
 
