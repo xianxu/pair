@@ -297,12 +297,12 @@ func menuOperationRowText(job MenuOperation, now time.Time) string {
 	}
 }
 
-// menuOperationRows indexes result addresses once rather than scanning all jobs
-// separately for every rendered row. Work is one pass over rows plus jobs.
 // menuOperationWork counts actual projection/pruning visits for deterministic
 // hot-path regressions. Production callers pass nil; it carries no menu state.
 type menuOperationWork struct{ Rows, Jobs int }
 
+// menuOperationRows indexes result addresses once rather than scanning all jobs
+// separately for every rendered row. Work is one pass over rows plus jobs.
 func menuOperationRows(state MenuState) map[couchcore.ThreadRowKey]MenuOperation {
 	return menuOperationRowsMeasured(state, nil)
 }

@@ -699,17 +699,17 @@ func (c *Console) onSwitch(id string) { c.switchTo(id, false, arrivalOrdinary) }
 // actor did not.
 func (c *Console) forceSwitch(id string) { c.switchTo(id, true, arrivalOrdinary) }
 
-// arrival says HOW the operator landed on an actor. It is not decoration: the
-// switch rule keys off it (only a notification hop is non-pinning), while the
-// notification-acknowledgement rule deliberately does not (every landing clears
-// the bell). Separating them is what keeps ctrl+backspace home from leaving the
-// actor the operator is sitting in marked as still paging.
 type menuOperationContextKey struct{}
 type menuOperationContext struct {
 	origin MenuOperationOrigin
 	hosted string
 }
 
+// arrival says HOW the operator landed on an actor. It is not decoration: the
+// switch rule keys off it (only a notification hop is non-pinning), while the
+// notification-acknowledgement rule deliberately does not (every landing clears
+// the bell). Separating them is what keeps ctrl+backspace home from leaving the
+// actor the operator is sitting in marked as still paging.
 type arrival uint8
 
 const (
