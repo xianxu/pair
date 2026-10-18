@@ -16,6 +16,7 @@ claimant:
     workspace: pair:3
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "80c4bffa", done: "e7714447"}
 ---
 
 # Review observation diagnostic positive control times out in real BufWritePre resolver
