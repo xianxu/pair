@@ -189,13 +189,15 @@ One process setting: `COUCH_LIFECYCLE_NOTICES`, default on; explicit `off` disab
 
 Update README, `couch --skill`, atlas/Couch map and index, and artifact inventory for new files. Hub supplies the ariadne tl-lead companion (Slots information, no reply); record its link and completion before close.
 
-| Boundary | Test strategy and required assertion |
+| Risky function | Adversarial strategy and independent guard |
 |---|---|
-| Origin/envelope/admission | Closed CLI request rejects forged origin; copied system header remains peer; only internal producer creates canonical system receipt; unknown origins reject. |
-| Receipt/batch retention | Alter origin under same ID in queued/completed/retained records and prepared batches; never deduplicate/adopt mismatched origin. Exact combined envelope/log and individual receipts retain it; unsupported wrapper cannot downgrade. |
-| Lifecycle hooks | Stateful completed/adopted operations, exact park and inventory transitions; failed/stale operations produce no success, correlated relaunch emits once; attachment exit alone emits no agent exit. |
-| Collector and publisher | Empty/20/128-slot restart passes, out-of-order completion, failed/cancelled pass, bounded overflow, repeated inventory, busy/absent/replaced hub, opt-out and shutdown. Assert drain barrier, final state, limits, no replay after uncertainty and no blocking of lifecycle completion. |
-| Runtime wiring | Owned Console/registry/socket stack verifies real hook invocation, one normal restart summary and actual broker/#648 delivery, exact Pair turn and per-message receipts. |
+| `Envelope`, `ValidateBatch`, `Advance` | Generate origin/body/identity mutations; only known typed origins render, and identity conflicts leave ownership unchanged. |
+| `Broker.send`, `adoptRetained`, `promote`, `StatusContext`, `matchingReceipt`, `finalizeBatch` | Mutate immutable origin across admission and retained-receipt recovery; compare canonical server evidence and assert unknown system records never enter server receipt state. |
+| `AdvanceLifecycleNotices` (new sole collector transition) | Generate reordered facts and publication outcomes through bounded state; independently assert size bounds, adopted final state, immutable frozen parts and no replay after uncertain input. |
+| `Console.observeLifecycleCompletion` (new), `PairLifecycleController.applyCompletion` | Drive stateful operation/adoption failures and stale exact completions; success requires the existing adoption/finalization authority and attachment exit cannot emit agent exit. |
+| `Console.observeLifecycleInventory` and `observeLifecyclePass` (new) | Generate confirmed/unknown inventories and pass progress; require real reason transitions and the drain barrier before publication. |
+| `lifecycleNoticesEnabled` (new) | Generate arbitrary setting values; only empty/on/off accepted with documented default. |
+| `lifecyclePublisher.run` (new thin shell) | Owned Console/registry/socket stack with controlled receiver readiness/loss; assert actual hook wiring, broker/#648 exact combined turn and per-message receipt provenance. |
 
 Negative controls remove origin matching, adoption gating and pass-drain gating independently; the corresponding tests must fail. ARCH-DRY: existing message path and routing. ARCH-PURE: one collector reducer. ARCH-ORDER: explicit adoption/pass/receipt boundaries. ARCH-SECURE: internal origin, closed external requests and canonical receipts. ARCH-FUNERAL: service owns bounded state and joins its worker.
 
@@ -207,3 +209,31 @@ Negative controls remove origin matching, adoption gating and pass-drain gating 
 - [ ] Run focused/race checks, push and open an early draft PR for CI overlap, then recorded full suite, close review and normal merge gates. Never hand-post gate status.
 
 **Approved live arrangement:** Owned children and isolated sockets now, no existing slot focus/clipboard input. Real start/park/relaunch/recovery and restart-summary smoke runs with the operator at the hub's next restart after landing, with no pair:0 staging. Native-agent exit is outside that smoke and outside this issue. Plan revision goes to the hub before change-code; full-flow plan-quality acceptance precedes the estimate and implementation.
+
+## Revisions — plan-quality round 1
+
+- 2026-10-17 — PQ-1 (ARCH-SECURE): corrected the claim that canonical recovery already excludes endpoint forgery. `Broker.StatusContext` currently imports unknown wrapper-retained receipts (`broker.go:957`); all import paths must enforce the server-origin rule below. No wrapper authentication or new protocol is introduced.
+- PQ-2 (ARCH-ORDER): defined publication failure and multipart transitions below. PQ-3: replaced the current verification case inventory with named-function strategies. These refine the approved mechanism and do not restore deferred scope.
+
+### System-origin recovery rule
+
+The broker's existing admitted receipt/active queue is the only system-origin authority; an in-progress caller admission alone is not evidence of an earlier delivery. Unknown retained system records are not imported, after restart or receipt eviction either. `StatusContext` returns existing uncertain/refusal wording without recording such a receipt; `adoptRetained` refuses unknown system records even if the caller now requests system origin. `promote` may adopt a retained system receipt only when its full immutable identity matches the already server-admitted queue head (origin included); otherwise cancel with a conflicting-ID diagnostic and retain the canonical original. Unknown origins reject on every path. Legacy peer receipt recovery remains supported. No recovered system record is silently relabeled peer. Direct endpoint commit followed by status/adopt/promotion must not manufacture server authority. Test the complete class of receipt imports, not only rendering.
+
+### Collector transition contract
+
+`LifecycleNoticeState` contains bounded current facts, dirty revisions, restart collection phase, per-hub frozen parts and receipt outcomes. `LifecycleNoticeEvent` supplies a confirmed fact, pass-drained result, hub-ready change, admission result, receipt result or shutdown. `AdvanceLifecycleNotices(state,event)` is the sole deterministic transition, returning the next state and `LifecycleNoticeEffect` values (publish part or local diagnostic); the service shell supplies IDs, time and broker outcomes.
+
+| Event | Transition/effect |
+|---|---|
+| confirmed fact | Update at most 128 slot entries and their dirty revisions. Duplicate/stale facts do nothing. When full, keep existing entries and increment a bounded saturating overflow count; the next summary includes the count and a resnapshot instruction. |
+| restart drain | End collection and make current dirty projection eligible; empty projection sends nothing. Failure/cancellation is included as bounded summary metadata. |
+| ready, live hub, no outstanding part | Freeze current projection into bounded numbered parts (at most 128, one bounded row per slot plus header/counts); send one part. New facts remain separately dirty. |
+| admitted part | Keep exact immutable payload and ID until its terminal receipt; do not submit another part for this hub concurrently. |
+| admission refusal/unavailable/capacity/unsupported | No receipt owns input: discard that unsent frozen part set back into current dirty facts, emit one bounded local diagnostic, and suppress retries until a new confirmed fact or hub incarnation/readiness change. Unsupported stays suppressed for that hub incarnation until replacement. No timer retry loop. |
+| Submitted part | Retire only that part's frozen revisions; publish next unsent part if any. Later dirty updates survive. A partly submitted summary never resends submitted parts. |
+| Expired/Cancelled before paste | Already submitted parts stay retired; unsent/known-unpasted revisions return to the current projection. Emit diagnostic and wait for new fact/hub readiness change before a new snapshot; use new ID. |
+| Indeterminate or uncertain admission without canonical no-write proof | Retire the affected frozen part as uncertain, emit diagnostic; never replay its bytes/revisions. Continue only with untouched unsent parts or later genuinely new revisions. Unknown admission IDs are polled read-only while service lives; never blindly retry. |
+| recipient replacement | Cancel old exact-incarnation job through existing broker rules. Apply its terminal evidence as above; route untouched unsent/current facts through existing ownership to the new live hub. |
+| opt-out/shutdown | Suppress/discard unsent projections; shutdown cancels and joins shell work. Already accepted input follows existing broker cancellation semantics. |
+
+The existing body/encoded-frame/cap constraints apply at freeze. Formatting uses bounded fields so each row fits; body parts are complete rows, not truncated events. At most one part is outstanding per hub, preserving FIFO and bounded receipt use; #648 still batches with other queued messages at readiness. A new current snapshot may mention a later changed slot state after an uncertain part, but does not replay that part or claim the earlier event was delivered.

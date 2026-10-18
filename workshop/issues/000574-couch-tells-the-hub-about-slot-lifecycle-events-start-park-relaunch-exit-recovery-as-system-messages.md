@@ -70,6 +70,8 @@ Durable full-flow design: [Lifecycle system notices](../plans/000574-couch-lifec
 
 - Verified fresh hub approval 309f3843-1a12-41ae-85a1-d92afab1c80c Submitted: trimmed plan approved, proceed to change-code. TL-help companion is ariadne#433, assigned ariadne:1 after ariadne#432; required before close.
 
+- Plan-quality round 1 refused PQ-1/PQ-2/PQ-3. Source verification confirmed unknown receipt import in StatusContext; refined all recovery paths to reject unauthorised system origin without endpoint authentication. Added sole collector transition/failure/multipart contract and named-function adversarial strategies. No code changed.
+
 ## Revisions
 
 - 2026-10-17 — Proposed design adds an explicit native-exit observation because Console attachment exit cannot substantiate the requested agent-exit notice, and kernel provenance because a visual system flag alone is forgeable. Full requested scope retained; operator smoke deferral and ariadne TL-lead companion await hub agreement.
