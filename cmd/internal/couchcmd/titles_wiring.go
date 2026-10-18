@@ -13,5 +13,5 @@ func wireTitles(console *couchtty.Console, c *couchcore.Couch, getenv func(strin
 		return
 	}
 	updater := newCouchTitleUpdater(source.PairLifecycleDataDir(), getenv("HOME"), getenv("CMUX_WORKSPACE_ID"), c.TitleTargetCurrent)
-	console.SetActivityPass(updater.Update)
+	console.SetActivityPass(updater.UpdateWithActivity)
 }

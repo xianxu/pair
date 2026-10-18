@@ -2218,3 +2218,6 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #574 close BR-3: a pending informational projection needs an explicit ownership-move rule. Prefer the successful move producer and the existing admission/effect gate over polling or migrating old history. Dropping pending information must preserve the restart barrier and exact admitted receipts; fence extracted jobs as well as queued jobs. Tell the new owner to resnapshot Slots and prove before-drain, frozen, admitted and uncertain cases with two stateful receivers.
 
 - #649: Register every new production source in artifactpath SourceClassifications or NonArtifactSources before the first suite; retention IO anchors alone do not cover the exhaustive source inventory.
+
+- #649 BR-1: When multiple display consumers share activity, merge every admitted source before branching into title/fade decisions; test consumers together with stale persisted facts and recent wrapper work.
+- #649 BR-2: Resource acceptance tests must instantiate the production state being bounded. A fake returning constant facts cannot prove projection retention or warm-history work; use actual compact projections and counted IO.

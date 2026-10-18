@@ -6,7 +6,7 @@ collaboration-mode: discussion
 
 > **For agentic workers:** Consult AGENTS.md Section 3 (Subagent Strategy) to choose subagent-driven development or execution in the current session. Steps use checkboxes for tracking.
 
-**Status:** Landed #653 integrated; growth regression, affected packages, races and required recorded suite pass. Close review and landing remain next. Live conformance deferred by TL to the next operator restart; no staging.
+**Status:** First close review returned REWORK (BR-1 activity consistency, BR-2 production resource coverage). Fixes and fresh verification in progress; landing remains pending. Live conformance deferred by TL to the next operator restart; no staging.
 
 **Goal:** Couch-hosted Pair starts no per-slot title process; Couch updates titles from its existing inventory and activity refreshes, preserving standalone behavior, ownership and fading.
 
@@ -171,3 +171,5 @@ Full flow approved by TL delivery 798a3ab4-b9da-465f-a516-34c291210e0a; change-c
 - 2026-10-18 — Integrated origin/main 3851b7338ff107d9b676d1db4eda7c7f21a2aa62 containing landed #653 a5c7ae6f718c90172911fe6e39a5aba923b158b0. classifyAdmission and pre-read baseline now run inside next.poll(ctx), preserving cancellation rollback and owner-wide newest-agent fencing. Kept incoming Console deadline, copy-key and lifecycle behavior alongside hosted activity passes. Updater growth regression and focused projection/current-owner tests passed; broader package/race and recorded suite remain pending.
 
 - 2026-10-18 — Verification complete: recorded suite 0619b0f0bcec5545314c1d0545bc00d8 passed on 876a43a07b36fd217d02518e8241315081531575 in 10m52s, log sha256 prefix 4e8fde9764e4. The first suite found only missing artifact source inventory entries, now classified without adding exceptions. Separated the future close/landing gates from the implementation checklist so completion ticks do not claim gates that have not run; scope and runtime design unchanged.
+
+- 2026-10-18 — Close BR-1 (shared-activity-consumer-consistency): snapshot admitted wrapper activity before the combined pass and merge it with persisted facts before both title and fade decisions; add stale-native/recent-wrapper regression for frame, cmux heat and fade, plus Console snapshot delivery. BR-2 (production-path-resource-verification): replace fake-facts 1,000-tick workload with real disposable compact projections, transcript growth and ordinal turnover, independently count warm history reads/decodes and commands, and retain heap/cache samples. Both restore already-approved acceptance; no new runtime scope. First suite pass predates these code/test corrections and must be replaced.

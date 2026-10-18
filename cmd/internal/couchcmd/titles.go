@@ -99,6 +99,12 @@ func (u *CouchTitleUpdater) canClaim(ctx context.Context, t couchcore.TitleTarge
 // absent or replaced exact generations are pruned. The rotating start position
 // prevents one slow projection from monopolizing every pass.
 func (u *CouchTitleUpdater) Update(ctx context.Context, rows []couchcore.ActionableThreadSummary) (map[couchcore.ThreadAddress]time.Time, map[couchcore.ThreadAddress]bool) {
+	return u.UpdateWithActivity(ctx, rows, nil)
+}
+
+// UpdateWithActivity merges the admitted wrapper snapshot before either title
+// or fading decisions, so both consumers use the same latest work evidence.
+func (u *CouchTitleUpdater) UpdateWithActivity(ctx context.Context, rows []couchcore.ActionableThreadSummary, work map[couchcore.ThreadAddress]time.Time) (map[couchcore.ThreadAddress]time.Time, map[couchcore.ThreadAddress]bool) {
 	activity := map[couchcore.ThreadAddress]time.Time{}
 	failed := map[couchcore.ThreadAddress]bool{}
 	next := make(map[couchTitleKey]*couchTitleEntry)
@@ -157,6 +163,9 @@ func (u *CouchTitleUpdater) Update(ctx context.Context, rows []couchcore.Actiona
 			if err != nil || !facts.Ready {
 				e.desired = nil
 				continue
+			}
+			if work[key.Address].After(facts.Activity) {
+				facts.Activity = work[key.Address]
 			}
 			e.activity = facts.Activity
 			if !facts.Activity.IsZero() {

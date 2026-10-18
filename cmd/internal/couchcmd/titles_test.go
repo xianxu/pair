@@ -208,49 +208,161 @@ func TestCouchTitlesRetainedHeap1000Ticks(t *testing.T) {
 		t.Logf("isolated heap regression:\n%s", out)
 		return
 	}
-	f := &fakeCouchTitles{facts: map[string]couchTitleFacts{"a": {Ready: true, PaneID: "1", Activity: time.Unix(1000, 0)}, "b": {Ready: true, PaneID: "1", Activity: time.Unix(1000, 0)}}, polls: map[string]int{}}
-	u := newCouchTitleUpdater("unused", "unused", "", func(context.Context, couchcore.TitleTarget) bool { return true })
-	u.io = f
-	rows := []couchcore.ActionableThreadSummary{couchTitleRow("a"), couchTitleRow("b")}
-	u.Update(context.Background(), rows)
-
+	f := newCouchTitleOSFixture(t)
+	neighbor := newCouchTitleOSFixture(t)
+	// Both roots are disposable; distinct logical scopes also keep the fleet
+	// cache keys separate. Preserve the neighbor's real encoded authority.
+	ledger, err := os.ReadFile(neighbor.paths.Ledger())
+	if err != nil {
+		t.Fatal(err)
+	}
+	neighbor.row.Address.RepoScope = "neighbor"
+	neighbor.row.TitleTarget.Address = neighbor.row.Address
+	neighbor.row.TitleTarget.Session = "neighbor-session"
+	neighbor.paths, err = artifactpath.Resolve(artifactpath.Address{DataDir: neighbor.data, RepoScope: "neighbor", Tag: "work"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	titleFixtureWrite(t, neighbor.paths.Ledger(), []byte(strings.ReplaceAll(string(ledger), `"scope"`, `"neighbor"`)))
+	// The existing shim logs both scopes in one disposable command stream.
+	t.Setenv("PAIR_TITLE_COMMAND_LOG", f.log)
+	for _, fixture := range []couchTitleOSFixture{f, neighbor} {
+		titleFixtureWrite(t, fixture.paths.Pane("codex"), []byte(`{"pane_id":"7"}`))
+	}
+	u := newCouchTitleUpdater(f.data, f.home, "", func(context.Context, couchcore.TitleTarget) bool { return true })
+	observed := &observedOSTitles{osCouchTitles: u.io.(*osCouchTitles)}
+	neighborObserved := &observedOSTitles{osCouchTitles: &osCouchTitles{dataDir: neighbor.data, home: neighbor.home}}
+	u.io = fleetOSTitleSources{observedOSTitles: observed, neighbor: neighborObserved}
+	rows := []couchcore.ActionableThreadSummary{f.row, neighbor.row}
+	work := func() couchNativeWork {
+		return couchNativeWork{read: observed.work.read + neighborObserved.work.read, decode: observed.work.decode + neighborObserved.work.decode}
+	}
+	u.Update(t.Context(), rows)
+	for _, source := range []*observedOSTitles{observed, neighborObserved} {
+		if source.work.read == 0 || source.work.decode == 0 {
+			t.Fatalf("cold real projection did not read/decode native history: %+v", source.work)
+		}
+	}
+	neighborWarmWork := neighborObserved.work
+	commandCount := func() int {
+		t.Helper()
+		raw, err := os.ReadFile(f.log)
+		if err != nil {
+			t.Fatal(err)
+		}
+		commands := strings.Count(string(raw), "rename-pane\n")
+		// The shim logs every argument of every command. Each scoped rename
+		// has seven arguments; extra inventory commands must fail this check.
+		if got := strings.Count(string(raw), "\n"); got != commands*7 {
+			t.Fatalf("unexpected external command arguments: %q", raw)
+		}
+		if got := strings.Count(string(raw), "--session\n"+neighbor.row.TitleTarget.Session+"\n"); got != 1 {
+			t.Fatalf("steady neighbor commands=%d want=1", got)
+		}
+		return commands
+	}
+	if got := commandCount(); got != 2 {
+		t.Fatalf("cold commands=%d want=2", got)
+	}
+	appendFile := func(path, raw string) {
+		t.Helper()
+		file, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0600)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = file.WriteString(raw)
+		closeErr := file.Close()
+		if err != nil || closeErr != nil {
+			t.Fatalf("append fixture: write=%v close=%v", err, closeErr)
+		}
+	}
+	// More than 4 MiB of real transcript growth distinguishes compact retained
+	// state from accidentally retaining decoded records or transcript bytes.
+	padding := `{"type":"event_msg","payload":{"type":"ignored","text":"` + strings.Repeat("x", 128<<10) + `"}}` + "\n"
+	const nativeID = "019d1111-1111-7111-8111-111111111111"
 	runtime.GC()
 	var before, sample runtime.MemStats
 	runtime.ReadMemStats(&before)
-	t.Logf("baseline tick=0 heap_alloc=%d targets=%d writes=%d", before.HeapAlloc, len(u.entries), len(f.writes))
-	expectedWrites := 2
+	t.Logf("baseline tick=0 heap_alloc=%d targets=%d commands=%d read=%d decode=%d", before.HeapAlloc, len(u.entries), commandCount(), work().read, work().decode)
+	expectedCommands, growths, stableTicks := 2, 0, 0
+	previousSources := map[couchcore.ThreadAddress]*osCouchTitleSource{}
 	for tick := 1; tick <= 1000; tick++ {
-		turnover := tick%100 == 0
+		growth, turnover := tick%20 == 10, tick%100 == 0
+		if growth {
+			growths++
+			appendFile(f.native, padding+`{"type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":`+strconv.Itoa(42000+growths*1000)+`}}}}`+"\n")
+			expectedCommands++
+		}
 		if turnover {
-			for i := range rows {
-				rows[i].TitleTarget.LaunchOrdinal++
+			// Ordinals are physical ledger lines: each launch/binding pair
+			// advances the launch by two. The new projection must be admitted
+			// from this real authority, not only a changed in-memory target.
+			rows[0].TitleTarget.LaunchOrdinal += 2
+			rows[0].TitleTarget.StartNonce = "launch-" + strconv.Itoa(tick)
+			for _, record := range []sessionledger.Record{
+				{Version: 3, Kind: sessionledger.RecordLaunch, ScopeKey: "scope", Tag: "work", Agent: "codex", RequestedNativeID: nativeID, RequestOrigin: sessionledger.RequestOriginChosen, BaselineComplete: true, LaunchArtifactBoundaries: []sessionledger.LaunchArtifactBoundary{}},
+				{Version: 3, Kind: sessionledger.RecordBinding, ScopeKey: "scope", Tag: "work", Agent: "codex", LaunchOrdinal: rows[0].TitleTarget.LaunchOrdinal, RootNativeID: nativeID, ConfirmationReason: sessionledger.ConfirmationChosen},
+			} {
+				raw, err := sessionledger.EncodeRecord(record)
+				if err != nil {
+					t.Fatal(err)
+				}
+				appendFile(f.paths.Ledger(), string(raw)+"\n")
 			}
-			expectedWrites += len(rows)
+			expectedCommands++
 		}
-		previousWrites := len(f.writes)
-		u.Update(context.Background(), rows)
-		if len(u.entries) != 2 {
-			t.Fatalf("tick=%d retained generations=%d", tick, len(u.entries))
+		previousWork := work()
+		_, failed := u.Update(t.Context(), rows)
+		if len(failed) != 0 || len(u.entries) != len(rows) {
+			t.Fatalf("tick=%d failed=%v retained generations=%d", tick, failed, len(u.entries))
 		}
-		if len(f.writes) != expectedWrites {
-			t.Fatalf("tick=%d turnover=%t writes=%d want=%d", tick, turnover, len(f.writes), expectedWrites)
+		for key, entry := range u.entries {
+			source, ok := entry.source.(*osCouchTitleSource)
+			ordinal := uint64(1)
+			if key.Address == rows[0].Address {
+				ordinal = rows[0].TitleTarget.LaunchOrdinal
+			}
+			if !ok || source.projection == nil || key.Ordinal != ordinal || len(entry.desired) != 1 {
+				t.Fatalf("tick=%d missing current compact projection or unbounded title cache: key=%+v desires=%d", tick, key, len(entry.desired))
+			}
+			previous := previousSources[key.Address]
+			replaced := turnover && key.Address == rows[0].Address
+			if previous != nil && (source != previous) != replaced {
+				t.Fatalf("tick=%d scope=%s projection replacement disagrees with turnover=%t", tick, key.Address.RepoScope, replaced)
+			}
+			previousSources[key.Address] = source
 		}
-		if !turnover && len(f.writes) != previousWrites {
-			t.Fatalf("stable tick=%d emitted extra writes", tick)
+		if neighborObserved.work != neighborWarmWork {
+			t.Fatalf("tick=%d steady neighbor reread/decoded history: before=%+v after=%+v", tick, neighborWarmWork, neighborObserved.work)
+		}
+		if got := commandCount(); got != expectedCommands {
+			t.Fatalf("tick=%d growth=%t turnover=%t commands=%d want=%d", tick, growth, turnover, got, expectedCommands)
+		}
+		if !growth && !turnover {
+			stableTicks++
+			if work() != previousWork {
+				t.Fatalf("stable tick=%d reread/decoded history: before=%+v after=%+v", tick, previousWork, work())
+			}
+		} else if work().read <= previousWork.read || work().decode <= previousWork.decode {
+			t.Fatalf("tick=%d growth=%t turnover=%t did not exercise history IO/decode: before=%+v after=%+v", tick, growth, turnover, previousWork, work())
 		}
 		if turnover {
 			runtime.GC()
 			runtime.ReadMemStats(&sample)
-			t.Logf("sample tick=%d ordinal=%d heap_alloc=%d targets=%d writes=%d", tick, rows[0].TitleTarget.LaunchOrdinal, sample.HeapAlloc, len(u.entries), len(f.writes))
-			if sample.HeapAlloc > before.HeapAlloc+4<<20 {
+			t.Logf("sample tick=%d ordinal=%d heap_alloc=%d targets=%d commands=%d read=%d decode=%d", tick, rows[0].TitleTarget.LaunchOrdinal, sample.HeapAlloc, len(u.entries), commandCount(), work().read, work().decode)
+			if sample.HeapAlloc > before.HeapAlloc+(4<<20) {
 				t.Fatalf("tick=%d retained heap delta=%d", tick, sample.HeapAlloc-before.HeapAlloc)
 			}
 		}
 	}
+	info, err := os.Stat(f.native)
+	if err != nil || info.Size() <= 4<<20 || growths != 50 || stableTicks != 940 {
+		t.Fatalf("workload incomplete: stat=%v growths=%d stable_ticks=%d", err, growths, stableTicks)
+	}
 	runtime.GC()
 	runtime.ReadMemStats(&sample)
-	t.Logf("post tick=1000 heap_alloc=%d targets=%d writes=%d", sample.HeapAlloc, len(u.entries), len(f.writes))
-	if sample.HeapAlloc > before.HeapAlloc+4<<20 {
+	t.Logf("post tick=1000 heap_alloc=%d targets=%d commands=%d transcript_bytes=%d stable_ticks=%d read=%d decode=%d", sample.HeapAlloc, len(u.entries), commandCount(), info.Size(), stableTicks, work().read, work().decode)
+	if sample.HeapAlloc > before.HeapAlloc+(4<<20) {
 		t.Fatalf("post retained heap delta=%d", sample.HeapAlloc-before.HeapAlloc)
 	}
 

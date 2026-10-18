@@ -96,6 +96,8 @@ Read-only subagent exploration located the actual spawn in wrapcmd.startWrapperT
 
 - 2026-10-17 — Plan-quality reconciliation: retain ten-minute pre-fix and fleet after-rollout measurement; transfer 1,000-tick retained-memory/work invariant to the approved Couch updater, with explicit deterministic limits. No change to standalone scope.
 
+- 2026-10-18 — Close BR-1 corrects shared activity ordering: supply admitted wrapper work before both title and fade consumers. Close BR-2 replaces fake-facts resource acceptance with real file-backed projections, growth and turnover. These restore the approved contract; no runtime scope expansion.
+
 ## Estimate
 
 Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only; calibration is flagged stale by sdlc estimate-source.
@@ -177,3 +179,11 @@ First recorded attempt completed: c0796f4dfe80368cf357507b001784e5, source 8641e
 Replacement recorded run 0619b0f0bcec5545314c1d0545bc00d8 passed on 876a43a07b36fd217d02518e8241315081531575: exit0, 10m52s, log sha256 prefix 4e8fde9764e4. Full log: /Users/xianxu/workspace/pair/.git/sdlc/local-checks/876a43a07b36fd217d02518e8241315081531575/suite.log. PR 424 is open. No newer main integration was chased after this pass. Next: mandatory close review and landing; real hosted no-poller/title/fade/cmux and AFTER fleet observations still belong to the hub at the next operator restart.
 
 - 2026-10-18 — Checklist bookkeeping: separate future acceptance gates from verified implementation; no scope change.
+
+### 2026-10-18 — close review REWORK
+
+First close review found BR-1 Critical (shared-activity-consumer-consistency): titles used persisted facts before Console merged admitted wrapper work into fading. Confirmed by a stale-native/recent-wrapper regression: before the fix the returned fade timestamp stayed one hour old. The worker now snapshots wrapper evidence once before the pass; UpdateWithActivity merges it before frame eligibility and cmux heat, returning that same activity to fading. Focused updater and Console tests passed.
+
+BR-2 Important (production-path-resource-verification): the prior 1,000-tick fixed-facts fake bounded reducer retention but never constructed TitleProjection, so its heap/count claims did not establish the specified combined production path. Replacing it with actual OS-backed compact projections, growing transcripts, ledger ordinal turnover and a stable neighbor, with retained heap/cache and per-tick native-work/command assertions. Review remains REWORK; required suite and close must rerun after these corrections. The earlier production-resource acceptance claim is superseded by this finding until the new workload passes.
+
+BR-1 correction passed updater/Console focused checks and targeted races. BR-2 replacement passed in a fresh parent-run isolated child: 1,000 ticks, two real compact projections, 50 x128KiB appends (6,562,109-byte final transcript), ten physical ledger launch/binding turnovers (ordinal1→21), 940 stable ticks with zero native history read/decode delta. Exactly62 scoped commands (steady neighbor1), exactly2 current entries/one desired title each, neighbor projection identity/history counters unchanged. Parent heap samples: warm1,360,888 bytes; all ten turnover samples1,289,864–1,314,760; final1,169,328, within warm+4MiB. All sample/counter lines retained in test output. Affected couchcmd/couchtty/artifactpath package run passed (47.551s/40.412s/5.940s). Fresh full recorded suite remains required after the code/test fix.

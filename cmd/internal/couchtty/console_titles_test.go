@@ -16,6 +16,7 @@ func TestTitleActivityPassSharesScheduleAndWrapperEvidence(t *testing.T) {
 	waitFor(t, "initial activity", func() bool { return probe.callCount() >= 2 })
 	before := probe.callCount()
 	var calls atomic.Int32
+	var sawWork atomic.Bool
 	native := clock.Now().Add(-time.Hour)
 	work := clock.Now()
 	f.con.SetWrapperActivity(func(row couchcore.ActionableThreadSummary) time.Time {
@@ -24,8 +25,9 @@ func TestTitleActivityPassSharesScheduleAndWrapperEvidence(t *testing.T) {
 		}
 		return time.Time{}
 	})
-	f.con.SetActivityPass(func(ctx context.Context, rows []couchcore.ActionableThreadSummary) (map[couchcore.ThreadAddress]time.Time, map[couchcore.ThreadAddress]bool) {
+	f.con.SetActivityPass(func(ctx context.Context, rows []couchcore.ActionableThreadSummary, workSnapshot map[couchcore.ThreadAddress]time.Time) (map[couchcore.ThreadAddress]time.Time, map[couchcore.ThreadAddress]bool) {
 		calls.Add(1)
+		sawWork.Store(workSnapshot[f.attached.Address].Equal(work))
 		// Holding Console.mu here would deadlock: a display pass must run outside it.
 		f.con.mu.Lock()
 		f.con.mu.Unlock()
@@ -35,7 +37,7 @@ func TestTitleActivityPassSharesScheduleAndWrapperEvidence(t *testing.T) {
 		}
 		return observed, map[couchcore.ThreadAddress]bool{}
 	})
-	waitFor(t, "combined display activity", func() bool { return calls.Load() > 0 && f.activity()[f.attached.Address].Equal(work) })
+	waitFor(t, "combined display activity", func() bool { return calls.Load() > 0 && sawWork.Load() && f.activity()[f.attached.Address].Equal(work) })
 	if got := probe.callCount(); got > before+2 {
 		t.Fatalf("legacy activity scan continued beside display pass: %d -> %d", before, got)
 	}
@@ -48,7 +50,7 @@ func TestTitleActivityPassCancelsReplacedInventory(t *testing.T) {
 	waitFor(t, "initial inventory", func() bool { return probe.callCount() >= 2 })
 	entered, cancelled := make(chan struct{}), make(chan struct{})
 	var calls atomic.Int32
-	f.con.SetActivityPass(func(ctx context.Context, rows []couchcore.ActionableThreadSummary) (map[couchcore.ThreadAddress]time.Time, map[couchcore.ThreadAddress]bool) {
+	f.con.SetActivityPass(func(ctx context.Context, rows []couchcore.ActionableThreadSummary, workSnapshot map[couchcore.ThreadAddress]time.Time) (map[couchcore.ThreadAddress]time.Time, map[couchcore.ThreadAddress]bool) {
 		if calls.Add(1) == 1 {
 			close(entered)
 			<-ctx.Done()

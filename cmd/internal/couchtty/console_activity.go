@@ -16,8 +16,9 @@ import (
 type ActivityProbe func(ctx context.Context, row couchcore.ActionableThreadSummary) (time.Time, error)
 
 // ActivityPass shares optional title and activity work on the existing schedule.
+// The input snapshot supplies admitted wrapper activity to title decisions.
 // The bool map reports failed/unknown observations, preserving the previous fade.
-type ActivityPass func(context.Context, []couchcore.ActionableThreadSummary) (map[couchcore.ThreadAddress]time.Time, map[couchcore.ThreadAddress]bool)
+type ActivityPass func(context.Context, []couchcore.ActionableThreadSummary, map[couchcore.ThreadAddress]time.Time) (map[couchcore.ThreadAddress]time.Time, map[couchcore.ThreadAddress]bool)
 
 // SetActivityPass replaces per-row native probes with one combined display pass.
 func (c *Console) SetActivityPass(pass ActivityPass) {
@@ -146,8 +147,17 @@ func (c *Console) advanceActivity(event RefreshScheduleEvent) {
 			defer c.workers.Done()
 			defer passCancel()
 			result := activityResult{generation: generation, rowsGeneration: rowsGeneration, observed: map[couchcore.ThreadAddress]time.Time{}, failed: map[couchcore.ThreadAddress]bool{}}
+			wrapperWork := map[couchcore.ThreadAddress]time.Time{}
+			if wrapper != nil {
+				for _, row := range rows {
+					if c.lifetime.Err() != nil {
+						break
+					}
+					wrapperWork[row.Address] = wrapper(row)
+				}
+			}
 			if pass != nil && rowsKnown && c.lifetime.Err() == nil {
-				result.observed, result.failed = pass(passContext, rows)
+				result.observed, result.failed = pass(passContext, rows, wrapperWork)
 				if result.observed == nil {
 					result.observed = map[couchcore.ThreadAddress]time.Time{}
 				}
@@ -175,7 +185,7 @@ func (c *Console) advanceActivity(event RefreshScheduleEvent) {
 					failed = true
 				}
 				if wrapper != nil {
-					if work := wrapper(row); !work.IsZero() {
+					if work := wrapperWork[row.Address]; !work.IsZero() {
 						if failed && previous[row.Address].After(at) {
 							at = previous[row.Address]
 						}

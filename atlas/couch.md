@@ -1489,8 +1489,10 @@ thread binding, successful session observation and newest typed launch. A
 pre-effect local check revalidates session/start nonce/agent/ordinal; unknown
 inventory cancels obsolete work. Target metadata is excluded from row JSON.
 One `sessioninventory.TitleProjection.PollContext` per invocation supplies both
-native activity and usage. Prompt/pane activity and live wrapper work retain
-idle fading; warm unchanged projections decode no native history.
+native activity and usage. The worker snapshots admitted live wrapper work once
+and merges it with prompt/pane/native activity before title and fading decisions,
+so both consumers use the same latest activity. Warm unchanged projections decode
+no native history.
 
 The optional pass has a two-second deadline and rotates its first target under
 load. Commands use the existing joined process-group runner; failures leave
