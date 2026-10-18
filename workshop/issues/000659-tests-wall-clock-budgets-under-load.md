@@ -181,6 +181,8 @@ Recorded suite attempt is queued on the same implementation head: `sdlc local-ch
 
 The recorded suite acquired its slot after1089s. All shell/native-editor/review prerequisites passed, including observation diagnostics. Go's exhaustive `TestProductionArtifactReferencesAreExactlyClassified` found a branch defect: new `cmd/internal/testwait/host.go` lacked source classification. Added that exact file beside the existing testwait helper in `NonArtifactSources`: host-load diagnostics construct no Pair session artifact. No vocabulary allowance or guard bypass. The original failing guard plus `TestNonArtifactSourceCannotImportArtifactpath` now pass (`/tmp/pair659-inventory-fix.log`,4.533s). Added the prevention rule to lessons. The first suite continues to completion to collect all other failures; it will not count as a passing record, and the corrected code needs a fresh recorded run. Measured full-suite start load `{ 19.70 31.67 43.92 }`.
 
+The first suite completed exit2 in13m16s, log SHA256 prefix `5429b2148e38`: **only** the inventory guard failed. All other packages passed, including couchcmd137.455s, couchcore372.809s, couchtty52.271s and diagnosticlog41.168s. Full failed log retained under the earlier evidence directory as `suite193e8727-failed.log` as well as SDLC's saved attempt. This is a corrected branch defect, not a flake waiver. New recorded suite on corrected head `75277904ed4f07d4914d34cd4a6bb3a65b119e2c` is queued (attempt `c5ff20b0a514c353698bd714be553db5`); its CI checks all pass, including conformance2m45s. Sample at queue entry `{ 14.81 11.88 23.18 }`.
+
 ## Revisions
 
 ### 2026-10-17 — measured-load acceptance
