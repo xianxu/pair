@@ -406,3 +406,97 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-18T07:21:35-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 665 — Adopt ariadne's Go lint catalog (pkg/golint) in pair |
+| repo | pair |
+| issue file | workshop/issues/000665-adopt-ariadne-s-go-lint-catalog-pkg-golint-in-pair.md |
+| boundary | milestone M1 |
+| milestone | M1 |
+| window | 331978755afa0a9aa2d89f5c3add23ac2d65828c..b7fef7671485deb2dbbac24a4e260ff35ae7a4b2 |
+| command | sdlc milestone-close --issue 665 --milestone M1 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-18T07:21:35-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The socket-fixture correction matches plan R8 and has a regression that fails without the fix. BR-4’s host evidence checks out: source inputs match the pinned head, authentic main authority is present, and independent catalog reruns pass. No new blocking findings. Recorded full-suite PASS remains a separate landing prerequisite.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      The suppression grammar guard and its accepted-whitespace regression matrix remain intact; tests pass.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      README.md:1890 documents the focused command, main-history prerequisite and exclusive debt authority, consistent with catalog_test.go and atlas/go-lint-catalog.md.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Scanner policy consumes repositoryRead; shared stateful-fake and real-Git read/admission contracts pass.
+  - id: BR-4
+    disposition: withdrawn
+    note: |
+      Verified the retained log SHA256, authentic origin/main and tracking configuration, and documented merge base. Go/module/debt inputs match the pinned head. Independent host reruns passed the ordinary catalog (2559 sources, five rules, 100 sites) and entire repolint package; disposable-checkout missing-authority refusal remains unchanged.
+```
+
+1. **Strengths**
+
+   - `cmd/internal/couchmessage/transport_test.go:31` tests actual derived endpoints with both current and ten-digit PIDs.
+   - `transport_test.go:50` closes each server before its temporary root is removed.
+   - `atlas/go-lint-catalog.md:67` documents the complete derived-address constraint. No new README-facing command or configuration enters this range.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   - Entire couchmessage package passes under standard Darwin `TMPDIR`: normal **25.114s**, race **29.754s**.
+   - Restoring the broken allocation through a temporary Go overlay makes the new regression fail on a **350-byte** endpoint.
+   - Entire repolint package passes in the authentic host checkout: **11.486s**.
+   - Initial review-environment failures reproduced its oversized `TMPDIR` and absent main authority; the corresponding standard-environment and host checks pass.
+   - `git diff --check` passes; checkout unchanged.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** regression reuses production endpoint derivation.
+   - **ARCH-PURE — pass:** socket binding stays in integration tests; pure validation remains separate.
+   - **ARCH-PURPOSE — pass:** correction exercises the cleanup consumers’ longer basename.
+   - **ARCH-MOCK — pass:** shared stateful-fake/real-Git contracts remain active.
+   - **ARCH-CONSTRAINTS — pass:** regression exercises the complete native address budget.
+   - **ARCH-SECURE — pass:** private owned fixture roots avoid production rendezvous state.
+   - **ARCH-ORDER — pass:** server shutdown joins work before directory cleanup.
+   - **ARCH-FUNERAL — pass:** listeners and temporary roots have explicit cleanup.
+
+7. **Plan revision recommendations:** None for M1; R8 matches the implementation. M2 remains outstanding.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"4bb94f21-9747-4aea-bc12-45d76e4a77e3","repository":"github.com/xianxu/pair","issue_id":"000665","recipe":"milestone-review","round":5,"attempt":1,"agent":"codex","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/4636828a2d2caefc","reviewed_head":"b7fef7671485deb2dbbac24a4e260ff35ae7a4b2","slot":"pair:1","requested_at":"2026-10-18T14:19:17.041194Z"},"phase":"finished","pid":14431,"started_at":"2026-10-18T14:19:17.301644Z","finished_at":"2026-10-18T14:21:34.297332Z","session_id":"01a14f61-959b-7ea3-b556-edf1deb1437b","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.001955083s
+head: "b7fef7671485deb2dbbac24a4e260ff35ae7a4b2"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
