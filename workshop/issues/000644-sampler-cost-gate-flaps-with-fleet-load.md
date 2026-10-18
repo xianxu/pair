@@ -306,8 +306,13 @@ Retained: `/tmp/pair644-suite-attempt1.log` and the record's own copy at
 other failed suite logs on this machine (19:46, 17:55, 16:13, 15:28, 12:48) fail *different* tests —
 their owners' in-flight conformance work — so this is not a repeat of one known red.
 
-Attempt 2 is the same head, unchanged, queued only after pair:3 released the two full-suite tokens for
-its quiet pair#658 run: a rerun inside another slot's quiet window would load both runs and prove nothing.
+Attempt 2 is the same code, unchanged, and waits for pair:3 to release the two full-suite tokens for its
+quiet pair#658 run: a rerun inside another slot's quiet window would load both runs and prove nothing.
+
+The seven are filed as #659 (unclaimed, at the hub's direction — one issue for the class rather than an
+addition to #485, which is narrower: the wrapcmd harness timers from #479's `-race` soak). The class is a
+test that puts a wall-clock budget on an external tool or on real time and then asserts the budget. This
+issue's own rerun is not blocked on #659: the patch here touches none of those packages.
 
 ## Revisions
 
