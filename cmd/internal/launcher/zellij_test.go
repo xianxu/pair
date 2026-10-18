@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/xianxu/pair/cmd/internal/zellijtest"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -21,13 +22,12 @@ func TestZellijSnapshotQueryFailuresDiscardAllSessions(t *testing.T) {
 			path := filepath.Join(t.TempDir(), "zellij")
 			script := `#!/bin/sh
 if [ "$*" = '` + stage + `' ]; then
-  printf 'query failed\n' >&2
-  exit 1
+  ` + zellijtest.ShellCase(t, "launcher-snapshot-failure-"+map[string]string{"list-sessions --short": "short", "list-sessions --no-formatting": "full", "--session pair-b action list-clients": "clients"}[stage]) + `
 fi
 case "$*" in
-  'list-sessions --short') printf 'pair-a\npair-b\n' ;;
-  'list-sessions --no-formatting') printf 'pair-a [Created 1s ago]\npair-b [Created 1s ago]\n' ;;
-  *) printf 'CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\n' ;;
+  'list-sessions --short') ` + zellijtest.ShellCase(t, "launcher-snapshot-short") + ` ;;
+  'list-sessions --no-formatting') ` + zellijtest.ShellCase(t, "launcher-snapshot-full") + ` ;;
+  *) ` + zellijtest.ShellCase(t, "launcher-snapshot-empty-clients") + ` ;;
 esac
 `
 			if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
@@ -77,9 +77,9 @@ if [ "$*" = '` + stage + `' ]; then
   exec sleep 30
 fi
 case "$*" in
-  'list-sessions --short') printf 'pair-a\npair-b\n' ;;
-  'list-sessions --no-formatting') printf 'pair-a [Created 1s ago]\npair-b [Created 1s ago]\n' ;;
-  *) printf 'CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\n' ;;
+  'list-sessions --short') ` + zellijtest.ShellCase(t, "launcher-snapshot-short") + ` ;;
+  'list-sessions --no-formatting') ` + zellijtest.ShellCase(t, "launcher-snapshot-full") + ` ;;
+  *) ` + zellijtest.ShellCase(t, "launcher-snapshot-empty-clients") + ` ;;
 esac
 `
 			if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
@@ -122,19 +122,15 @@ esac
 
 func TestZellijSnapshotEmptyInventoryDiagnostic(t *testing.T) {
 	for _, tc := range []struct {
-		name, diagnostic, stdout string
-		status                   int
-		empty                    bool
+		name  string
+		empty bool
 	}{
-		{"empty", "No active zellij sessions found.", "", 1, true},
-		{"unknown error", "query failed", "", 1, false},
-		{"wrong exit status", "No active zellij sessions found.", "", 2, false},
-		{"partial stdout", "No active zellij sessions found.", "pair-a", 1, false},
-		{"extra diagnostic", "No active zellij sessions found. additional error", "", 1, false},
+		{"empty", true}, {"unknown error", false}, {"wrong exit status", false}, {"partial stdout", false}, {"extra diagnostic", false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			path := filepath.Join(t.TempDir(), "zellij")
-			script := fmt.Sprintf("#!/bin/sh\nprintf '%%s\\n' '%s' >&2\nprintf '%%s' '%s'\nexit %d\n", tc.diagnostic, tc.stdout, tc.status)
+			caseName := "launcher-empty-diagnostic-" + strings.ReplaceAll(tc.name, " ", "-")
+			script := "#!/bin/sh\n" + zellijtest.ShellCase(t, caseName)
 			if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
 				t.Fatal(err)
 			}
@@ -153,10 +149,10 @@ func TestZellijSourceClassifiesSessions(t *testing.T) {
 	script := `#!/usr/bin/env bash
 printf '%s\n' "$*" >> "` + log + `"
 case "$*" in
-  "list-sessions --short") printf 'pair-live\npair-detached\npair-gone\nother\n' ;;
-  "list-sessions --no-formatting") printf 'pair-live [Created 1s ago]\npair-detached [Created 1s ago]\npair-gone [Created 1s ago] (EXITED - attach to resurrect)\nother [Created 1s ago]\n' ;;
-  "--session pair-live action list-clients") printf 'CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\n1 terminal_0 sh\n' ;;
-  "--session pair-detached action list-clients") printf 'CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\n' ;;
+  "list-sessions --short") ` + zellijtest.ShellCase(t, "launcher-classification-short") + ` ;;
+  "list-sessions --no-formatting") ` + zellijtest.ShellCase(t, "launcher-classification-full") + ` ;;
+  "--session pair-live action list-clients") ` + zellijtest.ShellCase(t, "launcher-classification-attached") + ` ;;
+  "--session pair-detached action list-clients") ` + zellijtest.ShellCase(t, "launcher-snapshot-empty-clients") + ` ;;
   *) exit 1 ;;
 esac
 `

@@ -3,6 +3,7 @@ package launcher
 import (
 	"context"
 	"errors"
+	"github.com/xianxu/pair/cmd/internal/zellijtest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -142,7 +143,7 @@ func TestSessionOwnerProbeRevalidatesServerGeneration(t *testing.T) {
 
 func TestSessionOwnerPresenceIgnoresExitedRecord(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "zellij")
-	if err := os.WriteFile(path, []byte("#!/bin/sh\nprintf '%s\\n' '📁1-2 [Created 1h ago] (EXITED - attach to resurrect)'\n"), 0700); err != nil {
+	if err := os.WriteFile(path, []byte("#!/bin/sh\n"+zellijtest.ShellCase(t, "launcher-owner-exited")), 0700); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv("PATH", filepath.Dir(path)+string(os.PathListSeparator)+os.Getenv("PATH"))

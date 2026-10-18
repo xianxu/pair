@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/xianxu/pair/cmd/internal/zellijtest"
 	"io"
 	"net"
 	"os"
@@ -67,8 +68,12 @@ func TestCouchOwnedQueryProcessHelper(t *testing.T) {
 	conn.Close()
 	fmt.Fprint(os.Stdout, os.Getenv("PAIR_COUCH_QUERY_TEST_REPLY"))
 	if mode == "failure" {
-		fmt.Fprint(os.Stderr, "owned query diagnostic")
-		os.Exit(7)
+		fmt.Fprint(os.Stderr, os.Getenv("PAIR_COUCH_QUERY_TEST_DIAGNOSTIC"))
+		code, err := strconv.Atoi(os.Getenv("PAIR_COUCH_QUERY_TEST_EXIT"))
+		if err != nil {
+			os.Exit(84)
+		}
+		os.Exit(code)
 	}
 	os.Exit(0)
 }
@@ -80,11 +85,12 @@ type queryFixturePeer struct {
 }
 
 func TestCouchQueriesCollectOwnedDescendants(t *testing.T) {
+	failure := zellijtest.Case(t, "couch.owned.failure")
 	for _, entry := range []struct {
 		name, reply string
 		query       func(context.Context, string) ([]byte, error)
 	}{
-		{"clients", "CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\n", queryShortcutClients},
+		{"clients", zellijtest.Case(t, "couch.owned.clients").Stdout, queryShortcutClients},
 	} {
 		for _, mode := range []string{"success", "failure", "cancel", "pipe-holder"} {
 			t.Run(entry.name+"/"+mode, func(t *testing.T) {
@@ -110,7 +116,7 @@ func TestCouchQueriesCollectOwnedDescendants(t *testing.T) {
 				if err := os.WriteFile(shim, []byte("#!/bin/sh\nexec "+quote(binary)+" -test.run=^TestCouchOwnedQueryProcessHelper$ -- \"$@\"\n"), 0700); err != nil {
 					t.Fatal(err)
 				}
-				testpair.ApplyEnvironment(t, t.TempDir(), "PATH="+root+string(os.PathListSeparator)+os.Getenv("PATH"), "PAIR_COUCH_QUERY_TEST_MODE="+mode, "PAIR_COUCH_QUERY_TEST_SOCKET="+filepath.Join(root, "gate"), "PAIR_COUCH_QUERY_TEST_REPLY="+entry.reply)
+				testpair.ApplyEnvironment(t, t.TempDir(), "PATH="+root+string(os.PathListSeparator)+os.Getenv("PATH"), "PAIR_COUCH_QUERY_TEST_MODE="+mode, "PAIR_COUCH_QUERY_TEST_SOCKET="+filepath.Join(root, "gate"), "PAIR_COUCH_QUERY_TEST_REPLY="+entry.reply, "PAIR_COUCH_QUERY_TEST_DIAGNOSTIC="+failure.Stderr, "PAIR_COUCH_QUERY_TEST_EXIT="+strconv.Itoa(failure.Code))
 				ctx, cancel := context.WithCancel(context.Background())
 				type answer struct {
 					out []byte

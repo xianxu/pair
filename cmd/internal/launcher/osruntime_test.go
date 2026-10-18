@@ -3,6 +3,7 @@ package launcher
 import (
 	"errors"
 	"fmt"
+	"github.com/xianxu/pair/cmd/internal/zellijtest"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -16,6 +17,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/contextcmd"
 	"github.com/xianxu/pair/cmd/internal/sessionledger"
 	"github.com/xianxu/pair/cmd/internal/titlepoller"
+	"github.com/xianxu/pair/cmd/internal/zellijreply"
 )
 
 func TestOSRuntimeStartProofMigrationUpgradesPersistedOwner(t *testing.T) {
@@ -141,12 +143,7 @@ func mkCacheDir(t *testing.T) (home, cacheDir string) {
 func TestOSRuntimeProbeLiveLayoutUsesSessionScopedPaneReport(t *testing.T) {
 	bin := t.TempDir()
 	argsLog := filepath.Join(bin, "args")
-	script := "#!/bin/sh\nprintf '%s\\n' \"$@\" > " + argsLog + "\n" +
-		"printf '%s\\n' '{\"0\":[" +
-		"{\"id\":0,\"is_plugin\":false,\"is_floating\":false,\"title\":\"codex\",\"terminal_command\":\"pair wrap codex\"}," +
-		"{\"id\":1,\"is_plugin\":false,\"is_floating\":false,\"title\":\"draft\",\"terminal_command\":\"nvim /data/draft-work.md\"}," +
-		"{\"id\":3,\"is_plugin\":false,\"is_floating\":false,\"title\":\"terminal\",\"terminal_command\":\"pair term\"}" +
-		"]}'\n"
+	script := "#!/bin/sh\nprintf '%s\\n' \"$@\" > " + argsLog + "\n" + zellijtest.ShellCase(t, "launcher-osruntime-layout3")
 	zellij := filepath.Join(bin, "zellij")
 	if err := os.WriteFile(zellij, []byte(script), 0o755); err != nil {
 		t.Fatal(err)
@@ -164,6 +161,14 @@ func TestOSRuntimeProbeLiveLayoutUsesSessionScopedPaneReport(t *testing.T) {
 	want := "--session\npair-work\naction\nlist-panes\n--json\n--command\n--state\n"
 	if string(got) != want {
 		t.Fatalf("zellij argv = %q, want %q", got, want)
+	}
+
+	raw, err := exec.Command(zellij, "--session", "pair-work", "action", "list-panes", "--json", "--command", "--state").Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := zellijreply.ParsePanes(raw, zellijreply.PaneRequirements{Command: true, State: true, Geometry: true, Tab: true}); err != nil {
+		t.Fatalf("positive CLI fixture is not a complete native pane reply: %v", err)
 	}
 }
 

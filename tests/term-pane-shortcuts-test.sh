@@ -4,6 +4,7 @@
 set -eu
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
+export PAIR_TEST_ZELLIJ_REPLIES="$ROOT/tests/lib/zellij_fixture_replies.py"
 layout_terminal_shell=$(grep 'exec pair term' "$ROOT/zellij/layouts/main-3.kdl" | sed 's/^[[:space:]]*args "-c" "//; s/"$//; s/\\"/"/g')
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/pair-term-shortcuts.XXXXXX")
 trap 'rm -rf "$tmp"' EXIT
@@ -26,6 +27,8 @@ mkdir -p "$fakebin"
 cat > "$fakebin/zellij" <<'PYTHON'
 #!/usr/bin/env python3
 import json, os, pathlib, sys
+sys.path.insert(0, str(pathlib.Path(os.environ['PAIR_TEST_ZELLIJ_REPLIES']).parent))
+from zellij_fixture_replies import emit, case_payload
 root = pathlib.Path(os.environ['PAIR_TERM_FIXTURE_ROOT'])
 args = sys.argv[1:]
 if args[:1] == ['action']:
@@ -36,13 +39,13 @@ if args[:1] == ['action']:
             log.write(' '.join(args[1:]) + '\n')
         if command == 'list-panes':
             assert {'--json', '--command', '--state', '--geometry'} <= set(params)
-            print(json.dumps(panes))
+            emit('panes', panes)
         else:
             assert params == ['--json']
-            print(json.dumps(dict(tab_id=2, position=1, active_swap_layout_name='small',
-                                  is_swap_layout_dirty=False,
-                                  is_fullscreen_active=any(p['is_fullscreen'] for p in panes),
-                                  are_floating_panes_visible=any(p['is_floating'] for p in panes))))
+            tab = case_payload('term-shortcuts.tab-normal')
+            tab.update(is_fullscreen_active=any(p['is_fullscreen'] for p in panes),
+                       are_floating_panes_visible=any(p['is_floating'] for p in panes))
+            emit('tab', tab)
         sys.exit(0)
     with (root / 'actions.log').open('a') as log:
         log.write(' '.join(args[1:]) + '\n')
@@ -80,11 +83,6 @@ PYTHON
 chmod +x "$fakebin/zellij"
 export PATH="$fakebin:$PAIR_HOME/bin:$PATH"
 
-agent='{"id":1,"is_plugin":false,"is_focused":FOCUS_AGENT,"is_floating":false,"is_fullscreen":false,"tab_id":2,"tab_position":1,"pane_x":0,"pane_y":0,"pane_columns":75,"pane_rows":39,"title":"codex","terminal_command":"pair wrap codex"}'
-draft='{"id":2,"is_plugin":false,"is_focused":FOCUS_DRAFT,"is_floating":false,"is_fullscreen":false,"tab_id":2,"tab_position":1,"pane_x":0,"pane_y":39,"pane_columns":75,"pane_rows":12,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua /data/draft-t.md"}'
-terminal='{"id":4,"is_plugin":false,"is_focused":FOCUS_TERM,"is_fullscreen":FULLSCREEN_TERM,"is_floating":false,"tab_id":2,"tab_position":1,"pane_x":75,"pane_y":0,"pane_columns":75,"pane_rows":51,"title":"terminal","terminal_command":"pair term"}'
-review='{"id":5,"is_plugin":false,"is_focused":FOCUS_REVIEW,"is_floating":true,"is_fullscreen":false,"tab_id":2,"tab_position":1,"pane_x":15,"pane_y":5,"pane_columns":120,"pane_rows":40,"title":"review","terminal_command":"nvim -u /pair/nvim/review.lua /tmp/review.md"}'
-
 write_panes() {
   focus="$1"
   case "$focus" in
@@ -94,13 +92,9 @@ write_panes() {
     review) export ZELLIJ_PANE_ID=5 ;;
     *) printf 'unknown fixture focus: %s\n' "$focus" >&2; exit 1 ;;
   esac
-  terminal_state="${terminal/FULLSCREEN_TERM/${2:-false}}"
-  printf '[%s,%s,%s,%s]\n' \
-    "${agent/FOCUS_AGENT/$([ "$focus" = agent ] && echo true || echo false)}" \
-    "${draft/FOCUS_DRAFT/$([ "$focus" = draft ] && echo true || echo false)}" \
-    "${terminal_state/FOCUS_TERM/$([ "$focus" = terminal ] && echo true || echo false)}" \
-    "${review/FOCUS_REVIEW/$([ "$focus" = review ] && echo true || echo false)}" \
-    > "$tmp/panes.json"
+  case_name="$focus"
+  if [ "${2:-false}" = true ]; then case_name=fullscreen-terminal; fi
+  python3 "$PAIR_TEST_ZELLIJ_REPLIES" --case "term-shortcuts.$case_name" > "$tmp/panes.json"
 }
 
 run_shortcut() {

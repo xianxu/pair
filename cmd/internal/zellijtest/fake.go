@@ -92,6 +92,13 @@ func New(t testing.TB) *Fixture {
 	if err = os.WriteFile(f.executable, script, 0700); err != nil {
 		t.Fatal(err)
 	}
+	renderer, err := os.ReadFile(filepath.Join(cwd, "tests/lib/zellij_fixture_replies.py"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = os.WriteFile(filepath.Join(f.root, "bin/zellij_fixture_replies.py"), renderer, 0600); err != nil {
+		t.Fatal(err)
+	}
 	f.update(func(s *state) { s.Model = Model{Sessions: map[string]Session{}} })
 	return f
 }

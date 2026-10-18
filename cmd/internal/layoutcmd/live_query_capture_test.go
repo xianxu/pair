@@ -8,11 +8,13 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/xianxu/pair/cmd/internal/zellijtest"
 )
 
 func TestLiveQueryCaptureKeepsRawStreamsSeparate(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "zellij"), []byte("#!/bin/sh\nprintf '[{\"id\":3'\nprintf 'fixture warning' >&2\n"), 0700); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "zellij"), []byte("#!/bin/sh\n"+zellijtest.ShellCase(t, "layout.raw-query-capture")+"\n"), 0700); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv("PATH", dir)

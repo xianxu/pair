@@ -16,6 +16,7 @@ set -euo pipefail
 
 SELF_DIR="$(cd -P "$(dirname "$0")" && pwd)"
 PAIR_BIN="$SELF_DIR/../bin/pair"
+export PAIR_TEST_ZELLIJ_REPLIES="$SELF_DIR/lib/zellij_fixture_replies.py"
 [ -x "$PAIR_BIN" ] || { echo "FAIL: $PAIR_BIN not executable" >&2; exit 1; }
 
 pass=0
@@ -62,7 +63,7 @@ shim_zellij() {
     local shim_dir="$1"
     cat > "$shim_dir/zellij" <<'STUB'
 #!/usr/bin/env bash
-exit 0
+exec python3 "$PAIR_TEST_ZELLIJ_REPLIES" --case rename.no-sessions
 STUB
     chmod +x "$shim_dir/zellij"
 }

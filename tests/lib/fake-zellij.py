@@ -6,6 +6,8 @@ import json
 import os
 import sys
 import tempfile
+sys.dont_write_bytecode = True
+from zellij_fixture_replies import render
 
 
 def option(args, name, default=None):
@@ -38,10 +40,10 @@ def dispatch(state, args, query):
     model = state["model"]
     sessions = model["sessions"]
     if "list-sessions" in args or "ls" in args:
-        return "".join(name + ("" if "--short" in args or "-s" in args else " [Created 1s ago]") + "\n" for name in sorted(sessions))
+        return render("sessions-short" if "--short" in args or "-s" in args else "sessions-full", sorted(sessions))
     session_name = query["session"]
     if session_name not in sessions:
-        raise ValueError("session does not exist: " + session_name)
+        return render("not-found", {"name": session_name, "active": sorted(sessions)}) if sessions else render("no-session")
     session = sessions[session_name]
     if "action" not in args:
         # Attach is observable, but does not invent an OS process identity.
@@ -52,15 +54,13 @@ def dispatch(state, args, query):
     action_index = args.index("action") + 1
     action, params = args[action_index], args[action_index + 1:]
     if action == "list-clients":
-        return "CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\n" + "".join(
-            str(c["id"]) + " " + c["pane_id"] + " " + c["running_command"] + "\n"
-            for c in session.get("clients") or [])
+        return render("clients", session.get("clients") or [])
     if action == "list-panes":
-        return json.dumps(session.get("panes") or []) + "\n"
+        return render("panes", session.get("panes") or [])
     if action == "current-tab-info":
-        return json.dumps(session["tab"]) + "\n"
+        return render("tab", session["tab"])
     if action == "are-floating-panes-visible":
-        return str(session.get("floating_visible", False)).lower() + "\n"
+        return render("visibility", session.get("floating_visible", False))
 
     supported = {"focus-pane-id", "write-chars", "write", "send-keys", "toggle-fullscreen",
                  "toggle-pane-embed-or-floating", "change-floating-pane-coordinates",
@@ -147,7 +147,7 @@ def main():
                 state["model"] = fault["model"]
             if fault.get("error"):
                 raise ValueError(fault["error"])
-            output = fault["reply"] if "reply" in fault else dispatch(state, args, query)
+            output = render("fault", dict(stdout=fault["reply"], stderr="", code=0)) if "reply" in fault else dispatch(state, args, query)
         except (ValueError, KeyError, IndexError) as exc:
             error = str(exc)
         fd, temporary = tempfile.mkstemp(prefix="state-", dir=os.path.dirname(path))
@@ -159,8 +159,11 @@ def main():
             if os.path.exists(temporary):
                 os.unlink(temporary)
     if error is not None:
-        print(error, file=sys.stderr)
-        return 2
+        output = render("fault", dict(stdout="", stderr=error + "\n", code=2))
+    if isinstance(output, dict):
+        sys.stdout.write(output["stdout"])
+        sys.stderr.write(output["stderr"])
+        return output["code"]
     sys.stdout.write(output)
     return 0
 

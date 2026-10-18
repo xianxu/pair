@@ -3,6 +3,7 @@
 # Actual viewer shutdown must hide older floating panes and return to draft.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+export PAIR_TEST_ZELLIJ_REPLIES="$ROOT/tests/lib/zellij_fixture_replies.py"
 . "$ROOT/tests/lib/run-headless.sh"
 RT="$(mktemp -d "${TMPDIR:-/tmp}/pair-overlay-return.XXXXXX")"
 trap 'rm -rf "$RT"' EXIT
@@ -16,17 +17,15 @@ cat > "$RT/bin/zellij" <<'PY'
 #!/usr/bin/env python3
 import json, os, sys
 from pathlib import Path
+sys.path.insert(0, str(Path(os.environ['PAIR_TEST_ZELLIJ_REPLIES']).parent))
+from zellij_fixture_replies import emit_case
 root = Path(os.environ['OVERLAY_TEST_ROOT'])
 p = root / 'host.json'
 s = json.loads(p.read_text())
 a = sys.argv[1:]
 if a[:2] == ['action', 'list-panes']:
     assert '--command' in a, 'draft discovery requires command metadata'
-    print(json.dumps([
-        dict(id=7, tab_id=2, tab_position=1, is_fullscreen=False, is_focused=False, is_plugin=False, is_floating=False, title='agent', terminal_command='/bin/pair wrap'),
-        dict(id=3, tab_id=2, tab_position=1, is_fullscreen=False, is_focused=False, is_plugin=False, is_floating=False, title='draft', terminal_command='/pair/bin/nvim -u /pair/nvim/init.lua draft.md'),
-        dict(id=9, tab_id=2, tab_position=1, is_fullscreen=False, is_focused=False, is_plugin=False, is_floating=True, title='review',terminal_command='nvim -u /pair/nvim/review.lua review.md'),
-        dict(id=11, tab_id=2, tab_position=1, is_fullscreen=False, is_focused=True, is_plugin=False, is_floating=True, title='viewer',terminal_command='nvim -u /pair/nvim/scrollback.lua')]))
+    emit_case('overlay-return.panes')
 elif a == ['action', 'hide-floating-panes', '--tab-id', '2']:
     s['visible'] = False
     s['events'].append('hide')

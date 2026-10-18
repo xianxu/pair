@@ -22,6 +22,7 @@
 set -eu
 
 REPO=$(cd "$(dirname "$0")/.." && pwd)
+export PAIR_TEST_ZELLIJ_REPLIES="$REPO/tests/lib/zellij_fixture_replies.py"
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/pair-copyonselect.XXXXXX"); trap 'rm -rf "$tmp"' EXIT
 
 # The single `pair` self-execs the `pair` sibling of its own binary for the
@@ -60,7 +61,7 @@ cat > "$fakebin/zellij" <<EOF
 #!/bin/sh
 case "\$*" in
   *list-panes*) cat "$tmp/panes.json" ;;
-  *list-clients*) python3 -c 'import json; rows=json.load(open("$tmp/panes.json")); p=next(p for p in rows if p.get("is_focused") and not p.get("is_plugin")); print("CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND"); print("1 terminal_"+str(p["id"])+" shell")' ;;
+  *list-clients*) python3 -c 'import json,sys; from pathlib import Path; sys.path.insert(0,str(Path("$REPO/tests/lib/zellij_fixture_replies.py").parent)); from zellij_fixture_replies import emit; rows=json.load(open("$tmp/panes.json")); p=next(p for p in rows if p.get("is_focused") and not p.get("is_plugin")); emit("clients",[{"id":1,"pane_id":"terminal_"+str(p["id"]),"running_command":"shell"}])' ;;
   *) : ;;
 esac
 EOF
@@ -73,17 +74,8 @@ export XDG_CACHE_HOME="$tmp/cache"
 # the pair-wrap launch (no nvim/draft). Keep the misleading title: the point is
 # that detection keys on terminal_command, not the title. Do not "modernize" this
 # to a bare "claude" — that makes the case pass trivially and tests nothing.
-agent_pane='{"id":0,"is_plugin":false,"tab_id":0,"tab_position":0,"is_focused":FOCUS_AGENT,"is_floating":false,
-  "title":"claude [~/workspace/parley.nvim]",
-  "terminal_command":"sh -c zellij action rename-pane --pane-id \"$ZELLIJ_PANE_ID\" \"${PAIR_PANE_TITLE:-agent}\" 2>/dev/null; exec pair wrap --scrollback-log \"/data/scrollback-t-claude.raw\" claude"}'
-# Draft pane: title is plain "draft", terminal_command launches nvim.
-draft_pane='{"id":1,"is_plugin":false,"tab_id":0,"tab_position":0,"is_focused":FOCUS_DRAFT,"is_floating":false,
-  "title":"draft",
-  "terminal_command":"sh -c export PAIR_NVIM_PID_FILE=\"/data/nvim-pid-t-draft\" && exec nvim -u \"$PAIR_HOME/nvim/init.lua\" \"/data/draft-t.md\""}'
-
-# Right terminal: `pair term` in the command is what identifies it (#125 gate).
-term_pane='{"id":4,"is_plugin":false,"tab_id":0,"tab_position":0,"is_focused":true,"is_floating":false,
-  "title":"terminal","terminal_command":"sh -c exec pair term"}'
+# Positive pane states, including the hostile title and launch templates above,
+# are named catalog cases rather than hand-written native output.
 
 quote="$PAIR_DATA_DIR/quote-t"
 run() {
@@ -108,23 +100,20 @@ fail=0
 # (a) Selection in the AGENT pane while cwd is parley.nvim → must hand off
 #     (in_nvim=false). This is the regression: the title contains "nvim" but
 #     in_nvim keys on terminal_command, so the paste must still happen.
-printf '[%s,%s]\n' \
-  "${agent_pane/FOCUS_AGENT/true}" "${draft_pane/FOCUS_DRAFT/false}" > "$tmp/panes.json"
+python3 "$PAIR_TEST_ZELLIJ_REPLIES" --case copy-on-select.agent > "$tmp/panes.json"
 run
 [ -f "$quote" ] || { echo "FAIL (a) parley.nvim agent-pane selection did not hand off (quote not staged)"; fail=1; }
 
 # (b) Selection in the DRAFT (nvim) pane → must NOT hand off (in_nvim=true),
 #     else it would insert the selection beneath itself. The detached
 #     orchestrator completion is joined before checking absence.
-printf '[%s,%s]\n' \
-  "${agent_pane/FOCUS_AGENT/false}" "${draft_pane/FOCUS_DRAFT/true}" > "$tmp/panes.json"
+python3 "$PAIR_TEST_ZELLIJ_REPLIES" --case copy-on-select.draft > "$tmp/panes.json"
 run
 [ -f "$quote" ] && { echo "FAIL (b) draft-pane selection handed off (would self-insert)"; fail=1; }
 
 # (c) #125: selection in the RIGHT TERMINAL → must NOT hand off, while the
 #     clipboard mirror still happens. This is the distraction that was removed.
-printf '[%s,%s,%s]\n' \
-  "${agent_pane/FOCUS_AGENT/false}" "${draft_pane/FOCUS_DRAFT/false}" "$term_pane" > "$tmp/panes.json"
+python3 "$PAIR_TEST_ZELLIJ_REPLIES" --case copy-on-select.terminal > "$tmp/panes.json"
 run
 [ -f "$quote" ] && { echo "FAIL (c) right-terminal selection auto-pasted into the draft (#125)"; fail=1; }
 [ "$(pbpaste 2>/dev/null)" = "selected text" ] || { echo "FAIL (c) right-terminal selection did not reach the clipboard"; fail=1; }

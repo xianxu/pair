@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"github.com/xianxu/pair/cmd/internal/zellijtest"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -83,17 +84,21 @@ case "$1" in
   list-sessions)
     if [ "$PAIR_ROOT_TEST_LIST_FAIL" = 1 ]; then exit 1; fi
     if [ -f "$PAIR_ROOT_TEST_STATE" ]; then
-      if [ "$2" = --short ]; then cat "$PAIR_ROOT_TEST_STATE"; else printf '%s [Created 1s ago]\n' "$(cat "$PAIR_ROOT_TEST_STATE")"; fi
+      IFS= read -r session < "$PAIR_ROOT_TEST_STATE"
+      if [ "$2" = --short ]; then
+        ` + zellijtest.ReplyCommand(t) + ` --kind sessions-short --data "[\"$session\"]"
+      else
+        ` + zellijtest.ReplyCommand(t) + ` --kind sessions-full --data "[\"$session\"]"
+      fi
       exit 0
     fi
-    printf 'No active zellij sessions found.\n' >&2
-    exit 1 ;;
+    ` + zellijtest.ShellCase(t, "launcher-selected-root-no-sessions") + ` ;;
   --session)
     case "$4" in
-      list-clients) printf 'CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\n' ;;
+      list-clients) ` + zellijtest.ShellCase(t, "launcher-selected-root-clients") + ` ;;
       list-panes)
         # Legacy panes have no launch policy; positive panes permit attach.
-        printf '%s\n' '{"0":[{"id":0,"is_plugin":false,"is_floating":false,"title":"claude","terminal_command":"pair wrap claude"},{"id":1,"is_plugin":false,"is_floating":false,"title":"draft","terminal_command":"nvim draft.md"},{"id":2,"is_plugin":false,"is_floating":false,"title":"terminal","terminal_command":"pair term"}]}' ;;
+        ` + zellijtest.ShellCase(t, "launcher-selected-root-panes") + ` ;;
     esac
     exit 0 ;;
   --config-dir)

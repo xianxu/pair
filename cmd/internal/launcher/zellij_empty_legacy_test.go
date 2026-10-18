@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"github.com/xianxu/pair/cmd/internal/zellijtest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -16,11 +17,11 @@ func installEmptyReplyLegacyCLI(t *testing.T, emptyStage string) string {
 	log := filepath.Join(dir, "calls")
 	script := `#!/bin/sh
 printf '%s\n' "$*" >> "$PAIR562_CALLS"
-if [ "$*" = "$PAIR562_EMPTY_STAGE" ]; then exit 0; fi
+if [ "$*" = "$PAIR562_EMPTY_STAGE" ]; then ` + zellijtest.ShellCase(t, "launcher-empty-unanswered") + `; fi
 case "$*" in
- 'list-sessions --short') printf 'pair-work\n' ;;
- 'list-sessions --no-formatting') printf 'pair-work [Created 1s ago]\n' ;;
- '--session pair-work action list-clients') printf 'CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\n1 terminal_0 sh\n' ;;
+ 'list-sessions --short') ` + zellijtest.ShellCase(t, "launcher-empty-prefix-short") + ` ;;
+ 'list-sessions --no-formatting') ` + zellijtest.ShellCase(t, "launcher-empty-prefix-full") + ` ;;
+ '--session pair-work action list-clients') ` + zellijtest.ShellCase(t, "launcher-empty-prefix-clients") + ` ;;
  *) exit 1 ;;
 esac
 `
@@ -68,7 +69,7 @@ func TestListSessionsCannotDisplayEmptyReplyAsDetached(t *testing.T) {
 }
 func TestExplicitEmptyInventoryStillFreesAName(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "zellij"), []byte("#!/bin/sh\nprintf 'No active zellij sessions found.\\n' >&2\nexit 1\n"), 0700); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "zellij"), []byte("#!/bin/sh\n"+zellijtest.ShellCase(t, "launcher-empty-explicit-inventory")), 0700); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
@@ -188,7 +189,7 @@ func TestSessionOwnerProbeEmptyInjectedReplyRemainsUnanswered(t *testing.T) {
 func TestEmptySuccessfulNameProbeCannotUseStderrAsItsReply(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "zellij")
-	if err := os.WriteFile(path, []byte("#!/bin/sh\nprintf 'unrelated warning\\n' >&2\nexit 0\n"), 0700); err != nil {
+	if err := os.WriteFile(path, []byte("#!/bin/sh\n"+zellijtest.ShellCase(t, "launcher-empty-stderr-only")), 0700); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))

@@ -2,6 +2,7 @@ package zellijtest
 
 import (
 	"encoding/json"
+	"errors"
 	"os/exec"
 	"strings"
 	"sync"
@@ -143,8 +144,12 @@ func TestFakeVisibilityStateAndInvalidMutation(t *testing.T) {
 		t.Fatal(got)
 	}
 	invoke(t, f, "action", "hide-floating-panes")
-	if got := invoke(t, f, "action", "are-floating-panes-visible"); got != "false\n" {
-		t.Fatal(got)
+	visibility := exec.Command(f.Path(), "action", "are-floating-panes-visible")
+	visibility.Env = f.Environment()
+	got, err := visibility.Output()
+	var exit *exec.ExitError
+	if !errors.As(err, &exit) || exit.ExitCode() != 1 || string(got) != "false\n" {
+		t.Fatalf("native false visibility: stdout=%q error=%v", got, err)
 	}
 	c := exec.Command(f.Path(), "action", "focus-pane-id", "99")
 	c.Env = f.Environment()

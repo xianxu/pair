@@ -3,6 +3,7 @@ package launcher
 import (
 	"context"
 	"errors"
+	"github.com/xianxu/pair/cmd/internal/zellijtest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,17 +16,17 @@ func TestZellijQueryObserverRetainsExactResponsesWithoutChangingClassification(t
 	path, count := filepath.Join(dir, "zellij"), filepath.Join(dir, "count")
 	script := `#!/bin/sh
 case "$*" in
- 'list-sessions --short') printf 'pair-observed\n' ;;
- 'list-sessions --no-formatting') printf 'pair-observed [Created 1s ago]\n' ;;
+ 'list-sessions --short') ` + zellijtest.ShellCase(t, "launcher-observer-short") + ` ;;
+ 'list-sessions --no-formatting') ` + zellijtest.ShellCase(t, "launcher-observer-full") + ` ;;
  '--session pair-observed action list-clients')
  n=0
  if [ -f '` + count + `' ]; then read -r n < '` + count + `'; fi
  n=$((n+1)); printf '%s\n' "$n" > '` + count + `'
  case "$n" in
-  1) : ;;
-  2) printf 'CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\n' ;;
-  3) printf 'CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\n1 terminal_0 sh\n' ;;
-  *) printf 'partial\n'; printf 'query failed\n' >&2; exit 7 ;;
+  1) ` + zellijtest.ShellCase(t, "launcher-observer-unanswered") + ` ;;
+  2) ` + zellijtest.ShellCase(t, "launcher-observer-empty-clients") + ` ;;
+  3) ` + zellijtest.ShellCase(t, "launcher-observer-attached") + ` ;;
+  *) ` + zellijtest.ShellCase(t, "launcher-observer-partial-failure") + ` ;;
  esac ;;
  *) exit 9 ;;
 esac

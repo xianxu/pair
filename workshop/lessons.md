@@ -2196,3 +2196,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - When a Lua test gains a Neovim API dependency, audit every entrypoint, including shell integration aggregators: passing its test-lua invocation does not prove the same file still runs under standalone lua. Keep pure tests standalone and run Neovim integrations with nvim -l. (#647)
 
 - Tightening an external query decoder requires auditing every positive CLI shell fixture against the full requested schema and state transitions, not only Go consumers or the fixtures reached by a targeted test. Separate query observations from effects and keep exact confirmation counts. (#647)
+
+- After tightening an external reply contract, make every CLI test double serialize semantic models through one generator and enumerate producer-specific positive/fault cases against production decoders. A source inventory must catch newly introduced unregistered stubs before the full suite; verify the guard with malformed-positive and new-producer mutations. (#647 R7)

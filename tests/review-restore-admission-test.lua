@@ -25,6 +25,7 @@ end
 local function main()
  vim.fn.mkdir(root..'/bin','p')
  vim.fn.writefile(vim.fn.readfile(repo..'/tests/lib/fake-zellij.py'),root..'/bin/zellij')
+ vim.fn.writefile(vim.fn.readfile(repo..'/tests/lib/zellij_fixture_replies.py'),root..'/bin/zellij_fixture_replies.py')
  assert(vim.fn.setfperm(root..'/bin/zellij','rwx------')==1)
  vim.env.PATH=root..'/bin:'..original.PATH
  vim.env.ZELLIJ_SESSION_NAME='session-a';vim.env.ZELLIJ_PANE_ID='2';vim.env.PAIR_ZELLIJ_TRACE='0'

@@ -3,6 +3,7 @@ package launcher
 import (
 	"context"
 	"errors"
+	"github.com/xianxu/pair/cmd/internal/zellijtest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -66,9 +67,9 @@ func TestWarmAttachUsesOnlyPositiveListingAndNeverReplaysClient(t *testing.T) {
 	for _, live := range []bool{true, false} {
 		t.Run(map[bool]string{true: "listed", false: "query-failure"}[live], func(t *testing.T) {
 			dir := t.TempDir()
-			script := "#!/bin/sh\nprintf 'chosen [Created 1s ago]\\n'\n"
+			script := "#!/bin/sh\n" + zellijtest.ShellCase(t, "launcher-warm-attach-full")
 			if !live {
-				script += "exit 1\n"
+				script = "#!/bin/sh\n" + zellijtest.ShellCase(t, "launcher-warm-attach-query-failure")
 			}
 			if err := os.WriteFile(filepath.Join(dir, "zellij"), []byte(script), 0700); err != nil {
 				t.Fatal(err)

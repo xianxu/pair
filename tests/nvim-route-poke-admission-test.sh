@@ -7,6 +7,7 @@ tmp="$(mktemp -d "${TMPDIR:-/tmp}/pair-route-poke-admission.XXXXXX")"
 trap 'rm -rf "${tmp:?}"' EXIT
 mkdir -p "$tmp/bin"
 cp "$ROOT/tests/lib/fake-zellij.py" "$tmp/bin/zellij"
+cp "$ROOT/tests/lib/zellij_fixture_replies.py" "$tmp/bin/zellij_fixture_replies.py"
 chmod +x "$tmp/bin/zellij"
 PATH="$tmp/bin:$PATH" PAIR_HOME="$ROOT" PAIR_FAKE_ZELLIJ_STATE="$tmp/state.json" \
  ZELLIJ_SESSION_NAME=test ZELLIJ_PANE_ID=9 PAIR_DRAFT_PANE_PATH='' \

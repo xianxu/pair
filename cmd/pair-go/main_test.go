@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/xianxu/pair/cmd/internal/testpair"
+	"github.com/xianxu/pair/cmd/internal/zellijtest"
 	"io"
 	"os"
 	"os/exec"
@@ -379,27 +380,36 @@ func runPublicPairCommand(t *testing.T, timeout time.Duration, dir string, env [
 
 func writePublicPairCommandStubs(t *testing.T, dir string) {
 	t.Helper()
-	zellij := `#!/bin/sh
+	zellij := strings.NewReplacer(
+		"{{no-sessions}}", zellijtest.ShellCase(t, "public.no-sessions"),
+		"{{no-session}}", zellijtest.ShellCase(t, "public.no-session"),
+		"{{short}}", zellijtest.ShellCase(t, "public.sessions-short"),
+		"{{full}}", zellijtest.ShellCase(t, "public.sessions-full"),
+		"{{clients}}", zellijtest.ShellCase(t, "public.clients-existing"),
+	).Replace(`#!/bin/sh
 printf 'zellij\t%s\t%s\t%s\n' "$*" "$COUCH_TREE" "$COUCH_STORE_DIR" >> "$PAIR_TEST_COMMAND_LOG"
 case "$*" in
   "list-sessions --short"|"list-sessions --no-formatting")
     if [ "$PAIR_TEST_ZELLIJ_MODE" != existing ]; then
-      printf 'No active zellij sessions found.\n' >&2
-      exit 1
+      {{no-sessions}}
     fi
     if [ "$*" = 'list-sessions --short' ]; then
-      printf '📁pair-compiler-fix\n'
+      {{short}}
     else
-      printf '📁pair-compiler-fix [Created 1s ago]\n'
+      {{full}}
     fi
     ;;
   *"action list-clients"*)
-    printf 'CLIENT_ID\n'
-    [ "$PAIR_TEST_ZELLIJ_MODE" = existing ] && printf 'test-client\n'
+    if [ "$PAIR_TEST_ZELLIJ_MODE" = existing ]; then
+      {{clients}}
+    else
+      {{no-session}}
+    fi
     ;;
 esac
 exit 0
-`
+`)
+
 	fzf := `#!/bin/sh
 printf 'fzf\t%s\t%s\t%s\n' "$*" "$COUCH_TREE" "$COUCH_STORE_DIR" >> "$PAIR_TEST_COMMAND_LOG"
 printf '📁pair-compiler-fix\n'

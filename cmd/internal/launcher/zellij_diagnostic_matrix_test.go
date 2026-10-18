@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/xianxu/pair/cmd/internal/zellijtest"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -93,23 +94,26 @@ func (r diagnosticNameRuntime) ProbeSessionName(name string) error { return r.pr
 // including the assignment-local monotone oracle that consumes name evidence.
 func TestZellijDiagnosticAuthorityMatrix(t *testing.T) {
 	for _, tc := range diagnosticMatrix() {
+		reply := zellijtest.Case(t, "launcher-matrix-"+tc.name)
+		if reply.Stdout != tc.stdout || reply.Stderr != tc.stderr || reply.Code != tc.status {
+			t.Fatalf("catalog changed independent diagnostic fixture %q", tc.name)
+		}
+		shellReply := zellijtest.ShellCase(t, "launcher-matrix-"+tc.name)
+		shortPrefix := zellijtest.ShellCase(t, "launcher-matrix-short-prefix")
 		for _, consumer := range []string{"inventory", "name-bound"} {
 			for _, fault := range []string{"none", "joined-exit", "collection", "cancel", "collection-and-cancel"} {
 				t.Run(tc.name+"/"+consumer+"/"+fault, func(t *testing.T) {
 					dir := t.TempDir()
 					path := filepath.Join(dir, "zellij")
-					script := fmt.Sprintf("#!/bin/sh\nif [ \"$1\" = list-sessions ] && [ \"$2\" = --short ] && [ \"$PAIR647_MATRIX_INVENTORY\" = yes ]; then\n printf 'pair-new\\n'\nelse\n printf '%%s' \"$PAIR647_MATRIX_STDOUT\"\nfi\nprintf '%%s' \"$PAIR647_MATRIX_STDERR\" >&2\nexit %d\n", tc.status)
+					script := "#!/bin/sh\n"
+					if tc.name == "strict-inventory" {
+						script += "if [ \"$1\" = list-sessions ] && [ \"$2\" = --short ]; then\n" + shortPrefix + "\nfi\n"
+					}
+					script += shellReply
 					if err := os.WriteFile(path, []byte(script), 0700); err != nil {
 						t.Fatal(err)
 					}
 					t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
-					t.Setenv("PAIR647_MATRIX_STDOUT", tc.stdout)
-					t.Setenv("PAIR647_MATRIX_STDERR", tc.stderr)
-					if tc.name == "strict-inventory" {
-						t.Setenv("PAIR647_MATRIX_INVENTORY", "yes")
-					} else {
-						t.Setenv("PAIR647_MATRIX_INVENTORY", "no")
-					}
 					ctx, cancel := context.WithCancel(context.Background())
 					defer cancel()
 					calls := 0
@@ -190,10 +194,10 @@ func TestNativeValidatorStillMeasuresMonotoneNameBudget(t *testing.T) {
 	script := `#!/bin/sh
 name=$2
 if [ "${#name}" -gt 30 ]; then
- printf "error: invalid value '%s' for '--session <SESSION>': session name must be less than 31 characters\n\nFor more information, try '--help'.\n" "$name" >&2
- exit 2
+ ` + zellijtest.ReplyCommand(t) + ` --kind name-invalid --data "{\"name\":\"$name\",\"limit\":31}"
+ exit $?
 fi
-printf 'CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\n'
+` + zellijtest.ShellCase(t, "launcher-monotone-clients") + `
 `
 	if err := os.WriteFile(path, []byte(script), 0700); err != nil {
 		t.Fatal(err)

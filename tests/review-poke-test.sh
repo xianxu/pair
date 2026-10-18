@@ -9,20 +9,14 @@
 # Run: bash tests/review-poke-test.sh
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+export PAIR_TEST_ZELLIJ_REPLIES="$ROOT/tests/lib/zellij_fixture_replies.py"
 . "$ROOT/tests/lib/run-headless.sh"
 RT="$(mktemp -d "${TMPDIR:-/tmp}/pair-poke-test.XXXXXX")"
 trap 'rm -rf "$RT"' EXIT
 RESULT="$RT/result.txt"; ZLOG="$RT/zlog.txt"; : > "$ZLOG"
 
 # reordered panes: unrelated right terminal precedes agent (id 7, tiled, "claude"), draft (id 3), review (id 9, floating, focused)
-cat > "$RT/panes.json" <<'JSON'
-[
-  {"id":4,"tab_id":2,"tab_position":1,"is_fullscreen":false,"is_plugin":false,"is_floating":false,"is_focused":false,"title":"terminal","terminal_command":"/bin/pair term"},
-  {"id":7,"tab_id":2,"tab_position":1,"is_fullscreen":false,"is_plugin":false,"is_floating":false,"is_focused":false,"title":"claude","terminal_command":"/bin/pair wrap --agent claude"},
-  {"id":3,"tab_id":2,"tab_position":1,"is_fullscreen":false,"is_plugin":false,"is_floating":false,"is_focused":false,"title":"draft","terminal_command":"nvim -u /p/nvim/init.lua draft.md"},
-  {"id":9,"tab_id":2,"tab_position":1,"is_fullscreen":false,"is_plugin":false,"is_floating":true,"is_focused":true,"title":"review","terminal_command":"nvim -u /p/nvim/review.lua review.md"}
-]
-JSON
+python3 "$PAIR_TEST_ZELLIJ_REPLIES" --case review-poke.panes > "$RT/panes.json"
 
 mkdir -p "$RT/bin"
 cat > "$RT/bin/zellij" <<EOF

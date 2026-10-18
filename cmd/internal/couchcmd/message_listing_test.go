@@ -2,6 +2,7 @@ package couchcmd
 
 import (
 	"context"
+	"github.com/xianxu/pair/cmd/internal/zellijtest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -22,8 +23,8 @@ func TestMessageAuthorityListedCheckReadsThePolledListing(t *testing.T) {
 	count := filepath.Join(dir, "calls")
 	stub := filepath.Join(dir, "zellij")
 	script := "#!/bin/sh\necho x >> " + count + "\nsleep 1\n" + `case "$*" in
- 'list-sessions --short') printf '📁1-264\n' ;;
- 'list-sessions --no-formatting') printf '📁1-264 [Created 1s ago]\n' ;;
+ 'list-sessions --short') ` + zellijtest.ShellCase(t, "couch.message264.short") + ` ;;
+ 'list-sessions --no-formatting') ` + zellijtest.ShellCase(t, "couch.message264.full") + ` ;;
  *) exit 2 ;;
 esac
 `
@@ -93,8 +94,8 @@ func TestMessageThreadResolverChecksReadOnlyThePoller(t *testing.T) {
 	count := filepath.Join(dir, "calls")
 	stub := filepath.Join(dir, "zellij")
 	script := "#!/bin/sh\necho x >> " + count + "\nsleep 1\n" + `case "$*" in
- 'list-sessions --short') printf '📁1-300\n' ;;
- 'list-sessions --no-formatting') printf '📁1-300 [Created 1s ago]\n' ;;
+ 'list-sessions --short') ` + zellijtest.ShellCase(t, "couch.message300.short") + ` ;;
+ 'list-sessions --no-formatting') ` + zellijtest.ShellCase(t, "couch.message300.full") + ` ;;
  *) exit 2 ;;
 esac
 `

@@ -37,6 +37,8 @@ with ReviewTestEnvironment() as isolated, tempfile.TemporaryDirectory(prefix='pa
     fake=bindir/'zellij'
     fake.write_text('#!'+sys.executable+'\n'+r'''
 import json,os,pathlib,subprocess,sys
+sys.path.insert(0,str(pathlib.Path(os.environ['PAIR_TEST_ZELLIJ_REPLIES']).parent))
+from zellij_fixture_replies import emit,case_payload
 state=pathlib.Path(os.environ['FAKE_ZELLIJ_STATE']);args=sys.argv[1:]
 with (state/'calls.jsonl').open('a') as log: log.write(json.dumps(args)+'\n')
 if args and args[0]=='run':
@@ -52,15 +54,12 @@ if args and args[0]=='run':
 if args[:2]==['action','show-floating-panes']:(state/'visible').write_text('true')
 elif args[:2]==['action','hide-floating-panes']:(state/'visible').write_text('false')
 elif args[:2]==['action','are-floating-panes-visible']:
-    visible=(state/'visible').read_text();print(visible);sys.exit(0 if visible=='true' else 1)
+    emit('visibility',(state/'visible').read_text()=='true')
 elif args[:2]==['action','list-panes']:
-    panes=[{'id':3,'terminal_command':'nvim -u '+os.environ['PAIR_HOME']+'/nvim/init.lua'},
-           {'id':42,'terminal_command':'nvim -u '+os.environ['PAIR_HOME']+'/nvim/review.lua'},
-           {'id':4,'terminal_command':'pair wrap'}]
+    panes=case_payload('review-fresh-restore.panes')
     for pane in panes:
-        pane.update(is_floating=pane['id']==42,is_plugin=False,is_focused=pane['id']==3,
-                    is_fullscreen=False,tab_id=2,tab_position=1)
-    print(json.dumps(panes))
+        pane['terminal_command']=pane['terminal_command'].replace('/pair/nvim/',os.environ['PAIR_HOME']+'/nvim/')
+    emit('panes',panes)
 ''');fake.chmod(0o700)
     diagnostics=temp/'diagnostics.lua'
     diagnostics.write_text(r'''
@@ -134,7 +133,7 @@ vim.cmd('qa!')
             PAIR_REVIEW_HANDOFF_PATH=str(data/'handoff.json'),PAIR_REVIEW_LANDED_PATH=str(data/'landed.json'),
             PAIR_REVIEW_MODE_PATH=str(data/'mode'),PAIR_AGENT_CONFIG_PATH=str(data/'agent.json'),PAIR_AGENT_PID_PATH=str(data/'agent.pid'),
             PAIR_LAYOUT_MODE_PATH=str(data/'layout'),PAIR_ZELLIJ_ACTIONS_PATH=str(data/'actions.jsonl'),
-            FAKE_ZELLIJ_STATE=str(data),FAKE_WRONG_SESSION='1' if wrong_session else '0',DRIVER_RESULT=str(data/'result.json'),
+            PAIR_TEST_ZELLIJ_REPLIES=str(root/'tests/lib/zellij_fixture_replies.py'),FAKE_ZELLIJ_STATE=str(data),FAKE_WRONG_SESSION='1' if wrong_session else '0',DRIVER_RESULT=str(data/'result.json'),
             DRIVER_DIAGNOSTICS=str(data/'diagnostics.json'),
             ZELLIJ_PANE_ID='3',ZELLIJ_SESSION_NAME='fixture-review',XDG_STATE_HOME=str(data/'xdg-state'),XDG_DATA_HOME=str(data/'xdg-data'),XDG_CACHE_HOME=str(data/'xdg-cache'))
         before=git('rev-parse','HEAD')

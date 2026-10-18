@@ -207,3 +207,23 @@ evidence. Offline oracle corrections model completed prefixes; they cannot
 retroactively supply the missing final witness. Clean-path qualification is
 assigned to the real-setup check at the next restart; no further native run is
 authorized for this sample.
+
+## Native fixture contracts
+
+Private CLI fakes serialize query replies through `tests/lib/zellij_fixture_replies.py`.
+Semantic fixture models retain their IDs, roles, geometry and state transitions;
+one renderer owns native field names, complete positive-state defaults and exact
+stdout/stderr/status envelopes. An observed zero-client table and a missing session
+remain distinct. Malformed, partial and collector-failure controls use explicitly
+classified fault replies; they are not filled with positive defaults.
+
+The source-specific `tests/lib/zellij_fixture_*_cases.json` catalogs cover named
+positive states and negative reply variants. Go fixtures pre-render static replies
+through `cmd/internal/zellijtest`, so timed native queries gain no generator process.
+The stateful CLI uses the same serializer for dynamic model observations.
+`TestEveryZellijFixtureReplyUsesProductionDecoder` enumerates the catalog through
+production strict pane/client/tab and launcher session/diagnostic boundaries; it
+also discovers unregistered subprocess fake producers and rejects independent
+positive serializers. Pure parser inputs and real native passthrough diagnostics
+remain separate, explicitly classified test surfaces. The guard is verified by
+malformed-positive and unregistered-producer mutation controls.

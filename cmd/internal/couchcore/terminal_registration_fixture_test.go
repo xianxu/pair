@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/xianxu/pair/cmd/internal/procutil"
+	"github.com/xianxu/pair/cmd/internal/zellijtest"
 	"net"
 	"os"
 	"os/exec"
@@ -96,8 +97,11 @@ func registrationTerminalFixture() error {
 			return err
 		}
 		defer func() { _ = child.Process.Kill(); _ = child.Wait() }()
-		pane, _ := json.Marshal([]map[string]any{{"id": 1, "is_plugin": false, "pane_command": strings.Join(child.Args, " ")}})
-		if err = (osfs.FS{}).WriteAtomic(os.Getenv("PAIR_TEST_ZELLIJ_PANES"), string(pane)); err != nil {
+		pane, renderErr := registrationFixtureReply("panes", []map[string]any{{"id": 1, "pane_command": strings.Join(child.Args, " ")}})
+		if renderErr != nil {
+			return renderErr
+		}
+		if err = (osfs.FS{}).WriteAtomic(os.Getenv("PAIR_TEST_ZELLIJ_PANES"), pane.Stdout); err != nil {
 			return err
 		}
 		if err := awaitRegistrationFixtureRelease(); err != nil {
@@ -136,18 +140,34 @@ func registrationTerminalFixture() error {
 		_, err = os.Stdout.Write(raw)
 		return err
 	case strings.Contains(joined, " list-clients "):
-		fmt.Fprintln(os.Stdout, "CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND")
+		reply, err := registrationFixtureCatalog("couch.registration.clients")
+		if err != nil {
+			return err
+		}
+		return registrationFixtureEmit(reply)
 	case len(args) > 0 && args[0] == "list-sessions":
 		if _, err := os.Stat(os.Getenv("PAIR_TEST_ZELLIJ_READY")); err != nil {
 			if os.IsNotExist(err) {
-				return fmt.Errorf("No active zellij sessions found.")
+				reply, renderErr := registrationFixtureCatalog("couch.registration.no-sessions")
+				if renderErr != nil {
+					return renderErr
+				}
+				return registrationFixtureEmit(reply)
 			}
 			return err
 		}
 		if len(args) == 2 && args[1] == "--short" {
-			fmt.Fprintln(os.Stdout, os.Getenv("PAIR_SESSION_NAME"))
+			reply, err := registrationFixtureReply("sessions-short", []string{os.Getenv("PAIR_SESSION_NAME")})
+			if err != nil {
+				return err
+			}
+			return registrationFixtureEmit(reply)
 		} else if len(args) == 2 && args[1] == "--no-formatting" {
-			fmt.Fprintf(os.Stdout, "%s [Created 1s ago]\n", os.Getenv("PAIR_SESSION_NAME"))
+			reply, err := registrationFixtureReply("sessions-full", []string{os.Getenv("PAIR_SESSION_NAME")})
+			if err != nil {
+				return err
+			}
+			return registrationFixtureEmit(reply)
 		} else {
 			return fmt.Errorf("unsupported fixture session listing: %q", args)
 		}
@@ -189,4 +209,45 @@ func awaitRegistrationFixtureFile(path string) error {
 		time.Sleep(10 * time.Millisecond)
 	}
 	return fmt.Errorf("registration terminal fixture was not released")
+}
+
+// Dynamic process identities cannot be pre-rendered by the parent. Resolve only
+// the explicitly passed canonical test helper's sibling generator; all query
+// output still comes from that single fixture serializer.
+func registrationFixtureReply(kind string, payload any) (zellijtest.ReplyEnvelope, error) {
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		return zellijtest.ReplyEnvelope{}, err
+	}
+	return registrationFixtureRender("--kind", kind, "--data", string(raw))
+}
+func registrationFixtureCatalog(name string) (zellijtest.ReplyEnvelope, error) {
+	return registrationFixtureRender("--case", name)
+}
+func registrationFixtureRender(args ...string) (zellijtest.ReplyEnvelope, error) {
+	command, err := zellijtest.ReplyCommandFrom(os.Getenv("PAIR_TEST_ENV_SCRIPT"))
+	if err != nil {
+		return zellijtest.ReplyEnvelope{}, err
+	}
+	// Arguments remain positional data, never shell interpolation.
+	cmd := exec.Command("/bin/sh", append([]string{"-c", "exec " + command + " --envelope \"$@\"", "fixture"}, args...)...)
+	raw, err := cmd.Output()
+	if err != nil {
+		return zellijtest.ReplyEnvelope{}, fmt.Errorf("render dynamic fixture: %w", err)
+	}
+	var reply zellijtest.ReplyEnvelope
+	if err := json.Unmarshal(raw, &reply); err != nil {
+		return reply, err
+	}
+	return reply, nil
+}
+func registrationFixtureEmit(reply zellijtest.ReplyEnvelope) error {
+	if _, err := fmt.Fprint(os.Stdout, reply.Stdout); err != nil {
+		return err
+	}
+	if reply.Code != 0 {
+		return fmt.Errorf("%s", strings.TrimSuffix(reply.Stderr, "\n"))
+	}
+	_, err := fmt.Fprint(os.Stderr, reply.Stderr)
+	return err
 }

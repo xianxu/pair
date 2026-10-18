@@ -1569,6 +1569,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/zellijreply/tab.go",
 	"cmd/internal/zellijsession/zellijsession.go",
 	"cmd/internal/zellijtest/fake.go",
+	"cmd/internal/zellijtest/replies.go",
 	"cmd/pair-go/main.go",
 	"cmd/pair-launch-helper/main.go",
 	"cmd/probes/couchnestedrows/layout.kdl",
