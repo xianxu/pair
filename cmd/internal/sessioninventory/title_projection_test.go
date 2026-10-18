@@ -290,6 +290,10 @@ func titleProviderFixture(t *testing.T, agent sessioninventory.Agent) (*sessioni
 		a = sessioninventory.Artifact{StorageRoot: name, RelativePath: "project/" + id + ".jsonl"}
 		initial = `{"type":"user","sessionId":"` + id + `","timestamp":"2026-10-16T00:00:00Z"}`
 		tail = `{"type":"assistant","sessionId":"` + id + `","message":{"model":"real","usage":{"input_tokens":200000,"cache_creation_input_tokens":900,"cache_read_input_tokens":100}}}`
+		if agent == sessioninventory.AgentQoder {
+			// Qoder's real shape: zero token fields, occupancy as a ratio (pair#654).
+			tail = `{"type":"assistant","sessionId":"` + id + `","message":{"model":"auto","usage":{"input_tokens":0,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"context_usage_ratio":0.4}}}`
+		}
 	case sessioninventory.AgentMuse:
 		a = sessioninventory.Artifact{StorageRoot: "muse-sessions", RelativePath: "2026/10/16/" + id + "/session.jsonl"}
 		initial = `{"payload_type":"runtime.session","payload":{"kind":"run","run_id":"` + id + `","event":{"kind":"started"}}}`
@@ -354,6 +358,10 @@ func TestTitleProjectionProviderAppendParity(t *testing.T) {
 			if agent == sessioninventory.AgentCodex || agent == sessioninventory.AgentClaude || agent == sessioninventory.AgentGrok {
 				if !ok || usage.InputTokens != 201000 {
 					t.Fatalf("usage fixture disconnected: %+v %v", usage, ok)
+				}
+			} else if agent == sessioninventory.AgentQoder {
+				if !ok || usage.Figure() != "40%" {
+					t.Fatalf("Qoder usage fixture disconnected: %+v %v", usage, ok)
 				}
 			} else if got.HasUsage {
 				t.Fatal("invented unsupported usage")

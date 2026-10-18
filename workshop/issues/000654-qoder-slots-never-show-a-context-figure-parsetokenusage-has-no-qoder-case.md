@@ -51,12 +51,19 @@ Qoder transcripts are parsed like Claude's elsewhere (`event.go` groups `AgentCl
 
 ## Plan
 
-- [ ] Fixture test from captured Qoder lines, with message content trimmed and `usage` byte for byte, so `ParseTokenUsage(AgentQoder, …)` returns the ratio. Negative cases: a usage block without the ratio; a ratio outside [0, 1]; a sidechain record; a non-assistant record. `TokenUsageFromJSONL` over a slot-shaped fixture returns the last ratio.
-- [ ] Add `TokenUsage.ContextRatio` and the Qoder branch.
-- [ ] `Figure()`, with its test (percent rounding, count fallback), replacing the three call sites. Run the existing title, titlepoller and contextcmd tests.
-- [ ] Title projection test: a Qoder transcript yields `HasUsage` and a `%` figure.
+- [x] Fixture test from captured Qoder lines, with message content trimmed and `usage` byte for byte, so `ParseTokenUsage(AgentQoder, …)` returns the ratio. Negative cases: a usage block without the ratio; a ratio outside [0, 1]; a sidechain record; a non-assistant record. `TokenUsageFromJSONL` over a slot-shaped fixture returns the last ratio.
+- [x] Add `TokenUsage.ContextRatio` and the Qoder branch.
+- [x] `Figure()`, with its test (percent rounding, count fallback), replacing the three call sites. Run the existing title, titlepoller and contextcmd tests.
+- [x] Title projection test: a Qoder transcript yields `HasUsage` and a `%` figure.
 - [ ] Live: after the next Couch restart, a Qoder slot's pane title shows its percentage. That restart is already scheduled for the #653/#657 checks, and Qoder is out of credits, so an idle Qoder slot shows its last ratio.
 
 ## Log
 
 ### 2026-10-17
+
+### 2026-10-18
+
+- TL chose A, the percentage (ops:0). Built as planned with one tightening: the parser rejects a ratio of exactly 0 as well as anything outside (0, 1]. A zero ratio would render as `0%` with no real occupancy behind it, and it never appears in the 2,746 records.
+- `ContextRatio` is a plain float64 rather than a pointer, so `TokenUsage` stays comparable (`==`) for the parity tests.
+- Against the full real transcripts, `TokenUsageFromJSONL(AgentQoder, …)` gives 42% (pair:4) and 40% (pair:8), matching their last ratios 0.42245 and 0.39998. This was checked with a temporary test that was then deleted.
+- The provider parity fixture's Qoder tail is now Qoder's real shape (zero tokens plus a ratio); before, it borrowed Claude's token-bearing shape.

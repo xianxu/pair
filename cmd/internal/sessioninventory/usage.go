@@ -3,11 +3,27 @@ package sessioninventory
 import (
 	"bytes"
 	"encoding/json"
+	"math"
+	"strconv"
+
+	"github.com/xianxu/pair/cmd/internal/ctxmeter"
 )
 
 // pair:155-concept pure new M1
+// An agent reports occupancy either as a token count or, like Qoder, only as
+// a fraction of a window it does not always name (ContextRatio, pair#654).
 type TokenUsage struct {
-	InputTokens int `json:"input_tokens"`
+	InputTokens  int     `json:"input_tokens"`
+	ContextRatio float64 `json:"context_ratio,omitempty"`
+}
+
+// Figure is the context figure a pane title or pair context shows: a
+// percentage for a ratio, else the humanized token count.
+func (u TokenUsage) Figure() string {
+	if u.ContextRatio > 0 {
+		return strconv.Itoa(int(math.Round(u.ContextRatio*100))) + "%"
+	}
+	return ctxmeter.Humanize(u.InputTokens)
 }
 
 // TokenUsageForRoot reads the established scanner-authorized root transcript
@@ -74,6 +90,22 @@ func ParseTokenUsage(agent Agent, line []byte) (TokenUsage, bool) {
 			return TokenUsage{}, false
 		}
 		return TokenUsage{InputTokens: record.Message.Usage.Input + record.Message.Usage.CacheCreate + record.Message.Usage.CacheRead}, true
+	case AgentQoder:
+		// Qoder writes Claude's usage shape with every token field 0; its only
+		// occupancy figure is the ratio. A zero ratio is no figure.
+		var record struct {
+			Type        string `json:"type"`
+			IsSidechain bool   `json:"isSidechain"`
+			Message     struct {
+				Usage *struct {
+					Ratio *float64 `json:"context_usage_ratio"`
+				} `json:"usage"`
+			} `json:"message"`
+		}
+		if json.Unmarshal(line, &record) != nil || record.Type != "assistant" || record.IsSidechain || record.Message.Usage == nil || record.Message.Usage.Ratio == nil || *record.Message.Usage.Ratio <= 0 || *record.Message.Usage.Ratio > 1 {
+			return TokenUsage{}, false
+		}
+		return TokenUsage{ContextRatio: *record.Message.Usage.Ratio}, true
 	case AgentGrok:
 		// Each streamed update carries the context occupancy so far; the last
 		// one equals grok's own contextTokensUsed (signals.json). The per-turn
