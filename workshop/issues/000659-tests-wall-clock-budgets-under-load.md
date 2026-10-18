@@ -101,14 +101,15 @@ cost gate now does for the sampler.
 
 ## Done when
 
-- Each of the seven either passes 20 consecutive runs on a deliberately loaded host —
-  the load a full fleet produces, with the generator named in the issue — or skips
-  with a named reason; and no fix is a raised constant.
+- Each of the seven either passes20 consecutive runs (all subtests included) or
+  skips with a named reason. Record actual concurrent fleet work and measured load;
+  the observed-load cohort supports the primary injected-delay proof. No fix is a
+  raised constant, and no target load number or additional load campaign is required.
 - Before each change, a temporary injected delay reproduces the failure the fix
   addresses (#485's rule: prove the race first, then remove it).
 - Every one of the seven names the host state it measured in its failure message.
-- A full `make test` under that same load gives one verdict for these seven, and the
-  run is recorded here with its loadavg.
+- A corrected-head recorded full suite passes. Record its loadavg separately from
+  the repetition cohort; the two runs need not have matching loads.
 
 ## Plan
 
@@ -135,8 +136,9 @@ cost gate now does for the sampler.
 - [x] broadcast `TestPointerRateLimit`: a rate-limit window measured in real time —
       inject the clock or assert the limiter's decision, not a count inside a
       wall-clock window.
-- [x] Soak: 20 runs of the touched packages under the named load generator, plus one
-      full `make test` under the same load, recorded here with its loadavg.
+- [x] Soak:20 runs of the named functions, with actual concurrent work and load
+      recorded, plus a passing recorded full suite with its own measured load.
+      Injected-delay controls are primary proof under the hub-approved Revision.
 
 ## Log
 
@@ -192,3 +194,13 @@ Attempt `c5ff20b0a514c353698bd714be553db5` acquired after711s and **passed exit0
 ### 2026-10-17 — measured-load acceptance
 
 Hub accepted the observed cohort (7b1e37d3-9f5e-4f37-9565-fd234eea0376): injected-delay controls are the primary proof because they reproduce each old failure and show the correction removes that dependency;20 repetitions at the recorded real loads support that proof. Do not chase load100 or run another cohort merely for a larger load number. Record actual loads as above. Land after the recorded suite and normal close/merge gates, subject to #576 preemption.
+
+### 2026-10-17 — close review BR-1/BR-2/BR-3 documentation synchronization
+
+Promote the optional/required probe-verdict helper from the plan's PURE row to test integration, matching its actual environment/diagnostic/testing effects. Synchronize Done when and both plans' load clauses with the already-approved acceptance; no new scope or verification waiver. Preserve the original superseded load clauses here:
+
+> Each of the seven either passes20 consecutive runs on a deliberately loaded host — the load a full fleet produces, with the generator named in the issue — or skips with a named reason; and no fix is a raised constant.
+>
+> A full make test under that same load gives one verdict for these seven, and the run is recorded here with its loadavg.
+
+README's testing guidance now documents the sole new operator-set test switch, `PAIR_REQUIRE_LSOF_CONFORMANCE=1`, including fresh invocation and optional-skip versus required-failure behavior. No production or test source changes after the passing recorded suite. Re-review will dispose BR-1 through BR-3; none is being bypassed.

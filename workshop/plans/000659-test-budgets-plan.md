@@ -22,13 +22,13 @@ The seven groups contain nine top-level functions. Park growth is in couchcore, 
 
 ## Core concepts
 
-| Pure entity | Change | Location | Contract |
-|---|---|---|---|
-| Optional/required probe verdict | New test helper | `cmd/internal/diagnosticlog/proof_test.go` | Unavailable/incomplete can skip optional conformance; required fails; complete wrong answers always fail. |
-| Logical rate decision | Reuse unchanged | `cmd/internal/broadcast/point.go` | Exact burst/refill decisions from explicit time. HTTP test exercises the actual limiter. |
+**Pure entities:** No pure production entity is added or changed. The existing
+`RateLimit.Allow` decision in `cmd/internal/broadcast/point.go` remains unchanged;
+the HTTP test now supplies its logical time through the integration boundary.
 
 | Integration | Files | Seam |
 |---|---|---|
+| Optional/required probe verdict | `cmd/internal/diagnosticlog/proof_test.go` | Test integration helper reads environment policy, reports through testing.T and samples host diagnostics. Its policy checks launch subprocesses; it is not PURE. |
 | Failure-only host diagnostics | `cmd/internal/testwait/host.go`, platform helpers/tests | Best-effort bounded load/CPU/runtime metadata; explicit unavailable reason. No authority. |
 | HTTP rate clock | `broadcast/server.go`, `session.go`, `pointer_test.go` | Inject logical limiter time, reusing Config.Now; default time.Now. Real socket read deadlines stay real. |
 | Recovery fixture | `couchcore/slotrecovery_test.go`, `recovery_fresh_missing_test.go` | Existing SlotCatalogFake before initial Discover; separate slow-tool refusal control. |
@@ -83,7 +83,7 @@ Cancellation never becomes success; unknown evidence never authorizes mutation/d
 ## Architecture and envelope
 
 - **ARCH-DRY:** reuse fakes, clock, testwait and existing deadline seams; one diagnostic helper.
-- **ARCH-PURE:** rate decisions and verdict classification use explicit input; waits at IO/test boundary.
+- **ARCH-PURE:** existing rate decisions remain pure; clock delivery and optional/required verdict reporting belong to IO/test integration, including environment reads, subprocess tests and host diagnostics.
 - **ARCH-PURPOSE:** all seven groups/nine functions; no skipping semantic correctness.
 - **ARCH-MOCK:** stateful catalog/runner/fake CLI, gated stall evidence; required lsof mode checks native contract.
 - **ARCH-CONSTRAINTS:** no speed claims in normal tests. Test patience bounded by go-test deadline. Failure sampling bounded, off success paths. Sequential repetitions, no unbounded CPU burner.
@@ -101,6 +101,14 @@ No new production hot path: rate checks O(1), unchanged UI tick read/decode0 at2
 - [x] Run `go test ./cmd/internal/couchcore -run 'Test(RecoveryFreshOrdinarySlotKeepsOrdinaryLaunch|RecoveryFreshMissingRecordLeavesForeignOwnersUntouched|ParkHelperAttachmentRequiresClientGrowth|ParkClientCountQueryContract)' -count=1`; all ownership/growth checks pass.
 - [x] Run `go test ./cmd/internal/couchcmd ./cmd/internal/clipcmd -run 'Test(ContinuationWriterPublishesExactCheckpointAcrossWorktrees|ClipboardCopyConsoleKeysReachContentFreeFactLog|.*Clipboard.*)' -count=1`; exact checkpoint and typed metadata pass.
 - [x] Run `go test ./cmd/internal/couchtty ./cmd/internal/diagnosticlog -run 'Test(WorkbenchPerformanceIdleUITick|ConsoleActivity.*|OpenFileInspectionConformance|UnregisteredChildOpenFileBlocksLegacyExpiry)' -count=1`; count invariants pass, native pass/named optional skip. Run required lsof mode separately and retain verdict.
-- [x] Run all nine named functions20 times, subtests included. Generate load with one normal gate-controlled make -k suite alongside sequential targeted repetitions, name commands and measured load. Don't claim near100 if not observed; ask hub if fleet load is insufficient for the issue's acceptance. Injected delays are separate proof, not a substitute load claim.
-- [x] Push head, run recorded suite `sdlc local-check run --name suite` with make -k under the same named load when practical. Retain all failures and follow flake rule. No early exit on cited failures.
+- [x] Run all nine named functions20 times, subtests included, and record actual concurrent fleet work/load. Per the hub's accepted Revision, injected-delay controls are primary proof and the measured-load cohort supports it; neither load100 nor another campaign is required.
+- [x] Push head and pass the recorded suite `sdlc local-check run --name suite`; record its actual load separately from the repetition cohort. Complete all checks, retain failures and follow the flake rule.
 - [ ] Update issue/atlas for any new seam, close through mandatory review, land on SHIP with `sdlc merge --yes`, report merge/PR. #576 preemption overrides continuation at any point.
+
+## Revisions
+
+### 2026-10-17 — close review BR-1/BR-2: classification and accepted evidence
+
+The initial table called the optional/required verdict a pure entity. Its implemented helper reads `os.Getenv`, emits testing verdicts and may sample host diagnostics; its policy tests execute subprocesses. Classify that whole helper and its checks as test integration. No pure extraction or production change is needed; the existing pure rate decision is reused unchanged (ARCH-PURE).
+
+The original task rows proposed a deliberately generated load cohort and a suite under the same load. Hub delivery 7b1e37d3-9f5e-4f37-9565-fd234eea0376 accepted the actual observed-load repetitions as support for the primary injected-delay controls and explicitly said not to chase100. Synchronize active task wording with that approved decision; keep repetition and suite loads separately recorded. The issue Revisions preserves the original acceptance wording.

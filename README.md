@@ -1845,6 +1845,17 @@ all tests finish. Private executable names use hard links (copies across
 filesystems). Standalone shell consumers use the same builder, which locates
 its checkout independently of the caller's working directory.
 
+Native diagnostic-log open-file conformance skips with a named reason when `lsof`
+cannot provide a complete observation. Require fresh native evidence with:
+
+```bash
+PAIR_REQUIRE_LSOF_CONFORMANCE=1 go test ./cmd/internal/diagnosticlog -count=1 \
+  -run 'Test(OpenFileInspectionConformance|UnregisteredChildOpenFileBlocksLegacyExpiry)$'
+```
+
+Required mode fails instead of skipping an unavailable/incomplete probe. A complete
+answer with a wrong holder or process identity fails in both modes.
+
 Pair and wrapper subprocess fixtures use `testpair.Environment(t, disposableRoot,
 explicitEntries...)`. It delegates to `tests/lib/pair-test-env.sh`, the shared
 empty-environment owner for Go, shell and Python tests: only host PATH, disposable
