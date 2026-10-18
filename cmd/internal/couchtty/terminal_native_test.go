@@ -69,6 +69,7 @@ func runNativeConsoleJoin(t *testing.T, wrapped bool) {
 	// which writes under dir. Join it by its pidfile before removing dir.
 	var wrapPIDPath string
 	var agentPID int
+	var detachedOutput []byte
 	t.Cleanup(func() {
 		if raw, err := os.ReadFile(wrapPIDPath); err == nil {
 			if pid, err := strconv.Atoi(strings.SplitN(strings.TrimSpace(string(raw)), ":", 2)[0]); err == nil && pid > 0 {
@@ -150,18 +151,10 @@ func runNativeConsoleJoin(t *testing.T, wrapped bool) {
 		if t.Failed() {
 			logNativeReattachObservation(t, "failure-before-cleanup", dir, session, child, agentPID)
 			logNativeServerTail(t, dir)
-			for name, data := range map[string][]byte{"child.raw": child.Snapshot(), "parent.raw": []byte(host.Written())} {
-				t.Logf("native %s bytes=%d diagnostic-prefix=%q", name, len(data), nativeEvidenceDiagnostic(data))
+			for _, evidence := range collectNativeFailureEvidence(child, []byte(host.Written()), detachedOutput, filepath.Join(dir, "wrapper.log"), receipts) {
+				t.Logf("native %s tail-bytes=%d read=%v diagnostic-tail=%q", evidence.name, len(evidence.data), evidence.err, evidence.data)
 			}
-			for name, path := range map[string]string{"wrapper.log": filepath.Join(dir, "wrapper.log"), "receipts.txt": receipts} {
-				data, err := os.ReadFile(path)
-				if err != nil {
-					t.Logf("native %s read: %v", name, err)
-					continue
-				}
-				t.Logf("native %s bytes=%d diagnostic-prefix=%q", name, len(data), nativeEvidenceDiagnostic(data))
-			}
-			t.Log("native failure diagnostics are bounded test-report prefixes; no failure artifacts are retained")
+			t.Log("native failure diagnostics are bounded latest test-report tails; no failure artifacts are retained")
 		}
 		// Console owns accepted children until presentation release. Join it
 		// before killing the private server or disposing any terminal handle.
@@ -272,6 +265,7 @@ func runNativeConsoleJoin(t *testing.T, wrapped bool) {
 	waitFor(t, "original in-memory state", func() bool {
 		return strings.Contains(readReceipts(), "STATE="+boot+":1\n") && strings.Contains(host.childArea(), "persistent-counter=1")
 	})
+	t.Logf("native original actor boot=%s state=1", boot)
 	captureNativeReattachEvidence(t, evidenceDir, "before-detach", child)
 	t.Logf("persistent reattach exact child wire/frame scratch (wrapped=%t; removed at test completion): %s", wrapped, evidenceDir)
 	var brokerBinding []byte
@@ -290,9 +284,9 @@ func runNativeConsoleJoin(t *testing.T, wrapped bool) {
 	detach.Env = testpair.Environment(t, dir, env...)
 	detachedOutput, detachErr := detach.CombinedOutput()
 	cancelDetach()
-	t.Logf("native detach command result=%v output-tail=%q", detachErr, nativeEvidenceDiagnostic(detachedOutput))
+	t.Logf("native detach command result=%v output-tail=%q", detachErr, nativeDiagnosticByteTail(detachedOutput))
 	if detachErr != nil {
-		t.Fatalf("private Zellij detach: %v %s", detachErr, detachedOutput)
+		t.Fatalf("private Zellij detach: %v; output retained in bounded diagnostics", detachErr)
 	}
 	select {
 	case <-oldChild.Exited():

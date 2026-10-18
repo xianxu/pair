@@ -23,11 +23,33 @@ func nativeReattachFailure(child *ptychild.Child, ready bool) error {
 }
 
 func nativeChildWireTail(child *ptychild.Child) []byte {
-	wire := child.Snapshot()
+	return nativeDiagnosticByteTail(child.Snapshot())
+}
+
+func nativeDiagnosticByteTail(wire []byte) []byte {
 	if len(wire) > nativeDiagnosticTailBytes {
 		wire = wire[len(wire)-nativeDiagnosticTailBytes:]
 	}
 	return wire
+}
+
+type nativeFailureEvidence struct {
+	name string
+	data []byte
+	err  error
+}
+
+func collectNativeFailureEvidence(child *ptychild.Child, parent, detachOutput []byte, wrapperPath, receiptsPath string) []nativeFailureEvidence {
+	items := []nativeFailureEvidence{
+		{name: "child.raw", data: nativeChildWireTail(child)},
+		{name: "parent.raw", data: nativeDiagnosticByteTail(parent)},
+		{name: "detach.output", data: nativeDiagnosticByteTail(detachOutput)},
+	}
+	for _, item := range []struct{ name, path string }{{"wrapper.log", wrapperPath}, {"receipts.txt", receiptsPath}} {
+		raw, err := readNativeDiagnosticTail(item.path)
+		items = append(items, nativeFailureEvidence{name: item.name, data: raw, err: err})
+	}
+	return items
 }
 
 func readNativeDiagnosticTail(path string) ([]byte, error) {
@@ -141,5 +163,37 @@ func TestReadNativeDiagnosticTailKeepsBoundedLatestBytes(t *testing.T) {
 	}
 	if _, err := readNativeDiagnosticTail(path + ".missing"); !os.IsNotExist(err) {
 		t.Fatalf("missing log became successful empty evidence: %v", err)
+	}
+}
+
+func TestNativeFailureCollectionRetainsLatestExitMarkers(t *testing.T) {
+	makeStream := func(marker string) []byte {
+		return append(bytes.Repeat([]byte("old"), nativeDiagnosticTailBytes), []byte(marker)...)
+	}
+	child := ptychild.NewFakeChild(makeStream("child-final"))
+	t.Cleanup(func() { _ = child.Close() })
+	dir := t.TempDir()
+	wrapper, receipts := filepath.Join(dir, "wrapper"), filepath.Join(dir, "receipts")
+	for path, marker := range map[string]string{wrapper: "wrapper-final", receipts: "EXIT=signal:SIGHUP\n"} {
+		if err := os.WriteFile(path, makeStream(marker), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	items := collectNativeFailureEvidence(child, makeStream("parent-final"), makeStream("detach-final"), wrapper, receipts)
+	want := []string{"child-final", "parent-final", "detach-final", "wrapper-final", "EXIT=signal:SIGHUP\n"}
+	if len(items) != len(want) {
+		t.Fatalf("collected %d evidence streams, want %d", len(items), len(want))
+	}
+	for i, item := range items {
+		if item.err != nil || len(item.data) > nativeDiagnosticTailBytes || !bytes.HasSuffix(item.data, []byte(want[i])) {
+			t.Errorf("%s lost final exit marker: bytes=%d err=%v", item.name, len(item.data), item.err)
+		}
+	}
+	if err := os.Remove(receipts); err != nil {
+		t.Fatal(err)
+	}
+	items = collectNativeFailureEvidence(child, nil, nil, wrapper, receipts)
+	if !os.IsNotExist(items[4].err) {
+		t.Fatalf("missing receipt became successful empty evidence: %v", items[4].err)
 	}
 }

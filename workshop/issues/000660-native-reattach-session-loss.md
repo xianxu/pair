@@ -46,7 +46,7 @@ Land the approved diagnostic stage so the next native reattach discovery failure
 - [x] Classify the original failed job from its complete retained log and inspect the exact upstream 0.45.1 source before selecting a fix.
 - [x] Add bounded, fixture-owned detach/reattach observations and deterministic tests of diagnostic collection and early child-exit reporting; preserve all same-process/frame assertions.
 - [x] Run the one granted private direct/wrapped conformance attempt, record both results and release the lane.
-- [x] Record the full suite and native evidence for normal close review; leave the unresolved-cause handoff ready for parking after diagnostic landing.
+- [ ] Record the corrected head's full suite and native evidence for normal close review; leave the unresolved-cause handoff ready for parking after diagnostic landing.
 
 ## Log
 
@@ -82,7 +82,19 @@ Early draft PR429 opened under the standing CI-overlap authorization. Submitted 
 
 Recorded pre-close suite on pushed 892d4d74271c1d7281c9f3c68f8a343d3443ef70 passed exit 0 in 13m59s, log SHA256 prefix b0f5f3215d84, attempt 3c238d9a21bbcf478fa82ee4c080d288. Queue admission waited 256s; all Make prerequisites and final Go packages completed. Saved log: `.git/sdlc/local-checks/892d4d74271c1d7281c9f3c68f8a343d3443ef70/suite.log` in the common Git directory. No suite failure or retry. PR429 server checks on that head are green: macOS conformance 3m13s (run39131116219/job117686307893), merge-check 1m20s and local-gates-guard 11s. Code remains unchanged since the tested diagnostic stage; subsequent changes are this evidence and close preparation. Normal close review has not run yet. The final Plan checkbox records verification preparation, not a premature review/landing claim.
 
+### 2026-10-18 — close BR-1, bounded latest diagnostic consumers
+
+First close review returned FIX-THEN-SHIP with one Important finding, BR-1 / bounded-latest-diagnostic-evidence, so the close was not finalized. Verified the finding: the cleanup reporter still used the old 4096-byte prefix for child.raw, parent.raw, wrapper.log and receipts.txt, which could omit appended EXIT receipts. Detach output was also mislabeled as a tail and printed unbounded again on failure. No dispute or bypass.
+
+Swept that entire family through one failure collector: child wire, parent wire, detach output, wrapper log and actor receipts now retain at most 8192 latest bytes, preserving file read failures. The actual cleanup reporter calls this collector. Both detach success and failure reporting use the same byte-tail rule; the old full-body duplicate is removed. Old/dead-client and private-server diagnostics reuse the same tail/file helpers. Original boot identity is logged separately before detach so it survives a long receipt stream. The sole remaining prefix helper in terminal_native_test.go formats the first differing serialized viewport cells for a frame-comparison failure; it is not an event-history consumer.
+
+New regression through the failure collector first failed for all four old prefix streams (each lost its distinct final marker), then passed after the sweep, including fifth-stream detach output and missing-receipt errors. Targeted combined tests pass in 1.208s; the corresponding race run passes in 3.569s. The original native sample is not rerun: this correction changes diagnostic collection/reporting only, and the one granted native lane use is already spent. A fresh required full suite and updated macOS CI will cover the corrected code before close round 2. The first full-suite pass remains retained; it does not stand in for this corrected head.
+
 ## Revisions
+
+### 2026-10-18 — BR-1 consumer sweep
+
+Retain the same diagnostic-only scope and unresolved-cause handoff. Add the complete five-stream failure-collector regression and replace every event-history prefix consumer, including detach error reporting, with bounded latest evidence. Original frame-comparison prefix diagnostics remain intentional. This is the review-required completion of the approved observations, not a production fix or native-reproduction expansion.
 
 ### 2026-10-18 — approved diagnostic landing, underlying cause parked
 
