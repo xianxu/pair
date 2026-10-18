@@ -41,9 +41,11 @@ Hub approved this scope in delivery c4bfa120-b5ef-4b05-aa04-71fb3bdd09c8. Land a
 
 ## Plan
 
-- [ ] Pin the production failure and write a real-filesystem regression with a valid exact root plus over 10,000 unrelated entries; observe the current refusal.
-- [ ] Reuse target-validation and bounded IO seams to inspect only the requested transcript, preserving canonical identity and root-role checks.
-- [ ] Verify rejection and operation-count coverage, run required gates, and land after #651.
+- [x] Pin the production failure and write a real-filesystem regression with a valid exact root plus over 10,000 unrelated entries; observe the current refusal.
+- [x] Reuse target-validation and bounded IO seams to inspect only the requested transcript, preserving canonical identity and root-role checks.
+- [x] Verify rejection, operation-count and descriptor-closure coverage with targeted tests and races.
+
+Recorded suite, fresh close review and landing after #651 remain owned by the SDLC gates and are tracked explicitly in the Log below; none is claimed complete by this implementation checklist.
 
 ## Log
 
@@ -82,3 +84,5 @@ item: milestone-review design=0.04 impl=0.2
 design-buffer: 0.15
 total: 1.652
 ```
+
+- 2026-10-18: Administrative checklist correction before review: marked the completed implementation/proof rows, and separated binary-owned future suite/review/landing actions from the implementation checkbox. The former combined final row included landing itself, which cannot truthfully be completed before close. Required suite/review/landing remain pending; no Done-when or behavior changed and no gate waived. Recorded suite 907d54f19ccae6af958231d13de55c20 is queued on source ed5cae96d. Named exact-head catalog passed 2587 sources in 4.794 s; output /tmp/pair-676-exact-head-catalog.log SHA256 fa4148b86f9c8c402109e19d9da955688e6899f66d78cfcf9a13315a476fc707. Hub granted fleet-blocking landing priority in delivery dcff9fe4-256a-4513-81ea-cd98d44e7954; land only after suite pass and SHIP, after #651.
