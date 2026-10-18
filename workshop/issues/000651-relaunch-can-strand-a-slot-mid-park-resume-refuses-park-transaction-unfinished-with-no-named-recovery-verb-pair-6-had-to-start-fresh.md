@@ -7,7 +7,7 @@ created: 2026-10-17
 updated: 2026-10-18
 estimate_hours: 2.5965
 collaboration-mode: collaboration
-card_mirror: '61d778babf93fcfe0e73fa9bed45f31535d72243' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'a94c3002bf2c3b35e61fe135cf6f84bb3523ed73' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-17T13:48:48-07:00
 claimant:
     operator: Xian Xu
@@ -17,7 +17,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: operator}
-actual_hours: 3.16
+actual_hours: 3.86
 ---
 
 # Relaunch can strand a slot mid-park: resume refuses 'park transaction unfinished' with no named recovery verb (pair:6 had to start fresh)
