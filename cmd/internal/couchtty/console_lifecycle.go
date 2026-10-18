@@ -98,6 +98,11 @@ func (c *Console) observeLifecycleCompletion(completed operationCompletion, addr
 			if _, recovery := completed.value.(couchcore.RecoveryResumeResult); recovery {
 				e.Kind, e.Mode = "recovered", "Resume"
 			}
+			// A confirmed replacement is a new usability episode even if it
+			// becomes unusable before the next live inventory reaches Console.
+			c.mu.Lock()
+			delete(c.lifecycleNeeds, lifecycleEvidenceKey(e.Address, e.Target))
+			c.mu.Unlock()
 		}
 	}
 	if parked, ok := completed.value.(couchcore.ParkResult); ok && err == nil && parked.Thread.VerifiedPark != nil {
@@ -147,10 +152,7 @@ func (c *Console) observeLifecyclePass() {
 
 func (c *Console) observeLifecycleInventory(rows []couchcore.ActionableThreadSummary) {
 	for _, row := range rows {
-		key := row.Target.Slot.WorktreeRoot
-		if key == "" {
-			key = row.Address.RepoScope + ":" + string(row.Address.Tag)
-		}
+		key := lifecycleEvidenceKey(row.Address, row.Target)
 		c.mu.Lock()
 		if c.lifecycleNeeds == nil {
 			c.lifecycleNeeds = map[string]bool{}
@@ -181,4 +183,11 @@ func (c *Console) observeLifecycleInventory(rows []couchcore.ActionableThreadSum
 		e.Incarnation = strings.Join([]string{row.Address.RepoScope, string(row.Address.Tag), "needs-relaunch"}, ":")
 		c.emitLifecycle(e)
 	}
+}
+
+func lifecycleEvidenceKey(address couchcore.ThreadAddress, target couchcore.ThreadTarget) string {
+	if target.Kind == couchcore.ThreadTargetSlot {
+		return target.Slot.WorktreeRoot
+	}
+	return address.RepoScope + ":" + string(address.Tag)
 }

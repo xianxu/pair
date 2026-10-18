@@ -171,3 +171,23 @@ func TestLifecycleMetadataAddresslessSlotsMatchOnlyNamedPath(t *testing.T) {
 		t.Fatalf("unknown address selected a slot: %+v", unknown)
 	}
 }
+
+func TestLifecycleNewAdoptionResetsPreviousNeedsRelaunchEvidence(t *testing.T) {
+	c := New(hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 80}), nil)
+	t.Cleanup(c.Stop)
+	row := menuSlotRow(1, "slot")
+	row.Reason = couchcore.ReasonNeedsRelaunch
+	c.mu.Lock()
+	c.menu = NewMenuState([]couchcore.ActionableThreadSummary{row}, row.Address)
+	c.mu.Unlock()
+	var events []LifecycleObservation
+	c.SetLifecycleObserver(func(e LifecycleObservation) { events = append(events, e) })
+	c.observeLifecycleInventory([]couchcore.ActionableThreadSummary{row})
+	c.SetOperationDispatcher(func(couchcore.OperationCall) (any, error) { return nil, nil })
+	c.finishOperation(operationCompletion{origin: MenuOperationOrigin{Operation: "resume", Attempt: 1}, value: couchcore.StartResult{Record: couchcore.ActorRecord{Thread: row.Address, PID: 123, Identity: "new", Args: couchcore.StartArgs{Worktree: couchcore.Worktree(row.Target.Slot.WorktreeRoot)}}}})
+	// The replacement becomes unusable before a live inventory is accepted.
+	c.observeLifecycleInventory([]couchcore.ActionableThreadSummary{row})
+	if len(events) != 3 || events[0].Kind != "needs-relaunch" || events[1].Kind != "resumed" || events[2].Kind != "needs-relaunch" {
+		t.Fatalf("old incarnation suppressed replacement state: %+v", events)
+	}
+}
