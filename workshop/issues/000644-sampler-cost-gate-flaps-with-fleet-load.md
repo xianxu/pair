@@ -278,6 +278,37 @@ One more argument for bounding the cold pass by work rather than CPU, from run 1
 cold pass's absolute CPU is not reproducible even at a matched loadavg — memory pressure and what the
 other slots are doing move it too. Its call count is reproducible, which is what the bound now uses.
 
+**Full-suite record, attempt 1 on head `6a7940eec`: red, and not from this change.** `sdlc local-check run
+--name suite` waited 494 s for a full-suite slot, then ran 19m51s and exited 2 (make pid 34945,
+22:13:31-22:33). Seven tests failed across five packages, and every one is a timeout or a missing-tool
+verdict rather than a wrong answer:
+
+| package | test | verdict |
+|---------|------|---------|
+| broadcast | `TestPointerRateLimit` | "only 11 of 50 rapid posts were limited" |
+| couchcmd | `TestContinuationWriterPublishesExactCheckpointAcrossWorktrees/warm-reattached` | "signal: killed"; the fixture's push reports "'origin' does not appear to be a git repository" |
+| couchcmd | `TestClipboardCopyConsoleKeysReachContentFreeFactLog` (both console-key subtests) | "missing real execution evidence", ElapsedMS 1108 and 2177 |
+| couchcmd | `TestParkHelperAttachmentRequiresClientGrowth` (both subtests) | "zellij --session pair-readiness action list-clients: context deadline exceeded" |
+| couchcore | `TestRecoveryFreshOrdinarySlotKeepsOrdinaryLaunch`, `TestRecoveryFreshMissingRecordLeavesForeignOwnersUntouched/arrives-during-prepare` | "git worktree list --porcelain -z: timed out after 5s: signal: terminated" |
+| couchtty | `TestWorkbenchPerformanceIdleUITick` | eight activity probes "context deadline exceeded" at 2.3-6.1 s each, then "activity worker did not finish" |
+| diagnosticlog | `TestOpenFileInspectionConformance`, `TestUnregisteredChildOpenFileBlocksLegacyExpiry` | "lsof unavailable or incomplete" |
+
+This change cannot reach any of them. The branch patch is five files — `resources_test.go` (whose
+`TestResourceSamplerNativeCost` is env-gated and skipped in a suite run), the two new `hostLoadAverage`
+files, `atlas/couch.md` and this issue — and `go test ./cmd/internal/procutil` passed in the same run
+(1.306 s). What the run did have was load: `sysctl vm.loadavg` read `{ 5.40 78.11 97.03 }` at 22:34, right
+after the run, so the 5- and 15-minute averages across the window were 78 and 97 while ariadne's sharded
+suite and other slots were also running. A 5 s `git worktree list` budget, a zellij IPC deadline, an `lsof`
+walk and a rate limiter's real-time window are exactly what a loadavg near 100 consumes.
+
+Retained: `/tmp/pair644-suite-attempt1.log` and the record's own copy at
+`/Users/xianxu/workspace/pair/.git/sdlc/test-stats/failed/dbdf8d64d556e87195180367761a97a2.log`. Today's
+other failed suite logs on this machine (19:46, 17:55, 16:13, 15:28, 12:48) fail *different* tests —
+their owners' in-flight conformance work — so this is not a repeat of one known red.
+
+Attempt 2 is the same head, unchanged, queued only after pair:3 released the two full-suite tokens for
+its quiet pair#658 run: a rerun inside another slot's quiet window would load both runs and prove nothing.
+
 ## Revisions
 
 - 2026-10-17, after the hub's plan approval: the atlas bullet dropped its measured milliseconds. The plan
