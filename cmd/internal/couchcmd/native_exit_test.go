@@ -1,12 +1,19 @@
 package couchcmd
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"strings"
 	"sync"
 	"testing"
+	"time"
 
+	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
+	"github.com/xianxu/pair/cmd/internal/couchtty"
+	"github.com/xianxu/pair/cmd/internal/hostty"
+	"github.com/xianxu/pair/cmd/internal/ptychild"
 )
 
 func nativeExitRequest(b couchmessage.Binding, ordinal uint64, identity string, code int) couchmessage.Request {
@@ -36,7 +43,7 @@ func newExitRig(t *testing.T) (*exitRig, couchmessage.Binding) {
 		defer e.mu.Unlock()
 		return e.ordinal, e.identity, nil
 	}
-	exited := func(_ couchmessage.Binding, report couchmessage.NativeExit) {
+	exited := func(_ couchmessage.Binding, _ couchcore.WorkspaceIdentity, report couchmessage.NativeExit) {
 		e.mu.Lock()
 		e.exits = append(e.exits, report)
 		e.mu.Unlock()
@@ -140,5 +147,42 @@ func TestNativeExitWithoutChildEvidenceIsUnsupported(t *testing.T) {
 	e.s.authority.child = nil
 	if got := e.call(t, nativeExitRequest(worker, 1, "100:child-one", 0)); got.Code != "unsupported" || e.count() != 0 {
 		t.Fatalf("no evidence seam: %+v, %d facts", got, e.count())
+	}
+}
+
+// The whole chain the Done-when names (close review BR-2): a wrapper's
+// native-exit report reaches the owning hub as one lifecycle system notice,
+// through the production wiring (handler, Console sequence, publisher).
+func TestNativeExitReachesTheHubAsOneLifecycleNotice(t *testing.T) {
+	ep := newControlledEndpoint()
+	r, publisher, _ := lifecyclePublisherRig(t, ep)
+	worker := r.world.add(2)
+	r.attach(worker, "worker")
+	r.wrapper(worker)
+	r.waitConnected(worker, true)
+	console := couchtty.New(hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 80}), bytes.NewReader(nil))
+	t.Cleanup(func() { console.Stop(); console.Run() })
+	console.SetLifecycleObserver(publisher.observe)
+	wireNativeExitNotices(r.s, console)
+	r.s.authority.child = func(context.Context, couchmessage.Binding) (uint64, string, error) { return 5, "500:child", nil }
+
+	var response couchmessage.Response
+	if err := couchmessage.Call(context.Background(), r.brokerSock, nativeExitRequest(worker, 5, "500:child", 3), &response); err != nil || response.Code != "ok" {
+		t.Fatalf("report: %+v %v", response, err)
+	}
+	m := lifecycleNextMessage(t, ep)
+	if m.Origin != couchmessage.OriginSystem || !strings.Contains(m.Body, worker.Slot+": exited (code 3)") {
+		t.Fatalf("hub notice: %+v", m)
+	}
+	ep.finish <- couchmessage.Receipt{Status: couchmessage.Submitted}
+	lifecycleCanonicalSubmitted(t, r, m)
+	// The duplicate report posts nothing more.
+	if err := couchmessage.Call(context.Background(), r.brokerSock, nativeExitRequest(worker, 5, "500:child", 3), &response); err != nil || response.Code != "ok" {
+		t.Fatalf("duplicate: %+v %v", response, err)
+	}
+	select {
+	case extra := <-ep.started:
+		t.Fatalf("a duplicate report posted again: %+v", extra)
+	case <-time.After(300 * time.Millisecond):
 	}
 }

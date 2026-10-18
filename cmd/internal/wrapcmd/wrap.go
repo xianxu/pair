@@ -3098,11 +3098,7 @@ argsDone:
 	}
 	// The child is reaped and the registry session is still open (peerRun
 	// closes in the deferred cleanup): report a self exit now (pair#657).
-	if peerRun != nil && classifyChildExit(p.restartFresh.Load(), p.stoppedByWrapper.Load()) == childExitSelf {
-		if code, ok := childExitCode(werr); ok {
-			p.reportNativeExit(peerRun, code)
-		}
-	}
+	p.afterChildReaped(peerRun, werr)
 	if p.restartFresh.Load() {
 		executable, err := os.Executable()
 		if err != nil {

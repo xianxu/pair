@@ -256,9 +256,10 @@ func TestLifecycleNativeExitObservation(t *testing.T) {
 	t.Cleanup(c.Stop)
 	var events []LifecycleObservation
 	c.SetLifecycleObserver(func(e LifecycleObservation) { events = append(events, e) })
-	c.ObserveNativeExit(menuAddress("worker"), "3:child", 3)
-	c.ObserveNativeExit(menuAddress("worker"), "4:child", 0)
-	if len(events) != 2 || events[0].Kind != "exited" || events[0].Mode != "code 3" || events[0].Incarnation != "3:child" || events[0].Address != menuAddress("worker") {
+	target := couchcore.ThreadTarget{Kind: couchcore.ThreadTargetSlot, Slot: couchcore.SlotIdentity{Repo: "pair", Number: 2, WorktreeRoot: "/repo2"}}
+	c.ObserveNativeExit(menuAddress("worker"), target, "3:child", 3)
+	c.ObserveNativeExit(menuAddress("worker"), target, "4:child", 0)
+	if len(events) != 2 || events[0].Kind != "exited" || events[0].Mode != "code 3" || events[0].Incarnation != "3:child" || events[0].Address != menuAddress("worker") || events[0].Target != target || events[0].Path != "/repo2" {
 		t.Fatalf("exit observations: %+v", events)
 	}
 	if events[1].Observation <= events[0].Observation {

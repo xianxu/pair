@@ -49,8 +49,13 @@ func (c *Console) emitLifecycle(e LifecycleObservation) {
 // ObserveNativeExit emits a confirmed native agent exit (pair#657). Couch
 // calls it only after verifying the wrapper's report against the current
 // launch; the Console adds slot metadata and the per-slot observation order.
-func (c *Console) ObserveNativeExit(address couchcore.ThreadAddress, incarnation string, exitCode int) {
-	e := c.lifecycleMetadata(address, "")
+// target is the caller's verified slot; it stands in when the Console has no
+// row for the slot, so the fact is never dropped for missing metadata.
+func (c *Console) ObserveNativeExit(address couchcore.ThreadAddress, target couchcore.ThreadTarget, incarnation string, exitCode int) {
+	e := c.lifecycleMetadata(address, target.Slot.WorktreeRoot)
+	if e.Target.Kind == "" {
+		e.Target = target
+	}
 	e.Kind, e.Incarnation, e.Mode = "exited", incarnation, fmt.Sprintf("code %d", exitCode)
 	c.emitLifecycle(e)
 }

@@ -3,6 +3,7 @@ package wrapcmd
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -69,31 +70,34 @@ func startOwnedChild(t *testing.T, script string) *ownedGroup {
 	return newOwnedGroup(cmd, time.Second)
 }
 
-// The owned-child conformance check (pair#657): a real child exits on its
-// own, the owned group reaps it, and exactly one native-exit report reaches
-// the broker with the child's exit code and recorded launch; a child the
-// wrapper stops (a signal) sends none.
+// The owned-child conformance check (pair#657), through run's own decision
+// (afterChildReaped): a real child that exits on its own, reaped by the owned
+// group, sends exactly one native-exit report with its exit code and recorded
+// launch; a child the wrapper stops (SIGHUP) or restarts (SIGUSR2) sends none,
+// and so does a wait error or a wrapper without a registry session.
 func TestNativeExitReportOwnedChildConformance(t *testing.T) {
 	t.Setenv("PAIR_LAUNCH_ORDINAL", "4")
 	namespace, requests := fakeBroker(t, "ok", 0)
 	rt := &peerRuntime{binding: exitBinding(), namespace: namespace}
 	file, _ := os.Create(filepath.Join(t.TempDir(), "wrap.jsonl"))
 	defer file.Close()
+	none := func(what string) {
+		t.Helper()
+		select {
+		case r := <-requests:
+			t.Fatalf("%s reported: %+v", what, r)
+		default:
+		}
+	}
 
 	p := &proxy{agentBasename: "codex", wrapEventsFD: file, readyProcessIdentity: "123:child"}
 	group := startOwnedChild(t, "exit 3")
 	// run calls Wait only after the PTY master reaches EOF, that is, after the
 	// child has exited; Wait's stop signal then cannot change its status.
 	time.Sleep(300 * time.Millisecond)
-	werr := group.Wait()
-	if classifyChildExit(p.restartFresh.Load(), p.stoppedByWrapper.Load()) != childExitSelf {
-		t.Fatal("a self exit classified otherwise")
+	if !p.afterChildReaped(rt, group.Wait()) {
+		t.Fatal("a self exit was not reported")
 	}
-	code, ok := childExitCode(werr)
-	if !ok || code != 3 {
-		t.Fatalf("exit code %d ok=%v (%v)", code, ok, werr)
-	}
-	p.reportNativeExit(rt, code)
 	select {
 	case r := <-requests:
 		report, err := couchmessage.ParseNativeExit(r.Body)
@@ -103,25 +107,23 @@ func TestNativeExitReportOwnedChildConformance(t *testing.T) {
 	default:
 		t.Fatal("no native-exit report")
 	}
+	none("a single self exit twice")
 
-	// A child the wrapper stops is not the agent leaving.
-	stopped := &proxy{agentBasename: "codex", wrapEventsFD: file, readyProcessIdentity: "124:child"}
-	group = startOwnedChild(t, "sleep 30")
-	locks := newWrapperNativeLocks(t.TempDir(), "codex", "test")
-	defer locks.Close()
-	stopped.stopForSignal(syscall.SIGHUP, locks, group)
-	werr = group.Wait()
-	if classifyChildExit(stopped.restartFresh.Load(), stopped.stoppedByWrapper.Load()) != childExitStopped {
-		t.Fatal("a wrapper-stopped child classified as a self exit")
+	for _, sig := range []syscall.Signal{syscall.SIGHUP, syscall.SIGUSR2} {
+		stopped := &proxy{agentBasename: "codex", wrapEventsFD: file, readyProcessIdentity: "124:child"}
+		group := startOwnedChild(t, "sleep 30")
+		locks := newWrapperNativeLocks(t.TempDir(), "codex", "test")
+		stopped.stopForSignal(sig, locks, group)
+		if stopped.afterChildReaped(rt, group.Wait()) {
+			t.Fatalf("a child stopped by %v was reported", sig)
+		}
+		locks.Close()
+		none(sig.String())
 	}
-	if code, ok := childExitCode(werr); !ok || code < 128 {
-		t.Fatalf("a signalled child reports code %d ok=%v", code, ok)
+	if p.afterChildReaped(rt, errors.New("wait failed")) || p.afterChildReaped(nil, nil) {
+		t.Fatal("a wait error or a missing registry session was reported")
 	}
-	select {
-	case r := <-requests:
-		t.Fatalf("a stopped child reported: %+v", r)
-	default:
-	}
+	none("a wait error")
 }
 
 // An older Couch refuses the unknown operation, and a Couch that never

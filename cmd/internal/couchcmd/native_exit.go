@@ -2,8 +2,11 @@ package couchcmd
 
 import (
 	"context"
+	"fmt"
 
+	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
+	"github.com/xianxu/pair/cmd/internal/couchtty"
 )
 
 type nativeExitRecord struct {
@@ -64,8 +67,31 @@ func (s *messageService) handleNativeExit(ctx context.Context, r couchmessage.Re
 	}
 	s.exits.records[caller.Slot] = nativeExitRecord{Binding: caller, LaunchOrdinal: report.LaunchOrdinal}
 	s.exits.Unlock()
-	if exited := s.exited.Load(); exited != nil && *exited != nil {
-		(*exited)(caller, report)
+	s.mu.Lock()
+	slot, known := s.workspaces[caller]
+	s.mu.Unlock()
+	if exited := s.exited.Load(); exited != nil && *exited != nil && known {
+		(*exited)(caller, slot, report)
 	}
 	return couchmessage.Response{Code: "ok"}
+}
+
+// wireNativeExitNotices routes admitted native exits through the Console, so
+// each takes its place in the Console's per-slot observation order, then to
+// the lifecycle publisher as one exited fact for the caller's verified slot.
+func wireNativeExitNotices(s *messageService, console *couchtty.Console) {
+	exited := func(caller couchmessage.Binding, identity couchcore.WorkspaceIdentity, report couchmessage.NativeExit) {
+		// The caller's admitted slot address names the slot; the verified
+		// workspace identity supplies its checkout roots.
+		target := couchcore.ThreadTarget{Kind: couchcore.ThreadTargetSlot, Slot: couchcore.SlotIdentity{Repo: identity.Repo, PrimaryRoot: identity.PrimaryRoot, WorktreeRoot: identity.WorktreeRoot}}
+		if identity.Slot != nil {
+			target.Slot.Number = *identity.Slot
+		}
+		if ref, ok, err := couchcore.ParseWorkspaceReference(caller.Slot); ok && err == nil {
+			target.Slot.Repo, target.Slot.Number = ref.Repo, ref.Number
+		}
+		console.ObserveNativeExit(couchcore.ThreadAddress{RepoScope: caller.Scope, Tag: couchcore.ThreadTag(caller.Tag)}, target,
+			fmt.Sprintf("%d:%s", report.LaunchOrdinal, report.AgentIdentity), report.ExitCode)
+	}
+	s.exited.Store(&exited)
 }

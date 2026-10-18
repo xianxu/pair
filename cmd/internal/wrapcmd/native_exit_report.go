@@ -54,6 +54,22 @@ func childExitCode(werr error) (int, bool) {
 	return 0, false
 }
 
+// afterChildReaped is run's one decision once group.Wait has reaped the
+// native child, with the registry session still open: report a self exit, and
+// nothing for a restart, a wrapper stop, a wait error or a wrapper without a
+// registry session. It reports whether a report was sent.
+func (p *proxy) afterChildReaped(rt *peerRuntime, werr error) bool {
+	if rt == nil || classifyChildExit(p.restartFresh.Load(), p.stoppedByWrapper.Load()) != childExitSelf {
+		return false
+	}
+	code, ok := childExitCode(werr)
+	if !ok {
+		return false
+	}
+	p.reportNativeExit(rt, code)
+	return true
+}
+
 // nativeExitTimeout bounds the one report a wrapper sends as it exits.
 var nativeExitTimeout = 2 * time.Second
 

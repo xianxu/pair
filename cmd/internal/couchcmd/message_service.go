@@ -211,9 +211,9 @@ type messageService struct {
 		sync.Mutex
 		records map[string]nativeExitRecord
 	}
-	// exited hands a confirmed native exit to the lifecycle notices; nil when
-	// lifecycle notices are off.
-	exited atomic.Pointer[func(couchmessage.Binding, couchmessage.NativeExit)]
+	// exited hands a confirmed native exit, with the caller's verified slot,
+	// to the lifecycle notices; nil when lifecycle notices are off.
+	exited atomic.Pointer[func(couchmessage.Binding, couchcore.WorkspaceIdentity, couchmessage.NativeExit)]
 
 	// broadcastStatus answers broadcast-status (pair#413). Installed after the
 	// service is serving, so it is an atomic pointer; nil answers unsupported.
@@ -514,11 +514,7 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch, configur
 	if lifecycleOn {
 		publisher := startLifecyclePublisher(service, func(text string) { console.Notify(couchtty.Notice{Kind: "status", Body: text}) })
 		console.SetLifecycleObserver(publisher.observe)
-		exited := func(caller couchmessage.Binding, report couchmessage.NativeExit) {
-			console.ObserveNativeExit(couchcore.ThreadAddress{RepoScope: caller.Scope, Tag: couchcore.ThreadTag(caller.Tag)},
-				fmt.Sprintf("%d:%s", report.LaunchOrdinal, report.AgentIdentity), report.ExitCode)
-		}
-		service.exited.Store(&exited)
+		wireNativeExitNotices(service, console)
 	}
 	watcher := newWaitWatcher(service, threshold, namespace)
 	stale := newSessionStaleWatcher(service, namespace, func(text string) { console.Notify(couchtty.Notice{Kind: "status", Body: text}) })
