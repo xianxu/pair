@@ -52,6 +52,8 @@ Approved diagnostic stage; the proposed runtime replay/download is withdrawn.
 
 ## Log
 
+
+- 2026-10-18: closed — Diagnostic stage: helper/terminal/artifactpath packages, four Node controls, seven Python retention tests, and native CI 39168539412 with all six required tests/subtests passed. BR-1 root README invocation coverage is fixed across retention, replay and controls; docs-only fix preserves queued suite code. Recorded suite da0de6c5364a3ef25592d24cebaa199c remains queued, not claimed passing. tl-worker permits review overlap; merge requires its final-code pass. Only unchecked plan row is pending suite/close/merge/reopen chronology. Historical cause unresolved; restore causal contract and reopen/park after landing. (done-when: contract moved since change-code; judged by the close review); review verdict: SHIP
 - 2026-10-18: Filed unassigned under the fleet flake rule after distinguishing it from #660; #659 will rerun only this failed CI job once on the unchanged head and stop/report on a second failure. Its full integration suite passed exit 0 in 11m3s before this CI failure. Historical root cause remains unknown.
 
 ## Revisions
