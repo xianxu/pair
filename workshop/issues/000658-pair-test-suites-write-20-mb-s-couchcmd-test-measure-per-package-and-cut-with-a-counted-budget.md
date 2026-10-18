@@ -29,7 +29,7 @@ Full test suites are now nearly all of the fleet's disk writes (ops qa 2026-10-1
 
 Measure first: per test package and per test, bytes written and to which paths (temp dirs, fixture trees, logs, SQLite or journal files, fsyncs). Then cut the largest writers without weakening what the tests prove: for example, smaller fixtures, sharing a fixture built once per package, in-memory fakes where the test is not about the filesystem, or fewer fsyncs in test-only stores. Defend the result with a counted check (bytes written per suite or per package, at a recorded budget), not timing.
 
-Current proposed revision: target the measured full-suite scale using empty Git templates and preserved caller Go cache paths before the exact-ledger clone. Keep mutable repos independent and all real durability transitions. Add portable completed-fixture file-tree caps plus the supported native root-byte caps; do not mislabel these as complete device attribution. See the replacement design appended to the durable plan. Hub approval pending.
+Current approved revision: target the measured full-suite scale using empty Git templates and preserved caller Go cache paths before the exact-ledger clone. Keep mutable repos independent and all real durability transitions. Add portable completed-fixture file-tree caps plus the supported native root-byte caps; do not mislabel these as complete device attribution. See the replacement design appended to the durable plan. Hub approval and change-code completed; implementation verification is underway.
 
 ## Done when
 
@@ -40,14 +40,14 @@ Current proposed revision: target the measured full-suite scale using empty Git 
 
 ## Plan
 
-Draft detailed plan: [suite write budget](../plans/000658-suite-write-budget-plan.md). The whole-Go-phase baseline is complete; await hub approval before change-code.
+Draft detailed plan: [suite write budget](../plans/000658-suite-write-budget-plan.md). The whole-Go-phase baseline is complete; hub approved the replacement design and change-code accepted it.
 
 - [x] Record every measured Go package and large test/path; finalize exact proposed package caps.
-- [ ] Obtain hub approval of the whole-suite replacement revision and pass change-code.
-- [ ] Remove inert Git templates in shared fixture owners; enforce completed-fixture file/byte/hook caps and N/2N growth.
-- [ ] Preserve caller Go cache resolution across isolated HOME with a counted stateful cache regression; keep cold-cache conformance.
-- [ ] Preserve exact fixture bytes, logical sizes and independent files using fixture-local CoW templates with portable streaming fallback; add N/2N write-growth regression.
-- [ ] Enforce own-process physical write budgets in the measured large-writer package TestMain paths; cover failed/unsupported counter evidence and over-budget refusal.
+- [x] Obtain hub approval of the whole-suite replacement revision and pass change-code.
+- [x] Remove inert Git templates in shared fixture owners; enforce completed-fixture file/byte/hook caps and N/2N growth.
+- [x] Preserve caller Go cache resolution across isolated HOME with a counted stateful cache regression; keep cold-cache conformance.
+- [x] Preserve exact fixture bytes, logical sizes and independent files using fixture-local CoW templates with portable streaming fallback; add N/2N write-growth regression.
+- [x] Enforce own-process physical write budgets in the measured large-writer package TestMain paths; cover failed/unsupported counter evidence and over-budget refusal.
 - [ ] Record matching after-measurement, run recorded suite/CI, close review and land.
 
 ## Log
@@ -124,6 +124,8 @@ Draft detailed plan: [suite write budget](../plans/000658-suite-write-budget-pla
 - New helper cleanup regression failed on the template wrapper: TestLaunchHelperSubprocess/ack left pair-git-template-2787251449 under its owned TMPDIR because successful exec cannot run Go defers. Existing helper roles now bypass template ownership and measurement. The same regression passed, including EOF and acknowledged-exec cases; helper protocol output stays unchanged.
 - Focused native ledger evidence:1,212,416 physical bytes against2,097,152 cap (original8,421,376); exact-byte/independence/fallback/error/short-write and existing large decode controls pass. Completed testdisk/testgit/testpair/workbenchperftest/threadactivity/titlepoller/sessionsync package tests all passed. Couchcmd/couchtty/couchcore whole-package verification is running; no complete-suite claim yet.
 - Recovery: previous TTY capture is unavailable; sdlc state confirms this issue branch and pair:3 ownership. Git commits, issue/plan, current source and retained local raw diagnostics recover the work. No resting-branch fast-forward attempted while preserving active issue changes.
+
+- Early PR422 opened for CI overlap under the standing hub approval; marked draft while matched measurement, recorded suite and close review remain required. Full couchcmd and couchtty package tests passed with caps enabled (57.525s/47.434s); couchcore still running.
 
 ## Revisions
 
