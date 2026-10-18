@@ -36,7 +36,13 @@ Measure first: per test package and per test, bytes written and to which paths (
 
 ## Plan
 
-- [ ]
+Draft detailed plan: [suite write budget](../plans/000658-suite-write-budget-plan.md). Await the queued whole-Go-phase baseline and hub approval before change-code.
+
+- [ ] Record every measured Go package and large test/path; finalize exact package caps.
+- [ ] Obtain hub approval and pass change-code.
+- [ ] Preserve exact fixture bytes, logical sizes and independent files using fixture-local CoW templates with portable streaming fallback; add N/2N write-growth regression.
+- [ ] Enforce own-process physical write budgets in the measured large-writer package TestMain paths; cover failed/unsupported counter evidence and over-budget refusal.
+- [ ] Record matching after-measurement, run recorded suite/CI, close review and land.
 
 ## Log
 
@@ -49,3 +55,7 @@ Measure first: per test package and per test, bytes written and to which paths (
 - Read-only source sweep: shared workbenchperftest.NewFixture/writeLedger streams ASCII-space padding separately for each owner, then444-byte distinct launch/binding records. Ordinary-suite fixture payloads: couchcmd600,009,968; couchtty600,008,192; threadactivity30,014,336; titlepoller10,489,856; workbenchperftest90,000,444 logical bytes (1,330,522,796 combined). These are source-derived payload totals, not physical measurements. Tests intentionally decode real large JSONL; shrinking, NUL sparse holes, or shared hardlinks would weaken their contract.
 - Owned temporary clonefile experiment: one30,000,000-byte all-space template plus twenty private clones with owner-specific tail patches produced600,000,000 logical ledger bytes, verified every byte,20 distinct inodes and20 distinct contents. Native own-process counters: template30,003,200 physical bytes; clones+patches81,920; total30,085,120. This is feasibility evidence, not a package after-measurement. Template and clones were removed by the temporary-directory owner. No repository code changed.
 - Whole-Go-phase package baseline queued through the machine suite lock (diagnostic runner52309); preserves compiler/setup exclusion and root-only measurement limits. Await its package distribution before finalizing the plan/budgets or entering change-code. Preferred budget seam under investigation: shared TestMain wrapper around existing normal-run callbacks, using procutil.NativeResourceReader for exact before/after own-process counters; explicit unsupported-platform reporting rather than zero evidence.
+
+## Revisions
+
+- 2026-10-17 — Measured dominant fixture construction rather than assuming fsync/logging churn. Candidate design preserves full30MB files and decoder/authority checks by CoW cloning private all-space templates. Reject fixture shrinking, hardlinks and NUL sparse files because they weaken the actual coverage. A shared native-counter runner defends the whole normal-run callback in the large-fixture consumer packages; final numeric caps await the queued distribution and hub approval.
