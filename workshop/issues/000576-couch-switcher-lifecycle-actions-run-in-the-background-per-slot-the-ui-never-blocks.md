@@ -48,8 +48,8 @@ background, so a single slot's action needn't block the UI.
 
 ## Plan
 
-- [ ] Implement the per-target reducer, row progress/results and navigation intent in [the durable plan](../plans/000576-slot-jobs-plan.md), with failing ordering regressions first.
-- [ ] Integrate the bounded Console execution/adoption path after #651 lands; preserve synchronous CLI callbacks and #574's final-outcome observer seam.
+- [x] Implement the per-target reducer, row progress/results and navigation intent in [the durable plan](../plans/000576-slot-jobs-plan.md), with failing ordering regressions first.
+- [x] Integrate the bounded Console execution/adoption path after #651 lands; preserve synchronous CLI callbacks and #574's final-outcome observer seam.
 - [ ] Verify all action routes, targeted/race tests and recorded full suite; obtain hub's acceptance decision, close and land on SHIP.
 
 ## Log
@@ -73,6 +73,10 @@ Legacy test migrations preserve the new contract: admitted forms close to root; 
 Row outcomes preserve captured label/target/path, bounded valid UTF-8 detail and one result per listed stable row; missing target results retain the exact diagnostic globally. Ctrl+Y copies the selected failure, otherwise a current error or last notice; fake-tool tests cover full text. Unconfirmed outcomes say unconfirmed. Startup adoption owns its row against a second UI action; independent rows stay available. Existing clock/tick inputs produce elapsed time. Fresh-frame applicability and final landing require captured frame identity.
 
 Counted projection/pruning controls at32 and64 rows record exactly32/64 row visits and96/192 job visits each; production counters are nil. A Go-overlay quadratic negative control failed with9312/37056 job visits. Exact production-source inventory guards pass. Focused ordering/queue/job race cohort passes10 repetitions (5.630s), including held adoption/navigation and transfer/overload; earlier independent navigation/adoption race cohorts also passed. Core recover-park/lifecycle/confirmation seams pass12.324s. Complete current couchtty package passes53.808s (/tmp/pair576-couchtty-final-targeted.log). Full suite and close review remain next.
+
+### 2026-10-18 — narrow display correction before full verification
+
+PR441 server checks passed on b6534d715adae5e1aadcd186416fdddd79f1920c. Recorded suite attempt62f9bf9b8f33f1e9fca5f3412c83809b acquired after1989s and passed its initial shell/editor checks, but was explicitly cancelled through local-check cancel as superseded, not counted as a pass or a flake. A fresh-context rendering investigation found job suffixes bypassed the existing menuLabelFloor=16: an oversized failure at40 columns hid both compiler's label and selection marker. This violates the approved clipping/row-identity requirement; fix it through the existing composed-suffix rule and add real-render assertions rather than only width bounds. Preserve full retained detail for Ctrl+Y. All18 actual-render cases first failed and now pass (normal/focus, widths40/60/120, running/failed/unconfirmed); focused display/counting/copy/hosted-navigation race cohort passes10 repetitions (4.155s). The fix reserves the existing label floor after composed job/hub text without truncating stored detail. Full suite is owed on the corrected head.
 
 ## Revisions
 

@@ -2308,3 +2308,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #666 BR-2: Match universal coverage claims to actual cases. A missing warm entrypoint plus omitted park setup does not establish individual omission of every protected function; name the exact coverage or add the missing cases.
 
 - #651 integration catalog: timing out a known semantic boundary should spend an injected deadline only after readiness. Reuse the package's existing budget/deadline seam; assert the cue and DeadlineExceeded as well as retained ownership, so removing a tiny timeout cannot silently turn the scenario into a different failure.
+
+- #576: A new row suffix must preserve the existing label-width floor after all suffix composition, including owner labels. Geometry-only render checks can pass while the slot identity and selection marker disappear; assert those visible fields with oversized running and failed details through the real renderer. Keep full retained diagnostics separate from clipped display text.

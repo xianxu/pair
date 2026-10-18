@@ -583,6 +583,10 @@ func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, no
 			}
 			suffix = clipMenuLine("  hub "+rowtext.Sanitize(ownerLabel)+suffix, width)
 		}
+		if hasJob {
+			// Diagnostics and hub labels must leave the job's row identifiable.
+			suffix = clipMenuLine(suffix, width-menuLabelFloor)
+		}
 		prefixWidth := width - textwidth.Width(suffix)
 		if prefixWidth < 0 {
 			prefixWidth = 0
@@ -890,7 +894,7 @@ func passStateText(view PassView) string {
 }
 
 // menuLabelFloor is the columns a switcher row keeps for its label and path
-// however long the pass's state text is.
+// however long a pass's or operation's state text is.
 const menuLabelFloor = 16
 
 // passSuffix is the state column of a row the pass owns, or "" for a row it
