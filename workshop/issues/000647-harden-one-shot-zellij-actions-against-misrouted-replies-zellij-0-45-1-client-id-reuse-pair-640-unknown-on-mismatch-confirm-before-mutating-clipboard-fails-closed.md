@@ -7,7 +7,7 @@ created: 2026-10-17
 updated: 2026-10-18
 estimate_hours: 7.13
 collaboration-mode: collaboration
-card_mirror: '419ff45c9d072548acf89a829bc868487a25e5f7' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'b9a7a3ec7df8fe64c123f62a09fa95d4e2b23811' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-17T11:09:41-07:00
 claimant:
     operator: Xian Xu
@@ -17,7 +17,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: inferred}
-actual_hours: 8.69
+actual_hours: 9.00
 ---
 
 # Harden one-shot zellij actions against misrouted replies (zellij 0.45.1 client-ID reuse, pair#640): unknown on mismatch, confirm before mutating, clipboard fails closed
