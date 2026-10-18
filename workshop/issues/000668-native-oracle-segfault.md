@@ -57,6 +57,10 @@ Approved diagnostic stage; the proposed runtime replay/download is withdrawn.
 - 2026-10-18: closed — Diagnostic stage: helper/terminal/artifactpath packages, four Node controls, seven Python retention tests, and native CI 39168539412 with all six required tests/subtests passed. BR-1 root README invocation coverage is fixed across retention, replay and controls; docs-only fix preserves queued suite code. Recorded suite da0de6c5364a3ef25592d24cebaa199c remains queued, not claimed passing. tl-worker permits review overlap; merge requires its final-code pass. Only unchecked plan row is pending suite/close/merge/reopen chronology. Historical cause unresolved; restore causal contract and reopen/park after landing. (done-when: contract moved since change-code; judged by the close review); review verdict: SHIP
 - 2026-10-18: Filed unassigned under the fleet flake rule after distinguishing it from #660; #659 will rerun only this failed CI job once on the unchanged head and stop/report on a second failure. Its full integration suite passed exit 0 in 11m3s before this CI failure. Historical root cause remains unknown.
 
+### 2026-10-18 — reopened after diagnostic landing
+
+Reopened per the hub-approved diagnostic-stage contract: PR439 merged as c5245132b9eb26588c56b05a19f733261368f69e; archive9950fa540423ab382e682437fc0564fadc104f29. Branch suite attemptda0de6c5364a3ef25592d24cebaa199c passed on77952363b5474fc6381b3d0f610cdce9974ebde4 in11m35s (log9d767ecb5296); authoritative integrationc0d87c90496de9a1e73a733df576c861 passed on5bdac877594e096ad135498b2d51547dbcb81531 in11m47s (log58ea061349ca), all5 final CI checks green. Final review SHIP, BR-1 root README coverage disposed; no code findings remained. The historical SIGSEGV has no retained exact failing request/stack and no measured cause. Restore the causal acceptance criteria, then unclaim/park pending the next CI hit; inspect complete request, phase stderr and optional Node report before choosing a fix. A green diagnostic run is not a causal resolution.
+
 ## Revisions
 
 ### 2026-10-18 — classify before selecting a fix
