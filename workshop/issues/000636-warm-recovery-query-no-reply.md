@@ -29,18 +29,26 @@ Diagnose empty native list-clients/list-panes replies during warm recovery and m
 
 ## Done when
 
+Current delivery, explicitly revised by hub approval5a7cb535 on2026-10-18:
+
+- Production recovery through the shared native fake refuses empty/whitespace, malformed and wrong-kind ownership/client replies before durable mutation, launch or quiescence, without retry; valid detached replies remain usable.
+- Both live fixtures explicitly retain disposable HOME/config/data/cache/runtime/socket roots after actual environment setup; poisoned ambient roots cannot leak into their children.
+- Existing query bytes/status/timing and local lifecycle ordering are retained through bounded deferred capture without extra queries or changed deadlines/assertions. Counted8/16 and capacity/cancellation controls prove the measurement contract.
+- Targeted checks, required recorded suite, close review and normal landing pass. After landing, ask the hub whether native qualification is still warranted. No native run is an acceptance prerequisite for this approved diagnostic delivery.
+
+Original cause-level acceptance below is retained as the historical objective; its execution is deferred until the hub chooses a native window after diagnostic landing:
+
 - Reproduce the no-reply seam deterministically, classify its cause, and add a regression at that seam.
 - Original observed failure cases and repeated isolated warm recovery conformance pass with every existing assertion retained.
 
 ## Plan
 
-Diagnostic proposal, awaiting hub approval: [durable plan](../plans/000636-warm-recovery-query-no-reply-plan.md). First pin production recovery's unknown-reply refusal through the shared native fake and explicitly isolate the live fixture environment. Then instrument existing queries and the local detach boundary without extra queries, and request a separately approved bounded native window. A cause-level readiness/product correction is conditional on the resulting evidence and requires an approved design revision; no guessed fix, automatic retry or longer deadline.
+Approved diagnostic delivery: [durable plan](../plans/000636-warm-recovery-query-no-reply-plan.md). First pin production recovery's unknown-reply refusal through the shared native fake and explicitly isolate the live fixture environment. Then instrument existing queries and the local detach boundary without extra queries, and request a separately approved bounded native window. A cause-level readiness/product correction is conditional on the resulting evidence and requires an approved design revision; no guessed fix, automatic retry or longer deadline.
 
-- [ ] Approve diagnostic plan; use change-code before test/helper edits.
+- [x] Approve diagnostic plan; use change-code before test/helper edits.
 - [ ] Prove complete production recovery refuses targeted native reply faults with no durable mutation/launch/quiescence or retry, with a healthy detached control.
 - [ ] Prove private roots survive actual fixture environment setup; bound deferred diagnostic capture and preserve existing conformance assertions.
-- [ ] Obtain native-lane approval, execute only the declared isolated controls, and classify every retained outcome.
-- [ ] Revise the design around a reproduced cause, verify its correction and unchanged-assertion native conformance, then recorded suite/close review/landing. If the cause remains unproved, report the exact evidence gap to the hub before further experiments.
+- [ ] Commit/push diagnostics and isolation fix, required recorded suite, sole close review and normal landing; then ask the hub whether a native window remains useful. Cause-level diagnosis/native controls remain explicitly pending that post-landing decision.
 
 ## Log
 
@@ -83,3 +91,7 @@ Read-only source audit confirms strict client/pane decoding and unknown preserva
 New fixture isolation evidence: testpair.ApplyEnvironment clears inherited environment via tests/lib/pair-test-env.sh. The warm fixture names only TMPDIR/SHELL/config/data overrides; park adds cache. Neither explicitly retains ZELLIJ_SOCKET_DIR/XDG_RUNTIME_DIR, so the historical outer environment file does not establish current effective socket/runtime isolation. Before native testing, explicitly private roots must cross this existing boundary and be asserted. The old failed run also shows first-run setup wizard panes; it is a fixture-state difference to retain, not a cause claim (ARCH-SECURE).
 
 Read-only baseline: launcher/fake selected empty-reply/client/owner/diagnostic tests passed (launcher26.092s, zellijtest5.091s; zellijreply selector matched no tests). Full zellijreply/zellijtest tests then passed0.136s/13.564s. No native Zellij commands executed. Diagnostic plan pending hub approval; no production retry/deadline/parser change proposed.
+
+## Revisions
+
+- 2026-10-18 — Hub approval5a7cb535-36ce-47e9-963b-4195132eb96e, receipt verified submitted, revises this delivery to diagnostics plus isolation fix first, normal gates/landing, then ask whether native work remains worthwhile. Current Done-when now names that concrete delivery; the original cause/repeated-native objectives are retained above as deferred historical scope. Durable plan tasks1-4 and final gates are executable now; proposed native/cause phases require a later hub decision. No permission to use a native lane or stage/restart was given. This is explicit scope authorization, not an inference from a quiet slot.
