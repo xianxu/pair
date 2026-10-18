@@ -214,7 +214,6 @@ func newTestEnv(t *testing.T, trees ...string) *testEnv {
 		t.Fatalf("New: %v", err)
 	}
 	c.Identities = &legacyFixtureAllocator{c: c}
-	c.postAckQuiesceTimeout = 5 * time.Millisecond
 	return &testEnv{Couch: c, Runner: r, Git: g, Proc: proc, Artifacts: artifacts, Dir: dir, Now: now}
 }
 
@@ -437,6 +436,7 @@ func testComposedPairRegistrationBoundary(t *testing.T, freshSlot bool) {
 			t.Fatal(err)
 		}
 	}
+	//lint:allow tmp-literal — the terminal fixture appends contract_version_1 and the managed session name; its AF_UNIX pathname must remain short
 	socketRoot, err := os.MkdirTemp("/tmp", "pair-registration-")
 	if err != nil {
 		t.Fatal(err)
@@ -1212,7 +1212,6 @@ func TestSpawnPostAckFailuresQuiesceRealPersistentDescendant(t *testing.T) {
 			for _, mode := range []string{"acknowledgement ambiguous", "registration", "promotion", "registry save"} {
 				t.Run(mode, func(t *testing.T) {
 					env := newTestEnv(t, "/repo")
-					env.Couch.postAckQuiesceTimeout = 250 * time.Millisecond
 					marker := filepath.Join(t.TempDir(), "descendant.pid")
 					runner := realDescendantRunner{marker: marker, pty: runnerMode.pty, wait: testwait.Budget(t)}
 					if mode == "acknowledgement ambiguous" {

@@ -7,6 +7,7 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- When migrating a temporary root, inspect every helper consumer, including ones that reuse its directory with a longer generated basename. Budget the complete native socket address and qualify the entire affected package under the OS's normal TMPDIR; a focused helper-name regex can omit the consumers that break. (#665 R8)
 - An ordering fixture must not require every real subprocess to beat a product
   deadline. Use a stateful double for identity/byte changes and controlled
   completion order; keep native timeout and real backend conformance separate.
@@ -2272,6 +2273,14 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #649 BR-1: When multiple display consumers share activity, merge every admitted source before branching into title/fade decisions; test consumers together with stale persisted facts and recent wrapper work.
 - #649 BR-2: Resource acceptance tests must instantiate the production state being bounded. A fake returning constant facts cannot prove projection retention or warm-history work; use actual compact projections and counted IO.
 
+- #665 PQ-1: a plan that introduces validation or a ratchet names each function and gives one adversarial strategy and mechanical guard per risky seam. A prose case matrix does not identify who owns parsing, identity or authority checks.
+
+- #665 BR-1: when enforcing an exclusive authorization path alongside an upstream parser, recognize the upstream grammar, including its whitespace normalization. Regress the accepted spelling class against that parser; a literal prefix check can leave alternate valid spellings as a bypass.
+
+- #665 BR-3: check the registry's concrete dependency examples before claiming a local-tool exemption. ARCH-MOCK explicitly includes Git: keep policy above a typed read seam, use a bounded stateful fake there, and run the same contract against disposable real repositories as conformance.
+- #660: Read the complete failed CI job, including successful failure-diagnostic steps, before classifying an external process as dead. A filtered failed-step log hid server activity after a missing-session reply. Keep query absence, client exit, socket state and server/actor lifetime as separate observations; a dead replacement child cannot later paint its awaited frame.
+
+- #660 BR-1: Bounded readers do not preserve evidence when the reporting consumer still prints a prefix. Test the actual failure collector with oversized child/parent wire, command output, wrapper log and actor receipts ending in distinct final markers; sweep every event-history consumer while keeping deliberate first-difference frame diagnostics separate.
 - #656 BR-1: A transient classification must run after every terminal check it can bypass. Carry the immediate pre-read fingerprint through recovery classification, and bracket any new evidence read with metadata checks for every dependent artifact. Test same-size mutation during both existing reads and replacements during the added recovery read; mutations staged only before the poll cannot expose these gaps.
 
 - #636: An outer private environment file does not survive an empty-environment constructor. Name every native storage/socket root at the fixture's actual setup boundary and again at nested child construction; poison ambient roots and inspect real child reports to catch missing propagation. A local client Wait is not a server detach acknowledgement, so retain the failed query's own bounded bytes/status and lifecycle ordering rather than adding a later diagnostic query as a substitute.

@@ -81,6 +81,7 @@ func TestClipboardAdmissionInstalledZellijLive(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	//lint:allow tmp-literal — the native session and notification digest/PID sockets share this root and require short AF_UNIX addresses
 	root, err := os.MkdirTemp("/tmp", "pcl-live-")
 	if err != nil {
 		t.Fatal(err)
@@ -383,7 +384,7 @@ func clipboardNativeByte(t *testing.T, ctx context.Context, s *clipboardNativeSt
 func TestClipboardNativeStreamDeliveryAndCleanup(t *testing.T) {
 	for _, scenario := range []string{"delivery", "no-client", "idle-reader", "unread-buffer", "read-error"} {
 		t.Run(scenario, func(t *testing.T) {
-			root, err := os.MkdirTemp("/tmp", "pcl-io-")
+			root, err := os.MkdirTemp("", "pci-")
 			if err != nil {
 				t.Fatal(err)
 			}

@@ -16,6 +16,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
 	"github.com/xianxu/pair/cmd/internal/sessionsync"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 func TestParseSessionSyncForms(t *testing.T) {
@@ -173,12 +174,18 @@ func TestSessionSyncRegistryLookupFailureCannotBeAbsence(t *testing.T) {
 }
 
 func TestSessionSyncLookupJSONUsageFailureIsUnavailable(t *testing.T) {
-	rt,_:=sessionSyncRT(t)
-	code,out,_:=runSS(t,rt,"lookup","--json")
-	if code==0{t.Fatal("invalid lookup succeeded")}
+	rt, _ := sessionSyncRT(t)
+	code, out, _ := runSS(t, rt, "lookup", "--json")
+	if code == 0 {
+		t.Fatal("invalid lookup succeeded")
+	}
 	var response map[string]any
-	if err:=json.Unmarshal([]byte(out),&response);err!=nil{t.Fatalf("missing refusal envelope: %q: %v",out,err)}
-	if response["Code"]=="ok"||response["Error"]==""{t.Fatalf("invalid lookup looked absent: %+v",response)}
+	if err := json.Unmarshal([]byte(out), &response); err != nil {
+		t.Fatalf("missing refusal envelope: %q: %v", out, err)
+	}
+	if response["Code"] == "ok" || response["Error"] == "" {
+		t.Fatalf("invalid lookup looked absent: %+v", response)
+	}
 }
 
 func TestSessionSyncStatusJSONIsTheAgreedEnvelope(t *testing.T) {
@@ -311,6 +318,8 @@ func TestSessionSyncWriteTelemetryBestEffort(t *testing.T) {
 			}
 			var calls atomic.Int32
 			requests := make(chan couchmessage.Request, 4)
+			release := make(chan struct{})
+			returned := make(chan struct{})
 			if mode != "missing" {
 				server, err := couchmessage.StartServer(context.Background(), socket, func(ctx context.Context, raw []byte) ([]byte, error) {
 					calls.Add(1)
@@ -319,8 +328,9 @@ func TestSessionSyncWriteTelemetryBestEffort(t *testing.T) {
 						return nil, err
 					}
 					requests <- req
+					defer close(returned)
 					if mode == "timeout" {
-						time.Sleep(600 * time.Millisecond)
+						<-release
 					}
 					code := "ok"
 					if mode == "older" {
@@ -332,13 +342,32 @@ func TestSessionSyncWriteTelemetryBestEffort(t *testing.T) {
 					t.Fatal(err)
 				}
 				defer server.Close()
+				defer close(release)
 			}
 			body := filepath.Join(t.TempDir(), "body")
 			os.WriteFile(body, []byte("handled d1"), 0600)
-			start := time.Now()
-			code, out, errout := runSS(t, rt, "write", "--section", "Needs you", body, file, "--fold", "d1", "--if-hash", sessionsync.Hash("\nold\n"))
-			if elapsed := time.Since(start); elapsed > 500*time.Millisecond {
-				t.Fatalf("telemetry exceeded budget: %v", elapsed)
+			type result struct {
+				code        int
+				out, errout string
+			}
+			done := make(chan result, 1)
+			go func() {
+				code, out, errout := runSS(t, rt, "write", "--section", "Needs you", body, file, "--fold", "d1", "--if-hash", sessionsync.Hash("\nold\n"))
+				done <- result{code, out, errout}
+			}()
+			var got result
+			select {
+			case got = <-done:
+			case <-testwait.After(t):
+				t.Fatal("session write waited for the unreleased telemetry handler")
+			}
+			code, out, errout := got.code, got.out, got.errout
+			if mode == "timeout" {
+				select {
+				case <-returned:
+					t.Fatal("write did not finish while telemetry was blocked")
+				default:
+				}
 			}
 			if code != 0 || errout != "" || !strings.Contains(out, "wrote ## Needs you") {
 				t.Fatalf("write %d %q %q", code, out, errout)

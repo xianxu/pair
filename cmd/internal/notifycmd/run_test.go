@@ -82,6 +82,7 @@ func TestRunWarnsWithoutOuterTTYFallback(t *testing.T) {
 	}
 }
 func TestOSRuntimeSendsToRealBroker(t *testing.T) {
+	//lint:allow tmp-literal — the real notification broker appends a 32-hex digest and PID; macOS TMPDIR can exceed its 100-byte socket limit
 	root, err := os.MkdirTemp("/tmp", "pnc-")
 	if err != nil {
 		t.Fatal(err)

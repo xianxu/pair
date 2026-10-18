@@ -14,8 +14,8 @@ func retentionResumeThread(t *testing.T) (*testEnv, ThreadAddress) {
 	t.Helper()
 	env, address := warmDetachedThread(t)
 	// Retention semantics do not depend on startup latency. The caller's test
-	// budget and cancellation still bound the wait; failure fixtures retain
-	// warmDetachedThread's independent 200ms registration deadline.
+	// budget and cancellation still bound the wait; failure controls spend
+	// warmDetachedThread's 200ms sentinel through registrationDeadline.
 	env.Couch.registrationDeadline = func(parent context.Context, _ time.Duration) (context.Context, context.CancelFunc) {
 		return context.WithCancel(parent)
 	}

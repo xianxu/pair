@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/xianxu/pair/cmd/internal/testwait"
 )
@@ -152,7 +151,6 @@ func TestLaunchFailureCaptureSwitchFinalError(t *testing.T) {
 	env.Couch.FreshRegistration = func(context.Context, ThreadAddress, string, string) (bool, error) {
 		return false, errors.New("observer stopped")
 	}
-	env.Couch.resumeRegistrationTimeout = time.Millisecond
 	source := createParkedThreadInCouch(t, env, LaunchProfile{Agent: "claude", Argv: []string{}})
 	args := []string{"--sandbox", "danger-full-access"}
 	p, err := env.Couch.PrepareAgentSwitch(context.Background(), source.Address, "codex", &args)

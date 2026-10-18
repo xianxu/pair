@@ -50,7 +50,7 @@ func TestResourceProjectionTransportCapacity(t *testing.T) {
 	if v.HostedIngest.Omitted != 3 || len(v.HostedIngest.Clients) != couchcore.ResourceMaxSlots {
 		t.Fatal("mutated hosted source")
 	}
-	dir, err := os.MkdirTemp("/tmp", "r587-")
+	dir, err := os.MkdirTemp("", "r587-")
 	if err != nil {
 		t.Fatal(err)
 	}

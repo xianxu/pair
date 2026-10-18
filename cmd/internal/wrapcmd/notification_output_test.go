@@ -433,6 +433,7 @@ func TestNotificationOutputFailureStopsRealPTYAndJoinsReader(t *testing.T) {
 // macOS t.TempDir paths exceed Unix socket limits, so own a short /tmp directory.
 func isolateNotificationSockets(t *testing.T) string {
 	t.Helper()
+	//lint:allow tmp-literal — the real notification broker appends a 32-hex digest and PID; macOS TMPDIR can exceed its 100-byte socket limit
 	dir, err := os.MkdirTemp("/tmp", "pair255-notify-")
 	if err != nil {
 		t.Fatal(err)

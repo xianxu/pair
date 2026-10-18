@@ -55,7 +55,7 @@ func TestPeerDeliveryRetainsReceiptsAndRefusesReusedIDs(t *testing.T) {
 // real endpoint socket, and a sender re-using the ID gets that outcome rather
 // than a second paste.
 func TestPeerLostReceiptRecoveredAfterBrokerRestart(t *testing.T) {
-	namespace, err := os.MkdirTemp("/tmp", "pair-peer-recovery-")
+	namespace, err := os.MkdirTemp("", "ppr-")
 	if err != nil {
 		t.Fatal(err)
 	}

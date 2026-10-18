@@ -40,7 +40,7 @@ func TestDriveEndpointStartOnceAndReadStatus(t *testing.T) {
 	defer cancel()
 	b := protocolBinding("pair:1")
 	var starts atomic.Int32
-	dir, err := os.MkdirTemp("/tmp", "drive-ep-")
+	dir, err := os.MkdirTemp("", "pde-")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -88,7 +88,7 @@ func TestDriveEndpointStartOnceAndReadStatus(t *testing.T) {
 func TestDriveEndpointRecoveryObservationIsTyped(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	dir, err := os.MkdirTemp("/tmp", "drive-recovery-")
+	dir, err := os.MkdirTemp("", "pdr-")
 	if err != nil {
 		t.Fatal(err)
 	}

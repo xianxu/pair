@@ -22,6 +22,8 @@
 
 ## See also
 
+- [Go lint catalog](go-lint-catalog.md) — pinned upstream rules, repository coverage, reasoned exceptions and shrink-only sleep debt.
+
 - `make test` — the one gate. It runs every shell/Lua suite, then `go test ./...`
   with test-result caching off, so it covers every package. Make adds `-trimpath`
   to existing `GOFLAGS` to share package compilation across worktrees; the recorded
