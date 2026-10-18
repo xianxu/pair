@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pair-test-bootstrap.sh"
 # tests/review-applied-round-test.sh — the review pane on `pair review apply`
 # (pair#661 M2), hermetic and end to end. The agent applies through the shared
 # engine (a separate `pair review apply` process); the pane only notices the
