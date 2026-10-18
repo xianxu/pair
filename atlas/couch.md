@@ -178,6 +178,11 @@ one-second scheduling budget. A crash during cleanup or before final publication
 can lose that attempt's in-memory evidence; previously published history remains
 durable. Persistence never delays failed-helper cleanup. The typed error
 preserves errors.Is/As while its operator text names the attempt, diagnostic file, and one inspection action.
+Claude native resume validates an exact session through bounded UUID-leaf
+probes under the authorized project roots, preserving duplicate and root-role
+checks without walking unrelated history. Missing scrollback is separate from
+native transcript identity; see [exact Claude root lookup](session-identity.md#exact-claude-root-lookup).
+
 `couch --show` reads retained evidence by exact address or canonical starting
 path, including after rollback removed the thread, without creating lifecycle
 records. `couchcmd/launchfailure.go` sanitizes child text line by line.

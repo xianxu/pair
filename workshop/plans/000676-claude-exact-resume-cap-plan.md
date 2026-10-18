@@ -44,26 +44,26 @@ This changes no durable state between events: lookup only produces a result cons
 
 ## Task 1: demonstrate the regression
 
-- [ ] Add native_selector_claude_os_test.go using an isolated NewOSRuntime home and a valid `<project>/<UUID>.jsonl`.
-- [ ] Add over 10,000 unrelated descendant entries, including directories; request the explicit ID with a different/absent cwd. Expect exactly that canonical root to resolve.
-- [ ] Run `go test ./cmd/internal/sessioninventory -run '^TestNativeSelectorClaudeExactLargeTree$' -count=1 -v`; retain the current incomplete-result failure before implementation.
+- [x] Add native_selector_claude_os_test.go using an isolated NewOSRuntime home and a valid `<project>/<UUID>.jsonl`.
+- [x] Add over 10,000 unrelated descendant entries, including directories; request the explicit ID with a different/absent cwd. Expect exactly that canonical root to resolve.
+- [x] Run `go test ./cmd/internal/sessioninventory -run '^TestNativeSelectorClaudeExactLargeTree$' -count=1 -v`; retain the current incomplete-result failure before implementation.
 
 ## Task 2: bounded exact-leaf visitor
 
-- [ ] Implement the optional visitor in native_selector_claude_os.go using existing openRecoveryFile, StatRecoveryFile, sameRecoveryInfo, root authority, errors and budgets. Do not hardcode a new native home policy.
-- [ ] Dispatch only exact Claude root inspection through that capability; keep fallback and latest semantics. Keep scanner and final identity validation unchanged.
-- [ ] Re-run the regression and existing NativeSelector tests, then record red/green evidence.
+- [x] Implement the optional visitor in native_selector_claude_os.go using existing openRecoveryFile, StatRecoveryFile, sameRecoveryInfo, root authority, errors and budgets. Do not hardcode a new native home policy.
+- [x] Dispatch only exact Claude root inspection through that capability; keep fallback and latest semantics. Keep scanner and final identity validation unchanged.
+- [x] Re-run the regression and existing NativeSelector tests, then record red/green evidence.
 
 ## Task 3: safety and growth proof
 
-- [ ] Cover duplicate exact IDs across projects, child/sidechain, contradictory metadata, missing target, malformed/incomplete content, target/project symlinks, replaced metadata and cancellation.
-- [ ] Count metadata work with N and 2N unrelated descendants and confirm unchanged shallow counts; with P and 2P projects confirm linear bounded work. Test immediate-root cap exhaustion still refuses.
-- [ ] Assert latest lookup still returns incomplete on the same over-cap tree. Reuse the production scanner and real OS fixture for conformance; existing mutable fake covers metadata mutation/negative scanner semantics.
+- [x] Cover duplicate exact IDs across projects, child/sidechain, contradictory metadata, missing target, malformed/incomplete content, target/project symlinks, replaced metadata and cancellation.
+- [x] Count metadata work with N and 2N unrelated descendants and confirm unchanged shallow counts; with P and 2P projects confirm linear bounded work. Test immediate-root cap exhaustion still refuses.
+- [x] Assert latest lookup still returns incomplete on the same over-cap tree. Reuse the production scanner and real OS fixture for conformance; existing mutable fake covers metadata mutation/negative scanner semantics.
 - [ ] Run targeted race/catalog checks and the required recorded full suite on the pushed head; retain every failed attempt.
 
 ## Task 4: review, landing and acceptance
 
-- [ ] Update atlas/couch.md with bounded exact Claude lookup and keep limits explicit; add the directory-versus-descendant lesson.
+- [x] Update atlas/couch.md with bounded exact Claude lookup and keep limits explicit; add the directory-versus-descendant lesson.
 - [ ] Close once with fresh review; land after #651 through normal sdlc merge. Hub grants landing priority; do not apply a grant or bypass gates locally.
 - [ ] Coordinate operator acceptance through the hub before Claude hub restart. Read-only native resolution can verify preserved transcripts without starting or replacing an agent; any actual relaunch needs hub coordination.
 
@@ -92,3 +92,7 @@ Function-specific integration proof (replaces the generic Task 3 case inventory)
 - ResolveNativeSelector: duplicate same-ID roots in separate projects must refuse; relocated root with different/absent cwd still resolves. Real-file fixtures cover sidechain, contradictory sessionId, missing target, malformed/incomplete target, and target symlink. Existing mutable fake plus actual ReadRecoveryAt mutation adapters cover changed target metadata/EOF; final canonical identity and root role remain the guard. Latest over-cap fixture remains incomplete.
 
 PQ-1 is answered by this production-function/controlled-ordering inventory; PQ-2 by descriptor ownership and the directory-specific ctime-bearing comparison. No interface or lifetime change outside the exact Claude query is introduced.
+
+### 2026-10-18 — implemented proof names
+
+The executable over-cap regression is TestClaudeExactOverDescendantCap (the earlier command name was a proposed name). TestClaudeExactParentChanges, TestClaudeExactVisitorGrowthAndLimits, TestClaudeExactRejectsUnsafePathsAndContent, TestClaudeExactCanonicalHintAndLatestOrdering, TestDirectoryFingerprintFields, TestClaudeExactChangedContentRefuses and TestClaudeExactVisitorClosesDescriptors pin the approved cases. Main-session review added exact returned-UUID and explicit real descriptor closure assertions before commit.

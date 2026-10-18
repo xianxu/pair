@@ -2297,3 +2297,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #666 BR-1: Repository lint may require verified main-ref authority. A disposable reviewer checkout without that authority cannot prove the ordinary lint consumer ran; retain a successful exact-head package run and named-consumer output from the configured checkout, and present it through the measured-evidence dispute path rather than weakening the repository guard.
 
 - #666 BR-2: Match universal coverage claims to actual cases. A missing warm entrypoint plus omitted park setup does not establish individual omission of every protected function; name the exact coverage or add the missing cases.
+
+- #676: A named native-root query must not inherit the cost or completeness requirement of global discovery. Count directory entries as well as files in real filesystem regressions; keep exact-leaf validation independent of unrelated descendants while preserving duplicate identity and parent-path proofs. Directory stability requires descriptor identity plus directory mutation evidence; a comparator that requires regular files cannot prove absence under a parent directory.

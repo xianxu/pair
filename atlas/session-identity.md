@@ -470,6 +470,20 @@ The older `agent-<tag>` and `config-<tag>-<agent>.json` files remain derived
 caches and compatibility surfaces; config disagreement is diagnosed and cannot
 override a current ledger generation.
 
+### Exact Claude root lookup
+
+An explicit canonical Claude ID probes only the exact UUID transcript leaf in
+each immediate authorized project directory. It does not recursively enumerate
+unrelated history or subagents, so accumulated native history cannot exhaust the
+recursive discovery cap during an exact resume. Cross-project and relocated IDs
+remain supported; duplicate roots still refuse. Directory descriptor and
+mutation checks reject uncertain absence or replacement, and the existing
+scanner validates root role, canonical identity and stable transcript contents.
+Latest selection retains its full bounded discovery and incomplete-evidence
+refusal. The entry point is `ResolveNativeSelector`; the scoped OS visitor lives
+in `sessioninventory/native_selector_claude_os.go`. No new native-home policy or
+budget is introduced.
+
 ### Codex root identity
 
 Exact-ID validation, ledger evidence and recovery use the same transcript home,
