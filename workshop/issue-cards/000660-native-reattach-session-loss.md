@@ -6,13 +6,6 @@ updated: 2026-10-18
 estimate_hours:
 github_issue:
 started: 2026-10-18T06:05:07-07:00
-claimant:
-    operator: Xian Xu
-    machine: 4716879978a7b90f6b583da1716fd0e9
-    machine_name: Xian’s MacBook Pro
-    workspace: pair:3
-    worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
-    repository: github.com/xianxu/pair
 actual_hours: 0.86
 tracker:
     version: 1
@@ -22,6 +15,16 @@ tracker:
         reviewed_head: b575589513eb20a7eec304f2ef803c55a209a069
         evidence_commit: b8fe3d0451f156fca0275100835a52eb4f74076d
         landed_commit: b386574636297f0529f0e4c0d7cbc29b1ff58e4d
+    release:
+        by:
+            operator: Xian Xu
+            machine: 4716879978a7b90f6b583da1716fd0e9
+            machine_name: Xian’s MacBook Pro
+            workspace: pair:3
+            worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
+            repository: github.com/xianxu/pair
+        branch: 000660-native-reattach-session-loss
+        head: a8fe4985f1c18214fdd3d8e7f9524832e5d01fb6
 ---
 
 # Native direct Zellij session disappears after detach
