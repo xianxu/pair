@@ -1,6 +1,6 @@
 ---
 id: 000662
-status: codecomplete
+status: done
 created: 2026-10-18
 updated: 2026-10-18
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: ae9e8f6dda8c8771d87a26259bb9985d8e2057f5
         evidence_commit: c4f502e614bdf653f2871f58d8a5645f00a7d07e
+        landed_commit: f658b822f0a812c9cefa1176a96653062c49a125
 ---
 
 # Review observation diagnostic positive control times out in real BufWritePre resolver
