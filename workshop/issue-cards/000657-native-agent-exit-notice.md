@@ -1,6 +1,6 @@
 ---
 id: 000657
-status: codecomplete
+status: done
 created: 2026-10-17
 updated: 2026-10-18
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 137152dbba61d1b5ccded1affccc45725c92a21e
         evidence_commit: 10618e266f975dbc8759c6d9c1a92bfd7474f7e6
+        landed_commit: 48b5cc72755db9258405c2e33979a00f83c8da1b
 ---
 
 # Couch reports native agent exit without mistaking attach disconnect
