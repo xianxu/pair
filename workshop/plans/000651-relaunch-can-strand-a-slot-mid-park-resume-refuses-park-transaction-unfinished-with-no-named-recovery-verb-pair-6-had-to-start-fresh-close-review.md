@@ -186,3 +186,86 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-18T12:46:28-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 651 — Relaunch can strand a slot mid-park: resume refuses 'park transaction unfinished' with no named recovery verb (pair:6 had to start fresh) |
+| repo | pair |
+| issue file | workshop/issues/000651-relaunch-can-strand-a-slot-mid-park-resume-refuses-park-transaction-unfinished-with-no-named-recovery-verb-pair-6-had-to-start-fresh.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 5474d703fabaf7ac8c2ab9817d8297317d6ab2cc..0cb2e215d6087eea67e96e9cc7a3500727c3cdd6 |
+| command | sdlc close --issue 651 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-18T12:46:28-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The interdiff preserves both sides of the conflict resolution and replaces the timing-sensitive fixture with a deterministic deadline. Focused behavioral and race tests pass. No code defect was found, but the repository catalog gate could not reach source inspection in this checkout.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      The interdiff preserves the correction; lifecycle and post-admission threadstore contention regressions pass under the race detector.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      The interdiff preserves shared recovery guidance; production-entrypoint TestOpenPark refusal tests pass.
+findings:
+  - id: new
+    severity: Important
+    kind: unverifiable
+    family: verified-catalog-execution
+    title: |
+      Repository catalog verification cannot run without main-ref authority
+    detail: |
+      go test ./internal/repolint -run '^TestTrackedGoFilesPassCatalog$' -count=1 fails at internal/repolint/catalog_test.go:447 with “need exactly one remote main ref without main tracking config, found 0”, before scanning the revised fixture. Provide a successful exact-head run on 0cb2e215d6087eea67e96e9cc7a3500727c3cdd6 from a checkout with verified main-ref authority, retaining the named test output and exit status.
+```
+
+1. **Strengths**
+   - Conflict resolution retains `HasOpenPark`, `ParkNonce`, and private `TitleTarget`; both projection paths remain connected (`cmd/internal/couchcore/actionableinventory.go:176`).
+   - The fixture spends its deadline after completion/live-child evidence and asserts `DeadlineExceeded` (`cmd/internal/couchcore/park_interruption_matrix_test.go:78`).
+   - Spec and Done-when remain unchanged; tracker additions record integration corrections.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** Catalog verification is blocked as detailed above.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes:** Focused matrix, title-target, actionable-row, slot-admission, and refusal tests passed. Matrix and both contention regressions passed with `-race`. Core diff whitespace check passed. Checkout remains unchanged.
+
+6. **Architectural notes**
+   - **ARCH-DRY — pass:** reuses the existing deadline seam and budget helper.
+   - **ARCH-PURE — pass:** fixture changes remain at the injected integration boundary.
+   - **ARCH-PURPOSE — pass:** preserves both conflict participants’ behavior and the live-child safety proof.
+   - No new public or architectural surface requires README or atlas changes.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"23c89832-7c31-4964-ada9-d8a3327a2fd9","repository":"github.com/xianxu/pair","issue_id":"000651","recipe":"fix-review","round":3,"attempt":1,"agent":"codex","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/93757ad14527a6aa","reviewed_head":"0cb2e215d6087eea67e96e9cc7a3500727c3cdd6","slot":"pair:5","requested_at":"2026-10-18T19:45:16.165991Z"},"phase":"finished","pid":86653,"started_at":"2026-10-18T19:45:16.365659Z","finished_at":"2026-10-18T19:46:27.448247Z","session_id":"01a1508c-07b0-7f72-bd08-955766368db1","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.674116292s
+head: "0cb2e215d6087eea67e96e9cc7a3500727c3cdd6"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
