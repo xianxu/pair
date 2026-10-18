@@ -124,6 +124,7 @@ func (c *Console) finishMenuRefresh(result menuRefreshResult) {
 	seeded, pending := false, 0
 	var root couchcore.ThreadAddress
 	c.mu.Lock()
+	cancelActivity := c.invalidateActivityRowsLocked(result.inventory, result.err == nil)
 	if result.err == nil {
 		c.resourceRows = cloneResourceRows(result.inventory)
 		c.resourceRowsKnown = true
@@ -142,6 +143,13 @@ func (c *Console) finishMenuRefresh(result menuRefreshResult) {
 	}
 	cancelPass := c.completedReattachPassLocked()
 	c.mu.Unlock()
+	if cancelActivity != nil {
+		cancelActivity()
+	}
+	if result.err == nil {
+		c.observeLifecycleInventory(result.inventory)
+	}
+	c.observeLifecyclePass()
 	landed := "rows=" + strconv.Itoa(len(result.inventory))
 	if cancelPass != nil {
 		cancelPass()

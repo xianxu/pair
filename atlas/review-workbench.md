@@ -154,6 +154,23 @@ body); fine-grained undo lives in nvim's `undofile`. Unsaved checkout-mismatch
 recovery uses the bounded snapshot lifecycle below. The doc must
 be in a git repo.
 
+### The applied-round path (pair#661 M2)
+
+The agent can apply through pair instead of the handoff:
+`pair review apply EDITS.json FILE --if-hash H --json` (`cmd/internal/reviewapply`) runs the shared engine (`sessionsync.BuildEdit`, the one `couch --session-sync apply` uses) with no Couch owner, ledger or registry.
+
+- **Order:** a data-dir flock (`review-apply-<tag>.flock`), then the S1 operator lock (`FILE.lock`, exit 3), then the whole-file hash (exit 6), then the edit, then the round artifact (`review-round-<tag>.json`: `{file, round, body}`). The artifact is removed before the document moves, so a failed apply never leaves a stale one.
+- **Commit body:** `body` is the agent's commit body, the round's spans as review-records with `new_occurrence`. The agent commits it verbatim with docflow, so resume reconstructs unchanged.
+- **`Warning` in the reply:** the file was written but its round artifact was not. Commit `Body` now; the pane shows no highlight for that round.
+- **The pane** (`round_watch.lua`) polls the artifact. It acts on an unseen `result_hash` of its own file only while the file on disk still hashes to it: it reloads (`edit!`) and decorates the spans in `review_diag`, and writes nothing for an agent round.
+  - A round it declines (unsaved operator edits) is warned about once and redelivered later.
+- **The operator lock:** the pane takes `FILE.lock` (`oplock.lua`) on the first edit of the operator's turn and drops it on send and at exit, so an apply waits for the send.
+  - The lock records `pid:`. A lock whose owner is gone (`ESRCH`) is reclaimed at review start and on the next take, so a crashed pane can't block the agent.
+  - Readiness ignores the review's own untracked lock (`cleanBesidesLock`, porcelain `-z`).
+- **Recovery:** `pair review round FILE --json` (`{Round, Body, Current}`) recovers a lost apply reply.
+- **Under `presentation: propose`:** the same rules as couch apply (atlas/couch.md).
+- **Transition:** the legacy handoff (seams 2 and 2b), nvim's buffer apply, reconcile and gate keep working beside this path until ariadne#437 moves `xx-fix` here. pair#664 then retires them.
+
 ## The review window (M3)
 
 The document workbench in a live pair session — a **floating** nvim pane (the
@@ -358,6 +375,27 @@ persistent agent's recognition and round-trip behavior.
   includes both observations before editor teardown; setting the fixture's
   `PAIR_TEST_OBSERVATION_REPORT` retains a successful probe report too. This
   instrumentation changes no production resolver deadline or admission rule.
+  `tests/lib/review_observation_gate.lua` (#623) controls only delivery of an
+  already-completed asynchronous resolver result. Fixture phases capture
+  their ID boundary atomically with arming, then retain start, result, release,
+  settled and byte-application evidence. No artificial child sleep spends the
+  native 2500ms resolver budget. The gate retains at most one held result,
+  bounds metadata to32 entries and discards callbacks on editor teardown;
+  timeout results pass through unchanged. Its lifecycle and forced arm-order
+  tests run through the diagnostics command in the normal suite. There is no
+  production hook.
+- The observation ordering fixture (#662) uses the test-only stateful resolver
+  in `tests/lib/review_resolver_fake.lua` and its Python wanted-observation
+  transport. Both read a shared catalog of the fixture's two known commits,
+  actual loose HEAD/ref files and current document bytes. Async results capture
+  identity and bytes before callback release; unknown refs or heads refuse.
+  UI assertions count synchronous waits rather than requiring a host to finish
+  within 250 ms. Its fake unit checks 8/16 query costs and bounds retained
+  metadata. Real Git identity collection remains covered by `reviewcmd` tests;
+  `review-resolver-native-deadline-test.lua` separately verifies native Neovim
+  sync/async timeout outcomes with the unchanged 2500 ms deadline. Native empty
+  stderr now retains an explicit timeout/exit refusal reason; authorization
+  still rejects unknown observations without changing edits or activation.
 - `review-branch-restore-diagnostics-test.py` (#620) exercises the complete
   branch fixture with slow successful real resolver calls and a refused landed
   publication. Acknowledgment waiting derives its bound from the observed

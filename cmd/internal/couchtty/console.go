@@ -22,6 +22,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/terminal"
 	"github.com/xianxu/pair/cmd/internal/terminalcapture"
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
+	"github.com/xianxu/pair/cmd/internal/zellijreply"
 )
 
 // chunk is one child write on its way to the screen.
@@ -128,7 +129,11 @@ type Console struct {
 	// and the asynchronous operation-completion channel. Marks are counted per
 	// owner (pair#205), so an operation that undoes its own mark never removes
 	// one that another operation set on the same pane.
-	expectedExits exitMarks
+	expectedExits     exitMarks
+	lifecycleObserver func(LifecycleObservation)
+	lifecycleSequence uint64
+	lifecyclePassDone bool
+	lifecycleNeeds    map[string]bool
 
 	// Run orders product input, output notifications, and focus transitions.
 	// Presenter alone owns the host writer.
@@ -184,7 +189,7 @@ type Console struct {
 	// pnotes is the sticky notes the overlay and status row read (#447),
 	// behind its own leaf lock.
 	pnotes pointerNotes
-	// anchors resolves the notes' anchors (#488).
+	// anchors holds the public frame used for synchronous note anchoring.
 	anchors noteAnchors
 	// statusPointer and statusNotes are the 👆 and 💭N spans on the last
 	// drawn row.
@@ -216,14 +221,23 @@ type Console struct {
 	slotGitSchedule RefreshSchedule
 	slotGitInterval time.Duration
 	// Idle-fading activity refresh (pair#247); see console_activity.go.
-	activityProbe    ActivityProbe
-	wrapperActivity  func(couchcore.ActionableThreadSummary) time.Time
-	copyObserver     func(CopyObservation)
-	copyKeyObserver  func(CopyKeyObservation)
-	activityRequests chan struct{}
-	activityResults  chan activityResult
-	activitySchedule RefreshSchedule
-	activityInterval time.Duration
+	activityProbe          ActivityProbe
+	activityPass           ActivityPass
+	activityCancel         context.CancelFunc
+	activityRowsGeneration uint64
+	activityRowsKnown      bool
+	wrapperActivity        func(couchcore.ActionableThreadSummary) time.Time
+	copyObserver           func(CopyObservation)
+	copyKeyObserver        func(CopyKeyObservation)
+	activityRequests       chan struct{}
+	activityResults        chan activityResult
+	activitySchedule       RefreshSchedule
+	activityInterval       time.Duration
+	// Per-probe bound from console_activity.go; the New default is the package
+	// const and tests shrink it to exercise the deadline path (#628). Only
+	// tests write it, before any worker starts; the worker reads it without
+	// c.mu.
+	probeTimeout time.Duration
 	// blockedUpdates carries the latest picker set (pair#465); see
 	// SetBlockedThreads.
 	blockedUpdates chan map[couchcore.ThreadAddress]bool
@@ -293,6 +307,7 @@ func New(host hostty.Host, stdin io.Reader) *Console {
 		activityRequests:    make(chan struct{}, 1),
 		activityResults:     make(chan activityResult, 1),
 		activityInterval:    defaultActivityInterval,
+		probeTimeout:        activityProbeTimeout,
 		blockedUpdates:      make(chan map[couchcore.ThreadAddress]bool, 1),
 		now:                 time.Now,
 		continuationResults: make(chan continuationScanResult, 1),
@@ -1848,6 +1863,7 @@ func (c *Console) switchToThread(thread couchcore.ThreadAddress) {
 // dispatchInputCandidate resolves ownership after prefix delivery. The route
 // callback is the input loop's existing panel/child writer, not a focus cache.
 func (c *Console) dispatchInputCandidate(before []byte, hit InterceptorHit, rawHit []byte, route func([]byte)) {
+	var admission context.Context
 	route(before)
 	if hit == HitNone {
 		return
@@ -1859,21 +1875,38 @@ func (c *Console) dispatchInputCandidate(before []byte, hit InterceptorHit, rawH
 		c.mu.Lock()
 		probe := c.shortcutFocused
 		var address couchcore.ThreadAddress
-		if p := c.panes[c.active]; p != nil {
+		observedActor := c.active
+		var observedEndpoint *terminal.Endpoint
+		if p := c.panes[observedActor]; p != nil {
 			address = p.thread
+			observedEndpoint = p.child.Endpoint()
 		}
 		c.mu.Unlock()
 		if probe != nil {
 			ctx, cancel := context.WithTimeout(c.lifetime, time.Second)
+			defer cancel()
+			admission = ctx
 			role, err := probe(ctx, address)
-			cancel()
+			if err == nil {
+				err = ctx.Err()
+			}
 			if err != nil {
 				c.setNotice("Cannot determine restart-key focus: " + err.Error())
 				return
 			}
+			c.mu.Lock()
+			current := c.panes[c.active]
+			unchanged := !c.focus.IsPanel() && c.active == observedActor && current != nil && current.thread == address && current.child.Endpoint() == observedEndpoint && !observedEndpoint.InputEnded()
+			c.mu.Unlock()
+			if !unchanged {
+				c.setNotice("Cannot determine restart-key focus: focus changed during observation")
+				return
+			}
 			chord, _ := workbenchshortcut.DecodeChord(rawHit)
 			if role == workbenchshortcut.PaneRoleRightTerminal || role == workbenchshortcut.PaneRoleReview && chord == workbenchshortcut.ChordAltN {
-				route(rawHit)
+				if err := zellijreply.Effect(ctx, func() error { route(rawHit); return nil }); err != nil {
+					c.setNotice("Cannot determine restart-key focus: " + err.Error())
+				}
 				return
 			}
 		}
@@ -1884,7 +1917,13 @@ func (c *Console) dispatchInputCandidate(before []byte, hit InterceptorHit, rawH
 	}
 	// The declared handler table is checked against AllInterceptorHits.
 	if handle := c.hitHandlers()[hit]; handle != nil {
-		handle()
+		if admission != nil {
+			if err := zellijreply.Effect(admission, func() error { handle(); return nil }); err != nil {
+				c.setNotice("Cannot determine restart-key focus: " + err.Error())
+			}
+		} else {
+			handle()
+		}
 	} else {
 		c.setNotice(fmt.Sprintf("chord %d is intercepted but has no handler", hit))
 	}
@@ -1982,6 +2021,7 @@ func (c *Console) finishOperation(completed operationCompletion) bool {
 			}
 		}
 	}
+	c.observeLifecycleCompletion(completed, address, err)
 	event := MenuEvent{
 		Kind: MenuEventOperationResult, Operation: completed.origin.Operation,
 		Attempt: completed.origin.Attempt, Address: address, Success: err == nil,
@@ -2048,6 +2088,7 @@ func (c *Console) finishOperation(completed operationCompletion) bool {
 	panelFocused := c.focus.IsPanel()
 	cancelPass := c.completedReattachPassLocked()
 	c.mu.Unlock()
+	c.observeLifecyclePass()
 	// A completion can start the reattach pass's next attempt (pair#206).
 	if cancelPass != nil {
 		cancelPass()

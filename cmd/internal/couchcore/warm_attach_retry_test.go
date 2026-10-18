@@ -184,7 +184,7 @@ func TestWarmAttachmentRetriesManagedSlotWithDeadIncarnationAndListedTerminal(t 
 	}
 }
 
-func TestWarmListingRetriesOnlyErrorsAndHonorsCancellation(t *testing.T) {
+func TestWarmListingUnknownIsFinalAndHonorsCancellation(t *testing.T) {
 	for _, mode := range []string{"transient", "persistent", "absent", "cancel"} {
 		t.Run(mode, func(t *testing.T) {
 			env, before, _ := readonlyWarmFixture(t, warmDetachedRecord(t), Live)
@@ -208,11 +208,11 @@ func TestWarmListingRetriesOnlyErrorsAndHonorsCancellation(t *testing.T) {
 			_, listed, err := env.Couch.listedTerminal(ctx, before)
 			switch mode {
 			case "transient":
-				if err != nil || !listed || reads != 2 {
+				if err == nil || listed || reads != 1 {
 					t.Fatalf("reads=%d listed=%v err=%v", reads, listed, err)
 				}
 			case "persistent":
-				if err == nil || reads != 2 {
+				if err == nil || reads != 1 {
 					t.Fatalf("reads=%d err=%v", reads, err)
 				}
 			case "absent":
@@ -225,7 +225,7 @@ func TestWarmListingRetriesOnlyErrorsAndHonorsCancellation(t *testing.T) {
 				}
 			}
 			if len(env.Runner.Ops) != 0 {
-				t.Fatal("listing retry launched a helper")
+				t.Fatal("unknown listing launched a helper")
 			}
 		})
 	}

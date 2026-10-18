@@ -34,6 +34,7 @@ type harnessTTYCaptureRequest struct {
 	Args           []string
 	Env            []string
 	Dir            string
+	Size           *pty.Winsize
 	Startup        func([]byte) bool
 	StartupTimeout time.Duration
 	ShutdownGrace  time.Duration
@@ -67,7 +68,14 @@ func captureHarnessTTYClassified(req harnessTTYCaptureRequest) (out []byte, stat
 	if req.Env != nil {
 		cmd.Env = req.Env
 	}
-	ptmx, err := pty.StartWithSize(cmd, &pty.Winsize{Rows: 38, Cols: 120})
+	size := pty.Winsize{Rows: 38, Cols: 120}
+	if req.Size != nil {
+		size = *req.Size
+	}
+	if err := validateTerminalDimensions(int(size.Cols), int(size.Rows)); err != nil {
+		return nil, state, err
+	}
+	ptmx, err := pty.StartWithSize(cmd, &size)
 	if err != nil {
 		return nil, state, fmt.Errorf("start %q: %w", req.Executable, err)
 	}
@@ -208,9 +216,13 @@ type harnessTTYLiveClassifier struct {
 }
 
 func newHarnessTTYLiveClassifier(t *testing.T, harness string) *harnessTTYLiveClassifier {
+	return newHarnessTTYLiveClassifierSize(t, harness, 120, 38)
+}
+
+func newHarnessTTYLiveClassifierSize(t *testing.T, harness string, cols, rows int) *harnessTTYLiveClassifier {
 	t.Helper()
 	p := &proxy{agentBasename: harness}
-	if err := p.configureHarnessTTY(true, 120, 38); err != nil {
+	if err := p.configureHarnessTTY(true, cols, rows); err != nil {
 		t.Fatalf("configure %s live classifier: %v", harness, err)
 	}
 	if p.ttyProfile == nil || p.terminal == nil || p.ttyProfile.recognize == nil {
@@ -1136,6 +1148,15 @@ func TestHarnessTTYControlledChild(t *testing.T) {
 	for i, arg := range os.Args {
 		if arg == "--" && i+1 < len(os.Args) {
 			switch os.Args[i+1] {
+			case "geometry":
+				size, err := pty.GetsizeFull(os.Stdout)
+				if err != nil {
+					os.Exit(6)
+				}
+				fmt.Fprintln(os.Stdout, fmtGeometry(*size), "READY")
+				for {
+					time.Sleep(time.Hour)
+				}
 			case "normal":
 				fmt.Fprintln(os.Stdout, "READY")
 				for {

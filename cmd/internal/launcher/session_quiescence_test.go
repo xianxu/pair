@@ -3,6 +3,7 @@ package launcher
 import (
 	"context"
 	"errors"
+	"github.com/xianxu/pair/cmd/internal/zellijtest"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -194,15 +195,18 @@ func TestZellijServerPIDsMatchOnlyExactSession(t *testing.T) {
 
 func TestOSSessionQuiescenceEmptyInventory(t *testing.T) {
 	for _, tc := range []struct {
-		name, diagnostic string
-		wantError        bool
+		name      string
+		wantError bool
 	}{
-		{"empty", "No active zellij sessions found.", false},
-		{"unknown", "session inventory unavailable", true},
+		{"empty", false},
+		{"unknown", true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			dir := t.TempDir()
-			stub := "#!/bin/sh\nprintf '%s\\n' '" + tc.diagnostic + "' >&2\nexit 1\n"
+			stub := "#!/bin/sh\n" + zellijtest.ShellCase(t, "launcher-quiescence-unknown")
+			if !tc.wantError {
+				stub = "#!/bin/sh\n" + zellijtest.ShellCase(t, "launcher-quiescence-no-sessions")
+			}
 			if err := os.WriteFile(filepath.Join(dir, "zellij"), []byte(stub), 0755); err != nil {
 				t.Fatal(err)
 			}
@@ -311,7 +315,7 @@ func TestQuiescenceRefusesReplacementAfterAuthorizedKill(t *testing.T) {
 
 func TestOSSessionQuiescenceRetainsSavedLayout(t *testing.T) {
 	dir := t.TempDir()
-	stub := "#!/bin/sh\nprintf '%s\\n' 'pair-fixture [Created 1m ago] (EXITED - attach to resurrect)'\n"
+	stub := "#!/bin/sh\n" + zellijtest.ShellCase(t, "launcher-quiescence-exited")
 	if err := os.WriteFile(filepath.Join(dir, "zellij"), []byte(stub), 0755); err != nil {
 		t.Fatal(err)
 	}

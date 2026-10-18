@@ -27,7 +27,7 @@ func TestCodecLiveRoundTrip(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	home, err := os.MkdirTemp("/tmp", "pair-codec-")
+	home, err := os.MkdirTemp("", "pgc-")
 	if err != nil {
 		t.Fatal(err)
 	}

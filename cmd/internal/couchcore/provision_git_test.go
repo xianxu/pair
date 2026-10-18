@@ -11,12 +11,15 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/xianxu/pair/cmd/internal/testgit"
 )
 
 // ProvisionFixture retains real Git/filesystem state across invocations and
 // supplies stateful SDLC/Weave outcomes through the production command seam.
 // Live conformance separately verifies the fixture's external contract.
 type ProvisionFixture struct {
+	constructorTree       testgit.FixtureTreeStats
 	t                     *testing.T
 	Primary, Remote, Base string
 	IO                    OSProvisionIO
@@ -55,6 +58,7 @@ func newProvisionFixture(t *testing.T, repositoryNames ...string) *ProvisionFixt
 	f.Base = f.git(f.Primary, "rev-parse", "HEAD")
 	f.git(root, "clone", "--bare", f.Primary, f.Remote)
 	f.git(f.Primary, "remote", "add", "upstream", f.Remote)
+	f.constructorTree = checkFixtureTree(t, root, provisionFixtureBudget)
 	return f
 }
 func (f *ProvisionFixture) git(dir string, args ...string) string {

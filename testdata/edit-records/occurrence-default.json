@@ -1,0 +1,11 @@
+{
+ "name": "occurrence-default",
+ "base": "x y x\n",
+ "records": [
+  {
+   "old": "x",
+   "new": "z"
+  }
+ ],
+ "result": "z y x\n"
+}

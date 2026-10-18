@@ -15,7 +15,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/osfs"
 	"github.com/xianxu/pair/cmd/internal/readiness"
-	"github.com/xianxu/pair/cmd/internal/zellijsession"
+	"github.com/xianxu/pair/cmd/internal/zellijreply"
 )
 
 func terminalLaunchArgs(session, config, layout string, create bool) []string {
@@ -37,6 +37,7 @@ type terminalOSAttempt struct {
 	rt                                                                 OSRuntime
 	name, config, layout, socket, socketRoot, scope, tag, agent, nonce string
 	create                                                             bool
+	lifetimeCtx                                                        context.Context
 }
 
 func newTerminalOSAttempt(rt OSRuntime, name, config, layout string, create bool) (*terminalOSAttempt, error) {
@@ -79,6 +80,9 @@ func (a *terminalOSAttempt) Acquire(ctx context.Context) (io.Closer, error) {
 	return AcquireTerminalLease(ctx, path)
 }
 func (a *terminalOSAttempt) Check(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if !a.create {
 		return requireListedLiveTerminal(ctx, a.name, listTerminalSessions)
 	}
@@ -133,6 +137,9 @@ func (c terminalOSClient) Wait() HandoffExit {
 	return HandoffExit{Code: 1, Err: err}
 }
 func (a *terminalOSAttempt) Start(ctx context.Context) (HandoffClient, error) {
+	// The coordinator cancels this attempt when its client exits. Admission
+	// starts after Start returns, so this assignment precedes every query.
+	a.lifetimeCtx = ctx
 	cmd := killOnCancel(exec.CommandContext(ctx, "zellij", terminalLaunchArgs(a.name, a.config, a.layout, a.create)...))
 	cmd.Env = append(os.Environ(), "ZELLIJ_SOCKET_DIR="+a.socketRoot)
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
@@ -145,18 +152,39 @@ func (a *terminalOSAttempt) Admit(ctx context.Context) error {
 	if !a.create {
 		return ctx.Err()
 	}
+	lifetime := a.lifetimeCtx
+	if lifetime == nil {
+		lifetime = ctx
+	}
+	return admitTerminalAfterReady(ctx, lifetime, a.observeAdmission, func(queryCtx context.Context) error {
+		return requireListedLiveTerminal(queryCtx, a.name, listTerminalSessions)
+	})
+}
+
+// Readiness keeps its existing bound. Only after positive local evidence does
+// native admission receive a fresh budget under the original caller lifetime.
+func admitTerminalAfterReady(readinessCtx, lifetimeCtx context.Context, ready func(context.Context) error, query func(context.Context) error) error {
 	ticker := time.NewTicker(birthPoll)
 	defer ticker.Stop()
 	var last error
 	for {
-		if err := a.observeAdmission(ctx); err == nil {
-			return requireListedLiveTerminal(ctx, a.name, listTerminalSessions)
+		if err := readinessCtx.Err(); err != nil {
+			return fmt.Errorf("terminal admission unverified: %w", errors.Join(last, err))
+		}
+		if err := ready(readinessCtx); err == nil {
+			queryCtx, cancel := zellijreply.AdmissionContext(lifetimeCtx)
+			defer cancel()
+			if err := queryCtx.Err(); err != nil {
+				return err
+			}
+			err := query(queryCtx)
+			return errors.Join(err, queryCtx.Err())
 		} else {
 			last = err
 		}
 		select {
-		case <-ctx.Done():
-			return fmt.Errorf("terminal admission unverified: %w", errors.Join(last, ctx.Err()))
+		case <-readinessCtx.Done():
+			return fmt.Errorf("terminal admission unverified: %w", errors.Join(last, readinessCtx.Err()))
 		case <-ticker.C:
 		}
 	}
@@ -189,11 +217,23 @@ func (a *terminalOSAttempt) observeAdmission(ctx context.Context) error {
 }
 
 func (r OSRuntime) runTerminalHandoff(ctx context.Context, name, config, layout string, create bool) (int, error) {
+	queryCtx, cancel := zellijreply.AdmissionContext(ctx)
+	defer cancel()
+	return r.runTerminalHandoffContext(ctx, queryCtx, name, config, layout, create)
+}
+
+func (r OSRuntime) runTerminalHandoffContext(lifetimeCtx, queryCtx context.Context, name, config, layout string, create bool) (int, error) {
+	if err := queryCtx.Err(); err != nil {
+		return 1, err
+	}
+	if err := lifetimeCtx.Err(); err != nil {
+		return 1, err
+	}
 	a, err := newTerminalOSAttempt(r, name, config, layout, create)
 	if err != nil {
 		return 1, err
 	}
-	return CoordinateTerminalHandoff(ctx, a, birthBound)
+	return coordinateTerminalHandoff(lifetimeCtx, queryCtx, a, birthBound, create)
 }
 
 const maxAgentReadyBytes int64 = 8192
@@ -202,26 +242,25 @@ func listTerminalSessions(ctx context.Context) ([]byte, error) {
 	return (ZellijSource{}).runContext(ctx, "list-sessions", "--no-formatting")
 }
 
-// Retry observation once, never the interactive attachment. A failed query is
-// not evidence even if it produced partial output containing the desired name.
+// Each existing handoff fence consumes one fresh positive observation. Unknown
+// is final for that fence, never a reason to try again inside this request.
 func requireListedLiveTerminal(ctx context.Context, name string, query func(context.Context) ([]byte, error)) error {
-	var last error
-	for attempt := 0; attempt < 2; attempt++ {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-		raw, err := query(ctx)
-		if contextErr := ctx.Err(); contextErr != nil {
-			return contextErr
-		}
-		if err == nil {
-			present, exited := zellijsession.RowState(string(raw), name)
-			if present && !exited {
-				return nil
-			}
-			err = fmt.Errorf("terminal %q is not listed live", name)
-		}
-		last = err
+	if err := ctx.Err(); err != nil {
+		return err
 	}
-	return fmt.Errorf("cannot attach terminal: %w", last)
+	raw, err := query(ctx)
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+	if err != nil {
+		return fmt.Errorf("cannot attach terminal: %w", err)
+	}
+	present, exited, err := sessionListingState(raw, name)
+	if err != nil {
+		return fmt.Errorf("cannot attach terminal: %w", err)
+	}
+	if !present || exited {
+		return fmt.Errorf("terminal %q is not listed live", name)
+	}
+	return nil
 }

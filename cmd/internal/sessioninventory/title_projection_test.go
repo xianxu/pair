@@ -2,6 +2,8 @@ package sessioninventory_test
 
 import (
 	"bytes"
+	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"strings"
@@ -61,12 +63,27 @@ type titleObservedRuntime struct {
 	transcript sessioninventory.Artifact
 	reads      []titleRead
 	afterRead  func(int64, int64)
+	ops        []string
+	beforeStat func(int)
+}
+
+// StatFile records transcript stats in ops alongside reads, so a test can time
+// an append before one particular stat of an admission.
+func (r *titleObservedRuntime) StatFile(a sessioninventory.Artifact) (sessioninventory.FileEntry, error) {
+	if a.StorageRoot == r.transcript.StorageRoot && a.RelativePath == r.transcript.RelativePath {
+		if r.beforeStat != nil {
+			r.beforeStat(len(r.ops))
+		}
+		r.ops = append(r.ops, "stat")
+	}
+	return r.FakeRuntime.StatFile(a)
 }
 
 func (r *titleObservedRuntime) ReadAt(a sessioninventory.Artifact, offset, limit int64) ([]byte, bool, error) {
 	raw, eof, err := r.FakeRuntime.ReadAt(a, offset, limit)
 	if a.StorageRoot == r.transcript.StorageRoot && a.RelativePath == r.transcript.RelativePath {
 		r.reads = append(r.reads, titleRead{offset, limit})
+		r.ops = append(r.ops, "read")
 		if r.afterRead != nil {
 			r.afterRead(offset, limit)
 		}
@@ -198,6 +215,8 @@ func TestTitleProjectionAdmissionRejectsSnapshotDrift(t *testing.T) {
 	rt := &titleObservedRuntime{FakeRuntime: fake, transcript: a}
 	// Full proof read is64KiB; the next read initializes the boundary. Mutating
 	// after that read must not pin a snapshot different from the accepted proof.
+	// An append is growth, not mutation (#653): the admission is dropped, not
+	// the title, and the next Poll re-admits from a fresh full proof read.
 	rt.afterRead = func(_, limit int64) {
 		if limit < 64<<10 {
 			fake.AppendFile(a, []byte("{}\n"), "race")
@@ -205,8 +224,15 @@ func TestTitleProjectionAdmissionRejectsSnapshotDrift(t *testing.T) {
 		}
 	}
 	p := sessioninventory.NewTitleProjection(rt, "scope", "work", sessioninventory.AgentCodex, 1)
-	if _, err := p.Poll(); err == nil {
-		t.Fatal("admitted boundary from changed proof snapshot")
+	if _, err := p.Poll(); err != nil {
+		t.Fatalf("append during admission stopped the title: %v", err)
+	}
+	rt.reads = nil
+	if _, err := p.Poll(); err != nil {
+		t.Fatalf("re-admission: %v", err)
+	}
+	if len(rt.reads) == 0 || rt.reads[0].offset != 0 {
+		t.Fatalf("reads after drift=%+v: the drifted snapshot stayed pinned instead of re-admitting", rt.reads)
 	}
 }
 
@@ -346,19 +372,16 @@ func TestTitleProjectionProviderAppendParity(t *testing.T) {
 }
 
 func TestTitleProjectionAgyDatabaseMutationIsTerminal(t *testing.T) {
-	rt, _, _, _ := titleProviderFixture(t, sessioninventory.AgentAgy)
-	p := sessioninventory.NewTitleProjection(rt, "scope", "work", sessioninventory.AgentAgy, 1)
-	if _, err := p.Poll(); err != nil {
-		t.Fatal(err)
-	}
-	root := rt.NativeRoots(sessioninventory.AgentAgy)[0]
-	files, err := rt.ListFiles(root)
-	if err != nil || len(files) != 1 {
-		t.Fatalf("db fixture %v", err)
-	}
-	rt.AppendFile(files[0].Artifact, []byte("changed"), "db mutation")
-	if _, err := p.Poll(); err == nil {
-		t.Fatal("nonappend-only database mutation retained authority")
+	for _, mode := range []string{"shrink", "replacement", "same-size", "birth", "generation", "missing"} {
+		t.Run(mode, func(t *testing.T) {
+			rt, _, _, _ := titleProviderFixture(t, sessioninventory.AgentAgy)
+			p := sessioninventory.NewTitleProjection(rt, "scope", "work", sessioninventory.AgentAgy, 1)
+			if _, err := p.Poll(); err != nil {
+				t.Fatal(err)
+			}
+			mutateAgyTitleFile(t, rt, agyTitleDatabase(), mode)
+			requireAgyTitleTerminal(t, p)
+		})
 	}
 }
 
@@ -516,4 +539,264 @@ func TestTitleProjectionAdmissionPreservesFullValidatorRules(t *testing.T) {
 	if _, err := sessioninventory.NewTitleProjection(rt, "scope", "work", sessioninventory.AgentCodex, 1).Poll(); err != nil {
 		t.Fatalf("fresh complete admission control: %v", err)
 	}
+}
+
+func TestCurrentTitleLaunchExactCachedOwner(t *testing.T) {
+	rt, ledger := launchCacheFixture()
+	got, ok, err := sessioninventory.CurrentTitleLaunch(context.Background(), rt, "scope", "work", sessioninventory.AgentCodex)
+	if err != nil || !ok || got.Ordinal != 1 || got.Agent != sessioninventory.AgentCodex {
+		t.Fatalf("current=%+v %v %v", got, ok, err)
+	}
+	reads := rt.OperationCount(sessioninventorytest.OperationReadAt, "pair-data:ledger-work.jsonl")
+	if _, ok, err := sessioninventory.CurrentTitleLaunch(context.Background(), rt, "scope", "work", sessioninventory.AgentCodex); err != nil || !ok {
+		t.Fatalf("cached=%v %v", ok, err)
+	}
+	if n := rt.OperationCount(sessioninventorytest.OperationReadAt, "pair-data:ledger-work.jsonl"); n != reads {
+		t.Fatalf("cached read %d -> %d", reads, n)
+	}
+	rt.AppendFile(ledger, []byte(strings.ReplaceAll(v1Launch, "codex", "claude")), "new-agent")
+	if got, ok, _ := sessioninventory.CurrentTitleLaunch(context.Background(), rt, "scope", "work", sessioninventory.AgentCodex); ok {
+		t.Fatalf("stale launch accepted: %+v", got)
+	}
+	if got, ok, err := sessioninventory.CurrentTitleLaunch(context.Background(), rt, "scope", "work", sessioninventory.AgentClaude); err != nil || !ok || got.Ordinal != 2 {
+		t.Fatalf("new agent=%+v %v %v", got, ok, err)
+	}
+	rt.AppendFile(ledger, []byte("{}\n"), "untyped")
+	if got, ok, _ := sessioninventory.CurrentTitleLaunch(context.Background(), rt, "scope", "work", sessioninventory.AgentClaude); ok {
+		t.Fatalf("untyped latest accepted: %+v", got)
+	}
+}
+
+func TestTitleProjectionPollContextCancellationResumes(t *testing.T) {
+	at := time.Now()
+	fake, a, _ := proofBackedCodexFixtureWithGeneration(t, "019d1111-1111-7111-8111-111111111111", &at, "")
+	rt := &titleObservedRuntime{FakeRuntime: fake, transcript: a}
+	p := sessioninventory.NewTitleProjection(rt, "scope", "work", sessioninventory.AgentCodex, 1)
+	ctx, cancel := context.WithCancel(context.Background())
+	rt.afterRead = func(_, _ int64) { cancel() }
+	if _, err := p.PollContext(ctx); !errors.Is(err, context.Canceled) {
+		t.Fatalf("admission cancellation=%v", err)
+	}
+	rt.afterRead = nil
+	if _, err := p.Poll(); err != nil {
+		t.Fatalf("resume admission=%v", err)
+	}
+	fake.AppendFile(a, []byte(`{"type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":117}}}}`+"\n"), "append")
+	ctx, cancel = context.WithCancel(context.Background())
+	rt.afterRead = func(offset, _ int64) {
+		if offset > 0 {
+			cancel()
+		}
+	}
+	if _, err := p.PollContext(ctx); !errors.Is(err, context.Canceled) {
+		t.Fatalf("tail cancellation=%v", err)
+	}
+	rt.afterRead = nil
+	if got, err := p.Poll(); err != nil || !got.HasUsage || got.Usage.InputTokens != 117 {
+		t.Fatalf("resume tail=%+v %v", got, err)
+	}
+}
+
+type titleSQLiteRuntime struct {
+	*sessioninventorytest.FakeRuntime
+	entered chan struct{}
+}
+
+func (r *titleSQLiteRuntime) QuerySQLiteContext(ctx context.Context, a sessioninventory.Artifact, q string, n int64) (sessioninventory.SQLiteResult, error) {
+	if r.entered != nil {
+		close(r.entered)
+		<-ctx.Done()
+		return sessioninventory.SQLiteResult{}, ctx.Err()
+	}
+	return r.FakeRuntime.QuerySQLite(a, q, n)
+}
+func TestTitleProjectionPollContextCancelsSQLiteAdmission(t *testing.T) {
+	fake, _, _, _ := titleProviderFixture(t, sessioninventory.AgentAgy)
+	rt := &titleSQLiteRuntime{FakeRuntime: fake, entered: make(chan struct{})}
+	p := sessioninventory.NewTitleProjection(rt, "scope", "work", sessioninventory.AgentAgy, 1)
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { _, err := p.PollContext(ctx); done <- err }()
+	select {
+	case <-rt.entered:
+	case <-time.After(2 * time.Second):
+		cancel()
+		t.Fatal("SQLite context seam not called")
+	}
+	cancel()
+	select {
+	case err := <-done:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("SQLite cancellation=%v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("SQLite cancellation blocked")
+	}
+	rt.entered = nil
+	if got, err := p.Poll(); err != nil || got.Awaiting {
+		t.Fatalf("SQLite resume=%+v %v", got, err)
+	}
+}
+
+func TestCurrentTitleLaunchRejectsConflictingGeneration(t *testing.T) {
+	rt, _, ledger, _ := titleProviderFixture(t, sessioninventory.AgentCodex)
+	binding, err := sessionledger.EncodeRecord(sessionledger.Record{Version: 3, Kind: sessionledger.RecordBinding, ScopeKey: "scope", Tag: "work", Agent: "codex", LaunchOrdinal: 1, RootNativeID: "019d2222-2222-7222-8222-222222222222", ConfirmationReason: sessionledger.ConfirmationChosen})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rt.AppendFile(ledger, append(binding, '\n'), "conflict")
+	if got, ok, err := sessioninventory.CurrentTitleLaunch(context.Background(), rt, "scope", "work", sessioninventory.AgentCodex); err != nil || ok {
+		t.Fatalf("conflict=%+v %v %v", got, ok, err)
+	}
+}
+func TestCurrentTitleLaunchDoesNotFallBackToEstablishedGeneration(t *testing.T) {
+	rt, _, ledger, _ := titleProviderFixture(t, sessioninventory.AgentCodex)
+	launch, err := sessionledger.EncodeRecord(sessionledger.Record{Version: 3, Kind: sessionledger.RecordLaunch, ScopeKey: "scope", Tag: "work", Agent: "codex", RequestedNativeID: "019d2222-2222-7222-8222-222222222222", RequestOrigin: sessionledger.RequestOriginChosen, BaselineComplete: true, LaunchArtifactBoundaries: []sessionledger.LaunchArtifactBoundary{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rt.AppendFile(ledger, append(launch, '\n'), "new-fresh")
+	got, ok, err := sessioninventory.CurrentTitleLaunch(context.Background(), rt, "scope", "work", sessioninventory.AgentCodex)
+	if err != nil || !ok || got.Ordinal != 3 {
+		t.Fatalf("fresh current=%+v %v %v", got, ok, err)
+	}
+	if n := rt.OperationCount(sessioninventorytest.OperationListFiles, "codex-sessions"); n != 0 {
+		t.Fatalf("current launch scanned native storage %d times", n)
+	}
+}
+
+func TestTitleProjectionPollContextRejectsNilRuntime(t *testing.T) {
+	p := sessioninventory.NewTitleProjection(nil, "scope", "work", sessioninventory.AgentCodex, 1)
+	if _, err := p.PollContext(context.Background()); err == nil {
+		t.Fatal("nil runtime accepted")
+	}
+}
+
+// An agent appends to its transcript while the title admits or tails it: that
+// is ordinary growth, never authority mutation (#653). Before the fix the
+// first growth stopped the title for good and its count vanished. stale-proof
+// is the usual production shape: the transcript already grew past its binding
+// proof, and with no generation token (darwin st_gen 0) proof validation falls
+// back to a full read that the append races. proofless is a chosen-id binding
+// whose admission finds its transcript by walking storage.
+func TestTitleProjectionGrowthNeverStopsTitle(t *testing.T) {
+	usage := func(n int) []byte {
+		return []byte(fmt.Sprintf("{\"type\":\"event_msg\",\"payload\":{\"type\":\"token_count\",\"info\":{\"last_token_usage\":{\"input_tokens\":%d}}}}\n", n))
+	}
+	for _, phase := range []string{"admit", "stale-proof", "proofless", "tail"} {
+		t.Run(phase, func(t *testing.T) {
+			at := time.Now()
+			fake, a, _ := proofBackedCodexFixtureWithGeneration(t, "019d1111-1111-7111-8111-111111111111", &at, "")
+			if phase == "proofless" {
+				fake, a, _, _ = titleProviderFixture(t, sessioninventory.AgentCodex)
+			}
+			rt := &titleObservedRuntime{FakeRuntime: fake, transcript: a}
+			p := sessioninventory.NewTitleProjection(rt, "scope", "work", sessioninventory.AgentCodex, 1)
+			growOnce := func(n int) {
+				grown := false
+				rt.afterRead = func(int64, int64) {
+					if !grown {
+						grown = true
+						fake.AppendFile(a, usage(n), sessioninventory.MutationToken(fmt.Sprintf("grow-%d", n)))
+					}
+				}
+			}
+			switch phase {
+			case "stale-proof":
+				fake.AppendFile(a, usage(1000), "turn")
+			case "tail":
+				if _, err := p.Poll(); err != nil {
+					t.Fatal(err)
+				}
+				fake.AppendFile(a, usage(1000), "turn")
+			}
+			growOnce(42000)
+			if _, err := p.Poll(); err != nil {
+				t.Fatalf("growth during %s stopped the title: %v", phase, err)
+			}
+			rt.afterRead = nil
+			for i := 0; i < 2; i++ {
+				got, err := p.Poll()
+				if err != nil {
+					t.Fatalf("poll %d after growth: %v", i, err)
+				}
+				if got.HasUsage && got.Usage.InputTokens == 42000 {
+					return
+				}
+			}
+			t.Fatalf("grown usage never surfaced after %s growth", phase)
+		})
+	}
+}
+
+// The admission sites after validation must classify an append as growth
+// (#653): between validation and the folded stat, and during the boundary read,
+// for proof-backed and proofless (chosen-id) bindings alike. (Growth during
+// validation is TestTitleProjectionGrowthNeverStopsTitle.) A clean admission's
+// transcript operations locate each site.
+func TestTitleProjectionGrowthAtEachAdmissionSite(t *testing.T) {
+	fixtures := map[string]func() (*sessioninventorytest.FakeRuntime, sessioninventory.Agent, sessioninventory.Artifact, []byte){
+		"proof": func() (*sessioninventorytest.FakeRuntime, sessioninventory.Agent, sessioninventory.Artifact, []byte) {
+			at := time.Now()
+			fake, a, _ := proofBackedCodexFixtureWithGeneration(t, "019d1111-1111-7111-8111-111111111111", &at, "")
+			return fake, sessioninventory.AgentCodex, a, []byte("{\"type\":\"event_msg\",\"payload\":{\"type\":\"token_count\",\"info\":{\"last_token_usage\":{\"input_tokens\":42000}}}}\n")
+		},
+		"proofless": func() (*sessioninventorytest.FakeRuntime, sessioninventory.Agent, sessioninventory.Artifact, []byte) {
+			fake, a, _, tail := titleProviderFixture(t, sessioninventory.AgentClaude)
+			return fake, sessioninventory.AgentClaude, a, tail
+		},
+	}
+	for binding, fixture := range fixtures {
+		fake, agent, a, _ := fixture()
+		control := &titleObservedRuntime{FakeRuntime: fake, transcript: a}
+		if _, err := sessioninventory.NewTitleProjection(control, "scope", "work", agent, 1).Poll(); err != nil {
+			t.Fatal(err)
+		}
+		boundary, folded := -1, -1
+		for i, op := range control.ops {
+			if op == "read" {
+				boundary = i
+			}
+		}
+		for i := range boundary {
+			if control.ops[i] == "stat" {
+				folded = i
+			}
+		}
+		if boundary < 0 || folded < 0 {
+			t.Fatalf("%s control admission ops=%v, want a folded stat before the boundary read", binding, control.ops)
+		}
+		for _, site := range []string{"post-fold", "boundary"} {
+			t.Run(binding+"/"+site, func(t *testing.T) {
+				fake, agent, a, grow := fixture()
+				rt := &titleObservedRuntime{FakeRuntime: fake, transcript: a}
+				if site == "post-fold" {
+					rt.beforeStat = func(op int) {
+						if op == folded {
+							fake.AppendFile(a, grow, "grow")
+						}
+					}
+				} else {
+					rt.afterRead = func(int64, int64) {
+						if len(rt.ops)-1 == boundary {
+							fake.AppendFile(a, grow, "grow")
+						}
+					}
+				}
+				p := sessioninventory.NewTitleProjection(rt, "scope", "work", agent, 1)
+				if _, err := p.Poll(); err != nil {
+					t.Fatalf("growth at %s stopped the title: %v", site, err)
+				}
+				rt.afterRead, rt.beforeStat, rt.reads = nil, nil, nil
+				got, err := p.Poll()
+				if err != nil || !got.HasUsage {
+					t.Fatalf("re-admission after %s growth=%+v %v", site, got, err)
+				}
+				if len(rt.reads) == 0 || rt.reads[0].offset != 0 {
+					t.Fatalf("reads=%+v: %s growth did not drop the admission", rt.reads, site)
+				}
+			})
+		}
+	}
+
 }

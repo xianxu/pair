@@ -1,0 +1,641 @@
+package couchcmd
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"github.com/xianxu/pair/cmd/internal/artifactpath"
+	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/sessioninventory"
+	"github.com/xianxu/pair/cmd/internal/sessionledger"
+	"github.com/xianxu/pair/cmd/internal/testpair"
+	"github.com/xianxu/pair/cmd/internal/testwait"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"runtime"
+	"strconv"
+	"strings"
+	"syscall"
+	"testing"
+	"time"
+)
+
+type fakeCouchTitles struct {
+	pollHook func(string)
+	facts    map[string]couchTitleFacts
+	polls    map[string]int
+	writes   []string
+	fail     bool
+	owner    string
+	during   func()
+}
+
+func (f *fakeCouchTitles) Open(t couchcore.TitleTarget) (couchTitleSource, error) {
+	return fakeCouchTitleSource{f, t.Address.RepoScope}, nil
+}
+func (f *fakeCouchTitles) Now() time.Time { return time.Unix(1000, 0) }
+func (f *fakeCouchTitles) WorkspaceOwner(context.Context, couchcore.TitleTarget) (string, error) {
+	return f.owner, nil
+}
+func (f *fakeCouchTitles) WriteWorkspaceOwner(_ context.Context, _ couchcore.TitleTarget, raw string) error {
+	f.owner = raw
+	return nil
+}
+func (f *fakeCouchTitles) RenamePane(_ context.Context, t couchcore.TitleTarget, pane, title string) error {
+	f.writes = append(f.writes, t.Address.RepoScope+":"+t.Session+":"+pane+":"+title)
+	if f.during != nil {
+		f.during()
+	}
+	if f.fail {
+		return errors.New("unknown write outcome")
+	}
+	return nil
+}
+func (f *fakeCouchTitles) RenameWorkspace(_ context.Context, title string) error {
+	f.writes = append(f.writes, "workspace:"+title)
+	return nil
+}
+
+type fakeCouchTitleSource struct {
+	io    *fakeCouchTitles
+	scope string
+}
+
+func (f fakeCouchTitleSource) Poll(ctx context.Context) (couchTitleFacts, error) {
+	if err := ctx.Err(); err != nil {
+		return couchTitleFacts{}, err
+	}
+	f.io.polls[f.scope]++
+	if f.io.pollHook != nil {
+		f.io.pollHook(f.scope)
+	}
+	return f.io.facts[f.scope], nil
+}
+func couchTitleRow(scope string) couchcore.ActionableThreadSummary {
+	a := couchcore.ThreadAddress{RepoScope: scope, Tag: "same"}
+	return couchcore.ActionableThreadSummary{Address: a, Agent: "codex", State: couchcore.ThreadLive, TitleTarget: &couchcore.TitleTarget{Address: a, Agent: "codex", Session: "📁" + scope, StartNonce: "launch", LaunchOrdinal: 1, Sessions: map[string]bool{"📁" + scope: true}}}
+}
+func TestCouchTitlesFailureRetriesAndScopeIsolation(t *testing.T) {
+	f := &fakeCouchTitles{facts: map[string]couchTitleFacts{"a": {Ready: true, PaneID: "1", Count: "42", Activity: time.Unix(1000, 0)}, "b": {Ready: true, PaneID: "1", Count: "43", Activity: time.Unix(1000, 0)}}, polls: map[string]int{}, fail: true}
+	u := newCouchTitleUpdater("unused", "unused", "", func(context.Context, couchcore.TitleTarget) bool { return true })
+	u.io = f
+	rows := []couchcore.ActionableThreadSummary{couchTitleRow("a"), couchTitleRow("b")}
+	u.Update(context.Background(), rows)
+	if len(f.writes) != 2 {
+		t.Fatalf("writes=%v", f.writes)
+	}
+	f.fail = false
+	u.Update(context.Background(), rows)
+	if len(f.writes) != 4 {
+		t.Fatalf("failed writes not retried: %v", f.writes)
+	}
+	u.Update(context.Background(), rows)
+	if len(f.writes) != 4 {
+		t.Fatalf("confirmed titles rewritten: %v", f.writes)
+	}
+	if f.writes[0] == f.writes[1] {
+		t.Fatal("scope collision")
+	}
+	u.Update(context.Background(), nil)
+	if len(u.entries) != 0 {
+		t.Fatalf("retained entries=%d", len(u.entries))
+	}
+}
+func TestCouchTitlesRejectChangedBindingAtEffect(t *testing.T) {
+	f := &fakeCouchTitles{facts: map[string]couchTitleFacts{"a": {Ready: true, PaneID: "1", Activity: time.Unix(1000, 0)}}, polls: map[string]int{}}
+	current := false
+	u := newCouchTitleUpdater("unused", "unused", "", func(context.Context, couchcore.TitleTarget) bool { return current })
+	u.io = f
+	row := couchTitleRow("a")
+	u.Update(context.Background(), []couchcore.ActionableThreadSummary{row})
+	if len(f.writes) != 0 {
+		t.Fatalf("stale writes=%v", f.writes)
+	}
+	current = true
+	u.Update(context.Background(), []couchcore.ActionableThreadSummary{row})
+	if len(f.writes) != 1 {
+		t.Fatalf("new current target skipped=%v", f.writes)
+	}
+}
+func TestCouchTitlesWorkspaceRespectsExistingListing(t *testing.T) {
+	f := &fakeCouchTitles{facts: map[string]couchTitleFacts{"a": {Ready: true, PaneID: "1", Activity: time.Unix(1000, 0)}}, polls: map[string]int{}, owner: "other\tforeign\n"}
+	u := newCouchTitleUpdater("unused", "unused", "workspace", func(context.Context, couchcore.TitleTarget) bool { return true })
+	u.io = f
+	row := couchTitleRow("a")
+	row.TitleTarget.Sessions["foreign"] = true
+	u.Update(context.Background(), []couchcore.ActionableThreadSummary{row})
+	if len(f.writes) != 1 {
+		t.Fatalf("foreign owner overwritten: %v", f.writes)
+	}
+	delete(row.TitleTarget.Sessions, "foreign")
+	u.Update(context.Background(), []couchcore.ActionableThreadSummary{row})
+	if len(f.writes) != 2 || f.writes[1] != "workspace:🔴 📁a" {
+		t.Fatalf("dead owner not reclaimed: %v", f.writes)
+	}
+}
+
+func TestCouchTitlesLateSuccessDoesNotConfirmOldBinding(t *testing.T) {
+	f := &fakeCouchTitles{facts: map[string]couchTitleFacts{"a": {Ready: true, PaneID: "1", Activity: time.Unix(1000, 0)}}, polls: map[string]int{}}
+	current := true
+	u := newCouchTitleUpdater("unused", "unused", "", func(context.Context, couchcore.TitleTarget) bool { return current })
+	u.io = f
+	row := couchTitleRow("a")
+	f.during = func() { current = false }
+	u.Update(context.Background(), []couchcore.ActionableThreadSummary{row})
+	current = true
+	f.during = nil
+	u.Update(context.Background(), []couchcore.ActionableThreadSummary{row})
+	if len(f.writes) != 2 {
+		t.Fatalf("late success incorrectly confirmed old binding: %v", f.writes)
+	}
+}
+func TestCouchTitlesCanceledPassRetainsSkippedCache(t *testing.T) {
+	f := &fakeCouchTitles{facts: map[string]couchTitleFacts{"a": {Ready: true, PaneID: "1", Activity: time.Unix(1000, 0)}, "b": {Ready: true, PaneID: "1", Activity: time.Unix(1000, 0)}}, polls: map[string]int{}}
+	u := newCouchTitleUpdater("unused", "unused", "", func(context.Context, couchcore.TitleTarget) bool { return true })
+	u.io = f
+	rows := []couchcore.ActionableThreadSummary{couchTitleRow("a"), couchTitleRow("b")}
+	u.Update(context.Background(), rows)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, failed := u.Update(ctx, rows)
+	if !failed[rows[0].Address] || !failed[rows[1].Address] {
+		t.Fatal("skipped rows not unresolved")
+	}
+	u.Update(context.Background(), rows)
+	if len(f.writes) != 2 {
+		t.Fatalf("budget skip discarded confirmed cache: %v", f.writes)
+	}
+}
+func TestCouchTitlesWorkspaceUnknownListingDefers(t *testing.T) {
+	f := &fakeCouchTitles{facts: map[string]couchTitleFacts{"a": {Ready: true, PaneID: "1", Activity: time.Unix(1000, 0)}}, polls: map[string]int{}}
+	u := newCouchTitleUpdater("unused", "unused", "workspace", func(context.Context, couchcore.TitleTarget) bool { return true })
+	u.io = f
+	row := couchTitleRow("a")
+	row.TitleTarget.Sessions = nil
+	u.Update(context.Background(), []couchcore.ActionableThreadSummary{row})
+	if len(f.writes) != 1 {
+		t.Fatalf("unknown listing renamed workspace: %v", f.writes)
+	}
+}
+func TestCouchTitlesEffectFairness(t *testing.T) {
+	f := &fakeCouchTitles{facts: map[string]couchTitleFacts{"a": {Ready: true, PaneID: "1", Activity: time.Unix(1000, 0)}, "b": {Ready: true, PaneID: "1", Activity: time.Unix(1000, 0)}}, polls: map[string]int{}, fail: true}
+	u := newCouchTitleUpdater("unused", "unused", "", func(context.Context, couchcore.TitleTarget) bool { return true })
+	u.io = f
+	rows := []couchcore.ActionableThreadSummary{couchTitleRow("a"), couchTitleRow("b")}
+	ctx, cancel := context.WithCancel(context.Background())
+	f.during = cancel
+	u.Update(ctx, rows)
+	if len(f.writes) != 1 {
+		t.Fatalf("writes after cancellation=%v", f.writes)
+	}
+	ctx, cancel = context.WithCancel(context.Background())
+	defer cancel()
+	f.during = cancel
+	u.Update(ctx, rows)
+	if len(f.writes) != 2 || f.writes[0] == f.writes[1] {
+		t.Fatalf("first slow effect monopolized passes: %v", f.writes)
+	}
+}
+func TestCouchTitlesRetainedHeap1000Ticks(t *testing.T) {
+	if os.Getenv("PAIR_TITLE_HEAP_CHILD") != "1" {
+		cmd := exec.CommandContext(t.Context(), os.Args[0], "-test.run=^TestCouchTitlesRetainedHeap1000Ticks$", "-test.count=1", "-test.v")
+		cmd.Env = append(os.Environ(), "PAIR_TITLE_HEAP_CHILD=1")
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("heap subprocess: %v\n%s", err, out)
+		}
+		t.Logf("isolated heap regression:\n%s", out)
+		return
+	}
+	f := newCouchTitleOSFixture(t)
+	neighbor := newCouchTitleOSFixture(t)
+	// Both roots are disposable; distinct logical scopes also keep the fleet
+	// cache keys separate. Preserve the neighbor's real encoded authority.
+	ledger, err := os.ReadFile(neighbor.paths.Ledger())
+	if err != nil {
+		t.Fatal(err)
+	}
+	neighbor.row.Address.RepoScope = "neighbor"
+	neighbor.row.TitleTarget.Address = neighbor.row.Address
+	neighbor.row.TitleTarget.Session = "neighbor-session"
+	neighbor.paths, err = artifactpath.Resolve(artifactpath.Address{DataDir: neighbor.data, RepoScope: "neighbor", Tag: "work"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	titleFixtureWrite(t, neighbor.paths.Ledger(), []byte(strings.ReplaceAll(string(ledger), `"scope"`, `"neighbor"`)))
+	// The existing shim logs both scopes in one disposable command stream.
+	t.Setenv("PAIR_TITLE_COMMAND_LOG", f.log)
+	for _, fixture := range []couchTitleOSFixture{f, neighbor} {
+		titleFixtureWrite(t, fixture.paths.Pane("codex"), []byte(`{"pane_id":"7"}`))
+	}
+	u := newCouchTitleUpdater(f.data, f.home, "", func(context.Context, couchcore.TitleTarget) bool { return true })
+	observed := &observedOSTitles{osCouchTitles: u.io.(*osCouchTitles)}
+	neighborObserved := &observedOSTitles{osCouchTitles: &osCouchTitles{dataDir: neighbor.data, home: neighbor.home}}
+	u.io = fleetOSTitleSources{observedOSTitles: observed, neighbor: neighborObserved}
+	rows := []couchcore.ActionableThreadSummary{f.row, neighbor.row}
+	work := func() couchNativeWork {
+		return couchNativeWork{read: observed.work.read + neighborObserved.work.read, decode: observed.work.decode + neighborObserved.work.decode}
+	}
+	u.Update(t.Context(), rows)
+	for _, source := range []*observedOSTitles{observed, neighborObserved} {
+		if source.work.read == 0 || source.work.decode == 0 {
+			t.Fatalf("cold real projection did not read/decode native history: %+v", source.work)
+		}
+	}
+	neighborWarmWork := neighborObserved.work
+	commandCount := func() int {
+		t.Helper()
+		raw, err := os.ReadFile(f.log)
+		if err != nil {
+			t.Fatal(err)
+		}
+		commands := strings.Count(string(raw), "rename-pane\n")
+		// The shim logs every argument of every command. Each scoped rename
+		// has seven arguments; extra inventory commands must fail this check.
+		if got := strings.Count(string(raw), "\n"); got != commands*7 {
+			t.Fatalf("unexpected external command arguments: %q", raw)
+		}
+		if got := strings.Count(string(raw), "--session\n"+neighbor.row.TitleTarget.Session+"\n"); got != 1 {
+			t.Fatalf("steady neighbor commands=%d want=1", got)
+		}
+		return commands
+	}
+	if got := commandCount(); got != 2 {
+		t.Fatalf("cold commands=%d want=2", got)
+	}
+	appendFile := func(path, raw string) {
+		t.Helper()
+		file, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0600)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = file.WriteString(raw)
+		closeErr := file.Close()
+		if err != nil || closeErr != nil {
+			t.Fatalf("append fixture: write=%v close=%v", err, closeErr)
+		}
+	}
+	// More than 4 MiB of real transcript growth distinguishes compact retained
+	// state from accidentally retaining decoded records or transcript bytes.
+	padding := `{"type":"event_msg","payload":{"type":"ignored","text":"` + strings.Repeat("x", 128<<10) + `"}}` + "\n"
+	const nativeID = "019d1111-1111-7111-8111-111111111111"
+	runtime.GC()
+	var before, sample runtime.MemStats
+	runtime.ReadMemStats(&before)
+	t.Logf("baseline tick=0 heap_alloc=%d targets=%d commands=%d read=%d decode=%d", before.HeapAlloc, len(u.entries), commandCount(), work().read, work().decode)
+	expectedCommands, growths, stableTicks := 2, 0, 0
+	previousSources := map[couchcore.ThreadAddress]*osCouchTitleSource{}
+	for tick := 1; tick <= 1000; tick++ {
+		growth, turnover := tick%20 == 10, tick%100 == 0
+		if growth {
+			growths++
+			appendFile(f.native, padding+`{"type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":`+strconv.Itoa(42000+growths*1000)+`}}}}`+"\n")
+			expectedCommands++
+		}
+		if turnover {
+			// Ordinals are physical ledger lines: each launch/binding pair
+			// advances the launch by two. The new projection must be admitted
+			// from this real authority, not only a changed in-memory target.
+			rows[0].TitleTarget.LaunchOrdinal += 2
+			rows[0].TitleTarget.StartNonce = "launch-" + strconv.Itoa(tick)
+			for _, record := range []sessionledger.Record{
+				{Version: 3, Kind: sessionledger.RecordLaunch, ScopeKey: "scope", Tag: "work", Agent: "codex", RequestedNativeID: nativeID, RequestOrigin: sessionledger.RequestOriginChosen, BaselineComplete: true, LaunchArtifactBoundaries: []sessionledger.LaunchArtifactBoundary{}},
+				{Version: 3, Kind: sessionledger.RecordBinding, ScopeKey: "scope", Tag: "work", Agent: "codex", LaunchOrdinal: rows[0].TitleTarget.LaunchOrdinal, RootNativeID: nativeID, ConfirmationReason: sessionledger.ConfirmationChosen},
+			} {
+				raw, err := sessionledger.EncodeRecord(record)
+				if err != nil {
+					t.Fatal(err)
+				}
+				appendFile(f.paths.Ledger(), string(raw)+"\n")
+			}
+			expectedCommands++
+		}
+		previousWork := work()
+		_, failed := u.Update(t.Context(), rows)
+		if len(failed) != 0 || len(u.entries) != len(rows) {
+			t.Fatalf("tick=%d failed=%v retained generations=%d", tick, failed, len(u.entries))
+		}
+		for key, entry := range u.entries {
+			source, ok := entry.source.(*osCouchTitleSource)
+			ordinal := uint64(1)
+			if key.Address == rows[0].Address {
+				ordinal = rows[0].TitleTarget.LaunchOrdinal
+			}
+			if !ok || source.projection == nil || key.Ordinal != ordinal || len(entry.desired) != 1 {
+				t.Fatalf("tick=%d missing current compact projection or unbounded title cache: key=%+v desires=%d", tick, key, len(entry.desired))
+			}
+			previous := previousSources[key.Address]
+			replaced := turnover && key.Address == rows[0].Address
+			if previous != nil && (source != previous) != replaced {
+				t.Fatalf("tick=%d scope=%s projection replacement disagrees with turnover=%t", tick, key.Address.RepoScope, replaced)
+			}
+			previousSources[key.Address] = source
+		}
+		if neighborObserved.work != neighborWarmWork {
+			t.Fatalf("tick=%d steady neighbor reread/decoded history: before=%+v after=%+v", tick, neighborWarmWork, neighborObserved.work)
+		}
+		if got := commandCount(); got != expectedCommands {
+			t.Fatalf("tick=%d growth=%t turnover=%t commands=%d want=%d", tick, growth, turnover, got, expectedCommands)
+		}
+		if !growth && !turnover {
+			stableTicks++
+			if work() != previousWork {
+				t.Fatalf("stable tick=%d reread/decoded history: before=%+v after=%+v", tick, previousWork, work())
+			}
+		} else if work().read <= previousWork.read || work().decode <= previousWork.decode {
+			t.Fatalf("tick=%d growth=%t turnover=%t did not exercise history IO/decode: before=%+v after=%+v", tick, growth, turnover, previousWork, work())
+		}
+		if turnover {
+			runtime.GC()
+			runtime.ReadMemStats(&sample)
+			t.Logf("sample tick=%d ordinal=%d heap_alloc=%d targets=%d commands=%d read=%d decode=%d", tick, rows[0].TitleTarget.LaunchOrdinal, sample.HeapAlloc, len(u.entries), commandCount(), work().read, work().decode)
+			if sample.HeapAlloc > before.HeapAlloc+(4<<20) {
+				t.Fatalf("tick=%d retained heap delta=%d", tick, sample.HeapAlloc-before.HeapAlloc)
+			}
+		}
+	}
+	info, err := os.Stat(f.native)
+	if err != nil || info.Size() <= 4<<20 || growths != 50 || stableTicks != 940 {
+		t.Fatalf("workload incomplete: stat=%v growths=%d stable_ticks=%d", err, growths, stableTicks)
+	}
+	runtime.GC()
+	runtime.ReadMemStats(&sample)
+	t.Logf("post tick=1000 heap_alloc=%d targets=%d commands=%d transcript_bytes=%d stable_ticks=%d read=%d decode=%d", sample.HeapAlloc, len(u.entries), commandCount(), info.Size(), stableTicks, work().read, work().decode)
+	if sample.HeapAlloc > before.HeapAlloc+(4<<20) {
+		t.Fatalf("post retained heap delta=%d", sample.HeapAlloc-before.HeapAlloc)
+	}
+
+	runtime.KeepAlive(u)
+}
+
+func TestCouchTitlesWritesBeforeNextSlowProjection(t *testing.T) {
+	f := &fakeCouchTitles{facts: map[string]couchTitleFacts{"a": {Ready: true, PaneID: "1", Activity: time.Unix(1000, 0)}, "b": {Ready: true, PaneID: "1", Activity: time.Unix(1000, 0)}}, polls: map[string]int{}}
+	u := newCouchTitleUpdater("unused", "unused", "", func(context.Context, couchcore.TitleTarget) bool { return true })
+	u.io = f
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	f.pollHook = func(scope string) {
+		if scope == "b" {
+			cancel()
+		}
+	}
+	u.Update(ctx, []couchcore.ActionableThreadSummary{couchTitleRow("a"), couchTitleRow("b")})
+	if len(f.writes) != 1 {
+		t.Fatalf("next slow projection starved earlier useful effects: %v", f.writes)
+	}
+}
+
+type couchNativeWork struct{ read, decode int64 }
+
+func (w *couchNativeWork) ReadWork(a sessioninventory.Artifact, n int64) {
+	if a.StorageRoot == "codex-sessions" {
+		w.read += n
+	}
+}
+func (w *couchNativeWork) DecodeWork(a sessioninventory.Artifact, n int64) {
+	if a.StorageRoot == "codex-sessions" {
+		w.decode += n
+	}
+}
+
+type observedOSTitles struct {
+	*osCouchTitles
+	work couchNativeWork
+}
+
+func (o *observedOSTitles) Open(t couchcore.TitleTarget) (couchTitleSource, error) {
+	src, err := o.osCouchTitles.Open(t)
+	if err != nil {
+		return nil, err
+	}
+	s := src.(*osCouchTitleSource)
+	s.runtime = s.runtime.WithWorkObserver(&o.work)
+	s.projection = sessioninventory.NewTitleProjection(s.runtime, t.Address.RepoScope, string(t.Address.Tag), sessioninventory.Agent(t.Agent), t.LaunchOrdinal)
+	return s, nil
+}
+func titleFixtureWrite(t *testing.T, path string, raw []byte) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, raw, 0600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+type couchTitleOSFixture struct {
+	home, data, log, native string
+	row                     couchcore.ActionableThreadSummary
+	paths                   artifactpath.Paths
+}
+
+func newCouchTitleOSFixture(t *testing.T) couchTitleOSFixture {
+	t.Helper()
+	root := t.TempDir()
+	testpair.ApplyEnvironment(t, root)
+	home := os.Getenv("HOME")
+	data := filepath.Join(root, "pair-data")
+	bin := filepath.Join(root, "bin")
+	if err := os.MkdirAll(bin, 0700); err != nil {
+		t.Fatal(err)
+	}
+	log := filepath.Join(root, "commands")
+	t.Setenv("PAIR_TITLE_COMMAND_LOG", log)
+	t.Setenv("PATH", bin+":"+os.Getenv("PATH"))
+	if err := os.WriteFile(filepath.Join(bin, "zellij"), []byte("#!/bin/sh\nprintf '%s\\n' \"$@\" >> \"$PAIR_TITLE_COMMAND_LOG\"\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	row := couchTitleRow("scope")
+	row.Address.Tag = "work"
+	row.TitleTarget.Address = row.Address
+	paths, err := artifactpath.Resolve(artifactpath.Address{DataDir: data, RepoScope: "scope", Tag: "work"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	const id = "019d1111-1111-7111-8111-111111111111"
+	native := filepath.Join(home, ".codex", "sessions", "2026", "10", "16", "rollout-test-"+id+".jsonl")
+	titleFixtureWrite(t, native, []byte(`{"timestamp":"2026-10-16T00:00:00Z","type":"session_meta","payload":{"id":"`+id+`","parent_thread_id":null,"source":"cli"}}`+"\n"+`{"type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":42000}}}}`+"\n"))
+	var ledger []byte
+	for _, r := range []sessionledger.Record{
+		{Version: 3, Kind: sessionledger.RecordLaunch, ScopeKey: "scope", Tag: "work", Agent: "codex", RequestedNativeID: id, RequestOrigin: sessionledger.RequestOriginChosen, BaselineComplete: true, LaunchArtifactBoundaries: []sessionledger.LaunchArtifactBoundary{}},
+		{Version: 3, Kind: sessionledger.RecordBinding, ScopeKey: "scope", Tag: "work", Agent: "codex", LaunchOrdinal: 1, RootNativeID: id, ConfirmationReason: sessionledger.ConfirmationChosen},
+	} {
+		raw, e := sessionledger.EncodeRecord(r)
+		if e != nil {
+			t.Fatal(e)
+		}
+		ledger = append(ledger, append(raw, '\n')...)
+	}
+	titleFixtureWrite(t, paths.Ledger(), ledger)
+	return couchTitleOSFixture{home: home, data: data, log: log, native: native, row: row, paths: paths}
+}
+func TestCouchTitlesOSProjectionToScopedCommand(t *testing.T) {
+	f := newCouchTitleOSFixture(t)
+	home, data, log, row, paths := f.home, f.data, f.log, f.row, f.paths
+	// A stale twin cannot establish selected-agent birth.
+	titleFixtureWrite(t, paths.Pane("claude"), []byte(`{"pane_id":"99"}`))
+	u := newCouchTitleUpdater(data, home, "", func(context.Context, couchcore.TitleTarget) bool { return true })
+	observed := &observedOSTitles{osCouchTitles: u.io.(*osCouchTitles)}
+	u.io = observed
+	u.Update(t.Context(), []couchcore.ActionableThreadSummary{row})
+	if _, e := os.Stat(log); !errors.Is(e, os.ErrNotExist) {
+		t.Fatalf("unborn selected pane ran command: %v", e)
+	}
+	titleFixtureWrite(t, paths.Pane("codex"), []byte(`{"pane_id":"7"}`))
+	_, failed := u.Update(t.Context(), []couchcore.ActionableThreadSummary{row})
+	raw, e := os.ReadFile(log)
+	if e != nil {
+		t.Fatalf("production projection emitted no command (failed=%v): %v", failed, e)
+	}
+	want := []string{"--session", row.TitleTarget.Session, "action", "rename-pane", "--pane-id", "7", "codex (42k)"}
+	if got := strings.Split(strings.TrimSpace(string(raw)), "\n"); !equalTitleArgs(got, want) {
+		t.Fatalf("argv=%q want=%q", got, want)
+	}
+	if observed.work.decode == 0 {
+		t.Fatal("fixture did not exercise native decoding")
+	}
+	before := observed.work
+	for i := 0; i < 20; i++ {
+		u.Update(t.Context(), []couchcore.ActionableThreadSummary{row})
+	}
+	if observed.work != before {
+		t.Fatalf("warm source reread/decoded native history: before=%+v after=%+v", before, observed.work)
+	}
+	after, e := os.ReadFile(log)
+	if e != nil || string(after) != string(raw) {
+		t.Fatalf("warm passes repeated commands: %q %v", after, e)
+	}
+	// Exact-generation replacement creates a fresh compact source and write.
+	row.TitleTarget.StartNonce = "replacement"
+	u.Update(t.Context(), []couchcore.ActionableThreadSummary{row})
+	if len(u.entries) != 1 {
+		t.Fatalf("superseded projection retained: %d", len(u.entries))
+	}
+}
+func equalTitleArgs(a, b []string) bool {
+	aa, _ := json.Marshal(a)
+	bb, _ := json.Marshal(b)
+	return string(aa) == string(bb)
+}
+func TestCouchTitlesOSCommandCancellationCollectsGroup(t *testing.T) {
+	root := t.TempDir()
+	testpair.ApplyEnvironment(t, root)
+	bin := filepath.Join(root, "bin")
+	if err := os.MkdirAll(bin, 0700); err != nil {
+		t.Fatal(err)
+	}
+	pidFile := filepath.Join(root, "child.pid")
+	t.Setenv("PAIR_TITLE_CHILD_PID", pidFile)
+	t.Setenv("PATH", bin+":"+os.Getenv("PATH"))
+	script := `#!/bin/sh
+/bin/sleep 30 & child=$!
+printf '%s' "$child" > "$PAIR_TITLE_CHILD_PID"
+wait
+`
+	if err := os.WriteFile(filepath.Join(bin, "zellij"), []byte(script), 0700); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	done := make(chan error, 1)
+	go func() { done <- (&osCouchTitles{}).RenamePane(ctx, *couchTitleRow("a").TitleTarget, "7", "codex") }()
+	var pid int
+	testwait.Until(t, "title command child started", func() bool {
+		raw, err := os.ReadFile(pidFile)
+		if err != nil {
+			return false
+		}
+		pid, _ = strconv.Atoi(string(raw))
+		return pid > 0
+	})
+	cancel()
+	select {
+	case err := <-done:
+		if err == nil {
+			t.Fatal("canceled rename succeeded")
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("title command did not join")
+	}
+	testwait.Until(t, "title command group collected", func() bool { return errors.Is(syscall.Kill(pid, 0), syscall.ESRCH) })
+}
+
+// growingCouchNative appends after admission reads its boundary, before the
+// following fingerprint check. It changes neither the file nor owner identity.
+type growingCouchNative struct {
+	sessioninventory.OSRuntime
+	path string
+	grew bool
+}
+
+func (r *growingCouchNative) ReadAt(a sessioninventory.Artifact, offset, limit int64) ([]byte, bool, error) {
+	raw, eof, err := r.OSRuntime.ReadAt(a, offset, limit)
+	if err == nil && !r.grew && a.StorageRoot == "codex-sessions" && offset > 0 && limit == 4096 {
+		r.grew = true
+		f, e := os.OpenFile(r.path, os.O_APPEND|os.O_WRONLY, 0600)
+		if e != nil {
+			return nil, false, e
+		}
+		_, e = f.WriteString(`{"type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":43000}}}}` + "\n")
+		closeErr := f.Close()
+		if e != nil {
+			return nil, false, e
+		}
+		if closeErr != nil {
+			return nil, false, closeErr
+		}
+	}
+	return raw, eof, err
+}
+
+type growingOSTitles struct {
+	*osCouchTitles
+	native string
+	source *growingCouchNative
+}
+
+func (o *growingOSTitles) Open(t couchcore.TitleTarget) (couchTitleSource, error) {
+	src, err := o.osCouchTitles.Open(t)
+	if err != nil {
+		return nil, err
+	}
+	s := src.(*osCouchTitleSource)
+	o.source = &growingCouchNative{OSRuntime: s.runtime, path: o.native}
+	s.projection = sessioninventory.NewTitleProjection(o.source, t.Address.RepoScope, string(t.Address.Tag), sessioninventory.Agent(t.Agent), t.LaunchOrdinal)
+	return s, nil
+}
+func TestCouchTitlesOSRecoversGrowthDuringAdmission(t *testing.T) {
+	f := newCouchTitleOSFixture(t)
+	// Force the boundary read to have a nonzero offset, distinct from the full
+	// validation read, so the growth injection is a deterministic interleaving.
+	file, err := os.OpenFile(f.native, os.O_APPEND|os.O_WRONLY, 0600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = file.WriteString(`{"type":"event_msg","payload":{"type":"ignored","text":"` + strings.Repeat("x", 5000) + `"}}` + "\n")
+	closeErr := file.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if closeErr != nil {
+		t.Fatal(closeErr)
+	}
+	titleFixtureWrite(t, f.paths.Pane("codex"), []byte(`{"pane_id":"7"}`))
+	u := newCouchTitleUpdater(f.data, f.home, "", func(context.Context, couchcore.TitleTarget) bool { return true })
+	io := &growingOSTitles{osCouchTitles: u.io.(*osCouchTitles), native: f.native}
+	u.io = io
+	for i := 0; i < 3; i++ {
+		u.Update(t.Context(), []couchcore.ActionableThreadSummary{f.row})
+	}
+	if io.source == nil || !io.source.grew {
+		t.Fatal("growth interleaving did not run")
+	}
+	raw, err := os.ReadFile(f.log)
+	if err != nil {
+		t.Fatalf("updater never recovered from ordinary growth: %v", err)
+	}
+	if !strings.Contains(string(raw), "codex (43k)") {
+		t.Fatalf("updater retained stale usage after growth: %s", raw)
+	}
+}

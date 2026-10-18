@@ -3,14 +3,12 @@ package couchcore
 import (
 	"context"
 	"testing"
-	"time"
 )
 
 func TestPublicWarmAttachCompletionNeedsListingNotLifecycleOwner(t *testing.T) {
 	for _, state := range []string{"attached", "detached"} {
 		t.Run(state, func(t *testing.T) {
 			env := newTestEnv(t, "/repo")
-			env.Couch.resumeRegistrationTimeout = 100 * time.Millisecond
 			record := validThreadRecord(t)
 			record.Reservation = false
 			before, err := env.Couch.Threads.CreateThread(record)

@@ -36,9 +36,9 @@ const (
 	prefixCool     = "🔵" // < 21 days
 )
 
-// prefixForAge buckets an activity age into a heat-ramp prefix (emoji + trailing
+// PrefixForAge buckets an activity age into a heat-ramp prefix (emoji + trailing
 // space), or "" for cold (≥ 21 days). Mirrors pair-title.sh's prefix_for_age.
-func prefixForAge(age time.Duration) string {
+func PrefixForAge(age time.Duration) string {
 	switch {
 	case age < oneDay:
 		return prefixHot + " "
@@ -53,32 +53,32 @@ func prefixForAge(age time.Duration) string {
 	}
 }
 
-// frameTitle composes an agent pane's zellij frame title: "<agent> (<count>)", or
+// FrameTitle composes an agent pane's zellij frame title: "<agent> (<count>)", or
 // just "<agent>" when no count resolved.
 //
 // It carries no cwd (#133). zellij renders the tab title as
 // "<session name> | <focused pane title>", and since #130 the session half is
 // "📁{repo}[-{tag}]" — so a cwd here would name the folder twice. The pane half
 // carries only the pane's own identity.
-func frameTitle(agent, count string) string {
+func FrameTitle(agent, count string) string {
 	if count != "" {
 		return fmt.Sprintf("%s (%s)", agent, count)
 	}
 	return agent
 }
 
-// cmuxWorkspaceTitle builds the cmux workspace title from a heat prefix and the
+// CmuxWorkspaceTitle builds the cmux workspace title from a heat prefix and the
 // zellij session name. The name is used verbatim since #130 retired the
 // word→emoji convention — the session name already carries its own 📁 glyph.
-func cmuxWorkspaceTitle(prefix, session string) string {
+func CmuxWorkspaceTitle(prefix, session string) string {
 	return prefix + session
 }
 
-// shouldClaimWorkspace decides cmux workspace-title ownership (mirrors bin/pair's
+// ShouldClaimWorkspace decides cmux workspace-title ownership (mirrors bin/pair's
 // cmux_rename_workspace): claim if unowned or already ours; if another tag owns
 // it, defer only while that owner's session is still alive — otherwise the owner
 // crashed without cleanup and we reclaim.
-func shouldClaimWorkspace(owner, tag string, ownerSessionAlive bool) bool {
+func ShouldClaimWorkspace(owner, tag string, ownerSessionAlive bool) bool {
 	if owner == "" || owner == tag {
 		return true
 	}
@@ -97,4 +97,13 @@ func (c frameCache) changed(paneID, title string) bool {
 	}
 	c[paneID] = title
 	return true
+}
+
+// Compatibility names keep the standalone poller and its existing tests on the
+// same rendering decisions as supervisor callers.
+func prefixForAge(age time.Duration) string            { return PrefixForAge(age) }
+func frameTitle(agent, count string) string            { return FrameTitle(agent, count) }
+func cmuxWorkspaceTitle(prefix, session string) string { return CmuxWorkspaceTitle(prefix, session) }
+func shouldClaimWorkspace(owner, tag string, alive bool) bool {
+	return ShouldClaimWorkspace(owner, tag, alive)
 }

@@ -56,8 +56,9 @@ function M.send(body, action, settle, resume_phase, target)
     return false, resume_phase, 'body write outcome is indeterminate; reconcile the agent composer manually'
   end
   if target ~= nil and (type(target) ~= 'table' or type(target.pane_id) ~= 'number'
-    or target.pane_id < 0 or target.pane_id % 1 ~= 0 or type(target.validate) ~= 'function') then
-    return false, resume_phase, 'target requires a numeric pane ID and identity validator'
+    or target.pane_id < 0 or target.pane_id % 1 ~= 0 or type(target.validate) ~= 'function'
+    or type(target.effect) ~= 'function') then
+    return false, resume_phase, 'target requires a numeric pane ID, identity validator and effect guard'
   end
   local cmds = M.commands(body, target)
   if resume_phase == 'written' then
@@ -74,7 +75,21 @@ function M.send(body, action, settle, resume_phase, target)
         return false, phase, 'target validation failed — ' .. tostring(called and validation_err or valid)
       end
     end
-    local result = action(cmd.label, cmd.argv, cmd.opts) or {}
+    local result
+    if target ~= nil then
+      local issued = false
+      local called, value, reason = pcall(target.effect, function()
+        issued = true
+        return action(cmd.label, cmd.argv, cmd.opts)
+      end)
+      if not called or (value == nil and not issued) then
+        if issued and cmd.kind == 'write' then phase = 'indeterminate' end
+        return false, phase, (issued and 'target effect failed — ' or 'target effect refused — ') .. tostring(called and reason or value)
+      end
+      result = value or {}
+    else
+      result = action(cmd.label, cmd.argv, cmd.opts) or {}
+    end
     if result.code ~= 0 then
       if target == nil and i > 1 and cmd.kind ~= 'refocus' then
         local refocus = cmds[#cmds]

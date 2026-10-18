@@ -20,11 +20,26 @@ func TestFamilyRows(t *testing.T) {
 }
 
 func TestSessionNameRejected(t *testing.T) {
-	if !sessionNameRejected("error: session name must be less than 0 characters") {
-		t.Fatal("should detect the too-long rejection")
+	for _, tc := range diagnosticMatrix() {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := sessionNameRejected("pair-new", tc.status, tc.stdout, tc.stderr); got != tc.rejectsName {
+				t.Fatalf("validator rejection=%v, want %v", got, tc.rejectsName)
+			}
+		})
 	}
-	if sessionNameRejected("There is no active session!") {
-		t.Fatal("a not-found error is not a name-length rejection")
+}
+
+func TestSessionNameRejectedNumericBoundary(t *testing.T) {
+	for _, tc := range []struct {
+		limit string
+		valid bool
+	}{
+		{"18446744073709551615", true},
+		{"18446744073709551616", false},
+	} {
+		if got := sessionNameRejected("pair-new", 2, "", nativeNameValidator("pair-new", tc.limit)); got != tc.valid {
+			t.Fatalf("native uint64 limit %q valid=%v, want %v", tc.limit, got, tc.valid)
+		}
 	}
 }
 
@@ -38,23 +53,5 @@ func TestPairSessionNames(t *testing.T) {
 	}
 	if names := pairSessionNames(""); names != nil {
 		t.Fatalf("empty input → nil, got %v", names)
-	}
-}
-
-func TestClientCount(t *testing.T) {
-	cases := []struct {
-		raw  string
-		want int
-	}{
-		{"", 0},                                  // query failed → detached
-		{"CLIENT_ID ...\n", 0},                   // header only → 0 clients
-		{"CLIENT_ID ...\nc1 ...\n", 1},           // one client
-		{"CLIENT_ID ...\nc1 ...\nc2 ...\n", 2},   // two clients
-		{"CLIENT_ID ...\nc1 ...\n\nc2 ...\n", 2}, // blank lines don't count
-	}
-	for _, c := range cases {
-		if got := parseClientCount(c.raw); got != c.want {
-			t.Errorf("parseClientCount(%q) = %d, want %d", c.raw, got, c.want)
-		}
 	}
 }

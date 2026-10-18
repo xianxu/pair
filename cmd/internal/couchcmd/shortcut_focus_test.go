@@ -15,6 +15,9 @@ import (
 type focusArtifacts struct{ dir string }
 
 func (f focusArtifacts) PairLifecycleDataDir() string { return f.dir }
+func (f focusArtifacts) RevalidatePairSession(ctx context.Context, _ couchcore.PairSessionBinding) error {
+	return ctx.Err()
+}
 func (f focusArtifacts) PairSessionContext(ctx context.Context, a couchcore.ThreadAddress) (couchcore.PairSessionBinding, error) {
 	return couchcore.PairSessionBinding{Name: "exact-session", Present: true}, ctx.Err()
 }

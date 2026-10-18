@@ -96,7 +96,6 @@ func TestLifecycleOperationContextReachesParkLeaveAndResume(t *testing.T) {
 
 	t.Run("resume", func(t *testing.T) {
 		env := newTestEnv(t, "/repo")
-		env.Couch.resumeRegistrationTimeout = time.Millisecond
 		parked := createParkedThreadInCouch(t, env, LaunchProfile{Agent: "claude", Argv: []string{}})
 		env.Artifacts.SetNativeBinding(parked.Address, "claude", "established", "native-root-1")
 		_, err := DispatchOperation(OperationExecutors{LiveOwner: CouchLiveOwnerExecutor(env.Couch)}, OperationCall{

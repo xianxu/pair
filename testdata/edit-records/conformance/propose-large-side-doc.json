@@ -1,0 +1,17 @@
+{
+ "name": "propose-large-side-doc",
+ "source": "ariadne#437 construct/local/universal-review/examples (ariadne:1, at e9237f59 plus working tree): propose-large-side-doc",
+ "base": "---\npresentation: propose\ncollaboration-mode: discussion\n---\n\n# Release design\n\n## Sequence\n\nThe release checks the build, tests, notes, and rollout. 🤖[rewrite this as four separate steps]\n",
+ "records": [
+  {
+   "old": "🤖[rewrite this as four separate steps]",
+   "new": "→ [proposal](design.side/01-release-sequence.md)",
+   "explain": "the rewrite is a side-doc proposal"
+  },
+  {
+   "old": "collaboration-mode: discussion\n",
+   "new": "collaboration-mode: discussion\ndiscussions:\n  - doc: design.side/01-release-sequence.md\n"
+  }
+ ],
+ "after": "---\npresentation: propose\ncollaboration-mode: discussion\ndiscussions:\n  - doc: design.side/01-release-sequence.md\n---\n\n# Release design\n\n## Sequence\n\nThe release checks the build, tests, notes, and rollout. → [proposal](design.side/01-release-sequence.md)\n"
+}

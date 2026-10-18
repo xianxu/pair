@@ -2,6 +2,7 @@ package pairlifecycletest
 
 import (
 	"fmt"
+	"github.com/xianxu/pair/cmd/internal/zellijtest"
 	"os"
 	"path/filepath"
 	"sort"
@@ -34,38 +35,37 @@ func StubZellij(t testing.TB, sessions map[string]string) (path, log string) {
 	}
 	sort.Strings(names)
 
-	var short, full, clients strings.Builder
+	var short, full []any
+	var clients strings.Builder
+	attached := zellijtest.ShellCase(t, "native-stub-attached")
+	detached := zellijtest.ShellCase(t, "native-stub-detached")
 	for _, name := range names {
 		state := sessions[name]
-		fmt.Fprintf(&short, "%s\n", name)
-		suffix := ""
-		if state == "exited" {
-			suffix = " (EXITED - attach to resurrect)"
-		}
-		fmt.Fprintf(&full, "%s [Created 1s ago]%s\n", name, suffix)
+		short = append(short, name)
+		full = append(full, map[string]any{"name": name, "exited": state == "exited"})
 		switch state {
 		case "attached":
-			fmt.Fprintf(&clients, "  %s) printf 'CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\\n1 terminal_0 sh\\n' ;;\n", shellQuote("--session "+name+" action list-clients"))
+			fmt.Fprintf(&clients, "  %s) %s ;;\n", shellQuote("--session "+name+" action list-clients"), attached)
 		case "detached":
-			fmt.Fprintf(&clients, "  %s) printf 'CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\\n' ;;\n", shellQuote("--session "+name+" action list-clients"))
+			fmt.Fprintf(&clients, "  %s) %s ;;\n", shellQuote("--session "+name+" action list-clients"), detached)
 		case "exited":
 		default:
 			t.Fatalf("StubZellij: session %q has state %q; want attached, detached or exited", name, state)
 		}
 	}
 
-	listingReply := func(body string) string {
-		if body == "" {
-			return "printf 'No active zellij sessions found.\\n' >&2; exit 1"
+	listingReply := func(kind string, payload []any) string {
+		if len(payload) == 0 {
+			return zellijtest.ShellCase(t, "native-stub-no-sessions")
 		}
-		return "printf %s " + shellQuote(body)
+		return zellijtest.ShellReply(t, kind, payload)
 	}
 
 	script := "#!/usr/bin/env bash\n" +
 		"printf '%s\\n' \"$*\" >> " + shellQuote(log) + "\n" +
 		"case \"$*\" in\n" +
-		"  'list-sessions --short') " + listingReply(short.String()) + " ;;\n" +
-		"  'list-sessions --no-formatting') " + listingReply(full.String()) + " ;;\n" +
+		"  'list-sessions --short') " + listingReply("sessions-short", short) + " ;;\n" +
+		"  'list-sessions --no-formatting') " + listingReply("sessions-full", full) + " ;;\n" +
 		clients.String() +
 		"  *) exit 1 ;;\n" +
 		"esac\n"

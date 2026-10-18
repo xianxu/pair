@@ -9,9 +9,9 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
-	"time"
 
 	"github.com/xianxu/pair/cmd/internal/storagegc"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 	"testing"
 )
 
@@ -184,12 +184,11 @@ func TestPreviewThreadContextBoundsRoutedLocks(t *testing.T) {
 			if _, err := store.PreviewThreadContext(canceled, record.Address); !errors.Is(err, context.Canceled) {
 				t.Fatalf("canceled preview: %v", err)
 			}
-			ctx, stop := context.WithTimeout(context.Background(), 25*time.Millisecond)
-			defer stop()
-			started := time.Now()
+			ctx, assertContended := deadlineAtReadLockContention(t)
 			_, err = store.PreviewThreadContext(ctx, record.Address)
-			if err == nil || time.Since(started) > 500*time.Millisecond {
-				t.Fatalf("contended preview escaped caller deadline: %v after %s", err, time.Since(started))
+			assertContended()
+			if !errors.Is(err, context.DeadlineExceeded) {
+				t.Fatalf("contended preview escaped caller deadline: %v", err)
 			}
 		})
 	}
@@ -259,31 +258,39 @@ func TestPreviewThreadRejectsFIFOWithoutWaitingForWriter(t *testing.T) {
 				t.Fatal(err)
 			}
 			done := make(chan struct{})
+			releaseWriter := make(chan struct{})
 			go func() {
 				defer close(done)
-				time.Sleep(200 * time.Millisecond)
+				<-releaseWriter
 				fd, err := unix.Open(path, unix.O_RDWR|unix.O_NONBLOCK, 0)
 				if err == nil {
 					_, _ = unix.Write(fd, []byte(`{}`))
 					_ = unix.Close(fd)
 				}
 			}()
-			defer func() { <-done }()
-			ctx, cancel := context.WithTimeout(context.Background(), 25*time.Millisecond)
-			defer cancel()
-			started := time.Now()
+			returned := make(chan struct{})
+			ctx, cancel := context.WithCancel(t.Context())
+			defer func() { cancel(); close(releaseWriter); <-done; <-returned }()
 			var readErr error
-			if branch == "aliases" {
-				_, readErr = store.RepositoryNamesContext(ctx)
-			} else if branch == "inspection-record" {
-				readErr = WithStoreInspectionLocks(ctx, []CouchNamespace{store.namespace}, nil, func(inspection *StoreInspection) error {
-					view := *store
-					view.inspection = inspection
-					_, err := view.PreviewThreadContext(ctx, record.Address)
-					return err
-				})
-			} else {
-				_, readErr = store.PreviewThreadContext(ctx, record.Address)
+			go func() {
+				defer close(returned)
+				if branch == "aliases" {
+					_, readErr = store.RepositoryNamesContext(ctx)
+				} else if branch == "inspection-record" {
+					readErr = WithStoreInspectionLocks(ctx, []CouchNamespace{store.namespace}, nil, func(inspection *StoreInspection) error {
+						view := *store
+						view.inspection = inspection
+						_, err := view.PreviewThreadContext(ctx, record.Address)
+						return err
+					})
+				} else {
+					_, readErr = store.PreviewThreadContext(ctx, record.Address)
+				}
+			}()
+			select {
+			case <-returned:
+			case <-testwait.After(t):
+				t.Fatal("preview waited for FIFO writer")
 			}
 			if branch != "routed-legacy" && branch != "routed-archive" && readErr == nil {
 				t.Fatal("FIFO metadata accepted")
@@ -292,9 +299,7 @@ func TestPreviewThreadRejectsFIFOWithoutWaitingForWriter(t *testing.T) {
 			if err != nil || info.Mode()&os.ModeNamedPipe == 0 {
 				t.Fatalf("preview changed FIFO: %v", err)
 			}
-			if elapsed := time.Since(started); elapsed >= 150*time.Millisecond {
-				t.Fatalf("preview waited for FIFO writer: %v", elapsed)
-			}
+
 		})
 	}
 }
@@ -352,6 +357,23 @@ func TestPreviewPersistedMetadataRejectsUnsafeBytes(t *testing.T) {
 					t.Fatalf("preview changed metadata: %v", err)
 				}
 			})
+		}
+	}
+}
+
+// The held lock is the signal that makes deadline expiry relevant. Exactly
+// one failed attempt must observe the spent caller budget, with no extra poll.
+func deadlineAtReadLockContention(t *testing.T) (context.Context, func()) {
+	t.Helper()
+	budget := newSpendableBudget()
+	ctx, cancel := budget.bind(t.Context())
+	t.Cleanup(cancel)
+	attempts := 0
+	ctx = context.WithValue(ctx, readLockContendedKey{}, func() { attempts++; budget.spend() })
+	return ctx, func() {
+		t.Helper()
+		if attempts != 1 {
+			t.Fatalf("deadline contention attempts = %d, want exactly 1", attempts)
 		}
 	}
 }

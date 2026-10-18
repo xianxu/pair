@@ -2,6 +2,8 @@
 -- or cached targets are consulted; only a validated acknowledgment is published.
 local here=debug.getinfo(1,'S').source:match('@?(.*/)') or './'
 local identity=dofile(here..'identity.lua')
+local observation=dofile(here..'../zellij_observation.lua')
+local panes_identity=dofile(here..'../pane_identity.lua')
 local M, C = {}, {}; C.__index=C
 local function same(a,b,head)
   if type(a)~='table' or type(b)~='table' then return false end
@@ -105,12 +107,101 @@ function C:pane()
   if type(meta.endpoint)~='string' or meta.endpoint=='' then return {legacy=true,unserved=true} end
   return meta
 end
-function C:show()
-  self:run({'zellij','action','show-floating-panes'},nil,function(result)
-    self:finish(result.code~=0 and 'could not show review pane' or nil)
+-- Visibility is a separate decision after successful activation. Native pane
+-- facts authenticate an explicit tab, never whichever client is currently active.
+local function draft_context(raw, caller)
+  local panes,err=observation.panes(raw,{Command=true,Floating=true,Tab=true})
+  if not panes then return nil,err end
+  local selected,source=panes_identity.select_in_tab(panes,caller,panes_identity.is_draft)
+  if not selected then return nil,source end
+  if selected.id~=source.id then return nil,'invoking pane is not the current draft' end
+  return panes_identity.context(selected)
+end
+local function decode_visibility(result)
+  local out=(result.stdout or ''):match('^%s*(.-)%s*$')
+  local err=(result.stderr or ''):match('^%s*(.-)%s*$')
+  if result.signal and result.signal~=0 then return nil,'visibility query was interrupted' end
+  if result.code==0 and out=='true' and err=='' then return true end
+  if (result.code==1 and out=='false' and err=='') or (result.code==2 and out=='' and err=='false') then return false end
+  return nil,'could not query review visibility'
+end
+function C:visibility(pane,wanted,session,activation,opened,native_pane,native_session)
+  local function current_activation()
+    local current=self:pane()
+    if not self.busy or vim.env.ZELLIJ_PANE_ID~=native_pane or vim.env.ZELLIJ_SESSION_NAME~=native_session
+      or (self.opts.session() or '')~=session or not current
+      or current.token~=pane.token or current.endpoint~=pane.endpoint or current.session~=session
+      or not valid_context(current.context,wanted) or current.context.activation~=activation then
+      error('review activation changed before visibility effect',0)
+    end
+  end
+  local budget=observation.budget({remaining=function() return 5000 end,check=current_activation})
+  local caller=native_pane or ''
+  local function refuse(reason) self:finish('visibility refused: '..tostring(reason)) end
+  local function check()
+    local ok,err=pcall(budget.check)
+    if not ok then refuse(err);return false end
+    return true
+  end
+  local function query(argv,callback)
+    if not check() then return end
+    local remaining=budget.remaining()
+    if remaining<=0 then refuse('Zellij admission budget exhausted');return end
+    self:run(argv,{timeout=math.max(1,math.floor(remaining))},function(result)
+      if not check() then return end
+      callback(result)
+    end)
+  end
+  local function context(callback)
+    query({'zellij','action','list-panes','--json','--command','--state','--tab'},function(result)
+      if result.code~=0 or (result.signal and result.signal~=0) then refuse('could not inspect draft context');return end
+      local facts,err=draft_context(result.stdout or '',caller)
+      if not facts then refuse(err);return end
+      if check() then callback(facts) end
+    end)
+  end
+  local function visible(draft,callback)
+    query({'zellij','action','are-floating-panes-visible','--tab-id',tostring(draft.tab_id)},function(result)
+      local value,err=decode_visibility(result)
+      if value==nil then refuse(err);return end
+      callback(value)
+    end)
+  end
+  local function apply(draft,hide)
+    local admitted,err=observation.effect(budget,function()
+      if hide then
+        -- The callback performs its individual effects through the SAME token.
+        if self.opts.hide(budget,draft)~=true then self:finish('could not return from review pane');return true end
+        self:finish()
+      else
+        self:run({'zellij','action','show-floating-panes','--tab-id',tostring(draft.tab_id)},nil,function(result)
+          self:finish(result.code~=0 and 'could not show review pane' or nil)
+        end)
+      end
+      return true
+    end)
+    if not admitted then refuse(err) end
+  end
+  context(function(first)
+    local function confirm_context(callback)
+      context(function(second)
+        if not vim.deep_equal(first,second) then refuse('draft context observations disagree');return end
+        callback(second)
+      end)
+    end
+    if opened then confirm_context(function(draft) apply(draft,false) end);return end
+    visible(first,function(before)
+      confirm_context(function(draft)
+        visible(draft,function(after)
+          if before~=after then refuse('visibility observations disagree');return end
+          apply(draft,after)
+        end)
+      end)
+    end)
   end)
 end
-function C:activate(pane,wanted,opened)
+function C:activate(pane,wanted,opened,native)
+  local native_pane,native_session=native.pane,native.session
   if pane.unserved then self:finish('existing review pane has no restore socket (this host refused it), so it cannot switch branches; finish and close it to review another'); return end
   if pane.legacy then self:finish('existing review pane cannot restore branches; finish and close it before reopening'); return end
   local session=self.opts.session() or ''
@@ -135,23 +226,14 @@ function C:activate(pane,wanted,opened)
         self:finish('review pane changed during activation; invoke Alt+C again'); return
       end
       self.opts.write_target(wanted.repo..'/'..wanted.file,'ready',observed)
-      if opened or ack.same~=true then self:show(); return end
-      self:run({'zellij','action','are-floating-panes-visible'},nil,function(visibility)
-        local visible=(visibility.stdout or ''):match('^%s*(.-)%s*$')
-        local diagnostic=(visibility.stderr or ''):match('^%s*(.-)%s*$')
-        -- The documented predicate uses stdout/exit 1 for false; live Zellij
-        -- also transports false as a CLI error response on stderr/exit 2.
-        -- Accept only these exact forms, never a timeout or mixed response.
-        if visibility.code==0 and visible=='true' and diagnostic=='' then
-          self.opts.hide(); self:finish()
-        elseif (visibility.code==1 and visible=='false' and diagnostic=='')
-          or (visibility.code==2 and visible=='' and diagnostic=='false') then self:show()
-        else self:finish('could not query review visibility') end
-      end)
+      self:visibility(pane,wanted,session,ack.context.activation,opened or ack.same~=true,native_pane,native_session)
     end)
   end)
 end
-function C:open(wanted)
+function C:open(wanted,native)
+  if vim.env.ZELLIJ_PANE_ID~=native.pane or vim.env.ZELLIJ_SESSION_NAME~=native.session then
+    self:finish('invoking terminal context changed before review open');return
+  end
   local pair=self.opts.pair_bin()
   self:run({pair,'review','open',wanted.repo..'/'..wanted.file},
     {env={PAIR_REVIEW_IDENTITY=vim.json.encode(wanted),PAIR_SESSION_ID=self.opts.session() or ''}},function(result)
@@ -160,7 +242,7 @@ function C:open(wanted)
       local function poll()
         if not self.busy then return end
         local pane=self:pane()
-        if pane and not pane.legacy then self:activate(pane,wanted,true); return end
+        if pane and not pane.legacy then self:activate(pane,wanted,true,native); return end
         if (vim.uv or vim.loop).hrtime()>=deadline then
           self:finish('review pane did not acknowledge opening; retry Alt+C without replacing the pane'); return
         end
@@ -172,6 +254,7 @@ end
 function C:toggle()
   if self.busy then return end
   self.busy=true
+  local native={pane=vim.env.ZELLIJ_PANE_ID,session=vim.env.ZELLIJ_SESSION_NAME}
   self:resolve(function(observed)
     if observed.status=='non_review' or observed.status=='missing' then
       local target=self.opts.read_target()
@@ -183,7 +266,7 @@ function C:toggle()
       self:finish(observed.diagnostic or 'review identity could not be resolved'); return
     end
     local pane=self:pane()
-    if pane then self:activate(pane,observed,false) else self:open(observed) end
+    if pane then self:activate(pane,observed,false,native) else self:open(observed,native) end
   end)
 end
 function M.new(opts) return setmetatable({opts=opts,busy=false},C) end

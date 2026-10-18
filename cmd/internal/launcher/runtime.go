@@ -31,6 +31,7 @@ type ZellijOps interface {
 	// wherever the caller reads only exited-versus-not -- each client query
 	// costs about 250 ms against a real detached session.
 	SessionLiveness() ([]Session, error)
+	SessionLivenessContext(context.Context) ([]Session, error)
 	// SessionBlocksReuse reports whether a live zellij session named session
 	// blocks reuse of its tag, clearing a stale EXITED resurrect record as a
 	// side effect (#67) so a create can reclaim the name.
@@ -39,14 +40,17 @@ type ZellijOps interface {
 	// name on this machine's socket-path budget (#54); a too-long name returns
 	// an error the caller surfaces as "pick a shorter tag".
 	ProbeSessionName(session string) error
-	// LaunchSession runs `zellij --new-session-with-layout` as a BLOCKING
+	ProbeSessionNameContext(context.Context, string) error
+	// Admission bounds only the pre-create query decision; readiness and
+	// post-birth query admission have their own bounds.
+	// LaunchSessionContext runs `zellij --new-session-with-layout` as a BLOCKING
 	// fork+wait child with the tty passed through, returning the child's exit
 	// code when the pane exits. It must NOT syscall.Exec — the Go launcher has
 	// to regain control afterward for the M3 quit-cleanup / restart loop.
-	// Cancelling ctx ends the client (SIGTERM, then SIGKILL) and still returns
+	// Cancelling lifetime ends the client (SIGTERM, then SIGKILL) and returns
 	// only after it is reaped. Only the create path's birth watch cancels it,
 	// on proof that the session died at birth (#288).
-	LaunchSession(ctx context.Context, session, configDir, layout string) (int, error)
+	LaunchSessionContext(lifetime, admission context.Context, session, configDir, layout string) (int, error)
 	// ProbeLiveLayout inspects a live session's actual pane signature. It is the
 	// rollout fallback for sessions created before workbench-layout-<tag>.
 	ProbeLiveLayout(session string) (LayoutMode, error)
@@ -94,10 +98,6 @@ type UIOps interface {
 
 // ProcOps spawns the (already-Go) sidecar children and the dev rebuild.
 type ProcOps interface {
-	// SpawnTitlePoller backgrounds `pair title` (detached), the per-tag
-	// frame/cmux title singleton. env is its launch contract, handed to the child
-	// explicitly rather than inherited from whatever was exported first -- the
-	// inheritance is what pair#183 lost on attach.
 	// DevRebuild rebuilds the repo Go binaries when PAIR_DEV is set (no-op
 	// otherwise) so the layout's `exec pair-wrap` resolves a fresh build (#46).
 	DevRebuild(pairHome string)
@@ -192,11 +192,12 @@ type FSOps interface {
 // zellij/nvim/cmux/tty calls. The markers live under ~/.cache/pair/{quit,restart}-
 // <session>; parsing + the re-launch decision stay pure (markers.go).
 type LifecycleOps interface {
-	// AttachSession runs `zellij --config-dir CFG attach SESSION` as a BLOCKING
+	// AttachSessionContext runs `zellij --config-dir CFG attach SESSION` as a BLOCKING
 	// fork+wait child (tty passed through), returning the child's exit code —
 	// the attach twin of LaunchSession (NOT syscall.Exec, so the loop regains
-	// control for cleanup + restart).
-	AttachSession(session, configDir string) (int, error)
+	// control for cleanup + restart). Admission owns queries; lifetime owns
+	// the interactive client.
+	AttachSessionContext(lifetime, admission context.Context, session, configDir string) (int, error)
 	// TakeQuitMarker read-clears ~/.cache/pair/quit-<session>, reporting whether
 	// it was present (Alt+x). Cleanup runs its body only when it was.
 	TakeQuitMarker(session string) bool
@@ -281,6 +282,10 @@ type Runtime interface {
 // the launch environment (Env), the asset root (PairHome, for zellij/nvim/bin
 // paths + PAIR_HOME), and the two create-flow flags the shell reads from env.
 type LaunchOptions struct {
+	// Context owns the launch/client lifetime; nil selects the process lifetime.
+	// queryContext is a selected decision budget, never the interactive lifetime.
+	Context            context.Context
+	queryContext       context.Context
 	startupTiming      *startupTiming
 	Args               LaunchArgs
 	Env                Env
@@ -329,4 +334,12 @@ func (o LaunchOptions) birthBound() time.Duration {
 		return o.BirthBound
 	}
 	return birthBound
+}
+
+// lifetimeContext is independent of admission's short query deadline.
+func (o LaunchOptions) lifetimeContext() context.Context {
+	if o.Context != nil {
+		return o.Context
+	}
+	return context.Background()
 }

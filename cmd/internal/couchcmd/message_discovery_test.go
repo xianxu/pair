@@ -158,7 +158,7 @@ func TestMessageUnfocusedWrappersReconnectAndExchangeWithoutAttachment(t *testin
 		t.Fatal(err)
 	}
 	r := &serviceRig{t: t, world: newMessageWorld(), slotGit: map[string]couchcore.SlotGitStatus{}}
-	dir, err := os.MkdirTemp("/tmp", "unfocused-messages-")
+	dir, err := os.MkdirTemp("", "pcmd-")
 	if err != nil {
 		t.Fatal(err)
 	}

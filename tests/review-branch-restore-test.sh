@@ -28,9 +28,9 @@ with ReviewTestEnvironment() as isolated, tempfile.TemporaryDirectory(prefix='pa
     def resolve(): return json.loads(subprocess.check_output([str(root/'bin/pair'),'review','readiness','--resolve',str(repo)],env=base_env,text=True))
     opened=data/'review.open'; handoff=data/'handoff.json'
     bindir=temp/'bin'; bindir.mkdir()
-    (bindir/'zellij').write_text('#!/usr/bin/env python3\nimport sys,os,json\nfrom pathlib import Path\np=Path(os.environ["HOST_LOG"])\nwith p.open("a") as f: f.write(" ".join(sys.argv[1:])+"\\n")\nif sys.argv[1:]==["action","are-floating-panes-visible"]: print("true")\nelif sys.argv[1:3]==["action","list-panes"]: print(json.dumps({"panes":[{"id":3,"terminal_command":"nvim -u /pair/nvim/init.lua"}]}))\n')
+    (bindir/'zellij').write_text("#!/usr/bin/env python3\nimport sys,os\nfrom pathlib import Path\nsys.path.insert(0,str(Path(os.environ['PAIR_TEST_ZELLIJ_REPLIES']).parent))\nfrom zellij_fixture_replies import emit_case\np=Path(os.environ['HOST_LOG'])\nwith p.open('a') as f:f.write(' '.join(sys.argv[1:])+'\\n')\nif sys.argv[1:3]==['action','are-floating-panes-visible']:emit_case('review-branch-restore.visible')\nelif sys.argv[1:3]==['action','list-panes']:emit_case('review-branch-restore.panes')\n")
     (bindir/'zellij').chmod(0o755)
-    env=dict(base_env,PATH=str(bindir)+':'+str(root/'bin')+':'+os.environ['PATH'],HOST_LOG=str(temp/'host.log'),PAIR_HOME=str(root),PAIR_DATA_DIR=str(data),PAIR_TAG='restore',PAIR_SESSION_ID='session',
+    env=dict(base_env,PATH=str(bindir)+':'+str(root/'bin')+':'+os.environ['PATH'],HOST_LOG=str(temp/'host.log'),PAIR_TEST_ZELLIJ_REPLIES=str(root/'tests/lib/zellij_fixture_replies.py'),PAIR_HOME=str(root),PAIR_DATA_DIR=str(data),PAIR_TAG='restore',PAIR_SESSION_ID='session',ZELLIJ_PANE_ID='42',ZELLIJ_SESSION_NAME='fixture-review',
         PAIR_REVIEW_OPEN_PATH=str(opened),PAIR_REVIEW_HANDOFF_PATH=str(handoff),PAIR_REVIEW_LANDED_PATH=str(data/'landed.json'),
         PAIR_REVIEW_MODE_PATH=str(data/'mode'),XDG_STATE_HOME=str(temp/'state'),XDG_DATA_HOME=str(temp/'xdg'),XDG_CACHE_HOME=str(temp/'cache'))
     trace_path=temp/'pane-observations.json'; trace_init=temp/'review-init.lua'
@@ -70,7 +70,7 @@ with ReviewTestEnvironment() as isolated, tempfile.TemporaryDirectory(prefix='pa
         draft=temp/'draft.md'; draft.write_text('draft\n'); draft_socket=str(pathlib.Path(rpc_td)/'draft.sock')
         log=open(temp/'draft.log','w'); logs.append(log)
         d=subprocess.Popen(['nvim','--headless','--listen',draft_socket,'-u',str(root/'nvim/init.lua'),str(draft)],cwd=repo,
-            env=dict(env,PAIR_DRAFT_PATH=str(draft)),stdout=log,stderr=log); children.append(d)
+            env=dict(env,PAIR_DRAFT_PATH=str(draft),ZELLIJ_PANE_ID='3'),stdout=log,stderr=log); children.append(d)
         deadline=time.monotonic()+8
         draft_meta={'endpoint':draft_socket}
         while time.monotonic()<deadline:

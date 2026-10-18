@@ -28,6 +28,9 @@ type wrapperTitleProcess struct {
 var startTitleProcess = startWrapperTitleProcess
 
 func startWrapperTitleProcess(agent, scrollbackLog string, stderr io.Writer) (*wrapperTitleProcess, error) {
+	if launcher.CouchHostedEnv(os.Getenv) {
+		return nil, nil
+	}
 	tag, scope, data, session := os.Getenv("PAIR_TAG"), os.Getenv("PAIR_SCOPE_KEY"), os.Getenv("PAIR_DATA_DIR"), os.Getenv("PAIR_SESSION_NAME")
 	if !launcher.IsSupportedAgent(agent) || os.Getenv("PAIR_AGENT") != agent || tag == "" || scope == "" || data == "" || session == "" {
 		return nil, nil

@@ -3,6 +3,7 @@
 # Review controls through real nvim maps and a stateful pane host (#340).
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+export PAIR_TEST_ZELLIJ_REPLIES="$ROOT/tests/lib/zellij_fixture_replies.py"
 . "$ROOT/tests/lib/run-headless.sh"
 RT="$(mktemp -d "${TMPDIR:-/tmp}/pair-review-controls.XXXXXX")"
 trap 'rm -rf "$RT"' EXIT
@@ -10,17 +11,20 @@ export REVIEW_TEST_ROOT="$RT" PAIR_HOME="$ROOT" PAIR_TAG=test
 for seam in OPEN MODE TARGET CONTEXT HANDOFF LANDED DEFINITION_REQUEST DEFINITION_RESULT; do
   export "PAIR_REVIEW_${seam}_PATH=$RT/$seam"
 done
+export ZELLIJ_PANE_ID=9 ZELLIJ_SESSION_NAME=fixture-review
 mkdir "$RT/bin"
 cat > "$RT/bin/zellij" <<'PY'
 #!/usr/bin/env python3
 import json, os, sys
 from pathlib import Path
+sys.path.insert(0, str(Path(os.environ['PAIR_TEST_ZELLIJ_REPLIES']).parent))
+from zellij_fixture_replies import emit_case
 p=Path(os.environ['REVIEW_TEST_ROOT'])/'host.json'
 s=json.loads(p.read_text())
 a=sys.argv[1:]
 if a[:2] == ['action','list-panes']:
-    print(json.dumps({'panes': [dict(id=4,is_plugin=False,is_floating=False,title='terminal',terminal_command='/bin/pair term'),dict(id=7,is_plugin=False,is_floating=False,title='codex',terminal_command='/bin/pair wrap --agent codex'),dict(id=3,is_plugin=False,is_floating=False,title='draft',terminal_command='/pair/nvim/init.lua nvim'),dict(id=9,is_plugin=False,is_floating=True,title='review')]}))
-elif a == ['action','hide-floating-panes']: s['visible']=False
+    emit_case('review-controls.panes')
+elif a == ['action','hide-floating-panes','--tab-id','2']: s['visible']=False
 elif a[:2] == ['action','focus-pane-id']:
     assert not s['visible'], 'hide before focus'
     s['focused']=int(a[2])

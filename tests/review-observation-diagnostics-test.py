@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / 'tests/lib'))
 from review_observation_diagnostics import observe_wanted
 from review_test_env import ReviewTestEnvironment
+from review_resolver_fake import ReviewResolverFake
 
 
 class WantedObservationTest(unittest.TestCase):
@@ -77,6 +78,34 @@ class WantedObservationTest(unittest.TestCase):
         self.assertEqual(history[-1]['phase'], 'wanted:expired')
         self.assertIn('timed out', history[-1]['validation_error'])
 
+    def test_stateful_wanted_double_reads_current_head_and_exact_bytes(self):
+        with tempfile.TemporaryDirectory(prefix='pair-resolver-model-') as storage:
+            repo = Path(storage)
+            refs = repo / '.git' / 'refs' / 'heads' / 'review'
+            refs.mkdir(parents=True)
+            identities = {}
+            for name in ('a', 'b'):
+                (refs / name).write_text('head-' + name + '\n')
+                (repo / (name + '.md')).write_bytes(b'\xef\xbb\xbfexact\r\nbytes')
+                identities['refs/heads/review/' + name] = dict(
+                    status='resolved', repo=str(repo), branch='review/' + name,
+                    head='head-' + name, file=name + '.md')
+            model = repo / 'model.json'
+            model.write_text(json.dumps(dict(repo=str(repo), by_ref=identities)))
+            fake = ReviewResolverFake(model)
+            history = []
+            command = ['pair', 'review', 'readiness', '--resolve', str(repo)]
+            for name in ('a', 'b'):
+                (repo / '.git' / 'HEAD').write_text('ref: refs/heads/review/' + name + '\n')
+                actual = observe_wanted(command, {}, history, 'wanted:' + name, runner=fake.run)
+                self.assertEqual(actual['branch'], 'review/' + name)
+                self.assertEqual(fake.resolve(repo, snapshot=True)['snapshot'], '\ufeffexact\r\nbytes')
+            (refs / 'b').write_text('unexpected-head\n')
+            with self.assertRaisesRegex(AssertionError, 'fixture HEAD changed'):
+                observe_wanted(command, {}, history, 'wanted:unknown', runner=fake.run)
+            self.assertEqual(fake.calls, 3)
+            self.assertNotIn('exact', json.dumps(history))
+
 
 class ObservationFixtureDiagnosticsTest(unittest.TestCase):
     def test_positive_control_retains_wanted_fresh_and_request_order(self):
@@ -89,9 +118,21 @@ class ObservationFixtureDiagnosticsTest(unittest.TestCase):
             self.assertTrue(report.exists(), 'positive fixture discarded its observation evidence')
             evidence = json.loads(report.read_text())
             self.assertEqual(evidence['outcome'], 'passed')
+            self.assertEqual(evidence.get('resolver_backend'), 'stateful-double',
+                             'ordering fixture still depends on real resolver speed')
             self.assertNotIn('"snapshot":', json.dumps(evidence))
             self.assertNotIn('"latest_agent_body":', json.dumps(evidence))
             self.assertEqual(len(evidence['wanted']), 5)
+            self.assertIn('phase_evidence', evidence)
+            phases = evidence['phase_evidence']
+            positive = [event for event in phases if event['phase'] == 'slow-same-branch-observation']
+            self.assertEqual([event['event'] for event in positive],
+                             ['start', 'result', 'release', 'settled', 'applied'])
+            self.assertEqual(len({event['id'] for event in positive}), 1)
+            self.assertEqual(positive[1]['code'], 0)
+            self.assertEqual(positive[0]['timeout'], 2500)
+            self.assertLessEqual(positive[0]['at_ns'], positive[1]['completed_ns'])
+            self.assertLessEqual(positive[1]['completed_ns'], positive[2]['at_ns'])
             events = evidence['fresh']['events']
             wanted = next(event for event in events if event['event'] == 'request-begin')
             fresh = next(event for event in events if event['event'] == 'completion'
@@ -101,6 +142,56 @@ class ObservationFixtureDiagnosticsTest(unittest.TestCase):
             self.assertEqual(fresh['identity']['head'], wanted['identity']['head'])
             self.assertGreater(fresh['seq'], wanted['seq'])
             self.assertTrue(all(event['ok'] for event in events if event['event'] == 'request-end'))
+
+    def test_arm_boundary_keeps_an_observation_started_before_rpc_returns(self):
+        with tempfile.TemporaryDirectory(prefix='pair-observation-arm-') as storage:
+            init = Path(storage) / 'init.lua'
+            observed = Path(storage) / 'started-during-arm'
+            init.write_text('local native=dofile\ndofile=function(path)\n'
+                            ' local module=native(path)\n'
+                            ' if path:match("/tests/lib/review_observation_gate%.lua$") then\n'
+                            '  local install=module.install\n'
+                            '  module.install=function(...)\n'
+                            '   local gate=install(...); local arm=gate.arm\n'
+                            '   gate.arm=function(self)\n'
+                            '    local ok=arm(self)\n'
+                            '    if ok then vim.api.nvim_exec_autocmds("FocusGained",{}); local started=vim.wait(2000,function()\n'
+                            '     return gate:snapshot().inflight>0 or gate:snapshot().held>0\n'
+                            '    end,5); if started then vim.fn.writefile({"started"},' + json.dumps(str(observed)) + ') end end\n'
+                            '    return ok\n'
+                            '   end\n'
+                            '   return gate\n'
+                            '  end\n'
+                            ' end\n'
+                            ' return module\n'
+                            'end\n'
+                            'native(' + json.dumps(str(ROOT / 'nvim/review.lua')) + ')\n')
+            result = subprocess.run(['bash', str(ROOT / 'tests/review-observation-test.sh')],
+                                    env=dict(os.environ, PAIR_TEST_REVIEW_INIT=str(init)),
+                                    text=True, capture_output=True, timeout=60)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertTrue(observed.exists(), 'controlled observation never started during arm')
+
+    def test_callback_gate_preserves_native_deadline_and_owned_teardown(self):
+        with ReviewTestEnvironment() as isolated, tempfile.TemporaryDirectory(prefix='pair-observation-gate-') as storage:
+            result = subprocess.run(['nvim', '--headless', '-u', 'NONE', '-l', str(ROOT / 'tests/review-observation-gate-test.lua')],
+                                    cwd=ROOT, env=isolated.environment(storage, ROOT),
+                                    text=True, capture_output=True, timeout=20)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_stateful_resolver_models_current_bytes_and_linear_queries(self):
+        with ReviewTestEnvironment() as isolated, tempfile.TemporaryDirectory(prefix='pair-resolver-double-') as storage:
+            result = subprocess.run(['nvim', '--headless', '-u', 'NONE', '-l', str(ROOT / 'tests/review-resolver-fake-test.lua')],
+                                    cwd=ROOT, env=isolated.environment(storage, ROOT),
+                                    text=True, capture_output=True, timeout=20)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_native_resolver_deadlines_remain_separate_from_fixture_ordering(self):
+        with ReviewTestEnvironment() as isolated, tempfile.TemporaryDirectory(prefix='pair-resolver-native-') as storage:
+            result = subprocess.run(['nvim', '--headless', '-u', 'NONE', '-l', str(ROOT / 'tests/review-resolver-native-deadline-test.lua')],
+                                    cwd=ROOT, env=isolated.environment(storage, ROOT),
+                                    text=True, capture_output=True, timeout=30)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
     def test_lua_trace_preserves_real_process_and_controlled_completion_seams(self):
         with ReviewTestEnvironment() as isolated, tempfile.TemporaryDirectory(prefix='pair-observation-trace-') as storage:
@@ -131,7 +222,7 @@ class ObservationFixtureDiagnosticsTest(unittest.TestCase):
                 self.assertIn(required, result.stdout + result.stderr)
 
     def test_incomplete_fresh_and_real_checkout_change_keep_both_observations(self):
-        for cause in ('invalid-fresh', 'changed-branch'):
+        for cause in ('invalid-fresh', 'changed-branch', 'timeout'):
             with self.subTest(cause=cause), tempfile.TemporaryDirectory(prefix='pair-observation-refusal-') as storage:
                 init = Path(storage) / 'init.lua'
                 setup = '''
@@ -158,6 +249,9 @@ local request=type(raw)=='table' and raw or vim.json.decode(raw)
 local result=vim.system({'git','-C',request.identity.repo,'checkout','-q','review/a'}):wait()
 assert(result.code==0,result.stderr)
 '''
+                if cause == 'timeout':
+                    setup = setup.replace("result.stdout=vim.json.encode({status='invalid',repo=cmd[5],diagnostic='fixture fresh deadline'})",
+                                          "result.code=124; result.signal=9; result.stdout=''; result.stderr=''")
                 init.write_text(setup + 'dofile(' + json.dumps(str(ROOT / 'nvim/review.lua')) + ')\n' + '''
 local restore=PairReviewPane.restore
 PairReviewPane.restore=function(raw)
@@ -190,7 +284,11 @@ end
                          and event.get('request_id') == wanted['request_id']]
                 self.assertTrue(fresh, evidence)
                 self.assertGreater(fresh[0]['seq'], wanted['seq'])
-                if cause == 'invalid-fresh':
+                if cause == 'timeout':
+                    self.assertEqual(fresh[0]['code'], 124)
+                    self.assertEqual(fresh[0]['stdout_bytes'], 0)
+                    self.assertIn('timed out', next(event for event in events if event['event'] == 'request-end')['error'])
+                elif cause == 'invalid-fresh':
                     self.assertEqual(fresh[0]['identity']['status'], 'invalid')
                     self.assertIn('fixture fresh deadline', fresh[0]['identity']['diagnostic'])
                 else:

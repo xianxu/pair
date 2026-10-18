@@ -1,0 +1,279 @@
+[
+  {
+    "name": "public.sessions-short",
+    "source": "cmd/pair-go/main_test.go:TestPublicPairCommandFamiliesIgnoreCouchStore",
+    "kind": "sessions-short",
+    "payload": [
+      "📁pair-compiler-fix"
+    ],
+    "expect": "accept"
+  },
+  {
+    "name": "public.sessions-full",
+    "source": "cmd/pair-go/main_test.go:TestPublicPairCommandFamiliesIgnoreCouchStore",
+    "kind": "sessions-full",
+    "payload": [
+      "📁pair-compiler-fix"
+    ],
+    "expect": "accept"
+  },
+  {
+    "name": "public.clients-existing",
+    "source": "cmd/pair-go/main_test.go:TestPublicPairCommandFamiliesIgnoreCouchStore",
+    "kind": "clients",
+    "payload": [
+      {
+        "id": 1,
+        "pane_id": "terminal_0",
+        "running_command": "/bin/sh"
+      }
+    ],
+    "expect": "accept"
+  },
+  {
+    "name": "public.no-sessions",
+    "source": "cmd/pair-go/main_test.go:TestPublicPairCommandFamiliesIgnoreCouchStore",
+    "kind": "no-sessions",
+    "payload": null,
+    "expect": "accept"
+  },
+  {
+    "name": "public.no-session",
+    "source": "cmd/pair-go/main_test.go:TestPublicPairCommandFamiliesIgnoreCouchStore",
+    "kind": "no-session",
+    "payload": null,
+    "expect": "accept"
+  },
+  {
+    "name": "wrap.shortcut-panes",
+    "source": "cmd/internal/wrapcmd/translate_test.go:TestHandleWorkbenchShortcutRunsAgentProductionPath",
+    "kind": "panes",
+    "payload": [
+      {
+        "id": 9,
+        "is_focused": false,
+        "is_floating": true,
+        "title": "terminal",
+        "terminal_command": "pair term"
+      }
+    ],
+    "expect": "accept"
+  },
+  {
+    "name": "couch.message264.short",
+    "source": "cmd/internal/couchcmd/message_listing_test.go",
+    "kind": "sessions-short",
+    "payload": [
+      "📁1-264"
+    ],
+    "expect": "accept"
+  },
+  {
+    "name": "couch.message264.full",
+    "source": "cmd/internal/couchcmd/message_listing_test.go",
+    "kind": "sessions-full",
+    "payload": [
+      "📁1-264"
+    ],
+    "expect": "accept"
+  },
+  {
+    "name": "couch.message300.short",
+    "source": "cmd/internal/couchcmd/message_listing_test.go",
+    "kind": "sessions-short",
+    "payload": [
+      "📁1-300"
+    ],
+    "expect": "accept"
+  },
+  {
+    "name": "couch.message300.full",
+    "source": "cmd/internal/couchcmd/message_listing_test.go",
+    "kind": "sessions-full",
+    "payload": [
+      "📁1-300"
+    ],
+    "expect": "accept"
+  },
+  {
+    "name": "couch.fleet.short",
+    "source": "cmd/internal/couchcmd/startup_fleet_timing_live_test.go:TestFleetQueryCollectorScopesConcurrentParentOperations",
+    "kind": "sessions-short",
+    "payload": [
+      "pair-fixture"
+    ],
+    "expect": "accept"
+  },
+  {
+    "name": "couch.fleet.full",
+    "source": "cmd/internal/couchcmd/startup_fleet_timing_live_test.go:TestFleetQueryCollectorScopesConcurrentParentOperations",
+    "kind": "sessions-full",
+    "payload": [
+      "pair-fixture"
+    ],
+    "expect": "accept"
+  },
+  {
+    "name": "couch.fleet.clients",
+    "source": "cmd/internal/couchcmd/startup_fleet_timing_live_test.go:TestFleetQueryCollectorScopesConcurrentParentOperations",
+    "kind": "clients",
+    "payload": [
+      {
+        "id": 1,
+        "pane_id": "terminal_0",
+        "running_command": "sh"
+      }
+    ],
+    "expect": "accept"
+  },
+  {
+    "name": "park.empty",
+    "source": "cmd/internal/couchcore/park_client_readiness_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "",
+      "stderr": "",
+      "code": 0
+    },
+    "expect": "reject",
+    "decoder": "clients"
+  },
+  {
+    "name": "park.whitespace",
+    "source": "cmd/internal/couchcore/park_client_readiness_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": " \n\t",
+      "stderr": "",
+      "code": 0
+    },
+    "expect": "reject",
+    "decoder": "clients"
+  },
+  {
+    "name": "park.cli-failure",
+    "source": "cmd/internal/couchcore/park_client_readiness_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "",
+      "stderr": "query failed",
+      "code": 2
+    },
+    "expect": "reject",
+    "decoder": "clients"
+  },
+  {
+    "name": "park.zero",
+    "source": "cmd/internal/couchcore/park_client_readiness_test.go",
+    "kind": "clients",
+    "payload": [],
+    "expect": "accept"
+  },
+  {
+    "name": "park.one",
+    "source": "cmd/internal/couchcore/park_client_readiness_test.go",
+    "kind": "clients",
+    "payload": [
+      {
+        "id": 1,
+        "pane_id": "terminal_0",
+        "running_command": "/bin/sh"
+      }
+    ],
+    "expect": "accept"
+  },
+  {
+    "name": "park.two",
+    "source": "cmd/internal/couchcore/park_client_readiness_test.go",
+    "kind": "clients",
+    "payload": [
+      {
+        "id": 1,
+        "pane_id": "terminal_0",
+        "running_command": "/bin/sh"
+      },
+      {
+        "id": 2,
+        "pane_id": "terminal_1",
+        "running_command": "/bin/sh"
+      }
+    ],
+    "expect": "accept"
+  },
+  {
+    "name": "park.growth-from-zero",
+    "source": "cmd/internal/couchcore/park_client_readiness_test.go",
+    "kind": "clients",
+    "payload": [
+      {
+        "id": 2,
+        "pane_id": "terminal_1",
+        "running_command": "/bin/sh"
+      }
+    ],
+    "expect": "accept"
+  },
+  {
+    "name": "couch.owned.clients",
+    "source": "cmd/internal/couchcmd/owned_query_test.go",
+    "kind": "clients",
+    "payload": [],
+    "expect": "accept"
+  },
+  {
+    "name": "couch.owned.failure",
+    "source": "cmd/internal/couchcmd/owned_query_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\n",
+      "stderr": "owned query diagnostic",
+      "code": 7
+    },
+    "expect": "reject",
+    "decoder": "clients"
+  },
+  {
+    "name": "couch.registration.clients",
+    "source": "cmd/internal/couchcore/terminal_registration_fixture_test.go",
+    "kind": "clients",
+    "payload": [],
+    "expect": "accept"
+  },
+  {
+    "name": "couch.registration.no-sessions",
+    "source": "cmd/internal/couchcore/terminal_registration_fixture_test.go",
+    "kind": "no-sessions",
+    "payload": null,
+    "expect": "accept"
+  },
+  {
+    "name": "couch.registration.dynamic-owner-sample",
+    "source": "cmd/internal/couchcore/terminal_registration_fixture_test.go",
+    "kind": "panes",
+    "payload": [
+      {
+        "id": 1,
+        "pane_command": "/fixture/pair-wrap --scrollback-log /fixture/raw"
+      }
+    ],
+    "expect": "accept"
+  },
+  {
+    "name": "couch.registration.dynamic-short-sample",
+    "source": "cmd/internal/couchcore/terminal_registration_fixture_test.go",
+    "kind": "sessions-short",
+    "payload": [
+      "pair-registration-fixture"
+    ],
+    "expect": "accept"
+  },
+  {
+    "name": "couch.registration.dynamic-full-sample",
+    "source": "cmd/internal/couchcore/terminal_registration_fixture_test.go",
+    "kind": "sessions-full",
+    "payload": [
+      "pair-registration-fixture"
+    ],
+    "expect": "accept"
+  }
+]

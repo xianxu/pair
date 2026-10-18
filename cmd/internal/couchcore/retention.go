@@ -300,6 +300,10 @@ var storeReadLockWait = time.Second
 
 const storeReadLockPoll = 5 * time.Millisecond
 
+// readLockContendedKey carries a private test timing observer through backend
+// routing, which constructs fresh ThreadStores. Production contexts omit it.
+type readLockContendedKey struct{}
+
 // retentionReadLock takes store.lock for a read, waiting out contention for
 // up to wait and never past ctx's deadline. Retention maintenance passes 0: it
 // yields a busy store to the maintenance schedule instead of waiting.
@@ -332,6 +336,9 @@ func (s *ThreadStore) retentionReadLock(ctx context.Context, wait time.Duration)
 		if !errors.Is(err, unix.EWOULDBLOCK) && !errors.Is(err, unix.EAGAIN) {
 			file.Close()
 			return nil, err
+		}
+		if observe, ok := ctx.Value(readLockContendedKey{}).(func()); ok {
+			observe()
 		}
 		if !time.Now().Before(deadline) || ctx.Err() != nil {
 			file.Close()

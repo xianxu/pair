@@ -1,0 +1,13 @@
+{
+ "name": "single",
+ "base": "The quick brown fox.\n",
+ "records": [
+  {
+   "old": "quick",
+   "occurrence": 1,
+   "new": "slow",
+   "explain": "pace"
+  }
+ ],
+ "result": "The slow brown fox.\n"
+}

@@ -1,0 +1,49 @@
+---
+id: 000663
+status: open
+deps: []
+github_issue:
+created: 2026-10-18
+updated: 2026-10-18
+estimate_hours:
+collaboration-mode: collaboration
+card_mirror: '831c8c4738f1f9c4acc48257272dfba8d1faa948' # card fields mirrored from issue-cards; edit via sdlc
+---
+
+# Attribute remaining final-Go suite device writes after fixture and cache reductions
+
+## Problem
+
+After pair#658’s fixture/cache reductions, the same complete Make suite still wrote15,098,630,144 physical-device bytes in643.772099s. The largest remaining measured interval is final go test ./... through completion:13,312,307,200 bytes (about88.2% of the device total). Its producer remains unproved. Sampled own-process counters across the entire suite total only1,038,913,536 bytes/825 generations, leaving a14,059,716,608-byte difference that includes missed short-lived processes, filesystem work and other host activity. It must not be assigned wholesale to tests, Git or APFS metadata.
+
+## Spec
+
+Attribute the remaining final-Go device interval with a bounded measurement before proposing another optimization. Distinguish brief compiler/link/Git/test descendants, metadata/durability effects and other host writers. Existing APFS metadata counters are non-additive clues, not a causal partition. Prefer a small owned-process probe; if unprivileged evidence cannot name the producer, ask the hub for an operator-run time-bounded60s fs_usage command filtered to the test processes. Do not loop full suites or change durability/coverage on a guess.
+
+## Done when
+
+- Retained measurements name the dominant remaining producer/path or explicitly demonstrate the attribution limit and required operator trace.
+- Any proposed reduction targets that measured producer while retaining tests and durability; a counted byte/file budget defends it.
+- Before/after device comparisons state body duration, background windows, sampled-process gaps and non-additive APFS scope.
+
+## Plan
+
+- [ ]
+
+## Log
+
+From pair#658’s approved unchanged #662-backed rerun, source030bdf8a41810d07df15ba68bd5d8295c056b22f, clean at Make start. Original116 final Go packages all pass before; after118 all pass, adding testdisk/testgit. Make/supervisor exit0, all direct children reaped, both ordinary suite tokens held through30s before/after windows. The first incomplete resolver-failure attempt is retained separately in #662.
+
+| Same Make body | Before | After |
+|---|---:|---:|
+| Physical disk0 bytes |19,768,967,168|15,098,630,144|
+| Body seconds |844.188058|643.772099|
+| Average MB/s |23.417729|23.453378|
+| Before final Go interval |4,214,910,976|1,786,322,944|
+| Final Go interval |15,554,056,192|13,312,307,200|
+
+The observed4,670,337,024-byte reduction (23.625%) accompanies a200.416s shorter body, near-identical write rate and different quiet slopes; it is not an isolated payload-saving measurement. Quiet-before/after slopes:3.943917/2.481531MB/s before;2.882504/0.889555 after. Registry4294970125 is stable; all976 after samples match embedded data, no counter decreases, exact endpoint subtraction agrees. Final-Go boundary uses the nearest sample to the recipe event (+0.201017s before/+0.202169s after); do not mix it with the distinct later-sample phase-label bucket.
+
+After APFS nearest windows have−11.024661s/+6.077542s endpoint errors. Data volume:2,733,666,304 block bytes /4,515,151,872 metadata bytes; AgentScratch:1,669,398,528 /84,103,168. These counters overlap and cannot be added to device totals. Swapouts/Pageouts unchanged; no NAND-wear claim.
+
+Durable evidence is pair#658’s workshop/plans/000658-device-write-baseline.md (archived with that issue when landed). Local raw after root:/var/folders/07/b9wcwwld4_v2w9r3hk525bm80000gn/T/pair658-662-device-attempt2.DViNQs/device-suite/{result.json,device.jsonl,phases.jsonl,volumes.jsonl,make.log,analysis.json,counter-checks.json,body-source.json,supervisor-exit.json}. Baseline root:/var/folders/07/b9wcwwld4_v2w9r3hk525bm80000gn/T/pair658-profile.yqKPI1/device-suite. Raw temporary files are not the durable record.

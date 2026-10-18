@@ -186,6 +186,7 @@ func TestPointerLateBatchAfterOffDropped(t *testing.T) {
 }
 
 func TestPointerClippedTurnsOff(t *testing.T) {
+	//lint:allow test-shrunk-deadline — The pointing-visibility grace is the configured behavior under test; explicit phase/notice events prove completion.
 	f, _, link := pointerOnFixture(t, func(c *broadcast.Config) { c.Hub.Grace = 100 * time.Millisecond })
 	// Wide enough for LIVE, too narrow for 👆.
 	f.host.SetSize(ptychild.Size{Rows: 24, Cols: uint16(len([]rune(broadcast.LiveLabel)) + 2)})

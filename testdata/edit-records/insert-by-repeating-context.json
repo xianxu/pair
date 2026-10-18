@@ -1,0 +1,12 @@
+{
+ "name": "insert-by-repeating-context",
+ "base": "alpha\ngamma\n",
+ "records": [
+  {
+   "old": "alpha\n",
+   "new": "alpha\nbeta\n",
+   "explain": "insert beta"
+  }
+ ],
+ "result": "alpha\nbeta\ngamma\n"
+}

@@ -21,6 +21,7 @@
 # Run: bash tests/review-toggle-test.sh
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+export PAIR_TEST_ZELLIJ_REPLIES="$ROOT/tests/lib/zellij_fixture_replies.py"
 . "$ROOT/tests/lib/run-headless.sh"
 RT="$(mktemp -d "${TMPDIR:-/tmp}/pair-toggle-test.XXXXXX")"
 trap 'rm -rf "$RT"' EXIT
@@ -35,12 +36,11 @@ cat > "$RT/bin/zellij" <<EOF
 #!/usr/bin/env bash
 printf '%s\n' "\$*" >> "$ZLOG"
 if [ "\$1" = action ] && [ "\$2" = list-panes ]; then
-  printf '%s\n' '{"panes":[{"id":7,"terminal_command":"/bin/pair wrap"},{"id":3,"terminal_command":"nvim -u /pair/nvim/init.lua"}]}'
+  python3 "\$PAIR_TEST_ZELLIJ_REPLIES" --case review-toggle.panes
   exit 0
 fi
 if [ "\$1" = action ] && [ "\$2" = are-floating-panes-visible ]; then
-  cat "$FLOATVIS" 2>/dev/null || echo false
-  rg -q '^true$' "$FLOATVIS" || exit 1
+  exec python3 "\$PAIR_TEST_ZELLIJ_REPLIES" --kind visibility --data "\$(cat "$FLOATVIS" 2>/dev/null || echo false)"
 fi
 exit 0
 EOF
@@ -263,7 +263,7 @@ LUA
 # prompts; an Alt+n resume — same id — would keep its target). (#66 smoke #6.)
 printf '{"file":"/stale/prev.md","status":"ready","session":"oldsid"}\n' > "$RT/review-target-test.json"
 ( cd "$RT" && PATH="$RT/bin:$PATH" \
-    PAIR_DATA_DIR="$RT" PAIR_TAG=test PAIR_AGENT=claude PAIR_HOME="$ROOT" PAIR_SESSION_ID=testsid \
+    PAIR_DATA_DIR="$RT" PAIR_TAG=test PAIR_AGENT=claude PAIR_HOME="$ROOT" PAIR_SESSION_ID=testsid ZELLIJ_PANE_ID=3 ZELLIJ_SESSION_NAME=fixture-review \
     PAIR_DRAFT_PATH="$RT/draft.md" PAIR_LAYOUT_MODE_PATH="$RT/layout-mode-test" \
     PAIR_REVIEW_OPEN_PATH="$RT/review-test.open" PAIR_REVIEW_TARGET_PATH="$RT/review-target-test.json" \
     PAIR_AGENT_CONFIG_PATH="$RT/config-test-claude.json" CODEX_CONFIG="$RT/config-test-codex.json" \

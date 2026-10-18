@@ -140,9 +140,8 @@ func TestTailWideGlyphsAndTrailingBlankRows(t *testing.T) {
 // A tail request travels the real endpoint socket to the wrapper's terminal
 // model; a wrapper without one says so instead of answering empty.
 func TestTailOverEndpointSocket(t *testing.T) {
-	// /tmp, not t.TempDir(): a Unix socket path must stay under ~104 bytes,
-	// and the package's other socket tests use the same short root.
-	namespace, err := os.MkdirTemp("/tmp", "pair-tail-")
+	// EndpointSocket hashes this logical namespace into its bounded transport address.
+	namespace, err := os.MkdirTemp("", "ptt-")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -179,7 +178,7 @@ func TestTailOverEndpointSocket(t *testing.T) {
 // A full scrollback answers a maximal tail over the real socket well under a
 // second (Done-when 1's budget for the wrapper hop).
 func TestTailOverEndpointSocketIsFast(t *testing.T) {
-	namespace, err := os.MkdirTemp("/tmp", "pair-tail-")
+	namespace, err := os.MkdirTemp("", "ptt-")
 	if err != nil {
 		t.Fatal(err)
 	}

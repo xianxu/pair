@@ -107,7 +107,7 @@ local ok,err=xpcall(function()
     _G.PairTestDOMPin=function()
       vim.rpcnotify(1,'test_phase','pin')
       vim.wait(150,function()return false end,10)
-      return {pane_id=7,validate=function()return true end}
+      return {pane_id=7,validate=function()return true end,effect=function(invoke)return invoke()end}
     end
     _G.PairTestDOMRPC=function(op,id,cb)
       if op=='prepare' or op=='status' then _G.held=cb

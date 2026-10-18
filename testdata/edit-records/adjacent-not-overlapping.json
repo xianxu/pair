@@ -1,0 +1,17 @@
+{
+ "name": "adjacent-not-overlapping",
+ "base": "abcdef\n",
+ "records": [
+  {
+   "old": "abc",
+   "occurrence": 1,
+   "new": "ABC"
+  },
+  {
+   "old": "def",
+   "occurrence": 1,
+   "new": "DEF"
+  }
+ ],
+ "result": "ABCDEF\n"
+}

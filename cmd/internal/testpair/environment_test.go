@@ -76,3 +76,57 @@ func TestApplyEnvironmentReplacesAndRestoresProcessEnvironment(t *testing.T) {
 		t.Fatal("process environment not restored")
 	}
 }
+
+// Even a populated template selected by the operator's global Git config must
+// not install hooks into disposable repositories at the canonical boundary.
+func TestEnvironmentExcludesOperatorGitTemplates(t *testing.T) {
+	git, err := exec.LookPath("git")
+	if err != nil {
+		t.Skip("git unavailable")
+	}
+	template := t.TempDir()
+	if err := os.Mkdir(filepath.Join(template, "hooks"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(template, "hooks", "operator-hook"), []byte("operator"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("GIT_TEMPLATE_DIR", template)
+	check := func(t *testing.T, root string, env []string) {
+		t.Helper()
+		// Global configuration inside the fixture HOME proves the boundary
+		// actively disables template lookup rather than relying on a clean HOME.
+		if err := os.WriteFile(filepath.Join(root, ".gitconfig"), []byte("[init]\n\ttemplateDir = "+template+"\n"), 0600); err != nil {
+			t.Fatal(err)
+		}
+		cmd := exec.Command(git, "init", "-q", filepath.Join(root, "repo"))
+		cmd.Env = env
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("init: %v %s", err, out)
+		}
+		if _, err := os.Stat(filepath.Join(root, "repo", ".git", "hooks", "operator-hook")); !os.IsNotExist(err) {
+			t.Fatalf("operator template materialized: %v", err)
+		}
+	}
+	t.Run("Environment", func(t *testing.T) { root := t.TempDir(); check(t, root, Environment(t, root)) })
+	t.Run("ApplyEnvironment", func(t *testing.T) { root := t.TempDir(); ApplyEnvironment(t, root); check(t, root, os.Environ()) })
+	t.Run("ExplicitOverride", func(t *testing.T) {
+		root := t.TempDir()
+		cmd := exec.Command(git, "init", "-q", filepath.Join(root, "repo"))
+		cmd.Env = Environment(t, root, "GIT_TEMPLATE_DIR="+template)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("init explicit: %v %s", err, out)
+		}
+		if _, err := os.Stat(filepath.Join(root, "repo", ".git", "hooks", "operator-hook")); err != nil {
+			t.Fatal(err)
+		}
+	})
+}
+
+func TestGoToolCacheShellBoundary(t *testing.T) {
+	cmd := exec.Command("/bin/sh", "../../../tests/lib/pair-test-go-env-test.sh")
+	cmd.Env = Environment(t, t.TempDir())
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("Go cache environment boundary: %v\n%s", err, out)
+	}
+}

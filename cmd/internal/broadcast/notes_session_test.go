@@ -267,9 +267,7 @@ func TestNotesNeedAPointerCapability(t *testing.T) {
 	}
 }
 
-// The anchor (#488): AnchorNote answers as the note opens, SetNoteAnchor
-// refines it, and neither reaches a page; a refinement for a note that is
-// gone, or never was, is dropped.
+// The draw-time anchor is captured as the note opens and never reaches a page.
 func TestNoteAnchorLifecycle(t *testing.T) {
 	p, link := notesOn(t)
 	var asked []Note
@@ -289,28 +287,5 @@ func TestNoteAnchorLifecycle(t *testing.T) {
 	notes, _ := p.s.Notes()
 	if len(asked) != 1 || len(notes) != 1 || notes[0].Anchor == nil || notes[0].Anchor.Text != "40x4" || notes[0].On != (terminal.Geometry{Cols: 40, Rows: 4}) {
 		t.Fatalf("asked %+v, notes %+v", asked, notes)
-	}
-	id := notes[0].ID
-	if !p.s.SetNoteAnchor(id, NoteAnchor{Kind: AnchorPane, Path: []string{"pane pair:3", "agent"}}) {
-		t.Fatal("refining an open note's anchor")
-	}
-	if notes, _ := p.s.Notes(); notes[0].Anchor.Kind != AnchorPane {
-		t.Fatalf("refined anchor %+v", notes[0].Anchor)
-	}
-	if raw := readEvent(t, vs, "notes"); strings.Contains(raw, "anchor") {
-		t.Fatalf("a refined anchor reached a page: %s", raw)
-	}
-	if p.s.SetNoteAnchor(id+100, NoteAnchor{Kind: AnchorPane}) {
-		t.Error("an unknown id took an anchor")
-	}
-	p.s.ResolveNote(id)
-	if p.s.SetNoteAnchor(id, NoteAnchor{Kind: AnchorPane}) {
-		t.Error("a resolved note took an anchor")
-	}
-	post(t, link+"note", "application/json", noteBody(9, 1, 0, "b"))
-	notes, _ = p.s.Notes()
-	p.s.DisablePointer()
-	if p.s.SetNoteAnchor(notes[0].ID, NoteAnchor{Kind: AnchorPane}) {
-		t.Error("a note cleared by pointing off took an anchor")
 	}
 }
