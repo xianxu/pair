@@ -1,6 +1,6 @@
 ---
 id: 000647
-status: codecomplete
+status: done
 created: 2026-10-17
 updated: 2026-10-18
 estimate_hours: 7.13
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 58b955e6f248c7533e2b88e479cf1490e919646e
         evidence_commit: e6419cb595c08cbfdd576f86631ccca3c511584a
+        landed_commit: c838b0b882cdc471995c5e383fae2ba5e0fe4ea0
 ---
 
 # Harden one-shot zellij actions against misrouted replies (zellij 0.45.1 client-ID reuse, pair#640): unknown on mismatch, confirm before mutating, clipboard fails closed
