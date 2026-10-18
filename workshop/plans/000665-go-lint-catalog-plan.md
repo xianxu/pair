@@ -242,3 +242,28 @@ BR-2 adds the README developer entry beside the existing testing instructions: o
 BR-3 is disputed per authenticated hub delivery76f460c7: do not add a fake Git or second index/ref/history/blob model. Here Git is the local deterministic source whose tracked inventory is the contract itself. Existing disposable real repositories already exercise inventory, untracked/deleted files, malformed sources, read failures, branch/history/debt transitions, missing/ambiguous authority and missing/malformed/deleted blobs. These are normal-suite integration/conformance checks on every run, not a service substitute. Keep the pure decoder/identity/subset tests separate. Reconsider only for a concrete failure those real fixtures cannot reproduce. This explicit hub instruction governs the ARCH-MOCK interpretation for this repository test; no review/gate is bypassed and the next review must answer the dispute evidence.
 
 The queued165source suite was canceled through sdlc local-check cancel after the code defect was known, before it acquired a machine slot; cancellation is not a flake retry. Requeue the completed fix head, with recorded PASS still mandatory before M1 landing.
+
+### 2026-10-18 — R5: approved stateful repository-read seam (BR-3)
+
+Reason: round2 addressed BR-1/BR-2 but re-raised BR-3. Authenticated hub42f6145f reverses76f460c7 after checking that ARCH-MOCK explicitly names Git. Address BR-3, do not dispute it again or request withdrawal. This supersedes only R4's Git-boundary exception; its suppression/README fixes stay intact. The running e3ffaf6c suite was canceled through its owner because these changes require a new final-code record.
+
+| Pure entity | Lives in | Status |
+| --- | --- | --- |
+| Fake repository state (index, refs, commit ancestry and immutable blob trees) | internal/repolint/repository_fake_test.go | new |
+
+| Integration point | Lives in | Status | Wraps |
+| --- | --- | --- | --- |
+| repositoryRead interface / gitRepository adapter | internal/repolint/repository_test.go | new | only the scanner's consumed read operations, including batched historical source reads |
+
+The interface exposes typed repository facts, not arbitrary Git command execution: tracked paths; configured/detached main authority; common base; paths/blobs at a revision; whether a path existed in history; ancestry; batched source blobs for bootstrap. All Git subprocesses used by catalog scanning and debt-baseline/bootstrap lookup move behind this one adapter. Existing root-aware source reads remain the filesystem boundary and retain their error tests. Keep adapter compatibility wrappers only when needed by existing tests; no second operational path may execute raw Git around the interface.
+
+The fake owns a bounded working index, named refs, current HEAD, commit parent links and copied per-commit blob maps. Explicit test transitions stage/remove/commit/checkout/move refs; reads derive from that state, rather than replaying a queue of canned command responses. Supported history shapes are the fixture histories needed by this scanner, including branch divergence and merge-base/ancestry refusal; this is not a generic fake Git CLI. Unknown refs/commits/blobs return errors, absence is reported only by a successful query proving it, and malformed persisted debt still reaches the same production decoder. State is private to a test and collected with its owned temporary directory; no daemon, cache or production package is added.
+
+Named verification strategies:
+
+- scanTrackedWithRepository and debtBaselineWithRepository: run inventory/debt decisions against injected fake state transitions; compare resulting findings, counts and refused authority against independent expected states, retaining malformed-input and counted N/2N guards.
+- fakeRepository transition/read methods: assert index vs untracked/deleted worktree distinction, immutable committed snapshots and parent/ref movement; generated histories exercise the ancestor/common-base invariant, with explicit unknown-state refusal.
+- gitRepository read methods: run the same repository-read contract against disposable real Git histories on every ordinary package run; normalize commit aliases, not source bytes or decisions. Retain all existing real-Git failure/history tests as conformance coverage. Real execution never needs network or a remote server.
+- anchorDebtWithRepository: both backends feed the same canonical source-site derivation and fixed original103admission invariant; batched adapter IO preserves bounded spawn cost.
+
+Test-first: add the shared injected contract and fake transitions, observe RED, then move existing logic behind the adapter and implement the bounded fake. Re-run scanner package normal/race, suppression fuzz, added-site/corrupt-debt mutations and the real-Git conformance contracts. Document the fake/real contract and every-run cadence in atlas. No fake Go build, new CLI runner, production dependency or protected config change. On the final committed/pushed code head, queue the recorded suite and overlap the next M1 review under the standing hub rule; PASS still gates landing.

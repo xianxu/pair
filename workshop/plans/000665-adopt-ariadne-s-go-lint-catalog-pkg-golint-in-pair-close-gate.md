@@ -177,6 +177,176 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: b45346e2-53f1-4e01-9069-d85c4f79068a
+            repository: github.com/xianxu/pair
+            issue_id: "000665"
+            recipe: milestone-review
+            round: 2
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/Library/Caches/sdlc/review-checkouts/d3a16c8c0803c101
+            reviewed_head: e3ffaf6c845891bd0d88aa989ff91cd8cbb51c53
+            slot: pair:1
+            requested_at: "2026-10-18T13:19:39.728973Z"
+          phase: finished
+          pid: 37371
+          started_at: "2026-10-18T13:19:39.880486Z"
+          finished_at: "2026-10-18T13:22:22.869492Z"
+          session_id: 01a14f2a-fefd-7551-a9f2-03cc6320c1a2
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-v1
+        repository: github.com/xianxu/pair
+        code_head: e3ffaf6c845891bd0d88aa989ff91cd8cbb51c53
+        tracker_head: 7023f04d96950faf3e7f9db78e152d4498d1466c
+        branch_point: d8ccc4577351b3dde5f829e83f5d83e4fedced5d
+        since: "2026-10-18T05:39:24-07:00"
+        until: "2026-10-18T06:18:37-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-18T05:39:24-07:00"
+              end: "2026-10-18T06:18:37-07:00"
+              began: "2026-10-18T05:39:24-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot1/pair
+        sources:
+            - harness: codex
+              id: 01a14367-3aab-7a22-b89b-0908f54a9846
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              digest: b56321227ab141dde7a11dfc54d276096700d8a3ee8f5d9851e8baf4a988ea47
+              started: "2026-10-16T06:30:01.402Z"
+              spawned: false
+              bytes: 78323999
+              windows:
+                - start: "2026-10-18T05:39:24-07:00"
+                  end: "2026-10-18T06:18:37-07:00"
+            - harness: codex
+              id: 01a14f06-59b0-7ea0-aab5-69d740c40d65
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              parent_id: 01a14367-3aab-7a22-b89b-0908f54a9846
+              digest: 2d35640c322b8e0fa024c634896dc8a6e4c8d57f75eb6b0b11fac91679c8aa5b
+              started: "2026-10-18T12:39:38.716Z"
+              spawned: true
+              bytes: 737382
+              windows:
+                - start: "2026-10-18T12:39:38.716Z"
+                  end: "2026-10-18T06:18:37-07:00"
+            - harness: codex
+              id: 01a14f0a-fd7d-7963-8893-aab2cbfdc80b
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              digest: a69dd60054c3c99814be75e222538b656ef5d00e5f205610b1c4a6e1d71f4830
+              started: "2026-10-18T12:44:42.996Z"
+              spawned: false
+              bytes: 495956
+              windows:
+                - start: "2026-10-18T12:44:42.996Z"
+                  end: "2026-10-18T06:18:37-07:00"
+            - harness: codex
+              id: 01a14f0b-11b7-7502-b2b4-85c07851fad6
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              parent_id: 01a14367-3aab-7a22-b89b-0908f54a9846
+              digest: f097dd4d13855456348dc4e4f55f12fb2cb947609a833b970285e771b75ff9de
+              started: "2026-10-18T12:44:47.983Z"
+              spawned: true
+              bytes: 2341502
+              windows:
+                - start: "2026-10-18T12:44:47.983Z"
+                  end: "2026-10-18T06:18:37-07:00"
+            - harness: codex
+              id: 01a14f0c-da8a-74f3-bb46-3ae6efe05510
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              digest: fcf4e395f786f9ceec692a036b958e44b6d045e611d3ee7590dbdf026589821c
+              started: "2026-10-18T12:46:45.354Z"
+              spawned: false
+              bytes: 371647
+              windows:
+                - start: "2026-10-18T12:46:45.354Z"
+                  end: "2026-10-18T06:18:37-07:00"
+            - harness: codex
+              id: 01a14f0d-0c5b-7621-872f-802ab24ec89e
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              parent_id: 01a14367-3aab-7a22-b89b-0908f54a9846
+              digest: db44c2627bc90f149b878ede60d7f56a01df8e0f0cea5371c56cbabd8be8cd4b
+              started: "2026-10-18T12:46:57.689Z"
+              spawned: true
+              bytes: 1776860
+              windows:
+                - start: "2026-10-18T12:46:57.689Z"
+                  end: "2026-10-18T06:18:37-07:00"
+            - harness: codex
+              id: 01a14f0d-d291-7ae1-a930-aac670ac489a
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              digest: ab4140e7bbcb1f5c9f83e988b30608c8ce4a0075a0448584aba05b5685d989a5
+              started: "2026-10-18T12:47:48.67Z"
+              spawned: false
+              bytes: 428460
+              windows:
+                - start: "2026-10-18T12:47:48.67Z"
+                  end: "2026-10-18T06:18:37-07:00"
+            - harness: codex
+              id: 01a14f0e-3014-7422-8740-20ec5465c826
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              digest: 785ec88e502b864d9be60833681bd78080e9dc423ee4f1b490847570c1ee3cf6
+              started: "2026-10-18T12:48:12.774Z"
+              spawned: false
+              bytes: 423990
+              windows:
+                - start: "2026-10-18T12:48:12.774Z"
+                  end: "2026-10-18T06:18:37-07:00"
+            - harness: codex
+              id: 01a14f0f-5faa-7f82-a9ec-f684d68e74e2
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              parent_id: 01a14367-3aab-7a22-b89b-0908f54a9846
+              digest: ede64bbd0ed3aff03475ad0f22c91d6035bbad120b1edae0fb6ad54b08a1e1ad
+              started: "2026-10-18T12:49:30.083Z"
+              spawned: true
+              bytes: 1515676
+              windows:
+                - start: "2026-10-18T12:49:30.083Z"
+                  end: "2026-10-18T06:18:37-07:00"
+        cuts:
+            - boundary: M1
+              dispatched: "2026-10-18T06:09:40-07:00"
+              finalized: "2026-10-18T06:12:00-07:00"
+              finalizing: false
+      "n": 2
+      timestamp: "2026-10-18T06:22:23-07:00"
+      dispatched: "2026-10-18T06:19:37-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: catalog_test.go now matches upstream's prefix, TrimSpace and ASCII-space rule boundary. All 20 accepted whitespace/placement controls pass; restoring the old guard in a disposable pinned-head checkout makes 18 controls fail. The copy was removed afterward.
+          round: 2
+        - id: BR-2
+          disposition: addressed
+          note: README.md:1890–1899 adds ordinary/focused lint usage, suppression and debt maintenance, main-history prerequisites and the atlas link. These descriptions agree with catalog_test.go and atlas/go-lint-catalog.md.
+          round: 2
+        - id: BR-3
+          disposition: not-addressed
+          note: 'Re-ran the exact five-test dispute selection: PASS in 1.597s, confirming inventory, 8/16 reads, history authority and malformed/deleted/detached cases. This establishes the claimed functional coverage, but no injectable stateful fake exists: catalog_test.go:261 directly executes Git, and :433 independently executes batch Git. Real-repository fixtures do not establish the fake/real shared boundary required by ARCH-MOCK. Consolidate all consumed Git operations behind one injected boundary, provide a bounded stateful fake for those operations, and retain these real-repository tests as conformance checks.'
+          round: 2
+      boundary: M1
+      recipe: milestone-review
+      isolation: fenced
+      blocked: true
 disputes:
     - id: BR-3
       rationale: Per authenticated hub instruction76f460c7, retain disposable real Git repositories. Git here is a local deterministic source of tracked inventory and history, not an external service requiring a separate model. A fake would duplicate index/ref/commit/blob semantics without identifying an additional failure it can catch; these real-repository fixtures are fast every-run integration/conformance coverage. Reconsider only for a concrete failure real repositories cannot reproduce; no gate is waived.
@@ -202,6 +372,14 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-3** [Important] `external-tool-model-contract` (kind: defect) The new Git boundary has no injectable stateful fake or conformance contract
   internal/repolint/catalog_test.go:255 directly executes Git, and anchorDebt separately executes cat-file; inventory_test.go exercises disposable real repositories only. There is no shared injectable command boundary backed by a stateful fake or scheduled conformance check, as ARCH-MOCK requires. Inject the consumed Git operations, model inventory/ref/history/blob state behind that same seam, and retain real-Git fixtures as conformance coverage with a stated cadence.
 
+## Round 2 — 2026-10-18T06:22:23-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-1 — addressed — catalog_test.go now matches upstream's prefix, TrimSpace and ASCII-space rule boundary. All 20 accepted whitespace/placement controls pass; restoring the old guard in a disposable pinned-head checkout makes 18 controls fail. The copy was removed afterward.
+- BR-2 — addressed — README.md:1890–1899 adds ordinary/focused lint usage, suppression and debt maintenance, main-history prerequisites and the atlas link. These descriptions agree with catalog_test.go and atlas/go-lint-catalog.md.
+- BR-3 — not-addressed — Re-ran the exact five-test dispute selection: PASS in 1.597s, confirming inventory, 8/16 reads, history authority and malformed/deleted/detached cases. This establishes the claimed functional coverage, but no injectable stateful fake exists: catalog_test.go:261 directly executes Git, and :433 independently executes batch Git. Real-repository fixtures do not establish the fake/real shared boundary required by ARCH-MOCK. Consolidate all consumed Git operations behind one injected boundary, provide a bounded stateful fake for those operations, and retain these real-repository tests as conformance checks.
+
 ## Disputes
 
 Findings the implementer declined (`sdlc finding dispute`), each answered by the
@@ -213,5 +391,4 @@ next review round.
 
 ## Open findings
 
-- **BR-1** [Critical] `sleep-debt-exclusive-authority` (kind: defect) Extra whitespace lets inline suppressions bypass the sleep-debt guard
-- **BR-2** [Important] `readme-surface-discoverability` (kind: defect) README omits the new developer lint workflow
+- **BR-3** [Important] `external-tool-model-contract` (kind: defect) The new Git boundary has no injectable stateful fake or conformance contract

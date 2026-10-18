@@ -105,3 +105,105 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-18T06:22:23-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 665 — Adopt ariadne's Go lint catalog (pkg/golint) in pair |
+| repo | pair |
+| issue file | workshop/issues/000665-adopt-ariadne-s-go-lint-catalog-pkg-golint-in-pair.md |
+| boundary | milestone M1 |
+| milestone | M1 |
+| window | d8ccc4577351b3dde5f829e83f5d83e4fedced5d..e3ffaf6c845891bd0d88aa989ff91cd8cbb51c53 |
+| command | sdlc milestone-close --issue 665 --milestone M1 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-18T06:22:23-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+BR-1 and BR-2 are addressed with verified evidence. The catalog passes against the pinned review base, and the new suppression regression fails without the fix. BR-3 remains open: the measured real-Git coverage is valid, but it does not satisfy the supplied ARCH-MOCK requirement for an injected stateful fake shared with production flow.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      catalog_test.go now matches upstream's prefix, TrimSpace and ASCII-space rule boundary. All 20 accepted whitespace/placement controls pass; restoring the old guard in a disposable pinned-head checkout makes 18 controls fail. The copy was removed afterward.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      README.md:1890–1899 adds ordinary/focused lint usage, suppression and debt maintenance, main-history prerequisites and the atlas link. These descriptions agree with catalog_test.go and atlas/go-lint-catalog.md.
+  - id: BR-3
+    disposition: not-addressed
+    note: |
+      Re-ran the exact five-test dispute selection: PASS in 1.597s, confirming inventory, 8/16 reads, history authority and malformed/deleted/detached cases. This establishes the claimed functional coverage, but no injectable stateful fake exists: catalog_test.go:261 directly executes Git, and :433 independently executes batch Git. Real-repository fixtures do not establish the fake/real shared boundary required by ARCH-MOCK. Consolidate all consumed Git operations behind one injected boundary, provide a bounded stateful fake for those operations, and retain these real-repository tests as conformance checks.
+```
+
+1. **Strengths**
+
+   - Upstream catalog ownership is preserved; Pair reuses the matcher rather than copying rule logic.
+   - Debt validation rejects malformed, duplicate, stale and newly admitted sites, with independent subset-oracle tests.
+   - Timing fixtures now control meaningful events; recorder and Chrome tests also pass under the race detector.
+   - README and atlas cover the new workflow, debt authority and fixture ownership.
+
+2. **Critical findings**
+
+   None remaining.
+
+3. **Important findings**
+
+   **BR-3 — ARCH-MOCK**, `internal/repolint/catalog_test.go:261` and `:433`: the Git boundary remains non-injectable. The dispute’s measurements hold, but answer functional coverage rather than the missing architectural contract. Apply the shared-boundary correction described in its disposition; no new finding is raised.
+
+4. **Minor findings**
+
+   None.
+
+5. **Test coverage notes**
+
+   - Catalog package passed in a disposable pinned-head copy with the pinned review base configured as main: **2,556 sources, five rules, 100 debt sites**.
+   - The original review checkout correctly refused its missing main-ref metadata.
+   - BR-1 mutation verification failed as expected.
+   - Cache, recorder, webcast, panebirth, probe and selected couchcore dependency/lifecycle/lock tests passed.
+   - Race checks passed for cache, recorder and webcast.
+   - Full-suite and native-lane completion are not claimed. The original checkout remains clean.
+
+6. **Architectural notes for upcoming work**
+
+   | Marker | Result | Evidence |
+   |---|---|---|
+   | ARCH-DRY | Pass | Shared upstream rules and executable cache. |
+   | ARCH-PURE | Pass | Pure debt transformations tested directly; IO remains in integration helpers. |
+   | ARCH-PURPOSE | Pass | Complete eligible inventory checked; M2 debt remains explicitly outstanding. |
+   | ARCH-MOCK | **Flag** | BR-3 remains open. |
+   | ARCH-CONSTRAINTS | Pass | Counted N/2N reads; bounded batch workload. |
+   | ARCH-SECURE | Pass | Structured argv, strict debt decoding and grammar-aligned suppression rejection. |
+   | ARCH-ORDER | Pass | Changed timing tests expose relevant event order; production defaults remain intact. |
+   | ARCH-FUNERAL | Pass | Cache cleanup is suite-owned; debt is bounded and shrink-only. |
+
+7. **Plan revision recommendations**
+
+   Add an R5 entry under `## Revisions` replacing R4’s Git-boundary exception with the shared injected boundary, its bounded fake state model, and the existing real-Git tests’ conformance role. The revised core-concept classifications otherwise match the inspected implementation.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"b45346e2-53f1-4e01-9069-d85c4f79068a","repository":"github.com/xianxu/pair","issue_id":"000665","recipe":"milestone-review","round":2,"attempt":1,"agent":"codex","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/d3a16c8c0803c101","reviewed_head":"e3ffaf6c845891bd0d88aa989ff91cd8cbb51c53","slot":"pair:1","requested_at":"2026-10-18T13:19:39.728973Z"},"phase":"finished","pid":37371,"started_at":"2026-10-18T13:19:39.880486Z","finished_at":"2026-10-18T13:22:22.869492Z","session_id":"01a14f2a-fefd-7551-a9f2-03cc6320c1a2","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.371294375s
+head: "e3ffaf6c845891bd0d88aa989ff91cd8cbb51c53"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

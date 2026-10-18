@@ -128,6 +128,11 @@ BR-1 now derives rule identity with upstream's exact prefix, TrimSpace and ASCII
 BR-3 dispute was recorded by sdlc finding dispute with fresh3.607s real-repository countermeasurement: tracked/untracked/deleted inventory and read/parser errors, exact8/16reads, candidate-vs-main authority, malformed/deleted/missing history and detached/ambiguous main refs. No fake Git or additional model was built, per hub76f460c7. The next reviewer must answer this evidence; dispute is not a fix or SHIP. Source restored and frozen; new code head must be pushed and receive its own recorded suite before landing.
 
 
+### 2026-10-18 — M1 round2 and approved BR-3 correction
+
+Round2 verifies BR-1 and BR-2 addressed and re-raises BR-3 solely on ARCH-MOCK. It reproduced the real-repository evidence but requires a shared injected fake/real read boundary. Authenticated hub42f6145f reverses its prior exception and approves the small repository-read interface with stateful index/ref/history/blob fake and every-run real-Git conformance. Plan R5 records the bounded model and named verification seams. No further dispute: address BR-3 and re-close. Canceled running e3ffaf6c suite through sdlc local-check cancel; it is incomplete, not a failed flake and not a PASS. Other checkouts were left running. Re-enter change-code for this revised design before implementation.
+
+
 ## Revisions
 
 ### 2026-10-18 — R1: two approved milestones
