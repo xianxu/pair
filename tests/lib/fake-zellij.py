@@ -62,14 +62,14 @@ def dispatch(state, args, query):
     if action == "are-floating-panes-visible":
         return str(session.get("floating_visible", False)).lower() + "\n"
 
-    supported = {"focus-pane-id", "write-chars", "write", "toggle-fullscreen",
+    supported = {"focus-pane-id", "write-chars", "write", "send-keys", "toggle-fullscreen",
                  "toggle-pane-embed-or-floating", "change-floating-pane-coordinates",
                  "show-floating-panes", "hide-floating-panes", "toggle-floating-panes",
                  "next-swap-layout", "previous-swap-layout", "clear", "close-pane", "set-pane-color"}
     if action not in supported:
         raise ValueError("unsupported action: " + action)
     pane = None
-    if action in {"focus-pane-id", "write-chars", "write", "toggle-fullscreen",
+    if action in {"focus-pane-id", "write-chars", "write", "send-keys", "toggle-fullscreen",
                   "toggle-pane-embed-or-floating", "change-floating-pane-coordinates", "clear", "close-pane", "set-pane-color"}:
         pane = target_pane(session, params[0] if action == "focus-pane-id" else option(params, "--pane-id"))
     requested_tab = option(params, "--tab-id")
@@ -83,13 +83,17 @@ def dispatch(state, args, query):
             other["is_focused"] = other is pane
         for client in session.get("clients") or []:
             client["pane_id"] = target
-    elif action in {"write-chars", "write"}:
+    elif action in {"write-chars", "write", "send-keys"}:
         payload = params[:]
         if "--pane-id" in payload:
             index = payload.index("--pane-id")
             del payload[index:index + 2]
-        text = " ".join(payload) if action == "write-chars" else "".join(chr(int(n)) for n in payload)
-        pane["input"] = pane.get("input", "") + text
+        if action == "send-keys":
+            # Semantic chords are events, not invented raw terminal bytes.
+            pane.setdefault("keys", []).extend(payload)
+        else:
+            text = " ".join(payload) if action == "write-chars" else "".join(chr(int(n)) for n in payload)
+            pane["input"] = pane.get("input", "") + text
     elif action == "toggle-fullscreen":
         pane["is_fullscreen"] = not pane.get("is_fullscreen", False)
         session["tab"]["is_fullscreen_active"] = pane["is_fullscreen"]

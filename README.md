@@ -207,6 +207,12 @@ instead of choosing another pane. A restore that becomes uncertain preserves
 its completed steps and recovery record. Confirmation adds a small interactive
 delay (about 100 ms for returning to normal in a disposable native timing check).
 
+Editor shortcut routing, review pokes and review visibility also refuse uncertain
+native context through an editor notification. A DOM send keeps a completed body
+write when submit is refused; inspect the agent before deciding how to continue.
+A visibility refusal keeps an acknowledged review activation and its ready target.
+The validated draft cache still routes without an extra native query.
+
 The focused agent receives all workbench shortcuts except **Shift+Alt+T**,
 **Shift+Alt+Left/Right**, and **Alt+Shift+Return**, which create/switch
 right-terminal tabs or toggle the right terminal's normal/focus views. Under

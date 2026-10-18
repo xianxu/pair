@@ -169,3 +169,18 @@ func TestFakeEmptySessionHasNativeEmptyCollections(t *testing.T) {
 		t.Fatalf("queries %v", f.Queries())
 	}
 }
+
+func TestFakeSemanticKeysPreserveExactPaneAndChord(t *testing.T) {
+	f := New(t)
+	f.SetModel(sample())
+	invoke(t, f, "action", "send-keys", "--pane-id", "2", "Alt Enter")
+	effects := f.Effects()
+	if len(effects) != 1 || effects[0].Target != "terminal_2" || effects[0].Action != "send-keys" || strings.Join(effects[0].Args, "|") != "action|send-keys|--pane-id|2|Alt Enter" {
+		t.Fatalf("semantic key effect %+v", effects)
+	}
+	panes := f.Model().Sessions["test"].Panes
+	keys, ok := panes[1]["keys"].([]any)
+	if !ok || len(keys) != 1 || keys[0] != "Alt Enter" || panes[1]["input"] != nil || panes[0]["keys"] != nil {
+		t.Fatalf("semantic chord became raw bytes or reached another pane: %+v", panes)
+	}
+}

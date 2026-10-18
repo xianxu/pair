@@ -50,12 +50,12 @@ geometry lookup has been removed.
 | Ordinary Couch warm attachment | Hardened in M1 | Existing initial, pre-spawn, pre-ack and post-ack listing fences; no additional queries or detached-client requirement. Unknown/negative confirmation cannot trigger helper retry. |
 | Explicit continuation adoption | Hardened in M1 | Existing repeated exact address/name/agent detached proof under one admission budget; no nested confirmation pairs. |
 | Wait-watcher, PID/start liveness and quiescence | Re-checked | Existing OS identity and absence fences; native unknown cannot prove absence. |
-| Layout focus/toggle/split/tab forwarding and terminal shortcut fallback | M2 implemented, review pending | Strict target/state admission and existing validated local sidecar fast paths. |
-| Current-tab layout capture/restoration | M2 implemented, review pending | Correlated tab/layout facts and partial-progress refusal. |
-| Go draft routing and restart role | M2 implemented, review pending | Explicit admitted targets; cancellation checked at actual dispatch; existing Couch notices. |
+| Layout focus/toggle/split/tab forwarding and terminal shortcut fallback | M2 SHIP | Strict target/state admission and existing validated local sidecar fast paths. |
+| Current-tab layout capture/restoration | M2 SHIP | Correlated tab/layout facts and partial-progress refusal. |
+| Go draft routing and restart role | M2 SHIP | Explicit admitted targets; cancellation checked at actual dispatch; existing Couch notices. |
 | Terminal note anchors | Deterministic Couch capture; native consumer removed in M2 | Slot, box, draw-time text and Couch-owned tab/status anchors; existing PNG capture unaffected. Zero native queries or file/line/section guesses. |
-| Clipboard auto-quote / paste / query-selected flash | M2 implemented, fail-closed; review pending | Successful OS copy is separate; uncertain routing must refuse before staging, flash, focus or trigger. |
-| Lua workbench routing, poke, DOM and review visibility | M3 pending | Shared contracts, existing recipient fences and user-visible editor refusal. |
+| Clipboard auto-quote / paste / query-selected flash | M2 SHIP, fail-closed | Successful OS copy is separate; uncertain routing must refuse before staging, flash, focus or trigger. |
+| Lua workbench routing, poke, DOM and review visibility | M3 implemented, qualification in progress | Shared strict contracts, contextual targets, retained recipient/activation fences and visible refusal. |
 | Title poller, wrap dim and opener viewport | Re-checked | Existing next tick/invocation and cosmetic fallback; no action authority. |
 | Peer viewport advisory check | Re-checked | Existing 500ms freshness/advisory policy; delivery retains independent recipient/composer authority. |
 
@@ -123,3 +123,58 @@ template and derived role. Titles matter through role inference only; foreground
 command and cwd are cosmetic. Consumers pass their existing registered-terminal
 snapshot, so a registered terminal changing its display title keeps its role
 without an extra registry read. Title-only role changes still refuse.
+
+## Editor decisions
+
+`nvim/zellij_observation.lua` contains pure strict decoders and the thin budget,
+query, confirmation and effect glue. Go and Lua run the same reply corpus.
+Lua rejects identities it cannot represent exactly. The first unknown reply or
+mismatch ends admission. Query spawn errors return refusal; an exception after
+an effect starts retains uncertainty about completed progress.
+
+Workbench/poke fallback confirms a unique role in the independently known
+invoking terminal's tab. `pane_identity.select_in_tab` and `context` own that
+selection/projection. Valid draft session/live-PID cache remains a zero-query
+fast path. Every focus or input uses the same admission token; no mutation is
+replayed after failure. Titles, foreground command and cwd do not select roles.
+
+DOM pinning is candidate evidence under the existing transaction lifetime.
+First pre-write validation starts one five-second admission budget; recipient
+`begin` and strict source/agent checks precede each write/submit. The target's
+required effect guard reaches the actual dispatch, including cancellation
+inside validation. A terminal refusal cannot become authority on a later call.
+Refused submit retains `written`; an uncertain dispatched write remains
+`indeterminate`. Preparation and receipt recovery keep their existing bounds.
+
+Review restoration completes birth/readiness/activation first. Visibility then
+gets its own five-second decision: two matching pane contexts and, for a toggle,
+two matching exact visibility results. Token/session/endpoint/activation checks
+run before observations and effects. Show/hide explicitly target the admitted
+tab; hide-and-return shares that token and draft identity without a nested
+confirmation. Visibility refusal keeps the completed activation and ready target.
+
+## Production query ownership
+
+The table covers executable query sites, grouped where one runtime owns several
+callers. Comments and test-only probes are outside the production inventory.
+Re-checked means another observation may repair display/advisory state; it does
+not authorize an irreversible action or authenticate a same-kind reply.
+
+| Runtime / caller | Queries | Policy and evidence |
+|---|---|---|
+| `launcher.ZellijSource` / `ListingPoller` | short/full `list-sessions`, per-session `list-clients` | Re-checked inventory; strict rows/headers and exact listing-set agreement. Existing cadence/cache; unknown never proves absence. `zellij_reply_admission_test.go`, `zellij_test.go`. |
+| `OSRuntime.SessionBlocksReuse`, `ProbeSessionNameContext` | full listing; targeted clients | Fail closed against live/unknown independent server identity; exact name-validator diagnostic matrix. `zellij_diagnostic_matrix_test.go`, `query_collection_diagnostic_test.go`. |
+| `OSRuntime.ProbeLiveLayout` | targeted command/state panes | Hardened matching layout projection before recording; `zellij_reply_admission_test.go`. |
+| `SessionOwnerProbe`, retirement/quit/recovery | targeted command panes plus full listing/server checks | Hardened owner projection and exact process generation fences; `session_owner_test.go`, `recovery_terminal_confirmed_test.go`. |
+| `OSRuntime.ListSessions` / `ShowFamilyExisting` | listings and clients | Inventory/display only; downstream action independently admits. Unknown inventory refuses mutation. |
+| session handoff / warm Couch attach / continuation adoption | repeated listings and owner/client observations through existing runtimes | Hardened existing fences; zero additional ordinary warm-attach queries, no nested pair or helper retry after unknown. `session_handoff_budget_test.go`, `launch_query_budget_test.go`, `couch_session_test.go`. |
+| quiescence / presence / wait-watcher | listing plus independent OS/socket/PID/start evidence | Re-checked; unknown cannot authorize deletion, replacement or absence. `session_quiescence_test.go`, `session_servers_test.go`. |
+| `layoutcmd.OSRuntime` via layout/terminal/draft actions | panes; `current-tab-info` | Hardened decision-specific pane/tab projections, local positive sidecar fast paths and per-effect cancellation. `reply_admission_test.go`, `decision_projection_test.go`, `effect_cancellation_test.go`. |
+| `clipcmd.OSRuntime` | panes and attached clients | Hardened source/destination correlation before quote staging/flash/focus/input; successful OS copy remains separate. `cli_admission_test.go`, `admission_test.go`, `flash_cleanup_test.go`. |
+| `couchcmd.queryShortcutClients` | exact session clients | Hardened restart role under one-second token; shared owned collector. `couch_reply_admission_test.go`, `owned_query_test.go`. |
+| `workbench_route`, `pair_poke` | contextual command/state/tab panes | Hardened sequential confirmation; actual CLI faults/bytes/targets in `nvim/route_poke_admission_test.lua` and existing route/poke scripts. |
+| `dom_transport` / `draft_send` | candidate, pre-write and pre-submit contextual panes | Hardened existing fences plus recipient checks, required final effect guard. `dom_admission_test.lua`, `dom_admission_cli_test.lua`, `draft_send_test.lua`. |
+| `review.restore_client` | contextual panes and tab-addressed visibility | Hardened after activation; exact true/false diagnostics, local activation fence, shared hide token. `restore_client_test.lua`, `tests/review-restore-admission-test.lua`. |
+| `titlepoller.SessionAlive`, wrap dim, opener viewport | full listing / screen dump / agent pane lookup | Re-checked cosmetic/advisory consumers; title debounce, next paint/invocation or viewport render can repair a bad display. They supply no launch/ownership/routing authority. |
+| `wrapcmd.composerInView` | exact pane `dump-screen` | Existing 500ms advisory freshness; delivery still owns independent recipient/composer authority. `peer_input_test.go` and peer-delivery integration controls. |
+| Terminal note capture | none | Native query removed. Deterministic frame/owned-layout data only; zero-query broadcast composition tests. |
