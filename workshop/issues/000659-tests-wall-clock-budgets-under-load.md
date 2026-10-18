@@ -176,3 +176,9 @@ Implementation head `193e8727c05e751ea3cfe465404f69c52a1b9f5d` passed the combin
 Load was ordinary concurrent fleet work: gate-owned ariadne suites from ariadne:1 then ariadne:2, plus these two-package targeted repetitions. Sampled load averages declined from `{ 50.07 55.86 68.87 }` to `{ 39.58 51.43 66.16 }`, `{ 34.70 46.97 63.12 }`, then `{ 30.12 42.32 59.80 }`. This is **not** a20-run claim at load100. The earlier delayed native control measured94.12; that is a different cohort. Our own recorded suite was queued throughout, initially sixth then fifth; it has not run yet. No artificial host load burner or production timeout change.
 
 Recorded suite attempt is queued on the same implementation head: `sdlc local-check run --name suite`, inflight log `.git/sdlc/test-stats/inflight/db25bcb0f104165571bc9f60bcde47e2/run.log`. Full-suite verdict, close and landing remain outstanding. #576 priority still applies.
+
+## Revisions
+
+### 2026-10-17 — measured-load acceptance
+
+Hub accepted the observed cohort (7b1e37d3-9f5e-4f37-9565-fd234eea0376): injected-delay controls are the primary proof because they reproduce each old failure and show the correction removes that dependency;20 repetitions at the recorded real loads support that proof. Do not chase load100 or run another cohort merely for a larger load number. Record actual loads as above. Land after the recorded suite and normal close/merge gates, subject to #576 preemption.
