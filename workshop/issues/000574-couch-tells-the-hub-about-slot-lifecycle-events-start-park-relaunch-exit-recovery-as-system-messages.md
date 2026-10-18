@@ -88,6 +88,10 @@ Durable full-flow design: [Lifecycle system notices](../plans/000574-couch-lifec
 
 - Parent focused race verification passed on the completed lifecycle/collector/Console code (couchcmd 2.470s, couchtty 1.809s, couchcore 10.333s), plus the earlier provenance/batch race run (couchmessage 1.550s, wrapcmd 3.294s). Full package checks are running; recorded suite not started yet. Source-owned skill A/B/C check passed after the documentation update.
 
+- Draft PR #419 opened through sdlc pr, then converted to draft with gh pr ready --undo because sdlc pr has no draft option; title/body describe the trimmed final scope. Branch code head from Git: 3ca3b473af03b116418c8a03ed940c9d3734b368. Recorded suite attempt 8d36b8dbf3ff98641ac696d5746d10ec is queued on that pushed head (initial line position3 behind ariadne; queue evidence belongs to the recorder).
+- Full package checks passed: couchcmd65.671s, couchtty52.606s, couchmessage26.259s, artifactpath13.702s. Fresh lifecycle race passed after final fixes; earlier provenance/batch race passed. All development failures and negative controls are retained above; no unchanged full-suite retry has been used.
+- make build built this slot's binaries; go version -m bin/pair reports vcs.revision=3ca3b473af03b116418c8a03ed940c9d3734b368 and vcs.modified=false. Later skip messages were dependency build sentinels, not this slot's candidate. Approved owned native check: PAIR_LIVE_COUCH_NATIVE=1 PAIR_NATIVE_BINARY=<this-slot>/bin/pair go test ./cmd/internal/couchtty -run ^TestNativeConsoleWrapperZellij$ -count=1 -timeout=6m -v passed27.477s (direct2.69s,wrapped24.46s), including persistent original child reattach and native input/frame checks. No existing slot or focus touched.
+
 ## Revisions
 
 - 2026-10-17 — Proposed design adds an explicit native-exit observation because Console attachment exit cannot substantiate the requested agent-exit notice, and kernel provenance because a visual system flag alone is forgeable. Full requested scope retained; operator smoke deferral and ariadne TL-lead companion await hub agreement.
