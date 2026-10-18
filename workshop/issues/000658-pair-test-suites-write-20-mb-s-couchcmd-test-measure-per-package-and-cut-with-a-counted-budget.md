@@ -16,7 +16,7 @@ claimant:
     workspace: pair:3
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "ac296762", done: "73c4d623"}
+flow: {kind: full, provenance: inferred}
 ---
 
 # pair test suites write ~20 MB/s (couchcmd.test): measure per package and cut, with a counted budget
@@ -138,6 +138,8 @@ Draft detailed plan: [suite write budget](../plans/000658-suite-write-budget-pla
 
 
 ### 2026-10-18 — native CI flake retained as #660
+- 2026-10-18: closed — Required recorded suite attempt6badaf5420c2a820c885246c313554d4 exit0 in10m52s on053761c7; only docs changed afterward. Matched116-package own bytes1640353792 to445779968; couchcmd625799168 to56639488 with96MiB cap. Native over-budget negative control, N8/16 fixture/cache counts, exact ledger sizes/content/private inodes/real decode and portable unsupported controls pass. Complete same-body device rerun exit0/all118 final packages:19768967168 to15098630144 bytes, shorter body and unchanged average rate explicitly limited; failed #662 attempt retained, one approved unchanged rerun passed. Unclaimed #663 records largest remaining final-Go interval. Atlas updated; PR422 CI green; no tests removed or durability weakened. (done-when: contract moved since change-code; judged by the close review); review verdict: SHIP
+- 2026-10-18: flow upgraded quick → full — 475 added lines in code files (limit 100)
 
 - CI39105463917 attempt1 on7de3dec6684644b5114278ac92c53106d45345f2 failed in TestNativeConsoleWrapperZellij/direct-zellij-baseline:285.86s waiting for persistent native frame after reattach, with child output reporting the private session absent. Initial BOOT/CPR/input/STATE:1 had succeeded. Wrapped reattach retained its PID:nonce and counter1→2; subsequent package5m timeout is a cascade after the first wait. No native write cap failure occurred.
 - Conformance39105228904 on d9c9bab5bb60d3cf68b753bbe079606e8139ac0f and39105295728 on eeedca6731051353d4314ab056da6ba2b200d0f9 both passed. Git diff from first green to failed head contains only this issue's Markdown. Thus this is an established intermittent native-reattach failure on unchanged issue code, distinct from #603/#361. Filed unclaimed #660 with exact failure and passing controls. Public failed run: https://github.com/xianxu/pair/actions/runs/39105463917/job/117610220213 ; local full log/metadata ci-39105463917* retained under the diagnostic root.
