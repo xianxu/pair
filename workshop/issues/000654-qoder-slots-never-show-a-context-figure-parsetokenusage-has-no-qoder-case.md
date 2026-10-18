@@ -57,6 +57,10 @@ Qoder transcripts are parsed like Claude's elsewhere (`event.go` groups `AgentCl
 - [x] Title projection test: a Qoder transcript yields `HasUsage` and a `%` figure.
 - [ ] Live: after the next Couch restart, a Qoder slot's pane title shows its percentage. That restart is already scheduled for the #653/#657 checks, and Qoder is out of credits, so an idle Qoder slot shows its last ratio.
 
+## Revisions
+
+- 2026-10-18 (close review round 1, BR-2): `ContextRatio` is `float64`, not `*float64`, so `TokenUsage` stays comparable. The accepted ratio range is (0, 1], not [0, 1], because a zero ratio is no figure. The Design bullets above are superseded on both points.
+
 ## Log
 
 ### 2026-10-17
