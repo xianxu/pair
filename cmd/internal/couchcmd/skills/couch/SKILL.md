@@ -465,10 +465,13 @@ need no registration and keep their legacy owner compatibility.
   - Keep `write` for generated content that isn't an edit.
 - **Rounds:** every write of yours that changes the file, `write` or `apply`, becomes the round parley highlights. Only `apply` spans carry your reasons. The round clears on the operator's next submit.
 - **`presentation: propose`:** Couch writes your body change as per-line markers for the operator to accept or reject. Never write the markers yourself.
-  - A change of more than 3 lines refuses with `propose-too-large`.
-  - A line the marker grammar can't carry (a `~` in the removed text, a bracket right after the change) refuses with `propose-unencodable`.
-  - For either refusal, write that change as a side-doc proposal, linked in place by `→ [proposal](…)`.
-  - A frontmatter change goes through `write --frontmatter`, which is never proposed.
+  - A change over 3 lines refuses with `propose-too-large`. A line the marker grammar can't carry refuses with `propose-unencodable`. For either refusal, write the change as a side-doc proposal, linked in place by `→ [proposal](…)`.
+  - These apply directly, not proposed:
+    - records wholly inside the frontmatter;
+    - the record that replaces the operator's ready marker with a new `→ [proposal](PATH)` or `→ [discussion](PATH)` link;
+    - the fold a link's `🤖[fold in]` asks for, which keeps that link with ` (folded YYYY-MM-DD)` appended.
+  - Pair the `discussions:` entry with its link yourself; the engine doesn't verify that.
+  - `presentation` and `collaboration-mode` are the operator's: changing either refuses with `operator-owned`.
 - **Forgotten lock:** a valid operator-lock time older than 30 minutes adds
   its age and advice to ping the operator (or add a Needs you item for the
   TL's session file). The lock never expires; malformed or future times still

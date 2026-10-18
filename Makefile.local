@@ -289,6 +289,7 @@ test-review: $(BIN_DIR)/pair
 	bash tests/review-reconcile-test.sh
 	bash tests/review-handoff-test.sh
 	bash tests/review-loop-test.sh
+	bash tests/review-applied-round-test.sh
 	bash tests/review-projection-test.sh
 	bash tests/review-poke-test.sh
 	bash tests/review-window-test.sh

@@ -401,3 +401,16 @@ In pair, `poke_bodies.review_opened` and `with_context` change to name `pair rev
 - **(b) One step:** M2 waits for ariadne#437 and retires everything at once. Nothing lands until #437 does.
 
   **TL decision: (a).** The follow-up is pair#664 (`deps: ariadne#437`).
+- **2026-10-18, M2 implementation (TL additions from ariadne#437 checks).**
+  - **Shared engine:** `BuildEdit` is used by both apply paths. `pair review apply` (package `reviewapply`, separate from `reviewcmd` to break an import cycle through `launcher`) calls `sessionsync.ApplyFile`.
+  - **Recovery verb:** `pair review round FILE --json` (`{Round, Body, Current}`) is added for lost-reply recovery, at ariadne:1's request, so xx-fix never reads an internal path.
+  - **Propose exceptions** (`directUnderPropose`), settled after three TL corrections:
+    - (a) a new `→ [proposal|discussion](PATH)` link replacing a ready operator marker;
+    - (b) the fold of a link carrying `🤖[fold in]`, keeping the link with ` (folded DATE)` (S3);
+    - frontmatter records apply directly, except the operator-owned `presentation` and `collaboration-mode` (refused on every path, `write --frontmatter` included);
+    - a record crossing the frontmatter's end refuses;
+    - an ordinary answer (`🤖[tighten this]`) stays a proposal.
+  - **Conformance fixtures:** ariadne#437's examples live in `testdata/edit-records/conformance`, byte-identical on both sides.
+  - **Pane:** `round_watch.lua` (reload plus decorate) and `oplock.lua` (the operator's turn lock).
+  - **Test:** `review-applied-round-test.sh` drives the path end to end.
+  - **Unchanged for M2:** `poke_bodies` stays as is, so legacy agents keep the handoff until pair#664.

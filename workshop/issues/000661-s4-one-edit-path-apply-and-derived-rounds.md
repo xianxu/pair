@@ -109,3 +109,9 @@ Design is the low end of each range, because the durable plan already resolved t
   - **BR-7:** README and `couch --skill` now document `apply`, `round`, `edits-invalid`, rounds and propose.
   - **Minor (2nd in the frontmatter family):** the rule is now that under propose a body write must leave the frontmatter byte-identical, or it refuses with `propose-unencodable`. That covers a changed `presentation:` and a moved closer alike, and `write --frontmatter` stays the direct path. It is tested in `TestProposeNeverMarksFrontmatter`.
   - **BR-5:** occurrence 0 and -1 were added to the parse-refusal test.
+- **M2 built** (2026-10-18), with ordering (a) per the TL: the legacy handoff stays until pair#664 (`deps: ariadne#437`).
+  - `BuildEdit` engine; `pair review apply` and `pair review round`; pane round watch and operator lock.
+  - Propose exceptions plus the operator-owned key guard (three TL corrections, all from ariadne:1's conformance checks), and shared conformance fixtures that ariadne:1 verified byte for byte.
+  - Tests: `review-applied-round-test.sh` (13 checks; mutation: disabling the pane reload fails two), `reviewapply` CLI tests, the `sessionsync` ApplyFile/marker/conformance tests, and the Lua `round_watch_test`.
+  - `make test-lua` and `make test-review` are green with the legacy path intact.
+  - Done-when "nvim never writes the reviewed file" holds for applied rounds now; for all rounds it is met by pair#664, which retires the legacy buffer apply and adds the rule test.
