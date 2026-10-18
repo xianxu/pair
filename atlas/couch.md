@@ -4539,3 +4539,10 @@ advice, including on a still-live row; retained continuation status stays append
 With an absent terminal and live or unknown exact owner, explicit recovery
 refuses before entering cleanup reconciliation. A live-owner refusal says the
 transaction is still finishing and names the same recovery action to retry after inspection.
+
+Recovery carries its worker context through lifecycle lock admission, protocol
+observation/publication/cleanup, and checked threadstore mutations. Contended
+locks cannot retain an abandoned recovery worker; existing synchronous filesystem
+work and owned temporary cleanup finish before its reservation is released.
+Continuation, switch, detach, leave and direct recovery refusals reuse the same
+bounded exact-target advice without changing their ownership guards.

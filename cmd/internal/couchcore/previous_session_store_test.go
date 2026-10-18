@@ -19,7 +19,7 @@ func parkPreviousSessionSource(t *testing.T, store *ThreadStore, live ThreadReco
 	if err != nil {
 		t.Fatal(err)
 	}
-	parked, err := store.FinalizePark(live.Address, begun.Revision, identity, 1, time.Unix(100, 0).UTC(), capture)
+	parked, err := store.FinalizePark(context.Background(), live.Address, begun.Revision, identity, 1, time.Unix(100, 0).UTC(), capture)
 	if err != nil {
 		t.Fatal(err)
 	}

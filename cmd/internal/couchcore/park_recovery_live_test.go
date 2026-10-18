@@ -174,9 +174,16 @@ func TestParkRecoveryLiveFinalizationInterruption(t *testing.T) {
 	}
 	env := realParkRecoveryCouch(t, d)
 	interrupted := errors.New("lost finalization journal reply")
+	armed := false
+	d.threads.hooks.AfterJournal = func() error {
+		if armed {
+			return interrupted
+		}
+		return nil
+	}
 	d.threads.hooks.BeforeUpdate = func(old, next ThreadRecord) error {
 		if old.Park != nil && next.Park == nil && next.VerifiedPark != nil {
-			d.threads.hooks.AfterJournal = func() error { return interrupted }
+			armed = true
 		}
 		return nil
 	}
@@ -242,7 +249,7 @@ func TestParkRecoveryLiveInterruptedScrollbackCleanup(t *testing.T) {
 	}
 	t.Logf("interrupt owned helper at scrollback gate: exact=%+v gate=%s", d.childID, gate)
 	stopRealParkRecoveryHelper(t, ctx, d)
-	completion, found, err := (PairLifecycleStoreIO{Store: d.store}).ObserveCompletion(d.paths, r)
+	completion, found, err := (PairLifecycleStoreIO{Store: d.store}).ObserveCompletion(context.Background(), d.paths, r)
 	if err != nil || found {
 		t.Fatalf("interrupted cleanup fabricated completion: %+v found=%v err=%v", completion, found, err)
 	}

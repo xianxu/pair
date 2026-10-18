@@ -16,8 +16,8 @@ import (
 // as though publication were known not to have happened.
 type interruptedRequestPublication struct{ *fakeControllerLifecycle }
 
-func (p interruptedRequestPublication) PublishRequest(paths artifactpath.LifecyclePaths, request pairlifecycle.QuitRequest) error {
-	if err := p.fakeControllerLifecycle.PublishRequest(paths, request); err != nil {
+func (p interruptedRequestPublication) PublishRequest(ctx context.Context, paths artifactpath.LifecyclePaths, request pairlifecycle.QuitRequest) error {
+	if err := p.fakeControllerLifecycle.PublishRequest(ctx, paths, request); err != nil {
 		return err
 	}
 	return &pairlifecycle.PublicationError{Outcome: pairlifecycle.Indeterminate, Err: errors.New("lost request publication acknowledgement")}
@@ -91,12 +91,19 @@ func TestParkInterruptionBoundaryMatrix(t *testing.T) {
 					return stop
 				}
 			case "before-finalize", "after-finalize-journal":
+				armed := false
+				env.Couch.Threads.hooks.AfterJournal = func() error {
+					if armed {
+						return stop
+					}
+					return nil
+				}
 				env.Couch.Threads.hooks.BeforeUpdate = func(old, next ThreadRecord) error {
 					if old.Park != nil && next.Park == nil && next.VerifiedPark != nil {
 						if boundary == "before-finalize" {
 							return stop
 						}
-						env.Couch.Threads.hooks.AfterJournal = func() error { return stop }
+						armed = true
 					}
 					return nil
 				}

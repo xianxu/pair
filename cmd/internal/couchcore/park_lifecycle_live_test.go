@@ -131,7 +131,7 @@ func (d *realParkConformanceDriver) CommitRequest(request pairlifecycle.QuitRequ
 	if err != nil {
 		return err
 	}
-	current, err = d.threads.AdvancePark(current.Address, current.Revision, ParkEvent{
+	current, err = d.threads.AdvancePark(context.Background(), current.Address, current.Revision, ParkEvent{
 		Kind: ParkRequestCommitted, Identity: current.Park.Identity, Attempt: request.Attempt,
 	})
 	d.current = current
@@ -156,7 +156,7 @@ func (d *realParkConformanceDriver) CleanupAndPrepareCompletion(ctx context.Cont
 	ticker := time.NewTicker(25 * time.Millisecond)
 	defer ticker.Stop()
 	for {
-		completion, found, err := observer.ObserveCompletion(d.paths, request)
+		completion, found, err := observer.ObserveCompletion(context.Background(), d.paths, request)
 		if err != nil {
 			return pairlifecycle.CleanupResult{}, nil, err
 		}

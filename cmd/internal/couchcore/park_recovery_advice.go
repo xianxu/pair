@@ -42,6 +42,20 @@ func (c *Couch) ParkRecoveryAdvice(ctx context.Context, address ThreadAddress) s
 	return "Tab → Recover park"
 }
 
+// withParkRecoveryAdvice preserves the original refusal and names the same
+// exact-target recovery action everywhere an unfinished park blocks an operation.
+func (c *Couch) withParkRecoveryAdvice(ctx context.Context, record ThreadRecord, err error) error {
+	if err == nil || record.Park == nil {
+		return err
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	adviceCtx, cancel := context.WithTimeout(ctx, recoveryObservationTimeout)
+	defer cancel()
+	return fmt.Errorf("%w; %s", err, c.ParkRecoveryAdvice(adviceCtx, record.Address))
+}
+
 // ParkRecoveryNextAction observes advice, never launch authority. The subsequent
 // explicit operation reobserves these facts through its ordinary admission path.
 func (c *Couch) ParkRecoveryNextAction(ctx context.Context, record ThreadRecord) (string, string, error) {

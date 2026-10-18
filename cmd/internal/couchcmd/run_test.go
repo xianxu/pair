@@ -269,7 +269,7 @@ func seedVerifiedPark(t *testing.T, rt testRT, path string) couchcore.ThreadReco
 	if err != nil {
 		t.Fatal(err)
 	}
-	parked, err := c.Threads.FinalizePark(created.Address, begun.Revision, identity, 1, time.Unix(2, 0).UTC())
+	parked, err := c.Threads.FinalizePark(context.Background(), created.Address, begun.Revision, identity, 1, time.Unix(2, 0).UTC())
 	if err != nil {
 		t.Fatal(err)
 	}

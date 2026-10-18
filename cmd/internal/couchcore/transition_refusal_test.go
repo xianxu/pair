@@ -150,7 +150,7 @@ func TestEveryLifecycleTransitionIsDrivenIntoItsOwnRefusal(t *testing.T) {
 		"AdvancePark": {
 			shape: noShape,
 			call: func(t *testing.T, s *ThreadStore, r ThreadRecord) error {
-				_, err := s.AdvancePark(r.Address, r.Revision, ParkEvent{Kind: ParkRequestCommitted, Identity: park(r)})
+				_, err := s.AdvancePark(context.Background(), r.Address, r.Revision, ParkEvent{Kind: ParkRequestCommitted, Identity: park(r)})
 				return err
 			},
 			want: "no active park transaction",
@@ -158,7 +158,7 @@ func TestEveryLifecycleTransitionIsDrivenIntoItsOwnRefusal(t *testing.T) {
 		"AppendParkAttempt": {
 			shape: noShape,
 			call: func(t *testing.T, s *ThreadStore, r ThreadRecord) error {
-				_, err := s.AppendParkAttempt(r.Address, r.Revision, park(r))
+				_, err := s.AppendParkAttempt(context.Background(), r.Address, r.Revision, park(r))
 				return err
 			},
 			want: "park attempt identity does not match",
@@ -166,7 +166,7 @@ func TestEveryLifecycleTransitionIsDrivenIntoItsOwnRefusal(t *testing.T) {
 		"FinalizePark": {
 			shape: noShape,
 			call: func(t *testing.T, s *ThreadStore, r ThreadRecord) error {
-				_, err := s.FinalizePark(r.Address, r.Revision, park(r), 1, time.Unix(300, 0).UTC())
+				_, err := s.FinalizePark(context.Background(), r.Address, r.Revision, park(r), 1, time.Unix(300, 0).UTC())
 				return err
 			},
 			want: "does not match an active non-tombstoned transaction",

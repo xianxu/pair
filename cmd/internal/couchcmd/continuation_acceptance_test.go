@@ -325,9 +325,9 @@ type continuationAcceptanceLifecycle struct {
 	request pairlifecycle.QuitRequest
 }
 
-func (l *continuationAcceptanceLifecycle) PublishRequest(paths artifactpath.LifecyclePaths, request pairlifecycle.QuitRequest) error {
+func (l *continuationAcceptanceLifecycle) PublishRequest(ctx context.Context, paths artifactpath.LifecyclePaths, request pairlifecycle.QuitRequest) error {
 	l.paths, l.request = paths, request
-	return l.PairLifecycleStoreIO.PublishRequest(paths, request)
+	return l.PairLifecycleStoreIO.PublishRequest(ctx, paths, request)
 }
 
 func completeContinuationAcceptance(t *testing.T, rt testRT, c *couchcore.Couch, source couchcore.ThreadRecord, old couchcore.Handle, data string, scope launcher.RepoScope, committed string, pair string) {

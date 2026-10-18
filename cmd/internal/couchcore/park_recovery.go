@@ -198,7 +198,7 @@ func (c *PairLifecycleController) recoverInterruptedPark(ctx context.Context, ad
 			return result, fmt.Errorf("park owner is %s; inspect before retrying recovery", owner)
 		}
 	}
-	result, completed, err := c.reconcileAttempts(result, current, binding.Name)
+	result, completed, err := c.reconcileAttempts(ctx, result, current, binding.Name)
 	if completed {
 		return result, err
 	}

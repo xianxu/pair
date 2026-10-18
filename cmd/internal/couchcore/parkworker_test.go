@@ -112,7 +112,11 @@ func TestParkCoordinatorCoalescesExplicitRecoveryAndRetry(t *testing.T) {
 		<-releaseTrigger
 		return nil
 	}
+	joined := make(chan struct{})
+	worker := newParkWorker(LifecycleParallelism)
+	worker.onJoin = func() { close(joined) }
 	controller := PairLifecycleController{
+		worker:  worker,
 		Threads: store, DataDir: t.TempDir(), Lifecycle: lifecycle, Sessions: artifacts,
 		Proc: NewFakeProcOps(), Clock: FixedClock{T: now},
 		Nonce: func() (string, error) { return "unused", nil },
@@ -146,7 +150,9 @@ func TestParkCoordinatorCoalescesExplicitRecoveryAndRetry(t *testing.T) {
 	select {
 	case got := <-retryDone:
 		t.Fatalf("interactive retry did not share the in-flight recovery: %+v", got)
-	case <-time.After(50 * time.Millisecond):
+	case <-joined:
+	case <-testwait.After(t):
+		t.Fatal("interactive retry did not join the admitted recovery")
 	}
 	close(releaseTrigger)
 	recoveryErr := <-recoveryDone

@@ -1,0 +1,216 @@
+---
+gate: boundary-review
+issue: 651
+id_prefix: BR
+rounds:
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: df753325-bd15-4342-8c4b-292fb973ba1c
+            repository: github.com/xianxu/pair
+            issue_id: "000651"
+            recipe: milestone-review
+            round: 1
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/Library/Caches/sdlc/review-checkouts/e08862185ea33ff0
+            reviewed_head: 59c8d4f0d0d42f03488638a6643476d7c9c2a869
+            slot: pair:5
+            requested_at: "2026-10-18T00:06:07.484096Z"
+          phase: finished
+          pid: 83985
+          started_at: "2026-10-18T00:06:07.650432Z"
+          finished_at: "2026-10-18T00:14:43.32567Z"
+          session_id: 01a14c54-7d8b-7833-9aaa-f000812b1a73
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-queue-v1
+        repository: github.com/xianxu/pair
+        code_head: 59c8d4f0d0d42f03488638a6643476d7c9c2a869
+        tracker_head: 37b4bf1fc452f6d932008cfccafecb93028a907a
+        branch_point: c8f3f03ef1cbc095d5909dac8f8da656cc7f38a0
+        since: "2026-10-17T13:48:48-07:00"
+        until: "2026-10-17T17:03:30-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-17T13:48:48-07:00"
+              end: "2026-10-17T17:03:30-07:00"
+              began: "2026-10-17T13:48:48-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot5/pair
+        sources:
+            - harness: codex
+              id: 01a13d86-9ceb-7a10-b665-c109fdb6aa6b
+              slot: pair:5
+              cwd: /Users/xianxu/workspace/worktree/pair-slot5/pair
+              digest: 71196fc29415b5a7a0326832fa690a6d00098000fa299df5b4ef138f6f160272
+              started: "2026-10-15T03:06:35.036Z"
+              spawned: false
+              bytes: 47327416
+              windows:
+                - start: "2026-10-17T13:48:48-07:00"
+                  end: "2026-10-17T17:03:30-07:00"
+            - harness: codex
+              id: 01a14ba0-03af-7291-85be-c2ac938617e3
+              slot: pair:5
+              cwd: /Users/xianxu/workspace/worktree/pair-slot5/pair
+              parent_id: 01a13d86-9ceb-7a10-b665-c109fdb6aa6b
+              digest: b570e36bda24b5b95fb2f033ccfece148b5f2dc67acdbca9ad3a4d3c7a3342b2
+              started: "2026-10-17T20:49:00.434Z"
+              spawned: true
+              bytes: 1741155
+              windows:
+                - start: "2026-10-17T20:49:00.434Z"
+                  end: "2026-10-17T17:03:30-07:00"
+            - harness: codex
+              id: 01a14bd3-810f-74d2-96b6-36b80537e6ab
+              slot: pair:5
+              cwd: /Users/xianxu/workspace/worktree/pair-slot5/pair
+              digest: 968ba5501ebe035d38400019fbc64ab527cc55e762861866e1664e205ef7fffa
+              started: "2026-10-17T21:45:15.05Z"
+              spawned: false
+              bytes: 655161
+              windows:
+                - start: "2026-10-17T21:45:15.05Z"
+                  end: "2026-10-17T17:03:30-07:00"
+            - harness: codex
+              id: 01a14bd4-a5c2-7400-9f54-fb1dc4bf5125
+              slot: pair:5
+              cwd: /Users/xianxu/workspace/worktree/pair-slot5/pair
+              digest: e2fa46109b780a2cdb353c4e4be6684a9244e8b13382a07b666eddd29b6d9ab6
+              started: "2026-10-17T21:46:30.118Z"
+              spawned: false
+              bytes: 434116
+              windows:
+                - start: "2026-10-17T21:46:30.118Z"
+                  end: "2026-10-17T17:03:30-07:00"
+            - harness: codex
+              id: 01a14bd5-a209-77a1-b123-ff91f1f1fc35
+              slot: pair:5
+              cwd: /Users/xianxu/workspace/worktree/pair-slot5/pair
+              digest: e3058fa4c05c44b6cdf13ae2b2788e7ab16e8959c82f5a78dda888358283e63f
+              started: "2026-10-17T21:47:34.658Z"
+              spawned: false
+              bytes: 501471
+              windows:
+                - start: "2026-10-17T21:47:34.658Z"
+                  end: "2026-10-17T17:03:30-07:00"
+            - harness: codex
+              id: 01a14bd6-0e8c-7a50-b130-f7ba42c0c005
+              slot: pair:5
+              cwd: /Users/xianxu/workspace/worktree/pair-slot5/pair
+              digest: 1c1764501b4c372b102fb55ea0bf706e6b091f8dbe093bbd3e449888bf7a278b
+              started: "2026-10-17T21:48:02.962Z"
+              spawned: false
+              bytes: 414281
+              windows:
+                - start: "2026-10-17T21:48:02.962Z"
+                  end: "2026-10-17T17:03:30-07:00"
+            - harness: codex
+              id: 01a14bd6-dd67-76e2-bff7-50b580d0e4ab
+              slot: pair:5
+              cwd: /Users/xianxu/workspace/worktree/pair-slot5/pair
+              parent_id: 01a13d86-9ceb-7a10-b665-c109fdb6aa6b
+              digest: 4e8f0b185f7b2bcb12ecde46f615190645fd9539dc22804b3ef1dea2539c912e
+              started: "2026-10-17T21:48:55.131Z"
+              spawned: true
+              bytes: 1428448
+              windows:
+                - start: "2026-10-17T21:48:55.131Z"
+                  end: "2026-10-17T17:03:30-07:00"
+            - harness: codex
+              id: 01a14bd6-ff20-7dc0-a03d-92e6a766d92c
+              slot: pair:5
+              cwd: /Users/xianxu/workspace/worktree/pair-slot5/pair
+              parent_id: 01a13d86-9ceb-7a10-b665-c109fdb6aa6b
+              digest: 1dd60cad6232bbe9ea488af42418eeb69c531047053d12353024ff7bab553d8d
+              started: "2026-10-17T21:49:03.792Z"
+              spawned: true
+              bytes: 1718495
+              windows:
+                - start: "2026-10-17T21:49:03.792Z"
+                  end: "2026-10-17T17:03:30-07:00"
+            - harness: codex
+              id: 01a14bef-5f22-71a2-a725-859094e190da
+              slot: pair:5
+              cwd: /Users/xianxu/workspace/worktree/pair-slot5/pair
+              parent_id: 01a13d86-9ceb-7a10-b665-c109fdb6aa6b
+              digest: 542510f121f0f30a0482cce41f4cd2bde68209f0ab6553075725ae8298dca372
+              started: "2026-10-17T22:15:41.152Z"
+              spawned: true
+              bytes: 612984
+              windows:
+                - start: "2026-10-17T22:15:41.152Z"
+                  end: "2026-10-17T17:03:30-07:00"
+        queue_waits:
+            - attempt_id: 58a58ba1c3675fe49e82c9f6df20f029
+              slot: pair:5
+              record_digest: 9e49712a9f157b76265c6ec77b90d1d6227c017fc90773dd074c78c946608dc3
+              start: "2026-10-17T22:02:47.672199Z"
+              end: "2026-10-17T22:15:53.142442Z"
+              queue_seconds: 785.470243
+              raw_seconds: 785.470243
+              exact: true
+            - attempt_id: d4babe47e5c7bcb0b0f4c45707e11306
+              slot: pair:5
+              record_digest: 9b53582237ea6b9079261c27755859c62fe8db4ee0dd43d5e5b9fa18e7f69a93
+              start: "2026-10-17T22:34:42.23783Z"
+              end: "2026-10-17T22:58:50.751354Z"
+              queue_seconds: 1448.513524
+              raw_seconds: 1448.513524
+              exact: true
+            - attempt_id: d79d57fd973df98f92b03617bf772697
+              slot: pair:5
+              record_digest: 11265c88e60237d82be7c3422df30d7fb2e49b3419f2fe3252abae1bddd01c7b
+              start: "2026-10-17T23:13:58.905749Z"
+              end: "2026-10-17T23:43:22.019571Z"
+              queue_seconds: 1763.113822
+              raw_seconds: 1763.113822
+              exact: true
+      "n": 1
+      timestamp: "2026-10-17T17:14:44-07:00"
+      dispatched: "2026-10-17T17:06:04-07:00"
+      agent: codex
+      findings:
+        - kind: defect
+          id: BR-1
+          severity: Critical
+          title: Recovery can remain blocked after its caller cancels
+          detail: cmd/internal/couchcore/park_recovery.go:201 calls reconcileAttempts without a context-aware completion seam. Production ObserveCompletion reaches Store.Reconcile and blocking LOCK_EX (park.go:37; pairlifecycle/store_unix.go:29), before any completion timeout starts. With a present terminal and cleanup holding that lock, cancellation returns from future.Await while the worker retains its address reservation indefinitely. The drive branch at park_recovery.go:222 also enters legacy blocking store operations. ARCH-CONSTRAINTS and ARCH-ORDER require bounded worker settlement, not merely a bounded caller wait. Carry cancellation through every reachable lock/read/write and add gated contention tests asserting worker settlement and reservation release.
+          family: bounded-lifecycle-recovery
+          round: 1
+        - kind: defect
+          id: BR-2
+          severity: Important
+          title: Existing unfinished-park paths still omit the executable recovery action
+          detail: The guidance guard at cmd/internal/couchcore/resume_route.go:158 comes after continuation routing at lines 152–156. Those routes can reach recovery.go:34, which still says “let lifecycle recovery finish”, or continuation.go:318, which invokes the old controller Recover and returns its error without ParkRecoveryAdvice. switchagent.go:364 likewise still advertises inaccessible park retry/recover/abandon modes. This leaves the Spec's “every unfinished-park refusal” and Plan's controller-error sweep incomplete (ARCH-PURPOSE, ARCH-DRY). Enumerate these callers, attach the shared exact-target advice, and test their production entry points.
+          family: actionable-park-refusals
+          round: 1
+      recipe: milestone-review
+      isolation: fenced
+      blocked: true
+---
+
+# Gate ledger — pair#651 (boundary-review)
+
+Findings this gate raised, the stable ids the binary assigned them, and how
+later rounds disposed of them. Generated — edit the gate, not this file.
+
+## Round 1 — 2026-10-17T17:14:44-07:00 (codex) — BLOCKED
+
+### Raised
+
+- **BR-1** [Critical] `bounded-lifecycle-recovery` (kind: defect) Recovery can remain blocked after its caller cancels
+  cmd/internal/couchcore/park_recovery.go:201 calls reconcileAttempts without a context-aware completion seam. Production ObserveCompletion reaches Store.Reconcile and blocking LOCK_EX (park.go:37; pairlifecycle/store_unix.go:29), before any completion timeout starts. With a present terminal and cleanup holding that lock, cancellation returns from future.Await while the worker retains its address reservation indefinitely. The drive branch at park_recovery.go:222 also enters legacy blocking store operations. ARCH-CONSTRAINTS and ARCH-ORDER require bounded worker settlement, not merely a bounded caller wait. Carry cancellation through every reachable lock/read/write and add gated contention tests asserting worker settlement and reservation release.
+- **BR-2** [Important] `actionable-park-refusals` (kind: defect) Existing unfinished-park paths still omit the executable recovery action
+  The guidance guard at cmd/internal/couchcore/resume_route.go:158 comes after continuation routing at lines 152–156. Those routes can reach recovery.go:34, which still says “let lifecycle recovery finish”, or continuation.go:318, which invokes the old controller Recover and returns its error without ParkRecoveryAdvice. switchagent.go:364 likewise still advertises inaccessible park retry/recover/abandon modes. This leaves the Spec's “every unfinished-park refusal” and Plan's controller-error sweep incomplete (ARCH-PURPOSE, ARCH-DRY). Enumerate these callers, attach the shared exact-target advice, and test their production entry points.
+
+## Open findings
+
+- **BR-1** [Critical] `bounded-lifecycle-recovery` (kind: defect) Recovery can remain blocked after its caller cancels
+- **BR-2** [Important] `actionable-park-refusals` (kind: defect) Existing unfinished-park paths still omit the executable recovery action

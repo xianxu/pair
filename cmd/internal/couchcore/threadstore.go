@@ -447,7 +447,11 @@ func (s *ThreadStore) updateExistingThreadContext(ctx context.Context, address T
 func (s *ThreadStore) updateExistingThreadOnBackend(ctx context.Context, address ThreadAddress, expectedRevision uint64, mutate func(*ThreadRecord) error) (ThreadRecord, error) {
 	var result ThreadRecord
 	err := s.withUpdateLockContext(ctx, func() error {
-		currentRaw, err := s.readPayload(s.recordPath(address))
+		readCtx := ctx
+		if readCtx == nil {
+			readCtx = context.Background()
+		}
+		currentRaw, err := s.readPayloadContext(readCtx, s.recordPath(address))
 		if errors.Is(err, os.ErrNotExist) {
 			return fmt.Errorf("%w: %+v", ErrThreadNotFound, address)
 		}
@@ -558,13 +562,13 @@ func (s *ThreadStore) BeginPark(address ThreadAddress, expectedRevision uint64, 
 	})
 }
 
-func (s *ThreadStore) AdvancePark(address ThreadAddress, expectedRevision uint64, event ParkEvent) (ThreadRecord, error) {
+func (s *ThreadStore) AdvancePark(ctx context.Context, address ThreadAddress, expectedRevision uint64, event ParkEvent) (ThreadRecord, error) {
 	switch event.Kind {
 	case ParkRequestCommitted, ParkFailureObserved:
 	default:
 		return ThreadRecord{}, fmt.Errorf("park event %q requires its dedicated store operation", event.Kind)
 	}
-	return s.updateExistingThread(address, expectedRevision, func(next *ThreadRecord) error {
+	return s.updateExistingThreadContext(ctx, address, expectedRevision, func(next *ThreadRecord) error {
 		if next.Park == nil {
 			return errors.New("thread has no active park transaction")
 		}
@@ -585,8 +589,8 @@ func (s *ThreadStore) AdvancePark(address ThreadAddress, expectedRevision uint64
 	})
 }
 
-func (s *ThreadStore) AppendParkAttempt(address ThreadAddress, expectedRevision uint64, identity ParkIdentity) (ThreadRecord, error) {
-	return s.updateExistingThread(address, expectedRevision, func(next *ThreadRecord) error {
+func (s *ThreadStore) AppendParkAttempt(ctx context.Context, address ThreadAddress, expectedRevision uint64, identity ParkIdentity) (ThreadRecord, error) {
+	return s.updateExistingThreadContext(ctx, address, expectedRevision, func(next *ThreadRecord) error {
 		if next.Park == nil || next.Park.Identity != identity {
 			return errors.New("park attempt identity does not match active transaction")
 		}
@@ -604,11 +608,11 @@ func (s *ThreadStore) AppendParkAttempt(address ThreadAddress, expectedRevision 
 	})
 }
 
-func (s *ThreadStore) FinalizePark(address ThreadAddress, expectedRevision uint64, identity ParkIdentity, attempt uint64, parkedAt time.Time, scrollback ...*pairlifecycle.PreservedScrollback) (ThreadRecord, error) {
+func (s *ThreadStore) FinalizePark(ctx context.Context, address ThreadAddress, expectedRevision uint64, identity ParkIdentity, attempt uint64, parkedAt time.Time, scrollback ...*pairlifecycle.PreservedScrollback) (ThreadRecord, error) {
 	if len(scrollback) > 1 {
 		return ThreadRecord{}, errors.New("only one preserved scrollback is allowed")
 	}
-	return s.updateExistingThread(address, expectedRevision, func(next *ThreadRecord) error {
+	return s.updateExistingThreadContext(ctx, address, expectedRevision, func(next *ThreadRecord) error {
 		if next.Park == nil || next.Park.Identity != identity || next.Park.Tombstoned || next.Park.Closed {
 			return errors.New("park success does not match an active non-tombstoned transaction")
 		}

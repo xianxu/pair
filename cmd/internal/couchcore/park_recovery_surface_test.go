@@ -36,7 +36,7 @@ func TestRecoverParkSlotAdmissionBindsExactTransactionAndSettledRepeat(t *testin
 	if len(rows) != 1 || !rows[0].HasOpenPark || rows[0].ParkNonce != identity.Nonce {
 		t.Fatalf("park projection %+v", rows)
 	}
-	if _, err := local.FinalizePark(created.Address, begun.Revision, identity, 1, env.Now); err != nil {
+	if _, err := local.FinalizePark(context.Background(), created.Address, begun.Revision, identity, 1, env.Now); err != nil {
 		t.Fatal(err)
 	}
 	call, _, err = env.Couch.PrepareSlotOperation(context.Background(), "recover-park", target, LiveRestartOptions{})
