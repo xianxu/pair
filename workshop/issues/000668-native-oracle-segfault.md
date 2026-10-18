@@ -34,22 +34,17 @@ This is distinct from #660's missing session during reattach and #603's shell-ac
 
 ## Done when
 
-Diagnostic-stage landing only (hub-approved2026-10-18); the causal bug stays open afterward:
-
-- Every driver.cjs snapshot invocation enables Node fatal-error/signal reports in its owned artifact directory and preserves complete request JSON, separate streams and runtime/phase evidence on failure. Success still returns only the unchanged JSON oracle result.
-- Deterministic owned-child regressions show input beyond4KB survives byte-for-byte, stderr never corrupts JSON output, failed artifacts remain available through reporting, and successful evidence directories are removed. Real headless Node verifies phase order/report configuration without changing frame expectations or deadlines.
-- The native CI runner emits the failed oracle bundle into its retained job log before removing invocation scratch; its regression proves complete final input/report markers survive. No workflow/gate configuration change.
-- Recorded suite, native CI and ordinary close/merge gates pass. Then restore the causal acceptance contract below, reopen and unclaim/park this issue for the next failing CI evidence. A diagnostic pass does not prove the historical SIGSEGV fixed.
+- Retained diagnostics identify the crashing subprocess/runtime and causal input or environment.
+- A deterministic regression protects the measured cause without relaxing terminal checks or increasing deadlines.
+- Native conformance passes with before/after failure counts reported.
 
 ## Plan
 
-Approved diagnostic stage; the proposed runtime replay/download is withdrawn.
+Parked pending the next failing CI run. Diagnostic code is already on main via PR439; a new causal implementation needs a fresh plan and branch/PR.
 
-- [x] Add failing subprocess/evidence regressions in internal/testoracle/run_test.go: actual controlled owned children, independent stdout/stderr, complete Unicode/control-byte JSON over4KB, abnormal exit, post-return assertion failure, report flags/directory, success cleanup and failure retention under Go's artifacts flag. Count retained bytes atN and2N; no timing ceiling.
-- [x] Implement one small internal/testoracle.Run(t, cmd, request) IO helper for all five snapshot callers (three couchtty/terminal_native_test.go sites and terminal/render_oracle_test.go + history_oracle_test.go). Use unique subdirectories of t.ArtifactDir; enable --report-on-fatalerror, --report-on-signal, --report-directory, --report-filename, --report-exclude-env and --report-exclude-network. Keep each caller's command/context/deadline and every existing frame assertion. Capture stdout/stderr separately; save exact request and streams when the owning test fails, including a later frame/decode failure. Remove successful call directories. Register the new Go helper as a non-artifact source in the existing manifest.
-- [x] Add synchronous stderr phase markers in driver.cjs for startup (runtime identity), import, write, snapshot and dispose. Keep stdout exclusively the existing JSON response. Regressions use the real headless driver, check ordered markers and valid frame JSON, and prove flags configure report creation with an owned signal/report control. No Node download, version pin, exception masking or retry.
-- [x] Extend tests/native-terminal-ci.py to invoke Go with -artifacts and -outputdir under its owned scratch, then publish the failed oracle files into the existing retained CI log before scratch cleanup. Extend native-terminal-ci-test.py with full request/report final-marker and cleanup-order controls. Update terminal-oracle README and atlas map for replay/evidence limits.
-- [ ] Run targeted helper, Python, renderer-oracle and repository guard tests, preserving red/green evidence. Open early draft for existing macOS native CI. Run the recorded suite and close/merge through ordinary gates; no local native lane is spent without a fresh hub grant. After landing restore causal acceptance, reopen/park/unclaim and report exact merge plus unresolved-cause status.
+- [ ] Read the next failure's complete oracle request, separate stderr phases, process outcome and optional Node report; preserve missing evidence as unknown.
+- [ ] Reproduce or classify the measured cause, then propose a narrow fix and deterministic regression to the hub before code.
+- [ ] Run ordinary verification/review/merge gates for that causal change; never retry inside the oracle or relax frame assertions/deadlines.
 
 ## Log
 
@@ -120,3 +115,29 @@ Recorded suite attemptda0de6c5364a3ef25592d24cebaa199c on77952363b is queued (ma
 ### 2026-10-18 — close review BR-1 disposition
 
 Round1 found no code defect and returned FIX-THEN-SHIP, but its blocking ledger left close unfinalized: BR-1 root-readme-surface-coverage requires root README coverage of the new developer commands. Verified the root testing entry points were unchanged; added retention usage and links covering replay, headless controls and report/lifetime limits at both oracle/native guidance. The class sweep covers all three new invocation surfaces, not just the one link. Added the prevention rule to lessons. Documentation-only fix; the queued exact-code suite remains applicable. Per the gate's explicit error, rerun close to have the reviewer dispose BR-1; no manual ledger edit or waiver.
+
+### 2026-10-18 — restore causal contract and park
+
+Diagnostic PR439 is verified merged; the temporary diagnostic acceptance is fulfilled. Restore the original causal Done-when and replace the diagnostic implementation checklist with a next-failure investigation plan. Keep the historical diagnostic contract below as evidence of exactly what landed. No pending test, merge runner or native lane remains owned by this slot. The current branch is a handoff only; do not reuse the merged PR or claim a passing diagnostic run fixed SIGSEGV.
+
+#### Completed diagnostic-stage contract and plan
+
+##### Diagnostic Done when
+
+Diagnostic-stage landing only (hub-approved2026-10-18); the causal bug stays open afterward:
+
+- Every driver.cjs snapshot invocation enables Node fatal-error/signal reports in its owned artifact directory and preserves complete request JSON, separate streams and runtime/phase evidence on failure. Success still returns only the unchanged JSON oracle result.
+- Deterministic owned-child regressions show input beyond4KB survives byte-for-byte, stderr never corrupts JSON output, failed artifacts remain available through reporting, and successful evidence directories are removed. Real headless Node verifies phase order/report configuration without changing frame expectations or deadlines.
+- The native CI runner emits the failed oracle bundle into its retained job log before removing invocation scratch; its regression proves complete final input/report markers survive. No workflow/gate configuration change.
+- Recorded suite, native CI and ordinary close/merge gates pass. Then restore the causal acceptance contract below, reopen and unclaim/park this issue for the next failing CI evidence. A diagnostic pass does not prove the historical SIGSEGV fixed.
+
+##### Diagnostic Plan
+
+Approved diagnostic stage; the proposed runtime replay/download is withdrawn.
+
+- [x] Add failing subprocess/evidence regressions in internal/testoracle/run_test.go: actual controlled owned children, independent stdout/stderr, complete Unicode/control-byte JSON over4KB, abnormal exit, post-return assertion failure, report flags/directory, success cleanup and failure retention under Go's artifacts flag. Count retained bytes atN and2N; no timing ceiling.
+- [x] Implement one small internal/testoracle.Run(t, cmd, request) IO helper for all five snapshot callers (three couchtty/terminal_native_test.go sites and terminal/render_oracle_test.go + history_oracle_test.go). Use unique subdirectories of t.ArtifactDir; enable --report-on-fatalerror, --report-on-signal, --report-directory, --report-filename, --report-exclude-env and --report-exclude-network. Keep each caller's command/context/deadline and every existing frame assertion. Capture stdout/stderr separately; save exact request and streams when the owning test fails, including a later frame/decode failure. Remove successful call directories. Register the new Go helper as a non-artifact source in the existing manifest.
+- [x] Add synchronous stderr phase markers in driver.cjs for startup (runtime identity), import, write, snapshot and dispose. Keep stdout exclusively the existing JSON response. Regressions use the real headless driver, check ordered markers and valid frame JSON, and prove flags configure report creation with an owned signal/report control. No Node download, version pin, exception masking or retry.
+- [x] Extend tests/native-terminal-ci.py to invoke Go with -artifacts and -outputdir under its owned scratch, then publish the failed oracle files into the existing retained CI log before scratch cleanup. Extend native-terminal-ci-test.py with full request/report final-marker and cleanup-order controls. Update terminal-oracle README and atlas map for replay/evidence limits.
+- [x] Run targeted helper, Python, renderer-oracle and repository guard tests, preserving red/green evidence. Open early draft for existing macOS native CI. Run the recorded suite and close/merge through ordinary gates; no local native lane is spent without a fresh hub grant. After landing restore causal acceptance, reopen/park/unclaim and report exact merge plus unresolved-cause status.
+
