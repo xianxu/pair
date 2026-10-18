@@ -6,13 +6,18 @@ updated: 2026-10-18
 estimate_hours:
 github_issue:
 started: 2026-10-18T02:55:47-07:00
-claimant:
-    operator: Xian Xu
-    machine: 4716879978a7b90f6b583da1716fd0e9
-    machine_name: Xian’s MacBook Pro
-    workspace: pair:3
-    worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
-    repository: github.com/xianxu/pair
+tracker:
+    version: 1
+    release:
+        by:
+            operator: Xian Xu
+            machine: 4716879978a7b90f6b583da1716fd0e9
+            machine_name: Xian’s MacBook Pro
+            workspace: pair:3
+            worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
+            repository: github.com/xianxu/pair
+        branch: 000663-remaining-suite-device-writes
+        head: 414e9cfb311121cc84a02a39c1418fa0fc7a636d
 ---
 
 # Attribute remaining final-Go suite device writes after fixture and cache reductions
