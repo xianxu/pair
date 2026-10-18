@@ -8,7 +8,7 @@ updated: 2026-10-18
 estimate_hours:
 severity: high
 collaboration-mode: collaboration
-card_mirror: 'c1be28ad2bd797b32df61f8bfdf39b0b4e8fc17c' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '2060385dc7f983414b47b3029d18af6de8cd98c7' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-17T22:43:28-07:00
 claimant:
     operator: Xian Xu
@@ -18,7 +18,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
     repository: github.com/xianxu/pair
 flow: {kind: quick, provenance: inferred, spec: "abd9131f", done: "22b0c546"}
-actual_hours: 1.07
+actual_hours: 2.47
 ---
 
 # tests: seven wall-clock budgets on external tools (git worktree, zellij IPC, lsof, a rate-limit window) fail at fleet load
