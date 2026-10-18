@@ -269,3 +269,73 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-18T12:48:46-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 651 — Relaunch can strand a slot mid-park: resume refuses 'park transaction unfinished' with no named recovery verb (pair:6 had to start fresh) |
+| repo | pair |
+| issue file | workshop/issues/000651-relaunch-can-strand-a-slot-mid-park-resume-refuses-park-transaction-unfinished-with-no-named-recovery-verb-pair-6-had-to-start-fresh.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 5474d703fabaf7ac8c2ab9817d8297317d6ab2cc..f43980670521fc713cf146714770dd50a9802b6f |
+| command | sdlc close --issue 651 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-18T12:48:46-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The interdiff preserves both sides of the conflict resolution and makes the deadline fixture deterministic. BR-3’s measured host evidence is verified. No new blocking defects or scope changes were found.
+
+```findings
+dispose:
+  - id: BR-3
+    disposition: withdrawn
+    note: |
+      The retained named-test output passes and matches SHA256 ae28d21a9ff22358b1995a3a8ddfd0192c4394904b50db23261163c52ccef81c. The configured host main ref matches the dispute, and suite attempt 9dbe4d89404e5331e7db045f17888636 records exit 0 on 0cb2e215d6087eea67e96e9cc7a3500727c3cdd6; its log hash also matches. Only tracker files changed between that head and this head. The local rerun reproduces the isolated checkout’s missing-main-ref refusal, which the supplied host evidence answers.
+```
+
+1. **Strengths**
+   - Conflict resolution retains `HasOpenPark`, `ParkNonce`, and private `TitleTarget`, with their projection paths intact (`cmd/internal/couchcore/actionableinventory.go:176`).
+   - Deadline fixture waits for completion/live-child evidence before spending its budget and requires `DeadlineExceeded` (`cmd/internal/couchcore/park_interruption_matrix_test.go:78`).
+   - Added revisions record integration corrections; Spec and Done-when remain unchanged.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes:** Focused matrix, title-target, cancellation and refusal tests passed with `-race`. Additional actionable-inventory, exact-transaction admission and post-admission store-contention tests passed. Core diff whitespace check passed. Full-suite evidence was verified rather than rerun.
+
+6. **Architectural notes**
+   - **ARCH-DRY — pass:** reuses the existing deadline seam and budget helper.
+   - **ARCH-PURE — pass:** fixture behavior remains behind injected integration seams.
+   - **ARCH-PURPOSE — pass:** preserves both conflict participants’ intent and the live-child safety assertion.
+   - No new user-facing or architectural surface requires README or atlas changes.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"9661532d-cc3d-4c72-af14-fe1b020d36c2","repository":"github.com/xianxu/pair","issue_id":"000651","recipe":"fix-review","round":4,"attempt":1,"agent":"codex","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/1550fc658bd05873","reviewed_head":"f43980670521fc713cf146714770dd50a9802b6f","slot":"pair:5","requested_at":"2026-10-18T19:47:51.443702Z"},"phase":"finished","pid":45929,"started_at":"2026-10-18T19:47:51.580962Z","finished_at":"2026-10-18T19:48:45.251434Z","session_id":"01a1508e-65de-7f62-b468-8e47647e4d3c","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.932843292s
+head: "f43980670521fc713cf146714770dd50a9802b6f"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
