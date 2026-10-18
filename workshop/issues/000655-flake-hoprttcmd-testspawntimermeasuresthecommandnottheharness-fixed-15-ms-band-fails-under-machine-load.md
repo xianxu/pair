@@ -46,7 +46,7 @@ Selected approach: extract only the command-preparation/run boundary from `spawn
 
 ## Plan
 
-- [ ] Add the exact virtual-time boundary regression and real-binary smoke; demonstrate timer-around-preparation, omitted-command and external-clock mutants fail.
+- [x] Add the exact virtual-time boundary regression and real-binary smoke; demonstrate timer-around-preparation, omitted-command and external-clock mutants fail.
 - [ ] Run focused/race checks, then a bounded owned load check and recorded full suite; close and land through normal gates.
 
 ## Log
@@ -60,3 +60,8 @@ Selected approach: extract only the command-preparation/run boundary from `spawn
 ## Revisions
 
 - 2026-10-17 — Select virtual-time command-boundary assertions over a relative live baseline: independent scheduling skew can invalidate the latter. Preserve the original failure evidence and both original Done-when requirements; brief owned load check and external-clock negative control remain required. Plan posted before code; awaiting hub response.
+
+- Verified Submitted approval `385f99bc-af71-416f-bccb-5ddd666ec98c` accepts the virtual-time plan and 3-second/20-worker check, requiring cleanup even on test panic. Quick-flow change-code admitted implementation. New regression first failed because the sampler seam was absent (`/tmp/pair655-red.log`); then the existing loop was extracted without changing timer scope or failure semantics.
+- `TestSpawnTimerMeasuresTheCommandNotTheHarness` now uses actual `time.Now`/`msSince` under synctest, not a replacement clock callback. Across setup delays 0/5s/1h it requires exact 0.25/17/100ms command samples, one sequential prepare/run per sample, and the controlled failure count. The production adapter still supplies `exec.Command(...).Run`. Real shipped-binary smoke asserts positive ordered percentiles without a speed ceiling; output was 4.773/7.155/8.399ms in the race run.
+- Negative controls all failed as required: timer including preparation reports 5000.25ms instead of 0.25ms; omitting Run breaks the observed event order; Python subprocess clocks report their own real 29–44ms instead of the controlled durations (`/tmp/pair655-mutant-{setup,omit,external-clock}.log`). Original production source restored before green.
+- Package race check PASS 5.087s (`/tmp/pair655-package-race.log`). Approved load check: precompiled test ran 1000 times under 20 live owned CPU workers and PASSED; a subsequent deliberately forced child test-timeout panic exercised the same cleanup path. All 20 workers killed and reaped, zero live, total elapsed 0.688s (under the 3s cap). Every worker also carried its own 3s alarm in case the helper died; helper SIGINT/SIGTERM exit through finally. Logs `/tmp/pair655-load-{green,panic}.log`. No full-suite failure/retry occurred; this was an expected negative cleanup control.

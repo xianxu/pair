@@ -2,10 +2,13 @@ package hoprttcmd
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"testing"
+	"testing/synctest"
+	"time"
 
 	"github.com/xianxu/pair/cmd/internal/testpair"
 )
@@ -51,24 +54,56 @@ func TestProbeIsReachableThroughTheShippedPairBinary(t *testing.T) {
 	}
 }
 
-// THE positive control. The bug it pins: a timing harness that shells out to
-// read a clock measures the clock process. An earlier attempt did exactly that
-// and read 18.7 ms for /usr/bin/true against #201's measured 1.9 ms.
-//
-// The band is deliberately WIDE: this runs inside `make test`'s parallel suite,
-// where a 1.5 ms baseline can reach ~4.5 ms under the suite's own spawn load. A
-// 15 ms ceiling still catches an 18.7 ms harness bug without going red on a
-// busy machine.
+// Command preparation is harness work; only Run belongs in each sample.
+// Virtual time makes that distinction exact even when the host is overloaded.
 func TestSpawnTimerMeasuresTheCommandNotTheHarness(t *testing.T) {
+	for _, setup := range []time.Duration{0, 5 * time.Second, time.Hour} {
+		t.Run(setup.String(), func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				durations := []time.Duration{250 * time.Microsecond, 17 * time.Millisecond, 100 * time.Millisecond}
+				prepared, ran := 0, 0
+				samples, failed := sampleSpawns(len(durations), func() func() error {
+					if prepared != ran {
+						t.Fatal("prepared a new command before running the previous one")
+					}
+					i := prepared
+					prepared++
+					time.Sleep(setup)
+					return func() error {
+						if ran != i {
+							t.Fatalf("command %d ran out of order or more than once", i)
+						}
+						ran++
+						time.Sleep(durations[i])
+						if i == 1 {
+							return errors.New("controlled command failure")
+						}
+						return nil
+					}
+				})
+				if prepared != len(durations) || ran != len(durations) || failed != 1 || len(samples) != len(durations) {
+					t.Fatalf("prepared=%d ran=%d failed=%d samples=%v", prepared, ran, failed, samples)
+				}
+				for i, duration := range durations {
+					if want := float64(duration/time.Microsecond) / 1000; samples[i] != want {
+						t.Errorf("sample %d = %v ms, want command-only %v ms (setup %v)", i, samples[i], want, setup)
+					}
+				}
+			})
+		})
+	}
+}
+
+// Retain real binary wiring and output coverage without certifying host speed.
+func TestSpawnProbeIsReachableThroughTheShippedPairBinary(t *testing.T) {
 	if _, err := os.Stat("/usr/bin/true"); err != nil {
 		t.Skip("/usr/bin/true unavailable")
 	}
-	bin := pairBin(t)
-	got := runPair(t, bin, "hoprtt", "-spawn", "20", "--", "/usr/bin/true")
-	if med := got[0]; med < 0.05 || med > 15.0 {
-		t.Fatalf("fork+exec median %.3f ms is outside the plausible band; "+
-			"the harness is measuring itself, not the command", med)
+	got := runPair(t, pairBin(t), "hoprtt", "-spawn", "20", "--", "/usr/bin/true")
+	if !(got[0] > 0 && got[0] <= got[1] && got[1] <= got[2]) {
+		t.Fatalf("spawn probe returned nonpositive or unordered measurements: %v", got)
 	}
+	t.Logf("native spawn median/p90/p99 milliseconds: %v", got)
 }
 
 // The two modes must not converge; if they do, one is wrong.
