@@ -16,6 +16,7 @@ claimant:
     workspace: pair:6
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "dc5c215c", done: "dac51d13"}
 ---
 
 # Guard native fixture root handoffs
