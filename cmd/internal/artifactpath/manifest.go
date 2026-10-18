@@ -109,6 +109,8 @@ var ResolvedBindings = append([]ResolvedBinding{
 	{Name: "scoped-last-terminal-pane", Family: "last-terminal-pane", Resolver: "ResolveScoped", Member: "LastTerminalPane"},
 	{Name: "scoped-picker", Family: "picker", Resolver: "ResolveScoped", Member: "DraftPane"},
 	{Name: "scoped-review", Family: "review", Resolver: "ResolveScoped", Member: "ReviewTarget"},
+	{Name: "scoped-review-round", Family: "review", Resolver: "ResolveScoped", Member: "ReviewRound"},
+	{Name: "scoped-review-apply-lock", Family: "review", Resolver: "ResolveScoped", Member: "ReviewApplyLock"},
 	{Name: "scoped-scrollback", Family: "scrollback", Resolver: "ResolveScoped", Member: "ScrollbackArtifacts"},
 	{Name: "scoped-scrollback-pending", Family: "scrollback-pending", Resolver: "ResolveScoped", Member: "ScrollbackPending"},
 	{Name: "scoped-slug", Family: "slug", Resolver: "ResolveScoped", Member: "Slug"},
@@ -414,6 +416,8 @@ var SourceClassifications = []SourceClassification{
 				"pair-changelog-open: write %s: %v\n",
 				"pair-changelog-open: viewer: %v\n")...)...),
 	},
+	// #661 pair review apply resolves the round artifact and apply flock.
+	{Path: "cmd/internal/reviewapply/reviewapply.go", Kind: ResolvedConsumer, Families: []string{"review"}, BindingNames: []string{"scoped-review-round", "scoped-review-apply-lock"}},
 	{Path: "cmd/internal/reviewcmd/run.go", Kind: ResolvedConsumer,
 		Families: []string{"nvim-pid", "review"}, BindingNames: []string{"scoped-nvim-pid", "scoped-review"},
 		Vocabulary: goCallVocabularyValues("review", "fmt.Fprintf", 1,
@@ -573,6 +577,10 @@ var SourceClassifications = []SourceClassification{
 	{Path: "nvim/review/record.lua", Kind: VocabularyConsumer, Families: []string{"review"}, Vocabulary: []VocabularyAllowance{
 		exactLineVocabulary("review", "local OPEN = '```review-records'", 1),
 	}},
+	// #661: pair review apply writes the same commit-body fence the pane reads.
+	{Path: "cmd/internal/sessionsync/applyfile.go", Kind: VocabularyConsumer, Families: []string{"review"}, Vocabulary: []VocabularyAllowance{
+		goCallVocabulary("review", "```review-records\n%s\n```", "fmt.Fprintf", 1, 1),
+	}},
 
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/bin/lib/adapt-log.sh", Kind: GeneratedMirror},
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/bin/lib/dev-rebuild.sh", Kind: GeneratedMirror},
@@ -616,6 +624,7 @@ var SourceClassifications = []SourceClassification{
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/review/definition_seam.lua", Kind: GeneratedMirror},
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/review/docflow.lua", Kind: GeneratedMirror},
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/review/gate.lua", Kind: GeneratedMirror},
+	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/review/oplock.lua", Kind: GeneratedMirror},
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/review/handoff.lua", Kind: GeneratedMirror},
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/review/init.lua", Kind: GeneratedMirror},
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/review/markers.lua", Kind: GeneratedMirror},
@@ -625,6 +634,7 @@ var SourceClassifications = []SourceClassification{
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/review/projection.lua", Kind: GeneratedMirror},
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/review/readiness.lua", Kind: GeneratedMirror},
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/review/reconcile.lua", Kind: GeneratedMirror},
+	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/review/round_watch.lua", Kind: GeneratedMirror},
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/review/reconstruct.lua", Kind: GeneratedMirror},
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/review/record.lua", Kind: GeneratedMirror, Families: []string{"review"}},
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/review/resolve.lua", Kind: GeneratedMirror},
@@ -1097,6 +1107,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/sessionsync/gap.go",
 	"cmd/internal/sessionsync/ledger.go",
 	"cmd/internal/sessionsync/linediff.go",
+	"cmd/internal/sessionsync/marker.go",
 	"cmd/internal/sessionsync/owed.go",
 	"cmd/internal/sessionsync/propose.go",
 	"cmd/internal/sessionsync/registry.go",
@@ -1663,6 +1674,9 @@ var NonArtifactSources = []string{
 	"nvim/review/definition_seam.lua",
 	"nvim/review/docflow.lua",
 	"nvim/review/gate.lua",
+	// #661 M2: the operator lock beside the reviewed file and the round
+	// artifact path from $PAIR_REVIEW_ROUND_PATH; no artifact filenames.
+	"nvim/review/oplock.lua",
 	"nvim/review/handoff.lua",
 	"nvim/review/init.lua",
 	"nvim/review/markers.lua",
@@ -1672,6 +1686,7 @@ var NonArtifactSources = []string{
 	"nvim/review/projection.lua",
 	"nvim/review/readiness.lua",
 	"nvim/review/reconcile.lua",
+	"nvim/review/round_watch.lua",
 	"nvim/review/reconstruct.lua",
 	"nvim/review/resolve.lua",
 	"nvim/review/seam.lua",

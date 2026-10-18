@@ -1,13 +1,13 @@
 ---
 id: 000661
-status: working
+status: done
 deps: []
 github_issue:
 created: 2026-10-18
 updated: 2026-10-18
-estimate_hours: 6.48
+estimate_hours: 7.14
 collaboration-mode: collaboration
-card_mirror: '2548cc640d38c29e752c319948984ab317355544' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '66eb7dd7b49b4313420a2c41818e0dc0bad68817' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-18T02:23:24-07:00
 claimant:
     operator: Xian Xu
@@ -17,6 +17,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: inferred}
+actual_hours: 1.91
 ---
 
 # S4 one edit path: couch --session-sync apply, derived rounds, and the review pane on apply
@@ -51,7 +52,7 @@ Design: `ops:teams/devinfra/projects/universal-agent-input-interface/design.side
 Durable plan: `workshop/plans/000661-s4-one-edit-path-apply-and-derived-rounds-plan.md`.
 
 - [x] M1 — Couch: `apply` (atomic resolution, `edits-invalid`), the round derived on every write, the round sidecar in both layouts, `round --json` with `cleared`, the propose converter, and the shared Go/Lua fixtures.
-- [ ] M2 — the review pane on `apply`: register on first apply, the review agent runs `apply`, the pane highlights the round, and nvim apply and reconcile are retired.
+- [x] M2 — the review pane on the shared engine (TL decisions 2026-10-18): `pair review apply` / `pair review round` without Couch, the pane follows and highlights applied rounds under the operator lock, the propose exceptions and operator-owned keys; retirement of the legacy handoff, nvim apply and reconcile is pair#664.
 
 ## Estimate
 
@@ -66,18 +67,19 @@ item: smaller-go-module      design=0.1 impl=0.16
 item: lua-neovim             design=0.3 impl=0.24
 item: atlas-docs             design=0.05 impl=0.1
 item: milestone-review       design=0.0 impl=0.16
-item: lua-neovim             design=1.0 impl=0.48
-item: smaller-go-module      design=0.2 impl=0.16
-item: skill-or-dispatcher    design=0.3 impl=0.12
+item: smaller-go-module      design=0.3 impl=0.2
+item: lua-neovim             design=1.0 impl=0.6
+item: cross-cutting-refactor design=0.3 impl=0.2
+item: skill-or-dispatcher    design=0.2 impl=0.08
 item: atlas-docs             design=0.05 impl=0.1
 item: milestone-review       design=0.0 impl=0.16
 design-buffer: 0.15
-total: 6.48
+total: 7.14
 ```
 
 The items are, in order:
 - M1: the resolver and fixtures; the line diff and round; the propose converter; the write path and sidecar; the round verb and CLI; the Lua resolver on the fixtures; atlas; the review.
-- M2: the pane on the round, with nvim apply and reconcile retired; register on first apply; the review agent's instructions; atlas; the review.
+- M2, re-estimated at its start (2026-10-18) after the TL's decisions: the `BuildEdit` engine plus `pair review apply`; the pane's round watch, operator lock and retirements; the shell-test rework; the ariadne#437 protocol delta; atlas; the review.
 
 Design is the low end of each range, because the durable plan already resolved the decisions; the buffer is 15% for a thorough plan. Impl is 40% of the v2 table's figure.
 
@@ -86,6 +88,7 @@ Design is the low end of each range, because the durable plan already resolved t
 ## Log
 
 ### 2026-10-18
+- 2026-10-18: closed — Recorded suite: sdlc-local/suite success on 0143582c. Review fixes since then are tested: go test artifactpath, testpair, sessionsync, reviewapply, reviewcmd and couchcmd skill green; make test-lua and make test-review green on 3862431a; the merge reruns the suite. M2 e2e: tests/review-applied-round-test.sh, 13 checks. Close rounds 1-2 fixes each have a test: the exact link swap plus a conformance fixture; a round-write failure warns; a dead pane lock is reclaimed (ESRCH only); readiness uses porcelain -z ignoring only the review lock, wiring mutation-checked; stale or declined rounds are not acted on. The legacy handoff is retired by pair#664 (deps ariadne#437), per TL ordering (a).; review verdict: FIX-THEN-SHIP
 - 2026-10-18: closed M1 — Recorded suite: sdlc-local/suite success on 3b12a97c; review fixes since touch sessionsync propose/edits, tests and docs (sessionsync and couchcmd skill tests green). Shared Go/Lua fixtures pass (16 resolution, 9 propose, every written marker parses). Live with this branch couch: good apply landed with explain in round --json; bad batch exit 1 edits-invalid, doc and round byte-identical; write round has no explain; propose per-line marker, 4-line change refused propose-too-large. cleared by rig test against a real ledger.; review verdict: SHIP
 
 - M1 implemented, Tasks 1–6, in commits 45d56db9..c5d226cf. The Go and Lua resolvers and the propose markers share `testdata/edit-records`, and the pane grammar reads every fixture marker back to the accepted and rejected texts.
@@ -108,3 +111,18 @@ Design is the low end of each range, because the durable plan already resolved t
   - **BR-7:** README and `couch --skill` now document `apply`, `round`, `edits-invalid`, rounds and propose.
   - **Minor (2nd in the frontmatter family):** the rule is now that under propose a body write must leave the frontmatter byte-identical, or it refuses with `propose-unencodable`. That covers a changed `presentation:` and a moved closer alike, and `write --frontmatter` stays the direct path. It is tested in `TestProposeNeverMarksFrontmatter`.
   - **BR-5:** occurrence 0 and -1 were added to the parse-refusal test.
+- **M2 built** (2026-10-18), with ordering (a) per the TL: the legacy handoff stays until pair#664 (`deps: ariadne#437`).
+  - `BuildEdit` engine; `pair review apply` and `pair review round`; pane round watch and operator lock.
+  - Propose exceptions plus the operator-owned key guard (three TL corrections, all from ariadne:1's conformance checks), and shared conformance fixtures that ariadne:1 verified byte for byte.
+  - Tests: `review-applied-round-test.sh` (13 checks; mutation: disabling the pane reload fails two), `reviewapply` CLI tests, the `sessionsync` ApplyFile/marker/conformance tests, and the Lua `round_watch_test`.
+  - `make test-lua` and `make test-review` are green with the legacy path intact.
+  - Done-when "nvim never writes the reviewed file" holds for applied rounds now; for all rounds it is met by pair#664, which retires the legacy buffer apply and adds the rule test.
+- **Issue-close review round 1 (REWORK)**, all fixed with tests:
+  - **BR-9 (Critical):** rule (a) is now exactly the marker swapped for the link, plus a refused conformance fixture `propose-link-carrying-rewrite-refused`.
+  - **BR-10:** an artifact write failure warns and keeps Hash and Body.
+  - **BR-11:** the lock carries its owner pid, and a dead pane's lock is reclaimed.
+  - **BR-12:** readiness ignores the lock, and the plan's M2 sweep is in Revisions.
+  - **Minor:** a declined round is redelivered.
+- **Issue-close review round 2 (FIX-THEN-SHIP):**
+  - **BR-14:** readiness uses `git status --porcelain -z`, which never quotes paths, and a `gatherGitFacts` test covers the wiring. Mutation-checked: reverting the call site fails it.
+  - **Minors:** the pane acts on a round only while the file still hashes to `result_hash`, and warns once per declined round. The lock's owner check treats only ESRCH as dead. The reply's `Warning` and the lock's pid are documented in the atlas, `couch --skill` and the protocol target.

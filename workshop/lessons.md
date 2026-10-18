@@ -8,6 +8,21 @@ representative evidence, not an exhaustive index.
 ## Proof and verification
 
 - When migrating a temporary root, inspect every helper consumer, including ones that reuse its directory with a longer generated basename. Budget the complete native socket address and qualify the entire affected package under the OS's normal TMPDIR; a focused helper-name regex can omit the consumers that break. (#665 R8)
+- An ordering fixture must not require every real subprocess to beat a product
+  deadline. Use a stateful double for identity/byte changes and controlled
+  completion order; keep native timeout and real backend conformance separate.
+  Count synchronous waits for UI blocking assertions rather than measuring
+  host speed. Lua empty strings are truthy: a failed process needs a nonempty
+  diagnostic fallback even when stderr exists. (#662)
+
+- A subprocess double models kill and owner teardown separately: native kill
+  still delivers completion, while fixture teardown may suppress late delivery.
+  Verify that distinction against the installed runtime so cancellation cannot
+  strand a callback gate in its started state. (#662)
+
+- Before adding text validation to a fixture double, check the existing pure
+  document decoder. Reuse its UTF-8/NUL contract rather than copying the
+  algorithm into a second implementation. (#662 close advisory)
 
 - Ordinary Go files in test-helper packages still belong to the exhaustive production-source inventory. Classify every new file, including build-tag variants, and keep auxiliary scratch names outside reserved artifact prefixes; do not quarantine a missing inventory entry as a known violation. (#658)
 
@@ -2251,6 +2266,7 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #574 plan/implementation: adding trusted provenance to a message requires checking every retained-receipt import, not only caller admission and rendering. A wrapper-only record cannot grant server origin after restart. Current Slots state keys by the stable slot across Fresh addresses; cancellation of a frozen but unstarted publication must feed its known-no-write outcome back to the reducer, or replacement leaves the slot blocked.
 - #574 close BR-1/BR-2: a shared result type does not identify the completed recovery mode, and a cached inventory row can predate an adopted agent switch. Carry the actual typed outcome at every successful producer and prefer completion-owned metadata in projections. Test all successful constructors and final completion paths with empty/conflicting cached metadata; presentation strings and requested mode are not outcome evidence.
 - #574 close BR-3: a pending informational projection needs an explicit ownership-move rule. Prefer the successful move producer and the existing admission/effect gate over polling or migrating old history. Dropping pending information must preserve the restart barrier and exact admitted receipts; fence extracted jobs as well as queued jobs. Tell the new owner to resnapshot Slots and prove before-drain, frozen, admitted and uncertain cases with two stateful receivers.
+- #661: The pair repo's guard tests catch new files only in the full suite. A new production source must be classified in `cmd/internal/artifactpath/manifest.go`: in the exhaustive inventory, as a ResolvedConsumer with its own binding when it imports artifactpath, or as a VocabularyConsumer at a permitted call site for a family literal. Its generated runtime-bundle mirror needs an entry too. A shell test that runs pair needs the `pair-test-bootstrap.sh` line as line 2. Before pushing a new file, run `go test ./cmd/internal/artifactpath ./cmd/internal/testpair` alongside the targeted tests.
 
 - #649: Register every new production source in artifactpath SourceClassifications or NonArtifactSources before the first suite; retention IO anchors alone do not cover the exhaustive source inventory.
 
@@ -2262,3 +2278,7 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #665 BR-1: when enforcing an exclusive authorization path alongside an upstream parser, recognize the upstream grammar, including its whitespace normalization. Regress the accepted spelling class against that parser; a literal prefix check can leave alternate valid spellings as a bypass.
 
 - #665 BR-3: check the registry's concrete dependency examples before claiming a local-tool exemption. ARCH-MOCK explicitly includes Git: keep policy above a typed read seam, use a bounded stateful fake there, and run the same contract against disposable real repositories as conformance.
+- #660: Read the complete failed CI job, including successful failure-diagnostic steps, before classifying an external process as dead. A filtered failed-step log hid server activity after a missing-session reply. Keep query absence, client exit, socket state and server/actor lifetime as separate observations; a dead replacement child cannot later paint its awaited frame.
+
+- #660 BR-1: Bounded readers do not preserve evidence when the reporting consumer still prints a prefix. Test the actual failure collector with oversized child/parent wire, command output, wrapper log and actor receipts ending in distinct final markers; sweep every event-history consumer while keeping deliberate first-difference frame diagnostics separate.
+- #656 BR-1: A transient classification must run after every terminal check it can bypass. Carry the immediate pre-read fingerprint through recovery classification, and bracket any new evidence read with metadata checks for every dependent artifact. Test same-size mutation during both existing reads and replacements during the added recovery read; mutations staged only before the poll cannot expose these gaps.

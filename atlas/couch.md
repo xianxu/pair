@@ -1032,7 +1032,15 @@ CLI. It runs in-process against the store and needs no supervisor.
     - A no-op write keeps the previous round.
     - **No stale round:** the old sidecar is removed before the document moves, so a failed round write (a warning) leaves none.
   - `round FILE --json` answers `{Code, Error, Round, Cleared}` (the parley.nvim#383 contract). `Cleared` is any submit of the file after `at` in the raw ledger, folded submits included, through `submitNames`, which `OwedForDocument` also uses.
-  - **Propose:** under the document's `presentation: propose`, a non-frontmatter write keeps the base text and writes the body's diff as markers (`ProposeDocument`, `propose.go`), one per changed line. Frontmatter is never marked: a body write that would change it (or move its closer) refuses with `propose-unencodable`, and `write --frontmatter` stays direct. Unpaired blank lines are not marked. The file, shadow, hash and round all follow the written marker bytes.
+  - **Propose:** under the document's `presentation: propose`, a non-frontmatter write keeps the base text and writes the body's diff as markers (`ProposeDocument`, `propose.go`), one per changed line. Unpaired blank lines are not marked.
+    - **The engine:** `BuildEdit`/`contentStep` (`round.go`) is shared with `pair review apply`, so both paths behave identically.
+    - **Applied directly** (`directUnderPropose`):
+      - records wholly inside the frontmatter, which is never proposed;
+      - a side-doc answer (`answersSideDoc`): a ready operator marker (`readyMarkerIn`, `marker.go`, the markers.lua grammar) replaced by a new `→ [proposal|discussion](PATH)` link;
+      - the fold a link's `🤖[fold in]` asks for, which keeps the link with ` (folded DATE)` (S3).
+    - **Refused:** a record crossing the frontmatter's end, or a body write changing the frontmatter (`propose-unencodable`).
+    - **Operator-owned keys:** `presentation` and `collaboration-mode` refuse any agent change on every path, `write --frontmatter` included (`operator-owned`).
+    - **Conformance:** `testdata/edit-records/conformance` holds ariadne#437's universal-review examples byte for byte. The file, shadow, hash and round all follow the written marker bytes.
     - A hunk over 3 lines refuses with `propose-too-large`.
     - A line the marker grammar can't carry refuses with `propose-unencodable`.
     - Both refusals name the one fallback, a side-doc proposal.
@@ -1509,7 +1517,9 @@ One `sessioninventory.TitleProjection.PollContext` per invocation supplies both
 native activity and usage. The worker snapshots admitted live wrapper work once
 and merges it with prompt/pane/native activity before title and fading decisions,
 so both consumers use the same latest activity. Warm unchanged projections decode
-no native history.
+no native history. Agy database growth invalidates admission and keeps the last
+valid display until the next scheduled poll fully revalidates its database and
+transcript (#656); true mutations still stop the source.
 
 The optional pass has a two-second deadline and rotates its first target under
 load. Commands use the existing joined process-group runner; failures leave
