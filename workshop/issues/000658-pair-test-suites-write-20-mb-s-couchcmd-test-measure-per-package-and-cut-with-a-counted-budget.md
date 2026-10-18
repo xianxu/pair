@@ -16,6 +16,7 @@ claimant:
     workspace: pair:3
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "ac296762", done: "73c4d623"}
 ---
 
 # pair test suites write ~20 MB/s (couchcmd.test): measure per package and cut, with a counted budget
