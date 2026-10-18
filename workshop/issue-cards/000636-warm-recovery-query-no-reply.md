@@ -17,10 +17,10 @@ actual_hours: N/A
 tracker:
     version: 1
     completion:
-        token: close-215034b98246
+        token: close-29ecac2d895e
         repository: github.com/xianxu/pair
-        reviewed_head: 823bafe3b328613b8016edd9baebe32be5b23a38
-        evidence_commit: 71ee0920cf7f30b74005ec6851ea3e682d3fa22a
+        reviewed_head: bf4af0d3b6ae83ca87b249e00148f7a903d28227
+        evidence_commit: 670aea8343da03e32e1ea1c62d21934891c80a98
 ---
 
 # Warm recovery live conformance intermittently receives no Zellij query reply
