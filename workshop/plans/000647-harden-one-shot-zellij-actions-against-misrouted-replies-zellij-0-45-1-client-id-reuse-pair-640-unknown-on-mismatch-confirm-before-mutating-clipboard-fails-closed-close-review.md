@@ -109,3 +109,69 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-18T04:18:07-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 647 — Harden one-shot zellij actions against misrouted replies (zellij 0.45.1 client-ID reuse, pair#640): unknown on mismatch, confirm before mutating, clipboard fails closed |
+| repo | pair |
+| issue file | workshop/issues/000647-harden-one-shot-zellij-actions-against-misrouted-replies-zellij-0-45-1-client-id-reuse-pair-640-unknown-on-mismatch-confirm-before-mutating-clipboard-fails-closed.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 7f1f13b7ffc59853753a37a3b8502574125068dd..58b955e6f248c7533e2b88e479cf1490e919646e |
+| command | sdlc close --issue 647 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-18T04:18:07-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The interdiff safely resolves the rename-test conflict and records the completed review. Both sides’ intent is preserved. The additions under `## Revisions` record integration and verification; they introduce no scope change. No open prior findings require disposition, and no new defects were found.
+
+```findings
+{}
+```
+
+1. **Strengths**
+   - `tests/pair-rename.sh:18` retains the shared reply generator alongside main’s private binary and temporary-directory ownership.
+   - Existing exact-identity, substring-safety, refusal, and dry-run assertions remain intact.
+   - Lessons were reordered without content changes.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage:** Rename integration passed **67 assertions, 0 failures**. Generator unit contracts and production-decoder/inventory conformance passed. Shell syntax and `git diff --check` passed. The full suite was not independently rerun.
+
+6. **Architecture**
+   - **ARCH-DRY — pass:** Reuses the shared generator and binary builder.
+   - **ARCH-PURE — pass:** Changes stay within integration-test setup.
+   - **ARCH-PURPOSE — pass:** Resolution preserves isolation and strict fixture conformance.
+   - No new architectural or user-facing surface requires atlas or README updates.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"19efc071-ff47-4fd4-bbd0-9f4bf89b0ba3","repository":"github.com/xianxu/pair","issue_id":"000647","recipe":"fix-review","round":9,"attempt":1,"agent":"codex","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/58f7655636eaa73c","reviewed_head":"58b955e6f248c7533e2b88e479cf1490e919646e","slot":"pair:1","requested_at":"2026-10-18T11:16:51.396407Z"},"phase":"finished","pid":22864,"started_at":"2026-10-18T11:16:51.744051Z","finished_at":"2026-10-18T11:18:05.031657Z","session_id":"01a14eba-9121-7493-acd2-70c2eb1fc3d3","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.842422667s
+head: "58b955e6f248c7533e2b88e479cf1490e919646e"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
