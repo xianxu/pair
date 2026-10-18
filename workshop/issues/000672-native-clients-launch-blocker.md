@@ -53,6 +53,12 @@ Exact read-only probe for requested absent 📁1-292 returned exit0, a colored c
 
 Regression RED reproduced invalid Zellij clients header on the captured absence and exposed a contradictory clients-table/not-found pair being accepted. GREEN uses the exact complete stderr heading only on successful collected replies, then strictly validates the full colored session listing through existing sessionListingStates after removing only native SGR metadata. The requested identity must be absent; malformed/wrong-kind/truncated/unknown-escape/duplicate/contradictory/failed/cancelled replies remain unknown. ParseClients is unchanged. Final focused normal PASS0.194s/race PASS1.232s; /tmp/pair672-final-focused{,-race}.log. Installed0.45.1 parse-only validator and production name acceptor conformance PASS6.808s, /tmp/pair672-native.log; read-only probes only, no operator mutations. Full affected normal/race and repository catalog checks are running; no full-suite result claimed. Quick close review may overlap the required recorded suite; final PASS still gates landing.
 
+### 2026-10-18 — BR-1 host evidence and hash correction
+
+Round1 REWORK has one Important unverifiable finding, no code defect: review TMPDIR exceeds Unix socket limits and its clone lacks main authority. Re-ran exact code5e299f51362df4c72591502cca46971ec7df5a80 on the registered checkout with TMPDIR=/tmp, no source/deadline changes: full launcher/reply/session normal PASS61.335s/0.132s/0.042s, full race PASS132.609s/1.194s/1.066s, authoritative repolint PASS7.513s. Commands and full log hashes are in workshop/plans/000672-host-qualification-evidence.md.
+
+Correction: the dispute command accidentally included an incorrect evidence-file hash. The actual SHA256, independently printed by shasum, is 8a2add92c7481d50a218dfa4d10e303c6b6f0484bde1bdf9470fa239831d88aa. This supersedes the erroneous 4306e429... value in that dispute's prose; the owned ledger is not hand-edited. The evidence file and its per-log hashes have not changed. Round2 must answer BR-1 using this verified file and the measured results. Required suite remains queued on the unchanged code head; no passing suite claimed.
+
 ## Revisions
 
 ### 2026-10-18 — R1: exact native absence classification, clients parser unchanged
