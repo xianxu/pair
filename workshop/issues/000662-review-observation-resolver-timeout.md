@@ -35,18 +35,19 @@ If the controlled reproduction confirms a product budget defect, keep command ex
 
 ## Done when
 
-- Root cause is demonstrated with retained resolver phase evidence and a deterministic regression.
+- The flaky ordering oracle's dependence on real resolver speed is demonstrated by retained timeout evidence and a deterministic native-execution escape control. No unseen historical Git phase is claimed as the product cause.
 - The positive control passes under that controlled condition while changed-branch, unknown identity and deadline refusal controls remain effective.
+- Real Git collection and native sync/async deadline conformance remain separate tests; production deadlines and final identity/index checks are unchanged.
 
 ## Plan
 
-- [ ] Post this plan to the hub before code. Treat the budget mismatch as a hypothesis, not the historical root cause.
-- [ ] Add a deterministic owned process/descriptor-holder regression beside TestOSGitContextToleratesBrieflyHeldStdout. Handshake on child start, held output, context cancellation and release; retain phase events. Use a package-derived hang ceiling only for a stuck test, not a fixed performance assertion. Do not introduce CPU stress or repeat suites to chase the flake.
-- [ ] Exercise the same controlled failure through identity decoding and the write guard: timeout/unknown identity refuses with a nonempty reason; changed branch remains refused; exact document bytes and activation remain intact. Retain the positive completed-result gate sequence and brief-holder success control.
-- [ ] With that evidence, choose the smallest fix at the budget owner. No deadline increase, skipped final identity checks, stale-authority cache or blind retry. If the candidate is disproved or requires a new mechanism, stop and revise with the hub.
-- [ ] Keep the core decision pure (ARCH-PURE), reuse the existing Runtime and callback gate seams (ARCH-DRY), and retain real controlled native-process coverage (ARCH-MOCK). Enumerate execution, cancellation, pipe drain and teardown as distinct phases (ARCH-ORDER). All owned children/descriptor holders have unconditional release/termination/reaping (ARCH-FUNERAL).
-- [ ] Bound each real diagnostic invocation at 60 seconds with owned cleanup, preserving the product's two-second context and 2500 ms Lua wait. No UI or operator slot is touched (ARCH-SECURE). No new production fan-out or scan is planned: resolved observations use nine Git queries; normal pre/post-write guards use eighteen. If collection changes, count calls at N and 2N rather than asserting host speed (ARCH-CONSTRAINTS).
-- [ ] If a mechanical budget mistake class is confirmed, send the hub the precise ariadne/pkg/golint rule proposal with #662 evidence; the catalog is Go-AST based and peer-owned, so do not silently add a Lua-only exception or edit that repository under this issue.
+- [x] Post the plan before code; retain the budget mismatch as a hypothesis, not the historical root cause.
+- [x] Resolve the descriptor-holder proposal: rejected as artificial historical evidence. Retain the one real Git phase trace instead; no stress or repeated suite was used to chase the flake.
+- [x] Exercise controlled timeout/unknown/changed-branch refusals through decoding and the guard, retaining exact bytes, activation, callback-gate ordering and brief-holder success coverage.
+- [x] Obtain hub approval for fixture isolation instead of an unproved production budget fix. Install a shared-catalog stateful resolver at the existing seam, trap native execution escapes and count waits instead of 250 ms ceilings. Preserve production deadlines and final checks.
+- [x] Keep decisions pure and use the existing callback gate (ARCH-PURE/DRY). Separate stateful fixture ordering from real Git/native timeout coverage (ARCH-MOCK/ORDER). Every owned native child and fake callback has teardown (ARCH-FUNERAL).
+- [x] Bound the real phase check and native tests; touch no operator UI or slot (ARCH-SECURE). No production query/fan-out changes; fake queries have counted linear reads/waits at 8 and 16 (ARCH-CONSTRAINTS).
+- [x] Record the Lua/Python fixture mistake class in the Log; hub waived a Go-only catalog rule. No peer repository edits.
 - [ ] Run focused Go/Lua/diagnostic tests, then the recorded full suite and normal close/merge gates. A fixture-only fix uses owned headless validation; any product/editor behavior change needs a live-check arrangement approved by the hub. Report the landing.
 
 Existing visible states remain unchanged: a verified current identity permits the guarded write; unknown/deadline/changed-branch observations refuse it, retaining edits and activation. Recovery is retrying the action after a fresh successful observation. No new user or automation state is proposed. This plan fixes the refusal diagnostic as part of the same failing path, not a new authorization policy (ARCH-PURPOSE).
@@ -60,6 +61,8 @@ Existing visible states remain unchanged: a verified current identity permits th
 - 2026-10-18: Hub assigned #662 after parking #663. Initial investigation identifies a falsifiable deadline/drain composition issue and independent empty-stderr diagnostic loss. Prove the phase interaction before choosing a product versus fixture fix; no historical-phase attribution is claimed.
 
 ## Log
+
+2026-10-18 implementation verification: positive ordering-control regression first failed because the old fixture had no stateful backend, then passed after wiring the shared catalog. All 13 diagnostics pass after final native-escape trapping, including both original refusal controls, new timeout refusal, actual checkout movement, stateful 8/16 query counts, callback/trace lifecycle and separate native deadline conformance. Native sync and async outcomes are code 124 with the shipped 2500 ms limit; startup timing is not required to beat that limit in the async control. Focused real Git collector tests passed: go test ./cmd/internal/reviewcmd -run 'TestResolveIdentity|TestIdentity|TestOSGitContext' -count=1 (6.297 s). Guard/identity Lua tests passed earlier. Oversized fake-input fixtures use sparse files instead of writing 16 MiB of unused payload. Atlas and lessons describe the separation; no product timeout, Git query or authority rule changed. Full recorded suite and boundary review remain pending.
 
 2026-10-18 mistake class: an ordering/evidence fixture made success depend on repeated real subprocesses beating the product's deadline. A legitimate native timeout is a correct write refusal, not an ordering regression. The fix separates deterministic stateful fixture ordering from real Git/native deadline conformance; it does not increase a timeout, accept unknown authority, or treat a passing rerun as proof. Native timeout diagnostics remain useful. Hub waived the Go-only lint catalog requirement for this Lua/Python fixture class.
 

@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / 'tests/lib'))
 from review_observation_diagnostics import observe_wanted
 from review_test_env import ReviewTestEnvironment
+from review_resolver_fake import ReviewResolverFake
 
 
 class WantedObservationTest(unittest.TestCase):
@@ -77,6 +78,34 @@ class WantedObservationTest(unittest.TestCase):
         self.assertEqual(history[-1]['phase'], 'wanted:expired')
         self.assertIn('timed out', history[-1]['validation_error'])
 
+    def test_stateful_wanted_double_reads_current_head_and_exact_bytes(self):
+        with tempfile.TemporaryDirectory(prefix='pair-resolver-model-') as storage:
+            repo = Path(storage)
+            refs = repo / '.git' / 'refs' / 'heads' / 'review'
+            refs.mkdir(parents=True)
+            identities = {}
+            for name in ('a', 'b'):
+                (refs / name).write_text('head-' + name + '\n')
+                (repo / (name + '.md')).write_bytes(b'\xef\xbb\xbfexact\r\nbytes')
+                identities['refs/heads/review/' + name] = dict(
+                    status='resolved', repo=str(repo), branch='review/' + name,
+                    head='head-' + name, file=name + '.md')
+            model = repo / 'model.json'
+            model.write_text(json.dumps(dict(repo=str(repo), by_ref=identities)))
+            fake = ReviewResolverFake(model)
+            history = []
+            command = ['pair', 'review', 'readiness', '--resolve', str(repo)]
+            for name in ('a', 'b'):
+                (repo / '.git' / 'HEAD').write_text('ref: refs/heads/review/' + name + '\n')
+                actual = observe_wanted(command, {}, history, 'wanted:' + name, runner=fake.run)
+                self.assertEqual(actual['branch'], 'review/' + name)
+                self.assertEqual(fake.resolve(repo, snapshot=True)['snapshot'], '\ufeffexact\r\nbytes')
+            (refs / 'b').write_text('unexpected-head\n')
+            with self.assertRaisesRegex(AssertionError, 'fixture HEAD changed'):
+                observe_wanted(command, {}, history, 'wanted:unknown', runner=fake.run)
+            self.assertEqual(fake.calls, 3)
+            self.assertNotIn('exact', json.dumps(history))
+
 
 class ObservationFixtureDiagnosticsTest(unittest.TestCase):
     def test_positive_control_retains_wanted_fresh_and_request_order(self):
@@ -89,6 +118,8 @@ class ObservationFixtureDiagnosticsTest(unittest.TestCase):
             self.assertTrue(report.exists(), 'positive fixture discarded its observation evidence')
             evidence = json.loads(report.read_text())
             self.assertEqual(evidence['outcome'], 'passed')
+            self.assertEqual(evidence.get('resolver_backend'), 'stateful-double',
+                             'ordering fixture still depends on real resolver speed')
             self.assertNotIn('"snapshot":', json.dumps(evidence))
             self.assertNotIn('"latest_agent_body":', json.dumps(evidence))
             self.assertEqual(len(evidence['wanted']), 5)
@@ -148,6 +179,20 @@ class ObservationFixtureDiagnosticsTest(unittest.TestCase):
                                     text=True, capture_output=True, timeout=20)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
+    def test_stateful_resolver_models_current_bytes_and_linear_queries(self):
+        with ReviewTestEnvironment() as isolated, tempfile.TemporaryDirectory(prefix='pair-resolver-double-') as storage:
+            result = subprocess.run(['nvim', '--headless', '-u', 'NONE', '-l', str(ROOT / 'tests/review-resolver-fake-test.lua')],
+                                    cwd=ROOT, env=isolated.environment(storage, ROOT),
+                                    text=True, capture_output=True, timeout=20)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_native_resolver_deadlines_remain_separate_from_fixture_ordering(self):
+        with ReviewTestEnvironment() as isolated, tempfile.TemporaryDirectory(prefix='pair-resolver-native-') as storage:
+            result = subprocess.run(['nvim', '--headless', '-u', 'NONE', '-l', str(ROOT / 'tests/review-resolver-native-deadline-test.lua')],
+                                    cwd=ROOT, env=isolated.environment(storage, ROOT),
+                                    text=True, capture_output=True, timeout=30)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
     def test_lua_trace_preserves_real_process_and_controlled_completion_seams(self):
         with ReviewTestEnvironment() as isolated, tempfile.TemporaryDirectory(prefix='pair-observation-trace-') as storage:
             result = subprocess.run(['nvim', '-l', str(ROOT / 'tests/review-observation-trace-test.lua')],
@@ -177,7 +222,7 @@ class ObservationFixtureDiagnosticsTest(unittest.TestCase):
                 self.assertIn(required, result.stdout + result.stderr)
 
     def test_incomplete_fresh_and_real_checkout_change_keep_both_observations(self):
-        for cause in ('invalid-fresh', 'changed-branch'):
+        for cause in ('invalid-fresh', 'changed-branch', 'timeout'):
             with self.subTest(cause=cause), tempfile.TemporaryDirectory(prefix='pair-observation-refusal-') as storage:
                 init = Path(storage) / 'init.lua'
                 setup = '''
@@ -204,6 +249,9 @@ local request=type(raw)=='table' and raw or vim.json.decode(raw)
 local result=vim.system({'git','-C',request.identity.repo,'checkout','-q','review/a'}):wait()
 assert(result.code==0,result.stderr)
 '''
+                if cause == 'timeout':
+                    setup = setup.replace("result.stdout=vim.json.encode({status='invalid',repo=cmd[5],diagnostic='fixture fresh deadline'})",
+                                          "result.code=124; result.signal=9; result.stdout=''; result.stderr=''")
                 init.write_text(setup + 'dofile(' + json.dumps(str(ROOT / 'nvim/review.lua')) + ')\n' + '''
 local restore=PairReviewPane.restore
 PairReviewPane.restore=function(raw)
@@ -236,7 +284,11 @@ end
                          and event.get('request_id') == wanted['request_id']]
                 self.assertTrue(fresh, evidence)
                 self.assertGreater(fresh[0]['seq'], wanted['seq'])
-                if cause == 'invalid-fresh':
+                if cause == 'timeout':
+                    self.assertEqual(fresh[0]['code'], 124)
+                    self.assertEqual(fresh[0]['stdout_bytes'], 0)
+                    self.assertIn('timed out', next(event for event in events if event['event'] == 'request-end')['error'])
+                elif cause == 'invalid-fresh':
                     self.assertEqual(fresh[0]['identity']['status'], 'invalid')
                     self.assertIn('fixture fresh deadline', fresh[0]['identity']['diagnostic'])
                 else:
