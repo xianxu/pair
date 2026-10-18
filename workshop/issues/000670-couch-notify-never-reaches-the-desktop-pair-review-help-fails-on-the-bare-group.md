@@ -76,6 +76,7 @@ runtime artifact, background process or cache.
 ## Log
 
 ### 2026-10-18
+- 2026-10-18: closed — Dispatcher/main CLI and repolint package tests pass; notify CLI/service regressions pass, including exact unconfirmed-delivery wording and no retries. Private executable lists six review leaves for bare/--help; leaf usage preserved. Recorded suite queued on final code and must pass before merge per tl-worker overlap rule. Hub 7339982c approves reporting/docs-only notify scope and forbids live test/transport/restart; desktop presentation remains unconfirmed. README/atlas document Ghostty and macOS requirements.; review verdict: SHIP
 
 
 ### 2026-10-18 — read-only diagnosis and hub decision
