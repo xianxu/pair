@@ -755,6 +755,12 @@ disputes:
       after: 1
       timestamp: "2026-10-18T13:16:43Z"
       by: Xian Xu on Xian’s MacBook Pro at pair:1 (/Users/xianxu/workspace/worktree/pair-slot1/pair)
+    - id: BR-4
+      rationale: The missing main authority is specific to disposable review preparation. The registered checkout has authentic tracked main refs and the exact reviewed source passes the ordinary catalog. BR-4 explicitly permits measured exact-head host evidence; that evidence is now committed, without weakening fail-closed behavior or fabricating refs.
+      evidence: workshop/plans/000665-m1-host-catalog-evidence.md records measured HEAD 6d7314450a44b1a84a84605c691678390398e10e, branch.main.remote=origin, branch.main.merge=refs/heads/main, origin/main=a5bc8e64a82776647060495425ec311dee235b23, merge base=d8ccc4577351b3dde5f829e83f5d83e4fedced5d, source/module diff exit0; go test ./internal/repolint -run ^TestTrackedGoFilesPassCatalog$ -count=1 -v PASS 2.659s, 2559 sources/5 rules/100 sites. Retained log /tmp/pair665-m1-r8-exact-head-catalog-green.log SHA256 e6bf6bc27dd850a817c7a59b48e318df7478ffe6f74d3ecce3935b7b34edd694.
+      after: 4
+      timestamp: "2026-10-18T14:17:20Z"
+      by: Xian Xu on Xian’s MacBook Pro at pair:1 (/Users/xianxu/workspace/worktree/pair-slot1/pair)
 ---
 
 # Gate ledger — pair#665 (boundary-review)
@@ -810,7 +816,10 @@ next review round.
 - **BR-3** — after round 1 (2026-10-18T13:16:43Z, Xian Xu on Xian’s MacBook Pro at pair:1 (/Users/xianxu/workspace/worktree/pair-slot1/pair))
   rationale: Per authenticated hub instruction76f460c7, retain disposable real Git repositories. Git here is a local deterministic source of tracked inventory and history, not an external service requiring a separate model. A fake would duplicate index/ref/commit/blob semantics without identifying an additional failure it can catch; these real-repository fixtures are fast every-run integration/conformance coverage. Reconsider only for a concrete failure real repositories cannot reproduce; no gate is waived.
   evidence: Re-ran go test ./internal/repolint -run ^(TestScanTrackedInventory|TestScanTrackedOneReadAtNAnd2N|TestDebtBaselineRealHistory|TestDebtBaselineRefusesMalformedAndDeleted|TestDebtBaselineDetachedRemoteMain)$ -count=1 -v: PASS3.607s. Real repositories exercised tracked/untracked/deleted inventory and read/parser errors; exact8/16source reads; candidate/main debt divergence; malformed/deleted baseline and missing anchor; detached remote-main authority and ambiguity. Pure matching/decoder/subset oracles remain separate. BR-3 names no failure outside this reproducible state space.
+- **BR-4** — after round 4 (2026-10-18T14:17:20Z, Xian Xu on Xian’s MacBook Pro at pair:1 (/Users/xianxu/workspace/worktree/pair-slot1/pair))
+  rationale: The missing main authority is specific to disposable review preparation. The registered checkout has authentic tracked main refs and the exact reviewed source passes the ordinary catalog. BR-4 explicitly permits measured exact-head host evidence; that evidence is now committed, without weakening fail-closed behavior or fabricating refs.
+  evidence: workshop/plans/000665-m1-host-catalog-evidence.md records measured HEAD 6d7314450a44b1a84a84605c691678390398e10e, branch.main.remote=origin, branch.main.merge=refs/heads/main, origin/main=a5bc8e64a82776647060495425ec311dee235b23, merge base=d8ccc4577351b3dde5f829e83f5d83e4fedced5d, source/module diff exit0; go test ./internal/repolint -run ^TestTrackedGoFilesPassCatalog$ -count=1 -v PASS 2.659s, 2559 sources/5 rules/100 sites. Retained log /tmp/pair665-m1-r8-exact-head-catalog-green.log SHA256 e6bf6bc27dd850a817c7a59b48e318df7478ffe6f74d3ecce3935b7b34edd694.
 
 ## Open findings
 
-- **BR-4** [Important] `review-evidence-completeness` (kind: unverifiable) Review checkout cannot verify catalog admission against main
+(none — every finding has been disposed)
