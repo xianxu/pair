@@ -349,16 +349,20 @@ var (
 	foldInOnLink = regexp.MustCompile(`→ \[(proposal|discussion)\]\(([^()\s]+)\)\s*🤖\[fold in\]`)
 )
 
-// answersSideDoc is the narrow propose exception (TL, 2026-10-18): (a) old,
-// verified in the base text, holds the operator's ready marker and new
-// replaces it with a side-doc link, leaving no ready marker; or (b) old holds
-// 🤖[fold in] attached to a side-doc link and new is the fold, the link gone.
+// answersSideDoc is the narrow propose exception (TL, 2026-10-18; S3): (a)
+// old, verified in the base text, holds the operator's ready marker and no
+// side-doc link, and new replaces the marker with one, leaving no ready
+// marker; or (b) old holds
+// 🤖[fold in] attached to a side-doc link and new is the fold: the same link
+// kept with ` (folded YYYY-MM-DD)` appended, and the fold-in marker gone. The
+// shared conformance fixtures (testdata/edit-records/conformance) pin both.
 func answersSideDoc(old, new string) bool {
-	if readyMarkerIn(old) && sideDocLink.MatchString(new) && !readyMarkerIn(new) {
+	if readyMarkerIn(old) && !sideDocLink.MatchString(old) && sideDocLink.MatchString(new) && !readyMarkerIn(new) {
 		return true
 	}
 	if m := foldInOnLink.FindStringSubmatch(old); m != nil {
-		return !strings.Contains(new, "]("+m[2]+")") && !strings.Contains(new, "🤖[fold in]")
+		folded := regexp.MustCompile(regexp.QuoteMeta("→ ["+m[1]+"]("+m[2]+")") + ` \(folded \d{4}-\d\d-\d\d\)`)
+		return folded.MatchString(new) && !strings.Contains(new, "🤖[fold in]")
 	}
 	return false
 }

@@ -1,6 +1,9 @@
 package sessionsync
 
 import (
+	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -53,9 +56,18 @@ func TestProposeAnsweringTheOperatorAppliesDirectly(t *testing.T) {
 	// The fold-in: old holds the link and its 🤖[fold in] marker, so the large
 	// folded text applies directly.
 	folded := strings.Replace(proposeParent, "🤖[rewrite this section]", link+" 🤖[fold in]", 1)
-	e, err = BuildEdit(folded, []EditRecord{{Old: link + " 🤖[fold in]\nLine one.\nLine two.\nLine three.\nLine four.\n", Occurrence: 1, New: "A.\nB.\nC.\nD.\nE.\n"}}, t0Propose, false)
-	if err != nil || !strings.Contains(e.Next, "\nA.\nB.\nC.\nD.\nE.\n") || strings.Contains(e.Next, "🤖") {
+	fold := "A.\nB.\nC.\nD.\nE. " + link + " (folded 2026-10-18)\n"
+	e, err = BuildEdit(folded, []EditRecord{{Old: link + " 🤖[fold in]\nLine one.\nLine two.\nLine three.\nLine four.\n", Occurrence: 1, New: fold}}, t0Propose, false)
+	if err != nil || !strings.Contains(e.Next, "\n"+fold) || strings.Contains(e.Next, "🤖") {
 		t.Fatalf("fold-in not applied directly: %q %v", e.Next, err)
+	}
+	// S3: a fold keeps its link. One that drops the link, or keeps the
+	// fold-in marker, is not the fold the operator asked for.
+	for _, bad := range []string{"A.\nB.\nC.\nD.\nE.\n", fold + "🤖[fold in]\n"} {
+		_, err = BuildEdit(folded, []EditRecord{{Old: link + " 🤖[fold in]\nLine one.\nLine two.\nLine three.\nLine four.\n", Occurrence: 1, New: bad}}, t0Propose, false)
+		if err == nil {
+			t.Fatalf("a fold without its folded link was applied: %q", bad)
+		}
 	}
 }
 
@@ -113,4 +125,58 @@ func TestProposeOrdinaryAnswerStaysAProposal(t *testing.T) {
 	loose := "---\npresentation: propose\n---\n\n🤖[fold in]\na\nb\nc\nd\n"
 	_, err = BuildEdit(loose, []EditRecord{{Old: "🤖[fold in]\na\nb\nc\nd\n", Occurrence: 1, New: "w\nx\ny\nz\nv\n"}}, t0Propose, false)
 	wantRefusal(t, err, ExitRefused, "propose-too-large")
+}
+
+type conformanceCase struct {
+	Name, Base, After, Refuse string
+	Records                   []struct {
+		Old, New, Explain string
+		Occurrence        int
+	}
+}
+
+// The shared conformance fixtures (TL, 2026-10-18): the exact before/after
+// bytes of ariadne#437's universal-review examples under presentation:
+// propose, so the engine and the skill test the same documents.
+func TestProposeConformanceFixtures(t *testing.T) {
+	paths, _ := filepath.Glob(filepath.Join(editFixturesDir, "conformance", "*.json"))
+	if len(paths) == 0 {
+		t.Fatal("no conformance fixtures")
+	}
+	for _, path := range paths {
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var c conformanceCase
+		if err := json.Unmarshal(raw, &c); err != nil {
+			t.Fatalf("%s: %v", path, err)
+		}
+		t.Run(c.Name, func(t *testing.T) {
+			var edits []EditRecord
+			for _, r := range c.Records {
+				edits = append(edits, EditRecord{Old: r.Old, New: r.New, Explain: r.Explain, Occurrence: max(r.Occurrence, 1)})
+			}
+			e, err := BuildEdit(c.Base, edits, t0Propose, false)
+			if c.Refuse != "" {
+				wantRefusal(t, err, ExitRefused, c.Refuse)
+				return
+			}
+			if err != nil || e.Next != c.After {
+				t.Fatalf("got %q err=%v\nwant %q", e.Next, err, c.After)
+			}
+		})
+	}
+}
+
+// Rule (a) is a new link replacing the marker: an answer to a marker that
+// already sits beside a link is not a side-doc answer, so it can't slip a
+// rewrite through by keeping the link.
+func TestProposeExistingLinkIsNotANewAnswer(t *testing.T) {
+	link := "→ [proposal](doc.side/x.md)"
+	doc := "---\npresentation: propose\n---\n\nOld text. " + link + " 🤖[shorten]\n"
+	e, err := BuildEdit(doc, []EditRecord{{Old: "Old text. " + link + " 🤖[shorten]", Occurrence: 1, New: "New. " + link}}, t0Propose, false)
+	if err != nil || !strings.Contains(e.Next, "🤖~") {
+		t.Fatalf("a rewrite beside an existing link applied directly: %q %v", e.Next, err)
+	}
 }
