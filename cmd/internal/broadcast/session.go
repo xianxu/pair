@@ -61,7 +61,7 @@ type Config struct {
 	// (a request's goroutine waits on it); a slower answer comes later
 	// through SetNoteAnchor. nil leaves notes without an anchor.
 	AnchorNote func(n Note, cols, rows int) NoteAnchor
-	// Now stamps when a note was saved; nil is time.Now. Couch passes the
+	// Now stamps notes and rate-limit decisions; nil is time.Now. Couch passes the
 	// clock it draws with, so flash timing has one source.
 	Now func() time.Time
 	// OnCodeRotated is told when a link's code rotates (pair#495): by
@@ -148,7 +148,7 @@ func Start(ctx context.Context, cfg Config) (*Session, error) {
 	}
 	hub := NewHub(hubOpts)
 	server := NewServer(ServerOptions{Token: token, Locks: locks, Hub: hub, Ping: cfg.Ping, Theme: cfg.Theme,
-		Pointer: s.pointer, OnPoint: s.acceptPoint, OnNote: s.acceptNote, OnResolve: s.resolveNote, OnNoteEdit: s.editNote})
+		Pointer: s.pointer, Now: s.now, OnPoint: s.acceptPoint, OnNote: s.acceptNote, OnResolve: s.resolveNote, OnNoteEdit: s.editNote})
 	mount, err := host.Mount(ctx, server, token+"/")
 	if err != nil {
 		hub.Close(err)

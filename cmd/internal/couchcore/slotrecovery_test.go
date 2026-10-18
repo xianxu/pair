@@ -122,11 +122,37 @@ func TestObserveSlotSessionsIncludesLostRecordArtifacts(t *testing.T) {
 }
 
 func slotRecoveryOperationFixture(t *testing.T) (*testEnv, *ThreadStore) {
+	return slotRecoveryFixture(t, false)
+}
+
+// These ownership tests use known catalog state, not native Git latency.
+func slotRecoverySemanticFixture(t *testing.T) (*testEnv, *ThreadStore) {
+	return slotRecoveryFixture(t, true)
+}
+
+func slotRecoveryFixture(t *testing.T, semantic bool) (*testEnv, *ThreadStore) {
 	t.Helper()
 	f := newProvisionFixture(t)
 	f.git(f.Primary, "worktree", "add", "-b", "main-slot1", f.host(1), "main")
 	env := newTestEnv(t, f.host(1))
 	env.Couch.Slots = NewOSSlotCatalog(f)
+	if semantic {
+		slot := conventionalSlot(f.Primary, 1)
+		identity := WorkspaceIdentity{SchemaVersion: 2, Repo: slot.Repo, RepoIdentity: slot.RepoIdentity, PrimaryRoot: f.Primary, FleetRoot: filepath.Dir(f.Primary), EnvironmentRoot: filepath.Dir(f.Primary), WorktreeRoot: f.Primary, Kind: "primary"}
+		primaryNumber, primaryAddress, primaryBranch := 0, slot.Repo+":0", "main"
+		identity.Slot, identity.Address, identity.Branch, identity.Head, identity.RestingBranch = &primaryNumber, &primaryAddress, &primaryBranch, &f.Base, &primaryBranch
+		localIdentity := identity
+		localIdentity.Kind, localIdentity.EnvironmentRoot, localIdentity.WorktreeRoot = "slot", slot.EnvironmentRoot, slot.WorktreeRoot
+		number := 1
+		localIdentity.Slot = &number
+		localAddress, localBranch := slot.Repo+":1", "main-slot1"
+		localIdentity.Address, localIdentity.Branch, localIdentity.RestingBranch = &localAddress, &localBranch, &localBranch
+		localIdentity.EnvironmentHost = &EnvironmentHost{Repo: slot.Repo, Slot: 1, RepoIdentity: slot.RepoIdentity, PrimaryRoot: f.Primary, WorktreeRoot: slot.WorktreeRoot}
+		env.Couch.Slots = &SlotCatalogFake{
+			Repositories: map[string]SlotRepository{f.Primary: {Identity: identity, Slots: []SlotCandidate{{Identity: slot, Verified: true}}}},
+			Workspaces:   map[string]WorkspaceIdentity{slot.WorktreeRoot: localIdentity},
+		}
+	}
 	env.Git.replies[GitCall{Dir: f.host(1), Args: "rev-parse --git-common-dir"}] = filepath.Join(f.Primary, ".git")
 	repository, err := env.Couch.Slots.Discover(context.Background(), f.Primary)
 	if err != nil {
