@@ -16,6 +16,7 @@ claimant:
     workspace: pair:4
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "22a29c94", done: "589faf29"}
 ---
 
 # The resource sampler cost gate flaps with fleet load: first pass is not steady state and nothing names the load
