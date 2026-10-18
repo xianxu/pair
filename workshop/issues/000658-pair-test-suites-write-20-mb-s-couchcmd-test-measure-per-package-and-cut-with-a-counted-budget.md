@@ -35,6 +35,7 @@ Current proposed revision: target the measured full-suite scale using empty Git 
 - A per-package write measurement of the pair suite is recorded in the Log, before and after.
 - `couchcmd.test` writes at least half less per run, with no test removed or weakened.
 - A counted budget check fails if a package's writes grow past its recorded budget.
+- Repeat the same whole-suite device measurement after the change, record before and after, and file an unclaimed follow-up naming the largest remaining unexplained share.
 
 ## Plan
 
@@ -95,6 +96,11 @@ Draft detailed plan: [suite write budget](../plans/000658-suite-write-budget-pla
 - Probe observed623 created files/349 directories, zero dropped/scan flags,23,777,280 last-sampled own bytes. Scope is four selected tests, not the package. No further pre-implementation measurement.
 - Source-only reuse audit found mutable repository/worktree/origin/substrate state in measured shared fixtures; omit a package-wide repository cache initially. The replacement plan ranks measured payload versus unknown metadata savings, starts with cheap empty-template and Go-cache fixes, retains the ledger saving and proposes both completed-tree and native-byte caps. Await hub approval/change-code; no source edits.
 
+### 2026-10-17 — implementation approval and remaining-scale contract
+
+- Hubb835c6cc-0386-4592-8787-babadea817ba verified Submitted approved the cheap-first order, no repository cache and the explicit two-budget envelope. Added the requested whole-device before/after and largest-unexplained-share follow-up Done-when line. The hub estimates the levers at roughly2.5GB against19.8GB total; most is still unattributed. Do not claim this issue explains the complete device cost.
+- Cache saving must be measured directly, not projected from driver samples. Use an invocation-owned Go env file and cache root to compare real shell install/embedded builds across the private-HOME boundary; capture compiler/module-cache inventories before owned roots are removed, retaining configured warm-cache and intentional-cold-cache distinctions. No user Go setting is modified. Record exact payload/allocated bytes and build outputs separately from device counters.
+
 ## Revisions
 
 - 2026-10-17 — Measured dominant fixture construction rather than assuming fsync/logging churn. Candidate design preserves full30MB files and decoder/authority checks by CoW cloning private all-space templates. Reject fixture shrinking, hardlinks and NUL sparse files because they weaken the actual coverage. A shared native-counter runner defends the whole normal-run callback in the large-fixture consumer packages; final numeric caps await the queued distribution and hub approval.
@@ -102,3 +108,5 @@ Draft detailed plan: [suite write budget](../plans/000658-suite-write-budget-pla
 - 2026-10-17 — Hub required whole-device/full-suite attribution before choosing the headline optimization. Suspend the seven-package-cap/CoW-first proposal pending that measurement. The ledger saving remains proved feasibility, not the accepted target; re-plan against the biggest measured share and report revised numbers before code.
 
 - 2026-10-17 — After the final flush probe, replace the suspended ledger-only task ordering with the whole-suite cheap-first design appended to the same durable plan. Preserve all prior decisions/evidence; explicitly omit unsafe/low-yield shared mutable repository reuse and distinguish fixture-tree budgets from physical root-byte budgets.
+
+- 2026-10-17 — Hub approval added explicit post-change whole-device comparison, direct Go-cache measurement and an unclaimed follow-up for the largest remaining attribution gap. The~2.5GB rough lever estimate is not a complete accounting of19.8GB/device suite.
