@@ -14,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/xianxu/pair/cmd/internal/testdisk"
+	"github.com/xianxu/pair/cmd/internal/testgit"
 	"github.com/xianxu/pair/cmd/internal/testpair"
 )
 
@@ -37,7 +39,16 @@ func TestMain(m *testing.M) {
 		os.Exit(LaunchHelperMain(os.Args[1:], os.Stderr))
 	}
 	defaultParallelForSubprocessTests()
-	os.Exit(testpair.Run(m))
+	// These existing child roles exec or are deliberately killed: they cannot
+	// own a temporary template whose deferred cleanup requires returning.
+	if os.Getenv(supervisorLeaseHelperEnv) != "" || os.Getenv("PAIR_TEST_CREATION_LEASE_PARENT") != "" ||
+		os.Getenv("PAIR_STORE_PUBLICATION_CHILD") == "1" || os.Getenv("PAIR_TEST_LAUNCH_HELPER_MODE") != "" ||
+		os.Getenv("PAIR_CONTINUATION_LIVE_HELPER") == "1" {
+		os.Exit(testpair.Run(m))
+	}
+	os.Exit(testdisk.RunWithWriteBudget("couchcore", testdisk.CouchCore, func() int {
+		return testgit.RunWithEmptyGitTemplate(func() int { return testpair.Run(m) })
+	}))
 }
 
 // defaultParallelForSubprocessTests raises -test.parallel unless the caller set
@@ -149,7 +160,7 @@ func TestLaunchHelperSubprocess(t *testing.T) {
 				t.Fatal(err)
 			}
 			cmd := exec.Command(os.Args[0], "-test.run=^TestLaunchHelperSubprocess$")
-			cmd.Env = testpair.Environment(t, filepath.Dir(marker), "PAIR_TEST_LAUNCH_HELPER_MODE=helper", "PAIR_TEST_LAUNCH_HELPER_MARKER="+marker)
+			cmd.Env = testpair.Environment(t, filepath.Dir(marker), "PAIR_TEST_LAUNCH_HELPER_MODE=helper", "PAIR_TEST_LAUNCH_HELPER_MARKER="+marker, "TMPDIR="+filepath.Dir(marker))
 			cmd.ExtraFiles = []*os.File{reader}
 			if err := cmd.Start(); err != nil {
 				t.Fatal(err)
@@ -167,6 +178,15 @@ func TestLaunchHelperSubprocess(t *testing.T) {
 			}
 			_ = writer.Close()
 			err = cmd.Wait()
+			entries, readErr := os.ReadDir(filepath.Dir(marker))
+			if readErr != nil {
+				t.Fatal(readErr)
+			}
+			for _, entry := range entries {
+				if strings.HasPrefix(entry.Name(), "pair-git-template-") {
+					t.Errorf("exec helper created a template whose cleanup cannot run: %s", entry.Name())
+				}
+			}
 			if acknowledge {
 				if err != nil {
 					t.Fatalf("acknowledged helper: %v", err)

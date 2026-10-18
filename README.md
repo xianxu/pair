@@ -467,6 +467,13 @@ couch --session-sync read --frontmatter FILE [--json]
 couch --session-sync write --frontmatter BODYFILE FILE --if-hash H
                          light: read or replace the complete leading --- block only; preserves body bytes
                          (including Updated) and unread body edits in diff, even without a previous baseline
+couch --session-sync apply EDITS.json FILE --if-hash H [--fold ID] [--json]
+                         a precise edit: {old, occurrence, new, explain} records applied all or none (edits-invalid
+                         lists each bad record); under presentation: propose Couch writes per-line accept/reject
+                         markers (propose-too-large / propose-unencodable mean: use a side-doc proposal)
+couch --session-sync round FILE --json
+                         the last agent round (every changing agent write keeps one), with reasons from apply,
+                         and whether the operator's next submit has cleared it; parley highlights it
 couch --session-sync register FILE --owner SLOT [--json]
                          keep agentic status outside the document until explicitly forgotten
 couch --session-sync lookup FILE | list | forget FILE | rename OLD NEW [--json]

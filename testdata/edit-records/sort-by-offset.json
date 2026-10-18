@@ -1,0 +1,15 @@
+{
+ "name": "sort-by-offset",
+ "base": "one two three\n",
+ "records": [
+  {
+   "old": "three",
+   "new": "3"
+  },
+  {
+   "old": "one",
+   "new": "1"
+  }
+ ],
+ "result": "1 two 3\n"
+}

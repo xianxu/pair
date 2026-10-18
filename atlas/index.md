@@ -58,6 +58,12 @@
   shells can otherwise make pre-handler cancellation disappear through inherited
   SIG_IGN (#598). A pipe-gated bootstrap pins this ordering; failures retain
   bounded captured output, test phase, helper PID and descendant-group evidence.
+- `cmd/internal/testdisk` — normal-run own-process physical write budgets for
+  seven measured packages. Darwin+cgo uses the identity-fenced native process
+  reader; unsupported platforms retain portable controls and report no native
+  evidence. See [fixture writes and budgets](workbench-performance.md#fixture-writes-and-budgets).
+- `cmd/internal/testgit` — scoped empty Git templates and completed fixture-tree
+  file/directory/logical-byte budgets; constructor audits precede test mutations.
 - `cmd/internal/testwait` — how a Go test waits for an event: bounded by the
   test's own deadline minus a margin (`After` for a select guard, `Until`/`Wait`
   to poll, `Budget` for a hand-rolled loop or a helper's timeout), never by a guess at how fast the event comes, so a loaded `-race`

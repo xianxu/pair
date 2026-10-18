@@ -1087,12 +1087,18 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcmd/session_stale.go",
 	"cmd/internal/couchcmd/session_stale_command.go",
 	"cmd/internal/couchcmd/session_stale_model.go",
+	// #661 apply and rounds: pure resolution, diff and marker code, plus a
+	// round sidecar beside the shadow; no Pair artifact filenames.
+	"cmd/internal/sessionsync/edits.go",
 	"cmd/internal/sessionsync/file.go",
 	"cmd/internal/sessionsync/gap.go",
 	"cmd/internal/sessionsync/ledger.go",
+	"cmd/internal/sessionsync/linediff.go",
 	"cmd/internal/sessionsync/owed.go",
+	"cmd/internal/sessionsync/propose.go",
 	"cmd/internal/sessionsync/registry.go",
 	"cmd/internal/sessionsync/registry_model.go",
+	"cmd/internal/sessionsync/round.go",
 	"cmd/internal/sessionsync/state.go",
 	"cmd/internal/sessionsync/sync.go",
 	// #451 waiting notices: reads the operator's mute list in the Couch
@@ -1394,6 +1400,17 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchtty/console_palette.go",
 	"cmd/internal/couchtty/switchrule.go",
 	"cmd/internal/couchtty/trace.go",
+	// #658 test-only counters, Git inventories and private fixture padding own
+	// no canonical session artifact filename or constructor authority.
+	"cmd/internal/testdisk/budget.go",
+	"cmd/internal/testdisk/native.go",
+	"cmd/internal/testdisk/native_darwin.go",
+	"cmd/internal/testdisk/native_unsupported.go",
+	"cmd/internal/testdisk/run.go",
+	"cmd/internal/testgit/testgit.go",
+	"cmd/internal/workbenchperftest/ledger_clone_darwin.go",
+	"cmd/internal/workbenchperftest/ledger_clone_other.go",
+	"cmd/internal/workbenchperftest/ledger_writer.go",
 	// pair#602 compiler fixture: owns a temporary executable, no session artifacts.
 	"cmd/internal/testpair/binary.go",
 	"cmd/internal/testpair/environment.go",

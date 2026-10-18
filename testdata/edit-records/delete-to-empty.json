@@ -1,0 +1,11 @@
+{
+ "name": "delete-to-empty",
+ "base": "keep drop keep\n",
+ "records": [
+  {
+   "old": " drop",
+   "new": ""
+  }
+ ],
+ "result": "keep keep\n"
+}

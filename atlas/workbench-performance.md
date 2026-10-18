@@ -139,3 +139,39 @@ build/PID, population/working-agent count and a profile; follow the hot path
 rather than widening a threshold. The fixture and process must remain the same
 throughout the sample. This manual smoke is separate from deterministic CI;
 no timed capture can turn a failed count into a pass.
+
+## Fixture writes and budgets
+
+The large ledger fixtures retain their exact size, ASCII-space padding, required
+JSONL records and independent private inodes. On Darwin, a multi-owner fixture
+writes one fixture-local all-space seed, clones it with clonefile, then patches
+each owner's records at EOF. Single owners and unsupported clone backends stream
+normally. No package-wide repository cache or hardlinked mutable fixture is used.
+Portable N=8/16 operation counts, content/isolation tests and native flushed-byte
+controls defend setup as well as the consumer's read/decode counts (#658).
+
+`cmd/internal/testdisk.RunWithWriteBudget` surrounds the existing normal TestMain
+callback in couchcmd (96MiB), couchtty (64MiB), workbenchperftest (64MiB),
+threadactivity (48MiB), titlepoller (24MiB), sessionsync (96MiB) and couchcore
+(128MiB). Allowances multiply by standard count and CPU repetitions with checked
+arithmetic. Existing helper dispatch runs first; benchmark/fuzz workloads are
+explicitly outside the ordinary cap. Test failures and panics preserve their
+meaning. On Darwin+cgo, missing/decreasing/failed self-generation counters fail
+rather than silently passing. Other platforms report unsupported native evidence.
+A Darwin filesystem that cannot clone retains correctness but may fail a native
+write cap. These are root-process bytes, excluding compilation and descendants;
+they do not claim a whole-device wear budget.
+
+Couchcore's actual shared constructors also inventory completed trees before
+mutations: provision allows 24 files/48 directories/256KiB logical bytes; prepare
+allows 64 files/128 directories/1MiB; both allow zero sample hooks. Each ordinary
+package owns an empty Git template for its returning callback. The canonical
+empty-environment test boundary supplies an empty GIT_TEMPLATE_DIR too, so
+replacement child environments cannot regain default or operator templates.
+
+Shell fixture bootstrap resolves GOCACHE/GOMODCACHE/GOTMPDIR before replacing
+HOME, and forwards only those explicit tool inputs through the shared empty
+environment boundary. Literal explicit values remain unchanged. Tests intended
+to prove cold-cache behavior still own their cold cache. Direct real builds and
+whole-device before/after evidence are recorded with the issue; cache allocation,
+fixture-tree inventories and physical process/device counters are distinct views.
