@@ -2270,3 +2270,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 - #649 BR-1: When multiple display consumers share activity, merge every admitted source before branching into title/fade decisions; test consumers together with stale persisted facts and recent wrapper work.
 - #649 BR-2: Resource acceptance tests must instantiate the production state being bounded. A fake returning constant facts cannot prove projection retention or warm-history work; use actual compact projections and counted IO.
+
+- #660: Read the complete failed CI job, including successful failure-diagnostic steps, before classifying an external process as dead. A filtered failed-step log hid server activity after a missing-session reply. Keep query absence, client exit, socket state and server/actor lifetime as separate observations; a dead replacement child cannot later paint its awaited frame.

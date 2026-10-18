@@ -33,20 +33,20 @@ This differs from #603's wrapped real-shell-actor discovery wait, and #361's ini
 
 ## Spec
 
-Find why the direct fixture's server/session disappears between detach and attach. Preserve private-session ownership, actual same-process state verification and terminal assertions. Observe detach command result, original server/agent exit and socket/session liveness behind an owned seam; reproduce the ordering deterministically before fixing it. No blanket timeout bump or blind retry.
+Land the approved diagnostic stage so the next native reattach discovery failure explains its boundary facts. Preserve private-session ownership, original PID:nonce/counter/frame assertions, and native deadlines. Record detach result, original client exit, owned actor liveness, socket metadata, and bounded wire/server-log evidence before cleanup; report an exited replacement client promptly. Keep the underlying discovery cause unresolved and park this issue after diagnostic landing. Do not build the upstream-race reproduction or choose a production accommodation without a failure pointing at it.
 
 ## Done when
 
-- Retained bounded diagnostics identify why the session is gone after successful detach.
-- A controlled ordering regression fails before the fix and passes after it while retaining original actor identity/state assertions.
-- Native conformance passes with attempts and failure counts recorded.
+- Diagnostic output distinguishes detach/client exit, actor liveness, socket state and server history without adding session probes; byte tails and agent exit receipts are bounded and owned scratch is removed after cleanup.
+- Deterministic regressions exercise early dead-client reporting, live/unknown preservation, bounded latest evidence and missing-file errors; instrumented actor termination preserves the original raw wait status. Original native identity/state/frame assertions remain.
+- One granted native direct/wrapped family attempt passes with counts recorded; the recorded full suite and normal close/merge gates pass for this diagnostic stage. The Log records the unresolved cause and next-failure handoff.
 
 ## Plan
 
 - [x] Classify the original failed job from its complete retained log and inspect the exact upstream 0.45.1 source before selecting a fix.
-- [ ] Add bounded, fixture-owned detach/reattach observations and deterministic tests of diagnostic collection and early child-exit reporting; preserve all same-process/frame assertions.
-- [ ] After hub approval and a native-lane grant, run one bounded private direct/wrapped conformance attempt with the observations. Reproduce the responsible ordering before proposing a behavioral fix; an unexplained green is not a fix.
-- [ ] Implement the evidenced correction with a failing ordering regression, retain real native conformance, then run the normal recorded suite, close review, and landing gates.
+- [x] Add bounded, fixture-owned detach/reattach observations and deterministic tests of diagnostic collection and early child-exit reporting; preserve all same-process/frame assertions.
+- [x] Run the one granted private direct/wrapped conformance attempt, record both results and release the lane.
+- [ ] Run the recorded full suite and close review for this diagnostic stage; leave the unresolved-cause handoff ready for parking after normal landing.
 
 ## Log
 
@@ -72,7 +72,17 @@ Diagnostic TDD: fake Child exit=1 plus missing-session wire first failed with ni
 
 Bounded agent instrumentation was delegated as isolated test-only work. Empty instrumentation first failed its missing-receipt assertions; an adversarial exception type with a newline first failed the one-line bound. Seven controlled Python cases now preserve baseline raw wait status for EOF, exception, bounded hostile exception type, SystemExit(7), HUP, TERM, INT. Each has readiness gating, unconditional owned cleanup/reap, and a ten-second hang bound. A receipt is at most one printable line, at most 102 bytes. SIGKILL remains unobservable; EXIT=atexit does not claim status zero. Targeted combined diagnostics/evidence tests passed. No Zellij session, native lane, or operator UI has been used; installed version query reports 0.45.1.
 
+### 2026-10-18 — native sample, release and approved diagnostic landing
+
+Grant 7344ec27-1d46-465f-97a2-f8c87023fa3e authorized exactly one native family invocation. Ran the fresh candidate from diagnostic commit 9cb5fc7ed6a3425f2e0a384f7462a4ec7726a077 with `go test -race -json ./cmd/internal/couchtty -run '^TestNativeConsoleWrapperZellij$' -count=1 -timeout=5m`. It exited 0: direct 2.44s, wrapped 24.61s, family 27.05s/package 28.42s; two subtests passed, zero failures. Both detach commands succeeded and old clients exited 0. Same boot identities advanced counter 1 to 2 in both routes. Private pcn-1188022532 and pcn-3438811432 directories were absent after the joined test. The 54,921-byte owned JSON is pair660-evidence.iHo4cL/native-family-attempt1.jsonl, SHA256 d0306cde33c4637f2f87613005423d7bc3c05ba633e0c2807fef6cf0fc02687d. Lane released with result receipt 8c1afbf8-8be3-4a5c-8ef2-1b518ff207f7. This green sample is not a causal reproduction.
+
+Early draft PR429 opened under the standing CI-overlap authorization. Submitted hub directive 75b0dbdf-a6a2-4d97-b7d4-013501c3c4fc now explicitly authorizes landing these diagnostics through the normal gates, then parking #660. Do not build a controlled upstream reproduction before a failure points at it. Next CI failure: read the retained detach result, old/new client exits and wire, socket metadata, actor receipts/liveness, and private server-log tail before choosing a fix. Underlying causal acceptance remains pending. Normal close/merge finalizes the diagnostic scope; immediately reopen with this rationale and release the claim to keep the unresolved issue parked, rather than claim the flake fixed.
+
 ## Revisions
+
+### 2026-10-18 — approved diagnostic landing, underlying cause parked
+
+Hub 75b0dbdf-a6a2-4d97-b7d4-013501c3c4fc narrowed this landing to observations and early dead-client reporting, with the bug parked for the next CI failure. Spec/Done-when/Plan now describe that deliverable. The original causal criteria (identify why discovery fails, reproduce its ordering before a behavioral fix, and retain native same-process assertions) remain unresolved investigation obligations, not claimed achievements. No production accommodation, extra native run, timeout bump or retry is authorized by the diagnostic landing.
 
 ### 2026-10-18 — investigate failed discovery before assuming session death
 
