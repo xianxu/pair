@@ -423,3 +423,7 @@ Concrete real-setup checks for the TL/operator's next restart (no automated acti
 - Check a terminal note: captured text/box/slot and Couch-owned anchors remain; no inferred native pane/file/line metadata. Existing crop behavior remains independent.
 
 The already accepted private native trace and deterministic controls supply uncertain/refusal coverage; do not inject noise or alter transport in the operator's setup. If a real action refuses, expect its visible notice and completed prefix/record to remain. Report the actual resulting state to the TL; do not silently repair/replay it. The TL controls staging/build/restart and the decision about when this check occurs relative to landing.
+
+### 2026-10-18 — M3 review overlaps the recorded suite queue by explicit approval
+
+Authenticated hub receipt55bdae20-cc7b-4a35-859b-776b2195f8a2 approves running M3 milestone-close now while the existing full suite remains queued at code headce16851261c658c5568873fe3c0db3832258596d. This is an explicit sequencing exception only: whole-issue close and landing remain gated on the recorded suite PASS. If review changes code, cancel/requeue the suite on the final code head; no stale-head qualification. All source, offline regression/race checks, accepted native safety evidence and next-restart clean-path limits are already checkpointed. Project ownership remains with the TL, so milestone-close uses --no-project.
