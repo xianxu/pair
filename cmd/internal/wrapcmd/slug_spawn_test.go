@@ -39,3 +39,38 @@ func TestSlugSpawnCmdFallsBackToBarePairOnPath(t *testing.T) {
 		t.Errorf("cmd.Args = %v, want [pair slug]", cmd.Args)
 	}
 }
+
+// The turn-end slug refresh is off by default when Couch hosts the session
+// (#650): no `pair slug` process, no small-model call. PAIR_SLUG=on is the
+// explicit re-enable; outside Couch the spawn is unchanged.
+func TestMaybeSpawnSlugOffByDefaultUnderCouch(t *testing.T) {
+	cases := []struct {
+		name   string
+		hosted bool
+		slug   string
+		want   int
+	}{
+		{"couch hosted spawns nothing", true, "", 0},
+		{"couch hosted with PAIR_SLUG=on spawns", true, "on", 1},
+		{"outside couch spawns as before", false, "", 1},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Pin all three in every case: the test process itself may run
+			// hosted under Couch, so the ambient env must not leak in.
+			scope := ""
+			if tc.hosted {
+				scope = "pair:8"
+			}
+			t.Setenv("COUCH_THREAD_SCOPE", scope)
+			t.Setenv("COUCH_THREAD_TAG", "")
+			t.Setenv("PAIR_SLUG", tc.slug)
+			spawns := 0
+			p := &proxy{spawnSlug: func() { spawns++ }}
+			p.maybeSpawnSlug()
+			if spawns != tc.want {
+				t.Fatalf("spawns = %d, want %d", spawns, tc.want)
+			}
+		})
+	}
+}

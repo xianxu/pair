@@ -746,7 +746,19 @@ func (p *proxy) traceWrap(label string, fields map[string]any) {
 // repeatedly can re-arm and alert more than once. The 1s debounce only
 // collapses bursts, not the baseline; that's the accepted price of an
 // always-current slug.
+//
+// Under Couch (#650) the slug is off by default — the operator doesn't use it
+// there, and the fleet was paying ~70 pair-slug spawns / ~36 small-model calls
+// per hour for it. The gate returns before the debounce bookkeeping and the
+// spawn, so nothing runs. PAIR_SLUG=on re-enables it under Couch; outside
+// Couch behaviour is unchanged. launcher.SlugEnabled owns the rule;
+// slugcmd.Run consults the same helper so the external Claude Stop-hook entry
+// (bin/pair-slug) also no-ops when hosted.
 func (p *proxy) maybeSpawnSlug() {
+	if !launcher.SlugEnabled(os.Getenv) {
+		p.debug("SLUG-skip", "couch-hosted and PAIR_SLUG != on (#650)")
+		return
+	}
 	now := p.clock()
 	if !p.lastSlug.IsZero() && now.Sub(p.lastSlug) < slugDebounceS {
 		return
