@@ -5,10 +5,10 @@ deps: []
 github_issue:
 created: 2026-10-18
 updated: 2026-10-18
-estimate_hours:
+estimate_hours: 1.652
 severity: critical
 collaboration-mode: collaboration
-card_mirror: '772493abd9664ac669254c5fcf5c4c4057de4f6f' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '9d94bb99921e041d65f2b409b371e0148c17a7b9' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-18T15:12:17-07:00
 claimant:
     operator: Xian Xu
@@ -17,6 +17,7 @@ claimant:
     workspace: pair:5
     worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
     repository: github.com/xianxu/pair
+flow: {kind: full, provenance: operator}
 ---
 
 # Exact Claude resume fails above native tree metadata cap
@@ -55,3 +56,22 @@ Hub approved this scope in delivery c4bfa120-b5ef-4b05-aa04-71fb3bdd09c8. Land a
 - 2026-10-18: Recorded the approved exact-target refinement in workshop/plans/000676-claude-exact-resume-cap-plan.md. Shallow project enumeration preserves cross-project/relocated IDs and duplicate-root refusal; deriving only current cwd would change that contract. Ordinary clone under pair-slot5 isolates #676 from #651's still-running merge. Start-plan completed after normal substrate catch-up.
 
 - 2026-10-18: Plan-quality round 1 raised PQ-1 (function-specific adversarial strategies) and PQ-2 (directory evidence cannot use the regular-file sameRecoveryInfo helper). Revised the durable plan with an explicit ctime-bearing directory fingerprint, held descriptor ownership, no-follow current-path comparison, and typed real-filesystem probe seam for deterministic replacement/absence races. No code written before gate acceptance.
+
+## Estimate
+
+Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only. Calibration is flagged stale, so provisional. Derived only after plan-quality passed round 2.
+
+Issue authoring/investigation uses table design 0.5 at mid-density factor 0.5 and impl 0.3 scaled by 0.4. The exact visitor is one new focused Go concern: existing x/sys/unix and runtime descriptor/stat primitives halve base design 0.5 for library availability, then the approved detailed plan applies factor 0.2; impl 0.8 scales by 0.4. Existing selector dispatch is one smaller-Go extension, and deterministic race/count/conformance fixtures a second, each design 0.3 times 0.2 and impl 0.5 times 0.4. Atlas uses design 0.1 times 0.2, impl 0.15 times 0.4. One review/verification/landing primitive uses design 0.2 times 0.2, impl 0.5 times 0.4. Familiarity 1.0. Design subtotal 0.48, implementation subtotal 1.10; thorough-plan design buffer 15% gives 0.48*1.15+1.10=1.652 hours. No new external API/library or cross-repo propagation; queue and operator wait are excluded from active effort.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.25 impl=0.12
+item: greenfield-go-module design=0.05 impl=0.32
+item: smaller-go-module design=0.06 impl=0.2
+item: smaller-go-module design=0.06 impl=0.2
+item: atlas-docs design=0.02 impl=0.06
+item: milestone-review design=0.04 impl=0.2
+design-buffer: 0.15
+total: 1.652
+```
