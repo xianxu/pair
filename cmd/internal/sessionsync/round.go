@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -266,18 +267,25 @@ func contentStep(base, next string, resolved []ResolvedEdit, now time.Time, rest
 		baseline, next = Restamp(base, now), Restamp(next, now)
 	}
 	presentation := Presentation(base)
+	if presentation == "propose" {
+		if err := operatorKeysKept(base, next); err != nil {
+			return Edit{}, err
+		}
+	}
 	if presentation == "propose" && !frontmatter {
 		// Direct records are applied on both sides, so the proposal diff holds
 		// only the rest.
+		direct, err := directUnderPropose(base, resolved)
+		if err != nil {
+			return Edit{}, err
+		}
 		proposeBase := baseline
-		if direct := answersOperator(base, resolved); len(direct) != 0 {
+		if len(direct) != 0 {
 			proposeBase = applyResolved(base, direct)
 			if restamp {
 				proposeBase = Restamp(proposeBase, now)
 			}
-			proposeBase = adoptDiscussionsChange(base, proposeBase, next, direct)
 		}
-		var err error
 		if next, err = ProposeDocument(proposeBase, next); err != nil {
 			return Edit{}, err
 		}
@@ -290,84 +298,67 @@ func contentStep(base, next string, resolved []ResolvedEdit, now time.Time, rest
 	return e, nil
 }
 
-// answersOperator picks, under propose, the records that answer an operator
-// request: those whose old text, verified in base, holds a complete ready
-// marker (readyMarkerIn) — the ready marker answered by a side-doc proposal
-// link, or the fold-in marker on that link answered by the folded text. The
-// operator approved exactly that change by writing the marker; every other
-// record stays a proposal.
-func answersOperator(base string, resolved []ResolvedEdit) []ResolvedEdit {
+// directUnderPropose picks, under propose, the records written directly:
+//   - a record wholly inside the frontmatter block, which is never proposed;
+//   - a record answering an operator request with a side doc (answersSideDoc):
+//     the operator approved exactly that change by writing the marker. An
+//     ordinary answer (a 🤖[tighten this] rewrite) removes its marker too, and
+//     stays a proposal.
+//
+// A record crossing the frontmatter's closing line refuses; every other record
+// stays a proposal.
+func directUnderPropose(base string, resolved []ResolvedEdit) ([]ResolvedEdit, error) {
+	fmEnd := -1
+	if block, err := FrontmatterBody(base); err == nil {
+		fmEnd = len(block)
+	}
 	var direct []ResolvedEdit
 	for _, e := range resolved {
-		if readyMarkerIn(base[e.BaseStart:e.BaseEnd]) {
+		switch {
+		case fmEnd >= 0 && e.BaseStart < fmEnd && e.BaseEnd > fmEnd:
+			return nil, &Refusal{Exit: ExitRefused, Code: "propose-unencodable", Reason: fmt.Sprintf(
+				"record %d crosses the end of the frontmatter; edit the frontmatter and the body in separate records", e.Index)}
+		case fmEnd >= 0 && e.BaseEnd <= fmEnd, answersSideDoc(base[e.BaseStart:e.BaseEnd], e.New):
 			direct = append(direct, e)
 		}
 	}
-	return direct
+	return direct, nil
 }
 
-// adoptDiscussionsChange lets the side-doc index ride in the same apply as the
-// operator-approved link or fold-in (S3): when next's frontmatter differs from
-// proposeBase's only in `discussions:` entries, and every added entry is the
-// link target of a direct record's new text and every removed one the link
-// target of its old text, the new frontmatter is taken directly. Any other
-// frontmatter change is left for ProposeDocument to refuse.
-func adoptDiscussionsChange(base, proposeBase, next string, direct []ResolvedEdit) string {
-	fp, errP := FrontmatterBody(proposeBase)
-	fn, errN := FrontmatterBody(next)
-	if errP != nil || errN != nil || fp == fn {
-		return proposeBase
-	}
-	restP, docsP := splitDiscussions(fp)
-	restN, docsN := splitDiscussions(fn)
-	if restP != restN {
-		return proposeBase
-	}
-	linked := func(path string, text func(ResolvedEdit) string) bool {
-		for _, e := range direct {
-			if strings.Contains(text(e), "]("+path+")") {
-				return true
-			}
-		}
-		return false
-	}
-	newText := func(e ResolvedEdit) string { return e.New }
-	oldText := func(e ResolvedEdit) string { return base[e.BaseStart:e.BaseEnd] }
-	for doc := range docsN {
-		if !docsP[doc] && !linked(doc, newText) {
-			return proposeBase
+// operatorOwnedKeys set how the operator reviews; under propose an agent
+// change to either would let it switch the document out of review.
+var operatorOwnedKeys = []string{"presentation", "collaboration-mode"}
+
+// operatorKeysKept refuses, under propose, any agent write that changes an
+// operator-owned key, whichever verb wrote it (apply, write, write
+// --frontmatter): the one engine guards every path.
+func operatorKeysKept(base, next string) error {
+	for _, key := range operatorOwnedKeys {
+		if frontmatter(base, key) != frontmatter(next, key) {
+			return &Refusal{Exit: ExitRefused, Code: "operator-owned", Reason: fmt.Sprintf(
+				"`%s:` is the operator's under presentation: propose; ask them to change it", key)}
 		}
 	}
-	for doc := range docsP {
-		if !docsN[doc] && !linked(doc, oldText) {
-			return proposeBase
-		}
-	}
-	return fn + proposeBase[len(fp):]
+	return nil
 }
 
-// splitDiscussions separates a frontmatter block's `discussions:` index (S3:
-// `discussions:` then `  - doc: PATH` lines, or `discussions: []`) from the
-// rest, which it returns with the index collapsed to its key line.
-func splitDiscussions(block string) (string, map[string]bool) {
-	docs := map[string]bool{}
-	var rest []string
-	in := false
-	for _, line := range strings.Split(block, "\n") {
-		trimmed := strings.TrimSpace(line)
-		if in {
-			if doc, ok := strings.CutPrefix(trimmed, "- doc:"); ok && line != trimmed {
-				docs[strings.TrimSpace(doc)] = true
-				continue
-			}
-			in = false
-		}
-		if key, ok := strings.CutPrefix(line, "discussions:"); ok && (strings.TrimSpace(key) == "" || strings.TrimSpace(key) == "[]") {
-			in = true
-			rest = append(rest, "discussions:")
-			continue
-		}
-		rest = append(rest, line)
+// sideDocLink is the S2/S3 side-doc link: `→ [proposal](PATH)` or
+// `→ [discussion](PATH)`; foldInOnLink is that link with its 🤖[fold in] request.
+var (
+	sideDocLink  = regexp.MustCompile(`→ \[(proposal|discussion)\]\(([^()\s]+)\)`)
+	foldInOnLink = regexp.MustCompile(`→ \[(proposal|discussion)\]\(([^()\s]+)\)\s*🤖\[fold in\]`)
+)
+
+// answersSideDoc is the narrow propose exception (TL, 2026-10-18): (a) old,
+// verified in the base text, holds the operator's ready marker and new
+// replaces it with a side-doc link, leaving no ready marker; or (b) old holds
+// 🤖[fold in] attached to a side-doc link and new is the fold, the link gone.
+func answersSideDoc(old, new string) bool {
+	if readyMarkerIn(old) && sideDocLink.MatchString(new) && !readyMarkerIn(new) {
+		return true
 	}
-	return strings.Join(rest, "\n"), docs
+	if m := foldInOnLink.FindStringSubmatch(old); m != nil {
+		return !strings.Contains(new, "]("+m[2]+")") && !strings.Contains(new, "🤖[fold in]")
+	}
+	return false
 }

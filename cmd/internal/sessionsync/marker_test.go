@@ -59,10 +59,10 @@ func TestProposeAnsweringTheOperatorAppliesDirectly(t *testing.T) {
 	}
 }
 
-// The side-doc index rides with the operator-approved link (S3): the matching
-// discussions: entry may change in the same apply; any other frontmatter
-// change is still refused.
-func TestProposeAllowsOnlyTheMatchingDiscussionsChange(t *testing.T) {
+// Frontmatter is never proposed (TL, 2026-10-18): under propose, records
+// wholly inside it apply directly in any batch, the side-doc index included;
+// the operator-owned keys refuse, and so does a record crossing its end.
+func TestProposeFrontmatterRecordsApplyDirectly(t *testing.T) {
 	link := "→ [proposal](doc.side/rewrite.md)"
 	answer := EditRecord{Old: "🤖[rewrite this section]", Occurrence: 1, New: link}
 	index := EditRecord{Old: "  - doc: doc.side/old.md\n", Occurrence: 1, New: "  - doc: doc.side/old.md\n  - doc: doc.side/rewrite.md\n"}
@@ -70,14 +70,47 @@ func TestProposeAllowsOnlyTheMatchingDiscussionsChange(t *testing.T) {
 	if err != nil || !strings.Contains(e.Next, "  - doc: doc.side/rewrite.md\n") || strings.Contains(e.Next, "🤖") {
 		t.Fatalf("link plus index not applied: %q %v", e.Next, err)
 	}
-	// An index entry for another doc, or any other key, is not the answer's.
-	other := EditRecord{Old: "  - doc: doc.side/old.md\n", Occurrence: 1, New: "  - doc: doc.side/old.md\n  - doc: doc.side/unrelated.md\n"}
-	_, err = BuildEdit(proposeParent, []EditRecord{answer, other}, t0Propose, false)
+	// Any frontmatter record, alone or beside a body proposal, is direct.
+	title := EditRecord{Old: "discussions:", Occurrence: 1, New: "title: S4\ndiscussions:"}
+	body := EditRecord{Old: "Intro.", Occurrence: 1, New: "Preface."}
+	e, err = BuildEdit(proposeParent, []EditRecord{title, body}, t0Propose, false)
+	if err != nil || !strings.Contains(e.Next, "---\npresentation: propose\ntitle: S4\n") || !strings.Contains(e.Next, "🤖~Intro~{Preface}") {
+		t.Fatalf("frontmatter direct, body proposed: %q %v", e.Next, err)
+	}
+	// The operator-owned keys refuse, however the change arrives.
+	for _, r := range []EditRecord{
+		{Old: "presentation: propose", Occurrence: 1, New: "presentation: direct"},
+		{Old: "presentation: propose", Occurrence: 1, New: "presentation: propose\ncollaboration-mode: discussion"},
+	} {
+		_, err = BuildEdit(proposeParent, []EditRecord{r}, t0Propose, false)
+		wantRefusal(t, err, ExitRefused, "operator-owned")
+	}
+	// A record crossing the end of the frontmatter refuses.
+	_, err = BuildEdit(proposeParent, []EditRecord{{Old: "doc.side/old.md\n---\n\nIntro.", Occurrence: 1, New: "x\n---\n\nY."}}, t0Propose, false)
 	wantRefusal(t, err, ExitRefused, "propose-unencodable")
-	key := EditRecord{Old: "presentation: propose", Occurrence: 1, New: "presentation: direct"}
-	_, err = BuildEdit(proposeParent, []EditRecord{answer, key}, t0Propose, false)
-	wantRefusal(t, err, ExitRefused, "propose-unencodable")
-	// Without a qualifying answer the index alone can't change either.
-	_, err = BuildEdit(proposeParent, []EditRecord{index}, t0Propose, false)
-	wantRefusal(t, err, ExitRefused, "propose-unencodable")
+}
+
+// An ordinary answer removes its marker too: a 🤖[tighten this] rewrite under
+// propose is still a proposal. Only the side-doc link that answers the marker,
+// or the fold the link's 🤖[fold in] asks for, applies directly.
+func TestProposeOrdinaryAnswerStaysAProposal(t *testing.T) {
+	doc := "---\npresentation: propose\n---\n\nThis sentence is far too long. 🤖[tighten this]\n"
+	e, err := BuildEdit(doc, []EditRecord{{Old: "This sentence is far too long. 🤖[tighten this]", Occurrence: 1, New: "This is too long."}}, t0Propose, false)
+	if err != nil || !strings.Contains(e.Next, "🤖~") {
+		t.Fatalf("an ordinary answer applied directly: %q %v", e.Next, err)
+	}
+	// A link label that isn't a proposal or discussion is not a side-doc answer.
+	e, err = BuildEdit(doc, []EditRecord{{Old: "🤖[tighten this]", Occurrence: 1, New: "→ [elsewhere](doc.side/x.md)"}}, t0Propose, false)
+	if err != nil || !strings.Contains(e.Next, "🤖~") {
+		t.Fatalf("a non-side-doc link applied directly: %q %v", e.Next, err)
+	}
+	// The discussion link is a side-doc answer.
+	e, err = BuildEdit(doc, []EditRecord{{Old: "🤖[tighten this]", Occurrence: 1, New: "→ [discussion](doc.side/tighten.md)"}}, t0Propose, false)
+	if err != nil || strings.Contains(e.Next, "🤖") {
+		t.Fatalf("the discussion link was not applied directly: %q %v", e.Next, err)
+	}
+	// 🤖[fold in] not attached to a side-doc link does not qualify a fold.
+	loose := "---\npresentation: propose\n---\n\n🤖[fold in]\na\nb\nc\nd\n"
+	_, err = BuildEdit(loose, []EditRecord{{Old: "🤖[fold in]\na\nb\nc\nd\n", Occurrence: 1, New: "w\nx\ny\nz\nv\n"}}, t0Propose, false)
+	wantRefusal(t, err, ExitRefused, "propose-too-large")
 }
