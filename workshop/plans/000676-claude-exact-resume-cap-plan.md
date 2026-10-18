@@ -59,7 +59,7 @@ This changes no durable state between events: lookup only produces a result cons
 - [x] Cover duplicate exact IDs across projects, child/sidechain, contradictory metadata, missing target, malformed/incomplete content, target/project symlinks, replaced metadata and cancellation.
 - [x] Count metadata work with N and 2N unrelated descendants and confirm unchanged shallow counts; with P and 2P projects confirm linear bounded work. Test immediate-root cap exhaustion still refuses.
 - [x] Assert latest lookup still returns incomplete on the same over-cap tree. Reuse the production scanner and real OS fixture for conformance; existing mutable fake covers metadata mutation/negative scanner semantics.
-- [ ] Run targeted race/catalog checks and the required recorded full suite on the pushed head; retain every failed attempt.
+- [x] Run targeted race/catalog checks and the required recorded full suite on the pushed head; retain every failed attempt.
 
 ## Task 4: review, landing and acceptance
 
