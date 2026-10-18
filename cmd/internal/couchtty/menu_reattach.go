@@ -223,7 +223,7 @@ func seedReattach(state MenuState, inventory []couchcore.ActionableThreadSummary
 // already in flight finish; Leave waits for each thread's hold.
 func advanceReattach(state MenuState) (MenuState, []MenuEffect) {
 	pass := state.Reattach
-	if pass.Phase != ReattachRunning || state.InFlight.Operation != "" {
+	if pass.Phase != ReattachRunning {
 		return state, nil
 	}
 	limit := max(1, pass.Limit)
@@ -231,7 +231,9 @@ func advanceReattach(state MenuState) (MenuState, []MenuEffect) {
 	// not see this one's in-flight set change.
 	state.Reattach = cloneReattachPass(pass)
 	var effects []MenuEffect
-	for len(state.Reattach.InFlight) < limit && len(state.Reattach.Queue) > 0 {
+	remaining := len(state.Reattach.Queue)
+	for len(state.Reattach.InFlight) < limit && len(state.Reattach.Queue) > 0 && remaining > 0 {
+		remaining--
 		// The counter guard is unreachable in practice, since it takes 2^64
 		// operations. It is there because the increment below would wrap to 0,
 		// which is the "no attempt" identity finishReattach refuses, and the
@@ -243,6 +245,10 @@ func advanceReattach(state MenuState) (MenuState, []MenuEffect) {
 		}
 		next := state.Reattach.Queue[0]
 		state.Reattach.Queue = append([]couchcore.ThreadAddress(nil), state.Reattach.Queue[1:]...)
+		if _, busy := menuRunningForAddress(state, next); busy {
+			state.Reattach.Queue = append(state.Reattach.Queue, next)
+			continue
+		}
 		state.OperationSequence++
 		if state.Reattach.InFlight == nil {
 			state.Reattach.InFlight = map[uint64]couchcore.ThreadAddress{}

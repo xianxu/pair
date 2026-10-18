@@ -43,7 +43,7 @@ func TestConsoleMenuOperationFailureUsesExactReducerOrigin(t *testing.T) {
 
 	waitFor(t, "operation failure to enter reducer", func() bool {
 		got := f.con.menuSnapshot()
-		return got.InFlight.Operation == "" && got.Notice == want.Notice && reflect.DeepEqual(got.Frames, want.Frames)
+		return got.operationForTest().Operation == "" && got.Notice == want.Notice && reflect.DeepEqual(got.Frames, want.Frames)
 	})
 }
 
@@ -61,7 +61,7 @@ func TestConsoleMenuMissingDispatcherPaintsLocalError(t *testing.T) {
 	f.con.dispatchMenuEffects(effects)
 
 	got := f.con.menuSnapshot()
-	if got.InFlight.Operation != "" || got.Notice.Level != MenuNoticeError || got.Notice.Text != "no action dispatcher wired" {
+	if got.operationForTest().Operation != "" || got.Notice.Level != MenuNoticeError || got.Notice.Text != "no action dispatcher wired" {
 		t.Fatalf("missing-dispatcher state = %+v", got)
 	}
 	if screen := string(ansi.Strip([]byte(f.screenText()))); !strings.Contains(screen, "error: no action dispatcher wired") {
@@ -98,7 +98,7 @@ func TestConsoleMenuStartAttachesBeforeSuccessfulRestoration(t *testing.T) {
 		f.con.mu.Lock()
 		defer f.con.mu.Unlock()
 		_, attached := f.con.panes[start.Handle.ID()]
-		return attached && f.con.menu.InFlight.Operation == ""
+		return attached && f.con.menu.operationForTest().Operation == ""
 	})
 	if !f.con.menuSnapshot().ProjectionPending {
 		t.Fatal("successful start silently presented the pre-start inventory as current")
@@ -132,7 +132,7 @@ func TestConsoleMenuResumeLandsOnExactReturnedHandle(t *testing.T) {
 
 	waitFor(t, "exact resumed handle landing", func() bool {
 		f.con.mu.Lock()
-		active, focus, inflight := f.con.active, f.con.focus, f.con.menu.InFlight.Operation
+		active, focus, inflight := f.con.active, f.con.focus, f.con.menu.operationForTest().Operation
 		f.con.mu.Unlock()
 		return active == started.Handle.ID() && focus == FocusActor(started.Handle.ID()) && inflight == "" && strings.Contains(f.host.Written(), "RESUMED-EXACT-SCREEN")
 	})
@@ -165,15 +165,15 @@ func TestConsoleSuccessfulOperationsApplyExhaustiveProjectionPolicy(t *testing.T
 			t.Cleanup(con.Stop)
 			target := menuAddress("couch-one")
 			state := NewMenuState(menuThreads(), target)
-			state.InFlight = MenuOperationOrigin{
+			setTestMenuOperation(&state, MenuOperationOrigin{
 				Operation: test.operation, Attempt: 1, Address: target,
 				FrameInstance: state.Frames[0].Instance, FrameKind: MenuFrameRoot, Depth: 1,
-			}
+			})
 			con.mu.Lock()
 			con.menu, con.menuReady = state, true
 			con.mu.Unlock()
 
-			con.finishOperation(operationCompletion{name: test.operation, origin: state.InFlight})
+			con.finishPreparedOperationForTest(operationCompletion{name: test.operation, origin: state.operationForTest()})
 			if got := con.menuSnapshot().ProjectionPending; got != test.pending {
 				t.Fatalf("ProjectionPending = %v, want %v", got, test.pending)
 			}
@@ -185,15 +185,15 @@ func TestConsoleRefreshFailureKeepsCommittedMutationVisiblyPending(t *testing.T)
 	f := newFixture(t, 24, 80)
 	target := menuAddress("couch-one")
 	state := NewMenuState(menuThreads(), target)
-	state.InFlight = MenuOperationOrigin{
+	setTestMenuOperation(&state, MenuOperationOrigin{
 		Operation: "park", Attempt: 1, Address: target,
 		FrameInstance: state.Frames[0].Instance, FrameKind: MenuFrameRoot, Depth: 1,
-	}
+	})
 	f.con.mu.Lock()
 	f.con.menu, f.con.menuReady, f.con.focus = state, true, FocusPanel()
 	f.con.refreshSchedule = RefreshSchedule{Sequence: 1, Running: 1}
 	f.con.mu.Unlock()
-	f.con.finishOperation(operationCompletion{name: "park", origin: state.InFlight})
+	f.con.finishPreparedOperationForTest(operationCompletion{name: "park", origin: state.operationForTest()})
 	f.host.Reset()
 	f.con.refreshResults <- menuRefreshResult{generation: 1, err: errors.New("store unavailable")}
 
@@ -209,10 +209,10 @@ func TestConsolePreMutationRefreshCannotAuthorizeCommittedProjection(t *testing.
 	t.Cleanup(con.Stop)
 	target := menuAddress("couch-one")
 	state := NewMenuState(menuThreads(), target)
-	state.InFlight = MenuOperationOrigin{
+	setTestMenuOperation(&state, MenuOperationOrigin{
 		Operation: "park", Attempt: 1, Address: target,
 		FrameInstance: state.Frames[0].Instance, FrameKind: MenuFrameRoot, Depth: 1,
-	}
+	})
 	release := make(chan struct{})
 	con.mu.Lock()
 	con.actionable = func(ctx context.Context, _ []couchcore.LiveTTYObservation) ([]couchcore.ActionableThreadSummary, error) {
@@ -227,7 +227,7 @@ func TestConsolePreMutationRefreshCannotAuthorizeCommittedProjection(t *testing.
 	con.refreshSchedule = RefreshSchedule{Sequence: 1, Running: 1}
 	con.mu.Unlock()
 
-	con.finishOperation(operationCompletion{name: "park", origin: state.InFlight})
+	con.finishPreparedOperationForTest(operationCompletion{name: "park", origin: state.operationForTest()})
 	select {
 	case <-con.refreshRequests:
 		con.advanceMenuRefresh(RefreshScheduleEvent{Kind: RefreshRequested})
@@ -316,7 +316,7 @@ func TestConsoleMenuAttachRefusalPaintsLocalErrorBanner(t *testing.T) {
 	f.con.dispatchMenuEffects(effects)
 
 	waitFor(t, "attach refusal completion", func() bool {
-		return f.con.menuSnapshot().InFlight.Operation == ""
+		return f.con.menuSnapshot().operationForTest().Operation == ""
 	})
 	// Reducer completion precedes its paint; wait for the observable result.
 	waitFor(t, "attach refusal banner", func() bool {
@@ -324,7 +324,7 @@ func TestConsoleMenuAttachRefusalPaintsLocalErrorBanner(t *testing.T) {
 		return strings.Contains(screen, "start thread\nerror: thread ") && strings.Contains(screen, "already attached")
 	})
 	f.con.mu.Lock()
-	focus, inflight := f.con.focus, f.con.menu.InFlight.Operation
+	focus, inflight := f.con.focus, f.con.menu.operationForTest().Operation
 	f.con.mu.Unlock()
 	if !focus.IsPanel() || inflight != "" {
 		t.Fatalf("attach refusal focus=%+v inflight=%q, want restored switcher", focus, inflight)

@@ -62,6 +62,13 @@ func TestFailedRecoveryPreviewFreshConfirmsOnlyExactStopOffer(t *testing.T) {
 	}
 	offer := &couchcore.RecoveryConfirmationOffer{Token: "fresh-exact-stops", Stops: []couchcore.RecoveryStopProcess{{PID: 4321, Identity: "source-generation", Role: "terminal server"}}}
 	state = reduceOperationResult(state, MenuEvent{Kind: MenuEventOperationResult, Operation: "reboot", Attempt: effects[0].Attempt, Address: row.Address, RecoveryConfirmation: offer})
+	if state.CurrentFrame().Kind != MenuFrameRoot {
+		t.Fatal("late confirmation offer stole current frame")
+	}
+	state, effects = reduceKey(state, PanelKey{Kind: KeyEnter})
+	if len(effects) != 0 {
+		t.Fatal("selecting confirmation row executed effects")
+	}
 	frame := state.CurrentFrame()
 	if frame.Kind != MenuFrameConfirmation || frame.RecoveryConfirmation == nil || frame.SelectedItem != "cancel" || frame.RecoveryConfirmation.Stops[0] != offer.Stops[0] {
 		t.Fatalf("exact stop offer was lost: %+v", frame)

@@ -551,6 +551,7 @@ func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, no
 		thread     couchcore.ThreadAddress
 		key        couchcore.ThreadRowKey
 	}
+	jobs := menuOperationRows(state)
 	var rows []rootLine
 	selectedStart, selectedEnd := 0, 0
 	for _, thread := range visible {
@@ -570,6 +571,10 @@ func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, no
 		if pass := passSuffix(view, owned, width, passOutcome); pass != "" {
 			suffix = pass
 		}
+		job, hasJob := jobs[menuRowKey(thread)]
+		if hasJob {
+			suffix = "  " + menuOperationRowText(job, now)
+		}
 		entry := labels[menuRowKey(thread)]
 		if entry.OwnerHub != "" {
 			ownerLabel := hubLabels[entry.OwnerHub]
@@ -587,6 +592,9 @@ func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, no
 		plain := clipMenuLine(head+entry.Glyph+"  "+detail, prefixWidth) + suffix
 		if frame.View == MenuViewFocus {
 			plain = clipMenuLine(head+" ◆ "+menuFocusSummary(thread)+menuFocusSlug(thread), width)
+			if hasJob {
+				plain = clipMenuLine(plain, prefixWidth) + suffix
+			}
 		}
 		if selectedRow {
 			plain = selectedMenuLine(plain, true, width)

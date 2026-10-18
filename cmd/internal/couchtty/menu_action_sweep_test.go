@@ -33,7 +33,7 @@ func TestEveryOfferedActionIsReachableFromEnter(t *testing.T) {
 					// Reachable means one of exactly three things happened: it
 					// dispatched, it opened a confirmation, or it opened a text
 					// form. Anything else is the silent fall-through.
-					dispatched := len(effects) > 0 || next.InFlight.Operation != ""
+					dispatched := len(effects) > 0 || next.operationForTest().Operation != ""
 					descended := len(next.Frames) > len(state.Frames) &&
 						(next.CurrentFrame().Kind == MenuFrameConfirmation || next.CurrentFrame().Kind == MenuFrameText || next.CurrentFrame().Kind == MenuFrameSwitchAgent)
 					if !dispatched && !descended {
@@ -45,14 +45,14 @@ func TestEveryOfferedActionIsReachableFromEnter(t *testing.T) {
 					// An unsafe terminal's advertised Relaunch is evidence selection;
 					// the ordinary healthy relaunch declaration still confirms.
 					if action == "relaunch" && !thread.Live() {
-						if next.CurrentFrame().Kind != MenuFrameRecovery || len(effects) != 1 || effects[0].Preview == nil || effects[0].Operation != "" || next.InFlight.Operation != "" {
+						if next.CurrentFrame().Kind != MenuFrameRecovery || len(effects) != 1 || effects[0].Preview == nil || effects[0].Operation != "" || next.operationForTest().Operation != "" {
 							t.Fatal("non-live relaunch bypassed read-only recovery preview")
 						}
 						// Completing an observation itself must never start work.
 						frame := next.CurrentFrame()
 						preview := &couchcore.RecoveryPreview{Address: address, Fresh: &couchcore.RecoveryChoice{Label: "Start fresh"}}
 						next, effects = ReduceMenu(next, MenuEvent{Kind: MenuEventPreviewResult, Generation: frame.Generation, RecoveryPreview: preview})
-						if len(effects) != 0 || next.InFlight.Operation != "" {
+						if len(effects) != 0 || next.operationForTest().Operation != "" {
 							t.Fatal("preview completion dispatched lifecycle")
 						}
 						next, effects = reduceRecoveryKey(next, PanelKey{Kind: KeyEnter})
@@ -154,16 +154,16 @@ func TestAClickRefusedMidOperationDoesNotMarkSomeoneElsesWork(t *testing.T) {
 	}}, address)
 
 	// Something else is already in flight, so the click's dispatch is refused.
-	state.InFlight = MenuOperationOrigin{Operation: "park", Attempt: 7, Address: address}
+	setTestMenuOperation(&state, MenuOperationOrigin{Operation: "park", Attempt: 7, Address: address})
 	next, effects := ReduceMenu(state, MenuEvent{Kind: MenuEventMouseSwitch, Address: address})
 
 	if len(effects) != 0 {
 		t.Fatalf("the click dispatched %d effect(s) while park was in flight", len(effects))
 	}
-	if next.InFlight.Operation != "park" || next.InFlight.Attempt != 7 {
-		t.Fatalf("the click displaced the in-flight operation: %+v", next.InFlight)
+	if next.operationForTest().Operation != "park" || next.operationForTest().Attempt != 7 {
+		t.Fatalf("the click displaced the in-flight operation: %+v", next.operationForTest())
 	}
-	if next.InFlight.Manual {
+	if next.operationForTest().Manual {
 		t.Error("the refused click marked the in-flight park as manual, so it will skip its attention capture")
 	}
 }

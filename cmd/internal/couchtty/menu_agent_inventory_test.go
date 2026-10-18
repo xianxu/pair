@@ -58,7 +58,7 @@ func TestStartFormsUseProductionAgentInventory(t *testing.T) {
 					wantAgent, wantRequested = "codex", "codex"
 				}
 				prepared := couchcore.PreparedStart{Resolution: couchcore.StartResolution{
-					OriginalInput: request.Path, CanonicalPath: request.Path, Action: request.Action,
+					OriginalInput: request.Path, CanonicalPath: request.Path, Worktree: couchcore.Worktree(request.Path), Action: request.Action,
 					RequestedAgent: request.Agent, Profile: couchcore.LaunchProfile{Agent: wantAgent}, Fingerprint: "accepted",
 				}}
 				state, effects = ReduceMenu(state, MenuEvent{Kind: MenuEventPreviewResult, Generation: request.Generation, Prepared: &prepared})

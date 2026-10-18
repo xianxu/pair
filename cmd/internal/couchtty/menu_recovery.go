@@ -117,10 +117,7 @@ func reduceRecoveryKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) 
 			args["tag"] = string(frame.RecoveryTarget.Address.Tag)
 		}
 		rowKey, address := frame.RowKey, frame.Thread
-		next, effects := dispatchMenuOperation(state, MenuEffect{Operation: "resume", Args: args}, address)
-		if len(effects) > 0 {
-			next.InFlight.RowKey = rowKey
-		}
+		next, effects := dispatchMenuOperation(state, MenuEffect{Operation: "resume", RowKey: rowKey, Args: args}, address)
 		return next, effects
 	}
 	frame.SelectedItem = strconv.Itoa(index)

@@ -157,7 +157,8 @@ func (c *Console) acceptContinuationRequests(result continuationScanResult) {
 			continue
 		}
 		operation := continuationOperation(status)
-		if operation == "" || watch.queued || c.ops == nil || c.menu.InFlight.Attempt != 0 {
+		_, uiBusy := menuRunningForAddress(c.menu, status.Address)
+		if operation == "" || watch.queued || c.ops == nil || uiBusy {
 			continue
 		}
 		fn := c.ops

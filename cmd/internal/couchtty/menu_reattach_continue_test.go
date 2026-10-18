@@ -63,7 +63,7 @@ func TestContinuePassFailuresKeepContinueAndOfferOneClickRetry(t *testing.T) {
 					t.Fatalf("failure outcome/reason hidden: %s", painted)
 				}
 				clicked, retry := ReduceMenu(state, MenuEvent{Kind: MenuEventMouseSwitch, Address: row.Address})
-				if len(retry) != 1 || retry[0].Background || (retry[0].Operation != "resume" || retry[0].Args["warm-only"] != "true") || clicked.InFlight.Operation == "" {
+				if len(retry) != 1 || retry[0].Background || (retry[0].Operation != "resume" || retry[0].Args["warm-only"] != "true") || clicked.operationForTest().Operation == "" {
 					t.Fatalf("one click did not retry Continue: %+v", retry)
 				}
 				if len(state.Reattach.Queue) != 0 || len(state.Reattach.InFlight) != 0 {
@@ -81,19 +81,19 @@ func TestContinuePassPendingRowsLeaveUnrelatedOperationsResponsive(t *testing.T)
 		reattachRow("parked", couchcore.ThreadParked, 2),
 	}
 	state, effects := passMenu(t, inventory)
-	if len(effects) != 1 || state.InFlight.Operation != "" {
-		t.Fatalf("background Continue took operator slot: %+v", state.InFlight)
+	if len(effects) != 1 || state.operationForTest().Operation != "" {
+		t.Fatalf("background Continue took operator slot: %+v", state.operationForTest())
 	}
 	state.Frames[0].SelectedAddress = menuAddress("couch-root")
 	next, manual := reduceKey(state, PanelKey{Kind: KeyEnter})
-	if len(manual) != 1 || manual[0].Background || next.InFlight.Operation == "" {
+	if len(manual) != 1 || manual[0].Background || next.operationForTest().Operation == "" {
 		t.Fatal("pending worker blocked root interaction")
 	}
 	// A background completion leaves the manual operation and active address alone.
 	event := passResult(effects[0].Attempt, "worker")
 	event.Success = true
 	completed, _ := ReduceMenu(next, event)
-	if completed.InFlight != next.InFlight || completed.ActiveAddress != next.ActiveAddress {
+	if completed.operationForTest() != next.operationForTest() || completed.ActiveAddress != next.ActiveAddress {
 		t.Fatal("background Continue stole focus or operator operation")
 	}
 }
@@ -108,14 +108,14 @@ func TestFailedContinueRetryUsesExactSlotAddressAndKeepsFailureWhenBlocked(t *te
 	state := NewMenuState([]couchcore.ActionableThreadSummary{row}, menuAddress("couch-root"))
 	state.Reattach.Failed = map[couchcore.ThreadAddress]string{row.Address: "helper failed"}
 	blocked := state
-	blocked.InFlight = MenuOperationOrigin{Operation: "park", Attempt: 99}
+	setTestMenuOperation(&blocked, MenuOperationOrigin{Operation: "park", Attempt: 99, Address: row.Address, RowKey: menuRowKey(row)})
 	unchanged, effects := dispatchMenuRow(blocked, "switch", row)
 	if len(effects) != 0 || unchanged.Reattach.Failed[row.Address] != "helper failed" {
 		t.Fatal("blocked retry cleared failure without dispatch")
 	}
 	next, effects := dispatchMenuRow(state, "switch", row)
-	if len(effects) != 1 || effects[0].Operation != "resume" || effects[0].Args["warm-only"] != "true" || effects[0].Args["tag"] != string(row.Address.Tag) || effects[0].Args["repo-scope"] != row.Address.RepoScope || effects[0].Args["path"] != "" || next.InFlight.RowKey != row.RowKey {
-		t.Fatalf("failed slot retry lost exact warm-only authority: %+v %+v", effects, next.InFlight)
+	if len(effects) != 1 || effects[0].Operation != "resume" || effects[0].Args["warm-only"] != "true" || effects[0].Args["tag"] != string(row.Address.Tag) || effects[0].Args["repo-scope"] != row.Address.RepoScope || effects[0].Args["path"] != "" || next.operationForTest().RowKey != row.RowKey {
+		t.Fatalf("failed slot retry lost exact warm-only authority: %+v %+v", effects, next.operationForTest())
 	}
 	if state.Reattach.Failed[row.Address] != "helper failed" {
 		t.Fatal("retry mutated its previous state")

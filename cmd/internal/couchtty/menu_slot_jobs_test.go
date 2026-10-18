@@ -34,3 +34,18 @@ func TestMenuBackgroundOperationReturnsToRootImmediately(t *testing.T) {
 		t.Fatalf("admitted lifecycle action must return to usable root: frame=%+v effects=%+v", next.CurrentFrame(), effects)
 	}
 }
+
+func TestMenuBackgroundOperationCompletionKeepsNewerActionFrame(t *testing.T) {
+	state := NewMenuState(menuThreads(), menuAddress("couch-one"))
+	state, effects := dispatchThreadOperation(state, "relaunch", menuAddress("couch-one"))
+	state, _ = reduceKey(state, PanelKey{Kind: KeyDown})
+	state, _ = reduceKey(state, PanelKey{Kind: KeyTab})
+	before := state.CurrentFrame()
+	if before.Kind != MenuFrameActions || before.Thread != menuAddress("couch-two") {
+		t.Fatalf("bad fixture: %+v", before)
+	}
+	state, _ = ReduceMenu(state, MenuEvent{Kind: MenuEventOperationResult, Operation: "relaunch", Attempt: effects[0].Attempt, Address: menuAddress("couch-one"), Success: true})
+	if state.CurrentFrame().Instance != before.Instance {
+		t.Fatalf("late completion stole a newer navigation frame: before=%+v after=%+v", before, state.CurrentFrame())
+	}
+}

@@ -105,3 +105,7 @@ item: milestone-review design=0.04 impl=0.20
 design-buffer: 0.15
 total: 2.34
 ```
+
+### 2026-10-18 — implementation checkpoint (not acceptance)
+
+Full-flow change-code passed after clean plan review; estimate-quality retained an INFO about optimistic integration effort. Hub confirmed lifecycle/nav ownership and the existing worker count with shared capacity16 (6499d26c-bc34-452d-b31e-435b228803bb). Queue lane regressions passed20 repetitions and race20. Installer regressions first reproduced mutex retention and post-stop adoption, then passed repeated race checks. Worker-side adoption regressions now pass, including remote final outcome, duplicate completion and shutdown settlement (race10). Legacy menu migration ran264 tests; four remaining production defects concern leave/pass overlap, captured error labels/paths and replacement-frame selection. Broader console verification is not passing: final navigation integration remains in progress. This commit checkpoints partial implementation, not a completion claim.

@@ -48,7 +48,7 @@ func TestReduceMenuSeedsAndStartsThePassFromTheFirstInventory(t *testing.T) {
 func TestReduceMenuRoutesAPassResultAroundTheOperatorsSlot(t *testing.T) {
 	state, effects := passMenu(t, passInventory())
 	operator := MenuOperationOrigin{Operation: "switch", Attempt: 99, Address: menuAddress("couch-root")}
-	state.InFlight = operator
+	setTestMenuOperation(&state, operator)
 
 	result := MenuEvent{Kind: MenuEventOperationResult, Operation: "resume", Background: true,
 		Attempt: effects[0].Attempt, Address: menuAddress("couch-a"), Success: true, ProjectionAfterGeneration: 1}
@@ -57,44 +57,27 @@ func TestReduceMenuRoutesAPassResultAroundTheOperatorsSlot(t *testing.T) {
 	if _, attached := state.Reattach.Attached[menuAddress("couch-a")]; !attached {
 		t.Fatalf("the pass result was dropped: %+v", state.Reattach)
 	}
-	if state.InFlight != operator {
-		t.Fatalf("InFlight = %+v, want the operator's operation untouched", state.InFlight)
+	if state.operationForTest() != operator {
+		t.Fatalf("InFlight = %+v, want the operator's operation untouched", state.operationForTest())
 	}
-	// And the pass holds behind the operator's operation (cell 10).
-	if len(next) != 0 {
-		t.Fatalf("the pass advanced under an operator operation: %+v", next)
+	// Independent couch-b progresses while the operator owns couch-root.
+	if len(next) != 1 || !next[0].Background || next[0].Args["tag"] != "couch-b" {
+		t.Fatalf("independent pass row did not progress: %+v", next)
 	}
 }
 
-// Cell 10's other half: when the operator's slot clears, a held pass resumes.
-//
-// The hold only exists if the operator's operation starts WHILE a pass attempt
-// is still running: then that attempt's completion finds the slot busy and the
-// pass must not start the next thread. An earlier version of this test started
-// the operator's operation after the attempt finished, by which point the pass
-// had already advanced -- so there was nothing held for the cleared slot to
-// release, and the test asserted a resumption that could not happen.
-func TestReduceMenuResumesAHeldPassWhenTheOperatorsSlotClears(t *testing.T) {
-	state, effects := passMenu(t, passInventory()) // couch-a is reattaching
-	// The operator starts an operation on a live row while couch-a is in flight.
-	state.Frames[0].SelectedAddress = menuAddress("couch-root")
-	state, started := reduceKey(state, PanelKey{Kind: KeyEnter})
-	if len(started) != 1 || state.InFlight.Operation == "" {
-		t.Fatalf("operator Enter = %+v (inflight %+v)", started, state.InFlight)
+// A queued row owned by an operator action holds only that row until completion.
+func TestReduceMenuResumesSameTargetPassWhenOperatorCompletes(t *testing.T) {
+	state, effects := passMenu(t, passInventory()[:3])
+	operator := MenuOperationOrigin{Operation: "park", Attempt: 99, Address: menuAddress("couch-b")}
+	setTestMenuOperation(&state, operator)
+	state, held := ReduceMenu(state, MenuEvent{Kind: MenuEventOperationResult, Operation: "resume", Background: true, Attempt: effects[0].Attempt, Address: menuAddress("couch-a"), Success: true})
+	if len(held) != 0 || state.Reattach.soleLoading() != (couchcore.ThreadAddress{}) || state.operationForTest() != operator {
+		t.Fatalf("same-target pass overlapped operator: effects=%+v state=%+v", held, state)
 	}
-	// couch-a finishes while the operator's operation holds the slot: the pass
-	// HOLDS rather than starting couch-b.
-	state, held := ReduceMenu(state, MenuEvent{Kind: MenuEventOperationResult, Operation: "resume", Background: true,
-		Attempt: effects[0].Attempt, Address: menuAddress("couch-a"), Success: true})
-	if len(held) != 0 || state.Reattach.soleLoading() != (couchcore.ThreadAddress{}) {
-		t.Fatalf("the pass advanced under the operator's operation: effects %+v, loading %v", held, state.Reattach.soleLoading())
-	}
-	// The operator's operation completes; the slot clears; the held pass resumes.
-	_, resumed := ReduceMenu(state, correlatedMenuResult(state, MenuEvent{
-		Operation: state.InFlight.Operation, Address: state.InFlight.Address, Success: true,
-	}))
+	_, resumed := ReduceMenu(state, correlatedMenuResult(state, MenuEvent{Operation: operator.Operation, Address: operator.Address, Success: true}))
 	if len(resumed) != 1 || !resumed[0].Background || resumed[0].Args["tag"] != "couch-b" {
-		t.Fatalf("effects after the slot cleared = %+v, want the pass's next attempt on couch-b", resumed)
+		t.Fatalf("effects after target released=%+v", resumed)
 	}
 }
 
@@ -162,7 +145,7 @@ func TestEnterOnAFailedRowResumesAndClearsTheMark(t *testing.T) {
 	if _, failed := state.Reattach.Failed[menuAddress("couch-a")]; !failed {
 		t.Fatalf("setup: %+v", state.Reattach)
 	}
-	state.InFlight = MenuOperationOrigin{} // the pass's next attempt is its own, not the operator's
+	setTestMenuOperation(&state, MenuOperationOrigin{}) // the pass's next attempt is its own, not the operator's
 	state.Frames[0].SelectedAddress = menuAddress("couch-a")
 	state, dispatched := reduceKey(state, PanelKey{Kind: KeyEnter})
 	if len(dispatched) != 1 || dispatched[0].Operation != "resume" || dispatched[0].Background {
@@ -210,10 +193,10 @@ func TestReattachPassInvariantsHoldOverGeneratedSequences(t *testing.T) {
 						event.Diagnostic = couchcore.ResumePathMissing
 					}
 				case 4:
-					if state.InFlight.Operation == "" {
+					if state.operationForTest().Operation == "" {
 						continue
 					}
-					event = correlatedMenuResult(state, MenuEvent{Operation: state.InFlight.Operation, Address: state.InFlight.Address, Success: true})
+					event = correlatedMenuResult(state, MenuEvent{Operation: state.operationForTest().Operation, Address: state.operationForTest().Address, Success: true})
 				case 5:
 					event = MenuEvent{Kind: MenuEventKey, Key: PanelKey{Kind: KeyDown}}
 				case 6:
@@ -272,9 +255,10 @@ func assertReattachInvariants(t *testing.T, before, after MenuState, effects []M
 	}
 	for _, effect := range effects {
 		if effect.Background {
-			// The pass never emits while the operator holds the slot.
-			if after.InFlight.Operation != "" {
-				t.Fatalf("%s: a pass attempt emitted while the operator's %q was in flight", where, after.InFlight.Operation)
+			// A pass may progress independently, but never overlaps an owned target.
+			address := couchcore.ThreadAddress{RepoScope: effect.Args["repo-scope"], Tag: couchcore.ThreadTag(effect.Args["tag"])}
+			if job, owned := menuRunningForAddress(after, address); owned {
+				t.Fatalf("%s: pass overlaps operator %q on %v", where, job.Origin.Operation, address)
 			}
 			continue
 		}

@@ -19,8 +19,7 @@ func boundedPass(n, limit int) MenuState {
 	return state
 }
 
-// The pass keeps up to its limit in flight, and none while the operator has an
-// operation in flight (cell 10 holds for the bounded pass too).
+// The pass keeps its limit while an operator job holds only its own row.
 func TestReattachAdvanceStartsUpToTheLimit(t *testing.T) {
 	state, effects := advanceReattach(boundedPass(5, 3))
 	if len(effects) != 3 || len(state.Reattach.InFlight) != 3 || len(state.Reattach.Queue) != 2 {
@@ -30,9 +29,15 @@ func TestReattachAdvanceStartsUpToTheLimit(t *testing.T) {
 		t.Fatalf("advance at the limit started more: %+v", more)
 	}
 	held := boundedPass(5, 3)
-	held.InFlight = MenuOperationOrigin{Operation: "relaunch", Attempt: 99}
-	if _, effects := advanceReattach(held); len(effects) != 0 {
-		t.Fatalf("the pass advanced under the operator's operation: %+v", effects)
+	setTestMenuOperation(&held, MenuOperationOrigin{Operation: "relaunch", Attempt: 99, Address: menuAddress("couch-00")})
+	if _, effects := advanceReattach(held); len(effects) != 3 {
+		t.Fatalf("independent rows did not fill pass capacity: %+v", effects)
+	} else {
+		for _, effect := range effects {
+			if effect.Args["tag"] == "couch-00" {
+				t.Fatal("pass overlapped operator-owned row")
+			}
+		}
 	}
 }
 
@@ -121,10 +126,10 @@ func TestReattachBoundedPassGeneratedSequences(t *testing.T) {
 				state = finishReattach(state, event)
 				resolved[address] = true
 			case 3:
-				if state.InFlight.Operation == "" {
-					state.InFlight = MenuOperationOrigin{Operation: "detach", Attempt: 1 << 40}
+				if state.operationForTest().Operation == "" {
+					setTestMenuOperation(&state, MenuOperationOrigin{Operation: "detach", Attempt: 1 << 40})
 				} else {
-					state.InFlight = MenuOperationOrigin{}
+					setTestMenuOperation(&state, MenuOperationOrigin{})
 				}
 			}
 			if got := len(state.Reattach.InFlight); got > limit {
@@ -142,7 +147,7 @@ func TestReattachBoundedPassGeneratedSequences(t *testing.T) {
 			}
 		}
 		// Drain: release the operator and finish everything.
-		state.InFlight = MenuOperationOrigin{}
+		setTestMenuOperation(&state, MenuOperationOrigin{})
 		for guard := 0; state.Reattach.Phase != ReattachDone && guard < 100; guard++ {
 			var effects []MenuEffect
 			state, effects = advanceReattach(state)

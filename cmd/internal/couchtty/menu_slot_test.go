@@ -95,14 +95,14 @@ func TestMenuSlotOperationCompletionAcceptsNewConversation(t *testing.T) {
 		t.Fatalf("resume effects %+v", effects)
 	}
 	next := reduceOperationResult(state, MenuEvent{Operation: "resume", Attempt: effects[0].Attempt, Success: true, Address: couchcore.ThreadAddress{RepoScope: "scope", Tag: "created"}})
-	if next.InFlight.Operation != "" || !next.ProjectionPending {
-		t.Fatalf("completion not consumed: %+v", next.InFlight)
+	if next.operationForTest().Operation != "" || !next.ProjectionPending {
+		t.Fatalf("completion not consumed: %+v", next.operationForTest())
 	}
 }
 
 func assertFreshDispatch(t *testing.T, state MenuState, effects []MenuEffect) (MenuState, []MenuEffect) {
 	t.Helper()
-	if len(effects) != 1 || effects[0].Operation != "reboot" || state.CurrentFrame().Kind == MenuFrameConfirmation || state.InFlight.Operation != "reboot" {
+	if len(effects) != 1 || effects[0].Operation != "reboot" || state.CurrentFrame().Kind == MenuFrameConfirmation || state.operationForTest().Operation != "reboot" {
 		t.Fatalf("Fresh did not dispatch to backend preparation: frame=%+v effects=%+v", state.CurrentFrame(), effects)
 	}
 	return state, effects

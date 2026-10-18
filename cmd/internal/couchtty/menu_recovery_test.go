@@ -135,7 +135,7 @@ func TestWarmRecoveryAdoptsExactTerminalWithoutCreatingContinuation(t *testing.T
 	waitFor(t, "warm recovered terminal adoption", func() bool {
 		f.con.mu.Lock()
 		defer f.con.mu.Unlock()
-		return f.con.active == started.Handle.ID() && f.con.focus == FocusActor(started.Handle.ID()) && f.con.menu.InFlight.Operation == "" && strings.Contains(f.host.Written(), "SAME-RECOVERED-AGENT")
+		return f.con.active == started.Handle.ID() && f.con.focus == FocusActor(started.Handle.ID()) && f.con.menu.operationForTest().Operation == "" && strings.Contains(f.host.Written(), "SAME-RECOVERED-AGENT")
 	})
 	if _, err := f.stdin.Write([]byte("recovered-input")); err != nil {
 		t.Fatal(err)

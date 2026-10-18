@@ -189,7 +189,9 @@ type MenuState struct {
 	Agents                    []string
 	RootAgent                 string
 	Attention                 map[couchcore.ThreadAddress][]AttentionMessage
-	InFlight                  MenuOperationOrigin
+	Operations                map[menuOperationTarget]MenuOperation
+	LandingAttempt            uint64
+	ObservedAt                time.Time
 	// Reattach is couch's own background reattach pass (pair#206). It lives in
 	// MenuState so the one transition authority owns every interleaving with
 	// the operator's own operations.
@@ -290,6 +292,7 @@ const (
 )
 
 type MenuEvent struct {
+	At                   time.Time
 	RecoveryConfirmation *couchcore.RecoveryConfirmationOffer
 	RecoveryPreview      *couchcore.RecoveryPreview
 	RowKey               couchcore.ThreadRowKey
@@ -302,11 +305,12 @@ type MenuEvent struct {
 	Operation            string
 	// Mode is the operation's disposition where it has one: which of park or
 	// detach a whole-couch `leave` applies to every live thread.
-	Mode       string
-	Attempt    uint64
-	Success    bool
-	Error      string
-	Generation uint64
+	Mode        string
+	Attempt     uint64
+	Success     bool
+	Unconfirmed bool
+	Error       string
+	Generation  uint64
 	// ProjectionAfterGeneration records the newest inventory generation that
 	// predates a committed operation mutation.
 	ProjectionAfterGeneration uint64
@@ -342,6 +346,7 @@ type MenuEvent struct {
 
 // MenuEffect is an operation request for the thin Console shell.
 type MenuEffect struct {
+	RowKey        couchcore.ThreadRowKey
 	CancelPreview uint64
 	Operation     string
 	Attempt       uint64
@@ -451,13 +456,20 @@ func clearsPreviousNotice(kind MenuEventKind) bool {
 // transition so callers can retain prior states safely.
 func ReduceMenu(state MenuState, event MenuEvent) (MenuState, []MenuEffect) {
 	next := cloneMenuState(state)
+	if !event.At.IsZero() {
+		next.ObservedAt = event.At
+	}
+	if event.Kind == MenuEventKey || event.Kind == MenuEventMouseSwitch || event.Kind == MenuEventParkHotkey {
+		next.LandingAttempt = 0
+	}
 	var consumed bool
 	next.CopyFeedback, consumed = ReduceCopyFeedback(next.CopyFeedback, event)
 	if consumed {
 		return next, nil
 	}
 	if event.Kind == MenuEventTick {
-		if menuProgressMatches(next.Notice, event) {
+		_, _, runningTick := menuOperationForAttempt(next, event.Attempt)
+		if menuProgressMatches(next.Notice, event) || runningTick {
 			next.SpinnerPhase = (next.SpinnerPhase + 1) % 4
 		}
 		return next, nil
@@ -493,7 +505,7 @@ func ReduceMenu(state MenuState, event MenuEvent) (MenuState, []MenuEffect) {
 	if event.Kind == MenuEventOperationResult && event.Background {
 		return advanceReattach(finishReattach(next, event))
 	}
-	if event.Kind == MenuEventOperationResult && !menuOperationMatches(next.InFlight, event) {
+	if event.Kind == MenuEventOperationResult && !menuOperationMatches(menuOriginForAttempt(next, event.Attempt), event) {
 		return next, nil
 	}
 	if event.Kind == MenuEventCompletionResult && !completionResultMatches(next, event.Completion) {
@@ -511,6 +523,11 @@ func ReduceMenu(state MenuState, event MenuEvent) (MenuState, []MenuEffect) {
 	}
 	if event.Kind == MenuEventMouseSwitch {
 		thread, ok := menuThreadTarget(next, event.RowKey, event.Address)
+		if ok {
+			if selected, busy := selectBusyMenuRow(next, thread); busy {
+				return selected, nil
+			}
+		}
 		// A pending row is not ready: a click on it lands nowhere (pair#206).
 		if !ok || enterOperationFor(thread) == "" || !menuRowSelectable(next, event.Address) {
 			return next, nil
@@ -523,7 +540,9 @@ func ReduceMenu(state MenuState, event MenuEvent) (MenuState, []MenuEffect) {
 		// marking that would leave Manual set on someone else's operation.
 		for _, effect := range effects {
 			if effect.Operation != "" {
-				state.InFlight.Manual = true
+				origin := menuOriginForAttempt(state, effect.Attempt)
+				origin.Manual = true
+				state = replaceMenuOperationOrigin(state, origin)
 				break
 			}
 		}
@@ -566,6 +585,7 @@ func ReduceMenu(state MenuState, event MenuEvent) (MenuState, []MenuEffect) {
 		next = seedReattach(next, event.Inventory)
 		next = expireAttached(next, event.Generation)
 		next = reconcileMenuFrames(next, previous)
+		next = pruneMenuOperations(next)
 		return advanceReattach(next)
 	}
 	if event.Kind == MenuEventOperationResult {
@@ -577,6 +597,7 @@ func ReduceMenu(state MenuState, event MenuEvent) (MenuState, []MenuEffect) {
 			next = reconcileMenuFrames(next, previous)
 		}
 		next = reduceOperationResult(next, event)
+		next = pruneMenuOperations(next)
 		// A successful leave ends the console, so it ends the pass: advancing
 		// here would enqueue one more reattach only for Stop to cancel it, which
 		// is the exact outcome cell 10 exists to prevent (pair#206). Otherwise
@@ -666,6 +687,9 @@ func reduceRootKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
 		if !ok {
 			state.Notice = errorMenuNotice("no selection")
 			return state, nil
+		}
+		if selected, busy := selectBusyMenuRow(state, thread); busy {
+			return selected, nil
 		}
 		// A row that cannot be acted on says why. Silence is what the operator
 		// reports as a bug, and dispatching a switch the console will refuse
@@ -1669,7 +1693,7 @@ func reconcileMenuFrames(state MenuState, previous ...[]couchcore.ActionableThre
 			continue
 		}
 		thread, ok := menuThreadTarget(state, frame.RowKey, frame.Thread)
-		if !ok && menuOperationReplacesAddress(state.InFlight) && menuFrameTargetsInFlight(state, frame) {
+		if !ok && menuOperationReplacesAddress(menuFrameRunningOrigin(state, frame)) && menuFrameTargetsInFlight(state, frame) {
 			// A reboot retires its own row: the :0 record leaves under its
 			// old tag and returns under a new one. The frames that launched it
 			// wait for its result, which restores them -- the operation is the
@@ -1721,7 +1745,7 @@ func reconcileMenuFrames(state MenuState, previous ...[]couchcore.ActionableThre
 		case MenuFrameRecovery:
 			// Selection revalidates the preview key against current core evidence.
 		case MenuFrameSwitchAgent:
-			if bound != frame.Thread || (!containsMenuItem(menuActionItems(thread), "switch-agent") && state.InFlight.Operation != "switch-agent") {
+			if bound != frame.Thread || (!containsMenuItem(menuActionItems(thread), "switch-agent") && menuFrameRunningOrigin(state, frame).Operation != "switch-agent") {
 				invalidThreadFrame = true
 				continue
 			}
@@ -1748,98 +1772,6 @@ func hiddenThreadNotice(previous []couchcore.ActionableThreadSummary, address co
 		label = thread.Label()
 	}
 	return "thread " + label + " (" + address.RepoScope + "/" + string(address.Tag) + ") is no longer actionable"
-}
-
-func reduceOperationResult(state MenuState, event MenuEvent) MenuState {
-	origin := state.InFlight
-	if !menuOperationMatches(origin, event) {
-		return state
-	}
-	state.InFlight = MenuOperationOrigin{}
-	if event.RecoveryConfirmation != nil {
-		offer := *event.RecoveryConfirmation
-		offer.Stops = append([]couchcore.RecoveryStopProcess(nil), offer.Stops...)
-		appendMenuFrame(&state, MenuFrame{Kind: MenuFrameConfirmation, Action: "recovery-confirmation", Thread: origin.Address, RowKey: origin.RowKey, SelectedItem: "cancel", RecoveryConfirmation: &offer})
-		return state
-	}
-	if origin.Address != (couchcore.ThreadAddress{}) && !menuOperationReplacesAddress(origin) {
-		if _, stillActionable := menuThread(state, origin.Address); !stillActionable {
-			return state
-		}
-	}
-	originFrame, originVisible := menuOperationOriginFrame(state, origin)
-	if !event.Success {
-		if event.Operation == "switch-agent" && originVisible && origin.FrameKind == MenuFrameSwitchAgent {
-			frame := &state.Frames[origin.Depth-1]
-			frame.SwitchStage = 1
-			frame.SelectedItem = "parameters"
-			frame.PreviewPending = 0
-		}
-		// park and leave CLOSE their confirmation on failure: both are terminal
-		// dispositions, and a failed one leaves nothing to retry from that
-		// screen. relaunch and reboot deliberately keep theirs -- relaunch's
-		// commonest refusal ("its agent has not completed a turn yet") is
-		// transient and self-healing, and a refused reboot (a session that
-		// survived its quiesce, a profile that did not resolve) is retried from
-		// the same row, so the operator wants to stay put and press Enter again
-		// rather than re-navigate.
-		if (event.Operation == "park" || event.Operation == "leave") && origin.FrameKind == MenuFrameConfirmation && originVisible {
-			state = restoreMenuPrefixPreservingStart(state, origin.Depth-1, origin)
-		}
-		state.Notice = errorMenuNotice(event.Error)
-		if state.Notice.Text == "" {
-			state.Notice = errorMenuNotice(event.Operation + " failed")
-		}
-		state.Notice.Owner = MenuProgressOwner{OperationAttempt: origin.Attempt}
-		return state
-	}
-	if state.Notice.Level == MenuNoticeProgress && state.Notice.Owner.OperationAttempt == origin.Attempt {
-		state.Notice = MenuNotice{}
-	}
-	if !event.InventorySet && operationNeedsProjectionRefresh(event.Operation) {
-		state.ProjectionPending = true
-		state.ProjectionAfterGeneration = event.ProjectionAfterGeneration
-	}
-
-	switch event.Operation {
-	case "switch":
-	case "alias":
-		if origin.FrameKind == MenuFrameText && originVisible && originFrame.Thread == origin.Address && originFrame.Action == event.Operation {
-			state.Frames = state.Frames[:origin.Depth-1]
-		}
-	case "start", "reboot", "recover", "recovery-confirmation":
-		// recover may end in a reboot, which hands back a new address.
-		if originVisible {
-			if origin.RowKey.Kind == couchcore.ThreadTargetSlot {
-				state.Frames[0].SelectedKey = origin.RowKey
-			}
-			state = restoreMenuPrefixPreservingStart(state, 1, origin)
-			state.Frames[0].SelectedAddress = event.Address
-		}
-	case "park", "detach", "resume", "leave", "relaunch", "switch-agent":
-		state = restoreMenuPrefixPreservingStart(state, 1, origin)
-		state.Frames[0].SelectedAddress = event.Address
-		if origin.RowKey.Kind == couchcore.ThreadTargetSlot {
-			state.Frames[0].SelectedKey = origin.RowKey
-		}
-		reconcileRootSelection(&state, event.Address)
-	default:
-		// A CONFIRMATION frame never outlives its operation's success. The list
-		// above is explicit, and an operation missing from it (reap, #399 M2
-		// review BR-9) left its confirmation open after it had worked; this is
-		// the rule that keeps the next one from doing so. Text frames (name,
-		// describe) keep their own handling.
-		if origin.FrameKind != MenuFrameConfirmation || !originVisible {
-			break
-		}
-		state = restoreMenuPrefixPreservingStart(state, 1, origin)
-		state.Frames[0].SelectedAddress = event.Address
-		if origin.RowKey.Kind == couchcore.ThreadTargetSlot {
-			state.Frames[0].SelectedKey = origin.RowKey
-		}
-		reconcileRootSelection(&state, event.Address)
-	}
-	return state
 }
 
 // endsItsOwnChild names the operations whose child exit is EXPECTED, so the two
@@ -1945,49 +1877,6 @@ func dispatchThreadOperation(state MenuState, operation string, address couchcor
 		effect.Args = couchcore.ActorOperationArgs(thread, operation)
 	}
 	return dispatchMenuOperation(state, effect, address)
-}
-
-func dispatchMenuOperation(state MenuState, effect MenuEffect, address couchcore.ThreadAddress) (MenuState, []MenuEffect) {
-	if effect.Operation == "" || state.InFlight.Operation != "" {
-		return state, nil
-	}
-	if state.OperationSequence == ^uint64(0) {
-		state.Notice = errorMenuNotice("operation attempt identity exhausted")
-		return state, nil
-	}
-	state.OperationSequence++
-	effect.Attempt = state.OperationSequence
-	if effect.Operation == "resume" {
-		// The operator resuming a failed thread by hand clears its mark
-		// (pair#206 cell 9).
-		state = clearReattachFailure(state, address)
-	}
-	state.InFlight = MenuOperationOrigin{
-		Operation:     effect.Operation,
-		Attempt:       effect.Attempt,
-		Address:       address,
-		FrameInstance: state.CurrentFrame().Instance,
-		FrameKind:     state.CurrentFrame().Kind,
-		Depth:         len(state.Frames),
-	}
-	state.SpinnerPhase = 0
-	state.Notice = MenuNotice{
-		Level: MenuNoticeProgress,
-		Text:  menuOperationProgressText(state, effect.Operation, address),
-		Owner: MenuProgressOwner{OperationAttempt: effect.Attempt},
-	}
-	return state, []MenuEffect{effect}
-}
-
-// updateOperationProgress puts a running operation's current step on its OWN
-// progress notice (#399): another attempt's line, or a notice that already
-// turned into a result, is left alone.
-func updateOperationProgress(state MenuState, attempt uint64, detail string) MenuState {
-	if state.Notice.Level != MenuNoticeProgress || state.Notice.Owner.OperationAttempt != attempt || attempt == 0 {
-		return state
-	}
-	state.Notice.Text = menuOperationProgressText(state, state.InFlight.Operation, state.InFlight.Address) + " " + detail
-	return state
 }
 
 func menuOperationProgressText(state MenuState, operation string, address couchcore.ThreadAddress) string {
@@ -2111,6 +2000,7 @@ func mergeObservations[K comparable, V any](prev, observed map[K]V, failed map[K
 
 func cloneMenuState(state MenuState) MenuState {
 	next := state
+	next.Operations = cloneMenuOperations(state.Operations)
 	next.Inventory = append([]couchcore.ActionableThreadSummary(nil), state.Inventory...)
 	next.Frames = append([]MenuFrame(nil), state.Frames...)
 	for i := range next.Frames {

@@ -1407,6 +1407,8 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchtty/mouse.go",
 	"cmd/internal/couchtty/mousetrace.go",
 	"cmd/internal/couchtty/menu.go",
+	"cmd/internal/couchtty/console_operation_adoption.go",
+	"cmd/internal/couchtty/menu_operations.go",
 	"cmd/internal/couchtty/menu_copy.go",
 	"cmd/internal/couchtty/copy_key.go",
 	"cmd/internal/couchtty/menu_slot.go",

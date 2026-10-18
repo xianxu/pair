@@ -399,7 +399,7 @@ func TestRelaunchResultIsAdoptedByTheConsole(t *testing.T) {
 				dispatched = append(dispatched, call.Name)
 				return nil, nil
 			})
-			con.finishOperation(operationCompletion{
+			con.finishPreparedOperationForTest(operationCompletion{
 				name:   "relaunch",
 				value:  tc.value,
 				origin: MenuOperationOrigin{Operation: "relaunch", Address: address, Attempt: 1},
@@ -478,7 +478,7 @@ func TestRelaunchDoesNotPreMarkTheChildItJustAdopted(t *testing.T) {
 	con.attachThreadActor("new-child", "brain", address, "/w/brain", "brain", ptychild.NewFakeChild(nil))
 	con.SetOperationDispatcher(func(couchcore.OperationCall) (any, error) { return nil, nil })
 
-	con.finishOperation(operationCompletion{
+	con.finishPreparedOperationForTest(operationCompletion{
 		name: "relaunch",
 		value: couchcore.RelaunchResult{
 			Outcome: couchcore.Relaunched,

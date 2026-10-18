@@ -73,7 +73,7 @@ func (r *remoteRig) drain(t *testing.T) {
 	t.Helper()
 	request := <-r.c.operationQueue.requests
 	value, err := request.run()
-	r.c.finishOperation(request.complete(value, err))
+	r.c.finishPreparedOperationForTest(request.complete(value, err))
 }
 
 func prepared(call couchcore.OperationCall) func(context.Context) (couchcore.OperationCall, error) {
@@ -134,13 +134,13 @@ func TestRemoteCompletionLeavesOperatorInFlight(t *testing.T) {
 	start, _ := attachStartResult(t, "slot-one-actor", menuAddress("slot-one"))
 	r.resume = func(couchcore.OperationCall) (any, error) { return start, nil }
 	operator := MenuOperationOrigin{Operation: "park", Attempt: 3, Address: menuAddress("source")}
-	r.c.menu.InFlight = operator
+	setTestMenuOperation(&r.c.menu, operator)
 	if err := r.enqueue("k", "resume", prepared(slotResumeCall())); err != nil {
 		t.Fatal(err)
 	}
 	r.drain(t)
-	if r.c.menu.InFlight != operator {
-		t.Fatalf("in flight = %+v, want the operator's %+v", r.c.menu.InFlight, operator)
+	if r.c.menu.operationForTest() != operator {
+		t.Fatalf("in flight = %+v, want the operator's %+v", r.c.menu.operationForTest(), operator)
 	}
 }
 
