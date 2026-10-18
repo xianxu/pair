@@ -14,6 +14,8 @@ collaboration-mode: discussion
 
 **Approval status:** Baseline completed:116/116 packages passed,1,640,353,792 observed own-process physical bytes. Exact proposed caps are below. Await hub approval before change-code.
 
+**Current design:** The earlier ledger-only candidate below is historical and suspended. The authoritative proposed replacement is [the whole-suite revision](#2026-10-17--whole-suite-replacement-design); it awaits hub approval.
+
 ## Measurement and operating envelope
 
 Baseline/source analysis and the owned clone feasibility experiment are recorded in issue658 Log. Clean couchcmd:627,539,968 own-process physical bytes,600,489,984 in TestWorkbenchPerformanceMessageUnchangedEvidence. The clone experiment wrote30,085,120 bytes while retaining600,000,000 logical bytes across20 private files. Those are separate experiments, not a package before/after comparison.
@@ -130,3 +132,94 @@ Files: new cmd/internal/testdisk/budget.go, budget_test.go, run.go, run_test.go;
 - 2026-10-17 — Whole-Go-phase baseline completed successfully in649.17s after804s in the machine queue. All116 packages passed; total1,640,353,792 observed own-process bytes; every binary had successful native samples and no final-read errors. See [write baseline](000658-write-baseline.md). Exact proposed caps are now recorded; seven guarded packages cover93.46% of observed writes. The measured supported environment and explicit exclusion of child/compiler/shell-phase writes remain unchanged.
 
 - 2026-10-17 — Hub receipt22e69495-dbd9-4776-b29a-c05e145c7163 rejected the partial accounting as a sufficient optimization target. This candidate is suspended pending full-suite physical-device bytes and rough excluded-phase attribution. No implementation approval/change-code has occurred. A revised plan will use measured full-suite scale; CoW may remain only as a cheap secondary item.
+
+
+### 2026-10-17 — whole-suite replacement design
+
+**Reason and delta:** Hub receipts22e69495-dbd9-4776-b29a-c05e145c7163 andf6308a17-cd1f-4897-9d24-63e72d8c47cf require the full device scale, fixture churn and cheap levers, rather than the original ledger-only headline. This section supersedes the earlier task ordering, operating-envelope exclusions and completion interpretation. Earlier text remains the design history. Hub approval/change-code still required.
+
+**Goal:** Reduce ordinary-suite disk writes without changing any required file size, authority check, persistent transition or durability call. Meet the original couchcmd >=50% own-process reduction, remove inert Git template files from the measured fixture class, avoid accidental private cold Go caches in shell tests, and defend the result with both file-tree and actual-byte budgets. No pre-implementation measurement beyond the completed short flush probe.
+
+**Evidence:** [Whole-device baseline](000658-device-write-baseline.md): full Make passes,116 final Go packages pass,19,768,967,168 device bytes in844.188s. Final Go interval15.554GB; earlier recipes4.215GB. Data metadata5.216GB is a non-additive counter view. Partial serial couchcore probe observed23,465 created files/18,253 directories, including7,588 sample hooks across542 repository copies, with no dropped-event flags. Its8m diagnostic cap was incorrect against the634s serial baseline; retain its failure and partial status. Final four-test owned root-only probe passed and counted274 real F_FULLFSYNC attempts (265 in the preferences integration test). It changed neither the fcntl arguments nor the call outcome. Preserve all those real durability paths.
+
+#### Ranked levers and chosen order
+
+| Lever | Estimated bytes/files affected | Cost and decision |
+|---|---|---|
+| Empty Git template in fixture owners |7,588 inert sample-hook files in the partial core sample; installed templates26,788 logical bytes/copy,14,519,096 across542 copies, about35.5MB allocated-size equivalent; metadata saving unknown | Cheap; do first because it attacks demonstrated small-file churn. No exact device saving claimed. Also removes unneeded default template files beyond hooks. |
+| Preserve caller Go cache resolution across private HOME | Install builder alone280.3MB sampled own writes; install+embedded device intervals~1.35GB include required linking/background, so are not a saving forecast | Cheap; do second. Reuse compilation/module caches and configured Go temp path, while retaining fresh candidate outputs and intentional cold-cache conformance. Exact saved bytes remain after-verification evidence. |
+| Clone exact large ledger fixtures |~1.2GB repeated payload eliminated; about6.1% of raw device baseline before amplification | Cheap, proved feasibility; do third. Still required to meet couchcmd's>=50% goal. Original content/isolation/counter design above applies. |
+| Share completed read-only repositories or immutable seeds per package | No defensible byte estimate from this audit | Omit initially. Inspected fixtures mutate branches, refs, worktree membership, origin history and substrate commits. One read-only malformed-output consumer does not justify a new cache owner. A shared immutable seed still needs private topology/config and most metadata; keep the simpler independent real repos. |
+
+The ranking separates estimated payload bytes from metadata exposure; it is not an additive allocation of19.77GB. Build output reuse does not mean reusing an old Pair executable. No global Git setting, Go configuration edit, RAM disk or operator path changes.
+
+#### Additional core concepts
+
+The original WriteBudgetVerdict and exact-ledger writer remain current. Add:
+
+| Name | Lives in | Status |
+|---|---|---|
+| FixtureTreeBudget / FixtureTreeVerdict |cmd/internal/testgit/budget.go|new|
+
+FixtureTreeBudget compares a completed newly owned fixture tree's regular-file count, directory count, hook count and logical file bytes to explicit caps. It is a pure comparison over measured totals. Exact counters are uint64 with checked arithmetic. This is a retained fixture-tree budget, not a claim of every transient Git syscall or device bytes. Independently changing a fixture file after setup does not re-run the construction budget. The normal package byte budget separately limits real root-process writes.
+
+| Name | Lives in | Status | Wraps |
+|---|---|---|---|
+| RunWithEmptyGitTemplate |cmd/internal/testgit/run.go|new|one empty invocation-owned directory and scoped GIT_TEMPLATE_DIR environment|
+| AuditFixtureTree |cmd/internal/testgit/tree.go|new|bounded walk of a newly owned fixture root, without following symlinks|
+| Captured Go tool paths |tests/lib/pair-test-go-env.sh|new|go env before disposable HOME/env-i|
+| Fixture owners |cmd/internal/couchcore/launchhelper_test.go; provision_git_test.go; slot_prepare_test.go|modified|existing package runner and real Git constructors|
+| Shell fixture boundary |tests/lib/pair-test-bootstrap.sh; tests/with-isolated-pair.sh|modified|existing canonical environment builder and cleanup|
+
+RunWithEmptyGitTemplate creates one empty directory for the ordinary couchcore test invocation and exports GIT_TEMPLATE_DIR for its real Git subprocesses. Existing helper-mode dispatch stays before this runner. Each subprocess environment that explicitly replaces inheritance receives that same owned template path; enumerate those Git creation seams during the source sweep. No user-configured Git template enters this fixture envelope. The two primary constructors retain their independent mutable repository/remote/worktree state and existing Git commands. The shell bootstrap uses its already-owned root for an empty template; it does not add a persistent directory.
+
+Captured Go tool paths resolve GOCACHE/GOMODCACHE/GOTMPDIR in the caller's environment, before HOME changes, only when they were not explicitly provided. Reuse the existing with-isolated-pair behavior through one POSIX-compatible helper; do not duplicate resolution. Preserve explicit values, spaces, Go's disabled-cache sentinel and empty configured GOTMPDIR. When Go is absent, preserve the existing missing-tool behavior rather than making unrelated shell fixtures require it. Propagate only these tool paths and the owned empty Git template through the existing environment boundary. Test Pair/Couch/Zellij production-authority exclusion remains unchanged. Intentional clean-source GOCACHE overrides still win.
+
+#### Budgets and growth contract
+
+Keep the seven normal-run own-process byte caps above. They protect the original fixture consumers and every package whose sampled own bytes exceeded30MB. They deliberately do not claim to include short-lived Git/compiler children or metadata; the full-device and tree evidence identify that gap openly.
+
+Proposed completed-constructor caps:
+
+| Constructor | Regular files | Directories | Default sample hooks | Logical file bytes |
+|---|---:|---:|---:|---:|
+| newProvisionFixture |24|48|0|262,144|
+| newPrepareWorld |64|128|0|1,048,576|
+
+These are ceilings with headroom for ordinary Git version differences, not exact equalities. Validate them against the real constructor outputs after implementation; any necessary revision is logged with the actual inventory before changing the cap. The hook bound is exactly zero. The budget executes once inside each shared constructor before returning, not only in a separate model test, so new callers derive it. The tree contains only that constructor's new state; no operator tree is walked. Transient Git lock names already removed before completion are outside this budget; do not call it a whole-system creation counter.
+
+For N=8 and2N=16 real independent constructor instances, check total retained files/directories/logical bytes <=N times the per-fixture cap, zero sample hooks, private refs/worktree membership and mutation independence. Initialization is O(N) repositories and O(N) small metadata files. No repeated walk per file; one O(entries) audit at the constructor boundary. Byte-stream growth for the ledger keeps its earlier N/2N assertion: one padding seed per size, N private clones/patches, no N*large-padding streaming. Stateful fake Go builds across8/16 isolated homes must write one fixed cache payload total for one unchanged compiler key, while intentional distinct cache keys write distinct bounded payloads.
+
+#### State, lifecycle and limits
+
+Actions: run a package or fixture; inspect a refusal; fix code; intentionally revise a cap with evidence; run portable correctness checks.
+
+| Internal state/failure | Visible result | Recovery | Possible loss |
+|---|---|---|---|
+| Owned empty template ready | normal real Git setup | run fixture | none |
+| Template creation/env setup fails | explicit test setup failure | inspect/fix | no accepted fixture |
+| Fixture tree exceeds files/bytes/hooks cap | inventory totals and cap failure | fix or evidence-backed cap revision | failed attempt retained |
+| Native root counter unsupported | explicit unsupported evidence; portable fixture guards still run | run supported byte verification | no physical-byte claim on unsupported platform |
+| Supported counter read fails/regresses | budget failure | inspect/fix | no success claim |
+| Go tool cache resolution fails when required | bootstrap failure preserving tool status | inspect/fix | owned root cleanup still runs |
+| Test or callback fails/panics | original unsuccessful result | inspect/fix | partial diagnostic only; process-owned temps remain scoped |
+
+The package runner owns its empty template from before m.Run through all normal callbacks and cleanups; it restores the prior environment and removes only its own root afterward. A failed callback still cleans up. Shell bootstrap owns its template under its existing disposable root and cleanup trap. No repository cache or new background watcher ships. FSEvents and the interposer remain temporary diagnostics, not CI correctness or acceptance machinery. No production persistence call is removed.
+
+ARCH-DRY: one template owner per invocation, one Go-cache resolver, one tree comparison and one native-byte runner. ARCH-PURE: comparisons/count scaling are pure; native counters, filesystem walking and subprocess environment capture are thin seams. ARCH-PURPOSE: include device-scale Git/build causes as well as the original couchcmd goal. ARCH-MOCK: reuse existing stateful provisioning fixture; a stateful fake Go command checks cache sharing across homes, and ordinary install/embedded tests retain real conformance. ARCH-CONSTRAINTS: explicit normal-run/native-filesystem envelope, N/2N counts, no timing ceilings or unbounded concurrency. ARCH-STATE: scoped runner owns setup/active/cleanup; callers never share mutable repository authority. ARCH-FUNERAL: every new template/cache test artifact has an invocation/test cleanup owner. ARCH-SECURE: no-follow owned-tree audits, exact environment allowlist and no new authority over operator paths.
+
+#### Replacement implementation tasks — one close boundary
+
+1. **Git template and file budgets** — cmd/internal/testgit/{run,budget,tree}.go and colocated tests; couchcore/launchhelper_test.go, provision_git_test.go, slot_prepare_test.go and new fixture_budget_test.go; shell bootstrap and tests/lib/pair-test-bootstrap-test.sh.
+   - [ ] Write pure budget tests (equal/over cap, checked arithmetic, zero-hook refusal) and owned-tree tests (symlinks not followed, byte inventory, unreadable/error result).
+   - [ ] Add a real constructor regression with a deliberately populated parent template; prove the old setup materializes sample hooks/exceeds the guard. Add N=8/16 and independent mutation/refs checks through the actual shared constructors.
+   - [ ] Implement the scoped empty-template runner, preserve helper dispatch/cleanup, wire constructors' audits and explicitly stripped Git environments. Enumerate real Git init/clone fixture sites in couchcore and shell recipes and record which derive the scoped setting.
+   - [ ] Verify go test ./cmd/internal/testgit ./cmd/internal/couchcore -run 'Test(.*Fixture.*|.*Prepare.*|.*SlotPreferences.*)' -count=1, plus the existing environment-bootstrap shell contract. Retain real init/clone/worktree semantics and existing assertions. Commit.
+2. **Go cache preservation** — tests/lib/pair-test-go-env.sh and new tests/lib/pair-test-go-env-test.sh; tests/lib/pair-test-bootstrap.sh; tests/with-isolated-pair.sh; cmd/internal/testpair/environment_test.go for the shell-contract entrypoint.
+   - [ ] Add a stateful fake Go whose configured cache lives outside each disposable HOME. Verify unset/explicit cache values, spaces, disabled cache, missing Go, resolution failure, and intentional cold-cache override. At8/16 child homes with the same build key, one fixed payload is written to the shared cache; the old private-HOME behavior fails this count.
+   - [ ] Resolve before HOME/env-i and share one helper between both callers. Keep every existing authority/argv/status/cleanup assertion in pair-test-bootstrap-test.sh, pair-test-binary-test.sh and testpair environment guards.
+   - [ ] Run focused bootstrap/cache/binary shell-contract tests and the real install-layout/embedded-runtime fixtures. Fresh output builds still occur. Commit.
+3. **Exact ledgers and native bytes** — execute earlier ledger-content/isolation/fallback and N/2N tasks, then the seven-package native TestMain runner tasks. Keep all old logical sizes and real read/decode assertions. Add over-budget negative control; unsupported is explicit; fail supported read errors. Run focused fixture/budget tests and selected package suites. Commit.
+4. **Verify/document/close** — update atlas/testing map with file-tree and byte scopes/limits. Record matched before/after116-package own-byte table, constructor inventories, cache count proof and failure retention. The couchcmd result must be below312,899,584 bytes; proposed96MiB cap is stricter. Observe full Make device bytes for the changed head during a coordinated quiet window (prefer the required recorded suite body where the runner supports it); label noise, queue/body endpoints and comparable scope. No fixed device percentage is promised from the partial attribution. Open early draft PR for CI overlap, run recorded pushed-head suite, close through the automatic fresh review, satisfy normal merge gates, land, report PR/merge. No pair:0 staging or machine configuration change.
+
+**Approval request:** confirm this cheap-first scope, omission of a read-only repository cache, and the explicit distinction between completed fixture-tree budgets and normal-package own-process bytes before change-code. The plan does not treat the partial core diagnostic as a passing package or the proposed file budget as a complete device-write meter.

@@ -28,6 +28,8 @@ Full test suites are now nearly all of the fleet's disk writes (ops qa 2026-10-1
 
 Measure first: per test package and per test, bytes written and to which paths (temp dirs, fixture trees, logs, SQLite or journal files, fsyncs). Then cut the largest writers without weakening what the tests prove: for example, smaller fixtures, sharing a fixture built once per package, in-memory fakes where the test is not about the filesystem, or fewer fsyncs in test-only stores. Defend the result with a counted check (bytes written per suite or per package, at a recorded budget), not timing.
 
+Current proposed revision: target the measured full-suite scale using empty Git templates and preserved caller Go cache paths before the exact-ledger clone. Keep mutable repos independent and all real durability transitions. Add portable completed-fixture file-tree caps plus the supported native root-byte caps; do not mislabel these as complete device attribution. See the replacement design appended to the durable plan. Hub approval pending.
+
 ## Done when
 
 - A per-package write measurement of the pair suite is recorded in the Log, before and after.
@@ -39,7 +41,9 @@ Measure first: per test package and per test, bytes written and to which paths (
 Draft detailed plan: [suite write budget](../plans/000658-suite-write-budget-plan.md). The whole-Go-phase baseline is complete; await hub approval before change-code.
 
 - [x] Record every measured Go package and large test/path; finalize exact proposed package caps.
-- [ ] Obtain hub approval and pass change-code.
+- [ ] Obtain hub approval of the whole-suite replacement revision and pass change-code.
+- [ ] Remove inert Git templates in shared fixture owners; enforce completed-fixture file/byte/hook caps and N/2N growth.
+- [ ] Preserve caller Go cache resolution across isolated HOME with a counted stateful cache regression; keep cold-cache conformance.
 - [ ] Preserve exact fixture bytes, logical sizes and independent files using fixture-local CoW templates with portable streaming fallback; add N/2N write-growth regression.
 - [ ] Enforce own-process physical write budgets in the measured large-writer package TestMain paths; cover failed/unsupported counter evidence and over-budget refusal.
 - [ ] Record matching after-measurement, run recorded suite/CI, close review and land.
@@ -85,8 +89,16 @@ Draft detailed plan: [suite write budget](../plans/000658-suite-write-budget-pla
 - The probe's8m serial cap was a harness mistake against the known634.448s passing serial baseline. Exit2 from that cap, no earlier FAIL lines; current TestWorktreeAddUsesWriteBudget had run2s. Preserve raw logs, do not call it a product flake/pass, and do not blindly rerun the whole package. Observer exited0; all measured owned PID generations were gone afterward. No code edits or change-code.
 - Tiny owned Go interposition calibration proved libc-operation visibility; installed Go source shows File.Sync normally uses F_FULLFSYNC. A generic variadic fcntl forwarding shim is too broad for arbitrary product calls; do not use the calibration shim on the suite. A narrow safe flush-count diagnostic or the operator's60s trace remains the next attribution step.
 
+### 2026-10-17 — final pre-code probe and replacement plan
+
+- Hubf6308a17-cd1f-4897-9d24-63e72d8c47cf verified Submitted: one short owned F_FULLFSYNC probe, then stop measuring and plan. Completed four selected existing tests, exit0 in12.650s:274 root/private-TMPDIR F_FULLFSYNC attempts,265 in TestSlotPreferencesIndependentAcrossRestartResumeAndFresh. Real fcntl still ran; calibrated arm64 forwarding preserved arguments/stack/errno and skipped child logging. Temporary source/artifacts remain local; no tracer ships.
+- Probe observed623 created files/349 directories, zero dropped/scan flags,23,777,280 last-sampled own bytes. Scope is four selected tests, not the package. No further pre-implementation measurement.
+- Source-only reuse audit found mutable repository/worktree/origin/substrate state in measured shared fixtures; omit a package-wide repository cache initially. The replacement plan ranks measured payload versus unknown metadata savings, starts with cheap empty-template and Go-cache fixes, retains the ledger saving and proposes both completed-tree and native-byte caps. Await hub approval/change-code; no source edits.
+
 ## Revisions
 
 - 2026-10-17 — Measured dominant fixture construction rather than assuming fsync/logging churn. Candidate design preserves full30MB files and decoder/authority checks by CoW cloning private all-space templates. Reject fixture shrinking, hardlinks and NUL sparse files because they weaken the actual coverage. A shared native-counter runner defends the whole normal-run callback in the large-fixture consumer packages; final numeric caps await the queued distribution and hub approval.
 
 - 2026-10-17 — Hub required whole-device/full-suite attribution before choosing the headline optimization. Suspend the seven-package-cap/CoW-first proposal pending that measurement. The ledger saving remains proved feasibility, not the accepted target; re-plan against the biggest measured share and report revised numbers before code.
+
+- 2026-10-17 — After the final flush probe, replace the suspended ledger-only task ordering with the whole-suite cheap-first design appended to the same durable plan. Preserve all prior decisions/evidence; explicitly omit unsafe/low-yield shared mutable repository reuse and distinguish fixture-tree budgets from physical root-byte budgets.
