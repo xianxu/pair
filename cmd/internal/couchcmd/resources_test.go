@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -327,10 +328,30 @@ func TestResourceSamplerCandidateFloorAvoidsCommand(t *testing.T) {
 	}
 }
 
+// costSteadyRatioK is the steady pass's CPU budget in units of the same-run
+// history-write baseline: a steady pass may not cost more than twice the write it
+// performs. Derived in pair#644 from runs across the fleet's load range, not tuned
+// per run: K is headroom over the worst steady ratio measured anywhere in that
+// range, and those runs are recorded in the issue's Log. It is also the native
+// backstop for #606's environment memo — a pass shaped like the cold one, which
+// reads its candidates' environments, costs several times a write and fails here too.
+const costSteadyRatioK = 2.0
+
 // TestResourceSamplerNativeCost measures the complete pass, including reducer,
 // serialization, validation and snapshot publication at nearly full history.
 // Native collection follows the real bounded selector; only the test root is
 // owned, and other rows are eligible only for the ordinary PPID1 candidate path.
+//
+// The verdict is load-invariant (#644). Absolute CPU cannot give one answer on an
+// idle host and on one running the rest of the fleet: measured across a wide load
+// range on unchanged code, a pass's native call counts barely move while its CPU
+// moves by tens of percent, which flipped the old fixed three-pass mean budget. So
+// the work a pass does is checked against bounds the code's own structure sets, and
+// a steady pass's CPU is checked against the history write it performs, measured in
+// the same run. The first pass is #606's one-time environment scan: work-bounded,
+// CPU reported and not asserted, per #587's ruling that the binding budget governs
+// steady sampling rather than a rare maximum-cardinality admission burst. The runs
+// behind every constant here are recorded in #644's Log.
 func TestResourceSamplerNativeCost(t *testing.T) {
 	if os.Getenv("PAIR_RESOURCE_COST") != "1" {
 		t.Skip("set PAIR_RESOURCE_COST=1 for native cost conformance")
@@ -397,47 +418,145 @@ func TestResourceSamplerNativeCost(t *testing.T) {
 	if len(raw) < couchcore.ResourceHistoryLimit-65536 {
 		t.Fatalf("fixture did not approach history cap: %d", len(raw))
 	}
+	baselineDir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	baseline := couchcore.ResourceHistoryStore{Dir: filepath.Join(baselineDir, "resources")}
+	writeCPU := historyWriteCPU(t, ctx, reader, baseline, seed)
 	policy, _ := couchcore.ParseResourcePolicy(nil)
 	// Maximum cardinality: the widest gates this pass has, so nothing is filtered out
 	// by a threshold this host happens to sit under. The age floor admits every PPID-1
 	// nvim to the argv read and the cwd probe, and the RSS floor -- which is also
 	// #587's unattributed report floor -- admits every known-kind launchd child to the
-	// report and its serialization. The budget below is asserted against that worst
+	// report and its serialization. The bounds below are asserted against that worst
 	// case rather than against the defaults, because the defaults are a host-shaped
 	// accident and the probe's cost is not (#583).
 	policy.OrphanNvimAge, policy.OrphanRSSBytes = time.Second, 0
 	sampler := &resourceSampler{reader: reader, policy: policy, persist: persistence.persist, slots: func() couchcore.ResourceSlotInventory {
 		return couchcore.ResourceSlotInventory{Complete: true, Slots: []couchcore.ResourceSlot{{Slot: address, Workspace: workspace, OwnershipKnown: true, Roots: []couchcore.ResourceRoot{{Key: couchcore.ResourceProcessKey{PID: owned.PID, Identity: owned.Identity}}}}}}
 	}}
-	var sum, maxCPU uint64
-	for pass := 0; pass < 3; pass++ {
+	const passes = 3
+	// workBound is one load-invariant assertion about what a pass did. `got`
+	// carries the counters behind it so a failure names the evidence, and every
+	// failure names the host state too.
+	type workBound struct {
+		name string
+		ok   bool
+		got  string
+	}
+	var coldCPU, steadySum, steadyMax uint64
+	steady := 0
+	for pass := 0; pass < passes; pass++ {
+		// The bounds' basis: the table as this test sees it immediately before the
+		// pass, which reads its own a few milliseconds later. The row-scaled bounds
+		// below are multiples of that count, and the slack is what absorbs the churn
+		// in the gap — the point is to catch a multiplied read, not a birth. How much
+		// slack a run actually had is measured in #644's Log, not guaranteed here.
+		table, _, err := reader.Table(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		basis, load := len(table), hostLoadAverage()
+		host := fmt.Sprintf("rows=%d %s", basis, load)
 		sampler.now = func() time.Time { return base.Add(time.Duration(pass) * time.Minute) }
 		sampler.pass(ctx)
 		v := sampler.view()
-		if !v.Cost.CPUKnown || v.Cost.StorageWrites != 1 || len(v.Processes) == 0 {
-			t.Fatalf("incomplete measurement: %+v errors=%v", v.Cost, v.Errors)
+		if !v.Cost.CPUKnown || len(v.Processes) == 0 {
+			t.Fatalf("incomplete measurement: %+v errors=%v (%s)", v.Cost, v.Errors, host)
 		}
 		for _, e := range v.Errors {
 			if strings.Contains(e, "persistence") {
-				t.Fatal(e)
+				t.Fatalf("%s (%s)", e, host)
 			}
 		}
-		sum += v.Cost.CPUTimeNS
-		if v.Cost.CPUTimeNS > maxCPU {
-			maxCPU = v.Cost.CPUTimeNS
+		c := v.Cost
+		// A native read costs at most two calls — procutil charges the read plus the
+		// generation fence that follows it — and no category reads a row more than
+		// once per pass: usage observes selected rows and candidates, which are
+		// disjoint; #606's memo allows one environment read per generation; argv is
+		// read once per nvim candidate and cwd only after an argv read succeeded. A
+		// failed read costs one call, so these are bounds rather than equalities.
+		accounted := c.TableCalls + c.UsageCalls + c.CommandCalls + c.CwdCalls + c.EnvironmentCalls + 2
+		bounds := []workBound{
+			{"native accounting", c.NativeCalls == accounted, fmt.Sprintf("native=%d accounted=%d (table=%d usage=%d command=%d cwd=%d environment=%d self_cpu=2)", c.NativeCalls, accounted, c.TableCalls, c.UsageCalls, c.CommandCalls, c.CwdCalls, c.EnvironmentCalls)},
+			{"table attempts", c.TableCalls <= 6, fmt.Sprintf("table_calls=%d limit=6 (3 attempts x size+read)", c.TableCalls)},
+			{"usage reads", c.UsageCalls <= 2*basis, fmt.Sprintf("usage_calls=%d limit=%d (2 x rows)", c.UsageCalls, 2*basis)},
+			{"environment reads", c.EnvironmentCalls <= 2*basis, fmt.Sprintf("environment_calls=%d limit=%d (2 x rows)", c.EnvironmentCalls, 2*basis)},
+			{"argv reads", c.CommandCalls <= 2*basis, fmt.Sprintf("command_calls=%d limit=%d (2 x rows)", c.CommandCalls, 2*basis)},
+			{"cwd reads", c.CwdCalls <= c.CommandCalls, fmt.Sprintf("cwd_calls=%d command_calls=%d", c.CwdCalls, c.CommandCalls)},
+			{"history writes", c.StorageWrites == 1, fmt.Sprintf("storage_writes=%d", c.StorageWrites)},
+			{"history size", c.StorageBytes >= couchcore.ResourceHistoryLimit-65536 && c.StorageBytes <= couchcore.ResourceHistoryLimit, fmt.Sprintf("storage_bytes=%d limit=%d", c.StorageBytes, couchcore.ResourceHistoryLimit)},
 		}
+		if pass == 0 {
+			// Without this the cold bound passes vacuously if the scan is ever removed.
+			bounds = append(bounds, workBound{"cold environment scan", c.EnvironmentCalls >= 2, fmt.Sprintf("environment_calls=%d", c.EnvironmentCalls)})
+		}
+		for _, b := range bounds {
+			if !b.ok {
+				t.Errorf("pass %d work bound %q exceeded: %s (%s)", pass+1, b.name, b.got, host)
+			}
+		}
+		ratio := float64(c.CPUTimeNS) / float64(writeCPU)
 		info, err := os.Stat(filepath.Join(dir, "resources", "history.json"))
 		if err != nil {
 			t.Fatal(err)
 		}
-		t.Logf("pass=%d table_rows=%d slots=%d owned_processes=%d unattributed=%d orphan_nvim=%d calls=%d table_calls=%d usage_calls=%d command_calls=%d cwd_calls=%d CPU_ms=%.3f wall_ms=%.3f storage_bytes=%d storage_writes=%d history_bytes=%d", pass+1, len(rows), len(v.Slots), len(v.Processes), len(v.Unattributed), len(v.OrphanNvim), v.Cost.NativeCalls, v.Cost.TableCalls, v.Cost.UsageCalls, v.Cost.CommandCalls, v.Cost.CwdCalls, float64(v.Cost.CPUTimeNS)/1e6, float64(v.Cost.WallTime)/1e6, v.Cost.StorageBytes, v.Cost.StorageWrites, info.Size())
+		t.Logf("pass=%d %s slots=%d owned_processes=%d unattributed=%d orphan_nvim=%d calls=%d table_calls=%d usage_calls=%d command_calls=%d cwd_calls=%d environment_calls=%d CPU_ms=%.3f wall_ms=%.3f CPU_per_history_write=%.2f storage_bytes=%d storage_writes=%d history_bytes=%d", pass+1, host, len(v.Slots), len(v.Processes), len(v.Unattributed), len(v.OrphanNvim), c.NativeCalls, c.TableCalls, c.UsageCalls, c.CommandCalls, c.CwdCalls, c.EnvironmentCalls, float64(c.CPUTimeNS)/1e6, float64(c.WallTime)/1e6, ratio, c.StorageBytes, c.StorageWrites, info.Size())
+		if pass == 0 {
+			coldCPU = c.CPUTimeNS
+			continue
+		}
+		steadySum += c.CPUTimeNS
+		steady++
+		if c.CPUTimeNS > steadyMax {
+			steadyMax = c.CPUTimeNS
+		}
+		if ratio > costSteadyRatioK {
+			t.Errorf("steady pass %d CPU %.3fms exceeds %.2fx the same-run history-write baseline %.3fms (%s)", pass+1, float64(c.CPUTimeNS)/1e6, costSteadyRatioK, float64(writeCPU)/1e6, host)
+		}
 	}
-	mean := float64(sum) / 3
-	t.Logf("CPU_mean_ms=%.3f CPU_max_ms=%.3f sixty_second_CPU_pct=%.6f seeded_frames=%d seeded_history_bytes=%d", mean/1e6, float64(maxCPU)/1e6, mean/float64(time.Minute)*100, len(seed.Frames), len(raw))
-	// Revised measured budget: below 0.2% of one core at the default minute cadence.
-	if mean >= float64(120*time.Millisecond) || maxCPU >= uint64(300*time.Millisecond) {
-		t.Errorf("resource CPU budget exceeded: mean=%.3fms max=%.3fms", mean/1e6, float64(maxCPU)/1e6)
+	mean := float64(steadySum) / float64(steady)
+	t.Logf("history_write_baseline_ms=%.3f steady_budget_ms=%.3f cold_pass_CPU_ms=%.3f cold_CPU_per_history_write=%.2f steady_mean_CPU_ms=%.3f steady_max_CPU_ms=%.3f steady_sixty_second_CPU_pct=%.6f %s seeded_frames=%d seeded_history_bytes=%d", float64(writeCPU)/1e6, float64(writeCPU)*costSteadyRatioK/1e6, float64(coldCPU)/1e6, float64(coldCPU)/float64(writeCPU), mean/1e6, float64(steadyMax)/1e6, mean/float64(time.Minute)*100, hostLoadAverage(), len(seed.Frames), len(raw))
+}
+
+// historyWriteCPU is the mean thread CPU of marshaling and saving one near-cap
+// history, measured on this host under this load. It is the steady verdict's
+// denominator: a steady pass performs exactly one such write, so the ratio answers
+// "how much more than the write does a pass cost", which is the one CPU question
+// whose answer does not move with fleet load (#644). Its own store keeps the
+// baseline out of the fixture's history.
+func historyWriteCPU(t *testing.T, ctx context.Context, reader procutil.NativeResourceReader, store couchcore.ResourceHistoryStore, seed couchcore.ResourceHistory) uint64 {
+	t.Helper()
+	const reps = 3
+	var total uint64
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	for range reps {
+		start, _, err := reader.SelfCPU(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		raw, err := json.Marshal(seed)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := store.Save(raw); err != nil {
+			t.Fatal(err)
+		}
+		end, _, err := reader.SelfCPU(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if end < start {
+			t.Fatalf("self CPU counter moved backwards: %d < %d", end, start)
+		}
+		total += end - start
 	}
+	if total/reps == 0 {
+		t.Fatalf("history-write baseline measured no CPU over %d reps; the steady ratio would be vacuous", reps)
+	}
+	return total / reps
 }
 
 func TestResourceSamplerHistoryFailureDoesNotGateAdvisoryAlerts(t *testing.T) {

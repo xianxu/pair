@@ -146,6 +146,10 @@ func (c *Console) finishMenuRefresh(result menuRefreshResult) {
 	if cancelActivity != nil {
 		cancelActivity()
 	}
+	if result.err == nil {
+		c.observeLifecycleInventory(result.inventory)
+	}
+	c.observeLifecyclePass()
 	landed := "rows=" + strconv.Itoa(len(result.inventory))
 	if cancelPass != nil {
 		cancelPass()

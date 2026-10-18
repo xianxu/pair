@@ -42,7 +42,16 @@ they are not latency assertions. `make test` also runs them without a special fl
   to the real menu reducer. It actually parses 600 MB cold, then measures every
   warm pass independently. One owner mutation performs owner-local work, followed
   by another zero-work pass.
-- Hosted production title/activity work is covered by `TestCouchTitlesOSProjectionToScopedCommand` (warm native read/decode and external-command counts) and `TestCouchTitlesRetainedHeap1000Ticks` (fixed live fleet with generation turnover, bounded retained heap and no stable-title writes). Its combined pass replaces the compatibility native activity scan.
+- Hosted production title/activity work is covered by `TestCouchTitlesOSProjectionToScopedCommand` (warm native read/decode and external-command counts) and `TestCouchTitlesRetainedHeap1000Ticks` (fixed live fleet with generation turnover, bounded retained heap and no stable-title writes). Its combined pass replaces the compatibility native activity scan and uses a single 2s budget for the hosted fleet pass, rather than the per-row compatibility timeout below.
+- Each compatibility idle-tick probe is bounded per row by `activityProbeTimeout` (2s),
+  defaulted once in `Console.New` through the unexported `probeTimeout` field
+  (#628). A row that overruns its bound surfaces as failed rather than being
+  dropped: a cold row then carries no activity until a healthy pass, an
+  established row keeps its previous evidence (the fade must not flicker to
+  unknown), and the next healthy pass recovers it. #626 bounds the framing cost
+  that historically drove such overruns;
+  `TestActivityProbeDeadlineSurfacesFailureAndRecovers` pins the outcome at the
+  Console seam without touching the production bound.
 - `TestWorkbenchPerformanceMessageUnchangedEvidence` uses the production
   recorded-authority adapter and the existing socket-service fixture. Every send
   must reach its endpoint and a submitted receipt before measurement. Index

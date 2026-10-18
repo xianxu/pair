@@ -128,7 +128,11 @@ type Console struct {
 	// and the asynchronous operation-completion channel. Marks are counted per
 	// owner (pair#205), so an operation that undoes its own mark never removes
 	// one that another operation set on the same pane.
-	expectedExits exitMarks
+	expectedExits     exitMarks
+	lifecycleObserver func(LifecycleObservation)
+	lifecycleSequence uint64
+	lifecyclePassDone bool
+	lifecycleNeeds    map[string]bool
 
 	// Run orders product input, output notifications, and focus transitions.
 	// Presenter alone owns the host writer.
@@ -223,10 +227,16 @@ type Console struct {
 	activityRowsKnown      bool
 	wrapperActivity        func(couchcore.ActionableThreadSummary) time.Time
 	copyObserver           func(CopyObservation)
+	copyKeyObserver        func(CopyKeyObservation)
 	activityRequests       chan struct{}
 	activityResults        chan activityResult
 	activitySchedule       RefreshSchedule
 	activityInterval       time.Duration
+	// Per-probe bound from console_activity.go; the New default is the package
+	// const and tests shrink it to exercise the deadline path (#628). Only
+	// tests write it, before any worker starts; the worker reads it without
+	// c.mu.
+	probeTimeout time.Duration
 	// blockedUpdates carries the latest picker set (pair#465); see
 	// SetBlockedThreads.
 	blockedUpdates chan map[couchcore.ThreadAddress]bool
@@ -296,6 +306,7 @@ func New(host hostty.Host, stdin io.Reader) *Console {
 		activityRequests:    make(chan struct{}, 1),
 		activityResults:     make(chan activityResult, 1),
 		activityInterval:    defaultActivityInterval,
+		probeTimeout:        activityProbeTimeout,
 		blockedUpdates:      make(chan map[couchcore.ThreadAddress]bool, 1),
 		now:                 time.Now,
 		continuationResults: make(chan continuationScanResult, 1),
@@ -1985,6 +1996,7 @@ func (c *Console) finishOperation(completed operationCompletion) bool {
 			}
 		}
 	}
+	c.observeLifecycleCompletion(completed, address, err)
 	event := MenuEvent{
 		Kind: MenuEventOperationResult, Operation: completed.origin.Operation,
 		Attempt: completed.origin.Attempt, Address: address, Success: err == nil,
@@ -2051,6 +2063,7 @@ func (c *Console) finishOperation(completed operationCompletion) bool {
 	panelFocused := c.focus.IsPanel()
 	cancelPass := c.completedReattachPassLocked()
 	c.mu.Unlock()
+	c.observeLifecyclePass()
 	// A completion can start the reattach pass's next attempt (pair#206).
 	if cancelPass != nil {
 		cancelPass()

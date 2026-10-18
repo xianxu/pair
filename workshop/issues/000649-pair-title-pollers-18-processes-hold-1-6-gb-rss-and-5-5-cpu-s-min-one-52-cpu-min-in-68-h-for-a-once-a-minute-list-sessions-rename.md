@@ -155,3 +155,9 @@ New updater-level OS-seam test TestCouchTitlesOSRecoversGrowthDuringAdmission de
 ### 2026-10-17 — final #653 classification before landing
 
 Pair:2 delivery 27309298-d874-4e46-9f31-ee87617550cd supersedes its earlier transient classification. Same-launch rebind is a ledger conflict and remains terminal. Only an admission ErrArtifactChanged is retryable, and only when classifyAdmission proves every pre-read baseline artifact is unchanged or same-identity grown, with at least one growth. The baseline is collected before the first validation read (proof artifact list, or Observe+Select for proofless binding); this includes growth inside proof validation fallback on Darwin empty-generation-token files. Owner and tail errors remain terminal. #649 will preserve that exact classification inside next.poll(ctx), together with its cancellation rollback and newest-agent fencing, after confirmed #653 landing. At this observation #653 is codecomplete and not landed; no shared projection edit was made.
+
+### 2026-10-18 — landed dependency integration
+
+Hub and pair:2 confirmed #653 landed as PR 415, merge a5c7ae6f718c90172911fe6e39a5aba923b158b0; Git verified that commit and origin/main 3851b7338ff107d9b676d1db4eda7c7f21a2aa62. Integrated main with classifyAdmission/baseline-before-first-read inside next.poll(ctx), retaining cancellation rollback and newest-owner/agent fences. Console conflicts preserve incoming per-row probeTimeout, copy-key and lifecycle observations alongside the hosted combined pass.
+
+TestCouchTitlesOSRecoversGrowthDuringAdmission is now GREEN. Focused TitleProjection/CurrentTitle/updater-growth tests passed in sessioninventory and couchcmd; Console TitleActivity/Activity/deadline/Lifecycle/CopyKey tests passed. Affected-package and race checks are running; recorded suite remains required on the pushed integrated head. No live rollout or AFTER fleet result is claimed.

@@ -6,7 +6,7 @@ collaboration-mode: discussion
 
 > **For agentic workers:** Consult AGENTS.md Section 3 (Subagent Strategy) to choose subagent-driven development or execution in the current session. Steps use checkboxes for tracking.
 
-**Status:** Waiting for landed #653; updater growth-recovery regression is RED. Recorded suite and close review follow integration. Live conformance deferred by TL to the next operator restart; no staging.
+**Status:** Landed #653 integrated; updater growth-recovery regression is GREEN. Affected-package/race verification, recorded suite and close review follow integration. Live conformance deferred by TL to the next operator restart; no staging.
 
 **Goal:** Couch-hosted Pair starts no per-slot title process; Couch updates titles from its existing inventory and activity refreshes, preserving standalone behavior, ownership and fading.
 
@@ -129,8 +129,8 @@ Files under cmd/internal/: new couchcmd/titles.go and titles_test.go; couchcmd/r
 
 ### Dependency checkpoint: #653
 
-- [ ] Wait for pair:2 to land #653 on main. No projection edit or unlanded stacking before that handoff.
-- [ ] Merge landed main into this branch, preserving #653 narrow transient recovery and #649 PollContext transaction/cancellation plus newest-owner fencing. Notify pair:2 before resolving the shared file.
+- [x] Wait for pair:2 to land #653 on main. No projection edit or unlanded stacking before that handoff.
+- [x] Merge landed main into this branch, preserving #653 narrow transient recovery and #649 PollContext transaction/cancellation plus newest-owner fencing. Notify pair:2 before resolving the shared file.
 - [ ] Make TestCouchTitlesOSRecoversGrowthDuringAdmission GREEN, rerun affected projection/updater/console race families, push the new source head and run the recorded suite there. The canceled pre-dependency run provides no suite evidence.
 
 ### Task 5: Documentation, live evidence and landing
@@ -167,3 +167,5 @@ Full flow approved by TL delivery 798a3ab4-b9da-465f-a516-34c291210e0a; change-c
 - 2026-10-17 — TL added #653 landing dependency and canceled the obsolete queued suite. Pair:2 owns narrow same-identity admission-growth/same-launch rebind recovery. #649 adds OS-seam updater regression, waits for landing, then merges and preserves both recovery and cancellation APIs before re-verifying.
 
 - 2026-10-17 — Final #653 review semantics (pair:2 delivery 27309298-d874-4e46-9f31-ee87617550cd): supersedes earlier same-launch-rebind recovery. Ledger conflict/rebind, owner and tail failures stay terminal. Admission ErrArtifactChanged alone may re-admit when a pre-first-read artifact baseline proves all unchanged/only-grown and at least one grew. Integrate classifyAdmission/baseline into next.poll(ctx) after landing, retaining cancellation transactions; Darwin proof-fallback growth is part of the dependency test surface.
+
+- 2026-10-18 — Integrated origin/main 3851b7338ff107d9b676d1db4eda7c7f21a2aa62 containing landed #653 a5c7ae6f718c90172911fe6e39a5aba923b158b0. classifyAdmission and pre-read baseline now run inside next.poll(ctx), preserving cancellation rollback and owner-wide newest-agent fencing. Kept incoming Console deadline, copy-key and lifecycle behavior alongside hosted activity passes. Updater growth regression and focused projection/current-owner tests passed; broader package/race and recorded suite remain pending.

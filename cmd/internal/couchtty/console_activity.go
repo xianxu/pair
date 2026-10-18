@@ -146,7 +146,7 @@ func (c *Console) advanceActivity(event RefreshScheduleEvent) {
 			defer c.workers.Done()
 			defer passCancel()
 			result := activityResult{generation: generation, rowsGeneration: rowsGeneration, observed: map[couchcore.ThreadAddress]time.Time{}, failed: map[couchcore.ThreadAddress]bool{}}
-			if pass != nil && rowsKnown {
+			if pass != nil && rowsKnown && c.lifetime.Err() == nil {
 				result.observed, result.failed = pass(passContext, rows)
 				if result.observed == nil {
 					result.observed = map[couchcore.ThreadAddress]time.Time{}
@@ -156,9 +156,13 @@ func (c *Console) advanceActivity(event RefreshScheduleEvent) {
 				}
 			}
 			for _, row := range rows {
+				if c.lifetime.Err() != nil {
+					result.failed[row.Address] = true
+					continue
+				}
 				at, failed := result.observed[row.Address], result.failed[row.Address]
 				if pass == nil {
-					ctx, cancel := context.WithTimeout(c.lifetime, activityProbeTimeout)
+					ctx, cancel := context.WithTimeout(c.lifetime, c.probeTimeout)
 					if probe == nil {
 						failed = true
 					} else {

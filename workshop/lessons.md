@@ -2166,7 +2166,53 @@ and external temporary roots rather than relying on the host's TMPDIR.
   with a process gate and retain stderr rather than relying only on sleep offsets.
 
 - Chunked JSONL framing must not search a retained newline-free prefix again on each append. Count actual delimiter bytes examined across multi-chunk records, alongside semantic boundary/limit tests; read/decode counters alone miss quadratic delimiter work. Preserve per-probe progress when diagnosing aggregate worker timeouts. (#626)
+- #620: Derive an integration fixture's completion bound from the product phases
+  it actually runs, including allowed serial IO and in-flight work. A short
+  aggregate wait can reject successful bounded calls; prove that ordering with
+  controlled latency and retain a publication-failure negative control.
 
+- A composite-literal realignment is where initializers get silently dropped.
+  When a rename for gofmt alignment touches a constructor literal, grep every
+  field's initializer and pin each constructor default with its own assertion;
+  the feature test that sets the field explicitly cannot see a missing default.
+  (#628)
+
+- A non-positive `context.WithTimeout` bound returns an already-cancelled
+  context: Go cancels synchronously when the deadline has already passed
+  (context.go cancels when `dur <= 0`), so every probe fails deterministically
+  on any machine, loaded or not. When evidence seems to contradict that
+  mechanism, doubt the record first: the "green at the broken head" was a
+  misattributed head, not a won race — inventing a scheduling story to
+  reconcile the two was the real error. (#628)
+
+- Under `go test -timeout`, a wait bounded by the test deadline consumes the
+  package budget and cascades: every later failure is instant with a shrinking
+  budget (remaining/2 margin). Diagnose the FIRST failure and its duration; the
+  rest is aftermath. For a mid-hang goroutine dump, SIGQUIT the test binary
+  (the package alarm fires only after testwait's margin lets the test exit);
+  stack dumps miss sub-millisecond workers, so dump state (schedules, channel
+  depths, probe outcomes) from inside a diagnostic test. (#628)
+
+- #648: Batch a held receiver's queue at the input owner's readiness point,
+  then freeze membership before the first write. Admission-time concatenation
+  misses arrivals during the busy turn; per-envelope turn logging breaks exact
+  transcript correlation. Retain original receipt IDs while recording the one
+  combined turn, and test recovery of a follower through the real socket path.
+- #646: Shortcut verification must exercise the terminal decoder and routing boundary with both legacy and enhanced wire input. Calling the action handler directly can prove clipboard IO while missing the unsupported key encoding that prevents the handler from running. Keep a content-free arrival observation separate from operation outcome when diagnosing this boundary.
+- #622 M2 trailer audit: keep Agent and Co-Authored-By in the same final commit-message paragraph. A blank line before Co-Authored-By makes Git exclude the earlier Agent line from its trailer block. Verify with git log --format="%(trailers:only)" before publishing; preserve already-reviewed historical commits rather than rewriting measurement provenance.
 - A readiness counter contract needs a stateful test through the actual readiness decision, not only isolated zero/one counts. Cover unchanged observations before growth and show that both equality-accepting and never-accepting mutations fail, especially when native acceptance is deferred. (#645 BR-1)
 
 - #649 PQ-1: Read the full issue body before writing its plan: sdlc issue show prints section headings without the requirements beneath them. When replacing a mechanism, reconcile every old Done-when obligation explicitly; a revised Spec does not supersede acceptance text left unchanged.
+- #653: To make an error class transient, classify it once, at the boundary, against a baseline taken before the first read. Don't add checks at each site you know about. The validator under the boundary has its own read paths: here, the empty-generation-token fallback re-read the whole file. A per-site check misses them, and only a baseline compared after the failure covers every path. Mutation-check each piece of the rule (classifier, each baseline branch) with fixtures shaped like production: a stale proof, an empty token, a proofless binding.
+
+- #648 BR-1: A new user-facing configuration variable needs README documentation as well as atlas and agent protocol text. Before close, check scope, units, default, accepted range, invalid-value behavior and compatibility against the parser and rollout policy.
+
+- #652 PQ-1: Before submitting a plan-quality gate, replace edge-case inventories with one named-function adversarial-input strategy and independent mechanical guard per risky function. Retain concrete acceptance regressions as anchors; inventories alone repeat the #648 planning failure.
+
+- #623: A fixture's artificial child sleep spends the product's real process deadline. To test delayed observation delivery, hold the completed result at a test-only callback seam; keep native deadlines and timeout failures unchanged. Synchronize on start/result/release/application facts rather than settlement sleeps.
+- #623: Arming asynchronous work and reading its ID in separate RPCs creates a gap in which the work can already start. Capture the pre-arm ID and arm atomically; force a start inside that RPC in the regression, rather than hoping host load selects the race.
+- #655: A timer-boundary regression must assert which operation is measured, not certify host speed. Use virtual time across varied setup and command durations, retain the shipped-binary smoke without a fixed ceiling, and prove a subprocess-clock mutation fails.
+
+- #574 plan/implementation: adding trusted provenance to a message requires checking every retained-receipt import, not only caller admission and rendering. A wrapper-only record cannot grant server origin after restart. Current Slots state keys by the stable slot across Fresh addresses; cancellation of a frozen but unstarted publication must feed its known-no-write outcome back to the reducer, or replacement leaves the slot blocked.
+- #574 close BR-1/BR-2: a shared result type does not identify the completed recovery mode, and a cached inventory row can predate an adopted agent switch. Carry the actual typed outcome at every successful producer and prefer completion-owned metadata in projections. Test all successful constructors and final completion paths with empty/conflicting cached metadata; presentation strings and requested mode are not outcome evidence.
+- #574 close BR-3: a pending informational projection needs an explicit ownership-move rule. Prefer the successful move producer and the existing admission/effect gate over polling or migrating old history. Dropping pending information must preserve the restart barrier and exact admitted receipts; fence extracted jobs as well as queued jobs. Tell the new owner to resnapshot Slots and prove before-drain, frozen, admitted and uncertain cases with two stateful receivers.

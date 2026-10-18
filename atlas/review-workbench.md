@@ -358,6 +358,23 @@ persistent agent's recognition and round-trip behavior.
   includes both observations before editor teardown; setting the fixture's
   `PAIR_TEST_OBSERVATION_REPORT` retains a successful probe report too. This
   instrumentation changes no production resolver deadline or admission rule.
+  `tests/lib/review_observation_gate.lua` (#623) controls only delivery of an
+  already-completed real asynchronous resolver result. Fixture phases capture
+  their ID boundary atomically with arming, then retain start, result, release,
+  settled and byte-application evidence. No artificial child sleep spends the
+  native 2500ms resolver budget. The gate retains at most one held result,
+  bounds metadata to32 entries and discards callbacks on editor teardown;
+  timeout results pass through unchanged. Its lifecycle and forced arm-order
+  tests run through the diagnostics command in the normal suite. There is no
+  production hook.
+- `review-branch-restore-diagnostics-test.py` (#620) exercises the complete
+  branch fixture with slow successful real resolver calls and a refused landed
+  publication. Acknowledgment waiting derives its bound from the observed
+  resolver deadline: five authorization/save phases, one possible prior
+  in-flight admission, plus one second for polling/publication/observation
+  (currently 16 seconds). Completion still requires the landed artifact and
+  the existing context, CRLF/BOM and recovery assertions. The reused observation
+  trace and bounded pane/log evidence explain failures before editor teardown.
 
 Review marker navigation is buffer-local and normal-mode only. Couch's existing
 client-focus probe recognizes the review role and forwards Alt+n unchanged;
