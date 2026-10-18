@@ -19,12 +19,40 @@ import (
 
 func transportSocket(t *testing.T) string {
 	t.Helper()
-	root, err := os.MkdirTemp("", "pmt-")
+	//lint:allow tmp-literal — cleanup fixtures replace rpc.sock with production wrapper/PID/hash names, which must fit the macOS Unix socket limit even with a long TMPDIR
+	root, err := os.MkdirTemp("/tmp", "pmt-")
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { os.RemoveAll(root) })
 	return filepath.Join(root, "rpc.sock")
+}
+
+func TestTransportSocketRootFitsDerivedEndpointWithLongTMPDIR(t *testing.T) {
+	longRoot := filepath.Join(t.TempDir(), strings.Repeat("long", 30))
+	if err := os.MkdirAll(longRoot, 0700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("TMPDIR", longRoot)
+	for _, pid := range []int{os.Getpid(), 2147483647} {
+		binding := protocolBinding("pair:0")
+		binding.PID = pid
+		endpoint, err := EndpointSocket("/test", binding)
+		if err != nil {
+			t.Fatal(err)
+		}
+		// Cleanup fixtures reuse this directory with the real owner/hash leaf.
+		socket := filepath.Join(filepath.Dir(transportSocket(t)), filepath.Base(endpoint))
+		server, err := StartServer(context.Background(), socket, socketCleanupEcho)
+		if err != nil {
+			t.Fatalf("derived endpoint for PID %d (%d bytes): %v", pid, len(socket), err)
+		}
+		t.Cleanup(func() {
+			if err := server.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+	}
 }
 
 func TestTransportRoundTripAndStrictDecode(t *testing.T) {

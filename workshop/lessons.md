@@ -7,6 +7,8 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- When migrating a temporary root, inspect every helper consumer, including ones that reuse its directory with a longer generated basename. Budget the complete native socket address and qualify the entire affected package under the OS's normal TMPDIR; a focused helper-name regex can omit the consumers that break. (#665 R8)
+
 - Ordinary Go files in test-helper packages still belong to the exhaustive production-source inventory. Classify every new file, including build-tag variants, and keep auxiliary scratch names outside reserved artifact prefixes; do not quarantine a missing inventory entry as a known violation. (#658)
 
 - Adding diagnostic pipes changes subprocess completion: a detached child can hold stderr after a successful tool exit. Separate process success from diagnostic-drain cutoff, retain capture uncertainty, and test inherited descriptors behind a release handshake. (#638)

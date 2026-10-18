@@ -158,6 +158,12 @@ Completed attempt424b1a764482d2a7f173b58dbd4484d5 failed only couchmessage: Test
 
 R8 audits the complete24-site migration and finds one missed derived-address class: transportSocket's consumers swap its short leaf for wrapper/PID/hash filenames, exceeding the native budget. Earlier targeted tests omitted TestSocket, so that qualification was incomplete. Authenticated hub7bd277bb approves the owned short-root correction, long-TMPDIR real-derived-endpoint regression, full package qualification and one additional M1 milestone-close round. WF_BOUNDARY_ROUND_CAP=4 is authorized for that one command only to review this post-SHIP test-fixture regression caught by the suite; no review skip or --no-judge. After that review, run a new-head recorded suite before landing. No M2 code starts meanwhile.
 
+### 2026-10-18 — R8 qualified before the extra review
+
+R8 passed change-code plan-quality (round5; no open findings). New TestTransportSocketRootFitsDerivedEndpointWithLongTMPDIR fails against the broken helper with a313-byte derived endpoint, then passes after restoring the owned short root. It binds actual production-derived wrapper/hash socket names for both the test PID and a ten-digit PID, closes servers before removing their roots, and touches no production rendezvous directory. Logs /tmp/pair665-m1-derived-endpoint-regression-red.log and /tmp/pair665-m1-derived-endpoint-focused-green.log.
+
+All socket-cleanup cases plus the new regression PASS0.177s. Entire couchmessage package under ordinary Darwin TMPDIR PASS26.931s, race PASS30.411s; ordinary catalog PASS2.927s over2559sources/five rules/100sleep sites. Logs /tmp/pair665-m1-couchmessage-full-{green,race-green}.log and /tmp/pair665-m1-r8-catalog-green.log. No deadline/protocol/native changes. The complete consumer audit changes path disposition to23repairs/16precise exceptions. The extra M1 review and corrected-head recorded suite remain required; the failed suite is retained as failure.
+
 ## Revisions
 
 ### 2026-10-18 — R1: two approved milestones

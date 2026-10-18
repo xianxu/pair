@@ -64,6 +64,11 @@ locally with `go test ./internal/repolint -count=1 -v`.
 
 ## Test fixtures
 
+Socket-root exceptions budget the full address each consumer derives. The
+couchmessage transport fixture keeps an owned short root because cleanup
+consumers replace its RPC leaf with production wrapper/PID/hash names; a
+long-TMPDIR regression binds those actual derived endpoints.
+
 Timing regressions drive the event under test after readiness: registration
 budgets, lock contention, recorder drain timeout and Chrome's last-page grace
 have private controllable seams with unchanged production defaults. A negative
