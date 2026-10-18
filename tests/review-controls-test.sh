@@ -10,6 +10,7 @@ export REVIEW_TEST_ROOT="$RT" PAIR_HOME="$ROOT" PAIR_TAG=test
 for seam in OPEN MODE TARGET CONTEXT HANDOFF LANDED DEFINITION_REQUEST DEFINITION_RESULT; do
   export "PAIR_REVIEW_${seam}_PATH=$RT/$seam"
 done
+export ZELLIJ_PANE_ID=9 ZELLIJ_SESSION_NAME=fixture-review
 mkdir "$RT/bin"
 cat > "$RT/bin/zellij" <<'PY'
 #!/usr/bin/env python3
@@ -19,8 +20,8 @@ p=Path(os.environ['REVIEW_TEST_ROOT'])/'host.json'
 s=json.loads(p.read_text())
 a=sys.argv[1:]
 if a[:2] == ['action','list-panes']:
-    print(json.dumps({'panes': [dict(id=4,is_plugin=False,is_floating=False,title='terminal',terminal_command='/bin/pair term'),dict(id=7,is_plugin=False,is_floating=False,title='codex',terminal_command='/bin/pair wrap --agent codex'),dict(id=3,is_plugin=False,is_floating=False,title='draft',terminal_command='/pair/nvim/init.lua nvim'),dict(id=9,is_plugin=False,is_floating=True,title='review')]}))
-elif a == ['action','hide-floating-panes']: s['visible']=False
+    print(json.dumps([dict(id=4, tab_id=2, tab_position=1, is_fullscreen=False, is_focused=False,is_plugin=False,is_floating=False,title='terminal',terminal_command='/bin/pair term'),dict(id=7, tab_id=2, tab_position=1, is_fullscreen=False, is_focused=False,is_plugin=False,is_floating=False,title='codex',terminal_command='/bin/pair wrap --agent codex'),dict(id=3, tab_id=2, tab_position=1, is_fullscreen=False, is_focused=False,is_plugin=False,is_floating=False,title='draft',terminal_command='nvim -u /pair/nvim/init.lua draft.md'),dict(id=9, tab_id=2, tab_position=1, is_fullscreen=False, is_focused=True,is_plugin=False,is_floating=True,title='review',terminal_command='nvim -u /pair/nvim/review.lua review.md')]))
+elif a == ['action','hide-floating-panes','--tab-id','2']: s['visible']=False
 elif a[:2] == ['action','focus-pane-id']:
     assert not s['visible'], 'hide before focus'
     s['focused']=int(a[2])

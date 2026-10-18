@@ -16,12 +16,12 @@ RESULT="$RT/result.txt"; ZLOG="$RT/zlog.txt"; : > "$ZLOG"
 
 # reordered panes: unrelated right terminal precedes agent (id 7, tiled, "claude"), draft (id 3), review (id 9, floating, focused)
 cat > "$RT/panes.json" <<'JSON'
-{"tab_one":{"panes":[
-  {"id":4,"is_plugin":false,"is_floating":false,"is_focused":false,"title":"terminal","terminal_command":"/bin/pair term"},
-  {"id":7,"is_plugin":false,"is_floating":false,"is_focused":false,"title":"claude","terminal_command":"/bin/pair wrap --agent claude"},
-  {"id":3,"is_plugin":false,"is_floating":false,"is_focused":false,"title":"draft"},
-  {"id":9,"is_plugin":false,"is_floating":true,"is_focused":true,"title":"review"}
-]}}
+[
+  {"id":4,"tab_id":2,"tab_position":1,"is_fullscreen":false,"is_plugin":false,"is_floating":false,"is_focused":false,"title":"terminal","terminal_command":"/bin/pair term"},
+  {"id":7,"tab_id":2,"tab_position":1,"is_fullscreen":false,"is_plugin":false,"is_floating":false,"is_focused":false,"title":"claude","terminal_command":"/bin/pair wrap --agent claude"},
+  {"id":3,"tab_id":2,"tab_position":1,"is_fullscreen":false,"is_plugin":false,"is_floating":false,"is_focused":false,"title":"draft","terminal_command":"nvim -u /p/nvim/init.lua draft.md"},
+  {"id":9,"tab_id":2,"tab_position":1,"is_fullscreen":false,"is_plugin":false,"is_floating":true,"is_focused":true,"title":"review","terminal_command":"nvim -u /p/nvim/review.lua review.md"}
+]
 JSON
 
 mkdir -p "$RT/bin"
@@ -48,7 +48,7 @@ poke.send('updated, please review foo.md')
 OUT:write('sent\n'); OUT:close()
 LUA
 
-PATH="$RT/bin:$PATH" PAIR_ROOT="$ROOT" RESULT="$RESULT" PAIR_DATA_DIR="$RT" PAIR_TAG=poke \
+PATH="$RT/bin:$PATH" PAIR_ROOT="$ROOT" RESULT="$RESULT" PAIR_DATA_DIR="$RT" PAIR_TAG=poke ZELLIJ_PANE_ID=9 \
   PAIR_ZELLIJ_ACTIONS_PATH="$RT/zellij-actions-poke.jsonl" \
   run_headless --timeout 30 -- nvim --headless -u NONE -c "luafile $RT/driver.lua" -c 'qa!'
 

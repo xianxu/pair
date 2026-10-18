@@ -10,6 +10,7 @@ export OVERLAY_TEST_ROOT="$RT" PAIR_HOME="$ROOT" PAIR_TAG=test
 export PAIR_SCROLLBACK_PENDING_PATH="$RT/pending.md"
 export PAIR_DRAFT_PANE_PATH="$RT/no-cached-draft" PAIR_NVIM_PID_FILE="$RT/viewer.pid"
 export PAIR_RETENTION_PROTOCOL=0 PAIR_CHANGELOG_LOG=''
+export ZELLIJ_PANE_ID=11 ZELLIJ_SESSION_NAME=fixture-review
 mkdir "$RT/bin"
 cat > "$RT/bin/zellij" <<'PY'
 #!/usr/bin/env python3
@@ -21,12 +22,12 @@ s = json.loads(p.read_text())
 a = sys.argv[1:]
 if a[:2] == ['action', 'list-panes']:
     assert '--command' in a, 'draft discovery requires command metadata'
-    print(json.dumps({'panes': [
-        dict(id=7, is_plugin=False, is_floating=False, title='agent', terminal_command='/bin/pair wrap'),
-        dict(id=3, is_plugin=False, is_floating=False, title='draft', terminal_command='/pair/bin/nvim -u /pair/nvim/init.lua draft.md'),
-        dict(id=9, is_plugin=False, is_floating=True, title='review'),
-        dict(id=11, is_plugin=False, is_floating=True, title='viewer')]}))
-elif a == ['action', 'hide-floating-panes']:
+    print(json.dumps([
+        dict(id=7, tab_id=2, tab_position=1, is_fullscreen=False, is_focused=False, is_plugin=False, is_floating=False, title='agent', terminal_command='/bin/pair wrap'),
+        dict(id=3, tab_id=2, tab_position=1, is_fullscreen=False, is_focused=False, is_plugin=False, is_floating=False, title='draft', terminal_command='/pair/bin/nvim -u /pair/nvim/init.lua draft.md'),
+        dict(id=9, tab_id=2, tab_position=1, is_fullscreen=False, is_focused=False, is_plugin=False, is_floating=True, title='review',terminal_command='nvim -u /pair/nvim/review.lua review.md'),
+        dict(id=11, tab_id=2, tab_position=1, is_fullscreen=False, is_focused=True, is_plugin=False, is_floating=True, title='viewer',terminal_command='nvim -u /pair/nvim/scrollback.lua')]))
+elif a == ['action', 'hide-floating-panes', '--tab-id', '2']:
     s['visible'] = False
     s['events'].append('hide')
 elif a[:2] == ['action', 'focus-pane-id']:

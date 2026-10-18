@@ -54,9 +54,13 @@ elif args[:2]==['action','hide-floating-panes']:(state/'visible').write_text('fa
 elif args[:2]==['action','are-floating-panes-visible']:
     visible=(state/'visible').read_text();print(visible);sys.exit(0 if visible=='true' else 1)
 elif args[:2]==['action','list-panes']:
-    print(json.dumps({'panes':[{'id':3,'terminal_command':'nvim -u '+os.environ['PAIR_HOME']+'/nvim/init.lua'},
-                              {'id':42,'terminal_command':'nvim -u '+os.environ['PAIR_HOME']+'/nvim/review.lua'},
-                              {'id':4,'is_floating':False,'is_plugin':False,'terminal_command':'pair wrap'}]}))
+    panes=[{'id':3,'terminal_command':'nvim -u '+os.environ['PAIR_HOME']+'/nvim/init.lua'},
+           {'id':42,'terminal_command':'nvim -u '+os.environ['PAIR_HOME']+'/nvim/review.lua'},
+           {'id':4,'terminal_command':'pair wrap'}]
+    for pane in panes:
+        pane.update(is_floating=pane['id']==42,is_plugin=False,is_focused=pane['id']==3,
+                    is_fullscreen=False,tab_id=2,tab_position=1)
+    print(json.dumps(panes))
 ''');fake.chmod(0o700)
     diagnostics=temp/'diagnostics.lua'
     diagnostics.write_text(r'''
@@ -132,7 +136,7 @@ vim.cmd('qa!')
             PAIR_LAYOUT_MODE_PATH=str(data/'layout'),PAIR_ZELLIJ_ACTIONS_PATH=str(data/'actions.jsonl'),
             FAKE_ZELLIJ_STATE=str(data),FAKE_WRONG_SESSION='1' if wrong_session else '0',DRIVER_RESULT=str(data/'result.json'),
             DRIVER_DIAGNOSTICS=str(data/'diagnostics.json'),
-            ZELLIJ_PANE_ID='3',XDG_STATE_HOME=str(data/'xdg-state'),XDG_DATA_HOME=str(data/'xdg-data'),XDG_CACHE_HOME=str(data/'xdg-cache'))
+            ZELLIJ_PANE_ID='3',ZELLIJ_SESSION_NAME='fixture-review',XDG_STATE_HOME=str(data/'xdg-state'),XDG_DATA_HOME=str(data/'xdg-data'),XDG_CACHE_HOME=str(data/'xdg-cache'))
         before=git('rev-parse','HEAD')
         def tail(path):
             if not path.exists():return '<absent>'

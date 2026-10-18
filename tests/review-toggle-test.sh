@@ -35,7 +35,7 @@ cat > "$RT/bin/zellij" <<EOF
 #!/usr/bin/env bash
 printf '%s\n' "\$*" >> "$ZLOG"
 if [ "\$1" = action ] && [ "\$2" = list-panes ]; then
-  printf '%s\n' '{"panes":[{"id":7,"terminal_command":"/bin/pair wrap"},{"id":3,"terminal_command":"nvim -u /pair/nvim/init.lua"}]}'
+  printf '%s\n' '[{"id":7,"is_plugin":false,"is_floating":false,"is_focused":false,"is_fullscreen":false,"tab_id":2,"tab_position":1,"terminal_command":"/bin/pair wrap"},{"id":3,"is_plugin":false,"is_floating":false,"is_focused":true,"is_fullscreen":false,"tab_id":2,"tab_position":1,"terminal_command":"nvim -u /pair/nvim/init.lua"}]'
   exit 0
 fi
 if [ "\$1" = action ] && [ "\$2" = are-floating-panes-visible ]; then
@@ -263,7 +263,7 @@ LUA
 # prompts; an Alt+n resume — same id — would keep its target). (#66 smoke #6.)
 printf '{"file":"/stale/prev.md","status":"ready","session":"oldsid"}\n' > "$RT/review-target-test.json"
 ( cd "$RT" && PATH="$RT/bin:$PATH" \
-    PAIR_DATA_DIR="$RT" PAIR_TAG=test PAIR_AGENT=claude PAIR_HOME="$ROOT" PAIR_SESSION_ID=testsid \
+    PAIR_DATA_DIR="$RT" PAIR_TAG=test PAIR_AGENT=claude PAIR_HOME="$ROOT" PAIR_SESSION_ID=testsid ZELLIJ_PANE_ID=3 ZELLIJ_SESSION_NAME=fixture-review \
     PAIR_DRAFT_PATH="$RT/draft.md" PAIR_LAYOUT_MODE_PATH="$RT/layout-mode-test" \
     PAIR_REVIEW_OPEN_PATH="$RT/review-test.open" PAIR_REVIEW_TARGET_PATH="$RT/review-target-test.json" \
     PAIR_AGENT_CONFIG_PATH="$RT/config-test-claude.json" CODEX_CONFIG="$RT/config-test-codex.json" \

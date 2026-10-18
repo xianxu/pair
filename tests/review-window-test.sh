@@ -13,6 +13,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 . "$ROOT/tests/lib/run-headless.sh"
 RT="$(mktemp -d "${TMPDIR:-/tmp}/pair-window-test.XXXXXX")"
 trap 'rm -rf "$RT"' EXIT
+export ZELLIJ_PANE_ID=9 ZELLIJ_SESSION_NAME=fixture-review
 export PAIR_DRAFT_PATH="$RT/draft.md"
 export PAIR_LAYOUT_MODE_PATH="$RT/layout-mode-test"
 export PAIR_REVIEW_OPEN_PATH="$RT/review-open-test"
@@ -31,11 +32,11 @@ fail() { printf '  FAIL %s\n' "$1"; fails=$((fails + 1)); }
 # stubs: zellij records argv; tput echoes a size
 mkdir -p "$RT/bin"
 cat > "$RT/panes.json" <<'JSON'
-{"t":{"panes":[
-  {"id":7,"is_plugin":false,"is_floating":false,"is_focused":false,"title":"claude","terminal_command":"/bin/pair wrap --agent claude"},
-  {"id":3,"is_plugin":false,"is_floating":false,"is_focused":false,"title":"draft"},
-  {"id":9,"is_plugin":false,"is_floating":true,"is_focused":true,"title":"review"}
-]}}
+[
+  {"id":7,"tab_id":2,"tab_position":1,"is_fullscreen":false,"is_plugin":false,"is_floating":false,"is_focused":false,"title":"claude","terminal_command":"/bin/pair wrap --agent claude"},
+  {"id":3,"tab_id":2,"tab_position":1,"is_fullscreen":false,"is_plugin":false,"is_floating":false,"is_focused":false,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua draft.md"},
+  {"id":9,"tab_id":2,"tab_position":1,"is_fullscreen":false,"is_plugin":false,"is_floating":true,"is_focused":true,"title":"review","terminal_command":"nvim -u /pair/nvim/review.lua review.md"}
+]
 JSON
 cat > "$RT/bin/zellij" <<EOF
 #!/usr/bin/env bash
@@ -193,7 +194,9 @@ local function check()
   if panes_path then
     local pf = io.open(panes_path, 'r'); original_panes = pf and pf:read('*a'); if pf then pf:close() end
     local wf = io.open(panes_path, 'w')
-    wf:write('{"t":{"panes":[{"id":9,"is_plugin":false,"is_floating":true,"is_focused":true,"title":"review"}]}}')
+    local only_review = '[{"id":9,"tab_id":2,"tab_position":1,"is_fullscreen":false,"is_plugin":false,"is_floating":true,"is_focused":true,"title":"review","terminal_command":"nvim -u /pair/nvim/review.lua review.md"}]'
+    assert(#vim.json.decode(only_review) == 1, 'missing-agent control must be a valid native array')
+    wf:write(only_review)
     wf:close()
   end
   pcall(_G.PairReviewPane.finish_human_turn, buf, 'doc.md')
