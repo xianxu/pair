@@ -1,13 +1,21 @@
 ---
 id: 000661
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-18
 updated: 2026-10-18
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: 'db38dd90d938feedaca3935108d63f64ac0ed10c' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '690b17222963021ac13b2b7208df1cc93f66da11' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-18T02:23:24-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:2
+    worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
+    repository: github.com/xianxu/pair
 ---
 
 # S4 one edit path: couch --session-sync apply, derived rounds, and the review pane on apply
@@ -39,7 +47,10 @@ Design: `ops:teams/devinfra/projects/universal-agent-input-interface/design.side
 
 ## Plan
 
-- [ ]
+Durable plan: `workshop/plans/000661-s4-one-edit-path-apply-and-derived-rounds-plan.md`.
+
+- [ ] M1 — Couch: `apply` (atomic resolution, `edits-invalid`), the round derived on every write, the round sidecar in both layouts, `round --json` with `cleared`, the propose converter, and the shared Go/Lua fixtures.
+- [ ] M2 — the review pane on `apply`: register on first apply, the review agent runs `apply`, the pane highlights the round, and nvim apply and reconcile are retired.
 
 ## Log
 
