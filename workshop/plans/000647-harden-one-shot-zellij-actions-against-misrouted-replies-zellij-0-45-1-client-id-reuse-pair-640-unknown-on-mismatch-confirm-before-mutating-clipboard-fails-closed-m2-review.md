@@ -111,3 +111,112 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-17T23:56:23-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 647 — Harden one-shot zellij actions against misrouted replies (zellij 0.45.1 client-ID reuse, pair#640): unknown on mismatch, confirm before mutating, clipboard fails closed |
+| repo | pair |
+| issue file | workshop/issues/000647-harden-one-shot-zellij-actions-against-misrouted-replies-zellij-0-45-1-client-id-reuse-pair-640-unknown-on-mismatch-confirm-before-mutating-clipboard-fails-closed.md |
+| boundary | milestone M2 |
+| milestone | M2 |
+| window | a13b19e43bff90d460caf49c3d07353fb2406661..106554eb937654a2fa75901b248b3d709f762b59 |
+| command | sdlc milestone-close --issue 647 --milestone M2 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-17T23:56:23-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+All four prior findings are addressed, with regression evidence that fails when the relevant correction is removed. One Important defect remains: cosmetic title changes can refuse otherwise valid layout actions, contrary to the plan’s decision-specific comparison contract.
+
+```findings
+dispose:
+  - id: BR-5
+    disposition: addressed
+    note: |
+      Native note enrichment, its wiring, async resolver and setter chain are removed. Broadcast acceptance preserves screen data without native queries; restoring the old composition wiring fails TestCouchCompositionHasNoNativeNoteAdapter. README and atlas document the approved screen-only contract.
+  - id: BR-6
+    disposition: addressed
+    note: |
+      Both sidecar actions use Effect immediately before dispatch, and the manifest covers the enumerated M2 sinks. Disabling the shared cancellation check makes TestSidecarCancellationRefusesEveryTerminalEffect fail for both focus and addressed tab input.
+  - id: BR-7
+    disposition: addressed
+    note: |
+      queryShortcutClients uses zellijexec.Run; the note query is deleted. Replacing the collector with cmd.Run makes TestCouchQueriesCollectOwnedDescendants fail on success, failure, cancellation and pipe-holder completion.
+  - id: BR-8
+    disposition: addressed
+    note: |
+      flashAdmitted schedules reset after every attempted application independently of cancellation. Reintroducing the cancellation return before reset makes TestFlashCancellationStillOwesReset fail with an applied color and no reset.
+findings:
+  - id: new
+    severity: Important
+    kind: defect
+    family: admission-compares-only-decision-facts
+    title: |
+      Cosmetic pane titles can refuse valid layout actions
+    detail: |
+      cmd/internal/layoutcmd/admission.go:55-66 serializes raw Title values into the confirmation projection, including titles whose pane role is already established by terminal_command. A disposable regression through RunToggleFocusedContext passes with stable replies but returns code 1 and ErrMismatch when only pane 2's title changes; excluding that cosmetic field makes it pass. Compare derived role and actual decision facts instead of raw cosmetic titles, preserving title-based role changes where relevant. Add this regression and sweep consumers of the shared helper. ARCH-PURPOSE: the plan explicitly excludes cosmetic titles from admission comparisons.
+```
+
+1. **Strengths**
+
+   - Cancellation protection now covers local-authority fast paths and individual effects, with structural enforcement and behavioral tests.
+   - Query ownership tests independently observe descendant lifetime across four completion paths.
+   - Note enrichment is removed completely, including orphaned helpers; README and atlas explain the resulting contract.
+
+2. **Critical findings**
+
+   None.
+
+3. **Important findings**
+
+   The title comparison above affects the shared admission helper used by layout, terminal fallback and draft routing. Project derived roles and relevant state rather than serializing whole panes.
+
+4. **Minor findings**
+
+   None.
+
+5. **Test coverage notes**
+
+   Full package tests passed for `layoutcmd`, `termcmd`, `draftroute`, `clipcmd` and `zellijreply`. Targeted Couch, broadcast, launcher, wrapper and artifact tests passed, as did focused race tests across all seven M2 packages.
+
+   Disposable mutation checks verified the four dispositions. The additional production-toggle regression reproduced the title defect. Disposable clones were removed; the reviewed checkout remains unchanged. Native qualification was inspected but not rerun.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** shared effect gate and process collector replace duplicated boundary handling.
+   - **ARCH-PURE — pass:** selectors remain separated from runtime IO; new integration glue is classified accordingly.
+   - **ARCH-PURPOSE — flag:** cosmetic comparison violates the promised decision-specific projection.
+   - **ARCH-MOCK — pass:** stateful fixtures exercise production seams and record effects.
+   - **ARCH-CONSTRAINTS — pass:** shared admission budgets and bounded restore traversal remain enforced.
+   - **ARCH-SECURE — pass:** unproven note provenance is removed; malformed or contradictory authority refuses.
+   - **ARCH-ORDER — pass:** cancellation and completed-effect-prefix tests cover controllable ordering.
+   - **ARCH-FUNERAL — pass:** query collection, owed flash cleanup and removal of the async note owner have explicit endings.
+
+7. **Plan revision recommendations**
+
+   Add a `## Revisions` entry recording the projection correction and cosmetic-title regression. Preserve the existing requirement that role, target, tab and relevant state changes still refuse.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"c4d61848-76b4-4f4f-a34b-3cc5750943a9","repository":"github.com/xianxu/pair","issue_id":"000647","recipe":"milestone-review","round":2,"attempt":1,"agent":"codex","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/8bf54d54118d6e0d","reviewed_head":"106554eb937654a2fa75901b248b3d709f762b59","slot":"pair:1","requested_at":"2026-10-18T06:51:59.657606Z"},"phase":"finished","pid":16786,"started_at":"2026-10-18T06:51:59.91283Z","finished_at":"2026-10-18T06:56:01.541884Z","session_id":"01a14dc8-15ee-7842-ab3d-fc5f5f965752","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.427845417s
+head: "106554eb937654a2fa75901b248b3d709f762b59"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
