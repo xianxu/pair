@@ -98,13 +98,14 @@ is not (3.04→3.76), because the cold pass is env-syscall-dominated and syscall
 than the userspace marshal both are divided by. #587's TL ruling already put the admission burst outside
 the binding budget, so the cold pass gets a work bound and a report, not a CPU assertion.
 
-- [ ] **Same-run history-write baseline (new fixture step).** Before the passes: `runtime.LockOSThread`,
+- [x] **Same-run history-write baseline (new fixture step).** Before the passes: `runtime.LockOSThread`,
       then the mean thread CPU of 3 reps of `json.Marshal(seed)` + `Save` into a *second* temp
       `couchcore.ResourceHistoryStore` (so the baseline never touches the fixture's history file),
       bracketed by `reader.SelfCPU`. This is the pass's own dominant userspace cost measured on this host
       under this load: one steady pass writes the near-cap history exactly once (`StorageWrites=1`,
       `StorageBytes≈4.19 MB`). Fatal if the baseline measures 0, which would make the ratio gate vacuous.
-- [ ] **Host state per pass (spec bullet 3).** Read the table once immediately before each pass; its row
+      Landed as `historyWriteCPU` next to the test.
+- [x] **Host state per pass (spec bullet 3).** Read the table once immediately before each pass; its row
       count is the work bounds' basis, and `rows=`/`loadavg=` go into every report line and every failure
       message. Load average comes from a new darwin-tagged test helper
       (`resources_cost_host_darwin_test.go`: `unix.SysctlRaw("vm.loadavg")` — the value is a binary struct,
@@ -112,7 +113,7 @@ the binding budget, so the cold pass gets a work bound and a report, not a CPU a
       stub (`resources_cost_host_other_test.go`) returning `loadavg=unknown`. No exec: the repo's other two
       loadavg readers (`doctor/perf.sh:_loadavg`, `cmd/probes/reattachcost`) shell out to `sysctl`, and a
       fork is the wrong shape inside a cost conformance. Report-only — no gate reads it.
-- [ ] **Work verdict, every pass.** Each bound is derived from the code's own structure, not from a host
+- [x] **Work verdict, every pass.** Each bound is derived from the code's own structure, not from a host
       measurement, so none of them moves with load:
       - `NativeCalls == TableCalls + UsageCalls + CommandCalls + CwdCalls + EnvironmentCalls + 2` — `pass()`
         makes exactly two `SelfCPU` reads and every other native call lands in a category counter, so
@@ -132,14 +133,14 @@ the binding budget, so the cold pass gets a work bound and a report, not a CPU a
         pins the near-cap write the ratio's denominator assumes. Measured 4,190,342-4,193,832.
       - Pass 1 only: `EnvironmentCalls >= 2` — the #606 scan ran; without it the cold work bound would pass
         vacuously if the scan were ever removed.
-- [ ] **Cold verdict (pass 1): work bound plus a report, no CPU assertion (spec bullet 2).** Report `cpu`,
-      `cpu/serialize` and CPU per env read alongside `rows` and `loadavg`. The cold pass's stated bound is
-      the work bound above — **one env read per process generation at 2 native calls each, over at most the
-      table's rows** — which is the number #606's scan now sits under, replacing atlas prose. Its CPU is
-      the load-sensitive quantity by construction (measured +55% across the load step at unchanged call
-      counts), so asserting on it would rebuild the flake; the recorded observations go to the issue and
-      atlas instead.
-- [ ] **Steady verdict (passes 2-3): `CPUTimeNS <= 2.0 x serializeBaseline`, per pass.** K=2.0 derivation:
+- [x] **Cold verdict (pass 1): work bound plus a report, no CPU assertion (spec bullet 2).** Report `cpu`
+      and its ratio to the same-run history write alongside `rows` and `loadavg`. The cold pass's stated
+      bound is the work bound above — **one env read per process generation at 2 native calls each, over at
+      most the table's rows** — which is the number #606's scan now sits under, replacing atlas prose. Its
+      CPU is the load-sensitive quantity by construction (measured +55% across the load step at unchanged
+      call counts), so asserting on it would rebuild the flake; the recorded observations go to this issue
+      and the ratio goes to the report line (hub ruling).
+- [x] **Steady verdict (passes 2-3): `CPUTimeNS <= 2.0 x serializeBaseline`, per pass.** K=2.0 derivation:
       observed steady ratios 1.23/1.25 (loadavg 30.70), 1.15/1.38 (30.92, 12 busy loops), 1.11/1.16
       (34.77) — worst 1.38, so K is 1.45x the worst observation across the measured load spectrum, rounded
       to a statable budget: *a steady pass may not cost more than twice the history write it performs*.
@@ -150,17 +151,20 @@ the binding budget, so the cold pass gets a work bound and a report, not a CPU a
       The steady mean and `sixty_second_cpu_pct` are still reported but no longer asserted: the absolute
       percentage is an observation about this host (measured 0.11-0.14% steady; the old three-pass mean
       that folded in the cold pass measured 0.163% idle and 0.215-0.224% loaded, which is the flap).
-- [ ] **Failure messages name the host state** — `rows`, `loadavg`, and the counters behind the failed
+      Hub approved K=2.0 over the tighter 1.75.
+- [x] **Failure messages name the host state** — `rows`, `loadavg`, and the counters behind the failed
       bound — so a red run reads as either "the host was busy" or "the sampler regressed" without a second
       investigation.
-- [ ] **`atlas/couch.md`.** Rewrite the cost paragraph (today: "averaged 72.438 ms ... below 0.2%, with a
+- [x] **`atlas/couch.md`.** Rewrite the cost paragraph (today: "averaged 72.438 ms ... below 0.2%, with a
       300 ms maximum pass CPU budget") to state the new budget shape — per-pass work bounds plus steady CPU
-      at most 2x the same-run history-write baseline — with the recorded measurements and their loadavg, and
-      the reason the absolute budget was dropped (+55% cold / +32% steady CPU across one load step at
-      unchanged call counts). Amend the #606 paragraph's "about 0.3 s for 1,200 processes" to the measured
-      cold pass (161.8-251.8 ms total; 1,547-1,550 env calls over 1,251-1,276 rows; 0-4 on steady passes)
-      so the atlas paragraph, the gate and the recorded measurement agree.
-- [ ] Delete the scratch diagnostic `cmd/internal/couchcmd/zz_cost_diag_test.go` (uncommitted).
+      at most 2x the same-run history-write baseline — and the reason the absolute budget was dropped, and
+      amend the #606 paragraph's "about 0.3 s for 1,200 processes" to the work bound. Per the hub's
+      ruling the atlas carries the bound and the gate shape only, not measured milliseconds: numbers in
+      prose go stale, so the measurements stay in this issue and the atlas cites it. Done: the stale
+      averages (1.643 ms, 72.438/79.311 ms, 0.120730%, 58 native attempts) and the 0.2%/300 ms budget are
+      gone from `atlas/couch.md`, replaced by the per-category call costs, the work bounds, the same-run
+      ratio, the host-state reporting, and the unchanged "well under 1% of one core" product requirement.
+- [x] Delete the scratch diagnostic `cmd/internal/couchcmd/zz_cost_diag_test.go` (uncommitted).
 - [ ] Verify (done-when): `PAIR_RESOURCE_COST=1 go test ./cmd/internal/couchcmd/ -run
       TestResourceSamplerNativeCost` (a) as-is, (b) under 12 busy loops, (c) while another slot's suite
       runs — same verdict in all three, logs retained; targeted `go test ./cmd/internal/couchcmd/
@@ -238,3 +242,39 @@ What the measurement settled, and two derivations that were wrong first:
 - **darwin load average:** `syscall.Sysctl("vm.loadavg")` returns the raw binary struct, which prints as
   garbage; `syscall.SysctlRaw` does not exist on darwin. `unix.SysctlRaw` with the fixpt/fscale layout
   above works, and `golang.org/x/sys` is already a direct dependency (`go.mod:12`).
+
+Implemented after the hub approved the plan (delivery 7118f0d8) with three rulings: K = 2.0 stays as
+derived; the cold-pass ratio goes in the test's report line but the atlas keeps the work bound only,
+because numbers in prose go stale; no CI follow-up. Landed as `historyWriteCPU` (the same-run baseline),
+`hostLoadAverage` in `resources_cost_host_darwin_test.go` with a `!darwin` stub, the per-pass work bounds
+and the steady ratio gate inside `TestResourceSamplerNativeCost`, and the two `atlas/couch.md` paragraphs.
+Scratch diagnostic deleted.
+
+Verdict on the new gate — three runs of the same code, logs at `/tmp/pair644-new-asloaded.log`,
+`/tmp/pair644-new-burners.log` and `/tmp/pair644-new-fleetload.log`. "Old mean" is what the fixed
+120 ms/300 ms budget would have said about the same three passes:
+
+| run | condition | loadavg (1m) | rows | baseline ms | cold cpu ms (ratio) | steady cpu ms (ratios) | old mean | new verdict |
+|-----|-----------|--------------|------|-------------|---------------------|------------------------|----------|-------------|
+| 1 | as-is | 15.10 | 1266-1267 | 69.817 | 226.846 (3.25) | 77.656 (1.11) / 72.560 (1.04) | 125.687 ms → would fail | PASS |
+| 2 | 12 busy loops | 23.23 | 1263-1266 | 77.197 | 261.870 (3.39) | 90.288 (1.17) / 95.449 (1.24) | 149.202 ms → would fail | PASS |
+| 3 | another slot's sdlc.test shard | 112.12 | 1304-1309 | 78.258 | 291.819 (3.73) | 99.066 (1.27) / 92.093 (1.18) | 160.993 ms → would fail | PASS |
+
+Run 3 is roughly twice the load the filer saw (load ~56), and the verdict did not move: every work bound
+held in all nine passes (native accounting exact, table 2, usage 56, argv/cwd 0, env 1545-1553 cold and
+0-4 steady, one near-cap write of 4,190,350-4,193,832 bytes), and the worst steady ratio across all eight
+measured steady passes to date is 1.38 against K = 2.0.
+
+One more argument for bounding the cold pass by work rather than CPU, from run 1: at loadavg 15.10 with
+1,266 rows its first pass cost 226.846 ms, while the filer's run at load ~14 with 1,270 rows cost
+142.409 ms. That is +59% CPU for +1.3% native calls (1605 vs 1585) at effectively the same load, so the
+cold pass's absolute CPU is not reproducible even at a matched loadavg — memory pressure and what the
+other slots are doing move it too. Its call count is reproducible, which is what the bound now uses.
+
+## Revisions
+
+- 2026-10-17, after the hub's plan approval: the atlas bullet dropped its measured milliseconds. The plan
+  as filed would have put the cold pass's measured CPU range (161.8-251.8 ms) and env-call counts into
+  `atlas/couch.md`; the hub ruled that the atlas keeps the work bound and the gate shape only, since numbers
+  in prose go stale, and that the cold ratio belongs in the test's report line. The measurements stay in
+  this issue's `## Log`, which is where the derivations live. No gate changed.

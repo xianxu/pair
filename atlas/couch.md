@@ -4381,9 +4381,10 @@ withholds a platform binary's environment (`/bin/zsh`), so a silent launchd
 child's direct children answer instead. Zellij servers, agents and embedded
 nvim are never claimed this way; a relaunched thread's leftovers stay subject
 to the orphan and unattributed rules. Each process generation's environment is
-read once (about 0.3 s for 1,200 processes on Couch's first pass, then only new
-processes) and only the two thread keys are kept; the reads show as
-`environment_calls` in the sampler cost.
+read once — two native calls per read, at most one read per table row on the first
+pass and afterwards only for generations the memo has not seen (#644) — and only
+the two thread keys are kept; the reads show as `environment_calls` in the sampler
+cost.
 Known process kinds parented by PID 1 above the RSS floor are shown as
 **unattributed (unproven)**, never acted on. Only candidate classification may
 inspect argv; full command lines are not retained or displayed. Sampling can
@@ -4463,17 +4464,29 @@ Unproven candidates remain report-only.
 
 The displayed cost records attempted native calls, sampler-thread CPU and wall
 time. At most three table size/read attempts plus two self-CPU reads cost eight
-native calls; successful usage with identity fencing adds two per process, plus
-actual candidate-command calls. Sampler-thread CPU excludes concurrent GC and
-other goroutines. A native-reader-only short measurement after bulk conversion
-averaged 1.643 ms (maximum 2.391 ms), or 0.002739% of one core at 60-second
-cadence. Full sampling plus near-cap history persistence (953 frames,
-4,189,412 bytes, 27 usage observations) averaged 72.438 ms across three passes,
-maximum 79.311 ms: 0.120730% of one core per minute. The qualified target is
-below 0.2%, with a 300 ms maximum pass CPU budget; the product requirement is
-well under 1%. This run used 58 native attempts and one history publication
-per pass. Current-pass final CPU is published in the cached view after storage
-completes; its history frame cannot include the completed cost of writing itself.
+native calls; successful usage with identity fencing adds two per process, as does
+a successful environment, argv or cwd read, and a read that fails before its fence
+adds one. Sampler-thread CPU excludes concurrent GC and other goroutines.
+The cost conformance (`TestResourceSamplerNativeCost`, env-gated on
+`PAIR_RESOURCE_COST=1`) gates work rather than wall time (#644). Absolute CPU
+cannot give one verdict on an idle host and on one running the rest of the fleet:
+measured across a wide load range, a pass's native call counts barely moved while
+its CPU moved by tens of percent, which flipped a fixed budget on unchanged code.
+What the conformance asserts instead is load-invariant. Every pass's native calls
+must equal the sum of its per-category counters plus the two self-CPU reads, so no
+native work goes unaccounted; no category may read a row more than once, at two
+native calls per read over at most the table's rows; and each pass writes the
+near-cap history exactly once. The first pass — #606's one-time environment scan,
+the admission burst #587's budget deliberately excluded — is bounded by that work
+alone, and its CPU is reported rather than asserted. Steady passes are gated
+against a baseline taken in the same run: at most twice the thread CPU of the
+history write the pass itself performs. Every pass reports the host state it was
+measured in (table rows and load average) and every failure names it, so a red run
+distinguishes a busy host from a sampler regression without a second
+investigation. The measurements behind each constant are recorded in #644. The
+product requirement is unchanged: well under 1% of one core. Current-pass final CPU
+is published in the cached view after storage completes; its history frame cannot
+include the completed cost of writing itself.
 
 History retains aggregate slot frames and orphan/unattributed summaries for at
 most 24 hours, 1,440 frames and 4 MiB. Only history is persisted, best-effort, with one fixed replacement stage:
