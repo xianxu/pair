@@ -1,13 +1,21 @@
 ---
 id: 000657
-status: open
+status: working
 deps: [pair#574]
 github_issue:
 created: 2026-10-17
-updated: 2026-10-17
+updated: 2026-10-18
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: '9329ea390f72797e50249bf78d365a03b5286802' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'af121bfeee2d3d2d6d896c4ea8dcd1c765f93f7e' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-18T07:05:50-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:2
+    worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Couch reports native agent exit without mistaking attach disconnect
@@ -28,7 +36,14 @@ After #574 lands, extend its lifecycle notices to confirmed native agent exit. E
 
 ## Plan
 
-- [ ]
+Durable plan: `workshop/plans/000657-native-agent-exit-notice-plan.md` (a single pass, one close).
+
+- [ ] couchmessage `native-exit` op plus ID
+- [ ] lifecycle `exited` kind
+- [ ] Couch handler, with stateful negative cases
+- [ ] wrapper report after Wait (self-exit only) plus compatibility
+- [ ] owned-child conformance test
+- [ ] atlas, guards, suite, close
 
 ## Log
 
