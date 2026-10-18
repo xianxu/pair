@@ -1,13 +1,21 @@
 ---
 id: 000655
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-17
 updated: 2026-10-17
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: '7870221fc248b3666a8402da5ca79fbe063507f0' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'a8597de428d063722c7b8d6ad79a9dfd6ff1600c' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-17T17:35:46-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:3
+    worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Flake: hoprttcmd TestSpawnTimerMeasuresTheCommandNotTheHarness fixed 15 ms band fails under machine load
@@ -28,6 +36,8 @@ Make the positive control independent of machine load while still catching the b
 - Compare against a same-run baseline: time a trivial in-process operation, or measure the harness overhead directly, and assert the ratio rather than an absolute ceiling.
 - Or assert on the harness structure (no subprocess clock read) with a fake clock, and keep the live timing only as a soft log.
 
+Selected approach: extract only the command-preparation/run boundary from `spawnRTT` into a shared internal sampler. Keep its existing `time.Now`/`msSince` timer and real `exec.Command(...).Run` adapter. Replace the fixed-band positive control with `testing/synctest`: generated preparation delays (outside the sample) and command durations (inside), exact per-sample durations, invocation order and failure counts. This tests the actual production loop without a machine-speed assumption (ARCH-DRY/PURE/ORDER). Retain a shipped-binary spawn smoke that requires positive, ordered measurements but no absolute latency ceiling. A separate same-run real-command baseline still has scheduling skew; a source-text check would be brittle and weaker than the controlled timer boundary.
+
 ## Done when
 
 - The test can't fail from machine load alone. Checked with a load generator running alongside it, for example 20 parallel `yes > /dev/null` processes.
@@ -35,8 +45,17 @@ Make the positive control independent of machine load while still catching the b
 
 ## Plan
 
-- [ ]
+- [ ] Add the exact virtual-time boundary regression and real-binary smoke; demonstrate timer-around-preparation, omitted-command and external-clock mutants fail.
+- [ ] Run focused/race checks, then a bounded owned load check and recorded full suite; close and land through normal gates.
 
 ## Log
 
 ### 2026-10-17
+
+- Verified dispatch `a9e1b2e9-32c9-4479-bc2c-911d5eae55c8`, claimed before design, and ran start-plan. First attempt refreshed the base binary and refused before starting; reran as directed. Verified retained failure log SHA256 `f1d9586410976a53db635894d2fdb3894b3ada0b30f16338409f627f4cf3113c`: the unmodified command reports median 16.935ms against the fixed 15ms ceiling. The production timer directly surrounds `c.Run`; the faulty inference is the test treating scheduling delay as a clock-process bug.
+- Quick-flow plan: expose a local prepare-to-run function seam, with no public API, new state or global hooks. A deterministic virtual-time fake tracks preparation/run events across samples and failures. Assert exact command-only durations for varied preparation delays, including command durations above the old ceiling. Negative controls move the timer before preparation, omit execution, and replace its clock with a subprocess wall clock. Keep native shipped-binary reachability/output smoke, without speed certification. No runtime behavior, CLI, docs surface, persistent artifact or environment authority change; existing `testpair` owns native binary isolation.
+- Proposed load verification: compile the targeted package test once, then run the deterministic regression repeatedly while 20 owned CPU workers run for at most 3 seconds; a scoped helper terminates and waits for every owned worker on all exits. This is a brief load check, not a timeout increase or passing flake retry. Required full suite remains machine-gated. No operator-environment live smoke or :0 staging applies to this internal measurement-test seam.
+
+## Revisions
+
+- 2026-10-17 — Select virtual-time command-boundary assertions over a relative live baseline: independent scheduling skew can invalidate the latter. Preserve the original failure evidence and both original Done-when requirements; brief owned load check and external-clock negative control remain required. Plan posted before code; awaiting hub response.
