@@ -1,14 +1,10 @@
 package couchcore
 
 import (
-	"go/ast"
-	"go/parser"
-	"go/token"
 	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"testing"
 
@@ -42,149 +38,6 @@ func setupRecoveryLiveEnvironment(t *testing.T) {
 	testpair.ApplyEnvironment(t, home, "TMPDIR=/tmp", "SHELL=/bin/sh",
 		"XDG_CONFIG_HOME="+config, "XDG_DATA_HOME="+data, "XDG_CACHE_HOME="+cache,
 		"XDG_RUNTIME_DIR="+runtime, "ZELLIJ_SOCKET_DIR="+sockets, "ZELLIJ_CONFIG_DIR="+zellijConfig)
-}
-
-// This bounded source guard protects the two actual live entrypoints and the
-// nested helper handoff. The subprocess test above remains the behavior proof.
-func recoveryLiveEnvironmentViolations(sources map[string]string) []string {
-	var violations []string
-	functions := map[string]*ast.FuncDecl{}
-	for name, source := range sources {
-		file, err := parser.ParseFile(token.NewFileSet(), name, source, 0)
-		if err != nil {
-			violations = append(violations, name+": "+err.Error())
-			continue
-		}
-		for _, decl := range file.Decls {
-			if fn, ok := decl.(*ast.FuncDecl); ok {
-				functions[name+":"+fn.Name.Name] = fn
-			}
-		}
-	}
-	hasCall := func(fn *ast.FuncDecl, name string) bool {
-		found := false
-		if fn != nil {
-			ast.Inspect(fn.Body, func(node ast.Node) bool {
-				call, ok := node.(*ast.CallExpr)
-				if ok {
-					id, ok := call.Fun.(*ast.Ident)
-					found = found || (ok && id.Name == name)
-				}
-				return true
-			})
-		}
-		return found
-	}
-	for _, entry := range []string{
-		"recovery_conformance_live_test.go:TestRecoveryRealHelperAndSessionConformanceLive",
-		"park_lifecycle_live_test.go:newRealParkConformance",
-	} {
-		if !hasCall(functions[entry], "setupRecoveryLiveEnvironment") {
-			violations = append(violations, entry+": missing private environment setup")
-		}
-	}
-	child := functions["park_lifecycle_live_test.go:startParkLifecycleHelper"]
-	propagated := false
-	if child != nil {
-		ast.Inspect(child.Body, func(node ast.Node) bool {
-			assign, ok := node.(*ast.AssignStmt)
-			if !ok || len(assign.Lhs) != 1 || len(assign.Rhs) != 1 {
-				return true
-			}
-			field, ok := assign.Lhs[0].(*ast.SelectorExpr)
-			if !ok || field.Sel.Name != "Env" {
-				return true
-			}
-			command, ok := field.X.(*ast.Ident)
-			if !ok || command.Name != "cmd" {
-				return true
-			}
-			call, ok := assign.Rhs[0].(*ast.CallExpr)
-			if ok {
-				name, ok := call.Fun.(*ast.Ident)
-				propagated = ok && name.Name == "recoveryLiveChildEnvironment"
-			}
-			return true
-		})
-	}
-	if !propagated {
-		violations = append(violations, "startParkLifecycleHelper: missing explicit child environment handoff")
-	}
-	reads := map[string]bool{}
-	if fn := functions["recovery_live_environment_test.go:recoveryLiveChildEnvironment"]; fn != nil {
-		ast.Inspect(fn.Body, func(node ast.Node) bool {
-			call, ok := node.(*ast.CallExpr)
-			if !ok || len(call.Args) != 1 {
-				return true
-			}
-			selector, ok := call.Fun.(*ast.SelectorExpr)
-			if !ok || selector.Sel.Name != "Getenv" {
-				return true
-			}
-			pkg, ok := selector.X.(*ast.Ident)
-			if !ok || pkg.Name != "os" {
-				return true
-			}
-			if literal, ok := call.Args[0].(*ast.BasicLit); ok {
-				key, err := strconv.Unquote(literal.Value)
-				if err == nil {
-					reads[key] = true
-				}
-			}
-			return true
-		})
-	}
-	for _, key := range recoveryLiveRootKeys {
-		if !reads[key] {
-			violations = append(violations, "recoveryLiveChildEnvironment: missing explicit "+key)
-		}
-	}
-	return violations
-}
-
-func TestRecoveryLiveEnvironmentSourceGuard(t *testing.T) {
-	sources := map[string]string{}
-	for _, name := range []string{"recovery_conformance_live_test.go", "park_lifecycle_live_test.go", "recovery_live_environment_test.go"} {
-		raw, err := os.ReadFile(name)
-		if err != nil {
-			t.Fatal(err)
-		}
-		sources[name] = string(raw)
-	}
-	if violations := recoveryLiveEnvironmentViolations(sources); len(violations) != 0 {
-		t.Fatalf("live isolation source guard: %v", violations)
-	}
-	for _, mutation := range []struct{ name, file, old, replacement string }{
-		{"warm setup", "recovery_conformance_live_test.go", "setupRecoveryLiveEnvironment(t)", "_ = t"},
-		{"park setup", "park_lifecycle_live_test.go", "setupRecoveryLiveEnvironment(t)", "_ = t"},
-		{"nested handoff", "park_lifecycle_live_test.go", "cmd.Env = recoveryLiveChildEnvironment(t,", "cmd.Env = omittedEnvironment(t,"},
-		{"runtime root", "recovery_live_environment_test.go", `os.Getenv("XDG_RUNTIME_DIR")`, `os.Getenv("OMITTED_RUNTIME")`},
-		{"socket root", "recovery_live_environment_test.go", `os.Getenv("ZELLIJ_SOCKET_DIR")`, `os.Getenv("OMITTED_SOCKET")`},
-		{"config root", "recovery_live_environment_test.go", `os.Getenv("ZELLIJ_CONFIG_DIR")`, `os.Getenv("OMITTED_CONFIG")`},
-	} {
-		t.Run(mutation.name, func(t *testing.T) {
-			changed := map[string]string{}
-			for name, source := range sources {
-				changed[name] = source
-			}
-			source := changed[mutation.file]
-			start := 0
-			if mutation.file == "recovery_live_environment_test.go" {
-				// Mutate the actual builder, excluding the mutation-case strings.
-				start = strings.Index(source, "func recoveryLiveChildEnvironment(")
-				if start < 0 {
-					t.Fatal("child environment builder missing")
-				}
-			}
-			changed[mutation.file] = source[:start] + strings.Replace(source[start:], mutation.old, mutation.replacement, 1)
-			if changed[mutation.file] == sources[mutation.file] {
-				t.Fatal("source mutation did not apply")
-			}
-			if violations := recoveryLiveEnvironmentViolations(changed); len(violations) == 0 {
-				t.Fatal("missing isolation boundary escaped source guard")
-			}
-		})
-	}
 }
 
 func recoveryLiveChildEnvironment(t *testing.T, explicit ...string) []string {

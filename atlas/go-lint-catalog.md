@@ -41,6 +41,29 @@ not a per-test compile. Ordinary temporary storage respects TMPDIR with a short
 allocation prefix when Unix socket length matters. Do not hide a readiness race
 by increasing its deadline or shortening a sleep below the matcher threshold.
 
+## Pair native fixture roots (#666)
+
+The same repository lint test also runs the Pair-local cross-file rule
+`native-fixture-roots`, owned by `internal/repolint/native_fixture_roots_test.go`.
+`readNativeFixtureRoots` reads the three named couchcore source files once each;
+its pure `nativeFixtureRootFindings` consumes those bytes and returns located
+findings. Missing, unreadable or malformed required sources fail the check.
+This adds no Git or native subprocess query and no suppression mechanism.
+
+The explicit manifest protects recovery and park setup, the park helper's
+`cmd.Env` handoff, and all seven root reads in the child environment builder.
+It checks the named syntax contract, rather than proving arbitrary data flow or
+automatically discovering future native fixtures. Extend the manifest when
+adding another protected entrypoint. The shared single-file catalog remains
+independent of Pair helper names.
+
+The six original #636 source mutations now run at this lint boundary. Synthetic
+source tests also omit each root, entrypoint and source, and exercise malformed
+and bodyless declarations. The actual poisoned parent/nested child environment,
+cleanup/restoration and Unix socket-budget regression stays in couchcore; it
+proves runtime propagation, complementing the source rule. The original duplicate
+couchcore matcher was retired after both boundaries passed equivalent mutations.
+
 ## Temporary sleep debt (#665)
 
 M1's sole sleep exception is `internal/repolint/sleep-debt.json`. Each entry

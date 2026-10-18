@@ -40,14 +40,24 @@ Evidence is landed in PR431, merge 1e90001c06796ba600c77d3cde3255ad6818f611, ver
 
 ## Plan
 
-- [ ] Add a Pair-local cross-file native-fixture-roots rule in internal/repolint, consuming the three protected source files and emitting located findings through the ordinary repository lint test.
-- [ ] Qualify clean source fixtures, the existing six mutations, all seven omitted root reads, and missing/unreadable/malformed source failures; preserve the real poisoned parent/nested child and socket-budget tests.
-- [ ] After equivalent lint coverage passes, remove the old couchcore source matcher/mutation test so there is one owner; keep environment builders and runtime regression unchanged.
-- [ ] Update atlas ownership/interface documentation, run targeted lint and runtime tests plus races, then recorded suite and sole close review/normal landing.
+- [x] Add a Pair-local cross-file native-fixture-roots rule in internal/repolint, consuming the three protected source files and emitting located findings through the ordinary repository lint test.
+- [x] Qualify clean source fixtures, the existing six mutations, all seven omitted root reads, and missing/unreadable/malformed source failures; preserve the real poisoned parent/nested child and socket-budget tests.
+- [x] After equivalent lint coverage passes, remove the old couchcore source matcher/mutation test so there is one owner; keep environment builders and runtime regression unchanged.
+- [x] Update atlas ownership/interface documentation and verify targeted lint/runtime tests plus races.
+
+Recorded suite and sole close review precede normal landing. The review may overlap the suite per current tl-worker contract; any review code fix requeues the final-head suite.
 
 ## Log
 
 Hub ded49f45 requested this one follow-up after #636 lands and leaned Pair-local. Pair:6 delivery2fd83608 supplied landed paths and evidence; independently verified the merge and inspected the source. This is outside #665's implementation scope and does not block it.
+
+### 2026-10-18 — implementation and deterministic evidence
+
+Hub plan receipt94f5503e verified submitted; quick-flow change-code passed. Chose a Pair-local repository check rather than put Pair identifiers in the shared single-file catalog. Native fixture source bytes feed a pure checker; the existing repository lint test consumes its findings via a thin injected three-file reader. Required source absence, read errors and parse errors fail visibly; there is no new suppression path, native query or Git process.
+
+TDD RED: the no-op checker missed all ten setup/handoff/root omissions plus missing/malformed required files; the no-op reader failed its actual reads assertion. GREEN focused lint4.476s. The original six real-source mutations passed at the new lint boundary while the original couchcore matcher also passed, and actual environment regression remained green (lint4.560s/couchcore0.383s). Only then removed the duplicate matcher/mutation test; setup/child builders and the real poisoned roots/cleanup/socket-budget test remain unchanged. Added bodyless/missing entry coverage; bodyless AST RED exposed a nil-body panic, fixed by reporting the missing contract rather than walking a nil body. A scripted extraction briefly matched the old mutation-case string instead of the actual child function; corrected the line-anchored boundary before verification. Current lint/runtime focused checks pass4.565s/0.540s; targeted race pass45.598s/1.753s. Added a reader-level negative case proving it returns rule findings, and final package/race checks follow.
+
+Final normal repolint package passed17.127s; catalog check after adding the new file to the index passed6.292s. Updated targeted race family passed repolint47.424s and couchcore1.594s. git diff --check passed. Source rule consumes all six original real-source mutations plus all seven root omissions, missing/bodyless entrypoints, missing/malformed files, and injected reader failures/findings. Implementation complete; recorded suite/CI and boundary review remain for publication. No native commands or operator environment used.
 
 ## Design
 
