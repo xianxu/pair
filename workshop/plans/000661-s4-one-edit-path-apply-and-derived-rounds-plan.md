@@ -315,6 +315,6 @@ _Seam change, stated: this gives `apply` a registration side effect. On an unreg
   - **Submit matching:** `submitsOfDocument → []Entry` became `submitNames` (the per-row matching shared with `OwedForDocument`) plus `SubmittedSince` (the `cleared` query).
   - **No restamp shift:** the `Updated` stamp is fixed width, so `DeriveRound(baseline, after, resolved)` takes no `before`.
   - **`at`** keeps full precision.
-  - **Propose proposes the body only** (`ProposeDocument`). The new frontmatter is written as is, so no verb can mark it and flip `presentation:` (BR-2).
+  - **Propose proposes the body only** (`ProposeDocument`). Under propose, a body write must leave the frontmatter byte-identical or it refuses with `propose-unencodable`, so no verb can mark it or flip `presentation:` (BR-2, and round 2). `write --frontmatter` stays direct.
   - **Unpaired blank lines** are not marked. An inserted blank line is written as is, and a removed one is kept (BR-3; a bare 🤖 never settles). The Lua fixture test now requires every 🤖 Couch writes to parse.
   - **`ParseEdits`** refuses `occurrence < 1`.

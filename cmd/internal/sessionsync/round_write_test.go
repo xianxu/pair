@@ -264,9 +264,9 @@ func TestRoundRefusesAMalformedSidecar(t *testing.T) {
 	wantRefusal(t, err, ExitRefused, "round-invalid")
 }
 
-// Frontmatter is never proposed, whichever verb changes it: an apply that
-// edits `presentation:` and the body writes the frontmatter as is and only
-// the body as a marker (BR-2).
+// Frontmatter is never proposed, whichever verb would change it: a body
+// write that touches it refuses with nothing written, so no marker can land
+// in it or flip `presentation:` (BR-2); `write --frontmatter` stays direct.
 func TestProposeNeverMarksFrontmatter(t *testing.T) {
 	r := newRig(t)
 	r.put(r.p.File, proposeDoc)
@@ -275,15 +275,15 @@ func TestProposeNeverMarksFrontmatter(t *testing.T) {
 		{Old: "presentation: propose", Occurrence: 1, New: "presentation: direct"},
 		{Old: "\nold\n", Occurrence: 1, New: "\nnew\n"},
 	}})
-	if err != nil {
-		t.Fatal(err)
+	wantRefusal(t, err, ExitRefused, "propose-unencodable")
+	if r.read(r.p.File) != proposeDoc {
+		t.Fatal("a refused proposal wrote")
 	}
-	got := r.read(r.p.File)
-	block, _ := FrontmatterBody(got)
-	if strings.Contains(block, "🤖") || !strings.Contains(block, "presentation: direct") {
-		t.Fatalf("frontmatter %q", block)
-	}
-	if !strings.Contains(got, "🤖~old~{new}") {
-		t.Fatalf("body not proposed: %q", got)
+	// The closer moved into the body: also a frontmatter change, refused.
+	_, err = r.sync.Apply(ApplyRequest{File: r.p.File, IfHash: r.hash(""), Edits: []EditRecord{
+		{Old: "presentation: propose\n---\n", Occurrence: 1, New: "presentation: propose\n"},
+	}})
+	if err == nil || r.read(r.p.File) != proposeDoc {
+		t.Fatalf("a moved closer was accepted: %v", err)
 	}
 }

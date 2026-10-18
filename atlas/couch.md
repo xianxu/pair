@@ -1032,7 +1032,7 @@ CLI. It runs in-process against the store and needs no supervisor.
     - A no-op write keeps the previous round.
     - **No stale round:** the old sidecar is removed before the document moves, so a failed round write (a warning) leaves none.
   - `round FILE --json` answers `{Code, Error, Round, Cleared}` (the parley.nvim#383 contract). `Cleared` is any submit of the file after `at` in the raw ledger, folded submits included, through `submitNames`, which `OwedForDocument` also uses.
-  - **Propose:** under the document's `presentation: propose`, a non-frontmatter write keeps the base text and writes the body's diff as markers (`ProposeDocument`, `propose.go`), one per changed line. Frontmatter is never marked: its new text is written as is. Unpaired blank lines are not marked. The file, shadow, hash and round all follow the written marker bytes.
+  - **Propose:** under the document's `presentation: propose`, a non-frontmatter write keeps the base text and writes the body's diff as markers (`ProposeDocument`, `propose.go`), one per changed line. Frontmatter is never marked: a body write that would change it (or move its closer) refuses with `propose-unencodable`, and `write --frontmatter` stays direct. Unpaired blank lines are not marked. The file, shadow, hash and round all follow the written marker bytes.
     - A hunk over 3 lines refuses with `propose-too-large`.
     - A line the marker grammar can't carry refuses with `propose-unencodable`.
     - Both refusals name the one fallback, a side-doc proposal.

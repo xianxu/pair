@@ -69,7 +69,7 @@ func TestResolveEditsRangesAndReasons(t *testing.T) {
 }
 
 func TestParseEditsRefusesMalformed(t *testing.T) {
-	for _, raw := range []string{`{}`, `"x"`, `[{"old": 3}]`, `{"records": "x"}`, `[{"old":"a","occurrence":1.5}]`} {
+	for _, raw := range []string{`{}`, `"x"`, `[{"old": 3}]`, `{"records": "x"}`, `[{"old":"a","occurrence":1.5}]`, `[{"old":"a","occurrence":0,"new":"b"}]`, `[{"old":"a","occurrence":-1,"new":"b"}]`} {
 		if _, err := ParseEdits([]byte(raw)); err == nil {
 			t.Errorf("ParseEdits(%s) accepted", raw)
 		}

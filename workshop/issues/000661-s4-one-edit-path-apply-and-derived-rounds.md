@@ -103,3 +103,7 @@ Design is the low end of each range, because the durable plan already resolved t
   - **BR-4:** a plan Revisions entry.
   - **Minor:** `ParseEdits` refuses `occurrence < 1`.
   - **Minor, not changed:** a no-op write keeps the round while the file hash moves with the restamp. That is by contract: parley re-anchors by span text when `result_hash` differs (design §4). The stamp is fixed width, so the positions stay exact.
+- M1 review round 2 (FIX-THEN-SHIP):
+  - **BR-7:** README and `couch --skill` now document `apply`, `round`, `edits-invalid`, rounds and propose.
+  - **Minor (2nd in the frontmatter family):** the rule is now that under propose a body write must leave the frontmatter byte-identical, or it refuses with `propose-unencodable`. That covers a changed `presentation:` and a moved closer alike, and `write --frontmatter` stays the direct path. It is tested in `TestProposeNeverMarksFrontmatter`.
+  - **BR-5:** occurrence 0 and -1 were added to the parse-refusal test.

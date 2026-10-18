@@ -59,14 +59,17 @@ func ProposeMarkers(baseline, after string) (string, error) {
 }
 
 // ProposeDocument proposes only the body: frontmatter is never proposed (a
-// marker there would corrupt it, even flip `presentation:` itself), so the
-// new frontmatter is written as is and the body after it as markers. A
-// document without frontmatter is proposed whole.
+// marker there would corrupt it, even flip `presentation:` itself). Under
+// propose, a body write must leave the frontmatter byte-identical and both
+// sides must split cleanly; a change to it is a `write --frontmatter`, which
+// is direct under every presentation. Anything else refuses, never falling
+// back to marking the whole document.
 func ProposeDocument(baseline, after string) (string, error) {
 	fb, errB := FrontmatterBody(baseline)
 	fa, errA := FrontmatterBody(after)
-	if errB != nil || errA != nil {
-		return ProposeMarkers(baseline, after)
+	if errB != nil || errA != nil || fa != fb {
+		return "", &Refusal{Exit: ExitRefused, Code: "propose-unencodable",
+			Reason: "under presentation: propose a body edit can't change the frontmatter; change it with `write --frontmatter`, which is never proposed"}
 	}
 	body, err := ProposeMarkers(baseline[len(fb):], after[len(fa):])
 	if err != nil {
