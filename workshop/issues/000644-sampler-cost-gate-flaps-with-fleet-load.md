@@ -166,11 +166,13 @@ the binding budget, so the cold pass gets a work bound and a report, not a CPU a
       gone from `atlas/couch.md`, replaced by the per-category call costs, the work bounds, the same-run
       ratio, the host-state reporting, and the unchanged "well under 1% of one core" product requirement.
 - [x] Delete the scratch diagnostic `cmd/internal/couchcmd/zz_cost_diag_test.go` (uncommitted).
-- [ ] Verify (done-when): `PAIR_RESOURCE_COST=1 go test ./cmd/internal/couchcmd/ -run
+- [x] Verify (done-when): `PAIR_RESOURCE_COST=1 go test ./cmd/internal/couchcmd/ -run
       TestResourceSamplerNativeCost` (a) as-is, (b) under 12 busy loops, (c) while another slot's suite
       runs — same verdict in all three, logs retained; targeted `go test ./cmd/internal/couchcmd/
       ./cmd/internal/couchcore/`; then the full suite as `sdlc local-check run --name suite` on the pushed
-      head.
+      head. Four conformance runs, not three (the fourth is the quietest); the suite took two attempts —
+      the first red on seven load-shaped tests in packages this patch cannot reach, filed as #659, the
+      second green on the same code. Both are recorded below.
 
 **Not in scope.** No production-code change: the conformance asserts only what a native run can show (real
 reader call multiplication at host scale, and CPU proportionality), while exact per-category accounting
@@ -313,6 +315,32 @@ The seven are filed as #659 (unclaimed, at the hub's direction — one issue for
 addition to #485, which is narrower: the wrapcmd harness timers from #479's `-race` soak). The class is a
 test that puts a wall-clock budget on an external tool or on real time and then asserts the budget. This
 issue's own rerun is not blocked on #659: the patch here touches none of those packages.
+
+**Full-suite record, attempt 2 on head `615ab5d90`: green.** Exit 0 in 11m54s, log sha256 `05bf3a74a00c`
+on Mac.localdomain, recorded as `sdlc-local/suite` on `615ab5d9`. Zero `--- FAIL` lines in the whole run,
+and every package that was red in attempt 1 passes: broadcast 29.752 s, couchcmd 48.515 s, couchcore
+291.124 s, couchtty 51.255 s, diagnosticlog 28.689 s.
+
+The two attempts together turn the load attribution from an argument into a measurement, because nothing
+changed between them but the host:
+
+| package | attempt 1 (loadavg 78-97) | attempt 2 (loadavg 10-27) | speedup |
+|---------|---------------------------|---------------------------|---------|
+| couchcmd | 298.719 s, 3 tests red | 48.515 s, green | 6.2× |
+| couchcore | 804.234 s, 2 tests red | 291.124 s, green | 2.8× |
+| couchtty | 375.715 s, 1 test red | 51.255 s, green | 7.3× |
+| diagnosticlog | 206.398 s, 2 tests red | 28.689 s, green | 7.2× |
+| broadcast | 63.815 s, 1 test red | 29.752 s, green | 2.1× |
+| whole run | 19m51s, exit 2 | 11m54s, exit 0 | 1.7× |
+
+Attempt 2 also waited 1172 s for a full-suite slot (ariadne's sharded run held both tokens), so it started
+as the machine was quieting; `sysctl vm.loadavg` read `{ 9.90 11.99 26.83 }` at its end against
+`{ 5.40 78.11 97.03 }` at attempt 1's. The two runs are effectively the loaded and quiet ends of one fleet
+day on identical code — which is the same flap shape this issue fixes in the sampler gate, one level up: a
+verdict that moves with the host instead of with the code.
+
+Retained: `/tmp/pair644-suite-attempt2.log`, and the record's own copy at
+`/Users/xianxu/workspace/pair/.git/sdlc/local-checks/615ab5d908379a1defe1efd3efa08ad64f60eace/suite.log`.
 
 ## Revisions
 
