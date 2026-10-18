@@ -1,0 +1,217 @@
+---
+gate: boundary-review
+issue: 665
+id_prefix: BR
+rounds:
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 23cfa6d3-7e6b-4133-83ef-17ff7f4b5dba
+            repository: github.com/xianxu/pair
+            issue_id: "000665"
+            recipe: milestone-review
+            round: 1
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/Library/Caches/sdlc/review-checkouts/1e05ed04b6ecf9ad
+            reviewed_head: 974cd69ba8974fb2e99b5d208327d7ae03230899
+            slot: pair:1
+            requested_at: "2026-10-18T13:09:42.206904Z"
+          phase: finished
+          pid: 79837
+          started_at: "2026-10-18T13:09:42.307044Z"
+          finished_at: "2026-10-18T13:11:59.258331Z"
+          session_id: 01a14f21-e041-75c1-a2c0-8e8223fe3c66
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-v1
+        repository: github.com/xianxu/pair
+        code_head: 974cd69ba8974fb2e99b5d208327d7ae03230899
+        tracker_head: 7023f04d96950faf3e7f9db78e152d4498d1466c
+        branch_point: d8ccc4577351b3dde5f829e83f5d83e4fedced5d
+        since: "2026-10-18T05:39:24-07:00"
+        until: "2026-10-18T06:09:12-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-18T05:39:24-07:00"
+              end: "2026-10-18T06:09:12-07:00"
+              began: "2026-10-18T05:39:24-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot1/pair
+        sources:
+            - harness: codex
+              id: 01a14367-3aab-7a22-b89b-0908f54a9846
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              digest: 05cbfefc5d51c88b214e6bfc10d82f60d6adbacf439e1c52fecc81770b545eb0
+              started: "2026-10-16T06:30:01.402Z"
+              spawned: false
+              bytes: 77802540
+              windows:
+                - start: "2026-10-18T05:39:24-07:00"
+                  end: "2026-10-18T06:09:12-07:00"
+            - harness: codex
+              id: 01a14f06-59b0-7ea0-aab5-69d740c40d65
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              parent_id: 01a14367-3aab-7a22-b89b-0908f54a9846
+              digest: 2d35640c322b8e0fa024c634896dc8a6e4c8d57f75eb6b0b11fac91679c8aa5b
+              started: "2026-10-18T12:39:38.716Z"
+              spawned: true
+              bytes: 737382
+              windows:
+                - start: "2026-10-18T12:39:38.716Z"
+                  end: "2026-10-18T06:09:12-07:00"
+            - harness: codex
+              id: 01a14f0a-fd7d-7963-8893-aab2cbfdc80b
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              digest: a69dd60054c3c99814be75e222538b656ef5d00e5f205610b1c4a6e1d71f4830
+              started: "2026-10-18T12:44:42.996Z"
+              spawned: false
+              bytes: 495956
+              windows:
+                - start: "2026-10-18T12:44:42.996Z"
+                  end: "2026-10-18T06:09:12-07:00"
+            - harness: codex
+              id: 01a14f0b-11b7-7502-b2b4-85c07851fad6
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              parent_id: 01a14367-3aab-7a22-b89b-0908f54a9846
+              digest: 11b49a6e28fa99cf17856ff1a173f472b9346dbaa1b7a13d09eaf311c43c3117
+              started: "2026-10-18T12:44:47.983Z"
+              spawned: true
+              bytes: 2265669
+              windows:
+                - start: "2026-10-18T12:44:47.983Z"
+                  end: "2026-10-18T06:09:12-07:00"
+            - harness: codex
+              id: 01a14f0c-da8a-74f3-bb46-3ae6efe05510
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              digest: fcf4e395f786f9ceec692a036b958e44b6d045e611d3ee7590dbdf026589821c
+              started: "2026-10-18T12:46:45.354Z"
+              spawned: false
+              bytes: 371647
+              windows:
+                - start: "2026-10-18T12:46:45.354Z"
+                  end: "2026-10-18T06:09:12-07:00"
+            - harness: codex
+              id: 01a14f0d-0c5b-7621-872f-802ab24ec89e
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              parent_id: 01a14367-3aab-7a22-b89b-0908f54a9846
+              digest: db44c2627bc90f149b878ede60d7f56a01df8e0f0cea5371c56cbabd8be8cd4b
+              started: "2026-10-18T12:46:57.689Z"
+              spawned: true
+              bytes: 1776860
+              windows:
+                - start: "2026-10-18T12:46:57.689Z"
+                  end: "2026-10-18T06:09:12-07:00"
+            - harness: codex
+              id: 01a14f0d-d291-7ae1-a930-aac670ac489a
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              digest: ab4140e7bbcb1f5c9f83e988b30608c8ce4a0075a0448584aba05b5685d989a5
+              started: "2026-10-18T12:47:48.67Z"
+              spawned: false
+              bytes: 428460
+              windows:
+                - start: "2026-10-18T12:47:48.67Z"
+                  end: "2026-10-18T06:09:12-07:00"
+            - harness: codex
+              id: 01a14f0e-3014-7422-8740-20ec5465c826
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              digest: 785ec88e502b864d9be60833681bd78080e9dc423ee4f1b490847570c1ee3cf6
+              started: "2026-10-18T12:48:12.774Z"
+              spawned: false
+              bytes: 423990
+              windows:
+                - start: "2026-10-18T12:48:12.774Z"
+                  end: "2026-10-18T06:09:12-07:00"
+            - harness: codex
+              id: 01a14f0f-5faa-7f82-a9ec-f684d68e74e2
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              parent_id: 01a14367-3aab-7a22-b89b-0908f54a9846
+              digest: 22f6ed48fa21771840f8ff12dfe9deda09253f6a4f5129ce965bffda5b69eac3
+              started: "2026-10-18T12:49:30.083Z"
+              spawned: true
+              bytes: 1313730
+              windows:
+                - start: "2026-10-18T12:49:30.083Z"
+                  end: "2026-10-18T06:09:12-07:00"
+      "n": 1
+      timestamp: "2026-10-18T06:12:00-07:00"
+      dispatched: "2026-10-18T06:09:40-07:00"
+      agent: codex
+      findings:
+        - kind: defect
+          id: BR-1
+          severity: Critical
+          title: Extra whitespace lets inline suppressions bypass the sleep-debt guard
+          detail: internal/repolint/catalog_test.go:304 rejects only the exact prefix "//lint:allow test-fixed-sleep". Upstream Check trims whitespace after "//lint:allow ", so two spaces or a space followed by a tab suppress a new sleep without triggering this guard. An overlay regression exercising scanTracked and checkDebt reproduced acceptance with an empty debt list for both spellings. Match the upstream directive grammar and retain regression cases covering its accepted whitespace forms. This violates ARCH-PURPOSE and ARCH-SECURE.
+          family: sleep-debt-exclusive-authority
+          round: 1
+        - kind: defect
+          id: BR-2
+          severity: Important
+          title: README omits the new developer lint workflow
+          detail: atlas/go-lint-catalog.md:25 introduces suppression syntax, and lines 34–53 introduce debt-file maintenance and the targeted check command, but README.md is unchanged in the pinned range. Add a short entry beside README.md:1878's testing instructions explaining the catalog, linking its atlas page, and identifying the main-history prerequisite. This satisfies the requested README documentation gate.
+          family: readme-surface-discoverability
+          round: 1
+        - kind: defect
+          id: BR-3
+          severity: Important
+          title: The new Git boundary has no injectable stateful fake or conformance contract
+          detail: internal/repolint/catalog_test.go:255 directly executes Git, and anchorDebt separately executes cat-file; inventory_test.go exercises disposable real repositories only. There is no shared injectable command boundary backed by a stateful fake or scheduled conformance check, as ARCH-MOCK requires. Inject the consumed Git operations, model inventory/ref/history/blob state behind that same seam, and retain real-Git fixtures as conformance coverage with a stated cadence.
+          family: external-tool-model-contract
+          round: 1
+      boundary: M1
+      recipe: milestone-review
+      isolation: fenced
+      blocked: true
+disputes:
+    - id: BR-3
+      rationale: Per authenticated hub instruction76f460c7, retain disposable real Git repositories. Git here is a local deterministic source of tracked inventory and history, not an external service requiring a separate model. A fake would duplicate index/ref/commit/blob semantics without identifying an additional failure it can catch; these real-repository fixtures are fast every-run integration/conformance coverage. Reconsider only for a concrete failure real repositories cannot reproduce; no gate is waived.
+      evidence: 'Re-ran go test ./internal/repolint -run ^(TestScanTrackedInventory|TestScanTrackedOneReadAtNAnd2N|TestDebtBaselineRealHistory|TestDebtBaselineRefusesMalformedAndDeleted|TestDebtBaselineDetachedRemoteMain)$ -count=1 -v: PASS3.607s. Real repositories exercised tracked/untracked/deleted inventory and read/parser errors; exact8/16source reads; candidate/main debt divergence; malformed/deleted baseline and missing anchor; detached remote-main authority and ambiguity. Pure matching/decoder/subset oracles remain separate. BR-3 names no failure outside this reproducible state space.'
+      after: 1
+      timestamp: "2026-10-18T13:16:43Z"
+      by: Xian Xu on Xian’s MacBook Pro at pair:1 (/Users/xianxu/workspace/worktree/pair-slot1/pair)
+---
+
+# Gate ledger — pair#665 (boundary-review)
+
+Findings this gate raised, the stable ids the binary assigned them, and how
+later rounds disposed of them. Generated — edit the gate, not this file.
+
+## Round 1 — 2026-10-18T06:12:00-07:00 (codex) — BLOCKED
+
+### Raised
+
+- **BR-1** [Critical] `sleep-debt-exclusive-authority` (kind: defect) Extra whitespace lets inline suppressions bypass the sleep-debt guard
+  internal/repolint/catalog_test.go:304 rejects only the exact prefix "//lint:allow test-fixed-sleep". Upstream Check trims whitespace after "//lint:allow ", so two spaces or a space followed by a tab suppress a new sleep without triggering this guard. An overlay regression exercising scanTracked and checkDebt reproduced acceptance with an empty debt list for both spellings. Match the upstream directive grammar and retain regression cases covering its accepted whitespace forms. This violates ARCH-PURPOSE and ARCH-SECURE.
+- **BR-2** [Important] `readme-surface-discoverability` (kind: defect) README omits the new developer lint workflow
+  atlas/go-lint-catalog.md:25 introduces suppression syntax, and lines 34–53 introduce debt-file maintenance and the targeted check command, but README.md is unchanged in the pinned range. Add a short entry beside README.md:1878's testing instructions explaining the catalog, linking its atlas page, and identifying the main-history prerequisite. This satisfies the requested README documentation gate.
+- **BR-3** [Important] `external-tool-model-contract` (kind: defect) The new Git boundary has no injectable stateful fake or conformance contract
+  internal/repolint/catalog_test.go:255 directly executes Git, and anchorDebt separately executes cat-file; inventory_test.go exercises disposable real repositories only. There is no shared injectable command boundary backed by a stateful fake or scheduled conformance check, as ARCH-MOCK requires. Inject the consumed Git operations, model inventory/ref/history/blob state behind that same seam, and retain real-Git fixtures as conformance coverage with a stated cadence.
+
+## Disputes
+
+Findings the implementer declined (`sdlc finding dispute`), each answered by the
+next review round.
+
+- **BR-3** — after round 1 (2026-10-18T13:16:43Z, Xian Xu on Xian’s MacBook Pro at pair:1 (/Users/xianxu/workspace/worktree/pair-slot1/pair))
+  rationale: Per authenticated hub instruction76f460c7, retain disposable real Git repositories. Git here is a local deterministic source of tracked inventory and history, not an external service requiring a separate model. A fake would duplicate index/ref/commit/blob semantics without identifying an additional failure it can catch; these real-repository fixtures are fast every-run integration/conformance coverage. Reconsider only for a concrete failure real repositories cannot reproduce; no gate is waived.
+  evidence: Re-ran go test ./internal/repolint -run ^(TestScanTrackedInventory|TestScanTrackedOneReadAtNAnd2N|TestDebtBaselineRealHistory|TestDebtBaselineRefusesMalformedAndDeleted|TestDebtBaselineDetachedRemoteMain)$ -count=1 -v: PASS3.607s. Real repositories exercised tracked/untracked/deleted inventory and read/parser errors; exact8/16source reads; candidate/main debt divergence; malformed/deleted baseline and missing anchor; detached remote-main authority and ambiguity. Pure matching/decoder/subset oracles remain separate. BR-3 names no failure outside this reproducible state space.
+
+## Open findings
+
+- **BR-1** [Critical] `sleep-debt-exclusive-authority` (kind: defect) Extra whitespace lets inline suppressions bypass the sleep-debt guard
+- **BR-2** [Important] `readme-surface-discoverability` (kind: defect) README omits the new developer lint workflow
