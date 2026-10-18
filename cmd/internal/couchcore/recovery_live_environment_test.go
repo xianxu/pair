@@ -20,6 +20,7 @@ var recoveryLiveRootKeys = []string{"HOME", "XDG_CONFIG_HOME", "XDG_DATA_HOME", 
 func setupRecoveryLiveEnvironment(t *testing.T) {
 	t.Helper()
 	root := t.TempDir()
+	//lint:allow tmp-literal — native sockets append version and session names; the private root must fit the tested 103-byte AF_UNIX budget even with long TMPDIR
 	short, err := os.MkdirTemp("/tmp", "p636-")
 	if err != nil {
 		t.Fatal(err)

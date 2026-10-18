@@ -67,6 +67,7 @@ func newRecoveryNativeFixture(t *testing.T) recoveryNativeFixture {
 	pane["pane_command"] = command
 	native.SetModel(zellijtest.Model{Sessions: map[string]zellijtest.Session{"pair-exact": {Panes: []zellijtest.Pane{pane}, Tab: zellijtest.DefaultTab()}}})
 	// Unix socket paths have a small native limit; keep this private path short.
+	//lint:allow tmp-literal — the ownership probe requires a real Unix socket with its session leaf; macOS TMPDIR can exceed the AF_UNIX address limit
 	socketDir, err := os.MkdirTemp("/tmp", "pair636-socket-")
 	if err != nil {
 		t.Fatal(err)
