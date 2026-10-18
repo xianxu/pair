@@ -68,6 +68,7 @@ func runNativeConsoleJoin(t *testing.T, wrapped bool) {
 	// be finishing its own cleanup (owned agent group, notification broker),
 	// which writes under dir. Join it by its pidfile before removing dir.
 	var wrapPIDPath string
+	var agentPID int
 	t.Cleanup(func() {
 		if raw, err := os.ReadFile(wrapPIDPath); err == nil {
 			if pid, err := strconv.Atoi(strings.SplitN(strings.TrimSpace(string(raw)), ":", 2)[0]); err == nil && pid > 0 {
@@ -124,7 +125,7 @@ func runNativeConsoleJoin(t *testing.T, wrapped bool) {
 	// The production PTY runner overlays its parent, so establish the same
 	// empty boundary before it can create any wrapper descendants.
 	testpair.ApplyEnvironment(t, dir)
-	env := testpair.Environment(t, dir, "PAIR_NOTIFY_SOCKET_DIR="+filepath.Join(dir, "notify"), "PAIR_PAIR_WRAP_PID_PATH="+paths.PairWrapPID(), "PAIR_SCROLLBACK_EVENTS_PATH="+filepath.Join(dir, "scrollback.events.jsonl"), "PAIR_WRAP_LOG="+filepath.Join(dir, "wrapper.log"), "ZELLIJ=", "ZELLIJ_SESSION_NAME=", "ZELLIJ_PANE_ID=", "XDG_CACHE_HOME="+filepath.Join(dir, "cache"), "XDG_CONFIG_HOME="+filepath.Join(dir, "config"), "ZELLIJ_SOCKET_DIR="+filepath.Join(dir, "socket"), "PAIR_TAG=native-fixture", "PAIR_SCOPE_KEY=", "PAIR_HOME="+dir, "PAIR_DATA_DIR="+filepath.Join(dir, "pair-data"))
+	env := testpair.Environment(t, dir, "TMPDIR="+dir, "PAIR_NOTIFY_SOCKET_DIR="+filepath.Join(dir, "notify"), "PAIR_PAIR_WRAP_PID_PATH="+paths.PairWrapPID(), "PAIR_SCROLLBACK_EVENTS_PATH="+filepath.Join(dir, "scrollback.events.jsonl"), "PAIR_WRAP_LOG="+filepath.Join(dir, "wrapper.log"), "ZELLIJ=", "ZELLIJ_SESSION_NAME=", "ZELLIJ_PANE_ID=", "XDG_CACHE_HOME="+filepath.Join(dir, "cache"), "XDG_CONFIG_HOME="+filepath.Join(dir, "config"), "ZELLIJ_SOCKET_DIR="+filepath.Join(dir, "socket"), "PAIR_TAG=native-fixture", "PAIR_SCOPE_KEY=", "PAIR_HOME="+dir, "PAIR_DATA_DIR="+filepath.Join(dir, "pair-data"))
 	session := filepath.Base(dir)
 	host := newVTHost(24, 100)
 	inputR, inputW, err := os.Pipe()
@@ -147,6 +148,8 @@ func runNativeConsoleJoin(t *testing.T, wrapped bool) {
 	go func() { done <- con.Run() }()
 	t.Cleanup(func() {
 		if t.Failed() {
+			logNativeReattachObservation(t, "failure-before-cleanup", dir, session, child, agentPID)
+			logNativeServerTail(t, dir)
 			for name, data := range map[string][]byte{"child.raw": child.Snapshot(), "parent.raw": []byte(host.Written())} {
 				t.Logf("native %s bytes=%d diagnostic-prefix=%q", name, len(data), nativeEvidenceDiagnostic(data))
 			}
@@ -264,6 +267,7 @@ func runNativeConsoleJoin(t *testing.T, wrapped bool) {
 	if boot == "" {
 		t.Fatal("fixture did not report process identity")
 	}
+	agentPID, _ = strconv.Atoi(strings.SplitN(boot, ":", 2)[0])
 	_, _ = inputW.Write([]byte("Q"))
 	waitFor(t, "original in-memory state", func() bool {
 		return strings.Contains(readReceipts(), "STATE="+boot+":1\n") && strings.Contains(host.childArea(), "persistent-counter=1")
@@ -280,11 +284,13 @@ func runNativeConsoleJoin(t *testing.T, wrapped bool) {
 	oldChild, oldID := child, handle.ID()
 	con.Switch(second.ID())
 	waitFor(t, "shell holds Console during detach", func() bool { return con.presenter.View().Admitted == secondChild.Endpoint().ID() })
+	logNativeReattachObservation(t, "before-detach", dir, session, oldChild, agentPID)
 	detachCtx, cancelDetach := context.WithTimeout(context.Background(), 5*time.Second)
 	detach := exec.CommandContext(detachCtx, zellij, "--session", session, "action", "detach")
 	detach.Env = testpair.Environment(t, dir, env...)
 	detachedOutput, detachErr := detach.CombinedOutput()
 	cancelDetach()
+	t.Logf("native detach command result=%v output-tail=%q", detachErr, nativeEvidenceDiagnostic(detachedOutput))
 	if detachErr != nil {
 		t.Fatalf("private Zellij detach: %v %s", detachErr, detachedOutput)
 	}
@@ -293,7 +299,10 @@ func runNativeConsoleJoin(t *testing.T, wrapped bool) {
 	case <-testwait.After(t):
 		t.Fatal("detached client did not drain and exit")
 	}
+	t.Logf("native detached client exit=%d wire-tail=%q", oldChild.Wait(), nativeChildWireTail(oldChild))
+	logNativeReattachObservation(t, "after-client-drain", dir, session, oldChild, agentPID)
 	waitFor(t, "detached client retired and disposed", func() bool { _, err := oldChild.Endpoint().Snapshot(time.Now()); return errors.Is(err, os.ErrClosed) })
+	logNativeReattachObservation(t, "after-client-dispose", dir, session, oldChild, agentPID)
 	// No --create: the original server and agent must still exist. Notification
 	// output follows this fresh client naturally, without an outer-TTY sidecar.
 	handle, err = runner.Start(dir, []string{zellij, "--config", config, "--data-dir", filepath.Join(dir, "data"), "attach", session}, env)
@@ -309,9 +318,16 @@ func runNativeConsoleJoin(t *testing.T, wrapped bool) {
 		t.Fatal("fresh attachment retained suppression count")
 	}
 	con.Switch(handle.ID())
+	var reattachFailure error
 	waitFor(t, "persistent native frame after reattach", func() bool {
-		return con.presenter.View().Admitted == child.Endpoint().ID() && strings.Contains(host.childArea(), "persistent-counter=1") && (!wrapped || strings.Contains(host.childArea(), "native 界 e ready"))
+		ready := con.presenter.View().Admitted == child.Endpoint().ID() && strings.Contains(host.childArea(), "persistent-counter=1") && (!wrapped || strings.Contains(host.childArea(), "native 界 e ready"))
+		reattachFailure = nativeReattachFailure(child, ready)
+		return ready || reattachFailure != nil
 	})
+	logNativeReattachObservation(t, "after-reattach", dir, session, child, agentPID)
+	if reattachFailure != nil {
+		t.Fatal(reattachFailure)
+	}
 	captureNativeReattachEvidence(t, evidenceDir, "after-reattach", child)
 	assertNativeReattachFrames(t, evidenceDir, 110, 27)
 	if !wrapped && !bytes.Contains(child.Snapshot(), []byte("native 界")) {
@@ -523,6 +539,7 @@ const nativeAgentFixture = `import os,sys,time,tty,select
 fd=os.open('/dev/tty',os.O_RDWR)
 tty.setraw(fd)
 log=open(sys.argv[1],'a',buffering=1)
+` + nativeAgentExitDiagnostics + `
 identity=str(os.getpid())+':'+os.urandom(12).hex()
 counter=0
 log.write('BOOT='+identity+'\n')
