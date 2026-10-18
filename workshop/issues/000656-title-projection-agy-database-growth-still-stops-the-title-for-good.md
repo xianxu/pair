@@ -30,7 +30,7 @@ The compact title projection pins the Agy SQLite database alongside its transcri
 
 Found in the pair#653 close review. The title projection (cmd/internal/sessioninventory/title_projection.go, checkArtifacts) requires an unchanged fingerprint for every non-transcript artifact. For agy that is its database, which grows during normal work, so that growth still stops the title for good, the same failure class #653 fixed for Claude/Codex transcripts. Classify same-identity growth of p.other as transient, the same way grewFrom does for the transcript, in both admission and tail.
 
-### Proposed design (approval pending)
+### Approved design
 
 Keep this inside the quick-flow shell: one shared projection bugfix, expected fewer than 100 added production lines, tests excluded; no new public API, process, timer, artifact family or milestones. The single Couch updater landed in #649 and already consumes this projection.
 
@@ -75,10 +75,10 @@ Count workload at 8 and16 growth/recovery cycles: metadata/boundary checks and S
 
 ## Plan
 
-- [ ] After TL plan approval, run change-code and add deterministic stateful regressions in title_projection_test.go: admission (including post-validation growth), between-poll tail growth, mid-suffix growth, repeated growth, true mutations, mixed growth/mutation, invalid SQLite authority after growth, cancellation. Run the focused family and retain RED evidence.
-- [ ] Implement only the shared classification/reset correction in title_projection.go. Reuse existing growth predicates, reset, validator and owner checks; run projection/provider/owner/cancellation families to GREEN.
-- [ ] In couchcmd/titles_test.go, use the disposable OS fixture/shim pattern with actual SQLite (runtime_os_test.go adapter recipe), Agy ledger/pane/transcript roots and controlled database growth. Prove same source recovers and activity advances after admission/tail growth. Preserve warm unchanged command/IO behavior. No installed Agy/operator data or native Zellij session.
-- [ ] Add counted 8/16 growth/recovery workload and mutation controls; run affected packages and targeted races. Update atlas/couch.md and add a mechanical lint rule only if investigation identifies a syntactically enforceable mistake class; a provider-specific semantic policy alone is not such a rule.
+- [x] After TL plan approval, run change-code and add deterministic stateful regressions in title_projection_test.go: admission (including post-validation growth), between-poll tail growth, mid-suffix growth, repeated growth, true mutations, mixed growth/mutation, invalid SQLite authority after growth, cancellation. Run the focused family and retain RED evidence.
+- [x] Implement only the shared classification/reset correction in title_projection.go. Reuse existing growth predicates, reset, validator and owner checks; run projection/provider/owner/cancellation families to GREEN.
+- [x] In couchcmd/titles_test.go, use the disposable OS fixture/shim pattern with actual SQLite (runtime_os_test.go adapter recipe), Agy ledger/pane/transcript roots and controlled database growth. Prove same source recovers and activity advances after admission/tail growth. Preserve warm unchanged command/IO behavior. No installed Agy/operator data or native Zellij session.
+- [x] Add counted 8/16 growth/recovery workload and mutation controls; run affected packages and targeted races. Update atlas/couch.md and add a mechanical lint rule only if investigation identifies a syntactically enforceable mistake class; a provider-specific semantic policy alone is not such a rule.
 - [ ] Commit/push the tested source; run required recorded suite, retain all failures and fix reproducible branch defects. Prepare close evidence and PR; acceptance gates are close review, SHIP and sdlc merge, then report to hub.
 
 Live verification proposal for TL: include #656 on the next operator restart alongside #649, observing Agy growth/recovery and title/fade behavior. The #649 no-staging waiver does not automatically cover this new issue; no :0 staging, installed-native probe or relaunch without the hub's direction.
@@ -96,3 +96,17 @@ Existing TestTitleProjectionAgyDatabaseMutationIsTerminal passes on this main (0
 ## Revisions
 
 - 2026-10-18 — Proposed fixture clarification for TL approval: retain TestTitleProjectionAgyDatabaseMutationIsTerminal and its terminal assertion, but replace its AppendFile stimulus with true shrink/replacement/same-size mutation cases. The original append expectation contradicts the requested positive growth behavior. Cover append growth separately in positive admission/tail regressions. No expansion to arbitrary SQLite rewrites, count parsing, other providers or updater scheduling.
+
+### 2026-10-18 — approved implementation
+
+Hub approval 2b7c3766-64cb-49fb-bd1d-c1342a815fba verified submitted: narrow growth readmission, true terminal mutation stimuli under the same test name, counted cycles. Live check explicitly shares #649 next operator restart; no separate stage. change-code passed inferred quick flow, accepted design commit fd6b137be261433b04b0c0b5d9520ea82fcc9d60. Stateful projection and disposable SQLite/updater regressions are being written before production changes. Initial growth recovery test fails on current production with ErrArtifactChanged and lost Activity; admission already covered by #653 remains a positive control.
+
+### 2026-10-18 — implementation and targeted verification
+
+Shared projection now classifies same-identity Agy database growth at checkArtifacts, checks all auxiliary artifacts and retained transcript boundary before allowing readmission, preserves the post-tail owner fence, and resets to the last displayed facts. The next poll fully revalidates SQLite authority. No consumer recovery path or API added (ARCH-DRY). Updated the architecture/Couch maps. This is provider-specific semantic evidence classification, not an enforceable syntactic misuse; no lint rule added.
+
+RED retained: TestTitleProjectionAgyDatabaseGrowthRecovers failed with sticky ErrArtifactChanged and lost Activity before the fix. The disposable actual-SQLite Couch test's between-poll and mid-suffix cases also failed before the fix; admission was the existing #653 positive control. Existing terminal test keeps its name/assertion, with true shrink/replacement/same-size/birth/generation/missing stimuli instead of append growth, per approval.
+
+GREEN: go test ./cmd/internal/sessioninventory ./cmd/internal/titlepoller ./cmd/internal/couchcmd ./cmd/internal/couchtty -count=1 (12.898s/1.802s/80.942s/43.384s). Targeted race: go test -race ./cmd/internal/sessioninventory ./cmd/internal/couchcmd ./cmd/internal/couchtty -run 'Test.*(TitleProjection|CurrentTitle|CouchTitles|TitleActivity)' -count=1 (4.767s/16.362s/1.497s). Focused Agy projection/updater matrix also passed. Covers growth during admission/between polls/mid-suffix, actual SQLite authority revalidation, mutation/owner/cancellation controls, same source recovery and steady neighbor. Disposable fixtures only; no native session or operator data touched.
+
+Counted workload: 8 growth/recovery cycles used native ReadAt32, SQLite16, Stat104 and ListFiles32; 16 cycles used64/32/208/64 respectively (exact doubling). Growth-detection ticks query SQLite zero times; stable proofless readmission twice. Three warm polls per cycle add zero native body reads, SQLite queries or listings. Real-SQLite updater recovered with source opened once; ten unchanged polls added zero native read/decode/SQLite work and zero rename commands. git diff --check passed. Required recorded suite and close review pending.

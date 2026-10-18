@@ -24,10 +24,9 @@ type TitleProjectionResult struct {
 
 // TitleProjection admits existing inventory authority once, then follows only
 // its pinned append-only transcript. No transcript/event history is retained;
-// full validation is never silently invoked after admission. Ordinary growth
-// that races an admission drops the admission and re-admits on the next Poll;
-// classifyAdmission is the one rule that decides it (#653). Every other failure
-// stops the projection for good.
+// full validation is never silently invoked while admitted. Growth racing
+// admission (#653), or same-identity Agy database growth (#656), drops admission
+// and re-admits on the next Poll. Every other failure stops it for good.
 type TitleProjection struct {
 	runtime      Runtime
 	ownerRuntime titleOwnerRuntime
@@ -54,11 +53,12 @@ type titleOwnerRuntime struct {
 	cache *OwnerLaunchCache
 }
 
-// errTitleReadmit marks an admission that failed only because its artifacts
-// grew while it read them. Poll answers it by re-admitting, never by stopping.
+// errTitleReadmit marks growth that invalidates admission without proving a
+// terminal mutation. Poll re-admits through the full validator next time.
 var errTitleReadmit = errors.New("title projection must re-admit")
 
-// grewFrom reports that now is old's same file, only longer: an append.
+// grewFrom reports the same file identity at a larger size. Database growth
+// still requires full revalidation; it does not prove append-only contents.
 func grewFrom(old, now FileEntry) bool {
 	return sameTitleIdentity(old, now) && now.Size > old.Size
 }
@@ -82,7 +82,7 @@ func (p *TitleProjection) stop(err error) (TitleProjectionResult, error) {
 	return p.result, err
 }
 
-// classifyAdmission is the one place an admission failure becomes transient
+// classifyAdmission makes a baseline-only admission change transient
 // (#653): an ErrArtifactChanged while every artifact in the baseline is
 // unchanged or only grown, and one grew, re-admits on the next Poll. A genuine
 // validation failure under growth therefore surfaces as terminal once the
@@ -94,7 +94,7 @@ func (p *TitleProjection) classifyAdmission(err error) error {
 	return err
 }
 
-// onlyGrew reports that the observed artifacts changed only by appending:
+// onlyGrew reports that the observed artifact metadata changed only by growth:
 // each is unchanged or the same file grown, and at least one grew.
 func (p *TitleProjection) onlyGrew(observed []FileEntry) bool {
 	grew := false
@@ -232,11 +232,16 @@ func (p *TitleProjection) poll(ctx context.Context) (TitleProjectionResult, erro
 		}
 		return p.result, nil
 	}
-	if err := p.tail(ctx); err != nil {
+	last := p.result
+	err = p.tail(ctx)
+	if err != nil && !errors.Is(err, errTitleReadmit) {
 		return p.stop(err)
 	}
 	if _, _, err := p.owner(ctx); err != nil {
 		return p.stop(err)
+	}
+	if errors.Is(err, errTitleReadmit) {
+		return p.reset(last)
 	}
 	return p.result, nil
 }
@@ -369,17 +374,42 @@ func (p *TitleProjection) readBoundary() ([]byte, error) {
 	return b, nil
 }
 func (p *TitleProjection) checkArtifacts() (FileEntry, error) {
+	grew := false
 	for _, old := range p.other {
 		now, err := p.runtime.StatFile(old.Artifact)
-		if err != nil || !equalFingerprint(fingerprintFromEntry(old), fingerprintFromEntry(now)) {
+		if err != nil {
 			return FileEntry{}, ErrArtifactChanged
 		}
+		if equalFingerprint(fingerprintFromEntry(old), fingerprintFromEntry(now)) {
+			continue
+		}
+		if p.agent != AgentAgy || old.Artifact.Kind != ArtifactDatabase || !grewFrom(old, now) {
+			return FileEntry{}, ErrArtifactChanged
+		}
+		grew = true
 	}
 	now, err := p.runtime.StatFile(p.transcript.Artifact)
 	if err != nil || !sameTitleIdentity(p.transcript, now) || now.Size < p.rawOffset || now.Size < p.observedSize {
 		return FileEntry{}, ErrArtifactChanged
 	}
 	p.observedSize = now.Size
+	if grew {
+		// A growing database must not hide a mutation of the transcript or
+		// another artifact. Never commit its new fingerprint as authority.
+		if now.Size == p.transcript.Size && !equalFingerprint(fingerprintFromEntry(p.transcript), fingerprintFromEntry(now)) {
+			return FileEntry{}, ErrArtifactChanged
+		}
+		if p.admitted {
+			window, err := p.readBoundary()
+			if err != nil {
+				return FileEntry{}, err
+			}
+			if sha256.Sum256(window) != p.boundaryHash {
+				return FileEntry{}, ErrArtifactChanged
+			}
+		}
+		return FileEntry{}, errTitleReadmit
+	}
 	return now, nil
 }
 func (p *TitleProjection) tail(ctx context.Context) error {
