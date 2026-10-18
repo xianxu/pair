@@ -32,7 +32,7 @@ func ProposeMarkers(baseline, after string) (string, error) {
 		k, m := h.OldHi-h.OldLo, h.NewHi-h.NewLo
 		if max(k, m) > proposeMaxLines {
 			return "", &Refusal{Exit: ExitRefused, Code: "propose-too-large",
-				Reason: fmt.Sprintf("the change at lines %s spans %d lines, over the %d-line marker limit; %s", lineRange(h), max(k, m), proposeMaxLines, proposeRemedy)}
+				Reason: fmt.Sprintf("the change at %s spans %d lines, over the %d-line marker limit; %s", lineRange(h), max(k, m), proposeMaxLines, proposeRemedy)}
 		}
 		for i := 0; i < max(k, m); i++ {
 			var line string
@@ -47,7 +47,7 @@ func ProposeMarkers(baseline, after string) (string, error) {
 			}
 			if err != nil {
 				return "", &Refusal{Exit: ExitRefused, Code: "propose-unencodable",
-					Reason: fmt.Sprintf("the change at lines %s can't be a marker: %v; %s", lineRange(h), err, proposeRemedy)}
+					Reason: fmt.Sprintf("the change at %s can't be a marker: %v; %s", lineRange(h), err, proposeRemedy)}
 			}
 			out.WriteString(line)
 		}
@@ -133,7 +133,7 @@ func escQuote(s string) string {
 // lineRange names a hunk's lines, 1-based, in the file as it stands.
 func lineRange(h Hunk) string {
 	if h.OldHi-h.OldLo <= 1 {
-		return fmt.Sprintf("%d", h.OldLo+1)
+		return fmt.Sprintf("line %d", h.OldLo+1)
 	}
-	return fmt.Sprintf("%d-%d", h.OldLo+1, h.OldHi)
+	return fmt.Sprintf("lines %d-%d", h.OldLo+1, h.OldHi)
 }

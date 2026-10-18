@@ -86,3 +86,14 @@ Design is the low end of each range, because the durable plan already resolved t
 ## Log
 
 ### 2026-10-18
+
+- M1 implemented, Tasks 1–6, in commits 45d56db9..c5d226cf. The Go and Lua resolvers and the propose markers share `testdata/edit-records`, and the pane grammar reads every fixture marker back to the accepted and rejected texts.
+- Myers trace memory grows as D², so the diff caps at D ≤ 1024 (the plan said 4096, which would cost about 128 MB at the cap).
+- The `Updated` stamp is fixed width (`stamp` regex), so the restamp never moves an offset and no shift is needed for reasons.
+- `at` keeps full precision, so a submit earlier in the same second never clears a round.
+- Live check, from this branch's `couch` (scratch build) on a scratch session-sync document owned by pair:2:
+  - `read --all`, then `apply` of one good record: exit 0. `round --json` gave `{Code, Error, Round, Cleared}` with the span `[9,4]-[9,8]` quick→slow and explain "pace it down".
+  - `apply` with one good and one missing record: exit 1, with record 2 listed as not found. The `shasum` of the document and of `.doc.md.round` were unchanged.
+  - `write --section`: the round was replaced with a span that carries no explain.
+  - Under `presentation: propose`: `apply` wrote `The 🤖~quick~{slow} brown fox.`, and a 4-line section write refused with `propose-too-large`, naming the side-doc remedy.
+  - **Not exercised live:** `cleared`. A submit needs another slot's `submitted:` message to pair:2, and self-sends aren't recorded. The rig test covers it against a real ledger (`TestRoundClearsOnTheNextSubmit`).
