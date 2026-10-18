@@ -1,12 +1,20 @@
 ---
 id: 000576
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-15
-updated: 2026-10-15
+updated: 2026-10-17
 estimate_hours:
-card_mirror: '74a9808b204bc1becc050b543c890b4e634881b2' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'd5f77592c93f208b7822b90e6e9209fd33fd4e81' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-17T19:21:23-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:7
+    worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Couch switcher: lifecycle actions run in the background per slot; the UI never blocks
@@ -39,8 +47,24 @@ background, so a single slot's action needn't block the UI.
 
 ## Plan
 
-- [ ]
+- [ ] Implement the per-target reducer, row progress/results and navigation intent in [the durable plan](../plans/000576-slot-jobs-plan.md), with failing ordering regressions first.
+- [ ] Integrate the bounded Console execution/adoption path after #651 lands; preserve synchronous CLI callbacks and #574's final-outcome observer seam.
+- [ ] Verify all action routes, targeted/race tests and recorded full suite; obtain hub's acceptance decision, close and land on SHIP.
 
 ## Log
 
 ### 2026-10-15
+
+### 2026-10-17 — claimed and planned
+
+- Card was unowned; claimed by pair:7 and start-plan completed. Automatic dependency refresh required one explicit start-plan retry; no machine package installation occurred.
+- Main-session inspection and independent read-only subagent agree: lifecycle calls already run on workers. `dispatchMenuOperation`'s global `MenuState.InFlight` suppresses unrelated slot operations. `finishOperation` also performs implicit attach on Console.Run, and installation waits for resize/registration under `c.mu`; the plan covers both seams rather than adding another executor (ARCH-DRY, ARCH-PURPOSE).
+- Read PR414 at ecf055bee02b7abcc6c738993d49dcd0062d25ed. Pair:5 confirmed exact address/park-nonce binding and shared park worker reservation must survive UI cancellation. Correct menu path is `menu.go`, not `menu_ops.go`. No production work before #651 lands on main.
+- Pair:3 supplied #574's observer contract: final-adoption completion observation outside `c.mu`, before menu reduction and reattach-drained; preserve one publisher. Neither peer branch is an implementation base.
+- Durable plan is ready for hub approval; no code or tests changed. Proposed live check remains subject to hub scheduling, no pair:0 staging authorized.
+
+## Revisions
+
+### 2026-10-17 — measured structure and dependency coordination
+
+The implementation is a per-target UI ownership and completion change over the existing bounded worker pool, not a new background executor. Keep a target reserved through adoption, retain per-row outcomes, and fence late focus/frame changes by current navigation intent. A busy-row selection waits on the existing attempt; a second mutation refuses explicitly. Cover #651 recover-park once on main and preserve #574's final-outcome notification seam on integration. CLI lifecycle verbs remain synchronous. See the durable plan for state transitions, operator projection, shutdown/uncertainty rules and deterministic acceptance cases.
