@@ -1,4 +1,24 @@
 ---
+reviewer_runs:
+    - version: 1
+      intent:
+        id: 510e4c4e-6e07-4895-af97-ff61847d6ed8
+        repository: github.com/xianxu/pair
+        issue_id: "000576"
+        recipe: estimate-quality
+        round: 1
+        attempt: 1
+        agent: codex
+        root: /Users/xianxu/workspace/worktree/pair-slot7/pair
+        reviewed_head: 566b75eaf4aaa40533e84eb183cf44ba043bdcce
+        slot: pair:7
+        requested_at: "2026-10-18T22:43:19.32028Z"
+      phase: finished
+      pid: 41252
+      started_at: "2026-10-18T22:43:19.54349Z"
+      finished_at: "2026-10-18T22:43:41.280577Z"
+      session_id: 01a1512f-0b3b-7af2-bc39-d419fd807583
+      outcome: returned
 gate: plan-quality
 issue: 576
 id_prefix: PQ
@@ -105,7 +125,41 @@ rounds:
           note: Explicit 15+1 admission quotas and dedicated execution lanes preserve hosted navigation under lifecycle saturation; lost-endpoint transfer retains ownership and either enters lifecycle capacity or completes once with overload.
           round: 3
       blocked: false
-content_hash: 2b8b3a9424d6d1f7ab1437b702caf6fe40baab6931ab4963f0172d11e44b92ef
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: 8aeb76e3-240d-411a-98b5-8405c79ee100
+            repository: github.com/xianxu/pair
+            issue_id: "000576"
+            recipe: plan-quality
+            round: 4
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot7/pair
+            reviewed_head: 566b75eaf4aaa40533e84eb183cf44ba043bdcce
+            slot: pair:7
+            requested_at: "2026-10-18T22:42:50.534934Z"
+          phase: finished
+          pid: 22789
+          started_at: "2026-10-18T22:42:50.839347Z"
+          finished_at: "2026-10-18T22:43:15.979003Z"
+          session_id: 01a1512e-9b54-72f3-aa78-6265513a1e4b
+          outcome: returned
+      "n": 4
+      timestamp: "2026-10-18T15:43:16-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: PQ-1
+          disposition: addressed
+          note: The authoritative reservation contract covers both queue admission and execution, including lost-endpoint transfer and overload ownership.
+          round: 4
+        - id: PQ-2
+          disposition: addressed
+          note: The authoritative verification table names production functions, adversarial strategies and mechanical guards, superseding historical case inventories.
+          round: 4
+      blocked: false
+content_hash: bd1d6809117e518bfdc8ebd02558a3d847def25c8273975c705455ffbc63fbfd
 ---
 
 # Gate ledger — pair#576 (plan-quality)
@@ -134,6 +188,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 ### Disposed
 
 - PQ-1 — addressed — Explicit 15+1 admission quotas and dedicated execution lanes preserve hosted navigation under lifecycle saturation; lost-endpoint transfer retains ownership and either enters lifecycle capacity or completes once with overload.
+
+## Round 4 — 2026-10-18T15:43:16-07:00 (codex) — passed
+
+### Disposed
+
+- PQ-1 — addressed — The authoritative reservation contract covers both queue admission and execution, including lost-endpoint transfer and overload ownership.
+- PQ-2 — addressed — The authoritative verification table names production functions, adversarial strategies and mechanical guards, superseding historical case inventories.
 
 ## Open findings
 

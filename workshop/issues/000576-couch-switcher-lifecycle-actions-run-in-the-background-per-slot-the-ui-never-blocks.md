@@ -15,7 +15,7 @@ claimant:
     workspace: pair:7
     worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "067b910d", done: "1948b126"}
+flow: {kind: full, provenance: operator}
 ---
 
 # Couch switcher: lifecycle actions run in the background per slot; the UI never blocks
