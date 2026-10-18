@@ -142,3 +142,29 @@ push was corrected with explicit upstream; initial local-check refused the
 unpushed head and did not run tests. Source unchanged between the refusal and
 recorded queue admission. Hub approved no live notification or restart for this
 landing; operator desktop evidence is still pending.
+
+### 2026-10-18 — byte comparison and close review
+
+Hub d15ac52a-30a4-4e4c-8923-b5f77ab8ef52 verified submitted: operator recalls
+many prior forwarded popups, weakening permission/focus as the leading hypothesis.
+Read-only comparison of suppression commit dc428db5c's parent shows old
+TestSplitNotificationAcrossTakeover and TestHiddenNotificationDoesNotWaitForActivePartialSequence
+asserting host bytes `\x1b]777;notify;pair;BODY\x1b\\`. Canonical child ingress
+was OSC777/BEL, while Zellij-mapped ingress was OSC9 `pair: BODY` with BEL/ST;
+Endpoint converted both to effects and Presenter.EmitEffects normalized host
+output to OSC777/ST. Current --notify writes the same protocol/terminator with
+default title Couch instead of pair. Same title/body yields identical envelopes.
+
+NotifyDesktop -> Presenter.Notify -> writeOneShot -> write/ttyio bypasses child
+policy, endpoint parser, effect deduplication and frame diffing. Successful return
+requires complete write; stalls/partial failure return an error. Existing
+exact-wire/serialization/no-replay/partial-write tests PASS terminal 0.174s and
+supervisor-versus-child-policy test PASS couchtty 0.291s. No live output observed.
+Static code/test evidence cannot prove bytes emitted during past missed popups.
+Report submitted to hub as fc87949f-155b-4dae-aaf7-f3dcecc59eb9; transport unchanged.
+
+Close review round 1 SHIP with no findings; reviewer independently reverted
+both behavior fixes via overlays and observed the new regressions fail. Its
+catalog host-metadata gap was qualified with process-only Git configuration.
+No new lesson from findings (none). PR 436 opened; suite remains queued, no pass
+claimed. Live presentation remains unconfirmed as approved.
