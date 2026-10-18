@@ -38,7 +38,8 @@ Adopt the catalog in pair: run it as a pair repository test over pair's tracked 
 
 Durable plan: [Go lint catalog](../plans/000665-go-lint-catalog-plan.md).
 
-- [ ] Adopt a pinned upstream catalog through the existing module dependency, add its repository integration test, resolve all findings, qualify dependency consumers, document, review and land.
+- [ ] M1 — Enforce the module catalog; resolve all78non-sleep findings; quarantine exactly103existing sleeps in one shrink-only tracked site list; qualify dependency consumers, review and land the guard.
+- [ ] M2 — Remove sleep debt with explicit signals, prioritizing flake-history packages (#659/#662/#623/#485); review and land the completed sweep.
 
 ## Log
 
@@ -47,3 +48,9 @@ Durable plan: [Go lint catalog](../plans/000665-go-lint-catalog-plan.md).
 ### 2026-10-18 — Claimed and initial design
 
 Claim and start-plan succeeded in pair:1 after the hub corrected the #636 dispatch; no changes/native runs were made for #636. start-plan refreshed the ariadne layer and required one clean re-invocation before branching. Peer MEMORY.md is absent; AGENTS.local.md was read. Chosen proposal: consume upstream golint through the existing module pin, avoiding duplicated catalog logic and a new protected weave export (ARCH-DRY). Read-only baseline found 181 findings in91files over2547tracked Go files; the durable plan records every affected path and forbids blanket migration suppressions. Module advancement also changes the existing runtime layergraph dependency, so compatibility qualification is explicit. Await hub approval before implementation; no code has changed.
+
+## Revisions
+
+### 2026-10-18 — R1: two approved milestones
+
+Hub delivery2b583e46 approves module consumption and layergraph qualification, and splits enforcement/78non-sleep repairs (M1) from103sleep repairs (M2). M1's exact-site JSON allowlist is temporary debt that can only shrink against the main baseline; no inline blanket exemptions. Plan R1 records matching, ratchet regressions and retirement. Implementation may proceed through change-code. Whole issue remains incomplete until M2; milestone publication will use the supported SDLC path or be escalated if unavailable.

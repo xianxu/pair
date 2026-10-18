@@ -177,3 +177,20 @@ Each number is a finding count, not a proposed suppression count.
 | cmd/internal/wrapcmd/peer_recovery_test.go | 1 |
 | cmd/internal/wrapcmd/terminal_tail_test.go | 2 |
 | probes/zellijcalls/main_test.go | 2 |
+
+## Revisions
+
+### 2026-10-18 — R1: hub-approved staged enforcement
+
+Reason: authenticated hub delivery2b583e46 approves module consumption and the dependency qualification, but requires two milestones so the 78 non-sleep findings do not wait for all103sleep repairs. This revision supersedes the single-close boundary and the original prohibition on a baseline file. It authorizes exactly one temporary, shrink-only sleep debt file, never blanket inline suppressions.
+
+- M1: scanner/repository test, module pin, all78non-sleep dispositions, atlas, and explicit103-site sleep list; targeted regression/race and recorded suite, milestone review, then land the enforcing guard.
+- M2: eliminate the sleep debt, prioritizing packages associated with #659/#662/#623/#485, using explicit observable signals. Preserve assertion domains, retain deterministic ordering controls and join fixture work. Each completed fix removes its debt entry. No new sleep debt or deadline changes.
+
+Sleep-site model (new pure entity in internal/repolint/catalog_test.go or a colocated test helper): repository-relative path, enclosing function, canonical AST rendering of the Sleep call, and occurrence ordinal within that function for identical calls. It is independent of incidental source line movement. One tracked JSON file internal/repolint/sleep-debt.json lists sites. The scanner matches only test-fixed-sleep findings to those exact sites, reports every unlisted sleep as failure, and rejects duplicates and unused entries. No other rule can use the file.
+
+Shrink ratchet: read the version of that same file at the branch/main merge base using the configured main tracking ref. Current entries must be a subset, never swapped for new sites; absence/read/JSON/Git failures refuse. During initial M1 creation only, verify the entries against the original tracked source baseline at the committed pre-implementation design anchor0f8e23d0a142f962fc011875c92da68216762058; never regenerate the admitted set from the candidate being tested. Main CI already fetches full history, so this requires no protected workflow change. After M1 is on main, the admitted set comes from main's merge base; empty list is the final state. Regression matrix: existing exact site accepted; newly added site rejected; deletion accepted only after its sleep is fixed; stale/duplicate/malformed/path-moved entries rejected; same-count replacement and addition rejected; source line-only shift keeps identity. Use real disposable Git histories for ratchet tests and pure site/set checks for matching.
+
+The helper remains test-only, catalog logic stays upstream (ARCH-DRY). Main's committed list is the authority to retire debt; observations of current findings cannot authorize new debt (ARCH-ORDER). The file has at most103entries, shrinks with each fix, and is removed or left empty once M2 completes (ARCH-FUNERAL). No inline test-fixed-sleep exemptions are introduced while paying this debt.
+
+M1 landing leaves the issue's M2 checkbox open, with the reviewed milestone as the boundary; use the SDLC milestone-publication path if supported. Do not close the whole issue as done with active sleep debt. If the tool cannot publish a milestone, bring that exact limitation to the hub before landing, rather than bypassing the close gate or silently treating M2 as finished.
