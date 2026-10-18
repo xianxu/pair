@@ -393,6 +393,12 @@ func CouchLiveOwnerExecutor(c *Couch) OperationExecutor {
 				return nil, err
 			}
 			return StopResult{Record: recs[0], Signalled: signalled}, nil
+		case OpRecoverPark:
+			address, err := exactParkRecoveryAddress(a)
+			if err != nil {
+				return nil, err
+			}
+			return c.RecoverParkExpected(ctx, address, a["park-nonce"])
 		case "park":
 			address, err := resolveOperationThread(c, a)
 			if err != nil {
@@ -547,4 +553,14 @@ func resolveRecoveryOperationTarget(ctx context.Context, c *Couch, args map[stri
 	}
 	address, err := resolveOperationThread(c, args)
 	return ResumeTarget{Address: address}, err
+}
+
+// Recovery receives an already bound exact address. Its context-aware store
+// read belongs inside the recovery gate, rather than an unbounded preflight.
+func exactParkRecoveryAddress(args map[string]string) (ThreadAddress, error) {
+	address := ThreadAddress{RepoScope: args["repo-scope"], Tag: ThreadTag(args["tag"])}
+	if err := validateThreadAddress(address); err != nil {
+		return ThreadAddress{}, err
+	}
+	return address, nil
 }

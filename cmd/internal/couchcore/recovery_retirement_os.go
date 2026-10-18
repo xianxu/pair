@@ -113,7 +113,7 @@ func (c *Couch) parkPreparedRecovery(ctx context.Context, record ThreadRecord, h
 	if err != nil {
 		// A published request or partial completion cannot be replaced with a
 		// second retirement strategy. Preserve its existing transaction to retry.
-		return record, err
+		return record, c.withParkRecoveryAdvice(ctx, parked.Thread, err)
 	}
 	return parked.Thread, nil
 }

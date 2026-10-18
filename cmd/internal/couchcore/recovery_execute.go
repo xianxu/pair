@@ -175,7 +175,7 @@ func (c *Couch) reconcileRecoveryHelper(ctx context.Context, address ThreadAddre
 		}
 		decision := DecideRecovery(evidence)
 		if !decision.Archive {
-			return record, evidence, errors.New(decision.Diagnosis)
+			return record, evidence, c.withParkRecoveryAdvice(ctx, record, errors.New(decision.Diagnosis))
 		}
 		if len(record.Incarnations) == 0 {
 			return record, evidence, nil
@@ -203,7 +203,7 @@ func (c *Couch) reconcileRecoveryHelper(ctx context.Context, address ThreadAddre
 			err = errors.New("recovery session changed while retiring its dead helper; inspect and retry")
 		}
 		if err == nil && !DecideRecovery(evidence).Archive {
-			err = errors.New(DecideRecovery(evidence).Diagnosis)
+			err = c.withParkRecoveryAdvice(ctx, next, errors.New(DecideRecovery(evidence).Diagnosis))
 		}
 		return next, evidence, err
 	}
@@ -277,7 +277,7 @@ func (c *Couch) RecoverThread(ctx context.Context, address ThreadAddress, path s
 		return result, err
 	}
 	if !decision.FromCheckpoint {
-		return ContinuationResult{}, errors.New(decision.Diagnosis)
+		return ContinuationResult{}, c.withParkRecoveryAdvice(ctx, record, errors.New(decision.Diagnosis))
 	}
 	if selected == nil && record.Continuation == nil {
 		return ContinuationResult{}, errors.New("no retained checkpoint; this conversation cannot come back -- Tab → reboot archives it and starts a fresh agent")
@@ -333,7 +333,7 @@ func (c *Couch) prepareAbsentContinuation(ctx context.Context, address ThreadAdd
 		}
 		decision := DecideRecovery(evidence)
 		if evidence.Presence != PresenceAbsent || !decision.FromCheckpoint {
-			return record, errors.New(decision.Diagnosis)
+			return record, c.withParkRecoveryAdvice(ctx, record, errors.New(decision.Diagnosis))
 		}
 		observeCtx, cancel := context.WithTimeout(ctx, recoveryObservationTimeout)
 		source, err := c.ContinuationSource(observeCtx, address)

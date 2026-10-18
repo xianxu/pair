@@ -1,6 +1,7 @@
 package couchcore
 
 import (
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -197,7 +198,7 @@ func TestStoreJournalReplaysParkFinalizationAndTombstone(t *testing.T) {
 				}
 				crashing := newThreadStoreWithHooks(ns, hooks)
 				if operation == "finalize" {
-					_, err = crashing.FinalizePark(begun.Address, begun.Revision, identity, 1, time.Unix(70, 0).UTC())
+					_, err = crashing.FinalizePark(context.Background(), begun.Address, begun.Revision, identity, 1, time.Unix(70, 0).UTC())
 				} else {
 					_, err = crashing.AbandonPark(begun.Address, begun.Revision, identity)
 				}

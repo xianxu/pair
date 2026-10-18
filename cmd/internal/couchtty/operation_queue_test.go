@@ -1,6 +1,7 @@
 package couchtty
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"reflect"
@@ -123,13 +124,13 @@ func TestChildExitNeverProvesPark(t *testing.T) {
 				t.Fatal(err)
 			}
 			if phase != "requested" {
-				record, err = store.AdvancePark(record.Address, record.Revision, couchcore.ParkEvent{Kind: couchcore.ParkRequestCommitted, Identity: identity, Attempt: 1})
+				record, err = store.AdvancePark(context.Background(), record.Address, record.Revision, couchcore.ParkEvent{Kind: couchcore.ParkRequestCommitted, Identity: identity, Attempt: 1})
 				if err != nil {
 					t.Fatal(err)
 				}
 			}
 			if phase == "finalized" {
-				record, err = store.FinalizePark(record.Address, record.Revision, identity, 1, time.Unix(2, 0).UTC())
+				record, err = store.FinalizePark(context.Background(), record.Address, record.Revision, identity, 1, time.Unix(2, 0).UTC())
 				if err != nil {
 					t.Fatal(err)
 				}

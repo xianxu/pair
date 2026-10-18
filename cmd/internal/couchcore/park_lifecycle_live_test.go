@@ -53,6 +53,8 @@ type realLifecycleOps struct {
 	fault     *conformanceFaultRuntime
 	stages    []pairlifecycle.CleanupStage
 	completed time.Time
+	// gatePath is derived from the private fixture stage path, never operator input.
+	gatePath string
 }
 
 func (o *realLifecycleOps) step(stage pairlifecycle.CleanupStage, effect func() error) error {
@@ -73,7 +75,10 @@ func (o *realLifecycleOps) QuiesceSession(ctx context.Context) error {
 func (o *realLifecycleOps) ReapEditors(context.Context) error {
 	return o.step(pairlifecycle.StageEditorReap, nil)
 }
-func (o *realLifecycleOps) PreserveScrollback(context.Context, pairlifecycle.CleanupIntent) error {
+func (o *realLifecycleOps) PreserveScrollback(ctx context.Context, _ pairlifecycle.CleanupIntent) error {
+	if err := awaitParkRecoveryCleanupGate(ctx, o.gatePath); err != nil {
+		return err
+	}
 	return o.step(pairlifecycle.StageScrollbackPreserve, nil)
 }
 func (o *realLifecycleOps) CleanupSidecars(context.Context) error {
@@ -125,7 +130,7 @@ func (d *realParkConformanceDriver) CommitRequest(request pairlifecycle.QuitRequ
 	if err != nil {
 		return err
 	}
-	current, err = d.threads.AdvancePark(current.Address, current.Revision, ParkEvent{
+	current, err = d.threads.AdvancePark(context.Background(), current.Address, current.Revision, ParkEvent{
 		Kind: ParkRequestCommitted, Identity: current.Park.Identity, Attempt: request.Attempt,
 	})
 	d.current = current
@@ -150,7 +155,7 @@ func (d *realParkConformanceDriver) CleanupAndPrepareCompletion(ctx context.Cont
 	ticker := time.NewTicker(25 * time.Millisecond)
 	defer ticker.Stop()
 	for {
-		completion, found, err := observer.ObserveCompletion(d.paths, request)
+		completion, found, err := observer.ObserveCompletion(context.Background(), d.paths, request)
 		if err != nil {
 			return pairlifecycle.CleanupResult{}, nil, err
 		}
@@ -471,6 +476,11 @@ func startParkLifecycleHelper(t *testing.T, ctx context.Context, cfg parkHelperC
 		t.Fatal(err)
 	}
 	capture := new(parkHelperCapture)
+	t.Cleanup(func() {
+		if t.Failed() {
+			t.Logf("owned helper PTY diagnostics: %q", capture.String())
+		}
+	})
 	drained := make(chan struct{})
 	go func() { _, _ = io.Copy(capture, terminal); close(drained) }()
 	wait := make(chan error, 1)
@@ -518,6 +528,10 @@ func zellijClientCount(ctx context.Context, session string) (int, error) {
 }
 
 func runParkLifecycleHelper() int {
+	return runParkLifecycleHelperWithAttach(launcher.AttachExistingSession)
+}
+
+func runParkLifecycleHelperWithAttach(attach func(launcher.LaunchOptions, launcher.Env, launcher.Runtime, string, string, string) (int, error)) int {
 	attempt, err := strconv.ParseUint(os.Getenv("PAIR_TEST_PARK_ATTEMPT"), 10, 64)
 	if err != nil {
 		return 2
@@ -536,7 +550,9 @@ func runParkLifecycleHelper() int {
 	scoped := launcher.NewScopedPaths(globalDataDir, launcher.RepoScope{Key: scope}, tag)
 	runtime := launcher.NewScopedOSRuntime(globalDataDir, scoped.ScopeDir(), pairHome)
 	env := launcher.Env{DataDir: scoped.ScopeDir()}
-	if code, err := launcher.AttachExistingSession(launcher.LaunchOptions{Env: env, PairHome: pairHome}, env, runtime, tag, session, "claude"); err != nil || code != 0 {
+	// Match RunLaunch: any completed attach (err == nil) hands off to quit
+	// cleanup, even when the client exits nonzero after losing its server.
+	if code, err := attach(launcher.LaunchOptions{Env: env, PairHome: pairHome}, env, runtime, tag, session, "claude"); err != nil {
 		fmt.Fprintf(os.Stderr, "park helper attach returned code=%d error=%v\n", code, err)
 		return 3
 	}
@@ -560,6 +576,7 @@ func runParkLifecycleHelper() int {
 	fault := &conformanceFaultRuntime{}
 	ops := &realLifecycleOps{
 		session: session, runtime: *runtime, fault: fault, completed: time.Unix(completedUnix, 0).UTC(),
+		gatePath: stagePath + ".pause-scrollback",
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()

@@ -694,3 +694,78 @@ func TestConsumeAttemptPublishesCaptureAfterCleanupCancellation(t *testing.T) {
 		t.Fatalf("replay=%+v err=%v", replay, err)
 	}
 }
+
+type cancelLifecyclePublicationRuntime struct {
+	OSRuntime
+	cancel   context.CancelFunc
+	boundary string
+}
+
+func (r cancelLifecyclePublicationRuntime) CreateTemp(dir, pattern string) (StoreFile, error) {
+	file, err := r.OSRuntime.CreateTemp(dir, pattern)
+	if r.boundary == "before-write" {
+		r.cancel()
+	}
+	return file, err
+}
+func (r cancelLifecyclePublicationRuntime) Rename(oldPath, newPath string) error {
+	err := r.OSRuntime.Rename(oldPath, newPath)
+	if r.boundary == "after-rename" {
+		r.cancel()
+	}
+	return err
+}
+func TestContextStorePublicationPreservesCancellationOutcome(t *testing.T) {
+	for _, boundary := range []string{"before-write", "after-rename"} {
+		t.Run(boundary, func(t *testing.T) {
+			base, err := artifactpath.Resolve(artifactpath.Address{DataDir: t.TempDir(), RepoScope: "scope", Tag: "work"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			paths, err := base.Lifecycle("nonce-1")
+			if err != nil {
+				t.Fatal(err)
+			}
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			store := Store{Runtime: cancelLifecyclePublicationRuntime{cancel: cancel, boundary: boundary}}
+			request := validQuitRequest()
+			err = store.WithContext(ctx).PublishRequest(paths, request)
+			if !errors.Is(err, context.Canceled) {
+				t.Fatalf("cancellation lost: %v", err)
+			}
+			if boundary == "before-write" {
+				if PublicationOutcomeOf(err) != NotCommitted {
+					t.Fatalf("unpublished outcome: %v", err)
+				}
+				path, _ := paths.Request(request.Attempt)
+				if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+					t.Fatalf("canceled write published: %v", err)
+				}
+				entries, err := os.ReadDir(paths.Dir())
+				if err != nil {
+					t.Fatal(err)
+				}
+				for _, entry := range entries {
+					if strings.HasPrefix(entry.Name(), ".pair-publish-") {
+						t.Fatal("canceled write leaked its owned staging file")
+					}
+				}
+			} else {
+				if PublicationOutcomeOf(err) != Indeterminate {
+					t.Fatalf("visible publication called absent: %v", err)
+				}
+				if err := store.WithContext(context.Background()).Reconcile(paths, RecordRequest, request.Attempt); err != nil {
+					t.Fatal(err)
+				}
+			}
+		})
+	}
+}
+func TestContextStoreRefusesRuntimeWithoutCancellableLock(t *testing.T) {
+	store := Store{Runtime: newMemoryRuntime()}
+	err := store.WithContext(context.Background()).PublishRequest(lifecyclePaths(t), validQuitRequest())
+	if err == nil || !strings.Contains(err.Error(), "cancellable lock") {
+		t.Fatalf("unsupported runtime accepted: %v", err)
+	}
+}

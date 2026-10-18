@@ -411,22 +411,47 @@ func (s *ThreadStore) getPathLaunchPreference(repoIdentity, physicalPath, scope 
 }
 
 func (s *ThreadStore) updateExistingThread(address ThreadAddress, expectedRevision uint64, mutate func(*ThreadRecord) error) (ThreadRecord, error) {
+	return s.updateExistingThreadContext(nil, address, expectedRevision, mutate)
+}
+
+// updateExistingThreadContext preserves legacy writer semantics for nil ctx.
+// Recovery supplies a context to bound coordinator admission and use checked,
+// nonblocking nested store locking and journal publication.
+func (s *ThreadStore) updateExistingThreadContext(ctx context.Context, address ThreadAddress, expectedRevision uint64, mutate func(*ThreadRecord) error) (ThreadRecord, error) {
 	if err := validateThreadAddress(address); err != nil {
 		return ThreadRecord{}, err
 	}
 	if mutate == nil {
 		return ThreadRecord{}, errors.New("thread update has nil mutation")
 	}
-	backend, routeErr := s.storeForAddress(address)
+	var backend *ThreadStore
+	var routeErr error
+	if ctx == nil {
+		backend, routeErr = s.storeForAddress(address)
+	} else {
+		backend, routeErr = s.recoveryBackend(ctx, address)
+	}
 	if routeErr != nil {
 		return ThreadRecord{}, routeErr
 	}
 	if backend != s {
-		return backend.updateExistingThread(address, expectedRevision, mutate)
+		if ctx != nil {
+			backend.readOnly = false
+			return backend.updateExistingThreadOnBackend(ctx, address, expectedRevision, mutate)
+		}
+		return backend.updateExistingThreadContext(ctx, address, expectedRevision, mutate)
 	}
+	return s.updateExistingThreadOnBackend(ctx, address, expectedRevision, mutate)
+}
+
+func (s *ThreadStore) updateExistingThreadOnBackend(ctx context.Context, address ThreadAddress, expectedRevision uint64, mutate func(*ThreadRecord) error) (ThreadRecord, error) {
 	var result ThreadRecord
-	err := s.withLock(func() error {
-		currentRaw, err := s.readPayload(s.recordPath(address))
+	err := s.withUpdateLockContext(ctx, func() error {
+		readCtx := ctx
+		if readCtx == nil {
+			readCtx = context.Background()
+		}
+		currentRaw, err := s.readPayloadContext(readCtx, s.recordPath(address))
 		if errors.Is(err, os.ErrNotExist) {
 			return fmt.Errorf("%w: %+v", ErrThreadNotFound, address)
 		}
@@ -465,7 +490,11 @@ func (s *ThreadStore) updateExistingThread(address ThreadAddress, expectedRevisi
 		journal := storeJournal{SchemaVersion: 1, Entries: []storeJournalEntry{{
 			Path: relativeStorePath(s.root, s.recordPath(address)), Expected: &expected, After: &after,
 		}}}
-		if err := s.commitJournalLocked(journal); err != nil {
+		var check func() error
+		if ctx != nil {
+			check = ctx.Err
+		}
+		if err := s.commitJournalLockedChecked(journal, check); err != nil {
 			return err
 		}
 		result = cloneThreadRecord(next)
@@ -533,13 +562,13 @@ func (s *ThreadStore) BeginPark(address ThreadAddress, expectedRevision uint64, 
 	})
 }
 
-func (s *ThreadStore) AdvancePark(address ThreadAddress, expectedRevision uint64, event ParkEvent) (ThreadRecord, error) {
+func (s *ThreadStore) AdvancePark(ctx context.Context, address ThreadAddress, expectedRevision uint64, event ParkEvent) (ThreadRecord, error) {
 	switch event.Kind {
 	case ParkRequestCommitted, ParkFailureObserved:
 	default:
 		return ThreadRecord{}, fmt.Errorf("park event %q requires its dedicated store operation", event.Kind)
 	}
-	return s.updateExistingThread(address, expectedRevision, func(next *ThreadRecord) error {
+	return s.updateExistingThreadContext(ctx, address, expectedRevision, func(next *ThreadRecord) error {
 		if next.Park == nil {
 			return errors.New("thread has no active park transaction")
 		}
@@ -560,8 +589,8 @@ func (s *ThreadStore) AdvancePark(address ThreadAddress, expectedRevision uint64
 	})
 }
 
-func (s *ThreadStore) AppendParkAttempt(address ThreadAddress, expectedRevision uint64, identity ParkIdentity) (ThreadRecord, error) {
-	return s.updateExistingThread(address, expectedRevision, func(next *ThreadRecord) error {
+func (s *ThreadStore) AppendParkAttempt(ctx context.Context, address ThreadAddress, expectedRevision uint64, identity ParkIdentity) (ThreadRecord, error) {
+	return s.updateExistingThreadContext(ctx, address, expectedRevision, func(next *ThreadRecord) error {
 		if next.Park == nil || next.Park.Identity != identity {
 			return errors.New("park attempt identity does not match active transaction")
 		}
@@ -579,11 +608,11 @@ func (s *ThreadStore) AppendParkAttempt(address ThreadAddress, expectedRevision 
 	})
 }
 
-func (s *ThreadStore) FinalizePark(address ThreadAddress, expectedRevision uint64, identity ParkIdentity, attempt uint64, parkedAt time.Time, scrollback ...*pairlifecycle.PreservedScrollback) (ThreadRecord, error) {
+func (s *ThreadStore) FinalizePark(ctx context.Context, address ThreadAddress, expectedRevision uint64, identity ParkIdentity, attempt uint64, parkedAt time.Time, scrollback ...*pairlifecycle.PreservedScrollback) (ThreadRecord, error) {
 	if len(scrollback) > 1 {
 		return ThreadRecord{}, errors.New("only one preserved scrollback is allowed")
 	}
-	return s.updateExistingThread(address, expectedRevision, func(next *ThreadRecord) error {
+	return s.updateExistingThreadContext(ctx, address, expectedRevision, func(next *ThreadRecord) error {
 		if next.Park == nil || next.Park.Identity != identity || next.Park.Tombstoned || next.Park.Closed {
 			return errors.New("park success does not match an active non-tombstoned transaction")
 		}
@@ -717,27 +746,29 @@ func (s *ThreadStore) RetireUnprovenIncarnation(address ThreadAddress, expectedR
 }
 
 func (s *ThreadStore) retireIncarnation(address ThreadAddress, expectedRevision uint64, identity ProcessIdentity, detachedAt time.Time, accepted IncarnationState) (ThreadRecord, error) {
-	return s.updateExistingThread(address, expectedRevision, func(next *ThreadRecord) error {
-		if next.Park != nil {
-			return errors.New("cannot retire an incarnation while a park transaction is open")
-		}
-		if len(next.Incarnations) != 1 {
-			return fmt.Errorf("retire needs exactly one incarnation, found %d", len(next.Incarnations))
-		}
-		incarnation := next.Incarnations[0]
-		if incarnation.State != accepted {
-			return fmt.Errorf("retire needs a %s incarnation, found %q", accepted, incarnation.State)
-		}
-		if incarnation.Start != nil {
-			return errors.New("cannot retire an incarnation with an open start transaction")
-		}
-		if incarnation.PID != identity.PID || incarnation.Identity != identity.Identity {
-			return errors.New("retire does not match the recorded incarnation process identity")
-		}
-		next.Incarnations = nil
-		next.LastActiveAt = MonotonicLastActiveAt(next.LastActiveAt, detachedAt)
-		return nil
-	})
+	return s.updateExistingThread(address, expectedRevision, func(next *ThreadRecord) error { return retireIncarnationRecord(next, identity, detachedAt, accepted) })
+}
+
+func retireIncarnationRecord(next *ThreadRecord, identity ProcessIdentity, at time.Time, accepted IncarnationState) error {
+	if next.Park != nil {
+		return errors.New("cannot retire an incarnation while a park transaction is open")
+	}
+	if len(next.Incarnations) != 1 {
+		return fmt.Errorf("retire needs exactly one incarnation, found %d", len(next.Incarnations))
+	}
+	inc := next.Incarnations[0]
+	if inc.State != accepted {
+		return fmt.Errorf("retire needs a %s incarnation, found %q", accepted, inc.State)
+	}
+	if inc.Start != nil {
+		return errors.New("cannot retire an incarnation with an open start transaction")
+	}
+	if inc.PID != identity.PID || inc.Identity != identity.Identity {
+		return errors.New("retire does not match the recorded incarnation process identity")
+	}
+	next.Incarnations = nil
+	next.LastActiveAt = MonotonicLastActiveAt(next.LastActiveAt, at)
+	return nil
 }
 
 // ClearVerifiedPark retires the park RECEIPT, and only the receipt.
@@ -769,23 +800,23 @@ func noOpenStartClaim(record ThreadRecord) error {
 }
 
 func (s *ThreadStore) AbandonPark(address ThreadAddress, expectedRevision uint64, identity ParkIdentity) (ThreadRecord, error) {
-	return s.updateExistingThread(address, expectedRevision, func(next *ThreadRecord) error {
-		if next.Park == nil || next.Park.Identity != identity {
-			return errors.New("park abandon identity does not match active transaction")
-		}
-		closed, decision, err := AdvanceParkTransaction(next.Park, ParkEvent{
-			Kind: ParkAbandoned, Identity: identity, RecordRevision: expectedRevision + 1,
-		})
-		if err != nil {
-			return err
-		}
-		if decision.Finalize || decision.HistoricalNoOp || !closed.Closed || !closed.Tombstoned {
-			return errors.New("park abandon did not produce a tombstone")
-		}
-		next.Park = nil
-		next.ParkHistory = append(next.ParkHistory, closed)
-		return nil
-	})
+	return s.updateExistingThread(address, expectedRevision, func(next *ThreadRecord) error { return abandonParkRecord(next, identity) })
+}
+
+func abandonParkRecord(next *ThreadRecord, identity ParkIdentity) error {
+	if next.Park == nil || next.Park.Identity != identity {
+		return errors.New("park abandon identity does not match active transaction")
+	}
+	closed, decision, err := AdvanceParkTransaction(next.Park, ParkEvent{Kind: ParkAbandoned, Identity: identity, RecordRevision: next.Revision + 1})
+	if err != nil {
+		return err
+	}
+	if decision.Finalize || decision.HistoricalNoOp || !closed.Closed || !closed.Tombstoned {
+		return errors.New("park abandon did not produce a tombstone")
+	}
+	next.Park = nil
+	next.ParkHistory = append(next.ParkHistory, closed)
+	return nil
 }
 
 func (s *ThreadStore) Snapshot() (ThreadSnapshot, error) {

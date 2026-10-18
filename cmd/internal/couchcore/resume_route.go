@@ -147,6 +147,9 @@ func (c *Couch) resumeRouted(ctx context.Context, target ResumeTarget, opts Resu
 	if opts.WarmOnly {
 		return nil, refuseResume(ResumeNotDetached, "the exact terminal is not listed live")
 	}
+	if record.Park != nil {
+		return nil, refuseResume(ResumeParking, "a park transaction is unfinished; "+c.ParkRecoveryAdvice(ctx, record.Address))
+	}
 	// A retained compaction request owns its separate exact-attempt executor.
 	// Resume never converts it into generic native recovery or another stop set.
 	switch route {
@@ -154,9 +157,6 @@ func (c *Couch) resumeRouted(ctx context.Context, target ResumeTarget, opts Resu
 		return c.Continue(ctx, record.Address, record.Continuation.ID)
 	case ResumeRouteRecover:
 		return c.RecoverThread(ctx, record.Address, "")
-	}
-	if record.Park != nil {
-		return nil, refuseResume(ResumeParking, "a park transaction is unfinished; recover that park or Start fresh")
 	}
 	if startClaimed(record) {
 		transaction, err := CurrentStartTransaction(record)
