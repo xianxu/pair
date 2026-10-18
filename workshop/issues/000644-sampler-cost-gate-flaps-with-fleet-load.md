@@ -170,9 +170,9 @@ the binding budget, so the cold pass gets a work bound and a report, not a CPU a
       TestResourceSamplerNativeCost` (a) as-is, (b) under 12 busy loops, (c) while another slot's suite
       runs — same verdict in all three, logs retained; targeted `go test ./cmd/internal/couchcmd/
       ./cmd/internal/couchcore/`; then the full suite as `sdlc local-check run --name suite` on the pushed
-      head. Four conformance runs, not three (the fourth is the quietest); the suite took two attempts —
-      the first red on seven load-shaped tests in packages this patch cannot reach, filed as #659, the
-      second green on the same code. Both are recorded below.
+      head. Five conformance runs, not three — the fifth is on the landing head. The suite took two
+      attempts: the first red on seven load-shaped tests in packages this patch cannot reach, filed as
+      #659; the second green on the same code. Both are recorded below.
 
 **Not in scope.** No production-code change: the conformance asserts only what a native run can show (real
 reader call multiplication at host scale, and CPU proportionality), while exact per-category accounting
@@ -341,6 +341,19 @@ verdict that moves with the host instead of with the code.
 
 Retained: `/tmp/pair644-suite-attempt2.log`, and the record's own copy at
 `/Users/xianxu/workspace/pair/.git/sdlc/local-checks/615ab5d908379a1defe1efd3efa08ad64f60eace/suite.log`.
+
+**Run 5, on the landing head.** Appended rather than folded into the table above, whose counts this
+supersedes. The conformance re-run once on the exact head being closed, `30b84d0c1`, at loadavg 18.78:
+PASS in 0.69 s. Rows 1255-1258, history-write baseline 51.847 ms, cold pass 165.072 ms (ratio 3.18),
+steady passes 63.135 ms (1.22) and 63.007 ms (1.22); env 1545 cold then 4 and 0, usage 56, table 2,
+argv/cwd 0, one near-cap write of 4,190,350-4,193,832 bytes, `steady_sixty_second_CPU_pct=0.105119`.
+
+That makes five runs of unchanged code at loadavg 11.16, 15.10, 18.78, 23.23 and 112.12 — fifteen passes,
+twelve of them steady — one verdict everywhere, and the worst steady ratio anywhere is still 1.38 against
+K = 2.0. The old fixed budget splits the same five: it would have failed the three loaded runs (means
+125.687, 149.202 and 160.993 ms against 120 ms) and passed the two quiet ones (105.854 ms, and run 5's
+97.071 ms). A gate whose answer depends on which of those the host happens to be having is the bug this
+issue was filed for.
 
 ## Revisions
 
