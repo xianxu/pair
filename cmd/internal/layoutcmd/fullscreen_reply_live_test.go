@@ -31,6 +31,7 @@ import (
 // This deliberately distinguishes finding noise from qualifying a protected
 // refusal. A fixed sample without protected bad evidence is inconclusive.
 type nativeReplyEvent struct {
+	Completed         bool     `json:"completed,omitempty"`
 	CollectionUnknown bool     `json:"collection_unknown,omitempty"`
 	Kind              string   `json:"kind"`
 	At                string   `json:"at,omitempty"`
@@ -300,14 +301,16 @@ func (r *nativeReplyRuntime) RunZellijAction(args ...string) error {
 		r.wrongTarget = true
 	}
 	err := r.fullscreenLiveRuntime.RunZellijAction(args...)
+	completed := err == nil
 	if err != nil {
 		desired := len(args) > 1 && args[0] == "focus-pane-id" && IsAlreadyFocused(err, args[1])
 		desired = desired || (len(args) > 0 && args[0] == "show-floating-panes" && exitCode(err) == 2)
+		completed = desired
 		if !desired {
 			r.actionFailed = true
 		}
 	}
-	r.record(nativeReplyEvent{Kind: "mutation-result", Args: append([]string(nil), args...), Error: fmt.Sprint(err)})
+	r.record(nativeReplyEvent{Kind: "mutation-result", Completed: completed, Args: append([]string(nil), args...), Error: fmt.Sprint(err)})
 	return err
 }
 func nativeReplyAllowedTarget(args []string, source, target string, tab int) bool {
@@ -529,7 +532,8 @@ func TestFullscreenReplyRefusalInstalledZellijLive(t *testing.T) {
 	noise := startNativeReplyNoise(ctx, socket)
 	defer noise.stop()
 	expectedFocus := "agent"
-	focusMode := false
+	expected := nativeReplyExpectedState{ExactTiling: true, Focus: rt.source}
+	expectedKnown := true
 	stopReason := "fixed eight-decision sample completed without protected refusal"
 	for sample := 0; sample < 8; sample++ {
 		rt.events = nil
@@ -561,14 +565,21 @@ func TestFullscreenReplyRefusalInstalledZellijLive(t *testing.T) {
 		if status != 0 && (strings.Contains(diagnostic.String(), "list panes:") || strings.Contains(diagnostic.String(), "tab info:")) {
 			outcome.ProtectedBad = true
 		}
-		if status == 0 {
-			focusMode = !focusMode
-			if focusMode {
-				expectedFocus = "terminal-bottom"
-			} else {
-				expectedFocus = "agent"
+		nextExpected, prefixErr := nativeReplyExpectedPrefix(expected, rt.events, rt.source, rt.target, rt.tabID)
+		if prefixErr != nil {
+			expectedKnown = false
+			outcome.ActionFailed = true
+			stopReason = "completed-prefix outcome unknown: " + prefixErr.Error()
+		} else {
+			expected = nextExpected
+			expectedFocus = ""
+			for name, p := range initial {
+				if p.ID == expected.Focus {
+					expectedFocus = name
+				}
 			}
 		}
+
 		attempt := nativeReplyAttempt{Number: sample + 1, Status: status, Diagnostic: diagnostic.String(), Before: before, After: after, ExpectedFocus: expectedFocus, Outcome: outcome}
 		if status != 0 {
 			select {
@@ -578,8 +589,15 @@ func TestFullscreenReplyRefusalInstalledZellijLive(t *testing.T) {
 			}
 		}
 		result.Attempts = append(result.Attempts, attempt)
-		if status != 0 || rt.actionFailed || readErr != nil {
-			stopReason = "production attempt stopped: " + diagnostic.String()
+		if status != 0 || rt.actionFailed || readErr != nil || prefixErr != nil {
+			if prefixErr == nil {
+				stopReason = "production attempt stopped: " + diagnostic.String()
+			}
+			break
+		}
+		if expectedFocus == "" {
+			stopReason = "successful decision lacks completed focus expectation"
+			expectedKnown = false
 			break
 		}
 		if err := nativeReplyReceiverWitness(t, ctx, fixture, root, names, expectedFocus, fmt.Sprintf("sample-%d", sample)); err != nil {
@@ -598,17 +616,17 @@ func TestFullscreenReplyRefusalInstalledZellijLive(t *testing.T) {
 	final, oracle, oracleErr := nativeReplySnapshot(ctx, rt.fullscreenLiveRuntime, names, true)
 	result.Final = final
 	result.Oracle = append(result.Oracle, oracle...)
-	observed := oracleErr == nil
-	if observed && !final[expectedFocus].IsFocused {
-		observed = false
-		stopReason = "final native focus flag disagrees with expected receiver"
-	}
+	observed := oracleErr == nil && expectedKnown
 	if observed {
-		if err := nativeReplyGeometry(initial, final, focusMode, oracle); err != nil {
+		observedFocus, err := nativeReplyCheckExpected(initial, final, expected, oracle)
+		if err != nil {
 			observed = false
-			stopReason = "independent geometry: " + err.Error()
+			stopReason = "independent completed-prefix outcome: " + err.Error()
+		} else {
+			expectedFocus = observedFocus
 		}
 	}
+
 	if observed {
 		if err := nativeReplyReceiverWitness(t, ctx, fixture, root, names, expectedFocus, "final"); err != nil {
 			observed = false
