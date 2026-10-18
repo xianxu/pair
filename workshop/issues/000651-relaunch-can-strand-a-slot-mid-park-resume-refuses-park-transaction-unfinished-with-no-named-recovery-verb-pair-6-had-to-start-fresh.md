@@ -57,7 +57,7 @@ See [durable implementation plan](../plans/000651-interrupted-park-recovery-plan
 
 - [x] Promote the isolated interruption matrix to regressions and implement bounded rollback/recovery over the existing park authority.
 - [x] Expose recover-park through confirmed CLI/menu/receipts and make all interrupted-park advice actionable.
-- [ ] Complete the required suite and prepare close review with targeted/race and native fixture proof; record operator acceptance explicitly deferred by the hub.
+- [x] Complete the required suite and prepare close review with targeted/race and native fixture proof; record operator acceptance explicitly deferred by the hub.
 
 
 ## Log
@@ -174,3 +174,9 @@ The corrected013c1f717e61508f3874aa18627ee3a0484fe6e5 required suite completed e
 Unchanged targeted TestSkillDocumentsRecovery reproduced the refusal. Use the literal executable command without bracket notation, and describe optional --json separately; no parser relaxation. A complete command-package run on13c plus this working-tree document change failed only TestSessionSyncWriteTelemetryBestEffort/timeout at509.32225ms against500ms (package176.028s). This matches existing open pair#596; source still uses the unchanged200ms telemetry context and the test measures the whole durable write against500ms. Scheduling/filesystem contribution remains hypothesis, not proved timeout cause. Retain /tmp/pair651-couchcmd-complete.log SHA256a2285ecee14f28619cadd76e224005a36fe340020c6ea9fb5ec15a5f80641135. One unchanged complete-package rerun on the identical working tree passes106.043s in /tmp/pair651-couchcmd-complete-rerun.log. No source/timeout/flags changed between those two attempts, no new flake filing because#596 exists, no blind retry. The required suite on13c did not report#596; its only failure is the separately fixed skill example. Commit the example and verification before queueing the new required suite; do not chase main.
 
 Second full-suite SHA2569791680ca3d9fa193fed700af5a07aa67a7b983b4b73ee1921926aeac7b06866; unchanged command-package repeat SHA256d7b9c202d4be50fc7880d05d738db384c112ae02b3074ae0bdc72684485c99d1.
+
+### 2026-10-17 — full suite passes; status publication gap recorded
+
+The required suite on80063e6d8f7f29e4cc83ad0eb8d7d757b551c393 PASSED, exit0, no timeout or failures: command78.663s/core466.413s/tty50.972s and all remaining packages/recipes pass. Attemptd79d57fd973df98f92b03617bf772697 records1763.113822s exact queue wait and851.610315667s execution (14m11.61s), with UTC endpoints retained in .git/sdlc/test-stats/attempts/d79d57fd973df98f92b03617bf772697.json. Log /Users/xianxu/workspace/pair/.git/sdlc/local-checks/80063e6d8f7f29e4cc83ad0eb8d7d757b551c393/suite.log SHA256b52194a2dbbd18ddfccd70c0157df248c9f33bf90c7938fd25b946b818d61c9b. This is the actual complete test pass; the CLI exits1 afterward because its GitHub status POST failed (error connecting to api.github.com). A subsequent successful read-only API query confirms no sdlc-local/suite status on that SHA. No manual status publication or gate waiver.
+
+Inspected current local-check help and source: run always executes a suite; no publication-only recovery exists. Reportbc03fb50 verified submitted. Verified hub9f2f29b6 agrees, filed recovery gap as ariadne#431 (pair:7 also hit it), explicitly authorizes close review now and normal merge to run/record its suite. No source change in ariadne. Native fixture conformance remains passed; genuine operator acceptance remains explicitly deferred per3e82aae1/c3d1f43e to the next coordinated restart. TL owns the project file; close uses --no-project for that ownership, not to omit operator acceptance.

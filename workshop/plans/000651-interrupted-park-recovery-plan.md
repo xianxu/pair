@@ -122,10 +122,10 @@ Each row names the callable production boundary to verify. Concrete values and p
 
 ## Task 3: Conformance, required suite, review and live acceptance
 
-- [ ] Run targeted races over new ordering/recovery tests. Run ordinary complete relevant packages once after targeted verification.
+- [x] Run targeted races over new ordering/recovery tests. Run ordinary complete relevant packages once after targeted verification.
 - [x] Extend the real helper conformance fixture with owned, synchronized interrupt gates at park publication/cleanup/finalization boundaries, comparing fake and real retained outcomes. Each kill is only an exact owned child/group verified from the fixture handle and identity; never select a PID by text search. Preserve diagnostics before fixture cleanup. Private namespace only; coordinate local native fixture scheduling with the hub before running.
-- [ ] Push exact head and run sdlc local-check run --name suite. Retain every failure; known flakes follow tl-worker's issue-backed one-rerun policy. No gate bypass or operator label.
-- [ ] Ask hub to schedule a staged live check on an idle disposable/approved slot: normal relaunch, interrupted scrollback/park, named recover-park, same-conversation resume, duplicate recovery and subsequent delivery. No touch to :0 or live peer without hub coordination. No live acceptance claimed from fake results.
+- [x] Push exact head and run sdlc local-check run --name suite. Retain every failure; known flakes follow tl-worker's issue-backed one-rerun policy. No gate bypass or operator label.
+- [x] Ask hub to schedule a staged live check on an idle disposable/approved slot: normal relaunch, interrupted scrollback/park, named recover-park, same-conversation resume, duplicate recovery and subsequent delivery. No touch to :0 or live peer without hub coordination. No live acceptance claimed from fake results.
 - [ ] Record evidence and any review lessons; run sdlc close --issue 651 --verified '<exact proof>' with project ownership respected. Binary owns fresh-context review. On SHIP run sdlc pr then sdlc merge --yes; report actual merge SHA/PR to hub and stop. No whole-issue landing exception presumed.
 
 ## Approval checkpoint
@@ -176,3 +176,7 @@ Required-suite guards found missing verb cost, exhaustive source classifications
 ### 2026-10-17 — complete shared menu-domain validation
 
 Extending open-park presence through the shared row domain requires existing primary-Enter and generic-Recover expectations to describe the separate confirmed Recover park action. The action-name checker now recognizes complete longer labels before their constituent action names; a Recover park label must not be misread as separate recover and park commands. Counterfactual primary add-slot advice retains its ordinary-primary domain. The expanded status assertion exposed live rows hiding the new recovery advice; threadStateText now displays unfinished-transaction advice before normal continuity classification, while rootStateText continues appending retained continuation/missed status. This implements the approved shared guidance sweep, without a new action or recovery authority. Add a red/green regression that both recovery advice and running-continuation status remain visible.
+
+### 2026-10-17 — full-suite proof and publication-only recovery gap
+
+Full suite passes on80063e6d8f7f29e4cc83ad0eb8d7d757b551c393; only its post-success GitHub status publication fails. Keep both facts distinct. Hub9f2f29b6 filed ariadne#431 and explicitly approves close on the retained complete suite proof, with normal merge responsible for running/recording its authoritative suite. No hand-posted status or gate bypass. The live-coordination task is complete because hub scheduled the operator check for the next restart; the separate deferred operator acceptance checklist remains unchecked until observed.
