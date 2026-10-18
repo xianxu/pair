@@ -9,13 +9,20 @@ import "strings"
 // Under presentation: propose, a record whose old text holds one answers that
 // request, which the operator approved by writing it, so it applies directly.
 func readyMarkerIn(text string) bool {
+	_, _, ok := readyMarkerSpan(text)
+	return ok
+}
+
+// readyMarkerSpan is the byte span of the first complete ready marker in text.
+func readyMarkerSpan(text string) (start, end int, ok bool) {
 	const robot = "🤖"
 	for at := 0; ; {
 		i := strings.Index(text[at:], robot)
 		if i < 0 {
-			return false
+			return 0, 0, false
 		}
-		cursor := at + i + len(robot)
+		start = at + i
+		cursor := start + len(robot)
 		strike := false
 		if cursor < len(text) {
 			switch text[cursor] {
@@ -43,7 +50,7 @@ func readyMarkerIn(text string) bool {
 			cursor = end + 1
 		}
 		if !strike && lastUser && strings.TrimSpace(lastText) != "" {
-			return true
+			return start, cursor, true
 		}
 		at = cursor
 	}

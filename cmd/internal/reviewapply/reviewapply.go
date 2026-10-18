@@ -27,6 +27,7 @@ type applyResponse struct {
 	Invalid []sessionsync.BadEdit `json:",omitempty"`
 	Round   *sessionsync.Round    `json:",omitempty"`
 	Body    string                `json:",omitempty"`
+	Warning string                `json:",omitempty"`
 }
 
 // RunCLI is `pair review apply EDITS.json FILE --if-hash H [--json]`:
@@ -103,12 +104,15 @@ func RunCLI(args []string, getenv func(string) string, stdout, stderr io.Writer)
 		return fail(err)
 	}
 	if asJSON {
-		if err := json.NewEncoder(stdout).Encode(applyResponse{Code: "ok", Hash: res.Hash, Round: res.Round, Body: res.Body}); err != nil {
+		if err := json.NewEncoder(stdout).Encode(applyResponse{Code: "ok", Hash: res.Hash, Round: res.Round, Body: res.Body, Warning: res.Warning}); err != nil {
 			return fail(err)
 		}
 		return 0
 	}
 	fmt.Fprintf(stdout, "applied %d record(s)\nhash: %s\nround: %s\n", len(edits), res.Hash, roundPath)
+	if res.Warning != "" {
+		fmt.Fprintln(stderr, "pair review apply: warning:", res.Warning)
+	}
 	return 0
 }
 

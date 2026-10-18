@@ -414,3 +414,24 @@ In pair, `poke_bodies.review_opened` and `with_context` change to name `pair rev
   - **Pane:** `round_watch.lua` (reload plus decorate) and `oplock.lua` (the operator's turn lock).
   - **Test:** `review-applied-round-test.sh` drives the path end to end.
   - **Unchanged for M2:** `poke_bodies` stays as is, so legacy agents keep the handoff until pair#664.
+- **2026-10-18, issue-close review round 1 (REWORK): sweep of "M2 as built"**, each commitment as built, changed or deferred:
+  - **Built:**
+    - `BuildEdit` engine;
+    - `pair review apply` (exits 0/1/3/6; JSON reply plus `Warning`);
+    - the round artifact `{file, round, body}`, removed before the document moves;
+    - the pane round watch (reload plus decorate);
+    - the operator lock;
+    - readiness ignoring the review's own untracked `FILE.lock` (`cleanBesidesLock`, both porcelain checks, tested);
+    - the protocol target and the atlas.
+  - **Changed:**
+    - **Flock:** it is per tag, `review-apply-<tag>.flock` through artifactpath, not per path hash. A session reviews one file at a time.
+    - **Artifact write failure:** a failure after the document moved is a warning that still returns Hash and Body (BR-10, M1 decision 4).
+    - **Lock owner:** the lock records its owner pid, and a dead pane's lock is reclaimed at review start and on the next take (BR-11).
+    - **Declined rounds:** a round the pane declines is redelivered (Minor).
+    - **Go tests:** they live in `reviewapply`, not `reviewcmd`.
+    - **Rule (a)** is exactly the marker swapped for one side-doc link (BR-9), with a refused conformance fixture.
+  - **Replaced:** the planned rewrite of `review-loop-test.sh` and `fake-review-agent.sh` became the new `review-applied-round-test.sh`. The legacy loop test stays, because the legacy path stays.
+  - **Deferred to pair#664**, since they test or name the legacy handoff that ordering (a) keeps:
+    - the updates to `review-window-test`, `review-producer-context-test` and the restore tests;
+    - `poke_bodies` and its test;
+    - the "nvim never writes" rule test.

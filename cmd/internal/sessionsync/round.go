@@ -345,20 +345,26 @@ func operatorKeysKept(base, next string) error {
 // sideDocLink is the S2/S3 side-doc link: `→ [proposal](PATH)` or
 // `→ [discussion](PATH)`; foldInOnLink is that link with its 🤖[fold in] request.
 var (
-	sideDocLink  = regexp.MustCompile(`→ \[(proposal|discussion)\]\(([^()\s]+)\)`)
-	foldInOnLink = regexp.MustCompile(`→ \[(proposal|discussion)\]\(([^()\s]+)\)\s*🤖\[fold in\]`)
+	sideDocLink      = regexp.MustCompile(`→ \[(proposal|discussion)\]\(([^()\s]+)\)`)
+	wholeSideDocLink = regexp.MustCompile(`^→ \[(proposal|discussion)\]\(([^()\s]+)\)$`)
+	foldInOnLink     = regexp.MustCompile(`→ \[(proposal|discussion)\]\(([^()\s]+)\)\s*🤖\[fold in\]`)
 )
 
 // answersSideDoc is the narrow propose exception (TL, 2026-10-18; S3): (a)
 // old, verified in the base text, holds the operator's ready marker and no
-// side-doc link, and new replaces the marker with one, leaving no ready
-// marker; or (b) old holds
+// side-doc link, and new is old with exactly that marker replaced by one
+// side-doc link; or (b) old holds
 // 🤖[fold in] attached to a side-doc link and new is the fold: the same link
 // kept with ` (folded YYYY-MM-DD)` appended, and the fold-in marker gone. The
 // shared conformance fixtures (testdata/edit-records/conformance) pin both.
 func answersSideDoc(old, new string) bool {
-	if readyMarkerIn(old) && !sideDocLink.MatchString(old) && sideDocLink.MatchString(new) && !readyMarkerIn(new) {
-		return true
+	// (a) is exactly the marker swapped for the link: everything around it
+	// unchanged, so no rewrite can ride in with the link.
+	if i, j, ok := readyMarkerSpan(old); ok && !sideDocLink.MatchString(old) {
+		before, after := old[:i], old[j:]
+		if len(new) >= len(before)+len(after) && strings.HasPrefix(new, before) && strings.HasSuffix(new, after) {
+			return wholeSideDocLink.MatchString(new[len(before) : len(new)-len(after)])
+		}
 	}
 	if m := foldInOnLink.FindStringSubmatch(old); m != nil {
 		folded := regexp.MustCompile(regexp.QuoteMeta("→ ["+m[1]+"]("+m[2]+")") + ` \(folded \d{4}-\d\d-\d\d\)`)

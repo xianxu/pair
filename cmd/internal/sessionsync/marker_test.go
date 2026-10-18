@@ -180,3 +180,21 @@ func TestProposeExistingLinkIsNotANewAnswer(t *testing.T) {
 		t.Fatalf("a rewrite beside an existing link applied directly: %q %v", e.Next, err)
 	}
 }
+
+// Rule (a) is the marker swapped for the link and nothing else (close review
+// BR-9): a rewrite that ends in a link is still a proposal, or refused when
+// it is large.
+func TestProposeLinkAnswerCannotCarryARewrite(t *testing.T) {
+	doc := "---\npresentation: propose\n---\n\nLine one.\nLine two.\nLine three.\nLine four. 🤖[shorten]\n"
+	_, err := BuildEdit(doc, []EditRecord{{Old: "Line one.\nLine two.\nLine three.\nLine four. 🤖[shorten]", Occurrence: 1,
+		New: "Totally rewritten.\nX\nY\nZ\nW → [proposal](doc.side/x.md)"}}, t0Propose, false)
+	wantRefusal(t, err, ExitRefused, "propose-too-large")
+	e, err := BuildEdit(doc, []EditRecord{{Old: "Line four. 🤖[shorten]", Occurrence: 1, New: "Line 4. → [proposal](doc.side/x.md)"}}, t0Propose, false)
+	if err != nil || !strings.Contains(e.Next, "🤖~") {
+		t.Fatalf("a text change beside the link applied directly: %q %v", e.Next, err)
+	}
+	e, err = BuildEdit(doc, []EditRecord{{Old: "Line four. 🤖[shorten]", Occurrence: 1, New: "Line four. → [proposal](doc.side/x.md)"}}, t0Propose, false)
+	if err != nil || strings.Contains(e.Next, "🤖") {
+		t.Fatalf("the exact swap was not applied directly: %q %v", e.Next, err)
+	}
+}

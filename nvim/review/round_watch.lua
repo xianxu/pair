@@ -54,9 +54,10 @@ function M.watch(file, cb, opts)
   local timer = vim.uv.new_timer()
   timer:start(opts.interval or 100, opts.interval or 100, vim.schedule_wrap(function()
     local artifact = M.read(path)
-    if M.decide(artifact, file, seen) then
+    -- A round the callback declines (a modified buffer) stays unseen, so it
+    -- is delivered again once the pane can take it.
+    if M.decide(artifact, file, seen) and cb(artifact) ~= false then
       seen = artifact.round.result_hash
-      cb(artifact)
     end
   end))
   return function() if not timer:is_closing() then timer:stop(); timer:close() end end

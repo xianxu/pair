@@ -51,7 +51,7 @@ Design: `ops:teams/devinfra/projects/universal-agent-input-interface/design.side
 Durable plan: `workshop/plans/000661-s4-one-edit-path-apply-and-derived-rounds-plan.md`.
 
 - [x] M1 — Couch: `apply` (atomic resolution, `edits-invalid`), the round derived on every write, the round sidecar in both layouts, `round --json` with `cleared`, the propose converter, and the shared Go/Lua fixtures.
-- [x] M2 — the review pane on `apply`: register on first apply, the review agent runs `apply`, the pane highlights the round, and nvim apply and reconcile are retired.
+- [x] M2 — the review pane on the shared engine (TL decisions 2026-10-18): `pair review apply` / `pair review round` without Couch, the pane follows and highlights applied rounds under the operator lock, the propose exceptions and operator-owned keys; retirement of the legacy handoff, nvim apply and reconcile is pair#664.
 
 ## Estimate
 
@@ -115,3 +115,9 @@ Design is the low end of each range, because the durable plan already resolved t
   - Tests: `review-applied-round-test.sh` (13 checks; mutation: disabling the pane reload fails two), `reviewapply` CLI tests, the `sessionsync` ApplyFile/marker/conformance tests, and the Lua `round_watch_test`.
   - `make test-lua` and `make test-review` are green with the legacy path intact.
   - Done-when "nvim never writes the reviewed file" holds for applied rounds now; for all rounds it is met by pair#664, which retires the legacy buffer apply and adds the rule test.
+- **Issue-close review round 1 (REWORK)**, all fixed with tests:
+  - **BR-9 (Critical):** rule (a) is now exactly the marker swapped for the link, plus a refused conformance fixture `propose-link-carrying-rewrite-refused`.
+  - **BR-10:** an artifact write failure warns and keeps Hash and Body.
+  - **BR-11:** the lock carries its owner pid, and a dead pane's lock is reclaimed.
+  - **BR-12:** readiness ignores the lock, and the plan's M2 sweep is in Revisions.
+  - **Minor:** a declined round is redelivered.

@@ -28,6 +28,9 @@ type FileApplyResult struct {
 	Hash  string
 	Round *Round
 	Body  string
+	// Warning: the document was written but its round artifact was not; the
+	// reply still carries Hash and Body (M1's rule: a round failure warns).
+	Warning string
 }
 
 // RoundArtifact is the review pane's round file: which document, the round,
@@ -93,10 +96,10 @@ func ApplyFile(req FileApplyRequest) (FileApplyResult, error) {
 	if err := replaceShared(req.File, []byte(edit.Next)); err != nil {
 		return FileApplyResult{}, err
 	}
-	if err := writeAtomic(req.RoundPath, artifact); err != nil {
-		return FileApplyResult{}, err
-	}
 	res.Round, res.Body = &edit.Round, body
+	if err := writeAtomic(req.RoundPath, artifact); err != nil {
+		res.Warning = "the file was written but its round could not be recorded (" + err.Error() + "); commit this Body now, the pane shows no highlight for it"
+	}
 	return res, nil
 }
 

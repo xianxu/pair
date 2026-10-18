@@ -489,3 +489,20 @@ func (f *fakeRuntime) ReadIdentityFile(ctx context.Context, root, rel string, li
 func (f *fakeRuntime) IndexGeneration(ctx context.Context, path string) (string, error) {
 	return "stable-index", ctx.Err()
 }
+
+// The review's own untracked operator lock never makes a repo dirty; any
+// other change still does (pair#661 M2).
+func TestCleanBesidesLockIgnoresOnlyTheReviewLock(t *testing.T) {
+	gi := gitInfo{top: "/repo", abs: "/repo/docs/doc.md"}
+	for status, want := range map[string]bool{
+		"":                                      true,
+		"?? docs/doc.md.lock\n":                 true,
+		"?? docs/doc.md.lock\n M docs/doc.md\n": false,
+		"?? docs/other.md.lock\n":               false,
+		" M README.md\n":                        false,
+	} {
+		if got := cleanBesidesLock(status, gi); got != want {
+			t.Errorf("cleanBesidesLock(%q)=%v, want %v", status, got, want)
+		}
+	}
+}

@@ -22,6 +22,7 @@ local reconstruct = dofile(here .. 'reconstruct.lua') -- resume repaint (reconst
 local projection = dofile(here .. 'projection.lua')
 local poke_bodies = dofile(here .. 'poke_bodies.lua')
 local round_watch = dofile(here .. 'round_watch.lua') -- pair review apply rounds (#661 M2)
+local oplock = dofile(here .. 'oplock.lua')
 
 -- The agent-poke seam, injectable: on_agent_round is driven directly by the
 -- headless tests, which swap `M.poke` for a recorder so they never shell zellij.
@@ -247,7 +248,8 @@ function M.start(opts)
     local _, _, accepted, uncertain = M.on_agent_round(buf, records, context)
     return accepted, uncertain
   end, watch_opts)
-  local stop_rounds = round_watch.watch(file, function(artifact) M.on_applied_round(buf, artifact) end,
+  pcall(oplock.reclaim, file) -- a lock a crashed pane left would block every apply
+  local stop_rounds = round_watch.watch(file, function(artifact) return M.on_applied_round(buf, artifact) end,
     opts.round_watch_opts)
   sessions[buf] = { tag = tag, file = file, stop = function() stop(); stop_rounds() end }
   apply.clear_all(buf)

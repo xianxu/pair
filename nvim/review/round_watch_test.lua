@@ -53,17 +53,39 @@ vim.wait(500, function() return #got > 0 end)
 eq(got[1], 'new', 'a new round is delivered')
 stop()
 
+-- A round the pane declines (a modified buffer) is delivered again.
+local tries = 0
+stop = W.watch(file, function() tries = tries + 1; return tries > 1 end, { path = path, interval = 10 })
+put(art(file, 'again'))
+vim.wait(500, function() return tries >= 2 end)
+eq(tries >= 2, true, 'a declined round is redelivered')
+stop()
+
 -- oplock: taken on the operator's turn, refused if someone else's lock is
 -- there, dropped only when it is ours.
 eq(L.take(file), true, 'take the lock')
 local text = table.concat(vim.fn.readfile(L.path(file)), '\n')
-eq(text:match('^holder: operator\ntime: %d%d%d%d%-%d%d%-%d%dT%d%d:%d%d:%d%dZ$') ~= nil, true, 'S1 lock format')
+eq(text:match('^holder: operator\ntime: %d%d%d%d%-%d%d%-%d%dT%d%d:%d%d:%d%dZ\npid: %d+$') ~= nil, true, 'S1 lock format, with the owner pid')
 L.drop(file)
 eq(vim.uv.fs_stat(L.path(file)), nil, 'drop removes our lock')
 vim.fn.writefile({ 'holder: operator' }, L.path(file))
 eq(L.take(file), false, "someone else's lock is left alone")
 L.drop(file)
 eq(vim.uv.fs_stat(L.path(file)) ~= nil, true, "drop never removes a lock we didn't take")
+
+-- A lock left by a pane that died is reclaimed; a live owner's is not (BR-11).
+os.remove(L.path(file))
+local dead = 2147483000 -- far above any live pid on a test host
+vim.fn.writefile({ 'holder: operator', 'time: 2026-10-18T00:00:00Z', 'pid: ' .. dead }, L.path(file))
+eq(L.reclaim(file), true, "a dead pane's lock is reclaimed")
+eq(vim.uv.fs_stat(L.path(file)), nil, 'reclaim removed it')
+vim.fn.writefile({ 'holder: operator', 'time: 2026-10-18T00:00:00Z', 'pid: ' .. dead }, L.path(file))
+eq(L.take(file), true, "take reclaims a dead pane's lock")
+L.drop(file)
+vim.fn.writefile({ 'holder: operator', 'time: 2026-10-18T00:00:00Z', 'pid: ' .. vim.uv.os_getppid() }, L.path(file))
+eq(L.take(file), false, "a live owner's lock is left alone")
+eq(L.reclaim(file), false, "reclaim leaves a live owner's lock")
+os.remove(L.path(file))
 
 vim.fn.delete(dir, 'rf')
 if fails > 0 then os.exit(1) end

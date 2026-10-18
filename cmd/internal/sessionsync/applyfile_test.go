@@ -105,3 +105,36 @@ func TestApplyFileNeverLeavesAStaleRoundArtifact(t *testing.T) {
 		t.Fatal("the previous round artifact survived a failed apply")
 	}
 }
+
+// A round artifact that can't be written after the document moved is a
+// warning, not a failure: the reply keeps the new Hash and the Body to commit,
+// and no stale artifact remains (close review BR-10).
+func TestApplyFileRoundWriteFailureWarns(t *testing.T) {
+	r := newFileRig(t, "one two\n")
+	if _, err := r.apply(Hash(r.read(r.doc)), EditRecord{Old: "one", Occurrence: 1, New: "1"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(filepath.Dir(r.path), 0o500); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chmod(filepath.Dir(r.path), 0o755)
+	res, err := r.apply(Hash(r.read(r.doc)), EditRecord{Old: "two", Occurrence: 1, New: "2"})
+	if err == nil {
+		// The previous artifact could not even be removed: that refuses first.
+		t.Skip("platform let the read-only dir be written")
+	}
+	wantRefusal(t, err, ExitRefused, "refused")
+	if r.read(r.doc) != "1 two\n" {
+		t.Fatal("the document moved although its old round could not be cleared")
+	}
+	os.Chmod(filepath.Dir(r.path), 0o755)
+	os.Remove(r.path)
+	os.Chmod(filepath.Dir(r.path), 0o500)
+	res, err = r.apply(Hash(r.read(r.doc)), EditRecord{Old: "two", Occurrence: 1, New: "2"})
+	if err != nil || res.Warning == "" || res.Hash != Hash(r.read(r.doc)) || res.Body == "" || r.read(r.doc) != "1 2\n" {
+		t.Fatalf("res=%+v err=%v doc=%q", res, err, r.read(r.doc))
+	}
+	if _, err := os.Stat(r.path); !os.IsNotExist(err) {
+		t.Fatal("an artifact exists after a failed round write")
+	}
+}

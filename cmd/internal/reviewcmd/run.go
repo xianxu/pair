@@ -249,6 +249,23 @@ func RunReadiness(opts ReadinessOptions, rt Runtime, stdout, stderr io.Writer) i
 	return 0
 }
 
+// cleanBesidesLock reads `git status --porcelain` (paths from the repo top) as
+// clean when the only entry is the review's own untracked operator lock,
+// FILE.lock (pair#661 M2): the pane holds it during the operator's turn, and
+// docflow never stages it, so it must not make a review look dirty.
+func cleanBesidesLock(status string, gi gitInfo) bool {
+	lock := ""
+	if gi.top != "" && strings.HasPrefix(gi.abs, gi.top+"/") {
+		lock = "?? " + strings.TrimPrefix(gi.abs, gi.top+"/") + ".lock"
+	}
+	for _, line := range strings.Split(status, "\n") {
+		if line = strings.TrimRight(line, "\r"); line != "" && line != lock {
+			return false
+		}
+	}
+	return true
+}
+
 // gatherGitFacts runs the read-only git probes that feed the classifier.
 func gatherGitFacts(rt Runtime, dir, file string) (ReadinessFacts, gitInfo) {
 	var f ReadinessFacts
@@ -274,7 +291,7 @@ func gatherGitFacts(rt Runtime, dir, file string) (ReadinessFacts, gitInfo) {
 		gi.branch = strings.TrimSpace(br)
 	}
 	f.OnReviewBranch = strings.HasPrefix(gi.branch, "review/")
-	if st, _ := rt.Git(dir, "status", "--porcelain"); strings.TrimSpace(st) == "" {
+	if st, _ := rt.Git(dir, "status", "--porcelain"); cleanBesidesLock(st, gi) {
 		f.IsClean = true
 	}
 	if f.OnReviewBranch {
@@ -317,7 +334,7 @@ func prepare(opts ReadinessOptions, rt Runtime, stdout io.Writer, reviewCase str
 			fmt.Fprintf(stdout, "review not prepared: failed to track %s.\n", gi.abs)
 			return 1
 		}
-		if st, _ := rt.Git(gi.top, "status", "--porcelain"); strings.TrimSpace(st) != "" {
+		if st, _ := rt.Git(gi.top, "status", "--porcelain"); !cleanBesidesLock(st, gi) {
 			fmt.Fprintf(stdout, "review not prepared: tracked %s, but repo still has unrelated changes.\n", gi.abs)
 			return 1
 		}
