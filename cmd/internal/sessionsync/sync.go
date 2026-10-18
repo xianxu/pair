@@ -22,6 +22,8 @@ type Refusal struct {
 	Reason string
 	// Hash is the current hash on a `stale` refusal.
 	Hash string
+	// Invalid lists every bad record on an `edits-invalid` refusal.
+	Invalid []BadEdit
 }
 
 func (r *Refusal) Error() string { return r.Reason }
@@ -61,6 +63,19 @@ type WriteRequest struct {
 	Frontmatter                 bool
 	Accepts
 	Fold []string
+	// edits, set by Apply, are resolved against the file under the flock and
+	// become the whole-file body.
+	edits    []EditRecord
+	resolved []ResolvedEdit
+}
+
+// ApplyRequest is `apply`: records resolved against the whole file, all or
+// nothing (pair#661). IfHash is the whole-file hash from `read --all`.
+type ApplyRequest struct {
+	File, IfHash string
+	Edits        []EditRecord
+	Accepts
+	Fold []string
 }
 
 // Result reports what a write did beyond the write itself.
@@ -82,6 +97,15 @@ type Sync struct {
 	Now       func() time.Time
 	Diff      func(shadow, file string) (string, error)
 	Canonical func(string) string
+	// RoundWriter publishes a round sidecar; nil is writeAtomic.
+	RoundWriter func(path string, raw []byte) error
+}
+
+func (s *Sync) writeRound(path string, raw []byte) error {
+	if s.RoundWriter != nil {
+		return s.RoundWriter(path, raw)
+	}
+	return writeAtomic(path, raw)
 }
 
 // New wires the real clock, `diff -u` and symlink resolution.
@@ -382,6 +406,22 @@ func (s *Sync) Write(req WriteRequest) (Result, error) {
 	return withDocument(s, req.File, func(f *file) (Result, error) { req.File = f.paths.File; return s.write(f, req) })
 }
 
+// Apply makes a precise edit: the write path with a record-built body,
+// resolved after the hash and owed checks, so a stale file refuses before any
+// record is looked at.
+func (s *Sync) Apply(req ApplyRequest) (Result, error) {
+	if req.IfHash == "" {
+		return Result{}, refuse("apply needs --if-hash: `couch --session-sync read --all` the file first and pass its hash")
+	}
+	if len(req.Edits) == 0 {
+		return Result{}, refuse("apply needs at least one record")
+	}
+	edits := req.Edits
+	return withDocument(s, req.File, func(f *file) (Result, error) {
+		return s.write(f, WriteRequest{File: f.paths.File, IfHash: req.IfHash, Accepts: req.Accepts, Fold: req.Fold, edits: edits})
+	})
+}
+
 // shadowAfter is the shadow once the agent has written next: a whole-file
 // write is all of it, a section write changes only that section (and the
 // stamp it restamped), so the operator's edits elsewhere stay unread in
@@ -453,6 +493,10 @@ type preparedWrite struct {
 	document, shadow, hash    string
 	state                     State
 	stateBytes, pinStateBytes []byte
+	// roundChanged: the write changed the file, so its round replaces the
+	// previous one; round is nil when it would pass roundMaxBytes.
+	roundChanged bool
+	round        []byte
 }
 
 func (f *file) prepareWrite(req WriteRequest, rows []Entry, now time.Time) (preparedWrite, error) {
@@ -465,6 +509,26 @@ func (f *file) prepareWrite(req WriteRequest, rows []Entry, now time.Time) (prep
 	} else if req.Section != "" {
 		if next, err = ReplaceSection(f.content, req.Section, req.Body); err != nil {
 			return preparedWrite{}, refuse("%v", err)
+		}
+	}
+	// One baseline for every round consumer: the file before the write,
+	// restamped exactly when this write restamps, so the stamp never differs.
+	baseline := f.content
+	if !req.Frontmatter {
+		baseline = Restamp(f.content, now)
+	}
+	presentation := Presentation(f.content)
+	body := req.Body
+	if presentation == "propose" && !req.Frontmatter {
+		// Couch keeps the base text and writes the diff as markers; the
+		// written bytes are what every check, the shadow and the hash see.
+		if next, err = ProposeMarkers(baseline, Restamp(next, now)); err != nil {
+			return preparedWrite{}, err
+		}
+		if req.Section != "" {
+			if body, err = SectionBody(next, req.Section); err != nil {
+				return preparedWrite{}, refuse("%v", err)
+			}
 		}
 	}
 	validContent := IsSessionSync(next) && ParseOwner(next) == f.owner
@@ -480,7 +544,7 @@ func (f *file) prepareWrite(req WriteRequest, rows []Entry, now time.Time) (prep
 	if !req.Frontmatter {
 		next = Restamp(next, now)
 	}
-	shadow := f.shadowAfter(req.Section, req.Body, next, now)
+	shadow := f.shadowAfter(req.Section, body, next, now)
 	if req.Frontmatter {
 		block, _ := FrontmatterBody(next) // replacement already validated the block
 		if shadow, err = f.frontmatterShadow(block); err != nil {
@@ -517,7 +581,15 @@ func (f *file) prepareWrite(req WriteRequest, rows []Entry, now time.Time) (prep
 	if err != nil {
 		return preparedWrite{}, err
 	}
-	return preparedWrite{document: next, shadow: shadow, hash: Hash(target), state: state, stateBytes: stateBytes, pinStateBytes: pinStateBytes}, nil
+	prepared := preparedWrite{document: next, shadow: shadow, hash: Hash(target), state: state, stateBytes: stateBytes, pinStateBytes: pinStateBytes}
+	if spans, ok := DeriveRound(baseline, next, req.resolved); ok {
+		prepared.roundChanged = true
+		prepared.round, _ = encodeRound(Round{
+			BaseHash: Hash(f.content), ResultHash: Hash(next), At: now.UTC().Truncate(time.Second),
+			Presentation: presentation, Spans: spans,
+		})
+	}
+	return prepared, nil
 }
 
 func (s *Sync) write(f *file, req WriteRequest) (Result, error) {
@@ -539,9 +611,24 @@ func (s *Sync) write(f *file, req WriteRequest) (Result, error) {
 	if err := folds(req.Fold, owed); err != nil {
 		return Result{}, err
 	}
+	if req.edits != nil {
+		next, resolved, bad := ResolveEdits(f.content, req.edits)
+		if len(bad) != 0 {
+			return Result{}, &Refusal{Exit: ExitRefused, Code: "edits-invalid", Invalid: bad, Reason: fmt.Sprintf(
+				"%d of %d records don't resolve against the file; nothing was written. Fix them and apply again", len(bad), len(req.edits))}
+		}
+		req.Body, req.resolved = next, resolved
+	}
 	prepared, err := f.prepareWrite(req, rows, s.now())
 	if err != nil {
 		return Result{}, err
+	}
+	// A changing write drops the previous round before the document moves, so
+	// a failure later leaves no round, never an old round over new text.
+	if prepared.roundChanged {
+		if err := os.Remove(f.paths.Round); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return Result{}, refuse("the previous round could not be cleared: %v", err)
+		}
 	}
 	if err := replaceShared(req.File, []byte(prepared.document)); err != nil {
 		return Result{}, err
@@ -554,6 +641,14 @@ func (s *Sync) write(f *file, req WriteRequest) (Result, error) {
 	}
 	f.content, f.state = prepared.document, prepared.state
 	res := Result{Owner: f.owner, Folded: req.Fold, Hash: prepared.hash}
+	if prepared.roundChanged {
+		switch {
+		case prepared.round == nil:
+			res.Warning = "this round is too large to keep; parley shows no highlight for it"
+		case s.writeRound(f.paths.Round, prepared.round) != nil:
+			res.Warning = "the round could not be saved; parley shows no highlight for this write"
+		}
+	}
 	// The guard and the write can't be one step against parley, which takes
 	// no flock; say so when the operator took their turn in between.
 	lockPaths := f.lockPaths

@@ -1,6 +1,9 @@
 package sessionsync
 
 import (
+	"encoding/json"
+	"errors"
+	"os"
 	"sort"
 	"strings"
 	"time"
@@ -156,4 +159,60 @@ func lineStarts(s string) []int {
 func position(starts []int, off int) [2]int {
 	line := sort.Search(len(starts), func(i int) bool { return starts[i] > off }) - 1
 	return [2]int{line, off - starts[line]}
+}
+
+// roundMaxBytes caps the round sidecar on write and read (ARCH-CONSTRAINTS):
+// a 4 MiB document's old and new text plus JSON escaping fits.
+const roundMaxBytes = 16 << 20
+
+// encodeRound is the sidecar's bytes, or false when they would pass the cap.
+func encodeRound(r Round) ([]byte, bool) {
+	raw, err := json.Marshal(r)
+	if err != nil || len(raw) > roundMaxBytes {
+		return nil, false
+	}
+	return raw, true
+}
+
+// readRound reads and validates a round sidecar: nil, nil when there is none;
+// a round-invalid refusal when it is oversized or not a round.
+func readRound(path string) ([]byte, error) {
+	raw, err := readRegular(path, roundMaxBytes)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, roundInvalid(err.Error())
+	}
+	if _, err := decodeRound(raw); err != nil {
+		return nil, err
+	}
+	return raw, nil
+}
+
+// decodeRound accepts only a well-formed round: hashes, a time, a known
+// presentation, and spans whose positions are ordered and non-negative.
+func decodeRound(raw []byte) (*Round, error) {
+	var r Round
+	if err := json.Unmarshal(raw, &r); err != nil {
+		return nil, roundInvalid(err.Error())
+	}
+	if r.BaseHash == "" || r.ResultHash == "" || r.At.IsZero() {
+		return nil, roundInvalid("missing hash or time")
+	}
+	switch r.Presentation {
+	case "direct", "highlight", "propose":
+	default:
+		return nil, roundInvalid("unknown presentation " + r.Presentation)
+	}
+	for _, s := range r.Spans {
+		if s.Start[0] < 0 || s.Start[1] < 0 || s.End[0] < s.Start[0] || (s.End[0] == s.Start[0] && s.End[1] < s.Start[1]) {
+			return nil, roundInvalid("a span's positions are out of order")
+		}
+	}
+	return &r, nil
+}
+
+func roundInvalid(reason string) error {
+	return &Refusal{Exit: ExitRefused, Code: "round-invalid", Reason: "the round sidecar is unreadable: " + reason}
 }
