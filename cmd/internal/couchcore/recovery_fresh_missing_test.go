@@ -12,6 +12,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 func TestRecoveryFreshMissingRecordCarriesOrientationAndStrictReadiness(t *testing.T) {
@@ -94,7 +95,12 @@ func TestRecoveryFreshMissingRecordRefusesFutureVersion(t *testing.T) {
 }
 
 func TestRecoveryFreshOrdinarySlotKeepsOrdinaryLaunch(t *testing.T) {
-	env, local := slotRecoveryOperationFixture(t)
+	t.Cleanup(func() {
+		if t.Failed() {
+			t.Log(testwait.HostState())
+		}
+	})
+	env, local := slotRecoverySemanticFixture(t)
 	readyChecks := 0
 	env.Couch.FreshRegistration = func(context.Context, ThreadAddress, string, string) (bool, error) { readyChecks++; return false, nil }
 	result, err := env.Couch.StartFreshSlot(t.Context(), local.slot.WorktreeRoot, "claude")
@@ -126,7 +132,12 @@ func (a recordlessRecoveryArrival) Claim(address ThreadAddress) (ThreadArtifactC
 func TestRecoveryFreshMissingRecordLeavesForeignOwnersUntouched(t *testing.T) {
 	for _, mode := range []string{"listed-foreign", "unknown-foreign", "arrives-during-prepare"} {
 		t.Run(mode, func(t *testing.T) {
-			env, local := slotRecoveryOperationFixture(t)
+			t.Cleanup(func() {
+				if t.Failed() {
+					t.Log(testwait.HostState())
+				}
+			})
+			env, local := slotRecoverySemanticFixture(t)
 			scope, _ := launcher.ResolveRepoScope(local.slot.WorktreeRoot)
 			foreign := ThreadAddress{RepoScope: scope.Key, Tag: "couch-5555555555555555"}
 			arrive := func() {

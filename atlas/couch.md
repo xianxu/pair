@@ -12,6 +12,20 @@ the pty console, actor panel, notices, and complete local lifecycle shipped in
 
 ## What exists today
 
+### Load-independent lifecycle test evidence (#659)
+
+The recovery ownership fixtures use `SlotCatalogFake`; a separate catalog-timeout
+regression checks refusal without changing retained state. Park client-growth
+semantics inject queries into a test-only readiness helper while fake-CLI tests
+keep the native query contract. Clipboard key/fact tests exercise the unchanged
+product timeout and fallback. Activity byte-count invariants configure the existing
+probe-budget seam, with production deadline tests kept separately.
+
+Affected failures include best-effort `testwait.HostState()` load information.
+Native open-file conformance skips only unavailable/incomplete lsof observations;
+run `PAIR_REQUIRE_LSOF_CONFORMANCE=1 go test ./cmd/internal/diagnosticlog -count=1 -run 'Test(OpenFileInspectionConformance|UnregisteredChildOpenFileBlocksLegacyExpiry)$'`
+to require that native evidence. An answered wrong holder or identity always fails.
+
 ### Slot continuity and capture provenance (#528)
 
 The [slot-continuity target](../workshop/targets/slot-continuity.md) defines
@@ -1825,7 +1839,12 @@ the one definition of that line format. `ApplySlugs` fills
 `Couch.Slug` seam (`OSSlugReader`: bounded, no-follow, display-only, so errors
 read as no slug). The existing inventory refresh supplies new descriptions and
 slugs, which is why a slug change redraws without ever becoming attention; no
-additional storage or polling is added.
+additional storage or polling is added. Under #650 pair's per-turn slug refresh
+is off by default when Couch hosts the thread (pair's wrapper gates the
+`pair-slug` spawn on `launcher.CouchHostedEnv`, and the `slugcmd.Run` body
+gates the external Claude Stop-hook entry the same way; `PAIR_SLUG=on`
+re-enables both), so a hosted row carries a slug only while that knob is on —
+the display path is unchanged.
 
 Both CLI resolution and in-memory menu filtering derive from
 `ClassifyThreadReferenceFields`/`MatchThreadReferenceFields`: exact opaque tags

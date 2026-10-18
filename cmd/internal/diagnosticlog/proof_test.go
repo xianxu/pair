@@ -4,14 +4,15 @@ import (
 	"bufio"
 	"context"
 	"errors"
-	"github.com/xianxu/pair/cmd/internal/procutil"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/xianxu/pair/cmd/internal/procutil"
 	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
@@ -53,8 +54,13 @@ func (p *fakeInspection) OpenFiles(context.Context, string) ([]Registration, err
 func (p *fakeInspection) Runtimes(context.Context) ([]Runtime, error) { return p.runtimes, p.err }
 
 func TestOpenFileInspectionConformance(t *testing.T) {
+	t.Cleanup(func() {
+		if t.Failed() {
+			t.Log(testwait.HostState())
+		}
+	})
 	if _, e := exec.LookPath("lsof"); e != nil {
-		t.Skip("lsof unavailable")
+		requireLsofObservation(t, errors.New("lsof unavailable or incomplete"))
 	}
 	path := filepath.Join(t.TempDir(), "trace")
 	f, e := os.Create(path)
@@ -63,33 +69,26 @@ func TestOpenFileInspectionConformance(t *testing.T) {
 	}
 	defer f.Close()
 	holders, e := (OSInspection{}).OpenFiles(context.Background(), path)
-	if e != nil {
-		t.Fatal(e)
-	}
-	found := false
-	for _, p := range holders {
-		if p.PID == os.Getpid() {
-			found = p.Birth == procutil.StrictIdentity(strconv.Itoa(os.Getpid()))
-		}
-	}
-	if !found {
-		t.Fatalf("current open holder absent %+v", holders)
-	}
+	requireLsofObservation(t, e)
+	assertLsofHolder(t, holders, os.Getpid(), procutil.StrictIdentity(strconv.Itoa(os.Getpid())))
 	f.Close()
 	holders, e = (OSInspection{}).OpenFiles(context.Background(), path)
-	if e != nil {
-		t.Fatal(e)
-	}
+	requireLsofObservation(t, e)
 	for _, p := range holders {
 		if p.PID == os.Getpid() {
-			t.Fatal("closed fd remains in inspection")
+			t.Fatalf("closed fd remains in inspection; %s", testwait.HostState())
 		}
 	}
 }
 
 func TestUnregisteredChildOpenFileBlocksLegacyExpiry(t *testing.T) {
+	t.Cleanup(func() {
+		if t.Failed() {
+			t.Log(testwait.HostState())
+		}
+	})
 	if _, e := exec.LookPath("lsof"); e != nil {
-		t.Skip("lsof unavailable")
+		requireLsofObservation(t, errors.New("lsof unavailable or incomplete"))
 	}
 	path := filepath.Join(t.TempDir(), "legacy-trace")
 	if e := os.WriteFile(path, []byte("old"), 0600); e != nil {
@@ -115,25 +114,93 @@ func TestUnregisteredChildOpenFileBlocksLegacyExpiry(t *testing.T) {
 		if e != nil {
 			t.Fatal(e)
 		}
-	case <-time.After(5 * time.Second):
-		t.Fatal("reader not ready")
+	case <-testwait.After(t):
+		t.Fatalf("reader not ready; %s", testwait.HostState())
 	}
 	self := Registration{PID: os.Getpid(), Birth: procutil.StrictIdentity(strconv.Itoa(os.Getpid()))}
-	if e = VerifyWriters(context.Background(), path, []Registration{self}, OSInspection{}); !errors.Is(e, ErrUnknownWriters) {
-		t.Fatalf("legacy child holder proof %v", e)
+	holders, e := (OSInspection{}).OpenFiles(context.Background(), path)
+	requireLsofObservation(t, e)
+	assertLsofHolder(t, holders, child.Process.Pid, procutil.StrictIdentity(strconv.Itoa(child.Process.Pid)))
+	// Only the test-owned file needs native observation. Runtime proof semantics
+	// are covered by the stateful fake, without scanning unrelated processes.
+	if e = VerifyWriters(context.Background(), path, []Registration{self}, &fakeInspection{holders: holders}); !errors.Is(e, ErrUnknownWriters) {
+		t.Fatalf("legacy child holder proof %v; %s", e, testwait.HostState())
 	}
 	input.Write([]byte("done\n"))
 	input.Close()
 	if e = child.Wait(); e != nil {
 		t.Fatal(e)
 	}
-	holders, e := (OSInspection{}).OpenFiles(context.Background(), path)
-	if e != nil {
-		t.Fatal(e)
-	}
+	holders, e = (OSInspection{}).OpenFiles(context.Background(), path)
+	requireLsofObservation(t, e)
 	for _, p := range holders {
 		if p.PID == child.Process.Pid {
-			t.Fatal("exited child still reported live")
+			t.Fatalf("exited child still reported live; %s", testwait.HostState())
+		}
+	}
+}
+
+// An unanswered native probe is not proof that the implementation is wrong.
+// A complete answer that violates the contract is always a failure.
+func requireLsofObservation(t *testing.T, err error) {
+	t.Helper()
+	if err == nil {
+		return
+	}
+	unavailable := err.Error() == "lsof unavailable or incomplete" || err.Error() == "lsof reported incomplete inspection"
+	if unavailable && os.Getenv("PAIR_REQUIRE_LSOF_CONFORMANCE") != "1" {
+		t.Skipf("native lsof conformance unavailable/incomplete: %v; run PAIR_REQUIRE_LSOF_CONFORMANCE=1 to require it; %s", err, testwait.HostState())
+	}
+	t.Fatalf("native lsof conformance failed: %v; %s", err, testwait.HostState())
+}
+
+func assertLsofHolder(t *testing.T, holders []Registration, pid int, birth string) {
+	t.Helper()
+	for _, holder := range holders {
+		if holder.PID == pid && birth != "" && holder.Birth == birth {
+			return
+		}
+	}
+	t.Fatalf("open holder pid=%d identity=%q absent or wrong: %+v; %s", pid, birth, holders, testwait.HostState())
+}
+
+func TestLsofConformanceVerdicts(t *testing.T) {
+	if fixture := os.Getenv("PAIR_TEST_LSOF_VERDICT"); fixture != "" {
+		switch fixture {
+		case "unavailable":
+			requireLsofObservation(t, errors.New("lsof unavailable or incomplete"))
+		case "incomplete":
+			requireLsofObservation(t, errors.New("lsof reported incomplete inspection"))
+		case "malformed":
+			requireLsofObservation(t, errors.New("unexpected lsof output"))
+		case "unknown":
+			requireLsofObservation(t, ErrUnknownWriters)
+		case "wrong-holder":
+			assertLsofHolder(t, []Registration{{PID: 2, Birth: "expected"}}, 1, "expected")
+		case "wrong-identity":
+			assertLsofHolder(t, []Registration{{PID: 1, Birth: "wrong"}}, 1, "expected")
+		case "correct":
+			requireLsofObservation(t, nil)
+			assertLsofHolder(t, []Registration{{PID: 1, Birth: "expected"}}, 1, "expected")
+		default:
+			t.Fatal("unknown fixture", fixture)
+		}
+		return
+	}
+	for _, required := range []string{"0", "1"} {
+		for _, fixture := range []string{"unavailable", "incomplete", "malformed", "unknown", "wrong-holder", "wrong-identity", "correct"} {
+			t.Run(fixture+"/required="+required, func(t *testing.T) {
+				ctx, cancel := context.WithTimeout(context.Background(), testwait.Budget(t))
+				defer cancel()
+				cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestLsofConformanceVerdicts$", "-test.v")
+				cmd.Env = append(os.Environ(), "PAIR_TEST_LSOF_VERDICT="+fixture, "PAIR_REQUIRE_LSOF_CONFORMANCE="+required)
+				out, err := cmd.CombinedOutput()
+				skip := (fixture == "unavailable" || fixture == "incomplete") && required == "0"
+				wantPass := skip || fixture == "correct"
+				if (err == nil) != wantPass || strings.Contains(string(out), "--- SKIP:") != skip {
+					t.Fatalf("verdict fixture=%s required=%s err=%v output=%s; %s", fixture, required, err, out, testwait.HostState())
+				}
+			})
 		}
 	}
 }

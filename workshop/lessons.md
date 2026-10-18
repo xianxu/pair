@@ -7,6 +7,11 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- A successful subprocess status does not identify its reply kind. Qualify diagnostics with multiple live sessions as well as zero/one: Zellij list_sessions exits internally, so a missing-target action can return exit0 with a session listing and not-found stderr. Keep that exception at the name probe, with captured bytes and strict whole-reply validation; never relax the clients decoder. (#672)
+
+- Classify a concept by every operation its implementation performs: environment reads, test verdicts, diagnostics and subprocess policy checks belong to integration even when their decision rule is simple. When acceptance is revised, synchronize Done when, task rows and new README test switches in the same documentation pass, retaining the original decision in Revisions. (#659 close review)
+
+- Register every new non-`_test.go` source in artifactpath's exhaustive inventory, including helpers used only by tests. Run that guard before queueing a full suite; a test-support package is still production-shaped source to the inventory. (#659)
 - When migrating a temporary root, inspect every helper consumer, including ones that reuse its directory with a longer generated basename. Budget the complete native socket address and qualify the entire affected package under the OS's normal TMPDIR; a focused helper-name regex can omit the consumers that break. (#665 R8)
 - An ordering fixture must not require every real subprocess to beat a product
   deadline. Use a stateful double for identity/byte changes and controlled
@@ -2200,6 +2205,8 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #647 BR-3: upgrade every shared native fixture consumer when tightening a contract, including composed production launch controls. Retain JSON progress for long package runs: an early fixture failure can otherwise consume the package deadline during cleanup and conceal which test caused the delay.
 - A readiness counter contract needs a stateful test through the actual readiness decision, not only isolated zero/one counts. Cover unchanged observations before growth and show that both equality-accepting and never-accepting mutations fail, especially when native acceptance is deferred. (#645 BR-1)
 
+- #650 BR-1: When a second call site needs the same env-gate rule, extract the predicate into the owning package in the same round. Two hand-written copies of hosted-and-knob differ silently; one helper (e.g. launcher.SlugEnabled) plus one truth-table test — covering the fail-closed spellings like ON/1/0 — owns the rule for every entry point.
+- #650 BR-2: A mid-issue scope fold-in updates ## Done when in the same edit, via ## Revisions. Otherwise the close review judges stale acceptance criteria, and literal wording can turn wrong: a gated Stop-hook path may still start a short-lived process that stops at the gate, so "no process at all" is not the correct contract.
 - #647 BR-4: errors.As proves a joined error contains an exit status, not that the subprocess boundary otherwise succeeded. Diagnostic normalization must accept only a pure subprocess exit error; preserve cancellation and collector failures as terminal unknown. Sweep every consumer of the shared runner and inject collector failure alongside otherwise accepted diagnostics.
 
 - #647 native fixture: Darwin Go deliberately excludes FIFO descriptors from runtime polling. Blocking reads can defeat Close/join, while O_NONBLOCK can return EAGAIN immediately; cleanup-only or descriptor-flag checks can pass without transmitting any bytes. Prove actual readiness/data delivery and no-client/idle-reader/unread-buffer teardown. Prefer an ordinary owned Unix stream with standard cancellation over adding FIFO polling or retry logic.
