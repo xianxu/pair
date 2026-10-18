@@ -16,6 +16,7 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "0061ed0d", done: "15703b86"}
 ---
 
 # Couch reports native agent exit without mistaking attach disconnect
