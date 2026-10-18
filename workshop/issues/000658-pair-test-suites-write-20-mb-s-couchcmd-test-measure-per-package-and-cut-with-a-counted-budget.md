@@ -127,6 +127,13 @@ Draft detailed plan: [suite write budget](../plans/000658-suite-write-budget-pla
 
 - Early PR422 opened for CI overlap under the standing hub approval; marked draft while matched measurement, recorded suite and close review remain required. Full couchcmd and couchtty package tests passed with caps enabled (57.525s/47.434s); couchcore still running.
 
+
+### 2026-10-17 — measurement queue checkpoint
+
+- Draft PR422 is open at pushed eeedca6731051353d4314ab056da6ba2b200d0f9. Unsupported-counter build controls passed with CGO_ENABLED=0 for testdisk/workbenchperftest; this is portable behavior evidence, not a native-byte measurement.
+- Matched Go after-measurement owns after-packages.39qinwud under the retained diagnostic root; fresh Pair build passed, normal one-token admission queued behind earlier fleet suites. Original scripts, binaries and baseline are preserved. Its exact current code is the pushed head above; later docs-only evidence does not alter test scope.
+- Hub035ebc24-06fb-4e54-99d7-a1e7d547cd2d verified Submitted approved the same quiet two-token window and requested start/end notices. Prepared separate same-body device after observer is queued after package measurement as exec40741; output /var/folders/07/b9wcwwld4_v2w9r3hk525bm80000gn/T/pair658-device-after.aEHWdo/device-suite. It uses the original read-only native probe, make -k WF_TEST_WEIGHT=2 test, real machine tokens, both30s quiet windows, and original APFS watcher; supervisor owns cancellation/reaping and refuses to overwrite prior output. Queue/body endpoints and noise are explicit. It is not the required SDLC recorded suite; no status will be hand-posted from this diagnostic.
+
 ## Revisions
 
 - 2026-10-17 — Measured dominant fixture construction rather than assuming fsync/logging churn. Candidate design preserves full30MB files and decoder/authority checks by CoW cloning private all-space templates. Reject fixture shrinking, hardlinks and NUL sparse files because they weaken the actual coverage. A shared native-counter runner defends the whole normal-run callback in the large-fixture consumer packages; final numeric caps await the queued distribution and hub approval.
