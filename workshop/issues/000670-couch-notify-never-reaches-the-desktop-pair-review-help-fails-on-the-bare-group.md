@@ -57,8 +57,12 @@ Two operator-facing gaps, both seen 2026-10-18:
   Focus policy. Do not change transport or settings without further evidence.
   Preserve one-shot/no-retry behavior and existing uncertain-write handling
   (ARCH-ORDER, ARCH-SECURE). Wait for operator evidence before larger changes.
-- [ ] Run targeted packages/catalog, recorded suite and normal close review/landing
-  once notification scope is agreed and acceptance evidence is recorded.
+- [x] Run targeted packages/catalog once notification scope is agreed and acceptance
+  evidence is recorded.
+
+Landing gates: recorded suite PASS on final code, normal close review and merge.
+The worker contract permits close review to overlap a queued suite; this does
+not assert a suite pass before its result.
 
 The recommended approach reuses Families and existing terminal output. A separate
 review-only registry would duplicate command knowledge; changing OSC protocols
@@ -130,3 +134,9 @@ Targeted final runs: notify CLI/service tests PASS 0.449s; dispatcher PASS
 existing refusal/lost-reply/no-duplicate cases remain green. Diff check clean.
 Done-when revised explicitly to the hub-approved bounded acceptance; desktop
 presentation remains unproved and is not claimed by these tests.
+
+Recorded suite queued on pushed code bcc7af1de (Git push confirmed). No-upstream
+push was corrected with explicit upstream; initial local-check refused the
+unpushed head and did not run tests. Source unchanged between the refusal and
+recorded queue admission. Hub approved no live notification or restart for this
+landing; operator desktop evidence is still pending.
