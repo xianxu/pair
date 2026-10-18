@@ -148,6 +148,10 @@ M1 round3 returned SHIP with no new findings; BR-1, BR-2 and BR-3 are all addres
 
 Authenticated hub bf84e7de accepts M2's individual duration-subject exceptions: keep those exact existing sites in the shrink-only file with a reason on each entry; readiness guesses become explicit signals. Do not introduce a clock just to remove a sleep; use an existing clock seam only and retain a separate real-timing check when switching to fake time. R6 records the decision for M2; M2 code waits until M1 lands on main. Read-only package implementation planning may overlap the suite queue.
 
+### 2026-10-18 — R7 approved for post-M1 implementation
+
+Authenticated hub42233925 approves the complete M2 proposal:84 observation/signal repairs,12 duration subjects with per-entry reasons, and four explicitly deferred readiness/oracle sites. Keep the four exact sites with the reason "no completion signal exists yet", stating the missing mounted-handler/download/chooser witness. File one unassigned followup listing all four; no investigation of them in M2. The final target is16 explained existing sites, not zero sleeps. The84 are proposed, not yet removed. M1's source remains frozen; its suite acquired a slot after642s. All M2 code waits for M1 landing and a fresh-main branch.
+
 ## Revisions
 
 ### 2026-10-18 — R1: two approved milestones
