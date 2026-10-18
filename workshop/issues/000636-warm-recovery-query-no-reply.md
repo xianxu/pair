@@ -49,7 +49,9 @@ Approved diagnostic delivery: [durable plan](../plans/000636-warm-recovery-query
 - [x] Approve diagnostic plan; use change-code before test/helper edits.
 - [x] Prove complete production recovery refuses targeted native reply faults with no durable mutation/launch/quiescence or retry, with a healthy detached control.
 - [x] Prove private roots survive actual fixture environment setup; bound deferred diagnostic capture and preserve existing conformance assertions.
-- [ ] Commit/push diagnostics and isolation fix, required recorded suite, sole close review and normal landing; then ask the hub whether a native window remains useful. Cause-level diagnosis/native controls remain explicitly pending that post-landing decision.
+- [x] Commit/push diagnostics and isolation fix, pass the required recorded suite, and prepare close evidence.
+
+Remaining lifecycle steps: sole close review, normal landing, then ask the hub whether a native window remains useful. Cause-level diagnosis/native controls remain explicitly pending that post-landing decision.
 
 ## Log
 
@@ -124,3 +126,5 @@ The corrected zellijtest package then passed9.342s; all targeted package and rac
 Required recorded sdlc-local/suite passed on pushed ee34617a25bdacceacaf831da92c5441fd0f20d6: make PAIR_GO_TRIMPATH=-trimpath test, exit0 in11m10s, log sha256 prefix0797bc40085b; queue wait1235s. One full-suite attempt, no failures/retries. All Go, shell/editor and diagnostic checks passed. Log: /Users/xianxu/workspace/pair/.git/sdlc/local-checks/ee34617a25bdacceacaf831da92c5441fd0f20d6/suite.log. Closing this tested branch without manually chasing newer main.
 
 PR431 server checks are green, including conformance (3m0s, run39139067645/job117709529278). The existing macos-latest workflow installs Zellij0.45.1 and runs Makefile.local test-couch-zellij-live, whose selection includes park intent-only plus warm recovery, unchanged assertions. This is a separate remote healthy conformance sample, not a local native lane or proof of the original trigger. No local native run, operator stage/build/restart or clipboard action occurred. The post-landing native-window decision remains with the hub under approved revision5a7cb535.
+
+- 2026-10-18 — Close preflight refused before any review because the final checkbox included later lifecycle actions. Split completed implementation/suite preparation (checked with evidence above) from the still-pending close/landing/post-landing hub question (prose instructions). Scope and acceptance are unchanged; no gate bypass.
