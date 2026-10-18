@@ -168,15 +168,17 @@ func (s ZellijSource) run(args ...string) ([]byte, error) {
 // Stdout and Stderr each keep at most 64 KiB; byte counts describe the original
 // streams, which the production parser consumes without truncation. Err is the
 // caller-visible result; ExitCode retains the subprocess status (-1 if absent).
+// CallerDeadline is zero when absent; EffectiveDeadline includes the query cap.
 type ZellijQueryObservation struct {
-	Args                             []string
-	Started, Finished                time.Time
-	Duration                         time.Duration
-	Stdout, Stderr                   []byte
-	StdoutBytes, StderrBytes         int
-	StdoutTruncated, StderrTruncated bool
-	ExitCode                         int
-	Err                              error
+	Args                              []string
+	Started, Finished                 time.Time
+	CallerDeadline, EffectiveDeadline time.Time
+	Duration                          time.Duration
+	Stdout, Stderr                    []byte
+	StdoutBytes, StderrBytes          int
+	StdoutTruncated, StderrTruncated  bool
+	ExitCode                          int
+	Err                               error
 }
 
 type zellijQueryObserverKey struct{}
@@ -194,6 +196,7 @@ func (s ZellijSource) runContext(ctx context.Context, args ...string) (output []
 	if path == "" {
 		path = "zellij"
 	}
+	callerDeadline, _ := ctx.Deadline()
 	ctx, cancel := context.WithTimeout(ctx, zellijQueryTimeout)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, path, args...)
@@ -201,6 +204,7 @@ func (s ZellijSource) runContext(ctx context.Context, args ...string) (output []
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	if observe, _ := ctx.Value(zellijQueryObserverKey{}).(func(ZellijQueryObservation)); observe != nil {
+		effectiveDeadline, _ := ctx.Deadline()
 		started := time.Now()
 		defer func() {
 			finished := time.Now()
@@ -210,6 +214,7 @@ func (s ZellijSource) runContext(ctx context.Context, args ...string) (output []
 			}
 			const bound = 64 * 1024
 			observe(ZellijQueryObservation{
+				CallerDeadline: callerDeadline, EffectiveDeadline: effectiveDeadline,
 				Args: append([]string(nil), args...), Started: started, Finished: finished,
 				Duration: finished.Sub(started), ExitCode: exitCode, Err: resultErr,
 				Stdout:      append([]byte(nil), stdout.Bytes()[:min(stdout.Len(), bound)]...),

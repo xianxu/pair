@@ -1,12 +1,12 @@
 ---
 id: 000636
-status: open
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-16
-updated: 2026-10-17
+updated: 2026-10-18
 estimate_hours:
-card_mirror: '44344bdc20af013f8214e635730ad318c253276d' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'e7586a2089b47c4e155160427155a8c882c77e67' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-17T10:14:59-07:00
 claimant:
     operator: Xian Xu
@@ -15,6 +15,8 @@ claimant:
     workspace: pair:6
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "fb20d267", done: "9f6648a3"}
+actual_hours: N/A
 ---
 
 # Warm recovery live conformance intermittently receives no Zellij query reply
@@ -29,10 +31,28 @@ Diagnose empty native list-clients/list-panes replies during warm recovery and m
 
 ## Done when
 
+Current delivery, explicitly revised by hub approval5a7cb535 on2026-10-18:
+
+- Production recovery through the shared native fake refuses empty/whitespace, malformed and wrong-kind ownership/client replies before durable mutation, launch or quiescence, without retry; valid detached replies remain usable.
+- Both live fixtures explicitly retain disposable HOME/config/data/cache/runtime/socket roots after actual environment setup; poisoned ambient roots cannot leak into their children.
+- Existing query bytes/status/timing and local lifecycle ordering are retained through bounded deferred capture without extra queries or changed deadlines/assertions. Counted8/16 and capacity/cancellation controls prove the measurement contract.
+- Targeted checks, required recorded suite, close review and normal landing pass. After landing, ask the hub whether native qualification is still warranted. No native run is an acceptance prerequisite for this approved diagnostic delivery.
+
+Original cause-level acceptance below is retained as the historical objective; its execution is deferred until the hub chooses a native window after diagnostic landing:
+
 - Reproduce the no-reply seam deterministically, classify its cause, and add a regression at that seam.
 - Original observed failure cases and repeated isolated warm recovery conformance pass with every existing assertion retained.
 
 ## Plan
+
+Approved diagnostic delivery: [durable plan](../plans/000636-warm-recovery-query-no-reply-plan.md). First pin production recovery's unknown-reply refusal through the shared native fake and explicitly isolate the live fixture environment. Then instrument existing queries and the local detach boundary without extra queries, and request a separately approved bounded native window. A cause-level readiness/product correction is conditional on the resulting evidence and requires an approved design revision; no guessed fix, automatic retry or longer deadline.
+
+- [x] Approve diagnostic plan; use change-code before test/helper edits.
+- [x] Prove complete production recovery refuses targeted native reply faults with no durable mutation/launch/quiescence or retry, with a healthy detached control.
+- [x] Prove private roots survive actual fixture environment setup; bound deferred diagnostic capture and preserve existing conformance assertions.
+- [x] Commit/push diagnostics and isolation fix, pass the required recorded suite, and prepare close evidence.
+
+Remaining lifecycle steps: sole close review, normal landing, then ask the hub whether a native window remains useful. Cause-level diagnosis/native controls remain explicitly pending that post-landing decision.
 
 ## Log
 
@@ -63,3 +83,65 @@ Pair:1's /tmp/pair640-mi9l7uyn/protocol-control.jsonl was inspected read-only (S
 Independent source-level fixture weakness filed unclaimed as #645: park_lifecycle_live_test.go zellijClientCount accepts empty stdout as0 and counts the header; baseline0 followed by header-only count1 can falsely prove helper attachment. No causal connection to #636/#640 is claimed and no fixture edits were made.
 
 If more #636 evidence is needed after native coordination, use the existing WithZellijQueryObserver for bounded in-memory argv/exit/stdout/stderr/timing capture, retaining fixture client PID/start and PTY-close/signal/wait timestamps. Flush after the run: synchronous observer IO or extra queries/proxies can alter scheduling. Do not add retries or infer detachment/absence from silence. Implementation planning remains pending shared native-cause classification and hub scope guidance.
+
+### 2026-10-18 — resumed after #647 / #656
+- 2026-10-18: closed — Narrow post-close catalog compatibility delta: two tmp-literal exception comments explain existing private short AF_UNIX allocations; no allocation, cleanup, deadline or executable Go behavior change. New main catalog initially failed both sites, then passed with the annotations; targeted catalog and real recovery/isolation tests passed2.350s/3.820s. Existing 103-byte socket-budget proof and owned real socket remain. Main integrated automatically without code conflicts; authoritative integrated suite remains required by merge. Prior corrected branch suite d6e985ec passed11m36s log d6e007689f46 and close SHIP. Actual N/A remains per hub bff4b081 held-claim overlap with measured #649/#656; no invented hours. No local native lane/operator action. (fixed-then-ship) (done-when: contract moved since change-code; judged by the close review); review verdict: SHIP
+- 2026-10-18: closed — Hub-approved diagnostics/isolation delivery, native-cause phase deferred. Fresh recorded suite d6e985ec8aa2fbc498f9b1689bf07a202ae921f8 exit0 11m36s, log d6e007689f46, one attempt; all PR431 server checks green including macOS conformance3m49s. BR-1 fixed via query-boundary caller/effective deadlines; actual-adapter shorter-child regression RED before/GREEN after; absent/shorter/longer caller cap tests and targeted normal/race observer/recovery/isolation/capture families pass. Shared fake12 faults refuse before effects or retry; poisoned parent/nested roots and six guard mutations; bounded64-record/8MiB exact capture, cancellation/LIFO and counted8/16 traces. Assertions/deadlines/query counts unchanged. Atlas/lesson and catalog follow-up recorded. No local native lane/operator stage/restart. Only actual waived per hub bff4b081: held claim overlaps already-measured #649/#656 so9.28h double-counts; N/A excludes calibration, no invented replacement; hub owns ariadne fix. (done-when: contract moved since change-code; judged by the close review); review verdict: SHIP
+
+Hub dispatch f21bd6b6 retained pair:6 ownership after an accidental pair:1 dispatch; follow-up700ec68b directs diagnosis on strict decoding/shared fake now on main, plan before code and hub approval before any native lane. #656 landed PR427, Git-verified merge9265395740b065c03a2ff0fc317a9dbf754616a9, and this branch starts from861e4f1de857889c0d55d716b026828f88338f58. start-plan first refreshed the local ariadne tool dependency and instructed a repeat; repeat succeeded. No #636 code edits or native runs yet.
+
+All five retained pair627 logs still exist with the original filed hashes; original overlay/native-private-env files also survive. Protocol control /tmp/pair640-mi9l7uyn/protocol-control.jsonl still hashes e8de734728e0dabe1e7dfd59ab1ad2cf1dd18cad4edd9135d12dd4edf348acef. The historical failed query's own stdout/stderr, native IPC ordering and exact detach timing were not retained; later successful pane output cannot fill that gap. Original overlay paths refer to slot1 and older sources, so it is not a current-main control without reconstruction.
+
+Read-only source audit confirms strict client/pane decoding and unknown preservation now exist, including no automatic retry. Existing high-level recovery observer-error tests bypass the production native query adapter; the missing cross-layer regression is RecoverThread with ScopedThreadArtifactCollisionChecker plus shared zellijtest faults at owned-pane and list-clients observations. Current ControlledZellij.KillClient still closes PTY, signals SIGTERM and waits locally without a server detach acknowledgement; this is a hypothesis boundary, not the proved cause (ARCH-ORDER).
+
+New fixture isolation evidence: testpair.ApplyEnvironment clears inherited environment via tests/lib/pair-test-env.sh. The warm fixture names only TMPDIR/SHELL/config/data overrides; park adds cache. Neither explicitly retains ZELLIJ_SOCKET_DIR/XDG_RUNTIME_DIR, so the historical outer environment file does not establish current effective socket/runtime isolation. Before native testing, explicitly private roots must cross this existing boundary and be asserted. The old failed run also shows first-run setup wizard panes; it is a fixture-state difference to retain, not a cause claim (ARCH-SECURE).
+
+Read-only baseline: launcher/fake selected empty-reply/client/owner/diagnostic tests passed (launcher26.092s, zellijtest5.091s; zellijreply selector matched no tests). Full zellijreply/zellijtest tests then passed0.136s/13.564s. No native Zellij commands executed. Diagnostic plan pending hub approval; no production retry/deadline/parser change proposed.
+
+## Revisions
+
+- 2026-10-18 — Hub approval5a7cb535-36ce-47e9-963b-4195132eb96e, receipt verified submitted, revises this delivery to diagnostics plus isolation fix first, normal gates/landing, then ask whether native work remains worthwhile. Current Done-when now names that concrete delivery; the original cause/repeated-native objectives are retained above as deferred historical scope. Durable plan tasks1-4 and final gates are executable now; proposed native/cause phases require a later hub decision. No permission to use a native lane or stage/restart was given. This is explicit scope authorization, not an inference from a quiet slot.
+
+### 2026-10-18 — approved implementation and guard coordination
+
+change-code passed inferred quick flow after the hub-approved scope revision. Independent bounded tasks own the production-path shared-fake tests, explicit private environment helper/poisoned-ambient regression, and deferred query recorder. Root/child propagation is one isolation class: startParkLifecycleHelper rebuilds a child environment and also must explicitly retain the selected roots. No native binary has been executed.
+
+Hub04b60ce2 explicitly approved keeping a local guard now instead of waiting for #665's absent pkg/golint catalog. Notified its owner pair:1 (receipt10518c75, verified submitted) of the environment guard in recovery_live_environment_test.go and future catalog migration after #665 lands. Follow-up is rule placement, not deferral of current runtime/source coverage. Isolation RED was captured with actual harmless direct/nested child reports missing private cache/runtime/socket/config-dir values under the pre-helper setup. Existing strict decoding/recovery behavior remains unchanged.
+
+### 2026-10-18 — diagnostic implementation and targeted verification
+
+Added production RecoverThread/scoped-checker/owner-probe/strict-decoder integration using only shared zellijtest replies, real private Unix socket and fake exact process identities. Twelve faults cover empty/whitespace/wrong-kind/malformed at first/second ownership observations and client query5. Complete durable record/registry remain unchanged, exact argv/ordinal stops at failure, no launch/signal/delete/quiescence, later healthy replies unused. Valid header-only clients control completes warm reattachment. A disposable one-retry production overlay made the regression fail (unknown native reply admitted recovery); no tracked production change.
+
+Shared test-only setup now passes7 private existing HOME/config/data/cache/runtime/socket/config-dir roots through actual parent and nested park child environment boundaries. RED direct/nested child reports exposed missing roots before the helper; GREEN tests verify poisoned ambient isolation, restoration and cleanup. Real harmless Unix socket bind proves current session names fit <=103bytes including resolved /private alias/version directory. Empty default config behavior remains unchanged. Six in-memory source-guard mutations detect omitted setup/propagation. Source guard/rule migration coordination with pair:1 acknowledged in dac99321; ariadne catalog proposal will route through the hub after landing, not expand #665.
+
+Bounded synchronized test recorder retains original completed-query bytes/status/error/timing/caller deadline and local lifecycle markers. It defers JSON logging until after subsequent fixture cleanup, caps64 combined records/8MiB output plus per-record metadata, and explicitly records drops/truncation. TDD RED captured zero-record stub; exact byte/copy ownership, overflow, concurrent marks, canceled fake child and LIFO flush tests pass. 8/16 real fake CLI operations make exactly8/16 queries and zero effects; observer-on/off traces match. Added real recovery failure + recorder integration proving the empty client response itself is retained, with no diagnostic follow-up query. Warm fixture's old post-failure pane query was replaced by this original-request capture; all recovery assertions and query deadlines remain unchanged. Park cleanup markers explicitly say its local wait is not observed there; client wait never claims server detach acknowledgement.
+
+GREEN: combined new family passed10.178s; its targeted race run10.260s. Existing recovery refusal/deadline and park/helper count controls passed6.334s. Existing testpair environment guard fixtures/whole-tree guard passed3.253s. Agent-focused isolation normal/race passed0.334s/3.426s and capture family normal/race passed. git diff --check passed. Remaining package checks and required recorded suite pending. No installed native Zellij, operator session/build, stage/restart or OS clipboard use.
+
+### 2026-10-18 — fixture inventory check
+
+Broader package check passed launcher77.499s, zellijreply0.282s, testpair13.401s and pairlifecycletest1.947s, but zellijtest failed TestEveryZellijFixtureReplyUsesProductionDecoder: the new capture cancellation wrapper was an unregistered CLI reply producer. Inspection confirms it writes only a readiness file and execs the shared stateful fake; it serializes no native reply. Classified that boundary explicitly in the inventory's existing non-producer exclusions, with its reason, rather than introduce duplicate generated replies. Targeted contract rerun pending; this is a deterministic inventory omission, not a flake.
+
+The corrected zellijtest package then passed9.342s; all targeted package and race checks are green. Diagnostic tasks1-4 are complete; remaining work is the required recorded suite, close review and landing under the revised contract. Native/cause-level phases remain deferred to the post-landing hub decision.
+
+### 2026-10-18 — recorded suite and server conformance
+
+Required recorded sdlc-local/suite passed on pushed ee34617a25bdacceacaf831da92c5441fd0f20d6: make PAIR_GO_TRIMPATH=-trimpath test, exit0 in11m10s, log sha256 prefix0797bc40085b; queue wait1235s. One full-suite attempt, no failures/retries. All Go, shell/editor and diagnostic checks passed. Log: /Users/xianxu/workspace/pair/.git/sdlc/local-checks/ee34617a25bdacceacaf831da92c5441fd0f20d6/suite.log. Closing this tested branch without manually chasing newer main.
+
+PR431 server checks are green, including conformance (3m0s, run39139067645/job117709529278). The existing macos-latest workflow installs Zellij0.45.1 and runs Makefile.local test-couch-zellij-live, whose selection includes park intent-only plus warm recovery, unchanged assertions. This is a separate remote healthy conformance sample, not a local native lane or proof of the original trigger. No local native run, operator stage/build/restart or clipboard action occurred. The post-landing native-window decision remains with the hub under approved revision5a7cb535.
+
+- 2026-10-18 — Close preflight refused before any review because the final checkbox included later lifecycle actions. Split completed implementation/suite preparation (checked with evidence above) from the still-pending close/landing/post-landing hub question (prose instructions). Scope and acceptance are unchanged; no gate bypass.
+
+- 2026-10-18 — Actual-hours exception approved by hub receipt bff4b081-b7b1-4d8e-9070-b59f07bd4cc4 (verified submitted). The measured 9.28h spans the held claim from 2026-10-17 10:14 to 2026-10-18 08:41, overlapping #649 and #656, which pair:6 worked and which already adopted their own measured hours. That double-counts slot time; no replacement number is fabricated. Close uses only --no-actual, records N/A and excludes this issue from velocity calibration. Hub is filing the owning ariadne measurement fix so slot time counts once toward the issue actually worked. All verification and review gates remain required.
+
+### 2026-10-18 — close round1 BR-1
+
+Close returned REWORK for observation-context-fidelity: the capture callback closed over its installation context and misreported later shorter query contexts. Confirmed with a new actual-adapter/shared-fake regression: a4s child was recorded as its1min parent (RED). Query observer now carries actual caller and effective capped deadlines, and capture consumes those facts. Added absent/shorter/longer caller coverage at the query adapter; no timeout, retry, subprocess or query-count change. All inherited capture consumers use the same corrected event path (ARCH-PURPOSE). Corrected the durable plan selector, added the review lesson; normal targeted observer/recovery/isolation/capture tests passed launcher0.876s/couchcore5.689s. Fresh race/suite verification follows before the next review.
+
+The same targeted family passed with race detection: launcher1.806s, couchcore7.075s. The initial shorter-child test failed before the fix and passed after it. Fresh recorded suite is required for these source changes.
+
+Fresh recorded suite on d6e985ec8aa2fbc498f9b1689bf07a202ae921f8 passed exit0 in11m36s, log sha256 prefix d6e007689f46, after1026s queue wait. One attempt, no failures/retries. Log: /Users/xianxu/workspace/pair/.git/sdlc/local-checks/d6e985ec8aa2fbc498f9b1689bf07a202ae921f8/suite.log. Updated PR431 server checks all pass, including macOS conformance3m49s (run39142223454/job117718804022). No local native lane used. Ready for close round2, with actual-hours exception unchanged.
+
+### 2026-10-18 — landing integration catalog
+
+The landing gate integrated main including #665 (fab5a7861807aa4fcc26e7826a43e3ebd2f40e3d). Targeted new catalog check found the two deliberate short /tmp socket roots; these are not ordinary temporary storage: the native session/version leaves and actual ownership-probe socket must fit AF_UNIX limits even under macOS long TMPDIR. Stopped only our own waiting merge before edits. Added the catalog's precise tmp-literal exception comments at both allocation sites, retaining existing private allocation/cleanup and actual socket-budget tests. Catalog and recovery/isolation tests then passed2.350s/3.820s; git diff --check passed. No executable Go behavior changed. The merge gate still owns authoritative integrated-suite validation; no suite was canceled and no blind retry used.

@@ -5,11 +5,45 @@ import (
 	"errors"
 	"github.com/xianxu/pair/cmd/internal/zellijtest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 )
+
+func TestZellijQueryObserverReportsActualDeadlineContexts(t *testing.T) {
+	for _, budget := range []time.Duration{0, time.Second, time.Minute} {
+		t.Run(budget.String(), func(t *testing.T) {
+			ctx := context.Background()
+			var wantCaller time.Time
+			if budget != 0 {
+				wantCaller = time.Now().Add(budget)
+				var cancel context.CancelFunc
+				ctx, cancel = context.WithDeadline(ctx, wantCaller)
+				defer cancel()
+			}
+			var event ZellijQueryObservation
+			ctx = WithZellijQueryObserver(ctx, func(e ZellijQueryObservation) { event = e })
+			source := ZellijSource{queryRun: func(cmd *exec.Cmd) error {
+				return nil
+			}}
+			before := time.Now()
+			_, _ = source.runContext(ctx, "list-sessions", "--short")
+			after := time.Now()
+			if !event.CallerDeadline.Equal(wantCaller) {
+				t.Fatalf("deadlines caller=%v want=%v effective=%v", event.CallerDeadline, wantCaller, event.EffectiveDeadline)
+			}
+			if budget == time.Second {
+				if !event.EffectiveDeadline.Equal(wantCaller) {
+					t.Fatal("query lost earlier caller deadline")
+				}
+			} else if event.EffectiveDeadline.Before(before.Add(zellijQueryTimeout)) || event.EffectiveDeadline.After(after.Add(zellijQueryTimeout)) {
+				t.Fatalf("query cap deadline=%v outside call interval", event.EffectiveDeadline)
+			}
+		})
+	}
+}
 
 func TestZellijQueryObserverRetainsExactResponsesWithoutChangingClassification(t *testing.T) {
 	dir := t.TempDir()
