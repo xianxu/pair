@@ -2,10 +2,8 @@
 package repolint
 
 import (
-	"bufio"
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"go/ast"
 	"go/format"
@@ -13,7 +11,6 @@ import (
 	"go/token"
 	"io"
 	"os"
-	"os/exec"
 	"path"
 	"path/filepath"
 	"sort"
@@ -258,29 +255,21 @@ func checkShrink(previous, current Debt) error {
 	return nil
 }
 
-func gitOutput(root string, args ...string) ([]byte, error) {
-	command := exec.Command("git", args...)
-	command.Dir = root
-	var stderr bytes.Buffer
-	command.Stderr = &stderr
-	out, err := command.Output()
-	if err != nil {
-		return nil, fmt.Errorf("git %v: %w: %s", args, err, stderr.String())
-	}
-	return out, nil
-}
 func eligible(filename string) bool {
 	return strings.HasSuffix(filename, ".go") && !strings.HasPrefix(filename, "workshop/") && !strings.Contains("/"+filename, "/testdata/")
 }
 func scanTracked(root string, readFile func(string) ([]byte, error)) ([]locatedFinding, []sleepAt, int, error) {
-	inventory, err := gitOutput(root, "ls-files", "-z", "--cached")
+	return scanTrackedWithRepository(gitRepository{root: root}, root, readFile)
+}
+func scanTrackedWithRepository(repository repositoryRead, root string, readFile func(string) ([]byte, error)) ([]locatedFinding, []sleepAt, int, error) {
+	inventory, err := repository.TrackedPaths()
 	if err != nil {
 		return nil, nil, 0, err
 	}
 	var findings []locatedFinding
 	var sites []sleepAt
 	count := 0
-	for _, filename := range strings.Split(string(inventory), "\x00") {
+	for _, filename := range inventory {
 		if !eligible(filename) {
 			continue
 		}
@@ -331,145 +320,107 @@ func scanTracked(root string, readFile func(string) ([]byte, error)) ([]locatedF
 	return findings, sites, count, nil
 }
 
-// mainRef follows the repository's configured main tracking branch. A missing
-// configuration refuses rather than guessing an authority from candidate HEAD.
-func mainRef(root string) (string, error) {
-	config, err := gitOutput(root, "config", "--get-regexp", `^branch\.main\.(remote|merge)$`)
-	if err != nil {
-		var exit *exec.ExitError
-		if !errors.As(err, &exit) || exit.ExitCode() != 1 {
-			return "", err
-		}
-	}
-	values := map[string]string{}
-	for _, line := range strings.Split(strings.TrimSpace(string(config)), "\n") {
-		if line == "" {
-			continue
-		}
-		key, value, ok := strings.Cut(line, " ")
-		if !ok || values[key] != "" {
-			return "", fmt.Errorf("ambiguous main tracking configuration")
-		}
-		values[key] = strings.TrimSpace(value)
-	}
-	if len(values) > 0 {
-		remote, merge := values["branch.main.remote"], values["branch.main.merge"]
-		if remote == "" || !strings.HasPrefix(merge, "refs/heads/") {
-			return "", fmt.Errorf("invalid main tracking configuration")
-		}
-		if remote == "." {
-			return merge, nil
-		}
-		return "refs/remotes/" + remote + "/" + strings.TrimPrefix(merge, "refs/heads/"), nil
-	}
-	// Detached CI checkouts need not create a local main branch. Full-history
-	// checkout still provides its remote main ref; ambiguity is an error.
-	refs, err := gitOutput(root, "for-each-ref", "--format=%(refname)", "refs/remotes/")
+// mainRefWithRepository follows configured main tracking, or the unique remote
+// main ref in a detached checkout. Missing or ambiguous authority refuses.
+func mainRefWithRepository(repository repositoryRead) (string, error) {
+	config, err := repository.MainTracking()
 	if err != nil {
 		return "", err
 	}
-	var candidates []string
-	for _, ref := range strings.Fields(string(refs)) {
-		if strings.HasSuffix(ref, "/main") {
-			candidates = append(candidates, ref)
+	if config.Configured {
+		if config.Remote == "" || !strings.HasPrefix(config.Merge, "refs/heads/") {
+			return "", fmt.Errorf("invalid main tracking configuration")
 		}
+		if config.Remote == "." {
+			return config.Merge, nil
+		}
+		return "refs/remotes/" + config.Remote + "/" + strings.TrimPrefix(config.Merge, "refs/heads/"), nil
 	}
-	if len(candidates) != 1 {
-		return "", fmt.Errorf("need exactly one remote main ref without main tracking config, found %d", len(candidates))
+	refs, err := repository.RemoteMainRefs()
+	if err != nil {
+		return "", err
 	}
-	return candidates[0], nil
+	if len(refs) != 1 {
+		return "", fmt.Errorf("need exactly one remote main ref without main tracking config, found %d", len(refs))
+	}
+	return refs[0], nil
 }
-
 func debtBaseline(root string) (Debt, error) {
-	ref, err := mainRef(root)
+	return debtBaselineWithRepository(gitRepository{root: root})
+}
+func debtBaselineWithRepository(repository repositoryRead) (Debt, error) {
+	ref, err := mainRefWithRepository(repository)
 	if err != nil {
 		return Debt{}, err
 	}
-	base, err := gitOutput(root, "merge-base", "HEAD", ref)
+	commit, err := repository.MergeBase("HEAD", ref)
 	if err != nil {
 		return Debt{}, err
 	}
-	commit := strings.TrimSpace(string(base))
-	tree, err := gitOutput(root, "ls-tree", "--name-only", commit, "--", debtPath)
+	paths, err := repository.PathsAt(commit)
 	if err != nil {
 		return Debt{}, err
 	}
-	if strings.TrimSpace(string(tree)) != "" {
-		data, err := gitOutput(root, "show", commit+":"+debtPath)
-		if err != nil {
-			return Debt{}, err
+	for _, name := range paths {
+		if name == debtPath {
+			blobs, err := repository.ReadBlobs(commit, []string{debtPath})
+			if err != nil {
+				return Debt{}, err
+			}
+			data, ok := blobs[debtPath]
+			if !ok {
+				return Debt{}, fmt.Errorf("missing debt baseline blob")
+			}
+			return decodeDebt(data)
 		}
-		return decodeDebt(data)
 	}
-	// Bootstrap is legal only before this feature reaches main and only from the
-	// immutable pre-implementation source anchor, never the candidate inventory.
-	history, err := gitOutput(root, "log", "-1", "--format=%H", commit, "--", debtPath)
+	existed, err := repository.PathExisted(commit, debtPath)
 	if err != nil {
 		return Debt{}, err
 	}
-	if len(bytes.TrimSpace(history)) != 0 {
+	if existed {
 		return Debt{}, fmt.Errorf("main previously had debt file but baseline blob is missing")
 	}
-	if _, err := gitOutput(root, "merge-base", "--is-ancestor", bootstrapAnchor, "HEAD"); err != nil {
-		return Debt{}, fmt.Errorf("bootstrap source anchor not in candidate ancestry: %w", err)
+	ancestor, err := repository.IsAncestor(bootstrapAnchor, "HEAD")
+	if err != nil {
+		return Debt{}, err
 	}
-	return anchorDebt(root, bootstrapAnchor)
+	if !ancestor {
+		return Debt{}, fmt.Errorf("bootstrap source anchor not in candidate ancestry")
+	}
+	return anchorDebtWithRepository(repository, bootstrapAnchor)
 }
 func anchorDebt(root, anchor string) (Debt, error) {
-	inventory, err := gitOutput(root, "ls-tree", "-r", "--name-only", "-z", anchor)
+	return anchorDebtWithRepository(gitRepository{root: root}, anchor)
+}
+func anchorDebtWithRepository(repository repositoryRead, anchor string) (Debt, error) {
+	inventory, err := repository.PathsAt(anchor)
 	if err != nil {
 		return Debt{}, err
 	}
 	var names []string
-	for _, name := range strings.Split(string(inventory), "\x00") {
+	for _, name := range inventory {
 		if eligible(name) && strings.HasSuffix(name, "_test.go") {
 			names = append(names, name)
 		}
 	}
-	var requests strings.Builder
-	for _, name := range names {
-		fmt.Fprintln(&requests, anchor+":"+name)
-	}
-	command := exec.Command("git", "cat-file", "--batch")
-	command.Dir = root
-	command.Stdin = strings.NewReader(requests.String())
-	data, err := command.Output()
+	blobs, err := repository.ReadBlobs(anchor, names)
 	if err != nil {
-		return Debt{}, fmt.Errorf("read bootstrap source blobs: %w", err)
+		return Debt{}, err
 	}
-	reader := bufio.NewReader(bytes.NewReader(data))
 	debt := Debt{Version: 1, Sites: []SleepSite{}}
 	for _, name := range names {
-		header, err := reader.ReadString('\n')
-		if err != nil {
-			return Debt{}, err
-		}
-		fields := strings.Fields(header)
-		if len(fields) != 3 || fields[1] != "blob" {
-			return Debt{}, fmt.Errorf("invalid bootstrap blob header %q", header)
-		}
-		size, err := strconv.Atoi(fields[2])
-		if err != nil || size < 0 || size > len(data) {
-			return Debt{}, fmt.Errorf("invalid bootstrap blob size")
-		}
-		source := make([]byte, size)
-		if _, err := io.ReadFull(reader, source); err != nil {
-			return Debt{}, err
-		}
-		separator, err := reader.ReadByte()
-		if err != nil || separator != '\n' {
-			return Debt{}, fmt.Errorf("invalid bootstrap blob separator")
+		source, ok := blobs[name]
+		if !ok {
+			return Debt{}, fmt.Errorf("missing bootstrap source blob %q", name)
 		}
 		sites, err := sleepSites(name, source)
 		if err != nil {
 			return Debt{}, err
 		}
-		for _, s := range sites {
-			debt.Sites = append(debt.Sites, s.Site)
+		for _, site := range sites {
+			debt.Sites = append(debt.Sites, site.Site)
 		}
-	}
-	if _, err := reader.ReadByte(); err != io.EOF {
-		return Debt{}, fmt.Errorf("unexpected trailing bootstrap bytes")
 	}
 	sort.Slice(debt.Sites, func(i, j int) bool { return fmt.Sprint(debt.Sites[i]) < fmt.Sprint(debt.Sites[j]) })
 	if len(debt.Sites) != 103 {

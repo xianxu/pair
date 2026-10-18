@@ -133,6 +133,14 @@ BR-3 dispute was recorded by sdlc finding dispute with fresh3.607s real-reposito
 Round2 verifies BR-1 and BR-2 addressed and re-raises BR-3 solely on ARCH-MOCK. It reproduced the real-repository evidence but requires a shared injected fake/real read boundary. Authenticated hub42f6145f reverses its prior exception and approves the small repository-read interface with stateful index/ref/history/blob fake and every-run real-Git conformance. Plan R5 records the bounded model and named verification seams. No further dispute: address BR-3 and re-close. Canceled running e3ffaf6c suite through sdlc local-check cancel; it is incomplete, not a failed flake and not a PASS. Other checkouts were left running. Re-enter change-code for this revised design before implementation.
 
 
+### 2026-10-18 — BR-3 implementation checkpoint
+
+R5 passed change-code before implementation. The test-only repositoryRead interface exposes eight typed reads; main-ref policy stays shared above it. gitRepository owns the single Git execution boundary, including historical reads. Its NUL-delimited tree inventory maps raw paths to hexadecimal object IDs before classic cat-file batching, preserving newline filenames and binary bytes without a new Git minimum or per-file subprocesses. The bounded fake derives reads from separate worktree/index state, immutable commit trees, parent links and refs; unsupported dirty checkout histories refuse.
+
+One shared contract runs against both the fake and disposable real repositories on every package run. It covers inventory transitions, snapshot immutability, ref movement, candidate-versus-main debt, unknown/malformed/deleted data, deleted-path history, disconnected histories and multiple merge bases. The fake also checks every four-node forward-edge DAG against an independent transitive-closure oracle. The original real-repository tests remain. Initial contract compile RED is retained at /tmp/pair665-br3-contract-red.log. Staged ordinary repository check PASS3.284s:2559tracked Go sources, five rules and100exact debt sites. Final normal/race/fuzz and mutation qualification is pending; no full-suite PASS or milestone SHIP is claimed.
+
+Final frozen-source package normal PASS34.833s and race PASS52.879s; malformed-debt fuzz53267executions and suppression fuzz8231executions PASS. Retained logs /tmp/pair665-br3-final-{normal,race,debt-fuzz,suppression-fuzz}.log. The ordinary repository test rejects an added tracked sleep and duplicated debt (/tmp/pair665-br3-{new-site,corrupt-debt}-mutation-red.log). Both mutations were restored; the source matches the staged checkpoint. These are targeted checks, not a full-suite PASS.
+
 ## Revisions
 
 ### 2026-10-18 — R1: two approved milestones

@@ -2258,3 +2258,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #665 PQ-1: a plan that introduces validation or a ratchet names each function and gives one adversarial strategy and mechanical guard per risky seam. A prose case matrix does not identify who owns parsing, identity or authority checks.
 
 - #665 BR-1: when enforcing an exclusive authorization path alongside an upstream parser, recognize the upstream grammar, including its whitespace normalization. Regress the accepted spelling class against that parser; a literal prefix check can leave alternate valid spellings as a bypass.
+
+- #665 BR-3: check the registry's concrete dependency examples before claiming a local-tool exemption. ARCH-MOCK explicitly includes Git: keep policy above a typed read seam, use a bounded stateful fake there, and run the same contract against disposable real repositories as conformance.

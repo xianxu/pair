@@ -22,6 +22,16 @@ removed from the working tree is ignored; other inventory/read/parse failures
 and an empty inventory fail the test. The scanner runs in `go test ./...`, so
 no extra Make or CI command is needed.
 
+The test's `repositoryRead` boundary exposes tracked paths, main tracking/ref
+facts, merge base, historical paths/blobs, path history and ancestry. Scanner
+policy uses that typed boundary with either `gitRepository` or its stateful
+fake. The fake keeps working files separate from the index, immutable commit
+snapshots, parent links, refs and attached/detached HEAD. It derives answers from
+state transitions; it does not replay canned Git command responses. A shared
+contract runs on the fake and disposable real Git histories on every ordinary
+package test run, including unknown refs/blobs and authority changes. Real Git
+remains the normal repository-test adapter; no remote service is contacted.
+
 For an intentional semantic exception, place
 `//lint:allow <rule> — <specific reason>` on the finding's line or immediately
 above it. Upstream rejects unknown, reasonless and unused suppressions. Explain
