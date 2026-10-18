@@ -201,6 +201,104 @@ rounds:
       isolation: fenced
       reviewed: d1002ef25dda88d3f8055616e82b7bef2555551a
       blocked: false
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: d2234b76-1287-407f-8bab-2d9507c49691
+            repository: github.com/xianxu/pair
+            issue_id: "000657"
+            recipe: fix-review
+            round: 3
+            attempt: 1
+            agent: claude
+            root: /Users/xianxu/Library/Caches/sdlc/review-checkouts/6d9970b7843fa05a
+            reviewed_head: 137152dbba61d1b5ccded1affccc45725c92a21e
+            slot: pair:2
+            requested_at: "2026-10-18T16:48:46.545523Z"
+          phase: finished
+          pid: 26469
+          started_at: "2026-10-18T16:48:46.649717Z"
+          finished_at: "2026-10-18T16:49:49.479561Z"
+          session_id: 0136130e-ab9d-4ed9-b9b7-bea01d22ef39
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-queue-v1
+        repository: github.com/xianxu/pair
+        code_head: 137152dbba61d1b5ccded1affccc45725c92a21e
+        tracker_head: f2daca97ddf4cc27e7399777a71a16a12ff14d81
+        branch_point: 18935a4b30e733382b3d321cb7da6117e7a3dfc8
+        since: "2026-10-18T07:05:50-07:00"
+        until: "2026-10-18T09:46:55-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-18T07:05:50-07:00"
+              end: "2026-10-18T09:46:55-07:00"
+              began: "2026-10-18T07:05:50-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot2/pair
+        sources:
+            - harness: claude
+              id: 9073df29-d226-4140-b23c-4f03f2b4c472
+              slot: pair:2
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: 47403deede102fc7c6f25eb2fb1d7700d9c87f64aec7ab51ac364ebd1e4604cf
+              started: "2026-10-16T03:47:36.231Z"
+              spawned: false
+              bytes: 33227494
+              windows:
+                - start: "2026-10-18T07:05:50-07:00"
+                  end: "2026-10-18T09:46:55-07:00"
+        queue_waits:
+            - attempt_id: a3c1d97cc13e87d2e60a949f998fbfe5
+              slot: pair:2
+              record_digest: 47f2ebbbba2a9e855b45a715847f047139dd79d1a5d3805c437b169cf917ebe2
+              start: "2026-10-18T14:27:35.604267Z"
+              end: "2026-10-18T14:48:13.089401Z"
+              queue_seconds: 1237.485134
+              raw_seconds: 1237.485134
+              exact: true
+            - attempt_id: 1b2b7c3d69d680d0691c9e1395a07610
+              slot: pair:2
+              record_digest: 0d3aed4552a265f5e99b2a81c6bb9f22c3d9480293b807339fae1036856bc52c
+              start: "2026-10-18T16:04:28.656922Z"
+              end: "2026-10-18T16:26:57.195067Z"
+              queue_seconds: 1348.538145
+              raw_seconds: 1348.538145
+              exact: true
+        cuts:
+            - dispatched: "2026-10-18T08:01:29-07:00"
+              finalized: "2026-10-18T08:06:25-07:00"
+              finalizing: false
+            - dispatched: "2026-10-18T08:10:41-07:00"
+              finalized: "2026-10-18T08:23:21-07:00"
+              finalizing: true
+      "n": 3
+      timestamp: "2026-10-18T09:49:50-07:00"
+      dispatched: "2026-10-18T09:48:45-07:00"
+      agent: claude
+      reviewer: claude (anthropic; author anthropic)
+      dispose:
+        - id: BR-3
+          disposition: not-addressed
+          note: Interdiff touches only the conformance test; reaper signal ordering and coverage unchanged (Minor, non-blocking).
+          round: 3
+        - id: BR-4
+          disposition: not-addressed
+          note: Plan file unchanged in the window; no Revisions entry records the ordinal:identity Incarnation format.
+          round: 3
+        - id: BR-5
+          disposition: not-addressed
+          note: native_exit.go dedupe/capacity block still duplicates automatic_input_stall.go; no shared helper in the window (ARCH-DRY, Minor).
+          round: 3
+      recipe: fix-review
+      isolation: fenced
+      reviewed: 137152dbba61d1b5ccded1affccc45725c92a21e
+      blocked: false
 ---
 
 # Gate ledger — pair#657 (boundary-review)
@@ -232,6 +330,14 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-3 — not-addressed — No change or test in round 1; the PlanReap deepest-first SIGTERM can still give a 143 self-exit report; still plausible and Minor.
 - BR-4 — not-addressed — Plan line 56 still says binding key plus ordinal (the code uses ordinal:identity); line 73 still claims a real wrapper run (the test drives afterChildReaped); the plan checkboxes are unticked. Needs one Revisions entry.
 - BR-5 — not-addressed — native_exit.go:58-69 still copies the automatic-input-stall dedupe and capacity block; no shared helper.
+
+## Round 3 — 2026-10-18T09:49:50-07:00 (claude) — passed
+
+### Disposed
+
+- BR-3 — not-addressed — Interdiff touches only the conformance test; reaper signal ordering and coverage unchanged (Minor, non-blocking).
+- BR-4 — not-addressed — Plan file unchanged in the window; no Revisions entry records the ordinal:identity Incarnation format.
+- BR-5 — not-addressed — native_exit.go dedupe/capacity block still duplicates automatic_input_stall.go; no shared helper in the window (ARCH-DRY, Minor).
 
 ## Open findings
 

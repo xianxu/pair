@@ -245,3 +245,78 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-18T09:49:50-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 657 — Couch reports native agent exit without mistaking attach disconnect |
+| repo | pair |
+| issue file | workshop/issues/000657-native-agent-exit-notice.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | ebef3efbaa60b0890839f330d82a402a9b1e35d5..137152dbba61d1b5ccded1affccc45725c92a21e |
+| command | sdlc close --issue 657 |
+| reviewer | claude (anthropic; author anthropic) |
+| isolation | fenced |
+| timestamp | 2026-10-18T09:49:50-07:00 |
+| verdict | SHIP |
+
+## Review
+
+The code change only touches tests. Next I'm checking that it passes pair's lint catalog test.
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+This window changes only one code file, `cmd/internal/wrapcmd/native_exit_report_test.go`, which is a test. The rest is two new review-record docs under `workshop/plans/` and status/Log changes in the issue file. There's no change to `## Spec`, `## Done when` or `## Revisions`, and the plan file is untouched, so this is not a scope change. The test change does two things. It drops a fixed 300 ms sleep and instead waits for EOF on a pipe connected to the child's stdout, the same way `run`'s PTY master reaches EOF. It also adds a `//lint:allow test-shrunk-deadline` justification so the test meets the #665 lint catalog. There were no conflict resolutions to judge. None of the three open prior findings (all Minor) is fixed here. They stay open and don't block.
+
+1. **Strengths**
+   - `native_exit_report_test.go:63-81`: the `os.Pipe` EOF wait replaces a timing guess with a real ordering guarantee (Wait runs only after the child has exited), which is what the test's comment says it models. The parent closes its write end right after `Start`, so EOF arrives exactly when the child's last descriptor closes.
+   - `native_exit_report_test.go:156`: the lint-allow comment follows the format of the existing allows (e.g. `couchtty/console_pointer_test.go:189`) and gives a real reason: the deadline always fires and the test checks only its bound.
+   - Verified: `go test ./cmd/internal/wrapcmd -run TestNativeExitReport -count=3` passes.
+   - Verified: `TestTrackedGoFilesPassCatalog` passes ("2575 tracked Go sources, 5 rules"). It first failed only because this checkout has no `origin/main` ref, so I added a temporary one pointing at the merged main commit 18935a4b3 and deleted it after the run.
+
+2. **Critical:** none.
+3. **Important:** none.
+4. **Minor:** none new. BR-3, BR-4 and BR-5 are still open (see dispositions below).
+5. **Test coverage notes:** the conformance test is now deterministic rather than sleep-ordered. The `sleep 30` cases ignore the returned reader, which is fine because `t.Cleanup` closes it.
+6. **Architecture:**
+   - **ARCH-DRY: pass.** The helper's new pipe setup isn't duplicated anywhere.
+   - **ARCH-PURE: pass.** Only a test changed.
+   - **ARCH-PURPOSE: pass.** It's a lint and flake fix, and it reaches every site in the class within this file: the one fixed sleep and the one shrunk deadline.
+7. **Plan revision recommendations:** BR-4 still needs a `## Revisions` entry saying Incarnation is `"ordinal:identity"` (`message_service.go:518`).
+
+```findings
+dispose:
+  - id: BR-3
+    disposition: not-addressed
+    note: |
+      Interdiff touches only the conformance test; reaper signal ordering and coverage unchanged (Minor, non-blocking).
+  - id: BR-4
+    disposition: not-addressed
+    note: |
+      Plan file unchanged in the window; no Revisions entry records the ordinal:identity Incarnation format.
+  - id: BR-5
+    disposition: not-addressed
+    note: |
+      native_exit.go dedupe/capacity block still duplicates automatic_input_stall.go; no shared helper in the window (ARCH-DRY, Minor).
+```
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"d2234b76-1287-407f-8bab-2d9507c49691","repository":"github.com/xianxu/pair","issue_id":"000657","recipe":"fix-review","round":3,"attempt":1,"agent":"claude","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/6d9970b7843fa05a","reviewed_head":"137152dbba61d1b5ccded1affccc45725c92a21e","slot":"pair:2","requested_at":"2026-10-18T16:48:46.545523Z"},"phase":"finished","pid":26469,"started_at":"2026-10-18T16:48:46.649717Z","finished_at":"2026-10-18T16:49:49.479561Z","session_id":"0136130e-ab9d-4ed9-b9b7-bea01d22ef39","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.536512667s
+head: "137152dbba61d1b5ccded1affccc45725c92a21e"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
