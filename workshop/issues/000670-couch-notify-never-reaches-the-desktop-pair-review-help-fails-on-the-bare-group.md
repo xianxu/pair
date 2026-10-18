@@ -35,19 +35,23 @@ Two operator-facing gaps, both seen 2026-10-18:
 
 ## Done when
 
-- A hub `couch --notify` raises a desktop notification on the operator's machine (operator-confirmed), or the command states plainly what the operator must enable.
+- Successful `couch --notify` reports "Notification written; desktop delivery not
+  confirmed." README and atlas name Ghostty desktop-notifications, macOS
+  notification permission/alert style and Focus requirements. Per hub approval,
+  desktop presentation stays unconfirmed and no live test or transport change
+  occurs pending the operator's answer.
 - `pair review --help` lists the review subcommands; a test covers it.
 
 ## Plan
 
-- [ ] Add pure group help derived from existing Families, handling bare groups and
+- [x] Add pure group help derived from existing Families, handling bare groups and
   --help/-h before leaf resolution; preserve leaf routing and reject unknown
   children. Cover all implemented groups so this grammar defect cannot recur
   in siblings (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE).
-- [ ] Regress review bare/--help/-h with all six current leaves, unknown children,
+- [x] Regress review bare/--help/-h with all six current leaves, unknown children,
   and sibling group help; run dispatcher tests and public CLI smoke from a
   private build. No native sessions or operator terminal writes.
-- [ ] Propose notification wording: successful terminal write reports "Notification
+- [x] Propose notification wording: successful terminal write reports "Notification
   written; desktop delivery not confirmed." Document Ghostty desktop-notifications
   (default true), macOS Notifications > Ghostty permissions/banner settings and
   Focus policy. Do not change transport or settings without further evidence.
@@ -101,3 +105,28 @@ wording, and holds bigger notification changes pending the operator's permission
 and focused-window observations. Findings delivered to hub in submitted receipt
 29132b1e-437e-48c5-a65c-399fb4b19a00. Previous TTY capture is unavailable;
 retained branch/card and canonical current dispatch are the authority here.
+
+### 2026-10-18 — approved bounded delivery
+
+Hub 7339982c-2ff2-41d6-8652-38d2d10d4334 verified submitted: approved reporting
+and docs with review help, no transport change or live test pending operator.
+Group-help regressions first failed with unknown-command exit 2. Pure help now
+derives every visible implemented group's leaves from Families; Resolve and
+streaming/leaf routes remain unchanged. Dispatcher and main package tests passed
+(0.233s / 10.652s). Private executable's bare review and review --help list all
+six leaves. Existing apply/round --help both still emit their existing usage;
+round retains its existing exit 2 (not part of the group defect).
+Initial catalog passed 1.922s. Notification exact-wording regression failed on
+the old claimed-write text, before changing the output. No live notify sent.
+
+## Revisions
+
+- 2026-10-18: after read-only trace and hub approval, bound delivery to group
+  help, truthful notification-write reporting and terminal/OS requirements.
+  Operator display remains unconfirmed; transport changes and live tests held.
+
+Targeted final runs: notify CLI/service tests PASS 0.449s; dispatcher PASS
+0.163s; main CLI PASS 9.845s; full repolint package PASS 6.448s. Notification
+existing refusal/lost-reply/no-duplicate cases remain green. Diff check clean.
+Done-when revised explicitly to the hub-approved bounded acceptance; desktop
+presentation remains unproved and is not claimed by these tests.

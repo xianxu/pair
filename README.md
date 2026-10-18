@@ -408,7 +408,8 @@ upgrading, since running ones keep their old zellij server.
 `pair review …`, `pair scrollback …`, `pair clip …`, …) live in one executable,
 with Neovim and Zellij config carried alongside it. There is no Python and no
 shell runtime; `zellij`, `nvim`, `fzf`, and the agent CLIs are the only external
-programs.
+programs. Bare groups such as `pair review` (or `pair review --help`) list their
+subcommands.
 
 `make build` publishes each of `pair`, `couch`, and `pair-launch-helper` by
 building privately beside its destination, then renaming the completed executable.
@@ -2044,7 +2045,13 @@ and retains diagnostic counts only. The TL in the hub decides when to interrupt
 you with `couch --notify [--title T] MESSAGE`; its default title is `Couch`.
 Other slots are refused and should send their message to the hub instead.
 Titles accept at most 256 bytes and messages 4096 bytes, with terminal controls
-removed. Success means written to the terminal, not confirmation of OS display.
+removed. The command reports `Notification written; desktop delivery not confirmed.`
+A successful terminal write cannot confirm that the OS displayed the alert.
+For Ghostty, [`desktop-notifications = true`](https://ghostty.org/docs/config/reference#desktop-notifications)
+(the default) must be enabled. In macOS System Settings → Notifications → Ghostty,
+allow notifications and enable the desired alert style; Focus must allow the alert.
+If no alert appears, check those settings and compare focused and unfocused windows;
+Couch cannot inspect or confirm those policies through the terminal protocol.
 If a write or reply is uncertain, do not retry automatically.
 Couch also raises a desktop alert and tells the hub if its input guard
 unexpectedly stalls an otherwise idle slot for 30 seconds. Inspect the named
