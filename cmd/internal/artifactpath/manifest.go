@@ -791,6 +791,11 @@ var NonArtifactSources = []string{
 	"cmd/internal/wrapcmd/automatic_input_report.go",
 	"cmd/internal/couchmessage/automatic_input_stall.go",
 	"cmd/internal/couchcmd/automatic_input_stall.go",
+	// #657 native-exit report: the same wrapper-to-broker RPC shape; no
+	// artifact filenames.
+	"cmd/internal/wrapcmd/native_exit_report.go",
+	"cmd/internal/couchmessage/native_exit.go",
+	"cmd/internal/couchcmd/native_exit.go",
 	// #538 private web evidence and note protocol, outside Pair artifact families.
 	"cmd/internal/submission/publication.go",
 	"cmd/internal/webcast/board/prepared_note.go",
