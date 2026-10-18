@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pair-test-bootstrap.sh"
-# Slow Git observation must not block editing or accumulate activation callbacks.
+# Delayed observation results must not block editing or accumulate callbacks.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PAIR_ROOT="$ROOT" python3 -B - <<'PY'
@@ -23,38 +23,64 @@ with ReviewTestEnvironment() as isolated, tempfile.TemporaryDirectory(prefix='pa
         (tmp/'msg').write_text('review('+name+'): agent r1\n\n```review-records\n'+json.dumps([record])+'\n```\n')
         git('commit','-qaF',str(tmp/'msg'))
     git('checkout','-q','review/a')
-    phase='startup';wanted_history=[];requests=[]
+    phase='startup';wanted_history=[];requests=[];phase_evidence=[]
     wanted_binary=os.environ.get('PAIR_TEST_OBSERVATION_WANTED_BIN',str(root/'bin/pair'))
     def resolve():
         return observe_wanted([wanted_binary,'review','readiness','--resolve',str(repo)],
                               base_env,wanted_history,'wanted:'+phase)
 
-    slow=tmp/'slow';calls=tmp/'calls'
-    wrapper=home/'bin/pair'
-    wrapper.write_text('#!'+sys.executable+'\n'+'''import os,sys,time,subprocess
-from pathlib import Path
-if sys.argv[1:4]==['review','readiness','--resolve'] and Path(os.environ['SLOW_FILE']).exists():
- with Path(os.environ['CALLS_FILE']).open('a') as f:f.write('scan\\n')
- time.sleep(1)
-if sys.argv[1:4]==['review','readiness','--resolve'] and Path(os.environ['HOLD_FILE']).exists():
- result=subprocess.run([os.environ['REAL_PAIR'],*sys.argv[1:]],stdout=subprocess.PIPE,stderr=subprocess.PIPE)
- Path(os.environ['CAPTURED_FILE']).write_text('captured')
- while not Path(os.environ['RELEASE_FILE']).exists():time.sleep(.01)
- sys.stdout.buffer.write(result.stdout);sys.stderr.buffer.write(result.stderr);sys.exit(result.returncode)
-os.execv(os.environ['REAL_PAIR'],[os.environ['REAL_PAIR'],*sys.argv[1:]])
-''');wrapper.chmod(0o700)
+    (home/'bin/pair').symlink_to(root/'bin/pair')
     opened=data/'review.open'
-    env=dict(base_env,PAIR_HOME=str(home),REAL_PAIR=str(root/'bin/pair'),SLOW_FILE=str(slow),CALLS_FILE=str(calls),HOLD_FILE=str(tmp/'hold'),CAPTURED_FILE=str(tmp/'captured'),RELEASE_FILE=str(tmp/'release'),
-        PAIR_DATA_DIR=str(data),PAIR_TAG='observation',PAIR_SESSION_ID='sid',PAIR_REVIEW_OPEN_PATH=str(opened),
+    env=dict(base_env,PAIR_HOME=str(home),PAIR_DATA_DIR=str(data),PAIR_TAG='observation',PAIR_SESSION_ID='sid',PAIR_REVIEW_OPEN_PATH=str(opened),
         PAIR_REVIEW_HANDOFF_PATH=str(data/'handoff.json'),PAIR_REVIEW_LANDED_PATH=str(data/'landed.json'),
         PAIR_REVIEW_IDENTITY=json.dumps(resolve()),XDG_STATE_HOME=str(tmp/'state'),XDG_CACHE_HOME=str(tmp/'cache'),XDG_DATA_HOME=str(tmp/'xdg'))
     trace_path=tmp/'pane-observations.json';trace_init=tmp/'observation-init.lua'
     trace_init.write_text('dofile('+json.dumps(str(pane_init))+')\n'+
-        'dofile('+json.dumps(str(root/'tests/lib/review_observation_trace.lua'))+').install({path='+json.dumps(str(trace_path))+'})\n')
+        'dofile('+json.dumps(str(root/'tests/lib/review_observation_trace.lua'))+').install({path='+json.dumps(str(trace_path))+'})\n'+
+        'dofile('+json.dumps(str(root/'tests/lib/review_observation_gate.lua'))+').install()\n')
     pane=None;meta=None
 
     def evaluate(expr):return subprocess.check_output(['nvim','--server',meta['endpoint'],'--remote-expr',expr],env=env,text=True,timeout=8).strip()
     def lua(code):return evaluate("luaeval('"+code.replace("'","''")+"')")
+    def until(predicate, reason, timeout=6):
+        end=time.monotonic()+timeout
+        while time.monotonic()<end:
+            value=predicate()
+            if value:return value
+            time.sleep(.025)
+        raise AssertionError(reason)
+    def gate():return json.loads(lua('vim.json.encode(PairReviewObservationGate:snapshot())'))
+    def record(event,entry):
+        phase_evidence.append(dict(phase=phase,event=event,**entry))
+    def arm():
+        def attempt():
+            raw=lua('(function() local entries=PairReviewObservationGate:snapshot().entries; '
+                    'local after=#entries>0 and entries[#entries].id or 0; '
+                    'if not PairReviewObservationGate:arm() then return "" end; '
+                    'return vim.json.encode({after=after}) end)()')
+            return json.loads(raw) if raw else None
+        return until(attempt,'previous observation did not settle')['after']
+    def result(after):
+        started=until(lambda: next((e for e in gate()['entries'] if e['id']>after),None),
+                      'controlled resolver did not start')
+        record('start',dict(id=started['id'],at_ns=started['started_ns'],timeout=started['timeout']))
+        entry=until(lambda: next((e for e in gate()['entries'] if e['id']==started['id'] and e['state']=='result'),None),
+                    'controlled resolver did not complete')
+        record('result',entry)
+        assert entry['code']==0 and entry['signal']==0, 'real controlled resolver failed: '+repr(entry)
+        return entry
+    def release(entry,keep=False):
+        code=('' if keep else 'PairReviewObservationGate:disarm();')
+        code+='assert(PairReviewObservationGate:release('+str(entry['id'])+'));'
+        code+='vim.schedule(function() PairReviewObservationSettled='+str(entry['id'])+' end);return true'
+        assert lua('(function() '+code+' end)()')=='true'
+        released=next(e for e in gate()['entries'] if e['id']==entry['id'])
+        record('release',dict(id=entry['id'],at_ns=released['released_ns']))
+        until(lambda: lua('PairReviewObservationSettled=='+str(entry['id']))=='true','released callback did not settle')
+        record('settled',dict(id=entry['id']))
+    def applied(entry,predicate,reason):
+        until(predicate,reason)
+        record('applied',dict(id=entry['id']))
     def request(want):
         raw=json.dumps(dict(token=meta['token'],session='sid',identity=want))
         ack=json.loads(evaluate("luaeval('vim.json.encode(PairReviewPane.restore(_A))', '"+raw.replace("'","''")+"')"))
@@ -70,7 +96,7 @@ os.execv(os.environ['REAL_PAIR'],[os.environ['REAL_PAIR'],*sys.argv[1:]])
         if 'unavailable' in fresh and trace_path.exists():
             try:fresh=json.loads(trace_path.read_text())
             except Exception as error:fresh={'unavailable':'invalid final trace: '+str(error)}
-        return dict(phase=phase,wanted=wanted_history,requests=requests,fresh=fresh,
+        return dict(phase=phase,wanted=wanted_history,requests=requests,fresh=fresh,phase_evidence=phase_evidence,
                       returncode=pane.poll() if pane is not None else None,
                       pane_log=(tmp/'pane.log').read_text(errors='replace')[-16384:] if (tmp/'pane.log').exists() else '')
     try:
@@ -92,12 +118,12 @@ os.execv(os.environ['REAL_PAIR'],[os.environ['REAL_PAIR'],*sys.argv[1:]])
         # checkout. The callback must apply captured A bytes, never reread B.
         phase='withheld-observation-across-checkout'
         (repo/'a.md').write_text('a reviewed captured before checkout\n')
-        (tmp/'hold').touch();lua('vim.api.nvim_exec_autocmds("FocusGained",{})')
-        end=time.monotonic()+3
-        while not (tmp/'captured').exists() and time.monotonic()<end:time.sleep(.01)
-        assert (tmp/'captured').exists(),'resolver did not reach controlled delivery boundary'
+        start=arm();lua('vim.api.nvim_exec_autocmds("FocusGained",{})')
+        captured=result(start)
         git('checkout','--','a.md');git('checkout','-q','review/b')
-        (tmp/'release').touch();time.sleep(.3)
+        release(captured)
+        applied(captured,lambda: lua('vim.api.nvim_buf_get_lines(0,0,1,false)[1]')=='a reviewed captured before checkout',
+                'late captured snapshot did not apply')
         displayed=lua('vim.api.nvim_buf_get_lines(0,0,1,false)[1]')
         if displayed!='a reviewed captured before checkout':failures.append('late observation loaded unbound bytes: '+repr(displayed))
         undo_marks=int(lua('(function() vim.cmd("undo"); vim.api.nvim_exec_autocmds("TextChanged",{buffer=0}); return #vim.api.nvim_buf_get_extmarks(0,vim.api.nvim_create_namespace("review"),0,-1,{}) end)()'))
@@ -106,23 +132,20 @@ os.execv(os.environ['REAL_PAIR'],[os.environ['REAL_PAIR'],*sys.argv[1:]])
         if lua('vim.api.nvim_buf_get_lines(0,0,1,false)[1]')!='a reviewed captured before checkout' or redo_marks<1:failures.append('snapshot redo lost captured text or decorations')
         if lua('select(1,pcall(vim.cmd,"write"))')!='false':failures.append('late snapshot allowed write into different checkout')
         if (repo/'a.md').read_text()!='a\n':failures.append('late snapshot changed checkout bytes')
-        (tmp/'hold').unlink();git('checkout','-q','review/a')
+        git('checkout','-q','review/a')
         # Clean same-branch disk edits still reload, after an async observation.
         # The timed region is inside the editor; RPC startup is excluded.
         phase='slow-same-branch-observation'
-        slow.touch()
         duration=float(lua('(function() local now=vim.uv.hrtime(); assert(PairReviewPane.apply_definition_result(vim.api.nvim_get_current_buf())==false); return (vim.uv.hrtime()-now)/1e6 end)()'))
         if duration>=250:failures.append('empty definition poll blocked for '+str(duration)+'ms')
         (repo/'a.md').write_text('external same branch')
+        start=arm()
         duration=float(lua('(function() local now=vim.uv.hrtime(); vim.api.nvim_exec_autocmds("FocusGained",{}); return (vim.uv.hrtime()-now)/1e6 end)()'))
         if duration>=250:failures.append('clean FocusGained blocked for '+str(duration)+'ms')
-        end=time.monotonic()+4
-        while time.monotonic()<end:
-            if lua('vim.api.nvim_buf_get_lines(0,0,1,false)[1]')=='external same branch':break
-            time.sleep(.025)
-        else:failures.append('matching branch external edit did not reload')
-        if lua('vim.bo.endofline')!='false':failures.append('snapshot lost no-final-newline state')
-        slow.unlink()
+        refreshed=result(start);release(refreshed)
+        applied(refreshed,lambda: lua('vim.api.nvim_buf_get_lines(0,0,1,false)[1]')=='external same branch'
+                and lua('vim.bo.endofline')=='false',
+                'matching branch external edit did not reload exact no-final-newline state')
         phase='snapshot-bytes'
         for body,first,eol,fmt,bomb in [
             ('dos first\r\ndos last\r\n','dos first','true','dos','false'),
@@ -134,35 +157,38 @@ os.execv(os.environ['REAL_PAIR'],[os.environ['REAL_PAIR'],*sys.argv[1:]])
             ('lone\rcarriage return','lone\rcarriage return','false','unix','false'),
             ('external same branch','external same branch','false','unix','false')]:
             (repo/'a.md').write_bytes(body.encode())
-            lua('vim.api.nvim_exec_autocmds("FocusGained",{})')
-            end=time.monotonic()+3
-            while time.monotonic()<end:
-                if json.loads(lua('vim.json.encode(vim.api.nvim_buf_get_lines(0,0,1,false)[1])'))==first and lua('vim.bo.endofline')==eol and lua('vim.bo.fileformat')==fmt and lua('vim.bo.bomb')==bomb:break
-                time.sleep(.025)
-            else:failures.append('snapshot line ending or empty-file mismatch: '+repr(body))
+            start=arm();lua('vim.api.nvim_exec_autocmds("FocusGained",{})')
+            snapshot=result(start);release(snapshot)
+            applied(snapshot,lambda: json.loads(lua('vim.json.encode(vim.api.nvim_buf_get_lines(0,0,1,false)[1])'))==first
+                    and lua('vim.bo.endofline')==eol and lua('vim.bo.fileformat')==fmt and lua('vim.bo.bomb')==bomb,
+                    'snapshot line ending or empty-file mismatch: '+repr(body))
             lua('vim.cmd("silent write!")')
             if (repo/'a.md').read_bytes()!=body.encode():failures.append('snapshot save changed exact bytes: '+repr(body))
-        slow.touch()
 
         # An external checkout may replace the file at the same path, but its
         # different branch must never reload into this clean activation.
         phase='different-branch-must-not-reload'
-        slow.unlink();git('checkout','--','a.md');git('checkout','-q','review/b');slow.touch()
-        lua('vim.api.nvim_exec_autocmds("FocusGained",{})');time.sleep(1.5)
+        git('checkout','--','a.md');git('checkout','-q','review/b')
+        start=arm();lua('vim.api.nvim_exec_autocmds("FocusGained",{})')
+        different=result(start);release(different)
         if lua('vim.api.nvim_buf_get_lines(0,0,1,false)[1]')!='external same branch':failures.append('different branch reloaded active document')
         phase='coalesced-edits'
-        slow.unlink();git('checkout','-q','review/a');slow.touch()
-        if calls.exists():calls.write_text('')
+        git('checkout','-q','review/a');start=arm()
         duration=float(lua('(function() vim.api.nvim_buf_set_lines(0,0,-1,false,{"edited"}); local now=vim.uv.hrtime(); vim.api.nvim_exec_autocmds("TextChanged",{buffer=0}); return (vim.uv.hrtime()-now)/1e6 end)()'))
         if duration>=250:failures.append('TextChanged blocked for '+str(duration)+'ms')
-        # Repeated edits during the same slow observation must share the work.
+        # The real process completed, but its held callback still owns the observer.
+        first_result=result(start)
         for i in range(4):lua('vim.api.nvim_exec_autocmds("TextChangedI",{buffer=0})')
-        time.sleep(1.5)
-        scans=len(calls.read_text().splitlines()) if calls.exists() else 0
-        if scans>2:failures.append('uncoalesced observation scans: '+str(scans))
+        assert len([e for e in gate()['entries'] if e['id']>start])==1,'parallel observation scans'
+        release(first_result,keep=True)
+        second_result=result(first_result['id']);release(second_result)
+        scans=len([e for e in gate()['entries'] if e['id']>start])
+        if scans!=2:failures.append('uncoalesced observation scans: '+str(scans))
         # Focus events may render chrome but must not synchronously scan history.
+        phase='modified-focus-observation';start=arm()
         duration=float(lua('(function() local now=vim.uv.hrtime(); vim.api.nvim_exec_autocmds("FocusGained",{}); return (vim.uv.hrtime()-now)/1e6 end)()'))
         if duration>=250:failures.append('FocusGained blocked for '+str(duration)+'ms')
+        focused=result(start);release(focused)
         assert not failures,'; '.join(failures)
         if os.environ.get('PAIR_TEST_OBSERVATION_REPORT'):
             report=evidence();report['outcome']='passed'
@@ -173,7 +199,6 @@ os.execv(os.environ['REAL_PAIR'],[os.environ['REAL_PAIR'],*sys.argv[1:]])
         print('review observation failure: '+json.dumps(report,sort_keys=True),file=sys.stderr)
         raise
     finally:
-        slow.unlink(missing_ok=True)
         if pane is not None:
             pane.terminate()
             try:pane.wait(timeout=5)
