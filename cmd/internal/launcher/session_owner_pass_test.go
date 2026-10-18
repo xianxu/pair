@@ -58,7 +58,7 @@ func (w *ownerPassWorld) SessionPanes(ctx context.Context, name string) ([]byte,
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	return []byte(`[{"id":1,"pane_command":"nvim /tmp/data/repos/0123456789abcdef/draft-1-repo-1.md"}]`), nil
+	return []byte(`[{"id":1,"is_plugin":false,"pane_command":"nvim /tmp/data/repos/0123456789abcdef/draft-1-repo-1.md"}]`), nil
 }
 
 type ownerPassSourceFunc func(context.Context) (map[string]ServerState, error)
@@ -118,8 +118,8 @@ func TestSessionOwnerPassSharesInitialCaptureFor21Callers(t *testing.T) {
 		}(i)
 	}
 	wg.Wait()
-	if w.captures != 1 || w.liveReads != 42 || w.paneReads != 21 {
-		t.Fatalf("captures=%d live reads=%d panes=%d, want 1 initial capture + 21 after-pane + 21 revalidate", w.captures, w.liveReads, w.paneReads)
+	if w.captures != 1 || w.liveReads != 42 || w.paneReads != 42 {
+		t.Fatalf("captures=%d live reads=%d panes=%d, want 1 initial capture + 21 after-pair + 21 revalidate; 42 native pane reads", w.captures, w.liveReads, w.paneReads)
 	}
 }
 

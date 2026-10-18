@@ -2,7 +2,10 @@ package layoutcmd
 
 import (
 	"bytes"
+	"context"
+	"encoding/json"
 	"errors"
+	"github.com/xianxu/pair/cmd/internal/zellijtest"
 	"os"
 	"path/filepath"
 
@@ -87,16 +90,10 @@ func TestFocusRightTerminalSeesRegistryOnlySplitHalf(t *testing.T) {
 	}
 }
 
-func TestFocusRightTerminalFallsBackToRelativeMoveWithoutTerminal(t *testing.T) {
-	rt := &fakeRuntime{panesJSON: []byte(`[
-		{"id":0,"is_focused":true,"is_floating":false,"title":"agent","terminal_command":"pair wrap claude"},
-		{"id":2,"is_focused":false,"is_floating":false,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua d.md"}
-	]`)}
-	if err := FocusRightTerminal(rt); err != nil {
-		t.Fatal(err)
-	}
-	if len(rt.ops) != 1 || rt.ops[0] != "move-focus right" {
-		t.Fatalf("ops = %v, want [move-focus right]", rt.ops)
+func TestFocusRightTerminalRefusesWithoutObservedTerminal(t *testing.T) {
+	rt := &fakeRuntime{panesJSON: []byte(`[]`)}
+	if err := FocusRightTerminal(rt); err == nil || len(rt.ops) != 0 {
+		t.Fatalf("error=%v effects=%v", err, rt.ops)
 	}
 }
 
@@ -116,9 +113,31 @@ func (f *fakeRuntime) TerminalPaneIDs() ([]string, error) {
 	return f.terminalPaneIDs, nil
 }
 
+func (f *fakeRuntime) NotifyRefusal(string) error { return nil }
+func (f *fakeRuntime) CurrentPaneID() string      { return "900" }
+func (f *fakeRuntime) ListPanesJSONContext(ctx context.Context) ([]byte, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return f.ListPanesJSON()
+}
 func (f *fakeRuntime) ListPanesJSON() ([]byte, error) {
 	f.listCalls++
-	return f.panesJSON, nil
+	var rows []map[string]any
+	if json.Unmarshal(f.panesJSON, &rows) != nil {
+		return f.panesJSON, nil
+	}
+	caller := zellijtest.DefaultPane(900, "nvim")
+	caller["title"] = "caller"
+	out := []map[string]any{caller}
+	for _, row := range rows {
+		base := zellijtest.DefaultPane(0, "")
+		for k, v := range row {
+			base[k] = v
+		}
+		out = append(out, base)
+	}
+	return json.Marshal(out)
 }
 
 func (f *fakeRuntime) RunZellijAction(args ...string) error {
@@ -387,9 +406,9 @@ func TestSidecarFastPathFallsBackWhenItCannotAnswer(t *testing.T) {
 		wantList     int
 		wantID       string
 	}{
-		{"two halves, no record: only the pane list can choose", []string{"3", "4"}, "", 1, "4"},
-		{"empty registry proves nothing", nil, "", 1, "4"},
-		{"record names an unregistered half", []string{"4"}, "3", 1, "3"},
+		{"two halves, no record: only the pane list can choose", []string{"3", "4"}, "", 2, "4"},
+		{"empty registry proves nothing", nil, "", 2, "4"},
+		{"record names an unregistered half", []string{"4"}, "3", 2, "3"},
 		{"record hits a registered half: no list call", []string{"3", "4"}, "3", 0, "3"},
 		{"one live half, no record: nothing to tie-break", []string{"4"}, "", 0, "4"},
 	} {

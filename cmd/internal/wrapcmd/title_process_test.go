@@ -247,6 +247,45 @@ func TestGenericWrapperDoesNotBorrowInheritedTitle(t *testing.T) {
 	}
 }
 
+func TestWrapperTitleSkipsCouchHosted(t *testing.T) {
+	for _, tc := range []struct {
+		name, scope, tag string
+	}{
+		{"scope", "host-scope", ""},
+		{"tag", "", "host-tag"},
+		{"both", "host-scope", "host-tag"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			data := t.TempDir()
+			paths, err := artifactpath.ResolveScoped(data, "hosted-title")
+			if err != nil {
+				t.Fatal(err)
+			}
+			for key, value := range map[string]string{
+				"PAIR_617_TITLE_HELPER": "1", "PAIR_TAG": "hosted-title",
+				"PAIR_SCOPE_KEY": "0123456789abcdef", "PAIR_DATA_DIR": data,
+				"PAIR_SESSION_NAME": "fixture-title-session", "PAIR_AGENT": "codex",
+				"COUCH_THREAD_SCOPE": tc.scope, "COUCH_THREAD_TAG": tc.tag,
+			} {
+				t.Setenv(key, value)
+			}
+			// All standalone admission fields, including the scoped capture, are
+			// valid. Either hosted marker must prevent even starting a title child.
+			title, err := startWrapperTitleProcess("codex", paths.ScrollbackRaw("codex"), io.Discard)
+			if title != nil {
+				t.Cleanup(func() { _ = title.Close() })
+				t.Errorf("hosted wrapper started title child PID %d", title.cmd.Process.Pid)
+			}
+			if err != nil {
+				t.Fatalf("hosted wrapper title admission: %v", err)
+			}
+			if _, err := os.Stat(paths.TitlePID()); !os.IsNotExist(err) {
+				t.Errorf("hosted wrapper created title PID metadata: %v", err)
+			}
+		})
+	}
+}
+
 func TestWrapperTitleFixtureDoesNotTouchInheritedCapture(t *testing.T) {
 	root := t.TempDir()
 	foreign := filepath.Join(root, "foreign-events")

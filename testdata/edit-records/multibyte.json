@@ -1,0 +1,12 @@
+{
+ "name": "multibyte",
+ "base": "🤖 robot 🤖\n",
+ "records": [
+  {
+   "old": "🤖",
+   "occurrence": 2,
+   "new": "🦾"
+  }
+ ],
+ "result": "🤖 robot 🦾\n"
+}

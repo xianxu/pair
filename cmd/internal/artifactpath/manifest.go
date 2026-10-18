@@ -235,6 +235,10 @@ var Families = []Family{
 // shell, Lua, and KDL sources.
 // pair:m5-concept pure
 var SourceClassifications = []SourceClassification{
+	// #649 title adapters resolve scoped roots and storage ownership through
+	// artifactpath; neither constructs a tracked artifact filename family.
+	{Path: "cmd/internal/couchcmd/titles.go", Kind: ResolvedConsumer},
+	{Path: "cmd/internal/couchcore/title_target.go", Kind: ResolvedConsumer},
 	{Path: "cmd/internal/couchcmd/lifecycle_notices.go", Kind: VocabularyConsumer, Families: []string{"restart"}, Vocabulary: []VocabularyAllowance{
 		goCaseVocabulary("restart", "restart-armed", "observe", 1),
 		goCaseVocabulary("restart", "restart-drained", "observe", 1),
@@ -251,6 +255,8 @@ var SourceClassifications = []SourceClassification{
 	{Path: "cmd/internal/launcher/recovery_terminal.go", Kind: ResolvedConsumer},
 	{Path: "cmd/internal/launcher/recovery_terminal_confirmed.go", Kind: ResolvedConsumer},
 	{Path: "cmd/internal/launcher/recovery_terminal_os.go", Kind: ResolvedConsumer},
+	// #647 compares observations against the existing typed storage owner.
+	{Path: "cmd/internal/launcher/session_owner_reply.go", Kind: ResolvedConsumer},
 	{Path: "cmd/internal/threadrecord/recovery.go", Kind: ResolvedConsumer},
 
 	{Path: "cmd/internal/wrapcmd/capture_witness.go", Kind: ResolvedConsumer},
@@ -266,7 +272,6 @@ var SourceClassifications = []SourceClassification{
 	{Path: "cmd/internal/orientation/model.go", Kind: ResolvedConsumer},
 	{Path: "cmd/internal/couchcmd/shortcut_focus.go", Kind: ResolvedConsumer},
 	// #488: a note's anchor reads the slot's draft through its resolved Paths.
-	{Path: "cmd/internal/couchcmd/note_panes.go", Kind: ResolvedConsumer},
 	{Path: "cmd/internal/changelogcmd/changelogcmd.go", Kind: ResolvedConsumer, Families: []string{"changelog"}, BindingNames: []string{"matched-changelog-family"}, Vocabulary: []VocabularyAllowance{
 		goCallVocabulary("changelog", "changelog-render", "github.com/xianxu/pair/cmd/internal/storagegc.AcquireSelectedProcess", 2, 1),
 	}},
@@ -631,6 +636,7 @@ var SourceClassifications = []SourceClassification{
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/workbench_actions.lua", Kind: GeneratedMirror},
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/workbench_route.lua", Kind: GeneratedMirror},
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/zellij_trace.lua", Kind: GeneratedMirror},
+	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/zellij_observation.lua", Kind: GeneratedMirror},
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/zellij/config.kdl", Kind: GeneratedMirror},
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/zellij/layouts/main-2.kdl", Kind: GeneratedMirror},
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/zellij/layouts/main-3.kdl", Kind: GeneratedMirror},
@@ -645,6 +651,11 @@ var SourceClassifications = []SourceClassification{
 // the artifact namespace requires an explicit SourceClassification.
 // pair:m5-concept pure
 var NonArtifactSources = []string{
+	// #649 wiring, contextual runtime delegation, and the pure title reducer
+	// introduce no artifact constructors or filename vocabulary.
+	"cmd/internal/couchcmd/titles_wiring.go",
+	"cmd/internal/sessioninventory/title_context.go",
+	"cmd/internal/titlepoller/update.go",
 	// #574 lifecycle observations/projections carry no artifact filename vocabulary.
 	"cmd/internal/couchcore/lifecycle_notice.go",
 	// #648 batching carries peer envelopes and receipts over existing endpoints;
@@ -1063,7 +1074,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcore/ops.go",
 	"cmd/internal/couchtty/console.go",
 	"cmd/internal/couchtty/console_continuation.go",
-	// #488 note anchors: screen layout and pane geometry; no artifact paths.
+	// #488/#647 note anchors: deterministic Couch frame/layout; no artifact paths.
 	"cmd/internal/couchtty/console_noteanchor.go",
 	"cmd/internal/couchtty/noteanchor.go",
 	"cmd/internal/couchtty/notes_menu.go",
@@ -1078,12 +1089,18 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcmd/session_stale.go",
 	"cmd/internal/couchcmd/session_stale_command.go",
 	"cmd/internal/couchcmd/session_stale_model.go",
+	// #661 apply and rounds: pure resolution, diff and marker code, plus a
+	// round sidecar beside the shadow; no Pair artifact filenames.
+	"cmd/internal/sessionsync/edits.go",
 	"cmd/internal/sessionsync/file.go",
 	"cmd/internal/sessionsync/gap.go",
 	"cmd/internal/sessionsync/ledger.go",
+	"cmd/internal/sessionsync/linediff.go",
 	"cmd/internal/sessionsync/owed.go",
+	"cmd/internal/sessionsync/propose.go",
 	"cmd/internal/sessionsync/registry.go",
 	"cmd/internal/sessionsync/registry_model.go",
+	"cmd/internal/sessionsync/round.go",
 	"cmd/internal/sessionsync/state.go",
 	"cmd/internal/sessionsync/sync.go",
 	// #451 waiting notices: reads the operator's mute list in the Couch
@@ -1207,6 +1224,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/changelogcmd/distill.go",
 	"cmd/internal/changelogcmd/prompt.go",
 	"cmd/internal/clipcmd/run.go",
+	"cmd/internal/clipcmd/admission.go",
 	"cmd/internal/clipcmd/runcli.go",
 	"cmd/internal/clipcmd/runtime.go",
 	"cmd/internal/clipcmd/clipboard_result.go",
@@ -1448,12 +1466,14 @@ var NonArtifactSources = []string{
 	"cmd/internal/launcher/scope.go",
 	"cmd/internal/launcher/session.go",
 	"cmd/internal/launcher/session_quiescence.go",
+	"cmd/internal/launcher/session_reply.go",
 	"cmd/internal/launcher/tag.go",
 	"cmd/internal/launcher/thread_claim.go",
 	"cmd/internal/launcher/zellij.go",
 	"cmd/internal/launcher/zellij_listing_poller.go",
 	"cmd/internal/launcher/zellijparse.go",
 	"cmd/internal/layoutcmd/layoutcmd.go",
+	"cmd/internal/layoutcmd/admission.go",
 	"cmd/internal/layoutcmd/fullscreen.go",
 	"cmd/internal/model/model.go",
 	"cmd/internal/pairlog/runcli.go",
@@ -1466,6 +1486,8 @@ var NonArtifactSources = []string{
 	"cmd/internal/pairlifecycletest/live_zellij.go",
 	"cmd/internal/pairlifecycletest/zellij_stub.go",
 	"cmd/internal/osfs/osfs.go",
+	"cmd/internal/procutil/group_darwin.go",
+	"cmd/internal/procutil/group_other.go",
 	"cmd/internal/procutil/identity_darwin.go",
 	"cmd/internal/procutil/identity_linux.go",
 	"cmd/internal/procutil/identity_other.go",
@@ -1581,8 +1603,18 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcmd/prepare.go",
 	"cmd/internal/couchcmd/nice.go",
 	"cmd/internal/couchmessage/build.go",
+	// #647 reply contracts and synchronous query ownership name no Pair artifacts;
+	// the stateful fake's model and logs live only in its private test root.
+	"cmd/internal/zellijexec/run.go",
 	"cmd/internal/zellijpane/zellijpane.go",
+	"cmd/internal/zellijreply/clients.go",
+	"cmd/internal/zellijreply/effect.go",
+	"cmd/internal/zellijreply/panes.go",
+	"cmd/internal/zellijreply/reply.go",
+	"cmd/internal/zellijreply/tab.go",
 	"cmd/internal/zellijsession/zellijsession.go",
+	"cmd/internal/zellijtest/fake.go",
+	"cmd/internal/zellijtest/replies.go",
 	"cmd/pair-go/main.go",
 	"cmd/pair-launch-helper/main.go",
 	"cmd/probes/couchnestedrows/layout.kdl",
@@ -1648,6 +1680,7 @@ var NonArtifactSources = []string{
 	"nvim/workbench_actions.lua",
 	"nvim/workbench_route.lua",
 	"nvim/zellij_trace.lua",
+	"nvim/zellij_observation.lua",
 	"zellij/config.kdl",
 	"zellij/layouts/main-2.kdl",
 	"zellij/layouts/main-3.kdl",

@@ -39,7 +39,7 @@ func (w *sessionOwnerWorld) SessionPanes(_ context.Context, name string) ([]byte
 	if e != nil {
 		return nil, e
 	}
-	return json.Marshal([]map[string]any{{"id": 1, "pane_command": fmt.Sprintf("nvim %q", p.Draft())}})
+	return json.Marshal([]map[string]any{{"id": 1, "is_plugin": false, "pane_command": fmt.Sprintf("nvim %q", p.Draft())}})
 }
 func testOwnerProbe(root, name string, address ThreadAddress) launcher.SessionOwnerProbe {
 	return launcher.SessionOwnerProbe{IO: &sessionOwnerWorld{root: root, owners: map[string]ThreadAddress{name: address}, generation: "server-1"}}

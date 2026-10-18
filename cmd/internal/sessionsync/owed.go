@@ -76,30 +76,7 @@ func OwedForDocument(rows []Entry, st State, file string, paths []PathInterval, 
 				continue
 			}
 		} else {
-			matches := canonical(p) == self
-			if len(paths) > 0 {
-				matches = false
-				addressedAt := r.AddressedAt
-				if addressedAt.IsZero() {
-					addressedAt = r.At
-				}
-				for _, binding := range paths {
-					if addressedAt.Before(binding.From) || (binding.Until != nil && !addressedAt.Before(*binding.Until)) {
-						continue
-					}
-					spellingMatches := p == binding.Spelling
-					for _, alias := range binding.Spellings {
-						if p == alias {
-							spellingMatches = true
-							break
-						}
-					}
-					if canonical(p) == binding.File || spellingMatches {
-						matches = true
-						break
-					}
-				}
-			}
+			matches := submitNames(r, p, self, paths, canonical)
 			if !matches {
 				continue
 			}
@@ -110,4 +87,46 @@ func OwedForDocument(rows []Entry, st State, file string, paths []PathInterval, 
 	}
 	sort.SliceStable(out, func(i, j int) bool { return out[i].At.Before(out[j].At) })
 	return out
+}
+
+// submitNames says whether a submit of path p, in row r, names the document
+// whose canonical path is self: by its historical bindings at the time the
+// submit was addressed when it has any, else by path.
+func submitNames(r Entry, p, self string, paths []PathInterval, canonical func(string) string) bool {
+	if len(paths) == 0 {
+		return canonical(p) == self
+	}
+	addressedAt := r.AddressedAt
+	if addressedAt.IsZero() {
+		addressedAt = r.At
+	}
+	for _, binding := range paths {
+		if addressedAt.Before(binding.From) || (binding.Until != nil && !addressedAt.Before(*binding.Until)) {
+			continue
+		}
+		spellingMatches := p == binding.Spelling
+		for _, alias := range binding.Spellings {
+			if p == alias {
+				spellingMatches = true
+				break
+			}
+		}
+		if canonical(p) == binding.File || spellingMatches {
+			return true
+		}
+	}
+	return false
+}
+
+// SubmittedSince says whether any row records a submit of the document after
+// at, folded or not (pair#661: a round clears on the next submit).
+func SubmittedSince(rows []Entry, file string, paths []PathInterval, at time.Time, canonical func(string) string) bool {
+	self := canonical(file)
+	for _, r := range rows {
+		p, ok := SubmitPath(r.Head)
+		if ok && filepath.IsAbs(p) && r.At.After(at) && submitNames(r, p, self, paths, canonical) {
+			return true
+		}
+	}
+	return false
 }

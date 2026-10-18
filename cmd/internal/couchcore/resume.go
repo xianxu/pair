@@ -8,6 +8,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
+	"github.com/xianxu/pair/cmd/internal/zellijreply"
 )
 
 type ResumeDiagnosticCode string
@@ -429,18 +430,20 @@ func (c *Couch) resumeContextWith(ctx context.Context, address ThreadAddress, op
 
 	// An exact positive list row authorizes attachment with or without clients.
 	// Only explicit continuation adoption also requires its detached/source proof.
-	warmSession, detached, err := c.listedTerminal(ctx, thread)
+	queryCtx, cancelAdmission := zellijreply.AdmissionContext(ctx)
+	defer cancelAdmission()
+	warmSession, detached, err := c.listedTerminal(queryCtx, thread)
 	if err != nil {
 		return ActorRecord{}, nil, err
 	}
 
 	if detached && adoptWarm {
-		if err := c.confirmStillDetached(ctx, thread, warmSession); err != nil {
+		if err := c.confirmStillDetached(queryCtx, thread, warmSession); err != nil {
 			return ActorRecord{}, nil, err
 		}
 	}
 	if detached && !adoptWarm {
-		return c.attachListedTerminal(ctx, thread, warmSession, opts)
+		return c.attachListedTerminalAdmitted(ctx, queryCtx, thread, warmSession, opts)
 	}
 	if opts.WarmOnly && !detached {
 		return ActorRecord{}, nil, refuseResume(ResumeNotDetached, "thread has no positively listed terminal to attach to; an attach-only resume never starts an agent")
@@ -462,7 +465,7 @@ func (c *Couch) resumeContextWith(ctx context.Context, address ThreadAddress, op
 	if current.Revision != thread.Revision {
 		return ActorRecord{}, nil, &ThreadRevisionError{Address: address, Want: thread.Revision, Got: current.Revision}
 	}
-	if err := c.confirmResumeReplacementAbsent(ctx, thread); err != nil {
+	if err := c.confirmResumeReplacementAbsent(queryCtx, thread); err != nil {
 		return ActorRecord{}, nil, err
 	}
 	var binding NativeBindingResolution
@@ -476,7 +479,7 @@ func (c *Couch) resumeContextWith(ctx context.Context, address ThreadAddress, op
 		if !ok {
 			return ActorRecord{}, nil, errors.New("resume: native binding resolver is unavailable")
 		}
-		resolved, err := c.resumeEvidence(ctx, thread)
+		resolved, err := c.resumeEvidence(queryCtx, thread)
 		// A binding DIAGNOSTIC is evidence, not a verdict, and it travels with
 		// the resolution it describes (every resolver returns both). Bailing on
 		// it here made DecideResume's cold-refusal branch unreachable from the
@@ -494,7 +497,7 @@ func (c *Couch) resumeContextWith(ctx context.Context, address ThreadAddress, op
 		binding = resolved
 	}
 	if thread.Continuation != nil && detached {
-		if err := c.validateContinuationWarm(ctx, thread); err != nil {
+		if err := c.validateContinuationWarm(queryCtx, thread); err != nil {
 			return ActorRecord{}, nil, err
 		}
 	}
@@ -521,7 +524,7 @@ func (c *Couch) resumeContextWith(ctx context.Context, address ThreadAddress, op
 	// RECEIPT until #256 M2 moved it to the ledger.)
 	repoIdentity := ""
 	if !detached {
-		repoIdentity, err = c.resolveRepoIdentity(ctx, thread.WorkingPath)
+		repoIdentity, err = c.resolveRepoIdentity(queryCtx, thread.WorkingPath)
 		if err != nil {
 			return ActorRecord{}, nil, err
 		}
@@ -544,7 +547,10 @@ func (c *Couch) resumeContextWith(ctx context.Context, address ThreadAddress, op
 	// away from its test is how two of them came to be wrong.
 	// Session/native lookups above can outlive the initial absence observation.
 	// Recheck before deleting a pending claim or retiring its promoted helper.
-	if err := c.confirmResumeReplacementAbsent(ctx, thread); err != nil {
+	if err := c.confirmResumeReplacementAbsent(queryCtx, thread); err != nil {
+		return ActorRecord{}, nil, err
+	}
+	if err := queryCtx.Err(); err != nil {
 		return ActorRecord{}, nil, err
 	}
 	if retired, retireErr := c.clearLifecycleDebris(thread); retireErr != nil {
@@ -585,11 +591,11 @@ func (c *Couch) resumeContextWith(ctx context.Context, address ThreadAddress, op
 	}
 	profileRaw := ""
 	if detached {
-		if err := c.confirmStillDetached(ctx, thread, warmSession); err != nil {
+		if err := c.confirmStillDetached(queryCtx, thread, warmSession); err != nil {
 			return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(thread, nonce))
 		}
 	} else {
-		currentBinding, err := bindings.ResolveEstablished(ctx, address.RepoScope, string(address.Tag), eligible.Profile.Agent)
+		currentBinding, err := bindings.ResolveEstablished(queryCtx, address.RepoScope, string(address.Tag), eligible.Profile.Agent)
 		if err != nil {
 			return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(thread, nonce))
 		}
@@ -598,7 +604,7 @@ func (c *Couch) resumeContextWith(ctx context.Context, address ThreadAddress, op
 		}
 		// The launcher takes no native admission for a Couch-owned resume
 		// (pair#597); every Couch resume passes this registry check instead.
-		if err := c.checkRecoveryConversationInUse(ctx, thread, RecoveryChoice{Agent: eligible.Profile.Agent, NativeID: eligible.RequiredSessionID}); err != nil {
+		if err := c.checkRecoveryConversationInUse(queryCtx, thread, RecoveryChoice{Agent: eligible.Profile.Agent, NativeID: eligible.RequiredSessionID}); err != nil {
 			return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(thread, nonce))
 		}
 		built, err := launcher.BuildCouchResumeLaunchProfile(string(address.Tag), eligible.Profile.Agent, eligible.Profile.Argv, eligible.RequiredSessionID)
@@ -610,6 +616,9 @@ func (c *Couch) resumeContextWith(ctx context.Context, address ThreadAddress, op
 	args := StartArgs{
 		Worktree: Worktree(thread.StartingPath), Cwd: eligible.WorkingPath,
 		Stack: eligible.Profile.Agent, ExtraArgs: cloneArgv(eligible.Profile.Argv),
+	}
+	if err := queryCtx.Err(); err != nil {
+		return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(thread, nonce))
 	}
 	return c.launchTrackedThread(trackedThreadLaunch{
 		Context: ctx,

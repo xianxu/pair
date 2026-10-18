@@ -37,12 +37,13 @@ and a controlled native process reader. Context deadlines only bound a hung test
 they are not latency assertions. `make test` also runs them without a special flag.
 
 - `TestWorkbenchPerformanceIdleUITick` uses the same
-  `couchtty.ThreadActivityProbe` adapter as production `wireIdleFading`, drives
+  `couchtty.ThreadActivityProbe` compatibility adapter installed by `wireIdleFading`, drives
   the exact activity schedule events used by the UI ticker and applies results
   to the real menu reducer. It actually parses 600 MB cold, then measures every
   warm pass independently. One owner mutation performs owner-local work, followed
   by another zero-work pass.
-- Each idle-tick probe is bounded per row by `activityProbeTimeout` (2s),
+- Hosted production title/activity work is covered by `TestCouchTitlesOSProjectionToScopedCommand` (warm native read/decode and external-command counts) and `TestCouchTitlesRetainedHeap1000Ticks` (two real file-backed compact projections, transcript growth and generation turnover, bounded retained heap and zero stable-tick history reads/decodes or title writes). Its combined pass replaces the compatibility native activity scan and uses a single 2s budget for the hosted fleet pass, rather than the per-row compatibility timeout below.
+- Each compatibility idle-tick probe is bounded per row by `activityProbeTimeout` (2s),
   defaulted once in `Console.New` through the unexported `probeTimeout` field
   (#628). A row that overruns its bound surfaces as failed rather than being
   dropped: a cold row then carries no activity until a healthy pass, an

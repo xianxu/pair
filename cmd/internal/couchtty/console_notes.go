@@ -140,7 +140,6 @@ func (c *Console) applyNotes(s *broadcast.Session, notes []broadcast.Note, versi
 	c.pnotes.mu.Unlock()
 	c.repaint()
 	c.scheduleNotes()
-	c.queueAnchors(s, notes)
 }
 
 // settleMenuLocked keeps the menu consistent with the notes: closed with
@@ -232,16 +231,6 @@ func (c *Console) forgetNotes() {
 		c.pnotes.timer = nil
 	}
 	c.pnotes.mu.Unlock()
-}
-
-// forgetAnchors drops the resolver's queue and tried set with the ended
-// broadcast's session (#488): nothing of it outlives the broadcast. A pass
-// in flight still applies to that session, which drops anchors for notes
-// it no longer has.
-func (c *Console) forgetAnchors() {
-	c.anchors.mu.Lock()
-	c.anchors.pending, c.anchors.tried = nil, nil
-	c.anchors.mu.Unlock()
 }
 
 // drawnNotes is the snapshot the overlay and the status row read. It is

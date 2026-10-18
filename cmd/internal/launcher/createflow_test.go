@@ -2055,3 +2055,28 @@ func (r *fakeRuntime) ResolveNativeResume(ctx context.Context, q NativeResumeReq
 	args, err := PinNativeResumeSelector(q.Selector, q.Selector.NativeID)
 	return NativeResumeResolution{Status: sessioninventory.NativeSelectorResolved, NativeID: q.Selector.NativeID, Args: args}, err
 }
+
+func (f *fakeRuntime) SessionLivenessContext(ctx context.Context) ([]Session, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return f.SessionLiveness()
+}
+func (f *fakeRuntime) ProbeSessionNameContext(ctx context.Context, session string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return f.ProbeSessionName(session)
+}
+func (f *fakeRuntime) AttachSessionContext(lifetime, admission context.Context, session, config string) (int, error) {
+	if err := admission.Err(); err != nil {
+		return 1, err
+	}
+	return f.AttachSession(session, config)
+}
+func (f *fakeRuntime) LaunchSessionContext(lifetime, admission context.Context, session, config, layout string) (int, error) {
+	if err := admission.Err(); err != nil {
+		return 1, err
+	}
+	return f.LaunchSession(lifetime, session, config, layout)
+}

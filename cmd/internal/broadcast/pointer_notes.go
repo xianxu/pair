@@ -40,18 +40,6 @@ func (p *PointerState) addNote(n Note, cols, rows int, gen uint64) (Note, error)
 	return n, nil
 }
 
-// setNoteAnchor replaces open note id's anchor, reporting whether it was
-// open.
-func (p *PointerState) setNoteAnchor(id int, a NoteAnchor) bool {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	if !p.board.SetAnchor(id, a) {
-		return false
-	}
-	p.notesChangedLocked()
-	return true
-}
-
 // resolveNote removes note id while pointing is on, reporting whether there
 // was one.
 func (p *PointerState) resolveNote(event NoteResolution) (bool, error) {
