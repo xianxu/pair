@@ -330,12 +330,11 @@ func TestResourceSamplerCandidateFloorAvoidsCommand(t *testing.T) {
 
 // costSteadyRatioK is the steady pass's CPU budget in units of the same-run
 // history-write baseline: a steady pass may not cost more than twice the write it
-// performs. Derived in pair#644, not tuned per run — observed steady ratios were
-// 1.23/1.25 at loadavg 30.70, 1.15/1.38 at 30.92 under twelve busy loops,
-// 1.11/1.16 at 34.77, and 1.04-1.27 across the verification runs at 15.10 and
-// 112.12, so K is 1.45x the worst observation anywhere in that load spectrum. It
-// is also the native backstop for #606's environment memo: a pass shaped like the
-// cold one costs 3.04-3.76 of a write.
+// performs. Derived in pair#644 from runs across the fleet's load range, not tuned
+// per run: K is headroom over the worst steady ratio measured anywhere in that
+// range, and those runs are recorded in the issue's Log. It is also the native
+// backstop for #606's environment memo — a pass shaped like the cold one, which
+// reads its candidates' environments, costs several times a write and fails here too.
 const costSteadyRatioK = 2.0
 
 // TestResourceSamplerNativeCost measures the complete pass, including reducer,
@@ -344,15 +343,15 @@ const costSteadyRatioK = 2.0
 // owned, and other rows are eligible only for the ordinary PPID1 candidate path.
 //
 // The verdict is load-invariant (#644). Absolute CPU cannot give one answer on an
-// idle host and on one running the rest of the fleet: across loadavg 15.10 to
-// 112.12 the pass's native call counts moved under 0.2% while its CPU moved by tens
-// of percent, which flipped the old three-pass mean over a fixed 120 ms budget on
-// unchanged code. So the work a pass does is checked against bounds the code's own
-// structure sets, and a steady pass's CPU is checked against the history write it
-// performs, measured in the same run. The first pass is #606's one-time environment
-// scan: work-bounded, CPU reported and not asserted, per #587's ruling that the
-// binding budget governs steady sampling rather than a rare maximum-cardinality
-// admission burst.
+// idle host and on one running the rest of the fleet: measured across a wide load
+// range on unchanged code, a pass's native call counts barely move while its CPU
+// moves by tens of percent, which flipped the old fixed three-pass mean budget. So
+// the work a pass does is checked against bounds the code's own structure sets, and
+// a steady pass's CPU is checked against the history write it performs, measured in
+// the same run. The first pass is #606's one-time environment scan: work-bounded,
+// CPU reported and not asserted, per #587's ruling that the binding budget governs
+// steady sampling rather than a rare maximum-cardinality admission burst. The runs
+// behind every constant here are recorded in #644's Log.
 func TestResourceSamplerNativeCost(t *testing.T) {
 	if os.Getenv("PAIR_RESOURCE_COST") != "1" {
 		t.Skip("set PAIR_RESOURCE_COST=1 for native cost conformance")
@@ -451,9 +450,9 @@ func TestResourceSamplerNativeCost(t *testing.T) {
 	for pass := 0; pass < passes; pass++ {
 		// The bounds' basis: the table as this test sees it immediately before the
 		// pass, which reads its own a few milliseconds later. The row-scaled bounds
-		// below leave at least 38% of rows of slack, and that slack is what absorbs
-		// the churn in the gap — the point is to catch a multiplied read, not a
-		// birth.
+		// below are multiples of that count, and the slack is what absorbs the churn
+		// in the gap — the point is to catch a multiplied read, not a birth. How much
+		// slack a run actually had is measured in #644's Log, not guaranteed here.
 		table, _, err := reader.Table(ctx)
 		if err != nil {
 			t.Fatal(err)
@@ -468,7 +467,7 @@ func TestResourceSamplerNativeCost(t *testing.T) {
 		}
 		for _, e := range v.Errors {
 			if strings.Contains(e, "persistence") {
-				t.Fatal(e)
+				t.Fatalf("%s (%s)", e, host)
 			}
 		}
 		c := v.Cost

@@ -357,6 +357,36 @@ K = 2.0. The old fixed budget splits the same five: it would have failed the thr
 97.071 ms). A gate whose answer depends on which of those the host happens to be having is the bug this
 issue was filed for.
 
+### 2026-10-17 — post-close: the review's two advisory findings
+
+Close shipped the window (`Review-Verdict: SHIP`, a8f352e1..988914e0) with two Minor findings, and both
+are worth landing rather than noting. The first is the same family the hub already ruled on for the atlas —
+a measured number written into prose is stale the day after it is measured:
+
+- `atlas/couch.md` said the conformance "gates work rather than wall time". The gate it replaced measured
+  absolute sampler-thread CPU, not wall time, and the new one still gates steady CPU — as a ratio to a
+  same-run baseline. It now says that.
+- The test's doc comment credited "native call counts moved under 0.2%" to loadavg 15.10-112.12, but that
+  figure came from the planning runs at 30.70-34.77; the verification runs show cold environment calls
+  1545-1555 (about 0.6%) and steady native calls 60-66.
+- `costSteadyRatioK`'s comment quoted a cold-shaped ratio of "3.04-3.76" that run 4 (2.62) and the
+  reviewer's own run (3.78) had already left behind on both sides.
+- The per-pass basis comment claimed the row-scaled bounds "leave at least 38% of rows of slack" as though
+  the code guaranteed it. That was one host's observation; the comment now says the slack is measured here
+  rather than promised.
+
+The second is a gap against this issue's own spec bullet 3: the persistence-error `t.Fatal` inside the pass
+loop was the only failure there that did not name the host state. It now carries the same rows-and-loadavg
+string as the incomplete-measurement, work-bound and steady-ratio failures, so the atlas's "every failure
+names it" is true rather than nearly true.
+
+Run 6 on the edited test: PASS at loadavg 40.69, rows 1290-1298, baseline 66.195 ms, cold 234.833 ms
+(ratio 3.55), steady 84.074 ms (1.27) and 82.267 ms (1.24), every work bound held. With the reviewer's
+independent run at loadavg 60.31 during the close (cold 3.78, steady 1.16 and 1.15), the gate now has six
+passes across loadavg 11.16 to 112.12 and one verdict. `gofmt` clean; `go vet` clean on darwin and on
+GOOS=linux, which covers the not-darwin load-average stub. Landed by `sdlc close --fixed-then-ship`, which
+reviews only this delta.
+
 ## Revisions
 
 - 2026-10-17, after the hub's plan approval: the atlas bullet dropped its measured milliseconds. The plan

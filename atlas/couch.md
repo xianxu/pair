@@ -4468,8 +4468,9 @@ native calls; successful usage with identity fencing adds two per process, as do
 a successful environment, argv or cwd read, and a read that fails before its fence
 adds one. Sampler-thread CPU excludes concurrent GC and other goroutines.
 The cost conformance (`TestResourceSamplerNativeCost`, env-gated on
-`PAIR_RESOURCE_COST=1`) gates work rather than wall time (#644). Absolute CPU
-cannot give one verdict on an idle host and on one running the rest of the fleet:
+`PAIR_RESOURCE_COST=1`) gates work, and steady CPU as a ratio to a same-run
+baseline, rather than absolute CPU (#644). Absolute CPU cannot give one verdict on
+an idle host and on one running the rest of the fleet:
 measured across a wide load range, a pass's native call counts barely moved while
 its CPU moved by tens of percent, which flipped a fixed budget on unchanged code.
 What the conformance asserts instead is load-invariant. Every pass's native calls
