@@ -68,3 +68,7 @@ background, so a single slot's action needn't block the UI.
 ### 2026-10-17 — measured structure and dependency coordination
 
 The implementation is a per-target UI ownership and completion change over the existing bounded worker pool, not a new background executor. Keep a target reserved through adoption, retain per-row outcomes, and fence late focus/frame changes by current navigation intent. A busy-row selection waits on the existing attempt; a second mutation refuses explicitly. Cover #651 recover-park once on main and preserve #574's final-outcome notification seam on integration. CLI lifecycle verbs remain synchronous. See the durable plan for state transitions, operator projection, shutdown/uncertainty rules and deterministic acceptance cases.
+
+### 2026-10-17 — approved display and acceptance
+
+Hub approved the design (24b5e642-2afe-4954-8922-b53c54a01ea1): busy rows show what the action is doing and elapsed time; finished/failed actions retain one result line per row. Derive age from existing clock/tick inputs, no new polling. Live check rides the hub's next restart. Wait for the hub's #651 landing announcement before code; no staging.

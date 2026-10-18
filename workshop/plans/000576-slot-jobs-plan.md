@@ -151,3 +151,9 @@ Files: `atlas/couch.md`, README's switcher/lifecycle guidance if behavior is des
 - [ ] Push head; run recorded full suite via `sdlc local-check run --name suite` (the configured suite is make -k); follow the hub's flake rule.
 - [ ] Proposed live acceptance, only when hub schedules it: start a slot relaunch, switch another slot and hub immediately, return to see progress/result; attempt duplicate action; observe a controlled refusal without losing UI. No pair:0 staging without hub instruction. Headless stateful fixtures remain the deterministic proof of held lifecycle/adoption orderings.
 - [ ] Record evidence, close through mandatory fresh review, land on SHIP with `sdlc merge --yes`, report real merge/PR to hub and stop.
+
+## Revisions
+
+### 2026-10-17 — hub design approval and display rule
+
+Hub approved this design in delivery 24b5e642-2afe-4954-8922-b53c54a01ea1. Keep visible states few: a busy row shows its current operation/step **and elapsed time**, while a finished or failed action retains **one result line** on its row. Capture start time at admission from the existing injected clock/event time; derive elapsed time from existing menu ticks, never add a timer or wall-clock read to the pure reducer. Test progress age and result retention with explicit times. The earlier projection's “brief operation result” is superseded: keep the one-line result until the next attempt or inactive-row removal, with fresh authoritative row state still available. Live acceptance rides the hub's next restart. Do not stage. Wait for the hub to announce #651 landed before code.
