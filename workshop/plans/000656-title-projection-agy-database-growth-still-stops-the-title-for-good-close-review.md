@@ -78,3 +78,80 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-18T06:33:35-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 656 — Title projection: agy database growth still stops the title for good |
+| repo | pair |
+| issue file | workshop/issues/000656-title-projection-agy-database-growth-still-stops-the-title-for-good.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 479b91376e5055f8106fe95b34bc64c71c6d2bc6..35c214922cd6b66920d0042a4165e816e8ad5fa3 |
+| command | sdlc close --issue 656 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-18T06:33:35-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The shared projection recovers from Agy database growth while preserving terminal mutation checks, owner validation, and cancellation rollback. BR-1 is verified addressed; no new findings.
+
+Done-when: current — it covers growth recovery, mutation precedence, authority revalidation, both consumers, cancellation, and counted work.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Paired fingerprint checks now precede readmission at title_projection.go:399; the recovery boundary read is fenced by fresh artifact metadata at lines 419–424. Both rewrite regressions and both replacement regressions pass at head and fail against pre-fix production via a temporary Go overlay. Expanded mutation controls also fail without the fix.
+```
+
+1. **Strengths**
+   - Recovery reuses existing reset and full validation without consumer-specific recovery logic.
+   - Actual SQLite tests confirm Couch source reuse, advancing activity, and an unaffected neighbor.
+   - Counted tests verify linear recovery work and zero warm native-history/SQLite work.
+   - Atlas documentation covers the changed recovery behavior. No new command, flag, or configuration requires a README update.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage**
+   - Passed complete `sessioninventory` and `titlepoller` packages.
+   - Passed actual-SQLite Couch recovery tests for admission, between-poll, and mid-suffix growth.
+   - Passed Agy projection tests under the race detector.
+   - Independently confirmed BR-1 regression failures without the correction.
+   - Diff whitespace checks passed; temporary overlays removed; checkout clean.
+
+6. **Architectural notes**
+   - **ARCH-DRY: pass** — existing predicates, reset, and validator remain shared.
+   - **ARCH-PURE: pass** — artifact IO remains behind the injected Runtime boundary.
+   - **ARCH-PURPOSE: pass** — recovery preserves mutation precedence across the enumerated read sites.
+
+7. **Plan revision recommendations:** None; the BR-1 revision matches the implementation and tests.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"6755cb05-1760-4581-8b3d-c3a9e2ad5ab6","repository":"github.com/xianxu/pair","issue_id":"000656","recipe":"small-diff-review","round":2,"attempt":1,"agent":"codex","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/0f947e6fa4e07ace","reviewed_head":"35c214922cd6b66920d0042a4165e816e8ad5fa3","slot":"pair:6","requested_at":"2026-10-18T13:32:12.485503Z"},"phase":"finished","pid":57186,"started_at":"2026-10-18T13:32:12.640328Z","finished_at":"2026-10-18T13:33:20.836141Z","session_id":"01a14f36-7ae0-7c61-97d5-0fede5d5c6e7","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.911591334s
+head: "35c214922cd6b66920d0042a4165e816e8ad5fa3"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
