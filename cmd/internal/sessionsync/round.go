@@ -3,6 +3,7 @@ package sessionsync
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"sort"
 	"strings"
@@ -215,4 +216,64 @@ func decodeRound(raw []byte) (*Round, error) {
 
 func roundInvalid(reason string) error {
 	return &Refusal{Exit: ExitRefused, Code: "round-invalid", Reason: "the round sidecar is unreadable: " + reason}
+}
+
+// Edit is one agent change, built purely (pair#661): the bytes to write and
+// the round they make. Changed is false for a write that changes nothing,
+// which keeps the previous round.
+type Edit struct {
+	Next     string
+	Round    Round
+	Changed  bool
+	Resolved []ResolvedEdit
+}
+
+// BuildEdit is the shared engine every edit path writes through (couch
+// --session-sync apply and pair review apply): resolve the records all or
+// nothing, then contentStep. restamp says whether this document carries an
+// `Updated` stamp the write refreshes.
+func BuildEdit(base string, edits []EditRecord, now time.Time, restamp bool) (Edit, error) {
+	next, resolved, err := resolveBatch(base, edits)
+	if err != nil {
+		return Edit{}, err
+	}
+	return contentStep(base, next, resolved, now, restamp, false)
+}
+
+// resolveBatch is ResolveEdits as a refusal: `edits-invalid` lists every bad
+// record and nothing is written.
+func resolveBatch(base string, edits []EditRecord) (string, []ResolvedEdit, error) {
+	if len(edits) == 0 {
+		return "", nil, refuse("apply needs at least one record")
+	}
+	next, resolved, bad := ResolveEdits(base, edits)
+	if len(bad) != 0 {
+		return "", nil, &Refusal{Exit: ExitRefused, Code: "edits-invalid", Invalid: bad, Reason: fmt.Sprintf(
+			"%d of %d records don't resolve against the file; nothing was written. Fix them and apply again", len(bad), len(edits))}
+	}
+	return next, resolved, nil
+}
+
+// contentStep turns an intended new text into what is written and its round.
+// The baseline is base restamped exactly when the write restamps, so the stamp
+// never forms a span; under `presentation: propose` (never for a frontmatter
+// write) the body is written as markers, and the round follows those bytes.
+func contentStep(base, next string, resolved []ResolvedEdit, now time.Time, restamp, frontmatter bool) (Edit, error) {
+	baseline := base
+	if restamp {
+		baseline, next = Restamp(base, now), Restamp(next, now)
+	}
+	presentation := Presentation(base)
+	if presentation == "propose" && !frontmatter {
+		var err error
+		if next, err = ProposeDocument(baseline, next); err != nil {
+			return Edit{}, err
+		}
+	}
+	e := Edit{Next: next, Resolved: resolved}
+	if spans, ok := DeriveRound(baseline, next, resolved); ok {
+		e.Changed = true
+		e.Round = Round{BaseHash: Hash(base), ResultHash: Hash(next), At: now.UTC(), Presentation: presentation, Spans: spans}
+	}
+	return e, nil
 }

@@ -2,6 +2,7 @@ package sessionsync
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 )
@@ -91,5 +92,29 @@ func TestPresentation(t *testing.T) {
 		if got := Presentation(content); got != want {
 			t.Errorf("Presentation(%q)=%q, want %q", content, got, want)
 		}
+	}
+}
+
+// BuildEdit is the engine both edit paths share: refusals are the apply
+// refusals, and the round matches what Sync.Apply records for the same edit.
+func TestBuildEditSharesTheApplyEngine(t *testing.T) {
+	now := time.Date(2026, 10, 18, 9, 30, 0, 0, time.UTC)
+	base := "# Doc\n\nThe quick fox.\n"
+	e, err := BuildEdit(base, []EditRecord{{Old: "quick", Occurrence: 1, New: "slow", Explain: "pace"}}, now, false)
+	if err != nil || e.Next != "# Doc\n\nThe slow fox.\n" || !e.Changed {
+		t.Fatalf("edit=%+v err=%v", e, err)
+	}
+	if len(e.Round.Spans) != 1 || e.Round.Spans[0].Explain != "pace" || e.Round.ResultHash != Hash(e.Next) || e.Round.BaseHash != Hash(base) {
+		t.Fatalf("round=%+v", e.Round)
+	}
+	_, err = BuildEdit(base, []EditRecord{{Old: "absent", Occurrence: 1, New: "x"}}, now, false)
+	wantRefusal(t, err, ExitRefused, "edits-invalid")
+	_, err = BuildEdit(base, nil, now, false)
+	wantRefusal(t, err, ExitRefused, "refused")
+	// Under propose the written bytes are markers.
+	doc := "---\npresentation: propose\n---\nThe quick fox.\n"
+	e, err = BuildEdit(doc, []EditRecord{{Old: "quick", Occurrence: 1, New: "slow"}}, now, false)
+	if err != nil || !strings.Contains(e.Next, "🤖~quick~{slow}") || e.Round.Presentation != "propose" {
+		t.Fatalf("propose edit=%+v err=%v", e, err)
 	}
 }
