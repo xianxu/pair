@@ -1,6 +1,6 @@
 ---
 id: 000651
-status: codecomplete
+status: done
 created: 2026-10-17
 updated: 2026-10-18
 estimate_hours: 2.5965
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: f43980670521fc713cf146714770dd50a9802b6f
         evidence_commit: 604411b4bd4426e3911f579ed13dbc4137e85f52
+        landed_commit: 23fccae3448f10a16aa769abf1e857d67c74733f
 ---
 
 # Relaunch can strand a slot mid-park: resume refuses 'park transaction unfinished' with no named recovery verb (pair:6 had to start fresh)
