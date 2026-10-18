@@ -64,6 +64,12 @@ Draft detailed plan: [suite write budget](../plans/000658-suite-write-budget-pla
 
 - Measurement and proposed plan sent to hub in receipt5d783d91-de3c-48fc-ab4a-7df5b0a19037, verified Submitted. Await approval of the seven-package scope and explicit native-counter/filesystem envelope before change-code; no implementation edits.
 
+
+- Hub22e69495-dbd9-4776-b29a-c05e145c7163 verified Submitted: current1.64GB own-test-process baseline is not sufficient to identify the largest device-write share. Approval is withheld; no source edits. Next measure one full make test using physical disk0 IOBlockStorageDriver Bytes(Write), a30s quiet window before/after while holding both normal suite tokens, plus sampled identity-fenced owned descendant counters, Make phase timestamps and writable-FD paths. Normal cache settings/fresh shared Pair build remain in effect; no cache/machine configuration edits. Report device noise and process-sampling gaps explicitly.
+- Read-only excluded-phase leads (not yet byte attribution): hermetic shell bootstrap preserves explicitly exported cache variables but may lose user go-env configuration when HOME changes, causing private cold caches in install/embedded-runtime fixtures. Runtimebundlegen clean-source test explicitly creates an empty GOCACHE. AgentScratch and workspace share physical SSD disk0s2; it is an APFS volume, not another device/RAM disk. Native process observation now includes descendants with PID-generation fencing; short-lived descendants still make sums lower bounds.
+
 ## Revisions
 
 - 2026-10-17 — Measured dominant fixture construction rather than assuming fsync/logging churn. Candidate design preserves full30MB files and decoder/authority checks by CoW cloning private all-space templates. Reject fixture shrinking, hardlinks and NUL sparse files because they weaken the actual coverage. A shared native-counter runner defends the whole normal-run callback in the large-fixture consumer packages; final numeric caps await the queued distribution and hub approval.
+
+- 2026-10-17 — Hub required whole-device/full-suite attribution before choosing the headline optimization. Suspend the seven-package-cap/CoW-first proposal pending that measurement. The ledger saving remains proved feasibility, not the accepted target; re-plan against the biggest measured share and report revised numbers before code.
