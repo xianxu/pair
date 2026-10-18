@@ -1,6 +1,6 @@
 ---
 id: 000654
-status: codecomplete
+status: done
 created: 2026-10-17
 updated: 2026-10-18
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: d934e9d23fae9ce3b087ad9975fd4fecda292f92
         evidence_commit: 8370eb114862f6e3731887b3157b8e05093979fc
+        landed_commit: 5e07ebf60ab683561c510fec544e13d0a9501f69
 ---
 
 # Qoder slots never show a context figure: ParseTokenUsage has no qoder case
