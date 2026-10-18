@@ -19,6 +19,25 @@ reviewer_runs:
       finished_at: "2026-10-18T09:31:30.697861Z"
       session_id: 046904b4-4dd3-4e68-8e67-508e23b168dc
       outcome: returned
+    - version: 1
+      intent:
+        id: 3ffd8f0b-2262-4485-8e70-8fac01cdd55c
+        repository: github.com/xianxu/pair
+        issue_id: "000661"
+        recipe: estimate-quality
+        round: 1
+        attempt: 1
+        agent: claude
+        root: /Users/xianxu/workspace/worktree/pair-slot2/pair
+        reviewed_head: 4c06c535106fed104666f1ab7526bf4a2cb764d3
+        slot: pair:2
+        requested_at: "2026-10-18T11:55:51.084325Z"
+      phase: finished
+      pid: 20763
+      started_at: "2026-10-18T11:55:51.172821Z"
+      finished_at: "2026-10-18T11:56:11.315982Z"
+      session_id: 311b2335-741e-4fc3-b9b2-ab4c2958124e
+      outcome: returned
 gate: plan-quality
 issue: 661
 id_prefix: PQ
@@ -174,7 +193,36 @@ rounds:
           note: Round-1 revision deliberately kept the prose test lists as RED checklists; still Minor, carried to close review, non-blocking.
           round: 3
       blocked: false
-content_hash: b0e8f7982e681eb8cda71a2a136a6caf14879372c232068b4ee1e54dfff8f2d0
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: 9bb99329-2331-4943-86ab-47d93f592304
+            repository: github.com/xianxu/pair
+            issue_id: "000661"
+            recipe: plan-quality
+            round: 4
+            attempt: 1
+            agent: claude
+            root: /Users/xianxu/workspace/worktree/pair-slot2/pair
+            reviewed_head: 4c06c535106fed104666f1ab7526bf4a2cb764d3
+            slot: pair:2
+            requested_at: "2026-10-18T11:55:33.827931Z"
+          phase: finished
+          pid: 19656
+          started_at: "2026-10-18T11:55:33.921622Z"
+          finished_at: "2026-10-18T11:55:49.735031Z"
+          session_id: f9bf5586-2e6c-4cdc-8d7a-3b5e925be7ea
+          outcome: returned
+      "n": 4
+      timestamp: "2026-10-18T04:55:49-07:00"
+      agent: claude
+      dispose:
+        - id: PQ-5
+          disposition: not-addressed
+          note: Kept by choice (round-1 revision); M1 tests are now code, but the M2 Tests block again enumerates cases with no one-line strategy for BuildEdit, new_occurrence derivation, or the pane lock lifecycle. Minor, carried to close.
+          round: 4
+      blocked: false
+content_hash: ec658c3d175aa9574fd871a1c8f262f24e83404b82ef7bc6a6017d14e2e7c896
 ---
 
 # Gate ledger — pair#661 (plan-quality)
@@ -213,6 +261,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 ### Disposed
 
 - PQ-5 — not-addressed — Round-1 revision deliberately kept the prose test lists as RED checklists; still Minor, carried to close review, non-blocking.
+
+## Round 4 — 2026-10-18T04:55:49-07:00 (claude) — passed
+
+### Disposed
+
+- PQ-5 — not-addressed — Kept by choice (round-1 revision); M1 tests are now code, but the M2 Tests block again enumerates cases with no one-line strategy for BuildEdit, new_occurrence derivation, or the pane lock lifecycle. Minor, carried to close.
 
 ## Open findings
 
