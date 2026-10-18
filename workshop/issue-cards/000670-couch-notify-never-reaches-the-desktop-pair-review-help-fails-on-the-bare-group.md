@@ -1,6 +1,6 @@
 ---
 id: 000670
-status: working
+status: codecomplete
 created: 2026-10-18
 updated: 2026-10-18
 estimate_hours:
@@ -13,6 +13,14 @@ claimant:
     workspace: pair:6
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
+actual_hours: 0.07
+tracker:
+    version: 1
+    completion:
+        token: close-428879797a3e
+        repository: github.com/xianxu/pair
+        reviewed_head: 3d17ce69d956b28e7d04faad803b17b5efdc009d
+        evidence_commit: 30dc343cf8ebb8d5b06ccf4d1da0ecadb353a5bb
 ---
 
 # couch --notify never reaches the desktop; pair review --help fails on the bare group
