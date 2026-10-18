@@ -152,6 +152,12 @@ Authenticated hub bf84e7de accepts M2's individual duration-subject exceptions: 
 
 Authenticated hub42233925 approves the complete M2 proposal:84 observation/signal repairs,12 duration subjects with per-entry reasons, and four explicitly deferred readiness/oracle sites. Keep the four exact sites with the reason "no completion signal exists yet", stating the missing mounted-handler/download/chooser witness. File one unassigned followup listing all four; no investigation of them in M2. The final target is16 explained existing sites, not zero sleeps. The84 are proposed, not yet removed. M1's source remains frozen; its suite acquired a slot after642s. All M2 code waits for M1 landing and a fresh-main branch.
 
+### 2026-10-18 — M1 suite failure and approved R8
+
+Completed attempt424b1a764482d2a7f173b58dbd4484d5 failed only couchmessage: TestSocketStartupCollectsCrashedOwnerPreservesLive and all four TestSocketCleanupPreservesUnknownOwnerAndReplacement cases. All remaining Go packages ran; couchcore PASS454.084s. Retained full log: /Users/xianxu/workspace/pair/.git/sdlc/test-stats/failed/424b1a764482d2a7f173b58dbd4484d5.log, sha256 prefixa22dfe211f79. Exact focused reproduction under Darwin TMPDIR fails in0.187s (/tmp/pair665-m1-long-tmpdir-sockets-red.log). This is our deterministic tmp-root regression, not a flake or retry allowance.
+
+R8 audits the complete24-site migration and finds one missed derived-address class: transportSocket's consumers swap its short leaf for wrapper/PID/hash filenames, exceeding the native budget. Earlier targeted tests omitted TestSocket, so that qualification was incomplete. Authenticated hub7bd277bb approves the owned short-root correction, long-TMPDIR real-derived-endpoint regression, full package qualification and one additional M1 milestone-close round. WF_BOUNDARY_ROUND_CAP=4 is authorized for that one command only to review this post-SHIP test-fixture regression caught by the suite; no review skip or --no-judge. After that review, run a new-head recorded suite before landing. No M2 code starts meanwhile.
+
 ## Revisions
 
 ### 2026-10-18 — R1: two approved milestones
