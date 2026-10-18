@@ -217,3 +217,152 @@ Completed package binaries: 116. Sum of observed own-process bytes: 1,640,353,79
 ## Raw local evidence
 
 Temporary diagnostic directory: /var/folders/07/b9wcwwld4_v2w9r3hk525bm80000gn/T/pair658-profile.yqKPI1. Each package JSON retains per-test deltas, sampled path high waters, sample counts, errors and explicit limitations, with its verbose log alongside. all-baseline-go.log retains Go outcomes. The initial two rejected harness runs used the wrong cwd (one also retained ambient keys); they are not acceptance evidence. The separate corrected standalone couchcmd run passed with627,539,968 observed bytes; the whole-Go-phase row above is the matched before/after baseline.
+
+## Revisions
+
+- 2026-10-18T07:21:07+00:00 — appended the complete matched before/after comparison after the first after attempt exposed an artifact inventory/auxiliary-name defect. Preserved the original baseline and first failed attempt; six affected package rows were refreshed after the correction. This is a composite measurement, not a claim that one corrected 118-package run passed.
+
+## After comparison
+
+The same 116 original packages measured **1,640,353,792 bytes before** and **445,779,968 bytes after**, a reduction of **1,194,573,824 bytes (72.824%)** in sampled own-process physical writes. Every selected after row below exited 0. Two new packages are listed separately and excluded from this matched total.
+
+The after column deliberately combines two retained attempts:
+
+- **A — 110 unchanged rows:** first complete after attempt from production/test code at `d9c9bab5bb60d3cf68b753bbe079606e8139ac0f`, in `/var/folders/07/b9wcwwld4_v2w9r3hk525bm80000gn/T/pair658-profile.yqKPI1/after-packages.39qinwud`. The 118 package binaries finished in 571.551 seconds after normal one-token admission: 117 passed and one failed. `artifactpath/TestProductionArtifactReferencesAreExactlyClassified` rejected nine absent exhaustive inventory entries and the auxiliary seed’s reserved `ledger-` prefix. The original JSON and verbose failure remain intact; its failing artifactpath row is superseded below.
+- **C — six refreshed rows:** corrected commit `b9f427f2602bb3046371e45f1171f17b2bce20df`, in `/var/folders/07/b9wcwwld4_v2w9r3hk525bm80000gn/T/pair658-profile.yqKPI1/correction-packages.4RJduh`. The correction added exact `NonArtifactSources` entries and renamed only the auxiliary seed from `ledger-padding` to `padding-seed`. Exactly artifactpath, workbenchperftest, couchcmd, couchtty, threadactivity and titlepoller were profiled again with a fresh Pair; all six passed in 78.926 seconds under the targeted Go cap. No full-suite token or retry was used for this targeted correction.
+
+Both attempts retain `GOFLAGS=-p=3 -trimpath`, actual package cwd, sanitized Pair/Couch/Zellij environment, supplied freshly built Pair, and `-test.v -test.count=1 -test.timeout=20m -test.parallel=1`. The original sampler/dylib were reused; the original baseline tools and Pair were not overwritten. A machine suite token covers the first full after attempt; package/test concurrency and sampling behavior match the original baseline.
+
+| Package (below repository root) | Before bytes | After bytes | Reduction | Samples before / after | After exit | After source |
+|---|---:|---:|---:|---:|---:|:---:|
+| cmd/internal/couchcmd | 625,799,168 | 56,639,488 | 569,159,680 | 15239 / 8727 | 0 | C |
+| cmd/internal/couchtty | 609,632,256 | 39,669,760 | 569,962,496 | 13929 / 12683 | 0 | C |
+| cmd/internal/couchcore | 95,576,064 | 96,018,432 | -442,368 | 67060 / 60932 | 0 | A |
+| cmd/internal/workbenchperftest | 90,030,080 | 33,538,048 | 56,492,032 | 36 / 91 | 0 | C |
+| cmd/internal/sessionsync | 71,299,072 | 71,299,072 | 0 | 1901 / 1684 | 0 | A |
+| cmd/internal/threadactivity | 30,089,216 | 30,093,312 | -4,096 | 117 / 81 | 0 | C |
+| cmd/internal/launcher | 19,476,480 | 19,476,480 | 0 | 6625 / 6442 | 0 | A |
+| cmd/internal/webcast | 12,791,808 | 12,787,712 | 4,096 | 1676 / 1635 | 0 | A |
+| cmd/internal/reviewcmd | 10,682,368 | 10,682,368 | 0 | 1049 / 1487 | 0 | A |
+| cmd/internal/titlepoller | 10,592,256 | 10,592,256 | 0 | 311 / 358 | 0 | C |
+| cmd/internal/diagnosticlog | 10,211,328 | 10,211,328 | 0 | 6879 / 5323 | 0 | A |
+| cmd/internal/historyarchive | 10,149,888 | 10,149,888 | 0 | 2450 / 2321 | 0 | A |
+| cmd/internal/couchidentity | 9,166,848 | 9,166,848 | 0 | 817 / 323 | 0 | A |
+| cmd/internal/sessionwatch | 6,221,824 | 6,221,824 | 0 | 3313 / 3097 | 0 | A |
+| cmd/internal/archivecmd | 4,268,032 | 4,268,032 | 0 | 63 / 64 | 0 | A |
+| cmd/internal/storagegc | 4,042,752 | 4,042,752 | 0 | 3394 / 3398 | 0 | A |
+| cmd/pair-go | 2,867,200 | 2,867,200 | 0 | 959 / 990 | 0 | A |
+| cmd/internal/wrapcmd | 2,433,024 | 2,433,024 | 0 | 8646 / 8600 | 0 | A |
+| cmd/internal/webcast/notedraft | 1,777,664 | 1,777,664 | 0 | 887 / 825 | 0 | A |
+| cmd/internal/sessionledger | 1,617,920 | 1,617,920 | 0 | 457 / 584 | 0 | A |
+| cmd/internal/gcruntime | 1,249,280 | 1,249,280 | 0 | 2581 / 1232 | 0 | A |
+| cmd/internal/workbenchshortcut | 1,183,744 | 1,183,744 | 0 | 212 / 211 | 0 | A |
+| cmd/internal/runtimebundle | 1,052,672 | 1,638,400 | -585,728 | 131 / 121 | 0 | A |
+| cmd/internal/sessioninventory | 1,044,480 | 1,044,480 | 0 | 2560 / 2620 | 0 | A |
+| cmd/internal/artifactpath | 987,136 | 987,136 | 0 | 791 / 1232 | 0 | C |
+| cmd/internal/runtimebundlegen | 876,544 | 876,544 | 0 | 361 / 756 | 0 | A |
+| cmd/internal/couchsingleton | 749,568 | 749,568 | 0 | 1300 / 556 | 0 | A |
+| cmd/internal/submission | 733,184 | 733,184 | 0 | 906 / 857 | 0 | A |
+| cmd/internal/scrollbackcmd | 679,936 | 679,936 | 0 | 341 / 414 | 0 | A |
+| cmd/internal/changelogcmd | 516,096 | 516,096 | 0 | 304 / 370 | 0 | A |
+| cmd/internal/pairlog | 294,912 | 294,912 | 0 | 434 / 298 | 0 | A |
+| cmd/internal/checkpoint | 270,336 | 270,336 | 0 | 99 / 102 | 0 | A |
+| cmd/internal/gccmd | 241,664 | 241,664 | 0 | 482 / 341 | 0 | A |
+| cmd/internal/broadcast | 184,320 | 184,320 | 0 | 5308 / 5690 | 0 | A |
+| cmd/internal/terminalcapture | 176,128 | 176,128 | 0 | 225 / 210 | 0 | A |
+| cmd/internal/webcast/query | 167,936 | 167,936 | 0 | 393 / 395 | 0 | A |
+| cmd/internal/notifytransport | 139,264 | 139,264 | 0 | 406 / 214 | 0 | A |
+| cmd/internal/adapt | 106,496 | 106,496 | 0 | 63 / 63 | 0 | A |
+| cmd/internal/clipcmd | 98,304 | 98,304 | 0 | 295 / 214 | 0 | A |
+| cmd/internal/testpair | 81,920 | 94,208 | -12,288 | 913 / 964 | 0 | A |
+| cmd/internal/retentioncmd | 69,632 | 69,632 | 0 | 189 / 163 | 0 | A |
+| cmd/internal/pairlifecycletest | 61,440 | 61,440 | 0 | 301 / 249 | 0 | A |
+| cmd/internal/diagnosticcmd | 57,344 | 57,344 | 0 | 59 / 44 | 0 | A |
+| cmd/internal/webcast/recording | 53,248 | 53,248 | 0 | 309 / 315 | 0 | A |
+| cmd/internal/nativelock | 49,152 | 49,152 | 0 | 108 / 96 | 0 | A |
+| cmd/internal/crashreport | 40,960 | 40,960 | 0 | 908 / 143 | 0 | A |
+| internal/reporoot | 40,960 | 40,960 | 0 | 36 / 34 | 0 | A |
+| cmd/internal/osfs | 36,864 | 36,864 | 0 | 58 / 51 | 0 | A |
+| probes/zellijprobe | 36,864 | 36,864 | 0 | 43 / 42 | 0 | A |
+| cmd/internal/continuationcmd | 32,768 | 32,768 | 0 | 168 / 179 | 0 | A |
+| cmd/internal/slugcmd | 32,768 | 32,768 | 0 | 114 / 109 | 0 | A |
+| cmd/internal/webcast/assets | 32,768 | 32,768 | 0 | 244 / 245 | 0 | A |
+| cmd/internal/webcast/fidelity | 32,768 | 32,768 | 0 | 29 / 26 | 0 | A |
+| cmd/internal/dispatcher | 28,672 | 28,672 | 0 | 95 / 98 | 0 | A |
+| cmd/internal/model | 28,672 | 28,672 | 0 | 96 / 95 | 0 | A |
+| cmd/internal/couchmessage | 20,480 | 20,480 | 0 | 3816 / 3919 | 0 | A |
+| cmd/internal/contextcmd | 16,384 | 16,384 | 0 | 65 / 72 | 0 | A |
+| cmd/internal/keyscmd | 16,384 | 16,384 | 0 | 78 / 83 | 0 | A |
+| cmd/internal/webcast/recorder | 16,384 | 16,384 | 0 | 929 / 956 | 0 | A |
+| cmd/couch | 12,288 | 12,288 | 0 | 683 / 637 | 0 | A |
+| cmd/internal/durablefile | 12,288 | 12,288 | 0 | 38 / 29 | 0 | A |
+| cmd/internal/layoutcmd | 12,288 | 12,288 | 0 | 195 / 204 | 0 | A |
+| cmd/internal/procutil | 12,288 | 12,288 | 0 | 391 / 393 | 0 | A |
+| cmd/internal/opener | 8,192 | 8,192 | 0 | 84 / 70 | 0 | A |
+| cmd/internal/webcast/submission | 8,192 | 8,192 | 0 | 38 / 37 | 0 | A |
+| probes/zellijcalls | 8,192 | 8,192 | 0 | 138 / 154 | 0 | A |
+| cmd/internal/draftroute | 4,096 | 4,096 | 0 | 39 / 38 | 0 | A |
+| cmd/internal/notifycmd | 4,096 | 4,096 | 0 | 34 / 31 | 0 | A |
+| cmd/internal/scribecmd | 4,096 | 4,096 | 0 | 33 / 37 | 0 | A |
+| cmd/internal/termcmd | 4,096 | 4,096 | 0 | 1238 / 1210 | 0 | A |
+| cmd/internal/agentcmd | 0 | 0 | 0 | 17 / 16 | 0 | A |
+| cmd/internal/agentdrive | 0 | 0 | 0 | 273 / 270 | 0 | A |
+| cmd/internal/ansi | 0 | 0 | 0 | 121 / 118 | 0 | A |
+| cmd/internal/castlock | 0 | 0 | 0 | 88 / 83 | 0 | A |
+| cmd/internal/cdp | 0 | 0 | 0 | 83 / 85 | 0 | A |
+| cmd/internal/commitoutcome | 0 | 0 | 0 | 32 / 20 | 0 | A |
+| cmd/internal/couchkeys | 0 | 0 | 0 | 40 / 42 | 0 | A |
+| cmd/internal/ctxmeter | 0 | 0 | 0 | 16 / 20 | 0 | A |
+| cmd/internal/entrypoint | 0 | 0 | 0 | 68 / 66 | 0 | A |
+| cmd/internal/historyarchive/archivetest | 0 | 0 | 0 | 27 / 30 | 0 | A |
+| cmd/internal/hoprttcmd | 0 | 0 | 0 | 111 / 91 | 0 | A |
+| cmd/internal/hostty | 0 | 0 | 0 | 73 / 79 | 0 | A |
+| cmd/internal/keyhelp | 0 | 0 | 0 | 115 / 111 | 0 | A |
+| cmd/internal/mouseinput | 0 | 0 | 0 | 96 / 83 | 0 | A |
+| cmd/internal/nativeid | 0 | 0 | 0 | 17 / 12 | 0 | A |
+| cmd/internal/notifyosc | 0 | 0 | 0 | 41 / 37 | 0 | A |
+| cmd/internal/orientation | 0 | 0 | 0 | 39 / 37 | 0 | A |
+| cmd/internal/pairlifecycle | 0 | 0 | 0 | 303 / 304 | 0 | A |
+| cmd/internal/panebirth | 0 | 0 | 0 | 31 / 30 | 0 | A |
+| cmd/internal/perfbudget | 0 | 0 | 0 | 17 / 17 | 0 | A |
+| cmd/internal/ptychild | 0 | 0 | 0 | 546 / 539 | 0 | A |
+| cmd/internal/readiness | 0 | 0 | 0 | 38 / 41 | 0 | A |
+| cmd/internal/resumeform | 0 | 0 | 0 | 39 / 39 | 0 | A |
+| cmd/internal/rowtext | 0 | 0 | 0 | 43 / 43 | 0 | A |
+| cmd/internal/sessioninventorytest | 0 | 0 | 0 | 30 / 29 | 0 | A |
+| cmd/internal/slugline | 0 | 0 | 0 | 21 / 21 | 0 | A |
+| cmd/internal/strictjson | 0 | 0 | 0 | 72 / 72 | 0 | A |
+| cmd/internal/tailmarkup | 0 | 0 | 0 | 42 / 18 | 0 | A |
+| cmd/internal/terminal | 0 | 0 | 0 | 7264 / 7569 | 0 | A |
+| cmd/internal/terminalqualify | 0 | 0 | 0 | 170 / 162 | 0 | A |
+| cmd/internal/testwait | 0 | 0 | 0 | 41 / 31 | 0 | A |
+| cmd/internal/textwidth | 0 | 0 | 0 | 19 / 16 | 0 | A |
+| cmd/internal/threadrecord | 0 | 0 | 0 | 290 / 287 | 0 | A |
+| cmd/internal/ttyio | 0 | 0 | 0 | 619 / 555 | 0 | A |
+| cmd/internal/webcast/board | 0 | 0 | 0 | 276 / 276 | 0 | A |
+| cmd/internal/webcast/capability | 0 | 0 | 0 | 47 / 47 | 0 | A |
+| cmd/internal/webcast/drive | 0 | 0 | 0 | 125 / 127 | 0 | A |
+| cmd/internal/webcast/notes | 0 | 0 | 0 | 176 / 178 | 0 | A |
+| cmd/internal/zellijpane | 0 | 0 | 0 | 72 / 71 | 0 | A |
+| cmd/internal/zellijsession | 0 | 0 | 0 | 16 / 17 | 0 | A |
+| cmd/probes/terminalqualify | 0 | 0 | 0 | 23 / 23 | 0 | A |
+| probes/claudedraftsend | 0 | 0 | 0 | 17 / 16 | 0 | A |
+| probes/messageidle | 0 | 0 | 0 | 17 / 17 | 0 | A |
+| probes/zellijbirthrace | 0 | 0 | 0 | 19 / 19 | 0 | A |
+| probes/zellijwrapmargin | 0 | 0 | 0 | 34 / 33 | 0 | A |
+| probes/zellijwritechars | 0 | 0 | 0 | 17 / 17 | 0 | A |
+
+### New packages outside the matched 116
+
+| Package | After bytes | Samples | Exit | Source |
+|---|---:|---:|---:|:---:|
+| cmd/internal/testdisk | 0 | 84 | 0 | A |
+| cmd/internal/testgit | 12,288 | 41 | 0 | A |
+
+### Source and counter limits
+
+The first Pair was built at A; later commits during its queue/run changed only the issue and plan prose. Its retained `source.json` and `source-files.json` identify the build head and hash 2,603 source files. Fresh Pair SHA-256 values are `8d9af2526ea51842370a1e173035de93412206e95e2116dc14f9f5ab5ca18e08` (A) and `6608e632664d8dc67298d46f258bb38561d38a3477c67fd567449bdc94952d7b` (C). Original baseline Pair SHA-256 remains `6ccf6cb559b91d33c415368590a21c02d52fcf2b032cb6a3471c423b5276e0a2`. First-attempt `run-result.json` retains admission/output; `run-summary.json` is its clean machine-readable result. Corrected `summary.json` and `composite-comparison.json` preserve the selected rows and totals.
+
+These are macOS own-process physical-byte samples, not whole-device write totals. Descendants, compiler/cache writes, shell/Lua phases and sampler output are excluded. In particular, couchcore measured 95,576,064 → 96,018,432 own-process bytes and passed in 557.124 seconds; Git child-process savings cannot be inferred from that root-only row. Shared cache savings have a separate direct inventory experiment and are not added here.
+
+Each package JSON retains sample/gone-sample counts, sampled per-test attribution and writable-path high waters. A last sample can race process exit, short open files can evade path sampling, and verbose-boundary attribution is approximate. Zero observed bytes is a lower-bound observation, not proof of no writes. Run-to-run changes of a few pages remain visible in the table rather than being clamped to zero. The mixed-source table does not replace the required recorded full suite on the corrected landing head.
