@@ -39,13 +39,17 @@ After #574 lands, extend its lifecycle notices to confirmed native agent exit. E
 
 Durable plan: `workshop/plans/000657-native-agent-exit-notice-plan.md` (a single pass, one close).
 
-- [ ] couchmessage `native-exit` op plus ID
-- [ ] lifecycle `exited` kind
-- [ ] Couch handler, with stateful negative cases
-- [ ] wrapper report after Wait (self-exit only) plus compatibility
-- [ ] owned-child conformance test
+- [x] couchmessage `native-exit` op plus ID
+- [x] lifecycle `exited` kind
+- [x] Couch handler, with stateful negative cases
+- [x] wrapper report after Wait (self-exit only) plus compatibility
+- [x] owned-child conformance test
 - [ ] atlas, guards, suite, close
 
 ## Log
 
 - 2026-10-17: Filed unclaimed at the hub's request while simplifying #574. Relevant seams: cmd/internal/couchtty/console.go:onExit (attachment client); cmd/internal/wrapcmd/wrap.go native child group.Wait (actual child); couchmessage registry session currently has no terminal child-exit observation. No implementation or protocol change is included in #574.
+- 2026-10-18: Built per the TL-approved plan.
+  - **Commits:** the Couch side is b20efa96 and the wrapper side 554b7b35.
+  - **Conformance found:** `ownedGroup.Wait` signals the group before reaping. `run` calls it only after master EOF, when the child has already exited, so the status holds. An agent that closes its PTY but keeps running would be stopped by Wait and reported as exited (code 143); it has left the pane, so that is accepted.
+  - **couchtty write budget:** run directly (outside the isolated test environment), couchtty exceeds its disk-write budget even with this change's test removed, so it is environmental. The recorded suite decides.
