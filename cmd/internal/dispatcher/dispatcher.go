@@ -13,6 +13,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/layoutcmd"
 	"github.com/xianxu/pair/cmd/internal/notifycmd"
 	"github.com/xianxu/pair/cmd/internal/opener"
+	"github.com/xianxu/pair/cmd/internal/reviewapply"
 	"github.com/xianxu/pair/cmd/internal/reviewcmd"
 	"github.com/xianxu/pair/cmd/internal/scrollbackcmd"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
@@ -79,6 +80,7 @@ func Families() []CommandFamily {
 		{Name: "review open", Summary: "open/refresh the review pane", Status: "implemented"},
 		{Name: "review readiness", Summary: "prepare review-readiness data", Status: "implemented"},
 		{Name: "review definition", Summary: "record a review-pane definition result", Status: "implemented"},
+		{Name: "review apply", Summary: "apply review records to the reviewed file (the one edit path)", Status: "implemented"},
 		// scrollback group
 		{Name: "scrollback render", Summary: "raw PTY capture to ANSI scrollback", Status: "implemented"},
 		{Name: "scrollback open", Summary: "open the scrollback viewer pane", Status: "implemented"},
@@ -228,6 +230,10 @@ func Dispatch(args []string) Result {
 	case "review definition":
 		return bufferedStdoutStderr(func(stdout, stderr *bytes.Buffer) int {
 			return reviewcmd.RunDefinitionCLI(rest, os.Getenv, stdout, stderr)
+		})
+	case "review apply":
+		return bufferedStdoutStderr(func(stdout, stderr *bytes.Buffer) int {
+			return reviewapply.RunCLI(rest, os.Getenv, stdout, stderr)
 		})
 	case "clip clipboard-to-pane":
 		return bufferedStderr(func(stderr *bytes.Buffer) int { return clipcmd.RunClipboardToPaneCLI(os.Getenv, stderr) })

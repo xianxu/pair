@@ -109,6 +109,8 @@ var ResolvedBindings = append([]ResolvedBinding{
 	{Name: "scoped-last-terminal-pane", Family: "last-terminal-pane", Resolver: "ResolveScoped", Member: "LastTerminalPane"},
 	{Name: "scoped-picker", Family: "picker", Resolver: "ResolveScoped", Member: "DraftPane"},
 	{Name: "scoped-review", Family: "review", Resolver: "ResolveScoped", Member: "ReviewTarget"},
+	{Name: "scoped-review-round", Family: "review", Resolver: "ResolveScoped", Member: "ReviewRound"},
+	{Name: "scoped-review-apply-lock", Family: "review", Resolver: "ResolveScoped", Member: "ReviewApplyLock"},
 	{Name: "scoped-scrollback", Family: "scrollback", Resolver: "ResolveScoped", Member: "ScrollbackArtifacts"},
 	{Name: "scoped-scrollback-pending", Family: "scrollback-pending", Resolver: "ResolveScoped", Member: "ScrollbackPending"},
 	{Name: "scoped-slug", Family: "slug", Resolver: "ResolveScoped", Member: "Slug"},
@@ -409,6 +411,8 @@ var SourceClassifications = []SourceClassification{
 				"pair-changelog-open: write %s: %v\n",
 				"pair-changelog-open: viewer: %v\n")...)...),
 	},
+	// #661 pair review apply resolves the round artifact and apply flock.
+	{Path: "cmd/internal/reviewapply/reviewapply.go", Kind: ResolvedConsumer, Families: []string{"review"}, BindingNames: []string{"scoped-review-round", "scoped-review-apply-lock"}},
 	{Path: "cmd/internal/reviewcmd/run.go", Kind: ResolvedConsumer,
 		Families: []string{"nvim-pid", "review"}, BindingNames: []string{"scoped-nvim-pid", "scoped-review"},
 		Vocabulary: goCallVocabularyValues("review", "fmt.Fprintf", 1,
@@ -567,6 +571,10 @@ var SourceClassifications = []SourceClassification{
 	{Path: "nvim/scrollback.lua", Kind: VocabularyConsumer, Families: []string{"scrollback"}, Vocabulary: []VocabularyAllowance{exactLineVocabulary("scrollback", "local retention = dofile((debug.getinfo(1, 'S').source:sub(2):match('(.*/)') or './') .. 'retention.lua').setup('scrollback-viewer')", 1), exactLineVocabulary("scrollback", "-- transitional flat `scrollback-render` alias, so the two tokens are required).", 1)}},
 	{Path: "nvim/review/record.lua", Kind: VocabularyConsumer, Families: []string{"review"}, Vocabulary: []VocabularyAllowance{
 		exactLineVocabulary("review", "local OPEN = '```review-records'", 1),
+	}},
+	// #661: pair review apply writes the same commit-body fence the pane reads.
+	{Path: "cmd/internal/sessionsync/applyfile.go", Kind: VocabularyConsumer, Families: []string{"review"}, Vocabulary: []VocabularyAllowance{
+		goCallVocabulary("review", "```review-records\n%s\n```", "fmt.Fprintf", 1, 1),
 	}},
 
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/bin/lib/adapt-log.sh", Kind: GeneratedMirror},
