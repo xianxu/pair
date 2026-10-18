@@ -122,6 +122,15 @@ The canonical empty-environment boundary also supplies `GIT_TEMPLATE_DIR=`. Real
 
 Raw evidence remains in `direct-cache.95x7rwyt/` under the diagnostic root above: `before.summary.json`, `after.summary.json`, source receipts, configured-start inventory, per-Go records, logs, `goenv` and `run.sh`. These temporary files are not the durable record; the figures and limits in this section are.
 
+
+## Incomplete after attempt retained: review resolver failure
+
+The first corrected-source after attempt used clean91d46ca2f5c0c3b1d5537fbb5b28c2a95b079bb1 and the same Make body/two-token/quiet-window method. Make exited2 after312.427012s because the review-observation diagnostic’s positive control timed out in its real BufWritePre resolver (2578.387417ms against2500ms, code124/signal9, empty result). The10-test diagnostic enumerated one failure; Make completed other prerequisites but suppressed its final full-Go recipe. Only the earlier targeted titlepoller/procutil packages ran. Filed unclaimed pair#662, cross-referencing #623/#659; the unchanged recorded full suite subsequently passed the diagnostic and all118 final Go packages.
+
+**This is not a matched whole-suite after result.** Device registry4294970125 was stable; endpoints35,612,851,138,560→35,615,196,553,216 yield2,345,414,656 bytes. All488 raw/embedded samples agree and have no counter decreases. Sampled descendant own bytes161,669,120 across437 generations remain a lower bound; the2,183,745,536-byte difference is unexplained, not a causal charge. Quiet windows observed213,852,160/30.044595s before (7.118MB/s) and75,165,696/30.103872s after (2.497MB/s). Do not subtract these exactly or compare the incomplete body’s total as a saving against the complete19.769GB baseline.
+
+Raw evidence and explicit-anchor analysis: /var/folders/07/b9wcwwld4_v2w9r3hk525bm80000gn/T/pair658-device-after.SjFHBp/device-suite/{result.json,device.jsonl,make.log,analysis.json,counter-checks.json,body-source.json,supervisor-exit.json}. Supervisor exited2 and reaped all direct children after the post-window observer. Hub approvala26d5339 authorizes exactly one issue-backed unchanged device rerun after the recorded suite, same body/bounds; a repeated pre-Go failure means stop/report. That approved attempt is queued separately at pair658-662-device-attempt2.DViNQs and is not yet a comparison result.
+
 ## Revisions
 
 - 2026-10-17 — Append the completed direct real-cache before/after comparison, separate cache allocations from fresh executable outputs and physical-device traffic, and record canonical empty-template behavior plus cleanup-fixture input isolation. Earlier diagnostic results and their original scope remain preserved.
