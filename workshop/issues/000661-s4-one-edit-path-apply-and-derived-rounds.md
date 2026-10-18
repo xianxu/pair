@@ -121,3 +121,6 @@ Design is the low end of each range, because the durable plan already resolved t
   - **BR-11:** the lock carries its owner pid, and a dead pane's lock is reclaimed.
   - **BR-12:** readiness ignores the lock, and the plan's M2 sweep is in Revisions.
   - **Minor:** a declined round is redelivered.
+- **Issue-close review round 2 (FIX-THEN-SHIP):**
+  - **BR-14:** readiness uses `git status --porcelain -z`, which never quotes paths, and a `gatherGitFacts` test covers the wiring. Mutation-checked: reverting the call site fails it.
+  - **Minors:** the pane acts on a round only while the file still hashes to `result_hash`, and warns once per declined round. The lock's owner check treats only ESRCH as dead. The reply's `Warning` and the lock's pid are documented in the atlas, `couch --skill` and the protocol target.

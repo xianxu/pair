@@ -463,6 +463,9 @@ need no registration and keep their legacy owner compatibility.
   - Every record resolves against the file as it stands, before anything is written. One empty, missing or overlapping record refuses the whole batch with exit 1 and `edits-invalid`, which lists each bad record. Nothing is written: fix the records and apply again.
   - Exit 6 has one answer: `read --all` again, rebuild the records, apply again.
   - Keep `write` for generated content that isn't an edit.
+- **In pair's review workbench (no Couch)**, use `pair review apply EDITS.json FILE --if-hash H --json` instead. It takes the same records, exits and propose rules. Commit its `Body` verbatim with docflow right after it lands.
+  - A `Warning` in the reply means the file was written but the round wasn't recorded: commit `Body` anyway.
+  - `pair review round FILE --json` (`Round`, `Body`, `Current`) recovers a lost reply.
 - **Rounds:** every write of yours that changes the file, `write` or `apply`, becomes the round parley highlights. Only `apply` spans carry your reasons. The round clears on the operator's next submit.
 - **`presentation: propose`:** Couch writes your body change as per-line markers for the operator to accept or reject. Never write the markers yourself.
   - A change over 3 lines refuses with `propose-too-large`. A line the marker grammar can't carry refuses with `propose-unencodable`. For either refusal, write the change as a side-doc proposal, linked in place by `→ [proposal](…)`.

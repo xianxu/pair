@@ -249,17 +249,18 @@ func RunReadiness(opts ReadinessOptions, rt Runtime, stdout, stderr io.Writer) i
 	return 0
 }
 
-// cleanBesidesLock reads `git status --porcelain` (paths from the repo top) as
-// clean when the only entry is the review's own untracked operator lock,
-// FILE.lock (pair#661 M2): the pane holds it during the operator's turn, and
-// docflow never stages it, so it must not make a review look dirty.
+// cleanBesidesLock reads `git status --porcelain -z` (NUL-separated, paths
+// from the repo top, never quoted) as clean when the only entry is the
+// review's own untracked operator lock, FILE.lock (pair#661 M2): the pane
+// holds it during the operator's turn, and docflow never stages it, so it must
+// not make a review look dirty.
 func cleanBesidesLock(status string, gi gitInfo) bool {
 	lock := ""
 	if gi.top != "" && strings.HasPrefix(gi.abs, gi.top+"/") {
 		lock = "?? " + strings.TrimPrefix(gi.abs, gi.top+"/") + ".lock"
 	}
-	for _, line := range strings.Split(status, "\n") {
-		if line = strings.TrimRight(line, "\r"); line != "" && line != lock {
+	for _, entry := range strings.Split(status, "\x00") {
+		if entry != "" && entry != lock {
 			return false
 		}
 	}
@@ -291,7 +292,7 @@ func gatherGitFacts(rt Runtime, dir, file string) (ReadinessFacts, gitInfo) {
 		gi.branch = strings.TrimSpace(br)
 	}
 	f.OnReviewBranch = strings.HasPrefix(gi.branch, "review/")
-	if st, _ := rt.Git(dir, "status", "--porcelain"); cleanBesidesLock(st, gi) {
+	if st, _ := rt.Git(dir, "status", "--porcelain", "-z"); cleanBesidesLock(st, gi) {
 		f.IsClean = true
 	}
 	if f.OnReviewBranch {
@@ -334,7 +335,7 @@ func prepare(opts ReadinessOptions, rt Runtime, stdout io.Writer, reviewCase str
 			fmt.Fprintf(stdout, "review not prepared: failed to track %s.\n", gi.abs)
 			return 1
 		}
-		if st, _ := rt.Git(gi.top, "status", "--porcelain"); !cleanBesidesLock(st, gi) {
+		if st, _ := rt.Git(gi.top, "status", "--porcelain", "-z"); !cleanBesidesLock(st, gi) {
 			fmt.Fprintf(stdout, "review not prepared: tracked %s, but repo still has unrelated changes.\n", gi.abs)
 			return 1
 		}

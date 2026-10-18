@@ -491,18 +491,50 @@ func (f *fakeRuntime) IndexGeneration(ctx context.Context, path string) (string,
 }
 
 // The review's own untracked operator lock never makes a repo dirty; any
-// other change still does (pair#661 M2).
+// other change still does (pair#661 M2). -z entries are never quoted, so a
+// path with spaces matches too.
 func TestCleanBesidesLockIgnoresOnlyTheReviewLock(t *testing.T) {
-	gi := gitInfo{top: "/repo", abs: "/repo/docs/doc.md"}
+	gi := gitInfo{top: "/repo", abs: "/repo/docs/my doc.md"}
 	for status, want := range map[string]bool{
-		"":                                      true,
-		"?? docs/doc.md.lock\n":                 true,
-		"?? docs/doc.md.lock\n M docs/doc.md\n": false,
-		"?? docs/other.md.lock\n":               false,
-		" M README.md\n":                        false,
+		"":                           true,
+		"?? docs/my doc.md.lock\x00": true,
+		"?? docs/my doc.md.lock\x00 M README.md\x00": false,
+		"?? docs/other.md.lock\x00":                  false,
+		" M README.md\x00":                           false,
 	} {
 		if got := cleanBesidesLock(status, gi); got != want {
 			t.Errorf("cleanBesidesLock(%q)=%v, want %v", status, got, want)
 		}
+	}
+}
+
+// Readiness reads the porcelain -z status through cleanBesidesLock: a repo
+// whose only change is the review lock is clean.
+func TestReadinessTreatsTheReviewLockAsClean(t *testing.T) {
+	rt := newFake()
+	rt.gitFn = func(dir string, args []string) (string, error) {
+		switch strings.Join(args, " ") {
+		case "rev-parse --show-toplevel":
+			return "/repo\n", nil
+		case "status --porcelain -z":
+			return "?? doc.md.lock\x00", nil
+		}
+		return "", nil
+	}
+	f, _ := gatherGitFacts(rt, "/repo", "/repo/doc.md")
+	if !f.IsClean {
+		t.Fatal("the review lock made the repo dirty")
+	}
+	rt.gitFn = func(dir string, args []string) (string, error) {
+		if strings.Join(args, " ") == "status --porcelain -z" {
+			return "?? doc.md.lock\x00?? other.md\x00", nil
+		}
+		if strings.Join(args, " ") == "rev-parse --show-toplevel" {
+			return "/repo\n", nil
+		}
+		return "", nil
+	}
+	if f, _ := gatherGitFacts(rt, "/repo", "/repo/doc.md"); f.IsClean {
+		t.Fatal("another untracked file read as clean")
 	}
 }

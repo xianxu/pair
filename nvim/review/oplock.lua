@@ -19,7 +19,11 @@ local function owner(p)
   return tonumber(text:match('\npid: (%d+)'))
 end
 
-local function alive(pid) return vim.uv.kill(pid, 0) == 0 end
+-- Only ESRCH proves the owner gone; EPERM is a live process we may not signal.
+local function alive(pid)
+  local ok, _, name = vim.uv.kill(pid, 0)
+  return ok == 0 or name ~= 'ESRCH'
+end
 
 -- reclaim removes a lock whose recorded owner process is dead. True if the
 -- file is now free of a dead pane's lock (or had none).

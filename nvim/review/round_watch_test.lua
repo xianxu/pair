@@ -16,6 +16,8 @@ local dir = vim.fn.tempname(); vim.fn.mkdir(dir, 'p')
 local file = dir .. '/doc.md'
 vim.fn.writefile({ 'x' }, file)
 local function art(f, hash) return { file = f, round = { result_hash = hash, spans = {} } } end
+-- A round whose result is the file as it now is on disk, for the watch tests.
+local function live(tag) vim.fn.writefile({ tag }, file); return art(file, W.hash(file)) end
 
 -- decide: the pane's file, a result not seen yet; nothing else.
 eq(W.decide(art(file, 'h1'), file, nil), true, 'new round of this file')
@@ -24,6 +26,9 @@ eq(W.decide(art(dir .. '/other.md', 'h2'), file, nil), false, 'another file')
 eq(W.decide({ file = file }, file, nil), false, 'no round')
 eq(W.decide(nil, file, nil), false, 'no artifact')
 eq(W.decide(art(dir .. '/./doc.md', 'h3'), file, nil), true, 'paths compare canonically')
+eq(W.decide(art(file, 'h4'), file, nil, 'h4'), true, 'the file still is the round result')
+eq(W.decide(art(file, 'h4'), file, nil, 'other'), false, 'a file that moved on makes the round stale')
+eq(W.hash(file), vim.fn.sha256('x\n'):sub(1, 16), 'the engine whole-file hash')
 
 -- decorations: a highlight per changed span (none for a deletion or a marker
 -- proposal), and the reason, or "changed by the agent", as the diagnostic.
@@ -43,20 +48,24 @@ eq(d.diags[4].message, 'changed by the agent', 'no explain')
 -- watch: the round present at start is not replayed; the next one is.
 local path = dir .. '/round.json'
 local function put(a) vim.fn.writefile({ vim.json.encode(a) }, path) end
-put(art(file, 'old'))
+put(live('old'))
 local got = {}
 local stop = W.watch(file, function(a) got[#got + 1] = a.round.result_hash end, { path = path, interval = 10 })
 vim.wait(60, function() return false end)
 eq(#got, 0, 'the existing round is not replayed')
-put(art(file, 'new'))
+local fresh = live('new')
+put(fresh)
 vim.wait(500, function() return #got > 0 end)
-eq(got[1], 'new', 'a new round is delivered')
+eq(got[1], fresh.round.result_hash, 'a new round is delivered')
+put(art(file, 'not-the-file'))
+vim.wait(60, function() return false end)
+eq(#got, 1, 'a round the file no longer matches is not delivered')
 stop()
 
 -- A round the pane declines (a modified buffer) is delivered again.
 local tries = 0
 stop = W.watch(file, function() tries = tries + 1; return tries > 1 end, { path = path, interval = 10 })
-put(art(file, 'again'))
+put(live('again'))
 vim.wait(500, function() return tries >= 2 end)
 eq(tries >= 2, true, 'a declined round is redelivered')
 stop()

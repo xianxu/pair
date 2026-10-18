@@ -143,7 +143,11 @@ end
 -- the pane keeps their text and says so. Exposed for testing.
 function M.on_applied_round(buf, artifact)
   if vim.bo[buf].modified then
-    vim.notify('review: the agent applied a round while you have unsaved edits; your buffer was kept', vim.log.levels.WARN)
+    local sess = sessions[buf] or {}
+    if sess.warned ~= artifact.round.result_hash then -- once per declined round
+      sess.warned = artifact.round.result_hash
+      vim.notify('review: the agent applied a round while you have unsaved edits; your buffer was kept', vim.log.levels.WARN)
+    end
     return false
   end
   local base = apply.buf_content(buf)

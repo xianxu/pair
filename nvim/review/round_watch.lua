@@ -11,12 +11,23 @@ function M.path() return vim.env.PAIR_REVIEW_ROUND_PATH end
 
 local function canonical(p) return vim.fn.resolve(vim.fn.fnamemodify(p, ':p')) end
 
--- A round is the pane's when it names the pane's file and is one not seen yet.
-function M.decide(artifact, file, seen)
+-- A round is the pane's to act on when it names the pane's file, is one not
+-- seen yet, and the file on disk still is its result (current_hash); a file
+-- that moved on since makes the round stale, and the pane leaves it.
+function M.decide(artifact, file, seen, current_hash)
   if type(artifact) ~= 'table' or type(artifact.round) ~= 'table' then return false end
   local hash = artifact.round.result_hash
   if type(hash) ~= 'string' or hash == '' or hash == seen then return false end
-  return type(artifact.file) == 'string' and canonical(artifact.file) == canonical(file)
+  if type(artifact.file) ~= 'string' or canonical(artifact.file) ~= canonical(file) then return false end
+  return current_hash == nil or current_hash == hash
+end
+
+-- hash is the engine's whole-file hash: the first 16 hex of sha256 of the bytes.
+function M.hash(path)
+  local f = io.open(path, 'rb')
+  if not f then return nil end
+  local raw = f:read('*a'); f:close()
+  return vim.fn.sha256(raw):sub(1, 16)
 end
 
 -- The round's spans as the apply.apply_snapshot shape: a DiffChange highlight per
@@ -56,7 +67,9 @@ function M.watch(file, cb, opts)
     local artifact = M.read(path)
     -- A round the callback declines (a modified buffer) stays unseen, so it
     -- is delivered again once the pane can take it.
-    if M.decide(artifact, file, seen) and cb(artifact) ~= false then
+    -- Hash the file only for a round that is otherwise the pane's.
+    if M.decide(artifact, file, seen) and M.hash(file) == artifact.round.result_hash
+        and cb(artifact) ~= false then
       seen = artifact.round.result_hash
     end
   end))
