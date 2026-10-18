@@ -29,6 +29,13 @@ def cancel(signum, _frame):
 # cannot launch a command until the supervisor acknowledges its ready message.
 signal.signal(signal.SIGTERM, cancel)
 signal.signal(signal.SIGINT, cancel)
+# Before these handlers exist, SIGINT raises KeyboardInterrupt at the next eval
+# check, and interpreter startup swallows it where exceptions are ignored (an
+# importlib weakref callback, zipimport's argv[0] probe; pair#674). A launcher
+# that cancels during startup therefore starts us with SIGINT and SIGTERM
+# blocked, which exec keeps: a signal sent before this line stays pending, and
+# unblocking now delivers it to cancel.
+signal.pthread_sigmask(signal.SIG_UNBLOCK, {signal.SIGTERM, signal.SIGINT})
 read_fd, write_fd = os.pipe()
 start_read, start_write = os.pipe()
 intermediate = os.fork()

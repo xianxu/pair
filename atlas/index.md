@@ -59,8 +59,15 @@
   `make test-without-ancestors` checks that lifetime. Its launcher temporarily
   normalizes SIGINT before exec and restores the caller's disposition: background
   shells can otherwise make pre-handler cancellation disappear through inherited
-  SIG_IGN (#598). A pipe-gated bootstrap pins this ordering; failures retain
-  bounded captured output, test phase, helper PID and descendant-group evidence.
+  SIG_IGN (#598). It also launches the helper with SIGINT and SIGTERM blocked
+  (restoring its own mask right after spawning), and the helper unblocks them
+  only after installing its cancel handlers. Before those handlers exist,
+  interpreter startup can swallow SIGINT's KeyboardInterrupt (an importlib
+  weakref callback, zipimport's argv[0] probe); blocked, the signal waits in the
+  kernel instead (#674). A pipe-gated bootstrap pins both orderings by sending
+  the signal while the child is held before the helper. Failures retain bounded
+  captured output, test phase, helper PID, descendant group, and the caller's
+  disposition and blocked mask, which tell the two classes apart.
 - `cmd/internal/testdisk` — normal-run own-process physical write budgets for
   seven measured packages. Darwin+cgo uses the identity-fenced native process
   reader; unsupported platforms retain portable controls and report no native
