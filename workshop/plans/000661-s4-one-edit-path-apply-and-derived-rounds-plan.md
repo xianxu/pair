@@ -318,3 +318,85 @@ _Seam change, stated: this gives `apply` a registration side effect. On an unreg
   - **Propose proposes the body only** (`ProposeDocument`). Under propose, a body write must leave the frontmatter byte-identical or it refuses with `propose-unencodable`, so no verb can mark it or flip `presentation:` (BR-2, and round 2). `write --frontmatter` stays direct.
   - **Unpaired blank lines** are not marked. An inserted blank line is written as is, and a removed one is kept (BR-3; a bare 🤖 never settles). The Lua fixture test now requires every 🤖 Couch writes to parse.
   - **`ParseEdits`** refuses `occurrence < 1`.
+- **2026-10-18, M2 start (TL decisions on five questions).** Chunk 2 is superseded by "M2 as built" below. The decisions:
+  1. **Same engine, pair-level verb:** `pair review apply`, with no owner, ledger or registry. Pair must work without Couch. The rule becomes: only the shared engine writes, never nvim.
+  2. **The operator lock replaces the gate.**
+  3. **The xx-fix workbench protocol folds into ariadne#437** (ariadne:1). Its delta is written below.
+  4. **docflow commits the round, and resume reads it back from the commit.** The landed file retires.
+  5. **Re-estimate:** in the issue's `## Estimate`.
+
+### M2 as built (supersedes Chunk 2 Tasks 8–11)
+
+**Engine (ARCH-DRY).** The pure content step that `Sync.write` runs today is lifted into one exported function, which both `couch --session-sync apply` and `pair review apply` call:
+- **Function:** `sessionsync.BuildEdit(base string, edits []EditRecord, now time.Time, restamp bool) (Edit, error)`, where `Edit{Next string; Round Round; Changed bool}`.
+- **Steps:** resolve (all or nothing), the restamp-aware baseline, propose under `presentation: propose`, then derive the round.
+- **Refusals:** the same as `apply` (`edits-invalid`, `propose-too-large`, `propose-unencodable`).
+- `Sync.write` keeps its owner, ledger and shadow steps around it. Its tests must stay green unchanged.
+
+**`pair review apply EDITS.json FILE --if-hash H [--json]`** (`cmd/internal/reviewcmd`, a new subverb):
+- **Order:** an exclusive flock (in pair's data dir, `review-apply-<sha8(abspath)>.flock`, so nothing lands in the repository), then the operator lock, then the whole-file hash, then `BuildEdit` (with `restamp=false`: reviewed documents aren't session files), then an atomic replace, then the round artifact written last.
+- **Operator lock (S1's):** `FILE.lock` with `holder: operator` refuses with exit 3. A lock older than 30 minutes adds ping advice, as `couch` does. It reuses `sessionsync.ParseHolder`.
+- **Exit codes:** 0 written; 1 `edits-invalid` / `propose-*` / `refused`; 3 `operator-lock`; 6 `stale` (with the current hash).
+- **Round artifact:** `$PAIR_REVIEW_ROUND_PATH`, which is `review-round-<tag>.json` in pair's data dir. It replaces both `review-handoff-<tag>.json` and `review-landed-<tag>.json`.
+  - Contents: `{file, round, body}`. `round` is the sidecar shape from M1.
+  - `body` is the commit body: a fenced `review-records` block (the existing `record.embed_in_body` format) whose records come from the round's spans, as `{old, new, explain, new_occurrence}`. `new_occurrence` is the Nth plain match of `new` in the result at the span's position, so resume (`reconstruct_on_open`) works unchanged.
+  - Like M1's round sidecar, the artifact is removed before the document moves and written after it, so it is never stale.
+  - It is registered in `artifactpath`, with retention like the handoff it replaces.
+- **`--json` reply:** `{Code, Error, Hash, Invalid, Round, Body}`. Without `--json` the verb prints `hash:` and the body path.
+
+**The pane (nvim):**
+- **Round watch:** `handoff.watch`'s 100 ms poll moves to the round artifact. A new round arrives with an unseen `result_hash` and a `file` equal to the pane's file.
+  - If the buffer is unmodified, the pane reloads it from disk (`edit!`) and decorates the spans with `apply.place` in the `review_diag` namespace. The message is the span's `explain`, or "changed by the agent". The span is set to `no_highlight` when it is a deletion or its new text is a marker proposal.
+  - A modified buffer can't occur, because the lock is held (below). If one does, the pane warns and doesn't reload.
+- **Lock:** the pane writes `FILE.lock` (`holder: operator`, `at:`) on the first buffer change of the operator's turn (TextChanged/TextChangedI). It removes the lock on send (`finish_human_turn`, after the save) and at VimLeave.
+  - While the lock is held, the agent's apply refuses with exit 3 and waits for the operator's send.
+  - The S1 30-minute ping rule applies.
+- **Retired** (code and tests):
+  - `apply.apply` (the buffer apply; `render`, `snapshot`, `apply_snapshot`, `place` and `clear*` stay);
+  - `reconcile.lua`;
+  - `gate.lua` with `on_defer`, `pending_records`, `has_pending` and the winbar pending state;
+  - `set_base` / v0;
+  - `handoff.lua`'s handoff and landed halves, with `did_land` and `restore_controller`'s pending-handoff and pending-landed checks;
+  - the `agent_applied` poke and the dropped/conflict notifications.
+
+  `record.lua`, `reconstruct.lua` (with `resolve` and the shared fixtures) and `projection.lua` stay.
+- **What nvim still writes:** only the operator's own edits (save on send, marker accept/reject, comments, definitions). The rule test greps `nvim/review/` for `nvim_buf_set_text`/`set_lines` callers outside that human-action allowlist.
+- **Readiness and docflow:** docflow stages only the recorded in-scope documents (ariadne `docflow.sh:161`), so an untracked `FILE.lock` is never committed. Readiness's clean check must ignore an untracked `FILE.lock` for the reviewed file. A test pins it.
+
+**Tests:**
+- Retire `review-reconcile-test.sh`, `review-handoff-test.sh`, and the Lua `reconcile_test`, `gate_test`, `handoff_acceptance_test` and `handoff_context_test`.
+- Rewrite `review-loop-test.sh` and `tests/lib/fake-review-agent.sh`. The fake agent runs `pair review apply`, then commits the artifact's `body` with docflow. The test asserts:
+  - the buffer reloads with the decorations;
+  - the commit body is verbatim;
+  - one round per apply;
+  - the lock is held after an operator edit, so the fake agent's apply exits 3 and nothing changes;
+  - after the send, apply succeeds.
+- Update `review-window-test.sh` (the pending and winbar parts go), `review-producer-context-test.sh` and the restore tests (they switch from the handoff and landed env vars to `PAIR_REVIEW_ROUND_PATH`), and `poke_bodies_test`.
+- Go: `reviewcmd` tests for `pair review apply` (exit codes 0/1/3/6, nothing written on a refusal, the artifact's body round-trips through `record.extract_from_body`), and `sessionsync` tests for `BuildEdit`.
+
+**Protocol delta for ariadne#437** (xx-fix `construct/local/fix/SKILL.md`, "Pair review workbench", lines 201–293). Exact replacements:
+1. **Rule 1 (propose as records into the handoff) becomes: apply as records through pair.**
+   - Write `{old, occurrence, new, explain}` records to a temp `EDITS.json` (`[...]` or `{"records": [...]}`) and run `pair review apply EDITS.json FILE --if-hash H --json`. H is the whole-file hash: `shasum -a 256` hex truncated to 16, the same function as `couch --session-sync read --all`, and also returned as `Hash` by the previous apply.
+   - Never edit the file in place, and never hand-write `🤖~…~{…}` markers. Under `presentation: propose`, pair writes them.
+   - **Exits:**
+     - 0: applied.
+     - 1 `edits-invalid`: nothing was written; `Invalid` lists `{index, reason}`. Fix those records and apply again.
+     - 1 `propose-too-large` / `propose-unencodable`: write that change as a side-doc proposal linked in place by `→ [proposal](…)`.
+     - 3 `operator-lock`: the operator is editing. Wait for their "finished my edits" poke, then re-read.
+     - 6 `stale`: re-read the file, rebuild the records against it, apply again.
+2. **The activation-context envelope and the context-mismatch section are deleted.** The hash and the operator lock replace them.
+3. **Rule 2 (commit after the applied poke) becomes: commit right after a successful apply.**
+   - Run `docflow round --side agent -m <summary> --body <Body>`, with `Body` taken verbatim from the apply reply (the round as records). Never regenerate it.
+   - There is no "applied N edit(s)" poke any more.
+   - The human side is unchanged (`docflow round --side human` on the "finished my edits" poke).
+4. **The reconcile-marker section is deleted.** An exit 6 replaces reconciliation.
+5. **`$PAIR_REVIEW_HANDOFF_PATH` and `$PAIR_REVIEW_LANDED_PATH` are gone.** The agent needs no path; pair finds the round artifact from the session.
+
+In pair, `poke_bodies.review_opened` and `with_context` change to name `pair review apply`, `agent_applied` is deleted, and `workshop/targets/review-protocol.md` seams 2 and 2b become "seam 2: `pair review apply` + the round artifact".
+
+**Order, the one decision left for the TL (ARCH-ORDER).** The legacy handoff path is the only way today's agents (xx-fix before ariadne#437) apply, and it needs nvim's buffer apply. Retiring it before #437 lands breaks every live review in between. Two shapes:
+- **(a) Recommended: two steps.**
+  1. M2 lands the engine, `pair review apply`, the round watch, the lock and the new tests. The pane accepts an applied round, and still accepts a legacy handoff (through the existing apply and reconcile code) until #437 lands.
+  2. A follow-up issue, filed at the M2 close with `deps: ariadne#437`, retires the handoff, `apply.apply`, reconcile, gate and landed, with their tests, and adds the "nvim never writes" rule test. M2's Done-when "nvim never writes the reviewed file" is then met by that follow-up, which the issue records.
+- **(b) One step:** M2 waits for ariadne#437 and retires everything at once. Nothing lands until #437 does.
+

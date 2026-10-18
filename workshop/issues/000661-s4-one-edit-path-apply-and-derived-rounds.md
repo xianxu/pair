@@ -66,18 +66,19 @@ item: smaller-go-module      design=0.1 impl=0.16
 item: lua-neovim             design=0.3 impl=0.24
 item: atlas-docs             design=0.05 impl=0.1
 item: milestone-review       design=0.0 impl=0.16
-item: lua-neovim             design=1.0 impl=0.48
-item: smaller-go-module      design=0.2 impl=0.16
-item: skill-or-dispatcher    design=0.3 impl=0.12
+item: smaller-go-module      design=0.3 impl=0.2
+item: lua-neovim             design=1.0 impl=0.6
+item: cross-cutting-refactor design=0.3 impl=0.2
+item: skill-or-dispatcher    design=0.2 impl=0.08
 item: atlas-docs             design=0.05 impl=0.1
 item: milestone-review       design=0.0 impl=0.16
 design-buffer: 0.15
-total: 6.48
+total: 7.14
 ```
 
 The items are, in order:
 - M1: the resolver and fixtures; the line diff and round; the propose converter; the write path and sidecar; the round verb and CLI; the Lua resolver on the fixtures; atlas; the review.
-- M2: the pane on the round, with nvim apply and reconcile retired; register on first apply; the review agent's instructions; atlas; the review.
+- M2, re-estimated at its start (2026-10-18) after the TL's decisions: the `BuildEdit` engine plus `pair review apply`; the pane's round watch, operator lock and retirements; the shell-test rework; the ariadne#437 protocol delta; atlas; the review.
 
 Design is the low end of each range, because the durable plan already resolved the decisions; the buffer is 15% for a thorough plan. Impl is 40% of the v2 table's figure.
 
