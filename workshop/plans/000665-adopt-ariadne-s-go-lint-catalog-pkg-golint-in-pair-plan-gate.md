@@ -19,6 +19,25 @@ reviewer_runs:
       finished_at: "2026-10-18T12:48:44.461411Z"
       session_id: 01a14f0e-3014-7422-8740-20ec5465c826
       outcome: returned
+    - version: 1
+      intent:
+        id: e75072c4-cdbd-4cea-ae4f-15c16b1ae249
+        repository: github.com/xianxu/pair
+        issue_id: "000665"
+        recipe: estimate-quality
+        round: 1
+        attempt: 1
+        agent: codex
+        root: /Users/xianxu/workspace/worktree/pair-slot1/pair
+        reviewed_head: 83e3331b6f26a10248fde8f5ad4f98f930f94788
+        slot: pair:1
+        requested_at: "2026-10-18T13:26:29.257634Z"
+      phase: finished
+      pid: 30516
+      started_at: "2026-10-18T13:26:29.397126Z"
+      finished_at: "2026-10-18T13:27:01.128484Z"
+      session_id: 01a14f31-3e50-7780-acea-0bb5933d83fb
+      outcome: returned
 gate: plan-quality
 issue: 665
 id_prefix: PQ
@@ -112,7 +131,36 @@ rounds:
           note: R2 names every new validation seam and replaces the regression matrix with function-specific adversarial strategies and independent guards.
           round: 3
       blocked: false
-content_hash: 30500e80bf1b822e86c2ad31dde725a1250243f0618edcb1475bdf34f90b0637
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: d4267731-0f43-4883-9a8f-90f52b4e7555
+            repository: github.com/xianxu/pair
+            issue_id: "000665"
+            recipe: plan-quality
+            round: 4
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot1/pair
+            reviewed_head: 83e3331b6f26a10248fde8f5ad4f98f930f94788
+            slot: pair:1
+            requested_at: "2026-10-18T13:26:01.591889Z"
+          phase: finished
+          pid: 25361
+          started_at: "2026-10-18T13:26:01.725428Z"
+          finished_at: "2026-10-18T13:26:27.575636Z"
+          session_id: 01a14f30-d1e8-7a42-8340-ca5ffde4d925
+          outcome: returned
+      "n": 4
+      timestamp: "2026-10-18T06:26:27-07:00"
+      agent: codex
+      dispose:
+        - id: PQ-1
+          disposition: addressed
+          note: R2 and R5 name the validation seams and provide adversarial strategies with mechanical guards, superseding the prose regression matrix.
+          round: 4
+      blocked: false
+content_hash: 3e22d0bfdb0b1c8eb74fab7377cffb57dec17a4b6faa86f289f31858bb48b48b
 ---
 
 # Gate ledger — pair#665 (plan-quality)
@@ -138,6 +186,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 ### Disposed
 
 - PQ-1 — addressed — R2 names every new validation seam and replaces the regression matrix with function-specific adversarial strategies and independent guards.
+
+## Round 4 — 2026-10-18T06:26:27-07:00 (codex) — passed
+
+### Disposed
+
+- PQ-1 — addressed — R2 and R5 name the validation seams and provide adversarial strategies with mechanical guards, superseding the prose regression matrix.
 
 ## Open findings
 
