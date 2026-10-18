@@ -537,3 +537,33 @@ Authenticated hub8475ff8f-6ca3-4a6c-9896-ac845d2137b9 accepts the one retained r
 The observed original tiling/agent focus is allowed by the approved completed-prefix policy. Embedding/layout steps completed before the refused observation; explicit return-focus and record-clear did not. A fresh shortcut observes the resulting mode rather than replaying failed work. The fixture's prior-mode expectation was wrong after partial completion, not a requirement to roll the product back.
 
 Offline-only correction: nativeReplyExpectedPrefix consumes completed mutation-result events into a pure expected-state value: floating/positioned, exact-tiling guarantee and optional exact focus. Embedding drops focus/tiling guarantees until a completed explicit focus or successful restore/record-clear establishes them. nativeReplyCheckExpected reuses exact complete-mode geometry checks; for unfinished prefixes it requires typed owned identities/tab, nonfullscreen positive geometry and a positively observed owned focus, independently witnessed by PTY in any future authorized sample. These pure entities live in fullscreen_reply_live_test.go; no production state or new native run. Regression models recorded embed+three-swaps followed by unknown as allowed original tiling/agent focus, plus wrong identity/fullscreen/after-unknown negatives. Do not consume an attempted but failed mutation as completion. Prefix qualification remains STOPPED, clean mode remains distinct, and offline tests cannot retroactively create the missing native witness. Qualify this small fixture correction, then push and run the branch suite.
+
+### 2026-10-18 — R7 approved: one native fixture reply generator and complete producer contracts
+
+Hub cf8365e4-3dd3-4d7c-820f-03df47e8686d identifies the common cause of all three qualification failures: strict production decoding with independently handwritten loose fixture replies. Fix the class across OS/CLI fixture producers, including the public Pair8x4 Couch namespace matrix; no production, native, deadline or transport changes. Pure decoder inputs and injected runtime fault matrices remain intentional test data, not positive external reply serializers.
+
+Pure test entities:
+
+| Name | Lives in | Status |
+|---|---|---|
+| Native fixture reply envelope and canonical serializers | tests/lib/zellij_fixture_replies.py | new |
+| Named per-producer positive and explicit negative case catalog | tests/lib/zellij_fixture_{shell,launcher,couch}_cases.json | new |
+| Producer classification/coverage inventory | cmd/internal/zellijtest fixture contract test | new |
+
+Integration points:
+
+| Name | Lives in | Status | Wraps |
+|---|---|---|---|
+| Go fixture Reply/Case/ShellReply/ShellCase adapter | cmd/internal/zellijtest | new | Shared Python generator, pre-rendered shell channels/status |
+| Stateful fake query serialization | tests/lib/fake-zellij.py | modified | Canonical native output; explicit fault bypass retained |
+| Existing CLI fake producers | catalog source paths in tests/, launcher, pairlifecycletest, couchcore, couchcmd, pair-go, wrapcmd | modified | Existing controlled subprocess/PTY lifecycle |
+| Exhaustive catalog-to-production decoder conformance | cmd/internal/zellijtest external tests | new | Production pane/client/tab/session/diagnostic parsers |
+
+ARCH-DRY: one serializer owns field names, default positive fixture state and exact diagnostics; fixtures retain semantic identities/roles/geometry and effects. ARCH-MOCK: stateful model remains owned by existing fakes; no call-only replacement. ARCH-CONSTRAINTS: pre-render static Go shell replies during fixture construction, retaining subprocess counts and unchanged timed query budgets. No new production state/process owner.
+
+- [ ] Define RED-first generator and conformance tests: every registered producer case is emitted by the same generator path used at runtime, with strict maximal pane fields, native clients/tab, exact absence/exit diagnostics. Explicit malformed cases must refuse; no automatic repair of raw negatives.
+- [ ] Implement pure Python render(kind,payload) reply envelope; CLI --case/--kind/--catalog; Go adapter resolves absolute Python/repo paths and shell-quotes fixed stdout/stderr/exit snippets.
+- [ ] Migrate shell/Lua subprocess producers and their named seed cases (worker1), launcher/shared lifecycle producers (worker2), Couch/public CLI/wrapper producers (worker3); root owns shared fake, generator, conformance and workflow. Record all source paths, intentional faults and non-query/advisory exceptions.
+- [ ] Conformance test enumerates all named cases through production strict decoder/diagnostic contracts; producer coverage refuses unregistered or independently serialized positive native query outputs. Catalog cases cover real seeds and dynamic serializer operations, not only generic examples.
+- [ ] Preserve every existing command/store/namespace/FIFO/handoff/byte/focus assertion. Run all affected targets/packages normal and focused race, with RED retained; perform source-wide producer sweep before another suite.
+- [ ] Commit/push final head, run required recorded full suite. Whole-issue review covers R7 and both earlier fixture deltas; M3 historical SHIP is unchanged. Close/landing still require suite PASS; clean path remains next-restart operator check.
