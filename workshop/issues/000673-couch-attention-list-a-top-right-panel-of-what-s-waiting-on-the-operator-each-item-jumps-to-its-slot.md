@@ -55,3 +55,10 @@ Durable plan: [workshop/plans/000673-couch-attention-list-a-top-right-panel-of-w
 ## Log
 
 ### 2026-10-18
+- 2026-10-18 checkpoint (TL priority switch to #674). Built and committed:
+  - the reducer and store;
+  - the three sources: the notify hook, the publishBlocked prompt set, and the wait-watcher question set with its activity-bound end;
+  - the Console panel (top-right `renderMenuAt`, operator layer composed with codes), Ctrl+Alt+a, the 🔔N status-row badge, mouse, dismiss and jump;
+  - README.
+
+  Passing: `TestAttention*` in couchcore and couchtty (count=3) and couchcmd (with the README fix). Remaining: a wait-watcher question-set unit test; a status-row badge render test; atlas (`couch.md`, `architecture.md:813` durability, #352 superseded); the full couchtty package run (an earlier pattern run idled about 6 minutes, to be rechecked); the recorded suite; close.

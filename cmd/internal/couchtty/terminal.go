@@ -104,6 +104,7 @@ func (c *Console) commitChrome(row RenderedStatusRow) {
 	c.statusPointer, c.statusNotes = row.Pointer, row.Notes
 	c.statusWebcast, c.statusWebFocus, c.statusWebNotes, c.statusWebDrive = row.Webcast, row.WebFocus, row.WebNotes, row.WebDrive
 	c.statusWebPointerLink, c.statusWebDriveLink = row.WebPointerLink, row.WebDriveLink
+	c.statusAttention = row.Attention
 	first := !c.framePainted
 	c.framePainted = true
 	var shown couchcore.ThreadAddress

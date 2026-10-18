@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/agentdrive"
+	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
 )
 
@@ -250,6 +251,9 @@ type waitWatcher struct {
 	// seen is the last judged episode per connected binding, pruned to the
 	// listing each tick; it dies with the service.
 	seen map[couchmessage.Binding]waitEpisode
+	// questions is the question set last handed to the attention list
+	// (pair#673); nil until the first tick publishes.
+	questions map[couchcore.ThreadAddress]couchcore.AttentionCondition
 }
 
 // waitEpisode: an episode is one judged wait — the same reason and the same
@@ -369,6 +373,13 @@ func (w *waitWatcher) tick(ctx context.Context, now time.Time) {
 		liveness = *m
 	}
 	listed := map[couchmessage.Binding]bool{}
+	// waiting is each slot still quiet past its threshold this tick; one in a
+	// question episode judged at this same activity is in the question set.
+	type waitingRow struct {
+		b        couchmessage.Binding
+		activity time.Time
+	}
+	var waiting []waitingRow
 	var muted map[string]bool
 	var muteErr string // a mute list that can't be read is said in the notice
 	for _, row := range rows {
@@ -403,6 +414,7 @@ func (w *waitWatcher) tick(ctx context.Context, now time.Time) {
 			continue
 		}
 		key := waitKey{activity: row.LastActivity, settled: f.Settled != nil && *f.Settled, resting: f.Resting, pending: f.Pending, picker: f.Picker}
+		waiting = append(waiting, waitingRow{b, key.activity})
 		if ep, ok := w.seen[b]; ok && ((ep.notified && ep.key.activity == key.activity) || (ep.judgedNot && ep.key == key)) {
 			continue
 		}
@@ -472,4 +484,14 @@ func (w *waitWatcher) tick(ctx context.Context, now time.Time) {
 			delete(w.seen, b)
 		}
 	}
+	// A turn moves the activity, so the episode ends with it: the explicit
+	// end the question set needs.
+	questions := map[couchcore.ThreadAddress]couchcore.AttentionCondition{}
+	for _, row := range waiting {
+		ep, ok := w.seen[row.b]
+		if summary, question := questionEpisode(ep); ok && question && ep.key.activity.Equal(row.activity) {
+			questions[bindingThread(row.b)] = couchcore.AttentionCondition{Label: row.b.Slot, Title: summary}
+		}
+	}
+	w.publishQuestions(questions)
 }

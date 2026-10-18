@@ -8,7 +8,11 @@ import (
 )
 
 func TestAttentionStoreRoundTripAndRefusals(t *testing.T) {
-	store := AttentionStore{Dir: filepath.Join(t.TempDir(), "attention")}
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := AttentionStore{Dir: filepath.Join(dir, "attention")}
 	if items, err := store.Load(); err != nil || items != nil {
 		t.Fatalf("no file: %v %v", items, err)
 	}
