@@ -37,6 +37,7 @@ func SocketPath(namespace, endpoint string) (string, error) {
 		return "", errors.New("message socket requires a canonical absolute namespace and endpoint")
 	}
 	digest := sha256.Sum256([]byte(namespace + "\x00" + endpoint))
+	//lint:allow tmp-literal — independent wrapper and broker processes must derive the same bounded UID-private socket address regardless of their TMPDIR
 	return filepath.Join("/tmp", fmt.Sprintf("pair-message-%d", os.Getuid()), fmt.Sprintf("%x.sock", digest[:20])), nil
 }
 

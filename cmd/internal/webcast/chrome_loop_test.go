@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/xianxu/pair/cmd/internal/testwait"
+
 	"github.com/xianxu/pair/cmd/internal/cdp"
 )
 
@@ -129,6 +131,11 @@ func (p *peer) never(method string, d time.Duration) {
 
 func startPeer(t *testing.T, tweak func(*peer)) (*Chrome, *peer) {
 	t.Helper()
+	return startPeerOptions(t, tweak, LaunchOptions{})
+}
+
+func startPeerOptions(t *testing.T, tweak func(*peer), opts LaunchOptions) (*Chrome, *peer) {
+	t.Helper()
 	cmdR, cmdW := io.Pipe()
 	outR, outW := io.Pipe()
 	p := &peer{t: t, calls: make(chan cdp.Message, 256), out: outW, in: outR, exitOnClose: true,
@@ -137,7 +144,7 @@ func startPeer(t *testing.T, tweak func(*peer)) (*Chrome, *peer) {
 		tweak(p)
 	}
 	go p.serve(cmdR)
-	c := start(cdp.New(outR, cmdW), p, &tail{max: stderrTail}, LaunchOptions{})
+	c := start(cdp.New(outR, cmdW), p, &tail{max: stderrTail}, opts)
 	t.Cleanup(func() {
 		c.Close()
 		<-c.Done()
@@ -201,13 +208,34 @@ func TestChromePageControlToggles(t *testing.T) {
 	}
 }
 
+func pageExpiryOnCue(t *testing.T) (LaunchOptions, <-chan chan time.Time) {
+	t.Helper()
+	created := make(chan chan time.Time, 1)
+	return LaunchOptions{noPagesAfter: func(time.Duration) <-chan time.Time {
+		expire := make(chan time.Time, 1)
+		created <- expire
+		return expire
+	}}, created
+}
+
 func TestChromeEndsWhenTheLastPageStaysClosed(t *testing.T) {
-	defer func(g time.Duration) { noPagesGrace = g }(noPagesGrace)
-	noPagesGrace = 20 * time.Millisecond
-	c, p := startPeer(t, nil)
+	opts, created := pageExpiryOnCue(t)
+	c, p := startPeerOptions(t, nil, opts)
 	p.openPage("T1", "S1")
 	p.expect("S1", "Runtime.runIfWaitingForDebugger")
 	p.send(`{"method":"Target.targetDestroyed","params":{"targetId":"T1"}}`)
+	var expire chan time.Time
+	select {
+	case expire = <-created:
+	case <-testwait.After(t):
+		t.Fatal("page loss did not arm grace")
+	}
+	select {
+	case <-c.Done():
+		t.Fatal("Chrome ended before page grace expired")
+	default:
+	}
+	expire <- time.Now()
 	p.expect("", "Browser.close")
 	waitDone(t, c)
 	if !errors.Is(c.Err(), ErrClosedByOperator) {
@@ -216,14 +244,38 @@ func TestChromeEndsWhenTheLastPageStaysClosed(t *testing.T) {
 }
 
 func TestChromeKeepsRunningWhenAPageReplacesTheLast(t *testing.T) {
-	defer func(g time.Duration) { noPagesGrace = g }(noPagesGrace)
-	noPagesGrace = 150 * time.Millisecond
-	c, p := startPeer(t, nil)
+	opts, created := pageExpiryOnCue(t)
+	c, p := startPeerOptions(t, nil, opts)
 	p.openPage("T1", "S1")
 	p.expect("S1", "Runtime.runIfWaitingForDebugger")
 	p.send(`{"method":"Target.targetDestroyed","params":{"targetId":"T1"}}`)
+	var expire chan time.Time
+	select {
+	case expire = <-created:
+	case <-testwait.After(t):
+		t.Fatal("page loss did not arm grace")
+	}
 	p.openPage("T2", "S2")
-	p.never("Browser.close", 3*noPagesGrace)
+	p.expect("S2", "Runtime.runIfWaitingForDebugger")
+	checked := make(chan struct{})
+	if !c.do(func(s *loopState) {
+		if s.noPages != nil {
+			t.Error("replacement retained last-page timer")
+		}
+		close(checked)
+	}) {
+		t.Fatal("Chrome ended during page replacement")
+	}
+	select {
+	case <-checked:
+	case <-testwait.After(t):
+		t.Fatal("replacement state check was not processed")
+	}
+	// A previously armed timer may still fire, but is no longer admitted.
+	expire <- time.Now()
+	if err := c.SetLive(false); err != nil {
+		t.Fatalf("replacement stopped: %v", err)
+	}
 	if c.Err() != nil || c.State().Tab.ID != "T2" {
 		t.Fatalf("err %v state %+v", c.Err(), c.State())
 	}

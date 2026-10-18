@@ -94,7 +94,7 @@ func TestCouchQueriesCollectOwnedDescendants(t *testing.T) {
 	} {
 		for _, mode := range []string{"success", "failure", "cancel", "pipe-holder"} {
 			t.Run(entry.name+"/"+mode, func(t *testing.T) {
-				root, err := os.MkdirTemp("/tmp", "pair647-query-")
+				root, err := os.MkdirTemp("", "pcq-")
 				if err != nil {
 					t.Fatal(err)
 				}

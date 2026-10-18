@@ -76,6 +76,7 @@ func assertPrivateNotificationSocket(t *testing.T, dir string) {
 func TestNotificationPTYConformance(t *testing.T) {
 	// macOS Unix-domain addresses need a short path. Register cleanup before
 	// the Console fixture so its accepted broker child is joined first.
+	//lint:allow tmp-literal — the notification broker appends a 32-hex digest and PID; macOS TMPDIR can exceed its 100-byte socket limit
 	socketDir, err := os.MkdirTemp("/tmp", "pcnotify-")
 	if err != nil {
 		t.Fatal(err)

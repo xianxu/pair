@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"flag"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -46,9 +47,14 @@ func TestMain(m *testing.M) {
 		os.Getenv("PAIR_CONTINUATION_LIVE_HELPER") == "1" {
 		os.Exit(testpair.Run(m))
 	}
-	os.Exit(testdisk.RunWithWriteBudget("couchcore", testdisk.CouchCore, func() int {
+	code := testdisk.RunWithWriteBudget("couchcore", testdisk.CouchCore, func() int {
 		return testgit.RunWithEmptyGitTemplate(func() int { return testpair.Run(m) })
-	}))
+	})
+	if err := startupHelperCache.Close(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		code = 1
+	}
+	os.Exit(code)
 }
 
 // defaultParallelForSubprocessTests raises -test.parallel unless the caller set

@@ -32,7 +32,7 @@ type legacy540Request struct {
 }
 
 func TestMessageCLIPre540SupervisorCompatibility(t *testing.T) {
-	root, err := os.MkdirTemp("/tmp", "couch-legacy540-")
+	root, err := os.MkdirTemp("", "pcc-")
 	if err != nil {
 		t.Fatal(err)
 	}

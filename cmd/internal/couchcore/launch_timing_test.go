@@ -73,7 +73,7 @@ func TestLaunchTimingObserverReportsWarmRetryWithoutColdLifecyclePhases(t *testi
 
 func TestLaunchTimingObserverPreservesRegistrationFailureTimings(t *testing.T) {
 	env := newTestEnv(t, "/repo")
-	env.Couch.resumeRegistrationTimeout = 150 * time.Millisecond
+	expireRegistrationAfterPanePolls(env, 2)
 	parked := createParkedThreadInCouch(t, env, LaunchProfile{Agent: "claude", Argv: []string{}})
 	env.Artifacts.SetNativeBinding(parked.Address, "claude", sessioninventory.BindingEstablished, "native-root-1")
 	var names []string

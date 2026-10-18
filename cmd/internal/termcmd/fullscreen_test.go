@@ -59,6 +59,7 @@ func TestTerminalToggleRefusalReturnsFailureAndNotifiesBroker(t *testing.T) {
 		key, value, _ := strings.Cut(entry, "=")
 		t.Setenv(key, value)
 	}
+	//lint:allow tmp-literal — the real notification broker appends a 32-hex digest and PID; macOS TMPDIR can exceed its 100-byte socket limit
 	socketDir, err := os.MkdirTemp("/tmp", "p647-term-notify-")
 	if err != nil {
 		t.Fatal(err)

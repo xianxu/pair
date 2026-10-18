@@ -60,10 +60,12 @@ type options struct {
 	queueBytes, queueRecords int
 	fileBytes                int64
 	closeTimeout             time.Duration
+	// closeTimer lets tests observe Draining before firing its timeout; nil uses an owned real timer.
+	closeTimer func(time.Duration) (<-chan time.Time, func())
 }
 
 func defaultOptions() options {
-	return options{maxQueueBytes, maxQueueRecords, maxFileBytes, 2 * time.Second}
+	return options{queueBytes: maxQueueBytes, queueRecords: maxQueueRecords, fileBytes: maxFileBytes, closeTimeout: 2 * time.Second}
 }
 
 // Recorder has one worker. Record performs no file IO and never waits for the
@@ -308,11 +310,18 @@ func (r *Recorder) Close() error {
 		r.mu.Lock()
 		r.transitionLocked(lifecycleEvent{kind: closeRequested})
 		r.mu.Unlock()
-		timer := time.NewTimer(r.opts.closeTimeout)
-		defer timer.Stop()
+		var timeout <-chan time.Time
+		var stop func()
+		if r.opts.closeTimer != nil {
+			timeout, stop = r.opts.closeTimer(r.opts.closeTimeout)
+		} else {
+			timer := time.NewTimer(r.opts.closeTimeout)
+			timeout, stop = timer.C, func() { timer.Stop() }
+		}
+		defer stop()
 		select {
 		case <-r.done:
-		case <-timer.C:
+		case <-timeout:
 			r.mu.Lock()
 			r.transitionLocked(lifecycleEvent{kind: drainTimedOut})
 			r.mu.Unlock()

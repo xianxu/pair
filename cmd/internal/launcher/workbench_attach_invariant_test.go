@@ -142,7 +142,7 @@ func TestWorkbenchPerformanceOwnerPassCountsEveryNativeFence(t *testing.T) {
 		t.Run(fmt.Sprintf("callers=%d", n), func(t *testing.T) {
 			reader := &attachProcessReader{commands: map[int]procutil.CommandInfo{}}
 			world := newOwnerPassWorld(n)
-			dir, err := os.MkdirTemp("/tmp", "pair-owner-count-")
+			dir, err := os.MkdirTemp("", "poc-")
 			if err != nil {
 				t.Fatal(err)
 			}
