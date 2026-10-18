@@ -144,6 +144,8 @@ cost gate now does for the sampler.
 ## Log
 
 
+
+- 2026-10-18: closed — Main conflict resolution preserves both README contracts, shared native reply fixtures and gated semantic growth; no deadline or assertion weakened. Targeted park/lsof pass and full repolint pass. Required recorded suite passed12m47s after issue-backed unchanged retry (#674). Earlier native CI oracle SIGSEGV filed #668 and single unchanged failed-job rerun passed. All original injected-delay controls and twenty-run acceptance remain retained in Log. (fixed-then-ship; full suite: Recorded suite on f35faa470d4dd2e484b31150326b379635b0fd91 passed exit0 in12m47s, attempt6b9e8c389f3b9c2964d271e047e75235 log02cca8cf8d6b; all prerequisites and Go packages completed. Prior attempt e3644ec5a5ebc04b7b8fa2219b970aa7 retained failed startup cancellation; hub-approved unchanged rerun; canonical flake #674, duplicate #671 wontfix.); review verdict: SHIP
 - 2026-10-18: closed — Nine reported functions and all subtests passed20/20, plus recovery deadline20/20; deterministic old delay controls fail and corrected controls pass; required native lsof passed. Hub accepted measured-load support. Corrected recorded full suite on75277904 passed15m29s, log bffa54097006; first failed suite retained with only inventory omission, fixed and focused guards green. BR-1/2/3 addressed solely in plan/acceptance/README documentation; no executable sources changed since passing suite.; review verdict: SHIP
 ### 2026-10-17
 

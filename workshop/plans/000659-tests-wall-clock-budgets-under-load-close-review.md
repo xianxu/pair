@@ -176,3 +176,80 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-18T12:00:30-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 659 — tests: seven wall-clock budgets on external tools (git worktree, zellij IPC, lsof, a rate-limit window) fail at fleet load |
+| repo | pair |
+| issue file | workshop/issues/000659-tests-wall-clock-budgets-under-load.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 68a75172f79ac8732f60ffe8aff905e7c1dcafe3..3d1b24fbe73d1e4dfd08826c634fbe6e823bf960 |
+| command | sdlc close --issue 659 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-18T12:00:30-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The interdiff resolves all three conflicts while preserving both README contracts, the gated park-growth assertions, and native lsof identity checks. Prior documentation corrections remain valid. The added Revisions entries record conflict recovery and verification without changing scope or acceptance. No new defects found.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      The plan's Core concepts row at line 31 correctly classifies requireLsofObservation as integration, matching its environment reads, testing verdicts and host diagnostics in proof_test.go:145–154.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Issue Done when at lines 105–113 and the plan's active verification tasks retain the approved measured-load acceptance. This window adds recovery evidence without changing that contract.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      README.md:1892–1901 preserves the fresh required-mode invocation and optional-skip versus required-failure contract, matching proof_test.go:145–164. Required native conformance and verdict-policy tests passed.
+```
+
+1. **Strengths**
+   - README resolution retains both lsof guidance and main’s lint-catalog guidance.
+   - Park resolution preserves baseline, unchanged, unknown and released-growth checks at `park_client_readiness_test.go:125–187`.
+   - Retained `procutil` import serves actual process-identity assertions at `proof_test.go:73,120,123`.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes:** Focused park contract, unknown-baseline and growth tests passed. Required native lsof tests and optional/required verdict controls passed. `git diff --check` passed; tracked checkout remained unchanged. Full suite was not independently rerun.
+
+6. **Architectural notes**
+   - **ARCH-DRY: pass.** Shared typed CLI fixtures and readiness helper remain intact.
+   - **ARCH-PURE: pass.** Conflict resolution preserves injected query logic and correctly classified test integration.
+   - **ARCH-PURPOSE: pass.** Both sides’ contracts survive resolution; no acceptance reduction or scope expansion.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"35733e86-5955-41e5-ad09-d0e337405b90","repository":"github.com/xianxu/pair","issue_id":"000659","recipe":"fix-review","round":3,"attempt":1,"agent":"codex","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/fd15cb41369fa51f","reviewed_head":"3d1b24fbe73d1e4dfd08826c634fbe6e823bf960","slot":"pair:7","requested_at":"2026-10-18T18:59:42.552608Z"},"phase":"finished","pid":23742,"started_at":"2026-10-18T18:59:42.764372Z","finished_at":"2026-10-18T19:00:24.409333Z","session_id":"01a15062-5278-70f2-9047-ed786db3be16","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.065798208s
+head: "3d1b24fbe73d1e4dfd08826c634fbe6e823bf960"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
