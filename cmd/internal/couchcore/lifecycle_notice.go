@@ -19,6 +19,9 @@ const (
 	LifecycleRelaunched    LifecycleNoticeKind = "relaunched"
 	LifecycleRecovered     LifecycleNoticeKind = "recovered"
 	LifecycleNeedsRelaunch LifecycleNoticeKind = "needs-relaunch"
+	// LifecycleExited is the native agent leaving on its own, proved by the
+	// wrapper that reaped it (pair#657); Mode carries "code N".
+	LifecycleExited LifecycleNoticeKind = "exited"
 )
 
 // LifecycleNoticeFact is copied after the authoritative operation completes.
@@ -326,7 +329,7 @@ func validLifecycleNoticeFact(f LifecycleNoticeFact) bool {
 		return false
 	}
 	switch f.Kind {
-	case LifecycleStarted, LifecycleResumed, LifecycleParked, LifecycleRelaunched, LifecycleRecovered, LifecycleNeedsRelaunch:
+	case LifecycleStarted, LifecycleResumed, LifecycleParked, LifecycleRelaunched, LifecycleRecovered, LifecycleNeedsRelaunch, LifecycleExited:
 		return true
 	}
 	return false

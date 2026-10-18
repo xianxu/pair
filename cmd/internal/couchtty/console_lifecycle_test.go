@@ -248,3 +248,20 @@ func TestLifecycleRecoveryCompletionPreservesConfirmedMode(t *testing.T) {
 		}
 	}
 }
+
+// A verified native exit is emitted as one exited observation, in the same
+// per-console sequence as every other lifecycle observation (pair#657).
+func TestLifecycleNativeExitObservation(t *testing.T) {
+	c := New(hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 80}), nil)
+	t.Cleanup(c.Stop)
+	var events []LifecycleObservation
+	c.SetLifecycleObserver(func(e LifecycleObservation) { events = append(events, e) })
+	c.ObserveNativeExit(menuAddress("worker"), "3:child", 3)
+	c.ObserveNativeExit(menuAddress("worker"), "4:child", 0)
+	if len(events) != 2 || events[0].Kind != "exited" || events[0].Mode != "code 3" || events[0].Incarnation != "3:child" || events[0].Address != menuAddress("worker") {
+		t.Fatalf("exit observations: %+v", events)
+	}
+	if events[1].Observation <= events[0].Observation {
+		t.Fatal("exit observations are not ordered")
+	}
+}
