@@ -1,6 +1,6 @@
 ---
 id: 000636
-status: codecomplete
+status: done
 created: 2026-10-16
 updated: 2026-10-18
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: bf4af0d3b6ae83ca87b249e00148f7a903d28227
         evidence_commit: 670aea8343da03e32e1ea1c62d21934891c80a98
+        landed_commit: 1e90001c06796ba600c77d3cde3255ad6818f611
 ---
 
 # Warm recovery live conformance intermittently receives no Zellij query reply
