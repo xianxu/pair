@@ -1,13 +1,21 @@
 ---
 id: 000673
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-18
 updated: 2026-10-18
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: '79688af9c31ed62053f8ee10a2deaecff4bee156' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '9f8b26622cd907a80c47344b2244536871856809' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-18T12:05:17-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:2
+    worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Couch attention list: a top-right panel of what's waiting on the operator, each item jumps to its slot
@@ -34,7 +42,14 @@ Couch keeps an attention list of things waiting on the operator, shown as a pane
 
 ## Plan
 
-- [ ]
+Durable plan: [workshop/plans/000673-couch-attention-list-a-top-right-panel-of-what-s-waiting-on-the-operator-each-item-jumps-to-its-slot-plan.md](../plans/000673-couch-attention-list-a-top-right-panel-of-what-s-waiting-on-the-operator-each-item-jumps-to-its-slot-plan.md), with the state table and five decisions for the TL. Single pass, one close.
+
+- [ ] Reducer and state-table tests
+- [ ] Store
+- [ ] Sources (notify, blocked-set diff, wait episode start/end)
+- [ ] Console panel, badge, key, mouse, jump
+- [ ] Atlas, help, inventory, suite, close
+- [ ] Operator live check at the next restart
 
 ## Log
 
