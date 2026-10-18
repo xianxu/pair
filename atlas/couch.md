@@ -592,10 +592,16 @@ remaining uncertainty is stated, never papered over:
   path, while transport/decode errors never trigger fallback. See
   `couchmessage/batch.go`, `broker_batch.go`, `endpoint_batch.go`,
   `wrapcmd/peer_batch.go` and `TestPeerBatchRuntimeSocketFIFOAndReceiptRecovery`.
-  Codex retention measurements passed, but its preexisting 20-row composer
-  recognizer can miss occupied evidence for tall pastes during an active turn
-  (#652); batching stays disabled there until confirmation and Return-remapping
-  safety are qualified together.
+  Tall Codex singleton recognition (#652) shares viewport-bounded prompt/footer
+  geometry with ordinary Return. Beyond the local 20-row domain, a complete
+  visible styled prompt, clear continuation edges and the existing trailing
+  native footer signature are required. Clipped prompts, partial frames and
+  unrecognized footer wording remain unknown. Owned Codex 0.163.0 PTY checks
+  qualified 33 visible rows at 100x60, exact text retention after Return added a
+  newline, and a separate explicit submission. Codex batching remains disabled;
+  operator Return/submit smoke is scheduled for the hub's next restart. See
+  `wrapcmd/composer_recognizers.go`, `codex_tall_composer_test.go` and the opt-in
+  `TestPeerLiveConformance` paste-tall scenario.
 - **Peer turns in the Pair log (#618, #648).** When a delivery ends `Submitted`,
   pair-wrap appends the exact envelope it pasted to the thread's Pair log
   through the managed locked writer (`pairlog.PersistPeerTurn`, append ID

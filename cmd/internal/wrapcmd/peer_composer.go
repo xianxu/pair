@@ -129,19 +129,19 @@ func qualifiedComposerText(agent string, s terminalSnapshot) (string, bool) {
 		if card, pending := codexStartupStatus(s); card && pending && !peerCodexModernStartup(s) {
 			return "", false
 		}
-		if !codexComposerActive(s) {
+		var footer int
+		var ok bool
+		top, footer, ok = codexComposerBounds(s)
+		if !ok {
 			return "", false
 		}
-		top = s.Cursor.Y
-		for top >= 0 && !codexComposerRowPaintsLeftEdge(s, top) {
-			top--
-		}
-		if top < 0 {
-			return "", false
+		if footer >= 0 {
+			bottom = footer - 1 // Exclude native footer and its separator.
+			break
 		}
 		bottom = top + 1
 		for bottom < s.Height && !codexComposerRowPaintsLeftEdge(s, bottom) {
-			if bottom > s.Cursor.Y && bottom > top+1 && !snapshotRowPainted(s, bottom-1) && peerCodexFooter(s, bottom) && rowPaintedBetween(s, top, 2, s.Width) {
+			if bottom > s.Cursor.Y && bottom > top+1 && !snapshotRowPainted(s, bottom-1) && codexComposerFooter(s, bottom) && rowPaintedBetween(s, top, 2, s.Width) {
 				bottom--
 				break
 			}
@@ -200,30 +200,6 @@ func peerPlaceholder(s terminalSnapshot, row int, text string) bool {
 	}
 	return true
 }
-func peerCodexFooter(s terminalSnapshot, row int) bool {
-	var b strings.Builder
-	for x := 2; x < s.Width; x++ {
-		c := s.CellAt(x, row)
-		if c == nil {
-			return false
-		}
-		if c.Content == "" {
-			b.WriteByte(' ')
-		} else {
-			b.WriteString(c.Content)
-		}
-	}
-	line := strings.TrimSpace(b.String())
-	if !strings.HasPrefix(strings.ToLower(line), "gpt-") || !strings.Contains(line, " · ") {
-		return false
-	}
-	for y := row + 1; y < s.Height; y++ {
-		if snapshotRowPainted(s, y) {
-			return false
-		}
-	}
-	return true
-}
 
 // Newer Codex paints a bare startup title and working path instead of the old
 // boxed model/directory fields. A resolved model footer remains mandatory;
@@ -245,7 +221,7 @@ func peerCodexModernStartup(s terminalSnapshot) bool {
 		return false
 	}
 	for y := s.Cursor.Y + 1; y < s.Height; y++ {
-		if peerCodexFooter(s, y) {
+		if codexComposerFooter(s, y) {
 			return true
 		}
 	}

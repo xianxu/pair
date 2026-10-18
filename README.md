@@ -830,6 +830,14 @@ complete unchanged envelope in Qoder's composer and no intervening human input;
 the body is never pasted twice. Other receivers do not reconstruct wrapped or
 collapsed envelopes. Existing human input and open pickers hold normal delivery.
 
+Tall Codex input qualifies only while its styled prompt, continuation rows and
+recognized trailing native footer remain visible in a complete viewport. The
+same geometry gates ordinary Return inserting a newline; clipped prompts or
+unrecognized footer wording retain the existing unknown-state behavior. Owned
+Codex 0.163.0 checks covered 33 visible composer rows at 100x60, exact text after
+Return added a newline, and separate explicit submission. Codex peer delivery
+remains single-message; the operator smoke follows the next hub restart.
+
 If Qoder submission remains unconfirmed, one alert goes to its owning hub and
 later deliveries refuse promptly with recovery advice. Inspect that composer,
 then use **Alt+Enter** to submit the pending text or clear it. Plain Enter inserts
