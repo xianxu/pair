@@ -2171,6 +2171,28 @@ and external temporary roots rather than relying on the host's TMPDIR.
   aggregate wait can reject successful bounded calls; prove that ordering with
   controlled latency and retain a publication-failure negative control.
 
+- A composite-literal realignment is where initializers get silently dropped.
+  When a rename for gofmt alignment touches a constructor literal, grep every
+  field's initializer and pin each constructor default with its own assertion;
+  the feature test that sets the field explicitly cannot see a missing default.
+  (#628)
+
+- A non-positive `context.WithTimeout` bound returns an already-cancelled
+  context: Go cancels synchronously when the deadline has already passed
+  (context.go cancels when `dur <= 0`), so every probe fails deterministically
+  on any machine, loaded or not. When evidence seems to contradict that
+  mechanism, doubt the record first: the "green at the broken head" was a
+  misattributed head, not a won race — inventing a scheduling story to
+  reconcile the two was the real error. (#628)
+
+- Under `go test -timeout`, a wait bounded by the test deadline consumes the
+  package budget and cascades: every later failure is instant with a shrinking
+  budget (remaining/2 margin). Diagnose the FIRST failure and its duration; the
+  rest is aftermath. For a mid-hang goroutine dump, SIGQUIT the test binary
+  (the package alarm fires only after testwait's margin lets the test exit);
+  stack dumps miss sub-millisecond workers, so dump state (schedules, channel
+  depths, probe outcomes) from inside a diagnostic test. (#628)
+
 - #648: Batch a held receiver's queue at the input owner's readiness point,
   then freeze membership before the first write. Admission-time concatenation
   misses arrivals during the busy turn; per-envelope turn logging breaks exact

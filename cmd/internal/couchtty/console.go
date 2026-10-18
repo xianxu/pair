@@ -224,6 +224,11 @@ type Console struct {
 	activityResults  chan activityResult
 	activitySchedule RefreshSchedule
 	activityInterval time.Duration
+	// Per-probe bound from console_activity.go; the New default is the package
+	// const and tests shrink it to exercise the deadline path (#628). Only
+	// tests write it, before any worker starts; the worker reads it without
+	// c.mu.
+	probeTimeout time.Duration
 	// blockedUpdates carries the latest picker set (pair#465); see
 	// SetBlockedThreads.
 	blockedUpdates chan map[couchcore.ThreadAddress]bool
@@ -293,6 +298,7 @@ func New(host hostty.Host, stdin io.Reader) *Console {
 		activityRequests:    make(chan struct{}, 1),
 		activityResults:     make(chan activityResult, 1),
 		activityInterval:    defaultActivityInterval,
+		probeTimeout:        activityProbeTimeout,
 		blockedUpdates:      make(chan map[couchcore.ThreadAddress]bool, 1),
 		now:                 time.Now,
 		continuationResults: make(chan continuationScanResult, 1),
