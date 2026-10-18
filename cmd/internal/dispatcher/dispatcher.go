@@ -81,6 +81,7 @@ func Families() []CommandFamily {
 		{Name: "review readiness", Summary: "prepare review-readiness data", Status: "implemented"},
 		{Name: "review definition", Summary: "record a review-pane definition result", Status: "implemented"},
 		{Name: "review apply", Summary: "apply review records to the reviewed file (the one edit path)", Status: "implemented"},
+		{Name: "review round", Summary: "the reviewed file's last applied round and commit body", Status: "implemented"},
 		// scrollback group
 		{Name: "scrollback render", Summary: "raw PTY capture to ANSI scrollback", Status: "implemented"},
 		{Name: "scrollback open", Summary: "open the scrollback viewer pane", Status: "implemented"},
@@ -234,6 +235,10 @@ func Dispatch(args []string) Result {
 	case "review apply":
 		return bufferedStdoutStderr(func(stdout, stderr *bytes.Buffer) int {
 			return reviewapply.RunCLI(rest, os.Getenv, stdout, stderr)
+		})
+	case "review round":
+		return bufferedStdoutStderr(func(stdout, stderr *bytes.Buffer) int {
+			return reviewapply.RunRoundCLI(rest, os.Getenv, stdout, stderr)
 		})
 	case "clip clipboard-to-pane":
 		return bufferedStderr(func(stderr *bytes.Buffer) int { return clipcmd.RunClipboardToPaneCLI(os.Getenv, stderr) })

@@ -149,3 +149,28 @@ func occurrenceAt(hay, needle string, at int) int {
 	}
 	return n + 1
 }
+
+// ReadRoundArtifact reads the review pane's round file through the sidecar
+// cap: nil, nil when there is none; round-invalid when it is unreadable.
+func ReadRoundArtifact(path string) (*RoundArtifact, error) {
+	raw, err := readRegular(path, roundMaxBytes)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, roundInvalid(err.Error())
+	}
+	var a struct {
+		File  string          `json:"file"`
+		Round json.RawMessage `json:"round"`
+		Body  string          `json:"body"`
+	}
+	if err := json.Unmarshal(raw, &a); err != nil || a.File == "" {
+		return nil, roundInvalid("not a round artifact")
+	}
+	r, err := decodeRound(a.Round)
+	if err != nil {
+		return nil, err
+	}
+	return &RoundArtifact{File: a.File, Round: *r, Body: a.Body}, nil
+}

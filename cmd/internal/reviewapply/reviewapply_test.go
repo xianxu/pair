@@ -102,3 +102,40 @@ func TestPairReviewApplyUsage(t *testing.T) {
 		}
 	}
 }
+
+// pair review round recovers a lost apply reply: the stored Body and Round of
+// this file, Current while the file is still the round's result.
+func TestPairReviewRoundRecoversALostReply(t *testing.T) {
+	c := newCLI(t, "The quick fox.\n")
+	env := map[string]string{"PAIR_DATA_DIR": c.data, "PAIR_TAG": "t", "PAIR_REVIEW_ROUND_PATH": c.round}
+	round := func(file string) map[string]json.RawMessage {
+		var out, errout bytes.Buffer
+		if code := RunRoundCLI([]string{file, "--json"}, func(k string) string { return env[k] }, &out, &errout); code != 0 {
+			t.Fatalf("round exit %d: %s %s", code, out.String(), errout.String())
+		}
+		var reply map[string]json.RawMessage
+		json.Unmarshal(out.Bytes(), &reply)
+		return reply
+	}
+	if r := round(c.doc); string(r["Round"]) != "null" {
+		t.Fatalf("no round yet: %v", r)
+	}
+	_, applied, _ := c.run(`[{"old":"quick","new":"slow"}]`, "--if-hash", c.hash(), "--json")
+	r := round(c.doc)
+	if string(r["Body"]) != string(applied["Body"]) || string(r["Current"]) != "true" {
+		t.Fatalf("recovered %v, applied %v", r, applied)
+	}
+	os.WriteFile(c.doc, []byte("operator moved on\n"), 0o644)
+	if r := round(c.doc); string(r["Current"]) != "false" {
+		t.Fatalf("a changed file still reads current: %v", r)
+	}
+	other := filepath.Join(filepath.Dir(c.doc), "other.md")
+	os.WriteFile(other, []byte("x\n"), 0o644)
+	if r := round(other); string(r["Round"]) != "null" {
+		t.Fatalf("another file's round: %v", r)
+	}
+	var out, errout bytes.Buffer
+	if code := RunRoundCLI([]string{c.doc}, func(string) string { return "" }, &out, &errout); code != 2 {
+		t.Fatalf("round without --json: exit %d", code)
+	}
+}

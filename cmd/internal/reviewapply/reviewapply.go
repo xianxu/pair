@@ -118,3 +118,91 @@ func tagOrDefault(tag string) string {
 	}
 	return tag
 }
+
+// roundResponse is `pair review round FILE --json`: the last applied round
+// of FILE and its commit body, and whether the file still is that round's
+// result. It is how an agent recovers a lost apply reply: commit Body when
+// Current, else re-read and rebuild.
+type roundResponse struct {
+	Code    string
+	Error   string
+	Round   *sessionsync.Round
+	Body    string
+	Current bool
+}
+
+// RunRoundCLI is `pair review round FILE --json`. Round is null when no
+// round of FILE is recorded (none yet, or the last one was another file's).
+func RunRoundCLI(args []string, getenv func(string) string, stdout, stderr io.Writer) int {
+	var files []string
+	asJSON := false
+	for _, a := range args {
+		if a == "--json" {
+			asJSON = true
+		} else {
+			files = append(files, a)
+		}
+	}
+	if !asJSON || len(files) != 1 {
+		fmt.Fprintln(stderr, "usage: pair review round FILE --json")
+		return 2
+	}
+	reply := func(res roundResponse, exit int) int {
+		_ = json.NewEncoder(stdout).Encode(res)
+		return exit
+	}
+	fail := func(err error) int {
+		res := roundResponse{Code: "error", Error: err.Error()}
+		var r *sessionsync.Refusal
+		if errors.As(err, &r) {
+			res.Code = r.Code
+		}
+		return reply(res, 1)
+	}
+	roundPath, err := resolveRoundPath(getenv)
+	if err != nil {
+		return fail(err)
+	}
+	file, err := filepath.Abs(files[0])
+	if err != nil {
+		return fail(err)
+	}
+	artifact, err := sessionsync.ReadRoundArtifact(roundPath)
+	if err != nil {
+		return fail(err)
+	}
+	if artifact == nil || !sameFile(artifact.File, file) {
+		return reply(roundResponse{Code: "ok"}, 0)
+	}
+	raw, err := os.ReadFile(file)
+	if err != nil {
+		return fail(err)
+	}
+	return reply(roundResponse{Code: "ok", Round: &artifact.Round, Body: artifact.Body,
+		Current: sessionsync.Hash(string(raw)) == artifact.Round.ResultHash}, 0)
+}
+
+func sameFile(a, b string) bool {
+	ra, errA := filepath.EvalSymlinks(a)
+	rb, errB := filepath.EvalSymlinks(b)
+	if errA != nil || errB != nil {
+		return filepath.Clean(a) == filepath.Clean(b)
+	}
+	return ra == rb
+}
+
+// resolveRoundPath is $PAIR_REVIEW_ROUND_PATH, else the session's scoped one.
+func resolveRoundPath(getenv func(string) string) (string, error) {
+	if p := getenv("PAIR_REVIEW_ROUND_PATH"); p != "" {
+		return p, nil
+	}
+	dataDir := getenv("PAIR_DATA_DIR")
+	if dataDir == "" {
+		return "", errors.New("PAIR_DATA_DIR not set")
+	}
+	paths, err := artifactpath.ResolveScoped(dataDir, tagOrDefault(getenv("PAIR_TAG")))
+	if err != nil {
+		return "", fmt.Errorf("resolve artifact namespace: %w", err)
+	}
+	return paths.ReviewRound(), nil
+}

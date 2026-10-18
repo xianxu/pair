@@ -17,7 +17,7 @@ func TestOperatorFamiliesHaveREADMEUsage(t *testing.T) {
 		"slug": "background naming", "term": "workbench terminal", "hoprtt": "latency probe", "scribe": "PTY helper",
 		"session-watch": "wrapper-owned observer", "session-log append": "submission protocol", "session-log commit": "submission protocol",
 		"title": "background title poller", "continuation": "agent datatype writer",
-		"review target": "review protocol", "review open": "pane helper", "review readiness": "review protocol", "review apply": "review protocol",
+		"review target": "review protocol", "review open": "pane helper", "review readiness": "review protocol", "review apply": "review protocol", "review round": "review protocol",
 		"scrollback render": "viewer renderer", "scrollback open": "viewer helper",
 		"changelog render": "background distiller", "changelog open": "viewer helper",
 		"clip copy-on-select": "clipboard chord", "clip clipboard-to-pane": "clipboard chord", "clip flash-pane": "pane feedback",
