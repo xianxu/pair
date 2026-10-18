@@ -251,20 +251,26 @@ because numbers in prose go stale; no CI follow-up. Landed as `historyWriteCPU` 
 and the steady ratio gate inside `TestResourceSamplerNativeCost`, and the two `atlas/couch.md` paragraphs.
 Scratch diagnostic deleted.
 
-Verdict on the new gate — three runs of the same code, logs at `/tmp/pair644-new-asloaded.log`,
-`/tmp/pair644-new-burners.log` and `/tmp/pair644-new-fleetload.log`. "Old mean" is what the fixed
-120 ms/300 ms budget would have said about the same three passes:
+Verdict on the new gate — four runs of the same code (run 4 after a readability pass over the test that
+changed no bound), logs at `/tmp/pair644-new-asloaded.log`, `/tmp/pair644-new-burners.log` and
+`/tmp/pair644-new-fleetload.log`. "Old mean" is what the fixed 120 ms/300 ms budget would have said about
+the same three passes:
 
 | run | condition | loadavg (1m) | rows | baseline ms | cold cpu ms (ratio) | steady cpu ms (ratios) | old mean | new verdict |
 |-----|-----------|--------------|------|-------------|---------------------|------------------------|----------|-------------|
 | 1 | as-is | 15.10 | 1266-1267 | 69.817 | 226.846 (3.25) | 77.656 (1.11) / 72.560 (1.04) | 125.687 ms → would fail | PASS |
 | 2 | 12 busy loops | 23.23 | 1263-1266 | 77.197 | 261.870 (3.39) | 90.288 (1.17) / 95.449 (1.24) | 149.202 ms → would fail | PASS |
 | 3 | another slot's sdlc.test shard | 112.12 | 1304-1309 | 78.258 | 291.819 (3.73) | 99.066 (1.27) / 92.093 (1.18) | 160.993 ms → would fail | PASS |
+| 4 | as-is, quietest of the four | 11.16 | 1246 | 62.383 | 163.678 (2.62) | 75.337 (1.21) / 78.547 (1.26) | 105.854 ms → would pass | PASS |
 
 Run 3 is roughly twice the load the filer saw (load ~56), and the verdict did not move: every work bound
-held in all nine passes (native accounting exact, table 2, usage 56, argv/cwd 0, env 1545-1553 cold and
-0-4 steady, one near-cap write of 4,190,350-4,193,832 bytes), and the worst steady ratio across all eight
-measured steady passes to date is 1.38 against K = 2.0.
+held in all twelve passes (native accounting exact, table 2, usage 56, argv/cwd 0, env 1545-1555 cold and
+0-4 steady, one near-cap write of 4,190,350-4,193,832 bytes), and the worst steady ratio across all ten
+measured steady passes to date is 1.38 against K = 2.0. Runs 1-3 against run 4 are also the flap in one
+place: the old budget failed the loaded three and passed the quiet one, on code that did not change.
+
+The cold ratio's own spread is the reason it is reported rather than asserted — 2.62 at loadavg 11.16
+against 3.73 at 112.12, a 42% swing for the same work (1555 and 1550 environment calls).
 
 One more argument for bounding the cold pass by work rather than CPU, from run 1: at loadavg 15.10 with
 1,266 rows its first pass cost 226.846 ms, while the filer's run at load ~14 with 1,270 rows cost
