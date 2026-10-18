@@ -25,6 +25,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/terminal"
 	"github.com/xianxu/pair/cmd/internal/testpair"
 	"github.com/xianxu/pair/cmd/internal/testwait"
+	"github.com/xianxu/pair/internal/testoracle"
 )
 
 // This is a real transport join: Console -> PtyRunner -> Zellij -> pair wrap
@@ -513,11 +514,7 @@ func assertNativeOracle(t *testing.T, wire string, cols, rows int, body, chrome 
 	t.Helper()
 	request, _ := json.Marshal(map[string]any{"Cols": cols, "Rows": rows, "Chunks": []string{wire}})
 	cmd := exec.Command("node", "../../../tests/terminal-oracle/driver.cjs")
-	cmd.Stdin = bytes.NewReader(request)
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("independent xterm oracle: %v %s", err, out)
-	}
+	out := testoracle.Run(t, cmd, request)
 	var frames []struct{ Lines []string }
 	if err := json.Unmarshal(out, &frames); err != nil {
 		t.Fatal(err)
@@ -576,11 +573,7 @@ func assertNativeHighlight(t *testing.T, before, after string, cols, rows int) {
 	}
 	request, _ := json.Marshal(map[string]any{"Cols": cols, "Rows": rows, "Chunks": []string{before, after[len(before):]}})
 	cmd := exec.Command("node", "../../../tests/terminal-oracle/driver.cjs")
-	cmd.Stdin = bytes.NewReader(request)
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("native highlight oracle: %v %s", err, out)
-	}
+	out := testoracle.Run(t, cmd, request)
 	var frames []struct {
 		Cells [][]struct {
 			FG, BG  int
@@ -637,11 +630,7 @@ func assertNativeReattachFrames(t *testing.T, dir string, cols, rows int) {
 		}
 		request, _ := json.Marshal(map[string]any{"Cols": cols, "Rows": rows, "Chunks": []string{string(wire)}})
 		cmd := exec.Command("node", "../../../tests/terminal-oracle/driver.cjs")
-		cmd.Stdin = bytes.NewReader(request)
-		out, err := cmd.CombinedOutput()
-		if err != nil {
-			t.Fatalf("reattach oracle: %v %s", err, out)
-		}
+		out := testoracle.Run(t, cmd, request)
 		if err := os.WriteFile(filepath.Join(dir, phase+"-xterm.json"), out, 0600); err != nil {
 			t.Fatal(err)
 		}

@@ -1,7 +1,6 @@
 package terminal
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -17,6 +16,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/ttyio"
 
 	"github.com/xianxu/pair/internal/reporoot"
+	"github.com/xianxu/pair/internal/testoracle"
 )
 
 // Required oracle coverage must fail visibly when assets are absent, including
@@ -89,11 +89,7 @@ func runOracle(t *testing.T, cols, rows int, chunks []string) []oracleScreen {
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "node", "driver.cjs")
 	cmd.Dir = dir
-	cmd.Stdin = bytes.NewReader(input)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("oracle: %v\n%s", err, output)
-	}
+	output := testoracle.Run(t, cmd, input)
 	var result []oracleScreen
 	if err := json.Unmarshal(output, &result); err != nil {
 		t.Fatalf("decode: %v: %s", err, output)
