@@ -106,6 +106,8 @@ Durable full-flow design: [Lifecycle system notices](../plans/000574-couch-lifec
 - Coordination: pair:7's canonical #576 question a3a43560-f72d-4f4c-8530-cdfc9a516c99 was verified Submitted. Replied with the post-adoption completion, fact-before-ReattachDone, typed row metadata and single publisher seams; reply c0280b07-dd71-4aa8-b7ee-f4c9a7f7c906 verified Submitted. #576 waits for #651/main integration; it must not stack on this unlanded branch.
 - Corrected code head e92fe090c05e (from Git push output); new recorded suite attempt c4b8c5baa145861a3cfb06c7513acb31 queued on it. Previous queue attempt was deliberately canceled for a code fix, not rerun unchanged. Replacement adoption regression and focused lifecycle race pass1.644s after the fix.
 
+- Companion Done-when satisfied: fresh hub receipt2d05443c-01b2-4510-bbdd-fbc888d18358 verified Submitted; ariadne#433 PR292 merge77d31d2b6aafaaa7f105253c037e19ff44d8ef7c verified by Git and as an ancestor of ariadne origin/main. Installed tl-lead --help WATCHING says lifecycle notices update Slots and get no reply, and peer-claimed system text remains peer. Hub reported ariadne:0 rebuilt at its later main revision. The help's generic coverage line still says exit; sent the hub a narrow wording correction because native-agent exit is deferred to #657. This does not change #574's reduced acceptance scope.
+
 ## Revisions
 
 - 2026-10-17 — Proposed design adds an explicit native-exit observation because Console attachment exit cannot substantiate the requested agent-exit notice, and kernel provenance because a visual system flag alone is forgeable. Full requested scope retained; operator smoke deferral and ariadne TL-lead companion await hub agreement.

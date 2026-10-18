@@ -205,7 +205,7 @@ Negative controls remove origin matching, adoption gating and pass-drain gating 
 
 - [x] Write and run failing origin/admission/receipt/batch tests; implement internal origin and delivery preservation; run targeted couchmessage/wrapcmd tests and commit.
 - [x] Write failing pure collector and stateful lifecycle tests; implement confirmed completion hooks, restart drain and bounded publication; run focused core/tty/cmd tests and commit.
-- [ ] Wire the single setting and startup availability origin; exercise owned socket/Console children, failure cases and negative controls; update docs/inventory and record the hub's tl-lead companion.
+- [x] Wire the single setting and startup availability origin; exercise owned socket/Console children, failure cases and negative controls; update docs/inventory and record the hub's tl-lead companion.
 - [ ] Run focused/race checks, push and open an early draft PR for CI overlap, then recorded full suite, close review and normal merge gates. Never hand-post gate status.
 
 **Approved live arrangement:** Owned children and isolated sockets now, no existing slot focus/clipboard input. Real start/park/relaunch/recovery and restart-summary smoke runs with the operator at the hub's next restart after landing, with no pair:0 staging. Native-agent exit is outside that smoke and outside this issue. Plan revision goes to the hub before change-code; full-flow plan-quality acceptance precedes the estimate and implementation.
