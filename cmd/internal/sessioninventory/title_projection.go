@@ -324,7 +324,7 @@ func (p *TitleProjection) admit(ctx context.Context, binding sessionledger.Recor
 		}
 		p.usage(record.Bytes)
 	}
-	current, err := p.checkArtifacts()
+	current, err := p.checkArtifacts(nil)
 	if err != nil {
 		return err
 	}
@@ -335,7 +335,7 @@ func (p *TitleProjection) admit(ctx context.Context, binding sessionledger.Recor
 	if err != nil {
 		return err
 	}
-	after, err := p.checkArtifacts()
+	after, err := p.checkArtifacts(nil)
 	if err != nil {
 		return err
 	}
@@ -373,9 +373,9 @@ func (p *TitleProjection) readBoundary() ([]byte, error) {
 	}
 	return b, nil
 }
-func (p *TitleProjection) checkArtifacts() (FileEntry, error) {
-	grew := false
-	for _, old := range p.other {
+func (p *TitleProjection) checkArtifacts(before *FileEntry) (FileEntry, error) {
+	var observed []FileEntry
+	for i, old := range p.other {
 		now, err := p.runtime.StatFile(old.Artifact)
 		if err != nil {
 			return FileEntry{}, ErrArtifactChanged
@@ -386,14 +386,21 @@ func (p *TitleProjection) checkArtifacts() (FileEntry, error) {
 		if p.agent != AgentAgy || old.Artifact.Kind != ArtifactDatabase || !grewFrom(old, now) {
 			return FileEntry{}, ErrArtifactChanged
 		}
-		grew = true
+		if observed == nil {
+			observed = append([]FileEntry(nil), p.other...)
+		}
+		observed[i] = now
 	}
 	now, err := p.runtime.StatFile(p.transcript.Artifact)
 	if err != nil || !sameTitleIdentity(p.transcript, now) || now.Size < p.rawOffset || now.Size < p.observedSize {
 		return FileEntry{}, ErrArtifactChanged
 	}
+	// Preserve the read's paired fingerprint check before deciding to retry.
+	if before != nil && now.Size == before.Size && !equalFingerprint(fingerprintFromEntry(*before), fingerprintFromEntry(now)) {
+		return FileEntry{}, ErrArtifactChanged
+	}
 	p.observedSize = now.Size
-	if grew {
+	if observed != nil {
 		// A growing database must not hide a mutation of the transcript or
 		// another artifact. Never commit its new fingerprint as authority.
 		if now.Size == p.transcript.Size && !equalFingerprint(fingerprintFromEntry(p.transcript), fingerprintFromEntry(now)) {
@@ -407,6 +414,15 @@ func (p *TitleProjection) checkArtifacts() (FileEntry, error) {
 			if sha256.Sum256(window) != p.boundaryHash {
 				return FileEntry{}, ErrArtifactChanged
 			}
+			// Fence the recovery read itself. Compare with this pass's snapshots,
+			// including the grown database, rather than its older admission.
+			for _, entry := range append(observed, now) {
+				after, err := p.runtime.StatFile(entry.Artifact)
+				canGrow := entry.Artifact.Kind == ArtifactDatabase || entry.Artifact.Kind == ArtifactTranscript
+				if err != nil || (!equalFingerprint(fingerprintFromEntry(entry), fingerprintFromEntry(after)) && !(canGrow && grewFrom(entry, after))) {
+					return FileEntry{}, ErrArtifactChanged
+				}
+			}
 		}
 		return FileEntry{}, errTitleReadmit
 	}
@@ -416,7 +432,7 @@ func (p *TitleProjection) tail(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	current, err := p.checkArtifacts()
+	current, err := p.checkArtifacts(nil)
 	if err != nil {
 		return err
 	}
@@ -431,7 +447,7 @@ func (p *TitleProjection) tail(ctx context.Context) error {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		before, err := p.checkArtifacts()
+		before, err := p.checkArtifacts(nil)
 		if err != nil {
 			return err
 		}
@@ -439,12 +455,9 @@ func (p *TitleProjection) tail(ctx context.Context) error {
 		if err != nil || sha256.Sum256(boundary) != p.boundaryHash {
 			return ErrArtifactChanged
 		}
-		readStart, err := p.checkArtifacts()
+		readStart, err := p.checkArtifacts(&before)
 		if err != nil {
 			return err
-		}
-		if readStart.Size == before.Size && !equalFingerprint(fingerprintFromEntry(before), fingerprintFromEntry(readStart)) {
-			return ErrArtifactChanged
 		}
 		limit := min(readChunkSize, target-p.rawOffset)
 		raw, _, err := p.runtime.ReadAt(p.transcript.Artifact, p.rawOffset, limit)
@@ -454,12 +467,9 @@ func (p *TitleProjection) tail(ctx context.Context) error {
 		if int64(len(raw)) != limit {
 			return ErrArtifactChanged
 		}
-		readEnd, err := p.checkArtifacts()
+		_, err = p.checkArtifacts(&readStart)
 		if err != nil {
 			return err
-		}
-		if readEnd.Size == readStart.Size && !equalFingerprint(fingerprintFromEntry(readStart), fingerprintFromEntry(readEnd)) {
-			return ErrArtifactChanged
 		}
 		records, next, err := frameTitleSuffix(p.frame, raw)
 		if err != nil {
@@ -476,7 +486,7 @@ func (p *TitleProjection) tail(ctx context.Context) error {
 		}
 		p.boundaryHash = sha256.Sum256(p.boundary)
 	}
-	after, err := p.checkArtifacts()
+	after, err := p.checkArtifacts(nil)
 	if err != nil {
 		return err
 	}

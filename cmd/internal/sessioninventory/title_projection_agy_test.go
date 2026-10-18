@@ -426,3 +426,148 @@ func TestTitleProjectionAgyGrowthCannotHideOwnerSupersession(t *testing.T) {
 		t.Fatal("owner supersession interleaving never ran")
 	}
 }
+
+// A rewrite before the retained window is caught by the before/after metadata
+// fence for the read. Database growth must not bypass that fence by requesting
+// re-admission before the caller can compare its metadata snapshots.
+func TestTitleProjectionAgyGrowthCannotHideRewriteDuringTailRead(t *testing.T) {
+	for _, site := range []string{"boundary", "suffix"} {
+		for _, growDatabase := range []bool{false, true} {
+			name := "no-database-growth"
+			if growDatabase {
+				name = "database-growth"
+			}
+			t.Run(site+"/"+name, func(t *testing.T) {
+				fake, transcript, _, tail := titleProviderFixture(t, sessioninventory.AgentAgy)
+				fake.AppendFile(transcript, []byte(`{"content":"`+strings.Repeat("x", 5000)+`"}`+"\n"), "padding")
+				rt := &agyTitleRuntime{FakeRuntime: fake}
+				projection := sessioninventory.NewTitleProjection(rt, "scope", "work", sessioninventory.AgentAgy, 1)
+				if _, err := projection.Poll(); err != nil {
+					t.Fatal(err)
+				}
+				old, err := fake.StatFile(transcript)
+				if err != nil {
+					t.Fatal(err)
+				}
+				fake.AppendFile(transcript, tail, "tail")
+				changed := false
+				rt.afterRead = func(artifact sessioninventory.Artifact, offset, limit int64) {
+					if changed || artifact.StorageRoot != transcript.StorageRoot {
+						return
+					}
+					boundary := site == "boundary" && offset == old.Size-4096 && limit == 4096
+					suffix := site == "suffix" && offset == old.Size
+					if !boundary && !suffix {
+						return
+					}
+					changed = true
+					entry, err := fake.StatFile(transcript)
+					if err != nil {
+						t.Fatal(err)
+					}
+					raw, err := fake.ReadFile(transcript, -1)
+					if err != nil {
+						t.Fatal(err)
+					}
+					rewriteOffset := bytes.Index(raw, []byte("prompt"))
+					if rewriteOffset < 0 || int64(rewriteOffset+len("prompt")) >= old.Size-4096 {
+						t.Fatalf("rewrite must be outside retained boundary: offset=%d old-size=%d", rewriteOffset, old.Size)
+					}
+					rewritten := bytes.Replace(raw, []byte("prompt"), []byte("PROMPT"), 1)
+					if len(rewritten) != len(raw) || bytes.Equal(raw, rewritten) {
+						t.Fatal("fixture did not make a same-size rewrite")
+					}
+					entry.MutationToken = "rewritten-during-read"
+					fake.PutFile(entry, rewritten)
+					if growDatabase {
+						fake.AppendFile(agyTitleDatabase(), []byte("growth"), "growth-during-read")
+					}
+				}
+				_, err = projection.Poll()
+				if !changed {
+					t.Fatal("read interleaving never ran")
+				}
+				if !errors.Is(err, sessioninventory.ErrArtifactChanged) {
+					t.Fatalf("same-size rewrite during %s must be terminal, database growth=%v: %v", site, growDatabase, err)
+				}
+				if _, err := projection.Poll(); err == nil {
+					t.Fatal("terminal mutation was retried")
+				}
+			})
+		}
+	}
+}
+
+// Database growth adds a recovery boundary read before dropping admission.
+// Matching bytes cannot hide an artifact mutation, while further growth still
+// permits the next poll to revalidate the complete current artifact pair.
+func TestTitleProjectionAgyRecoveryBoundaryRejectsArtifactReplacement(t *testing.T) {
+	for _, targetName := range []string{"transcript", "database"} {
+		for _, mode := range []string{"replacement", "same-size", "shrink", "birth", "generation", "missing", "growth"} {
+			name := targetName
+			if mode != "replacement" {
+				name += "/" + mode
+			}
+			t.Run(name, func(t *testing.T) {
+				fake, transcript, _, tail := titleProviderFixture(t, sessioninventory.AgentAgy)
+				fake.AppendFile(transcript, []byte(`{"content":"`+strings.Repeat("x", 5000)+`"}`+"\n"), "padding")
+				rt := &agyTitleRuntime{FakeRuntime: fake}
+				projection := sessioninventory.NewTitleProjection(rt, "scope", "work", sessioninventory.AgentAgy, 1)
+				first, err := projection.Poll()
+				if err != nil {
+					t.Fatal(err)
+				}
+				old, err := fake.StatFile(transcript)
+				if err != nil {
+					t.Fatal(err)
+				}
+				fake.AppendFile(agyTitleDatabase(), []byte("growth"), "growth-before-read")
+				changed := false
+				rt.afterRead = func(artifact sessioninventory.Artifact, offset, limit int64) {
+					if changed || artifact.StorageRoot != transcript.StorageRoot || offset != old.Size-4096 || limit != 4096 {
+						return
+					}
+					changed = true
+					target := transcript
+					if targetName == "database" {
+						target = agyTitleDatabase()
+					}
+					if mode == "growth" {
+						suffix := tail
+						if targetName == "database" {
+							suffix = []byte("further database growth")
+						}
+						fake.AppendFile(target, suffix, "growth-during-recovery-read")
+					} else {
+						mutateAgyTitleFile(t, fake, target, mode)
+					}
+				}
+				got, err := projection.Poll()
+				if !changed {
+					t.Fatal("recovery boundary interleaving never ran")
+				}
+				if mode == "growth" {
+					if err != nil || got != first {
+						t.Fatalf("further %s growth must retain facts and re-admit: got=%+v first=%+v err=%v", targetName, got, first, err)
+					}
+					rt.afterRead = nil
+					sqlBefore := agyTitleWork(fake, sessioninventorytest.OperationSQLite)
+					got, err = projection.Poll()
+					if err != nil || got.Awaiting || got.Activity.IsZero() {
+						t.Fatalf("readmission after further %s growth=%+v %v", targetName, got, err)
+					}
+					if delta := agyTitleWork(fake, sessioninventorytest.OperationSQLite) - sqlBefore; delta != 2 {
+						t.Fatalf("readmission after further %s growth queried SQLite %d times, want 2", targetName, delta)
+					}
+					return
+				}
+				if !errors.Is(err, sessioninventory.ErrArtifactChanged) {
+					t.Fatalf("%s %s during recovery boundary must be terminal: %v", targetName, mode, err)
+				}
+				if _, err := projection.Poll(); err == nil {
+					t.Fatal("terminal artifact mutation was retried")
+				}
+			})
+		}
+	}
+}
