@@ -46,7 +46,7 @@ Land the approved diagnostic stage so the next native reattach discovery failure
 - [x] Classify the original failed job from its complete retained log and inspect the exact upstream 0.45.1 source before selecting a fix.
 - [x] Add bounded, fixture-owned detach/reattach observations and deterministic tests of diagnostic collection and early child-exit reporting; preserve all same-process/frame assertions.
 - [x] Run the one granted private direct/wrapped conformance attempt, record both results and release the lane.
-- [ ] Run the recorded full suite and close review for this diagnostic stage; leave the unresolved-cause handoff ready for parking after normal landing.
+- [x] Record the full suite and native evidence for normal close review; leave the unresolved-cause handoff ready for parking after diagnostic landing.
 
 ## Log
 
@@ -77,6 +77,10 @@ Bounded agent instrumentation was delegated as isolated test-only work. Empty in
 Grant 7344ec27-1d46-465f-97a2-f8c87023fa3e authorized exactly one native family invocation. Ran the fresh candidate from diagnostic commit 9cb5fc7ed6a3425f2e0a384f7462a4ec7726a077 with `go test -race -json ./cmd/internal/couchtty -run '^TestNativeConsoleWrapperZellij$' -count=1 -timeout=5m`. It exited 0: direct 2.44s, wrapped 24.61s, family 27.05s/package 28.42s; two subtests passed, zero failures. Both detach commands succeeded and old clients exited 0. Same boot identities advanced counter 1 to 2 in both routes. Private pcn-1188022532 and pcn-3438811432 directories were absent after the joined test. The 54,921-byte owned JSON is pair660-evidence.iHo4cL/native-family-attempt1.jsonl, SHA256 d0306cde33c4637f2f87613005423d7bc3c05ba633e0c2807fef6cf0fc02687d. Lane released with result receipt 8c1afbf8-8be3-4a5c-8ef2-1b518ff207f7. This green sample is not a causal reproduction.
 
 Early draft PR429 opened under the standing CI-overlap authorization. Submitted hub directive 75b0dbdf-a6a2-4d97-b7d4-013501c3c4fc now explicitly authorizes landing these diagnostics through the normal gates, then parking #660. Do not build a controlled upstream reproduction before a failure points at it. Next CI failure: read the retained detach result, old/new client exits and wire, socket metadata, actor receipts/liveness, and private server-log tail before choosing a fix. Underlying causal acceptance remains pending. Normal close/merge finalizes the diagnostic scope; immediately reopen with this rationale and release the claim to keep the unresolved issue parked, rather than claim the flake fixed.
+
+### 2026-10-18 — recorded suite passed, close review next
+
+Recorded pre-close suite on pushed 892d4d74271c1d7281c9f3c68f8a343d3443ef70 passed exit 0 in 13m59s, log SHA256 prefix b0f5f3215d84, attempt 3c238d9a21bbcf478fa82ee4c080d288. Queue admission waited 256s; all Make prerequisites and final Go packages completed. Saved log: `.git/sdlc/local-checks/892d4d74271c1d7281c9f3c68f8a343d3443ef70/suite.log` in the common Git directory. No suite failure or retry. PR429 server checks on that head are green: macOS conformance 3m13s (run39131116219/job117686307893), merge-check 1m20s and local-gates-guard 11s. Code remains unchanged since the tested diagnostic stage; subsequent changes are this evidence and close preparation. Normal close review has not run yet. The final Plan checkbox records verification preparation, not a premature review/landing claim.
 
 ## Revisions
 
