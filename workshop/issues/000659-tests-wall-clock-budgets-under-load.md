@@ -112,27 +112,27 @@ cost gate now does for the sampler.
 
 ## Plan
 
-- [ ] couchcore `TestRecoveryFreshOrdinarySlotKeepsOrdinaryLaunch` and
+- [x] couchcore `TestRecoveryFreshOrdinarySlotKeepsOrdinaryLaunch` and
       `TestRecoveryFreshMissingRecordLeavesForeignOwnersUntouched`: the product's 5 s
       `git worktree list` budget — seam or slow fake, and assert the recovery outcome
       when git is slow rather than that git was fast.
-- [ ] couchcmd `TestParkHelperAttachmentRequiresClientGrowth` (#645): the zellij
+- [x] couchcmd `TestParkHelperAttachmentRequiresClientGrowth` (#645): the zellij
       `list-clients` deadline — fake the action or scale the patience, keeping the
       assertion on client growth.
-- [ ] couchcmd `TestClipboardCopyConsoleKeysReachContentFreeFactLog` (#647): find the
+- [x] couchcmd `TestClipboardCopyConsoleKeysReachContentFreeFactLog` (#647): find the
       real-time window the evidence check races at 1108/2177 ms elapsed.
-- [ ] couchcmd `TestContinuationWriterPublishesExactCheckpointAcrossWorktrees`:
+- [x] couchcmd `TestContinuationWriterPublishesExactCheckpointAcrossWorktrees`:
       decide whether the fixture's missing `origin` is the real defect or the
       "signal: killed" budget is — the two failures are in the same subtest and one
       may be hiding the other.
-- [ ] couchtty `TestWorkbenchPerformanceIdleUITick`: eight activity-probe deadlines
+- [x] couchtty `TestWorkbenchPerformanceIdleUITick`: eight activity-probe deadlines
       then "activity worker did not finish" — check against #626/#628's earlier
       activity-worker timeout work before adding a seam.
-- [ ] diagnosticlog `TestOpenFileInspectionConformance` and
+- [x] diagnosticlog `TestOpenFileInspectionConformance` and
       `TestUnregisteredChildOpenFileBlocksLegacyExpiry`: distinguish an absent `lsof`
       (skip, named) from a slow one (patience), and keep a conformance path that
       requires it.
-- [ ] broadcast `TestPointerRateLimit`: a rate-limit window measured in real time —
+- [x] broadcast `TestPointerRateLimit`: a rate-limit window measured in real time —
       inject the clock or assert the limiter's decision, not a count inside a
       wall-clock window.
 - [ ] Soak: 20 runs of the touched packages under the named load generator, plus one
