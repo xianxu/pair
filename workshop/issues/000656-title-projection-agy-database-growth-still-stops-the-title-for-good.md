@@ -17,6 +17,7 @@ claimant:
     workspace: pair:6
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "2bcb021c", done: "7e9ac94d"}
 ---
 
 # Title projection: agy database growth still stops the title for good
