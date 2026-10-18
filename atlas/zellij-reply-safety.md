@@ -245,7 +245,9 @@ unchanged on refusal.
 
 Live fixture diagnostics reuse the existing context-scoped launcher query
 observer. It retains bounded copies of the original query bytes, process status
-and timing alongside local lifecycle markers, then writes the test log after the
+and timing alongside local lifecycle markers. Query events carry the actual
+caller deadline and effective deadline after the existing query cap; shorter
+child contexts remain visible. Capture writes the test log after the
 measured path and cleanup. Capture is limited to64 records and8MiB of response
 bytes with explicit dropped counts. It adds no native queries, retries or timing
 policy. Local client wait remains distinct from server detach acknowledgement;

@@ -20,14 +20,34 @@ import (
 	"github.com/xianxu/pair/cmd/internal/zellijtest"
 )
 
+func TestRecoveryQueryCaptureUsesQueryChildDeadline(t *testing.T) {
+	capture := newRecoveryQueryCapture(t)
+	fixture := zellijtest.New(t)
+	for _, setting := range fixture.Env() {
+		key, value, _ := strings.Cut(setting, "=")
+		t.Setenv(key, value)
+	}
+	fixture.SetModel(zellijtest.Model{Sessions: map[string]zellijtest.Session{"pair-fixture": {}}})
+	parent, cancelParent := context.WithTimeout(t.Context(), time.Minute)
+	defer cancelParent()
+	deadline := time.Now().Add(4 * time.Second)
+	child, cancelChild := context.WithDeadline(capture.Context(parent), deadline)
+	defer cancelChild()
+	if _, err := (launcher.ZellijSource{Path: fixture.Path()}).ClientCountContext(child, "pair-fixture"); err != nil {
+		t.Fatal(err)
+	}
+	record := capture.snapshot().Records[0]
+	if record.CallerDeadline == nil || !record.CallerDeadline.Equal(deadline) || !record.EffectiveDeadline.Equal(deadline) {
+		t.Fatalf("query deadline=%v, want child %v", record.CallerDeadline, deadline)
+	}
+}
+
 func TestRecoveryQueryCaptureExactBytesOwnershipAndClassification(t *testing.T) {
 	capture := newRecoveryQueryCapture(t)
 	deadline := time.Now().Add(time.Minute)
-	ctx, cancel := context.WithDeadline(context.Background(), deadline)
-	defer cancel()
 	start := time.Now()
-	event := launcher.ZellijQueryObservation{Args: []string{"--session", "fixture", "action", "list-clients"}, Started: start, Finished: start.Add(time.Millisecond), Duration: time.Millisecond, Stdout: []byte{0, 255, '\n'}, Stderr: []byte("fixture diagnostic\n"), StdoutBytes: 6, StderrBytes: 19, StdoutTruncated: true, StderrTruncated: true, ExitCode: 7, Err: fmt.Errorf("fixture response: %w", launcher.ErrZellijNoReply)}
-	capture.observe(ctx, event)
+	event := launcher.ZellijQueryObservation{CallerDeadline: deadline, Args: []string{"--session", "fixture", "action", "list-clients"}, Started: start, Finished: start.Add(time.Millisecond), Duration: time.Millisecond, Stdout: []byte{0, 255, '\n'}, Stderr: []byte("fixture diagnostic\n"), StdoutBytes: 6, StderrBytes: 19, StdoutTruncated: true, StderrTruncated: true, ExitCode: 7, Err: fmt.Errorf("fixture response: %w", launcher.ErrZellijNoReply)}
+	capture.observe(event)
 	wantOut, wantErr := bytes.Clone(event.Stdout), bytes.Clone(event.Stderr)
 	event.Args[0] = "mutated"
 	event.Stdout[0] = 'x'
@@ -53,11 +73,11 @@ func TestRecoveryQueryCaptureExactBytesOwnershipAndClassification(t *testing.T) 
 func TestRecoveryQueryCaptureBoundsRecordsAndCopiedBytes(t *testing.T) {
 	capture := &recoveryQueryCapture{}
 	out, stderr := bytes.Repeat([]byte("o"), 4<<20+17), bytes.Repeat([]byte("e"), 4<<20+29)
-	capture.observe(context.Background(), launcher.ZellijQueryObservation{Stdout: out, Stderr: stderr, StdoutBytes: len(out), StderrBytes: len(stderr)})
+	capture.observe(launcher.ZellijQueryObservation{Stdout: out, Stderr: stderr, StdoutBytes: len(out), StderrBytes: len(stderr)})
 	for i := 0; i < 64; i++ {
 		capture.Mark(fmt.Sprintf("mark-%d", i))
 	}
-	capture.observe(context.Background(), launcher.ZellijQueryObservation{Stdout: []byte("gone"), StdoutBytes: 4})
+	capture.observe(launcher.ZellijQueryObservation{Stdout: []byte("gone"), StdoutBytes: 4})
 	got := capture.snapshot()
 	if len(got.Records) != 64 || got.CopiedBytes != 8<<20 || got.DroppedRecords != 2 || got.DroppedBytes != 50 {
 		t.Fatalf("bounds: records=%d bytes=%d dropped-records=%d dropped-bytes=%d", len(got.Records), got.CopiedBytes, got.DroppedRecords, got.DroppedBytes)
@@ -196,6 +216,7 @@ type recoveryQueryCaptureRecord struct {
 	Started, Finished                            time.Time
 	Duration                                     time.Duration
 	CallerDeadline                               *time.Time
+	EffectiveDeadline                            time.Time
 	Stdout, Stderr                               []byte
 	StdoutBytes, StderrBytes                     int
 	StdoutTruncated, StderrTruncated             bool
@@ -231,7 +252,7 @@ func newRecoveryQueryCapture(t testing.TB) *recoveryQueryCapture {
 }
 func (r *recoveryQueryCapture) Context(ctx context.Context) context.Context {
 	ctx = context.WithValue(ctx, recoveryQueryCaptureContextKey{}, r)
-	return launcher.WithZellijQueryObserver(ctx, func(event launcher.ZellijQueryObservation) { r.observe(ctx, event) })
+	return launcher.WithZellijQueryObserver(ctx, r.observe)
 }
 func markRecoveryQuery(ctx context.Context, name string) {
 	if capture, ok := ctx.Value(recoveryQueryCaptureContextKey{}).(*recoveryQueryCapture); ok {
@@ -242,14 +263,16 @@ func (r *recoveryQueryCapture) Mark(name string) {
 	now := time.Now()
 	r.append(recoveryQueryCaptureRecord{Kind: "lifecycle", Name: name, Started: now, Finished: now})
 }
-func (r *recoveryQueryCapture) observe(ctx context.Context, event launcher.ZellijQueryObservation) {
+func (r *recoveryQueryCapture) observe(event launcher.ZellijQueryObservation) {
 	record := recoveryQueryCaptureRecord{Kind: "query", Args: event.Args, Started: event.Started, Finished: event.Finished, Duration: event.Duration, Stdout: event.Stdout, Stderr: event.Stderr, StdoutBytes: event.StdoutBytes, StderrBytes: event.StderrBytes, StdoutTruncated: event.StdoutTruncated, StderrTruncated: event.StderrTruncated, ExitCode: event.ExitCode, Cancelled: errors.Is(event.Err, context.Canceled), DeadlineExceeded: errors.Is(event.Err, context.DeadlineExceeded), NoReply: errors.Is(event.Err, launcher.ErrZellijNoReply)}
 	if event.Err != nil {
 		record.Error = event.Err.Error()
 	}
-	if deadline, ok := ctx.Deadline(); ok {
+	if !event.CallerDeadline.IsZero() {
+		deadline := event.CallerDeadline
 		record.CallerDeadline = &deadline
 	}
+	record.EffectiveDeadline = event.EffectiveDeadline
 	r.append(record)
 }
 
