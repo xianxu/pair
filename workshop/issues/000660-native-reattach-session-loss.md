@@ -46,7 +46,7 @@ Land the approved diagnostic stage so the next native reattach discovery failure
 - [x] Classify the original failed job from its complete retained log and inspect the exact upstream 0.45.1 source before selecting a fix.
 - [x] Add bounded, fixture-owned detach/reattach observations and deterministic tests of diagnostic collection and early child-exit reporting; preserve all same-process/frame assertions.
 - [x] Run the one granted private direct/wrapped conformance attempt, record both results and release the lane.
-- [ ] Record the corrected head's full suite and native evidence for normal close review; leave the unresolved-cause handoff ready for parking after diagnostic landing.
+- [x] Record the corrected head's full suite and native evidence for normal close review; leave the unresolved-cause handoff ready for parking after diagnostic landing.
 
 ## Log
 
@@ -89,6 +89,10 @@ First close review returned FIX-THEN-SHIP with one Important finding, BR-1 / bou
 Swept that entire family through one failure collector: child wire, parent wire, detach output, wrapper log and actor receipts now retain at most 8192 latest bytes, preserving file read failures. The actual cleanup reporter calls this collector. Both detach success and failure reporting use the same byte-tail rule; the old full-body duplicate is removed. Old/dead-client and private-server diagnostics reuse the same tail/file helpers. Original boot identity is logged separately before detach so it survives a long receipt stream. The sole remaining prefix helper in terminal_native_test.go formats the first differing serialized viewport cells for a frame-comparison failure; it is not an event-history consumer.
 
 New regression through the failure collector first failed for all four old prefix streams (each lost its distinct final marker), then passed after the sweep, including fifth-stream detach output and missing-receipt errors. Targeted combined tests pass in 1.208s; the corresponding race run passes in 3.569s. The original native sample is not rerun: this correction changes diagnostic collection/reporting only, and the one granted native lane use is already spent. A fresh required full suite and updated macOS CI will cover the corrected code before close round 2. The first full-suite pass remains retained; it does not stand in for this corrected head.
+
+### 2026-10-18 — corrected full suite passed, close round 2 next
+
+Required suite on corrected e2f8bca989ecd6fa6b1c22f3cd82b3e9f0333018 passed exit 0 in 11m46s, log SHA256 prefix b60cf9203f95, attempt a04ca8ecf85a7a50a0c7e12d2d109056. It acquired its slot after 1062s and completed all Make prerequisites and Go packages, including couchtty 46.290s. Retained log is `.git/sdlc/local-checks/e2f8bca989ecd6fa6b1c22f3cd82b3e9f0333018/suite.log` in the common Git directory. This fresh verification was required by the BR-1 code correction, not a flake retry; both full-suite attempts passed. Corrected-head server CI is green, including macOS conformance 2m35s (run39132943893/job117691644844), merge-check 1m0s and local-gates-guard 9s. No additional local native invocation. Ready for normal close round 2 to settle BR-1; causal investigation remains parked after diagnostic landing.
 
 ## Revisions
 
