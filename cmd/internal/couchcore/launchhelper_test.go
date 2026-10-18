@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/xianxu/pair/cmd/internal/testgit"
 	"github.com/xianxu/pair/cmd/internal/testpair"
 )
 
@@ -37,7 +38,7 @@ func TestMain(m *testing.M) {
 		os.Exit(LaunchHelperMain(os.Args[1:], os.Stderr))
 	}
 	defaultParallelForSubprocessTests()
-	os.Exit(testpair.Run(m))
+	os.Exit(testgit.RunWithEmptyGitTemplate(func() int { return testpair.Run(m) }))
 }
 
 // defaultParallelForSubprocessTests raises -test.parallel unless the caller set
