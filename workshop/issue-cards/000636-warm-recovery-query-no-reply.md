@@ -1,8 +1,8 @@
 ---
 id: 000636
-status: open
+status: working
 created: 2026-10-16
-updated: 2026-10-17
+updated: 2026-10-18
 estimate_hours:
 github_issue:
 started: 2026-10-17T10:14:59-07:00
