@@ -1,12 +1,20 @@
 ---
 id: 000574
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-15
-updated: 2026-10-15
+updated: 2026-10-17
 estimate_hours:
-card_mirror: 'e3a8f920610576ed9b75c9c1afd9ba054d1f35ef' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'e161339e6f34ce44dbb258f65ab04306727b3e02' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-17T18:43:29-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:3
+    worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Couch tells the hub about slot lifecycle events (start, park, relaunch, exit, recovery) as system messages
@@ -37,8 +45,21 @@ and the hub is available…" notice, attributed to ops:0.
 
 ## Plan
 
-- [ ]
+Durable full-flow design: [Lifecycle system notices](../plans/000574-couch-lifecycle-notices-plan.md). One atomic close boundary; plan approval before implementation.
+
+- [ ] Establish server-owned origin and protect system delivery against peer/body/direct-endpoint forgery.
+- [ ] Wire confirmed lifecycle and native-exit events, restart pass aggregation, bounded multi-hub publication and opt-out.
+- [ ] Complete fake/socket/owned-child verification, required documentation and recorded suite before close/landing.
 
 ## Log
 
 ### 2026-10-15
+
+- Fresh dispatch `803543a2-9eb8-4fb1-a471-be607a20a659` verified Submitted. Card was open with no claimant/branch; claimed before design. First start-plan refreshed ariadne and refused before branching; repeated successfully on the refreshed binary. No implementation code changed.
+- Read-only lifecycle exploration identified the correct post-adoption Console completion, exact FinalizePark boundary and explicit ReattachDone barrier. Attachment-client exit is not native-agent exit. Proposed typed terminal child-exit observation over the authenticated wrapper session; transport EOF alone remains unknown.
+- Read-only provenance exploration found that a new message flag alone would be forgeable through a direct wrapper endpoint call. Proposed immutable server-owned origin plus kernel caller matching against the exact live broker connection; canonical receipt verification remains required. Existing peer wire shape and Codex batching rollout remain unchanged.
+- Durable plan covers core concepts, transition/ownership/lifetime rules, per-function adversarial strategies, multipart overflow bounds, opt-out, compatibility and the separate real operator smoke arrangement. Awaiting hub approval before code. TL-lead help is source-owned by ariadne; propose a companion through the hub rather than filing a peer issue or leaving that Done-when item deferred.
+
+## Revisions
+
+- 2026-10-17 — Proposed design adds an explicit native-exit observation because Console attachment exit cannot substantiate the requested agent-exit notice, and kernel provenance because a visual system flag alone is forgeable. Full requested scope retained; operator smoke deferral and ariadne TL-lead companion await hub agreement.
