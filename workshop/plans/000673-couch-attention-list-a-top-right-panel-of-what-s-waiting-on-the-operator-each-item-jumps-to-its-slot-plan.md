@@ -130,3 +130,12 @@ The OSC desktop write stays as it is (the operator's "bonus").
 3. **"Waiting on input" means the `question` class only.** The `idle` and `prompt` (empty composer) wait classes are workers waiting on the hub, the TL's queue, not the operator's. Including them would bury real items.
 4. **Key: Ctrl+Alt+a** opens the list; Ctrl+Return is unchanged.
 5. **The top-right badge covers a few cells of child content** (zellij's tab line) while items are pending. The alternative is putting the badge at the right end of Couch's own bottom status row and keeping only the open panel at the top-right.
+
+## Revisions
+
+- 2026-10-18 (TL approval, ops:0): all five decisions settled.
+  1. #673 supersedes #352.
+  2. A condition item clears when its condition clears, whoever answered it.
+  3. "Waiting on input" means the `question` class only.
+  4. The panel opens with Ctrl+Alt+a, provided the key help and the keymap conflict check show it free; checked against Ctrl+Alt+b's neighbours before it is wired.
+  5. **The badge moves to the right end of Couch's bottom status row,** so it never covers slot content; only the open panel draws at the top-right. This changes the `Badge` row above: the badge is a status-row span (clickable to open the panel, like the other status spans, `ColumnSpan.Contains`) rendered in `RenderStatusRow`, not a top-right overlay cell. The test for the badge moves to the status-row renderer.
