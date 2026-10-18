@@ -14,14 +14,14 @@ claimant:
     workspace: pair:7
     worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
     repository: github.com/xianxu/pair
-actual_hours: 1.07
+actual_hours: 2.47
 tracker:
     version: 1
     completion:
-        token: close-f8a75a4f43b8
+        token: close-68e5236d7986
         repository: github.com/xianxu/pair
-        reviewed_head: 8f59f920b2064566f2da4baddf36d0f56cd6041f
-        evidence_commit: 0f347776d6fbda5dd2340b5f2311509676dac067
+        reviewed_head: 3d1b24fbe73d1e4dfd08826c634fbe6e823bf960
+        evidence_commit: 38f4a344525858caf3b4c9e8edb679e9804f7d3a
 ---
 
 # tests: seven wall-clock budgets on external tools (git worktree, zellij IPC, lsof, a rate-limit window) fail at fleet load
