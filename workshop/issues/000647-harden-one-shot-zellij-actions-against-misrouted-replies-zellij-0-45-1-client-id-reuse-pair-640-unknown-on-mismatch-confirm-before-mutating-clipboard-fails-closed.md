@@ -429,3 +429,9 @@ The already accepted private native trace and deterministic controls supply unce
 ### 2026-10-18 — M3 review overlaps the recorded suite queue by explicit approval
 
 Authenticated hub receipt55bdae20-cc7b-4a35-859b-776b2195f8a2 approves running M3 milestone-close now while the existing full suite remains queued at code headce16851261c658c5568873fe3c0db3832258596d. This is an explicit sequencing exception only: whole-issue close and landing remain gated on the recorded suite PASS. If review changes code, cancel/requeue the suite on the final code head; no stale-head qualification. All source, offline regression/race checks, accepted native safety evidence and next-restart clean-path limits are already checkpointed. Project ownership remains with the TL, so milestone-close uses --no-project.
+
+### 2026-10-18 — M3 SHIP; landing and next-restart sequencing confirmed
+
+M3 review returned SHIP with no findings; evidence commit8bfe5ad35afc65a1f2b2fec17fcbb3d12bd8b7f4 is pushed. Reviewer passed make test-lua, full zellijreply/zellijtest/artifactpath/layoutcmd packages and focused races, and inspected the retained native log/artifact including the explicit missing final PTY witness. No source changes or native rerun; the existing recorded suite at ce168512 remains valid code coverage and queued.
+
+Hub receipt d34b5132-85d4-4565-ad42-35602b392461 explicitly directs landing through the line after recorded suite PASS and whole-issue SHIP, without staging pair:0. The clean-path real-setup check rides the operator's next restart. Exact split/Focus/fullscreen, clipboard, review-return and deterministic-note check steps are recorded above; no operator-session/build action is assigned to this worker.
