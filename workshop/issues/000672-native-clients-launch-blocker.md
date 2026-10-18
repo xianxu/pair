@@ -17,6 +17,7 @@ claimant:
     workspace: pair:1
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "a07c8597", done: "105c1e00"}
 ---
 
 # Accept native Zellij client replies without blocking launches
