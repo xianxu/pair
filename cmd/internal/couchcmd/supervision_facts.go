@@ -33,6 +33,8 @@ type supervisionFact struct {
 	Picker      *bool                     `json:"picker"`
 	Clipboard   *couchtty.CopyObservation `json:"clipboard,omitempty"`
 	Slots       []supervisionFactSlot     `json:"slots,omitempty"`
+
+	ClipboardKey *couchtty.CopyKeyObservation `json:"clipboard_key,omitempty"`
 }
 type supervisionFactSlot struct {
 	Subject     string  `json:"subject"`

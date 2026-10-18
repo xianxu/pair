@@ -67,7 +67,7 @@ func TestPreparedRecoveryRequiresExactStopConfirmationBeforeEffects(t *testing.T
 		t.Fatalf("error=%v retired=%d operations=%v", err, retired, f.Runner.Ops)
 	}
 	result, err := f.Couch.ConfirmRecovery(ctx, required.Offer.Token)
-	if err != nil || retired != 1 || result.Start.Handle == nil {
+	if err != nil || retired != 1 || result.Start.Handle == nil || result.Mode != Fresh {
 		t.Fatalf("result=%+v retired=%d err=%v", result, retired, err)
 	}
 	if _, err := f.Couch.ConfirmRecovery(ctx, required.Offer.Token); err == nil {

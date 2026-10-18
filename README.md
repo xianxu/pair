@@ -856,6 +856,14 @@ complete unchanged envelope in Qoder's composer and no intervening human input;
 the body is never pasted twice. Other receivers do not reconstruct wrapped or
 collapsed envelopes. Existing human input and open pickers hold normal delivery.
 
+Tall Codex input qualifies only while its styled prompt, continuation rows and
+recognized trailing native footer remain visible in a complete viewport. The
+same geometry gates ordinary Return inserting a newline; clipped prompts or
+unrecognized footer wording retain the existing unknown-state behavior. Owned
+Codex 0.163.0 checks covered 33 visible composer rows at 100x60, exact text after
+Return added a newline, and separate explicit submission. Codex peer delivery
+remains single-message; the operator smoke follows the next hub restart.
+
 If Qoder submission remains unconfirmed, one alert goes to its owning hub and
 later deliveries refuse promptly with recovery advice. Inspect that composer,
 then use **Alt+Enter** to submit the pending text or clear it. Plain Enter inserts
@@ -880,6 +888,44 @@ still bounds delivery. No eligible family slot returns `not-dispatched` with exi
 Other refusals return nonzero. If a send times out, query the printed ID with
 `--message-status` and inspect the recipient before sending again. Couch never
 replays an uncertain body or keeps a durable message queue across restart.
+
+For a verified Claude hub, reports queued while its composer is busy can share
+one submission. Couch freezes a FIFO prefix when the composer becomes ready,
+keeps each message's header, and separates messages with a `---` line. Every
+member keeps its own receipt; one confirmation determines the whole batch.
+Set `COUCH_PEER_BATCH_MAX_CHARS` before starting Couch to cap combined envelopes,
+including headers and separators: the default is 16,384 Unicode code points,
+and the accepted range is 1–32,768. An invalid value fails startup. A message
+larger than the cap goes alone, and the remaining messages wait in FIFO order.
+Codex, Qoder and non-hub receivers keep singleton delivery, as do older wrappers
+that explicitly refuse the batch protocol.
+
+Couch also sends its configured hub system notices for confirmed slot starts,
+resumes, parks, relaunches, recovery and needs-relaunch transitions. Restart
+reattachments form one summary after the existing pass drains; larger summaries
+use numbered parts through the same delivery queue. Rows include known cached
+agent/model, branch/issue and initiation; unknown fields stay unknown. These are
+Slots information, with no reply or work requested. Native-agent exit is not
+reported: an attachment ending does not prove the agent exited (#657).
+
+`COUCH_LIFECYCLE_NOTICES=off` disables lifecycle notices for this Couch process;
+the default is `on`, and other nonempty values refuse startup. No configured hub
+means no lifecycle recipient. Worker startup availability prompts are also marked
+as coming from Couch. The `[Couch system; delivery ID]` heading is backed by
+`Message.Origin=system` in the canonical server receipt; ordinary peer sends
+cannot choose that origin. Verify the submitted receipt, exact body and current
+recipient before trusting the marking. Copied header text remains peer content.
+An unknown system receipt retained only by a wrapper after a restart or receipt
+eviction cannot reestablish server authority; inspect current state instead.
+Old wrappers may require relaunch to understand system-origin records.
+
+Lifecycle notices keep bounded current state, not durable event history. Repeated
+unsent changes coalesce with a count. A busy hub waits on its existing composer;
+uncertain input is not replayed. Failed publication produces a local diagnostic,
+with later confirmed changes or receiver readiness enabling a fresh snapshot.
+An ownership move drops pending lifecycle history and tells the new hub to check
+Slots. Input already admitted to the previous hub finishes there with its original
+receipt; Couch does not replay or reroute it. New events follow the new owner.
 
 For agent setup, run `couch --skill` in an existing conversation and have the
 agent read the output. For discovery in future sessions, save the output as
@@ -1533,7 +1579,11 @@ use a terminal OSC 52 request instead. Its feedback says **unconfirmed**, becaus
 Couch cannot verify that the terminal delivered it to the clipboard. Native tool
 failures retain bounded stderr on screen; a successful tool whose child holds stderr
 remains successful, with incomplete diagnostic capture marked truncated. Each attempt emits a content-free
-`clipboard_copy` event in the namespace supervision log.
+`clipboard_copy` event in the namespace supervision log. Ctrl+Y works with
+legacy and Kitty keyboard encoding. A separate `clipboard_key` event records
+arrival before routing: encoding class, press/release and switcher focus only.
+It contains no input bytes, notice text or clipboard content. An arrival without
+a copy outcome separates input routing from clipboard-tool failures.
 An authorized opt-in conformance run from a Couch slot uses
 `PAIR_LIVE_CLIPBOARD_CONFORMANCE=1 go test ./cmd/internal/couchtty -run '^TestClipboardLiveConsoleConformance$' -count=1`.
 It requires native macOS tools, keeps the previous clipboard only in memory, and
@@ -1800,7 +1850,8 @@ files to reset numbering. Moving a store assigns a new C for future allocations.
 Most commands take the repo-local tag. When Pair itself pre-fills or shows a
 public `📁...` name, `pair resume <public-name>` and `pair rename <public-name>
 <new-tag>` resolve it through the ledger. The new rename target is always a bare
-tag, not a public session name.
+tag, not a public session name. Rename treats tags literally: `pair-t1` and
+`t1` are distinct; a `pair-` prefix is never stripped from either rename argument.
 
 **Hacking on pair?** Use `pair-dev` instead of `pair` — same arguments, but it rebuilds the `pair` binary from source (`make build`) on launch and on every Alt+n whole-workbench reload, so the zellij-spawned `pair wrap` always matches your working tree. Shift+Alt+N restarts only the already-running wrapper's agent child. (Deployed installs run `pair`, which uses the prebuilt binary and needs no Go toolchain.) Under Couch, start it with `couch-dev` instead of `couch`: it rebuilds once and runs Couch with dev mode on. Slots Couch launches do not rebuild Pair (a rebuild per slot slowed every launch under load), so run `make build` once before relaunching slots onto a new build.
 

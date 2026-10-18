@@ -92,6 +92,16 @@ class ObservationFixtureDiagnosticsTest(unittest.TestCase):
             self.assertNotIn('"snapshot":', json.dumps(evidence))
             self.assertNotIn('"latest_agent_body":', json.dumps(evidence))
             self.assertEqual(len(evidence['wanted']), 5)
+            self.assertIn('phase_evidence', evidence)
+            phases = evidence['phase_evidence']
+            positive = [event for event in phases if event['phase'] == 'slow-same-branch-observation']
+            self.assertEqual([event['event'] for event in positive],
+                             ['start', 'result', 'release', 'settled', 'applied'])
+            self.assertEqual(len({event['id'] for event in positive}), 1)
+            self.assertEqual(positive[1]['code'], 0)
+            self.assertEqual(positive[0]['timeout'], 2500)
+            self.assertLessEqual(positive[0]['at_ns'], positive[1]['completed_ns'])
+            self.assertLessEqual(positive[1]['completed_ns'], positive[2]['at_ns'])
             events = evidence['fresh']['events']
             wanted = next(event for event in events if event['event'] == 'request-begin')
             fresh = next(event for event in events if event['event'] == 'completion'
@@ -101,6 +111,42 @@ class ObservationFixtureDiagnosticsTest(unittest.TestCase):
             self.assertEqual(fresh['identity']['head'], wanted['identity']['head'])
             self.assertGreater(fresh['seq'], wanted['seq'])
             self.assertTrue(all(event['ok'] for event in events if event['event'] == 'request-end'))
+
+    def test_arm_boundary_keeps_an_observation_started_before_rpc_returns(self):
+        with tempfile.TemporaryDirectory(prefix='pair-observation-arm-') as storage:
+            init = Path(storage) / 'init.lua'
+            observed = Path(storage) / 'started-during-arm'
+            init.write_text('local native=dofile\ndofile=function(path)\n'
+                            ' local module=native(path)\n'
+                            ' if path:match("/tests/lib/review_observation_gate%.lua$") then\n'
+                            '  local install=module.install\n'
+                            '  module.install=function(...)\n'
+                            '   local gate=install(...); local arm=gate.arm\n'
+                            '   gate.arm=function(self)\n'
+                            '    local ok=arm(self)\n'
+                            '    if ok then vim.api.nvim_exec_autocmds("FocusGained",{}); local started=vim.wait(2000,function()\n'
+                            '     return gate:snapshot().inflight>0 or gate:snapshot().held>0\n'
+                            '    end,5); if started then vim.fn.writefile({"started"},' + json.dumps(str(observed)) + ') end end\n'
+                            '    return ok\n'
+                            '   end\n'
+                            '   return gate\n'
+                            '  end\n'
+                            ' end\n'
+                            ' return module\n'
+                            'end\n'
+                            'native(' + json.dumps(str(ROOT / 'nvim/review.lua')) + ')\n')
+            result = subprocess.run(['bash', str(ROOT / 'tests/review-observation-test.sh')],
+                                    env=dict(os.environ, PAIR_TEST_REVIEW_INIT=str(init)),
+                                    text=True, capture_output=True, timeout=60)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertTrue(observed.exists(), 'controlled observation never started during arm')
+
+    def test_callback_gate_preserves_native_deadline_and_owned_teardown(self):
+        with ReviewTestEnvironment() as isolated, tempfile.TemporaryDirectory(prefix='pair-observation-gate-') as storage:
+            result = subprocess.run(['nvim', '--headless', '-u', 'NONE', '-l', str(ROOT / 'tests/review-observation-gate-test.lua')],
+                                    cwd=ROOT, env=isolated.environment(storage, ROOT),
+                                    text=True, capture_output=True, timeout=20)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
     def test_lua_trace_preserves_real_process_and_controlled_completion_seams(self):
         with ReviewTestEnvironment() as isolated, tempfile.TemporaryDirectory(prefix='pair-observation-trace-') as storage:

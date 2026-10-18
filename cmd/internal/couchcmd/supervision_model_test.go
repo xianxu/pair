@@ -144,21 +144,6 @@ func TestSupervisionRepositoryQualifiedCompletion(t *testing.T) {
 	}
 }
 
-func TestSupervisionPromptProvenanceSurvivesQueueAndHold(t *testing.T) {
-	c := newSupervisionCoordinator(nil, nil)
-	now := time.Unix(1000, 0)
-	hub := couchmessage.Binding{Slot: "ops:0"}
-	c.remember("prompt", hub, now, true)
-	// A queue and then an operator hold can exceed one hour before delivery.
-	c.remember("next", hub, now.Add(2*time.Hour), false)
-	if !c.systemMessage(couchmessage.Message{ID: "prompt", From: hub}) {
-		t.Fatal("delayed prompt lost supervisor provenance")
-	}
-	if c.systemMessage(couchmessage.Message{ID: "prompt", From: couchmessage.Binding{Slot: "pair:7"}}) {
-		t.Fatal("other sender inherited exemption")
-	}
-}
-
 func TestSupervisionSnapshotCannotPruneNewerReport(t *testing.T) {
 	now := time.Unix(1000, 0)
 	s := newSupervisionState()

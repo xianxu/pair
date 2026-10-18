@@ -20,6 +20,7 @@ USAGE
   pair [<agent>] -- <args>      forward args to the agent on create
   pair list | ls                list this repo's Pair sessions and attach state
   pair rename <old> <new>       rename every tag-scoped file from <old> to <new>
+                                tags are exact; pair- is not stripped
   pair keys                     in-session keybindings (what Alt+h shows)
   pair version | --version      print launcher version metadata
   pair -h | --help              this message

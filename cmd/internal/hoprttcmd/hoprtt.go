@@ -114,12 +114,19 @@ func pipeRTT(n int) ([]float64, error) {
 // error is fast, so discarding the error reports a broken dependency as healthy
 // latency -- `zellij_action_ms=2.1` reads as "zellij is quick" when it actually
 // means "zellij is gone". The caller degrades to n/a instead.
-func spawnRTT(n int, argv []string) (samples []float64, failed int) {
+func spawnRTT(n int, argv []string) ([]float64, int) {
+	return sampleSpawns(n, func() func() error {
+		return exec.Command(argv[0], argv[1:]...).Run
+	})
+}
+
+// sampleSpawns excludes preparation from the measured command execution.
+func sampleSpawns(n int, prepare func() func() error) (samples []float64, failed int) {
 	samples = make([]float64, 0, n)
 	for i := 0; i < n; i++ {
-		c := exec.Command(argv[0], argv[1:]...)
+		run := prepare()
 		start := time.Now()
-		err := c.Run()
+		err := run()
 		samples = append(samples, msSince(start))
 		if err != nil {
 			failed++

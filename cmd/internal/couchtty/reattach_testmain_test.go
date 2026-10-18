@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/testdisk"
 )
 
 // The reattach pass and the queue workers take their bound from
@@ -13,7 +14,11 @@ import (
 // behaviour set ReattachPass.Limit explicitly.
 func TestMain(m *testing.M) {
 	couchcore.LifecycleParallelism = 1
-	os.Exit(m.Run())
+	if os.Getenv("PAIR_COUCH_PRESSURE_CHILD") == "1" || os.Getenv("PAIR_COUCH_SOAK_CHILD") == "1" ||
+		os.Getenv("PAIR_NOTIFICATION_PTY_HELPER") == "1" || os.Getenv("PAIR_NATIVE_EVIDENCE_HELPER") == "1" {
+		os.Exit(m.Run())
+	}
+	os.Exit(testdisk.RunWithWriteBudget("couchtty", testdisk.CouchTTY, m.Run))
 }
 
 // soleLoading is the one thread in flight, for tests that run with Limit 1;
