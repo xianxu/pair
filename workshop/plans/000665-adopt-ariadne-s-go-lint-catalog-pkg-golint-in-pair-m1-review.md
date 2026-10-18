@@ -298,3 +298,111 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-18T07:14:00-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 665 — Adopt ariadne's Go lint catalog (pkg/golint) in pair |
+| repo | pair |
+| issue file | workshop/issues/000665-adopt-ariadne-s-go-lint-catalog-pkg-golint-in-pair.md |
+| boundary | milestone M1 |
+| milestone | M1 |
+| window | 331978755afa0a9aa2d89f5c3add23ac2d65828c..6d7314450a44b1a84a84605c691678390398e10e |
+| command | sdlc milestone-close --issue 665 --milestone M1 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-18T07:14:00-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: medium
+```
+
+The socket-path correction matches R8 and passes meaningful regression controls. No new code defect was found. SHIP is blocked by incomplete verification: this review checkout lacks main authority, so the ordinary catalog test fails before scanning the repository.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Grammar regressions pass; removing TrimSpace through a temporary Go overlay makes the extra-space regression fail.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      README.md:1890–1899 documents the focused check, tracking prerequisite and exclusive sleep-debt authority, consistent with catalog_test.go and atlas/go-lint-catalog.md. This passage is unchanged in the current range.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Shared fake/real repository-read and admission contracts pass. Scanner decisions consume repositoryRead; the stateful fake and every-run real-Git conformance remain intact.
+findings:
+  - id: new
+    severity: Important
+    kind: unverifiable
+    family: review-evidence-completeness
+    title: |
+      Review checkout cannot verify catalog admission against main
+    detail: |
+      At internal/repolint/catalog_test.go:447, go test ./internal/repolint -count=1 fails with “need exactly one remote main ref without main tracking config, found 0” before scanning. git show-ref contains no remote main, and neither a remote nor main tracking configuration is present. Supply authentic main tracking/ref/history in the review environment and rerun, or provide measured host evidence for this exact head showing the ordinary catalog test passes against identified main authority. Do not weaken the refusal.
+```
+
+1. **Strengths**
+
+   - `transport_test.go:23` preserves owned temporary storage while accommodating the full derived endpoint basename.
+   - The regression at `transport_test.go:31` binds real endpoints for both current and ten-digit PIDs.
+   - Server cleanup runs before root removal.
+   - Atlas documents the derived-address constraint; this range introduces no new README-facing command or configuration.
+
+2. **Critical findings**
+
+   None.
+
+3. **Important findings**
+
+   The verification blocker above requires authentic main authority or exact-head host evidence.
+
+4. **Minor findings**
+
+   None.
+
+5. **Test coverage notes**
+
+   - Entire couchmessage package passes under ordinary Darwin TMPDIR: normal **29.037s**, race **32.231s**.
+   - Reverting the helper through a temporary overlay makes the new regression fail on a **269-byte** derived address.
+   - All repolint tests except the authority-dependent repository check pass.
+   - `git diff --check` passes; reviewed source remains unchanged.
+   - Initial couchmessage runs failed under the review-injected oversized TMPDIR; ordinary Darwin TMPDIR runs resolve that environment mismatch.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** reuses production endpoint derivation.
+   - **ARCH-PURE — pass:** native binding remains an integration fixture; pure lint logic stays separate.
+   - **ARCH-PURPOSE — pass:** R8 repairs the actual cleanup-consumer path.
+   - **ARCH-MOCK — pass:** shared stateful-fake/real Git contracts remain exercised.
+   - **ARCH-CONSTRAINTS — pass:** tests the complete native socket address.
+   - **ARCH-SECURE — pass:** private owned roots; no production rendezvous directory is created by this regression.
+   - **ARCH-ORDER — pass:** listener shutdown precedes root cleanup.
+   - **ARCH-FUNERAL — pass:** temporary roots and listeners have explicit cleanup.
+
+7. **Plan revision recommendations**
+
+   None for the implementation. Record restored catalog verification evidence before crossing the boundary.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"14699988-ab6c-4b8a-bb8e-a7c2c7cc266c","repository":"github.com/xianxu/pair","issue_id":"000665","recipe":"milestone-review","round":4,"attempt":1,"agent":"codex","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/1e05772b35e8a5ac","reviewed_head":"6d7314450a44b1a84a84605c691678390398e10e","slot":"pair:1","requested_at":"2026-10-18T14:11:06.940865Z"},"phase":"finished","pid":97405,"started_at":"2026-10-18T14:11:07.065887Z","finished_at":"2026-10-18T14:13:47.645041Z","session_id":"01a14f5a-19b8-79f2-946c-7456b2cd2dbd","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.794264791s
+head: "6d7314450a44b1a84a84605c691678390398e10e"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

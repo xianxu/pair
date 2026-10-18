@@ -164,6 +164,12 @@ R8 passed change-code plan-quality (round5; no open findings). New TestTransport
 
 All socket-cleanup cases plus the new regression PASS0.177s. Entire couchmessage package under ordinary Darwin TMPDIR PASS26.931s, race PASS30.411s; ordinary catalog PASS2.927s over2559sources/five rules/100sleep sites. Logs /tmp/pair665-m1-couchmessage-full-{green,race-green}.log and /tmp/pair665-m1-r8-catalog-green.log. No deadline/protocol/native changes. The complete consumer audit changes path disposition to23repairs/16precise exceptions. The extra M1 review and corrected-head recorded suite remain required; the failed suite is retained as failure.
 
+### 2026-10-18 — Extra review verifies R8; BR-4 needs host authority evidence
+
+Authorized M1 round4 returned REWORK only for BR-4 (kind unverifiable): the disposable review checkout has no main ref/configuration, so the repository catalog correctly refuses before scanning. No code defect was found; reviewer independently passed full couchmessage normal29.037s/race32.231s and the broken-helper negative control. The review requests authentic main authority in the environment or measured exact-head host evidence, without weakening refusal.
+
+The requested host evidence is checkpointed in [M1 host catalog evidence](../plans/000665-m1-host-catalog-evidence.md): exact reviewed head6d7314450a44b1a84a84605c691678390398e10e, real origin/main authoritya5bc8e64a82776647060495425ec311dee235b23 and merge-based8ccc4577351b3dde5f829e83f5d83e4fedced5d, source/module diff exit0, ordinary catalog PASS2.659s (2559sources/five rules/100sites), retained log SHA256e6bf6bc27dd850a817c7a59b48e318df7478ffe6f74d3ecce3935b7b34edd694. No code/ref/config change is proposed. BR-4 remains for fresh review disposition; no SHIP or full-suite PASS is claimed for the corrected head yet.
+
 ## Revisions
 
 ### 2026-10-18 — R1: two approved milestones

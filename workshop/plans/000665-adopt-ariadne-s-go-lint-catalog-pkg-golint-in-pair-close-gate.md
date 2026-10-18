@@ -544,6 +544,210 @@ rounds:
       isolation: fenced
       reviewed: 9128c9a2e8564801ffc3f8301acfa6da807b6cb6
       blocked: false
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 14699988-ab6c-4b8a-bb8e-a7c2c7cc266c
+            repository: github.com/xianxu/pair
+            issue_id: "000665"
+            recipe: milestone-review
+            round: 4
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/Library/Caches/sdlc/review-checkouts/1e05772b35e8a5ac
+            reviewed_head: 6d7314450a44b1a84a84605c691678390398e10e
+            slot: pair:1
+            requested_at: "2026-10-18T14:11:06.940865Z"
+          phase: finished
+          pid: 97405
+          started_at: "2026-10-18T14:11:07.065887Z"
+          finished_at: "2026-10-18T14:13:47.645041Z"
+          session_id: 01a14f5a-19b8-79f2-946c-7456b2cd2dbd
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-v1
+        repository: github.com/xianxu/pair
+        code_head: 9128c9a2e8564801ffc3f8301acfa6da807b6cb6
+        tracker_head: f72d8519ba6b860266c7fcda504221492bef63ba
+        branch_point: d8ccc4577351b3dde5f829e83f5d83e4fedced5d
+        since: "2026-10-18T05:39:24-07:00"
+        until: "2026-10-18T06:37:33-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-18T05:39:24-07:00"
+              end: "2026-10-18T06:37:33-07:00"
+              began: "2026-10-18T05:39:24-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot1/pair
+        sources:
+            - harness: codex
+              id: 01a14367-3aab-7a22-b89b-0908f54a9846
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              digest: 3089e2faa63e3ecee4987ed03023f03edcfe23d3a43db7ce51f4bea8d97f79cd
+              started: "2026-10-16T06:30:01.402Z"
+              spawned: false
+              bytes: 79984307
+              windows:
+                - start: "2026-10-18T05:39:24-07:00"
+                  end: "2026-10-18T06:37:33-07:00"
+            - harness: codex
+              id: 01a14f06-59b0-7ea0-aab5-69d740c40d65
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              parent_id: 01a14367-3aab-7a22-b89b-0908f54a9846
+              digest: 2d35640c322b8e0fa024c634896dc8a6e4c8d57f75eb6b0b11fac91679c8aa5b
+              started: "2026-10-18T12:39:38.716Z"
+              spawned: true
+              bytes: 737382
+              windows:
+                - start: "2026-10-18T12:39:38.716Z"
+                  end: "2026-10-18T06:37:33-07:00"
+            - harness: codex
+              id: 01a14f0a-fd7d-7963-8893-aab2cbfdc80b
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              digest: a69dd60054c3c99814be75e222538b656ef5d00e5f205610b1c4a6e1d71f4830
+              started: "2026-10-18T12:44:42.996Z"
+              spawned: false
+              bytes: 495956
+              windows:
+                - start: "2026-10-18T12:44:42.996Z"
+                  end: "2026-10-18T06:37:33-07:00"
+            - harness: codex
+              id: 01a14f0b-11b7-7502-b2b4-85c07851fad6
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              parent_id: 01a14367-3aab-7a22-b89b-0908f54a9846
+              digest: f097dd4d13855456348dc4e4f55f12fb2cb947609a833b970285e771b75ff9de
+              started: "2026-10-18T12:44:47.983Z"
+              spawned: true
+              bytes: 2341502
+              windows:
+                - start: "2026-10-18T12:44:47.983Z"
+                  end: "2026-10-18T06:37:33-07:00"
+            - harness: codex
+              id: 01a14f0c-da8a-74f3-bb46-3ae6efe05510
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              digest: fcf4e395f786f9ceec692a036b958e44b6d045e611d3ee7590dbdf026589821c
+              started: "2026-10-18T12:46:45.354Z"
+              spawned: false
+              bytes: 371647
+              windows:
+                - start: "2026-10-18T12:46:45.354Z"
+                  end: "2026-10-18T06:37:33-07:00"
+            - harness: codex
+              id: 01a14f0d-0c5b-7621-872f-802ab24ec89e
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              parent_id: 01a14367-3aab-7a22-b89b-0908f54a9846
+              digest: db44c2627bc90f149b878ede60d7f56a01df8e0f0cea5371c56cbabd8be8cd4b
+              started: "2026-10-18T12:46:57.689Z"
+              spawned: true
+              bytes: 1776860
+              windows:
+                - start: "2026-10-18T12:46:57.689Z"
+                  end: "2026-10-18T06:37:33-07:00"
+            - harness: codex
+              id: 01a14f0d-d291-7ae1-a930-aac670ac489a
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              digest: ab4140e7bbcb1f5c9f83e988b30608c8ce4a0075a0448584aba05b5685d989a5
+              started: "2026-10-18T12:47:48.67Z"
+              spawned: false
+              bytes: 428460
+              windows:
+                - start: "2026-10-18T12:47:48.67Z"
+                  end: "2026-10-18T06:37:33-07:00"
+            - harness: codex
+              id: 01a14f0e-3014-7422-8740-20ec5465c826
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              digest: 785ec88e502b864d9be60833681bd78080e9dc423ee4f1b490847570c1ee3cf6
+              started: "2026-10-18T12:48:12.774Z"
+              spawned: false
+              bytes: 423990
+              windows:
+                - start: "2026-10-18T12:48:12.774Z"
+                  end: "2026-10-18T06:37:33-07:00"
+            - harness: codex
+              id: 01a14f0f-5faa-7f82-a9ec-f684d68e74e2
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              parent_id: 01a14367-3aab-7a22-b89b-0908f54a9846
+              digest: dbe8cc41bee9b8119d9e14b04fe1ee562b84713464d40a0daed6c4822b46dce3
+              started: "2026-10-18T12:49:30.083Z"
+              spawned: true
+              bytes: 2082144
+              windows:
+                - start: "2026-10-18T12:49:30.083Z"
+                  end: "2026-10-18T06:37:33-07:00"
+            - harness: codex
+              id: 01a14f30-d1e8-7a42-8340-ca5ffde4d925
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              digest: 303b5f164810f92dcac27a87e1a8b0adab8b5803d7748836c7a8a4f048259771
+              started: "2026-10-18T13:26:02.273Z"
+              spawned: false
+              bytes: 452169
+              windows:
+                - start: "2026-10-18T13:26:02.273Z"
+                  end: "2026-10-18T06:37:33-07:00"
+            - harness: codex
+              id: 01a14f31-3e50-7780-acea-0bb5933d83fb
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              digest: c75a2b5027d8f14314969d5b58a1c59a8f5181470d4fe2f2a01d98a24a00c3c9
+              started: "2026-10-18T13:26:30.026Z"
+              spawned: false
+              bytes: 450282
+              windows:
+                - start: "2026-10-18T13:26:30.026Z"
+                  end: "2026-10-18T06:37:33-07:00"
+        cuts:
+            - boundary: M1
+              dispatched: "2026-10-18T06:09:40-07:00"
+              finalized: "2026-10-18T06:12:00-07:00"
+              finalizing: false
+            - boundary: M1
+              dispatched: "2026-10-18T06:19:37-07:00"
+              finalized: "2026-10-18T06:22:23-07:00"
+              finalizing: false
+      "n": 4
+      timestamp: "2026-10-18T07:14:00-07:00"
+      dispatched: "2026-10-18T07:11:05-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Grammar regressions pass; removing TrimSpace through a temporary Go overlay makes the extra-space regression fail.
+          round: 4
+        - id: BR-2
+          disposition: addressed
+          note: README.md:1890–1899 documents the focused check, tracking prerequisite and exclusive sleep-debt authority, consistent with catalog_test.go and atlas/go-lint-catalog.md. This passage is unchanged in the current range.
+          round: 4
+        - id: BR-3
+          disposition: addressed
+          note: Shared fake/real repository-read and admission contracts pass. Scanner decisions consume repositoryRead; the stateful fake and every-run real-Git conformance remain intact.
+          round: 4
+      findings:
+        - kind: unverifiable
+          id: BR-4
+          severity: Important
+          title: Review checkout cannot verify catalog admission against main
+          detail: At internal/repolint/catalog_test.go:447, go test ./internal/repolint -count=1 fails with “need exactly one remote main ref without main tracking config, found 0” before scanning. git show-ref contains no remote main, and neither a remote nor main tracking configuration is present. Supply authentic main tracking/ref/history in the review environment and rerun, or provide measured host evidence for this exact head showing the ordinary catalog test passes against identified main authority. Do not weaken the refusal.
+          family: review-evidence-completeness
+          round: 4
+      boundary: M1
+      recipe: milestone-review
+      isolation: fenced
+      blocked: true
 disputes:
     - id: BR-3
       rationale: Per authenticated hub instruction76f460c7, retain disposable real Git repositories. Git here is a local deterministic source of tracked inventory and history, not an external service requiring a separate model. A fake would duplicate index/ref/commit/blob semantics without identifying an additional failure it can catch; these real-repository fixtures are fast every-run integration/conformance coverage. Reconsider only for a concrete failure real repositories cannot reproduce; no gate is waived.
@@ -585,6 +789,19 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-2 — addressed — README.md:1890 documents the focused check, suppression policy, exclusive sleep-debt authority and history prerequisites, consistent with catalog_test.go and atlas/go-lint-catalog.md.
 - BR-3 — addressed — repository_test.go centralizes Git execution behind repositoryRead. Shared read/admission contracts exercise fake and real histories; atlas documents every-run conformance. Bypassing injection makes the fake admission test fail, and removing blob-copy protection makes the snapshot-immutability contract fail.
 
+## Round 4 — 2026-10-18T07:14:00-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-1 — addressed — Grammar regressions pass; removing TrimSpace through a temporary Go overlay makes the extra-space regression fail.
+- BR-2 — addressed — README.md:1890–1899 documents the focused check, tracking prerequisite and exclusive sleep-debt authority, consistent with catalog_test.go and atlas/go-lint-catalog.md. This passage is unchanged in the current range.
+- BR-3 — addressed — Shared fake/real repository-read and admission contracts pass. Scanner decisions consume repositoryRead; the stateful fake and every-run real-Git conformance remain intact.
+
+### Raised
+
+- **BR-4** [Important] `review-evidence-completeness` (kind: unverifiable) Review checkout cannot verify catalog admission against main
+  At internal/repolint/catalog_test.go:447, go test ./internal/repolint -count=1 fails with “need exactly one remote main ref without main tracking config, found 0” before scanning. git show-ref contains no remote main, and neither a remote nor main tracking configuration is present. Supply authentic main tracking/ref/history in the review environment and rerun, or provide measured host evidence for this exact head showing the ordinary catalog test passes against identified main authority. Do not weaken the refusal.
+
 ## Disputes
 
 Findings the implementer declined (`sdlc finding dispute`), each answered by the
@@ -596,4 +813,4 @@ next review round.
 
 ## Open findings
 
-(none — every finding has been disposed)
+- **BR-4** [Important] `review-evidence-completeness` (kind: unverifiable) Review checkout cannot verify catalog admission against main
