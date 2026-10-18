@@ -194,3 +194,21 @@ Shrink ratchet: read the version of that same file at the branch/main merge base
 The helper remains test-only, catalog logic stays upstream (ARCH-DRY). Main's committed list is the authority to retire debt; observations of current findings cannot authorize new debt (ARCH-ORDER). The file has at most103entries, shrinks with each fix, and is removed or left empty once M2 completes (ARCH-FUNERAL). No inline test-fixed-sleep exemptions are introduced while paying this debt.
 
 M1 landing leaves the issue's M2 checkbox open, with the reviewed milestone as the boundary; use the SDLC milestone-publication path if supported. Do not close the whole issue as done with active sleep debt. If the tool cannot publish a milestone, bring that exact limitation to the hub before landing, rather than bypassing the close gate or silently treating M2 as finished.
+
+### 2026-10-18 — R2: named verification seams (PQ-1)
+
+Reason: plan-quality asks for function-specific adversarial strategies, rather than a prose matrix. This section replaces R1's regression-matrix sentence as the test design; the debt/ratchet behavior is unchanged.
+
+All new functions are test-only in internal/repolint, split between catalog_test.go (repository boundary), debt_test.go (pure parsing/matching and its tests) and inventory_test.go (real-Git fixtures). Pure entities are SleepSite and Debt (new, owned by the test); the repository test owns their lifetime.
+
+| Function | Responsibility | Adversarial strategy / mechanical guard |
+| --- | --- | --- |
+| sleepSites(filename, source) | Derive line-independent call identities and associate findings with exact source lines | Generated AST layout/whitespace changes must preserve identity; enclosing-function/call/occurrence mutations must change the corresponding identity; parse failures propagate |
+| decodeDebt(bytes) | Decode the sole versioned JSON site set | Fuzz malformed JSON, fields and site values; reject unsupported schema, unknown fields, unsafe paths, invalid ordinals and duplicates; valid round trips preserve the set |
+| checkDebt(findings, sites, debt) | Apply exact sleep-only debt and reject unused entries | Generated finding/site sets compared to independent set-difference oracle; every non-sleep finding survives unchanged |
+| checkShrink(previous, current) | Require current debt to be a subset of previous | Generated set transitions against an independent subset invariant; additions and same-size substitutions never pass |
+| scanTracked(root, readFile) | NUL Git inventory and one read/check per eligible file | Disposable real Git trees with generated tracked/untracked/excluded/deleted sources; injected read errors propagate; counted N/2N reads prove one pass |
+| debtBaseline(root) | Resolve main merge-base debt or original source bootstrap authority | Disposable real Git histories exercise branch changes, missing refs/blobs and malformed baselines; independently known commit ancestry defines the admissible set |
+| TestTrackedGoFilesPassCatalog | Fail the ordinary repository test on any unadmitted finding | Mutation control adds a tracked violating file and independently corrupts debt; clean restoration passes without changing scanner flags |
+
+No pure function requires an IO mock. The actual Git inventory/baseline boundary is qualified with disposable repositories; fuzzing is for the JSON trust boundary, not external tools. PQ-1 is addressed for all newly introduced validation seams, not only the JSON reader.

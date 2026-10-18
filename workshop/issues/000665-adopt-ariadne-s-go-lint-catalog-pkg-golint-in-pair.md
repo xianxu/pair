@@ -54,3 +54,27 @@ Claim and start-plan succeeded in pair:1 after the hub corrected the #636 dispat
 ### 2026-10-18 — R1: two approved milestones
 
 Hub delivery2b583e46 approves module consumption and layergraph qualification, and splits enforcement/78non-sleep repairs (M1) from103sleep repairs (M2). M1's exact-site JSON allowlist is temporary debt that can only shrink against the main baseline; no inline blanket exemptions. Plan R1 records matching, ratchet regressions and retirement. Implementation may proceed through change-code. Whole issue remains incomplete until M2; milestone publication will use the supported SDLC path or be escalated if unavailable.
+
+### 2026-10-18 — R2: plan-quality verification refinement
+
+Plan reviewPQ-1 requested named validation functions with adversarial-input strategies. Added sleepSites/decodeDebt/checkDebt/checkShrink/scanTracked/debtBaseline and the repository gate, distinguishing pure transformations from real-Git integration tests. Supersedes the prose test-case matrix without changing the approved scope or ratchet mechanism. No implementation has begun.
+
+## Estimate
+
+Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only; the source is flagged stale, so calibration is provisional. Existing upstream checker and Go/Git avoid new-library discovery. Design uses the thorough-spec discount, implementation uses the v3.1 40% factor, familiarity1.0 and15%design buffer. Scanner/debt is one greenfield test module; M1 sweep is six bounded fixture groups and M2 sleep repair is twenty fixture-family groups (not103independent features). The grouped cross-cutting rows below aggregate those primitive counts; no queue/full-suite idle time is included. Three review boundaries comprise two milestones and whole-issue close.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: greenfield-go-module design=0.15 impl=0.32
+item: cross-cutting-refactor design=0.24 impl=1.20
+item: cross-cutting-refactor design=0.80 impl=4.00
+item: atlas-docs design=0.04 impl=0.08
+item: milestone-review design=0.00 impl=0.60
+design-buffer: 0.15
+total: 7.61
+```
+
+### 2026-10-18 — Plan review cleared
+
+Plan-quality round2 CLEAN disposed PQ-1; no open blocking findings. Estimate derived after that result. No implementation has begun; M1's catalog test and exact-site debt validation will start red.
