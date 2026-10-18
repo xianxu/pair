@@ -50,7 +50,7 @@ Design: `ops:teams/devinfra/projects/universal-agent-input-interface/design.side
 
 Durable plan: `workshop/plans/000661-s4-one-edit-path-apply-and-derived-rounds-plan.md`.
 
-- [ ] M1 — Couch: `apply` (atomic resolution, `edits-invalid`), the round derived on every write, the round sidecar in both layouts, `round --json` with `cleared`, the propose converter, and the shared Go/Lua fixtures.
+- [x] M1 — Couch: `apply` (atomic resolution, `edits-invalid`), the round derived on every write, the round sidecar in both layouts, `round --json` with `cleared`, the propose converter, and the shared Go/Lua fixtures.
 - [ ] M2 — the review pane on `apply`: register on first apply, the review agent runs `apply`, the pane highlights the round, and nvim apply and reconcile are retired.
 
 ## Estimate
@@ -86,6 +86,7 @@ Design is the low end of each range, because the durable plan already resolved t
 ## Log
 
 ### 2026-10-18
+- 2026-10-18: closed M1 — Recorded suite: sdlc-local/suite success on 3b12a97c; review fixes since touch sessionsync propose/edits, tests and docs (sessionsync and couchcmd skill tests green). Shared Go/Lua fixtures pass (16 resolution, 9 propose, every written marker parses). Live with this branch couch: good apply landed with explain in round --json; bad batch exit 1 edits-invalid, doc and round byte-identical; write round has no explain; propose per-line marker, 4-line change refused propose-too-large. cleared by rig test against a real ledger.; review verdict: SHIP
 
 - M1 implemented, Tasks 1–6, in commits 45d56db9..c5d226cf. The Go and Lua resolvers and the propose markers share `testdata/edit-records`, and the pane grammar reads every fixture marker back to the accepted and rejected texts.
 - Myers trace memory grows as D², so the diff caps at D ≤ 1024 (the plan said 4096, which would cost about 128 MB at the cap).
