@@ -1,0 +1,194 @@
+---
+gate: boundary-review
+issue: 666
+id_prefix: BR
+rounds:
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 51ef3443-751e-41ac-abd1-688c6a78f5b9
+            repository: github.com/xianxu/pair
+            issue_id: "000666"
+            recipe: small-diff-review
+            round: 1
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/Library/Caches/sdlc/review-checkouts/001ddd5a6ae3d287
+            reviewed_head: 7cb980f5ea0c51ebf5888864f8296c351b7bdcdb
+            slot: pair:6
+            requested_at: "2026-10-18T17:43:01.162425Z"
+          phase: finished
+          pid: 19235
+          started_at: "2026-10-18T17:43:01.340479Z"
+          finished_at: "2026-10-18T17:44:10.952034Z"
+          session_id: 01a1501c-1bf0-7c41-bc71-2e2962c17550
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-v1
+        repository: github.com/xianxu/pair
+        code_head: 7cb980f5ea0c51ebf5888864f8296c351b7bdcdb
+        tracker_head: 5cf7a2be6ce44413ad8c130c4d6cd7525dc943c6
+        branch_point: 9b841c43452eafa93b5613f0d93feb677e0b4a2f
+        since: "2026-10-18T10:34:48-07:00"
+        until: "2026-10-18T10:42:12-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-18T10:34:48-07:00"
+              end: "2026-10-18T10:42:12-07:00"
+              began: "2026-10-18T10:34:48-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot6/pair
+        sources:
+            - harness: codex
+              id: 01a14b2c-9890-74f3-a738-58879659bef5
+              slot: pair:6
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              digest: 55f53d02cd191ae0804311c3c5e23bfdd286752d7dbb5377783bad567d54c18d
+              started: "2026-10-17T18:42:56.865Z"
+              spawned: false
+              bytes: 18817202
+              windows:
+                - start: "2026-10-18T10:34:48-07:00"
+                  end: "2026-10-18T10:42:12-07:00"
+      "n": 1
+      timestamp: "2026-10-18T10:44:12-07:00"
+      dispatched: "2026-10-18T10:42:57-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      findings:
+        - kind: unverifiable
+          id: BR-1
+          severity: Important
+          title: Ordinary repository lint fails before reaching the new rule
+          detail: Running `go test ./internal/repolint -count=1` fails at internal/repolint/catalog_test.go:447 with “need exactly one remote main ref without main tracking config, found 0”. The sole ordinary-lint consumer added in this window, at catalog_test.go:460, is therefore not reached. Provide a successful package run at pinned head 7cb980f5ea0c51ebf5888864f8296c351b7bdcdb in a checkout with its real configured main authority available, or restore that authority in the review environment and rerun.
+          family: repository-lint-boundary-verification
+          round: 1
+      recipe: small-diff-review
+      isolation: fenced
+      blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: f88c376c-6242-41c4-8584-1e72379857ed
+            repository: github.com/xianxu/pair
+            issue_id: "000666"
+            recipe: small-diff-review
+            round: 2
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/Library/Caches/sdlc/review-checkouts/6a72ff96f8bf5dc6
+            reviewed_head: ed4453bdd51193696f695905c38a378ae956ca7a
+            slot: pair:6
+            requested_at: "2026-10-18T17:47:11.239184Z"
+          phase: finished
+          pid: 95368
+          started_at: "2026-10-18T17:47:11.539449Z"
+          finished_at: "2026-10-18T17:48:20.639282Z"
+          session_id: 01a1501f-ed00-7d01-bd08-13fc2f97aa90
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-v1
+        repository: github.com/xianxu/pair
+        code_head: ed4453bdd51193696f695905c38a378ae956ca7a
+        tracker_head: 5cf7a2be6ce44413ad8c130c4d6cd7525dc943c6
+        branch_point: 9b841c43452eafa93b5613f0d93feb677e0b4a2f
+        since: "2026-10-18T10:34:48-07:00"
+        until: "2026-10-18T10:46:03-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-18T10:34:48-07:00"
+              end: "2026-10-18T10:46:03-07:00"
+              began: "2026-10-18T10:34:48-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot6/pair
+        sources:
+            - harness: codex
+              id: 01a14b2c-9890-74f3-a738-58879659bef5
+              slot: pair:6
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              digest: 77c7c654591c80459563316783ee5873db7e5d0eec37f59a6f24ec49bb261a0f
+              started: "2026-10-17T18:42:56.865Z"
+              spawned: false
+              bytes: 19038557
+              windows:
+                - start: "2026-10-18T10:34:48-07:00"
+                  end: "2026-10-18T10:46:03-07:00"
+        cuts:
+            - dispatched: "2026-10-18T10:42:57-07:00"
+              finalized: "2026-10-18T10:44:12-07:00"
+              finalizing: false
+      "n": 2
+      timestamp: "2026-10-18T10:48:22-07:00"
+      dispatched: "2026-10-18T10:47:07-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-1
+          disposition: withdrawn
+          note: This checkout reproduces the missing-main-authority failure. The supplied exact-head package PASS17.539s and named-consumer PASS4.217s answer the requested measurement; inspection confirms that only tracker/prose files changed between measured head 7cb980f5ea0c51ebf5888864f8296c351b7bdcdb and pinned head ed4453bdd51193696f695905c38a378ae956ca7a. No authority-guard change is warranted.
+          round: 2
+      findings:
+        - id: BR-2
+          severity: Minor
+          title: Atlas overstates individual entrypoint-omission coverage
+          detail: atlas/go-lint-catalog.md:61 says synthetic tests omit each entrypoint, but internal/repolint/native_fixture_roots_test.go:39-44 individually removes only the warm entrypoint; park coverage removes its setup call. This is the sole universal entrypoint-omission coverage claim in the window. Say “each root and source, plus a missing entrypoint,” or add individual omission cases for the other protected functions.
+          family: coverage-claims-match-tests
+          round: 2
+      recipe: small-diff-review
+      isolation: fenced
+      reviewed: ed4453bdd51193696f695905c38a378ae956ca7a
+      blocked: false
+disputes:
+    - id: BR-1
+      rationale: The failure is missing main authority in the disposable review environment, not a defect in the new consumer. This configured checkout ran the complete ordinary lint package on the exact reviewed code head successfully; preserve the existing authority guard and use measured host evidence.
+      evidence: 'At git-confirmed HEAD7cb980f5ea0c51ebf5888864f8296c351b7bdcdb, origin/main9b841c43452eafa93b5613f0d93feb677e0b4a2f, main and main-slot6 track origin refs/heads/main. Re-ran go test ./internal/repolint -count=1: PASS17.539s. Re-ran go test ./internal/repolint -run ^TestTrackedGoFilesPassCatalog$ -count=1 -v: PASS4.217s; reports2580 tracked Go sources,5 shared rules plus Pair native-fixture-roots,100 exact sleep debt sites. No code changes since the reviewed head; results recorded in issue Log.'
+      after: 1
+      timestamp: "2026-10-18T17:45:59Z"
+      by: Xian Xu on Xian’s MacBook Pro at pair:6 (/Users/xianxu/workspace/worktree/pair-slot6/pair)
+---
+
+# Gate ledger — pair#666 (boundary-review)
+
+Findings this gate raised, the stable ids the binary assigned them, and how
+later rounds disposed of them. Generated — edit the gate, not this file.
+
+## Round 1 — 2026-10-18T10:44:12-07:00 (codex) — BLOCKED
+
+### Raised
+
+- **BR-1** [Important] `repository-lint-boundary-verification` (kind: unverifiable) Ordinary repository lint fails before reaching the new rule
+  Running `go test ./internal/repolint -count=1` fails at internal/repolint/catalog_test.go:447 with “need exactly one remote main ref without main tracking config, found 0”. The sole ordinary-lint consumer added in this window, at catalog_test.go:460, is therefore not reached. Provide a successful package run at pinned head 7cb980f5ea0c51ebf5888864f8296c351b7bdcdb in a checkout with its real configured main authority available, or restore that authority in the review environment and rerun.
+
+## Round 2 — 2026-10-18T10:48:22-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — withdrawn — This checkout reproduces the missing-main-authority failure. The supplied exact-head package PASS17.539s and named-consumer PASS4.217s answer the requested measurement; inspection confirms that only tracker/prose files changed between measured head 7cb980f5ea0c51ebf5888864f8296c351b7bdcdb and pinned head ed4453bdd51193696f695905c38a378ae956ca7a. No authority-guard change is warranted.
+
+### Raised
+
+- **BR-2** [Minor] `coverage-claims-match-tests` Atlas overstates individual entrypoint-omission coverage
+  atlas/go-lint-catalog.md:61 says synthetic tests omit each entrypoint, but internal/repolint/native_fixture_roots_test.go:39-44 individually removes only the warm entrypoint; park coverage removes its setup call. This is the sole universal entrypoint-omission coverage claim in the window. Say “each root and source, plus a missing entrypoint,” or add individual omission cases for the other protected functions.
+
+## Disputes
+
+Findings the implementer declined (`sdlc finding dispute`), each answered by the
+next review round.
+
+- **BR-1** — after round 1 (2026-10-18T17:45:59Z, Xian Xu on Xian’s MacBook Pro at pair:6 (/Users/xianxu/workspace/worktree/pair-slot6/pair))
+  rationale: The failure is missing main authority in the disposable review environment, not a defect in the new consumer. This configured checkout ran the complete ordinary lint package on the exact reviewed code head successfully; preserve the existing authority guard and use measured host evidence.
+  evidence: At git-confirmed HEAD7cb980f5ea0c51ebf5888864f8296c351b7bdcdb, origin/main9b841c43452eafa93b5613f0d93feb677e0b4a2f, main and main-slot6 track origin refs/heads/main. Re-ran go test ./internal/repolint -count=1: PASS17.539s. Re-ran go test ./internal/repolint -run ^TestTrackedGoFilesPassCatalog$ -count=1 -v: PASS4.217s; reports2580 tracked Go sources,5 shared rules plus Pair native-fixture-roots,100 exact sleep debt sites. No code changes since the reviewed head; results recorded in issue Log.
+
+## Open findings
+
+- **BR-2** [Minor] `coverage-claims-match-tests` Atlas overstates individual entrypoint-omission coverage

@@ -1,0 +1,605 @@
+{
+  "version": 1,
+  "sites": [
+    {
+      "path": "cmd/internal/broadcast/cloudflared_test.go",
+      "function": "TestReapOrphans",
+      "call": "time.Sleep(100 * time.Millisecond)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/broadcast/cloudflared_test.go",
+      "function": "TestReapOrphans",
+      "call": "time.Sleep(100 * time.Millisecond)",
+      "ordinal": 2
+    },
+    {
+      "path": "cmd/internal/broadcast/cloudflared_test.go",
+      "function": "TestReapOrphans",
+      "call": "time.Sleep(100 * time.Millisecond)",
+      "ordinal": 3
+    },
+    {
+      "path": "cmd/internal/broadcast/cloudflared_test.go",
+      "function": "TestReapOrphans",
+      "call": "time.Sleep(100 * time.Millisecond)",
+      "ordinal": 4
+    },
+    {
+      "path": "cmd/internal/broadcast/host_test.go",
+      "function": "*failingTunnel.Open",
+      "call": "time.Sleep(100 * time.Millisecond)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/broadcast/manual_test.go",
+      "function": "TestManualViewerServer",
+      "call": "time.Sleep(time.Second)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/couchcmd/message_lifecycle_test.go",
+      "function": "TestLifecycleDelayedFramesFromOldIncarnationIgnored",
+      "call": "time.Sleep(200 * time.Millisecond)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/couchcmd/message_lifecycle_test.go",
+      "function": "TestLifecycleStartDetachReattachReplaceRestart",
+      "call": "time.Sleep(100 * time.Millisecond)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/couchcmd/message_service_test.go",
+      "function": "TestMessageAdmissionRejectsMismatchesThenGoesDormant",
+      "call": "time.Sleep(100 * time.Millisecond)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/couchcmd/message_service_test.go",
+      "function": "TestMessageIdleMultiSlotRunsNoProbes",
+      "call": "time.Sleep(2500 * time.Millisecond)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/couchcore/conformance_live_test.go",
+      "function": "TestRunnerConformance_SignalIgnored",
+      "call": "time.Sleep(100 * time.Millisecond)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/couchcore/continuation_conformance_live_test.go",
+      "function": "TestContinuationZellijAgentStandIn",
+      "call": "time.Sleep(20 * time.Second)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/couchcore/quiesce_conformance_live_test.go",
+      "function": "TestQuiesceLeavesTheBindingAndEndsTheSessionLive",
+      "call": "time.Sleep(100 * time.Millisecond)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/couchcore/recovery_conformance_live_test.go",
+      "function": "TestRecoveryLiveAgentStandIn",
+      "call": "time.Sleep(40 * time.Second)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/couchmessage/background_protocol_test.go",
+      "function": "TestBackgroundClientCopiesCoalescesAndClearsEvidence",
+      "call": "time.Sleep(120 * time.Millisecond)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/couchmessage/background_protocol_test.go",
+      "function": "TestBackgroundClientCopiesCoalescesAndClearsEvidence",
+      "call": "time.Sleep(120 * time.Millisecond)",
+      "ordinal": 2
+    },
+    {
+      "path": "cmd/internal/couchmessage/session_transport_test.go",
+      "function": "TestPeerPIDIsTheDialingProcess",
+      "call": "time.Sleep(200 * time.Millisecond)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/couchmessage/session_transport_test.go",
+      "function": "TestSessionCoalescesActivityAndSendsSubmitAtOnce",
+      "call": "time.Sleep(700 * time.Millisecond)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/couchtty/console_broadcast_test.go",
+      "function": "TestBroadcastClickPastTheCellDoesNotStop",
+      "call": "time.Sleep(100 * time.Millisecond)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/couchtty/console_broadcast_test.go",
+      "function": "TestBroadcastOffHasNoClickTarget",
+      "call": "time.Sleep(100 * time.Millisecond)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/couchtty/console_castcodes_test.go",
+      "function": "TestWebCastCodesOnTheChromeCell",
+      "call": "time.Sleep(100 * time.Millisecond)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/couchtty/console_live_test.go",
+      "function": "TestLiveConsoleNvimPreservesContentAndChrome",
+      "call": "time.Sleep(250 * time.Millisecond)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/couchtty/console_live_test.go",
+      "function": "TestLiveConsoleNvimPreservesContentAndChrome",
+      "call": "time.Sleep(500 * time.Millisecond)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/couchtty/console_notes_test.go",
+      "function": "TestNotesMenuTakesNoClickUnderAPanel",
+      "call": "time.Sleep(100 * time.Millisecond)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/couchtty/console_pointer_test.go",
+      "function": "TestPointerDroppedWhileSwitcherOpen",
+      "call": "time.Sleep(100 * time.Millisecond)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/couchtty/console_pointer_test.go",
+      "function": "TestPointerMarksFade",
+      "call": "time.Sleep(100 * time.Millisecond)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/couchtty/console_pointer_test.go",
+      "function": "TestPointerOnTabBar",
+      "call": "time.Sleep(100 * time.Millisecond)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/couchtty/console_pointer_test.go",
+      "function": "TestPointerStressNoDeadlock",
+      "call": "time.Sleep(time.Second)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/couchtty/console_webcast_test.go",
+      "function": "TestWebcastClicks",
+      "call": "time.Sleep(100 * time.Millisecond)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/couchtty/notification_pty_test.go",
+      "function": "TestNotificationPTYHelper",
+      "call": "time.Sleep(time.Second)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/couchtty/terminal_pressure_test.go",
+      "function": "runPressureTrial",
+      "call": "time.Sleep(250 * time.Millisecond)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/hostty/hostty_test.go",
+      "function": "TestHostsAgreeAfterClose",
+      "call": "time.Sleep(100 * time.Millisecond)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/launcher/osruntime_test.go",
+      "function": "TestSidecarProcessGroupProbe",
+      "call": "time.Sleep(30 * time.Second)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/launcher/session_quiescence_live_test.go",
+      "function": "TestSessionDetachLive",
+      "call": "time.Sleep(100 * time.Millisecond)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/layoutcmd/rightpane_rungs_live_test.go",
+      "function": "TestRightPaneRungsZellijConformance",
+      "call": "time.Sleep(150 * time.Millisecond)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/layoutcmd/rightpane_rungs_live_test.go",
+      "function": "TestRightPaneRungsZellijConformance",
+      "call": "time.Sleep(150 * time.Millisecond)",
+      "ordinal": 2
+    },
+    {
+      "path": "cmd/internal/layoutcmd/rightpane_rungs_live_test.go",
+      "function": "TestRightPaneRungsZellijConformance",
+      "call": "time.Sleep(300 * time.Millisecond)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/procutil/resource_darwin_test.go",
+      "function": "TestResourceCwdOfAChild",
+      "call": "time.Sleep(10 * time.Second)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/procutil/resource_darwin_test.go",
+      "function": "TestResourceEnvironmentOfAChild",
+      "call": "time.Sleep(10 * time.Second)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/terminal/presenter_stall_test.go",
+      "function": "TestPresenterSurvivesTransientParentStallAndRestoresModes",
+      "call": "time.Sleep(2500 * time.Millisecond)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/ttyio/writer_test.go",
+      "function": "TestFileWriteSurvivesTransientHostStallWithinCallerDeadline",
+      "call": "time.Sleep(2500 * time.Millisecond)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/webcast/live_drive_nav_test.go",
+      "function": "TestLiveDriveNavigation",
+      "call": "time.Sleep(1500 * time.Millisecond)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/webcast/live_drive_nav_test.go",
+      "function": "TestLiveDriveNavigation",
+      "call": "time.Sleep(300 * time.Millisecond)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/webcast/live_drive_nav_test.go",
+      "function": "TestLiveDriveNavigation",
+      "call": "time.Sleep(500 * time.Millisecond)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/webcast/live_drive_nav_test.go",
+      "function": "TestLiveDriveNavigation",
+      "call": "time.Sleep(time.Second)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/webcast/live_drive_real_test.go",
+      "function": "TestDriveRealCast",
+      "call": "time.Sleep(100 * time.Millisecond)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/webcast/live_drive_real_test.go",
+      "function": "TestDriveRealCast",
+      "call": "time.Sleep(100 * time.Millisecond)",
+      "ordinal": 2
+    },
+    {
+      "path": "cmd/internal/webcast/live_drive_real_test.go",
+      "function": "TestDriveRealCast",
+      "call": "time.Sleep(150 * time.Millisecond)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/webcast/live_drive_real_test.go",
+      "function": "TestDriveRealCast",
+      "call": "time.Sleep(500 * time.Millisecond)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/webcast/live_drive_real_test.go",
+      "function": "TestDriveRealCast",
+      "call": "time.Sleep(500 * time.Millisecond)",
+      "ordinal": 2
+    },
+    {
+      "path": "cmd/internal/webcast/live_drive_real_test.go",
+      "function": "TestDriveRealCast",
+      "call": "time.Sleep(500 * time.Millisecond)",
+      "ordinal": 3
+    },
+    {
+      "path": "cmd/internal/webcast/live_drive_real_test.go",
+      "function": "TestDriveRealCast",
+      "call": "time.Sleep(time.Second)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/webcast/live_drive_real_test.go",
+      "function": "TestDriveRealCastFlick",
+      "call": "time.Sleep(2 * time.Second)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/webcast/live_drive_real_test.go",
+      "function": "startRealCast",
+      "call": "time.Sleep(1500 * time.Millisecond)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/webcast/live_drive_real_test.go",
+      "function": "startRealCast",
+      "call": "time.Sleep(time.Second)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/webcast/live_drive_test.go",
+      "function": "TestLiveDrive",
+      "call": "time.Sleep(1500 * time.Millisecond)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/webcast/live_drive_test.go",
+      "function": "TestLiveDrive",
+      "call": "time.Sleep(2 * time.Second)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/webcast/live_drive_test.go",
+      "function": "TestLiveDrive",
+      "call": "time.Sleep(300 * time.Millisecond)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/webcast/live_drive_test.go",
+      "function": "TestLiveDrive",
+      "call": "time.Sleep(300 * time.Millisecond)",
+      "ordinal": 2
+    },
+    {
+      "path": "cmd/internal/webcast/live_drive_test.go",
+      "function": "TestLiveDrive",
+      "call": "time.Sleep(300 * time.Millisecond)",
+      "ordinal": 3
+    },
+    {
+      "path": "cmd/internal/webcast/live_drive_test.go",
+      "function": "TestLiveDrive",
+      "call": "time.Sleep(500 * time.Millisecond)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/webcast/live_drive_test.go",
+      "function": "TestLiveDrive",
+      "call": "time.Sleep(500 * time.Millisecond)",
+      "ordinal": 2
+    },
+    {
+      "path": "cmd/internal/webcast/live_drive_test.go",
+      "function": "TestLiveDrive",
+      "call": "time.Sleep(time.Second)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/webcast/live_drive_test.go",
+      "function": "TestLiveDrive",
+      "call": "time.Sleep(time.Second)",
+      "ordinal": 2
+    },
+    {
+      "path": "cmd/internal/webcast/live_notedraft_test.go",
+      "function": "TestLiveDrawCaptureProtocolsAndStoredSubmission",
+      "call": "time.Sleep(250 * time.Millisecond)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/webcast/live_notedraft_test.go",
+      "function": "TestLiveDrawCaptureProtocolsAndStoredSubmission",
+      "call": "time.Sleep(500 * time.Millisecond)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/webcast/live_record_test.go",
+      "function": "\u003cpackage\u003e",
+      "call": "time.Sleep(1500 * time.Millisecond)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/webcast/live_record_test.go",
+      "function": "\u003cpackage\u003e",
+      "call": "time.Sleep(1500 * time.Millisecond)",
+      "ordinal": 2
+    },
+    {
+      "path": "cmd/internal/webcast/live_record_test.go",
+      "function": "\u003cpackage\u003e",
+      "call": "time.Sleep(2 * time.Second)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/webcast/live_record_test.go",
+      "function": "\u003cpackage\u003e",
+      "call": "time.Sleep(700 * time.Millisecond)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/webcast/live_record_test.go",
+      "function": "\u003cpackage\u003e",
+      "call": "time.Sleep(900 * time.Millisecond)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/webcast/live_record_test.go",
+      "function": "\u003cpackage\u003e",
+      "call": "time.Sleep(time.Second)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/webcast/live_record_test.go",
+      "function": "\u003cpackage\u003e",
+      "call": "time.Sleep(time.Second)",
+      "ordinal": 2
+    },
+    {
+      "path": "cmd/internal/webcast/live_record_test.go",
+      "function": "\u003cpackage\u003e",
+      "call": "time.Sleep(time.Second)",
+      "ordinal": 3
+    },
+    {
+      "path": "cmd/internal/webcast/live_record_test.go",
+      "function": "TestLiveRecording",
+      "call": "time.Sleep(1200 * time.Millisecond)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/webcast/live_record_test.go",
+      "function": "TestLiveRecording",
+      "call": "time.Sleep(1500 * time.Millisecond)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/webcast/live_record_test.go",
+      "function": "TestLiveRecording",
+      "call": "time.Sleep(2 * time.Second)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/webcast/live_record_test.go",
+      "function": "TestLiveRecording",
+      "call": "time.Sleep(300 * time.Millisecond)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/webcast/live_record_test.go",
+      "function": "TestLiveRecording",
+      "call": "time.Sleep(800 * time.Millisecond)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/webcast/live_record_test.go",
+      "function": "TestLiveRecording",
+      "call": "time.Sleep(time.Second)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/webcast/live_record_test.go",
+      "function": "TestLiveStrokeReachesDiskWhileLive",
+      "call": "time.Sleep(100 * time.Millisecond)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/webcast/live_record_test.go",
+      "function": "TestLiveStrokeReachesDiskWhileLive",
+      "call": "time.Sleep(100 * time.Millisecond)",
+      "ordinal": 2
+    },
+    {
+      "path": "cmd/internal/webcast/live_record_test.go",
+      "function": "TestLiveStrokeReachesDiskWhileLive",
+      "call": "time.Sleep(time.Second)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/webcast/live_record_test.go",
+      "function": "recordScenario",
+      "call": "time.Sleep(1500 * time.Millisecond)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/webcast/live_replaced_test.go",
+      "function": "TestLiveReplacedElements",
+      "call": "time.Sleep(2500 * time.Millisecond)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/webcast/live_replaced_test.go",
+      "function": "TestLiveReplacedElements",
+      "call": "time.Sleep(3 * time.Second)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/webcast/live_replaced_test.go",
+      "function": "TestLiveReplacedElements",
+      "call": "time.Sleep(500 * time.Millisecond)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/webcast/live_replaced_test.go",
+      "function": "TestLiveReplacedElements",
+      "call": "time.Sleep(time.Second)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/webcast/live_test.go",
+      "function": "liveHarness.clickControl",
+      "call": "time.Sleep(100 * time.Millisecond)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/webcast/lock_live_test.go",
+      "function": "TestLiveLockPage",
+      "call": "time.Sleep(100 * time.Millisecond)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/webcast/server_board_test.go",
+      "function": "TestBoardAnswers",
+      "call": "time.Sleep(time.Second)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/webcast/server_board_test.go",
+      "function": "TestBoardColorLimitAndRate",
+      "call": "time.Sleep(100 * time.Millisecond)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/webcast/server_drive_test.go",
+      "function": "TestDriveOnlyUnderTheDriveLink",
+      "call": "time.Sleep(300 * time.Millisecond)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/webcast/server_drive_test.go",
+      "function": "TestDriveSeatFollowsItsStream",
+      "call": "time.Sleep(300 * time.Millisecond)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/webcast/server_notedraft_test.go",
+      "function": "TestDraftOwnerUsesLiveGateProof",
+      "call": "time.Sleep(600 * time.Millisecond)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/webcast/viewer_annotate_live_test.go",
+      "function": "TestAnnotateLiveTwoViewers",
+      "call": "time.Sleep(200 * time.Millisecond)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/webcast/viewer_annotate_live_test.go",
+      "function": "TestAnnotateLiveTwoViewers",
+      "call": "time.Sleep(300 * time.Millisecond)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/webcast/viewer_live_test.go",
+      "function": "waitEval",
+      "call": "time.Sleep(100 * time.Millisecond)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/wrapcmd/agent_drive_live_test.go",
+      "function": "TestAgentDriveLiveCapture",
+      "call": "time.Sleep(1500 * time.Millisecond)",
+      "ordinal": 1
+    },
+    {
+      "path": "cmd/internal/wrapcmd/peer_live_test.go",
+      "function": "TestPeerLiveConformance",
+      "call": "time.Sleep(time.Second)",
+      "ordinal": 1
+    }
+  ]
+}

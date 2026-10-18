@@ -1,0 +1,8 @@
+{
+ "name": "blank-line-delete",
+ "base": "a\n\nb\n",
+ "after": "a\nb\n",
+ "markers": "a\n\nb\n",
+ "accepted": "a\n\nb\n",
+ "rejected": "a\n\nb\n"
+}

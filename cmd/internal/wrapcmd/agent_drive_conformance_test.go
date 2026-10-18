@@ -49,7 +49,7 @@ func (w *conformanceDriveWriter) Write(b []byte) (int, error) {
 
 func runIsolatedDriveConformance(t *testing.T, request agentdrive.ModelRequest, want agentdrive.Outcome, change bool) {
 	t.Helper()
-	dir, e := os.MkdirTemp("/tmp", "pair-drive-conformance-")
+	dir, e := os.MkdirTemp("", "pdc-")
 	if e != nil {
 		t.Fatal(e)
 	}

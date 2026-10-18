@@ -21,6 +21,8 @@ local record  = dofile(here .. 'record.lua')
 local reconstruct = dofile(here .. 'reconstruct.lua') -- resume repaint (reconstruct-on-open)
 local projection = dofile(here .. 'projection.lua')
 local poke_bodies = dofile(here .. 'poke_bodies.lua')
+local round_watch = dofile(here .. 'round_watch.lua') -- pair review apply rounds (#661 M2)
+local oplock = dofile(here .. 'oplock.lua')
 
 -- The agent-poke seam, injectable: on_agent_round is driven directly by the
 -- headless tests, which swap `M.poke` for a recorder so they never shell zellij.
@@ -134,6 +136,38 @@ function M.on_agent_round(buf, records, context)
   return enriched, dropped, enriched ~= nil, uncertain
 end
 
+-- An agent round applied through `pair review apply` (#661 M2): the shared
+-- engine already wrote the file, so the pane only reloads it and decorates the
+-- round's spans; it never writes the file for an agent round. A modified buffer
+-- means the operator is mid-turn (their lock should have refused the apply), so
+-- the pane keeps their text and says so. Exposed for testing.
+function M.on_applied_round(buf, artifact)
+  if vim.bo[buf].modified then
+    local sess = sessions[buf] or {}
+    if sess.warned ~= artifact.round.result_hash then -- once per declined round
+      sess.warned = artifact.round.result_hash
+      vim.notify('review: the agent applied a round while you have unsaved edits; your buffer was kept', vim.log.levels.WARN)
+    end
+    return false
+  end
+  local base = apply.buf_content(buf)
+  projection.set_applying(buf, true)
+  local ok, err = pcall(vim.api.nvim_buf_call, buf, function() vim.cmd('silent edit!') end)
+  if ok then
+    apply.apply_snapshot(buf, round_watch.decorations(artifact.round))
+    projection.record_empty_for(buf, base)
+    projection.record(buf)
+    projection.ensure_watch(buf)
+  end
+  projection.set_applying(buf, false)
+  if not ok then
+    vim.notify('review: reloading the applied round failed: ' .. tostring(err), vim.log.levels.ERROR)
+    return false
+  end
+  pcall(M.rehydrate_definitions, buf)
+  return true
+end
+
 -- The human finished their turn: save the incoming edits. The nvim writes no git;
 -- the AGENT commits the human round (invariant #1). The commit-request poke is
 -- issued by nvim/review.lua's finish_human_turn (the UI layer where the trigger lives).
@@ -218,7 +252,10 @@ function M.start(opts)
     local _, _, accepted, uncertain = M.on_agent_round(buf, records, context)
     return accepted, uncertain
   end, watch_opts)
-  sessions[buf] = { tag = tag, file = file, stop = stop }
+  pcall(oplock.reclaim, file) -- a lock a crashed pane left would block every apply
+  local stop_rounds = round_watch.watch(file, function(artifact) return M.on_applied_round(buf, artifact) end,
+    opts.round_watch_opts)
+  sessions[buf] = { tag = tag, file = file, stop = function() stop(); stop_rounds() end }
   apply.clear_all(buf)
   pcall(M.reconstruct_on_open, buf, file, opts.identity) -- scoped resume repaint
   pcall(M.rehydrate_definitions, buf)

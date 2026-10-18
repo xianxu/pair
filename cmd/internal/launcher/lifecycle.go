@@ -12,6 +12,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/pairlifecycle"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
+	"github.com/xianxu/pair/cmd/internal/zellijreply"
 )
 
 // The attach + quit-cleanup orchestrators behind RunLaunch's in-process restart
@@ -39,6 +40,12 @@ func AttachExistingSession(opts LaunchOptions, env Env, rt Runtime, tag, session
 }
 
 func attachWithRetention(opts LaunchOptions, env Env, rt Runtime, tag, session, agent string, retain bool) (code int, resultErr error, retained RetentionUse) {
+	if opts.queryContext == nil {
+		var cancel context.CancelFunc
+		opts.queryContext, cancel = zellijreply.AdmissionContext(opts.lifetimeContext())
+		defer cancel()
+	}
+
 	if err := validateCouchSessionLaunch(opts.Args, env); err != nil {
 		return 1, err, nil
 	}
@@ -46,7 +53,7 @@ func attachWithRetention(opts LaunchOptions, env Env, rt Runtime, tag, session, 
 		if intent.Disposition != "attach" || intent.Name != session || intent.Tag != tag {
 			return 1, errors.New("couch session attach address changed"), nil
 		}
-		if err := verifyCouchSessionAttach(rt, *intent); err != nil {
+		if err := verifyCouchSessionAttach(opts.queryContext, rt, *intent); err != nil {
 			return 1, err, nil
 		}
 	}
@@ -131,13 +138,16 @@ func attachWithRetention(opts LaunchOptions, env Env, rt Runtime, tag, session, 
 	if intent := opts.Args.CouchSession; intent != nil {
 		// Preparation can block. Require a fresh positive listing at the final
 		// effect; the native list-to-attach death race remains accepted.
-		if err := verifyCouchSessionAttach(rt, *intent); err != nil {
+		if err := verifyCouchSessionAttach(opts.queryContext, rt, *intent); err != nil {
 			return 1, err, nil
 		}
 	}
 	opts.startupTiming.mark("attach-revalidation")
 	opts.startupTiming.handoff("attach-handoff")
-	code, resultErr = rt.AttachSession(session, filepath.Join(opts.PairHome, "zellij"))
+	if err := opts.queryContext.Err(); err != nil {
+		return 1, err, nil
+	}
+	code, resultErr = rt.AttachSessionContext(opts.lifetimeContext(), opts.queryContext, session, filepath.Join(opts.PairHome, "zellij"))
 	return code, resultErr, use
 }
 

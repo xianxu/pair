@@ -403,3 +403,21 @@ func TestLifecycleNoticeDiscardInfoNoWriteWaitsForReadinessChange(t *testing.T) 
 		t.Fatalf("lost suppressed info: %+v", ps)
 	}
 }
+
+// A native exit is one more confirmed kind (pair#657): it publishes as
+// "exited (code N)" and coalesces per slot like every other kind.
+func TestLifecycleNoticeExitedPublishesAndCoalesces(t *testing.T) {
+	var s LifecycleNoticeState
+	noticeReady(&s)
+	exited := noticeFact("pair:2", 1)
+	exited.Fact.Kind, exited.Fact.Mode, exited.Fact.Incarnation = LifecycleExited, "code 3", "7:child"
+	es := noticePublications(noticeStep(&s, exited))
+	if len(es) != 1 || !strings.Contains(es[0].Body, "pair:2: exited (code 3)") {
+		t.Fatalf("exited notice: %+v", es)
+	}
+	invalid := exited
+	invalid.Fact.Kind = "agent-gone"
+	if validLifecycleNoticeFact(invalid.Fact) {
+		t.Fatal("an unknown kind validated")
+	}
+}

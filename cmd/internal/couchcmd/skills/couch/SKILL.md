@@ -448,6 +448,8 @@ need no registration and keep their legacy owner compatibility.
 | `write --section HEADING BODYFILE FILE --if-hash H` | Replaces that section if it still has hash H (whole heading lines only) and prints the new hash |
 | `write --frontmatter BODYFILE FILE --if-hash H` | Replaces only the leading block; preserves body bytes and unread body edits |
 | `write --all BODYFILE FILE --if-hash H` | Replaces the whole file (keep the frontmatter) if it still has hash H |
+| `apply EDITS.json FILE --if-hash H [--fold ID] [--json]` | A precise edit: records `{old, occurrence, new, explain}` (`[...]` or `{"records": [...]}`) against the whole file (H from `read --all`), all or none |
+| `round FILE --json` | Your last round's spans and whether a submit has cleared it (what parley highlights) |
 | `diff FILE` | The operator's edits you haven't seen: anything outside what you last wrote, read with `--frontmatter`, or read with `--all` (information, not a gate) |
 | `status [--json] FILE` | The lock, your last write, and the events you still owe the file |
 
@@ -456,6 +458,23 @@ need no registration and keep their legacy owner compatibility.
   prints the current hash. Read it again, recompute, and retry. Edits in
   other sections never block a section write. A write without `--if-hash`
   refuses.
+- **Edits with reasons (`apply`):** use `apply` for an edit to existing text, giving each record an `explain` written for the operator.
+  - `old` must be non-empty, and `occurrence` is the 1-based plain match. To insert, repeat nearby text inside `new`.
+  - Every record resolves against the file as it stands, before anything is written. One empty, missing or overlapping record refuses the whole batch with exit 1 and `edits-invalid`, which lists each bad record. Nothing is written: fix the records and apply again.
+  - Exit 6 has one answer: `read --all` again, rebuild the records, apply again.
+  - Keep `write` for generated content that isn't an edit.
+- **In pair's review workbench (no Couch)**, use `pair review apply EDITS.json FILE --if-hash H --json` instead. It takes the same records, exits and propose rules. Commit its `Body` verbatim with docflow right after it lands.
+  - A `Warning` in the reply means the file was written but the round wasn't recorded: commit `Body` anyway.
+  - `pair review round FILE --json` (`Round`, `Body`, `Current`) recovers a lost reply.
+- **Rounds:** every write of yours that changes the file, `write` or `apply`, becomes the round parley highlights. Only `apply` spans carry your reasons. The round clears on the operator's next submit.
+- **`presentation: propose`:** Couch writes your body change as per-line markers for the operator to accept or reject. Never write the markers yourself.
+  - A change over 3 lines refuses with `propose-too-large`. A line the marker grammar can't carry refuses with `propose-unencodable`. For either refusal, write the change as a side-doc proposal, linked in place by `→ [proposal](…)`.
+  - These apply directly, not proposed:
+    - records wholly inside the frontmatter;
+    - the record that replaces the operator's ready marker with a new `→ [proposal](PATH)` or `→ [discussion](PATH)` link;
+    - the fold a link's `🤖[fold in]` asks for, which keeps that link with ` (folded YYYY-MM-DD)` appended.
+  - Pair the `discussions:` entry with its link yourself; the engine doesn't verify that.
+  - `presentation` and `collaboration-mode` are the operator's: changing either refuses with `operator-owned`.
 - **Forgotten lock:** a valid operator-lock time older than 30 minutes adds
   its age and advice to ping the operator (or add a Needs you item for the
   TL's session file). The lock never expires; malformed or future times still

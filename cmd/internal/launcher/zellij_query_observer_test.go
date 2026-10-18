@@ -3,29 +3,64 @@ package launcher
 import (
 	"context"
 	"errors"
+	"github.com/xianxu/pair/cmd/internal/zellijtest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 )
 
+func TestZellijQueryObserverReportsActualDeadlineContexts(t *testing.T) {
+	for _, budget := range []time.Duration{0, time.Second, time.Minute} {
+		t.Run(budget.String(), func(t *testing.T) {
+			ctx := context.Background()
+			var wantCaller time.Time
+			if budget != 0 {
+				wantCaller = time.Now().Add(budget)
+				var cancel context.CancelFunc
+				ctx, cancel = context.WithDeadline(ctx, wantCaller)
+				defer cancel()
+			}
+			var event ZellijQueryObservation
+			ctx = WithZellijQueryObserver(ctx, func(e ZellijQueryObservation) { event = e })
+			source := ZellijSource{queryRun: func(cmd *exec.Cmd) error {
+				return nil
+			}}
+			before := time.Now()
+			_, _ = source.runContext(ctx, "list-sessions", "--short")
+			after := time.Now()
+			if !event.CallerDeadline.Equal(wantCaller) {
+				t.Fatalf("deadlines caller=%v want=%v effective=%v", event.CallerDeadline, wantCaller, event.EffectiveDeadline)
+			}
+			if budget == time.Second {
+				if !event.EffectiveDeadline.Equal(wantCaller) {
+					t.Fatal("query lost earlier caller deadline")
+				}
+			} else if event.EffectiveDeadline.Before(before.Add(zellijQueryTimeout)) || event.EffectiveDeadline.After(after.Add(zellijQueryTimeout)) {
+				t.Fatalf("query cap deadline=%v outside call interval", event.EffectiveDeadline)
+			}
+		})
+	}
+}
+
 func TestZellijQueryObserverRetainsExactResponsesWithoutChangingClassification(t *testing.T) {
 	dir := t.TempDir()
 	path, count := filepath.Join(dir, "zellij"), filepath.Join(dir, "count")
 	script := `#!/bin/sh
 case "$*" in
- 'list-sessions --short') printf 'pair-observed\n' ;;
- 'list-sessions --no-formatting') printf 'pair-observed [Created]\n' ;;
+ 'list-sessions --short') ` + zellijtest.ShellCase(t, "launcher-observer-short") + ` ;;
+ 'list-sessions --no-formatting') ` + zellijtest.ShellCase(t, "launcher-observer-full") + ` ;;
  '--session pair-observed action list-clients')
  n=0
  if [ -f '` + count + `' ]; then read -r n < '` + count + `'; fi
  n=$((n+1)); printf '%s\n' "$n" > '` + count + `'
  case "$n" in
-  1) : ;;
-  2) printf 'CLIENTS\n' ;;
-  3) printf 'CLIENTS\n1\n' ;;
-  *) printf 'partial\n'; printf 'query failed\n' >&2; exit 7 ;;
+  1) ` + zellijtest.ShellCase(t, "launcher-observer-unanswered") + ` ;;
+  2) ` + zellijtest.ShellCase(t, "launcher-observer-empty-clients") + ` ;;
+  3) ` + zellijtest.ShellCase(t, "launcher-observer-attached") + ` ;;
+  *) ` + zellijtest.ShellCase(t, "launcher-observer-partial-failure") + ` ;;
  esac ;;
  *) exit 9 ;;
 esac
@@ -53,7 +88,7 @@ esac
 	if len(events) != 12 {
 		t.Fatalf("observed %d calls, want original 12", len(events))
 	}
-	for i, want := range []string{"", "CLIENTS\n", "CLIENTS\n1\n", "partial\n"} {
+	for i, want := range []string{"", "CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\n", "CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\n1 terminal_0 sh\n", "partial\n"} {
 		e := events[i*3+2]
 		if string(e.Stdout) != want || len(e.Args) != 4 || e.Args[1] != "pair-observed" || e.Started.IsZero() || e.Finished.Before(e.Started) || e.Duration < 0 {
 			t.Fatalf("attempt%d evidence=%+v", i, e)

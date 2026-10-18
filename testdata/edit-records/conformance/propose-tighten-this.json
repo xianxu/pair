@@ -1,0 +1,13 @@
+{
+ "name": "propose-tighten-this",
+ "source": "pair#661, the ordinary answer that stays a proposal (bytes to share with ariadne#437)",
+ "base": "---\npresentation: propose\ncollaboration-mode: discussion\n---\n\n# Release design\n\nThe release process checks the build and the tests before it ships. 🤖[tighten this]\n",
+ "records": [
+  {
+   "old": "The release process checks the build and the tests before it ships. 🤖[tighten this]",
+   "new": "The release checks the build and tests before shipping.",
+   "explain": "tightened"
+  }
+ ],
+ "after": "---\npresentation: propose\ncollaboration-mode: discussion\n---\n\n# Release design\n\nThe release 🤖~process checks the build and the tests before it ships. 🤖\\[tighten this\\]~{checks the build and tests before shipping.}\n"
+}

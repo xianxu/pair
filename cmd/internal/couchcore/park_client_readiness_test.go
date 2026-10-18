@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/xianxu/pair/cmd/internal/zellijtest"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -17,16 +18,9 @@ import (
 	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
-type parkClientReply struct {
-	body string
-	exit int
-}
-
-const parkClientHeader = "CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\n"
-
 // The fake retains its invocation index across processes. An unexpected query
 // fails instead of falling through to any installed native binary.
-func parkClientCLI(t *testing.T, root string, replies []parkClientReply) string {
+func parkClientCLI(t *testing.T, root string, replies []string) string {
 	t.Helper()
 	state := filepath.Join(root, "query-count")
 	if err := os.WriteFile(state, []byte("0\n"), 0600); err != nil {
@@ -34,14 +28,10 @@ func parkClientCLI(t *testing.T, root string, replies []parkClientReply) string 
 	}
 	var script strings.Builder
 	script.WriteString("#!/bin/sh\ncase \"$*\" in '--session pair-readiness action list-clients') ;; *) exit 99 ;; esac\nIFS= read -r n < \"$PAIR_TEST_CLIENT_REPLY_STATE\" || exit 98\nprintf '%s\\n' \"$((n+1))\" > \"$PAIR_TEST_CLIENT_REPLY_STATE\"\ncase $n in\n")
-	quote := func(s string) string { return "'" + strings.ReplaceAll(s, "'", "'\"'\"'") + "'" }
-	for i, reply := range replies {
-		redirect := ""
-		if reply.exit != 0 {
-			redirect = " >&2"
-		}
-		fmt.Fprintf(&script, "%d) printf '%%s' %s%s; exit %d ;;\n", i, quote(reply.body), redirect, reply.exit)
+	for i, name := range replies {
+		fmt.Fprintf(&script, "%d) %s ;;\n", i, zellijtest.ShellCase(t, name))
 	}
+
 	script.WriteString("*) exit 97 ;;\nesac\n")
 	if err := os.WriteFile(filepath.Join(root, "zellij"), []byte(script.String()), 0700); err != nil {
 		t.Fatal(err)
@@ -52,20 +42,20 @@ func parkClientCLI(t *testing.T, root string, replies []parkClientReply) string 
 func TestParkClientCountQueryContract(t *testing.T) {
 	for _, tc := range []struct {
 		name            string
-		reply           parkClientReply
+		reply           string
 		want            int
 		noReply, failed bool
 	}{
-		{name: "empty", noReply: true},
-		{name: "whitespace", reply: parkClientReply{body: " \n\t"}, noReply: true},
-		{name: "CLI failure", reply: parkClientReply{body: "query failed", exit: 2}, failed: true},
-		{name: "header only", reply: parkClientReply{body: parkClientHeader}},
-		{name: "one client", reply: parkClientReply{body: parkClientHeader + "1 0 /bin/sh\n"}, want: 1},
-		{name: "two clients", reply: parkClientReply{body: parkClientHeader + "1 0 /bin/sh\n2 1 /bin/sh\n"}, want: 2},
+		{name: "empty", reply: "park.empty", noReply: true},
+		{name: "whitespace", reply: "park.whitespace", noReply: true},
+		{name: "CLI failure", reply: "park.cli-failure", failed: true},
+		{name: "header only", reply: "park.zero"},
+		{name: "one client", reply: "park.one", want: 1},
+		{name: "two clients", reply: "park.two", want: 2},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			root := t.TempDir()
-			state := parkClientCLI(t, root, []parkClientReply{tc.reply})
+			state := parkClientCLI(t, root, []string{tc.reply})
 			testpair.ApplyEnvironment(t, root, "PATH="+root+":/usr/bin:/bin", "PAIR_TEST_CLIENT_REPLY_STATE="+state)
 			got, err := zellijClientCount(t.Context(), "pair-readiness")
 			if tc.noReply {
@@ -90,7 +80,7 @@ func TestParkClientCountQueryContract(t *testing.T) {
 func TestParkHelperRejectsUnknownBaselineBeforeStarting(t *testing.T) {
 	root := t.TempDir()
 	// A later header must never turn an unanswered baseline into attachment.
-	state := parkClientCLI(t, root, []parkClientReply{{}, {body: parkClientHeader}})
+	state := parkClientCLI(t, root, []string{"park.empty", "park.zero"})
 	binary, err := os.Executable()
 	if err != nil {
 		t.Fatal(err)

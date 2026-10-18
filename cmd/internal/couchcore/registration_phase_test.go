@@ -21,7 +21,7 @@ func TestColdResumeRegistrationTimeoutNamesThePaneBirthPhase(t *testing.T) {
 	t.Parallel()
 
 	env := newTestEnv(t, "/repo")
-	env.Couch.resumeRegistrationTimeout = 150 * time.Millisecond
+	expireRegistrationAfterPanePolls(env, 2)
 	parked := createParkedThreadInCouch(t, env, LaunchProfile{Agent: "claude", Argv: []string{}})
 	env.Artifacts.SetNativeBinding(parked.Address, "claude", sessioninventory.BindingEstablished, "native-root-1")
 
@@ -56,7 +56,6 @@ func TestColdResumeRegistrationTimeoutNamesTheOwnershipPhase(t *testing.T) {
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			env := newTestEnv(t, "/repo")
-			env.Couch.resumeRegistrationTimeout = 150 * time.Millisecond
 			parked := createParkedThreadInCouch(t, env, LaunchProfile{Agent: "claude", Argv: []string{}})
 			env.Artifacts.SetNativeBinding(parked.Address, "claude", sessioninventory.BindingEstablished, "native-root-1")
 			// The pane is born on the first wait poll; the session never
@@ -174,4 +173,31 @@ func retainedLaunchError(t *testing.T, c *Couch, err error) string {
 		t.Fatalf("retained evidence: %v %+v", readErr, records)
 	}
 	return records[0].LaunchError
+}
+
+// expireRegistrationAfterPanePolls spends registration's deadline only after
+// the birth observer has actually run. Setup and machine load cannot consume
+// an observation the test requires to precede its timeout.
+func expireRegistrationAfterPanePolls(env *testEnv, want int) {
+	budget := newSpendableBudget()
+	armed, polls := false, 0
+	env.Couch.registrationDeadline = func(parent context.Context, _ time.Duration) (context.Context, context.CancelFunc) {
+		armed = true
+		return budget.bind(parent)
+	}
+	previous := env.Artifacts.PaneSidecarsHook
+	env.Artifacts.PaneSidecarsHook = func(address ThreadAddress) error {
+		if previous != nil {
+			if err := previous(address); err != nil {
+				return err
+			}
+		}
+		if armed {
+			polls++
+			if polls == want {
+				budget.spend()
+			}
+		}
+		return nil
+	}
 }

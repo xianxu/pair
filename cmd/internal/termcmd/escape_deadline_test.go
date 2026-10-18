@@ -15,7 +15,7 @@ import (
 // decided what the ESC became: ESC,ESC reached nvim as two bytes at once
 // (insert mode left on the second press), and ESC,j became ChordAltJ (#234).
 func TestBareEscapeIsForwardedAfterTheDeadline(t *testing.T) {
-	rt := &fakeRuntime{}
+	rt := &fakeRuntime{currentPaneID: "4"}
 	mux := &fakeMux{}
 	timer := newFiringEscapeTimer()
 
@@ -32,7 +32,7 @@ func TestBareEscapeIsForwardedAfterTheDeadline(t *testing.T) {
 }
 
 func TestEscapeThenJAfterTheDeadlineIsTwoKeysNotAltJ(t *testing.T) {
-	rt := &fakeRuntime{}
+	rt := &fakeRuntime{currentPaneID: "4"}
 	wrote := make(chan string, 2)
 	mux := &fakeMux{wrote: wrote}
 	release := make(chan struct{})
@@ -82,7 +82,7 @@ func TestEveryChordSplitAtEveryByteResolvesAgainstTheDeadline(t *testing.T) {
 			t.Run(fmt.Sprintf("%q/split%d", seq, cut), func(t *testing.T) {
 				mux := &fakeMux{activeName: "work"}
 				timer := beforeDeadline()
-				pumpStdinWithTimer(&splitReader{chunks: [][]byte{head, tail}}, mux, &fakeRuntime{}, io.Discard, timer)
+				pumpStdinWithTimer(&splitReader{chunks: [][]byte{head, tail}}, mux, &fakeRuntime{currentPaneID: "4"}, io.Discard, timer)
 				if workbenchshortcut.IsDraftChord(chord) {
 					if got := strings.Join(mux.ops, ","); got != "write:"+seq {
 						t.Fatalf("draft-only chord %q: ops = %q, want the raw bytes forwarded", seq, got)
@@ -118,7 +118,7 @@ func forwardedOnTheDeadline(t *testing.T, head []byte) []string {
 	timer := newFiringEscapeTimer()
 	done := make(chan struct{})
 	go func() {
-		pumpStdinWithTimer(reader, mux, &fakeRuntime{}, io.Discard, timer)
+		pumpStdinWithTimer(reader, mux, &fakeRuntime{currentPaneID: "4"}, io.Discard, timer)
 		close(done)
 	}()
 	select {
@@ -146,11 +146,11 @@ func forwardedOnTheDeadline(t *testing.T, head []byte) []string {
 func TestTornMouseReportDoesNotBecomeRawChildInput(t *testing.T) {
 	head, tail := []byte("\x1b[<0;8"), []byte(";1M")
 	mux := &fakeMux{}
-	pumpStdinWithTimer(&splitReader{chunks: [][]byte{head}}, mux, &fakeRuntime{}, io.Discard, beforeDeadline())
+	pumpStdinWithTimer(&splitReader{chunks: [][]byte{head}}, mux, &fakeRuntime{currentPaneID: "4"}, io.Discard, beforeDeadline())
 	if len(mux.ops) != 0 {
 		t.Fatalf("incomplete report escaped:%v", mux.ops)
 	}
-	pumpStdinWithTimer(&splitReader{chunks: [][]byte{head, tail}}, mux, &fakeRuntime{}, io.Discard, beforeDeadline())
+	pumpStdinWithTimer(&splitReader{chunks: [][]byte{head, tail}}, mux, &fakeRuntime{currentPaneID: "4"}, io.Discard, beforeDeadline())
 	if got := strings.Join(mux.ops, ","); got != "write:"+string(head)+string(tail) {
 		t.Fatalf("completed report:%q", got)
 	}
@@ -161,7 +161,7 @@ func TestTornMouseReportDoesNotBecomeRawChildInput(t *testing.T) {
 // Reset from that state must actually tick. Bounded by a one-second wait, far
 // above the 35 ms deadline, so it cannot flake on a loaded machine.
 func TestTheRealDeadlineForwardsABareEscape(t *testing.T) {
-	rt := &fakeRuntime{}
+	rt := &fakeRuntime{currentPaneID: "4"}
 	wrote := make(chan string, 2)
 	mux := &fakeMux{wrote: wrote}
 	release := make(chan struct{})

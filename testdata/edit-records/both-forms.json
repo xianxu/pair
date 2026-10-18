@@ -1,0 +1,13 @@
+{
+ "name": "both-forms",
+ "base": "cat\n",
+ "records": {
+  "records": [
+   {
+    "old": "cat",
+    "new": "dog"
+   }
+  ]
+ },
+ "result": "dog\n"
+}

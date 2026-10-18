@@ -72,7 +72,7 @@ func runRecoveryMenuAcceptance(t *testing.T, mode string) {
 	t.Helper()
 	base := t.TempDir()
 	if os.Getenv("PAIR_RECOVERY_INTERACTIVE") == mode {
-		short, err := os.MkdirTemp("/tmp", "p250-")
+		short, err := os.MkdirTemp("", "p250-")
 		if err != nil {
 			t.Fatal(err)
 		}

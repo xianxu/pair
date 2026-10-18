@@ -16,7 +16,7 @@ func RunCopyOnSelectCLI(args []string, stdin io.Reader, getenv func(string) stri
 	if home == "" {
 		home = repoRootFromExe()
 	}
-	opts := CopyOnSelectOptions{PairHome: home, SelfExe: siblingPairExe(home)}
+	opts := CopyOnSelectOptions{PairHome: home, SelfExe: siblingPairExe(home), Clipboard: clipboardOptions(getenv), Flash: FlashPaneOptions{FlashBG: getenv("PAIR_FLASH_BG"), FlashMS: getenv("PAIR_FLASH_MS")}}
 	if len(args) > 0 && args[0] == "--orchestrate" {
 		return RunCopyOnSelectOrchestrate(opts, NewOSRuntime(), stderr)
 	}
@@ -40,13 +40,10 @@ func siblingPairExe(home string) string {
 
 // RunClipboardToPaneCLI is the clipboard-to-pane command body.
 func RunClipboardToPaneCLI(getenv func(string) string, stderr io.Writer) int {
-	return RunClipboardToPane(ClipboardToPaneOptions{
-		DataDir:     getenv("PAIR_DATA_DIR"),
-		XDGDataHome: getenv("XDG_DATA_HOME"),
-		Home:        getenv("HOME"),
-		Tag:         getenv("PAIR_TAG"),
-		Agent:       getenv("PAIR_AGENT"),
-	}, NewOSRuntime(), stderr)
+	return RunClipboardToPane(clipboardOptions(getenv), NewOSRuntime(), stderr)
+}
+func clipboardOptions(getenv func(string) string) ClipboardToPaneOptions {
+	return ClipboardToPaneOptions{DataDir: getenv("PAIR_DATA_DIR"), XDGDataHome: getenv("XDG_DATA_HOME"), Home: getenv("HOME"), Tag: getenv("PAIR_TAG"), Agent: getenv("PAIR_AGENT")}
 }
 
 // RunFlashPaneCLI is the flash-pane command body: `flash-pane [<pane-id>]`.

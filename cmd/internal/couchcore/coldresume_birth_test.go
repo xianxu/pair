@@ -108,7 +108,7 @@ func TestColdResumeTimesOutWhenThePaneIsNeverBorn(t *testing.T) {
 	t.Parallel()
 
 	env := newTestEnv(t, "/repo")
-	env.Couch.resumeRegistrationTimeout = 150 * time.Millisecond
+	expireRegistrationAfterPanePolls(env, 3)
 	parked := createParkedThreadInCouch(t, env, LaunchProfile{Agent: "claude", Argv: []string{}})
 	env.Artifacts.SetNativeBinding(parked.Address, "claude", sessioninventory.BindingEstablished, "native-root-1")
 	released := false
@@ -154,7 +154,6 @@ func TestResumeAgainstALiveSessionAttachesWithoutColdLaunch(t *testing.T) {
 	t.Parallel()
 
 	env := newTestEnv(t, "/repo")
-	env.Couch.resumeRegistrationTimeout = 150 * time.Millisecond
 	parked := createParkedThreadInCouch(t, env, LaunchProfile{Agent: "claude", Argv: []string{}})
 	address := parked.Address
 	env.Artifacts.SetNativeBinding(address, "claude", sessioninventory.BindingEstablished, "native-root-1")

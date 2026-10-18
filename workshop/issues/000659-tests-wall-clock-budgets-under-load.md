@@ -207,3 +207,9 @@ Promote the optional/required probe-verdict helper from the plan's PURE row to t
 > A full make test under that same load gives one verdict for these seven, and the run is recorded here with its loadavg.
 
 README's testing guidance now documents the sole new operator-set test switch, `PAIR_REQUIRE_LSOF_CONFORMANCE=1`, including fresh invocation and optional-skip versus required-failure behavior. No production or test source changes after the passing recorded suite. Re-review will dispose BR-1 through BR-3; none is being bypassed.
+
+### 2026-10-18 — landing recovery and main conflicts
+
+First integration suite b6ecb5a8c0c61c236def180e67ec41cc passed exit 0 in 11m3s on b937f71654bfec9e2f8684cbd4c88a57713bda2b (log SHA256 prefix ecfc463ae17a). A subsequent main integration to 46e0bd0379ccf8ccabb972fa3b62aea2a9a36871 stopped on native CI run39111981159: independent Node/xterm oracle SIGSEGV at terminal_native_test.go:345, after the wrapped child retained its original boot identity and counter advanced to2. Filed separate unassigned #668, retained /tmp/pair659-ci-39111981159.log, distinguished from #660 discovery absence. One unchanged failed-job rerun (attempt2) passed; no code/deadline change.
+
+Resumed normal sdlc merge, which refused newer-main conflicts in README, park_client_readiness_test.go and diagnosticlog/proof_test.go. Manual resolution retains both README contracts; keeps main's shared typed native fixture replies in other park tests while preserving this issue's explicitly gated semantic growth test; keeps procutil import for lsof holder identity checks. No assertion or product deadline removed. Targeted checks and the required full recorded suite/re-close follow before another landing attempt.

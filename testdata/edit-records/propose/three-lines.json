@@ -1,0 +1,8 @@
+{
+ "name": "three-lines",
+ "base": "a1\nb1\nc1\nd\n",
+ "after": "a2\nb2\nc2\nd\n",
+ "markers": "a🤖~1~{2}\nb🤖~1~{2}\nc🤖~1~{2}\nd\n",
+ "accepted": "a2\nb2\nc2\nd\n",
+ "rejected": "a1\nb1\nc1\nd\n"
+}

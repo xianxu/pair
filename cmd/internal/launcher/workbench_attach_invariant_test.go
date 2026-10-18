@@ -142,7 +142,7 @@ func TestWorkbenchPerformanceOwnerPassCountsEveryNativeFence(t *testing.T) {
 		t.Run(fmt.Sprintf("callers=%d", n), func(t *testing.T) {
 			reader := &attachProcessReader{commands: map[int]procutil.CommandInfo{}}
 			world := newOwnerPassWorld(n)
-			dir, err := os.MkdirTemp("/tmp", "pair-owner-count-")
+			dir, err := os.MkdirTemp("", "poc-")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -177,7 +177,7 @@ func TestWorkbenchPerformanceOwnerPassCountsEveryNativeFence(t *testing.T) {
 			if tables > 1+2*n {
 				t.Fatalf("tables=%d budget=%d", tables, 1+2*n)
 			}
-			if tables == 0 || commands == 0 || identities == 0 || commands != n*tables || identities != commands || world.paneReads != n {
+			if tables == 0 || commands == 0 || identities == 0 || commands != n*tables || identities != commands || world.paneReads != 2*n {
 				t.Fatalf("tables=%d budget=%d argv=%d identities=%d panes=%d", tables, 1+2*n, commands, identities, world.paneReads)
 			}
 			// Explicit IO precedence is behavioral: replacing native IO must not inspect
@@ -193,4 +193,11 @@ func TestWorkbenchPerformanceOwnerPassCountsEveryNativeFence(t *testing.T) {
 			}
 		})
 	}
+}
+
+func (r *countedAttachRuntime) AttachSessionContext(lifetime, admission context.Context, session, config string) (int, error) {
+	if err := admission.Err(); err != nil {
+		return 1, err
+	}
+	return r.AttachSession(session, config)
 }

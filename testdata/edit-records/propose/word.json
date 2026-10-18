@@ -1,0 +1,8 @@
+{
+ "name": "word",
+ "base": "The quick fox.\n",
+ "after": "The slow fox.\n",
+ "markers": "The 🤖~quick~{slow} fox.\n",
+ "accepted": "The slow fox.\n",
+ "rejected": "The quick fox.\n"
+}

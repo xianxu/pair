@@ -201,6 +201,21 @@ adds context that a one-line description cannot carry.
 | **Shift+Alt+N** | non-agent panes | Restart only the coding agent, with a new conversation. Pair, Zellij, the draft, and terminal tabs stay alive. In the review buffer's normal mode, this key instead moves to the previous marker. |
 | **Alt+Shift+C** (or **Ctrl+Alt+c**) | non-agent panes | Compact in place: distill this session into a `continuation` doc (folding in the parked draft), then reincarnate the tag with a clean conversation seeded from it. Scrollback is parked first as a recovery net. |
 
+Layout shortcuts confirm the invoking pane, tab and required native state before
+changing the workbench. If that context is uncertain, Pair shows a refusal
+instead of choosing another pane. A restore that becomes uncertain preserves
+its completed steps and recovery record. For example, a refusal during return
+from Focus can leave the terminal tiled again before explicit focus restoration;
+Pair shows the refusal and stops. The next press observes the resulting state.
+Confirmation adds a small interactive
+delay (about 100 ms for returning to normal in a disposable native timing check).
+
+Editor shortcut routing, review pokes and review visibility also refuse uncertain
+native context through an editor notification. A DOM send keeps a completed body
+write when submit is refused; inspect the agent before deciding how to continue.
+A visibility refusal keeps an acknowledged review activation and its ready target.
+The validated draft cache still routes without an extra native query.
+
 The focused agent receives all workbench shortcuts except **Shift+Alt+T**,
 **Shift+Alt+Left/Right**, and **Alt+Shift+Return**, which create/switch
 right-terminal tabs or toggle the right terminal's normal/focus views. Under
@@ -302,6 +317,17 @@ leading `!`.
 2. Otherwise, just insert selected text. 
 
 Visual feedback is provided on inserted text.
+
+Auto-quote confirms the attached clients' observed source context and a unique
+draft in that tab before flashing, staging text or delivering paste input. If
+clients disagree or a reply is uncertain, a notification explains the refusal;
+the completed OS clipboard copy remains successful. This confirms the observed
+context, not where an earlier selection historically originated. Standalone
+paste also confirms its invoking pane and same-tab draft.
+
+If auto-quote stops after flashing, the flash reset is still scheduled. An
+application or reset-start failure is reported as incomplete; text already
+copied to the OS clipboard remains available.
 
 Selecting in the layout-3 **user terminal** only copies to the OS clipboard — it
 does not flash, steal focus, or insert into the draft. A selection made just to
@@ -408,6 +434,11 @@ recovery journals. Attachments use bounded parallelism and one retry; a failure
 reads `Continue · pane failed: <reason> (retry)`. While its pane is loading,
 it reads `Continue · attaching…`; an attached pane reads `Continue`. One unavailable slot does not
 prevent Couch or other slots from opening.
+Couch keeps agent-pane context titles and cmux activity heat titles current from
+its existing inventory and minute activity refreshes. Hosted Pair starts no
+separate title poller. Idle fading keeps using prompt and agent activity plus
+live wrapper work; standalone Pair retains its leased title poller.
+
 Choose **Continue** for a session Zellij lists live, **Resume from disk** for a
 recoverable stopped conversation, or the offered **Start fresh** action to begin
 again. A live session remains Continue while its agent is working on a turn;
@@ -462,6 +493,15 @@ couch --session-sync read --frontmatter FILE [--json]
 couch --session-sync write --frontmatter BODYFILE FILE --if-hash H
                          light: read or replace the complete leading --- block only; preserves body bytes
                          (including Updated) and unread body edits in diff, even without a previous baseline
+couch --session-sync apply EDITS.json FILE --if-hash H [--fold ID] [--json]
+                         a precise edit: {old, occurrence, new, explain} records applied all or none (edits-invalid
+                         lists each bad record); under presentation: propose Couch writes per-line accept/reject
+                         markers (propose-too-large / propose-unencodable mean: use a side-doc proposal);
+                         frontmatter, side-doc links answering a marker and their folds apply directly, and
+                         presentation / collaboration-mode are operator-owned
+couch --session-sync round FILE --json
+                         the last agent round (every changing agent write keeps one), with reasons from apply,
+                         and whether the operator's next submit has cleared it; parley highlights it
 couch --session-sync register FILE --owner SLOT [--json]
                          keep agentic status outside the document until explicitly forgotten
 couch --session-sync lookup FILE | list | forget FILE | rename OLD NEW [--json]
@@ -1347,6 +1387,10 @@ right-clicking it in the box. A note stays where it was placed, whatever scrolls
 underneath. Turning pointing off deletes every note, as it clears the marks,
 and stopping the broadcast ends them too; nothing is saved to disk.
 
+Terminal notes use the slot, box and draw-time text that Couch knows directly,
+with Couch's own tab-bar and status anchors. They do not infer editor filenames
+or line numbers from native pane queries or matching screen text to files.
+
 Click a note you created in this unlocked browser session to edit its text.
 **Save** updates the same note, preserving its author and box, and adds an
 **edited** marker; **Cancel** leaves it unchanged. Other people's notes remain
@@ -1855,6 +1899,17 @@ PAIR_REQUIRE_LSOF_CONFORMANCE=1 go test ./cmd/internal/diagnosticlog -count=1 \
 
 Required mode fails instead of skipping an unavailable/incomplete probe. A complete
 answer with a wrong holder or process identity fails in both modes.
+
+`make test` also runs ariadne's pinned Go lint catalog over tracked Go sources.
+For a focused check, run `go test ./internal/repolint -count=1 -v`. Use a full Git
+checkout with the configured main tracking ref available: the sleep-debt ratchet
+compares against main history and refuses missing or ambiguous authority. Fix
+findings or give an intentional non-sleep exception a local
+`//lint:allow <rule> — <specific reason>`; stale or reasonless exceptions fail.
+Existing sleep debt lives only in `internal/repolint/sleep-debt.json`: remove an
+entry when replacing its sleep, and never add entries or inline sleep exemptions.
+See the [Go lint catalog](atlas/go-lint-catalog.md) for scanner scope, module
+updates and the temporary debt contract.
 
 Pair and wrapper subprocess fixtures use `testpair.Environment(t, disposableRoot,
 explicitEntries...)`. It delegates to `tests/lib/pair-test-env.sh`, the shared

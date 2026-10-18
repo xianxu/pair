@@ -799,8 +799,23 @@ lists the same tiers, and `cost_test.go` keeps both equal to the table.
 
 `couchtty/console_lifecycle.go` observes final successful operation results after
 Console adoption, successful park results carrying `VerifiedPark`, and confirmed
-needs-relaunch inventory transitions. It emits no native-agent-exit fact from an
-attachment ending; #657 owns that missing evidence. Completion carries cached
+needs-relaunch inventory transitions. It never infers agent exit from an attachment
+ending, EOF or an orphaned session.
+
+**Native agent exit (#657)** has one source: the wrapper that owns the child.
+- **Wrapper:** after `group.Wait()` reaps a child that exited on its own, and before its registry session closes, the wrapper (`wrapcmd/native_exit_report.go`) sends one broker RPC, `native-exit`, carrying `{LaunchOrdinal, AgentIdentity, ExitCode}`, bounded at 2 s.
+  - Its shape follows `automatic-input-stall`.
+  - A SIGUSR2 restart or any wrapper-initiated stop (the `stoppedByWrapper` flag) sends none.
+- **Couch:** `couchcmd/native_exit.go` admits the report only from the authenticated current wrapper (`switchCaller`) when:
+  - the ID matches `NativeExitID(binding, ordinal)`;
+  - the ordinal and identity match the ready record (`authority.child`, file-only), which fences the child before a restart, since the binding survives that exec;
+  - the session is still connected;
+  - the same (binding, launch) hasn't already been reported.
+- **Notice:** Couch then calls `Console.ObserveNativeExit`, which emits an `exited` fact with `Mode` "code N" in the Console's observation sequence.
+- **Not covered:** agents without a registry session (agy, muse, grok) produce no exit notice.
+- **Compatibility:** an older Couch answers `invalid-request` and the wrapper ignores it.
+
+Completion carries cached
 slot/branch metadata and known initiation. The existing `ReattachDone` transition
 closes a startup cohort; no debounce or additional native discovery is used.
 
@@ -1033,6 +1048,31 @@ CLI. It runs in-process against the store and needs no supervisor.
   folds, registry limits and per-file atomic publication apply. The document,
   shadow and final state publish sequentially; after an IO error, reread the
   target, inspect diff/status and recompute before retrying any still-owed folds.
+- **One edit path: `apply` and the round (#661):** `apply EDITS.json FILE --if-hash H` (H is the whole-file hash) takes the review pane's records `{old, occurrence, new, explain}`, as `[...]` or `{"records": [...]}`.
+  - `ResolveEdits` (`sessionsync/edits.go`) resolves every record against the file, all or nothing: an empty, not-found or overlapping record refuses the batch as `edits-invalid`, listing each one (`Refusal.Invalid`, JSON `Invalid`), and nothing is written.
+  - The review pane's Lua resolver (`reconstruct.resolve`) runs the same fixtures, in `testdata/edit-records`.
+  - Apply resolves after the lock, hash and owed checks, then writes through the same prepared write as `write`.
+  - **The round:** every agent write that changes the file (`write --all|--section|--frontmatter` and `apply`) replaces the round sidecar.
+    - Where it lives: `.<file>.round`, or `state/<ID>/round.json` for a registered document. It is carried by register and forget, and kept by rename.
+    - What it holds: `{base_hash, result_hash, at, presentation, spans}`, derived by `DeriveRound` (`round.go`) from a capped line diff (`linediff.go`) narrowed to the changed bytes.
+    - Positions are 0-based [line, byte column] in the result.
+    - The stamp is excluded: the diff baseline is restamped exactly when the write restamps.
+    - `explain` attaches by base-range overlap (`attachReasons`).
+    - A no-op write keeps the previous round.
+    - **No stale round:** the old sidecar is removed before the document moves, so a failed round write (a warning) leaves none.
+  - `round FILE --json` answers `{Code, Error, Round, Cleared}` (the parley.nvim#383 contract). `Cleared` is any submit of the file after `at` in the raw ledger, folded submits included, through `submitNames`, which `OwedForDocument` also uses.
+  - **Propose:** under the document's `presentation: propose`, a non-frontmatter write keeps the base text and writes the body's diff as markers (`ProposeDocument`, `propose.go`), one per changed line. Unpaired blank lines are not marked.
+    - **The engine:** `BuildEdit`/`contentStep` (`round.go`) is shared with `pair review apply`, so both paths behave identically.
+    - **Applied directly** (`directUnderPropose`):
+      - records wholly inside the frontmatter, which is never proposed;
+      - a side-doc answer (`answersSideDoc`): a ready operator marker (`readyMarkerIn`, `marker.go`, the markers.lua grammar) replaced by a new `→ [proposal|discussion](PATH)` link;
+      - the fold a link's `🤖[fold in]` asks for, which keeps the link with ` (folded DATE)` (S3).
+    - **Refused:** a record crossing the frontmatter's end, or a body write changing the frontmatter (`propose-unencodable`).
+    - **Operator-owned keys:** `presentation` and `collaboration-mode` refuse any agent change on every path, `write --frontmatter` included (`operator-owned`).
+    - **Conformance:** `testdata/edit-records/conformance` holds ariadne#437's universal-review examples byte for byte. The file, shadow, hash and round all follow the written marker bytes.
+    - A hunk over 3 lines refuses with `propose-too-large`.
+    - A line the marker grammar can't carry refuses with `propose-unencodable`.
+    - Both refusals name the one fallback, a side-doc proposal.
 - **Ledger:** the message service's `messageEndpoint.Deliver`
   (`message_deliveries.go`) appends one row per delivery that may have
   reached the agent: submitted, indeterminate, an endpoint error, or a
@@ -1489,6 +1529,41 @@ the map. A glyph can be stale; a git failure never reaches chrome. Standalone
 roots are recovered from the immutable starting path and repository scope via
 `presentationRoot`, not the child's current working directory. They use `main`
 as their resting branch, just like a slot group's primary checkout.
+
+### Hosted title ownership (#649)
+
+Hosted wrappers skip title-child allocation through the shared Couch-hosted
+predicate. The sole updater lives in `couchcmd/titles.go`, called from
+`Console.advanceActivity` on the existing single-flight activity schedule.
+Accepted inventory changes request a pass; the existing minute tick advances
+idle heat. No separate timer, process, session listing or client query is added.
+
+`couchcore/title_target.go` projects private display authority from the current
+thread binding, successful session observation and newest typed launch. A
+pre-effect local check revalidates session/start nonce/agent/ordinal; unknown
+inventory cancels obsolete work. Target metadata is excluded from row JSON.
+One `sessioninventory.TitleProjection.PollContext` per invocation supplies both
+native activity and usage. The worker snapshots admitted live wrapper work once
+and merges it with prompt/pane/native activity before title and fading decisions,
+so both consumers use the same latest activity. Warm unchanged projections decode
+no native history. Agy database growth invalidates admission and keeps the last
+valid display until the next scheduled poll fully revalidates its database and
+transcript (#656); true mutations still stop the source.
+
+The optional pass has a two-second deadline and rotates its first target under
+load. Commands use the existing joined process-group runner; failures leave
+idempotent assignments unconfirmed for the next pass. The shared
+`titlepoller.AdvanceTitleUpdate` records only confirmed successful titles and
+retires replaced targets. cmux keeps scoped owner metadata, heat thresholds and
+foreign-live-owner deferral using the inventory's existing host listing;
+unresolved ownership defers. Standalone wrappers retain their pipe-leased title
+poller and cadence. Older already-running wrappers keep their pollers until
+restarted; rollout measurements name that coverage.
+
+Tests: `couchcmd/titles_test.go` exercises the production native projection and
+command seam, zero-work warm passes, bounded cancellation and an isolated
+1,000-tick heap/cache regression with generation turnover. The console tests
+exercise shared activity scheduling and cancellation on inventory replacement.
 
 ### Idle fading of live threads (#247)
 

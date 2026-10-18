@@ -39,13 +39,8 @@ func TestTheShimOnlyActsWhenInvokedAsZellij(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	build := func(name string) string {
-		out := filepath.Join(dir, name+"-bin", name)
-		cmd := exec.Command("go", "build", "-o", out, ".")
-		if combined, err := cmd.CombinedOutput(); err != nil {
-			t.Fatalf("build %s: %v\n%s", name, err, combined)
-		}
-		return out
+	alias := func(name string) string {
+		return shimExecutable(t, filepath.Join(dir, name+"-bin", name))
 	}
 
 	runIt := func(bin string) {
@@ -58,7 +53,7 @@ func TestTheShimOnlyActsWhenInvokedAsZellij(t *testing.T) {
 	}
 
 	// Built under its own name -- exactly what `go run ./probes/zellijcalls` does.
-	runIt(build("zellijcalls"))
+	runIt(alias("zellijcalls"))
 	if _, err := os.Stat(marker); err == nil {
 		t.Fatal("the shim ran zellij when built under its own name; `make test-smoke` " +
 			"would start a session it never tears down, once per run")
@@ -66,7 +61,7 @@ func TestTheShimOnlyActsWhenInvokedAsZellij(t *testing.T) {
 
 	// POSITIVE CONTROL: the same binary named `zellij` must forward. Without
 	// this, a shim that never ran anything would pass the assertion above.
-	runIt(build("zellij"))
+	runIt(alias("zellij"))
 	if _, err := os.Stat(marker); err != nil {
 		t.Fatalf("the shim did NOT reach zellij when invoked as zellij, so the check "+
 			"above proves nothing: %v", err)
@@ -77,10 +72,7 @@ func TestTheShimOnlyActsWhenInvokedAsZellij(t *testing.T) {
 // parent has the same --server argv as its child and becomes a second owner.
 func TestServerReexecReplacesShim(t *testing.T) {
 	dir := t.TempDir()
-	shim := filepath.Join(dir, "shim", "zellij")
-	if out, err := exec.Command("go", "build", "-o", shim, ".").CombinedOutput(); err != nil {
-		t.Fatalf("build shim: %v\n%s", err, out)
-	}
+	shim := shimExecutable(t, filepath.Join(dir, "shim", "zellij"))
 	fakeDir := filepath.Join(dir, "real")
 	if err := os.Mkdir(fakeDir, 0o755); err != nil {
 		t.Fatal(err)

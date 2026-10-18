@@ -21,7 +21,6 @@ import (
 	"github.com/xianxu/pair/cmd/internal/pairlifecycle"
 	"github.com/xianxu/pair/cmd/internal/pairlifecycletest"
 	"github.com/xianxu/pair/cmd/internal/procutil"
-	"github.com/xianxu/pair/cmd/internal/testpair"
 	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
@@ -224,6 +223,8 @@ func (d *realParkConformanceDriver) Finalize(request pairlifecycle.QuitRequest) 
 func TestParkLifecycleLive(t *testing.T) {
 	ctx, cancel := liveParkContext(t, 20*time.Second)
 	defer cancel()
+	capture := newRecoveryQueryCapture(t)
+	ctx = capture.Context(ctx)
 	driver, request := newRealParkConformance(t, ctx, false)
 
 	liveTrace, err := pairlifecycletest.RunConformanceScenario(ctx, driver, request)
@@ -244,6 +245,8 @@ func TestParkLifecycleLive(t *testing.T) {
 func TestParkLifecycleLiveIntentOnlyMutation(t *testing.T) {
 	setupCtx, cancelSetup := liveParkContext(t, 20*time.Second)
 	defer cancelSetup()
+	capture := newRecoveryQueryCapture(t)
+	setupCtx = capture.Context(setupCtx)
 	driver, request := newRealParkConformance(t, setupCtx, true)
 
 	// The short deadline proves missing completion after intent publication.
@@ -286,18 +289,24 @@ func liveParkContext(t *testing.T, timeout time.Duration) (context.Context, cont
 
 func newRealParkConformance(t *testing.T, ctx context.Context, intentOnly bool) (*realParkConformanceDriver, pairlifecycle.QuitRequest) {
 	t.Helper()
-	testpair.ApplyEnvironment(t, t.TempDir(), "TMPDIR=/tmp", "SHELL=/bin/sh",
-		"XDG_CONFIG_HOME="+t.TempDir(), "XDG_DATA_HOME="+t.TempDir(), "XDG_CACHE_HOME="+t.TempDir())
+	setupRecoveryLiveEnvironment(t)
+	markRecoveryQuery(ctx, recoveryLiveEnvironmentMark())
 	variant := "ok"
 	if intentOnly {
 		variant = "mut"
 	}
 	session := fmt.Sprintf("pair-park-%d-%s", os.Getpid(), variant)
+	markRecoveryQuery(ctx, "park-session-start-enter")
 	zellij, err := pairlifecycletest.StartControlledZellij(ctx, session)
+	markRecoveryQuery(ctx, fmt.Sprintf("park-session-start-return err=%v", err))
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = zellij.Close() })
+	t.Cleanup(func() {
+		markRecoveryQuery(ctx, "park-session-cleanup-enter")
+		err := zellij.Close()
+		markRecoveryQuery(ctx, fmt.Sprintf("park-session-cleanup-return err=%v", err))
+	})
 
 	namespace := testCouchNamespace(t)
 	threads := NewThreadStore(namespace)
@@ -350,6 +359,7 @@ func newRealParkConformance(t *testing.T, ctx context.Context, intentOnly bool) 
 		StagePath: stagePath, CompletedAt: time.Unix(100, 0).UTC(),
 	})
 	identity := procutil.Identity(strconv.Itoa(child.Process.Pid))
+	markRecoveryQuery(ctx, fmt.Sprintf("park-helper-started pid=%d identity=%q", child.Process.Pid, identity))
 	if identity == "" {
 		t.Fatal("production handoff helper identity is unavailable")
 	}
@@ -390,12 +400,14 @@ func newRealParkConformance(t *testing.T, ctx context.Context, intentOnly bool) 
 	t.Cleanup(func() {
 		runtime := launcher.NewScopedOSRuntime(dataDir, scoped.ScopeDir(), pairHome)
 		_, _, _ = runtime.TakeQuitIntent(session)
+		markRecoveryQuery(ctx, "park-helper-cleanup-enter")
 		if child.Process != nil {
 			_ = child.Process.Kill()
 		}
 		if childPTY != nil {
 			_ = childPTY.Close()
 		}
+		markRecoveryQuery(ctx, "park-helper-cleanup-issued; local wait not observed here")
 	})
 	return driver, request
 }
@@ -441,11 +453,7 @@ func startParkLifecycleHelper(t *testing.T, ctx context.Context, cfg parkHelperC
 		t.Fatal(err)
 	}
 	cmd := exec.Command(os.Args[0])
-	cmd.Env = testpair.Environment(t, os.Getenv("HOME"),
-		"TMPDIR=/tmp", "SHELL=/bin/sh", "TERM=xterm-256color",
-		"XDG_CONFIG_HOME="+os.Getenv("XDG_CONFIG_HOME"),
-		"XDG_DATA_HOME="+os.Getenv("XDG_DATA_HOME"),
-		"XDG_CACHE_HOME="+os.Getenv("XDG_CACHE_HOME"),
+	cmd.Env = recoveryLiveChildEnvironment(t,
 		"PAIR_TEST_COUCH_PARK_HELPER=1",
 		"PAIR_TEST_COUCH_LAUNCH_NATIVE_SIDECAR=1",
 		"PAIR_TEST_PARK_GLOBAL_DATA_DIR="+cfg.GlobalDataDir,

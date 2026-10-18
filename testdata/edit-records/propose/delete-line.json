@@ -1,0 +1,8 @@
+{
+ "name": "delete-line",
+ "base": "keep\ndrop\nend\n",
+ "after": "keep\nend\n",
+ "markers": "keep\n🤖~drop~\nend\n",
+ "accepted": "keep\n\nend\n",
+ "rejected": "keep\ndrop\nend\n"
+}

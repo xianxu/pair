@@ -1,0 +1,12 @@
+{
+ "name": "trailing-newline",
+ "base": "line\n",
+ "records": [
+  {
+   "old": "line\n",
+   "occurrence": 1,
+   "new": "line"
+  }
+ ],
+ "result": "line"
+}

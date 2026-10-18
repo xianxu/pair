@@ -16,6 +16,8 @@ import (
 // decisions when callers request `list-panes --geometry`.
 type Pane struct {
 	ID              string
+	TabID           *int
+	TabPosition     *int
 	TerminalCommand string
 	// PaneCommand is the observed running command; TerminalCommand is only the
 	// original layout template and cannot prove the live pane's owner.
@@ -98,6 +100,8 @@ func paneFrom(m map[string]interface{}) (Pane, bool) {
 	}
 	return Pane{
 		ID:              id,
+		TabID:           optionalIntNumber(m["tab_id"]),
+		TabPosition:     optionalIntNumber(m["tab_position"]),
 		TerminalCommand: tc,
 		PaneCommand:     pc,
 		PaneCwd:         cwd,
@@ -134,4 +138,14 @@ func intNumber(v interface{}) int {
 	default:
 		return 0
 	}
+}
+
+// optionalIntNumber preserves missing native tab identity rather than making it zero.
+func optionalIntNumber(v interface{}) *int {
+	n, ok := v.(float64)
+	if !ok || n < 0 || n != float64(int(n)) {
+		return nil
+	}
+	i := int(n)
+	return &i
 }

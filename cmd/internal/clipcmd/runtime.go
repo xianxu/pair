@@ -12,9 +12,12 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/xianxu/pair/cmd/internal/layoutcmd"
+	"github.com/xianxu/pair/cmd/internal/notifytransport"
 	"github.com/xianxu/pair/cmd/internal/osfs"
 	"github.com/xianxu/pair/cmd/internal/procutil"
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
+	"github.com/xianxu/pair/cmd/internal/zellijexec"
 )
 
 // OSRuntime implements Runtime with real clipboard / zellij / exec / fs calls.
@@ -164,17 +167,33 @@ func (OSRuntime) ClipboardPaste() (string, bool) {
 	return "", false
 }
 
-func (OSRuntime) ListPanes(command bool) (string, error) {
-	args := []string{"action", "list-panes", "--json"}
-	if command {
-		args = append(args, "--command")
-	}
-	out, err := exec.Command("zellij", args...).Output()
-	return string(out), err
+func (OSRuntime) ListPanesContext(ctx context.Context) ([]byte, error) {
+	return clipQuery(ctx, "list-panes", "--json", "--command", "--state")
+}
+func (OSRuntime) CurrentPaneID() string { return os.Getenv("ZELLIJ_PANE_ID") }
+
+func (OSRuntime) ListClientsContext(ctx context.Context) ([]byte, error) {
+	return clipQuery(ctx, "list-clients")
+}
+func clipQuery(ctx context.Context, args ...string) ([]byte, error) {
+	cmd := exec.CommandContext(ctx, "zellij", append([]string{"action"}, args...)...)
+	var out strings.Builder
+	cmd.Stdout = &out
+	err := zellijexec.Run(cmd)
+	return []byte(out.String()), err
+}
+func (OSRuntime) NotifyRefusal(message string) error {
+	return notifytransport.Send(os.Getenv("PAIR_PAIR_WRAP_PID_PATH"), message)
 }
 
-func (OSRuntime) SetPaneColor(id, bg string) {
-	_ = exec.Command("zellij", "action", "set-pane-color", "--pane-id", id, "--bg", bg).Run()
+func nativePaneID(id string) string {
+	if strings.HasPrefix(id, "terminal_") || strings.HasPrefix(id, "plugin_") {
+		return id
+	}
+	return "terminal_" + id
+}
+func (OSRuntime) SetPaneColor(id, bg string) error {
+	return exec.Command("zellij", "action", "set-pane-color", "--pane-id", nativePaneID(id), "--bg", bg).Run()
 }
 
 // startDetached launches cmd in its own session (setsid) with /dev/null stdio and
@@ -183,27 +202,28 @@ func (OSRuntime) SetPaneColor(id, bg string) {
 // orchestrator (#100). Closing our devNull handle after Start() is safe — the child
 // already holds its own dup'd fds. Extracted so both detaching callers share one
 // copy (ARCH-DRY).
-func startDetached(cmd *exec.Cmd) {
+func startDetached(cmd *exec.Cmd) error {
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
 	if devNull, err := os.Open(os.DevNull); err == nil {
 		cmd.Stdin, cmd.Stdout, cmd.Stderr = devNull, devNull, devNull
 		defer devNull.Close()
 	}
-	if cmd.Start() == nil {
-		go func() { _ = cmd.Wait() }()
+	if err := cmd.Start(); err != nil {
+		return err
 	}
+	go func() { _ = cmd.Wait() }()
+	return nil
 }
 
 // ResetPaneColorAfter schedules the flash's bg reset in a detached session
-// (setsid), so it survives the caller exiting — copy-on-select execs into
-// clipboard-to-pane immediately after the flash, replacing itself. Mirrors
+// (setsid), so it survives the caller exiting after the in-process paste. Mirrors
 // flash-pane.sh's `( sleep; reset ) & disown`, in the same idiom as opener's
 // detached changelog distiller (#93 M2).
-func (OSRuntime) ResetPaneColorAfter(id string, d time.Duration) {
+func (OSRuntime) ResetPaneColorAfter(id string, d time.Duration) error {
 	secs := fmt.Sprintf("%.3f", d.Seconds())
 	// Pass secs + id as positional args to sh so nothing is interpolated into
 	// the script text (injection-safe, though ids come from zellij's own output).
-	startDetached(exec.Command("sh", "-c",
+	return startDetached(exec.Command("sh", "-c",
 		`sleep "$1"; zellij action set-pane-color --pane-id "$2" --reset`,
 		"sh", secs, id))
 }
@@ -216,33 +236,24 @@ func (OSRuntime) SpawnDetached(path string, args ...string) {
 	startDetached(exec.Command(path, args...))
 }
 
-// FocusPane targets a pane by id, trying the bare form then the terminal_<id>
-// form (list-panes ids can be either, and zellij's parser accepts both).
-func (OSRuntime) FocusPane(id string) error {
-	if err := exec.Command("zellij", "action", "focus-pane-id", id).Run(); err == nil {
+// FocusPaneContext issues one explicit mutation; only the exact native
+// same-target already-focused result is desired-state success.
+func (OSRuntime) FocusPaneContext(ctx context.Context, id string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	target := "terminal_" + strings.TrimPrefix(id, "terminal_")
+	err := (layoutcmd.OSRuntime{}).RunZellijAction("focus-pane-id", target)
+	if layoutcmd.IsAlreadyFocused(err, target) {
 		return nil
 	}
-	return exec.Command("zellij", "action", "focus-pane-id", "terminal_"+id).Run()
+	return err
 }
-
-func (OSRuntime) MoveFocus(dir string) {
-	_ = exec.Command("zellij", "action", "move-focus", dir).Run()
-}
-
-func (OSRuntime) WriteKey(b byte) {
-	_ = exec.Command("zellij", "action", "write", strconv.Itoa(int(b))).Run()
-}
-
-// RunSubprocess runs path as a child and returns (call-and-return), inheriting
-// the environment so flash-pane.sh sees PAIR_FLASH_* / XDG_CACHE_HOME.
-func (OSRuntime) RunSubprocess(path string, args ...string) error {
-	return exec.Command(path, args...).Run()
-}
-
-// ExecReplace replaces this process with path (the shell's `exec`), so the
-// clipboard-to-pane hand-off is the terminal step. Returns only on failure.
-func (OSRuntime) ExecReplace(path string, args ...string) error {
-	return syscall.Exec(path, append([]string{path}, args...), os.Environ())
+func (OSRuntime) WritePaneKeyContext(ctx context.Context, id string, b byte) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return exec.Command("zellij", "action", "write", "--pane-id", "terminal_"+strings.TrimPrefix(id, "terminal_"), strconv.Itoa(int(b))).Run()
 }
 
 // Log appends a line to the clipboard-debug.log diagnostic

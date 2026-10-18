@@ -490,6 +490,22 @@ func parseOwnerLedger(ctx context.Context, runtime Runtime, ledger Artifact, sco
 	for _, ordinal := range parsed.MalformedOrdinals {
 		diagnostics = append(diagnostics, diagnosticWithSource(DiagnosticPairRecordMalformed, agent, nil, fmt.Sprintf("ledger:%s:%d", tag, ordinal), "Pair ledger row is malformed"))
 	}
+	// Empty agent selects the newest owner launch across providers for title
+	// authority. Resume queries retain their existing provider-specific reduction.
+	if agent == "" {
+		var newest sessionledger.Record
+		for _, record := range parsed.Records {
+			if record.Kind == sessionledger.RecordLaunch && record.ScopeKey == scopeKey && record.Tag == tag && record.Ordinal > newest.Ordinal {
+				newest = record
+			}
+		}
+		for _, ordinal := range append(parsed.MalformedOrdinals, parsed.CompatibilityOrdinals...) {
+			if ordinal > newest.Ordinal {
+				return sessionledger.Current{}, nil, false, diagnostics, nil
+			}
+		}
+		agent = Agent(newest.Agent)
+	}
 	current, ok := sessionledger.CurrentLaunch(parsed.Records, sessionledger.Owner{ScopeKey: scopeKey, Tag: tag, Agent: string(agent)})
 	if !ok {
 		return sessionledger.Current{}, nil, false, diagnostics, nil

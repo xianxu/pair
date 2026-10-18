@@ -58,8 +58,7 @@ type Config struct {
 	// AnchorNote says what a note placed on a cols×rows grid is about
 	// (#488): the operator's program knows its own screen. It is called as
 	// the note is accepted, before it opens, and must answer from memory
-	// (a request's goroutine waits on it); a slower answer comes later
-	// through SetNoteAnchor. nil leaves notes without an anchor.
+	// (a request's goroutine waits on it). nil leaves notes without an anchor.
 	AnchorNote func(n Note, cols, rows int) NoteAnchor
 	// Now stamps notes and rate-limit decisions; nil is time.Now. Couch passes the
 	// clock it draws with, so flash timing has one source.
@@ -468,18 +467,6 @@ func (s *Session) acceptNote(req NoteRequest) error {
 	}
 	s.notesChanged()
 	return nil
-}
-
-// SetNoteAnchor replaces open note id's anchor (#488: the operator's
-// program finished resolving it). A note resolved or cleared since is gone,
-// and the anchor is dropped: a session never reuses an id, so it can't land
-// on another note. It reports whether the note was there.
-func (s *Session) SetNoteAnchor(id int, a NoteAnchor) bool {
-	changed := s.pointer.setNoteAnchor(id, a)
-	if changed {
-		s.notesChanged()
-	}
-	return changed
 }
 
 // ResolveNote resolves note id for the operator (the terminal's notes menu),

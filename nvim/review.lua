@@ -226,6 +226,7 @@ local mode = dofile(here .. 'review/mode.lua')
 local menu = dofile(here .. 'review/menu.lua')
 local spinner = dofile(here .. 'review/spinner.lua')
 local define = dofile(here .. 'review/define.lua')
+local oplock = dofile(here .. 'review/oplock.lua') -- the operator's turn lock (#661 M2)
 local definition_seam = dofile(here .. 'review/definition_seam.lua')
 local recovery = dofile(here .. 'review/recovery.lua')
 local document_bytes = dofile(here .. 'review/document_bytes.lua')
@@ -524,6 +525,7 @@ local function finish_human_turn(buf, file, mode_name, instruction)
   review.clear_decorations(buf)
   render_active_diagnostic(buf)
   review.human_round(buf, 'updated') -- saves; the agent commits the human round
+  oplock.drop(vim.fn.fnamemodify(file, ':p')) -- the agent's turn: its apply may write again
   -- Snapshot v0 = the just-saved content (what the agent reviews). AFTER the save,
   -- and here (not mark_awaiting — request_ship also calls that WITHOUT saving), so
   -- the base is the submitted buffer, not an unsaved one (#89 M3, spec §8).
@@ -805,6 +807,14 @@ local function start_review(buf, file, resolved)
       render_active_diagnostic(buf)
     end,
   })
+  -- The operator's turn holds the lock from their first edit (#661 M2): while it
+  -- exists `pair review apply` refuses (exit 3), so the agent never writes under it.
+  -- `modified` excludes the pane's own reloads and saves.
+  vim.api.nvim_create_autocmd({ 'TextChanged', 'TextChangedI' }, {
+    group=render_group, buffer = buf, callback = function()
+      if vim.bo[buf].modified then oplock.take(vim.fn.fnamemodify(vim.api.nvim_buf_get_name(buf), ':p')) end
+    end,
+  })
 
   -- Line 2 is the file this embed was spawned with, taken from its own argv, and
   -- it is the reaper's owner-naming evidence for this record: the review target
@@ -930,6 +940,7 @@ vim.api.nvim_create_autocmd('VimLeave',{callback=function()
   local buf=restoration.buf
   if buf and vim.api.nvim_buf_is_valid(buf) then
     if vim.bo[buf].modified and restoration:guard(buf,true) then pcall(review.human_round,buf,'exit') end
+    pcall(oplock.drop, vim.fn.fnamemodify(vim.api.nvim_buf_get_name(buf), ':p'))
     pcall(stop_review,buf)
   end
   restoration:close()

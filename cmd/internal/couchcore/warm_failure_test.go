@@ -63,6 +63,18 @@ func warmFailureRoutes() []warmFailureRoute {
 			// session is there it returns at once.
 			name: "3-registration-timed-out",
 			inject: func(_ *testing.T, env *testEnv, address ThreadAddress, _ context.CancelFunc) {
+				budget := newSpendableBudget()
+				armed := false
+				env.Couch.registrationDeadline = func(parent context.Context, _ time.Duration) (context.Context, context.CancelFunc) {
+					armed = true
+					return budget.bind(parent)
+				}
+				env.Artifacts.BeforePairSession = func(ThreadAddress) error {
+					if armed {
+						budget.spend()
+					}
+					return nil
+				}
 				env.Runner.AfterAcknowledge = func(string) error {
 					env.Artifacts.SetDetachedSession(address, "")
 					env.Artifacts.SetPairSession(address, "pair-"+string(address.Tag), false)
@@ -259,7 +271,13 @@ func warmDetachedThread(t *testing.T) (*testEnv, ThreadAddress) {
 	env.Artifacts.SetDetachedSession(created.Address, name)
 	env.Artifacts.SetPairSession(created.Address, name, true)
 	env.Artifacts.SetNativeBinding(created.Address, "claude", sessioninventory.BindingEstablished, "native-warm-1")
+	// This value is a budget-propagation sentinel used by retention controls;
+	// failure routes spend registrationDeadline on an observation, not on time.
+	//lint:allow test-shrunk-deadline -- retention controls assert this exact requested budget; the factory below never starts a timer
 	env.Couch.resumeRegistrationTimeout = 200 * time.Millisecond
+	env.Couch.registrationDeadline = func(parent context.Context, _ time.Duration) (context.Context, context.CancelFunc) {
+		return context.WithCancel(parent)
+	}
 	return env, created.Address
 }
 
@@ -270,7 +288,6 @@ func coldParkedThread(t *testing.T) (*testEnv, ThreadRecord) {
 	env := newTestEnv(t, "/repo")
 	parked := createParkedThreadInCouch(t, env, LaunchProfile{Agent: "codex", Argv: []string{"--saved"}})
 	env.Artifacts.SetNativeBinding(parked.Address, "codex", sessioninventory.BindingEstablished, "native-root-1")
-	env.Couch.resumeRegistrationTimeout = 200 * time.Millisecond
 	return env, parked
 }
 

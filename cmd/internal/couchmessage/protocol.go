@@ -196,6 +196,13 @@ func ValidateRequest(r Request) error {
 		_, err := ParseAutomaticInputStall(r.Body)
 		return err
 	}
+	if r.Op == "native-exit" {
+		if r.Binding != nil || r.Scope == "" || r.Tag == "" || r.Session == "" || r.Nonce == "" || !validMessageID(r.ID) || r.Target != "" || r.Agent != "" || r.Confirmed || r.SameBinary || r.ForceUnknown || r.TailScope != "" || r.TailTag != "" || r.Lines != 0 {
+			return errors.New("native-exit requires only caller identity, occurrence ID and typed report")
+		}
+		_, err := ParseNativeExit(r.Body)
+		return err
+	}
 	if r.Op == "session-write" {
 		if r.Binding != nil || r.Scope == "" || r.Tag == "" || r.Session == "" || r.Nonce == "" || r.ID != "" || r.Body != "" || r.Agent != "" || r.Confirmed || r.SameBinary || r.ForceUnknown || r.TailScope != "" || r.TailTag != "" || r.Lines != 0 {
 			return errors.New("session-write requires only the calling conversation identity and exact owner slot")

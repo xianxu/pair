@@ -20,7 +20,6 @@ import (
 func neverTurnedThread(t *testing.T) (*testEnv, ThreadRecord) {
 	t.Helper()
 	env := newTestEnv(t, "/repo")
-	env.Couch.resumeRegistrationTimeout = 300 * time.Millisecond
 	parked := createParkedThreadInCouch(t, env, LaunchProfile{Agent: "claude", Argv: []string{}})
 	native := sessioninventorytest.NewFakeRuntime()
 	pair := sessioninventory.StorageRoot{Name: "pair-data", Path: "/pair"}

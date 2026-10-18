@@ -5,6 +5,7 @@
 ## Map
 
 - [Architecture](architecture.md) — what the pieces are and how they fit together.
+- [Zellij reply admission](zellij-reply-safety.md) — strict native observations, bounded confirmation, lifecycle authority and the staged caller safety map (#647).
 - [Session identity and storage](session-identity.md) — Pair's scoped address claims, deterministic native-session forests, durable resume targets, launch-specific probation and optional parsed projections, Couch's independent ThreadStore authority, Couch C/N/M allocation and live ownership proof, the standalone `📁` naming scheme, and legacy flat-data recovery.
 - [Codex resume](codex-resume.md) — native indirect selection and exact-ID transcript-home routing.
 - [Slot continuity target](../workshop/targets/slot-continuity.md) — the operator-approved commitment: Continue, Resume from disk or Start fresh, with one action per outcome and recovery available to the person or hub.
@@ -12,7 +13,7 @@
 - [Go migration inventory](go-migration-inventory.md) — artifact/caller/runtime contract for the staged primary-Go-binary migration.
 - [Workflow](workflow/index.md) — issue-based development loop inherited from the ariadne base layer.
 - [How-to-bring-up-a-new-harness-cli](how-to-bring-up-a-new-harness-cli.md) — guide on integrating a new agent harness CLI.
-- [couch](couch.md) — the session supervisor (`cmd/couch`): one leased namespace, Couch-owned composite durable threads coordinated with Pair-owned address claims, recoverable pre-exec starts, stale-thread/checkpoint recovery, explicit archive, tty routing, the after-restart recover plan with resume/reboot over the message socket (#367), confirmed remote agent switching, exact previous tty reads (#517), and listing-based terminal admission, observation-only startup and capture producer witnesses (#528), plus bounded failed-launch evidence with one-line recovery guidance (#531), sampled per-slot CPU/RSS/disk writes, orphan attribution and hub alerts (#587), and capped FIFO hub-message batches with per-message receipts (#648), shared positive geometry for tall Codex composer confirmation and Return (#652), and bounded server-origin lifecycle notices with restart summaries (#574).
+- [couch](couch.md) — the session supervisor (`cmd/couch`): one leased namespace, Couch-owned composite durable threads coordinated with Pair-owned address claims, recoverable pre-exec starts, stale-thread/checkpoint recovery, explicit archive, tty routing, the after-restart recover plan with resume/reboot over the message socket (#367), confirmed remote agent switching, exact previous tty reads (#517), and listing-based terminal admission, observation-only startup and capture producer witnesses (#528), plus bounded failed-launch evidence with one-line recovery guidance (#531), shared hosted title ownership on the existing activity schedule (#649), sampled per-slot CPU/RSS/disk writes, orphan attribution and hub alerts (#587), and capped FIFO hub-message batches with per-message receipts (#648), shared positive geometry for tall Codex composer confirmation and Return (#652), and bounded server-origin lifecycle notices with restart summaries (#574).
 - [Workspace provisioning](workspace-provisioning.md) — repeatable numbered worktree setup, local Couch state, Weave readiness and durable recovery (#305–306); the slot resource table, observation and reconcile plan (#387); repository-family admission and subdirectory propagation are mapped in [couch](couch.md).
 - [Workbench performance](workbench-performance.md) — normal-suite counted UI/message/attach invariants, scan ratchets, extension guide and separate live CPU acceptance.
 - [Agent scratch volume](agent-scratch-volume.md) — Go build cache and agent/test temp roots on an APFS volume fseventsd doesn't journal (#496): setup, verify, lifecycle, teardown.
@@ -20,6 +21,8 @@
 - [Agentic document caller contract](couch-agentic-documents.md) — durable registration, read-only discovery, rename and forget for submitted markdown files; shared with Parley.
 
 ## See also
+
+- [Go lint catalog](go-lint-catalog.md) — pinned upstream rules, repository coverage, reasoned exceptions and shrink-only sleep debt.
 
 - `make test` — the one gate. It runs every shell/Lua suite, then `go test ./...`
   with test-result caching off, so it covers every package. Make adds `-trimpath`
@@ -58,6 +61,12 @@
   shells can otherwise make pre-handler cancellation disappear through inherited
   SIG_IGN (#598). A pipe-gated bootstrap pins this ordering; failures retain
   bounded captured output, test phase, helper PID and descendant-group evidence.
+- `cmd/internal/testdisk` — normal-run own-process physical write budgets for
+  seven measured packages. Darwin+cgo uses the identity-fenced native process
+  reader; unsupported platforms retain portable controls and report no native
+  evidence. See [fixture writes and budgets](workbench-performance.md#fixture-writes-and-budgets).
+- `cmd/internal/testgit` — scoped empty Git templates and completed fixture-tree
+  file/directory/logical-byte budgets; constructor audits precede test mutations.
 - `cmd/internal/testwait` — how a Go test waits for an event: bounded by the
   test's own deadline minus a margin (`After` for a select guard, `Until`/`Wait`
   to poll, `Budget` for a hand-rolled loop or a helper's timeout), never by a guess at how fast the event comes, so a loaded `-race`

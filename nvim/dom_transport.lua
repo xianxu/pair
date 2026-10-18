@@ -2,6 +2,7 @@
 local M = {}
 local here = debug.getinfo(1, 'S').source:match('@?(.*/)') or './'
 local pane_identity = dofile(here .. 'pane_identity.lua')
+local observation = dofile(here .. 'zellij_observation.lua')
 function M.new(v, action)
   local bin = (v.env.PAIR_HOME or '') ~= '' and (v.env.PAIR_HOME .. '/bin/couch') or 'couch'
   local function argv(op,id) return {bin,'--broadcast-web-submit',op,id} end
@@ -34,21 +35,57 @@ function M.new(v, action)
     return decode(v.system(argv(op,id),{text=true,timeout=timeout(operation)}):wait())
   end
   local function panes(operation)
-    local result=action('draft.dom.list-panes',{'zellij','action','list-panes','--json','--command'}, operation and {timeout_ms=timeout(operation)} or nil) or {}
-    if result.code~=0 then return nil end
-    local ok,node=pcall(v.json.decode,result.stdout or '');if not ok then return nil end
-    return pane_identity.agents(node)
+    -- Pin is candidate evidence under the existing transaction lifetime. Only
+    -- the first pre-write validation creates the native admission window.
+    local query_budget=operation or {check=function()end,remaining=function()return 4000 end}
+    local result,err=observation.query(query_budget,'draft.dom.list-panes',
+      {'zellij','action','list-panes','--json','--command','--state','--tab'},action)
+    if not result then return nil,err end
+    if result.code~=0 then return nil,'could not inspect agent pane' end
+    local rows,reason=observation.panes(result.stdout or '',{Command=true,Floating=true,Tab=true})
+    if not rows then return nil,reason end
+    local agent,source=pane_identity.select_in_tab(rows,v.env.ZELLIJ_PANE_ID,pane_identity.is_agent)
+    if not agent then return nil,source end
+    operation.check()
+    return {source={id=source.id,tab_id=source.tab_id,tab_position=source.tab_position,
+      terminal_command=source.terminal_command},
+      agent={id=agent.id,tab_id=agent.tab_id,tab_position=agent.tab_position,
+        terminal_command=agent.terminal_command}}
   end
   local function pin(id,operation)
-    local p=panes(operation)
-    if not p or #p~=1 then return nil,'cannot uniquely identify the agent pane' end
-    local pane_id,command=p[1].id,p[1].terminal_command
-    return {pane_id=pane_id,validate=function()
-      local r,err=sync('begin',id,operation)
-      if not r or r.state~='delivering' then return false,err or 'recipient is no longer current' end
-      local now=panes(operation)
-      if not now or #now~=1 or now[1].id~=pane_id or now[1].terminal_command~=command then return false,'agent pane was replaced' end
+    local guard=observation.capture_environment(v.env)
+    local candidate_context=guard(operation or {check=function()end,remaining=function()return 4000 end})
+    candidate_context.check()
+    local candidate,err=panes(candidate_context)
+    if not candidate then return nil,err end
+    local admission,refused
+    local function validate()
+      candidate_context.check()
+      if not admission then admission=guard(observation.budget(operation)) end
+      admission.check()
+      local r,reason=sync('begin',id,admission)
+      admission.check()
+      if not r or r.state~='delivering' then return false,reason or 'recipient is no longer current' end
+      local current,why=panes(admission)
+      if not current then return false,why end
+      if not vim.deep_equal(candidate,current) then return false,'agent pane was replaced' end
       return true
+    end
+    return {pane_id=candidate.agent.id,validate=function()
+      if refused then return false,refused end
+      local called,valid,reason=pcall(validate)
+      if not called then
+        refused=tostring(valid)
+        error(refused,0)
+      end
+      if not valid then refused=reason or 'unknown agent context' end
+      return valid,reason
+    end,effect=function(invoke)
+      if refused then return nil,refused end
+      if not admission then return nil,'target has not been admitted' end
+      local result,reason=observation.effect(admission,invoke)
+      if result==nil then refused=reason or 'unknown target effect' end
+      return result,reason
     end}
   end
   return {rpc=rpc,pin=pin}

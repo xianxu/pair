@@ -133,3 +133,18 @@ func TestTerminalHandoffCancelledAdmissionJoinsBeforeRelease(t *testing.T) {
 		t.Fatalf("work after release: %v", w.events)
 	}
 }
+
+func TestTerminalHandoffCanceledBeforeStart(t *testing.T) {
+	w := newHandoffWorld()
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, err := CoordinateTerminalHandoff(ctx, w, time.Minute)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("error=%v", err)
+	}
+	select {
+	case <-w.started:
+		t.Fatal("started client with canceled admission")
+	default:
+	}
+}

@@ -1,9 +1,11 @@
 package layoutcmd
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/xianxu/pair/cmd/internal/zellijreply"
 	"io"
 	"os"
 	"sort"
@@ -263,23 +265,37 @@ const maxSwapCycle = 4
 // swap layout restores the geometry exactly; next-then-previous does not,
 // because floating disturbs zellij's swap index.
 func restoreTiling(rt FullscreenRuntime, terminal string, record ExpandRecord) error {
+	ctx, cancel := zellijreply.AdmissionContext(context.Background())
+	defer cancel()
+	panes, id, pos, err := ConfirmWorkbenchPanesContext(ctx, rt, rt.CurrentPaneID(), nil)
+	_ = panes
+	if err != nil {
+		return err
+	}
+	return restoreTilingContext(ctx, rt, terminal, record, id, pos, nil)
+}
+
+func restoreTilingContext(ctx context.Context, rt FullscreenRuntime, terminal string, record ExpandRecord, tabID, tabPosition int, registeredIDs []string) error {
 	if target := record.Swap; target != "" {
 		for i := 0; ; i++ {
-			raw, err := rt.CurrentTabJSON()
+			tab, err := confirmLayoutTab(ctx, rt, tabID, tabPosition)
 			if err != nil {
 				return fmt.Errorf("tab info: %w", err)
 			}
-			name, dirty, err := ParseTabLayout(raw)
-			if err != nil {
-				return fmt.Errorf("tab info: %w", err)
+			name := ""
+			if tab.ActiveSwapLayoutName != nil {
+				name = *tab.ActiveSwapLayoutName
 			}
+			dirty := tab.IsSwapLayoutDirty
 			if name == target && !dirty {
 				break
 			}
 			if i == maxSwapCycle {
 				return fmt.Errorf("swap layout %q not reached (at %q dirty=%v)", target, name, dirty)
 			}
-			if err := rt.RunZellijAction("next-swap-layout"); err != nil {
+			if err := zellijreply.Effect(ctx, func() error {
+				return rt.RunZellijAction("next-swap-layout", "--tab-id", strconv.Itoa(tabID))
+			}); err != nil {
 				return fmt.Errorf("next-swap-layout: %w", err)
 			}
 		}
@@ -287,32 +303,41 @@ func restoreTiling(rt FullscreenRuntime, terminal string, record ExpandRecord) e
 	if len(record.Order) != 2 || (terminal != record.Order[0] && terminal != record.Order[1]) {
 		return nil
 	}
-	raw, err := rt.ListPanesJSON()
+	panes, id, position, err := ConfirmWorkbenchPanesContext(ctx, rt, rt.CurrentPaneID(), registeredIDs)
 	if err != nil {
 		return fmt.Errorf("list panes: %w", err)
 	}
+	if id != tabID || position != tabPosition {
+		return fmt.Errorf("invoking tab changed")
+	}
 	y := map[string]int{}
-	for _, p := range zellijpane.Parse(raw) {
+	for _, p := range panes {
 		if !p.IsPlugin && !p.IsFloating {
 			y[p.ID] = p.Y
 		}
 	}
 	top, topOK := y[record.Order[0]]
 	bottom, bottomOK := y[record.Order[1]]
-	if !topOK || !bottomOK || top < bottom {
+	if !topOK || !bottomOK {
+		return fmt.Errorf("recorded split pane missing")
+	}
+	if top < bottom {
 		return nil
 	}
 	direction := "down"
 	if terminal == record.Order[0] {
 		direction = "up"
 	}
-	return rt.RunZellijAction("move-pane", "--pane-id", terminal, direction)
+	return zellijreply.Effect(ctx, func() error {
+		return rt.RunZellijAction("move-pane", "--pane-id", terminal, direction)
+	})
 }
 
 // Focus geometry (#417, operator): 75% of the width, centered, full height.
 var focusPlacement = []string{"-x", "12%", "-y", "0", "--width", "75%", "--height", "100%", "--pinned", "true"}
 
 type FullscreenRuntime interface {
+	CurrentTabJSONContext(context.Context) ([]byte, error)
 	Runtime
 	CurrentPaneID() string
 	FullscreenStore() workbenchshortcut.FullscreenStore
@@ -336,6 +361,13 @@ func exitCode(err error) int {
 // RunToggleFocused is the Alt+Shift+Enter Normal ↔ Focus executor. Native
 // fullscreen is toggled only to return an already fullscreen pane to Normal.
 func RunToggleFocused(args []string, rt FullscreenRuntime, stderr io.Writer) int {
+	ctx, cancel := zellijreply.AdmissionContext(context.Background())
+	defer cancel()
+	return RunToggleFocusedContext(ctx, args, rt, stderr)
+}
+
+// RunToggleFocusedContext shares the invoking operation's query budget.
+func RunToggleFocusedContext(ctx context.Context, args []string, rt FullscreenRuntime, stderr io.Writer) int {
 	if len(args) != 0 {
 		fmt.Fprintln(stderr, "usage: pair layout toggle-focused")
 		return 2
@@ -344,6 +376,7 @@ func RunToggleFocused(args []string, rt FullscreenRuntime, stderr io.Writer) int
 	fail := func(stage string, err error) int {
 		diagnostic := fmt.Errorf("pair layout toggle-focused: %s: %w", stage, err)
 		store.LogFailure(diagnostic)
+		reportRefusal(rt, stderr)
 		// Shortcut callers discard this CLI channel; diagnostics are retained above.
 		fmt.Fprintln(stderr, diagnostic)
 		return 1
@@ -356,75 +389,82 @@ func RunToggleFocused(args []string, rt FullscreenRuntime, stderr io.Writer) int
 		return 0
 	}
 	defer unlock()
-	raw, err := rt.ListPanesJSON()
-	if err != nil {
-		return fail("list panes", err)
-	}
-	if !json.Valid(raw) {
-		return fail("list panes", fmt.Errorf("invalid JSON"))
-	}
-	panes := zellijpane.Parse(raw)
-	if len(panes) == 0 {
-		return fail("list panes", fmt.Errorf("no pane observations"))
-	}
 	last, _ := rt.LastTerminalPaneID()
 	ids, _ := rt.TerminalPaneIDs()
 	recorded, err := store.Read()
 	if err != nil {
 		return fail("read return pane", err)
 	}
+	panes, tabID, tabPosition, err := confirmWorkbenchPanesContext(ctx, rt, rt.CurrentPaneID(), ids, func(panes []zellijpane.Pane) bool {
+		mode, _, err := ObserveRightPaneMode(panes, ids)
+		return err != nil || mode == ModeNormal
+	}, func(panes []zellijpane.Pane) error {
+		_, err := PlanRightPane(RightPaneInput{Panes: panes, Caller: rt.CurrentPaneID(), Last: last, Registered: ids, Record: DecodeExpandRecord(recorded)})
+		return err
+	})
+	if err != nil {
+		return fail("list panes", err)
+	}
 	in := RightPaneInput{Panes: panes, Caller: rt.CurrentPaneID(), Last: last, Registered: ids, Record: DecodeExpandRecord(recorded)}
 	if mode, _, err := ObserveRightPaneMode(panes, ids); err == nil && mode == ModeNormal {
-		// Only Normal→Focus records the swap layout. Without it the later
-		// re-embed cannot re-tile, which degrades the restore, not the press.
-		if tab, err := rt.CurrentTabJSON(); err != nil {
-			store.LogFailure(fmt.Errorf("pair layout toggle-focused: tab info: %w", err))
-		} else if name, dirty, err := ParseTabLayout(tab); err != nil {
-			store.LogFailure(fmt.Errorf("pair layout toggle-focused: tab info: %w", err))
-		} else {
-			in.Swap, in.SwapDirty = name, dirty
+		tab, err := confirmLayoutTab(ctx, rt, tabID, tabPosition)
+		if err != nil {
+			return fail("tab info", err)
 		}
+		in.SwapDirty = tab.IsSwapLayoutDirty
+		if tab.ActiveSwapLayoutName != nil {
+			in.Swap = *tab.ActiveSwapLayoutName
+		}
+
 	}
 	plan, err := PlanRightPane(in)
 	if err != nil {
 		return fail("plan", err)
 	}
 	for _, step := range plan.Steps {
+		if err := ctx.Err(); err != nil {
+			return fail("operation expired", err)
+		}
 		var stage string
 		switch step.Kind {
 		case StepSave:
-			stage, err = "save return", store.Write(plan.Record.Encode())
+			stage, err = "save return", zellijreply.Effect(ctx, func() error { return store.Write(plan.Record.Encode()) })
 		case StepFloat, StepEmbed:
-			stage, err = "toggle-pane-embed-or-floating", rt.RunZellijAction("toggle-pane-embed-or-floating", "--pane-id", step.Pane)
+			stage, err = "toggle-pane-embed-or-floating", zellijreply.Effect(ctx, func() error {
+				return rt.RunZellijAction("toggle-pane-embed-or-floating", "--pane-id", step.Pane)
+			})
 		case StepPlace:
-			stage, err = "change-floating-pane-coordinates", rt.RunZellijAction(append([]string{"change-floating-pane-coordinates", "--pane-id", step.Pane}, focusPlacement...)...)
+			stage, err = "change-floating-pane-coordinates", zellijreply.Effect(ctx, func() error {
+				return rt.RunZellijAction(append([]string{"change-floating-pane-coordinates", "--pane-id", step.Pane}, focusPlacement...)...)
+			})
 		case StepShow:
 			// Exit 2 means "already visible": the state we want.
-			if stage, err = "show-floating-panes", rt.RunZellijAction("show-floating-panes"); exitCode(err) == 2 {
+			if stage, err = "show-floating-panes", zellijreply.Effect(ctx, func() error {
+				return rt.RunZellijAction("show-floating-panes", "--tab-id", strconv.Itoa(tabID))
+			}); exitCode(err) == 2 {
 				err = nil
 			}
 		case StepRestore:
-			// The pane is embedded and usable either way; a degraded re-tile is
-			// logged, and the return to Normal continues.
-			if err := restoreTiling(rt, step.Pane, plan.Record); err != nil {
-				store.LogFailure(fmt.Errorf("pair layout toggle-focused: restore tiling target=%s: %w", step.Pane, err))
-			}
-			continue
+			stage, err = "restore tiling", restoreTilingContext(ctx, rt, step.Pane, plan.Record, tabID, tabPosition, ids)
 		case StepFullscreen:
-			stage, err = "toggle-fullscreen", rt.RunZellijAction("toggle-fullscreen", "--pane-id", step.Pane)
+			stage, err = "toggle-fullscreen", zellijreply.Effect(ctx, func() error {
+				return rt.RunZellijAction("toggle-fullscreen", "--pane-id", step.Pane)
+			})
 		case StepFocus:
-			stage, err = "focus-pane-id", rt.RunZellijAction("focus-pane-id", step.Pane)
-			var actionErr *zellijActionError
-			id := strings.TrimPrefix(step.Pane, "terminal_")
-			if exitCode(err) == 2 && errors.As(err, &actionErr) &&
-				strings.TrimSpace(actionErr.output) == fmt.Sprintf("Pane Terminal(%s) is already focused", id) {
+			stage, err = "focus-pane-id", zellijreply.Effect(ctx, func() error {
+				return rt.RunZellijAction("focus-pane-id", step.Pane)
+			})
+			if IsAlreadyFocused(err, step.Pane) {
 				err = nil
 			}
 		case StepClear:
-			stage, err = "clear return", store.Clear()
+			stage, err = "clear return", zellijreply.Effect(ctx, func() error { return store.Clear() })
 		case StepNudge:
 			// Best effort: a missing or stale wrapper only loses the dim.
-			if err := rt.NudgeWrap(); err != nil {
+			if err := zellijreply.Effect(ctx, func() error { return rt.NudgeWrap() }); err != nil {
+				if ctx.Err() != nil {
+					return fail("nudge wrap", err)
+				}
 				store.LogFailure(fmt.Errorf("pair layout toggle-focused: nudge wrap: %w", err))
 			}
 			continue
@@ -441,8 +481,17 @@ func (OSRuntime) FullscreenStore() workbenchshortcut.FullscreenStore {
 	return workbenchshortcut.FullscreenReturnStore{DataDir: workbenchshortcut.DataDirFromEnv(), Tag: os.Getenv("PAIR_TAG")}
 }
 
-func (OSRuntime) CurrentTabJSON() ([]byte, error) {
-	return execZellij("current-tab-info", "--json")
+func (r OSRuntime) CurrentTabJSON() ([]byte, error) {
+	return r.CurrentTabJSONContext(context.Background())
+}
+func (OSRuntime) CurrentTabJSONContext(ctx context.Context) ([]byte, error) {
+	return execZellijContext(ctx, "current-tab-info", "--json")
+}
+
+// IsAlreadyFocused recognizes only native success-in-place for this exact pane.
+func IsAlreadyFocused(err error, target string) bool {
+	var actionErr *zellijActionError
+	return exitCode(err) == 2 && errors.As(err, &actionErr) && strings.TrimSpace(actionErr.output) == fmt.Sprintf("Pane Terminal(%s) is already focused", strings.TrimPrefix(target, "terminal_"))
 }
 
 func (OSRuntime) NudgeWrap() error {

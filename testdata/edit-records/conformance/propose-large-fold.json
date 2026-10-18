@@ -1,0 +1,13 @@
+{
+ "name": "propose-large-fold",
+ "source": "ariadne#437 construct/local/universal-review/examples (ariadne:1, at e9237f59 plus working tree): propose-large-fold",
+ "base": "---\npresentation: propose\ncollaboration-mode: discussion\n---\n\n# Release design\n\n## Sequence\n\nThe release checks the build, tests, notes, and rollout. → [proposal](design.side/01-release-sequence.md) 🤖[fold in]\n",
+ "records": [
+  {
+   "old": "The release checks the build, tests, notes, and rollout. → [proposal](design.side/01-release-sequence.md) 🤖[fold in]",
+   "new": "1. Verify the build artifact.\n2. Run the test suite.\n3. Publish the release notes.\n4. Roll out to users. → [proposal](design.side/01-release-sequence.md) (folded 2026-10-18)",
+   "explain": "folded the side doc"
+  }
+ ],
+ "after": "---\npresentation: propose\ncollaboration-mode: discussion\n---\n\n# Release design\n\n## Sequence\n\n1. Verify the build artifact.\n2. Run the test suite.\n3. Publish the release notes.\n4. Roll out to users. → [proposal](design.side/01-release-sequence.md) (folded 2026-10-18)\n"
+}

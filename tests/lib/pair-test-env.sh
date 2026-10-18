@@ -3,6 +3,8 @@
 # Usage: pair-test-env.sh ROOT [KEY=VALUE ...] -- COMMAND [ARG ...]
 #        pair-test-env.sh --print0 ROOT [KEY=VALUE ...]
 set -eu
+# Empty Git templates prevent hooks from the caller or global configuration.
+# Explicit fixture assignments below may intentionally override this default.
 mode=run
 if [ "${1-}" = --print0 ]; then mode=print; shift; fi
 root=${1-}
@@ -10,7 +12,7 @@ case "$root" in /*) ;; *) echo 'pair-test-env: disposable absolute root required
 [ -d "$root" ] || { echo 'pair-test-env: root must exist' >&2; exit 2; }
 shift
 if [ "$mode" = print ]; then
-  printf '%s\000' "PATH=${PATH:-/usr/bin:/bin}" "HOME=$root" "PAIR_TEST_ENV_SCRIPT=$0"
+  printf '%s\000' "PATH=${PATH:-/usr/bin:/bin}" "HOME=$root" "GIT_TEMPLATE_DIR=" "PAIR_TEST_ENV_SCRIPT=$0"
   for entry do
     case "$entry" in [A-Za-z_]*=*) printf '%s\000' "$entry" ;; *) echo 'pair-test-env: expected explicit KEY=VALUE' >&2; exit 2 ;; esac
   done
@@ -35,4 +37,4 @@ while [ "$commands" -gt 0 ]; do
   set -- "$@" "$entry"
   commands=$((commands - 1))
 done
-exec /usr/bin/env -i "PATH=${PATH:-/usr/bin:/bin}" "HOME=$root" "PAIR_TEST_ENV_SCRIPT=$0" "$@"
+exec /usr/bin/env -i "PATH=${PATH:-/usr/bin:/bin}" "HOME=$root" "GIT_TEMPLATE_DIR=" "PAIR_TEST_ENV_SCRIPT=$0" "$@"

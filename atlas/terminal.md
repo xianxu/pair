@@ -226,3 +226,11 @@ or skipped required tests. `.github/workflows/couch-zellij-conformance.yml` runs
 this alongside existing lifecycle conformance, installing the pinned native and
 independent-oracle dependencies. Terminal, backend, consumer, runtime and oracle
 source paths trigger it. Temporary state is removed after the invocation.
+
+The direct/wrapped persistent-reattach fixture records detach and client exits,
+owned actor liveness, socket metadata and bounded wire/server-log tails before
+failure cleanup. Actor exit receipts retain the original signal/exception outcome.
+An exited replacement client reports its evidence immediately; live clients retain
+the normal test deadline and all original PID:nonce/counter/frame assertions.
+These observations add no session-discovery probes; a missing-session reply alone
+does not establish server death (#660).
