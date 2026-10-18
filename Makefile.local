@@ -289,6 +289,7 @@ test-review: $(BIN_DIR)/pair
 	bash tests/review-reconcile-test.sh
 	bash tests/review-handoff-test.sh
 	bash tests/review-loop-test.sh
+	bash tests/review-applied-round-test.sh
 	bash tests/review-projection-test.sh
 	bash tests/review-poke-test.sh
 	bash tests/review-window-test.sh
@@ -356,6 +357,7 @@ test-lua:
 	nvim -l nvim/review/record_test.lua
 	nvim -l nvim/review/reconstruct_test.lua
 	nvim -l nvim/review/resolve_fixtures_test.lua
+	nvim -l nvim/review/round_watch_test.lua
 	nvim -l nvim/review/define_test.lua
 	nvim -l nvim/review/markers_test.lua
 	nvim -l nvim/review/comment_codec_test.lua

@@ -154,6 +154,23 @@ body); fine-grained undo lives in nvim's `undofile`. Unsaved checkout-mismatch
 recovery uses the bounded snapshot lifecycle below. The doc must
 be in a git repo.
 
+### The applied-round path (pair#661 M2)
+
+The agent can apply through pair instead of the handoff:
+`pair review apply EDITS.json FILE --if-hash H --json` (`cmd/internal/reviewapply`) runs the shared engine (`sessionsync.BuildEdit`, the one `couch --session-sync apply` uses) with no Couch owner, ledger or registry.
+
+- **Order:** a data-dir flock (`review-apply-<tag>.flock`), then the S1 operator lock (`FILE.lock`, exit 3), then the whole-file hash (exit 6), then the edit, then the round artifact (`review-round-<tag>.json`: `{file, round, body}`). The artifact is removed before the document moves, so a failed apply never leaves a stale one.
+- **Commit body:** `body` is the agent's commit body, the round's spans as review-records with `new_occurrence`. The agent commits it verbatim with docflow, so resume reconstructs unchanged.
+- **`Warning` in the reply:** the file was written but its round artifact was not. Commit `Body` now; the pane shows no highlight for that round.
+- **The pane** (`round_watch.lua`) polls the artifact. It acts on an unseen `result_hash` of its own file only while the file on disk still hashes to it: it reloads (`edit!`) and decorates the spans in `review_diag`, and writes nothing for an agent round.
+  - A round it declines (unsaved operator edits) is warned about once and redelivered later.
+- **The operator lock:** the pane takes `FILE.lock` (`oplock.lua`) on the first edit of the operator's turn and drops it on send and at exit, so an apply waits for the send.
+  - The lock records `pid:`. A lock whose owner is gone (`ESRCH`) is reclaimed at review start and on the next take, so a crashed pane can't block the agent.
+  - Readiness ignores the review's own untracked lock (`cleanBesidesLock`, porcelain `-z`).
+- **Recovery:** `pair review round FILE --json` (`{Round, Body, Current}`) recovers a lost apply reply.
+- **Under `presentation: propose`:** the same rules as couch apply (atlas/couch.md).
+- **Transition:** the legacy handoff (seams 2 and 2b), nvim's buffer apply, reconcile and gate keep working beside this path until ariadne#437 moves `xx-fix` here. pair#664 then retires them.
+
 ## The review window (M3)
 
 The document workbench in a live pair session — a **floating** nvim pane (the
