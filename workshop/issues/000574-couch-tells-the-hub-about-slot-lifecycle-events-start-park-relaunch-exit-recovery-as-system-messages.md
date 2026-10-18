@@ -110,6 +110,11 @@ Durable full-flow design: [Lifecycle system notices](../plans/000574-couch-lifec
 
 - Recorded full suite attempt c4b8c5baa145861a3cfb06c7513acb31 passed on e92fe090c05e1a7ce9961f3b02327bfd1cd07f36: make PAIR_GO_TRIMPATH=-trimpath test, exit0 in12m24s after505s queue wait. Recorder saved .git/sdlc/local-checks/e92fe090c05e1a7ce9961f3b02327bfd1cd07f36/suite.log, sha256 prefix c62f3a53bafc, and posted sdlc-local/suite. No unchanged-code retry. Docs-only descendant a15aec6ec26f also passed macOS conformance2m47s and all PR checks. Required fake/socket/owned-child and documentation verification complete; close review and normal merge remain.
 
+### Close round 1 corrections
+
+- Close returned REWORK with BR-1 preserve-confirmed-recovery-mode and BR-2 prefer-confirmed-completion-metadata; issue remains working. Verified both against all successful recovery constructors and Console final adoption. RecoveryResumeResult did not distinguish Continue/Resume/Fresh; stale menu rows supplied the old agent before asynchronous refresh. Added typed Mode using existing ContinuityAction, populated at actual successful recovery producers, and prefer adopted ActorRecord.Args.Stack. No new state, protocol or scope.
+- Red/green: successful core routes first returned empty Mode, including warm Continue, absent-session/inferred Resume, explicit/candidate Fresh, missing-record Fresh and confirmation. Added actual recovery regressions; targeted core race passed11.087s. Console finishOperation regressions first reported empty/stale agents across start/resume/switch/relaunch/reboot/continuation, and mislabeled Continue/Fresh/unknown as Resume. Corrected projection passed lifecycle tests and focused race1.877s; artifact inventory race4.441s. Added the general completion-evidence rule to lessons. Required new-code recorded suite follows; the earlier pass does not cover these corrections.
+
 ## Revisions
 
 - 2026-10-17 — Proposed design adds an explicit native-exit observation because Console attachment exit cannot substantiate the requested agent-exit notice, and kernel provenance because a visual system flag alone is forgeable. Full requested scope retained; operator smoke deferral and ariadne TL-lead companion await hub agreement.

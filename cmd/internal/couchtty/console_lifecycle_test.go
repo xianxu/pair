@@ -191,3 +191,60 @@ func TestLifecycleNewAdoptionResetsPreviousNeedsRelaunchEvidence(t *testing.T) {
 		t.Fatalf("old incarnation suppressed replacement state: %+v", events)
 	}
 }
+
+func TestLifecycleCompletionPrefersAdoptedAgent(t *testing.T) {
+	for _, previousAgent := range []string{"", "claude"} {
+		for _, operation := range []string{"start", "resume", "switch-agent", "relaunch", "reboot", "continue-thread"} {
+			t.Run(operation+"/previous-"+previousAgent, func(t *testing.T) {
+				c := New(hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 80}), nil)
+				t.Cleanup(c.Stop)
+				row := menuSlotRow(1, "slot")
+				row.Agent = previousAgent
+				c.menu = NewMenuState([]couchcore.ActionableThreadSummary{row}, row.Address)
+				var events []LifecycleObservation
+				c.SetLifecycleObserver(func(e LifecycleObservation) { events = append(events, e) })
+				c.SetOperationDispatcher(func(couchcore.OperationCall) (any, error) { return nil, nil })
+				started := couchcore.StartResult{Record: couchcore.ActorRecord{Thread: row.Address, PID: 123, Identity: "adopted", Args: couchcore.StartArgs{Worktree: couchcore.Worktree(row.Target.Slot.WorktreeRoot), Stack: "codex"}}, Handle: stubHandle{id: "adopted"}}
+				var result any = started
+				switch operation {
+				case "switch-agent":
+					result = couchcore.SwitchAgentResult{Outcome: couchcore.SwitchStarted, Record: started.Record, Handle: started.Handle}
+				case "relaunch":
+					result = couchcore.RelaunchResult{Outcome: couchcore.Relaunched, Record: started.Record, Handle: started.Handle}
+				case "reboot":
+					result = couchcore.RebootResult{Start: started}
+				case "continue-thread":
+					result = couchcore.ContinuationResult{Record: started.Record, Handle: started.Handle}
+				}
+				c.finishOperation(operationCompletion{origin: MenuOperationOrigin{Operation: operation, Attempt: 1}, value: result})
+				if len(events) != 1 || events[0].Agent != "codex" || events[0].Target != row.Target {
+					t.Fatalf("completion used stale/empty row agent: %+v", events)
+				}
+			})
+		}
+	}
+}
+
+func TestLifecycleRecoveryCompletionPreservesConfirmedMode(t *testing.T) {
+	for _, operation := range []string{"recover", "recovery-confirmation"} {
+		for _, tc := range []struct {
+			mode couchcore.ContinuityAction
+			want string
+		}{{couchcore.Continue, "Continue"}, {couchcore.ResumeDisk, "Resume"}, {couchcore.Fresh, "Fresh"}, {"", ""}} {
+			t.Run(operation+"/"+string(tc.mode), func(t *testing.T) {
+				c := New(hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 80}), nil)
+				t.Cleanup(c.Stop)
+				var events []LifecycleObservation
+				c.SetLifecycleObserver(func(e LifecycleObservation) { events = append(events, e) })
+				c.SetOperationDispatcher(func(couchcore.OperationCall) (any, error) { return nil, nil })
+				c.finishOperation(operationCompletion{origin: MenuOperationOrigin{Operation: operation, Attempt: 1}, value: couchcore.RecoveryResumeResult{
+					Mode: tc.mode, Notice: "deliberately unrelated presentation text",
+					Start: couchcore.StartResult{Record: couchcore.ActorRecord{Thread: menuAddress("slot"), PID: 123, Identity: "recovered", Args: couchcore.StartArgs{Worktree: "/repo", Stack: "codex"}}, Handle: stubHandle{id: "recovered"}},
+				}})
+				if len(events) != 1 || events[0].Kind != "recovered" || events[0].Mode != tc.want || events[0].Agent != "codex" {
+					t.Fatalf("confirmed recovery mode lost: %+v", events)
+				}
+			})
+		}
+	}
+}

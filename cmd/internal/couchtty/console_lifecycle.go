@@ -77,6 +77,9 @@ func (c *Console) observeLifecycleCompletion(completed operationCompletion, addr
 		if child, exists := started.Started(); exists && child.Record.Thread != (couchcore.ThreadAddress{}) {
 			r := child.Record
 			e = c.lifecycleMetadata(r.Thread, string(r.Args.Worktree))
+			if r.Args.Stack != "" {
+				e.Agent = r.Args.Stack
+			}
 			e.Incarnation = fmt.Sprintf("%d:%s", r.PID, r.Identity)
 			if r.Args.Issue != "" {
 				e.Issue = r.Args.Issue
@@ -95,8 +98,16 @@ func (c *Console) observeLifecycleCompletion(completed operationCompletion, addr
 			if completed.origin.Background {
 				e.Kind, e.Mode = "recovered", "Continue"
 			}
-			if _, recovery := completed.value.(couchcore.RecoveryResumeResult); recovery {
-				e.Kind, e.Mode = "recovered", "Resume"
+			if recovery, ok := completed.value.(couchcore.RecoveryResumeResult); ok {
+				e.Kind, e.Mode = "recovered", ""
+				switch recovery.Mode {
+				case couchcore.Continue:
+					e.Mode = "Continue"
+				case couchcore.ResumeDisk:
+					e.Mode = "Resume"
+				case couchcore.Fresh:
+					e.Mode = "Fresh"
+				}
 			}
 			// A confirmed replacement is a new usability episode even if it
 			// becomes unusable before the next live inventory reaches Console.
