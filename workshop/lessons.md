@@ -2206,4 +2206,6 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 - #652 PQ-1: Before submitting a plan-quality gate, replace edge-case inventories with one named-function adversarial-input strategy and independent mechanical guard per risky function. Retain concrete acceptance regressions as anchors; inventories alone repeat the #648 planning failure.
 
+- #623: A fixture's artificial child sleep spends the product's real process deadline. To test delayed observation delivery, hold the completed result at a test-only callback seam; keep native deadlines and timeout failures unchanged. Synchronize on start/result/release/application facts rather than settlement sleeps.
+- #623: Arming asynchronous work and reading its ID in separate RPCs creates a gap in which the work can already start. Capture the pre-arm ID and arm atomically; force a start inside that RPC in the regression, rather than hoping host load selects the race.
 - #655: A timer-boundary regression must assert which operation is measured, not certify host speed. Use virtual time across varied setup and command durations, retain the shipped-binary smoke without a fixed ceiling, and prove a subprocess-clock mutation fails.
