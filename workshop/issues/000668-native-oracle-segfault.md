@@ -16,6 +16,7 @@ claimant:
     workspace: pair:3
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "15ca87b6", done: "2b4c3d0c"}
 ---
 
 # Native terminal oracle subprocess crashes with SIGSEGV in macOS conformance
