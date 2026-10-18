@@ -53,3 +53,5 @@ Hub approved this scope in delivery c4bfa120-b5ef-4b05-aa04-71fb3bdd09c8. Land a
 ## Revisions
 
 - 2026-10-18: Recorded the approved exact-target refinement in workshop/plans/000676-claude-exact-resume-cap-plan.md. Shallow project enumeration preserves cross-project/relocated IDs and duplicate-root refusal; deriving only current cwd would change that contract. Ordinary clone under pair-slot5 isolates #676 from #651's still-running merge. Start-plan completed after normal substrate catch-up.
+
+- 2026-10-18: Plan-quality round 1 raised PQ-1 (function-specific adversarial strategies) and PQ-2 (directory evidence cannot use the regular-file sameRecoveryInfo helper). Revised the durable plan with an explicit ctime-bearing directory fingerprint, held descriptor ownership, no-follow current-path comparison, and typed real-filesystem probe seam for deterministic replacement/absence races. No code written before gate acceptance.

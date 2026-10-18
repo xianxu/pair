@@ -70,3 +70,25 @@ This changes no durable state between events: lookup only produces a result cons
 ## Approval and alternatives
 
 Hub delivery c4bfa120-b5ef-4b05-aa04-71fb3bdd09c8 approved bounded exact-target validation, unchanged global cap/identity, >10k regression, landing after #651. Delivery 506f4ca5-b991-4e2f-97bf-2ae28c69befc posted the shallow exact-leaf refinement preserving relocated and duplicate-root cases. Raising the cap only postpones failure; current-cwd-only lookup loses existing identity guarantees. This plan uses no third mechanism or new operator state.
+
+## Revisions
+
+### 2026-10-18 — PQ-1/PQ-2: directory evidence and executable test seams
+
+This supersedes the earlier reference to sameRecoveryInfo for directories: recovery_os.go:130 requires regular files, so reuse it only for the existing transcript proof. openRecoveryFile (recovery_os.go:20-60) opens a safe descriptor but does not retain ancestor descriptors. The new visitor explicitly owns one root directory descriptor for the whole enumeration and one project descriptor around each exact-leaf probe, at most two additional descriptors, closed synchronously on every return.
+
+Add a pure directoryFingerprint conversion from unix.Stat_t, containing device, inode, directory mode, size, mtime and ctime (seconds/nanoseconds). Read snapshots with unix.Fstat on the held descriptor. Before accepting the probe (including ENOENT), compare the original fingerprint with both current Fstat and a no-follow Fstatat of the directory's current pathname; require all values equal and directory mode. Held descriptors prevent inode reuse; ctime/mtime detect entry mutation even when the same directory remains. Compare the project around every leaf stat and the root around the entire one-entry-at-a-time enumeration. A vanished/replaced project is incomplete, never a positively absent leaf. These are bounded observations at each probe; no global filesystem transaction is claimed. Existing scanner checks revalidate selected content afterward.
+
+For controlled tests, make the private visitor implementation accept a typed runtime seam with openRecoveryFile and StatRecoveryFile (OSRuntime supplies both); OSRuntime.VisitNativeSelectorFiles calls that same helper. Internal-package tests embed the real temporary-folder OSRuntime and override StatRecoveryFile to mutate the actual filesystem at the named probe boundary before delegating, rather than adding production test hooks or fabricating success. This stateful adapter exercises the same visitor helper and real descriptors.
+
+| Pure entity | Location | Status | Unit strategy |
+|---|---|---|---|
+| directoryFingerprint | native_selector_claude_os.go | new | Distinct device/inode/mode/size/mtime/ctime inputs must compare unequal; non-directory mode refuses |
+
+Function-specific integration proof (replaces the generic Task 3 case inventory):
+
+- VisitNativeSelectorFiles/private helper: real over-10k descendant fixture must resolve through production ResolveNativeSelector; counted helper result at N and 2N descendants remains P immediate entries, and P/2P project fixtures scale linearly. Cap exhaustion, context cancellation, root/project/target symlinks and nonregular target must return incomplete/error. Stateful exact-leaf probe adapter renames/replaces a project, removes its parent, or inserts a target at the absence boundary; fingerprint mismatch is the mechanical refusal guard. A probe-boundary root replacement must fail the final root descriptor/name comparison. File descriptor ownership is checked on success and failure through repeated fixture operations, without scheduling sleeps.
+- nativeSelectorRuntime.ListFiles: an explicit canonical Claude request dispatches to the optional visitor, an incapable fake follows the existing path, and other agents preserve existing traversal. A counting adapter traps recursive VisitRecoveryFiles during exact Claude validation; the exact-ID hint must never replace a latest snapshot's full discovery requirement.
+- ResolveNativeSelector: duplicate same-ID roots in separate projects must refuse; relocated root with different/absent cwd still resolves. Real-file fixtures cover sidechain, contradictory sessionId, missing target, malformed/incomplete target, and target symlink. Existing mutable fake plus actual ReadRecoveryAt mutation adapters cover changed target metadata/EOF; final canonical identity and root role remain the guard. Latest over-cap fixture remains incomplete.
+
+PQ-1 is answered by this production-function/controlled-ordering inventory; PQ-2 by descriptor ownership and the directory-specific ctime-bearing comparison. No interface or lifetime change outside the exact Claude query is introduced.
