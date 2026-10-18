@@ -24,7 +24,10 @@ type TitleProjectionResult struct {
 
 // TitleProjection admits existing inventory authority once, then follows only
 // its pinned append-only transcript. No transcript/event history is retained;
-// full validation is never silently invoked after admission.
+// full validation is never silently invoked after admission. Ordinary growth
+// that races an admission drops the admission and re-admits on the next Poll;
+// classifyAdmission is the one rule that decides it (#653). Every other failure
+// stops the projection for good.
 type TitleProjection struct {
 	runtime      Runtime
 	ownerRuntime titleOwnerRuntime
@@ -37,6 +40,7 @@ type TitleProjection struct {
 	state        ScannerState
 	transcript   FileEntry
 	other        []FileEntry
+	since        []FileEntry
 	rawOffset    int64
 	observedSize int64
 	frame        JSONLFrameState
@@ -48,6 +52,15 @@ type TitleProjection struct {
 type titleOwnerRuntime struct {
 	Runtime
 	cache *OwnerLaunchCache
+}
+
+// errTitleReadmit marks an admission that failed only because its artifacts
+// grew while it read them. Poll answers it by re-admitting, never by stopping.
+var errTitleReadmit = errors.New("title projection must re-admit")
+
+// grewFrom reports that now is old's same file, only longer: an append.
+func grewFrom(old, now FileEntry) bool {
+	return sameTitleIdentity(old, now) && now.Size > old.Size
 }
 
 func (r titleOwnerRuntime) OwnerLaunchCache() *OwnerLaunchCache { return r.cache }
@@ -64,6 +77,70 @@ func (p *TitleProjection) stop(err error) (TitleProjectionResult, error) {
 	p.frame.IncompleteTail = nil
 	return p.result, err
 }
+
+// classifyAdmission is the one place an admission failure becomes transient
+// (#653): an ErrArtifactChanged while every artifact in the baseline is
+// unchanged or only grown, and one grew, re-admits on the next Poll. A genuine
+// validation failure under growth therefore surfaces as terminal once the
+// transcript pauses between polls.
+func (p *TitleProjection) classifyAdmission(err error) error {
+	if err != nil && errors.Is(err, ErrArtifactChanged) && p.onlyGrew(p.since) {
+		return errTitleReadmit
+	}
+	return err
+}
+
+// onlyGrew reports that the observed artifacts changed only by appending:
+// each is unchanged or the same file grown, and at least one grew.
+func (p *TitleProjection) onlyGrew(observed []FileEntry) bool {
+	grew := false
+	for _, old := range observed {
+		now, err := p.runtime.StatFile(old.Artifact)
+		switch {
+		case err != nil:
+			return false
+		case equalFingerprint(fingerprintFromEntry(old), fingerprintFromEntry(now)):
+		case grewFrom(old, now):
+			grew = true
+		default:
+			return false
+		}
+	}
+	return grew
+}
+
+// baseline stats the artifacts admission is about to validate, before its
+// first read: the reference against which classifyAdmission tells growth from
+// mutation. A proof names its artifacts; a proofless binding's are found the
+// way ValidateNamedContent finds them, at the cost of one walk per admission.
+func (p *TitleProjection) baseline(inventory IncrementalInventory, binding sessionledger.Record) []FileEntry {
+	var entries []FileEntry
+	if binding.AuthorizationProof != nil {
+		for _, artifact := range binding.AuthorizationProof.Artifacts {
+			if entry, err := p.runtime.StatFile(Artifact{StorageRoot: artifact.StorageRoot, RelativePath: artifact.RelativePath}); err == nil {
+				entries = append(entries, entry)
+			}
+		}
+		return entries
+	}
+	selected := inventory.Select(TargetRequest{Mode: TargetExplicitResume, Agent: p.agent, NativeID: binding.RootNativeID}, inventory.Observe(p.agent))
+	for _, o := range selected.Eligible {
+		entries = append(entries, o.Entry)
+	}
+	return entries
+}
+
+// reset drops the admission but keeps the last displayed facts, so a busy
+// slot's count stays visible until the next Poll re-admits it.
+func (p *TitleProjection) reset(last TitleProjectionResult) (TitleProjectionResult, error) {
+	p.admitted, p.nativeID, p.state = false, "", ScannerState{}
+	p.transcript, p.other, p.since = FileEntry{}, nil, nil
+	p.rawOffset, p.observedSize = 0, 0
+	p.frame, p.boundary, p.boundaryHash = JSONLFrameState{}, nil, [32]byte{}
+	p.result = last
+	return p.result, nil
+}
+
 func (p *TitleProjection) owner() (sessionledger.Current, bool, error) {
 	current, ok, _, err := readCurrentLaunch(context.Background(), p.ownerRuntime, p.scope, p.tag, p.agent)
 	if err != nil {
@@ -100,7 +177,10 @@ func (p *TitleProjection) Poll() (TitleProjectionResult, error) {
 			p.result = TitleProjectionResult{Awaiting: true}
 			return p.result, nil
 		}
-		if err := p.admit(*current.Binding); err != nil {
+		last := p.result
+		if err := p.classifyAdmission(p.admit(*current.Binding)); errors.Is(err, errTitleReadmit) {
+			return p.reset(last)
+		} else if err != nil {
 			return p.stop(err)
 		}
 		if _, _, err := p.owner(); err != nil {
@@ -122,6 +202,7 @@ func (p *TitleProjection) admit(binding sessionledger.Record) error {
 	inventory := NewIncrementalInventory(p.runtime, Catalog{Version: CatalogVersion})
 	var v TargetValidation
 	var err error
+	p.since = p.baseline(inventory, binding)
 	if binding.AuthorizationProof != nil {
 		v, _, err = inventory.ValidateBindingProof(p.agent, *binding.AuthorizationProof)
 	} else {
@@ -186,7 +267,10 @@ func (p *TitleProjection) admit(binding sessionledger.Record) error {
 		p.usage(record.Bytes)
 	}
 	current, err := p.checkArtifacts()
-	if err != nil || !sameTitleIdentity(p.transcript, current) || current.Size != p.rawOffset || !equalFingerprint(fingerprintFromEntry(p.transcript), fingerprintFromEntry(current)) {
+	if err != nil {
+		return err
+	}
+	if !sameTitleIdentity(p.transcript, current) || current.Size != p.rawOffset || !equalFingerprint(fingerprintFromEntry(p.transcript), fingerprintFromEntry(current)) {
 		return ErrArtifactChanged
 	}
 	window, err := p.readBoundary()
@@ -194,7 +278,10 @@ func (p *TitleProjection) admit(binding sessionledger.Record) error {
 		return err
 	}
 	after, err := p.checkArtifacts()
-	if err != nil || !equalFingerprint(fingerprintFromEntry(current), fingerprintFromEntry(after)) {
+	if err != nil {
+		return err
+	}
+	if !equalFingerprint(fingerprintFromEntry(current), fingerprintFromEntry(after)) {
 		return ErrArtifactChanged
 	}
 	p.boundary = window
