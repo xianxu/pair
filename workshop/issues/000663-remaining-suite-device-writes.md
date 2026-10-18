@@ -43,6 +43,8 @@ Attribute the remaining final-Go device interval with a bounded measurement befo
 
 ## Revisions
 
+- 2026-10-18: Hub approved only the first observation comparison, one attempt (receipt f22cead8-9b80-4ee6-a1e4-8e4d9b2e7a3d). Cancel the host census. If attribution remains open, supply a scoped 60-second fs_usage command for the operator; defer concurrency until the writer is known. Fixed work is five invocations per arm, full observer first, endpoints only second, at most 60 seconds each.
+
 - 2026-10-18: Hub assigned attribution first and added the machine concurrency question. Both existing complete windows already ran one Make holding both tokens. No production fix or global concurrency change is selected. Start with a bounded workload observation control; reserve a full equal-completion concurrency comparison for a separate approval.
 
 ## Log

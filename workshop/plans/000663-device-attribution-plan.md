@@ -12,6 +12,10 @@ collaboration-mode: discussion
 
 **Tech stack:** macOS disk0 IORegistry counters, procutil native resource counters, existing couchcore tests, the normal machine test lock, and retained JSON evidence.
 
+## Revisions
+
+- 2026-10-18: Hub approved only section 2's single observation comparison (receipt f22cead8-9b80-4ee6-a1e4-8e4d9b2e7a3d). Section 3's host census is cancelled: if attribution remains open, provide a scoped 60-second fs_usage command for the operator. Section 4's concurrency experiment is deferred until the writer is known. These decisions supersede the unchecked alternatives below. The comparison uses five complete invocations per arm, full observation first, endpoints only second, with 60 seconds per arm. This is investigation using temporary instrumentation and unchanged tests; any repository implementation still requires change-code.
+
 ## Core concepts
 
 This is an attribution plan; no production entity or public interface is selected.
