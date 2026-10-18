@@ -1,6 +1,6 @@
 ---
 id: 000658
-status: codecomplete
+status: done
 created: 2026-10-17
 updated: 2026-10-18
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: e5e0d8cc6bdbbed0cc93e94df928dc1b97380a0d
         evidence_commit: 942177489f3ce6b371c2eaa3d4af9a2817fefc68
+        landed_commit: 55743416d572c1d54fb49f0d62f0d9a45a1d5f3e
 ---
 
 # pair test suites write ~20 MB/s (couchcmd.test): measure per package and cut, with a counted budget
