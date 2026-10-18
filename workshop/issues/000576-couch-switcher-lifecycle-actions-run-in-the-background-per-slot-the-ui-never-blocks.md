@@ -73,3 +73,7 @@ The implementation is a per-target UI ownership and completion change over the e
 ### 2026-10-17 — approved display and acceptance
 
 Hub approved the design (24b5e642-2afe-4954-8922-b53c54a01ea1): busy rows show what the action is doing and elapsed time; finished/failed actions retain one result line per row. Derive age from existing clock/tick inputs, no new polling. Live check rides the hub's next restart. Wait for the hub's #651 landing announcement before code; no staging.
+
+### 2026-10-18 — dependency landed, implementation resumed
+
+Hub unparked this item after #651/PR414 landed (23fccae3448f10a16aa769abf1e857d67c74733f). Fresh origin/main merged cleanly on this issue branch before production work. Re-read landed OpRecoverPark binding, captured ParkNonce confirmation and guarded preparePark execution; preserve the shared core worker reservation/cancellation and no-child recovery result. #574's lifecycle observer is now also on main, including final-adoption-before-observation ordering. Independent read-only adoption audit reconfirmed Console.Run calls finishOperation synchronously and the installer holds c.mu during Resize and presenter.Register. Using the full flow for the planned cross-cutting reducer/adoption refactor rather than relying on the initial empty-code quick-flow inference.
