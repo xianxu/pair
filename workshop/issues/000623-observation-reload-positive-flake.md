@@ -55,6 +55,7 @@ ARCH-DRY: one test-only gate owns callback retention for all delayed phases; reu
 - 2026-10-16: Filed unclaimed per the hub's explicit decision, delivery efadcd45-6fb6-487e-9392-7fc79782168e. The hub authorized one additional recorded #604 rerun; another failure must stop and be reported, with no indefinite retry loop. No fix is included in #604.
 
 ### 2026-10-17 — measurement before design
+- 2026-10-17: closed — Recorded full suite passed on 2514a9ec037e240bf2f0270f0862484bc4cf4f2e in 12m26s, log c05a8dba998a; all 10 observation diagnostics, standalone fixture and every Go package passed. Historical timeout proven; old artificial-delay control fails 3/3, new held-result plus forced-arm control passes 3/3, ordinary repetitions pass 5/5. Atomic-arm negative control fails without fix. Test-only gate, native 2500ms deadline and production observer unchanged; no live staging needed. (done-when: contract moved since change-code; judged by the close review); review verdict: SHIP
 
 Confirmed the card was unowned, then claimed and entered planning from current main (092d32a9db3d082d7c413f740f7c2a4bacc14e31). start-plan refreshed the Ariadne tool layer and was rerun as instructed; no implementation edits made. A read-only subagent independently traced the resolver/observer ordering.
 
