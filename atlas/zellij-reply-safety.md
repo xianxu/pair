@@ -28,15 +28,16 @@ positive local evidence. It wraps one effect at a time; cancellation inside an
 issued effect stops the next one without rolling back completed progress or
 changing the issued mutation's lifetime. The sink-manifest test covers every
 protected dispatch and explicitly identifies cleanup and diagnostic exemptions.
-The note resolver retains each slot/pass context through its final publication,
-then releases it; a valid late observation cannot outlive admission.
+Terminal notes use Couch-owned synchronous frame/layout data only; their former
+native query and asynchronous enrichment have been removed by operator decision.
 
 `cmd/internal/zellijexec` owns synchronous read-only query processes. It creates
 a private process group, cancels that group, joins the direct CLI child, bounds
 pipe draining and stops owned descendants on every completion path. It is not
 used for creating a server, interactive attachment or native mutations.
 Descendants deliberately leaving the group are outside that ownership contract.
-Both Couch restart-client and note-geometry query entrypoints use this owner.
+Couch's remaining restart-client query entrypoint uses this owner; native note
+geometry lookup has been removed.
 
 | Caller | Disposition | Current authority / verification |
 |---|---|---|
@@ -52,7 +53,7 @@ Both Couch restart-client and note-geometry query entrypoints use this owner.
 | Layout focus/toggle/split/tab forwarding and terminal shortcut fallback | M2 implemented, review pending | Strict target/state admission and existing validated local sidecar fast paths. |
 | Current-tab layout capture/restoration | M2 implemented, review pending | Correlated tab/layout facts and partial-progress refusal. |
 | Go draft routing and restart role | M2 implemented, review pending | Explicit admitted targets; cancellation checked at actual dispatch; existing Couch notices. |
-| Note anchors | M2 REWORK; operator decision pending | Matching geometry and unchanged frame text do not prove which native tab produced a captured frame. Existing enrichment retained pending an explicit UX decision. |
+| Terminal note anchors | Deterministic Couch capture; native consumer removed in M2 | Slot, box, draw-time text and Couch-owned tab/status anchors; existing PNG capture unaffected. Zero native queries or file/line/section guesses. |
 | Clipboard auto-quote / paste / query-selected flash | M2 implemented, fail-closed; review pending | Successful OS copy is separate; uncertain routing must refuse before staging, flash, focus or trigger. |
 | Lua workbench routing, poke, DOM and review visibility | M3 pending | Shared contracts, existing recipient fences and user-visible editor refusal. |
 | Title poller, wrap dim and opener viewport | Re-checked | Existing next tick/invocation and cosmetic fallback; no action authority. |

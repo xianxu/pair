@@ -85,7 +85,6 @@ func TestCouchQueriesCollectOwnedDescendants(t *testing.T) {
 		query       func(context.Context, string) ([]byte, error)
 	}{
 		{"clients", "CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\n", queryShortcutClients},
-		{"geometry", "[]\n", queryPaneGeometry},
 	} {
 		for _, mode := range []string{"success", "failure", "cancel", "pipe-holder"} {
 			t.Run(entry.name+"/"+mode, func(t *testing.T) {

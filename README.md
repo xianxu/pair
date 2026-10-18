@@ -1318,6 +1318,10 @@ right-clicking it in the box. A note stays where it was placed, whatever scrolls
 underneath. Turning pointing off deletes every note, as it clears the marks,
 and stopping the broadcast ends them too; nothing is saved to disk.
 
+Terminal notes use the slot, box and draw-time text that Couch knows directly,
+with Couch's own tab-bar and status anchors. They do not infer editor filenames
+or line numbers from native pane queries or matching screen text to files.
+
 Click a note you created in this unlocked browser session to edit its text.
 **Save** updates the same note, preserving its author and box, and adds an
 **edited** marker; **Cancel** leaves it unchanged. Other people's notes remain

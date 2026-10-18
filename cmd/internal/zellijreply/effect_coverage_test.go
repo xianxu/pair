@@ -67,12 +67,11 @@ var m2EffectManifest = map[string]effectBoundary{
 	"couchtty/console.go:dispatchInputCandidate:route#3":                     {exemption: "ordinary input independent of restart-role observation"},
 	"couchtty/console.go:dispatchInputCandidate:handle#1":                    {token: "admission"},
 	"couchtty/console.go:dispatchInputCandidate:handle#2":                    {exemption: "non-observed handler path retains its existing lifecycle"},
-	"couchtty/console_noteanchor.go:resolveAnchorPass:SetNoteAnchor#1":       {token: "ctx"},
 }
 
 var m2OwnerFiles = []string{
 	"layoutcmd/layoutcmd.go", "layoutcmd/rightpane.go", "termcmd/run.go",
-	"draftroute/route.go", "clipcmd/run.go", "couchtty/console.go", "couchtty/console_noteanchor.go",
+	"draftroute/route.go", "clipcmd/run.go", "couchtty/console.go",
 }
 
 var effectSinkNames = strings.Fields("RunZellijAction RunZellijActionQuiet RecordLastLeftPaneID RecordLastTerminalPaneID Write Clear NudgeWrap SetPaneColor ResetPaneColorAfter WriteFile FocusPaneContext WritePaneKeyContext SetNoteAnchor ClipboardCopy SpawnDetached RegisterTerminalPane newTab closeActive previousTab nextTab route handle Run Output CombinedOutput Start")
