@@ -56,11 +56,13 @@ Durable full-flow plan: [Zellij reply hardening](../plans/000647-zellij-reply-ha
 
 - [x] M1 — Strict reply contracts, stateful fake and lifecycle/absence admission.
 - [x] M2 — Go one-shot action and clipboard safety, with per-caller fake refusal tests.
-- [ ] M3 — Editor admission, native refusal qualification and complete atlas caller map.
+- [x] M3 — Editor admission, native refusal qualification and complete atlas caller map.
 
 ## Log
 
 
+
+- 2026-10-18: closed M3 — Full make test-lua and test-review PASS; artifact/fake/reply targeted Go PASS; native prefix oracle normal/race PASS (0.251s/1.243s). Single installed-Zellij attempt accepted by hub8475ff8f for visible refusal, retained record and no post-unknown mutation, not a clean pass; measured31/830 wrong first frames documented. Clean path assigned to next restart, no further native runs. Hub55bdae20 explicitly approves M3 review overlapping recorded suite queued at ce16851261c658c5568873fe3c0db3832258596d; final-head suite PASS still required for whole close/landing; requeue if review changes code. TL owns project updates.; review verdict: SHIP
 - 2026-10-18: closed M2 — BR5 deterministic Couch capture and zero native note queries; BR6 shared per-effect cancellation gate and sink manifest; BR7 owned query collection; BR8 owed flash reset and visible failures retained. BR9 explicit decision-fact projection accepts cosmetic titles and registered fallback while role/ID/tab/state/template/order changes refuse. Actual layout toggle and terminal fallback regressions RED then GREEN; full layout/terminal/draft/reply normal and race pass; final diff check clean. Prior native healthy evidence and malformed-body evidence limits retained; no new native run. TL owns project.; review verdict: SHIP
 ### 2026-10-17
 - 2026-10-17: closed M1 — M1 reviewed from an independent clone while the registered checkout lands #640; clone lacks the primary checkout's queue evidence. TL approval0019655b authenticated. BR-4 collector-error controls RED before and GREEN after both-consumer fix; launcher34.936s, collector4.287s, collector/observer race1.930s. Prior BR-1/2/3 disposed in round2; R3 phase/lifetime controls retained; full-Couch evidence limits in issue.; review verdict: SHIP
