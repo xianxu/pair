@@ -16,6 +16,7 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "bc5b5dc7", done: "d617f893"}
 ---
 
 # Couch attention list: a top-right panel of what's waiting on the operator, each item jumps to its slot
