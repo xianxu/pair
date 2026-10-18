@@ -2295,3 +2295,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #666 BR-1: Repository lint may require verified main-ref authority. A disposable reviewer checkout without that authority cannot prove the ordinary lint consumer ran; retain a successful exact-head package run and named-consumer output from the configured checkout, and present it through the measured-evidence dispute path rather than weakening the repository guard.
 
 - #666 BR-2: Match universal coverage claims to actual cases. A missing warm entrypoint plus omitted park setup does not establish individual omission of every protected function; name the exact coverage or add the missing cases.
+
+- #668 BR-1: New developer invocation surfaces need a root README entry even when the package README and atlas already explain them. Sweep retention flags, replay commands and diagnostic controls together; link the detailed guide and state the evidence/lifetime limits at the root testing entry point.
