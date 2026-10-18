@@ -51,6 +51,7 @@ Land the approved diagnostic stage so the next native reattach discovery failure
 ## Log
 
 ### 2026-10-18
+- 2026-10-18: closed — Hub-approved diagnostic-only landing, then reopen/unclaim unresolved cause. BR-1 complete consumer sweep: actual five-stream collector retains bounded latest child/parent/detach/wrapper/receipt evidence; regression failed all four old prefix streams before fix, now targeted tests pass normally (1.208s) and -race (3.569s). Corrected pushed e2f8bca989ecd6fa6b1c22f3cd82b3e9f0333018 full recorded make PAIR_GO_TRIMPATH=-trimpath test passed exit 0 in 11m46s, log b60cf9203f95; all server CI green including native macOS conformance. Original single granted local native family passed two subtests with same PID:nonce and counter 1 to 2, private scratch removed, lane released; no additional local native run. Atlas and lessons updated. No production fix, deadline bump, attach retry or reproduction claimed. (done-when: contract moved since change-code; judged by the close review); review verdict: SHIP
 
 Filed unclaimed while verifying #658. Failed CI log and job metadata retained locally under pair658-profile.yqKPI1/ci-39105463917*; durable evidence is the public run and summary above. Two earlier greens on unchanged issue code establish the flake. #658 may make one recorded unchanged failed-job rerun under the fleet rule; any repeat is reported rather than retried indefinitely.
 
