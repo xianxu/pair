@@ -434,6 +434,11 @@ recovery journals. Attachments use bounded parallelism and one retry; a failure
 reads `Continue · pane failed: <reason> (retry)`. While its pane is loading,
 it reads `Continue · attaching…`; an attached pane reads `Continue`. One unavailable slot does not
 prevent Couch or other slots from opening.
+Couch keeps agent-pane context titles and cmux activity heat titles current from
+its existing inventory and minute activity refreshes. Hosted Pair starts no
+separate title poller. Idle fading keeps using prompt and agent activity plus
+live wrapper work; standalone Pair retains its leased title poller.
+
 Choose **Continue** for a session Zellij lists live, **Resume from disk** for a
 recoverable stopped conversation, or the offered **Start fresh** action to begin
 again. A live session remains Continue while its agent is working on a turn;
@@ -488,6 +493,13 @@ couch --session-sync read --frontmatter FILE [--json]
 couch --session-sync write --frontmatter BODYFILE FILE --if-hash H
                          light: read or replace the complete leading --- block only; preserves body bytes
                          (including Updated) and unread body edits in diff, even without a previous baseline
+couch --session-sync apply EDITS.json FILE --if-hash H [--fold ID] [--json]
+                         a precise edit: {old, occurrence, new, explain} records applied all or none (edits-invalid
+                         lists each bad record); under presentation: propose Couch writes per-line accept/reject
+                         markers (propose-too-large / propose-unencodable mean: use a side-doc proposal)
+couch --session-sync round FILE --json
+                         the last agent round (every changing agent write keeps one), with reasons from apply,
+                         and whether the operator's next submit has cleared it; parley highlights it
 couch --session-sync register FILE --owner SLOT [--json]
                          keep agentic status outside the document until explicitly forgotten
 couch --session-sync lookup FILE | list | forget FILE | rename OLD NEW [--json]

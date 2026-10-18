@@ -1,0 +1,6 @@
+{
+ "name": "too-large",
+ "base": "a\nb\nc\nd\ne\n",
+ "after": "A\nB\nC\nD\ne\n",
+ "refuse": "propose-too-large"
+}

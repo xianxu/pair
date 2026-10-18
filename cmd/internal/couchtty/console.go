@@ -221,14 +221,18 @@ type Console struct {
 	slotGitSchedule RefreshSchedule
 	slotGitInterval time.Duration
 	// Idle-fading activity refresh (pair#247); see console_activity.go.
-	activityProbe    ActivityProbe
-	wrapperActivity  func(couchcore.ActionableThreadSummary) time.Time
-	copyObserver     func(CopyObservation)
-	copyKeyObserver  func(CopyKeyObservation)
-	activityRequests chan struct{}
-	activityResults  chan activityResult
-	activitySchedule RefreshSchedule
-	activityInterval time.Duration
+	activityProbe          ActivityProbe
+	activityPass           ActivityPass
+	activityCancel         context.CancelFunc
+	activityRowsGeneration uint64
+	activityRowsKnown      bool
+	wrapperActivity        func(couchcore.ActionableThreadSummary) time.Time
+	copyObserver           func(CopyObservation)
+	copyKeyObserver        func(CopyKeyObservation)
+	activityRequests       chan struct{}
+	activityResults        chan activityResult
+	activitySchedule       RefreshSchedule
+	activityInterval       time.Duration
 	// Per-probe bound from console_activity.go; the New default is the package
 	// const and tests shrink it to exercise the deadline path (#628). Only
 	// tests write it, before any worker starts; the worker reads it without

@@ -462,6 +462,7 @@ func runTypedOperation(op couchcore.Operation, parsed, prepareArgs map[string]st
 		})
 	}
 	finish := func(console *couchtty.Console, c *couchcore.Couch, start couchcore.StartResult, out io.Writer) int {
+		wireTitles(console, c, rt.Getenv)
 		return runConsole(console, c, start, out, hubs)
 	}
 	return runTypedOperationWithConsole(op, parsed, prepareArgs, forceConsole, layout, inFile, outFile, stdin, stdout, stderr, rt, finish, setup...)
@@ -1439,6 +1440,11 @@ func usageWith(w io.Writer, bindings []couchkeys.Binding) {
 	verbLine(w, "--session-sync", "       couch --session-sync write --frontmatter BODYFILE FILE --if-hash H")
 	fmt.Fprintln(w, "             Read or replace only the leading --- block; body bytes and unread body edits stay intact.")
 	fmt.Fprintln(w, "             CAS writes refuse under the operator lock; after 30 minutes, ping its holder.")
+	verbLine(w, "--session-sync", "       couch --session-sync apply EDITS.json FILE --if-hash H [--fold ID] [--json]")
+	fmt.Fprintln(w, "             Apply {old, occurrence, new, explain} records to the whole file, all or none")
+	fmt.Fprintln(w, "             (edits-invalid lists each bad record). Every agent write keeps a round.")
+	verbLine(w, "--session-sync", "       couch --session-sync round FILE --json")
+	fmt.Fprintln(w, "             The last agent round's spans, and whether a submit has cleared it.")
 	fmt.Fprintln(w, "             Registration lasts until forget; rename moves metadata only. See couch --skill.")
 	verbLine(w, "--adopt-store", "       couch --adopt-store <absolute-path> [--pair-data <path>] [--identity-dir <path>]")
 	fmt.Fprintln(w, "             [--legacy-store <path>]... [--exclude-store <path>]... [--apply <digest>]")

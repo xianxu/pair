@@ -227,6 +227,7 @@ func (t *registryTxn) metadata(d DocumentRegistration) Paths {
 	root := filepath.Join(t.store.Dir, "state", d.ID)
 	p.Shadow = filepath.Join(root, "shadow")
 	p.State = filepath.Join(root, "state.json")
+	p.Round = filepath.Join(root, "round.json")
 	return p
 }
 
@@ -367,6 +368,12 @@ func (s *Sync) Register(path, owner string) (RegistryResult, error) {
 		}
 		if hasShadow {
 			if err := t.publish(p.Shadow, []byte(shadow)); err != nil {
+				return RegistryResult{}, err
+			}
+		}
+		// A legacy round comes along; one that is malformed is left behind.
+		if raw, err := readRound(PathsOf(path).Round); err == nil && raw != nil {
+			if err := t.publish(p.Round, raw); err != nil {
 				return RegistryResult{}, err
 			}
 		}
@@ -669,6 +676,13 @@ func (t *registryTxn) exportLegacy(d DocumentRegistration, path string) error {
 				return false, err
 			}
 		} else if err := os.Remove(f.paths.Shadow); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return false, err
+		}
+		if raw, err := readRound(t.metadata(d).Round); err == nil && raw != nil {
+			if err := t.publish(f.paths.Round, raw); err != nil {
+				return false, err
+			}
+		} else if err := os.Remove(f.paths.Round); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return false, err
 		}
 		return true, saveStateUsing(f.paths, st, t.publish)

@@ -235,6 +235,10 @@ var Families = []Family{
 // shell, Lua, and KDL sources.
 // pair:m5-concept pure
 var SourceClassifications = []SourceClassification{
+	// #649 title adapters resolve scoped roots and storage ownership through
+	// artifactpath; neither constructs a tracked artifact filename family.
+	{Path: "cmd/internal/couchcmd/titles.go", Kind: ResolvedConsumer},
+	{Path: "cmd/internal/couchcore/title_target.go", Kind: ResolvedConsumer},
 	{Path: "cmd/internal/couchcmd/lifecycle_notices.go", Kind: VocabularyConsumer, Families: []string{"restart"}, Vocabulary: []VocabularyAllowance{
 		goCaseVocabulary("restart", "restart-armed", "observe", 1),
 		goCaseVocabulary("restart", "restart-drained", "observe", 1),
@@ -647,6 +651,11 @@ var SourceClassifications = []SourceClassification{
 // the artifact namespace requires an explicit SourceClassification.
 // pair:m5-concept pure
 var NonArtifactSources = []string{
+	// #649 wiring, contextual runtime delegation, and the pure title reducer
+	// introduce no artifact constructors or filename vocabulary.
+	"cmd/internal/couchcmd/titles_wiring.go",
+	"cmd/internal/sessioninventory/title_context.go",
+	"cmd/internal/titlepoller/update.go",
 	// #574 lifecycle observations/projections carry no artifact filename vocabulary.
 	"cmd/internal/couchcore/lifecycle_notice.go",
 	// #648 batching carries peer envelopes and receipts over existing endpoints;
@@ -1080,12 +1089,18 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcmd/session_stale.go",
 	"cmd/internal/couchcmd/session_stale_command.go",
 	"cmd/internal/couchcmd/session_stale_model.go",
+	// #661 apply and rounds: pure resolution, diff and marker code, plus a
+	// round sidecar beside the shadow; no Pair artifact filenames.
+	"cmd/internal/sessionsync/edits.go",
 	"cmd/internal/sessionsync/file.go",
 	"cmd/internal/sessionsync/gap.go",
 	"cmd/internal/sessionsync/ledger.go",
+	"cmd/internal/sessionsync/linediff.go",
 	"cmd/internal/sessionsync/owed.go",
+	"cmd/internal/sessionsync/propose.go",
 	"cmd/internal/sessionsync/registry.go",
 	"cmd/internal/sessionsync/registry_model.go",
+	"cmd/internal/sessionsync/round.go",
 	"cmd/internal/sessionsync/state.go",
 	"cmd/internal/sessionsync/sync.go",
 	// #451 waiting notices: reads the operator's mute list in the Couch

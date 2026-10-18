@@ -1,0 +1,20 @@
+{
+ "name": "overlap-same-offset",
+ "base": "abc\n",
+ "records": [
+  {
+   "old": "ab",
+   "new": "X"
+  },
+  {
+   "old": "abc",
+   "new": "Y"
+  }
+ ],
+ "invalid": [
+  {
+   "index": 2,
+   "reason": "overlap"
+  }
+ ]
+}

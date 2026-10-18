@@ -106,4 +106,53 @@ function M.decorate(records, content, which)
   return { highlights = highlights, diagnostics = diagnostics }
 end
 
+-- Resolve review records against `base` (pair#661). Every record resolves
+-- against the base text: occurrence is 1-based and counts plain,
+-- non-overlapping byte matches; records sort by offset (ties by input order),
+-- and one starting before the previous accepted span ends is an overlap.
+-- Returns (kept, bad): kept = { {rec, index, base_off} } in base order;
+-- bad = { {index, reason, rec} } by index, reason ∈ 'empty old' | 'not found' |
+-- 'overlap'. Couch's Go resolver runs the same testdata/edit-records fixtures.
+function M.resolve(base, records)
+  local resolved, bad = {}, {}
+  for i, r in ipairs(records or {}) do
+    if not r.old or r.old == '' then
+      bad[#bad + 1] = { index = i, reason = 'empty old', rec = r }
+    else
+      local off = M.nth_offset(base, r.old, r.occurrence or 1)
+      if off then resolved[#resolved + 1] = { rec = r, index = i, base_off = off }
+      else bad[#bad + 1] = { index = i, reason = 'not found', rec = r } end
+    end
+  end
+  table.sort(resolved, function(a, b)
+    if a.base_off ~= b.base_off then return a.base_off < b.base_off end
+    return a.index < b.index
+  end)
+  local kept, prev_end = {}, 0
+  for _, it in ipairs(resolved) do
+    if it.base_off < prev_end then
+      bad[#bad + 1] = { index = it.index, reason = 'overlap', rec = it.rec }
+    else
+      kept[#kept + 1] = it
+      prev_end = it.base_off + #it.rec.old
+    end
+  end
+  table.sort(bad, function(a, b) return a.index < b.index end)
+  return kept, bad
+end
+
+-- resolve_text applies a fully resolving batch: (text, {}) or (nil, bad).
+function M.resolve_text(base, records)
+  local kept, bad = M.resolve(base, records)
+  if #bad > 0 then return nil, bad end
+  local out, at = {}, 1
+  for _, it in ipairs(kept) do
+    out[#out + 1] = base:sub(at, it.base_off - 1)
+    out[#out + 1] = it.rec.new or ''
+    at = it.base_off + #it.rec.old
+  end
+  out[#out + 1] = base:sub(at)
+  return table.concat(out), bad
+end
+
 return M
