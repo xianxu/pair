@@ -6,7 +6,7 @@ collaboration-mode: discussion
 
 > **For agentic workers:** Consult AGENTS.md Section 3 (Subagent Strategy) to choose subagent-driven development or execution in the current session. Steps use checkboxes for tracking.
 
-**Status:** First close review returned REWORK (BR-1 activity consistency, BR-2 production resource coverage). Fixes and fresh verification in progress; landing remains pending. Live conformance deferred by TL to the next operator restart; no staging.
+**Status:** BR-1/BR-2 corrections and fresh recorded suite pass. Repeat close review and landing remain pending. Live conformance deferred by TL to the next operator restart; no staging.
 
 **Goal:** Couch-hosted Pair starts no per-slot title process; Couch updates titles from its existing inventory and activity refreshes, preserving standalone behavior, ownership and fading.
 
@@ -141,7 +141,7 @@ Files: README.md, atlas/couch.md, atlas/index.md as needed, this plan and #649 L
 - [x] Finish ten-minute large-poller pre-fix measurement; record fresh/large poller RSS, CPU, ticks, query rates and fleet totals in the issue. Baseline runs before any deployed fix.
 - [x] Record TL-directed live deferral: do not stage pair:0 (shared restart binary). After landing, hub relaunches slots during the operator next restart; hub owns no-poller/title/fade/cmux observation and fleet/supervisor AFTER totals. Automated OS-seam tests and recorded suite plus close review are the pre-landing evidence. Live checks remain outstanding until that restart.
 - [x] Run targeted/race verification, push issue head, run required recorded `sdlc local-check run --name suite`.
-- [ ] Run the fresh recorded suite for BR-1/BR-2 corrections and record the result before re-closing.
+- [x] Run the fresh recorded suite for BR-1/BR-2 corrections and record the result before re-closing.
 
 Next acceptance gates: close with the recorded automated evidence and TL live deferral, resolve sole boundary review, update PR 424 and await SHIP. Then `sdlc merge --yes` and report Git-read hashes and PR to hub.
 
@@ -175,3 +175,5 @@ Full flow approved by TL delivery 798a3ab4-b9da-465f-a516-34c291210e0a; change-c
 - 2026-10-18 — Verification complete: recorded suite 0619b0f0bcec5545314c1d0545bc00d8 passed on 876a43a07b36fd217d02518e8241315081531575 in 10m52s, log sha256 prefix 4e8fde9764e4. The first suite found only missing artifact source inventory entries, now classified without adding exceptions. Separated the future close/landing gates from the implementation checklist so completion ticks do not claim gates that have not run; scope and runtime design unchanged.
 
 - 2026-10-18 — Close BR-1 (shared-activity-consumer-consistency): snapshot admitted wrapper activity before the combined pass and merge it with persisted facts before both title and fade decisions; add stale-native/recent-wrapper regression for frame, cmux heat and fade, plus Console snapshot delivery. BR-2 (production-path-resource-verification): replace fake-facts 1,000-tick workload with real disposable compact projections, transcript growth and ordinal turnover, independently count warm history reads/decodes and commands, and retain heap/cache samples. Both restore already-approved acceptance; no new runtime scope. First suite pass predates these code/test corrections and must be replaced.
+
+- 2026-10-18 — Post-review recorded suite e870e668582e734772bf8b6d58f866e5 passed on aec1efb1b224fba130faa7ae9ec5e41cfaf863b5 in13m47s (log hash prefix6537e3c5be5a). BR-1/BR-2 corrected within original scope; repeat close review is next.

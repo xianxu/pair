@@ -64,7 +64,7 @@ The work per tick is one `zellij list-sessions --no-formatting`, sometimes a liv
 - [x] Wire one existing-schedule updater and shared activity/fade results; verify stateful failure sequences.
 - [x] Integrate landed #653, make updater growth-recovery regression green, run the required recorded suite, and prepare PR/close evidence. Close review and landing follow as acceptance gates; hub performs deferred live checks and AFTER fleet measurement at next operator restart.
 
-- [ ] Verify BR-1/BR-2 corrections with the fresh recorded suite, then repeat close review.
+- [x] Verify BR-1/BR-2 corrections with the fresh recorded suite and prepare renewed close evidence.
 
 ## Log
 
@@ -191,3 +191,7 @@ BR-2 Important (production-path-resource-verification): the prior 1,000-tick fix
 BR-1 correction passed updater/Console focused checks and targeted races. BR-2 replacement passed in a fresh parent-run isolated child: 1,000 ticks, two real compact projections, 50 x128KiB appends (6,562,109-byte final transcript), ten physical ledger launch/binding turnovers (ordinal1→21), 940 stable ticks with zero native history read/decode delta. Exactly62 scoped commands (steady neighbor1), exactly2 current entries/one desired title each, neighbor projection identity/history counters unchanged. Parent heap samples: warm1,360,888 bytes; all ten turnover samples1,289,864–1,314,760; final1,169,328, within warm+4MiB. All sample/counter lines retained in test output. Affected couchcmd/couchtty/artifactpath package run passed (47.551s/40.412s/5.940s). Fresh full recorded suite remains required after the code/test fix.
 
 Review corrections pushed as aec1efb1b224fba130faa7ae9ec5e41cfaf863b5. Required recorded suite e870e668582e734772bf8b6d58f866e5 is queued on that exact source. Targeted post-fix races passed couchcmd (10.651s) and couchtty (3.738s). No passing pre-fix suite is reused as verification of the review changes.
+
+### 2026-10-18 — post-review required suite passed
+
+Recorded suite e870e668582e734772bf8b6d58f866e5 passed on aec1efb1b224fba130faa7ae9ec5e41cfaf863b5: exit0 in13m47s, log sha256 prefix6537e3c5be5a. Log: /Users/xianxu/workspace/pair/.git/sdlc/local-checks/aec1efb1b224fba130faa7ae9ec5e41cfaf863b5/suite.log. This includes the stale-native/recent-wrapper title/fade regression, actual two-target 1,000-tick resource workload, all artifact classifications and the full remaining suite. Ready to repeat close review for BR-1/BR-2 disposition; live rollout/AFTER totals remain deferred to hub next restart.
