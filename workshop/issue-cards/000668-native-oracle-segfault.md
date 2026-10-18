@@ -1,6 +1,6 @@
 ---
 id: 000668
-status: codecomplete
+status: done
 created: 2026-10-18
 updated: 2026-10-18
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 3853781e7f2f3c95c6b6e6b31448dbb6df3f46fe
         evidence_commit: 4d8ce9832b61a7a061b5f93ba82661f9dcd83d6b
+        landed_commit: c5245132b9eb26588c56b05a19f733261368f69e
 ---
 
 # Native terminal oracle subprocess crashes with SIGSEGV in macOS conformance
