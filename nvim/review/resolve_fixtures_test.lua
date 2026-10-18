@@ -29,5 +29,36 @@ for _, file in ipairs(vim.fn.glob(dir .. '*.json', false, true)) do
   end
 end
 if seen == 0 then fail('fixtures', 'none found under ' .. dir) end
+
+-- Propose fixtures: Couch writes the markers; the pane's grammar must read
+-- each one back so that accepting every marker gives `accepted` and rejecting
+-- every marker gives `rejected` (one marker per changed line, pair#661).
+local markers = dofile(here .. 'markers.lua')
+local function settle(text, accept)
+  local lines = vim.split(text, '\n', { plain = true })
+  local found = markers.parse_markers(lines)
+  for i = #found, 1, -1 do
+    local m = found[i]
+    local agent = ''
+    for _, sec in ipairs(m.sections) do if sec.type == 'agent' then agent = sec.text end end
+    local line = lines[m.line + 1]
+    local keep = accept and agent or (m.strike and m.strike.text or '')
+    lines[m.line + 1] = line:sub(1, m.col) .. keep .. line:sub(m.col + #m.raw + 1)
+  end
+  return table.concat(lines, '\n'), #found
+end
+local proposed = 0
+for _, file in ipairs(vim.fn.glob(dir .. 'propose/*.json', false, true)) do
+  local fx = vim.json.decode(table.concat(vim.fn.readfile(file, 'b'), '\n'))
+  if fx.markers then
+    proposed = proposed + 1
+    local acc, n = settle(fx.markers, true)
+    local rej = settle(fx.markers, false)
+    if n == 0 then fail(fx.name, 'no marker parsed') end
+    if acc ~= fx.accepted then fail(fx.name, string.format('accepted %q want %q', acc, fx.accepted)) end
+    if rej ~= fx.rejected then fail(fx.name, string.format('rejected %q want %q', rej, fx.rejected)) end
+  end
+end
+if proposed == 0 then fail('propose fixtures', 'none found') end
 if fails > 0 then os.exit(1) end
-print(string.format('ok — %d shared edit-record fixtures', seen))
+print(string.format('ok — %d shared edit-record fixtures, %d propose fixtures', seen, proposed))

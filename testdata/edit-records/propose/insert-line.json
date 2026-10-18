@@ -1,0 +1,8 @@
+{
+ "name": "insert-line",
+ "base": "keep\nend\n",
+ "after": "keep\nnew line\nend\n",
+ "markers": "keep\n🤖{new line}\nend\n",
+ "accepted": "keep\nnew line\nend\n",
+ "rejected": "keep\n\nend\n"
+}
