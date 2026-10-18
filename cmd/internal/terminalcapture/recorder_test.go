@@ -11,6 +11,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 func readRecords(t *testing.T, data []byte) []Record {
@@ -318,27 +320,52 @@ func TestDiskFailureCannotClaimComplete(t *testing.T) {
 
 func TestCloseTimeoutStopsAdmissionAndWorkerEventuallyExits(t *testing.T) {
 	unblock := make(chan struct{})
+	release := sync.OnceFunc(func() { close(unblock) })
+	defer release()
 	s := &faultSink{block: unblock, started: make(chan struct{}, 1)}
 	o := defaultOptions()
-	o.closeTimeout = 20 * time.Millisecond
+	expire := make(chan time.Time)
+	started := make(chan struct{})
+	calls := 0
+	o.closeTimer = func(time.Duration) (<-chan time.Time, func()) {
+		calls++
+		close(started)
+		return expire, func() {}
+	}
 	r := newRecorder("", s, o)
 	<-s.started
-	if err := r.Close(); !errors.Is(err, ErrCloseTimeout) {
-		t.Fatalf("close: %v", err)
+	closed := make(chan error, 1)
+	go func() { closed <- r.Close() }()
+	select {
+	case <-started:
+	case <-testwait.After(t):
+		t.Fatal("Close did not start its bounded wait")
 	}
-	before := time.Now()
+	select {
+	case err := <-closed:
+		t.Fatalf("Close finished before timeout: %v", err)
+	default:
+	}
+	close(expire)
+	select {
+	case err := <-closed:
+		if !errors.Is(err, ErrCloseTimeout) {
+			t.Fatalf("close: %v", err)
+		}
+	case <-testwait.After(t):
+		t.Fatal("Close ignored timeout")
+	}
 	if err := r.Close(); !errors.Is(err, ErrCloseTimeout) {
 		t.Fatalf("repeated timed-out close: %v", err)
 	}
-	if time.Since(before) >= o.closeTimeout/2 {
-		close(unblock)
-		t.Fatal("repeated close restarted the diagnostic wait")
+	if calls != 1 {
+		t.Fatalf("repeated Close started %d waits", calls)
 	}
 	r.Record(Record{Kind: "late"})
-	close(unblock)
+	release()
 	select {
 	case <-r.done:
-	case <-time.After(time.Second):
+	case <-testwait.After(t):
 		t.Fatal("worker did not exit")
 	}
 	if err := r.Close(); !errors.Is(err, ErrCloseTimeout) {
@@ -525,9 +552,12 @@ func TestStatusFailureWakesBeforeClose(t *testing.T) {
 
 func TestStatusDrainingAndTimeoutRemainFailed(t *testing.T) {
 	unblock := make(chan struct{})
+	release := sync.OnceFunc(func() { close(unblock) })
+	defer release()
 	sink := &faultSink{block: unblock, started: make(chan struct{}, 1)}
 	opts := defaultOptions()
-	opts.closeTimeout = 100 * time.Millisecond
+	expire := make(chan time.Time)
+	opts.closeTimer = func(time.Duration) (<-chan time.Time, func()) { return expire, func() {} }
 	r := newRecorder("", sink, opts)
 	<-sink.started
 	select {
@@ -540,13 +570,14 @@ func TestStatusDrainingAndTimeoutRemainFailed(t *testing.T) {
 	if got.WrittenBytes != 0 {
 		t.Fatalf("offered bytes counted: %+v", got)
 	}
+	close(expire)
 	if err := <-closed; !errors.Is(err, ErrCloseTimeout) {
 		t.Fatalf("close=%v", err)
 	}
 	if got := r.Status(); got.Phase != Failed || !errors.Is(got.Err, ErrCloseTimeout) {
 		t.Fatalf("timeout=%+v", got)
 	}
-	close(unblock)
+	release()
 	<-r.done
 	if got := r.Status(); got.Phase != Failed || !errors.Is(got.Err, ErrCloseTimeout) {
 		t.Fatalf("late worker=%+v", got)

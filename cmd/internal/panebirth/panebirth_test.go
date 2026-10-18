@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 // fakeClock stands still until slept on: Sleep advances it by exactly the
@@ -112,10 +113,12 @@ func TestAwaitTreatsAFailedObservationAsNotYet(t *testing.T) {
 func TestWallClockSleepReturnsWhenTheContextEnds(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	start := time.Now()
-	WallClock{}.Sleep(ctx, time.Hour)
-	if elapsed := time.Since(start); elapsed > 100*time.Millisecond {
-		t.Fatalf("Sleep on a cancelled context took %s", elapsed)
+	done := make(chan struct{})
+	go func() { WallClock{}.Sleep(ctx, time.Hour); close(done) }()
+	select {
+	case <-done:
+	case <-testwait.After(t):
+		t.Fatal("cancelled Sleep waited for its requested hour")
 	}
 }
 

@@ -24,7 +24,7 @@ func messageRuntime() testRT {
 }
 
 func TestMessageCLIUsesCallerContextAndRetainedReceipt(t *testing.T) {
-	root, err := os.MkdirTemp("/tmp", "couch-cli-test-")
+	root, err := os.MkdirTemp("", "pccli-")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -635,7 +635,7 @@ func TestEverySlotOperationIsRoutedToTheSlotPath(t *testing.T) {
 // A queued send names its place in line, and a cancelled one says why and
 // what to do, on the send and on --message-status (pair#492).
 func TestMessageCLIPrintsQueuePositionAndCancelReason(t *testing.T) {
-	root, err := os.MkdirTemp("/tmp", "couch-cli-test-")
+	root, err := os.MkdirTemp("", "pccli-")
 	if err != nil {
 		t.Fatal(err)
 	}

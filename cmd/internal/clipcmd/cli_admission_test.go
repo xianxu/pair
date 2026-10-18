@@ -28,6 +28,7 @@ func TestDetachedClipboardRefusalUsesExistingBroker(t *testing.T) {
 	}
 	// No connected client: auto-quote must refuse, leaving the OS copy successful.
 	f.SetModel(zellijtest.Model{Sessions: map[string]zellijtest.Session{"test": {Tab: zellijtest.DefaultTab()}}})
+	//lint:allow tmp-literal — the notification broker appends a 32-hex digest and PID; macOS TMPDIR can exceed its 100-byte socket limit
 	root, err := os.MkdirTemp("/tmp", "pcl-")
 	if err != nil {
 		t.Fatal(err)

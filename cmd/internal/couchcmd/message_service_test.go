@@ -201,7 +201,7 @@ func newServiceRig(t *testing.T, decorate ...func(messageAuthority) messageAutho
 // init takes fresh sockets and starts the service.
 func (r *serviceRig) init() {
 	r.t.Helper()
-	dir, err := os.MkdirTemp("/tmp", "pair-message-service-")
+	dir, err := os.MkdirTemp("", "pcms-")
 	if err != nil {
 		r.t.Fatal(err)
 	}
@@ -697,7 +697,7 @@ func TestMessageSocketCleanupRejectsSymlinkParent(t *testing.T) {
 }
 
 func TestMessageSocketCleanupPreservesRegularFile(t *testing.T) {
-	dir, err := os.MkdirTemp("/tmp", "pair-message-service-")
+	dir, err := os.MkdirTemp("", "pcmf-")
 	if err != nil {
 		t.Fatal(err)
 	}

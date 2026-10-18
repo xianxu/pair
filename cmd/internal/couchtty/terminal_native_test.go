@@ -60,6 +60,7 @@ func runNativeConsoleJoin(t *testing.T, wrapped bool) {
 		t.Fatal(err)
 	}
 	// Keep socket paths below the Unix-domain limit on macOS.
+	//lint:allow tmp-literal — the installed native session and notification sockets append version/session and digest/PID suffixes that require a short root
 	dir, err := os.MkdirTemp("/tmp", "pcn-")
 	if err != nil {
 		t.Fatal(err)

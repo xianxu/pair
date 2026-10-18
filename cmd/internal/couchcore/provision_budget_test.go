@@ -68,6 +68,7 @@ func TestFailedCreationIsRecordedAndRetryIsClean(t *testing.T) {
 	t.Parallel()
 	slow := &slowWorktreeAdd{ProvisionFixture: newProvisionFixture(t), delay: time.Hour, stderr: "fatal: fixture checkout interrupted"}
 	p := NewWorkspaceProvisioner(slow)
+	//lint:allow test-shrunk-deadline -- the fake arms this budget only inside worktree-add; assertions pin its persisted 200ms diagnostic and clean retry
 	p.WriteTimeout = 200 * time.Millisecond
 	_, err := p.Ensure(context.Background(), ProvisionRequest{Path: slow.Primary, Slot: 1})
 	var blocked *SlotReconcileError

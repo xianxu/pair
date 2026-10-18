@@ -2,6 +2,7 @@ package couchcore
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -24,34 +25,42 @@ func TestParkCompletionWaitOverridesTheDefault(t *testing.T) {
 			artifacts.SetPairSession(thread.Address, "pair-slow", true)
 			proc := NewFakeProcOps()
 			proc.Set(42, "pair-helper")
-			// The quit's clock starts at the first completion poll, not before
-			// Park's setup, which can outlast it on a loaded machine.
-			var firstPoll time.Time
+			// The fake completion is beyond the default budget but inside
+			// the caller override. The wait observes that selected budget,
+			// then either spends it or delivers completion deterministically.
 			controller := PairLifecycleController{
 				Threads: store, DataDir: t.TempDir(), Lifecycle: lifecycle, Sessions: artifacts,
 				Clock: FixedClock{T: now}, Nonce: func() (string, error) { return "park-slow-quit", nil },
-				Proc: proc, CompletionTimeout: 100 * time.Millisecond, PollInterval: 10 * time.Millisecond,
-				Wait: func(ctx context.Context, d time.Duration) error {
-					if err := ctx.Err(); err != nil {
-						return err // an expired deadline wins over a late-scheduled timer
-					}
-					if firstPoll.IsZero() {
-						firstPoll = time.Now()
-					}
-					// The quit completes 300 ms into the wait: past the default, inside the override.
-					if time.Since(firstPoll) > 300*time.Millisecond && lifecycle.completion == nil {
-						completion := successCompletion(lifecycle.lastRequest, now)
-						lifecycle.completion = &completion
-						proc.Kill(42)
-					}
-					select {
-					case <-ctx.Done():
-						return ctx.Err()
-					case <-time.After(d):
-						return nil
-					}
-				},
+				Proc: proc, CompletionTimeout: 100 * time.Millisecond,
 			}
+			budget := newSpendableBudget()
+			var selected time.Duration
+			controller.completionDeadline = func(parent context.Context, d time.Duration) (context.Context, context.CancelFunc) {
+				selected = d
+				return budget.bind(parent)
+			}
+			controller.Wait = func(ctx context.Context, _ time.Duration) error {
+				if lifecycle.lastRequest.Attempt == 0 {
+					t.Error("wait preceded quit request")
+					return fmt.Errorf("wait preceded quit request")
+				}
+				if tc.wait == 0 {
+					if selected != controller.CompletionTimeout {
+						t.Errorf("default budget = %v", selected)
+						return fmt.Errorf("wrong default budget: %v", selected)
+					}
+					budget.spend()
+					return ctx.Err()
+				}
+				if selected != tc.wait || selected <= controller.CompletionTimeout {
+					return fmt.Errorf("override budget = %v, default %v", selected, controller.CompletionTimeout)
+				}
+				completion := successCompletion(lifecycle.lastRequest, now)
+				lifecycle.completion = &completion
+				proc.Kill(42)
+				return nil
+			}
+
 			ctx := context.Background()
 			if tc.wait > 0 {
 				ctx = WithParkCompletionWait(ctx, tc.wait)

@@ -59,6 +59,7 @@ func rootDirectory() string {
 	if override := os.Getenv("PAIR_NOTIFY_SOCKET_DIR"); override != "" {
 		return filepath.Clean(override)
 	}
+	//lint:allow tmp-literal — independently launched hooks and wrappers share this UID-private socket/lock namespace; TMPDIR must not change their rendezvous address
 	return filepath.Join("/tmp", fmt.Sprintf("pair-notify-%d", os.Getuid()))
 }
 

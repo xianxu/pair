@@ -382,6 +382,7 @@ func TestFullscreenReplyRefusalInstalledZellijLive(t *testing.T) {
 	if os.Getenv("PAIR_LIVE_ZELLIJ") != "1" {
 		t.Skip("set PAIR_LIVE_ZELLIJ=1 only with the native lane grant")
 	}
+	//lint:allow tmp-literal — the installed native session appends s/contract_version_1 and its session name; notification sockets also append digest/PID suffixes
 	root, err := os.MkdirTemp("/tmp", "p647nr-")
 	if err != nil {
 		t.Fatal(err)
@@ -850,7 +851,7 @@ func TestNativeReplyFixtureChildEnvironmentIsPrivate(t *testing.T) {
 }
 
 func TestNativeReplyNoiseCancellationJoinsOwnedConnections(t *testing.T) {
-	root, err := os.MkdirTemp("/tmp", "p647nc-")
+	root, err := os.MkdirTemp("", "pnc-")
 	if err != nil {
 		t.Fatal(err)
 	}
