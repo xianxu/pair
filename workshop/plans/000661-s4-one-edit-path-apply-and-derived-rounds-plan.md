@@ -351,7 +351,7 @@ _Seam change, stated: this gives `apply` a registration side effect. On an unreg
 - **Lock:** the pane writes `FILE.lock` (`holder: operator`, `at:`) on the first buffer change of the operator's turn (TextChanged/TextChangedI). It removes the lock on send (`finish_human_turn`, after the save) and at VimLeave.
   - While the lock is held, the agent's apply refuses with exit 3 and waits for the operator's send.
   - The S1 30-minute ping rule applies.
-- **Retired** (code and tests):
+- **Retired by pair#664** (ordering (a), TL 2026-10-18), not in M2; M2 keeps the legacy handoff working beside the new path:
   - `apply.apply` (the buffer apply; `render`, `snapshot`, `apply_snapshot`, `place` and `clear*` stay);
   - `reconcile.lua`;
   - `gate.lua` with `on_defer`, `pending_records`, `has_pending` and the winbar pending state;
@@ -360,11 +360,11 @@ _Seam change, stated: this gives `apply` a registration side effect. On an unreg
   - the `agent_applied` poke and the dropped/conflict notifications.
 
   `record.lua`, `reconstruct.lua` (with `resolve` and the shared fixtures) and `projection.lua` stay.
-- **What nvim still writes:** only the operator's own edits (save on send, marker accept/reject, comments, definitions). The rule test greps `nvim/review/` for `nvim_buf_set_text`/`set_lines` callers outside that human-action allowlist.
+- **What nvim still writes:** for an applied round, nothing; the pane only reloads and decorates. The legacy handoff keeps its buffer apply until pair#664, which adds the rule test.
 - **Readiness and docflow:** docflow stages only the recorded in-scope documents (ariadne `docflow.sh:161`), so an untracked `FILE.lock` is never committed. Readiness's clean check must ignore an untracked `FILE.lock` for the reviewed file. A test pins it.
 
 **Tests:**
-- Retire `review-reconcile-test.sh`, `review-handoff-test.sh`, and the Lua `reconcile_test`, `gate_test`, `handoff_acceptance_test` and `handoff_context_test`.
+- The legacy tests (`review-reconcile`, `review-handoff`, and the Lua `reconcile`, `gate`, `handoff_acceptance` and `handoff_context`) stay green in M2. pair#664 retires them.
 - Rewrite `review-loop-test.sh` and `tests/lib/fake-review-agent.sh`. The fake agent runs `pair review apply`, then commits the artifact's `body` with docflow. The test asserts:
   - the buffer reloads with the decorations;
   - the commit body is verbatim;
@@ -400,3 +400,4 @@ In pair, `poke_bodies.review_opened` and `with_context` change to name `pair rev
   2. A follow-up issue, filed at the M2 close with `deps: ariadne#437`, retires the handoff, `apply.apply`, reconcile, gate and landed, with their tests, and adds the "nvim never writes" rule test. M2's Done-when "nvim never writes the reviewed file" is then met by that follow-up, which the issue records.
 - **(b) One step:** M2 waits for ariadne#437 and retires everything at once. Nothing lands until #437 does.
 
+  **TL decision: (a).** The follow-up is pair#664 (`deps: ariadne#437`).
