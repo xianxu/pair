@@ -123,6 +123,7 @@ func checkFixtureProducerInventory(t *testing.T, root string, sources map[string
 		"cmd/internal/zellijtest/reply_contract_test.go":            "contract runner itself writes the shared envelope",
 		"cmd/internal/couchcore/startup_detach_timing_live_test.go": "optional native passthrough captures real installed replies verbatim",
 		"cmd/internal/couchcore/recovery_conformance_live_test.go":  "optional native fixture queries installed server; shell is an agent publisher",
+		"cmd/internal/couchcore/recovery_query_capture_test.go":     "cancellation wrapper publishes file readiness then execs the shared stateful fake; it emits no query reply",
 		"cmd/internal/clipcmd/admission_test.go":                    "shell emits only mutation failure; queries use shared stateful fake",
 	}
 	for _, tree := range []string{"cmd", "tests"} {
