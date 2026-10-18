@@ -1,6 +1,6 @@
 ---
 id: 000650
-status: codecomplete
+status: done
 created: 2026-10-17
 updated: 2026-10-18
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 7b72b05c05b6484fd33174ba17f011e2bd8a80ec
         evidence_commit: 7007a51996279afc656897a52e7c2980e913414e
+        landed_commit: af37876e5f2ae300bf74b8c28db3db133ea93c3a
 ---
 
 # Slug line off by default under Couch (PAIR_SLUG=on to re-enable): no per-turn pair slug spawn or Haiku call
