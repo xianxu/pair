@@ -1,6 +1,6 @@
 ---
 id: 000623
-status: codecomplete
+status: done
 created: 2026-10-16
 updated: 2026-10-17
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 7fc9601b20e003fd3fa9b3583855457ab3e9e9c3
         evidence_commit: 0191325ad6170adb7d75ac462d69e0f52624c765
+        landed_commit: 6bd6ea574be5458e466e698083c6a926adb7e852
 ---
 
 # Review observation positive control intermittently loses external edit reload
