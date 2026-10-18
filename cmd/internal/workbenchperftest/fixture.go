@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
@@ -16,15 +15,25 @@ type Fixture struct {
 	Home, DataDir string
 	Owners        []Owner
 	Counts        *Counter
+	ledgerWrites  ledgerWriteCounts
 }
 
-// NewFixture streams actual ledger bytes for the lower-level and UI consumers;
+// NewFixture builds actual ledger bytes for the lower-level and UI consumers;
 // ledgers are valid launch/binding JSONL, including at the 20 x 30MB scale.
 // Message tests can reuse these artifacts without consulting ledger contents.
 // Sizes smaller than the required records retain the complete records.
 func NewFixture(t testing.TB, slots, ledgerBytes int) Fixture {
 	t.Helper()
+	return newFixture(t, slots, ledgerBytes, nil)
+}
+
+func newFixture(t testing.TB, slots, ledgerBytes int, clone func(string, string) error) Fixture {
+	t.Helper()
 	root := t.TempDir()
+	w := ledgerWriter{directory: root, size: ledgerBytes, useClones: slots > 1 && (clone != nil || ledgerCloneAvailable), clone: clone, patch: patchLedgerFile}
+	if w.clone == nil {
+		w.clone = cloneLedgerFile
+	}
 	f := Fixture{Home: filepath.Join(root, "home"), DataDir: filepath.Join(root, "pair"), Counts: &Counter{}}
 	roots := sessioninventory.NewOSRuntime(f.Home, f.DataDir).NativeRoots(sessioninventory.AgentCodex)
 	if len(roots) != 1 {
@@ -46,7 +55,9 @@ func NewFixture(t testing.TB, slots, ledgerBytes int) Fixture {
 		}
 		o.Ledger = paths.Ledger()
 		records := fmt.Sprintf("{\"v\":3,\"kind\":\"launch\",\"scope_key\":%q,\"tag\":%q,\"agent\":\"codex\",\"pair_log_offset\":0,\"artifact_boundaries\":[],\"requested_native_id\":%q,\"request_origin\":\"chosen-id\",\"baseline_complete\":true}\n{\"v\":3,\"kind\":\"binding\",\"scope_key\":%q,\"tag\":%q,\"agent\":\"codex\",\"launch_ordinal\":1,\"root_native_id\":%q,\"confirmation_reason\":\"chosen-id\"}\n", o.Scope, o.Tag, o.NativeID, o.Scope, o.Tag, o.NativeID)
-		writeLedger(t, o.Ledger, records, ledgerBytes)
+		if err := w.write(o.Ledger, records); err != nil {
+			t.Fatal(err)
+		}
 		o.Transcript = filepath.Join(native, "rollout-test-"+o.NativeID+".jsonl")
 		body := fmt.Sprintf("{\"timestamp\":\"2026-10-14T10:00:00Z\",\"type\":\"session_meta\",\"payload\":{\"id\":%q,\"parent_thread_id\":null,\"source\":\"cli\"}}\n", o.NativeID)
 		if err := os.WriteFile(o.Transcript, []byte(body), 0600); err != nil {
@@ -54,32 +65,6 @@ func NewFixture(t testing.TB, slots, ledgerBytes int) Fixture {
 		}
 		f.Owners = append(f.Owners, o)
 	}
+	f.ledgerWrites = w.counts
 	return f
-}
-
-func writeLedger(t testing.TB, path, records string, size int) {
-	t.Helper()
-	file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_EXCL, 0600)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer file.Close()
-	padding := size - len(records)
-	chunk := strings.Repeat(" ", 64<<10)
-	for padding > 0 {
-		n := len(chunk)
-		if padding < n {
-			n = padding
-		}
-		if _, err := file.WriteString(chunk[:n]); err != nil {
-			t.Fatal(err)
-		}
-		padding -= n
-	}
-	if _, err := file.WriteString(records); err != nil {
-		t.Fatal(err)
-	}
-	if err := file.Close(); err != nil {
-		t.Fatal(err)
-	}
 }

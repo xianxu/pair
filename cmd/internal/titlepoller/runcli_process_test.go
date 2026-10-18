@@ -15,6 +15,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/procutil"
 	"github.com/xianxu/pair/cmd/internal/storagegc"
+	"github.com/xianxu/pair/cmd/internal/testdisk"
 	"github.com/xianxu/pair/cmd/internal/testpair"
 )
 
@@ -32,7 +33,7 @@ func (r heldTitleProof) SessionActivity(string, string) (time.Time, bool) {
 func TestMain(m *testing.M) {
 	mode := os.Getenv("PAIR_617_CLI_HELPER")
 	if mode == "" {
-		os.Exit(m.Run())
+		os.Exit(testdisk.RunWithWriteBudget("titlepoller", testdisk.TitlePoller, m.Run))
 	}
 	if mode != "proof" && mode != "command" && mode != "retention" && mode != "publication-pid" && mode != "publication-workspace" {
 		os.Exit(2)
