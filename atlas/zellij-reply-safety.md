@@ -253,3 +253,11 @@ measured path and cleanup. Capture is limited to64 records and8MiB of response
 bytes with explicit dropped counts. It adds no native queries, retries or timing
 policy. Local client wait remains distinct from server detach acknowledgement;
 the trace records evidence and does not prove the upstream trigger fixed.
+
+Name validation also recognizes Zellij0.45.1's multi-session missing-target reply:
+exit0, the exact requested-name not-found stderr heading, and a complete colored
+session listing that excludes that name (#672). Only native SGR metadata is
+removed; the existing strict full-listing decoder validates every row. This
+proves the CLI accepted the name, never session liveness or ownership. Clients
+tables remain strict. Malformed, contradictory or failed/cancelled collections
+remain unknown. Native list_sessions exits before its caller's intended exit1.
