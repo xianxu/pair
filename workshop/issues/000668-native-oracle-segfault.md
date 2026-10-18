@@ -1,13 +1,13 @@
 ---
 id: 000668
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-18
 updated: 2026-10-18
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: '59e4c789fb2773f644782c8539fe12202423ce03' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '191e9cb2841e50dfd5bac149b6ba26b900980824' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-18T14:16:34-07:00
 claimant:
     operator: Xian Xu
@@ -17,6 +17,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
 flow: {kind: quick, provenance: inferred, spec: "15ca87b6", done: "2b4c3d0c"}
+actual_hours: 0.66
 ---
 
 # Native terminal oracle subprocess crashes with SIGSEGV in macOS conformance
