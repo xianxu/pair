@@ -4,6 +4,8 @@ import (
 	"sort"
 )
 
+const OpRecoverPark = "recover-park"
+
 // ArgSpec describes one argument of an operation, so a caller that is not a
 // human -- the advisor's tool layer in #148 -- can construct a call without
 // hardcoding couch's CLI.
@@ -355,6 +357,16 @@ func Operations() []Operation {
 			Name: "archived", Summary: "List work threads removed from Couch",
 			Execution: ExecuteDirectStore, Effect: EffectRead, Confirmation: ConfirmNone,
 			Result: ResultThreadInventory, Presentation: PresentationList,
+		},
+		{
+			Name: OpRecoverPark, Summary: "Resolve an interrupted park, preserving its conversation without starting an agent",
+			Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmRequired, Result: ResultThread,
+			Presentation: PresentationTUI, RowAction: true,
+			Args: []ArgSpec{
+				{Name: "tag", Summary: "exact retained thread tag", Required: true, Implicit: true},
+				{Name: "repo-scope", Summary: "exact retained repository scope", Required: true, Implicit: true},
+				{Name: "park-nonce", Summary: "original park transaction, rechecked before effects", Implicit: true},
+			},
 		},
 		{
 			// Relaunch replaces a thread's Pair process with the current binary

@@ -98,7 +98,7 @@ func TestSlotPreferencesIndependentAcrossRestartResumeAndFresh(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := env.Couch.Threads.FinalizePark(actor.Thread, begun.Revision, park, 1, env.Now); err != nil {
+		if _, err := env.Couch.Threads.FinalizePark(context.Background(), actor.Thread, begun.Revision, park, 1, env.Now); err != nil {
 			t.Fatal(err)
 		}
 		env.Proc.Kill(actor.PID)

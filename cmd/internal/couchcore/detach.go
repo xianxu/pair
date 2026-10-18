@@ -92,7 +92,7 @@ func (c *Couch) Detach(ctx context.Context, address ThreadAddress) (ThreadRecord
 		return ThreadRecord{}, err
 	}
 	if record.Park != nil {
-		return ThreadRecord{}, errors.New("cannot detach a thread with an open park transaction")
+		return ThreadRecord{}, c.withParkRecoveryAdvice(ctx, record, errors.New("cannot detach a thread with an open park transaction"))
 	}
 	if len(record.Incarnations) != 1 || record.Incarnations[0].State != IncarnationLive {
 		return ThreadRecord{}, fmt.Errorf("thread %+v has no live incarnation to detach", address)

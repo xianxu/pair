@@ -30,14 +30,15 @@ const maxSlotOperationReceipts = 64
 // handlers), started (the queue runner) and finished (the console loop) all
 // take it, and none waits on the queue or the console while holding it.
 type slotOperations struct {
-	reference  func(context.Context, string) (string, error)
-	recovery   func(string, string, couchmessage.Request, func(context.Context) error, func(), func(any, error)) error
-	run        slotOperationRunner
-	guardedRun func(string, string, string, couchcore.LiveRestartOptions, func(context.Context) error, func(), func(any, error)) error
-	preview    func(context.Context, string) (couchcore.RecoveryPreview, error)
-	candidate  func(string, string, string, func(), func(any, error), ...func(context.Context) error) error
-	names      func(context.Context) ([]couchcore.RepositoryName, error)
-	now        func() time.Time
+	reference   func(context.Context, string) (string, error)
+	recovery    func(string, string, couchmessage.Request, func(context.Context) error, func(), func(any, error)) error
+	run         slotOperationRunner
+	preparePark func(context.Context, string, func(context.Context) error) (slotOperationRunner, error)
+	guardedRun  func(string, string, string, couchcore.LiveRestartOptions, func(context.Context) error, func(), func(any, error)) error
+	preview     func(context.Context, string) (couchcore.RecoveryPreview, error)
+	candidate   func(string, string, string, func(), func(any, error), ...func(context.Context) error) error
+	names       func(context.Context) ([]couchcore.RepositoryName, error)
+	now         func() time.Time
 
 	mu       sync.Mutex
 	receipts map[receiptKey]couchmessage.OperationReceipt
@@ -93,7 +94,33 @@ func (s *slotOperations) handle(ctx context.Context, caller couchmessage.Binding
 		}
 		return couchmessage.Response{Code: "ok", Operation: &receipt}
 	}
+	var parkRunner slotOperationRunner
+	if r.Op == couchcore.OpRecoverPark && s.preparePark != nil {
+		// Bind outside the receipt mutex. Existing IDs must retain their receipt
+		// even after the original park or thread has disappeared.
+		s.mu.Lock()
+		s.sweepLocked()
+		_, held := s.receipts[key]
+		s.mu.Unlock()
+		if !held {
+			var err error
+			var guard func(context.Context) error
+			if len(guards) > 0 {
+				guard = guards[0]
+			}
+			parkRunner, err = s.preparePark(ctx, r.Target, guard)
+			if err != nil {
+				return couchmessage.Response{Code: "refused", Error: err.Error()}
+			}
+		}
+	}
 	return s.admit(ctx, caller, r, func(key string, started func(), finished func(any, error)) error {
+		if r.Op == couchcore.OpRecoverPark && s.preparePark != nil && parkRunner == nil {
+			return errors.New("recovery receipt expired; inspect the current thread before recovering")
+		}
+		if parkRunner != nil {
+			return parkRunner(key, r.Op, r.Target, couchcore.LiveRestartOptions{}, started, finished)
+		}
 		if s.recovery != nil && (r.Op == "resume" || r.Op == "reboot" || r.Op == "recovery-confirmation") {
 			var guard func(context.Context) error
 			if len(guards) > 0 {
@@ -272,6 +299,9 @@ func slotOperationOutcome(value any, err error) couchmessage.ReceiptOutcome {
 		return out
 	}
 	out := couchmessage.ReceiptOutcome{Status: couchmessage.ReceiptSucceeded}
+	if coded, ok := value.(interface{ ReceiptCode() string }); ok {
+		out.Code = coded.ReceiptCode()
+	}
 	if child, ok := value.(couchcore.StartedChild); ok {
 		if started, _ := child.Started(); started.Record.Thread.Tag != "" {
 			out.Tag = string(started.Record.Thread.Tag)

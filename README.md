@@ -525,6 +525,9 @@ couch --set-model repo:N --model MODEL [--effort LEVEL] [--scope session|default
 couch --operation-status ID [--json]   inspect an asynchronous operation receipt
 couch --reap repo:N --confirm [--json]     from a live slot: end an orphaned server's tree
 couch --recover repo:N [--json]               from a live slot: run the report's steps for it
+couch --recover-park repo:N --confirm [--json]
+                         authenticated owning hub: resolve an interrupted park without launching an agent;
+                         retain the conversation and follow the reported Continue, Resume from disk or Start fresh action
 couch --relaunch repo:N --confirm [--same-binary] [--force-unknown] [--json]
                          from a live slot: restart an idle slot on the current binary, same conversation (Alt+n);
                          refuses busy, dirty or an unchanged binary, naming the fix (under couch-dev too:
