@@ -47,7 +47,7 @@ Selected approach: extract only the command-preparation/run boundary from `spawn
 ## Plan
 
 - [x] Add the exact virtual-time boundary regression and real-binary smoke; demonstrate timer-around-preparation, omitted-command and external-clock mutants fail.
-- [ ] Run focused/race checks, then a bounded owned load check and recorded full suite; close and land through normal gates.
+- [x] Run focused/race checks, the bounded owned load check and full suite before close; complete status publication through the normal merge gates.
 
 ## Log
 
@@ -57,13 +57,18 @@ Selected approach: extract only the command-preparation/run boundary from `spawn
 - Quick-flow plan: expose a local prepare-to-run function seam, with no public API, new state or global hooks. A deterministic virtual-time fake tracks preparation/run events across samples and failures. Assert exact command-only durations for varied preparation delays, including command durations above the old ceiling. Negative controls move the timer before preparation, omit execution, and replace its clock with a subprocess wall clock. Keep native shipped-binary reachability/output smoke, without speed certification. No runtime behavior, CLI, docs surface, persistent artifact or environment authority change; existing `testpair` owns native binary isolation.
 - Proposed load verification: compile the targeted package test once, then run the deterministic regression repeatedly while 20 owned CPU workers run for at most 3 seconds; a scoped helper terminates and waits for every owned worker on all exits. This is a brief load check, not a timeout increase or passing flake retry. Required full suite remains machine-gated. No operator-environment live smoke or :0 staging applies to this internal measurement-test seam.
 
-## Revisions
-
-- 2026-10-17 — Select virtual-time command-boundary assertions over a relative live baseline: independent scheduling skew can invalidate the latter. Preserve the original failure evidence and both original Done-when requirements; brief owned load check and external-clock negative control remain required. Plan posted before code; awaiting hub response.
-
 - Verified Submitted approval `385f99bc-af71-416f-bccb-5ddd666ec98c` accepts the virtual-time plan and 3-second/20-worker check, requiring cleanup even on test panic. Quick-flow change-code admitted implementation. New regression first failed because the sampler seam was absent (`/tmp/pair655-red.log`); then the existing loop was extracted without changing timer scope or failure semantics.
 - `TestSpawnTimerMeasuresTheCommandNotTheHarness` now uses actual `time.Now`/`msSince` under synctest, not a replacement clock callback. Across setup delays 0/5s/1h it requires exact 0.25/17/100ms command samples, one sequential prepare/run per sample, and the controlled failure count. The production adapter still supplies `exec.Command(...).Run`. Real shipped-binary smoke asserts positive ordered percentiles without a speed ceiling; output was 4.773/7.155/8.399ms in the race run.
 - Negative controls all failed as required: timer including preparation reports 5000.25ms instead of 0.25ms; omitting Run breaks the observed event order; Python subprocess clocks report their own real 29–44ms instead of the controlled durations (`/tmp/pair655-mutant-{setup,omit,external-clock}.log`). Original production source restored before green.
 - Package race check PASS 5.087s (`/tmp/pair655-package-race.log`). Approved load check: precompiled test ran 1000 times under 20 live owned CPU workers and PASSED; a subsequent deliberately forced child test-timeout panic exercised the same cleanup path. All 20 workers killed and reaped, zero live, total elapsed 0.688s (under the 3s cap). Every worker also carried its own 3s alarm in case the helper died; helper SIGINT/SIGTERM exit through finally. Logs `/tmp/pair655-load-{green,panic}.log`. No full-suite failure/retry occurred; this was an expected negative cleanup control.
 
 - Required recorded pre-close suite attempt `1f9b1fc91cdd4c2f914efebc9cf760db` queued on pushed ad7bc8a9eca6c5f141ecca3a3495d90528e1a5c8. Verified fresh Submitted hub approval `18f9d853-9b1a-444f-8a07-c5d2e2a100eb` authorizes an early draft PR for CI overlap, and makes this a standing allowance while suite, close review and merge gates still precede landing.
+
+- Early draft PR https://github.com/xianxu/pair/pull/417 has all server checks green. Pre-close suite attempt `1f9b1fc91cdd4c2f914efebc9cf760db` completed every test successfully on pushed ad7bc8a9eca6c5f141ecca3a3495d90528e1a5c8: exit 0, not timed out, 855.752s execution (14m16s), 950.755s queue, log SHA256 `7a660a7d1e9cbe7fb9b2ba16f35fb021722024b835954e5d6e52afad6fb8c3ff`. Rehashed retained log against the saved attempt. hoprttcmd passed in 0.577s. No test failed. The runner returned an error only because GitHub was unreachable while posting the success status; readback shows it was not recorded.
+- SDLC exposes no status-publication recovery and saves the full attempt before PostStatus. Proposed narrow manual status replay to the hub; verified Submitted instruction `13ed420d-07be-4f8e-8847-b92701f2f4f4` refuses hand-posting and directs normal `sdlc merge` to rerun. Existing ariadne#431 owns publication replay, so no peer issue filed. No status was posted manually. Close reviews the actual passing pre-close test evidence; merge must obtain a normally recorded suite before landing.
+
+## Revisions
+
+- 2026-10-17 — Select virtual-time command-boundary assertions over a relative live baseline: independent scheduling skew can invalidate the latter. Preserve the original failure evidence and both original Done-when requirements; brief owned load check and external-clock negative control remain required. Plan posted before code; awaiting hub response.
+
+- 2026-10-17 — Status-publication network failure: the full suite passed but its GitHub status did not publish. Per hub instruction, retain this attempt, close against its real test evidence, and let normal merge rerun/record the required suite. Checklist distinguishes completed verification from pending landing publication; no gate bypass or manual status.
