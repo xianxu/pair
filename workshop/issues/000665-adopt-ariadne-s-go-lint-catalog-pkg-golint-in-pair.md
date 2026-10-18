@@ -5,9 +5,9 @@ deps: []
 github_issue:
 created: 2026-10-18
 updated: 2026-10-18
-estimate_hours:
+estimate_hours: 7.61
 collaboration-mode: collaboration
-card_mirror: 'a84812deb32f791df25f6e33a25ccf76380dd846' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'e43e70d350aabfb4392efbacce14d8a02d1a7e5a' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-18T05:39:24-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     workspace: pair:1
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
+flow: {kind: full, provenance: inferred}
 ---
 
 # Adopt ariadne's Go lint catalog (pkg/golint) in pair
