@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/xianxu/pair/cmd/internal/zellijexec"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -86,7 +87,7 @@ func TestFullscreenZellijConformance(t *testing.T) {
 			return true
 		})
 	})
-	rt := &fullscreenLiveRuntime{ctx: ctx, session: fixture.Session, store: workbenchshortcut.FullscreenReturnStore{DataDir: t.TempDir(), Tag: "conformance"}}
+	rt := &fullscreenLiveRuntime{ctx: ctx, session: fixture.Session, store: workbenchshortcut.FullscreenReturnStore{DataDir: t.TempDir(), Tag: "conformance"}, queryLog: t.Logf}
 	names := []string{"agent", "draft", "terminal-top", "terminal-bottom"}
 	var panes map[string]zellijpane.Pane
 	observe := func() map[string]zellijpane.Pane {
@@ -284,6 +285,7 @@ type fullscreenLiveRuntime struct {
 	session, caller, last string
 	terminals             []string
 	store                 workbenchshortcut.FullscreenReturnStore
+	queryLog              func(string, ...any)
 }
 
 func (r *fullscreenLiveRuntime) command(args ...string) ([]byte, error) {
@@ -296,6 +298,28 @@ func (r *fullscreenLiveRuntime) command(args ...string) ([]byte, error) {
 		return out, fmt.Errorf("fixture zellij %v: %w: %s", args, err, out)
 	}
 	return out, nil
+}
+func (r *fullscreenLiveRuntime) queryContext(ctx context.Context, args ...string) ([]byte, error) {
+	cmd := exec.CommandContext(ctx, "zellij", append([]string{"--session", r.session, "action"}, args...)...)
+	cmd.Env = append(os.Environ(), "ZELLIJ_PANE_ID="+r.caller)
+	var out, diagnostic bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &out, &diagnostic
+	err := zellijexec.Run(cmd)
+	if r.queryLog != nil {
+		// Disposable fixture evidence only: preserve raw streams without changing
+		// the bytes the production parser sees. Bound each diagnostic field.
+		const maxQueryTrace = 8192
+		r.queryLog("native query %v stdout=%q stdout_bytes=%d stderr=%q stderr_bytes=%d error=%v", args,
+			out.Bytes()[:min(out.Len(), maxQueryTrace)], out.Len(),
+			diagnostic.Bytes()[:min(diagnostic.Len(), maxQueryTrace)], diagnostic.Len(), err)
+	}
+	return out.Bytes(), err
+}
+func (r *fullscreenLiveRuntime) ListPanesJSONContext(ctx context.Context) ([]byte, error) {
+	return r.queryContext(ctx, "list-panes", "--json", "--command", "--state", "--geometry")
+}
+func (r *fullscreenLiveRuntime) CurrentTabJSONContext(ctx context.Context) ([]byte, error) {
+	return r.queryContext(ctx, "current-tab-info", "--json")
 }
 func (r *fullscreenLiveRuntime) ListPanesJSON() ([]byte, error) {
 	return r.command("list-panes", "--json", "--all")
@@ -310,7 +334,10 @@ func (r *fullscreenLiveRuntime) RunZellijAction(args ...string) error {
 func (r *fullscreenLiveRuntime) CurrentTabJSON() ([]byte, error) {
 	return r.command("current-tab-info", "--json")
 }
-func (r *fullscreenLiveRuntime) NudgeWrap() error                                   { return nil }
+func (r *fullscreenLiveRuntime) NudgeWrap() error { return nil }
+func (r *fullscreenLiveRuntime) NotifyRefusal(string) error {
+	return fmt.Errorf("disposable geometry fixture has no notification presenter")
+}
 func (r *fullscreenLiveRuntime) CurrentPaneID() string                              { return r.caller }
 func (r *fullscreenLiveRuntime) LastTerminalPaneID() (string, error)                { return r.last, nil }
 func (r *fullscreenLiveRuntime) TerminalPaneIDs() ([]string, error)                 { return r.terminals, nil }

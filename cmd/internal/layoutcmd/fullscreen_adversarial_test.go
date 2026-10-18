@@ -1,6 +1,7 @@
 package layoutcmd
 
 import (
+	"context"
 	"io"
 	"reflect"
 	"strings"
@@ -162,6 +163,12 @@ type overlappingFullscreenRuntime struct {
 func (r *overlappingFullscreenRuntime) FullscreenStore() workbenchshortcut.FullscreenStore {
 	return r.store
 }
+func (r *overlappingFullscreenRuntime) ListPanesJSONContext(ctx context.Context) ([]byte, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return r.ListPanesJSON()
+}
 func (r *overlappingFullscreenRuntime) ListPanesJSON() ([]byte, error) {
 	if r.lists.Add(1) == 1 && r.entered != nil {
 		close(r.entered)
@@ -222,11 +229,11 @@ func TestFullscreenRuntimeOverlappingEntryUsesRealStoreLock(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("first invocation did not finish")
 	}
-	focus := []string{"toggle-pane-embed-or-floating --pane-id 4", "change-floating-pane-coordinates --pane-id 4 -x 12% -y 0 --width 75% --height 100% --pinned true", "show-floating-panes"}
+	focus := []string{"toggle-pane-embed-or-floating --pane-id 4", "change-floating-pane-coordinates --pane-id 4 -x 12% -y 0 --width 75% --height 100% --pinned true", "show-floating-panes --tab-id 0"}
 	if record, err := r.store.Read(); err != nil || record != "2 swap=small-split order=3,4" {
 		t.Fatalf("focus lost return record: %q %v", record, err)
 	}
-	if !reflect.DeepEqual(r.ops, focus) || r.lists.Load() != 1 {
+	if !reflect.DeepEqual(r.ops, focus) || r.lists.Load() != 2 {
 		t.Fatalf("focus actions=%v lists=%d", r.ops, r.lists.Load())
 	}
 	// A subsequent press must acquire the released lock and advance the cycle,

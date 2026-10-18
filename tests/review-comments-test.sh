@@ -214,11 +214,11 @@ with ReviewTestEnvironment() as isolated, tempfile.TemporaryDirectory(prefix='pa
     fixture = pathlib.Path(storage)
     env = isolated.environment(fixture, root)
     env = {k: v for k, v in env.items() if not k.startswith('COUCH_')}
-    env.update(TERM='xterm-256color', REVIEW_COMMENT_TEST_ROOT=storage, TMPDIR=storage)
+    env.update(PAIR_TEST_ZELLIJ_REPLIES=str(root/'tests/lib/zellij_fixture_replies.py'),TERM='xterm-256color', REVIEW_COMMENT_TEST_ROOT=storage, TMPDIR=storage)
     bindir = fixture / 'bin'
     bindir.mkdir()
     zellij = bindir / 'zellij'
-    zellij.write_text('#!/usr/bin/env python3\nimport json,os,sys\nfrom pathlib import Path\np=Path(os.environ["REVIEW_COMMENT_TEST_ROOT"])/"host.log"\nwith p.open("a") as f: f.write(json.dumps(sys.argv[1:])+"\\n")\nif sys.argv[1:3] == ["action","list-panes"]: print(json.dumps({"panes":[]}))\n')
+    zellij.write_text("#!/usr/bin/env python3\nimport os,sys,json\nfrom pathlib import Path\nsys.path.insert(0,str(Path(os.environ['PAIR_TEST_ZELLIJ_REPLIES']).parent))\nfrom zellij_fixture_replies import emit_case\np=Path(os.environ['REVIEW_COMMENT_TEST_ROOT'])/'host.log'\nwith p.open('a') as f:f.write(json.dumps(sys.argv[1:])+'\\n')\nif sys.argv[1:3]==['action','list-panes']:emit_case('review-comments.absent-wrapper')\n")
     zellij.chmod(0o755)
     env['PATH'] = str(bindir) + os.pathsep + env['PATH']
     (fixture / 'doc.md').write_text('chain 🤖[first hidden]{agent hidden}[last human]\nanchor 🤖<anchor>{replacement}\nstrike 🤖~deleted~{replacement}\nmalformed 🤖[unclosed\n`🤖[inline literal]`\n```markdown\n🤖[fenced literal]\n```\n🤖<legacy\nanchor>[legacy reply]\n\nplain one\nplain two\nplain three\nplain four\n')

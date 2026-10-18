@@ -398,3 +398,17 @@ func TestRetentionPostHandoffMarkerFailureReleasesLifetime(t *testing.T) {
 		t.Fatalf("invalid marker lost lifetime release: code=%d events=%v output=%s", code, r.events, output.String())
 	}
 }
+
+func (r *retainedRuntime) AttachSessionContext(lifetime, admission context.Context, session, config string) (int, error) {
+	if err := admission.Err(); err != nil {
+		return 1, err
+	}
+	return r.AttachSession(session, config)
+}
+
+func (r *retainedRuntime) LaunchSessionContext(lifetime, admission context.Context, session, config, layout string) (int, error) {
+	if err := admission.Err(); err != nil {
+		return 1, err
+	}
+	return r.LaunchSession(lifetime, session, config, layout)
+}

@@ -25,16 +25,20 @@ import (
 	"github.com/xianxu/pair/cmd/internal/procutil"
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 	"github.com/xianxu/pair/cmd/internal/zellijpane"
+	"github.com/xianxu/pair/cmd/internal/zellijreply"
 	"strconv"
 )
 
 type Runtime interface {
+	NotifyRefusal(string) error
 	CachedDraftPaneID() (string, bool)
 	CurrentPaneID() string
 	FullscreenStore() workbenchshortcut.FullscreenStore
 	CurrentTabJSON() ([]byte, error)
+	CurrentTabJSONContext(context.Context) ([]byte, error)
 	NudgeWrap() error
 	ListPanesJSON() ([]byte, error)
+	ListPanesJSONContext(context.Context) ([]byte, error)
 	LastLeftPaneID() (string, error)
 	RecordLastLeftPaneID(string) error
 	LastTerminalPaneID() (string, error)
@@ -128,12 +132,17 @@ func namedChord(name string) (workbenchshortcut.Chord, bool) {
 }
 
 func handleChord(chord workbenchshortcut.Chord, rt Runtime, stdin io.Reader, stdout io.Writer) error {
-	if decision, ok := workbenchshortcut.DecideGlobal(chord); ok {
-		return runDecision(decision, workbenchPanes{}, rt, stdin, stdout)
-	}
-	panes, err := focusedWorkbenchPanes(rt)
-	if err != nil {
+	return handleChordContext(context.Background(), chord, rt, stdin, stdout)
+}
+
+func handleChordContext(parent context.Context, chord workbenchshortcut.Chord, rt Runtime, stdin io.Reader, stdout io.Writer) error {
+	ctx, cancel := zellijreply.AdmissionContext(parent)
+	defer cancel()
+	if err := ctx.Err(); err != nil {
 		return err
+	}
+	if decision, ok := workbenchshortcut.DecideGlobal(chord); ok {
+		return runDecisionContext(ctx, decision, workbenchPanes{}, rt, stdin, stdout)
 	}
 	lastLeft, err := rt.LastLeftPaneID()
 	if err != nil {
@@ -143,38 +152,65 @@ func handleChord(chord workbenchshortcut.Chord, rt Runtime, stdin io.Reader, std
 	if err != nil {
 		terminalIDs = nil
 	}
-	decision := workbenchshortcut.Decide(workbenchshortcut.ShortcutInput{
+	panes, err := focusedWorkbenchPanesContext(ctx, rt, terminalIDs, func(panes workbenchPanes) error {
+		return validateShortcutDecision(decideWorkbenchChord(chord, panes, lastLeft, terminalIDs))
+	})
+	if err != nil {
+		return err
+	}
+	decision := decideWorkbenchChord(chord, panes, lastLeft, terminalIDs)
+	return runDecisionContext(ctx, decision, panes, rt, stdin, stdout)
+}
+
+func decideWorkbenchChord(chord workbenchshortcut.Chord, panes workbenchPanes, lastLeft string, terminalIDs []string) workbenchshortcut.ShortcutDecision {
+	if panes.confirmed != nil && lastLeft != "" {
+		present := false
+		for _, pane := range panes.confirmed {
+			if !pane.IsPlugin && pane.ID == lastLeft {
+				present = true
+				break
+			}
+		}
+		if !present {
+			lastLeft = ""
+		}
+	}
+	return workbenchshortcut.Decide(workbenchshortcut.ShortcutInput{
 		Role:           workbenchshortcut.RoleForPaneWith(panes.focused, terminalIDs),
 		Chord:          chord,
 		FocusedPaneID:  panes.focused.ID,
 		LastLeftPaneID: lastLeft,
 		DraftPaneID:    panes.draft.ID,
 	})
-	return runDecision(decision, panes, rt, stdin, stdout)
+}
+
+func validateShortcutDecision(decision workbenchshortcut.ShortcutDecision) error {
+	if decision.Disposition == workbenchshortcut.DispositionHandle && decision.Action == workbenchshortcut.ActionFocusPane && decision.TargetPaneID == "" {
+		return fmt.Errorf("target pane not found")
+	}
+	return nil
 }
 
 type workbenchPanes struct {
-	focused zellijpane.Pane
-	draft   zellijpane.Pane
-}
-
-// registered reports whether paneID is a live self-registered `pair term` pane.
-//
-// Both fast paths gate on this rather than on ZELLIJ_PANE_ID alone (BR-5): the
-// env var says which pane we are, not what KIND of pane, and synthesising a
-// right-terminal role from it unchecked would misroute every chord in any pane
-// that happens to run this code. The registry is the signal that says
-// "right terminal" — the same one RoleForPaneWith uses to recognise split
-// halves that zellij reports without a terminal_command.
-func registered(rt Runtime, paneID string) bool {
-	ids, err := rt.TerminalPaneIDs()
-	if err != nil {
-		return false
-	}
-	return workbenchshortcut.Registered(ids, paneID)
+	focused   zellijpane.Pane
+	draft     zellijpane.Pane
+	confirmed []zellijpane.Pane
 }
 
 func focusedWorkbenchPanes(rt Runtime) (workbenchPanes, error) {
+	ctx, cancel := zellijreply.AdmissionContext(context.Background())
+	defer cancel()
+	ids, err := rt.TerminalPaneIDs()
+	if err != nil {
+		ids = nil
+	}
+	return focusedWorkbenchPanesContext(ctx, rt, ids)
+}
+
+func focusedWorkbenchPanesContext(ctx context.Context, rt Runtime, registeredIDs []string, validate ...func(workbenchPanes) error) (workbenchPanes, error) {
+	if err := ctx.Err(); err != nil {
+		return workbenchPanes{}, err
+	}
 	// Fast path (#220). run.go's own comment below records why this is sound:
 	// bytes on `pair term`'s stdin can only mean its OWN pane is the input, so
 	// on the live path the focused pane IS this right terminal. The caller
@@ -183,64 +219,88 @@ func focusedWorkbenchPanes(rt Runtime) (workbenchPanes, error) {
 	// without listing panes: the current id from the env, and the draft id from
 	// the sidecar draftroute already caches and validates.
 	//
-	// Synthesised with the terminal_command that classifies it, rather than a
-	// bare ID, so RoleForPaneWith reaches the same verdict it would from the
-	// real report instead of relying on a registry lookup this path does not do.
-	if currentID := rt.CurrentPaneID(); currentID != "" && registered(rt, currentID) {
+	// The caller supplies its existing registry snapshot. The env pane ID alone
+	// never establishes a right-terminal role: only a registered own pane plus
+	// a validated cached draft admits this fast path. Synthesising the known
+	// terminal template gives downstream selectors the same established role.
+	currentID := rt.CurrentPaneID()
+	if currentID != "" && workbenchshortcut.Registered(registeredIDs, currentID) {
 		// rt.CachedDraftPaneID, not draftroute's env reader: the Runtime already
 		// exposes this seam (run.go:29) and reaching past it makes the branch
 		// untestable (BR-4).
 		if draftID, ok := rt.CachedDraftPaneID(); ok {
-			return workbenchPanes{
+			out := workbenchPanes{
 				focused: zellijpane.Pane{ID: currentID, TerminalCommand: rightTerminalClassifier},
 				draft:   zellijpane.Pane{ID: draftID},
-			}, nil
+			}
+			for _, check := range validate {
+				if err := check(out); err != nil {
+					return workbenchPanes{}, err
+				}
+			}
+			return out, nil
 		}
-	}
-	data, err := rt.ListPanesJSON()
-	if err != nil {
-		return workbenchPanes{}, err
 	}
 	var out workbenchPanes
-	var haveOwn bool
-	current := rt.CurrentPaneID()
-	for _, pane := range zellijpane.Parse(data) {
-		// Bytes on pair term's stdin can only mean its OWN pane is the input
-		// target, so the process's pane id outranks the is_focused scan —
-		// zellij reports per-client focus and several panes can carry
-		// is_focused at once (draft + terminal seen live in the tiled smoke).
-		if !pane.IsPlugin && current != "" && pane.ID == current {
-			out.focused, haveOwn = pane, true
+	_, _, _, err := layoutcmd.ConfirmWorkbenchPanesContext(ctx, rt, currentID, registeredIDs, func(panes []zellijpane.Pane) error {
+		out = workbenchPanes{confirmed: panes}
+		for _, pane := range panes {
+			if !pane.IsPlugin && pane.ID == currentID {
+				out.focused = pane
+			}
 		}
-		if pane.IsFocused && !haveOwn {
-			out.focused = pane
+		draft, err := draftroute.UniqueDraftPaneID(panes)
+		if err != nil {
+			return err
 		}
-		if workbenchshortcut.RoleForPane(pane) == workbenchshortcut.PaneRoleLeftDraft {
-			out.draft = pane
+		out.draft = zellijpane.Pane{ID: draft}
+		for _, check := range validate {
+			if err := check(out); err != nil {
+				return err
+			}
 		}
-	}
-	if out.focused.ID == "" {
-		return workbenchPanes{}, fmt.Errorf("no focused zellij pane found")
+		return nil
+	})
+	if err != nil {
+		return workbenchPanes{}, err
 	}
 	return out, nil
 }
 
 func runDecision(decision workbenchshortcut.ShortcutDecision, panes workbenchPanes, rt Runtime, stdin io.Reader, stdout io.Writer) error {
+	ctx, cancel := zellijreply.AdmissionContext(context.Background())
+	defer cancel()
+	return runDecisionContext(ctx, decision, panes, rt, stdin, stdout)
+}
+
+func runDecisionContext(ctx context.Context, decision workbenchshortcut.ShortcutDecision, panes workbenchPanes, rt Runtime, stdin io.Reader, stdout io.Writer) error {
 	if decision.Disposition != workbenchshortcut.DispositionHandle {
 		return nil
 	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if err := validateShortcutDecision(decision); err != nil {
+		return err
+	}
 	if decision.RecordLastLeftPaneID != "" {
-		if err := rt.RecordLastLeftPaneID(decision.RecordLastLeftPaneID); err != nil {
+		if err := zellijreply.Effect(ctx, func() error { return rt.RecordLastLeftPaneID(decision.RecordLastLeftPaneID) }); err != nil {
 			return err
 		}
 	}
 	if decision.RecordLastTerminalPaneID != "" {
-		if err := rt.RecordLastTerminalPaneID(decision.RecordLastTerminalPaneID); err != nil {
+		if err := zellijreply.Effect(ctx, func() error { return rt.RecordLastTerminalPaneID(decision.RecordLastTerminalPaneID) }); err != nil {
 			return err
 		}
 	}
 	if decision.DraftLuaFunction != "" {
-		return draftroute.RouteLua(rt, decision.DraftLuaFunction, decision.FocusDraft)
+		if panes.draft.ID != "" {
+			return draftroute.RouteLuaToPaneContext(ctx, rt, panes.draft.ID, decision.DraftLuaFunction, decision.FocusDraft)
+		}
+		return draftroute.RouteLuaContext(ctx, rt, decision.DraftLuaFunction, decision.FocusDraft)
+	}
+	if err := ctx.Err(); err != nil {
+		return err
 	}
 	switch decision.Action {
 	case workbenchshortcut.ActionNewTab, workbenchshortcut.ActionCloseTab, workbenchshortcut.ActionRenameTab:
@@ -249,22 +309,21 @@ func runDecision(decision workbenchshortcut.ShortcutDecision, panes workbenchPan
 		if decision.TargetPaneID == "" {
 			return nil
 		}
-		return rt.RunZellijAction("focus-pane-id", decision.TargetPaneID)
+		return zellijreply.Effect(ctx, func() error { return rt.RunZellijAction("focus-pane-id", decision.TargetPaneID) })
 	case workbenchshortcut.ActionTerminalPrevTab, workbenchshortcut.ActionTerminalNextTab, workbenchshortcut.ActionTerminalNewTab:
 		chord, ok := workbenchshortcut.TabChordFor(decision.Action)
 		if !ok {
 			return nil
 		}
-		return layoutcmd.SwitchRightTerminalTab(rt, chord)
+		return layoutcmd.SwitchRightTerminalTabContext(ctx, rt, chord)
 	case workbenchshortcut.ActionFocusRightTerminal:
 		// One picker for the right-terminal jump (shared with draft nvim and
 		// pair wrap): id-based, preferring the recorded last-used split half.
-		return layoutcmd.FocusRightTerminal(rt)
+		return layoutcmd.FocusRightTerminalContext(ctx, rt)
 	case workbenchshortcut.ActionSplitTerminalDown:
-		return splitTerminalDown(rt)
+		return splitTerminalDownAdmitted(ctx, rt)
 	case workbenchshortcut.ActionToggleFocusedLayout:
-		_ = layoutcmd.RunToggleFocused(nil, rt, io.Discard)
-		return nil
+		return toggleFocusedLayoutContext(ctx, rt)
 	default:
 		return nil
 	}
@@ -531,8 +590,8 @@ func pumpStdinContext(ctx context.Context, stdin io.Reader, mux ptyWriter, rt Ru
 					rename = &renameSession{tabID: id, editor: editor}
 					continue
 				}
-				if !handleTerminalChord(chord, mux, rt) {
-					if err := handleChord(chord, rt, stdin, stdout); err != nil {
+				if !handleTerminalChordContext(ctx, chord, mux, rt) {
+					if err := handleChordContext(ctx, chord, rt, stdin, stdout); err != nil {
 						mux.reportError(err)
 					}
 				}
@@ -614,6 +673,10 @@ func inputChord(event terminal.InputEvent) (workbenchshortcut.Chord, bool) {
 }
 
 func handleTerminalChord(chord workbenchshortcut.Chord, mux ptyWriter, rt Runtime) bool {
+	return handleTerminalChordContext(context.Background(), chord, mux, rt)
+}
+
+func handleTerminalChordContext(parent context.Context, chord workbenchshortcut.Chord, mux ptyWriter, rt Runtime) bool {
 	switch chord {
 	case workbenchshortcut.ChordAltT, workbenchshortcut.ChordAltShiftT:
 		// ChordAltShiftT is the from-anywhere new-tab (#243), delivered here as
@@ -637,12 +700,18 @@ func handleTerminalChord(chord workbenchshortcut.Chord, mux ptyWriter, rt Runtim
 		mux.nextTab()
 		return true
 	case workbenchshortcut.ChordAltShiftD:
-		if err := splitTerminalDown(rt); err != nil {
+		ctx, cancel := zellijreply.AdmissionContext(parent)
+		defer cancel()
+		if err := splitTerminalDownContext(ctx, rt); err != nil {
 			mux.reportError(err)
 		}
 		return true
 	case workbenchshortcut.ChordAltShiftEnter:
-		_ = layoutcmd.RunToggleFocused(nil, rt, io.Discard)
+		ctx, cancel := zellijreply.AdmissionContext(parent)
+		defer cancel()
+		if err := toggleFocusedLayoutContext(ctx, rt); err != nil {
+			mux.reportError(err)
+		}
 		return true
 	default:
 		return false
@@ -650,10 +719,23 @@ func handleTerminalChord(chord workbenchshortcut.Chord, mux ptyWriter, rt Runtim
 }
 
 func splitTerminalDown(rt Runtime) error {
-	if _, ok, err := currentRightTerminalPane(rt); err != nil {
+	ctx, cancel := zellijreply.AdmissionContext(context.Background())
+	defer cancel()
+	return splitTerminalDownContext(ctx, rt)
+}
+
+func splitTerminalDownContext(ctx context.Context, rt Runtime) error {
+	if _, ok, err := currentRightTerminalPaneContext(ctx, rt); err != nil {
 		return err
 	} else if !ok {
 		return fmt.Errorf("right terminal pane not found")
+	}
+	return splitTerminalDownAdmitted(ctx, rt)
+}
+
+func splitTerminalDownAdmitted(ctx context.Context, rt Runtime) error {
+	if err := ctx.Err(); err != nil {
+		return err
 	}
 	// Native tiled split: the invoking terminal holds the client focus (the
 	// chord arrived on its stdin, which only happens when this pane is
@@ -661,55 +743,55 @@ func splitTerminalDown(rt Runtime) error {
 	// --near-current-pane: live smoke showed it makes zellij 0.44.3 create
 	// the pane invisibly (process spawned, pane absent from the layout).
 	// Quiet because new-pane prints the created pane id to stdout.
-	return rt.RunZellijActionQuiet(
-		"new-pane",
-		"--direction", "down",
-		"--name", "terminal",
-		"--",
-		"sh",
-		"-c",
-		rightTerminalPaneShell,
-	)
+	return zellijreply.Effect(ctx, func() error {
+		return rt.RunZellijActionQuiet(
+			"new-pane",
+			"--direction", "down",
+			"--name", "terminal",
+			"--",
+			"sh",
+			"-c",
+			rightTerminalPaneShell,
+		)
+	})
 }
 
 func currentRightTerminalPane(rt Runtime) (zellijpane.Pane, bool, error) {
+	ctx, cancel := zellijreply.AdmissionContext(context.Background())
+	defer cancel()
+	return currentRightTerminalPaneContext(ctx, rt)
+}
+
+func currentRightTerminalPaneContext(ctx context.Context, rt Runtime) (zellijpane.Pane, bool, error) {
+	if err := ctx.Err(); err != nil {
+		return zellijpane.Pane{}, false, err
+	}
 	// Fast path (#220): this runs INSIDE `pair term`, so CurrentPaneID() is our
 	// own pane, and `pair term` self-registers at startup. A current id present
 	// in the live registry is therefore a right terminal by construction — the
 	// same conclusion the walk below reaches, without the 590ms that
 	// `list-panes --json` costs on zellij 0.44.3. The only caller
 	// (splitTerminalDown, run.go:545) discards the pane and reads `ok`.
-	if currentID := rt.CurrentPaneID(); currentID != "" && registered(rt, currentID) {
-		return zellijpane.Pane{ID: currentID}, true, nil
-	}
-	data, err := rt.ListPanesJSON()
-	if err != nil {
-		return zellijpane.Pane{}, false, err
-	}
-	panes := zellijpane.Parse(data)
 	terminalIDs, err := rt.TerminalPaneIDs()
 	if err != nil {
 		terminalIDs = nil
 	}
+	currentID := rt.CurrentPaneID()
+	if currentID != "" && workbenchshortcut.Registered(terminalIDs, currentID) {
+		return zellijpane.Pane{ID: currentID}, true, nil
+	}
+	panes, _, _, err := layoutcmd.ConfirmWorkbenchPanesContext(ctx, rt, currentID, terminalIDs)
+	if err != nil {
+		return zellijpane.Pane{}, false, err
+	}
 	isTerminal := func(pane zellijpane.Pane) bool {
 		return workbenchshortcut.RoleForPaneWith(pane, terminalIDs) == workbenchshortcut.PaneRoleRightTerminal
 	}
-	currentID := rt.CurrentPaneID()
 	if currentID != "" {
 		for _, pane := range panes {
-			if pane.ID == currentID && isTerminal(pane) {
+			if !pane.IsPlugin && pane.ID == currentID && isTerminal(pane) {
 				return pane, true, nil
 			}
-		}
-	}
-	for _, pane := range panes {
-		if pane.IsFocused && isTerminal(pane) {
-			return pane, true, nil
-		}
-	}
-	for _, pane := range panes {
-		if isTerminal(pane) {
-			return pane, true, nil
 		}
 	}
 	return zellijpane.Pane{}, false, nil
@@ -728,9 +810,23 @@ func isSGRMousePrefix(data []byte) bool { return mouseinput.IsPrefix(data) }
 
 type OSRuntime struct{}
 
+func (OSRuntime) NotifyRefusal(message string) error {
+	return layoutcmd.OSRuntime{}.NotifyRefusal(message)
+}
+
+func toggleFocusedLayoutContext(ctx context.Context, rt Runtime) error {
+	if code := layoutcmd.RunToggleFocusedContext(ctx, nil, rt, io.Discard); code != 0 {
+		return errors.New("layout change refused: uncertain Zellij reply")
+	}
+	return nil
+}
+
 func (OSRuntime) ListPanesJSON() ([]byte, error) {
-	// --geometry: the right-pane cycle orders split halves by row (#417).
-	return exec.Command("zellij", "action", "list-panes", "--json", "--command", "--state", "--geometry").Output()
+	return OSRuntime{}.ListPanesJSONContext(context.Background())
+}
+
+func (OSRuntime) ListPanesJSONContext(ctx context.Context) ([]byte, error) {
+	return layoutcmd.OSRuntime{}.ListPanesJSONContext(ctx)
 }
 
 func (OSRuntime) CachedDraftPaneID() (string, bool) {
@@ -746,7 +842,10 @@ func (OSRuntime) FullscreenStore() workbenchshortcut.FullscreenStore {
 }
 
 func (OSRuntime) CurrentTabJSON() ([]byte, error) { return layoutcmd.OSRuntime{}.CurrentTabJSON() }
-func (OSRuntime) NudgeWrap() error                { return layoutcmd.OSRuntime{}.NudgeWrap() }
+func (OSRuntime) CurrentTabJSONContext(ctx context.Context) ([]byte, error) {
+	return layoutcmd.OSRuntime{}.CurrentTabJSONContext(ctx)
+}
+func (OSRuntime) NudgeWrap() error { return layoutcmd.OSRuntime{}.NudgeWrap() }
 
 func (OSRuntime) LastLeftPaneID() (string, error) {
 	store := workbenchshortcut.LastLeftPaneStore{DataDir: workbenchshortcut.DataDirFromEnv(), Tag: os.Getenv("PAIR_TAG")}

@@ -9,20 +9,14 @@
 # Run: bash tests/review-poke-test.sh
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+export PAIR_TEST_ZELLIJ_REPLIES="$ROOT/tests/lib/zellij_fixture_replies.py"
 . "$ROOT/tests/lib/run-headless.sh"
 RT="$(mktemp -d "${TMPDIR:-/tmp}/pair-poke-test.XXXXXX")"
 trap 'rm -rf "$RT"' EXIT
 RESULT="$RT/result.txt"; ZLOG="$RT/zlog.txt"; : > "$ZLOG"
 
 # reordered panes: unrelated right terminal precedes agent (id 7, tiled, "claude"), draft (id 3), review (id 9, floating, focused)
-cat > "$RT/panes.json" <<'JSON'
-{"tab_one":{"panes":[
-  {"id":4,"is_plugin":false,"is_floating":false,"is_focused":false,"title":"terminal","terminal_command":"/bin/pair term"},
-  {"id":7,"is_plugin":false,"is_floating":false,"is_focused":false,"title":"claude","terminal_command":"/bin/pair wrap --agent claude"},
-  {"id":3,"is_plugin":false,"is_floating":false,"is_focused":false,"title":"draft"},
-  {"id":9,"is_plugin":false,"is_floating":true,"is_focused":true,"title":"review"}
-]}}
-JSON
+python3 "$PAIR_TEST_ZELLIJ_REPLIES" --case review-poke.panes > "$RT/panes.json"
 
 mkdir -p "$RT/bin"
 cat > "$RT/bin/zellij" <<EOF
@@ -48,7 +42,7 @@ poke.send('updated, please review foo.md')
 OUT:write('sent\n'); OUT:close()
 LUA
 
-PATH="$RT/bin:$PATH" PAIR_ROOT="$ROOT" RESULT="$RESULT" PAIR_DATA_DIR="$RT" PAIR_TAG=poke \
+PATH="$RT/bin:$PATH" PAIR_ROOT="$ROOT" RESULT="$RESULT" PAIR_DATA_DIR="$RT" PAIR_TAG=poke ZELLIJ_PANE_ID=9 \
   PAIR_ZELLIJ_ACTIONS_PATH="$RT/zellij-actions-poke.jsonl" \
   run_headless --timeout 30 -- nvim --headless -u NONE -c "luafile $RT/driver.lua" -c 'qa!'
 

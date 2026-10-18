@@ -48,8 +48,8 @@ func TestRetentionResumeBudgetCanExpireBeforeAttachment(t *testing.T) {
 	if !errors.Is(err, context.DeadlineExceeded) || !strings.Contains(err.Error(), "await Pair attachment") {
 		t.Fatalf("resume = %v, want an attachment deadline failure", err)
 	}
-	if armed != 2 {
-		t.Fatalf("attachment attempts = %d, want both attempts to encounter the spent budget", armed)
+	if armed != 1 {
+		t.Fatalf("attachment attempts = %d, want an unanswered observation to end admission", armed)
 	}
 }
 
