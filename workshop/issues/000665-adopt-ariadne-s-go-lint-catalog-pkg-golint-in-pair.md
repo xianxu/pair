@@ -109,6 +109,11 @@ Couchcore targeted normal26.624s/race28.894s PASS, actual-default-budget mutatio
 Broader affected non-core package normal run passed: broadcast33.678s, webcast12.171s, terminalcapture0.964s, diagnosticlog47.788s, panebirth0.136s, couchcmd130.389s, couchtty59.343s, testbinary0.123s. Selected changed tests in all these packages also pass-race. Artifactpath and build-cache tests pass after explicit helper classification. No native lane use and no real operator state touched. All subagents have returned; every temporary source mutation was restored before final staging.
 
 
+### 2026-10-18 — Authorized M1 review/suite overlap
+
+PR428 is open on the M1 source commit. Recorded suite attempt fad7b8eea081451df8064a47db8affc5 is queued in the machine test line; its clone is /var/folders/07/b9wcwwld4_v2w9r3hk525bm80000gn/T/sdlc-local-2861851668. Authenticated hub deliveryc9aae4fb explicitly authorizes M1 milestone-close review overlapping this queue, with recorded PASS mandatory before landing and a new final-head suite required if review changes code; this is now a standing hub rule. Source is frozen. The review verification names targeted and mutation evidence only, never labels the pending full suite a pass. M2 preparation is read-only while M1 is outstanding.
+
+
 ## Revisions
 
 ### 2026-10-18 — R1: two approved milestones
