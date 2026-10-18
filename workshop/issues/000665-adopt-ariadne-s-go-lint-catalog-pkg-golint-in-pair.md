@@ -142,6 +142,12 @@ One shared contract runs against both the fake and disposable real repositories 
 
 Final frozen-source package normal PASS34.833s and race PASS52.879s; malformed-debt fuzz53267executions and suppression fuzz8231executions PASS. Retained logs /tmp/pair665-br3-final-{normal,race,debt-fuzz,suppression-fuzz}.log. The ordinary repository test rejects an added tracked sleep and duplicated debt (/tmp/pair665-br3-{new-site,corrupt-debt}-mutation-red.log). Both mutations were restored; the source matches the staged checkpoint. These are targeted checks, not a full-suite PASS.
 
+### 2026-10-18 — M1 SHIP; final-head suite queued
+
+M1 round3 returned SHIP with no new findings; BR-1, BR-2 and BR-3 are all addressed and the milestone is finalized. The reviewer independently exercised the shared fake/real boundary, tested unknown main authority, and proved repository-seam-bypass and mutable-blob mutations fail. The recorded suite on code head9128c9a2 is attempt424b1a764482d2a7f173b58dbd4484d5, still waiting for a machine slot at review completion. Recorded PASS remains mandatory before landing PR428. No code changed during review; the automatic milestone evidence commit is docs-only. GitHub conformance, merge-check and local-gates checks passed on the reviewed source head.
+
+Authenticated hub bf84e7de accepts M2's individual duration-subject exceptions: keep those exact existing sites in the shrink-only file with a reason on each entry; readiness guesses become explicit signals. Do not introduce a clock just to remove a sleep; use an existing clock seam only and retain a separate real-timing check when switching to fake time. R6 records the decision for M2; M2 code waits until M1 lands on main. Read-only package implementation planning may overlap the suite queue.
+
 ## Revisions
 
 ### 2026-10-18 — R1: two approved milestones
