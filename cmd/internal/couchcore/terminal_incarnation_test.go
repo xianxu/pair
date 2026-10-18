@@ -16,9 +16,10 @@ import (
 // identities exist independently. This models the launcher's exact-name CREATE.
 type incarnationWorld struct {
 	*FakeThreadArtifactCollisionChecker
-	index   string
-	live    map[string]bool
-	deleted []string
+	index       string
+	live        map[string]bool
+	deleted     []string
+	beforeNamed func()
 }
 
 func (w *incarnationWorld) PairSession(a ThreadAddress) (PairSessionBinding, error) {
@@ -28,6 +29,9 @@ func (w *incarnationWorld) PairSessionContext(_ context.Context, _ ThreadAddress
 	return PairSessionBinding{Name: w.index, Present: w.live[w.index]}, nil
 }
 func (w *incarnationWorld) NamedPairSessionContext(_ context.Context, _ ThreadAddress, name string) (PairSessionBinding, error) {
+	if w.beforeNamed != nil {
+		w.beforeNamed()
+	}
 	return PairSessionBinding{Name: name, Present: w.live[name]}, nil
 }
 func (w *incarnationWorld) Quiesce(_ ThreadAddress) error {
@@ -45,7 +49,6 @@ func incarnationFixture(t *testing.T) (*testEnv, ThreadRecord, *incarnationWorld
 	t.Helper()
 	env := newTestEnv(t, "/repo")
 	env.Couch.Identities = couchidentity.IdentityStore{HostDir: t.TempDir(), StoreDir: env.Dir}
-	env.Couch.resumeRegistrationTimeout = 40 * time.Millisecond
 	record := createParkedThreadInCouch(t, env, LaunchProfile{Agent: "claude", Argv: []string{}})
 	env.Artifacts.SetNativeBinding(record.Address, "claude", sessioninventory.BindingEstablished, "native-root-1")
 	world := &incarnationWorld{FakeThreadArtifactCollisionChecker: env.Artifacts, index: "📁legacy-old", live: map[string]bool{}}
@@ -85,6 +88,17 @@ func TestColdRegistrationAndCleanupIgnoreOldIndexedTerminal(t *testing.T) {
 	t.Parallel()
 
 	env, record, world := incarnationFixture(t)
+	budget := newSpendableBudget()
+	armed := false
+	env.Couch.registrationDeadline = func(parent context.Context, _ time.Duration) (context.Context, context.CancelFunc) {
+		armed = true
+		return budget.bind(parent)
+	}
+	world.beforeNamed = func() {
+		if armed {
+			budget.spend()
+		}
+	}
 	var proposed string
 	env.Runner.AfterAcknowledge = func(id string) error {
 		for _, entry := range env.Runner.Child(id).Env {

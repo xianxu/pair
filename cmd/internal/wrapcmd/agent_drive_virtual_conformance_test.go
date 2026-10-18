@@ -257,7 +257,7 @@ func TestAgentDriveVirtualTerminalLiveConformance(t *testing.T) {
 }
 
 func runAgentDriveBoundary(t *testing.T, virtual bool) {
-	root, err := os.MkdirTemp("/tmp", "pair-drive-boundary-")
+	root, err := os.MkdirTemp("", "pdb-")
 	if err != nil {
 		t.Fatal(err)
 	}

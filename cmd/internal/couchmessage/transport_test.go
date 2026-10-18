@@ -19,7 +19,7 @@ import (
 
 func transportSocket(t *testing.T) string {
 	t.Helper()
-	root, err := os.MkdirTemp("/tmp", "pair-msg-test-")
+	root, err := os.MkdirTemp("", "pmt-")
 	if err != nil {
 		t.Fatal(err)
 	}

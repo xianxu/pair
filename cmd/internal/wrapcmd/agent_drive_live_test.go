@@ -58,7 +58,7 @@ func TestAgentDriveLiveCapture(t *testing.T) {
 	if more {
 		prefix = "more-"
 	}
-	tempRoot, err := os.MkdirTemp("/tmp", "pair-model-")
+	tempRoot, err := os.MkdirTemp("", "pdm-")
 	if err != nil {
 		t.Fatal(err)
 	}

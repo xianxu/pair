@@ -212,3 +212,23 @@ All new functions are test-only in internal/repolint, split between catalog_test
 | TestTrackedGoFilesPassCatalog | Fail the ordinary repository test on any unadmitted finding | Mutation control adds a tracked violating file and independently corrupts debt; clean restoration passes without changing scanner flags |
 
 No pure function requires an IO mock. The actual Git inventory/baseline boundary is qualified with disposable repositories; fuzzing is for the JSON trust boundary, not external tools. PQ-1 is addressed for all newly introduced validation seams, not only the JSON reader.
+
+### 2026-10-18 — R3: implementation decomposition and fixture seams
+
+Reason: the approved non-sleep sweep exposed shared build ownership and several timing oracles; this records the chosen implementation details. Core concepts below supersede the original no-new-entity table, whose checker reuse remains true but did not yet include the staged debt ratchet.
+
+| Pure entity | Lives in | Status |
+| --- | --- | --- |
+| SleepSite / Debt and exact matching/subset validation | internal/repolint/catalog_test.go | new |
+
+| Integration point | Lives in | Status | Wraps |
+| --- | --- | --- | --- |
+| Suite-owned distinct binary cache | internal/testbinary/cache.go | new | one synchronized builder callback, owned temp directory and explicit post-m.Run cleanup |
+| Controllable recorder drain timer | cmd/internal/terminalcapture/recorder.go | modified | existing owned real timer by default; tests fire only after Draining |
+| Controllable last-page grace | cmd/internal/webcast/chrome.go | modified | existing time.After default; protocol fake fires after observed destroy/replacement events |
+| Controllable lifecycle completion deadline | cmd/internal/couchcore/park.go | modified | existing context.WithTimeout default; tests observe actual selected budget |
+| Store read-lock contention cue | cmd/internal/couchcore/retention.go | modified | existing nonblocking flock; private context observer follows routed store construction |
+
+ARCH-DRY: one testbinary.Cache shared by command/probe fixture owners, rather than three copied cache implementations; its artifact classification explicitly says test support. Cache.Directory is tested with concurrent counted builders, failure/close sequences and subtest lifetime; real executable count controls qualify the Go boundary. The remaining timing seams keep production deadlines and externally visible policy unchanged. They allow timeout/cancellation after a precise observed event instead of racing startup. Telemetry and FIFO repairs incidentally retire three original sleeps during M1, so the current list is100rather than103; this is an allowed shrink, not newly admitted debt.
+
+Estimate INFO noted grouping/qualification uncertainty: M1's six groups are paths, executable ownership, registration/birth/rollback, lifecycle completion, lock/FIFO cancellation and non-core timer/counting oracles. The scanner module row includes debt bootstrap and dependency compatibility; M2's twenty families are a planning grouping over the affected fixture packages, not a measured per-site repair guarantee. The scalar estimate remains provisional calibration; actuals will be measured by SDLC.

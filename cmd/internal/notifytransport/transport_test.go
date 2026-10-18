@@ -18,6 +18,7 @@ import (
 
 func testNamespace(t *testing.T) string {
 	t.Helper()
+	//lint:allow tmp-literal — the notification transport appends a 32-hex digest and PID; macOS TMPDIR can exceed its 100-byte socket limit
 	root, err := os.MkdirTemp("/tmp", "pnt-")
 	if err != nil {
 		t.Fatal(err)
@@ -552,6 +553,7 @@ func TestNamespacesIsolateLockSendAndClose(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { unlock() }()
+	//lint:allow tmp-literal — the notification transport appends a 32-hex digest and PID; macOS TMPDIR can exceed its 100-byte socket limit
 	second, err := os.MkdirTemp("/tmp", "pnt-")
 	if err != nil {
 		t.Fatal(err)

@@ -7,10 +7,12 @@ import (
 	"os"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/couchidentity"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 func assertWarmClientRepair(t *testing.T, env *testEnv, before ThreadRecord, actor ActorRecord) {
@@ -241,13 +243,17 @@ func TestWarmOnlyAttachmentRepairRejectsFIFOAfterAcknowledgment(t *testing.T) {
 		t.Fatal(err)
 	}
 	var done chan struct{}
+	releaseWriter := make(chan struct{})
+	var releaseOnce sync.Once
+	release := func() { releaseOnce.Do(func() { close(releaseWriter) }) }
 	defer func() {
+		release()
 		if done == nil {
 			return
 		}
 		select {
 		case <-done:
-		case <-time.After(time.Second):
+		case <-testwait.After(t):
 			t.Error("FIFO fixture writer did not finish")
 		}
 	}()
@@ -262,7 +268,7 @@ func TestWarmOnlyAttachmentRepairRejectsFIFOAfterAcknowledgment(t *testing.T) {
 		done = make(chan struct{})
 		go func() {
 			defer close(done)
-			time.Sleep(200 * time.Millisecond)
+			<-releaseWriter
 			fd, err := unix.Open(path, unix.O_RDWR|unix.O_NONBLOCK, 0)
 			if err == nil {
 				_, _ = unix.Write(fd, original)
@@ -271,17 +277,28 @@ func TestWarmOnlyAttachmentRepairRejectsFIFOAfterAcknowledgment(t *testing.T) {
 		}()
 		return nil
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
-	started := time.Now()
-	actor, h, err := env.Couch.ResumeContextWith(ctx, before.Address, ResumeOptions{WarmOnly: true})
-	elapsed := time.Since(started)
+	returned := make(chan struct{})
+	var actor ActorRecord
+	var h Handle
+	go func() {
+		defer close(returned)
+		actor, h, err = env.Couch.ResumeContextWith(ctx, before.Address, ResumeOptions{WarmOnly: true})
+	}()
+	select {
+	case <-returned:
+	case <-testwait.After(t):
+		// Release the writer before joining a potentially blocked faulty reader.
+		cancel()
+		release()
+		<-returned
+		t.Fatal("automatic repair waited for FIFO writer")
+	}
 	if h != nil {
 		defer env.Runner.SetExited(h.ID(), 0)
 	}
-	if elapsed >= 150*time.Millisecond {
-		t.Fatalf("automatic repair waited for FIFO writer: %v", elapsed)
-	}
+
 	if err != nil || h == nil || !strings.Contains(actor.AttachmentNotice, "BORROWED ATTACH") {
 		t.Fatalf("attachment=%+v handle=%v err=%v", actor, h, err)
 	}
@@ -297,12 +314,11 @@ func TestWarmOnlyResumePreflightHonorsCallerDeadline(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer lock.Close()
-	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Millisecond)
-	defer cancel()
-	started := time.Now()
+	ctx, assertContended := deadlineAtReadLockContention(t)
 	_, h, err := env.Couch.ResumeContextWith(ctx, before.Address, ResumeOptions{WarmOnly: true})
-	if elapsed := time.Since(started); elapsed >= 150*time.Millisecond || !errors.Is(err, context.DeadlineExceeded) || h != nil {
-		t.Fatalf("preflight ignored deadline: elapsed=%v err=%v handle=%v", elapsed, err, h)
+	assertContended()
+	if !errors.Is(err, context.DeadlineExceeded) || h != nil {
+		t.Fatalf("preflight ignored deadline: err=%v handle=%v", err, h)
 	}
 }
 
@@ -375,12 +391,11 @@ func TestAutomaticInventoryPreviewHonorsCallerDeadline(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer lock.Close()
-			ctx, cancel := context.WithTimeout(context.Background(), 25*time.Millisecond)
-			defer cancel()
-			started := time.Now()
+			ctx, assertContended := deadlineAtReadLockContention(t)
 			_, _, err = env.Couch.gatherThreadEvidence(ctx, nil, func(ThreadRecord) bool { return false })
-			if elapsed := time.Since(started); elapsed >= 150*time.Millisecond || !errors.Is(err, context.DeadlineExceeded) {
-				t.Fatalf("inventory ignored deadline: elapsed=%v err=%v", elapsed, err)
+			assertContended()
+			if !errors.Is(err, context.DeadlineExceeded) {
+				t.Fatalf("inventory ignored deadline: err=%v", err)
 			}
 		})
 	}

@@ -651,6 +651,7 @@ var SourceClassifications = []SourceClassification{
 // the artifact namespace requires an explicit SourceClassification.
 // pair:m5-concept pure
 var NonArtifactSources = []string{
+	"internal/testbinary/cache.go",
 	// #649 wiring, contextual runtime delegation, and the pure title reducer
 	// introduce no artifact constructors or filename vocabulary.
 	"cmd/internal/couchcmd/titles_wiring.go",

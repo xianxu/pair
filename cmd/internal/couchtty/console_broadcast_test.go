@@ -250,6 +250,7 @@ func TestBroadcastSwitcherPrivate(t *testing.T) {
 }
 
 func TestBroadcastStopsWhenIndicatorCannotBeDrawn(t *testing.T) {
+	//lint:allow test-shrunk-deadline — The clipped-indicator grace is the configured behavior under test; readiness is observed before clipping.
 	f := broadcastFixture(t, &broadcast.FakeTunnel{}, func(c *broadcast.Config) { c.Hub.Grace = 100 * time.Millisecond })
 	s := f.startLive(t)
 	v := openViewer(t, s)

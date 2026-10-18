@@ -518,17 +518,19 @@ func TestDrawNotesWidensUsedColumns(t *testing.T) {
 	}
 }
 
-// A pin is found without walking a big box (BR-13): a 1000×1000 box on a
-// 1000×1000 grid parses in far less than its million cells would take.
+// Count the search work rather than requiring a loaded host to finish quickly.
 func TestHasPinStopsAtTheFirstSpot(t *testing.T) {
-	start := time.Now()
-	for range 1000 {
-		if !hasPin(CellBox{0, 0, 1000, 1000}, 1000, 1000) {
-			t.Fatal("no pin in a whole grid")
+	for _, size := range []int{1000, 2000} {
+		for range 1000 {
+			visits := 0
+			_, ok := firstPin(CellBox{0, 0, size, size}, size, size, func(cell) bool {
+				visits++
+				return false
+			})
+			if !ok || visits != 1 || !hasPin(CellBox{0, 0, size, size}, size, size) {
+				t.Fatalf("grid %d: pin=%v, visits=%d; want first-cell success", size, ok, visits)
+			}
 		}
-	}
-	if d := time.Since(start); d > 200*time.Millisecond {
-		t.Errorf("1000 parses of a whole-grid box took %v", d)
 	}
 }
 
