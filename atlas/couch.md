@@ -23,8 +23,7 @@ probe-budget seam, with production deadline tests kept separately.
 
 Affected failures include best-effort `testwait.HostState()` load information.
 Native open-file conformance skips only unavailable/incomplete lsof observations;
-run `PAIR_REQUIRE_LSOF_CONFORMANCE=1 go test ./cmd/internal/diagnosticlog -run
-'Test(OpenFileInspectionConformance|UnregisteredChildOpenFileBlocksLegacyExpiry)$'`
+run `PAIR_REQUIRE_LSOF_CONFORMANCE=1 go test ./cmd/internal/diagnosticlog -count=1 -run 'Test(OpenFileInspectionConformance|UnregisteredChildOpenFileBlocksLegacyExpiry)$'`
 to require that native evidence. An answered wrong holder or identity always fails.
 
 ### Slot continuity and capture provenance (#528)
