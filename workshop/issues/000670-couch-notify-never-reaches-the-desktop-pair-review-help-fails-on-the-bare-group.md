@@ -16,6 +16,7 @@ claimant:
     workspace: pair:6
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "222d3bbc", done: "69353fb4"}
 ---
 
 # couch --notify never reaches the desktop; pair review --help fails on the bare group
