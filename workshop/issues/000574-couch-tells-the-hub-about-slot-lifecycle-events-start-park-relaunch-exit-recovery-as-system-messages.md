@@ -1,12 +1,12 @@
 ---
 id: 000574
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-15
 updated: 2026-10-17
 estimate_hours: 3.19
-card_mirror: 'a76884f97b5fa57a8f465ab8e44bd8b544401950' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '76972d7600df5999401217201ae36b78cc9c2e22' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-17T18:43:29-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: operator}
+actual_hours: 2.36
 ---
 
 # Couch tells the hub about slot lifecycle events (start, park, relaunch, exit, recovery) as system messages
