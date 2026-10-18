@@ -264,26 +264,34 @@ func TestRoundRefusesAMalformedSidecar(t *testing.T) {
 	wantRefusal(t, err, ExitRefused, "round-invalid")
 }
 
-// Frontmatter is never proposed, whichever verb would change it: a body
-// write that touches it refuses with nothing written, so no marker can land
-// in it or flip `presentation:` (BR-2); `write --frontmatter` stays direct.
-func TestProposeNeverMarksFrontmatter(t *testing.T) {
+// The operator-owned keys are guarded on every path through the one engine:
+// apply and write --frontmatter alike refuse a change to presentation or
+// collaboration-mode under propose, and write nothing; another frontmatter
+// key still writes directly.
+func TestProposeGuardsOperatorKeysOnEveryPath(t *testing.T) {
 	r := newRig(t)
 	r.put(r.p.File, proposeDoc)
 	r.put(r.p.Shadow, proposeDoc)
 	_, err := r.sync.Apply(ApplyRequest{File: r.p.File, IfHash: r.hash(""), Edits: []EditRecord{
 		{Old: "presentation: propose", Occurrence: 1, New: "presentation: direct"},
-		{Old: "\nold\n", Occurrence: 1, New: "\nnew\n"},
 	}})
-	wantRefusal(t, err, ExitRefused, "propose-unencodable")
+	wantRefusal(t, err, ExitRefused, "operator-owned")
+	block, _ := FrontmatterBody(r.read(r.p.File))
+	_, err = r.sync.Write(WriteRequest{File: r.p.File, Frontmatter: true, IfHash: r.frontmatterHash(),
+		Body: strings.Replace(block, "presentation: propose\n", "presentation: propose\ncollaboration-mode: discussion\n", 1)})
+	wantRefusal(t, err, ExitRefused, "operator-owned")
 	if r.read(r.p.File) != proposeDoc {
-		t.Fatal("a refused proposal wrote")
+		t.Fatal("a refused operator-key change wrote")
 	}
-	// The closer moved into the body: also a frontmatter change, refused.
+	if _, err := r.sync.Write(WriteRequest{File: r.p.File, Frontmatter: true, IfHash: r.frontmatterHash(),
+		Body: strings.Replace(block, "presentation: propose\n", "presentation: propose\ntitle: x\n", 1)}); err != nil {
+		t.Fatalf("another key: %v", err)
+	}
+	// A moved closer (a body write reshaping the frontmatter) still refuses.
 	_, err = r.sync.Apply(ApplyRequest{File: r.p.File, IfHash: r.hash(""), Edits: []EditRecord{
-		{Old: "presentation: propose\n---\n", Occurrence: 1, New: "presentation: propose\n"},
+		{Old: "title: x\n---\n", Occurrence: 1, New: "title: x\n"},
 	}})
-	if err == nil || r.read(r.p.File) != proposeDoc {
-		t.Fatalf("a moved closer was accepted: %v", err)
+	if err == nil {
+		t.Fatal("a moved closer was accepted")
 	}
 }

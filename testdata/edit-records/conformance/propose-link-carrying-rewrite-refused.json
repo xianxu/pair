@@ -1,0 +1,12 @@
+{
+ "name": "propose-link-carrying-rewrite-refused",
+ "source": "pair#661 close review BR-9: a rewrite that ends in a side-doc link is not the marker swapped for the link",
+ "base": "---\npresentation: propose\ncollaboration-mode: discussion\n---\n\n# Release design\n\nLine one.\nLine two.\nLine three.\nLine four. 🤖[shorten]\n",
+ "records": [
+  {
+   "old": "Line one.\nLine two.\nLine three.\nLine four. 🤖[shorten]",
+   "new": "Totally rewritten.\nX\nY\nZ\nW → [proposal](design.side/x.md)"
+  }
+ ],
+ "refuse": "propose-too-large"
+}

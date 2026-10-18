@@ -496,7 +496,9 @@ couch --session-sync write --frontmatter BODYFILE FILE --if-hash H
 couch --session-sync apply EDITS.json FILE --if-hash H [--fold ID] [--json]
                          a precise edit: {old, occurrence, new, explain} records applied all or none (edits-invalid
                          lists each bad record); under presentation: propose Couch writes per-line accept/reject
-                         markers (propose-too-large / propose-unencodable mean: use a side-doc proposal)
+                         markers (propose-too-large / propose-unencodable mean: use a side-doc proposal);
+                         frontmatter, side-doc links answering a marker and their folds apply directly, and
+                         presentation / collaboration-mode are operator-owned
 couch --session-sync round FILE --json
                          the last agent round (every changing agent write keeps one), with reasons from apply,
                          and whether the operator's next submit has cleared it; parley highlights it
