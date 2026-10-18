@@ -1,6 +1,6 @@
 ---
 id: 000659
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-17
@@ -8,7 +8,15 @@ updated: 2026-10-17
 estimate_hours:
 severity: high
 collaboration-mode: collaboration
-card_mirror: 'b9484c9d9328d83dec99c605493cad0fb8618d8b' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '848db29645457793dab875290b59de1058464d60' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-17T22:43:28-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:7
+    worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
+    repository: github.com/xianxu/pair
 ---
 
 # tests: seven wall-clock budgets on external tools (git worktree, zellij IPC, lsof, a rate-limit window) fail at fleet load
@@ -139,3 +147,9 @@ on scope, verbatim: "The class is tests that put a wall-clock budget on an exter
 tool or real time (git worktree, zellij IPC, lsof, a rate-limit window) and fail at
 load near 100." #644's own unchanged rerun is not blocked on this issue — its patch
 touches none of these packages — and it will report both suite attempts in its Log.
+
+### 2026-10-17 — pair:7 planning
+
+Claimed unowned card; start-plan completed after dependency refresh and explicit retry. No package installation. Read all named tests with two independent read-only subagent investigations. Seven groups contain nine functions; park growth is in couchcore, already fake-backed. Clipboard's exit7 assertion conflicts with valid product1s timeout, while continuation's missing-origin warning is explicitly nonfatal. Current measured load `{ 60.65 65.52 86.42 }` is context only, not a reproduction count.
+
+Durable plan: [test budgets](../plans/000659-test-budgets-plan.md). No implementation yet; send to hub before code. #576 preempts immediately on hub's #651-landed announcement; preserve this issue with a clean committed checkpoint.
