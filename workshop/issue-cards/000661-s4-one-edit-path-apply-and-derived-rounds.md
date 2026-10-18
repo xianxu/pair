@@ -1,6 +1,6 @@
 ---
 id: 000661
-status: codecomplete
+status: done
 created: 2026-10-18
 updated: 2026-10-18
 estimate_hours: 7.14
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 3862431a728b78c31f179ac7078bb6b7cc069b16
         evidence_commit: d1c1ecd299d1ee8f4a6a91fc2e422be26781782e
+        landed_commit: 99b88dfb1c7f60938f96bf20fc65fa5d87a5e081
 ---
 
 # S4 one edit path: couch --session-sync apply, derived rounds, and the review pane on apply
