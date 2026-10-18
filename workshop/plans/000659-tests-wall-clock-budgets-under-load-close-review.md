@@ -95,3 +95,84 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-18T00:01:29-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 659 — tests: seven wall-clock budgets on external tools (git worktree, zellij IPC, lsof, a rate-limit window) fail at fleet load |
+| repo | pair |
+| issue file | workshop/issues/000659-tests-wall-clock-budgets-under-load.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | d6ae7e32b0e128f95f6ca3ae0c1541b79560ac40..8f59f920b2064566f2da4baddf36d0f56cd6041f |
+| command | sdlc close --issue 659 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-18T00:01:29-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The implementation covers all seven affected groups while preserving product deadlines. All three prior findings are addressed by documentation corrections verified against the code. Focused tests and required native lsof conformance passed; retained repetition and full-suite evidence match the tracker.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      The plan's Core concepts table now classifies requireLsofObservation as integration code, matching its environment reads, testing verdicts, host diagnostics and subprocess checks in proof_test.go:145–201. The Revisions entry records the correction; executable behavior is unchanged.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Both load-related Done when clauses at issue:104–114 and the active plan tasks now match the accepted measured-load Revision: injected-delay proof, observed-load repetitions and a separately recorded passing suite. The superseded clauses remain identified as historical.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      README.md:1848 documents the required-mode invocation and optional-skip versus required-failure behavior. Both native tests consume the shared helper; policy tests cover both modes and wrong answers, and fresh required-mode native tests passed.
+```
+
+1. **Strengths**
+
+   - The pointer test checks exact burst limiting and refill using injected logical time; socket deadlines retain real time.
+   - Recovery tests separate ownership semantics from native Git latency, with a dedicated timeout test checking retained state and absence of launches or repair.
+   - Lsof policy tests cover unavailable, incomplete, malformed, wrong-holder and wrong-identity outcomes in both modes.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Focused tests passed across testwait, broadcast, couchcore, couchcmd, couchtty and diagnosticlog. Both native lsof tests passed with required mode enabled. Independently parsed the retained soak log: each targeted function passed 20 times. Soak and full-suite log hashes match the tracker. The working tree remained unchanged.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY: pass.** Existing clocks, catalog fakes, timeout seams and patience helpers are reused.
+   - **ARCH-PURE: pass.** Deterministic rate decisions remain separate from clock delivery and test IO; the corrected plan reflects this.
+   - **ARCH-PURPOSE: pass.** All seven groups are covered, including native conformance enforcement and failure diagnostics.
+
+7. **Plan revision recommendations:** None outstanding.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"68b12d5a-f24b-434d-b55f-c42690e9b276","repository":"github.com/xianxu/pair","issue_id":"000659","recipe":"small-diff-review","round":2,"attempt":1,"agent":"codex","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/6d3b5441507ed34f","reviewed_head":"8f59f920b2064566f2da4baddf36d0f56cd6041f","slot":"pair:7","requested_at":"2026-10-18T07:00:28.060288Z"},"phase":"finished","pid":98361,"started_at":"2026-10-18T07:00:28.289018Z","finished_at":"2026-10-18T07:01:28.859056Z","session_id":"01a14dcf-d5c0-7fa2-8276-2289094a05d9","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.096277125s
+head: "8f59f920b2064566f2da4baddf36d0f56cd6041f"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

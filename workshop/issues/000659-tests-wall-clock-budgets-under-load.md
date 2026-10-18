@@ -142,6 +142,8 @@ cost gate now does for the sampler.
 
 ## Log
 
+
+- 2026-10-18: closed — Nine reported functions and all subtests passed20/20, plus recovery deadline20/20; deterministic old delay controls fail and corrected controls pass; required native lsof passed. Hub accepted measured-load support. Corrected recorded full suite on75277904 passed15m29s, log bffa54097006; first failed suite retained with only inventory omission, fixed and focused guards green. BR-1/2/3 addressed solely in plan/acceptance/README documentation; no executable sources changed since passing suite.; review verdict: SHIP
 ### 2026-10-17
 
 Filed by pair:4 out of #644's suite attempt 1, at the hub's direction: one issue for
