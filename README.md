@@ -1793,7 +1793,8 @@ files to reset numbering. Moving a store assigns a new C for future allocations.
 Most commands take the repo-local tag. When Pair itself pre-fills or shows a
 public `📁...` name, `pair resume <public-name>` and `pair rename <public-name>
 <new-tag>` resolve it through the ledger. The new rename target is always a bare
-tag, not a public session name.
+tag, not a public session name. Rename treats tags literally: `pair-t1` and
+`t1` are distinct; a `pair-` prefix is never stripped from either rename argument.
 
 **Hacking on pair?** Use `pair-dev` instead of `pair` — same arguments, but it rebuilds the `pair` binary from source (`make build`) on launch and on every Alt+n whole-workbench reload, so the zellij-spawned `pair wrap` always matches your working tree. Shift+Alt+N restarts only the already-running wrapper's agent child. (Deployed installs run `pair`, which uses the prebuilt binary and needs no Go toolchain.) Under Couch, start it with `couch-dev` instead of `couch`: it rebuilds once and runs Couch with dev mode on. Slots Couch launches do not rebuild Pair (a rebuild per slot slowed every launch under load), so run `make build` once before relaunching slots onto a new build.
 
