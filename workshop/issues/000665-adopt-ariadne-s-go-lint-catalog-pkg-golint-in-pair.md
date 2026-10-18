@@ -39,12 +39,13 @@ Adopt the catalog in pair: run it as a pair repository test over pair's tracked 
 
 Durable plan: [Go lint catalog](../plans/000665-go-lint-catalog-plan.md).
 
-- [ ] M1 — Enforce the module catalog; resolve all78non-sleep findings; quarantine exactly103existing sleeps in one shrink-only tracked site list; qualify dependency consumers, review and land the guard.
+- [x] M1 — Enforce the module catalog; resolve all78non-sleep findings; quarantine exactly103existing sleeps in one shrink-only tracked site list; qualify dependency consumers, review and land the guard.
 - [ ] M2 — Remove sleep debt with explicit signals, prioritizing flake-history packages (#659/#662/#623/#485); review and land the completed sweep.
 
 ## Log
 
 ### 2026-10-18
+- 2026-10-18: closed M1 — All 78 non-sleep findings dispositioned; staged catalog PASS over 2559 files and 100 exact sleep sites; shared stateful-fake/real-Git read and admission contracts PASS, package normal 34.833s/race 52.879s, both fuzz targets PASS, added-sleep/duplicate-debt mutations fail and restored catalog PASS. BR-1/BR-2 addressed and BR-3 implemented per R5. Review overlaps queued final-head suite under standing hub approval c9aae4fb; no full-suite PASS claimed and recorded PASS remains mandatory before landing. Project is TL-owned.; review verdict: SHIP
 
 ### 2026-10-18 — Claimed and initial design
 

@@ -207,3 +207,94 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-18T06:41:15-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 665 — Adopt ariadne's Go lint catalog (pkg/golint) in pair |
+| repo | pair |
+| issue file | workshop/issues/000665-adopt-ariadne-s-go-lint-catalog-pkg-golint-in-pair.md |
+| boundary | milestone M1 |
+| milestone | M1 |
+| window | d8ccc4577351b3dde5f829e83f5d83e4fedced5d..9128c9a2e8564801ffc3f8301acfa6da807b6cb6 |
+| command | sdlc milestone-close --issue 665 --milestone M1 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-18T06:41:15-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+M1 matches the revised plan: the pinned upstream catalog covers tracked Go sources, non-sleep findings are resolved, and 100 existing sleeps remain under the shrink-only debt contract. BR-3 is addressed with a shared injectable Git boundary, stateful fake, and executable conformance coverage. No new blocking findings. The recorded final-head full suite remains a separate landing prerequisite.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      The guard follows upstream directive grammar; accepted whitespace/placement controls and non-directive controls pass, including under race.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      README.md:1890 documents the focused check, suppression policy, exclusive sleep-debt authority and history prerequisites, consistent with catalog_test.go and atlas/go-lint-catalog.md.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      repository_test.go centralizes Git execution behind repositoryRead. Shared read/admission contracts exercise fake and real histories; atlas documents every-run conformance. Bypassing injection makes the fake admission test fail, and removing blob-copy protection makes the snapshot-immutability contract fail.
+```
+
+1. **Strengths**
+
+   - Repository admission and historical bootstrap reads share the same typed boundary.
+   - Fake state distinguishes worktree, index, immutable commits, ancestry and refs; generated DAG tests use an independent closure oracle.
+   - Timing repairs replace scheduling races with observable events while retaining production defaults.
+   - README and atlas cover the new workflow, debt lifecycle and fixture ownership.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   - Full repolint package passed in a disposable checkout using the supplied base as explicit test authority: **2,559 sources, five rules, 100 debt sites**.
+   - The original review checkout correctly refused scanning without main authority. Its remaining repolint tests passed under race.
+   - Focused dependency, lifecycle, FIFO/lock, timer, telemetry, build-cache and shim tests passed.
+   - Mutations proved rejection of a newly tracked sleep, a bypassed repository seam and mutable committed blobs.
+   - Disposable checkouts were removed; reviewed files remain unchanged. Full-suite/native qualification was not rerun here.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** upstream rules remain authoritative; build ownership is shared.
+   - **ARCH-PURE — pass:** debt validation and fake state logic remain separate from Git/filesystem IO.
+   - **ARCH-PURPOSE — pass:** tracked consumers are scanned; M2 debt is explicitly bounded.
+   - **ARCH-MOCK — pass:** production and fake paths share the boundary and conformance contracts.
+   - **ARCH-CONSTRAINTS — pass:** historical reads are batched; N/2N tests enforce single source reads.
+   - **ARCH-SECURE — pass:** structured argv, NUL-delimited paths and explicit malformed/unknown-state failures.
+   - **ARCH-ORDER — pass:** state transitions and event-controlled timing are exercised.
+   - **ARCH-FUNERAL — pass:** fixture artifacts have cleanup owners; sleep debt has a retirement contract.
+
+7. **Plan revision recommendations:** None; R1–R5 cover the delivered design.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"acc93e56-4b86-4700-8ada-07fa59f31486","repository":"github.com/xianxu/pair","issue_id":"000665","recipe":"milestone-review","round":3,"attempt":1,"agent":"codex","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/15b932c99605f348","reviewed_head":"9128c9a2e8564801ffc3f8301acfa6da807b6cb6","slot":"pair:1","requested_at":"2026-10-18T13:38:20.87862Z"},"phase":"finished","pid":91905,"started_at":"2026-10-18T13:38:21.018198Z","finished_at":"2026-10-18T13:41:13.504604Z","session_id":"01a14f3c-19fb-71b3-a908-4b989e103ef4","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.626495125s
+head: "9128c9a2e8564801ffc3f8301acfa6da807b6cb6"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
