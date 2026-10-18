@@ -1,13 +1,21 @@
 ---
 id: 000658
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-17
 updated: 2026-10-17
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: 'c1c0684152908d85c12b99d327b59e1bfa8001b8' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '4a3ea94023ea2a2a32da21ba2058db3c10d61d34' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-17T21:32:25-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:3
+    worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
+    repository: github.com/xianxu/pair
 ---
 
 # pair test suites write ~20 MB/s (couchcmd.test): measure per package and cut, with a counted budget
@@ -33,3 +41,6 @@ Measure first: per test package and per test, bytes written and to which paths (
 ## Log
 
 ### 2026-10-17
+
+- Fresh dispatch4446225e-ba62-4e47-b3d4-225583aff47e verified Submitted; claimed658 unowned, then start-plan refreshed ariadne before its successful repeat. No implementation changes. Owned physical-counter measurement approved by hub23db90d8-1752-47fa-b99d-e020e65d1c0a (Submitted); the original fs_usage-style statement was a wording error, not privileged path evidence. Root fs_usage is unavailable; use kernel cumulative physical counters plus clearly sampled writable-path evidence first.
+- Temporary diagnostic only: /var/folders/07/b9wcwwld4_v2w9r3hk525bm80000gn/T/pair658-profile.yqKPI1 contains a small libproc probe, verbose-event sampler and one compiled couchcmd test/Pair binary. Calibration: a flushed4MiB regular-file write increments ri_diskio_byteswritten by4MiB. Root-process counters exclude descendants; per-test attribution samples serial verbose boundaries; open-path offsets are high-water evidence, not syscall write totals. First exploratory run retained some ambient Pair keys and will not be accepted as the clean baseline; corrected sampler removes all Pair/Couch/Zellij production session keys. Measurement artifacts and clean baseline follow before design/production code.
