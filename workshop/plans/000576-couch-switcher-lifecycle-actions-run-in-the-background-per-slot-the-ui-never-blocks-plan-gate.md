@@ -75,6 +75,37 @@ rounds:
           note: Lines 163–177 authoritatively supersede the prose inventories with named production test surfaces, adversarial strategies and mechanical invariant guards, while retaining the Console-loop UI acceptance regression.
           round: 2
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: 0123e76a-b67b-409f-9ef7-d39811c9ad67
+            repository: github.com/xianxu/pair
+            issue_id: "000576"
+            recipe: plan-quality
+            round: 3
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot7/pair
+            reviewed_head: 096276c479cffbb35517a1da44c56ae9146eddd2
+            slot: pair:7
+            requested_at: "2026-10-18T22:41:09.123401Z"
+          phase: finished
+          pid: 43984
+          started_at: "2026-10-18T22:41:09.361367Z"
+          finished_at: "2026-10-18T22:41:28.006667Z"
+          session_id: 01a1512d-0e7f-7df2-a078-4ed5b766d023
+          outcome: returned
+      "n": 3
+      timestamp: "2026-10-18T15:41:28-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: PQ-1
+          disposition: addressed
+          note: Explicit 15+1 admission quotas and dedicated execution lanes preserve hosted navigation under lifecycle saturation; lost-endpoint transfer retains ownership and either enters lifecycle capacity or completes once with overload.
+          round: 3
+      blocked: false
+content_hash: 2b8b3a9424d6d1f7ab1437b702caf6fe40baab6931ab4963f0172d11e44b92ef
 ---
 
 # Gate ledger — pair#576 (plan-quality)
@@ -98,6 +129,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - PQ-1 — not-addressed — Plan line 165 reserves execution but not admission: 16 queued lifecycle requests exhaust the shared aggregate cap, preventing hosted navigation despite the promised availability and line 172's saturation test. Under ARCH-CONSTRAINTS and ARCH-ORDER, specify a class-wide admission-and-execution reservation rule within the aggregate bound, and verify navigation while lifecycle workers and their permitted queue are held.
 - PQ-2 — addressed — Lines 163–177 authoritatively supersede the prose inventories with named production test surfaces, adversarial strategies and mechanical invariant guards, while retaining the Console-loop UI acceptance regression.
 
+## Round 3 — 2026-10-18T15:41:28-07:00 (codex) — passed
+
+### Disposed
+
+- PQ-1 — addressed — Explicit 15+1 admission quotas and dedicated execution lanes preserve hosted navigation under lifecycle saturation; lost-endpoint transfer retains ownership and either enters lifecycle capacity or completes once with overload.
+
 ## Open findings
 
-- **PQ-1** [Important] `reserved-capacity-contract` Define how hosted navigation retains execution capacity under saturation
+(none — every finding has been disposed)

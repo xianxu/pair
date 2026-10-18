@@ -5,8 +5,8 @@ deps: []
 github_issue:
 created: 2026-10-15
 updated: 2026-10-17
-estimate_hours:
-card_mirror: 'd5f77592c93f208b7822b90e6e9209fd33fd4e81' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 2.34
+card_mirror: 'e42837b93fee435cd9e54edd5696ad9b133d2ac5' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-17T19:21:23-07:00
 claimant:
     operator: Xian Xu
@@ -81,3 +81,27 @@ Hub unparked this item after #651/PR414 landed (23fccae3448f10a16aa769abf1e857d6
 ### 2026-10-18 — first failing regressions and plan gate
 
 Three new reducer regressions failed for the expected current behavior: A's relaunch blocks B's switch, same-target mutation silently retains a progress notice instead of naming its busy owner, and admitted lifecycle confirmation remains open instead of returning to root. No production changes. Full-flow plan review identified two Important refinements: make the reserved navigation worker/lane contract explicit and replace prose test inventories with named-function adversarial strategies. Appended those authoritative contracts to the plan, retaining original design history. The extra worker stays navigation-only; a lost hosted endpoint transfers its owned request to the bounded lifecycle lane before resume/adoption. Aggregate queue capacity and lifecycle worker count stay unchanged.
+
+## Estimate
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only. Calibration is marked stale by estimate-source, so these unit rates remain provisional. Existing Go reducers, the bounded worker queue and Presenter API cover the stack; no new library or external API is needed. Use familiarity1.0 and the thorough-plan design multiplier0.2, with15% design buffer. v3.1 scales the raw implementation rates to40%.
+
+- TUI state/row projection: raw design2.0 ×0.2 =0.40; raw impl1.0 ×0.4 =0.40.
+- Cross-cutting menu/origin consumer migration: raw design1.0 ×0.2 =0.20; raw impl0.5 ×0.4 =0.20.
+- Cross-cutting adoption/completion ownership: raw design1.0 ×0.2 =0.20; raw impl0.5 ×0.4 =0.20.
+- Existing queue extension: smaller-Go-module raw design0.3 ×0.2 =0.06; raw impl0.5 ×0.4 =0.20.
+- Atlas/operator guidance: raw design0.1 ×0.2 =0.02; raw impl0.2 ×0.4 =0.08.
+- One close review/fix boundary: raw design0.2 ×0.2 =0.04; raw impl0.5 ×0.4 =0.20.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: tui-screen design=0.40 impl=0.40
+item: cross-cutting-refactor design=0.20 impl=0.20
+item: cross-cutting-refactor design=0.20 impl=0.20
+item: smaller-go-module design=0.06 impl=0.20
+item: atlas-docs design=0.02 impl=0.08
+item: milestone-review design=0.04 impl=0.20
+design-buffer: 0.15
+total: 2.34
+```
