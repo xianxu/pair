@@ -44,6 +44,7 @@ func (c *Console) ArmReattachPass(root couchcore.ThreadAddress) {
 		c.ensureMenuLocked(couchcore.ThreadAddress{})
 		c.menu, _ = ReduceMenu(c.menu, MenuEvent{Kind: MenuEventReattachArm, Address: root})
 		c.mu.Unlock()
+		c.observeLifecycleArm()
 	})
 }
 

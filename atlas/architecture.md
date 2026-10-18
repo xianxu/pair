@@ -215,7 +215,8 @@ subcommand (`ParseArgs` + `ContinuationOps`: bare
 lists docs, `<slug>` resolves the newest doc to seed the draft + pick the agent —
 reusing `continuationcmd.ContinuationDir`/`NextActionPreview`); (3) the offline
 **`rename`** subcommand (pure `renamePathsFor`/`renamePlan` zip, `FSOps.Rename`,
-journal + reverse-rollback) and the **`rename_to`/`continue` restart re-entries**
+journal + reverse-rollback; exact tags preserve literal `pair-` content, while
+public session names resolve through the binding index) and the **`rename_to`/`continue` restart re-entries**
 (`planRestart` drops `ShellFallback`; the loop moves sidecars then relaunches under
 the new tag, or re-seeds the draft from the slug) — closing the M4-accepted
 degradation. **M5c retires the shell entirely** — `bin/pair-shell` is **removed**;

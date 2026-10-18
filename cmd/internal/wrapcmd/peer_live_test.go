@@ -12,12 +12,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/creack/pty"
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
 )
 
 var (
 	peerLiveHarnessFlag  = flag.String("peer-live-harness", "", "isolated live peer receiver: claude or codex")
-	peerLiveScenarioFlag = flag.String("peer-live-scenario", "", "startup, paste-short, paste-multiline, paste-wrapped, draft, menu, or image-admission")
+	peerLiveScenarioFlag = flag.String("peer-live-scenario", "", "startup, paste-short, paste-multiline, paste-wrapped, paste-batch, paste-tall (Codex Return), draft, menu, or image-admission")
 	peerLiveSubmitFlag   = flag.Bool("peer-live-submit", false, "permit one harmless no-tools prompt submission in a new isolated PTY")
 	peerLiveCaptureFlag  = flag.String("peer-live-capture-dir", "", "absolute directory for successful live captures")
 	peerLiveBodyFlag     = flag.String("peer-live-body", "", "submit body: short (default), hyphen-wrap (about 625 chars, rendered wrapped), collapsed (about 1300 chars, which Claude summarizes) or overwidth (a 160-column token)")
@@ -88,9 +89,15 @@ func TestPeerLiveConformance(t *testing.T) {
 	if scenario == "" {
 		scenario = "startup"
 	}
-	valid := map[string]bool{"startup": true, "paste-short": true, "paste-multiline": true, "paste-wrapped": true, "draft": true, "menu": true, "image-admission": true, "submit": true}
+	valid := map[string]bool{"startup": true, "paste-short": true, "paste-multiline": true, "paste-wrapped": true, "paste-batch": true, "paste-tall": true, "draft": true, "menu": true, "image-admission": true, "submit": true}
 	if !valid[scenario] {
 		t.Fatalf("unknown scenario %q", scenario)
+	}
+	if scenario == "paste-batch" && agent != "claude" {
+		t.Skip("peer batches are Claude-only until Codex tall-composer confirmation is qualified (pair#652)")
+	}
+	if scenario == "paste-tall" && agent != "codex" {
+		t.Fatal("paste-tall qualifies Codex only")
 	}
 	executable, err := exec.LookPath(agent)
 	if err != nil {
@@ -132,7 +139,11 @@ func TestPeerLiveConformance(t *testing.T) {
 	if agent == "codex" {
 		args = []string{"--no-daemon", "--no-alt-screen", "--sandbox", "read-only", "--ask-for-approval", "never", "-c", "check_for_update_on_startup=false"}
 	}
-	classifier := newHarnessTTYLiveClassifier(t, agent)
+	viewport := pty.Winsize{Rows: 38, Cols: 120}
+	if scenario == "paste-tall" {
+		viewport = pty.Winsize{Rows: 60, Cols: 100}
+	}
+	classifier := newHarnessTTYLiveClassifierSize(t, agent, int(viewport.Cols), int(viewport.Rows))
 	defer classifier.Close()
 	p := classifier.proxy
 	m := couchmessage.Message{ID: "peer-live-conformance", From: couchmessage.Binding{Slot: "peer:0"}, To: couchmessage.Binding{Slot: "peer:1"}, Body: "Reply PEER_SMOKE_OK only. Do not use tools.", Deadline: time.Now().Add(20 * time.Second)}
@@ -141,6 +152,10 @@ func TestPeerLiveConformance(t *testing.T) {
 		m.Body = "Reply PEER_SMOKE_OK only.\nDo not use tools.\nThis is harmless test text.\nFourth line.\nFifth line."
 	case "paste-wrapped":
 		m.Body = "Do not use tools. " + strings.TrimSuffix(strings.Repeat("harmless wrapped text ", 14), " ")
+	case "paste-tall":
+		// Batch-shaped text travels through ordinary singleton delivery. The
+		// Codex batch protocol remains disabled until a later rollout decision.
+		m.Body = codexTallBatchText()
 	}
 	// pair#418: long single-line bodies with hyphenated tokens, the shape that
 	// never submitted (hyphen wrap projection; collapsed paste marker).
@@ -164,6 +179,31 @@ func TestPeerLiveConformance(t *testing.T) {
 	ready, sent, finished := false, false, false
 	seeded := false
 	trustStep := 0
+	if scenario == "paste-batch" {
+		binding := peerBatchTestBinding("pair:1")
+		binding.Repository = cwd
+		binding.Agent = agent
+		d.binding = binding
+		m.To = binding
+		m.From = peerBatchTestBinding("pair:0")
+	}
+	messages := []couchmessage.Message{m}
+	if scenario == "paste-batch" {
+		// Keep this admission scenario within the viewport recognizer's small
+		// composer domain. The initial five-member multiline Codex probe pasted
+		// fully but moved the cursor to row 33 and lost the post-paste oracle;
+		// it made no submit. Large-body retention is measured separately via
+		// native editor export, never inferred from a collapsed paste marker.
+		for i := 1; i < 3; i++ {
+			member := m
+			member.ID = fmt.Sprintf("peer-live-batch-%d", i)
+			member.From.Slot = fmt.Sprintf("pair:%d", i+2)
+			member.Body = fmt.Sprintf("FIFO report %d: Unicode 界 🦉", i)
+			messages = append(messages, member)
+		}
+	}
+	envelope := couchmessage.BatchEnvelope(messages)
+	tallProbe := peerTallReturnProbe{envelope: envelope}
 	var trustInput []byte
 	var failure error
 	renderClass := "unobserved"
@@ -175,13 +215,19 @@ func TestPeerLiveConformance(t *testing.T) {
 			failure = err
 			return false
 		}
-		if err := d.enqueue(m); err != nil {
+		var err error
+		if scenario == "paste-batch" {
+			err = d.prepareBatch(m)
+		} else {
+			err = d.enqueue(m)
+		}
+		if err != nil {
 			failure = err
 			return false
 		}
 		return true
 	}
-	raw, state, captureErr := captureHarnessTTYClassified(harnessTTYCaptureRequest{Executable: executable, Args: args, Env: env, Dir: cwd, StartupTimeout: 15 * time.Second,
+	raw, state, captureErr := captureHarnessTTYClassified(harnessTTYCaptureRequest{Executable: executable, Args: args, Env: env, Dir: cwd, Size: &viewport, StartupTimeout: 15 * time.Second,
 		Classify: func(chunk, retained []byte) harnessTTYConformanceState {
 			if p.peer != nil {
 				p.peer.observeOutput(chunk)
@@ -229,11 +275,22 @@ func TestPeerLiveConformance(t *testing.T) {
 				finished = true
 			}
 			if sent && !finished {
+				if scenario == "paste-tall" {
+					var err error
+					finished, err = tallProbe.observe(p)
+					if err != nil {
+						failure, finished = err, true
+					}
+					if finished {
+						renderClass, rendered = "exact-tall-return", tallProbe.envelope+"\n"+peerTallReturnSentinel
+					}
+					return harnessTTYWaiting
+				}
 				text, known := peerComposerText(agent, snapshot)
 				if scenario == "submit" && expectedWrites == 2 && d.receipt().Status.Terminal() {
 					finished = true
 				}
-				if known && strings.TrimSpace(text) == strings.TrimSpace(peerEnvelope(m)) {
+				if known && strings.TrimSpace(text) == strings.TrimSpace(envelope) {
 					renderClass = "exact"
 					rendered = text
 					if scenario != "submit" {
@@ -308,7 +365,20 @@ func TestPeerLiveConformance(t *testing.T) {
 				}
 				var writes bytes.Buffer
 				p.dispatchPeer(&writes)
-				if !strings.Contains(writes.String(), peerEnvelope(m)) {
+				if scenario == "paste-batch" {
+					if writes.Len() != 0 || !d.batchReady() {
+						failure = fmt.Errorf("batch preparation did not stop at safe composer")
+						finished = true
+						return nil
+					}
+					if err := d.finalizeBatch(m.ID, messages); err != nil {
+						failure = err
+						finished = true
+						return nil
+					}
+					p.dispatchPeer(&writes)
+				}
+				if !strings.Contains(writes.String(), envelope) {
 					failure = fmt.Errorf("empty composer produced no peer paste")
 					finished = true
 					return nil
@@ -327,6 +397,9 @@ func TestPeerLiveConformance(t *testing.T) {
 					}
 					return writes.Bytes()
 				}
+			}
+			if scenario == "paste-tall" {
+				return tallProbe.input()
 			}
 			return nil
 		},
@@ -373,6 +446,9 @@ func TestPeerLiveConformance(t *testing.T) {
 		t.Fatal("paste was not exercised")
 	}
 	t.Logf("%s scenario=%s render=%s composer-bytes=%d capture-bytes=%d sha256=%x", version, scenario, renderClass, len(rendered), len(raw), sha256.Sum256(raw))
+	if scenario == "paste-tall" {
+		t.Logf("native Return LF retained exact text: composer rows %d -> %d, PTY %s", tallProbe.beforeRows, tallProbe.afterRows, fmtGeometry(viewport))
+	}
 	destination := os.Getenv("PAIR_LIVE_PEER_CAPTURE_DIR")
 	if *peerLiveCaptureFlag != "" {
 		destination = *peerLiveCaptureFlag

@@ -235,6 +235,15 @@ var Families = []Family{
 // shell, Lua, and KDL sources.
 // pair:m5-concept pure
 var SourceClassifications = []SourceClassification{
+	{Path: "cmd/internal/couchcmd/lifecycle_notices.go", Kind: VocabularyConsumer, Families: []string{"restart"}, Vocabulary: []VocabularyAllowance{
+		goCaseVocabulary("restart", "restart-armed", "observe", 1),
+		goCaseVocabulary("restart", "restart-drained", "observe", 1),
+		goComparisonVocabulary("restart", "restart-drained", "observe", 1),
+	}},
+	{Path: "cmd/internal/couchtty/console_lifecycle.go", Kind: VocabularyConsumer, Families: []string{"restart"}, Vocabulary: []VocabularyAllowance{
+		{Family: "restart", Value: "restart-armed", Context: GoKeyValueVocabulary, Use: "observeLifecycleArm.Kind", Count: 1},
+		{Family: "restart", Value: "restart-drained", Context: GoKeyValueVocabulary, Use: "observeLifecyclePass.Kind", Count: 1},
+	}},
 	{Path: "cmd/internal/couchcore/peek_retained_os.go", Kind: ResolvedConsumer},
 	{Path: "cmd/internal/couchcore/recovery_evidence_os.go", Kind: ResolvedConsumer},
 	{Path: "cmd/internal/couchcore/recovery_retirement_os.go", Kind: ResolvedConsumer},
@@ -636,6 +645,15 @@ var SourceClassifications = []SourceClassification{
 // the artifact namespace requires an explicit SourceClassification.
 // pair:m5-concept pure
 var NonArtifactSources = []string{
+	// #574 lifecycle observations/projections carry no artifact filename vocabulary.
+	"cmd/internal/couchcore/lifecycle_notice.go",
+	// #648 batching carries peer envelopes and receipts over existing endpoints;
+	// these files introduce no artifact paths or filename vocabulary.
+	"cmd/internal/couchcmd/message_batch.go",
+	"cmd/internal/couchmessage/batch.go",
+	"cmd/internal/couchmessage/broker_batch.go",
+	"cmd/internal/couchmessage/endpoint_batch.go",
+	"cmd/internal/wrapcmd/peer_batch.go",
 	"cmd/internal/nativelock/state.go",
 	"cmd/internal/wrapcmd/native_lock.go",
 	"cmd/internal/wrapcmd/owned_group.go",

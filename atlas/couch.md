@@ -573,14 +573,45 @@ remaining uncertainty is stated, never papered over:
   classes choose resend. The op contains no sender binding or body. Mixed-version
   response-shape mismatch omits these best-effort annotations, leaving the ordinary
   list intact.
-- **Peer turns in the Pair log (#618).** When a delivery ends `Submitted`,
+- **Queued hub batches (#648).** Verified Claude hubs prepare the head
+  without input, then the existing wrapper input writer offers readiness at its
+  ordinary safe-composer decision. The broker freezes the current capped FIFO
+  prefix under its mutex, including reports arriving during the held head's
+  wait. One finalization enables one combined paste/submit; the writer rechecks
+  input safety before pasting. Complete unchanged envelopes are separated by
+  `\n\n---\n\n`. `COUCH_PEER_BATCH_MAX_CHARS` defaults to 16,384 Unicode code
+  points including headers/separators and accepts 1–32,768; invalid values refuse
+  startup. Over-cap single messages proceed alone, with remaining reports kept
+  for the next composer. Actual encoded requests retain the existing frame cap.
+  One confirmation updates all original receipts atomically; each member remains
+  queryable and recoverable from the wrapper's bounded 64-ID recent store.
+  Before freeze, cancellation removes only that queued sender's mail; after
+  freeze, members share one cancellation job/outcome. Uncertain writes never
+  replay. Ordinary receivers, Codex and Qoder retain single-message delivery; an old
+  wrapper's explicit pre-commit unknown-operation refusal also selects the legacy
+  path, while transport/decode errors never trigger fallback. See
+  `couchmessage/batch.go`, `broker_batch.go`, `endpoint_batch.go`,
+  `wrapcmd/peer_batch.go` and `TestPeerBatchRuntimeSocketFIFOAndReceiptRecovery`.
+  Tall Codex singleton recognition (#652) shares viewport-bounded prompt/footer
+  geometry with ordinary Return. Beyond the local 20-row domain, a complete
+  visible styled prompt, clear continuation edges and the existing trailing
+  native footer signature are required. Clipped prompts, partial frames and
+  unrecognized footer wording remain unknown. Owned Codex 0.163.0 PTY checks
+  qualified 33 visible rows at 100x60, exact text retention after Return added a
+  newline, and a separate explicit submission. Codex batching remains disabled;
+  operator Return/submit smoke is scheduled for the hub's next restart. See
+  `wrapcmd/composer_recognizers.go`, `codex_tall_composer_test.go` and the opt-in
+  `TestPeerLiveConformance` paste-tall scenario.
+- **Peer turns in the Pair log (#618, #648).** When a delivery ends `Submitted`,
   pair-wrap appends the exact envelope it pasted to the thread's Pair log
   through the managed locked writer (`pairlog.PersistPeerTurn`, append ID
   `couch-peer-<delivery ID>`). The session watcher correlates it like any draft
   turn, so a slot driven only by peer messages confirms its binding and can be
   relaunched. The draft pane's history and `!!` skip `couch-peer-` entries.
-  One launch records at most 8 (about 64 KB): a binding needs one completed
-  round after its launch, and the entries go wherever the Pair log goes.
+  A batch is one exact combined turn, using its head ID for idempotency, so
+  transcript correlation hashes the same input the agent received. One launch
+  records at most 8 turns and 256 KiB of aggregate envelope payload: a binding
+  needs one completed round after its launch, and entries follow the Pair log.
 - **Relaunch rides out a slow quit (#618).** `--relaunch` waits up to
   `RelaunchParkWait` (60 s) for the agent's quit inside its operation before
   it offers recover/abandon; a plain park keeps its shorter wait.
@@ -750,6 +781,42 @@ table (`couchcmd/cost.go`, pair#490, from timings in that issue's Log).
 which panics on an untagged verb; the skill's "What each verb costs" section
 lists the same tiers, and `cost_test.go` keeps both equal to the table.
 
+### Lifecycle system notices (#574)
+
+`couchtty/console_lifecycle.go` observes final successful operation results after
+Console adoption, successful park results carrying `VerifiedPark`, and confirmed
+needs-relaunch inventory transitions. It emits no native-agent-exit fact from an
+attachment ending; #657 owns that missing evidence. Completion carries cached
+slot/branch metadata and known initiation. The existing `ReattachDone` transition
+closes a startup cohort; no debounce or additional native discovery is used.
+
+`couchcore/lifecycle_notice.go` owns the pure bounded collector and its publication
+transitions. It keeps at most 128 current facts, coalesces unsent changes, freezes
+immutable numbered parts within the existing body limit and retires each part
+from its receipt. `couchcmd/lifecycle_notices.go` routes through existing hub
+ownership and the message broker/#648 batching. Its callbacks only reduce bounded
+memory; owned admission workers and bounded receipt-memory checks stop/join with
+the service. Busy/absent hubs retain current facts; input uncertainty never permits
+replay. This is a Slots projection, not an audit log. `COUCH_LIFECYCLE_NOTICES`
+accepts `on` (default) or `off`; there is no additional ownership/mute store.
+
+The confirmed `executeHubMove` producer drops the old unadmitted projection and
+queues one check-Slots line for the new owner. Admitted receipts finish at their
+original hub without replay. The existing cancellable hub effect gate serializes
+bounded admission against moves; the ownership mutex is not held across IO.
+Projection generations fence jobs extracted before the drop. Restart collection
+survives the drop, and only genuinely new lifecycle facts follow the new owner.
+
+`couchmessage.Message.Origin` is immutable: peer is omitted/zero, system is created
+only through internal server admission. External requests cannot carry origin.
+Envelopes, batch matching, deduplication and canonical receipts preserve it.
+Unknown system receipts returned only by a wrapper cannot be imported as server
+provenance after restart/eviction; retained promotion needs the matching original
+server-admitted queue head. Copied headings remain peer body text. No wrapper PID
+authentication or new terminal frame is introduced. The hub verifies the canonical
+receipt and updates Slots without replying; source-owned TL help is ariadne#433.
+Worker startup availability also uses the internal system producer.
+
 ### Unanswered-report rules (#530)
 
 `couchcmd/supervision_model.go` owns volatile report episodes and the per-lifetime
@@ -777,8 +844,8 @@ busy-recipient queue is unchanged. Attempts are marked before sending, so an
 uncertain result or reconnect cannot regenerate the prompt. Original reports
 are never replayed or retained across Couch restarts. The same tick reads terminal
 broker receipts, reports startup cancellation/expiry/uncertainty once, and drops
-the completed send metadata. There is no separate capped report history. Pending generated IDs
-keep both prompts and ordinary waiting notices out of session-file obligations; matching prose from a real agent
+the completed send metadata. There is no separate capped report history. Immutable system origin
+keeps generated notices out of session-file obligations; matching prose from a real agent
 is not exempt. All episode/attempt metadata dies with the supervisor; disconnected
 bindings lose their report episodes. The separate fact log below does not drive
 these rules. Parley's sole file-ping watcher is parley.nvim#321.
@@ -4350,9 +4417,10 @@ withholds a platform binary's environment (`/bin/zsh`), so a silent launchd
 child's direct children answer instead. Zellij servers, agents and embedded
 nvim are never claimed this way; a relaunched thread's leftovers stay subject
 to the orphan and unattributed rules. Each process generation's environment is
-read once (about 0.3 s for 1,200 processes on Couch's first pass, then only new
-processes) and only the two thread keys are kept; the reads show as
-`environment_calls` in the sampler cost.
+read once — two native calls per read, at most one read per table row on the first
+pass and afterwards only for generations the memo has not seen (#644) — and only
+the two thread keys are kept; the reads show as `environment_calls` in the sampler
+cost.
 Known process kinds parented by PID 1 above the RSS floor are shown as
 **unattributed (unproven)**, never acted on. Only candidate classification may
 inspect argv; full command lines are not retained or displayed. Sampling can
@@ -4432,17 +4500,30 @@ Unproven candidates remain report-only.
 
 The displayed cost records attempted native calls, sampler-thread CPU and wall
 time. At most three table size/read attempts plus two self-CPU reads cost eight
-native calls; successful usage with identity fencing adds two per process, plus
-actual candidate-command calls. Sampler-thread CPU excludes concurrent GC and
-other goroutines. A native-reader-only short measurement after bulk conversion
-averaged 1.643 ms (maximum 2.391 ms), or 0.002739% of one core at 60-second
-cadence. Full sampling plus near-cap history persistence (953 frames,
-4,189,412 bytes, 27 usage observations) averaged 72.438 ms across three passes,
-maximum 79.311 ms: 0.120730% of one core per minute. The qualified target is
-below 0.2%, with a 300 ms maximum pass CPU budget; the product requirement is
-well under 1%. This run used 58 native attempts and one history publication
-per pass. Current-pass final CPU is published in the cached view after storage
-completes; its history frame cannot include the completed cost of writing itself.
+native calls; successful usage with identity fencing adds two per process, as does
+a successful environment, argv or cwd read, and a read that fails before its fence
+adds one. Sampler-thread CPU excludes concurrent GC and other goroutines.
+The cost conformance (`TestResourceSamplerNativeCost`, env-gated on
+`PAIR_RESOURCE_COST=1`) gates work, and steady CPU as a ratio to a same-run
+baseline, rather than absolute CPU (#644). Absolute CPU cannot give one verdict on
+an idle host and on one running the rest of the fleet:
+measured across a wide load range, a pass's native call counts barely moved while
+its CPU moved by tens of percent, which flipped a fixed budget on unchanged code.
+What the conformance asserts instead is load-invariant. Every pass's native calls
+must equal the sum of its per-category counters plus the two self-CPU reads, so no
+native work goes unaccounted; no category may read a row more than once, at two
+native calls per read over at most the table's rows; and each pass writes the
+near-cap history exactly once. The first pass — #606's one-time environment scan,
+the admission burst #587's budget deliberately excluded — is bounded by that work
+alone, and its CPU is reported rather than asserted. Steady passes are gated
+against a baseline taken in the same run: at most twice the thread CPU of the
+history write the pass itself performs. Every pass reports the host state it was
+measured in (table rows and load average) and every failure names it, so a red run
+distinguishes a busy host from a sampler regression without a second
+investigation. The measurements behind each constant are recorded in #644. The
+product requirement is unchanged: well under 1% of one core. Current-pass final CPU
+is published in the cached view after storage completes; its history frame cannot
+include the completed cost of writing itself.
 
 History retains aggregate slot frames and orphan/unattributed summaries for at
 most 24 hours, 1,440 frames and 4 MiB. Only history is persisted, best-effort, with one fixed replacement stage:

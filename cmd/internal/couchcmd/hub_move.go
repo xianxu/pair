@@ -111,6 +111,7 @@ func executeHubMove(call couchcore.OperationCall) (any, error) {
 		return nil, errors.New("hub moves unavailable")
 	}
 	h := s.authority.hubs
+	before := h.snapshot()
 	state, err := h.applyMove(call.Context, payload.move, payload.persist, service.files, func() error {
 		if !s.isConnected(payload.caller) {
 			return errors.New("hub disconnected; retry from its current session")
@@ -120,6 +121,14 @@ func executeHubMove(call couchcore.OperationCall) (any, error) {
 	})
 	if err != nil {
 		return nil, err
+	}
+	for _, slot := range payload.move.Slots {
+		if before.Resolve(slot).Hub != state.Resolve(slot).Hub {
+			if publisher := s.lifecycle.Load(); publisher != nil {
+				publisher.ownershipChanged(payload.move.Target)
+			}
+			break
+		}
 	}
 	if service.publish != nil {
 		service.publish(state)

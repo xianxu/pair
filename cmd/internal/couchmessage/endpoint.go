@@ -22,6 +22,7 @@ type EndpointRequest struct {
 	ID       string
 	Sequence uint64
 	Message  *Message
+	Messages []Message `json:",omitempty"`
 	// Lines is a tail request's line count (pair#425); tail only.
 	Lines int `json:",omitempty"`
 }
@@ -29,6 +30,7 @@ type EndpointRequest struct {
 type EndpointResponse struct {
 	DriveObservation *DriveObservation  `json:",omitempty"`
 	DriveResult      *agentdrive.Result `json:",omitempty"`
+	BatchReady       bool               `json:",omitempty"`
 	Error            string
 	Observation      Observation
 	Receipt          *Receipt
@@ -44,6 +46,9 @@ func ValidateEndpointRequest(r EndpointRequest) error {
 	}
 	if r.Lines != 0 && r.Op != "tail" {
 		return errors.New("a line count applies only to tail")
+	}
+	if r.Messages != nil && r.Op != "commit-batch" {
+		return errors.New("batch members apply only to commit-batch")
 	}
 	switch r.Op {
 	case "drive-observe":
@@ -73,19 +78,24 @@ func ValidateEndpointRequest(r EndpointRequest) error {
 		if !validMessageID(r.ID) || r.Message != nil {
 			return errors.New("reserve requires message ID and observation sequence")
 		}
-	case "release", "status":
+	case "release", "status", "batch-status":
 		if !validMessageID(r.ID) || r.Sequence != 0 || r.Message != nil {
 			return errors.New("operation requires only binding and message ID")
 		}
-	case "commit":
+	case "commit", "prepare-batch":
 		if r.Message == nil || !validMessageID(r.ID) || r.Sequence != 0 {
 			return errors.New("commit requires binding, ID and message")
 		}
 		m := r.Message
-		if m.ID != r.ID || m.To != r.Binding || m.From.Validate() != nil || m.Deadline.IsZero() {
+		if !m.Origin.Valid() || m.ID != r.ID || m.To != r.Binding || m.From.Validate() != nil || m.Deadline.IsZero() {
 			return errors.New("commit message identity mismatch")
 		}
 		return ValidateBody(m.Body)
+	case "commit-batch":
+		if r.Message != nil || r.Sequence != 0 || r.Drive != nil || r.Lines != 0 {
+			return errors.New("commit-batch requires only binding, ID and messages")
+		}
+		return ValidateBatch(r.Messages, r.Binding, r.ID)
 	default:
 		return fmt.Errorf("unknown endpoint operation %q", r.Op)
 	}
@@ -162,7 +172,10 @@ func (e RemoteEndpoint) call(ctx context.Context, r EndpointRequest) (EndpointRe
 		// queue instead of refusing the sender (pair#492).
 		return EndpointResponse{}, ErrRecipientBusy
 	case response.Error != "":
-		return EndpointResponse{}, errors.New(response.Error)
+		return EndpointResponse{}, &endpointRefusal{message: response.Error}
+	}
+	if response.BatchReady && r.Op != "batch-status" {
+		return EndpointResponse{}, errors.New("endpoint returned batch readiness for another operation")
 	}
 	return response, nil
 }
@@ -212,7 +225,7 @@ func (e RemoteEndpoint) Release(ctx context.Context, id string) error {
 }
 
 func matchingReceipt(r Receipt, m Message) bool {
-	return r.Message.ID == m.ID && r.Message.From == m.From && r.Message.To == m.To && r.Message.Body == m.Body && r.Message.Deadline.Equal(m.Deadline)
+	return m.Origin.Valid() && r.Message.Origin == m.Origin && r.Message.ID == m.ID && r.Message.From == m.From && r.Message.To == m.To && r.Message.Body == m.Body && r.Message.Deadline.Equal(m.Deadline)
 }
 
 // peerHeldPoll paces status polling while the recipient holds a delivery.
@@ -231,6 +244,10 @@ func (e RemoteEndpoint) Deliver(parent context.Context, m Message, progress func
 	if err != nil {
 		return Receipt{}, err
 	}
+	return e.waitForDelivery(ctx, m, r, progress)
+}
+
+func (e RemoteEndpoint) waitForDelivery(ctx context.Context, m Message, r EndpointResponse, progress func(Receipt)) (Receipt, error) {
 	ticker := time.NewTicker(50 * time.Millisecond)
 	defer ticker.Stop()
 	var last Receipt
@@ -262,6 +279,7 @@ func (e RemoteEndpoint) Deliver(parent context.Context, m Message, progress func
 			return Receipt{}, ctx.Err()
 		case <-ticker.C:
 		}
+		var err error
 		r, err = e.call(ctx, EndpointRequest{Op: "status", ID: m.ID})
 		if err != nil {
 			return Receipt{}, err
