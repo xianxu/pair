@@ -6,7 +6,7 @@ collaboration-mode: discussion
 
 > **For agentic workers:** Consult AGENTS.md Section 3 (Subagent Strategy) to choose subagent-driven development or execution in the current session. Steps use checkboxes for tracking.
 
-**Status:** Landed #653 integrated; updater growth-recovery regression is GREEN. Affected-package/race verification, recorded suite and close review follow integration. Live conformance deferred by TL to the next operator restart; no staging.
+**Status:** Landed #653 integrated; growth regression, affected packages, races and required recorded suite pass. Close review and landing remain next. Live conformance deferred by TL to the next operator restart; no staging.
 
 **Goal:** Couch-hosted Pair starts no per-slot title process; Couch updates titles from its existing inventory and activity refreshes, preserving standalone behavior, ownership and fading.
 
@@ -131,7 +131,7 @@ Files under cmd/internal/: new couchcmd/titles.go and titles_test.go; couchcmd/r
 
 - [x] Wait for pair:2 to land #653 on main. No projection edit or unlanded stacking before that handoff.
 - [x] Merge landed main into this branch, preserving #653 narrow transient recovery and #649 PollContext transaction/cancellation plus newest-owner fencing. Notify pair:2 before resolving the shared file.
-- [ ] Make TestCouchTitlesOSRecoversGrowthDuringAdmission GREEN, rerun affected projection/updater/console race families, push the new source head and run the recorded suite there. The canceled pre-dependency run provides no suite evidence.
+- [x] Make TestCouchTitlesOSRecoversGrowthDuringAdmission GREEN, rerun affected projection/updater/console race families, push the new source head and run the recorded suite there. The canceled pre-dependency run provides no suite evidence.
 
 ### Task 5: Documentation, live evidence and landing
 
@@ -140,8 +140,8 @@ Files: README.md, atlas/couch.md, atlas/index.md as needed, this plan and #649 L
 - [x] Document hosted ownership and existing fade cadence; search stale per-session-poller claims.
 - [x] Finish ten-minute large-poller pre-fix measurement; record fresh/large poller RSS, CPU, ticks, query rates and fleet totals in the issue. Baseline runs before any deployed fix.
 - [x] Record TL-directed live deferral: do not stage pair:0 (shared restart binary). After landing, hub relaunches slots during the operator next restart; hub owns no-poller/title/fade/cmux observation and fleet/supervisor AFTER totals. Automated OS-seam tests and recorded suite plus close review are the pre-landing evidence. Live checks remain outstanding until that restart.
-- [ ] Run targeted/race verification, push issue head, run required recorded `sdlc local-check run --name suite`.
-- [ ] Close with specific automated/live evidence, resolve sole boundary review, open/update PR and await SHIP. Then `sdlc merge --yes` and report Git-read hashes and PR to hub.
+- [x] Run targeted/race verification, push issue head, run required recorded `sdlc local-check run --name suite`.
+Next acceptance gates: close with the recorded automated evidence and TL live deferral, resolve sole boundary review, update PR 424 and await SHIP. Then `sdlc merge --yes` and report Git-read hashes and PR to hub.
 
 ## Baseline evidence (2026-10-17)
 
@@ -169,3 +169,5 @@ Full flow approved by TL delivery 798a3ab4-b9da-465f-a516-34c291210e0a; change-c
 - 2026-10-17 — Final #653 review semantics (pair:2 delivery 27309298-d874-4e46-9f31-ee87617550cd): supersedes earlier same-launch-rebind recovery. Ledger conflict/rebind, owner and tail failures stay terminal. Admission ErrArtifactChanged alone may re-admit when a pre-first-read artifact baseline proves all unchanged/only-grown and at least one grew. Integrate classifyAdmission/baseline into next.poll(ctx) after landing, retaining cancellation transactions; Darwin proof-fallback growth is part of the dependency test surface.
 
 - 2026-10-18 — Integrated origin/main 3851b7338ff107d9b676d1db4eda7c7f21a2aa62 containing landed #653 a5c7ae6f718c90172911fe6e39a5aba923b158b0. classifyAdmission and pre-read baseline now run inside next.poll(ctx), preserving cancellation rollback and owner-wide newest-agent fencing. Kept incoming Console deadline, copy-key and lifecycle behavior alongside hosted activity passes. Updater growth regression and focused projection/current-owner tests passed; broader package/race and recorded suite remain pending.
+
+- 2026-10-18 — Verification complete: recorded suite 0619b0f0bcec5545314c1d0545bc00d8 passed on 876a43a07b36fd217d02518e8241315081531575 in 10m52s, log sha256 prefix 4e8fde9764e4. The first suite found only missing artifact source inventory entries, now classified without adding exceptions. Separated the future close/landing gates from the implementation checklist so completion ticks do not claim gates that have not run; scope and runtime design unchanged.

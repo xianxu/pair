@@ -62,7 +62,7 @@ The work per tick is one `zellij list-sessions --no-formatting`, sometimes a liv
 - [x] After approval, pass change-code plan-quality and derive estimate.
 - [x] Suppress hosted child; share exact target/title decisions and cancellable compact facts.
 - [x] Wire one existing-schedule updater and shared activity/fade results; verify stateful failure sequences.
-- [ ] Integrate landed #653, make updater growth-recovery regression green, then run recorded suite, close review and land; hub performs deferred live checks and AFTER fleet measurement at next operator restart.
+- [x] Integrate landed #653, make updater growth-recovery regression green, run the required recorded suite, and prepare PR/close evidence. Close review and landing follow as acceptance gates; hub performs deferred live checks and AFTER fleet measurement at next operator restart.
 
 ## Log
 
@@ -171,3 +171,9 @@ Source 8641e428d2b85044173053dcfda33dcf273267eb is pushed; PR 424 opened. All si
 Recorded suite c0796f4dfe80368cf357507b001784e5 on 8641e428d found TestProductionArtifactReferencesAreExactlyClassified failing: five new production files were absent from the exhaustive artifact inventory. Root cause was omitted source classification, not a runtime title failure. Added ResolvedConsumer entries for couchcmd/titles.go and couchcore/title_target.go, and NonArtifactSources entries for titles_wiring.go, title_context.go and titlepoller/update.go; no known-violation allowance added. Agent reproduced the five failures, then full artifactpath package passed (12.820s). The original suite continues to completion to retain all other results; replacement recorded suite is required after this source fix.
 
 First recorded attempt completed: c0796f4dfe80368cf357507b001784e5, source 8641e428d, exit2 after 12m17s. The sole test failure was TestProductionArtifactReferencesAreExactlyClassified in artifactpath; every other shell/editor/Go test completed successfully. Retained failed log: /Users/xianxu/workspace/pair/.git/sdlc/test-stats/failed/c0796f4dfe80368cf357507b001784e5.log (sha256 prefix f2eea6b976dc). Inventory fix is pushed as 876a43a07b36fd217d02518e8241315081531575; parent independently reran the failing test successfully (1.533s). Replacement recorded run 0619b0f0bcec5545314c1d0545bc00d8 is queued on that fixed source. This is a reproducible branch defect with a source fix, not a flaky unchanged retry.
+
+### 2026-10-18 — required suite passed; close ready
+
+Replacement recorded run 0619b0f0bcec5545314c1d0545bc00d8 passed on 876a43a07b36fd217d02518e8241315081531575: exit0, 10m52s, log sha256 prefix 4e8fde9764e4. Full log: /Users/xianxu/workspace/pair/.git/sdlc/local-checks/876a43a07b36fd217d02518e8241315081531575/suite.log. PR 424 is open. No newer main integration was chased after this pass. Next: mandatory close review and landing; real hosted no-poller/title/fade/cmux and AFTER fleet observations still belong to the hub at the next operator restart.
+
+- 2026-10-18 — Checklist bookkeeping: separate future acceptance gates from verified implementation; no scope change.
