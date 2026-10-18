@@ -52,7 +52,7 @@ Durable full-flow design: [Lifecycle system notices](../plans/000574-couch-lifec
 
 - [x] Establish internal server-owned origin, closed peer requests and canonical receipt provenance.
 - [x] Wire confirmed lifecycle events excluding native-agent exit (#657), restart aggregation, bounded publication and one default-on setting.
-- [ ] Complete fake/socket/owned-child verification, required documentation and recorded suite before close/landing.
+- [x] Complete fake/socket/owned-child verification, required documentation and recorded suite before close/landing.
 
 ## Log
 
@@ -107,6 +107,8 @@ Durable full-flow design: [Lifecycle system notices](../plans/000574-couch-lifec
 - Corrected code head e92fe090c05e (from Git push output); new recorded suite attempt c4b8c5baa145861a3cfb06c7513acb31 queued on it. Previous queue attempt was deliberately canceled for a code fix, not rerun unchanged. Replacement adoption regression and focused lifecycle race pass1.644s after the fix.
 
 - Companion Done-when satisfied: fresh hub receipt2d05443c-01b2-4510-bbdd-fbc888d18358 verified Submitted; ariadne#433 PR292 merge77d31d2b6aafaaa7f105253c037e19ff44d8ef7c verified by Git and as an ancestor of ariadne origin/main. Installed tl-lead --help WATCHING says lifecycle notices update Slots and get no reply, and peer-claimed system text remains peer. Hub reported ariadne:0 rebuilt at its later main revision. The help's generic coverage line still says exit; sent the hub a narrow wording correction because native-agent exit is deferred to #657. This does not change #574's reduced acceptance scope.
+
+- Recorded full suite attempt c4b8c5baa145861a3cfb06c7513acb31 passed on e92fe090c05e1a7ce9961f3b02327bfd1cd07f36: make PAIR_GO_TRIMPATH=-trimpath test, exit0 in12m24s after505s queue wait. Recorder saved .git/sdlc/local-checks/e92fe090c05e1a7ce9961f3b02327bfd1cd07f36/suite.log, sha256 prefix c62f3a53bafc, and posted sdlc-local/suite. No unchanged-code retry. Docs-only descendant a15aec6ec26f also passed macOS conformance2m47s and all PR checks. Required fake/socket/owned-child and documentation verification complete; close review and normal merge remain.
 
 ## Revisions
 
