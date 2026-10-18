@@ -15,6 +15,7 @@ claimant:
     workspace: pair:7
     worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "1474a1e3", done: "640e8a7b"}
 ---
 
 # Review observation positive control intermittently loses external edit reload
