@@ -1391,6 +1391,17 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchtty/console_palette.go",
 	"cmd/internal/couchtty/switchrule.go",
 	"cmd/internal/couchtty/trace.go",
+	// #658 test-only counters, Git inventories and private fixture padding own
+	// no canonical session artifact filename or constructor authority.
+	"cmd/internal/testdisk/budget.go",
+	"cmd/internal/testdisk/native.go",
+	"cmd/internal/testdisk/native_darwin.go",
+	"cmd/internal/testdisk/native_unsupported.go",
+	"cmd/internal/testdisk/run.go",
+	"cmd/internal/testgit/testgit.go",
+	"cmd/internal/workbenchperftest/ledger_clone_darwin.go",
+	"cmd/internal/workbenchperftest/ledger_clone_other.go",
+	"cmd/internal/workbenchperftest/ledger_writer.go",
 	// pair#602 compiler fixture: owns a temporary executable, no session artifacts.
 	"cmd/internal/testpair/binary.go",
 	"cmd/internal/testpair/environment.go",
