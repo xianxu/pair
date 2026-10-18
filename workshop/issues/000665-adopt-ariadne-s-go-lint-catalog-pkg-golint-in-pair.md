@@ -177,6 +177,14 @@ Authenticated hub390c1e57 directs answering BR-4 through sdlc finding dispute us
 
 Corrected-source recorded suite is already queued on evidence head49977424e, attempt972703181dd1ef16ddc349bce15bac37. These later dispute/log records are docs-only; no cancellation/retry is needed for unchanged source. M1 remains unlanded and M2 code remains untouched.
 
+### 2026-10-18 — Corrected M1 SHIP and recorded suite PASS
+
+Evidence-only round5 returned SHIP with BR-4 withdrawn after independently checking the authentic host authority, retained log hash and matching source, then running the entire repolint package successfully. No new findings. M1's source remained unchanged throughout; no catalog refusal was weakened.
+
+Recorded suite attempt972703181dd1ef16ddc349bce15bac37 on49977424e159500eb0f7b0d62d1ceb53413dba89 acquired a slot after1029s and PASSed in14m25s (exit0, log SHA256 prefix1b803328daa1). All Go packages ran, including couchmessage PASS26.053s and couchcore PASS447.933s. Log: /Users/xianxu/workspace/pair/.git/sdlc/local-checks/49977424e159500eb0f7b0d62d1ceb53413dba89/suite.log. Later commits are review/dispute/plan bookkeeping only; source/module diff from that tested head exits0. The earlier failed attempt remains a failure, not relabeled. Enter the landing line for PR428; M2 remains open for fresh-main implementation.
+
+Provenance gap: the automatic round5 close commit65de5770f9af59a772c9ba708c4e3eecefb3de47 carries Agent: codex/-/-. The session's earlier agent-id returned codex/gpt-6.1-sol/medium, used by the manual commits. Preserve the automatic review evidence rather than rewriting its provenance.
+
 ## Revisions
 
 ### 2026-10-18 — R1: two approved milestones
