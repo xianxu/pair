@@ -1,0 +1,12 @@
+{
+ "name": "non-overlapping-matches",
+ "base": "aaaa\n",
+ "records": [
+  {
+   "old": "aa",
+   "occurrence": 2,
+   "new": "b"
+  }
+ ],
+ "result": "aab\n"
+}

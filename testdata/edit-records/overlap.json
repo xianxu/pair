@@ -1,0 +1,20 @@
+{
+ "name": "overlap",
+ "base": "abcdef\n",
+ "records": [
+  {
+   "old": "abcd",
+   "new": "X"
+  },
+  {
+   "old": "cdef",
+   "new": "Y"
+  }
+ ],
+ "invalid": [
+  {
+   "index": 2,
+   "reason": "overlap"
+  }
+ ]
+}

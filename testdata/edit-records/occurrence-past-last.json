@@ -1,0 +1,17 @@
+{
+ "name": "occurrence-past-last",
+ "base": "a a\n",
+ "records": [
+  {
+   "old": "a",
+   "occurrence": 3,
+   "new": "b"
+  }
+ ],
+ "invalid": [
+  {
+   "index": 1,
+   "reason": "not found"
+  }
+ ]
+}

@@ -1,0 +1,20 @@
+{
+ "name": "not-found",
+ "base": "hello\n",
+ "records": [
+  {
+   "old": "hello",
+   "new": "hi"
+  },
+  {
+   "old": "absent",
+   "new": "x"
+  }
+ ],
+ "invalid": [
+  {
+   "index": 2,
+   "reason": "not found"
+  }
+ ]
+}
