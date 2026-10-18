@@ -99,3 +99,90 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-18T11:11:35-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 651 — Relaunch can strand a slot mid-park: resume refuses 'park transaction unfinished' with no named recovery verb (pair:6 had to start fresh) |
+| repo | pair |
+| issue file | workshop/issues/000651-relaunch-can-strand-a-slot-mid-park-resume-refuses-park-transaction-unfinished-with-no-named-recovery-verb-pair-6-had-to-start-fresh.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | c8f3f03ef1cbc095d5909dac8f8da656cc7f38a0..948470412f7252834ae432f26234a6c6223d9972 |
+| command | sdlc close --issue 651 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-18T11:11:35-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+Both prior findings are addressed with reachable production fixes and regression tests that fail when those fixes are disabled. The pinned range preserves conversation authority, distinguishes incomplete cleanup from verified parking, and exposes confirmed recovery through CLI and menu. No new blocking findings emerged.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Context reaches lifecycle reconciliation and checked store mutations. Head contention tests pass; restoring blocking reconciliation fails both owner cases, and restoring legacy drive/finalization calls fails both post-admission contention cases.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Cold resume checks open parks before continuation routing; recovery, continuation, switch, detach, Park/Leave and prepared recovery use shared advice. Production-entrypoint tests pass and fail when the shared advice correction is disabled.
+```
+
+1. **Strengths**
+
+   - Retirement combines exact-owner checks and revision-guarded bookkeeping changes without manufacturing `VerifiedPark` (`cmd/internal/couchcore/park_recovery_store.go:34`).
+   - Cancellation tests verify worker settlement and reservation release while the foreign lock remains held (`cmd/internal/couchcore/park_recovery_test.go:256`).
+   - CLI and menu bind confirmation to the retained address and nonce, refusing replacement transactions.
+   - Relaunch receipts classify durable state independently from the returned error; README and atlas document the recovery surface.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   - Focused tests passed across couchcore, couchcmd, couchmessage, couchtty, pairlifecycle and storagegc.
+   - Focused race tests passed for cancellation, contention, refusal advice, publication outcomes and journal recovery.
+   - Declaration, artifact, action-domain, executable-skill and Godoc guards passed.
+   - Counterfactual tests reproduced both prior defects in a disposable copy, subsequently removed. Tracked checkout remains unchanged.
+   - This review did not rerun the complete required suite or opt-in native fixtures. Real operator acceptance remains explicitly deferred in the revised plan.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** shared guidance and existing abandonment/retirement helpers centralize behavior.
+   - **ARCH-PURE — pass:** recovery decisions and relaunch classification have direct, IO-free tests; effects remain behind integration seams.
+   - **ARCH-PURPOSE — pass:** recovery handles missing/failed completion and sweeps the prior refusal class.
+   - **ARCH-MOCK — pass:** production seams support stateful fakes and private native conformance fixtures.
+   - **ARCH-CONSTRAINTS — pass:** cancellable lock admission and checked store operations prevent the demonstrated reservation leak.
+   - **ARCH-SECURE — pass:** exact identity, nonce, revision and ownership checks remain authoritative; unavailable evidence refuses.
+   - **ARCH-ORDER — pass:** existing park transitions and journal/CAS govern mutations; tests cover cancellation, lost replies and partial progress.
+   - **ARCH-FUNERAL — pass:** retained interruption artifacts use existing owner-bundle retention, with visible protection and eventual collection tested.
+
+7. **Plan revision recommendations:** None required; existing revisions describe the implemented locations, contextual API changes and deferred operator acceptance.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"6b7ac89b-4e1f-47ed-b536-cc854916ade3","repository":"github.com/xianxu/pair","issue_id":"000651","recipe":"milestone-review","round":2,"attempt":1,"agent":"codex","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/f8f2a9219ceba18f","reviewed_head":"948470412f7252834ae432f26234a6c6223d9972","slot":"pair:5","requested_at":"2026-10-18T18:08:11.493087Z"},"phase":"finished","pid":70521,"started_at":"2026-10-18T18:08:11.776427Z","finished_at":"2026-10-18T18:11:34.17124Z","session_id":"01a15033-27dd-7252-aac9-bf86ce6c08c9","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 5.207624208s
+head: "948470412f7252834ae432f26234a6c6223d9972"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
