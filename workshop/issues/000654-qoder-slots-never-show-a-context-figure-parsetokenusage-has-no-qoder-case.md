@@ -16,6 +16,7 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "bb3a41a9", done: "728f1dbc"}
 ---
 
 # Qoder slots never show a context figure: ParseTokenUsage has no qoder case
