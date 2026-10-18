@@ -12,17 +12,33 @@ collaboration-mode: discussion
 
 **Tech Stack:** Go testing; existing golang.org/x/sys/unix Clonefile; existing procutil.NativeResourceReader on Darwin+cgo. Original streaming fallback on unsupported filesystems/platforms.
 
-**Approval status:** Draft measurement/design; whole-Go-phase baseline is queued. Do not enter change-code until the baseline is recorded, exact package budgets are set and the hub approves.
+**Approval status:** Baseline completed:116/116 packages passed,1,640,353,792 observed own-process physical bytes. Exact proposed caps are below. Await hub approval before change-code.
 
 ## Measurement and operating envelope
 
 Baseline/source analysis and the owned clone feasibility experiment are recorded in issue658 Log. Clean couchcmd:627,539,968 own-process physical bytes,600,489,984 in TestWorkbenchPerformanceMessageUnchangedEvidence. The clone experiment wrote30,085,120 bytes while retaining600,000,000 logical bytes across20 private files. Those are separate experiments, not a package before/after comparison.
 
-The baseline/after comparison runs the same ordinary Go test packages, with a fresh supplied Pair executable and sanitized session environment. Compile/build bytes and child-process writes are excluded and labeled. Serial verbose sampling attributes approximate bytes to tests; writable-FD path sampling identifies likely writers but is not a syscall trace. Record every package, not only the five known fixture consumers. If the baseline identifies another writer large enough to prevent the goal, revise this plan before coding.
+The baseline/after comparison runs the same ordinary Go test packages, with a fresh supplied Pair executable and sanitized session environment. Compile/build bytes and child-process writes are excluded and labeled. Serial verbose sampling attributes approximate bytes to tests; writable-FD path sampling identifies likely writers but is not a syscall trace. Record every package, not only the five known fixture consumers and any other measured package at or above30,000,000 bytes. The seven selected packages account for1,533,018,112 observed bytes,93.46% of the baseline. Other packages remain in the before/after table; their existing stress tests are retained.
 
 Workload: batch test setup; owner count N, ledger logical size L, distinct required record sizes S. Expected streaming work for cloned multi-owner ledgers is O(S*L + total record bytes), with one clone and one tail patch per owner. For the current fixed-size records, S=1. No latency ceiling or CPU timing assertion. Memory stays64KiB streaming buffer plus existing small record strings; no600MB shared buffer. No new concurrency. Each test owns its template/ledgers under t.TempDir; cleanup removes them on success/failure. Single-owner fixtures retain direct streaming (no saving from cloning one owner).
 
-Physical budget envelope is Darwin+cgo on the clone-capable temp volume measured here; clone failure retains correctness through explicit streaming fallback, but cannot claim the APFS write reduction. Unsupported measurement is reported distinctly, never as zero. The ordinary package runner enforces its cap by default on Darwin+cgo. On other platforms it prints an explicit unsupported diagnostic and runs the portable correctness checks without claiming a measured budget. No silent read-error skip is permitted on Darwin+cgo. A non-clone-capable Darwin filesystem still gets correct streamed fixtures, but a whole-package cap can fail honestly because the write-saving operating envelope is unavailable; targeted portable fixture tests remain runnable. No new environment knob or Makefile/workflow edit is required. Numeric caps are finalized with the baseline before approval.
+Physical budget envelope is Darwin+cgo on the clone-capable temp volume measured here; clone failure retains correctness through explicit streaming fallback, but cannot claim the APFS write reduction. Unsupported measurement is reported distinctly, never as zero. The ordinary package runner enforces its cap by default on Darwin+cgo. On other platforms it prints an explicit unsupported diagnostic and runs the portable correctness checks without claiming a measured budget. No silent read-error skip is permitted on Darwin+cgo. A non-clone-capable Darwin filesystem still gets correct streamed fixtures, but a whole-package cap can fail honestly because the write-saving operating envelope is unavailable; targeted portable fixture tests remain runnable. No new environment knob or Makefile/workflow edit is required. Numeric caps are specified below.
+
+## Proposed package caps
+
+Caps cover one ordinary test run, with explicit checked -count=N scaling. They are measured bytes, independent of elapsed time. For couchcmd/couchtty/fixture, headroom is calculated against a30MB template plus retained writes/new regression cases; the original per-owner streaming scheme exceeds the cap. For unchanged packages, bounded headroom above the baseline preserves their existing stress scenarios. Native filesystem allocation granularity and concurrent atomic publication can change physical counts, so these are meaningful ceilings rather than exact-counter equality assertions. The after-measurement must demonstrate the caps under the normal suite parallelism as well as the matched serial diagnostic.
+
+| Package | Baseline bytes | Proposed cap bytes | Basis |
+|---|---:|---:|---|
+| couchcmd |625,799,168|100,663,296 (96MiB)|~30MB seed plus25MB retained work, new regressions and allocation headroom; below half baseline|
+| couchtty |609,632,256|67,108,864 (64MiB)|~30MB seed plus9MB retained work and allocation headroom|
+| workbenchperftest |90,030,080|67,108,864 (64MiB)|~30MB seed plus bounded content/isolation/fallback/N-2N regressions|
+| threadactivity |30,089,216|50,331,648 (48MiB)|single-owner30MB control retained, plus bounded headroom|
+| titlepoller |10,592,256|25,165,824 (24MiB)|10MiB logical-size control retained, plus bounded headroom|
+| sessionsync |71,299,072|100,663,296 (96MiB)|publication/bounds/trim workloads retained; budget only|
+| couchcore |95,576,064|134,217,728 (128MiB)|journal/resource-history/publication limits retained; budget only|
+
+The optimization removes1,200,000,000 repeated padding bytes across the two20-owner and one3-owner30MB fixtures, before tail-page overhead; this predicts a large reduction but the real after-measurement is the acceptance evidence. The five fixture consumers keep all old file sizes and cold-read/decode assertions. Seven packages are guarded: every baseline package at or above30,000,000 own-process bytes, plus all shared-fixture consumers. Smaller independent packages have measured baselines, not a promised package cap in this issue.
 
 ## Core concepts
 
@@ -32,7 +48,7 @@ Physical budget envelope is Darwin+cgo on the clone-capable temp volume measured
 |---|---|---|
 | WriteBudgetVerdict | cmd/internal/testdisk/budget.go | new |
 
-WriteBudgetVerdict compares before/after cumulative uint64 bytes with a positive per-run cap and explicit run count. It rejects a backwards counter, arithmetic overflow or excess, retaining an existing nonzero test result. Tests directly cover below/equal/above cap, counter regression, count scaling and overflow. One verdict owner avoids five subtly different comparisons (ARCH-PURE, ARCH-DRY).
+WriteBudgetVerdict compares before/after cumulative uint64 bytes with a positive per-run cap and explicit run count. It rejects a backwards counter, arithmetic overflow or excess, retaining an existing nonzero test result. Tests directly cover below/equal/above cap, counter regression, count scaling and overflow. One verdict owner avoids different per-package comparisons (ARCH-PURE, ARCH-DRY).
 
 ### Integration points
 
@@ -40,9 +56,9 @@ WriteBudgetVerdict compares before/after cumulative uint64 bytes with a positive
 |---|---|---|---|
 | Fixture ledger writer | cmd/internal/workbenchperftest/fixture.go; ledger_clone_darwin.go; ledger_clone_other.go | modified | private regular files and native CoW cloning |
 | RunWithWriteBudget | cmd/internal/testdisk/run.go | new | procutil.NativeResourceReader and package normal-run callback |
-| Package budget callers | couchcmd/testmain_test.go; couchtty/reattach_testmain_test.go; titlepoller/runcli_process_test.go; threadactivity/testmain_test.go; workbenchperftest/testmain_test.go | modified/new | existing package TestMain lifecycle |
+| Package budget callers | couchcmd/testmain_test.go; couchcore/launchhelper_test.go; couchtty/reattach_testmain_test.go; titlepoller/runcli_process_test.go; threadactivity/testmain_test.go; workbenchperftest/testmain_test.go; sessionsync/testmain_test.go | modified/new | existing package TestMain lifecycle |
 
-File paths in the last row are below cmd/internal. The helper accepts func()int, preserving couchcmd's testpair.Run(m) cleanup, couchtty's LifecycleParallelism setup, and titlepoller's explicit child-role dispatch. Only titlepoller's normal mode is budgeted. No change to testpair's global executable lifecycle.
+File paths in the last row are below cmd/internal. The helper accepts func()int, preserving couchcmd's testpair.Run(m) cleanup, couchtty's LifecycleParallelism setup, couchcore's launch-helper dispatch, and titlepoller's explicit child-role dispatch. Only couchcore/titlepoller normal modes are budgeted. No change to testpair's global executable lifecycle.
 
 The fixture writer owns a template per actual size max(requested,len(records)); no global cache or shared mutable inode. The first owner's records must never become padding for another owner. Templates contain ASCII spaces, not sparse NUL bytes. Darwin uses existing unix.Clonefile; other platforms use the original writer. Classify known unsupported clone errors for fallback; real permissions/storage errors fail. A stateful in-memory file backend or owned temp files behind the same narrow writer seam exercise clone/fallback, partial failure and patch isolation. Native conformance checks exact bytes, metadata/inode separation and modifications to one owner against siblings/template. No external service is added (ARCH-MOCK).
 
@@ -75,8 +91,8 @@ No durable application state or background worker is introduced. Template owners
 
 ### 1. Finish and publish baseline/spec
 
-- [ ] Record whole-Go-phase package bytes, pass/failure names, and top test/path attribution in a compact checked-in measurement artifact. Preserve raw local diagnostics and identify their limitations.
-- [ ] Finalize the budget table from the measured distribution and the proved clone saving. The couchcmd cap must be below313,769,984 bytes (half of the clean baseline), with bounded headroom for retained stress tests and new regression cases. Name every selected package and exact bytes.
+- [x] Record whole-Go-phase package bytes, pass/failure names, and top test/path attribution in a compact checked-in measurement artifact. Preserve raw local diagnostics and identify their limitations.
+- [x] Finalize the proposed budget table from the measured distribution and the proved clone saving. The couchcmd cap must be below312,899,584 bytes (half of its whole-Go-phase baseline), with bounded headroom for retained stress tests and new regression cases. Name every selected package and exact bytes.
 - [ ] Post measurement, proposed mechanism, unsupported-platform behavior, package scope and no-real-environment-change live arrangement to the hub. Commit design and wait for approval. Run sdlc change-code and satisfy its review/estimate gate before source edits.
 
 ### 2. Defend the byte/content contract and implement the shared writer
@@ -92,12 +108,12 @@ Files: cmd/internal/workbenchperftest/fixture.go, fixture_test.go, ledger_clone_
 
 ### 3. Enforce physical package budgets
 
-Files: new cmd/internal/testdisk/budget.go, budget_test.go, run.go, run_test.go; five TestMain callers above; no Makefile or workflow configuration change.
+Files: new cmd/internal/testdisk/budget.go, budget_test.go, run.go, run_test.go; seven TestMain callers above; no Makefile or workflow configuration change.
 
 - [ ] Write failing pure tests for budget comparisons/count scaling/overflow and stateful-reader tests for supported, unsupported, failed before/after, missing identity and decreasing counters. Preserve nonzero callback exit and call it exactly once under the documented policy.
 - [ ] Implement the narrow callback runner using existing procutil, with explicit own-process bytes/cap diagnostic. Handle -count=N without silently reusing a one-run allowance; when -test.bench is nonempty, report that the ordinary-suite cap does not cover the benchmark workload, and retain counted fixture-growth tests.
 - [ ] Wire normal TestMain paths for the measured package set without affecting helper dispatch/cleanup/lifecycle setup. Run the pre-fix byte-producing control or synthetic over-budget child and confirm nonzero status. A deleted/no-op budget must make this negative control fail; avoid writing the full large baseline solely to prove refusal.
-- [ ] Run targeted testdisk tests and the five package suites. Record exact native bytes/caps, not elapsed time, as the regression evidence.
+- [ ] Run targeted testdisk tests and the selected package suites. Record exact native bytes/caps, not elapsed time, as the regression evidence.
 - [ ] Commit the enforcement and tests.
 
 ### 4. Compare, document, and land
@@ -106,3 +122,9 @@ Files: new cmd/internal/testdisk/budget.go, budget_test.go, run.go, run_test.go;
 - [ ] Update atlas/index.md and a focused testing document with the byte-budget scope, supported counter/filesystem, invocation, unsupported behavior, repeated-count/benchmark policy, and how an intentional cap revision is justified. Package caps are ordinary-suite limits, not benchmark limits; native unsupported results are explicit and are never reported as zero.
 - [ ] Open an early draft via sdlc pr for CI overlap if useful. Run the recorded suite on pushed head with sdlc local-check run --name suite, then sdlc close with measured evidence. The binary owns the fresh-context review; no duplicate boundary review.
 - [ ] Resolve findings; sdlc merge --yes supplies integration validation. Report verified PR/merge to the hub. No pair:0 staging or operator restart is needed for test-only owned-file changes; ask if the eventual implementation changes that surface.
+
+## Revisions
+
+- 2026-10-17 — The broader baseline found sessionsync71,299,072 bytes and an active couchcore already above30,000,000 bytes. Budget selection now covers every package with baseline own-process writes at least30,000,000 bytes, plus all five shared-fixture consumers. This adds budget-only TestMain callers for sessionsync/couchcore without changing their scenarios. Final couchcore baseline95,576,064 bytes supports the proposed128MiB cap; all other packages remain measured in the comparison, with their retained stress tests unchanged.
+
+- 2026-10-17 — Whole-Go-phase baseline completed successfully in649.17s after804s in the machine queue. All116 packages passed; total1,640,353,792 observed own-process bytes; every binary had successful native samples and no final-read errors. See [write baseline](000658-write-baseline.md). Exact proposed caps are now recorded; seven guarded packages cover93.46% of observed writes. The measured supported environment and explicit exclusion of child/compiler/shell-phase writes remain unchanged.

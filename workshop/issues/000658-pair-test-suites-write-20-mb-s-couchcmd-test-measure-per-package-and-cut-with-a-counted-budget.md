@@ -36,9 +36,9 @@ Measure first: per test package and per test, bytes written and to which paths (
 
 ## Plan
 
-Draft detailed plan: [suite write budget](../plans/000658-suite-write-budget-plan.md). Await the queued whole-Go-phase baseline and hub approval before change-code.
+Draft detailed plan: [suite write budget](../plans/000658-suite-write-budget-plan.md). The whole-Go-phase baseline is complete; await hub approval before change-code.
 
-- [ ] Record every measured Go package and large test/path; finalize exact package caps.
+- [x] Record every measured Go package and large test/path; finalize exact proposed package caps.
 - [ ] Obtain hub approval and pass change-code.
 - [ ] Preserve exact fixture bytes, logical sizes and independent files using fixture-local CoW templates with portable streaming fallback; add N/2N write-growth regression.
 - [ ] Enforce own-process physical write budgets in the measured large-writer package TestMain paths; cover failed/unsupported counter evidence and over-budget refusal.
@@ -55,6 +55,12 @@ Draft detailed plan: [suite write budget](../plans/000658-suite-write-budget-pla
 - Read-only source sweep: shared workbenchperftest.NewFixture/writeLedger streams ASCII-space padding separately for each owner, then444-byte distinct launch/binding records. Ordinary-suite fixture payloads: couchcmd600,009,968; couchtty600,008,192; threadactivity30,014,336; titlepoller10,489,856; workbenchperftest90,000,444 logical bytes (1,330,522,796 combined). These are source-derived payload totals, not physical measurements. Tests intentionally decode real large JSONL; shrinking, NUL sparse holes, or shared hardlinks would weaken their contract.
 - Owned temporary clonefile experiment: one30,000,000-byte all-space template plus twenty private clones with owner-specific tail patches produced600,000,000 logical ledger bytes, verified every byte,20 distinct inodes and20 distinct contents. Native own-process counters: template30,003,200 physical bytes; clones+patches81,920; total30,085,120. This is feasibility evidence, not a package after-measurement. Template and clones were removed by the temporary-directory owner. No repository code changed.
 - Whole-Go-phase package baseline queued through the machine suite lock (diagnostic runner52309); preserves compiler/setup exclusion and root-only measurement limits. Await its package distribution before finalizing the plan/budgets or entering change-code. Preferred budget seam under investigation: shared TestMain wrapper around existing normal-run callbacks, using procutil.NativeResourceReader for exact before/after own-process counters; explicit unsupported-platform reporting rather than zero evidence.
+
+### 2026-10-17 — Completed baseline and proposed plan
+
+- Whole-Go-phase diagnostic completed exit0 in649.17s after804s in the machine suite queue. All116 package binaries passed; total1,640,353,792 own-process physical bytes. Every binary had successful counter samples and no final-read errors. This remains sampled final lower-bound observation, not child-process/compiler/shell/Lua or whole-machine writes. See [all package and leading test measurements](../plans/000658-write-baseline.md).
+- Largest packages: couchcmd625,799,168; couchtty609,632,256; couchcore95,576,064; workbenchperftest90,030,080; sessionsync71,299,072; threadactivity30,089,216. Titlepoller10,592,256 is also a shared-fixture consumer. Seven-package cap proposal covers1,533,018,112 bytes (93.46% of observed writes), with explicit measured scope. Couchcore leading paths are private resource history stages, thread-store publications and launch-failure bounds; retain all those tests.
+- Proposed caps: couchcmd96MiB, couchtty64MiB, workbenchperftest64MiB, threadactivity48MiB, titlepoller24MiB, sessionsync96MiB, couchcore128MiB. Native own-process counters are enforced around normal TestMain completion on Darwin+cgo; unsupported platforms report unavailable evidence and keep portable correctness tests. Existing procutil is the one native observer. Per-fixture templates end with t.TempDir; no global cache, no hardlink sharing, no smaller files or relaxed assertions. Default suite and matched serial after-measurements both required. Hub approval/change-code pending; repository source remains unchanged.
 
 ## Revisions
 
