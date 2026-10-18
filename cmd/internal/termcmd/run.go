@@ -152,7 +152,7 @@ func handleChordContext(parent context.Context, chord workbenchshortcut.Chord, r
 	if err != nil {
 		terminalIDs = nil
 	}
-	panes, err := focusedWorkbenchPanesContext(ctx, rt, func(panes workbenchPanes) error {
+	panes, err := focusedWorkbenchPanesContext(ctx, rt, terminalIDs, func(panes workbenchPanes) error {
 		return validateShortcutDecision(decideWorkbenchChord(chord, panes, lastLeft, terminalIDs))
 	})
 	if err != nil {
@@ -197,29 +197,17 @@ type workbenchPanes struct {
 	confirmed []zellijpane.Pane
 }
 
-// registered reports whether paneID is a live self-registered `pair term` pane.
-//
-// Both fast paths gate on this rather than on ZELLIJ_PANE_ID alone (BR-5): the
-// env var says which pane we are, not what KIND of pane, and synthesising a
-// right-terminal role from it unchecked would misroute every chord in any pane
-// that happens to run this code. The registry is the signal that says
-// "right terminal" — the same one RoleForPaneWith uses to recognise split
-// halves that zellij reports without a terminal_command.
-func registered(rt Runtime, paneID string) bool {
-	ids, err := rt.TerminalPaneIDs()
-	if err != nil {
-		return false
-	}
-	return workbenchshortcut.Registered(ids, paneID)
-}
-
 func focusedWorkbenchPanes(rt Runtime) (workbenchPanes, error) {
 	ctx, cancel := zellijreply.AdmissionContext(context.Background())
 	defer cancel()
-	return focusedWorkbenchPanesContext(ctx, rt)
+	ids, err := rt.TerminalPaneIDs()
+	if err != nil {
+		ids = nil
+	}
+	return focusedWorkbenchPanesContext(ctx, rt, ids)
 }
 
-func focusedWorkbenchPanesContext(ctx context.Context, rt Runtime, validate ...func(workbenchPanes) error) (workbenchPanes, error) {
+func focusedWorkbenchPanesContext(ctx context.Context, rt Runtime, registeredIDs []string, validate ...func(workbenchPanes) error) (workbenchPanes, error) {
 	if err := ctx.Err(); err != nil {
 		return workbenchPanes{}, err
 	}
@@ -231,11 +219,12 @@ func focusedWorkbenchPanesContext(ctx context.Context, rt Runtime, validate ...f
 	// without listing panes: the current id from the env, and the draft id from
 	// the sidecar draftroute already caches and validates.
 	//
-	// Synthesised with the terminal_command that classifies it, rather than a
-	// bare ID, so RoleForPaneWith reaches the same verdict it would from the
-	// real report instead of relying on a registry lookup this path does not do.
+	// The caller supplies its existing registry snapshot. The env pane ID alone
+	// never establishes a right-terminal role: only a registered own pane plus
+	// a validated cached draft admits this fast path. Synthesising the known
+	// terminal template gives downstream selectors the same established role.
 	currentID := rt.CurrentPaneID()
-	if currentID != "" && registered(rt, currentID) {
+	if currentID != "" && workbenchshortcut.Registered(registeredIDs, currentID) {
 		// rt.CachedDraftPaneID, not draftroute's env reader: the Runtime already
 		// exposes this seam (run.go:29) and reaching past it makes the branch
 		// untestable (BR-4).
@@ -253,7 +242,7 @@ func focusedWorkbenchPanesContext(ctx context.Context, rt Runtime, validate ...f
 		}
 	}
 	var out workbenchPanes
-	_, _, _, err := layoutcmd.ConfirmWorkbenchPanesContext(ctx, rt, currentID, func(panes []zellijpane.Pane) error {
+	_, _, _, err := layoutcmd.ConfirmWorkbenchPanesContext(ctx, rt, currentID, registeredIDs, func(panes []zellijpane.Pane) error {
 		out = workbenchPanes{confirmed: panes}
 		for _, pane := range panes {
 			if !pane.IsPlugin && pane.ID == currentID {
@@ -783,17 +772,17 @@ func currentRightTerminalPaneContext(ctx context.Context, rt Runtime) (zellijpan
 	// same conclusion the walk below reaches, without the 590ms that
 	// `list-panes --json` costs on zellij 0.44.3. The only caller
 	// (splitTerminalDown, run.go:545) discards the pane and reads `ok`.
-	currentID := rt.CurrentPaneID()
-	if currentID != "" && registered(rt, currentID) {
-		return zellijpane.Pane{ID: currentID}, true, nil
-	}
-	panes, _, _, err := layoutcmd.ConfirmWorkbenchPanesContext(ctx, rt, currentID)
-	if err != nil {
-		return zellijpane.Pane{}, false, err
-	}
 	terminalIDs, err := rt.TerminalPaneIDs()
 	if err != nil {
 		terminalIDs = nil
+	}
+	currentID := rt.CurrentPaneID()
+	if currentID != "" && workbenchshortcut.Registered(terminalIDs, currentID) {
+		return zellijpane.Pane{ID: currentID}, true, nil
+	}
+	panes, _, _, err := layoutcmd.ConfirmWorkbenchPanesContext(ctx, rt, currentID, terminalIDs)
+	if err != nil {
+		return zellijpane.Pane{}, false, err
 	}
 	isTerminal := func(pane zellijpane.Pane) bool {
 		return workbenchshortcut.RoleForPaneWith(pane, terminalIDs) == workbenchshortcut.PaneRoleRightTerminal

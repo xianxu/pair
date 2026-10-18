@@ -93,7 +93,7 @@ func RouteLuaContext(ctx context.Context, rt Runtime, function string, focusDraf
 	}
 	draftID, ok := rt.CachedDraftPaneID()
 	if !ok {
-		_, _, _, err := layoutcmd.ConfirmWorkbenchPanesContext(ctx, rt, rt.CurrentPaneID(), func(panes []zellijpane.Pane) error {
+		_, _, _, err := layoutcmd.ConfirmWorkbenchPanesContext(ctx, rt, rt.CurrentPaneID(), nil, func(panes []zellijpane.Pane) error {
 			var err error
 			draftID, err = UniqueDraftPaneID(panes)
 			if err == nil && draftID == "" {

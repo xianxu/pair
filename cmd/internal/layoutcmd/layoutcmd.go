@@ -140,7 +140,7 @@ func resolveRightTerminalIDContext(ctx context.Context, rt Runtime) (string, boo
 	if id, ok := resolveFromSidecars(terminalIDs, lastTerminal); ok {
 		return id, true, nil
 	}
-	panes, _, _, err := ConfirmWorkbenchPanesContext(ctx, rt, rt.CurrentPaneID())
+	panes, _, _, err := ConfirmWorkbenchPanesContext(ctx, rt, rt.CurrentPaneID(), terminalIDs)
 	if err != nil {
 		return "", false, err
 	}

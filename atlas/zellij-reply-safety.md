@@ -116,3 +116,10 @@ the color fails or admission is canceled. That cleanup uses the existing
 detached lifetime; cancellation stops subsequent staging, focus or input.
 Apply and reset-start failures reach existing refusal diagnostics. Successful
 reset scheduling proves child start, not eventual native reset success.
+
+Workbench pane confirmation preserves native row order and compares an explicit
+projection of identity, plugin namespace, tab, required state/geometry, launch
+template and derived role. Titles matter through role inference only; foreground
+command and cwd are cosmetic. Consumers pass their existing registered-terminal
+snapshot, so a registered terminal changing its display title keeps its role
+without an extra registry read. Title-only role changes still refuse.

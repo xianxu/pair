@@ -267,15 +267,15 @@ const maxSwapCycle = 4
 func restoreTiling(rt FullscreenRuntime, terminal string, record ExpandRecord) error {
 	ctx, cancel := zellijreply.AdmissionContext(context.Background())
 	defer cancel()
-	panes, id, pos, err := ConfirmWorkbenchPanesContext(ctx, rt, rt.CurrentPaneID())
+	panes, id, pos, err := ConfirmWorkbenchPanesContext(ctx, rt, rt.CurrentPaneID(), nil)
 	_ = panes
 	if err != nil {
 		return err
 	}
-	return restoreTilingContext(ctx, rt, terminal, record, id, pos)
+	return restoreTilingContext(ctx, rt, terminal, record, id, pos, nil)
 }
 
-func restoreTilingContext(ctx context.Context, rt FullscreenRuntime, terminal string, record ExpandRecord, tabID, tabPosition int) error {
+func restoreTilingContext(ctx context.Context, rt FullscreenRuntime, terminal string, record ExpandRecord, tabID, tabPosition int, registeredIDs []string) error {
 	if target := record.Swap; target != "" {
 		for i := 0; ; i++ {
 			tab, err := confirmLayoutTab(ctx, rt, tabID, tabPosition)
@@ -303,7 +303,7 @@ func restoreTilingContext(ctx context.Context, rt FullscreenRuntime, terminal st
 	if len(record.Order) != 2 || (terminal != record.Order[0] && terminal != record.Order[1]) {
 		return nil
 	}
-	panes, id, position, err := ConfirmWorkbenchPanesContext(ctx, rt, rt.CurrentPaneID())
+	panes, id, position, err := ConfirmWorkbenchPanesContext(ctx, rt, rt.CurrentPaneID(), registeredIDs)
 	if err != nil {
 		return fmt.Errorf("list panes: %w", err)
 	}
@@ -395,7 +395,7 @@ func RunToggleFocusedContext(ctx context.Context, args []string, rt FullscreenRu
 	if err != nil {
 		return fail("read return pane", err)
 	}
-	panes, tabID, tabPosition, err := confirmWorkbenchPanesContext(ctx, rt, rt.CurrentPaneID(), func(panes []zellijpane.Pane) bool {
+	panes, tabID, tabPosition, err := confirmWorkbenchPanesContext(ctx, rt, rt.CurrentPaneID(), ids, func(panes []zellijpane.Pane) bool {
 		mode, _, err := ObserveRightPaneMode(panes, ids)
 		return err != nil || mode == ModeNormal
 	}, func(panes []zellijpane.Pane) error {
@@ -445,7 +445,7 @@ func RunToggleFocusedContext(ctx context.Context, args []string, rt FullscreenRu
 				err = nil
 			}
 		case StepRestore:
-			stage, err = "restore tiling", restoreTilingContext(ctx, rt, step.Pane, plan.Record, tabID, tabPosition)
+			stage, err = "restore tiling", restoreTilingContext(ctx, rt, step.Pane, plan.Record, tabID, tabPosition, ids)
 		case StepFullscreen:
 			stage, err = "toggle-fullscreen", zellijreply.Effect(ctx, func() error {
 				return rt.RunZellijAction("toggle-fullscreen", "--pane-id", step.Pane)

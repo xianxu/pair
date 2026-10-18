@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 	"github.com/xianxu/pair/cmd/internal/zellijpane"
 	"github.com/xianxu/pair/cmd/internal/zellijreply"
 )
@@ -12,13 +13,13 @@ import (
 // terminal. Focus flags on other tabs are valid and do not select this context.
 func ConfirmWorkbenchPanesContext(ctx context.Context, rt interface {
 	ListPanesJSONContext(context.Context) ([]byte, error)
-}, caller string, validate ...func([]zellijpane.Pane) error) ([]zellijpane.Pane, int, int, error) {
-	return confirmWorkbenchPanesContext(ctx, rt, caller, nil, validate...)
+}, caller string, registeredIDs []string, validate ...func([]zellijpane.Pane) error) ([]zellijpane.Pane, int, int, error) {
+	return confirmWorkbenchPanesContext(ctx, rt, caller, registeredIDs, nil, validate...)
 }
 
 func confirmWorkbenchPanesContext(ctx context.Context, rt interface {
 	ListPanesJSONContext(context.Context) ([]byte, error)
-}, caller string, needGeometry func([]zellijpane.Pane) bool, validate ...func([]zellijpane.Pane) error) ([]zellijpane.Pane, int, int, error) {
+}, caller string, registeredIDs []string, needGeometry func([]zellijpane.Pane) bool, validate ...func([]zellijpane.Pane) error) ([]zellijpane.Pane, int, int, error) {
 	var chosen []zellijpane.Pane
 	var tabID, position int
 	_, err := zellijreply.Confirm(ctx, func(ctx context.Context) ([]byte, error) { return rt.ListPanesJSONContext(ctx) }, func(raw []byte) (string, error) {
@@ -45,28 +46,46 @@ func confirmWorkbenchPanesContext(ctx context.Context, rt interface {
 				return "", err
 			}
 		}
-		projection := append([]zellijpane.Pane(nil), chosen...)
 		geometry := needGeometry == nil || needGeometry(chosen)
 		if geometry && needGeometry != nil {
 			if _, err := zellijreply.ParsePanes(raw, zellijreply.PaneRequirements{Command: true, State: true, Geometry: true, Tab: true}); err != nil {
 				return "", err
 			}
 		}
-		for i := range projection {
-			// Native foreground command/cwd are not layout decision facts.
-			projection[i].PaneCommand = ""
-			projection[i].PaneCwd = ""
-			if !geometry {
-				projection[i].X = 0
-				projection[i].Y = 0
-				projection[i].Columns = 0
-				projection[i].Rows = 0
-			}
-		}
-		projected, err := json.Marshal(projection)
-		return string(projected), err
+		return projectWorkbenchDecisionFacts(chosen, registeredIDs, geometry)
 	})
 	return chosen, tabID, position, err
+}
+
+// projectWorkbenchDecisionFacts compares the authority used by selectors and
+// planners, preserving native pane order. Display titles matter only through
+// their derived role; observed foreground command and cwd carry no authority.
+func projectWorkbenchDecisionFacts(panes []zellijpane.Pane, registeredIDs []string, geometry bool) (string, error) {
+	type fact struct {
+		ID                    string
+		IsPlugin              bool
+		TabID, TabPosition    *int
+		IsFocused, IsFloating bool
+		IsFullscreen          *bool
+		TerminalCommand       string
+		Role                  workbenchshortcut.PaneRole
+		X, Y, Columns, Rows   int
+	}
+	facts := make([]fact, 0, len(panes))
+	for _, p := range panes {
+		f := fact{ID: p.ID, IsPlugin: p.IsPlugin, TabID: p.TabID, TabPosition: p.TabPosition,
+			IsFocused: p.IsFocused, IsFloating: p.IsFloating, IsFullscreen: p.IsFullscreen,
+			TerminalCommand: p.TerminalCommand, Role: workbenchshortcut.RoleForPaneWith(p, registeredIDs)}
+		if geometry {
+			f.X = p.X
+			f.Y = p.Y
+			f.Columns = p.Columns
+			f.Rows = p.Rows
+		}
+		facts = append(facts, f)
+	}
+	b, err := json.Marshal(facts)
+	return string(b), err
 }
 
 func confirmLayoutTab(ctx context.Context, rt FullscreenRuntime, id, position int) (zellijreply.Tab, error) {
