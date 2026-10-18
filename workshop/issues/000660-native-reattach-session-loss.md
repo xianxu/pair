@@ -16,6 +16,7 @@ claimant:
     workspace: pair:3
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "ce27f6bf", done: "2fa1a4af"}
 ---
 
 # Native direct Zellij session disappears after detach
