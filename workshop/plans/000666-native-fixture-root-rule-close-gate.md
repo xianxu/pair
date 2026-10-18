@@ -71,6 +71,13 @@ rounds:
       recipe: small-diff-review
       isolation: fenced
       blocked: true
+disputes:
+    - id: BR-1
+      rationale: The failure is missing main authority in the disposable review environment, not a defect in the new consumer. This configured checkout ran the complete ordinary lint package on the exact reviewed code head successfully; preserve the existing authority guard and use measured host evidence.
+      evidence: 'At git-confirmed HEAD7cb980f5ea0c51ebf5888864f8296c351b7bdcdb, origin/main9b841c43452eafa93b5613f0d93feb677e0b4a2f, main and main-slot6 track origin refs/heads/main. Re-ran go test ./internal/repolint -count=1: PASS17.539s. Re-ran go test ./internal/repolint -run ^TestTrackedGoFilesPassCatalog$ -count=1 -v: PASS4.217s; reports2580 tracked Go sources,5 shared rules plus Pair native-fixture-roots,100 exact sleep debt sites. No code changes since the reviewed head; results recorded in issue Log.'
+      after: 1
+      timestamp: "2026-10-18T17:45:59Z"
+      by: Xian Xu on Xian’s MacBook Pro at pair:6 (/Users/xianxu/workspace/worktree/pair-slot6/pair)
 ---
 
 # Gate ledger — pair#666 (boundary-review)
@@ -85,6 +92,15 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-1** [Important] `repository-lint-boundary-verification` (kind: unverifiable) Ordinary repository lint fails before reaching the new rule
   Running `go test ./internal/repolint -count=1` fails at internal/repolint/catalog_test.go:447 with “need exactly one remote main ref without main tracking config, found 0”. The sole ordinary-lint consumer added in this window, at catalog_test.go:460, is therefore not reached. Provide a successful package run at pinned head 7cb980f5ea0c51ebf5888864f8296c351b7bdcdb in a checkout with its real configured main authority available, or restore that authority in the review environment and rerun.
 
+## Disputes
+
+Findings the implementer declined (`sdlc finding dispute`), each answered by the
+next review round.
+
+- **BR-1** — after round 1 (2026-10-18T17:45:59Z, Xian Xu on Xian’s MacBook Pro at pair:6 (/Users/xianxu/workspace/worktree/pair-slot6/pair))
+  rationale: The failure is missing main authority in the disposable review environment, not a defect in the new consumer. This configured checkout ran the complete ordinary lint package on the exact reviewed code head successfully; preserve the existing authority guard and use measured host evidence.
+  evidence: At git-confirmed HEAD7cb980f5ea0c51ebf5888864f8296c351b7bdcdb, origin/main9b841c43452eafa93b5613f0d93feb677e0b4a2f, main and main-slot6 track origin refs/heads/main. Re-ran go test ./internal/repolint -count=1: PASS17.539s. Re-ran go test ./internal/repolint -run ^TestTrackedGoFilesPassCatalog$ -count=1 -v: PASS4.217s; reports2580 tracked Go sources,5 shared rules plus Pair native-fixture-roots,100 exact sleep debt sites. No code changes since the reviewed head; results recorded in issue Log.
+
 ## Open findings
 
-- **BR-1** [Important] `repository-lint-boundary-verification` (kind: unverifiable) Ordinary repository lint fails before reaching the new rule
+(none — every finding has been disposed)
