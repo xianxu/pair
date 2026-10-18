@@ -130,6 +130,9 @@
   rather than a binary because `pair` is the only thing that always ships: the
   Homebrew formula builds just `./cmd/pair-go`, and `PAIR_HOME` at runtime is
   the extracted bundle root, which carries no helper binaries.
+  Its `hoprttcmd.sampleSpawns` loop isolates command preparation from execution;
+  virtual-time tests assert exact command-only samples, while the shipped-binary
+  smoke checks valid output without imposing a host-speed ceiling (#655).
 
   **The capture writes a file and sends a pointer.** The complete report —
   compact half, joined per-process rates, and both raw `ps` samples — lands in

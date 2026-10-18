@@ -2205,3 +2205,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #648 BR-1: A new user-facing configuration variable needs README documentation as well as atlas and agent protocol text. Before close, check scope, units, default, accepted range, invalid-value behavior and compatibility against the parser and rollout policy.
 
 - #652 PQ-1: Before submitting a plan-quality gate, replace edge-case inventories with one named-function adversarial-input strategy and independent mechanical guard per risky function. Retain concrete acceptance regressions as anchors; inventories alone repeat the #648 planning failure.
+
+- #655: A timer-boundary regression must assert which operation is measured, not certify host speed. Use virtual time across varied setup and command durations, retain the shipped-binary smoke without a fixed ceiling, and prove a subprocess-clock mutation fails.
