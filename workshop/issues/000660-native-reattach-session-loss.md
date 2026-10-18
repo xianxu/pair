@@ -96,6 +96,10 @@ New regression through the failure collector first failed for all four old prefi
 
 Required suite on corrected e2f8bca989ecd6fa6b1c22f3cd82b3e9f0333018 passed exit 0 in 11m46s, log SHA256 prefix b60cf9203f95, attempt a04ca8ecf85a7a50a0c7e12d2d109056. It acquired its slot after 1062s and completed all Make prerequisites and Go packages, including couchtty 46.290s. Retained log is `.git/sdlc/local-checks/e2f8bca989ecd6fa6b1c22f3cd82b3e9f0333018/suite.log` in the common Git directory. This fresh verification was required by the BR-1 code correction, not a flake retry; both full-suite attempts passed. Corrected-head server CI is green, including macOS conformance 2m35s (run39132943893/job117691644844), merge-check 1m0s and local-gates-guard 9s. No additional local native invocation. Ready for normal close round 2 to settle BR-1; causal investigation remains parked after diagnostic landing.
 
+### 2026-10-18 — diagnostic-stage SHIP
+
+Normal close round 2 returned SHIP, high confidence, no Critical/Important/Minor findings remaining. BR-1 was explicitly disposed addressed after the reviewer ran the actual collector regression with a temporary prefix mutation; all five streams failed under that mutation. The reviewer also reran targeted tests normally (1.190s) and with race detection (3.565s). Close published codecomplete bound to b8fe3d0451f156fca0275100835a52eb4f74076d and adopted measured actual 0.86h, excluding 21.99 recorded queue minutes across the two passing suites. Proceeding directly to normal landing. Afterwards reopen/release the underlying discovery cause as directed; next CI failure, read the retained facts. No causal fix is claimed by this SHIP.
+
 ## Revisions
 
 ### 2026-10-18 — BR-1 consumer sweep
