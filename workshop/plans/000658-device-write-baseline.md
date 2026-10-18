@@ -64,3 +64,25 @@ The largest measured interval is the final Go phase (15.554 GB), but process sam
 
 Diagnostic root: `/var/folders/07/b9wcwwld4_v2w9r3hk525bm80000gn/T/pair658-profile.yqKPI1`.
 `device-suite/result.json`, `device.jsonl`, `phases.jsonl`, `volumes.jsonl`, `analysis.json`, and `make.log` retain the full run. `device_suite.py`, `treeprobe.c`, `treeprobe.dylib`, `volume_watch.py`, and `analyze_device.py` retain the measurement implementation. Device-start epoch anchor: 1792301602.6685076. Raw local evidence is temporary; the exact summary and limitations above are the durable record.
+
+## Follow-up: bounded serial couchcore churn probe
+
+Hub approval receipt 18724da1-b2ea-4b45-94d5-f905718ce94e was verified Submitted. The probe used a freshly linked stripped couchcore executable, a private short TMPDIR, timestamped verbose test events, identity-fenced descendant counters, and an unprivileged native FSEvents observer of that owned root. No product source or machine settings changed. The observer's calibration saw all 100 files and 10 directories created/removed, with no dropped/scan flags; an immediate-shutdown calibration also retained 100/100 file creations after adding a settling grace and callback-queue drain.
+
+**This is a partial diagnostic, not a passing package run.** Its eight-minute serial bound was chosen incorrectly: the existing successful serial baseline took 634.448 seconds. The test process reached that diagnostic deadline while TestWorktreeAddUsesWriteBudget had run for only two seconds; there were no preceding FAIL lines. Retain exit2 and the full log as a harness configuration error, not an established product flake or acceptance evidence. No blind full-package rerun. Observer shut down cleanly; none of its measured owned PID generations remained alive afterward.
+
+In 482.889 seconds the observer recorded 115,221 events with zero dropped/MustScan flags. It observed at least **23,465 distinct file paths and 18,253 directory paths created** under this private root. These are lower bounds because events coalesce, repeated creation of the same name is counted once, and hardcoded temp roots outside TMPDIR are excluded.
+
+| Created file-path class | Distinct paths |
+|---|---:|
+| Default Git sample hooks | 7,588 |
+| Other identified Git metadata | 7,553 |
+| Git objects | 2,788 |
+| Git refs | 1,323 |
+| Other files | 4,213 |
+
+The sample hooks are 14 inert template names across 542 repository copies, comprising about 32.3% of observed file paths. Source confirms real init/commit/bare-clone setup in newProvisionFixture (62 source call sites) and seed/bare-origin/host-clone/substrate setup in newPrepareWorld. No test assertions of Git template/hook contents were found. An empty private Git template is a reduction hypothesis, not an approved change or a proved device-byte saving.
+
+Sampled native descendant bytes total76,378,112 across only28 generations, again incomplete; counters do not assign the metadata amplification or all brief Git subprocesses. Device counters overlap another admitted suite in this run and are not attributed to couchcore. Go's installed Darwin File.Sync implementation normally issues fcntl(F_FULLFSYNC), with fsync only on ENOTSUP, so fsync-only tracing would miss the ordinary flush boundary.
+
+Additional local evidence: core-probe/test.log, test-events.jsonl, fs-events.jsonl, process-samples.jsonl, processes.json, result.json and analysis.json. Temporary observer/calibration sources and logs remain at the diagnostic root. A tiny owned Go/libc interposition calibration observed mkdir/open-create/rename/unlink and both flush APIs; its generic variadic fcntl shim is not approved for arbitrary product tests. Continue with a narrow safe flush-count probe or the operator's bounded fs_usage trace before claiming a causal metadata saving.

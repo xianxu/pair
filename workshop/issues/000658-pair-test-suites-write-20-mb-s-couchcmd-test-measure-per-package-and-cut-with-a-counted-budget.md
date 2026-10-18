@@ -79,6 +79,12 @@ Draft detailed plan: [suite write budget](../plans/000658-suite-write-budget-pla
 - Both suite tokens released after30s post-window. Pair:4 release receipt8fb8d8ac-baa0-4aea-8c94-0682b60d95e9 verified Submitted; their unchanged rerun may proceed. No remaining interleaving obligation.
 - The original ~1.2GB ledger payload saving is only~6.1% of this raw device total. Continue bounded attribution of final-Go device bursts/file churn; do not choose compiler-cache or metadata optimization from incomplete process sums. No source changes, change-code or implementation approval.
 
+### 2026-10-17 — partial couchcore churn diagnostic
+
+- Hub18724da1-b2ea-4b45-94d5-f905718ce94e verified Submitted approved bounded couchcore attribution. Unprivileged owned-root file events observed23,465 distinct created file paths and18,253 directories, zero dropped/scan flags. Git sample hooks alone7,588 paths (14 names across542 copies); classify this as churn evidence, not device-byte attribution. Detailed source/path/count limits are appended to the whole-device baseline.
+- The probe's8m serial cap was a harness mistake against the known634.448s passing serial baseline. Exit2 from that cap, no earlier FAIL lines; current TestWorktreeAddUsesWriteBudget had run2s. Preserve raw logs, do not call it a product flake/pass, and do not blindly rerun the whole package. Observer exited0; all measured owned PID generations were gone afterward. No code edits or change-code.
+- Tiny owned Go interposition calibration proved libc-operation visibility; installed Go source shows File.Sync normally uses F_FULLFSYNC. A generic variadic fcntl forwarding shim is too broad for arbitrary product calls; do not use the calibration shim on the suite. A narrow safe flush-count diagnostic or the operator's60s trace remains the next attribution step.
+
 ## Revisions
 
 - 2026-10-17 — Measured dominant fixture construction rather than assuming fsync/logging churn. Candidate design preserves full30MB files and decoder/authority checks by CoW cloning private all-space templates. Reject fixture shrinking, hardlinks and NUL sparse files because they weaken the actual coverage. A shared native-counter runner defends the whole normal-run callback in the large-fixture consumer packages; final numeric caps await the queued distribution and hub approval.
