@@ -1,0 +1,1640 @@
+[
+  {
+    "name": "launcher-snapshot-short",
+    "source": "cmd/internal/launcher/zellij_test.go",
+    "kind": "sessions-short",
+    "payload": [
+      "pair-a",
+      "pair-b"
+    ],
+    "expect": "accept"
+  },
+  {
+    "name": "launcher-snapshot-full",
+    "source": "cmd/internal/launcher/zellij_test.go",
+    "kind": "sessions-full",
+    "payload": [
+      "pair-a",
+      "pair-b"
+    ],
+    "expect": "accept"
+  },
+  {
+    "name": "launcher-snapshot-empty-clients",
+    "source": "cmd/internal/launcher/zellij_test.go",
+    "kind": "clients",
+    "payload": [],
+    "expect": "accept"
+  },
+  {
+    "name": "launcher-classification-short",
+    "source": "cmd/internal/launcher/zellij_test.go",
+    "kind": "sessions-short",
+    "payload": [
+      "pair-live",
+      "pair-detached",
+      "pair-gone",
+      "other"
+    ],
+    "expect": "accept"
+  },
+  {
+    "name": "launcher-classification-full",
+    "source": "cmd/internal/launcher/zellij_test.go",
+    "kind": "sessions-full",
+    "payload": [
+      "pair-live",
+      "pair-detached",
+      {
+        "name": "pair-gone",
+        "exited": true
+      },
+      "other"
+    ],
+    "expect": "accept"
+  },
+  {
+    "name": "launcher-classification-attached",
+    "source": "cmd/internal/launcher/zellij_test.go",
+    "kind": "clients",
+    "payload": [
+      {
+        "id": 1,
+        "pane_id": "terminal_0",
+        "running_command": "sh"
+      }
+    ],
+    "expect": "accept"
+  },
+  {
+    "name": "launcher-empty-prefix-short",
+    "source": "cmd/internal/launcher/zellij_empty_legacy_test.go",
+    "kind": "sessions-short",
+    "payload": [
+      "pair-work"
+    ],
+    "expect": "accept"
+  },
+  {
+    "name": "launcher-empty-prefix-full",
+    "source": "cmd/internal/launcher/zellij_empty_legacy_test.go",
+    "kind": "sessions-full",
+    "payload": [
+      "pair-work"
+    ],
+    "expect": "accept"
+  },
+  {
+    "name": "launcher-empty-prefix-clients",
+    "source": "cmd/internal/launcher/zellij_empty_legacy_test.go",
+    "kind": "clients",
+    "payload": [
+      {
+        "id": 1,
+        "pane_id": "terminal_0",
+        "running_command": "sh"
+      }
+    ],
+    "expect": "accept"
+  },
+  {
+    "name": "launcher-empty-explicit-inventory",
+    "source": "cmd/internal/launcher/zellij_empty_legacy_test.go",
+    "kind": "no-sessions",
+    "payload": {},
+    "expect": "accept"
+  },
+  {
+    "name": "launcher-observer-short",
+    "source": "cmd/internal/launcher/zellij_query_observer_test.go",
+    "kind": "sessions-short",
+    "payload": [
+      "pair-observed"
+    ],
+    "expect": "accept"
+  },
+  {
+    "name": "launcher-observer-full",
+    "source": "cmd/internal/launcher/zellij_query_observer_test.go",
+    "kind": "sessions-full",
+    "payload": [
+      "pair-observed"
+    ],
+    "expect": "accept"
+  },
+  {
+    "name": "launcher-observer-empty-clients",
+    "source": "cmd/internal/launcher/zellij_query_observer_test.go",
+    "kind": "clients",
+    "payload": [],
+    "expect": "accept"
+  },
+  {
+    "name": "launcher-observer-attached",
+    "source": "cmd/internal/launcher/zellij_query_observer_test.go",
+    "kind": "clients",
+    "payload": [
+      {
+        "id": 1,
+        "pane_id": "terminal_0",
+        "running_command": "sh"
+      }
+    ],
+    "expect": "accept"
+  },
+  {
+    "name": "launcher-osruntime-layout3",
+    "source": "cmd/internal/launcher/osruntime_test.go",
+    "kind": "panes",
+    "payload": [
+      {
+        "id": 0,
+        "title": "codex",
+        "terminal_command": "pair wrap codex"
+      },
+      {
+        "id": 1,
+        "title": "draft",
+        "terminal_command": "nvim /data/draft-work.md"
+      },
+      {
+        "id": 3,
+        "title": "terminal",
+        "terminal_command": "pair term"
+      }
+    ],
+    "expect": "accept"
+  },
+  {
+    "name": "launcher-selected-root-no-sessions",
+    "source": "cmd/internal/launcher/selected_root_test.go",
+    "kind": "no-sessions",
+    "payload": {},
+    "expect": "accept"
+  },
+  {
+    "name": "launcher-selected-root-clients",
+    "source": "cmd/internal/launcher/selected_root_test.go",
+    "kind": "clients",
+    "payload": [],
+    "expect": "accept"
+  },
+  {
+    "name": "launcher-selected-root-panes",
+    "source": "cmd/internal/launcher/selected_root_test.go",
+    "kind": "panes",
+    "payload": [
+      {
+        "id": 0,
+        "title": "claude",
+        "terminal_command": "pair wrap claude"
+      },
+      {
+        "id": 1,
+        "title": "draft",
+        "terminal_command": "nvim draft.md"
+      },
+      {
+        "id": 2,
+        "title": "terminal",
+        "terminal_command": "pair term"
+      }
+    ],
+    "expect": "accept"
+  },
+  {
+    "name": "launcher-selected-root-short",
+    "source": "cmd/internal/launcher/selected_root_test.go",
+    "kind": "sessions-short",
+    "payload": [
+      "selected-root-session"
+    ],
+    "expect": "accept"
+  },
+  {
+    "name": "launcher-selected-root-full",
+    "source": "cmd/internal/launcher/selected_root_test.go",
+    "kind": "sessions-full",
+    "payload": [
+      "selected-root-session"
+    ],
+    "expect": "accept"
+  },
+  {
+    "name": "launcher-owner-exited",
+    "source": "cmd/internal/launcher/session_owner_test.go",
+    "kind": "sessions-full",
+    "payload": [
+      {
+        "name": "\ud83d\udcc11-2",
+        "exited": true
+      }
+    ],
+    "expect": "accept"
+  },
+  {
+    "name": "launcher-warm-attach-full",
+    "source": "cmd/internal/launcher/session_listing_test.go",
+    "kind": "sessions-full",
+    "payload": [
+      "chosen"
+    ],
+    "expect": "accept"
+  },
+  {
+    "name": "launcher-quiescence-no-sessions",
+    "source": "cmd/internal/launcher/session_quiescence_test.go",
+    "kind": "no-sessions",
+    "payload": {},
+    "expect": "accept"
+  },
+  {
+    "name": "launcher-quiescence-exited",
+    "source": "cmd/internal/launcher/session_quiescence_test.go",
+    "kind": "sessions-full",
+    "payload": [
+      {
+        "name": "pair-fixture",
+        "exited": true
+      }
+    ],
+    "expect": "accept"
+  },
+  {
+    "name": "launcher-monotone-clients",
+    "source": "cmd/internal/launcher/zellij_diagnostic_matrix_test.go",
+    "kind": "clients",
+    "payload": [],
+    "expect": "accept"
+  },
+  {
+    "name": "launcher-monotone-validator",
+    "source": "cmd/internal/launcher/zellij_diagnostic_matrix_test.go",
+    "kind": "name-invalid",
+    "payload": {
+      "name": "pair-new",
+      "limit": 31
+    },
+    "expect": "accept"
+  },
+  {
+    "name": "launcher-name-probe-clients",
+    "source": "cmd/internal/launcher/zellij_name_failure_test.go",
+    "kind": "clients",
+    "payload": [],
+    "expect": "accept"
+  },
+  {
+    "name": "launcher-name-probe-no-active",
+    "source": "cmd/internal/launcher/zellij_name_failure_test.go",
+    "kind": "no-session",
+    "payload": {},
+    "expect": "accept"
+  },
+  {
+    "name": "launcher-name-probe-one-other-active",
+    "source": "cmd/internal/launcher/zellij_name_failure_test.go",
+    "kind": "not-found",
+    "payload": {
+      "name": "pair-new",
+      "active": [
+        "other"
+      ]
+    },
+    "expect": "accept"
+  },
+  {
+    "name": "launcher-collection-empty-inventory",
+    "source": "cmd/internal/launcher/query_collection_diagnostic_test.go",
+    "kind": "no-sessions",
+    "payload": {},
+    "expect": "accept"
+  },
+  {
+    "name": "launcher-collection-absent-name",
+    "source": "cmd/internal/launcher/query_collection_diagnostic_test.go",
+    "kind": "no-session",
+    "payload": {},
+    "expect": "accept"
+  },
+  {
+    "name": "launcher-collection-validator",
+    "source": "cmd/internal/launcher/query_collection_diagnostic_test.go",
+    "kind": "name-invalid",
+    "payload": {
+      "name": "pair-new",
+      "limit": 108
+    },
+    "expect": "accept"
+  },
+  {
+    "name": "native-stub-attached",
+    "source": "cmd/internal/pairlifecycletest/zellij_stub.go",
+    "kind": "clients",
+    "payload": [
+      {
+        "id": 1,
+        "pane_id": "terminal_0",
+        "running_command": "sh"
+      }
+    ],
+    "expect": "accept"
+  },
+  {
+    "name": "native-stub-detached",
+    "source": "cmd/internal/pairlifecycletest/zellij_stub.go",
+    "kind": "clients",
+    "payload": [],
+    "expect": "accept"
+  },
+  {
+    "name": "native-stub-no-sessions",
+    "source": "cmd/internal/pairlifecycletest/zellij_stub.go",
+    "kind": "no-sessions",
+    "payload": {},
+    "expect": "accept"
+  },
+  {
+    "name": "native-stub-short",
+    "source": "cmd/internal/pairlifecycletest/zellij_stub.go",
+    "kind": "sessions-short",
+    "payload": [
+      "pair-a",
+      "pair-b"
+    ],
+    "expect": "accept"
+  },
+  {
+    "name": "native-stub-full",
+    "source": "cmd/internal/pairlifecycletest/zellij_stub.go",
+    "kind": "sessions-full",
+    "payload": [
+      "pair-a",
+      {
+        "name": "pair-b",
+        "exited": true
+      }
+    ],
+    "expect": "accept"
+  },
+  {
+    "name": "lifecycle-readiness-full",
+    "source": "cmd/internal/pairlifecycletest/live_zellij_readiness_test.go",
+    "kind": "sessions-full",
+    "payload": [
+      "owned-test"
+    ],
+    "expect": "accept"
+  },
+  {
+    "name": "launcher-snapshot-failure-short",
+    "source": "cmd/internal/launcher/zellij_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "",
+      "stderr": "query failed\n",
+      "code": 1
+    },
+    "expect": "reject",
+    "decoder": "sessions-short"
+  },
+  {
+    "name": "launcher-snapshot-failure-full",
+    "source": "cmd/internal/launcher/zellij_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "",
+      "stderr": "query failed\n",
+      "code": 1
+    },
+    "expect": "reject",
+    "decoder": "sessions-full"
+  },
+  {
+    "name": "launcher-snapshot-failure-clients",
+    "source": "cmd/internal/launcher/zellij_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "",
+      "stderr": "query failed\n",
+      "code": 1
+    },
+    "expect": "reject",
+    "decoder": "clients"
+  },
+  {
+    "name": "launcher-empty-diagnostic-empty",
+    "source": "cmd/internal/launcher/zellij_test.go",
+    "kind": "no-sessions",
+    "payload": {},
+    "expect": "accept"
+  },
+  {
+    "name": "launcher-empty-diagnostic-unknown-error",
+    "source": "cmd/internal/launcher/zellij_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "",
+      "stderr": "query failed\n",
+      "code": 1
+    },
+    "expect": "reject",
+    "decoder": "sessions-short"
+  },
+  {
+    "name": "launcher-empty-diagnostic-wrong-exit-status",
+    "source": "cmd/internal/launcher/zellij_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "",
+      "stderr": "No active zellij sessions found.\n",
+      "code": 2
+    },
+    "expect": "reject",
+    "decoder": "sessions-short"
+  },
+  {
+    "name": "launcher-empty-diagnostic-partial-stdout",
+    "source": "cmd/internal/launcher/zellij_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "pair-a",
+      "stderr": "No active zellij sessions found.\n",
+      "code": 1
+    },
+    "expect": "reject",
+    "decoder": "sessions-short"
+  },
+  {
+    "name": "launcher-empty-diagnostic-extra-diagnostic",
+    "source": "cmd/internal/launcher/zellij_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "",
+      "stderr": "No active zellij sessions found. additional error\n",
+      "code": 1
+    },
+    "expect": "reject",
+    "decoder": "sessions-short"
+  },
+  {
+    "name": "launcher-empty-unanswered",
+    "source": "cmd/internal/launcher/zellij_empty_legacy_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "",
+      "stderr": "",
+      "code": 0
+    },
+    "expect": "reject",
+    "decoder": "clients"
+  },
+  {
+    "name": "launcher-empty-stderr-only",
+    "source": "cmd/internal/launcher/zellij_empty_legacy_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "",
+      "stderr": "unrelated warning\n",
+      "code": 0
+    },
+    "expect": "reject",
+    "decoder": "name",
+    "requested_name": "pair-probe-name"
+  },
+  {
+    "name": "launcher-observer-unanswered",
+    "source": "cmd/internal/launcher/zellij_query_observer_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "",
+      "stderr": "",
+      "code": 0
+    },
+    "expect": "reject",
+    "decoder": "clients"
+  },
+  {
+    "name": "launcher-observer-partial-failure",
+    "source": "cmd/internal/launcher/zellij_query_observer_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "partial\n",
+      "stderr": "query failed\n",
+      "code": 7
+    },
+    "expect": "reject",
+    "decoder": "clients"
+  },
+  {
+    "name": "launcher-warm-attach-query-failure",
+    "source": "cmd/internal/launcher/session_listing_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "chosen [Created 1s ago]\n",
+      "stderr": "",
+      "code": 1
+    },
+    "expect": "reject",
+    "decoder": "sessions-full"
+  },
+  {
+    "name": "launcher-quiescence-unknown",
+    "source": "cmd/internal/launcher/session_quiescence_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "",
+      "stderr": "session inventory unavailable\n",
+      "code": 1
+    },
+    "expect": "reject",
+    "decoder": "sessions-full"
+  },
+  {
+    "name": "launcher-name-probe-wrong-status",
+    "source": "cmd/internal/launcher/zellij_name_failure_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "",
+      "stderr": "There is no active session!\n",
+      "code": 2
+    },
+    "expect": "reject",
+    "decoder": "name",
+    "requested_name": "pair-new"
+  },
+  {
+    "name": "launcher-name-probe-partial-stdout",
+    "source": "cmd/internal/launcher/zellij_name_failure_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "partial",
+      "stderr": "There is no active session!\n",
+      "code": 1
+    },
+    "expect": "reject",
+    "decoder": "name",
+    "requested_name": "pair-new"
+  },
+  {
+    "name": "launcher-name-probe-other-request",
+    "source": "cmd/internal/launcher/zellij_name_failure_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "",
+      "stderr": "Session 'foreign' not found. The following sessions are active:\nother\n",
+      "code": 1
+    },
+    "expect": "reject",
+    "decoder": "name",
+    "requested_name": "pair-new"
+  },
+  {
+    "name": "launcher-name-probe-extra-diagnostic",
+    "source": "cmd/internal/launcher/zellij_name_failure_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "",
+      "stderr": "Session 'pair-new' not found. The following sessions are active:\nother\nfailed to connect\n",
+      "code": 1
+    },
+    "expect": "reject",
+    "decoder": "name",
+    "requested_name": "pair-new"
+  },
+  {
+    "name": "launcher-name-probe-discovery-failed",
+    "source": "cmd/internal/launcher/zellij_name_failure_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "",
+      "stderr": "Session 'pair-new' not found. The following sessions are active:\nError occurred: unavailable\n",
+      "code": 1
+    },
+    "expect": "reject",
+    "decoder": "name",
+    "requested_name": "pair-new"
+  },
+  {
+    "name": "launcher-name-probe-discovery-empty",
+    "source": "cmd/internal/launcher/zellij_name_failure_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "",
+      "stderr": "Session 'pair-new' not found. The following sessions are active:\nNo active zellij sessions found.\n",
+      "code": 1
+    },
+    "expect": "reject",
+    "decoder": "name",
+    "requested_name": "pair-new"
+  },
+  {
+    "name": "launcher-name-probe-unrelated-stderr",
+    "source": "cmd/internal/launcher/zellij_name_failure_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "",
+      "stderr": "failed to connect\n",
+      "code": 1
+    },
+    "expect": "reject",
+    "decoder": "name",
+    "requested_name": "pair-new"
+  },
+  {
+    "name": "launcher-name-probe-empty-success",
+    "source": "cmd/internal/launcher/zellij_name_failure_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "",
+      "stderr": "",
+      "code": 0
+    },
+    "expect": "reject",
+    "decoder": "name",
+    "requested_name": "pair-new"
+  },
+  {
+    "name": "launcher-name-failure-failed-connect-stderr",
+    "source": "cmd/internal/launcher/zellij_name_failure_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "",
+      "stderr": "failed to connect to Zellij session\n",
+      "code": 2
+    },
+    "expect": "reject",
+    "decoder": "name",
+    "requested_name": "pair-probe-name"
+  },
+  {
+    "name": "launcher-name-failure-nonzero-partial-stdout",
+    "source": "cmd/internal/launcher/zellij_name_failure_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "CLIENT_ID\n",
+      "stderr": "",
+      "code": 2
+    },
+    "expect": "reject",
+    "decoder": "name",
+    "requested_name": "pair-probe-name"
+  },
+  {
+    "name": "launcher-name-failure-timeout-partial-stdout",
+    "source": "cmd/internal/launcher/zellij_name_failure_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "CLIENT_ID\n",
+      "stderr": "",
+      "code": 0
+    },
+    "expect": "reject",
+    "decoder": "name",
+    "requested_name": "pair-probe-name"
+  },
+  {
+    "name": "launcher-name-failure-timeout-partial-stderr",
+    "source": "cmd/internal/launcher/zellij_name_failure_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "",
+      "stderr": "failed to connect to Zellij session\n",
+      "code": 0
+    },
+    "expect": "reject",
+    "decoder": "name",
+    "requested_name": "pair-probe-name"
+  },
+  {
+    "name": "launcher-name-failure-timeout-partial-validator",
+    "source": "cmd/internal/launcher/zellij_name_failure_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "",
+      "stderr": "session name must be less than 108 characters\n",
+      "code": 0
+    },
+    "expect": "reject",
+    "decoder": "name",
+    "requested_name": "pair-probe-name"
+  },
+  {
+    "name": "launcher-frames-short",
+    "source": "cmd/internal/launcher/zellij_empty_reply_test.go",
+    "kind": "sessions-short",
+    "payload": [
+      "pair-a"
+    ],
+    "expect": "accept"
+  },
+  {
+    "name": "launcher-frames-full",
+    "source": "cmd/internal/launcher/zellij_empty_reply_test.go",
+    "kind": "sessions-full",
+    "payload": [
+      "pair-a"
+    ],
+    "expect": "accept"
+  },
+  {
+    "name": "launcher-frames-clients",
+    "source": "cmd/internal/launcher/zellij_empty_reply_test.go",
+    "kind": "clients",
+    "payload": [
+      {
+        "id": 1,
+        "pane_id": "terminal_0",
+        "running_command": "sh"
+      }
+    ],
+    "expect": "accept"
+  },
+  {
+    "name": "launcher-frames-owned-panes",
+    "source": "cmd/internal/launcher/zellij_empty_reply_test.go",
+    "kind": "panes",
+    "payload": [
+      {
+        "id": 1,
+        "pane_command": "nvim /tmp/data/repos/0123456789abcdef/draft-1-repo-1.md"
+      }
+    ],
+    "expect": "accept"
+  },
+  {
+    "name": "launcher-frames-late-unconsumed",
+    "source": "cmd/internal/launcher/zellij_empty_reply_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "unconsumed late reply",
+      "stderr": "",
+      "code": 0
+    },
+    "expect": "reject",
+    "decoder": "clients"
+  },
+  {
+    "name": "launcher-frames-whitespace",
+    "source": "cmd/internal/launcher/zellij_empty_reply_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": " \n\t",
+      "stderr": "",
+      "code": 0
+    },
+    "expect": "reject",
+    "decoder": "clients"
+  },
+  {
+    "name": "launcher-frames-owner-whitespace",
+    "source": "cmd/internal/launcher/zellij_empty_reply_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": " \t\n",
+      "stderr": "",
+      "code": 0
+    },
+    "expect": "reject",
+    "decoder": "panes"
+  },
+  {
+    "name": "launcher-frames-malformed",
+    "source": "cmd/internal/launcher/zellij_empty_reply_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "{malformed",
+      "stderr": "",
+      "code": 0
+    },
+    "expect": "reject",
+    "decoder": "panes"
+  },
+  {
+    "name": "launcher-frames-no-sessions",
+    "source": "cmd/internal/launcher/zellij_empty_reply_test.go",
+    "kind": "no-sessions",
+    "payload": {},
+    "expect": "accept"
+  },
+  {
+    "name": "launcher-matrix-native-validator",
+    "source": "cmd/internal/launcher/zellij_diagnostic_matrix_test.go",
+    "kind": "name-invalid",
+    "payload": {
+      "name": "pair-new",
+      "limit": 108
+    },
+    "expect": "accept",
+    "requested_name": "pair-new"
+  },
+  {
+    "name": "launcher-matrix-native-zero-limit",
+    "source": "cmd/internal/launcher/zellij_diagnostic_matrix_test.go",
+    "kind": "name-invalid",
+    "payload": {
+      "name": "pair-new",
+      "limit": 0
+    },
+    "expect": "accept",
+    "requested_name": "pair-new"
+  },
+  {
+    "name": "launcher-matrix-native-empty-inventory",
+    "source": "cmd/internal/launcher/zellij_diagnostic_matrix_test.go",
+    "kind": "no-sessions",
+    "payload": {},
+    "expect": "accept",
+    "requested_name": "pair-new"
+  },
+  {
+    "name": "launcher-matrix-native-no-active",
+    "source": "cmd/internal/launcher/zellij_diagnostic_matrix_test.go",
+    "kind": "no-session",
+    "payload": {},
+    "expect": "accept",
+    "requested_name": "pair-new"
+  },
+  {
+    "name": "launcher-matrix-native-other-active",
+    "source": "cmd/internal/launcher/zellij_diagnostic_matrix_test.go",
+    "kind": "not-found",
+    "payload": {
+      "name": "pair-new",
+      "active": [
+        "other"
+      ]
+    },
+    "expect": "accept",
+    "requested_name": "pair-new"
+  },
+  {
+    "name": "launcher-matrix-strict-zero-clients",
+    "source": "cmd/internal/launcher/zellij_diagnostic_matrix_test.go",
+    "kind": "clients",
+    "payload": [],
+    "expect": "accept",
+    "requested_name": "pair-new"
+  },
+  {
+    "name": "launcher-matrix-strict-one-client",
+    "source": "cmd/internal/launcher/zellij_diagnostic_matrix_test.go",
+    "kind": "clients",
+    "payload": [
+      {
+        "id": 1,
+        "pane_id": "terminal_0",
+        "running_command": "sh"
+      }
+    ],
+    "expect": "accept",
+    "requested_name": "pair-new"
+  },
+  {
+    "name": "launcher-matrix-strict-inventory",
+    "source": "cmd/internal/launcher/zellij_diagnostic_matrix_test.go",
+    "kind": "sessions-full",
+    "payload": [
+      "pair-new"
+    ],
+    "expect": "accept",
+    "requested_name": "pair-new"
+  },
+  {
+    "name": "launcher-matrix-empty-success",
+    "source": "cmd/internal/launcher/zellij_diagnostic_matrix_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "",
+      "stderr": "",
+      "code": 0
+    },
+    "expect": "reject",
+    "decoder": "name",
+    "requested_name": "pair-new"
+  },
+  {
+    "name": "launcher-matrix-unrelated-success",
+    "source": "cmd/internal/launcher/zellij_diagnostic_matrix_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "unrelated output\n",
+      "stderr": "",
+      "code": 0
+    },
+    "expect": "reject",
+    "decoder": "name",
+    "requested_name": "pair-new"
+  },
+  {
+    "name": "launcher-matrix-malformed-clients",
+    "source": "cmd/internal/launcher/zellij_diagnostic_matrix_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\nbroken\n",
+      "stderr": "",
+      "code": 0
+    },
+    "expect": "reject",
+    "decoder": "name",
+    "requested_name": "pair-new"
+  },
+  {
+    "name": "launcher-matrix-success-validator-stderr-only",
+    "source": "cmd/internal/launcher/zellij_diagnostic_matrix_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "",
+      "stderr": "error: invalid value 'pair-new' for '--session <SESSION>': session name must be less than 108 characters\n\nFor more information, try '--help'.\n",
+      "code": 0
+    },
+    "expect": "reject",
+    "decoder": "name",
+    "requested_name": "pair-new"
+  },
+  {
+    "name": "launcher-matrix-success-clients-validator-stderr",
+    "source": "cmd/internal/launcher/zellij_diagnostic_matrix_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\n",
+      "stderr": "error: invalid value 'pair-new' for '--session <SESSION>': session name must be less than 108 characters\n\nFor more information, try '--help'.\n",
+      "code": 0
+    },
+    "expect": "accept",
+    "decoder": "name",
+    "requested_name": "pair-new"
+  },
+  {
+    "name": "launcher-matrix-validator-status-0",
+    "source": "cmd/internal/launcher/zellij_diagnostic_matrix_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "",
+      "stderr": "error: invalid value 'pair-new' for '--session <SESSION>': session name must be less than 108 characters\n\nFor more information, try '--help'.\n",
+      "code": 0
+    },
+    "expect": "reject",
+    "decoder": "name",
+    "requested_name": "pair-new"
+  },
+  {
+    "name": "launcher-matrix-validator-status-1",
+    "source": "cmd/internal/launcher/zellij_diagnostic_matrix_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "",
+      "stderr": "error: invalid value 'pair-new' for '--session <SESSION>': session name must be less than 108 characters\n\nFor more information, try '--help'.\n",
+      "code": 1
+    },
+    "expect": "reject",
+    "decoder": "name",
+    "requested_name": "pair-new"
+  },
+  {
+    "name": "launcher-matrix-validator-status-3",
+    "source": "cmd/internal/launcher/zellij_diagnostic_matrix_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "",
+      "stderr": "error: invalid value 'pair-new' for '--session <SESSION>': session name must be less than 108 characters\n\nFor more information, try '--help'.\n",
+      "code": 3
+    },
+    "expect": "reject",
+    "decoder": "name",
+    "requested_name": "pair-new"
+  },
+  {
+    "name": "launcher-matrix-validator-status-127",
+    "source": "cmd/internal/launcher/zellij_diagnostic_matrix_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "",
+      "stderr": "error: invalid value 'pair-new' for '--session <SESSION>': session name must be less than 108 characters\n\nFor more information, try '--help'.\n",
+      "code": 127
+    },
+    "expect": "reject",
+    "decoder": "name",
+    "requested_name": "pair-new"
+  },
+  {
+    "name": "launcher-matrix-validator-stdout-\" \"",
+    "source": "cmd/internal/launcher/zellij_diagnostic_matrix_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": " ",
+      "stderr": "error: invalid value 'pair-new' for '--session <SESSION>': session name must be less than 108 characters\n\nFor more information, try '--help'.\n",
+      "code": 2
+    },
+    "expect": "reject",
+    "decoder": "name",
+    "requested_name": "pair-new"
+  },
+  {
+    "name": "launcher-matrix-validator-stdout-\"\\n\"",
+    "source": "cmd/internal/launcher/zellij_diagnostic_matrix_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "\n",
+      "stderr": "error: invalid value 'pair-new' for '--session <SESSION>': session name must be less than 108 characters\n\nFor more information, try '--help'.\n",
+      "code": 2
+    },
+    "expect": "reject",
+    "decoder": "name",
+    "requested_name": "pair-new"
+  },
+  {
+    "name": "launcher-matrix-validator-stdout-\"unrelated output\\n\"",
+    "source": "cmd/internal/launcher/zellij_diagnostic_matrix_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "unrelated output\n",
+      "stderr": "error: invalid value 'pair-new' for '--session <SESSION>': session name must be less than 108 characters\n\nFor more information, try '--help'.\n",
+      "code": 2
+    },
+    "expect": "reject",
+    "decoder": "name",
+    "requested_name": "pair-new"
+  },
+  {
+    "name": "launcher-matrix-validator-stdout-\"CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\\n\"",
+    "source": "cmd/internal/launcher/zellij_diagnostic_matrix_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\n",
+      "stderr": "error: invalid value 'pair-new' for '--session <SESSION>': session name must be less than 108 characters\n\nFor more information, try '--help'.\n",
+      "code": 2
+    },
+    "expect": "reject",
+    "decoder": "name",
+    "requested_name": "pair-new"
+  },
+  {
+    "name": "launcher-matrix-validator-stdout-\"error: invalid value 'pair-new' for '--session <SESSION>': session name must be less than 108 characters\\n\\nFor more information, try '--help'.\\n\"",
+    "source": "cmd/internal/launcher/zellij_diagnostic_matrix_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "error: invalid value 'pair-new' for '--session <SESSION>': session name must be less than 108 characters\n\nFor more information, try '--help'.\n",
+      "stderr": "error: invalid value 'pair-new' for '--session <SESSION>': session name must be less than 108 characters\n\nFor more information, try '--help'.\n",
+      "code": 2
+    },
+    "expect": "reject",
+    "decoder": "name",
+    "requested_name": "pair-new"
+  },
+  {
+    "name": "launcher-matrix-wrong-target",
+    "source": "cmd/internal/launcher/zellij_diagnostic_matrix_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "",
+      "stderr": "error: invalid value 'foreign' for '--session <SESSION>': session name must be less than 108 characters\n\nFor more information, try '--help'.\n",
+      "code": 2
+    },
+    "expect": "reject",
+    "decoder": "name",
+    "requested_name": "pair-new"
+  },
+  {
+    "name": "launcher-matrix-missing-target",
+    "source": "cmd/internal/launcher/zellij_diagnostic_matrix_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "",
+      "stderr": "error: session name must be less than 108 characters\n",
+      "code": 2
+    },
+    "expect": "reject",
+    "decoder": "name",
+    "requested_name": "pair-new"
+  },
+  {
+    "name": "launcher-matrix-substring-only",
+    "source": "cmd/internal/launcher/zellij_diagnostic_matrix_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "",
+      "stderr": "session name must be less than 108 characters",
+      "code": 2
+    },
+    "expect": "reject",
+    "decoder": "name",
+    "requested_name": "pair-new"
+  },
+  {
+    "name": "launcher-matrix-wrong-option",
+    "source": "cmd/internal/launcher/zellij_diagnostic_matrix_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "",
+      "stderr": "error: invalid value 'pair-new' for '--layout <LAYOUT>': session name must be less than 108 characters\n\nFor more information, try '--help'.\n",
+      "code": 2
+    },
+    "expect": "reject",
+    "decoder": "name",
+    "requested_name": "pair-new"
+  },
+  {
+    "name": "launcher-matrix-wrong-header",
+    "source": "cmd/internal/launcher/zellij_diagnostic_matrix_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "",
+      "stderr": "warning: invalid value 'pair-new' for '--session <SESSION>': session name must be less than 108 characters\n\nFor more information, try '--help'.\n",
+      "code": 2
+    },
+    "expect": "reject",
+    "decoder": "name",
+    "requested_name": "pair-new"
+  },
+  {
+    "name": "launcher-matrix-missing-header",
+    "source": "cmd/internal/launcher/zellij_diagnostic_matrix_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "",
+      "stderr": "invalid value 'pair-new' for '--session <SESSION>': session name must be less than 108 characters\n\nFor more information, try '--help'.\n",
+      "code": 2
+    },
+    "expect": "reject",
+    "decoder": "name",
+    "requested_name": "pair-new"
+  },
+  {
+    "name": "launcher-matrix-wrong-footer",
+    "source": "cmd/internal/launcher/zellij_diagnostic_matrix_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "",
+      "stderr": "error: invalid value 'pair-new' for '--session <SESSION>': session name must be less than 108 characters\n\nFor more information, try '--version'.\n",
+      "code": 2
+    },
+    "expect": "reject",
+    "decoder": "name",
+    "requested_name": "pair-new"
+  },
+  {
+    "name": "launcher-matrix-missing-footer",
+    "source": "cmd/internal/launcher/zellij_diagnostic_matrix_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "",
+      "stderr": "error: invalid value 'pair-new' for '--session <SESSION>': session name must be less than 108 characters\n",
+      "code": 2
+    },
+    "expect": "reject",
+    "decoder": "name",
+    "requested_name": "pair-new"
+  },
+  {
+    "name": "launcher-matrix-missing-separator",
+    "source": "cmd/internal/launcher/zellij_diagnostic_matrix_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "",
+      "stderr": "error: invalid value 'pair-new' for '--session <SESSION>': session name must be less than 108 characters\nFor more information, try '--help'.\n",
+      "code": 2
+    },
+    "expect": "reject",
+    "decoder": "name",
+    "requested_name": "pair-new"
+  },
+  {
+    "name": "launcher-matrix-missing-final-newline",
+    "source": "cmd/internal/launcher/zellij_diagnostic_matrix_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "",
+      "stderr": "error: invalid value 'pair-new' for '--session <SESSION>': session name must be less than 108 characters\n\nFor more information, try '--help'.",
+      "code": 2
+    },
+    "expect": "reject",
+    "decoder": "name",
+    "requested_name": "pair-new"
+  },
+  {
+    "name": "launcher-matrix-extra-prefix",
+    "source": "cmd/internal/launcher/zellij_diagnostic_matrix_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "",
+      "stderr": "another error\nerror: invalid value 'pair-new' for '--session <SESSION>': session name must be less than 108 characters\n\nFor more information, try '--help'.\n",
+      "code": 2
+    },
+    "expect": "reject",
+    "decoder": "name",
+    "requested_name": "pair-new"
+  },
+  {
+    "name": "launcher-matrix-extra-suffix",
+    "source": "cmd/internal/launcher/zellij_diagnostic_matrix_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "",
+      "stderr": "error: invalid value 'pair-new' for '--session <SESSION>': session name must be less than 108 characters\n\nFor more information, try '--help'.\nanother error\n",
+      "code": 2
+    },
+    "expect": "reject",
+    "decoder": "name",
+    "requested_name": "pair-new"
+  },
+  {
+    "name": "launcher-matrix-extra-blank",
+    "source": "cmd/internal/launcher/zellij_diagnostic_matrix_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "",
+      "stderr": "error: invalid value 'pair-new' for '--session <SESSION>': session name must be less than 108 characters\n\nFor more information, try '--help'.\n\n",
+      "code": 2
+    },
+    "expect": "reject",
+    "decoder": "name",
+    "requested_name": "pair-new"
+  },
+  {
+    "name": "launcher-matrix-crlf",
+    "source": "cmd/internal/launcher/zellij_diagnostic_matrix_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "",
+      "stderr": "error: invalid value 'pair-new' for '--session <SESSION>': session name must be less than 108 characters\r\n\r\nFor more information, try '--help'.\r\n",
+      "code": 2
+    },
+    "expect": "reject",
+    "decoder": "name",
+    "requested_name": "pair-new"
+  },
+  {
+    "name": "launcher-matrix-noncanonical-limit-",
+    "source": "cmd/internal/launcher/zellij_diagnostic_matrix_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "",
+      "stderr": "error: invalid value 'pair-new' for '--session <SESSION>': session name must be less than  characters\n\nFor more information, try '--help'.\n",
+      "code": 2
+    },
+    "expect": "reject",
+    "decoder": "name",
+    "requested_name": "pair-new"
+  },
+  {
+    "name": "launcher-matrix-noncanonical-limit-00",
+    "source": "cmd/internal/launcher/zellij_diagnostic_matrix_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "",
+      "stderr": "error: invalid value 'pair-new' for '--session <SESSION>': session name must be less than 00 characters\n\nFor more information, try '--help'.\n",
+      "code": 2
+    },
+    "expect": "reject",
+    "decoder": "name",
+    "requested_name": "pair-new"
+  },
+  {
+    "name": "launcher-matrix-noncanonical-limit-01",
+    "source": "cmd/internal/launcher/zellij_diagnostic_matrix_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "",
+      "stderr": "error: invalid value 'pair-new' for '--session <SESSION>': session name must be less than 01 characters\n\nFor more information, try '--help'.\n",
+      "code": 2
+    },
+    "expect": "reject",
+    "decoder": "name",
+    "requested_name": "pair-new"
+  },
+  {
+    "name": "launcher-matrix-noncanonical-limit-+1",
+    "source": "cmd/internal/launcher/zellij_diagnostic_matrix_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "",
+      "stderr": "error: invalid value 'pair-new' for '--session <SESSION>': session name must be less than +1 characters\n\nFor more information, try '--help'.\n",
+      "code": 2
+    },
+    "expect": "reject",
+    "decoder": "name",
+    "requested_name": "pair-new"
+  },
+  {
+    "name": "launcher-matrix-noncanonical-limit--1",
+    "source": "cmd/internal/launcher/zellij_diagnostic_matrix_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "",
+      "stderr": "error: invalid value 'pair-new' for '--session <SESSION>': session name must be less than -1 characters\n\nFor more information, try '--help'.\n",
+      "code": 2
+    },
+    "expect": "reject",
+    "decoder": "name",
+    "requested_name": "pair-new"
+  },
+  {
+    "name": "launcher-matrix-noncanonical-limit-1.0",
+    "source": "cmd/internal/launcher/zellij_diagnostic_matrix_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "",
+      "stderr": "error: invalid value 'pair-new' for '--session <SESSION>': session name must be less than 1.0 characters\n\nFor more information, try '--help'.\n",
+      "code": 2
+    },
+    "expect": "reject",
+    "decoder": "name",
+    "requested_name": "pair-new"
+  },
+  {
+    "name": "launcher-matrix-noncanonical-limit- 1",
+    "source": "cmd/internal/launcher/zellij_diagnostic_matrix_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "",
+      "stderr": "error: invalid value 'pair-new' for '--session <SESSION>': session name must be less than  1 characters\n\nFor more information, try '--help'.\n",
+      "code": 2
+    },
+    "expect": "reject",
+    "decoder": "name",
+    "requested_name": "pair-new"
+  },
+  {
+    "name": "launcher-matrix-noncanonical-limit-1 ",
+    "source": "cmd/internal/launcher/zellij_diagnostic_matrix_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "",
+      "stderr": "error: invalid value 'pair-new' for '--session <SESSION>': session name must be less than 1  characters\n\nFor more information, try '--help'.\n",
+      "code": 2
+    },
+    "expect": "reject",
+    "decoder": "name",
+    "requested_name": "pair-new"
+  },
+  {
+    "name": "launcher-matrix-noncanonical-limit-one",
+    "source": "cmd/internal/launcher/zellij_diagnostic_matrix_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "",
+      "stderr": "error: invalid value 'pair-new' for '--session <SESSION>': session name must be less than one characters\n\nFor more information, try '--help'.\n",
+      "code": 2
+    },
+    "expect": "reject",
+    "decoder": "name",
+    "requested_name": "pair-new"
+  },
+  {
+    "name": "launcher-matrix-noncanonical-limit-99999999999999999999999999999999999999",
+    "source": "cmd/internal/launcher/zellij_diagnostic_matrix_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "",
+      "stderr": "error: invalid value 'pair-new' for '--session <SESSION>': session name must be less than 99999999999999999999999999999999999999 characters\n\nFor more information, try '--help'.\n",
+      "code": 2
+    },
+    "expect": "reject",
+    "decoder": "name",
+    "requested_name": "pair-new"
+  },
+  {
+    "name": "launcher-matrix-native-empty-inventory-status-0",
+    "source": "cmd/internal/launcher/zellij_diagnostic_matrix_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "",
+      "stderr": "No active zellij sessions found.\n",
+      "code": 0
+    },
+    "expect": "reject",
+    "decoder": "name",
+    "requested_name": "pair-new"
+  },
+  {
+    "name": "launcher-matrix-native-empty-inventory-status-2",
+    "source": "cmd/internal/launcher/zellij_diagnostic_matrix_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "",
+      "stderr": "No active zellij sessions found.\n",
+      "code": 2
+    },
+    "expect": "reject",
+    "decoder": "name",
+    "requested_name": "pair-new"
+  },
+  {
+    "name": "launcher-matrix-native-empty-inventory-status-3",
+    "source": "cmd/internal/launcher/zellij_diagnostic_matrix_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "",
+      "stderr": "No active zellij sessions found.\n",
+      "code": 3
+    },
+    "expect": "reject",
+    "decoder": "name",
+    "requested_name": "pair-new"
+  },
+  {
+    "name": "launcher-matrix-native-empty-inventory-stdout-\" \"",
+    "source": "cmd/internal/launcher/zellij_diagnostic_matrix_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": " ",
+      "stderr": "No active zellij sessions found.\n",
+      "code": 1
+    },
+    "expect": "reject",
+    "decoder": "name",
+    "requested_name": "pair-new"
+  },
+  {
+    "name": "launcher-matrix-native-empty-inventory-stdout-\"unrelated\\n\"",
+    "source": "cmd/internal/launcher/zellij_diagnostic_matrix_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "unrelated\n",
+      "stderr": "No active zellij sessions found.\n",
+      "code": 1
+    },
+    "expect": "reject",
+    "decoder": "name",
+    "requested_name": "pair-new"
+  },
+  {
+    "name": "launcher-matrix-native-empty-inventory-extra-diagnostic",
+    "source": "cmd/internal/launcher/zellij_diagnostic_matrix_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "",
+      "stderr": "No active zellij sessions found.\nanother error\n",
+      "code": 1
+    },
+    "expect": "reject",
+    "decoder": "name",
+    "requested_name": "pair-new"
+  },
+  {
+    "name": "launcher-matrix-native-no-active-status-0",
+    "source": "cmd/internal/launcher/zellij_diagnostic_matrix_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "",
+      "stderr": "There is no active session!\n",
+      "code": 0
+    },
+    "expect": "reject",
+    "decoder": "name",
+    "requested_name": "pair-new"
+  },
+  {
+    "name": "launcher-matrix-native-no-active-status-2",
+    "source": "cmd/internal/launcher/zellij_diagnostic_matrix_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "",
+      "stderr": "There is no active session!\n",
+      "code": 2
+    },
+    "expect": "reject",
+    "decoder": "name",
+    "requested_name": "pair-new"
+  },
+  {
+    "name": "launcher-matrix-native-no-active-status-3",
+    "source": "cmd/internal/launcher/zellij_diagnostic_matrix_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "",
+      "stderr": "There is no active session!\n",
+      "code": 3
+    },
+    "expect": "reject",
+    "decoder": "name",
+    "requested_name": "pair-new"
+  },
+  {
+    "name": "launcher-matrix-native-no-active-stdout-\" \"",
+    "source": "cmd/internal/launcher/zellij_diagnostic_matrix_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": " ",
+      "stderr": "There is no active session!\n",
+      "code": 1
+    },
+    "expect": "reject",
+    "decoder": "name",
+    "requested_name": "pair-new"
+  },
+  {
+    "name": "launcher-matrix-native-no-active-stdout-\"unrelated\\n\"",
+    "source": "cmd/internal/launcher/zellij_diagnostic_matrix_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "unrelated\n",
+      "stderr": "There is no active session!\n",
+      "code": 1
+    },
+    "expect": "reject",
+    "decoder": "name",
+    "requested_name": "pair-new"
+  },
+  {
+    "name": "launcher-matrix-native-no-active-extra-diagnostic",
+    "source": "cmd/internal/launcher/zellij_diagnostic_matrix_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "",
+      "stderr": "There is no active session!\nanother error\n",
+      "code": 1
+    },
+    "expect": "reject",
+    "decoder": "name",
+    "requested_name": "pair-new"
+  },
+  {
+    "name": "launcher-matrix-native-other-active-status-0",
+    "source": "cmd/internal/launcher/zellij_diagnostic_matrix_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "",
+      "stderr": "Session 'pair-new' not found. The following sessions are active:\nother\n",
+      "code": 0
+    },
+    "expect": "reject",
+    "decoder": "name",
+    "requested_name": "pair-new"
+  },
+  {
+    "name": "launcher-matrix-native-other-active-status-2",
+    "source": "cmd/internal/launcher/zellij_diagnostic_matrix_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "",
+      "stderr": "Session 'pair-new' not found. The following sessions are active:\nother\n",
+      "code": 2
+    },
+    "expect": "reject",
+    "decoder": "name",
+    "requested_name": "pair-new"
+  },
+  {
+    "name": "launcher-matrix-native-other-active-status-3",
+    "source": "cmd/internal/launcher/zellij_diagnostic_matrix_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "",
+      "stderr": "Session 'pair-new' not found. The following sessions are active:\nother\n",
+      "code": 3
+    },
+    "expect": "reject",
+    "decoder": "name",
+    "requested_name": "pair-new"
+  },
+  {
+    "name": "launcher-matrix-native-other-active-stdout-\" \"",
+    "source": "cmd/internal/launcher/zellij_diagnostic_matrix_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": " ",
+      "stderr": "Session 'pair-new' not found. The following sessions are active:\nother\n",
+      "code": 1
+    },
+    "expect": "reject",
+    "decoder": "name",
+    "requested_name": "pair-new"
+  },
+  {
+    "name": "launcher-matrix-native-other-active-stdout-\"unrelated\\n\"",
+    "source": "cmd/internal/launcher/zellij_diagnostic_matrix_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "unrelated\n",
+      "stderr": "Session 'pair-new' not found. The following sessions are active:\nother\n",
+      "code": 1
+    },
+    "expect": "reject",
+    "decoder": "name",
+    "requested_name": "pair-new"
+  },
+  {
+    "name": "launcher-matrix-native-other-active-extra-diagnostic",
+    "source": "cmd/internal/launcher/zellij_diagnostic_matrix_test.go",
+    "kind": "fault",
+    "payload": {
+      "stdout": "",
+      "stderr": "Session 'pair-new' not found. The following sessions are active:\nother\nanother error\n",
+      "code": 1
+    },
+    "expect": "reject",
+    "decoder": "name",
+    "requested_name": "pair-new"
+  },
+  {
+    "name": "launcher-matrix-short-prefix",
+    "source": "cmd/internal/launcher/zellij_diagnostic_matrix_test.go",
+    "kind": "sessions-short",
+    "payload": [
+      "pair-new"
+    ],
+    "expect": "accept"
+  }
+]

@@ -16,7 +16,7 @@ _G.PairTestSessionLogAppend=function(text)
 _G.PairTestSessionLogCommit=function()return true end
 _G.PairTestDOMPin=function()
  assert(not vim.bo.modifiable and _G.PairStatusline():find('preparing submission',1,true),'pin preceded visible lock/status')
- return {pane_id=7,validate=function()return true end} end
+ return {pane_id=7,validate=function()return true end,effect=function(invoke)return invoke()end} end
 _G.PairTestDOMRPC=function(op,id,cb)
  if op=='prepare' then
   preps=preps+1;ids[#ids+1]=id

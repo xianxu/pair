@@ -15,6 +15,7 @@
 set -euo pipefail
 
 SELF_DIR="$(cd -P "$(dirname "$0")" && pwd)"
+export PAIR_TEST_ZELLIJ_REPLIES="$SELF_DIR/lib/zellij_fixture_replies.py"
 fixture_root="$(mktemp -d "${TMPDIR:-/tmp}/pair-rename.XXXXXX")" || exit 1
 trap 'rm -rf "${fixture_root:?}"' EXIT
 PAIR_BIN="$fixture_root/pair"
@@ -64,7 +65,7 @@ shim_zellij() {
     local shim_dir="$1"
     cat > "$shim_dir/zellij" <<'STUB'
 #!/usr/bin/env bash
-exit 0
+exec python3 "$PAIR_TEST_ZELLIJ_REPLIES" --case rename.no-sessions
 STUB
     chmod +x "$shim_dir/zellij"
 }

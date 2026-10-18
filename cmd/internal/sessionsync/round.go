@@ -3,7 +3,9 @@ package sessionsync
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -215,4 +217,158 @@ func decodeRound(raw []byte) (*Round, error) {
 
 func roundInvalid(reason string) error {
 	return &Refusal{Exit: ExitRefused, Code: "round-invalid", Reason: "the round sidecar is unreadable: " + reason}
+}
+
+// Edit is one agent change, built purely (pair#661): the bytes to write and
+// the round they make. Changed is false for a write that changes nothing,
+// which keeps the previous round.
+type Edit struct {
+	Next     string
+	Round    Round
+	Changed  bool
+	Resolved []ResolvedEdit
+}
+
+// BuildEdit is the shared engine every edit path writes through (couch
+// --session-sync apply and pair review apply): resolve the records all or
+// nothing, then contentStep. restamp says whether this document carries an
+// `Updated` stamp the write refreshes.
+func BuildEdit(base string, edits []EditRecord, now time.Time, restamp bool) (Edit, error) {
+	next, resolved, err := resolveBatch(base, edits)
+	if err != nil {
+		return Edit{}, err
+	}
+	return contentStep(base, next, resolved, now, restamp, false)
+}
+
+// resolveBatch is ResolveEdits as a refusal: `edits-invalid` lists every bad
+// record and nothing is written.
+func resolveBatch(base string, edits []EditRecord) (string, []ResolvedEdit, error) {
+	if len(edits) == 0 {
+		return "", nil, refuse("apply needs at least one record")
+	}
+	next, resolved, bad := ResolveEdits(base, edits)
+	if len(bad) != 0 {
+		return "", nil, &Refusal{Exit: ExitRefused, Code: "edits-invalid", Invalid: bad, Reason: fmt.Sprintf(
+			"%d of %d records don't resolve against the file; nothing was written. Fix them and apply again", len(bad), len(edits))}
+	}
+	return next, resolved, nil
+}
+
+// contentStep turns an intended new text into what is written and its round.
+// The baseline is base restamped exactly when the write restamps, so the stamp
+// never forms a span; under `presentation: propose` (never for a frontmatter
+// write) the body is written as markers, and the round follows those bytes.
+// A record answering the operator's own request marker is the one exception:
+// it applies directly (answersOperator).
+func contentStep(base, next string, resolved []ResolvedEdit, now time.Time, restamp, frontmatter bool) (Edit, error) {
+	baseline := base
+	if restamp {
+		baseline, next = Restamp(base, now), Restamp(next, now)
+	}
+	presentation := Presentation(base)
+	if presentation == "propose" {
+		if err := operatorKeysKept(base, next); err != nil {
+			return Edit{}, err
+		}
+	}
+	if presentation == "propose" && !frontmatter {
+		// Direct records are applied on both sides, so the proposal diff holds
+		// only the rest.
+		direct, err := directUnderPropose(base, resolved)
+		if err != nil {
+			return Edit{}, err
+		}
+		proposeBase := baseline
+		if len(direct) != 0 {
+			proposeBase = applyResolved(base, direct)
+			if restamp {
+				proposeBase = Restamp(proposeBase, now)
+			}
+		}
+		if next, err = ProposeDocument(proposeBase, next); err != nil {
+			return Edit{}, err
+		}
+	}
+	e := Edit{Next: next, Resolved: resolved}
+	if spans, ok := DeriveRound(baseline, next, resolved); ok {
+		e.Changed = true
+		e.Round = Round{BaseHash: Hash(base), ResultHash: Hash(next), At: now.UTC(), Presentation: presentation, Spans: spans}
+	}
+	return e, nil
+}
+
+// directUnderPropose picks, under propose, the records written directly:
+//   - a record wholly inside the frontmatter block, which is never proposed;
+//   - a record answering an operator request with a side doc (answersSideDoc):
+//     the operator approved exactly that change by writing the marker. An
+//     ordinary answer (a 🤖[tighten this] rewrite) removes its marker too, and
+//     stays a proposal.
+//
+// A record crossing the frontmatter's closing line refuses; every other record
+// stays a proposal.
+func directUnderPropose(base string, resolved []ResolvedEdit) ([]ResolvedEdit, error) {
+	fmEnd := -1
+	if block, err := FrontmatterBody(base); err == nil {
+		fmEnd = len(block)
+	}
+	var direct []ResolvedEdit
+	for _, e := range resolved {
+		switch {
+		case fmEnd >= 0 && e.BaseStart < fmEnd && e.BaseEnd > fmEnd:
+			return nil, &Refusal{Exit: ExitRefused, Code: "propose-unencodable", Reason: fmt.Sprintf(
+				"record %d crosses the end of the frontmatter; edit the frontmatter and the body in separate records", e.Index)}
+		case fmEnd >= 0 && e.BaseEnd <= fmEnd, answersSideDoc(base[e.BaseStart:e.BaseEnd], e.New):
+			direct = append(direct, e)
+		}
+	}
+	return direct, nil
+}
+
+// operatorOwnedKeys set how the operator reviews; under propose an agent
+// change to either would let it switch the document out of review.
+var operatorOwnedKeys = []string{"presentation", "collaboration-mode"}
+
+// operatorKeysKept refuses, under propose, any agent write that changes an
+// operator-owned key, whichever verb wrote it (apply, write, write
+// --frontmatter): the one engine guards every path.
+func operatorKeysKept(base, next string) error {
+	for _, key := range operatorOwnedKeys {
+		if frontmatter(base, key) != frontmatter(next, key) {
+			return &Refusal{Exit: ExitRefused, Code: "operator-owned", Reason: fmt.Sprintf(
+				"`%s:` is the operator's under presentation: propose; ask them to change it", key)}
+		}
+	}
+	return nil
+}
+
+// sideDocLink is the S2/S3 side-doc link: `→ [proposal](PATH)` or
+// `→ [discussion](PATH)`; foldInOnLink is that link with its 🤖[fold in] request.
+var (
+	sideDocLink      = regexp.MustCompile(`→ \[(proposal|discussion)\]\(([^()\s]+)\)`)
+	wholeSideDocLink = regexp.MustCompile(`^→ \[(proposal|discussion)\]\(([^()\s]+)\)$`)
+	foldInOnLink     = regexp.MustCompile(`→ \[(proposal|discussion)\]\(([^()\s]+)\)\s*🤖\[fold in\]`)
+)
+
+// answersSideDoc is the narrow propose exception (TL, 2026-10-18; S3): (a)
+// old, verified in the base text, holds the operator's ready marker and no
+// side-doc link, and new is old with exactly that marker replaced by one
+// side-doc link; or (b) old holds
+// 🤖[fold in] attached to a side-doc link and new is the fold: the same link
+// kept with ` (folded YYYY-MM-DD)` appended, and the fold-in marker gone. The
+// shared conformance fixtures (testdata/edit-records/conformance) pin both.
+func answersSideDoc(old, new string) bool {
+	// (a) is exactly the marker swapped for the link: everything around it
+	// unchanged, so no rewrite can ride in with the link.
+	if i, j, ok := readyMarkerSpan(old); ok && !sideDocLink.MatchString(old) {
+		before, after := old[:i], old[j:]
+		if len(new) >= len(before)+len(after) && strings.HasPrefix(new, before) && strings.HasSuffix(new, after) {
+			return wholeSideDocLink.MatchString(new[len(before) : len(new)-len(after)])
+		}
+	}
+	if m := foldInOnLink.FindStringSubmatch(old); m != nil {
+		folded := regexp.MustCompile(regexp.QuoteMeta("→ ["+m[1]+"]("+m[2]+")") + ` \(folded \d{4}-\d\d-\d\d\)`)
+		return folded.MatchString(new) && !strings.Contains(new, "🤖[fold in]")
+	}
+	return false
 }

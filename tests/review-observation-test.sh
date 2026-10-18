@@ -4,11 +4,12 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PAIR_ROOT="$ROOT" python3 -B - <<'PY'
-import json,os,pathlib,subprocess,sys,tempfile,time
+import json,os,pathlib,shlex,subprocess,sys,tempfile,time
 root=pathlib.Path(os.environ['PAIR_ROOT'])
 sys.path.insert(0,str(root/'tests/lib'))
 from review_test_env import ReviewTestEnvironment
 from review_observation_diagnostics import observe_wanted, identity_metadata
+from review_resolver_fake import ReviewResolverFake
 pane_init=pathlib.Path(os.environ.get('PAIR_TEST_REVIEW_INIT',str(root/'nvim/review.lua')))
 with ReviewTestEnvironment() as isolated, tempfile.TemporaryDirectory(prefix='pair-observation-') as td:
     tmp=pathlib.Path(td).resolve();repo=tmp/'repo';repo.mkdir();data=tmp/'data';data.mkdir();home=tmp/'home';(home/'bin').mkdir(parents=True)
@@ -17,31 +18,48 @@ with ReviewTestEnvironment() as isolated, tempfile.TemporaryDirectory(prefix='pa
     git('init','-qb','main');git('config','user.name','T');git('config','user.email','t@e.com')
     for name in ('a','b'):(repo/(name+'.md')).write_text(name+'\n')
     git('add','.');git('commit','-qm','initial')
+    identities={}
     for name in ('a','b'):
         git('checkout','-qb','review/'+name,'main');(repo/(name+'.md')).write_text(name+' reviewed\n')
         record=dict(old=name,new=name+' reviewed',occurrence=1,new_occurrence=1,explain=name+' snapshot explanation')
-        (tmp/'msg').write_text('review('+name+'): agent r1\n\n```review-records\n'+json.dumps([record])+'\n```\n')
+        body='```review-records\n'+json.dumps([record])+'\n```\n'
+        (tmp/'msg').write_text('review('+name+'): agent r1\n\n'+body)
         git('commit','-qaF',str(tmp/'msg'))
+        head=git('rev-parse','HEAD')
+        identities['refs/heads/review/'+name]=dict(status='resolved',repo=str(repo),branch='review/'+name,
+            head=head,file=name+'.md',latest_agent_body=body,latest_agent_commit=head,human_round=0,agent_round=1)
     git('checkout','-q','review/a')
+    model_path=tmp/'resolver-model.json'
+    model_path.write_text(json.dumps(dict(repo=str(repo),by_ref=identities)))
+    resolver_fake=ReviewResolverFake(model_path)
     phase='startup';wanted_history=[];requests=[];phase_evidence=[]
     wanted_binary=os.environ.get('PAIR_TEST_OBSERVATION_WANTED_BIN',str(root/'bin/pair'))
     def resolve():
         return observe_wanted([wanted_binary,'review','readiness','--resolve',str(repo)],
-                              base_env,wanted_history,'wanted:'+phase)
+                              base_env,wanted_history,'wanted:'+phase,
+                              runner=None if os.environ.get('PAIR_TEST_OBSERVATION_WANTED_BIN') else resolver_fake.run)
 
-    (home/'bin/pair').symlink_to(root/'bin/pair')
+    # A missed fake interception is a deterministic wiring failure, not a
+    # chance for a real resolver to happen to finish within its deadline.
+    escaped=tmp/'native-resolver-escaped'
+    (home/'bin/pair').write_text('#!/bin/sh\nprintf escaped > '+shlex.quote(str(escaped))+'\nexit 91\n')
+    (home/'bin/pair').chmod(0o700)
     opened=data/'review.open'
     env=dict(base_env,PAIR_HOME=str(home),PAIR_DATA_DIR=str(data),PAIR_TAG='observation',PAIR_SESSION_ID='sid',PAIR_REVIEW_OPEN_PATH=str(opened),
         PAIR_REVIEW_HANDOFF_PATH=str(data/'handoff.json'),PAIR_REVIEW_LANDED_PATH=str(data/'landed.json'),
         PAIR_REVIEW_IDENTITY=json.dumps(resolve()),XDG_STATE_HOME=str(tmp/'state'),XDG_CACHE_HOME=str(tmp/'cache'),XDG_DATA_HOME=str(tmp/'xdg'))
     trace_path=tmp/'pane-observations.json';trace_init=tmp/'observation-init.lua'
-    trace_init.write_text('dofile('+json.dumps(str(pane_init))+')\n'+
+    trace_init.write_text('dofile('+json.dumps(str(root/'tests/lib/review_resolver_fake.lua'))+').install({model_path='+json.dumps(str(model_path))+'})\n'+
+        'dofile('+json.dumps(str(pane_init))+')\n'+
         'dofile('+json.dumps(str(root/'tests/lib/review_observation_trace.lua'))+').install({path='+json.dumps(str(trace_path))+'})\n'+
         'dofile('+json.dumps(str(root/'tests/lib/review_observation_gate.lua'))+').install()\n')
     pane=None;meta=None
 
     def evaluate(expr):return subprocess.check_output(['nvim','--server',meta['endpoint'],'--remote-expr',expr],env=env,text=True,timeout=8).strip()
     def lua(code):return evaluate("luaeval('"+code.replace("'","''")+"')")
+    def nonblocking(code):
+        return lua('(function() local before=PairReviewResolverFake:counts().waits; '+code+
+                   '; return PairReviewResolverFake:counts().waits==before end)()')=='true'
     def until(predicate, reason, timeout=6):
         end=time.monotonic()+timeout
         while time.monotonic()<end:
@@ -67,7 +85,7 @@ with ReviewTestEnvironment() as isolated, tempfile.TemporaryDirectory(prefix='pa
         entry=until(lambda: next((e for e in gate()['entries'] if e['id']==started['id'] and e['state']=='result'),None),
                     'controlled resolver did not complete')
         record('result',entry)
-        assert entry['code']==0 and entry['signal']==0, 'real controlled resolver failed: '+repr(entry)
+        assert entry['code']==0 and entry['signal']==0, 'controlled resolver failed: '+repr(entry)
         return entry
     def release(entry,keep=False):
         code=('' if keep else 'PairReviewObservationGate:disarm();')
@@ -97,6 +115,8 @@ with ReviewTestEnvironment() as isolated, tempfile.TemporaryDirectory(prefix='pa
             try:fresh=json.loads(trace_path.read_text())
             except Exception as error:fresh={'unavailable':'invalid final trace: '+str(error)}
         return dict(phase=phase,wanted=wanted_history,requests=requests,fresh=fresh,phase_evidence=phase_evidence,
+                      resolver_backend='stateful-double',
+                      wanted_backend='native-override' if os.environ.get('PAIR_TEST_OBSERVATION_WANTED_BIN') else 'stateful-double',
                       returncode=pane.poll() if pane is not None else None,
                       pane_log=(tmp/'pane.log').read_text(errors='replace')[-16384:] if (tmp/'pane.log').exists() else '')
     try:
@@ -134,14 +154,14 @@ with ReviewTestEnvironment() as isolated, tempfile.TemporaryDirectory(prefix='pa
         if (repo/'a.md').read_text()!='a\n':failures.append('late snapshot changed checkout bytes')
         git('checkout','-q','review/a')
         # Clean same-branch disk edits still reload, after an async observation.
-        # The timed region is inside the editor; RPC startup is excluded.
+        # Count synchronous waits inside the editor; host speed is irrelevant.
         phase='slow-same-branch-observation'
-        duration=float(lua('(function() local now=vim.uv.hrtime(); assert(PairReviewPane.apply_definition_result(vim.api.nvim_get_current_buf())==false); return (vim.uv.hrtime()-now)/1e6 end)()'))
-        if duration>=250:failures.append('empty definition poll blocked for '+str(duration)+'ms')
+        if not nonblocking('assert(PairReviewPane.apply_definition_result(vim.api.nvim_get_current_buf())==false)'):
+            failures.append('empty definition poll synchronously waited for identity')
         (repo/'a.md').write_text('external same branch')
         start=arm()
-        duration=float(lua('(function() local now=vim.uv.hrtime(); vim.api.nvim_exec_autocmds("FocusGained",{}); return (vim.uv.hrtime()-now)/1e6 end)()'))
-        if duration>=250:failures.append('clean FocusGained blocked for '+str(duration)+'ms')
+        if not nonblocking('vim.api.nvim_exec_autocmds("FocusGained",{})'):
+            failures.append('clean FocusGained synchronously waited for identity')
         refreshed=result(start);release(refreshed)
         applied(refreshed,lambda: lua('vim.api.nvim_buf_get_lines(0,0,1,false)[1]')=='external same branch'
                 and lua('vim.bo.endofline')=='false',
@@ -174,9 +194,9 @@ with ReviewTestEnvironment() as isolated, tempfile.TemporaryDirectory(prefix='pa
         if lua('vim.api.nvim_buf_get_lines(0,0,1,false)[1]')!='external same branch':failures.append('different branch reloaded active document')
         phase='coalesced-edits'
         git('checkout','-q','review/a');start=arm()
-        duration=float(lua('(function() vim.api.nvim_buf_set_lines(0,0,-1,false,{"edited"}); local now=vim.uv.hrtime(); vim.api.nvim_exec_autocmds("TextChanged",{buffer=0}); return (vim.uv.hrtime()-now)/1e6 end)()'))
-        if duration>=250:failures.append('TextChanged blocked for '+str(duration)+'ms')
-        # The real process completed, but its held callback still owns the observer.
+        if not nonblocking('vim.api.nvim_buf_set_lines(0,0,-1,false,{"edited"}); vim.api.nvim_exec_autocmds("TextChanged",{buffer=0})'):
+            failures.append('TextChanged synchronously waited for identity')
+        # The result completed, but its held callback still owns the observer.
         first_result=result(start)
         for i in range(4):lua('vim.api.nvim_exec_autocmds("TextChangedI",{buffer=0})')
         assert len([e for e in gate()['entries'] if e['id']>start])==1,'parallel observation scans'
@@ -186,10 +206,11 @@ with ReviewTestEnvironment() as isolated, tempfile.TemporaryDirectory(prefix='pa
         if scans!=2:failures.append('uncoalesced observation scans: '+str(scans))
         # Focus events may render chrome but must not synchronously scan history.
         phase='modified-focus-observation';start=arm()
-        duration=float(lua('(function() local now=vim.uv.hrtime(); vim.api.nvim_exec_autocmds("FocusGained",{}); return (vim.uv.hrtime()-now)/1e6 end)()'))
-        if duration>=250:failures.append('FocusGained blocked for '+str(duration)+'ms')
+        if not nonblocking('vim.api.nvim_exec_autocmds("FocusGained",{})'):
+            failures.append('FocusGained synchronously waited for identity')
         focused=result(start);release(focused)
         assert not failures,'; '.join(failures)
+        assert not escaped.exists(),'ordering fixture executed the real resolver boundary'
         if os.environ.get('PAIR_TEST_OBSERVATION_REPORT'):
             report=evidence();report['outcome']='passed'
             pathlib.Path(os.environ['PAIR_TEST_OBSERVATION_REPORT']).write_text(json.dumps(report,sort_keys=True))

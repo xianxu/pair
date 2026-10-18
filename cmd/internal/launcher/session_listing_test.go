@@ -3,6 +3,7 @@ package launcher
 import (
 	"context"
 	"errors"
+	"github.com/xianxu/pair/cmd/internal/zellijtest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -19,11 +20,11 @@ func TestListedTerminalObservationIsBoundedAndPositive(t *testing.T) {
 	}{
 		{"live", []string{"chosen [Created 1s ago]"}, nil, true, 1},
 		{"attached", []string{"chosen [Created 1s ago] (current)"}, nil, true, 1},
-		{"exited", []string{"chosen [Created] (EXITED - attach to resurrect)"}, nil, false, 2},
-		{"other exact name", []string{"chosen-more [Created]"}, nil, false, 2},
-		{"missing", []string{""}, nil, false, 2},
-		{"failed", []string{"chosen [Created]"}, []error{errors.New("listing failed")}, false, 2},
-		{"retry success", []string{"", "chosen [Created]"}, []error{errors.New("transient"), nil}, true, 2},
+		{"exited", []string{"chosen [Created 1s ago] (EXITED - attach to resurrect)"}, nil, false, 1},
+		{"other exact name", []string{"chosen-more [Created 1s ago]"}, nil, false, 1},
+		{"missing", []string{""}, nil, false, 1},
+		{"failed", []string{"chosen [Created 1s ago]"}, []error{errors.New("listing failed")}, false, 1},
+		{"unknown is final despite later success", []string{"", "chosen [Created 1s ago]"}, []error{errors.New("transient"), nil}, false, 1},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			calls := 0
@@ -66,9 +67,9 @@ func TestWarmAttachUsesOnlyPositiveListingAndNeverReplaysClient(t *testing.T) {
 	for _, live := range []bool{true, false} {
 		t.Run(map[bool]string{true: "listed", false: "query-failure"}[live], func(t *testing.T) {
 			dir := t.TempDir()
-			script := "#!/bin/sh\nprintf 'chosen [Created 1s ago]\\n'\n"
+			script := "#!/bin/sh\n" + zellijtest.ShellCase(t, "launcher-warm-attach-full")
 			if !live {
-				script += "exit 1\n"
+				script = "#!/bin/sh\n" + zellijtest.ShellCase(t, "launcher-warm-attach-query-failure")
 			}
 			if err := os.WriteFile(filepath.Join(dir, "zellij"), []byte(script), 0700); err != nil {
 				t.Fatal(err)
@@ -115,7 +116,7 @@ func TestWarmAttachUsesOnlyPositiveListingAndNeverReplaysClient(t *testing.T) {
 func TestListedTerminalCancelledObservationCannotAuthorizeAttach(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	err := requireListedLiveTerminal(ctx, "chosen", func(context.Context) ([]byte, error) { cancel(); return []byte("chosen [Created]"), nil })
+	err := requireListedLiveTerminal(ctx, "chosen", func(context.Context) ([]byte, error) { cancel(); return []byte("chosen [Created 1s ago]"), nil })
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("cancelled listing authorized attach: %v", err)
 	}

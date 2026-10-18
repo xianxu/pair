@@ -201,6 +201,21 @@ adds context that a one-line description cannot carry.
 | **Shift+Alt+N** | non-agent panes | Restart only the coding agent, with a new conversation. Pair, Zellij, the draft, and terminal tabs stay alive. In the review buffer's normal mode, this key instead moves to the previous marker. |
 | **Alt+Shift+C** (or **Ctrl+Alt+c**) | non-agent panes | Compact in place: distill this session into a `continuation` doc (folding in the parked draft), then reincarnate the tag with a clean conversation seeded from it. Scrollback is parked first as a recovery net. |
 
+Layout shortcuts confirm the invoking pane, tab and required native state before
+changing the workbench. If that context is uncertain, Pair shows a refusal
+instead of choosing another pane. A restore that becomes uncertain preserves
+its completed steps and recovery record. For example, a refusal during return
+from Focus can leave the terminal tiled again before explicit focus restoration;
+Pair shows the refusal and stops. The next press observes the resulting state.
+Confirmation adds a small interactive
+delay (about 100 ms for returning to normal in a disposable native timing check).
+
+Editor shortcut routing, review pokes and review visibility also refuse uncertain
+native context through an editor notification. A DOM send keeps a completed body
+write when submit is refused; inspect the agent before deciding how to continue.
+A visibility refusal keeps an acknowledged review activation and its ready target.
+The validated draft cache still routes without an extra native query.
+
 The focused agent receives all workbench shortcuts except **Shift+Alt+T**,
 **Shift+Alt+Left/Right**, and **Alt+Shift+Return**, which create/switch
 right-terminal tabs or toggle the right terminal's normal/focus views. Under
@@ -302,6 +317,17 @@ leading `!`.
 2. Otherwise, just insert selected text. 
 
 Visual feedback is provided on inserted text.
+
+Auto-quote confirms the attached clients' observed source context and a unique
+draft in that tab before flashing, staging text or delivering paste input. If
+clients disagree or a reply is uncertain, a notification explains the refusal;
+the completed OS clipboard copy remains successful. This confirms the observed
+context, not where an earlier selection historically originated. Standalone
+paste also confirms its invoking pane and same-tab draft.
+
+If auto-quote stops after flashing, the flash reset is still scheduled. An
+application or reset-start failure is reported as incomplete; text already
+copied to the OS clipboard remains available.
 
 Selecting in the layout-3 **user terminal** only copies to the OS clipboard — it
 does not flash, steal focus, or insert into the draft. A selection made just to
@@ -470,7 +496,9 @@ couch --session-sync write --frontmatter BODYFILE FILE --if-hash H
 couch --session-sync apply EDITS.json FILE --if-hash H [--fold ID] [--json]
                          a precise edit: {old, occurrence, new, explain} records applied all or none (edits-invalid
                          lists each bad record); under presentation: propose Couch writes per-line accept/reject
-                         markers (propose-too-large / propose-unencodable mean: use a side-doc proposal)
+                         markers (propose-too-large / propose-unencodable mean: use a side-doc proposal);
+                         frontmatter, side-doc links answering a marker and their folds apply directly, and
+                         presentation / collaboration-mode are operator-owned
 couch --session-sync round FILE --json
                          the last agent round (every changing agent write keeps one), with reasons from apply,
                          and whether the operator's next submit has cleared it; parley highlights it
@@ -1358,6 +1386,10 @@ to read it, and anyone on the pointer link can resolve it; you resolve one by
 right-clicking it in the box. A note stays where it was placed, whatever scrolls
 underneath. Turning pointing off deletes every note, as it clears the marks,
 and stopping the broadcast ends them too; nothing is saved to disk.
+
+Terminal notes use the slot, box and draw-time text that Couch knows directly,
+with Couch's own tab-bar and status anchors. They do not infer editor filenames
+or line numbers from native pane queries or matching screen text to files.
 
 Click a note you created in this unlocked browser session to edit its text.
 **Save** updates the same note, preserving its author and box, and adds an

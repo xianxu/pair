@@ -2,6 +2,7 @@ package launcher
 
 import (
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -29,10 +30,25 @@ func familyRows(raw, familyPrefix string) []string {
 	return rows
 }
 
-// sessionNameRejected reports whether zellij's own validator rejected a session
-// name as too long for the machine's socket-path budget (#54).
-func sessionNameRejected(out string) bool {
-	return strings.Contains(out, "session name must be less than")
+// sessionNameRejected decodes Zellij 0.45.1's complete native Clap validator
+// rejection for this exact request. Only a pure exit's caller may use it; a
+// collector/cancellation failure cannot establish a socket-name length bound.
+func sessionNameRejected(session string, status int, stdout, stderr string) bool {
+	if status != 2 || stdout != "" {
+		return false
+	}
+	const suffix = " characters\n\nFor more information, try '--help'.\n"
+	prefix := "error: invalid value '" + session + "' for '--session <SESSION>': session name must be less than "
+	limit, ok := strings.CutPrefix(stderr, prefix)
+	if !ok {
+		return false
+	}
+	limit, ok = strings.CutSuffix(limit, suffix)
+	if !ok {
+		return false
+	}
+	value, err := strconv.ParseUint(limit, 10, 64)
+	return err == nil && strconv.FormatUint(value, 10) == limit
 }
 
 // sessionNameAbsentDiagnostic recognizes post-parse action diagnostics from
@@ -65,24 +81,4 @@ func pairSessionNames(short string) []string {
 	}
 	sort.Strings(names)
 	return names
-}
-
-// parseClientCount counts the clients attached to a session from `zellij
-// --session NAME action list-clients` output: a header line then one row per
-// client, so the count is the non-empty lines after the first (shell 292:
-// `tail -n +2 | wc -l`). Callers must first establish a nonempty successful
-// reply; an unanswered query cannot prove detached. Shared by ListSessions and
-// ZellijSource.clientCount (ARCH-DRY).
-func parseClientCount(raw string) int {
-	lines := strings.Split(strings.TrimRight(raw, "\n"), "\n")
-	n := 0
-	for i, line := range lines {
-		if i == 0 { // header
-			continue
-		}
-		if strings.TrimSpace(line) != "" {
-			n++
-		}
-	}
-	return n
 }

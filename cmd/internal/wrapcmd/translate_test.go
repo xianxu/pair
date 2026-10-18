@@ -2,7 +2,9 @@ package wrapcmd
 
 import (
 	"bytes"
+	"context"
 	"errors"
+	"github.com/xianxu/pair/cmd/internal/zellijtest"
 	"io"
 	"os"
 	"path/filepath"
@@ -335,6 +337,14 @@ func (f *fakeDraftRouteRuntime) ListPanesJSON() ([]byte, error) {
 	return f.panes, nil
 }
 
+func (f *fakeDraftRouteRuntime) ListPanesJSONContext(ctx context.Context) ([]byte, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return f.ListPanesJSON()
+}
+func (f *fakeDraftRouteRuntime) CurrentPaneID() string { return "4" }
+
 func (f *fakeDraftRouteRuntime) RunZellijAction(args ...string) error {
 	f.ops = append(f.ops, strings.Join(args, " "))
 	if f.failFocus && len(args) > 0 && args[0] == "focus-pane-id" {
@@ -367,8 +377,7 @@ func TestHandleWorkbenchShortcutRunsAgentProductionPath(t *testing.T) {
 	logPath := filepath.Join(dir, "zellij.log")
 	script := "#!/bin/sh\n" +
 		"if [ \"$1 $2\" = \"action list-panes\" ]; then\n" +
-		"  printf '[{\"id\":9,\"is_focused\":false,\"is_floating\":true,\"title\":\"terminal\",\"terminal_command\":\"pair term\"}]\\n'\n" +
-		"  exit 0\n" +
+		zellijtest.ShellCase(t, "wrap.shortcut-panes") + "\n" +
 		"fi\n" +
 		"printf '%s\\n' \"$*\" >> " + logPath + "\n"
 	if err := os.WriteFile(filepath.Join(fakebin, "zellij"), []byte(script), 0o755); err != nil {

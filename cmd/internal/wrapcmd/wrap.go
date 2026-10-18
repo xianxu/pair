@@ -1882,6 +1882,9 @@ func (p *proxy) executeWorkbenchDecision(decision workbenchshortcut.ShortcutDeci
 					stderr = os.Stderr
 				}
 				fmt.Fprintf(stderr, "pair-wrap: global shortcut: %v\n", err)
+				if noticeErr := (layoutcmd.OSRuntime{}).NotifyRefusal("Pair action refused: draft context could not be confirmed."); noticeErr != nil {
+					fmt.Fprintf(stderr, "pair-wrap: refusal notification failed: %v\n", noticeErr)
+				}
 			}
 		}
 		return true
@@ -1948,8 +1951,13 @@ func (osDraftRouteRuntime) CachedDraftPaneID() (string, bool) {
 }
 
 func (osDraftRouteRuntime) ListPanesJSON() ([]byte, error) {
-	return exec.Command("zellij", "action", "list-panes", "--json", "--command", "--state").Output()
+	return osDraftRouteRuntime{}.ListPanesJSONContext(context.Background())
 }
+
+func (osDraftRouteRuntime) ListPanesJSONContext(ctx context.Context) ([]byte, error) {
+	return layoutcmd.OSRuntime{}.ListPanesJSONContext(ctx)
+}
+func (osDraftRouteRuntime) CurrentPaneID() string { return os.Getenv("ZELLIJ_PANE_ID") }
 
 func (osDraftRouteRuntime) RunZellijAction(args ...string) error {
 	return runZellijAction(args...)

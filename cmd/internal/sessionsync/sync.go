@@ -545,24 +545,17 @@ func (f *file) prepareWrite(req WriteRequest, rows []Entry, now time.Time) (prep
 			return preparedWrite{}, refuse("%v", err)
 		}
 	}
-	// One baseline for every round consumer: the file before the write,
-	// restamped exactly when this write restamps, so the stamp never differs.
-	baseline := f.content
-	if !req.Frontmatter {
-		baseline = Restamp(f.content, now)
-	}
 	presentation := Presentation(f.content)
+	content, err := contentStep(f.content, next, req.resolved, now, !req.Frontmatter, req.Frontmatter)
+	if err != nil {
+		return preparedWrite{}, err
+	}
+	next = content.Next
 	body := req.Body
-	if presentation == "propose" && !req.Frontmatter {
-		// Couch keeps the base text and writes the diff as markers; the
-		// written bytes are what every check, the shadow and the hash see.
-		if next, err = ProposeDocument(baseline, Restamp(next, now)); err != nil {
-			return preparedWrite{}, err
-		}
-		if req.Section != "" {
-			if body, err = SectionBody(next, req.Section); err != nil {
-				return preparedWrite{}, refuse("%v", err)
-			}
+	if presentation == "propose" && !req.Frontmatter && req.Section != "" {
+		// The written bytes (markers) are what the shadow and hash see.
+		if body, err = SectionBody(next, req.Section); err != nil {
+			return preparedWrite{}, refuse("%v", err)
 		}
 	}
 	validContent := IsSessionSync(next) && ParseOwner(next) == f.owner
@@ -574,9 +567,6 @@ func (f *file) prepareWrite(req WriteRequest, rows []Entry, now time.Time) (prep
 			return preparedWrite{}, refuse("the new content must preserve the effective Couch owner %q", f.owner)
 		}
 		return preparedWrite{}, refuse("the new content must keep the frontmatter (`type: session-sync` and owner %q, as `couch-owner:` or legacy `owner:`)", f.owner)
-	}
-	if !req.Frontmatter {
-		next = Restamp(next, now)
 	}
 	shadow := f.shadowAfter(req.Section, body, next, now)
 	if req.Frontmatter {
@@ -616,12 +606,9 @@ func (f *file) prepareWrite(req WriteRequest, rows []Entry, now time.Time) (prep
 		return preparedWrite{}, err
 	}
 	prepared := preparedWrite{document: next, shadow: shadow, hash: Hash(target), state: state, stateBytes: stateBytes, pinStateBytes: pinStateBytes}
-	if spans, ok := DeriveRound(baseline, next, req.resolved); ok {
+	if content.Changed {
 		prepared.roundChanged = true
-		prepared.round, _ = encodeRound(Round{
-			BaseHash: Hash(f.content), ResultHash: Hash(next), At: now.UTC(),
-			Presentation: presentation, Spans: spans,
-		})
+		prepared.round, _ = encodeRound(content.Round)
 	}
 	return prepared, nil
 }
@@ -646,12 +633,9 @@ func (s *Sync) write(f *file, req WriteRequest) (Result, error) {
 		return Result{}, err
 	}
 	if req.edits != nil {
-		next, resolved, bad := ResolveEdits(f.content, req.edits)
-		if len(bad) != 0 {
-			return Result{}, &Refusal{Exit: ExitRefused, Code: "edits-invalid", Invalid: bad, Reason: fmt.Sprintf(
-				"%d of %d records don't resolve against the file; nothing was written. Fix them and apply again", len(bad), len(req.edits))}
+		if req.Body, req.resolved, err = resolveBatch(f.content, req.edits); err != nil {
+			return Result{}, err
 		}
-		req.Body, req.resolved = next, resolved
 	}
 	prepared, err := f.prepareWrite(req, rows, s.now())
 	if err != nil {
