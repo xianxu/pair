@@ -1,13 +1,13 @@
 ---
 id: 000658
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-17
-updated: 2026-10-17
+updated: 2026-10-18
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: '4a3ea94023ea2a2a32da21ba2058db3c10d61d34' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '4e823960e55910bad5a1cf5a0a0e66c27e1fa5ab' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-17T21:32:25-07:00
 claimant:
     operator: Xian Xu
@@ -17,6 +17,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: inferred}
+actual_hours: 8.26
 ---
 
 # pair test suites write ~20 MB/s (couchcmd.test): measure per package and cut, with a counted budget
