@@ -34,20 +34,19 @@ This differs from #603's wrapped real-shell-actor discovery wait, and #361's ini
 
 ## Spec
 
-Land the approved diagnostic stage so the next native reattach discovery failure explains its boundary facts. Preserve private-session ownership, original PID:nonce/counter/frame assertions, and native deadlines. Record detach result, original client exit, owned actor liveness, socket metadata, and bounded wire/server-log evidence before cleanup; report an exited replacement client promptly. Keep the underlying discovery cause unresolved and park this issue after diagnostic landing. Do not build the upstream-race reproduction or choose a production accommodation without a failure pointing at it.
+Parked causal investigation after diagnostic PR429 landed. On the next native reattach CI failure, read the bounded detach/client/actor/socket/server observations before choosing a fix. Determine why discovery reports absence while the historical server stayed alive; client-ID reuse remains a hypothesis for this incident. Preserve private-session ownership, same PID:nonce/counter/frame assertions and native deadlines. Do not build an upstream-race reproduction or production accommodation before a failure points at it; take a new plan to the hub when that evidence arrives.
 
 ## Done when
 
-- Diagnostic output distinguishes detach/client exit, actor liveness, socket state and server history without adding session probes; byte tails and agent exit receipts are bounded and owned scratch is removed after cleanup.
-- Deterministic regressions exercise early dead-client reporting, live/unknown preservation, bounded latest evidence and missing-file errors; instrumented actor termination preserves the original raw wait status. Original native identity/state/frame assertions remain.
-- One granted native direct/wrapped family attempt passes with counts recorded; the recorded full suite and normal close/merge gates pass for this diagnostic stage. The Log records the unresolved cause and next-failure handoff.
+- A retained CI failure identifies the discovery boundary that failed, with client exit, socket state and server/actor lifetime kept distinct; the hub approves the resulting correction plan.
+- A controlled ordering regression fails before any behavioral fix and passes after it, preserving original actor identity/state/frame assertions and native deadlines.
+- The evidenced fix passes native conformance with attempts/failure counts recorded, plus the normal full-suite, review and landing gates. Diagnostic-stage completion alone does not satisfy these causal criteria.
 
 ## Plan
 
-- [x] Classify the original failed job from its complete retained log and inspect the exact upstream 0.45.1 source before selecting a fix.
-- [x] Add bounded, fixture-owned detach/reattach observations and deterministic tests of diagnostic collection and early child-exit reporting; preserve all same-process/frame assertions.
-- [x] Run the one granted private direct/wrapped conformance attempt, record both results and release the lane.
-- [x] Record the corrected head's full suite and native evidence for normal close review; leave the unresolved-cause handoff ready for parking after diagnostic landing.
+- [ ] After the next CI failure, classify the retained observations and send the hub a plan before code or native-lane use.
+- [ ] With hub approval, reproduce the evidenced ordering and implement its minimal correction while preserving native persistence assertions.
+- [ ] Verify and land the causal fix through the normal gates; until then keep this issue parked and unclaimed.
 
 ## Log
 
@@ -107,6 +106,10 @@ Reopened per hub directive 75b0dbdf-a6a2-4d97-b7d4-013501c3c4fc: only the diagno
 The discovery flake's cause is still unresolved. Park and release ownership now: next CI failure, read the retained detach/client/actor/socket/server facts before choosing a fix. The original server was alive in the historical failure; the known upstream client-ID reuse family remains a hypothesis for this incident. Do not build an upstream controlled reproduction or a production accommodation until a failure points at it. The local native lane was released after the single granted attempt; no live resources or running checks remain owned by this issue.
 
 ## Revisions
+
+### 2026-10-18 — restore pending causal contract after diagnostic landing
+
+Diagnostic-only PR429 passed all normal gates and landed; its completed scope and acceptance remain recorded in that merged revision and the Log. The supported reopen restored this issue and its review evidence onto a handoff branch. Spec/Done-when/Plan now again describe the unresolved causal work, gated on the next CI failure as the hub directed. Release this handoff without starting that work. A future PR must use a fresh branch name rather than reuse PR429's merged subject branch.
 
 ### 2026-10-18 — BR-1 consumer sweep
 
