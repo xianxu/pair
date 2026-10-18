@@ -177,6 +177,10 @@ Load was ordinary concurrent fleet work: gate-owned ariadne suites from ariadne:
 
 Recorded suite attempt is queued on the same implementation head: `sdlc local-check run --name suite`, inflight log `.git/sdlc/test-stats/inflight/db25bcb0f104165571bc9f60bcde47e2/run.log`. Full-suite verdict, close and landing remain outstanding. #576 priority still applies.
 
+### 2026-10-17 — full-suite inventory finding
+
+The recorded suite acquired its slot after1089s. All shell/native-editor/review prerequisites passed, including observation diagnostics. Go's exhaustive `TestProductionArtifactReferencesAreExactlyClassified` found a branch defect: new `cmd/internal/testwait/host.go` lacked source classification. Added that exact file beside the existing testwait helper in `NonArtifactSources`: host-load diagnostics construct no Pair session artifact. No vocabulary allowance or guard bypass. The original failing guard plus `TestNonArtifactSourceCannotImportArtifactpath` now pass (`/tmp/pair659-inventory-fix.log`,4.533s). Added the prevention rule to lessons. The first suite continues to completion to collect all other failures; it will not count as a passing record, and the corrected code needs a fresh recorded run. Measured full-suite start load `{ 19.70 31.67 43.92 }`.
+
 ## Revisions
 
 ### 2026-10-17 — measured-load acceptance
