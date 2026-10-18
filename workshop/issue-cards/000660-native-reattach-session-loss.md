@@ -1,6 +1,6 @@
 ---
 id: 000660
-status: working
+status: codecomplete
 created: 2026-10-18
 updated: 2026-10-18
 estimate_hours:
@@ -13,6 +13,14 @@ claimant:
     workspace: pair:3
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
+actual_hours: 0.86
+tracker:
+    version: 1
+    completion:
+        token: close-907a5c8db81a
+        repository: github.com/xianxu/pair
+        reviewed_head: b575589513eb20a7eec304f2ef803c55a209a069
+        evidence_commit: b8fe3d0451f156fca0275100835a52eb4f74076d
 ---
 
 # Native direct Zellij session disappears after detach
