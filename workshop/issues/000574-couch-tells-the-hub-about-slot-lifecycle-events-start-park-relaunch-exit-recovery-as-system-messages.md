@@ -119,6 +119,8 @@ Durable full-flow design: [Lifecycle system notices](../plans/000574-couch-lifec
 
 ## Revisions
 
+- 2026-10-17 — BR-3 current-owner routing: fresh hub instruction d78af939-29c5-4332-bef0-00863a397c27 verified Submitted. On ownership change discard all old pending/frozen but unadmitted lifecycle projections; notify the new owner to check Slots. Already admitted input finishes its existing receipt where it went, never replayed or rerouted. This supersedes the prior pending-projection migration expectation. New facts use current ownership. Preserve restart barrier; test before drain, frozen-before-admission and after admission. Followed up with plan acknowledgement28c21670-6304-4521-975d-17a82e4826ee; canonical submission checked separately.
+
 - 2026-10-17 — Proposed design adds an explicit native-exit observation because Console attachment exit cannot substantiate the requested agent-exit notice, and kernel provenance because a visual system flag alone is forgeable. Full requested scope retained; operator smoke deferral and ariadne TL-lead companion await hub agreement.
 
 - 2026-10-17 — At hub request, the current Spec and Done-when exclude native-agent exit (unclaimed #657); require start/resume, park, relaunch, recovery and confirmed needs-relaunch notices plus restart coalescing. One global default-on setting replaces per-hub opt-out. Internal producer-only origin and canonical receipts replace endpoint PID authentication. All other verification/docs requirements remain; the approved operator smoke is deferred to the hub’s next restart.

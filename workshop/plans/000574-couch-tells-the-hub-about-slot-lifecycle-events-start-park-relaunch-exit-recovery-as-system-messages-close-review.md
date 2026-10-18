@@ -96,3 +96,108 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-17T20:26:18-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 574 — Couch tells the hub about slot lifecycle events (start, park, relaunch, exit, recovery) as system messages |
+| repo | pair |
+| issue file | workshop/issues/000574-couch-tells-the-hub-about-slot-lifecycle-events-start-park-relaunch-exit-recovery-as-system-messages.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 1ee00c35969770c9e6e6a01282393613617b0305..50f8d6831f6cf62c1ea481de5da9190604022082 |
+| command | sdlc close --issue 574 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-17T20:26:18-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+Both prior findings are addressed, with regressions that fail when the old behavior is restored. The affected tests and focused race checks pass. One confirmed routing bug blocks shipping: pending lifecycle notices do not follow a slot’s ownership move.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Recovery constructors preserve Continue, ResumeDisk and Fresh; finishOperation projects the typed mode, including confirmation results. Recovery regressions pass; restoring unconditional Resume makes the Console regression fail.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Completion projection prefers the adopted child's Args.Stack. Regressions cover empty/conflicting menu agents across operation types; removing that preference makes the regression fail.
+findings:
+  - id: new
+    severity: Critical
+    family: revalidate-current-recipient-ownership
+    title: |
+      Pending lifecycle notices remain assigned to the previous owning hub
+    detail: |
+      cmd/internal/couchcmd/lifecycle_notices.go:167 resolves ownership only when observing a fact, and :210-224 refreshes connections without rerouting existing facts. A disposable regression collected a fact under hub A, moved its slot to hub B, made B ready, and drained the cohort: no notice reached B because the fact still belonged to A. If A remains available, it can receive the stale projection instead. ARCH-PURPOSE, ARCH-ORDER: resolve current ownership before freezing/admitting unsent projections, preserve accepted-input uncertainty, and test ownership changes before drain and admission.
+```
+
+1. **Strengths**
+
+   - Typed recovery modes and adopted-agent metadata now survive final completion projection.
+   - The collector isolates deterministic transitions from publication IO and bounds facts, payloads and attempts.
+   - Canonical origin checks cover receipt recovery, immutable identity and wrapper compatibility.
+   - README, atlas and Couch skill document the new surface and trimmed scope.
+
+2. **Critical findings**
+
+   - Ownership routing described above, at `cmd/internal/couchcmd/lifecycle_notices.go:167` and `:210`. Reconcile pending projections with current ownership before publication.
+
+3. **Important findings**
+
+   None.
+
+4. **Minor findings**
+
+   None.
+
+5. **Test coverage notes**
+
+   - Passed focused tests across couchcore, couchtty, couchcmd, couchmessage, wrapcmd and artifactpath.
+   - Passed focused race checks across the five runtime packages and the complete couchmessage suite.
+   - Both prior-fix behavioral negative controls failed as expected.
+   - The new ownership-move reproduction failed against pinned head.
+   - Disposable copies were removed; the reviewed checkout remains unchanged.
+
+6. **Architectural notes for upcoming work**
+
+   | Principle | Result |
+   |---|---|
+   | ARCH-DRY | Pass: reuses broker, batching and completion authorities. |
+   | ARCH-PURE | Pass: collector transitions run without IO. |
+   | ARCH-PURPOSE | Flag: pending notices miss the current owning hub. |
+   | ARCH-MOCK | Pass: existing stateful endpoint and socket seams are reused. |
+   | ARCH-CONSTRAINTS | Pass: bounded state, multipart bodies and admission capacity are exercised. |
+   | ARCH-SECURE | Pass: external requests cannot select canonical system origin. |
+   | ARCH-ORDER | Flag: ownership changes are absent from pending-projection reconciliation. |
+   | ARCH-FUNERAL | Pass: ephemeral collector state and workers end with the service. |
+
+7. **Plan revision recommendations**
+
+   Add a `## Revisions` entry defining ownership-change transitions for pending and frozen projections, including the admission revalidation point and tests proving that uncertain accepted input is never replayed.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"1e15afc6-c4c8-45e2-a7fe-f6425a7a4e96","repository":"github.com/xianxu/pair","issue_id":"000574","recipe":"milestone-review","round":2,"attempt":1,"agent":"codex","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/d5acc848102d83ab","reviewed_head":"50f8d6831f6cf62c1ea481de5da9190604022082","slot":"pair:3","requested_at":"2026-10-18T03:23:37.819756Z"},"phase":"finished","pid":21713,"started_at":"2026-10-18T03:23:38.019848Z","finished_at":"2026-10-18T03:26:17.245684Z","session_id":"01a14d09-5056-75b2-ade7-6f1df363b7ab","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.014729875s
+head: "50f8d6831f6cf62c1ea481de5da9190604022082"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
