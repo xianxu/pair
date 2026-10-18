@@ -1,13 +1,13 @@
 ---
 id: 000649
-status: working
+status: codecomplete
 deps: ["#653"]
 github_issue:
 created: 2026-10-17
-updated: 2026-10-17
+updated: 2026-10-18
 estimate_hours: 3.207
 collaboration-mode: collaboration
-card_mirror: '4132487808148cbb588b7bb022661607ad1d67b8' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '846e4b085655101898f15c9c072b95aacbe4cf21' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-17T11:43:27-07:00
 claimant:
     operator: Xian Xu
@@ -17,6 +17,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: operator}
+actual_hours: 3.80
 ---
 
 # pair title pollers: 18 processes hold 1.6 GB RSS and ~5.5 CPU-s/min (one 52 CPU-min in 68 h) for a once-a-minute list-sessions + rename
