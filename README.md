@@ -2089,6 +2089,16 @@ it is the quiet cases — a menu waiting for an answer, a turn that silently wen
 nowhere — that reach it. Set `PAIR_WRAP_IDLE_S` to change the interval, or
 `PAIR_WRAP_IDLE_S=0` to switch the floor off entirely.
 
+**The orientation slug.** The same turn-end sink also refreshes the session's
+orientation slug — the `=== <branch> | <focus> ===` header the draft keeps on
+line 1 — with a background small-model call per turn-end (debounced). Under
+Couch this is off by default: the operator doesn't use the slug there, and the
+fleet was paying for ~70 `pair slug` spawns and ~36 model calls an hour. Both
+entries no-op — the wrapper's turn-end spawn and the `pair slug` command body
+itself, which is also what an external Claude Stop hook invokes — so a hosted
+session never spends a model call on the slug. Set `PAIR_SLUG=on` to turn it
+back on under Couch. Outside Couch it stays on.
+
 Under Couch, ordinary BEL attention still colors the source actor's status label.
 `Ctrl-Space` selects the newest unread actor; a successful switch acknowledges
 that attention. Swallowed desktop notifications create no attention messages.
