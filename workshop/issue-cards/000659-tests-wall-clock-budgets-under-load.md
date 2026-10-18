@@ -1,6 +1,6 @@
 ---
 id: 000659
-status: codecomplete
+status: done
 created: 2026-10-17
 updated: 2026-10-18
 estimate_hours:
@@ -22,6 +22,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 3d1b24fbe73d1e4dfd08826c634fbe6e823bf960
         evidence_commit: 38f4a344525858caf3b4c9e8edb679e9804f7d3a
+        landed_commit: 261951a8314022f32b2a869c72e629b58c8711a0
 ---
 
 # tests: seven wall-clock budgets on external tools (git worktree, zellij IPC, lsof, a rate-limit window) fail at fleet load
