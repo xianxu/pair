@@ -36,18 +36,24 @@ Attribute the remaining final-Go device interval with a bounded measurement befo
 
 ## Plan
 
-- [ ] Obtain hub approval for workshop/plans/000663-device-attribution-plan.md before measurement code or new runs.
+- [x] Obtain hub approval for workshop/plans/000663-device-attribution-plan.md before measurement code or new runs.
 - [ ] Compare observation modes on identical completed couchcore work, then use a bounded native host census if needed; retain coverage limits and raw counter endpoints.
 - [ ] Assess one versus two active suites using bytes per equal completed work; obtain approval before any full-suite comparison.
 - [ ] Report the measured producer or the precise operator trace needed; revise the fix plan before implementation.
 
 ## Revisions
 
+- 2026-10-18: After the completed comparison, hub requested one operator paste with two all-host fs_usage captures: 60 seconds during final Go and 60 seconds with no suite running (receipt 99719b95-da83-4047-9c8d-1f380df71cbb). Both outputs must be bounded and stored under TMPDIR. The trace handoff is workshop/plans/000663-operator-trace.md; this slot runs no further probe.
+
 - 2026-10-18: Hub approved only the first observation comparison, one attempt (receipt f22cead8-9b80-4ee6-a1e4-8e4d9b2e7a3d). Cancel the host census. If attribution remains open, supply a scoped 60-second fs_usage command for the operator; defer concurrency until the writer is known. Fixed work is five invocations per arm, full observer first, endpoints only second, at most 60 seconds each.
 
 - 2026-10-18: Hub assigned attribution first and added the machine concurrency question. Both existing complete windows already ran one Make holding both tokens. No production fix or global concurrency change is selected. Start with a bounded workload observation control; reserve a full equal-completion concurrency comparison for a separate approval.
 
 ## Log
+
+2026-10-18 operator handoff: prepared the hub-requested single paste with final-Go and no-suite arms, all-host filesys/diskio/exec scope, 60 seconds and 128 MiB captured payload per arm, and output under required TMPDIR. Both logs remain in memory until tracing stops. Fresh-eyes review corrected terminal handle mode and default process exclusion scope. The final wrapper compiles and its separate terminal read/write prompt passed on an owned PTY; no privileged command or further device measurement was executed. The operator confirms each window explicitly; the command does not start or detect suites.
+
+2026-10-18 result: the one approved pair completed with five passes and exit 0 in each arm. Full observation: 1,016,655,872 device bytes / 22.891279 s. Endpoints only: 298,835,968 / 24.377118 s. The 3.40x difference is confounded: quiet-before itself wrote 1,678,868,480 bytes / 30.001173 s (55.960095 MB/s), while quiet-after wrote 253,427,712 / 30.025743 s (8.440348 MB/s). No observer saving or remaining producer is proved. Both ordinary suite tokens were held from 03:39:14 PDT through the after-window, then released when the supervisor exited 0. Both test process groups were absent after the run. Raw evidence and exact counter endpoints are recorded in workshop/plans/000663-device-attribution-report.md. The hub has the release/result report (receipt a3ef3197-8178-4228-969c-dbb9c048892b); attribution now waits on the operator trace. No retry, host census, production fix or concurrency comparison was run.
 
 2026-10-18 pre-run review: the first admission wait was cancelled before acquiring tokens or starting either arm, to correct temporary instrumentation. Review found that an in-loop sampler could overrun the arm bound and the ending counter preceded owned-group cleanup. Added five-second ioreg/ps limits, an independent 60-second arm watchdog with bounded shutdown, and cleanup before the ending counter. Only our identified queue helper was interrupted; its parent exited and the cancelled queue record is retained. This loses our queue position but is not a measurement retry: the one allowed comparison is still unrun. No host census or concurrency experiment will be built under the current approval.
 

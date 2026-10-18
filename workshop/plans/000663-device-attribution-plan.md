@@ -14,6 +14,8 @@ collaboration-mode: discussion
 
 ## Revisions
 
+- 2026-10-18: The single observation pair completed; its changing background prevents causal attribution (see 000663-device-attribution-report.md). Hub receipt 99719b95-da83-4047-9c8d-1f380df71cbb requests an operator handoff with two bounded all-host traces, final Go and no-suite background. The concrete paste is 000663-operator-trace.md. No further slot-run measurement is approved.
+
 - 2026-10-18: Hub approved only section 2's single observation comparison (receipt f22cead8-9b80-4ee6-a1e4-8e4d9b2e7a3d). Section 3's host census is cancelled: if attribution remains open, provide a scoped 60-second fs_usage command for the operator. Section 4's concurrency experiment is deferred until the writer is known. These decisions supersede the unchecked alternatives below. The comparison uses five complete invocations per arm, full observation first, endpoints only second, with 60 seconds per arm. This is investigation using temporary instrumentation and unchanged tests; any repository implementation still requires change-code.
 
 ## Core concepts
