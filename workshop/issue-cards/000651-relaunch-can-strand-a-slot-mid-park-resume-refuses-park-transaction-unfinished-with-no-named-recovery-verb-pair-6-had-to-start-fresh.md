@@ -13,14 +13,14 @@ claimant:
     workspace: pair:5
     worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
     repository: github.com/xianxu/pair
-actual_hours: 3.16
+actual_hours: 3.86
 tracker:
     version: 1
     completion:
-        token: close-ccb848673bc1
+        token: close-554eea28fc82
         repository: github.com/xianxu/pair
-        reviewed_head: 948470412f7252834ae432f26234a6c6223d9972
-        evidence_commit: f7b2c18b0de058aae6610d9f9e05c25c0d20c1d0
+        reviewed_head: f43980670521fc713cf146714770dd50a9802b6f
+        evidence_commit: 604411b4bd4426e3911f579ed13dbc4137e85f52
 ---
 
 # Relaunch can strand a slot mid-park: resume refuses 'park transaction unfinished' with no named recovery verb (pair:6 had to start fresh)
