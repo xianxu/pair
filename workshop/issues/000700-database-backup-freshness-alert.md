@@ -79,6 +79,8 @@ Warn the operator when a configured database's last verified backup bundle excee
 - 2026-10-19, close round 1 REWORK (BR-1): a real non-UTC clock produced CheckedAt values rejected by the strict UTC report codec. A mixed failed/archived pass through encoding reproduced the defect. ContinuousPass.now now normalizes both injected/default clocks, matching Archiver.now; mixed rows and counted archived/unchanged/deferred passes now qualify through the codec with west/east offset clocks. The obsolete recorded suite was cancelled via local-check cancel, not treated as a flake; the corrected code gets a new recorded suite. No policy or format change. Targeted corrected historyarchive/archivecmd/couchcmd checks passed (27.273s / 0.223s / 3.184s).
 
 
+- 2026-10-19, final branch qualification: recorded suite 521fa1f0cd2df2d0cb5b0fcfb2e354dd passed on 47fd390f227e85d08c6caa0008ef50f263e8d484, exit 0 in 18m2s, log SHA256 prefix 7f8a84f380c7. No flake rerun or failure. Close round 2 is SHIP, BR-1 addressed with no new findings; all four GitHub checks passed. The earlier obsolete suite was explicitly cancelled after BR-1, not counted as verification. Entering the normal merge line; it owns main integration and any integrated-code suite. Natural live acceptance remains with the hub.
+
 ## Estimate
 
 Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only; calibration source reports stale, so hours are provisional. Derived after plan-quality CLEAN, not from elapsed task time.
