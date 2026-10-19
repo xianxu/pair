@@ -89,3 +89,5 @@ This is not slot ownership, so pair:1 is not affected.
 ## Revisions
 
 2026-10-19 — Fix bullet 1 narrowed: the trigger's session quiescence is modeled in the conformance driver, not the shared Fake, so the unit-test harnesses that pair the Fake with a separate Artifacts view keep one consistent session view. Bullet 4 (fake unit test change) was not needed.
+
+Close advisories declined, with reasons. BR-1 (separate trace label for a no-op redelivery): live, the second delivery legitimately finds the session present or absent depending on how fast the first trigger quiescence finishes, so a distinct label would make the live and fake traces differ by timing, reintroducing the flake; trigger:delivered means production delivery step completed, which matches park.go either way. Redelivery to a present session stays covered by the Fake unit test. BR-2 (key the absent wording on !Present): a non-present binding can be Foreign, which is a genuine owner mismatch, so only an observed Absent state gets the absent wording.
