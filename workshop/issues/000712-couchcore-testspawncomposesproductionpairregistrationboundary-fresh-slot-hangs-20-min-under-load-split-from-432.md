@@ -42,6 +42,7 @@ probably load-sensitive. It now blocks a landing as an unattributable failure.
 ## Done when
 
 - The hang is explained and fixed; the test passes 20/20 under a loaded run; no unbounded wait remains on that path.
+- Persistent session-quiescence refusal returns within one shared five-second session budget, retains the exact unresolved thread/start ownership, and records/surfaces a named unproven cleanup failure through existing lifecycle diagnostics and hub-visible receipt/show output. A timed-out observation never permits rollback, a foreign-session signal, or a fresh replacement launch.
 
 ## Plan
 
@@ -57,6 +58,8 @@ The likely change is test-only and fits the quick-flow shell. ARCH-MOCK: extend 
 
 Recovery/triage: verified canonical submitted dispatch 02f3d46f-c737-4231-a2a4-bea5e71c97fa; claimed and ran start-plan from fresh main after #708. The retained attempt's exact code is f2333e342cc325ded2344fe69dd0d7309224dca7. Its couch.go:966 is the session cleanup retry after quiesceThreadSession, not the helper retry. FakeHandle's unconditional KILL already ends its child/group and Wait channel at that revision; the frozen fixture clock is unrelated. The launch error is consistent with the agent-ready/listing publication race repaired by #698: that revision published agent readiness first, current main publishes the listing first. A second latent fixture defect remains plausible: list-sessions uses a persistent ready marker plus the querying process's PAIR_SESSION_NAME, while the composed hook restores the parent's environment before cleanup, and release can leave a stale ready marker. The retained log omits the repeated session error, so capture that exact error before selecting the repair. No production code changed during this investigation.
 
+Measurement after verified hub approval ba6e71aa-42d2-416a-a7ab-fe8ee2cf9829: unchanged composed baseline passed 2.71s (ordinary 1.32s, fresh-slot 1.39s). The existing production retry contract test passed 0.63s, confirming it returns only once the fake changes refusal to success. An owned throwaway probe then forced 128 consecutive QuiesceNamed refusals with the retry sleep injected: production made 129 attempts, every context lacked a deadline, and returned only on the probe's eventual success (0.82s). Thus a permanently refusing real observer can spin forever; no total production session deadline exists. A separate fake subprocess with a stale ready marker and restored caller environment emitted exactly ` [Created 1s ago]\n`, exit 0, losing its session identity (0.07s). Diagnostic probe passed in 1.145s total and is removed after recording these facts; it is not a regression test. No production code has changed. R1 durable plan now includes bounded production session cleanup and retained ownership; wait for hub approval and re-enter full-flow change-code before production edits.
+
 ## Log
 
 - 2026-10-19 (hub, from pair:6): registered as a known flake. Same head f2333e342cc325ded2344fe69dd0d7309224dca7: pair#689's
@@ -64,3 +67,7 @@ Recovery/triage: verified canonical submitted dispatch 02f3d46f-c737-4231-a2a4-b
   "terminal not listed live", cleanup goroutine didn't exit, package hit its 20 min timeout); the unchanged targeted test
   then passed in 6.666 s (ordinary 2.94 s, fresh-slot 3.44 s), same 20 min timeout, fake Zellij. The suite ran at twice its
   median time (machine loaded).
+
+## Revisions
+
+2026-10-19 R1: the hub approved the initial fixture investigation and required a production bound if the real session loop was unbounded. Measurement confirms it is. The executable scope is now workshop/plans/000712-bounded-session-cleanup-plan.md: five-second session budget after helper quiescence, typed unproven failure, exact durable ownership retention, existing lifecycle/hub-visible diagnostic surfaces, plus the approved fixture lifecycle correction. The earlier test-only Plan is retained as history and superseded by this durable plan. Exact helper drain remains its existing ownership-retaining mechanism; the observed hang occurs after that phase has completed.
