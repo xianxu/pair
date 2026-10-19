@@ -17,6 +17,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
     repository: github.com/xianxu/pair
 flake_tests: [github.com/xianxu/pair/cmd/internal/couchtty.TestNativeAgentExitDiagnostics]
+flow: {kind: quick, provenance: inferred, spec: "ce5713e2", done: "a9e3afb2"}
 ---
 
 # flake: TestNativeAgentExitDiagnostics
@@ -56,5 +57,7 @@ Claimed following verified hub dispatch3d5e75a8. start-plan created the canonica
 100 ordinary ready→SIGINT→EOF probes all exited by SIGINT; these passing samples do not diagnose the timeout. Deterministic scratch proof using the unchanged nativeAgentExitDiagnostics constant: unmasked callback self-SIGINT yielded exit0 for both baseline/instrumented, with ignored KeyboardInterrupt stderr and the expected instrumented signal receipt. Masking before readiness left SIGINT pending through the callback; top-level unblock yielded SIGINT termination for both specimens. No sleep or timeout oracle. Retained four-case evidence: /var/folders/07/b9wcwwld4_v2w9r3hk525bm80000gn/T/pair703-ordering.drZpu9/results.json. Actual original suite failure log is now /Users/xianxu/workspace/pair/.git/sdlc/test-stats/failed/a57d6744a65388be7e757875ca3aa520.log (the creation text's inflight path was temporary).
 
 ## Revisions
+
+2026-10-19 — Hub delivery519e7955 approved the test-only plan and runtime adversarial guard instead of a Go lint; default cleanup bound is unchanged and never the red oracle. Receipt and exact body verified submitted before change-code.
 
 2026-10-19 — Replace the undiagnosed flake placeholder with a controlled delivery contract and adversarial proof. Original timeout mechanism remains uncertain because its evidence was discarded; the concrete defect established here is uncontrolled SIGINT delivery plus parity-only acceptance of a shared wrong result. Test-only scope; no native hook or production helper behavior changes.

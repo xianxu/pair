@@ -82,3 +82,7 @@ ARCH-DRY: one existing runner and instrumentation constant. ARCH-PURE: expected 
 ## Approval
 
 Pending hub review. No implementation changes before approval and change-code.
+
+## Revisions
+
+2026-10-19 — Approval supersedes the initial pending status above. Verified hub delivery519e7955 approved the complete test-only plan, including the controlled gate, callback self-signal, independent outcomes, missing-signal control and retained diagnostics. Hub explicitly agreed this is Python delivery-context semantics: executable adversarial guard, not a Go lint. Proceed through change-code; no scope change.
