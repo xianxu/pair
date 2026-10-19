@@ -29,12 +29,19 @@ end
 -- engine already wrote the file, so the pane only reloads it and decorates the
 -- round's spans; it never writes the file for an agent round. A modified buffer
 -- means the operator is mid-turn (their lock should have refused the apply), so
--- the pane keeps their text and says so. Exposed for testing.
+-- the pane keeps their text and says so. An empty round (the agent replied with
+-- no edits, pair#690) reloads nothing, so it only ends the agent's turn, unsaved
+-- edits or not. Exposed for testing.
 function M.on_applied_round(buf, artifact)
+  if round_watch.is_empty(artifact.round) then
+    if M.after_applied_round then pcall(M.after_applied_round, buf) end
+    return true
+  end
   if vim.bo[buf].modified then
     local sess = sessions[buf] or {}
-    if sess.warned ~= artifact.round.result_hash then -- once per declined round
-      sess.warned = artifact.round.result_hash
+    local key = round_watch.key(artifact)
+    if sess.warned ~= key then -- once per declined round
+      sess.warned = key
       vim.notify('review: the agent applied a round while you have unsaved edits; your buffer was kept', vim.log.levels.WARN)
     end
     return false

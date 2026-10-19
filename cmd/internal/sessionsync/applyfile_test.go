@@ -138,3 +138,78 @@ func TestApplyFileRoundWriteFailureWarns(t *testing.T) {
 		t.Fatal("an artifact exists after a failed round write")
 	}
 }
+
+// A reply with no edits is a round too (pair#690, ariadne#453): an empty
+// records list, or records that change nothing, leaves the document's bytes
+// alone and writes an empty round, keyed apart from the last one by its time,
+// with no Body, so the agent commits nothing.
+func TestApplyFileWithNoChangeWritesAnEmptyRound(t *testing.T) {
+	for name, edits := range map[string][]EditRecord{
+		"no records":   nil,
+		"no-op record": {{Old: "beta", Occurrence: 1, New: "beta"}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			r := newFileRig(t, "alpha beta\n")
+			if _, err := r.apply(Hash(r.read(r.doc)), EditRecord{Old: "alpha", Occurrence: 1, New: "A"}); err != nil {
+				t.Fatal(err)
+			}
+			before, err := os.Stat(r.doc)
+			if err != nil {
+				t.Fatal(err)
+			}
+			r.now = r.now.Add(time.Minute)
+			h := Hash(r.read(r.doc))
+			res, err := r.apply(h, edits...)
+			if err != nil {
+				t.Fatal(err)
+			}
+			after, _ := os.Stat(r.doc)
+			if r.read(r.doc) != "A beta\n" || !after.ModTime().Equal(before.ModTime()) {
+				t.Fatalf("an empty round wrote the document: %q", r.read(r.doc))
+			}
+			if res.Hash != h || res.Body != "" || res.Round == nil || len(res.Round.Spans) != 0 ||
+				res.Round.BaseHash != h || res.Round.ResultHash != h || !res.Round.At.Equal(r.now) {
+				t.Fatalf("res %+v round %+v", res, res.Round)
+			}
+			artifact, err := ReadRoundArtifact(r.path)
+			if err != nil || artifact == nil || artifact.File != r.doc || artifact.Body != "" ||
+				len(artifact.Round.Spans) != 0 || !artifact.Round.At.Equal(r.now) || artifact.Round.ResultHash != h {
+				t.Fatalf("artifact %+v err %v", artifact, err)
+			}
+		})
+	}
+}
+
+// An empty apply is refused like any other: stale, then under the operator
+// lock, writing no round.
+func TestApplyFileRefusesAnEmptyApplyAlike(t *testing.T) {
+	r := newFileRig(t, "alpha beta\n")
+	_, err := r.apply("0000000000000000")
+	wantRefusal(t, err, ExitStale, "stale")
+	if err := os.WriteFile(r.doc+".lock", []byte("holder: operator\nat: 2026-10-18T08:55\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, err = r.apply(Hash(r.read(r.doc)))
+	wantRefusal(t, err, ExitOperatorLock, "operator-lock")
+	if _, err := os.Stat(r.path); !os.IsNotExist(err) {
+		t.Fatal("a refused empty apply wrote a round")
+	}
+}
+
+// An empty round that can't be recorded warns, with no Body, and says to
+// commit nothing; the document is untouched.
+func TestApplyFileEmptyRoundWriteFailureWarns(t *testing.T) {
+	r := newFileRig(t, "one two\n")
+	if _, err := r.apply(Hash(r.read(r.doc))); err != nil { // creates the flock
+		t.Fatal(err)
+	}
+	os.Remove(r.path)
+	if err := os.Chmod(filepath.Dir(r.path), 0o500); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chmod(filepath.Dir(r.path), 0o755)
+	res, err := r.apply(Hash(r.read(r.doc)))
+	if err != nil || res.Body != "" || !strings.Contains(res.Warning, "commit nothing") || r.read(r.doc) != "one two\n" {
+		t.Fatalf("res=%+v err=%v doc=%q", res, err, r.read(r.doc))
+	}
+}
