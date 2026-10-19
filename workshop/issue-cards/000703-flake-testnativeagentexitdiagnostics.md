@@ -5,6 +5,7 @@ created: 2026-10-19
 updated: 2026-10-19
 estimate_hours:
 github_issue:
+flake_tests: [github.com/xianxu/pair/cmd/internal/couchtty.TestNativeAgentExitDiagnostics]
 ---
 
 # flake: TestNativeAgentExitDiagnostics
