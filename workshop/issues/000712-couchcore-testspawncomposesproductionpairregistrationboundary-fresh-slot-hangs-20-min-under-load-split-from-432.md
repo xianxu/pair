@@ -1,13 +1,13 @@
 ---
 id: 000712
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-19
 updated: 2026-10-19
 estimate_hours: 1.9
 collaboration-mode: collaboration
-card_mirror: '0eca2116b7d5436ca66fc1ef6e110e62a1e16560' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '3175020942209307c355692212310949ec9a77b1' # card fields mirrored from issue-cards; edit via sdlc
 flake_tests: [github.com/xianxu/pair/cmd/internal/couchcore.TestSpawnComposesProductionPairRegistrationBoundary]
 started: 2026-10-19T14:08:10-07:00
 claimant:
@@ -18,6 +18,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: operator}
+actual_hours: 1.87
 ---
 
 # couchcore: TestSpawnComposesProductionPairRegistrationBoundary/fresh-slot hangs 20 min under load (split from #432)
