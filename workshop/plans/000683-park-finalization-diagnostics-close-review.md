@@ -451,3 +451,77 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000411
+
+---
+
+## Re-review — 2026-10-19T04:49:36-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 683 — Persist every lifecycle failure reason |
+| repo | pair |
+| issue file | workshop/issues/000683-park-finalization-diagnostics.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | a324f640c61ed3b3e07aa966cde066fe6d68d7be..bda9b0a4e8d157f5763920eecb477dfd2cf3bbf0 |
+| command | sdlc close --issue 683 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-19T04:49:36-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned interdiff fixes the empty-inventory regression and corrects the expected verified-park timestamp without changing scope. Focused tests pass, and restoring the old slice-cloning expression makes the existing regression test fail. No new defects found. BR-1–BR-6 remain disposed; none required reopening.
+
+```findings
+{}
+```
+
+1. **Strengths**
+
+   - `lifecyclefailure_projection.go:100` preserves a nonnil empty inventory while copying rows before annotation.
+   - `actionableinventory_test.go:45` correctly expects the verified park’s display timestamp.
+   - The plan records the qualification correction without changing Spec or Done-when.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Focused actionable-inventory, projection, and success-timestamp tests passed. A temporary Go overlay restoring the old expression caused `TestActionableThreadInventoryDistinguishesSnapshotFailureFromEmpty` to fail with nil rows, confirming regression detection. Temporary files were removed; repository sources were unchanged. `git diff --check` passed. The full repository suite was not rerun.
+
+6. **Architectural notes**
+
+   | Principle | Result |
+   |---|---|
+   | ARCH-DRY | Pass — correction remains in the shared projection. |
+   | ARCH-PURE | Pass — cloning adds no IO or side effects. |
+   | ARCH-PURPOSE | Pass — existing inventory assertions validate the correction. |
+   | ARCH-EVOLVE | Pass — no persisted format or rewrite changes. |
+
+   No new architectural or user-facing surface requires atlas or README updates.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"2b7dea81-16e1-488d-93bd-913e05918b94","repository":"github.com/xianxu/pair","issue_id":"000683","recipe":"fix-review","round":5,"attempt":1,"agent":"codex","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/ee6e9dfd9dacc2d4","reviewed_head":"bda9b0a4e8d157f5763920eecb477dfd2cf3bbf0","slot":"pair:5","requested_at":"2026-10-19T11:48:41.478176Z"},"phase":"finished","pid":41697,"started_at":"2026-10-19T11:48:41.651209Z","finished_at":"2026-10-19T11:49:35.852527Z","session_id":"01a153fe-11c2-75b0-893c-36cf3a5f425c","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.195983292s
+head: "bda9b0a4e8d157f5763920eecb477dfd2cf3bbf0"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
