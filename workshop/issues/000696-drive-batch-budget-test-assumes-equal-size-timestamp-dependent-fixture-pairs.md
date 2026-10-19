@@ -36,8 +36,8 @@ Make the fixture's per-pass budget admit either complete pair independently whil
 
 ## Plan
 
-- [ ] Give only this scenario explicit source mtimes (.1 and .123456789 seconds), and reproduce the second-pass failure with the original pair-0 budget.
-- [ ] Measure both complete encrypted bundle/label pairs, use their maximum as the per-pass budget, and assert unequal sizes and exclusion of the combined pair size. Keep the first-pass assertions and require exactly four total copies/two batches after retry (ARCH-PURPOSE); reuse the existing fixture and stateful rclone double (ARCH-DRY).
+- [x] Give only this scenario explicit source mtimes (.1 and .123456789 seconds), and reproduce the second-pass failure with the original pair-0 budget.
+- [x] Measure both complete encrypted bundle/label pairs, use their maximum as the per-pass budget, and assert unequal sizes and exclusion of the combined pair size. Keep the first-pass assertions and require exactly four total copies/two batches after retry (ARCH-PURPOSE); reuse the existing fixture and stateful rclone double (ARCH-DRY).
 - [ ] Run targeted repetitions, the recorded suite, and quick-flow close/landing with fleet-blocking priority. No production or persisted-format changes; all files remain under the existing temporary fixture lifetime.
 
 ## Log
@@ -45,3 +45,5 @@ Make the fixture's per-pass budget admit either complete pair independently whil
 2026-10-18: discovered while #689 label compatibility tests ran. Deterministic temporary Go overlay sets pair 0 mtime fraction .1Z and pair 1 .123456789Z. Pair 0 bundle=3109, label=372, total=3481; pair 1 bundle=3621, label=388, total=4009. Time JSON trims fractional digits and tar PAX mtime representation changes serialized lengths. With budget=3481 the second pair cannot fit on the retry. Both labels compare byte-identical to legacy alias serialization. No tracked production/test change was made for this independent defect. The same failure was observed before this controlled stimulus with budget=4007. Location: cmd/internal/historyarchive/drive_external_test.go, TestDriveMirrorBatchBudgetDefersCompletePairs.
 
 2026-10-19: #686 authoritative integration suite4031a2baeee56a290f445bc26edb6e43 failed only this test on main-derived head7e7358f0c6882e0eb3eb3bc73a1ef12c993ae318. Retained log /Users/xianxu/workspace/pair/.git/sdlc/test-stats/failed/4031a2baeee56a290f445bc26edb6e43.log (sha256 prefix72c05135cf21), exit2 in12m36s. Hub approved independent quick-flow repair and fleet-blocking landing priority; #686 is parked cleanly until this lands. Prefer measuring both actual pair sizes over forcing equal archive bytes: unequal sizes are valid production input and make the budget assertion meaningful.
+
+2026-10-19 red/green: explicit fractional mtimes reproduced the original failure deterministically, with Verified0/AlreadyRecorded1/Deferred1/Pending1 and3481-byte budget. Measuring both pairs and choosing their maximum passed20 unchanged targeted repetitions in30.124s. The test asserts unequal pair sizes, budget below their combined bytes, original first-pass deferral, and exactly four copies/two batches after the retry. No production code, format, timeout or transfer assertion was weakened. All fixture writes remain in t.TempDir; optional mtimes leave other helper callers unchanged. Recorded full suite and close review follow.
