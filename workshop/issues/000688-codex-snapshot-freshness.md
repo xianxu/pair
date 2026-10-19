@@ -40,7 +40,11 @@ This follow-up is independent of Drive replication #678 and does not block its l
 
 ## Plan
 
-Investigate and plan before code; coordinate any real-environment check with the hub.
+Single-pass full flow: [durable implementation plan](../plans/000688-codex-snapshot-freshness-plan.md). Send the complete plan to the hub before change-code.
+
+- [ ] Replace copy-then-compare with a bounded pinned read-only SQLite backup, verified private output, stateful fake and active-writer conformance.
+- [ ] Report typed per-database acquisition/publication state and last verified bundle age using the existing one-pass catalog projection.
+- [ ] Coordinate the three-database live check with the hub, complete the recorded suite and close review, then land on SHIP.
 
 ## Log
 
