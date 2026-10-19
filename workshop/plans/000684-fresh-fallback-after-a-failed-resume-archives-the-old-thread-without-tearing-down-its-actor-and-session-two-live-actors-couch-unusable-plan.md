@@ -307,6 +307,17 @@ existing per-slot admission); a park completion arriving late (Teardown's fold r
 during the sweep (the round limit bounds it, then unproven). The one most likely to be mishandled: **a timeout or
 a failed probe read as absence** — every probe returns live/absent/unknown, and unknown is `ErrTeardownUnproven`.
 
+**Exact identity through queues (pair:5 handoff, 2026-10-18).** A `ConvergeRequest` carries the exact
+`ThreadAddress`, the record `Revision` it was decided on, and an open park's nonce. It is never re-resolved
+"by slot" after it leaves the menu, the reattach queue or the CLI. The executor refuses with a recorded reason
+(`target moved: revision N → M`) when the record has moved since. Then the row re-projects and the operator
+picks again.
+
+**Archive never hides an unresolved park.** Archiving does not establish `VerifiedPark`, and a client's exit
+does not establish session death. Teardown's preserve step folds an open park first (finalized on a matching
+success completion with the owner proven dead, or its cleanup re-run under proof). If neither proves out,
+teardown is unproven, so nothing is archived. `archiveThread` refuses a record whose park is still open.
+
 **Concurrent extent:** nothing Converge spawns outlives it except the launched tree, which is owned by the lease.
 
 ## 4. The sixteen paths
@@ -446,6 +457,7 @@ Steps:
   which gives `ErrTeardownUnproven` naming it. `TestTeardownNeverKillsDetachedAgentChildren`.
 - Archive and replace signatures take `TeardownProof`. `TestArchiveRefusesWithoutProof`,
   `TestFreshReplaceRequiresProof`.
+- `TestArchiveRefusesOpenPark` and `TestConvergeRefusesMovedRevision` (stale queued request).
 - `TestTeardownFoldsCompletedPark` uses #683's retained shape: a success completion, the owner dead, the session
   absent.
 
@@ -527,3 +539,4 @@ Steps:
   them through a rewrite**, because older CLI builds run the direct-store writers and would otherwise erase the
   binding. #683 does the same for the failure store. No version bump: no new field is a guard, and teardown has
   no persisted phase. The first tolerant build can't help builds from before it.
+- 2026-10-18 22:30 — pair:5's evidence handoff (delivery 566735e7) made two implied invariants explicit: exact address, revision and park nonce carried through queues (refuse when moved), and archive refuses an open park. Tests added to M2/M3. No new state or mechanism.
