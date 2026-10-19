@@ -1,6 +1,6 @@
 ---
 id: 000698
-status: working
+status: codecomplete
 created: 2026-10-19
 updated: 2026-10-19
 estimate_hours:
@@ -14,6 +14,14 @@ claimant:
     workspace: pair:5
     worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
     repository: github.com/xianxu/pair
+actual_hours: 0.11
+tracker:
+    version: 1
+    completion:
+        token: close-62f2e72652e5
+        repository: github.com/xianxu/pair
+        reviewed_head: 50b2d2b03dc9bcb432725bbccd51cd35dd04de7c
+        evidence_commit: 84ac0ec1f4c33e09dfc17da12ffcf6cfe5d339f1
 ---
 
 # flake: TestListedDetachedTerminalAttachesWithoutNewServer
