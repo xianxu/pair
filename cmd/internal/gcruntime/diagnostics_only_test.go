@@ -92,3 +92,51 @@ func TestDiagnosticsOnlyRevalidatesHoldersAndNeverTouchesSessionClocks(t *testin
 		})
 	}
 }
+
+func TestDiagnosticPreviewReportsMissingDeclarationAndContinues(t *testing.T) {
+	s, err := NewWithInspection(t.TempDir(), &heldDiagnostic{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := s.Collector.Coordinator.Root
+	missingDir := filepath.Join(root, "gone")
+	if err := os.Mkdir(missingDir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	missing := filepath.Join(missingDir, "wrap-events-missing.jsonl")
+	w, err := diagnosticlog.Open(missing, s.DiagnosticOptions)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.RemoveAll(missingDir); err != nil {
+		t.Fatal(err)
+	}
+	good := filepath.Join(root, "wrap-events-good.jsonl")
+	if err := os.WriteFile(good, []byte("old"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	at := time.Now().Add(-8 * 24 * time.Hour)
+	os.Chtimes(good, at, at)
+	report, err := s.PreviewDiagnostics(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	foundMissing, foundGood := false, false
+	for _, row := range report.Diagnostics {
+		if row.Path == missing {
+			foundMissing = !row.Eligible && row.Reason != ""
+		}
+		if row.Path == good {
+			foundGood = row.Eligible && row.Bytes == 3
+		}
+	}
+	if !foundMissing || !foundGood {
+		t.Fatalf("missing blocker stopped valid paths: %+v", report)
+	}
+	if _, err := os.Stat(missingDir); !os.IsNotExist(err) {
+		t.Fatal("preview recreated missing parent", err)
+	}
+}

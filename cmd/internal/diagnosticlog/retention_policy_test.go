@@ -2,6 +2,7 @@ package diagnosticlog
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -83,6 +84,34 @@ func TestDiagnosticYoungOversizedLegacyCurrentEvicted(t *testing.T) {
 	}
 }
 
+// Seed certified real payload/metadata without exercising hundreds of unrelated
+// durable append/rotation transactions. The collector still performs every real
+// unlink and journal write. Rotation itself retains its separate 70-record test.
+func seedSmallGenerations(t *testing.T, path string, opts Options, count int) {
+	t.Helper()
+	for n := range count {
+		name := fmt.Sprintf("segment-%04x%028x.log", n, n)
+		p := segmentPath(path, name)
+		if err := os.MkdirAll(filepath.Dir(p), 0700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte{byte(n)}, 0600); err != nil {
+			t.Fatal(err)
+		}
+		st, err := os.Stat(p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		g := generation{Name: name, Identity: fileIdentity(st), Start: opts.Now(), LastWrite: opts.Now(), Size: 1, ModTime: st.ModTime()}
+		b, err := json.Marshal(g)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p+".json", b, 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
 func TestDiagnosticRecentGenerationsHaveNoCountCliff(t *testing.T) {
 	path, clock, opts := fixture(t)
 	opts.MaxBytes = 1
@@ -91,14 +120,16 @@ func TestDiagnosticRecentGenerationsHaveNoCountCliff(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer w.Close()
-	for n := range 80 {
-		*clock = clock.Add(time.Second)
-		if count, err := w.Write([]byte{byte(n)}); err != nil || count != 1 {
-			t.Fatalf("record %d rejected by stale count authority: %d %v", n, count, err)
-		}
+	if _, err := w.Write([]byte("a")); err != nil {
+		t.Fatal(err)
+	}
+	seedSmallGenerations(t, w.path, opts, 80)
+	*clock = clock.Add(time.Second)
+	if n, err := w.Write([]byte("b")); err != nil || n != 1 {
+		t.Fatalf("rotation blocked by dormant count authority: %d %v", n, err)
 	}
 	rows, err := Preview(path, opts, 100)
-	if err != nil || len(rows) != 80 {
+	if err != nil || len(rows) != 82 {
 		t.Fatalf("recent generations lost: %d %v", len(rows), err)
 	}
 	for _, row := range rows {
@@ -118,12 +149,10 @@ func TestDiagnosticAgeSweepCountedIO(t *testing.T) {
 				t.Fatal(err)
 			}
 			t.Cleanup(func() { _ = w.Close() })
-			for n := range count {
-				*clock = clock.Add(time.Second)
-				if written, err := w.Write([]byte{byte(n)}); err != nil || written != 1 {
-					t.Fatalf("seed %d: %d %v", n, written, err)
-				}
+			if _, err := w.Write([]byte("a")); err != nil {
+				t.Fatal(err)
 			}
+			seedSmallGenerations(t, w.path, opts, count-1)
 			if err := w.Close(); err != nil {
 				t.Fatal(err)
 			}

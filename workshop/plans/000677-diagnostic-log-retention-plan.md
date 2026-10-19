@@ -155,3 +155,7 @@ The hub approved the full-flow design, default/range/fail-closed configuration, 
 ### 2026-10-18 — PQ-1 test-contract refinement
 
 Replace parser/recovery case inventories with named-function adversarial strategies. The class sweep covers pure selection, writer admission/proof, file preview/deletion and each diagnostic service/scheduler/CLI entry point; the N/2N counted acceptance envelope remains. This is a test-contract clarification with no policy or live-arrangement change.
+
+### 2026-10-18 — stale declaration isolation (hub-approved)
+
+The real preview failed before reporting because a structurally valid registry entry's parent repository directory no longer exists. Hub approval receiptb95da9f0-1f04-40c2-bc24-e802a659fa47: validate declaration version/absolute clean path/directory/lock shape first, then allow a missing-parent declaration to be enumerated solely as a blocked row. Per-path canonicalization continues refusing it; never recreate its parent, delete its declaration or touch payload. Malformed declarations still fail the inventory closed. Add paired missing-parent/malformed regressions and a service preview that includes both the blocked path and other valid rows. Native runtime inventory uncertainty remains blocked and must be counted in the real preview.

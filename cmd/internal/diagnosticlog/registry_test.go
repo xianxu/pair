@@ -447,3 +447,48 @@ func TestRegistryRetryReconfirmsFailedPublicationDurability(t *testing.T) {
 		t.Fatalf("syncs=%d stages=%d want3/1", syncs, stages)
 	}
 }
+
+func TestRegistryMissingParentDoesNotBlockOtherDeclarations(t *testing.T) {
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	missingDir := filepath.Join(root, "vanished")
+	if err := os.Mkdir(missingDir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	missing := filepath.Join(missingDir, "wrap-events-old.jsonl")
+	entry := RegistryEntry{Version: 1, Path: missing, Directory: directory(missing), Lock: lockPath(missing)}
+	if err := register(context.Background(), root, entry); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(missingDir); err != nil {
+		t.Fatal(err)
+	}
+	good := filepath.Join(root, "wrap-events-good.jsonl")
+	goodEntry := RegistryEntry{Version: 1, Path: good, Directory: directory(good), Lock: lockPath(good)}
+	if err := register(context.Background(), root, goodEntry); err != nil {
+		t.Fatal(err)
+	}
+	page, err := EnumerateRoot(context.Background(), root, 0, 100)
+	if err != nil || len(page.Entries) != 2 {
+		t.Fatalf("missing path blocked enumeration: %+v %v", page, err)
+	}
+	if _, err := os.Stat(missingDir); !os.IsNotExist(err) {
+		t.Fatal("enumeration recreated parent", err)
+	}
+	// A missing parent must not hide malformed declaration structure.
+	bad := entry
+	bad.Lock = goodEntry.Lock
+	body, err := json.Marshal(bad)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sum := sha256.Sum256([]byte(missing))
+	if err := os.WriteFile(filepath.Join(RegistryDirectory(root), fmt.Sprintf("%x.json", sum)), body, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := EnumerateRoot(context.Background(), root, 0, 100); err == nil {
+		t.Fatal("malformed missing-parent declaration accepted")
+	}
+}
