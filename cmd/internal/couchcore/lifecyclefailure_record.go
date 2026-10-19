@@ -3,6 +3,7 @@ package couchcore
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"fmt"
 	"io"
 	"path/filepath"
 	"strconv"
@@ -32,9 +33,23 @@ func (c *Couch) lifecycleFailureRecorder() *LifecycleFailureRecorder {
 	return c.failureRecorder
 }
 
-// BeginOperationAttempt binds an admitted action to its existing target facts.
-// It performs no inventory, alias, process or filesystem resolution.
+// BeginOperationAttempt binds a tag-only admitted action once to its exact
+// record path. Cached queue targets already carry that physical path and do
+// no additional IO here. Callers invoke this only after receipt admission.
 func (c *Couch) BeginOperationAttempt(op string, target LifecycleFailureTarget) (*OperationAttempt, error) {
+	if target.StartingPath == "" && target.Address.Tag != "" {
+		if c.Threads == nil {
+			return nil, fmt.Errorf("%s: exact thread binding unavailable; refresh and retry", op)
+		}
+		record, err := c.Threads.GetThread(target.Address)
+		if err != nil {
+			return nil, fmt.Errorf("%s: exact thread binding unavailable; refresh and retry: %w", op, err)
+		}
+		if record.Address != target.Address || !filepath.IsAbs(record.StartingPath) || filepath.Clean(record.StartingPath) != record.StartingPath {
+			return nil, fmt.Errorf("%s: canonical thread slot unavailable; refresh and retry", op)
+		}
+		target.StartingPath = record.StartingPath
+	}
 	return c.lifecycleFailureRecorder().Begin(op, target)
 }
 

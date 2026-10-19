@@ -8,7 +8,7 @@ updated: 2026-10-19
 estimate_hours: 3.851
 severity: high
 collaboration-mode: collaboration
-card_mirror: '0a8bf5a1478e432961002a29f0b12d5dce182ef3' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '5561f269aa4147a8abf4be2f30a14d86f285a68d' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-19T02:08:51-07:00
 claimant:
     operator: Xian Xu
@@ -20,7 +20,7 @@ claimant:
 flow: {kind: full, provenance: operator}
 ---
 
-# Successful park cleanup remains unresolved and lifecycle failures lose diagnostics
+# Persist every lifecycle failure reason
 
 ## Problem
 
@@ -138,3 +138,7 @@ Verification completed on this implementation worktree:
 - A controlled wiring-removal mutation (skip the queue attempt factory) made that same private-service regression fail exactly at its pre-dispatch retained-failure/nonce assertion. The source was restored in a finally block and normal coverage passes.
 
 The required recorded full suite and mandatory close review are next. No landing or live acceptance is claimed. Hub c35c61ae explicitly accepts private-service proof before landing and owes the disposable-slot row/show check after the operator's next Couch restart, with no :0 staging. #681's pair:8 live acceptance also remains owed to that restart; the hub tracks it separately.
+
+2026-10-19 — Final verification exposed a coordinator identity hole: exact tag-only and cached-path calls for the same thread used different keys. Stopped and reported per hub bfb77f25 (request930e5b57); hub9e79d926 approved binding once through exact ThreadStore.GetThread before Begin after admission, unchanged cached queue paths, unknown binding refused before effects. The production-factory mixed-target and dispatcher unknown-binding regressions both failed as expected before the fix. Central lifecycleFailureTargetKey remains the single key seam for #695 LifecycleAddress.Key(); no new coordinator state or alias map. Sequential legacy exact-thread supersession also retains evidence until a successful same-thread completion.
+
+Final identity-fix verification: core LifecycleFailure/LaunchFailure/OperationAttempt coverage passed8.608s; command/console/message focused coverage passed22.091s/0.596s/1.445s. Focused race coverage passed core10.772s, command2.132s, console1.509s. Artifact/source/isolation/declaration guards passed9.353s/3.563s/0.454s. Both previously red identity regressions now pass; the cached-path attempt performs no second GetThread. Recorded full suite and close review remain next.

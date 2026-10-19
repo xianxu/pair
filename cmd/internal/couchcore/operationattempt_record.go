@@ -53,12 +53,9 @@ func NewLifecycleFailureRecorder(store LaunchFailureStorage, now func() time.Tim
 // Begin freezes the exact target and admission order without inspecting a
 // replacement thread or performing a lifecycle effect.
 func (r *LifecycleFailureRecorder) Begin(op string, target LifecycleFailureTarget) (*OperationAttempt, error) {
-	key := LifecycleFailureSlotKey(target)
+	key := lifecycleFailureTargetKey(target)
 	if key == "" {
-		if target.Address.RepoScope == "" || target.Address.Tag == "" {
-			return nil, errors.New("lifecycle diagnostics need an exact slot or thread target")
-		}
-		key = "thread:" + target.Address.RepoScope + "/" + string(target.Address.Tag)
+		return nil, errors.New("lifecycle diagnostics need an exact slot or thread target")
 	}
 	r.mu.Lock()
 	if r.epoch == "" {

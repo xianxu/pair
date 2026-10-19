@@ -77,10 +77,7 @@ func (r *LifecycleFailureRecorder) Snapshot() ([]LaunchFailure, error) {
 	return cloneFailureSnapshot(h), nil
 }
 func lifecycleFailureProjectionKey(f LifecycleFailure) string {
-	if key := LifecycleFailureSlotKey(failureTarget(f)); key != "" {
-		return key
-	}
-	return "thread:" + f.Address.RepoScope + "/" + string(f.Address.Tag)
+	return lifecycleFailureTargetKey(failureTarget(f))
 }
 func latestLifecycleFailures(history []LaunchFailure) map[string]LifecycleFailure {
 	latest := make(map[string]LifecycleFailure, len(history))
@@ -110,7 +107,7 @@ func ProjectLifecycleFailures(rows []ActionableThreadSummary, history []LaunchFa
 		key := LifecycleFailureSlotKey(LifecycleFailureTarget{StartingPath: row.StartingPath})
 		f, ok := latest[key]
 		if !ok {
-			f, ok = latest["thread:"+row.Address.RepoScope+"/"+string(row.Address.Tag)]
+			f, ok = latest[lifecycleFailureTargetKey(LifecycleFailureTarget{Address: row.Address})]
 		}
 		if ok {
 			v := cloneLaunchFailure(f)

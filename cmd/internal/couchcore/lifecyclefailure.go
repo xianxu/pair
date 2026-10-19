@@ -35,6 +35,16 @@ func LifecycleFailureSlotKey(t LifecycleFailureTarget) string {
 	}
 	return ""
 }
+
+func lifecycleFailureTargetKey(t LifecycleFailureTarget) string {
+	if slot := LifecycleFailureSlotKey(t); slot != "" {
+		return slot
+	}
+	if t.Address.RepoScope != "" && t.Address.Tag != "" {
+		return "thread:" + t.Address.RepoScope + "/" + string(t.Address.Tag)
+	}
+	return ""
+}
 func failureTarget(f LifecycleFailure) LifecycleFailureTarget {
 	return LifecycleFailureTarget{Address: f.Address, StartingPath: f.StartingPath, Slot: f.Slot, ParkNonce: f.ParkNonce}
 }
@@ -123,10 +133,17 @@ func mergeFailureHolders(old, next []ProcessIdentityLine) []ProcessIdentityLine 
 func (h LifecycleFailureHistory) Supersede(t LifecycleFailureTarget, epoch string, order uint64, at time.Time) (LifecycleFailureHistory, bool) {
 	out := make(LifecycleFailureHistory, len(h))
 	changed := false
-	key := LifecycleFailureSlotKey(t)
+	key := lifecycleFailureTargetKey(t)
 	for i, f := range h {
 		out[i] = cloneLaunchFailure(f)
-		if key != "" && LifecycleFailureSlotKey(failureTarget(f)) == key && f.SupersededAt == nil && (f.AttemptEpoch != epoch || f.AttemptOrder <= order) {
+		sameTarget := key != "" && lifecycleFailureTargetKey(failureTarget(f)) == key
+		// Legacy/synchronous callers can name an exact conversation without a
+		// physical slot path. They never broaden to another conversation or two
+		// independently known slot paths.
+		if !sameTarget && t.Address.RepoScope != "" && t.Address.Tag != "" && t.Address == f.Address && (LifecycleFailureSlotKey(t) == "" || LifecycleFailureSlotKey(failureTarget(f)) == "") {
+			sameTarget = true
+		}
+		if sameTarget && f.SupersededAt == nil && (f.AttemptEpoch != epoch || f.AttemptOrder <= order) {
 			v := at
 			out[i].SupersededAt = &v
 			changed = true
