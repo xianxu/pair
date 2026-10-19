@@ -17,6 +17,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
     repository: github.com/xianxu/pair
 flake_tests: [github.com/xianxu/pair/cmd/internal/couchcore.TestListedDetachedTerminalAttachesWithoutNewServer]
+flow: {kind: quick, provenance: inferred, spec: "1823f796", done: "5b457804"}
 ---
 
 # flake: TestListedDetachedTerminalAttachesWithoutNewServer
