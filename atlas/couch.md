@@ -178,6 +178,11 @@ one-second scheduling budget. A crash during cleanup or before final publication
 can lose that attempt's in-memory evidence; previously published history remains
 durable. Persistence never delays failed-helper cleanup. The typed error
 preserves errors.Is/As while its operator text names the attempt, diagnostic file, and one inspection action.
+Claude native resume validates an exact session through bounded UUID-leaf
+probes under the authorized project roots, preserving duplicate and root-role
+checks without walking unrelated history. Missing scrollback is separate from
+native transcript identity; see [exact Claude root lookup](session-identity.md#exact-claude-root-lookup).
+
 `couch --show` reads retained evidence by exact address or canonical starting
 path, including after rollback removed the thread, without creating lifecycle
 records. `couchcmd/launchfailure.go` sanitizes child text line by line.
@@ -391,6 +396,14 @@ service checks the live registered caller and its connected workspace against
 the supervisor's hub root, then calls Console.NotifyDesktop through the shared
 presenter writer. Other callers get advice to send to the hub instead. There is
 no notification queue, receipt store or automatic retry on an uncertain write.
+Supervisor notifications use ST-terminated OSC 777 directly on the console host
+writer (stdout), outside the child OSC suppression path. A successful CLI reply
+says `Notification written; desktop delivery not confirmed.` This confirms the
+write only; the terminal protocol supplies no desktop-display acknowledgement.
+For Ghostty the `desktop-notifications` setting must be true (default), macOS
+Notifications permission and an alert style must allow Ghostty, and Focus must
+permit the alert. Focused versus unfocused presentation needs operator observation;
+Couch neither changes those settings nor retries to infer them.
 Existing CLI messaging verbs omit notification-only fields for older supervisors.
 The CLI distinguishes an explicit unsupported-notify decode refusal from missing
 messaging registration and uncertain replies; only the latter leaves the effect

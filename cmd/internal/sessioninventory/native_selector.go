@@ -147,6 +147,9 @@ func ResolveNativeSelector(ctx context.Context, rt Runtime, q NativeSelectorRequ
 	if err != nil {
 		return NativeSelectorResolution{Status: NativeSelectorUnsupported, Reason: err.Error()}, nil
 	}
+	if q.Agent == AgentClaude && uuidPattern.MatchString(q.NativeID) {
+		bounded.exactClaudeID = q.NativeID
+	}
 	validation, diagnostics, err := NewIncrementalInventory(bounded, Catalog{}).ValidateNamedContent(q.Agent, q.NativeID)
 	if contextErr := ctx.Err(); contextErr != nil {
 		return NativeSelectorResolution{}, contextErr
