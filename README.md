@@ -1299,6 +1299,19 @@ you were working. Pressed again, it goes to the next page. With nothing paging i
 stays put and says so on the status row. Inside the switcher it is not claimed
 and acts as the switcher's own `Enter`.
 
+`Ctrl+Alt+a` opens the **attention list** (pair#673): what is waiting on you,
+newest first. It holds three kinds of item: the hub's `couch --notify` messages,
+slots blocked on a permission prompt or picker, and slots whose turn ended with
+a question to you. While the list has items, the right end of the status row
+shows `🔔N`, red if a slot is blocked on a prompt; click it to open the list too.
+The list opens at the top right. `Up`/`Down` (or `k`/`j`) move, `Enter` or a
+click jumps to the item's slot, `d` dismisses, and `Escape` closes. Picking a
+notification reads it, so it goes. A prompt or question stays until the slot
+stops waiting, whoever answered it. The list survives a Couch restart: messages
+come back as they were, and prompts and questions come back once the slot is
+seen still waiting. The list is never broadcast. The desktop notification still
+fires, and helps when the terminal is in the background.
+
 `Ctrl+Alt+b` **broadcasts** this screen, view-only, to anyone with the link
 (#395). The link is copied to your clipboard (it is never drawn on screen);
 send it through another channel. Viewers open it in a browser and see the
@@ -2185,6 +2198,14 @@ and 64 sessions across repeated launches; exhaustion refuses a new capture.
 Preserve or remove specific saved sessions to free their reservations. See the
 [live-capture runbook](atlas/couch-live-capture.md) for limits, legacy recordings,
 private-file handling, stop behavior and streaming extraction.
+
+### SQLite backup qualification
+
+Ordinary tests use disposable writers. Native backup acceptance is opt-in and
+writes encrypted bundles to the normal configured local sink/catalog; coordinate
+it with the operator or hub first. See [SQLite conformance and native
+acceptance](atlas/history-backup.md#sqlite-conformance-and-native-acceptance) for
+the guarded live pass, source-read limits and publication-only check.
 
 ### Terminal backend qualification
 

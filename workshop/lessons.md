@@ -2354,3 +2354,9 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 - #683 PQ-1/PQ-2: A terminal recorder must account for failures after effect completion and successes that wrote no durable row. Define admission ordering and the lifetime of supersession evidence, then sweep existing capture writers so nested helpers collect evidence while one terminal owner publishes. Test reverse completion with identical clock values.
 - #683 PQ-3/PQ-4: Length bounds do not keep argv secrets out of diagnostics; persist catalog-only process kinds. Plans name each risky parsing/normalization/projection function and its adversarial guard rather than repeating a case inventory.
+- #688: An alarm may expire after child readiness but before the observer runs. Do not assert a live lease inside that timing window; hold the native fixture explicitly while checking ownership, then release it and require alarm evidence plus EOF. Readiness/lease checks must survive multiple timer intervals, not just a quiet machine.
+
+- #688 BR-1: Partial-failure isolation must include publication, not just acquisition. Test a first-file publication error followed by a later success and require both accurate final summaries and the aggregate error.
+- #688: A read-only collector must reject canonical overlap of source and work/output roots before cleanup or creation, including missing descendants behind symlinks. A final rename can otherwise overwrite the very source whose reads were carefully protected; test unchanged source bytes and zero external calls on refusal.
+
+- #688 BR-2: Isolation between sets is a cross-product invariant: compare every output with every source, not paired labels. Canonicalizing a common output parent does not resolve a destination leaf symlink; exercise a different source kind behind that alias, including when its kind is filtered out.

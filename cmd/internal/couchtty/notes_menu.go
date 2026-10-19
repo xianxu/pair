@@ -52,14 +52,19 @@ type notesMenuLine struct {
 	id    int // 0 for the header and the "+k more" line
 	dim   bool
 	tip   bool // a tooltip's one plain line, no header marks (pair#495)
+	// chipBg is a chip's own color, for items with no author palette (the
+	// attention list's kinds, pair#673); nil uses color.
+	chipBg color.Color
 }
 
-// menuItem is one entry of a titled menu, with its color chip or none.
+// menuItem is one entry of a titled menu, with its color chip or none. Bg,
+// when set, is the chip's color instead of the author palette's Color.
 type menuItem struct {
 	ID    int
 	Text  string
 	Color int
 	Chip  bool
+	Bg    color.Color
 }
 
 // Open reports whether there is a menu.
@@ -110,6 +115,12 @@ func RenderTitledMenu(title string, notes []broadcast.Note, cols, rows int) Note
 // renderMenu lays out a titled menu of items over the bottom right of a
 // cols×rows screen, above its status row.
 func renderMenu(title string, notes []menuItem, cols, rows int) NotesMenu {
+	return renderMenuAt(title, notes, cols, rows, false)
+}
+
+// renderMenuAt lays the menu out at the bottom right, or with top at the top
+// right (the attention list, pair#673); either way above the status row.
+func renderMenuAt(title string, notes []menuItem, cols, rows int, top bool) NotesMenu {
 	w := min(notesMenuMaxWidth, cols-2)
 	maxH := rows - 3
 	textW := w - 5 // a space, the two-cell chip, a space … a space
@@ -132,7 +143,7 @@ func renderMenu(title string, notes []menuItem, cols, rows int) NotesMenu {
 		}
 		top := len(lines)
 		for i, l := range wrapped {
-			lines = append(lines, notesMenuLine{text: l, chip: n.Chip && i == 0, color: n.Color, id: n.ID})
+			lines = append(lines, notesMenuLine{text: l, chip: n.Chip && i == 0, color: n.Color, chipBg: n.Bg, id: n.ID})
 		}
 		items = append(items, notesMenuItem{ID: n.ID, Top: top, Bottom: len(lines)})
 		shown++
@@ -144,7 +155,11 @@ func renderMenu(title string, notes []menuItem, cols, rows int) NotesMenu {
 		lines = append(lines, notesMenuLine{text: " +" + strconv.Itoa(rest) + " more", dim: true})
 	}
 	h := len(lines)
-	m := NotesMenu{X: cols - w, Y: rows - 1 - h, W: w, H: h, lines: lines}
+	y := rows - 1 - h
+	if top {
+		y = 0
+	}
+	m := NotesMenu{X: cols - w, Y: y, W: w, H: h, lines: lines}
 	for _, it := range items {
 		m.items = append(m.items, notesMenuItem{ID: it.ID, Top: m.Y + it.Top, Bottom: m.Y + it.Bottom})
 	}
@@ -230,6 +245,9 @@ func menuLineCells(line notesMenuLine, w int, bg color.Color, style broadcast.No
 		put(" ", plain)
 		if line.chip {
 			chip := uv.Style{Bg: broadcast.NoteChipColor(line.color, style)}
+			if line.chipBg != nil {
+				chip.Bg = line.chipBg
+			}
 			put("  ", chip)
 		} else {
 			put("  ", plain)

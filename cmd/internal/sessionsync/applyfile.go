@@ -45,6 +45,7 @@ type RoundArtifact struct {
 // flock, the operator lock (exit 3), the whole-file hash (exit 6), BuildEdit,
 // then the previous round artifact removed before the document moves and the
 // new one written after it, so a failure leaves no round, never a stale one.
+// An apply that changes nothing writes no document, only an empty round.
 func ApplyFile(req FileApplyRequest) (FileApplyResult, error) {
 	if req.IfHash == "" {
 		return FileApplyResult{}, refuse("apply needs --if-hash: pass the file's whole-file hash")
@@ -74,31 +75,43 @@ func ApplyFile(req FileApplyRequest) (FileApplyResult, error) {
 		return FileApplyResult{}, &Refusal{Exit: ExitStale, Code: "stale", Hash: h, Reason: fmt.Sprintf(
 			"it changed since you read it (hash now %s, you passed %s); read it again, rebuild the records, and apply again", h, req.IfHash)}
 	}
-	edit, err := BuildEdit(base, req.Edits, req.Now, false)
-	if err != nil {
-		return FileApplyResult{}, err
+	// A reply with no edits (pair#690) skips BuildEdit, which refuses an
+	// empty list for the Couch path, and lands as an empty round below.
+	edit := Edit{Next: base}
+	if len(req.Edits) != 0 {
+		if edit, err = BuildEdit(base, req.Edits, req.Now, false); err != nil {
+			return FileApplyResult{}, err
+		}
 	}
 	res := FileApplyResult{Hash: Hash(edit.Next)}
-	if !edit.Changed {
-		return res, nil
+	round, body := edit.Round, ""
+	if edit.Changed {
+		if body, err = RoundBody(edit.Round, edit.Next); err != nil {
+			return FileApplyResult{}, err
+		}
+	} else {
+		// The empty round: nothing to write or commit, but the pane still
+		// sees the reply. Its time tells it apart from the round before.
+		round = Round{BaseHash: res.Hash, ResultHash: res.Hash, At: req.Now.UTC(), Presentation: Presentation(base), Spans: []Span{}}
 	}
-	body, err := RoundBody(edit.Round, edit.Next)
-	if err != nil {
-		return FileApplyResult{}, err
-	}
-	artifact, err := json.Marshal(RoundArtifact{File: req.File, Round: edit.Round, Body: body})
+	artifact, err := json.Marshal(RoundArtifact{File: req.File, Round: round, Body: body})
 	if err != nil {
 		return FileApplyResult{}, err
 	}
 	if err := os.Remove(req.RoundPath); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return FileApplyResult{}, refuse("the previous round could not be cleared: %v", err)
 	}
-	if err := replaceShared(req.File, []byte(edit.Next)); err != nil {
-		return FileApplyResult{}, err
+	if edit.Changed {
+		if err := replaceShared(req.File, []byte(edit.Next)); err != nil {
+			return FileApplyResult{}, err
+		}
 	}
-	res.Round, res.Body = &edit.Round, body
+	res.Round, res.Body = &round, body
 	if err := writeAtomic(req.RoundPath, artifact); err != nil {
 		res.Warning = "the file was written but its round could not be recorded (" + err.Error() + "); commit this Body now, the pane shows no highlight for it"
+		if !edit.Changed {
+			res.Warning = "the empty round could not be recorded (" + err.Error() + "); commit nothing, the pane keeps waiting until the next round"
+		}
 	}
 	return res, nil
 }

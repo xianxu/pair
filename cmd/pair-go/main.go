@@ -16,6 +16,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/diagnosticcmd"
 	"github.com/xianxu/pair/cmd/internal/dispatcher"
 	"github.com/xianxu/pair/cmd/internal/entrypoint"
+	"github.com/xianxu/pair/cmd/internal/execalarm"
 	"github.com/xianxu/pair/cmd/internal/gccmd"
 	"github.com/xianxu/pair/cmd/internal/hoprttcmd"
 	"github.com/xianxu/pair/cmd/internal/launcher"
@@ -52,6 +53,13 @@ type legacyRuntime interface {
 }
 
 func runWithLegacyRuntime(args []string, stdout, stderr io.Writer, rt legacyRuntime) int {
+	if len(args) >= 2 && args[0] == "internal" && args[1] == "exec-alarm" {
+		if err := execalarm.Run(args[2:]); err != nil {
+			fmt.Fprintln(stderr, err)
+			return 2
+		}
+		return 0
+	}
 	exe, err := rt.Executable()
 	if err != nil {
 		if len(args) > 0 && args[0] == "launch" {

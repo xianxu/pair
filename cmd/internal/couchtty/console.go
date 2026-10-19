@@ -184,6 +184,9 @@ type Console struct {
 	statusWebcast ColumnSpan
 	// statusWebNotes is the web cast's 💭N span (#470).
 	statusWebNotes ColumnSpan
+	// statusAttention is the 🔔N span (pair#673); attn owns the list.
+	statusAttention ColumnSpan
+	attn            attentionState
 	// statusWebFocus, statusWebPointerLink and statusWebDriveLink are the
 	// Chrome group's ↗ 👆 👽 spans (#501).
 	statusWebFocus, statusWebPointerLink, statusWebDriveLink ColumnSpan
@@ -2070,6 +2073,7 @@ func (c *Console) hitHandlers() map[InterceptorHit]func() {
 		HitRelaunch:   c.onRelaunchHotkey,
 		HitBroadcast:  c.toggleBroadcast,
 		HitWebcast:    c.toggleWebcast,
+		HitAttention:  c.toggleAttention,
 		// HitMouse carries coordinates, which func() cannot, so it is dispatched
 		// from processInput with the payload rather than through this table. The
 		// entry is the CONSOLE's handler for it -- a real call, not a placeholder

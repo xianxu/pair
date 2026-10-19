@@ -478,6 +478,25 @@ counts enter the existing COUCH_TRACE diagnostics as `notify-suppressed`, and
 ordinary BEL is unchanged. Each aggregate names the pane endpoint and cumulative
 count; a fresh attachment starts a new counter. No notification text is logged.
 
+**Attention list (pair#673, supersedes pair#352).** Couch keeps a durable list
+of what waits on the operator, and Ctrl+Alt+a (or a click on the status row's
+🔔N badge) opens it as a top-right panel; Enter jumps to the item's slot, `d`
+dismisses it. Three sources feed it through the message service:
+`couch --notify` (a notify item that stays until visited or dismissed), the
+blocked-prompt set `publishBlocked` already computes (prompt items), and the
+wait watcher's question episodes (question items; a turn moves the activity and
+ends the episode). The pure reducer `couchcore.AttentionList` diffs each
+condition set per kind, so a prompt or question item leaves when its condition
+clears, whoever answered; it caps the list at 50, dropping the oldest notify
+first. `couchcore.AttentionStore` persists it as versioned JSON at
+`NAMESPACE/attention/list.json` (`durablefile.WriteAtomicStaged`, O_NOFOLLOW,
+size cap, strict decode). After a restart, condition items stay hidden for a
+two-minute grace until their source raises them again, keeping `Since` and
+`Visited`. The badge sits at the status row's right end so it never covers slot
+content, in the blocked color while a prompt item is open. See
+`couchcore/attention_list.go`, `attention_store.go`, `couchcmd/attention.go`
+and `couchtty/console_attention.go`.
+
 `couch --actors`, `--send-to repo[:N]|hub [--agent NAME] --message TEXT|--message-file PATH` and `--message-status ID`
 use bounded Unix stream RPC, without constructing another mutable supervisor.
 The send's `AdmissionTimeout` starts before sender authority checks and is

@@ -720,6 +720,14 @@ var NonArtifactSources = []string{
 	"cmd/internal/historyarchive/continuous_index.go",
 	"cmd/internal/historyarchive/continuous_select.go",
 	"cmd/internal/historyarchive/sqlite_snapshot.go",
+	"cmd/internal/historyarchive/sqlite_snapshot_exec.go",
+	"cmd/internal/historyarchive/sqlite_snapshot_model.go",
+	"cmd/internal/historyarchive/continuous_snapshot_model.go",
+	"cmd/internal/execalarm/execalarm.go",
+	"cmd/internal/execalarm/run_unix.go",
+	"cmd/internal/execalarm/run_other.go",
+	"cmd/internal/execalarm/timer_darwin.go",
+	"cmd/internal/execalarm/timer_linux.go",
 	"cmd/internal/archivecmd/continuous.go",
 	"cmd/internal/couchcmd/archive_schedule.go",
 	"cmd/internal/historyarchive/catalog.go",
@@ -731,6 +739,12 @@ var NonArtifactSources = []string{
 	"cmd/internal/historyarchive/publication.go",
 	"cmd/internal/historyarchive/safefs.go",
 	"cmd/internal/historyarchive/sink.go",
+
+	// #673 the attention list is one versioned file under the Couch namespace, not a Pair tag artifact.
+	"cmd/internal/couchcmd/attention.go",
+	"cmd/internal/couchcore/attention_list.go",
+	"cmd/internal/couchcore/attention_store.go",
+	"cmd/internal/couchtty/console_attention.go",
 
 	// #587 resource accounting and bounded namespace snapshots are not Pair tag artifacts.
 	"cmd/internal/couchcmd/resources.go",

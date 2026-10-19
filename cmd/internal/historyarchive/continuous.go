@@ -22,7 +22,7 @@ var ErrPassRunning = errors.New("a continuous archive pass is already running")
 // Snapshotter takes a coherent private copy of one live database. Sweep drops
 // private working copies a killed pass left behind.
 type Snapshotter interface {
-	Snapshot(ctx context.Context, root, rel, stagingRoot string) (ok bool, note string, err error)
+	Snapshot(ctx context.Context, root, rel, stagingRoot string) (SnapshotResult, error)
 	Sweep() error
 }
 
@@ -47,9 +47,10 @@ type ContinuousPass struct {
 
 // ContinuousReport counts what one pass did per kind.
 type ContinuousReport struct {
-	Archived map[string]int
-	Skipped  []string
-	Drive    *DriveReport
+	Archived  map[string]int
+	Skipped   []string
+	Drive     *DriveReport
+	Databases []DatabaseBackupSummary
 }
 
 // LastRunName records the completion time of the last full pass.
@@ -57,6 +58,35 @@ const LastRunName = "continuous.last"
 
 func (p ContinuousPass) Run(ctx context.Context) (ContinuousReport, error) {
 	report := ContinuousReport{Archived: map[string]int{}}
+	inv, err := Defaults()
+	if err != nil {
+		return report, err
+	}
+	roots, err := ContinuousRoots(ctx, inv, p.Config, p.Host, p.Home, p.Env)
+	if err != nil {
+		return report, err
+	}
+	// Every snapshot output must be disjoint from every native source, not
+	// just its own kind: a destination can alias another agent's home.
+	var staging []string
+	for _, root := range roots {
+		if root.Snapshot {
+			staging = append(staging, filepath.Join(p.SnapshotRoot, root.Kind))
+		}
+	}
+	// Sweep can remove whole scratch directories. Check every native root,
+	// including kinds excluded from this pass, before any store mutation.
+	for _, root := range roots {
+		switch snapshotter := p.Snapshotter.(type) {
+		case SQLiteSnapshotter:
+			err = snapshotter.validateRoots(root.Identity.Root, staging...)
+		case *SQLiteSnapshotter:
+			err = snapshotter.validateRoots(root.Identity.Root, staging...)
+		}
+		if err != nil {
+			return report, err
+		}
+	}
 	if err := os.MkdirAll(p.Store, 0o700); err != nil {
 		return report, err
 	}
@@ -91,14 +121,6 @@ func (p ContinuousPass) Run(ctx context.Context) (ContinuousReport, error) {
 	if quiet == 0 {
 		quiet = ContinuousQuiet
 	}
-	inv, err := Defaults()
-	if err != nil {
-		return report, err
-	}
-	roots, err := ContinuousRoots(ctx, inv, p.Config, p.Host, p.Home, p.Env)
-	if err != nil {
-		return report, err
-	}
 	index, err := p.archivedIndex(ctx)
 	if err != nil {
 		return report, err
@@ -113,7 +135,7 @@ func (p ContinuousPass) Run(ctx context.Context) (ContinuousReport, error) {
 		if err := ctx.Err(); err != nil {
 			return report, err
 		}
-		n, skipped, err := p.archiveRoot(ctx, root, index, now, quiet)
+		n, skipped, err := p.archiveRoot(ctx, root, index, now, quiet, &report.Databases)
 		report.Archived[root.Kind] += n
 		report.Skipped = append(report.Skipped, skipped...)
 		if err != nil {
@@ -138,7 +160,7 @@ func (p ContinuousPass) Run(ctx context.Context) (ContinuousReport, error) {
 	return report, nil
 }
 
-func (p ContinuousPass) archiveRoot(ctx context.Context, root SourceRoot, index *ArchivedIndex, now time.Time, quiet time.Duration) (int, []string, error) {
+func (p ContinuousPass) archiveRoot(ctx context.Context, root SourceRoot, index *ArchivedIndex, now time.Time, quiet time.Duration, summaries *[]DatabaseBackupSummary) (int, []string, error) {
 	var skipped []string
 	identity := root.Identity
 	found, err := Discover(ctx, identity.Root, root.Patterns)
@@ -146,23 +168,39 @@ func (p ContinuousPass) archiveRoot(ctx context.Context, root SourceRoot, index 
 		return 0, nil, err
 	}
 	collected := false
+	rows := map[string]int{}
+	var failures []error
 	if root.Snapshot {
-		// Databases change continuously: snapshot daily instead of waiting
-		// for quiet, and archive the private snapshot, keyed by its content.
 		staging := filepath.Join(p.SnapshotRoot, root.Kind)
+		snapshotIdentity := SourceIdentity{Host: identity.Host, Root: staging, Repository: identity.Root}
 		var taken []string
 		for _, c := range found {
-			ok, note, err := p.Snapshotter.Snapshot(ctx, identity.Root, c.Path, staging)
+			row := DatabaseBackupSummary{Kind: root.Kind, Path: c.Path, Status: DatabaseFailed, LastVerified: index.LatestVerified(snapshotIdentity, c.Path)}
+			result, err := p.Snapshotter.Snapshot(ctx, identity.Root, c.Path, staging)
+			row.Detail = result.Detail
 			if err != nil {
-				return 0, skipped, err
+				row.Detail = err.Error()
+				failures = append(failures, err)
 			}
-			if !ok {
-				skipped = append(skipped, note)
-				continue
+			switch {
+			case err != nil:
+			case result.Status == SnapshotReady:
+				row.CheckedAt = p.now()
+				row.Detail = "snapshot validated; publication pending"
+				taken = append(taken, c.Path)
+			case result.Status == SnapshotDeferred:
+				row.Status = DatabaseDeferred
 			}
-			taken = append(taken, c.Path)
+			rows[c.Path] = len(*summaries)
+			*summaries = append(*summaries, row)
+			if ctx.Err() != nil {
+				return 0, skipped, ctx.Err()
+			}
+			if err != nil || result.Status != SnapshotReady {
+				skipped = append(skipped, c.Path+": "+row.Detail)
+			}
 		}
-		identity = SourceIdentity{Host: identity.Host, Root: staging, Repository: identity.Root}
+		identity = snapshotIdentity
 		if found, err = Discover(ctx, staging, taken); err != nil {
 			return 0, skipped, err
 		}
@@ -170,23 +208,39 @@ func (p ContinuousPass) archiveRoot(ctx context.Context, root SourceRoot, index 
 	} else {
 		found = SelectQuiet(found, now, quiet)
 	}
+	setRow := func(path string, status DatabaseBackupStatus, detail string) {
+		if i, ok := rows[path]; ok {
+			row := &(*summaries)[i]
+			row.Status, row.Detail = status, detail
+			row.LastVerified = index.LatestVerified(identity, path)
+		}
+	}
 	var fresh []string
 	for _, c := range found {
 		if index.Seen(identity, c) {
+			setRow(c.Path, DatabaseUnchanged, "")
 			continue
 		}
 		described, err := (&SelectedFiles{Root: identity.Root, Limit: rawBundleLimit(root.Kind)}).Describe(ctx, []string{c.Path})
 		if err != nil {
+			setRow(c.Path, DatabaseFailed, err.Error())
 			skipped = append(skipped, fmt.Sprintf("%s/%s: %v", root.Kind, c.Path, err))
 			continue
 		}
 		if index.SeenHash(identity, c.Path, described[0].SHA256) {
+			setRow(c.Path, DatabaseUnchanged, "")
 			continue
 		}
 		fresh = append(fresh, c.Path)
 	}
 	archived := 0
 	for len(fresh) > 0 {
+		if collected && ctx.Err() != nil {
+			for _, path := range fresh {
+				setRow(path, DatabaseFailed, "publication cancelled before attempt: "+ctx.Err().Error())
+			}
+			return archived, skipped, errors.Join(append(failures, ctx.Err())...)
+		}
 		n := min(len(fresh), MaxFiles)
 		if collected {
 			// One request per snapshot: an oversized one is skipped alone,
@@ -196,10 +250,14 @@ func (p ContinuousPass) archiveRoot(ctx context.Context, root SourceRoot, index 
 		req := ArchiveRequest{Version: Version, Kind: root.Kind, Source: identity, Files: fresh[:n], Recipients: p.Config.Recipients, Sink: p.Config.Sink, Catalog: p.Config.Catalog}
 		records, err := p.Archiver.create(ctx, req, collected)
 		for _, r := range records {
-			index.Add(r.Manifest)
+			index.AddRecord(r)
+			for _, f := range r.Manifest.Files {
+				setRow(f.Path, DatabaseArchived, "")
+			}
 			archived += len(r.Manifest.Files)
 		}
-		if collected && errors.Is(err, ErrCiphertextLimit) {
+		if collected && errors.Is(err, ErrCiphertextLimit) && ctx.Err() == nil {
+			setRow(fresh[0], DatabaseFailed, err.Error())
 			// A snapshot too large even compressed is skipped, not a failed
 			// pass: it would fail the same way every day (pair#616).
 			skipped = append(skipped, fmt.Sprintf("%s/%s: %v; skipped", root.Kind, fresh[0], err))
@@ -207,11 +265,23 @@ func (p ContinuousPass) archiveRoot(ctx context.Context, root SourceRoot, index 
 			continue
 		}
 		if err != nil {
-			return archived, skipped, err
+			for _, path := range fresh[:n] {
+				setRow(path, DatabaseFailed, err.Error())
+			}
+			if !collected {
+				return archived, skipped, err
+			}
+			if ctx.Err() != nil {
+				for _, path := range fresh[n:] {
+					setRow(path, DatabaseFailed, "publication cancelled before attempt: "+ctx.Err().Error())
+				}
+				return archived, skipped, errors.Join(append(failures, ctx.Err())...)
+			}
+			failures = append(failures, fmt.Errorf("%s: %w", fresh[0], err))
 		}
 		fresh = fresh[n:]
 	}
-	return archived, skipped, nil
+	return archived, skipped, errors.Join(failures...)
 }
 
 func (p ContinuousPass) archivedIndex(ctx context.Context) (*ArchivedIndex, error) {
@@ -221,7 +291,7 @@ func (p ContinuousPass) archivedIndex(ctx context.Context) (*ArchivedIndex, erro
 		return nil, err
 	}
 	defer catalog.Close()
-	return index, catalog.Each(ctx, func(r CatalogRecord) error { index.Add(r.Manifest); return nil })
+	return index, catalog.Each(ctx, func(r CatalogRecord) error { index.AddRecord(r); return nil })
 }
 
 func (p ContinuousPass) wants(kind string) bool {

@@ -117,6 +117,10 @@ type StatusModel struct {
 	// Palette is what the host terminal told couch about its colours, which
 	// idle fading blends toward (pair#247).
 	Palette Palette
+	// Attention is the attention list's length (pair#673), drawn as 🔔N at the
+	// row's right end; AttentionPrompt colors it as a blocked slot's chip.
+	Attention       int
+	AttentionPrompt bool
 }
 
 const (
@@ -189,6 +193,8 @@ type RenderedStatusRow struct {
 	WebDriveLink   ColumnSpan
 	// WebNotes is the web cast's 💭N span (#470).
 	WebNotes ColumnSpan
+	// Attention is the 🔔N span (pair#673): a click opens the attention list.
+	Attention ColumnSpan
 	// WebDrive is the pending drive requests' popup span (#467).
 	WebDrive ColumnSpan
 }
@@ -222,6 +228,17 @@ func RenderStatusRow(width int, m StatusModel) RenderedStatusRow {
 	}
 	var row strings.Builder
 	used := 0
+	// The attention badge is laid out first and drawn last, at the right end,
+	// so everything else clips short of it.
+	full, badge, badgeW := width, "", 0
+	if m.Attention > 0 {
+		badge = AttentionGlyph + strconv.Itoa(m.Attention)
+		if badgeW = textwidth.Width(badge); badgeW+1 < width {
+			width -= badgeW + 1
+		} else {
+			badge = ""
+		}
+	}
 	appendText := func(text, sgr string) {
 		if used >= width || text == "" {
 			return
@@ -413,8 +430,23 @@ func RenderStatusRow(width int, m StatusModel) RenderedStatusRow {
 		}
 		appendText(n, "")
 	}
-	return RenderedStatusRow{Body: row.String(), Chips: chips, Control: control, Pointer: pointer, Notes: notes, Webcast: webcastSpan, WebFocus: webFocusSpan, WebPointerLink: webPointerLinkSpan, WebDriveLink: webDriveLinkSpan, WebNotes: webNotesSpan, WebDrive: webDriveSpan}
+	var attention ColumnSpan
+	if badge != "" {
+		width = full
+		appendText(strings.Repeat(" ", full-badgeW-used), "")
+		sgr := attentionSGR
+		if m.AttentionPrompt {
+			sgr = blockedSGR
+		}
+		start := used
+		appendText(badge, sgr)
+		attention = ColumnSpan{Start: start, End: used}
+	}
+	return RenderedStatusRow{Body: row.String(), Chips: chips, Control: control, Pointer: pointer, Notes: notes, Webcast: webcastSpan, WebFocus: webFocusSpan, WebPointerLink: webPointerLinkSpan, WebDriveLink: webDriveLinkSpan, WebNotes: webNotesSpan, WebDrive: webDriveSpan, Attention: attention}
 }
+
+// AttentionGlyph leads the attention badge (pair#673).
+const AttentionGlyph = "🔔"
 
 // WebcastCell is the cast Chrome's state on the tab bar (#454).
 type WebcastCell uint8
