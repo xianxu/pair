@@ -145,10 +145,17 @@ func (d *realParkConformanceDriver) DeliverTrigger(request pairlifecycle.QuitReq
 			DataDir: d.checker.GlobalDataDir, RepoScope: request.Identity.RepoScope,
 			Tag: request.Identity.Tag, Nonce: request.Identity.Nonce, Attempt: request.Attempt,
 		}}
+	// Production's delivery rule (park.go): observe the session and trigger
+	// only when it is present. The first trigger quiesces the session, so a
+	// redelivery can find it gone, and then delivers nothing (pair#704).
+	binding, err := d.checker.NamedPairSessionContext(context.Background(), d.current.Address, request.Session)
+	if err != nil || !binding.Present {
+		return err
+	}
 	if d.trigger != nil {
 		return d.trigger(request.Session, intent)
 	}
-	return d.checker.TriggerQuit(request.Session, intent)
+	return d.checker.TriggerBoundQuit(context.Background(), binding, intent)
 }
 func (d *realParkConformanceDriver) CleanupAndPrepareCompletion(ctx context.Context, request pairlifecycle.QuitRequest) (pairlifecycle.CleanupResult, []pairlifecycle.CleanupStage, error) {
 	observer := PairLifecycleStoreIO{Store: d.store}

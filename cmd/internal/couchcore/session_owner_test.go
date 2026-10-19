@@ -191,3 +191,20 @@ func TestNamedPairSessionRefusesAnOrphanWithItsDiagnostic(t *testing.T) {
 		t.Fatal("reboot would archive a running conversation; it is not this refusal's advice")
 	}
 }
+
+// An absent session is named as absent, not as an owner mismatch (pair#704):
+// a redelivered trigger after the first one's quiescence used to read as a
+// wrong owner. Nothing is written or deleted.
+func TestTriggerBoundQuitNamesAnAbsentSession(t *testing.T) {
+	root := t.TempDir()
+	checker := NewScopedThreadArtifactCollisionChecker(root)
+	binding := PairSessionBinding{Name: "pair-gone", Owner: &launcher.SessionOwnerObservation{State: launcher.SessionOwnerAbsent, Name: "pair-gone"}}
+	intent := launcher.QuitIntent{Version: launcher.QuitIntentVersion, Kind: launcher.QuitIntentCouch, Request: &launcher.QuitRequestReference{DataDir: root, RepoScope: "0123456789abcdef", Tag: "couch-0000000000000001", Nonce: "park-1", Attempt: 1}}
+	err := checker.TriggerBoundQuit(context.Background(), binding, intent)
+	if err == nil || !strings.Contains(err.Error(), `session "pair-gone" is absent`) || strings.Contains(err.Error(), "does not match") {
+		t.Fatalf("absent session err=%v", err)
+	}
+	if entries, _ := os.ReadDir(root); len(entries) != 0 {
+		t.Fatalf("absent trigger wrote %v", entries)
+	}
+}
