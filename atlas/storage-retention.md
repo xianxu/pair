@@ -138,6 +138,15 @@ The implementation map:
   protect plausible current files; immutable closed generations need exact reader
   proof, so an unheld expired segment can be collected independently. Known Couch
   client scope/tag fields narrow the current-file block; conflicts remain unknown.
+  Couch publishes diagnostic_protocol version1 on its existing couch-runtime
+  lease before admitting its coordinated store. Rooted writer maintenance and GC
+  use the selected root's registry, exact PID/birth and a fresh liveness check;
+  old or unsupported capabilities stay conservative until a new supervisor
+  publishes participation. Exact open holders always block, including registered
+  Couch. The runtime registry preserves unknown envelope, row and process fields
+  across writes while validating known fields strictly; it supplies no authority
+  from unknown members. Lease reads are bounded, read-only and shared once per
+  sweep, without taking the root lock from a diagnostic log lock.
   Snapshots never survive into
   a later sweep/apply; warnings, partial output or the2s bound retain data.
   The maintenance context propagates into

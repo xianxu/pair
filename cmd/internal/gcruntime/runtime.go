@@ -58,8 +58,9 @@ func NewWithInspection(root string, inspection diagnosticlog.Inspection) (*Servi
 		return ""
 	})
 	opts.RetentionPeriod = diagnosticlog.RetentionPeriod
-	opts.Proof = diagnosticlog.InspectionProof(inspection)
-	opts.ReaderProof = diagnosticlog.InspectionReaderProof(inspection)
+	rooted := diagnosticlog.WithRuntimeRegistry(c, inspection)
+	opts.Proof = diagnosticlog.InspectionProof(rooted)
+	opts.ReaderProof = diagnosticlog.InspectionReaderProof(rooted)
 	return &Service{Collector: collector, DiagnosticOptions: opts}, nil
 }
 
