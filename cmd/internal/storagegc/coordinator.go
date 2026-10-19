@@ -34,10 +34,11 @@ type UseIntent struct {
 }
 
 type ProcessRegistration struct {
-	ID      string          `json:"id"`
-	Process ProcessIdentity `json:"process"`
-	Role    string          `json:"role"`
-	Target  string          `json:"target,omitempty"`
+	DiagnosticProtocol int             `json:"diagnostic_protocol,omitempty"`
+	ID                 string          `json:"id"`
+	Process            ProcessIdentity `json:"process"`
+	Role               string          `json:"role"`
+	Target             string          `json:"target,omitempty"`
 }
 
 type OwnerState struct {

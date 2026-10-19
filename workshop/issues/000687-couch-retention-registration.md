@@ -90,6 +90,18 @@ Hub receipt34b6b719-dab8-4751-aeff-2a87883e7d88 approves the explicit diagnostic
 
 PQ-1 requested named function-level test strategies instead of prose inventories. Compressed the durable plan's codec, registry, predicate, adapter and composition test rows accordingly; no architecture/scope change. Re-running the remembered plan gate before implementation.
 
+### 2026-10-18 — implementation and owned/read-only qualification
+
+change-code admitted the full flow after PQ-1 was addressed and the 2.015-hour v3.1 estimate was recorded. Estimate-quality was INFO: integration/qualification and shipping allowances are tight. The two module rows include their adversarial unit/integration tests, the smaller-module row covers wiring and constructor coverage, and the review row includes overlapping recorded checks/CI/landing supervision; elapsed checks may exceed that allowance and will be captured by actuals rather than hidden.
+
+TDD RED: TestDiagnosticSupervisorLeaseRecognizesOnlyPublishedCapability failed because a lease with diagnostic_protocol1 still left the supervisor as legacy; TestCoordinatedCouchRegistersActualRootRuntime failed with DiagnosticProtocol0. Both now pass after selected-root consumption and explicit constructor publication. Codec work independently observed RED for unknown-member rewrites, malformed known fields and missing capability, then GREEN. Unknown envelope/row/process members survive changed append, upgrade and dead pruning; cancellation/persist failures preserve previous bytes.
+
+Affected full packages storagegc (38.863s), diagnosticlog (89.050s) and gcruntime (35.929s) passed. Artifactpath initially found three obsolete ignored runtime-bundle Lua mirrors removed from tracked sources by #664; make runtimebundle-generate reconciled local assets, then the whole artifactpath package passed15.798s. The whole-tree Godoc guard passed0.479s. Full couchcore run is still active. N8/16 tests hold one registry read, one native process/open-file snapshot pair and one matching liveness probe; next-sweep lease removal is observed. Owned-child native FD/PID/birth conformance passed3.33s with the 2s native bound unchanged.
+
+Read-only real preview completed4.463s, exit0, no stderr:519 rows /33,335,609,869bytes, zero eligible. Existing supervisor45023 has its original couch-runtime lease with no diagnostic_protocol and correctly blocks253 current rows /23,917,067,119bytes. No live apply or staging. runtimes.json remained byte-identical, SHA256 ac43fa7db16e4f5e22e59fcb7bf4a209953fdfab89d91cc642ba692d482ff426. Retained evidence: /Users/xianxu/workspace/pair/.git/pair-687-evidence (before/after registry, preview JSON/stderr and SHA256SUMS); manifest SHA25669932b22f2bb863b9208b87ac90f1489ca324393238af17988ec07e96ec564e0. Hub report197c66ca-bd69-41c4-84a1-026271ac5a46 was submitted. Real supervisor participation remains the approved next-restart check.
+
+Restart check for hub/operator: after restarting onto this landing, read the selected root's .retention/runtimes.json and match the new supervisor PID/birth, couch-runtime role and diagnostic_protocol1. Run pair gc --diagnostics-only --json against that root; its current-log rows must no longer name the supervisor as an unrecognized runtime. Actual open holders, old clients, changed generations and other blockers remain protected. A new preview and separate apply approval precede any deletion.
+
 ## Revisions
 
 ### 2026-10-18 — dispatched capability and record-evolution design

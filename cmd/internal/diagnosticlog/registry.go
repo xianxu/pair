@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+
+	"github.com/xianxu/pair/cmd/internal/storagegc"
 )
 
 type RegistryEntry struct {
@@ -196,6 +198,12 @@ func EnvironmentOptions(getenv func(string) string) Options {
 	if filepath.Base(filepath.Dir(p)) == "repos" {
 		p = filepath.Dir(filepath.Dir(p))
 	}
+	coordinator, e := storagegc.NewCoordinator(p)
+	if e != nil {
+		o.Proof = func(context.Context, string, []Registration) error { return inspectionFailure(e) }
+		return o
+	}
+	o.Proof = InspectionProof(WithRuntimeRegistry(coordinator, OSInspection{}))
 	o.Root = p
 	o.Registry = func(ctx context.Context, entry RegistryEntry) error { return register(ctx, p, entry) }
 	o.Retire = func(ctx context.Context, entry RegistryEntry) error { return unregister(ctx, p, entry) }
