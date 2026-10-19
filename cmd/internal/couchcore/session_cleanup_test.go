@@ -81,6 +81,7 @@ func TestPersistentSessionCleanupRetainsExactStartAndPublishesFailure(t *testing
 		if inc.State != IncarnationUnknown || inc.Start != nil || record.SessionBinding == nil || record.SessionBinding.Name != uncertain.Session || record.SessionBinding.StartNonce != startNonce || inc.PID != h.PID() || inc.Identity != h.Identity() {
 			t.Fatalf("exact unresolved start was not retained: %+v", inc)
 		}
+		env.Couch.LaunchFailures = NewLaunchFailureStore(env.Couch.Namespace)
 		history, readErr := env.Couch.LaunchFailures.Read()
 		if readErr != nil || len(history) != 1 {
 			t.Fatalf("cleanup failure not persisted: %+v %v", history, readErr)
@@ -91,6 +92,14 @@ func TestPersistentSessionCleanupRetainsExactStartAndPublishesFailure(t *testing
 		}
 		if line := OperatorError(err); !strings.Contains(line, "ownership retained") {
 			t.Fatalf("cleanup history not exposed: %s", line)
+		}
+		result, showErr := dispatchTestOperation(env.Couch, "show", map[string]string{"ref": string(address.Tag), "repo-scope": address.RepoScope})
+		if showErr != nil {
+			t.Fatal(showErr)
+		}
+		show := result.(ShowResult)
+		if len(show.LaunchFailures) != 1 || show.LaunchFailures[0].Nonce != f.Nonce || show.LaunchFailures[0].CleanupError != f.CleanupError {
+			t.Fatalf("show lost retained cleanup diagnostic: %+v", show)
 		}
 	})
 }

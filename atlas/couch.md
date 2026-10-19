@@ -186,6 +186,20 @@ record, separate preferences, and retained history. Each backend uses the existi
 lock, revision checks and recoverable journal. The supervisor lease still belongs
 to the selected global namespace beneath the account lease.
 
+### Failed-start session cleanup (#712)
+
+After an acknowledged helper dies, owned-session cleanup shares one five-second
+budget across owner observation, revalidation, retries and native deletion.
+Persistent refusal returns SessionCleanupUnconfirmed; the exact session binding,
+start nonce and unknown incarnation remain occupied. No destructive rollback or
+replacement launch follows unproved absence. Helper termination still retains its
+exact handle until reaped, independently of this session budget.
+
+History uses the existing phase launch and outcome unproven; the receipt and
+operator line name cleanup uncertainty and retain the diagnostic nonce. Inspect
+with couch --show, then use the existing continue, resume from disk or start fresh
+recovery outcome when fresh evidence permits it. No new recovery state is added.
+
 ### Lifecycle failure evidence (#531, #683)
 
 `launchfailure.go` owns `LifecycleFailure` and the legacy `LaunchFailure` aliases,
