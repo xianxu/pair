@@ -863,6 +863,18 @@ var NonArtifactSources = []string{
 	"cmd/internal/terminalcapture/storage.go",
 	"cmd/internal/terminalcapture/record.go",
 	"cmd/internal/terminalcapture/recorder.go",
+	// #708 optional scratch storage and native namespace policy, outside Pair artifacts.
+	"cmd/internal/couchscratch/policy.go",
+	"cmd/internal/couchscratch/age.go",
+	"cmd/internal/couchscratch/manager.go",
+	"cmd/internal/couchscratch/os.go",
+	"cmd/internal/couchscratch/temp.go",
+	"cmd/internal/couchscratch/sweep.go",
+	"cmd/internal/couchscratch/metadata.go",
+	"cmd/internal/couchscratch/metadata_policy.go",
+	"cmd/internal/couchcore/scratch_identity.go",
+	"cmd/internal/couchcmd/scratch.go",
+	"cmd/internal/launcher/zellij_socket.go",
 	// #366 singleton ownership/configuration, not Pair artifact filenames.
 	"cmd/internal/couchcmd/singleton.go",
 	"cmd/internal/couchcmd/singleton_cli.go",
