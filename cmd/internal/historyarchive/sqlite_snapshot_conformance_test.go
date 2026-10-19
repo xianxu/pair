@@ -11,7 +11,9 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"testing"
+	"time"
 )
 
 // The owning SQLite process never performs raw descriptor inspection of its
@@ -143,33 +145,81 @@ func TestSQLiteOwnerDeathKeepsScratchUntilKernelAlarm(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	r, w, err := os.Pipe()
+	defer lease.Close()
+	input, w, err := os.Pipe()
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer input.Close()
 	defer w.Close()
-	owner := exec.Command(os.Args[0], "fixture-sqlite-owner", db)
-	owner.Stdin = r
-	owner.ExtraFiles = []*os.File{lease}
-	out, err := owner.StdoutPipe()
+	// Own this pipe independently of Cmd.Wait: killing and reaping the owner
+	// must leave the SQLite orphan's output readable until its kernel alarm.
+	out, output, err := os.Pipe()
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer out.Close()
+	defer output.Close()
+	owner := exec.Command(os.Args[0], "fixture-sqlite-owner", db)
+	owner.Stdin = input
+	owner.Stdout = output
 	owner.Stderr = os.Stderr
+	owner.ExtraFiles = []*os.File{lease}
 	if err := owner.Start(); err != nil {
 		t.Fatal(err)
 	}
-	r.Close()
+	input.Close()
+	output.Close()
 	lease.Close()
 	defer func() { owner.Process.Kill(); owner.Wait() }()
-	if _, err := io.WriteString(w, "BEGIN;\nPRAGMA schema_version;\n.print pinned\n"); err != nil {
+	lines := make(chan string, 8)
+	go func() {
+		scanner := bufio.NewScanner(out)
+		for scanner.Scan() {
+			lines <- scanner.Text()
+		}
+		close(lines)
+	}()
+	next := func() (string, bool) {
+		t.Helper()
+		select {
+		case line, ok := <-lines:
+			return line, ok
+		case <-time.After(20 * time.Second):
+			t.Fatal("SQLite fixture stopped reporting progress")
+			return "", false
+		}
+	}
+	pidLine, ok := next()
+	if !ok || !strings.HasPrefix(pidLine, "sqlite-pid ") {
+		t.Fatalf("missing owned SQLite PID: %q", pidLine)
+	}
+	pid, err := strconv.Atoi(strings.TrimPrefix(pidLine, "sqlite-pid "))
+	if err != nil || pid <= 0 {
+		t.Fatalf("invalid SQLite PID receipt: %q", pidLine)
+	}
+	child, err := os.FindProcess(pid)
+	if err != nil {
 		t.Fatal(err)
 	}
-	reader := bufio.NewReader(out)
+	childLive := true
+	defer func() {
+		if childLive {
+			_ = child.Kill()
+		}
+		_ = child.Release()
+	}()
+	// SQLite's own shell command stops its known process before announcing the
+	// pinned phase. Pending SIGALRM cannot release the lease while SIGSTOP holds,
+	// however long the root test is descheduled during owner death and Sweep.
+	script := fmt.Sprintf("BEGIN;\nPRAGMA schema_version;\n.shell kill -STOP %d; echo pinned\n", pid)
+	if _, err := io.WriteString(w, script); err != nil {
+		t.Fatal(err)
+	}
 	for {
-		line, err := reader.ReadString('\n')
-		if err != nil {
-			t.Fatal(err)
+		line, ok := next()
+		if !ok {
+			t.Fatal("SQLite exited before stopped pin receipt")
 		}
 		if strings.TrimSpace(line) == "pinned" {
 			break
@@ -178,16 +228,26 @@ func TestSQLiteOwnerDeathKeepsScratchUntilKernelAlarm(t *testing.T) {
 	if err := owner.Process.Kill(); err != nil {
 		t.Fatal(err)
 	}
+	err = owner.Wait()
+	exit, ok := err.(*exec.ExitError)
+	if !ok || !exit.Sys().(syscall.WaitStatus).Signaled() || exit.Sys().(syscall.WaitStatus).Signal() != syscall.SIGKILL {
+		t.Fatalf("owner not killed by test: %v", err)
+	}
 	if err := (SQLiteSnapshotter{Scratch: scratch}).Sweep(); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(work); err != nil {
-		t.Fatalf("live orphan scratch removed: %v", err)
+		t.Fatalf("stopped orphan scratch removed: %v", err)
 	}
-	// Input remains open. Only the child's independent alarm ends its read pin.
-	if rest, err := io.ReadAll(reader); err != nil || len(rest) != 0 {
-		t.Fatalf("orphan output %q %v", rest, err)
+	if err := child.Signal(syscall.SIGCONT); err != nil {
+		t.Fatal(err)
 	}
+	// Input stays open. With its native read pin resumed, only the inherited
+	// kernel alarm ends this SQLite process and closes the root-owned output.
+	if line, ok := next(); ok {
+		t.Fatalf("unexpected orphan output %q", line)
+	}
+	childLive = false
 	if err := (SQLiteSnapshotter{Scratch: scratch}).Sweep(); err != nil {
 		t.Fatal(err)
 	}

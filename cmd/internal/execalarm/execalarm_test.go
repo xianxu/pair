@@ -55,41 +55,17 @@ func testAlarm(t *testing.T, mode string) {
 	cmd := exec.Command(os.Args[0], "-test.run=^TestExecAlarmHelper$")
 	cmd.Env = append(os.Environ(), "PAIR_EXECALARM_TEST="+mode)
 	cmd.ExtraFiles = []*os.File{lease}
-	out, err := cmd.StdoutPipe()
-	if err != nil {
-		t.Fatal(err)
-	}
 	cmd.Stderr = os.Stderr
 	if err := cmd.Start(); err != nil {
 		t.Fatal(err)
 	}
 	defer cmd.Process.Kill()
 	lease.Close()
-	ready := make(chan string, 1)
-	go func() {
-		scanner := bufio.NewScanner(out)
-		if scanner.Scan() {
-			ready <- scanner.Text()
-		} else {
-			ready <- "EOF"
-		}
-	}()
-	select {
-	case got := <-ready:
-		if got != "ready" {
-			t.Fatalf("child readiness: %s", got)
-		}
-	case <-time.After(20 * time.Second):
-		t.Fatal("child did not become ready")
-	}
 	probe, err := os.OpenFile(lease.Name(), os.O_RDWR, 0600)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer probe.Close()
-	if err := unix.Flock(int(probe.Fd()), unix.LOCK_EX|unix.LOCK_NB); err != unix.EWOULDBLOCK {
-		t.Fatalf("lease not inherited: %v", err)
-	}
 	done := make(chan error, 1)
 	go func() { done <- cmd.Wait() }()
 	select {
@@ -119,36 +95,53 @@ func TestOwnerDeathCannotReleaseExecLease(t *testing.T) {
 	if err := unix.Flock(int(lease.Fd()), unix.LOCK_EX); err != nil {
 		t.Fatal(err)
 	}
-	owner := exec.Command(os.Args[0], "-test.run=^TestExecAlarmHelper$")
-	owner.Env = append(os.Environ(), "PAIR_EXECALARM_TEST=owner")
-	owner.ExtraFiles = []*os.File{lease}
-	out, err := owner.StdoutPipe()
+	// These pipes belong to the root test. Reaping the owner must not close the
+	// orphan's input or output before the root releases its controlled hold.
+	input, control, err := os.Pipe()
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer input.Close()
+	defer control.Close()
+	output, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer output.Close()
+	defer writer.Close()
+	owner := exec.Command(os.Args[0], "-test.run=^TestExecAlarmHelper$")
+	owner.Env = append(os.Environ(), "PAIR_EXECALARM_TEST=owner")
+	owner.ExtraFiles = []*os.File{lease}
+	owner.Stdin = input
+	owner.Stdout = writer
 	owner.Stderr = os.Stderr
 	if err := owner.Start(); err != nil {
 		t.Fatal(err)
 	}
 	defer owner.Process.Kill()
 	lease.Close()
-	ready := make(chan string, 1)
+	input.Close()
+	writer.Close()
+	events := make(chan string, 4)
 	go func() {
-		s := bufio.NewScanner(out)
-		if s.Scan() {
-			ready <- s.Text()
-		} else {
-			ready <- "EOF"
+		s := bufio.NewScanner(output)
+		for s.Scan() {
+			events <- s.Text()
 		}
+		events <- "EOF"
 	}()
-	select {
-	case line := <-ready:
-		if line != "ready" {
-			t.Fatalf("owner readiness: %s", line)
+	await := func(want string) {
+		t.Helper()
+		select {
+		case line := <-events:
+			if line != want {
+				t.Fatalf("exec fixture: got %q, want %q", line, want)
+			}
+		case <-time.After(20 * time.Second):
+			t.Fatalf("exec fixture did not report %q", want)
 		}
-	case <-time.After(20 * time.Second):
-		t.Fatal("owner did not become ready")
 	}
+	await("held")
 	if err := owner.Process.Kill(); err != nil {
 		t.Fatal(err)
 	}
@@ -157,31 +150,30 @@ func TestOwnerDeathCannotReleaseExecLease(t *testing.T) {
 	if !ok || !exit.Sys().(syscall.WaitStatus).Signaled() || exit.Sys().(syscall.WaitStatus).Signal() != syscall.SIGKILL {
 		t.Fatalf("owner not killed by test: %v", err)
 	}
+	// Require two real alarm deliveries after owner death while the fixture
+	// deliberately holds the lease. This crosses the one-second budget using
+	// kernel events, rather than relying on the parent being scheduled promptly.
+	for range 2 {
+		if _, err := fmt.Fprintln(control, "probe"); err != nil {
+			t.Fatal(err)
+		}
+		await("held-after-alarm")
+	}
 	probe, err := os.OpenFile(lease.Name(), os.O_RDWR, 0600)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer probe.Close()
 	if err := unix.Flock(int(probe.Fd()), unix.LOCK_EX|unix.LOCK_NB); err != unix.EWOULDBLOCK {
-		t.Fatalf("owner death released live child's lease: %v", err)
+		t.Fatalf("owner death released held exec lease: %v", err)
 	}
-	timeout := time.NewTimer(20 * time.Second)
-	defer timeout.Stop()
-	tick := time.NewTicker(10 * time.Millisecond)
-	defer tick.Stop()
-	for {
-		select {
-		case <-timeout.C:
-			t.Fatal("orphan retained lease beyond alarm")
-		case <-tick.C:
-			err := unix.Flock(int(probe.Fd()), unix.LOCK_EX|unix.LOCK_NB)
-			if err == nil {
-				return
-			}
-			if err != unix.EWOULDBLOCK {
-				t.Fatal(err)
-			}
-		}
+	if _, err := fmt.Fprintln(control, "release"); err != nil {
+		t.Fatal(err)
+	}
+	await("alarm")
+	await("EOF")
+	if err := unix.Flock(int(probe.Fd()), unix.LOCK_EX|unix.LOCK_NB); err != nil {
+		t.Fatalf("lease survived exec fixture exit: %v", err)
 	}
 }
 
@@ -194,6 +186,7 @@ func TestExecAlarmHelper(t *testing.T) {
 		child := exec.Command(os.Args[0], "-test.run=^TestExecAlarmHelper$")
 		child.Env = append(os.Environ(), "PAIR_EXECALARM_TEST=orphan")
 		child.ExtraFiles = []*os.File{os.NewFile(3, "lease")}
+		child.Stdin = os.Stdin
 		child.Stdout = os.Stdout
 		child.Stderr = os.Stderr
 		if err := child.Start(); err != nil {
@@ -203,6 +196,32 @@ func TestExecAlarmHelper(t *testing.T) {
 		_ = child.Wait()
 		os.Exit(0)
 	}
+	if mode == "held-exec" {
+		alarms := make(chan os.Signal, 1)
+		signal.Notify(alarms, syscall.SIGALRM)
+		fmt.Println("held")
+		commands := bufio.NewScanner(os.Stdin)
+		for commands.Scan() {
+			// Discard any alarm queued before the root's command, then require a
+			// fresh kernel expiry for each receipt. Go intentionally catches ALRM in
+			// this fixture so the lease can stay held for arbitrarily delayed roots.
+			select {
+			case <-alarms:
+			default:
+			}
+			<-alarms
+			switch commands.Text() {
+			case "probe":
+				fmt.Println("held-after-alarm")
+			case "release":
+				fmt.Println("alarm")
+				os.Exit(0)
+			default:
+				panic("unknown held-exec command")
+			}
+		}
+		panic("held-exec input closed before release")
+	}
 	if mode == "consumed" {
 		ch := make(chan os.Signal, 1)
 		signal.Notify(ch, syscall.SIGALRM)
@@ -210,11 +229,11 @@ func TestExecAlarmHelper(t *testing.T) {
 			panic(err)
 		}
 		<-ch // Deliberately consume the first expiry before replacing this process.
-		path, err := exec.LookPath("sh")
+		path, err := exec.LookPath("sleep")
 		if err != nil {
 			panic(err)
 		}
-		if err := syscall.Exec(path, []string{"sh", "-c", "echo ready; exec sleep 30"}, os.Environ()); err != nil {
+		if err := syscall.Exec(path, []string{"sleep", "30"}, os.Environ()); err != nil {
 			panic(err)
 		}
 	}
@@ -232,11 +251,14 @@ func TestExecAlarmHelper(t *testing.T) {
 			panic(err)
 		}
 	}
-	seconds := "1"
+	args := []string{"1", "--", "sleep", "30"}
 	if mode == "orphan" {
-		seconds = "3"
+		if err := os.Setenv("PAIR_EXECALARM_TEST", "held-exec"); err != nil {
+			panic(err)
+		}
+		args = []string{"1", "--", os.Args[0], "-test.run=^TestExecAlarmHelper$"}
 	}
-	if err := Run([]string{seconds, "--", "sh", "-c", "echo ready; exec sleep 30"}); err != nil {
+	if err := Run(args); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(2)
 	}

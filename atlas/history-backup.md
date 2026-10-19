@@ -252,6 +252,28 @@ with an error for inspection. Staging keeps the latest validated file per path;
 unchanged bytes retain its mtime for dedup. Encrypted versions retain the existing
 storage policy above.
 
+### SQLite conformance and native acceptance
+
+The ordinary historyarchive suite uses disposable SQLite writers and kernel-alarm
+owner-death fixtures; it never opens native databases. The opt-in
+`TestSQLiteSnapshotLiveContinuous` requires `PAIR_SQLITE_LIVE_ACCEPTANCE=1` and
+`PAIR_SQLITE_LIVE_LAUNCHER` pointing at the tested pair-go binary. Coordinate it
+with the hub/operator first: it writes normal encrypted bundles to the configured
+local sink/catalog, uses only the codex-database kind, omits Drive, and has a
+five-minute outer budget. Select the normal configured `PAIR_DATA_DIR` explicitly
+when a Couch slot injects a repository-scoped data root. It reports per-source
+read budget, acquisition duration, snapshot bytes and WAL size changes.
+
+If only publication exceeded that outer budget, a separately approved
+`TestSQLiteSnapshotPublishStagedHistory` run (`PAIR_SQLITE_PUBLISH_STAGED=1`)
+publishes the retained validated history staging file under the existing
+continuous lock. It never opens a native database or takes another snapshot.
+Its transform has a 30-minute bound; run it at low priority. Optional
+`PAIR_STAGE_ZSTD`/`PAIR_STAGE_GPG` paths permit content-free tool timing wrappers;
+an external owner must bound and clean up the complete process group when using
+such wrappers. Normal suites skip both native acceptance helpers. Large snapshot
+compression policy is tracked separately in #702.
+
 
 ## Drive copies (#678)
 

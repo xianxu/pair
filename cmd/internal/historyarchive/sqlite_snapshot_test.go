@@ -331,7 +331,12 @@ func TestMain(m *testing.M) {
 		child := exec.Command(os.Args[0], "internal", "exec-alarm", "5", "--", "sqlite3", "-readonly", "-batch", "-bail", "-init", "/dev/null", os.Args[2])
 		child.Stdin, child.Stdout, child.Stderr = os.Stdin, os.Stdout, os.Stderr
 		child.ExtraFiles = []*os.File{os.NewFile(3, "lease")}
-		if err := child.Run(); err != nil {
+		if err := child.Start(); err != nil {
+			os.Exit(1)
+		}
+		fmt.Fprintf(os.Stdout, "sqlite-pid %d\n", child.Process.Pid)
+		_ = child.ExtraFiles[0].Close()
+		if err := child.Wait(); err != nil {
 			os.Exit(1)
 		}
 		os.Exit(0)
