@@ -16,6 +16,7 @@ claimant:
     workspace: pair:7
     worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "bdfc13f6", done: "6c2079e1"}
 ---
 
 # Compress large database snapshots faster with measured levels and threads
