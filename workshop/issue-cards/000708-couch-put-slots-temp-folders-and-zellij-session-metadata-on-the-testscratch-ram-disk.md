@@ -1,6 +1,6 @@
 ---
 id: 000708
-status: codecomplete
+status: done
 created: 2026-10-19
 updated: 2026-10-19
 estimate_hours: 1.78
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: d7593dc70df0e65f516ef7baa1b45e4b1c632514
         evidence_commit: 6612719da4a1eefbcbdf55990f7838a6563c9954
+        landed_commit: 537d37028aaae4a6a839d08acb10234e52af63b0
 ---
 
 # couch: put slots' temp folders and Zellij session metadata on the TestScratch RAM disk
