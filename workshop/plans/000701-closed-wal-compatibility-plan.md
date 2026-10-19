@@ -72,9 +72,9 @@ Actions: allow the next scheduled pass; ask the hub to repair the reported confi
 | Internal state / failure mode | Visible state | Recovery action | Possible loss |
 |---|---|---|---|
 | Eligible stable cold input; private integrity succeeds | Existing ready/healthy database report | Allow the next scheduled pass | None; new snapshot is at the capture point |
-| Sidecar/source/parent changes during capture; bounded deadline | Existing deferred database report with precise changed/busy reason | Allow the next scheduled pass | This pass has no new bundle; earlier verified bundle retained |
+| Source quiescence cannot be established (changed/unreadable/unknown capture evidence or deadline) | Existing deferred database report with precise uncertain-input reason | Allow the next scheduled pass | This pass has no new bundle; earlier verified bundle retained |
 | Native active source | Existing pinned-backup report | Allow the next scheduled pass | Existing outcomes unchanged |
-| Corrupt private candidate, unsafe path, unreadable/unknown metadata or tool failure | Existing rejected/failed report with reason | Ask the hub to repair the reported configuration/source | This pass has no new bundle; earlier verified bundle retained |
+| Corrupt private candidate, proven unsafe path/configuration or tool failure | Existing rejected/failed report with reason | Ask the hub to repair the reported configuration/source | This pass has no new bundle; earlier verified bundle retained |
 | Cancellation or collector death | Existing interrupted pass; leased work removed by current cleanup/sweep | Allow the next scheduled pass | Only unpublished private work |
 
 No new UI, warning timer, schema, status enum or online retry. #700's freshness warning remains the operator escalation when deferred/failed sources age. Namespace churn from unrelated files may defer the cold route; say so in the diagnostic instead of claiming the DB is corrupt.
@@ -91,16 +91,13 @@ No new UI, warning timer, schema, status enum or online retry. #700's freshness 
 
 | Production function | Adversarial input / independent oracle | Named test / mechanical guard |
 |---|---|---|
-| coldWALHeader | exact header; 1/1 and mixed modes; bad signature; every truncated prefix | TestColdWALHeaderTable |
-| sameColdSource | individually vary every identity/metadata/sidecar field; lengths and digests | TestColdSourceStampComparison |
-| observeColdSource | absent vs permission/stat errors; dangling symlink, FIFO, parent/DB replacement | TestObserveColdSourceNeverTreatsUnknownAsAbsent |
-| copyColdWAL | writer starts mid-read; WAL/SHM/journal appears; transient create/remove; same-size edit with restored mtime; replacement; second-read mismatch | TestColdWALCopyRefusesMutations, TestColdWALCopyDetectsTransientSidecars |
-| copyColdWAL | short/error reads, cancel/deadline, oversize, private output collision | TestColdWALCopyBoundsAndCancellation |
-| copyColdWAL | B and 2B source bytes; N and 2N calls; count complete reads, writes, observations | TestColdWALCopyCountedCost |
-| SQLiteSnapshotter.Snapshot | cold no-sidecar source vs active WAL fixture, fake counts only intended acquisition lane | TestSQLiteSnapshotColdAndActiveRoutes |
-| SQLiteSnapshotter.Snapshot | cold mutation/corrupt validation after an existing staged candidate; no candidate publication; cleanup | TestSQLiteColdRefusalPreservesPreviousStage |
-| ExecSQLiteRunner + Snapshot | system/native CLI closed refusal and private success, all source names/bytes/identities/modes unchanged; unknown schema/rowids | TestSQLiteClosedWALNativeConformance |
-| ContinuousPass | cold success publishes through existing catalog; mixed cold refusal and later active success | TestContinuousColdWALPublicationAndIsolation |
+| coldWALHeader | Malformed/truncated header class through generated-prefix/property checks | TestColdWALHeaderTable |
+| sameColdSource | Mutated evidence values through independent field-variation properties | TestColdSourceStampComparison |
+| observeColdSource | Unavailable or changed filesystem authority through a stateful filesystem fixture; unknown never grants copy authority | TestObserveColdSourceNeverTreatsUnknownAsAbsent |
+| copyColdWAL | Controlled capture event sequences with independent exact-output/source-preservation/refusal invariants; counted B/2B and N/2N work | TestColdWALCopyRefusesMutations, TestColdWALCopyBoundsAndCancellation, TestColdWALCopyCountedCost |
+| SQLiteSnapshotter.Snapshot | Stateful lane selection and failed-candidate sequences; exact acquisition counts and prior-stage/cleanup invariants | TestSQLiteSnapshotColdAndActiveRoutes, TestSQLiteColdRefusalPreservesPreviousStage |
+| ExecSQLiteRunner | Disposable native CLI conformance against the fake contract; independent SQL and full-source-image oracles | TestSQLiteClosedWALNativeConformance |
+| ContinuousPass | Mixed-result production pass through the portable store; verified-catalog and isolation invariants | TestContinuousColdWALPublicationAndIsolation |
 | All new sources | exhaustive source inventory and test-only symbol checks | full artifactpath package |
 
 The real conformance fixture qualifies the configured SQLite (ordinary portable success) and /usr/bin/sqlite3 on macOS (record version and reproduce its specific refusal). Do not assert every SQLite build must refuse. Installed Homebrew conformance is optional when available, never an installation requirement. Existing active-writer conformance must keep advancing while backup succeeds.
@@ -142,3 +139,9 @@ Files: atlas/history-backup.md, README.md only if a new operator/test invocation
 - ARCH-STATE: no new durable phases; capture uncertainty refuses before current ready/publication transition. Explicit mutation gates cover the risky interleavings.
 - ARCH-FUNERAL: existing lease/defer/sweep own the private candidate and sidecars; no new persistent family.
 - ARCH-EVOLVE: format-neutral; opaque SQL objects preserved as bytes, current catalog/manifest codecs unchanged.
+
+## Revisions
+
+### 2026-10-19 12:16 PDT — hub approval and PQ-1 strategy compression
+
+Hub approved the mechanism (receipt a29363a1-7c62-43e8-92bd-2bc7cc45e531) and explicitly requires uncertain cold captures to defer without retry. The projection now makes that distinction from a proven unsafe configuration or corrupt candidate. PQ-1 found the strategy table too close to a prose case inventory: compressed the whole table to one adversarial class/mechanical guard per risky function, retaining exact test names, controlled sequencing and independent oracles. No mechanism or scope change.

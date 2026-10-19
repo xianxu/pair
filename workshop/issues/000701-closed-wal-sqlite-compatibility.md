@@ -41,7 +41,7 @@ Choose a small compatibility route for closed WAL-mode databases without restori
 - [ ] Verify cold and active routes, source preservation, catalog publication, cancellation and counted costs; update the archive map.
 - [ ] Run the recorded branch suite and close review, then land through SDLC and report to the hub.
 
-Detailed design: [closed WAL compatibility plan](../plans/000701-closed-wal-compatibility-plan.md). Await hub approval before change-code.
+Detailed design: [closed WAL compatibility plan](../plans/000701-closed-wal-compatibility-plan.md). Hub approved; implementation awaits the code gate.
 
 ## Log
 
@@ -59,3 +59,7 @@ Detailed design: [closed WAL compatibility plan](../plans/000701-closed-wal-comp
 ### 2026-10-19 12:14 PDT — proposed compatibility route, pending approval
 
 Choose a private plain copy only for a WAL-header source with all three coordination names (-wal, -shm, -journal) absent. Admission and two bounded full reads compare held file and parent identities, size, mtime and ctime; copy and reread digests must match. Parent mutation detects sidecars that appeared and disappeared between observations. Unknown evidence refuses the candidate without retry, preserving the existing staged file and verified catalog. This is an observed stable-input contract for ordinary SQLite on reliable local filesystems, not a claim of exclusive ownership. A writer beginning after the final capture fence does not invalidate the earlier snapshot. Active sidecars continue through the current pinned SQLite backup without any copy-then-compare fallback. No new dependency or format change. See the durable plan for assumptions, failure projection, costs and tests. #710 is queued by the hub after this issue; its coverage work is outside #701.
+
+### 2026-10-19 12:16 PDT — approval and plan-quality response
+
+Hub approved the design and clarified that uncertain cold evidence is deferred (receipt a29363a1-7c62-43e8-92bd-2bc7cc45e531). PQ-1 requested compression of prose test-case inventories; the function strategy table now gives one adversarial class and mechanical guard per risky function. Code remains untouched until the gate passes. Hub filed the separately reported hub-alias failure as #711; exact-address delivery succeeded and no restart was needed.
