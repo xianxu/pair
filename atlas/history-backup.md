@@ -216,7 +216,8 @@ does nothing.
   is a new version. Worktree slots share their repository's git common dir, so
   sdlc data is archived once per repository.
 - **Databases:** snapshotted daily regardless of quiet. `SQLiteSnapshotter`
-  opens the live database through SQLite's read-only WAL-reader protocol,
+  captures an observed cold WAL database as described below; other inputs
+  open through SQLite's read-only WAL-reader protocol,
   pins a read transaction and runs `.backup` into a private directory. DB/WAL
   content is never written by the reader; SQLite may create/update SHM read
   marks. The source reader has a size-scaled 5–30 second budget and a 250ms busy timeout,
@@ -237,9 +238,23 @@ does nothing.
   The read budget is twice the estimated DB+WAL copy time at 190 decimal MB/s,
   rounded up and clamped to 5–30 seconds. The measured approximately 2GB
   history database gets 21 seconds; the context and kernel alarm use the same
-  value, never renewed. macOS system SQLite 3.54 may fail a closed WAL-mode
-  database lacking WAL/SHM sidecars; that diagnosed compatibility limitation
-  is tracked in #701, separately from the active-history backup fix.
+  value, never renewed. For a complete WAL header with no WAL, SHM or rollback
+  journal files, the collector instead makes a private plain copy and checks
+  it against a second complete read through the same held source descriptor.
+  Held database and parent identities, size, mtime and ctime must stay unchanged;
+  the parent check detects even transient sidecars. This is observed quiescence
+  on a reliable local filesystem, not a writer lock. It avoids macOS system
+  SQLite 3.54's closed-WAL readonly failure without opening that native source
+  through SQLite or creating native sidecars. The two reads share one 5–30 second
+  deadline and fixed-size buffers. Changed or unknown capture evidence defers
+  without retry and keeps the previous verified backup; let the next scheduled
+  pass try again. Unrelated directory churn can conservatively defer this path.
+  Proven unsafe paths, size violations and private output failures are rejected;
+  ask the hub to repair the reported source or output configuration.
+  Active databases retain native backup; a failed cold capture never falls
+  through to another acquisition in the same pass. Both paths share private
+  DELETE/integrity validation, atomic staging, opaque schema/rowid preservation
+  and leased cleanup. Later writes do not invalidate a completed cold capture.
 - **Database freshness:** each pass prints archived, unchanged, deferred or
   failed per database, plus its last verified catalog timestamp/age (or never).
   A checked-unchanged source is current even when its stored bundle is old;
@@ -306,7 +321,11 @@ storage policy above.
 ### SQLite conformance and native acceptance
 
 The ordinary historyarchive suite uses disposable SQLite writers and kernel-alarm
-owner-death fixtures; it never opens native databases. The opt-in
+owner-death fixtures; it never opens native databases. Closed-WAL conformance
+qualifies the configured CLI and macOS system CLI, preserving the complete native
+fixture image. Controlled real SQLite writers exercise both capture reads,
+including rollback with only transient sidecars. Counted tests bound source reads
+and observations at B/2B bytes and N/2N databases. The opt-in
 `TestSQLiteSnapshotLiveContinuous` requires `PAIR_SQLITE_LIVE_ACCEPTANCE=1` and
 `PAIR_SQLITE_LIVE_LAUNCHER` pointing at the tested pair-go binary. Coordinate it
 with the hub/operator first: it writes normal encrypted bundles to the configured

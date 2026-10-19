@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"golang.org/x/sys/unix"
 )
@@ -47,9 +48,10 @@ func observeDatabase(path string) (SnapshotObservation, os.FileInfo, error) {
 	return o, db, nil
 }
 
-// SQLiteSnapshotter pins a read-only source transaction for a size-scaled
-// 5..30 second budget, validates the backup after releasing that reader, then
-// replaces staging. SQLite may update SHM coordination, never DB/WAL content.
+// SQLiteSnapshotter captures an observed cold WAL file or pins a read-only
+// source transaction for a size-scaled 5..30 second budget. Both paths validate
+// privately before staging. SQLite may update SHM coordination on the active
+// path, never source DB/WAL content.
 // pair:m5-concept integration
 type SQLiteSnapshotter struct {
 	SQLite, Scratch string
@@ -133,12 +135,30 @@ func (s SQLiteSnapshotter) Snapshot(ctx context.Context, root, rel, stagingRoot 
 	if runner == nil {
 		runner = ExecSQLiteRunner{SQLite: s.SQLite}
 	}
-	out, err := runner.Run(ctx, SQLiteRequest{Purpose: SQLiteAcquire, Database: src, Work: work, Lease: lease, ReadSeconds: SnapshotReadSeconds(before.DBSize + before.WALSize)})
+	snap := filepath.Join(work, "snapshot.sqlite")
+	readSeconds := SnapshotReadSeconds(before.DBSize + before.WALSize)
+	readCtx, cancelRead := context.WithTimeout(ctx, time.Duration(readSeconds)*time.Second)
+	cold, coldErr := copyColdWAL(readCtx, coldSQLiteFile{File: source, parent: parent, path: src}, snap)
+	cancelRead()
 	if ctx.Err() != nil {
 		return SnapshotResult{}, ctx.Err()
 	}
-	if err != nil {
-		return snapshotFailure(err, out.Stderr), nil
+	if coldErr != nil {
+		result := snapshotFailure(coldErr, "")
+		if errors.Is(coldErr, errColdCapture) {
+			result.Status = SnapshotDeferred
+		}
+		return result, nil
+	}
+	var out SQLiteRunResult
+	if !cold {
+		out, err = runner.Run(ctx, SQLiteRequest{Purpose: SQLiteAcquire, Database: src, Work: work, Lease: lease, ReadSeconds: readSeconds})
+		if ctx.Err() != nil {
+			return SnapshotResult{}, ctx.Err()
+		}
+		if err != nil {
+			return snapshotFailure(err, out.Stderr), nil
+		}
 	}
 	_, dbAfter, err := observeDatabase(src)
 	if err != nil {
@@ -148,7 +168,6 @@ func (s SQLiteSnapshotter) Snapshot(ctx context.Context, root, rel, stagingRoot 
 	if err != nil || !os.SameFile(dbBefore, dbAfter) || !os.SameFile(parentBefore, parentAfter) {
 		return SnapshotResult{Status: SnapshotRejected, Detail: "source identity changed during backup"}, nil
 	}
-	snap := filepath.Join(work, "snapshot.sqlite")
 	info, err := os.Lstat(snap)
 	if err != nil {
 		return snapshotFailure(err, "backup output"), nil

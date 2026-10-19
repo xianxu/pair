@@ -719,6 +719,8 @@ var NonArtifactSources = []string{
 	"cmd/internal/historyarchive/continuous_discover.go",
 	"cmd/internal/historyarchive/continuous_index.go",
 	"cmd/internal/historyarchive/continuous_select.go",
+	"cmd/internal/historyarchive/sqlite_cold.go",
+	"cmd/internal/historyarchive/sqlite_cold_model.go",
 	"cmd/internal/historyarchive/sqlite_snapshot.go",
 	"cmd/internal/historyarchive/sqlite_snapshot_exec.go",
 	"cmd/internal/historyarchive/sqlite_snapshot_model.go",
