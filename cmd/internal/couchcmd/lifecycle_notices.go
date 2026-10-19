@@ -241,7 +241,8 @@ func (p *lifecyclePublisher) observeFactLocked(e couchtty.LifecycleObservation) 
 // retainUnresolvedLocked keeps the newest observation per path, at most 128
 // paths. At the cap a new path evicts the oldest observation, so paths that
 // never verify (no slot workspace) cannot crowd out one that will. Drain and
-// ownership change clear the set.
+// ownership change clear the set; refresh also drops an ordinary fact older
+// than lifecycleOrdinaryWait (reducePendingLocked).
 func (p *lifecyclePublisher) retainUnresolvedLocked(e couchtty.LifecycleObservation) {
 	if len(e.Path) > 4096 {
 		return
