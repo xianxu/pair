@@ -40,7 +40,7 @@ After an exact binding is established, lifecycle follow must observe only that a
 
 ## Plan
 
-- [ ] Follow [the measured bound-watcher plan](../plans/000686-bound-watcher-plan.md): add counted red controls, reuse guarded transcript following, isolate bound work and back off idle polls.
+- [x] Follow [the measured bound-watcher plan](../plans/000686-bound-watcher-plan.md): add counted red controls, reuse guarded transcript following, isolate bound work and back off idle polls.
 - [ ] Verify shared title/watcher consumers and obtain the hub-coordinated live CPU check.
 - [ ] Run recorded suite, close review and gated landing; report the merge.
 
@@ -135,3 +135,7 @@ Red Run control: seven bound idle passes performed7 listings and28,000 foreign b
 Shared cursor/title extraction full sessioninventory suite PASS94.166s; cursor/title race×5 PASS11.825s. Exact-owner/cache race×3 PASS5.095s. New focused watcher/reducer/guard controls passed. Sessionwatch+sessionledger complete packages PASS20.429s/2.684s. Artifactpath inventory guard PASS29.703s. The existing later-completion fixture expected2 range reads; it now requires4: initial validation, admission boundary capture, growth boundary verification, suffix payload. This is the approved shared guard addition, not an unexplained expectation update. Stateful watcher appender now mirrors durable records into the authoritative ledger with physical ordinals, instead of keeping them only in an assertion slice; production authority was not relaxed for the fake.
 
 Two narrow peer reviews checked shared guards and follower transactions. The only material finding was active publication's separate full-ledger parse, now addressed under the hub-approved revision. Full recorded suite and hub-coordinated live CPU acceptance remain pending; original watchers and pair:0 remain untouched.
+
+### 2026-10-18 — acceptance sequencing revision
+
+Hub6593f812-a3ff-468a-ad5e-63aa04669518 explicitly changes live acceptance to post-landing: no staging or fresh launch while host load is125 and launches time out. Land on the recorded suite and SHIP close review. The TL then rebuilds pair:0 and relaunches the actual affected pair:0/parley.nvim:0 slots, measuring both new watchers near0% idle and return to idle after one short round. This live acceptance is OWED to the hub; no live success is claimed here. The two original spinning watchers remain untouched by pair:7. Local clean build c0f766ffc193084da608b9a973ac2b07d039db37 verified the same binary vcs.revision with vcs.modified=false. Focused watcher/ledger race×3 passed20.669s/1.240s. Recorded branch suite started on that pushed head and is queued by the shared gate.

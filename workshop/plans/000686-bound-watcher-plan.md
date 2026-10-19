@@ -67,9 +67,9 @@ Growth drivers: unrelated tree files N, owned transcript suffix B, one partial r
 
 ## Execution
 
-- [ ] Add counted failing regressions before production edits; preserve read-only live evidence.
-- [ ] Extract the existing guarded tail, integrate bound-only follow and cached owner checks, then pure backoff/event-delta handling.
-- [ ] Run guard and consumer suites; document atlas/lessons and retained cold-cost/latency boundaries.
+- [x] Add counted failing regressions before production edits; preserve read-only live evidence.
+- [x] Extract the existing guarded tail, integrate bound-only follow and cached owner checks, then pure backoff/event-delta handling.
+- [x] Run guard and consumer suites; document atlas/lessons and retained cold-cost/latency boundaries.
 - [ ] Obtain hub-coordinated live acceptance on a newly started Codex slot using the fixed build: sample/watch CPU over60s after initial binding/catch-up; near0% idle, no full scans. Do not stop/relaunch original PIDs or touch pair:0 without the hub's authorization.
 - [ ] Run recorded full suite, close review and gated landing; report actual merge to hub and stop.
 
@@ -128,3 +128,7 @@ Round2 accepted the publication transition contract, but retained PQ-2 because t
 ### 2026-10-18 — active publication owner guard
 
 Narrow review found that existing WithCurrentConfirmation rereads/parses the full Pair ledger under lock for every nonempty lifecycle batch, outside NativeRuntime counters. Hub chose option1 in cd83e66c-02ca-4a93-b3a0-f82ce8d28254: reuse the exact OwnerLaunchCache reader under the same ledger lock, with the same strict ordinal/conflict/root confirmation check. Extract a reader-bearing variant of the existing guard; legacy callers retain the ordinary reader. Only bound lifecycle supplies its cached exact-ledger reader. Full fingerprint identity/size/time mismatch triggers the existing paired full reread before effects, never stale confirmation. Add active unchanged-byte counters including the actual guard path, and append/replacement stale-owner regressions. No new lock/cache/admission policy. This closes the per-event-tick cost rather than narrowing the acceptance to idle only (ARCH-DRY/SECURE/ORDER).
+
+### 2026-10-18 — live acceptance moved after landing
+
+Hub6593f812-a3ff-468a-ad5e-63aa04669518 replaces the pre-landing fresh-slot smoke with a post-landing check of the actual two offenders. No staging; land on recorded suite and SHIP close review. The hub owns rebuild/relaunch and must observe near0% idle and return to idle after a short round. The live execution row remains an owed acceptance, not a worker landing blocker; no live result claimed.
