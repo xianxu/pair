@@ -1,13 +1,21 @@
 ---
 id: 000691
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-18
-updated: 2026-10-18
+updated: 2026-10-19
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: '50176f54098329677bab3603bbb547ae7206be21' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '8eb14e4b759eb162961f938eea1c3a55a0a5218f' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-19T10:56:26-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:2
+    worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
+    repository: github.com/xianxu/pair
 ---
 
 # couch --keys: allow Esc to dismiss a slash-command panel the hub opened (e.g. /usage)
@@ -27,7 +35,39 @@ Let `couch --keys` send Esc (only Esc) to a slot whose agent shows a dismissable
 
 ## Plan
 
-- [ ]
+### Current behavior (2026-10-19, pair:2)
+
+`couch --keys` admission (`couchcmd/agent_drive_service.go`) accepts a target only when its wrapper reports `Idle`, or, for a recovery-only request (keys are only Esc or clear-line), `Recoverable`. The wrapper computes both from the viewport (`wrapcmd/agent_drive.go agentDriveScreen`). `Recoverable` needs a recognized composer (`qualifiedComposerText`). An open `/usage` panel replaces the composer, so the screen is neither idle nor recoverable and Esc refuses. The reducer's `EventStart` (`agentdrive/model.go`) applies the same rule again. No recognizer for Claude slash-command panels exists today; Claude's picker detection is its own picker-open OSC, which a panel does not emit.
+
+### Design
+
+- [ ] Evidence first. One authorized capture of a Claude `/usage` panel, as `couch --peek` text (styled tail) plus the Claude version, becomes `wrapcmd/testdata/drive/claude/<version>/usage-panel.screen` with metadata, next to the existing drive fixtures. Also a capture of the idle composer after Esc. Requested from the hub; nothing touches a live slot from this slot.
+- [ ] Pure recognizer `agentdrive.DismissablePanel(agent, lines)`: true only for a Claude panel whose current viewport ends in the panel's own Esc footer, with no recognized composer and no numbered picker (`couchmessage.ReadPicker` empty). Exact footer wording comes from the capture, never from scrollback, as the drive screen already reads only the viewport.
+- [ ] Screen gains `Dismissable`, set in `agentDriveScreen` from the recognizer, with the same turn, picker and completeness gates as `Recoverable`, and cleared in `agentDriveScreenLocked` under the same input-ownership conditions. `DriveObservation` carries it.
+- [ ] Request predicate `DismissOnly()`: exactly the keys `[esc]`. Admission accepts `Idle`, or `RecoveryOnly && Recoverable`, or `DismissOnly && Dismissable`; the guard re-checks the same rule. The reducer's `EventStart` uses one shared admissibility function, so admission and the reducer cannot disagree (ARCH-DRY). Every other key sequence, including clear-line or text, still refuses while a panel is open.
+- [ ] Outcome: after the Esc is written, the existing final observation reads the screen. The drive reports done when the composer is back (`Idle`); a panel still showing reports unconfirmed, with the tail, and nothing retries.
+- [ ] Tests:
+  - Recognizer over the captured fixture, positive.
+  - Recognizer negatives: the composer, the /model picker, a permission prompt, a panel footer only in scrollback.
+  - Admission matrix: Esc admits on a panel; clear-line, text, submit and esc+text refuse. Run through the existing drive service fake, not a live Couch.
+  - Reducer: Esc then composer returns gives done; panel persists gives unconfirmed.
+- [ ] Live check after landing: the hub runs `--keys SLOT clear-line text:/usage submit`, then `--keys SLOT esc`, on an idle Claude slot, and confirms an idle composer.
+
+State design (TL rule):
+
+Actions: `couch --keys SLOT esc`, operator Esc, `couch --peek`.
+
+| Internal state / failure | Visible state | Recovery action | Possible loss |
+|---|---|---|---|
+| Panel open, recognized | panel shown; `--keys esc` admitted | `--keys esc` | none |
+| Panel open, not recognized (new wording) | refused "wait until the agent composer is empty" (today's behavior) | operator Esc; file a recognizer update | none |
+| Esc written, composer returns | idle composer, drive done | none | none |
+| Esc written, panel persists or outcome unknown | drive unconfirmed with tail | `couch --peek`, then operator | none (Esc is idempotent on a closed panel) |
+| Turn starts or picker appears mid-drive | drive stops, as today | `couch --peek` | none |
+
+Not covered: other agents' panels (Codex and others), and a `couch --usage` one-shot. Both are separable follow-ups; the Spec offers the latter as an alternative.
+
+ARCH-SECURE: the recognizer reads only the current viewport, so scrollback text cannot authorize a key, as with pickers. ARCH-ORDER: no new persistent state; one more admissible screen class through the existing reducer. ARCH-MOCK: tests use the drive fixtures and the service fake; the live check is the conformance step.
 
 ## Log
 
