@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io/fs"
 	"path/filepath"
-	"time"
 
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
@@ -27,12 +26,13 @@ const (
 // the tag's own ledger, and opened by one stat. It never lists a directory
 // once a binding names its file.
 type TranscriptBinder interface {
-	BindTranscript(ctx context.Context, thread ThreadRecord, now time.Time) (TranscriptBind, error)
+	BindTranscript(ctx context.Context, thread ThreadRecord) (TranscriptBind, error)
 }
 
 // TranscriptBind is a binding decision. Resolution is what the resume rules
 // read. Store, when set, is written onto the record by the resume's start
-// claim, in the same revision-checked write. Note is told on the row.
+// claim, in the same revision-checked write, which stamps its BoundAt with
+// the claim's start time. Note is told on the row.
 type TranscriptBind struct {
 	Resolution NativeBindingResolution
 	Store      *threadrecord.TranscriptBinding
@@ -66,10 +66,10 @@ type transcriptPlan struct {
 //     reset the record never saw.
 //   - An unreadable ledger never blocks a stored, located binding; the row
 //     says which one was resumed.
-//   - Only when no file is known (a minted ID before its first turn, a
+//   - Only when no file is known (a session before its agent's first turn, a
 //     record from before the field, a binding row without a proof) does the
 //     listing resolver run, as it did before the field existed.
-func planTranscriptBind(stored *threadrecord.TranscriptBinding, agent string, ledger ledgerTranscript, now time.Time) transcriptPlan {
+func planTranscriptBind(stored *threadrecord.TranscriptBinding, agent string, ledger ledgerTranscript) transcriptPlan {
 	if stored != nil && stored.Agent != agent {
 		stored = nil
 	}
@@ -82,7 +82,7 @@ func planTranscriptBind(stored *threadrecord.TranscriptBinding, agent string, le
 			source = threadrecord.TranscriptSourceLegacyLedger
 		}
 		candidate := &threadrecord.TranscriptBinding{Agent: agent, NativeID: ledger.NativeID,
-			StorageRoot: ledger.StorageRoot, RelativePath: ledger.RelativePath, BoundAt: now, Source: source}
+			StorageRoot: ledger.StorageRoot, RelativePath: ledger.RelativePath, Source: source}
 		if stored != nil && stored.NativeID == ledger.NativeID && stored.Established() {
 			if !candidate.Established() || (stored.StorageRoot == candidate.StorageRoot && stored.RelativePath == candidate.RelativePath) {
 				return transcriptPlan{Use: stored}
@@ -109,7 +109,7 @@ func planTranscriptBind(stored *threadrecord.TranscriptBinding, agent string, le
 // bindTranscriptWith is the production binder over a native runtime: one
 // exact ledger read, then one stat of the bound file. fallback is the listing
 // resolver, used only when planTranscriptBind finds no file to stat.
-func bindTranscriptWith(ctx context.Context, rt sessioninventory.Runtime, fallback NativeBindingResolver, thread ThreadRecord, now time.Time) (TranscriptBind, error) {
+func bindTranscriptWith(ctx context.Context, rt sessioninventory.Runtime, fallback NativeBindingResolver, thread ThreadRecord) (TranscriptBind, error) {
 	agent := ""
 	if thread.LatestLaunchProfile != nil {
 		agent = thread.LatestLaunchProfile.Agent
@@ -119,7 +119,7 @@ func bindTranscriptWith(ctx context.Context, rt sessioninventory.Runtime, fallba
 		return TranscriptBind{Resolution: resolution}, refuseBinding(ResumeBindingUnbound)
 	}
 	scope, tag := thread.Address.RepoScope, string(thread.Address.Tag)
-	plan := planTranscriptBind(thread.Transcript, agent, readLedgerTranscript(ctx, rt, scope, tag, agent), now)
+	plan := planTranscriptBind(thread.Transcript, agent, readLedgerTranscript(ctx, rt, scope, tag, agent))
 	if err := ctx.Err(); err != nil {
 		return TranscriptBind{}, err
 	}
@@ -128,22 +128,10 @@ func bindTranscriptWith(ctx context.Context, rt sessioninventory.Runtime, fallba
 		resolution := NativeBindingResolution{Status: sessioninventory.BindingAmbiguous}
 		return TranscriptBind{Resolution: resolution}, refuseBinding(plan.Refuse)
 	case plan.Fallback:
-		resolution, err := fallback.ResolveEstablished(ctx, scope, tag, agent)
-		out := TranscriptBind{Resolution: resolution}
-		if err == nil && resolution.Status == sessioninventory.BindingEstablished && resolution.NativeID != "" {
-			stored := thread.Transcript
-			if stored == nil || stored.Agent != agent || stored.NativeID != resolution.NativeID {
-				source := threadrecord.TranscriptSourceLedger
-				if stored == nil {
-					source = threadrecord.TranscriptSourceLegacyLedger
-				}
-				out.Store = &threadrecord.TranscriptBinding{Agent: agent, NativeID: resolution.NativeID, BoundAt: now, Source: source}
-			}
-		}
-		return out, err
+		return bindByResolver(ctx, fallback, thread)
 	}
 	use := plan.Use
-	if err := use.Validate(); err != nil {
+	if err := use.ValidateLocation(); err != nil {
 		return TranscriptBind{}, refuseResume(ResumeTranscriptInvalid, fmt.Sprintf("its stored transcript binding is invalid (%v); start it fresh", err))
 	}
 	if _, err := rt.StatFile(sessioninventory.Artifact{StorageRoot: use.StorageRoot, RelativePath: use.RelativePath}); err != nil {
@@ -159,6 +147,32 @@ func bindTranscriptWith(ctx context.Context, rt sessioninventory.Runtime, fallba
 	if plan.Store {
 		out.Store = threadrecord.CloneTranscriptBinding(use)
 	}
+	return out, nil
+}
+
+// bindByResolver is the binder's fallback when no file is known: the listing
+// resolver answers, as before the field existed, and an established answer is
+// stored (ID only) so the record carries it from then on. It is also how a
+// Couch whose artifacts only resolve (test doubles) binds, so both share it.
+func bindByResolver(ctx context.Context, resolver NativeBindingResolver, thread ThreadRecord) (TranscriptBind, error) {
+	agent := ""
+	if thread.LatestLaunchProfile != nil {
+		agent = thread.LatestLaunchProfile.Agent
+	}
+	resolution, err := resolver.ResolveEstablished(ctx, thread.Address.RepoScope, string(thread.Address.Tag), agent)
+	out := TranscriptBind{Resolution: resolution}
+	if err != nil || agent == "" || resolution.Status != sessioninventory.BindingEstablished || resolution.NativeID == "" {
+		return out, err
+	}
+	stored := thread.Transcript
+	if stored != nil && stored.Agent == agent && stored.NativeID == resolution.NativeID {
+		return out, nil
+	}
+	source := threadrecord.TranscriptSourceLedger
+	if stored == nil {
+		source = threadrecord.TranscriptSourceLegacyLedger
+	}
+	out.Store = &threadrecord.TranscriptBinding{Agent: agent, NativeID: resolution.NativeID, Source: source}
 	return out, nil
 }
 

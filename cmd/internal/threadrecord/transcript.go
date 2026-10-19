@@ -13,7 +13,6 @@ import (
 
 // Where a stored transcript binding came from (pair#695 P2).
 const (
-	TranscriptSourceMinted       = "minted"        // the ID Couch chose at launch; no file yet
 	TranscriptSourceLedger       = "ledger"        // copied from an established ledger binding
 	TranscriptSourceLegacyLedger = "legacy-ledger" // a record from before the field, bound once
 )
@@ -25,7 +24,7 @@ const (
 type TranscriptBinding struct {
 	Agent        string    `json:"agent"`
 	NativeID     string    `json:"native_id"`
-	StorageRoot  string    `json:"storage_root,omitempty"`
+	StorageRoot  string    `json:"storage_root,omitempty"` // empty while only the ID is known
 	RelativePath string    `json:"relative_path,omitempty"`
 	BoundAt      time.Time `json:"bound_at"`
 	Source       string    `json:"source"`
@@ -38,17 +37,23 @@ func (b TranscriptBinding) Established() bool { return b.StorageRoot != "" }
 // the agent's native root names, and the path a root transcript naming
 // exactly this native ID, read by the scanners' own parser.
 func (b TranscriptBinding) Validate() error {
+	if b.BoundAt.IsZero() {
+		return errors.New("transcript binding has no bound time")
+	}
+	return b.ValidateLocation()
+}
+
+// ValidateLocation is Validate without the bound time, for a binding chosen
+// but not yet stamped by the write that stores it.
+func (b TranscriptBinding) ValidateLocation() error {
 	if b.Agent == "" {
 		return errors.New("transcript binding has no agent")
 	}
 	if b.NativeID == "" || strings.ContainsAny(b.NativeID, `/\`) || strings.ContainsRune(b.NativeID, 0) {
 		return fmt.Errorf("transcript binding has an invalid native id %q", b.NativeID)
 	}
-	if b.BoundAt.IsZero() {
-		return errors.New("transcript binding has no bound time")
-	}
 	switch b.Source {
-	case TranscriptSourceMinted, TranscriptSourceLedger, TranscriptSourceLegacyLedger:
+	case TranscriptSourceLedger, TranscriptSourceLegacyLedger:
 	default:
 		return fmt.Errorf("transcript binding has an unknown source %q", b.Source)
 	}
@@ -57,9 +62,6 @@ func (b TranscriptBinding) Validate() error {
 	}
 	if !b.Established() {
 		return nil
-	}
-	if b.Source == TranscriptSourceMinted {
-		return errors.New("a minted transcript binding cannot name a file")
 	}
 	agent := sessioninventory.Agent(b.Agent)
 	if !slices.Contains(sessioninventory.NativeRootNames(agent), b.StorageRoot) {

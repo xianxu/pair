@@ -13,11 +13,11 @@ func TestTranscriptBindingValidate(t *testing.T) {
 	if err := ok.Validate(); err != nil {
 		t.Fatalf("established binding refused: %v", err)
 	}
-	minted := TranscriptBinding{Agent: "claude", NativeID: id, BoundAt: at, Source: TranscriptSourceMinted}
-	if err := minted.Validate(); err != nil {
-		t.Fatalf("minted binding without a file refused: %v", err)
+	idOnly := TranscriptBinding{Agent: "claude", NativeID: id, BoundAt: at, Source: TranscriptSourceLegacyLedger}
+	if err := idOnly.Validate(); err != nil {
+		t.Fatalf("binding that knows only its ID refused: %v", err)
 	}
-	if minted.Established() || !ok.Established() {
+	if idOnly.Established() || !ok.Established() {
 		t.Fatal("Established must mean a located file")
 	}
 
@@ -38,7 +38,6 @@ func TestTranscriptBindingValidate(t *testing.T) {
 		"id as a prefix":     func(b *TranscriptBinding) { b.RelativePath = "p/" + id + "-extra.jsonl" },
 		"unknown source":     func(b *TranscriptBinding) { b.Source = "guess" },
 		"zero bound time":    func(b *TranscriptBinding) { b.BoundAt = time.Time{} },
-		"minted with a file": func(b *TranscriptBinding) { b.Source = TranscriptSourceMinted },
 	}
 	for name, mutate := range bad {
 		b := ok

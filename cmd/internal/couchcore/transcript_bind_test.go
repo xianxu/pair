@@ -112,7 +112,7 @@ func TestResumeBindsByOneStat(t *testing.T) {
 	for _, transcripts := range []int{8, 16} {
 		t.Run(fmt.Sprint(transcripts), func(t *testing.T) {
 			rt := bindFixture(t, transcripts, 3)
-			got, err := bindTranscriptWith(context.Background(), rt, listingResolver{t}, bindThread(storedBinding(3)), bindNow)
+			got, err := bindTranscriptWith(context.Background(), rt, listingResolver{t}, bindThread(storedBinding(3)))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -125,7 +125,7 @@ func TestResumeBindsByOneStat(t *testing.T) {
 
 	rt := bindFixture(t, 8, 3)
 	rt.DeleteFile(sessioninventory.Artifact{StorageRoot: bindRoot, RelativePath: bindRel(3)})
-	_, err := bindTranscriptWith(context.Background(), rt, listingResolver{t}, bindThread(storedBinding(3)), bindNow)
+	_, err := bindTranscriptWith(context.Background(), rt, listingResolver{t}, bindThread(storedBinding(3)))
 	if ResumeDiagnosticOf(err) != ResumeTranscriptMissing {
 		t.Fatalf("missing transcript err = %v, want %s", err, ResumeTranscriptMissing)
 	}
@@ -139,12 +139,12 @@ func TestResumeBindsByOneStat(t *testing.T) {
 func TestBindAdoptsNewerLedgerRootAfterReset(t *testing.T) {
 	t.Parallel()
 	rt := bindFixture(t, 8, 3, 5)
-	got, err := bindTranscriptWith(context.Background(), rt, listingResolver{t}, bindThread(storedBinding(3)), bindNow)
+	got, err := bindTranscriptWith(context.Background(), rt, listingResolver{t}, bindThread(storedBinding(3)))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if got.Resolution.NativeID != bindID(5) || got.Store == nil || got.Store.NativeID != bindID(5) ||
-		got.Store.RelativePath != bindRel(5) || got.Store.Source != threadrecord.TranscriptSourceLedger || !got.Store.BoundAt.Equal(bindNow) {
+		got.Store.RelativePath != bindRel(5) || got.Store.Source != threadrecord.TranscriptSourceLedger {
 		t.Fatalf("adopted bind = %+v store=%+v", got, got.Store)
 	}
 	assertBindCost(t, rt, bindRel(5))
@@ -160,7 +160,7 @@ func TestBindAdoptsNewerLedgerRootAfterReset(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			rt := bindFixture(t, 8, 3, 5)
 			setup(rt)
-			got, err := bindTranscriptWith(context.Background(), rt, listingResolver{t}, bindThread(storedBinding(3)), bindNow)
+			got, err := bindTranscriptWith(context.Background(), rt, listingResolver{t}, bindThread(storedBinding(3)))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -182,7 +182,7 @@ func TestBindAdoptsNewerLedgerRootAfterReset(t *testing.T) {
 func TestLegacyRecordBindsFromLedgerOnceThenStores(t *testing.T) {
 	t.Parallel()
 	rt := bindFixture(t, 8, 4)
-	first, err := bindTranscriptWith(context.Background(), rt, listingResolver{t}, bindThread(nil), bindNow)
+	first, err := bindTranscriptWith(context.Background(), rt, listingResolver{t}, bindThread(nil))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -191,7 +191,7 @@ func TestLegacyRecordBindsFromLedgerOnceThenStores(t *testing.T) {
 	}
 	assertBindCost(t, rt, bindRel(4))
 
-	second, err := bindTranscriptWith(context.Background(), rt, listingResolver{t}, bindThread(first.Store), bindNow.Add(time.Minute))
+	second, err := bindTranscriptWith(context.Background(), rt, listingResolver{t}, bindThread(first.Store))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -214,20 +214,21 @@ func (r fixedResolver) ResolveEstablished(context.Context, string, string, strin
 	return r.resolution, nil
 }
 
-// With no file known yet (a minted ID before its first turn), the listing
-// resolver answers once, exactly as before the field existed.
+// With no file known yet (a session before its agent's first turn, or a
+// binding that knows only its ID), the listing resolver answers once, exactly
+// as before the field existed.
 func TestBindFallsBackOnceWhenNoFileIsKnown(t *testing.T) {
 	t.Parallel()
 	rt := bindFixture(t, 8)
-	minted := &threadrecord.TranscriptBinding{Agent: "claude", NativeID: bindID(6), BoundAt: bindNow.Add(-time.Minute), Source: threadrecord.TranscriptSourceMinted}
+	idOnly := &threadrecord.TranscriptBinding{Agent: "claude", NativeID: bindID(6), BoundAt: bindNow.Add(-time.Minute), Source: threadrecord.TranscriptSourceLedger}
 	calls := 0
-	_, err := bindTranscriptWith(context.Background(), rt, fixedResolver{NativeBindingResolution{Status: sessioninventory.BindingProvisional}, &calls}, bindThread(minted), bindNow)
+	_, err := bindTranscriptWith(context.Background(), rt, fixedResolver{NativeBindingResolution{Status: sessioninventory.BindingProvisional}, &calls}, bindThread(idOnly))
 	if calls != 1 || ResumeDiagnosticOf(err) != ResumeBindingProvisional {
-		t.Fatalf("minted, unanswered: calls=%d err=%v", calls, err)
+		t.Fatalf("unanswered: calls=%d err=%v", calls, err)
 	}
-	got, err := bindTranscriptWith(context.Background(), rt, fixedResolver{NativeBindingResolution{Status: sessioninventory.BindingEstablished, NativeID: bindID(6)}, &calls}, bindThread(minted), bindNow)
+	got, err := bindTranscriptWith(context.Background(), rt, fixedResolver{NativeBindingResolution{Status: sessioninventory.BindingEstablished, NativeID: bindID(6)}, &calls}, bindThread(idOnly))
 	if err != nil || got.Resolution.NativeID != bindID(6) || got.Store != nil {
-		t.Fatalf("minted, established by the resolver: %+v, %v", got, err)
+		t.Fatalf("established by the resolver: %+v, %v", got, err)
 	}
 }
 
@@ -251,7 +252,7 @@ func TestPlanTranscriptBind(t *testing.T) {
 		{"nothing known falls back", nil, "claude", ledgerTranscript{}, func(p transcriptPlan) bool { return p.Fallback }},
 	}
 	for _, c := range cases {
-		if got := planTranscriptBind(c.stored, c.agent, c.ledger, bindNow); !c.want(got) {
+		if got := planTranscriptBind(c.stored, c.agent, c.ledger); !c.want(got) {
 			t.Errorf("%s: plan = %+v", c.name, got)
 		}
 	}
