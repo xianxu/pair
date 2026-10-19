@@ -60,6 +60,12 @@ func decodeExtensibleObject(raw []byte, known []string) (map[string]json.RawMess
 // decodeExtensibleObjectLimit bounds bytes and nesting, rejects duplicate keys
 // at every depth, and requires exact spellings and non-null known fields.
 func decodeExtensibleObjectLimit(raw []byte, known []string, limit int) (map[string]json.RawMessage, map[string]json.RawMessage, error) {
+	return decodeExtensibleObjectSchema(raw, known, nil, limit)
+}
+
+// Optional known fields permit additive schema evolution without treating their
+// recognized values as opaque extensions or weakening required-field checks.
+func decodeExtensibleObjectSchema(raw []byte, required, optional []string, limit int) (map[string]json.RawMessage, map[string]json.RawMessage, error) {
 	if len(raw) > limit {
 		return nil, nil, errors.New("metadata exceeds byte limit")
 	}
@@ -70,8 +76,8 @@ func decodeExtensibleObjectLimit(raw []byte, known []string, limit int) (map[str
 	if object == nil {
 		return nil, nil, errors.New("metadata must be an object")
 	}
-	fields := make(map[string]json.RawMessage, len(known))
-	for _, key := range known {
+	fields := make(map[string]json.RawMessage, len(required)+len(optional))
+	for _, key := range required {
 		value, ok := object[key]
 		if !ok || bytes.Equal(bytes.TrimSpace(value), []byte("null")) {
 			return nil, nil, fmt.Errorf("required metadata field %q missing or null", key)
@@ -79,6 +85,16 @@ func decodeExtensibleObjectLimit(raw []byte, known []string, limit int) (map[str
 		fields[key] = value
 		delete(object, key)
 	}
+	for _, key := range optional {
+		if value, ok := object[key]; ok {
+			if bytes.Equal(bytes.TrimSpace(value), []byte("null")) {
+				return nil, nil, fmt.Errorf("optional metadata field %q cannot be null", key)
+			}
+			fields[key] = value
+			delete(object, key)
+		}
+	}
+	known := append(append([]string(nil), required...), optional...)
 	for key := range object {
 		for _, name := range known {
 			if strings.EqualFold(key, name) {

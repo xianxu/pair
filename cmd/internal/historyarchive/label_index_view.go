@@ -148,12 +148,13 @@ func addExistingReceiptLocations(ctx context.Context, cfg ContinuousConfig, dest
 		}
 		loc := BundleLocation{Backend: "drive", Locator: dest.String(), FolderID: receipt.FolderID, BundleKey: b, LabelKey: l, Available: true, Evidence: "verified", FirstObserved: receipt.VerifiedAt, LastObserved: receipt.VerifiedAt,
 			Proof: LocationProof{Method: "upload-receipt", SHA256: record.Label.SHA256, VerifiedAt: receipt.VerifiedAt}}
-		// An indexed observation owns availability/proof for that exact destination
-		// and folder. An older local receipt must not resurrect unavailable history.
-		if _, exists := record.Locations[loc.Identity()]; exists {
-			continue
+		prior, exists := record.Locations[loc.Identity()]
+		marker, complete := view.CompleteDestinations[loc.Backend+"\n"+loc.Locator]
+		loc, err = reconcileReceiptLocation(prior, exists, marker, complete, loc)
+		if err != nil {
+			return err
 		}
-		if len(record.Locations) >= MaxIndexLocations {
+		if !exists && len(record.Locations) >= MaxIndexLocations {
 			return errors.New("receipt location exceeds index location bound")
 		}
 		before, err := json.Marshal(record)

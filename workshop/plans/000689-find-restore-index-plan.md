@@ -27,6 +27,7 @@ collaboration-mode: discussion
 |---|---|---|
 | BundleLabel with preserved extensions | cmd/internal/historyarchive/model.go; label_json.go | modified |
 | LabelIndex / LabelIndexRecord / BundleLocation / LocationProof | cmd/internal/historyarchive/label_index_model.go | new |
+| DestinationObservation | cmd/internal/historyarchive/label_index_model.go; label_index_json.go | new |
 | FindQuery / SelectLabels | cmd/internal/historyarchive/find_model.go | new |
 | IndexRefresh / ApplyIndexRefresh | cmd/internal/historyarchive/label_index_model.go | new |
 | RestoreRequest / RestorePlan / RestoreState / NextRestore | cmd/internal/historyarchive/restore_model.go | new |
@@ -152,7 +153,7 @@ Files: add restore_model.go, restore.go, restore_extract.go, decode.go, restore_
 | Risk function | Adversarial strategy | Mechanical guard |
 |---|---|---|
 | DecodeLabel / DecodeLabelIndex and nested codecs | bounded schema mutation across known and future members | golden legacy bytes/IDs; recursive unknown-value round trip; reject invalid known fields, duplicate aliases and conflicting extensions; bounded parser fuzz |
-| ApplyIndexRefresh | generated refresh histories across destinations, completeness and proof levels | immutable prior snapshot; retained disappearance history and unrelated destinations; no promotion without explicit proof |
+| ApplyIndexRefresh / reconcileReceiptLocation | generated refresh and receipt histories across empty destinations, folder bindings, completeness and proof times | immutable prior snapshot; durable complete markers; retained history and unrelated destinations; no receipt outranks complete absence/binding, newer matching receipt promotes only its own location |
 | SelectLabels / LocalLabelInventory / BundleKeys | generated time ranges and existing/missing local metadata trees | deterministic overlap/order and keys; find performs zero writes/network calls; counted 8/16 scans and no absent-catalog creation |
 | OwnedStaging | interruption at ownership/payload boundaries with preexisting foreign contents | recognized-only no-follow cleanup under lifetime lock; unknown directories and source bytes unchanged; created-entry bound |
 | LabelIndexStore.Commit | injected commit-boundary failures and contended/cancelled lifetimes | old-or-new complete snapshot; before-commit old bytes unchanged; reopen durability/uncertainty checks; one lifetime owner |

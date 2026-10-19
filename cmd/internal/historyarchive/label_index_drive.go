@@ -91,7 +91,7 @@ func (d DriveIndexSync) Run(ctx context.Context, cfg ContinuousConfig) (report I
 	if d.Now != nil {
 		now = d.Now().UTC()
 	}
-	refresh := IndexRefresh{Backend: "drive", Locator: dest.String(), At: now, Complete: true}
+	refresh := IndexRefresh{Backend: "drive", Locator: dest.String(), FolderID: pin.FolderID, At: now, Complete: true}
 	var used int64
 	for _, name := range names {
 		if err = ctx.Err(); err != nil {

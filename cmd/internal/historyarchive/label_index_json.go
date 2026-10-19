@@ -25,10 +25,10 @@ func (v LabelIndex) MarshalJSON() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return marshalExtensibleObjectLimit(raw, v.Extensions, []string{"version", "records"}, MaxIndexBytes)
+	return marshalExtensibleObjectLimit(raw, v.Extensions, []string{"version", "records", "complete_destinations"}, MaxIndexBytes)
 }
 func (v *LabelIndex) UnmarshalJSON(raw []byte) error {
-	fields, ext, err := decodeExtensibleObjectLimit(raw, []string{"version", "records"}, MaxIndexBytes)
+	fields, ext, err := decodeExtensibleObjectSchema(raw, []string{"version", "records"}, []string{"complete_destinations"}, MaxIndexBytes)
 	if err != nil {
 		return err
 	}
@@ -42,6 +42,34 @@ func (v *LabelIndex) UnmarshalJSON(raw []byte) error {
 		return err
 	}
 	*v = LabelIndex(w)
+	v.Extensions = ext
+	return nil
+}
+
+func (v DestinationObservation) MarshalJSON() ([]byte, error) {
+	type wire DestinationObservation
+	raw, err := json.Marshal(wire(v))
+	if err != nil {
+		return nil, err
+	}
+	return marshalExtensibleObject(raw, v.Extensions, []string{"backend", "locator", "folder_id", "observed_at"})
+}
+
+func (v *DestinationObservation) UnmarshalJSON(raw []byte) error {
+	fields, ext, err := decodeExtensibleObject(raw, []string{"backend", "locator", "folder_id", "observed_at"})
+	if err != nil {
+		return err
+	}
+	clean, err := json.Marshal(fields)
+	if err != nil {
+		return err
+	}
+	type wire DestinationObservation
+	var w wire
+	if err := json.Unmarshal(clean, &w); err != nil {
+		return err
+	}
+	*v = DestinationObservation(w)
 	v.Extensions = ext
 	return nil
 }

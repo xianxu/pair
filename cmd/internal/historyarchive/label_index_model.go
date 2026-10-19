@@ -11,17 +11,40 @@ import (
 )
 
 const (
-	MaxIndexBytes     = 64 << 20
-	MaxIndexRecords   = 100000
-	MaxIndexLocations = 16
+	MaxIndexBytes        = 64 << 20
+	MaxIndexRecords      = 100000
+	MaxIndexLocations    = 16
+	MaxIndexDestinations = 1024
 )
 
 // LabelIndex is discovery metadata. It never authorizes local deletion or bypasses restore verification.
 // pair:m5-concept pure
 type LabelIndex struct {
-	Version    int                         `json:"version"`
-	Records    map[string]LabelIndexRecord `json:"records"`
-	Extensions map[string]json.RawMessage  `json:"-"`
+	Version              int                               `json:"version"`
+	Records              map[string]LabelIndexRecord       `json:"records"`
+	CompleteDestinations map[string]DestinationObservation `json:"complete_destinations,omitempty"`
+	Extensions           map[string]json.RawMessage        `json:"-"`
+}
+
+// DestinationObservation retains completeness even when no bundle was present.
+// pair:m5-concept pure
+type DestinationObservation struct {
+	Backend    string                     `json:"backend"`
+	Locator    string                     `json:"locator"`
+	FolderID   string                     `json:"folder_id"`
+	ObservedAt time.Time                  `json:"observed_at"`
+	Extensions map[string]json.RawMessage `json:"-"`
+}
+
+func (d DestinationObservation) Identity() string { return d.Backend + "\n" + d.Locator }
+
+func validateDestinationObservation(d DestinationObservation) error {
+	parts := strings.SplitN(d.Locator, ":", 2)
+	if d.Backend != "drive" || len(parts) != 2 || !validTime(d.ObservedAt) || !validRemoteIdentity(d.FolderID) {
+		return errors.New("invalid complete destination observation")
+	}
+	_, err := ParseDriveDestination(parts[0], parts[1])
+	return err
 }
 
 // pair:m5-concept pure
@@ -60,6 +83,7 @@ type LocationProof struct {
 type IndexRefresh struct {
 	Backend      string
 	Locator      string
+	FolderID     string
 	At           time.Time
 	Complete     bool
 	Observations []IndexObservation
@@ -122,6 +146,17 @@ func validateLocation(l BundleLocation, label BundleLabel) error {
 }
 
 func ValidateLabelIndex(i LabelIndex) error {
+	if len(i.CompleteDestinations) > MaxIndexDestinations {
+		return errors.New("complete destination count exceeds 1024")
+	}
+	for key, d := range i.CompleteDestinations {
+		if key != d.Identity() {
+			return errors.New("complete destination identity mismatch")
+		}
+		if err := validateDestinationObservation(d); err != nil {
+			return err
+		}
+	}
 	if i.Version != Version || i.Records == nil || len(i.Records) > MaxIndexRecords {
 		return errors.New("invalid label index version or record bound")
 	}
@@ -135,6 +170,9 @@ func ValidateLabelIndex(i LabelIndex) error {
 			}
 			if err := validateLocation(l, r.Label); err != nil {
 				return err
+			}
+			if marker, ok := i.CompleteDestinations[l.Backend+"\n"+l.Locator]; ok && l.Available && (l.FolderID != marker.FolderID || l.LastObserved.Before(marker.ObservedAt)) {
+				return errors.New("available location contradicts complete destination observation")
 			}
 		}
 		raw, err := json.Marshal(r)
@@ -153,6 +191,34 @@ func ValidateLabelIndex(i LabelIndex) error {
 		return errors.New("label index exceeds 64 MiB")
 	}
 	return nil
+}
+
+// reconcileReceiptLocation orders a dated partial attestation against complete
+// destination knowledge and the existing location's last observation.
+func reconcileReceiptLocation(prior BundleLocation, exists bool, marker DestinationObservation, complete bool, receipt BundleLocation) (BundleLocation, error) {
+	when := receipt.Proof.VerifiedAt
+	if exists && (!when.After(prior.LastObserved) || !when.After(prior.Proof.VerifiedAt)) {
+		return prior, nil
+	}
+	if complete && (receipt.FolderID != marker.FolderID || !when.After(marker.ObservedAt)) {
+		receipt.Available = false
+	}
+	if !exists {
+		return receipt, nil
+	}
+	if prior.FirstObserved.Before(receipt.FirstObserved) {
+		receipt.FirstObserved = prior.FirstObserved
+	}
+	var err error
+	receipt.Extensions, err = mergeExtensions(prior.Extensions, receipt.Extensions)
+	if err != nil {
+		return BundleLocation{}, err
+	}
+	receipt.Proof.Extensions, err = mergeExtensions(prior.Proof.Extensions, receipt.Proof.Extensions)
+	if err != nil {
+		return BundleLocation{}, err
+	}
+	return receipt, nil
 }
 
 func cloneIndex(i LabelIndex) (LabelIndex, error) {
@@ -203,6 +269,22 @@ func ApplyIndexRefresh(old LabelIndex, r IndexRefresh) (LabelIndex, error) {
 	if err != nil {
 		return LabelIndex{}, err
 	}
+	if r.Backend == "drive" {
+		marker := DestinationObservation{Backend: r.Backend, Locator: r.Locator, FolderID: r.FolderID, ObservedAt: r.At}
+		if err := validateDestinationObservation(marker); err != nil {
+			return LabelIndex{}, err
+		}
+		if prior, ok := out.CompleteDestinations[marker.Identity()]; ok {
+			if r.At.Before(prior.ObservedAt) {
+				return LabelIndex{}, errors.New("stale complete destination refresh")
+			}
+			marker.Extensions = prior.Extensions
+		}
+		if out.CompleteDestinations == nil {
+			out.CompleteDestinations = map[string]DestinationObservation{}
+		}
+		out.CompleteDestinations[marker.Identity()] = marker
+	}
 	for id, record := range out.Records {
 		for key, loc := range record.Locations {
 			if loc.Backend == r.Backend && loc.Locator == r.Locator {
@@ -218,6 +300,9 @@ func ApplyIndexRefresh(old LabelIndex, r IndexRefresh) (LabelIndex, error) {
 	seen := map[string]bool{}
 	for _, ob := range r.Observations {
 		l := ob.Location
+		if r.Backend == "drive" && l.FolderID != r.FolderID {
+			return LabelIndex{}, errors.New("observation folder differs from complete binding")
+		}
 		if l.Backend != r.Backend || l.Locator != r.Locator || (l.Available && !l.LastObserved.Equal(r.At)) || (!l.Available && (r.Backend != "local" || l.LastObserved.After(r.At))) {
 			return LabelIndex{}, errors.New("observation does not match refresh")
 		}

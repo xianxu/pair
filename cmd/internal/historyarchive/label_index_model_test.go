@@ -17,7 +17,7 @@ func indexLabel() BundleLabel {
 func indexRefresh() IndexRefresh {
 	l := indexLabel()
 	tm := l.To.Add(time.Hour)
-	return IndexRefresh{Backend: "drive", Locator: "pair-backup:backups/pair-history", At: tm, Complete: true, Observations: []IndexObservation{{Label: l, Location: BundleLocation{Backend: "drive", Locator: "pair-backup:backups/pair-history", FolderID: "folder-id", BundleKey: l.ID + ".tar.zst.gpg", LabelKey: l.ID + ".json", Available: true, Evidence: "verified", FirstObserved: tm, LastObserved: tm, Proof: LocationProof{Method: "backend-sha256", SHA256: l.SHA256, VerifiedAt: tm}}}}}
+	return IndexRefresh{Backend: "drive", Locator: "pair-backup:backups/pair-history", FolderID: "folder-id", At: tm, Complete: true, Observations: []IndexObservation{{Label: l, Location: BundleLocation{Backend: "drive", Locator: "pair-backup:backups/pair-history", FolderID: "folder-id", BundleKey: l.ID + ".tar.zst.gpg", LabelKey: l.ID + ".json", Available: true, Evidence: "verified", FirstObserved: tm, LastObserved: tm, Proof: LocationProof{Method: "backend-sha256", SHA256: l.SHA256, VerifiedAt: tm}}}}}
 }
 
 func TestIndexRefreshRetainsHistoryAndOtherDestinations(t *testing.T) {
