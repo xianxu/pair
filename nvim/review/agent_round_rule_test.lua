@@ -25,8 +25,16 @@ vim.cmd('silent edit ' .. vim.fn.fnameescape(file))
 local buf = vim.api.nvim_get_current_buf()
 
 -- Detectors: (a) buffer line changes, (b) buffer writes, (c) file writes from Lua.
-local line_changes, writes, file_writes = 0, 0, 0
-vim.api.nvim_buf_attach(buf, false, { on_lines = function() line_changes = line_changes + 1 end })
+-- `:edit!` detaches a buffer listener (measured: on_detach, no on_lines), so
+-- (a) counts a detach as the reload and re-attaches after it.
+local line_changes, reloads, writes, file_writes = 0, 0, 0, 0
+local function attach()
+  vim.api.nvim_buf_attach(buf, false, {
+    on_lines = function() line_changes = line_changes + 1 end,
+    on_detach = function() reloads = reloads + 1; vim.schedule(attach) end,
+  })
+end
+attach()
 vim.api.nvim_create_autocmd('BufWritePre', { buffer = buf, callback = function() writes = writes + 1 end })
 local canonical = vim.fn.resolve(file)
 local function targets_doc(path) return type(path) == 'string' and vim.fn.resolve(vim.fn.fnamemodify(path, ':p')) == canonical end
@@ -47,7 +55,7 @@ local result = 'alpha\nBETA\n'
 engine_round(result, { { start = { 1, 0 }, ['end'] = { 1, 4 }, old = 'beta', new = 'BETA', explain = 'louder' } })
 
 local reloaded = vim.wait(3000, function() return vim.api.nvim_buf_get_lines(buf, 1, 2, false)[1] == 'BETA' end, 10)
-ok(reloaded, 'the pane reloads the applied round')
+ok(reloaded and reloads == 1, 'the pane reloads the applied round (reloads=' .. reloads .. ')')
 ok(line_changes == 0, 'an agent round changes no buffer lines through nvim (on_lines=' .. line_changes .. ')')
 ok(writes == 0, 'an agent round writes no buffer (BufWritePre=' .. writes .. ')')
 ok(file_writes == 0, 'an agent round writes no file from Lua (' .. file_writes .. ')')
@@ -55,9 +63,19 @@ ok(read_bytes(file) == result, 'the file holds exactly what the engine wrote')
 ok(not vim.bo[buf].modified, 'the reloaded buffer is unmodified')
 ok(#vim.diagnostic.get(buf) == 1, 'the round is decorated')
 
--- Positive control: the operator's send writes, and the detectors see it.
+-- Positive controls: every detector is live after the reload. An operator edit
+-- is an on_lines; the operator's send is a buffer write; a Lua write of the doc
+-- trips the file spies.
+vim.wait(100, function() return false end, 10) -- let the re-attach run
+vim.api.nvim_buf_set_lines(buf, 0, 1, false, { 'operator edit' })
+ok(line_changes == 1, 'the line detector sees an operator edit after the reload (on_lines=' .. line_changes .. ')')
 ok(R.human_round(buf, 'updated') == true, 'the operator send saves')
-ok(writes == 1, 'the detectors see an operator write (BufWritePre=' .. writes .. ')')
+ok(writes == 1, 'the write detector sees an operator write (BufWritePre=' .. writes .. ')')
+local raw = read_bytes(file)
+vim.fn.writefile(vim.split(raw, '\n', { plain = true }), file, 'b')
+local h = io.open(file, 'wb'); h:write(raw); h:close()
+ok(file_writes == 2, 'the file spies see Lua writes of the doc (' .. file_writes .. ')')
+file_writes = 0
 
 -- A declined round (the operator is mid-edit): nvim writes nothing either.
 vim.api.nvim_buf_set_lines(buf, 0, 1, false, { 'operator typing' })

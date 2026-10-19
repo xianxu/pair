@@ -844,9 +844,9 @@ recovery_observer=dofile(here..'review/recovery_observer.lua').new({
   end,
 })
 review.authorize=function(buf,context)
-  if context and not restore_policy.validate_context(context,restoration:context(buf),false) then return false end
+  if context and not restore_policy.validate_context(context,restoration:context(buf)) then return false end
   local allowed=restoration:guard(buf)
-  return allowed and (not context or restore_policy.validate_context(context,restoration:context(buf),false))
+  return allowed and (not context or restore_policy.validate_context(context,restoration:context(buf)))
 end
 vim.api.nvim_create_autocmd('BufWritePre',{callback=function(ev)
   -- Say why: a resolver failure is not a branch change (pair#613).
