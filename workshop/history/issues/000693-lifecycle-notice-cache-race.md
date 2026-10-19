@@ -1,14 +1,24 @@
 ---
 id: 000693
-status: open
+status: done
 deps: []
 github_issue:
 created: 2026-10-18
-updated: 2026-10-18
+updated: 2026-10-19
 estimate_hours:
 severity: medium
 collaboration-mode: collaboration
-card_mirror: '59e2da12810319dd16a3c26ccce3459337fe5607' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'a9e9da480b3a3f4622b59d7f7fc65b74a13ce0ac' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-19T03:57:11-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:2
+    worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
+    repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "1e1a958b", done: "86779369"}
+actual_hours: 0.50
 ---
 
 # flake: lifecycle primary-slot notice can race verified workspace publication
@@ -32,8 +42,29 @@ Reproduce and repair the lifecycle publisher/fixture readiness race without rela
 
 Diagnose the exact lifecycle publisher interleaving, add a red deterministic case, then fix the responsible seam. Do not change #681 admission/receipt code unless new evidence makes that code reachable.
 
+### Diagnosis (2026-10-19, pair:2)
+
+The failing interleaving: `messageService.loop` step publishes `connected` (and liveness) before `execute(EffectConnect)` writes `s.workspaces[b]`. The fixture's `waitConnected(worker)` can return in that window; `p.refresh()` then snapshots a cache without the worker, and `p.observe(ordinary fact)` reaches `observeFactLocked` with no identity. The `!ok && Target.Kind == ordinary` branch returns, dropping the fact for good. The publisher's later refreshes (the loop signals it after every step) do cache the worker, but nothing remains to resolve, so the notice never comes and `lifecycleNextMessage` waits out the package deadline (testwait.After).
+
+That window is not only a fixture gap. In production the same drop is the normal case: the Console emits `started` (or relaunched, resumed, recovered) when the child launches, while the wrapper's message session connects and its workspace is verified seconds later. An ordinary-target fact (a row the slot inventory does not project as a slot, such as a registered primary checkout) therefore usually arrives before its identity is cached, and is lost. Untargeted facts (`Target` empty) already wait in `unresolved` and resolve on the next refresh; ordinary facts are the one class dropped outright. So the root cause is the publisher's drop, not the loop's publish order: reordering `connected` after the workspace write would close only the microsecond test window (and the loop's publish-first order is deliberate, see its comment), while the seconds-long production gap would keep losing notices.
+
+### Fix
+
+- [x] Red first, deterministic, no timing: a publisher regression that observes the ordinary-target fact before the worker's wrapper connects at all (the widest form of the connected-before-cache window), then connects it and expects the notice. Today it fails (the fact is dropped). A second case keeps the existing order: cached first, fact after.
+- [x] `observeFactLocked`: an ordinary target without a cached identity waits in `unresolved`, like an untargeted one, instead of returning (ARCH-PURPOSE: the class is "a fact that arrives before its identity", not the one test). `reducePendingLocked` already resolves it on the next refresh, which the message loop triggers after each registry step, so the notice follows the workspace publication without a poll or retry.
+- [x] Bound (ARCH-FUNERAL): `unresolved` stays keyed by path, newest observation wins, and is cleared at restart drain (with its diagnostic) and on ownership change. At its 128 cap a new path evicts the entry with the oldest observation rather than being refused, so threads that never verify (non-slot directories) cannot crowd out a resolvable one. Per-path residue is one observation.
+- [x] Fixture readiness: the primary-slot test waits for the worker's verified workspace in the message service cache (a `waitWorkspace` rig helper over `s.workspaces`, the evidence `refresh` consumes), not `connected`. No sleeps as readiness.
+- [x] Bounded diagnostic: `lifecycleNextMessage` takes the publisher and, on timeout, fails with its state: unresolved paths and observations, cached identity roots, hub roots, ready tokens, attempts, plus the service's cached workspaces. Capped in size.
+- [x] Verify: the regression fails before the fix and passes after; `go test ./cmd/internal/couchcmd -run Lifecycle -count=50` under load (a concurrent CPU burner), and the full suite.
+
+ARCH-ORDER: the publisher's states for a fact are dropped, unresolved, or confirmed. This change moves ordinary facts lacking identity from dropped to unresolved. The events that can interleave are fact-before-identity, identity-before-fact, drain, and ownership change; each now has a defined outcome, and the tests cover the first two orders. ARCH-CONSTRAINTS: reduction stays in memory under the publisher lock, bounded at 128 entries; no discovery or subprocess is added. ARCH-SECURE: no new inputs; a cached identity remains the only slot authority (an unresolved fact still cannot claim a slot). #681 admission and receipt code are unchanged.
+
 ## Log
 
+
+
+- 2026-10-19: closed — Delta since the SHIP close is a comment-only edit in lifecycle_notices.go (fd144e16), answering that close review advisory: the retainUnresolvedLocked comment now names the ordinary expiry. go vet and the couchcmd lifecycle tests unchanged and green. (fixed-then-ship); review verdict: SHIP
+- 2026-10-19: closed — sdlc-local/suite green on fdac39f3 (15m21s); round-1 fixes in 877401b2 re-verified with the full couchcmd package (66s). TestLifecyclePublisherOrdinaryFactWaitsForItsWorkspace forces fact-before-workspace and failed before the fix with the state diagnostic (identity cached, nothing unresolved); passes after. TestLifecycleDrainReportsOnlyUntargetedFacts (red when drain counts ordinary facts), TestLifecycleOrdinaryFactExpires, TestLifecycleUnresolvedFactsAreBoundedOldestFirst. -run TestLifecycle -count=50 passed under one yes burner per CPU. No timeout changed; #681 code untouched.; review verdict: SHIP
 2026-10-18 — Observed in integrated suite66983be006023c8bc5127ecedfc3ad3c, source807115355d853aa5ef041dd212fd90f0142d4994, exit2, wall1752.639382458s, no outer suite timeout. Full retained log: /Users/xianxu/workspace/pair/.git/sdlc/test-stats/failed/66983be006023c8bc5127ecedfc3ad3c.log, SHA256 c442bf6703ef51ab2aea6e38b61dadbeea3d8d67c2ec7a7bc4ca821112f50c87. Read-only1s native sample retained at /tmp/pair681-integrated-couchcmd-1709.sample; no process was signalled or lock changed.
 
 The #681 branch suite passed in13m6s. On this exact integrated head, TMPDIR=/tmp go test ./cmd/internal/couchcmd -run '^TestLifecyclePublisherRegisteredPrimarySlotIsNotOrdinaryContent$' -count=20 -timeout30s passed0.754s. One observed failure plus passing repetitions does not prove the initiating interleaving.
@@ -342,3 +373,7 @@ github.com/xianxu/pair/cmd/internal/couchcmd.(*serviceRig).wrapper.func1()
 created by github.com/xianxu/pair/cmd/internal/couchcmd.(*serviceRig).wrapper in goroutine 3581
 	github.com/xianxu/pair/cmd/internal/couchcmd/message_service_test.go:259 +0x1fc
 ```
+
+2026-10-19 (pair:2) — Built. TestLifecyclePublisherOrdinaryFactWaitsForItsWorkspace observes the ordinary fact before the worker connects, so the window is forced, not hoped for. Before the fix it failed with the new diagnostic naming the cause: `unresolved=[] identities=[/repo1 /repo2] roots=[] ready=0 attempts=0 workspaces=[pair:1=/repo1 pair:2=/repo2]`. The identity was cached and nothing was waiting, so the fact had been dropped (production behavior, not fixture-only). After the fix it passes. TestLifecycleUnresolvedFactsAreBoundedOldestFirst covers the cap. The primary-slot test now waits on the cached workspace (waitWorkspace). `go test ./cmd/internal/couchcmd -run TestLifecycle -count=50` passed in 59s with one `yes` burner per CPU. Atlas couch.md lifecycle section names the unresolved set.
+
+Close round 1 (FIX-THEN-SHIP). BR-1: the drain diagnostic now counts only untargeted facts; ordinary ones clear silently (TestLifecycleDrainReportsOnlyUntargetedFacts, red when the count includes ordinary facts). BR-2: lifecycleNextMessage now requires the publisher, so all 14 call sites carry the state diagnostic. BR-3: an ordinary fact expires after lifecycleOrdinaryWait (2 min; the gap it covers is seconds, and admission itself is capped at 10 s), pruned on refresh (TestLifecycleOrdinaryFactExpires); untargeted facts still wait for the drain. Atlas states what drain reports and the expiry.
