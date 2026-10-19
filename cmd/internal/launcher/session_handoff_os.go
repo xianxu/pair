@@ -86,7 +86,7 @@ func (a *terminalOSAttempt) Check(ctx context.Context) error {
 	if !a.create {
 		return requireListedLiveTerminal(ctx, a.name, listTerminalSessions, a.rt.liveSessionServers)
 	}
-	servers, err := (osSessionOwnerIO{}).SessionServers(ctx, a.name)
+	servers, err := a.rt.liveSessionServers(ctx, a.name)
 	if err != nil {
 		return err
 	}

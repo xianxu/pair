@@ -176,3 +176,15 @@ func TestListedTerminalOmissionOfALiveServerIsUnknown(t *testing.T) {
 		t.Fatalf("a listed live session: err=%v scans=%d", err, scans)
 	}
 }
+
+// Check and Admit read the runtime's own server evidence (pair#692): with a
+// listing that leaves the session out and the runtime's process evidence
+// showing its server live, the attach Check refuses as the omission class.
+func TestTerminalAttachCheckUsesTheRuntimeServerEvidence(t *testing.T) {
+	f := newEmptyReplyFake(t, emptyReplyFrame{Args: []string{"list-sessions", "--no-formatting"}, Stdout: "other [Created 1s ago]\n"})
+	t.Setenv("PATH", filepath.Dir(f.source.Path)+string(os.PathListSeparator)+os.Getenv("PATH"))
+	a := &terminalOSAttempt{rt: OSRuntime{sessionQuiescence: &statefulSessionQuiescenceOps{serverAlive: true, serverPID: 42}}, name: "chosen"}
+	if err := a.Check(t.Context()); !errors.Is(err, ErrListingOmittedLiveServer) {
+		t.Fatalf("attach Check ignored the runtime server evidence: %v", err)
+	}
+}

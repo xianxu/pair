@@ -525,8 +525,10 @@ func waitParkHelperAttachmentWithQuery(t *testing.T, ctx context.Context, sessio
 	ticker := time.NewTicker(25 * time.Millisecond)
 	defer ticker.Stop()
 	var countErr error
+	everStarted := false
 	for {
 		if started() {
+			everStarted = true
 			var count int
 			count, countErr = query(ctx, session)
 			if countErr == nil && count > baseline {
@@ -543,6 +545,9 @@ func waitParkHelperAttachmentWithQuery(t *testing.T, ctx context.Context, sessio
 			}
 			t.Fatalf("production handoff helper exited before attaching: %v; PTY=%q; %s", err, capture.String(), testwait.HostState())
 		case <-ctx.Done():
+			if !everStarted {
+				t.Fatalf("production handoff helper never started its zellij client (no client query was issued): %v; PTY=%q; %s", ctx.Err(), capture.String(), testwait.HostState())
+			}
 			t.Fatalf("production handoff helper did not attach: %v (last query: %v); PTY=%q; %s", ctx.Err(), countErr, capture.String(), testwait.HostState())
 		case <-ticker.C:
 		}
