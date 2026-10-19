@@ -5,9 +5,9 @@ deps: []
 github_issue:
 created: 2026-10-18
 updated: 2026-10-18
-estimate_hours:
+estimate_hours: 2.015
 collaboration-mode: collaboration
-card_mirror: 'c23790ecc8e5e9745b630a0e625a78c946782993' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '9b71ef9a7f95444c2378a533f5eb52a698ebd4c5' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-18T21:13:11-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     workspace: pair:3
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
+flow: {kind: full, provenance: operator}
 ---
 
 # Recognize Couch supervisor retention registration
@@ -47,6 +48,26 @@ See [implementation plan](../plans/000687-couch-retention-registration-plan.md).
 - [ ] Preserve unknown runtime-registry members through bounded validated reads and surviving-record rewrites; add the explicit diagnostic capability to the existing lease.
 - [ ] Consume exact identity-fenced participation from the selected root through shared writer/GC inspection, with stateful sequence and counted sweep regressions.
 - [ ] Publish from Couch, qualify owned/native boundaries and document the operator restart check.
+
+## Estimate
+
+Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only; the source is flagged stale, so calibration is provisional. Scope is one repo including qualification, docs and close review.
+
+Two single-concern modules cover the codec and rooted inspection adapter: each starts at 1.0 design/0.8 implementation hours. Existing encoding/json/strictjson and SweepSnapshot/ProcessProbe cover the library seams, halving design; the resolved plan applies the 0.2 spec discount, yielding 0.1 design each. Implementation values are scaled once by 0.4. The smaller-module row covers publication/composition and constructor tests (0.3 design x0.2, 0.5 implementation x0.4). Issue/spec uses 1.0 design x0.2 and 0.2 implementation x0.4. Owned native qualification takes the real-API-discovery upper bound 0.6 x0.4; no new external API. Atlas and one close review use their documented ranges. Familiarity is 1.0 from #677; the thorough-plan design buffer is 0.15. No cross-repo overhead.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.2 impl=0.08
+item: greenfield-go-module design=0.1 impl=0.32
+item: greenfield-go-module design=0.1 impl=0.32
+item: smaller-go-module design=0.06 impl=0.2
+item: real-api-discovery design=0 impl=0.24
+item: atlas-docs design=0.02 impl=0.08
+item: milestone-review design=0.02 impl=0.2
+design-buffer: 0.15
+total: 2.015
+```
 
 ## Log
 
