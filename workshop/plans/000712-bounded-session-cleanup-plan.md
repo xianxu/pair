@@ -89,8 +89,8 @@ No production format fields are required: reuse existing incarnation unknown sta
 
 - [x] Implement persisted session identity/lifetime in the existing terminal fake; preserve canonical reply rendering and #698 ordering.
 - [x] Run the original composed test and deterministic failed-launch variants with -race. Verify all owned server/wrapper/agent children are reaped before test return.
-- [ ] Run the composed family 20 times under bounded owned CPU load (20 workers, watchdog, kill-and-Wait in defer/cleanup on every exit). No native Zellij or live Couch.
-- [ ] Update atlas/README for bounded failure/recovery behavior and lessons. Add any applicable mechanical API guard at the shared lint owner; do not invent a syntax rule for a semantic fixture lifecycle bug.
+- [x] Run the composed family 20 times under bounded owned CPU load (20 workers, watchdog, kill-and-Wait in defer/cleanup on every exit). No native Zellij or live Couch.
+- [x] Update atlas/README for bounded failure/recovery behavior and lessons. Add any applicable mechanical API guard at the shared lint owner; do not invent a syntax rule for a semantic fixture lifecycle bug.
 - [ ] Push, early draft PR, recorded suite, SDLC close review, normal merge gates; report the verified merge to the hub.
 
 ## Revisions
