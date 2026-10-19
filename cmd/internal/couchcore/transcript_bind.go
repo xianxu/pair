@@ -1,0 +1,198 @@
+package couchcore
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"io/fs"
+	"path/filepath"
+	"time"
+
+	"github.com/xianxu/pair/cmd/internal/artifactpath"
+	"github.com/xianxu/pair/cmd/internal/sessioninventory"
+	"github.com/xianxu/pair/cmd/internal/sessionledger"
+	"github.com/xianxu/pair/cmd/internal/threadrecord"
+)
+
+const (
+	// ResumeTranscriptMissing: the stored conversation's file is gone. The
+	// answer is Start fresh, never a search for another conversation.
+	ResumeTranscriptMissing ResumeDiagnosticCode = "resume-transcript-missing"
+	// ResumeTranscriptInvalid: the stored binding fails its structural check.
+	ResumeTranscriptInvalid ResumeDiagnosticCode = "resume-transcript-invalid"
+)
+
+// TranscriptBinder binds a cold resume to its exact native conversation
+// (pair#695 P2): the binding stored on the record, refreshed by one read of
+// the tag's own ledger, and opened by one stat. It never lists a directory
+// once a binding names its file.
+type TranscriptBinder interface {
+	BindTranscript(ctx context.Context, thread ThreadRecord, now time.Time) (TranscriptBind, error)
+}
+
+// TranscriptBind is a binding decision. Resolution is what the resume rules
+// read. Store, when set, is written onto the record by the resume's start
+// claim, in the same revision-checked write. Note is told on the row.
+type TranscriptBind struct {
+	Resolution NativeBindingResolution
+	Store      *threadrecord.TranscriptBinding
+	Note       string
+}
+
+// ledgerTranscript is what one exact read of the tag's ledger said.
+type ledgerTranscript struct {
+	Err      error // the ledger could not be read; nil when it was read
+	Conflict bool
+	NativeID string // the current launch's established root, if any
+	// The root transcript named by the binding's authorization proof.
+	StorageRoot, RelativePath string
+}
+
+// transcriptPlan is planTranscriptBind's answer: bind Use (stat it), or ask
+// the listing resolver once (Fallback) because no file is known yet.
+type transcriptPlan struct {
+	Use      *threadrecord.TranscriptBinding
+	Store    bool
+	Fallback bool
+	Refuse   ResumeDiagnosticCode
+	Note     string
+}
+
+// planTranscriptBind is the pure binding rule.
+//
+//   - A stored binding for another agent (a switch-agent since) is ignored.
+//   - The ledger's current established root wins when it differs from the
+//     record: that is the conversation the operator moved to after a context
+//     reset the record never saw.
+//   - An unreadable ledger never blocks a stored, located binding; the row
+//     says which one was resumed.
+//   - Only when no file is known (a minted ID before its first turn, a
+//     record from before the field, a binding row without a proof) does the
+//     listing resolver run, as it did before the field existed.
+func planTranscriptBind(stored *threadrecord.TranscriptBinding, agent string, ledger ledgerTranscript, now time.Time) transcriptPlan {
+	if stored != nil && stored.Agent != agent {
+		stored = nil
+	}
+	if ledger.Err == nil && ledger.Conflict {
+		return transcriptPlan{Refuse: ResumeBindingAmbiguous}
+	}
+	if ledger.Err == nil && ledger.NativeID != "" {
+		source := threadrecord.TranscriptSourceLedger
+		if stored == nil {
+			source = threadrecord.TranscriptSourceLegacyLedger
+		}
+		candidate := &threadrecord.TranscriptBinding{Agent: agent, NativeID: ledger.NativeID,
+			StorageRoot: ledger.StorageRoot, RelativePath: ledger.RelativePath, BoundAt: now, Source: source}
+		if stored != nil && stored.NativeID == ledger.NativeID && stored.Established() {
+			if !candidate.Established() || (stored.StorageRoot == candidate.StorageRoot && stored.RelativePath == candidate.RelativePath) {
+				return transcriptPlan{Use: stored}
+			}
+		}
+		if candidate.Established() {
+			return transcriptPlan{Use: candidate, Store: true}
+		}
+		return transcriptPlan{Fallback: true}
+	}
+	note := ""
+	if ledger.Err != nil {
+		note = "ledger unreadable; resumed the stored binding"
+		if errors.Is(ledger.Err, fs.ErrNotExist) {
+			note = "ledger missing; resumed the stored binding"
+		}
+	}
+	if stored != nil && stored.Established() {
+		return transcriptPlan{Use: stored, Note: note}
+	}
+	return transcriptPlan{Fallback: true}
+}
+
+// bindTranscriptWith is the production binder over a native runtime: one
+// exact ledger read, then one stat of the bound file. fallback is the listing
+// resolver, used only when planTranscriptBind finds no file to stat.
+func bindTranscriptWith(ctx context.Context, rt sessioninventory.Runtime, fallback NativeBindingResolver, thread ThreadRecord, now time.Time) (TranscriptBind, error) {
+	agent := ""
+	if thread.LatestLaunchProfile != nil {
+		agent = thread.LatestLaunchProfile.Agent
+	}
+	if agent == "" {
+		resolution := NativeBindingResolution{Status: sessioninventory.BindingUnbound}
+		return TranscriptBind{Resolution: resolution}, refuseBinding(ResumeBindingUnbound)
+	}
+	scope, tag := thread.Address.RepoScope, string(thread.Address.Tag)
+	plan := planTranscriptBind(thread.Transcript, agent, readLedgerTranscript(ctx, rt, scope, tag, agent), now)
+	if err := ctx.Err(); err != nil {
+		return TranscriptBind{}, err
+	}
+	switch {
+	case plan.Refuse != "":
+		resolution := NativeBindingResolution{Status: sessioninventory.BindingAmbiguous}
+		return TranscriptBind{Resolution: resolution}, refuseBinding(plan.Refuse)
+	case plan.Fallback:
+		resolution, err := fallback.ResolveEstablished(ctx, scope, tag, agent)
+		out := TranscriptBind{Resolution: resolution}
+		if err == nil && resolution.Status == sessioninventory.BindingEstablished && resolution.NativeID != "" {
+			stored := thread.Transcript
+			if stored == nil || stored.Agent != agent || stored.NativeID != resolution.NativeID {
+				source := threadrecord.TranscriptSourceLedger
+				if stored == nil {
+					source = threadrecord.TranscriptSourceLegacyLedger
+				}
+				out.Store = &threadrecord.TranscriptBinding{Agent: agent, NativeID: resolution.NativeID, BoundAt: now, Source: source}
+			}
+		}
+		return out, err
+	}
+	use := plan.Use
+	if err := use.Validate(); err != nil {
+		return TranscriptBind{}, refuseResume(ResumeTranscriptInvalid, fmt.Sprintf("its stored transcript binding is invalid (%v); start it fresh", err))
+	}
+	if _, err := rt.StatFile(sessioninventory.Artifact{StorageRoot: use.StorageRoot, RelativePath: use.RelativePath}); err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return TranscriptBind{}, refuseResume(ResumeTranscriptMissing, "the transcript of its stored conversation "+use.NativeID+" is missing; start it fresh")
+		}
+		return TranscriptBind{}, fmt.Errorf("stat stored transcript: %w", err)
+	}
+	out := TranscriptBind{
+		Resolution: NativeBindingResolution{Status: sessioninventory.BindingEstablished, NativeID: use.NativeID},
+		Note:       plan.Note,
+	}
+	if plan.Store {
+		out.Store = threadrecord.CloneTranscriptBinding(use)
+	}
+	return out, nil
+}
+
+// readLedgerTranscript reads the tag's ledger by its known name (no listing)
+// and reports the current launch's established root and the root transcript
+// its proof names.
+func readLedgerTranscript(ctx context.Context, rt sessioninventory.Runtime, scope, tag, agent string) ledgerTranscript {
+	root := rt.PairDataRoot()
+	paths, err := artifactpath.ResolveScoped(root.Path, tag)
+	if err != nil {
+		return ledgerTranscript{Err: err}
+	}
+	ledger := sessioninventory.Artifact{StorageRoot: root.Name, RelativePath: filepath.Base(paths.Ledger())}
+	current, ok, _, err := sessioninventory.ReadCurrentLaunchAt(ctx, rt, sessionledger.Owner{ScopeKey: scope, Tag: tag, Agent: agent}, ledger)
+	if err != nil {
+		return ledgerTranscript{Err: err}
+	}
+	if !ok {
+		return ledgerTranscript{}
+	}
+	if current.Conflict {
+		return ledgerTranscript{Conflict: true}
+	}
+	if current.Binding == nil || current.Binding.RootNativeID == "" {
+		return ledgerTranscript{}
+	}
+	out := ledgerTranscript{NativeID: current.Binding.RootNativeID}
+	if proof := current.Binding.AuthorizationProof; proof != nil {
+		for _, artifact := range proof.Artifacts {
+			if id, ok := sessioninventory.RootTranscriptID(sessioninventory.Agent(agent), artifact.RelativePath); ok && id == out.NativeID {
+				out.StorageRoot, out.RelativePath = artifact.StorageRoot, artifact.RelativePath
+				break
+			}
+		}
+	}
+	return out
+}

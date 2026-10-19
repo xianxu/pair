@@ -94,6 +94,9 @@ type ThreadRecord struct {
 	Park         *ParkTransaction  `json:"park,omitempty"`
 	VerifiedPark *VerifiedPark     `json:"verified_park,omitempty"`
 	ParkHistory  []ParkTransaction `json:"park_history,omitempty"`
+	// Transcript is the agent's exact native conversation; Resume binds by it
+	// (pair#695 P2). See threadrecord.TranscriptBinding.
+	Transcript *threadrecord.TranscriptBinding `json:"transcript,omitempty"`
 	// Unknown carries persisted members this build does not own through every
 	// rewrite (pair#695 §2a); see threadrecord.Record.Unknown.
 	Unknown map[string]json.RawMessage `json:"-"`
@@ -140,6 +143,7 @@ func toPersistedThreadRecord(record ThreadRecord) threadrecord.Record {
 	}
 	out.LastActiveAt = record.LastActiveAt
 	out.Unknown = strictjson.CloneRaw(record.Unknown)
+	out.Transcript = threadrecord.CloneTranscriptBinding(record.Transcript)
 	if record.Park != nil {
 		park := toPersistedParkTransaction(*record.Park)
 		out.Park = &park
@@ -215,6 +219,7 @@ func fromPersistedThreadRecord(record threadrecord.Record) ThreadRecord {
 	}
 	out.LastActiveAt = record.LastActiveAt
 	out.Unknown = strictjson.CloneRaw(record.Unknown)
+	out.Transcript = threadrecord.CloneTranscriptBinding(record.Transcript)
 	if record.Park != nil {
 		park := fromPersistedParkTransaction(*record.Park)
 		out.Park = &park
@@ -285,6 +290,7 @@ func cloneThreadRecord(record ThreadRecord) ThreadRecord {
 	}
 	copy.ContinuationMissed = cloneMiss(record.ContinuationMissed)
 	copy.Unknown = strictjson.CloneRaw(record.Unknown)
+	copy.Transcript = threadrecord.CloneTranscriptBinding(record.Transcript)
 	copy.Incarnations = append([]ThreadIncarnation{}, record.Incarnations...)
 	for i := range copy.Incarnations {
 		if record.Incarnations[i].Start != nil {

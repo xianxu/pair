@@ -101,6 +101,10 @@ type Record struct {
 	Park                *ParkTransaction  `json:"park,omitempty"`
 	VerifiedPark        *VerifiedPark     `json:"verified_park,omitempty"`
 	ParkHistory         []ParkTransaction `json:"park_history,omitempty"`
+	// Transcript is the agent's exact native conversation (pair#695 P2).
+	// Absent on records from before it; added without a schema bump because
+	// a reader that ignores it falls back to the ledger, as before.
+	Transcript *TranscriptBinding `json:"transcript,omitempty"`
 	// Unknown holds top-level members this build does not own, captured on
 	// decode and written back verbatim by EncodePersisted (pair#695 §2a), so a
 	// rewrite by an older build cannot erase a newer build's field. Only the
@@ -140,6 +144,11 @@ func Validate(record Record, validators Validators) error {
 	if record.PreviousSession != nil {
 		if err := record.PreviousSession.Validate(record.Address); err != nil {
 			return fmt.Errorf("previous session: %w", err)
+		}
+	}
+	if record.Transcript != nil {
+		if err := record.Transcript.Validate(); err != nil {
+			return fmt.Errorf("transcript binding: %w", err)
 		}
 	}
 	if record.ContinuationMissed != nil {
