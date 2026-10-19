@@ -269,8 +269,8 @@ func TestSlotRowResumeAndRebootSendThePath(t *testing.T) {
 			if len(effects) != 1 || effects[0].Args["path"] != slot.Target.Slot.WorktreeRoot || effects[0].Args["tag"] != "" {
 				t.Fatalf("effects %+v", effects)
 			}
-			if next.InFlight.RowKey != slot.RowKey {
-				t.Fatalf("in flight %+v not keyed by row", next.InFlight)
+			if next.operationForTest().RowKey != slot.RowKey {
+				t.Fatalf("in flight %+v not keyed by row", next.operationForTest())
 			}
 			if _, warm := effects[0].Args["warm-only"]; warm {
 				t.Fatalf("a slot resume must go through the route, not warm-only: %+v", effects[0].Args)
@@ -350,8 +350,8 @@ func TestRebootActionsDispatchForBackendPreparation(t *testing.T) {
 			row.Reason = couchcore.ReasonPathMissing
 		}
 		state := dispatchRebootFromActions(t, row)
-		if state.InFlight.Address != row.Address {
-			t.Fatalf("wrong target: %+v", state.InFlight)
+		if state.operationForTest().Address != row.Address {
+			t.Fatalf("wrong target: %+v", state.operationForTest())
 		}
 	}
 }
@@ -376,13 +376,13 @@ func TestRebootFrameSurvivesItsOwnStateChange(t *testing.T) {
 		fresh := couchcore.ActionableThreadSummary{Address: menuAddress("couch-new"), WorkingPath: "/w/p", State: couchcore.ThreadLive}
 		state, previous := replaceMenuInventory(state, []couchcore.ActionableThreadSummary{fresh})
 		state = reconcileMenuFrames(state, previous)
-		if frame := state.CurrentFrame(); frame.Kind == MenuFrameConfirmation || state.InFlight.Operation != "reboot" || state.Notice.Level == MenuNoticeError || strings.Contains(state.Notice.Text, "no longer") {
+		if frame := state.CurrentFrame(); frame.Kind == MenuFrameConfirmation || state.operationForTest().Operation != "reboot" || state.Notice.Level == MenuNoticeError || strings.Contains(state.Notice.Text, "no longer") {
 			t.Fatalf("frame %v/%q notice %q", frame.Kind, frame.Action, state.Notice.Text)
 		}
 		// Its result lands under the NEW tag and still completes the attempt.
-		next := reduceOperationResult(state, MenuEvent{Operation: "reboot", Attempt: state.InFlight.Attempt, Success: true, Address: fresh.Address})
-		if next.InFlight.Operation != "" || next.CurrentFrame().Kind != MenuFrameRoot || next.Frames[0].SelectedAddress != fresh.Address {
-			t.Fatalf("result not consumed: in flight %+v, frame %v, selected %+v", next.InFlight, next.CurrentFrame().Kind, next.Frames[0].SelectedAddress)
+		next := reduceOperationResult(state, MenuEvent{Operation: "reboot", Attempt: state.operationForTest().Attempt, Success: true, Address: fresh.Address})
+		if next.operationForTest().Operation != "" || next.CurrentFrame().Kind != MenuFrameRoot || next.Frames[0].SelectedAddress != fresh.Address {
+			t.Fatalf("result not consumed: in flight %+v, frame %v, selected %+v", next.operationForTest(), next.CurrentFrame().Kind, next.Frames[0].SelectedAddress)
 		}
 	})
 	t.Run("slot row turns live", func(t *testing.T) {
@@ -393,7 +393,7 @@ func TestRebootFrameSurvivesItsOwnStateChange(t *testing.T) {
 		live.State, live.Reason = couchcore.ThreadLive, ""
 		state, previous := replaceMenuInventory(state, []couchcore.ActionableThreadSummary{live})
 		state = reconcileMenuFrames(state, previous)
-		if frame := state.CurrentFrame(); frame.Kind == MenuFrameConfirmation || state.InFlight.Operation != "reboot" || strings.Contains(state.Notice.Text, "no longer") {
+		if frame := state.CurrentFrame(); frame.Kind == MenuFrameConfirmation || state.operationForTest().Operation != "reboot" || strings.Contains(state.Notice.Text, "no longer") {
 			t.Fatalf("frame %v/%q notice %q", frame.Kind, frame.Action, state.Notice.Text)
 		}
 	})
@@ -621,9 +621,9 @@ func TestReapSuccessClosesItsConfirmation(t *testing.T) {
 	if len(effects) != 1 || effects[0].Operation != "reap" {
 		t.Fatalf("reap did not dispatch: %+v", effects)
 	}
-	next := reduceOperationResult(state, MenuEvent{Operation: "reap", Attempt: state.InFlight.Attempt, Success: true, Address: row.Address})
-	if next.InFlight.Operation != "" || next.CurrentFrame().Kind != MenuFrameRoot || next.Notice.Level == MenuNoticeError {
-		t.Fatalf("reap result not consumed: in flight %+v, frame %v, notice %q", next.InFlight, next.CurrentFrame().Kind, next.Notice.Text)
+	next := reduceOperationResult(state, MenuEvent{Operation: "reap", Attempt: state.operationForTest().Attempt, Success: true, Address: row.Address})
+	if next.operationForTest().Operation != "" || next.CurrentFrame().Kind != MenuFrameRoot || next.Notice.Level == MenuNoticeError {
+		t.Fatalf("reap result not consumed: in flight %+v, frame %v, notice %q", next.operationForTest(), next.CurrentFrame().Kind, next.Notice.Text)
 	}
 }
 
@@ -632,7 +632,7 @@ func TestReapSuccessClosesItsConfirmation(t *testing.T) {
 // notice, is left alone (#399).
 func TestOperationProgressUpdatesOnlyItsOwnNotice(t *testing.T) {
 	state := MenuState{Notice: MenuNotice{Level: MenuNoticeProgress, Text: "recovering pair:6…", Owner: MenuProgressOwner{OperationAttempt: 7}}}
-	state.InFlight = MenuOperationOrigin{Operation: "recover", Attempt: 7}
+	setTestMenuOperation(&state, MenuOperationOrigin{Operation: "recover", Attempt: 7})
 	next := updateOperationProgress(state, 7, "step 1/2: reaping orphaned server PID 9090")
 	if !strings.Contains(next.Notice.Text, "step 1/2: reaping orphaned server PID 9090") || next.Notice.Level != MenuNoticeProgress {
 		t.Fatalf("notice = %+v", next.Notice)

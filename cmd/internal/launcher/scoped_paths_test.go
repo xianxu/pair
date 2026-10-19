@@ -118,8 +118,6 @@ func TestOwnsTagArtifactCoversCurrentNonScopedPathsAndFutureFamilies(t *testing.
 		"review-" + tag + ".mode",
 		"review-target-" + tag + ".json",
 		"review-context-" + tag + ".md",
-		"review-handoff-" + tag + ".json",
-		"review-landed-" + tag + ".json",
 		"review-definition-request-" + tag + ".json",
 		"review-definition-result-" + tag + ".json",
 		"future-consumer-" + tag + "-variant.bin",

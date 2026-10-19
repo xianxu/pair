@@ -111,9 +111,11 @@ pump every 250 ms, on every pump exit before child wait, and on orderly teardown
 closes admission, so an in-flight resize cannot leave sidecar events behind after
 its clock stops. These intervals describe process
 crash exposure, not power-loss durability. Receipt, park, recovery, generation
-rotation keeps its durable synchronization. Diagnostic deletion is fenced by
-KeepDiagnosticsUntilBackup until ops history-backup piece6 can archive before
-eviction; every historical generation is retained, with no total disk cap. Raw
+rotation keeps its durable synchronization. Managed diagnostic deletion uses certified seven-day age or oversized legacy
+size, independent of backup and session migration. Whole-generation eviction
+reuses the durable deletion intent, without copying payloads. Live open holders
+and unknown process evidence remain blocked. There is no global byte ceiling
+on seven days of busy diagnostics. Raw
 capture size rotation remains separate work (#582): no VT state is discarded.
 
 Exact registry declarations reuse unchanged content and inode, but reconfirm the
@@ -155,4 +157,4 @@ uses one zstd compression thread; compression working memory is additional.
 and recovery contract. Behavioral coverage is in `historyarchive/archive_test.go`,
 `sink_test.go`, `catalog_test.go`, `files_test.go` and `codec_test.go`; the isolated
 real transform test is `codec_live_test.go`. These archive paths do not imply a
-new managed-owner file family or weaken existing diagnostic backup fences.
+new managed-owner file family or change retention of authored session or history data.

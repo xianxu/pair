@@ -20,7 +20,7 @@ func TestSwitchAgentActionIsReachableAndCancelsWithoutMutation(t *testing.T) {
 		t.Fatalf("opening switch: %+v %+v", state.CurrentFrame(), effects)
 	}
 	state, effects = reduceKey(state, PanelKey{Kind: KeyEscape})
-	if len(effects) != 0 || state.CurrentFrame().Kind != MenuFrameActions || state.InFlight.Operation != "" {
+	if len(effects) != 0 || state.CurrentFrame().Kind != MenuFrameActions || state.operationForTest().Operation != "" {
 		t.Fatalf("cancel mutated thread: %+v", state)
 	}
 }
@@ -76,7 +76,7 @@ func TestSwitchAgentParametersContainFinalButtonsAndDispatchAcceptedPreview(t *t
 		t.Fatalf("Switch did not resolve edited argv: %+v", effects)
 	}
 	state, effects = ReduceMenu(state, MenuEvent{Kind: MenuEventPreviewResult, Generation: effects[0].Preview.Generation, SwitchPrepared: &p})
-	if len(effects) != 1 || effects[0].Args["fingerprint"] != "accepted" || effects[0].Args["argv"] != `["--model","a b"]` || state.CurrentFrame().SwitchStage != 1 {
+	if len(effects) != 1 || effects[0].Args["fingerprint"] != "accepted" || effects[0].Args["argv"] != `["--model","a b"]` || state.CurrentFrame().Kind != MenuFrameRoot {
 		t.Fatalf("accepted Switch requires extra confirmation: %+v %+v", state.CurrentFrame(), effects)
 	}
 }
@@ -92,7 +92,7 @@ func TestSwitchAgentFrameSurvivesOwnParkButRejectsUnrelatedLoss(t *testing.T) {
 	// from elsewhere does not, because parked rows no longer offer
 	// switch-agent (#363).
 	inFlight := state
-	inFlight.InFlight = MenuOperationOrigin{Operation: "switch-agent", Attempt: 1, Address: menuAddress("couch-one")}
+	setTestMenuOperation(&inFlight, MenuOperationOrigin{Operation: "switch-agent", Attempt: 1, Address: menuAddress("couch-one"), FrameInstance: state.CurrentFrame().Instance})
 	next, _ := ReduceMenu(inFlight, MenuEvent{Kind: MenuEventInventory, Inventory: parked, Generation: 1})
 	if next.CurrentFrame().Kind != MenuFrameSwitchAgent {
 		t.Fatal("the switch's own park lost its form")
@@ -120,12 +120,12 @@ func TestSwitchAgentLifecyclePolicies(t *testing.T) {
 	}
 }
 
-func TestSwitchAgentRefusalReturnsToEditableParameters(t *testing.T) {
+func TestSwitchAgentRefusalKeepsRootAndExactFailure(t *testing.T) {
 	state := NewMenuState(menuThreads(), menuAddress("couch-one"))
 	appendMenuFrame(&state, MenuFrame{Kind: MenuFrameSwitchAgent, Thread: menuAddress("couch-one"), Action: "switch-agent", SwitchStage: 1, Input: "--model draft"})
 	state, _ = dispatchThreadOperation(state, "switch-agent", menuAddress("couch-one"))
-	state, _ = ReduceMenu(state, MenuEvent{Kind: MenuEventOperationResult, Operation: "switch-agent", Address: menuAddress("couch-one"), Attempt: state.InFlight.Attempt, Error: "preferences changed; review again"})
-	if state.CurrentFrame().SwitchStage != 1 || state.CurrentFrame().Input != "--model draft" {
+	state, _ = ReduceMenu(state, MenuEvent{Kind: MenuEventOperationResult, Operation: "switch-agent", Address: menuAddress("couch-one"), Attempt: state.operationForTest().Attempt, Error: "preferences changed; review again"})
+	if state.CurrentFrame().Kind != MenuFrameRoot || !strings.Contains(state.Notice.Text, "preferences changed; review again") {
 		t.Fatalf("cannot re-review after refusal: %+v", state.CurrentFrame())
 	}
 }
@@ -153,7 +153,7 @@ func TestSwitchAgentParameterFocusCyclesAndCancelDropsPendingSubmit(t *testing.T
 		t.Fatal("Cancel did not leave parameter form untouched")
 	}
 	state, effects = ReduceMenu(state, MenuEvent{Kind: MenuEventPreviewResult, Generation: generation, SwitchPrepared: &p})
-	if len(effects) != 0 || state.InFlight.Operation != "" {
+	if len(effects) != 0 || state.operationForTest().Operation != "" {
 		t.Fatal("cancelled submit dispatched after preview completion")
 	}
 }
@@ -181,7 +181,7 @@ func TestSwitchAgentSameAgentReplacementRequiresAnotherAcceptance(t *testing.T) 
 	changed.SourceRevision = 2
 	changed.Fingerprint = "replacement"
 	state, effects = ReduceMenu(state, MenuEvent{Kind: MenuEventPreviewResult, Generation: effects[0].Preview.Generation, SwitchPrepared: &changed})
-	if len(effects) != 0 || state.InFlight.Operation != "" || !strings.Contains(state.Notice.Text, "Source changed") {
+	if len(effects) != 0 || state.operationForTest().Operation != "" || !strings.Contains(state.Notice.Text, "Source changed") {
 		t.Fatal("silently accepted same-agent replacement", state.Notice)
 	}
 }

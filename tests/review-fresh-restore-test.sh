@@ -130,7 +130,7 @@ vim.cmd('qa!')
         env=dict(isolated.environment(data,root),PATH=str(bindir)+os.pathsep+str(root/'bin')+os.pathsep+os.environ['PATH'],
             PAIR_HOME=str(root),PAIR_DATA_DIR=str(data),PAIR_TAG='fresh',PAIR_AGENT='claude',PAIR_SESSION_ID='fresh-conversation',
             PAIR_DRAFT_PATH=str(draft),PAIR_REVIEW_TARGET_PATH=str(target),PAIR_REVIEW_OPEN_PATH=str(opened),
-            PAIR_REVIEW_HANDOFF_PATH=str(data/'handoff.json'),PAIR_REVIEW_LANDED_PATH=str(data/'landed.json'),
+            PAIR_REVIEW_ROUND_PATH=str(data/'round.json'),
             PAIR_REVIEW_MODE_PATH=str(data/'mode'),PAIR_AGENT_CONFIG_PATH=str(data/'agent.json'),PAIR_AGENT_PID_PATH=str(data/'agent.pid'),
             PAIR_LAYOUT_MODE_PATH=str(data/'layout'),PAIR_ZELLIJ_ACTIONS_PATH=str(data/'actions.jsonl'),
             PAIR_TEST_ZELLIJ_REPLIES=str(root/'tests/lib/zellij_fixture_replies.py'),FAKE_ZELLIJ_STATE=str(data),FAKE_WRONG_SESSION='1' if wrong_session else '0',DRIVER_RESULT=str(data/'result.json'),

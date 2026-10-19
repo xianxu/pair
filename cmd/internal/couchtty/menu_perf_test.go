@@ -165,7 +165,7 @@ func TestMenuTargetPerformance(t *testing.T) {
 				deadline := time.Now().Add(time.Second)
 				for {
 					f.con.mu.Lock()
-					idle := f.con.menu.InFlight.Operation == ""
+					idle := f.con.menu.operationForTest().Operation == ""
 					if idle {
 						epoch++
 						inventory := append([]couchcore.ActionableThreadSummary(nil), rows...)

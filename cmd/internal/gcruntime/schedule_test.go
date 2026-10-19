@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -32,7 +33,7 @@ func scheduleFixture(t *testing.T) (*Service, artifactpath.StorageOwner) {
 	}
 	return s, o
 }
-func TestScheduledBatchBeforeMigrationOnlyInitializesGrace(t *testing.T) {
+func TestScheduledBatchBeforeMigrationInitializesGraceThenDiagnostics(t *testing.T) {
 	s, o := scheduleFixture(t)
 	scheduler := storagegc.Scheduler{Coordinator: s.Collector.Coordinator, Batch: s.Batch, Limit: 1}
 	ran, err := scheduler.RunOnce(context.Background())
@@ -44,6 +45,9 @@ func TestScheduledBatchBeforeMigrationOnlyInitializesGrace(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(o.Directory(), "draft-tag.md")); err != nil {
 		t.Fatal("deleted before migration", err)
+	}
+	if ran, err := scheduler.RunOnce(context.Background()); err != nil || !ran {
+		t.Fatalf("diagnostic phase did not run: %v %v", ran, err)
 	}
 	if ran, err := scheduler.RunOnce(context.Background()); err != nil || ran {
 		t.Fatalf("completed run did not rate limit: %v %v", ran, err)
@@ -111,7 +115,7 @@ func TestStartAfterReadyWorkerIsContextBoundAndJoined(t *testing.T) {
 	}
 }
 
-func TestScheduledDiagnosticsAdvanceAcrossBackupFencedPaths(t *testing.T) {
+func TestScheduledDiagnosticsCollectExpiredAcrossPaths(t *testing.T) {
 	s, _ := scheduleFixture(t)
 	ctx := context.Background()
 	c := s.Collector.Coordinator
@@ -149,8 +153,8 @@ func TestScheduledDiagnosticsAdvanceAcrossBackupFencedPaths(t *testing.T) {
 		t.Fatal("diagnostic pass did not complete")
 	}
 	for _, path := range paths {
-		if body, err := os.ReadFile(path); err != nil || string(body) != "old diagnostic" {
-			t.Fatalf("backup-fenced diagnostic changed %s: %q %v", path, body, err)
+		if _, err := os.Stat(path); !os.IsNotExist(err) {
+			t.Fatalf("expired diagnostic remains %s: %v", path, err)
 		}
 	}
 }
@@ -184,5 +188,24 @@ func TestReadyRuntimeWorkerRunsAndJoinsItsFirstScheduledPass(t *testing.T) {
 	worker.Stop()
 	if err := worker.Wait(); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestPreMigrationBatchReachesDiagnostics(t *testing.T) {
+	s, _ := scheduleFixture(t)
+	cursor, complete, err := s.Batch(context.Background(), "", 100)
+	if err != nil || complete || !strings.Contains(cursor, `"phase":"diagnostics"`) {
+		t.Fatalf("diagnostics unreachable before migration: %q complete=%v err=%v", cursor, complete, err)
+	}
+}
+
+func TestNewRejectsInvalidDiagnosticPolicyBeforeIO(t *testing.T) {
+	t.Setenv("PAIR_DIAGNOSTIC_DAYS", "0")
+	root := filepath.Join(t.TempDir(), "missing")
+	if _, err := New(root); err == nil || !strings.Contains(err.Error(), "PAIR_DIAGNOSTIC_DAYS") {
+		t.Fatalf("invalid policy not rejected: %v", err)
+	}
+	if _, err := os.Stat(root); !os.IsNotExist(err) {
+		t.Fatalf("invalid policy touched root: %v", err)
 	}
 }

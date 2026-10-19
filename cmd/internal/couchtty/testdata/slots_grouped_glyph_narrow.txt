@@ -1,5 +1,5 @@
 threads
-Ctrl+Y copy last notice
+Ctrl+Y copy last notice / selected error
 ▸ pair+  /workspace/pair  Continue
     pair:1  /workspace/worktr  Continue
     └─ review ready

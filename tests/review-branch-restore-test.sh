@@ -4,7 +4,7 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PAIR_ROOT="$ROOT" python3 -B - <<'PY'
-import json, os, pathlib, subprocess, sys, tempfile, time
+import hashlib, json, os, pathlib, subprocess, sys, tempfile, time
 root=pathlib.Path(os.environ['PAIR_ROOT'])
 sys.path.insert(0,str(root/'tests/lib'))
 from review_test_env import ReviewTestEnvironment
@@ -26,12 +26,12 @@ with ReviewTestEnvironment() as isolated, tempfile.TemporaryDirectory(prefix='pa
         (temp/'msg').write_text(msg); git('add','.'); git('commit','-qF',str(temp/'msg'))
     git('checkout','-q','review/a')
     def resolve(): return json.loads(subprocess.check_output([str(root/'bin/pair'),'review','readiness','--resolve',str(repo)],env=base_env,text=True))
-    opened=data/'review.open'; handoff=data/'handoff.json'
+    opened=data/'review.open'; round_path=data/'round.json'
     bindir=temp/'bin'; bindir.mkdir()
     (bindir/'zellij').write_text("#!/usr/bin/env python3\nimport sys,os\nfrom pathlib import Path\nsys.path.insert(0,str(Path(os.environ['PAIR_TEST_ZELLIJ_REPLIES']).parent))\nfrom zellij_fixture_replies import emit_case\np=Path(os.environ['HOST_LOG'])\nwith p.open('a') as f:f.write(' '.join(sys.argv[1:])+'\\n')\nif sys.argv[1:3]==['action','are-floating-panes-visible']:emit_case('review-branch-restore.visible')\nelif sys.argv[1:3]==['action','list-panes']:emit_case('review-branch-restore.panes')\n")
     (bindir/'zellij').chmod(0o755)
     env=dict(base_env,PATH=str(bindir)+':'+str(root/'bin')+':'+os.environ['PATH'],HOST_LOG=str(temp/'host.log'),PAIR_TEST_ZELLIJ_REPLIES=str(root/'tests/lib/zellij_fixture_replies.py'),PAIR_HOME=str(root),PAIR_DATA_DIR=str(data),PAIR_TAG='restore',PAIR_SESSION_ID='session',ZELLIJ_PANE_ID='42',ZELLIJ_SESSION_NAME='fixture-review',
-        PAIR_REVIEW_OPEN_PATH=str(opened),PAIR_REVIEW_HANDOFF_PATH=str(handoff),PAIR_REVIEW_LANDED_PATH=str(data/'landed.json'),
+        PAIR_REVIEW_OPEN_PATH=str(opened),PAIR_REVIEW_ROUND_PATH=str(round_path),
         PAIR_REVIEW_MODE_PATH=str(data/'mode'),XDG_STATE_HOME=str(temp/'state'),XDG_DATA_HOME=str(temp/'xdg'),XDG_CACHE_HOME=str(temp/'cache'))
     trace_path=temp/'pane-observations.json'; trace_init=temp/'review-init.lua'
     trace_init.write_text('dofile('+json.dumps(str(pane_init))+')\n'+
@@ -60,9 +60,9 @@ with ReviewTestEnvironment() as isolated, tempfile.TemporaryDirectory(prefix='pa
         observed={'unavailable':'pane endpoint unavailable'}
         if meta is not None and children and children[0].poll() is None:
             try:
-                observed=json.loads(evaluate(meta,"luaeval('vim.json.encode({trace=PairReviewObservationTraceSnapshot(),state={status=PairReviewPane.controller.state.status,context=PairReviewPane.controller:context()},pending=PairReviewPane.has_pending(),pane=PairReviewPane.pane_state(),modified=vim.bo.modified,error=vim.v.errmsg,messages=vim.fn.execute(\"messages\"):sub(-8192)})')",timeout=2))
+                observed=json.loads(evaluate(meta,"luaeval('vim.json.encode({trace=PairReviewObservationTraceSnapshot(),state={status=PairReviewPane.controller.state.status,context=PairReviewPane.controller:context()},modified=vim.bo.modified,error=vim.v.errmsg,messages=vim.fn.execute(\"messages\"):sub(-8192)})')",timeout=2))
             except Exception as error: observed={'unavailable':str(error)}
-        return dict(observed=observed,handoff_exists=handoff.exists(),landed_exists=(data/'landed.json').exists(),
+        return dict(observed=observed,round=round_path.read_text() if round_path.exists() else None,
                     children=[p.poll() for p in children],
                     logs={p.name:p.read_text(errors='replace')[-8192:] for p in temp.glob('*.log')})
     try:
@@ -98,39 +98,26 @@ with ReviewTestEnvironment() as isolated, tempfile.TemporaryDirectory(prefix='pa
                 attempt='select(1,pcall(vim.api.nvim_buf_call,vim.fn.bufnr('+json.dumps(str(repo/'a.md'))+'),function() vim.cmd("write") end))'
                 assert lua(meta,attempt)=='false','inactive retained buffer wrote into another checkout'
                 assert (repo/'a.md').read_text()=='A\n'
-        # A late response from A's previous activation must survive unconsumed.
-        handoff.write_text(json.dumps(dict(context=first,records=[dict(old='A reviewed',new='WRONG',occurrence=1)])))
-        time.sleep(.2); assert handoff.exists() and snapshot(meta)['text']==['A reviewed']
-        handoff.unlink()
-        # A completed agent round is no longer pending even if branch switching
-        # happens before the pane has observed its commit.
+        # A round whose result is not the file on disk (a late round from an
+        # earlier state) is left: the pane neither reloads nor writes.
+        round_path.write_text(json.dumps(dict(file=str(repo/'a.md'),round=dict(result_hash='0'*16,spans=[]))))
+        time.sleep(.2); assert snapshot(meta)['text']==['A reviewed'] and (repo/'a.md').read_text()=='A reviewed\n'
+        round_path.unlink()
+        # An agent round through `pair review apply` keeps the document's CRLF/BOM
+        # bytes; the pane reloads it, and the committed round does not hold
+        # branch switching.
         lua(meta,'(function() vim.bo.fileformat="dos"; vim.bo.fileencoding="utf-8"; vim.bo.bomb=true; vim.cmd("write") end)()')
-        active=json.loads(opened.read_text().splitlines()[2])['context']
-        trace_before=json.loads(lua(meta,'vim.json.encode(PairReviewObservationTraceSnapshot())'))
-        trace_sequence=trace_before['events'][-1]['seq']
-        resolver_budgets={event['timeout'] for event in trace_before['events']
-                          if event['event']=='completion' and event.get('mode')=='wait' and 'timeout' in event}
-        assert len(resolver_budgets)==1,'resolver completion budget unavailable: '+repr(resolver_budgets)
-        resolver_ms=resolver_budgets.pop()
-        # Admission, on_agent_round, apply_round, BufWritePre and BufWritePost
-        # each authorize via a bounded resolver. A previous rejected handoff
-        # can still own one call: RPC may reenter vim.system:wait. One second
-        # covers the 100 ms poll, atomic publication and external observation.
-        publication_budget=6*resolver_ms/1000+1
-        handoff.write_text(json.dumps(dict(context=active,records=[dict(old='A reviewed',new='A final',occurrence=1,explain='final')])) )
-        started=time.monotonic(); deadline=started+publication_budget
-        while not (data/'landed.json').exists() and time.monotonic()<deadline: time.sleep(.025)
-        assert (data/'landed.json').exists(),'review pane did not publish landed acknowledgment: '+json.dumps(evidence(),default=str)
-        elapsed=time.monotonic()-started
-        trace_after=json.loads(lua(meta,'vim.json.encode(PairReviewObservationTraceSnapshot())'))
-        completions=[event for event in trace_after['events'] if event['seq']>trace_sequence
-                     and event['event']=='completion' and event.get('mode')=='wait']
-        print('handoff completion:',json.dumps(dict(elapsed_seconds=round(elapsed,3),
-              budget_seconds=publication_budget,resolver_ms=resolver_ms,resolver_calls=len(completions))))
-        landed=json.loads((data/'landed.json').read_text())
-        assert landed['context']==active
-        assert (repo/'a.md').read_bytes()==b'\xef\xbb\xbfA final\r\n','landed round changed CRLF/BOM bytes'
-        (temp/'msg').write_text('review(a): agent r2 — final\n\n'+landed['body']+'\n')
+        edits=temp/'edits.json'; edits.write_text(json.dumps([dict(old='A reviewed',new='A final',occurrence=1,explain='final')]))
+        current=hashlib.sha256((repo/'a.md').read_bytes()).hexdigest()[:16]
+        applied=subprocess.run([str(root/'bin/pair'),'review','apply',str(edits),str(repo/'a.md'),'--if-hash',current,'--json'],
+            env=env,cwd=repo,capture_output=True,text=True,timeout=30)
+        assert applied.returncode==0,'pair review apply failed: '+applied.stdout+applied.stderr+json.dumps(evidence(),default=str)
+        reply=json.loads(applied.stdout)
+        assert (repo/'a.md').read_bytes()==b'\xef\xbb\xbfA final\r\n','applied round changed CRLF/BOM bytes'
+        deadline=time.monotonic()+8
+        while snapshot(meta)['text']!=['A final'] and time.monotonic()<deadline: time.sleep(.025)
+        assert snapshot(meta)['text']==['A final'],'pane did not reload the applied round: '+json.dumps(evidence(),default=str)
+        (temp/'msg').write_text('review(a): agent r2 — final\n\n'+reply['Body']+'\n')
         git('add','a.md'); git('commit','-qF',str(temp/'msg'))
         git('checkout','-q','review/b'); toggle(); assert snapshot(meta)['text']==['B reviewed'],'committed CRLF/BOM round remained pending'
         git('checkout','-q','review/a'); toggle(); assert snapshot(meta)['text']==['A final']

@@ -4,11 +4,11 @@ vim.fn.writefile({'A'}, tmp .. '/a.md'); vim.fn.writefile({'B'}, tmp .. '/b.md')
 vim.fn.writefile({'unverified startup bytes'},tmp..'/initial.md')
 vim.cmd.edit(tmp..'/initial.md');local initialbuf=vim.api.nvim_get_current_buf()
 local initial={status='resolved',repo=tmp,branch='review/initial',file='initial.md',head='initial',snapshot='captured startup\n'}
-local startup=C.new({});startup:init(initialbuf,initial,true)
+local startup=C.new({});startup:init(initialbuf,initial)
 assert(vim.api.nvim_get_current_line()=='captured startup','initial binding accepted pre-snapshot file bytes')
 assert(not vim.bo[initialbuf].modified)
 vim.api.nvim_buf_set_lines(initialbuf,0,-1,false,{'operator edit'})
-assert(not pcall(function() C.new({}):init(initialbuf,initial,true) end),'startup overwrote modified operator buffer')
+assert(not pcall(function() C.new({}):init(initialbuf,initial) end),'startup overwrote modified operator buffer')
 assert(vim.api.nvim_get_current_line()=='operator edit');vim.bo[initialbuf].modified=false;startup:close()
 
 local a = {status='resolved',repo=tmp,branch='review/a',file='a.md',head='1',snapshot='A\n'}
@@ -23,7 +23,7 @@ local ctl = C.new({ session='session', resolve=function(_,_,snapshot)
   start=function() starts=starts+1 end, stop=function() stops=stops+1 end,
   pending=function() return pending end, reconstruct=function() end })
 vim.cmd.edit(tmp .. '/a.md'); local abuf=vim.api.nvim_get_current_buf()
-assert(not pcall(function() C.new({}):init(abuf,b,true) end),'startup must not bind B context to A buffer')
+assert(not pcall(function() C.new({}):init(abuf,b) end),'startup must not bind B context to A buffer')
 ctl:init(abuf, a)
 local original_resolve=ctl.opts.resolve
 local decoder=dofile('nvim/review/identity.lua')
@@ -68,7 +68,6 @@ local r=ctl:request(req); assert(r.ok and not r.same, r.error)
 assert(vim.api.nvim_buf_get_name(0)==tmp..'/b.md' and starts==1 and stops==1)
 assert(ctl:context(abuf) and ctl:context(abuf).activation==old.activation,'retained buffer lost its ownership')
 assert(not ctl:guard(abuf,true),'inactive review buffer may not write into another checkout')
-assert(not ctl:admit({context=old,records={}},vim.api.nvim_get_current_buf()))
 local repeated=ctl:request(req); assert(repeated.ok and repeated.same and starts==1)
 vim.fn.writefile({'A newer'},tmp..'/a.md'); current=a; req.identity=a
 r=ctl:request(req); assert(r.ok, r.error)

@@ -125,7 +125,7 @@ func TestSwitchAttentionAcknowledgesOnLandingAndReleasesOnFailure(t *testing.T) 
 		con.attention.Mark(address, "later")
 		con.mu.Unlock()
 
-		con.finishOperation(operationCompletion{
+		con.finishPreparedOperationForTest(operationCompletion{
 			origin: MenuOperationOrigin{Operation: "switch", Attempt: 1, Address: address, AttentionCapture: capture},
 			err:    ErrOperationQueueOverloaded,
 		})
@@ -357,13 +357,13 @@ func TestDeliberateChildExitsAreExpectedInEitherEventOrder(t *testing.T) {
 				con.mu.Lock()
 				address := con.panes["c2"].thread
 				origin := MenuOperationOrigin{Operation: operation, Attempt: 1, Address: address}
-				con.menu.InFlight = origin
+				setTestMenuOperation(&con.menu, origin)
 				con.mu.Unlock()
 
 				if completionFirst {
-					con.finishOperation(operationCompletion{origin: origin})
+					con.finishPreparedOperationForTest(operationCompletion{origin: origin})
 					con.mu.Lock()
-					con.menu.InFlight = MenuOperationOrigin{} // ReduceMenu clears it
+					setTestMenuOperation(&con.menu, MenuOperationOrigin{}) // ReduceMenu clears it
 					expected := con.consumeExpectedParkExitLocked("c2", address)
 					con.mu.Unlock()
 					if !expected {
