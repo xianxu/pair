@@ -4,7 +4,7 @@ collaboration-mode: discussion
 
 # Couch RAM scratch implementation plan
 
-> **Current contract:** the approved Revision R1 at the end of this document supersedes the original metadata proposal, metadata concepts/tests/tasks and live arrangement below. The original proposal is retained as design history, not an execution checklist. Slot-temp policy remains approved as stated, with the R1 cleanup clarification.
+> **Current contract:** Revision R3 is the final approved executable plan. It retains R1's reboot-only metadata setup, replaces all holder/census/retirement cleanup (including R2) with the approved 24-hour age rule, and pins the native socket namespace. Earlier proposals are preserved as design history, not execution checklists.
 
 > **For agentic workers:** Consult AGENTS.md Section 3 for execution strategy. Use the SDLC plan and boundary gates; this is one atomic change, with one close review.
 
@@ -255,3 +255,76 @@ The inheritance model covers jobs launched with this feature's slot environment,
 **Cost:** one table and at most one environment read/fence per relevant process, shared by all candidates. Hash maps map roots/addresses to holders. Reduce unattributed birth times to the latest potentially relevant instant, then check each owner once; do not compare every process with every folder. Older processes are excluded only by a proved birth ordering; a missing creation time blocks. Budget O(P+S+F), and N/2N tests count table reads, environment reads and candidate visits. Native open-file inventory remains an additional blocker, not a substitute for this environment proof.
 
 **Strategy/guard:** `ObserveScratchUsers` uses a stateful process world with a parent and a child that reparents, closes all scratch FDs, waits, then uses its inherited scratch path. The `Collect` sequence test must preserve the directory after the parent/server exits, through the child's delayed use, and reclaim only after that exact child generation is confirmed gone in a later complete sweep. The same sequence with an unreadable/empty child environment or PID reuse must retain. Mutation guards remove environment attribution or treat unknown as unrelated; either must fail the preservation assertion. Native owned-child conformance uses the same reader seam and an explicit handshake before reparent/use/exit; tests never depend on a fixed sleep or touch other processes.
+
+### 2026-10-19 11:05 PDT — R3: approved age cleaner and stable socket namespace
+
+**Authority:** verified submitted hub receipts 060f7bf3-3388-4042-a976-a66bf5598d6b and 8e09b3e8-1302-4ed1-8ca9-ff8068370141. The hub explicitly replaced the lifetime-proof contract after PQ-1 repeated, and approved the special-file exclusion plus socket-root pin. This is a new cleanup contract, not a claim that R2's lifetime proof works. PQ-1 is addressed by removing that proof-dependent behavior altogether.
+
+**Documented user tradeoff:** slot directories themselves remain for the Couch/RAM lifetime and vanish at reboot. At Couch start and hourly, an ordinary top-level entry is eligible only if its own mtime **and every descendant's mtime** are strictly older than 24 hours. A job that leaves ordinary temp files untouched for a day accepts the same loss risk as an age-cleaned /tmp; an active process or held regular-file FD is not an exemption. The 2 GiB admission fallback remains when RAM fills. Any socket, FIFO or other special file (symlinks included), or any top-level tree containing one, is retained regardless of age. Errors/incomplete tree observations retain that entry. This supersedes all process/environment/open-holder collection predicates, creation-time reasoning, terminal completion hooks and stale-slot-folder removal promises.
+
+#### Current core concepts (exclusive execution inventory)
+
+| Pure name | Lives in | Status |
+|---|---|---|
+| ScratchProbe / ChooseScratch | cmd/internal/couchscratch/policy.go | new |
+| SlotScratchKey / SlotEnvironment | cmd/internal/couchscratch/policy.go | new |
+| EntryAgeFacts / EligibleEntry | cmd/internal/couchscratch/age.go | new |
+| MetadataState / DecideMetadata | cmd/internal/couchscratch/metadata_policy.go | new |
+| ResolveZellijSocketRoot | cmd/internal/launcher/zellij_socket.go | new |
+
+EligibleEntry consumes the latest descendant mtime, whether all observations completed, and whether any node is special. It is pure, and its literals/generated trees need no IO. MetadataState/DecideMetadata retain R1's no-server startup decision. ResolveZellijSocketRoot owns the existing explicit-root/default-temp resolution and preserves its original path spelling for the Unix socket address budget; consolidate the two existing launcher fallback calculations into it. SlotEnvironment adds the captured socket root to the three scratch overrides; fallback still pins sockets but leaves all three inherited temp values unchanged.
+
+| Integration name | Lives in | Status | Wraps |
+|---|---|---|---|
+| Manager / Backend / OSBackend | cmd/internal/couchscratch/manager.go, os.go | new | injected mount facts, private owner index and filesystem operations |
+| PrepareSlot / Sweep / Run | cmd/internal/couchscratch/temp.go, sweep.go | new | directory setup, age observation/unlink, clock/ticks/cancellation |
+| ConfigureMetadata | cmd/internal/couchscratch/metadata.go | new | R1 startup-only native server observation and cache route setup |
+| Socket pin at executable boundary | cmd/couch/main.go | modified | capture and export socket authority before Couch workers/slot launches |
+| configuredRunner / OSRuntime.NewCouchWith | cmd/internal/couchcmd/singleton.go, run.go | modified | one environment preparation path for Start and StartBlocked |
+| scratch worker owner | cmd/internal/couchcmd/message_service.go | modified | existing lifetime context, workers.Add/Done and Close join |
+| launcher fallback consumers | cmd/internal/launcher/session_handoff_os.go, recovery_terminal_os.go | modified | common native socket-root resolver |
+
+The existing configuredRunner wraps both Start and StartBlocked and can prepare slot-specific overlays from supplied COUCH_TREE/scope/tag; use canonical workspace identity/EnvironmentHost to distinguish primary/numbered slots and repo dependencies. Do not derive identity from cmd.Dir: warm attachment may use / when its checkout is missing. Carry validated identity from the shared Couch composition/catalog; an unresolved slot safely retains inherited temp settings. No changes to the two core launch call sites are needed if the decorator's constructor-path tests cover them. No new lifecycle-retirement hooks or resource/process census service.
+
+Manager's owner index and lock files live outside swept interiors, under a private manager directory on the selected volume. Immutable owner declarations bind canonical repo identity and slot number; reject conflicting owners and preserve unknown bytes without rewriting. Existing native/thread formats remain unchanged. The age worker only walks declared owned slot roots, never sibling sdlc run/checkouts under the shared tmp parent. It never removes a slot root or manager bookkeeping.
+
+#### Socket authority
+
+Before any slot-temp overlay, cmd/couch/main.go captures today's resolved socket root and exports it as explicit ZELLIJ_SOCKET_DIR. This single executable boundary covers Couch's direct read and mutation calls (launcher queries, native launch/recovery, title/focus commands) without modifying process globals inside the injected couchcmd package. configuredRunner adds the same captured value authoritatively to every child, so descendant zellij/couch calls preserve the namespace despite TMPDIR changes. Keep explicit supplied spelling, including a safe short symlink spelling; no canonical-path expansion that lengthens native addresses. Isolated runtime fixtures supply their own explicit private root and never discover live roots from HOME alone.
+
+#### Sweep and worker behavior
+
+Sweep captures now once and enumerates top-level entries of each owned slot. Assess an entry tree without following links; aggregate maximum mtime, special-file presence and completeness. Never parse or read file bodies. Only a complete all-ordinary tree with maximum mtime strictly before now-24h may be removed. Recheck observed identities/mtimes before destructive work; a new/changed/fresh/special node retains the entry rather than granting recursive blind removal. Confine traversal/unlinks to held owned-root authority (Go os.Root or equivalent existing nofollow helpers), preserve permission/observation errors as retained rows, and avoid crossing mount/symlink boundaries. Fixture concurrency can inject a fresh child between assessment and action; the cleaner must retain it.
+
+Manager.Run performs the startup sweep, then a single serial hourly ticker. It receives the Couch service lifetime and is joined by existing messageService.Close; cancellation interrupts traversal, stops the ticker and prevents starting a later entry. No overlapping sweeps, unjoined tasks or per-slot timers. The worker reports a bounded aggregate on actual removals/errors, not a line per untouched file. Metadata setup remains once at no-server startup, never on the hourly tick. Its native server inventory is unrelated to the cleaner and never grants age-deletion authority.
+
+#### Current budgets and lifecycle
+
+- O(1) volume probe and directory setup per launch; use TestScratch only on a separate writable device with at least 2 GiB free, else preserve temp behavior visibly where useful.
+- For S owned slot roots and F entries, each sweep makes at most two metadata visits per observed entry (assessment plus guarded removal) and O(S+F) work. No file-body bytes, process census, environment reads or lsof calls for cleanup. N=8/16 counters enforce visits <= 2F+O(S), one sweep worker/ticker and zero process inspections.
+- Slot roots/manager declarations persist until RAM reboot, with 0700 privacy. Ordinary contents have the documented 24-hour age lifetime, special trees remain until reboot, and full-volume admission falls back. No maximum age is claimed for sockets or other specials.
+- Metadata performs R1's constant path operations and one complete native server observation; zero content copying/pruning. One session_info.disk backup is retained forever by explicit operator choice. Existing backup conflicts preserve data rather than create growing generations.
+- ARCH-FUNERAL now names age cleanup of ordinary contents and reboot lifetime of roots/special trees. ARCH-ORDER separates a joined serial sweep from the small startup route decision. No detached-job lifetime protocol, environment census or historical process registry remains.
+
+#### Current named-function strategies
+
+| Function / seam | Strategy | Mechanical guard |
+|---|---|---|
+| ChooseScratch / SlotEnvironment | literal device/floor/error boundaries; typed slot identities and overlay combinations | no unmounted-root write; exactly three temp overrides on success, stable socket pin on either branch |
+| PrepareSlot / owner decode | portable stateful owner/index world with conflicting identities, redirected paths and additive fields | only 0700 declared roots prepared; accepted unknown owner bytes unchanged; bookkeeping outside swept interiors |
+| EligibleEntry | generated timestamp/tree/type/error facts, fuzzed boundary instants | any fresh descendant or special node forbids eligibility |
+| Sweep | stateful filesystem sequences and real fixture trees, including mutation between observe/remove | fresh entry kept; 25h-old ordinary tree removed; old tree with fresh descendant kept; every special-containing tree and slot root retained |
+| Run | injected ticks/clock and controlled in-progress sweep | startup plus hourly serial execution, no overlap, cancellation/Close join, zero new sweep after stop |
+| ResolveZellijSocketRoot / executable pin | varied explicit/implicit roots and child TMPDIR changes, owned subprocess environment reports | resolved native socket namespace and spelling unchanged after RAM temp overlay; all own calls inherit captured pin |
+| DecideMetadata / ConfigureMetadata | R1 stateful no-server/live-server/absent-RAM fixtures and interrupted prefixes under isolated HOME | live/unknown server => zero writes; .disk never deleted/overwritten; only our link replaced on fallback |
+| production composition | constructor plus configuredRunner Start/StartBlocked with scratch world and private explicit socket root | omission of temp/socket overlays or worker start fails targeted mutation checks; real cache sentinels unchanged |
+
+#### Final execution checklist (supersedes every earlier checklist)
+
+- [ ] Write RED literal policy/age/metadata decision tests; implement minimal pure models and portable stateful filesystem backend. No process-holder proof code.
+- [ ] Write RED preparation/sweep fixtures for the hub's three age cases and all special-tree exclusions; implement private owner index, 0700 slots and guarded age sweep with linear counters. Keep roots/bookkeeping until reboot.
+- [ ] Write RED production constructor/decorator and isolated child tests; wire shared manager at NewCouchWith/configuredRunner, capture/pin socket root at main, consolidate native fallback resolution. Verify Claude/Codex/Qoder and primary/numbered slots, fallback and descendant namespace preservation.
+- [ ] Add the context-owned start/hourly worker through messageService's existing lifecycle; prove cancellation/join and one serial ticker without waiting an actual hour.
+- [ ] Implement R1 reboot-only metadata setup from isolated-HOME fixture regressions. Any native server means no changes and one exact reboot note. Do not run it against the operator's live cache during tests.
+- [ ] Register new source inventory, update README/atlas/index with age-loss contract and socket pin, run affected packages/count budgets/source guards and owned native/child conformance where needed. Add the review lesson about observation versus lifetime authority.
+- [ ] Open early draft PR, record pushed-head suite, close through mandatory review/measured actuals, request landing priority, merge normally and report Git-verified outcome. Operator's reboot/relaunch/sample supplies the real environment acceptance; no pair:0 staging or live changes by this slot.

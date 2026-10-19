@@ -52,6 +52,8 @@ When `/Volumes/TestScratch` is mounted (a separate device from `/Volumes`) with 
 
 **Approved Revision R1 (2026-10-19):** the hub replaced live metadata migration with reboot-only setup. With no native Zellij server running, rename the real session_info to session_info.disk (retain forever) and create the RAM symlink. If any server is live, change nothing and log once `Zellij metadata stays on disk until the next reboot`. If RAM is absent with no server and session_info is our link, replace it with an empty real directory; do not restore .disk. No atomic exchange, layout linking or metadata cache pruning. The original migration/pruning clauses above are superseded. The slot-temp half remains approved, including CLAUDE_CODE_TMPDIR and no-holder cleanup.
 
+**Approved Revision R3 (2026-10-19, supersedes all earlier cleanup clauses):** keep slot folders while Couch runs; RAM empties at reboot. At startup and hourly remove ordinary top-level entries only when their own and every descendant's mtime are strictly older than 24h. A job leaving regular temp files untouched for a day accepts ordinary age-cleaned /tmp loss risk; no process census, holder proof or FD exemption. Never remove sockets, FIFOs or other special files, or a top-level tree containing one. Manager bookkeeping stays outside swept interiors. Keep 2 GiB admission fallback. Pin the pre-overlay ZELLIJ_SOCKET_DIR in every slot and Couch's own native calls so moving TMPDIR does not move the session namespace. R1 metadata setup remains approved.
+
 ## Done when
 
 - With TestScratch mounted, a new slot's agent and shells report TMPDIR under `/Volumes/TestScratch/tmp/<slot>/`, and a
@@ -62,11 +64,12 @@ When `/Volumes/TestScratch` is mounted (a separate device from `/Volumes`) with 
   operator runs it; command in the ops side doc).
 
 - R1 metadata acceptance supersedes the Couch-restart migration check: isolated-HOME fixtures prove no-server RAM setup, live-server no-op and absent-RAM restoration from our link, including retry/failure preservation. The real metadata switch and write-only sample happen at the operator's next reboot. Existing panes need relaunch for their inherited temp settings; no live cache migration/pruning is required or allowed in this issue.
+- R3 fixtures prove a fresh entry survives, a 25h-old ordinary tree is removed, and an old tree containing one fresh file survives. Socket/FIFO/special-containing trees, slot roots and external manager bookkeeping survive regardless of age. Startup/hourly sweeps are serial and joined on shutdown; counted N/2N metadata work stays linear with zero cleanup process inspections. With a slot TMPDIR on RAM, resolved Zellij socket directory/spelling stays unchanged for slot commands and Couch calls.
 
 ## Plan
 
 - Durable design: [Couch RAM scratch plan](../plans/000708-couch-ram-scratch-plan.md).
-- [ ] Implement the shared scratch policy, environment wiring and liveness-gated collection.
+- [ ] Implement shared scratch policy, pinned socket environment and R3 startup/hourly age cleanup.
 - [ ] Implement R1 startup-only metadata routing and the three isolated-HOME fixture branches.
 - [ ] Complete counted budgets, documentation, recorded suite, close review and priority landing.
 
@@ -84,6 +87,8 @@ Hub receipt a7a22cfc-b15d-478f-bac2-c9a1089f683f was verified submitted with exa
 
 Plan-quality round 1 accepted the simplified metadata design and raised one Important PQ-1: current ancestry/open-file snapshots do not prove a detached job's lifetime. Appended R2 with ObserveScratchUsers using one complete native table and PID/birth-fenced initial-environment reads (existing NativeResourceReader), exact temp-root/thread attribution independent of ancestry, and explicit conservative retention of empty/unavailable/changed evidence. The stateful regression controls parent exit, reparenting, closed FDs, delayed scratch use and exact child exit; unknown evidence keeps the folder. Busy/opaque hosts may retain all candidates until a later complete sweep or RAM reboot; no process is stopped to improve collection.
 
+Plan-quality round 2 kept PQ-1 open: a nonempty changed environment does not prove no future scratch dependency. Stopped before a third delta and asked the hub. Verified submitted receipts 060f7bf3-3388-4042-a976-a66bf5598d6b and 8e09b3e8-1302-4ed1-8ca9-ff8068370141 explicitly replace lifetime collection with the conventional 24h age contract, preserve slot roots, approve special-tree exclusions and require socket-root pinning. Added R3 as the sole executable contract. No holder/env census, retirement cleanup hook, atomic migration or layout-link code will be built. Only metadata setup still observes native server presence.
+
 ## Revisions
 
 ### 2026-10-19 10:56 PDT — R1, hub-approved simplification
@@ -93,3 +98,7 @@ Replace the initial live metadata migration/pruning contract with no-server star
 ### 2026-10-19 11:04 PDT — R2, plan-quality cleanup clarification
 
 Name the existing native environment API and detached-job evidence lifetime; retain on incomplete attribution instead of inferring no holder from ancestry or closed files. Add the delayed-use sequence/mutation test and linear observation budget. This specifies the approved no-holder rule without expanding scope or changing R1 metadata behavior.
+
+### 2026-10-19 11:05 PDT — R3, hub-approved age contract and socket stability
+
+Supersede R2 and all no-holder cleanup with startup/hourly whole-entry 24h age cleanup. Keep special-containing trees and slot roots until reboot, keep bookkeeping outside sweep interiors, and document the accepted old-regular-file loss risk. Pin today's socket root across temp changes and all native Zellij calls. R1's reboot-only metadata setup remains; real switch waits for the operator's reboot. See final R3 core-concept, strategy and execution tables in the durable plan.
