@@ -55,7 +55,7 @@ Actions: attach, Resume, Start fresh, Park (Alt+x), Archive, Relaunch (Alt+n: pa
 | tree gone, no binding on record (legacy) | Resume if the ledger resolves it once (then stored), else Start fresh | Resume / Start fresh | as above |
 | pair orphans hold the lease (title, session-watch, attach client) | Resume / Start fresh | the action's teardown kills them by identity | none |
 | processes left on the agent's tty (its in-flight tool commands) | Resume / Start fresh | the action's teardown kills them with the agent (the operator confirmed stopping the agent) | that command's in-flight work |
-| agent-spawned process that left the agent's session (a setsid'd runner, a daemon) | unaffected: named in the proof, never killed, never required gone | none needed | none |
+| agent-spawned process that left the agent's session (a setsid'd runner, a daemon) | unaffected: named in the proof and the orphan registry, never killed by teardown, never required gone | the operator may reap it from `couch --resources` / `--reap-orphans --confirm` | none |
 | two live actors or sessions | Resume / Start fresh, detail names both | the action tears both down | live terminal state |
 | park awaiting_completion, success completion present (#683) | Resume from disk | Resume (teardown folds the completion first) | none |
 | park awaiting_completion, cleanup never ran | Resume from disk | Resume (teardown re-runs cleanup, needs proof) | scrollback tail if the capture never ran |
@@ -85,7 +85,8 @@ three without either missing processes or holding the slot hostage to them.
 check on a resource held for each process's lifetime (tl-worker PLANNING rule), not an observation sweep:
 
 - Couch creates `<slot store dir>/lifetime.lease` (one file per slot) and passes its path to the launch as
-  `PAIR_LIFETIME_LEASE`. Couch never holds it open past a probe.
+  `COUCH_LIFETIME_LEASE`, beside the `COUCH_THREAD_SCOPE`/`COUCH_THREAD_TAG` it already sets. Couch never holds
+  it open past a probe.
 - Each pair process started for the tree opens the path with `O_CLOEXEC` and takes `LOCK_SH` (blocking, 2s
   bound). A pair process passes the fd only to children that are **pair processes** (session-watch, wrap.go:2574;
   the title process), through one helper `lease.Inherit(cmd)` that refuses a non-pair `argv[0]`. The agent, nvim
@@ -95,20 +96,47 @@ check on a resource held for each process's lifetime (tl-worker PLANNING rule), 
 - The lease is free iff `flock(LOCK_EX|LOCK_NB)` on a fresh open succeeds (released at once). `lsof <lease>`
   names the holders when it isn't: exactly the survivors the audit found outside the parent tree (D1, D2, the
   Oct 14 title pid 17468, session-watch after `Setsid` + `Release`).
-- **Layering:** pair only learns "hold this path for your lifetime". It has no slot concept and works without
-  Couch (no env, no lease). Couch owns the slot meaning.
+- **Plain pair is unchanged (operator constraint, 2026-10-18).** pair must keep working without Couch as a
+  light wrapper, including several pair sessions in one directory. The lease, the agent tty publication and
+  `lease.Inherit` switch on only when Couch launched pair: `COUCH_LIFETIME_LEASE` and `COUCH_THREAD_TAG` are
+  both set. Without them pair opens no lease, publishes no tty and passes no extra fd. The behavior is exactly
+  today's. The stored transcript binding (P2) lives only in Couch's record.
 
 **The pty (the agent).** The wrapper starts the agent with `pty.Start` (wrap.go:2925), which makes it a session
-leader with the pty slave as its controlling tty. The wrapper records the agent's pid, start identity and tty
-name (`ttysNNN`) in the tag's agent sidecar, beside the agent pid it already publishes for session-watch. The
+leader with the pty slave as its controlling tty. Under Couch only, the wrapper records the agent's pid, start
+identity and tty name (`ttysNNN`) in the tag's agent sidecar, beside the agent pid it already publishes for
+session-watch. It republishes them on every agent start, including pair's own context reset (Shift+Alt+N). The
 agent is gone iff no process has that controlling tty (`ps -t <tty>` through the process-table seam). That set
 is the agent plus its in-flight tool commands. Stopping those with the agent is what tearing down an agent
 means, and the operator confirmed it by choosing the action. A command that setsid'd leaves both the session
 and the tty. It is outside the set, and so it is neither killed nor waited on.
 
-**Named, not killed.** Before the kill, teardown snapshots the agent's descendants (ppid chain from the agent
-pid). Those that aren't on the agent's tty go into `TeardownProof.LeftRunning` and the success notice ("left
-running: pid 812 `sdlc merge`"). They never block the proof.
+**Named, not killed, and tracked.** Before the kill, teardown snapshots the agent's descendants (ppid chain
+from the agent pid). Those not on the agent's tty go into `TeardownProof.LeftRunning` and the success notice
+("left running: pid 812 `sdlc merge`"). They never block the proof. Teardown then persists them into the
+**orphan registry**, so they stay attributable after the slot's thread is gone:
+
+```go
+// couchcore/orphan_registry.go — <couch store dir>/orphans.json
+type LeftRunningOrphan struct {
+    Origin    SlotIdentity      // the slot (repo:N) whose teardown left it
+    Thread    ThreadAddress     // the torn-down thread's scope and tag
+    Process   ProcessIdentity   // pid + kernel start identity
+    Command   string            // bounded argv[0..] line
+    StartedAt time.Time
+    LeftAt    time.Time
+    Operation string            // the teardown's operation nonce
+}
+```
+
+- `couch --resources` lists them by originating slot ("pair:3 · 1-pair-41 · pid 812 `sdlc merge` · since
+  18:21"). This is a new kind beside #583's `OrphanNvim` and #606's detached-root attribution, on the same
+  surface.
+- `couch --reap-orphans --confirm` reaps them on the operator's confirmation (#583's existing gate), by exact
+  identity. A reused pid never matches, so it is never signalled.
+- **Removal:** an entry is dropped when a resources sample or a reap observes its identity gone. The registry is
+  bounded at 256 entries, evicting the oldest. An evicted live process falls back to #583's unattributed-orphan
+  rule: still visible, just no longer named by slot.
 
 **Contract:**
 
@@ -120,7 +148,7 @@ type TeardownProof struct {
     AgentTTY    string                 // proven empty; "" when no agent was recorded
     Sessions    []string               // names proven absent twice
     Observed    SlotSessionObservation // ObserveSlotSessions after the kill: Absent == true
-    LeftRunning []ProcessIdentityLine  // agent-spawned, outside its session: named only
+    LeftRunning []LeftRunningOrphan    // agent-spawned, outside its session: named and registered, never killed by teardown
 }
 // Teardown is idempotent: on an already-down slot it costs one flock, one ps,
 // one ObserveSlotSessions and one list-sessions, and returns a proof.
@@ -184,6 +212,13 @@ type TranscriptBinding struct {
   row says so (Start fresh, reason "invalid stored binding").
 - **Compatibility:** adding the field is forward-compatible only (strictjson rejects unknown fields;
   thread.go:86-91 precedent). A binary older than M1 refuses records M1 writes. Accepted, as for #198.
+- **Open question (the hub to settle before M1):** after pair's own context reset (Shift+Alt+N, untouched by
+  this plan), the agent's conversation changes, but Couch's record still names the old one until the next
+  teardown copies it. If the tree then crashes with no teardown, Resume would reopen the pre-reset
+  conversation. Proposal: `Bind` makes one exact read of the tag's own ledger file (a known path, no listing). If
+  that file names a newer root than the record's `BoundAt`, Bind adopts it and stores it with `Source: ledger`.
+  That is a single file read, not D9's re-derivation by scan. The alternative is to accept the corner
+  (proportionality).
 - **Open question for the drill:** whether Claude's or Codex's native ID changes across a resume. Teardown
   re-copies the ledger's root ID every time, so a change is picked up; the drill asserts the ID it observes.
 
@@ -251,7 +286,7 @@ a failed probe read as absence** — every probe returns live/absent/unknown, an
 | 9 | Archive | `Converge(Down)` + archive(proof) | `prepareRetirement`'s partial proof (D5) and its stale comment |
 | 10 | Store archive / replace | require `TeardownProof` | the Fresh exemption |
 | 11 | Switch agent | `Converge(Fresh, agent)` | "agent may survive" (menu.go:1493, D3) |
-| 12 | Reload-context | `Converge(Fresh, same agent)` | the separate live-restart path; the zellij session is rebuilt (target: rebuild boldly) |
+| 12 | Reload-context (Shift+Alt+N) | **unchanged** (operator, 2026-10-18): pair's own fast context reset, not a Couch lifecycle path | — (under Couch the wrapper republishes the agent's pid and tty; the record's binding is refreshed at the next teardown) |
 | 13 | Detach | unchanged: the slot stays Continue | — |
 | 14 | Stop | await the actor's exact exit before `Forget`; Unknown refuses (D6) | the no-wait `Forget` |
 | 15 | Park abandon, reboot archive-only | deleted; covered by Down and Archive | both bookkeeping-only paths |
@@ -284,6 +319,8 @@ a failed probe read as absence** — every probe returns live/absent/unknown, an
 - Agent tty in the agent sidecar: one field, removed with the sidecar at debris cleanup.
 - `ThreadRecord.Transcript`: one per record, archived with it.
 - Failure ring: 64 entries, one file (#683).
+- Orphan registry: `orphans.json`, at most 256 entries. An entry is dropped when its process is observed gone, or
+  evicted oldest-first at the bound.
 - Drill results: one JSON per run under the pair data dir, pruned at 30 days by the drill itself.
 
 ## 8. Milestones
@@ -310,7 +347,7 @@ diagnosis. M2 builds the proof. M3 fixes the incident paths. M4 finishes the res
 - [ ] M2 — The lifetime lease, the agent tty witness, and `Teardown` with `TeardownProof`; archive and replace
   require a proof (P1). Covers D1–D8 and #683's finalization half.
 - [ ] M3 — `Converge`, with paths 1, 2, 3, 5, 6, 7, 8, 9 and 10 moved onto it. Fixes #684.
-- [ ] M4 — Paths 4, 11, 12, 14, 15 and 16; classification collapsed to three outcomes, with the two-actor
+- [ ] M4 — Paths 4, 11, 14, 15 and 16; classification collapsed to three outcomes, with the two-actor
   anomaly.
 - [ ] M5 — The lifecycle drill on a disposable slot, with aged state, triggered from the hub. Seven consecutive
   green nights close the project's done-when.
@@ -349,7 +386,13 @@ Steps:
 - Every pair process started for a Couch tree holds the lease, and none passes it to the agent or nvim. A test
   enumerates the spawn sites in `wrapcmd` and fails when one passes the fd to a non-pair binary. The rule goes
   into `pkg/golint` if it generalizes.
-- The wrapper records the agent's tty in the agent sidecar. A real-pty test checks two things: a shell's
+- `TestPlainPairUnchangedWithoutCouch`. With no `COUCH_*` env, two pair sessions start in one directory. Each
+  must open no lease, write a sidecar without a tty field, pass no extra fd to any spawn, and behave as before.
+  A second case sets `COUCH_LIFETIME_LEASE` without `COUCH_THREAD_TAG` and expects the same: both are required.
+- `couchcore/orphan_registry.go` (pure merge, prune and bound, plus a thin store).
+  `TestTeardownRegistersLeftRunning`, `TestResourcesNamesOrphansByOriginSlot`,
+  `TestReapOrphanRefusesReusedPid`, `TestOrphanRegistryBound256`.
+- Under Couch, the wrapper records the agent's tty in the agent sidecar. A real-pty test checks two things: a shell's
   foreground child on the pty is in the tty set, and a setsid'd grandchild is outside it and named in
   `LeftRunning`.
 - `couchcore/teardown.go`, with the `LeaseHolders` and `TTYProcesses` seams and their fakes.
@@ -374,7 +417,7 @@ Steps:
 
 ### M4 tasks (detailed when M4 starts)
 
-- Paths 4, 11, 12, 14 and 15 rewired or deleted.
+- Paths 4, 11, 14 and 15 rewired or deleted.
 - `ClassifyThread` returns one of three outcomes plus an anomaly count.
 - The tab bar shows "2 actors" instead of raw names (D20). `TestTwoLiveActorsNeverContinue`.
 
@@ -401,8 +444,9 @@ Steps:
   - a record without a transcript binding (legacy);
   - a tree started without the lease (pre-M2);
   - a stray pair process holding the lease, aged by an old start time;
-  - a Codex root with more than 10,000 session files, in a drill `CODEX_HOME` whose `auth.json` symlinks to the
-    real one.
+  - a drill `CODEX_HOME` (with `auth.json` symlinked to the real one) holding a copy of the last 2 weeks of
+    Codex session files. It is bounded and realistic, not a tree of more than 10,000; M1's counted test is what
+    rejects any scan.
 - **Cost per run:** one minimal turn per agent, two in all. Each turn's input is the agent's own base context
   (system prompt and tools, on the order of tens of thousands of input tokens, largely cached after the first
   night), and the output is a few tokens. The prompt is fixed ("reply ok").
@@ -417,3 +461,17 @@ Steps:
 - **#681** (admission before inventory) is landing separately and unchanged by this plan.
 - **#686** (session-watch busy loop) is separate. M2's lease at least makes a spinning watcher killable by
   teardown.
+
+## Revisions
+
+- 2026-10-18 21:40 — operator approval with five changes (hub delivery 90271deb):
+  1. Shift+Alt+N stays pair's fast context reset, untangled from Couch. Path 12 is dropped from the rewrite.
+  2. Hard constraint: plain pair (no Couch, several sessions per directory) behaves exactly as today. The lease,
+     the tty publication and `lease.Inherit` switch on only under `COUCH_LIFETIME_LEASE` + `COUCH_THREAD_TAG`.
+     The binding lives in Couch's record. Added `TestPlainPairUnchangedWithoutCouch`.
+  3. The drill's aged state is a copy of the last 2 weeks of session files, not a tree of more than 10,000.
+  4. `LeftRunning` is persisted into an orphan registry recording its origin (slot, tag, command, start time).
+     `couch --resources` names entries by originating slot, and `--reap-orphans --confirm` reaps them.
+  5. Old-build refusal of M1 records: accepted as written.
+
+  Code starts after #683 lands.
