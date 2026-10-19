@@ -7,6 +7,8 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- A design refinement that moves state or file ownership also updates the current Core concepts map, with the prior mapping preserved in Revisions. A later correct paragraph does not repair a contradictory table; distinguish pure value state from its IO methods explicitly. (#686 BR-1)
+
 - Count every IO lane used by a performance claim, including publication guards outside the main reader runtime. Cache hits before a writer lock do not eliminate the guard's own full reread: reuse exact identity-fenced evidence under that same lock and prove append/replacement invalidation before effects. (#686)
 
 - An asynchronous reservation must cover identities that become visible before its effect returns. Keep the original attempt and reservation, derive launch-authoritative aliases for admission and projection alike, and test inventory publication during held adoption. A primary slot is an ordinary scoped conversation; numbered-slot-only fixtures miss it. (#576 BR-1)

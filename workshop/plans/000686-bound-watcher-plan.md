@@ -20,15 +20,17 @@ The scope is the measured bound-follow loop, including unchanged ledger reads, n
 
 | Pure entity | Home | Change / contract |
 |---|---|---|
-| Lifecycle poll cadence | sessionwatch/cadence.go or existing run.go cadence section | New: reset to Poll on new bytes/backlog; idle doubles to5s maximum. No wall-clock test sleeps. |
-| Guarded cursor state | sessioninventory/transcript_cursor.go | New shared state extracted from TitleProjection tail: pinned identity, scalar scanner state, offset/frame and4KiB boundary hash. One cursor per authorized transcript, destroyed with watcher/projection. |
-| Lifecycle event batch | sessionwatch/transcript_lifecycle.go | Modify: normalize only this poll's validated records with existing offsets, root filtering and durable watermark. Never reconstruct/sort old event history on idle. |
+| Bound follow state / checkpoint | sessionwatch/bound_state.go: boundFollowState, boundCheckpoint, reduceBoundFollow | New: pure Reading/Publishing/Stopped transitions own compact scanner state and committed cursor; only whole acknowledged batches commit candidates. |
+| Lifecycle poll cadence | sessionwatch/bound_state.go: nextLifecycleDelay | New pure function: progress/backlog resets to Poll; idle doubles to5s maximum. |
+| Guarded cursor state | sessioninventory/transcript_cursor.go: TranscriptCursor, TranscriptBatch | New value state: pinned metadata, offset/frame and4KiB boundary hash, with no scanner state or history. IO methods are a separate integration seam below. |
+| Lifecycle event batch | sessionwatch/transcript_lifecycle.go: lifecyclePublicationsFromEvents, LifecycleRecordsFromEvents | Pure delta projection: normalize this pass's validated records with existing offsets/root/watermark. No old-event history retained. |
 
 | Integration seam | Home | Change / fake |
 |---|---|---|
-| Guarded native tail IO | sessioninventory/transcript_cursor.go and title_projection.go | Extract existing identity, boundary and paired-stat checks; sessioninventorytest.FakeRuntime controls append/replacement/partial reads and counts bytes. Keep title owner/Agy/display behavior outside the extraction. |
-| Bound lifecycle runner | sessionwatch/run.go plus a focused follow helper | Enter once after binding; retain only authorized root state, never Observe/Select(TargetNewLaunch), catalog reload/publication or foreign reads during follow. Existing watcherRuntime and FakeRuntime supply clock, owner and IO. |
-| Current owner read | sessioninventory/query.go / launch_cache.go; watcher adapter | Reuse OwnerLaunchCache's metadata-fenced compact current-owner reducer for bound checks, not a second mtime-only cache. Expose the narrow existing owner read if necessary. Unbound reads still retain launch boundaries needed for correlation. |
+| Guarded native tail IO | sessioninventory/transcript_cursor.go: NewTranscriptCursor, TranscriptCursor.Next; title_projection.go: TitleProjection.tail/PollContext | Shared identity/boundary/paired-stat guards; stateful FakeRuntime drives mutation and byte counts. Title owner/Agy/display behavior remains outside the extraction. |
+| Bound lifecycle runner | sessionwatch/bound_follow.go: followBoundCodex; run.go: Run | Enter once after binding; retain only authorized root state, no Observe/Select, catalog or foreign reads during follow. Stateful watcherRuntime owns scheduling/IO. |
+| Current owner read | sessioninventory/query.go: ReadCurrentLaunchAt, readOwnerLaunchFromLedger; launch_cache.go: OwnerLaunchCache | Existing metadata-fenced compact strict reducer reused through exact named ledger stats; stateful runtime counts read/decode work and invalidation. Unbound full launch reads unchanged. |
+| Publication under current confirmation | sessionledger/store.go: WithCurrentConfirmationReader; sessionwatch/transcript_lifecycle.go: publishLifecycleBatch | Existing ledger lock holds metadata-fenced owner reread and exact confirmation before effects; existing journal append/reconciliation reports typed acknowledgments to the pure reducer. Stateful actual-store and journal controls cover uncertainty and replacement. |
 
 All new ordinary Go sources join artifactpath's exhaustive inventory. Pure cursor state has no filesystem authority on its own; IO guards and existing validators supply evidence (ARCH-PURE/SECURE). The shared tail avoids duplicating APFS-specific guards (ARCH-DRY). No binding/admission policy changes.
 
@@ -132,3 +134,7 @@ Narrow review found that existing WithCurrentConfirmation rereads/parses the ful
 ### 2026-10-18 — live acceptance moved after landing
 
 Hub6593f812-a3ff-468a-ad5e-63aa04669518 replaces the pre-landing fresh-slot smoke with a post-landing check of the actual two offenders. No staging; land on recorded suite and SHIP close review. The hub owns rebuild/relaunch and must observe near0% idle and return to idle after a short round. The live execution row remains an owed acceptance, not a worker landing blocker; no live result claimed.
+
+### 2026-10-18 — BR-1: delivered concept ownership map
+
+Close round1 found no runtime defect and passed all four affected package suites, but the initial Core concepts rows were stale after refinement. Corrected the current map to actual declarations and explicit PURE/INTEGRATION boundaries. Prior cadence wording was `sessionwatch/cadence.go or existing run.go cadence section`; delivered cadence is nextLifecycleDelay in bound_state.go. Prior cursor wording included `scalar scanner state`; delivered TranscriptCursor excludes scanner state, which belongs to boundCheckpoint and is committed by reduceBoundFollow. The reader methods are IO integration, separate from the cursor's pure value state. The final map also names the exact owner reader, publication lock, delta projector and bound runner. This is documentation of the already approved/delivered design, with no code or mechanism change. No wording-presence test added; the recorded suite continues on unchanged code.

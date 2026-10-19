@@ -139,3 +139,7 @@ Two narrow peer reviews checked shared guards and follower transactions. The onl
 ### 2026-10-18 — acceptance sequencing revision
 
 Hub6593f812-a3ff-468a-ad5e-63aa04669518 explicitly changes live acceptance to post-landing: no staging or fresh launch while host load is125 and launches time out. Land on the recorded suite and SHIP close review. The TL then rebuilds pair:0 and relaunches the actual affected pair:0/parley.nvim:0 slots, measuring both new watchers near0% idle and return to idle after one short round. This live acceptance is OWED to the hub; no live success is claimed here. The two original spinning watchers remain untouched by pair:7. Local clean build c0f766ffc193084da608b9a973ac2b07d039db37 verified the same binary vcs.revision with vcs.modified=false. Focused watcher/ledger race×3 passed20.669s/1.240s. Recorded branch suite started on that pushed head and is queued by the shared gate.
+
+### 2026-10-18 — close round1 REWORK, BR-1 documentation corrected
+
+Boundary review found no runtime defect and independently passed sessionwatch/sessionledger/sessioninventory/artifactpath packages. BR-1 is the stale Core concepts table: cadence moved into bound_state.go, and scanner state belongs to boundCheckpoint rather than TranscriptCursor. Updated the delivered entity map and appended a Revision preserving the prior wording/delta. No production/test changes, so the queued c0f766ffc suite remains applicable. Rerun full close for explicit disposition; live acceptance stays owed per the hub.
