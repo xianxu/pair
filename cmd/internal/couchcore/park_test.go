@@ -44,7 +44,7 @@ type constructorLifecycleArtifacts struct {
 func (a constructorLifecycleArtifacts) PairLifecycleIO() LifecycleIO { return a.lifecycle }
 func (a constructorLifecycleArtifacts) PairLifecycleDataDir() string { return a.dataDir }
 
-func (f *fakeControllerLifecycle) PublishRequest(_ artifactpath.LifecyclePaths, request pairlifecycle.QuitRequest) error {
+func (f *fakeControllerLifecycle) PublishRequest(_ context.Context, _ artifactpath.LifecyclePaths, request pairlifecycle.QuitRequest) error {
 	f.trace = append(f.trace, "publish-request")
 	f.lastRequest = request
 	if f.onPublish != nil {
@@ -56,7 +56,7 @@ func (f *fakeControllerLifecycle) PublishRequest(_ artifactpath.LifecyclePaths, 
 	return f.model.CommitRequest(request)
 }
 
-func (f *fakeControllerLifecycle) ObserveCompletion(_ artifactpath.LifecyclePaths, request pairlifecycle.QuitRequest) (pairlifecycle.QuitCompletion, bool, error) {
+func (f *fakeControllerLifecycle) ObserveCompletion(_ context.Context, _ artifactpath.LifecyclePaths, request pairlifecycle.QuitRequest) (pairlifecycle.QuitCompletion, bool, error) {
 	f.trace = append(f.trace, "observe-completion")
 	if f.onObserve != nil {
 		f.onObserve(request)
@@ -73,7 +73,7 @@ func (f *fakeControllerLifecycle) ObserveCompletion(_ artifactpath.LifecyclePath
 	return *f.completion, true, nil
 }
 
-func (f *fakeControllerLifecycle) CleanupAttempt(_ artifactpath.LifecyclePaths, request pairlifecycle.QuitRequest) error {
+func (f *fakeControllerLifecycle) CleanupAttempt(_ context.Context, _ artifactpath.LifecyclePaths, request pairlifecycle.QuitRequest) error {
 	f.trace = append(f.trace, "cleanup-attempt")
 	if f.onCleanup != nil {
 		f.onCleanup(request)
@@ -491,8 +491,8 @@ func TestParkCoordinatorTransitionMatrix(t *testing.T) {
 			t.Fatal("publication failure returned success")
 		}
 		kept, _ := store.GetThread(thread.Address)
-		if kept.Park == nil || kept.Park.Phase != ParkRequested || len(kept.Incarnations) != 1 || len(artifacts.TriggeredQuits()) != 0 {
-			t.Fatalf("publication failure state = %+v", kept)
+		if kept.Park != nil || len(kept.ParkHistory) != 1 || !kept.ParkHistory[0].Tombstoned || len(kept.Incarnations) != 1 || len(artifacts.TriggeredQuits()) != 0 {
+			t.Fatalf("definitely unpublished failure did not roll back: %+v", kept)
 		}
 	})
 
@@ -711,18 +711,18 @@ func TestParkCoordinatorTransitionMatrix(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		current, err = store.AdvancePark(thread.Address, current.Revision, ParkEvent{Kind: ParkRequestCommitted, Identity: identity, Attempt: 1})
+		current, err = store.AdvancePark(context.Background(), thread.Address, current.Revision, ParkEvent{Kind: ParkRequestCommitted, Identity: identity, Attempt: 1})
 		if err != nil {
 			t.Fatal(err)
 		}
-		current, err = store.AdvancePark(thread.Address, current.Revision, ParkEvent{
+		current, err = store.AdvancePark(context.Background(), thread.Address, current.Revision, ParkEvent{
 			Kind: ParkFailureObserved, Identity: identity, Attempt: 1,
 			Failure: &ParkFailure{Code: pairlifecycle.FailureTimeout, Diagnostic: "deadline"},
 		})
 		if err != nil {
 			t.Fatal(err)
 		}
-		current, err = store.AppendParkAttempt(thread.Address, current.Revision, identity)
+		current, err = store.AppendParkAttempt(context.Background(), thread.Address, current.Revision, identity)
 		if err != nil {
 			t.Fatal(err)
 		}

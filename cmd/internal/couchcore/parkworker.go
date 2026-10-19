@@ -55,6 +55,8 @@ type parkWorker struct {
 	// onWait, when set, runs as a submitter starts waiting for capacity, so a
 	// test synchronizes on the wait instead of sleeping. Tests only.
 	onWait func()
+	// onJoin observes an admitted same-nonce join, for deterministic test gates.
+	onJoin func()
 }
 
 func newParkWorker(capacity int) *parkWorker {
@@ -71,8 +73,12 @@ func (w *parkWorker) Submit(ctx context.Context, address ThreadAddress, nonce st
 	w.mu.Lock()
 	for {
 		if current, ok := w.active[address]; ok {
+			onJoin := w.onJoin
 			w.mu.Unlock()
 			if current.nonce == nonce {
+				if onJoin != nil {
+					onJoin()
+				}
 				return current.future, nil
 			}
 			return nil, errors.New("another park transaction already owns this address")

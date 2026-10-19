@@ -24,7 +24,7 @@ func createVerifiedResumeRecord(t *testing.T) (*ThreadStore, CouchNamespace, Thr
 	if err != nil {
 		t.Fatal(err)
 	}
-	parked, err := store.FinalizePark(thread.Address, begun.Revision, identity, 1, time.Unix(700, 0).UTC())
+	parked, err := store.FinalizePark(context.Background(), thread.Address, begun.Revision, identity, 1, time.Unix(700, 0).UTC())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,7 +51,7 @@ func createParkedThreadInCouch(t *testing.T, env *testEnv, profile LaunchProfile
 	if err != nil {
 		t.Fatal(err)
 	}
-	parked, err := env.Couch.Threads.FinalizePark(created.Address, begun.Revision, identity, 1, env.Now)
+	parked, err := env.Couch.Threads.FinalizePark(context.Background(), created.Address, begun.Revision, identity, 1, env.Now)
 	if err != nil {
 		t.Fatal(err)
 	}

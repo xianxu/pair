@@ -34,7 +34,7 @@ func slotPreferenceRecord(t *testing.T, env *testEnv, local *ThreadStore) Thread
 	if err != nil {
 		t.Fatal(err)
 	}
-	r, err = local.FinalizePark(r.Address, r.Revision, id, 1, env.Now)
+	r, err = local.FinalizePark(context.Background(), r.Address, r.Revision, id, 1, env.Now)
 	if err != nil {
 		t.Fatal(err)
 	}

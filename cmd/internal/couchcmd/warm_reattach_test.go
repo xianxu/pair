@@ -191,7 +191,7 @@ func TestSwitcherWarmSelectionCannotColdResumeAfterPark(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	parked, err := c.Threads.FinalizePark(thread.Address, begun.Revision, identity, 1, time.Unix(2, 0).UTC())
+	parked, err := c.Threads.FinalizePark(context.Background(), thread.Address, begun.Revision, identity, 1, time.Unix(2, 0).UTC())
 	if err != nil {
 		t.Fatal(err)
 	}
