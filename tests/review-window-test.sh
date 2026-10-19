@@ -21,8 +21,7 @@ export PAIR_REVIEW_OPEN_PATH="$RT/review-open-test"
 export PAIR_REVIEW_MODE_PATH="$RT/review-mode-test"
 export PAIR_REVIEW_TARGET_PATH="$RT/review-target-test"
 export PAIR_REVIEW_CONTEXT_PATH="$RT/review-context-test"
-export PAIR_REVIEW_HANDOFF_PATH="$RT/review-handoff-test.json"
-export PAIR_REVIEW_LANDED_PATH="$RT/review-landed-test.json"
+export PAIR_REVIEW_ROUND_PATH="$RT/review-round-test.json"
 export PAIR_REVIEW_DEFINITION_REQUEST_PATH="$RT/review-definition-request-test.json"
 export PAIR_REVIEW_DEFINITION_RESULT_PATH="$RT/review-definition-result-test.json"
 export PAIR_ZELLIJ_ACTIONS_PATH="$RT/zellij-actions-test.jsonl"
@@ -292,10 +291,11 @@ local function check()
 
   -- If Alt+a is pressed on agent-applied styling but outside any 🤖 marker, it
   -- clears that styling/diagnosis instead of reporting "no marker".
-  vim.api.nvim_buf_set_lines(buf, 0, -1, false, { 'alpha', 'beta', 'gamma' })
-  apply.apply(buf, {
-    { old = 'alpha', occurrence = 1, new = 'ALPHA', explain = 'first' },
-    { old = 'gamma', occurrence = 1, new = 'GAMMA', explain = 'third' },
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, { 'ALPHA', 'beta', 'GAMMA' })
+  apply.apply_snapshot(buf, {
+    hl = { { line = 0, col = 0, end_line = 0, end_col = 5 }, { line = 2, col = 0, end_line = 2, end_col = 5 } },
+    diags = { { lnum = 0, col = 0, end_lnum = 0, end_col = 5, message = 'first' },
+      { lnum = 2, col = 0, end_lnum = 2, end_col = 5, message = 'third' } },
   })
   vim.api.nvim_win_set_cursor(0, { 1, 0 })
   if _G.PairReviewPane and _G.PairReviewPane.resolve_at_cursor then
@@ -339,7 +339,8 @@ local function check()
 
   OUT:close()
   -- drive Alt+Return (finish human turn): edit → human_round + poke
-  apply.apply(buf, { { old = 'tail', occurrence = 1, new = 'TAIL', explain = 'stale' } })
+  apply.apply_snapshot(buf, { hl = { { line = 0, col = 0, end_line = 0, end_col = 1 } },
+    diags = { { lnum = 0, col = 0, end_lnum = 0, end_col = 1, message = 'stale' } } })
   vim.api.nvim_buf_set_lines(buf, -1, -1, false, { 'a human edit' })
   pcall(_G.PairReviewPane.finish_human_turn, buf, 'doc.md')
   local post_submit_marks = vim.api.nvim_buf_get_extmarks(buf, apply.HL, 0, -1, {})
@@ -368,40 +369,31 @@ local function check()
   local h = _G.PairReviewPane.open_mode_menu('doc.md')
   if h then h.submit() end
 
-  -- #89 M3 apply-gate + durability — APPEND-only on the session buffer (doc.md) so
-  -- its earlier disk assertions ('a human edit' / 'menu submit edit') stay intact,
-  -- and the VimLeave save (which targets this session buffer) is testable.
+  -- An applied round (pair review apply) ends the agent's turn: the pane reloads
+  -- the file, and the awaiting spinner clears (pair#664). APPEND-only on the
+  -- session buffer (doc.md) so its earlier disk assertions stay intact.
   local OUT4 = io.open(os.getenv('RESULT2'), 'a')
   vim.api.nvim_set_current_buf(buf)
-  local ps = _G.PairReviewPane.pane_state()
-  OUT4:write((type(ps) == 'table' and ps.focused ~= nil and ps.mode ~= nil and 'pane-state\n') or 'NO-pane-state\n')
-  -- defer: saves the human's edits to disk, stashes pending, raises the winbar
-  vim.api.nvim_buf_set_lines(buf, -1, -1, false, { 'deferred human edit line' })
-  _G.PairReviewPane.on_defer(buf, { { old = 'zzz', occurrence = 1, new = 'YYY', explain = 'e' } })
-  local df = io.open(vim.api.nvim_buf_get_name(buf), 'r'); local disk = df and df:read('*a') or ''; if df then df:close() end
-  OUT4:write((disk:find('deferred human edit line', 1, true) and 'defer-saves-to-disk\n') or 'NO-defer-saves-to-disk\n')
-  OUT4:write((_G.PairReviewPane.has_pending() and 'defer-has-pending\n') or 'NO-defer-has-pending\n')
-  OUT4:write((tostring(_G.PairReviewPane.winbar()):find('results ready', 1, true) and 'defer-winbar\n')
-    or ('NO-defer-winbar ' .. tostring(_G.PairReviewPane.winbar()) .. '\n'))
-  -- coherence: while pending (winbar up), the statusline is NOT the awaiting spinner
-  -- (defer cleared awaiting_since — the agent already replied, we're not waiting).
-  OUT4:write((not vim.o.statusline:find('%{v:lua._pair_review_elapsed()}', 1, true) and 'defer-no-spinner\n')
-    or ('NO-defer-no-spinner ' .. vim.o.statusline .. '\n'))
-  -- Alt+Return with a pending round APPLIES it (consumes the slot + winbar), no submit
-  vim.api.nvim_buf_set_lines(buf, -1, -1, false, { 'please apply this' })
-  _G.PairReviewPane.on_defer(buf, { { old = 'apply', occurrence = 1, new = 'APPLIED', explain = 'e' } })
+  vim.api.nvim_buf_set_lines(buf, -1, -1, false, { 'before the agent round' })
   pcall(_G.PairReviewPane.finish_human_turn, buf, 'doc.md')
-  local applied_doc = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), '\n')
-  OUT4:write((not _G.PairReviewPane.has_pending() and 'pending-consumed\n') or 'NO-pending-consumed\n')
-  OUT4:write((applied_doc:find('APPLIED', 1, true) and 'pending-applied\n') or ('NO-pending-applied ' .. applied_doc .. '\n'))
-  OUT4:write((_G.PairReviewPane.winbar() == '' and 'pending-winbar-cleared\n') or 'NO-pending-winbar-cleared\n')
-  -- save-on-VimLeave (§8): an edit typed AFTER a defer (buffer modified, winbar was
-  -- up) is persisted when the pane closes. Append, then fire the registered VimLeave
-  -- teardown; assert the file on disk holds the post-defer edit.
-  vim.api.nvim_buf_set_lines(buf, -1, -1, false, { 'post-defer edit survives' })
+  local function spinning() return vim.o.statusline:find('%{v:lua._pair_review_elapsed()}', 1, true) ~= nil end
+  local was_spinning = spinning()
+  local name = vim.api.nvim_buf_get_name(buf)
+  local df = io.open(name, 'ab'); df:write('agent round line\n'); df:close()
+  df = io.open(name, 'rb'); local raw = df:read('*a'); df:close()
+  local rf = io.open(os.getenv('PAIR_REVIEW_ROUND_PATH'), 'w')
+  rf:write(vim.json.encode({ file = name, round = { result_hash = vim.fn.sha256(raw):sub(1, 16), spans = {} } })); rf:close()
+  local reloaded = vim.wait(3000, function()
+    return table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), '\n'):find('agent round line', 1, true) ~= nil
+  end, 20)
+  OUT4:write((was_spinning and reloaded and not spinning() and 'applied-round-clears-spinner\n')
+    or ('NO-applied-round-clears-spinner was=' .. tostring(was_spinning) .. ' reloaded=' .. tostring(reloaded) .. ' ' .. vim.o.statusline .. '\n'))
+  -- save-on-VimLeave (§8): an unsent edit is persisted when the pane closes.
+  -- Append, then fire the registered VimLeave teardown; assert the file on disk.
+  vim.api.nvim_buf_set_lines(buf, -1, -1, false, { 'unsent edit survives' })
   vim.api.nvim_exec_autocmds('VimLeave', {})
   local vf = io.open(vim.api.nvim_buf_get_name(buf), 'r'); local vdisk = vf and vf:read('*a') or ''; if vf then vf:close() end
-  OUT4:write((vdisk:find('post-defer edit survives', 1, true) and 'vimleave-saves\n') or ('NO-vimleave-saves ' .. vdisk .. '\n'))
+  OUT4:write((vdisk:find('unsent edit survives', 1, true) and 'vimleave-saves\n') or ('NO-vimleave-saves ' .. vdisk .. '\n'))
   OUT4:close()
 
   vim.cmd('qa!')
@@ -472,16 +464,8 @@ grep -q "write-chars --pane-id [0-9]* ${PASTE}finished my edits .*Proofread post
 grep -q '^proofread-mode-persisted$' "$RT/r3" && pass "menu send persists selected review mode" || fail "selected review mode not persisted"
 grep -q 'menu submit edit' "$REPO/doc.md" && pass "send menu submit saves the reviewed document buffer" || fail "send menu submit did not save reviewed document"
 grep -q 'Review workbench open on' "$RT/zlog" && fail "review pane still sends redundant open handshake" || pass "review pane does not send redundant open handshake"
-# #89 M3 apply-gate + durability
-grep -q '^pane-state$' "$RT/r3" && pass "pane_state exposes focused + mode for the gate" || fail "pane_state shape"
-grep -q '^defer-saves-to-disk$' "$RT/r3" && pass "defer saves the human's edits to disk (durability)" || fail "defer save-on-disk"
-grep -q '^defer-has-pending$' "$RT/r3" && pass "defer stashes the round as pending" || fail "defer pending slot"
-grep -q '^defer-winbar$' "$RT/r3" && pass "defer raises the results-ready winbar" || fail "defer winbar"
-grep -q '^defer-no-spinner$' "$RT/r3" && pass "winbar and awaiting-spinner are mutually exclusive" || fail "defer/spinner coherence"
-grep -q '^pending-consumed$' "$RT/r3" && pass "Alt+Return consumes the pending round" || fail "pending consume"
-grep -q '^pending-applied$' "$RT/r3" && pass "Alt+Return applies the pending round to the buffer" || fail "pending apply"
-grep -q '^pending-winbar-cleared$' "$RT/r3" && pass "applying a pending round clears the winbar" || fail "pending winbar clear"
-grep -q '^vimleave-saves$' "$RT/r3" && pass "VimLeave saves a modified buffer (post-defer edit durability)" || fail "VimLeave save-on-exit"
+grep -q '^applied-round-clears-spinner$' "$RT/r3" && pass "an applied round reloads and clears the awaiting spinner" || fail "applied round spinner: $(grep applied-round "$RT/r3")"
+grep -q '^vimleave-saves$' "$RT/r3" && pass "VimLeave saves a modified buffer (unsent edit durability)" || fail "VimLeave save-on-exit"
 
 [ "$fails" -eq 0 ] || { printf 'review-window-test FAILED (%d)\n' "$fails"; exit 1; }
 printf 'review-window-test ok\n'

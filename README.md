@@ -110,8 +110,8 @@ unit of collaboration.
 From the draft, `Alt+c` restores the current `review/<slug>` branch's document
 and latest agent decorations, including in a fresh session. It checks the branch
 before reusing an open pane or cached target. With the same document active it
-toggles visibility; unsaved edits, pending replies, or an uncommitted agent round
-block switching to another document. Return to the original branch and finish
+toggles visibility; unsaved edits or pending replies block switching to another
+document. Return to the original branch and finish
 that work first. Missing or ambiguous review history prompts for a selection or
 reports why restoration cannot proceed.
 
@@ -175,7 +175,7 @@ adds context that a one-line description cannot carry.
 | **Alt+a** / **Alt+r** (or **Leader+a** / **Leader+r**) | review buffer (normal) | Accept / reject the 🤖 suggestion at the cursor. |
 | **Alt+Shift+A** / **Alt+Shift+R** | review buffer (normal) | Accept / reject paragraph suggestions through the cursor. |
 | **Alt+q** | review buffer | Insert a human comment marker in normal/insert mode; quote the selection in visual mode. |
-| **Alt+Return** | review buffer (normal/insert) | Finish the human turn; apply agent results when a round is pending. |
+| **Alt+Return** | review buffer (normal/insert) | Finish the human turn: save the document and send it to the agent. |
 | **Alt+n** / **Alt+Shift+N** (or **]m** / **[m**) | review buffer (normal) | Next / previous 🤖 marker, wrapping, including human comments. These local actions override restart behavior while reviewing, including under Couch. |
 | **gl** / **Ctrl+w d**, **]d** / **[d** | review buffer (normal) | Open the diagnostic explanation, or move to the next / previous diagnostic. |
 | **Shift+Alt+d** | review pane (visual) | Define the selected term inline. The pair agent answers through `pair review definition`, and the pane stores the result as a durable footnote. |
