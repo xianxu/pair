@@ -47,6 +47,10 @@ Inspect retained lifecycle/archived records and the operation-diagnostic seam fi
 
 Approved implementation plan: [Lifecycle failure persistence](../plans/000683-lifecycle-failure-persistence-plan.md). The scope disposition and replacement close criteria below were approved in c35c61ae; implementation is gated by change-code.
 
+- [ ] Implement and verify the preserving lifecycle-failure codec and bounded pure history (durable plan Task 1).
+- [ ] Integrate one terminal recorder with queued and synchronous operations and retain receipt nonces (Task 2).
+- [ ] Share the cached row/show projection; complete private-service proof, recorded suite, close review and landing (Task 3). Disposable-slot live display acceptance follows the next operator restart.
+
 ## Log
 
 2026-10-18 — Read-only incident evidence gathered before any worker repair or relaunch. Hub requested this unassigned filing in verified delivery 89941932-b309-48df-b397-e5f5cbadfb58. No production metadata was repaired by the worker.
