@@ -16,6 +16,7 @@ claimant:
     workspace: pair:7
     worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "129430e6", done: "f3ee9002"}
 ---
 
 # session-watch busy-loops on freshly started Codex threads (45-80% CPU each)
