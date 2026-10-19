@@ -1,6 +1,6 @@
 ---
 id: 000701
-status: codecomplete
+status: done
 created: 2026-10-19
 updated: 2026-10-19
 estimate_hours: 2.24
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 3375a20570c743da2cf33165e0ef26fc468b73c1
         evidence_commit: 1e32e42faa8d1066ccd1b475c49c400fa3ef2dce
+        landed_commit: d516a590e176c28106354acb11157732111da6c8
 ---
 
 # Read closed WAL databases without sidecars on macOS SQLite
