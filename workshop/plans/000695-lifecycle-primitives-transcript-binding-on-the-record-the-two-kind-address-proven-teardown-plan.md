@@ -521,3 +521,27 @@ Steps:
     - Under Couch, the profile also carries the binding's root and relative path, and the child checks them with
       one stat instead of a listing query. Plain pair is unchanged (`TestPlainPairUnchangedWithoutCouch` covers it
       in M2).
+- 2026-10-19 — M1 integration, as built. Where these differ from the P2 revision above, they govern:
+  - **Where the binding is written.** The resume's own start claim (`CommitStartClaim`, through
+    `StartEvent.Transcript`) writes it, in the same revision-checked update. There is no separate write.
+    - That covers PQ-6 without a retry loop. A concurrent direct-store rewrite moves the revision, the claim
+      refuses as it does today, and the next resume binds again. Nothing is lost, because the rewrite preserves
+      the field (§2a).
+    - `TestColdResumeStoresTheBindingOnTheRecord` covers it, and it fails when the claim's write is removed.
+    - `TestBindAdoptionSurvivesConcurrentRewrite` is replaced by the claim's existing revision guard.
+  - **No minted source.** The launched pair child mints the ID (createflow.go:796). Couch never learns it, so a
+    `minted` binding would have no writer. The first resume after the agent's first turn binds from the ledger
+    and stores it. The sources are `ledger` and `legacy-ledger`.
+  - **No `FinalizePark` copy.** Every resume path (resume, relaunch's precondition, recovery's proven
+    selection, startup, preview) goes through `Couch.bindTranscript`. That function does the exact ledger read
+    and the stat, and the claim stores the result. Copying at park would be a second writer of the same fact.
+  - **The fallback is shared.** When no file is known, `bindByResolver` asks the listing resolver once and
+    stores the ID it establishes. It is also the path for a Couch whose artifacts only resolve, which is how the
+    existing stateful fakes keep exercising the same storing logic. Production implements `TranscriptBinder`,
+    with a compile-time assertion on `ScopedThreadArtifactCollisionChecker`.
+  - **New refusals.** `ResumeTranscriptMissing` ("the transcript of its stored conversation … is missing; start
+    it fresh") and `ResumeTranscriptInvalid`. Neither one searches.
+  - **The launched child's own check is unchanged in M1.** The child's check (createflow.go:694) is pair's. For
+    an established binding it lists only the tag's scope folder in pair's data, never a native root, so the
+    Codex 10,000-file walk (D10) no longer runs on a Couch resume. Carrying the root and relative path in the
+    profile, so the child stats instead, is left for M2 with the plain-pair test.
