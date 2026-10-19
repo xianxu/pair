@@ -1,8 +1,8 @@
 ---
 id: 000673
-status: codecomplete
+status: done
 created: 2026-10-18
-updated: 2026-10-18
+updated: 2026-10-19
 estimate_hours:
 github_issue:
 started: 2026-10-18T12:05:17-07:00
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 6d00d20b44696671955e7d550d02c143c8de1e27
         evidence_commit: baa13bcdda422199338ec6b5c25fe0da6e749e8a
+        landed_commit: 38bf8d5e20b3955ce2295c0291200b566fb62d4e
 ---
 
 # Couch attention list: a top-right panel of what's waiting on the operator, each item jumps to its slot
