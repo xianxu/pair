@@ -43,6 +43,8 @@ Measure size, wall time and CPU for large database snapshot compression at level
 
 ## Log
 
+
+- 2026-10-19: closed — Round-1 dispositions recorded: BR-1 approved T0-level cohort confirmed sufficient by hub e02a0aba; prior 378.75s single-thread pipeline stays separate evidence. BR-2 all three stale policy/threading restatements corrected. BR-3 unchanged codec tests rerun with TMPDIR=/tmp passed 7.519s at levels 9/19/20/22 and full archive corruption/source-preservation checks; full output and SHA256 embedded in issue. Targeted tests 2.501s and historyarchive/... 96.483s passed. Recorded suite queued, pass still required before landing. Review fixes are documentation only. (done-when: contract moved since change-code; judged by the close review); review verdict: SHIP
 - Filed unclaimed at hub request e253ca94-31a2-4866-b377-f8f2aa5c48c5. Independent follow-up; it must not block #688. That item publishes its already validated stage at low priority under an approved longer bound, without another native source read/pin.
 
 - First exclusive measurement, zstd 1.5.7 on 12 CPUs, warmed staged 1,999,003,648-byte stream: -3 -T0 wall 1.074790s, user 3.90s/sys 0.60s, 286,271,640 bytes, peak RSS 149,291,008; -9 -T0 wall 2.206355s, user 16.16s/sys 0.94s, 205,249,063 bytes, peak RSS 413,925,376. Both decompression SHA256 results matched the stage. Load1 around 7.4, both machine-test tokens held, nice 10. Evidence: /var/folders/07/b9wcwwld4_v2w9r3hk525bm80000gn/T/pair702-bench.jy01Ph/results.json and measure.py. The outer bound interrupted -19 before a valid result; its partial compressed output was removed, not measured, and the process group/tokens released. No native database was opened or acquired.
