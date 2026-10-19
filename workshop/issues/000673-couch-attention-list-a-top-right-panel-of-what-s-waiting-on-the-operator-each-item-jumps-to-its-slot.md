@@ -1,13 +1,13 @@
 ---
 id: 000673
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-18
 updated: 2026-10-18
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: '9f8b26622cd907a80c47344b2244536871856809' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'd817fb513241234be03fb222cf2440d167ac68bb' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-18T12:05:17-07:00
 claimant:
     operator: Xian Xu
@@ -17,6 +17,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: inferred}
+actual_hours: 4.17
 ---
 
 # Couch attention list: a top-right panel of what's waiting on the operator, each item jumps to its slot
