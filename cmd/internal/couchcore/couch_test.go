@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"runtime"
@@ -395,6 +396,35 @@ func TestSpawnComposedRegistrationFailureCleansExactSession(t *testing.T) {
 	}
 }
 
+func TestSpawnComposedRegistrationIsolatesOuterGit(t *testing.T) {
+	outer := t.TempDir()
+	// Model a review checkout hosted in an outer Couch slot, including the
+	// conventional path segment that must not choose the inner fake's workspace.
+	checkout := filepath.Join(outer, "worktree", "pair-slot3", "pair")
+	if err := os.MkdirAll(checkout, 0700); err != nil {
+		t.Fatal(err)
+	}
+	command := exec.Command("git", "init", "--quiet", checkout)
+	command.Env = testpair.Environment(t, outer)
+	if out, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("owned outer Git checkout: %v: %s", err, out)
+	}
+	nested := filepath.Join(checkout, "nested-tmp")
+	if err := os.Mkdir(nested, 0700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("TMPDIR", nested)
+	// Each subtest gets its own TempDir base beneath the owned outer checkout.
+	// The real launch must keep the fixture's selected repository scope.
+	for _, freshSlot := range []bool{false, true} {
+		name := "ordinary"
+		if freshSlot {
+			name = "fresh-slot"
+		}
+		t.Run(name, func(t *testing.T) { testComposedPairRegistrationBoundary(t, freshSlot) })
+	}
+}
+
 func testComposedPairRegistrationBoundary(t *testing.T, freshSlot bool) {
 	t.Helper()
 	testComposedPairRegistrationBoundaryFailure(t, freshSlot, false)
@@ -475,7 +505,11 @@ func testComposedPairRegistrationBoundaryFailure(t *testing.T, freshSlot, failed
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = os.RemoveAll(socketRoot) })
+	// The disposable repository has no .git. Stop discovery at its parent
+	// so a TMPDIR nested inside the reviewer checkout cannot supply that repo's
+	// scope to the real LaunchNative path or workspace discovery.
 	fixtureEnv := testpair.Environment(t, home,
+		"GIT_CEILING_DIRECTORIES="+filepath.Dir(repo),
 		"ZELLIJ_SOCKET_DIR="+socketRoot,
 		"PAIR_TEST_COUCH_TERMINAL_FIXTURE=1",
 		"PAIR_TEST_ZELLIJ_PANES="+filepath.Join(t.TempDir(), "panes.json"),
@@ -534,9 +568,16 @@ func testComposedPairRegistrationBoundaryFailure(t *testing.T, freshSlot, failed
 			PrimaryRoot: slot.PrimaryRoot, FleetRoot: filepath.Dir(slot.PrimaryRoot),
 			EnvironmentRoot: filepath.Dir(slot.PrimaryRoot), WorktreeRoot: slot.PrimaryRoot,
 			Kind: "primary", Address: &primaryAddress, Slot: &zero, RestingBranch: &resting}
+		// Resolve the selected fake workspace explicitly. A path nested beneath
+		// an outer review slot must not fall back to parsing that outer slot.
+		current := primary
+		current.Kind, current.EnvironmentRoot, current.WorktreeRoot = "slot", slot.EnvironmentRoot, slot.WorktreeRoot
+		number, slotAddress, slotResting, head := slot.Number, "pair:1", RestingBranch(slot.Number), strings.Repeat("a", 40)
+		current.Slot, current.Address, current.RestingBranch, current.Head = &number, &slotAddress, &slotResting, &head
+		current.EnvironmentHost = &EnvironmentHost{Repo: slot.Repo, Slot: slot.Number, RepoIdentity: slot.RepoIdentity, PrimaryRoot: slot.PrimaryRoot, WorktreeRoot: slot.WorktreeRoot}
 		couch.Slots = &SlotCatalogFake{Repositories: map[string]SlotRepository{
 			slot.PrimaryRoot: {Identity: primary, Slots: []SlotCandidate{{Identity: slot, Verified: true}}},
-		}}
+		}, Workspaces: map[string]WorkspaceIdentity{slot.WorktreeRoot: current}}
 		local := newSlotThreadStore(ns, slot)
 		couch.Workspaces = slotReadinessFunc(func(context.Context, ProvisionRequest) (ProvisionResult, error) {
 			return slotReadyResult(local), nil
