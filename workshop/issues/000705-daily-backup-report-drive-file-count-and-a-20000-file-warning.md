@@ -53,3 +53,5 @@ Operator request via hub receipt 277127be-5775-4a0e-93e4-8d24a00600a5. #700 was 
 
 - 2026-10-19, hub 3ca340ad: #700 is verified/ticked/rebuilt; dispatch #705 now. Keep #706 folder migration separate and waiting for #689.
 - 2026-10-19, design: threshold env PAIR_ARCHIVE_DRIVE_MAX_FILES, default 20000, positive integer. Optional exact destination/folder/count/phase observation grows only the runtime report; existing before evidence survives a final listing failure, and absent/failed/empty-candidate listing remains unknown without extra calls. Shared #700 gate/output, one atomic full-flow close because explicit protocol validation and common delivery may exceed the 100-line production shell.
+
+- 2026-10-19, hub 2ea831d5 approved the plan, environment default and fake-backed acceptance. Daily count/admission is keyed by configured destination root; root FolderID is evidence only, not a month-child key. #706 can sum month folders into this same observation later. No staging or real Drive/desktop calls; run change-code.
