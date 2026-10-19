@@ -31,6 +31,8 @@ Likely shape (unverified): a fresh Codex thread has no bound rollout yet, and se
 
 session-watch must idle at about 0% CPU while it waits for a fresh thread's transcript: bounded, backed-off polling or file-system notifications, with work that doesn't grow with the size of ~/.codex/sessions per tick.
 
+After an exact binding is established, lifecycle follow must observe only that authorized transcript, reuse existing identity and mutation guards, retain a compact cursor, and consume only new records. Each pass reads at most256KiB of new payload and backs off idle polling to at most5seconds. Unchanged follow must perform no listings, foreign reads, catalog IO or history decoding. Initial unbound discovery and one restart bootstrap retain their existing cold cost, as approved in Revisions. A fresh-slot live CPU check is coordinated by the hub.
+
 ## Done when
 
 - A regression with a fresh thread and a large sessions tree shows bounded work per tick (counted), and no busy loop.

@@ -85,3 +85,10 @@ Single atomic review boundary, no Mx tags. Await hub approval of scope/cadence b
 ### 2026-10-18 — approved
 
 Hub approved scope and cadence in7f664349-b72a-4c11-a1b2-91baf70f21ba. Cold discovery remains an explicit slot-lifecycle project follow-up, owned by the TL's project record. The hub schedules the live CPU check on a fresh Codex slot when the build is ready. Proceed through change-code; no new executor, binding rule, timeout increase or corpus fallback.
+
+
+### 2026-10-18 — concrete shared seam before implementation
+
+Use transactional cursor advancement: NewTranscriptCursor(runtime, validated TargetValidation) seeds only pinned byte/frame/boundary state; cursor.Next(ctx,runtime,maxBytes) returns a candidate next cursor and TranscriptBatch {Entry, Records, BytesRead, Backlog}. The caller owns compact scanner state, validates the returned records with the existing scanner and rechecks owner/process before committing candidate cursor/state or publishing lifecycle facts. A rejected scanner/owner observation leaves the prior cursor intact. TitleProjection delegates to the same internal advance helper with its existing checkArtifacts callback, preserving Agy/other-artifact guards and its outer PollContext transaction. It uses its existing initial snapshot extent, while lifecycle passes256KiB. No scanner/events/history in the cursor.
+
+Cached owner checking must also avoid a Pair-root listing: factor the existing metadata-fenced owner-cache core so the bound watcher can supply its exact validated ledger artifact; ordinary inventory lookup still finds the ledger through its existing route. Do not add a new cache or mtime-only authority. Count both Pair-root and native-root listings in the zero-follow regression. Runtime fakes must present the same authoritative Pair ledger to this adapter, rather than weakening the production guard for tests.
