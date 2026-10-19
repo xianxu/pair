@@ -50,6 +50,11 @@ type IOEffect struct {
 
 type Options struct {
 	ObserveIO func(IOEffect)
+	// ObserveCollection reports retained or blocked managed generations during
+	// collection. Successful removals remain the Collect return value, including
+	// completed removals returned alongside a later error. This report-only
+	// observer must not reenter collection while the per-log lock is held.
+	ObserveCollection func(Segment)
 	// FlushTicks optionally supplies a caller-owned clock for buffered writes.
 	// nil gives the buffered owner its own stopped-and-joined wall ticker.
 	FlushTicks <-chan time.Time

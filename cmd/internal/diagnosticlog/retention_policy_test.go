@@ -195,7 +195,7 @@ func TestDiagnosticAgeSweepCountedIO(t *testing.T) {
 			if removed != count || removedBytes != int64(count) {
 				t.Fatalf("removed=%d bytes=%d want=%d", removed, removedBytes, count)
 			}
-			if pages >= 32 || proofs > 2*pages+2 || writes > 4*count+8 || metadataBytes > 8192*(count+1) || payloadCopies != 0 {
+			if pages >= 32 || proofs > count+2*pages+2 || writes > 4*count+8 || metadataBytes > 8192*(count+1) || payloadCopies != 0 {
 				t.Fatalf("sweep exceeded counted budget: pages=%d proofs=%d writes=%d metadata=%d payload=%d", pages, proofs, writes, metadataBytes, payloadCopies)
 			}
 			t.Logf("generations=%d removed=%d bytes=%d pages=%d proofs=%d writes=%d metadata=%d payload-copies=%d", count, removed, removedBytes, pages, proofs, writes, metadataBytes, payloadCopies)

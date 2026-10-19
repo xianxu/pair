@@ -7,6 +7,9 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- Put exact-target authorization inside the shared journal replay operation, not only its original caller: reopen, append and maintenance can all replay a deletion. Test a held rotated payload through every replay entry point. Preserve completed effects separately from errors, and report retained blockers without labeling unattempted candidates as removed. (#677 close review)
+- A valid but stale declaration is a per-path blocker, not a reason to terminate the whole scheduler. Preserve it for preview, advance the bounded cursor, and verify a later eligible path through the real scheduler. Global malformed inventory and uncertain ownership still fail closed. (#677 close review)
+
 - A successful subprocess status does not identify its reply kind. Qualify diagnostics with multiple live sessions as well as zero/one: Zellij list_sessions exits internally, so a missing-target action can return exit0 with a session listing and not-found stderr. Keep that exception at the name probe, with captured bytes and strict whole-reply validation; never relax the clients decoder. (#672)
 
 - Classify a concept by every operation its implementation performs: environment reads, test verdicts, diagnostics and subprocess policy checks belong to integration even when their decision rule is simple. When acceptance is revised, synchronize Done when, task rows and new README test switches in the same documentation pass, retaining the original decision in Revisions. (#659 close review)

@@ -299,6 +299,15 @@ func (s *Service) diagnosticPages(ctx context.Context, path string, apply bool) 
 		}
 		options := s.DiagnosticOptions
 		options.Context = ctx
+		if apply {
+			observer := options.ObserveCollection
+			options.ObserveCollection = func(row diagnosticlog.Segment) {
+				result = append(result, row)
+				if observer != nil {
+					observer(row)
+				}
+			}
+		}
 		var rows []diagnosticlog.Segment
 		var next string
 		var complete bool
@@ -311,10 +320,10 @@ func (s *Service) diagnosticPages(ctx context.Context, path string, apply bool) 
 		} else {
 			rows, next, complete, err = diagnosticlog.PreviewLegacyPage(path, options, cursor, 100)
 		}
+		result = append(result, rows...)
 		if err != nil {
 			return result, err
 		}
-		result = append(result, rows...)
 		if complete {
 			return result, nil
 		}

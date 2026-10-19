@@ -143,6 +143,9 @@ func collectManagedPage(path string, options Options, cursor string, limit int) 
 				return err
 			}
 			if !r.Eligible {
+				if options.ObserveCollection != nil {
+					options.ObserveCollection(r)
+				}
 				continue
 			}
 			g := s.Current
@@ -200,6 +203,11 @@ func recoverDeletion(path string, s *diskState, o Options) error {
 			return errors.New("invalid diagnostic deletion")
 		}
 		p = segmentPath(path, g.Name)
+	}
+	// Every replay entrypoint must prove the actual payload before any effect.
+	// A closed generation can have readers even when the current path is idle.
+	if err := o.proveGeneration(path, g, s.Writers); err != nil {
+		return err
 	}
 	if g.Name != "" {
 		if e := syncExistingParent(filepath.Dir(p), directory(path), o); e != nil {
@@ -379,8 +387,11 @@ func deletionBase(path string, g generation) string {
 }
 
 func (o Options) proveGeneration(path string, g generation, writers []Registration) error {
-	if g.Name != "" && o.ReaderProof != nil {
-		return o.ReaderProof(o.context(), segmentPath(path, g.Name))
+	if g.Name != "" {
+		path = segmentPath(path, g.Name)
+		if o.ReaderProof != nil {
+			return o.ReaderProof(o.context(), path)
+		}
 	}
 	return o.prove(path, writers)
 }

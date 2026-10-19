@@ -31,7 +31,6 @@ No automatic deletion of files with unknown or live open holders is authorized. 
 | Diagnostic age/oversize policy and retention-day parser | cmd/internal/diagnosticlog/policy.go, collect.go | modified |
 | Effective diagnostic options and retained reason | cmd/internal/diagnosticlog/writer.go | modified |
 | Dormant count/debt selection | cmd/internal/diagnosticlog/policy.go | deleted as active policy |
-| Diagnostic-only CLI scope | cmd/internal/gccmd/run.go | modified |
 
 The policy owns one-to-many generations per diagnostic log. It derives age from certified last write; current paths, immutable segments and legacy paths use the same decision. Persisted v2 MaxGenerations remains readable for compatibility but confers no new deletion or append-blocking authority. Keep the existing persisted byte authority and tighten-only behavior. No new diagnostic state machine or payload family is introduced.
 
@@ -40,7 +39,7 @@ The policy owns one-to-many generations per diagnostic log. It derives age from 
 | Per-log admission, collection and deletion replay | cmd/internal/diagnosticlog/writer.go, pages.go, legacy.go, collect.go | modified | files, stable log lock, durable intent |
 | Explicit and scheduled diagnostic traversal | cmd/internal/gcruntime/runtime.go, schedule.go | modified | root coordination, registry and exact-family inventory |
 | Public diagnostic-only preview/apply | cmd/internal/gccmd/run.go | modified | CLI, metadata report |
-| Wrapper trace measurement | cmd/internal/wrapcmd/wrap_events_test.go, diagnostic_buffer_test.go | modified tests | real proxy and owned buffered log |
+| Wrapper trace measurement | cmd/internal/wrapcmd/diagnostic_turn_budget_test.go | new test | real proxy and owned buffered log |
 
 Use the existing portable file backend. Process/OpenFiles/Runtimes conformance stays behind diagnosticlog.Inspection; regressions use a stateful inventory that changes holders, birth identity and protocol knowledge between preview and apply. Preserve real OS conformance tests. No cloud or backup API is added.
 
@@ -117,7 +116,7 @@ The log lock is held across validation, policy admission and durable deletion ef
 
 ## Task 3 — detail-level measurement, docs and live verification
 
-**Files:** wrapcmd/wrap_events_test.go, diagnostic_buffer_test.go; README.md; atlas/storage-retention.md, storage-retention-io.md; issue Log. Update help from the same effective policy.
+**Files:** wrapcmd/diagnostic_turn_budget_test.go; README.md; atlas/storage-retention.md, storage-retention-io.md; issue Log. Update help from the same effective policy.
 
 - [x] Replay explicitly delimited owned turns through the production proxy with fixed output chunks, controlled flush barriers and a real diagnostic sink. Measure baseline bytes per turn at N/2N turns, per-chunk event counts, payload/metadata bytes and drop counters. Do not infer turns from stdin reads or idle alerts in the real sample.
 - [x] Proposed detail decision: retain current hashed per-chunk evidence within bounded lifetime unless the owned-turn measurement demonstrates it overwhelms the envelope. Record the measured decision and PAIR_WRAP_EVENTS=0 opt-out. Any new default summary/drop policy is a scope revision returned to the hub before code, not silently folded in.
@@ -181,3 +180,17 @@ Hub direction33f17a20-36e5-4cdc-8369-014af0decbc4 replaces the all-log fallback 
 The third proof refinement is recorded as a consolidated design rather than a new timeout/probe workaround. One stable per-log lock protects certificate validation and durable deletion; it cannot retrospectively cover readers or pre-protocol writers that never acquired it, so bounded native observation remains necessary at that boundary. One sweep observes open files/processes; each later sweep/apply recaptures. Current generations use writer ownership plus exact holders. Closed immutable payloads use exact holders only. Unknown native output blocks; known Couch owner fields scope transient current writers; genuinely ambiguous current ownership stays blocked. No lifetime absence proof is inferred from an idle timestamp.
 
 Task3 owned conformance exposed intentional current-file blocking behind the live supervisor after a legacy FD release. Portable stateful controls cover eligible-current release; native current/closed FD controls cover real reader appearance/removal; the real approved18-generation sweep supplies positive native closed collection. No current-file proof was bypassed to manufacture a positive result. The first sweep's exact12,734,567,104bytes, before/after inodes and volume df deltas are in the issue Log. #687 owns supervisor recognition separately. Task4 gates remain outstanding.
+
+### 2026-10-18 — close-review concept and source-ownership corrections
+
+BR-3 corrects the concept map: diagnostic-only CLI scope belongs to the existing public preview/apply integration row because it parses arguments and invokes filesystem-facing services; it is not a pure entity. The measured proxy-turn fixture lives in the new diagnostic_turn_budget_test.go, rather than changes to wrap_events_test.go or diagnostic_buffer_test.go. The tables and Task3 file list now identify those actual owners without changing the approved behavior.
+
+BR-5 closes production source ownership for the native-proof refinement. diagnosticlog/proof.go is an artifactpath resolved consumer for adapt, wrap-events and fullscreen-diagnostics, using existing scoped resolver bindings. diagnosticlog/sweep.go joins the exhaustive non-artifact source inventory because it observes native processes and open-file evidence without constructing Pair artifact names. The known-violations baseline is unchanged; the source guard must reject missing classification and then pass with these declarations.
+
+### 2026-10-18 — close-review complete apply reports
+
+BR-4 preserves the collector's removed-only return contract while exposing retained/blocked managed decisions through the report-only Options.ObserveCollection callback. The explicit service records those decisions and appends completed removals before propagating a later page error; eligible candidates that did not finish deletion are never reported as removals or counted as collected bytes. A mixed managed fixture checks removed, recent and held rows together. A second-delete-intent fault checks that the first completed deletion and its exact bytes survive the error report while the interrupted deletion is not claimed.
+
+### 2026-10-18 — close review replay and traversal correction
+
+BR-1 moves exact-target reader authorization into shared recoverDeletion, so Open, Write, maintain and explicit collectors cannot replay an old intent using proof of a different current file. Legacy Proof-only callers inspect the actual rotated payload. Four entry-point regressions cover held and released targets. Counted fallback proof checks now include one per deleted payload plus bounded page overhead (90/180 at80/160); the shared native snapshot remains constant at8/16. BR-2 preserves a valid missing-parent declaration as an observable preview blocker and advances only that path through the real scheduler; malformed inventory and global uncertainty continue to fail closed. No policy, data scope or new persistent state is introduced.

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
 	"sort"
 
 	"github.com/xianxu/pair/cmd/internal/diagnosticlog"
@@ -88,6 +89,18 @@ func (s *Service) Batch(ctx context.Context, cursor string, limit int) (string, 
 		options := s.DiagnosticOptions
 		options.Context = ctx
 		_, next, complete, err = diagnosticlog.CollectLegacyPage(path, options, segment, min(limit, 100))
+		// Enumeration validates declaration shape but deliberately preserves a
+		// missing parent as a visible blocker. It grants no authority to recreate
+		// that parent. Leave the declaration for PreviewDiagnostics to report and
+		// advance past this path so it cannot starve unrelated generations.
+		if errors.Is(err, os.ErrNotExist) && ctx.Err() == nil {
+			for _, entry := range entries {
+				if entry.Path == path {
+					next, complete = "", true
+					return nil
+				}
+			}
+		}
 		if errors.Is(err, diagnosticlog.ErrBusy) {
 			return storagegc.ErrCoordinatorBusy
 		}

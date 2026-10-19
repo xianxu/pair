@@ -297,6 +297,9 @@ var SourceClassifications = []SourceClassification{
 	{Path: "cmd/internal/storagegc/stateio.go", Kind: ResolvedConsumer},
 	{Path: "cmd/internal/gcruntime/references.go", Kind: ResolvedConsumer},
 	{Path: "cmd/internal/gcruntime/runtime.go", Kind: ResolvedConsumer, Families: []string{"session-inventory-catalog"}, BindingNames: []string{"scoped-session-inventory-catalog"}},
+	{Path: "cmd/internal/diagnosticlog/proof.go", Kind: ResolvedConsumer,
+		Families:     []string{"adapt", "wrap-events", "fullscreen-diagnostics"},
+		BindingNames: []string{"scoped-adapt", "scoped-wrap-events", "scoped-fullscreen-fullscreen-diagnostics"}},
 	{Path: "cmd/internal/launcher/retention_cleanup.go", Kind: ResolvedConsumer, Families: []string{"session-binding"}, BindingNames: []string{"selected-session-binding"}},
 	{Path: "cmd/internal/storagegc/collector.go", Kind: ResolvedConsumer, Vocabulary: []VocabularyAllowance{
 		goCaseVocabulary("draft", "draft-editor", "knownNonCaptureRole", 1),
@@ -1183,7 +1186,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/diagnosticlog/environment_linux.go",
 	"cmd/internal/diagnosticlog/environment_other.go",
 	"cmd/internal/diagnosticlog/legacy.go",
-	"cmd/internal/diagnosticlog/proof.go",
+	"cmd/internal/diagnosticlog/sweep.go",
 	"cmd/internal/diagnosticlog/registry.go",
 	"cmd/internal/diagnosticlog/writer.go",
 	// #397 couch crash files live in the Couch store, not the Pair artifact namespace.
