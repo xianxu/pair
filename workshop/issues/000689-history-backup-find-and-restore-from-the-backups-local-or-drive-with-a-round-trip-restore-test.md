@@ -217,6 +217,12 @@ Hub receipt bf5f4f78-4281-4bbf-a560-8d4e8c74399a identifies the RAM disk's HFS+ 
 
 Hub receipt ef3f857b-fae0-401b-ac40-4bd4c560074e confirms ariadne#474 landed and ariadne:0 was rebuilt. The maintained sdlc now refuses HFS+ scratch storage and selects the normal temp folder with an explanatory note until the operator recreates APFS storage. The hub explicitly authorizes rerunning this combined-head suite now on that fallback; disk recreation is no longer a precondition for this run. No source, budget, identity check or assertion changes. The filesystem-related failures above remain failed evidence, not registered flakes.
 
+### 2026-10-19 — fallback runner blocked before tests
+
+The authorized fallback run 402744d9523c334429d959ef764a84af pins d344514ce196074da7b8a92e8804bed78d5b6e52 and selected the normal-temp worktree /var/folders/07/b9wcwwld4_v2w9r3hk525bm80000gn/T/sdlc-local-2593999494. It acquired a suite slot after 388s, then emitted no test-phase output; its run.log remained empty. Read-only process inspection identified the owned runner as PID 92467 in UNs state, with watch cat 95136 still live. A one-second sample at /tmp/pair-689-sdlc-wait.sample.txt shows a thread blocked in the kernel stat call. No tests have run or failed in this attempt; no result or filesystem path being statted is inferred.
+
+Both the reserved hub address and exact ops:0 reporting attempt were explicitly refused by Couch with “message terminal is not positively listed,” without a receipt. A read-only actors query still reported both ops:0 and pair:6 as Known. No alternative messaging channel or slot restart was attempted. To prevent a delayed test launch and release only this checkout's check, requested maintained sdlc local-check cancel --name suite. That cancellation remains pending while the original runner is blocked; it is not reported as complete. No PID-based kill, deadline, assertion, machine setting or source change. Await host filesystem recovery and confirmed cancellation before another check.
+
 ## Revisions
 
 - 2026-10-18: clarified the later sync-index Spec supersedes remote queries from find. Recorded the hub-approved label/location evidence and atomic refresh contract; original Done-when obligations are retained without reduction. Added the durable plan with M1/M2 review boundaries.
