@@ -1,6 +1,6 @@
 ---
 id: 000677
-status: codecomplete
+status: done
 created: 2026-10-18
 updated: 2026-10-18
 estimate_hours: 2.52
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 163c91304af64e5d7d4f35677a870aef8aa95669
         evidence_commit: a04d3bfa741e2c01c2e2a2dd4a18cae60af3ff57
+        landed_commit: 477e30cfb056630da756163bf10173c107eff507
 ---
 
 # diagnostic logs: untie from backup, enforce the per-file cap, keep ~7 days (48 GB, +1.5 GB/day)
