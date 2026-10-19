@@ -56,6 +56,9 @@ func (e *launchFailureError) operatorLine() string {
 	if errors.As(e.cause, &cleanup) {
 		happened = "session cleanup unconfirmed; ownership retained"
 	}
+	if errors.Is(e.cause, ErrCleanupPersistenceUnconfirmed) {
+		happened = "session cleanup and unknown state persistence unconfirmed; original occupied claim retained"
+	}
 	if f.Operation == "switch-agent" {
 		happened = "switch-agent: " + happened
 	}

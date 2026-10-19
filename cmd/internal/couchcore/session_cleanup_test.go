@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"testing/synctest"
@@ -266,4 +267,101 @@ func TestPostAckSessionCleanupDoesNotRereadExpiredMetadata(t *testing.T) {
 			t.Fatalf("expiry reread waited for store or lost exact identity: forced=%v err=%v", forced.Load(), err)
 		}
 	})
+}
+
+type dispositionLockArtifacts struct {
+	*FakeThreadArtifactCollisionChecker
+	beforeExpiry func()
+	expired      *atomic.Bool
+}
+
+func (a *dispositionLockArtifacts) QuiesceNamed(ctx context.Context, _ ThreadAddress, _ string) error {
+	a.beforeExpiry()
+	<-ctx.Done()
+	a.expired.Store(true)
+	return ctx.Err()
+}
+func TestSessionCleanupDispositionContentionPreservesOriginalClaim(t *testing.T) {
+	for _, stage := range []string{"read", "write", "diagnostics"} {
+		t.Run(stage, func(t *testing.T) {
+			held := make(chan func(), 1)
+			finished := make(chan struct{})
+			joined := make(chan struct{})
+			var forced atomic.Bool
+			go func() {
+				defer close(joined)
+				select {
+				case release := <-held:
+					select {
+					case <-finished:
+					case <-time.After(2 * time.Second):
+						forced.Store(true)
+					}
+					release()
+				case <-finished:
+				}
+			}()
+			var finishOnce sync.Once
+			release := func() { finishOnce.Do(func() { close(finished); <-joined }) }
+			defer release()
+			synctest.Test(t, func(t *testing.T) {
+				env := newTestEnv(t, "/repo")
+				address := ThreadAddress{RepoScope: "816fc349d3faebf8", Tag: "couch-0102030405060708"}
+				env.Artifacts.SetRegistration(address, RegistrationUnknown, errors.New("registration unreadable"))
+				var original ThreadRecord
+				var began time.Time
+				var diagnostic *LaunchFailure
+				if stage == "diagnostics" {
+					env.Couch.LaunchFailures = &captureFailureStore{save: func(ctx context.Context, f LaunchFailure) error {
+						diagnostic = &f
+						<-ctx.Done()
+						return ctx.Err()
+					}}
+				}
+				var expired atomic.Bool
+				var lockOnce sync.Once
+				lock := func() { lockOnce.Do(func() { held <- holdStoreLock(t, env.Couch.Threads) }) }
+				env.Couch.Threads.hooks.AfterGetThread = func(ThreadAddress) error {
+					if stage == "write" && expired.Load() {
+						lock()
+					}
+					return nil
+				}
+				env.Couch.Artifacts = &dispositionLockArtifacts{FakeThreadArtifactCollisionChecker: env.Artifacts, expired: &expired, beforeExpiry: func() {
+					began = time.Now()
+					var getErr error
+					original, getErr = env.Couch.Threads.GetThread(address)
+					if getErr != nil {
+						t.Fatal(getErr)
+					}
+					if stage != "write" {
+						lock()
+					}
+				}}
+				_, h, err := env.Couch.Spawn(StartArgs{Worktree: "/repo"})
+				var uncertain *SessionCleanupUnconfirmed
+				if forced.Load() || !errors.As(err, &uncertain) || !errors.Is(err, ErrCleanupPersistenceUnconfirmed) || h == nil || h.Alive() {
+					t.Fatalf("disposition waited for release or lost both uncertainties: forced=%v err=%v", forced.Load(), err)
+				}
+				if elapsed := time.Since(began); elapsed > 5*time.Second+recoveryObservationTimeout+launchDiagnosticsAdmissionTimeout {
+					t.Fatalf("cleanup/disposition/diagnostics exceeded total budget: %s", elapsed)
+				}
+				release()
+				current, getErr := env.Couch.Threads.GetThread(address)
+				if getErr != nil || current.Revision != original.Revision || len(current.Incarnations) != 1 || current.Incarnations[0].Start == nil || current.Incarnations[0].Start.Nonce != original.Incarnations[0].Start.Nonce || current.Incarnations[0].State != IncarnationCreating {
+					t.Fatalf("unconfirmed persistence changed original claim: current=%+v original=%+v err=%v", current, original, getErr)
+				}
+				history, readErr := NewLaunchFailureStore(env.Couch.Namespace).Read()
+				if diagnostic != nil {
+					history = []LaunchFailure{*diagnostic}
+					if !strings.Contains(OperatorError(err), "diagnostics could not be saved") {
+						t.Fatalf("lost diagnostic storage failure: %v", err)
+					}
+				}
+				if readErr != nil || len(history) != 1 || !strings.Contains(history[0].CleanupError, "unknown state persistence unconfirmed") || !strings.Contains(OperatorError(err), "persistence unconfirmed") {
+					t.Fatalf("both uncertainties not exposed: history=%+v read=%v line=%s", history, readErr, OperatorError(err))
+				}
+			})
+		})
+	}
 }

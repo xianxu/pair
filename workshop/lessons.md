@@ -2384,3 +2384,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #712: Fixture readiness must derive from the producer generation and lifetime, never a querying process environment or a marker that outlives the producer. Inject a permanent observation refusal through the real cleanup path and verify both a total budget and retained exact ownership.
 
 - #712 BR-1: Enumerate metadata locks as IO in a timeout promise. A context passed to native probes does not bound a blocking GetThread, and rereading identity after expiry can recreate the hang. Use the context-aware read-only route, retain observed identity before expiry, and contend the actual store lock while asserting return before release. Bound disposition persistence separately and report a failed commit without discarding the occupied claim.
+
+- #712 BR-1 disposition: A deadline-safe observation followed by an unbounded state write still hangs. Enumerate routing, metadata reads, CAS retry and journal locking under one persistence context; contend both the pre-read and read/write seams. If durable unknown cannot commit, keep the exact occupied claim and report that uncertainty too.

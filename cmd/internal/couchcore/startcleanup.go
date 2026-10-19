@@ -1,6 +1,12 @@
 package couchcore
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+)
+
+// ErrCleanupPersistenceUnconfirmed reports that the occupied claim could not be marked unknown.
+var ErrCleanupPersistenceUnconfirmed = errors.New("unknown state persistence unconfirmed; original occupied claim retained")
 
 // SessionCleanupUnconfirmed retains ownership when session cleanup cannot be proved.
 type SessionCleanupUnconfirmed struct {

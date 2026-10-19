@@ -190,10 +190,19 @@ to the selected global namespace beneath the account lease.
 
 After an acknowledged helper dies, owned-session cleanup shares one five-second
 budget across owner observation, revalidation, retries and native deletion.
-Persistent refusal returns SessionCleanupUnconfirmed; the exact session binding,
-start nonce and unknown incarnation remain occupied. No destructive rollback or
-replacement launch follows unproved absence. Helper termination still retains its
-exact handle until reaped, independently of this session budget.
+Persistent refusal returns SessionCleanupUnconfirmed. Marking its exact binding,
+start nonce and incarnation unknown has a separate five-second persistence
+context covering metadata reads, revision retries and the journal write. If even
+that cannot commit, the original occupied claim stays unchanged, and history and
+the receipt report both cleanup and unknown-state persistence uncertainty. No
+destructive rollback or replacement launch follows unproved absence.
+
+The maximum deadline budget after helper death is **20 seconds**: five for
+session cleanup + five for disposition persistence + the existing ten-second
+diagnostic-publication cap. Ordinary operating-system syscall/scheduling latency
+is outside cooperative context guarantees. Exact helper termination keeps its
+handle until reaped and precedes this envelope; an unreapable helper is never
+abandoned to make the deadline. There is no post-expiry session metadata reread.
 
 History uses the existing phase launch and outcome unproven; the receipt and
 operator line name cleanup uncertainty and retain the diagnostic nonce. Inspect

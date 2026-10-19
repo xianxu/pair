@@ -751,27 +751,13 @@ func (c *Couch) applyStartCleanup(shape StartShape, address ThreadAddress, nonce
 		Cleanup: knowledge,
 	})
 	if action == DurableMarkUnknown && knowledge == CleanupUnconfirmed {
-		// Do not perform fresh global reconciliation after exhausting this
-		// attempt's session proof. Keep its exact reservation/incarnation.
-		current, err := c.Threads.GetThread(address)
-		if err != nil {
-			return errors.Join(cleanupErr, err)
+		// This separate bounded storage phase never grants cleanup authority.
+		if err := c.persistUnconfirmedStart(address, nonce, h, liveRecord); err != nil {
+			return errors.Join(cleanupErr, fmt.Errorf("%w: %w", ErrCleanupPersistenceUnconfirmed, err))
 		}
-		if !liveRecord {
-			return errors.Join(cleanupErr, c.markResumeStartUnknown(current, nonce))
-		}
-		expected := ProcessIdentity{PID: h.PID(), Identity: h.Identity()}
-		for _, inc := range current.Incarnations {
-			if inc.PID == expected.PID && inc.Identity == expected.Identity {
-				if inc.State == IncarnationUnknown {
-					return cleanupErr
-				}
-				_, err = c.Threads.MarkIncarnationUnknown(address, expected)
-				return errors.Join(cleanupErr, err)
-			}
-		}
-		return errors.Join(cleanupErr, errors.New("unconfirmed cleanup incarnation changed; ownership preserved"))
+		return cleanupErr
 	}
+
 	if action == DurableRollback || action == DurableRetire {
 		current, getErr := c.Threads.GetThread(address)
 		switch {
@@ -954,6 +940,62 @@ func (c *Couch) startStillOwnsThread(start StartResult) bool {
 		}
 	}
 	return true
+}
+
+// persistUnconfirmedStart keeps the original occupied claim if storage refuses.
+// One independent recovery-scale context covers routing, reads, CAS retries and
+// the journal write. No global reconciliation or native observation is performed.
+func (c *Couch) persistUnconfirmedStart(address ThreadAddress, nonce string, h Handle, liveRecord bool) error {
+	ctx, cancel := context.WithTimeout(context.Background(), recoveryObservationTimeout)
+	defer cancel()
+	expected := ProcessIdentity{PID: h.PID(), Identity: h.Identity()}
+	for {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		current, err := c.Threads.PreviewThreadContext(ctx, address)
+		if err != nil {
+			return err
+		}
+		if liveRecord {
+			found := false
+			for _, inc := range current.Incarnations {
+				if inc.PID == expected.PID && inc.Identity == expected.Identity {
+					if inc.State == IncarnationUnknown {
+						return nil
+					}
+					found = inc.State == IncarnationLive
+					break
+				}
+			}
+			if !found {
+				return errors.New("unconfirmed cleanup incarnation changed; ownership preserved")
+			}
+		}
+		_, err = c.Threads.updateExistingThreadContext(ctx, address, current.Revision, func(next *ThreadRecord) error {
+			if !liveRecord {
+				advanced, err := AdvanceStartTransaction(*next, StartEvent{Kind: StartRecoveredUnknown, Nonce: nonce})
+				if err != nil {
+					return err
+				}
+				*next = advanced
+				return nil
+			}
+			for i := range next.Incarnations {
+				inc := &next.Incarnations[i]
+				if inc.PID == expected.PID && inc.Identity == expected.Identity && inc.State == IncarnationLive {
+					inc.State = IncarnationUnknown
+					return nil
+				}
+			}
+			return errors.New("unconfirmed cleanup incarnation changed; ownership preserved")
+		})
+		var conflict *ThreadRevisionError
+		if errors.As(err, &conflict) {
+			continue
+		}
+		return err
+	}
 }
 
 // quiescePostAckStart ends the start's helper and, when the start OWNS the
