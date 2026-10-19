@@ -103,6 +103,11 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 		"COUCH_THREAD_SCOPE=" + thread.Address.RepoScope,
 		"COUCH_THREAD_TAG=" + string(thread.Address.Tag),
 	}
+	lease, err := c.lifetimeLeaseEnv(thread)
+	if err != nil {
+		return ActorRecord{}, nil, fmt.Errorf("prepare lifetime lease: %w", err)
+	}
+	env = append(env, lease)
 	background := ""
 	if in.Background {
 		background = "1"

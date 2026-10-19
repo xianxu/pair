@@ -1,0 +1,139 @@
+package lifetimelease
+
+import (
+	"context"
+	"os"
+	"path/filepath"
+	"strings"
+	"syscall"
+	"testing"
+	"time"
+)
+
+func testPath(t *testing.T) string {
+	t.Helper()
+	path, err := Path(t.TempDir(), "slot:/w/pair")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := Prepare(path); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+func TestPathIsADigestUnderTheNamespace(t *testing.T) {
+	ns := t.TempDir()
+	a, err := Path(ns, "slot:/w/pair")
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, _ := Path(ns, "team:abcd/teams/devinfra")
+	if a == b || filepath.Dir(a) != filepath.Join(ns, "leases") || !strings.HasSuffix(a, ".lease") || strings.Contains(filepath.Base(a), "pair") {
+		t.Fatalf("paths %q %q", a, b)
+	}
+	for _, bad := range [][2]string{{"", "slot:/w"}, {"relative", "slot:/w"}, {ns, ""}} {
+		if _, err := Path(bad[0], bad[1]); err == nil {
+			t.Errorf("Path(%q, %q) accepted", bad[0], bad[1])
+		}
+	}
+}
+
+func TestHoldMakesTheLeaseBusyUntilClosed(t *testing.T) {
+	path := testPath(t)
+	if free, err := Free(path); err != nil || !free {
+		t.Fatalf("fresh lease free=%v err=%v", free, err)
+	}
+	a, err := Hold(context.Background(), path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := Hold(context.Background(), path)
+	if err != nil {
+		t.Fatalf("a second shared holder was refused: %v", err)
+	}
+	if free, _ := Free(path); free {
+		t.Fatal("held lease reported free")
+	}
+	_ = a.Close()
+	if free, _ := Free(path); free {
+		t.Fatal("lease reported free while one holder remains")
+	}
+	_ = b.Close()
+	if free, err := Free(path); err != nil || !free {
+		t.Fatalf("released lease free=%v err=%v", free, err)
+	}
+}
+
+func TestFreeOfAMissingLeaseIsFree(t *testing.T) {
+	path, _ := Path(t.TempDir(), "slot:/w/pair")
+	if free, err := Free(path); err != nil || !free {
+		t.Fatalf("missing lease free=%v err=%v", free, err)
+	}
+}
+
+// A probe holds the lease exclusively for an instant; a holder starting then
+// waits within its bound rather than failing.
+func TestHoldWaitsOutABriefProbe(t *testing.T) {
+	path := testPath(t)
+	probe, err := os.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := lockExclusive(probe); err != nil {
+		t.Fatal(err)
+	}
+	time.AfterFunc(100*time.Millisecond, func() { _ = probe.Close() })
+	held, err := Hold(context.Background(), path)
+	if err != nil {
+		t.Fatalf("Hold did not wait out a brief probe: %v", err)
+	}
+	_ = held.Close()
+}
+
+// pair launched without Couch: no env, so nothing is opened, locked or
+// created, and the agent's environment is untouched (pair#695: plain pair
+// unchanged).
+func TestPlainPairUnchangedWithoutCouch(t *testing.T) {
+	ns := t.TempDir()
+	closer, err := HoldFromEnv(context.Background(), func(string) string { return "" })
+	if err != nil || closer != nil {
+		t.Fatalf("HoldFromEnv without Couch = %v, %v; want nothing", closer, err)
+	}
+	if entries, _ := os.ReadDir(ns); len(entries) != 0 {
+		t.Fatalf("plain pair created %v", entries)
+	}
+	env := []string{"HOME=/h", "PAIR_TAG=x"}
+	if got := WithoutLease(env); strings.Join(got, ",") != strings.Join(env, ",") {
+		t.Fatalf("WithoutLease changed a plain environment: %v", got)
+	}
+}
+
+func TestAgentNeverSeesTheLease(t *testing.T) {
+	env := []string{"HOME=/h", Env + "=/ns/leases/x.lease", "PAIR_TAG=x", Env + "=dup"}
+	for _, kv := range WithoutLease(env) {
+		if strings.HasPrefix(kv, Env+"=") {
+			t.Fatalf("WithoutLease kept %q", kv)
+		}
+	}
+	if got := WithoutLease(env); len(got) != 2 {
+		t.Fatalf("WithoutLease dropped more than the lease: %v", got)
+	}
+}
+
+func TestHoldFromEnvRefusesAMalformedPath(t *testing.T) {
+	for _, bad := range []string{"relative.lease", "/tmp/x.txt", "/tmp/../tmp/x.lease"} {
+		if _, err := HoldFromEnv(context.Background(), func(k string) string {
+			if k == Env {
+				return bad
+			}
+			return ""
+		}); err == nil {
+			t.Errorf("HoldFromEnv accepted %q", bad)
+		}
+	}
+}
+
+func lockExclusive(f *os.File) error {
+	return syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
+}
