@@ -1,6 +1,6 @@
 ---
 id: 000703
-status: codecomplete
+status: done
 created: 2026-10-19
 updated: 2026-10-19
 estimate_hours:
@@ -22,6 +22,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: e2dec2854995666071db543c788beb06d70793c9
         evidence_commit: 32dca0a9ef2399b574e972b0bcff13031ca85783
+        landed_commit: 181b5fe381d045f380e40d30f11583f99df4c84d
 ---
 
 # flake: TestNativeAgentExitDiagnostics
