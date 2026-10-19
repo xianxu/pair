@@ -3,7 +3,7 @@ id: 000683
 status: working
 created: 2026-10-18
 updated: 2026-10-19
-estimate_hours:
+estimate_hours: 3.851
 github_issue:
 severity: high
 started: 2026-10-19T02:08:51-07:00
