@@ -154,4 +154,16 @@ func TestLifecycleAddressSlotKeyMatchesFailureSlotKey(t *testing.T) {
 	if got, want := primary.Key(), LifecycleFailureSlotKey(LifecycleFailureTarget{StartingPath: "/w/pair"}); got != want {
 		t.Fatalf(":0 key %q, failure slot key %q", got, want)
 	}
+	// Routing #683's key through the address narrowed its input from any
+	// absolute path to a clean one. A non-clean path has no slot key and the
+	// failure matches by thread address instead; starting paths are canonical.
+	for _, path := range []string{"/w/pair/", "/w/../w/pair", "relative"} {
+		if key := LifecycleFailureSlotKey(LifecycleFailureTarget{StartingPath: path}); key != "" {
+			t.Errorf("failure slot key for %q = %q, want none", path, key)
+		}
+	}
+	thread := LifecycleFailureTarget{StartingPath: "/w/pair/", Address: ThreadAddress{RepoScope: "scope", Tag: "tag"}}
+	if key := lifecycleFailureTargetKey(thread); key != "thread:scope/tag" {
+		t.Fatalf("non-clean starting path key = %q, want the thread key", key)
+	}
 }

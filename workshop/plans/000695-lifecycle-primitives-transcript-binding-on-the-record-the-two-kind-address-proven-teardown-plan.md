@@ -574,3 +574,20 @@ Steps:
     - `NewSlotAddress` documents that its caller canonicalizes the root; it does no IO.
   - **Minors.** One `threadAgent` helper. One `transcriptSource` rule: `legacy-ledger` only when the record had no
     binding at all.
+- 2026-10-19 — M1 boundary review, round 2 (FIX-THEN-SHIP, BR-7 plus minors).
+  - **BR-7, the nested `transcript` object was strict.** A newer build's member inside the binding would make the
+    whole record unreadable.
+    - Rule, by class: a persisted type born in this issue is tolerant and preserving from birth, through its own
+      `UnmarshalJSON` and `MarshalJSON` on the shared `strictjson` helpers. `TranscriptBinding` now does this.
+      M2's agent sidecar field and `orphans.json` follow the same rule.
+    - Nested members keep every token (escapes and large integers included). The record's indenting encoder may
+      change only their whitespace. Top-level members stay byte-exact.
+    - Test: `TestTranscriptBindingNestedUnknownMembersSurvive`. A duplicate key or wrong type inside the binding
+      still refuses.
+  - **The failure slot key narrowed.** Routing #683's `LifecycleFailureSlotKey` through `NewSlotAddress` narrows
+    its input from any absolute path to a clean absolute path (`workspaceAbsolute`). A non-clean path has no slot
+    key and matches by thread address instead. Starting paths are canonical, so no live record changes. The
+    behavior is pinned in `TestLifecycleAddressSlotKeyMatchesFailureSlotKey`.
+  - **The BR-4 deferral is recorded at its receiver.** The row note (ledger unreadable or missing, so the stored
+    binding was resumed) and the `legacy-ledger` row detail are added to pair#684's plan as M2 items.
+  - The refusal text no longer says "stored" when the invalid binding came from the ledger.

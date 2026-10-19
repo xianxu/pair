@@ -122,7 +122,7 @@ func bindTranscriptWith(ctx context.Context, rt sessioninventory.Runtime, fallba
 	}
 	switch {
 	case plan.Refuse == ResumeTranscriptInvalid:
-		return TranscriptBind{}, refuseResume(ResumeTranscriptInvalid, "its stored transcript binding is not one this build can open; start it fresh")
+		return TranscriptBind{}, refuseResume(ResumeTranscriptInvalid, "its transcript binding is not one this build can open; start it fresh")
 	case plan.Refuse != "":
 		resolution := NativeBindingResolution{Status: sessioninventory.BindingAmbiguous}
 		return TranscriptBind{Resolution: resolution}, refuseBinding(plan.Refuse)
@@ -131,7 +131,7 @@ func bindTranscriptWith(ctx context.Context, rt sessioninventory.Runtime, fallba
 	}
 	use := plan.Use
 	if err := use.ValidateLocation(); err != nil {
-		return TranscriptBind{}, refuseResume(ResumeTranscriptInvalid, fmt.Sprintf("its stored transcript binding is invalid (%v); start it fresh", err))
+		return TranscriptBind{}, refuseResume(ResumeTranscriptInvalid, fmt.Sprintf("its transcript binding is invalid (%v); start it fresh", err))
 	}
 	if _, err := rt.StatFile(sessioninventory.Artifact{StorageRoot: use.StorageRoot, RelativePath: use.RelativePath}); err != nil {
 		if errors.Is(err, fs.ErrNotExist) {

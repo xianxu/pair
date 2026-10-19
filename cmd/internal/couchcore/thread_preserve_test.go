@@ -1,6 +1,7 @@
 package couchcore
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
 	"reflect"
@@ -156,5 +157,67 @@ func TestSlotRecoveryRewritePreservesUnknownMembers(t *testing.T) {
 	}
 	if string(unknown["future_binding"]) != `{ "id" : 7 }` {
 		t.Fatalf("recovery rewrite dropped the unknown member:\n%s", after)
+	}
+}
+
+// A newer build may add members inside the transcript binding, a nested
+// object born in pair#695. They must neither make the record unreadable nor
+// vanish on rewrite (pair#695 M1 review BR-7): types born additive are
+// tolerant from birth.
+func TestTranscriptBindingNestedUnknownMembersSurvive(t *testing.T) {
+	t.Parallel()
+	store, ns := newTestThreadStore(t)
+	record := validThreadRecord(t)
+	record.StartingPath, record.WorkingPath = ns.Dir(), ns.Dir()
+	record.Transcript = &threadrecord.TranscriptBinding{Agent: "claude", NativeID: "0b5c2a1e-9f1d-4c4e-8d5b-000000000001",
+		StorageRoot: "claude-projects", RelativePath: "p/0b5c2a1e-9f1d-4c4e-8d5b-000000000001.jsonl",
+		BoundAt: record.CreatedAt, Source: threadrecord.TranscriptSourceLedger}
+	created, err := store.CreateThread(record)
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := store.recordPath(created.Address)
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	seeded := strings.Replace(string(raw), `"source": "ledger"`, `"source": "ledger", "future_tty": { "dev" : "ttys009" }`, 1)
+	if seeded == string(raw) {
+		t.Fatalf("fixture did not find the binding's source member:\n%s", raw)
+	}
+	if err := os.WriteFile(path, []byte(seeded), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	read, err := store.GetThread(created.Address)
+	if err != nil {
+		t.Fatalf("a newer member inside the binding made the record unreadable: %v", err)
+	}
+	summary := "rewritten"
+	if _, err := store.ApplyThreadMetadata(created.Address, read.Revision, ThreadMetadataPatch{PublishedSummary: &summary}); err != nil {
+		t.Fatal(err)
+	}
+	after, err := store.GetThread(created.Address)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Nested members keep every token (escapes and numbers included); the
+	// record's indenting encoder re-indents their whitespace only.
+	var compact bytes.Buffer
+	if after.Transcript != nil {
+		_ = json.Compact(&compact, after.Transcript.Unknown["future_tty"])
+	}
+	if compact.String() != `{"dev":"ttys009"}` {
+		t.Fatalf("nested unknown member after rewrite = %+v", after.Transcript)
+	}
+	for name, corrupt := range map[string]string{
+		"duplicate inside the binding":  strings.Replace(seeded, `"source": "ledger"`, `"source": "ledger", "source": "ledger"`, 1),
+		"wrong type inside the binding": strings.Replace(seeded, `"source": "ledger"`, `"source": 7`, 1),
+	} {
+		if err := os.WriteFile(path, []byte(corrupt), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := store.GetThread(created.Address); err == nil {
+			t.Errorf("%s: accepted", name)
+		}
 	}
 }

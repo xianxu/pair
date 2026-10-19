@@ -1,14 +1,17 @@
 package threadrecord
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
+	"github.com/xianxu/pair/cmd/internal/strictjson"
 )
 
 // Where a stored transcript binding came from (pair#695 P2).
@@ -28,6 +31,45 @@ type TranscriptBinding struct {
 	RelativePath string    `json:"relative_path,omitempty"`
 	BoundAt      time.Time `json:"bound_at"`
 	Source       string    `json:"source"`
+	// Unknown carries members a newer build added inside the binding, so they
+	// neither make the record unreadable nor vanish on rewrite (pair#695 §2a).
+	// Their tokens survive exactly; the record's indenting encoder may change
+	// only their whitespace.
+	Unknown map[string]json.RawMessage `json:"-"`
+}
+
+type transcriptWire TranscriptBinding
+
+var transcriptKnownFields = strictjson.KnownFields(reflect.TypeOf(transcriptWire{}))
+
+// UnmarshalJSON decodes the owned members strictly and keeps the rest.
+func (b *TranscriptBinding) UnmarshalJSON(raw []byte) error {
+	owned, unknown, err := strictjson.SplitObject(raw, transcriptKnownFields, transcriptKnownFields)
+	if err != nil {
+		return err
+	}
+	ownedRaw, err := strictjson.EncodeObject(owned, nil, transcriptKnownFields)
+	if err != nil {
+		return err
+	}
+	var wire transcriptWire
+	if err := strictjson.Decode(ownedRaw, &wire); err != nil {
+		return err
+	}
+	*b = TranscriptBinding(wire)
+	if len(unknown) > 0 {
+		b.Unknown = unknown
+	}
+	return nil
+}
+
+// MarshalJSON writes the owned members, then the preserved ones verbatim.
+func (b TranscriptBinding) MarshalJSON() ([]byte, error) {
+	raw, err := json.Marshal(transcriptWire(b))
+	if err != nil {
+		return nil, err
+	}
+	return strictjson.AppendMembers(raw, b.Unknown, transcriptKnownFields)
 }
 
 // Established reports whether the binding names a file.
@@ -82,5 +124,6 @@ func CloneTranscriptBinding(b *TranscriptBinding) *TranscriptBinding {
 		return nil
 	}
 	out := *b
+	out.Unknown = strictjson.CloneRaw(b.Unknown)
 	return &out
 }
