@@ -92,11 +92,13 @@ it.
 
 Durable plan: `workshop/plans/000695-lifecycle-primitives-transcript-binding-on-the-record-the-two-kind-address-proven-teardown-plan.md` (moved from pair#684's plan §2, §3 address type, M1–M2).
 
-- [ ] M1 — Transcript binding on the record; Resume binds by one stat (P2); the two-kind `LifecycleAddress`
+- [x] M1 — Transcript binding on the record; Resume binds by one stat (P2); the two-kind `LifecycleAddress`
 - [ ] M2 — Lifetime lease, agent tty witness, `Teardown` with `TeardownProof`; archive and replace require a proof (P1); orphan registry
 
 ## Log
 
+
+- 2026-10-19: closed M1 — Round 3. BR-7 fixed by class: TranscriptBinding decodes owned members strictly and preserves unknown ones via its own UnmarshalJSON/MarshalJSON on strictjson (TestTranscriptBindingNestedUnknownMembersSurvive; duplicate/wrong type inside still refuse). Key narrowing pinned in TestLifecycleAddressSlotKeyMatchesFailureSlotKey. BR-4 deferral recorded at the receiver: pair#684 plan M2 (5d3d7f22f). Unsandboxed: couchcore 379s ok, couchcmd 114s ok, couchtty 62s ok, threadrecord ok, strictjson ok.; review verdict: FIX-THEN-SHIP
 ### 2026-10-18
 
 - 2026-10-18: split from pair#684 on the hub's decision (delivery 51ef8069): #684's M1–M2 become this issue so pair#694's team lifecycle and #684's Converge both build from main. The design (already operator-approved under #684) moved here unchanged; #684's Revisions keep its history.
