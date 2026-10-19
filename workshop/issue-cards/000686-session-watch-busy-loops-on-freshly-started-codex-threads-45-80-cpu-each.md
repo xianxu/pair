@@ -5,6 +5,14 @@ created: 2026-10-18
 updated: 2026-10-18
 estimate_hours:
 github_issue:
+started: 2026-10-18T18:47:56-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:7
+    worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
+    repository: github.com/xianxu/pair
 ---
 
 # session-watch busy-loops on freshly started Codex threads (45-80% CPU each)
