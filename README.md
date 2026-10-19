@@ -651,14 +651,15 @@ operations: retry switching when the old agent is still running; after a failed
 target start is proved gone, resume the old conversation. Uncertain terminal
 ownership must be resolved before another agent starts.
 
-Lifecycle failures leave an explanation and an operation nonce in the receipt,
+Accepted lifecycle actions that fail leave an explanation and operation nonce in the receipt,
 with retained evidence available through `couch --show SLOT`. The switcher row
 and show display the latest historical failure, including refusals before launch
 and failures during preparation, adoption or readiness. Classified failures name
 their phase; otherwise they name the operation. A later verified park or committed
 live start recorded for the slot hides older failures without rewriting the log.
 Retirement alone is not success. If no later success is recorded, the failure
-remains visible as historical evidence. Diagnostics never block recovery.
+remains visible as historical evidence. Requests refused before entering the queue
+remain immediate messages. Diagnostics never block recovery or console input.
 
 Each Couch namespace retains up to 64 failures in
 `<namespace>/launch-diagnostics/failures.json`, capped at 1 MiB by evicting the

@@ -69,9 +69,5 @@ func (c *Console) abandonOperationCompletion(completed operationCompletion) {
 		err = context.Canceled
 	}
 	completed.err = err
-	completed = c.finishLifecycleAttempt(completed)
-	err = completed.err
-	if completed.remote != nil && completed.remote.finished != nil {
-		completed.remote.finished(completed.value, err)
-	}
+	c.publishOperationCompletion(completed)
 }

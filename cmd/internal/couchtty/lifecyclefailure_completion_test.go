@@ -29,8 +29,9 @@ func TestLifecycleFailureMenuAdoptionUsesTerminalOwner(t *testing.T) {
 	completed := operationRequest{attempt: attempt, origin: MenuOperationOrigin{Operation: "resume", Address: menuAddress("target")}}.complete(start, nil)
 	completed = r.c.prepareOperationCompletion(completed)
 	if len(store.Writes) != 0 {
-		t.Fatal("adoption recorded before the terminal boundary")
+		t.Fatal("adoption recorded before worker terminal publication")
 	}
+	completed = r.c.publishOperationCompletion(completed)
 	r.c.finishOperation(completed)
 	if len(store.Writes) != 1 || store.Writes[0].Nonce != attempt.Nonce() {
 		t.Fatalf("lost adoption failure: %+v", store.Writes)

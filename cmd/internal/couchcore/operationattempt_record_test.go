@@ -110,3 +110,26 @@ func TestOperationAttemptContextBorrowsSameTerminalOwner(t *testing.T) {
 	}
 	attempt.Finish(nil, nil)
 }
+
+// ownerContextFailureStore observes the lifetime forwarded to optional storage.
+type ownerContextFailureStore struct {
+	*FakeLaunchFailureStore
+	observed error
+}
+
+func (s *ownerContextFailureStore) Save(ctx context.Context, _ LaunchFailure) error {
+	s.observed = ctx.Err()
+	return s.observed
+}
+func TestOperationAttemptPublicationHonorsOwnerLifetime(t *testing.T) {
+	store := &ownerContextFailureStore{FakeLaunchFailureStore: NewFakeLaunchFailureStore()}
+	r := NewLifecycleFailureRecorder(store, time.Now, func() (string, error) { return "operation", nil })
+	a, _ := r.Begin("park", LifecycleFailureTarget{Target: "pair:8"})
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	cause := errors.New("original lifecycle failure")
+	_, err := a.FinishContext(ctx, nil, cause)
+	if !errors.Is(store.observed, context.Canceled) || !errors.Is(err, cause) || a.DiagnosticWarning() == "" {
+		t.Fatalf("publication ignored owner cancellation or replaced result: observed=%v result=%v warning=%q", store.observed, err, a.DiagnosticWarning())
+	}
+}

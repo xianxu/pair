@@ -87,12 +87,20 @@ func (a *OperationAttempt) RecordedFailureNonce() string {
 // Finish is the only publisher. Success reads and writes no diagnostics;
 // duplicate completion returns the original result without another append.
 func (a *OperationAttempt) Finish(value any, cause error) (any, error) {
+	return a.FinishContext(context.Background(), value, cause)
+}
+
+// FinishContext bounds optional publication by its joined worker owner's lifetime.
+func (a *OperationAttempt) FinishContext(owner context.Context, value any, cause error) (any, error) {
+	if owner == nil {
+		owner = context.Background()
+	}
 	a.once.Do(func() {
 		evidenceCause := cause
 		if parked, ok := value.(ParkResult); ok && evidenceCause == nil && parked.CleanupError != nil {
 			evidenceCause = parked.CleanupError
 		}
-		err, warning := a.finish(cause, evidenceCause)
+		err, warning := a.finish(owner, cause, evidenceCause)
 		a.mu.Lock()
 		a.value, a.err, a.warning = value, err, warning
 		a.failure = evidenceCause != nil
@@ -103,7 +111,7 @@ func (a *OperationAttempt) Finish(value any, cause error) (any, error) {
 	return a.value, a.err
 }
 
-func (a *OperationAttempt) finish(cause, evidenceCause error) (error, string) {
+func (a *OperationAttempt) finish(owner context.Context, cause, evidenceCause error) (error, string) {
 	if evidenceCause == nil {
 		return nil, ""
 	}
@@ -126,7 +134,7 @@ func (a *OperationAttempt) finish(cause, evidenceCause error) (error, string) {
 			if cause == nil {
 				f.Outcome = "unproven"
 			}
-			ctx, cancel := context.WithTimeout(context.Background(), launchDiagnosticsAdmissionTimeout)
+			ctx, cancel := context.WithTimeout(owner, launchDiagnosticsAdmissionTimeout)
 			saved = r.store.Save(ctx, f)
 			cancel()
 		}

@@ -11,14 +11,15 @@ import (
 )
 
 type lifecycleRemoteQueue struct {
-	couch   *couchcore.Couch
-	rows    func() []couchcore.ActionableThreadSummary
-	enqueue func(string, string, func(context.Context) (couchcore.OperationCall, error), func(), func(any, error)) error
-	notify  func(string)
+	couch    *couchcore.Couch
+	rows     func() []couchcore.ActionableThreadSummary
+	enqueue  func(string, string, func(context.Context) (couchcore.OperationCall, error), func(), func(any, error)) error
+	notify   func(string)
+	lifetime context.Context
 }
 
 func newLifecycleRemoteQueue(console *couchtty.Console, c *couchcore.Couch) *lifecycleRemoteQueue {
-	return &lifecycleRemoteQueue{couch: c, rows: func() []couchcore.ActionableThreadSummary {
+	return &lifecycleRemoteQueue{couch: c, lifetime: console.OperationLifetime(), rows: func() []couchcore.ActionableThreadSummary {
 		snapshot := console.ResourceInventory()
 		if !snapshot.InventoryKnown {
 			return nil
@@ -46,7 +47,7 @@ func (q *lifecycleRemoteQueue) EnqueueForReference(key, op, reference string, pr
 	}
 	terminal := func(value any, err error) {
 		if attempt != nil {
-			value, err = attempt.Finish(value, err)
+			value, err = attempt.FinishContext(q.ownerContext(), value, err)
 			warning := attempt.DiagnosticWarning()
 			if warning != "" {
 				if q.notify != nil {
@@ -59,7 +60,7 @@ func (q *lifecycleRemoteQueue) EnqueueForReference(key, op, reference string, pr
 	}
 	completion := terminal
 	if len(awaits) != 0 && awaits[0] != nil {
-		completion = awaitReadiness(awaits[0], terminal)
+		completion = awaitReadiness(q.ownerContext(), awaits[0], terminal)
 	}
 	err = q.enqueue(key, op, func(ctx context.Context) (couchcore.OperationCall, error) {
 		if attempt != nil {
@@ -78,9 +79,6 @@ func (q *lifecycleRemoteQueue) EnqueueForReference(key, op, reference string, pr
 		}
 		return call, err
 	}, started, completion)
-	if err != nil && attempt != nil {
-		_, err = attempt.Finish(nil, err)
-	}
 	return err
 }
 
@@ -129,4 +127,12 @@ func lifecycleFailureQueueTarget(rows []couchcore.ActionableThreadSummary, key s
 		}
 	}
 	return target, matches == 1
+}
+
+// ownerContext is only the completion worker's lifetime, never effect authority.
+func (q *lifecycleRemoteQueue) ownerContext() context.Context {
+	if q.lifetime != nil {
+		return q.lifetime
+	}
+	return context.Background()
 }

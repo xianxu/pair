@@ -330,6 +330,7 @@ func New(host hostty.Host, stdin io.Reader) *Console {
 		feed:                NewFeed(8, time.Now, NoticeLifetime),
 	}
 	c.operationQueue.prepare = c.prepareOperationCompletion
+	c.operationQueue.publish = c.publishOperationCompletion
 	c.operationQueue.abandon = c.abandonOperationCompletion
 	if s, err := host.Size(); err == nil {
 		c.size = s
@@ -1942,7 +1943,7 @@ func (c *Console) runMenuOperation(effect MenuEffect) {
 	}
 	_, err := c.operationQueue.Enqueue(request)
 	if err != nil {
-		c.finishOperation(operationCompletion{attempt: attempt, key: key, name: effect.Operation, origin: origin, err: err})
+		c.finishOperation(operationCompletion{key: key, name: effect.Operation, origin: origin, err: err})
 	}
 }
 
@@ -2091,15 +2092,9 @@ func (c *Console) finishOperation(completed operationCompletion) bool {
 	if completed.owner != nil && !completed.owner.CompareAndSwap(false, true) {
 		return false
 	}
-	completed = c.finishLifecycleAttempt(completed)
 	err := completed.err
 	defer func() {
 		c.finishContinuationOperation(completed, err)
-		// A remote job's caller hears the outcome once, after adoption, so an
-		// attach failure is its failure too (pair#367 M2).
-		if completed.remote != nil && completed.remote.finished != nil {
-			completed.remote.finished(completed.value, err)
-		}
 	}()
 	address := completed.origin.Address
 	if parked, ok := completed.value.(couchcore.ParkResult); ok && parked.Thread.Address != (couchcore.ThreadAddress{}) {

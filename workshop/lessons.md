@@ -7,6 +7,8 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- Optional terminal publication belongs after adoption on an existing joined worker, never the console reducer. Test blocked storage through actual input and Stop, and verify the publication context is canceled by console lifetime; a responsive callback mock alone misses a missing lifetime wire. (#683 BR-6)
+
 - A shared diagnostic projection must be tested through every public reference for the same slot: slot name, canonical primary-root reference, path and exact tag. Centralize matching before latest-selection and visibility filtering so row/show parity survives missing-cache reference-only evidence. (#683 BR-5)
 
 - Diagnostics must not become lifecycle admission authority. Preserve the original action result when optional target enrichment, nonce allocation or logging fails; test unreadable-record recovery through the public dispatcher before adding diagnostic prerequisites. (#683 BR-1)

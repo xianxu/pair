@@ -1,6 +1,11 @@
 package couchtty
 
-import "github.com/xianxu/pair/cmd/internal/couchcore"
+import (
+	"context"
+	"sync/atomic"
+
+	"github.com/xianxu/pair/cmd/internal/couchcore"
+)
 
 // SetOperationAttemptFactory wires queue-owned diagnostics independently of the
 // dispatcher so preparation and adoption share one terminal owner.
@@ -38,9 +43,29 @@ func (c *Console) finishLifecycleAttempt(completed operationCompletion) operatio
 	if completed.attempt == nil || completed.remote != nil {
 		return completed
 	}
-	completed.value, completed.err = completed.attempt.Finish(completed.value, completed.err)
+	completed.value, completed.err = completed.attempt.FinishContext(c.lifetime, completed.value, completed.err)
 	if warning := completed.attempt.DiagnosticWarning(); warning != "" {
 		c.Notify(Notice{Kind: "status", Body: warning})
+	}
+	return completed
+}
+
+// OperationLifetime is the joined console lifetime for remote terminal work.
+func (c *Console) OperationLifetime() context.Context { return c.lifetime }
+
+// publishOperationCompletion runs on an existing bounded worker, after child
+// adoption. Publication and UI reduction have separate once owners: Stop may
+// abandon an already-published result without repeating a caller or disk write.
+func (c *Console) publishOperationCompletion(completed operationCompletion) operationCompletion {
+	if completed.published == nil {
+		completed.published = new(atomic.Bool)
+	}
+	if !completed.published.CompareAndSwap(false, true) {
+		return completed
+	}
+	completed = c.finishLifecycleAttempt(completed)
+	if completed.remote != nil && completed.remote.finished != nil {
+		completed.remote.finished(completed.value, completed.err)
 	}
 	return completed
 }

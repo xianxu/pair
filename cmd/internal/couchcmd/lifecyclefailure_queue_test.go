@@ -7,6 +7,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 type lifecycleQueuedFixture struct {
@@ -73,7 +74,7 @@ func TestLifecycleFailureQueueReadinessOwnsFinalCompletion(t *testing.T) {
 	if _, err := first.prepare(t.Context()); err != nil {
 		t.Fatal(err)
 	}
-	first.finish(nil, nil)
+	go first.finish(nil, nil)
 	<-entered
 	if len(store.Writes) != 0 {
 		t.Fatal("effect success finished before readiness")
@@ -164,5 +165,62 @@ func TestLifecycleFailureQueueHubMoveRetainsDispatchedTargets(t *testing.T) {
 	(*jobs)[0].finish(nil, err)
 	if len(store.Writes) != 1 || store.Writes[0].Target != "project:1,project:2" || store.Writes[0].Operation != "move-slot" {
 		t.Fatalf("hub move lost target evidence: %+v", store.Writes)
+	}
+}
+
+func TestLifecycleFailureQueueRefusalBeforeEnqueueDoesNotPublish(t *testing.T) {
+	q, store, _ := newLifecycleQueueFixture()
+	cause := errors.New("queue is full")
+	q.enqueue = func(string, string, func(context.Context) (couchcore.OperationCall, error), func(), func(any, error)) error {
+		return cause
+	}
+	err := q.Queue("remote\x00/project:1", "relaunch", func(context.Context) (couchcore.OperationCall, error) {
+		t.Fatal("refused request ran")
+		return couchcore.OperationCall{}, nil
+	}, func() { t.Fatal("refused request started") }, func(any, error) { t.Fatal("refused request completed") })
+	if !errors.Is(err, cause) || len(store.Writes) != 0 {
+		t.Fatalf("refusal changed or wrote diagnostics: %v %+v", err, store.Writes)
+	}
+}
+
+func TestLifecycleFailureQueueReadinessUsesOwnerLifetime(t *testing.T) {
+	q, _, jobs := newLifecycleQueueFixture()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	q.lifetime = ctx
+	entered := make(chan struct{})
+	done := make(chan error, 1)
+	release := make(chan struct{})
+	joined := make(chan struct{})
+	wait := func(ctx context.Context) error {
+		close(entered)
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-release:
+			return context.Canceled
+		}
+	}
+	if err := q.Enqueue("remote\x00/project:1", "relaunch", func(ctx context.Context) (couchcore.OperationCall, error) {
+		return couchcore.OperationCall{Name: "relaunch", Context: ctx}, nil
+	}, func() {}, func(_ any, err error) { done <- err }, &wait); err != nil {
+		t.Fatal(err)
+	}
+	(*jobs)[0].prepare(ctx)
+	go func() { defer close(joined); (*jobs)[0].finish(nil, nil) }()
+	t.Cleanup(func() { close(release); <-joined })
+	select {
+	case <-entered:
+	case <-testwait.After(t):
+		t.Fatal("readiness worker never entered")
+	}
+	cancel()
+	select {
+	case err := <-done:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("readiness lost owner cancellation: %v", err)
+		}
+	case <-testwait.After(t):
+		t.Fatal("readiness ignored owner cancellation")
 	}
 }

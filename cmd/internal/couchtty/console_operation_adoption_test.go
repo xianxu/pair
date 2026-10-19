@@ -13,7 +13,7 @@ import (
 // Synthetic completion tests explicitly execute both real stages. Production
 // only prepares on lifecycle workers and reduces the final completion on Run.
 func (c *Console) finishPreparedOperationForTest(completed operationCompletion) bool {
-	return c.finishOperation(c.prepareOperationCompletion(completed))
+	return c.finishOperation(c.publishOperationCompletion(c.prepareOperationCompletion(completed)))
 }
 
 func TestConsoleRunAcceptsInputWhileAdoptionHeldAndRemoteWaits(t *testing.T) {
@@ -70,7 +70,7 @@ func TestConsoleOperationCompletionSettlesExactlyOnce(t *testing.T) {
 	completed := operationRequest{origin: MenuOperationOrigin{Operation: "park"}, remote: &remoteOperation{
 		finished: func(any, error) { finished.Add(1) },
 	}}.complete(nil, nil)
-	completed = f.con.prepareOperationCompletion(completed)
+	completed = f.con.publishOperationCompletion(f.con.prepareOperationCompletion(completed))
 	f.con.finishOperation(completed)
 	f.con.finishOperation(completed)
 	f.con.abandonOperationCompletion(completed)

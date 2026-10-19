@@ -11,6 +11,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 func TestLifecycleFailurePrivateServiceSurvivesReceiptLossAndUsesRecordedSuccess(t *testing.T) {
@@ -101,5 +102,63 @@ func TestLifecycleFailurePrivateServiceSurvivesReceiptLossAndUsesRecordedSuccess
 	history, err = reopened.Read()
 	if err != nil || len(history) != 1 || history[0].Nonce != failed.FailureNonce {
 		t.Fatalf("historical failure lost: %+v %v", history, err)
+	}
+}
+
+// blockedLifecyclePublication exercises the real service/queue lifetime wiring.
+type blockedLifecyclePublication struct {
+	*couchcore.FakeLaunchFailureStore
+	entered  chan struct{}
+	canceled chan error
+}
+
+func (s *blockedLifecyclePublication) Save(ctx context.Context, _ couchcore.LaunchFailure) error {
+	close(s.entered)
+	<-ctx.Done()
+	s.canceled <- ctx.Err()
+	return ctx.Err()
+}
+func TestLifecycleFailurePrivateServiceStoreStallKeepsInputAndStopResponsive(t *testing.T) {
+	store := &blockedLifecyclePublication{FakeLaunchFailureStore: couchcore.NewFakeLaunchFailureStore(), entered: make(chan struct{}), canceled: make(chan error, 1)}
+	r := newParkAdmissionRigConfigured(t, false, func(c *couchcore.Couch) { c.LaunchFailures = store })
+	r.catalog.mu.Lock()
+	r.catalog.Errors = map[string]error{r.before.StartingPath: errors.New("fixture observation failed")}
+	r.catalog.mu.Unlock()
+	request := r.request("blocked-publication")
+	if got := r.call(t, request); got.Code != "accepted" {
+		t.Fatalf("admission: %+v", got)
+	}
+	r.release()
+	select {
+	case <-store.entered:
+	case <-testwait.After(t):
+		t.Fatal("publication did not enter store")
+	}
+	written := len(r.child.Writes())
+	if _, err := r.input.Write([]byte("z")); err != nil {
+		t.Fatal(err)
+	}
+	testwait.Until(t, "input while real remote publication is held", func() bool { return len(r.child.Writes()) > written })
+	select {
+	case err := <-store.canceled:
+		t.Fatalf("publication ended before input probe: %v", err)
+	default:
+	}
+	r.console.Stop()
+	select {
+	case <-r.done:
+	case <-testwait.After(t):
+		t.Fatal("Stop failed to cancel and join remote publisher")
+	}
+	select {
+	case err := <-store.canceled:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("publication context=%v", err)
+		}
+	default:
+		t.Fatal("store did not observe console cancellation")
+	}
+	if got := r.terminal(t, request.ID); got.Status == couchmessage.ReceiptSucceeded || got.FailureNonce == "" {
+		t.Fatalf("cancellation lost failure outcome: %+v", got)
 	}
 }

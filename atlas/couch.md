@@ -203,7 +203,10 @@ no new fields. No format version or global strictjson policy changes.
 `operationattempt_record.go` owns `OperationAttempt.Finish`, the sole terminal
 recorder. Synchronous dispatch finishes its attempt directly. Queued actions keep
 one owned attempt through preparation, guards, effect, adoption and readiness,
-then the shared terminal adapter finishes it. Nested calls borrow that attempt.
+then the shared terminal adapter finishes it. Adoption, readiness, optional storage
+and remote callbacks run on the existing bounded, joined workers. Run only reduces
+the completed result; Stop cancels the worker publication context. Pre-enqueue
+refusals stay immediate messages and are not logged. Nested calls borrow that attempt.
 Launch-capture helpers return evidence without publishing separately. Typed error
 chains retain errors.Is/As and a receipt carries `FailureNonce`, matching the
 stored operation nonce after the receipt expires. #695 supplies teardown details

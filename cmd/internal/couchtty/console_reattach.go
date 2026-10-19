@@ -126,7 +126,7 @@ func (c *Console) runBackgroundOperation(effect MenuEffect) {
 		return fn(couchcore.OperationCall{Name: effect.Operation, Args: requestArgs, Implicit: true, Context: operationContext})
 	}})
 	if err != nil {
-		c.finishOperation(operationCompletion{attempt: attempt, key: key, name: effect.Operation, origin: origin, err: err})
+		c.finishOperation(operationCompletion{key: key, name: effect.Operation, origin: origin, err: err})
 	}
 }
 
