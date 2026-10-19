@@ -1,6 +1,6 @@
 ---
 id: 000690
-status: codecomplete
+status: done
 created: 2026-10-18
 updated: 2026-10-19
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 8e19651f97a513921e4e6ab3cff48759787e275b
         evidence_commit: 25020209d1a2b04a1cd93d8dcdd0e88c195c6b92
+        landed_commit: b0b6d403b51fcbf49cde78eb2501f1b47d6c08be
 ---
 
 # review pane: a zero-record pair review apply completes the round (pairs ariadne#453)
