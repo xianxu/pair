@@ -1,6 +1,6 @@
 ---
 id: 000664
-status: codecomplete
+status: done
 created: 2026-10-18
 updated: 2026-10-18
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: dc7e372b55cbf3daddb108a5c4f621972d8632c6
         evidence_commit: 4807dba934bf3c7062f954e6cfbc1b9b3ebcec85
+        landed_commit: bb12b65a8c02675a0be5d13faf2cd7b0c19a7025
 ---
 
 # Retire the review pane legacy handoff and nvim apply after ariadne#437
