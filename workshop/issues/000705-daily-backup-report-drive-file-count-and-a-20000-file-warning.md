@@ -5,9 +5,9 @@ deps: [pair#700]
 github_issue:
 created: 2026-10-19
 updated: 2026-10-19
-estimate_hours:
+estimate_hours: 1.83
 collaboration-mode: collaboration
-card_mirror: 'b3c483100900227312f0ee5ed8a0281abde0f476' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'f7b9ae0e19f0d7a320482a2da665116c9403f2c5' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-19T08:45:42-07:00
 claimant:
     operator: Xian Xu
@@ -51,9 +51,32 @@ Operator request via hub receipt 277127be-5775-4a0e-93e4-8d24a00600a5. #700 was 
 
 - 2026-10-19, plan-quality round 1: PQ-1 requested test-strategy presentation refinement only. Replaced case inventories with named risky-function adversarial classes and mechanical/property guards; no implementation, estimate or policy change. Rerun change-code.
 
+- 2026-10-19, plan-quality round 2 CLEAN: PQ-1 addressed, no new findings. Derived the estimate only after this acceptance. Calibration source reports stale; numbers remain provisional. No production or test code changed before admission.
+
 ## Revisions
 
 - 2026-10-19, hub 3ca340ad: #700 is verified/ticked/rebuilt; dispatch #705 now. Keep #706 folder migration separate and waiting for #689.
 - 2026-10-19, design: threshold env PAIR_ARCHIVE_DRIVE_MAX_FILES, default 20000, positive integer. Optional exact destination/folder/count/phase observation grows only the runtime report; existing before evidence survives a final listing failure, and absent/failed/empty-candidate listing remains unknown without extra calls. Shared #700 gate/output, one atomic full-flow close because explicit protocol validation and common delivery may exceed the 100-line production shell.
 
 - 2026-10-19, hub 2ea831d5 approved the plan, environment default and fake-backed acceptance. Daily count/admission is keyed by configured destination root; root FolderID is evidence only, not a month-child key. #706 can sum month folders into this same observation later. No staging or real Drive/desktop calls; run change-code.
+
+## Estimate
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only; source is tagged stale, so this is provisional. Read v2/v2.1 primitive ranges, v3.1 scaling and shared grammar after plan-quality acceptance. No target total was chosen first.
+
+Decomposition: issue/spec; one small count/threshold/rendering model and one small runtime codec extension; the existing Drive/CLI/scheduler adapters and stateful fixture; docs; one atomic review/verification boundary. The stack is existing Go time/json/strconv and established Rclone/notification seams, so no greenfield-library or real-API discovery allowance. Base design picks are 1.0 / 0.2 / 0.2 / 1.5 / 0.1 / 0.1 hours, each discounted by 0.2 for the resolved spec. Base implementation picks are 0.2 / 0.5 / 0.5 / 1.0 / 0.1 / 0.5, each scaled by 0.40. Familiarity 1.0; thorough-plan design buffer 15%. Adapter and review primitives include fixture qualification and the recorded verification flow; queue idle is not extra implementation effort. Single repo, no new API or coordination multiplier.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.20 impl=0.08
+item: smaller-go-module design=0.04 impl=0.20
+item: smaller-go-module design=0.04 impl=0.20
+item: api-integration design=0.30 impl=0.40
+item: atlas-docs design=0.02 impl=0.04
+item: milestone-review design=0.02 impl=0.20
+design-buffer: 0.15
+total: 1.83
+```
+
+Design 0.62 × 1.15 = 0.713; implementation 1.12 × 1.0 = 1.12; total 1.833, rounded 1.83 hours.
