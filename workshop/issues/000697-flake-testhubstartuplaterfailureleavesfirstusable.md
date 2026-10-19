@@ -1,13 +1,13 @@
 ---
 id: 000697
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-19
 updated: 2026-10-19
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: 'f1f446f6cccc8aaef9d90695bd2a5071065024a9' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'e92f72e2a50b4ccf840e0c19b17265f658a3333b' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-19T06:54:40-07:00
 claimant:
     operator: Xian Xu
@@ -18,6 +18,7 @@ claimant:
     repository: github.com/xianxu/pair
 flake_tests: [github.com/xianxu/pair/cmd/internal/couchcmd.TestHubStartupLaterFailureLeavesFirstUsable]
 flow: {kind: quick, provenance: inferred, spec: "6e340b9c", done: "a0bbe98b"}
+actual_hours: 0.19
 ---
 
 # flake: TestHubStartupLaterFailureLeavesFirstUsable
