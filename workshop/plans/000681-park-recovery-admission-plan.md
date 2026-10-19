@@ -91,21 +91,21 @@ Actions: inspect receipt, refresh switcher inventory and retry, inspect changed 
 
 Files: cmd/internal/couchcore/slot_operation.go, slot_operation_test.go; cmd/internal/couchcmd/slot_operations.go, console_slot_operations.go, park_recovery_surface_test.go.
 
-- [ ] Add red pure selection cases for :0, numbered slots, aliases resolved to canonical repository, absent/ambiguous/unknown cache, unrelated subdirectory rows, empty nonce and immutable captured arguments.
-- [ ] Add red ordering tests: unconfirmed/unauthenticated requests never bind; duplicate/conflicting IDs never rebind; alias spellings share the existing pending key.
-- [ ] Implement the small cached selector and adapt preparePark to use it, sharing canonical repository resolution with queue admission. Preserve selection checks before queued effects and remove full preparation from socket admission.
-- [ ] Run focused tests; expected PASS, zero full-inventory calls in admission and one job per ID. Commit code plus tests once green.
+- [x] Add red pure selection cases for :0, numbered slots, aliases resolved to canonical repository, absent/ambiguous/unknown cache, unrelated subdirectory rows, empty nonce and immutable captured arguments.
+- [x] Add red ordering tests: unconfirmed/unauthenticated requests never bind; duplicate/conflicting IDs never rebind; alias spellings share the existing pending key.
+- [x] Implement the small cached selector and adapt preparePark to use it, sharing canonical repository resolution with queue admission. Preserve selection checks before queued effects and remove full preparation from socket admission.
+- [x] Run focused tests; expected PASS, zero full-inventory calls in admission and one job per ID. Commit code plus tests once green.
 
 ### Production transport and adversarial sequences
 
 Files: cmd/internal/couchcmd/slot_operations_acceptance_test.go or focused park_recovery_admission_test.go, existing service/console fixtures; existing couchcore park recovery tests as needed.
 
-- [ ] Build a real Unix-transport fixture with a published cached exact row, real console queue, private thread/lifecycle stores and stateful external fakes. Place a controlled barrier in queued full inventory preparation.
-- [ ] Send a production recover-park request with the actual two-second admission context. Keep preparation blocked beyond that deadline (one bounded >2s interval using testwait-owned synchronization), prove receipt accepted and status readable before release, then release and prove exactly one recovery effect and terminal result. Prove test fails against the old ordering.
-- [ ] Exercise replacement before queued prepare and between prepare/dispatch; each refuses without mutation. Exercise same original park already settled, new nonce after cached empty nonce, and stale cached address.
-- [ ] Exercise preparation error, console cancellation while blocked, duplicate during blocked preparation, callback completion and pending-key release. Assert cancellation settles once, no late effect, and no worker survives fixture shutdown.
-- [ ] Assert O(N) cached selection and constant full-pass/effect counts at8 and16 rows, no per-row external query. Retain existing authentication, confirmation, max receipt and queue overload tests.
-- [ ] Run targeted packages and focused race coverage. Commit verification evidence and update atlas/couch.md plus the issue Log with the receipt/selection ordering and refresh refusal.
+- [x] Build a real Unix-transport fixture with a published cached exact row, real console queue, private thread/lifecycle stores and stateful external fakes. Place a controlled barrier in queued full inventory preparation.
+- [x] Send a production recover-park request with the actual two-second admission context. Keep preparation blocked beyond that deadline (one bounded >2s interval using testwait-owned synchronization), prove receipt accepted and status readable before release, then release and prove exactly one recovery effect and terminal result. Prove test fails against the old ordering.
+- [x] Exercise replacement before queued prepare and between prepare/dispatch; each refuses without mutation. Exercise same original park already settled, new nonce after cached empty nonce, and stale cached address.
+- [x] Exercise preparation error, console cancellation while blocked, duplicate during blocked preparation, callback completion and pending-key release. Assert cancellation settles once, no late effect, and no worker survives fixture shutdown.
+- [x] Assert O(N) cached selection and constant full-pass/effect counts at8 and16 rows, no per-row external query. Retain existing authentication, confirmation, max receipt and queue overload tests.
+- [x] Run targeted packages and focused race coverage. Commit verification evidence and update atlas/couch.md plus the issue Log with the receipt/selection ordering and refresh refusal.
 
 Commands after approval and change-code:
 
@@ -133,3 +133,5 @@ Pending hub approval. Important product delta: cached unknown/missing/ambiguous 
 2026-10-18 — Ad-hoc review caught a pre-existing alias lookup before held receipt lookup. The approved duplicate-first contract requires shared admission to inspect held receipts/conflicts under the mutex before any catalog IO, then recheck after unlocked lookup; regression covers catalog failure and a changed-target ID conflict. Review confirmed the fix; no new identity or state policy.
 
 2026-10-18 — Live scheduling revision approved by hub delivery cedf3674-7d87-4875-b420-7475d250532f: no :0 staging, because a staged binary cannot replace the long-lived server. Land on private-service conformance plus required suite and SHIP. Pair:8 operator-server acceptance is explicitly owed after the next operator Couch restart, tracked by the hub. Follow-up ownership revised by delivery c3ea26f5-c568-4ea7-9a49-893a8be886c4: after landing, provide evidence handoff for #683/#684; do not start their implementation.
+
+2026-10-18 — Implementation and private proof checklist completed. Existing guard-table/core coverage supplies settled-original, stale address and cached-empty/new-nonce checks; real transport covers nonce replacement at both queue boundaries. Suite and boundary review may overlap under tl-worker; final landing and operator-server live acceptance remain pending as explicitly recorded above.
