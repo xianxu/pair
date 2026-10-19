@@ -1,6 +1,6 @@
 ---
 id: 000702
-status: codecomplete
+status: done
 created: 2026-10-19
 updated: 2026-10-19
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: ebb6962cd0cbbd7e50572a79409281119b3fcd6c
         evidence_commit: 2338a4b35d68675fa59d7c31b4b103dc7dcdcee1
+        landed_commit: b84fb5d9d7a7a9301077fee7af36e1ca470855c1
 ---
 
 # Compress large database snapshots faster with measured levels and threads
