@@ -43,7 +43,7 @@ Durable plan: [workshop/plans/000684-…-plan.md](../plans/000684-fresh-fallback
 Prerequisite: #695 (the primitives: binding, the two-kind address, proven teardown; formerly M1–M2), which itself follows #683. #684's code starts from main after #695 lands (no stacking).
 
 - [ ] M1 — `Converge`; paths 1, 2, 3, 5, 6, 7, 8, 9, 10 onto it (fixes this issue's incident)
-- [ ] M2 — Paths 4, 11, 14, 15, 16; three-outcome classification with the two-actor anomaly
+- [ ] M2 — Paths 4, 11, 14, 15, 16; three-outcome classification with the two-actor anomaly; row notes, including two taken over from pair#695 M1 (BR-4): stored transcript binding resumed because the ledger was unreadable or missing, and the `legacy-ledger` binding source in the row detail
 - [ ] M3 — Lifecycle drill on a disposable slot with aged state, hub-triggered; 7 green nights
 
 ## Log
@@ -64,3 +64,4 @@ Prerequisite: #695 (the primitives: binding, the two-kind address, proven teardo
 - 2026-10-18 22:10 — operator: additive record compatibility instead of old-build refusal; plan §2a (tolerant + preserving decoders, no version bump, reasons stated).
 - 2026-10-18 23:00 — introduce-team scope addition (hub delivery da27249b): the lifecycle address has two kinds, slot (repo:N) and team hub (team folder with a committed .hub, no sdlc claims). Primitives and Converge take `LifecycleAddress`; type and tests land in M1. Type only: no milestone grows, hub addressing/startup/switcher stay in pair#694.
 - 2026-10-18 23:55 — split on the hub's decision (delivery 51ef8069): former M1–M2 (binding, two-kind address, proven teardown) are pair#695; deps now [pair#695]; remaining milestones renumbered M1–M3 (Converge; remaining paths; drill).
+- 2026-10-19 — received pair#695 M1 review BR-4: the transcript-binding row note and `legacy-ledger` row detail are #684 M2 items; plan updated (5d3d7f22f).
