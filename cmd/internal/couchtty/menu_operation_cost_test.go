@@ -55,6 +55,7 @@ func TestMenuOperationWorkCountersCoverEveryScan(t *testing.T) {
 				allowed := identNamed(call.Fun, "menuRowKey") || identNamed(call.Fun, "menuOperationTarget")
 				if selector, ok := call.Fun.(*ast.SelectorExpr); ok {
 					allowed = identNamed(selector.X, "couchcore") && (selector.Sel.Name == "ThreadAddress" || selector.Sel.Name == "ThreadRowKey")
+					allowed = allowed || identNamed(selector.X, "index") && (selector.Sel.Name == "add" || selector.Sel.Name == "forRow")
 				}
 				if !allowed {
 					t.Errorf("%s scan calls an uncounted helper; account for its work explicitly", fn.Name.Name)
@@ -92,6 +93,48 @@ func TestMenuOperationWorkCountersCoverEveryScan(t *testing.T) {
 	}
 	if found != 2 {
 		t.Fatalf("found %d measured helpers; want projection and pruning", found)
+	}
+}
+
+// The alias index's two fixed-work helpers and their local dependencies cannot
+// hide a scan from the measured caller. Hashing one accepted path is independent
+// of inventory/job count; it reuses launcher's existing scope derivation.
+func TestMenuOperationAliasIndexHelpersDoNotScan(t *testing.T) {
+	file, err := parser.ParseFile(token.NewFileSet(), "menu_operations.go", nil, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	checked := map[string]bool{"add": false, "forRow": false, "menuOperationIdentityFor": false, "preferMenuOperation": false}
+	for _, decl := range file.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok {
+			continue
+		}
+		if _, wanted := checked[fn.Name.Name]; !wanted {
+			continue
+		}
+		checked[fn.Name.Name] = true
+		ast.Inspect(fn.Body, func(node ast.Node) bool {
+			switch node.(type) {
+			case *ast.RangeStmt, *ast.ForStmt:
+				t.Errorf("%s hides an uncounted scan", fn.Name.Name)
+			}
+			if call, ok := node.(*ast.CallExpr); ok {
+				allowed := identNamed(call.Fun, "menuOperationIdentityFor") || identNamed(call.Fun, "preferMenuOperation") || identNamed(call.Fun, "menuOperationReplacesAddress") || identNamed(call.Fun, "menuRowKey")
+				if selector, ok := call.Fun.(*ast.SelectorExpr); ok {
+					allowed = identNamed(selector.X, "launcher") && selector.Sel.Name == "ResolveRepoScope" || identNamed(selector.X, "couchcore") && (selector.Sel.Name == "ThreadAddress" || selector.Sel.Name == "ThreadRowKey")
+				}
+				if !allowed {
+					t.Errorf("%s adds an unaudited alias helper", fn.Name.Name)
+				}
+			}
+			return true
+		})
+	}
+	for name, found := range checked {
+		if !found {
+			t.Errorf("alias helper %s not audited", name)
+		}
 	}
 }
 

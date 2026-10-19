@@ -27,6 +27,8 @@ navigation position. If hosted endpoint proof disappears, the same pending
 request transfers once to lifecycle or reports overload; navigation never
 resumes or adopts. Remote calls, continuation and startup use lifecycle workers.
 
+Running start reservations keep their original identity while inventory materializes: pure aliases use the exact numbered checkout or the primary scope derived by launcher from the accepted worktree. Address-replacing ordinary actions reserve that primary scope too; other ordinary actions stay address-specific. Admission, busy selection and linear row projection use these aliases; final outcomes still bind to exact returned identity.
+
 `console_operation_adoption.go` prepares final outcomes off Run. Installation
 reserves identity under the console mutex, performs resize/registration outside
 it, and revalidates lifetime, endpoint and geometry before committing. Rejected

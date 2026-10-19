@@ -8,6 +8,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/rowtext"
 )
 
@@ -66,29 +67,75 @@ func menuOriginForAttempt(state MenuState, attempt uint64) MenuOperationOrigin {
 	_, job, _ := menuOperationForAttempt(state, attempt)
 	return job.Origin
 }
-func menuOperationForRow(state MenuState, row couchcore.ActionableThreadSummary) (MenuOperation, bool) {
-	if job, ok := state.Operations[menuOperationTarget{RowKey: menuRowKey(row)}]; ok {
-		return job, true
+
+// menuOperationIdentity derives aliases without changing a reservation or its
+// immutable origin. Scope aliases belong only to running primary creation or
+// replacement; ordinary actions otherwise retain exact-address ownership.
+type menuOperationIdentity struct {
+	RowKey       couchcore.ThreadRowKey
+	Address      couchcore.ThreadAddress
+	SlotPath     string
+	PrimaryScope string
+}
+
+func menuOperationIdentityFor(target menuOperationTarget, job MenuOperation) menuOperationIdentity {
+	identity := menuOperationIdentity{RowKey: target.RowKey, Address: job.ResultAddress}
+	if target.RowKey.Kind == couchcore.ThreadTargetSlot {
+		identity.SlotPath = target.RowKey.SlotPath
 	}
-	for _, job := range state.Operations {
-		if row.Address != (couchcore.ThreadAddress{}) && job.ResultAddress == row.Address {
-			return job, true
+	if job.Phase != MenuOperationRunning {
+		return identity
+	}
+	if target.StartPath != "" {
+		identity.SlotPath = target.StartPath
+		if scope, err := launcher.ResolveRepoScope(target.StartPath); err == nil {
+			identity.PrimaryScope = scope.Key
+		}
+	} else if target.RowKey.Kind == couchcore.ThreadTargetOrdinary && menuOperationReplacesAddress(job.Origin) {
+		identity.PrimaryScope = target.RowKey.Address.RepoScope
+	}
+	return identity
+}
+
+func menuOperationIdentitiesOverlap(a, b menuOperationIdentity) bool {
+	return a.RowKey != (couchcore.ThreadRowKey{}) && a.RowKey == b.RowKey ||
+		a.Address != (couchcore.ThreadAddress{}) && (a.Address == b.Address || a.Address == b.RowKey.Address) ||
+		b.Address != (couchcore.ThreadAddress{}) && b.Address == a.RowKey.Address ||
+		a.SlotPath != "" && a.SlotPath == b.SlotPath ||
+		a.PrimaryScope != "" && (a.PrimaryScope == b.PrimaryScope || b.RowKey.Kind == couchcore.ThreadTargetOrdinary && a.PrimaryScope == b.RowKey.Address.RepoScope) ||
+		b.PrimaryScope != "" && a.RowKey.Kind == couchcore.ThreadTargetOrdinary && b.PrimaryScope == a.RowKey.Address.RepoScope
+}
+
+func preferMenuOperation(candidate, previous MenuOperation) bool {
+	if previous.Phase == 0 {
+		return true
+	}
+	if (candidate.Phase == MenuOperationRunning) != (previous.Phase == MenuOperationRunning) {
+		return candidate.Phase == MenuOperationRunning
+	}
+	return candidate.Origin.Attempt > previous.Origin.Attempt
+}
+
+func menuOperationForRow(state MenuState, row couchcore.ActionableThreadSummary) (MenuOperation, bool) {
+	identity := menuOperationIdentityFor(menuOperationTarget{RowKey: menuRowKey(row)}, MenuOperation{ResultAddress: row.Address})
+	var found MenuOperation
+	for target, job := range state.Operations {
+		if menuOperationIdentitiesOverlap(menuOperationIdentityFor(target, job), identity) && preferMenuOperation(job, found) {
+			found = job
 		}
 	}
-	return MenuOperation{}, false
+	return found, found.Phase != 0
 }
 func menuRunningForAddress(state MenuState, address couchcore.ThreadAddress) (MenuOperation, bool) {
-	if row, ok := menuThread(state, address); ok {
-		if job, exists := menuOperationForRow(state, row); exists && job.Phase == MenuOperationRunning {
-			return job, true
-		}
+	if address == (couchcore.ThreadAddress{}) {
+		return MenuOperation{}, false
 	}
-	for _, job := range state.Operations {
-		if job.Phase == MenuOperationRunning && job.Origin.Address == address {
-			return job, true
-		}
+	row, ok := menuThread(state, address)
+	if !ok {
+		row = couchcore.ActionableThreadSummary{Address: address}
 	}
-	return MenuOperation{}, false
+	job, exists := menuOperationForRow(state, row)
+	return job, exists && job.Phase == MenuOperationRunning
 }
 func replaceMenuOperationOrigin(state MenuState, origin MenuOperationOrigin) MenuState {
 	key, job, ok := menuOperationForAttempt(state, origin.Attempt)
@@ -161,8 +208,9 @@ func dispatchMenuOperation(state MenuState, effect MenuEffect, address couchcore
 		state.Notice = errorMenuNotice("no exact operation target is available")
 		return state, nil
 	}
+	candidate := menuOperationIdentityFor(target, MenuOperation{Origin: MenuOperationOrigin{Operation: effect.Operation, Address: address, RowKey: target.RowKey}, Phase: MenuOperationRunning})
 	for key, job := range state.Operations {
-		if job.Phase == MenuOperationRunning && (key == target || key.Couch || target.Couch) {
+		if job.Phase == MenuOperationRunning && (key.Couch || target.Couch || menuOperationIdentitiesOverlap(menuOperationIdentityFor(key, job), candidate)) {
 			state.Notice = errorMenuNotice("busy: " + job.Origin.Operation)
 			return state, nil
 		}
@@ -307,30 +355,66 @@ func menuOperationRows(state MenuState) map[couchcore.ThreadRowKey]MenuOperation
 	return menuOperationRowsMeasured(state, nil)
 }
 
-func menuOperationRowsMeasured(state MenuState, work *menuOperationWork) map[couchcore.ThreadRowKey]MenuOperation {
-	rows := menuRows(state)
-	byAddress := make(map[couchcore.ThreadAddress]couchcore.ThreadRowKey, len(rows))
-	for _, row := range rows {
-		if work != nil {
-			work.Rows++
+// menuOperationIndex is a temporary projection, discarded after each view.
+// Its fixed number of map operations per job/row keeps aliases linear even
+// when several visible ordinary rows share an owned primary scope.
+type menuOperationIndex struct {
+	byKey     map[couchcore.ThreadRowKey]MenuOperation
+	byAddress map[couchcore.ThreadAddress]MenuOperation
+	bySlot    map[string]MenuOperation
+	byScope   map[string]MenuOperation
+}
+
+func (index menuOperationIndex) add(target menuOperationTarget, job MenuOperation) {
+	identity := menuOperationIdentityFor(target, job)
+	if identity.RowKey != (couchcore.ThreadRowKey{}) && preferMenuOperation(job, index.byKey[identity.RowKey]) {
+		index.byKey[identity.RowKey] = job
+	}
+	if identity.Address != (couchcore.ThreadAddress{}) && preferMenuOperation(job, index.byAddress[identity.Address]) {
+		index.byAddress[identity.Address] = job
+	}
+	if identity.SlotPath != "" && preferMenuOperation(job, index.bySlot[identity.SlotPath]) {
+		index.bySlot[identity.SlotPath] = job
+	}
+	if identity.PrimaryScope != "" && preferMenuOperation(job, index.byScope[identity.PrimaryScope]) {
+		index.byScope[identity.PrimaryScope] = job
+	}
+}
+
+func (index menuOperationIndex) forRow(row couchcore.ActionableThreadSummary) MenuOperation {
+	key := menuRowKey(row)
+	job := index.byKey[key]
+	if candidate := index.byAddress[row.Address]; candidate.Phase != 0 && preferMenuOperation(candidate, job) {
+		job = candidate
+	}
+	if key.Kind == couchcore.ThreadTargetSlot {
+		if candidate := index.bySlot[key.SlotPath]; candidate.Phase != 0 && preferMenuOperation(candidate, job) {
+			job = candidate
 		}
-		if row.Address != (couchcore.ThreadAddress{}) {
-			byAddress[row.Address] = menuRowKey(row)
+	} else if key.Kind == couchcore.ThreadTargetOrdinary {
+		if candidate := index.byScope[key.Address.RepoScope]; candidate.Phase != 0 && preferMenuOperation(candidate, job) {
+			job = candidate
 		}
 	}
-	out := make(map[couchcore.ThreadRowKey]MenuOperation, len(state.Operations))
+	return job
+}
+
+func menuOperationRowsMeasured(state MenuState, work *menuOperationWork) map[couchcore.ThreadRowKey]MenuOperation {
+	rows := menuRows(state)
+	index := menuOperationIndex{byKey: make(map[couchcore.ThreadRowKey]MenuOperation), byAddress: make(map[couchcore.ThreadAddress]MenuOperation), bySlot: make(map[string]MenuOperation), byScope: make(map[string]MenuOperation)}
 	for target, job := range state.Operations {
 		if work != nil {
 			work.Jobs++
 		}
-		key := target.RowKey
-		if resolved, ok := byAddress[job.ResultAddress]; ok {
-			key = resolved
+		index.add(target, job)
+	}
+	out := make(map[couchcore.ThreadRowKey]MenuOperation, len(rows))
+	for _, row := range rows {
+		if work != nil {
+			work.Rows++
 		}
-		if key != (couchcore.ThreadRowKey{}) {
-			if previous, ok := out[key]; !ok || previous.Origin.Attempt < job.Origin.Attempt {
-				out[key] = job
-			}
+		if job := index.forRow(row); job.Phase != 0 {
+			out[menuRowKey(row)] = job
 		}
 	}
 	return out
