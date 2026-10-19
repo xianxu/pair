@@ -122,7 +122,7 @@ Files: new sqlite_cold_model.go, sqlite_cold.go; modify sqlite_snapshot.go and a
 
 - [x] Implement pure header/stamp rules, descriptor-based observation and bounded copy/re-read. Reuse existing hashing and context machinery; keep metadata IO out of pure entities.
 - [x] Wire one pre-acquisition route choice. Cold refusal never falls through to pinned backup; native active acquisition, private validation and all publication logic keep their current owners.
-- [ ] Run the red subset to green, then the whole historyarchive package and source inventory. Commit code and actual evidence with the session Agent trailer.
+- [x] Run the red subset to green, then the whole historyarchive package and source inventory. Commit code and actual evidence with the session Agent trailer.
 
 ### 3. Qualification and delivery
 
@@ -130,7 +130,7 @@ Files: atlas/history-backup.md, README.md (correct the existing all-transaction 
 
 - [x] Run existing SQLite active-writer, owner-death, source-overlap and continuous-publication tests alongside all new cold tests, then full artifactpath guards. Explain any changed expectation from its contract; do not merely update it.
 - [x] Document supported observed-cold semantics, conservative namespace refusal and the single recovery action. Keep no format/dependency claim honest; no manifest/catalog codec changes (ARCH-EVOLVE).
-- [ ] Run the recorded branch suite on the pushed implementation head.
+- [x] Run the recorded branch suite on the pushed implementation head.
 
 Delivery after qualification: close review; address findings with evidence. Enter sdlc merge promptly on SHIP, let it own main integration and its authoritative suite, then report Git-verified merge and acceptance to the hub. Stop before #710 until dispatched onward.
 

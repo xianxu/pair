@@ -60,7 +60,7 @@ total: 2.24
 - [x] Qualify the closed-WAL refusal and private-copy route with disposable native fixtures and adversarial ordering controls.
 - [x] Implement the bounded, descriptor-owned cold capture and share existing validation, staging and cleanup.
 - [x] Verify cold and active routes, source preservation, catalog publication, cancellation and counted costs; update the archive map.
-- [ ] Run the recorded branch suite.
+- [x] Run the recorded branch suite.
 
 Detailed design: [closed WAL compatibility plan](../plans/000701-closed-wal-compatibility-plan.md). Hub approved and change-code passed. Delivery follows qualification: close review, SDLC landing, Git-verified report to the hub and stop.
 
@@ -96,6 +96,10 @@ Detailed design: [closed WAL compatibility plan](../plans/000701-closed-wal-comp
 ### 2026-10-19 13:06 PDT — SHIP; preserve the pending runner
 
 Second close completed exit 0: SHIP, BR-1 addressed, zero new findings; evidence commit 1e32e42faa8d1066ccd1b475c49c400fa3ef2dce, published codecomplete, auto-measured actual 0.67h. Current recorded branch-suite attempt is 11b3d21450978b748de1e5049293eb39 on corrected code 3375a20570c743da2cf33165e0ef26fc468b73c1, exec session 65045, private checkout sdlc-local-1423522359. It is still queued (position 4 after about 30 minutes), no tests executed and no retry/failure. Inflight log: /Users/xianxu/workspace/pair/.git/sdlc/test-stats/inflight/11b3d21450978b748de1e5049293eb39/run.log. Preserve this runner; do not start a second suite or merge before its result. The old 7855ff58 attempt was explicitly cancelled before acquisition and is superseded. Server CI on the close's pushed head was independently green. After the recorded suite passes, complete the qualification checkboxes, commit/push only those final docs, enter sdlc merge --yes, verify merged PR #464 and the real Git merge hash on main, report to the hub and stop. Hub alias issue #711: retry once on a receipt-free refusal, then use exact ops:0; never restart Couch for it. #710 is queued after this item, not part of its branch.
+
+### 2026-10-19 — recorded suite passed; entering landing
+
+Corrected-code suite attempt 11b3d21450978b748de1e5049293eb39 completed exit 0 in 16m7s on 3375a20570c743da2cf33165e0ef26fc468b73c1, with no failures, registered-flake reruns or additional attempts. Saved log: /Users/xianxu/workspace/pair/.git/sdlc/local-checks/3375a20570c743da2cf33165e0ef26fc468b73c1/suite.log; log SHA256 prefix 2dff101141d5. Full historyarchive passed 211.342s and couchcore 508.961s. The suite posted sdlc-local/suite successfully. All qualification checkboxes are now supported by the recorded run; SHIP review/codecomplete is already finalized and all changes since reviewed code are documentation only. No real Codex database, Drive destination or normal archive sink was opened for acceptance. Enter the normal SDLC landing line; it owns main integration, CI and any required integrated-code suite. No new source changes or review are needed merely for these completed qualification notes.
 
 ## Revisions
 
