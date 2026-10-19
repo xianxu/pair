@@ -1,6 +1,6 @@
 ---
 id: 000693
-status: working
+status: codecomplete
 created: 2026-10-18
 updated: 2026-10-19
 estimate_hours:
@@ -14,6 +14,14 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
+actual_hours: 0.50
+tracker:
+    version: 1
+    completion:
+        token: close-cfc2ae50e856
+        repository: github.com/xianxu/pair
+        reviewed_head: 877401b241a651bd16c3dc6c14def7447e0917e5
+        evidence_commit: aab4df76cf610fa78618155aa8bc89a3441f75a2
 ---
 
 # flake: lifecycle primary-slot notice can race verified workspace publication
