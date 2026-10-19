@@ -109,6 +109,21 @@ total: 4.93
 - Restore always verifies staged ciphertext against the label before GPG/zstd and validates all tar members, including unselected files, before exclusive publication to a new scratch target. The real Drive/day/key drill remains the operator's. No retention or live-data import is included.
 - Read-only component mapping reused existing safe paths, catalog/receipt/hash helpers, rclone runner/fake and isolated GPG fixture. Full design and initial batch limits are awaiting hub approval before change-code.
 
+### 2026-10-19 — implementation admitted
+
+- Plan quality CLEAN after PQ-1 disposition; change-code passed with derived estimate 4.93 h. Estimate review INFO: cross-component fixture/race/Linux/full-suite work and active operator qualification are tracked explicitly in this Log; idle operator scheduling is excluded. The library discount covers existing mechanics; remaining ownership/evidence/publication contracts stay custom work.
+- M1 RED/GREEN: compatible label/key codecs, index refresh/history/unknown-field codecs, UTC selection, read-only catalog, local catalog-loss discovery, ownership-stamped staging and atomic index store. Focused catalog/store tests passed with race; codec fuzz passed 51,035 executions. M1 is not closed yet; CLI/Drive integration and normal guards remain.
+- Installed rclone v1.75.2 refused files-from-raw with max-size. Switched the new exact-name download seam to tested rooted filter rules, preserving actual max-size/hard max-transfer caps. Conformance downloaded the selected 5-byte label, skipped a 9-byte object under a 4-byte max-size, and refused a 4 MiB transfer under a 1 MiB cap without retained partial output. Upload transport unchanged.
+- Independent existing fixture defect filed unclaimed as pair#696. Fractional mtimes make pair byte sizes unequal, but TestDriveMirrorBatchBudgetDefersCompletePairs budgets only pair 0. A controlled .1Z/.123456789Z case produces totals 3481/4009 and reproduces second-pass deferral with byte-identical legacy labels. No unrelated fix/assertion weakening. Hub message 62c9378c-5ebc-4036-a3a0-1b40c6310719 submitted after an initial pre-admission unavailable refusal.
+
+### 2026-10-19 — M1 qualification checkpoint
+
+- CLI create/find/local-sync fixture passed with public JSON output and no private filename/root exposure; find does not publish an index. An invalid optional Drive locator no longer blocks local discovery (RED invalid-remote refusal, then GREEN focused view/sync tests).
+- Counted local N=8/16 work: two shard passes and 2N record visits, one catalog directory enumeration and N label reads. Catalog-loss fallback performs three kind/year/month enumerations and 2N label reads. A repeated-lookup control increases measured counters. Combined catalog/local/view/sync races passed (20.261 s).
+- Drive label sync N=8/16 uses <=4 subprocess calls, two flat listings and one label batch, zero ciphertext downloads/checksum fallback. Partial/conflicting observations preserve the prior snapshot. Index codec fuzz passed 1,194 executions; broader M1 focused race passed (50.155 s).
+- Full changed-package run: archivecmd and archivetest passed; historyarchive failed only the previously filed #696 fixture at the same deferred-retry boundary. Artifact coverage initially found three stale ignored runtime mirror files absent from current source; regeneration through runtimebundlegen cleared it and artifactpath passed (13.461 s). Repository lint passed (11.748 s). No assertion/deadline change, retry qualification or broad-suite success is claimed.
+- Preparing the pushed checkpoint and recorded full suite. M1 mandatory review and M2 implementation/live acceptance remain outstanding.
+
 ## Revisions
 
 - 2026-10-18: clarified the later sync-index Spec supersedes remote queries from find. Recorded the hub-approved label/location evidence and atomic refresh contract; original Done-when obligations are retained without reduction. Added the durable plan with M1/M2 review boundaries.

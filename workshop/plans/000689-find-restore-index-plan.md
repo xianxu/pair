@@ -129,11 +129,12 @@ This is explicit batch CLI work, not a UI/keystroke hot path. Reuse the current 
 
 Files: add label_json.go, label_index_model.go, label_index_store.go, label_index_local.go, label_index_drive.go, find_model.go, staging_model.go, owned_staging.go and colocated tests under historyarchive; extend model.go/plan.go/catalog.go/rclone.go and the stateful fake; add archivecmd/find.go and sync_index.go with CLI tests; update help/README/atlas and artifactpath source inventory.
 
-- [ ] Use the named-function strategies below in RED/GREEN order to implement compatible label/index codecs, SelectLabels and ApplyIndexRefresh.
-- [ ] Implement existing-only local projection, bounded label discovery, atomic LabelIndexStore and shared OwnedStaging through their function-level contracts below.
-- [ ] Extend Rclone/FakeRclone downloads and implement complete Drive label observation; qualify the fixed-cost, labels-only synchronization contract below.
-- [ ] Fixture: create/upload archives, delete local catalog/index/labels/bundles (keep only fake remote and unrelated source originals), sync from Drive labels alone, find identical IDs/ranges/locations, and prove no private CatalogRecord or upload receipt was invented.
+- [x] Use the named-function strategies below in RED/GREEN order to implement compatible label/index codecs, SelectLabels and ApplyIndexRefresh.
+- [x] Implement existing-only local projection, bounded label discovery, atomic LabelIndexStore and shared OwnedStaging through their function-level contracts below.
+- [x] Extend Rclone/FakeRclone downloads and implement complete Drive label observation; qualify the fixed-cost, labels-only synchronization contract below.
+- [x] Fixture: create/upload archives, delete local catalog/index/labels/bundles (keep only fake remote and unrelated source originals), sync from Drive labels alone, find identical IDs/ranges/locations, and prove no private CatalogRecord or upload receipt was invented.
 - [ ] Add CLI validation/help/JSON output/config resolution and README/atlas/index ownership notes. Register all production files. Run focused/race/guard tests and `sdlc milestone-close --issue 689 --milestone M1` with evidence; fix the binary-owned review findings before M2.
+
 
 ### M2 — verified restore, real-key round trip and operator drill
 
@@ -175,3 +176,5 @@ ARCH-DRY reuses publication/path/hash/Drive primitives and extracts filename der
 - 2026-10-18: full plan approved as written by hub d9acf9a3-51ac-4eda-9dc9-1a70065e04ac, including snapshot/restore caps and lifetime locks. The hub will arrange the required operator Claude-day Drive drill when M2 is ready. Proceed to change-code; automated plan quality and derived estimate remain required before implementation.
 
 - 2026-10-18 PQ-1: consolidated repeated milestone case inventories into the named-risk-function strategy table, including selection, staging ownership and restore transitions. Behavioral contracts, resource bounds, end-to-end recovery and operator acceptance are unchanged.
+
+- 2026-10-19 installed-rclone conformance: v1.75.2 rejects files-from-raw combined with max-size. The exact canonical-name download batch therefore uses rooted include filter rules plus the closing exclude, retaining max-size and hard max-transfer. Selected-byte, oversized-file and transfer-cutoff probes passed; upload transport is unchanged.
