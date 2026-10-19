@@ -1,14 +1,22 @@
 ---
 id: 000693
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-18
-updated: 2026-10-18
+updated: 2026-10-19
 estimate_hours:
 severity: medium
 collaboration-mode: collaboration
-card_mirror: '59e2da12810319dd16a3c26ccce3459337fe5607' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '8c0a2d1531cf0204d955260fba6ff5c83e91da83' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-19T03:57:11-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:2
+    worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
+    repository: github.com/xianxu/pair
 ---
 
 # flake: lifecycle primary-slot notice can race verified workspace publication
@@ -31,6 +39,23 @@ Reproduce and repair the lifecycle publisher/fixture readiness race without rela
 ## Plan
 
 Diagnose the exact lifecycle publisher interleaving, add a red deterministic case, then fix the responsible seam. Do not change #681 admission/receipt code unless new evidence makes that code reachable.
+
+### Diagnosis (2026-10-19, pair:2)
+
+The failing interleaving: `messageService.loop` step publishes `connected` (and liveness) before `execute(EffectConnect)` writes `s.workspaces[b]`. The fixture's `waitConnected(worker)` can return in that window; `p.refresh()` then snapshots a cache without the worker, and `p.observe(ordinary fact)` reaches `observeFactLocked` with no identity. The `!ok && Target.Kind == ordinary` branch returns, dropping the fact for good. The publisher's later refreshes (the loop signals it after every step) do cache the worker, but nothing remains to resolve, so the notice never comes and `lifecycleNextMessage` waits out the package deadline (testwait.After).
+
+That window is not only a fixture gap. In production the same drop is the normal case: the Console emits `started` (or relaunched, resumed, recovered) when the child launches, while the wrapper's message session connects and its workspace is verified seconds later. An ordinary-target fact (a row the slot inventory does not project as a slot, such as a registered primary checkout) therefore usually arrives before its identity is cached, and is lost. Untargeted facts (`Target` empty) already wait in `unresolved` and resolve on the next refresh; ordinary facts are the one class dropped outright. So the root cause is the publisher's drop, not the loop's publish order: reordering `connected` after the workspace write would close only the microsecond test window (and the loop's publish-first order is deliberate, see its comment), while the seconds-long production gap would keep losing notices.
+
+### Fix
+
+- [ ] Red first, deterministic, no timing: a publisher regression that observes the ordinary-target fact before the worker's wrapper connects at all (the widest form of the connected-before-cache window), then connects it and expects the notice. Today it fails (the fact is dropped). A second case keeps the existing order: cached first, fact after.
+- [ ] `observeFactLocked`: an ordinary target without a cached identity waits in `unresolved`, like an untargeted one, instead of returning (ARCH-PURPOSE: the class is "a fact that arrives before its identity", not the one test). `reducePendingLocked` already resolves it on the next refresh, which the message loop triggers after each registry step, so the notice follows the workspace publication without a poll or retry.
+- [ ] Bound (ARCH-FUNERAL): `unresolved` stays keyed by path, newest observation wins, and is cleared at restart drain (with its diagnostic) and on ownership change. At its 128 cap a new path evicts the entry with the oldest observation rather than being refused, so threads that never verify (non-slot directories) cannot crowd out a resolvable one. Per-path residue is one observation.
+- [ ] Fixture readiness: the primary-slot test waits for the worker's verified workspace in the message service cache (a `waitWorkspace` rig helper over `s.workspaces`, the evidence `refresh` consumes), not `connected`. No sleeps as readiness.
+- [ ] Bounded diagnostic: `lifecycleNextMessage` takes the publisher and, on timeout, fails with its state: unresolved paths and observations, cached identity roots, hub roots, ready tokens, attempts, plus the service's cached workspaces. Capped in size.
+- [ ] Verify: the regression fails before the fix and passes after; `go test ./cmd/internal/couchcmd -run Lifecycle -count=50` under load (a concurrent CPU burner), and the full suite.
+
+ARCH-ORDER: the publisher's states for a fact are dropped, unresolved, or confirmed. This change moves ordinary facts lacking identity from dropped to unresolved. The events that can interleave are fact-before-identity, identity-before-fact, drain, and ownership change; each now has a defined outcome, and the tests cover the first two orders. ARCH-CONSTRAINTS: reduction stays in memory under the publisher lock, bounded at 128 entries; no discovery or subprocess is added. ARCH-SECURE: no new inputs; a cached identity remains the only slot authority (an unresolved fact still cannot claim a slot). #681 admission and receipt code are unchanged.
 
 ## Log
 
