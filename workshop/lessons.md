@@ -2343,3 +2343,6 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #687 close review: a composition regression must enter the production options/constructor path with its stateful inspection seam. Replacing its Proof in the test only verifies the adapter, not the wiring; confirm a controlled wiring removal fails the production-path regression. Freeze prepared issue/plan artifacts while close reviews run, even for verification-only log updates.
 
 - #687 BR-1: pure predicates use literal value fixtures, even when a convenient integration fixture exists. Audit setup as well as assertions: a test for a PURE entity must not create/read metadata or inject a process probe; keep those effects in separate integration tests.
+
+- #683 PQ-1/PQ-2: A terminal recorder must account for failures after effect completion and successes that wrote no durable row. Define admission ordering and the lifetime of supersession evidence, then sweep existing capture writers so nested helpers collect evidence while one terminal owner publishes. Test reverse completion with identical clock values.
+- #683 PQ-3/PQ-4: Length bounds do not keep argv secrets out of diagnostics; persist catalog-only process kinds. Plans name each risky parsing/normalization/projection function and its adversarial guard rather than repeating a case inventory.
