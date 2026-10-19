@@ -85,6 +85,12 @@ Durable design: [000678-drive-history-backup-plan.md](../plans/000678-drive-hist
 - Recorded suite launched on pushed source head 1ed7a6e86e1e4aa2be0e97d67a8ad03ce4538d5f, currently waiting in machine capacity line (position 3 when last observed). Running exec session 19377; inflight log /Users/xianxu/workspace/pair/.git/sdlc/test-stats/inflight/b9fa9937cb7f8be6385ed9881047a05e/run.log . Keep this one run; do not duplicate or kill another slot's process. Initial server checks: merge-check and local-gates guard passed; conformance pending.
 - Still owed: full recorded suite result, actual operator Drive pass/rerun evidence, binary-owned close review and landing. No cause to change source or repeat passing targeted checks while these are pending. A newly identified defect would require its own focused regression and final-head suite as usual.
 
+### Live-driven transport revision — 2026-10-18
+
+- Canonical hub receipts b4588b23-0c2c-4250-bf98-508602961c6a and 89180927-8227-4f02-8f4f-a093e1a771d2 report operator pass works but 116 serial copyto invocations for 58 bundles / 790 MB is slow on gigabit. Operator uses explicit PAIR_DATA_DIR=$HOME/.local/share/pair from their slot. This is real performance evidence, not final batch acceptance.
+- Full replan: one copy batch (--transfers 8), same two flat listings, one filtered downloaded-hash batch if needed, partial-batch per-pair receipts. Flat staging reason is local kind/year/month paths versus flat remote names; use descriptor-checked hard links normally, EXDEV verified copy fallback. Apply hub's 4 GiB logical complete-pair cap, defer overflow visibly, and clean staging on every outcome. Fake counts actual subprocess invocations constant at N/2N, not merely per-object transfers.
+- Current running suite on the serial source remains evidence for that earlier source only, not batch qualification. No second suite started. The revised plan is committed and change-code is rerun before production changes. New live candidate/acceptance is owed after batching.
+
 ## Estimate
 
 *Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only. Calibration is marked stale by estimate-source, so values remain provisional.*
