@@ -36,7 +36,7 @@ Add a Drive sink to historyarchive that shells out to rclone (remote and folder 
 
 ## Plan
 
-Durable design: [000678-drive-history-backup-plan.md](../plans/000678-drive-history-backup-plan.md). Full flow; awaiting hub approval before change-code.
+Durable design: [000678-drive-history-backup-plan.md](../plans/000678-drive-history-backup-plan.md). Full flow; hub approved before change-code (delivery f7e7fe62-5f41-4133-ba43-4296e82fd885).
 
 - [ ] Define destination/receipt identities and pure upload transitions; test configuration defaults and remote-only failures.
 - [ ] Implement the bounded rclone seam with a stateful fake and disposable installed-rclone local conformance.
@@ -56,3 +56,5 @@ Durable design: [000678-drive-history-backup-plan.md](../plans/000678-drive-hist
 ## Revisions
 
 - 2026-10-18: expanded the initial empty Plan into a full-flow design after inspecting local catalog identity and publication. Proposed a destination-specific upload catalog, keeping the existing local schema and authority unchanged; retained the original Spec and Done when for hub review.
+
+- 2026-10-18 approval: canonical submitted hub receipt f7e7fe62-5f41-4133-ba43-4296e82fd885 approves the plan, receipt family and bounds. Added per-bundle backend/downloaded checksum-path reporting; hub arranges live Drive pass after fake-backed readiness. Proceeding to change-code.
