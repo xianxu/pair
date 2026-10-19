@@ -5,10 +5,10 @@ deps: []
 github_issue:
 created: 2026-10-18
 updated: 2026-10-19
-estimate_hours:
+estimate_hours: 3.851
 severity: high
 collaboration-mode: collaboration
-card_mirror: 'e1153d7c0f30a59d41abc7a7064bf380cd57c33d' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '0a8bf5a1478e432961002a29f0b12d5dce182ef3' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-19T02:08:51-07:00
 claimant:
     operator: Xian Xu
@@ -17,6 +17,7 @@ claimant:
     workspace: pair:5
     worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
     repository: github.com/xianxu/pair
+flow: {kind: full, provenance: operator}
 ---
 
 # Successful park cleanup remains unresolved and lifecycle failures lose diagnostics
@@ -40,6 +41,30 @@ Distinguish verified park recovery, retained unresolved evidence and explicit Fr
 - [ ] Recovery and Fresh outcomes explicitly distinguish finalized park from archived unresolved evidence; unknown/replaced owner guards remain intact.
 - [ ] The retained incident is diagnosed as far as evidence permits; missing original error and uncertain menu choice remain explicit, not reconstructed as facts.
 - [ ] Required verification and review pass before normal landing.
+
+## Estimate
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only; calibration is marked stale by estimate-source, so the rates are provisional. Scope includes design, tests, private conformance, docs and one close review; machine queue idle time is excluded by actuals.
+
+The issue/spec item accounts for design already performed. Implementation decomposes into codec, history/store, ordered attempt coordinator, dispatcher, queue integration, receipt mapping, cached projection and row/show rendering. Existing JSON/flock/storage/console seams cover the library check; the ordered attempt semantics are local policy, not a missing external library. Remaining design uses the thorough-spec 0.2 discount; familiar Go/Couch work uses familiarity 1.0. Every impl value below is already 40% of its v2 table value, applied once. One review boundary and one atlas update are included.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.70 impl=0.08
+item: smaller-go-module design=0.04 impl=0.20
+item: smaller-go-module design=0.04 impl=0.16
+item: greenfield-go-module design=0.20 impl=0.32
+item: skill-or-dispatcher design=0.12 impl=0.20
+item: cross-cutting-refactor design=0.12 impl=0.20
+item: smaller-go-module design=0.02 impl=0.12
+item: smaller-go-module design=0.06 impl=0.20
+item: tui-screen design=0.20 impl=0.32
+item: atlas-docs design=0.02 impl=0.08
+item: milestone-review design=0.02 impl=0.20
+design-buffer: 0.15
+total: 3.851
+```
 
 ## Plan
 

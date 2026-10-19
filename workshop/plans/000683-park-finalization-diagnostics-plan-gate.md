@@ -1,4 +1,24 @@
 ---
+reviewer_runs:
+    - version: 1
+      intent:
+        id: 9d5847f9-dbd2-407d-b9a9-a39880e49101
+        repository: github.com/xianxu/pair
+        issue_id: "000683"
+        recipe: estimate-quality
+        round: 1
+        attempt: 1
+        agent: codex
+        root: /Users/xianxu/workspace/worktree/pair-slot5/pair
+        reviewed_head: 4eac6c8a1d051b5e8b0db5359a3be23dc9e2deb5
+        slot: pair:5
+        requested_at: "2026-10-19T09:25:39.347269Z"
+      phase: finished
+      pid: 898
+      started_at: "2026-10-19T09:25:39.441634Z"
+      finished_at: "2026-10-19T09:26:07.384868Z"
+      session_id: 01a1537b-1ce7-7f20-b48a-3779ee1b70c5
+      outcome: returned
 gate: plan-quality
 issue: 683
 id_prefix: PQ
@@ -53,6 +73,74 @@ rounds:
           family: function-test-strategy-contract
           round: 1
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: c6f52b2b-4973-476f-b282-5fb53f2ecfdd
+            repository: github.com/xianxu/pair
+            issue_id: "000683"
+            recipe: plan-quality
+            round: 2
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot5/pair
+            reviewed_head: 4eac6c8a1d051b5e8b0db5359a3be23dc9e2deb5
+            slot: pair:5
+            requested_at: "2026-10-19T09:23:19.089514Z"
+          phase: finished
+          pid: 71016
+          started_at: "2026-10-19T09:23:19.188874Z"
+          finished_at: "2026-10-19T09:23:46.280448Z"
+          session_id: 01a15378-f8ff-76b0-b047-1672c4644144
+          outcome: returned
+      "n": 2
+      timestamp: "2026-10-19T02:23:46-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: PQ-1
+          disposition: addressed
+          note: Admission order, serialized Finish, and an overlapping-attempt success watermark deterministically supersede late older failures; identical-clock permutation tests guard the rule.
+          round: 2
+        - id: PQ-2
+          disposition: addressed
+          note: Both capture helpers become evidence-only; owned and standalone paths publish through Finish, with immutable operation nonce and separate launch_nonce.
+          round: 2
+        - id: PQ-3
+          disposition: addressed
+          note: Holder summaries contain only catalog values, enforced during collection and normalization/encoding, with adversarial secret-bearing input tests.
+          round: 2
+        - id: PQ-4
+          disposition: addressed
+          note: The strategy table names risky functions with adversarial inputs and mechanical guards, replacing repeated case inventories while retaining integration proof and commands.
+          round: 2
+      blocked: false
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: 57210631-35ab-466e-a887-1f4d71b16a2e
+            repository: github.com/xianxu/pair
+            issue_id: "000683"
+            recipe: plan-quality
+            round: 3
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot5/pair
+            reviewed_head: 4eac6c8a1d051b5e8b0db5359a3be23dc9e2deb5
+            slot: pair:5
+            requested_at: "2026-10-19T09:25:03.073839Z"
+          phase: finished
+          pid: 93526
+          started_at: "2026-10-19T09:25:03.165212Z"
+          finished_at: "2026-10-19T09:25:37.707105Z"
+          session_id: 01a1537a-8f1a-7922-b8fd-1e791b716a50
+          outcome: returned
+      "n": 3
+      timestamp: "2026-10-19T02:25:37-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      blocked: false
+content_hash: 26303c1ea3190de0887b16d73be1931237f988cd5f13a488e3aa39eb1f34c204
 ---
 
 # Gate ledger — pair#683 (plan-quality)
@@ -73,9 +161,17 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **PQ-4** [Important] `function-test-strategy-contract` Replace prose test inventories with named function strategies
   Section 7 Task 1 enumerates cases beginning “Cover 64 maximum-size entries...” while the strategy table leaves several functions unnamed as “preserving decoder/encoder, normalize/clone” and “cached projection / inventory.” Compress the repeated inventories into one adversarial strategy and mechanical guard per risky named function, retaining integration entry points and verification commands.
 
+## Round 2 — 2026-10-19T02:23:46-07:00 (codex) — passed
+
+### Disposed
+
+- PQ-1 — addressed — Admission order, serialized Finish, and an overlapping-attempt success watermark deterministically supersede late older failures; identical-clock permutation tests guard the rule.
+- PQ-2 — addressed — Both capture helpers become evidence-only; owned and standalone paths publish through Finish, with immutable operation nonce and separate launch_nonce.
+- PQ-3 — addressed — Holder summaries contain only catalog values, enforced during collection and normalization/encoding, with adversarial secret-bearing input tests.
+- PQ-4 — addressed — The strategy table names risky functions with adversarial inputs and mechanical guards, replacing repeated case inventories while retaining integration proof and commands.
+
+## Round 3 — 2026-10-19T02:25:37-07:00 (codex) — passed
+
 ## Open findings
 
-- **PQ-1** [Important] `terminal-order-supersession` Define late failure publication after a newer successful attempt
-- **PQ-2** [Important] `single-publication-ownership` Reconcile existing launch capture writers with the sole Finish recorder
-- **PQ-3** [Important] `diagnostic-secret-boundary` Define safe holder command evidence before persisting it
-- **PQ-4** [Important] `function-test-strategy-contract` Replace prose test inventories with named function strategies
+(none — every finding has been disposed)
