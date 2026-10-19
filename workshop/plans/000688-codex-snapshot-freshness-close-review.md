@@ -190,3 +190,83 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-19T03:27:13-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 688 — Codex database snapshots can starve under continuous writes |
+| repo | pair |
+| issue file | workshop/issues/000688-codex-snapshot-freshness.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | a6b6973dcf7dab9d192605c4f647fefc9d5d4981..f4b39f45d45569edd2f716ef9cd5e2efc2010d91 |
+| command | sdlc close --issue 688 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-19T03:27:13-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned range satisfies the revised snapshot contract. BR-2 is addressed by a complete source/output overlap check before mutation, with meaningful regression evidence. No new findings. README and atlas updates cover the new behavior and qualification steps.
+
+```findings
+dispose:
+  - id: BR-2
+    disposition: addressed
+    note: |
+      continuous.go:69-88 checks every discovered native root against scratch and every snapshot staging destination, including filtered kinds. Direct-overlap and symlink regressions pass at head; restoring the prior guard in a disposable checkout makes both fail and replaces foreign source bytes with "version 0". The disposable checkout was removed.
+```
+
+1. **Strengths**
+
+   - Source isolation runs before store creation and scratch cleanup (`continuous.go:69–90`).
+   - Acquisition and private integrity validation share an injected runner with bounded deadlines and output (`sqlite_snapshot_exec.go:46`).
+   - Freshness distinguishes validated acquisition from verified publication; ordinary publication failures preserve progress for later databases.
+   - Real SQLite fixtures check concurrent writes, opaque schema, rowids, source preservation, and orphan-reader cleanup.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Historyarchive, execalarm, archivecmd, artifactpath, and pair-go passed. Testpair initially encountered a disappearing temporary directory during concurrent package execution; its isolated rerun passed. The BR-2 negative control failed as expected. Retained native publication output confirms the documented verified history bundle. No native acquisition was rerun. The tracked checkout remains unchanged.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** One canonical overlap helper and one SQLite execution seam.
+   - **ARCH-PURE — pass:** Budgeting, classification, indexing, and rendering remain pure; filesystem/process work stays in integration components.
+   - **ARCH-PURPOSE — pass:** Active-writer progress and the complete cross-kind isolation rule are exercised.
+   - **ARCH-MOCK — pass:** Stateful runner tests and real SQLite conformance share the production seam.
+   - **ARCH-CONSTRAINTS — pass:** Serial acquisition, size admission, bounded streams, and size-scaled reader deadlines are enforced.
+   - **ARCH-SECURE — pass:** Canonical overlap checks, no-follow guards, identity fences, and private validation protect native sources.
+   - **ARCH-ORDER — pass:** Synchronous sequencing and controlled cancellation/owner-death fixtures cover relevant interruptions.
+   - **ARCH-FUNERAL — pass:** Deferred cleanup and leased crash sweeping collect scratch safely; staging replaces prior generations.
+   - **ARCH-EVOLVE — pass:** Persisted archive formats remain unchanged; opaque SQLite preservation is tested.
+
+7. **Plan revision recommendations:** None. Existing revisions describe the implemented budget and complete source-isolation rule.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"750bbb9d-4948-4f44-9ad1-ffede3dfb3b8","repository":"github.com/xianxu/pair","issue_id":"000688","recipe":"milestone-review","round":3,"attempt":1,"agent":"codex","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/1f87029a67631ed8","reviewed_head":"f4b39f45d45569edd2f716ef9cd5e2efc2010d91","slot":"pair:7","requested_at":"2026-10-19T10:24:25.320054Z"},"phase":"finished","pid":86319,"started_at":"2026-10-19T10:24:25.496258Z","finished_at":"2026-10-19T10:27:12.378372Z","session_id":"01a153b0-eb54-7d31-8683-35ca6ead8065","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.703385667s
+head: "f4b39f45d45569edd2f716ef9cd5e2efc2010d91"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

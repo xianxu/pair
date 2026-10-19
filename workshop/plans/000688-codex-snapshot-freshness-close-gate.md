@@ -352,6 +352,181 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 750bbb9d-4948-4f44-9ad1-ffede3dfb3b8
+            repository: github.com/xianxu/pair
+            issue_id: "000688"
+            recipe: milestone-review
+            round: 3
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/Library/Caches/sdlc/review-checkouts/1f87029a67631ed8
+            reviewed_head: f4b39f45d45569edd2f716ef9cd5e2efc2010d91
+            slot: pair:7
+            requested_at: "2026-10-19T10:24:25.320054Z"
+          phase: finished
+          pid: 86319
+          started_at: "2026-10-19T10:24:25.496258Z"
+          finished_at: "2026-10-19T10:27:12.378372Z"
+          session_id: 01a153b0-eb54-7d31-8683-35ca6ead8065
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-v1
+        repository: github.com/xianxu/pair
+        code_head: f4b39f45d45569edd2f716ef9cd5e2efc2010d91
+        tracker_head: 475e97a7241987d9e2710d69b944651d12202f7a
+        branch_point: a6b6973dcf7dab9d192605c4f647fefc9d5d4981
+        since: "2026-10-19T01:53:02-07:00"
+        until: "2026-10-19T03:23:32-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-19T01:53:02-07:00"
+              end: "2026-10-19T03:23:32-07:00"
+              began: "2026-10-19T01:53:02-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot7/pair
+        sources:
+            - harness: codex
+              id: 01a13398-d940-72d3-8d80-c203fc8bd296
+              slot: pair:7
+              cwd: /Users/xianxu/workspace/worktree/pair-slot7/pair
+              digest: ee084358525b98d00dda3d94a7d1521cad377d55c1c93e3aff4eb9b523b8be84
+              started: "2026-10-13T04:50:49.58Z"
+              spawned: false
+              bytes: 155113685
+              windows:
+                - start: "2026-10-19T01:53:02-07:00"
+                  end: "2026-10-19T03:23:32-07:00"
+            - harness: codex
+              id: 01a1535d-c093-7563-916a-4aae8e4ff82e
+              slot: pair:7
+              cwd: /Users/xianxu/workspace/worktree/pair-slot7/pair
+              parent_id: 01a13398-d940-72d3-8d80-c203fc8bd296
+              digest: 25746de8c949ef1c192a4d49d4f546a1f13262ac56c52cf343425bc6dd7d64cb
+              started: "2026-10-19T08:53:35.602Z"
+              spawned: true
+              bytes: 1280740
+              windows:
+                - start: "2026-10-19T08:53:35.602Z"
+                  end: "2026-10-19T03:23:32-07:00"
+            - harness: codex
+              id: 01a1536f-406a-7bb2-ba63-ed4b95d46c1d
+              slot: pair:7
+              cwd: /Users/xianxu/workspace/worktree/pair-slot7/pair
+              digest: 8c7ab9abb6789f7a0448d47f08bba42bd2de6f1958d17afb774a55eaf5cdfaeb
+              started: "2026-10-19T09:12:44.28Z"
+              spawned: false
+              bytes: 671753
+              windows:
+                - start: "2026-10-19T09:12:44.28Z"
+                  end: "2026-10-19T03:23:32-07:00"
+            - harness: codex
+              id: 01a15374-ce65-7651-b72b-80b6ffeb3301
+              slot: pair:7
+              cwd: /Users/xianxu/workspace/worktree/pair-slot7/pair
+              digest: 029b76addae97b0db7e2cf4364a7e0c5cb3c9e61c7ae3f832a1051a892f32069
+              started: "2026-10-19T09:18:47.34Z"
+              spawned: false
+              bytes: 441852
+              windows:
+                - start: "2026-10-19T09:18:47.34Z"
+                  end: "2026-10-19T03:23:32-07:00"
+            - harness: codex
+              id: 01a15376-9926-7cf1-b91c-bb26e288a54d
+              slot: pair:7
+              cwd: /Users/xianxu/workspace/worktree/pair-slot7/pair
+              digest: a9af8e9d0a82ee1cdd44acd3dd3b7b7b54989466585806e39acf3ecc450284cb
+              started: "2026-10-19T09:20:44.682Z"
+              spawned: false
+              bytes: 457304
+              windows:
+                - start: "2026-10-19T09:20:44.682Z"
+                  end: "2026-10-19T03:23:32-07:00"
+            - harness: codex
+              id: 01a15376-f5eb-7b13-9a62-d56820a6e716
+              slot: pair:7
+              cwd: /Users/xianxu/workspace/worktree/pair-slot7/pair
+              digest: 43d61d9388c25365355eec02df18d2fb5c620ca8ba0906fcdbe279e249500323
+              started: "2026-10-19T09:21:08.919Z"
+              spawned: false
+              bytes: 434844
+              windows:
+                - start: "2026-10-19T09:21:08.919Z"
+                  end: "2026-10-19T03:23:32-07:00"
+            - harness: codex
+              id: 01a15378-17ad-7542-a155-44719bc8c46d
+              slot: pair:7
+              cwd: /Users/xianxu/workspace/worktree/pair-slot7/pair
+              parent_id: 01a13398-d940-72d3-8d80-c203fc8bd296
+              digest: 78074bfd53b6381e9627cc3ecfab36e43ec6196ed6bc6ecf9eca5ac7061eead0
+              started: "2026-10-19T09:22:21.861Z"
+              spawned: true
+              bytes: 800204
+              windows:
+                - start: "2026-10-19T09:22:21.861Z"
+                  end: "2026-10-19T03:23:32-07:00"
+            - harness: codex
+              id: 01a15379-6eff-7841-a471-f6abd97c5d42
+              slot: pair:7
+              cwd: /Users/xianxu/workspace/worktree/pair-slot7/pair
+              parent_id: 01a13398-d940-72d3-8d80-c203fc8bd296
+              digest: 0845b68d392656fe95038be06a4d7371ceee8f21154aa086bb01f5d9ca16d86d
+              started: "2026-10-19T09:23:49.734Z"
+              spawned: true
+              bytes: 437481
+              windows:
+                - start: "2026-10-19T09:23:49.734Z"
+                  end: "2026-10-19T03:23:32-07:00"
+            - harness: codex
+              id: 01a1538a-9010-73c3-9d49-10f6c9c49119
+              slot: pair:7
+              cwd: /Users/xianxu/workspace/worktree/pair-slot7/pair
+              digest: bde7bc5fa4a69a8e4a4311408fc44cc486d22e80a48c719e3f608ffbda87e30e
+              started: "2026-10-19T09:42:32.991Z"
+              spawned: false
+              bytes: 482721
+              windows:
+                - start: "2026-10-19T09:42:32.991Z"
+                  end: "2026-10-19T03:23:32-07:00"
+            - harness: codex
+              id: 01a1538b-00d7-7913-8489-0eb452f6a06f
+              slot: pair:7
+              cwd: /Users/xianxu/workspace/worktree/pair-slot7/pair
+              digest: 6c59bfdf82b4d771d7a056f2165386cebb08dc816ab8c8e1b1c88898a5d6dec4
+              started: "2026-10-19T09:43:01.993Z"
+              spawned: false
+              bytes: 407988
+              windows:
+                - start: "2026-10-19T09:43:01.993Z"
+                  end: "2026-10-19T03:23:32-07:00"
+        cuts:
+            - dispatched: "2026-10-19T03:07:15-07:00"
+              finalized: "2026-10-19T03:09:58-07:00"
+              finalizing: false
+            - dispatched: "2026-10-19T03:17:38-07:00"
+              finalized: "2026-10-19T03:20:49-07:00"
+              finalizing: false
+      "n": 3
+      timestamp: "2026-10-19T03:27:13-07:00"
+      dispatched: "2026-10-19T03:24:22-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-2
+          disposition: addressed
+          note: continuous.go:69-88 checks every discovered native root against scratch and every snapshot staging destination, including filtered kinds. Direct-overlap and symlink regressions pass at head; restoring the prior guard in a disposable checkout makes both fail and replaces foreign source bytes with "version 0". The disposable checkout was removed.
+          round: 3
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: f4b39f45d45569edd2f716ef9cd5e2efc2010d91
+      blocked: false
 ---
 
 # Gate ledger — pair#688 (boundary-review)
@@ -377,6 +552,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-2** [Critical] `native-source-output-isolation` (kind: defect) Cross-kind staging overlap can overwrite another native source
   cmd/internal/historyarchive/continuous.go:71-77 checks each native root only against staging for that same kind. With snapshots/codex-database symlinked to home/.claude, both roots pass validation, then sqlite_snapshot.go:182 replaces home/.claude/state.sqlite. A disposable production-pass regression observed its original bytes replaced by "version 0". ARCH-SECURE and ARCH-PURPOSE require every snapshot output to be disjoint from every native source, including filtered kinds. Validate the complete source/output cross-product before mutation and add cross-kind alias and direct-overlap regressions.
 
+## Round 3 — 2026-10-19T03:27:13-07:00 (codex) — passed
+
+### Disposed
+
+- BR-2 — addressed — continuous.go:69-88 checks every discovered native root against scratch and every snapshot staging destination, including filtered kinds. Direct-overlap and symlink regressions pass at head; restoring the prior guard in a disposable checkout makes both fail and replaces foreign source bytes with "version 0". The disposable checkout was removed.
+
 ## Open findings
 
-- **BR-2** [Critical] `native-source-output-isolation` (kind: defect) Cross-kind staging overlap can overwrite another native source
+(none — every finding has been disposed)
