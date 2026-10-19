@@ -7,7 +7,8 @@ created: 2026-10-19
 updated: 2026-10-19
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: 'd010d56175ec5a722390b398072d3ff910e92a48' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'bb3045b35ea6475c0b90ad39d4898d16b22b1fc6' # card fields mirrored from issue-cards; edit via sdlc
+flake_tests: [github.com/xianxu/pair/cmd/internal/couchcore.TestSpawnComposesProductionPairRegistrationBoundary]
 ---
 
 # couchcore: TestSpawnComposesProductionPairRegistrationBoundary/fresh-slot hangs 20 min under load (split from #432)
@@ -40,3 +41,11 @@ probably load-sensitive. It now blocks a landing as an unattributable failure.
 ## Log
 
 ### 2026-10-19
+
+## Log
+
+- 2026-10-19 (hub, from pair:6): registered as a known flake. Same head f2333e342cc325ded2344fe69dd0d7309224dca7: pair#689's
+  integrated suite d963805085758c53cfbbab3363ad6432 failed after 26m12s (log 2f2ab4699a85; `fresh-slot` hung 1172.59 s,
+  "terminal not listed live", cleanup goroutine didn't exit, package hit its 20 min timeout); the unchanged targeted test
+  then passed in 6.666 s (ordinary 2.94 s, fresh-slot 3.44 s), same 20 min timeout, fake Zellij. The suite ran at twice its
+  median time (machine loaded).
