@@ -73,6 +73,7 @@ func TestSQLiteSnapshotIsCoherentAndLeavesSourceUntouched(t *testing.T) {
 // while that view remains stable; validation is a distinct later operation.
 type fakeSQLiteRunner struct {
 	generation, pinned, reads, validations int
+	budget                                 int
 	fail                                   error
 	corrupt, replace                       bool
 	cancel                                 context.CancelFunc
@@ -83,6 +84,7 @@ func (f *fakeSQLiteRunner) Run(ctx context.Context, req SQLiteRequest) (SQLiteRu
 		return SQLiteRunResult{}, errors.New("no lifetime lease")
 	}
 	if req.Purpose == SQLiteAcquire {
+		f.budget = req.ReadSeconds
 		f.reads++
 	} else {
 		f.validations++
@@ -107,6 +109,23 @@ func (f *fakeSQLiteRunner) Run(ctx context.Context, req SQLiteRequest) (SQLiteRu
 		return SQLiteRunResult{Stdout: "delete\ncorrupt\n"}, nil
 	}
 	return SQLiteRunResult{Stdout: "delete\nok\n"}, nil
+}
+
+func TestSQLiteSnapshotPassesMeasuredBudgetToRunner(t *testing.T) {
+	src := t.TempDir()
+	f, err := os.Create(filepath.Join(src, "history.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Truncate(1_993_663_216); err != nil {
+		t.Fatal(err)
+	}
+	f.Close()
+	fake := &fakeSQLiteRunner{}
+	result, err := (SQLiteSnapshotter{Scratch: t.TempDir(), Runner: fake}).Snapshot(context.Background(), src, "history.sqlite", t.TempDir())
+	if err != nil || result.Status != SnapshotReady || fake.budget != 21 {
+		t.Fatalf("budget was not applied: %+v fake=%+v err=%v", result, fake, err)
+	}
 }
 
 func TestSQLiteSnapshotProgressDespiteChangingSource(t *testing.T) {

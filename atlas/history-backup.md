@@ -206,7 +206,7 @@ does nothing.
   opens the live database through SQLite's read-only WAL-reader protocol,
   pins a read transaction and runs `.backup` into a private directory. DB/WAL
   content is never written by the reader; SQLite may create/update SHM read
-  marks. The source reader has a 5-second budget and a 250ms busy timeout,
+  marks. The source reader has a size-scaled 5–30 second budget and a 250ms busy timeout,
   with no retry inside the pass. The pair binary's internal `exec-alarm`
   launcher arms a kernel timer before execing SQLite, so collector death
   cannot leave an unbounded read pin. Its periodic interval also protects a
@@ -221,6 +221,12 @@ does nothing.
   the previous stage and verified bundles. A deferred database waits for the
   next scheduled pass or an explicit operator rerun; generic CLI failures are
   unknown failures, never guessed to be busy from their text.
+  The read budget is twice the estimated DB+WAL copy time at 190 decimal MB/s,
+  rounded up and clamped to 5–30 seconds. The measured approximately 2GB
+  history database gets 21 seconds; the context and kernel alarm use the same
+  value, never renewed. macOS system SQLite 3.54 may fail a closed WAL-mode
+  database lacking WAL/SHM sidecars; that diagnosed compatibility limitation
+  is tracked in #701, separately from the active-history backup fix.
 - **Database freshness:** each pass prints archived, unchanged, deferred or
   failed per database, plus its last verified catalog timestamp/age (or never).
   A checked-unchanged source is current even when its stored bundle is old;

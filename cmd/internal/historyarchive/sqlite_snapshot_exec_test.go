@@ -71,3 +71,12 @@ func TestExecSQLiteCancellationJoinsStartedChild(t *testing.T) {
 		}
 	}
 }
+
+func TestExecSQLiteRejectsOutOfPolicyBudgetBeforeExecution(t *testing.T) {
+	for _, seconds := range []int{-1, 4, 31, 600} {
+		_, err := (ExecSQLiteRunner{SQLite: "/must-not-be-executed"}).Run(context.Background(), SQLiteRequest{ReadSeconds: seconds})
+		if err == nil || !strings.Contains(err.Error(), "budget") {
+			t.Fatalf("out of policy budget %d reached exec: %v", seconds, err)
+		}
+	}
+}

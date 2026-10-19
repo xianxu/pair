@@ -25,6 +25,7 @@ type SQLiteRequest struct {
 	Purpose        SQLitePurpose
 	Database, Work string
 	Lease          *os.File
+	ReadSeconds    int
 }
 
 // SQLiteRunResult retains bounded tool output; overflow is never integrity evidence.
@@ -44,6 +45,12 @@ type ExecSQLiteRunner struct{ SQLite, Launcher string }
 
 func (r ExecSQLiteRunner) Run(ctx context.Context, req SQLiteRequest) (SQLiteRunResult, error) {
 	seconds, script := 5, ".timeout 250\nBEGIN;\nPRAGMA schema_version;\n.backup main snapshot.sqlite\nROLLBACK;\n"
+	if req.Purpose == SQLiteAcquire && req.ReadSeconds != 0 {
+		if req.ReadSeconds < 5 || req.ReadSeconds > 30 {
+			return SQLiteRunResult{}, errors.New("SQLite source budget must be 5 through 30 seconds")
+		}
+		seconds = req.ReadSeconds
+	}
 	if req.Purpose == SQLiteValidate {
 		seconds, script = 600, "PRAGMA journal_mode=DELETE; PRAGMA integrity_check;\n"
 	} else if req.Purpose != SQLiteAcquire {

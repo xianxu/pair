@@ -47,8 +47,8 @@ func observeDatabase(path string) (SnapshotObservation, os.FileInfo, error) {
 	return o, db, nil
 }
 
-// SQLiteSnapshotter pins a read-only source transaction for at most five
-// seconds, validates the private backup after releasing that reader, then
+// SQLiteSnapshotter pins a read-only source transaction for a size-scaled
+// 5..30 second budget, validates the backup after releasing that reader, then
 // replaces staging. SQLite may update SHM coordination, never DB/WAL content.
 // pair:m5-concept integration
 type SQLiteSnapshotter struct {
@@ -130,7 +130,7 @@ func (s SQLiteSnapshotter) Snapshot(ctx context.Context, root, rel, stagingRoot 
 	if runner == nil {
 		runner = ExecSQLiteRunner{SQLite: s.SQLite}
 	}
-	out, err := runner.Run(ctx, SQLiteRequest{Purpose: SQLiteAcquire, Database: src, Work: work, Lease: lease})
+	out, err := runner.Run(ctx, SQLiteRequest{Purpose: SQLiteAcquire, Database: src, Work: work, Lease: lease, ReadSeconds: SnapshotReadSeconds(before.DBSize + before.WALSize)})
 	if ctx.Err() != nil {
 		return SnapshotResult{}, ctx.Err()
 	}

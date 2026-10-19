@@ -29,7 +29,7 @@ func (r measuredSQLiteRunner) Run(ctx context.Context, req SQLiteRequest) (SQLit
 			size = info.Size()
 		}
 		afterWAL := walBytes()
-		r.t.Logf("source=%s acquisition=%s private_bytes=%d wal_before=%d wal_after=%d wal_delta=%d error=%v", filepath.Base(req.Database), time.Since(start), size, beforeWAL, afterWAL, afterWAL-beforeWAL, err)
+		r.t.Logf("source=%s budget_seconds=%d acquisition=%s private_bytes=%d wal_before=%d wal_after=%d wal_delta=%d error=%v", filepath.Base(req.Database), req.ReadSeconds, time.Since(start), size, beforeWAL, afterWAL, afterWAL-beforeWAL, err)
 	}
 	return out, err
 }

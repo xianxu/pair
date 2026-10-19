@@ -26,6 +26,20 @@ type SnapshotResult struct {
 // ErrSQLiteDeadline is evidence that the process budget expired.
 var ErrSQLiteDeadline = errors.New("SQLite reader deadline exceeded")
 
+// SnapshotReadSeconds gives twice the estimated copy time at 190 decimal MB/s,
+// rounded up and clamped to 5..30 seconds. Clamp before arithmetic can overflow.
+// pair:m5-concept pure
+func SnapshotReadSeconds(rawBytes int64) int {
+	const bytesPerSecond = 190_000_000 / 2
+	if rawBytes <= 5*bytesPerSecond {
+		return 5
+	}
+	if rawBytes >= 30*bytesPerSecond {
+		return 30
+	}
+	return int((rawBytes + bytesPerSecond - 1) / bytesPerSecond)
+}
+
 func snapshotFailure(err error, diagnostic string) SnapshotResult {
 	status := SnapshotRejected
 	if errors.Is(err, ErrSQLiteDeadline) || errors.Is(err, context.DeadlineExceeded) {
