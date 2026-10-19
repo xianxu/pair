@@ -545,3 +545,32 @@ Steps:
     an established binding it lists only the tag's scope folder in pair's data, never a native root, so the
     Codex 10,000-file walk (D10) no longer runs on a Couch resume. Carrying the root and relative path in the
     profile, so the child stats instead, is left for M2 with the plain-pair test.
+- 2026-10-19 — M1 boundary review, round 1 (REWORK, BR-2 to BR-5). Fixed by class:
+  - **BR-3, a writer dropped unknown members.** Slot recovery's `replaceSlotCurrent` marshalled the record
+    directly, and the text guard missed it.
+    - Fix: `ThreadRecord.MarshalJSON` is now the persisted encoding. Every JSON encoding of a record, wherever it
+      happens, keeps the preserved members. A record is serialized in no other shape (it is in no JSON output
+      struct), so nothing else changes.
+    - The dodgeable text guard is replaced by behavior tests: `TestThreadRecordJSONKeepsUnknownMembers`, which
+      fails without `MarshalJSON`, and `TestSlotRecoveryRewritePreservesUnknownMembers`.
+    - Rule for M2's sidecar and orphan registry: the preserving encoding is the type's own `MarshalJSON`, never a
+      helper that callers must remember to use.
+  - **BR-5, a bad binding made the whole record unreadable.**
+    - Decode checks the binding's types only. Its location (root name and path parser) is checked where it is
+      used, in Bind.
+    - A binding this build cannot open, whether hand-edited or a newer build's root, is replaced by a located
+      ledger binding, or else refuses the resume with `ResumeTranscriptInvalid`. It never hides the thread.
+    - Test: `TestInvalidStoredBindingKeepsTheRecordReadable`, plus three plan cases.
+  - **BR-4, the row note had no consumer.** The `Note` field is removed. Row notes are pair#684's surface: its
+    M2 collapses classification to three outcomes with notes, and the D21 record/slot disagreement note lives
+    there too. The "ledger unreadable; resumed the stored binding" note and the `legacy-ledger` row detail move to
+    #684 M2, where they are derived at projection time. Here, the observable behavior is that resume proceeds on
+    the stored binding with no listing.
+  - **BR-2, repo guards failed.**
+    - `transcript_bind.go` is classified as a `scoped-ledger` resolved consumer.
+    - `LifecycleFailureSlotKey` now is `NewSlotAddress(SlotIdentity{}, path).Key()`, which makes "#683's slot key
+      delegates to `Key()`" true. The separate `slotLifecycleKey` helper is gone.
+    - `NewTeamAddress` is allowlisted, naming pair#694 M2 as its consumer.
+    - `NewSlotAddress` documents that its caller canonicalizes the root; it does no IO.
+  - **Minors.** One `threadAgent` helper. One `transcriptSource` rule: `legacy-ledger` only when the record had no
+    binding at all.

@@ -41,9 +41,10 @@ type LifecycleAddress struct {
 	Team TeamIdentity
 }
 
-// NewSlotAddress addresses a slot by its physical checkout root. A numbered
-// slot's root must be its own checkout; a :0 primary passes a zero
-// SlotIdentity.
+// NewSlotAddress addresses a slot by its physical checkout root, which the
+// caller has already canonicalized (symlinks resolved; this does no IO). A
+// numbered slot's root must be its own checkout; a :0 primary passes a zero
+// SlotIdentity. #683's failure slot key is this address's Key().
 func NewSlotAddress(slot SlotIdentity, physicalRoot string) (LifecycleAddress, error) {
 	a := LifecycleAddress{Kind: AddressSlot, Slot: slot, Root: physicalRoot}
 	return a, a.Validate()
@@ -123,17 +124,13 @@ func (a LifecycleAddress) Validate() error {
 func (a LifecycleAddress) Key() string {
 	switch a.Kind {
 	case AddressSlot:
-		return slotLifecycleKey(a.Root)
+		return "slot:" + a.Root
 	case AddressTeam:
 		return "team:" + a.Team.Scope + "/" + a.Team.TeamDir
 	default:
 		return ""
 	}
 }
-
-// slotLifecycleKey is the one definition of a slot's key, shared with #683's
-// failure log (LifecycleFailureSlotKey).
-func slotLifecycleKey(root string) string { return "slot:" + root }
 
 func teamDirShape(dir string) bool {
 	return dir != "" && dir != "." && filepath.IsLocal(dir) && filepath.Clean(dir) == dir

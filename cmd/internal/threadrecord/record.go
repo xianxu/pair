@@ -103,7 +103,9 @@ type Record struct {
 	ParkHistory         []ParkTransaction `json:"park_history,omitempty"`
 	// Transcript is the agent's exact native conversation (pair#695 P2).
 	// Absent on records from before it; added without a schema bump because
-	// a reader that ignores it falls back to the ledger, as before.
+	// a reader that ignores it falls back to the ledger, as before. Decode
+	// checks its types only: its location is checked where it is used (Bind),
+	// so one bad or newer-build binding refuses a resume, never the record.
 	Transcript *TranscriptBinding `json:"transcript,omitempty"`
 	// Unknown holds top-level members this build does not own, captured on
 	// decode and written back verbatim by EncodePersisted (pair#695 §2a), so a
@@ -146,11 +148,7 @@ func Validate(record Record, validators Validators) error {
 			return fmt.Errorf("previous session: %w", err)
 		}
 	}
-	if record.Transcript != nil {
-		if err := record.Transcript.Validate(); err != nil {
-			return fmt.Errorf("transcript binding: %w", err)
-		}
-	}
+
 	if record.ContinuationMissed != nil {
 		if err := record.ContinuationMissed.Validate(); err != nil {
 			return err

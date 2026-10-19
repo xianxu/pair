@@ -2364,3 +2364,7 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #688 BR-2: Isolation between sets is a cross-product invariant: compare every output with every source, not paired labels. Canonicalizing a common output parent does not resolve a destination leaf symlink; exercise a different source kind behind that alias, including when its kind is filtered out.
 
 - When changing an encoder’s level or threading policy, search README and all atlas resource descriptions for both the old level and one-thread promises; update the shared resource contract as well as the feature introduction. (#702 BR-2)
+
+- #695 M1 BR-3: A source-text guard such as "no one marshals this type directly" is dodged by the next writer that spells the call differently. Put the invariant on the type: a preserving encoding belongs in the type's own MarshalJSON, so every encoding keeps it, and pin it with a behavior test that fails when the method is removed.
+- #695 M1 BR-5: Tolerant decoding means type-level strictness only. Semantic checks tied to this build's catalogs (root names, path parsers, agent lists) run where the value is used and refuse that use. At decode they refuse the whole record, and they refuse a newer build's values, which defeats additive evolution.
+- #695 M1 BR-4: A field computed for an operator surface that nothing reads is a promise with no consumer. Wire it to the surface and test it there, or remove it and name the issue that owns that surface.

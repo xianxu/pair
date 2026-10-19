@@ -145,7 +145,7 @@ func (s *ThreadStore) replaceSlotCurrent(old slotCurrentObservation, next Thread
 				entries = append(entries, *entry)
 			}
 		}
-		raw, err := json.MarshalIndent(next, "", "  ")
+		raw, err := encodeThreadRecord(next)
 		if err != nil {
 			return err
 		}

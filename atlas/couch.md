@@ -253,9 +253,12 @@ preserve-unknown codec: `SplitObject`, `EncodeObject`, `AppendMembers`, `CloneRa
 and `MergeRaw`. It refuses duplicate keys at any depth, and it writes preserved
 values verbatim. The failure log and the thread record use it. The thread record
 (`threadrecord.Record.Unknown`) carries top-level members it does not own through
-every rewrite. `encodeThreadRecord` is the only writer; a source test keeps others
-out. So an older couch CLI running a direct-store operation cannot erase a newer
-field. Nested objects stay strict, and there is no schema bump.
+every rewrite. `ThreadRecord.MarshalJSON` is the persisted encoding, so every
+writer keeps them wherever it marshals. An older couch CLI running a direct-store
+operation therefore cannot erase a newer field. Nested objects stay strict, and
+there is no schema bump. Decode checks the binding's types only, so one bad or
+newer-build binding refuses a resume (`resume-transcript-invalid`) and never hides
+the thread.
 
 **Transcript binding.** `ThreadRecord.Transcript` (`threadrecord/transcript.go`)
 stores the agent's exact conversation. It keeps the native ID plus the root name
@@ -268,8 +271,8 @@ folder. Resume, relaunch, recovery, startup and preview all go through
   listing. A newer established root adopts, which covers pair's own context reset.
 - It stats the bound file once. A missing file refuses with
   `resume-transcript-missing` and is never searched for.
-- An unreadable or missing ledger keeps a located stored binding, and the row
-  carries a note.
+- An unreadable or missing ledger keeps a located stored binding. The row note for
+  that case belongs to pair#684's row notes.
 - Only when no file is known does the old listing resolver answer, once:
   `bindByResolver` handles a session before its first turn, a legacy record, or a
   proofless binding row.

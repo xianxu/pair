@@ -2,7 +2,6 @@ package couchcore
 
 import (
 	"encoding/json"
-	"path/filepath"
 	"strings"
 
 	"github.com/xianxu/pair/cmd/internal/launcher"
@@ -31,10 +30,11 @@ type LifecycleFailureTarget struct {
 
 // LifecycleFailureSlotKey derives identity from a previously verified physical path.
 func LifecycleFailureSlotKey(t LifecycleFailureTarget) string {
-	if filepath.IsAbs(t.StartingPath) {
-		return slotLifecycleKey(t.StartingPath)
+	address, err := NewSlotAddress(SlotIdentity{}, t.StartingPath)
+	if err != nil {
+		return ""
 	}
-	return ""
+	return address.Key()
 }
 
 func lifecycleFailureTargetKey(t LifecycleFailureTarget) string {

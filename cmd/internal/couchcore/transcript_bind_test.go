@@ -164,7 +164,7 @@ func TestBindAdoptsNewerLedgerRootAfterReset(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if got.Resolution.NativeID != bindID(3) || got.Store != nil || got.Note == "" {
+			if got.Resolution.NativeID != bindID(3) || got.Store != nil {
 				t.Fatalf("fallback to the stored binding = %+v", got)
 			}
 			for _, root := range []string{"pair-data", bindRoot} {
@@ -232,6 +232,14 @@ func TestBindFallsBackOnceWhenNoFileIsKnown(t *testing.T) {
 	}
 }
 
+// invalidBinding names a root this build does not know, as a newer build
+// adding an agent root would.
+func invalidBinding() *threadrecord.TranscriptBinding {
+	b := storedBinding(2)
+	b.StorageRoot = "claude-projects-v2"
+	return b
+}
+
 func TestPlanTranscriptBind(t *testing.T) {
 	t.Parallel()
 	located := ledgerTranscript{NativeID: bindID(2), StorageRoot: bindRoot, RelativePath: bindRel(2)}
@@ -248,12 +256,43 @@ func TestPlanTranscriptBind(t *testing.T) {
 		{"stored for another agent is ignored", storedBinding(1), "codex", ledgerTranscript{}, func(p transcriptPlan) bool { return p.Fallback }},
 		{"ledger root without a proof falls back", nil, "claude", ledgerTranscript{NativeID: bindID(2)}, func(p transcriptPlan) bool { return p.Fallback }},
 		{"ledger root without a proof keeps a matching stored file", storedBinding(2), "claude", ledgerTranscript{NativeID: bindID(2)}, func(p transcriptPlan) bool { return p.Use != nil && !p.Store }},
-		{"unreadable ledger keeps the stored file, with a note", storedBinding(1), "claude", ledgerTranscript{Err: fs.ErrPermission}, func(p transcriptPlan) bool { return p.Use != nil && p.Note != "" }},
+		{"unreadable ledger keeps the stored file", storedBinding(1), "claude", ledgerTranscript{Err: fs.ErrPermission}, func(p transcriptPlan) bool { return p.Use != nil && !p.Store }},
+		{"invalid stored binding adopts a located ledger binding", invalidBinding(), "claude", located, func(p transcriptPlan) bool { return p.Store && p.Use.NativeID == bindID(2) }},
+		{"invalid stored binding without a ledger refuses", invalidBinding(), "claude", ledgerTranscript{}, func(p transcriptPlan) bool { return p.Refuse == ResumeTranscriptInvalid }},
+		{"invalid stored binding with a proofless ledger refuses", invalidBinding(), "claude", ledgerTranscript{NativeID: bindID(2)}, func(p transcriptPlan) bool { return p.Refuse == ResumeTranscriptInvalid }},
 		{"nothing known falls back", nil, "claude", ledgerTranscript{}, func(p transcriptPlan) bool { return p.Fallback }},
 	}
 	for _, c := range cases {
 		if got := planTranscriptBind(c.stored, c.agent, c.ledger); !c.want(got) {
 			t.Errorf("%s: plan = %+v", c.name, got)
 		}
+	}
+}
+
+// A binding this build cannot open (here a newer build's root name) never
+// makes the record unreadable: decode checks types only, and the resume is
+// what refuses (pair#695 M1 review BR-5).
+func TestInvalidStoredBindingKeepsTheRecordReadable(t *testing.T) {
+	t.Parallel()
+	store, ns := newTestThreadStore(t)
+	record := validThreadRecord(t)
+	record.StartingPath, record.WorkingPath = ns.Dir(), ns.Dir()
+	record.LatestLaunchProfile = &LaunchProfile{Agent: "claude", Argv: []string{}}
+	record.Transcript = invalidBinding()
+	created, err := store.CreateThread(record)
+	if err != nil {
+		t.Fatalf("CreateThread with a binding this build cannot open: %v", err)
+	}
+	read, err := store.GetThread(created.Address)
+	if err != nil {
+		t.Fatalf("a record with an unopenable binding became unreadable: %v", err)
+	}
+	if read.Transcript == nil || read.Transcript.StorageRoot != "claude-projects-v2" {
+		t.Fatalf("binding not kept as written: %+v", read.Transcript)
+	}
+	rt := bindFixture(t, 4)
+	read.Address = ThreadAddress{RepoScope: bindScope, Tag: bindTag}
+	if _, err := bindTranscriptWith(context.Background(), rt, listingResolver{t}, read); ResumeDiagnosticOf(err) != ResumeTranscriptInvalid {
+		t.Fatalf("resume of an unopenable binding: err = %v, want %s", err, ResumeTranscriptInvalid)
 	}
 }

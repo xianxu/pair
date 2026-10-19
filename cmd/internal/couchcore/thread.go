@@ -272,10 +272,17 @@ func fromPersistedThreadRecord(record threadrecord.Record) ThreadRecord {
 	return out
 }
 
-// encodeThreadRecord is the one way a thread record reaches disk, so every
-// writer keeps the members it does not own.
+// encodeThreadRecord is the persisted encoding of a thread record: the owned
+// members, indented, then the preserved members it does not own.
 func encodeThreadRecord(record ThreadRecord) ([]byte, error) {
 	return threadrecord.EncodePersisted(toPersistedThreadRecord(record))
+}
+
+// MarshalJSON makes every JSON encoding of a record the persisted one, so no
+// writer, wherever it marshals, can drop the members this build does not own
+// (pair#695 §2a). A record is never serialized in any other shape.
+func (record ThreadRecord) MarshalJSON() ([]byte, error) {
+	return encodeThreadRecord(record)
 }
 
 func cloneThreadRecord(record ThreadRecord) ThreadRecord {

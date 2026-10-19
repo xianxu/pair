@@ -1,6 +1,7 @@
 package couchcore
 
 import (
+	"encoding/json"
 	"os"
 	"reflect"
 	"strings"
@@ -85,27 +86,75 @@ func TestThreadRecordPreservesUnknownFieldsThroughRewrite(t *testing.T) {
 	}
 }
 
-// Every writer of a persisted thread record goes through encodeThreadRecord,
-// so none can drop the preserved members.
-func TestThreadRecordWritersUseThePreservingEncoder(t *testing.T) {
+// Every JSON encoding of a record is the persisted one (MarshalJSON), so a
+// writer that marshals the record directly keeps the preserved members too.
+func TestThreadRecordJSONKeepsUnknownMembers(t *testing.T) {
 	t.Parallel()
-	entries, err := os.ReadDir(".")
+	record := validThreadRecord(t)
+	record.Unknown = map[string]json.RawMessage{"future_binding": json.RawMessage(`{ "id" : 1 }`)}
+	for name, marshal := range map[string]func(any) ([]byte, error){
+		"Marshal":       json.Marshal,
+		"MarshalIndent": func(v any) ([]byte, error) { return json.MarshalIndent(v, "", "  ") },
+	} {
+		raw, err := marshal(record)
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		_, unknown, err := strictjson.SplitObject(raw, strictjson.KnownFields(reflect.TypeOf(threadrecord.Record{})), nil)
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		var got, want any
+		if err := json.Unmarshal(unknown["future_binding"], &got); err != nil {
+			t.Fatalf("%s lost the unknown member: %s", name, raw)
+		}
+		_ = json.Unmarshal([]byte(`{"id":1}`), &want)
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("%s: unknown member = %s", name, unknown["future_binding"])
+		}
+	}
+}
+
+// Slot recovery rewrites the survivor it decoded; the members it does not own
+// survive that rewrite (pair#695 M1 review BR-3).
+func TestSlotRecoveryRewritePreservesUnknownMembers(t *testing.T) {
+	t.Parallel()
+	s := testLocalThreadStore(t)
+	created, err := s.CreateThread(recordAtCheckout(t, s.slot.WorktreeRoot, s.slot.WorktreeRoot, "couch-0123456789abcdef"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, e := range entries {
-		name := e.Name()
-		if e.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
-			continue
-		}
-		src, err := os.ReadFile(name)
-		if err != nil {
-			t.Fatal(err)
-		}
-		for i, line := range strings.Split(string(src), "\n") {
-			if strings.Contains(line, "(toPersistedThreadRecord(") && strings.Contains(line, "json.Marshal") {
-				t.Errorf("%s:%d marshals a thread record directly; use encodeThreadRecord", name, i+1)
-			}
-		}
+	path := s.recordPath(created.Address)
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	seeded := strings.TrimSuffix(strings.TrimRight(string(raw), "\n"), "}") + `, "future_binding": { "id" : 7 }}` + "\n"
+	if err := os.WriteFile(path, []byte(seeded), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	observed, err := s.observeSlotCurrent()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if observed.Record == nil {
+		t.Fatal("no current record observed")
+	}
+	next := cloneThreadRecord(*observed.Record)
+	next.Name = "recovered"
+	next.Revision++
+	if err := s.replaceSlotCurrent(observed, next); err != nil {
+		t.Fatal(err)
+	}
+	after, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, unknown, err := strictjson.SplitObject(after, strictjson.KnownFields(reflect.TypeOf(threadrecord.Record{})), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(unknown["future_binding"]) != `{ "id" : 7 }` {
+		t.Fatalf("recovery rewrite dropped the unknown member:\n%s", after)
 	}
 }

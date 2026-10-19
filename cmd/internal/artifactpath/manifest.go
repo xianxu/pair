@@ -480,6 +480,9 @@ var SourceClassifications = []SourceClassification{
 	}},
 	{Path: "cmd/internal/couchcore/continuation_source.go", Kind: ResolvedConsumer,
 		Families: []string{"ledger", "session-binding"}, BindingNames: []string{"composite-ledger", "legacy-session-binding", "selected-session-binding"}},
+	// pair#695: the transcript binder reads the tag's ledger by its scoped name.
+	{Path: "cmd/internal/couchcore/transcript_bind.go", Kind: ResolvedConsumer,
+		Families: []string{"ledger"}, BindingNames: []string{"scoped-ledger"}},
 	{Path: "cmd/internal/couchcore/artifactcollision.go", Kind: ResolvedConsumer,
 		Families: []string{"session-binding", "pane"}, BindingNames: []string{"composite-scope-session-binding", "composite-pane-glob"}},
 	{Path: "cmd/internal/couchcore/slotsessions.go", Kind: ResolvedConsumer,
@@ -1410,7 +1413,6 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcore/supervisorlease.go",
 	"cmd/internal/couchcore/supervisorlease_unix.go",
 	"cmd/internal/couchcore/thread.go",
-	"cmd/internal/couchcore/transcript_bind.go",
 	"cmd/internal/couchcore/threadinventory.go",
 	"cmd/internal/couchcore/threadmetadata.go",
 	"cmd/internal/couchcore/threadmetadata_model.go",
