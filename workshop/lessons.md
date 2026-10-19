@@ -2314,3 +2314,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - Retained operation receipts and intent conflicts are resolved before fresh repository/alias lookup. A repeated request must remain inspectable while the catalog is busy or its alias has changed; recheck after unlocked IO before allocating a new receipt. (#681)
 
 - #681 BR-1: Before close, compare every Core concepts location/status row with the actual branch name-status diff. When implementation chooses a separate fixture file, correct the row and append the decision under Revisions; a broad planned alternative in the task list does not repair an incorrect table.
+
+- #681 BR-2: A real transport fixture must configure the production service-side authorization as well as effect-side guards. Delay external reads at every pre-admission boundary, including caller and target workspace resolvers; otherwise a downstream fast path can hide the original timeout upstream.

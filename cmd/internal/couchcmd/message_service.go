@@ -589,6 +589,9 @@ func newMessageService(parent context.Context, brokerSocket, registrySocket stri
 		s.facts.Store(factLogs[0])
 	}
 	s.connected.Store(&map[couchmessage.Binding]bool{})
+	if slotOps != nil {
+		slotOps.authorizePark = s.authorizeParkAdmission
+	}
 	// Family admission's resting check is on the request path (one git status
 	// per candidate per send); listings read the Console's slot-git cache.
 	now := authority.now

@@ -4709,7 +4709,7 @@ A repeated request uses its original receipt; recovering an already settled park
 has no effect. Unknown receipt status calls for inspection, not an automatic resend.
 
 CLI recovery selects its exact address and park nonce from the console's last
-successful cached inventory before receipt admission (#681). Unknown, missing
+successful cached inventory before receipt admission (#681). The authenticated caller's admission-verified workspace cache and canonical target slot supply the initial hub ownership check, without external caller/target workspace resolution. A missing caller cache refuses with refresh-and-retry advice. Current-world caller, ownership and target checks remain on the owned queue and at dispatch. Unknown, missing
 or ambiguous cached selection refuses with advice to refresh the switcher
 inventory, inspect the row and retry. Full workspace/fleet inspection runs only
 on the existing operation queue after the receipt is allocated; slow preparation

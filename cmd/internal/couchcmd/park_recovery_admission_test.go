@@ -62,6 +62,7 @@ type parkAdmissionRig struct {
 	before          couchcore.ThreadRecord
 	catalog         *parkAdmissionCatalog
 	effects         atomic.Int32
+	callerProbes    atomic.Int32
 	dispatched      chan struct{}
 	dispatchRelease chan struct{}
 	releaseOnce     sync.Once
@@ -124,7 +125,12 @@ func newParkAdmissionRig(t *testing.T, holdDispatch bool, rowCounts ...int) *par
 	console := couchtty.New(hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 100}), reader)
 	initial := ptychild.NewFakeChild(nil)
 	console.Attach("initial-console-pane", "initial", initial)
-	wireResolver(console, c, &hubRuntime{})
+	state, err := couchcore.NewHubOwnership([]couchcore.HubDefinition{{Root: primary, Workspace: root, Slot: couchcore.HubSlot{Repository: primary, Number: 0}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	hubs := &hubRuntime{state: state}
+	wireResolver(console, c, hubs)
 	// Publish the retained observation through the same provider/run path as the
 	// switcher; future current-world reads still use Couch's real inventory.
 	console.SetActionableProvider(func(context.Context, []couchcore.LiveTTYObservation) ([]couchcore.ActionableThreadSummary, error) {
@@ -172,9 +178,32 @@ func newParkAdmissionRig(t *testing.T, holdDispatch bool, rowCounts ...int) *par
 	if catalog.probes.Load() != 0 {
 		t.Fatal("cache publication invoked workspace resolution")
 	}
+	// Admit the fixture hub before installing the slow external-workspace
+	// barrier. All subsequent service requests use production hub ownership and
+	// target resolution, including the real workspace resolver for the caller.
+	var registered atomic.Bool
 	rig.service = &serviceRig{t: t, world: newMessageWorld(), slotGit: map[string]couchcore.SlotGitStatus{}, slotOps: consoleSlotOperations(console, c, nil)}
+	rig.service.decorateAuthority = func(a messageAuthority) messageAuthority {
+		a.hub, a.hubs, a.hubTarget = primary, hubs, hubTargetResolver(c)
+		a.workspace = func(ctx context.Context, path string) (couchcore.WorkspaceIdentity, error) {
+			if !registered.Load() {
+				return catalog.SlotCatalogFake.ResolveWorkspace(ctx, path)
+			}
+			rig.callerProbes.Add(1)
+			return catalog.ResolveWorkspace(ctx, path)
+		}
+		return a
+	}
 	rig.service.init()
-	rig.caller = rig.service.connect(0)
+	rig.caller = rig.service.world.add(0)
+	rig.caller.Slot, rig.caller.Repository = address, identity.RepoIdentity
+	rig.service.world.set(rig.caller, func(s *worldSlot) {
+		s.binding, s.root, s.workspace, s.branch = rig.caller, primary, identity, rest
+	})
+	rig.service.attach(rig.caller, couchmessage.PaneHandle("fixture-hub"))
+	rig.service.wrapper(rig.caller)
+	rig.service.waitConnected(rig.caller, true)
+	registered.Store(true)
 	return rig
 }
 func (r *parkAdmissionRig) release() {
@@ -232,8 +261,9 @@ func TestRecoverParkAdmissionPrecedesSlowQueuedPreparation(t *testing.T) {
 	if status.Operation == nil || status.Operation.Status != couchmessage.ReceiptRunning || r.effects.Load() != 0 {
 		t.Fatalf("blocked status: %+v effects=%d", status, r.effects.Load())
 	}
+	probes, callerProbes := r.catalog.probes.Load(), r.callerProbes.Load()
 	duplicate := r.call(t, request)
-	if duplicate.Code != "accepted" || duplicate.Operation == nil || duplicate.Operation.ID != accepted.Operation.ID || r.catalog.probes.Load() != 1 {
+	if duplicate.Code != "accepted" || duplicate.Operation == nil || duplicate.Operation.ID != accepted.Operation.ID || r.catalog.probes.Load() != probes || r.callerProbes.Load() != callerProbes {
 		t.Fatalf("duplicate: %+v probes=%d", duplicate, r.catalog.probes.Load())
 	}
 	r.release()
@@ -302,6 +332,7 @@ func TestRecoverParkQueuedRejectsNewNonce(t *testing.T) {
 }
 
 func TestRecoverParkAdmissionUsesConstantFullPasses(t *testing.T) {
+	var firstCounts [3]int32
 	for _, n := range []int{8, 16} {
 		t.Run(fmt.Sprint(n), func(t *testing.T) {
 			r := newParkAdmissionRig(t, false, n)
@@ -314,7 +345,11 @@ func TestRecoverParkAdmissionUsesConstantFullPasses(t *testing.T) {
 			}
 			r.release()
 			got := r.terminal(t, "inventory-size")
-			if got.Status != couchmessage.ReceiptSucceeded || r.effects.Load() != 1 || r.catalog.probes.Load() != 2 || r.catalog.discoveries.Load() != 2 {
+			counts := [3]int32{r.catalog.probes.Load(), r.catalog.discoveries.Load(), r.callerProbes.Load()}
+			if n == 8 {
+				firstCounts = counts
+			}
+			if got.Status != couchmessage.ReceiptSucceeded || r.effects.Load() != 1 || counts != firstCounts || counts[0] == 0 || counts[1] == 0 {
 				t.Fatalf("%d cached rows: receipt=%+v effects=%d probes=%d discoveries=%d", n, got, r.effects.Load(), r.catalog.probes.Load(), r.catalog.discoveries.Load())
 			}
 		})

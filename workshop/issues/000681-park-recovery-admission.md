@@ -41,7 +41,7 @@ Allocate and publish the operation receipt before building the inventory. Queue 
 
 - [x] Bind exact address/nonce from known cached console rows, then admit receipt before full inventory; refuse unavailable/ambiguous cache with refresh advice.
 - [x] Keep queued revalidation, dispatch authorization and lifecycle nonce checks; prove transport beyond2s, duplicates, replacement, cancellation and bounded growth.
-- [ ] Fix BR-2 service-side admission with cached hub ownership; verify production-wired transport, ownership/caller changes and final required suite/review.
+- [x] Fix BR-2 service-side admission with cached hub ownership; verify production-wired transport and ownership/caller changes; deliver final candidate to required suite/review gates.
 
 Durable design: workshop/plans/000681-park-recovery-admission-plan.md. Pending hub approval; no code changed.
 
@@ -74,3 +74,5 @@ Hub-approved next items remain #683 part2 (durable lifecycle error messages, kee
 2026-10-18 — Close round1 returned REWORK solely for BR-1: the plan table claimed the new private fixture was an extension in an unchanged acceptance-test file. Corrected its location/status to newParkAdmissionRig in park_recovery_admission_test.go, recorded the implementation revision and swept every other Core concepts row against the diff. Reviewer independently passed focused core, command and race tests; no executable defect was found. Required suite still queued; no pass claimed.
 
 2026-10-18 — Close round2 addressed BR-1 but found BR-2: production service-side hub authorization performs caller/target workspace discovery before slotOps receipt lookup. The private fixture enabled dispatch guards but omitted service authority.hubs/hubTarget. Canceled only own obsolete queued suite via sdlc local-check cancel; no pass/result claimed. Hub approved the cached-ownership admission revision in delivery01a8e4a8-15c7-440f-b122-11b088d1b6ac; preserve exact caller authentication and existing full queued/dispatch checks. Durable plan now names this seam and production-wired red/green coverage.
+
+2026-10-18 — BR-2 implemented after approved revision: production-wired socket RED reproduced2.17s deadline (package2.490s), then GREEN focused RecoverPark|HubSlotMutation|SlotOperation4.685s. Final focused race including new hub adversarial cases passed6.846s. No caller/target workspace discovery at admission; unknown caller cache refuses refresh/retry, cross-hub refuses, moved owner/replaced caller at prepare/dispatch refuse without mutation, and held duplicate/conflict survives unavailable catalog/target. Full queued and dispatch authority checks remain. Canceled queued suite ended with context-canceled lock wait, never ran; no failed assertion or flake retry. Required final suite/review still pending.

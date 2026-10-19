@@ -30,15 +30,16 @@ const maxSlotOperationReceipts = 64
 // handlers), started (the queue runner) and finished (the console loop) all
 // take it, and none waits on the queue or the console while holding it.
 type slotOperations struct {
-	reference   func(context.Context, string) (string, error)
-	recovery    func(string, string, couchmessage.Request, func(context.Context) error, func(), func(any, error)) error
-	run         slotOperationRunner
-	preparePark func(context.Context, string, couchcore.RepositoryName, func(context.Context) error) (slotOperationRunner, error)
-	guardedRun  func(string, string, string, couchcore.LiveRestartOptions, func(context.Context) error, func(), func(any, error)) error
-	preview     func(context.Context, string) (couchcore.RecoveryPreview, error)
-	candidate   func(string, string, string, func(), func(any, error), ...func(context.Context) error) error
-	names       func(context.Context) ([]couchcore.RepositoryName, error)
-	now         func() time.Time
+	reference     func(context.Context, string) (string, error)
+	recovery      func(string, string, couchmessage.Request, func(context.Context) error, func(), func(any, error)) error
+	run           slotOperationRunner
+	preparePark   func(context.Context, string, couchcore.RepositoryName, func(context.Context) error) (slotOperationRunner, error)
+	authorizePark func(context.Context, couchmessage.Binding, couchcore.HubSlot) error
+	guardedRun    func(string, string, string, couchcore.LiveRestartOptions, func(context.Context) error, func(), func(any, error)) error
+	preview       func(context.Context, string) (couchcore.RecoveryPreview, error)
+	candidate     func(string, string, string, func(), func(any, error), ...func(context.Context) error) error
+	names         func(context.Context) ([]couchcore.RepositoryName, error)
+	now           func() time.Time
 
 	mu       sync.Mutex
 	receipts map[receiptKey]couchmessage.OperationReceipt
@@ -99,7 +100,7 @@ func (s *slotOperations) handle(ctx context.Context, caller couchmessage.Binding
 	}
 	var parkRunner slotOperationRunner
 	var queueKeys []string
-	if r.Op == couchcore.OpRecoverPark && s.preparePark != nil {
+	if r.Op == couchcore.OpRecoverPark {
 		// Bind outside the receipt mutex. Existing IDs must retain their receipt
 		// even after the original park or thread has disappeared.
 		s.mu.Lock()
@@ -117,9 +118,17 @@ func (s *slotOperations) handle(ctx context.Context, caller couchmessage.Binding
 				return couchmessage.Response{Code: couchcore.SlotOpUnknownSlot, Error: resolveErr.Error()}
 			}
 			queueKeys = []string{queueKey}
-			parkRunner, err = s.preparePark(ctx, r.Target, repository, guard)
-			if err != nil {
-				return couchmessage.Response{Code: "refused", Error: err.Error()}
+			ref, _, _ := couchcore.ParseWorkspaceReference(r.Target) // queueTarget validated it.
+			if s.authorizePark != nil {
+				if err := s.authorizePark(ctx, caller, couchcore.HubSlot{Repository: repository.Key, Number: ref.Number}); err != nil {
+					return couchmessage.Response{Code: "refused", Error: err.Error()}
+				}
+			}
+			if s.preparePark != nil {
+				parkRunner, err = s.preparePark(ctx, r.Target, repository, guard)
+				if err != nil {
+					return couchmessage.Response{Code: "refused", Error: err.Error()}
+				}
 			}
 		}
 	}
