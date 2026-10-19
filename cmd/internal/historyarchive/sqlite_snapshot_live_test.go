@@ -14,6 +14,13 @@ type measuredSQLiteRunner struct {
 }
 
 func (r measuredSQLiteRunner) Run(ctx context.Context, req SQLiteRequest) (SQLiteRunResult, error) {
+	walBytes := func() int64 {
+		if info, err := os.Stat(req.Database + "-wal"); err == nil {
+			return info.Size()
+		}
+		return 0
+	}
+	beforeWAL := walBytes()
 	start := time.Now()
 	out, err := r.real.Run(ctx, req)
 	if req.Purpose == SQLiteAcquire {
@@ -21,7 +28,8 @@ func (r measuredSQLiteRunner) Run(ctx context.Context, req SQLiteRequest) (SQLit
 		if info, statErr := os.Stat(filepath.Join(req.Work, "snapshot.sqlite")); statErr == nil {
 			size = info.Size()
 		}
-		r.t.Logf("source=%s acquisition=%s private_bytes=%d error=%v", filepath.Base(req.Database), time.Since(start), size, err)
+		afterWAL := walBytes()
+		r.t.Logf("source=%s acquisition=%s private_bytes=%d wal_before=%d wal_after=%d wal_delta=%d error=%v", filepath.Base(req.Database), time.Since(start), size, beforeWAL, afterWAL, afterWAL-beforeWAL, err)
 	}
 	return out, err
 }
