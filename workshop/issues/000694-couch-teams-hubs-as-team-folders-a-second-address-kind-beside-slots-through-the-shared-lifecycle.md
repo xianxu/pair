@@ -38,7 +38,7 @@ A hub is a second kind of Couch address, `team` (e.g. `devinfra`, `echo`), backe
 Durable plan: `workshop/plans/000694-couch-teams-hubs-as-team-folders-a-second-address-kind-beside-slots-through-the-shared-lifecycle-plan.md`.
 
 - [ ] M1 — The team model (pure): TeamIdentity, hubs keyed by name, `.hub` directive lines preserved, one namespace for teams and families
-- [ ] M2 — Teams run: startup with team folders, team registration and addressing, switcher sections and the bar's team display (capitals, team/repo merge), session-sync owner, actors JSON (parley attention scope filed)
+- [ ] M2 — Teams run: startup with team folders, team registration and addressing, switcher sections and the bar's team display (plain name on an inverse chip, team/repo merge), session-sync owner, actors JSON (parley attention scope filed)
 - [ ] M3 — Team lifecycle on #695 (split from #684): lease, transcript binding and failure records for team agents; restart resumes both teams (live check)
 
 ## Log
@@ -49,3 +49,4 @@ Durable plan: `workshop/plans/000694-couch-teams-hubs-as-team-folders-a-second-a
 - Operator display input (hub delivery d7c631c0) folded in as plan Revision 1: teams in capitals with no `:N`, a pure bar-merge rule for an adjacent same-named team and repo, and teams allowed to share a repo's name (bare name addresses the team). #684's M1–M2 split into #695 (delivery 51ef8069); M3 now depends on #695.
 - Revision 2 (hub delivery f3aab0d2): a name never refuses a startup. A startup alias is `path:name`, a remaining clash auto-qualifies as `repo:team`, and one startup line shows the resolved names. Tests are in M1/M2.
 - Revision 3 (hub delivery db41cdb8): teams are addressed as `team:<name>` and bare names never mean a team. The only clash is team-vs-team, resolved by the alias or by auto-qualification as `team:<repo>/<name>`. The repo:team form is dropped.
+- Revision 4 (hub delivery 7287e407): a team shows its plain name on an inverse chip, reusing the hub chip's reverse style, instead of capitals; the merge rule stays; addresses stay `team:<name>`.

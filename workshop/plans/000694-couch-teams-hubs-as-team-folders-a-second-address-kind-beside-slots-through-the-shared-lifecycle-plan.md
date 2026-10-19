@@ -210,31 +210,35 @@ Teams first, one section each, headed by the team's row. Under each team come th
 today's hub sections are. Slots owned by a checkout hub follow in that hub's section. The `hub <label>` suffix on
 other rows shows the team's display name.
 
-**A team displays as its name in capitals, with no `:N`** (operator, Revision 1). A team is like a repo without
-worktrees: a singleton. The tab bar groups by repo family (`tools :1 :2`), and a team is a group of its own
-(`ECHO`). **When a team and a repo with the same name are adjacent in the bar, they merge into one group:** the
-team, then that repo's slots (`ECHO :0 :1`). Otherwise they stay separate (`ECHO tools :1 :2 echo :1 :2`). The
-merge is a pure function over the ordered bar items:
+**A team displays as its plain name, with no `team:` prefix and no `:N`, marked by an inverse-highlighted chip**
+(operator, Revisions 1 and 4). A team is like a repo without worktrees: a singleton. The tab bar groups by repo
+family (`tools :1 :2`), and a team is a chip of its own (`echo`, inverse). **When a team and a repo with the same
+name are adjacent in the bar, they merge into one group:** the inverse team chip, then that repo's slots (inverse
+`echo`, then `:0 :1`). Otherwise they stay separate (inverse `echo`, then `tools :1 :2 echo :1 :2`). A qualified
+team shows its qualified name without the prefix (`ops2/devinfra`). The merge is a pure function over the ordered
+bar items:
 
 ```go
 // couchtty/bargroups.go (pure)
 type BarItem struct { Team string /* set for a team */; Family string; Slot int /* -1 for a team */ }
-type BarGroup struct { Label string; Items []BarItem } // Label "ECHO", "tools", or "ECHO" for a merged group
+type BarGroup struct { Label string; Team bool /* the label is a team chip: inverse */; Items []BarItem }
 func GroupBar(items []BarItem) []BarGroup
-func TeamDisplayName(name string) string // strings.ToUpper; the only place a team's capitals are made
+func TeamDisplayName(address string) string // "team:echo" → "echo", "team:ops2/devinfra" → "ops2/devinfra"
 ```
 
 `GroupBar` groups consecutive items of one family, and merges a team group with the immediately following family
 group when the family's name equals the team's name. Adjacency is in the bar's existing order (sections first),
-so a team's own same-named repo, owned by the team, merges naturally. The switcher rows use `TeamDisplayName` for
-team rows. Keys, addresses and session-sync stay lower case: capitals are display only.
+so a team's own same-named repo, owned by the team, merges naturally. The inverse styling is the bar's existing
+hub chip style (`reserve.go:45`, `reverseSGR` at `:386`), reused rather than added (ARCH-DRY): today the hub chip
+already reverses its colours, and a team *is* the hub. The switcher rows use `TeamDisplayName` and the same
+reverse style for team rows. Addresses everywhere else (send, owner, move, the startup line) stay `team:<name>`.
 
 ### Session-sync and attention
 
 - `couch-owner: team:devinfra` is valid, and a write report goes to that team. `--owner` accepts a team address.
 - Couch publishes `team` and `owner_team` in `--actors --json`. The parley.nvim change is filed as a parley issue
   in M2: the attention finder **partitions by team or by slot** (a team's partition holds the team and the slots
-  whose `owner_team` is that team), with the team shown in capitals as in Couch. It lands there, not here
+  whose `owner_team` is that team), with the team shown as in Couch (plain name, inverse). It lands there, not here
   (layer direction: parley reads Couch's output).
 
 ### Lifecycle
@@ -360,8 +364,11 @@ split, §7.1).
 - [ ] Test (red) `TestTeamWrapperNeverRegistersAsCheckoutSlot`, `TestTeamAdmissionChecksFolderScopeTag`,
   `TestBindingTeamOmitEmptyKeepsSlotBytes`.
 - [ ] Test (red) `TestSendToTeamByAddress` (`team:devinfra`), `TestSendToHubResolvesOwningTeam`, `TestMoveSlotToTeamPersists`.
-- [ ] Test (red) `TestBarMergesAdjacentTeamAndSameNameRepo` (`ECHO :0 :1`),
-  `TestBarKeepsTeamAndRepoSeparateWhenNotAdjacent` (`ECHO tools :1 :2 echo :1 :2`), `TestTeamDisplayNameCapitals`.
+- [ ] Test (red) `TestBarMergesAdjacentTeamAndSameNameRepo` (an inverse `echo` chip, then `:0 :1`),
+  `TestBarKeepsTeamAndRepoSeparateWhenNotAdjacent` (inverse `echo`, then `tools :1 :2 echo :1 :2`),
+  `TestTeamDisplayNameHasNoPrefix` (`team:echo` → `echo`, `team:ops2/devinfra` → `ops2/devinfra`), and
+  `TestTeamChipRendersInverse` (the rendered bar carries `reverseSGR` on the team chip only, never on a repo chip or
+  slot).
 - [ ] Test (red) `TestSwitcherTeamsSectionFirst`, `TestSessionSyncOwnerAcceptsTeam`, `TestActorsJSONTeamFields`.
 - [ ] Implement until green, then the full suite.
 - [ ] File the parley.nvim issue for the "my team" attention scope (reads `owner_team`).
@@ -424,3 +431,9 @@ split, §7.1).
   `team` keeps `team:N`. Dropped from Revision 2: the `repo:team` form, the bare-name-means-team rule, and the
   alias/`hub` clash rules. Display is unchanged: capitals in the bar and the `ECHO :0 :1` merge. Tests were swapped
   accordingly in M1 and M2.
+- 2026-10-19 01:15 — Revision 4, operator display note (hub delivery 7287e407; display only). The tab bar and
+  switcher stay lean: a team shows its plain name, with no `team:` prefix, and is marked by an inverse-highlighted
+  chip, which replaces Revision 1's capitals. The chip reuses the bar's existing reverse-video hub style. The merge
+  rule stays (inverse `echo`, then `:0 :1`). Addresses everywhere else stay `team:<name>`. Display tests changed to
+  the inverse attribute on team chips only, no prefix, and the merge case; `TestTeamDisplayNameCapitals` became
+  `TestTeamDisplayNameHasNoPrefix` and `TestTeamChipRendersInverse`.
