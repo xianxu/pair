@@ -143,11 +143,15 @@ func (s *ThreadStore) replaceSlotCurrent(old slotCurrentObservation, next Thread
 			} else if !errors.Is(err, os.ErrNotExist) {
 				return err
 			}
-			grace, err := s.archiveGraceBytes(old.Record.Address, old.Raw)
+			kept, err := retiredBytes(authority, old.Record, old.Raw)
 			if err != nil {
 				return err
 			}
-			entries = append(entries, storeJournalEntry{Path: relativeStorePath(s.root, path), Expected: archiveBefore, After: &old.Raw}, storeJournalEntry{Path: relativeStorePath(s.root, s.archiveGracePath(old.Record.Address)), Expected: graceBefore, After: &grace})
+			grace, err := s.archiveGraceBytes(old.Record.Address, kept)
+			if err != nil {
+				return err
+			}
+			entries = append(entries, storeJournalEntry{Path: relativeStorePath(s.root, path), Expected: archiveBefore, After: &kept}, storeJournalEntry{Path: relativeStorePath(s.root, s.archiveGracePath(old.Record.Address)), Expected: graceBefore, After: &grace})
 		} else if old.Exists {
 			entry, err := s.slotRecoveryBackupLocked(old.Raw)
 			if err != nil {

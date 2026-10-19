@@ -1476,7 +1476,15 @@ func (s *ThreadStore) archiveThread(address ThreadAddress, expectedRevision *uin
 		// One journal, four effects: archive bytes and their grace clock appear,
 		// the record disappears, and the manifest stops listing it. A crash between them would
 		// otherwise leave a record in no set or in both.
-		entries, err := s.archiveJournalEntries(address, raw)
+		var decoded *ThreadRecord
+		if decodeErr == nil {
+			decoded = &record
+		}
+		kept, err := retiredBytes(authority, decoded, raw)
+		if err != nil {
+			return err
+		}
+		entries, err := s.archiveJournalEntries(address, raw, kept)
 		if err != nil {
 			return err
 		}
@@ -1493,12 +1501,14 @@ func (s *ThreadStore) archiveThread(address ThreadAddress, expectedRevision *uin
 // bytes already preserve). The manifest entry stays with the caller, because a
 // replace edits the manifest once for both of its halves. It reads the
 // snapshot, so it runs under the store lock.
-func (s *ThreadStore) archiveJournalEntries(address ThreadAddress, raw []byte) ([]storeJournalEntry, error) {
-	grace, err := s.archiveGraceBytes(address, raw)
+// archiveJournalEntries moves the record at raw to the archive as kept: the
+// bytes the archive holds, which differ from raw only by a proof's stamp.
+func (s *ThreadStore) archiveJournalEntries(address ThreadAddress, raw, kept []byte) ([]storeJournalEntry, error) {
+	grace, err := s.archiveGraceBytes(address, kept)
 	if err != nil {
 		return nil, err
 	}
-	archived := append([]byte{}, raw...)
+	archived := append([]byte{}, kept...)
 	expectedRecord := append([]byte{}, raw...)
 	entries := []storeJournalEntry{
 		{Path: relativeStorePath(s.root, s.archivePath(address)), After: &archived},

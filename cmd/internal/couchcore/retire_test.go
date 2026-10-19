@@ -1,7 +1,9 @@
 package couchcore
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"strings"
@@ -233,5 +235,66 @@ func TestFreshLeavesRemnantsNeedsTheRetainedSelection(t *testing.T) {
 	unproven := errors.New("session still present")
 	if _, err := newFreshLeavesRemnants(ThreadRecord{Address: ThreadAddress{RepoScope: "s", Tag: "t"}}, unproven); err == nil || !errors.Is(err, unproven) {
 		t.Fatalf("a record without a Fresh selection got the remnants authority: %v", err)
+	}
+}
+
+// An unproven teardown leaves its failure on the slot; the proven retry that
+// archives the record stamps its proof time there, and the emptied slot's
+// --show no longer shows the earlier failure (pair#695).
+func TestProvenTeardownHidesEarlierUnprovenFailure(t *testing.T) {
+	env := newTestEnv(t, "/repo")
+	failures := NewFakeLaunchFailureStore()
+	env.Couch.LaunchFailures = failures
+	local := testLocalThreadStore(t)
+	slot := *local.slot
+	record, err := local.CreateThread(recordAtCheckout(t, slot.WorktreeRoot, slot.WorktreeRoot, "couch-0123456789abcdef"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	failedAt := time.Date(2026, 10, 19, 10, 0, 0, 0, time.UTC)
+	if err := failures.Save(t.Context(), LaunchFailure{StartingPath: slot.WorktreeRoot, Nonce: "unproven", FailedAt: failedAt}); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := env.Couch.launchFailuresForShow(t.Context(), "scope", slot.WorktreeRoot, nil, slot); len(got) != 1 {
+		t.Fatalf("before the proof: %+v", got)
+	}
+	proof := proofForTest(t, record)
+	proof.ProvenAt = failedAt.Add(time.Minute)
+	if err := local.ArchiveThread(record.Address, proof); err != nil {
+		t.Fatal(err)
+	}
+	archived, err := local.ArchivedThreads()
+	if err != nil || len(archived) != 1 || archived[0].ProvenDownAt == nil || !archived[0].ProvenDownAt.Equal(proof.ProvenAt) {
+		t.Fatalf("archived %+v err %v, want the proof time stamped", archived, err)
+	}
+	if got, detail := env.Couch.launchFailuresForShow(t.Context(), "scope", slot.WorktreeRoot, nil, slot); len(got) != 0 || detail != "" {
+		t.Fatalf("after the proven teardown: %+v %s", got, detail)
+	}
+}
+
+// assertRetiredBytes: a record retired by proof is archived as its exact
+// members plus proven_down_at and nothing else (pair#695); every other
+// member keeps its bytes.
+func assertRetiredBytes(t testing.TB, archived, raw []byte) {
+	t.Helper()
+	var got, want map[string]json.RawMessage
+	if err := json.Unmarshal(archived, &got); err != nil {
+		t.Fatalf("archived record: %v", err)
+	}
+	if err := json.Unmarshal(raw, &want); err != nil {
+		t.Fatalf("retired record: %v", err)
+	}
+	if _, stamped := got["proven_down_at"]; !stamped {
+		t.Fatal("a record retired by proof was archived without its proof time")
+	}
+	delete(got, "proven_down_at")
+	if len(got) != len(want) {
+		t.Fatalf("archive members %d, record members %d", len(got), len(want))
+	}
+	for key, value := range want {
+		var a, b bytes.Buffer
+		if json.Compact(&a, got[key]) != nil || json.Compact(&b, value) != nil || !bytes.Equal(a.Bytes(), b.Bytes()) {
+			t.Fatalf("archive changed member %q: %s -> %s", key, value, got[key])
+		}
 	}
 }

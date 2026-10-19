@@ -90,7 +90,11 @@ func (s *ThreadStore) ReplaceThreadExpected(old ThreadAddress, expectedRevision 
 		} else if exists || manifestContains(manifest, next.Address) {
 			return &ThreadExistsError{Address: next.Address}
 		}
-		entries, err := s.archiveJournalEntries(old, raw)
+		kept, err := retiredBytes(authority, &record, raw)
+		if err != nil {
+			return err
+		}
+		entries, err := s.archiveJournalEntries(old, raw, kept)
 		if err != nil {
 			return err
 		}

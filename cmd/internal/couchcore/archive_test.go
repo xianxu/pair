@@ -689,6 +689,9 @@ func TestCouchArchiveNeverBoundThreadDoesNotSignal(t *testing.T) {
 					t.Fatal(err)
 				}
 				archived, err := store.ArchivedThreads()
+				if err == nil && len(archived) == 1 && archived[0].ProvenDownAt != nil {
+					archived[0].ProvenDownAt = nil // the proof's stamp (pair#695)
+				}
 				if err != nil || len(archived) != 1 || !reflect.DeepEqual(archived[0], record) {
 					t.Fatalf("archive=%+v err=%v", archived, err)
 				}

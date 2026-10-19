@@ -28,7 +28,7 @@ func TestMergeLeftRunningDedupesAndEvictsOldest(t *testing.T) {
 	t0 := time.Date(2026, 10, 19, 0, 0, 0, 0, time.UTC)
 	old := []LeftRunningOrphan{leftRunningEntry(1, t0), leftRunningEntry(2, t0.Add(time.Minute))}
 	again := leftRunningEntry(1, t0.Add(time.Hour))
-	got := mergeLeftRunning(old, []LeftRunningOrphan{again, leftRunningEntry(3, t0.Add(2 * time.Minute))}, 2)
+	got := mergeLeftRunning(old, []LeftRunningOrphan{again, leftRunningEntry(3, t0.Add(2*time.Minute))}, 2)
 	if len(got) != 2 || got[0].Process.PID != 2 || got[1].Process.PID != 3 {
 		t.Fatalf("merge = %+v, want pids 2,3 (1 deduped then evicted as oldest)", got)
 	}

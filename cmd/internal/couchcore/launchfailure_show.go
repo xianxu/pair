@@ -34,9 +34,13 @@ func (c *Couch) launchFailuresForShow(ctx context.Context, scope, ref string, ma
 	// The same resolved-slot target selection serves rows and show, including
 	// an empty slot with no current thread record. It is display evidence only.
 	slotRow := ActionableThreadSummary{StartingPath: slot.WorktreeRoot, Target: ThreadTarget{Kind: ThreadTargetSlot, Slot: slot}}
+	retired := c.slotRetiredSuccess(slot)
 	for _, target := range lifecycleFailureRowTargets(slotRow) {
 		if key := lifecycleFailureTargetKey(target); key != "" {
 			displayKeys[key] = lifecycleFailureTargetKey(LifecycleFailureTarget{StartingPath: slot.WorktreeRoot})
+			if retired.After(successes[key]) {
+				successes[key] = retired
+			}
 		}
 	}
 	for _, m := range matches {
@@ -90,4 +94,27 @@ func (c *Couch) launchFailuresForShow(ctx context.Context, scope, ref string, ma
 		return out[i].FailedAt.After(out[j].FailedAt)
 	})
 	return out, ""
+}
+
+// slotRetiredSuccess is the latest lifecycle success among the records a slot
+// has retired: a proven teardown is stamped on the record it archived
+// (pair#695), so an emptied slot no longer shows the unproven attempt that
+// preceded it. An unreadable archive hides nothing.
+func (c *Couch) slotRetiredSuccess(slot SlotIdentity) time.Time {
+	var latest time.Time
+	if slot.WorktreeRoot == "" || c.Threads == nil {
+		return latest
+	}
+	local := newSlotThreadStore(c.Threads.namespace, slot)
+	local.coordinator = c.Threads.coordinator
+	archived, err := local.ArchivedThreads()
+	if err != nil {
+		return latest
+	}
+	for _, record := range archived {
+		if at := LastLifecycleSuccessAt(record); at.After(latest) {
+			latest = at
+		}
+	}
+	return latest
 }

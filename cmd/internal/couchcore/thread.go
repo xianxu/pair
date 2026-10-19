@@ -97,6 +97,9 @@ type ThreadRecord struct {
 	// Transcript is the agent's exact native conversation; Resume binds by it
 	// (pair#695 P2). See threadrecord.TranscriptBinding.
 	Transcript *threadrecord.TranscriptBinding `json:"transcript,omitempty"`
+	// ProvenDownAt is when a teardown proved the tree gone, stamped as the
+	// record is retired (pair#695); LastLifecycleSuccessAt counts it.
+	ProvenDownAt *time.Time `json:"proven_down_at,omitempty"`
 	// Unknown carries persisted members this build does not own through every
 	// rewrite (pair#695 §2a); see threadrecord.Record.Unknown.
 	Unknown map[string]json.RawMessage `json:"-"`
@@ -144,6 +147,7 @@ func toPersistedThreadRecord(record ThreadRecord) threadrecord.Record {
 	out.LastActiveAt = record.LastActiveAt
 	out.Unknown = strictjson.CloneRaw(record.Unknown)
 	out.Transcript = threadrecord.CloneTranscriptBinding(record.Transcript)
+	out.ProvenDownAt = cloneTimePointer(record.ProvenDownAt)
 	if record.Park != nil {
 		park := toPersistedParkTransaction(*record.Park)
 		out.Park = &park
@@ -220,6 +224,7 @@ func fromPersistedThreadRecord(record threadrecord.Record) ThreadRecord {
 	out.LastActiveAt = record.LastActiveAt
 	out.Unknown = strictjson.CloneRaw(record.Unknown)
 	out.Transcript = threadrecord.CloneTranscriptBinding(record.Transcript)
+	out.ProvenDownAt = cloneTimePointer(record.ProvenDownAt)
 	if record.Park != nil {
 		park := fromPersistedParkTransaction(*record.Park)
 		out.Park = &park
@@ -298,6 +303,7 @@ func cloneThreadRecord(record ThreadRecord) ThreadRecord {
 	copy.ContinuationMissed = cloneMiss(record.ContinuationMissed)
 	copy.Unknown = strictjson.CloneRaw(record.Unknown)
 	copy.Transcript = threadrecord.CloneTranscriptBinding(record.Transcript)
+	copy.ProvenDownAt = cloneTimePointer(record.ProvenDownAt)
 	copy.Incarnations = append([]ThreadIncarnation{}, record.Incarnations...)
 	for i := range copy.Incarnations {
 		if record.Incarnations[i].Start != nil {
@@ -466,4 +472,12 @@ func cloneMiss(m *checkpoint.Miss) *checkpoint.Miss {
 	}
 	copy := *m
 	return &copy
+}
+
+func cloneTimePointer(t *time.Time) *time.Time {
+	if t == nil {
+		return nil
+	}
+	v := *t
+	return &v
 }

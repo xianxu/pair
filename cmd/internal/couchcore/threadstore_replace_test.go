@@ -1,7 +1,6 @@
 package couchcore
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"os"
@@ -38,9 +37,10 @@ func assertReplaced(t *testing.T, store *ThreadStore, old ThreadRecord, oldRaw [
 		t.Fatalf("old record still in the working set: %v", err)
 	}
 	archived, err := os.ReadFile(store.archivePath(old.Address))
-	if err != nil || !bytes.Equal(archived, oldRaw) {
-		t.Fatalf("archive bytes differ from the old record (err %v)", err)
+	if err != nil {
+		t.Fatal(err)
 	}
+	assertRetiredBytes(t, archived, oldRaw)
 	if _, err := os.Stat(store.archiveGracePath(old.Address)); err != nil {
 		t.Fatalf("archive grace clock missing: %v", err)
 	}

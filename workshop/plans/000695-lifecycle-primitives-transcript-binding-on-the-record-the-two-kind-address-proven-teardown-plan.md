@@ -753,3 +753,17 @@ Steps:
   - **Tests:** `TestMergeLeftRunningDedupesAndEvictsOldest`, `TestLeftRunningRegistryAddCapAndPrune`,
     `TestLeftRunningRegistryPreservesUnknownMembers`, `TestTeardownRegistersWhatItLeftRunning`,
     `TestResourceSamplerPrunesAndReportsLeftRunning` and `TestReapOrphansCLIEndsLeftRunningByExactIdentity`.
+- 2026-10-19 — **M2 steps 7–8, as built.**
+  - **The proof as a success.** `ThreadRecord.ProvenDownAt` (`proven_down_at`) is stamped on a record retired by a
+    `TeardownProof`, as it is archived. All three funnels go through `retiredBytes`. Every other retirement keeps
+    exact bytes. `LastLifecycleSuccessAt` counts the stamp.
+  - **Its consumer is `--show` of a slot.** Its success now includes the slot's archived records
+    (`slotRetiredSuccess`), so an emptied slot stops showing the unproven attempt that a proven retry followed.
+    `TestProvenTeardownHidesEarlierUnprovenFailure` is mutation-checked. The byte-exact archive assertions became
+    `assertRetiredBytes`: every member exact, plus only the stamp.
+  - **The atlas** "Lifecycle primitives (#695)" covers the one-kind address, the per-thread lease with the tty
+    trust rule, Teardown and ProveDown, the four retire authorities and the left-running registry.
+  - **`TestTeardownProvesARealPtyTree`** is the real-pty conformance test. A perl lease holder, an agent shell on a
+    pty with a foreground tool, and a setsid'd runner are torn down through `procutil.Table`, `lsof` and real
+    signals. The holder, the agent and the tty are all gone; the runner is in LeftRunning and still alive. It
+    passed 6 out of 6 runs unsandboxed and skips in the sandbox.

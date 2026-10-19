@@ -179,3 +179,18 @@ func (f FreshLeavesRemnants) authorizeRetire(address ThreadAddress, old *ThreadR
 	}
 	return nil
 }
+
+// retiredBytes is what the archive keeps for a retired record: its exact
+// bytes, except that a record retired by proof carries the proof's time as
+// its last lifecycle success, so a later failure display can tell an
+// unproven attempt from the proven one after it.
+func retiredBytes(authority RetireAuthority, old *ThreadRecord, raw []byte) ([]byte, error) {
+	proof, ok := authority.(TeardownProof)
+	if !ok || old == nil {
+		return raw, nil
+	}
+	stamped := cloneThreadRecord(*old)
+	at := proof.ProvenAt
+	stamped.ProvenDownAt = &at
+	return encodeThreadRecord(stamped)
+}

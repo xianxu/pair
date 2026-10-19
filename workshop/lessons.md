@@ -2373,3 +2373,6 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - A capped subprocess writer must not embed an io.ReaderFrom implementation that bypasses Write: io.Copy uses promoted ReadFrom. Test the actual exec boundary with oversized output, including a valid JSON prefix plus padding; overflow must refuse the whole report, not grant authority to the retained prefix. (#700)
 
 - Qualify runtime evidence through its real encoder using non-UTC clocks, including a mixed healthy/stale pass. A strict UTC codec plus UTC-only fixtures can hide a production local-time mismatch that discards every database result. Normalize at the observation clock owner. (#700 BR-1)
+
+- #695 M2: Before replacing an untyped exemption with a stronger authority, measure the contract the exempted caller keeps. Fresh recovery promises to stop only what the operator confirmed, and to leave a session another slot shares. A forced teardown would have broken both, so the exemption became a typed, named fourth authority rather than disappearing.
+- #695 M2: Anything that kills by a shared key (a lease, a tty, a slot path) must not span records it does not own. Key what a teardown kills by the record being retired, here a per-thread lease, and treat a published device such as a tty as evidence only while its publisher's tree is still up, since the kernel reuses it.

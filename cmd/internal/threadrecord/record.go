@@ -107,6 +107,9 @@ type Record struct {
 	// checks its types only: its location is checked where it is used (Bind),
 	// so one bad or newer-build binding refuses a resume, never the record.
 	Transcript *TranscriptBinding `json:"transcript,omitempty"`
+	// ProvenDownAt is when a teardown proved this record's tree gone, stamped
+	// on the record as it is archived (pair#695); a lifecycle success.
+	ProvenDownAt *time.Time `json:"proven_down_at,omitempty"`
 	// Unknown holds top-level members this build does not own, captured on
 	// decode and written back verbatim by EncodePersisted (pair#695 §2a), so a
 	// rewrite by an older build cannot erase a newer build's field. Only the

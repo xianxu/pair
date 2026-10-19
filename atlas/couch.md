@@ -246,7 +246,7 @@ attempt's in-memory evidence; older published history remains durable. Private
 service conformance and a disposable-slot display check after an operator Couch
 restart provide separate acceptance; this feature does not stage :0.
 
-### Lifecycle primitives (#695 M1)
+### Lifecycle primitives (#695)
 
 **Additive records.** `strictjson/object.go` is the one strict-known,
 preserve-unknown codec: `SplitObject`, `EncodeObject`, `AppendMembers`, `CloneRaw`
@@ -283,17 +283,56 @@ are the pure path parsers and root names it validates with. The counted tests ru
 the production binder over `sessioninventorytest.FakeRuntime`: 1 ledger read,
 1 stat, 0 listings.
 
-**Lifecycle address.** `couchcore/lifecycleaddress.go`'s `LifecycleAddress` has two
-kinds, built by constructors.
+**Lifecycle address.** `couchcore/lifecycleaddress.go`'s `LifecycleAddress` is a
+slot's physical root, built by `NewSlotAddress`. A `:0` primary passes a zero
+`SlotIdentity`. `Key` is `slot:<root>`, the same function as #683's failure slot
+key. It has one kind: the operator chose one team per repository, so a team is an
+ordinary `:0` slot.
 
-- `NewSlotAddress` takes a slot's physical root. A `:0` primary passes a zero
-  `SlotIdentity`.
-- `NewTeamAddress` takes a checkout and a team folder holding a `.hub`, and
-  resolves the scope.
-- `Validate` and `Key` are pure. `Key` is `slot:<root>`, the same function as #683's
-  failure slot key, or `team:<scope>/<TeamDir>`.
-- The lease, the store, failure records and orphan origins key on it as M2 and
-  pair#694 wire them.
+**Lifetime lease (M2).** `lifetimelease` holds a shared flock at
+`<namespace>/leases/<digest>.lease`, one per thread tree. The key is
+`Key() + scope/tag`, per thread rather than per slot, because a store from before
+one-thread-per-repository (pair#363) can hold sibling threads at one path.
+- Couch prepares the lease and passes it in `COUCH_LIFETIME_LEASE`.
+- The launcher's pair, `pair wrap` and session-watch each hold it. The wrapper
+  strips it from the agent's env, so nothing the agent runs can hold the slot.
+- Plain pair without Couch opens nothing.
+- The wrapper also publishes the agent's controlling tty in `agent-ready`, read
+  from the kernel process table (`procutil.Process.TTY`).
+
+**Teardown (M2).** `couchcore/teardown.go`.
+- `Teardown(thread)` quiesces the session and stops the registered wrapper. It
+  then sweeps the lease holders and the processes on the agent's tty, by exact
+  identity, with SIGTERM then SIGKILL, at most 3 rounds, within a 10s budget.
+- It proves the tree down: the lease is free, nothing is on the tty, and the
+  session is absent twice. #692's listing omission is unproven, never absence.
+- It then folds the park or start claim the dead owners left
+  (`clearLifecycleDebris`).
+- The tty is trusted only while the tree is up (the agent is listed or the lease
+  is held), because a dead agent's device may be reused.
+- `ProveDown` proves without stopping or folding.
+- Failures are `ErrTeardownUnproven`, with a phase and holders, through #683's
+  `LifecycleFailureDetails`.
+- The agent's descendants that left its tty (setsid'd runners) are `LeftRunning`.
+  They are never killed. They are registered in `<namespace>/orphans.json`
+  (`LeftRunningRegistry`, tolerant and preserving, 256 cap). `couch --resources`
+  shows them, and `couch --reap-orphans --confirm` ends them by exact identity.
+  The resource sampler prunes vanished identities.
+
+**Retire authorities (M2).** `couchcore/retire.go`. Every store retirement
+(`archiveThread`, `ReplaceThreadExpected`, `replaceSlotCurrent`) takes a sealed
+`RetireAuthority` and refuses without one:
+- `TeardownProof`: that thread, that lifecycle key, at the proof's revision.
+- `AdoptionAuthority`: survivor adoption, with every other owner proven dead.
+- `UnreadableRecordEscape`: undecodable bytes, exactly those.
+- `FreshLeavesRemnants`: a confirmed Fresh whose source could not be proven down.
+  It stops only what the operator confirmed and starts beside the remnants. It is
+  the only authority that may replace over an open park or claim.
+
+Archive tears down after its quiesce. Reboot's archive-only escape and a fresh
+slot start use `ProveDown`. A record retired by proof is archived with
+`proven_down_at`, which `LastLifecycleSuccessAt` counts, so an emptied slot's
+`--show` hides the unproven attempt before it.
 
 Claude native resume validates an exact session through bounded UUID-leaf
 probes under the authorized project roots, preserving duplicate and root-role
