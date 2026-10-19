@@ -110,7 +110,9 @@ type Record struct {
 	// Unknown holds top-level members this build does not own, captured on
 	// decode and written back verbatim by EncodePersisted (pair#695 §2a), so a
 	// rewrite by an older build cannot erase a newer build's field. Only the
-	// current schema tolerates them; nested objects stay strict.
+	// current schema tolerates them. Nested types older than pair#695 stay
+	// strict; a nested type born additive (TranscriptBinding) preserves its
+	// own unknown members.
 	Unknown map[string]json.RawMessage `json:"-"`
 }
 
