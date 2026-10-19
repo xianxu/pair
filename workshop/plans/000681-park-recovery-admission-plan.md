@@ -42,7 +42,7 @@ Relationships: each admitted request retains one immutable selected OperationCal
 | consoleSlotOperations.preparePark | cmd/internal/couchcmd/console_slot_operations.go | modified | cached console selection then queued current-world validation |
 | Console.ResourceInventory | cmd/internal/couchtty/console_resources.go | reused unchanged | locked immutable snapshot of already published inventory |
 | EnqueueRemoteOperation | cmd/internal/couchtty/console_remote.go | reused unchanged | owned console lifetime, one queue job and terminal completion |
-| Stateful service/console fixture | cmd/internal/couchcmd/slot_operations_acceptance_test.go | extended | real Unix transport, fake terminal/process/slot state, temporary stores |
+| newParkAdmissionRig | cmd/internal/couchcmd/park_recovery_admission_test.go | new fixture using existing stateful fakes | real Unix transport, production console queue, fake terminal/process/slot state, temporary stores |
 
 Existing fakeSlotRunner models canonical pending keys, retained callbacks and effect counts. Real console acceptance uses FakeHost/FakeChild, FakeRunner and SlotCatalogFake with private temporary roots. No production namespace or operator slots are test inputs.
 
@@ -135,3 +135,5 @@ Pending hub approval. Important product delta: cached unknown/missing/ambiguous 
 2026-10-18 — Live scheduling revision approved by hub delivery cedf3674-7d87-4875-b420-7475d250532f: no :0 staging, because a staged binary cannot replace the long-lived server. Land on private-service conformance plus required suite and SHIP. Pair:8 operator-server acceptance is explicitly owed after the next operator Couch restart, tracked by the hub. Follow-up ownership revised by delivery c3ea26f5-c568-4ea7-9a49-893a8be886c4: after landing, provide evidence handoff for #683/#684; do not start their implementation.
 
 2026-10-18 — Implementation and private proof checklist completed. Existing guard-table/core coverage supplies settled-original, stale address and cached-empty/new-nonce checks; real transport covers nonce replacement at both queue boundaries. Suite and boundary review may overlap under tl-worker; final landing and operator-server live acceptance remain pending as explicitly recorded above.
+
+2026-10-18 — BR-1 (core-concept-location-status): production-transport coverage was implemented as newParkAdmissionRig in the new park_recovery_admission_test.go, rather than extending slot_operations_acceptance_test.go. Corrected that Core concepts location/status row and swept the other rows against the branch diff; all other new/modified/reused locations match. No executable change.

@@ -2312,3 +2312,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #651 integration catalog: timing out a known semantic boundary should spend an injected deadline only after readiness. Reuse the package's existing budget/deadline seam; assert the cue and DeadlineExceeded as well as retained ownership, so removing a tiny timeout cannot silently turn the scenario into a different failure.
 
 - Retained operation receipts and intent conflicts are resolved before fresh repository/alias lookup. A repeated request must remain inspectable while the catalog is busy or its alias has changed; recheck after unlocked IO before allocating a new receipt. (#681)
+
+- #681 BR-1: Before close, compare every Core concepts location/status row with the actual branch name-status diff. When implementation chooses a separate fixture file, correct the row and append the decision under Revisions; a broad planned alternative in the task list does not repair an incorrect table.
