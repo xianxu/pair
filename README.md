@@ -110,8 +110,8 @@ unit of collaboration.
 From the draft, `Alt+c` restores the current `review/<slug>` branch's document
 and latest agent decorations, including in a fresh session. It checks the branch
 before reusing an open pane or cached target. With the same document active it
-toggles visibility; unsaved edits, pending replies, or an uncommitted agent round
-block switching to another document. Return to the original branch and finish
+toggles visibility; unsaved edits or pending replies block switching to another
+document. Return to the original branch and finish
 that work first. Missing or ambiguous review history prompts for a selection or
 reports why restoration cannot proceed.
 
@@ -175,7 +175,7 @@ adds context that a one-line description cannot carry.
 | **Alt+a** / **Alt+r** (or **Leader+a** / **Leader+r**) | review buffer (normal) | Accept / reject the 🤖 suggestion at the cursor. |
 | **Alt+Shift+A** / **Alt+Shift+R** | review buffer (normal) | Accept / reject paragraph suggestions through the cursor. |
 | **Alt+q** | review buffer | Insert a human comment marker in normal/insert mode; quote the selection in visual mode. |
-| **Alt+Return** | review buffer (normal/insert) | Finish the human turn; apply agent results when a round is pending. |
+| **Alt+Return** | review buffer (normal/insert) | Finish the human turn: save the document and send it to the agent. |
 | **Alt+n** / **Alt+Shift+N** (or **]m** / **[m**) | review buffer (normal) | Next / previous 🤖 marker, wrapping, including human comments. These local actions override restart behavior while reviewing, including under Couch. |
 | **gl** / **Ctrl+w d**, **]d** / **[d** | review buffer (normal) | Open the diagnostic explanation, or move to the next / previous diagnostic. |
 | **Shift+Alt+d** | review pane (visual) | Define the selected term inline. The pair agent answers through `pair review definition`, and the pane stores the result as a durable footnote. |
@@ -1181,10 +1181,13 @@ Wrapper diagnostics batch at64KiB or every five seconds while dirty; raw capture
 and its offset sidecar flush every250ms. Orderly shutdown drains both. A process
 crash can lose pending buffers; optional diagnostics have no power-loss durability
 guarantee. See [storage retention and IO](atlas/storage-retention-io.md) for exact
-bounds and the synchronization kept for receipts, park and recovery. New diagnostic
+bounds and the synchronization kept for receipts, park and recovery. 🤖~New diagnostic
 segments are capped at64MiB. Every diagnostic generation is retained behind
-the KeepDiagnosticsUntilBackup fence until ops history-backup can archive it;
-there is no total disk cap. Pre-existing oversized evidence is preserved. Unknown writer
+the KeepDiagnosticsUntilBackup fence until ops history-backup can archive it;~{New diagnostic
+segments are capped at64MiB. Managed debug generations expire after seven days
+by default, independently of backup; whole oversized legacy generations may be
+evicted sooner. Unknown writers and live open holders remain blocked.}
+🤖~there is no total disk cap. Pre-existing oversized evidence is preserved.~{There is no global byte ceiling on retained seven-day diagnostics.} Unknown writer
 evidence refuses further growth at the limit. Parked recovery
 captures use their separate age policy and exact reader protections.
 
@@ -1967,7 +1970,7 @@ From a non-agent Pair pane, detach with `Alt+d`. For Couch-managed work, use the
 
 ## History backup
 
-🤖{Use `pair archive inventory` to inspect supported history sources and `pair archive create --request /private/tmp/pair-archive-request.json` to back up explicitly selected stable files. Creation streams tar through zstd `-19` and GPG public-key encryption, verifies stored ciphertext and records the result in a private local catalog; it preserves source files. Install `gpg` and `zstd`, supply a trusted full public-key fingerprint and separate source, sink and catalog paths. No private key is needed for creation. [History backup](atlas/history-backup.md) documents the request JSON, defaults, limits, retry behavior and operator key-recovery checklist. `pair archive continuous` runs one pass over agent transcripts, Codex databases, ops documents and sdlc data, configured by `$PAIR_DATA_DIR/archive/continuous.json`: it archives files once they have been unmodified for three days, each file once by content hash, and takes coherent private snapshots of Codex databases without opening them in place; Couch runs it daily when configured. Neither command deletes sources, uploads to Drive or restores.}
+🤖{Use `pair archive inventory` to inspect supported history sources and `pair archive create --request /private/tmp/pair-archive-request.json` to back up explicitly selected stable files. Creation streams tar through zstd `-19` and GPG public-key encryption, verifies stored ciphertext and records the result in a private local catalog; it preserves source files. Install `gpg` and `zstd`, supply a trusted full public-key fingerprint and separate source, sink and catalog paths. No private key is needed for creation. [History backup](atlas/history-backup.md) documents the request JSON, defaults, limits, retry behavior and operator key-recovery checklist. `pair archive continuous` runs one pass over agent transcripts, Codex databases, ops documents and sdlc data, configured by `$PAIR_DATA_DIR/archive/continuous.json`: it archives files once they have been unmodified for three days, each file once by content hash, and takes coherent private snapshots of Codex databases without opening them in place; Couch runs it daily when configured. Continuous mode also copies the encrypted bundles and public labels to the configured rclone destination (default `pair-backup:backups/pair-history`) after local backup succeeds, using one batch with up to eight transfers. When running from a Pair-slot terminal, set `PAIR_DATA_DIR="$HOME/.local/share/pair"` explicitly to select the shared configuration. Install and configure `rclone` separately; optional `drive_remote` and `drive_folder` settings select the destination. Drive failures leave local backup intact and print a pending/unavailable note. Verified upload receipts are kept separately from the local catalog; neither command deletes sources or restores. See the [Drive verification and retry guide](atlas/history-backup.md#drive-copies-678).}
 
 ## Storage retention
 
@@ -1975,8 +1978,12 @@ From a non-agent Pair pane, detach with `Alt+d`. For Couch-managed work, use the
 reasons for keeping or collecting each group. Use `pair gc --json` for exact
 paths. Preview does not change your files or initialize retention clocks.
 
-- Debug logs and old parked captures expire after one year. Captures keep
-  their raw output and offset sidecars together; active readers postpone removal.
+🤖~- Debug logs and old parked captures expire after one year. Captures keep
+  their raw output and offset sidecars together; active readers postpone removal.~{- Managed debug logs expire after seven days; PAIR_DIAGNOSTIC_DAYS accepts1..365
+  (empty=7, invalid values refuse collection). Proven oversized legacy debug
+  generations can be removed whole even when young. Live or unknown holders
+  postpone removal. Old parked captures retain their one-year policy and keep
+  raw output and offset sidecars together.}
 - Standalone session data expires after one year without meaningful use.
   Threads visible in Couch's switcher stay protected, including parked threads.
   Archiving a thread starts a fresh one-year grace; old archives without tracking
@@ -1985,7 +1992,13 @@ paths. Preview does not change your files or initialize retention clocks.
   Unknown ownership or liveness keeps data. Agent-native conversations and
   repository files are outside this collector.
 
-Before enabling collection, register every Couch store with
+🤖{Use `pair gc --diagnostics-only` for a read-only debug-log preview and add
+`--apply` to collect eligible managed logs. No backup or session migration
+acknowledgment is required for this scope; it leaves session/history data and
+clocks alone. It cannot be mixed with store-registration or migration flags.
+`PAIR_WRAP_EVENTS=0` disables optional wrapper trace detail.}
+
+Before enabling session collection, register every Couch store with
 `pair gc --register-store PATH`, then acknowledge the complete list using
 `pair gc --complete-migration --store PATH` (repeat `--store` for every store).
 Use an empty list only when no Couch stores exist. This explicit migration

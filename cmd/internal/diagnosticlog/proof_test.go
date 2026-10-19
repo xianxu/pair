@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -25,7 +26,8 @@ func TestWriterProofRejectsLegacyAndUnknownHolders(t *testing.T) {
 		err      error
 		want     bool
 	}{
-		{"registered", []Registration{me}, []Runtime{{Process: me}}, nil, true},
+		{"registered open holder", []Registration{me}, []Runtime{{Process: me}}, nil, false},
+		{"registered closed writer", nil, []Runtime{{Process: me}}, nil, true},
 		{"unknown holder", []Registration{{PID: 9, Birth: "old"}}, nil, nil, false},
 		{"legacy transient", nil, []Runtime{{Process: Registration{PID: 8, Birth: "old", Root: "/root"}}}, nil, false},
 		{"other root legacy", nil, []Runtime{{Process: Registration{PID: 8, Birth: "old", Root: "/other"}}}, nil, true},
@@ -147,7 +149,7 @@ func requireLsofObservation(t *testing.T, err error) {
 	if err == nil {
 		return
 	}
-	unavailable := err.Error() == "lsof unavailable or incomplete" || err.Error() == "lsof reported incomplete inspection"
+	unavailable := errors.Is(err, errLsofUnavailable) || err.Error() == "lsof unavailable or incomplete" || err.Error() == "lsof reported incomplete inspection"
 	if unavailable && os.Getenv("PAIR_REQUIRE_LSOF_CONFORMANCE") != "1" {
 		t.Skipf("native lsof conformance unavailable/incomplete: %v; run PAIR_REQUIRE_LSOF_CONFORMANCE=1 to require it; %s", err, testwait.HostState())
 	}
@@ -171,6 +173,8 @@ func TestLsofConformanceVerdicts(t *testing.T) {
 			requireLsofObservation(t, errors.New("lsof unavailable or incomplete"))
 		case "incomplete":
 			requireLsofObservation(t, errors.New("lsof reported incomplete inspection"))
+		case "deadline":
+			requireLsofObservation(t, fmt.Errorf("%w: %w", errLsofUnavailable, context.DeadlineExceeded))
 		case "malformed":
 			requireLsofObservation(t, errors.New("unexpected lsof output"))
 		case "unknown":
@@ -188,14 +192,14 @@ func TestLsofConformanceVerdicts(t *testing.T) {
 		return
 	}
 	for _, required := range []string{"0", "1"} {
-		for _, fixture := range []string{"unavailable", "incomplete", "malformed", "unknown", "wrong-holder", "wrong-identity", "correct"} {
+		for _, fixture := range []string{"unavailable", "incomplete", "deadline", "malformed", "unknown", "wrong-holder", "wrong-identity", "correct"} {
 			t.Run(fixture+"/required="+required, func(t *testing.T) {
 				ctx, cancel := context.WithTimeout(context.Background(), testwait.Budget(t))
 				defer cancel()
 				cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestLsofConformanceVerdicts$", "-test.v")
 				cmd.Env = append(os.Environ(), "PAIR_TEST_LSOF_VERDICT="+fixture, "PAIR_REQUIRE_LSOF_CONFORMANCE="+required)
 				out, err := cmd.CombinedOutput()
-				skip := (fixture == "unavailable" || fixture == "incomplete") && required == "0"
+				skip := (fixture == "unavailable" || fixture == "incomplete" || fixture == "deadline") && required == "0"
 				wantPass := skip || fixture == "correct"
 				if (err == nil) != wantPass || strings.Contains(string(out), "--- SKIP:") != skip {
 					t.Fatalf("verdict fixture=%s required=%s err=%v output=%s; %s", fixture, required, err, out, testwait.HostState())

@@ -9,26 +9,26 @@ import (
 	"time"
 )
 
-func TestLegacyExpiredDiagnosticPreservedUntilBackup(t *testing.T) {
+func TestLegacyExpiredDiagnosticCollectedWithoutBackup(t *testing.T) {
 	path, now, opts := fixture(t)
 	os.WriteFile(path, []byte("old debug"), 0600)
 	old := now.Add(-RetentionPeriod - time.Hour)
 	os.Chtimes(path, old, old)
 	rows, err := PreviewLegacy(path, opts)
-	if err != nil || len(rows) != 1 || rows[0].Eligible || rows[0].Reason != BackupFenceReason || !rows[0].LastWrite.Equal(old) {
+	if err != nil || len(rows) != 1 || !rows[0].Eligible || !rows[0].LastWrite.Equal(old) {
 		t.Fatal(rows, err)
 	}
 	removed, err := CollectLegacy(path, opts)
-	if err != nil || len(removed) != 0 {
+	if err != nil || len(removed) != 1 {
 		t.Fatal(removed, err)
 	}
-	body, err := os.ReadFile(path)
-	if err != nil || string(body) != "old debug" {
-		t.Fatal(string(body), err)
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatal("expired payload remains", err)
 	}
-	if _, err = os.Stat(lockPath(path)); !os.IsNotExist(err) {
-		t.Fatal("retained legacy acquired lock", err)
+	if _, err := os.Stat(lockPath(path)); err != nil {
+		t.Fatal("stable lock missing", err)
 	}
+
 }
 
 func TestLegacyUnknownOrYoungDoesNotInitialize(t *testing.T) {

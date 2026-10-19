@@ -147,7 +147,7 @@ func EnumerateRoot(ctx context.Context, root string, offset, limit int) (Registr
 		if err := ctx.Err(); err != nil {
 			return RegistryPage{}, err
 		}
-		if err := validateRegistryEntry(entry); err != nil {
+		if err := validateRegistryEntry(entry); err != nil && !os.IsNotExist(err) {
 			return RegistryPage{}, err
 		}
 		sum := sha256.Sum256([]byte(entry.Path))
@@ -159,12 +159,18 @@ func EnumerateRoot(ctx context.Context, root string, offset, limit int) (Registr
 	return RegistryPage{Entries: entries, NextOffset: nextOffset, Complete: complete}, nil
 }
 
+// Validate shape before filesystem resolution: a missing parent cannot conceal
+// malformed authority. Enumeration may report a missing valid declaration, but
+// per-path canonicalization still blocks every collection effect on that path.
 func validateRegistryEntry(entry RegistryEntry) error {
+	if entry.Version != 1 || !filepath.IsAbs(entry.Path) || filepath.Clean(entry.Path) != entry.Path || entry.Directory != directory(entry.Path) || entry.Lock != lockPath(entry.Path) {
+		return errors.New("invalid diagnostic registry entry")
+	}
 	p, err := canonical(entry.Path)
 	if err != nil {
 		return err
 	}
-	if entry.Version != 1 || p != entry.Path || entry.Directory != directory(p) || entry.Lock != lockPath(p) {
+	if p != entry.Path {
 		return errors.New("invalid diagnostic registry entry")
 	}
 	return nil

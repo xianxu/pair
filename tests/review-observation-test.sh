@@ -46,7 +46,7 @@ with ReviewTestEnvironment() as isolated, tempfile.TemporaryDirectory(prefix='pa
     (home/'bin/pair').chmod(0o700)
     opened=data/'review.open'
     env=dict(base_env,PAIR_HOME=str(home),PAIR_DATA_DIR=str(data),PAIR_TAG='observation',PAIR_SESSION_ID='sid',PAIR_REVIEW_OPEN_PATH=str(opened),
-        PAIR_REVIEW_HANDOFF_PATH=str(data/'handoff.json'),PAIR_REVIEW_LANDED_PATH=str(data/'landed.json'),
+        PAIR_REVIEW_ROUND_PATH=str(data/'round.json'),
         PAIR_REVIEW_IDENTITY=json.dumps(resolve()),XDG_STATE_HOME=str(tmp/'state'),XDG_CACHE_HOME=str(tmp/'cache'),XDG_DATA_HOME=str(tmp/'xdg'))
     trace_path=tmp/'pane-observations.json';trace_init=tmp/'observation-init.lua'
     trace_init.write_text('dofile('+json.dumps(str(root/'tests/lib/review_resolver_fake.lua'))+').install({model_path='+json.dumps(str(model_path))+'})\n'+
