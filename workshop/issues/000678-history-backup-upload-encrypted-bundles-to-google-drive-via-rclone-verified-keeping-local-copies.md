@@ -1,13 +1,21 @@
 ---
 id: 000678
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-18
 updated: 2026-10-18
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: '842c20f5f5ca53a3c55105df10014cc035e02f26' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'b2421882cf988bca4fa54bbc9f5eaba68e694999' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-18T17:51:28-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:6
+    worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
+    repository: github.com/xianxu/pair
 ---
 
 # history backup: upload encrypted bundles to Google Drive via rclone (verified), keeping local copies
@@ -28,8 +36,23 @@ Add a Drive sink to historyarchive that shells out to rclone (remote and folder 
 
 ## Plan
 
-- [ ]
+Durable design: [000678-drive-history-backup-plan.md](../plans/000678-drive-history-backup-plan.md). Full flow; awaiting hub approval before change-code.
+
+- [ ] Define destination/receipt identities and pure upload transitions; test configuration defaults and remote-only failures.
+- [ ] Implement the bounded rclone seam with a stateful fake and disposable installed-rclone local conformance.
+- [ ] Integrate verified backlog replication after local completion, immutable upload receipts, private staging and counted N/2N recovery tests.
+- [ ] Document configuration/recovery, obtain operator-run Drive conformance, and land through recorded suite and fresh close review.
 
 ## Log
 
 ### 2026-10-18
+
+
+- Recovery evidence: requested previous terminal capture returned unavailable. Git and sdlc state show #670 already landed and #678 claimed/started on its own branch; no implementation edits. Historical screen instructions are context, not fresh permission. Verified the original #678 dispatch receipts before continuing its existing planning work.
+- Read-only map: existing local publication independently verifies ciphertext and public BundleLabel before CatalogRecord append. Continuous passes with no fresh sources still need a full catalog backlog phase. Catalog identity is bundle ID alone and its index treats every record as local; proposed remote receipts therefore live in a separately named upload catalog rather than changing existing record authority (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE).
+- Plan checkpoint: workshop/plans/000678-drive-history-backup-plan.md records the full proposed flow, explicit remote/local visible states, uncertainty/cancellation recovery, stateful FakeRclone seam, N=8/16 counts, lifecycle and operating limits. Separate upload catalog and limits await hub approval; no change-code or production edit yet.
+- Discovery: installed rclone v1.75.2 supports lsjson hash selection and hashsum --download. Drive may omit SHA256 on some objects, so explicit downloaded hashing is the fallback; never accept copy command success or size alone. Only version/help and official docs were consulted; no Drive request, credential/config read, upload, operator-session change or restart occurred.
+
+## Revisions
+
+- 2026-10-18: expanded the initial empty Plan into a full-flow design after inspecting local catalog identity and publication. Proposed a destination-specific upload catalog, keeping the existing local schema and authority unchanged; retained the original Spec and Done when for hub review.
