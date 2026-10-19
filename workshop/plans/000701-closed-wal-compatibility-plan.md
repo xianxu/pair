@@ -46,6 +46,7 @@ SQLite references: [read-only WAL contract](https://www.sqlite.org/wal.html#read
 | SQLiteSnapshotter.Snapshot | cmd/internal/historyarchive/sqlite_snapshot.go | modified | route choice and existing lease, validation and atomic staging |
 | SQLiteRunner / ExecSQLiteRunner | cmd/internal/historyarchive/sqlite_snapshot_exec.go | existing, reused | private validation; current active acquisition unchanged |
 | coldSQLiteFile | cmd/internal/historyarchive/sqlite_cold.go | new | held descriptor adapter for coldSQLiteInput |
+| coldSnapshotOutput | cmd/internal/historyarchive/sqlite_cold.go | new | private writer preserving local IO failure provenance |
 | coldInputFixture | cmd/internal/historyarchive/sqlite_cold_test.go | new | stateful descriptor/reader adapter with explicit mutation gates |
 
 Use existing `openSafeDir`, `safeParent`, `openRegularAt`, `fileDigest`, `validateRoots`, source size cap, scratch lifetime lease and `snapshotFailure`. Do not promote the unbounded `copyRegularFile` test helper into production. Register every new production file in artifactpath's existing exhaustive manifest.
@@ -97,6 +98,7 @@ No new UI, warning timer, schema, status enum or online retry. #700's freshness 
 | sameColdSource | Mutated evidence values through independent field-variation properties | TestSameColdSourceRequiresEveryStampAndNoSidecars |
 | observeColdSource | Unavailable or changed filesystem authority through a stateful filesystem fixture; unknown never grants copy authority | TestObserveColdSourceNeverTreatsUnknownAsAbsent |
 | copyColdWAL | Controlled capture event sequences with independent exact-output/source-preservation/refusal invariants; counted B/2B and N/2N work | TestColdWALCopyRefusesMutations, TestColdWALCopyBoundsAndCancellation, TestColdWALCopyCountedCost |
+| coldSnapshotOutput.Write | Real local write failure through a read-only descriptor; preserve the typed output category independently of source uncertainty | TestColdSnapshotOutputPreservesLocalWriteFailure |
 | SQLiteSnapshotter.Snapshot | Stateful lane selection and failed-candidate sequences; exact acquisition counts and prior-stage/cleanup invariants | TestSQLiteSnapshotColdAndActiveRoutes, TestSQLiteColdRefusalPreservesPreviousStage |
 | ExecSQLiteRunner | Disposable native CLI conformance against the fake contract; independent SQL and full-source-image oracles | TestSQLiteClosedWALNativeConformance, TestSQLiteClosedWALRealWriterDuringCapture |
 | ContinuousPass | Mixed-result production pass through the portable store; verified-catalog and isolation invariants | TestContinuousColdWALPublicationAndIsolation |
@@ -153,3 +155,7 @@ Hub approved the mechanism (receipt a29363a1-7c62-43e8-92bd-2bc7cc45e531) and ex
 ### 2026-10-19 12:23 PDT — implementation map and executable qualification
 
 The value stamp has an explicit coldFileStamp member type and the OS adapter is coldSQLiteFile; mapped both alongside the stateful fixture and actual test declarations. Real writer conformance adds rollback to isolate transient namespace mutation from DB changes. Native readonly characterization runs on a separate fixture because conforming CLIs can create sidecars: only production Snapshot is required to preserve its untouched source image. Added a dedicated continuous_cold_test.go for catalog/publication qualification instead of growing the older test file. README's existing all-transaction summary is corrected without a new invocation or review-marker resolution. Separated future close/landing instructions from implementation checkboxes so qualification can honestly finish before the close gate. No scope or mechanism change.
+
+### 2026-10-19 12:35 PDT — BR-1 preserves failure evidence
+
+The first boundary found that routing every cold error to deferred contradicted the approved projection for proven unsafe paths/local failures. The complete rule is now: source mutation or unknown source evidence/deadline defers; a proven invalid source type/size or local output create/write/close failure rejects. Typed errors carry that distinction through the shared snapshotFailure formatter, without matching error text. The private writer adapter preserves write provenance while hashing/copying remains shared. Updated controls for the whole class went red before the fix; normal mutation/deadline controls remain deferred. Prior-stage and catalog retention, no fallback and all cleanup owners are unchanged. The queued old-code suite was cancelled through local-check cancel before starting; a fresh recorded run is required on the correction.

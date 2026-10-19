@@ -170,8 +170,9 @@ func TestColdWALCopyBoundsAndCancellation(t *testing.T) {
 				}
 			}
 			handled, err := copyColdWAL(ctx, f, out)
-			if !handled || !errors.Is(err, errColdCapture) {
-				t.Fatalf("uncertain capture admitted: %v %v", handled, err)
+			wantUncertain := shape != "oversize" && shape != "collision"
+			if !handled || err == nil || errors.Is(err, errColdCapture) != wantUncertain {
+				t.Fatalf("wrong capture failure classification: %v %v", handled, err)
 			}
 			if shape == "collision" {
 				got, _ := os.ReadFile(out)
@@ -212,6 +213,26 @@ func TestColdWALCopyLeavesActiveAndOtherFormatsToSQLite(t *testing.T) {
 				t.Fatalf("unexpected private output: %v", err)
 			}
 		})
+	}
+}
+
+func TestColdSnapshotOutputPreservesLocalWriteFailure(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "readonly.sqlite")
+	if err := os.WriteFile(path, []byte("original"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	n, err := (coldSnapshotOutput{writer: f}).Write([]byte("replacement"))
+	if n != 0 || !errors.Is(err, errColdOutput) || errors.Is(err, errColdCapture) {
+		t.Fatalf("local write failure lost its category: n=%d err=%v", n, err)
+	}
+	got, err := os.ReadFile(path)
+	if err != nil || string(got) != "original" {
+		t.Fatalf("read-only fixture changed: %q %v", got, err)
 	}
 }
 
@@ -308,7 +329,7 @@ func TestSQLiteSnapshotColdAndActiveRoutes(t *testing.T) {
 }
 
 func TestSQLiteColdRefusalPreservesPreviousStage(t *testing.T) {
-	for _, shape := range []string{"integrity", "tool", "deadline", "uncertain-sidecar"} {
+	for _, shape := range []string{"integrity", "tool", "deadline", "unsafe-sidecar"} {
 		t.Run(shape, func(t *testing.T) {
 			src, stage, scratch := t.TempDir(), t.TempDir(), t.TempDir()
 			path := filepath.Join(src, "db.sqlite")
@@ -328,14 +349,14 @@ func TestSQLiteColdRefusalPreservesPreviousStage(t *testing.T) {
 				fake.fail = errors.New("validator exit 1")
 			case "deadline":
 				fake.fail, want = ErrSQLiteDeadline, SnapshotDeferred
-			case "uncertain-sidecar":
+			case "unsafe-sidecar":
 				if err := os.Symlink(path, path+"-journal"); err != nil {
 					t.Fatal(err)
 				}
-				want, validations = SnapshotDeferred, 0
+				want, validations = SnapshotRejected, 0
 			}
 			var before map[string]cold701ImageEntry
-			if shape != "uncertain-sidecar" {
+			if shape != "unsafe-sidecar" {
 				before = cold701SourceImage(t, src)
 			}
 			result, err := (SQLiteSnapshotter{Scratch: scratch, Runner: fake}).Snapshot(context.Background(), src, "db.sqlite", stage)

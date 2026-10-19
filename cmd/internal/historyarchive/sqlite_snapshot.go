@@ -145,7 +145,9 @@ func (s SQLiteSnapshotter) Snapshot(ctx context.Context, root, rel, stagingRoot 
 	}
 	if coldErr != nil {
 		result := snapshotFailure(coldErr, "")
-		result.Status = SnapshotDeferred
+		if errors.Is(coldErr, errColdCapture) {
+			result.Status = SnapshotDeferred
+		}
 		return result, nil
 	}
 	var out SQLiteRunResult

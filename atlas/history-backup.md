@@ -249,6 +249,8 @@ does nothing.
   deadline and fixed-size buffers. Changed or unknown capture evidence defers
   without retry and keeps the previous verified backup; let the next scheduled
   pass try again. Unrelated directory churn can conservatively defer this path.
+  Proven unsafe paths, size violations and private output failures are rejected;
+  ask the hub to repair the reported source or output configuration.
   Active databases retain native backup; a failed cold capture never falls
   through to another acquisition in the same pass. Both paths share private
   DELETE/integrity validation, atomic staging, opaque schema/rowid preservation

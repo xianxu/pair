@@ -83,6 +83,14 @@ Detailed design: [closed WAL compatibility plan](../plans/000701-closed-wal-comp
 - Test correction: the conformance image helper deliberately rejects nonregular entries; the unsafe-journal fixture now independently asserts unchanged source bytes and symlink target instead. This changes no production outcome. Its targeted rerun passed 0.679s. Characterization queries use a separate probe copy so normal CLI-created coordination files cannot contaminate source preservation or route eligibility.
 - Final focused qualification after routing cold diagnostics through the existing bounded snapshotFailure: historyarchive passed 3.498s and artifactpath guards passed 3.982s. Implementation committed at b0e8c75592af6c67ad4e9c148138d42a3173d48d and pushed as PR #464. Recorded suite attempt 7855ff58f427e11d5d4dbdb8cbeebef9 is queued on that exact code head (initial FIFO position 6); session 46416 owns it. Full historyarchive and suite completion remain pending. Under tl-worker's overlap rule, close review may run while queued, with the final suite pass required before landing and any code correction requiring a new recorded run. The only unchecked implementation obligations are that full-suite qualification; no behavior proof is waived. Acceptance uses disposable native SQLite files, with no real Codex source or archive publication invoked.
 
+### 2026-10-19 — close BR-1 and correction
+
+- First close review returned FIX-THEN-SHIP but did not finalize because BR-1 was Important: proven unsafe journal paths were being described as temporary source uncertainty. Reviewer independently ran the full historyarchive and artifactpath packages (131.493s/16.838s, green) and active-writer conformance observed 280 transactions; no correctness/preservation finding beyond classification.
+- Swept the failure-classification family: uncertain source evidence defers, known unsafe types/size and local output creation/writing/closing reject. Typed source/output sentinels survive the shared formatter; no phrase matching. The local writer adapter distinguishes output failures from read uncertainty during the shared digest copy.
+- Red before correction: oversize, private-output collision and unsafe-journal controls failed as expected (0.190s). After correction the complete new cold/native/publication subset passed 2.760s; changed source/deadline still defer, previous candidate survives both categories. A real read-only descriptor exercises local write error provenance without changing its bytes.
+- Supported local-check cancel stopped only this checkout's queued b0e8c755 run (7855ff58f427e11d5d4dbdb8cbeebef9); it never acquired capacity or ran tests. Other checkout runs were explicitly left running. This is a superseded-code cancellation, not a flake retry. A new exact-head recorded suite and ordinary close review are due; first close did not reach codecomplete.
+- Corrected-head qualification passed: broad SQLite/cold/continuous/historyarchive subset 11.669s and artifactpath guards 4.114s. No existing expectation was changed except the three deliberately wrong failure categories identified by BR-1.
+
 ## Revisions
 
 ### 2026-10-19 12:14 PDT — proposed compatibility route, pending approval
@@ -96,3 +104,7 @@ Hub approved the design and clarified that uncertain cold evidence is deferred (
 ### 2026-10-19 12:23 PDT — actual concept map and delivery checklist
 
 Mapped actual types/test declarations and the dedicated continuous fixture in the plan. Corrected the README's existing transaction-only summary and separated future close/landing/report instructions from implementation checkboxes; all original delivery obligations remain. Observed quiescence, no-retry deferral, native active backup and persisted formats are unchanged.
+
+### 2026-10-19 12:35 PDT — BR-1 error categories
+
+Corrected implementation to the existing approved operator projection: unsafe source structure/size and local output failures reject, while uncertain source quiescence/deadlines defer without retry. Added the private output adapter to the concept map and source/error controls; prior evidence, resource ownership and formats are unchanged. The original queued code head is superseded and must not provide landing evidence.
