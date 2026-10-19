@@ -78,6 +78,13 @@ Durable design: [000678-drive-history-backup-plan.md](../plans/000678-drive-hist
 - Additional qualification: race tests passed historyarchive (47.417s), archivetest (1.182s), archivecmd (1.181s). Tracked-file guard rerun passed internal/repolint (20.563s), artifactpath (19.536s), testpair (26.256s). In-flight exec cancellation uses authenticated readiness and owned-process collection (race test 1.221s). Semantic JSON/hash alias regressions were RED then GREEN; latest focused race check passed historyarchive (2.471s) and archivecmd (1.186s).
 - Estimate advisory acknowledged: adapter allowance includes its fake and local conformance; integration allowance includes projection/staging/receipt/CLI wiring and tests. Active verification and landing are included in the review/integration work; idle machine queue time is excluded. The calibration is provisional and may underpredict this integration-heavy scope; actuals will remain measured.
 
+### Candidate and outstanding acceptance — 2026-10-18
+
+- PR: https://github.com/xianxu/pair/pull/444 . Qualified code/build revision from Git/go version: 1ed7a6e86e1e4aa2be0e97d67a8ad03ce4538d5f, vcs.modified=false. Private binary: /var/folders/07/b9wcwwld4_v2w9r3hk525bm80000gn/T/pair-678-live.OOCygr/pair . Its archive --help smoke passed. Build entrypoint is cmd/pair-go (initial cmd/pair path was incorrect and was corrected before producing a binary).
+- Hub readiness message b9af8bee-7b09-48fb-ab91-2d13ecb5e580 is canonically submitted. Hub arranges operator command: that exact private binary archive continuous, then rerun and inspect Drive names/local copies. No live Google call, :0 stage, restart, relaunch, personal rclone config read or credential operation by this worker.
+- Recorded suite launched on pushed source head 1ed7a6e86e1e4aa2be0e97d67a8ad03ce4538d5f, currently waiting in machine capacity line (position 3 when last observed). Running exec session 19377; inflight log /Users/xianxu/workspace/pair/.git/sdlc/test-stats/inflight/b9fa9937cb7f8be6385ed9881047a05e/run.log . Keep this one run; do not duplicate or kill another slot's process. Initial server checks: merge-check and local-gates guard passed; conformance pending.
+- Still owed: full recorded suite result, actual operator Drive pass/rerun evidence, binary-owned close review and landing. No cause to change source or repeat passing targeted checks while these are pending. A newly identified defect would require its own focused regression and final-head suite as usual.
+
 ## Estimate
 
 *Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only. Calibration is marked stale by estimate-source, so values remain provisional.*
