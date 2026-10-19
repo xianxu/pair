@@ -419,3 +419,42 @@ Steps:
     `Key()` for a slot target in M1, and `TestLifecycleAddressSlotKeyMatchesFailureSlotKey` pins the equality. The
     team arm (`team/<scope>/<TeamDir>`) has no failure-row matcher yet; pair#694 M3 adds it to
     `lifecycleFailureRowTargets`.
+- 2026-10-19 — Plan-quality round 1 (PQ-1 and five minors). Where these differ from §1–§7, they govern:
+  - **PQ-1, one shared preserving codec (ARCH-DRY).** #683 wrote the strict-known, preserve-unknown mechanism by
+    hand: `failureObject` and `failureEncodeObject` (couchcore/lifecyclefailure_codec.go:37,62), plus
+    `cloneFailureUnknown` and `mergeFailureUnknown` (lifecyclefailure.go:80,90). It is not repeated per decoder.
+    **M1, step 1** extracts it into the leaf package `strictjson`, so that `launcher` (the agent sidecar) can import it
+    too, which it cannot do from couchcore:
+    - `strictjson.SplitObject(raw, known, nullable) (owned, unknown map[string]json.RawMessage, err)`: duplicate keys
+      are rejected recursively first, then null is checked for known members.
+    - `strictjson.EncodeObject(owned, unknown, known) ([]byte, error)`: unknown values are appended verbatim, and the
+      known names win.
+    - `strictjson.CloneRaw` and `strictjson.MergeRaw`.
+
+    #683's failure codec moves onto these with no byte change; its existing round-trip tests are the regression
+    guard. `ThreadRecord` (M1), the agent sidecar and `orphans.json` (M2) then use only these functions. The helper is
+    tested once, in `strictjson/object_test.go`: `TestSplitEncodeObjectPreservesUnknownBytes` (whitespace, escapes,
+    large integers, nested objects) and `FuzzSplitObject` (duplicate keys at every depth, type mismatches, null
+    known members). The per-record tests shrink to one wiring check each.
+  - **The `TeardownProof` shape.** It is `TeardownProof{Address LifecycleAddress; ProvenAt time.Time; Witnesses
+    ...}`. Archive and replace match the proof on `Address.Key()`, never on a slot field. `ProvenAt` is persisted
+    with the archived (or parked) record, and it is what `LastLifecycleSuccessAt` reads.
+  - **The archive funnel.** The proof parameter goes on the private `archiveThread` (threadstore.go:1408), so
+    `ArchiveThread`, `ArchiveThreadExpected` and `ArchiveThreadExpectedBytes` (:1389-1403) all require one
+    structurally. The exact-bytes variant, which archives an undecodable record, needs a proof too: teardown proves
+    the slot's processes gone from the address, not from the record. Test: `TestEveryArchiveVariantRequiresProof`,
+    a table over the three public entry points.
+  - **Out of scope.** `TestConvergeRefusesMovedRevision` moves to #684, since Converge is #684's. M2 keeps the archive
+    and replace analogue it actually changes: `TestArchiveRefusesProofForMovedRevision`, where a proof taken at
+    revision N refuses a record now at revision M.
+  - **The key shapes.** `Key()` is `slot:<canonical physical root>` for a slot, which equals #683's
+    `LifecycleFailureSlotKey`. For a team it is `team:<scope>/<TeamDir>`, where `scope` is
+    `launcher.ResolveRepoScope(CheckoutRoot)` (scope.go:23), the same scope that identifies a checkout everywhere
+    else. So two checkouts that hold the same `TeamDir` get distinct keys (`TestLifecycleAddressKeyDistinctPerCheckout`).
+    `Validate()` resolves the scope once; `Key()` is pure over the resolved value, so `TeamIdentity` carries a
+    `Scope` field filled by `Validate`. Both arms use a `:` separator, so the earlier `team/` spelling is dropped.
+  - **Bind's write.** When Bind adopts a newer ledger root, the record write goes through the store's existing
+    revision-checked atomic write (`writeStoreAtomicLockedChecked`, the same path every record write uses), inside
+    the slot's per-slot admission. A concurrent direct-store rewrite either lands first, in which case the
+    revision moves, Bind re-reads and the adoption is retried once, or it lands after and preserves the field (§2a).
+    Test (M1): `TestBindAdoptionSurvivesConcurrentRewrite`.
