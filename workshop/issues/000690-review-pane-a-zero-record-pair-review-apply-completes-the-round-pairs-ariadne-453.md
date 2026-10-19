@@ -16,6 +16,7 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "472ad5cb", done: "e02044d4"}
 ---
 
 # review pane: a zero-record pair review apply completes the round (pairs ariadne#453)
