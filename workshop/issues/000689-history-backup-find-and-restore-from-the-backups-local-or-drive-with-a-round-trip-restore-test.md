@@ -46,7 +46,7 @@ lost its local catalog can reconstruct it from Drive alone, then restore selecti
 
 Durable plan: [find, restore and label/location index](../plans/000689-find-restore-index-plan.md).
 
-- [ ] M1 — Preserve additive label/index fields; implement local-only find and atomic local/Drive index synchronization, including catalog-loss rebuild.
+- [x] M1 — Preserve additive label/index fields; implement local-only find and atomic local/Drive index synchronization, including catalog-loss rebuild.
 - [ ] M2 — Implement verified fresh-destination restore, throwaway-key full round trip, and operator-owned real Claude-day Drive drill; qualify and land before retention.
 
 
@@ -110,6 +110,7 @@ total: 4.93
 - Read-only component mapping reused existing safe paths, catalog/receipt/hash helpers, rclone runner/fake and isolated GPG fixture. Full design and initial batch limits are awaiting hub approval before change-code.
 
 ### 2026-10-19 — implementation admitted
+- 2026-10-19: closed M1 — BR-1 approved refinement: complete destination markers retain empty inventory and folder/time precedence; old receipts remain unavailable, newer same-binding receipt promotes only its own location. Four public sequence tests confirmed RED then GREEN; strict optional schema/legacy older-envelope/count bounds pass; focused M1 run59.389s and races23.248s pass, staged repolint8.229s and codec fuzz599 executions pass. New recorded suite queued on pushed 247f8fee6; no suite pass/landing claimed. M2/operator drill remain outstanding. Another index evidence hole requires hub simplification before patch.; review verdict: SHIP
 
 - Plan quality CLEAN after PQ-1 disposition; change-code passed with derived estimate 4.93 h. Estimate review INFO: cross-component fixture/race/Linux/full-suite work and active operator qualification are tracked explicitly in this Log; idle operator scheduling is excluded. The library discount covers existing mechanics; remaining ownership/evidence/publication contracts stay custom work.
 - M1 RED/GREEN: compatible label/key codecs, index refresh/history/unknown-field codecs, UTC selection, read-only catalog, local catalog-loss discovery, ownership-stamped staging and atomic index store. Focused catalog/store tests passed with race; codec fuzz passed 51,035 executions. M1 is not closed yet; CLI/Drive integration and normal guards remain.

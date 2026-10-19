@@ -97,3 +97,87 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-19T00:34:41-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 689 — history backup: find and restore from the backups (local or Drive), with a round-trip restore test |
+| repo | pair |
+| issue file | workshop/issues/000689-history-backup-find-and-restore-from-the-backups-local-or-drive-with-a-round-trip-restore-test.md |
+| boundary | milestone M1 |
+| milestone | M1 |
+| window | 390fa467b6f89b8f5f3cfd864cc275af5d1b5dfb..247f8fee61f2b94e90f16fd1dea80e3c3ce38102 |
+| command | sdlc milestone-close --issue 689 --milestone M1 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-19T00:34:41-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+M1 delivers local-only find, bounded local/Drive synchronization, catalog-loss recovery, and additive metadata compatibility. BR-1 is addressed with reachable regression coverage that fails when receipt precedence is disabled. No new blocking findings were found. Restore and the operator drill remain explicitly scoped to M2.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      label_index_model.go:272-286 persists complete destination observations even for empty inventories; label_index_view.go:151-153 applies the shared receipt-precedence rule. Empty-sync and folder-rebinding regressions pass at head and both fail with the precedence guard disabled in a disposable checkout, which was removed afterward. Newer same-binding receipt and partial-refresh preservation tests also pass.
+```
+
+1. **Strengths**
+
+   - Complete observation evidence now governs indexed and previously unseen receipts consistently.
+   - Atomic snapshot publication distinguishes failed publication from uncertain durability.
+   - Drive recovery downloads labels without manufacturing private catalog records or receipts.
+   - README and atlas cover the new commands, evidence semantics, limits, and M2 scope.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Passed historyarchive, archivecmd, archivetest, artifactpath, repository lint, focused BR-1 race tests, installed-rclone download conformance, and diff whitespace checks. Disabling the precedence guard made both principal BR-1 regressions fail.
+
+6. **Architectural notes**
+
+   | Principle | Result |
+   |---|---|
+   | ARCH-DRY | Pass: shared key derivation and receipt reconciliation. |
+   | ARCH-PURE | Pass: selection, codecs, and evidence transitions tested directly without IO. |
+   | ARCH-PURPOSE | Pass: M1 discovery and catalog-loss recovery delivered. |
+   | ARCH-MOCK | Pass: stateful fake uses the production runner seam; conformance passes. |
+   | ARCH-CONSTRAINTS | Pass: metadata/transfer bounds and N/2N work-count tests. |
+   | ARCH-SECURE | Pass: strict metadata admission and ownership-checked cleanup. |
+   | ARCH-ORDER | Pass: durable completeness markers, serialized mutation, atomic publication. |
+   | ARCH-FUNERAL | Pass: bounded snapshots supersede; owned staging is collected. |
+   | ARCH-EVOLVE | Pass: nested unknown fields and legacy envelopes survive round trips. |
+
+   M1 concept classifications match their implementation. M2 entities remain deferred as documented.
+
+7. **Plan revision recommendations:** None additional; the BR-1 revision captures the implemented rule.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"9aaeb79e-5ba7-455c-8b7d-4a5dc528f9cf","repository":"github.com/xianxu/pair","issue_id":"000689","recipe":"milestone-review","round":2,"attempt":1,"agent":"codex","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/ab2a213fa3429c1c","reviewed_head":"247f8fee61f2b94e90f16fd1dea80e3c3ce38102","slot":"pair:6","requested_at":"2026-10-19T07:31:11.606955Z"},"phase":"finished","pid":30173,"started_at":"2026-10-19T07:31:11.829429Z","finished_at":"2026-10-19T07:34:34.603461Z","session_id":"01a15312-52e6-72c2-9b24-bf72057a1e74","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.758260959s
+head: "247f8fee61f2b94e90f16fd1dea80e3c3ce38102"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
