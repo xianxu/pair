@@ -54,3 +54,5 @@ Warn the operator when a configured database's last verified backup bundle excee
 - Existing LatestVerified already derives catalog evidence by exact source identity/path. Reuse it and carry that source identity into runtime summaries; do not scan or snapshot again (ARCH-DRY).
 - Proposed configuration is the inherited PAIR_ARCHIVE_DATABASE_MAX_AGE duration environment variable, unset = 48h; invalid or nonpositive values fail before work. This avoids changing continuous.json or any existing persisted format for one optional knob (ARCH-EVOLVE). No machine environment is changed by this task.
 - Read-only seam exploration confirmed the existing scheduler/report and notification boundaries. No production edits or tests/builds for #700 have started. Full plan goes to hub before change-code.
+
+- 2026-10-19, hub e2825ba7: written plan approved, including environment threshold, bounded versioned JSON, scheduler-owned per-source daily reservations, no uncertain-write retry and headless acceptance. The first naturally stale real database is the live check, owned by the hub; no synthetic desktop alert or pair:0 staging. Proceed to change-code on the single-pass full flow.
