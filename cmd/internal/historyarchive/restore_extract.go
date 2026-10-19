@@ -144,7 +144,7 @@ func ExtractBundle(ctx context.Context, plain io.Reader, label BundleLabel, outp
 		}
 		wanted[path] = true
 	}
-	bounded := &restorePlainReader{ctx: ctx, reader: plain, remaining: rawBundleLimit(label.Kind) + (32 << 20)}
+	bounded := &restorePlainReader{ctx: ctx, reader: plain, remaining: label.RawBytes + MaxRestoreTarOverhead}
 	tr := tar.NewReader(bounded)
 	header, err := tr.Next()
 	if err != nil {
@@ -236,7 +236,7 @@ func ExtractBundle(ctx context.Context, plain io.Reader, label BundleLabel, outp
 			return manifest, selected, err
 		}
 		if n != entry.Size || !strings.EqualFold(hex.EncodeToString(hash.Sum(nil)), entry.SHA256) {
-			return manifest, selected, fmt.Errorf("restored payload checksum/size mismatch: %s", entry.Path)
+			return manifest, selected, fmt.Errorf("restored payload checksum/size mismatch: %q", entry.Path)
 		}
 		if keep {
 			selected++

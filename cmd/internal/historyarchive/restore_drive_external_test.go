@@ -186,3 +186,19 @@ func TestRestorerDriveDuplicateNamesRefusedBeforeDownload(t *testing.T) {
 		t.Fatal("duplicate repaired destructively")
 	}
 }
+
+func TestRestorerDriveBoundsPostListingGrowthBeforeTransfer(t *testing.T) {
+	restorer, request, records, fake, decoder := driveRestoreFixture(t, 1)
+	name := records[0].Label.ID + ".tar.zst.gpg"
+	fake.Before = func(_ context.Context, operation, _ string) error {
+		if operation == "copy" {
+			fake.Objects[name][0].Data = append(fake.Objects[name][0].Data, 0)
+		}
+		return nil
+	}
+	report, err := restorer.Run(context.Background(), request)
+	assertDriveRestoreRefused(t, report, err, request, decoder)
+	if fake.DownloadBatches != 1 || fake.DownloadedCipherBytes != 0 {
+		t.Fatalf("post-listing growth exceeded admitted transfer envelope: batches=%d bytes=%d", fake.DownloadBatches, fake.DownloadedCipherBytes)
+	}
+}

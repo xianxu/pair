@@ -13,6 +13,7 @@ import (
 	"syscall"
 
 	"github.com/xianxu/pair/cmd/internal/historyarchive"
+	"github.com/xianxu/pair/cmd/internal/rowtext"
 	"golang.org/x/sys/unix"
 )
 
@@ -31,7 +32,7 @@ func Run(args []string, stdout, stderr io.Writer) int {
 func RunContext(ctx context.Context, args []string, stdout, stderr io.Writer, create CreateFunc) int {
 	fail := func(phase string, err error) int {
 		// One diagnostic line, even when a child reports several diagnostic lines.
-		message := strings.Join(strings.Fields(err.Error()), " ")
+		message := rowtext.Sanitize(strings.Join(strings.Fields(err.Error()), " "))
 		fmt.Fprintf(stderr, "pair archive: %s: %s\n", phase, message)
 		return 1
 	}

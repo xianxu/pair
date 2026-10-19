@@ -83,6 +83,7 @@ func (r Restorer) acquireRestoreInputs(ctx context.Context, plan RestorePlan, st
 			return inputs, observeErr
 		}
 		names := make([]string, 0, len(remote))
+		var remoteBytes, maxRemoteBytes int64
 		for _, bundle := range remote {
 			name := bundle.Label.ID + ".tar.zst.gpg"
 			entries := inventory[name]
@@ -90,6 +91,8 @@ func (r Restorer) acquireRestoreInputs(ctx context.Context, plan RestorePlan, st
 				return inputs, fmt.Errorf("Drive bundle %s is absent, ambiguous or has conflicting size/identity", bundle.Label.ID)
 			}
 			names = append(names, name)
+			remoteBytes += bundle.Label.Bytes
+			maxRemoteBytes = max(maxRemoteBytes, bundle.Label.Bytes)
 		}
 		// Reserve the batch's files, filter and up to eight concurrent transfer
 		// temporaries before giving an external process filesystem access.
@@ -99,7 +102,7 @@ func (r Restorer) acquireRestoreInputs(ctx context.Context, plan RestorePlan, st
 		}
 		budget.Entries += reserved
 		stagePath := filepath.Join(filepath.Dir(plan.Request.To), ".pair-restore-staging")
-		if err = r.Rclone.DownloadBatch(ctx, pin, names, filepath.Join(stagePath, "ciphertext"), filepath.Join(stagePath, "files-from"), MaxRestoreCipherBytes, MaxCiphertextBytes); err != nil {
+		if err = r.Rclone.DownloadBatch(ctx, pin, names, filepath.Join(stagePath, "ciphertext"), filepath.Join(stagePath, "files-from"), remoteBytes, maxRemoteBytes); err != nil {
 			return inputs, err
 		}
 	}

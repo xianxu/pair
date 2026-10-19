@@ -268,12 +268,40 @@ func TestRestoreCreationHelpersRefuseSymlinksAndOverwrite(t *testing.T) {
 }
 
 func TestExtractBundleRejectsDecompressedPaddingOverflow(t *testing.T) {
-	m, label, members := extractionFixture(t)
-	raw, _ := json.Marshal(m)
-	output, parent := extractionOutput(t)
-	plain := io.MultiReader(bytes.NewReader(extractionTar(t, raw, members)), io.LimitReader(zeroExtractionReader{}, rawBundleLimit(label.Kind)+(32<<20)))
-	if _, _, err := ExtractBundle(context.Background(), plain, label, output, parent, nil, &RestoreExtractionBudget{}); err == nil {
-		t.Fatal("unbounded tar padding accepted")
+	for _, kind := range []string{"ops-documents", "codex-database"} {
+		for _, extra := range []int64{0, 1} {
+			name := kind + "/exact"
+			if extra != 0 {
+				name = kind + "/one-byte-over"
+			}
+			t.Run(name, func(t *testing.T) {
+				m, label, members := extractionFixture(t)
+				m.Kind, label.Kind = kind, kind
+				var err error
+				label.ID, err = m.ID()
+				if err != nil {
+					t.Fatal(err)
+				}
+				raw, err := json.Marshal(m)
+				if err != nil {
+					t.Fatal(err)
+				}
+				base := extractionTar(t, raw, members)
+				limit := label.RawBytes + MaxRestoreTarOverhead
+				if int64(len(base)) > limit {
+					t.Fatal("invalid padding fixture")
+				}
+				plain := io.MultiReader(bytes.NewReader(base), io.LimitReader(zeroExtractionReader{}, limit-int64(len(base))+extra))
+				output, parent := extractionOutput(t)
+				_, _, err = ExtractBundle(context.Background(), plain, label, output, parent, nil, &RestoreExtractionBudget{})
+				if extra == 0 && err != nil {
+					t.Fatalf("exact declared payload plus overhead refused: %v", err)
+				}
+				if extra != 0 && (err == nil || !strings.Contains(err.Error(), "decompressed restore stream exceeds bound")) {
+					t.Fatalf("declared payload plus overhead exceeded without refusal: %v", err)
+				}
+			})
+		}
 	}
 }
 
@@ -316,5 +344,32 @@ func TestExtractBundleFilterMayMissThisBundle(t *testing.T) {
 	}
 	if _, err = os.Stat(filepath.Join(parent, "output", "MANIFEST.json")); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestExtractBundleQuotesUntrustedMemberDiagnostics(t *testing.T) {
+	m, label, members := extractionFixture(t)
+	m.Files[0].Path = "untrusted-\x1b]52;c;ZmFrZQ==\a\x7f\u009b"
+	members[0].name = "files/" + m.Files[0].Path
+	var err error
+	label.ID, err = m.ID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := json.Marshal(m)
+	if err != nil {
+		t.Fatal(err)
+	}
+	members[0].data[0] ^= 1
+	output, parent := extractionOutput(t)
+	_, _, err = ExtractBundle(context.Background(), bytes.NewReader(extractionTar(t, raw, members)), label, output, parent, nil, &RestoreExtractionBudget{Entries: 1})
+	if err == nil || !strings.Contains(err.Error(), "checksum/size mismatch") {
+		t.Fatalf("corruption not exercised: %v", err)
+	}
+	if strings.ContainsAny(err.Error(), "\x1b\a\x7f\u009b") {
+		t.Fatalf("raw untrusted member in diagnostic: %q", err.Error())
+	}
+	if !strings.Contains(err.Error(), `untrusted-\x1b`) {
+		t.Fatalf("quoted member identity missing: %q", err.Error())
 	}
 }

@@ -306,8 +306,8 @@ drill. From a Pair terminal, the explicit shared PAIR_DATA_DIR is essential.
 
 A request admits at most 64 bundles, 4 GiB ciphertext, 16 GiB declared raw
 payload, and 100,000 created entries/processed files. Each ciphertext is at most
-2 GiB. Tar framing, PAX data and padding are bounded by the kind's raw limit plus
-32 MiB per bundle. The whole operation has a 30-minute budget; choose a smaller
+2 GiB. Tar framing, PAX data and padding are bounded by the label's declared raw
+payload plus 32 MiB per bundle. The whole operation has a 30-minute budget; choose a smaller
 batch if it exceeds these limits. Drive uses one folder resolution, one flat
 listing and one batch download with up to eight transfers. The lifetime scratch
 parent lock serializes restoration and its ownership-stamped stage recovery.
@@ -329,3 +329,18 @@ The operator passed the real 2026-10-16 Claude-day Drive drill on 2026-10-19:
 63 labels synchronized, 2 bundles (2,127,158 ciphertext bytes), 339 files
 (101,518,369 raw bytes); restored and original SHA-256 agreed. Owned staging
 was absent, and the operator's hub removed the decrypted scratch tree.
+
+If an inherited `TMPDIR` is too long for gpg-agent's native Unix socket, run
+the opt-in tests with an isolated short root. This changes only the test
+environment; personal keyrings remain unused. Empty-root removal refuses if
+anything leaked, and either a test or cleanup failure returns nonzero:
+
+```sh
+(
+  archive_native_tmp=$(mktemp -d "/tmp/pair-archive-live.XXXXXX") || exit 1
+  archive_test_result=0
+  PAIR_ARCHIVE_LIVE=1 TMPDIR="${archive_native_tmp:?}" go test ./cmd/internal/historyarchive -run '^(TestCodecLiveRoundTrip|TestRestoreLiveRemoteOnlyRoundTrip)$' -count=1 -v || archive_test_result=$?
+  rmdir "${archive_native_tmp:?}" || exit 1
+  exit "$archive_test_result"
+)
+```

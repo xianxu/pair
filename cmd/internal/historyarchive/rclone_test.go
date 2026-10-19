@@ -336,3 +336,76 @@ func TestRcloneDiagnosticRedactsCredentialsAndPreservesTail(t *testing.T) {
 		t.Fatal("untruncated exact-bound diagnostic dropped")
 	}
 }
+
+func TestRcloneLocalDownloadBoundConformance(t *testing.T) {
+	if os.Getenv("PAIR_RCLONE_LOCAL_CONFORMANCE") != "1" {
+		t.Skip("opt-in installed rclone local backend")
+	}
+	binary, err := exec.LookPath("rclone")
+	if err != nil {
+		t.Fatal(err)
+	}
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	config := filepath.Join(root, "rclone.conf")
+	if err := os.WriteFile(config, []byte("[fixture]\ntype = local\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	source := filepath.Join(root, "source")
+	if err := os.Mkdir(source, 0700); err != nil {
+		t.Fatal(err)
+	}
+	objects := map[string]string{strings.Repeat("a", 64) + ".tar.zst.gpg": "12345", strings.Repeat("b", 64) + ".json": "abc", strings.Repeat("c", 64) + ".json": "xy", strings.Repeat("d", 64) + ".json": "123456"}
+	for name, data := range objects {
+		if err := os.WriteFile(filepath.Join(source, name), []byte(data), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	r := Rclone{Runner: ExecRcloneRunner{Binary: binary, Env: []string{"HOME=" + root, "RCLONE_CONFIG=" + config, "PATH=" + os.Getenv("PATH")}}, LocalConformance: true}
+	pin, err := r.ResolveDestination(context.Background(), DriveDestination{Remote: "fixture", Folder: source})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name        string
+		names       []string
+		total, size int64
+		copied      int
+		wantError   bool
+	}{
+		{"exact single", []string{strings.Repeat("a", 64) + ".tar.zst.gpg"}, 5, 5, 1, false},
+		{"exact batch", []string{strings.Repeat("b", 64) + ".json", strings.Repeat("c", 64) + ".json"}, 5, 3, 2, false},
+		{"object grew", []string{strings.Repeat("d", 64) + ".json"}, 5, 5, 0, false},
+		{"batch budget", []string{strings.Repeat("a", 64) + ".tar.zst.gpg"}, 4, 5, 0, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dest := filepath.Join(root, strings.ReplaceAll(tc.name, " ", "-"))
+			if err := os.Mkdir(dest, 0700); err != nil {
+				t.Fatal(err)
+			}
+			filter := filepath.Join(root, "filter")
+			err := r.DownloadBatch(context.Background(), pin, tc.names, dest, filter, tc.total, tc.size)
+			if (err != nil) != tc.wantError {
+				t.Fatalf("download error=%v, wantError=%v", err, tc.wantError)
+			}
+			entries, readErr := os.ReadDir(dest)
+			if readErr != nil {
+				t.Fatal(readErr)
+			}
+			if len(entries) != tc.copied {
+				t.Fatalf("copied=%d want=%d", len(entries), tc.copied)
+			}
+			for _, entry := range entries {
+				data, err := os.ReadFile(filepath.Join(dest, entry.Name()))
+				if err != nil || string(data) != objects[entry.Name()] {
+					t.Fatal("download differs", err)
+				}
+			}
+			if _, err := os.Lstat(filter); !os.IsNotExist(err) {
+				t.Fatal("filter retained", err)
+			}
+		})
+	}
+}

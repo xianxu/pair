@@ -200,3 +200,21 @@ func TestRestoreCLIUsesRestoreModelValidationWithoutTools(t *testing.T) {
 		t.Fatal("validation created sink", err)
 	}
 }
+
+func TestRestoreCLISanitizesUntrustedDiagnostics(t *testing.T) {
+	restoreCLIConfig(t)
+	setRestoreCLI(t, func(context.Context, historyarchive.Restorer, historyarchive.RestoreRequest) (historyarchive.RestoreReport, error) {
+		return historyarchive.RestoreReport{}, errors.New("checksum failed\nprintable 雪 \x1b]52;c;ZmFrZQ==\a \x0e\x7f\u009b")
+	})
+	var out, diag bytes.Buffer
+	code := RunContext(context.Background(), []string{"restore", "--id", strings.Repeat("a", 64), "--to", "/private/scratch/fresh"}, &out, &diag, nil)
+	if code == 0 || out.Len() != 0 {
+		t.Fatal("unsafe diagnostic became success", code, out.String())
+	}
+	if strings.ContainsAny(diag.String(), "\x1b\a\x0e\x7f\u009b") || strings.Count(diag.String(), "\n") != 1 {
+		t.Fatalf("raw terminal control escaped CLI boundary: %q", diag.String())
+	}
+	if !strings.Contains(diag.String(), "checksum failed printable 雪") {
+		t.Fatalf("readable failure context lost: %q", diag.String())
+	}
+}
