@@ -31,6 +31,8 @@ train PR's merge commit, and its `sdlc landing status` line, and append them to 
 - `.sdlc/landing.json` is on pair main; `sdlc landing status` in pair shows trains on with a 60-minute interval.
 - One real train with ≥2 cars has landed, with the evidence above logged; or any failure is filed against ariadne#449's
   follow-ups with that evidence.
+- Then (operator, 10-19): once pair's first train proves it, the same `.sdlc/landing.json` goes to ariadne and
+  parley.nvim, each as its own labeled PR (filed by the hub in those repos).
 
 ## Plan
 
