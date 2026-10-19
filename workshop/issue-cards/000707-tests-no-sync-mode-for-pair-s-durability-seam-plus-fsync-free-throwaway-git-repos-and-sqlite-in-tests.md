@@ -1,6 +1,6 @@
 ---
 id: 000707
-status: open
+status: punt
 created: 2026-10-19
 updated: 2026-10-19
 estimate_hours:
