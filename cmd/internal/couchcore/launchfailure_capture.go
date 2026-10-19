@@ -52,6 +52,10 @@ func (e *launchFailureError) operatorLine() string {
 	} else if errors.Is(e.cause, context.Canceled) {
 		happened = "launch wait canceled; helper exit not observed before cleanup"
 	}
+	var cleanup *SessionCleanupUnconfirmed
+	if errors.As(e.cause, &cleanup) {
+		happened = "session cleanup unconfirmed; ownership retained"
+	}
 	if f.Operation == "switch-agent" {
 		happened = "switch-agent: " + happened
 	}

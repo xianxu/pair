@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/launcher"
+	"github.com/xianxu/pair/cmd/internal/procutil"
 	"github.com/xianxu/pair/cmd/internal/testpair"
 	"github.com/xianxu/pair/cmd/internal/testwait"
 )
@@ -384,7 +385,39 @@ func TestSpawnComposesProductionPairRegistrationBoundary(t *testing.T) {
 	}
 }
 
+func TestSpawnComposedRegistrationFailureCleansExactSession(t *testing.T) {
+	for _, freshSlot := range []bool{false, true} {
+		name := "ordinary"
+		if freshSlot {
+			name = "fresh-slot"
+		}
+		t.Run(name, func(t *testing.T) { testComposedPairRegistrationBoundaryFailure(t, freshSlot, true) })
+	}
+}
+
 func testComposedPairRegistrationBoundary(t *testing.T, freshSlot bool) {
+	t.Helper()
+	testComposedPairRegistrationBoundaryFailure(t, freshSlot, false)
+}
+
+// Refusals happen only after Pair has completed its real owned launch. Every
+// other probe, including the final absence proof, uses production owner reads.
+type registrationCleanupRefusalProbe struct {
+	SessionOwnerProber
+	armed    bool
+	refusals []error
+	failure  error
+}
+
+func (p *registrationCleanupRefusalProbe) Probe(ctx context.Context, name, data, scope, tag string) (launcher.SessionOwnerObservation, error) {
+	if p.armed && len(p.refusals) < 2 {
+		p.refusals = append(p.refusals, p.failure)
+		return launcher.SessionOwnerObservation{}, p.failure
+	}
+	return p.SessionOwnerProber.Probe(ctx, name, data, scope, tag)
+}
+
+func testComposedPairRegistrationBoundaryFailure(t *testing.T, freshSlot, failed bool) {
 	t.Helper()
 	testPackageDir, err := os.Getwd()
 	if err != nil {
@@ -465,6 +498,12 @@ func testComposedPairRegistrationBoundary(t *testing.T, freshSlot bool) {
 	}
 	var address ThreadAddress
 	checker := NewScopedThreadArtifactCollisionChecker(pairData)
+	cleanupRefusal := errors.New("fixture cleanup observation refused")
+	launchRefusal := errors.New("fixture acknowledgement refused after native launch")
+	ownerProbe := &registrationCleanupRefusalProbe{SessionOwnerProber: launcher.SessionOwnerProbe{}, failure: cleanupRefusal}
+	if failed {
+		checker.OwnerProbe = ownerProbe
+	}
 	commonDir := ".git"
 	if freshSlot {
 		commonDir = slot.RepoIdentity
@@ -561,6 +600,10 @@ func testComposedPairRegistrationBoundary(t *testing.T, freshSlot bool) {
 		pairReport <- report
 		if report.err != nil || code != 0 {
 			return fmt.Errorf("LaunchNative = %d, %v; stderr=%s", code, report.err, report.stderr)
+		}
+		if failed {
+			ownerProbe.armed = true
+			return launchRefusal
 		}
 		return nil
 	}
@@ -659,6 +702,14 @@ func testComposedPairRegistrationBoundary(t *testing.T, freshSlot bool) {
 	// lock to be released before ending its client; no policy file is involved.
 	waitFixtureHandoffLease(t, waitCtx, filepath.Join(socketRoot, "contract_version_1", preAck.Incarnations[0].Start.SessionBinding.Name))
 
+	var fixtureServer registrationFixtureServer
+	serverRaw, err := os.ReadFile(ready + ".server")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(serverRaw, &fixtureServer); err != nil {
+		t.Fatal(err)
+	}
 	if err := os.WriteFile(release, []byte("release"), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -671,6 +722,11 @@ func testComposedPairRegistrationBoundary(t *testing.T, freshSlot bool) {
 	if report.err != nil || report.code != 0 {
 		t.Fatalf("LaunchNative report = %+v", report)
 	}
+	// LaunchNative joins its server; the server and wrapper each join their own
+	// child before returning. Its exact server generation must now be gone.
+	if procutil.Alive(strconv.Itoa(fixtureServer.PID)) && procutil.Identity(strconv.Itoa(fixtureServer.PID)) == fixtureServer.Identity {
+		t.Fatalf("owned fixture server survived joined launch: %+v", fixtureServer)
+	}
 	if !reflect.DeepEqual(report.beforeNamespace, report.afterNamespace) {
 		t.Fatalf("Pair mutated Couch namespace\nbefore: %#v\nafter:  %#v", report.beforeNamespace, report.afterNamespace)
 	}
@@ -679,6 +735,28 @@ func testComposedPairRegistrationBoundary(t *testing.T, freshSlot bool) {
 	case result = <-spawned:
 	case <-waitCtx.Done():
 		t.Fatalf("wait for Couch spawn result: %v", waitCtx.Err())
+	}
+	if failed {
+		if !errors.Is(result.err, launchRefusal) || !errors.Is(result.err, cleanupRefusal) {
+			t.Fatalf("failed composed launch did not retain original and cleanup errors: %v", result.err)
+		}
+		if len(ownerProbe.refusals) != 2 || ownerProbe.refusals[0] != cleanupRefusal || ownerProbe.refusals[1] != cleanupRefusal {
+			t.Fatalf("exact repeated cleanup refusal = %v", ownerProbe.refusals)
+		}
+		if result.handle == nil || result.handle.Alive() {
+			t.Fatalf("failed helper not reaped: %v", result.handle)
+		}
+		retained, err := couch.Threads.GetThread(address)
+		if err != nil || len(retained.Incarnations) != 1 || retained.Incarnations[0].State != IncarnationUnknown || retained.Incarnations[0].PID != preAck.Incarnations[0].PID || retained.Incarnations[0].Identity != preAck.Incarnations[0].Identity {
+			t.Fatalf("failed spawn lost exact established ownership: %+v, %v", retained, err)
+		}
+		if _, err := os.Stat(ready + ".server"); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("server state outlived reaped fixture: %v", err)
+		}
+		if afterEnv := processEnvironmentForTest(); !reflect.DeepEqual(expectedProcessEnv, afterEnv) {
+			t.Fatalf("failed LaunchNative leaked environment")
+		}
+		return
 	}
 	if result.err != nil {
 		t.Fatalf("Spawn: %v", result.err)

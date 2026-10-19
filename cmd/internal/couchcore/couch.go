@@ -724,6 +724,11 @@ func (c *Couch) applyStartCleanup(shape StartShape, address ThreadAddress, nonce
 	}
 	cleanupErr := c.quiescePostAckStart(address, h, cleanupShape)
 	helperDead := !h.Alive()
+	knowledge := CleanupConfirmed
+	var unconfirmed *SessionCleanupUnconfirmed
+	if errors.As(cleanupErr, &unconfirmed) {
+		knowledge = CleanupUnconfirmed
+	}
 
 	// Observed AFTER the helper is quiet and after any quiesce, because the
 	// state the record's disposition reasons about is the one left behind.
@@ -732,7 +737,7 @@ func (c *Couch) applyStartCleanup(shape StartShape, address ThreadAddress, nonce
 	// phase and a warm live record. A spawn takes the separate reconciliation
 	// path, which probes its proposed terminal binding before retiring a claim.
 	presence := PresenceUnobserved
-	if startCleanupReadsPresence(shape, liveRecord) {
+	if knowledge == CleanupConfirmed && startCleanupReadsPresence(shape, liveRecord) {
 		observed, presenceErr := c.observeSessionPresence(address)
 		presence = observed
 		// The error joins the return: it is the operator's only account of why
@@ -743,7 +748,30 @@ func (c *Couch) applyStartCleanup(shape StartShape, address ThreadAddress, nonce
 
 	action := DecideStartCleanup(StartCleanupInput{
 		Shape: shape, HelperDead: helperDead, Presence: presence, LiveRecord: liveRecord,
+		Cleanup: knowledge,
 	})
+	if action == DurableMarkUnknown && knowledge == CleanupUnconfirmed {
+		// Do not perform fresh global reconciliation after exhausting this
+		// attempt's session proof. Keep its exact reservation/incarnation.
+		current, err := c.Threads.GetThread(address)
+		if err != nil {
+			return errors.Join(cleanupErr, err)
+		}
+		if !liveRecord {
+			return errors.Join(cleanupErr, c.markResumeStartUnknown(current, nonce))
+		}
+		expected := ProcessIdentity{PID: h.PID(), Identity: h.Identity()}
+		for _, inc := range current.Incarnations {
+			if inc.PID == expected.PID && inc.Identity == expected.Identity {
+				if inc.State == IncarnationUnknown {
+					return cleanupErr
+				}
+				_, err = c.Threads.MarkIncarnationUnknown(address, expected)
+				return errors.Join(cleanupErr, err)
+			}
+		}
+		return errors.Join(cleanupErr, errors.New("unconfirmed cleanup incarnation changed; ownership preserved"))
+	}
 	if action == DurableRollback || action == DurableRetire {
 		current, getErr := c.Threads.GetThread(address)
 		switch {
@@ -936,12 +964,9 @@ func (c *Couch) startStillOwnsThread(start StartResult) bool {
 // preserve, so ending that session is never this path's business. The helper
 // half runs for every shape -- the helper belongs to this start either way.
 //
-// It retains the live Handle on this call stack and retries every unproven
-// cleanup class. It deliberately has no bounded "give up" path: returning would
-// transfer an error without a supervisor, and the operation caller is allowed
-// to discard handles on error. A persistent external failure therefore leaves
-// the owning start operation blocked and retrying, not a workspace writer
-// merely represented by an occupied durable record.
+// It retains the exact Handle until helper death is proved. Session cleanup
+// then has one five-second budget. Unproved session cleanup returns with its
+// durable ownership retained; it cannot block the caller indefinitely.
 func (c *Couch) quiescePostAckStart(address ThreadAddress, h Handle, shape StartShape) error {
 	var firstErr error
 	// Attachment never committed, so no presenter owns this terminal. Cancel
@@ -963,17 +988,34 @@ func (c *Couch) quiescePostAckStart(address ThreadAddress, h Handle, shape Start
 			}
 			handleQuiet = true
 		}
-		if !shape.OwnsSession() {
+		break
+	}
+	if !shape.OwnsSession() {
+		return firstErr
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	var lastErr error
+	for {
+		if ctx.Err() != nil {
+			record, _ := c.Threads.GetThread(address)
+			return errors.Join(firstErr, &SessionCleanupUnconfirmed{Address: address, Session: recordSessionName(record), Cause: errors.Join(ctx.Err(), lastErr)})
+		}
+		lastErr = c.quiesceThreadSession(ctx, address)
+		if lastErr == nil && ctx.Err() == nil {
 			return firstErr
 		}
-		if err := c.quiesceThreadSession(context.Background(), address); err != nil {
-			if firstErr == nil {
-				firstErr = fmt.Errorf("quiesce durable Pair session %+v: %w", address, err)
-			}
-			c.sleepPostAckRetry()
-			continue
+		if firstErr == nil && lastErr != nil {
+			firstErr = fmt.Errorf("quiesce durable Pair session %+v: %w", address, lastErr)
 		}
-		return firstErr
+		delay := c.postAckRetryDelay
+		if delay <= 0 {
+			delay = 100 * time.Millisecond
+		}
+		select {
+		case <-ctx.Done():
+		case <-time.After(delay):
+		}
 	}
 }
 
