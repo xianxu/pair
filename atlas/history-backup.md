@@ -234,7 +234,7 @@ does nothing.
   alone is not a verified backup. These are runtime reports, with no catalog
   or manifest format changes. `continuous.last` still means pass completion,
   not that every database has a fresh bundle. Freshness alerts are #700.
-- Snapshot admission rejects canonical overlap of native sources with scratch or staging before cleanup or directory creation, including symlink aliases and output directories not yet created. A configuration error names the overlapping roots. Ordinary database publication failures are accumulated while later validated databases continue; cancellation still stops the pass.
+- Snapshot admission rejects canonical overlap of every native source with scratch or any snapshot staging destination across source kinds and regardless of the pass filter before cleanup or directory creation, including symlink aliases and output directories not yet created. A configuration error names the overlapping roots. Ordinary database publication failures are accumulated while later validated databases continue; cancellation still stops the pass.
 - **Never deletes sources or retained copies;** writes the archive store, snapshot root, local sink/catalog, and the configured remote after local success. One pass at a time (`continuous.lock`); a completed full pass
   writes `continuous.last`.
 - **Schedule:** Couch checks hourly and runs the command at `nice 10` when

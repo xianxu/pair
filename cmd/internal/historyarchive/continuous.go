@@ -66,15 +66,22 @@ func (p ContinuousPass) Run(ctx context.Context) (ContinuousReport, error) {
 	if err != nil {
 		return report, err
 	}
+	// Every snapshot output must be disjoint from every native source, not
+	// just its own kind: a destination can alias another agent's home.
+	var staging []string
+	for _, root := range roots {
+		if root.Snapshot {
+			staging = append(staging, filepath.Join(p.SnapshotRoot, root.Kind))
+		}
+	}
 	// Sweep can remove whole scratch directories. Check every native root,
 	// including kinds excluded from this pass, before any store mutation.
 	for _, root := range roots {
-		staging := filepath.Join(p.SnapshotRoot, root.Kind)
 		switch snapshotter := p.Snapshotter.(type) {
 		case SQLiteSnapshotter:
-			err = snapshotter.validateRoots(root.Identity.Root, staging)
+			err = snapshotter.validateRoots(root.Identity.Root, staging...)
 		case *SQLiteSnapshotter:
-			err = snapshotter.validateRoots(root.Identity.Root, staging)
+			err = snapshotter.validateRoots(root.Identity.Root, staging...)
 		}
 		if err != nil {
 			return report, err

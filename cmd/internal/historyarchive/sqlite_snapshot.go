@@ -187,18 +187,19 @@ func (s SQLiteSnapshotter) Snapshot(ctx context.Context, root, rel, stagingRoot 
 
 // validateRoots runs before scratch cleanup, directory creation or SQLite.
 // Existing ancestors are resolved even when output directories do not exist yet.
-func (s SQLiteSnapshotter) validateRoots(root, staging string) error {
+func (s SQLiteSnapshotter) validateRoots(root string, staging ...string) error {
 	source, err := canonicalSnapshotPath(root)
 	if err != nil {
 		return err
 	}
-	for _, output := range []struct{ name, path string }{{"staging", staging}, {"scratch", s.Scratch}} {
-		path, err := canonicalSnapshotPath(output.path)
+	outputs := append([]string{s.Scratch}, staging...)
+	for _, output := range outputs {
+		path, err := canonicalSnapshotPath(output)
 		if err != nil {
-			return fmt.Errorf("%s: %w", output.name, err)
+			return fmt.Errorf("snapshot output %q: %w", output, err)
 		}
 		if overlaps(source, path) {
-			return fmt.Errorf("source %q overlaps %s %q; snapshot directories must be separate", source, output.name, path)
+			return fmt.Errorf("source %q overlaps snapshot output %q; staging and scratch directories must be separate", source, path)
 		}
 	}
 	return nil

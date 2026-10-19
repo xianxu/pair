@@ -2343,3 +2343,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 - #688 BR-1: Partial-failure isolation must include publication, not just acquisition. Test a first-file publication error followed by a later success and require both accurate final summaries and the aggregate error.
 - #688: A read-only collector must reject canonical overlap of source and work/output roots before cleanup or creation, including missing descendants behind symlinks. A final rename can otherwise overwrite the very source whose reads were carefully protected; test unchanged source bytes and zero external calls on refusal.
+
+- #688 BR-2: Isolation between sets is a cross-product invariant: compare every output with every source, not paired labels. Canonicalizing a common output parent does not resolve a destination leaf symlink; exercise a different source kind behind that alias, including when its kind is filtered out.

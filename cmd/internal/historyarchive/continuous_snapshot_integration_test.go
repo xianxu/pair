@@ -56,6 +56,53 @@ func TestContinuousSnapshotRejectsOverlapBeforeStoreOrSweep(t *testing.T) {
 	}
 }
 
+func TestContinuousSnapshotRejectsCrossKindStagingOverlap(t *testing.T) {
+	for _, alias := range []bool{false, true} {
+		t.Run(fmt.Sprintf("symlink=%v", alias), func(t *testing.T) {
+			base, err := filepath.EvalSymlinks(t.TempDir())
+			if err != nil {
+				t.Fatal(err)
+			}
+			home, staging := filepath.Join(base, "home"), filepath.Join(base, "snapshots")
+			codex := filepath.Join(home, ".codex")
+			foreign := filepath.Join(staging, "codex-database")
+			if alias {
+				foreign = filepath.Join(home, ".claude")
+			}
+			for _, dir := range []string{codex, foreign, staging} {
+				if err := os.MkdirAll(dir, 0700); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if alias {
+				if err := os.Symlink(foreign, filepath.Join(staging, "codex-database")); err != nil {
+					t.Fatal(err)
+				}
+			}
+			for path, text := range map[string]string{filepath.Join(codex, "state.sqlite"): "codex source", filepath.Join(foreign, "state.sqlite"): "foreign source"} {
+				if err := os.WriteFile(path, []byte(text), 0600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			fake := &fakeSQLiteRunner{}
+			cfg := ContinuousConfig{Version: Version, Recipients: []string{strings.Repeat("A", 40)}, Sink: filepath.Join(base, "sink"), Catalog: filepath.Join(base, "catalog", "catalog.jsonl")}
+			pass := ContinuousPass{Archiver: Archiver{Codec: &archiveTestCodec{}}, Config: cfg, Store: filepath.Join(base, "store"), SnapshotRoot: staging, Home: home, Host: "fixture", Env: map[string]string{"CLAUDE_CONFIG_DIR": foreign}, Kinds: []string{"codex-database"}, Snapshotter: SQLiteSnapshotter{Scratch: filepath.Join(base, "scratch"), Runner: fake}}
+			_, err = pass.Run(context.Background())
+			if err == nil || !strings.Contains(err.Error(), "overlap") || fake.reads != 0 {
+				t.Errorf("cross-kind overlap admitted: reads=%d err=%v", fake.reads, err)
+			}
+			for path, text := range map[string]string{filepath.Join(codex, "state.sqlite"): "codex source", filepath.Join(foreign, "state.sqlite"): "foreign source"} {
+				if raw, err := os.ReadFile(path); err != nil || string(raw) != text {
+					t.Errorf("source changed: %q: %q %v", path, raw, err)
+				}
+			}
+			if _, err := os.Stat(pass.Store); !errors.Is(err, os.ErrNotExist) {
+				t.Errorf("store created before refusal: %v", err)
+			}
+		})
+	}
+}
+
 func (s *snapshotPublicationSink) Put(ctx context.Context, key string, r io.Reader, limit int64) error {
 	s.calls++
 	if s.calls <= len(s.failures) {

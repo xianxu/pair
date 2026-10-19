@@ -79,7 +79,11 @@ The queued suite must pass before landing. Close review may overlap that queue u
 
 - Final corrected snapshot/continuous targeted selection passed in 8.234s. A concurrently compiled broader package check captured the pre-Sweep regression while that test was deliberately red; its historyarchive failure is expected old-code evidence, not an intermittent failure. Its other execalarm/archivecmd/artifactpath/testpair/pair-go packages passed. The agent also reran final targeted historyarchive/archivecmd/couchcmd green. Final recorded suite is required on the committed fixes.
 
+- Close round 2 disposed BR-1, but BR-2 proved a cross-kind staging alias can overwrite a different native root. Direct and symlink production-pass regressions reproduced foreign source replacement before the correction. Admission now checks every native source root against all snapshot staging destinations and scratch before mutation, regardless of selected kind. This is the complete source-isolation class, not merely each kind against its own destination; no native acceptance was rerun.
+
 ## Revisions
+
+- 2026-10-19, close BR-2: complete the approved overlap invariant across kinds: every snapshot staging/scratch destination must be canonically disjoint from every native source root, regardless of selected kind. Resolve each actual staging destination (including a leaf symlink), not just the staging parent. Direct and aliased cross-kind production-pass tests assert source bytes unchanged, no Store creation, and zero SQLite calls.
 
 - 2026-10-19, close BR-1 and hub b4e45d75-5c7f-4948-a9e7-469738cb52fe: accumulate ordinary per-database publication errors and continue later validated snapshots unless cancelled; preserve an overall error and accurate terminal summaries. Also reject canonical source overlap with staging or scratch before mutation, including symlink aliases and missing descendants. A disposable real-binary fixture proved equal source/staging replaced the native-format fixture DB (4096 to 8192 bytes); no operator source was affected. The guard enforces the existing read-only contract (ARCH-SECURE), including pre-Sweep admission. Red tests cover the overlapping directory class and mixed publication outcomes.
 
