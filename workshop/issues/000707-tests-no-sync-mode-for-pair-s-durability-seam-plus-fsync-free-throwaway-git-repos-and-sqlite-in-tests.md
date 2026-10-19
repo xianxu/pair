@@ -32,3 +32,11 @@ One durability seam: every production sync goes through a small package function
 ## Log
 
 ### 2026-10-19
+
+## Revisions
+
+- 2026-10-19 (parked, operator): superseded in favor of the RAM disk (ariadne#468, /Volumes/TestScratch). With the suite
+  runner pointing TMPDIR/GOTMPDIR at the RAM disk, test files and their syncs never reach the SSD, and tests keep
+  exercising the real durability paths; a no-sync mode would only help machines without the RAM disk (CI, which
+  doesn't wear this SSD) at the cost of test fidelity. Revisit only if #468's before/after measurement shows SSD
+  sync churn remaining from paths the RAM disk can't cover.
