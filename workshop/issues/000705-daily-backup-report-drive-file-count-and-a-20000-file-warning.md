@@ -46,6 +46,8 @@ When the observed destination file count is strictly greater than 20,000 by defa
 
 ## Log
 
+
+- 2026-10-19: closed — Behavioral red then green for count model, mirror, codec/CLI and scheduler. Targeted archive/CLI/Couch checks passed 117.821s/1.125s/6.825s; exact artifact guards passed; subsequent mixed-report fake-subprocess and configured-invalid side-effect checks passed. N8/16 preserves remote calls; 240-event root/day oracle passed. PR461 recorded suite 36f285479243f5d40c5a1525236c2e5e is queued, not yet passed: tl-worker permits review overlap, and a final-code recorded pass remains required before landing. --no-plan-check only acknowledges the still-unchecked close/landing workflow row; implementation is complete. --no-project: TL owns project tick. Fake-backed acceptance approved; natural pass confirms live count, no pair:0 or real Drive/desktop work.; review verdict: SHIP
 Operator request via hub receipt 277127be-5775-4a0e-93e4-8d24a00600a5. #700 was already past close with SHIP; the hub explicitly requested a small follow-up in that case. Existing seams: historyarchive/drive.go DriveReport and ObserveFlatInventory before/after results, archivecmd continuous human/JSON report, couchcmd archive scheduler and primary-hub warning seam. Filed unclaimed for later dispatch; #700's current landing is unchanged.
 
 - 2026-10-19, exploration: claimed and start-plan from fresh main; no code changed. FakeRclone already models before/final/partial-copy behavior and exact call counters. It needs only directory representation for non-file counting. Pure/adapter source seams and named adversarial test strategies are in the durable plan; hub approval requested before change-code. No live Drive/desktop calls or pair:0 work.
