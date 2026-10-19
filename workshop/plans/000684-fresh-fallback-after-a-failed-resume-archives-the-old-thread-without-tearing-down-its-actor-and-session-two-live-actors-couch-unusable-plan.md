@@ -300,3 +300,10 @@ finishes the rest. M3 proves it with the drill.
   slot's evidence (actor registry, wrapper session, #695 lease), never the record. When the record disagrees,
   Attach also repairs the record's incarnation from that evidence (a revision-checked write, like
   `RepairDeadClientHelper`), instead of refusing. Two live actors still never Continue (M2). The test is added to M1.
+- 2026-10-19 — Observe reuses #692's listing classification (pair:2, delivery 0e4c213f). A zellij listing that omits a
+  session whose exact server is live, per the OS process scan, is `launcher.ErrListingOmittedLiveServer`. It is
+  unknown evidence, never absence, and comes from the shared `OSRuntime.liveSessionServers`, with no second
+  classification. In Observe it never yields "nothing is running". A Converge step that needs the session gone
+  (Teardown, under #695) refuses on it and never retries. Under the D21 guard, a live agent is still Continue, so an
+  omitted-but-live session with a live agent attaches as Continue with a note. Test (M1):
+  `TestObserveListingOmissionIsUnknownNotAbsent`.
