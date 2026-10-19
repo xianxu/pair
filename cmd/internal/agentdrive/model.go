@@ -115,6 +115,9 @@ type DriveState struct {
 	evidence                             ScreenEvidence
 	result                               Result
 	priorConfirmations                   map[string]int
+	// dismissal marks a drive admitted only by a recognized panel; its
+	// outcome is the composer returning, not just a fresh frame (pair#691).
+	dismissal bool
 }
 
 func NewDrive(r Request, agent string, deadline time.Time) (DriveState, error) {
@@ -314,6 +317,10 @@ func ReduceDrive(input DriveState, event DriveEvent) (DriveState, []DriveEffect)
 		return finish(s, uncertain(s), detail+"; inspect the slot before sending more input")
 	}
 	if !event.At.Before(s.deadline) {
+		if s.dismissal && s.phase == phaseFinal && event.Screen.Dismissable {
+			s.result.Tail = boundedTail(screenHistory(event.Screen))
+			return finish(s, OutcomeUnconfirmed, "esc written but the panel still shows at the deadline; inspect the slot before sending more input")
+		}
 		return finish(s, uncertain(s), "drive deadline expired; inspect the slot before sending more input")
 	}
 	if event.Kind == EventWriteFailed {
@@ -330,9 +337,10 @@ func ReduceDrive(input DriveState, event DriveEvent) (DriveState, []DriveEffect)
 		if s.phase != phaseNew {
 			return s, nil
 		}
-		if (!event.Screen.Idle && !(s.request.RecoveryOnly() && event.Screen.Recoverable)) || !event.Screen.Complete {
+		if !s.request.Admits(event.Screen.Admission()) || !event.Screen.Complete {
 			return finish(s, OutcomeRefused, "wait until the agent composer is empty and its turn finishes")
 		}
+		s.dismissal = !event.Screen.Idle && !event.Screen.Recoverable
 		s.epoch = event.Screen.Epoch
 		s.result.Tail = boundedTail(screenHistory(event.Screen))
 		if !rememberConfirmations(&s, screenHistory(event.Screen)) {
@@ -395,6 +403,12 @@ func ReduceDrive(input DriveState, event DriveEvent) (DriveState, []DriveEffect)
 			return s, nil
 		}
 		if s.request.Model == nil {
+			if s.dismissal {
+				// Only the composer's return confirms a dismissal. A panel frame
+				// after the write may be its own repaint (a usage panel loads its
+				// data) drawn before the agent read the Esc, so it proves nothing.
+				return observe(s)
+			}
 			if s.phase == phaseFinal && s.epoch > s.writeEpoch {
 				return finish(s, OutcomeConfirmed, "key bytes and final observation confirmed")
 			}

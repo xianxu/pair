@@ -41,12 +41,12 @@ Let `couch --keys` send Esc (only Esc) to a slot whose agent shows a dismissable
 
 ### Design
 
-- [ ] Evidence first. One authorized capture of a Claude `/usage` panel, as `couch --peek` text (styled tail) plus the Claude version, becomes `wrapcmd/testdata/drive/claude/<version>/usage-panel.screen` with metadata, next to the existing drive fixtures. Also a capture of the idle composer after Esc. Requested from the hub; nothing touches a live slot from this slot.
-- [ ] Pure recognizer `agentdrive.DismissablePanel(agent, lines)`: true only for a Claude panel whose current viewport ends in the panel's own Esc footer, with no recognized composer and no numbered picker (`couchmessage.ReadPicker` empty). Exact footer wording comes from the capture, never from scrollback, as the drive screen already reads only the viewport.
-- [ ] Screen gains `Dismissable`, set in `agentDriveScreen` from the recognizer, with the same turn, picker and completeness gates as `Recoverable`, and cleared in `agentDriveScreenLocked` under the same input-ownership conditions. `DriveObservation` carries it.
-- [ ] Request predicate `DismissOnly()`: exactly the keys `[esc]`. Admission accepts `Idle`, or `RecoveryOnly && Recoverable`, or `DismissOnly && Dismissable`; the guard re-checks the same rule. The reducer's `EventStart` uses one shared admissibility function, so admission and the reducer cannot disagree (ARCH-DRY). Every other key sequence, including clear-line or text, still refuses while a panel is open.
-- [ ] Outcome: after the Esc is written, the existing final observation reads the screen. The drive reports done when the composer is back (`Idle`); a panel still showing reports unconfirmed, with the tail, and nothing retries.
-- [ ] Tests:
+- [ ] Evidence first (provisional fixture in place; see Revisions). One authorized capture of a Claude `/usage` panel, as `couch --peek` text (styled tail) plus the Claude version, becomes `wrapcmd/testdata/drive/claude/<version>/usage-panel.screen` with metadata, next to the existing drive fixtures. Also a capture of the idle composer after Esc. Requested from the hub; nothing touches a live slot from this slot.
+- [x] Pure recognizer `agentdrive.DismissablePanel(agent, lines)`: true only for a Claude panel whose current viewport ends in the panel's own Esc footer, with no recognized composer and no numbered picker (`couchmessage.ReadPicker` empty). Exact footer wording comes from the capture, never from scrollback, as the drive screen already reads only the viewport.
+- [x] Screen gains `Dismissable`, set in `agentDriveScreen` from the recognizer, with the same turn, picker and completeness gates as `Recoverable`, and cleared in `agentDriveScreenLocked` under the same input-ownership conditions. `DriveObservation` carries it.
+- [x] Request predicate `DismissOnly()`: exactly the keys `[esc]`. Admission accepts `Idle`, or `RecoveryOnly && Recoverable`, or `DismissOnly && Dismissable`; the guard re-checks the same rule. The reducer's `EventStart` uses one shared admissibility function, so admission and the reducer cannot disagree (ARCH-DRY). Every other key sequence, including clear-line or text, still refuses while a panel is open.
+- [x] Outcome: after the Esc is written, the existing final observation reads the screen. The drive reports done when the composer is back (`Idle`); a panel still showing reports unconfirmed, with the tail, and nothing retries.
+- [x] Tests:
   - Recognizer over the captured fixture, positive.
   - Recognizer negatives: the composer, the /model picker, a permission prompt, a panel footer only in scrollback.
   - Admission matrix: Esc admits on a panel; clear-line, text, submit and esc+text refuse. Run through the existing drive service fake, not a live Couch.
@@ -62,13 +62,23 @@ Actions: `couch --keys SLOT esc`, operator Esc, `couch --peek`.
 | Panel open, recognized | panel shown; `--keys esc` admitted | `--keys esc` | none |
 | Panel open, not recognized (new wording) | refused "wait until the agent composer is empty" (today's behavior) | operator Esc; file a recognizer update | none |
 | Esc written, composer returns | idle composer, drive done | none | none |
-| Esc written, panel persists or outcome unknown | drive unconfirmed with tail | `couch --peek`, then operator | none (Esc is idempotent on a closed panel) |
+| Esc written, panel persists or outcome unknown | drive unconfirmed with tail at the drive deadline | `couch --peek`, then operator | none (Esc is idempotent on a closed panel) |
 | Turn starts or picker appears mid-drive | drive stops, as today | `couch --peek` | none |
 
 Not covered: other agents' panels (Codex and others), and a `couch --usage` one-shot. Both are separable follow-ups; the Spec offers the latter as an alternative.
 
 ARCH-SECURE: the recognizer reads only the current viewport, so scrollback text cannot authorize a key, as with pickers. ARCH-ORDER: no new persistent state; one more admissible screen class through the existing reducer. ARCH-MOCK: tests use the drive fixtures and the service fake; the live check is the conformance step.
 
+## Revisions
+
+- 2026-10-19 (pair:2): the hub approved the design and delayed the live capture (the machine crashed; opening /usage live leaves a panel only a human can close until this lands). Delta: build against a provisional fixture, `wrapcmd/testdata/drive/claude/provisional/usage-panel.screen`, shaped from the `Esc to cancel` footer Claude paints on its own dialogs; its metadata and the recognizer's footer table are marked for replacement by the capture.
+- 2026-10-19 (pair:2): outcome timing. A panel frame after the Esc no longer ends the drive at once: a usage panel repaints when its data loads, and such a frame can be drawn before the agent reads the Esc. Delta: only an empty composer confirms; a panel still showing at the drive deadline reports unconfirmed with its tail. No retry either way.
+
 ## Log
+
+### 2026-10-19
+
+- Implemented: `agentdrive.Request.Admits` is the one admission rule (service, guard, wrapper start, wrapper pre-write, reducer). `DismissOnly` is exactly `[esc]`. `agentdrive.DismissablePanel` reads the viewport only. `Screen.Dismissable` and `DriveObservation.Dismissable` carry the proof, cleared under the same input-ownership gates as `Recoverable`. Atlas couch.md, README and the couch skill updated.
+- Mutation checks, each red: Admits without the panel term (agentdrive, wrapcmd, couchcmd), wrapper never dismissable (wrapcmd), reducer confirming a panel repaint (agentdrive, wrapcmd), recognizer ignoring numbered choices (agentdrive).
 
 ### 2026-10-18

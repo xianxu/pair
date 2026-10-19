@@ -95,6 +95,13 @@ not a retry of the failed drive. Adding text, submit, enter, arrows or waits
 restores the empty-composer requirement, as does model selection. An unknown
 composer still refuses.
 
+A slash-command panel you opened, such as Claude's `/usage`, takes exactly
+`couch --keys pair:7 esc`. The panel must be recognized from its own Esc footer
+on the current screen, with no composer and no numbered choices. Every other
+key refuses while it shows, `clear-line` included. Success means an empty
+composer came back. A panel still showing at the deadline is unconfirmed: peek,
+then ask the operator. An unrecognized panel refuses as before.
+
 `--keys repo:N STEP... [--json]` accepts `text:…`, `enter`, `submit`, `up`,
 `down`, `esc`, `clear-line`, and `wait:MS`. Quote a text step containing spaces.
 `enter` follows Pair's ordinary Return (newline in a composer, select in a

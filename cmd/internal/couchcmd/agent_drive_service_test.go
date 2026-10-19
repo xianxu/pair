@@ -363,3 +363,55 @@ func TestModelDriveDoesNotUseRecoveryProof(t *testing.T) {
 		t.Fatalf("model used recovery-only proof: %+v", response)
 	}
 }
+
+// TestDrivePanelAdmitsOnlyEsc runs the Couch admission and its pre-input
+// guard over a wrapper that reports a recognized panel (pair#691).
+func TestDrivePanelAdmitsOnlyEsc(t *testing.T) {
+	for _, scenario := range []struct {
+		name     string
+		keys     agentdrive.KeySequence
+		accepted bool
+	}{
+		{"esc", agentdrive.KeySequence{{Kind: agentdrive.KeyEsc}}, true},
+		{"clear-line", agentdrive.KeySequence{{Kind: agentdrive.KeyClearLine}}, false},
+		{"double esc", agentdrive.KeySequence{{Kind: agentdrive.KeyEsc}, {Kind: agentdrive.KeyEsc}}, false},
+		{"text", agentdrive.KeySequence{{Kind: agentdrive.KeyText, Text: "x"}}, false},
+		{"submit", agentdrive.KeySequence{{Kind: agentdrive.KeySubmit}}, false},
+		{"esc and text", agentdrive.KeySequence{{Kind: agentdrive.KeyEsc}, {Kind: agentdrive.KeyText, Text: "x"}}, false},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			r, q, hub, worker, e := driveRig(t)
+			e.observation.Idle = false
+			e.observation.Dismissable = true
+			old := r.s.liveness.Load()
+			next := make(map[string]couchmessage.SlotLiveness)
+			for k, v := range *old {
+				next[k] = v
+			}
+			live := next[worker.Slot]
+			settled := false
+			live.Settled = &settled
+			next[worker.Slot] = live
+			r.s.liveness.Store(&next)
+			req := driveRequest(hub, "panel", worker.Slot)
+			req.Drive.Keys = scenario.keys
+			response := switchCall(t, r, req)
+			if (response.Code == "accepted") != scenario.accepted {
+				t.Fatalf("response %+v", response)
+			}
+			if !scenario.accepted {
+				if q.count() != 0 {
+					t.Fatal("refused panel input queued work")
+				}
+				return
+			}
+			if _, err := q.job(0).prepare(context.Background()); err != nil {
+				t.Fatalf("panel execution guard: %v", err)
+			}
+			e.observation.Dismissable = false
+			if _, err := q.job(0).prepare(context.Background()); err == nil {
+				t.Fatal("guard accepted a closed panel")
+			}
+		})
+	}
+}

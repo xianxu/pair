@@ -1,0 +1,159 @@
+package agentdrive
+
+import (
+	"os"
+	"strings"
+	"testing"
+	"time"
+)
+
+// usagePanel is PROVISIONAL until the hub's live /usage capture replaces it
+// (pair#691, testdata/drive/claude/provisional/metadata.json).
+func usagePanel(t *testing.T) []string {
+	t.Helper()
+	b, err := os.ReadFile("../wrapcmd/testdata/drive/claude/provisional/usage-panel.screen")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return strings.Split(string(b), "\n")
+}
+
+func TestDismissablePanelRecognizesTheUsagePanel(t *testing.T) {
+	if !DismissablePanel("claude", usagePanel(t)) {
+		t.Fatal("usage panel not recognized")
+	}
+}
+
+func TestDismissablePanelDeclinesEverythingElse(t *testing.T) {
+	panel := usagePanel(t)
+	composer := []string{"previous answer", "────────", "❯ draft", "────────", "  ? for shortcuts"}
+	permission := []string{"  Bash command", "    rm -rf build", "  Do you want to proceed?", "  ❯ 1. Yes", "    2. No", "", "  Esc to cancel"}
+	for name, c := range map[string]struct {
+		agent string
+		lines []string
+	}{
+		"composer":                {"claude", composer},
+		"model picker":            {"claude", claudeCapture(t, "model-picker")},
+		"permission prompt":       {"claude", permission},
+		"numbered row, no cursor": {"claude", append([]string{"    1. Default"}, panel...)},
+		"footer only in history":  {"claude", append(append([]string{}, panel...), composer...)},
+		"footer then other text":  {"claude", append(append([]string{}, panel...), "  thinking…")},
+		"other agent":             {"codex", panel},
+		"unbalanced markup":       {"claude", append([]string{"‹rev›Usage"}, panel...)},
+		"empty":                   {"claude", nil},
+	} {
+		if DismissablePanel(c.agent, c.lines) {
+			t.Errorf("%s: recognized as a dismissable panel", name)
+		}
+	}
+}
+
+func TestDismissOnlyIsExactlyOneEsc(t *testing.T) {
+	if !(Request{Keys: KeySequence{{Kind: KeyEsc}}}).DismissOnly() {
+		t.Fatal("[esc] refused")
+	}
+	for _, r := range []Request{
+		{},
+		{Keys: KeySequence{{Kind: KeyEsc}, {Kind: KeyEsc}}},
+		{Keys: KeySequence{{Kind: KeyClearLine}}},
+		{Keys: KeySequence{{Kind: KeyEsc}, {Kind: KeyClearLine}}},
+		{Keys: KeySequence{{Kind: KeyEsc}, {Kind: KeyText, Text: "x"}}},
+		{Keys: KeySequence{{Kind: KeySubmit}}},
+		{Keys: KeySequence{{Kind: KeyEsc, Text: "extra"}}},
+		{Model: &ModelRequest{Model: "opus 5.5"}},
+	} {
+		if r.DismissOnly() {
+			t.Errorf("dismissal admitted %#v", r)
+		}
+	}
+}
+
+func TestAdmitsIsTheOneAdmissionRule(t *testing.T) {
+	esc := Request{Keys: KeySequence{{Kind: KeyEsc}}}
+	clear := Request{Keys: KeySequence{{Kind: KeyClearLine}}}
+	text := Request{Keys: KeySequence{{Kind: KeyText, Text: "x"}}}
+	panel := Admission{Dismissable: true}
+	for _, c := range []struct {
+		name string
+		r    Request
+		a    Admission
+		want bool
+	}{
+		{"esc on panel", esc, panel, true},
+		{"clear-line on panel", clear, panel, false},
+		{"text on panel", text, panel, false},
+		{"esc then clear on panel", Request{Keys: KeySequence{{Kind: KeyEsc}, {Kind: KeyClearLine}}}, panel, false},
+		{"text when idle", text, Admission{Idle: true}, true},
+		{"clear-line on occupied composer", clear, Admission{Recoverable: true}, true},
+		{"text on occupied composer", text, Admission{Recoverable: true}, false},
+		{"esc with no proof", esc, Admission{}, false},
+	} {
+		if got := c.r.Admits(c.a); got != c.want {
+			t.Errorf("%s: Admits = %v, want %v", c.name, got, c.want)
+		}
+	}
+}
+
+func TestDriveDismissalEndsDoneOrUnconfirmed(t *testing.T) {
+	now := time.Unix(100, 0)
+	esc := Request{Keys: KeySequence{{Kind: KeyEsc}}}
+	start := func(t *testing.T, screen Screen) DriveState {
+		t.Helper()
+		s, _ := NewDrive(esc, "claude", now.Add(time.Minute))
+		s, fx := ReduceDrive(s, DriveEvent{Kind: EventStart, At: now, Screen: screen})
+		if s.Terminal() || len(fx) != 1 || fx[0].Key.Kind != KeyEsc {
+			t.Fatalf("esc refused on %+v: %#v", screen, s.Result())
+		}
+		s, _ = ReduceDrive(s, DriveEvent{Kind: EventWritten, At: now, Screen: Screen{Epoch: 2}})
+		return s
+	}
+	panel := Screen{Epoch: 1, Complete: true, Dismissable: true}
+
+	t.Run("composer returns", func(t *testing.T) {
+		s := start(t, panel)
+		s, _ = ReduceDrive(s, DriveEvent{Kind: EventScreen, At: now, Screen: Screen{Epoch: 3, Complete: true, Dismissable: true}})
+		if s.Terminal() {
+			t.Fatalf("a panel repaint ended the dismissal: %#v", s.Result())
+		}
+		s, _ = ReduceDrive(s, DriveEvent{Kind: EventScreen, At: now, Screen: Screen{Epoch: 4, Complete: true, Idle: true}})
+		if s.Result().Outcome != OutcomeConfirmed {
+			t.Fatalf("composer return %#v", s.Result())
+		}
+	})
+	t.Run("panel persists", func(t *testing.T) {
+		s := start(t, panel)
+		s, _ = ReduceDrive(s, DriveEvent{Kind: EventScreen, At: now, Screen: Screen{Epoch: 3, Complete: true, Dismissable: true, Lines: []string{"Esc to cancel"}}})
+		s, fx := ReduceDrive(s, DriveEvent{Kind: EventTick, At: now.Add(time.Minute), Screen: Screen{Epoch: 3, Complete: true, Dismissable: true, Lines: []string{"Esc to cancel"}}})
+		r := s.Result()
+		if r.Outcome != OutcomeUnconfirmed || !strings.Contains(r.Detail, "panel still shows") || len(r.Tail) == 0 || len(fx) != 0 {
+			t.Fatalf("persisting panel %#v %#v", r, fx)
+		}
+	})
+	t.Run("unrecognized frame", func(t *testing.T) {
+		s := start(t, panel)
+		s, _ = ReduceDrive(s, DriveEvent{Kind: EventScreen, At: now, Screen: Screen{Epoch: 3, Complete: true}})
+		if s.Terminal() {
+			t.Fatalf("an unknown frame confirmed the dismissal: %#v", s.Result())
+		}
+		s, _ = ReduceDrive(s, DriveEvent{Kind: EventTick, At: now.Add(time.Minute), Screen: Screen{Epoch: 3, Complete: true}})
+		if s.Result().Outcome != OutcomeUnconfirmed {
+			t.Fatalf("deadline %#v", s.Result())
+		}
+	})
+	t.Run("esc on an occupied composer keeps the raw rule", func(t *testing.T) {
+		s := start(t, Screen{Epoch: 1, Complete: true, Recoverable: true})
+		s, _ = ReduceDrive(s, DriveEvent{Kind: EventScreen, At: now, Screen: Screen{Epoch: 3, Complete: true, Recoverable: true}})
+		if s.Result().Outcome != OutcomeConfirmed {
+			t.Fatalf("raw esc %#v", s.Result())
+		}
+	})
+	t.Run("other keys refuse on a panel", func(t *testing.T) {
+		for _, keys := range []KeySequence{{{Kind: KeyClearLine}}, {{Kind: KeyEsc}, {Kind: KeyEsc}}, {{Kind: KeyText, Text: "x"}}, {{Kind: KeySubmit}}} {
+			s, _ := NewDrive(Request{Keys: keys}, "claude", now.Add(time.Minute))
+			s, _ = ReduceDrive(s, DriveEvent{Kind: EventStart, At: now, Screen: panel})
+			if s.Result().Outcome != OutcomeRefused {
+				t.Errorf("%v admitted on a panel: %#v", keys, s.Result())
+			}
+		}
+	})
+}
