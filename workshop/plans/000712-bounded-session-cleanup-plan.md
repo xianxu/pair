@@ -42,7 +42,7 @@ collaboration-mode: discussion
 
 ## State and recovery
 
-Actions: inspect with couch --show; recover/relaunch only through existing ownership-aware operations after inspection.
+Actions: inspect with couch --show; use only the existing slot-recovery outcomes continue, resume from disk, or start fresh when current evidence permits them. No new recovery outcome or unconditional retry/relaunch is introduced.
 
 | Internal result | Visible state | Recovery action | Possible loss |
 |---|---|---|---|
@@ -96,3 +96,5 @@ No production format fields are required: reuse existing incarnation unknown sta
 ## Revisions
 
 2026-10-19 R1: hub receipt ba6e71aa-42d2-416a-a7ab-fe8ee2cf9829 approved test-side work and required the real production retry to be measured and bounded if unbounded. The measurement confirmed it is unbounded, so this design supersedes the earlier test-only scope; implementation waits for hub approval of the production behavior. The initial quick-flow gate admitted only diagnostic/test investigation. Re-enter full-flow change-code before production edits.
+
+2026-10-19 R1 approval: canonical hub receipt 8937d10b-c9c6-4bbd-a243-b5163bdc0a36 approves the five-second session phase and retained unknown ownership. Recovery wording explicitly reuses continue, resume from disk and start fresh; it creates no fourth outcome. Re-enter the full-flow gate now.
