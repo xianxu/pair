@@ -64,6 +64,6 @@ func runNotifyCLI(inv cliInvocation, rt Runtime, stdout, stderr io.Writer, call 
 		fmt.Fprintf(stderr, "couch: %s: %s\n", result.Code, result.Error)
 		return 1
 	}
-	fmt.Fprintln(stdout, "Notification written to the operator terminal.")
+	fmt.Fprintln(stdout, "Notification written; desktop delivery not confirmed.")
 	return 0
 }

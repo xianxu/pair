@@ -2,6 +2,13 @@
 // The oracle deliberately imports no Pair code or Go backend. One JSON request
 // is interpreted as ordered terminal writes; each completed write is observed.
 const fs = require('node:fs');
+function phase(name, details = {}) {
+  // Synchronous stderr keeps the last reached stage visible even if Node dies
+  // before its one complete JSON response. It never changes that response.
+  fs.writeSync(2, '[pair-oracle] ' + JSON.stringify({ phase: name, ...details }) + '\n');
+}
+phase('startup', { node: process.version, execPath: process.execPath, arch: process.arch, platform: process.platform });
+phase('import');
 const { Terminal } = require('@xterm/headless');
 // Unicode 11 widths, as the broadcast viewer uses (#412).
 const { Unicode11Addon } = require('@xterm/addon-unicode11');
@@ -19,9 +26,11 @@ async function main() {
   terminal.parser.registerOscHandler(8, data => { links.push(data); return false; });
   const result = [];
   try {
-    for (const chunk of chunks) {
+    for (const [index, chunk] of chunks.entries()) {
       if (typeof chunk !== 'string' || Buffer.byteLength(chunk) > 8 * 1024 * 1024) throw new Error('invalid oracle chunk');
+      phase('write', { chunk: index });
       await new Promise(resolve => terminal.write(chunk, resolve));
+      phase('snapshot', { chunk: index });
       const buffer = terminal.buffer.active;
       const lines = [], cells = [];
       for (let y = 0; y < rows; y++) {
@@ -48,7 +57,10 @@ async function main() {
       result.push({ History: history, Wraps: wraps, Lines: lines, Cells: cells, X: buffer.cursorX, Y: buffer.cursorY, Links: [...links],
         Modes: terminal.modes, ...cursorState(terminal) });
     }
-  } finally { terminal.dispose(); }
+  } finally {
+    phase('dispose');
+    terminal.dispose();
+  }
   process.stdout.write(JSON.stringify(result));
 }
 // The effective DECSCUSR state. Since @xterm 6.0, DECSCUSR lives in the core's

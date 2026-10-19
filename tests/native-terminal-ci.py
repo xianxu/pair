@@ -57,6 +57,24 @@ def run_tests(command, env, evidence):
             process.stdout.close()
 
 
+def qualify(command, env, scratch):
+    evidence = scratch / "events.jsonl"
+    try:
+        status = run_tests(command, env, evidence)
+        if status:
+            raise RuntimeError(f"native go test exited {status}")
+        with evidence.open() as source:
+            require_execution(json.loads(line) for line in source)
+    except BaseException:
+        # Go preserves -artifacts here; publish before owned scratch is deleted.
+        # These are only the oracle's known evidence files, never the private HOME.
+        for path in sorted((scratch / "artifacts").rglob("node-oracle-*/*")):
+            if path.name in {"request.json", "stdout.raw", "stderr.txt", "node-report.json"} and path.is_file():
+                print(f"\n--- oracle artifact {path.relative_to(scratch)} ({path.stat().st_size} bytes) ---", flush=True)
+                print(path.read_bytes().decode("utf-8", errors="backslashreplace"), flush=True)
+        raise
+
+
 def main():
     root = Path(__file__).resolve().parent.parent
     os.chdir(root)
@@ -68,6 +86,7 @@ def main():
         raise RuntimeError(f"native baseline requires zellij 0.45.1, got {version!r}")
     print(f"Native baseline: {version}", flush=True)
     subprocess.run(["npm", "ci", "--prefix", "tests/terminal-oracle", "--ignore-scripts", "--no-audit", "--no-fund"], check=True, timeout=120)
+    subprocess.run(["node", "--test", "tests/terminal-oracle/driver_test.cjs"], check=True, timeout=30)
     with tempfile.TemporaryDirectory(prefix="pair-native-ci-") as scratch:
         candidate = str(Path(scratch) / "pair")
         # Native fixtures inherit the same empty allowlist as every Pair test.
@@ -81,14 +100,10 @@ def main():
                        env=build_env, check=True, timeout=180)
         env = dict(build_env, PAIR_LIVE_COUCH="1", PAIR_LIVE_COUCH_NATIVE="1", PAIR_NATIVE_BINARY=candidate)
         pattern = "^(TestNativeConsoleWrapperZellij|TestLiveConsoleNvimPreservesContentAndChrome|TestLiveReservedRowSurvivesRealScrolling|TestNotificationPTYConformance)$"
-        command = ["go", "test", "-race", "-json", "./cmd/internal/couchtty", "-run", pattern, "-count=1", "-timeout=5m"]
-        # Stream diagnostics; retain JSON only until validation and process exit.
-        evidence = Path(scratch) / "events.jsonl"
-        status = run_tests(command, env, evidence)
-        if status:
-            raise RuntimeError(f"native go test exited {status}")
-        with evidence.open() as source:
-            require_execution(json.loads(line) for line in source)
+        artifacts = Path(scratch) / "artifacts"
+        artifacts.mkdir()
+        command = ["go", "test", "-race", "-json", "./cmd/internal/couchtty", "-run", pattern, "-count=1", "-timeout=5m", "-artifacts", "-outputdir", str(artifacts)]
+        qualify(command, env, Path(scratch))
         print(f"Verified execution of all {len(REQUIRED)} required native tests/subtests.")
 
 

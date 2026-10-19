@@ -662,6 +662,7 @@ var SourceClassifications = []SourceClassification{
 // pair:m5-concept pure
 var NonArtifactSources = []string{
 	"internal/testbinary/cache.go",
+	"internal/testoracle/run.go",
 	// #649 wiring, contextual runtime delegation, and the pure title reducer
 	// introduce no artifact constructors or filename vocabulary.
 	"cmd/internal/couchcmd/titles_wiring.go",
@@ -755,6 +756,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/sessioninventory/native_selector.go",
 	"cmd/internal/sessioninventory/native_selector_collect.go",
 	"cmd/internal/sessioninventory/native_selector_io.go",
+	"cmd/internal/sessioninventory/native_selector_claude_os.go",
 	"cmd/internal/sessioninventory/native_selector_os.go",
 	"internal/reporoot/root.go",
 	"cmd/internal/couchcmd/resume_candidates.go",
