@@ -28,7 +28,7 @@ func TestLifecycleFailurePrivateServiceSurvivesReceiptLossAndSupersedes(t *testi
 	if failed.Status == couchmessage.ReceiptSucceeded || failed.FailureNonce == "" || !strings.Contains(failed.Detail, cause) {
 		t.Fatalf("pre-dispatch error lost: %+v", failed)
 	}
-	reopened := couchcore.NewLifecycleFailureStore(r.couch.Namespace)
+	reopened := couchcore.NewLaunchFailureStore(r.couch.Namespace)
 	history, err := reopened.Read()
 	if err != nil || len(history) != 1 || history[0].Nonce != failed.FailureNonce || history[0].ParkNonce != r.before.Park.Identity.Nonce {
 		t.Fatalf("durable target/correlation: %+v %v", history, err)

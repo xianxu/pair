@@ -157,10 +157,3 @@ type LifecycleFailureStorage interface {
 	LaunchFailureStorage
 	Supersede(context.Context, LifecycleFailureTarget, string, uint64, time.Time) error
 }
-type LifecycleFailureStore = LaunchFailureStore
-type FakeLifecycleFailureStore = FakeLaunchFailureStore
-
-func NewLifecycleFailureStore(n CouchNamespace) *LifecycleFailureStore {
-	return NewLaunchFailureStore(n)
-}
-func NewFakeLifecycleFailureStore() *FakeLifecycleFailureStore { return NewFakeLaunchFailureStore() }

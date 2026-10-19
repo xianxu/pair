@@ -99,13 +99,6 @@ func (r *LifecycleFailureRecorder) release(key string, group *operationAttemptGr
 	}
 }
 
-// ActiveSlots counts only slots with admitted attempts still to finish.
-func (r *LifecycleFailureRecorder) ActiveSlots() int {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return len(r.slots)
-}
-
 // Nonce is the immutable operation identity carried by the failure and receipt.
 func (a *OperationAttempt) Nonce() string { return a.nonce }
 

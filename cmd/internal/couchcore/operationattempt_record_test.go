@@ -45,7 +45,7 @@ func TestOperationAttemptFinishLateFailureAfterNoWriteSuccess(t *testing.T) {
 	if err != nil || len(history) != 1 || history[0].SupersededAt == nil {
 		t.Fatalf("late failure resurfaced: %+v %v", history, err)
 	}
-	if r.ActiveSlots() != 0 {
+	if activeOperationAttemptSlots(r) != 0 {
 		t.Fatal("coordinator retained a settled slot")
 	}
 }

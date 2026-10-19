@@ -94,6 +94,12 @@ func observedLaunchExit(h Handle) *int {
 // captureLaunchFailure snapshots before cleanup can erase the failed attempt,
 // then publishes once afterward. Optional persistence never postpones cleanup.
 func (c *Couch) captureLaunchFailure(in trackedThreadLaunch, stage string, h Handle, cause error, cleanup func() error) error {
+	captured := c.collectLaunchFailure(in, stage, h, cause, cleanup)
+	return c.finishLaunchFailureCapture(in, captured.failure, captured.cause)
+}
+
+// collectLaunchFailure keeps cleanup evidence unpublished until its owner finishes.
+func (c *Couch) collectLaunchFailure(in trackedThreadLaunch, stage string, h Handle, cause error, cleanup func() error) *launchFailureError {
 	f := LaunchFailure{Address: in.Thread.Address, Nonce: in.Nonce, StartingPath: in.Thread.StartingPath, Agent: in.Args.Stack, Operation: "launch", Stage: stage, FailedAt: c.Clock.Now(), HelperStarted: h != nil, LaunchError: cause.Error(), BeforeExit: observedLaunchExit(h)}
 
 	f.Stream = "unavailable"
@@ -126,7 +132,7 @@ func (c *Couch) captureLaunchFailure(in trackedThreadLaunch, stage string, h Han
 		}
 		f.CleanupError += cleanupErr.Error()
 	}
-	return c.finishLaunchFailureCapture(in, f, errors.Join(cause, cleanupErr))
+	return &launchFailureError{failure: f, cause: errors.Join(cause, cleanupErr), recordPath: c.launchFailurePath()}
 }
 
 func (c *Couch) finishLaunchFailureCapture(in trackedThreadLaunch, f LaunchFailure, cause error) error {
@@ -155,8 +161,7 @@ const launchDiagnosticsAdmissionTimeout = 10 * time.Second
 func (c *Couch) finishSwitchFailure(in trackedThreadLaunch, err error) error {
 	var failed *launchFailureError
 	if !errors.As(err, &failed) {
-		wrapped := c.captureLaunchFailure(in, "switch preparation", nil, err, nil)
-		errors.As(wrapped, &failed)
+		failed = c.collectLaunchFailure(in, "switch preparation", nil, err, nil)
 	}
 	f := failed.failure
 	f.Operation = "switch-agent"

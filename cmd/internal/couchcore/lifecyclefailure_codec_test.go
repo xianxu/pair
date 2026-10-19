@@ -48,7 +48,7 @@ func TestLifecycleFailureSupersessionFitsTheSameByteBudget(t *testing.T) {
 	for i, size := range []int{available / 2, available - available/2} {
 		history[i].Unknown["padding"], _ = json.Marshal(strings.Repeat("x", size))
 	}
-	for name, store := range map[string]LifecycleFailureStorage{"real": NewLifecycleFailureStore(failureNamespace(t)), "fake": NewFakeLifecycleFailureStore()} {
+	for name, store := range map[string]LifecycleFailureStorage{"real": NewLaunchFailureStore(failureNamespace(t)), "fake": NewFakeLaunchFailureStore()} {
 		t.Run(name, func(t *testing.T) {
 			for _, failure := range history {
 				if err := store.Save(t.Context(), failure); err != nil {
