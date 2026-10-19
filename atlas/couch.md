@@ -885,7 +885,9 @@ cached yet (ordinary target or none) waits in a bounded `unresolved` set: 128 pa
 newest per path, oldest evicted at the cap, cleared at restart drain and on ownership
 change. It resolves on the next refresh once the wrapper's verified workspace is
 cached. This matters because a launch is reported before the wrapper connects
-(#693). Its callbacks only reduce bounded
+(#693). An ordinary fact expires after `lifecycleOrdinaryWait` (2 min), since its row
+may not be a slot at all. Restart drain reports only the untargeted facts still
+waiting, as lacking verified slot metadata. Its callbacks only reduce bounded
 memory; owned admission workers and bounded receipt-memory checks stop/join with
 the service. Busy/absent hubs retain current facts; input uncertainty never permits
 replay. This is a Slots projection, not an audit log. `COUCH_LIFECYCLE_NOTICES`
