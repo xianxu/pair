@@ -1,7 +1,7 @@
 ---
 id: 000684
 status: working
-deps: []
+deps: [pair#683]
 github_issue:
 created: 2026-10-18
 updated: 2026-10-18
