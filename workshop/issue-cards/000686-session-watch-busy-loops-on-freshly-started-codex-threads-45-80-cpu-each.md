@@ -1,8 +1,8 @@
 ---
 id: 000686
-status: codecomplete
+status: done
 created: 2026-10-18
-updated: 2026-10-18
+updated: 2026-10-19
 estimate_hours: 2.63
 github_issue:
 started: 2026-10-18T18:47:56-07:00
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 9d790e70afb8034a1de572fff2cf1d3c5093facf
         evidence_commit: a07547e686a75396981b72ed439e802ceca8bcaa
+        landed_commit: a9971f9fe7d68ea4c702a36cd6c69c35079993e4
 ---
 
 # session-watch busy-loops on freshly started Codex threads (45-80% CPU each)
