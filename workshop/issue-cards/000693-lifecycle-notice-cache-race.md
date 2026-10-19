@@ -18,10 +18,10 @@ actual_hours: 0.50
 tracker:
     version: 1
     completion:
-        token: close-cfc2ae50e856
+        token: close-f498693cb2c5
         repository: github.com/xianxu/pair
-        reviewed_head: 877401b241a651bd16c3dc6c14def7447e0917e5
-        evidence_commit: aab4df76cf610fa78618155aa8bc89a3441f75a2
+        reviewed_head: fd144e163760f1f054610c91108cb4f6d60c6ea3
+        evidence_commit: 9035148720df1821115fceebc36c113be781bb46
 ---
 
 # flake: lifecycle primary-slot notice can race verified workspace publication
