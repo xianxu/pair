@@ -186,3 +186,92 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-19T12:29:38-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 708 — couch: put slots' temp folders and Zellij session metadata on the TestScratch RAM disk |
+| repo | pair |
+| issue file | workshop/issues/000708-couch-put-slots-temp-folders-and-zellij-session-metadata-on-the-testscratch-ram-disk.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 8a0cf2d5c605c8f5fad5abd169f04a835749a42c..19fb9c730fe0a2a760350df2f2c84ab371860a5c |
+| command | sdlc close --issue 708 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-19T12:29:38-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The naming consolidation is correct, and both previously disposed fixes remain intact. This interdiff introduces one test defect: honoring a long `TMPDIR` makes the socket fixture exceed the native address limit and fail before testing retention.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      PrepareResolvedSlot retains TryLock before probe/identity resolution; the paused-sweep and unavailable-probe regressions pass.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Injected constructor, production startup, and maintenance cancellation/join regressions remain present and pass.
+findings:
+  - id: new
+    severity: Important
+    kind: defect
+    family: native-fixture-address-budget
+    title: |
+      Socket fixture now fails with long inherited TMPDIR
+    detail: |
+      cmd/internal/couchscratch/os_test.go:26 changes the socket fixture to inherit TMPDIR without budgeting its derived address. Under this review's 84-byte TMPDIR, the socket path is approximately 117 bytes; TestSpecialTopLevelNodesRetained fails at line 47 with "invalid argument", including under -race. The same test passes with TMPDIR=/tmp. Use an owned short socket fixture with a justified lint exception, following cmd/internal/couchmessage/transport_test.go:20, and cover long TMPDIR so the test reaches its retention assertions.
+```
+
+1. **Strengths**
+
+   - `policy.go:35` delegates slot naming to `couchcore.EnvName`, preserving the exact basename contract.
+   - Both the slot-state coverage audit and repository lint catalog pass.
+   - Spec, Done-when, and the implementation plan remain unchanged.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** The socket fixture address-budget defect above.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Targeted prior-fix regressions passed. The complete scratch race run failed at the socket bind; the isolated socket test passed with short `TMPDIR`. No full-suite success is claimed.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** Reuses the existing basename authority.
+   - **ARCH-PURE — pass:** Naming stays pure; fixture IO remains at the test boundary.
+   - **ARCH-PURPOSE — flag:** The fixture correction must preserve execution of the special-file retention test under inherited temporary roots.
+   - **ARCH-EVOLVE — pass:** No persisted-format or basename changes.
+
+   No new user-facing or architectural surface requires README or atlas updates.
+
+7. **Plan revision recommendations:** None; repair the fixture within the existing scope.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"df3a0902-e468-461a-85f8-c6bb567d8d79","repository":"github.com/xianxu/pair","issue_id":"000708","recipe":"fix-review","round":3,"attempt":1,"agent":"codex","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/4ac1d0b93b0a368e","reviewed_head":"19fb9c730fe0a2a760350df2f2c84ab371860a5c","slot":"pair:3","requested_at":"2026-10-19T19:27:39.05945Z"},"phase":"finished","pid":81633,"started_at":"2026-10-19T19:27:39.368445Z","finished_at":"2026-10-19T19:29:16.51609Z","session_id":"01a155a2-434c-7c30-94e7-1b636b6d3498","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.382543291s
+head: "19fb9c730fe0a2a760350df2f2c84ab371860a5c"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

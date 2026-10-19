@@ -23,7 +23,13 @@ func TestProbeDoesNotTreatOrdinaryDirectoryAsMount(t *testing.T) {
 	}
 }
 func TestSpecialTopLevelNodesRetained(t *testing.T) {
-	root, err := os.MkdirTemp("", "cs-")
+	longRoot := filepath.Join(t.TempDir(), strings.Repeat("long", 30))
+	if err := os.MkdirAll(longRoot, 0700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("TMPDIR", longRoot)
+	//lint:allow tmp-literal — the private scratch fixture adds tmp/slot/socket components that must fit the native Unix socket limit even when inherited TMPDIR is long
+	root, err := os.MkdirTemp("/tmp", "cs-")
 	if err != nil {
 		t.Fatal(err)
 	}
