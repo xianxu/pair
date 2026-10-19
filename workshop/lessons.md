@@ -2373,3 +2373,6 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 - #708: A current ancestry/FD/environment snapshot cannot prove that a detached job will never reuse a temp path. Use an explicit lifetime owner or a documented conventional age-cleaner contract; do not turn observation into deletion authority.
 - #708: Separate a shared volume/container's permissions from private child permissions. Qualify the real parent with a read-only stat, then fixture its observed mode (TestScratch/tmp is 0755); requiring private 0700 on an existing shared parent silently defeats admission. Keep the parent unchanged and enforce 0700 on owned slot/bookkeeping directories.
+
+- #708 BR-1: Optional maintenance must not become interactive admission's lock owner. Enumerate the full path (mutex, advisory lock, and preflight lookup); acquire opportunistically and check availability before expensive resolution. Pause a sweep and require admission to return before release, with zero resolver calls.
+- #708 BR-2: Constructor callback-presence assertions do not prove production wiring. Inject native observation and scheduling through the real composition, exercise both admission outcomes, and mutate each startup/worker callsite off to verify tests fail. Use a fixture clock whose outcome differs from the host clock; prove cancellation joins a held worker.

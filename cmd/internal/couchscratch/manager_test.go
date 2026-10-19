@@ -2,6 +2,7 @@ package couchscratch
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -282,5 +283,68 @@ func TestSweepReportsOneBoundedAggregate(t *testing.T) {
 	}
 	if len(notices) != 2 || len(notices[1]) > 512 {
 		t.Fatalf("error aggregate: %q", notices)
+	}
+}
+
+func TestPrepareFallsBackWhileSweepIsPaused(t *testing.T) {
+	m, root, now := fixture(t)
+	file := filepath.Join(root, "old")
+	if err := os.WriteFile(file, nil, 0600); err != nil {
+		t.Fatal(err)
+	}
+	old := now.Add(-25 * time.Hour)
+	if err := os.Chtimes(file, old, old); err != nil {
+		t.Fatal(err)
+	}
+	entered := make(chan struct{})
+	release := make(chan struct{})
+	m.beforeRemove = func() { close(entered); <-release }
+	swept := make(chan struct{})
+	go func() { m.Sweep(context.Background()); close(swept) }()
+	select {
+	case <-entered:
+	case <-time.After(time.Second):
+		t.Fatal("sweep did not reach pause")
+	}
+	prepared := make(chan []string, 1)
+	resolved := false
+	go func() {
+		prepared <- m.PrepareResolvedSlot(func() (Slot, error) { resolved = true; return Slot{Repo: "other", Identity: "other", Number: 8}, nil })
+	}()
+	select {
+	case env := <-prepared:
+		close(release)
+		<-swept
+		if env != nil {
+			t.Fatalf("busy manager adopted scratch: %v", env)
+		}
+		if resolved {
+			t.Fatal("busy manager resolved optional identity")
+		}
+	case <-time.After(time.Second):
+		close(release)
+		<-swept
+		<-prepared
+		t.Fatal("slot preparation waited behind paused sweep")
+	}
+}
+
+func TestPrepareResolvedSlotSkipsUnavailableAndBoundsErrors(t *testing.T) {
+	for _, p := range []Probe{{Root: "/absent"}, {Root: "/absent", Mounted: true, FreeBytes: Floor - 1}} {
+		m := New(Options{Probe: func() Probe { return p }})
+		called := false
+		if env := m.PrepareResolvedSlot(func() (Slot, error) { called = true; return Slot{}, nil }); env != nil || called {
+			t.Fatalf("unavailable scratch resolved identity: %v %v", env, called)
+		}
+	}
+	probes := 0
+	notices := []string{}
+	root := t.TempDir()
+	m := New(Options{Probe: func() Probe { probes++; return Probe{Root: root, Mounted: true, FreeBytes: Floor} }, Notify: func(s string) { notices = append(notices, s) }})
+	if env := m.PrepareResolvedSlot(func() (Slot, error) { return Slot{}, fmt.Errorf("%s", strings.Repeat("resolver error", 1000)) }); env != nil {
+		t.Fatal(env)
+	}
+	if probes != 1 || len(notices) != 1 || len(notices[0]) > 512 {
+		t.Fatalf("probe/notice mismatch: %d %q", probes, notices)
 	}
 }

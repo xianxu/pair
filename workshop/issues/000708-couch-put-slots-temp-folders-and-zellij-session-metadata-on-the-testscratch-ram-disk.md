@@ -127,6 +127,14 @@ A bounded read-only real-root qualification found /Volumes/TestScratch mode 0775
 
 Shared-container regression observed RED on the original helper and now passes with the actual 0755 shape. Its inode/mode remain unchanged; owned slot/bookkeeping children remain 0700. Unsafe writable, foreign-owned and symlink containers refuse both preparation and sweep. A held owner lock now produces immediate fallback instead of blocking optional admission. Final targeted race checks passed across all five affected packages; manager package race/count=20 and counted budgets passed; source/declaration guards passed. README now states the age-loss and reboot contracts alongside the atlas map. The first implementation's macOS conformance/merge-check/local-gates CI passed; new source changes require a new pushed-head suite/CI and full close review.
 
+Boundary round 1 returned REWORK with two Important findings: BR-1 optional-maintenance-blocks-admission, BR-2 production-composition-regression-coverage. No Critical/Minor findings. The broader reviewer run hit socket-path/production-registration fixture restrictions; its focused checks passed. This is not the authoritative suite. Canceled only the obsolete queued attempt e10643e6213f2f1f471c3268ea51e1d3 before changing source; no flake retry or status republish.
+
+BR-1 correction enumerated the entire optional admission path: the manager mutex is TryLock, the owner flock is nonblocking, and PrepareResolvedSlot performs availability checks before lazy identity resolution. Busy/unavailable scratch never resolves identity. Caller cancellation and one five-second context now cover retained-manifest lookup plus the existing workspace fallback. A paused-sweep regression failed before the fix, then proved admission returned before sweep release, with no resolver call; manager race/count=20 passes. All fallback notices are bounded to512 bytes.
+
+BR-2 adds private runtime injection for native server observation, clock and ticks. Constructor-enabled/fallback tests exercise real NewCouchWith, retained membership, both temp outcomes, and socket authority. The test exposed isolated TMPDIR defaults masking a legitimate RAM overlay: isolated runtimes now accept only a complete overlay under their injected, confined scratch root and keep all three fallback temp variables private. Foreign/incomplete overlays and escaped backend roots refuse. The actual run.go startup path and actual messageService lifecycle are exercised; future fixture time makes clock injection observable, unbuffered ticks prove a completed sweep, and service.Close must cancel/join a held maintenance return.
+
+Omission mutations were run and restored sequentially: disabling run.go's ScratchStartup call failed TestScratchStartupRunsBeforeMissingResumeFailure (observer calls0); disabling message_service.go's ScratchMaintenance worker failed TestScratchServiceDrivesMaintenanceAndJoinsOnClose (worker did not start). Restored targeted checks passed. Targeted race tests passed for scratch, Couch CLI/core/executable and launcher; source/declaration guards passed. New source still requires a fresh recorded suite and close disposition.
+
 ## Revisions
 
 ### 2026-10-19 10:56 PDT — R1, hub-approved simplification
@@ -140,3 +148,7 @@ Name the existing native environment API and detached-job evidence lifetime; ret
 ### 2026-10-19 11:05 PDT — R3, hub-approved age contract and socket stability
 
 Supersede R2 and all no-holder cleanup with startup/hourly whole-entry 24h age cleanup. Keep special-containing trees and slot roots until reboot, keep bookkeeping outside sweep interiors, and document the accepted old-regular-file loss risk. Pin today's socket root across temp changes and all native Zellij calls. R1's reboot-only metadata setup remains; real switch waits for the operator's reboot. See final R3 core-concept, strategy and execution tables in the durable plan.
+
+### 2026-10-19 — Review corrections within R3
+
+Keep the same age/fallback/reboot contract. Nonblocking admission includes the manager mutex and availability check before optional identity IO, with caller context covering the one identity budget. Qualify RAM-enabled production composition with injected native observation/time/ticks and omission-sensitive startup/maintenance tests. Private runtime overlays remain confined to private storage; this adds no public config or live rollout action.

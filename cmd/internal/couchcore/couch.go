@@ -43,7 +43,7 @@ type Couch struct {
 	WorkspaceProgress io.Writer
 	// SlotEnvironment prepares temp storage from the retained owner even when
 	// a warm attach starts from a neutral working directory.
-	SlotEnvironment func(ThreadRecord) []string
+	SlotEnvironment func(context.Context, ThreadRecord) []string
 	// ScratchStartup runs quiescent metadata setup and the initial age sweep.
 	ScratchStartup func(context.Context, func(string))
 	// ScratchMaintenance runs the hourly worker until supervisor shutdown.

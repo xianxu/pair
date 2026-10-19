@@ -72,6 +72,9 @@ type OSRuntime struct {
 	isolatedRoot   string
 	isolatedPaths  isolatedChildRoots
 	scratchProbeFn func() couchscratch.Probe
+	scratchServers func(context.Context) (bool, error)
+	scratchTicks   <-chan time.Time
+	scratchNow     func() time.Time
 }
 
 var _ Runtime = OSRuntime{}

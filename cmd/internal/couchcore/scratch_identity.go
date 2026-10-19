@@ -1,6 +1,7 @@
 package couchcore
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -21,7 +22,7 @@ var ErrScratchAuthorityMissing = errors.New("scratch slot has no retained reposi
 // Git or requiring its checkout to remain on disk. It uses enrollment/family
 // authority and the record's exact checkout scope, never the child's working
 // directory (which can be / during a warm attach to a missing checkout).
-func (s *ThreadStore) ScratchSlot(record ThreadRecord) (ScratchSlotIdentity, error) {
+func (s *ThreadStore) ScratchSlot(ctx context.Context, record ThreadRecord) (ScratchSlotIdentity, error) {
 	if s == nil {
 		return ScratchSlotIdentity{}, errors.New("scratch slot requires thread store")
 	}
@@ -31,7 +32,7 @@ func (s *ThreadStore) ScratchSlot(record ThreadRecord) (ScratchSlotIdentity, err
 	root := s.familyRootStore()
 	view := *root
 	view.readOnly = true
-	manifest, err := view.slotRepositoryManifest()
+	manifest, err := view.slotRepositoryManifestContext(ctx)
 	if err != nil {
 		return ScratchSlotIdentity{}, err
 	}

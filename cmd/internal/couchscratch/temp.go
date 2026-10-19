@@ -70,15 +70,35 @@ func decodeOwner(data []byte) (Slot, error) {
 }
 
 // PrepareSlot returns only the temporary-directory overlays. Failure preserves
-// inherited values, and an unmounted volume is never created on the host disk.
+// inherited values, including when maintenance currently owns the manager.
+// An unmounted volume is never created on the host disk.
 func (m *Manager) PrepareSlot(s Slot) []string {
-	m.mu.Lock()
+	return m.PrepareResolvedSlot(func() (Slot, error) { return s, nil })
+}
+
+// PrepareResolvedSlot first checks availability without waiting for maintenance,
+// then resolves the slot identity only if scratch can be adopted. A resolver
+// error preserves inherited temporary values and emits one bounded diagnostic.
+func (m *Manager) PrepareResolvedSlot(resolve func() (Slot, error)) []string {
+	if !m.mu.TryLock() {
+		m.note("scratch unavailable: maintenance or another preparation is active")
+		return nil
+	}
 	defer m.mu.Unlock()
 	p := m.options.Probe()
 	if !ChooseScratch(p) {
 		if p.Mounted {
 			m.note("scratch unavailable: space floor or probe failure")
 		}
+		return nil
+	}
+	if resolve == nil {
+		m.note("scratch unavailable: missing slot identity resolver")
+		return nil
+	}
+	s, err := resolve()
+	if err != nil {
+		m.note("scratch unavailable: " + err.Error())
 		return nil
 	}
 	if !validSlot(s) {

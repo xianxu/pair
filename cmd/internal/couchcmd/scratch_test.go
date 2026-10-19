@@ -10,6 +10,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchscratch"
+	"github.com/xianxu/pair/cmd/internal/launcher"
 )
 
 func TestScratchRuntimeIsolationNeverUsesMountedGlobalVolume(t *testing.T) {
@@ -26,11 +27,11 @@ func TestSlotScratchEnvironmentUsesRetainedIdentityAndPreservesSocket(t *testing
 	}})
 	record := couchcore.ThreadRecord{StartingPath: "/missing/repo", WorkingPath: "/"}
 	var received couchcore.ThreadRecord
-	lookup := func(got couchcore.ThreadRecord) (couchcore.ScratchSlotIdentity, error) {
+	lookup := func(_ context.Context, got couchcore.ThreadRecord) (couchcore.ScratchSlotIdentity, error) {
 		received = got
 		return couchcore.ScratchSlotIdentity{Repo: "repo", RepoIdentity: "/stable/repo/.git", Number: 3}, nil
 	}
-	overlay := scratchSlotEnvironment(manager, lookup, nil)(record)
+	overlay := scratchSlotEnvironment(manager, lookup)(t.Context(), record)
 	if received.StartingPath != record.StartingPath {
 		t.Fatal("launch did not use retained record")
 	}
@@ -173,5 +174,106 @@ func TestOwnedChildWritesOnlyInsidePrivateSlotTemp(t *testing.T) {
 	}
 	if raw, err := os.ReadFile(filepath.Join(want, "child-file")); err != nil || string(raw) != "fixture" {
 		t.Fatalf("child temp=%q %v", raw, err)
+	}
+}
+
+func TestInjectedScratchConstructorLaunchesWithRAMAndFallback(t *testing.T) {
+	root := isolatedCouchTestEnvironment(t)
+	socketRoot := filepath.Join(root, "native-sockets")
+	t.Setenv("ZELLIJ_SOCKET_DIR", socketRoot)
+	ram := filepath.Join(root, "ram")
+	if err := os.Mkdir(ram, 0700); err != nil {
+		t.Fatal(err)
+	}
+	ticks := make(chan time.Time)
+	serverCalls := 0
+	mounted := true
+	rt := OSRuntime{
+		scratchProbeFn: func() couchscratch.Probe {
+			return couchscratch.Probe{Root: ram, Mounted: mounted, FreeBytes: couchscratch.Floor}
+		},
+		scratchServers: func(context.Context) (bool, error) { serverCalls++; return false, nil },
+		scratchTicks:   ticks,
+		scratchNow:     func() time.Time { return time.Unix(200000, 0) },
+	}
+	rt, lease, err := rt.prepareSingleton(true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lease.Close()
+	ns, err := rt.ResolveNamespace()
+	if err != nil {
+		t.Fatal(err)
+	}
+	runner := couchcore.NewFakeRunner()
+	c, err := rt.NewCouchWith(runner, ns)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.ScratchStartup(t.Context(), func(string) {})
+	if serverCalls != 1 {
+		t.Fatalf("startup native reads=%d", serverCalls)
+	}
+	checkout := filepath.Join(root, "fixture")
+	scope, err := launcher.ResolveRepoScope(checkout)
+	if err != nil {
+		t.Fatal(err)
+	}
+	zero := 0
+	c.Slots = &couchcore.SlotCatalogFake{Workspaces: map[string]couchcore.WorkspaceIdentity{checkout: {Repo: "fixture", RepoIdentity: filepath.Join(checkout, ".git"), WorktreeRoot: checkout, PrimaryRoot: checkout, Kind: "primary", Slot: &zero}}}
+	record := couchcore.ThreadRecord{SchemaVersion: couchcore.ThreadSchemaVersion, Address: couchcore.ThreadAddress{RepoScope: scope.Key, Tag: "couch-0123456789abcdef"}, StartingPath: checkout, WorkingPath: checkout, CreatedAt: time.Unix(100, 0), Revision: 1}
+	for _, enabled := range []bool{true, false} {
+		mounted = enabled
+		env := append([]string{"ZELLIJ_SOCKET_DIR=/wrong", "TMPDIR=/outside", "GOTMPDIR=/outside", "CLAUDE_CODE_TMPDIR=/outside"}, c.SlotEnvironment(t.Context(), record)...)
+		h, err := c.Runner.Start("/", []string{"pair"}, env)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got := map[string]string{}
+		for _, e := range runner.Child(h.ID()).Env {
+			k, v, _ := strings.Cut(e, "=")
+			got[k] = v
+		}
+		want := rt.isolatedPaths.temporary
+		if enabled {
+			want = filepath.Join(ram, "tmp", "fixture-slot0")
+		}
+		for _, key := range []string{"TMPDIR", "GOTMPDIR", "CLAUDE_CODE_TMPDIR"} {
+			if got[key] != want {
+				t.Fatalf("enabled=%v %s=%q want %q", enabled, key, got[key], want)
+			}
+		}
+		if got["ZELLIJ_SOCKET_DIR"] != socketRoot {
+			t.Fatal("constructor lost the pinned native namespace")
+		}
+	}
+}
+
+func TestIsolatedScratchOverlayRefusesIncompleteOrForeignPaths(t *testing.T) {
+	const root = "/private/fixture/ram"
+	makeEnv := func(path string) []string {
+		return []string{"TMPDIR=" + path, "GOTMPDIR=" + path, "CLAUDE_CODE_TMPDIR=" + path}
+	}
+	for _, path := range []string{"/foreign/tmp/repo-slot0", root + "/tmp/repo-slot0/../../escape", root + "/tmp/repo-slot0/child", root + "/tmp/"} {
+		if got := isolatedScratchOverlay(root, makeEnv(path)); len(got) != 0 {
+			t.Fatalf("unsafe path accepted: %q", path)
+		}
+	}
+	if got := isolatedScratchOverlay(root, []string{"TMPDIR=" + root + "/tmp/repo-slot0"}); len(got) != 0 {
+		t.Fatal("incomplete overlay accepted")
+	}
+	if got := isolatedScratchOverlay(root, makeEnv(root+"/tmp/repo-slot0")); len(got) != 3 {
+		t.Fatal("complete private overlay refused")
+	}
+}
+
+func TestIsolatedScratchProbeRejectsForeignBackend(t *testing.T) {
+	root := t.TempDir()
+	foreign := t.TempDir()
+	rt := OSRuntime{isolatedRoot: root, scratchProbeFn: func() couchscratch.Probe {
+		return couchscratch.Probe{Root: foreign, Mounted: true, FreeBytes: couchscratch.Floor}
+	}}
+	if p := rt.scratchProbe(); p.Mounted || p.Err == nil {
+		t.Fatalf("foreign backend accepted: %+v", p)
 	}
 }

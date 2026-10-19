@@ -10,6 +10,10 @@ from `/Volumes`, with at least 2 GiB available. `Manager.PrepareSlot` creates a
 CLAUDE_CODE_TMPDIR. Missing/full/unwritable scratch preserves inherited temp
 settings. Durable Pair state and Go caches keep their existing destinations.
 
+Admission checks availability before identity lookup and falls back immediately
+if maintenance holds the manager. Owner-index locking is also nonblocking. The
+launch context bounds retained lookup and the first-workspace fallback together.
+
 Launches use the retained thread's repository/slot authority, including warm
 reattach from a neutral working directory. An initial primary checkout without
 retained authority uses the existing verified workspace resolver; unknown or

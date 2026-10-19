@@ -1,6 +1,7 @@
 package couchcore
 
 import (
+	"context"
 	"strings"
 	"testing"
 )
@@ -14,7 +15,7 @@ func TestScratchEnvironmentReachesFreshAndWarmLaunches(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			env := newTestEnv(t, "/repo")
 			var owner ThreadRecord
-			env.Couch.SlotEnvironment = func(record ThreadRecord) []string {
+			env.Couch.SlotEnvironment = func(_ context.Context, record ThreadRecord) []string {
 				owner = record
 				return []string{"TMPDIR=/private/ram/slot", "GOTMPDIR=/private/ram/slot", "CLAUDE_CODE_TMPDIR=/private/ram/slot"}
 			}

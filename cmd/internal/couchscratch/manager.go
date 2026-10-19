@@ -2,6 +2,7 @@ package couchscratch
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"time"
 )
@@ -35,6 +36,10 @@ func New(o Options) *Manager {
 // note reports an optional scratch fallback diagnostic.
 func (m *Manager) note(s string) {
 	if m.options.Notify != nil {
+		s = strings.ReplaceAll(strings.ReplaceAll(s, "\n", " "), "\r", " ")
+		if len(s) > 512 {
+			s = s[:509] + "..."
+		}
 		m.options.Notify(s)
 	}
 }

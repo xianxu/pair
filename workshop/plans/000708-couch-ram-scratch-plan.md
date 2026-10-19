@@ -379,3 +379,36 @@ refusing symlink, foreign-owner or group/world-writable substitutions in prepara
 and sweep. Owner-index locking is nonblocking so optional admission falls back on
 contention. Regression fixtures use the observed mode and a held lock; no live path
 is modified for qualification.
+
+### 2026-10-19 — BR-1/BR-2 qualification corrections within R3
+
+No policy expansion. Optional admission never waits for the fleet sweep: Manager
+uses TryLock and nonblocking owner flock, probes once, then resolves identity lazily
+through PrepareResolvedSlot. Busy/unavailable checks skip lookup. SlotEnvironment
+now receives the launch context; the same five-second child context bounds retained
+manifest inspection and workspace fallback. Sweep remains serial and context-owned.
+
+Production NewCouchWith accepts private Probe/ServerPresence/Now/Ticks observations
+through OSRuntime's existing injected boundary. Native default observation remains
+OSServerStates; tests never use the live server inventory. Isolated profiles require
+a confined private scratch root; configuredRunner admits only a complete three-temp
+overlay beneath that root, otherwise every temporary variable stays private. No new
+CLI/environment option is introduced.
+
+| Entity | Kind | Path | Status |
+|---|---|---|---|
+| isolatedScratchOverlay | PURE | cmd/internal/couchcmd/scratch.go | new |
+| PrepareResolvedSlot | INTEGRATION | cmd/internal/couchscratch/temp.go | new |
+| ScratchSlot with context | INTEGRATION | cmd/internal/couchcore/scratch_identity.go | modified |
+| nativeScratchServers | INTEGRATION | cmd/internal/couchcmd/scratch.go | new |
+| OSRuntime scratch observation/scheduling seams | INTEGRATION | cmd/internal/couchcmd/run.go, scratch.go | modified |
+
+Qualification enters the actual constructor and both production callsites. Tests
+assert enabled/fallback slot environments and pinned sockets, startup metadata plus
+initial cleanup before an operation fails, hourly sweep with injected future time,
+and service cancellation/join with a held worker return. Sequential omission
+mutations of run.go startup and message_service.go maintenance each failed their
+regression and were restored; these tests replace the earlier constructor-presence
+claim with observed effects. Pure overlay tests reject incomplete/foreign paths;
+paused-sweep and unavailable cases assert no resolver call. These address BR-1/BR-2,
+not a new rollout mechanism or permission boundary.

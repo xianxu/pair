@@ -105,7 +105,7 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 	}
 	background := ""
 	if c.SlotEnvironment != nil {
-		env = append(env, c.SlotEnvironment(thread)...)
+		env = append(env, c.SlotEnvironment(ctx, thread)...)
 	}
 	if in.Background {
 		background = "1"

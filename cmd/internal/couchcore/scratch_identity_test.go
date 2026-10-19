@@ -1,7 +1,9 @@
 package couchcore
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -41,7 +43,7 @@ func TestScratchSlotRetainedNumberedAndPrimaryWithoutCheckout(t *testing.T) {
 				checkout = conventionalSlot(root, n).WorktreeRoot
 			}
 			record := recordAtCheckout(t, checkout, filepath.Join(checkout, "subdir"), "scratch")
-			got, err := store.ScratchSlot(record)
+			got, err := store.ScratchSlot(t.Context(), record)
 			want := ScratchSlotIdentity{Repo: "pair", RepoIdentity: identity, Number: n}
 			if err != nil || got != want {
 				t.Fatalf("ScratchSlot = %+v, %v; want %+v", got, err, want)
@@ -66,7 +68,7 @@ func TestScratchSlotPrimaryFamilyAndSameBasenameStayDistinct(t *testing.T) {
 	var previous ScratchSlotIdentity
 	for _, root := range roots {
 		record := recordAtCheckout(t, root, root, "scratch")
-		got, err := store.ScratchSlot(record)
+		got, err := store.ScratchSlot(t.Context(), record)
 		if err != nil || got.Repo != "pair" || got.Number != 0 || got.RepoIdentity != filepath.Join(root, ".git") {
 			t.Fatalf("ScratchSlot = %+v,%v", got, err)
 		}
@@ -97,9 +99,18 @@ func TestScratchSlotRefusesUnknownOrContradictoryAuthority(t *testing.T) {
 				families = []RepositoryFamily{{PrimaryRoot: root, RepoIdentity: filepath.Join(root, "foreign.git"), RelativeStart: "."}}
 			}
 			scratchAuthority(t, store, roots, families)
-			if got, err := store.ScratchSlot(record); err == nil {
+			if got, err := store.ScratchSlot(t.Context(), record); err == nil {
 				t.Fatalf("unverified owner accepted: %+v", got)
 			}
 		})
+	}
+}
+
+func TestScratchSlotHonorsCancelledObservation(t *testing.T) {
+	store, _ := newTestThreadStore(t)
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	if _, err := store.ScratchSlot(ctx, validThreadRecord(t)); !errors.Is(err, context.Canceled) {
+		t.Fatalf("cancelled lookup=%v", err)
 	}
 }

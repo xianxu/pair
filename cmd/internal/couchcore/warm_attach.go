@@ -87,7 +87,7 @@ func (c *Couch) attachListedTerminalOnce(ctx, queryCtx context.Context, thread T
 	}
 	env := []string{"COUCH_TREE=" + string(args.Worktree), "COUCH_STORE_DIR=" + c.Namespace.Dir(), "COUCH_THREAD_SCOPE=" + thread.Address.RepoScope, "COUCH_THREAD_TAG=" + string(thread.Address.Tag), "COUCH_THREAD_RESUME=1", "PAIR_RETENTION_BACKGROUND=" + background, launcher.CouchSessionIntentEnv + "=" + string(intent)}
 	if c.SlotEnvironment != nil {
-		env = append(env, c.SlotEnvironment(thread)...)
+		env = append(env, c.SlotEnvironment(ctx, thread)...)
 	}
 	dir := args.WorkingDir()
 	if !c.workingPathExists(thread) {

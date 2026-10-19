@@ -282,6 +282,7 @@ func runtimePairDataDir(rt Runtime) string {
 type configuredRunner struct {
 	underlying  couchcore.Runner
 	environment []string
+	scratchRoot string
 }
 
 func (r configuredRunner) Start(dir string, argv, env []string) (couchcore.Handle, error) {
@@ -301,7 +302,8 @@ func (r configuredRunner) childEnv(env []string) []string {
 		}
 	}
 	clean = append(clean, env...)
-	return append(clean, r.environment...)
+	clean = append(clean, r.environment...)
+	return append(clean, isolatedScratchOverlay(r.scratchRoot, env)...)
 }
 func (r OSRuntime) runtimeRunner(runner couchcore.Runner) couchcore.Runner {
 	if r.selection == nil {
@@ -318,7 +320,13 @@ func (r OSRuntime) runtimeRunner(runner couchcore.Runner) couchcore.Runner {
 		env = append(env, "ZELLIJ_SOCKET_DIR="+socketRoot)
 	}
 	if r.isolatedRoot != "" {
-		env = append(env, "HOME="+r.isolatedPaths.home, "XDG_DATA_HOME="+r.isolatedPaths.data, "TMPDIR="+r.isolatedPaths.temporary)
+		env = append(env, "HOME="+r.isolatedPaths.home, "XDG_DATA_HOME="+r.isolatedPaths.data, "TMPDIR="+r.isolatedPaths.temporary, "GOTMPDIR="+r.isolatedPaths.temporary, "CLAUDE_CODE_TMPDIR="+r.isolatedPaths.temporary)
 	}
-	return configuredRunner{underlying: runner, environment: env}
+	var scratchRoot string
+	if r.isolatedRoot != "" && r.scratchProbeFn != nil {
+		if p := r.scratchProbe(); p.Err == nil {
+			scratchRoot = p.Root
+		}
+	}
+	return configuredRunner{underlying: runner, environment: env, scratchRoot: scratchRoot}
 }
