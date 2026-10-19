@@ -5,6 +5,7 @@ created: 2026-10-15
 updated: 2026-10-15
 estimate_hours:
 github_issue:
+flake_tests: [github.com/xianxu/pair/cmd/internal/couchcore.TestFleetInventoryLiveConformance]
 ---
 
 # Isolate fleet conformance from shared installed SDLC replacement
