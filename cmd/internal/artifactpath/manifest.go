@@ -1629,6 +1629,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/slugcmd/slug.go",
 	"cmd/internal/slugline/slugline.go",
 	"cmd/internal/strictjson/decode.go",
+	"cmd/internal/strictjson/object.go",
 	"cmd/internal/termcmd/rename.go",
 	"cmd/internal/termcmd/rename_input.go",
 	"cmd/internal/termcmd/run.go",
