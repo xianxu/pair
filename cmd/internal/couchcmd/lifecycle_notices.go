@@ -176,14 +176,12 @@ func (p *lifecyclePublisher) observeFactLocked(e couchtty.LifecycleObservation) 
 		id = couchcore.WorkspaceIdentity{Repo: slot.Repo, PrimaryRoot: slot.PrimaryRoot, WorktreeRoot: slot.WorktreeRoot, Slot: &n}
 		ok = true
 	}
-	if !ok && e.Target.Kind == couchcore.ThreadTargetOrdinary {
-		return
-	}
+	// No cached identity yet, ordinary target or none: the fact usually
+	// arrives first, since the Console reports a launch before the wrapper's
+	// session connects and its workspace is verified (pair#693). It waits for
+	// the next refresh rather than being lost.
 	if !ok {
-		previous, exists := p.unresolved[e.Path]
-		if len(e.Path) <= 4096 && (!exists || e.Observation > previous.Observation) && (len(p.unresolved) < 128 || exists) {
-			p.unresolved[e.Path] = e
-		}
+		p.retainUnresolvedLocked(e)
 		return
 	}
 	hub := p.service.authority.owner(id)
@@ -216,6 +214,32 @@ func (p *lifecyclePublisher) observeFactLocked(e couchtty.LifecycleObservation) 
 		Hub: hub, Slot: slot, Address: e.Address, Incarnation: e.Incarnation, Observation: e.Observation, Kind: couchcore.LifecycleNoticeKind(e.Kind), Operation: e.Operation, Agent: e.Agent, Model: e.Model, Branch: e.Branch, Issue: e.Issue, Initiation: e.Initiation, Mode: e.Mode,
 	}})
 }
+// retainUnresolvedLocked keeps the newest observation per path, at most 128
+// paths. At the cap a new path evicts the oldest observation, so paths that
+// never verify (no slot workspace) cannot crowd out one that will. Drain and
+// ownership change clear the set.
+func (p *lifecyclePublisher) retainUnresolvedLocked(e couchtty.LifecycleObservation) {
+	if len(e.Path) > 4096 {
+		return
+	}
+	if previous, exists := p.unresolved[e.Path]; exists {
+		if e.Observation > previous.Observation {
+			p.unresolved[e.Path] = e
+		}
+		return
+	}
+	if len(p.unresolved) >= 128 {
+		oldest := ""
+		for path, u := range p.unresolved {
+			if oldest == "" || u.Observation < p.unresolved[oldest].Observation {
+				oldest = path
+			}
+		}
+		delete(p.unresolved, oldest)
+	}
+	p.unresolved[e.Path] = e
+}
+
 func (p *lifecyclePublisher) reducePendingLocked() {
 	// Reduce the complete resolvable set while holding the collector lock. Drain
 	// must not race a batch removed from unresolved but not yet reduced.

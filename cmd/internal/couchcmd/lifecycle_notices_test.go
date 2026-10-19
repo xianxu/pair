@@ -221,15 +221,52 @@ func TestLifecyclePublisherDropsMovedOwnership(t *testing.T) {
 func lifecycleSlotObservation(n int, observation uint64) couchtty.LifecycleObservation {
 	return couchtty.LifecycleObservation{Kind: "recovered", Path: fmt.Sprintf("/repo%d", n), Target: couchcore.ThreadTarget{Kind: couchcore.ThreadTargetSlot, Slot: couchcore.SlotIdentity{Repo: "pair", Number: n, PrimaryRoot: "/repo1", WorktreeRoot: fmt.Sprintf("/repo%d", n)}}, Address: couchcore.ThreadAddress{RepoScope: "scope", Tag: couchcore.ThreadTag(fmt.Sprintf("t%d", n))}, Incarnation: fmt.Sprintf("%d:start", n), Observation: observation, Initiation: "automatic"}
 }
-func lifecycleNextMessage(t *testing.T, ep *controlledEndpoint) couchmessage.Message {
+
+// lifecycleNextMessage waits for the next delivered notice. Given the
+// publisher, a timeout names its state and the cached workspaces it reads
+// (pair#693), so a missing notice says where the fact stopped.
+func lifecycleNextMessage(t *testing.T, ep *controlledEndpoint, publisher ...*lifecyclePublisher) couchmessage.Message {
 	t.Helper()
 	select {
 	case m := <-ep.started:
 		return m
 	case <-testwait.After(t):
-		t.Fatal("no lifecycle message")
+		state := ""
+		if len(publisher) > 0 {
+			state = ": " + lifecyclePublisherState(publisher[0])
+		}
+		t.Fatal("no lifecycle message" + state)
 		return couchmessage.Message{}
 	}
+}
+
+// lifecyclePublisherState is a bounded summary of where facts sit: waiting
+// for an identity, cached identities, hub roots, ready and in-flight tokens,
+// and the message service's verified workspaces.
+func lifecyclePublisherState(p *lifecyclePublisher) string {
+	var workspaces []string
+	p.service.mu.Lock()
+	for b, id := range p.service.workspaces {
+		workspaces = append(workspaces, b.Slot+"="+id.WorktreeRoot)
+	}
+	p.service.mu.Unlock()
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	var unresolved, identities, roots []string
+	for path, e := range p.unresolved {
+		unresolved = append(unresolved, fmt.Sprintf("%s#%d(%s)", path, e.Observation, e.Target.Kind))
+	}
+	for path := range p.identities {
+		identities = append(identities, path)
+	}
+	for root := range p.roots {
+		roots = append(roots, root)
+	}
+	state := fmt.Sprintf("unresolved=%v identities=%v roots=%v ready=%d attempts=%d workspaces=%v", unresolved, identities, roots, len(p.ready), len(p.attempts), workspaces)
+	if len(state) > 4096 {
+		state = state[:4096] + "..."
+	}
+	return state
 }
 func lifecycleCanonicalSubmitted(t *testing.T, r *serviceRig, m couchmessage.Message) {
 	t.Helper()
@@ -548,12 +585,35 @@ func TestLifecyclePublisherRegisteredPrimarySlotIsNotOrdinaryContent(t *testing.
 	worker := r.world.add(2)
 	r.attach(worker, "worker")
 	r.wrapper(worker)
-	r.waitConnected(worker, true)
+	r.waitWorkspace(worker)
 	p.refresh()
 	e := lifecycleSlotObservation(2, 1)
 	e.Target = couchcore.ThreadTarget{Kind: couchcore.ThreadTargetOrdinary, Address: e.Address}
 	p.observe(e)
-	m := lifecycleNextMessage(t, ep)
+	m := lifecycleNextMessage(t, ep, p)
+	if !strings.Contains(m.Body, worker.Slot) {
+		t.Fatalf("registered primary slot missing: %s", m.Body)
+	}
+	ep.finish <- couchmessage.Receipt{Status: couchmessage.Submitted}
+	lifecycleCanonicalSubmitted(t, r, m)
+}
+
+// A fact can reach the publisher before its slot's verified workspace is
+// cached: the Console reports a start at launch, and the wrapper's session
+// connects and verifies later (pair#693). An ordinary-target fact then waits
+// for the identity instead of being dropped, and is published once the
+// workspace is cached. Observed before the worker connects at all, the widest
+// form of that window, so no interleaving luck is involved.
+func TestLifecyclePublisherOrdinaryFactWaitsForItsWorkspace(t *testing.T) {
+	ep := newControlledEndpoint()
+	r, p, _ := lifecyclePublisherRig(t, ep)
+	worker := r.world.add(2)
+	e := lifecycleSlotObservation(2, 1)
+	e.Target = couchcore.ThreadTarget{Kind: couchcore.ThreadTargetOrdinary, Address: e.Address}
+	p.observe(e)
+	r.attach(worker, "worker")
+	r.wrapper(worker)
+	m := lifecycleNextMessage(t, ep, p)
 	if !strings.Contains(m.Body, worker.Slot) {
 		t.Fatalf("registered primary slot missing: %s", m.Body)
 	}
@@ -573,5 +633,29 @@ func TestLifecyclePublisherReplacementBeforeAdmissionReleasesFrozenToken(t *test
 		if fx.Incarnation != "two" {
 			t.Fatalf("old recipient retained: %+v", fx)
 		}
+	}
+}
+
+// Facts waiting for an identity are bounded (pair#693): newest per path, and
+// at 128 paths a new one evicts the oldest observation instead of being
+// refused, so paths that never verify cannot crowd out one that will.
+func TestLifecycleUnresolvedFactsAreBoundedOldestFirst(t *testing.T) {
+	p := &lifecyclePublisher{unresolved: map[string]couchtty.LifecycleObservation{}}
+	for i := 1; i <= 128; i++ {
+		p.retainUnresolvedLocked(couchtty.LifecycleObservation{Path: fmt.Sprint("/never-", i), Observation: uint64(i)})
+	}
+	p.retainUnresolvedLocked(couchtty.LifecycleObservation{Path: "/never-5", Observation: 2})
+	if p.unresolved["/never-5"].Observation != 5 {
+		t.Fatal("an older observation replaced a newer one")
+	}
+	p.retainUnresolvedLocked(couchtty.LifecycleObservation{Path: "/slot", Observation: 200})
+	if len(p.unresolved) != 128 {
+		t.Fatalf("unresolved grew to %d", len(p.unresolved))
+	}
+	if _, ok := p.unresolved["/never-1"]; ok {
+		t.Fatal("the oldest observation survived the cap")
+	}
+	if p.unresolved["/slot"].Observation != 200 {
+		t.Fatal("a new path was refused at the cap")
 	}
 }
