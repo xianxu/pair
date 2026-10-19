@@ -171,3 +171,5 @@ ARCH-DRY reuses publication/path/hash/Drive primitives and extracts filename der
 - 2026-10-18: hub bb8ab7c9-1c77-43ae-9d13-d2e28ff82dd7 approved separate immutable-label envelopes, observed/verified evidence and complete-only refresh replacement. Specified one atomic snapshot so the approved no-partial-index promise is structural rather than a rollback across per-record files.
 
 - 2026-10-18 one-pass plan editing aid: made post-manifest source-root overlap checks explicit for Drive-only recovery, added durable staging ownership/refusal before cleanup, and bounded created filesystem entries in addition to byte sizes. Added preexisting-operator-directory, missing-catalog overlap and entry-overflow regressions. No implementation was written.
+
+- 2026-10-18: full plan approved as written by hub d9acf9a3-51ac-4eda-9dc9-1a70065e04ac, including snapshot/restore caps and lifetime locks. The hub will arrange the required operator Claude-day Drive drill when M2 is ready. Proceed to change-code; automated plan quality and derived estimate remain required before implementation.
