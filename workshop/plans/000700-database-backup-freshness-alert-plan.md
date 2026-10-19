@@ -78,8 +78,8 @@ Warnings are bounded/sanitized and point to continuous.log for detail. They do n
 
 Files: continuous_snapshot_model.go and tests; archive_alert_model.go and tests; new files registered in artifactpath/manifest.go.
 
-- [ ] Add table tests for below/equal/above 48h, overridden duration, future time, never verified, fresh archive, old but current unchanged, missing current evidence, failed/deferred outcomes.
-- [ ] Add fake-clock admission tests: repeated source/day, two source identities with same path, two kinds, next day, recovery then failure same day, restart, clock rollback, capacity/refusal behavior.
+- [ ] Implement the ParseDatabaseMaxAge and DatabaseBackupSummary.NeedsAttention/Warning test strategies in the function-level table below.
+- [ ] Implement the archiveWarningGate.Reserve event-sequence strategy in the function-level table below.
 - [ ] Run targeted tests and retain behavioral red evidence before implementing the predicate/gate.
 - [ ] Implement pure rules with one freshness owner and reservation-before-effect semantics; run tests green and commit.
 
@@ -87,8 +87,8 @@ Files: continuous_snapshot_model.go and tests; archive_alert_model.go and tests;
 
 Files: continuous.go, continuous_report.go, archivecmd/continuous.go, run.go and corresponding tests.
 
-- [ ] Add tests proving source identity and LastVerified survive archived/unchanged/deferred/failed report paths, including partial reports before nonzero exit.
-- [ ] Add command option/report tests: human warnings, --json with --kind, unconfigured, already-running, malformed/empty/oversized output, invalid env duration, duplicate JSON and additive unknown fields.
+- [ ] Implement the EncodeContinuousReport/DecodeContinuousReport strategies below against real pass evidence and the command boundary.
+- [ ] Implement the ParseDatabaseMaxAge and report-decoder adversarial/fuzz strategies below through the CLI boundary.
 - [ ] Implement bounded versioned encoding/decoding using existing strictjson structural validation; avoid shared decoder rewrites or persisted codecs.
 - [ ] Keep stderr diagnostic output separate from typed stdout. Preserve CLI nonzero exit for failed passes and existing lock behavior; run targeted tests green and commit.
 
@@ -97,7 +97,7 @@ Files: continuous.go, continuous_report.go, archivecmd/continuous.go, run.go and
 Files: archive_schedule.go/tests, message_service.go, new notification integration tests as needed, atlas/history-backup.md and README.
 
 - [ ] Build a stateful fake pair executable behind the actual launch seam. It emits scripted report/exit/diagnostic combinations and records starts, without SQLite, personal data or real desktop output.
-- [ ] Red-test stale partial pass, healthy unchanged pass, repeated failure same day, next day, process restart and malformed child output through scheduler/attention/desktop seams.
+- [ ] Implement the archiveScheduler.tick and messageService.notifyArchiveWarning/archiveWarningOwner production-seam strategies below, retaining behavioral red evidence.
 - [ ] Wire the typed launch result to pure admission and existing attention/desktop delivery, preserving generic failed-pass backoff and cancellation. Inject fake output in tests; do not issue real operator notifications during development.
 - [ ] Count N/2N rows and existing snapshot/catalog calls; run targeted archivecmd/historyarchive/couchcmd tests and the source inventory guard.
 - [ ] Update operator docs for threshold env, healthy quiet databases, per-lifetime UTC-day suppression, restart duplicate and recovery action. Capture any review lesson.
@@ -134,3 +134,5 @@ PQ-2: Function-level test strategies (tests before implementation):
 Counted N/2N integration checks assert one projection/admission attempt per row, no extra catalog read or snapshot, and at most one output attempt per eligible source. These strategies replace adding independent test lists without identifying the responsible function.
 
 - 2026-10-19, hub 053b4ee5: primary-hub resolution and unavailable-owner fallback approved. Keep `messageService.archiveWarningOwner` as one small owner-resolution function so pair#694 can redirect machine-wide backup stewardship without changing freshness/admission/delivery logic. All output attempts consume the daily reservation as above; no broadcast, inferred owner or reconnect retry.
+
+- 2026-10-19, plan-quality round 2: PQ-1 addressed. PQ-2 accepted the named strategies but required removal of the duplicated active case inventories. Tasks 1–3 now reference the function-level strategy table instead; this is a presentation correction, not another mechanism/design change.

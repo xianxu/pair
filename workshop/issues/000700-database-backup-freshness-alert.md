@@ -60,3 +60,5 @@ Warn the operator when a configured database's last verified backup bundle excee
 - 2026-10-19, plan-quality round 1: PQ-1 requires an explicit global-primary-hub notification owner and unavailable/replaced-owner behavior; PQ-2 requires named function-level adversarial strategies. Durable plan now records both dispositions. No code changed. Primary-hub/fallback attention semantics are sent to hub for confirmation before rerunning the gate.
 
 - 2026-10-19, hub 053b4ee5 confirmed PQ-1 owner/fallback contract and requested a single small archiveWarningOwner seam for pair#694's future steward-team routing. Rerun change-code; no implementation until admitted.
+
+- 2026-10-19, plan-quality round 2: primary-hub/fallback contract accepted; PQ-2 remains open only because old task inventories duplicated the new function-level strategies. Replaced active inventories with named-strategy references and recorded the presentation revision. No implementation or estimate derived yet.
