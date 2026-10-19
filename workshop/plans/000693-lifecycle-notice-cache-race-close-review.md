@@ -206,3 +206,65 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-19T04:48:16-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 693 — flake: lifecycle primary-slot notice can race verified workspace publication |
+| repo | pair |
+| issue file | workshop/issues/000693-lifecycle-notice-cache-race.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | c0d4b82801cf00cfe91a5663c7a41e6e89adc19d..fd144e163760f1f054610c91108cb4f6d60c6ea3 |
+| command | sdlc close --issue 693 |
+| reviewer | claude (anthropic; author anthropic) |
+| isolation | fenced |
+| timestamp | 2026-10-19T04:48:16-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+This round's code change is one doc comment, and it fixes the only open finding (BR-4). I checked the new wording against the code. `lifecycle_notices.go:244-245` now says refresh also drops an ordinary fact older than `lifecycleOrdinaryWait`. That matches `reducePendingLocked` (`lifecycle_notices.go:276-288`): it deletes facts whose `Target.Kind` is `ThreadTargetOrdinary` once `now.Sub(u.at) > lifecycleOrdinaryWait`. `refresh` (`:291-296`) calls it on every 1-second tick of `run`. Drain also calls it (`:167`) before clearing the set, so the existing "Drain and ownership change clear the set" stays accurate. The other two files are tracker records the tool generated (the gate ledger and the review log). They change nothing in `## Spec`, `## Revisions` or `## Done when`, so the scope has not changed. No conflict resolutions are listed for this window.
+
+1. **Strengths**
+   - The comment now names all three ways an entry leaves `unresolved`, and points to the function that does the expiry. That covers the whole `widened-state-consumer-unswept` concern for this helper.
+2. **Critical findings:** none.
+3. **Important findings:** none.
+4. **Minor findings:** none.
+5. **Test coverage notes:** This round changes no behaviour, so it needs no regression test. The comment describes expiry behaviour that `TestLifecycleOrdinaryFactExpires` already tests.
+6. **Architectural notes:**
+   - **ARCH-DRY: pass.** Comment only.
+   - **ARCH-PURE: pass.** No logic changed.
+   - **ARCH-PURPOSE: pass.** This was the only stale description of how entries leave the set; the atlas already described expiry.
+   - **ARCH-EVOLVE: pass.** No persisted format is touched.
+7. **Plan revision recommendations:** none.
+
+```findings
+dispose:
+  - id: BR-4
+    disposition: addressed
+    note: |
+      lifecycle_notices.go:244-245 now names the expiry; matches reducePendingLocked :284 (ordinary, older than lifecycleOrdinaryWait), called from refresh :296.
+```
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"f4c45dbc-6857-45c0-9d79-049480aace8c","repository":"github.com/xianxu/pair","issue_id":"000693","recipe":"fix-review","round":3,"attempt":1,"agent":"claude","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/d9cbb3e9d2ee3b39","reviewed_head":"fd144e163760f1f054610c91108cb4f6d60c6ea3","slot":"pair:2","requested_at":"2026-10-19T11:47:50.711785Z"},"phase":"finished","pid":28446,"started_at":"2026-10-19T11:47:50.807269Z","finished_at":"2026-10-19T11:48:16.043621Z","session_id":"8b7c8780-4d68-4803-a274-082a45cb8be7","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.623534s
+head: "fd144e163760f1f054610c91108cb4f6d60c6ea3"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000409

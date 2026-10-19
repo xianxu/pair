@@ -62,6 +62,8 @@ ARCH-ORDER: the publisher's states for a fact are dropped, unresolved, or confir
 ## Log
 
 
+
+- 2026-10-19: closed — Delta since the SHIP close is a comment-only edit in lifecycle_notices.go (fd144e16), answering that close review advisory: the retainUnresolvedLocked comment now names the ordinary expiry. go vet and the couchcmd lifecycle tests unchanged and green. (fixed-then-ship); review verdict: SHIP
 - 2026-10-19: closed — sdlc-local/suite green on fdac39f3 (15m21s); round-1 fixes in 877401b2 re-verified with the full couchcmd package (66s). TestLifecyclePublisherOrdinaryFactWaitsForItsWorkspace forces fact-before-workspace and failed before the fix with the state diagnostic (identity cached, nothing unresolved); passes after. TestLifecycleDrainReportsOnlyUntargetedFacts (red when drain counts ordinary facts), TestLifecycleOrdinaryFactExpires, TestLifecycleUnresolvedFactsAreBoundedOldestFirst. -run TestLifecycle -count=50 passed under one yes burner per CPU. No timeout changed; #681 code untouched.; review verdict: SHIP
 2026-10-18 — Observed in integrated suite66983be006023c8bc5127ecedfc3ad3c, source807115355d853aa5ef041dd212fd90f0142d4994, exit2, wall1752.639382458s, no outer suite timeout. Full retained log: /Users/xianxu/workspace/pair/.git/sdlc/test-stats/failed/66983be006023c8bc5127ecedfc3ad3c.log, SHA256 c442bf6703ef51ab2aea6e38b61dadbeea3d8d67c2ec7a7bc4ca821112f50c87. Read-only1s native sample retained at /tmp/pair681-integrated-couchcmd-1709.sample; no process was signalled or lock changed.
 

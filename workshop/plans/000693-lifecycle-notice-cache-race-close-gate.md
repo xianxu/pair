@@ -180,6 +180,88 @@ rounds:
       isolation: fenced
       reviewed: 877401b241a651bd16c3dc6c14def7447e0917e5
       blocked: false
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: f4c45dbc-6857-45c0-9d79-049480aace8c
+            repository: github.com/xianxu/pair
+            issue_id: "000693"
+            recipe: fix-review
+            round: 3
+            attempt: 1
+            agent: claude
+            root: /Users/xianxu/Library/Caches/sdlc/review-checkouts/d9cbb3e9d2ee3b39
+            reviewed_head: fd144e163760f1f054610c91108cb4f6d60c6ea3
+            slot: pair:2
+            requested_at: "2026-10-19T11:47:50.711785Z"
+          phase: finished
+          pid: 28446
+          started_at: "2026-10-19T11:47:50.807269Z"
+          finished_at: "2026-10-19T11:48:16.043621Z"
+          session_id: 8b7c8780-4d68-4803-a274-082a45cb8be7
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-queue-v1
+        repository: github.com/xianxu/pair
+        code_head: fd144e163760f1f054610c91108cb4f6d60c6ea3
+        tracker_head: 757a18d725917f043f257699396c1ea8df2f7e16
+        branch_point: f7be53a7fc8f3749d369eb821fbb21579b433712
+        since: "2026-10-19T03:57:11-07:00"
+        until: "2026-10-19T04:31:49-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-19T03:57:11-07:00"
+              end: "2026-10-19T04:31:49-07:00"
+              began: "2026-10-19T03:57:11-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot2/pair
+        sources:
+            - harness: claude
+              id: 9073df29-d226-4140-b23c-4f03f2b4c472
+              slot: pair:2
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: d46bf33a2922b428b0b96dd1785242673e732a1143d0c23180566471edc2d45c
+              started: "2026-10-16T03:47:36.231Z"
+              spawned: false
+              bytes: 43649821
+              windows:
+                - start: "2026-10-19T03:57:11-07:00"
+                  end: "2026-10-19T04:31:49-07:00"
+        queue_waits:
+            - attempt_id: ed29c0db8dca8225a67b7fd4ae9d0cbc
+              slot: pair:2
+              record_digest: 4bd92929838b7fb562e413a3068436421c7addbc9db54bed13c45dcd113238fc
+              start: "2026-10-19T11:04:06.932955Z"
+              end: "2026-10-19T11:04:47.611061Z"
+              queue_seconds: 40.678106
+              raw_seconds: 40.678106
+              exact: true
+        cuts:
+            - dispatched: "2026-10-19T04:20:54-07:00"
+              finalized: "2026-10-19T04:26:31-07:00"
+              finalizing: false
+            - dispatched: "2026-10-19T04:30:30-07:00"
+              finalized: "2026-10-19T04:31:30-07:00"
+              finalizing: true
+      "n": 3
+      timestamp: "2026-10-19T04:48:16-07:00"
+      dispatched: "2026-10-19T04:47:49-07:00"
+      agent: claude
+      reviewer: claude (anthropic; author anthropic)
+      dispose:
+        - id: BR-4
+          disposition: addressed
+          note: lifecycle_notices.go:244-245 now names the expiry; matches reducePendingLocked :284 (ordinary, older than lifecycleOrdinaryWait), called from refresh :296.
+          round: 3
+      recipe: fix-review
+      isolation: fenced
+      reviewed: fd144e163760f1f054610c91108cb4f6d60c6ea3
+      blocked: false
 ---
 
 # Gate ledger — pair#693 (boundary-review)
@@ -211,6 +293,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-4** [Minor] `widened-state-consumer-unswept` (kind: defect) retainUnresolvedLocked doc comment omits the new ordinary-fact expiry
   lifecycle_notices.go:241-244 says drain and ownership change clear the set; reducePendingLocked now also evicts ordinary facts after lifecycleOrdinaryWait. This is the only stale comment in the window; atlas/couch.md already states the expiry.
 
+## Round 3 — 2026-10-19T04:48:16-07:00 (claude) — passed
+
+### Disposed
+
+- BR-4 — addressed — lifecycle_notices.go:244-245 now names the expiry; matches reducePendingLocked :284 (ordinary, older than lifecycleOrdinaryWait), called from refresh :296.
+
 ## Open findings
 
-- **BR-4** [Minor] `widened-state-consumer-unswept` (kind: defect) retainUnresolvedLocked doc comment omits the new ordinary-fact expiry
+(none — every finding has been disposed)
