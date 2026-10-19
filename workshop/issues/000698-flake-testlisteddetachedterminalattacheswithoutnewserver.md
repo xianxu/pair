@@ -50,6 +50,7 @@ Durable plan: [publication order](../plans/000698-flake-testlisteddetachedtermin
 ## Log
 
 ### 2026-10-19
+- 2026-10-19: closed — Test-only fixture order: controlled old-order red 0.82s, corrected order green 0.44s, reverse-order overlay red 0.32s without timeouts. Publication errors preserve absence of agent-ready. Detached attach and registration/environment tests pass (package 1.976s); full artifactpath, testpair and termcmd guards pass. Required recorded suite started on pushed 50b2d2b03dc9bcb432725bbccd51cd35dd04de7c; landing remains gated on its pass. No new production or public surface, hence no atlas change; hub owns project updates; only the combined suite/review/landing task is unchecked. Hub approved private test-only conformance, no live staging owed.; review verdict: SHIP
 
 - Claimed and started on fresh main (8f84dd12619483a9be757c5ba6b2ae49d66e1491). Retained failure log: `/Users/xianxu/workspace/pair/.git/sdlc/test-stats/failed/adbcdbbf22e41d689a246f916f9dd2d2.log`, lines 828–829: cold handoff refused in 0.45s, terminal not listed live. Same-head pass remains recorded in attempt b8cfedebf5403d1c880f0aa2a5e89ccd.
 - Source trace: pair-wrap publishes PAIR_AGENT_READY_PATH, then PAIR_TEST_ZELLIJ_READY; the latter alone controls fixture list-sessions. admitTerminalAfterReady permits its listing query after the former. Holding that gap until the query observes it reproduces the refusal without any timeout.
