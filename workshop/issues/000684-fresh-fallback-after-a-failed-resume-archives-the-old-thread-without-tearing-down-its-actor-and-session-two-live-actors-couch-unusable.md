@@ -1,7 +1,7 @@
 ---
 id: 000684
 status: working
-deps: [pair#683]
+deps: [pair#695]
 github_issue:
 created: 2026-10-18
 updated: 2026-10-18
@@ -40,13 +40,11 @@ A thread is archived only after its actor and terminal session are proven gone (
 
 Durable plan: [workshop/plans/000684-…-plan.md](../plans/000684-fresh-fallback-after-a-failed-resume-archives-the-old-thread-without-tearing-down-its-actor-and-session-two-live-actors-couch-unusable-plan.md). This issue is the vehicle for the ops project `slot-lifecycle` (operator direction 2026-10-18): one mechanism (`Converge`) over three primitives (proven teardown via a per-slot lifetime lease; bind by the transcript ID stored on the record; a persisted failure record at the dispatcher).
 
-Prerequisite: #683 lands P3 (failure persistence) first; #684's code starts from main after it (no stacking).
+Prerequisite: #695 (the primitives: binding, the two-kind address, proven teardown; formerly M1–M2), which itself follows #683. #684's code starts from main after #695 lands (no stacking).
 
-- [ ] M1 — Transcript binding on the record; Resume binds by one stat (P2)
-- [ ] M2 — Lifetime lease (pair processes only), agent tty witness, `Teardown` + `TeardownProof`; archive/replace require proof (P1)
-- [ ] M3 — `Converge`; paths 1, 2, 3, 5, 6, 7, 8, 9, 10 onto it (fixes this issue's incident)
-- [ ] M4 — Paths 4, 11, 14, 15, 16; three-outcome classification with the two-actor anomaly
-- [ ] M5 — Lifecycle drill on a disposable slot with aged state, hub-triggered; 7 green nights
+- [ ] M1 — `Converge`; paths 1, 2, 3, 5, 6, 7, 8, 9, 10 onto it (fixes this issue's incident)
+- [ ] M2 — Paths 4, 11, 14, 15, 16; three-outcome classification with the two-actor anomaly
+- [ ] M3 — Lifecycle drill on a disposable slot with aged state, hub-triggered; 7 green nights
 
 ## Log
 
@@ -65,3 +63,4 @@ Prerequisite: #683 lands P3 (failure persistence) first; #684's code starts from
 - 2026-10-18 21:40 — operator approval with five changes (see the plan's Revisions): path 12 dropped from M4; Couch-only activation of lease/tty; bounded drill aged state; orphan registry. Code waits for #683.
 - 2026-10-18 22:10 — operator: additive record compatibility instead of old-build refusal; plan §2a (tolerant + preserving decoders, no version bump, reasons stated).
 - 2026-10-18 23:00 — introduce-team scope addition (hub delivery da27249b): the lifecycle address has two kinds, slot (repo:N) and team hub (team folder with a committed .hub, no sdlc claims). Primitives and Converge take `LifecycleAddress`; type and tests land in M1. Type only: no milestone grows, hub addressing/startup/switcher stay in pair#694.
+- 2026-10-18 23:55 — split on the hub's decision (delivery 51ef8069): former M1–M2 (binding, two-kind address, proven teardown) are pair#695; deps now [pair#695]; remaining milestones renumbered M1–M3 (Converge; remaining paths; drill).
