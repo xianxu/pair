@@ -16,6 +16,7 @@ claimant:
     workspace: pair:7
     worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "ddb4876c", done: "16f91cb5"}
 ---
 
 # Codex database snapshots can starve under continuous writes
