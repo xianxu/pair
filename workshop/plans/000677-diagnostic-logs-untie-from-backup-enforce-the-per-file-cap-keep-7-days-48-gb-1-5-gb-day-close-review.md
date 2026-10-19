@@ -331,3 +331,68 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-18T20:21:31-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 677 — diagnostic logs: untie from backup, enforce the per-file cap, keep ~7 days (48 GB, +1.5 GB/day) |
+| repo | pair |
+| issue file | workshop/issues/000677-diagnostic-logs-untie-from-backup-enforce-the-per-file-cap-keep-7-days-48-gb-1-5-gb-day.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | abf8579a70acf2ce637d9f5c4f69f4440fb8373e..163c91304af64e5d7d4f35677a870aef8aa95669 |
+| command | sdlc close --issue 677 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-18T20:21:31-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The interdiff corrects comment attachment and records review history without changing executable behavior or approved scope. No new defects found. BR-1 through BR-6 remain previously disposed; none is reopened.
+
+```findings
+{}
+```
+
+1. **Strengths**
+   - `cmd/internal/diagnosticlog/sweep.go:21` correctly attaches the snapshot contract to `SweepSnapshot`.
+   - `workshop/lessons.md:439` identifies the actual guard and its owning package.
+   - The issue’s added revision records the correction; Spec, Done-when, and the implementation plan remain unchanged.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes:** Independently passed `TestNoDeclarationCarriesTwoStackedGodocs` in `termcmd` and pinned-range `git diff --check`. Inspected the guard’s declaration and comment matching. No runtime regression test is required for this comment-only correction. Repository-wide tests were not rerun.
+
+6. **Architectural notes**
+   - **ARCH-DRY — pass:** Reuses the existing guard.
+   - **ARCH-PURE — pass:** No logic or IO boundary changes.
+   - **ARCH-PURPOSE — pass:** Repairs the documented defect without expanding scope. No new surface requires README or atlas updates.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"904d7072-bdba-4cc4-ae89-6f4160ecfd46","repository":"github.com/xianxu/pair","issue_id":"000677","recipe":"fix-review","round":4,"attempt":1,"agent":"codex","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/fc42f9c18ce2f55b","reviewed_head":"163c91304af64e5d7d4f35677a870aef8aa95669","slot":"pair:3","requested_at":"2026-10-19T03:20:47.431774Z"},"phase":"finished","pid":91713,"started_at":"2026-10-19T03:20:47.727569Z","finished_at":"2026-10-19T03:21:29.569476Z","session_id":"01a1522d-1359-7092-b616-00997aba8774","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.208643084s
+head: "163c91304af64e5d7d4f35677a870aef8aa95669"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
