@@ -19,6 +19,25 @@ reviewer_runs:
       finished_at: "2026-10-19T09:21:33.743214Z"
       session_id: 01a15376-f5eb-7b13-9a62-d56820a6e716
       outcome: returned
+    - version: 1
+      intent:
+        id: b12570ad-c5a3-471c-aff6-f7b9045276a7
+        repository: github.com/xianxu/pair
+        issue_id: "000688"
+        recipe: estimate-quality
+        round: 1
+        attempt: 1
+        agent: codex
+        root: /Users/xianxu/workspace/worktree/pair-slot7/pair
+        reviewed_head: 77f06b765a6648acbaf06f60b1f71b7d9db481b8
+        slot: pair:7
+        requested_at: "2026-10-19T09:43:00.102012Z"
+      phase: finished
+      pid: 10076
+      started_at: "2026-10-19T09:43:00.401137Z"
+      finished_at: "2026-10-19T09:43:29.307396Z"
+      session_id: 01a1538b-00d7-7913-8489-0eb452f6a06f
+      outcome: returned
 gate: plan-quality
 issue: 688
 id_prefix: PQ
@@ -131,7 +150,32 @@ rounds:
       reviewer: codex (openai; author openai)
       blocked: false
       protocol_error: no valid findings block
-content_hash: 5adf9b37337aab81149352939186fecc285bbeab014fb084b11ebd3f1ee2d37a
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: 678835b5-66ad-4bd0-a8ce-1d593facb2fe
+            repository: github.com/xianxu/pair
+            issue_id: "000688"
+            recipe: plan-quality
+            round: 4
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot7/pair
+            reviewed_head: 77f06b765a6648acbaf06f60b1f71b7d9db481b8
+            slot: pair:7
+            requested_at: "2026-10-19T09:42:31.418217Z"
+          phase: finished
+          pid: 82810
+          started_at: "2026-10-19T09:42:31.611335Z"
+          finished_at: "2026-10-19T09:42:56.153858Z"
+          session_id: 01a1538a-9010-73c3-9d49-10f6c9c49119
+          outcome: returned
+      "n": 4
+      timestamp: "2026-10-19T02:42:56-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      blocked: false
+content_hash: 2cce8be5afbc61693204acf2b3bb1f83545e1d4a044794f3f4565d1629518436
 ---
 
 # Gate ledger — pair#688 (plan-quality)
@@ -161,6 +205,8 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 ## Round 3 — 2026-10-19T02:21:05-07:00 (codex) — passed
 
 **Protocol error:** no valid findings block — this round contributed no findings.
+
+## Round 4 — 2026-10-19T02:42:56-07:00 (codex) — passed
 
 ## Open findings
 
