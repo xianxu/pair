@@ -5,6 +5,7 @@ import (
 	"slices"
 
 	"github.com/xianxu/pair/cmd/internal/adapt"
+	"github.com/xianxu/pair/cmd/internal/commitoutcome"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 	"github.com/xianxu/pair/cmd/internal/sessionledger"
 )
@@ -14,6 +15,15 @@ import (
 // watermark. The native record offset, not journal position, is semantic
 // identity.
 func LifecycleRecordsFromEvents(events []sessioninventory.NativeEventFact, rootNodeID string, after uint64, launchOrdinal uint64, artifactGeneration, transcriptPath string) ([]LifecycleRecord, uint64) {
+	pubs, watermark := lifecyclePublicationsFromEvents(events, rootNodeID, after, launchOrdinal, artifactGeneration, transcriptPath)
+	records := make([]LifecycleRecord, 0, len(pubs))
+	for _, p := range pubs {
+		records = append(records, p.record)
+	}
+	return records, watermark
+}
+
+func lifecyclePublicationsFromEvents(events []sessioninventory.NativeEventFact, rootNodeID string, after uint64, launchOrdinal uint64, artifactGeneration, transcriptPath string) ([]lifecyclePublication, uint64) {
 	ordered := append([]sessioninventory.NativeEventFact(nil), events...)
 	slices.SortFunc(ordered, func(a, b sessioninventory.NativeEventFact) int {
 		if a.Position < b.Position {
@@ -25,7 +35,7 @@ func LifecycleRecordsFromEvents(events []sessioninventory.NativeEventFact, rootN
 		return 0
 	})
 	watermark := after
-	var records []LifecycleRecord
+	var records []lifecyclePublication
 	for _, fact := range ordered {
 		if fact.RootNodeID != rootNodeID || fact.Position <= after {
 			continue
@@ -49,48 +59,49 @@ func LifecycleRecordsFromEvents(events []sessioninventory.NativeEventFact, rootN
 		if recordOffset < 0 {
 			continue
 		}
-		records = append(records, LifecycleRecord{
+		records = append(records, lifecyclePublication{record: LifecycleRecord{
 			Version: 1, Agent: string(sessioninventory.AgentCodex), LaunchOrdinal: launchOrdinal,
 			ArtifactGeneration: artifactGeneration, Source: "transcript", Outcome: outcome,
 			TurnID: fact.Event.TurnID, TranscriptPath: transcriptPath,
 			TranscriptOffset: recordOffset, EventTimestamp: fact.Event.Timestamp,
-		})
+		}, position: fact.Position})
 	}
 	return records, watermark
 }
 
-func publishAuthorizedLifecycle(opts Options, rt Runtime, journalPath string, tracked map[string]sessioninventory.TargetValidation, events []sessioninventory.NativeEventFact, rootNodeID string, after uint64) (uint64, error) {
-	var generation, transcriptPath string
-	for _, validation := range tracked {
-		if sessioninventory.StableID("node", string(sessioninventory.AgentCodex), validation.State.NativeID) != rootNodeID || len(validation.Observations) != 1 {
-			continue
-		}
-		transcriptPath = validation.Observations[0].Entry.Artifact.RelativePath
-		for _, result := range validation.Results {
-			// GenerationID, not GenerationToken: the raw token is optional and
-			// in practice never present -- Linux never populates it and APFS
-			// reports st_gen as 0 -- so requiring it rejected every artifact on
-			// every platform, and no lifecycle record was ever written.
-			generation = result.Fingerprint.GenerationID()
-			break
-		}
+func lifecycleArtifactIdentity(validation sessioninventory.TargetValidation) (generation, path string, err error) {
+	if len(validation.Observations) != 1 {
+		return "", "", errors.New("authorized Codex lifecycle artifact identity is unavailable")
+	}
+	path = validation.Observations[0].Entry.Artifact.RelativePath
+	for _, result := range validation.Results {
+		generation = result.Fingerprint.GenerationID()
 		break
 	}
-	if generation == "" || transcriptPath == "" {
-		return after, errors.New("authorized Codex lifecycle artifact identity is unavailable")
+	if generation == "" || path == "" {
+		return "", "", errors.New("authorized Codex lifecycle artifact identity is unavailable")
 	}
-	records, watermark := LifecycleRecordsFromEvents(events, rootNodeID, after, opts.LaunchOrdinal, generation, transcriptPath)
+	return generation, path, nil
+}
+
+func publishLifecycleBatch(opts Options, rt Runtime, journalPath string, state boundFollowState) (boundFollowState, error) {
 	appendRecord := opts.AppendLifecycle
 	if appendRecord == nil {
 		appendRecord = func(path string, record LifecycleRecord) error {
 			return AppendLifecycleRecord(sessionledger.OSRuntime{}, path, record)
 		}
 	}
-	for _, record := range records {
-		if err := appendRecord(journalPath, record); err != nil {
-			return after, err
+	for state.phase == followPublishing {
+		record := state.pending.publications[state.index].record
+		err := appendRecord(journalPath, record)
+		if commitoutcome.Of(err) != commitoutcome.Committed {
+			return reduceBoundFollow(state, boundFollowEvent{failure: err}), err
 		}
+		state = reduceBoundFollow(state, boundFollowEvent{ack: &record})
 		rt.Log(adapt.Fired, "codex lifecycle "+record.Outcome+" turn_id="+record.TurnID)
+		if err != nil {
+			rt.Log(adapt.NearMiss, "lifecycle committed with cleanup warning: "+err.Error())
+		}
 	}
-	return watermark, nil
+	return state, nil
 }

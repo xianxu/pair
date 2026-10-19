@@ -343,17 +343,35 @@ func writeAll(writer io.Writer, raw []byte) (int, error) {
 
 // WithCurrentConfirmation serializes compatibility-cache publication with new
 // launches. Effects must not reenter this ledger's lock.
-func (s LedgerStore) WithCurrentConfirmation(path string, owner Owner, ordinal uint64, nativeID string, effect func() error) (err error) {
+func (s LedgerStore) WithCurrentConfirmation(path string, owner Owner, ordinal uint64, nativeID string, effect func() error) error {
+	return s.WithCurrentConfirmationReader(path, owner, ordinal, nativeID, func() (Current, bool, error) {
+		raw, err := s.Runtime.ReadFile(path)
+		if err != nil {
+			return Current{}, false, err
+		}
+		current, ok := CurrentLaunch(ParseLedger(raw).Records, owner)
+		return current, ok, nil
+	}, effect)
+}
+
+// WithCurrentConfirmationReader uses the same writer lock and confirmation
+// predicate, with a caller-owned read projection. Bound telemetry supplies its
+// exact-ledger metadata-fenced cache here: the reader MUST re-observe that
+// ledger under this lock and fully re-read on any identity/fingerprint change.
+// Neither reader nor effect may reenter this ledger's lock.
+func (s LedgerStore) WithCurrentConfirmationReader(path string, owner Owner, ordinal uint64, nativeID string, read func() (Current, bool, error), effect func() error) (err error) {
 	lock, err := s.Runtime.Lock(path + ".lock")
 	if err != nil {
 		return err
 	}
 	defer func() { err = errors.Join(err, lock.Close()) }()
-	raw, err := s.Runtime.ReadFile(path)
+	if read == nil {
+		return errors.New("current confirmation reader unavailable")
+	}
+	current, ok, err := read()
 	if err != nil {
 		return err
 	}
-	current, ok := CurrentLaunch(ParseLedger(raw).Records, owner)
 	if !ok || current.Launch.Ordinal != ordinal || current.Conflict || current.Binding == nil || current.Binding.RootNativeID != nativeID {
 		return ErrStaleLaunch
 	}
