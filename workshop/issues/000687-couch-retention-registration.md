@@ -106,6 +106,10 @@ Restart check for hub/operator: after restarting onto this landing, read the sel
 
 Opened early PR447 through sdlc pr, then converted it to draft for CI overlap (sdlc pr has no draft option). All four server checks passed on a508b7ef803197b892f0d28f6ae4333165b07a0f: macOS conformance2m12s, merge-check1m11s and both local-gates checks. Recorded suite attempt a4b9bb7cbcb08c0e833fc1a05cfa062f is queued from this slot on that head; its retained inflight log is .git/sdlc/test-stats/inflight/a4b9bb7cbcb08c0e833fc1a05cfa062f/run.log. Full couchcore package run remains active. Implementation checkboxes are complete; suite completion remains a landing gate. Starting the binary-owned close review while the recorded suite waits, per tl-worker's approved overlap.
 
+### 2026-10-18 — affected-package qualification complete
+
+The full couchcore package finished GREEN, exit0,414.013s. Together with the earlier storagegc/diagnosticlog/gcruntime/artifactpath passes and Godoc guard, all affected-package checks are complete. No code changed after the pushed suite head. The mandatory close review is running on d736bb9373a8ed76553983c31a8e5d5144e90958; this update only records the completed verification and ticks its durable-plan row.
+
 ## Revisions
 
 ### 2026-10-18 — dispatched capability and record-evolution design

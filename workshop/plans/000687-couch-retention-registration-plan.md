@@ -101,7 +101,7 @@ Files: modify cmd/internal/couchcore/couch.go/runtime_retention_test.go and cmd/
 
 - [x] Extend TestCoordinatedCouchRegistersActualRootRuntime to require the supported diagnostic capability and retained ID/idempotency. Reuse the constructor's owned temp roots and verify no owner activity is initialized.
 - [x] Have Couch request the capability through the existing RegisterRuntime transaction before admitting the coordinated store. Add both new production files to artifactpath's exhaustive source classification.
-- [ ] Run affected full packages plus go test ./cmd/internal/termcmd -run '^TestNoDeclarationCarriesTwoStackedGodocs$' -count=1 and the artifact ownership guard before a recorded suite.
+- [x] Run affected full packages plus go test ./cmd/internal/termcmd -run '^TestNoDeclarationCarriesTwoStackedGodocs$' -count=1 and the artifact ownership guard before a recorded suite.
 - [x] Use an owned child/isolated root to verify real PID/birth lease recognition, reuse/replacement rejection and held-FD protection; bound and join every owned child. No foreground/native lane interaction.
 - [x] Record a read-only real diagnostic preview against the existing running supervisor. Before restart, its old capability may correctly remain blocked; report that as rollout state, not manufactured success.
 
