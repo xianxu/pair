@@ -1,6 +1,6 @@
 ---
 id: 000712
-status: working
+status: codecomplete
 created: 2026-10-19
 updated: 2026-10-19
 estimate_hours: 1.9
@@ -14,6 +14,14 @@ claimant:
     workspace: pair:3
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
+actual_hours: 1.87
+tracker:
+    version: 1
+    completion:
+        token: close-4753b5cf4d9b
+        repository: github.com/xianxu/pair
+        reviewed_head: 328f187bc9ca6e3aad6a2b6b6e0465e0c0b5debd
+        evidence_commit: 46b40db395481e0cc55ac2dc4cc2c75ab7247908
 ---
 
 # couchcore: TestSpawnComposesProductionPairRegistrationBoundary/fresh-slot hangs 20 min under load (split from #432)
