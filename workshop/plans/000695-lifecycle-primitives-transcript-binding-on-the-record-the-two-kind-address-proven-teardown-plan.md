@@ -473,3 +473,51 @@ Steps:
   slot arm carries the physical root it was built from, so `Key()` needs no lookup. `SlotIdentity` keeps its own
   fields, and the address adds `Root string` beside it. The slot root is for keying only: a `:0` primary is
   addressed by its root, as #683's key already does.
+- 2026-10-19 — P2, measured before code (an Explore digest of sessioninventory, createflow, resume and relaunch).
+  Two facts change how the binding is located, though not what it is for.
+  - **A native ID does not give its file without a listing.**
+    - Claude and qoder put the file under a cwd-munged project folder that pair does not reproduce.
+    - Codex adds a date folder and a timestamped `rollout-` prefix.
+    - Only grok's path follows from the ID and the cwd alone.
+
+    The exact file is already recorded, though: an established ledger binding's
+    `authorization_proof.artifacts[]` carries `storage_root` (a root name such as `claude-projects`) and
+    `relative_path` (sessionledger/record.go:63-79). So **the binding stores that pair, not an absolute path**:
+
+    ```go
+    type TranscriptBinding struct {
+        Agent        string    `json:"agent"`
+        NativeID     string    `json:"native_id"`
+        StorageRoot  string    `json:"storage_root,omitempty"`  // a NativeRoots(agent) name; empty until established
+        RelativePath string    `json:"relative_path,omitempty"` // clean local path under that root
+        BoundAt      time.Time `json:"bound_at"`
+        Source       string    `json:"source"` // minted | ledger | legacy-ledger
+    }
+    ```
+
+    `Validate(roots []string)` is pure. It requires the root to be one of the agent's root names, the relative path
+    to be clean and local (no `..`, not absolute), and its basename to contain `NativeID`. A minted binding may
+    have no file yet; it carries the ID only. Bind's stat is `Runtime.StatFile(Artifact{root, rel})` (one
+    `Lstat`), counted by the existing `sessioninventorytest.FakeRuntime`. This replaces §2's `Path` (ARCH-SECURE
+    holds: the root is resolved by the runtime and never taken from the record).
+  - **The ledger has a known path.** It is `artifactpath.Paths.Ledger()`, which resolves to
+    `<data>/repos/<scope>/ledger-<tag>.jsonl`. Today `findOwnerLedger` (query.go:493) lists the scope folder to find
+    it. Bind reads that one path directly with `ReadAt`, so it does no listing, and parses it with the existing
+    `sessionledger.ParseLedger` and `CurrentLaunch`. It never calls `QueryResumeTargetContext`.
+  - **Where the binding is written:**
+    - At a minted launch (createflow.go:796-808), the minted ID reaches Couch through the start claim's commit:
+      Couch already passes the launch profile, and it records `NativeID` with `Source: minted`, with no file.
+    - The first Bind that finds an established ledger binding for that ID fills in `StorageRoot` and
+      `RelativePath` from its proof, with `Source: ledger`.
+    - A legacy record goes the same way with `Source: legacy-ledger`.
+    - Until M2, `FinalizePark` gets the ledger copy from its couchcore caller. `PairLifecycleController` has no
+      resolver, so the caller (relaunch and park in couchcore, which has `c.Artifacts`) runs the copy just before
+      the `FinalizePark` call.
+  - **Counting.** The counted test sets one ledger `ReadAt` (plus the `StatFile` fingerprint that the reader
+    already does on the ledger), one transcript `StatFile`, and zero `ListFiles`, on both the Couch side and the
+    resume's re-check.
+    - The launched child's own check (createflow.go:694, `EstablishedSessionID`) is pair's. Pair must keep working
+      without Couch, so the child keeps its own verification.
+    - Under Couch, the profile also carries the binding's root and relative path, and the child checks them with
+      one stat instead of a listing query. Plain pair is unchanged (`TestPlainPairUnchangedWithoutCouch` covers it
+      in M2).
