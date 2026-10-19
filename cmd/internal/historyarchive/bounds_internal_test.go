@@ -15,7 +15,7 @@ import (
 type copyCodec struct{}
 
 func (copyCodec) CheckRecipients(context.Context, []string) error { return nil }
-func (copyCodec) Encode(_ context.Context, r io.Reader, w io.Writer, _ []string) error {
+func (copyCodec) Encode(_ context.Context, r io.Reader, w io.Writer, _ []string, _ string) error {
 	_, err := io.Copy(w, r)
 	return err
 }

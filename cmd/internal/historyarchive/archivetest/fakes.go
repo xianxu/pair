@@ -183,7 +183,7 @@ func (c *TestCodec) barrier(ctx context.Context, stage string) error {
 	}
 	return ctx.Err()
 }
-func (c *TestCodec) Encode(ctx context.Context, r io.Reader, w io.Writer, recipients []string) (err error) {
+func (c *TestCodec) Encode(ctx context.Context, r io.Reader, w io.Writer, recipients []string, compression string) (err error) {
 	c.Attempts++
 	defer func() {
 		if err != nil {

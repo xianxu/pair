@@ -651,16 +651,26 @@ operations: retry switching when the old agent is still running; after a failed
 target start is proved gone, resume the old conversation. Uncertain terminal
 ownership must be resolved before another agent starts.
 
-Failed launches leave a one-line explanation, attempt ID, diagnostic file path,
-and an inspection command, such as
-`couch --show ariadne:5`. Inspection retains the target's error, the final switch
-error, output tail, and exits observed before and after cleanup separately.
-An unobserved exit is not proof that the target crashed. Each Couch namespace
-keeps its newest 16 failed attempts, with at most 16 KiB of output per attempt;
-rollback, restart, and a later successful launch do not erase them. Ordinary
-launches capture stderr; terminal launches label their combined stdout/stderr.
-Inspection strips terminal controls. Abrupt termination before Couch records a
-failure can still leave no diagnostic.
+Accepted lifecycle actions that fail leave an explanation and operation nonce in the receipt,
+with retained evidence available through `couch --show SLOT`. The switcher row
+and show display the latest historical failure, including refusals before launch
+and failures during preparation, adoption or readiness. Classified failures name
+their phase; otherwise they name the operation. A later verified park or committed
+live start recorded for the slot hides older failures without rewriting the log.
+Retirement alone is not success. If no later success is recorded, the failure
+remains visible as historical evidence. Requests refused before entering the queue
+remain immediate messages. Diagnostics never block recovery or console input.
+
+Each Couch namespace retains up to 64 failures in
+`<namespace>/launch-diagnostics/failures.json`, capped at 1 MiB by evicting the
+oldest whole records. The file retains the nonce after the five-minute receipt
+expires, until that evidence is evicted. Launch evidence includes a 16 KiB output
+tail, bounded errors and separate exits observed before and after cleanup.
+Ordinary launches capture stderr; terminal launches label combined stdout/stderr.
+An unobserved exit is not proof of a crash. Display strips terminal controls.
+Unreadable or unpublished diagnostics are reported explicitly. Abrupt termination
+before the terminal outcome is recorded can leave no diagnostic. These records
+explain failures; recovery still uses the existing confirmed lifecycle actions.
 
 For a startup timing probe, set `PAIR_STARTUP_TIMING=1` before launching Pair
 or Couch. Pair emits phase names, consecutive durations and cumulative elapsed
@@ -1983,7 +1993,7 @@ From a non-agent Pair pane, detach with `Alt+d`. For Couch-managed work, use the
 
 ## History backup
 
-🤖{Use `pair archive inventory` to inspect supported history sources and `pair archive create --request /private/tmp/pair-archive-request.json` to back up explicitly selected stable files. Creation streams tar through zstd `-19` and GPG public-key encryption, verifies stored ciphertext and records the result in a private local catalog; it preserves source files. Install `gpg` and `zstd`, supply a trusted full public-key fingerprint and separate source, sink and catalog paths. No private key is needed for creation. [History backup](atlas/history-backup.md) documents the request JSON, defaults, limits, retry behavior and operator key-recovery checklist. `pair archive continuous` runs one pass over agent transcripts, Codex databases, ops documents and sdlc data, configured by `$PAIR_DATA_DIR/archive/continuous.json`: it archives files once they have been unmodified for three days, each file once by content hash, and takes coherent private snapshots of Codex databases without opening them in place; Couch runs it daily when configured. Continuous mode also copies the encrypted bundles and public labels to the configured rclone destination (default `pair-backup:backups/pair-history`) after local backup succeeds, using one batch with up to eight transfers. When running from a Pair-slot terminal, set `PAIR_DATA_DIR="$HOME/.local/share/pair"` explicitly to select the shared configuration. Install and configure `rclone` separately; optional `drive_remote` and `drive_folder` settings select the destination. Drive failures leave local backup intact and print a pending/unavailable note. Verified upload receipts are kept separately from the local catalog; neither command deletes sources or restores. See the [Drive verification and retry guide](atlas/history-backup.md#drive-copies-678).}
+🤖{Use `pair archive inventory` to inspect supported history sources and `pair archive create --request /private/tmp/pair-archive-request.json` to back up explicitly selected stable files. Creation streams tar through zstd (`-9 -T0` for Codex databases, `-19 -T0` for other kinds) and GPG public-key encryption, verifies stored ciphertext and records the result in a private local catalog; it preserves source files. Install `gpg` and `zstd`, supply a trusted full public-key fingerprint and separate source, sink and catalog paths. No private key is needed for creation. [History backup](atlas/history-backup.md) documents the request JSON, defaults, limits, retry behavior and operator key-recovery checklist. `pair archive continuous` runs one pass over agent transcripts, Codex databases, ops documents and sdlc data, configured by `$PAIR_DATA_DIR/archive/continuous.json`: it archives files once they have been unmodified for three days, each file once by content hash, and takes coherent private snapshots of Codex databases without opening them in place; Couch runs it daily when configured. Continuous mode also copies the encrypted bundles and public labels to the configured rclone destination (default `pair-backup:backups/pair-history`) after local backup succeeds, using one batch with up to eight transfers. When running from a Pair-slot terminal, set `PAIR_DATA_DIR="$HOME/.local/share/pair"` explicitly to select the shared configuration. Install and configure `rclone` separately; optional `drive_remote` and `drive_folder` settings select the destination. Drive failures leave local backup intact and print a pending/unavailable note. Verified upload receipts are kept separately from the local catalog; neither command deletes sources or restores. See the [Drive verification and retry guide](atlas/history-backup.md#drive-copies-678).}
 
 ## Storage retention
 

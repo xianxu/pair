@@ -238,3 +238,50 @@ func TestCatalogInventoryIncludesEveryRolledShard(t *testing.T) {
 		}
 	}
 }
+
+func TestCatalogReadsMixedCompressionWithoutRecompressingLegacyContent(t *testing.T) {
+	ctx := context.Background()
+	path := catalogPath(t)
+	legacy := catalogFixture(t, "legacy")
+	c, err := OpenCatalog(ctx, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	records := []CatalogRecord{legacy}
+	for _, descriptor := range []string{"zstd -9", "zstd -23"} {
+		r := catalogFixture(t, descriptor)
+		r.Manifest.Compression = descriptor
+		r.Label.Compression = descriptor
+		r.Label.ID, err = r.Manifest.ID()
+		if err != nil {
+			t.Fatal(err)
+		}
+		r.BundleKey, r.LabelKey, err = r.Manifest.Keys()
+		if err != nil {
+			t.Fatal(err)
+		}
+		records = append(records, r)
+	}
+	for _, r := range records {
+		if err := c.Append(ctx, r); err != nil {
+			t.Fatal(err)
+		}
+	}
+	c.Close()
+	c, err = OpenCatalog(ctx, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	for _, r := range records {
+		got, ok, err := c.Find(ctx, r.Label.ID)
+		if err != nil || !ok || got.Manifest.Compression != r.Manifest.Compression || got.Label.Compression != r.Label.Compression {
+			t.Fatalf("find=%+v %v %v", got, ok, err)
+		}
+	}
+	idx := NewArchivedIndex()
+	idx.Add(legacy.Manifest)
+	if !idx.SeenHash(legacy.Manifest.Source, legacy.Manifest.Files[0].Path, legacy.Manifest.Files[0].SHA256) {
+		t.Fatal("legacy content no longer deduplicated")
+	}
+}

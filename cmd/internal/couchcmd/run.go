@@ -603,7 +603,9 @@ func runTypedOperationWithConsole(op couchcore.Operation, parsed, prepareArgs ma
 		c.Layout = layout
 	}
 
-	executors := couchcore.OperationExecutors{DirectStore: couchcore.DirectStoreExecutor(c)}
+	executors := couchcore.OperationExecutors{DirectStore: couchcore.DirectStoreExecutor(c), Attempt: c.OperationAttemptForCall,
+		DiagnosticWarning: func(text string) { fmt.Fprintln(stderr, text) },
+	}
 	if ownsLive {
 		executors.LiveOwner = couchcore.CouchLiveOwnerExecutor(c)
 	}
@@ -891,7 +893,7 @@ func runConsole(console *couchtty.Console, c *couchcore.Couch, start couchcore.S
 		defer messages.Close()
 	}
 	if len(configuredHubs) > 0 && configuredHubs[0] != nil {
-		startExplicitHubs(console, configuredHubs[0])
+		startExplicitHubs(console, configuredHubs[0], c)
 	}
 	code := console.Run()
 	recordConsoleExit(console.TerminalFailure())
@@ -978,9 +980,12 @@ func wireResolver(console *couchtty.Console, c *couchcore.Couch, configuredHubs 
 	// there is no operator action the advisor cannot also perform (#148's
 	// design test) and no way for the switcher to grow a private verb.
 	couchLive := couchcore.CouchLiveOwnerExecutor(c)
+	console.SetOperationAttemptFactory(c.OperationAttemptForCall)
 	dispatch := func(call couchcore.OperationCall) (any, error) {
 		return couchcore.DispatchOperation(couchcore.OperationExecutors{
-			DirectStore: couchcore.DirectStoreExecutor(c),
+			Attempt:           c.OperationAttemptForCall,
+			DiagnosticWarning: func(text string) { console.Notify(couchtty.Notice{Kind: "status", Body: text}) },
+			DirectStore:       couchcore.DirectStoreExecutor(c),
 			LiveOwner: func(call couchcore.OperationCall) (any, error) {
 				if call.Name == "keys" || call.Name == "set-model" {
 					return executeAgentDrive(call)

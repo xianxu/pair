@@ -441,6 +441,28 @@ func renderStartMenuFrame(state MenuState, frame MenuFrame, width, height int) [
 // (#280): an in-flight request, or the line one that didn't finish left
 // (#522), is appended to the state, which always shows.
 func rootStateText(thread couchcore.ActionableThreadSummary, now time.Time) string {
+	text := rootStateTextWithoutFailure(thread, now)
+	if thread.DiagnosticError != "" {
+		return text + " · diagnostics unavailable"
+	}
+	if f := thread.Failure; f != nil {
+		label := f.Phase
+		if label == "" {
+			label = f.Operation
+		}
+		if label == "" {
+			label = "lifecycle"
+		}
+		message := f.FinalError
+		if message == "" {
+			message = f.LaunchError
+		}
+		return text + " · " + clipMenuLine(rowtext.Sanitize(label+": "+message), 64)
+	}
+	return text
+}
+
+func rootStateTextWithoutFailure(thread couchcore.ActionableThreadSummary, now time.Time) string {
 	if request := thread.Continuation; request != nil {
 		if label := continuationLabel(request.Phase); label != "" {
 			return threadStateText(thread, now) + " · " + label
@@ -583,8 +605,8 @@ func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, no
 			}
 			suffix = clipMenuLine("  hub "+rowtext.Sanitize(ownerLabel)+suffix, width)
 		}
-		if hasJob {
-			// Diagnostics and hub labels must leave the job's row identifiable.
+		if hasJob || thread.Failure != nil || thread.DiagnosticError != "" {
+			// Diagnostics and hub labels must leave the selected row identifiable.
 			suffix = clipMenuLine(suffix, width-menuLabelFloor)
 		}
 		prefixWidth := width - textwidth.Width(suffix)

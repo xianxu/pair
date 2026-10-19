@@ -323,14 +323,16 @@ func TestRestartReceiptWaitsForReadiness(t *testing.T) {
 		status := func() couchmessage.OperationReceipt {
 			return *r.s.handle(context.Background(), statusRequest(b, "id")).Operation
 		}
-		return p, svc, status, awaitReadiness(&await, job.finished)
+		return p, svc, status, awaitReadiness(context.Background(), &await, job.finished)
 	}
 	relaunched := couchcore.RelaunchResult{Outcome: couchcore.Relaunched}
 
 	for _, op := range []string{couchcore.OpRelaunch, couchcore.OpReloadContext} {
 		t.Run(op+" ready", func(t *testing.T) {
 			_, svc, status, finish := setup(t, op)
-			finish(relaunched, nil)
+			joined := make(chan struct{})
+			go func() { finish(relaunched, nil); close(joined) }()
+			t.Cleanup(func() { <-joined })
 			time.Sleep(20 * time.Millisecond)
 			if got := status(); got.Status != couchmessage.ReceiptRunning {
 				t.Fatalf("the old session's settled counted: %+v", got)

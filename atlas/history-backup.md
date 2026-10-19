@@ -1,11 +1,23 @@
 # History backup
 
 `pair archive` is an explicit batch backup path. It archives selected stable
-regular files as tar → zstd `-19` → GPG public-key encryption, reads the published
+regular files as tar → zstd → GPG public-key encryption, reads the published
 ciphertext back to verify its SHA256 and size, and records verified bundles in a
 private local catalog. It preserves every source file. The entrypoint is
 [`archivecmd`](../cmd/internal/archivecmd/run.go); the implementation is
 [`historyarchive`](../cmd/internal/historyarchive/archive.go).
+
+Compression uses `-9 -T0` for `codex-database` and `-19 -T0` for every
+other kind. The manifest and label record the actual level; readers accept
+canonical positive zstd levels independently of this writer policy. Encoding
+rejects levels above 22 before spawning and uses `--ultra` for levels 20–22.
+Existing level-19 bundle IDs remain readable, and unchanged source content is
+skipped rather than recompressed. On the measured 2 GB history snapshot, level 9
+produced 205 MB in 2.2 s versus level 19’s 147 MB in 56.3 s (both `-T0`),
+saving about 454 CPU-seconds for 58 MB more per changed daily bundle. This
+trades roughly 21 GB/year of storage for much less daily compression work.
+`PAIR_ARCHIVE_LIVE=1` enables the isolated-key
+codec round-trip conformance test for levels 9, 19, 20 and 22.
 
 ## Commands and request
 
@@ -132,10 +144,11 @@ Durability is reconfirmed for existing records as well as newly written records.
 
 A file larger than the target may occupy its own bundle up to the hard limit.
 Tar headers and compression overhead are additional to raw payload accounting.
-Metadata is bounded and file bytes stream; one zstd process uses one compression
-thread per invocation. zstd `-19` has its own working memory, so these limits do
-not imply a strict low total RSS. There are no host-wide scans or parallel
-compressions within an invocation. The operation is cancellable without a fixed
+Metadata is bounded and file bytes stream. Each bundle uses one zstd process
+with `-T0` (all available CPU threads); bundles are compressed serially within
+an invocation. Compression working memory depends on level and thread count,
+so these limits do not imply a strict low total RSS. There are no host-wide
+scans or concurrent bundle compressions within an invocation. The operation is cancellable without a fixed
 success deadline; cancellation joins the transform children and tar writer.
 
 The invocation owns its temporary ciphertext and removes it on ordinary return.

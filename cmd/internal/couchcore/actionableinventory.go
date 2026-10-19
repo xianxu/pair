@@ -171,10 +171,14 @@ type ThreadEvidence struct {
 }
 
 // ActionableThreadSummary contains only fields the ordinary switcher needs.
-// It deliberately excludes diagnostic lifecycle state.
+// Diagnostic annotations are evidence only; state and actions remain independent.
 type ActionableThreadSummary struct {
-	HasOpenPark bool   `json:"has_open_park,omitempty"`
-	ParkNonce   string `json:"park_nonce,omitempty"`
+	// Failure and DiagnosticError are display evidence, never action authority.
+	LastLifecycleSuccessAt time.Time         `json:"-"`
+	Failure                *LifecycleFailure `json:"failure,omitempty"`
+	DiagnosticError        string            `json:"diagnostic_error,omitempty"`
+	HasOpenPark            bool              `json:"has_open_park,omitempty"`
+	ParkNonce              string            `json:"park_nonce,omitempty"`
 	// TitleTarget is private, observation-scoped display authority.
 	TitleTarget  *TitleTarget        `json:"-"`
 	Target       ThreadTarget        `json:"target"`
@@ -329,22 +333,23 @@ func ProjectActionableThreads(input ThreadProjectionInput) []ActionableThreadSum
 	for _, record := range records {
 		state, reason := ClassifyThread(record, evidence[record.Address])
 		rows = append(rows, ActionableThreadSummary{
-			HasOpenPark:        record.Park != nil,
-			ParkNonce:          openParkNonce(record),
-			Address:            record.Address,
-			Continuation:       continuationStatus(record),
-			ContinuationMissed: cloneMiss(record.ContinuationMissed),
-			Recovery:           ProjectRecoveryChoices(record, evidence[record.Address], state, reason),
-			StartingPath:       record.StartingPath,
-			WorkingPath:        record.WorkingPath,
-			Name:               record.Name,
-			Description:        record.Description,
-			PublishedSummary:   record.PublishedSummary,
-			Agent:              launchProfileAgent(record),
-			State:              state,
-			Reason:             reason,
-			Orphan:             orphanOf(state, reason, evidence[record.Address]),
-			LastActiveAt:       record.LastActiveAt,
+			HasOpenPark:            record.Park != nil,
+			ParkNonce:              openParkNonce(record),
+			Address:                record.Address,
+			Continuation:           continuationStatus(record),
+			ContinuationMissed:     cloneMiss(record.ContinuationMissed),
+			Recovery:               ProjectRecoveryChoices(record, evidence[record.Address], state, reason),
+			StartingPath:           record.StartingPath,
+			WorkingPath:            record.WorkingPath,
+			Name:                   record.Name,
+			Description:            record.Description,
+			PublishedSummary:       record.PublishedSummary,
+			Agent:                  launchProfileAgent(record),
+			State:                  state,
+			Reason:                 reason,
+			Orphan:                 orphanOf(state, reason, evidence[record.Address]),
+			LastActiveAt:           record.LastActiveAt,
+			LastLifecycleSuccessAt: LastLifecycleSuccessAt(record),
 			// THE normalization point for the layout witness: the raw persisted
 			// value is untrusted, and "" (a pre-#198 record) must read as
 			// Layout2 here regardless of the default for new Couch processes.
@@ -766,7 +771,7 @@ func (c *Couch) ActionableThreadInventoryContext(ctx context.Context, observatio
 	if names, err := c.repositoryNames(); err == nil {
 		rows = ApplyRepositoryAliases(rows, names)
 	}
-	return ApplySlugs(ctx, rows, c.Slug), nil
+	return c.applyLifecycleFailures(ApplySlugs(ctx, rows, c.Slug)), nil
 }
 
 // ApplySlugs gives each live row its orientation slug (pair#372). Only live

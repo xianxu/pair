@@ -3,6 +3,7 @@ package couchcore
 import (
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -12,32 +13,47 @@ import (
 const LaunchFailureOutputLimit = 16 << 10
 const launchFailureErrorLimit = 4 << 10
 const launchFailureEncodedLimit = 1 << 20
-const launchFailureHistoryLimit = 16
+const launchFailureHistoryLimit = 64
 
-// LaunchFailure is evidence for an exact attempt, independent of thread lifecycle.
+// LifecycleFailure is evidence for an exact attempt, independent of thread lifecycle.
 // Nil exit observations mean unobserved, never success. Output preserves raw bytes.
-type LaunchFailure struct {
-	Address       ThreadAddress `json:"address"`
-	Nonce         string        `json:"nonce"`
-	StartingPath  string        `json:"starting_path,omitempty"`
-	Agent         string        `json:"agent,omitempty"`
-	Operation     string        `json:"operation,omitempty"`
-	Stage         string        `json:"stage,omitempty"`
-	FailedAt      time.Time     `json:"failed_at"`
-	Output        []byte        `json:"output,omitempty"`
-	Stream        string        `json:"stream,omitempty"`
-	HelperStarted bool          `json:"helper_started"`
-	BeforeExit    *int          `json:"before_exit,omitempty"`
-	AfterExit     *int          `json:"after_exit,omitempty"`
-	LaunchError   string        `json:"launch_error,omitempty"`
-	FinalError    string        `json:"final_error,omitempty"`
-	CleanupError  string        `json:"cleanup_error,omitempty"`
+type LifecycleFailure struct {
+	Unknown          map[string]json.RawMessage `json:"-"`
+	addressUnknown   map[string]json.RawMessage
+	Target           string                `json:"target,omitempty"`
+	Slot             string                `json:"slot,omitempty"`
+	Phase            string                `json:"phase,omitempty"`
+	Outcome          string                `json:"outcome,omitempty"`
+	Holders          []ProcessIdentityLine `json:"holders,omitempty"`
+	HoldersTruncated int                   `json:"holders_truncated,omitempty"`
+	LaunchNonce      string                `json:"launch_nonce,omitempty"`
+	ParkNonce        string                `json:"park_nonce,omitempty"`
+	Address          ThreadAddress         `json:"address"`
+	Nonce            string                `json:"nonce"`
+	StartingPath     string                `json:"starting_path,omitempty"`
+	Agent            string                `json:"agent,omitempty"`
+	Operation        string                `json:"operation,omitempty"`
+	Stage            string                `json:"stage,omitempty"`
+	FailedAt         time.Time             `json:"failed_at"`
+	Output           []byte                `json:"output,omitempty"`
+	Stream           string                `json:"stream,omitempty"`
+	HelperStarted    bool                  `json:"helper_started"`
+	BeforeExit       *int                  `json:"before_exit,omitempty"`
+	AfterExit        *int                  `json:"after_exit,omitempty"`
+	LaunchError      string                `json:"launch_error,omitempty"`
+	FinalError       string                `json:"final_error,omitempty"`
+	CleanupError     string                `json:"cleanup_error,omitempty"`
 }
 
-type LaunchFailureHistory []LaunchFailure
+type LaunchFailure = LifecycleFailure
+type LifecycleFailureHistory []LifecycleFailure
+type LaunchFailureHistory = LifecycleFailureHistory
 
 func cloneLaunchFailure(f LaunchFailure) LaunchFailure {
 	f.Output = append([]byte(nil), f.Output...)
+	f.Unknown = cloneFailureUnknown(f.Unknown)
+	f.addressUnknown = cloneFailureUnknown(f.addressUnknown)
+	f.Holders = cloneFailureHolders(f.Holders)
 	if f.BeforeExit != nil {
 		v := *f.BeforeExit
 		f.BeforeExit = &v
@@ -61,15 +77,47 @@ func boundLaunchFailureError(s string) string {
 	return marker + tail
 }
 func normalizeLaunchFailure(f LaunchFailure) (LaunchFailure, error) {
-	for _, v := range []string{f.Address.RepoScope, string(f.Address.Tag), f.Nonce} {
+	f = cloneLaunchFailure(f)
+	if f.Outcome == "" {
+		f.Outcome = "failed"
+	}
+	if f.HoldersTruncated < 0 {
+		return f, fmt.Errorf("invalid holder truncation count")
+	}
+	identities := []string{f.Nonce}
+	if f.Address != (ThreadAddress{}) {
+		identities = append(identities, f.Address.RepoScope, string(f.Address.Tag))
+	} else if !filepath.IsAbs(f.StartingPath) && f.Target == "" {
+		return f, fmt.Errorf("failure requires an exact address, absolute starting path, or target")
+	}
+	for _, v := range identities {
 		if v == "" || len(v) > 1024 || !utf8.ValidString(v) {
 			return f, fmt.Errorf("invalid launch failure identity")
 		}
 	}
+	if len(f.Target) > 1024 || !utf8.ValidString(f.Target) {
+		return f, fmt.Errorf("invalid failure target")
+	}
+	if f.Phase != "" && !failureEnum(f.Phase, "observe", "preserve", "stop", "sweep", "prove", "bind", "launch", "commit") {
+		return f, fmt.Errorf("invalid failure phase")
+	}
+	if f.Outcome != "" && !failureEnum(f.Outcome, "failed", "unproven", "refused") {
+		return f, fmt.Errorf("invalid failure outcome")
+	}
+	if len(f.Holders) > 32 {
+		f.HoldersTruncated += len(f.Holders) - 32
+		f.Holders = f.Holders[len(f.Holders)-32:]
+	}
+	for i := range f.Holders {
+		if f.Holders[i].Process.PID <= 0 || f.Holders[i].Process.Identity == "" || len(f.Holders[i].Process.Identity) > 1024 || !utf8.ValidString(f.Holders[i].Process.Identity) {
+			return f, fmt.Errorf("invalid failure holder identity")
+		}
+		f.Holders[i].Kind = safeFailureProcessKind(f.Holders[i].Kind)
+	}
 	if f.FailedAt.IsZero() {
 		return f, fmt.Errorf("missing launch failure time")
 	}
-	for _, v := range []string{f.StartingPath, f.Agent, f.Operation, f.Stage, f.Stream} {
+	for _, v := range []string{f.StartingPath, f.Agent, f.Operation, f.Stage, f.Stream, f.Slot, f.LaunchNonce, f.ParkNonce} {
 		if len(v) > 4096 || !utf8.ValidString(v) {
 			return f, fmt.Errorf("invalid launch failure metadata")
 		}
@@ -86,6 +134,7 @@ func normalizeLaunchFailure(f LaunchFailure) (LaunchFailure, error) {
 // Upsert enriches only the matching attempt; first failure time and pre-cleanup
 // exit observation are immutable. Newest-first retention also applies to late updates.
 func (h LaunchFailureHistory) Upsert(f LaunchFailure) (LaunchFailureHistory, error) {
+	suppliedOutcome := f.Outcome != ""
 	f, err := normalizeLaunchFailure(f)
 	if err != nil {
 		return nil, err
@@ -94,7 +143,25 @@ func (h LaunchFailureHistory) Upsert(f LaunchFailure) (LaunchFailureHistory, err
 	found := false
 	for _, old := range h {
 		old = cloneLaunchFailure(old)
-		if old.Address == f.Address && old.Nonce == f.Nonce {
+		if old.Address == f.Address && old.Nonce == f.Nonce && lifecycleFailureTargetKey(failureTarget(old)) == lifecycleFailureTargetKey(failureTarget(f)) {
+			old.Unknown = mergeFailureUnknown(old.Unknown, f.Unknown)
+			old.addressUnknown = mergeFailureUnknown(old.addressUnknown, f.addressUnknown)
+			if f.Phase != "" {
+				old.Phase = f.Phase
+			}
+			if suppliedOutcome {
+				old.Outcome = f.Outcome
+			}
+			if f.Holders != nil {
+				old.Holders = mergeFailureHolders(old.Holders, f.Holders)
+				old.HoldersTruncated = f.HoldersTruncated
+			}
+			if f.LaunchNonce != "" {
+				old.LaunchNonce = f.LaunchNonce
+			}
+			if f.ParkNonce != "" {
+				old.ParkNonce = f.ParkNonce
+			}
 			found = true
 			if f.Output != nil {
 				old.Output = f.Output
@@ -125,8 +192,8 @@ func (h LaunchFailureHistory) Upsert(f LaunchFailure) (LaunchFailureHistory, err
 	}
 	sort.Slice(out, func(i, j int) bool {
 		a, b := out[i], out[j]
-		if !a.FailedAt.Equal(b.FailedAt) {
-			return a.FailedAt.After(b.FailedAt)
+		if recency := compareLifecycleFailureRecency(a, b); recency != 0 {
+			return recency > 0
 		}
 		if a.Address.RepoScope != b.Address.RepoScope {
 			return a.Address.RepoScope < b.Address.RepoScope
@@ -139,18 +206,8 @@ func (h LaunchFailureHistory) Upsert(f LaunchFailure) (LaunchFailureHistory, err
 	if len(out) > launchFailureHistoryLimit {
 		out = out[:launchFailureHistoryLimit]
 	}
-	if _, err := encodeLaunchFailureHistory(out); err != nil {
-		return nil, err
-	}
-	return out, nil
+	return fitLifecycleFailureHistory(out, launchFailureEncodedLimit, encodeLifecycleFailureRow)
 }
 func encodeLaunchFailureHistory(h LaunchFailureHistory) ([]byte, error) {
-	raw, err := json.Marshal(h)
-	if err != nil {
-		return nil, err
-	}
-	if len(raw) > launchFailureEncodedLimit {
-		return nil, fmt.Errorf("launch failure history exceeds %d bytes", launchFailureEncodedLimit)
-	}
-	return raw, nil
+	return encodeLifecycleFailureHistory(h)
 }
