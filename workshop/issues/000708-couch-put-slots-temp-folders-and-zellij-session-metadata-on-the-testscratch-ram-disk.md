@@ -1,13 +1,21 @@
 ---
 id: 000708
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-19
 updated: 2026-10-19
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: '99e678f4f0869874b054ce7f27a0855dec1d6e80' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '2174f741eed76a860461c787ecbb4dac6e401aa7' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-19T10:47:24-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:3
+    worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
+    repository: github.com/xianxu/pair
 ---
 
 # couch: put slots' temp folders and Zellij session metadata on the TestScratch RAM disk
@@ -53,8 +61,17 @@ When `/Volumes/TestScratch` is mounted (a separate device from `/Volumes`) with 
 
 ## Plan
 
-- [ ]
+- Durable design: [Couch RAM scratch plan](../plans/000708-couch-ram-scratch-plan.md).
+- [ ] Implement the shared scratch policy, environment wiring and liveness-gated collection.
+- [ ] Implement native metadata staging/atomic routing and isolated conformance.
+- [ ] Complete counted budgets, documentation, recorded suite, close review and priority landing.
 
 ## Log
 
 ### 2026-10-19
+
+Verified the hub's canonical assignment receipt dcc7fdf7-95c8-43b1-aad6-fcf150ad0053 (submitted to this pair:3 incarnation), ran tl-worker, claimed and entered start-plan. Start-plan refreshed the slot's ariadne substrate and created the branch from main at e51a0e6eda6910f209e68fde2df8f9ea494ec07f. Read the complete Spec and ops second-machine measurement document. No live session/cache/volume changes made.
+
+Read-only exploration identified both production StartBlocked sites (launchTrackedThread and attachListedTerminalOnce), Claude's CLAUDE_CODE_TMPDIR override, and the need to retain detached servers/background jobs across attachment exit. Exact Zellij v0.45.1 source confirms unlocked pathname-based metadata writes and unconditional parsing of an existing resurrection layout before live attach. A rename-then-symlink gap or incoherent layout copy is unsafe. Proposed atomic exchange retains originals; existing layouts/external files keep their original inode via links while metadata moves to RAM. Native fixtures must use private HOME because XDG_CACHE_HOME alone does not isolate macOS ProjectDirs.
+
+Read-only native cache sizing counted 73 session directories, 72 metadata files, 10 layouts, zero other files/symlinks and 308,437 bytes. This is not liveness or deletion evidence. ariadne#468's in-flight scratchdisk helper uses TestScratch, a separate-device check and 2 GiB floor; pair owns an analogous injected policy. Plan names the remaining approval boundaries: foreign/unproved cache rows remain protected, and the real fleet rollout belongs to the operator's restart. No code or tests run before plan approval.
