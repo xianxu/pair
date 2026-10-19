@@ -2322,6 +2322,11 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #668 BR-1: New developer invocation surfaces need a root README entry even when the package README and atlas already explain them. Sweep retention flags, replay commands and diagnostic controls together; link the detailed guide and state the evidence/lifetime limits at the root testing entry point.
 - #651 integration catalog: timing out a known semantic boundary should spend an injected deadline only after readiness. Reuse the package's existing budget/deadline seam; assert the cue and DeadlineExceeded as well as retained ownership, so removing a tiny timeout cannot silently turn the scenario into a different failure.
 
+- Retained operation receipts and intent conflicts are resolved before fresh repository/alias lookup. A repeated request must remain inspectable while the catalog is busy or its alias has changed; recheck after unlocked IO before allocating a new receipt. (#681)
+
+- #681 BR-1: Before close, compare every Core concepts location/status row with the actual branch name-status diff. When implementation chooses a separate fixture file, correct the row and append the decision under Revisions; a broad planned alternative in the task list does not repair an incorrect table.
+
+- #681 BR-2: A real transport fixture must configure the production service-side authorization as well as effect-side guards. Delay external reads at every pre-admission boundary, including caller and target workspace resolvers; otherwise a downstream fast path can hide the original timeout upstream.
 - #678 PQ-1: A remote stat selects one object; it does not prove a unique name. Preserve multiplicity in before/after listings and require one matching entry before recording verification. Match the mechanism to the actual writer model: a serialized flat folder needs two flat listings, not a recursive namespace framework.
 - #678 installed conformance: Treat external flags as hypotheses until measured against the installed binary. rclone v1.75.2 local-backend copyto replaced conflicts with --immutable alone; --ignore-existing preserved bytes, and final size/checksum verification detects the skipped conflict. A bounded output writer must not embed bytes.Buffer: its promoted ReadFrom can bypass Write limits.
 
