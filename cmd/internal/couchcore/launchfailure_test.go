@@ -47,7 +47,7 @@ func TestLaunchFailureBoundsAndEnrichment(t *testing.T) {
 }
 func TestLaunchFailureNewestAttemptsSurviveLateUpdate(t *testing.T) {
 	var h LaunchFailureHistory
-	for n := 17; n >= 1; n-- {
+	for n := 65; n >= 1; n-- {
 		var err error
 		h, err = h.Upsert(failureFixture(n))
 		if err != nil {
@@ -58,7 +58,7 @@ func TestLaunchFailureNewestAttemptsSurviveLateUpdate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(h) != 16 || h[0].Nonce != "17" || h[15].Nonce != "2" {
+	if len(h) != 64 || h[0].Nonce != "65" || h[63].Nonce != "2" {
 		t.Fatalf("bad retention %+v", h)
 	}
 	bad := failureFixture(18)
@@ -93,21 +93,21 @@ func TestLaunchFailureCleanupEnrichesOutputWithoutInventingEarlyExit(t *testing.
 
 func TestLaunchFailureEncodedCeiling(t *testing.T) {
 	var h LaunchFailureHistory
-	for i := 1; i <= 16; i++ {
+	for i := 1; i <= 65; i++ {
 		f := failureFixture(i)
 		f.StartingPath = strings.Repeat("\x00", 4096)
 		f.Agent = f.StartingPath
 		f.Stage = f.StartingPath
 		f.Stream = f.StartingPath
 		f.Operation = f.StartingPath
-		next, err := h.Upsert(f)
+		var err error
+		h, err = h.Upsert(f)
 		if err != nil {
-			if !strings.Contains(err.Error(), "exceeds") {
-				t.Fatal(err)
-			}
-			return
+			t.Fatal(err)
 		}
-		h = next
 	}
-	t.Fatal("encoded ceiling not enforced")
+	raw, err := encodeLaunchFailureHistory(h)
+	if err != nil || len(raw) > launchFailureEncodedLimit || h[0].Nonce != "65" || len(h) >= 64 {
+		t.Fatalf("bad byte retention len=%d bytes=%d err=%v", len(h), len(raw), err)
+	}
 }

@@ -73,3 +73,22 @@ func TestLaunchFailurePresentationKeepsFullErrorForShow(t *testing.T) {
 		t.Fatalf("show lost full text: %s", out.String())
 	}
 }
+
+func TestLifecycleFailureShowGenericOperation(t *testing.T) {
+	var out bytes.Buffer
+	renderLaunchFailures(&out, []couchcore.LaunchFailure{{Slot: "pair:8", Operation: "recover-park", Outcome: "refused", Nonce: "operation-nonce", FinalError: "still finishing"}}, "")
+	got := out.String()
+	for _, want := range []string{"pair:8", "recover-park", "refused", "operation-nonce", "still finishing"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing %q: %s", want, got)
+		}
+	}
+}
+
+func TestLifecycleFailureShowIncludesBoundedHolderIdentity(t *testing.T) {
+	var out bytes.Buffer
+	renderLaunchFailures(&out, []couchcore.LaunchFailure{{Operation: "park", Phase: "prove", Holders: []couchcore.ProcessIdentityLine{{Process: couchcore.ProcessIdentity{PID: 42, Identity: "exact-owner"}, Kind: "pair-wrap"}}}}, "")
+	if got := out.String(); !strings.Contains(got, "pair-wrap") || !strings.Contains(got, "42") || !strings.Contains(got, "exact-owner") {
+		t.Fatalf("holder missing: %s", got)
+	}
+}

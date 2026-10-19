@@ -293,6 +293,41 @@ func slotOperationConfirmation(r couchmessage.Request) error {
 // slot refusal is refused with its code, any other error failed with its
 // resume diagnostic, and a success names the thread left running.
 func slotOperationOutcome(value any, err error) couchmessage.ReceiptOutcome {
+	var notes []string
+	var nonce string
+	for {
+		switch wrapped := value.(type) {
+		case lifecycleRecordedOutcome:
+			nonce = wrapped.nonce
+			notes = append(notes, wrapped.warning)
+			value = wrapped.value
+		case notedResult:
+			notes = append(notes, wrapped.note)
+			value = wrapped.value
+		default:
+			goto classify
+		}
+	}
+classify:
+	outcome := classifySlotOperationOutcome(value, err)
+	outcome.FailureNonce = couchcore.FailureNonce(err)
+	if outcome.FailureNonce == "" {
+		outcome.FailureNonce = nonce
+	}
+	for _, note := range notes {
+		if note != "" {
+			if outcome.Warning != "" {
+				outcome.Warning += "; "
+			}
+			outcome.Warning += note
+		}
+	}
+	return outcome
+}
+
+// classifySlotOperationOutcome retains the typed operation result independently
+// of diagnostic correlation, which applies uniformly after classification.
+func classifySlotOperationOutcome(value any, err error) couchmessage.ReceiptOutcome {
 	if result, ok := value.(agentdrive.Result); ok && err == nil {
 		out := couchmessage.ReceiptOutcome{Drive: &result, Detail: result.Detail, Status: couchmessage.ReceiptFailed}
 		switch result.Outcome {

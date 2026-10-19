@@ -42,6 +42,7 @@ func TestProjectActionableThreadsRequiresExactLifecycleProof(t *testing.T) {
 		{Address: parked.Address, StartingPath: "/repo", WorkingPath: "/repo", Agent: "claude", State: ThreadParked, LastActiveAt: parked.LastActiveAt, Layout: Layout2},
 		{Address: live.Address, StartingPath: "/repo", WorkingPath: "/repo", State: ThreadLive, LastActiveAt: live.LastActiveAt, Layout: Layout2},
 	}
+	want[0].LastLifecycleSuccessAt = parked.VerifiedPark.ParkedAt
 	for i := range want {
 		want[i].Target = ThreadTarget{Kind: ThreadTargetOrdinary, Address: want[i].Address}
 		want[i].RowKey = ThreadRowKey{Kind: ThreadTargetOrdinary, Address: want[i].Address}

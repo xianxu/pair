@@ -330,9 +330,23 @@ func (c *Couch) SwitchAgent(ctx context.Context, request SwitchAgentRequest) (_ 
 	if err != nil {
 		return result, err
 	}
+	// Standalone switches own one terminal attempt, so nested launch capture
+	// remains evidence-only until the final source-restoration result is known.
+	var attempt *OperationAttempt
+	if OperationAttemptFromContext(ctx) == nil {
+		attempt, err = c.BeginOperationAttempt("switch-agent", LifecycleFailureTarget{Address: prepared.record.Address, StartingPath: prepared.record.StartingPath})
+		if err != nil {
+			return result, err
+		}
+		attempt.nonce = nonce
+		ctx = WithOperationAttempt(ctx, attempt)
+	}
 	defer func() {
 		if returnedErr != nil {
-			returnedErr = c.finishSwitchFailure(trackedThreadLaunch{Thread: prepared.record, Nonce: nonce, Args: StartArgs{Stack: request.Agent}, Fresh: true}, returnedErr)
+			returnedErr = c.finishSwitchFailure(trackedThreadLaunch{Context: ctx, Thread: prepared.record, Nonce: nonce, Args: StartArgs{Stack: request.Agent}, Fresh: true}, returnedErr)
+		}
+		if attempt != nil {
+			_, returnedErr = attempt.Finish(nil, returnedErr)
 		}
 	}()
 	profileRaw, err := launcher.BuildCouchFreshLaunchProfile(string(request.Address.Tag), request.Agent, prepared.Profile.Argv, string(AgentSourceExplicit), string(ArgvSourceExplicit))

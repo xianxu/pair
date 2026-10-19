@@ -94,6 +94,12 @@ func observedLaunchExit(h Handle) *int {
 // captureLaunchFailure snapshots before cleanup can erase the failed attempt,
 // then publishes once afterward. Optional persistence never postpones cleanup.
 func (c *Couch) captureLaunchFailure(in trackedThreadLaunch, stage string, h Handle, cause error, cleanup func() error) error {
+	captured := c.collectLaunchFailure(in, stage, h, cause, cleanup)
+	return c.finishLaunchFailureCapture(in, captured.failure, captured.cause)
+}
+
+// collectLaunchFailure keeps cleanup evidence unpublished until its owner finishes.
+func (c *Couch) collectLaunchFailure(in trackedThreadLaunch, stage string, h Handle, cause error, cleanup func() error) *launchFailureError {
 	f := LaunchFailure{Address: in.Thread.Address, Nonce: in.Nonce, StartingPath: in.Thread.StartingPath, Agent: in.Args.Stack, Operation: "launch", Stage: stage, FailedAt: c.Clock.Now(), HelperStarted: h != nil, LaunchError: cause.Error(), BeforeExit: observedLaunchExit(h)}
 
 	f.Stream = "unavailable"
@@ -126,21 +132,28 @@ func (c *Couch) captureLaunchFailure(in trackedThreadLaunch, stage string, h Han
 		}
 		f.CleanupError += cleanupErr.Error()
 	}
-	saved := c.saveLaunchFailure(f)
-	return &launchFailureError{failure: f, cause: errors.Join(cause, cleanupErr), saveError: saved, recordPath: c.launchFailurePath()}
+	return &launchFailureError{failure: f, cause: errors.Join(cause, cleanupErr), recordPath: c.launchFailurePath()}
 }
-func (c *Couch) saveLaunchFailure(f LaunchFailure) error {
-	if c.LaunchFailures == nil {
-		return errors.New("launch diagnostic store unavailable")
+
+func (c *Couch) finishLaunchFailureCapture(in trackedThreadLaunch, f LaunchFailure, cause error) error {
+	captured := &launchFailureError{failure: f, cause: cause, recordPath: c.launchFailurePath()}
+	if OperationAttemptFromContext(in.Context) != nil {
+		return captured // The admitted operation still owns adoption/readiness.
 	}
-	// Launch cancellation must not discard its evidence. Cleanup already ran;
-	// this independent bound limits admission, not admitted filesystem IO.
-	ctx, cancel := context.WithTimeout(context.Background(), launchDiagnosticsAdmissionTimeout)
-	defer cancel()
-	if err := c.LaunchFailures.Save(ctx, f); err != nil {
-		return fmt.Errorf("write launch diagnostics %s: %w", c.LaunchFailures.Path(), err)
+	// Standalone launch APIs retain their exact existing launch identity, while
+	// sharing the same terminal recorder rather than writing at capture sites.
+	attempt, err := c.BeginOperationAttempt(f.Operation, failureTarget(f))
+	if err != nil {
+		captured.saveError = err
+		return captured
 	}
-	return nil
+	attempt.nonce = f.Nonce
+	_, result := attempt.Finish(nil, captured)
+	var recorded *lifecycleFailureError
+	if errors.As(result, &recorded) {
+		captured.saveError = recorded.saveError
+	}
+	return result
 }
 
 const launchDiagnosticsAdmissionTimeout = 10 * time.Second
@@ -148,13 +161,12 @@ const launchDiagnosticsAdmissionTimeout = 10 * time.Second
 func (c *Couch) finishSwitchFailure(in trackedThreadLaunch, err error) error {
 	var failed *launchFailureError
 	if !errors.As(err, &failed) {
-		wrapped := c.captureLaunchFailure(in, "switch preparation", nil, err, nil)
-		errors.As(wrapped, &failed)
+		failed = c.collectLaunchFailure(in, "switch preparation", nil, err, nil)
 	}
 	f := failed.failure
 	f.Operation = "switch-agent"
 	f.FinalError = err.Error()
-	return &launchFailureError{failure: f, cause: err, saveError: errors.Join(failed.saveError, c.saveLaunchFailure(f)), recordPath: c.launchFailurePath()}
+	return c.finishLaunchFailureCapture(in, f, err)
 }
 
 func (c *Couch) launchFailurePath() string {
