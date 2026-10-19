@@ -1,6 +1,6 @@
 ---
 id: 000670
-status: codecomplete
+status: done
 created: 2026-10-18
 updated: 2026-10-18
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 3d17ce69d956b28e7d04faad803b17b5efdc009d
         evidence_commit: 30dc343cf8ebb8d5b06ccf4d1da0ecadb353a5bb
+        landed_commit: e9cc54f08cb6a784788a2d5c3b2450f6cedbcaee
 ---
 
 # couch --notify never reaches the desktop; pair review --help fails on the bare group
