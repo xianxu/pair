@@ -91,8 +91,8 @@ Rows respectively cover temp manager/ownership, age sweep/worker, socket resolve
 ## Plan
 
 - Durable design: [Couch RAM scratch plan](../plans/000708-couch-ram-scratch-plan.md).
-- [ ] Implement shared scratch policy, pinned socket environment and R3 startup/hourly age cleanup.
-- [ ] Implement R1 startup-only metadata routing and the three isolated-HOME fixture branches.
+- [x] Implement shared scratch policy, pinned socket environment and R3 startup/hourly age cleanup.
+- [x] Implement R1 startup-only metadata routing and the three isolated-HOME fixture branches.
 - [ ] Complete counted budgets, documentation, recorded suite, close review and priority landing.
 
 ## Log
@@ -120,6 +120,8 @@ TDD observed missing APIs before manager, metadata, socket and launch integratio
 Implementation uses the retained ThreadRecord at the two existing launch boundaries, rather than re-reading an address through a checkout-dependent backend in the runner decorator. This is necessary because warm reattachment can have a missing checkout; the runner still owns the one socket pin for both Start and StartBlocked. A primary's first thread without enrolled authority may call the existing bounded verified workspace resolver once; malformed/ambiguous evidence never falls through. Startup metadata/sweep finish synchronously before launch; one joined maintenance worker performs hourly sweeps without repeating startup. Metadata observation is separate from age cleanup. Aggregate cleanup notices are bounded and quiet for unchanged interiors.
 
 Cleanup counters distinguish entry visits (<=2F+O(S)), all stat/fstat inspections (<=4F+O(S)), owner declaration reads, and zero temp-payload reads. No process inspections participate. Descriptor confinement and revalidation are best-effort against concurrent filesystem mutation, not atomic tree deletion: old siblings may be pruned before a changed child aborts; the final compare-to-unlink window cannot be closed portably. This is recorded as the ordinary temp-cleaner tradeoff, without claiming lifetime or atomicity proof.
+
+Final targeted race checks passed across cmd/couch, couchscratch, couchcmd, couchcore and launcher; artifact/source inventory, dead-symbol and whole-tree duplicate/stolen-comment guards passed. Private owned child wrote its file under the injected slot directory and reported all three temp variables plus the unchanged socket root. Socket resolution now matches directories-rs 6.0.0 and Zellij v0.45.1 on Linux as well as Darwin; absolute XDG_RUNTIME_DIR is retained, relative/absent values fall back. Implementation commit 20e2e96244b0c2adc439e2f15da10136d2b6ecb4 is pushed in draft PR 463. Recorded suite attempt 5206c8256520442f515e6abdba4518ef is queued on that exact head. Close review may overlap this queue under tl-worker; the last compound Plan row remains unticked until the suite and landing gates finish. No passing-suite claim is made yet.
 
 ## Revisions
 
