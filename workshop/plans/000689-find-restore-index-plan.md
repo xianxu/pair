@@ -129,10 +129,9 @@ This is explicit batch CLI work, not a UI/keystroke hot path. Reuse the current 
 
 Files: add label_json.go, label_index_model.go, label_index_store.go, label_index_local.go, label_index_drive.go, find_model.go, staging_model.go, owned_staging.go and colocated tests under historyarchive; extend model.go/plan.go/catalog.go/rclone.go and the stateful fake; add archivecmd/find.go and sync_index.go with CLI tests; update help/README/atlas and artifactpath source inventory.
 
-- [ ] Write preservation/legacy golden tests first; implement typed tolerant label/index codecs without relaxing other decoders. Test older-reader rewrite of nested newer fields, strict known types/presence/duplicates, extension collision and zero-extension legacy bytes/IDs.
-- [ ] Implement SelectLabels and ApplyIndexRefresh with pure sequence tests: incomplete batches have no effect, complete disappearance keeps history, concurrent destinations preserve one another under serialization, and untrusted extension claims never promote evidence.
-- [ ] Add existing-only local catalog projection and bounded local label discovery; implement atomic LabelIndexStore with failure hooks before/after rename/directory sync, contended-lock cancellation and stale-stage collection. Count scans at 8/16 records; preserve no-write find behavior and absent-catalog behavior.
-- [ ] Extend Rclone/FakeRclone remote downloads through the same seam. Implement complete Drive label observation and atomic publication; assert exactly <=4 calls at 8/16 records, no ciphertext bytes, actual transfer cap behavior, and unchanged prior snapshot on partial/cancelled/conflicting downloads.
+- [ ] Use the named-function strategies below in RED/GREEN order to implement compatible label/index codecs, SelectLabels and ApplyIndexRefresh.
+- [ ] Implement existing-only local projection, bounded label discovery, atomic LabelIndexStore and shared OwnedStaging through their function-level contracts below.
+- [ ] Extend Rclone/FakeRclone downloads and implement complete Drive label observation; qualify the fixed-cost, labels-only synchronization contract below.
 - [ ] Fixture: create/upload archives, delete local catalog/index/labels/bundles (keep only fake remote and unrelated source originals), sync from Drive labels alone, find identical IDs/ranges/locations, and prove no private CatalogRecord or upload receipt was invented.
 - [ ] Add CLI validation/help/JSON output/config resolution and README/atlas/index ownership notes. Register all production files. Run focused/race/guard tests and `sdlc milestone-close --issue 689 --milestone M1` with evidence; fix the binary-owned review findings before M2.
 
@@ -140,10 +139,8 @@ Files: add label_json.go, label_index_model.go, label_index_store.go, label_inde
 
 Files: add restore_model.go, restore.go, restore_extract.go, decode.go, restore_publish_darwin.go/restore_publish_linux.go and tests; extend archivetest codec fixtures and rclone downloads; add archivecmd/restore.go and tests; extend codec_live_test.go; document operator drill in atlas/history-backup.md and root README.
 
-- [ ] Test RestorePlan/NextRestore before implementation: whole-request admission, evidence never skipping SHA-256, publication only after validation/decoder success, explicit uncertainty, and rejected out-of-order events. Keep exact path filters simple and deterministic.
-- [ ] Test ExtractBundle independently with generated tar bytes and the production validators: malformed metadata, label/manifest mismatch, hidden-header/stream overflow, truncation, duplicate/link/device/path attacks, corrupted excluded files, missing/unexpected members and trailing non-padding bytes. Force each behavior-changing fix RED by removing its guard.
-- [ ] Implement private staged ciphertext acquisition and streaming Decoder/Restorer. Use controllable fake phases for cancellation, late decoder failure, target replacement and publish-sync uncertainty; assert source/remote bytes and existing targets stay unchanged and every child/staging handle is collected.
-- [ ] Verify exclusive publication on portable temp folders (target race cannot overwrite); compile/test Linux build path in the normal supported CI route. Use a failed native operation as refusal, never an unsafe fallback.
+- [ ] Implement RestorePlan/NextRestore, ExtractBundle and Decoder/Restorer in RED/GREEN order against the named-function strategies below. Keep literal path selection deterministic and publication conditional on complete validation.
+- [ ] Implement exclusive publication and qualify its OS contract below; compile/test the Linux path through normal supported CI. Unsupported operations remain refusals.
 - [ ] Reuse/refactor the existing isolated GPG key fixture, with explicit temp-root template and agent cleanup. Gated real-binary test uses production create -> fake Drive upload -> removal of all local archive metadata/copies -> sync-index -> find -> production restore; compare independent original hashes and bytes, including Unicode/binary/empty files and exact-path filtering. No operator keys/config or real remote in automated tests. Quote/sanitize untrusted paths in bounded diagnostics; never print decrypted payloads or key material.
 - [ ] Run installed-rclone local-backend download conformance against the same fake contract and the GPG/zstd round trip in isolated homes. Update docs/atlas/source guards, run targeted races, then push and record the full suite normally.
 - [ ] Send a private candidate and exact commands to the hub for the operator's one real Claude-day Drive restore into a fresh scratch child. Include explicit PAIR_DATA_DIR from a Pair terminal, find/sync-index steps, byte comparison against originals, no live-data import, and cleanup of only that owned scratch tree. Retain observed counts/hashes/verification outcome; await operator acceptance before close/landing. No :0 stage, restart or live remote execution by this worker without separate authorization.
@@ -153,12 +150,15 @@ Files: add restore_model.go, restore.go, restore_extract.go, decode.go, restore_
 
 | Risk function | Adversarial strategy | Mechanical guard |
 |---|---|---|
-| DecodeLabel / DecodeLabelIndex and nested codecs | mutate known types, omit required fields, duplicate aliases, add nested future members | golden legacy bytes + recursive unknown-value round trip + fuzz bounded parser |
-| ApplyIndexRefresh | generated complete/incomplete refresh sequences with conflicting IDs/destinations | immutable old-snapshot comparison; no promotion without explicit proof |
-| LabelIndexStore.Commit | inject write/fsync/rename/directory-sync failures and interruption | old-or-new complete snapshot; reopen durability/uncertainty checks; cleanup ownership |
-| DriveIndexSync / Rclone download | partial copy, duplicate/replaced names, oversized actual transfer, no hash | counted stateful fake + installed local conformance; 0 bundle bytes during sync |
-| ExtractBundle | generated malformed tar headers/content/metadata and filtered corruption | full-stream byte cap, expected-set/hash accounting, source/target byte comparisons |
-| CommandDecoder / Restorer | started-child cancellation and late integrity error after valid plaintext | readiness-controlled fake/real child tests; no publication before both successful exits |
+| DecodeLabel / DecodeLabelIndex and nested codecs | bounded schema mutation across known and future members | golden legacy bytes/IDs; recursive unknown-value round trip; reject invalid known fields, duplicate aliases and conflicting extensions; bounded parser fuzz |
+| ApplyIndexRefresh | generated refresh histories across destinations, completeness and proof levels | immutable prior snapshot; retained disappearance history and unrelated destinations; no promotion without explicit proof |
+| SelectLabels / LocalLabelInventory / BundleKeys | generated time ranges and existing/missing local metadata trees | deterministic overlap/order and keys; find performs zero writes/network calls; counted 8/16 scans and no absent-catalog creation |
+| OwnedStaging | interruption at ownership/payload boundaries with preexisting foreign contents | recognized-only no-follow cleanup under lifetime lock; unknown directories and source bytes unchanged; created-entry bound |
+| LabelIndexStore.Commit | injected commit-boundary failures and contended/cancelled lifetimes | old-or-new complete snapshot; before-commit old bytes unchanged; reopen durability/uncertainty checks; one lifetime owner |
+| DriveIndexSync / Rclone download | generated inconsistent inventories and interrupted/over-limit transfers | stateful fake and installed local conformance; <=4 invocations at N=8/16, 0 bundle bytes, actual transfer cap, unchanged prior snapshot on incomplete observation |
+| RestorePlan / NextRestore | generated request/event sequences crossing admission, proof and publication boundaries | aggregate bounds; evidence never skips SHA-256; no publication before validated decoder success; explicit uncertainty; reject out-of-order events |
+| ExtractBundle | generated malformed tar structure/content including hidden metadata and excluded members | full-stream/entry caps; exact expected-set, manifest/label and all-member hash accounting; no unsafe types/paths or non-padding tail; post-manifest source overlap refusal; guard-removal RED checks |
+| CommandDecoder / Restorer | readiness-controlled cancellation and late integrity failure after valid plaintext | no publication before both successful exits; every child/owned handle collected; source/remote/target bytes unchanged; N/2N runner/member-byte counts |
 | PublishRestore | preexisting and concurrently created output, moved parent, sync failure | exclusive OS rename conformance; no-replace invariant and explicit uncertain result |
 
 ## Architecture account
@@ -173,3 +173,5 @@ ARCH-DRY reuses publication/path/hash/Drive primitives and extracts filename der
 - 2026-10-18 one-pass plan editing aid: made post-manifest source-root overlap checks explicit for Drive-only recovery, added durable staging ownership/refusal before cleanup, and bounded created filesystem entries in addition to byte sizes. Added preexisting-operator-directory, missing-catalog overlap and entry-overflow regressions. No implementation was written.
 
 - 2026-10-18: full plan approved as written by hub d9acf9a3-51ac-4eda-9dc9-1a70065e04ac, including snapshot/restore caps and lifetime locks. The hub will arrange the required operator Claude-day Drive drill when M2 is ready. Proceed to change-code; automated plan quality and derived estimate remain required before implementation.
+
+- 2026-10-18 PQ-1: consolidated repeated milestone case inventories into the named-risk-function strategy table, including selection, staging ownership and restore transitions. Behavioral contracts, resource bounds, end-to-end recovery and operator acceptance are unchanged.

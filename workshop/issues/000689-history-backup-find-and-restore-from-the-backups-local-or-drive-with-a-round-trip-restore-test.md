@@ -68,3 +68,5 @@ Durable plan: [find, restore and label/location index](../plans/000689-find-rest
 - One-pass read-only plan editing aid identified two gaps before code: Drive-only source-root overlap is knowable only after decrypting the manifest, and a staging pathname/lock alone does not prove ownership of existing contents. The durable plan now requires the post-manifest check and an ownership-stamped staging protocol with refusal on unknown contents; tests preserve a preexisting operator staging directory and a target below a recovered source root. Created files/directories also share a whole-request bound so small-file/directory growth cannot bypass byte admission.
 
 - Hub d9acf9a3-51ac-4eda-9dc9-1a70065e04ac approved the full plan as written and instructed change-code. They will arrange the operator real-day Drive restore when M2 is ready; that acceptance remains mandatory before landing.
+
+- 2026-10-18 PQ-1 (function-level-test-contract): consolidated the class of repeated unit-case inventories into named-function adversarial strategies and mechanical guards. Kept catalog-loss and real-key/operator acceptance drills and all approved invariants; no implementation begun.
