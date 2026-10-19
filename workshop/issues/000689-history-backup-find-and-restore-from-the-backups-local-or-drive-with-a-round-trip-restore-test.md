@@ -194,6 +194,21 @@ The unchanged same-head targeted composed test passed in 6.666s (ordinary 2.94s,
 
 The next merge turn integrated newer main, then refused publish replay because archivecmd/run.go's prior conflict resolution remains unreviewed; it restored the branch before push. Per the named remedy and hub approval, manually integrated the landed #698/#708 code without further conflicts. The resolved archive help and README surface are unchanged from the prior resolution. A recorded full suite on this combined head must pass before the narrow fixed-then-ship review and merge retry. #706 replaces parked #707 in the queue; the operator-present restore-drill follow-up is still to be filed unclaimed after #689 lands.
 
+### 2026-10-19 — TestScratch substrate failure; qualification held
+
+The fresh combined-head recorded suite de4cedafdeb5bff358280f93fa6c6523 on 65a7d797a6a43123051704208d7aaa053f84478e acquired capacity after 36m52s and failed in 9m38s (log SHA-256 prefix 4c134300188d). Worktree and temp roots were on /Volumes/TestScratch; diskutil reports HFS+ (Mac OS Extended). All script/editor phases passed. Go failures were:
+
+- couchcmd.TestMessageAuthorityUnchangedFilesDecodeZeroBytes and TestWorkbenchPerformanceMessageUnchangedEvidence: same-size index mutation left decode/read counters at zero.
+- historyarchive.TestDriveMirrorBatchBudgetDefersCompletePairs: both pair sizes were 3477 despite the fixture's different fractional mtimes.
+- launcher.TestSessionNameIndexCacheUnchangedAndMutations: same-size rewrite reused the prior index.
+- sessioninventory.TestFingerprintFileInfoDetectsSameSizeRewrite and TestClaudeExactChangedContentRefuses: rewritten content reused evidence/resolved when refusal was expected.
+- workbenchperftest.TestFixturePaddingPhysicalWriteBudget: 10502144 bytes versus 2097152 cap.
+- wrapcmd.TestWrapSpawnsOneWatcherForItsLaunch: agent-pid mtime rounded to a whole second before the process start.
+
+Package write caps also failed: couchcmd 821989376/100663296; couchcore 1909970432/134217728; couchtty 665907712/67108864; sessionsync 153626112/100663296; workbenchperftest 133996544/67108864. couchcore's tests themselves passed; there was no #712 hang on this run. The suite is an unattributable failure, not a success or a known-flake pass.
+
+A bounded unchanged-head A/B test establishes filesystem-dependent metadata failure: TestFingerprintFileInfoDetectsSameSizeRewrite passed with TMPDIR=/private/tmp (0.097s) and failed with TMPDIR=/Volumes/TestScratch/tmp (0.077s, same-size rewrite with restored mtime reused evidence). No source, assertion or deadline changed. Fractional timestamp loss and clone fallback appear implicated in the broader set; their complete root causes are not claimed. The hub received every failure and the A/B proof. Further qualification is held for its substrate/root decision; no mount, write budget, identity guard or assertion is changed under #689. The full-suite pass, narrow review, landing, unclaimed drill follow-up and subsequent #706 remain outstanding.
+
 ## Revisions
 
 - 2026-10-18: clarified the later sync-index Spec supersedes remote queries from find. Recorded the hub-approved label/location evidence and atomic refresh contract; original Done-when obligations are retained without reduction. Added the durable plan with M1/M2 review boundaries.
