@@ -19,6 +19,25 @@ reviewer_runs:
       finished_at: "2026-10-19T09:26:07.384868Z"
       session_id: 01a1537b-1ce7-7f20-b48a-3779ee1b70c5
       outcome: returned
+    - version: 1
+      intent:
+        id: 5bb10fb8-9f92-4766-88a1-536b4c7fce77
+        repository: github.com/xianxu/pair
+        issue_id: "000683"
+        recipe: estimate-quality
+        round: 1
+        attempt: 1
+        agent: codex
+        root: /Users/xianxu/workspace/worktree/pair-slot5/pair
+        reviewed_head: 5c6781aa6acb200a15a1b04321470ff7a510e936
+        slot: pair:5
+        requested_at: "2026-10-19T10:31:17.510914Z"
+      phase: finished
+      pid: 85810
+      started_at: "2026-10-19T10:31:17.791031Z"
+      finished_at: "2026-10-19T10:31:44.999504Z"
+      session_id: 01a153b7-360a-7051-a9a2-2a3cde3a1f08
+      outcome: returned
 gate: plan-quality
 issue: 683
 id_prefix: PQ
@@ -140,7 +159,32 @@ rounds:
       agent: codex
       reviewer: codex (openai; author openai)
       blocked: false
-content_hash: 26303c1ea3190de0887b16d73be1931237f988cd5f13a488e3aa39eb1f34c204
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: c46699c2-fc1d-4ddd-ad8a-75629001fee3
+            repository: github.com/xianxu/pair
+            issue_id: "000683"
+            recipe: plan-quality
+            round: 4
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot5/pair
+            reviewed_head: 5c6781aa6acb200a15a1b04321470ff7a510e936
+            slot: pair:5
+            requested_at: "2026-10-19T10:30:37.596631Z"
+          phase: finished
+          pid: 59169
+          started_at: "2026-10-19T10:30:37.862727Z"
+          finished_at: "2026-10-19T10:31:13.345087Z"
+          session_id: 01a153b6-99ee-7932-9fc5-3d0fd8f6bd91
+          outcome: returned
+      "n": 4
+      timestamp: "2026-10-19T03:31:13-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      blocked: false
+content_hash: 2d7d1d0a21fc08caaba8c6a72a78d600ff0c684c079de800b38eb152c3f83396
 ---
 
 # Gate ledger — pair#683 (plan-quality)
@@ -171,6 +215,8 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - PQ-4 — addressed — The strategy table names risky functions with adversarial inputs and mechanical guards, replacing repeated case inventories while retaining integration proof and commands.
 
 ## Round 3 — 2026-10-19T02:25:37-07:00 (codex) — passed
+
+## Round 4 — 2026-10-19T03:31:13-07:00 (codex) — passed
 
 ## Open findings
 
