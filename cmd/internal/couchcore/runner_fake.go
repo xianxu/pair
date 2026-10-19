@@ -56,6 +56,7 @@ type FakeRunner struct {
 	children          map[string]*FakeChild
 	order             []string
 	failNext          error
+	failIn            map[string]error
 	autoExit          *int
 	Ops               []string
 	BeforeAcknowledge func(id string) error
@@ -75,6 +76,18 @@ func (f *FakeRunner) FailNextStart(err error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.failNext = err
+}
+
+// FailNextStartIn makes the next Start in dir return err. Starts elsewhere
+// proceed, so a test aimed at one launch does not depend on the order of
+// independent starters (pair#697).
+func (f *FakeRunner) FailNextStartIn(dir string, err error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.failIn == nil {
+		f.failIn = map[string]error{}
+	}
+	f.failIn[dir] = err
 }
 
 func (f *FakeRunner) Start(dir string, argv, env []string) (Handle, error) {
@@ -105,6 +118,10 @@ func (f *FakeRunner) start(dir string, argv, env []string, blocked bool) (Handle
 	if f.failNext != nil {
 		err := f.failNext
 		f.failNext = nil
+		return nil, err
+	}
+	if err, ok := f.failIn[dir]; ok {
+		delete(f.failIn, dir)
 		return nil, err
 	}
 	id := fmt.Sprintf("couch-fake-%d", len(f.order)+1)

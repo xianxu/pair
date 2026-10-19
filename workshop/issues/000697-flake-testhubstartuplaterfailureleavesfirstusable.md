@@ -38,10 +38,12 @@ Known flaky tests (#394), registered with same-head fail→pass evidence:
 
 Cause (2026-10-19, pair:2). Failed attempt 4fed2c45: `hubs_startup_test.go:202: second launch did not report its injected refusal: <nil>`. The test arms `FakeRunner.FailNextStart`, which fails whichever child starts next. The rig deliberately runs two independent starters: the explicit hub queue (the second hub, `bench`) and the warm-only background pass (ordinary slot `ops:1`). Their order is not defined in production. When the warm worker's start comes first, it takes the injected failure, the second hub starts cleanly, and `start-hub` reports nil. Production ordering is correct here: hubs and warm workers are independent by design. The defect is the fixture's injection, which targets an order rather than the start it means to fail.
 
-- [ ] Deterministic red: a variant that holds `start-hub` at the dispatcher until the warm worker child has started (the barrier pattern TestHubStartupDetachedExtraLaunchesWithoutDuplicateWarmAttempt already uses) reproduces the failure every run.
-- [ ] Fix: `FakeRunner.FailNextStartIn(dir, err)` fails the next start in that directory only, so the injected refusal is the second hub's whatever the order. The test arms it for `paths[1]`. Its assertions are unchanged: start-hub reports the refusal, the visible retry line, the first hub usable, and the warm worker started (two children).
-- [ ] The held-order variant stays as a regression for both orders. Verify with `-count=50` under CPU load and the full suite.
+- [x] Deterministic red: a variant that holds `start-hub` at the dispatcher until the warm worker child has started (the barrier pattern TestHubStartupDetachedExtraLaunchesWithoutDuplicateWarmAttempt already uses) reproduces the failure every run.
+- [x] Fix: `FakeRunner.FailNextStartIn(dir, err)` fails the next start in that directory only, so the injected refusal is the second hub's whatever the order. The test arms it for `paths[1]`. Its assertions are unchanged: start-hub reports the refusal, the visible retry line, the first hub usable, and the warm worker started (two children).
+- [x] The held-order variant stays as a regression for both orders. Verify with `-count=50` under CPU load and the full suite.
 
 ## Log
 
 ### 2026-10-19
+
+Built. Instrumented once (temporary, reverted): in the held-order run the warm worker (`ordinary-slot1`) consumed the failure and the warm pass then started it again; the second hub (`bench`) started cleanly. In the passing order `bench` consumed it. TestHubStartupLaterFailureAfterWarmWorkerLeavesFirstUsable failed 3/3 with the exact CI message before the fix; with `FailNextStartIn(paths[1])` both orders pass. `-run TestHubStartup -count=50` passed (454s) with one `yes` burner per CPU. Other FailNextStart callers keep their single-starter semantics.
