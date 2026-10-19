@@ -45,6 +45,7 @@ Cause (2026-10-19, pair:2). Failed attempt 4fed2c45: `hubs_startup_test.go:202: 
 ## Log
 
 ### 2026-10-19
+- 2026-10-19: closed — Test-fixture bugfix, no new architectural surface: FakeRunner gains a dir-targeted FailNextStartIn. sdlc-local/suite green on f6c15b64 (18m48s). TestHubStartupLaterFailureAfterWarmWorkerLeavesFirstUsable forces warm-worker-first order and failed 3/3 with the exact CI message before the fix (temporary instrumentation showed the warm worker consuming FailNextStart); with FailNextStartIn(paths[1]) both orders pass, -run TestHubStartup -count=50 green under one yes burner per CPU. Other FailNextStart callers are single-starter.; review verdict: SHIP
 
 Built. Instrumented once (temporary, reverted): in the held-order run the warm worker (`ordinary-slot1`) consumed the failure and the warm pass then started it again; the second hub (`bench`) started cleanly. In the passing order `bench` consumed it. TestHubStartupLaterFailureAfterWarmWorkerLeavesFirstUsable failed 3/3 with the exact CI message before the fix; with `FailNextStartIn(paths[1])` both orders pass. `-run TestHubStartup -count=50` passed (454s) with one `yes` burner per CPU. Other FailNextStart callers keep their single-starter semantics.
 
