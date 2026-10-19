@@ -5,9 +5,9 @@ deps: []
 github_issue:
 created: 2026-10-19
 updated: 2026-10-19
-estimate_hours:
+estimate_hours: 2.24
 collaboration-mode: collaboration
-card_mirror: '9803967e2ac6b7895981494f3b55f412d5b48df5' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'c8ebe6660d5fa5df05722ca919ce6642f9b3592a' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-19T12:08:04-07:00
 claimant:
     operator: Xian Xu
@@ -33,6 +33,25 @@ Choose a small compatibility route for closed WAL-mode databases without restori
 - A portable cold WAL fixture reproduces the system-CLI refusal and proves the selected compatibility route without changing native DB/WAL content.
 - Races with a writer starting, sidecar creation and source replacement refuse unsafe publication; unknown SQL schema and rowids survive.
 - Tests qualify the supported CLI(s), bound work and cleanup, and document the operator's one recovery action.
+
+## Estimate
+
+Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only; source is tagged stale, so this is provisional. Derived after plan-quality round 2 cleared PQ-1, not from elapsed time or a chosen total.
+
+Issue/spec work uses 0.8h design and 0.2h original implementation; the cold-copy module uses 1.0/0.8; existing orchestration 0.2/0.5; native API qualification 0/0.5; atlas 0.1/0.1; one close review 0.1/0.4. Source helpers cover filesystem/hash/SQLite integration, so no new library or novel stack. Apply the thorough-plan design factor 0.2 to implementation modules/docs/review, not the design-authoring primitive, and v3.1's 0.4 implementation scale to every row. Familiarity is 1.0 from #688; design buffer 0.15. Design sum 1.08, implementation sum 1.00: 1.08 x 1.15 + 1.00 = 2.242, rounded to 2.24h.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.8 impl=0.08
+item: greenfield-go-module design=0.2 impl=0.32
+item: smaller-go-module design=0.04 impl=0.2
+item: real-api-discovery design=0 impl=0.2
+item: atlas-docs design=0.02 impl=0.04
+item: milestone-review design=0.02 impl=0.16
+design-buffer: 0.15
+total: 2.24
+```
 
 ## Plan
 
