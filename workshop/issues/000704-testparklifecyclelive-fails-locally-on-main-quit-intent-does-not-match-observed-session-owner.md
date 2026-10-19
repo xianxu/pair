@@ -1,6 +1,6 @@
 ---
 id: 000704
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-19
@@ -8,7 +8,15 @@ updated: 2026-10-19
 estimate_hours:
 severity: medium
 collaboration-mode: collaboration
-card_mirror: 'c31ca596b6c84043607806f902981d8cee6522cf' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'c1e9d9430bb44e8de96404e7c382af686cb712cb' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-19T08:12:41-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:2
+    worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
+    repository: github.com/xianxu/pair
 ---
 
 # TestParkLifecycleLive fails locally on main: quit intent does not match observed session owner
@@ -42,7 +50,26 @@ The refusal is `ScopedThreadArtifactCollisionChecker.TriggerBoundQuit` (cmd/inte
 
 ## Plan
 
-- [ ]
+### Diagnosis (2026-10-19, pair:2)
+
+Temporary instrumentation (reverted) on the operator's machine:
+- At the refusal the probed owner is `State: Absent` with an empty owner. Neither `list-sessions` nor the process scan sees the fixture session: no zellij process carries its session name or private socket root. The owner fields are not mismatched; the session is gone.
+- A probe in `DeliverTrigger` shows the order. Delivery 1: the session is listed, its server is alive, the helper is live. Delivery 2: "No active zellij sessions found.", no server, the helper is dead.
+
+`RunConformanceScenario` delivers the trigger twice (redelivery after restart). The live `TriggerBoundQuit` quiesces the session (`DeleteSession`) to return control to Pair's handoff, and here Pair's quit cleanup finishes before delivery 2. Delivery 2 then probes an absent session, and the guard reports it as "quit intent does not match observed session owner". CI passes only because its server is still visible at delivery 2. This is not an ownership or layout bug: the outcome depends on how fast the first trigger's quiescence finishes.
+
+Production already handles redelivery. `park.go` triggers only when the observed binding is `Present`, and an absent session goes straight to awaiting completion. The test drivers diverge from production in two ways:
+- The live driver triggers unconditionally.
+- The fake's `DeliverTrigger` leaves the session in place until cleanup, so it never shows the vanished-session state that the real trigger produces (ARCH-MOCK).
+
+### Fix
+
+- [ ] Fake fidelity (deterministic red). `Fake.DeliverTrigger` quiesces the session, as the production trigger does. Under today's drivers the fake conformance scenario then fails on every run at delivery 2 (session absent), reproducing the live failure without timing.
+- [ ] Drivers follow production's delivery rule: observe the session and trigger only when it is present; a delivery that finds it absent does nothing, as park.go does. The live driver observes through `NamedPairSessionContext` and triggers with `TriggerBoundQuit` on that binding. The intent-only variant keeps its write-only trigger behind the same gate.
+- [ ] Production diagnostic. `TriggerBoundQuit` given an absent binding says the session is absent and there is nothing to trigger, instead of "quit intent does not match observed session owner". Production never calls it on an absent binding, so this changes no behavior.
+- [ ] The fake unit test that expected two raw trigger effects now expects the second to be refused as absent. Verify with pairlifecycletest and couchcore tests, the live park tests locally (TestParkLifecycleLive should pass here now), and the full suite.
+
+This is not slot ownership, so pair:1 is not affected.
 
 ## Log
 
