@@ -124,3 +124,7 @@ Compressed prose case inventories into named codec, registry, predicate, adapter
 ### 2026-10-18 — production-composition regression coverage
 
 Close review identified that the maintenance test installed its own Proof and would miss removal of production lease consumption. Extracted a private environmentOptions inspection seam shared with EnvironmentOptions, and made the maintenance regression use it with a separately owned live child incarnation. A controlled removal of the production adapter now fails the positive lease assertion; restoring it passes. This changes no capability, policy or live arrangement. Freeze issue/plan artifacts while the next close review runs; modifying them invalidates its prepared state.
+
+### 2026-10-18 — BR-1 pure test isolation
+
+The matchesRuntimeRegistration table now constructs value literals only, with no temporary directory, lease publication/read or fake process probe. Runtime-registry IO remains in the integration tests; the other declared pure entity, the codec, already uses only JSON byte fixtures. The predicate's PURE classification is unchanged.

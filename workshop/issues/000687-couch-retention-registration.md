@@ -120,6 +120,10 @@ Canceled this checkout's obsolete queued suite a4b9bb7cbcb08c0e833fc1a05cfa062f 
 
 Full diagnosticlog127.393s and gcruntime34.116s pass on the corrected composition; Godoc guard0.511s passes. The controlled wiring-removal failure specifically names the registered supervisor as legacy; restored wiring qualifies it. Commit/push the correction, queue its recorded suite, and rerun the unfinalized full close with issue/plan inputs frozen.
 
+### 2026-10-18 — BR-1 pure predicate test isolation
+
+The finalized first gate round left BR-1 Critical (pure-entity-test-isolation) open: the pure predicate test unnecessarily created/read a registry. Replaced its setup with ProcessRegistration/Registration value literals; the targeted predicate test passes. Enumerated the plan's pure entities: the runtime wire codec already uses IO-free JSON byte fixtures, and registry mutation/native proof remain integration tests. No production code changed. Canceled only this checkout's superseded queued suite57968b844814f005765e3a0762d53192 before publishing the test correction and queuing the final head. Corrected-head CI was all green before this test-only change (conformance3m11s, merge-check1m21s, local-gates checks).
+
 ## Revisions
 
 ### 2026-10-18 — dispatched capability and record-evolution design

@@ -45,13 +45,10 @@ func supervisorFixture(t *testing.T) (*storagegc.Coordinator, *fakeInspection, s
 }
 
 func TestMatchesRuntimeRegistrationExactCapability(t *testing.T) {
-	c, native, identity := supervisorFixture(t)
-	entries, err := c.ReadRuntimes()
-	if err != nil {
-		t.Fatal(err)
-	}
-	entry := entries[0]
-	if !matchesRuntimeRegistration(entry, native.runtimes[0].Process) {
+	identity := storagegc.ProcessIdentity{PID: 123, Birth: "darwin:1234.5"}
+	entry := storagegc.ProcessRegistration{ID: "lease", Process: identity, Role: storagegc.CouchRuntimeRole, DiagnosticProtocol: storagegc.DiagnosticProtocolVersion}
+	process := Registration{PID: identity.PID, Birth: identity.Birth}
+	if !matchesRuntimeRegistration(entry, process) {
 		t.Fatal("valid capability refused")
 	}
 	for _, mutate := range []func(*storagegc.ProcessRegistration){
@@ -64,7 +61,7 @@ func TestMatchesRuntimeRegistrationExactCapability(t *testing.T) {
 	} {
 		e := entry
 		mutate(&e)
-		if matchesRuntimeRegistration(e, Registration{PID: identity.PID, Birth: identity.Birth}) {
+		if matchesRuntimeRegistration(e, process) {
 			t.Fatalf("bad lease qualified: %+v", e)
 		}
 	}
