@@ -182,3 +182,57 @@ func TestShowLifecycleFailureNewestAcrossExactAndSlotIdentity(t *testing.T) {
 		t.Fatalf("failures=%+v detail=%s", got, detail)
 	}
 }
+
+func TestShowTargetOnlyLifecycleFailureUsesResolvedSlotSelection(t *testing.T) {
+	at := time.Unix(100, 0)
+	slot := SlotIdentity{Repo: "pair", PrimaryRoot: "/workspace/pair", WorktreeRoot: "/workspace/worktree/pair-slot8/pair", Number: 8}
+	address := ThreadAddress{RepoScope: "scope", Tag: "tag"}
+	for _, target := range []string{"pair:8", "/workspace/pair:8"} {
+		for _, success := range []time.Time{{}, at, at.Add(time.Second)} {
+			for _, ref := range []string{"pair:8", "/workspace/pair:8", slot.WorktreeRoot, "tag"} {
+				t.Run(target+"/"+ref+"/"+success.String(), func(t *testing.T) {
+					env := newTestEnv(t, "/repo")
+					store := NewFakeLaunchFailureStore()
+					env.Couch.LaunchFailures = store
+					if err := store.Save(t.Context(), LaunchFailure{Target: target, Nonce: "failure", FailedAt: at}); err != nil {
+						t.Fatal(err)
+					}
+					record := ThreadRecord{Address: address, StartingPath: slot.WorktreeRoot}
+					if !success.IsZero() {
+						record.VerifiedPark = &VerifiedPark{ParkedAt: success}
+					}
+					got, detail := env.Couch.launchFailuresForShow(t.Context(), "scope", ref, []ThreadRecord{record}, slot)
+					row := ActionableThreadSummary{Address: address, StartingPath: slot.WorktreeRoot, Target: ThreadTarget{Kind: ThreadTargetSlot, Slot: slot}, LastLifecycleSuccessAt: LastLifecycleSuccessAt(record)}
+					projected := ProjectLifecycleFailures([]ActionableThreadSummary{row}, []LaunchFailure{{Target: target, Nonce: "failure", FailedAt: at}}, "")
+					hidden := success.After(at)
+					if detail != "" || (len(got) == 0) != hidden || (projected[0].Failure == nil) != hidden {
+						t.Fatalf("show=%+v row=%+v hidden=%v detail=%s", got, projected[0].Failure, hidden, detail)
+					}
+				})
+			}
+		}
+	}
+}
+
+func TestShowTargetOnlyLifecycleFailureResolvedEmptySlot(t *testing.T) {
+	env := newTestEnv(t, "/repo")
+	store := NewFakeLaunchFailureStore()
+	env.Couch.LaunchFailures = store
+	slot := SlotIdentity{Repo: "pair", PrimaryRoot: "/workspace/pair", WorktreeRoot: "/workspace/worktree/pair-slot8/pair", Number: 8}
+	if err := store.Save(t.Context(), LaunchFailure{Target: "pair:8", Nonce: "failure", FailedAt: time.Unix(100, 0)}); err != nil {
+		t.Fatal(err)
+	}
+	for _, ref := range []string{"/workspace/pair:8", slot.WorktreeRoot} {
+		got, detail := env.Couch.launchFailuresForShow(t.Context(), "scope", ref, nil, slot)
+		if detail != "" || len(got) != 1 {
+			t.Fatalf("ref=%s got=%+v detail=%s", ref, got, detail)
+		}
+	}
+	other := slot
+	other.Number = 9
+	other.WorktreeRoot = "/workspace/worktree/pair-slot9/pair"
+	got, detail := env.Couch.launchFailuresForShow(t.Context(), "scope", other.WorktreeRoot, nil, other)
+	if detail != "" || len(got) != 0 {
+		t.Fatalf("cross-slot=%+v detail=%s", got, detail)
+	}
+}

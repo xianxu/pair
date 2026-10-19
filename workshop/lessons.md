@@ -7,6 +7,8 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- A shared diagnostic projection must be tested through every public reference for the same slot: slot name, canonical primary-root reference, path and exact tag. Centralize matching before latest-selection and visibility filtering so row/show parity survives missing-cache reference-only evidence. (#683 BR-5)
+
 - Diagnostics must not become lifecycle admission authority. Preserve the original action result when optional target enrichment, nonce allocation or logging fails; test unreadable-record recovery through the public dispatcher before adding diagnostic prerequisites. (#683 BR-1)
 - A terminal failure collector stays evidence-only until its enclosing operation finishes; test exact publication counts for standalone and borrowed callers, including final enrichment. (#683 BR-3)
 - Run the full artifactpath package before a boundary. A regex selecting source/artifact names can omit Symbol guards and miss orphan exports introduced by the same change. (#683 BR-4)

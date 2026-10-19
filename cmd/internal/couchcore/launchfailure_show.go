@@ -31,6 +31,14 @@ func (c *Couch) launchFailuresForShow(ctx context.Context, scope, ref string, ma
 	wanted := map[ThreadAddress]bool{{RepoScope: scope, Tag: ThreadTag(ref)}: true}
 	successes := map[string]time.Time{}
 	displayKeys := map[string]string{}
+	// The same resolved-slot target selection serves rows and show, including
+	// an empty slot with no current thread record. It is display evidence only.
+	slotRow := ActionableThreadSummary{StartingPath: slot.WorktreeRoot, Target: ThreadTarget{Kind: ThreadTargetSlot, Slot: slot}}
+	for _, target := range lifecycleFailureRowTargets(slotRow) {
+		if key := lifecycleFailureTargetKey(target); key != "" {
+			displayKeys[key] = lifecycleFailureTargetKey(LifecycleFailureTarget{StartingPath: slot.WorktreeRoot})
+		}
+	}
 	for _, m := range matches {
 		wanted[m.Address] = true
 		success := LastLifecycleSuccessAt(m)
@@ -54,14 +62,15 @@ func (c *Couch) launchFailuresForShow(ctx context.Context, scope, ref string, ma
 	selected := map[string]LaunchFailure{}
 	var out []LaunchFailure
 	for _, f := range latestLifecycleFailures(history) {
-		matched := wanted[f.Address] || (f.Target != "" && f.Target == ref)
+		_, selectedByResolvedTarget := displayKeys[lifecycleFailureProjectionKey(f)]
+		matched := selectedByResolvedTarget || wanted[f.Address] || (f.Target != "" && f.Target == ref)
 		if !matched && f.StartingPath != "" {
 			if physical, e := retainedPhysicalPath(f.StartingPath); e == nil {
 				matched = canonical[physical]
 			}
 		}
 		success := successes[lifecycleFailureProjectionKey(f)]
-		if matched && !success.After(f.FailedAt) {
+		if matched && lifecycleFailureVisible(f, success) {
 			key := lifecycleFailureProjectionKey(f)
 			if displayKey := displayKeys[key]; displayKey != "" {
 				key = displayKey

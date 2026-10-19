@@ -118,3 +118,114 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-19T03:47:03-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 683 — Persist every lifecycle failure reason |
+| repo | pair |
+| issue file | workshop/issues/000683-park-finalization-diagnostics.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 5afc269d3add99de21b5f894d8436ac6da15c796..6fcefcb8258797ae53642ae6c844f04b3e5a373d |
+| command | sdlc close --issue 683 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-19T03:47:03-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+All four prior findings are addressed, with regression tests that fail when the old behavioral paths are restored. The completion recorder, bounded preserving codec, and recovery behavior are sound under the focused checks. One Important display inconsistency remains: inspecting a resolved slot can omit a failure that its switcher row displays.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      BeginOperationAttempt no longer requires GetThread. Both unreadable-record recovery regressions pass; restoring the old binding prerequisite makes both fail with invalid JSON value.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Terminal ownership is independent of cache hits, and hub moves retain submitted targets. Missing-cache preparation/adoption/readiness and hub-move regressions pass; restoring cache-dependent ownership makes all fail.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Standalone switches retain one enclosing attempt through enrichment. Both switch publication regressions pass; restoring the old capture/switch paths produces two publications and fails them.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      The three unused symbols are removed, and the full artifactpath package passes, including TestNoProductionSymbolIsReferencedOnlyByTests.
+findings:
+  - id: new
+    severity: Important
+    kind: defect
+    family: shared-diagnostic-visibility
+    title: |
+      Show omits reference-only failures when inspecting the resolved slot
+    detail: |
+      cmd/internal/couchcore/launchfailure_show.go:57 matches target-only evidence only against the literal show reference, although lifecyclefailureRowTargets matches equivalent slot references. A disposable regression confirms that Target="pair:8" appears in the row and show pair:8, but disappears when show uses the same resolved slot's path or exact thread tag. ARCH-DRY/ARCH-PURPOSE: share target selection and visibility across both views; cover reference-only evidence through slot-name, primary-root reference, path, and exact-address inspection.
+```
+
+1. **Strengths**
+
+   - Diagnostics no longer add a decoding prerequisite to recovery.
+   - Once-only terminal ownership covers preparation through adoption/readiness, including missing-cache operations.
+   - Codec tests verify nested opaque-byte preservation, strict known fields, atomic refusal, and bounded retention.
+   - README and atlas document the new surface and historical-evidence semantics.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** The row/show mismatch above. Consolidate matching before filtering and selecting the latest failure; add cross-reference parity tests.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   - The plan’s focused four-package suite passed with `TMPDIR=/tmp`.
+   - Focused race checks passed for core, command, console, and message packages.
+   - Full artifactpath and testpair guards passed.
+   - Controlled restorations reproduced BR-1, BR-2, and BR-3.
+   - The new display regression failed on pinned head.
+   - The optional unrestricted run was stopped; its default temporary path caused socket and registration failures. Focused reruns with a short temporary path passed. Full-suite success is not claimed.
+   - Disposable files were removed; the tracked checkout remains unchanged.
+
+6. **Architectural notes**
+
+   | Principle | Result |
+   |---|---|
+   | ARCH-DRY | **Flag:** separate row/show selection policies diverge. |
+   | ARCH-PURE | Pass: pure codec/projection logic remains separate from storage and completion adapters. |
+   | ARCH-PURPOSE | **Flag:** shared diagnostic visibility is incomplete. |
+   | ARCH-MOCK | Pass: existing stateful fakes and portable service/store fixtures are reused. |
+   | ARCH-CONSTRAINTS | Pass: writer bounds, cached reads, and bounded admission are exercised. |
+   | ARCH-SECURE | Pass: strict decoding, safe-path checks, and holder-kind allowlisting are covered. |
+   | ARCH-ORDER | Pass: terminal ownership and duplicate publication have regression evidence. |
+   | ARCH-FUNERAL | Pass: bounded history and existing staging cleanup govern residue. |
+   | ARCH-EVOLVE | Pass: nested unknown members survive real rewrites byte-equal. |
+
+7. **Plan revision recommendations**
+
+   Add a `## Revisions` entry recording the shared row/show matching correction. Label the replacement concept map explicitly PURE/INTEGRATION and clearly mark the original coordinator tables as superseded.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"d7cb8070-9207-48cb-9c5c-6f742bb4a3fc","repository":"github.com/xianxu/pair","issue_id":"000683","recipe":"milestone-review","round":2,"attempt":1,"agent":"codex","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/37797697dc98bac4","reviewed_head":"6fcefcb8258797ae53642ae6c844f04b3e5a373d","slot":"pair:5","requested_at":"2026-10-19T10:41:24.736133Z"},"phase":"finished","pid":41913,"started_at":"2026-10-19T10:41:24.832787Z","finished_at":"2026-10-19T10:46:42.908626Z","session_id":"01a153c0-7856-7501-8ca8-016cac21fa39","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.50210625s
+head: "6fcefcb8258797ae53642ae6c844f04b3e5a373d"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000411

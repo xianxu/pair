@@ -103,7 +103,7 @@ func ProjectLifecycleFailures(rows []ActionableThreadSummary, history []LaunchFa
 		row.Failure = nil
 		row.DiagnosticError = diagnosticError
 		f, ok := latestLifecycleFailureForTargets(latest, lifecycleFailureRowTargets(*row))
-		if ok && row.LastLifecycleSuccessAt.After(f.FailedAt) {
+		if ok && !lifecycleFailureVisible(f, row.LastLifecycleSuccessAt) {
 			ok = false
 		}
 
@@ -167,4 +167,10 @@ func latestLifecycleFailureForTargets(latest map[string]LifecycleFailure, target
 		}
 	}
 	return result, found
+}
+
+// lifecycleFailureVisible is shared by row and show projections. Only a
+// positively later recorded success hides evidence; equality keeps it visible.
+func lifecycleFailureVisible(f LifecycleFailure, success time.Time) bool {
+	return !success.After(f.FailedAt)
 }
