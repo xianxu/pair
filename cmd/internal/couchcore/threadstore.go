@@ -1495,14 +1495,13 @@ func (s *ThreadStore) archiveThread(address ThreadAddress, expectedRevision *uin
 	})
 }
 
-// archiveJournalEntries is the record half of retiring a thread: its exact
-// bytes and their grace clock appear under archive/, the record disappears,
-// and so does its derived continuation snapshot (whose content the archived
-// bytes already preserve). The manifest entry stays with the caller, because a
-// replace edits the manifest once for both of its halves. It reads the
-// snapshot, so it runs under the store lock.
-// archiveJournalEntries moves the record at raw to the archive as kept: the
-// bytes the archive holds, which differ from raw only by a proof's stamp.
+// archiveJournalEntries is the record half of retiring a thread: the record
+// at raw disappears, kept and its grace clock appear under archive/, and so
+// does the record's derived continuation snapshot (whose content the archived
+// bytes already preserve). kept is raw itself, or raw with a proof's
+// proven_down_at stamp (retiredBytes). The manifest entry stays with the
+// caller, because a replace edits the manifest once for both of its halves.
+// It reads the snapshot, so it runs under the store lock.
 func (s *ThreadStore) archiveJournalEntries(address ThreadAddress, raw, kept []byte) ([]storeJournalEntry, error) {
 	grace, err := s.archiveGraceBytes(address, kept)
 	if err != nil {
