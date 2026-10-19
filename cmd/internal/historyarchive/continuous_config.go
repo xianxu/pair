@@ -17,12 +17,14 @@ const ContinuousConfigName = "continuous.json"
 // the workspace whose git repos supply sdlc runtime data.
 // pair:m5-concept pure
 type ContinuousConfig struct {
-	Version    int      `json:"version"`
-	Recipients []string `json:"recipients"`
-	Sink       string   `json:"sink"`
-	Catalog    string   `json:"catalog"`
-	OpsRoot    string   `json:"ops_root,omitempty"`
-	Workspace  string   `json:"workspace,omitempty"`
+	DriveRemote string   `json:"drive_remote,omitempty"`
+	DriveFolder string   `json:"drive_folder,omitempty"`
+	Version     int      `json:"version"`
+	Recipients  []string `json:"recipients"`
+	Sink        string   `json:"sink"`
+	Catalog     string   `json:"catalog"`
+	OpsRoot     string   `json:"ops_root,omitempty"`
+	Workspace   string   `json:"workspace,omitempty"`
 }
 
 // LoadContinuousConfig reads path strictly. An absent file is (nil, nil):
