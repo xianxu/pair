@@ -1,4 +1,24 @@
 ---
+reviewer_runs:
+    - version: 1
+      intent:
+        id: ae4942dd-bc60-4854-abf7-16caf3b2eb4b
+        repository: github.com/xianxu/pair
+        issue_id: "000686"
+        recipe: estimate-quality
+        round: 1
+        attempt: 1
+        agent: codex
+        root: /Users/xianxu/workspace/worktree/pair-slot7/pair
+        reviewed_head: a29a38aa653fe98383d7fa336b7a380fd0374350
+        slot: pair:7
+        requested_at: "2026-10-19T02:04:10.838708Z"
+      phase: finished
+      pid: 18970
+      started_at: "2026-10-19T02:04:11.116181Z"
+      finished_at: "2026-10-19T02:04:37.688628Z"
+      session_id: 01a151e6-ef42-7a80-aef0-6771927a164a
+      outcome: returned
 gate: plan-quality
 issue: 686
 id_prefix: PQ
@@ -75,6 +95,71 @@ rounds:
           note: The named-function table satisfies the missing strategy requirement, but plan lines 66–69 retain the procedural test inventory that PQ-2 explicitly required replacing. Delete those duplicated procedures and keep the table authoritative, alongside the counted Run regression, consumer verification and live CPU acceptance.
           round: 2
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: 878dbee0-aeb1-4bc4-864d-b537889f7156
+            repository: github.com/xianxu/pair
+            issue_id: "000686"
+            recipe: plan-quality
+            round: 3
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot7/pair
+            reviewed_head: a29a38aa653fe98383d7fa336b7a380fd0374350
+            slot: pair:7
+            requested_at: "2026-10-19T02:02:23.802496Z"
+          phase: finished
+          pid: 2668
+          started_at: "2026-10-19T02:02:24.049081Z"
+          finished_at: "2026-10-19T02:02:57.594015Z"
+          session_id: 01a151e5-4cf5-7a23-8dc8-41b48423228a
+          outcome: returned
+      "n": 3
+      timestamp: "2026-10-18T19:02:59-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: PQ-2
+          disposition: addressed
+          note: Named-function strategies cover cursor creation/advancement, cadence, owner reading and lifecycle projection; duplicate procedural inventory is removed, while counted Run and live acceptance remain integration checks.
+          round: 3
+      blocked: false
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: c81d2eab-5ea3-441f-8c21-357a10e5dc68
+            repository: github.com/xianxu/pair
+            issue_id: "000686"
+            recipe: plan-quality
+            round: 4
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot7/pair
+            reviewed_head: a29a38aa653fe98383d7fa336b7a380fd0374350
+            slot: pair:7
+            requested_at: "2026-10-19T02:03:36.956921Z"
+          phase: finished
+          pid: 13720
+          started_at: "2026-10-19T02:03:37.196389Z"
+          finished_at: "2026-10-19T02:04:08.787829Z"
+          session_id: 01a151e6-6ac1-7842-99c0-0d40825b45e0
+          outcome: returned
+      "n": 4
+      timestamp: "2026-10-18T19:04:09-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: PQ-1
+          disposition: addressed
+          note: The authoritative reducer specifies staged cursor advancement, acknowledged-prefix preservation, publication uncertainty and terminal behavior.
+          round: 4
+        - id: PQ-2
+          disposition: addressed
+          note: Named production functions have adversarial strategies and mechanical guards; the duplicate procedural inventory was removed.
+          round: 4
+      blocked: false
+content_hash: 8a59466253c15f359664e0a0840c17b366e508b0d7909fd0556427acee597d78
 ---
 
 # Gate ledger — pair#686 (plan-quality)
@@ -98,6 +183,19 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - PQ-1 — addressed — The production reducer now owns advancement, preserves acknowledged publication prefixes, stops on unresolved outcomes, and has controlled sequence-testing strategies.
 - PQ-2 — not-addressed — The named-function table satisfies the missing strategy requirement, but plan lines 66–69 retain the procedural test inventory that PQ-2 explicitly required replacing. Delete those duplicated procedures and keep the table authoritative, alongside the counted Run regression, consumer verification and live CPU acceptance.
 
+## Round 3 — 2026-10-18T19:02:59-07:00 (codex) — passed
+
+### Disposed
+
+- PQ-2 — addressed — Named-function strategies cover cursor creation/advancement, cadence, owner reading and lifecycle projection; duplicate procedural inventory is removed, while counted Run and live acceptance remain integration checks.
+
+## Round 4 — 2026-10-18T19:04:09-07:00 (codex) — passed
+
+### Disposed
+
+- PQ-1 — addressed — The authoritative reducer specifies staged cursor advancement, acknowledged-prefix preservation, publication uncertainty and terminal behavior.
+- PQ-2 — addressed — Named production functions have adversarial strategies and mechanical guards; the duplicate procedural inventory was removed.
+
 ## Open findings
 
-- **PQ-2** [Important] `function-level-test-strategy` Replace the prose test inventory with named function strategies.
+(none — every finding has been disposed)

@@ -5,9 +5,9 @@ deps: []
 github_issue:
 created: 2026-10-18
 updated: 2026-10-18
-estimate_hours:
+estimate_hours: 2.63
 collaboration-mode: collaboration
-card_mirror: 'c37fc5136d00c10e98d5637ea375219f4a0e5b4d' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '9614e486eab88e0d50f471a2658377401d184e31' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-18T18:47:56-07:00
 claimant:
     operator: Xian Xu
@@ -16,7 +16,7 @@ claimant:
     workspace: pair:7
     worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "129430e6", done: "f3ee9002"}
+flow: {kind: full, provenance: operator}
 ---
 
 # session-watch busy-loops on freshly started Codex threads (45-80% CPU each)
@@ -101,3 +101,23 @@ These refinements specify the already approved owner/cursor commit guarantees an
 ### 2026-10-18 — hub approved publication contract; plan round2
 
 Hub approved the Reading/Publishing/Stopped contract (ae598ecd-9080-4d36-a3a3-6c9736304c0f): staged cursor, acknowledged-prefix watermark, cursor commit only after the whole batch, unresolved publication stops without retry. Plan round2 disposed PQ-1; PQ-2 remained solely because the old procedural inventory duplicated the named-function table. Removed that duplicate from the plan; counted Run, consumer sweeps and live acceptance remain. No implementation yet.
+
+## Estimate
+
+Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only. Calibration is stale, so these are provisional ship-wall-clock hours. Read v2 and v2.1 procedure before deriving. This is single-repo familiar Go work; no external library replaces the existing security-sensitive guards. Reuse the guarded reader, owner cache and journal reconciliation rather than a new library or protocol.
+
+Primitive derivation: issue authoring/measurement design0.7 plus raw impl0.2; shared cursor extraction is cross-cutting refactor design0.6×0.2, impl0.5; pure commit reducer is greenfield Go design1.0×0.2, impl0.8; bound driver/owner adapter is smaller Go design0.3×0.2, impl0.5; atlas design0.2×0.2, impl0.15; one close review design0.2×0.2, impl0.5; live process discovery/conformance raw impl0.6. All implementation values below apply v3.1's0.40 factor once. Familiarity1.0; thorough approved plan gets15% design buffer. Design subtotal1.16, impl subtotal1.30, total2.634 rounded2.63. No separate milestone review or second full review is budgeted.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.7 impl=0.08
+item: cross-cutting-refactor design=0.12 impl=0.2
+item: greenfield-go-module design=0.2 impl=0.32
+item: smaller-go-module design=0.06 impl=0.2
+item: atlas-docs design=0.04 impl=0.06
+item: milestone-review design=0.04 impl=0.2
+item: real-api-discovery design=0 impl=0.24
+design-buffer: 0.15
+total: 2.63
+```
