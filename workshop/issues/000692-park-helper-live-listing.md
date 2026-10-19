@@ -1,14 +1,22 @@
 ---
 id: 000692
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-18
-updated: 2026-10-18
+updated: 2026-10-19
 estimate_hours:
 severity: medium
 collaboration-mode: collaboration
-card_mirror: 'beef4fafb1d9682ab4438b113bd9afc00a7ba19a' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '13df1e749d16da27052029c9bd65863eb4c532e0' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-19T05:14:57-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:2
+    worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Native park helper refuses a live session before attachment
@@ -35,7 +43,24 @@ Same production code passed this CI family in earlier run39201203710 (3m11s) on2
 
 ## Plan
 
-- [ ]
+### Attribution (2026-10-19, pair:2)
+
+The helper attaches an existing session (`launcher.AttachExistingSession`, no Couch intent). Its only native query is the handoff Check, `requireListedLiveTerminal`, one `list-sessions --no-formatting` before the client starts; after Start the attach path issues none. Native `list-sessions` keeps a session only if its ConnStatus probe gets Connected back (#640 source audit). Zellij 0.45.1's client-ID reuse race (zellij-org/zellij#5270; fix PR 5630 merged, unreleased) misdelivers replies between connections to one server; #640 measured it natively (Connected and Exit frames going to the other request).
+
+The retained capture shows the complementary pair at one instant: the parent's list-clients at 04:54:30.209798 to .233491 returned exit 0 with empty stdout (NoReply: it received a frame that was not its table, such as Connected), and the helper failed by .2626 with "not listed live". Our ConnStatus probe losing its Connected omits the live session. With no other session in the private socket root, native prints "No active zellij sessions found." and exits 1. `ZellijSource.runContext` normalizes exactly that to an observed empty inventory, so `sessionListingState` says absent and the fence reports "not listed live".
+
+The concurrency comes from the fixture: `waitParkHelperAttachmentWithQuery` polls list-clients every 25 ms from the moment the helper starts, so a parent connection is almost always being opened or torn down while the helper's single fence probe runs. In production the listing poller and inventory queries can overlap an attach the same way, at a lower rate, and the same omission becomes the same misleading absence.
+
+A local native probe (0.45.1, private socket root, serial list-clients loop against serial list-sessions, with an attached client and 3x CPU burners, 30 s) saw no omission, matching #640's low synthetic rate (about 3%) under raw parallel requests. So there is no native red test here; the deterministic reds use the stateful fakes.
+
+### Fix
+
+- [ ] Production, classification (ARCH-ORDER: uncertainty must not collapse into absence; ARCH-DRY: the rule `OSRuntime.SessionBlocksReuse` already applies, "native discovery may silently omit a still-live exact server"). In `requireListedLiveTerminal`, a listing that omits the name while independent process evidence shows a live exact server for it (`SessionServers`, an OS process scan, not a native query) is unknown. It refuses as "terminal listing omitted a live server; attach unverified", wrapping a sentinel, never "not listed live". A failed server scan is also unknown. The positive fence is unchanged: only a listing that names the session live admits; there is no retry and no new native query. Deterministic red: fake listing empty plus fake live server gives the unknown error (today "not listed live"); listing empty plus no server keeps "not listed live"; a listed-live session still admits.
+- [ ] Fixture ordering. The readiness loop must not open native connections while the helper's admission fence runs. It first waits on OS evidence that the helper passed Check and started its client (a `zellij` child process of the helper, through the process table), and only then confirms the client count. Deterministic red: with injected process and query seams, no client query is issued before the attach child is observed (today the first query is immediate).
+- [ ] Diagnostics: the helper failure keeps the PTY line; a refusal now names which class it is (absent, or listing omitted a live server), so a CI rerun distinguishes pre-attachment admission from intent-only completion observation (Done when 3).
+- [ ] Verify: launcher and couchcore targeted tests; the live park tests locally with PAIR_LIVE_COUCH=1; the full suite. One unchanged CI attempt if the conformance job runs.
+
+What this does not do: no retry, no timeout change, no native build. The remaining exposure is the upstream race against the attach itself (#5546-style eviction) during the post-start count confirmation, now a few queries rather than a 25 ms stream. PR 5630's release retires the class.
 
 ## Log
 
