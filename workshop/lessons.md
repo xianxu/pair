@@ -2340,3 +2340,6 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #687 BR-1: pure predicates use literal value fixtures, even when a convenient integration fixture exists. Audit setup as well as assertions: a test for a PURE entity must not create/read metadata or inject a process probe; keep those effects in separate integration tests.
 
 - #688: An alarm may expire after child readiness but before the observer runs. Do not assert a live lease inside that timing window; hold the native fixture explicitly while checking ownership, then release it and require alarm evidence plus EOF. Readiness/lease checks must survive multiple timer intervals, not just a quiet machine.
+
+- #688 BR-1: Partial-failure isolation must include publication, not just acquisition. Test a first-file publication error followed by a later success and require both accurate final summaries and the aggregate error.
+- #688: A read-only collector must reject canonical overlap of source and work/output roots before cleanup or creation, including missing descendants behind symlinks. A final rename can otherwise overwrite the very source whose reads were carefully protected; test unchanged source bytes and zero external calls on refusal.

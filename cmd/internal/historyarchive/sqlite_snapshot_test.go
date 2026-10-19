@@ -219,12 +219,71 @@ func TestSQLiteSnapshotRefusesLinkedAndSpecialSourcePaths(t *testing.T) {
 	}
 }
 
+func TestSQLiteSnapshotRejectsOverlappingRootsBeforeEffects(t *testing.T) {
+	for _, target := range []string{"staging", "scratch"} {
+		for _, shape := range []string{"equal", "child", "ancestor", "symlink", "missing-through-symlink"} {
+			t.Run(target+"/"+shape, func(t *testing.T) {
+				base := t.TempDir()
+				src := filepath.Join(base, "source")
+				if err := os.Mkdir(src, 0700); err != nil {
+					t.Fatal(err)
+				}
+				db := filepath.Join(src, "db.sqlite")
+				if err := os.WriteFile(db, []byte("original source"), 0600); err != nil {
+					t.Fatal(err)
+				}
+				stage, scratch := filepath.Join(base, "stage"), filepath.Join(base, "scratch")
+				overlap := src
+				switch shape {
+				case "child":
+					overlap = filepath.Join(src, "missing", "nested")
+				case "ancestor":
+					overlap = base
+				case "symlink", "missing-through-symlink":
+					alias := filepath.Join(base, "alias")
+					if err := os.Symlink(src, alias); err != nil {
+						t.Fatal(err)
+					}
+					overlap = alias
+					if shape == "missing-through-symlink" {
+						overlap = filepath.Join(alias, "missing", "nested")
+					}
+				}
+				if target == "staging" {
+					stage = overlap
+				} else {
+					scratch = overlap
+				}
+				fake := &fakeSQLiteRunner{}
+				result, err := (SQLiteSnapshotter{Scratch: scratch, Runner: fake}).Snapshot(context.Background(), src, "db.sqlite", stage)
+				if err != nil || result.Status != SnapshotRejected || !strings.Contains(result.Detail, "overlap") || fake.reads != 0 || fake.validations != 0 {
+					t.Errorf("overlap admitted: result=%+v err=%v reads=%d validations=%d", result, err, fake.reads, fake.validations)
+				}
+				data, err := os.ReadFile(db)
+				if err != nil || string(data) != "original source" {
+					t.Errorf("source changed: %q %v", data, err)
+				}
+				if names := dirNames(t, src); strings.Join(names, ",") != "db.sqlite" {
+					t.Errorf("source directory mutated: %v", names)
+				}
+				for _, path := range []string{filepath.Join(base, "stage"), filepath.Join(base, "scratch")} {
+					if _, err := os.Stat(path); !os.IsNotExist(err) {
+						t.Errorf("created output before refusal: %s: %v", path, err)
+					}
+				}
+			})
+		}
+	}
+}
+
 func TestSQLiteSnapshotUsesLiteralPathsAndPrivatePermissions(t *testing.T) {
 	base := filepath.Join(t.TempDir(), "spaces ' quote \" and\nnewline")
 	os.MkdirAll(base, 0700)
-	walDatabase(t, base)
+	src := filepath.Join(base, "source")
+	os.Mkdir(src, 0700)
+	walDatabase(t, src)
 	staging := filepath.Join(base, "staging")
-	result, err := (SQLiteSnapshotter{Scratch: filepath.Join(base, "scratch")}).Snapshot(context.Background(), base, "state_5.sqlite", staging)
+	result, err := (SQLiteSnapshotter{Scratch: filepath.Join(base, "scratch")}).Snapshot(context.Background(), src, "state_5.sqlite", staging)
 	if err != nil || result.Status != SnapshotReady {
 		t.Fatalf("literal path backup: %+v %v", result, err)
 	}

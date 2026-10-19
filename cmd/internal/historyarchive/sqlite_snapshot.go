@@ -72,6 +72,9 @@ func (s SQLiteSnapshotter) Snapshot(ctx context.Context, root, rel, stagingRoot 
 	if err != nil {
 		return SnapshotResult{}, err
 	}
+	if err := s.validateRoots(root, stagingRoot); err != nil {
+		return snapshotFailure(err, "snapshot configuration"), nil
+	}
 	dir, err := openSafeDir(root, false)
 	if err != nil {
 		return snapshotFailure(err, "source root"), nil
@@ -180,6 +183,51 @@ func (s SQLiteSnapshotter) Snapshot(ctx context.Context, root, rel, stagingRoot 
 		return SnapshotResult{}, err
 	}
 	return SnapshotResult{Status: SnapshotReady}, nil
+}
+
+// validateRoots runs before scratch cleanup, directory creation or SQLite.
+// Existing ancestors are resolved even when output directories do not exist yet.
+func (s SQLiteSnapshotter) validateRoots(root, staging string) error {
+	source, err := canonicalSnapshotPath(root)
+	if err != nil {
+		return err
+	}
+	for _, output := range []struct{ name, path string }{{"staging", staging}, {"scratch", s.Scratch}} {
+		path, err := canonicalSnapshotPath(output.path)
+		if err != nil {
+			return fmt.Errorf("%s: %w", output.name, err)
+		}
+		if overlaps(source, path) {
+			return fmt.Errorf("source %q overlaps %s %q; snapshot directories must be separate", source, output.name, path)
+		}
+	}
+	return nil
+}
+
+func canonicalSnapshotPath(path string) (string, error) {
+	if path == "" {
+		return "", errors.New("empty snapshot directory")
+	}
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return "", err
+	}
+	resolved, err := filepath.EvalSymlinks(abs)
+	if err == nil {
+		return resolved, nil
+	}
+	if !errors.Is(err, os.ErrNotExist) {
+		return "", err
+	}
+	// A dangling symlink is not a missing output directory: refuse it.
+	if _, statErr := os.Lstat(abs); !errors.Is(statErr, os.ErrNotExist) {
+		return "", err
+	}
+	parent, err := canonicalSnapshotPath(filepath.Dir(abs))
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(parent, filepath.Base(abs)), nil
 }
 
 func snapshotLease(path string, create bool) (*os.File, error) {

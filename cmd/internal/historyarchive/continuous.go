@@ -58,6 +58,28 @@ const LastRunName = "continuous.last"
 
 func (p ContinuousPass) Run(ctx context.Context) (ContinuousReport, error) {
 	report := ContinuousReport{Archived: map[string]int{}}
+	inv, err := Defaults()
+	if err != nil {
+		return report, err
+	}
+	roots, err := ContinuousRoots(ctx, inv, p.Config, p.Host, p.Home, p.Env)
+	if err != nil {
+		return report, err
+	}
+	// Sweep can remove whole scratch directories. Check every native root,
+	// including kinds excluded from this pass, before any store mutation.
+	for _, root := range roots {
+		staging := filepath.Join(p.SnapshotRoot, root.Kind)
+		switch snapshotter := p.Snapshotter.(type) {
+		case SQLiteSnapshotter:
+			err = snapshotter.validateRoots(root.Identity.Root, staging)
+		case *SQLiteSnapshotter:
+			err = snapshotter.validateRoots(root.Identity.Root, staging)
+		}
+		if err != nil {
+			return report, err
+		}
+	}
 	if err := os.MkdirAll(p.Store, 0o700); err != nil {
 		return report, err
 	}
@@ -91,14 +113,6 @@ func (p ContinuousPass) Run(ctx context.Context) (ContinuousReport, error) {
 	quiet := p.Quiet
 	if quiet == 0 {
 		quiet = ContinuousQuiet
-	}
-	inv, err := Defaults()
-	if err != nil {
-		return report, err
-	}
-	roots, err := ContinuousRoots(ctx, inv, p.Config, p.Host, p.Home, p.Env)
-	if err != nil {
-		return report, err
 	}
 	index, err := p.archivedIndex(ctx)
 	if err != nil {
@@ -148,7 +162,7 @@ func (p ContinuousPass) archiveRoot(ctx context.Context, root SourceRoot, index 
 	}
 	collected := false
 	rows := map[string]int{}
-	var acquisitionErrors []error
+	var failures []error
 	if root.Snapshot {
 		staging := filepath.Join(p.SnapshotRoot, root.Kind)
 		snapshotIdentity := SourceIdentity{Host: identity.Host, Root: staging, Repository: identity.Root}
@@ -159,7 +173,7 @@ func (p ContinuousPass) archiveRoot(ctx context.Context, root SourceRoot, index 
 			row.Detail = result.Detail
 			if err != nil {
 				row.Detail = err.Error()
-				acquisitionErrors = append(acquisitionErrors, err)
+				failures = append(failures, err)
 			}
 			switch {
 			case err != nil:
@@ -214,6 +228,12 @@ func (p ContinuousPass) archiveRoot(ctx context.Context, root SourceRoot, index 
 	}
 	archived := 0
 	for len(fresh) > 0 {
+		if collected && ctx.Err() != nil {
+			for _, path := range fresh {
+				setRow(path, DatabaseFailed, "publication cancelled before attempt: "+ctx.Err().Error())
+			}
+			return archived, skipped, errors.Join(append(failures, ctx.Err())...)
+		}
 		n := min(len(fresh), MaxFiles)
 		if collected {
 			// One request per snapshot: an oversized one is skipped alone,
@@ -229,7 +249,7 @@ func (p ContinuousPass) archiveRoot(ctx context.Context, root SourceRoot, index 
 			}
 			archived += len(r.Manifest.Files)
 		}
-		if collected && errors.Is(err, ErrCiphertextLimit) {
+		if collected && errors.Is(err, ErrCiphertextLimit) && ctx.Err() == nil {
 			setRow(fresh[0], DatabaseFailed, err.Error())
 			// A snapshot too large even compressed is skipped, not a failed
 			// pass: it would fail the same way every day (pair#616).
@@ -241,11 +261,20 @@ func (p ContinuousPass) archiveRoot(ctx context.Context, root SourceRoot, index 
 			for _, path := range fresh[:n] {
 				setRow(path, DatabaseFailed, err.Error())
 			}
-			return archived, skipped, errors.Join(append(acquisitionErrors, err)...)
+			if !collected {
+				return archived, skipped, err
+			}
+			if ctx.Err() != nil {
+				for _, path := range fresh[n:] {
+					setRow(path, DatabaseFailed, "publication cancelled before attempt: "+ctx.Err().Error())
+				}
+				return archived, skipped, errors.Join(append(failures, ctx.Err())...)
+			}
+			failures = append(failures, fmt.Errorf("%s: %w", fresh[0], err))
 		}
 		fresh = fresh[n:]
 	}
-	return archived, skipped, errors.Join(acquisitionErrors...)
+	return archived, skipped, errors.Join(failures...)
 }
 
 func (p ContinuousPass) archivedIndex(ctx context.Context) (*ArchivedIndex, error) {

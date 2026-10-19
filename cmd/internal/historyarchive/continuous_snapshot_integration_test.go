@@ -2,13 +2,134 @@ package historyarchive
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 )
+
+type snapshotPublicationSink struct {
+	Sink
+	failures []error
+	cancel   context.CancelFunc
+	calls    int
+}
+
+func TestContinuousSnapshotRejectsOverlapBeforeStoreOrSweep(t *testing.T) {
+	for _, pointer := range []bool{false, true} {
+		t.Run(fmt.Sprintf("pointer=%v", pointer), func(t *testing.T) {
+			base, err := filepath.EvalSymlinks(t.TempDir())
+			if err != nil {
+				t.Fatal(err)
+			}
+			home := filepath.Join(base, "home")
+			src := filepath.Join(home, ".codex")
+			// This is native source data, not collector scratch, despite its name.
+			marker := filepath.Join(src, "sqlite-native", "preserve")
+			if err := os.MkdirAll(filepath.Dir(marker), 0700); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(marker, []byte("native"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			snapshotter := SQLiteSnapshotter{Scratch: src}
+			var implementation Snapshotter = snapshotter
+			if pointer {
+				implementation = &snapshotter
+			}
+			// Even a filtered pass must not sweep another kind's native root.
+			pass := ContinuousPass{Store: filepath.Join(base, "store"), SnapshotRoot: filepath.Join(base, "staging"), Home: home, Host: "fixture", Env: map[string]string{}, Kinds: []string{"claude-transcripts"}, Snapshotter: implementation}
+			if _, err := pass.Run(context.Background()); err == nil {
+				t.Fatal("overlapping snapshot scratch admitted")
+			}
+			if raw, err := os.ReadFile(marker); err != nil || string(raw) != "native" {
+				t.Fatalf("sweep mutated native data before overlap refusal: %q %v", raw, err)
+			}
+			if _, err := os.Stat(pass.Store); !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("store mutated before overlap refusal: %v", err)
+			}
+		})
+	}
+}
+
+func (s *snapshotPublicationSink) Put(ctx context.Context, key string, r io.Reader, limit int64) error {
+	s.calls++
+	if s.calls <= len(s.failures) {
+		if s.cancel != nil {
+			s.cancel()
+		}
+		return s.failures[s.calls-1]
+	}
+	return s.Sink.Put(ctx, key, r, limit)
+}
+
+func TestContinuousSnapshotPublicationFailuresDoNotStarveLaterDatabases(t *testing.T) {
+	for _, cancelled := range []bool{false, true} {
+		t.Run(fmt.Sprintf("cancelled=%v", cancelled), func(t *testing.T) {
+			base, err := filepath.EvalSymlinks(t.TempDir())
+			if err != nil {
+				t.Fatal(err)
+			}
+			home := filepath.Join(base, "home")
+			src := filepath.Join(home, ".codex")
+			if err := os.MkdirAll(src, 0700); err != nil {
+				t.Fatal(err)
+			}
+			for _, name := range []string{"a.sqlite", "b.sqlite", "c.sqlite"} {
+				if err := os.WriteFile(filepath.Join(src, name), []byte("source"), 0600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			now := time.Date(2026, 10, 19, 0, 0, 0, 0, time.UTC)
+			cfg := ContinuousConfig{Version: Version, Recipients: []string{strings.Repeat("A", 40)}, Sink: filepath.Join(base, "sink"), Catalog: filepath.Join(base, "catalog", "catalog.jsonl")}
+			first, second := errors.New("first publication failed"), errors.New("second publication failed")
+			sink := &snapshotPublicationSink{Sink: LocalSink{Root: cfg.Sink}, failures: []error{first, second}}
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			if cancelled {
+				sink.cancel = cancel
+			}
+			pass := ContinuousPass{Archiver: Archiver{Codec: &archiveTestCodec{}, Sink: sink, Now: func() time.Time { return now }}, Config: cfg, Store: filepath.Join(base, "store"), SnapshotRoot: filepath.Join(base, "staging"), Home: home, Host: "fixture", Env: map[string]string{}, Now: func() time.Time { return now }, Snapshotter: SQLiteSnapshotter{Scratch: filepath.Join(base, "scratch"), Runner: &fakeSQLiteRunner{}}}
+			report, err := pass.Run(ctx)
+			if cancelled {
+				if !errors.Is(err, context.Canceled) || sink.calls != 1 || report.Archived["codex-database"] != 0 {
+					t.Fatalf("cancellation must stop publication immediately: calls=%d report=%+v err=%v", sink.calls, report, err)
+				}
+				for _, row := range report.Databases[1:] {
+					if row.Status != DatabaseFailed || !strings.Contains(row.Detail, "cancel") {
+						t.Fatalf("unattempted publication must report cancellation: %+v", row)
+					}
+				}
+				return
+			}
+			if !errors.Is(err, first) || !errors.Is(err, second) || report.Archived["codex-database"] != 1 {
+				t.Fatalf("publication failures stranded a later database or lost an error: report=%+v err=%v", report, err)
+			}
+			if len(report.Databases) != 3 {
+				t.Fatalf("missing database summaries: %+v", report.Databases)
+			}
+			for i, row := range report.Databases {
+				if row.CheckedAt.IsZero() {
+					t.Fatalf("validated snapshot lost observation: %+v", row)
+				}
+				if i < 2 {
+					if row.Status != DatabaseFailed || !row.LastVerified.IsZero() || !strings.Contains(row.Detail, sink.failures[i].Error()) {
+						t.Fatalf("failed publication claimed success: %+v", row)
+					}
+				} else if row.Status != DatabaseArchived || !row.LastVerified.Equal(now) || row.Detail != "" {
+					t.Fatalf("later successful publication not reported: %+v", row)
+				}
+			}
+			if _, err := os.Stat(filepath.Join(pass.Store, LastRunName)); !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("failed pass marked complete: %v", err)
+			}
+		})
+	}
+}
 
 func TestContinuousSnapshotCountedNAnd2NAndFreshness(t *testing.T) {
 	for _, n := range []int{3, 6} {
