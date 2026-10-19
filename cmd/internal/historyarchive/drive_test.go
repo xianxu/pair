@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"golang.org/x/sys/unix"
 	"os"
 	"path/filepath"
 	"testing"
@@ -90,5 +91,81 @@ func TestDriveCandidateProjectionScansCatalogOnceAtNAnd2N(t *testing.T) {
 				t.Fatalf("n=%d projected=%d scans=%d err=%v", n, len(got), scans, err)
 			}
 		})
+	}
+}
+
+func TestPrepareBatchObjectUsesVerifiedHardLinkAndCleansIt(t *testing.T) {
+	req, codec := archiveFixture(t)
+	records, err := (Archiver{Codec: codec}).Create(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	record := records[0]
+	stage, err := openUploadStaging(filepath.Dir(req.Catalog))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer stage.Close()
+	objects, err := openBatchObjects(stage)
+	if err != nil {
+		t.Fatal(err)
+	}
+	name := record.Label.ID + ".tar.zst.gpg"
+	_, linked, err := PrepareBatchObject(context.Background(), LocalSink{Root: req.Sink}, record.BundleKey, UploadObject{Name: name, Size: record.Label.Bytes, SHA256: record.Label.SHA256}, objects)
+	if err != nil || !linked {
+		t.Fatalf("hardlink=%v err=%v", linked, err)
+	}
+	a, err := os.Stat(filepath.Join(req.Sink, record.BundleKey))
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.Stat(filepath.Join(objects.Name(), name))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !os.SameFile(a, b) {
+		t.Fatal("same-filesystem stage copied bytes")
+	}
+	objects.Close()
+	if err = SweepUploadStaging(context.Background(), stage); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = os.Stat(filepath.Join(req.Sink, record.BundleKey)); err != nil {
+		t.Fatal("cleanup removed original", err)
+	}
+}
+
+func TestPrepareBatchObjectVerifiedCrossFilesystemFallback(t *testing.T) {
+	req, codec := archiveFixture(t)
+	records, err := (Archiver{Codec: codec}).Create(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	record := records[0]
+	stage, err := openUploadStaging(filepath.Dir(req.Catalog))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer stage.Close()
+	objects, err := openBatchObjects(stage)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer objects.Close()
+	source := LocalSink{Root: req.Sink, Fault: func(stage string) error {
+		if stage == "link-upload" {
+			return unix.EXDEV
+		}
+		return nil
+	}}
+	name := record.Label.ID + ".tar.zst.gpg"
+	_, linked, err := PrepareBatchObject(context.Background(), source, record.BundleKey, UploadObject{Name: name, Size: record.Label.Bytes, SHA256: record.Label.SHA256}, objects)
+	if err != nil || linked {
+		t.Fatalf("copyfallback linked=%v err=%v", linked, err)
+	}
+	a, _ := os.Stat(filepath.Join(req.Sink, record.BundleKey))
+	b, _ := os.Stat(filepath.Join(objects.Name(), name))
+	if os.SameFile(a, b) {
+		t.Fatal("fallback retained a link")
 	}
 }

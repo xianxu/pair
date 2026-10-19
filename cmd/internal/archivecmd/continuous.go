@@ -89,7 +89,7 @@ func runContinuous(ctx context.Context, args []string, stdout io.Writer, fail fu
 	}
 	if report.Drive != nil {
 		remote := report.Drive
-		fmt.Fprintf(stdout, "Drive: %d verified, %d already recorded, %d pending; %d downloaded checksum(s)\n", remote.Verified, remote.AlreadyRecorded, remote.Pending, remote.DownloadedChecksums)
+		fmt.Fprintf(stdout, "Drive: %d verified, %d already recorded, %d pending (%d deferred); %d downloaded checksum(s)\n", remote.Verified, remote.AlreadyRecorded, remote.Pending, remote.Deferred, remote.DownloadedChecksums)
 		for _, note := range remote.Notes {
 			fmt.Fprintf(stdout, "Drive: %s\n", note)
 		}

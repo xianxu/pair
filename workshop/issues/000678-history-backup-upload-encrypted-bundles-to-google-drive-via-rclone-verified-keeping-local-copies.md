@@ -42,7 +42,7 @@ Durable design: [000678-drive-history-backup-plan.md](../plans/000678-drive-hist
 - [x] Define destination/receipt identities and pure upload transitions; test configuration defaults and remote-only failures.
 - [x] Implement the bounded rclone seam with a stateful fake and disposable installed-rclone local conformance.
 - [x] Integrate verified backlog replication after local completion, immutable upload receipts, private staging and counted N/2N recovery tests.
-- [ ] Document configuration/recovery, obtain operator-run Drive conformance, and land through recorded suite and fresh close review.
+- [x] Document configuration/recovery and obtain operator-run Drive conformance. Recorded suite, close review and landing remain binary-owned workflow steps tracked in the Log.
 
 ## Log
 
@@ -91,6 +91,22 @@ Durable design: [000678-drive-history-backup-plan.md](../plans/000678-drive-hist
 - Full replan: one copy batch (--transfers 8), same two flat listings, one filtered downloaded-hash batch if needed, partial-batch per-pair receipts. Flat staging reason is local kind/year/month paths versus flat remote names; use descriptor-checked hard links normally, EXDEV verified copy fallback. Apply hub's 4 GiB logical complete-pair cap, defer overflow visibly, and clean staging on every outcome. Fake counts actual subprocess invocations constant at N/2N, not merely per-object transfers.
 - Current running suite on the serial source remains evidence for that earlier source only, not batch qualification. No second suite started. The revised plan is committed and change-code is rerun before production changes. New live candidate/acceptance is owed after batching.
 
+### Live acceptance and follow-up — 2026-10-18
+
+- Operator pass 1 (hub 64519fc8-111a-425a-8607-423a59680640; log /var/folders/07/b9wcwwld4_v2w9r3hk525bm80000gn/T/drive-pass1.log): 56 verified pairs, 0 already recorded, 2 pending, all successful verification via Drive SHA256, 0 downloads. The two exit-1 IDs are older codex-transcripts bundles from 2026-10-16, 22076408 and 29807877 encrypted bytes; neither is a new/actively copied database. Previous runner had discarded stderr, so the precise remote causes are unproved.
+- Operator pass 2 (canonical hub cb95f294-af33-4a95-99d0-b583012e94da): 7 verified (2 recovered plus 5 newly archived pairs), 56 already recorded, 0 pending, 0 downloads. Hub explicitly accepts the live check and directs finishing batching and landing. This proves retry/adoption/dedup with the earlier serial candidate; no claim of measured batch performance yet. Run from a slot with explicit PAIR_DATA_DIR=$HOME/.local/share/pair.
+- Hub 99090e02-f6db-4b07-b87d-0f9677fc3286 approves flat hard-link staging, EXDEV verified-copy fallback, 4 GiB logical pair cap with overflow deferred, one batch copy and optional hash batch, and cleanup after every exit. Revised change-code passed plan-quality CLEAN and estimate-quality INFO. The original 2.48h estimate is the whole-issue forecast, not a new estimate for remaining work; actuals stay measured.
+- Runner now includes the final bounded 16 KiB stderr diagnostic in pending errors, removes terminal controls and redacts credential values. Targeted diagnostics race tests passed 2.393s; aggregate verification is still in progress.
+- Separate freshness check: local catalog has 10 codex-database records. logs_2/state_5 were fresh at 2026-10-19T01:53:42Z/01:54:02Z; thread_history_1 latest remains 2026-10-16T18:22:42Z (~55h old). #616 fixed size limits, not snapshot progress under writes. Filed independent unclaimed #688 (codex-snapshot-freshness), with those observations; no database snapshot code changed under #678.
+
+### Batch qualification checkpoint — 2026-10-18
+
+- Batch coordinator/fake focused tests passed historyarchive (52.236s), archivetest (0.185s). Revised race qualification passed historyarchive (75.317s), archivetest (1.297s), archivecmd (1.293s). Installed-rclone local batch/filtered-hash/cancellation conformance passed historyarchive (0.818s), archivetest (0.179s). Tracked-file guards passed internal/repolint (17.086s), artifactpath (16.501s), testpair (21.568s).
+- Tests enforce actual rclone invocations <=4 for backend-hash N=8/16 passes (one resolve, two listings, one copy), <=5 with one hash batch, and no additional copy batch on rerun. They cover hard-link identity, EXDEV verified copying, complete-pair byte deferral, receipts for verified members of a failed batch, late duplicates, and cleanup on normal/failure/cancel paths.
+- Additional cleanup regression was RED when a local snapshot failure left interrupted staging links. Cleanup now runs under the next continuous-lock owner even if local backup fails before Drive replication; cleanup failure is reported as remote-only. Its focused run and ordinary failure/cancel/local-success regressions passed (1.525s). No Codex snapshot algorithm was changed.
+- Earlier serial-source full suite finished successfully on 1ed7a6e86e1e4aa2be0e97d67a8ad03ce4538d5f: exit 0 in 17m17s, queue 601s, log sha256 prefix 3d4b30ac4905. Retained as earlier-source evidence only. Batch source requires its own pushed-head recorded suite, which is next; no overlapping old run remains.
+- Implementation/acceptance tasks are complete; normal recorded-suite, binary-owned review and landing obligations remain pending. The checkable issue Plan now separates feature acceptance from those process-owned future steps, without dropping any obligation.
+
 ## Estimate
 
 *Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only. Calibration is marked stale by estimate-source, so values remain provisional.*
@@ -109,3 +125,5 @@ item: milestone-review design=0.02 impl=0.14
 design-buffer: 0.15
 total: 2.48
 ```
+
+- 2026-10-18 revision: clarified feature-acceptance checklist versus process-owned suite/review/landing, retaining pending workflow in the Log. Scope/Done when remain unchanged; operator already accepted the live pass/rerun.

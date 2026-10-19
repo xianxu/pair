@@ -9,7 +9,7 @@ import (
 	"fmt"
 	archive "github.com/xianxu/pair/cmd/internal/historyarchive"
 	"os"
-	"path"
+	"path/filepath"
 	"sort"
 	"strings"
 )
@@ -30,11 +30,14 @@ type FakeRclone struct {
 	Before                                    func(context.Context, string, string) error
 	AfterCopyError                            error
 	PartialCopyBytes                          int
+	FailAfterObjects                          int
+	Invocations, CopyBatches, HashBatches     int
 	Lists, Copies, Downloads                  int
 	nextID                                    int
 }
 
 func (f *FakeRclone) Run(ctx context.Context, args []string, limit int) ([]byte, error) {
+	f.Invocations++
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -49,26 +52,6 @@ func (f *FakeRclone) Run(ctx context.Context, args []string, limit int) ([]byte,
 	}
 	operation := args[0]
 	name := ""
-	switch operation {
-	case "copyto":
-		if len(args) < 3 {
-			return nil, errors.New("copy missing destination")
-		}
-		_, object, ok := strings.Cut(args[2], ":")
-		if !ok {
-			return nil, errors.New("missing remote prefix")
-		}
-		name = path.Base(object)
-	case "hashsum":
-		if len(args) < 3 {
-			return nil, errors.New("hash missing object")
-		}
-		_, object, ok := strings.Cut(args[2], ":")
-		if !ok {
-			return nil, errors.New("missing remote prefix")
-		}
-		name = path.Base(object)
-	}
 	if f.Before != nil {
 		if err := f.Before(ctx, operation, name); err != nil {
 			return nil, err
@@ -113,34 +96,80 @@ func (f *FakeRclone) Run(ctx context.Context, args []string, limit int) ([]byte,
 			}
 		}
 		output, _ = json.Marshal(entries)
-	case "copyto":
-		f.Copies++
-		data, err := os.ReadFile(args[1])
+	case "copy":
+		f.CopyBatches++
+		if len(args) < 3 {
+			return nil, errors.New("copy missing destination")
+		}
+		entries, err := os.ReadDir(args[1])
 		if err != nil {
 			return nil, err
 		}
-		if len(f.Objects[name]) != 0 {
-			return nil, nil
+		copied := 0
+		for _, entry := range entries {
+			if err := ctx.Err(); err != nil {
+				return nil, err
+			}
+			if entry.IsDir() || entry.Type()&os.ModeSymlink != 0 {
+				return nil, errors.New("fake expects flat regular staging")
+			}
+			name := entry.Name()
+			if len(f.Objects[name]) != 0 {
+				continue
+			}
+			data, err := os.ReadFile(filepath.Join(args[1], name))
+			if err != nil {
+				return nil, err
+			}
+			if f.Objects == nil {
+				f.Objects = map[string][]FakeRemoteObject{}
+			}
+			f.nextID++
+			if f.PartialCopyBytes > 0 && f.PartialCopyBytes < len(data) {
+				data = data[:f.PartialCopyBytes]
+			}
+			f.Objects[name] = []FakeRemoteObject{{ID: fmt.Sprintf("object-%d", f.nextID), Data: append([]byte(nil), data...)}}
+			f.Copies++
+			copied++
+			if f.FailAfterObjects > 0 && copied >= f.FailAfterObjects {
+				return nil, errors.New("partial batch copy failed")
+			}
 		}
-		if f.Objects == nil {
-			f.Objects = map[string][]FakeRemoteObject{}
-		}
-		f.nextID++
-		if f.PartialCopyBytes > 0 && f.PartialCopyBytes < len(data) {
-			data = data[:f.PartialCopyBytes]
-		}
-		f.Objects[name] = []FakeRemoteObject{{ID: fmt.Sprintf("object-%d", f.nextID), Data: append([]byte(nil), data...)}}
 		if f.AfterCopyError != nil {
 			return nil, f.AfterCopyError
 		}
 	case "hashsum":
-		f.Downloads++
-		objects := f.Objects[name]
-		if len(objects) != 1 {
-			return nil, errors.New("missing or ambiguous checksum object")
+		f.HashBatches++
+		listPath := ""
+		for i, arg := range args {
+			if arg == "--files-from-raw" && i+1 < len(args) {
+				listPath = args[i+1]
+			}
 		}
-		sum := sha256.Sum256(objects[0].Data)
-		output = []byte(hex.EncodeToString(sum[:]) + "  " + name + "\n")
+		if listPath == "" {
+			return nil, errors.New("missing raw file list")
+		}
+		raw, err := os.ReadFile(listPath)
+		if err != nil {
+			return nil, err
+		}
+		var lines strings.Builder
+		for name := range strings.SplitSeq(strings.TrimSuffix(string(raw), "\n"), "\n") {
+			if name == "" {
+				continue
+			}
+			if err := ctx.Err(); err != nil {
+				return nil, err
+			}
+			objects := f.Objects[name]
+			if len(objects) != 1 {
+				return nil, errors.New("missing or ambiguous checksum object")
+			}
+			f.Downloads++
+			sum := sha256.Sum256(objects[0].Data)
+			fmt.Fprintf(&lines, "%s  %s\n", hex.EncodeToString(sum[:]), name)
+		}
+		output = []byte(lines.String())
 	default:
 		return nil, errors.New("unsupported fake rclone command")
 	}

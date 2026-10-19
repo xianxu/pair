@@ -68,6 +68,17 @@ func (p ContinuousPass) Run(ctx context.Context) (ContinuousReport, error) {
 	if err := unix.Flock(int(lock.Fd()), unix.LOCK_EX|unix.LOCK_NB); err != nil {
 		return report, ErrPassRunning
 	}
+	if p.Drive != nil {
+		// Collect an interrupted pass's links even if local collection fails
+		// before the optional Drive phase. Cleanup failure is remote-only.
+		stage, cleanupErr := openUploadStaging(p.Store)
+		if cleanupErr == nil {
+			cleanupErr = errors.Join(SweepUploadStaging(context.WithoutCancel(ctx), stage), stage.Close())
+		}
+		if cleanupErr != nil {
+			report.Drive = &DriveReport{Notes: []string{"staging cleanup: " + cleanupErr.Error()}}
+		}
+	}
 	// Private copies a killed pass left behind can be gigabytes; drop them
 	// while holding the lock.
 	if p.Snapshotter != nil {
@@ -120,7 +131,7 @@ func (p ContinuousPass) Run(ctx context.Context) (ContinuousReport, error) {
 	if p.Drive != nil {
 		remote, remoteErr := p.Drive.Run(ctx, p.Config, p.Store)
 		if remoteErr != nil {
-			remote.Notes = append(remote.Notes, "Drive pending/unavailable: "+remoteErr.Error())
+			remote.Notes = append(remote.Notes, "operation report: "+remoteErr.Error())
 		}
 		report.Drive = &remote
 	}

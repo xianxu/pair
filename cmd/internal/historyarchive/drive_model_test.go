@@ -69,30 +69,84 @@ func TestUploadReceipt(t *testing.T) {
 	}
 }
 func TestUploadTransitions(t *testing.T) {
-	s := UploadState{Destination: "dest", BundleID: "bundle", Phase: UploadCheckingBundle}
-	for _, k := range []UploadEventKind{UploadAbsent, UploadCopied, UploadMatch, UploadFinalMatch, UploadRecorded} {
-		e := UploadEvent{Destination: "dest", BundleID: "bundle", Kind: k, BundleMatched: true, LabelMatched: true}
+	s := UploadState{Destination: "dest", BundleID: "bundle", Phase: UploadInventoryBefore}
+	for _, k := range []UploadEventKind{UploadPrepared, UploadBatchObserved, UploadFinalMatch, UploadRecorded} {
+		var effect UploadEffect
 		var err error
-		s, _, err = NextUpload(s, e)
+		s, effect, err = NextUpload(s, UploadEvent{Destination: "dest", BundleID: "bundle", Kind: k, BundleMatched: true, LabelMatched: true})
 		if err != nil {
 			t.Fatal(err)
+		}
+		if (effect == UploadRecordReceipt) != (k == UploadFinalMatch) {
+			t.Fatal("receipt effect without final pair checks")
 		}
 	}
 	if s.Phase != UploadVerified {
 		t.Fatalf("phase %v", s.Phase)
 	}
 	initial := UploadState{Destination: "dest", BundleID: "bundle", Phase: UploadInventoryAfter}
-	for _, e := range []UploadEvent{{Destination: "other", BundleID: "bundle", Kind: UploadFinalMatch, BundleMatched: true, LabelMatched: true}, {Destination: "dest", BundleID: "bundle", Kind: UploadFinalMatch, BundleMatched: true}} {
+	for _, e := range []UploadEvent{{Destination: "other", BundleID: "bundle", Kind: UploadFinalMatch, BundleMatched: true, LabelMatched: true}, {Destination: "dest", BundleID: "old", Kind: UploadFinalMatch, BundleMatched: true, LabelMatched: true}, {Destination: "dest", BundleID: "bundle", Kind: UploadFinalMatch, BundleMatched: true}} {
 		if _, effect, err := NextUpload(initial, e); err == nil || effect == UploadRecordReceipt {
-			t.Fatal("stale/incomplete match authorized")
+			t.Fatal("stale or incomplete result authorized")
 		}
 	}
-	for _, k := range []UploadEventKind{UploadUnknown, UploadCancel, UploadConflict} {
-		s, e, err := NextUpload(initial, UploadEvent{Destination: "dest", BundleID: "bundle", Kind: k})
-		if err != nil || e != UploadReport || s.Phase == UploadVerified {
-			t.Fatalf("unsafe outcome %v %v %v", s, e, err)
+	for _, phase := range []UploadPhase{UploadInventoryBefore, UploadPreparedForBatch, UploadInventoryAfter, UploadReadyToRecord} {
+		for _, k := range []UploadEventKind{UploadUnknown, UploadCancel, UploadConflict} {
+			s, effect, err := NextUpload(UploadState{Destination: "dest", BundleID: "bundle", Phase: phase}, UploadEvent{Destination: "dest", BundleID: "bundle", Kind: k})
+			if err != nil || effect != UploadReport || s.Phase == UploadVerified {
+				t.Fatalf("unsafe outcome %v %v %v", s, effect, err)
+			}
+		}
+		if phase != UploadInventoryAfter {
+			if _, _, err := NextUpload(UploadState{Destination: "dest", BundleID: "bundle", Phase: phase}, UploadEvent{Destination: "dest", BundleID: "bundle", Kind: UploadFinalMatch, BundleMatched: true, LabelMatched: true}); err == nil {
+				t.Fatal("early final result accepted")
+			}
 		}
 	}
+}
+
+func TestAdmitBatchPair(t *testing.T) {
+	for _, tc := range []struct {
+		used, b, l, limit, next int64
+		admit, bad              bool
+	}{
+		{0, 10, 2, 12, 12, true, false}, {1, 10, 2, 12, 1, false, false}, {12, 1, 1, 12, 12, false, false},
+		{-1, 1, 1, 12, 0, false, true}, {0, 0, 1, 12, 0, false, true}, {0, 1, 0, 12, 0, false, true}, {13, 1, 1, 12, 0, false, true},
+		{0, MaxCiphertextBytes + 1, 1, 1 << 40, 0, false, true}, {0, 1, MaxMetadataBytes + 1, 1 << 40, 0, false, true},
+		{0, 1, 1, -1, 0, false, true}, {1<<63 - 2, 1, 1, 1<<63 - 1, 1<<63 - 2, false, false},
+		{0, MaxCiphertextBytes, MaxMetadataBytes, 1 << 32, MaxCiphertextBytes + MaxMetadataBytes, true, false},
+	} {
+		next, admit, err := AdmitBatchPair(tc.used, tc.b, tc.l, tc.limit)
+		if (err != nil) != tc.bad || (!tc.bad && (next != tc.next || admit != tc.admit)) {
+			t.Fatalf("%+v => %d %v %v", tc, next, admit, err)
+		}
+	}
+}
+
+func FuzzAdmitBatchPair(f *testing.F) {
+	f.Add(int64(0), int64(10), int64(2), int64(12))
+	f.Add(int64(1<<63-2), int64(1), int64(1), int64(1<<63-1))
+	f.Fuzz(func(t *testing.T, used, b, l, limit int64) {
+		next, admit, err := AdmitBatchPair(used, b, l, limit)
+		valid := used >= 0 && limit >= 0 && used <= limit && b > 0 && b <= MaxCiphertextBytes && l > 0 && l <= MaxMetadataBytes
+		if (err == nil) != valid {
+			t.Fatalf("input validation %d %d %d %d: %v", used, b, l, limit, err)
+		}
+		if err != nil {
+			return
+		}
+		fits := b <= limit-used && l <= limit-used-b
+		if admit != fits {
+			t.Fatal("admission differs from subtraction bound")
+		}
+		if admit {
+			if next < used || next > limit || next-used != b+l {
+				t.Fatal("partial pair or overflow")
+			}
+		} else if next != used {
+			t.Fatal("refusal consumed budget")
+		}
+	})
 }
 
 func TestDriveJSONRejectsNestedDuplicateKeys(t *testing.T) {

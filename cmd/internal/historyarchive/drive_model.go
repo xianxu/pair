@@ -222,15 +222,12 @@ func decodeJSONNoDuplicateKeys(raw []byte, v any, strict bool) error {
 	return dec.Decode(v)
 }
 
-// UploadPhase names the legal states of one pair's serial upload attempt.
+// UploadPhase names the states of one pair within a pass-wide transfer batch.
 type UploadPhase uint8
 
 const (
 	UploadInventoryBefore UploadPhase = iota
-	UploadCheckingBundle
-	UploadCopyingBundle
-	UploadCheckingLabel
-	UploadCopyingLabel
+	UploadPreparedForBatch
 	UploadInventoryAfter
 	UploadReadyToRecord
 	UploadVerified
@@ -246,9 +243,8 @@ type UploadState struct {
 type UploadEventKind uint8
 
 const (
-	UploadMatch UploadEventKind = iota
-	UploadAbsent
-	UploadCopied
+	UploadPrepared UploadEventKind = iota
+	UploadBatchObserved
 	UploadFinalMatch
 	UploadRecorded
 	UploadConflict
@@ -266,24 +262,19 @@ type UploadEffect uint8
 
 const (
 	UploadNone UploadEffect = iota
-	UploadCheckBundle
-	UploadCopyBundle
-	UploadCheckLabel
-	UploadCopyLabel
 	UploadFinalInventory
 	UploadRecordReceipt
 	UploadReport
 )
 
-// NextUpload owns operation ordering. Only a matching final pair authorizes a receipt.
+// NextUpload admits receipts from final pair checks, never from batch exit status.
+// UploadBatchObserved includes failed or uncertain transfer requests: the final
+// inventory determines which individual pairs can safely be adopted.
 func NextUpload(s UploadState, e UploadEvent) (UploadState, UploadEffect, error) {
 	bad := func() (UploadState, UploadEffect, error) {
 		return s, UploadNone, fmt.Errorf("invalid upload event %d in phase %d", e.Kind, s.Phase)
 	}
-	if s.Destination == "" || s.BundleID == "" || e.Destination != s.Destination || e.BundleID != s.BundleID {
-		return bad()
-	}
-	if s.Phase >= UploadVerified {
+	if s.Destination == "" || s.BundleID == "" || e.Destination != s.Destination || e.BundleID != s.BundleID || s.Phase >= UploadVerified {
 		return bad()
 	}
 	switch e.Kind {
@@ -296,35 +287,12 @@ func NextUpload(s UploadState, e UploadEvent) (UploadState, UploadEffect, error)
 	}
 	switch s.Phase {
 	case UploadInventoryBefore:
-		if e.Kind == UploadMatch {
-			s.Phase = UploadCheckingBundle
-			return s, UploadCheckBundle, nil
+		if e.Kind == UploadPrepared {
+			s.Phase = UploadPreparedForBatch
+			return s, UploadNone, nil
 		}
-	case UploadCheckingBundle:
-		if e.Kind == UploadAbsent {
-			s.Phase = UploadCopyingBundle
-			return s, UploadCopyBundle, nil
-		}
-		if e.Kind == UploadMatch {
-			s.Phase = UploadCheckingLabel
-			return s, UploadCheckLabel, nil
-		}
-	case UploadCopyingBundle:
-		if e.Kind == UploadCopied {
-			s.Phase = UploadCheckingLabel
-			return s, UploadCheckLabel, nil
-		}
-	case UploadCheckingLabel:
-		if e.Kind == UploadAbsent {
-			s.Phase = UploadCopyingLabel
-			return s, UploadCopyLabel, nil
-		}
-		if e.Kind == UploadMatch {
-			s.Phase = UploadInventoryAfter
-			return s, UploadFinalInventory, nil
-		}
-	case UploadCopyingLabel:
-		if e.Kind == UploadCopied {
+	case UploadPreparedForBatch:
+		if e.Kind == UploadBatchObserved {
 			s.Phase = UploadInventoryAfter
 			return s, UploadFinalInventory, nil
 		}
@@ -340,4 +308,17 @@ func NextUpload(s UploadState, e UploadEvent) (UploadState, UploadEffect, error)
 		}
 	}
 	return bad()
+}
+
+// AdmitBatchPair consumes capacity for both objects atomically, or leaves it
+// unchanged. Subtraction keeps even caller-supplied near-MaxInt64 limits safe.
+func AdmitBatchPair(used, bundleBytes, labelBytes, limit int64) (next int64, admit bool, err error) {
+	if limit < 0 || used < 0 || used > limit || bundleBytes <= 0 || bundleBytes > MaxCiphertextBytes || labelBytes <= 0 || labelBytes > MaxMetadataBytes {
+		return used, false, errors.New("invalid batch pair bounds")
+	}
+	remaining := limit - used
+	if bundleBytes > remaining || labelBytes > remaining-bundleBytes {
+		return used, false, nil
+	}
+	return used + bundleBytes + labelBytes, true, nil
 }

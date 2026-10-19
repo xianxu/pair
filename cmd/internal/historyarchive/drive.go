@@ -3,9 +3,6 @@ package historyarchive
 import (
 	"bytes"
 	"context"
-	"crypto/md5"
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -22,12 +19,17 @@ import (
 const maxDriveCandidates = 100000
 const maxDriveCandidateBytes = 64 << 20
 const drivePhaseBudget = 30 * time.Minute
+const maxDriveBatchBytes int64 = 4 << 30
 
 // DriveReport describes independent remote evidence; it grants no local authority.
 type DriveReport struct {
 	Verified            int
 	AlreadyRecorded     int
 	DownloadedChecksums int
+	Deferred            int
+	StagedBytes         int64
+	LinkedObjects       int
+	CopiedStageBytes    int64
 	Pending             int
 	Notes               []string
 }
@@ -36,8 +38,9 @@ type DriveReport struct {
 // It never changes the local catalog. Network work starts after its lock closes.
 // pair:m5-concept integration
 type DriveMirror struct {
-	Rclone Rclone
-	Now    func() time.Time
+	Rclone         Rclone
+	Now            func() time.Time
+	BatchByteLimit int64 // optional lower cap; never above 4 GiB
 }
 
 type driveCandidate struct {
@@ -83,6 +86,20 @@ func projectDriveCandidates(ctx context.Context, c *Catalog, cfg ContinuousConfi
 func (d DriveMirror) Run(ctx context.Context, cfg ContinuousConfig, store string) (report DriveReport, err error) {
 	ctx, cancel := context.WithTimeout(ctx, drivePhaseBudget)
 	defer cancel()
+	stage, err := openUploadStaging(store)
+	if err != nil {
+		return report, err
+	}
+	defer stage.Close()
+	if err = SweepUploadStaging(context.WithoutCancel(ctx), stage); err != nil {
+		return report, err
+	}
+	defer func() { err = errors.Join(err, SweepUploadStaging(context.WithoutCancel(ctx), stage)) }()
+	objects, err := openBatchObjects(stage)
+	if err != nil {
+		return report, err
+	}
+	defer objects.Close()
 	candidates, err := driveCandidates(ctx, cfg)
 	if err != nil {
 		return report, err
@@ -90,6 +107,13 @@ func (d DriveMirror) Run(ctx context.Context, cfg ContinuousConfig, store string
 	report.Pending = len(candidates)
 	if len(candidates) == 0 {
 		return report, nil
+	}
+	limit := d.BatchByteLimit
+	if limit == 0 {
+		limit = maxDriveBatchBytes
+	}
+	if limit < 0 || limit > maxDriveBatchBytes {
+		return report, errors.New("invalid Drive batch byte budget")
 	}
 	dest, err := ParseDriveDestination(cfg.DriveRemote, cfg.DriveFolder)
 	if err != nil {
@@ -110,23 +134,16 @@ func (d DriveMirror) Run(ctx context.Context, cfg ContinuousConfig, store string
 	if err != nil {
 		return report, err
 	}
-	receiptRoot := cfg.Catalog + ".uploads"
-	receipts := LocalSink{Root: receiptRoot}
-	receiptCount, err := countUploadReceipts(ctx, receiptRoot, dest.Namespace())
+	receipts := LocalSink{Root: cfg.Catalog + ".uploads"}
+	receiptCount, err := countUploadReceipts(ctx, receipts.Root, dest.Namespace())
 	if err != nil {
-		return report, err
-	}
-	stage, err := openUploadStaging(store)
-	if err != nil {
-		return report, err
-	}
-	defer stage.Close()
-	if err = SweepUploadStaging(ctx, stage); err != nil {
 		return report, err
 	}
 	source := LocalSink{Root: cfg.Sink}
 	var ready []driveCandidate
 	var failures []error
+	var used int64
+	exhausted, needsCopy := false, false
 	now := time.Now().UTC()
 	if d.Now != nil {
 		now = d.Now().UTC()
@@ -175,86 +192,115 @@ func (d DriveMirror) Run(ctx context.Context, cfg ContinuousConfig, store string
 			report.Pending--
 			continue
 		}
-		candidate.Receipt = expected
-		candidate.State = UploadState{Destination: dest.String(), BundleID: candidate.Label.ID, Phase: UploadInventoryBefore}
-		if _, e = advanceUpload(&candidate, UploadMatch, false); e != nil {
+		next, admit, e := AdmitBatchPair(used, expected.Bundle.Size, expected.Label.Size, limit)
+		if e != nil {
 			return report, e
 		}
-		for i, key := range []string{candidate.BundleKey, candidate.LabelKey} {
+		if exhausted || !admit || len(ready) >= maxFlatInventoryEntries/2 {
+			exhausted = true
+			report.Deferred++
+			continue
+		}
+		candidate.Receipt = expected
+		candidate.State = UploadState{Destination: dest.String(), BundleID: candidate.Label.ID, Phase: UploadInventoryBefore}
+		valid := true
+		for _, object := range []UploadObject{expected.Bundle, expected.Label} {
+			entries := before[object.Name]
+			if len(entries) > 1 || len(entries) == 1 && (entries[0].IsDir || entries[0].Size != object.Size) {
+				valid = false
+				failures = append(failures, fmt.Errorf("%s: Drive name duplicated or size mismatch", candidate.Label.ID))
+				break
+			}
+		}
+		if !valid {
+			_, _ = advanceUpload(&candidate, UploadConflict, false)
+			continue
+		}
+		for i, sourceKey := range []string{candidate.BundleKey, candidate.LabelKey} {
 			object := &candidate.Receipt.Bundle
 			if i == 1 {
 				object = &candidate.Receipt.Label
 			}
-			staged, md5sum, e := StageVerifiedObject(ctx, source, key, *object, stage)
+			md5sum, linked, e := PrepareBatchObject(ctx, source, sourceKey, *object, objects)
 			if e != nil {
-				failures = append(failures, e)
-				_, _ = advanceUpload(&candidate, UploadUnknown, false)
-				break
+				return report, fmt.Errorf("prepare Drive batch %s: %w", candidate.Label.ID, e)
 			}
 			object.MD5 = md5sum
-			entries := before[object.Name]
-			if len(entries) > 1 {
-				e = errors.New("Drive name is duplicated; inspect remote")
-			} else if len(entries) == 1 {
-				_, e = VerifyRemoteEntry(entries[0], *object)
-				if e == nil {
-					_, e = advanceUpload(&candidate, UploadMatch, false)
-				}
+			if linked {
+				report.LinkedObjects++
 			} else {
-				var effect UploadEffect
-				effect, e = advanceUpload(&candidate, UploadAbsent, false)
-				if e == nil && (effect == UploadCopyBundle || effect == UploadCopyLabel) {
-					e = d.Rclone.Copy(ctx, pin, staged, object.Name)
-					if e == nil {
-						_, e = advanceUpload(&candidate, UploadCopied, false)
-					}
-				}
+				report.CopiedStageBytes += object.Size
 			}
-			cleanupErr := os.Remove(staged)
-			e = errors.Join(e, cleanupErr)
-			if e != nil {
-				failures = append(failures, fmt.Errorf("%s: %w", candidate.Label.ID, e))
-				_, _ = advanceUpload(&candidate, UploadConflict, false)
-				break
+			if entries := before[object.Name]; len(entries) == 1 {
+				if _, e = VerifyRemoteEntry(entries[0], *object); e != nil {
+					valid = false
+					failures = append(failures, fmt.Errorf("%s: %w", candidate.Label.ID, e))
+					break
+				}
 			}
 		}
-		if candidate.State.Phase == UploadInventoryAfter {
-			ready = append(ready, candidate)
+		if !valid {
+			for _, name := range []string{bname, lname} {
+				if e = unix.Unlinkat(int(objects.Fd()), name, 0); e != nil && !errors.Is(e, unix.ENOENT) {
+					return report, e
+				}
+			}
+			_, _ = advanceUpload(&candidate, UploadConflict, false)
+			continue
+		}
+		if _, e = advanceUpload(&candidate, UploadPrepared, false); e != nil {
+			return report, e
+		}
+		used = next
+		needsCopy = needsCopy || len(before[bname]) == 0 || len(before[lname]) == 0
+		ready = append(ready, candidate)
+	}
+	report.StagedBytes = used
+	if report.Deferred > 0 {
+		report.Notes = append(report.Notes, fmt.Sprintf("%d complete pair(s) deferred by %d-byte batch limit", report.Deferred, limit))
+	}
+	if len(ready) > 0 {
+		report.Notes = append(report.Notes, fmt.Sprintf("batch staged %d logical bytes: %d hard links, %d copied bytes", report.StagedBytes, report.LinkedObjects, report.CopiedStageBytes))
+	}
+	if needsCopy {
+		if e := d.Rclone.CopyBatch(ctx, pin, objects.Name()); e != nil {
+			failures = append(failures, fmt.Errorf("Drive copy batch: %w", e))
+		}
+		if err = ctx.Err(); err != nil {
+			return report, errors.Join(append(failures, err)...)
+		}
+	}
+	for i := range ready {
+		if _, e := advanceUpload(&ready[i], UploadBatchObserved, false); e != nil {
+			return report, e
 		}
 	}
 	before = nil
 	after, err := d.Rclone.ObserveFlatInventory(ctx, pin)
 	if err != nil {
-		return report, err
+		return report, errors.Join(append(failures, err)...)
 	}
-	for _, candidate := range ready {
-		ok := true
+	fallback := map[string]string{}
+	for i := range ready {
+		candidate := &ready[i]
+		valid := true
 		for _, object := range []*UploadObject{&candidate.Receipt.Bundle, &candidate.Receipt.Label} {
 			entries := after[object.Name]
 			if len(entries) != 1 {
-				failures = append(failures, fmt.Errorf("%s: Drive name missing or duplicated", candidate.Label.ID))
-				ok = false
+				failures = append(failures, fmt.Errorf("%s: Drive object %s missing or duplicated", candidate.Label.ID, object.Name))
+				valid = false
 				break
 			}
 			entry := entries[0]
 			method, e := VerifyRemoteEntry(entry, *object)
 			if e != nil {
-				failures = append(failures, e)
-				ok = false
+				failures = append(failures, fmt.Errorf("%s: %w", candidate.Label.ID, e))
+				valid = false
 				break
-			}
-			if method == "downloaded-sha256" {
-				digest, e := d.Rclone.DownloadSHA256(ctx, pin, object.Name)
-				if e != nil || digest != object.SHA256 {
-					failures = append(failures, errors.New("Drive downloaded checksum did not verify"))
-					ok = false
-					break
-				}
-				report.DownloadedChecksums++
 			}
 			if !d.Rclone.LocalConformance && !validRemoteIdentity(entry.ID) {
 				failures = append(failures, errors.New("Drive object lacks stable identity"))
-				ok = false
+				valid = false
 				break
 			}
 			object.RemoteID = entry.ID
@@ -262,12 +308,48 @@ func (d DriveMirror) Run(ctx context.Context, cfg ContinuousConfig, store string
 				object.RemoteID = object.Name
 			}
 			object.Verification = method
+			if method == "downloaded-sha256" {
+				fallback[object.Name] = object.SHA256
+			}
 		}
-		if !ok {
-			_, _ = advanceUpload(&candidate, UploadConflict, false)
+		if !valid {
+			delete(fallback, candidate.Receipt.Bundle.Name)
+			delete(fallback, candidate.Receipt.Label.Name)
+			_, _ = advanceUpload(candidate, UploadConflict, false)
+		}
+	}
+	var downloaded map[string]string
+	if len(fallback) > 0 {
+		listPath, e := writeDownloadList(ctx, stage, fallback)
+		if e != nil {
+			return report, e
+		}
+		downloaded, e = d.Rclone.DownloadSHA256Batch(ctx, pin, listPath)
+		if e != nil {
+			failures = append(failures, fmt.Errorf("Drive checksum batch: %w", e))
+		}
+	}
+	for i := range ready {
+		candidate := &ready[i]
+		if candidate.State.Phase != UploadInventoryAfter {
 			continue
 		}
-		effect, e := advanceUpload(&candidate, UploadFinalMatch, true)
+		valid := true
+		for _, object := range []UploadObject{candidate.Receipt.Bundle, candidate.Receipt.Label} {
+			if object.Verification == "downloaded-sha256" {
+				if downloaded[object.Name] != object.SHA256 {
+					valid = false
+					failures = append(failures, fmt.Errorf("%s: downloaded checksum missing or mismatched", candidate.Label.ID))
+					break
+				}
+				report.DownloadedChecksums++
+			}
+		}
+		if !valid {
+			_, _ = advanceUpload(candidate, UploadUnknown, false)
+			continue
+		}
+		effect, e := advanceUpload(candidate, UploadFinalMatch, true)
 		if e != nil {
 			return report, e
 		}
@@ -281,10 +363,10 @@ func (d DriveMirror) Run(ctx context.Context, cfg ContinuousConfig, store string
 		key := dest.Namespace() + "/" + candidate.Label.ID + ".json"
 		if e = PublishUploadReceipt(ctx, receipts, key, candidate.Receipt); e != nil {
 			failures = append(failures, e)
-			_, _ = advanceUpload(&candidate, UploadUnknown, false)
+			_, _ = advanceUpload(candidate, UploadUnknown, false)
 			continue
 		}
-		if _, e = advanceUpload(&candidate, UploadRecorded, false); e != nil {
+		if _, e = advanceUpload(candidate, UploadRecorded, false); e != nil {
 			return report, e
 		}
 		receiptCount++
@@ -433,98 +515,4 @@ func countUploadReceipts(ctx context.Context, root, namespace string) (int, erro
 			return 0, e
 		}
 	}
-}
-func openUploadStaging(store string) (*os.File, error) {
-	dir, err := openSafeDir(store, true)
-	if err != nil {
-		return nil, err
-	}
-	defer dir.Close()
-	child, err := childDir(dir, ".drive-staging", true)
-	if err != nil {
-		return nil, err
-	}
-	defer child.Close()
-	fd, err := unix.Dup(int(child.Fd()))
-	if err != nil {
-		return nil, err
-	}
-	unix.CloseOnExec(fd)
-	return os.NewFile(uintptr(fd), filepath.Join(store, ".drive-staging")), nil
-}
-func SweepUploadStaging(ctx context.Context, dir *os.File) error {
-	// Open a fresh descriptor so each sweep starts at the beginning.
-	scan, err := childDir(dir, ".", false)
-	if err != nil {
-		return err
-	}
-	defer scan.Close()
-	count := 0
-	for {
-		if err = ctx.Err(); err != nil {
-			return err
-		}
-		entries, e := scan.ReadDir(128)
-		for _, entry := range entries {
-			count++
-			if count > MaxFiles {
-				return errors.New("Drive staging cleanup exceeds bound")
-			}
-			if !strings.HasPrefix(entry.Name(), ".object-") {
-				return errors.New("unrecognized Drive staging entry")
-			}
-			f, err := openRegularAt(scan, entry.Name(), unix.O_RDONLY)
-			if err != nil {
-				return err
-			}
-			f.Close()
-			if err = unix.Unlinkat(int(scan.Fd()), entry.Name(), 0); err != nil {
-				return err
-			}
-		}
-		if e == io.EOF {
-			return nil
-		}
-		if e != nil {
-			return e
-		}
-	}
-}
-func StageVerifiedObject(ctx context.Context, source Sink, key string, want UploadObject, dir *os.File) (staged, md5sum string, err error) {
-	var nonce [16]byte
-	if _, err = rand.Read(nonce[:]); err != nil {
-		return "", "", err
-	}
-	name := ".object-" + hex.EncodeToString(nonce[:])
-	f, err := openRegularAt(dir, name, unix.O_WRONLY|unix.O_CREAT|unix.O_EXCL)
-	if err != nil {
-		return "", "", err
-	}
-	staged = filepath.Join(dir.Name(), name)
-	defer func() {
-		f.Close()
-		if err != nil {
-			unix.Unlinkat(int(dir.Fd()), name, 0)
-		}
-	}()
-	r, err := source.Get(ctx, key)
-	if err != nil {
-		return "", "", err
-	}
-	defer r.Close()
-	md5hash := md5.New()
-	n, hash, err := fileDigest(ctx, io.TeeReader(r, md5hash), f, want.Size)
-	if err != nil {
-		return "", "", err
-	}
-	if n != want.Size || hash != want.SHA256 {
-		return "", "", errors.New("local encrypted object checksum mismatch")
-	}
-	if err = f.Sync(); err != nil {
-		return "", "", err
-	}
-	if err = f.Close(); err != nil {
-		return "", "", err
-	}
-	return staged, hex.EncodeToString(md5hash.Sum(nil)), nil
 }

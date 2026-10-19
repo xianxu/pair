@@ -707,6 +707,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/historyarchive/archivetest/rclone.go",
 	"cmd/internal/historyarchive/drive_model.go",
 	"cmd/internal/historyarchive/drive.go",
+	"cmd/internal/historyarchive/drive_staging.go",
 	"cmd/internal/historyarchive/rclone.go",
 	"cmd/internal/archivecmd/run.go",
 	"cmd/internal/historyarchive/archive.go",

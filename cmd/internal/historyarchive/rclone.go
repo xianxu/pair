@@ -7,12 +7,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/xianxu/pair/cmd/internal/rowtext"
 	"io"
 	"os/exec"
 	"path"
+	"regexp"
 	"strings"
 	"time"
 	"unicode"
+	"unicode/utf8"
 )
 
 const maxFlatInventoryBytes = 64 << 20
@@ -44,6 +47,72 @@ func (b *boundedRcloneOutput) Write(p []byte) (int, error) {
 	_, _ = b.buffer.Write(p)
 	return n, nil
 }
+
+// rcloneStderrTail retains final diagnostics rather than progress preceding them.
+type rcloneStderrTail struct {
+	data    []byte
+	partial bool
+}
+
+func (b *rcloneStderrTail) Write(p []byte) (int, error) {
+	const limit = 16 << 10
+	n := len(p)
+	if len(p) >= limit {
+		offset := len(p) - limit
+		if offset > 0 {
+			b.partial = p[offset-1] != '\n'
+		} else if len(b.data) > 0 {
+			b.partial = b.data[len(b.data)-1] != '\n'
+		}
+		b.data = append(b.data[:0], p[offset:]...)
+		return n, nil
+	}
+	if excess := len(b.data) + len(p) - limit; excess > 0 {
+		b.partial = b.data[excess-1] != '\n'
+		copy(b.data, b.data[excess:])
+		b.data = b.data[:len(b.data)-excess]
+	}
+	b.data = append(b.data, p...)
+	return n, nil
+}
+
+var rcloneCredentialValue = regexp.MustCompile(`(?i)("?(?:access[_-]?token|refresh[_-]?token|client[_-]?secret|password|passwd|api[_-]?key|token|secret)"?\s*[:=]\s*)(?:"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[^\s,;}&]+)`)
+var rcloneAuthorization = regexp.MustCompile(`(?i)(\bauthorization\s*[:=]\s*)[^\n]*`)
+var rcloneBearer = regexp.MustCompile(`(?i)(\bbearer\s+)[A-Za-z0-9._~+/=-]+`)
+
+func (b *rcloneStderrTail) diagnostic() string {
+	raw := string(b.data)
+	// If the retention boundary cuts through a line, discard that fragment: its
+	// credential field name may have fallen outside the retained suffix.
+	if b.partial {
+		_, tail, ok := strings.Cut(raw, "\n")
+		if !ok {
+			return ""
+		}
+		raw = tail
+	}
+	lines := strings.Split(raw, "\n")
+	for i, line := range lines {
+		lines[i] = rowtext.Sanitize(line)
+	}
+	text := strings.Join(lines, "\n")
+	text = rcloneCredentialValue.ReplaceAllString(text, "${1}[REDACTED]")
+	text = rcloneAuthorization.ReplaceAllString(text, "${1}[REDACTED]")
+	text = rcloneBearer.ReplaceAllString(text, "${1}[REDACTED]")
+	if len(text) > 16<<10 {
+		text = text[len(text)-(16<<10):]
+		for len(text) > 0 && !utf8.RuneStart(text[0]) {
+			text = text[1:]
+		}
+	}
+	return strings.TrimSpace(text)
+}
+func rcloneFailure(reason string, stderr *rcloneStderrTail) error {
+	if detail := stderr.diagnostic(); detail != "" {
+		return fmt.Errorf("%s: %s", reason, detail)
+	}
+	return errors.New(reason)
+}
 func (r ExecRcloneRunner) Run(ctx context.Context, args []string, limit int) ([]byte, error) {
 	if limit < 1 || limit > maxFlatInventoryBytes {
 		return nil, errors.New("invalid rclone output bound")
@@ -58,7 +127,7 @@ func (r ExecRcloneRunner) Run(ctx context.Context, args []string, limit int) ([]
 	}
 	cmd.WaitDelay = time.Second
 	out := &boundedRcloneOutput{limit: limit}
-	stderr := &boundedRcloneOutput{limit: 16 << 10}
+	stderr := &rcloneStderrTail{}
 	cmd.Stdout = out
 	cmd.Stderr = stderr
 	err := cmd.Run()
@@ -66,14 +135,14 @@ func (r ExecRcloneRunner) Run(ctx context.Context, args []string, limit int) ([]
 		return nil, ctx.Err()
 	}
 	if out.exceeded {
-		return nil, errors.New("rclone output exceeds bound")
+		return nil, rcloneFailure("rclone output exceeds bound", stderr)
 	}
 	if err != nil {
 		var exit *exec.ExitError
 		if errors.As(err, &exit) {
-			return nil, fmt.Errorf("rclone exited with status %d", exit.ExitCode())
+			return nil, rcloneFailure(fmt.Sprintf("rclone exited with status %d", exit.ExitCode()), stderr)
 		}
-		return nil, errors.New("rclone unavailable")
+		return nil, rcloneFailure("rclone unavailable", stderr)
 	}
 	return out.buffer.Bytes(), nil
 }
@@ -204,12 +273,6 @@ func (r Rclone) pinnedArgs(pin PinnedDrive, args ...string) []string {
 	}
 	return append(args, "--retries", "1", "--low-level-retries", "1")
 }
-func remoteObject(pin PinnedDrive, name string) string {
-	if strings.HasSuffix(pin.Root, ":") {
-		return pin.Root + name
-	}
-	return strings.TrimSuffix(pin.Root, "/") + "/" + name
-}
 func (r Rclone) ObserveFlatInventory(ctx context.Context, pin PinnedDrive) (map[string][]RemoteEntry, error) {
 	bounded, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
@@ -220,30 +283,44 @@ func (r Rclone) ObserveFlatInventory(ctx context.Context, pin PinnedDrive) (map[
 	}
 	return DecodeFlatInventory(raw)
 }
-func (r Rclone) Copy(ctx context.Context, pin PinnedDrive, localPath, name string) error {
-	if !flatName(name) {
-		return errors.New("invalid remote object name")
-	}
-	_, err := r.runner().Run(ctx, r.pinnedArgs(pin, "copyto", localPath, remoteObject(pin, name), "--immutable", "--ignore-existing", "--checksum", "--no-update-modtime"), 16<<10)
+
+// CopyBatch transfers only the coordinator's flat, privately staged objects.
+func (r Rclone) CopyBatch(ctx context.Context, pin PinnedDrive, folder string) error {
+	_, err := r.runner().Run(ctx, r.pinnedArgs(pin, "copy", folder, pin.Root, "--transfers", "8", "--immutable", "--ignore-existing", "--checksum", "--no-update-modtime"), 16<<10)
 	return err
 }
-func (r Rclone) DownloadSHA256(ctx context.Context, pin PinnedDrive, name string) (string, error) {
-	if !flatName(name) {
-		return "", errors.New("invalid remote object name")
-	}
-	raw, err := r.runner().Run(ctx, r.pinnedArgs(pin, "hashsum", "SHA256", remoteObject(pin, name), "--download"), 4096)
+
+// DownloadSHA256Batch hashes the exact flat names in the private raw file list.
+func (r Rclone) DownloadSHA256Batch(ctx context.Context, pin PinnedDrive, listPath string) (map[string]string, error) {
+	raw, err := r.runner().Run(ctx, r.pinnedArgs(pin, "hashsum", "SHA256", pin.Root, "--download", "--files-from-raw", listPath, "--checkers", "8"), maxFlatInventoryBytes)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	line := strings.TrimSuffix(string(raw), "\n")
-	if len(line) != 66+len(name) || line[64:66] != "  " || line[66:] != name {
-		return "", errors.New("invalid downloaded checksum result")
+	if len(raw) > maxFlatInventoryBytes {
+		return nil, errors.New("downloaded checksum output exceeds bound")
 	}
-	hash := line[:64]
-	if b, err := hex.DecodeString(hash); err != nil || len(b) != 32 {
-		return "", errors.New("invalid downloaded checksum digest")
+	result := map[string]string{}
+	text := strings.TrimSuffix(string(raw), "\n")
+	if text == "" {
+		return result, nil
 	}
-	return strings.ToLower(hash), nil
+	for line := range strings.SplitSeq(text, "\n") {
+		if len(line) < 67 || line[64:66] != "  " || !flatName(line[66:]) {
+			return nil, errors.New("invalid downloaded checksum result")
+		}
+		hash, name := line[:64], line[66:]
+		if b, err := hex.DecodeString(hash); err != nil || len(b) != 32 {
+			return nil, errors.New("invalid downloaded checksum digest")
+		}
+		if _, exists := result[name]; exists {
+			return nil, errors.New("duplicate downloaded checksum name")
+		}
+		if len(result) >= maxFlatInventoryEntries {
+			return nil, errors.New("downloaded checksum count exceeds bound")
+		}
+		result[name] = strings.ToLower(hash)
+	}
+	return result, nil
 }
 
 var _ io.Writer = (*boundedRcloneOutput)(nil)

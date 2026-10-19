@@ -39,26 +39,35 @@ func (r *adapterRunner) Run(_ context.Context, args []string, _ int) ([]byte, er
 	r.calls = append(r.calls, append([]string(nil), args...))
 	return r.output, nil
 }
-func TestRclonePinnedCopyAndDownloadedHash(t *testing.T) {
+func TestRclonePinnedBatchCopyAndDownloadedHashes(t *testing.T) {
 	runner := &adapterRunner{}
 	r := Rclone{Runner: runner}
 	pin := PinnedDrive{Remote: "pair-backup", FolderID: "folder-123", Root: "pair-backup:"}
-	if err := r.Copy(context.Background(), pin, "/tmp/private.gpg", "abc.gpg"); err != nil {
+	if err := r.CopyBatch(context.Background(), pin, "/tmp/private-stage"); err != nil {
 		t.Fatal(err)
 	}
 	args := strings.Join(runner.calls[0], " ")
-	for _, want := range []string{"copyto /tmp/private.gpg pair-backup:abc.gpg", "--immutable", "--ignore-existing", "--checksum", "--drive-root-folder-id folder-123", "--retries 1", "--low-level-retries 1"} {
+	for _, want := range []string{"copy /tmp/private-stage pair-backup:", "--transfers 8", "--immutable", "--ignore-existing", "--checksum", "--drive-root-folder-id folder-123", "--retries 1", "--low-level-retries 1"} {
 		if !strings.Contains(args, want) {
 			t.Errorf("missing %q: %s", want, args)
 		}
 	}
-	runner.output = []byte(strings.Repeat("a", 64) + "  abc.gpg\n")
-	if got, err := r.DownloadSHA256(context.Background(), pin, "abc.gpg"); err != nil || got != strings.Repeat("a", 64) {
-		t.Fatalf("hash %q %v", got, err)
+	runner.output = []byte(strings.Repeat("a", 64) + "  abc.gpg\n" + strings.Repeat("b", 64) + "  abc.json\n")
+	got, err := r.DownloadSHA256Batch(context.Background(), pin, "/tmp/private-list")
+	if err != nil || got["abc.gpg"] != strings.Repeat("a", 64) || len(got) != 2 {
+		t.Fatalf("hashes %v %v", got, err)
 	}
-	runner.output = []byte(strings.Repeat("a", 64) + "  wrong.gpg\n")
-	if _, err := r.DownloadSHA256(context.Background(), pin, "abc.gpg"); err == nil {
-		t.Fatal("accepted wrong basename")
+	args = strings.Join(runner.calls[1], " ")
+	for _, want := range []string{"hashsum SHA256 pair-backup:", "--download", "--files-from-raw /tmp/private-list", "--checkers 8"} {
+		if !strings.Contains(args, want) {
+			t.Errorf("missing %q: %s", want, args)
+		}
+	}
+	for _, raw := range []string{strings.Repeat("a", 64) + "  ../unsafe\n", strings.Repeat("a", 64) + "  abc\n" + strings.Repeat("b", 64) + "  abc\n", "malformed\n"} {
+		runner.output = []byte(raw)
+		if _, err := r.DownloadSHA256Batch(context.Background(), pin, "/tmp/private-list"); err == nil {
+			t.Fatalf("accepted malformed hash result %q", raw)
+		}
 	}
 }
 
@@ -76,8 +85,14 @@ func TestExecRcloneRunnerBoundsAndSanitizesOutput(t *testing.T) {
 		switch os.Getenv("PAIR_RCLONE_MODE") {
 		case "large":
 			fmt.Print(strings.Repeat("x", 4096))
+		case "tail":
+			fmt.Fprintln(os.Stderr, strings.Repeat("prefix", 4096))
+			fmt.Fprintln(os.Stderr, "\x1b[31mrate limit exceeded / destination missing\x1b[0m")
+			os.Exit(8)
 		case "secret":
-			fmt.Fprint(os.Stderr, "SECRET credential")
+			fmt.Fprintln(os.Stderr, `Authorization: Bearer SECRET-auth`)
+			fmt.Fprintln(os.Stderr, `{"access_token":"SECRET-access","refresh_token":"SECRET-refresh","client_secret":"SECRET-client","password":"SECRET-password"}`)
+			fmt.Fprintln(os.Stderr, "rate limit exceeded / destination missing")
 			os.Exit(7)
 		}
 		os.Exit(0)
@@ -86,11 +101,17 @@ func TestExecRcloneRunnerBoundsAndSanitizesOutput(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, mode := range []string{"large", "secret"} {
+	for _, mode := range []string{"large", "secret", "tail"} {
 		runner := ExecRcloneRunner{Binary: binary, Env: append(os.Environ(), "PAIR_RCLONE_HELPER=1", "PAIR_RCLONE_MODE="+mode)}
 		out, err := runner.Run(context.Background(), []string{"-test.run=^TestExecRcloneRunnerBoundsAndSanitizesOutput$"}, 128)
 		if err == nil || len(out) != 0 || strings.Contains(err.Error(), "SECRET") {
 			t.Fatalf("unsafe failure output %q %v", out, err)
+		}
+		if mode != "large" && !strings.Contains(err.Error(), "rate limit exceeded / destination missing") {
+			t.Fatalf("useful stderr lost: %v", err)
+		}
+		if strings.ContainsRune(err.Error(), 0x1b) {
+			t.Fatalf("terminal control retained: %q", err.Error())
 		}
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -119,39 +140,50 @@ func TestRcloneLocalBackendConformance(t *testing.T) {
 		t.Fatal(err)
 	}
 	r := Rclone{Runner: ExecRcloneRunner{Binary: binary, Env: []string{"HOME=" + root, "RCLONE_CONFIG=" + config, "PATH=" + os.Getenv("PATH")}}, LocalConformance: true}
-	// Local backend accepts absolute paths; production Drive config stays relative.
 	pin, err := r.ResolveDestination(context.Background(), DriveDestination{Remote: "fixture", Folder: folder})
 	if err != nil {
 		t.Fatal(err)
 	}
-	source := filepath.Join(root, "source.gpg")
-	if err := os.WriteFile(source, []byte("encrypted-fixture"), 0600); err != nil {
+	stage := filepath.Join(root, "staging")
+	if err := os.Mkdir(stage, 0700); err != nil {
 		t.Fatal(err)
 	}
-	if err := r.Copy(context.Background(), pin, source, "fixture.gpg"); err != nil {
+	for _, name := range []string{"fixture.gpg", "fixture.json"} {
+		if err := os.WriteFile(filepath.Join(stage, name), []byte(name), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(root, "not-selected-secret"), []byte("not ciphertext"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if err := r.Copy(context.Background(), pin, source, "fixture.gpg"); err != nil {
+	if err := r.CopyBatch(context.Background(), pin, stage); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.CopyBatch(context.Background(), pin, stage); err != nil {
 		t.Fatal(err)
 	}
 	entries, err := r.ObserveFlatInventory(context.Background(), pin)
-	if err != nil || len(entries["fixture.gpg"]) != 1 {
+	if err != nil || len(entries) != 2 || len(entries["fixture.gpg"]) != 1 {
 		t.Fatalf("inventory %v %v", entries, err)
 	}
-	digest, err := r.DownloadSHA256(context.Background(), pin, "fixture.gpg")
-	want := sha256.Sum256([]byte("encrypted-fixture"))
-	if err != nil || digest != hex.EncodeToString(want[:]) {
-		t.Fatalf("download %q %v", digest, err)
-	}
-	if err := os.WriteFile(source, []byte("conflict"), 0600); err != nil {
+	list := filepath.Join(root, "hash-list")
+	if err := os.WriteFile(list, []byte("fixture.gpg\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if err := r.Copy(context.Background(), pin, source, "fixture.gpg"); err != nil {
+	hashes, err := r.DownloadSHA256Batch(context.Background(), pin, list)
+	sum := sha256.Sum256([]byte("fixture.gpg"))
+	if err != nil || len(hashes) != 1 || hashes["fixture.gpg"] != hex.EncodeToString(sum[:]) {
+		t.Fatalf("hashes %v %v", hashes, err)
+	}
+	if err := os.WriteFile(filepath.Join(stage, "fixture.gpg"), []byte("conflict"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.CopyBatch(context.Background(), pin, stage); err != nil {
 		t.Fatal(err)
 	}
 	actual, err := os.ReadFile(filepath.Join(folder, "fixture.gpg"))
-	if err != nil || string(actual) != "encrypted-fixture" {
-		t.Fatalf("remote changed %q %v", actual, err)
+	if err != nil || string(actual) != "fixture.gpg" {
+		t.Fatalf("remote overwritten %q %v", actual, err)
 	}
 }
 
@@ -279,5 +311,28 @@ func TestExecRcloneRunnerCollectsStartedChildOnCancellation(t *testing.T) {
 	// Signal 0 observes the PID from our authenticated handshake; it sends no signal.
 	if err := syscall.Kill(pid, 0); !errors.Is(err, syscall.ESRCH) {
 		t.Fatalf("owned helper %d still exists after Run returned: %v", pid, err)
+	}
+}
+
+func TestRcloneDiagnosticRedactsCredentialsAndPreservesTail(t *testing.T) {
+	for _, raw := range []string{`password="SECRET\"still-secret"`, `access_token = SECRET-access`, `refresh_token: 'SECRET refresh'`, `client_secret=SECRET-client`, `Authorization: Bearer SECRET-auth`, `request failed Bearer SECRET-token`, `{"password":"SECRET\"still-secret"}`} {
+		tail := &rcloneStderrTail{}
+		_, _ = tail.Write([]byte(raw + "\nrate limit exceeded\n"))
+		got := tail.diagnostic()
+		if strings.Contains(got, "SECRET") || strings.Contains(got, "still-secret") || !strings.Contains(got, "rate limit exceeded") {
+			t.Fatalf("unsafe or missing diagnostic: %q", got)
+		}
+	}
+	tail := &rcloneStderrTail{}
+	_, _ = tail.Write([]byte(strings.Repeat("x", 16<<10) + "\n"))
+	_, _ = tail.Write([]byte("\x1b[31mdestination missing\x1b[0m\n"))
+	if got := tail.diagnostic(); len(got) > 16<<10 || got != "destination missing" {
+		t.Fatalf("bad retained tail %q", got)
+	}
+	tail = &rcloneStderrTail{}
+	exact := "destination missing" + strings.Repeat("x", (16<<10)-len("destination missing"))
+	_, _ = tail.Write([]byte(exact))
+	if tail.diagnostic() != exact {
+		t.Fatal("untruncated exact-bound diagnostic dropped")
 	}
 }
