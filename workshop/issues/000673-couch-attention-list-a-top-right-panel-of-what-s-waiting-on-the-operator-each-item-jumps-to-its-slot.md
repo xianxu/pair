@@ -16,7 +16,7 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "bc5b5dc7", done: "d617f893"}
+flow: {kind: full, provenance: inferred}
 ---
 
 # Couch attention list: a top-right panel of what's waiting on the operator, each item jumps to its slot
@@ -55,6 +55,8 @@ Durable plan: [workshop/plans/000673-couch-attention-list-a-top-right-panel-of-w
 ## Log
 
 ### 2026-10-18
+- 2026-10-18: closed — Durable attention list as approved by the TL. Pure reducer with state-table tests (per-kind condition diff, restore grace, cap 50); the store byte cap is enforced in the reducer with the shared encoding. Store at NAMESPACE/attention/list.json. Sources notify, prompt and question each have a real-path test, red with the hook removed. Console: top-right panel, Ctrl+Alt+a, Enter jumps, d dismisses; the 🔔N badge at the status row's right end toggles. Saves go through one coalescing tracked worker: no source waits on fsync, and shutdown waits for the last save (TestAttentionShutdownWaitsForTheLastSave is red with a bare goroutine). Attention tests race-clean count=3; full couchtty green; artifactpath inventory green; recorded suite green on 83d74e96, and merge reruns it on the head. Rounds 1 and 2 fixed BR-1 to BR-8. The only unchecked Plan item is the operator's live check at the next Couch restart (no-plan-check).; review verdict: SHIP
+- 2026-10-18: flow upgraded quick → full — 925 added lines in code files (limit 100); an earlier round of this close already ran the full review
 - 2026-10-18 checkpoint (TL priority switch to #674). Built and committed:
   - the reducer and store;
   - the three sources: the notify hook, the publishBlocked prompt set, and the wait-watcher question set with its activity-bound end;
