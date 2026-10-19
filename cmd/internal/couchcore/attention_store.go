@@ -13,8 +13,8 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// AttentionStoreLimit bounds the saved list: AttentionCap items with bounded
-// text fit well inside it.
+// AttentionStoreLimit bounds the saved list. The reducer keeps the list
+// within it (AttentionList.capped), so Save refusing on size is a backstop.
 const AttentionStoreLimit = 256 << 10
 
 const attentionStoreVersion = 1
@@ -69,9 +69,22 @@ func (s AttentionStore) Load() ([]AttentionItem, error) {
 	return saved.Items, nil
 }
 
+// encodeAttention is the one encoding of the saved list, shared by Save and
+// the reducer's byte bound. HTML escaping is off: it would grow every < > &
+// sixfold for nothing.
+func encodeAttention(items []AttentionItem) ([]byte, error) {
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
+	enc.SetEscapeHTML(false)
+	if err := enc.Encode(attentionFile{Version: attentionStoreVersion, Items: items}); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
 // Save replaces the saved list.
 func (s AttentionStore) Save(items []AttentionItem) error {
-	raw, err := json.Marshal(attentionFile{Version: attentionStoreVersion, Items: items})
+	raw, err := encodeAttention(items)
 	if err != nil {
 		return err
 	}

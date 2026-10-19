@@ -225,9 +225,12 @@ func (l AttentionList) Dismiss(id string) AttentionList {
 	return out
 }
 
-// capped drops the oldest notify items past AttentionCap.
+// capped drops the oldest notify items past AttentionCap, and then while the
+// list would not fit the store's byte cap: the writer is bounded by the same
+// encoding the store reads back, so a long run of large notifications never
+// leaves the list unsaveable.
 func (l AttentionList) capped() AttentionList {
-	for len(l.items) > AttentionCap {
+	for len(l.items) > AttentionCap || !l.fits() {
 		oldest := -1
 		for i, item := range l.items {
 			if item.Kind == AttentionNotify && (oldest < 0 || item.Since.Before(l.items[oldest].Since)) {
@@ -240,4 +243,15 @@ func (l AttentionList) capped() AttentionList {
 		l.items = append(l.items[:oldest], l.items[oldest+1:]...)
 	}
 	return l
+}
+
+// fits reports whether everything the list may save (shown items and every
+// restored item) encodes within AttentionStoreLimit.
+func (l AttentionList) fits() bool {
+	all := append([]AttentionItem(nil), l.items...)
+	for _, r := range l.restored {
+		all = append(all, r.item)
+	}
+	raw, err := encodeAttention(all)
+	return err == nil && len(raw) <= AttentionStoreLimit
 }

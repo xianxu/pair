@@ -2,6 +2,8 @@ package couchcore
 
 import (
 	"fmt"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -148,5 +150,36 @@ func TestAttentionCap(t *testing.T) {
 		if id == "n00" || id == "n05" {
 			t.Fatalf("kept an oldest notification %s", id)
 		}
+	}
+}
+
+// #673 BR-2: the writer is bounded by the store's own reader cap. A run of
+// maximum-size notifications (4096-byte bodies of characters JSON escapes)
+// drops the oldest until the list encodes within AttentionStoreLimit, so
+// every Save still succeeds and the newest notification is kept.
+func TestAttentionListStaysWithinTheStoreLimit(t *testing.T) {
+	body := strings.Repeat("<\x01", 2048)
+	var l AttentionList
+	for i := 0; i < AttentionCap; i++ {
+		item := notifyItem(fmt.Sprintf("n%02d", i), attentionT0.Add(time.Duration(i)*time.Second))
+		item.Body = body
+		l = l.Notify(item)
+		raw, err := encodeAttention(l.Saved(attentionT0))
+		if err != nil || len(raw) > AttentionStoreLimit {
+			t.Fatalf("after %d notifications the list encodes to %d bytes (limit %d): %v", i+1, len(raw), AttentionStoreLimit, err)
+		}
+	}
+	if l.Len() == AttentionCap {
+		t.Fatalf("no notification was dropped for size")
+	}
+	if ids := attentionIDs(l); ids[0] != fmt.Sprintf("n%02d", AttentionCap-1) {
+		t.Fatalf("the newest notification was dropped: %v", ids)
+	}
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := (AttentionStore{Dir: dir}).Save(l.Saved(attentionT0)); err != nil {
+		t.Fatalf("save at the size bound: %v", err)
 	}
 }

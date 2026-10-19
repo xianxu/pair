@@ -149,3 +149,48 @@ func TestHubNotifyNamesExtraHubAndBoundsCustomTitle(t *testing.T) {
 		t.Fatalf("response=%+v title=%q", got, title)
 	}
 }
+
+// #673 BR-3: an accepted hub notification is one notify item on the attention
+// list, naming the hub's thread; a refused notification (a worker caller) is
+// none.
+func TestNotifyRaisesOneAttentionItem(t *testing.T) {
+	for _, fault := range []string{"none", "worker"} {
+		t.Run(fault, func(t *testing.T) {
+			world := newMessageWorld()
+			world.hub = "/repo0"
+			r := &serviceRig{t: t, world: world, slotGit: map[string]couchcore.SlotGitStatus{}}
+			r.init()
+			hub, worker := r.connect(0), r.connect(1)
+			host := hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 80})
+			console := couchtty.New(host, bytes.NewReader(nil))
+			t.Cleanup(func() { console.Stop(); console.Run() })
+			r.s.SetDesktopNotify(console.NotifyDesktop)
+			var facts []couchcore.AttentionFact
+			r.s.SetAttention(func(f couchcore.AttentionFact) { facts = append(facts, f) })
+			caller := hub
+			if fault == "worker" {
+				caller = worker
+			}
+			req := callerRequest(caller, "notify")
+			req.Title, req.Body = "Couch", "review ready"
+			var got couchmessage.Response
+			if err := couchmessage.Call(context.Background(), r.brokerSock, req, &got); err != nil {
+				t.Fatal(err)
+			}
+			if fault == "worker" {
+				if len(facts) != 0 {
+					t.Fatalf("a refused notification raised attention: %+v", facts)
+				}
+				return
+			}
+			if got.Code != "ok" || len(facts) != 1 {
+				t.Fatalf("response %+v, facts %+v", got, facts)
+			}
+			n := facts[0]
+			if n.Kind != couchcore.AttentionNotify || n.Notify.Thread != bindingThread(hub) || n.Notify.Label == "" ||
+				n.Notify.Title != "Couch" || n.Notify.Body != "review ready" || !strings.HasPrefix(n.Notify.ID, "notify-") {
+				t.Fatalf("notify fact %+v", n)
+			}
+		})
+	}
+}

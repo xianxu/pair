@@ -27,16 +27,18 @@ type AttentionStore interface {
 // attentionState is a leaf: its lock is taken under c.mu (the status model)
 // and on the presenter goroutine (the layer), and never takes another.
 type attentionState struct {
-	mu   sync.Mutex
-	list couchcore.AttentionList
-	// save serializes saves so a newer snapshot never lands before an older.
-	save  sync.Mutex
+	mu    sync.Mutex
+	list  couchcore.AttentionList
 	store AttentionStore
-	open  bool
-	sel   int            // index into the open panel's items
-	box   NotesMenu      // the open panel as last laid out
-	ids   []string       // the panel's item IDs; menu item n is ids[n-1]
-	shown []attentionRow // what the panel lists, newest first
+	// saving: a saver goroutine runs; dirty: the list changed since it took
+	// its snapshot. One runner saves the newest snapshot, so saves land in
+	// order and no caller waits on the disk.
+	saving, dirty bool
+	open          bool
+	sel           int            // index into the open panel's items
+	box           NotesMenu      // the open panel as last laid out
+	ids           []string       // the panel's item IDs; menu item n is ids[n-1]
+	shown         []attentionRow // what the panel lists, newest first
 }
 
 type attentionRow struct {
@@ -68,7 +70,7 @@ func (c *Console) SetAttentionStore(store AttentionStore) {
 }
 
 // ObserveAttention folds one source fact into the list. It never blocks on
-// the console: it saves and repaints from the caller's goroutine.
+// the console or the disk: the save runs in the background saver.
 func (c *Console) ObserveAttention(f couchcore.AttentionFact) {
 	cols, rows := c.attentionScreen()
 	c.attn.mu.Lock()
@@ -79,17 +81,35 @@ func (c *Console) ObserveAttention(f couchcore.AttentionFact) {
 	c.repaint()
 }
 
+// saveAttention marks the list changed and starts the saver if none runs.
 func (c *Console) saveAttention() {
-	c.attn.save.Lock()
-	defer c.attn.save.Unlock()
 	c.attn.mu.Lock()
-	store, saved := c.attn.store, c.attn.list.Saved(c.now())
-	c.attn.mu.Unlock()
-	if store == nil {
+	defer c.attn.mu.Unlock()
+	if c.attn.store == nil {
 		return
 	}
-	if err := store.Save(saved); err != nil {
-		c.setNotice("Attention list not saved: " + err.Error())
+	c.attn.dirty = true
+	if !c.attn.saving {
+		c.attn.saving = true
+		go c.runAttentionSaves()
+	}
+}
+
+// runAttentionSaves saves the newest snapshot until no change is pending.
+func (c *Console) runAttentionSaves() {
+	for {
+		c.attn.mu.Lock()
+		if !c.attn.dirty {
+			c.attn.saving = false
+			c.attn.mu.Unlock()
+			return
+		}
+		c.attn.dirty = false
+		store, saved := c.attn.store, c.attn.list.Saved(c.now())
+		c.attn.mu.Unlock()
+		if err := store.Save(saved); err != nil {
+			c.setNotice("Attention list not saved: " + err.Error())
+		}
 	}
 }
 
@@ -290,10 +310,16 @@ func (c *Console) routeAttentionPanel(raw []byte) bool {
 		return false
 	}
 	if !box.Contains(x, y) {
-		if !hit.Release && hit.Button&32 == 0 {
-			c.closeAttention()
+		if hit.Release || hit.Button&32 != 0 {
+			return false
 		}
-		return false
+		c.closeAttention()
+		// A click on 🔔N toggles: it closed the panel, so it must not go on
+		// to the badge's handler and open it again.
+		c.mu.Lock()
+		onBadge := hit.Y == int(c.size.Rows) && c.statusAttention.Contains(x)
+		c.mu.Unlock()
+		return onBadge && mouseinput.BaseButton(hit.Button) == 0
 	}
 	if hit.Release {
 		return true

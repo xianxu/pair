@@ -5,6 +5,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/textwidth"
@@ -63,9 +64,10 @@ func TestAttentionNotifyAppearsAndEnterJumpsToTheHub(t *testing.T) {
 
 	f.con.ObserveAttention(hubNotify(hub, "review the plan"))
 	waitFor(t, "the badge", func() bool { return strings.HasSuffix(strings.TrimRight(f.lastRow(), " "), AttentionGlyph+"1") })
-	if saved := store.saved(); len(saved) != 1 || saved[0].Body != "review the plan" {
-		t.Fatalf("the notification was not saved: %+v", saved)
-	}
+	waitFor(t, "the notification saved", func() bool {
+		saved := store.saved()
+		return len(saved) == 1 && saved[0].Body == "review the plan"
+	})
 
 	_, _ = f.stdin.Write([]byte(ctrlAltA))
 	waitFor(t, "the panel", func() bool { return f.attentionOpen() && strings.Contains(f.screenText(), "Waiting on you") })
@@ -76,9 +78,10 @@ func TestAttentionNotifyAppearsAndEnterJumpsToTheHub(t *testing.T) {
 
 	_, _ = f.stdin.Write([]byte("\r"))
 	waitFor(t, "the jump to the hub", func() bool { return activeOf(f) == "c3" })
-	if f.attentionOpen() || f.attentionLen() != 0 || len(store.saved()) != 0 {
-		t.Fatalf("a picked notification stays: open=%v len=%d saved=%+v", f.attentionOpen(), f.attentionLen(), store.saved())
+	if f.attentionOpen() || f.attentionLen() != 0 {
+		t.Fatalf("a picked notification stays: open=%v len=%d", f.attentionOpen(), f.attentionLen())
 	}
+	waitFor(t, "the pick saved", func() bool { return len(store.saved()) == 0 })
 	f.con.mu.Lock()
 	tracker := f.con.tracker
 	f.con.mu.Unlock()
@@ -125,9 +128,7 @@ func TestAttentionSurvivesARestart(t *testing.T) {
 	first.con.ObserveAttention(hubNotify(threads[2], "still here"))
 	first.con.ObserveAttention(couchcore.AttentionFact{Kind: couchcore.AttentionPrompt,
 		Live: map[couchcore.ThreadAddress]couchcore.AttentionCondition{threads[1]: {Label: "pair:2", Title: "waiting on a prompt"}}})
-	if len(store.saved()) != 2 {
-		t.Fatalf("saved %+v", store.saved())
-	}
+	waitFor(t, "both items saved", func() bool { return len(store.saved()) == 2 })
 
 	second, again := pagingFixture(t)
 	second.con.SetAttentionStore(store)
@@ -152,6 +153,21 @@ func TestAttentionMouseAndDismiss(t *testing.T) {
 	f.con.mu.Unlock()
 	f.clickStatus(span.Start + 1)
 	waitFor(t, "the panel from a click", f.attentionOpen)
+	// A second click on the badge closes it, and the click does not go on to
+	// reopen it (BR-5).
+	// 	// The decoder hands a mouse event on once later input arrives; a motion
+	// report at the top-left corner flushes each click.
+	flush := func() { _, _ = f.stdin.Write([]byte("\x1b[<35;1;1M")) }
+	f.clickStatus(span.Start + 1)
+	flush()
+	waitFor(t, "the badge click closes", func() bool { return !f.attentionOpen() })
+	time.Sleep(50 * time.Millisecond)
+	if f.attentionOpen() {
+		t.Fatal("a badge click on the open panel reopened it")
+	}
+	f.clickStatus(span.Start + 1)
+	flush()
+	waitFor(t, "the panel from a third click", f.attentionOpen)
 
 	_, _ = f.stdin.Write([]byte("d")) // the newest, the notification
 	waitFor(t, "the dismissal", func() bool { return f.attentionLen() == 1 })
@@ -216,5 +232,115 @@ func TestAttentionBadgeRendersAtTheStatusRowRightEnd(t *testing.T) {
 	}
 	if narrow := RenderStatusRow(3, StatusModel{Attention: 12}); strings.Contains(narrow.Body, AttentionGlyph) {
 		t.Fatalf("a row too narrow for the badge drew it: %q", narrow.Body)
+	}
+}
+
+// #673 BR-4: row text is time, slot, then what waits: a notification shows
+// its title and body (the body alone with no title), a visited item says so,
+// and each kind has its own chip color; the order is the list's.
+func TestAttentionRowsFormat(t *testing.T) {
+	at := time.Date(2026, 10, 18, 9, 5, 0, 0, time.Local)
+	items := []couchcore.AttentionItem{
+		{ID: "n1", Kind: couchcore.AttentionNotify, Label: "pair:0", Title: "Couch", Body: "review ready", Since: at},
+		{ID: "n2", Kind: couchcore.AttentionNotify, Label: "pair:0", Body: "body only", Since: at, Visited: true},
+		{ID: "p", Kind: couchcore.AttentionPrompt, Label: "pair:2", Title: "waiting on a prompt", Since: at},
+		{ID: "q", Kind: couchcore.AttentionQuestion, Label: "pair:3", Title: "Should I merge?", Since: at},
+	}
+	rows := attentionRows(items)
+	want := []struct {
+		text string
+		bg   any
+	}{
+		{"09:05  pair:0  Couch: review ready", attentionNotifyBg},
+		{"09:05  pair:0 (visited)  body only", attentionNotifyBg},
+		{"09:05  pair:2  waiting on a prompt", attentionPromptBg},
+		{"09:05  pair:3  Should I merge?", attentionQuestionBg},
+	}
+	if len(rows) != len(want) {
+		t.Fatalf("rows %+v", rows)
+	}
+	for i, w := range want {
+		if rows[i].item.ID != items[i].ID || rows[i].text != w.text || rows[i].bg != w.bg {
+			t.Fatalf("row %d = %q %v, want %q %v", i, rows[i].text, rows[i].bg, w.text, w.bg)
+		}
+	}
+}
+
+// #673 BR-4: the panel's box is anchored top-right at any size: flush with
+// the right edge and the top row, items inside it, an overflow line when the
+// rows run out, and nothing at all on a screen too small to hold one item.
+func TestAttentionBoxTopRightGeometry(t *testing.T) {
+	var items []menuItem
+	for i := 1; i <= 9; i++ {
+		items = append(items, menuItem{ID: i, Text: fmt.Sprintf("item %d", i), Chip: true})
+	}
+	for _, size := range [][2]int{{80, 24}, {41, 7}, {23, 9}, {200, 50}} {
+		cols, rows := size[0], size[1]
+		m := renderMenuAt("Attention", items, cols, rows, true)
+		if m.H == 0 {
+			t.Fatalf("%dx%d: no box", cols, rows)
+		}
+		if m.Y != 0 || m.X+m.W != cols || m.W != min(notesMenuMaxWidth, cols-2) || m.H > rows-3 {
+			t.Fatalf("%dx%d: box %+v is not top-right within the screen", cols, rows, m)
+		}
+		for _, it := range m.items {
+			if it.Top < m.Y+1 || it.Bottom > m.Y+m.H {
+				t.Fatalf("%dx%d: item %+v outside box %+v", cols, rows, it, m)
+			}
+		}
+		if len(m.items) < len(items) && !strings.Contains(m.lines[len(m.lines)-1].text, "more") {
+			t.Fatalf("%dx%d: %d of %d items with no overflow line", cols, rows, len(m.items), len(items))
+		}
+		if bottom := renderMenuAt("Attention", items, cols, rows, false); bottom.Y+bottom.H != rows-1 {
+			t.Fatalf("%dx%d: the bottom anchor moved: %+v", cols, rows, bottom)
+		}
+	}
+	for _, size := range [][2]int{{6, 24}, {80, 4}} {
+		if m := renderMenuAt("Attention", items, size[0], size[1], true); m.H != 0 || len(m.items) != 0 {
+			t.Fatalf("%dx%d: drew a box on a screen too small: %+v", size[0], size[1], m)
+		}
+	}
+}
+
+// gatedAttentionStore holds every Save until released, as a slow disk would.
+type gatedAttentionStore struct {
+	memoryAttentionStore
+	gate chan struct{}
+}
+
+func (s *gatedAttentionStore) Save(items []couchcore.AttentionItem) error {
+	<-s.gate
+	return s.memoryAttentionStore.Save(items)
+}
+
+// #673 BR-6: a source never waits on the disk. With the store stalled, facts
+// still fold in at once; released, the saver lands the newest list, having
+// coalesced the facts that arrived while it was stalled.
+func TestAttentionObserveNeverWaitsOnTheStore(t *testing.T) {
+	f, threads := pagingFixture(t)
+	store := &gatedAttentionStore{gate: make(chan struct{})}
+	f.con.SetAttentionStore(store)
+	done := make(chan struct{})
+	go func() {
+		for i := 0; i < 5; i++ {
+			f.con.ObserveAttention(hubNotify(threads[2], fmt.Sprintf("n%d", i)))
+		}
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("ObserveAttention blocked on a stalled store")
+	}
+	if f.attentionLen() != 5 {
+		t.Fatalf("facts did not fold in while the store stalled: %d", f.attentionLen())
+	}
+	close(store.gate)
+	waitFor(t, "the newest list saved", func() bool { return len(store.saved()) == 5 })
+	store.mu.Lock()
+	saves := store.saves
+	store.mu.Unlock()
+	if saves > 2 {
+		t.Fatalf("the saver did not coalesce: %d saves for 5 facts", saves)
 	}
 }
