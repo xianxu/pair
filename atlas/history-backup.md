@@ -247,6 +247,22 @@ does nothing.
   alone is not a verified backup. These are runtime reports, with no catalog
   or manifest format changes. `continuous.last` still means pass completion,
   not that every database has a fresh bundle.
+- **Drive file count (#705):** the human and version-1 JSON reports reuse the
+  pass's existing listings, counting every non-directory entry, including
+  duplicate names and unrelated files. A successful final listing replaces the
+  explicitly labeled before count; later failure retains the before evidence.
+  Missing, skipped or failed initial listings remain unknown, never zero; no
+  extra remote query fills the gap. `PAIR_ARCHIVE_DRIVE_MAX_FILES` is a positive
+  integer (default `20000`); invalid settings fail before work. A count strictly
+  above the threshold asks the hub to arrange year subfolders on Drive.
+  Couch uses the same notification path and daily gate as database warnings,
+  keyed by the canonical configured destination root, not its physical folder
+  ID. Counts, threshold changes and uncertain output do not rearm that day's
+  attempt; restart allows one fresh warning. The optional JSON observation
+  carries destination, folder ID, before/after phase and count, plus the envelope's
+  `max_drive_files`; legacy reports remain readable with an unknown count.
+  This reports capacity only and never moves files. Future month-folder
+  aggregation can retain the configured-root contract.
 - **Freshness warnings (#700):** `PAIR_ARCHIVE_DATABASE_MAX_AGE` is a positive
   Go duration (default `48h`); malformed or nonpositive settings fail before
   work. Only failed/deferred checks warn when the catalog's last verified
@@ -256,8 +272,8 @@ does nothing.
   and asks the hub to repair its backup.
   Couch reserves one attempt per exact source/kind/path per UTC day, in memory
   for its lifetime. Restart permits a fresh warning; a failed or uncertain
-  delivery consumes the reservation, without retry. Reservations are bounded
-  to 10,000 sources/day with one overflow warning. Warnings use status, desktop
+  delivery consumes the reservation, without retry. Database and Drive reservations share a bound
+  of 10,000 keys/day with one overflow warning. Warnings use status, desktop
   output and attention on the connected primary hub's exact thread, never
   inferred source ownership or broadcast. Without that hub, status and desktop
   output explicitly say it is unavailable; no attention item is raised. The

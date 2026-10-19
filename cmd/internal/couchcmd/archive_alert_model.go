@@ -6,11 +6,12 @@ import (
 	"github.com/xianxu/pair/cmd/internal/historyarchive"
 )
 
-// archiveWarningKey identifies one exact warning across source, kind and path.
+// archiveWarningKey identifies a database by source/kind/path or a Drive root.
 // pair:m5-concept pure
 type archiveWarningKey struct {
-	Source     historyarchive.SourceIdentity
-	Kind, Path string
+	Source      historyarchive.SourceIdentity
+	Kind, Path  string
+	Destination string // canonical configured root, independent of physical folder ID
 }
 
 // archiveWarningGate reserves daily warnings for a single owner. Its zero value
