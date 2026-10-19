@@ -66,10 +66,7 @@ func registrationTerminalFixture() error {
 		if err != nil {
 			return err
 		}
-		if err = (osfs.FS{}).WriteAtomic(os.Getenv("PAIR_AGENT_READY_PATH"), string(raw)); err != nil {
-			return err
-		}
-		if err = (osfs.FS{}).WriteAtomic(os.Getenv("PAIR_TEST_ZELLIJ_READY"), "ready"); err != nil {
+		if err = publishRegistrationFixtureReadiness(osfs.FS{}, os.Getenv("PAIR_TEST_ZELLIJ_READY"), os.Getenv("PAIR_AGENT_READY_PATH"), string(raw)); err != nil {
 			return err
 		}
 		if err := awaitRegistrationFixtureRelease(); err != nil {
@@ -173,6 +170,15 @@ func registrationTerminalFixture() error {
 		}
 	}
 	return nil
+}
+
+func publishRegistrationFixtureReadiness(fs interface{ WriteAtomic(string, string) error }, listingPath, agentPath, record string) error {
+	// Agent readiness permits production admission to query the listing
+	// immediately. Publish its prerequisite before announcing readiness (#698).
+	if err := fs.WriteAtomic(listingPath, "ready"); err != nil {
+		return err
+	}
+	return fs.WriteAtomic(agentPath, record)
 }
 
 // Nested fixture processes run outside testing.M and may have a disposable

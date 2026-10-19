@@ -42,7 +42,7 @@ The permanent guard must observe the real fixture listing between atomic publica
 
 ## Plan
 
-- [ ] Add the controlled publication-boundary regression, prove red with the existing order, then publish listing state before final agent readiness (test-only).
+- [x] Add the controlled publication-boundary regression, prove red with the existing order, then publish listing state before final agent readiness (test-only).
 - [ ] Pass targeted and required recorded suites, close on SHIP, land and verify removal from the active flake registry.
 
 Durable plan: [publication order](../plans/000698-flake-testlisteddetachedterminalattacheswithoutnewserver-plan.md).
@@ -55,3 +55,8 @@ Durable plan: [publication order](../plans/000698-flake-testlisteddetachedtermin
 - Source trace: pair-wrap publishes PAIR_AGENT_READY_PATH, then PAIR_TEST_ZELLIJ_READY; the latter alone controls fixture list-sessions. admitTerminalAfterReady permits its listing query after the former. Holding that gap until the query observes it reproduces the refusal without any timeout.
 - Investigation overlay (tracked source unchanged): `/var/folders/07/b9wcwwld4_v2w9r3hk525bm80000gn/T/pair698-ordering.fkxvjqsj/overlay.json`. The listing query writes a receipt only after observing agent-ready while listing-ready is absent, which releases the wrapper. Existing target failed in 0.37s with the original not-listed-live error; receipt states `listing observed agent-ready before listing-ready`. Unmodified targeted control passed in 0.77s. This establishes the bad interleaving rather than estimating its frequency.
 - ARCH-ORDER: final readiness must follow every prerequisite its consumer immediately queries. ARCH-DRY: use the existing fixture serializer and atomic filesystem seam. Proposed executable guard is domain-specific publication semantics, not an AST-detectable Go misuse; request hub confirmation instead of adding a brittle fixture-name lint to the upstream catalog.
+
+- Hub approved plan (receipt d292f29f-9f91-45fd-8a81-7a32d833047d, submitted), including executable semantic enforcement instead of lint and private test-only conformance. change-code admitted the quick flow.
+- Added one test-only ordered publisher and a real-filesystem observer that invokes the actual fixture's short and full listing commands after the first atomic write. Original order RED: 0.82s, premature agent readiness plus explicit no-active-sessions replies; second-write error also exposed readiness announced before successful prerequisite publication. Listing-first order GREEN: 0.44s. No timeout or sleep decides these cases.
+- Reverse-order overlay control: `/var/folders/07/b9wcwwld4_v2w9r3hk525bm80000gn/T/pair698-reverse.7hdfu5bf/overlay.json`; RED in 0.32s with the same semantic assertions. This is an intentional mutation, not a flaky test failure.
+- Final targeted suite: publication, empty/listing-form replies, nested environment isolation and unchanged detached reuse all passed (couchcore package 1.976s; original detached test 0.74s). Full artifactpath/testpair/termcmd packages passed in 12.840s/13.726s/5.118s; diff check clean. Production files and all terminal reuse assertions remain unchanged.

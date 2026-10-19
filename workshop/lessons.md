@@ -7,6 +7,8 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- A fixture's readiness publication must follow every prerequisite the production consumer queries immediately. Observe the real reply synchronously between atomic writes, assert final readiness is absent there, and inject each write failure; a later parent wait cannot close a gap the concurrent admission observer already entered. (#698)
+
 - A native signal fixture must control delivery as well as readiness. Python can swallow KeyboardInterrupt in an ignored-exception callback after a ready banner; mask through that phase, prove the signal is pending, and release it at top level. Check an independent expected exit as well as baseline parity, with a callback self-signal regression and no competing parent signal. Preserve wait-error text explicitly: formatting an unexported struct field can hide it behind a pointer. (#703)
 
 - A display decorator must preserve its input collection's empty-versus-unavailable contract. Cloning by append to nil collapses an owned empty slice; run existing inventory tests as well as the new diagnostic-name subset when adding row fields. (#683 suite qualification)
