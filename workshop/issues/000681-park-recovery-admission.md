@@ -32,15 +32,15 @@ Allocate and publish the operation receipt before building the inventory. Queue 
 
 ## Done when
 
-- [ ] A stateful production-transport regression delays inventory beyond two seconds: CLI receives a receipt promptly, queued preparation completes and exactly one confirmed recovery runs.
-- [ ] Duplicate IDs return the same receipt without a second effect; changed/replaced park identity refuses safely before mutation.
-- [ ] Preparation error and cancellation remain inspectable outcomes, and no asynchronous effect survives a settled cancellation.
+- [x] A stateful production-transport regression delays inventory beyond two seconds: CLI receives a receipt promptly, queued preparation completes and exactly one confirmed recovery runs.
+- [x] Duplicate IDs return the same receipt without a second effect; changed/replaced park identity refuses safely before mutation.
+- [x] Preparation error and cancellation remain inspectable outcomes, and no asynchronous effect survives a settled cancellation.
 - [ ] Required suite and close review pass; fix lands through the normal gates.
 
 ## Plan
 
-- [ ] Bind exact address/nonce from known cached console rows, then admit receipt before full inventory; refuse unavailable/ambiguous cache with refresh advice.
-- [ ] Keep queued revalidation, dispatch authorization and lifecycle nonce checks; prove transport beyond2s, duplicates, replacement, cancellation and bounded growth.
+- [x] Bind exact address/nonce from known cached console rows, then admit receipt before full inventory; refuse unavailable/ambiguous cache with refresh advice.
+- [x] Keep queued revalidation, dispatch authorization and lifecycle nonce checks; prove transport beyond2s, duplicates, replacement, cancellation and bounded growth.
 - [ ] Required suite, close review, hub-coordinated conformance and normal landing.
 
 Durable design: workshop/plans/000681-park-recovery-admission-plan.md. Pending hub approval; no code changed.
@@ -66,3 +66,5 @@ Code: couchcmd/slot_operations.go handle calls preparePark before admit; console
 An ad-hoc cached-binding review found retained duplicates still depended on fresh alias lookup. Added a red regression that produced unknown-slot on a now-unavailable catalog; moved retained receipt/conflict lookup before IO in shared admission, rechecking under lock afterward. Reviewer confirmed resolution with no additional findings. This implements the existing duplicate-first plan requirement, not a scope change. Added the rule to workshop/lessons.md.
 
 Hub-approved next items remain #683 part2 (durable lifecycle error messages, keep root cause open) AFTER #681 lands, then #684 (Fresh fallback must prove old actor/session gone before archive). Leftover Zellij session1-188 is operator-owned; no action taken against it. Live #681 fixture may use pair:8; request hub scheduling before staging :0.
+
+2026-10-18 — Hub revised the follow-up queue in verified delivery c3ea26f5-c568-4ea7-9a49-893a8be886c4: after #681 lands, hand off a short #683/#684 evidence summary for a separately approved lifecycle project; do not implement either next. In verified delivery cedf3674-7d87-4875-b420-7475d250532f the hub approved landing on private production-service proof, required suite and SHIP, with no :0 staging. Pair:8 live acceptance remains OWED after the next operator Couch restart; the hub tracks it. Staging alone would not replace the running server. Own-slot make build passed; bin/couch reports clean vcs.revision 695142390005e031b523cac545d0eefb04a8982b and trimpath=true. Recorded suite attempt de830da7014ac37467ee7cf0626f8953 is queued on that pushed source, no result yet.
