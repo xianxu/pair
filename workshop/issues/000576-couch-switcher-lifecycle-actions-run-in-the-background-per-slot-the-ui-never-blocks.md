@@ -50,7 +50,7 @@ background, so a single slot's action needn't block the UI.
 
 - [x] Implement the per-target reducer, row progress/results and navigation intent in [the durable plan](../plans/000576-slot-jobs-plan.md), with failing ordering regressions first.
 - [x] Integrate the bounded Console execution/adoption path after #651 lands; preserve synchronous CLI callbacks and #574's final-outcome observer seam.
-- [ ] Verify all action routes, targeted/race tests and recorded full suite; obtain hub's acceptance decision, close and land on SHIP.
+- [x] Verify all action routes, targeted/race tests and recorded full suite; obtain hub's acceptance decision, close and land on SHIP.
 
 ## Log
 
@@ -81,6 +81,10 @@ PR441 server checks passed on b6534d715adae5e1aadcd186416fdddd79f1920c. Recorded
 ### 2026-10-18 — first completed recorded attempt and lint correction
 
 Recorded attempt337e96abb8056df574bdefeb29d257a1 on fc757733261bc1182c9d292ec8c089cf685762c7 completed the whole configured suite in12m26s. The only failure was TestNoDeclarationCarriesTwoStackedGodocs (termcmd), at console.go's arrival comment and menu_operations.go's menuOperationRows comment: newly inserted declarations stole their preceding documentation. All other packages passed, including couchcore294.939s, couchtty56.949s and couchcmd58.041s. Retained failure: /Users/xianxu/workspace/pair/.git/sdlc/test-stats/failed/337e96abb8056df574bdefeb29d257a1.log, log prefix03291d65e69f. This is an owned lint defect, not an unrelated flake. Moved both existing comments back to their actual declarations; behavior is unchanged. Complete termcmd and artifactpath guard packages now pass2.109s/6.156s (/tmp/pair576-static-guards.log). A new recorded suite is required on the corrected head; no pass is claimed for the failed attempt.
+
+### 2026-10-18 — full recorded verification passed; close ready
+
+Attempt9edee006603c6a4f05d38fb526062d7d on db6b13712f659e7212484d204b21a7520188b94d passed the entire declared suite (exit0,15m34s; queue485s; log prefix927de451f7a9). Log: /Users/xianxu/workspace/pair/.git/sdlc/local-checks/db6b13712f659e7212484d204b21a7520188b94d/suite.log. All shell/editor checks and Go packages passed, including couchcore528.733s, couchtty54.803s, termcmd10.517s and wrapcmd80.805s. Server conformance/local-gates/merge checks also pass on that head. The earlier failed attempt remains recorded as an owned comment-placement defect, not a flaky pass. The hub's quiet hold allowed this already-running suite to finish and was explicitly lifted before further work; no additional heavy run started during the hold. Plan checkmarks indicate implementation/verification readiness; mandatory close review and gated landing are still pending, not claimed. No live acceptance claimed: the hub approved deterministic headless proof and the real check at its next restart (no staging).
 
 ## Revisions
 

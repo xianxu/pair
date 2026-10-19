@@ -139,7 +139,7 @@ Files: modify `console.go`, `console_remote.go`, `operation_queue.go`, `terminal
 - [x] Test same-row duplicate before execution, during effect and during adoption; independent B progress; queue overload; shutdown with work held; duplicate/stale result and cleanup ownership.
 - [x] Test choosing busy A then remaining there lands after completion; navigating away before completion/adoption never steals focus or restores an old frame.
 - [x] Test exit/result in both orders, startup reattach and continuation unaffected, and remote CLI callback waits through adoption while other UI input proceeds.
-- [ ] Run `go test ./cmd/internal/couchtty ./cmd/internal/couchcmd ./cmd/internal/couchcore -run 'Test.*(Menu|OperationQueue|Attach|Reattach|Continuation|Remote|RecoverPark|Lifecycle)' -count=1`; expected pass. Commit.
+- [x] Run `go test ./cmd/internal/couchtty ./cmd/internal/couchcmd ./cmd/internal/couchcore -run 'Test.*(Menu|OperationQueue|Attach|Reattach|Continuation|Remote|RecoverPark|Lifecycle)' -count=1`; expected pass. Commit.
 
 ### 3. Integration, documentation and acceptance
 
@@ -147,8 +147,8 @@ Files: `atlas/couch.md`, README's switcher/lifecycle guidance if behavior is des
 
 - [x] Merge main after #651 lands before production work; recheck exact recover-park tests and preserve #574 observer ordering whenever it arrives. Do not build from peer branches.
 - [x] Enumerate root Enter/mouse, confirmations, hotkeys, recovery, start/add-slot, switch-agent and leave; prove each uses the shared admission/ownership rules. Check no stale global-InFlight comments or consumers remain.
-- [ ] Run targeted packages normally and focused race tests for new ordering cases. Update atlas and operator guidance with progress, busy refusal and no focus stealing.
-- [ ] Push head; run recorded full suite via `sdlc local-check run --name suite` (the configured suite is make -k); follow the hub's flake rule.
+- [x] Run targeted packages normally and focused race tests for new ordering cases. Update atlas and operator guidance with progress, busy refusal and no focus stealing.
+- [x] Push head; run recorded full suite via `sdlc local-check run --name suite` (the configured suite is make -k); follow the hub's flake rule.
 - [ ] Proposed live acceptance, only when hub schedules it: start a slot relaunch, switch another slot and hub immediately, return to see progress/result; attempt duplicate action; observe a controlled refusal without losing UI. No pair:0 staging without hub instruction. Headless stateful fixtures remain the deterministic proof of held lifecycle/adoption orderings.
 - [ ] Record evidence, close through mandatory fresh review, land on SHIP with `sdlc merge --yes`, report real merge/PR to hub and stop.
 
@@ -179,3 +179,7 @@ Retain the UI acceptance regression: hold A's relaunch and then adoption indepen
 ### 2026-10-18 — PQ-1 admission-and-execution reservation
 
 Reservation applies to both queued admission and execution, for every request source. In the production capacity16 queue, the lifecycle lane holds at most15 queued requests and the navigation lane holds at most1; their sum never exceeds16. The existing lifecycle workers drain only the lifecycle lane, and the existing extra worker drains only navigation. Thus holding every lifecycle worker and its entire permitted queue still leaves one navigation admission and its execution worker available. A second queued navigation request refuses explicitly; no evictions, retries or extra workers. A lost-proof navigation request transfers to the lifecycle lane only if its15-slot quota has room; otherwise exactly one overload completion ends that request while releasing its pending-key ownership. This is the same reserved-capacity mechanism applied at both boundaries (ARCH-CONSTRAINTS), rather than promising execution availability without admission capacity. The capacity1 queue used by existing isolated unit tests permits one ordinary request, with no saturation guarantee for simultaneous lanes; production always constructs16. The new counted/channel-held saturation regression proves the15+1 rule and its aggregate bound directly.
+
+### 2026-10-18 — verification complete, publication gates next
+
+The recorded full suite9edee006603c6a4f05d38fb526062d7d passes on db6b13712f659e7212484d204b21a7520188b94d (15m34s, log927de451f7a9). New real-render width checks additionally preserve selection/identity beside long job text. Source-wide comment guard corrections are included. The live check remains explicitly deferred to the hub’s next natural restart; no stage or live acceptance is claimed. Only close review and landing remain.
