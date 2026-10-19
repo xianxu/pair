@@ -37,7 +37,7 @@ Untie diagnostic retention from history backup: diagnostics are not history. Enf
 
 ## Plan
 
-See [durable implementation plan](../plans/000677-diagnostic-log-retention-plan.md). Hub approved full flow; change-code is next. The approved live arrangement requires sending the real diagnostic-only preview categories and blocked reasons to the hub before apply, with no :0 staging.
+See [durable implementation plan](../plans/000677-diagnostic-log-retention-plan.md). Hub approved full flow; change-code admitted implementation at a21488b4effef56ede5357236754a4111812f807. The approved live arrangement requires sending the real diagnostic-only preview categories and blocked reasons to the hub before apply, with no :0 staging.
 
 - [ ] Replace the backup/count fence with one configurable age/oversize policy and deterministic regressions; preserve hard append bounds and deletion recovery.
 - [ ] Separate diagnostic collection from session migration, including scheduled pages and a diagnostic-only CLI scope; count discovery/sweep work at N/2N.
@@ -66,6 +66,14 @@ Recommended tradeoff for hub review: expire proven diagnostic generations at7day
 
 Full-flow change-code round1 accepted the diagnosis, scope and all architectural lenses but blocked on function-level-test-contract: compress procedural case inventories and name the selection/service entry points. Replaced those lists with strategy/guard tables covering ParseRetentionDays, DecideGeneration, limits/admission, proof/preview/replay, service constructors, PreviewDiagnostics/ApplyDiagnostics, diagnosticPages, Batch and runWithService. Counted N/2N acceptance remains. No product code edited; no live apply or estimate derived before plan-quality acceptance.
 
+
+### 2026-10-18 — implementation gate admitted; quiet hold active
+
+Plan-quality is CLEAN with PQ-1 disposed; change-code admitted full flow and committed accepted design a21488b4effef56ede5357236754a4111812f807. Estimate2.52h was derived after acceptance from v3.1/v2.1 primitives and recorded through the card setter. Estimate-quality INFO notes verification/landing allowances may be optimistic; module implementation includes unit/targeted result handling, and test/build/review execution counts as ship wall-clock. Only idle queue waits are excluded; overlapping execution is counted as elapsed, not operator attention.
+
+Verified hub receipt0621af96-01b5-48ec-9212-77bbbcec71e7 imposes QUIET HOLD from17:10 until an explicit lift. No suites, builds, go tests, disk-heavy probes or live apply may start; already-running work may finish. Only the already-started read-only change-code review remained; it has now finished. Reply6df994ac-94ec-4ac6-af28-d2d81103b737 was submitted: holding, nothing heavy running. No native lane or background test is active.
+
+During the hold, drafted and text-formatted cmd/internal/diagnosticlog/retention_policy_test.go only: seven-day boundary, age eviction, inherited young oversize, recent generations beyond old count limits, counted80/160-generation sweep, and a stateful registered-holder release sequence. These tests HAVE NOT RUN; no RED/GREEN claim and no production behavior edit. First action after the hub lifts the hold is run this file's targeted tests against unchanged production, retain functional RED, then implement the accepted policy. The helper agent twice failed at model capacity; continue in the main session instead of waiting on delegation.
 
 ## Estimate
 
