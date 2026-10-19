@@ -110,8 +110,8 @@ unit of collaboration.
 From the draft, `Alt+c` restores the current `review/<slug>` branch's document
 and latest agent decorations, including in a fresh session. It checks the branch
 before reusing an open pane or cached target. With the same document active it
-toggles visibility; unsaved edits, pending replies, or an uncommitted agent round
-block switching to another document. Return to the original branch and finish
+toggles visibility; unsaved edits or pending replies block switching to another
+document. Return to the original branch and finish
 that work first. Missing or ambiguous review history prompts for a selection or
 reports why restoration cannot proceed.
 
@@ -175,7 +175,7 @@ adds context that a one-line description cannot carry.
 | **Alt+a** / **Alt+r** (or **Leader+a** / **Leader+r**) | review buffer (normal) | Accept / reject the 🤖 suggestion at the cursor. |
 | **Alt+Shift+A** / **Alt+Shift+R** | review buffer (normal) | Accept / reject paragraph suggestions through the cursor. |
 | **Alt+q** | review buffer | Insert a human comment marker in normal/insert mode; quote the selection in visual mode. |
-| **Alt+Return** | review buffer (normal/insert) | Finish the human turn; apply agent results when a round is pending. |
+| **Alt+Return** | review buffer (normal/insert) | Finish the human turn: save the document and send it to the agent. |
 | **Alt+n** / **Alt+Shift+N** (or **]m** / **[m**) | review buffer (normal) | Next / previous 🤖 marker, wrapping, including human comments. These local actions override restart behavior while reviewing, including under Couch. |
 | **gl** / **Ctrl+w d**, **]d** / **[d** | review buffer (normal) | Open the diagnostic explanation, or move to the next / previous diagnostic. |
 | **Shift+Alt+d** | review pane (visual) | Define the selected term inline. The pair agent answers through `pair review definition`, and the pane stores the result as a durable footnote. |
@@ -408,7 +408,8 @@ upgrading, since running ones keep their old zellij server.
 `pair review …`, `pair scrollback …`, `pair clip …`, …) live in one executable,
 with Neovim and Zellij config carried alongside it. There is no Python and no
 shell runtime; `zellij`, `nvim`, `fzf`, and the agent CLIs are the only external
-programs.
+programs. Bare groups such as `pair review` (or `pair review --help`) list their
+subcommands.
 
 `make build` publishes each of `pair`, `couch`, and `pair-launch-helper` by
 building privately beside its destination, then renaming the completed executable.
@@ -434,6 +435,15 @@ recovery journals. Attachments use bounded parallelism and one retry; a failure
 reads `Continue · pane failed: <reason> (retry)`. While its pane is loading,
 it reads `Continue · attaching…`; an attached pane reads `Continue`. One unavailable slot does not
 prevent Couch or other slots from opening.
+Switcher lifecycle actions run in the background per slot. Their forms return to
+the slot list immediately: a busy row shows its action, current step and elapsed
+time; a finished row keeps one result until its next action. A second action on
+a busy slot is refused with the running action's name. Other slots and the hub
+remain available. Select a busy row to wait for its new terminal; navigating
+elsewhere prevents its eventual completion from pulling focus back. On a failed
+row, `Ctrl+Y` copies its retained diagnostic; otherwise it copies the last notice.
+Recovery confirmations stay on their row until you select it to review them.
+
 Couch keeps agent-pane context titles and cmux activity heat titles current from
 its existing inventory and minute activity refreshes. Hosted Pair starts no
 separate title poller. Idle fading keeps using prompt and agent activity plus
@@ -2071,7 +2081,13 @@ and retains diagnostic counts only. The TL in the hub decides when to interrupt
 you with `couch --notify [--title T] MESSAGE`; its default title is `Couch`.
 Other slots are refused and should send their message to the hub instead.
 Titles accept at most 256 bytes and messages 4096 bytes, with terminal controls
-removed. Success means written to the terminal, not confirmation of OS display.
+removed. The command reports `Notification written; desktop delivery not confirmed.`
+A successful terminal write cannot confirm that the OS displayed the alert.
+For Ghostty, [`desktop-notifications = true`](https://ghostty.org/docs/config/reference#desktop-notifications)
+(the default) must be enabled. In macOS System Settings → Notifications → Ghostty,
+allow notifications and enable the desired alert style; Focus must allow the alert.
+If no alert appears, check those settings and compare focused and unfocused windows;
+Couch cannot inspect or confirm those policies through the terminal protocol.
 If a write or reply is uncertain, do not retry automatically.
 Couch also raises a desktop alert and tells the hub if its input guard
 unexpectedly stalls an otherwise idle slot for 30 seconds. Inspect the named

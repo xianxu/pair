@@ -1,6 +1,7 @@
 -- nvim/review/spinner.lua — pure helpers for the review statusline's agent-working
 -- spinner (#66 M4a'). The pane sets an "awaiting since" time when it pokes the agent
--- (Alt+Return → expect a handoff) and clears it when the handoff lands; this renders
+-- (Alt+Return → expect a reply) and clears it when the agent's applied round
+-- reloads (after_applied_round) or a definition answer arrives; this renders
 -- the braille frame + compact elapsed as the statusline's leading cell. PURE.
 local M = {}
 

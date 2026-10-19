@@ -169,7 +169,7 @@ func TestGroupedThreeWorkspaceActivationTrial(t *testing.T) {
 		waitFor(t, "exact workspace activation", func() bool {
 			f.con.mu.Lock()
 			defer f.con.mu.Unlock()
-			return f.con.active == want && f.con.panes[want].tree == couchcore.Worktree(row.StartingPath) && f.con.menu.InFlight.Operation == "" && reflect.DeepEqual(f.con.statusChips, RenderStatusRow(int(f.con.size.Cols), f.con.statusModelLocked()).Chips)
+			return f.con.active == want && f.con.panes[want].tree == couchcore.Worktree(row.StartingPath) && f.con.menu.operationForTest().Operation == "" && reflect.DeepEqual(f.con.statusChips, RenderStatusRow(int(f.con.size.Cols), f.con.statusModelLocked()).Chips)
 		})
 	}
 	for _, row := range VisibleMenuThreads(f.con.menuSnapshot()) {

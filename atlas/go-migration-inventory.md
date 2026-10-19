@@ -580,7 +580,7 @@ rule:
 - `nvim/review.lua`
 - `nvim/review/apply.lua`
 - `nvim/review/docflow.lua`
-- `nvim/review/handoff.lua`
+- `nvim/review/handoff.lua` (removed pair#664 — the legacy handoff retired; agent rounds go through `pair review apply`, `cmd/internal/reviewapply`)
 - `nvim/review/init.lua`
 - `nvim/review/markers.lua`
 - `nvim/review/markers_test.lua`

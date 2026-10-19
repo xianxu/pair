@@ -157,11 +157,12 @@ func (c *Console) acceptContinuationRequests(result continuationScanResult) {
 			continue
 		}
 		operation := continuationOperation(status)
-		if operation == "" || watch.queued || c.ops == nil || c.menu.InFlight.Attempt != 0 {
+		_, uiBusy := menuRunningForAddress(c.menu, status.Address)
+		if operation == "" || watch.queued || c.ops == nil || uiBusy {
 			continue
 		}
 		fn := c.ops
-		origin := MenuOperationOrigin{Operation: operation, Address: status.Address, ContinuationID: status.RequestID, PreserveFocus: true}
+		origin := MenuOperationOrigin{Operation: operation, Address: status.Address, ContinuationID: status.RequestID, NavigationGeneration: c.navigationGeneration, PreserveFocus: true}
 		for id, p := range c.panes {
 			if p.thread == status.Address && c.focus == FocusActor(id) {
 				origin.PreserveFocus = false

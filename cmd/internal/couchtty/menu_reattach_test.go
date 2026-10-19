@@ -95,14 +95,14 @@ func TestReattachAdvanceStartsOneWarmOnlyBackgroundAttempt(t *testing.T) {
 	}
 }
 
-// Cell 10: the pass holds while the OPERATOR has an operation in flight.
-func TestReattachHoldsWhileAnOperatorOperationIsInFlight(t *testing.T) {
+// A pass holds when its next row is already owned by an operator job.
+func TestReattachHoldsWhileSameTargetOperatorOperationIsInFlight(t *testing.T) {
 	state := seedReattach(armedMenu("couch-root"), []couchcore.ActionableThreadSummary{reattachRow("couch-a", couchcore.ThreadDetached, 1)})
-	state.InFlight = MenuOperationOrigin{Operation: "leave", Attempt: 7}
+	setTestMenuOperation(&state, MenuOperationOrigin{Operation: "park", Attempt: 7, Address: menuAddress("couch-a")})
 	if held, effects := advanceReattach(state); len(effects) != 0 || held.Reattach.soleLoading() != (couchcore.ThreadAddress{}) {
 		t.Fatalf("advanced under an operator operation: effects %+v, pass %+v", effects, held.Reattach)
 	}
-	state.InFlight = MenuOperationOrigin{}
+	setTestMenuOperation(&state, MenuOperationOrigin{})
 	if _, effects := advanceReattach(state); len(effects) != 1 {
 		t.Fatalf("did not resume once the slot cleared: %+v", effects)
 	}

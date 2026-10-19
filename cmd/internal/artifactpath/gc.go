@@ -247,7 +247,7 @@ func ownerCandidates(p Paths, path string, agents []string) []ArtifactMember {
 	add("fullscreen-diagnostics", p.FullscreenDiagnostics())
 	add("terminal-panes", p.TerminalPanes())
 	add("zellij-actions", p.ZellijActions())
-	add("review", p.ReviewOpen(), p.ReviewMode(), p.ReviewTarget(), p.ReviewContext(), p.ReviewHandoff(), p.ReviewLanded(), p.ReviewRound(), p.ReviewApplyLock(), p.ReviewDefinitionRequest(), p.ReviewDefinitionResult())
+	add("review", p.ReviewOpen(), p.ReviewMode(), p.ReviewTarget(), p.ReviewContext(), p.ReviewRound(), p.ReviewApplyLock(), p.ReviewDefinitionRequest(), p.ReviewDefinitionResult())
 	add("codex-filter-kkp", p.CodexFilterKKP())
 	add("config", p.LegacyCodexConfig())
 	for _, kind := range NvimKinds() {

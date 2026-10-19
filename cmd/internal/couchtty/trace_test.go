@@ -215,9 +215,9 @@ func TestOnlyAPassAttemptsEndIsTraced(t *testing.T) {
 		t.Fatal(err)
 	}
 	refused := errors.New("refused")
-	con.finishOperation(operationCompletion{name: "resume", err: refused,
+	con.finishPreparedOperationForTest(operationCompletion{name: "resume", err: refused,
 		origin: MenuOperationOrigin{Operation: "resume", Attempt: 1, Address: menuAddress("couch-operator")}})
-	con.finishOperation(operationCompletion{name: "resume", err: refused,
+	con.finishPreparedOperationForTest(operationCompletion{name: "resume", err: refused,
 		origin: MenuOperationOrigin{Operation: "resume", Attempt: 2, Address: menuAddress("couch-pass"), Background: true}})
 	var done []string
 	for _, line := range traceLines(t, path) {

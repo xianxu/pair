@@ -22,7 +22,7 @@ func reduceSwitchAgentKey(state MenuState, key PanelKey) (MenuState, []MenuEffec
 		state.Frames = state.Frames[:len(state.Frames)-1]
 		return state, nil
 	}
-	if state.InFlight.Operation != "" {
+	if menuFrameRunningOrigin(state, *frame).Operation != "" {
 		return state, nil
 	}
 	switch frame.SwitchStage {

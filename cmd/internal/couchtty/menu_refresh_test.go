@@ -79,10 +79,10 @@ func TestSuccessfulOperationsDeclareProjectionRefreshPolicy(t *testing.T) {
 	for _, operation := range []string{"start", "park", "resume", "name", "describe", "switch", "leave"} {
 		t.Run(operation, func(t *testing.T) {
 			state := NewMenuState(menuThreads(), menuAddress("couch-one"))
-			state.InFlight = MenuOperationOrigin{
+			setTestMenuOperation(&state, MenuOperationOrigin{
 				Operation: operation, Attempt: 1, Address: menuAddress("couch-one"),
 				FrameInstance: state.Frames[0].Instance, FrameKind: MenuFrameRoot, Depth: 1,
-			}
+			})
 			got, _ := ReduceMenu(state, MenuEvent{
 				Kind: MenuEventOperationResult, Operation: operation, Attempt: 1,
 				Address: menuAddress("couch-one"), Success: true,

@@ -14,6 +14,13 @@ func TestRecoveryStopConfirmationCancelAndAccept(t *testing.T) {
 	state, effects := dispatchMenuOperation(state, MenuEffect{Operation: "resume", Args: couchcore.ActorOperationArgs(row, "resume")}, row.Address)
 	offer := &couchcore.RecoveryConfirmationOffer{Token: "exact-token", Stops: []couchcore.RecoveryStopProcess{{PID: 123, Identity: "start-generation", Role: "helper"}}}
 	state = reduceOperationResult(state, MenuEvent{Kind: MenuEventOperationResult, Operation: "resume", Attempt: effects[0].Attempt, Address: row.Address, RecoveryConfirmation: offer})
+	if state.CurrentFrame().Kind != MenuFrameRoot {
+		t.Fatal("late confirmation offer stole current frame")
+	}
+	state, effects = reduceKey(state, PanelKey{Kind: KeyEnter})
+	if len(effects) != 0 {
+		t.Fatal("selecting confirmation row executed effects")
+	}
 	frame := state.CurrentFrame()
 	if frame.Kind != MenuFrameConfirmation || frame.RecoveryConfirmation == nil || frame.SelectedItem != "cancel" {
 		t.Fatalf("missing confirmation %+v", frame)

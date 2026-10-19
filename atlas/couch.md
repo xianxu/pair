@@ -12,6 +12,31 @@ the pty console, actor panel, notices, and complete local lifecycle shipped in
 
 ## What exists today
 
+### Per-slot switcher jobs (#576)
+
+`couchtty/menu_operations.go` owns pure target admission, exact attempt matching,
+current landing intent and one retained result per listed row. Busy selection
+waits on its existing job; newer navigation fences final focus and old forms
+never reappear. Missing targets keep their label/identity and diagnostic in the
+notice; selected row failures use the existing Ctrl+Y copy surface.
+
+The existing worker count is split in `operation_queue.go`: lifecycle workers
+own effects and adoption; the final worker owns currently hosted navigation.
+The shared16-position admission bound reserves15 lifecycle positions and1
+navigation position. If hosted endpoint proof disappears, the same pending
+request transfers once to lifecycle or reports overload; navigation never
+resumes or adopts. Remote calls, continuation and startup use lifecycle workers.
+
+Running start reservations keep their original identity while inventory materializes: pure aliases use the exact numbered checkout or the primary scope derived by launcher from the accepted worktree. Address-replacing ordinary actions reserve that primary scope too; other ordinary actions stay address-specific. Admission, busy selection and linear row projection use these aliases; final outcomes still bind to exact returned identity.
+
+`console_operation_adoption.go` prepares final outcomes off Run. Installation
+reserves identity under the console mutex, performs resize/registration outside
+it, and revalidates lifetime, endpoint and geometry before committing. Rejected
+registration is retired without closing the caller-owned child. Run performs
+final lifecycle observation, reduction, navigation and remote acknowledgement,
+with one completion owner and shutdown settlement. Existing core lifecycle and
+park nonce reservations remain authoritative; UI navigation never cancels them.
+
 ### Load-independent lifecycle test evidence (#659)
 
 The recovery ownership fixtures use `SlotCatalogFake`; a separate catalog-timeout
@@ -178,6 +203,11 @@ one-second scheduling budget. A crash during cleanup or before final publication
 can lose that attempt's in-memory evidence; previously published history remains
 durable. Persistence never delays failed-helper cleanup. The typed error
 preserves errors.Is/As while its operator text names the attempt, diagnostic file, and one inspection action.
+Claude native resume validates an exact session through bounded UUID-leaf
+probes under the authorized project roots, preserving duplicate and root-role
+checks without walking unrelated history. Missing scrollback is separate from
+native transcript identity; see [exact Claude root lookup](session-identity.md#exact-claude-root-lookup).
+
 `couch --show` reads retained evidence by exact address or canonical starting
 path, including after rollback removed the thread, without creating lifecycle
 records. `couchcmd/launchfailure.go` sanitizes child text line by line.
@@ -391,6 +421,14 @@ service checks the live registered caller and its connected workspace against
 the supervisor's hub root, then calls Console.NotifyDesktop through the shared
 presenter writer. Other callers get advice to send to the hub instead. There is
 no notification queue, receipt store or automatic retry on an uncertain write.
+Supervisor notifications use ST-terminated OSC 777 directly on the console host
+writer (stdout), outside the child OSC suppression path. A successful CLI reply
+says `Notification written; desktop delivery not confirmed.` This confirms the
+write only; the terminal protocol supplies no desktop-display acknowledgement.
+For Ghostty the `desktop-notifications` setting must be true (default), macOS
+Notifications permission and an alert style must allow Ghostty, and Focus must
+permit the alert. Focused versus unfocused presentation needs operator observation;
+Couch neither changes those settings nor retries to infer them.
 Existing CLI messaging verbs omit notification-only fields for older supervisors.
 The CLI distinguishes an explicit unsupported-notify decode refusal from missing
 messaging registration and uncertain replies; only the latter leaves the effect

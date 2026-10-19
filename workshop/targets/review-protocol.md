@@ -4,7 +4,7 @@ slug: review-protocol
 status: active
 issue: 000066
 created: 2026-06-19
-updated: 2026-09-28
+updated: 2026-10-18
 ---
 
 # Review Workbench Protocol — the agent ↔ review-nvim state machine
@@ -17,8 +17,10 @@ invariant both sides must honor; drift on either side breaks the loop silently.
 
 ## Governing principle (confirmed 2026-06-19)
 
-**The review nvim never writes git.** It renders the doc, applies the agent's edit
-records *undo-ably*, captures the human's edits, saves, and **pokes** the agent. ALL
+**The review nvim never writes git.** It renders the doc, reloads and decorates the
+rounds the agent applies through `pair review apply`, captures the human's edits,
+saves them, and **pokes** the agent. It never writes the reviewed file for an agent
+round. ALL
 git — the `review/<slug>` branch, the round commits, and `ship` — is the **agent's**,
 driven by prose pokes (the agent is "asked", it acts).
 
@@ -35,11 +37,9 @@ Why this split (not nvim-shells-docflow, which M1 scaffolded):
 | # | seam | writer | reader | payload | status |
 |---|------|--------|--------|---------|--------|
 | 1 | open-state file `$PAIR_DATA_DIR/review-<tag>.open` | review nvim (owning incarnation publishes/removes) | draft nvim (`PairReviewToggle` liveness; review-mode cue) | line 1 PID; line 2 absolute file; line 3 JSON `{version:1, endpoint, token, session, context}` for same-pane RPC | **BUILT** — `review-toggle-test`, `review-window-test` |
-| 2′ | `pair review apply EDITS FILE --if-hash H [--json]` + round artifact `$PAIR_REVIEW_ROUND_PATH` (pair#661 M2) | agent, through the shared engine (pair writes the file; nvim never does) | review nvim (`round_watch` poll: reload + decorate); agent recovers a lost reply with `pair review round FILE --json` | records `{old,occurrence,new,explain}` all-or-nothing; exits 0 / 1 `edits-invalid`·`propose-*`·`operator-owned` / 3 `operator-lock` (the pane holds `FILE.lock` during the operator's turn) / 6 `stale`; artifact `{file, round, body}`, `body` = the commit body (round as review-records); a reply `Warning` = written but no artifact (commit `Body` anyway); the lock records `pid:` and a dead owner's lock is reclaimed | **BUILT** — `review-applied-round-test`, `reviewapply` tests; seams 2 and 2b retire with pair#664 once ariadne#437 moves `xx-fix` here |
-| 2 | handoff file (agent → nvim) | agent | review nvim (`handoff.watch` poll) | `{context:{repo,branch,file,activation}, records:[{old,occurrence,new,explain}]}`; record-body encoding unchanged | **BUILT** — `review-handoff-test`, `review-loop-test` |
-| 2b | landed-artifact `$XDG_DATA_HOME/pair/review-landed-<tag>.json` (nvim → agent; the handoff's reverse channel, co-located with seam #2) | review nvim (`apply_round`, post-apply; `handoff.write_landed`) | agent (commits the round verbatim) | `{context, summary, body=record.embed_in_body(clean_enriched), applied, dropped, conflicts}` — what actually landed (drops filtered, `new_occurrence` computed; body carries **only the clean records** — conflict markers live in the committed doc, `conflicts` = their count, #89 M2) | **BUILT** (pair side) — `review-loop-test` (agent-owns-git e2e + dropped + reconcile case) |
+| 2 | `pair review apply EDITS FILE --if-hash H [--json]` + round artifact `$PAIR_REVIEW_ROUND_PATH` (pair#661 M2) | agent, through the shared engine (pair writes the file; nvim never does) | review nvim (`round_watch` poll: reload + decorate); agent recovers a lost reply with `pair review round FILE --json` | records `{old,occurrence,new,explain}` all-or-nothing; exits 0 / 1 `edits-invalid`·`propose-*`·`operator-owned` / 3 `operator-lock` (the pane holds `FILE.lock` during the operator's turn) / 6 `stale`; artifact `{file, round, body}`, `body` = the commit body (round as review-records); a reply `Warning` = written but no artifact (commit `Body` anyway); the lock records `pid:` and a dead owner's lock is reclaimed | **BUILT** — `review-applied-round-test`, `reviewapply` Go tests, `agent_round_rule_test` (nvim never writes the buffer/file for an agent round). The legacy handoff file and landed artifact (old seams 2/2b) were retired by pair#664 |
 | 3 | poke channel (nvim → agent) | review nvim (zellij `write-chars`, agent addressed by **absolute pane id**) | agent pane | NL instruction, carrying the **absolute** doc path and exact activation `context` for human/agent/ship effects | **BUILT** — `review-poke-test` (abs-path 2026-06-19) |
-| 4 | git: `review/<slug>` branch + round commits | **AGENT** (`docflow`, in the doc's repo) | review nvim **reads** (reconstruct decorations + indicator counts) | `review(<slug>): <side> r<N> — …`, per-hunk explains in body | **read** BUILT; **write** proven via `fake-agent-v2` (`review-loop-test`), producer instructions = shared `xx-fix` (ariadne#121, scoped effects ariadne#268) |
+| 4 | git: `review/<slug>` branch + round commits | **AGENT** (`docflow`, in the doc's repo) | review nvim **reads** (reconstruct decorations + indicator counts) | `review(<slug>): <side> r<N> — …`, per-hunk explains in body | **read** BUILT; **write** proven via real `pair review apply` rounds (`review-applied-round-test`), producer instructions = shared `xx-fix` (ariadne#121, scoped effects ariadne#268) |
 | 5 | mode file `$PAIR_DATA_DIR/review-<tag>.mode` | **AGENT** (on a mode switch from either channel) | review nvim + draft bar (display the `🪄 <Mode>`) | one line: the active mode | **BUILT (pair side, M4c)** — `seam_test`, `review-indicator-test`, `review-window-test` |
 | 6 | review-target `$PAIR_REVIEW_TARGET_PATH` | explicit preparation; draft after activation acknowledgment | draft (session selection receipt/cache, never branch authority) | ready/proposed target with conversation scope; explicit preparation records `{repo,branch,file,head}` identity | **BUILT** — `review-toggle-test`, `review-branch-restore-test` |
 | 7 | definition request/result `$PAIR_REVIEW_DEFINITION_REQUEST_PATH` / `$PAIR_REVIEW_DEFINITION_RESULT_PATH` | pane / `pair review definition` | producer / pane | request keeps stripped text in `.context` and activation identity in `.review_context`; result echoes it in `.context`, retaining request ID | **BUILT** — definition CLI/window tests |
@@ -69,8 +69,8 @@ A matching pane toggles visibility. A different clean idle document activates
 inside the same Neovim process through private RPC, retaining buffers and undo.
 Retained clean content is compared with disk and refreshed as one undoable edit
 before decoration reconstruction, including different branches of the same file.
-Modified buffers, pending/deferred rounds, definition requests, unconsumed
-handoffs and applied-but-uncommitted work block retargeting. A live old pane
+Modified buffers, an awaiting agent request and pending definition requests block
+retargeting. A live old pane
 without the RPC capability refuses safely; it is never killed to replace it.
 The draft publishes its target only after a validated activation acknowledgment.
 Uncertain RPC outcomes are probed in that same pane; they never authorize a
@@ -78,17 +78,15 @@ replacement process. Activation alone sends no review request or Git write.
 
 The wire context is `{repo,branch,file,activation}`: canonical absolute repository,
 repository-relative document, exact branch and opaque activation token. HEAD is
-only a resolver observation. Scope is checked before consumption/application,
-again for deferred application, and before save/send/ship. Wrong-context or
-malformed handoffs stay on disk and notify once per unchanged payload. Legacy
-array-only traffic is admitted only during an uninterrupted legacy activation;
-restoring or retargeting requires scoped traffic. Definition responses also
-retain their request-ID check.
+only a resolver observation. Scope is checked before consuming a response and
+before save/send/ship. The pane acts on a round artifact only for its own file and
+only while the file on disk still hashes to the round's result. Definition
+responses also retain their request-ID check.
 
 The cooperative producer echoes request context unchanged and checks the live
 open metadata plus repository/branch/document immediately before human-round,
-agent-round or ship Git effects. Landed artifacts preserve the same context;
-their record body is still committed verbatim. A mismatch preserves artifacts
+agent-round or ship Git effects. The round body from `pair review apply` is
+committed verbatim. A mismatch preserves artifacts
 and asks the operator to return to the original branch and finish the round or
 reissue from the intended activation. The authoritative instructions are the
 shared `xx-fix` skill, updated through ariadne#268; arbitrary independent Git
@@ -109,67 +107,51 @@ discard existing data rather than evicting it.
 All transitions below are subject to the branch/activation guards above.
 
 ```
-            Alt+c (resolved identity)             scoped records arrive
+            Alt+c (resolved identity)             round artifact appears
    ┌─────┐ ──────────────────────► ┌───────────┐ ─────────────────────► ┌──────────┐
-   │idle │   :PairReview <file>     │open /     │                        │applying  │
+   │idle │   :PairReview <file>     │open /     │                        │reloading │
    │     │ ◄──────────────────────  │rendering  │ ◄───────────────────── │(nvim)    │
-   └─────┘   VimLeave (close)       └───────────┘   render + save + poke  └────┬─────┘
-                                      ▲   │ Alt+Return                         │ poke
-                                      │   ▼ (save + poke "commit human round") │ "applied N"
-                                      │ ┌───────────────┐                 ┌────▼─────────┐
-                                      │ │human-editing  │                 │agent commits │ (M4)
-                                      │ └───────────────┘                 │  agent round │
-                                      │   the agent, asked, commits  ◄─────┴──────────────┘
-                                      └─── + re-reviews (next handoff) ───┘
+   └─────┘   VimLeave (close)       └───────────┘   :edit! + decorate     └──────────┘
+                                      ▲   │ Alt+Return                         ▲
+                                      │   ▼ (save + poke "commit human round") │ pair review apply
+                                      │ ┌───────────────┐                 ┌────┴─────────┐
+                                      │ │human-editing  │                 │agent applies │
+                                      │ └───────────────┘                 │ + commits    │
+                                      │   the agent, asked, commits  ────►│ agent round  │
+                                      └─── + re-reviews ──────────────────┴──────────────┘
    ship: "ship it" / `:PairReviewShip` → agent `docflow ship` (merge --no-ff + branch delete) (M4)
 ```
 
 - **idle** — no open-state file. `Alt+c` resolves and restores the current review branch, or prompts for selection off a review branch. **BUILT.**
 - **open / rendering** — review nvim open on `<file>`; doc + 🤖 markers rendered; the draft statusline carries the **review indicator**. `Alt+c` ⇄ visibility. **BUILT** (indicator: M3-close item). In review nvim, `Alt+a` accepts, `Alt+r` rejects, and `Alt+q` inserts `🤖[]` or wraps the visual selection as `🤖<selection>[]`. The context poke defaults the agent to **Copy Edit** posture and tells it to resolve `🤖[]` human comments as edits when possible, or punt explicitly when not.
-- **agent-proposing** *(M4)* — the SKILL recognizes "please review", uses the prepared review branch and request context, then writes the scoped handoff records. This IS the **xx-fix-under-docflow flow** (see *What "review" means here* below) — not a review skill the agent picks by vibe.
-- **applying** — review nvim polls the handoff → applies undo-ably → renders → **saves** → pokes "applied N edits to `<abs>`". **BUILT** (apply/render/save); the post-apply poke is the **commit signal**. When the human edited the doc since the agent reviewed it, this is the **reconcile** path (below), not a plain apply.
-- **agent-committing** *(M4)* — the agent commits the agent round (records in body) **only after** the "applied" poke (apply can drop unanchorable records, so the agent must not blind-commit its own proposal). `agent-count++`.
+- **agent-proposing** *(M4)* — the SKILL recognizes "please review", uses the prepared review branch and request context, then runs `pair review apply` with its records. This IS the **xx-fix-under-docflow flow** (see *What "review" means here* below) — not a review skill the agent picks by vibe.
+- **applying** — `pair review apply` writes the file and the round artifact; review nvim polls the artifact → reloads (`:edit!`) → decorates the spans → clears the awaiting spinner. It writes nothing. **BUILT.** While the operator holds `FILE.lock` (mid-turn), the apply exits 3 and the agent waits.
+- **agent-committing** *(M4)* — the agent commits the agent round with the `Body` from the apply reply (records in body, exactly what landed). `agent-count++`.
 - **human-editing** — the human edits in the review pane. **BUILT.**
 - **human-finish** (`Alt+Return`) — review nvim **saves** → pokes "updated, please commit this human round + re-review `<abs>`" in Copy Edit posture, with `🤖[]` comments handled as fulfill-or-punt instructions. **BUILT** (save + poke); the commit is the agent's.
 - **human-committing** *(M4)* — the agent commits the human round. `human-count++`.
 - **ship** *(M4)* — "ship it" or `:PairReviewShip` → the agent runs `docflow ship` (merge `--no-ff` + branch delete). The review nvim only pokes; it never shells `docflow ship`.
 
-## Concurrent-edit reconciliation (#89 M2) — BUILT
+## Concurrent edits — the operator lock (pair#661 M2)
 
-The human keeps editing while the agent produces a round; there is **no lock**.
-The apply authority (`init.lua` `apply_round`) reconciles the round against the
-human's live edits:
+The human may keep editing while the agent produces a round. The pane takes
+`FILE.lock` on the first edit of the operator's turn and drops it on send and at
+exit; `pair review apply` exits 3 while it is held, so the agent applies only
+between turns. A round the pane declines (unsaved operator edits) is warned about
+once and redelivered later. #89's in-nvim reconcile engine (`🤖<…>[reconcile — …]`
+markers) and apply gate were retired by pair#664; such markers left in old documents
+are ordinary `🤖[…]` requests.
 
-- **`v0` base.** At send (`finish_human_turn` → `review.set_base`), the review nvim
-  snapshots the just-saved content — exactly what the agent is about to review.
-- **Fast path** (`v1 == v0`, human waited): today's `apply.apply`, unchanged.
-- **Reconcile path** (`v1 ≠ v0`): per-record (`reconcile.lua`). Each record whose
-  `old` still anchors in the live buffer applies normally (span-granular — a
-  non-overlapping edit to the *same line* is NOT a conflict). Each record whose
-  span the human changed becomes a **`🤖<human's current hunk>[reconcile — agent
-  wanted: • old → new (why …)]` marker**, placed on the human's changed hunk
-  (located via `vim.diff`). The whole reconcile is ONE `apply.apply` call (clean
-  records + synthetic conflict records), so one undo block and identical decoration.
-- **Conflicts are ordinary requests.** A `[reconcile — …]` marker is a `🤖[…]`
-  human request: on the next round the agent reconciles it (reads the human's text
-  + its own blocked intent, produces a record replacing the marker). No conflict
-  state machine; the human may resolve it by hand (`Alt+r`) or resubmit as-is.
-- **Attribution (Option A).** The reconciled doc — which includes the human's
-  concurrent edits — is committed as the *agent* round. The landed-artifact body
-  carries only the clean records; the conflict markers ride in the committed doc.
-- **Durability.** Matching-context saves run on defer and exit. A changed checkout
-  blocks the save and preserves unsaved text in bounded recovery storage instead.
-  Pending work cannot authorize a different activation; finish it on the original
-  branch or explicitly reissue it.
-- **The agent must recognize reconcile markers** — see the `xx-fix` skill's
-  workbench section; a `🤖<…>[reconcile — …]` can wrap git-diff-like text and
-  carries the agent's own blocked intent to fold back in.
+Durability: matching-context saves run on exit. A changed checkout blocks the save
+and preserves unsaved text in bounded recovery storage instead. Pending work cannot
+authorize a different activation; finish it on the original branch or explicitly
+reissue it.
 
 ## What "review" means here (xx-fix, not doc-review)
 
 The workbench's "review" is the agentic embedding of **ariadne's `xx-fix` skill under
 `docflow`**: the agent proposes edits as `{old, occurrence, new, explain}` records (the
-programmatic form of xx-fix's `🤖` marker edits), the pane applies them undo-ably, and
+programmatic form of xx-fix's `🤖` marker edits), `pair review apply` applies them and the pane reloads and decorates, and
 `docflow` commits each round on `review/<slug>`. The round-commit counts in the
 indicator ARE those `docflow` rounds.
 
@@ -272,22 +254,26 @@ session restores committed context, while in-process activation retains the buff
 and undo tree. Neither path inherits another document's decorations or requests.
 
 **Agent-running spinner (≤6 cols).** The pane derives "agent working" from the **protocol
-state** (no `pair-wrap` flag): set when it pokes the agent, cleared when the next handoff
-lands. Braille spinner + compact elapsed: `⠹ 45s` → `⠹ 2m`.
+state** (no `pair-wrap` flag): set when it pokes the agent, cleared when the next applied
+round lands (`after_applied_round`). Braille spinner + compact elapsed: `⠹ 45s` → `⠹ 2m`.
 
 ## Invariants to defend from drift
 
 1. **The review pane nvim writes no git.** — **BUILT (pair side, M4a).** `nvim/review/init.lua`
-   calls `docflow` nowhere: `on_agent_round` writes the landed-artifact (seam #2b) + pokes;
+   calls `docflow` nowhere: `on_applied_round` only reloads and decorates;
    `human_round` only saves; `review.start` no longer runs `docflow.start`. Draft nvim may
    perform deterministic start-up git (`pair-review-readiness --prepare`: track/start/resume),
    but round commits and ship remain outside the pane. Verified headlessly by
-   `review-loop-test` via `fake-agent-v2` for rounds plus readiness CLI/toggle tests for prep.
+   `review-applied-round-test` (real `pair review apply` rounds) plus readiness CLI/toggle tests for prep.
    A `docflow round`/`ship` call in `nvim/review/*` is now drift.
-2. **Undo is continuous** (nvim `undofile`); never reload-to-refresh a buffer (a reload
-   resets the undo tree — the reason records are applied in-buffer, not file-rewritten).
-3. **The agent commits a round only after the nvim's "applied" poke** (apply may drop
-   records; the committed body must match what actually landed).
+2. **nvim never writes the reviewed buffer or file for an agent round.** pair writes the
+   file; the pane reloads (`:edit!`) and decorates. nvim writes it only for operator
+   actions (save on send, `VimLeave` save, marker accept/reject, comment threads,
+   definition results, `:PairReviewRecover`). **BUILT** — `agent_round_rule_test`
+   (`on_lines`, `BufWritePre` and Lua write spies, positive control on the operator send).
+   Undo across operator edits stays continuous via `undofile`.
+3. **The agent commits exactly what landed**: the `Body` from the `pair review apply`
+   reply (or `pair review round FILE --json` after a lost reply), never its own proposal.
 4. **One review pane per session** (the open-state file is the singleton guard).
 5. **Pokes carry the absolute doc path and activation context** (the agent's cwd may differ). Both producer Git effects and pane application validate that identity.
 6. **The review is the xx-fix-under-docflow record flow** (propose edits → apply → rounds),
@@ -308,3 +294,10 @@ unconditional exit-save descriptions; ariadne#268 owns shared producer guidance.
 2026-09-28 — #341 integration: retain explicitly selected peer documents when the draft checkout is non-review, and authenticated live selection across empty first rounds. Retained inactive buffers keep ownership and cannot write into a different checkout.
 
 2026-09-28 — Exit failure semantics: ordinary non-bang quit retains modified buffers when snapshot storage fails. Explicit `:qa!` may ignore callback errors and discard unsaved text on failed storage; it cannot be promised recoverable. Successful snapshot writes are tested across forced exit and restart.
+
+2026-10-18 — pair#664: seams 2 (handoff file) and 2b (landed artifact) collapsed into
+one seam 2, `pair review apply` + the round artifact; nvim's buffer apply, the
+concurrent-edit reconcile and the apply gate are retired, replaced by the operator
+lock. Invariant 2 changes from "apply in-buffer, never reload" to "nvim never writes
+the reviewed buffer or file for an agent round", now tested by
+`agent_round_rule_test`; invariant 3 now names the apply reply's `Body`.
