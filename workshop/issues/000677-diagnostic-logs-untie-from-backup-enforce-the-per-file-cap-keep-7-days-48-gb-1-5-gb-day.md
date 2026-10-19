@@ -5,9 +5,9 @@ deps: []
 github_issue:
 created: 2026-10-18
 updated: 2026-10-18
-estimate_hours:
+estimate_hours: 2.52
 collaboration-mode: collaboration
-card_mirror: 'ac0420864929a1543c9cc06ef5020d1f0a4871a1' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'a0d3b9722c1e5f4ce24d7d660631ab1c4f0995e5' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-18T16:54:38-07:00
 claimant:
     operator: Xian Xu
@@ -65,6 +65,32 @@ Recommended tradeoff for hub review: expire proven diagnostic generations at7day
 
 Full-flow change-code round1 accepted the diagnosis, scope and all architectural lenses but blocked on function-level-test-contract: compress procedural case inventories and name the selection/service entry points. Replaced those lists with strategy/guard tables covering ParseRetentionDays, DecideGeneration, limits/admission, proof/preview/replay, service constructors, PreviewDiagnostics/ApplyDiagnostics, diagnosticPages, Batch and runWithService. Counted N/2N acceptance remains. No product code edited; no live apply or estimate derived before plan-quality acceptance.
 
+
+## Estimate
+
+Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only. Derived after plan-quality CLEAN; the calibration source is marked stale by sdlc estimate-source, so the result is provisional.
+
+Library availability: this extends the owned diagnosticlog journal, portable storage backend, Inspection seam, existing collector and Go flag parser; no greenfield stack or new external library is needed. Familiarity1.0 reflects that source audit and the existing patterns. Thorough-plan design discount0.2 applies to implementation components, not the issue authoring already performed; design buffer15%. Each impl below is exactly40% of the chosen v2/v2.1 primitive implementation hours, applied once.
+
+Rows in order: issue/spec authoring (base impl0.2); policy (0.5); independent collector (0.5); CLI/config (0.4); count/fence consumer refactor (0.5); controlled turn measurement (0.4); owned/live verification (0.5); docs (0.2); one close review (0.5). Component design picks before the0.2 discount are0.3,0.3,0.2,0.5,0.2,0.2,0.2,0.1; issue authoring design0.5 is undiscounted. No API-discovery primitive is added for an existing file/process seam. Machine queue time is excluded from focused ship-time.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.50 impl=0.08
+item: smaller-go-module design=0.06 impl=0.20
+item: smaller-go-module design=0.06 impl=0.20
+item: smaller-go-module design=0.04 impl=0.16
+item: cross-cutting-refactor design=0.10 impl=0.20
+item: smaller-go-module design=0.04 impl=0.16
+item: smaller-go-module design=0.04 impl=0.20
+item: atlas-docs design=0.04 impl=0.08
+item: milestone-review design=0.02 impl=0.20
+design-buffer: 0.15
+total: 2.52
+```
+
+Design subtotal0.90h ×1.15 + scaled implementation1.48h =2.515h, rounded2.52h; a provisional working range is about1.8–3.3h. This prices the accepted scope, not the earlier queue wait or a predetermined total.
 
 ## Revisions
 
