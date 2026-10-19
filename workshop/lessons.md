@@ -7,6 +7,8 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- An asynchronous reservation must cover identities that become visible before its effect returns. Keep the original attempt and reservation, derive launch-authoritative aliases for admission and projection alike, and test inventory publication during held adoption. A primary slot is an ordinary scoped conversation; numbered-slot-only fixtures miss it. (#576 BR-1)
+
 - A successful subprocess status does not identify its reply kind. Qualify diagnostics with multiple live sessions as well as zero/one: Zellij list_sessions exits internally, so a missing-target action can return exit0 with a session listing and not-found stderr. Keep that exception at the name probe, with captured bytes and strict whole-reply validation; never relax the clients decoder. (#672)
 
 - Classify a concept by every operation its implementation performs: environment reads, test verdicts, diagnostics and subprocess policy checks belong to integration even when their decision rule is simple. When acceptance is revised, synchronize Done when, task rows and new README test switches in the same documentation pass, retaining the original decision in Revisions. (#659 close review)
@@ -2311,3 +2313,7 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #668 BR-1: New developer invocation surfaces need a root README entry even when the package README and atlas already explain them. Sweep retention flags, replay commands and diagnostic controls together; link the detailed guide and state the evidence/lifetime limits at the root testing entry point.
 - #651 integration catalog: timing out a known semantic boundary should spend an injected deadline only after readiness. Reuse the package's existing budget/deadline seam; assert the cue and DeadlineExceeded as well as retained ownership, so removing a tiny timeout cannot silently turn the scenario into a different failure.
 - #664 BR-1: A "nothing happened" detector needs a positive control taken at the same moment as the negative assertion. `:edit!` detaches an `nvim_buf_attach` listener (on_detach, then silence), so an on_lines count after a reload reads zero whatever happens; re-attach on detach and prove each detector fires on a known operator action after the event under test.
+
+- #576: A new row suffix must preserve the existing label-width floor after all suffix composition, including owner labels. Geometry-only render checks can pass while the slot identity and selection marker disappear; assert those visible fields with oversized running and failed details through the real renderer. Keep full retained diagnostics separate from clipped display text.
+
+- #576: Inserting a declaration above another declaration must not steal its preceding godoc. Keep each comment adjacent to its named declaration and run the existing termcmd declaration-comment guard alongside the source-inventory guards before an expensive suite; that guard covers production files across packages.

@@ -28,7 +28,7 @@ type remoteOperation struct {
 // queue, so admission is judged against the inventory at execution time. The
 // job runs in the background: its child is adopted without taking focus
 // (PreserveFocus), and with Attempt 0 it never touches the operator's
-// InFlight operation.
+// row operation.
 //
 // Single outcome owner: when it returns an error (ErrRemotePending, a full
 // queue, no dispatcher) it has not called, and never will call, started or

@@ -1,5 +1,5 @@
 threads
-Ctrl+Y copy last notice
+Ctrl+Y copy last notice / selected error
     pair:2  /workspace/worktree/pair-slot2/pair  Continue
 filter: :2
 TAB BAR

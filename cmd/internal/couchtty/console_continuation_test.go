@@ -37,13 +37,13 @@ func TestContinuationFailureKeepsLastActorPanelInEitherOrder(t *testing.T) {
 			request := <-c.operationQueue.requests
 			completion := operationCompletion{key: request.key, name: request.name, origin: request.origin, err: errors.New("replacement failed")}
 			if completionFirst {
-				c.finishOperation(completion)
+				c.finishPreparedOperationForTest(completion)
 			}
 			if c.onExit(childExit{id: "source", code: 1}) {
 				t.Fatal("continuation failure closed the last-actor recovery panel")
 			}
 			if !completionFirst {
-				c.finishOperation(completion)
+				c.finishPreparedOperationForTest(completion)
 			}
 			if !c.focus.IsPanel() {
 				t.Fatal("failed replacement must leave the panel available")
@@ -131,7 +131,7 @@ func TestContinuationAdoptsReplacementAndPreservesUnrelatedFocus(t *testing.T) {
 				t.Fatal("source retirement closed Console before replacement")
 			}
 			status.Phase = checkpoint.Running
-			c.finishOperation(operationCompletion{name: request.name, origin: request.origin,
+			c.finishPreparedOperationForTest(operationCompletion{name: request.name, origin: request.origin,
 				value: couchcore.ContinuationResult{Status: status, Record: started.Record, Handle: started.Handle},
 			})
 			if _, attached := c.panes[started.Handle.ID()]; !attached {
@@ -237,7 +237,7 @@ func TestContinuationCompletionPreservesInterveningFocus(t *testing.T) {
 			})
 			started, _ := attachStartResult(t, "replacement", status.Address)
 			status.Phase = checkpoint.Running
-			c.finishOperation(operationCompletion{name: request.name, origin: request.origin,
+			c.finishPreparedOperationForTest(operationCompletion{name: request.name, origin: request.origin,
 				value: couchcore.ContinuationResult{Status: status, Record: started.Record, Handle: started.Handle},
 			})
 			if _, attached := c.panes[started.Handle.ID()]; !attached {

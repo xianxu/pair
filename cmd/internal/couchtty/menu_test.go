@@ -29,7 +29,7 @@ func reduceKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
 
 func correlatedMenuResult(state MenuState, event MenuEvent) MenuEvent {
 	event.Kind = MenuEventOperationResult
-	event.Attempt = state.InFlight.Attempt
+	event.Attempt = state.operationForTest().Attempt
 	return event
 }
 
@@ -303,7 +303,7 @@ func TestReduceMenuReconcileKeepsGlobalStartAndDropsInvalidOrigin(t *testing.T) 
 	}
 }
 
-func TestReduceMenuOperationResultDoesNotRedispatchAndRestoresByOutcome(t *testing.T) {
+func TestReduceMenuOperationResultDoesNotRedispatchOrRestoreOldForm(t *testing.T) {
 	state := NewMenuState(menuThreads(), menuAddress("couch-one"))
 	state, _ = reduceKey(state, PanelKey{Kind: KeyTab})
 	state = selectMenuItem(state, "park")
@@ -318,7 +318,7 @@ func TestReduceMenuOperationResultDoesNotRedispatchAndRestoresByOutcome(t *testi
 		Operation: "park", Address: menuAddress("couch-one"), Error: "cleanup failed",
 		Inventory: menuThreads(), InventorySet: true,
 	}))
-	if len(effects) != 0 || failed.CurrentFrame().Kind != MenuFrameActions || failed.Notice.Text != "cleanup failed" {
+	if len(effects) != 0 || failed.CurrentFrame().Kind != MenuFrameRoot || failed.Notice.Text != "cleanup failed" {
 		t.Fatalf("failed result = state %+v effects %+v", failed, effects)
 	}
 
@@ -407,7 +407,7 @@ func TestReduceMenuOperationResultPreservesHiddenTargetDiagnostic(t *testing.T) 
 		Inventory: menuThreads()[1:], InventorySet: true,
 	}))
 	if len(effects) != 0 || len(got.Frames) != 1 || !strings.Contains(got.Notice.Text, "compiler") ||
-		!strings.Contains(got.Notice.Text, "scope/couch-one") || strings.Contains(got.Notice.Text, "cleanup failed") {
+		!strings.Contains(got.Notice.Text, "scope/couch-one") || !strings.Contains(got.Notice.Text, "cleanup failed") {
 		t.Fatalf("hidden operation target = state %+v effects %+v", got, effects)
 	}
 }
@@ -421,6 +421,7 @@ func TestReduceMenuStartCompletionUsesGlobalOperationOrigin(t *testing.T) {
 	frame.PreviewAccepted = frame.Generation
 	frame.PreviewResolution.Fingerprint = "accepted"
 	frame.PreviewResolution.CanonicalPath = "/repo/new"
+	frame.PreviewResolution.Worktree = "/repo/new"
 	frame.PreviewResolution.Profile.Agent = "claude"
 	state, effects := reduceKey(state, PanelKey{Kind: KeyEnter})
 	if len(effects) != 1 || effects[0].Operation != "start" {
@@ -436,7 +437,7 @@ func TestReduceMenuStartCompletionUsesGlobalOperationOrigin(t *testing.T) {
 	}
 }
 
-func TestReduceMenuStartFailureWithoutCreatedAddressClearsDispatchAndRestoresForm(t *testing.T) {
+func TestReduceMenuStartFailureWithoutCreatedAddressClearsDispatchAndKeepsRoot(t *testing.T) {
 	state := NewMenuState(menuThreads(), menuAddress("couch-one"))
 	state.Agents = []string{"claude"}
 	state.RootAgent = "claude"
@@ -445,6 +446,7 @@ func TestReduceMenuStartFailureWithoutCreatedAddressClearsDispatchAndRestoresFor
 	frame.PreviewAccepted = frame.Generation
 	frame.PreviewResolution.Fingerprint = "accepted"
 	frame.PreviewResolution.CanonicalPath = "/repo/new"
+	frame.PreviewResolution.Worktree = "/repo/new"
 	frame.PreviewResolution.Profile.Agent = "claude"
 	state, effects := reduceKey(state, PanelKey{Kind: KeyEnter})
 	if len(effects) != 1 || effects[0].Operation != "start" {
@@ -454,7 +456,7 @@ func TestReduceMenuStartFailureWithoutCreatedAddressClearsDispatchAndRestoresFor
 	got, effects := ReduceMenu(state, correlatedMenuResult(state, MenuEvent{
 		Operation: "start", Error: "launch failed",
 	}))
-	if len(effects) != 0 || got.Notice.Text != "launch failed" || got.CurrentFrame().Kind != MenuFrameStart || got.InFlight.Operation != "" {
+	if len(effects) != 0 || got.Notice.Text != "/repo/new: launch failed" || got.CurrentFrame().Kind != MenuFrameRoot || got.operationForTest().Operation != "" {
 		t.Fatalf("failed start completion = state %+v effects %+v", got, effects)
 	}
 }
@@ -511,6 +513,7 @@ func TestMenuOperationAttemptRejectsDelayedDuplicateAcrossEveryOperation(t *test
 						resultAddress = created
 					}
 				}
+				state.Frames[len(state.Frames)-1].PreviewResolution.Worktree = "/repo/new"
 				state, effects := dispatchMenuOperation(state, MenuEffect{Operation: operation}, originAddress)
 				if len(effects) != 1 || effects[0].Attempt == 0 {
 					t.Fatalf("attempt A dispatch = state %+v effects %+v", state, effects)
@@ -518,6 +521,7 @@ func TestMenuOperationAttemptRejectsDelayedDuplicateAcrossEveryOperation(t *test
 				attemptA := effects[0].Attempt
 				resultA := MenuEvent{Kind: MenuEventOperationResult, Operation: operation, Attempt: attemptA, Address: resultAddress, Success: success, Error: "attempt A failed"}
 				state, _ = ReduceMenu(state, resultA)
+				state.Frames[len(state.Frames)-1].PreviewResolution.Worktree = "/repo/new"
 				state, effects = dispatchMenuOperation(state, MenuEffect{Operation: operation}, originAddress)
 				if len(effects) != 1 || effects[0].Attempt == attemptA {
 					t.Fatalf("attempt B did not get unique identity: state %+v effects %+v", state, effects)
@@ -534,7 +538,7 @@ func TestMenuOperationAttemptRejectsDelayedDuplicateAcrossEveryOperation(t *test
 	exhausted := NewMenuState(menuThreads(), target)
 	exhausted.OperationSequence = ^uint64(0)
 	got, effects := dispatchMenuOperation(exhausted, MenuEffect{Operation: "switch"}, target)
-	if len(effects) != 0 || got.InFlight.Operation != "" || got.Notice.Text != "operation attempt identity exhausted" {
+	if len(effects) != 0 || got.operationForTest().Operation != "" || got.Notice.Text != "operation attempt identity exhausted" {
 		t.Fatalf("exhausted operation identity authorized work: state=%+v effects=%+v", got, effects)
 	}
 }
@@ -555,6 +559,7 @@ func TestMenuDispatchInstallsOperationProgressBeforeEffect(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.operation, func(t *testing.T) {
 			state := NewMenuState(menuThreads(), target)
+			state.Frames[len(state.Frames)-1].PreviewResolution.Worktree = "/repo/new"
 			got, effects := dispatchMenuOperation(state, MenuEffect{Operation: tc.operation}, tc.address)
 			if len(effects) != 1 || got.Notice.Level != MenuNoticeProgress || got.Notice.Text != tc.want {
 				t.Fatalf("dispatch = notice %+v effects %+v, want progress %q before effect", got.Notice, effects, tc.want)
@@ -777,6 +782,7 @@ func TestMenuStartSuccessKeepsReturnedSelectionUntilRefreshAddsRow(t *testing.T)
 	state := NewMenuState(menuThreads(), menuAddress("couch-one"))
 	state, _ = reduceKey(state, PanelKey{Kind: KeyCtrlSpace})
 	state.CurrentFrame()
+	state.Frames[len(state.Frames)-1].PreviewResolution.Worktree = "/repo/new"
 	state, effects := dispatchMenuOperation(state, MenuEffect{Operation: "start"}, couchcore.ThreadAddress{})
 	if len(effects) != 1 {
 		t.Fatalf("start effects = %+v", effects)
@@ -849,11 +855,12 @@ func TestMenuOperationCompletionNeverMistakesReplacementFrameForOrigin(t *testin
 						resultAddress = created
 					}
 				}
+				state.Frames[len(state.Frames)-1].PreviewResolution.Worktree = "/repo/new"
 				state, effects := dispatchMenuOperation(state, MenuEffect{Operation: tc.operation}, originAddress)
 				if len(effects) != 1 {
 					t.Fatalf("dispatch = %+v", effects)
 				}
-				originInstance := state.InFlight.FrameInstance
+				originInstance := state.operationForTest().FrameInstance
 				replacement := state.CurrentFrame()
 				state.FrameSequence++
 				replacement.Instance = state.FrameSequence
@@ -930,6 +937,7 @@ func TestMenuOperationCompletionPreservesLaterGlobalStartOverlay(t *testing.T) {
 					frame.PreviewAccepted = frame.Generation
 					frame.PreviewResolution.Fingerprint = "accepted"
 					frame.PreviewResolution.CanonicalPath = "/repo/new"
+					frame.PreviewResolution.Worktree = "/repo/new"
 					frame.PreviewResolution.Profile.Agent = "claude"
 					state, effects = reduceKey(state, PanelKey{Kind: KeyEnter})
 				}
@@ -945,7 +953,7 @@ func TestMenuOperationCompletionPreservesLaterGlobalStartOverlay(t *testing.T) {
 					t.Fatalf("could not open later global start: %+v", state.Frames)
 				}
 				overlay := state.CurrentFrame()
-				address := state.InFlight.Address
+				address := state.operationForTest().Address
 				if operation == "start" && success {
 					address = menuAddress("couch-new")
 				}
@@ -1188,6 +1196,7 @@ func TestStartFormArmedSubmitDispatchesOnce(t *testing.T) {
 	frame.PreviewAccepted = frame.Generation
 	frame.PreviewResolution.Fingerprint = "accepted-fingerprint"
 	frame.PreviewResolution.CanonicalPath = "/repo/new"
+	frame.PreviewResolution.Worktree = "/repo/new"
 	frame.PreviewResolution.Profile.Agent = "claude"
 
 	first, effects := reduceKey(state, PanelKey{Kind: KeyEnter})
@@ -1255,9 +1264,9 @@ func TestUnusableRowOffersReboot(t *testing.T) {
 func TestRebootDispatchSurvivesARefresh(t *testing.T) {
 	row := unusableMenuRow(couchcore.ReasonSessionGone)
 	state := dispatchRebootFromActions(t, row)
-	origin := state.InFlight
+	origin := state.operationForTest()
 	state = reconcileMenuFrames(state)
-	if state.InFlight != origin || state.CurrentFrame().Kind == MenuFrameConfirmation {
+	if state.operationForTest() != origin || state.CurrentFrame().Kind == MenuFrameConfirmation {
 		t.Fatalf("refresh changed pending backend preparation: %+v", state)
 	}
 }
@@ -1294,7 +1303,7 @@ func TestABusyRefusalNamesTheRunningOperation(t *testing.T) {
 	if want := "couch-two is busy: relaunch is already running on it"; !stringsContains(refused.Notice.Text, want) {
 		t.Fatalf("notice = %q, want it to contain %q", refused.Notice.Text, want)
 	}
-	if refused.InFlight.Operation != "" {
-		t.Fatalf("a refused gesture left the operator's in-flight slot held: %+v", refused.InFlight)
+	if refused.operationForTest().Operation != "" {
+		t.Fatalf("a refused gesture left the operator's in-flight slot held: %+v", refused.operationForTest())
 	}
 }
