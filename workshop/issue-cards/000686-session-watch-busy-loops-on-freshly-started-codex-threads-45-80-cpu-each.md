@@ -1,6 +1,6 @@
 ---
 id: 000686
-status: working
+status: codecomplete
 created: 2026-10-18
 updated: 2026-10-18
 estimate_hours: 2.63
@@ -13,6 +13,14 @@ claimant:
     workspace: pair:7
     worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
     repository: github.com/xianxu/pair
+actual_hours: 1.54
+tracker:
+    version: 1
+    completion:
+        token: close-0acc95c210a2
+        repository: github.com/xianxu/pair
+        reviewed_head: 9d790e70afb8034a1de572fff2cf1d3c5093facf
+        evidence_commit: a07547e686a75396981b72ed439e802ceca8bcaa
 ---
 
 # session-watch busy-loops on freshly started Codex threads (45-80% CPU each)
