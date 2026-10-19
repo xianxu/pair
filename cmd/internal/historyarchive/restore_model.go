@@ -132,14 +132,14 @@ const (
 // pair:m5-concept pure
 type RestoreState struct{ Phase RestorePhase }
 
-// RestoreValidateOutput may be emitted only after all member validation and
-// successful decoder exits. Publication uncertainty is terminal.
+// RestoreEvent advances a validated execution or records a terminal failure.
 // pair:m5-concept pure
 type RestoreEvent uint8
 
 const (
 	RestoreVerifyInputs RestoreEvent = iota
 	RestoreBeginExtraction
+	// RestoreValidateOutput requires every member and decoder exit to succeed.
 	RestoreValidateOutput
 	RestorePublishOutput
 	RestoreFail

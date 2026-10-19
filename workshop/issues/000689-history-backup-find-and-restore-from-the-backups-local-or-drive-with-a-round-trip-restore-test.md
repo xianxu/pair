@@ -141,6 +141,8 @@ total: 4.93
 - Final-code recorded suite attempt 738172d262add15b8c7d3683c9f7deea started through sdlc local-check and is queued on aa87c202. No suite pass is claimed. Its log is created when it acquires capacity; the initial queued state has only an owner record.
 - Operator drill commands and independent SHA-256/original comparison are in /tmp/pair-689-operator-drill.md. Hub send 5fe2daa6-c03e-46d8-86ab-50633ff2368e is submitted. Verified hub receipt 3d2fd896-3a8c-469b-9f9d-f61abaf83bdc arranges the morning drill for 2026-10-16, instructs letting the recorded suite finish and holding landing until acceptance. M2 boundary and issue close remain unrun pending that evidence; no real Drive/operator key access by this worker.
 
+- Recorded suite 738172d262add15b8c7d3683c9f7deea acquired after 274 s. Historyarchive (199.152 s), archivecmd, archivetest, artifactpath and couchcore passed, but termcmd's TestNoDeclarationCarriesTwoStackedGodocs found a branch-owned misplaced opener: RestoreValidateOutput's paragraph was attached to RestoreEvent. Reproduced with the existing guard (RED), moved the event-specific sentence onto its enum constant and documented RestoreEvent itself, then the unchanged guard passed (0.381 s). This changes comments only, no guard/assertion/behavior change. The original recorded run is retained through completion for other failures; its failure cannot qualify landing. A fresh recorded suite is required on the corrected pushed head.
+
 ## Revisions
 
 - 2026-10-18: clarified the later sync-index Spec supersedes remote queries from find. Recorded the hub-approved label/location evidence and atomic refresh contract; original Done-when obligations are retained without reduction. Added the durable plan with M1/M2 review boundaries.
