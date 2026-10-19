@@ -83,7 +83,7 @@ func TestListedTerminalUnknownNeverRetries(t *testing.T) {
 			return []byte(`{"tab_id":1}`), nil
 		}
 		return []byte("pair-a [Created 1s ago]\n"), nil
-	})
+	}, noLiveServers)
 	if err == nil || calls != 1 {
 		t.Fatalf("unknown listing was retried into attach authority: calls=%d err=%v", calls, err)
 	}
@@ -122,7 +122,7 @@ func TestFullListingConsumersKeepExactIdentityAndState(t *testing.T) {
 						t.Fatalf("live=%v err=%v want=%v", got, err, tc.live)
 					}
 				case "handoff":
-					err := requireListedLiveTerminal(t.Context(), tc.session, listTerminalSessions)
+					err := requireListedLiveTerminal(t.Context(), tc.session, listTerminalSessions, noLiveServers)
 					if (err == nil) != tc.live {
 						t.Fatalf("handoff err=%v want live=%v", err, tc.live)
 					}

@@ -84,9 +84,9 @@ func (a *terminalOSAttempt) Check(ctx context.Context) error {
 		return err
 	}
 	if !a.create {
-		return requireListedLiveTerminal(ctx, a.name, listTerminalSessions)
+		return requireListedLiveTerminal(ctx, a.name, listTerminalSessions, a.rt.liveSessionServers)
 	}
-	servers, err := (osSessionOwnerIO{}).SessionServers(ctx, a.name)
+	servers, err := a.rt.liveSessionServers(ctx, a.name)
 	if err != nil {
 		return err
 	}
@@ -157,7 +157,7 @@ func (a *terminalOSAttempt) Admit(ctx context.Context) error {
 		lifetime = ctx
 	}
 	return admitTerminalAfterReady(ctx, lifetime, a.observeAdmission, func(queryCtx context.Context) error {
-		return requireListedLiveTerminal(queryCtx, a.name, listTerminalSessions)
+		return requireListedLiveTerminal(queryCtx, a.name, listTerminalSessions, a.rt.liveSessionServers)
 	})
 }
 
@@ -242,9 +242,18 @@ func listTerminalSessions(ctx context.Context) ([]byte, error) {
 	return (ZellijSource{}).runContext(ctx, "list-sessions", "--no-formatting")
 }
 
+// ErrListingOmittedLiveServer is a listing that leaves out a session whose
+// exact server is independently live (pair#692). Zellij 0.45.1 drops a
+// session from list-sessions when its ConnStatus probe loses the reply to a
+// concurrent connection (zellij-org/zellij#5270), so the omission is unknown,
+// not absence. Callers refuse on it as on any unknown; they never retry.
+var ErrListingOmittedLiveServer = errors.New("terminal listing omitted a live server; attach unverified")
+
 // Each existing handoff fence consumes one fresh positive observation. Unknown
 // is final for that fence, never a reason to try again inside this request.
-func requireListedLiveTerminal(ctx context.Context, name string, query func(context.Context) ([]byte, error)) error {
+// Only a listing that names the session live admits. An omission is checked
+// against servers, process evidence, to name which refusal it is.
+func requireListedLiveTerminal(ctx context.Context, name string, query func(context.Context) ([]byte, error), servers func(context.Context, string) ([]SessionServerIdentity, error)) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -259,7 +268,17 @@ func requireListedLiveTerminal(ctx context.Context, name string, query func(cont
 	if err != nil {
 		return fmt.Errorf("cannot attach terminal: %w", err)
 	}
-	if !present || exited {
+	if exited {
+		return fmt.Errorf("terminal %q is not listed live", name)
+	}
+	if !present {
+		live, err := servers(ctx, name)
+		if err != nil || ctx.Err() != nil {
+			return fmt.Errorf("terminal %q is not listed, and whether its server lives is unknown: %w", name, errors.Join(err, ctx.Err()))
+		}
+		if len(live) != 0 {
+			return fmt.Errorf("terminal %q: %w", name, ErrListingOmittedLiveServer)
+		}
 		return fmt.Errorf("terminal %q is not listed live", name)
 	}
 	return nil
