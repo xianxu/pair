@@ -1,8 +1,8 @@
 ---
 id: 000694
-status: working
+status: punt
 created: 2026-10-18
-updated: 2026-10-18
+updated: 2026-10-19
 estimate_hours:
 github_issue:
 started: 2026-10-18T22:48:50-07:00
@@ -13,6 +13,12 @@ claimant:
     workspace: pair:1
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
+tracker:
+    version: 1
+    abandoned:
+        ref: refs/ariadne/abandoned/000694
+        branch: 000695-lifecycle-primitives-transcript-binding-on-the-record-the-two-kind-address-proven-teardown
+        head: 359b1f2a88067c4df59c281be956272061576347
 ---
 
 # Couch teams: hubs as team folders, a second address kind beside slots, through the shared lifecycle
