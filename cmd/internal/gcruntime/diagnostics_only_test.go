@@ -1,0 +1,228 @@
+package gcruntime
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"path/filepath"
+	"testing"
+	"time"
+
+	"github.com/xianxu/pair/cmd/internal/artifactpath"
+	"github.com/xianxu/pair/cmd/internal/diagnosticlog"
+	"github.com/xianxu/pair/cmd/internal/storagegc"
+)
+
+type heldDiagnostic struct {
+	holders   []diagnosticlog.Registration
+	snapshots int
+}
+
+func (p *heldDiagnostic) Snapshot(context.Context, []string) (diagnosticlog.Inspection, error) {
+	p.snapshots++
+	return &heldDiagnostic{holders: append([]diagnosticlog.Registration(nil), p.holders...)}, nil
+}
+
+func (p *heldDiagnostic) OpenFiles(context.Context, string) ([]diagnosticlog.Registration, error) {
+	return p.holders, nil
+}
+func (*heldDiagnostic) Runtimes(context.Context) ([]diagnosticlog.Runtime, error) { return nil, nil }
+
+func TestDiagnosticsOnlyRevalidatesHoldersAndNeverTouchesSessionClocks(t *testing.T) {
+	for _, owners := range []int{8, 16} {
+		t.Run(fmt.Sprint(owners), func(t *testing.T) {
+			root := t.TempDir()
+			probe := &heldDiagnostic{}
+			s, err := NewWithInspection(root, probe)
+			if err != nil {
+				t.Fatal(err)
+			}
+			c := s.Collector.Coordinator
+			for n := range owners {
+				if err := os.WriteFile(filepath.Join(c.Root, fmt.Sprintf("draft-owner%d.md", n)), []byte("authored"), 0600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			path := filepath.Join(c.Root, "wrap-events-owner0.jsonl")
+			for n := range owners {
+				candidate := filepath.Join(c.Root, fmt.Sprintf("wrap-events-owner%d.jsonl", n))
+				if err := os.WriteFile(candidate, []byte("expired diagnostic"), 0600); err != nil {
+					t.Fatal(err)
+				}
+				at := time.Now().Add(-8 * 24 * time.Hour)
+				if err := os.Chtimes(candidate, at, at); err != nil {
+					t.Fatal(err)
+				}
+			}
+			probes, persists := 0, 0
+			s.Collector.Legacy = func(context.Context, artifactpath.StorageOwner) (storagegc.Liveness, error) {
+				probes++
+				return storagegc.ProcessDead, nil
+			}
+			c.BeforePersist = func() error { persists++; return nil }
+			before, err := os.ReadDir(c.Root)
+			if err != nil {
+				t.Fatal(err)
+			}
+			preview, err := s.PreviewDiagnostics(context.Background())
+			if err != nil || len(preview.Diagnostics) != owners || !preview.Diagnostics[0].Eligible {
+				t.Fatal(preview, err)
+			}
+			after, err := os.ReadDir(c.Root)
+			if err != nil || len(after) != len(before) {
+				t.Fatal("preview mutated root", err)
+			}
+			// An open holder appearing after preview defeats that advisory decision.
+			probe.holders = []diagnosticlog.Registration{{PID: 123, Birth: "live"}}
+			blocked, err := s.ApplyDiagnostics(context.Background(), 100)
+			if err != nil || blocked.DiagnosticCollectedBytes != 0 || len(blocked.Diagnostics) != owners || blocked.Diagnostics[0].Eligible {
+				t.Fatal(blocked, err)
+			}
+			if _, err := os.Stat(path); err != nil {
+				t.Fatal("held payload changed", err)
+			}
+			probe.holders = nil
+			collected, err := s.ApplyDiagnostics(context.Background(), 100)
+			if err != nil || collected.DiagnosticCollectedBytes != int64(owners*len("expired diagnostic")) {
+				t.Fatal(collected, err)
+			}
+			if _, err := os.Stat(path); !os.IsNotExist(err) {
+				t.Fatal("expired payload remains", err)
+			}
+			if probe.snapshots != 3 {
+				t.Fatalf("N=%d inspections=%d want one for each preview/apply sweep", owners, probe.snapshots)
+			}
+			if probes != 0 || persists != 0 {
+				t.Fatalf("diagnostic scope evaluated sessions: probes=%d persists=%d", probes, persists)
+			}
+			for n := range owners {
+				if b, err := os.ReadFile(filepath.Join(c.Root, fmt.Sprintf("draft-owner%d.md", n))); err != nil || string(b) != "authored" {
+					t.Fatal("authored data changed", err)
+				}
+			}
+			if _, err := os.Stat(filepath.Join(c.Root, ".retention", "stores.json")); !os.IsNotExist(err) {
+				t.Fatal("migration state changed", err)
+			}
+		})
+	}
+}
+
+func TestDiagnosticPreviewReportsMissingDeclarationAndContinues(t *testing.T) {
+	s, err := NewWithInspection(t.TempDir(), &heldDiagnostic{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := s.Collector.Coordinator.Root
+	missingDir := filepath.Join(root, "gone")
+	if err := os.Mkdir(missingDir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	missing := filepath.Join(missingDir, "wrap-events-missing.jsonl")
+	w, err := diagnosticlog.Open(missing, s.DiagnosticOptions)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.RemoveAll(missingDir); err != nil {
+		t.Fatal(err)
+	}
+	good := filepath.Join(root, "wrap-events-good.jsonl")
+	if err := os.WriteFile(good, []byte("old"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	at := time.Now().Add(-8 * 24 * time.Hour)
+	os.Chtimes(good, at, at)
+	report, err := s.PreviewDiagnostics(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	foundMissing, foundGood := false, false
+	for _, row := range report.Diagnostics {
+		if row.Path == missing {
+			foundMissing = !row.Eligible && row.Reason != ""
+		}
+		if row.Path == good {
+			foundGood = row.Eligible && row.Bytes == 3
+		}
+	}
+	if !foundMissing || !foundGood {
+		t.Fatalf("missing blocker stopped valid paths: %+v", report)
+	}
+	if _, err := os.Stat(missingDir); !os.IsNotExist(err) {
+		t.Fatal("preview recreated missing parent", err)
+	}
+}
+
+type payloadInspection struct {
+	holders map[string][]diagnosticlog.Registration
+}
+
+func (p *payloadInspection) OpenFiles(_ context.Context, path string) ([]diagnosticlog.Registration, error) {
+	return p.holders[path], nil
+}
+func (*payloadInspection) Runtimes(context.Context) ([]diagnosticlog.Runtime, error) {
+	return []diagnosticlog.Runtime{{Process: diagnosticlog.Registration{PID: 123, Birth: "ownerless"}}}, nil
+}
+func TestOwnerlessRuntimeBlocksCurrentButNotUnheldExpiredSegments(t *testing.T) {
+	probe := &payloadInspection{holders: map[string][]diagnosticlog.Registration{}}
+	s, err := NewWithInspection(t.TempDir(), probe)
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(s.Collector.Coordinator.Root, "wrap-events-owned.jsonl")
+	now := time.Now().Add(-8 * 24 * time.Hour)
+	seed := s.DiagnosticOptions
+	seed.Now = func() time.Time { return now }
+	seed.SynchronousMaintenance = true
+	seed.Proof = func(context.Context, string, []diagnosticlog.Registration) error { return nil }
+	w, err := diagnosticlog.Open(path, seed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.Write([]byte("expired")); err != nil {
+		t.Fatal(err)
+	}
+	now = now.Add(2 * 24 * time.Hour)
+	if _, err := w.Write([]byte("current")); err != nil {
+		t.Fatal(err)
+	}
+	w.Close()
+	s.DiagnosticOptions.Now = time.Now
+	preview, err := s.PreviewDiagnostics(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	segment := ""
+	for _, row := range preview.Diagnostics {
+		if row.Path != path && row.Eligible {
+			segment = row.Path
+		}
+		if row.Path == path && row.Eligible {
+			t.Fatal("ownerless runtime did not block current")
+		}
+	}
+	if segment == "" {
+		t.Fatalf("ownerless runtime blocked unheld expired segment: %+v", preview)
+	}
+	probe.holders[segment] = []diagnosticlog.Registration{{PID: 456, Birth: "reader"}}
+	blocked, err := s.ApplyDiagnostics(context.Background(), 100)
+	if err != nil || blocked.DiagnosticCollectedBytes != 0 {
+		t.Fatal(blocked, err)
+	}
+	if b, err := os.ReadFile(segment); err != nil || string(b) != "expired" {
+		t.Fatal("held segment changed", err)
+	}
+	delete(probe.holders, segment)
+	applied, err := s.ApplyDiagnostics(context.Background(), 100)
+	if err != nil || applied.DiagnosticCollectedBytes != 7 {
+		t.Fatal(applied, err)
+	}
+	if _, err := os.Stat(segment); !os.IsNotExist(err) {
+		t.Fatal("unheld expired segment remains", err)
+	}
+	if b, err := os.ReadFile(path); err != nil || string(b) != "current" {
+		t.Fatal("active current changed", err)
+	}
+}

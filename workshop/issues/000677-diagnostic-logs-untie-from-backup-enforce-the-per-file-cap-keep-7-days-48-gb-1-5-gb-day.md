@@ -1,13 +1,23 @@
 ---
 id: 000677
-status: open
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-18
 updated: 2026-10-18
-estimate_hours:
+estimate_hours: 2.52
 collaboration-mode: collaboration
-card_mirror: 'fe5ec13f8d1d7e1483b98eeea70396ea80e624ef' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '97bffaf506e2d2fbdfd92a64e3a818ac6fc3d92d' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-18T16:54:38-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:3
+    worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
+    repository: github.com/xianxu/pair
+flow: {kind: full, provenance: operator}
+actual_hours: 2.56
 ---
 
 # diagnostic logs: untie from backup, enforce the per-file cap, keep ~7 days (48 GB, +1.5 GB/day)
@@ -22,14 +32,165 @@ Untie diagnostic retention from history backup: diagnostics are not history. Enf
 
 ## Done when
 
-- No diagnostic file exceeds the cap; a test grows one past it and sees rotation.
-- Generations older than the window are deleted without a backup; a counted test covers the sweep.
-- The first live sweep's reclaimed bytes are recorded.
+- Every newly admitted generation stays at or below64MiB; deterministic tests cross the boundary and observe bounded rotation. The first sweep evicts proven oversized legacy generations, including young ones; unknown/live holders stay blocked and reported.
+- Diagnostic age/size eviction needs no backup or session-migration acknowledgment. Default7days, PAIR_DIAGNOSTIC_DAYS1..365; invalid configuration fails closed. Counted N/2N tests cover independent diagnostic-only/scheduled sweeps and preserve session/history data.
+- Send the hub real preview file/byte categories and blocked reasons before live apply. Record the first approved diagnostic-only sweep's actual reclaimed bytes and remaining blockers; record owned-turn bytes and the detail-level decision.
 
 ## Plan
 
-- [ ]
+See [durable implementation plan](../plans/000677-diagnostic-log-retention-plan.md). Hub approved full flow; change-code admitted implementation at a21488b4effef56ede5357236754a4111812f807. The approved live arrangement requires sending the real diagnostic-only preview categories and blocked reasons to the hub before apply, with no :0 staging.
+
+- [x] Replace the backup/count fence with one configurable age/oversize policy and deterministic regressions; preserve hard append bounds and deletion recovery.
+- [x] Separate diagnostic collection from session migration, including scheduled pages and a diagnostic-only CLI scope; count discovery/sweep work at N/2N.
+- [x] Measure controlled bytes per turn, document the detail-level decision, verify with owned fixtures and the approved real diagnostic-only sweep; report actual reclaimed bytes and blockers.
+- [ ] Run targeted and recorded suites, review/CI/merge gates and report the verified landing.
 
 ## Log
 
 ### 2026-10-18
+- 2026-10-18: closed — Recorded suite5bdc17677d33a96399c0cf222bdc0f92 completed all phases and failed only termcmd/TestNoDeclarationCarriesTwoStackedGodocs; retained log sha256 prefixe06c3e34e0a6. Corrected comment attachment only in sweep.go, with no executable/scope change; guard RED in recorded suite then GREEN0.606s, whole termcmd GREEN3.529s. Updated existing lesson and Log. New recorded suite is queued on pushed163c91304 and must pass before landing; --no-plan-check acknowledges only the remaining post-close suite/CI/merge/report lifecycle row. Prior SHIP remains behavioral review baseline; no repeated live deletion. (fixed-then-ship); review verdict: SHIP
+- 2026-10-18: closed — Approved real diagnostic-only apply removed18 exact generations and12734567104logical bytes; retained before/after inode inventories, removed rows and df in .git/pair-677-live-evidence, #687 tracks supervisor registration. All five round1 fixes verified RED/GREEN; round2 BR6 now covers changed certificates, malformed per-log state, held pending recovery and local storage faults through real Scheduler, plus native-inventory/cancel/deadline/busy controls preserving cursor. Broader packages passed diagnosticlog50.436s gcruntime22.784s gccmd2.973s artifactpath9.107s; counted native N8/16 remains constant. Only unchecked Plan row is post-close recorded-suite/CI/merge/report lifecycle, acknowledged by precise --no-plan-check. Final suite queued on pushed4729c0d96 and must pass before landing. No repeated live apply or process intervention.; review verdict: SHIP
+
+### 2026-10-18 — claim, root-cause evidence and proposed design
+
+Claimed unowned #677 after #668 diagnostic landing/park. start-plan first refreshed ariadne ce8cbf95 and explicitly refused the old build; its requested rerun created this issue branch. No product code or live log mutation yet. The bounded read-only helper agent failed at model capacity; the main session completed the source audit instead.
+
+Read-only metadata inventory under /Users/xianxu/.local/share/pair visited50,017 entries in0.695s, complete with no errors:760 diagnostic-path files,62,725,806,921 logical bytes and62,727,901,184 allocated bytes;33,212,814,029 bytes have filesystem mtime older than7days. This is a metadata estimate, not deletion authority or promised reclamation. It includes diagnostic sidecars; the actual policy uses certified last-write evidence and writer proof.
+
+The largest current log is repos/e108517d46ab4575/wrap-events-pair.jsonl,4,933,163,904bytes, created2026-07-16, last changed2026-09-16, v1 state with no persisted limits. Shared strict byte-limit commit96b64e58e is dated2026-10-15, so this file predates enforcement. Another4,442,555,470-byte closed generation in repo990458a6956a804b was bornOct1 and last writtenOct15; metadata preserves the original oversized generation. ensureCurrent deliberately adopts preexisting bytes unchanged; policy_test.go/TestDiagnosticOversizedLegacyGenerationPreservedUntilBackup explicitly requires a4GiB sparse legacy segment to survive. Current Writer.Write performs whole-batch admission under the stable shared lock, refusing over-cap growth; hard-limit/oversized-legacy targeted tests pass (0.950s). No measured evidence says the current guarded append path writes a fresh generation past64MiB. The missing behavior is enforcing the new policy on inherited oversized files, not inventing a new append timeout/retry.
+
+KeepDiagnosticsUntilBackup=true disables all deletion and count debt; setting it false alone would revive a3-generation policy that can discard recent high-volume data well before7days and can require complete64-generation inventories. The proposed age-only policy disables that dormant count authority. Separately, the live .retention/stores.json says migration_complete=false; gcruntime.Apply, diagnosticPages and Batch all gate diagnostics on session/Couch migration. A diagnostic-only path is needed to reclaim debug files without authorizing or initializing session-data retention.
+
+Bounded8MiB tail sample of repo990458a6956a804b's current wrap-events:8,388,489bytes,39,163valid records,1,577,454 raw output bytes. master-chunk/stdout-queue/scrollback-write total30,762 records; stdout-batch-flush adds8,386. Those4labels contribute8,385,438bytes (>99.9% of the sample), about5.32 diagnostic bytes per raw-output byte. It spans2026-10-16T20:58:49 through2026-10-17T10:54:58 and contains no turn IDs. Six stdin reads are not six proven turns; no bytes-per-turn claim is inferred from them. The plan measures explicitly delimited owned turns through the production proxy before deciding whether detail must change.
+
+Recommended tradeoff for hub review: expire proven diagnostic generations at7days by default; evict entire inherited oversized diagnostic generations through the existing deletion intent, even when young. This intentionally loses those legacy debug generations and avoids copying/re-writing tens of GiB or adding a compaction journal. Unknown/live legacy holders, identity changes, malformed metadata and cancellation retain data with explicit reasons. Newly admitted generations stay64MiB maximum; remaining unproven oversized legacy files are reported rather than silently claimed fixed. Alternatives and visible states are in the plan. This follows the operator's permission to trim debugging logs without backup; history/session data remains under its existing guards.
+
+### 2026-10-18 — plan gate PQ-1
+
+Full-flow change-code round1 accepted the diagnosis, scope and all architectural lenses but blocked on function-level-test-contract: compress procedural case inventories and name the selection/service entry points. Replaced those lists with strategy/guard tables covering ParseRetentionDays, DecideGeneration, limits/admission, proof/preview/replay, service constructors, PreviewDiagnostics/ApplyDiagnostics, diagnosticPages, Batch and runWithService. Counted N/2N acceptance remains. No product code edited; no live apply or estimate derived before plan-quality acceptance.
+
+
+### 2026-10-18 — implementation gate admitted; quiet hold active
+
+Plan-quality is CLEAN with PQ-1 disposed; change-code admitted full flow and committed accepted design a21488b4effef56ede5357236754a4111812f807. Estimate2.52h was derived after acceptance from v3.1/v2.1 primitives and recorded through the card setter. Estimate-quality INFO notes verification/landing allowances may be optimistic; module implementation includes unit/targeted result handling, and test/build/review execution counts as ship wall-clock. Only idle queue waits are excluded; overlapping execution is counted as elapsed, not operator attention.
+
+Verified hub receipt0621af96-01b5-48ec-9212-77bbbcec71e7 imposes QUIET HOLD from17:10 until an explicit lift. No suites, builds, go tests, disk-heavy probes or live apply may start; already-running work may finish. Only the already-started read-only change-code review remained; it has now finished. Reply6df994ac-94ec-4ac6-af28-d2d81103b737 was submitted: holding, nothing heavy running. No native lane or background test is active.
+
+During the hold, drafted and text-formatted cmd/internal/diagnosticlog/retention_policy_test.go only: seven-day boundary, age eviction, inherited young oversize, recent generations beyond old count limits, counted80/160-generation sweep, and a stateful registered-holder release sequence. These tests HAVE NOT RUN; no RED/GREEN claim and no production behavior edit. First action after the hub lifts the hold is run this file's targeted tests against unchanged production, retain functional RED, then implement the accepted policy. The helper agent twice failed at model capacity; continue in the main session instead of waiting on delegation.
+
+## Estimate
+
+Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only. Derived after plan-quality CLEAN; the calibration source is marked stale by sdlc estimate-source, so the result is provisional.
+
+Library availability: this extends the owned diagnosticlog journal, portable storage backend, Inspection seam, existing collector and Go flag parser; no greenfield stack or new external library is needed. Familiarity1.0 reflects that source audit and the existing patterns. Thorough-plan design discount0.2 applies to implementation components, not the issue authoring already performed; design buffer15%. Each impl below is exactly40% of the chosen v2/v2.1 primitive implementation hours, applied once.
+
+Rows in order: issue/spec authoring (base impl0.2); policy (0.5); independent collector (0.5); CLI/config (0.4); count/fence consumer refactor (0.5); controlled turn measurement (0.4); owned/live verification (0.5); docs (0.2); one close review (0.5). Component design picks before the0.2 discount are0.3,0.3,0.2,0.5,0.2,0.2,0.2,0.1; issue authoring design0.5 is undiscounted. No API-discovery primitive is added for an existing file/process seam. Machine queue time is excluded from focused ship-time.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.50 impl=0.08
+item: smaller-go-module design=0.06 impl=0.20
+item: smaller-go-module design=0.06 impl=0.20
+item: smaller-go-module design=0.04 impl=0.16
+item: cross-cutting-refactor design=0.10 impl=0.20
+item: smaller-go-module design=0.04 impl=0.16
+item: smaller-go-module design=0.04 impl=0.20
+item: atlas-docs design=0.04 impl=0.08
+item: milestone-review design=0.02 impl=0.20
+design-buffer: 0.15
+total: 2.52
+```
+
+Design subtotal0.90h ×1.15 + scaled implementation1.48h =2.515h, rounded2.52h; a provisional working range is about1.8–3.3h. This prices the accepted scope, not the earlier queue wait or a predetermined total.
+
+## Revisions
+
+### 2026-10-18 — approved diagnostic-only policy and live gate
+
+Verified hub receipt5ebfef41-eb7d-4f3e-92f4-fff05f5b0a37 approves the committed plan and full flow, including whole eviction of young oversized legacy diagnostics and retaining/reporting unknown or live holders. Clarified Done-when to distinguish bounded newly admitted data from blocked inherited files; the absolute legacy-cap claim cannot override live-writer safety. Added the explicit pre-apply gate: run real diagnostic-only preview and send file/byte categories plus blocked reasons to the hub first. This is a reporting gate in an already-approved live arrangement, not a request to touch :0 or acknowledge session migration.
+
+### Implementation checkpoint — hold lifted, policy RED/GREEN
+
+Verified fresh hub hold-lift receipt1623f49c-c7fa-4de9-b003-db01da33bd65 (submitted); no test/build ran during the hold. The delegated GC task reported capacity failure but left two uncommitted regression additions (gccmd/run_test.go and gcruntime/schedule_test.go), discovered on git status; main inspected and ran them rather than assuming the error meant no files changed. Main now owns all implementation.
+
+Functional RED against unchanged production: the seven-day boundary returned false at7d/8d; expired and young oversized managed Collect returned zero; registered open-holder collection did not block. One broad new-test invocation hit its120s test bound while seeding many synchronous rotations; individual behavioral REDs completed0.936s. Keep the eventual N/2N fixture efficient without weakening counted production collection effects. The measurement draft initially misclassified canonical /private paths; resolved the owned temporary directory before comparing ObserveIO paths.
+
+Core targeted GREEN: diagnostic default/expired/oversized/registered-holder tests0.577s; policy/deletion-replay/legacy/stable-lock/page tests4.416s. Core uses one age-or-size decision, drops active count/debt authority, retains byte caps and exact deletion journal. Existing crash-report sweep keeps its separate legacy fence; this issue's diagnostics-only scope selects managed wrap/adapt/fullscreen families, not crash-report/history policy.
+
+Owned synthetic production-proxy measurement (64x128 output bytes per explicitly delimited turn):8turns440982diagnostic bytes(55122.8/turn),8169metadata bytes,2058records;16turns883456bytes(55216.0/turn),15475metadata,4114records; zero drops/pending. N/2N counted envelope passes, raw output8192bytes/turn. This is not a measured mean human turn. Keep existing hashed per-chunk detail and PAIR_WRAP_EVENTS=0 opt-out as approved.
+
+GC/CLI RED: diagnostics-only flag absent, pre-migration Batch ended before diagnostics, invalid policy reached root resolution. Those four targeted configuration/scope tests now GREEN after factoring diagnostic-only methods, removing diagnostic migration checks, preserving session gates, and carrying the effective duration into reports. Broader package verification remains running; no live preview or apply yet.
+
+### Scope and integration verification checkpoint
+
+Broader gcruntime/gccmd/workbenchshortcut tests passed17.850s/3.931s/1.337s after updating old backup-fence assertions. New stateful diagnostic-only test initially exposed that a blocked unadopted legacy path disappeared from apply output; CollectLegacyPage now returns its retained/blocked preview row. This is reporting only, not deletion authority. That integration now passes for8/16owners, with zero session probes/persists, no migration file, authored survivors unchanged. Late holder appearance blocks; release allows exact18-byte collection.
+
+The broad diagnosticlog run completed138.848s, red on nine obsolete backup-preservation expectations and one live-holder error identity assertion. Updated those assertions to age-based expiry while preserving creation/deletion recovery and fresh append controls; live-holder refusal wraps ErrUnknownWriters. The focused failures then passed2.963s. Current broad reruns are pending; no successful-suite claim yet. Constructor tests use NewWithInspection without ambient settings; public New parses the environment before root IO. Added hostile-policy fuzz seeds and effective retention text/JSON.
+
+Early draft PR is authorized by the hub's standing CI-overlap approval; opening before final suite/close, with all ordinary gates still required. No live preview/apply has occurred.
+
+### Native and real-preview evidence; approved revision
+
+Draft PR442: https://github.com/xianxu/pair/pull/442 (converted to draft); initial macOS conformance, merge-check and local-gates checks all passed. Targeted wrapper Diagnostic/WrapEvents tests passed4.172s, root/artifactpath/gcruntime/gccmd/workbenchshortcut packages passed20.954s/4.139s/1.379s/14.880s as applicable; shell retention CLI/editor integration and nvim/retention_test.lua passed. Broad diagnosticlog passed228.060s on the pre-registry-revision code.
+
+Candidate built only under owned TMPDIR directory pair-677.SD3lSM, no :0 staging. Owned OS conformance: held14-byte legacy diagnostic remains blocked and unchanged in preview/apply; after closing its FD, OS runtime inventory is still incomplete, so collection stays blocked (zero bytes). The survival assertion expecting collection correctly failed; do not bypass native uncertainty. Real first preview exited1 in0.06s on a stale registry declaration whose repos/3efc24a8a43ffcd9 parent is missing; no apply.
+
+Hub approved revision via submitted receiptb95da9f0-1f04-40c2-bc24-e802a659fa47. Registry missing-parent regression RED then GREEN0.273s: validate absolute/clean/version/directory/lock shape before resolution, enumerate a missing structurally valid declaration solely for blocked reporting, still fail malformed declarations closed. Service regression GREEN0.502s includes missing blocker and valid eligible path, no recreation. No stale entry repair/deletion. Revised real preview is running under120s owned process bound; numbers must be sent before any apply.
+
+N/2N sweep setup revised to seed real one-byte payload/inode/clock metadata directly, avoiding hundreds of unrelated durable append/rotation transactions. Production page selection, durable deletion and ObserveIO budgets are unchanged; real rotation beyond former count authority remains separately covered by the70-record rotation test and a write across80 seeded generations. This reduces fixture churn rather than loosening the collector envelope.
+
+### Sweep-observation revision and blocked real preview
+
+Hub directed one process/open-file inventory per explicit sweep and bounded scheduled batch (submitted017891ce-c02f-4b4b-a264-18dd71b240d2). Implemented sweep-scoped observations, fresh for each preview/apply, retaining all native errors as uncertainty; ordinary writers keep live proof. Count guards require one native file command and process snapshot at8/16candidates, including cached failure; service integration checks fresh snapshots across preview, blocked apply and released apply, with zero session probes/persists. The obsolete queued suite on7ee55f89 was canceled through sdlc local-check cancel; other checkouts' runs untouched. No running branch suite remains.
+
+Revised real preview completed3.87s: eligible0/0bytes, retained0/0bytes;315certified generation rows with45,493,770,349known bytes blocked by lsof incomplete/unavailable. Also133missing-parent/path declarations,86changed-outside-protocol logs and3recovery-pending logs; their222rows have unknown payload bytes, NOT measured empty files. Sent numbers before any apply in receipt e5896719-e84f-4cef-b483-1499b908bd51, verified submitted. JSON retained under owned TMPDIR pair-677.SD3lSM/real-preview-snapshot.json. No live apply.
+
+Hub then requested exact lsof diagnosis before changing its gate (submitted13924d06-ef2e-4778-8bb4-0fd327675efe). Reconstructed identical argv from exact registry+DiagnosticInventory paths: lsof -nP -F pn -- plus379existing canonical candidate names,32,738argv bytes. Current2s bound killed it after2.056s, exit-9, stdout/stderr0. One read-only15s diagnostic observation of the identical argv completed13.409s, exit1, stdout/stderr0; this complete empty result is ALREADY allowed by exit1 handling. Cause is the inherited two-second budget spanning hundreds of per-name searches, not warnings. Reported before any timeout/gate relaxation via ab4ed3d1-78b0-42bf-9cd9-3c2c3e93d8bf. Measuring one unfiltered native inventory as an alternative; this also needs to cover open immutable-segment readers, not only current paths. No live proof bypass or timeout bump made.
+
+### Exact native cause, global observation and scoped client proof
+
+Unfiltered lsof -nP -F pn completed1.910s, exit0, stdout2,769,742bytes, stderr0 (996process records/34,881file records). Hub approved acquisition6cb78cc3-b658-4c66-80b8-052634118f70: one bounded16MiB/64KiB listing, in-memory exact current/validated segment matching, resolve births only for matches; keep2s fail-closed. Current/closed-holder parser regression RED before changing acquisition, then GREEN. Added immutable-segment native holder coverage, parser partial/malformed/output-cap controls, constant-count and fresh-sweep controls. Optional native conformance now recognizes a typed wrapped unavailable/deadline error under the EXISTING skip/require policy; hostile malformed/unknown/wrong-holder results still fail in both modes. No required-mode bypass.
+
+Global preview completed2.36s with lsof working;315generations45,493,811,660known bytes blocked by legacy runtime51802. Hub identified it as live brain client, not an orphan: pair --couch-session-v1 resume1-brain-41, parent Couch45023; environment carries COUCH_PAIR_DATA_DIR=/Users/xianxu/.local/share/pair, scopee40c2099f5fe78d6/tag1-brain-41 but no PAIR_DATA_DIR/protocol flag. Missing protocol, not process age, caused the old 'legacy' classification. No process was stopped/relaunched.
+
+Hub approved scoped proof via a473cb31-2893-4985-9112-3552cf411a35: use existing validated root/scope/tag to block only that client's diagnostic families and actual current/segment open files. Missing/conflicting ownership stays ambiguous. Exact live-client regression RED (unrelated path globally blocked) then GREEN; scoped diagnostics name brain slot/tag/PID and 'relaunch to register'. A subsequent preview finished1.52s but hit a separate runtime inventory uncertainty; enriched its failure with PID/phase without relaxing proof. Targeted runtime/native/parser/conformance-verdict tests GREEN1.097s; gcruntime/gccmd8.680s/2.651s. Load fell from87to31; one quieter read-only preview with actionable reasons is next. No live apply yet.
+
+### First live diagnostic-only sweep — exact18generations,12.73GB
+
+After the immutable proof revision, the2.35s preview found18eligible generations/12,734,567,104bytes (13oversized/12,591,862,216 plus5age-expired/142,704,888),8retained/434,873,157bytes and511blocked rows/32,324,589,144known bytes. Missing133, changed86 and recovery3 rows include unknown bytes. The live brain client blocks only its own618,743bytes; other known clients have slot/tag/PID and relaunch-to-register reasons. Current253rows/23,462,164,824bytes stay protected behind the live supervisor. Preview receiptf18204c7-3205-4fd6-94c3-f2a13630da5d verified submitted before apply; explicit hub go-ahead42a427eb-c28b-4124-9ef2-8c09ed6b56cd verified submitted.
+
+Public candidate pair-go gc --root /Users/xianxu/.local/share/pair --diagnostics-only --apply --json ran under an owned120s process bound, exit0 in14.90s. Exactly18previewed payloads were removed,12,734,567,104logical bytes, matching both removed rows and report totals. Their before-inventory device/inode pairs are all absent from after-inventory; their allocated blocks totaled12,734,607,360bytes. No session migration acknowledgment: stores.json migration_complete is stillfalse. No process stop/relaunch or :0 staging.
+
+Volume df -k /Users/xianxu/.local/share/pair, /dev/disk3s1 before: Used487,962,220KiB, Available438,571,840KiB. After: Used475,433,416KiB, Available451,156,772KiB. Available increased12,886,970,368bytes; used decreased12,829,495,296bytes. These net APFS volume deltas include concurrent writes/deletes and shared-volume accounting; they are not exact attribution to this sweep. Exact diagnostic payload removal is the18-row12,734,567,104bytes above.
+
+Before/after diagnostic inode inventories, exact removed rows, preview/apply JSON and df outputs are preserved locally in /Users/xianxu/workspace/pair/.git/pair-677-live-evidence, with sha256.json manifest digest9400201bf1975b219eae5b5ec1e1318721b3b753b4e757331a3d8de2cc15dac8. Aggregate disappearing inode totals include concurrent metadata replacement and are deliberately not claimed as GC attribution. The before/after inventory counts1095/1059files reflect live writers as well as deletion.
+
+Filed unclaimed #687 (workshop/issues/000687-couch-retention-registration.md, published on origin/main) at hub request: Couch already registers its coordinator runtime lease, but diagnostic OS proof only consumes the environment protocol flag/per-log registrations, so its supervisor appears ownerless. This follow-up keeps the current-log block and identity protection; no supervisor lifecycle implementation is folded into #677. Core ownerless-current/held-closed regression passed0.510s; targeted diagnostic policy/replay/count/native tests24.754s, gcruntime/gccmd17.388s/3.093s. Final recorded suite/review/merge remain outstanding.
+
+### Final checkpoint before close review
+
+The first close invocation did not dispatch review: it measured1.53h provisionally but refused unticked issue Plan rows. Marked the three completed implementation/live rows; the remaining row is explicitly the post-close suite/CI/merge/report lifecycle and stays unchecked until those gates finish. The next close uses precise --no-plan-check with that reason, never waiving actual implementation or publish checks; tl-worker explicitly permits review while the final recorded suite is queued.
+
+A final source audit found CLI Run parsed its injected getenv, then constructed gcruntime.New which reread ambient os.Getenv. Added TestCLIUsesInjectedDiagnosticEnvironmentOnly: ambient invalid0 plus injected empty/default7 must honor the caller. Functional RED reproduced the constructor's wrong configuration refusal. Run now composes NewWithInspection directly; scheduled New still parses real process settings. No policy or live behavior changes when the real caller uses os.Getenv, so no repeated live deletion is needed. The obsolete queued suite was canceled through its own lease, preserving every other slot's runs. Push/targeted verification and final suite follow.
+
+
+### Close review round 1 — class-wide corrections in progress
+
+The close gate returned REWORK with five findings; no close or landing is claimed. Canceled the queued obsolete recorded suite through its own local-check lease. BR-1: the replay primitive now proves the exact payload before any effect, including ordinary writers without ReaderProof; Open, Write, maintain and direct replay each reproduced RED, then passed GREEN (1.418s). The counted fallback proof budget now explicitly counts one check per deleted generation plus page overhead; native acquisition remains constant per sweep. BR-2: a valid declaration with a missing parent advances the scheduler cursor while remaining a blocked preview row; the real Scheduler regression reproduces starvation then verifies later collection, preserved declaration bytes and no parent recreation. Malformed declarations still fail closed. BR-3/BR-5: corrected the CLI integration classification and measurement test location, and classified proof.go/sweep.go in the exhaustive artifact-source guard without extending known violations; targeted guards passed3.531s. BR-4 reporting corrections are in progress; all five require a fresh close review before landing.
+
+Recovery: the requested previous-screen peek returned unavailable; workflow state and Git confirm the active #677 issue branch rather than the initial main-slot3 hint. Durable issue, plan, gate ledger and retained live evidence supplied continuity. Native CI run39188804232 passed on687e59af before these review corrections; final-head verification remains required. No additional live deletion or process intervention was performed.
+
+BR-4 now has functional RED/GREEN regressions: managed mixed apply retains blocked/recent rows and completed deletions survive a fault at the second deletion intent. The compatible report-only observer leaves Collect's removed-only return contract intact; diagnosticPages preserves both completed return rows and observer rows before errors. Targeted gcruntime2.540s and diagnosticlog20.889s passed. BR-1 count controls passed20.263s including the real native current/closed-holder conformance: N80/160 produced90/180 fallback target proofs,160/320 metadata writes and zero payload copies; shared native acquisition remained exactly one per sweep at N8/16. Replay effect-boundary and rotation regressions passed5.842s. Broad affected-package verification is running before commit/push; final recorded suite and second close review remain required.
+
+Broad affected-package checks completed successfully: diagnosticlog96.574s, gcruntime30.022s, gccmd4.619s, artifactpath16.770s; git diff --check clean. All five round-1 findings have implementation/regression corrections, pending fresh gate disposition.
+
+### Close review round 2 — complete traversal blocker class
+
+Round2 disposed BR-1..BR-5 and raised BR-6 in the repeated traversal-blocker family: a changed append certificate still terminated the scheduler before later eligible paths. The review's temporary sibling regression reproduced it; the broader four-case real-scheduler table independently went RED for changed reservation, malformed per-log JSON, held pending deletion and local intent fault. Canceled the obsolete queued suite249f9838be878f45a00aa60ef8c2d7b7 via local-check cancel; it never acquired capacity. Other checkouts untouched. The revised rule and evidence classification are recorded in plan Revisions. Native CI39189500897 passed on8238fd857 before this correction; no final-head suite/CI claim yet.
+
+BR-6 class controls are GREEN5.533s after functional RED for four local blockers and two native-inventory failures. Proof wrappers preserve acquisition errors even when advisory classification converts them into rows; actual holder evidence remains local. All affected packages passed again: diagnosticlog50.436s, gcruntime22.784s, gccmd2.973s, artifactpath9.107s. Native failure/cause and complete-holder distinction controls passed0.152s. No live apply repeated. Commit/push, final recorded suite and fresh close review follow.
+
+### Recorded branch suite — comment ownership defect and correction
+
+Attempt5bdc17677d33a96399c0cf222bdc0f92 on4729c0d969d5995197d53c9a8063986de5bcf04e acquired capacity after2101s, ran15m38s and exited2. Retained full log /Users/xianxu/workspace/pair/.git/sdlc/test-stats/failed/5bdc17677d33a96399c0cf222bdc0f92.log, SHA256 prefixe06c3e34e0a6. Enumeration found exactly one failing test: termcmd/TestNoDeclarationCarriesTwoStackedGodocs. The errLsofUnavailable declaration had been inserted between SweepSnapshot's comment and its interface. The entire remaining Go phase completed; no flake retry is involved. Moved the comment to its own declaration; the failing guard passed0.606s and full termcmd passed3.529s. Existing whole-tree guard already catches the class; strengthened its existing lesson with the explicit targeted owner package. This is comment attachment only, with no behavioral or scope change; narrow post-close review and a new recorded suite are required before landing. The original merge runner is still queued behind #664.

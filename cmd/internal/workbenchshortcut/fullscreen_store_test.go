@@ -127,14 +127,14 @@ func TestFullscreenStoreDiagnosticsManagedAndRetained(t *testing.T) {
 	}
 	opts := diagnosticlog.Options{Now: func() time.Time { return time.Now().Add(diagnosticlog.RetentionPeriod + 24*time.Hour) }, Proof: func(context.Context, string, []diagnosticlog.Registration) error { return nil }}
 	rows, err := diagnosticlog.Preview(p.FullscreenDiagnostics(), opts, 100)
-	if err != nil || len(rows) != 1 || rows[0].Eligible || rows[0].Reason != diagnosticlog.BackupFenceReason {
+	if err != nil || len(rows) != 1 || !rows[0].Eligible {
 		t.Fatalf("retention = %+v, %v", rows, err)
 	}
 	if _, err := diagnosticlog.Collect(p.FullscreenDiagnostics(), opts, 100); err != nil {
 		t.Fatal(err)
 	}
-	if retained, err := os.ReadFile(p.FullscreenDiagnostics()); err != nil || string(retained) != string(data) {
-		t.Fatalf("backup-fenced diagnostic changed: %q %v", retained, err)
+	if _, err := os.Stat(p.FullscreenDiagnostics()); !os.IsNotExist(err) {
+		t.Fatal("expired diagnostic remains", err)
 	}
 	// Logging into an unusable directory is deliberately silent and best effort.
 	blocked := filepath.Join(root, "blocked")

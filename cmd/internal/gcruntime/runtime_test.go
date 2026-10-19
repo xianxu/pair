@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-func TestLegacyDiagnosticsAwaitBackupWithoutSessionGrace(t *testing.T) {
+func TestLegacyDiagnosticsCollectedWithoutSessionGraceOrMigration(t *testing.T) {
 	root := t.TempDir()
 	s, err := New(root)
 	if err != nil {
@@ -30,25 +30,26 @@ func TestLegacyDiagnosticsAwaitBackupWithoutSessionGrace(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(preview.Diagnostics) != 1 || preview.Diagnostics[0].Eligible || preview.Diagnostics[0].Reason != diagnosticlog.BackupFenceReason {
+	if len(preview.Diagnostics) != 1 || !preview.Diagnostics[0].Eligible {
 		t.Fatalf("%+v", preview)
 	}
 	if _, err := os.Stat(filepath.Join(c.Root, ".retention")); !os.IsNotExist(err) {
 		t.Fatal("preview wrote metadata")
 	}
-	if err := c.CompleteMigration(context.Background(), nil); err != nil {
-		t.Fatal(err)
-	}
-	applied, err := s.Apply(context.Background(), 100)
+	applied, err := s.ApplyDiagnostics(context.Background(), 100)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if applied.DiagnosticCollectedBytes != 0 {
+	if applied.DiagnosticCollectedBytes != int64(len("old diagnostic")) {
 		t.Fatalf("%+v", applied)
 	}
-	if body, err := os.ReadFile(path); err != nil || string(body) != "old diagnostic" {
-		t.Fatalf("backup-fenced diagnostic changed: %q %v", body, err)
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatal("expired diagnostic remains", err)
 	}
+	if _, err := os.Stat(filepath.Join(c.Root, ".retention", "stores.json")); !os.IsNotExist(err) {
+		t.Fatal("diagnostic apply acknowledged migration", err)
+	}
+
 }
 
 // Explicit apply scans past retained owners even when its deletion limit is one.

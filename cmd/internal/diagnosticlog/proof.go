@@ -12,12 +12,24 @@ import (
 	"strings"
 	"time"
 
+	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/procutil"
 )
+
+// ErrInspectionUnavailable distinguishes incomplete native evidence from a
+// complete observation that blocks one log. Scheduled sweeps must propagate
+// acquisition failures instead of skipping every candidate as path-local.
+var ErrInspectionUnavailable = errors.New("diagnostic inspection unavailable or incomplete")
+
+func inspectionFailure(err error) error {
+	return fmt.Errorf("%w: %w", ErrInspectionUnavailable, err)
+}
 
 type Runtime struct {
 	Process  Registration
 	Protocol bool
+	Owner    *artifactpath.StorageOwner
+	Label    string
 }
 
 // Inspection is a stateful OS seam: both exact open holders and transient
@@ -32,7 +44,7 @@ func VerifyWriters(ctx context.Context, path string, registered []Registration, 
 		return err
 	}
 	if probe == nil {
-		return ErrUnknownWriters
+		return inspectionFailure(ErrUnknownWriters)
 	}
 	known := func(p Registration) bool {
 		for _, r := range registered {
@@ -44,22 +56,17 @@ func VerifyWriters(ctx context.Context, path string, registered []Registration, 
 	}
 	holders, e := probe.OpenFiles(ctx, path)
 	if e != nil {
-		return fmt.Errorf("diagnostic open-file inspection: %w", e)
+		return fmt.Errorf("diagnostic open-file inspection: %w", inspectionFailure(e))
 	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	for _, p := range holders {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-		if !known(p) {
-			return ErrUnknownWriters
-		}
+	if len(holders) != 0 {
+		return fmt.Errorf("%w: diagnostic payload has live open holders", ErrUnknownWriters)
 	}
 	runtimes, e := probe.Runtimes(ctx)
 	if e != nil {
-		return fmt.Errorf("diagnostic runtime inspection: %w", e)
+		return fmt.Errorf("diagnostic runtime inspection: %w", inspectionFailure(e))
 	}
 	if err := ctx.Err(); err != nil {
 		return err
@@ -71,6 +78,20 @@ func VerifyWriters(ctx context.Context, path string, registered []Registration, 
 		if known(runtime.Process) || runtime.Protocol {
 			continue
 		}
+		if runtime.Owner != nil {
+			p, err := artifactpath.ResolveScoped(runtime.Owner.Directory(), runtime.Owner.Tag)
+			if err != nil {
+				return ErrUnknownWriters
+			}
+			if path != p.WrapEvents() && path != p.AdaptLog() && path != p.FullscreenDiagnostics() {
+				continue
+			}
+			label := runtime.Label
+			if label == "" {
+				label = "Pair runtime"
+			}
+			return fmt.Errorf("%w: %s tag %s (pid %d): relaunch to register", ErrUnknownWriters, label, runtime.Owner.Tag, runtime.Process.PID)
+		}
 		sameRoot := len(registered) == 0 || runtime.Process.Root == ""
 		for _, r := range registered {
 			if r.Root == "" || r.Root == runtime.Process.Root {
@@ -78,7 +99,7 @@ func VerifyWriters(ctx context.Context, path string, registered []Registration, 
 			}
 		}
 		if sameRoot {
-			return ErrUnknownWriters
+			return fmt.Errorf("%w: legacy runtime pid %d has no matching protocol registration", ErrUnknownWriters, runtime.Process.PID)
 		}
 	}
 	return nil
@@ -86,7 +107,10 @@ func VerifyWriters(ctx context.Context, path string, registered []Registration, 
 
 // OSInspection deliberately retains data when lsof/native process inspection is unavailable or denies
 // inspection. It reads process metadata only; no trace contents are inspected.
-type OSInspection struct{ processes processInspection }
+type OSInspection struct {
+	processes       processInspection
+	openFileCommand func(context.Context, ...string) ([]byte, []byte, error)
+}
 
 type processInspection interface {
 	Snapshot(context.Context) ([]procutil.Observation, error)
@@ -208,7 +232,7 @@ func (o OSInspection) Runtimes(ctx context.Context) ([]Runtime, error) {
 		}
 		if row.Err != nil {
 			if possibleRuntimeName(row.Name) {
-				return nil, ErrUnknownWriters
+				return nil, fmt.Errorf("%w: runtime pid %d process metadata unavailable", ErrUnknownWriters, row.PID)
 			}
 			continue
 		}
@@ -221,7 +245,7 @@ func (o OSInspection) Runtimes(ctx context.Context) ([]Runtime, error) {
 		pid := row.PID
 		birth := reader.StrictIdentity(strconv.Itoa(pid))
 		if birth == "" || row.Identity == "" || reader.Identity(strconv.Itoa(pid)) != row.Identity {
-			return nil, ErrUnknownWriters
+			return nil, fmt.Errorf("%w: runtime pid %d generation changed during inventory", ErrUnknownWriters, pid)
 		}
 
 		if err := ctx.Err(); err != nil {
@@ -235,7 +259,7 @@ func (o OSInspection) Runtimes(ctx context.Context) ([]Runtime, error) {
 			continue
 		}
 		if e != nil || reader.StrictIdentity(strconv.Itoa(pid)) != birth {
-			return nil, ErrUnknownWriters
+			return nil, fmt.Errorf("%w: runtime pid %d environment unavailable or generation changed", ErrUnknownWriters, pid)
 		}
 		root := env["PAIR_DATA_DIR"]
 		protocol := pid == os.Getpid() || env["PAIR_RETENTION_PROTOCOL"] == "1"
@@ -251,7 +275,7 @@ func (o OSInspection) Runtimes(ctx context.Context) ([]Runtime, error) {
 			}
 			canonicalRoot, e := filepath.EvalSymlinks(root)
 			if e != nil {
-				return nil, ErrUnknownWriters
+				return nil, fmt.Errorf("%w: runtime pid %d storage root unavailable", ErrUnknownWriters, pid)
 			}
 			root = canonicalRoot
 		}
@@ -261,10 +285,74 @@ func (o OSInspection) Runtimes(ctx context.Context) ([]Runtime, error) {
 		if root == "" && (base == "nvim" || base == "zellij") {
 			continue
 		}
-		result = append(result, Runtime{Registration{PID: pid, Birth: birth, Root: root}, protocol})
+		owner, label, ownerErr := runtimeDiagnosticOwner(env)
+		if !protocol && ownerErr != nil {
+			return nil, fmt.Errorf("%w: runtime pid %d has conflicting or incomplete ownership", ErrUnknownWriters, pid)
+		}
+		result = append(result, Runtime{Process: Registration{PID: pid, Birth: birth, Root: root}, Protocol: protocol, Owner: owner, Label: label})
 	}
 	return result, nil
 }
 func DefaultProof(ctx context.Context, path string, writers []Registration) error {
 	return VerifyWriters(ctx, path, writers, OSInspection{})
+}
+
+// Couch publishes the selected root and composite thread address before the
+// outer Pair client has a PAIR_DATA_DIR. Missing protocol is not missing owner.
+func runtimeDiagnosticOwner(env map[string]string) (*artifactpath.StorageOwner, string, error) {
+	tag, scope := env["PAIR_TAG"], env["PAIR_SCOPE_KEY"]
+	hostedTag, hostedScope := env["COUCH_THREAD_TAG"], env["COUCH_THREAD_SCOPE"]
+	if (hostedTag == "") != (hostedScope == "") || tag != "" && hostedTag != "" && tag != hostedTag || scope != "" && hostedScope != "" && scope != hostedScope {
+		return nil, "", ErrUnknownWriters
+	}
+	if tag == "" {
+		tag = hostedTag
+	}
+	if scope == "" {
+		scope = hostedScope
+	}
+	if tag == "" {
+		return nil, "", nil
+	}
+	root := env["PAIR_DATA_DIR"]
+	if root != "" {
+		if filepath.Base(filepath.Dir(root)) == "repos" {
+			actualScope := filepath.Base(root)
+			if scope != "" && scope != actualScope {
+				return nil, "", ErrUnknownWriters
+			}
+			scope = actualScope
+			root = filepath.Dir(filepath.Dir(root))
+		} else if scope != "" {
+			return nil, "", ErrUnknownWriters
+		}
+	} else {
+		root = env["COUCH_PAIR_DATA_DIR"]
+	}
+	if root == "" {
+		return nil, "", ErrUnknownWriters
+	}
+	physical, err := filepath.EvalSymlinks(root)
+	if err != nil || physical != root {
+		return nil, "", ErrUnknownWriters
+	}
+	owner, err := artifactpath.NewStorageOwner(root, scope, tag)
+	if err != nil {
+		return nil, "", ErrUnknownWriters
+	}
+	if physical, err := filepath.EvalSymlinks(owner.Directory()); err == nil && physical != owner.Directory() {
+		return nil, "", ErrUnknownWriters
+	} else if err != nil && !os.IsNotExist(err) {
+		return nil, "", ErrUnknownWriters
+	}
+	label := "Pair runtime"
+	if hostedTag != "" {
+		repo := filepath.Base(env["COUCH_TREE"])
+		if _, err := artifactpath.NewStorageOwner(root, "", repo); err == nil {
+			label = repo + " slot"
+		} else {
+			label = "Couch slot"
+		}
+	}
+	return &owner, label, nil
 }
