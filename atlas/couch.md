@@ -197,7 +197,8 @@ that cannot commit, the original occupied claim stays unchanged, and history and
 the receipt report both cleanup and unknown-state persistence uncertainty. No
 destructive rollback or replacement launch follows unproved absence.
 
-The maximum deadline budget after helper death is **20 seconds**: five for
+For unconfirmed session cleanup, the maximum deadline budget after helper death
+is **20 seconds**: five for
 session cleanup + five for disposition persistence + the existing ten-second
 diagnostic-publication cap. Ordinary operating-system syscall/scheduling latency
 is outside cooperative context guarantees. Exact helper termination keeps its
