@@ -324,3 +324,8 @@ The operator's real Claude-day Drive drill is a separate acceptance gate before
 landing. It must compare restored file bytes/SHA-256 with retained originals,
 confirm a fresh target and stage cleanup, and leave live source directories
 unchanged.
+
+The operator passed the real 2026-10-16 Claude-day Drive drill on 2026-10-19:
+63 labels synchronized, 2 bundles (2,127,158 ciphertext bytes), 339 files
+(101,518,369 raw bytes); restored and original SHA-256 agreed. Owned staging
+was absent, and the operator's hub removed the decrypted scratch tree.
