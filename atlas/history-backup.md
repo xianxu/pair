@@ -268,7 +268,8 @@ If only publication exceeded that outer budget, a separately approved
 `TestSQLiteSnapshotPublishStagedHistory` run (`PAIR_SQLITE_PUBLISH_STAGED=1`)
 publishes the retained validated history staging file under the existing
 continuous lock. It never opens a native database or takes another snapshot.
-Its transform has a 30-minute bound; run it at low priority. Optional
+Its transform has a 30-minute bound; run it at low priority and give the Go test
+runner a longer timeout (for example `-timeout=31m`). Optional
 `PAIR_STAGE_ZSTD`/`PAIR_STAGE_GPG` paths permit content-free tool timing wrappers;
 an external owner must bound and clean up the complete process group when using
 such wrappers. Normal suites skip both native acceptance helpers. Large snapshot
