@@ -5,9 +5,9 @@ deps: []
 github_issue:
 created: 2026-10-19
 updated: 2026-10-19
-estimate_hours:
+estimate_hours: 1.9
 collaboration-mode: collaboration
-card_mirror: 'c0c63385006a8e2a5fc68b8463f9f934dc4d5797' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '0eca2116b7d5436ca66fc1ef6e110e62a1e16560' # card fields mirrored from issue-cards; edit via sdlc
 flake_tests: [github.com/xianxu/pair/cmd/internal/couchcore.TestSpawnComposesProductionPairRegistrationBoundary]
 started: 2026-10-19T14:08:10-07:00
 claimant:
@@ -51,6 +51,26 @@ probably load-sensitive. It now blocks a landing as an unattributable failure.
 - [ ] Run targeted race/source checks and 20/20 composed runs under bounded owned load; retain load cleanup on every exit. Run the recorded suite, close review and normal merge gates, then report landing. No live Couch, native Zellij lane or pair:0 staging.
 
 The likely change is test-only and fits the quick-flow shell. ARCH-MOCK: extend the existing registration terminal fake rather than bypassing production registration or owner checks. ARCH-ORDER: model server creation -> listing publication -> agent readiness -> release/deletion -> observed absence; a ready marker alone is not a live server. ARCH-FUNERAL: every owned fixture child, socket and goroutine is reaped/joined before its isolated roots are removed. No new user-visible state or persisted production format is planned. Production post-ack retry deliberately retains ownership while absence is unproved; do not replace it with a timeout that abandons writers. The regression must establish eventual exact absence and a joined launch, not merely stop waiting for it.
+
+## Estimate
+
+Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only; calibration is marked stale by estimate-source, so values are provisional. Uses the v2/v2.1 primitive ranges, thorough-plan design discount x0.2, implementation scale x0.40, familiar existing Couch/fixture territory x1.0, and +15% design buffer. No novel stack/library search is needed: standard context and existing recorder, thread transactions and fake-process seams already supply the mechanisms.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.15 impl=0.08
+item: api-integration design=0.20 impl=0.40
+item: smaller-go-module design=0.04 impl=0.16
+item: smaller-go-module design=0.06 impl=0.20
+item: cross-cutting-refactor design=0.10 impl=0.16
+item: atlas-docs design=0.02 impl=0.06
+item: milestone-review design=0.02 impl=0.16
+design-buffer: 0.15
+total: 1.90
+```
+
+Rows cover measurement/spec, one-budget native session cleanup and interaction tests, unknown-state/error projection, fixture lifecycle and failed-start regressions/load harness, context propagation and consumer/source checks, docs/lessons, and one issue-close review. Raw design picks are respectively 0.75/1.0/0.2/0.3/0.5/0.1/0.1h; raw implementation picks 0.2/1.0/0.4/0.5/0.4/0.15/0.4h, each within its table range. Adjusted design 0.59h x1.15 = 0.6785h plus implementation 1.22h = 1.8985h, rounded 1.90h. Suite capacity waits are not active work; controlled-load setup and test diagnosis are included.
 
 ## Log
 
