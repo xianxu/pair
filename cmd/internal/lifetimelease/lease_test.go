@@ -231,6 +231,9 @@ func TestRemoveFreeLeavesAHeldLease(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if err := Prepare(path); err != nil {
+		t.Fatal(err)
+	}
 	lock, err := Hold(context.Background(), path)
 	if err != nil {
 		t.Fatal(err)
