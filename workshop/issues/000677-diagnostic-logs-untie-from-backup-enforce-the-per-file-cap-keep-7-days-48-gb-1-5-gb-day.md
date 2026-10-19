@@ -39,9 +39,9 @@ Untie diagnostic retention from history backup: diagnostics are not history. Enf
 
 See [durable implementation plan](../plans/000677-diagnostic-log-retention-plan.md). Hub approved full flow; change-code admitted implementation at a21488b4effef56ede5357236754a4111812f807. The approved live arrangement requires sending the real diagnostic-only preview categories and blocked reasons to the hub before apply, with no :0 staging.
 
-- [ ] Replace the backup/count fence with one configurable age/oversize policy and deterministic regressions; preserve hard append bounds and deletion recovery.
-- [ ] Separate diagnostic collection from session migration, including scheduled pages and a diagnostic-only CLI scope; count discovery/sweep work at N/2N.
-- [ ] Measure controlled bytes per turn, document the detail-level decision, verify with owned fixtures and the approved real diagnostic-only sweep; report actual reclaimed bytes and blockers.
+- [x] Replace the backup/count fence with one configurable age/oversize policy and deterministic regressions; preserve hard append bounds and deletion recovery.
+- [x] Separate diagnostic collection from session migration, including scheduled pages and a diagnostic-only CLI scope; count discovery/sweep work at N/2N.
+- [x] Measure controlled bytes per turn, document the detail-level decision, verify with owned fixtures and the approved real diagnostic-only sweep; report actual reclaimed bytes and blockers.
 - [ ] Run targeted and recorded suites, review/CI/merge gates and report the verified landing.
 
 ## Log
@@ -164,3 +164,9 @@ Volume df -k /Users/xianxu/.local/share/pair, /dev/disk3s1 before: Used487,962,2
 Before/after diagnostic inode inventories, exact removed rows, preview/apply JSON and df outputs are preserved locally in /Users/xianxu/workspace/pair/.git/pair-677-live-evidence, with sha256.json manifest digest9400201bf1975b219eae5b5ec1e1318721b3b753b4e757331a3d8de2cc15dac8. Aggregate disappearing inode totals include concurrent metadata replacement and are deliberately not claimed as GC attribution. The before/after inventory counts1095/1059files reflect live writers as well as deletion.
 
 Filed unclaimed #687 (workshop/issues/000687-couch-retention-registration.md, published on origin/main) at hub request: Couch already registers its coordinator runtime lease, but diagnostic OS proof only consumes the environment protocol flag/per-log registrations, so its supervisor appears ownerless. This follow-up keeps the current-log block and identity protection; no supervisor lifecycle implementation is folded into #677. Core ownerless-current/held-closed regression passed0.510s; targeted diagnostic policy/replay/count/native tests24.754s, gcruntime/gccmd17.388s/3.093s. Final recorded suite/review/merge remain outstanding.
+
+### Final checkpoint before close review
+
+The first close invocation did not dispatch review: it measured1.53h provisionally but refused unticked issue Plan rows. Marked the three completed implementation/live rows; the remaining row is explicitly the post-close suite/CI/merge/report lifecycle and stays unchecked until those gates finish. The next close uses precise --no-plan-check with that reason, never waiving actual implementation or publish checks; tl-worker explicitly permits review while the final recorded suite is queued.
+
+A final source audit found CLI Run parsed its injected getenv, then constructed gcruntime.New which reread ambient os.Getenv. Added TestCLIUsesInjectedDiagnosticEnvironmentOnly: ambient invalid0 plus injected empty/default7 must honor the caller. Functional RED reproduced the constructor's wrong configuration refusal. Run now composes NewWithInspection directly; scheduled New still parses real process settings. No policy or live behavior changes when the real caller uses os.Getenv, so no repeated live deletion is needed. The obsolete queued suite was canceled through its own lease, preserving every other slot's runs. Push/targeted verification and final suite follow.

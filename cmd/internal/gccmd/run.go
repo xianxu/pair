@@ -25,7 +25,9 @@ func (p *pathsFlag) String() string         { return fmt.Sprint([]string(*p)) }
 func (p *pathsFlag) Set(value string) error { *p = append(*p, value); return nil }
 
 func Run(args []string, getenv func(string) string, stdout, stderr io.Writer) int {
-	return runWithService(args, getenv, stdout, stderr, gcruntime.New)
+	return runWithService(args, getenv, stdout, stderr, func(root string) (*gcruntime.Service, error) {
+		return gcruntime.NewWithInspection(root, diagnosticlog.OSInspection{})
+	})
 }
 
 func runWithService(args []string, getenv func(string) string, stdout, stderr io.Writer, newService func(string) (*gcruntime.Service, error)) int {

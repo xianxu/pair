@@ -174,3 +174,14 @@ func TestDiagnosticConfigurationAndMixedScopesFailBeforeService(t *testing.T) {
 		t.Fatalf("invalid policy reached service called=%v: %s", called, &out)
 	}
 }
+
+func TestCLIUsesInjectedDiagnosticEnvironmentOnly(t *testing.T) {
+	t.Setenv("PAIR_DIAGNOSTIC_DAYS", "0")
+	var out, errout bytes.Buffer
+	if code := Run([]string{"--root", t.TempDir(), "--diagnostics-only", "--json"}, func(string) string { return "" }, &out, &errout); code != 0 {
+		t.Fatalf("CLI constructor reread ambient policy instead of caller environment: %d %s", code, &errout)
+	}
+	if !strings.Contains(out.String(), `"diagnostic_retention_days":7`) {
+		t.Fatal(out.String())
+	}
+}
