@@ -104,6 +104,10 @@ These refinements specify the already approved owner/cursor commit guarantees an
 
 Hub approved the Reading/Publishing/Stopped contract (ae598ecd-9080-4d36-a3a3-6c9736304c0f): staged cursor, acknowledged-prefix watermark, cursor commit only after the whole batch, unresolved publication stops without retry. Plan round2 disposed PQ-1; PQ-2 remained solely because the old procedural inventory duplicated the named-function table. Removed that duplicate from the plan; counted Run, consumer sweeps and live acceptance remain. No implementation yet.
 
+### 2026-10-19 — hub live acceptance PASSED
+
+Hub reported successful live acceptance after rebuilding pair:0 at the landed a9971f9f and relaunching both actual offenders (Couch delivery77b009a2-3865-4d82-9dcf-ebb18c904057, verified submitted). For1-pair-69, old watcher70442 at85% CPU is gone; the replacement used about19% during roughly one minute of startup bootstrap, then settled at0.0% with CPU time frozen at11.80s. For1-parley-nvim-70, old watcher84747 at120% CPU is gone; the replacement settled at0.0% after its two-minute startup, CPU time11.51s. The hub observed machine load fall from tens to5.5 and explicitly accepted the live result. This satisfies the previously owed live acceptance; these are hub measurements, not measurements repeated by pair:7. Startup bootstrap still costs about12 CPU-seconds per watcher and remains the known cold-discovery follow-up; no cold-start improvement is claimed.
+
 ## Estimate
 
 Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only. Calibration is stale, so these are provisional ship-wall-clock hours. Read v2 and v2.1 procedure before deriving. This is single-repo familiar Go work; no external library replaces the existing security-sensitive guards. Reuse the guarded reader, owner cache and journal reconciliation rather than a new library or protocol.
