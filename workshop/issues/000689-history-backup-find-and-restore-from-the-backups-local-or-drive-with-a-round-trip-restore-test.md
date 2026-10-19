@@ -213,6 +213,10 @@ A bounded unchanged-head A/B test establishes filesystem-dependent metadata fail
 
 Hub receipt bf5f4f78-4281-4bbf-a560-8d4e8c74399a identifies the RAM disk's HFS+ whole-second timestamps and lack of clonefile as the substrate cause. The hub reports changing the ops creation script to APFS and probing nanosecond timestamps plus clonefile; these are hub-owned measurements, not worker filesystem changes. It filed ariadne#474 to refuse non-APFS scratch storage. The operator will recreate the disk after the currently active suite finishes. The hub explicitly authorizes one fresh #689 combined-head recorded suite after its readiness message. Until that message, start no new qualification on the old scratch disk. No new flakes are registered for the substrate failures, and all existing guards remain intact.
 
+### 2026-10-19 — normal-disk fallback authorized
+
+Hub receipt ef3f857b-fae0-401b-ac40-4bd4c560074e confirms ariadne#474 landed and ariadne:0 was rebuilt. The maintained sdlc now refuses HFS+ scratch storage and selects the normal temp folder with an explanatory note until the operator recreates APFS storage. The hub explicitly authorizes rerunning this combined-head suite now on that fallback; disk recreation is no longer a precondition for this run. No source, budget, identity check or assertion changes. The filesystem-related failures above remain failed evidence, not registered flakes.
+
 ## Revisions
 
 - 2026-10-18: clarified the later sync-index Spec supersedes remote queries from find. Recorded the hub-approved label/location evidence and atomic refresh contract; original Done-when obligations are retained without reduction. Added the durable plan with M1/M2 review boundaries.
