@@ -60,6 +60,62 @@ func TestSelectSlotRow(t *testing.T) {
 	}
 }
 
+func TestSelectCachedSlotRow(t *testing.T) {
+	t.Parallel()
+	primary, host := "/fleet/pair", "/fleet/worktree/pair-slot1/pair"
+	root := primaryRow(primary, "root", ThreadParked)
+	sub := primaryRow(filepath.Join(primary, "cmd"), "sub", ThreadParked)
+	one := slotRow(host, 1, ThreadParked)
+	one.Target.Slot.PrimaryRoot = primary
+	one.ParkNonce = "observed-park"
+	other := slotRow("/fleet/worktree/other-slot1/other", 1, ThreadParked)
+	other.Target.Slot.PrimaryRoot = "/fleet/other"
+	twin := one
+	twin.Address.Tag = "twin"
+	split := twin
+	split.Target.Slot.WorktreeRoot = "/fleet/replaced/pair"
+	invalid := one
+	invalid.Target.Slot.WorktreeRoot = "relative/pair"
+	for _, c := range []struct {
+		name    string
+		rows    []ActionableThreadSummary
+		primary string
+		number  int
+		want    ThreadAddress
+		code    string
+	}{
+		{"primary", []ActionableThreadSummary{sub, root, one}, primary, 0, root.Address, ""},
+		{"primary subdirectory only", []ActionableThreadSummary{sub}, primary, 0, ThreadAddress{}, SlotOpNoThread},
+		{"numbered", []ActionableThreadSummary{other, root, one}, primary, 1, one.Address, ""},
+		{"other repository only", []ActionableThreadSummary{other}, primary, 1, ThreadAddress{}, SlotOpNoThread},
+		{"missing number", []ActionableThreadSummary{one}, primary, 2, ThreadAddress{}, SlotOpNoThread},
+		{"duplicate", []ActionableThreadSummary{one, one}, primary, 1, ThreadAddress{}, SlotOpAmbiguous},
+		{"same path", []ActionableThreadSummary{one, twin}, primary, 1, ThreadAddress{}, SlotOpAmbiguous},
+		{"split paths", []ActionableThreadSummary{one, split}, primary, 1, ThreadAddress{}, SlotOpAmbiguous},
+		{"invalid cached path", []ActionableThreadSummary{invalid}, primary, 1, ThreadAddress{}, SlotOpUnknownSlot},
+		{"relative primary", []ActionableThreadSummary{one}, "fleet/pair", 1, ThreadAddress{}, SlotOpUnknownSlot},
+		{"cleaned primary", []ActionableThreadSummary{one}, primary + "/.", 1, one.Address, ""},
+		{"negative number", []ActionableThreadSummary{one}, primary, -1, ThreadAddress{}, SlotOpUnknownSlot},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			got, err := SelectCachedSlotRow(c.rows, c.primary, c.number)
+			if slotOperationCode(err) != c.code || got.Address != c.want {
+				t.Fatalf("selected %+v, %v; want address %+v, code %q", got, err, c.want, c.code)
+			}
+		})
+	}
+	selected, err := SelectCachedSlotRow([]ActionableThreadSummary{one}, primary, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	args := ActorOperationArgs(selected, OpRecoverPark)
+	selected.ParkNonce = "replacement-park"
+	selected.Address.Tag = "replacement-tag"
+	if !maps.Equal(args, map[string]string{"repo-scope": one.Address.RepoScope, "tag": string(one.Address.Tag), "park-nonce": "observed-park"}) {
+		t.Fatalf("selected recovery identity changed: %v", args)
+	}
+}
+
 // TestActorOperationArgs pins the three shapes the switcher's resume and
 // reboot effects carried before the mapping moved to couchcore (literal
 // copies of dispatchMenuRow / dispatchThreadOperation / the warm-only block).

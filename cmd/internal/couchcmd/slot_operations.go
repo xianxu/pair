@@ -33,7 +33,7 @@ type slotOperations struct {
 	reference   func(context.Context, string) (string, error)
 	recovery    func(string, string, couchmessage.Request, func(context.Context) error, func(), func(any, error)) error
 	run         slotOperationRunner
-	preparePark func(context.Context, string, func(context.Context) error) (slotOperationRunner, error)
+	preparePark func(context.Context, string, couchcore.RepositoryName, func(context.Context) error) (slotOperationRunner, error)
 	guardedRun  func(string, string, string, couchcore.LiveRestartOptions, func(context.Context) error, func(), func(any, error)) error
 	preview     func(context.Context, string) (couchcore.RecoveryPreview, error)
 	candidate   func(string, string, string, func(), func(any, error), ...func(context.Context) error) error
@@ -94,7 +94,11 @@ func (s *slotOperations) handle(ctx context.Context, caller couchmessage.Binding
 		}
 		return couchmessage.Response{Code: "ok", Operation: &receipt}
 	}
+	if err := slotOperationConfirmation(r); err != nil {
+		return couchmessage.Response{Code: "confirmation-required", Error: err.Error()}
+	}
 	var parkRunner slotOperationRunner
+	var queueKeys []string
 	if r.Op == couchcore.OpRecoverPark && s.preparePark != nil {
 		// Bind outside the receipt mutex. Existing IDs must retain their receipt
 		// even after the original park or thread has disappeared.
@@ -108,7 +112,12 @@ func (s *slotOperations) handle(ctx context.Context, caller couchmessage.Binding
 			if len(guards) > 0 {
 				guard = guards[0]
 			}
-			parkRunner, err = s.preparePark(ctx, r.Target, guard)
+			queueKey, repository, resolveErr := s.queueTarget(ctx, r.Target)
+			if resolveErr != nil {
+				return couchmessage.Response{Code: couchcore.SlotOpUnknownSlot, Error: resolveErr.Error()}
+			}
+			queueKeys = []string{queueKey}
+			parkRunner, err = s.preparePark(ctx, r.Target, repository, guard)
 			if err != nil {
 				return couchmessage.Response{Code: "refused", Error: err.Error()}
 			}
@@ -141,15 +150,15 @@ func (s *slotOperations) handle(ctx context.Context, caller couchmessage.Binding
 			return s.guardedRun(key, r.Op, r.Target, couchcore.LiveRestartOptions{SameBinary: r.SameBinary, ForceUnknown: r.ForceUnknown}, guards[0], started, finished)
 		}
 		return s.run(key, r.Op, r.Target, couchcore.LiveRestartOptions{SameBinary: r.SameBinary, ForceUnknown: r.ForceUnknown}, started, finished)
-	})
+	}, queueKeys...)
 }
 
 // admit shares the receipt state machine and queue admission across slot operations.
 func (s *slotOperations) admit(ctx context.Context, caller couchmessage.Binding, r couchmessage.Request,
 	run func(string, func(), func(any, error)) error, queueKeys ...string) couchmessage.Response {
 	key := receiptKey{caller.Scope, caller.Tag, r.ID}
-	if confirms, _ := couchcore.OperationConfirms(r.Op); confirms && !r.Confirmed {
-		return couchmessage.Response{Code: "confirmation-required", Error: r.Op + " requires --confirm"}
+	if err := slotOperationConfirmation(r); err != nil {
+		return couchmessage.Response{Code: "confirmation-required", Error: err.Error()}
 	}
 	var queueKey string
 	var err error
@@ -229,19 +238,31 @@ func (s *slotOperations) sweepLocked() {
 // every spelling of one slot (name, alias, prefix) shares one pending key. A
 // store read only: no git, no sdlc.
 func (s *slotOperations) queueKey(ctx context.Context, target string) (string, error) {
+	key, _, err := s.queueTarget(ctx, target)
+	return key, err
+}
+
+func (s *slotOperations) queueTarget(ctx context.Context, target string) (string, couchcore.RepositoryName, error) {
 	ref, _, err := couchcore.ParseWorkspaceReference(target)
 	if err != nil {
-		return "", err
+		return "", couchcore.RepositoryName{}, err
 	}
 	names, err := s.names(ctx)
 	if err != nil {
-		return "", err
+		return "", couchcore.RepositoryName{}, err
 	}
 	repo, _, err := couchcore.ResolveRepositoryName(ref.Repo, names)
 	if err != nil {
-		return "", err
+		return "", couchcore.RepositoryName{}, err
 	}
-	return "remote\x00" + repo.Key + ":" + strconv.Itoa(ref.Number), nil
+	return "remote\x00" + repo.Key + ":" + strconv.Itoa(ref.Number), repo, nil
+}
+
+func slotOperationConfirmation(r couchmessage.Request) error {
+	if confirms, _ := couchcore.OperationConfirms(r.Op); confirms && !r.Confirmed {
+		return errors.New(r.Op + " requires --confirm")
+	}
+	return nil
 }
 
 // slotOperationOutcome maps a finished job to its receipt outcome: a typed
