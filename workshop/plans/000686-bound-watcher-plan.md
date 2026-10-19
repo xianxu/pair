@@ -124,3 +124,7 @@ These refinements specify the already approved owner/cursor commit guarantees an
 ### 2026-10-18 — PQ-2 duplicate inventory removed
 
 Round2 accepted the publication transition contract, but retained PQ-2 because the old procedural test list duplicated the named-function strategies. Removed that duplicate inventory; the counted Run regression, consumer sweep and live acceptance remain. Hub approved the publication contract in ae598ecd-9080-4d36-a3a3-6c9736304c0f. No behavior or scope change.
+
+### 2026-10-18 — active publication owner guard
+
+Narrow review found that existing WithCurrentConfirmation rereads/parses the full Pair ledger under lock for every nonempty lifecycle batch, outside NativeRuntime counters. Hub chose option1 in cd83e66c-02ca-4a93-b3a0-f82ce8d28254: reuse the exact OwnerLaunchCache reader under the same ledger lock, with the same strict ordinal/conflict/root confirmation check. Extract a reader-bearing variant of the existing guard; legacy callers retain the ordinary reader. Only bound lifecycle supplies its cached exact-ledger reader. Full fingerprint identity/size/time mismatch triggers the existing paired full reread before effects, never stale confirmation. Add active unchanged-byte counters including the actual guard path, and append/replacement stale-owner regressions. No new lock/cache/admission policy. This closes the per-event-tick cost rather than narrowing the acceptance to idle only (ARCH-DRY/SECURE/ORDER).

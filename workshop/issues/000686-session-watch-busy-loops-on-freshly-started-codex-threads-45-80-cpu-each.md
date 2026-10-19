@@ -121,3 +121,7 @@ item: real-api-discovery design=0 impl=0.24
 design-buffer: 0.15
 total: 2.63
 ```
+
+### 2026-10-18 — active publication owner guard
+
+Narrow review found that existing WithCurrentConfirmation rereads/parses the full Pair ledger under lock for every nonempty lifecycle batch, outside NativeRuntime counters. Hub chose option1 in cd83e66c-02ca-4a93-b3a0-f82ce8d28254: reuse the exact OwnerLaunchCache reader under the same ledger lock, with the same strict ordinal/conflict/root confirmation check. Extract a reader-bearing variant of the existing guard; legacy callers retain the ordinary reader. Only bound lifecycle supplies its cached exact-ledger reader. Full fingerprint identity/size/time mismatch triggers the existing paired full reread before effects, never stale confirmation. Add active unchanged-byte counters including the actual guard path, and append/replacement stale-owner regressions. No new lock/cache/admission policy. This closes the per-event-tick cost rather than narrowing the acceptance to idle only (ARCH-DRY/SECURE/ORDER).
