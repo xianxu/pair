@@ -1,6 +1,6 @@
 ---
 id: 000674
-status: codecomplete
+status: done
 created: 2026-10-18
 updated: 2026-10-18
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 902e3b20a057a77c6375d270a655cdb285d971bb
         evidence_commit: 984f0d98b04677e053ece4fe90279a7de55fb779
+        landed_commit: 74f8c0cb75408649b46a4f4a1da529c36b33f873
 ---
 
 # Startup SIGINT swallowed by importlib weakref callback before helper handler
