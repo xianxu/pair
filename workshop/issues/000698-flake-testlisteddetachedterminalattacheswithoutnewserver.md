@@ -1,13 +1,13 @@
 ---
 id: 000698
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-19
 updated: 2026-10-19
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: '533c967d9141b502c462b8b5319db4118ec5f3f8' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'd8fb6f30d8d5fe6e0f7218f3786ff6139ff5039c' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-19T07:48:10-07:00
 claimant:
     operator: Xian Xu
@@ -18,6 +18,7 @@ claimant:
     repository: github.com/xianxu/pair
 flake_tests: [github.com/xianxu/pair/cmd/internal/couchcore.TestListedDetachedTerminalAttachesWithoutNewServer]
 flow: {kind: quick, provenance: inferred, spec: "1823f796", done: "5b457804"}
+actual_hours: 0.11
 ---
 
 # flake: TestListedDetachedTerminalAttachesWithoutNewServer
