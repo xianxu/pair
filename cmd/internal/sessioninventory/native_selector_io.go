@@ -8,12 +8,13 @@ import (
 
 type nativeSelectorRuntime struct {
 	Runtime
-	io        RecoveryRuntime
-	ctx       context.Context
-	bytes     int64
-	entries   int
-	failure   error
-	snapshots map[string]FileEntry
+	io            RecoveryRuntime
+	ctx           context.Context
+	bytes         int64
+	entries       int
+	failure       error
+	exactClaudeID string
+	snapshots     map[string]FileEntry
 }
 
 func newNativeSelectorRuntime(ctx context.Context, rt Runtime) (*nativeSelectorRuntime, error) {
@@ -35,11 +36,18 @@ func (r *nativeSelectorRuntime) ListFiles(root StorageRoot) ([]FileEntry, error)
 	if remaining <= 0 {
 		return nil, r.fail(ErrReadLimit)
 	}
-	count, err := r.io.VisitRecoveryFiles(r.ctx, root, remaining, func(e FileEntry) error {
+	visit := func(e FileEntry) error {
 		files = append(files, e)
 		r.snapshots[targetArtifactKey(e.Artifact)] = e
 		return r.ctx.Err()
-	})
+	}
+	var count int
+	var err error
+	if exact, ok := r.Runtime.(nativeSelectorFileVisitor); ok && root.Agent == AgentClaude && r.exactClaudeID != "" {
+		count, err = exact.VisitNativeSelectorFiles(r.ctx, root, r.exactClaudeID, remaining, visit)
+	} else {
+		count, err = r.io.VisitRecoveryFiles(r.ctx, root, remaining, visit)
+	}
 	r.entries += count
 	if count < 0 || count > remaining {
 		return nil, r.fail(ErrReadLimit)
@@ -120,4 +128,9 @@ func (r *nativeSelectorRuntime) QuerySQLite(a Artifact, query string, limit int6
 		return out, r.fail(fmt.Errorf("native selector SQLite: %w", err))
 	}
 	return out, nil
+}
+
+// Optional exact-ID discovery; runtimes without it retain bounded full discovery.
+type nativeSelectorFileVisitor interface {
+	VisitNativeSelectorFiles(context.Context, StorageRoot, string, int, func(FileEntry) error) (int, error)
 }
