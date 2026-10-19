@@ -1,6 +1,6 @@
 ---
 id: 000688
-status: codecomplete
+status: done
 created: 2026-10-18
 updated: 2026-10-19
 estimate_hours: 4.27
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: f4b39f45d45569edd2f716ef9cd5e2efc2010d91
         evidence_commit: b642b986f9761816025cd8e57d57b6895d4de8db
+        landed_commit: 55bc07db58b8ef1bb257eef1b90f2622464e31ae
 ---
 
 # Codex database snapshots can starve under continuous writes
