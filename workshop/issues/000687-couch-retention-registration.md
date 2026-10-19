@@ -1,13 +1,21 @@
 ---
 id: 000687
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-18
 updated: 2026-10-18
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: 'd85cf6d4120f96ddda67c84273ff068c26e8d80e' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'c23790ecc8e5e9745b630a0e625a78c946782993' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-18T21:13:11-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:3
+    worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Recognize Couch supervisor retention registration
@@ -30,8 +38,21 @@ Make the supervisor's retention protocol participation recognizable through the 
 
 ## Plan
 
-- [ ]
+See [implementation plan](../plans/000687-couch-retention-registration-plan.md). Await hub approval before change-code or implementation.
+
+- [ ] Preserve unknown runtime-registry members through bounded validated reads and surviving-record rewrites; add the explicit diagnostic capability to the existing lease.
+- [ ] Consume exact identity-fenced participation from the selected root through shared writer/GC inspection, with stateful sequence and counted sweep regressions.
+- [ ] Publish from Couch, qualify owned/native boundaries and document the operator restart check.
 
 ## Log
 
 Filed unclaimed at the hub's request in receipt42a427eb-c28b-4124-9ef2-8c09ed6b56cd. #677 PR442 retains the current-log block and does not fold this supervisor lifecycle change into its retention policy implementation.
+
+
+### 2026-10-18 — claim, source evidence and proposed plan
+
+Verified fresh hub assignment c1eb775b-6d04-44d9-93e5-013b5940f0bd, claimed #687 and ran start-plan. The first start-plan refreshed the ariadne substrate and explicitly refused branching under the old binary; its requested rerun created the issue branch. No product code or live data mutation has occurred. start-plan currently lists ariadne#454 in flight, so ARCH-EVOLVE is an explicit hub requirement even though the delivered principle registry has not added it yet.
+
+Couch constructor already registers the exact current PID/birth as couch-runtime before its coordinated thread store. The lease producer originated in #239, predating the diagnostic protocol, so treating every existing lease as that later capability is unsafe. Proposed explicit versioned capability on that same record, consumed from already-selected roots rather than environment/HOME guessing. Current runtime reads reject additive fields, and RegisterRuntime rewrites through a lossy typed projection; a private wire codec preserves unknown envelope/record/process members without making shared ProcessIdentity non-comparable or relaxing every retention schema. A bounded read-only helper confirmed the existing strictjson duplicate-key primitive and these three preservation depths.
+
+The durable plan names all writer/GC consumers, unchanged open-holder protection, PID reuse and cancellation, one-read/one-native-snapshot N/2N budgets, alternatives, and a proposed owned/live arrangement. Plan approval and the change-code gate are still outstanding; no implementation tests or builds beyond the tool's required substrate refresh have run.
