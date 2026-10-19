@@ -16,7 +16,7 @@ claimant:
     repository: github.com/xianxu/pair
 ---
 
-# Successful park cleanup remains unresolved and lifecycle failures lose diagnostics
+# Persist every lifecycle failure reason
 
 ## Problem
 
