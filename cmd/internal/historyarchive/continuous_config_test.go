@@ -53,3 +53,16 @@ func TestInventoryContinuousPatterns(t *testing.T) {
 		}
 	}
 }
+
+func TestContinuousConfigDriveSettingsStayOptional(t *testing.T) {
+	for _, remote := range []string{"pair-backup", "--bad:remote"} {
+		raw := `{"version":1,"recipients":["` + strings.Repeat("A", 40) + `"],"sink":"/s","catalog":"/c","drive_remote":"` + remote + `","drive_folder":"backups/pair-history"}`
+		p := filepath.Join(t.TempDir(), "continuous.json")
+		if err := os.WriteFile(p, []byte(raw), 0600); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := LoadContinuousConfig(p); err != nil {
+			t.Fatalf("remote settings blocked local backup: %v", err)
+		}
+	}
+}

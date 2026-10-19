@@ -1,6 +1,7 @@
 package sessionwatch
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -98,7 +99,7 @@ func TestPublishAuthorizedLifecycleWithoutAFilesystemGenerationToken(t *testing.
 		},
 	}
 
-	watermark, err := publishAuthorizedLifecycle(opts, quietRuntime{}, "journal.jsonl", tracked, events, rootNodeID, 0)
+	watermark, err := publishTestAuthorizedLifecycle(opts, quietRuntime{}, "journal.jsonl", tracked, events, rootNodeID, 0)
 	if err != nil {
 		t.Fatalf("publishAuthorizedLifecycle: %v -- a real observation was refused", err)
 	}
@@ -114,4 +115,42 @@ func TestPublishAuthorizedLifecycleWithoutAFilesystemGenerationToken(t *testing.
 	if err := ValidateLifecycleRecord(appended[0]); err != nil {
 		t.Fatalf("produced record fails its own grammar: %v", err)
 	}
+}
+
+func TestPublishAuthorizedLifecyclePreservesAcknowledgedPrefix(t *testing.T) {
+	const sid = "019eff64-6ceb-7e72-9d41-a735a97029ac"
+	root := sessioninventory.StableID("node", "codex", sid)
+	tracked := map[string]sessioninventory.TargetValidation{sid: {State: sessioninventory.ScannerState{NativeID: sid}, Observations: []sessioninventory.ArtifactObservation{{Entry: sessioninventory.FileEntry{Artifact: sessioninventory.Artifact{RelativePath: "rollout.jsonl"}}}}, Results: map[string]sessioninventory.IncrementalResult{"own": {Fingerprint: sessioninventory.ArtifactFingerprint{StableFileID: "own"}}}}}
+	stamp := time.Unix(100, 0)
+	events := []sessioninventory.NativeEventFact{
+		{RootNodeID: root, Position: 11 << 8, Event: sessioninventory.NativeEvent{Kind: sessioninventory.EventTurnStart, SourceKind: "event_msg.task_started", TurnID: "turn", Timestamp: stamp}},
+		{RootNodeID: root, Position: 21 << 8, Event: sessioninventory.NativeEvent{Kind: sessioninventory.EventTerminal, SourceKind: "event_msg.task_complete", TurnID: "turn", Timestamp: stamp}},
+	}
+	calls := 0
+	watermark, err := publishTestAuthorizedLifecycle(Options{LaunchOrdinal: 1, AppendLifecycle: func(string, LifecycleRecord) error {
+		calls++
+		if calls == 2 {
+			return fmt.Errorf("publication uncertain")
+		}
+		return nil
+	}}, quietRuntime{}, "journal", tracked, events, root, 0)
+	if err == nil || watermark != 11<<8 || calls != 2 {
+		t.Fatalf("acknowledged prefix lost: watermark=%d calls=%d err=%v", watermark, calls, err)
+	}
+}
+
+// Only assemble inputs here: identity, projection and publication all exercise
+// the same production functions used by the bound follower.
+func publishTestAuthorizedLifecycle(opts Options, rt Runtime, path string, tracked map[string]sessioninventory.TargetValidation, events []sessioninventory.NativeEventFact, root string, after uint64) (uint64, error) {
+	for _, validation := range tracked {
+		generation, transcript, err := lifecycleArtifactIdentity(validation)
+		if err != nil {
+			return after, err
+		}
+		pubs, through := lifecyclePublicationsFromEvents(events, root, after, opts.LaunchOrdinal, generation, transcript)
+		state := reduceBoundFollow(boundFollowState{watermark: after}, boundFollowEvent{prepared: &boundPrepared{publications: pubs, watermark: through}})
+		state, err = publishLifecycleBatch(opts, rt, path, state)
+		return state.watermark, err
+	}
+	return after, fmt.Errorf("test validation missing")
 }

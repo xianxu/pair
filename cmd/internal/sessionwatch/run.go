@@ -185,15 +185,10 @@ func Run(opts Options, rt Runtime) error {
 					rt.Log(adapt.NearMiss, "bound lifecycle target unavailable: "+err.Error())
 					return nil
 				}
-				trackedTargets[validation.State.NativeID] = validation
-				boundRootNodeID = sessioninventory.StableID("node", string(agent), validation.State.NativeID)
 				for _, event := range validation.Events {
-					if event.Position > lifecycleWatermark {
-						lifecycleWatermark = event.Position
-					}
+					lifecycleWatermark = max(lifecycleWatermark, event.Position)
 				}
-				rt.Sleep(opts.Poll)
-				continue
+				return followBoundCodex(opts, rt, nativeRuntime, paths.Ledger(), paths.LifecycleJournal(), owner, rootPID, rootIdentity, validation, nil, lifecycleWatermark)
 			}
 			return nil
 		}
@@ -297,15 +292,7 @@ func Run(opts Options, rt Runtime) error {
 
 			inventory.Diagnostics = append(inventory.Diagnostics, sessioninventory.DiagnosticWithSource(sessioninventory.DiagnosticStorageUnreadable, agent, nil, "session inventory catalog", "catalog publication failed; durable observation remains usable"))
 		}
-		if boundRootNodeID != "" {
-			var publishErr error
-			lifecycleWatermark, publishErr = publishAuthorizedLifecycle(opts, rt, paths.LifecycleJournal(), trackedTargets, events, boundRootNodeID, lifecycleWatermark)
-			if publishErr != nil {
-				return publishErr
-			}
-			rt.Sleep(opts.Poll)
-			continue
-		}
+
 		beforeRoots, beforeAvailable := processAuthorizedRoots(nativeRuntime, inventory, agent, corroborationPID)
 		inventory.Diagnostics = append(inventory.Diagnostics, logDiagnostics...)
 		for _, diagnostic := range logDiagnostics {
@@ -355,13 +342,13 @@ func Run(opts Options, rt Runtime) error {
 			if !opts.FollowLifecycle || agent != sessioninventory.AgentCodex {
 				return nil
 			}
-			var publishErr error
-			lifecycleWatermark, publishErr = publishAuthorizedLifecycle(opts, rt, paths.LifecycleJournal(), trackedTargets, events, boundRootNodeID, lifecycleWatermark)
-			if publishErr != nil {
-				return publishErr
+			for _, validation := range trackedTargets {
+				if sessioninventory.StableID("node", string(agent), validation.State.NativeID) == boundRootNodeID {
+					clear(trackedTargets)
+					return followBoundCodex(opts, rt, nativeRuntime, paths.Ledger(), paths.LifecycleJournal(), owner, rootPID, rootIdentity, validation, events, lifecycleWatermark)
+				}
 			}
-			rt.Sleep(opts.Poll)
-			continue
+			return errors.New("bound lifecycle target missing")
 		}
 		if wait() {
 			return nil

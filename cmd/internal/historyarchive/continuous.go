@@ -42,12 +42,14 @@ type ContinuousPass struct {
 	Now          func() time.Time
 	Quiet        time.Duration
 	Log          io.Writer
+	Drive        *DriveMirror // optional independent replication; production command injects it
 }
 
 // ContinuousReport counts what one pass did per kind.
 type ContinuousReport struct {
 	Archived map[string]int
 	Skipped  []string
+	Drive    *DriveReport
 }
 
 // LastRunName records the completion time of the last full pass.
@@ -65,6 +67,17 @@ func (p ContinuousPass) Run(ctx context.Context) (ContinuousReport, error) {
 	defer lock.Close()
 	if err := unix.Flock(int(lock.Fd()), unix.LOCK_EX|unix.LOCK_NB); err != nil {
 		return report, ErrPassRunning
+	}
+	if p.Drive != nil {
+		// Collect an interrupted pass's links even if local collection fails
+		// before the optional Drive phase. Cleanup failure is remote-only.
+		stage, cleanupErr := openUploadStaging(p.Store)
+		if cleanupErr == nil {
+			cleanupErr = errors.Join(SweepUploadStaging(context.WithoutCancel(ctx), stage), stage.Close())
+		}
+		if cleanupErr != nil {
+			report.Drive = &DriveReport{Notes: []string{"staging cleanup: " + cleanupErr.Error()}}
+		}
 	}
 	// Private copies a killed pass left behind can be gigabytes; drop them
 	// while holding the lock.
@@ -114,6 +127,13 @@ func (p ContinuousPass) Run(ctx context.Context) (ContinuousReport, error) {
 		if err := os.WriteFile(filepath.Join(p.Store, LastRunName), []byte(now.UTC().Format(time.RFC3339)+"\n"), 0o600); err != nil {
 			return report, err
 		}
+	}
+	if p.Drive != nil {
+		remote, remoteErr := p.Drive.Run(ctx, p.Config, p.Store)
+		if remoteErr != nil {
+			remote.Notes = append(remote.Notes, "operation report: "+remoteErr.Error())
+		}
+		report.Drive = &remote
 	}
 	return report, nil
 }
