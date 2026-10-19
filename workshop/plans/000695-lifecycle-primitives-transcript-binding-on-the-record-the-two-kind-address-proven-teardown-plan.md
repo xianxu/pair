@@ -731,3 +731,9 @@ Steps:
   - **Team arm.** The operator chose one team per repo (hub, 2026-10-19), so pair#694 is parked and Couch gets no
     team address kind. `NewTeamAddress` stays allowlisted until the hub decides its fate. Removing it is a
     candidate cleanup at M2 close.
+- 2026-10-19 — **The team arm is removed** (hub, delivery 5dee33ba). The operator decided on one team per repository,
+  with no team concept in Couch: TLs are ordinary `:0` slots. So a second address kind is dead code whatever happens
+  to pair#694. `LifecycleAddress` stays as the seam, with one kind: `{Slot, Root}`, `Key() = "slot:<root>"`. Removed:
+  `AddressKind`, `TeamIdentity`, `NewTeamAddress` and its dead-symbol allowlist entry, plus the team tests. The hub
+  approved both step-5 deviations, `FreshLeavesRemnants` and the per-thread lease with the tty trusted only while
+  the tree is up. The atlas records them at step 8.

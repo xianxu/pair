@@ -37,7 +37,6 @@ var hosttyDeadSymbolAllowlist = map[string]string{
 }
 
 var couchcoreDeadSymbolAllowlist = map[string]string{
-	"NewTeamAddress": "pair#694 M2: team startup builds team addresses from team folders; pair#695 lands the type with both arms",
 	"ReadStoreRetention": "pair#239 M2 Task4/5: read-only registered-store adapter; remove exemption when production GC preview is wired",
 	"RestoreThread":      "pair#239: explicitly supported typed archive restoration transaction; no new UI is in scope",
 	// Seams and non-context wrappers: production takes the Context form, the

@@ -1,7 +1,6 @@
 package couchcore
 
 import (
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -15,20 +14,6 @@ func testSlotIdentity(t *testing.T, primary string, n int) SlotIdentity {
 		t.Fatalf("fixture slot: %v", err)
 	}
 	return s
-}
-
-func testTeamCheckout(t *testing.T, teams ...string) string {
-	t.Helper()
-	root := t.TempDir()
-	for _, dir := range teams {
-		if err := os.MkdirAll(filepath.Join(root, dir), 0o755); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(filepath.Join(root, dir, ".hub"), nil, 0o644); err != nil {
-			t.Fatal(err)
-		}
-	}
-	return root
 }
 
 func TestLifecycleAddressValidate(t *testing.T) {
@@ -56,36 +41,11 @@ func TestLifecycleAddressValidate(t *testing.T) {
 		}
 	}
 
-	checkout := testTeamCheckout(t, "teams/devinfra")
-	team, err := NewTeamAddress(checkout, "teams/devinfra")
-	if err != nil {
-		t.Fatalf("team: %v", err)
-	}
-	if err := team.Validate(); err != nil {
-		t.Fatalf("team invalid: %v", err)
-	}
-	if team.Team.Name != "devinfra" || team.Team.Scope == "" {
-		t.Fatalf("team identity not resolved: %+v", team.Team)
-	}
-	for _, dir := range []string{"", ".", "../teams/devinfra", "/abs/teams/devinfra", "teams/devinfra/", "teams/missing"} {
-		if _, err := NewTeamAddress(checkout, dir); err == nil {
-			t.Errorf("team dir %q accepted", dir)
-		}
-	}
-	if _, err := NewTeamAddress("relative", "teams/devinfra"); err == nil {
-		t.Error("relative checkout root accepted")
-	}
-
-	// Exactly one arm, matching the kind; a hand-built value is checked too.
+	// A hand-built value is checked too.
 	broken := []LifecycleAddress{
 		{},
-		{Kind: AddressSlot},
-		{Kind: AddressTeam},
-		{Kind: AddressSlot, Root: "/w/pair", Team: team.Team},
-		{Kind: AddressTeam, Team: team.Team, Root: "/w/pair"},
-		{Kind: AddressTeam, Team: TeamIdentity{CheckoutRoot: checkout, TeamDir: "teams/devinfra", Name: "other", Scope: team.Team.Scope}},
-		{Kind: AddressTeam, Team: TeamIdentity{CheckoutRoot: checkout, TeamDir: "teams/devinfra", Name: "devinfra"}},
-		{Kind: "hub", Root: "/w/pair"},
+		{Root: "relative"},
+		{Slot: slot, Root: "/w/elsewhere"},
 	}
 	for i, a := range broken {
 		if err := a.Validate(); err == nil {
@@ -94,44 +54,17 @@ func TestLifecycleAddressValidate(t *testing.T) {
 	}
 }
 
-func TestLifecycleAddressKeyDistinctPerTeam(t *testing.T) {
-	checkout := testTeamCheckout(t, "teams/devinfra", "teams/ariadne")
-	a, err := NewTeamAddress(checkout, "teams/devinfra")
+func TestLifecycleAddressKeyDistinctPerSlot(t *testing.T) {
+	one, err := NewSlotAddress(SlotIdentity{}, "/w/pair")
 	if err != nil {
 		t.Fatal(err)
 	}
-	b, err := NewTeamAddress(checkout, "teams/ariadne")
+	two, err := NewSlotAddress(testSlotIdentity(t, "/w/pair", 2), testSlotIdentity(t, "/w/pair", 2).WorktreeRoot)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if a.Key() == b.Key() {
-		t.Fatalf("two teams in one checkout share a key: %s", a.Key())
-	}
-	if !strings.HasPrefix(a.Key(), "team:") {
-		t.Fatalf("team key %q lacks its kind prefix", a.Key())
-	}
-}
-
-func TestLifecycleAddressKeyDistinctPerCheckout(t *testing.T) {
-	one := testTeamCheckout(t, "teams/devinfra")
-	two := testTeamCheckout(t, "teams/devinfra")
-	a, err := NewTeamAddress(one, "teams/devinfra")
-	if err != nil {
-		t.Fatal(err)
-	}
-	b, err := NewTeamAddress(two, "teams/devinfra")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if a.Key() == b.Key() {
-		t.Fatalf("the same team folder in two checkouts shares a key: %s", a.Key())
-	}
-	slot, err := NewSlotAddress(SlotIdentity{}, one)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if slot.Key() == a.Key() {
-		t.Fatal("a slot and a team in one checkout share a key")
+	if one.Key() == two.Key() || !strings.HasPrefix(one.Key(), "slot:") {
+		t.Fatalf("keys %q and %q", one.Key(), two.Key())
 	}
 }
 
