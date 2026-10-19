@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -126,7 +127,7 @@ func TestOwnerUnknownFieldsArePreserved(t *testing.T) {
 }
 func TestMetadataVisitsLinearAcrossSlots(t *testing.T) {
 	for _, slots := range []int{8, 16} {
-		t.Run(itoa(slots), func(t *testing.T) {
+		t.Run(strconv.Itoa(slots), func(t *testing.T) {
 			m, _, now := fixture(t)
 			probe := m.options.Probe()
 			old := now.Add(-25 * time.Hour)
@@ -137,7 +138,7 @@ func TestMetadataVisitsLinearAcrossSlots(t *testing.T) {
 				tree := filepath.Join(root, "tree")
 				os.Mkdir(tree, 0700)
 				for j := 0; j < 8; j++ {
-					file := filepath.Join(tree, itoa(j))
+					file := filepath.Join(tree, strconv.Itoa(j))
 					os.WriteFile(file, nil, 0600)
 					os.Chtimes(file, old, old)
 					files++

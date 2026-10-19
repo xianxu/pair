@@ -8,12 +8,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 )
-
-// itoa renders a slot number as decimal text.
-func itoa(n int) string { return strconv.Itoa(n) }
 
 // validSlot rejects identities that cannot safely name a private slot directory.
 func validSlot(s Slot) bool {

@@ -2,12 +2,13 @@ package couchscratch
 
 import (
 	"context"
-	"golang.org/x/sys/unix"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	"golang.org/x/sys/unix"
 )
 
 func TestProbeDoesNotTreatOrdinaryDirectoryAsMount(t *testing.T) {
@@ -22,7 +23,7 @@ func TestProbeDoesNotTreatOrdinaryDirectoryAsMount(t *testing.T) {
 	}
 }
 func TestSpecialTopLevelNodesRetained(t *testing.T) {
-	root, err := os.MkdirTemp("/tmp", "cs-")
+	root, err := os.MkdirTemp("", "cs-")
 	if err != nil {
 		t.Fatal(err)
 	}

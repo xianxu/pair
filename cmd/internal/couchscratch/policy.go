@@ -1,6 +1,10 @@
 package couchscratch
 
-import "path/filepath"
+import (
+	"path/filepath"
+
+	"github.com/xianxu/pair/cmd/internal/couchcore"
+)
 
 // DefaultRoot is the optional mounted scratch volume.
 const DefaultRoot = "/Volumes/TestScratch"
@@ -28,4 +32,4 @@ func ChooseScratch(p Probe) bool {
 }
 
 // slotName derives the stable directory basename for a canonical slot.
-func slotName(s Slot) string { return s.Repo + "-slot" + itoa(s.Number) }
+func slotName(s Slot) string { return couchcore.EnvName(s.Repo, s.Number) }
