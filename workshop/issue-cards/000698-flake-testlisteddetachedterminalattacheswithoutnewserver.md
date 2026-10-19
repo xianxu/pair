@@ -1,6 +1,6 @@
 ---
 id: 000698
-status: codecomplete
+status: done
 created: 2026-10-19
 updated: 2026-10-19
 estimate_hours:
@@ -22,6 +22,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 50b2d2b03dc9bcb432725bbccd51cd35dd04de7c
         evidence_commit: 84ac0ec1f4c33e09dfc17da12ffcf6cfe5d339f1
+        landed_commit: 11ea27eddb0fe197d48f9b727d6a24fc5307cb57
 ---
 
 # flake: TestListedDetachedTerminalAttachesWithoutNewServer
