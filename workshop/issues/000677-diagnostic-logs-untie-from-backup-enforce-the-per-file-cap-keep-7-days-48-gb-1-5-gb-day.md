@@ -106,3 +106,15 @@ Design subtotal0.90h ×1.15 + scaled implementation1.48h =2.515h, rounded2.52h; 
 ### 2026-10-18 — approved diagnostic-only policy and live gate
 
 Verified hub receipt5ebfef41-eb7d-4f3e-92f4-fff05f5b0a37 approves the committed plan and full flow, including whole eviction of young oversized legacy diagnostics and retaining/reporting unknown or live holders. Clarified Done-when to distinguish bounded newly admitted data from blocked inherited files; the absolute legacy-cap claim cannot override live-writer safety. Added the explicit pre-apply gate: run real diagnostic-only preview and send file/byte categories plus blocked reasons to the hub first. This is a reporting gate in an already-approved live arrangement, not a request to touch :0 or acknowledge session migration.
+
+### Implementation checkpoint — hold lifted, policy RED/GREEN
+
+Verified fresh hub hold-lift receipt1623f49c-c7fa-4de9-b003-db01da33bd65 (submitted); no test/build ran during the hold. The delegated GC task reported capacity failure but left two uncommitted regression additions (gccmd/run_test.go and gcruntime/schedule_test.go), discovered on git status; main inspected and ran them rather than assuming the error meant no files changed. Main now owns all implementation.
+
+Functional RED against unchanged production: the seven-day boundary returned false at7d/8d; expired and young oversized managed Collect returned zero; registered open-holder collection did not block. One broad new-test invocation hit its120s test bound while seeding many synchronous rotations; individual behavioral REDs completed0.936s. Keep the eventual N/2N fixture efficient without weakening counted production collection effects. The measurement draft initially misclassified canonical /private paths; resolved the owned temporary directory before comparing ObserveIO paths.
+
+Core targeted GREEN: diagnostic default/expired/oversized/registered-holder tests0.577s; policy/deletion-replay/legacy/stable-lock/page tests4.416s. Core uses one age-or-size decision, drops active count/debt authority, retains byte caps and exact deletion journal. Existing crash-report sweep keeps its separate legacy fence; this issue's diagnostics-only scope selects managed wrap/adapt/fullscreen families, not crash-report/history policy.
+
+Owned synthetic production-proxy measurement (64x128 output bytes per explicitly delimited turn):8turns440982diagnostic bytes(55122.8/turn),8169metadata bytes,2058records;16turns883456bytes(55216.0/turn),15475metadata,4114records; zero drops/pending. N/2N counted envelope passes, raw output8192bytes/turn. This is not a measured mean human turn. Keep existing hashed per-chunk detail and PAIR_WRAP_EVENTS=0 opt-out as approved.
+
+GC/CLI RED: diagnostics-only flag absent, pre-migration Batch ended before diagnostics, invalid policy reached root resolution. Those four targeted configuration/scope tests now GREEN after factoring diagnostic-only methods, removing diagnostic migration checks, preserving session gates, and carrying the effective duration into reports. Broader package verification remains running; no live preview or apply yet.

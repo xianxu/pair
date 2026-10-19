@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -184,5 +185,24 @@ func TestReadyRuntimeWorkerRunsAndJoinsItsFirstScheduledPass(t *testing.T) {
 	worker.Stop()
 	if err := worker.Wait(); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestPreMigrationBatchReachesDiagnostics(t *testing.T) {
+	s, _ := scheduleFixture(t)
+	cursor, complete, err := s.Batch(context.Background(), "", 100)
+	if err != nil || complete || !strings.Contains(cursor, `"phase":"diagnostics"`) {
+		t.Fatalf("diagnostics unreachable before migration: %q complete=%v err=%v", cursor, complete, err)
+	}
+}
+
+func TestNewRejectsInvalidDiagnosticPolicyBeforeIO(t *testing.T) {
+	t.Setenv("PAIR_DIAGNOSTIC_DAYS", "0")
+	root := filepath.Join(t.TempDir(), "missing")
+	if _, err := New(root); err == nil || !strings.Contains(err.Error(), "PAIR_DIAGNOSTIC_DAYS") {
+		t.Fatalf("invalid policy not rejected: %v", err)
+	}
+	if _, err := os.Stat(root); !os.IsNotExist(err) {
+		t.Fatalf("invalid policy touched root: %v", err)
 	}
 }

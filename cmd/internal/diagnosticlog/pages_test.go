@@ -23,7 +23,7 @@ func fixtureSegment(t *testing.T, path, name string, last time.Time) {
 		t.Fatal(e)
 	}
 }
-func TestDiagnosticPageCursorProgressesWhileBackupFenceRetainsAll(t *testing.T) {
+func TestDiagnosticPageCursorProgressesWhileDeletingExpired(t *testing.T) {
 	path, now, opts := fixture(t)
 	w, e := Open(path, opts)
 	if e != nil {
@@ -43,7 +43,7 @@ func TestDiagnosticPageCursorProgressesWhileBackupFenceRetainsAll(t *testing.T) 
 		}
 		removed += len(rows)
 		if done {
-			if removed != 0 {
+			if removed != 3 {
 				t.Fatalf("deleted %d of3", removed)
 			}
 			return
@@ -55,7 +55,7 @@ func TestDiagnosticPageCursorProgressesWhileBackupFenceRetainsAll(t *testing.T) 
 	}
 	t.Fatal("pagination never completed")
 }
-func TestBackupFencePreservesYoungAndExpiredPagedSegments(t *testing.T) {
+func TestPagedCollectionPreservesYoungAndRemovesExpired(t *testing.T) {
 	path, now, opts := fixture(t)
 	w, e := Open(path, opts)
 	if e != nil {
@@ -80,14 +80,14 @@ func TestBackupFencePreservesYoungAndExpiredPagedSegments(t *testing.T) {
 		}
 		cursor = next
 	}
-	if removed != 0 {
+	if removed != 1 {
 		t.Fatalf("removed %d", removed)
 	}
 	if _, e = os.Stat(segmentPath(path, young)); e != nil {
 		t.Fatal("young segment removed")
 	}
-	if _, e = os.Stat(segmentPath(path, old)); e != nil {
-		t.Fatal("old segment evicted before backup")
+	if _, e = os.Stat(segmentPath(path, old)); !os.IsNotExist(e) {
+		t.Fatal("old segment was not evicted")
 	}
 }
 func TestPagedPreviewReportsIncompleteHonestly(t *testing.T) {

@@ -22,7 +22,7 @@ type Segment struct {
 
 // DecideSegment is independent of session activity and Couch visibility.
 func DecideSegment(now, lastWrite time.Time) bool {
-	return !lastWrite.IsZero() && !lastWrite.After(now) && !now.Before(lastWrite.Add(RetentionPeriod))
+	return DecideGeneration(now, lastWrite, 0, MaxGenerationBytes, RetentionPeriod)
 }
 
 // Preview is read-only: it does not create a lock, initialize or recover state.
@@ -179,9 +179,6 @@ func collectManagedPage(path string, options Options, cursor string, limit int) 
 func recoverDeletion(path string, s *diskState, o Options) error {
 	if err := o.checkContext(); err != nil {
 		return err
-	}
-	if KeepDiagnosticsUntilBackup {
-		return ErrBackupRequired
 	}
 	g := *s.Deleting
 	p := path
@@ -344,7 +341,7 @@ func cleanupTemps(path string, o Options, limit int) error {
 		if e != nil {
 			return e
 		}
-		if !DecideSegment(o.Now(), st.ModTime()) {
+		if !DecideGeneration(o.Now(), st.ModTime(), st.Size(), MaxGenerationBytes, o.RetentionPeriod) {
 			continue
 		}
 		if err := o.checkContext(); err != nil {

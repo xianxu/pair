@@ -157,7 +157,7 @@ func TestConcurrentWritersReopenCurrent(t *testing.T) {
 		}
 	}
 }
-func TestBackupFencePreservesExpiredPayloadAndStableLock(t *testing.T) {
+func TestExpiryPreservesStableLock(t *testing.T) {
 	path, now, opts := fixture(t)
 	w, err := Open(path, opts)
 	if err != nil {
@@ -169,16 +169,16 @@ func TestBackupFencePreservesExpiredPayloadAndStableLock(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, age := range []time.Duration{RetentionPeriod - time.Nanosecond, time.Nanosecond} {
-		*now = now.Add(age)
-		rows, err := Collect(path, opts, 100)
-		if err != nil || len(rows) != 0 {
-			t.Fatal(rows, err)
-		}
+	*now = now.Add(RetentionPeriod - time.Nanosecond)
+	if rows, err := Collect(path, opts, 100); err != nil || len(rows) != 0 {
+		t.Fatal(rows, err)
 	}
-	body, err := os.ReadFile(path)
-	if err != nil || string(body) != "young\n" {
-		t.Fatal(string(body), err)
+	*now = now.Add(time.Nanosecond)
+	if rows, err := Collect(path, opts, 100); err != nil || len(rows) != 1 {
+		t.Fatal(rows, err)
+	}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatal("expired payload remains", err)
 	}
 	w, err = Open(path, opts)
 	if err != nil {

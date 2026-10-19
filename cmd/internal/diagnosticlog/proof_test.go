@@ -25,7 +25,8 @@ func TestWriterProofRejectsLegacyAndUnknownHolders(t *testing.T) {
 		err      error
 		want     bool
 	}{
-		{"registered", []Registration{me}, []Runtime{{Process: me}}, nil, true},
+		{"registered open holder", []Registration{me}, []Runtime{{Process: me}}, nil, false},
+		{"registered closed writer", nil, []Runtime{{Process: me}}, nil, true},
 		{"unknown holder", []Registration{{PID: 9, Birth: "old"}}, nil, nil, false},
 		{"legacy transient", nil, []Runtime{{Process: Registration{PID: 8, Birth: "old", Root: "/root"}}}, nil, false},
 		{"other root legacy", nil, []Runtime{{Process: Registration{PID: 8, Birth: "old", Root: "/other"}}}, nil, true},

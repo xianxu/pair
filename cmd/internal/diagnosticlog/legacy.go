@@ -32,14 +32,11 @@ func previewLegacyCurrent(path string, options Options) ([]Segment, error) {
 	if err := options.checkContext(); err != nil {
 		return nil, err
 	}
-	eligible := !KeepDiagnosticsUntilBackup && reason == "" && DecideSegment(options.Now(), st.ModTime())
-	if reason == "" && KeepDiagnosticsUntilBackup {
-		reason = BackupFenceReason
-	}
+	eligible := reason == "" && DecideGeneration(options.Now(), st.ModTime(), st.Size(), options.MaxBytes, options.RetentionPeriod)
 	if reason == "" && !eligible {
-		reason = RetainedReason
+		reason = RetentionReason(options.RetentionPeriod)
 	}
-	return []Segment{{Path: p, Bytes: st.Size(), LastWrite: st.ModTime(), Eligible: eligible, Reason: reason}}, nil
+	return []Segment{{Path: p, Bytes: st.Size(), LastWrite: st.ModTime(), Eligible: eligible, Reason: reason, Oversized: st.Size() > options.MaxBytes}}, nil
 }
 
 func adoptLegacy(path string, options Options) (bool, error) {
@@ -67,7 +64,7 @@ func adoptLegacy(path string, options Options) (bool, error) {
 	if e != nil {
 		return false, e
 	}
-	expected := generation{Identity: fileIdentity(before), Start: options.Now().UTC(), LastWrite: before.ModTime(), Size: before.Size(), ModTime: before.ModTime()}
+	expected := generation{Identity: fileIdentity(before), Start: before.ModTime(), LastWrite: before.ModTime(), Size: before.Size(), ModTime: before.ModTime()}
 	e = lockedOptions(p, true, options, func() error {
 		if err := recoverPublication(p, options); err != nil {
 			return err
@@ -92,8 +89,8 @@ func adoptLegacy(path string, options Options) (bool, error) {
 		if e = options.prove(p, nil); e != nil {
 			return e
 		}
-		if !DecideSegment(options.Now(), st.ModTime()) {
-			return errors.New("legacy generation changed age")
+		if !DecideGeneration(options.Now(), st.ModTime(), st.Size(), options.MaxBytes, options.RetentionPeriod) {
+			return errors.New("legacy generation changed retention eligibility")
 		}
 		if err := options.checkContext(); err != nil {
 			return err

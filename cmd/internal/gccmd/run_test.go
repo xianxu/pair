@@ -3,6 +3,8 @@ package gccmd
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
+	"github.com/xianxu/pair/cmd/internal/gcruntime"
 	"os"
 	"path/filepath"
 	"strings"
@@ -123,5 +125,52 @@ func TestMissingStorePreviewExplainsRecovery(t *testing.T) {
 		if !strings.Contains(out.String(), text) {
 			t.Fatalf("missing recovery guidance %q: %s", text, out.String())
 		}
+	}
+}
+
+func TestDiagnosticsOnlyPreviewDoesNotInitializeSessions(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "draft-tag.md"), []byte("authored"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	var out, errout bytes.Buffer
+	if code := Run([]string{"--root", root, "--diagnostics-only", "--json"}, func(string) string { return "" }, &out, &errout); code != 0 {
+		t.Fatalf("diagnostic preview code=%d: %s", code, &errout)
+	}
+	if !strings.Contains(out.String(), `"diagnostic_retention_days":7`) {
+		t.Fatalf("missing effective policy: %s", &out)
+	}
+	entries, err := os.ReadDir(root)
+	if err != nil || len(entries) != 1 {
+		t.Fatalf("preview changed root: %v %v", entries, err)
+	}
+}
+
+func TestDiagnosticConfigurationAndMixedScopesFailBeforeService(t *testing.T) {
+	for _, other := range [][]string{{"--complete-migration"}, {"--register-store", "/missing"}, {"--forget-missing-store", "/missing"}, {"--store", "/missing"}} {
+		var out bytes.Buffer
+		called := false
+		args := append([]string{"--root", t.TempDir(), "--diagnostics-only"}, other...)
+		code := runWithService(args, func(string) string { return "" }, &out, &out, func(string) (*gcruntime.Service, error) {
+			called = true
+			return nil, fmt.Errorf("unexpected construction")
+		})
+		if code == 0 || called {
+			t.Fatalf("mixed scope reached service: %v %s", args, &out)
+		}
+	}
+	var out bytes.Buffer
+	called := false
+	code := runWithService([]string{"--root", t.TempDir(), "--apply"}, func(k string) string {
+		if k == "PAIR_DIAGNOSTIC_DAYS" {
+			return "0"
+		}
+		return ""
+	}, &out, &out, func(string) (*gcruntime.Service, error) {
+		called = true
+		return nil, fmt.Errorf("unexpected construction")
+	})
+	if code == 0 || called || !strings.Contains(out.String(), "PAIR_DIAGNOSTIC_DAYS") {
+		t.Fatalf("invalid policy reached service called=%v: %s", called, &out)
 	}
 }

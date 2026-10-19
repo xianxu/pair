@@ -62,17 +62,11 @@ func (s *Service) Batch(ctx context.Context, cursor string, limit int) (string, 
 			state.Owner = report.NextOwner
 			return nextMaintenance(state)
 		}
-		if !report.MigrationComplete {
-			return "", true, nil
-		}
 		return nextMaintenance(maintenanceCursor{Phase: "diagnostics"})
 	}
 	report, err := s.Collector.DiagnosticInventory(ctx)
 	if err != nil {
 		return "", false, err
-	}
-	if !report.MigrationComplete {
-		return "", true, nil
 	}
 	paths := diagnosticPaths(&report, entries)
 	index := sort.SearchStrings(paths, state.Path)
@@ -90,13 +84,6 @@ func (s *Service) Batch(ctx context.Context, cursor string, limit int) (string, 
 	var next string
 	var complete bool
 	err = s.Collector.Coordinator.TryWithLock(ctx, func(held *storagegc.Locked) error {
-		registry, err := s.Collector.Coordinator.ReadRegistry()
-		if err != nil {
-			return err
-		}
-		if !registry.MigrationComplete {
-			return errors.New("migration acknowledgement unavailable")
-		}
 		options := s.DiagnosticOptions
 		options.Context = ctx
 		_, next, complete, err = diagnosticlog.CollectLegacyPage(path, options, segment, min(limit, 100))

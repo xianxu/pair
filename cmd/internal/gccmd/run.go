@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"time"
 
 	"github.com/xianxu/pair/cmd/internal/diagnosticlog"
 	"github.com/xianxu/pair/cmd/internal/gcruntime"
@@ -32,6 +33,7 @@ func runWithService(args []string, getenv func(string) string, stdout, stderr io
 	flags := flag.NewFlagSet("pair gc", flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	root := flags.String("root", "", "Pair storage root (defaults to selected Pair storage)")
+	diagnosticsOnly := flags.Bool("diagnostics-only", false, "preview or collect debugging logs without session migration or clocks")
 	apply := flags.Bool("apply", false, "initialize clocks and collect eligible data after migration")
 	jsonOutput := flags.Bool("json", false, "write detailed metadata-only JSON")
 	complete := flags.Bool("complete-migration", false, "acknowledge the complete Couch store list supplied by --store")
@@ -45,11 +47,15 @@ func runWithService(args []string, getenv func(string) string, stdout, stderr io
 		}
 		return 2
 	}
-	if flags.NArg() != 0 || (*apply && *complete) || (len(expected) > 0 && !*complete) || (*forget != "" && (*apply || *complete || len(register) > 0 || len(expected) > 0)) {
+	if (*diagnosticsOnly && (*complete || *forget != "" || len(register) > 0 || len(expected) > 0)) || flags.NArg() != 0 || (*apply && *complete) || (len(expected) > 0 && !*complete) || (*forget != "" && (*apply || *complete || len(register) > 0 || len(expected) > 0)) {
 		return fail(errors.New("unexpected arguments or incompatible operations"))
 	}
 	if getenv == nil {
 		return fail(errors.New("environment is required"))
+	}
+	period, err := diagnosticlog.ParseRetentionDays(getenv("PAIR_DIAGNOSTIC_DAYS"))
+	if err != nil {
+		return fail(err)
 	}
 	selected := *root
 	if selected == "" {
@@ -69,6 +75,7 @@ func runWithService(args []string, getenv func(string) string, stdout, stderr io
 	if err != nil {
 		return fail(err)
 	}
+	service.DiagnosticOptions.RetentionPeriod = period
 	coordinator := service.Collector.Coordinator
 	ctx := context.Background()
 	if *forget != "" {
@@ -111,7 +118,7 @@ func runWithService(args []string, getenv func(string) string, stdout, stderr io
 		fmt.Fprintf(stdout, "Couch store inventory acknowledged; automatic collection is enabled. Session data keeps its %d-day grace.\n", storagegc.Days(storagegc.RetentionPeriod))
 		return 0
 	}
-	if *apply {
+	if *apply && !*diagnosticsOnly {
 		// These configured namespaces are known without guessing legacy custom ones.
 		// Any additional store must still be registered and explicitly acknowledged.
 		defaults := []string{filepath.Join(resolved, "couch")}
@@ -131,7 +138,11 @@ func runWithService(args []string, getenv func(string) string, stdout, stderr io
 		}
 	}
 	var report gcruntime.Report
-	if *apply {
+	if *diagnosticsOnly && *apply {
+		report, err = service.ApplyDiagnostics(ctx, 100000)
+	} else if *diagnosticsOnly {
+		report, err = service.PreviewDiagnostics(ctx)
+	} else if *apply {
 		report, err = service.Apply(ctx, 100)
 	} else {
 		report, err = service.Preview(ctx)
@@ -146,6 +157,9 @@ func runWithService(args []string, getenv func(string) string, stdout, stderr io
 		return 0
 	}
 	render(stdout, report)
+	if *diagnosticsOnly {
+		return 0
+	}
 	entries, inspectErr := coordinator.InspectRegistry()
 	if inspectErr == nil {
 		fmt.Fprintln(stdout, "Registered Couch stores:")
@@ -192,7 +206,7 @@ func render(out io.Writer, r gcruntime.Report) {
 		status := "retained"
 		if item.Eligible {
 			status = "eligible"
-		} else if item.Reason != diagnosticlog.RetainedReason {
+		} else if item.Reason != diagnosticlog.RetentionReason(time.Duration(effectiveDiagnosticDays(r))*24*time.Hour) {
 			status = "blocked"
 		}
 		add("debug", status, 1, item.Bytes)
@@ -203,7 +217,7 @@ func render(out io.Writer, r gcruntime.Report) {
 	}
 	sort.Strings(keys)
 	fmt.Fprintf(out, "Retention: session %d days; parked captures %d days; debugging logs %d days.\n",
-		storagegc.Days(storagegc.RetentionPeriod), storagegc.Days(storagegc.CaptureRetentionPeriod), storagegc.Days(diagnosticlog.RetentionPeriod))
+		storagegc.Days(storagegc.RetentionPeriod), storagegc.Days(storagegc.CaptureRetentionPeriod), effectiveDiagnosticDays(r))
 	for _, key := range keys {
 		v := totals[key]
 		fmt.Fprintf(out, "%-25s %6d files %9.3f GiB\n", key, v.count, float64(v.bytes)/(1<<30))
@@ -217,4 +231,11 @@ func render(out io.Writer, r gcruntime.Report) {
 	if r.Storage.Collected > 0 || r.DiagnosticCollectedBytes > 0 {
 		fmt.Fprintf(out, "Collected %.3f GiB.\n", float64(r.Storage.CollectedBytes+r.DiagnosticCollectedBytes)/(1<<30))
 	}
+}
+
+func effectiveDiagnosticDays(r gcruntime.Report) int {
+	if r.DiagnosticRetentionDays == 0 {
+		return storagegc.Days(diagnosticlog.RetentionPeriod)
+	}
+	return r.DiagnosticRetentionDays
 }

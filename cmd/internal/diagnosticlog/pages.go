@@ -300,26 +300,9 @@ func previewPageLocked(path string, o Options, cursor string, limit int, cleanup
 	if e := o.checkContext(); e != nil {
 		return nil, cursor, false, e
 	}
-	excessPaths := map[string]bool{}
 	limits, e := ResolveDiagnosticLimits(s.Limits, DiagnosticLimits{})
 	if e != nil {
 		return nil, cursor, false, e
-	}
-	var candidates []generation
-	var inventoryErr error
-	if !KeepDiagnosticsUntilBackup {
-		candidates, inventoryErr = policyGenerations(path, o)
-	}
-	if !KeepDiagnosticsUntilBackup && inventoryErr == nil {
-		excess, selectionErr := SelectExcessGenerations(o.Now(), candidates, limits, true)
-		if selectionErr != nil {
-			return nil, cursor, false, selectionErr
-		}
-		for _, g := range excess {
-			excessPaths[segmentPath(path, g.Name)] = true
-		}
-	} else if !KeepDiagnosticsUntilBackup && !errors.Is(inventoryErr, ErrMore) {
-		return nil, cursor, false, inventoryErr
 	}
 	add := func(p string, g generation) error {
 		if err := o.checkContext(); err != nil {
@@ -332,20 +315,14 @@ func previewPageLocked(path string, o Options, cursor string, limit int, cleanup
 		if e = matches(st, g); e != nil {
 			return e
 		}
-		eligible := !KeepDiagnosticsUntilBackup && reason == "" && (DecideSegment(o.Now(), g.LastWrite) || excessPaths[p])
+		eligible := reason == "" && DecideGeneration(o.Now(), g.LastWrite, g.Size, limits.MaxBytes, o.RetentionPeriod)
 		why := reason
-		if why == "" && excessPaths[p] {
-			why = "diagnostic generation count limit"
-		}
 		oversized := g.Size > limits.MaxBytes
-		if why == "" && oversized {
+		if why == "" && eligible && oversized {
 			why = "pre-existing diagnostic generation exceeds byte limit"
 		}
-		if why == "" && KeepDiagnosticsUntilBackup {
-			why = BackupFenceReason
-		}
 		if why == "" && !eligible {
-			why = RetainedReason
+			why = RetentionReason(o.RetentionPeriod)
 		}
 		out = append(out, Segment{Path: p, Bytes: st.Size(), LastWrite: g.LastWrite, Eligible: eligible, Reason: why, Unverified: g.UnverifiedTail != nil, Oversized: oversized})
 		return nil

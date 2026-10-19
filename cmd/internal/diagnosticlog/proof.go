@@ -49,13 +49,8 @@ func VerifyWriters(ctx context.Context, path string, registered []Registration, 
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	for _, p := range holders {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-		if !known(p) {
-			return ErrUnknownWriters
-		}
+	if len(holders) != 0 {
+		return errors.New("diagnostic payload has live open holders")
 	}
 	runtimes, e := probe.Runtimes(ctx)
 	if e != nil {

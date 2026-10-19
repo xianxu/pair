@@ -21,7 +21,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/procutil"
 )
 
-const RetentionPeriod = 365 * 24 * time.Hour
+const RetentionPeriod = 7 * 24 * time.Hour
 const GenerationPeriod = 24 * time.Hour
 
 // RetainedReason is why a segment younger than RetentionPeriod stays. Derived
@@ -59,15 +59,16 @@ type Options struct {
 	appendSync    func(*os.File) error
 	directorySync func(string) error
 	// Context bounds optional maintenance; nil preserves ordinary writer behavior.
-	Context        context.Context
-	Now            func() time.Time
-	MaxBytes       int64
-	MaxGenerations int
-	Proof          Proof
-	Root           string
-	Registry       func(context.Context, RegistryEntry) error
-	Retire         func(context.Context, RegistryEntry) error
-	Fault          func(step string) error
+	RetentionPeriod time.Duration
+	Context         context.Context
+	Now             func() time.Time
+	MaxBytes        int64
+	MaxGenerations  int
+	Proof           Proof
+	Root            string
+	Registry        func(context.Context, RegistryEntry) error
+	Retire          func(context.Context, RegistryEntry) error
+	Fault           func(step string) error
 	// SynchronousMaintenance is for explicit batch writers and fault harnesses;
 	// terminal emitters leave it false and never inspect processes on append.
 	SynchronousMaintenance bool
@@ -121,6 +122,9 @@ func (o Options) observe(op, path string, n int) {
 }
 
 func normalized(opts Options) Options {
+	if opts.RetentionPeriod == 0 {
+		opts.RetentionPeriod = RetentionPeriod
+	}
 	if opts.Now == nil {
 		opts.Now = time.Now
 	}
@@ -317,23 +321,6 @@ func (w *Writer) Write(b []byte) (int, error) {
 		}
 		if nextBytes > s.Limits.MaxBytes {
 			return ErrLimit
-		}
-		debt, e := diagnosticCountDebt(w.path, s.Limits, w.options)
-		if e != nil {
-			maintenanceDue = true
-			return e
-		}
-		if debt {
-			maintenanceDue = true
-			if !w.options.SynchronousMaintenance {
-				return ErrLimit
-			}
-			if e := w.prove(s); e != nil {
-				return errors.Join(ErrLimit, e)
-			}
-			if _, e := trimDiagnosticGenerations(w.path, &s, w.options, s.Limits.MaxGenerations); e != nil {
-				return e
-			}
 		}
 		st, e := regular(w.path)
 		exists := e == nil
@@ -745,17 +732,6 @@ func rotateGeneration(path string, s *diskState, g generation, o Options) error 
 	if e := fault(o, "rotation-payload-synced"); e != nil {
 		return e
 	}
-	limits := s.Limits
-	if s.Version == 1 {
-		var err error
-		limits, err = ResolveDiagnosticLimits(DiagnosticLimits{}, DiagnosticLimits{o.MaxBytes, o.MaxGenerations})
-		if err != nil {
-			return err
-		}
-	}
-	if _, err := trimDiagnosticGenerations(path, s, o, max(0, limits.MaxGenerations-1)); err != nil {
-		return err
-	}
 	ready := false
 	for range 8 {
 		if err := o.checkContext(); err != nil {
@@ -933,9 +909,6 @@ func maintain(path string, options Options, nextBytes int64) error {
 			}
 		}
 		if e := ensureDiagnosticLimits(p, &s, options); e != nil {
-			return e
-		}
-		if _, e := trimDiagnosticGenerations(p, &s, options, s.Limits.MaxGenerations); e != nil {
 			return e
 		}
 		if s.Current.Identity == (identity{}) {
