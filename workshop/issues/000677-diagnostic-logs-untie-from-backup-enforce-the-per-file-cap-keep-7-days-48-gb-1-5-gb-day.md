@@ -47,6 +47,7 @@ See [durable implementation plan](../plans/000677-diagnostic-log-retention-plan.
 ## Log
 
 ### 2026-10-18
+- 2026-10-18: closed — Approved real diagnostic-only apply removed18 exact generations and12734567104logical bytes; retained before/after inode inventories, removed rows and df in .git/pair-677-live-evidence, #687 tracks supervisor registration. All five round1 fixes verified RED/GREEN; round2 BR6 now covers changed certificates, malformed per-log state, held pending recovery and local storage faults through real Scheduler, plus native-inventory/cancel/deadline/busy controls preserving cursor. Broader packages passed diagnosticlog50.436s gcruntime22.784s gccmd2.973s artifactpath9.107s; counted native N8/16 remains constant. Only unchecked Plan row is post-close recorded-suite/CI/merge/report lifecycle, acknowledged by precise --no-plan-check. Final suite queued on pushed4729c0d96 and must pass before landing. No repeated live apply or process intervention.; review verdict: SHIP
 
 ### 2026-10-18 — claim, root-cause evidence and proposed design
 

@@ -232,3 +232,102 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000411
+
+---
+
+## Re-review — 2026-10-18T19:31:31-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 677 — diagnostic logs: untie from backup, enforce the per-file cap, keep ~7 days (48 GB, +1.5 GB/day) |
+| repo | pair |
+| issue file | workshop/issues/000677-diagnostic-logs-untie-from-backup-enforce-the-per-file-cap-keep-7-days-48-gb-1-5-gb-day.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 9950fa540423ab382e682437fc0564fadc104f29..4729c0d969d5995197d53c9a8063986de5bcf04e |
+| command | sdlc close --issue 677 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-18T19:31:31-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned range satisfies the documented diagnostic-retention policy and resolves BR-6 across the tested blocker class. Path-local failures no longer strand later logs; incomplete inspection, cancellation, deadlines, and contention retain their existing handling. No new blocking findings.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Shared recoverDeletion proves the exact payload; the four-entry-point recovery regression passes.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      The real-scheduler missing-declaration regression passes, preserving the declaration and collecting the later eligible log without recreating its parent.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      The plan Core concepts tables classify CLI scope as integration and identify diagnostic_turn_budget_test.go as the measurement owner, matching the source.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      Managed apply reporting preserves blocked/retained rows and completed deletion bytes across later errors; both reporting regressions pass.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      proof.go is classified as a resolved artifact consumer and sweep.go as non-artifact source; artifactpath and testpair guards pass.
+  - id: BR-6
+    disposition: addressed
+    note: |
+      schedule.go:125-130 isolates local collection failures. Real-scheduler regressions cover changed certificates, malformed state, held recovery and storage faults. Removing that branch in a disposable checkout made all four cases fail; the pinned head passes. Global inspection failure controls preserve the durable cursor.
+```
+
+1. **Strengths**
+
+   - One pure age-or-size selector governs managed retention, with conservative handling of invalid evidence (`diagnosticlog/policy.go:90`).
+   - Scheduler isolation covers a failure class while preserving global evidence failures (`gcruntime/schedule.go:94`).
+   - README and atlas explain configuration, diagnostic-only collection, deliberate oversized-generation loss, and remaining safety blockers.
+   - Independently checked the retained live-evidence hashes: 18 preview/apply matches, **12,734,567,104 bytes** removed, and every corresponding prior inode absent afterward.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Passed full package tests for `gcruntime`, `gccmd`, `artifactpath`, and `testpair`; targeted diagnostic/retention/inspection/recovery tests for `diagnosticlog` and `wrapcmd`; and `git diff --check`. The BR-6 mutation check demonstrated meaningful regression coverage. The disposable checkout was removed. A repository-wide suite was not run.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** shared selector, inspection seam, and deletion journal.
+   - **ARCH-PURE — pass:** policy stays pure; filesystem and process effects remain in integration owners.
+   - **ARCH-PURPOSE — pass:** explicit and scheduled diagnostics operate independently of session migration.
+   - **ARCH-MOCK — pass:** portable fixtures and stateful inspection doubles exercise production boundaries; native conformance coverage remains.
+   - **ARCH-CONSTRAINTS — pass:** bounded pages, native-output limits, and counted N/2N tests cover the declared envelope.
+   - **ARCH-SECURE — pass:** identity checks and incomplete-evidence blockers remain enforced.
+   - **ARCH-ORDER — pass:** durable replay targets exact payloads; scheduler tests exercise failure and cursor preservation.
+   - **ARCH-FUNERAL — pass:** age/oversize collection supplies automatic removal while retaining visibly blocked artifacts.
+
+7. **Plan revision recommendations:** None. The existing BR-6 revision matches the implemented rule.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"a3072a49-d93f-4734-b51a-074b0056ac40","repository":"github.com/xianxu/pair","issue_id":"000677","recipe":"milestone-review","round":3,"attempt":1,"agent":"codex","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/65fa65af44a6503f","reviewed_head":"4729c0d969d5995197d53c9a8063986de5bcf04e","slot":"pair:3","requested_at":"2026-10-19T02:28:52.605154Z"},"phase":"finished","pid":22823,"started_at":"2026-10-19T02:28:52.712444Z","finished_at":"2026-10-19T02:31:28.707501Z","session_id":"01a151fd-8a6b-7be2-8ce1-1cbb053003fc","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.751894833s
+head: "4729c0d969d5995197d53c9a8063986de5bcf04e"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

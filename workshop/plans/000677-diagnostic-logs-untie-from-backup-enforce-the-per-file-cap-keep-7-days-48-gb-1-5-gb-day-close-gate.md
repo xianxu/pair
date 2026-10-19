@@ -351,6 +351,193 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: a3072a49-d93f-4734-b51a-074b0056ac40
+            repository: github.com/xianxu/pair
+            issue_id: "000677"
+            recipe: milestone-review
+            round: 3
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/Library/Caches/sdlc/review-checkouts/65fa65af44a6503f
+            reviewed_head: 4729c0d969d5995197d53c9a8063986de5bcf04e
+            slot: pair:3
+            requested_at: "2026-10-19T02:28:52.605154Z"
+          phase: finished
+          pid: 22823
+          started_at: "2026-10-19T02:28:52.712444Z"
+          finished_at: "2026-10-19T02:31:28.707501Z"
+          session_id: 01a151fd-8a6b-7be2-8ce1-1cbb053003fc
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-v1
+        repository: github.com/xianxu/pair
+        code_head: 4729c0d969d5995197d53c9a8063986de5bcf04e
+        tracker_head: 411096ccbbb0b7f931d3aaafa26cc01bf34cd908
+        branch_point: 9950fa540423ab382e682437fc0564fadc104f29
+        since: "2026-10-18T16:54:38-07:00"
+        until: "2026-10-18T19:27:59-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-18T16:54:38-07:00"
+              end: "2026-10-18T19:27:59-07:00"
+              began: "2026-10-18T16:54:38-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot3/pair
+        sources:
+            - harness: codex
+              id: 01a146bc-fcee-7450-93c9-096b6d3071a3
+              slot: pair:3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot3/pair
+              digest: 20c255ad521b51fdbaf96d05be94d1d67b02c0e03aebbc7780e3a9fd776e4d25
+              started: "2026-10-16T22:02:33.467Z"
+              spawned: false
+              bytes: 91362714
+              windows:
+                - start: "2026-10-18T16:54:38-07:00"
+                  end: "2026-10-18T19:27:59-07:00"
+            - harness: codex
+              id: 01a15170-8a14-7b32-a5de-ed0b9b21fc18
+              slot: pair:3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot3/pair
+              parent_id: 01a146bc-fcee-7450-93c9-096b6d3071a3
+              digest: 385a927d3f4151bd301fee430df20d5a304e867f9117e504e4bc9f020d220fed
+              started: "2026-10-18T23:54:52.431Z"
+              spawned: true
+              bytes: 306138
+              windows:
+                - start: "2026-10-18T23:54:52.431Z"
+                  end: "2026-10-18T19:27:59-07:00"
+            - harness: codex
+              id: 01a15179-8362-7531-999e-6456914a2df0
+              slot: pair:3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot3/pair
+              digest: 29d3326e982f6cc7d2bfc0f91e3315ed8c2948cae8c8cd2dbdcdad7dee2b093e
+              started: "2026-10-19T00:04:41.045Z"
+              spawned: false
+              bytes: 573922
+              windows:
+                - start: "2026-10-19T00:04:41.045Z"
+                  end: "2026-10-18T19:27:59-07:00"
+            - harness: codex
+              id: 01a1517b-aef9-7e10-9124-c956a0c3a8ed
+              slot: pair:3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot3/pair
+              digest: a348a6dae756cddb48f7f6fab0911e2d6d8e70c421a5e0f5ab3994817964a134
+              started: "2026-10-19T00:07:03.133Z"
+              spawned: false
+              bytes: 433389
+              windows:
+                - start: "2026-10-19T00:07:03.133Z"
+                  end: "2026-10-18T19:27:59-07:00"
+            - harness: codex
+              id: 01a1517e-ac15-7c52-9c78-994b9d137543
+              slot: pair:3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot3/pair
+              digest: 1565671cf6851dbe59deca7c9b6ad0552f3630bd69e722b36f571dfce9168254
+              started: "2026-10-19T00:10:18.895Z"
+              spawned: false
+              bytes: 428746
+              windows:
+                - start: "2026-10-19T00:10:18.895Z"
+                  end: "2026-10-18T19:27:59-07:00"
+            - harness: codex
+              id: 01a1517f-0797-70d1-828b-c5eb69511568
+              slot: pair:3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot3/pair
+              digest: 2abeae12b15fc7277b922ccb95077bd0c946da47e04bce540ee125b98e13927f
+              started: "2026-10-19T00:10:42.324Z"
+              spawned: false
+              bytes: 417567
+              windows:
+                - start: "2026-10-19T00:10:42.324Z"
+                  end: "2026-10-18T19:27:59-07:00"
+            - harness: codex
+              id: 01a15187-002b-7771-bbe9-1d77fd9fa7f1
+              slot: pair:3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot3/pair
+              parent_id: 01a146bc-fcee-7450-93c9-096b6d3071a3
+              digest: 33c9885456267433c718e3e852b66d06ed85395b8cfbc6eb5a515ad5ad119702
+              started: "2026-10-19T00:19:24.429Z"
+              spawned: true
+              bytes: 568785
+              windows:
+                - start: "2026-10-19T00:19:24.429Z"
+                  end: "2026-10-18T19:27:59-07:00"
+            - harness: codex
+              id: 01a151ee-b185-7051-8c26-d5ec2259e7d2
+              slot: pair:3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot3/pair
+              parent_id: 01a146bc-fcee-7450-93c9-096b6d3071a3
+              digest: 30a00720c51821037f4dd3f76e1a10412beb9f3638158560dbeb358dfb663d49
+              started: "2026-10-19T02:12:40.047Z"
+              spawned: true
+              bytes: 903113
+              windows:
+                - start: "2026-10-19T02:12:40.047Z"
+                  end: "2026-10-18T19:27:59-07:00"
+            - harness: codex
+              id: 01a151ee-ca5d-7d41-a5dc-523a15a6805f
+              slot: pair:3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot3/pair
+              parent_id: 01a146bc-fcee-7450-93c9-096b6d3071a3
+              digest: 092a1b851e07ba5f392072702f32d37aedf5a5d981864b96e8ee700774f28716
+              started: "2026-10-19T02:12:46.393Z"
+              spawned: true
+              bytes: 807601
+              windows:
+                - start: "2026-10-19T02:12:46.393Z"
+                  end: "2026-10-18T19:27:59-07:00"
+        excluded_brain_sessions: 1
+        excluded_brain_minutes: 0.11616666666666667
+        cuts:
+            - dispatched: "2026-10-18T19:07:19-07:00"
+              finalized: "2026-10-18T19:11:07-07:00"
+              finalizing: false
+            - dispatched: "2026-10-18T19:20:46-07:00"
+              finalized: "2026-10-18T19:23:36-07:00"
+              finalizing: false
+      "n": 3
+      timestamp: "2026-10-18T19:31:31-07:00"
+      dispatched: "2026-10-18T19:28:50-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Shared recoverDeletion proves the exact payload; the four-entry-point recovery regression passes.
+          round: 3
+        - id: BR-2
+          disposition: addressed
+          note: The real-scheduler missing-declaration regression passes, preserving the declaration and collecting the later eligible log without recreating its parent.
+          round: 3
+        - id: BR-3
+          disposition: addressed
+          note: The plan Core concepts tables classify CLI scope as integration and identify diagnostic_turn_budget_test.go as the measurement owner, matching the source.
+          round: 3
+        - id: BR-4
+          disposition: addressed
+          note: Managed apply reporting preserves blocked/retained rows and completed deletion bytes across later errors; both reporting regressions pass.
+          round: 3
+        - id: BR-5
+          disposition: addressed
+          note: proof.go is classified as a resolved artifact consumer and sweep.go as non-artifact source; artifactpath and testpair guards pass.
+          round: 3
+        - id: BR-6
+          disposition: addressed
+          note: schedule.go:125-130 isolates local collection failures. Real-scheduler regressions cover changed certificates, malformed state, held recovery and storage faults. Removing that branch in a disposable checkout made all four cases fail; the pinned head passes. Global inspection failure controls preserve the durable cursor.
+          round: 3
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: 4729c0d969d5995197d53c9a8063986de5bcf04e
+      blocked: false
 ---
 
 # Gate ledger — pair#677 (boundary-review)
@@ -388,6 +575,17 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-6** [Critical] `diagnostic-traversal-blocker-isolation` (kind: defect) Other per-path diagnostic blockers still terminate scheduled collection
   cmd/internal/gcruntime/schedule.go:96-110 isolates only missing registered paths. A temporary regression using reportingFixture, an external append to its managed current log, and a later expired wrap-events-z-good.jsonl fails on scheduler batch 2 with "diagnostic reservation identity or size changed"; the later log remains uncollected. storagegc/schedule.go:117-118 propagates that error, preserving the cursor, and its worker exits. This is the 2nd finding in family diagnostic-traversal-blocker-isolation: state and enforce the rule across all path-local certificate/recovery blockers, retaining them visibly while advancing past that path. Enumerate and test the class rather than adding another message-specific exception; preserve cancellation, busy handling and global inventory failures. ARCH-PURPOSE, ARCH-FUNERAL.
 
+## Round 3 — 2026-10-18T19:31:31-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — Shared recoverDeletion proves the exact payload; the four-entry-point recovery regression passes.
+- BR-2 — addressed — The real-scheduler missing-declaration regression passes, preserving the declaration and collecting the later eligible log without recreating its parent.
+- BR-3 — addressed — The plan Core concepts tables classify CLI scope as integration and identify diagnostic_turn_budget_test.go as the measurement owner, matching the source.
+- BR-4 — addressed — Managed apply reporting preserves blocked/retained rows and completed deletion bytes across later errors; both reporting regressions pass.
+- BR-5 — addressed — proof.go is classified as a resolved artifact consumer and sweep.go as non-artifact source; artifactpath and testpair guards pass.
+- BR-6 — addressed — schedule.go:125-130 isolates local collection failures. Real-scheduler regressions cover changed certificates, malformed state, held recovery and storage faults. Removing that branch in a disposable checkout made all four cases fail; the pinned head passes. Global inspection failure controls preserve the durable cursor.
+
 ## Open findings
 
-- **BR-6** [Critical] `diagnostic-traversal-blocker-isolation` (kind: defect) Other per-path diagnostic blockers still terminate scheduled collection
+(none — every finding has been disposed)
