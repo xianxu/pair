@@ -186,6 +186,14 @@ After integration, real GPG/zstd codec conformance (including levels 9/19/20/22)
 
 Targeted integrated archive CLI tests passed (1.262s), restore/extraction/discovery/catalog tests passed (72.640s), and the tracked lint checks passed (4.650s). The artifactpath package compiled under that selection; its full checks remain part of the recorded suite.
 
+### 2026-10-19 — integrated suite failure classified; fresh combined-head qualification
+
+Integrated suite d963805085758c53cfbbab3363ad6432 failed on f2333e342cc325ded2344fe69dd0d7309224dca7 after 26m12s (log SHA-256 prefix 2f2ab4699a85): TestSpawnComposesProductionPairRegistrationBoundary/fresh-slot reported that its fake terminal was not listed live, spent 1172.59s in the launch path, then failed to join its spawn goroutine during cleanup. couchcore timed out at the unchanged 20m package limit, with many other tests still pending at t.Parallel. Every other package passed, including historyarchive (265.311s). No full-suite success is claimed.
+
+The unchanged same-head targeted composed test passed in 6.666s (ordinary 2.94s, fresh-slot 3.44s; original 20m timeout and fake Zellij retained). The hub split and filed #712; the test is registered there with the fail/pass evidence. Its targeted pass proves intermittency, not completion of the other couchcore tests. The hub explicitly requires fresh full-suite coverage and forbids substituting a one-test rerun for a timed-out package.
+
+The next merge turn integrated newer main, then refused publish replay because archivecmd/run.go's prior conflict resolution remains unreviewed; it restored the branch before push. Per the named remedy and hub approval, manually integrated the landed #698/#708 code without further conflicts. The resolved archive help and README surface are unchanged from the prior resolution. A recorded full suite on this combined head must pass before the narrow fixed-then-ship review and merge retry. #706 replaces parked #707 in the queue; the operator-present restore-drill follow-up is still to be filed unclaimed after #689 lands.
+
 ## Revisions
 
 - 2026-10-18: clarified the later sync-index Spec supersedes remote queries from find. Recorded the hub-approved label/location evidence and atomic refresh contract; original Done-when obligations are retained without reduction. Added the durable plan with M1/M2 review boundaries.

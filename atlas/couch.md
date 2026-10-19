@@ -12,6 +12,12 @@ the pty console, actor panel, notices, and complete local lifecycle shipped in
 
 ## What exists today
 
+### Slot scratch (#708)
+
+[Slot scratch](couch-scratch.md) maps optional TestScratch temp settings, the
+24-hour interior cleaner, stable socket namespaces and reboot-only metadata
+routing. Existing panes inherit changes only after relaunch.
+
 ### Per-slot switcher jobs (#576)
 
 `couchtty/menu_operations.go` owns pure target admission, exact attempt matching,
