@@ -137,6 +137,10 @@ total: 4.93
 - After staging all new sources, tracked-file guards passed: repolint 7.677 s, artifactpath 6.763 s, archivecmd 0.447 s.
 - Cancelled only this checkout's obsolete queued M1 suite on 247f8fee after M2 implementation; it never supplied a suite pass. Another checkout's run was retained. Final pushed M2 recorded suite, guards, operator real Claude-day Drive drill and M2/issue close remain outstanding. Prior TTY capture is unavailable; branch/code/review/card evidence is the recovery source.
 
+- M2 candidate committed/pushed as aa87c202e7973df5b2313393fe0727d3fd4375c3; PR #450 opened. Private pair-go binary under /private/var/folders/07/b9wcwwld4_v2w9r3hk525bm80000gn/T/pair-689-candidate.rpHTZy reports that vcs.revision and vcs.modified=false; help runs. Server local-gates guard is green. No :0 stage/build/restart.
+- Final-code recorded suite attempt 738172d262add15b8c7d3683c9f7deea started through sdlc local-check and is queued on aa87c202. No suite pass is claimed. Its log is created when it acquires capacity; the initial queued state has only an owner record.
+- Operator drill commands and independent SHA-256/original comparison are in /tmp/pair-689-operator-drill.md. Hub send 5fe2daa6-c03e-46d8-86ab-50633ff2368e is submitted. Verified hub receipt 3d2fd896-3a8c-469b-9f9d-f61abaf83bdc arranges the morning drill for 2026-10-16, instructs letting the recorded suite finish and holding landing until acceptance. M2 boundary and issue close remain unrun pending that evidence; no real Drive/operator key access by this worker.
+
 ## Revisions
 
 - 2026-10-18: clarified the later sync-index Spec supersedes remote queries from find. Recorded the hub-approved label/location evidence and atomic refresh contract; original Done-when obligations are retained without reduction. Added the durable plan with M1/M2 review boundaries.
