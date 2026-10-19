@@ -65,6 +65,37 @@ rounds:
           note: 'R2 supplies environment attribution and controlled delayed-use tests, but its nonempty-environment exclusion still does not prove that a detached process no longer needs scratch. State the rule for every potentially relevant process generation: missing or different environment markers cannot establish unrelatedness after environment replacement. Either retain those generations conservatively or name lifetime evidence that survives marker removal, and exercise that rule with a reparented child that retains the old pathname while presenting a readable nonempty replacement environment. This remains the existing cleanup-requires-lifetime-evidence finding under ARCH-ORDER/ARCH-FUNERAL; no new finding is raised.'
           round: 2
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: 2d261209-072c-45f6-8cb6-27544051ed14
+            repository: github.com/xianxu/pair
+            issue_id: "000708"
+            recipe: plan-quality
+            round: 3
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot3/pair
+            reviewed_head: 25f92c1750ed2b42df23b091b8f7506d1739e2b3
+            slot: pair:3
+            requested_at: "2026-10-19T18:07:43.806684Z"
+          phase: finished
+          pid: 63368
+          started_at: "2026-10-19T18:07:44.065559Z"
+          finished_at: "2026-10-19T18:08:12.394809Z"
+          session_id: 01a15559-1793-7521-9f6e-9e1592a40eaa
+          outcome: returned
+      "n": 3
+      timestamp: "2026-10-19T11:08:12-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: PQ-1
+          disposition: addressed
+          note: Approved R3 removes lifetime-proof collection entirely and specifies age-based cleanup, accepted regular-file loss risk, conservative exclusions and controlled sequence tests.
+          round: 3
+      blocked: false
+content_hash: 63324bf00a6f98ed387090ba503c3ac37362ea3cbf6332583d7333b69480aaed
 ---
 
 # Gate ledger — pair#708 (plan-quality)
@@ -85,6 +116,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 - PQ-1 — not-addressed — R2 supplies environment attribution and controlled delayed-use tests, but its nonempty-environment exclusion still does not prove that a detached process no longer needs scratch. State the rule for every potentially relevant process generation: missing or different environment markers cannot establish unrelatedness after environment replacement. Either retain those generations conservatively or name lifetime evidence that survives marker removal, and exercise that rule with a reparented child that retains the old pathname while presenting a readable nonempty replacement environment. This remains the existing cleanup-requires-lifetime-evidence finding under ARCH-ORDER/ARCH-FUNERAL; no new finding is raised.
 
+## Round 3 — 2026-10-19T11:08:12-07:00 (codex) — passed
+
+### Disposed
+
+- PQ-1 — addressed — Approved R3 removes lifetime-proof collection entirely and specifies age-based cleanup, accepted regular-file loss risk, conservative exclusions and controlled sequence tests.
+
 ## Open findings
 
-- **PQ-1** [Important] `cleanup-requires-lifetime-evidence` Define how collection proves detached jobs no longer need scratch
+(none — every finding has been disposed)

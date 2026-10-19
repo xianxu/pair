@@ -5,9 +5,9 @@ deps: []
 github_issue:
 created: 2026-10-19
 updated: 2026-10-19
-estimate_hours:
+estimate_hours: 1.78
 collaboration-mode: collaboration
-card_mirror: '2174f741eed76a860461c787ecbb4dac6e401aa7' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '03f64422350dc9b0d3b757b26d797f64af15d048' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-19T10:47:24-07:00
 claimant:
     operator: Xian Xu
@@ -66,6 +66,27 @@ When `/Volumes/TestScratch` is mounted (a separate device from `/Volumes`) with 
 - R1 metadata acceptance supersedes the Couch-restart migration check: isolated-HOME fixtures prove no-server RAM setup, live-server no-op and absent-RAM restoration from our link, including retry/failure preservation. The real metadata switch and write-only sample happen at the operator's next reboot. Existing panes need relaunch for their inherited temp settings; no live cache migration/pruning is required or allowed in this issue.
 - R3 fixtures prove a fresh entry survives, a 25h-old ordinary tree is removed, and an old tree containing one fresh file survives. Socket/FIFO/special-containing trees, slot roots and external manager bookkeeping survive regardless of age. Startup/hourly sweeps are serial and joined on shutdown; counted N/2N metadata work stays linear with zero cleanup process inspections. With a slot TMPDIR on RAM, resolved Zellij socket directory/spelling stays unchanged for slot commands and Couch calls.
 
+## Estimate
+
+Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md, using Method A and the v2/v2.1 primitive table. estimate-source marks this calibration stale; values are provisional. Library check: standard os.Root, stat/statfs and existing runner/worker/native-process seams cover the integrations; no novel runtime/library build is required. For the two new single-concern modules, midpoint design 1.25h is halved for library availability and multiplied by 0.2 for the approved thorough plan (0.125h each). Other design midpoints receive the same 0.2 spec multiplier. Implementation values are v2 midpoints multiplied by 0.4 once; familiarity is 1.0.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: greenfield-go-module design=0.125 impl=0.22
+item: greenfield-go-module design=0.125 impl=0.22
+item: smaller-go-module design=0.03 impl=0.14
+item: smaller-go-module design=0.03 impl=0.14
+item: cross-cutting-refactor design=0.12 impl=0.14
+item: real-api-discovery design=0 impl=0.18
+item: atlas-docs design=0.025 impl=0.05
+item: milestone-review design=0.02 impl=0.14
+design-buffer: 0.15
+total: 1.78
+```
+
+Rows respectively cover temp manager/ownership, age sweep/worker, socket resolver/pin, reboot-only metadata setup, constructor/runner/service wiring, owned child/native qualification, README/atlas and one close boundary. Design subtotal 0.475h plus 15% = 0.54625h; implementation subtotal 1.23h; total 1.77625h rounded to 1.78h. Machine-capacity waits and the operator's later reboot are not active implementation time.
+
 ## Plan
 
 - Durable design: [Couch RAM scratch plan](../plans/000708-couch-ram-scratch-plan.md).
@@ -88,6 +109,8 @@ Hub receipt a7a22cfc-b15d-478f-bac2-c9a1089f683f was verified submitted with exa
 Plan-quality round 1 accepted the simplified metadata design and raised one Important PQ-1: current ancestry/open-file snapshots do not prove a detached job's lifetime. Appended R2 with ObserveScratchUsers using one complete native table and PID/birth-fenced initial-environment reads (existing NativeResourceReader), exact temp-root/thread attribution independent of ancestry, and explicit conservative retention of empty/unavailable/changed evidence. The stateful regression controls parent exit, reparenting, closed FDs, delayed scratch use and exact child exit; unknown evidence keeps the folder. Busy/opaque hosts may retain all candidates until a later complete sweep or RAM reboot; no process is stopped to improve collection.
 
 Plan-quality round 2 kept PQ-1 open: a nonempty changed environment does not prove no future scratch dependency. Stopped before a third delta and asked the hub. Verified submitted receipts 060f7bf3-3388-4042-a976-a66bf5598d6b and 8e09b3e8-1302-4ed1-8ca9-ff8068370141 explicitly replace lifetime collection with the conventional 24h age contract, preserve slot roots, approve special-tree exclusions and require socket-root pinning. Added R3 as the sole executable contract. No holder/env census, retirement cleanup hook, atomic migration or layout-link code will be built. Only metadata setup still observes native server presence.
+
+Plan-quality round 3 returned CLEAN, disposing PQ-1 as addressed by the explicit R3 contract change; no open findings. Derived the estimate only after that verdict, against the configured v3.1 source and baseline (stale calibration noted), and set card estimate 1.78h through sdlc. The mandatory implementation gate is being rerun with the reconciled block; no production code before it clears.
 
 ## Revisions
 
