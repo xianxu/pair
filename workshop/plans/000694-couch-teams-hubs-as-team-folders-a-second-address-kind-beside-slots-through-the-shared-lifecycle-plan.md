@@ -66,7 +66,8 @@ From a read of the code (file refs under `cmd/internal/`):
 | `HubDefinition` | `couchcore/hub_ownership.go` | modified |
 | `HubOwnership` | `couchcore/hub_ownership.go` | modified |
 | `HubClaimDocument` | `couchcore/hub_claim.go` | modified |
-| `AddressNamespace` | `couchcore/namespace.go` | new |
+| `ResolveTeamNames`, `TeamNamesLine` | `couchcore/namespace.go` | new |
+| `WorkspaceReference` (qualified team form) | `couchcore/workspaceref.go` | modified |
 | `LifecycleAddress` (team arm) | `couchcore/lifecycleaddress.go` (from #695 M1) | modified |
 | `couchmessage.Binding` | `couchmessage/model.go` | modified |
 | `PresentThreads` sections | `couchtty/thread_presentation.go` | modified |
@@ -74,20 +75,21 @@ From a read of the code (file refs under `cmd/internal/`):
 
 - **TeamIdentity** — `{CheckoutRoot, TeamDir, Name string}`. `CheckoutRoot` is the physical worktree root of the
   operations checkout. `TeamDir` is clean and relative (`teams/devinfra`). `Name` is `filepath.Base(TeamDir)`, derived
-  and never stored separately, so it cannot drift (design §2). `Validate()` refuses an empty or unclean `TeamDir`,
-  `..` segments, and a name outside the repo-name grammar (`workspaceRepoName`). This is the same grammar as
-  families, so one namespace is possible.
+  and never stored separately, so it cannot drift (design §2). It is the *default* name only; the name a team runs
+  under is resolved per startup (`ResolveTeamNames`, Revision 2). `Validate()` refuses an empty or unclean
+  `TeamDir`, `..` segments and an absolute path. It never refuses a name.
   - **Relationships:** 1:1 with a hub of kind team. N:1 with a checkout (several teams per checkout).
   - **DRY rationale:** #695's `LifecycleAddress` team arm *is* this type (designed under #684, moved to #695). That arm was written as `HubIdentity
     {OpsRoot, TeamDir, Name}`; it is renamed `TeamIdentity` with kind `team`, matching the umbrella design's word. A
     Revision on #684's plan records the rename (the #684 code hasn't started, so it's free).
-- **HubName** — the name a hub is addressed by. For a team, its folder name. For a checkout hub (today's form), its
+- **HubName** — the name a hub is addressed by. For a team, its resolved name (`ResolveTeamNames`). For a checkout hub (today's form), its
   existing label (`repo` for `:0`, `repo:N` otherwise). Today `HubOwnership` keys on `Root` (a path); it keys on
   `HubName` instead, and `Root` stays as the hub's working directory.
 - **HubDefinition** — becomes `{Name HubName; Kind HubKind /*team|checkout*/; Root, Workspace string; Team
   TeamIdentity /*kind team*/; Slot *HubSlot /*kind checkout only*/; Claims HubClaimDocument}`. `HubSlot` stays: it is
   the identity of a *claimed* slot (`{PrimaryRoot, N}`), which teams still need. It stops being the hub's own identity.
-  `NewHubOwnership` refuses duplicate names and duplicate roots. It no longer refuses two hubs in one checkout when
+  `NewHubOwnership` refuses duplicate names and duplicate roots. That is an internal invariant: names arrive already
+  resolved and unique, so the user never sees this refusal. It no longer refuses two hubs in one checkout when
   both are teams.
 - **HubOwnership** — the same rules, keyed by name. "The hub's own slot first" applies only to checkout hubs (a team
   owns no slot). `Main()` becomes `Steward()`: the first hub on the command line (design §6.2), returning a name.
@@ -99,13 +101,33 @@ From a read of the code (file refs under `cmd/internal/`):
   Directive lines are kept byte for byte through `PlanHubClaimEdits` and ignored, and each distinct unknown key gets
   one startup note. Malformed claim lines still refuse, because a typo in a claim must not silently re-route a slot.
   `Claims()` is unchanged.
-- **AddressNamespace** — pure: `CheckNamespace(teams []HubName, aliases []string) error`. It refuses a team name
-  equal to another team, an alias, or the reserved `hub`, naming both owners and the fix ("rename the folder or the
-  alias"). **A team may share its name with a repo family** (operator, Revision 1: `echo` team beside `echo`
-  repo). The bare name then addresses the team, a singleton. The repo's slots stay reachable exactly as
-  `echo:N`, and a bare-name family send to that repo is no longer available. `ResolveRecipient` checks teams
-  before families on an exact name. A prefix that matches both a team and a family is ambiguous and refuses (the
-  existing prefix rule).
+- **ResolveTeamNames** (Revision 2: never refuse a startup over a name). It is pure:
+  `ResolveTeamNames(teams []TeamStart, aliases []string) []ResolvedTeam`, where `TeamStart{Identity TeamIdentity;
+  Repo string /*the checkout's repo name*/; Address string /*the checkout's repo:N*/; Alias string}`.
+  `ResolvedTeam{Name, Qualified string; Reason string}`. The rules are:
+  1. The base name is the startup alias (`teams/devinfra:devinfra2`), else the folder name. A folder name outside
+     the name grammar is normalized with the existing `launcher.NormalizeDisplayComponent`, and an all-digit or
+     empty result becomes `team-<result>`. Team names are never numeric, so `<path>:<name>` can't be read as
+     `repo:N`.
+  2. Every team has a qualified name `<repo>:<base>` (`ops2:devinfra`). This is a `repo:team` form, distinct from
+     `repo:N` because the suffix isn't a number. The qualified name always addresses the team.
+  3. The bare base name is the team's display name and address unless it clashes. A clash is with an earlier team
+     in command-line order (the first keeps the bare name, as the first hub wins ties today), with an alias, or
+     with `hub`. A clashing team displays and is addressed by its qualified name, and `Reason` names the clash.
+  4. If the qualified name still clashes (two checkouts of one repo), the checkout's address qualifies it instead:
+     `ops:2:devinfra`. That is unique, because one checkout can't hold two folders at one path.
+  5. The same team folder given twice starts once, with a note. It is not refused.
+  6. A team may share a plain repo family's name (Revision 1). The bare name addresses the team, the repo's slots
+     stay `echo:N`, and a bare-name family send to that repo is no longer available.
+
+  `TeamNamesLine([]ResolvedTeam) string` prints the startup line, for example: `couch teams: devinfra (steward,
+  ops/teams/devinfra) · devinfra2 (ops2/teams/devinfra) · ops2:finance (ops2/teams/finance; "finance" is an
+  alias)`. `ResolveRecipient` checks team names (bare and qualified) before families on an exact match, and a
+  prefix matching both a team and a family is ambiguous and refuses at *send* time, as today. The name lives on
+  `HubDefinition.Name`. It is resolved per startup and never persisted: the team's record and lease key on
+  `CheckoutRoot`/`TeamDir` (#695's `Key()`), so renaming a team never orphans its thread. A session-sync
+  `couch-owner:` that names a team not running under that name is handled like any unreachable owner today. The
+  report fails visibly and the file is untouched.
 - **LifecycleAddress team arm** — `Key()` for a team is `team/<scope(CheckoutRoot)>/<TeamDir>`, distinct per team
   and per checkout (#695 `TestLifecycleAddressKeyDistinctPerTeam`).
 - **couchmessage.Binding** — gains `Team string` (`json:"team,omitempty"`). `Validate`: exactly one of `Slot` and
@@ -159,14 +181,20 @@ From a read of the code (file refs under `cmd/internal/`):
 | `couch teams/devinfra` | one team hub, `devinfra`; its `.hub` is read. |
 | `couch teams/devinfra teams/echo ../ops2/teams/finance` | three team hubs; `devinfra` is the steward. |
 | `couch teams/devinfra ~/workspace/foo` | a team and a checkout hub may mix; order decides the steward. |
+| `couch teams/devinfra ../ops2/teams/devinfra:devinfra2` | the second team is named `devinfra2` (a startup alias). |
+| `couch teams/devinfra ../ops2/teams/devinfra` | the second is auto-qualified `ops2:devinfra`; the startup line says so. |
 
-Startup refuses, before launching anything, when a namespace check fails, a team folder is invalid, two paths are
-the same team, or a `.hub` fails to parse. Each refusal names the path and the fix. The first hub attaches in the
+**A name never refuses a startup** (Revision 2): names resolve by `ResolveTeamNames`, and one line prints every
+team's resolved name before launch. Startup still refuses, before launching anything, when a team folder is
+invalid (missing, not physical, the checkout root itself) or a `.hub` fails to parse, because those are not names.
+Each refusal names the path and the fix. A path argument is first taken whole. If no such directory exists and it
+ends in `:<name>` with a non-numeric name, the suffix is the alias. The first hub attaches in the
 foreground, and the rest queue `start-hub` (today's mechanism, now carrying `Team`).
 
 ### Addressing
 
-- `couch --send-to devinfra` delivers to the team's live binding.
+- `couch --send-to devinfra` delivers to the team's live binding. `couch --send-to ops2:devinfra` (the qualified
+  form) always works, including for a team that kept its bare name.
 - `couch --send-to hub` from a slot delivers to the team whose `.hub` claims it. Exact slot beats repo, the first team
   breaks ties, and unclaimed goes to the steward. These are today's `Resolve` rules, by name.
 - `couch --send-to hub` from a team refuses with "you are the hub" (as today). A team reaches another team by name.
@@ -231,7 +259,7 @@ outcomes. A team never holds an sdlc claim. Nothing in this plan calls sdlc for 
 
 - **ARCH-DRY:** the team identity is #695's `LifecycleAddress` arm. Ownership rules are today's, re-keyed. The start
   path is today's `start-hub`. No second hub mechanism: the checkout hub and the team are kinds of one definition.
-- **ARCH-PURE:** `TeamIdentity`, `HubOwnership`, `CheckNamespace`, the `.hub` parser and the section builder are pure
+- **ARCH-PURE:** `TeamIdentity`, `HubOwnership`, `ResolveTeamNames`/`TeamNamesLine`, the `.hub` parser and the section builder are pure
   and unit-tested. The IO is `prepareHubs`, the wrapper registration and admission.
 - **ARCH-PURPOSE:** every listed consumer moves to names in this issue (§4), and so do session-sync and actors. The
   only thing left to another repo is the parley scope, which reads Couch's published data.
@@ -287,14 +315,20 @@ split, §7.1).
 - Create: `couchcore/team.go` and `team_test.go`, plus `couchcore/namespace.go` and `namespace_test.go`.
 - Modify: `couchcore/hub_ownership.go`, `hub_claim.go` and their tests.
 
-- [ ] Test (red) `TestTeamIdentityValidate`: clean relative folder, name from base, refuses `.`, `..`, absolute paths
-  and bad names.
+- [ ] Test (red) `TestTeamIdentityValidate`: clean relative folder, name from base, refuses `.`, `..` and absolute paths;
+  never refuses a name.
 - [ ] Test (red) `TestHubClaimDirectiveLinesPreserved` and `TestHubDirectiveLinesSurviveMove`: a `steward=true` line
   survives `PlanHubClaimEdits` byte for byte; `echo :2` still refuses.
 - [ ] Test (red) `TestHubOwnershipByName`: two teams in one checkout are both accepted; duplicate names refuse;
   `Resolve` follows today's rules returning names; a team owns no slot; `Steward()` is the first.
-- [ ] Test (red) `TestNamespaceRefusesTeamAliasClash`, `TestNamespaceRefusesReservedHub`,
-  `TestTeamSharingRepoNameAddressesTeamBareAndRepoByN`.
+- [ ] Test (red), Revision 2: `TestTeamStartupAliasNamesTeam` (`teams/devinfra:devinfra2` → `devinfra2`),
+  `TestTeamClashAutoQualified` (two `devinfra` → `devinfra`, `ops2:devinfra`; a team named like an alias or `hub`
+  → qualified, with the reason), `TestAliasResolvesClash` (the alias removes the qualification),
+  `TestQualifiedClashFallsBackToCheckoutAddress` (`ops:2:devinfra`), `TestNumericSuffixIsNotAlias`,
+  `TestTeamSharingRepoNameAddressesTeamBareAndRepoByN`, and `TestTeamNamesLine` (the startup line: every team, the
+  steward marked, qualifications explained).
+- [ ] Test (red) `TestWorkspaceReferenceParsesQualifiedTeam`: `ops2:devinfra` parses as repo+team, `ops2:3` as
+  repo+slot, and both round-trip.
 - [ ] Implement until green; the existing `hub_ownership_test.go`/`hub_claim_test.go` cases are re-keyed and still
   pass.
 - [ ] Commit `#694 M1: …`, then `sdlc milestone-close --issue 694 --milestone M1`.
@@ -310,7 +344,10 @@ split, §7.1).
   `couchcmd/session_sync.go`; the actors JSON.
 
 - [ ] Test (red) `TestPrepareHubsClassifiesTeamAndCheckout`: a `.hub` folder is a team; a plain repo path is a
-  checkout hub; a folder at the checkout root refuses; duplicate teams refuse.
+  checkout hub; a folder at the checkout root refuses; the same team twice starts once with a note; a
+  `path:alias` argument splits only when the whole path doesn't exist.
+- [ ] Test (red) `TestStartupPrintsTeamNamesLine`: the line is printed once, before the first launch.
+- [ ] Test (red) `TestSendToQualifiedTeam`: both the bare and the qualified forms reach a team.
 - [ ] Test (red) `TestBareCouchUnchanged`, `TestSingleRepoPathUnchanged`: no `.hub` read, the same hub, the same
   sections.
 - [ ] Test (red) `TestTeamStartScopeIsTeamFolder`: two teams in one checkout get distinct scopes and records; the
@@ -363,3 +400,13 @@ split, §7.1).
   goes to the hub. The parley issue's attention scope partitions by team or by slot.
 - 2026-10-19 00:10 — the hub split #684's M1–M2 into pair#695 (delivery 51ef8069). M3's dependency is now #695, and
   every `#684 M1–M2` reference points there.
+- 2026-10-19 00:40 — Revision 2, operator decision on name clashes (hub delivery f3aab0d2). A startup never refuses
+  over a name, because such refusals leave the user unclear about what is running. Startup aliases come first
+  (`path:name`; team names are never numeric). A remaining clash with an earlier team, an alias or `hub`
+  auto-qualifies the later team as `repo:team` (`ops2:devinfra`), and both forms address it. A team may share a
+  plain repo's name (Revision 1). One startup line shows every resolved name. `AddressNamespace`/`CheckNamespace`
+  became `ResolveTeamNames` plus `TeamNamesLine`, and `WorkspaceReference` learns the qualified team form. Three
+  details were added by me: the first team keeps the bare name; two checkouts of one repo fall back to
+  `ops:2:devinfra`; and a folder name outside the grammar is normalized, not refused. Names are per startup and
+  never persisted, since the record and lease key on the folder. Tests are in M1 (aliases, auto-qualification, an
+  alias resolving a clash, the line, the parse) and M2 (the printed line, the qualified send).
