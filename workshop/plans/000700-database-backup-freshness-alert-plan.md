@@ -111,3 +111,24 @@ Use deterministic fake-clock and stateful fake-subprocess/headless notification 
 ## Revisions
 
 - 2026-10-19: incorporate hub 44e2a280: volatile UTC-day admission with restart duplicate allowed; validated unchanged content is current, preserving original catalog time. No implementation before hub sees this written plan and change-code admits it.
+
+### 2026-10-19 — plan-quality round 1 disposition (before implementation)
+
+PQ-1: The backup is global, so its notification owner is Couch's primary hub (`authority.hub`, the first explicit hub, or the implicit launch worktree). Do not choose a hub from a database path or a worker's repo. At emission use existing `messageService.hubBinding()`/`hubBindingAt` to resolve the primary hub's newest admitted connected incarnation, recheck connectivity, and derive the attention Thread through `bindingThread`; use that hub's label in multi-hub mode. Other hubs receive no duplicate notification. A replacement does not reset the source/day reservation; an item already emitted stays bound to its original exact thread rather than silently retargeting another conversation.
+
+If there is no proven connected primary hub (including Couch started without a hub), emit the bounded existing Couch status notice and serialized desktop attempt and retain the report in continuous.log, explicitly saying the hub is unavailable. Do not create an unroutable attention item, queue delivery, search for a substitute owner or retry on reconnect. Daily admission is still consumed by this attempted global warning; the next eligible day or Couch restart may warn again. The warning/report remains reachable through the existing log, while the attention list is available only with a proven owner. If replacement races after the final check, the existing exact-thread attention selection refusal applies; preserve the text and do not rearm admission. Hub approval of this explicit fallback is requested before the next gate run.
+
+PQ-2: Function-level test strategies (tests before implementation):
+
+| Risky function / transition | Adversarial class | Mechanical guard |
+| --- | --- | --- |
+| ParseDatabaseMaxAge(raw) | empty/default, zero/negative, malformed and overflowing durations | Table tests pin default and refusal before side effects; bounded fuzz strings never panic or admit nonpositive values |
+| DatabaseBackupSummary.NeedsAttention(now, maxAge) | threshold equality, future times, zero verification, contradictory unchanged/check evidence | Exhaustive table across existing statuses; property tests vary clocks around boundary and require no timestamp mutation |
+| DatabaseBackupSummary.Warning(now, maxAge) | controls, long Unicode paths/details, missing evidence | Deterministic rendering and rune/byte bounds; exact database/age/recovery wording asserted |
+| archiveWarningGate.Reserve(now, key) | duplicate outcomes, same path/different identities, recovery, UTC rollover, backward clock, capacity | Reproducible generated event sequences against a small reference set; at most one admission/key/day, one overflow/day, bounded map and no IO |
+| EncodeContinuousReport / DecodeContinuousReport | empty/trailing/duplicate/truncated/oversize JSON, wrong versions/types, unknown fields and invalid outcome/row combinations | Round-trip tables and native Go fuzz seeds; size check before decode, structural duplicate checks and explicit known-field validation; preserve raw logged bytes |
+| runArchivePass subprocess seam | partial report plus nonzero exit, empty output, held stdout/stderr, cancellation | Stateful fake pair executable drives actual OS pipes and exits; bound retained stdout, preserve typed partial data, join command and retain process error independently |
+| archiveScheduler.tick | stale partial pass followed by retry/day/restart/recovery | Fake clock plus real launch fixture; count child starts, gate admissions and output attempts; existing cadence unchanged |
+| messageService.notifyArchiveWarning / archiveWarningOwner | no hub, multiple hubs, primary replacement/disconnect, uncertain desktop write | Existing live service fixture with fake attention/presenter outputs; exact primary/latest binding only, fallback emits no phantom item, reservation never rearmed |
+
+Counted N/2N integration checks assert one projection/admission attempt per row, no extra catalog read or snapshot, and at most one output attempt per eligible source. These strategies replace adding independent test lists without identifying the responsible function.
