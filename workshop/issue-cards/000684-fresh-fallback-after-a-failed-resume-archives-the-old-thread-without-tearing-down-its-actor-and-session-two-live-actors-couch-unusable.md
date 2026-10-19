@@ -5,6 +5,14 @@ created: 2026-10-18
 updated: 2026-10-18
 estimate_hours:
 github_issue:
+started: 2026-10-18T19:49:44-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:1
+    worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
+    repository: github.com/xianxu/pair
 ---
 
 # fresh fallback after a failed resume archives the old thread without tearing down its actor and session: two live actors, Couch unusable
