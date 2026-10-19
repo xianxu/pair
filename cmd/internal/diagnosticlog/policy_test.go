@@ -90,54 +90,29 @@ func TestResolveDiagnosticLimitsTightensOnly(t *testing.T) {
 		})
 	}
 }
-func TestSelectExcessGenerationsRequiresCertifiedCompleteInventory(t *testing.T) {
-	current, _ := quarantineReservation()
-	now := current.LastWrite.Add(time.Hour)
-	makeGeneration := func(n int) generation {
-		g := current
-		g.Name = fmt.Sprintf("segment-%032x.log", n)
-		g.LastWrite = g.LastWrite.Add(time.Duration(n) * time.Second)
-		return g
+func TestGenerationPolicyAndRetentionSetting(t *testing.T) {
+	now := time.Now()
+	for _, value := range []string{"0", "-1", "366", "bad", "999999999999999999999999", " 7"} {
+		if _, err := ParseRetentionDays(value); err == nil {
+			t.Errorf("accepted %q", value)
+		}
 	}
-	candidates := []generation{makeGeneration(3), makeGeneration(1), makeGeneration(2), makeGeneration(4)}
-	limits := DiagnosticLimits{10, 3}
-	selected, err := SelectExcessGenerations(now, candidates, limits, true)
-	if err != nil || len(selected) != 1 || selected[0].Name != makeGeneration(1).Name {
-		t.Fatal(selected, err)
-	}
-	if candidates[0].Name != makeGeneration(3).Name {
-		t.Fatal("input mutated")
-	}
-	for _, tc := range []struct {
-		name     string
-		change   func([]generation) []generation
-		complete bool
-	}{
-		{"incomplete", func(g []generation) []generation { return g }, false},
-		{"current", func(g []generation) []generation { g[0].Name = ""; return g }, true},
-		{"duplicate", func(g []generation) []generation { g[0] = g[1]; return g }, true},
-		{"future", func(g []generation) []generation { g[0].LastWrite = now.Add(time.Second); return g }, true},
-		{"missing identity", func(g []generation) []generation { g[0].Identity = identity{}; return g }, true},
-		{"invalid uncertainty", func(g []generation) []generation {
-			g[0].UnverifiedTail = &unverifiedTail{Offset: 0, Length: 1, Digest: "bad"}
-			return g
-		}, true},
-		{"too many", func(g []generation) []generation { return make([]generation, maxPolicyCandidates+1) }, true},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			g := tc.change(append([]generation(nil), candidates...))
-			if _, err := SelectExcessGenerations(now, g, limits, tc.complete); err == nil {
-				t.Fatal("uncertified selection")
+	for _, days := range []int{1, 7, 365} {
+		period, err := ParseRetentionDays(fmt.Sprint(days))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, age := range []time.Duration{-time.Hour, 0, period - 1, period} {
+			for _, size := range []int64{10, 11} {
+				want := age >= 0 && (age >= period || size > 10)
+				if got := DecideGeneration(now, now.Add(-age), size, 10, period); got != want {
+					t.Fatalf("days=%d age=%s size=%d got=%t", days, age, size, got)
+				}
 			}
-		})
-	}
-	// Equal timestamps use a stable path tie break without trusting directory order.
-	for i := range candidates {
-		candidates[i].LastWrite = current.LastWrite
-	}
-	selected, err = SelectExcessGenerations(now, candidates, limits, true)
-	if err != nil || len(selected) != 1 || selected[0].Name != makeGeneration(1).Name {
-		t.Fatal(selected, err)
+		}
+		if DecideGeneration(now, time.Time{}, 11, 10, period) {
+			t.Fatal("unknown age granted deletion")
+		}
 	}
 }
 func TestDiagnosticQuarantinePreservedBeyondCountLimit(t *testing.T) {
@@ -278,7 +253,7 @@ func TestDiagnosticLargeInventoryDoesNotBlockRotation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for i := 0; i < maxPolicyCandidates+1; i++ {
+	for i := 0; i < 65; i++ {
 		name := fmt.Sprintf("segment-%04x%028x.log", i, i)
 		p := segmentPath(path, name)
 		if err = os.MkdirAll(filepath.Dir(p), 0700); err != nil {
@@ -311,7 +286,7 @@ func TestDiagnosticLargeInventoryDoesNotBlockRotation(t *testing.T) {
 	if err != nil || string(body) != "next" {
 		t.Fatal(string(body), err)
 	}
-	for i := 0; i < maxPolicyCandidates+1; i++ {
+	for i := 0; i < 65; i++ {
 		p := segmentPath(path, fmt.Sprintf("segment-%04x%028x.log", i, i))
 		body, err := os.ReadFile(p)
 		if err != nil || string(body) != "kept" {
@@ -349,7 +324,7 @@ func TestDiagnosticV2RefusesLegacyStrictReader(t *testing.T) {
 	}
 }
 
-func TestDiagnosticOversizedLegacyGenerationPreservedUntilBackup(t *testing.T) {
+func TestDiagnosticOversizedLegacyGenerationEvictedWithoutPayloadCopy(t *testing.T) {
 	path, now, opts := fixture(t)
 	opts.MaxBytes = 4
 	w, err := Open(path, opts)
@@ -400,7 +375,7 @@ func TestDiagnosticOversizedLegacyGenerationPreservedUntilBackup(t *testing.T) {
 	for _, row := range rows {
 		if row.Path == p {
 			found = true
-			if row.Bytes != 4<<30 || !row.Oversized || row.Eligible || row.Reason != "pre-existing diagnostic generation exceeds byte limit" {
+			if row.Bytes != 4<<30 || !row.Oversized || !row.Eligible || row.Reason != "pre-existing diagnostic generation exceeds byte limit" {
 				t.Fatalf("legacy excess hidden: %+v", row)
 			}
 		}
@@ -408,22 +383,20 @@ func TestDiagnosticOversizedLegacyGenerationPreservedUntilBackup(t *testing.T) {
 	if !found {
 		t.Fatal("missing legacy generation")
 	}
-	for _, record := range []string{"0000", "1111", "2222"} {
-		*now = now.Add(time.Second)
-		if _, err = w.Write([]byte(record)); err != nil {
-			t.Fatal(err)
-		}
+	if rows, err := Collect(path, opts, 100); err != nil || len(rows) != 1 || rows[0].Bytes != 4<<30 {
+		t.Fatal(rows, err)
 	}
-	if _, err = os.Stat(p); err != nil {
-		t.Fatal("legacy data removed before ordinary count eviction", err)
+	if _, err := os.Stat(p); !os.IsNotExist(err) {
+		t.Fatal("oversized segment remains", err)
 	}
-	*now = now.Add(time.Second)
-	if _, err = w.Write([]byte("3333")); err != nil {
-		t.Fatal(err)
+	if _, err := w.Write([]byte("new!")); err != nil {
+		t.Fatal("fresh generation unusable", err)
 	}
-	if _, err = os.Stat(p); err != nil {
-		t.Fatal("legacy segment evicted before backup", err)
+	if b, err := os.ReadFile(path); err != nil || string(b) != "new!" {
+		t.Fatal(string(b), err)
 	}
+	_ = now
+
 }
 
 func TestDiagnosticCountDebtDormantUntilBackup(t *testing.T) {

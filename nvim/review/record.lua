@@ -8,8 +8,8 @@
 --                    decoration by it). They differ whenever `old` and `new`
 --                    occur a different number of times — never cross them.
 --
--- The SAME JSON is written to the handoff file AND embedded in the agent commit
--- body. Uses vim.json (deterministic, available under `nvim -l`); no IO/state.
+-- The SAME JSON is embedded in the agent commit body (from `pair review apply`'s
+-- reply). Uses vim.json (deterministic, available under `nvim -l`); no IO/state.
 local M = {}
 
 local OPEN = '```review-records'

@@ -36,7 +36,7 @@ func TestAFailedRelaunchKeepsItsRecoveryMessageAcrossARefresh(t *testing.T) {
 	// never reached and a direct test of it passed while the operator still lost
 	// the message.
 	state, _ = ReduceMenu(state, MenuEvent{
-		Kind: MenuEventOperationResult, Operation: "relaunch", Attempt: state.InFlight.Attempt,
+		Kind: MenuEventOperationResult, Operation: "relaunch", Attempt: state.operationForTest().Attempt,
 		Address: address, Success: false, Error: recovery,
 	})
 	if !strings.Contains(state.Notice.Text, "Enter resumes it") {

@@ -42,7 +42,7 @@ func TestConsoleStopCancelsOperationAndJoinsWorker(t *testing.T) {
 			}
 			f.con.mu.Lock()
 			f.con.menu = NewMenuState(menuThreads(), menuAddress("couch-one"))
-			f.con.menu.InFlight = origin
+			setTestMenuOperation(&f.con.menu, origin)
 			f.con.menuReady = true
 			f.con.mu.Unlock()
 			f.con.runMenuOperation(MenuEffect{

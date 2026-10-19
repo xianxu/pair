@@ -9,7 +9,6 @@ for _, key in ipairs({ 'repo', 'branch', 'file', 'activation' }) do
   wrong[key] = nil; assert(not M.validate_context(wrong, ctx), key .. ' missing')
 end
 assert(not M.validate_context(nil, ctx))
-assert(M.validate_context(nil, ctx, true))
 local s, effect = M.transition({ status = 'idle' }, { kind = 'request', identity = a })
 assert(s.status == 'switching' and effect == 'activate')
 s = M.transition(s, { kind = 'activated', context = ctx })

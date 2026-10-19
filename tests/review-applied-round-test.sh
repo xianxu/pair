@@ -95,8 +95,6 @@ LUA
 ( cd "$REPO"
   PAIR_ROOT="$ROOT" RESULT="$RESULT" UNDODIR="$RT/undo" RT="$RT" PAIR_BIN="$RT/pair" \
     PAIR_DATA_DIR="$RT/data" PAIR_TAG=doc PAIR_REVIEW_ROUND_PATH="$RT/data/review-round-doc.json" \
-    PAIR_REVIEW_HANDOFF_PATH="$RT/data/review-handoff-doc.json" \
-    PAIR_REVIEW_LANDED_PATH="$RT/data/review-landed-doc.json" \
     run_headless --timeout 60 -- nvim --headless -u NONE -c "luafile $RT/driver.lua" -c 'qa!' )
 
 echo "--- results ---"; cat "$RESULT"

@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-func TestDeletionReplayAfterParentCleanupPreservesIntentUntilBackup(t *testing.T) {
+func TestDeletionReplayAfterParentCleanupCompletesIntent(t *testing.T) {
 	path, p, opts := deletionIntentFixture(t)
 	if err := os.Remove(p); err != nil {
 		t.Fatal(err)
@@ -21,12 +21,12 @@ func TestDeletionReplayAfterParentCleanupPreservesIntentUntilBackup(t *testing.T
 	if err := removeEmptyParents(filepath.Dir(p), directory(path), opts); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := Collect(path, opts, 100); !errors.Is(err, ErrBackupRequired) {
+	if _, err := Collect(path, opts, 100); err != nil {
 		t.Fatal(err)
 	}
 	state, err := load(path)
-	if err != nil || state.Deleting == nil {
-		t.Fatal("completed historical effect lost recovery authority", err)
+	if err != nil || state.Deleting != nil {
+		t.Fatal("completed historical effect retained recovery authority", err)
 	}
 	if body, err := os.ReadFile(path); err != nil || string(body) != "new" {
 		t.Fatal(string(body), err)
@@ -70,7 +70,7 @@ func deletionIntentFixture(t *testing.T) (string, string, Options) {
 	return path, p, opts
 }
 
-func TestBackupFenceStopsHistoricalDeletionAtEveryEffectBoundary(t *testing.T) {
+func TestDeletionReplayAtEveryEffectBoundary(t *testing.T) {
 	for _, cancelled := range []bool{false, true} {
 		for _, stage := range []string{"intent", "payload-gone", "metadata-gone", "parents-gone"} {
 			t.Run(fmt.Sprintf("%s/cancel=%t", stage, cancelled), func(t *testing.T) {
@@ -101,26 +101,32 @@ func TestBackupFenceStopsHistoricalDeletionAtEveryEffectBoundary(t *testing.T) {
 					cancel()
 				}
 				_, err = Collect(path, opts, 100)
-				want := ErrBackupRequired
 				if cancelled {
-					want = context.Canceled
-				}
-				if !errors.Is(err, want) {
-					t.Fatal(err)
-				}
-				after, err := os.ReadFile(filepath.Join(directory(path), "state.json"))
-				if err != nil || string(before) != string(after) {
-					t.Fatal("deletion authority changed", err)
-				}
-				if stage == "intent" {
-					body, err := os.ReadFile(p)
-					if err != nil || string(body) != "old" {
-						t.Fatal(string(body), err)
+					if !errors.Is(err, context.Canceled) {
+						t.Fatal(err)
 					}
-				}
-				if stage == "intent" || stage == "payload-gone" {
-					if _, err := os.Stat(p + ".json"); err != nil {
-						t.Fatal("remaining metadata evicted", err)
+					after, err := os.ReadFile(filepath.Join(directory(path), "state.json"))
+					if err != nil || string(before) != string(after) {
+						t.Fatal("cancelled deletion authority changed", err)
+					}
+					if stage == "intent" {
+						if b, e := os.ReadFile(p); e != nil || string(b) != "old" {
+							t.Fatal("cancelled payload changed", e)
+						}
+					}
+				} else {
+					if err != nil {
+						t.Fatal(err)
+					}
+					if _, err := os.Stat(p); !os.IsNotExist(err) {
+						t.Fatal("payload replay incomplete", err)
+					}
+					if _, err := os.Stat(p + ".json"); !os.IsNotExist(err) {
+						t.Fatal("metadata replay incomplete", err)
+					}
+					state, err := load(path)
+					if err != nil || state.Deleting != nil {
+						t.Fatal("intent replay incomplete", err)
 					}
 				}
 				if body, err := os.ReadFile(path); err != nil || string(body) != "new" {

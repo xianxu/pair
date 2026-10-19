@@ -9,7 +9,7 @@ local C = {}; C.__index=C
 local function nonce() return vim.fn.sha256(vim.fn.tempname() .. tostring(vim.uv.hrtime())) end
 local function notify(s) vim.notify('PairReview: '..s,vim.log.levels.WARN) end
 function M.new(opts)
-  return setmetatable({opts=opts or {}, state={status='idle'}, bindings={}, token=nonce(), legacy=true},C)
+  return setmetatable({opts=opts or {}, state={status='idle'}, bindings={}, token=nonce()},C)
 end
 function C:context(buf)
   if not buf then return self.state.context end
@@ -64,7 +64,7 @@ local function install_snapshot(buf,decoded)
   for _,option in ipairs({'endofline','fileformat','fileencoding','bomb','fixendofline'}) do vim.bo[buf][option]=decoded[option] end
   vim.bo[buf].modified=false
 end
-function C:init(buf, observed, strict)
+function C:init(buf, observed)
   if observed and observed.status=='resolved' then
     assert((vim.uv.fs_realpath(vim.api.nvim_buf_get_name(buf)) or vim.api.nvim_buf_get_name(buf))==observed.repo..'/'..observed.file,
       'review startup document does not match selected branch')
@@ -78,7 +78,6 @@ function C:init(buf, observed, strict)
       branch=observed.branch,file=observed.file,activation=nonce()}})
     self.bindings[buf]=self.state.context
   end
-  self.legacy=not strict
   self:serve()
 end
 function C:guard(buf, quiet)
@@ -92,41 +91,11 @@ function C:guard(buf, quiet)
   if reason and not quiet then notify(reason) end
   return ok,reason
 end
-function C:admit(payload,buf)
-  local allowed,reason=self:guard(buf,true)
-  if not allowed then return false,(reason or 'review authorization refused')..'; pending handoff preserved' end
-  local context=type(payload)=='table' and payload.context or nil
-  if not policy.validate_context(context,self:context(buf),self.legacy) then
-    return false,'handoff context does not match this activation; ask the agent to reissue it with the current context'
-  end
-  return true
-end
 function C:pending()
   if self.buf and vim.bo[self.buf].modified then return 'unsaved edits; save on the original branch first' end
   local why=self.opts.pending and self.opts.pending()
   if why then return why end
-  local path=vim.env.PAIR_REVIEW_HANDOFF_PATH
-  if path and vim.uv.fs_stat(path) then return 'unconsumed handoff; finish the original review first' end
-  if self.landed then
-    local l,ctx=self.landed,self:context()
-    if ctx then
-      -- Check the original branch even after the operator checked out another
-      -- one: an already-committed round must not become permanently pending.
-      local prefix='review('..ctx.branch:sub(8)..'): agent r'
-      local result=vim.system({'git','-C',ctx.repo,'log','refs/heads/'..ctx.branch,'-1',
-        '--format=%H%x00%s%x00%b','--fixed-strings','--grep='..prefix,'--'}):wait(2000)
-      if result.code==0 then
-        local sha,subject,body=(result.stdout or ''):match('^([^%z]+)%z([^%z]+)%z(.*)$')
-        if sha and subject:sub(1,#prefix)==prefix and body:find(l.body,1,true) then
-          local r=vim.system({'git','-C',ctx.repo,'show',sha..':'..ctx.file}):wait(2000)
-          if r.code==0 and r.stdout==l.content then self.landed=nil end
-        end
-      end
-    end
-    if self.landed then return 'applied round not yet committed; finish it on the original branch first' end
-  end
 end
-function C:did_land(body,content) self.landed={body=body,content=content} end
 function C:request(req)
   if type(req)~='table' or req.token~=self.token or req.session~=(self.opts.session or '') then
     return {ok=false,error='review pane belongs to another conversation or incarnation'}
@@ -140,12 +109,10 @@ function C:request(req)
   end
   local pending=self:pending()
   local previous=self.state
-  local previous_legacy=self.legacy
   local next, effect=policy.transition(self.state,{kind='request',identity=observed,pending=pending})
   self.state=next
   if effect=='refuse' then return {ok=false,error=next.reason or 'review activation in progress'} end
   if effect=='toggle' then
-    self.legacy=false
     self:publish()
     return {ok=true,same=true,context=self:context(),identity=observed}
   end
@@ -171,7 +138,6 @@ function C:request(req)
     self.state=policy.transition(self.state,{kind='activated',context={repo=observed.repo,
       branch=observed.branch,file=observed.file,activation=nonce()}})
     self.bindings[newbuf]=self.state.context
-    self.legacy=false
     vim.api.nvim_set_current_buf(newbuf)
     if self.opts.start then self.opts.start(newbuf,file,observed) end
     if self.opts.reconstruct then self.opts.reconstruct(newbuf,file,observed) end
@@ -182,7 +148,6 @@ function C:request(req)
     -- if setup fails; its watcher remains guarded against the changed branch.
     if self.buf and self.opts.stop then pcall(self.opts.stop,self.buf) end
     self.buf=oldbuf
-    self.legacy=previous_legacy
     if newbuf then self.bindings[newbuf]=previous_binding end
     self.state=policy.transition(previous,{kind='failed',reason=tostring(err)})
     if oldbuf and vim.api.nvim_buf_is_valid(oldbuf) then

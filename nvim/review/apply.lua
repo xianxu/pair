@@ -1,115 +1,23 @@
--- nvim/review/apply.lua — apply records to a buffer as ONE undo-able block,
--- then decorate (issue #66 M1). Integration (needs the buffer API); the locate
--- math is delegated to the pure review.reconstruct.
---
--- Correctness rules (judge findings #1/#2 + milestone review I1/I2):
---   * resolve every old@occurrence against the BASE snapshot up front, then
---     apply BOTTOM-TO-TOP so earlier-in-file edits don't drift later offsets;
---   * decorate LIVE from the ACTUAL ranges edited (apply knows where each `new`
---     landed) — never re-find `new`; new_occurrence is computed only for the
---     commit-body / resume path, with the SAME non-overlapping counting that
---     reconstruct.nth_offset uses, so resume re-anchors consistently;
---   * the whole edit loop runs with `buf` current (nvim_buf_call) so the undo
---     break + undojoins target `buf` even when focus is elsewhere; single undo
---     block: first edit is a fresh change, undojoin only 2..N (E790-safe).
+-- nvim/review/apply.lua — the review decoration layer (issue #66 M1): highlight
+-- and diagnose a round's spans, snapshot and restore those decorations for
+-- projection, render a past round on resume, and place definition footnotes.
+-- It never edits buffer text: an agent round reaches the document through
+-- `pair review apply`, and the pane only reloads it (pair#664). The locate math
+-- is delegated to the pure review.reconstruct.
 local M = {}
 local here = debug.getinfo(1, 'S').source:match('@?(.*/)') or './'
 local reconstruct = dofile(here .. 'reconstruct.lua')
-local markers = dofile(here .. 'markers.lua')
-local comment_codec = dofile(here .. 'comment_codec.lua')
 local wrap = dofile(here .. 'wrap.lua')
 
 local HL = vim.api.nvim_create_namespace('review')
 local DEF_HL = vim.api.nvim_create_namespace('review_define')
 local DIAG = vim.api.nvim_create_namespace('review_diag')
 
--- Index of the match of `needle` starting at `target_off`, counted
--- NON-OVERLAPPING (from = e + 1) to match reconstruct.nth_offset. nil when
--- target_off isn't a non-overlapping boundary (self-overlapping `new` adjacent
--- to identical bytes — rare; the resume anchor degrades, the LIVE decoration is
--- unaffected since it uses the actual edited range).
-local function new_occurrence_of(content, needle, target_off)
-  if not needle or needle == '' then return nil end
-  local from, idx = 1, 0
-  while true do
-    local s, e = content:find(needle, from, true)
-    if not s then return nil end
-    idx = idx + 1
-    if s == target_off then return idx end
-    from = e + 1
-  end
-end
-
 local function buf_content(buf)
   return table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), '\n')
 end
 
-local function exact_replacement_marker(rec)
-  if type(rec.new) ~= 'string' or rec.new:find('\n', 1, true) then return nil end
-  local parsed = markers.parse_markers({ rec.new })
-  if #parsed ~= 1 then return nil end
-  local marker = parsed[1]
-  if marker.line ~= 0 or marker.col ~= 0 or marker.raw ~= rec.new then return nil end
-  if not marker.quoted or marker.quoted.text ~= rec.old then return nil end
-  if marker.strike or #marker.sections ~= 1 then return nil end
-  local section = marker.sections[1]
-  if section.type ~= 'agent' then return nil end
-  return comment_codec.turn_text(marker, section)
-end
-
-local function is_word_byte(s, idx)
-  if idx < 1 or idx > #s then return false end
-  return s:sub(idx, idx):match('[%w_]') ~= nil
-end
-
-local function shrink_replacement_span(old, new)
-  if old == new or old == '' then return nil end
-
-  local start = 1
-  local old_len, new_len = #old, #new
-  while start <= old_len and start <= new_len and old:sub(start, start) == new:sub(start, start) do
-    start = start + 1
-  end
-
-  local old_end, new_end = old_len, new_len
-  while old_end >= start and new_end >= start and old:sub(old_end, old_end) == new:sub(new_end, new_end) do
-    old_end = old_end - 1
-    new_end = new_end - 1
-  end
-
-  -- A one-character case fix is technically the minimal byte delta, but it is a
-  -- poor review unit. Expand changes inside words to whole-token markers.
-  while start > 1 and (is_word_byte(old, start - 1) or is_word_byte(new, start - 1)) do
-    start = start - 1
-  end
-  while old_end < old_len and new_end < new_len
-      and (is_word_byte(old, old_end + 1) or is_word_byte(new, new_end + 1)) do
-    old_end = old_end + 1
-    new_end = new_end + 1
-  end
-
-  local display_old = old:sub(start, old_end)
-  local display_new = new:sub(start, new_end)
-  if display_old == '' or display_new == '' then return nil end
-  return {
-    prefix = new:sub(1, start - 1),
-    old = display_old,
-    new = display_new,
-    suffix = new:sub(new_end + 1),
-  }
-end
-
-local function display_new_for_record(rec)
-  local replacement = exact_replacement_marker(rec)
-  if not replacement then return rec.new end
-  local span = shrink_replacement_span(rec.old, replacement)
-  if not span then return rec.new end
-  return span.prefix
-    .. '🤖<' .. markers.esc_quote(span.old) .. '>{' .. comment_codec.encode_turn(span.new) .. '}'
-    .. span.suffix
-end
-
--- Clear both review decoration layers (shared by place + apply_snapshot, so
+-- Clear both review decoration layers (shared by render + apply_snapshot, so
 -- "cleared" means the same everywhere). The HL extmark ns is cleared; the
 -- diagnostic layer is replaced via vim.diagnostic.set (empty here).
 local function clear(buf)
@@ -165,17 +73,6 @@ local function diag_of(d)
     -- 🤖 ≈ 2 cols, M4a issue 2.2).
     severity = vim.diagnostic.severity.INFO, source = d.source or '🤖',
   }
-end
-
--- Place a list of decoration spans + diagnostics (clears first).
-local function place(buf, decos)
-  clear(buf)
-  local diags = {}
-  for _, d in ipairs(decos) do
-    hl_extmark(buf, d)
-    diags[#diags + 1] = diag_of(d)
-  end
-  vim.diagnostic.set(DIAG, buf, diags, {})
 end
 
 -- Snapshot the current decorations for projection: ranged extmarks + the
@@ -299,68 +196,6 @@ end
 
 function M.clear_all(buf)
   clear(buf)
-end
-
--- Apply `records` to `buf`. Returns (enriched, dropped):
---   enriched — applied records carrying new_occurrence (for commit/resume);
---   dropped  — records that did NOT land, each { rec, reason }. The caller MUST
---              surface dropped (milestone review): a partial review presented as
---              complete is the bug. reason ∈ 'empty old' | 'not found' | 'overlap'.
-function M.apply(buf, records)
-  local dropped = {}
-  if not records or #records == 0 then return {}, dropped end
-  local base = buf_content(buf)
-
-  -- resolve old@occurrence → base byte offset (document order, ascending).
-  -- Bottom-to-top with base coordinates is correct only for NON-overlapping
-  -- records, so the shared resolver reports any whose [base_off, base_off+#old)
-  -- intersects an accepted neighbor, else the higher edit would clobber bytes
-  -- the lower one still addresses by base coords (silent corruption otherwise).
-  local kept, bad = reconstruct.resolve(base, records)
-  for _, b in ipairs(bad) do dropped[#dropped + 1] = { rec = b.rec, reason = b.reason } end
-  local items = {}
-  for _, it in ipairs(kept) do
-    it.new_text = display_new_for_record(it.rec)
-    items[#items + 1] = it
-  end
-  if #items == 0 then return {}, dropped end
-
-  -- apply bottom-to-top as one undo block, all with `buf` current (I2)
-  vim.api.nvim_buf_call(buf, function()
-    for i = #items, 1, -1 do
-      local it = items[i]
-      local sr, sc = reconstruct.pos_at(base, it.base_off)
-      local er, ec = reconstruct.pos_at(base, it.base_off + #it.rec.old)
-      if i == #items then
-        vim.cmd('silent! let &undolevels = &undolevels') -- fresh undo block
-      else
-        pcall(vim.cmd, 'undojoin')
-      end
-      vim.api.nvim_buf_set_text(buf, sr, sc, er, ec, vim.split(it.new_text, '\n', { plain = true }))
-    end
-  end)
-
-  -- decorate LIVE from the actual edited ranges (final_off = base_off shifted by
-  -- the length deltas of all lower-offset edits); enrich new_occurrence for resume.
-  local final = buf_content(buf)
-  local shift, enriched, decos = 0, {}, {}
-  for _, it in ipairs(items) do
-    local final_off = it.base_off + shift
-    shift = shift + (#it.new_text - #it.rec.old)
-    local nr = vim.tbl_extend('force', {}, it.rec)
-    nr.new = it.new_text
-    nr.new_occurrence = new_occurrence_of(final, it.new_text, final_off)
-    enriched[#enriched + 1] = nr
-    local sr, sc = reconstruct.pos_at(final, final_off)
-    local er, ec = reconstruct.pos_at(final, final_off + #it.new_text)
-    decos[#decos + 1] = {
-      line = sr, col = sc, end_line = er, end_col = ec,
-      no_highlight = it.new_text == '' or reconstruct.is_marker_proposal(it.new_text),
-      message = it.rec.explain or '',
-    }
-  end
-  place(buf, decos)
-  return enriched, dropped
 end
 
 -- Resume render: locate `records` in `content` by new_occurrence and decorate.

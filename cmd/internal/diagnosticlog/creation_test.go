@@ -242,7 +242,7 @@ func killCurrentCreationPublisher(t *testing.T, path, step string) {
 	_ = cmd.Wait()
 }
 
-func TestCurrentCreationKilledPublisherRecoveryPreservesPublishedEmptyCurrent(t *testing.T) {
+func TestCurrentCreationKilledPublisherRecoveryCollectsExpiredEmptyCurrent(t *testing.T) {
 	for _, step := range []string{"creation-staged", "creation-intent", "creation-published", "creation-finalized"} {
 		t.Run(step, func(t *testing.T) {
 			path := filepath.Join(t.TempDir(), "trace.log")
@@ -252,20 +252,12 @@ func TestCurrentCreationKilledPublisherRecoveryPreservesPublishedEmptyCurrent(t 
 				if _, err := Collect(path, options, 100); err != nil {
 					t.Fatalf("collect without reopen: %v", err)
 				}
-				if step == "creation-staged" {
-					for _, p := range []string{path, directory(path)} {
-						if _, err := os.Lstat(p); !os.IsNotExist(err) {
-							t.Fatal("unpublished empty staging not retired", p, err)
-						}
-					}
-				} else {
-					if body, err := os.ReadFile(path); err != nil || len(body) != 0 {
-						t.Fatal("published empty diagnostic changed", body, err)
-					}
-					if _, err := load(path); err != nil {
-						t.Fatal("published ownership lost", err)
+				for _, p := range []string{path, directory(path)} {
+					if _, err := os.Lstat(p); !os.IsNotExist(err) {
+						t.Fatal("expired empty creation not retired", p, err)
 					}
 				}
+
 			}
 		})
 	}

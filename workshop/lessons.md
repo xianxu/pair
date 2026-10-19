@@ -7,6 +7,10 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- Put exact-target authorization inside the shared journal replay operation, not only its original caller: reopen, append and maintenance can all replay a deletion. Test a held rotated payload through every replay entry point. Preserve completed effects separately from errors, and report retained blockers without labeling unattempted candidates as removed. (#677 close review)
+- Classify scheduler errors at the actual collection boundary: stale declarations, changed certificates, malformed per-log state and blocked recovery are path-local blockers. Preserve them for preview and advance the bounded cursor; test the whole class before a later eligible path. Native acquisition, global inventory, cancellation and coordination failures remain distinct. A missing-parent-only exception does not satisfy this rule. (#677 close review)
+- An asynchronous reservation must cover identities that become visible before its effect returns. Keep the original attempt and reservation, derive launch-authoritative aliases for admission and projection alike, and test inventory publication during held adoption. A primary slot is an ordinary scoped conversation; numbered-slot-only fixtures miss it. (#576 BR-1)
+
 - A successful subprocess status does not identify its reply kind. Qualify diagnostics with multiple live sessions as well as zero/one: Zellij list_sessions exits internally, so a missing-target action can return exit0 with a session listing and not-found stderr. Keep that exception at the name probe, with captured bytes and strict whole-reply validation; never relax the clients decoder. (#672)
 
 - Classify a concept by every operation its implementation performs: environment reads, test verdicts, diagnostics and subprocess policy checks belong to integration even when their decision rule is simple. When acceptance is revised, synchronize Done when, task rows and new README test switches in the same documentation pass, retaining the original decision in Revisions. (#659 close review)
@@ -434,7 +438,9 @@ representative evidence, not an exhaustive index.
   line, insert above that function's doc comment, not between the comment and the
   `func`. Godoc then attributes the comment to the new declaration. #387 did this
   twice (renderThreads, recoverReason); `TestNoDeclarationCarriesTwoStackedGodocs`
-  catches it, but only in the full suite.
+  catches it. After inserting any declaration, run that guard explicitly in
+  cmd/internal/termcmd before queueing a suite; a diagnosticlog package run
+  does not own the whole-tree comment guard. (#677 recorded-suite correction)
 
 - In Lua, `\0` is an empty-position pattern, not a NUL byte; run `luac -p` before
   the suite. In Go, `strings.ToLower` can change byte length, and `gofmt -w`
@@ -2315,3 +2321,11 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #678 installed conformance: Treat external flags as hypotheses until measured against the installed binary. rclone v1.75.2 local-backend copyto replaced conflicts with --immutable alone; --ignore-existing preserved bytes, and final size/checksum verification detects the skipped conflict. A bounded output writer must not embed bytes.Buffer: its promoted ReadFrom can bypass Write limits.
 
 - #678 BR-1: A per-batch writer cap cannot defend a cumulative remote reader cap. Reserve against the complete observed destination, including unrelated and duplicate entries, and charge only new members of admitted pairs; test near-capacity reruns and receipt recovery at a full destination. Keep externally variable metadata wire limits distinct from object-count admission guarantees.
+- #677 PQ-1: Before the first plan gate, cross-check every risky production entry point against a named-function strategy/guard table, including service constructors, CLI dispatch and scheduler replay. A concrete integration assertion does not replace the function-level contract; delete duplicated prose case inventories rather than appending more cases.
+- #677: An injected environment boundary must stay injected through construction. Parse configuration once and pass the typed value; a constructor that rereads ambient os.Getenv can silently undo the caller's decision. Test an invalid ambient value against a valid injected environment.
+- #677: Count native observation through every proof consumer (current writers and immutable readers), and scope evidence to one sweep. Global process uncertainty is not proof that a closed, unheld payload has a writer.
+- #664 BR-1: A "nothing happened" detector needs a positive control taken at the same moment as the negative assertion. `:edit!` detaches an `nvim_buf_attach` listener (on_detach, then silence), so an on_lines count after a reload reads zero whatever happens; re-attach on detach and prove each detector fires on a known operator action after the event under test.
+
+- #576: A new row suffix must preserve the existing label-width floor after all suffix composition, including owner labels. Geometry-only render checks can pass while the slot identity and selection marker disappear; assert those visible fields with oversized running and failed details through the real renderer. Keep full retained diagnostics separate from clipped display text.
+
+- #576: Inserting a declaration above another declaration must not steal its preceding godoc. Keep each comment adjacent to its named declaration and run the existing termcmd declaration-comment guard alongside the source-inventory guards before an expensive suite; that guard covers production files across packages.

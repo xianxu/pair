@@ -88,15 +88,15 @@ func TestExpectedParkExitDoesNotPublishActorExitNotice(t *testing.T) {
 			con.menu, con.menuReady, con.focus = state, true, FocusPanel()
 			con.mu.Unlock()
 			completion := operationCompletion{
-				name: "park", origin: state.InFlight,
+				name: "park", origin: state.operationForTest(),
 				value: couchcore.ParkResult{Thread: couchcore.ThreadRecord{Address: address}},
 			}
 			if completionFirst {
-				con.finishOperation(completion)
+				con.finishPreparedOperationForTest(completion)
 			}
 			con.onExit(childExit{id: "parked-handle", code: 0})
 			if !completionFirst {
-				con.finishOperation(completion)
+				con.finishPreparedOperationForTest(completion)
 			}
 			if latest := con.feed.Row().Body; strings.Contains(latest, "exited (0)") {
 				t.Fatalf("expected park shutdown leaked actor exit notice: %q", latest)

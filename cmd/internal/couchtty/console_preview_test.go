@@ -5,7 +5,6 @@ import (
 	"errors"
 	"reflect"
 	"testing"
-	"time"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/testwait"
@@ -100,17 +99,22 @@ func TestConsolePreviewCancellationRunsLatestPendingAndJoins(t *testing.T) {
 }
 
 func TestConsolePendingSubmitDispatchesAcceptedTokenOnce(t *testing.T) {
+	started, _ := attachStartResult(t, "accepted-start", menuAddress("accepted-start"))
+	t.Cleanup(func() { _ = started.Handle.(couchcore.TerminalHandle).Terminal().Close() })
 	f := newFixture(t, 24, 80)
 	state, effects := previewFormState(t, true)
 	calls := make(chan couchcore.OperationCall, 2)
 	f.con.SetOperationDispatcher(func(call couchcore.OperationCall) (any, error) {
+		if call.Name == "attach" {
+			return f.con.ExecuteConsoleOperation(call)
+		}
 		calls <- call
 		if call.Name == "prepare-start" {
 			return couchcore.PreparedStart{Resolution: couchcore.StartResolution{Fingerprint: "accepted",
-				CanonicalPath: "/repo", Profile: couchcore.LaunchProfile{Agent: "claude"},
+				CanonicalPath: "/repo", Worktree: "/repo", Profile: couchcore.LaunchProfile{Agent: "claude"},
 			}}, nil
 		}
-		return nil, nil
+		return started, nil
 	})
 	f.con.mu.Lock()
 	f.con.menu, f.con.menuReady = state, true
@@ -135,10 +139,16 @@ func TestConsolePendingSubmitDispatchesAcceptedTokenOnce(t *testing.T) {
 	if want := []string{"prepare-start:", "start:accepted"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("operation sequence = %v, want %v", got, want)
 	}
+	waitFor(t, "accepted start completion", func() bool {
+		return !menuHasRunningOperation(f.con.menuSnapshot())
+	})
+	if err := f.con.runTerminalCommand(context.Background(), func() error { return nil }); err != nil {
+		t.Fatal(err)
+	}
 	select {
 	case extra := <-calls:
 		t.Fatalf("pending submit redispatched %+v", extra)
-	case <-time.After(20 * time.Millisecond):
+	default:
 	}
 }
 
