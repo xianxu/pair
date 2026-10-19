@@ -488,6 +488,8 @@ var SourceClassifications = []SourceClassification{
 	{Path: "cmd/internal/couchcore/slotsessions.go", Kind: ResolvedConsumer,
 		Families: []string{"session-binding", "thread-claim"}, BindingNames: []string{"selected-session-binding", "composite-thread-claim", "direct-thread-claim-recognition"}},
 	{Path: "cmd/internal/couchcore/switchcontext.go", Kind: ResolvedConsumer, Families: []string{"log", "agent-ready"}, BindingNames: []string{"composite-switch-log", "composite-switch-ready"}},
+	// pair#695: teardown reads the published agent and its terminal.
+	{Path: "cmd/internal/couchcore/agent_terminal_os.go", Kind: ResolvedConsumer, Families: []string{"agent-ready"}, BindingNames: []string{"composite-switch-ready"}},
 	{Path: "cmd/internal/couchcore/slug.go", Kind: ResolvedConsumer, Families: []string{"slug"}, BindingNames: []string{"composite-slug-proposed"}},
 	{Path: "cmd/internal/couchcore/park.go", Kind: ResolvedConsumer,
 		Families: []string{"lifecycle-completion", "lifecycle-request"}, BindingNames: []string{"composite-lifecycle-completion", "composite-lifecycle-request"}},
@@ -850,6 +852,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcore/launchfailure_store_fake.go",
 	"cmd/internal/couchcore/lifecycleaddress.go",
 	"cmd/internal/couchcore/lifetime_lease.go",
+	"cmd/internal/couchcore/teardown.go",
 	"cmd/internal/couchcore/lifecyclefailure.go",
 	"cmd/internal/couchcore/lifecyclefailure_codec.go",
 	"cmd/internal/couchcore/lifecyclefailure_record.go",

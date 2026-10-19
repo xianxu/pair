@@ -13,7 +13,9 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -131,4 +133,44 @@ func validPath(path string) error {
 		return fmt.Errorf("invalid lifetime lease path %q", path)
 	}
 	return nil
+}
+
+// Holders names the processes that have the lease open: the survivors to
+// stop when it is not free. It runs `lsof -t` on the one file, bounded at 2s;
+// lsof exits 1 with no output when nothing has it open.
+func Holders(ctx context.Context, path string) ([]int, error) {
+	if err := validPath(path); err != nil {
+		return nil, err
+	}
+	ctx, cancel := context.WithTimeout(ctx, holdBound)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "lsof", "-t", "--", path)
+	out, err := cmd.Output()
+	if ctx.Err() != nil {
+		return nil, fmt.Errorf("list lease holders: %w", ctx.Err())
+	}
+	var exit *exec.ExitError
+	if errors.As(err, &exit) && exit.ExitCode() == 1 && len(out) == 0 {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("list lease holders: %w", err)
+	}
+	return parsePIDLines(string(out))
+}
+
+func parsePIDLines(out string) ([]int, error) {
+	var pids []int
+	seen := map[int]bool{}
+	for _, line := range strings.Fields(out) {
+		pid, err := strconv.Atoi(line)
+		if err != nil || pid <= 0 {
+			return nil, fmt.Errorf("unexpected lsof output %q", line)
+		}
+		if !seen[pid] {
+			seen[pid] = true
+			pids = append(pids, pid)
+		}
+	}
+	return pids, nil
 }

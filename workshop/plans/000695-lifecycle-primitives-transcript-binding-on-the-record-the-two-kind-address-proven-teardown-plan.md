@@ -658,3 +658,35 @@ Steps:
     6. The orphan registry with `--resources` and `--reap-orphans`.
     7. `ProvenAt` in `LastLifecycleSuccessAt`.
     8. The atlas. One real-pty conformance test (`TestTeardownProvesARealPtyTree`) runs unsandboxed.
+- 2026-10-19 — **M2 progress checkpoint** (context pressure, CLAUDE.md §14).
+  - **Done and committed:**
+    1. `agent-ready` is tolerant and carries `tty`.
+    2. `procutil.Process.TTY` and `TTYProcesses`, with a live pty test.
+    3. `lifetimelease` (`Path`, `Prepare`, `Hold`, `HoldFromEnv`, `Free`, `Holders` via `lsof -t`, `WithoutLease`), held
+       by the launcher, the wrapper and session-watch. The agent env is stripped. Couch prepares the lease and passes
+       it at both launch sites. The wrapper publishes the agent tty under Couch.
+    4. `couchcore/teardown.go`: `Teardown`, `ProveDown`, `TeardownProof`, and `ErrTeardownUnproven` (implements
+       `LifecycleFailureDetails`).
+       - The stop quiesces the named session and stops the registered wrapper.
+       - The sweep is lease holders plus the agent's tty, by exact identity, with at most 3 rounds of
+         SIGTERM then SIGKILL.
+       - The proof is that the lease is free, nothing remains on the tty, and the session is observed absent twice.
+         #692's listing omission is unproven at stop.
+       - `LeftRunning` holds the agent's descendants that are off its tty, never signalled.
+       - The lease file is removed after the proof.
+       - New seams: `Couch.LeaseHolders` and `AgentTerminalReader`, wired in couchcmd and on the stateful fake.
+       - `withSlotTree` is not reused for the kill, because it kills every descendant, setsid'd runners included.
+  - **Remaining, in order:**
+    5. `RetireAuthority` through `archiveThread`, `ReplaceThreadExpected` and `replaceSlotCurrent` (three types),
+       with the callers wired.
+       - **Teardown's preserve step must land with the Fresh exemption's deletion.** Fold an open park (matching
+         success completion plus owner dead finalizes it; otherwise run its cleanup). Today the exemption is what
+         lets Fresh replace a record with an open park.
+       - Tests: `TestTeardownFoldsCompletedPark`, `TestArchiveRefusesOpenPark`, `TestEveryRetirementTakesAnAuthority`,
+         and `TestArchiveRefusesProofForMovedRevision`.
+       - Until then, the dead-symbol guard flags `Teardown` and `ProveDown`.
+    6. The orphan registry, `--resources` and `--reap-orphans`.
+    7. `ProvenAt` stored on the archived record and read by `LastLifecycleSuccessAt`.
+    8. The atlas; `TestTeardownProvesARealPtyTree`, unsandboxed.
+  - Debris beyond the lease file (D1's sockets) stays with the next server start's existing sweep. Revisit only if
+    the drill shows stale sockets.

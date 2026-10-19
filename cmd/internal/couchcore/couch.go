@@ -37,6 +37,9 @@ type Couch struct {
 	// wrapper tree even when terminal attribution fails (pair#607).
 	SlotWrapper            SlotWrapperLookup
 	ProcessTable           func() ([]procutil.Process, error)
+	// LeaseHolders names the processes holding a slot's lifetime lease
+	// (pair#695 P1); production is lifetimelease.Holders (lsof).
+	LeaseHolders func(context.Context, string) ([]int, error)
 	Identities             IdentityAllocator
 	Slots                  SlotCatalog
 	Workspaces             WorkspaceReadiness

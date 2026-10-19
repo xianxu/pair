@@ -25,15 +25,20 @@ type FakeThreadArtifactCollisionChecker struct {
 	// BUDGET rather than only a result -- #198's guard is required to add no
 	// session enumeration of its own, and a budget nothing measures is a rule
 	// that cannot fail.
-	detachedQueries       int
-	released              []ThreadAddress
-	registrations         map[ThreadAddress]fakeRegistration
-	autoEstablish         bool
-	quiesced              []ThreadAddress
-	bindingResolutions    int
-	detachedCandidates    int
-	QuiesceHook           func(ThreadAddress) error
-	pairSessions          map[ThreadAddress]PairSessionBinding
+	detachedQueries    int
+	released           []ThreadAddress
+	registrations      map[ThreadAddress]fakeRegistration
+	autoEstablish      bool
+	quiesced           []ThreadAddress
+	bindingResolutions int
+	detachedCandidates int
+	QuiesceHook        func(ThreadAddress) error
+	pairSessions       map[ThreadAddress]PairSessionBinding
+	// agentTerminals is each thread's published ready agent (pair#695 P1).
+	agentTerminals map[ThreadAddress]AgentTerminal
+	// QuiesceNamedErr, when set, is what quiescing a named session returns:
+	// a listing that omits a live server (#692), say.
+	QuiesceNamedErr       error
 	nativeBindings        map[nativeBindingKey]NativeBindingResolution
 	legacyNativeLockSlots []string
 	triggeredQuit         []TriggeredQuit
@@ -142,6 +147,7 @@ func NewFakeThreadArtifactCollisionChecker() *FakeThreadArtifactCollisionChecker
 		values:           map[ThreadAddress]fakeArtifactCollision{},
 		registrations:    map[ThreadAddress]fakeRegistration{},
 		pairSessions:     map[ThreadAddress]PairSessionBinding{},
+		agentTerminals:   map[ThreadAddress]AgentTerminal{},
 		nativeBindings:   map[nativeBindingKey]NativeBindingResolution{},
 		detachedSessions: map[ThreadAddress]string{},
 		panes:            map[ThreadAddress]PaneMarks{},
@@ -491,9 +497,31 @@ func (f *FakeThreadArtifactCollisionChecker) Quiesces() []ThreadAddress {
 	return append([]ThreadAddress{}, f.quiesced...)
 }
 
+// SetAgentTerminal publishes the thread's ready agent and its terminal.
+func (f *FakeThreadArtifactCollisionChecker) SetAgentTerminal(address ThreadAddress, agent AgentTerminal) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.agentTerminals[address] = agent
+}
+
+func (f *FakeThreadArtifactCollisionChecker) AgentTerminal(ctx context.Context, address ThreadAddress, _ string) (AgentTerminal, bool, error) {
+	if err := ctx.Err(); err != nil {
+		return AgentTerminal{}, false, err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	agent, ok := f.agentTerminals[address]
+	return agent, ok, nil
+}
+
+var _ AgentTerminalReader = (*FakeThreadArtifactCollisionChecker)(nil)
+
 func (f *FakeThreadArtifactCollisionChecker) QuiesceNamed(ctx context.Context, address ThreadAddress, name string) error {
 	if err := ctx.Err(); err != nil {
 		return err
+	}
+	if f.QuiesceNamedErr != nil {
+		return f.QuiesceNamedErr
 	}
 	binding, err := f.PairSessionContext(ctx, address)
 	if err != nil && !errors.Is(err, ErrPairSessionBindingAbsent) {

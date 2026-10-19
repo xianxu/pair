@@ -21,6 +21,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
 	"github.com/xianxu/pair/cmd/internal/couchtty"
 	"github.com/xianxu/pair/cmd/internal/launcher"
+	"github.com/xianxu/pair/cmd/internal/lifetimelease"
 	"github.com/xianxu/pair/cmd/internal/procutil"
 	"github.com/xianxu/pair/cmd/internal/strictjson"
 	core "github.com/xianxu/pair/cmd/internal/submission"
@@ -490,6 +491,7 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch, configur
 		return couchcore.ProcessIdentity{PID: live.Binding.PID, Identity: live.Binding.Start}, true
 	}
 	c.ProcessTable = procutil.Table
+	c.LeaseHolders = lifetimelease.Holders
 	facts := openSupervisionFacts(artifacts.PairLifecycleDataDir(), namespace)
 	service, err := newMessageService(context.Background(), brokerSocket, registrySocket, authority, panes, console.MessageSlotGit, consoleSlotOperations(console, c, probe), facts)
 	if err != nil {

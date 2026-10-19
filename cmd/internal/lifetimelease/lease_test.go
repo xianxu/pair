@@ -3,6 +3,7 @@ package lifetimelease
 import (
 	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"syscall"
@@ -136,4 +137,38 @@ func TestHoldFromEnvRefusesAMalformedPath(t *testing.T) {
 
 func lockExclusive(f *os.File) error {
 	return syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
+}
+
+func TestParsePIDLines(t *testing.T) {
+	got, err := parsePIDLines("12\n7\n12\n")
+	if err != nil || len(got) != 2 || got[0] != 12 || got[1] != 7 {
+		t.Fatalf("parsePIDLines = %v, %v", got, err)
+	}
+	if _, err := parsePIDLines("12\nx\n"); err == nil {
+		t.Fatal("accepted a non-pid line")
+	}
+}
+
+// Live: the holder lsof names is this process while it holds the lease, and
+// nobody once released. Unsandboxed (lsof).
+func TestHoldersNamesTheHoldingProcess(t *testing.T) {
+	if _, err := exec.LookPath("lsof"); err != nil {
+		t.Skip("lsof unavailable")
+	}
+	path := testPath(t)
+	held, err := Hold(context.Background(), path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pids, err := Holders(context.Background(), path)
+	if err != nil {
+		t.Skipf("lsof not usable here (sandbox?): %v", err)
+	}
+	if len(pids) != 1 || pids[0] != os.Getpid() {
+		t.Fatalf("holders while held = %v, want [%d]", pids, os.Getpid())
+	}
+	_ = held.Close()
+	if pids, err := Holders(context.Background(), path); err != nil || len(pids) != 0 {
+		t.Fatalf("holders after release = %v, %v", pids, err)
+	}
 }
