@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/couchidentity"
+	"github.com/xianxu/pair/cmd/internal/launcher"
 )
 
 // Real watchdogs only unwind a broken kernel wait; behavior uses virtual time.
@@ -418,4 +419,47 @@ func TestSessionCleanupLiveRecordRetainsExactIncarnation(t *testing.T) {
 			})
 		})
 	}
+}
+
+type deadlineCleanupOwnerProbe struct {
+	SessionOwnerProber
+	release  <-chan struct{}
+	deadline time.Time
+}
+
+func (p *deadlineCleanupOwnerProbe) Probe(ctx context.Context, _, _, _, _ string) (launcher.SessionOwnerObservation, error) {
+	p.deadline, _ = ctx.Deadline()
+	select {
+	case <-ctx.Done():
+		return launcher.SessionOwnerObservation{}, ctx.Err()
+	case <-p.release:
+		return launcher.SessionOwnerObservation{}, errors.New("watchdog released unbounded ownership probe")
+	}
+}
+func TestSessionCleanupLegacyIndexCarriesBudget(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		env := newTestEnv(t, "/repo")
+		record := validThreadRecord(t) // Legacy records have only the external index.
+		if _, err := env.Couch.Threads.CreateThread(record); err != nil {
+			t.Fatal(err)
+		}
+		root := t.TempDir()
+		name := "📁1-7"
+		indexSession(t, root, record.Address, name)
+		release := make(chan struct{})
+		probe := &deadlineCleanupOwnerProbe{SessionOwnerProber: testOwnerProbe(root, name, record.Address), release: release}
+		checker := NewScopedThreadArtifactCollisionChecker(root)
+		checker.OwnerProbe = probe
+		checker.Sessions = &fakeSessionDeleter{}
+		env.Couch.Artifacts = checker
+		watchdog := time.AfterFunc(7*time.Second, func() { close(release) })
+		defer watchdog.Stop()
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		deadline, _ := ctx.Deadline()
+		err := env.Couch.quiesceThreadSession(ctx, record.Address)
+		if !errors.Is(err, context.DeadlineExceeded) || !probe.deadline.Equal(deadline) || time.Now().After(deadline) {
+			t.Fatalf("legacy index discarded session budget: err=%v deadline=%v want=%v now=%v", err, probe.deadline, deadline, time.Now())
+		}
+	})
 }

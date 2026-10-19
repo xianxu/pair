@@ -102,6 +102,23 @@ func (c *Couch) quiesceThreadSessionNamed(ctx context.Context, address ThreadAdd
 		}
 		return name, errors.New("exact terminal-incarnation quiescence unavailable")
 	}
+	// Legacy records keep the exact binding only in the scoped index. The
+	// production checker must read it and prove/delete under this same budget,
+	// rather than entering its context-free compatibility Quiesce method.
+	if indexed, ok := c.Artifacts.(interface {
+		PairSessionName(context.Context, ThreadAddress) (string, error)
+		QuiesceNamed(context.Context, ThreadAddress, string) error
+	}); ok {
+		name, err := indexed.PairSessionName(ctx, address)
+		if errors.Is(err, ErrPairSessionBindingAbsent) {
+			return "", nil
+		}
+		if err != nil {
+			return "", err
+		}
+		return name, indexed.QuiesceNamed(ctx, address, name)
+	}
+	// Compatibility for no-IO artifact controllers and existing stateful fakes.
 	return name, c.Artifacts.Quiesce(address)
 }
 
