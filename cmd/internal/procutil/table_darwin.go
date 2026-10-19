@@ -32,7 +32,18 @@ func Table() ([]Process, error) {
 			Nice:     int(p.Proc.P_nice),
 			Name:     unix.ByteSliceToString(p.Proc.P_comm[:]),
 			Zombie:   p.Proc.P_stat == darwinZombieStatus,
+			TTY:      darwinTTYName(p.Eproc.Tdev),
 		})
 	}
 	return out, nil
+}
+
+// darwinNoDevice is NODEV, (dev_t)-1: no controlling terminal.
+const darwinNoDevice = -1
+
+func darwinTTYName(tdev int32) string {
+	if tdev == darwinNoDevice || tdev == 0 {
+		return ""
+	}
+	return strconv.FormatInt(int64(uint32(tdev)), 10)
 }

@@ -126,4 +126,23 @@ type Process struct {
 	Name      string
 	// Zombie means the kernel reports a terminated process, retained until reaped.
 	Zombie bool
+	// TTY is the controlling terminal's device number in decimal, "" for
+	// none or unknown. It comes from the same read as the rest of the row
+	// (Darwin e_tdev, Linux tty_nr), so a terminal's processes are one filter
+	// of one table read (pair#695: the agent's tty is teardown's witness).
+	TTY string
+}
+
+// TTYProcesses is every row whose controlling terminal is tty. Pure.
+func TTYProcesses(table []Process, tty string) []Process {
+	if tty == "" {
+		return nil
+	}
+	var out []Process
+	for _, p := range table {
+		if p.TTY == tty {
+			out = append(out, p)
+		}
+	}
+	return out
 }
