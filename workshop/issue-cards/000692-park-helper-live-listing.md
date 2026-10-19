@@ -1,6 +1,6 @@
 ---
 id: 000692
-status: codecomplete
+status: done
 created: 2026-10-18
 updated: 2026-10-19
 estimate_hours:
@@ -22,6 +22,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 0b9fd8bffa0a546943f8d4a6d525f9ca701cf7ad
         evidence_commit: a5ccc6ac2d00a7e7912b447bd8af5640e71e9b53
+        landed_commit: ecba13af82a240e6a435d48bddb729dfa1c147e3
 ---
 
 # Native park helper refuses a live session before attachment
