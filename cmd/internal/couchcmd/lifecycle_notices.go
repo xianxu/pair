@@ -34,6 +34,20 @@ type lifecycleAttempt struct {
 	retired  bool
 	started  bool
 }
+
+// unresolvedFact is a fact waiting for its slot identity, and when it began
+// waiting (an ordinary fact expires, see lifecycleOrdinaryWait).
+type unresolvedFact struct {
+	fact couchtty.LifecycleObservation
+	at   time.Time
+}
+
+// lifecycleOrdinaryWait bounds how long an ordinary-target fact waits for its
+// identity. The gap it covers is a launch report followed by the wrapper's
+// connect and verification (seconds, admission itself is capped at 10 s); a
+// fact older than this would be published as stale news (pair#693).
+const lifecycleOrdinaryWait = 2 * time.Minute
+
 type lifecycleAdmission struct {
 	token   uint64
 	receipt couchmessage.Receipt
@@ -51,7 +65,8 @@ type lifecyclePublisher struct {
 	roots       map[string]bool
 	identities  map[string]couchcore.WorkspaceIdentity
 	generation  uint64
-	unresolved  map[string]couchtty.LifecycleObservation
+	unresolved  map[string]unresolvedFact
+	now         func() time.Time
 	diagnostics map[string]string
 	wake        chan struct{}
 	results     chan lifecycleAdmission
@@ -59,7 +74,7 @@ type lifecyclePublisher struct {
 }
 
 func startLifecyclePublisher(s *messageService, notice func(string)) *lifecyclePublisher {
-	p := &lifecyclePublisher{service: s, ready: map[uint64]couchcore.LifecycleNoticeEffect{}, attempts: map[uint64]lifecycleAttempt{}, roots: map[string]bool{}, identities: map[string]couchcore.WorkspaceIdentity{}, unresolved: map[string]couchtty.LifecycleObservation{}, diagnostics: map[string]string{}, wake: make(chan struct{}, 1), results: make(chan lifecycleAdmission, 128), notice: notice}
+	p := &lifecyclePublisher{service: s, ready: map[uint64]couchcore.LifecycleNoticeEffect{}, attempts: map[uint64]lifecycleAttempt{}, roots: map[string]bool{}, identities: map[string]couchcore.WorkspaceIdentity{}, unresolved: map[string]unresolvedFact{}, diagnostics: map[string]string{}, wake: make(chan struct{}, 1), results: make(chan lifecycleAdmission, 128), notice: notice, now: s.authority.now}
 	s.lifecycle.Store(p)
 	s.workers.Add(1)
 	go func() { defer s.workers.Done(); p.run(s.lifetime) }()
@@ -152,10 +167,18 @@ func (p *lifecyclePublisher) observe(e couchtty.LifecycleObservation) {
 		p.reducePendingLocked()
 		// Missing cached metadata cannot establish slot ownership. Ordinary or
 		// unrouteable paths must not hold the completed reattach pass indefinitely.
-		if len(p.unresolved) > 0 {
-			p.diagnostics[""] = fmt.Sprintf("Couch lifecycle: %d observations lacked verified slot metadata at restart drain", len(p.unresolved))
-			clear(p.unresolved)
+		// Only untargeted facts are reported: an ordinary row may simply not be
+		// a slot (pair#693), which is no missing metadata.
+		missing := 0
+		for _, u := range p.unresolved {
+			if u.fact.Target.Kind == "" {
+				missing++
+			}
 		}
+		if missing > 0 {
+			p.diagnostics[""] = fmt.Sprintf("Couch lifecycle: %d observations lacked verified slot metadata at restart drain", missing)
+		}
+		clear(p.unresolved)
 		p.advanceLocked(couchcore.LifecycleNoticeEvent{Kind: couchcore.LifecycleNoticeDrain, Reason: fmt.Sprintf("restart reattachments complete; %d failed", e.Failures)})
 	default:
 		p.observeFactLocked(e)
@@ -176,14 +199,12 @@ func (p *lifecyclePublisher) observeFactLocked(e couchtty.LifecycleObservation) 
 		id = couchcore.WorkspaceIdentity{Repo: slot.Repo, PrimaryRoot: slot.PrimaryRoot, WorktreeRoot: slot.WorktreeRoot, Slot: &n}
 		ok = true
 	}
-	if !ok && e.Target.Kind == couchcore.ThreadTargetOrdinary {
-		return
-	}
+	// No cached identity yet, ordinary target or none: the fact usually
+	// arrives first, since the Console reports a launch before the wrapper's
+	// session connects and its workspace is verified (pair#693). It waits for
+	// the next refresh rather than being lost.
 	if !ok {
-		previous, exists := p.unresolved[e.Path]
-		if len(e.Path) <= 4096 && (!exists || e.Observation > previous.Observation) && (len(p.unresolved) < 128 || exists) {
-			p.unresolved[e.Path] = e
-		}
+		p.retainUnresolvedLocked(e)
 		return
 	}
 	hub := p.service.authority.owner(id)
@@ -216,13 +237,52 @@ func (p *lifecyclePublisher) observeFactLocked(e couchtty.LifecycleObservation) 
 		Hub: hub, Slot: slot, Address: e.Address, Incarnation: e.Incarnation, Observation: e.Observation, Kind: couchcore.LifecycleNoticeKind(e.Kind), Operation: e.Operation, Agent: e.Agent, Model: e.Model, Branch: e.Branch, Issue: e.Issue, Initiation: e.Initiation, Mode: e.Mode,
 	}})
 }
+
+// retainUnresolvedLocked keeps the newest observation per path, at most 128
+// paths. At the cap a new path evicts the oldest observation, so paths that
+// never verify (no slot workspace) cannot crowd out one that will. Drain and
+// ownership change clear the set; refresh also drops an ordinary fact older
+// than lifecycleOrdinaryWait (reducePendingLocked).
+func (p *lifecyclePublisher) retainUnresolvedLocked(e couchtty.LifecycleObservation) {
+	if len(e.Path) > 4096 {
+		return
+	}
+	u := unresolvedFact{fact: e, at: p.clock()}
+	if previous, exists := p.unresolved[e.Path]; exists {
+		if e.Observation > previous.fact.Observation {
+			p.unresolved[e.Path] = u
+		}
+		return
+	}
+	if len(p.unresolved) >= 128 {
+		oldest := ""
+		for path, w := range p.unresolved {
+			if oldest == "" || w.fact.Observation < p.unresolved[oldest].fact.Observation {
+				oldest = path
+			}
+		}
+		delete(p.unresolved, oldest)
+	}
+	p.unresolved[e.Path] = u
+}
+
+func (p *lifecyclePublisher) clock() time.Time {
+	if p.now != nil {
+		return p.now()
+	}
+	return time.Now()
+}
+
 func (p *lifecyclePublisher) reducePendingLocked() {
 	// Reduce the complete resolvable set while holding the collector lock. Drain
 	// must not race a batch removed from unresolved but not yet reduced.
-	for path, e := range p.unresolved {
+	now := p.clock()
+	for path, u := range p.unresolved {
 		if _, ok := p.identities[path]; ok {
 			delete(p.unresolved, path)
-			p.observeFactLocked(e)
+			p.observeFactLocked(u.fact)
+		} else if u.fact.Target.Kind == couchcore.ThreadTargetOrdinary && now.Sub(u.at) > lifecycleOrdinaryWait {
+			delete(p.unresolved, path)
 		}
 	}
 }

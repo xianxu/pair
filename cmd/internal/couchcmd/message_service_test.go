@@ -14,6 +14,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 // messageWorld is a stateful fake of everything the message authority reads,
@@ -293,6 +294,19 @@ func (r *serviceRig) waitConnected(b couchmessage.Binding, want bool) {
 		}
 		time.Sleep(5 * time.Millisecond)
 	}
+}
+
+// waitWorkspace waits for b's verified workspace in the service cache, the
+// evidence the lifecycle publisher's refresh reads. connected is published
+// before the cache is written (pair#693), so it is not that evidence.
+func (r *serviceRig) waitWorkspace(b couchmessage.Binding) {
+	r.t.Helper()
+	testwait.Until(r.t, "verified workspace of "+b.Slot, func() bool {
+		r.s.mu.Lock()
+		defer r.s.mu.Unlock()
+		_, ok := r.s.workspaces[b]
+		return ok
+	})
 }
 
 func (r *serviceRig) fireRetries() int {
