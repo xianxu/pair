@@ -50,7 +50,7 @@ background, so a single slot's action needn't block the UI.
 
 - [x] Implement the per-target reducer, row progress/results and navigation intent in [the durable plan](../plans/000576-slot-jobs-plan.md), with failing ordering regressions first.
 - [x] Integrate the bounded Console execution/adoption path after #651 lands; preserve synchronous CLI callbacks and #574's final-outcome observer seam.
-- [ ] Verify all action routes, targeted/race tests and recorded full suite; obtain hub's acceptance decision, close and land on SHIP.
+- [x] Verify all action routes, targeted/race tests and recorded full suite; obtain hub's acceptance decision, close and land on SHIP.
 
 ## Log
 
@@ -157,3 +157,8 @@ Hub approved the revision (d2210cda-203e-4e02-87d4-8578ff850e36), with an explic
 The original reservation key and Origin now survive materialization. Pure derived aliases supply exact numbered checkout or primary scope; symmetric overlap covers creation/replacement versus existing exact-address jobs. Rendering indexes jobs once and rows once; all ordinary rows in an owned primary scope show the same running owner, which outranks older final results. Existing pruning retains the original Running keys and uses exact final identity, with no guessed scope-wide outcome. No new event, stored identity, callback or early adoption binding was introduced.
 
 Reducer regressions first failed for both row kinds; the real Console.Run held-adoption regression first failed for the missing primary owner. The latter's first green-path attempt exposed a fixture mismatch: multi-character input is split by Console, while the reused helper compares the final individual write. A single character follows the existing helper contract and preserves actual child-input verification. No product deadline or behavior changed. Menu regressions pass0.386s; focused alias/cost/real-Run cohort passes race10 (4.205s). Exact source-inventory and declaration guards pass artifactpath5.709s/termcmd2.138s. N/2N materialization controls record32/64 row and32/64 job visits, preserve original reservation maps, and include shared-scope multiple rows plus negative identity controls. Full package, new recorded suite and complete close review still owed.
+
+
+### 2026-10-18 — BR-1 corrected head full verification passed
+
+Recorded suite648263354a17ffbc53c1040762991a8c passed on3186d65d582435877d4f33080dbdcd708265f9bb, exit0 in13m27s, log hash prefix2526bf41a295. Retained log: /Users/xianxu/workspace/pair/.git/sdlc/local-checks/3186d65d582435877d4f33080dbdcd708265f9bb/suite.log. All shell/editor checks and all Go packages passed, including couchcore369.183s, couchcmd99.201s, couchtty57.350s and wrapcmd66.942s. Server CI is green: conformance2m22s, merge-check1m10s and local-gates11s. No unrelated failure, cancellation or retry on this corrected head. The initial close overlap refused the still-unchecked verification row before review; it was not bypassed. Verification readiness is now checked; the full close review must dispose BR-1 and gated landing remains required. No live acceptance claimed; the approved next-restart arrangement is unchanged.
