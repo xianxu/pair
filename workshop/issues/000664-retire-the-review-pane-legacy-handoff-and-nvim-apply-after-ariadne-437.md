@@ -1,13 +1,13 @@
 ---
 id: 000664
-status: working
+status: codecomplete
 deps: [ariadne#437]
 github_issue:
 created: 2026-10-18
 updated: 2026-10-18
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: 'aff618176bc191dba82cb39adc524b1ae18aca53' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '70626d37fe857d915438756f0304fa52b1389b4a' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-18T18:18:27-07:00
 claimant:
     operator: Xian Xu
@@ -17,6 +17,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
 flow: {kind: quick, provenance: inferred, spec: "28a471c7", done: "051474e2"}
+actual_hours: 0.57
 ---
 
 # Retire the review pane legacy handoff and nvim apply after ariadne#437
