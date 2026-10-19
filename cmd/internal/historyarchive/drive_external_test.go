@@ -191,6 +191,65 @@ func TestDriveMirrorBatchBudgetDefersCompletePairs(t *testing.T) {
 	assertDriveStageEmpty(t, root)
 }
 
+func TestDriveMirrorDestinationCapacityDefersWithoutPoisoningInventory(t *testing.T) {
+	cfg, _, root := driveFixture(t, 2)
+	// Duplicate, unrelated names consume real destination entries too.
+	fake := &archivetest.FakeRclone{Objects: map[string][]archivetest.FakeRemoteObject{
+		"unrelated": make([]archivetest.FakeRemoteObject, 99998),
+	}}
+	mirror := ha.DriveMirror{Rclone: ha.Rclone{Runner: fake}}
+	got, err := mirror.Run(context.Background(), cfg, filepath.Join(root, "archive"))
+	if err != nil || got.Verified != 1 || got.Deferred != 1 || got.Pending != 1 || fake.Copies != 2 {
+		t.Fatalf("near-full destination = %+v, %v, copies=%d", got, err, fake.Copies)
+	}
+	if !strings.Contains(strings.Join(got.Notes, "\n"), "destination entry limit") {
+		t.Fatalf("capacity deferral not visible: %+v", got)
+	}
+	// The pass must not have made the reader's own 100000-entry bound unusable.
+	got, err = mirror.Run(context.Background(), cfg, filepath.Join(root, "archive"))
+	if err != nil || got.AlreadyRecorded != 1 || got.Deferred != 1 || got.Pending != 1 || fake.Copies != 2 {
+		t.Fatalf("full destination retry = %+v, %v, copies=%d", got, err, fake.Copies)
+	}
+	// An operator-created vacancy admits the deferred complete pair next pass.
+	fake.Objects["unrelated"] = fake.Objects["unrelated"][:99996]
+	got, err = mirror.Run(context.Background(), cfg, filepath.Join(root, "archive"))
+	if err != nil || got.AlreadyRecorded != 1 || got.Verified != 1 || got.Pending != 0 || fake.Copies != 4 {
+		t.Fatalf("capacity recovery = %+v, %v, copies=%d", got, err, fake.Copies)
+	}
+	assertDriveStageEmpty(t, root)
+}
+
+func TestDriveMirrorDestinationCapacityChargesOnlyMissingMembers(t *testing.T) {
+	for _, existingMembers := range []int{1, 2} {
+		t.Run(fmt.Sprint(existingMembers), func(t *testing.T) {
+			cfg, records, root := driveFixture(t, 2)
+			fake := &archivetest.FakeRclone{Objects: map[string][]archivetest.FakeRemoteObject{
+				"unrelated": make([]archivetest.FakeRemoteObject, 99998),
+			}}
+			// The first pair cannot fit; it must not block the second pair.
+			record := records[1]
+			keys := []string{record.BundleKey, record.LabelKey}
+			names := []string{record.Label.ID + ".tar.zst.gpg", record.Label.ID + ".json"}
+			for i := 0; i < existingMembers; i++ {
+				data, err := os.ReadFile(filepath.Join(cfg.Sink, keys[i]))
+				if err != nil {
+					t.Fatal(err)
+				}
+				fake.Objects[names[i]] = []archivetest.FakeRemoteObject{{ID: fmt.Sprintf("retained-%d", i), Data: data}}
+			}
+			mirror := ha.DriveMirror{Rclone: ha.Rclone{Runner: fake}}
+			got, err := mirror.Run(context.Background(), cfg, filepath.Join(root, "archive"))
+			if err != nil || got.Verified != 1 || got.Pending != 1 || got.Deferred != 1 || fake.Copies != 2-existingMembers {
+				t.Fatalf("existing=%d reconciliation = %+v, %v, copies=%d", existingMembers, got, err, fake.Copies)
+			}
+			if fake.CopyBatches != 2-existingMembers {
+				t.Fatalf("existing=%d batches=%d", existingMembers, fake.CopyBatches)
+			}
+			assertDriveStageEmpty(t, root)
+		})
+	}
+}
+
 func TestDriveMirrorFinalListingRejectsLateDuplicate(t *testing.T) {
 	cfg, records, root := driveFixture(t, 1)
 	name := records[0].Label.ID + ".tar.zst.gpg"

@@ -139,6 +139,13 @@ func (d DriveMirror) Run(ctx context.Context, cfg ContinuousConfig, store string
 	if err != nil {
 		return report, err
 	}
+	// Count entries, not distinct names: unrelated objects and duplicate names
+	// still consume the same bounded reader capacity as our own objects.
+	destinationEntries := 0
+	for _, entries := range before {
+		destinationEntries += len(entries)
+	}
+	destinationDeferred := 0
 	source := LocalSink{Root: cfg.Sink}
 	var ready []driveCandidate
 	var failures []error
@@ -204,8 +211,12 @@ func (d DriveMirror) Run(ctx context.Context, cfg ContinuousConfig, store string
 		candidate.Receipt = expected
 		candidate.State = UploadState{Destination: dest.String(), BundleID: candidate.Label.ID, Phase: UploadInventoryBefore}
 		valid := true
+		missingEntries := 0
 		for _, object := range []UploadObject{expected.Bundle, expected.Label} {
 			entries := before[object.Name]
+			if len(entries) == 0 {
+				missingEntries++
+			}
 			if len(entries) > 1 || len(entries) == 1 && (entries[0].IsDir || entries[0].Size != object.Size) {
 				valid = false
 				failures = append(failures, fmt.Errorf("%s: Drive name duplicated or size mismatch", candidate.Label.ID))
@@ -214,6 +225,14 @@ func (d DriveMirror) Run(ctx context.Context, cfg ContinuousConfig, store string
 		}
 		if !valid {
 			_, _ = advanceUpload(&candidate, UploadConflict, false)
+			continue
+		}
+		// Reserve only missing members, atomically for the complete pair. A full
+		// destination can still reconcile objects already present, including a
+		// later candidate after an earlier pair could not fit.
+		if missingEntries > maxFlatInventoryEntries-destinationEntries {
+			report.Deferred++
+			destinationDeferred++
 			continue
 		}
 		for i, sourceKey := range []string{candidate.BundleKey, candidate.LabelKey} {
@@ -252,12 +271,16 @@ func (d DriveMirror) Run(ctx context.Context, cfg ContinuousConfig, store string
 			return report, e
 		}
 		used = next
+		destinationEntries += missingEntries
 		needsCopy = needsCopy || len(before[bname]) == 0 || len(before[lname]) == 0
 		ready = append(ready, candidate)
 	}
 	report.StagedBytes = used
-	if report.Deferred > 0 {
-		report.Notes = append(report.Notes, fmt.Sprintf("%d complete pair(s) deferred by %d-byte batch limit", report.Deferred, limit))
+	if batchDeferred := report.Deferred - destinationDeferred; batchDeferred > 0 {
+		report.Notes = append(report.Notes, fmt.Sprintf("%d complete pair(s) deferred by %d-byte batch limit", batchDeferred, limit))
+	}
+	if destinationDeferred > 0 {
+		report.Notes = append(report.Notes, fmt.Sprintf("%d complete pair(s) deferred by %d-object destination entry limit", destinationDeferred, maxFlatInventoryEntries))
 	}
 	if len(ready) > 0 {
 		report.Notes = append(report.Notes, fmt.Sprintf("batch staged %d logical bytes: %d hard links, %d copied bytes", report.StagedBytes, report.LinkedObjects, report.CopiedStageBytes))
