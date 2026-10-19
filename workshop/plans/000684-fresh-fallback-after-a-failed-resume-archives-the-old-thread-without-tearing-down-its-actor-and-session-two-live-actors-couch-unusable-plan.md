@@ -212,13 +212,12 @@ type TranscriptBinding struct {
   row says so (Start fresh, reason "invalid stored binding").
 - **Compatibility:** adding the field is forward-compatible only (strictjson rejects unknown fields;
   thread.go:86-91 precedent). A binary older than M1 refuses records M1 writes. Accepted, as for #198.
-- **Open question (the hub to settle before M1):** after pair's own context reset (Shift+Alt+N, untouched by
-  this plan), the agent's conversation changes, but Couch's record still names the old one until the next
-  teardown copies it. If the tree then crashes with no teardown, Resume would reopen the pre-reset
-  conversation. Proposal: `Bind` makes one exact read of the tag's own ledger file (a known path, no listing). If
-  that file names a newer root than the record's `BoundAt`, Bind adopts it and stores it with `Source: ledger`.
-  That is a single file read, not D9's re-derivation by scan. The alternative is to accept the corner
-  (proportionality).
+- **After pair's own context reset (settled by the hub, 2026-10-18).** Shift+Alt+N changes the agent's
+  conversation without Couch. So `Bind` makes **one exact read of the tag's own ledger file** (its known path,
+  no listing). If that file names a newer root than the record's `BoundAt`, Bind adopts it and stores it
+  (`Source: ledger`), so Resume opens the conversation the operator was in. If the file is missing or
+  unreadable, Bind falls back to the stored binding and puts a note on the row ("ledger unreadable; resumed the
+  stored binding"). It never scans. The counted test stays: 1 ledger read, 1 transcript stat, 0 listings.
 - **Open question for the drill:** whether Claude's or Codex's native ID changes across a resume. Teardown
   re-copies the ledger's root ID every time, so a change is picked up; the drill asserts the ID it observes.
 
@@ -366,8 +365,12 @@ Steps:
   clean and under the agent's root, and its basename contains the ID. A relative path, a `..` path, a foreign
   root and a mismatched ID are all rejected. Pure.
 - [ ] **Test (red):** `TestResumeBindsByOneStat`. Use a fake root with 8, then 16, Codex and Claude
-  transcripts. `Bind` performs exactly 1 stat and 0 listings. A missing file yields
+  transcripts. `Bind` performs exactly 1 ledger-file read, 1 stat and 0 listings. A missing file yields
   `ErrNoTranscript{Reason: missing}`.
+- [ ] **Test (red):** `TestBindAdoptsNewerLedgerRootAfterReset`. The record names conversation A and the tag's
+  ledger file names a newer root B: Bind returns B, stores it, and performs 1 ledger read, 1 stat and 0
+  listings. A second case uses a missing ledger file, and a third an unreadable one. Both return A with the
+  row note and still perform 0 listings.
 - [ ] **Test (red):** `TestLegacyRecordBindsFromLedgerOnceThenStores`. The first Resume resolves through the
   ledger and writes `Source: legacy-ledger`. The second performs no ledger query.
 - [ ] Add the field, its validation and its clone. Write it at a minted launch. Resume, relaunch and recovery
@@ -475,3 +478,4 @@ Steps:
   5. Old-build refusal of M1 records: accepted as written.
 
   Code starts after #683 lands.
+- 2026-10-18 21:55 — hub settled the reset corner: Bind reads the tag's own ledger file once (exact path) and adopts a newer root; a missing or unreadable file falls back to the stored binding with a row note, never a scan. Added `TestBindAdoptsNewerLedgerRootAfterReset`; the counted test is now 1 read, 1 stat, 0 listings.
