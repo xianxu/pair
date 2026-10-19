@@ -6,7 +6,7 @@ github_issue:
 created: 2026-09-29
 updated: 2026-09-29
 estimate_hours:
-card_mirror: '87ac516c44826d5ae327a1cb76eb9ab6ecf2bbf1' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '4de6e597ef1b8d752f2106ae653ce794bcd2f239' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # couch --notify: stateful operator notifications
@@ -53,3 +53,7 @@ waiting for it.
 Filed from ariadne#272's brainstorm (ban stacked development; slots, not
 stacks, buffer work in front of the operator's smoke test). Companion to
 pair#353 (live cross-slot dispatch), which can land independently.
+
+### 2026-10-19
+
+Superseded by #673 (landed as PR 448): the attention list absorbs couch --notify as its notify kind, raised by the notify service, alongside blocked prompts and waiting-question sets. Closed wontfix as superseded.

@@ -145,10 +145,17 @@ func (d *realParkConformanceDriver) DeliverTrigger(request pairlifecycle.QuitReq
 			DataDir: d.checker.GlobalDataDir, RepoScope: request.Identity.RepoScope,
 			Tag: request.Identity.Tag, Nonce: request.Identity.Nonce, Attempt: request.Attempt,
 		}}
+	// Production's delivery rule (park.go): observe the session and trigger
+	// only when it is present. The first trigger quiesces the session, so a
+	// redelivery can find it gone, and then delivers nothing (pair#704).
+	binding, err := d.checker.NamedPairSessionContext(context.Background(), d.current.Address, request.Session)
+	if err != nil || !binding.Present {
+		return err
+	}
 	if d.trigger != nil {
 		return d.trigger(request.Session, intent)
 	}
-	return d.checker.TriggerQuit(request.Session, intent)
+	return d.checker.TriggerBoundQuit(context.Background(), binding, intent)
 }
 func (d *realParkConformanceDriver) CleanupAndPrepareCompletion(ctx context.Context, request pairlifecycle.QuitRequest) (pairlifecycle.CleanupResult, []pairlifecycle.CleanupStage, error) {
 	observer := PairLifecycleStoreIO{Store: d.store}
@@ -486,26 +493,54 @@ func startParkLifecycleHelper(t *testing.T, ctx context.Context, cfg parkHelperC
 	wait := make(chan error, 1)
 	go func() { wait <- cmd.Wait() }()
 
-	waitParkHelperAttachment(t, ctx, cfg.Session, baseline, wait, drained, capture)
+	waitParkHelperAttachment(t, ctx, cfg.Session, baseline, wait, drained, capture, parkHelperClientStarted(cmd.Process.Pid))
 	return cmd, terminal, wait
 }
 
-func waitParkHelperAttachment(t *testing.T, ctx context.Context, session string, baseline int, wait <-chan error, drained <-chan struct{}, capture *parkHelperCapture) {
+func waitParkHelperAttachment(t *testing.T, ctx context.Context, session string, baseline int, wait <-chan error, drained <-chan struct{}, capture *parkHelperCapture, started func() bool) {
 	t.Helper()
-	waitParkHelperAttachmentWithQuery(t, ctx, session, baseline, wait, drained, capture, zellijClientCount)
+	waitParkHelperAttachmentWithQuery(t, ctx, session, baseline, wait, drained, capture, started, zellijClientCount)
+}
+
+// parkHelperClientStarted is OS evidence that the helper passed its handoff
+// Check and started its Zellij client: a live zellij child of the helper. It
+// reads the process table only, never the session (pair#692).
+func parkHelperClientStarted(helper int) func() bool {
+	return func() bool {
+		table, err := procutil.Table()
+		if err != nil {
+			return false
+		}
+		for _, p := range table {
+			if p.PPID == helper && p.Name == "zellij" && !p.Zombie {
+				return true
+			}
+		}
+		return false
+	}
 }
 
 // The readiness loop is shared by native conformance and deterministic semantic
 // tests. Query injection lives only in this test file; product query deadlines
-// remain owned by launcher.ZellijSource.
-func waitParkHelperAttachmentWithQuery(t *testing.T, ctx context.Context, session string, baseline int, wait <-chan error, drained <-chan struct{}, capture *parkHelperCapture, query func(context.Context, string) (int, error)) {
+// remain owned by launcher.ZellijSource. No session query is issued until
+// started reports the helper's client: the helper's one fence query is a
+// list-sessions whose ConnStatus probe can lose its reply to any concurrent
+// connection to the server (zellij-org/zellij#5270), so polling across it made
+// the fence see a live session as gone (pair#692).
+func waitParkHelperAttachmentWithQuery(t *testing.T, ctx context.Context, session string, baseline int, wait <-chan error, drained <-chan struct{}, capture *parkHelperCapture, started func() bool, query func(context.Context, string) (int, error)) {
 	t.Helper()
 	ticker := time.NewTicker(25 * time.Millisecond)
 	defer ticker.Stop()
+	var countErr error
+	everStarted := false
 	for {
-		count, countErr := query(ctx, session)
-		if countErr == nil && count > baseline {
-			return
+		if started() {
+			everStarted = true
+			var count int
+			count, countErr = query(ctx, session)
+			if countErr == nil && count > baseline {
+				return
+			}
 		}
 		select {
 		case err := <-wait:
@@ -517,6 +552,9 @@ func waitParkHelperAttachmentWithQuery(t *testing.T, ctx context.Context, sessio
 			}
 			t.Fatalf("production handoff helper exited before attaching: %v; PTY=%q; %s", err, capture.String(), testwait.HostState())
 		case <-ctx.Done():
+			if !everStarted {
+				t.Fatalf("production handoff helper never started its zellij client (no client query was issued): %v; PTY=%q; %s", ctx.Err(), capture.String(), testwait.HostState())
+			}
 			t.Fatalf("production handoff helper did not attach: %v (last query: %v); PTY=%q; %s", ctx.Err(), countErr, capture.String(), testwait.HostState())
 		case <-ticker.C:
 		}

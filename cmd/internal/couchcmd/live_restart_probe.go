@@ -171,18 +171,15 @@ func (p *liveRestartProbe) AwaitReady(ctx context.Context, scope, tag string, be
 	}
 }
 
-// awaitReadiness defers a restart's finish until its readiness wait ends,
-// off the console queue so other slots' operations keep running. *await is
-// written by prepare on the queue and read here after the job; the queue
-// orders the two, as for the admission note.
-func awaitReadiness(await *func(context.Context) error, finished func(any, error)) func(any, error) {
+// awaitReadiness keeps completion on the existing joined lifecycle worker.
+// Preparation initializes await; the same worker adopts, waits, then publishes.
+func awaitReadiness(ctx context.Context, await *func(context.Context) error, finished func(any, error)) func(any, error) {
 	return func(value any, err error) {
 		wait := *await
-		if err != nil || wait == nil {
-			finished(value, err)
-			return
+		if err == nil && wait != nil {
+			err = wait(ctx)
 		}
-		go func() { finished(value, wait(context.Background())) }()
+		finished(value, err)
 	}
 }
 

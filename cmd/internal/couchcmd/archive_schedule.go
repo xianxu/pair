@@ -1,7 +1,11 @@
 package couchcmd
 
 import (
+	"bytes"
 	"context"
+	"errors"
+	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -20,7 +24,9 @@ import (
 type archiveScheduler struct {
 	store    string // $PAIR_DATA_DIR/archive
 	now      func() time.Time
-	launch   func(ctx context.Context) error
+	launch   func(ctx context.Context) (historyarchive.ContinuousCommandReport, error)
+	warn     func(context.Context, string) (string, error)
+	warnings archiveWarningGate
 	notify   func(string)
 	failed   bool
 	failedAt time.Time
@@ -34,24 +40,62 @@ const (
 
 func newArchiveScheduler(pairData string, notify func(string)) *archiveScheduler {
 	store := filepath.Join(pairData, "archive")
-	return &archiveScheduler{store: store, now: time.Now, notify: notify, launch: func(ctx context.Context) error {
-		pair, err := exec.LookPath("pair")
-		if err != nil {
-			return err
-		}
-		logFile, err := openArchiveLog(store)
-		if err != nil {
-			return err
-		}
-		defer logFile.Close()
-		cmd := exec.CommandContext(ctx, "nice", "-n", "10", pair, "archive", "continuous")
-		// The command resolves its store from PAIR_DATA_DIR, which a Pair
-		// session scopes to one repository: name the global one explicitly.
-		cmd.Env = append(os.Environ(), "PAIR_DATA_DIR="+pairData)
-		cmd.Stdout, cmd.Stderr = logFile, logFile
-		cmd.WaitDelay = time.Second
-		return cmd.Run()
-	}}
+	s := &archiveScheduler{store: store, now: time.Now, notify: notify}
+	s.launch = func(ctx context.Context) (historyarchive.ContinuousCommandReport, error) {
+		return runArchivePass(ctx, pairData, store)
+	}
+	s.warn = func(_ context.Context, text string) (string, error) { s.notify(text); return text, nil }
+	return s
+}
+
+// archiveReportCapture bounds the protocol independently of the existing log.
+// A write error closes exec's stdout copier rather than retaining unbounded data.
+type archiveReportCapture struct {
+	buffer   bytes.Buffer
+	overflow bool
+}
+
+func (b *archiveReportCapture) Len() int      { return b.buffer.Len() }
+func (b *archiveReportCapture) Bytes() []byte { return b.buffer.Bytes() }
+
+func (b *archiveReportCapture) Write(p []byte) (int, error) {
+	left := historyarchive.MaxContinuousReportBytes - b.Len()
+	if len(p) > left {
+		b.overflow = true
+		n, _ := b.buffer.Write(p[:left])
+		return n, io.ErrShortBuffer
+	}
+	return b.buffer.Write(p)
+}
+func runArchivePass(ctx context.Context, pairData, store string) (historyarchive.ContinuousCommandReport, error) {
+	var report historyarchive.ContinuousCommandReport
+	pair, err := exec.LookPath("pair")
+	if err != nil {
+		return report, err
+	}
+	logFile, err := openArchiveLog(store)
+	if err != nil {
+		return report, err
+	}
+	defer logFile.Close()
+	cmd := exec.CommandContext(ctx, "nice", "-n", "10", pair, "archive", "continuous", "--json")
+	cmd.Env = append(os.Environ(), "PAIR_DATA_DIR="+pairData)
+	var raw archiveReportCapture
+	cmd.Stdout, cmd.Stderr = &raw, logFile
+	cmd.WaitDelay = time.Second
+	processErr := cmd.Run()
+	_, logErr := logFile.Write(raw.Bytes()) // retain original protocol bytes, even on failure
+	if raw.overflow {
+		return report, errors.Join(processErr, logErr, errors.New("continuous report exceeds byte limit"))
+	}
+	report, decodeErr := historyarchive.DecodeContinuousReport(raw.Bytes())
+	if decodeErr != nil {
+		decodeErr = fmt.Errorf("continuous report: %w", decodeErr)
+	}
+	if decodeErr == nil && report.Outcome == historyarchive.ContinuousFailed && processErr == nil {
+		processErr = errors.New("continuous pass reported failure")
+	}
+	return report, errors.Join(processErr, decodeErr, logErr)
 }
 
 // openArchiveLog opens the pass log fresh: it holds the latest pass only, so it
@@ -82,15 +126,57 @@ func (s *archiveScheduler) tick(ctx context.Context) {
 	if !s.due() {
 		return
 	}
-	err := s.launch(ctx)
+	report, err := s.launch(ctx)
+	if ctx.Err() == nil {
+		for _, row := range report.Report.Databases {
+			if ctx.Err() != nil {
+				break
+			}
+			now := s.now()
+			if !row.NeedsAttention(now, report.MaxDatabaseAge) {
+				continue
+			}
+			s.warnOnce(ctx, now, archiveWarningKey{Source: row.Source, Kind: row.Kind, Path: row.Path}, row.Warning(now, report.MaxDatabaseAge))
+		}
+		if report.Report.Drive != nil && ctx.Err() == nil {
+			observation := report.Report.Drive.Inventory
+			if text := observation.Warning(report.MaxDriveFiles); text != "" {
+				s.warnOnce(ctx, s.now(), archiveWarningKey{Destination: observation.Destination}, text)
+			}
+		}
+	}
 	if err != nil && ctx.Err() == nil {
 		if !s.failed {
 			s.notify("history backup pass failed; see " + filepath.Join(s.store, "continuous.log"))
 		}
 		s.failed, s.failedAt = true, s.now()
 	}
-	if err == nil {
+	if err == nil && report.Outcome == historyarchive.ContinuousComplete {
 		s.failed = false
+	}
+}
+
+// warnOnce reserves before output; uncertain delivery never rearms a daily key.
+func (s *archiveScheduler) warnOnce(ctx context.Context, now time.Time, key archiveWarningKey, text string) {
+	admit, overflow := s.warnings.Reserve(now, key)
+	if !admit && !overflow {
+		return
+	}
+	if overflow {
+		text = "History backup alert admission is incomplete: daily source limit exceeded. Ask the hub to repair the backup check."
+	}
+	text += " Details: " + filepath.Join(s.store, "continuous.log")
+	text, warningErr := s.warn(ctx, text)
+	if warningErr != nil {
+		text += "; notification outcome uncertain: " + warningErr.Error()
+	}
+	file, logErr := os.OpenFile(filepath.Join(s.store, "continuous.log"), os.O_WRONLY|os.O_APPEND, 0600)
+	if logErr == nil {
+		_, logErr = file.WriteString("\n" + text + "\n")
+		logErr = errors.Join(logErr, file.Close())
+	}
+	if logErr != nil {
+		s.notify("history backup warning could not be retained: " + logErr.Error())
 	}
 }
 

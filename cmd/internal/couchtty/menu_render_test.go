@@ -418,3 +418,27 @@ func TestEveryUnusableReasonNamesAnAdmittedRecoveryPath(t *testing.T) {
 		}
 	}
 }
+
+func TestLifecycleFailureRowKeepsStateAndSanitizes(t *testing.T) {
+	row := stateTextRow(couchcore.ThreadDetached, "", time.Time{})
+	base := rootStateText(row, time.Now())
+	row.Failure = &couchcore.LifecycleFailure{Operation: "resume", FinalError: "denied\x1b[2J\nnext"}
+	got := rootStateText(row, time.Now())
+	if !strings.HasPrefix(got, base+" · resume:") || strings.ContainsAny(got, "\x1b\n") {
+		t.Fatalf("row=%q", got)
+	}
+	row.DiagnosticError = "bad store"
+	if got := rootStateText(row, time.Now()); !strings.Contains(got, "diagnostics unavailable") {
+		t.Fatalf("row=%q", got)
+	}
+}
+
+func TestLifecycleFailureMenuPreservesSelectionAndLabelFloor(t *testing.T) {
+	row := couchcore.ActionableThreadSummary{Address: menuAddress("diagnostic"), Name: "pair:8", StartingPath: "/repo", State: couchcore.ThreadDetached, Failure: &couchcore.LifecycleFailure{Operation: "recover-park", FinalError: strings.Repeat("failure ", 100) + "\x1b[2J"}}
+	got := RenderMenu(NewMenuState([]couchcore.ActionableThreadSummary{row}, row.Address), 40, 10, time.Now(), false)
+	plain := string(ansi.Strip([]byte(got)))
+	if !strings.Contains(plain, "▸ ") || !strings.Contains(plain, "diagnostic") || strings.Contains(got, "\x1b[2J") {
+		t.Fatalf("selection/label lost: %q", plain)
+	}
+	assertRenderedBounds(t, got, 40, 10)
+}

@@ -15,7 +15,7 @@ import (
 type copyCodec struct{}
 
 func (copyCodec) CheckRecipients(context.Context, []string) error { return nil }
-func (copyCodec) Encode(_ context.Context, r io.Reader, w io.Writer, _ []string) error {
+func (copyCodec) Encode(_ context.Context, r io.Reader, w io.Writer, _ []string, _ string) error {
 	_, err := io.Copy(w, r)
 	return err
 }
@@ -84,8 +84,8 @@ func TestCiphertextOverflowIsTheSentinelAndASnapshotSkip(t *testing.T) {
 
 type copySnapshotter struct{}
 
-func (copySnapshotter) Snapshot(_ context.Context, root, rel, staging string) (bool, string, error) {
+func (copySnapshotter) Snapshot(_ context.Context, root, rel, staging string) (SnapshotResult, error) {
 	os.MkdirAll(staging, 0o700)
-	return true, "", copyRegularFile(filepath.Join(root, rel), filepath.Join(staging, rel))
+	return SnapshotResult{Status: SnapshotReady}, copyRegularFile(filepath.Join(root, rel), filepath.Join(staging, rel))
 }
 func (copySnapshotter) Sweep() error { return nil }

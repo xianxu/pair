@@ -314,8 +314,20 @@ func (d *fakeConformanceDriver) Restart() error {
 func (d *fakeConformanceDriver) CommitRequest(request pairlifecycle.QuitRequest) error {
 	return d.fake.CommitRequest(request)
 }
+
+// DeliverTrigger is production's delivery (park.go): trigger only a session
+// observed present, and the trigger quiesces that exact session to return
+// control to Pair's handoff (TriggerBoundQuit's DeleteSession). A redelivery
+// that finds it already gone delivers nothing (pair#704).
 func (d *fakeConformanceDriver) DeliverTrigger(request pairlifecycle.QuitRequest) error {
-	return d.fake.DeliverTrigger(request)
+	if !d.fake.SessionPresent(request.Session) {
+		return nil
+	}
+	if err := d.fake.DeliverTrigger(request); err != nil {
+		return err
+	}
+	d.fake.SetSession(request.Session, false)
+	return nil
 }
 func (d *fakeConformanceDriver) CleanupAndPrepareCompletion(ctx context.Context, request pairlifecycle.QuitRequest) (pairlifecycle.CleanupResult, []pairlifecycle.CleanupStage, error) {
 	result := pairlifecycle.RunCleanup(ctx, pairlifecycle.CleanupCouch, d.fake)

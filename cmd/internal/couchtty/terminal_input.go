@@ -74,7 +74,11 @@ func (c *Console) routeInputEvent(event terminal.InputEvent) {
 		c.routeMouseEvent(event)
 		return
 	case uv.KeyPressEvent:
-		// The open Codes menu (pair#495) takes its arrows, Enter and Escape.
+		// The open attention list (pair#673), then the Codes menu (pair#495),
+		// take their arrows, Enter and Escape.
+		if c.routeAttentionKey(event.Raw, event.Canonical) {
+			return
+		}
 		if c.routeCodesMenuKey(event.Raw, event.Canonical) {
 			return
 		}
@@ -132,8 +136,11 @@ func (c *Console) routeMouseEvent(event terminal.InputEvent) {
 			event.Event = uv.MouseWheelEvent(m)
 		}
 	}
-	// The open notes menu (#447 M4) owns the mouse over it, before anything
-	// reaches the presenter or the child.
+	// The open attention list (pair#673) and notes menu (#447 M4) own the
+	// mouse over them, before anything reaches the presenter or the child.
+	if c.routeAttentionPanel(event.Raw) {
+		return
+	}
 	if c.routeNotesMenu(event.Raw) {
 		return
 	}
@@ -206,6 +213,7 @@ func (c *Console) routeMouseEvent(event terminal.InputEvent) {
 		c.mu.Lock()
 		rows := int(c.size.Rows)
 		pointer, control, notes, webNotesSpan := c.statusPointer, c.statusControl, c.statusNotes, c.statusWebNotes
+		attention := c.statusAttention
 		c.mu.Unlock()
 		// Right-click on LIVE re-copies the view-only link; a left click
 		// (below) still stops the broadcast.
@@ -223,6 +231,10 @@ func (c *Console) routeMouseEvent(event terminal.InputEvent) {
 		}
 		if hit.Button == 0 && hit.Y == rows && webNotesSpan.Contains(hit.X-1) {
 			c.toggleNotesMenu(webNotes)
+			return
+		}
+		if hit.Button == 0 && hit.Y == rows && attention.Contains(hit.X-1) {
+			c.toggleAttention()
 			return
 		}
 	}

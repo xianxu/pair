@@ -182,6 +182,25 @@ accepts only its current launch, and feeds committed records into the shared
 notification reducer; partial lines wait, while replacement, truncation,
 malformed records, or stale launches fail closed (`ARCH-IDENTITY`, `ARCH-DRY`).
 
+After binding, Codex lifecycle follow uses the same guarded transcript cursor as
+`TitleProjection` (`sessioninventory/transcript_cursor.go`, pair#686). Each pass
+freezes its endpoint, reads at most256KiB of new payload, keeps a partial record
+up to the existing32MiB ceiling, and projects only new events. Idle polling backs
+off from Poll to5s; bytes or backlog reset it. An unchanged poll performs one
+own-transcript stat, no native/Pair listing, body decode or catalog IO. A cached
+exact-ledger owner projection is metadata-fenced on each check, including under
+the existing writer lock before publishing; identity/size/time changes force a
+full reread before any effect. Cold discovery and one restarted validation can
+still scale with the native tree and history; #157 remains separate.
+
+The pure Reading/Publishing/Stopped reducer stages a candidate cursor and commits
+it only after the entire lifecycle batch is acknowledged. Each acknowledged
+append advances the durable-prefix watermark. Failed or uncertain publication
+stops without automatic retry; committed cleanup warnings remain acknowledgments.
+Changed native evidence also stops follow without rediscovery, preserving native
+work and durable records. Event observation can lag up to5s plus budgeted catch-up;
+a completed large record can still require up to32MiB of decoding in one pass.
+
 `pair session-inventory [--agent ...] [--scope current|all] [--json]
 [--conformance]` exposes the canonical forests, correlations, ambiguities, and
 coded diagnostics. A dedicated public DTO keeps schema v1 exact: internal root

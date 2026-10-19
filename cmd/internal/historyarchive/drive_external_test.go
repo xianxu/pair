@@ -7,12 +7,13 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	ha "github.com/xianxu/pair/cmd/internal/historyarchive"
 	"github.com/xianxu/pair/cmd/internal/historyarchive/archivetest"
 )
 
-func driveFixture(t *testing.T, count int) (ha.ContinuousConfig, []ha.CatalogRecord, string) {
+func driveFixture(t *testing.T, count int, mtimes ...time.Time) (ha.ContinuousConfig, []ha.CatalogRecord, string) {
 	t.Helper()
 	root, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {
@@ -29,6 +30,11 @@ func driveFixture(t *testing.T, count int) (ha.ContinuousConfig, []ha.CatalogRec
 		name := fmt.Sprintf("record-%03d.md", i)
 		if err = os.WriteFile(filepath.Join(src, name), []byte(fmt.Sprintf("private source %d", i)), 0600); err != nil {
 			t.Fatal(err)
+		}
+		if i < len(mtimes) {
+			if err = os.Chtimes(filepath.Join(src, name), mtimes[i], mtimes[i]); err != nil {
+				t.Fatal(err)
+			}
 		}
 		got, e := a.Create(context.Background(), ha.ArchiveRequest{Version: 1, Kind: "ops-documents", Source: ha.SourceIdentity{Host: "fixture", Root: src}, Files: []string{name}, Recipients: cfg.Recipients, Sink: cfg.Sink, Catalog: cfg.Catalog})
 		if e != nil {
@@ -172,21 +178,35 @@ func assertDriveStageEmpty(t *testing.T, root string) {
 }
 
 func TestDriveMirrorBatchBudgetDefersCompletePairs(t *testing.T) {
-	cfg, records, root := driveFixture(t, 2)
-	label, err := os.Stat(filepath.Join(cfg.Sink, records[0].LabelKey))
-	if err != nil {
-		t.Fatal(err)
+	// Fractional mtimes change both tar PAX and label lengths: the pairs need
+	// not have equal sizes even when their source text has the same length.
+	cfg, records, root := driveFixture(t, 2,
+		time.Unix(1700000000, 100000000).UTC(),
+		time.Unix(1700000000, 123456789).UTC())
+	pairBytes := make([]int64, len(records))
+	var budget, total int64
+	for i, record := range records {
+		label, err := os.Stat(filepath.Join(cfg.Sink, record.LabelKey))
+		if err != nil {
+			t.Fatal(err)
+		}
+		pairBytes[i] = record.Label.Bytes + label.Size()
+		budget = max(budget, pairBytes[i])
+		total += pairBytes[i]
+	}
+	if pairBytes[0] == pairBytes[1] || budget >= total {
+		t.Fatalf("want unequal pairs that fit separately but not together: sizes=%v budget=%d", pairBytes, budget)
 	}
 	fake := &archivetest.FakeRclone{}
-	mirror := ha.DriveMirror{Rclone: ha.Rclone{Runner: fake}, BatchByteLimit: records[0].Label.Bytes + label.Size()}
+	mirror := ha.DriveMirror{Rclone: ha.Rclone{Runner: fake}, BatchByteLimit: budget}
 	got, err := mirror.Run(context.Background(), cfg, filepath.Join(root, "archive"))
 	if err != nil || got.Verified != 1 || got.Pending != 1 || got.Deferred != 1 || fake.Copies != 2 {
 		t.Fatalf("budget %+v %v copies=%d", got, err, fake.Copies)
 	}
 	assertDriveStageEmpty(t, root)
 	got, err = mirror.Run(context.Background(), cfg, filepath.Join(root, "archive"))
-	if err != nil || got.Verified != 1 || got.Pending != 0 || got.AlreadyRecorded != 1 {
-		t.Fatalf("deferred retry %+v %v", got, err)
+	if err != nil || got.Verified != 1 || got.Pending != 0 || got.Deferred != 0 || got.AlreadyRecorded != 1 || fake.Copies != 4 || fake.CopyBatches != 2 {
+		t.Fatalf("deferred retry %+v %v copies=%d batches=%d", got, err, fake.Copies, fake.CopyBatches)
 	}
 	assertDriveStageEmpty(t, root)
 }

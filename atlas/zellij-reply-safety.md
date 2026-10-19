@@ -44,7 +44,7 @@ geometry lookup has been removed.
 | Listing poller and event-driven inventory | Re-checked | Existing cadence, cache and query count; malformed expected listing/client evidence is unknown. No projection alone authorizes an effect. |
 | Launcher name reuse and cold admission | Hardened in M1 | Strict listing contract plus independent exact-server absence; a live server defeats native listing omission. |
 | Launcher name-length probe | Hardened in M1 | Successful replies must be client tables; exact native validator/absence diagnostics retain their limited name-length meaning. |
-| Launcher Couch attachment | Hardened in M1 | Existing positive listing fences stop on first unknown; launcher and exported attach regressions exercise actual strict native parsing before attach/launch effects. The selected operation shares one query budget through handoff, independently of the interactive client lifetime. |
+| Launcher Couch attachment | Hardened in M1 | Existing positive listing fences stop on first unknown; a listing that omits the session while its exact server is live (OS process scan) refuses as `ErrListingOmittedLiveServer`, unknown rather than "not listed live" (#692); launcher and exported attach regressions exercise actual strict native parsing before attach/launch effects. The selected operation shares one query budget through handoff, independently of the interactive client lifetime. |
 | Session owner proof, quit and recovery | Hardened in M1 | Matching actual-command/pane-identity projections, exact server generation bracketing the pair and fresh generation revalidation before effects. |
 | Launcher live-layout inference | Hardened in M1 | Strict pane fields and matching command/title/identity/floating facts before recording a detected layout. |
 | Ordinary Couch warm attachment | Hardened in M1 | Existing initial, pre-spawn, pre-ack and post-ack listing fences; no additional queries or detached-client requirement. Unknown/negative confirmation cannot trigger helper retry. |
@@ -253,6 +253,12 @@ measured path and cleanup. Capture is limited to64 records and8MiB of response
 bytes with explicit dropped counts. It adds no native queries, retries or timing
 policy. Local client wait remains distinct from server detach acknowledgement;
 the trace records evidence and does not prove the upstream trigger fixed.
+
+The park conformance fixture waits for OS evidence of the helper's Zellij client
+(a live `zellij` child in the process table) before its first client-count query, so
+it never connects to the server while the helper's single list-sessions fence runs.
+Polling across that fence let the upstream reply race drop the live session from the
+helper's listing (#692).
 
 Name validation also recognizes Zellij0.45.1's multi-session missing-target reply:
 exit0, the exact requested-name not-found stderr heading, and a complete colored

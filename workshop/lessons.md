@@ -7,6 +7,23 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- A native signal fixture must control delivery as well as readiness. Python can swallow KeyboardInterrupt in an ignored-exception callback after a ready banner; mask through that phase, prove the signal is pending, and release it at top level. Check an independent expected exit as well as baseline parity, with a callback self-signal regression and no competing parent signal. Preserve wait-error text explicitly: formatting an unexported struct field can hide it behind a pointer. (#703)
+
+- A display decorator must preserve its input collection's empty-versus-unavailable contract. Cloning by append to nil collapses an owned empty slice; run existing inventory tests as well as the new diagnostic-name subset when adding row fields. (#683 suite qualification)
+
+- Optional terminal publication belongs after adoption on an existing joined worker, never the console reducer. Test blocked storage through actual input and Stop, and verify the publication context is canceled by console lifetime; a responsive callback mock alone misses a missing lifetime wire. (#683 BR-6)
+
+- A shared diagnostic projection must be tested through every public reference for the same slot: slot name, canonical primary-root reference, path and exact tag. Centralize matching before latest-selection and visibility filtering so row/show parity survives missing-cache reference-only evidence. (#683 BR-5)
+
+- Diagnostics must not become lifecycle admission authority. Preserve the original action result when optional target enrichment, nonce allocation or logging fails; test unreadable-record recovery through the public dispatcher before adding diagnostic prerequisites. (#683 BR-1)
+- A terminal failure collector stays evidence-only until its enclosing operation finishes; test exact publication counts for standalone and borrowed callers, including final enrichment. (#683 BR-3)
+- Run the full artifactpath package before a boundary. A regex selecting source/artifact names can omit Symbol guards and miss orphan exports introduced by the same change. (#683 BR-4)
+
+- A design refinement that moves state or file ownership also updates the current Core concepts map, with the prior mapping preserved in Revisions. A later correct paragraph does not repair a contradictory table; distinguish pure value state from its IO methods explicitly. (#686 BR-1)
+
+- Count every IO lane used by a performance claim, including publication guards outside the main reader runtime. Cache hits before a writer lock do not eliminate the guard's own full reread: reuse exact identity-fenced evidence under that same lock and prove append/replacement invalidation before effects. (#686)
+- Derive a multi-item fixture's byte budget from every item it must admit. Equal source lengths do not imply equal archive or metadata lengths: fractional timestamps can change both. Use deliberately unequal fixtures and assert that each fits alone while their sum does not. (#696)
+
 - Put exact-target authorization inside the shared journal replay operation, not only its original caller: reopen, append and maintenance can all replay a deletion. Test a held rotated payload through every replay entry point. Preserve completed effects separately from errors, and report retained blockers without labeling unattempted candidates as removed. (#677 close review)
 - Classify scheduler errors at the actual collection boundary: stale declarations, changed certificates, malformed per-log state and blocked recovery are path-local blockers. Preserve them for preview and advance the bounded cursor; test the whole class before a later eligible path. Native acquisition, global inventory, cancellation and coordination failures remain distinct. A missing-parent-only exception does not satisfy this rule. (#677 close review)
 - An asynchronous reservation must cover identities that become visible before its effect returns. Keep the original attempt and reservation, derive launch-authoritative aliases for admission and projection alike, and test inventory publication during held adoption. A primary slot is an ordinary scoped conversation; numbered-slot-only fixtures miss it. (#576 BR-1)
@@ -1650,7 +1667,7 @@ proof; record the surprising case so the next change starts from evidence.
   delayed-before-ingress payloads as well as already-queued writes. Audit sibling
   mutation routes (request, release and input) for the same temporal gap.
 - For animation settlement, border-box intersection is not a painted-influence proof even on leaves (shadows/filters/outline). Prefer bounded conservative document-wide observation to accumulating incomplete paint exclusions; label uncertainty explicitly.
-- **A plan names verification functions and strategies, not a prose copy of test cases (#526 plan-quality).** For each risky function, name the adversarial input class and mechanical guard. Retention claims must distinguish actual operator deletion and capacity refusal from staging cleanup; a staging remover is not an automatic retained-evidence sweeper.
+- **A plan names verification functions and strategies, not a prose copy of test cases (#526 and #687 plan-quality).** For each risky function, name the adversarial input class and mechanical guard. Retention claims must distinguish actual operator deletion and capacity refusal from staging cleanup; a staging remover is not an automatic retained-evidence sweeper.
 
 - **A new production Go file must enter the exhaustive source inventory (#526).** Register its artifact ownership in `cmd/internal/artifactpath/manifest.go` alongside the package's existing sources, then run `TestProductionArtifactReferencesAreExactlyClassified`; targeted package tests alone do not exercise this repository-wide invariant.
 
@@ -1676,7 +1693,7 @@ proof; record the surprising case so the next change starts from evidence.
   projection before clicking, never combine a new screen with old coordinates.
   Bound fixture waits independently of the package deadline so one missed menu
   does not consume the entire suite's time budget.
-- Fresh review checkouts must run make runtimebundle-generate before direct Go tests that import embedded runtime assets; make build/test already supply that prerequisite. Distinguish Chrome startup failure from a failed capture assertion and rerun the unchanged live check before changing product code.
+- Fresh review checkouts and reused issue slots must run make runtimebundle-generate before direct Go tests that import embedded runtime assets; make build/test already supply that prerequisite. Distinguish Chrome startup failure from a failed capture assertion and rerun the unchanged live check before changing product code.
 
 - A macOS Seatbelt-fenced reviewer can prevent Chrome GPU startup even with an allow-default profile. Before treating this as failed product conformance, compare the identical test under the fence and in the authorized parent environment, retaining real assertion evidence and the review fence.
 
@@ -2317,6 +2334,11 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #668 BR-1: New developer invocation surfaces need a root README entry even when the package README and atlas already explain them. Sweep retention flags, replay commands and diagnostic controls together; link the detailed guide and state the evidence/lifetime limits at the root testing entry point.
 - #651 integration catalog: timing out a known semantic boundary should spend an injected deadline only after readiness. Reuse the package's existing budget/deadline seam; assert the cue and DeadlineExceeded as well as retained ownership, so removing a tiny timeout cannot silently turn the scenario into a different failure.
 
+- Retained operation receipts and intent conflicts are resolved before fresh repository/alias lookup. A repeated request must remain inspectable while the catalog is busy or its alias has changed; recheck after unlocked IO before allocating a new receipt. (#681)
+
+- #681 BR-1: Before close, compare every Core concepts location/status row with the actual branch name-status diff. When implementation chooses a separate fixture file, correct the row and append the decision under Revisions; a broad planned alternative in the task list does not repair an incorrect table.
+
+- #681 BR-2: A real transport fixture must configure the production service-side authorization as well as effect-side guards. Delay external reads at every pre-admission boundary, including caller and target workspace resolvers; otherwise a downstream fast path can hide the original timeout upstream.
 - #678 PQ-1: A remote stat selects one object; it does not prove a unique name. Preserve multiplicity in before/after listings and require one matching entry before recording verification. Match the mechanism to the actual writer model: a serialized flat folder needs two flat listings, not a recursive namespace framework.
 - #678 installed conformance: Treat external flags as hypotheses until measured against the installed binary. rclone v1.75.2 local-backend copyto replaced conflicts with --immutable alone; --ignore-existing preserved bytes, and final size/checksum verification detects the skipped conflict. A bounded output writer must not embed bytes.Buffer: its promoted ReadFrom can bypass Write limits.
 
@@ -2334,3 +2356,21 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 - #689 M2 BR-2: Derive a decoder's whole-stream budget from the admitted payload plus the shared framing allowance, rather than the format's worst-case payload ceiling. Prove the exact total and one-byte-over on both ordinary and large snapshot kinds; a gigabyte overflow test can hide a much smaller promised bound.
 - #689 M2 diagnostic check: Quote untrusted member names in library errors and sanitize the final CLI error boundary with the shared terminal-text owner, because child and filesystem errors can carry controls too. Regress the real reporting seam with OSC, C0, C1 and printable Unicode; whitespace folding alone is not terminal safety.
+- #687 close review: a composition regression must enter the production options/constructor path with its stateful inspection seam. Replacing its Proof in the test only verifies the adapter, not the wiring; confirm a controlled wiring removal fails the production-path regression. Freeze prepared issue/plan artifacts while close reviews run, even for verification-only log updates.
+
+- #687 BR-1: pure predicates use literal value fixtures, even when a convenient integration fixture exists. Audit setup as well as assertions: a test for a PURE entity must not create/read metadata or inject a process probe; keep those effects in separate integration tests.
+
+- #683 PQ-1/PQ-2: A terminal recorder must account for failures after effect completion and successes that wrote no durable row. Define admission ordering and the lifetime of supersession evidence, then sweep existing capture writers so nested helpers collect evidence while one terminal owner publishes. Test reverse completion with identical clock values.
+- #683 PQ-3/PQ-4: Length bounds do not keep argv secrets out of diagnostics; persist catalog-only process kinds. Plans name each risky parsing/normalization/projection function and its adversarial guard rather than repeating a case inventory.
+- #688: An alarm may expire after child readiness but before the observer runs. Do not assert a live lease inside that timing window; hold the native fixture explicitly while checking ownership, then release it and require alarm evidence plus EOF. Readiness/lease checks must survive multiple timer intervals, not just a quiet machine.
+
+- #688 BR-1: Partial-failure isolation must include publication, not just acquisition. Test a first-file publication error followed by a later success and require both accurate final summaries and the aggregate error.
+- #688: A read-only collector must reject canonical overlap of source and work/output roots before cleanup or creation, including missing descendants behind symlinks. A final rename can otherwise overwrite the very source whose reads were carefully protected; test unchanged source bytes and zero external calls on refusal.
+
+- #688 BR-2: Isolation between sets is a cross-product invariant: compare every output with every source, not paired labels. Canonicalizing a common output parent does not resolve a destination leaf symlink; exercise a different source kind behind that alias, including when its kind is filtered out.
+
+- When changing an encoder’s level or threading policy, search README and all atlas resource descriptions for both the old level and one-thread promises; update the shared resource contract as well as the feature introduction. (#702 BR-2)
+
+- A capped subprocess writer must not embed an io.ReaderFrom implementation that bypasses Write: io.Copy uses promoted ReadFrom. Test the actual exec boundary with oversized output, including a valid JSON prefix plus padding; overflow must refuse the whole report, not grant authority to the retained prefix. (#700)
+
+- Qualify runtime evidence through its real encoder using non-UTC clocks, including a mixed healthy/stale pass. A strict UTC codec plus UTC-only fixtures can hide a production local-time mismatch that discards every database result. Normalize at the observation clock owner. (#700 BR-1)

@@ -3,6 +3,7 @@ package couchcore
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/xianxu/pair/cmd/internal/testwait"
@@ -29,7 +30,7 @@ func TestLaunchFailureStoreReopenConcurrent(t *testing.T) {
 		t.Fatalf("fresh: %v %v", h, e)
 	}
 	var wg sync.WaitGroup
-	for i := 1; i <= 17; i++ {
+	for i := 1; i <= 65; i++ {
 		wg.Add(1)
 		go func(n int) {
 			defer wg.Done()
@@ -43,7 +44,7 @@ func TestLaunchFailureStoreReopenConcurrent(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	if len(h) != 16 || h[0].Nonce != "17" || h[15].Nonce != "2" {
+	if len(h) != 64 || h[0].Nonce != "65" || h[63].Nonce != "2" {
 		t.Fatalf("retention %+v", h)
 	}
 	info, e := os.Stat(s.Path())
@@ -310,29 +311,22 @@ func TestLaunchFailureStoreEncodedLimitPreservesPreviousPublication(t *testing.T
 	if err := s.Save(t.Context(), failureFixture(1)); err != nil {
 		t.Fatal(err)
 	}
-	for i := 2; i <= 17; i++ {
-		before, err := os.ReadFile(s.Path())
-		if err != nil {
-			t.Fatal(err)
-		}
-		f := failureFixture(i)
-		f.StartingPath = string(bytes.Repeat([]byte{0}, 4096))
-		f.Agent = f.StartingPath
-		f.Stage = f.StartingPath
-		f.Stream = f.StartingPath
-		f.Operation = f.StartingPath
-		if err := s.Save(t.Context(), f); err != nil {
-			after, e := os.ReadFile(s.Path())
-			if e != nil {
-				t.Fatal(e)
-			}
-			if !bytes.Equal(before, after) {
-				t.Fatal("rejected oversize history replaced previous publication")
-			}
-			return
-		}
+	before, err := os.ReadFile(s.Path())
+	if err != nil {
+		t.Fatal(err)
 	}
-	t.Fatal("encoded limit never enforced")
+	f := failureFixture(2)
+	f.Unknown = map[string]json.RawMessage{"future": append(append([]byte{'"'}, bytes.Repeat([]byte{'x'}, launchFailureEncodedLimit)...), '"')}
+	if err := s.Save(t.Context(), f); err == nil {
+		t.Fatal("single oversized entry accepted")
+	}
+	after, err := os.ReadFile(s.Path())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(before, after) {
+		t.Fatal("rejected oversize entry changed publication")
+	}
 }
 
 func TestLaunchFailureStoreRawBytesAndSeparateExitObservations(t *testing.T) {

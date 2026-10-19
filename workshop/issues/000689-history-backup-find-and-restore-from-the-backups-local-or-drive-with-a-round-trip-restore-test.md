@@ -178,6 +178,14 @@ total: 4.93
 - Final focused Drive acquisition race passed12.653 s. Earlier broad restore/extractor/CLI race passed38.348 s/1.210 s; tracked lint, artifact inventories and godoc guard on corrected source passed2.151 s/1.413 s/0.242 s. No deadline/assertion waiver. The corrected-head recorded suite is now being started through the maintained SDLC binary; its pass and M2 re-review remain due.
 - Verified hub dispatch 100d7776-57b9-4c32-8f8b-a71a6f2df739 queues #707 only after #689 lands. Keep that separate from this landing and the requested unclaimed periodic-drill follow-up.
 
+### 2026-10-19 — landing integration
+
+The corrected-code recorded suite passed on 27019abd1964197aad880dc7ce8f3a38af95e9a0 in 11m48s (attempt 429890b0fa5edf870059aab33e54dade; log SHA-256 prefix 09745fbca330). M2 and whole-issue reviews both returned SHIP, with BR-2 addressed and BR-3 withdrawn. The normal landing turn then required integration of origin/main; the runner preserved the branch and named conflicts in README.md and archivecmd/run.go. The manual resolution combines the continuous --json help with find/sync-index/restore, and preserves main's compression levels, coherent SQLite snapshot/freshness notes and Drive file-count warning beside restore documentation. No index-evidence model change.
+
+After integration, real GPG/zstd codec conformance (including levels 9/19/20/22), installed-rclone exact download bounds, and full/filtered remote-only restore passed in 9.905s with a throwaway key and isolated short TMPDIR. Original/restored bytes agree; source and fake-remote bytes are unchanged. The private root had zero entries and was removed. No operator key, plaintext or real Drive access was used. The integrated recorded full suite and the required narrow fix review remain outstanding before retrying merge.
+
+Targeted integrated archive CLI tests passed (1.262s), restore/extraction/discovery/catalog tests passed (72.640s), and the tracked lint checks passed (4.650s). The artifactpath package compiled under that selection; its full checks remain part of the recorded suite.
+
 ## Revisions
 
 - 2026-10-18: clarified the later sync-index Spec supersedes remote queries from find. Recorded the hub-approved label/location evidence and atomic refresh contract; original Done-when obligations are retained without reduction. Added the durable plan with M1/M2 review boundaries.

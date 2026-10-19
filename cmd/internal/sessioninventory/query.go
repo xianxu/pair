@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"path/filepath"
 
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/sessionledger"
@@ -377,6 +378,49 @@ func readOwnerLaunch(ctx context.Context, runtime Runtime, scopeKey, tag string,
 		// loader; real listing failure or absence invalidates all retained evidence.
 		invalidate(ctx.Err() == nil || len(diagnostics) != 0 || (err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded)))
 		return sessionledger.Current{}, nil, false, diagnostics, err
+	}
+	return readOwnerLaunchFromLedger(ctx, runtime, scopeKey, tag, agent, ledger, diagnostics)
+}
+
+// ReadCurrentLaunchAt reads the compact current-authority projection from the
+// exact Pair-owned ledger for owner.Tag, without enumerating Pair storage.
+// It retains ordinal, agent, binding identity/proof and conflict authority, not
+// launch baselines or historical records. Callers needing full launch content
+// must use the ledger reducer directly. A caller-owned OwnerLaunchCache allows
+// unchanged observations to avoid all ledger body reads and decoding.
+func ReadCurrentLaunchAt(ctx context.Context, runtime Runtime, owner sessionledger.Owner, ledger Artifact) (sessionledger.Current, bool, []Diagnostic, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return sessionledger.Current{}, false, nil, err
+	}
+	if runtime == nil || owner.ScopeKey == "" {
+		return sessionledger.Current{}, false, nil, errors.New("exact owner ledger requires a runtime and scope")
+	}
+	root := runtime.PairDataRoot()
+	paths, err := artifactpath.ResolveScoped(root.Path, owner.Tag)
+	if err != nil {
+		return sessionledger.Current{}, false, nil, err
+	}
+	if root.Name == "" || ledger.StorageRoot != root.Name || ledger.RelativePath != filepath.Base(paths.Ledger()) {
+		return sessionledger.Current{}, false, nil, errors.New("exact owner ledger does not match Pair storage and tag")
+	}
+	entry, err := runtime.StatFile(ledger)
+	if err != nil {
+		ownerLaunchCacheOf(runtime).invalidateOwner(root.Path, owner.ScopeKey, owner.Tag, Agent(owner.Agent), true)
+		return sessionledger.Current{}, false, nil, err
+	}
+	current, _, ok, diagnostics, err := readOwnerLaunchFromLedger(ctx, runtime, owner.ScopeKey, owner.Tag, Agent(owner.Agent), entry, nil)
+	return current, ok, diagnostics, err
+}
+
+// readOwnerLaunchFromLedger shares the strict cached projection after discovery
+// or an exact named stat has selected the same Pair-owned ledger.
+func readOwnerLaunchFromLedger(ctx context.Context, runtime Runtime, scopeKey, tag string, agent Agent, ledger FileEntry, diagnostics []Diagnostic) (sessionledger.Current, *ResumeTarget, bool, []Diagnostic, error) {
+	cache := ownerLaunchCacheOf(runtime)
+	invalidate := func(fenceLoads bool) {
+		cache.invalidateOwner(runtime.PairDataRoot().Path, scopeKey, tag, agent, fenceLoads)
 	}
 	reusable := len(diagnostics) == 0
 	if !reusable {

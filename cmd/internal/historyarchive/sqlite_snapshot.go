@@ -7,137 +7,252 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
-	"time"
+
+	"golang.org/x/sys/unix"
 )
 
-// SnapshotObservation is a database file and its write-ahead log as seen at
-// one moment: sizes and mtimes, and whether the log exists.
+// SnapshotObservation is raw admission metadata; SQLite owns consistency.
 // pair:m5-concept pure
 type SnapshotObservation struct {
-	DBSize, WALSize   int64
-	DBMtime, WALMtime time.Time
-	WALPresent        bool
+	DBSize, WALSize int64
+	WALPresent      bool
 }
 
-// SnapshotStable reports a source that did not change between two
-// observations, so files copied between them belong to one state. A checkpoint
-// mid-copy moves the database's size or mtime and is caught here.
-// pair:m5-concept pure
-func SnapshotStable(before, after SnapshotObservation) bool {
-	return before.DBSize == after.DBSize && before.DBMtime.Equal(after.DBMtime) &&
-		before.WALPresent == after.WALPresent && before.WALSize == after.WALSize && before.WALMtime.Equal(after.WALMtime)
-}
-
-func observeDatabase(path string) (SnapshotObservation, error) {
+func observeDatabase(path string) (SnapshotObservation, os.FileInfo, error) {
 	db, err := os.Lstat(path)
 	if err != nil {
-		return SnapshotObservation{}, err
+		return SnapshotObservation{}, nil, err
 	}
 	if !db.Mode().IsRegular() {
-		return SnapshotObservation{}, errors.New("database is not a regular file")
+		return SnapshotObservation{}, nil, errors.New("database is not a regular file")
 	}
-	o := SnapshotObservation{DBSize: db.Size(), DBMtime: db.ModTime()}
-	if wal, err := os.Lstat(path + "-wal"); err == nil && wal.Mode().IsRegular() {
-		o.WALPresent, o.WALSize, o.WALMtime = true, wal.Size(), wal.ModTime()
-	} else if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return SnapshotObservation{}, err
-	}
-	return o, nil
-}
-
-// SQLiteSnapshotter makes a coherent private copy of a live SQLite database
-// without ever opening it: it copies the -wal and then the database into a
-// private directory, refuses the copy if the source changed meanwhile, runs
-// SQLite's backup on the private copy (folding the WAL in) and an integrity
-// check, and publishes the result under the staging root (pair#592). The live
-// database's directory is only read.
-type SQLiteSnapshotter struct {
-	SQLite   string // sqlite3 binary
-	Scratch  string // private working directory, outside every source
-	copyFile func(from, to string) error
-}
-
-// Snapshot writes stagingRoot/rel. ok=false with a note means skipped this
-// pass (source busy or not coherent); err means the pass itself failed.
-func (s SQLiteSnapshotter) Snapshot(ctx context.Context, root, rel, stagingRoot string) (ok bool, note string, err error) {
-	if !validPath(rel) {
-		return false, "", errors.New("invalid database path")
-	}
-	src := filepath.Join(root, rel)
-	copyFile := s.copyFile
-	if copyFile == nil {
-		copyFile = copyRegularFile
-	}
-	before, err := observeDatabase(src)
-	if err != nil {
-		return false, fmt.Sprintf("%s unreadable: %v", rel, err), nil
-	}
-	// Over the snapshot bound the copy could not be archived anyway; do not
-	// copy gigabytes every pass only to skip them.
-	if before.DBSize+before.WALSize > MaxSnapshotRawBytes {
-		return false, fmt.Sprintf("%s exceeds the %d-byte snapshot bound; skipped", rel, int64(MaxSnapshotRawBytes)), nil
-	}
-	if err := os.MkdirAll(s.Scratch, 0o700); err != nil {
-		return false, "", err
-	}
-	work, err := os.MkdirTemp(s.Scratch, "sqlite-")
-	if err != nil {
-		return false, "", err
-	}
-	defer os.RemoveAll(work)
-	private := filepath.Join(work, filepath.Base(rel))
-	// The log first: a checkpoint between the two copies then shows up as a
-	// changed database, never as a database newer than its log.
-	if before.WALPresent {
-		if err := copyFile(src+"-wal", private+"-wal"); err != nil {
-			return false, fmt.Sprintf("%s: copy log: %v", rel, err), nil
+	o := SnapshotObservation{DBSize: db.Size()}
+	for _, suffix := range []string{"-wal", "-shm"} {
+		info, err := os.Lstat(path + suffix)
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return SnapshotObservation{}, nil, err
+		}
+		if !info.Mode().IsRegular() {
+			return SnapshotObservation{}, nil, fmt.Errorf("%s is not regular", suffix)
+		}
+		if suffix == "-wal" {
+			o.WALPresent, o.WALSize = true, info.Size()
 		}
 	}
-	if err := copyFile(src, private); err != nil {
-		return false, fmt.Sprintf("%s: copy database: %v", rel, err), nil
-	}
-	after, err := observeDatabase(src)
-	if err != nil || !SnapshotStable(before, after) {
-		return false, fmt.Sprintf("%s changed during copy; retry next pass", rel), nil
-	}
-	snap := filepath.Join(work, "snapshot.sqlite")
-	if out, err := s.run(ctx, private, ".backup main '"+snap+"'"); err != nil {
-		return false, fmt.Sprintf("%s: backup failed: %v %s", rel, err, strings.TrimSpace(out)), nil
-	}
-	// A rollback-journal snapshot is one self-contained file: opening it later
-	// creates no -wal or -shm beside it.
-	if out, err := s.run(ctx, snap, "PRAGMA journal_mode=DELETE; PRAGMA integrity_check;"); err != nil || strings.TrimSpace(out) != "delete\nok" {
-		return false, fmt.Sprintf("%s: integrity check failed; retry next pass", rel), nil
-	}
-	dest := filepath.Join(stagingRoot, rel)
-	if err := os.MkdirAll(filepath.Dir(dest), 0o700); err != nil {
-		return false, "", err
-	}
-	if same, _ := sameContent(snap, dest); same {
-		return true, "", nil
-	}
-	if err := os.Rename(snap, dest); err != nil {
-		return false, "", err
-	}
-	return true, "", nil
+	return o, db, nil
 }
 
-func (s SQLiteSnapshotter) run(ctx context.Context, db, command string) (string, error) {
-	bin := s.SQLite
-	if bin == "" {
-		bin = "sqlite3"
+// SQLiteSnapshotter pins a read-only source transaction for a size-scaled
+// 5..30 second budget, validates the backup after releasing that reader, then
+// replaces staging. SQLite may update SHM coordination, never DB/WAL content.
+// pair:m5-concept integration
+type SQLiteSnapshotter struct {
+	SQLite, Scratch string
+	Runner          SQLiteRunner
+}
+
+// Snapshot never publishes an unconfirmed or unvalidated candidate.
+func (s SQLiteSnapshotter) Snapshot(ctx context.Context, root, rel, stagingRoot string) (SnapshotResult, error) {
+	if err := ctx.Err(); err != nil {
+		return SnapshotResult{}, err
 	}
-	ctx, cancel := context.WithTimeout(ctx, 10*time.Minute)
-	defer cancel()
-	cmd := exec.CommandContext(ctx, bin, "-bail", "-batch", db, command)
-	cmd.WaitDelay = time.Second
-	var out bytes.Buffer
-	cmd.Stdout, cmd.Stderr = &out, &out
-	err := cmd.Run()
-	return out.String(), err
+	if !validPath(rel) {
+		return SnapshotResult{}, errors.New("invalid database path")
+	}
+	root, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		return snapshotFailure(err, "source root"), nil
+	}
+	root, err = filepath.Abs(root)
+	if err != nil {
+		return SnapshotResult{}, err
+	}
+	if err := s.validateRoots(root, stagingRoot); err != nil {
+		return snapshotFailure(err, "snapshot configuration"), nil
+	}
+	dir, err := openSafeDir(root, false)
+	if err != nil {
+		return snapshotFailure(err, "source root"), nil
+	}
+	defer dir.Close()
+	parent, _, err := safeParent(dir, rel, false)
+	if err != nil {
+		return snapshotFailure(err, "source directory"), nil
+	}
+	defer parent.Close()
+	parentBefore, err := parent.Stat()
+	if err != nil {
+		return SnapshotResult{}, err
+	}
+	src := filepath.Join(root, rel)
+	before, dbBefore, err := observeDatabase(src)
+	if err != nil {
+		return snapshotFailure(err, rel), nil
+	}
+	// Keep the original inode alive until the identity fence completes. This
+	// descriptor belongs to the Go collector, which owns no SQLite connections.
+	// It cannot cancel the separate SQLite child's POSIX locks when closed.
+	source, err := openRegularAt(dir, rel, unix.O_RDONLY)
+	if err != nil {
+		return snapshotFailure(err, rel), nil
+	}
+	defer source.Close()
+	opened, err := source.Stat()
+	if err != nil {
+		return SnapshotResult{}, err
+	}
+	if !os.SameFile(dbBefore, opened) {
+		return SnapshotResult{Status: SnapshotRejected, Detail: "source identity changed before backup"}, nil
+	}
+	if before.DBSize > MaxSnapshotRawBytes || before.WALSize > MaxSnapshotRawBytes-before.DBSize {
+		return SnapshotResult{Status: SnapshotRejected, Detail: fmt.Sprintf("%s exceeds the %d-byte snapshot bound", rel, int64(MaxSnapshotRawBytes))}, nil
+	}
+	if err := os.MkdirAll(s.Scratch, 0700); err != nil {
+		return SnapshotResult{}, err
+	}
+	scratch, err := filepath.EvalSymlinks(s.Scratch)
+	if err != nil {
+		return SnapshotResult{}, err
+	}
+	work, err := os.MkdirTemp(scratch, "sqlite-")
+	if err != nil {
+		return SnapshotResult{}, err
+	}
+	lease, err := snapshotLease(filepath.Join(work, "lease"), true)
+	if err != nil {
+		os.RemoveAll(work)
+		return SnapshotResult{}, err
+	}
+	defer func() { os.RemoveAll(work); lease.Close() }()
+	runner := s.Runner
+	if runner == nil {
+		runner = ExecSQLiteRunner{SQLite: s.SQLite}
+	}
+	out, err := runner.Run(ctx, SQLiteRequest{Purpose: SQLiteAcquire, Database: src, Work: work, Lease: lease, ReadSeconds: SnapshotReadSeconds(before.DBSize + before.WALSize)})
+	if ctx.Err() != nil {
+		return SnapshotResult{}, ctx.Err()
+	}
+	if err != nil {
+		return snapshotFailure(err, out.Stderr), nil
+	}
+	_, dbAfter, err := observeDatabase(src)
+	if err != nil {
+		return snapshotFailure(err, rel), nil
+	}
+	parentAfter, err := os.Stat(filepath.Dir(src))
+	if err != nil || !os.SameFile(dbBefore, dbAfter) || !os.SameFile(parentBefore, parentAfter) {
+		return SnapshotResult{Status: SnapshotRejected, Detail: "source identity changed during backup"}, nil
+	}
+	snap := filepath.Join(work, "snapshot.sqlite")
+	info, err := os.Lstat(snap)
+	if err != nil {
+		return snapshotFailure(err, "backup output"), nil
+	}
+	if !info.Mode().IsRegular() || info.Size() > MaxSnapshotRawBytes {
+		return SnapshotResult{Status: SnapshotRejected, Detail: "private snapshot exceeds bound or is not regular"}, nil
+	}
+	out, err = runner.Run(ctx, SQLiteRequest{Purpose: SQLiteValidate, Database: snap, Work: work, Lease: lease})
+	if ctx.Err() != nil {
+		return SnapshotResult{}, ctx.Err()
+	}
+	if err != nil {
+		return snapshotFailure(err, out.Stderr), nil
+	}
+	if out.Overflow || strings.TrimSpace(out.Stdout) != "delete\nok" {
+		return SnapshotResult{Status: SnapshotRejected, Detail: "private snapshot integrity check failed"}, nil
+	}
+	if err := os.Chmod(snap, 0o600); err != nil {
+		return SnapshotResult{}, err
+	}
+	dest := filepath.Join(stagingRoot, rel)
+	if err := os.MkdirAll(filepath.Dir(dest), 0700); err != nil {
+		return SnapshotResult{}, err
+	}
+	if same, err := sameContent(snap, dest); err == nil && same {
+		return SnapshotResult{Status: SnapshotReady}, nil
+	}
+	if err := ctx.Err(); err != nil {
+		return SnapshotResult{}, err
+	}
+	if err := os.Rename(snap, dest); err != nil {
+		return SnapshotResult{}, err
+	}
+	return SnapshotResult{Status: SnapshotReady}, nil
+}
+
+// validateRoots runs before scratch cleanup, directory creation or SQLite.
+// Existing ancestors are resolved even when output directories do not exist yet.
+func (s SQLiteSnapshotter) validateRoots(root string, staging ...string) error {
+	source, err := canonicalSnapshotPath(root)
+	if err != nil {
+		return err
+	}
+	outputs := append([]string{s.Scratch}, staging...)
+	for _, output := range outputs {
+		path, err := canonicalSnapshotPath(output)
+		if err != nil {
+			return fmt.Errorf("snapshot output %q: %w", output, err)
+		}
+		if overlaps(source, path) {
+			return fmt.Errorf("source %q overlaps snapshot output %q; staging and scratch directories must be separate", source, path)
+		}
+	}
+	return nil
+}
+
+func canonicalSnapshotPath(path string) (string, error) {
+	if path == "" {
+		return "", errors.New("empty snapshot directory")
+	}
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return "", err
+	}
+	resolved, err := filepath.EvalSymlinks(abs)
+	if err == nil {
+		return resolved, nil
+	}
+	if !errors.Is(err, os.ErrNotExist) {
+		return "", err
+	}
+	// A dangling symlink is not a missing output directory: refuse it.
+	if _, statErr := os.Lstat(abs); !errors.Is(statErr, os.ErrNotExist) {
+		return "", err
+	}
+	parent, err := canonicalSnapshotPath(filepath.Dir(abs))
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(parent, filepath.Base(abs)), nil
+}
+
+func snapshotLease(path string, create bool) (*os.File, error) {
+	flags := unix.O_RDWR | unix.O_CLOEXEC | unix.O_NOFOLLOW | unix.O_NONBLOCK
+	if create {
+		flags |= unix.O_CREAT | unix.O_EXCL
+	}
+	fd, err := unix.Open(path, flags, 0600)
+	if err != nil {
+		return nil, err
+	}
+	f := os.NewFile(uintptr(fd), path)
+	info, err := f.Stat()
+	if err == nil && !info.Mode().IsRegular() {
+		err = errors.New("scratch lease is not regular")
+	}
+	if err == nil {
+		err = unix.Flock(fd, unix.LOCK_EX|unix.LOCK_NB)
+	}
+	if err != nil {
+		f.Close()
+		return nil, err
+	}
+	return f, nil
 }
 
 func copyRegularFile(from, to string) error {
@@ -196,8 +311,7 @@ func sameContent(a, b string) (bool, error) {
 	}
 }
 
-// Sweep removes private working copies a killed pass left behind. The
-// continuous pass calls it under its lock, so no snapshot is in progress.
+// Sweep removes abandoned private work only after acquiring its lifetime lease.
 func (s SQLiteSnapshotter) Sweep() error {
 	entries, err := os.ReadDir(s.Scratch)
 	if errors.Is(err, os.ErrNotExist) {
@@ -206,11 +320,24 @@ func (s SQLiteSnapshotter) Sweep() error {
 	if err != nil {
 		return err
 	}
-	for _, e := range entries {
-		if e.IsDir() && strings.HasPrefix(e.Name(), "sqlite-") {
-			if err := os.RemoveAll(filepath.Join(s.Scratch, e.Name())); err != nil {
-				return err
-			}
+	for _, entry := range entries {
+		if !entry.IsDir() || !strings.HasPrefix(entry.Name(), "sqlite-") {
+			continue
+		}
+		work := filepath.Join(s.Scratch, entry.Name())
+		lease, err := snapshotLease(filepath.Join(work, "lease"), false)
+		if errors.Is(err, unix.EWOULDBLOCK) || errors.Is(err, unix.EAGAIN) {
+			continue
+		}
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("scratch lease unavailable; work left intact at %s: %w", work, err)
+		}
+		removeErr := os.RemoveAll(work)
+		if lease != nil {
+			lease.Close()
+		}
+		if removeErr != nil {
+			return removeErr
 		}
 	}
 	return nil

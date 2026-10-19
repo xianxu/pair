@@ -1,11 +1,23 @@
 # History backup
 
 `pair archive` is an explicit batch backup path. It archives selected stable
-regular files as tar → zstd `-19` → GPG public-key encryption, reads the published
+regular files as tar → zstd → GPG public-key encryption, reads the published
 ciphertext back to verify its SHA256 and size, and records verified bundles in a
 private local catalog. It preserves every source file. The entrypoint is
 [`archivecmd`](../cmd/internal/archivecmd/run.go); the implementation is
 [`historyarchive`](../cmd/internal/historyarchive/archive.go).
+
+Compression uses `-9 -T0` for `codex-database` and `-19 -T0` for every
+other kind. The manifest and label record the actual level; readers accept
+canonical positive zstd levels independently of this writer policy. Encoding
+rejects levels above 22 before spawning and uses `--ultra` for levels 20–22.
+Existing level-19 bundle IDs remain readable, and unchanged source content is
+skipped rather than recompressed. On the measured 2 GB history snapshot, level 9
+produced 205 MB in 2.2 s versus level 19’s 147 MB in 56.3 s (both `-T0`),
+saving about 454 CPU-seconds for 58 MB more per changed daily bundle. This
+trades roughly 21 GB/year of storage for much less daily compression work.
+`PAIR_ARCHIVE_LIVE=1` enables the isolated-key
+codec round-trip conformance test for levels 9, 19, 20 and 22.
 
 ## Commands and request
 
@@ -132,10 +144,11 @@ Durability is reconfirmed for existing records as well as newly written records.
 
 A file larger than the target may occupy its own bundle up to the hard limit.
 Tar headers and compression overhead are additional to raw payload accounting.
-Metadata is bounded and file bytes stream; one zstd process uses one compression
-thread per invocation. zstd `-19` has its own working memory, so these limits do
-not imply a strict low total RSS. There are no host-wide scans or parallel
-compressions within an invocation. The operation is cancellable without a fixed
+Metadata is bounded and file bytes stream. Each bundle uses one zstd process
+with `-T0` (all available CPU threads); bundles are compressed serially within
+an invocation. Compression working memory depends on level and thread count,
+so these limits do not imply a strict low total RSS. There are no host-wide
+scans or concurrent bundle compressions within an invocation. The operation is cancellable without a fixed
 success deadline; cancellation joins the transform children and tar writer.
 
 The invocation owns its temporary ciphertext and removes it on ordinary return.
@@ -187,7 +200,7 @@ source directories. The test cleans its temporary keyring and isolated agent.
 
 ## Continuous mode (#592)
 
-`pair archive continuous [--kind KIND]` is one pass over the continuous kinds
+`pair archive continuous [--kind KIND] [--json]` is one pass over the continuous kinds
 (`historyarchive.ContinuousKinds`): Claude, Codex and Qoder transcripts, Codex
 databases, ops documents (`teams/*/qa`, `teams/*/assets`,
 `teams/*/tl-status-*.side`) and each repository's git-common `sdlc/`. It is
@@ -204,12 +217,75 @@ does nothing.
   is a new version. Worktree slots share their repository's git common dir, so
   sdlc data is archived once per repository.
 - **Databases:** snapshotted daily regardless of quiet. `SQLiteSnapshotter`
-  never opens the live file: it copies the `-wal` and then the database into a
-  private directory, refuses the copy if either changed meanwhile (a checkpoint
-  mid-copy), runs SQLite's `.backup` on the private copy, switches it to
-  `journal_mode=DELETE` and passes `PRAGMA integrity_check` before publishing
-  it under `$PAIR_DATA_DIR/archive-snapshots/` (outside the catalog directory).
-  A skipped database is retried on the next pass.
+  opens the live database through SQLite's read-only WAL-reader protocol,
+  pins a read transaction and runs `.backup` into a private directory. DB/WAL
+  content is never written by the reader; SQLite may create/update SHM read
+  marks. The source reader has a size-scaled 5–30 second budget and a 250ms busy timeout,
+  with no retry inside the pass. The pair binary's internal `exec-alarm`
+  launcher arms a kernel timer before execing SQLite, so collector death
+  cannot leave an unbounded read pin. Its periodic interval also protects a
+  launcher whose first alarm expired before exec. A scratch flock inherited
+  by the child prevents cleanup while an orphaned reader is still alive.
+  Source replacement refuses publication. After the source reader exits,
+  only the private candidate is switched to `journal_mode=DELETE` and checked
+  with `PRAGMA integrity_check` (separate 10-minute ceiling), then published
+  under `$PAIR_DATA_DIR/archive-snapshots/`. Opaque backup preserves unknown
+  SQL schema/values and implicit rowids. Invalid/truncated tool output never
+  counts as integrity evidence. Cancellation discards the candidate and keeps
+  the previous stage and verified bundles. A deferred database waits for the
+  next scheduled pass or an explicit operator rerun; generic CLI failures are
+  unknown failures, never guessed to be busy from their text.
+  The read budget is twice the estimated DB+WAL copy time at 190 decimal MB/s,
+  rounded up and clamped to 5–30 seconds. The measured approximately 2GB
+  history database gets 21 seconds; the context and kernel alarm use the same
+  value, never renewed. macOS system SQLite 3.54 may fail a closed WAL-mode
+  database lacking WAL/SHM sidecars; that diagnosed compatibility limitation
+  is tracked in #701, separately from the active-history backup fix.
+- **Database freshness:** each pass prints archived, unchanged, deferred or
+  failed per database, plus its last verified catalog timestamp/age (or never).
+  A checked-unchanged source is current even when its stored bundle is old;
+  a skipped source has no successful check timestamp. Acquisition success
+  alone is not a verified backup. These are runtime reports, with no catalog
+  or manifest format changes. `continuous.last` still means pass completion,
+  not that every database has a fresh bundle.
+- **Drive file count (#705):** the human and version-1 JSON reports reuse the
+  pass's existing listings, counting every non-directory entry, including
+  duplicate names and unrelated files. A successful final listing replaces the
+  explicitly labeled before count; later failure retains the before evidence.
+  Missing, skipped or failed initial listings remain unknown, never zero; no
+  extra remote query fills the gap. `PAIR_ARCHIVE_DRIVE_MAX_FILES` is a positive
+  integer (default `20000`); invalid settings fail before work. A count strictly
+  above the threshold asks the hub to arrange year subfolders on Drive.
+  Couch uses the same notification path and daily gate as database warnings,
+  keyed by the canonical configured destination root, not its physical folder
+  ID. Counts, threshold changes and uncertain output do not rearm that day's
+  attempt; restart allows one fresh warning. The optional JSON observation
+  carries destination, folder ID, before/after phase and count, plus the envelope's
+  `max_drive_files`; legacy reports remain readable with an unknown count.
+  This reports capacity only and never moves files. Future month-folder
+  aggregation can retain the configured-root contract.
+- **Freshness warnings (#700):** `PAIR_ARCHIVE_DATABASE_MAX_AGE` is a positive
+  Go duration (default `48h`); malformed or nonpositive settings fail before
+  work. Only failed/deferred checks warn when the catalog's last verified
+  bundle is strictly older than the threshold, or immediately when never
+  verified. Successful unchanged validation is healthy, retaining the old
+  verified timestamp without recompression. Each warning names the database
+  and asks the hub to repair its backup.
+  Couch reserves one attempt per exact source/kind/path per UTC day, in memory
+  for its lifetime. Restart permits a fresh warning; a failed or uncertain
+  delivery consumes the reservation, without retry. Database and Drive reservations share a bound
+  of 10,000 keys/day with one overflow warning. Warnings use status, desktop
+  output and attention on the connected primary hub's exact thread, never
+  inferred source ownership or broadcast. Without that hub, status and desktop
+  output explicitly say it is unavailable; no attention item is raised. The
+  report and attempted warning remain in `continuous.log`. The small
+  `archiveWarningOwner` seam owns future machine-wide steward routing.
+  The scheduler requests `--json`: stdout is one version-1 report, bounded to
+  4 MiB, including partial database results on a failed pass; stderr remains
+  diagnostic. Readers tolerate additive fields, refuse ambiguous/invalid
+  known data, and retain original JSON bytes in the existing latest-pass log.
+  No catalog, manifest, config or completion-marker format changes.
+- Snapshot admission rejects canonical overlap of every native source with scratch or any snapshot staging destination across source kinds and regardless of the pass filter before cleanup or directory creation, including symlink aliases and output directories not yet created. A configuration error names the overlapping roots. Ordinary database publication failures are accumulated while later validated databases continue; cancellation still stops the pass.
 - **Never deletes sources or retained copies;** writes the archive store, snapshot root, local sink/catalog, and the configured remote after local success. One pass at a time (`continuous.lock`); a completed full pass
   writes `continuous.last`.
 - **Schedule:** Couch checks hourly and runs the command at `nice 10` when
@@ -217,6 +293,39 @@ does nothing.
   logging to `$PAIR_DATA_DIR/archive/continuous.log`. A manual run uses the same
   lock.
 - Files over their kind's raw bound are skipped with a note. Database snapshots use the snapshot bound (`rawBundleLimit`, 8 GiB): they compress well (Codex `thread_history_1.sqlite` 1.60 GB to 115 MB), so the 2 GiB ciphertext bound is their real limit, and a snapshot whose compressed bundle exceeds it is skipped with a note (`ErrCiphertextLimit`), not a failed pass (#616). Each snapshot is its own request, so a skip never drops another database. Cost: a database that changes daily is a new version every pass, and the sink never deletes; at the measured 115 MB per `thread_history_1.sqlite` bundle that is roughly 40 GB a year for that one database. Pruning old snapshot versions is a separate, not-yet-made retention decision.
+
+The raw bound is checked before acquisition and on the private output; it is
+not a filesystem quota. One candidate runs at a time. Temporary candidate growth
+and native WAL growth behind a pinned reader are limited by reader lifetime,
+not an exact transient byte cap. Disk-full fails without replacing prior data.
+Scratch `sqlite-*` directories are removed on completion or swept under the
+continuous lock once their work lease is free; unreadable leases are left intact
+with an error for inspection. Staging keeps the latest validated file per path;
+unchanged bytes retain its mtime for dedup. Encrypted versions retain the existing
+storage policy above.
+
+### SQLite conformance and native acceptance
+
+The ordinary historyarchive suite uses disposable SQLite writers and kernel-alarm
+owner-death fixtures; it never opens native databases. The opt-in
+`TestSQLiteSnapshotLiveContinuous` requires `PAIR_SQLITE_LIVE_ACCEPTANCE=1` and
+`PAIR_SQLITE_LIVE_LAUNCHER` pointing at the tested pair-go binary. Coordinate it
+with the hub/operator first: it writes normal encrypted bundles to the configured
+local sink/catalog, uses only the codex-database kind, omits Drive, and has a
+five-minute outer budget. Select the normal configured `PAIR_DATA_DIR` explicitly
+when a Couch slot injects a repository-scoped data root. It reports per-source
+read budget, acquisition duration, snapshot bytes and WAL size changes.
+
+If only publication exceeded that outer budget, a separately approved
+`TestSQLiteSnapshotPublishStagedHistory` run (`PAIR_SQLITE_PUBLISH_STAGED=1`)
+publishes the retained validated history staging file under the existing
+continuous lock. It never opens a native database or takes another snapshot.
+Its transform has a 30-minute bound; run it at low priority and give the Go test
+runner a longer timeout (for example `-timeout=31m`). Optional
+`PAIR_STAGE_ZSTD`/`PAIR_STAGE_GPG` paths permit content-free tool timing wrappers;
+an external owner must bound and clean up the complete process group when using
+such wrappers. Normal suites skip both native acceptance helpers. Large snapshot
+compression policy is tracked separately in #702.
 
 
 ## Drive copies (#678)

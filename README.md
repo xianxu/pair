@@ -651,16 +651,26 @@ operations: retry switching when the old agent is still running; after a failed
 target start is proved gone, resume the old conversation. Uncertain terminal
 ownership must be resolved before another agent starts.
 
-Failed launches leave a one-line explanation, attempt ID, diagnostic file path,
-and an inspection command, such as
-`couch --show ariadne:5`. Inspection retains the target's error, the final switch
-error, output tail, and exits observed before and after cleanup separately.
-An unobserved exit is not proof that the target crashed. Each Couch namespace
-keeps its newest 16 failed attempts, with at most 16 KiB of output per attempt;
-rollback, restart, and a later successful launch do not erase them. Ordinary
-launches capture stderr; terminal launches label their combined stdout/stderr.
-Inspection strips terminal controls. Abrupt termination before Couch records a
-failure can still leave no diagnostic.
+Accepted lifecycle actions that fail leave an explanation and operation nonce in the receipt,
+with retained evidence available through `couch --show SLOT`. The switcher row
+and show display the latest historical failure, including refusals before launch
+and failures during preparation, adoption or readiness. Classified failures name
+their phase; otherwise they name the operation. A later verified park or committed
+live start recorded for the slot hides older failures without rewriting the log.
+Retirement alone is not success. If no later success is recorded, the failure
+remains visible as historical evidence. Requests refused before entering the queue
+remain immediate messages. Diagnostics never block recovery or console input.
+
+Each Couch namespace retains up to 64 failures in
+`<namespace>/launch-diagnostics/failures.json`, capped at 1 MiB by evicting the
+oldest whole records. The file retains the nonce after the five-minute receipt
+expires, until that evidence is evicted. Launch evidence includes a 16 KiB output
+tail, bounded errors and separate exits observed before and after cleanup.
+Ordinary launches capture stderr; terminal launches label combined stdout/stderr.
+An unobserved exit is not proof of a crash. Display strips terminal controls.
+Unreadable or unpublished diagnostics are reported explicitly. Abrupt termination
+before the terminal outcome is recorded can leave no diagnostic. These records
+explain failures; recovery still uses the existing confirmed lifecycle actions.
 
 For a startup timing probe, set `PAIR_STARTUP_TIMING=1` before launching Pair
 or Couch. Pair emits phase names, consecutive durations and cumulative elapsed
@@ -1288,6 +1298,19 @@ notification hop, and `Ctrl-Backspace` afterwards still brings you back to where
 you were working. Pressed again, it goes to the next page. With nothing paging it
 stays put and says so on the status row. Inside the switcher it is not claimed
 and acts as the switcher's own `Enter`.
+
+`Ctrl+Alt+a` opens the **attention list** (pair#673): what is waiting on you,
+newest first. It holds three kinds of item: the hub's `couch --notify` messages,
+slots blocked on a permission prompt or picker, and slots whose turn ended with
+a question to you. While the list has items, the right end of the status row
+shows `🔔N`, red if a slot is blocked on a prompt; click it to open the list too.
+The list opens at the top right. `Up`/`Down` (or `k`/`j`) move, `Enter` or a
+click jumps to the item's slot, `d` dismisses, and `Escape` closes. Picking a
+notification reads it, so it goes. A prompt or question stays until the slot
+stops waiting, whoever answered it. The list survives a Couch restart: messages
+come back as they were, and prompts and questions come back once the slot is
+seen still waiting. The list is never broadcast. The desktop notification still
+fires, and helps when the terminal is in the background.
 
 `Ctrl+Alt+b` **broadcasts** this screen, view-only, to anyone with the link
 (#395). The link is copied to your clipboard (it is never drawn on screen);
@@ -1970,7 +1993,7 @@ From a non-agent Pair pane, detach with `Alt+d`. For Couch-managed work, use the
 
 ## History backup
 
-🤖{Use `pair archive inventory` to inspect supported history sources and `pair archive create --request /private/tmp/pair-archive-request.json` to back up explicitly selected stable files. Creation streams tar through zstd `-19` and GPG public-key encryption, verifies stored ciphertext and records the result in a private local catalog; it preserves source files. Install `gpg` and `zstd`, supply a trusted full public-key fingerprint and separate source, sink and catalog paths. No private key is needed for creation. [History backup](atlas/history-backup.md) documents the request JSON, defaults, limits, retry behavior and operator key-recovery checklist. `pair archive continuous` runs one pass over agent transcripts, Codex databases, ops documents and sdlc data, configured by `$PAIR_DATA_DIR/archive/continuous.json`: it archives files once they have been unmodified for three days, each file once by content hash, and takes coherent private snapshots of Codex databases without opening them in place; Couch runs it daily when configured. Continuous mode also copies the encrypted bundles and public labels to the configured rclone destination (default `pair-backup:backups/pair-history`) after local backup succeeds, using one batch with up to eight transfers. When running from a Pair-slot terminal, set `PAIR_DATA_DIR="$HOME/.local/share/pair"` explicitly to select the shared configuration. Install and configure `rclone` separately; optional `drive_remote` and `drive_folder` settings select the destination. Drive failures leave local backup intact and print a pending/unavailable note. Verified upload receipts are kept separately from the local catalog. `pair archive find [--kind KIND] [--since UTC] [--until UTC]` searches local public labels without network calls; `pair archive sync-index --from drive` reconstructs the separate label/location index by downloading labels only. Dated observed/verified location evidence remains separate from local backup authority. Use `pair archive restore --id ID --to /absolute/private-scratch/new-child [--from auto|local|drive] [--path REL]` to recover verified files; repeat `--id` and literal `--path` as needed. Restore checks the downloaded ciphertext and every archived member, then publishes only a complete fresh directory after decryption succeeds. It uses the operator’s installed private key through normal GPG pinentry; it never imports files into live agent roots. Sources remain unchanged. See the [Drive verification and retry guide](atlas/history-backup.md#drive-copies-678).}
+🤖{Use `pair archive inventory` to inspect supported history sources and `pair archive create --request /private/tmp/pair-archive-request.json` to back up explicitly selected stable files. Creation streams tar through zstd (`-9 -T0` for Codex databases, `-19 -T0` for other kinds) and GPG public-key encryption, verifies stored ciphertext and records the result in a private local catalog; it preserves source files. Install `gpg` and `zstd`, supply a trusted full public-key fingerprint and separate source, sink and catalog paths. No private key is needed for creation. [History backup](atlas/history-backup.md) documents the request JSON, defaults, limits, retry behavior and operator key-recovery checklist. `pair archive continuous` runs one pass over agent transcripts, Codex databases, ops documents and sdlc data, configured by `$PAIR_DATA_DIR/archive/continuous.json`: it archives files once they have been unmodified for three days, each file once by content hash, and takes coherent private snapshots of Codex databases through bounded read-only SQLite transactions; Couch runs it daily when configured and warns once per database per UTC day when a failed/deferred check has no verified backup or one older than `PAIR_ARCHIVE_DATABASE_MAX_AGE` (default `48h`); currently validated unchanged databases stay healthy. Continuous mode also copies the encrypted bundles and public labels to the configured rclone destination (default `pair-backup:backups/pair-history`) after local backup succeeds, using one batch with up to eight transfers. When running from a Pair-slot terminal, set `PAIR_DATA_DIR="$HOME/.local/share/pair"` explicitly to select the shared configuration. Install and configure `rclone` separately; optional `drive_remote` and `drive_folder` settings select the destination. Drive failures leave local backup intact and print a pending/unavailable note. The same listings supply a before/after file count; Couch warns once per destination root per UTC day above `PAIR_ARCHIVE_DRIVE_MAX_FILES` (default `20000`), suggesting year subfolders. An unavailable count stays unknown. Verified upload receipts are kept separately from the local catalog. `pair archive find [--kind KIND] [--since UTC] [--until UTC]` searches local public labels without network calls; `pair archive sync-index --from drive` reconstructs the separate label/location index by downloading labels only. Dated observed/verified location evidence remains separate from local backup authority. Use `pair archive restore --id ID --to /absolute/private-scratch/new-child [--from auto|local|drive] [--path REL]` to recover verified files; repeat `--id` and literal `--path` as needed. Restore checks the downloaded ciphertext and every archived member, then publishes only a complete fresh directory after decryption succeeds. It uses the operator’s installed private key through normal GPG pinentry; it never imports files into live agent roots. Sources remain unchanged. See the [Drive verification and retry guide](atlas/history-backup.md#drive-copies-678).}
 
 ## Storage retention
 
@@ -2175,6 +2198,14 @@ and 64 sessions across repeated launches; exhaustion refuses a new capture.
 Preserve or remove specific saved sessions to free their reservations. See the
 [live-capture runbook](atlas/couch-live-capture.md) for limits, legacy recordings,
 private-file handling, stop behavior and streaming extraction.
+
+### SQLite backup qualification
+
+Ordinary tests use disposable writers. Native backup acceptance is opt-in and
+writes encrypted bundles to the normal configured local sink/catalog; coordinate
+it with the operator or hub first. See [SQLite conformance and native
+acceptance](atlas/history-backup.md#sqlite-conformance-and-native-acceptance) for
+the guarded live pass, source-read limits and publication-only check.
 
 ### Terminal backend qualification
 

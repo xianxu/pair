@@ -9,6 +9,7 @@ import (
 	"io"
 	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -266,7 +267,7 @@ func ValidateManifest(m Manifest) error {
 	if !validTime(m.From) || !validTime(m.To) || m.To.Before(m.From) {
 		return errors.New("invalid UTC manifest range")
 	}
-	if m.Compression != "zstd -19" {
+	if _, err := compressionLevel(m.Compression); err != nil {
 		return errors.New("unsupported compression")
 	}
 	if err := validateRecipients(m.Recipients); err != nil {
@@ -310,7 +311,7 @@ func ValidateLabel(l BundleLabel) error {
 	if err := validateKind(l.Kind); err != nil {
 		return err
 	}
-	if !validTime(l.From) || !validTime(l.To) || l.To.Before(l.From) || l.Compression != "zstd -19" || l.FileCount < 1 || l.FileCount > MaxFiles || l.RawBytes < 0 || l.RawBytes > rawBundleLimit(l.Kind) || l.Bytes <= 0 || l.Bytes > MaxCiphertextBytes {
+	if !validTime(l.From) || !validTime(l.To) || l.To.Before(l.From) || !validCompression(l.Compression) || l.FileCount < 1 || l.FileCount > MaxFiles || l.RawBytes < 0 || l.RawBytes > rawBundleLimit(l.Kind) || l.Bytes <= 0 || l.Bytes > MaxCiphertextBytes {
 		return errors.New("invalid label range or bounds")
 	}
 	if err := validateRecipients(l.Recipients); err != nil {
@@ -338,4 +339,19 @@ func ValidateRecord(r CatalogRecord) error {
 		return errors.New("catalog record does not match manifest or verification")
 	}
 	return metadataBound(r)
+}
+
+// Compression describes the stream, not the current writer policy. Future
+// canonical positive levels remain readable by the same zstd decompressor.
+func compressionLevel(descriptor string) (int, error) {
+	value := strings.TrimPrefix(descriptor, "zstd -")
+	level, err := strconv.Atoi(value)
+	if err != nil || level < 1 || "zstd -"+strconv.Itoa(level) != descriptor {
+		return 0, errors.New("unsupported compression descriptor")
+	}
+	return level, nil
+}
+func validCompression(descriptor string) bool {
+	_, err := compressionLevel(descriptor)
+	return err == nil
 }
