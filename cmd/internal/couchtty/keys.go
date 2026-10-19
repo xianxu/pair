@@ -32,6 +32,7 @@ const (
 	seqNewestPage
 	seqBroadcast
 	seqWebcast
+	seqAttention
 	// Every new kind goes ABOVE this line. An omitted expression in a const block
 	// repeats the previous one, so a kind appended below would EQUAL seqSwitch.
 	// With a hit() case that is a duplicate-case compile error; without one -- a
@@ -88,6 +89,8 @@ const (
 	// HitWebcast is shift+ctrl+alt+b: start the cast Chrome, or go live,
 	// pause or resume its cast (#454).
 	HitWebcast
+	// HitAttention is ctrl+alt+a: open or close the attention list (pair#673).
+	HitAttention
 	// HitMouse is an SGR mouse report. It has NO seqKind: a report's shape is
 	// `\x1b[<button;col;rowM|m` with variable digits, so knownSequences -- which
 	// holds fixed strings -- cannot express it, and FeedHit matches it against
@@ -142,6 +145,8 @@ func dispatchFor(action couchkeys.Action) (InterceptorHit, seqKind) {
 		return HitBroadcast, seqBroadcast
 	case couchkeys.ActionWebcast:
 		return HitWebcast, seqWebcast
+	case couchkeys.ActionAttention:
+		return HitAttention, seqAttention
 	}
 	return HitNone, seqNone
 }
@@ -179,7 +184,7 @@ type MouseHit struct {
 // HitNone is deliberately absent: it is the ABSENCE of a hit, and giving it a
 // handler would be inventing an action for "nothing happened".
 func AllInterceptorHits() []InterceptorHit {
-	return []InterceptorHit{HitSwitch, HitPark, HitPrevious, HitNewestPage, HitDetach, HitRelaunch, HitBroadcast, HitWebcast, HitMouse}
+	return []InterceptorHit{HitSwitch, HitPark, HitPrevious, HitNewestPage, HitDetach, HitRelaunch, HitBroadcast, HitWebcast, HitAttention, HitMouse}
 }
 
 // knownSequences is every multi-byte sequence the console must recognise in the

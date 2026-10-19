@@ -173,3 +173,37 @@ func (w *waitRig) repaint(offset time.Duration, seq uint64) {
 		time.Sleep(5 * time.Millisecond)
 	}
 }
+
+// #673 BR-3: the blocked-prompt set reaches the attention list as prompt
+// conditions: the slot appears when its picker opens and leaves when it
+// closes, whoever answered it.
+func TestBlockedPromptsReachTheAttentionList(t *testing.T) {
+	w := newWaitRig(t, false, true, recordedPermissionTail)
+	var mu sync.Mutex
+	var prompts []map[couchcore.ThreadAddress]couchcore.AttentionCondition
+	w.s.SetAttention(func(f couchcore.AttentionFact) {
+		if f.Kind != couchcore.AttentionPrompt {
+			return
+		}
+		mu.Lock()
+		prompts = append(prompts, f.Live)
+		mu.Unlock()
+	})
+	last := func() map[couchcore.ThreadAddress]couchcore.AttentionCondition {
+		mu.Lock()
+		defer mu.Unlock()
+		if len(prompts) == 0 {
+			return nil
+		}
+		return prompts[len(prompts)-1]
+	}
+	thread := bindingThread(w.worker)
+	w.reportPicker(true)
+	if got := last(); len(got) != 1 || got[thread] != (couchcore.AttentionCondition{Label: w.worker.Slot, Title: attentionPromptTitle}) {
+		t.Fatalf("prompt set after the picker opened: %+v", got)
+	}
+	w.reportPicker(false)
+	if got := last(); got == nil || len(got) != 0 {
+		t.Fatalf("prompt set after the picker closed: %+v", got)
+	}
+}
