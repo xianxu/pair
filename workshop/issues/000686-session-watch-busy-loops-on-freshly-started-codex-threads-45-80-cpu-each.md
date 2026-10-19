@@ -145,3 +145,7 @@ Hub6593f812-a3ff-468a-ad5e-63aa04669518 explicitly changes live acceptance to po
 ### 2026-10-18 — close round1 REWORK, BR-1 documentation corrected
 
 Boundary review found no runtime defect and independently passed sessionwatch/sessionledger/sessioninventory/artifactpath packages. BR-1 is the stale Core concepts table: cadence moved into bound_state.go, and scanner state belongs to boundCheckpoint rather than TranscriptCursor. Updated the delivered entity map and appended a Revision preserving the prior wording/delta. No production/test changes, so the queued c0f766ffc suite remains applicable. Rerun full close for explicit disposition; live acceptance stays owed per the hub.
+
+### 2026-10-18 — full recorded suite PASS; SHIP ready for landing
+
+The unchanged-code recorded suite passed on c0f766ffc193084da608b9a973ac2b07d039db37, exit0 in16m25s after the shared queue; no flakes or retries. Retained log: /Users/xianxu/workspace/pair/.git/sdlc/local-checks/c0f766ffc193084da608b9a973ac2b07d039db37/suite.log, SHA256 prefix e658dbcaf991; sdlc-local/suite recorded. All shell/editor checks and go test ./... completed; CouchCore515.642s, sessionwatch98.123s, sessionledger14.711s. Close round2 returned SHIP, BR-1 addressed with no new findings. PR446 CI including conformance passed. Only docs changed after the tested code; entering gated merge now. Live offender CPU check remains explicitly OWED to the hub after landing, not claimed passed.
