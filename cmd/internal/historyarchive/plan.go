@@ -93,11 +93,15 @@ func planBundles(r ArchiveRequest, files []FileEntry, collected bool) ([]Manifes
 		}
 		return fs[i].Path < fs[j].Path
 	})
+	compression := "zstd -19"
+	if r.Kind == "codex-database" {
+		compression = "zstd -9"
+	}
 	var out []Manifest
 	var current Manifest
 	var raw int64
 	metadataBytes := 0
-	base := Manifest{Version: Version, Kind: r.Kind, Source: r.Source, Compression: "zstd -19", Recipients: canonicalRecipients(r.Recipients)}
+	base := Manifest{Version: Version, Kind: r.Kind, Source: r.Source, Compression: compression, Recipients: canonicalRecipients(r.Recipients)}
 	// Reserve catalog/label overhead too, so an admitted bundle can be cataloged.
 	// Keys and timestamps use a conservative upper bound; entries are counted exactly.
 	prototype := CatalogRecord{Manifest: base, Sink: r.Sink, BundleKey: strings.Repeat("k", 256+2*len(r.Kind)), LabelKey: strings.Repeat("k", 256+2*len(r.Kind)), Label: BundleLabel{Version: Version, ID: strings.Repeat("a", 64), Kind: r.Kind, FileCount: MaxFiles, RawBytes: rawBundleLimit(r.Kind), Bytes: MaxCiphertextBytes, Compression: base.Compression, Recipients: base.Recipients, SHA256: strings.Repeat("a", 64)}}
@@ -134,7 +138,7 @@ func planBundles(r ArchiveRequest, files []FileEntry, collected bool) ([]Manifes
 			}
 		}
 		if len(current.Files) == 0 {
-			current = Manifest{Version: Version, Kind: r.Kind, Source: r.Source, From: f.Mtime, To: f.Mtime, Compression: "zstd -19", Recipients: canonicalRecipients(r.Recipients)}
+			current = Manifest{Version: Version, Kind: r.Kind, Source: r.Source, From: f.Mtime, To: f.Mtime, Compression: compression, Recipients: canonicalRecipients(r.Recipients)}
 		}
 		current.Files = append(current.Files, f)
 		raw += f.Size

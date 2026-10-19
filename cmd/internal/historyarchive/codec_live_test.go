@@ -69,27 +69,30 @@ func TestCodecLiveRoundTrip(t *testing.T) {
 		tw.Write(f.data)
 	}
 	tw.Close()
-	var cipher bytes.Buffer
-	start := time.Now()
-	if err := c.Encode(ctx, bytes.NewReader(plain.Bytes()), &cipher, []string{fp}); err != nil {
-		t.Fatal(err)
+	for _, descriptor := range []string{"zstd -9", "zstd -19", "zstd -20", "zstd -22"} {
+		var cipher bytes.Buffer
+		start := time.Now()
+		if err := c.Encode(ctx, bytes.NewReader(plain.Bytes()), &cipher, []string{fp}, descriptor); err != nil {
+			t.Fatal(err)
+		}
+		dec := exec.CommandContext(ctx, "gpg", "--no-options", "--homedir", home, "--batch", "--pinentry-mode", "loopback", "--passphrase", "", "--decrypt")
+		dec.Stdin = bytes.NewReader(cipher.Bytes())
+		compressed, err := dec.Output()
+		if err != nil {
+			t.Fatal(err)
+		}
+		unzip := exec.CommandContext(ctx, "zstd", "--decompress", "--stdout", "--quiet")
+		unzip.Stdin = bytes.NewReader(compressed)
+		got, err := unzip.Output()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(got, plain.Bytes()) {
+			t.Fatal("independent decrypt/decompress differs")
+		}
+		t.Logf("round trip: tar=%d ciphertext=%d elapsed=%s (%s -T0; no strict RSS claim)", plain.Len(), cipher.Len(), time.Since(start), descriptor)
+
 	}
-	dec := exec.CommandContext(ctx, "gpg", "--no-options", "--homedir", home, "--batch", "--pinentry-mode", "loopback", "--passphrase", "", "--decrypt")
-	dec.Stdin = bytes.NewReader(cipher.Bytes())
-	compressed, err := dec.Output()
-	if err != nil {
-		t.Fatal(err)
-	}
-	unzip := exec.CommandContext(ctx, "zstd", "--decompress", "--stdout", "--quiet")
-	unzip.Stdin = bytes.NewReader(compressed)
-	got, err := unzip.Output()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !bytes.Equal(got, plain.Bytes()) {
-		t.Fatal("independent decrypt/decompress differs")
-	}
-	t.Logf("round trip: tar=%d ciphertext=%d elapsed=%s (zstd -19 single thread; no strict RSS claim)", plain.Len(), cipher.Len(), time.Since(start))
 
 	// Exercise the production coordinator and filesystem sink with this same
 	// disposable key. Canonical paths avoid macOS /tmp symlink traversal.
