@@ -1,6 +1,6 @@
 ---
 id: 000676
-status: codecomplete
+status: done
 created: 2026-10-18
 updated: 2026-10-18
 estimate_hours: 1.652
@@ -22,6 +22,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 518a5afda71522b491f82a3308e97db9b07d3195
         evidence_commit: 11d3ef587c0fce6006c7551a148eb963c8b5750e
+        landed_commit: e6016fac1fb90e30c2756b24c332ceadc66faa76
 ---
 
 # Exact Claude resume fails above native tree metadata cap
