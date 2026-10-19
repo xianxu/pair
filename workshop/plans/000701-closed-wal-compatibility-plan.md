@@ -29,6 +29,7 @@ SQLite references: [read-only WAL contract](https://www.sqlite.org/wal.html#read
 | Name | Lives in | Status |
 |------|----------|--------|
 | coldWALHeader | cmd/internal/historyarchive/sqlite_cold_model.go | new |
+| coldFileStamp | cmd/internal/historyarchive/sqlite_cold_model.go | new |
 | coldSourceStamp | cmd/internal/historyarchive/sqlite_cold_model.go | new |
 | sameColdSource | cmd/internal/historyarchive/sqlite_cold_model.go | new |
 
@@ -44,7 +45,8 @@ SQLite references: [read-only WAL contract](https://www.sqlite.org/wal.html#read
 | copyColdWAL | cmd/internal/historyarchive/sqlite_cold.go | new | bounded context-aware descriptor reads and private file creation |
 | SQLiteSnapshotter.Snapshot | cmd/internal/historyarchive/sqlite_snapshot.go | modified | route choice and existing lease, validation and atomic staging |
 | SQLiteRunner / ExecSQLiteRunner | cmd/internal/historyarchive/sqlite_snapshot_exec.go | existing, reused | private validation; current active acquisition unchanged |
-| cold-source fixture | cmd/internal/historyarchive/sqlite_cold_test.go | new | stateful descriptor/reader adapter with explicit mutation gates |
+| coldSQLiteFile | cmd/internal/historyarchive/sqlite_cold.go | new | held descriptor adapter for coldSQLiteInput |
+| coldInputFixture | cmd/internal/historyarchive/sqlite_cold_test.go | new | stateful descriptor/reader adapter with explicit mutation gates |
 
 Use existing `openSafeDir`, `safeParent`, `openRegularAt`, `fileDigest`, `validateRoots`, source size cap, scratch lifetime lease and `snapshotFailure`. Do not promote the unbounded `copyRegularFile` test helper into production. Register every new production file in artifactpath's existing exhaustive manifest.
 
@@ -91,12 +93,12 @@ No new UI, warning timer, schema, status enum or online retry. #700's freshness 
 
 | Production function | Adversarial input / independent oracle | Named test / mechanical guard |
 |---|---|---|
-| coldWALHeader | Malformed/truncated header class through generated-prefix/property checks | TestColdWALHeaderTable |
-| sameColdSource | Mutated evidence values through independent field-variation properties | TestColdSourceStampComparison |
+| coldWALHeader | Malformed/truncated header class through generated-prefix/property checks | TestColdWALHeader |
+| sameColdSource | Mutated evidence values through independent field-variation properties | TestSameColdSourceRequiresEveryStampAndNoSidecars |
 | observeColdSource | Unavailable or changed filesystem authority through a stateful filesystem fixture; unknown never grants copy authority | TestObserveColdSourceNeverTreatsUnknownAsAbsent |
 | copyColdWAL | Controlled capture event sequences with independent exact-output/source-preservation/refusal invariants; counted B/2B and N/2N work | TestColdWALCopyRefusesMutations, TestColdWALCopyBoundsAndCancellation, TestColdWALCopyCountedCost |
 | SQLiteSnapshotter.Snapshot | Stateful lane selection and failed-candidate sequences; exact acquisition counts and prior-stage/cleanup invariants | TestSQLiteSnapshotColdAndActiveRoutes, TestSQLiteColdRefusalPreservesPreviousStage |
-| ExecSQLiteRunner | Disposable native CLI conformance against the fake contract; independent SQL and full-source-image oracles | TestSQLiteClosedWALNativeConformance |
+| ExecSQLiteRunner | Disposable native CLI conformance against the fake contract; independent SQL and full-source-image oracles | TestSQLiteClosedWALNativeConformance, TestSQLiteClosedWALRealWriterDuringCapture |
 | ContinuousPass | Mixed-result production pass through the portable store; verified-catalog and isolation invariants | TestContinuousColdWALPublicationAndIsolation |
 | All new sources | exhaustive source inventory and test-only symbol checks | full artifactpath package |
 
@@ -108,25 +110,27 @@ The real conformance fixture qualifies the configured SQLite (ordinary portable 
 
 Files: new sqlite_cold_model_test.go, sqlite_cold_test.go and sqlite_cold_conformance_test.go beside existing snapshot tests. Extend continuous_snapshot_integration_test.go only for the production publication path.
 
-- [ ] Retain the measured closed fixture, opaque schema/rowids and canonical path qualification. Write the public Snapshot regression first; run it before code and require the system CLI failure on macOS.
-- [ ] Add the stateful source adapter and explicit read-boundary mutation gates, with a stable positive control and each changed source field/sidecar as negative controls. No sleeps or external-tool wall-time assertions.
-- [ ] Add exact counted B/2B and N/2N cost assertions and cancellation/cleanup/previous-stage tests; capture red evidence.
+- [x] Retain the measured closed fixture, opaque schema/rowids and canonical path qualification. Write the public Snapshot regression first; run it before code and require the system CLI failure on macOS.
+- [x] Add the stateful source adapter and explicit read-boundary mutation gates, with a stable positive control and each changed source field/sidecar as negative controls. No sleeps or external-tool wall-time assertions.
+- [x] Add exact counted B/2B and N/2N cost assertions and cancellation/cleanup/previous-stage tests; capture red evidence.
 
 ### 2. Minimal cold route, shared publication
 
 Files: new sqlite_cold_model.go, sqlite_cold.go; modify sqlite_snapshot.go and artifactpath/manifest.go.
 
-- [ ] Implement pure header/stamp rules, descriptor-based observation and bounded copy/re-read. Reuse existing hashing and context machinery; keep metadata IO out of pure entities.
-- [ ] Wire one pre-acquisition route choice. Cold refusal never falls through to pinned backup; native active acquisition, private validation and all publication logic keep their current owners.
+- [x] Implement pure header/stamp rules, descriptor-based observation and bounded copy/re-read. Reuse existing hashing and context machinery; keep metadata IO out of pure entities.
+- [x] Wire one pre-acquisition route choice. Cold refusal never falls through to pinned backup; native active acquisition, private validation and all publication logic keep their current owners.
 - [ ] Run the red subset to green, then the whole historyarchive package and source inventory. Commit code and actual evidence with the session Agent trailer.
 
 ### 3. Qualification and delivery
 
-Files: atlas/history-backup.md, README.md only if a new operator/test invocation is introduced; issue and this plan.
+Files: atlas/history-backup.md, README.md (correct the existing all-transaction summary); issue and this plan.
 
-- [ ] Run existing SQLite active-writer, owner-death, source-overlap and continuous-publication tests alongside all new cold tests, then full artifactpath guards. Explain any changed expectation from its contract; do not merely update it.
-- [ ] Document supported observed-cold semantics, conservative namespace refusal and the single recovery action. Keep no format/dependency claim honest; no manifest/catalog codec changes (ARCH-EVOLVE).
-- [ ] Push PR, run the recorded branch suite and close review; address findings with evidence. Enter sdlc merge promptly on SHIP, let it own main integration and its authoritative suite, then report Git-verified merge and owed live acceptance to the hub. Stop before #710 until dispatched onward.
+- [x] Run existing SQLite active-writer, owner-death, source-overlap and continuous-publication tests alongside all new cold tests, then full artifactpath guards. Explain any changed expectation from its contract; do not merely update it.
+- [x] Document supported observed-cold semantics, conservative namespace refusal and the single recovery action. Keep no format/dependency claim honest; no manifest/catalog codec changes (ARCH-EVOLVE).
+- [ ] Run the recorded branch suite on the pushed implementation head.
+
+Delivery after qualification: close review; address findings with evidence. Enter sdlc merge promptly on SHIP, let it own main integration and its authoritative suite, then report Git-verified merge and acceptance to the hub. Stop before #710 until dispatched onward.
 
 ## Architecture disposition
 
@@ -145,3 +149,7 @@ Files: atlas/history-backup.md, README.md only if a new operator/test invocation
 ### 2026-10-19 12:16 PDT — hub approval and PQ-1 strategy compression
 
 Hub approved the mechanism (receipt a29363a1-7c62-43e8-92bd-2bc7cc45e531) and explicitly requires uncertain cold captures to defer without retry. The projection now makes that distinction from a proven unsafe configuration or corrupt candidate. PQ-1 found the strategy table too close to a prose case inventory: compressed the whole table to one adversarial class/mechanical guard per risky function, retaining exact test names, controlled sequencing and independent oracles. No mechanism or scope change.
+
+### 2026-10-19 12:23 PDT — implementation map and executable qualification
+
+The value stamp has an explicit coldFileStamp member type and the OS adapter is coldSQLiteFile; mapped both alongside the stateful fixture and actual test declarations. Real writer conformance adds rollback to isolate transient namespace mutation from DB changes. Native readonly characterization runs on a separate fixture because conforming CLIs can create sidecars: only production Snapshot is required to preserve its untouched source image. Added a dedicated continuous_cold_test.go for catalog/publication qualification instead of growing the older test file. README's existing all-transaction summary is corrected without a new invocation or review-marker resolution. Separated future close/landing instructions from implementation checkboxes so qualification can honestly finish before the close gate. No scope or mechanism change.

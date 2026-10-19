@@ -7,6 +7,8 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- Characterize an external reader on a separate disposable copy when a conforming implementation may create coordination files. Otherwise a diagnostic probe can change the source state before a production preservation test, selecting a different path on another platform. Assert the untouched source image around the production operation only. (#701)
+
 - A native signal fixture must control delivery as well as readiness. Python can swallow KeyboardInterrupt in an ignored-exception callback after a ready banner; mask through that phase, prove the signal is pending, and release it at top level. Check an independent expected exit as well as baseline parity, with a callback self-signal regression and no competing parent signal. Preserve wait-error text explicitly: formatting an unexported struct field can hide it behind a pointer. (#703)
 
 - A display decorator must preserve its input collection's empty-versus-unavailable contract. Cloning by append to nil collapses an owned empty slice; run existing inventory tests as well as the new diagnostic-name subset when adding row fields. (#683 suite qualification)

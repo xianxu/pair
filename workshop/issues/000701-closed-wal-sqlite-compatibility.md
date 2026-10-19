@@ -56,12 +56,12 @@ total: 2.24
 
 ## Plan
 
-- [ ] Qualify the closed-WAL refusal and private-copy route with disposable native fixtures and adversarial ordering controls.
-- [ ] Implement the bounded, descriptor-owned cold capture and share existing validation, staging and cleanup.
-- [ ] Verify cold and active routes, source preservation, catalog publication, cancellation and counted costs; update the archive map.
-- [ ] Run the recorded branch suite and close review, then land through SDLC and report to the hub.
+- [x] Qualify the closed-WAL refusal and private-copy route with disposable native fixtures and adversarial ordering controls.
+- [x] Implement the bounded, descriptor-owned cold capture and share existing validation, staging and cleanup.
+- [x] Verify cold and active routes, source preservation, catalog publication, cancellation and counted costs; update the archive map.
+- [ ] Run the recorded branch suite.
 
-Detailed design: [closed WAL compatibility plan](../plans/000701-closed-wal-compatibility-plan.md). Hub approved; implementation awaits the code gate.
+Detailed design: [closed WAL compatibility plan](../plans/000701-closed-wal-compatibility-plan.md). Hub approved and change-code passed. Delivery follows qualification: close review, SDLC landing, Git-verified report to the hub and stop.
 
 ## Log
 
@@ -74,6 +74,14 @@ Detailed design: [closed WAL compatibility plan](../plans/000701-closed-wal-comp
 - Disposable probe under pair701-probe.hxsJxp: system SQLite 3.54.0 refuses a canonical closed-WAL path with exit 1 at schema_version and leaves its sole source file unchanged; installed Homebrew SQLite 3.53.4 succeeds and creates normal WAL/SHM sidecars. On an independent private copy, system SQLite's existing DELETE/integrity validation succeeds and returns rowid 73, unknown text and exact BLOB 0001FF. Original source still contains only its byte-identical database. The first probe used /var's symlink spelling and both CLIs refused -nofollow; canonical paths separate that different refusal from the actual closed-WAL failure. Tests must canonicalize fixture roots.
 - SQLite documents ordinary read-only WAL access as depending on readable sidecars, permission to create them, or an immutable connection; raw copies of active transactions can be inconsistent. Sources: [read-only WAL](https://www.sqlite.org/wal.html#read_only_databases), [copying during a transaction](https://www.sqlite.org/howtocorrupt.html#_backup_or_restore_while_a_transaction_is_active). Immutable is not proposed on a native source.
 
+### 2026-10-19 — implementation and targeted evidence
+
+- Plan-quality cleared PQ-1 in round 2, round 3 CLEAN; estimate-quality INFO (allocation aggressive but derivation plausible), change-code exited 0. Estimate allocation: cold-module row includes pure and mutation tests, orchestration includes prior-stage and continuous tests, discovery covers native tool/writer fixtures, review includes foreground suite/PR/landing attention. Background queue waiting is not added to active hours. No estimate backfit.
+- Production public regression before wiring: TestSQLiteClosedWALNativeConformance failed with the original unable-to-open refusal for configured sqlite3 and /usr/bin/sqlite3 (0.601s). Pure model stub tests also failed before their implementation; the first IO test build found missing helper symbols, then the implemented helper passed. Do not represent that IO compile failure as an independent behavioral red. The original user-visible failure is the public regression.
+- After wiring, all new model/capture/native cases passed (1.858s). Source capture costs are exactly two complete reads plus one fixed header read and three observations per source at B/2B and N/2N. Pure header fuzz ran 28,785 executions in 2s, green. Real SQLite writer conformance passed 0.916s: committed and rolled-back transactions during either read are refused; rollback leaves DB bytes and metadata unchanged and isolates parent-sidecar-churn evidence.
+- Root qualification: go test ./cmd/internal/historyarchive -run 'Test(SQLite|Cold|ObserveCold|SameCold|Continuous.*(Snapshot|Cold|Publication))|FuzzColdWALHeader' -count=1 passed 24.188s. It includes existing active-writer progress, owner-death/alarm/lease, overlap and cleanup checks plus new cold routes. Full artifactpath package passed 9.875s. Continuous cold publication independently passed 3.387s: original source identity, opaque SQL/rowid, unchanged-current behavior and failed-first/later-active success preserve the prior catalog and bundle.
+- Test correction: the conformance image helper deliberately rejects nonregular entries; the unsafe-journal fixture now independently asserts unchanged source bytes and symlink target instead. This changes no production outcome. Its targeted rerun passed 0.679s. Characterization queries use a separate probe copy so normal CLI-created coordination files cannot contaminate source preservation or route eligibility.
+
 ## Revisions
 
 ### 2026-10-19 12:14 PDT — proposed compatibility route, pending approval
@@ -83,3 +91,7 @@ Choose a private plain copy only for a WAL-header source with all three coordina
 ### 2026-10-19 12:16 PDT — approval and plan-quality response
 
 Hub approved the design and clarified that uncertain cold evidence is deferred (receipt a29363a1-7c62-43e8-92bd-2bc7cc45e531). PQ-1 requested compression of prose test-case inventories; the function strategy table now gives one adversarial class and mechanical guard per risky function. Code remains untouched until the gate passes. Hub filed the separately reported hub-alias failure as #711; exact-address delivery succeeded and no restart was needed.
+
+### 2026-10-19 12:23 PDT — actual concept map and delivery checklist
+
+Mapped actual types/test declarations and the dedicated continuous fixture in the plan. Corrected the README's existing transaction-only summary and separated future close/landing/report instructions from implementation checkboxes; all original delivery obligations remain. Observed quiescence, no-retry deferral, native active backup and persisted formats are unchanged.
