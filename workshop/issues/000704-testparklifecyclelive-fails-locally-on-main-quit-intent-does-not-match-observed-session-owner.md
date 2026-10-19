@@ -74,6 +74,8 @@ This is not slot ownership, so pair:1 is not affected.
 
 ## Log
 
+
+- 2026-10-19: closed — Test-driver and diagnostic fix, no new architectural surface. sdlc-local/suite green on 647a52a5 (14m6s). Diagnosis by temporary instrumentation (reverted): the second scenario trigger probed an already-quiesced session (owner Absent, no server), not an owner mismatch. Red: without the present-only gate the fake conformance scenario fails every run at delivery 2. Live on the operator machine: TestParkLifecycleLive 5/5 and TestParkLifecycleLiveIntentOnlyMutation 5/5 (previously 0/8). TestTriggerBoundQuitNamesAnAbsentSession; pairlifecycletest and couchcore park tests green. (done-when: contract moved since change-code; judged by the close review); review verdict: SHIP
 2026-10-19 — Filed by pair:2 at the hub's request while landing #692; observed during #692's live verification.
 
 2026-10-19 (pair:2) — Built. Moving the quiescence into the shared `Fake.DeliverTrigger` broke TestParkInterruptionBoundaryMatrix/after-trigger: Couch's session view there comes from the separate `Artifacts` fake, so the two views diverged. The quiescence therefore lives in `fakeConformanceDriver.DeliverTrigger`, the adapter that models production's trigger, and the shared Fake and its unit test are unchanged (see Revisions).
