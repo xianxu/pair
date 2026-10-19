@@ -113,6 +113,14 @@ Plan-quality round 2 kept PQ-1 open: a nonempty changed environment does not pro
 
 Plan-quality round 3 returned CLEAN, disposing PQ-1 as addressed by the explicit R3 contract change; no open findings. Derived the estimate only after that verdict, against the configured v3.1 source and baseline (stale calibration noted), and set card estimate 1.78h through sdlc. The mandatory implementation gate is being rerun with the reconciled block; no production code before it clears.
 
+Implementation gate passed at 72795a6e61ab29f732719a827ea539eddba0ff56. Estimate-quality INFO called the 1.78h estimate optimistic for guarded cleanup, qualification and integration/landing attention; the nonblocking warning is retained here. Recovery peek reports previous recovery screen unavailable; branch, issue, plan and accepted gate supplied continuity. No historical peer instruction was treated as new operator authorization.
+
+TDD observed missing APIs before manager, metadata, socket and launch integration implementations. Private targeted tests pass for policy/age/special-file retention, owner evolution and conflicts, missing RAM roots, metadata retries and exact backup preservation, fresh/warm launch overlays, retained primary/numbered identities with missing checkouts, and unchanged sockets. Initial manager verification includes race/count=20; final qualification still pending. Source inventory and declaration-comment guards pass. No live metadata, slot environment, or pair:0 binary was changed.
+
+Implementation uses the retained ThreadRecord at the two existing launch boundaries, rather than re-reading an address through a checkout-dependent backend in the runner decorator. This is necessary because warm reattachment can have a missing checkout; the runner still owns the one socket pin for both Start and StartBlocked. A primary's first thread without enrolled authority may call the existing bounded verified workspace resolver once; malformed/ambiguous evidence never falls through. Startup metadata/sweep finish synchronously before launch; one joined maintenance worker performs hourly sweeps without repeating startup. Metadata observation is separate from age cleanup. Aggregate cleanup notices are bounded and quiet for unchanged interiors.
+
+Cleanup counters distinguish entry visits (<=2F+O(S)), all stat/fstat inspections (<=4F+O(S)), owner declaration reads, and zero temp-payload reads. No process inspections participate. Descriptor confinement and revalidation are best-effort against concurrent filesystem mutation, not atomic tree deletion: old siblings may be pruned before a changed child aborts; the final compare-to-unlink window cannot be closed portably. This is recorded as the ordinary temp-cleaner tradeoff, without claiming lifetime or atomicity proof.
+
 ## Revisions
 
 ### 2026-10-19 10:56 PDT — R1, hub-approved simplification

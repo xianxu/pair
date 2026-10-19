@@ -328,3 +328,44 @@ Manager.Run performs the startup sweep, then a single serial hourly ticker. It r
 - [ ] Implement R1 reboot-only metadata setup from isolated-HOME fixture regressions. Any native server means no changes and one exact reboot note. Do not run it against the operator's live cache during tests.
 - [ ] Register new source inventory, update README/atlas/index with age-loss contract and socket pin, run affected packages/count budgets/source guards and owned native/child conformance where needed. Add the review lesson about observation versus lifetime authority.
 - [ ] Open early draft PR, record pushed-head suite, close through mandatory review/measured actuals, request landing priority, merge normally and report Git-verified outcome. Operator's reboot/relaunch/sample supplies the real environment acceptance; no pair:0 staging or live changes by this slot.
+
+### 2026-10-19 — Implementation alignment under R3
+
+No user-visible policy change. Source inspection showed address-to-backend reads
+require an existing checkout. The two launch boundaries already hold the exact
+retained ThreadRecord, so they call one optional SlotEnvironment seam with that
+record. ThreadStore.ScratchSlot reads retained repository authority without
+checkout IO. A first primary thread without enrollment uses the existing bounded
+workspace resolver once, checking record membership; malformed/ambiguous evidence
+keeps inherited temp. configuredRunner still owns socket pinning for both runner
+forms. Startup executes metadata and the initial sweep synchronously; Manager.Maintain
+is the service's one joined hourly worker, while Run remains the combined owner API.
+
+Actual concept inventory (names in the implementation, replacing illustrative
+R3 aliases):
+
+| Pure name | Lives in | Status |
+|---|---|---|
+| Probe / ChooseScratch / Slot | cmd/internal/couchscratch/policy.go | new |
+| ageEligible | cmd/internal/couchscratch/age.go | new |
+| MetadataState / DecideMetadata | cmd/internal/couchscratch/metadata_policy.go | new |
+| ResolveZellijSocketRoot | cmd/internal/launcher/zellij_socket.go | new |
+| workspaceScratchOwner | cmd/internal/couchcmd/scratch.go | new |
+
+| Integration name | Lives in | Status | Wraps |
+|---|---|---|---|
+| Manager / PrepareSlot / Sweep / Run / Maintain | cmd/internal/couchscratch/manager.go, temp.go, sweep.go | new | injected probe, clock, ticks, guarded directory IO |
+| ReadProbe / openDir / mkdirDir / dirNames | cmd/internal/couchscratch/os.go | new | device/free-space and nofollow filesystem operations |
+| ConfigureMetadata / MetadataDirectory | cmd/internal/couchscratch/metadata.go | new | native cache naming and startup-only route effects |
+| ScratchSlotIdentity / ThreadStore.ScratchSlot | cmd/internal/couchcore/scratch_identity.go | new | retained manifest and membership proof, no Git/process calls |
+| configureScratch / scratchSlotEnvironment | cmd/internal/couchcmd/scratch.go | new | owner-only composition, existing workspace resolver fallback, per-slot overlay |
+| SlotEnvironment / ScratchStartup / ScratchMaintenance | cmd/internal/couchcore/couch.go | modified | explicit launch and supervisor lifetime seams |
+| launchTrackedThread / attachListedTerminalOnce | cmd/internal/couchcore/launch_existing.go, warm_attach.go | modified | shared record-based environment seam |
+
+The counted budget separates entry visits <=2F+O(S), every stat/fstat inspection
+<=4F+O(S), owner declaration reads, and zero temp-payload reads. The existing probe
+is O(1), separately accounted, and there is no cleanup process census. Concurrent
+mutation is guarded best-effort: discovered fresh/special/replaced nodes stop
+removal, but earlier old siblings can already be gone, and a final unlink cannot
+be atomically conditioned on an inode using portable filesystem primitives.
+No lifetime or atomic whole-tree retention guarantee is claimed.

@@ -31,6 +31,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchkeys"
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
+	"github.com/xianxu/pair/cmd/internal/couchscratch"
 	"github.com/xianxu/pair/cmd/internal/couchtty"
 	"github.com/xianxu/pair/cmd/internal/crashreport"
 	"github.com/xianxu/pair/cmd/internal/diagnosticlog"
@@ -64,12 +65,13 @@ type Runtime interface {
 }
 
 type OSRuntime struct {
-	ownership     *runtimeOwnership
-	accountHome   func() (string, error)
-	env           func(string) string
-	selection     *couchsingleton.Selection
-	isolatedRoot  string
-	isolatedPaths isolatedChildRoots
+	ownership      *runtimeOwnership
+	accountHome    func() (string, error)
+	env            func(string) string
+	selection      *couchsingleton.Selection
+	isolatedRoot   string
+	isolatedPaths  isolatedChildRoots
+	scratchProbeFn func() couchscratch.Probe
 }
 
 var _ Runtime = OSRuntime{}
@@ -177,6 +179,7 @@ func (r OSRuntime) NewCouchWith(runner couchcore.Runner, namespace couchcore.Cou
 	c.Identities = couchidentity.IdentityStore{HostDir: r.selection.Roots.IdentityDir, StoreDir: namespace.Dir()}
 	c.Workspaces = couchcore.NewWorkspaceProvisioner(couchcore.OSProvisionIO{})
 	c.Slots = couchcore.NewOSSlotCatalog(couchcore.OSProvisionIO{})
+	r.configureScratch(c)
 	c.Fleet = couchcore.SDLCFleetSource{IO: couchcore.OSProvisionIO{}, Timeout: couchcore.FleetInventoryTimeout}
 	c.SlotIO = couchcore.OSProvisionIO{}
 	c.RootAgent = r.Getenv("PAIR_AGENT")
@@ -589,6 +592,13 @@ func runTypedOperationWithConsole(op couchcore.Operation, parsed, prepareArgs ma
 		}
 	}
 	c.WorkspaceProgress = stderr
+	if ownsLive && c.ScratchStartup != nil {
+		notify := func(text string) { fmt.Fprintln(stderr, "couch: "+text) }
+		if console != nil {
+			notify = func(text string) { console.Notify(couchtty.Notice{Kind: "status", Body: text}) }
+		}
+		c.ScratchStartup(operationContext, notify)
+	}
 	if console != nil {
 		// Provisioning outlives initial attach and also runs from menu actions.
 		// Only the console renderer may write to the terminal it owns. The

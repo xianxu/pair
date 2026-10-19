@@ -35,12 +35,19 @@ type Couch struct {
 	RecoveryRetirement    RecoveryRetirementPreparer
 	// SlotWrapper and ProcessTable let a reboot stop the slot's registered
 	// wrapper tree even when terminal attribution fails (pair#607).
-	SlotWrapper            SlotWrapperLookup
-	ProcessTable           func() ([]procutil.Process, error)
-	Identities             IdentityAllocator
-	Slots                  SlotCatalog
-	Workspaces             WorkspaceReadiness
-	WorkspaceProgress      io.Writer
+	SlotWrapper       SlotWrapperLookup
+	ProcessTable      func() ([]procutil.Process, error)
+	Identities        IdentityAllocator
+	Slots             SlotCatalog
+	Workspaces        WorkspaceReadiness
+	WorkspaceProgress io.Writer
+	// SlotEnvironment prepares temp storage from the retained owner even when
+	// a warm attach starts from a neutral working directory.
+	SlotEnvironment func(ThreadRecord) []string
+	// ScratchStartup runs quiescent metadata setup and the initial age sweep.
+	ScratchStartup func(context.Context, func(string))
+	// ScratchMaintenance runs the hourly worker until supervisor shutdown.
+	ScratchMaintenance     func(context.Context)
 	ContinuationGeneration func(context.Context, ThreadAddress, string, string) (*checkpoint.TargetGeneration, error)
 	ContinuationSource     func(context.Context, ThreadAddress) (ContinuationSource, error)
 	Namespace              CouchNamespace
