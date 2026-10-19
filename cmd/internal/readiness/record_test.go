@@ -87,3 +87,34 @@ func TestReadyAgentIdentityPreservesLegacyAndRejectsInvalid(t *testing.T) {
 		}
 	}
 }
+
+// A Couch-launched wrapper publishes the agent's tty (pair#695 M2); a reader
+// from before the field, and every reader for whatever a later build adds,
+// must accept members it does not own instead of losing the agent's
+// readiness. Owned members stay strict.
+func TestReadyRecordToleratesUnknownMembersAndCarriesTTY(t *testing.T) {
+	got, err := Decode(`{"tag":"work","agent":"codex","session":"pair-work","nonce":"n","pid":7,"tty":"ttys183","future":{"x":1}}`)
+	if err != nil {
+		t.Fatalf("Decode with an unknown member: %v", err)
+	}
+	if got.TTY != "ttys183" || got.PID != 7 {
+		t.Fatalf("Decode = %+v", got)
+	}
+	raw, err := Encode(ReadyRecord{Tag: "work", Agent: "codex", Session: "pair-work", Nonce: "n", PID: 7})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(raw, `"tty"`) {
+		t.Fatalf("a record without a tty wrote one: %s", raw)
+	}
+	for name, bad := range map[string]string{
+		"duplicate owned": `{"tag":"work","tag":"x","agent":"codex","session":"s","nonce":"n","pid":7}`,
+		"wrong type":      `{"tag":"work","agent":"codex","session":"s","nonce":"n","pid":"7"}`,
+		"tty with a path": `{"tag":"work","agent":"codex","session":"s","nonce":"n","pid":7,"tty":"../ttys1"}`,
+		"tty control":     `{"tag":"work","agent":"codex","session":"s","nonce":"n","pid":7,"tty":"tty\u0007"}`,
+	} {
+		if _, err := Decode(bad); err == nil {
+			t.Errorf("%s: accepted %s", name, bad)
+		}
+	}
+}
