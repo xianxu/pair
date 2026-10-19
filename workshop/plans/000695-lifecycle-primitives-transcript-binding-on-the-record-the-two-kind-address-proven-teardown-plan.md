@@ -458,3 +458,18 @@ Steps:
     the slot's per-slot admission. A concurrent direct-store rewrite either lands first, in which case the
     revision moves, Bind re-reads and the adoption is retried once, or it lands after and preserves the field (§2a).
     Test (M1): `TestBindAdoptionSurvivesConcurrentRewrite`.
+- 2026-10-19 — PQ-7 (contract shape). A value-receiver `Validate()` can't fill a field, so a resolved scope comes
+  from constructors, and the §3 signatures become:
+
+  ```go
+  type TeamIdentity struct { CheckoutRoot, TeamDir, Name, Scope string } // Scope: launcher.ResolveRepoScope(CheckoutRoot).Key
+  func NewSlotAddress(slot SlotIdentity, physicalRoot string) (LifecycleAddress, error) // canonical root; the Key's slot arm
+  func NewTeamAddress(checkoutRoot, teamDir string) (LifecycleAddress, error)           // resolves Scope and Name, checks .hub
+  func (a LifecycleAddress) Validate() error // pure shape check: exactly one arm, matching Kind, resolved fields present
+  func (a LifecycleAddress) Key() string     // pure: "slot:<root>" | "team:<scope>/<TeamDir>"
+  ```
+
+  The constructors are the IO seam (scope resolution, `.hub` stat), and `Validate` and `Key` stay pure. The
+  slot arm carries the physical root it was built from, so `Key()` needs no lookup. `SlotIdentity` keeps its own
+  fields, and the address adds `Root string` beside it. The slot root is for keying only: a `:0` primary is
+  addressed by its root, as #683's key already does.
