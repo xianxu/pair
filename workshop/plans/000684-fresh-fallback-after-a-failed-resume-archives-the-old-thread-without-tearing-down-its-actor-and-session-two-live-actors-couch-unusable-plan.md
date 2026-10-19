@@ -119,7 +119,7 @@ from the agent pid). Those not on the agent's tty go into `TeardownProof.LeftRun
 ```go
 // couchcore/orphan_registry.go — <couch store dir>/orphans.json
 type LeftRunningOrphan struct {
-    Origin    SlotIdentity      // the slot (repo:N) whose teardown left it
+    Origin    LifecycleAddress  // the slot (repo:N) or team hub whose teardown left it
     Thread    ThreadAddress     // the torn-down thread's scope and tag
     Process   ProcessIdentity   // pid + kernel start identity
     Command   string            // bounded argv[0..] line
@@ -143,7 +143,7 @@ type LeftRunningOrphan struct {
 ```go
 // couchcore/teardown.go
 type TeardownProof struct {
-    Slot        SlotIdentity
+    Address     LifecycleAddress
     LeaseFree   time.Time              // the EX|NB acquire that succeeded
     AgentTTY    string                 // proven empty; "" when no agent was recorded
     Sessions    []string               // names proven absent twice
@@ -152,7 +152,7 @@ type TeardownProof struct {
 }
 // Teardown is idempotent: on an already-down slot it costs one flock, one ps,
 // one ObserveSlotSessions and one list-sessions, and returns a proof.
-func (c *Couch) Teardown(ctx context.Context, slot SlotIdentity, op OperationRef) (TeardownProof, error)
+func (c *Couch) Teardown(ctx context.Context, addr LifecycleAddress, op OperationRef) (TeardownProof, error)
 ```
 
 Steps, bounded at 10s total (ARCH-CONSTRAINTS):
@@ -286,8 +286,37 @@ type Step int // StepAttach, StepTeardown, StepBind, StepMint, StepLaunch, StepA
 func PlanConverge(in ConvergeInput) ([]Step, error)
 
 // couchcore/converge_exec.go (thin IO shell)
-func (c *Couch) Converge(ctx context.Context, slot SlotIdentity, in ConvergeRequest) (ConvergeResult, error)
+func (c *Couch) Converge(ctx context.Context, addr LifecycleAddress, in ConvergeRequest) (ConvergeResult, error)
 ```
+
+**The address has two kinds (introduce-team, 2026-10-18).** Every primitive and Converge take one
+`LifecycleAddress`, never a bare `SlotIdentity`:
+
+```go
+// couchcore/lifecycleaddress.go (pure)
+type AddressKind string // "slot" | "hub"
+type HubIdentity struct {
+    OpsRoot string // absolute root of the operations checkout
+    TeamDir string // clean relative path to the team folder, e.g. teams/devinfra (holds the committed .hub)
+    Name    string // the team's name, which is the hub's name
+}
+type LifecycleAddress struct {
+    Kind AddressKind
+    Slot SlotIdentity // Kind == slot: a worker, repo:N
+    Hub  HubIdentity  // Kind == hub: a team hub; several may share one OpsRoot
+}
+func (a LifecycleAddress) Validate() error // exactly one arm set, matching Kind
+func (a LifecycleAddress) Key() string     // stable key: store dir, lease path, orphan origin, failure records
+```
+
+Both kinds go through the same three outcomes and the same three primitives. The lease and the transcript
+binding apply to a hub's agent exactly as to a worker's. Only the guards differ: a slot validates its worktree
+layout and may carry sdlc claims, and a hub validates `TeamDir` (a folder under `OpsRoot` with a committed
+`.hub`) and never carries an sdlc claim. Exhaustive switches on `Kind` live in `Validate` and `Key`
+only; `PlanConverge` never sees the kind. #684 builds and tests the type with both arms
+(`TestLifecycleAddressValidate`, `TestLifecycleAddressKeyDistinctPerTeam`: two teams in one ops checkout get
+distinct keys). It wires only the slot arm, plus today's hub as it is currently addressed. Addressing hubs by
+team folder, startup with team folders, and the switcher are pair#694, built on this type.
 
 | Target | Steps |
 |---|---|
@@ -411,6 +440,8 @@ diagnosis. M2 builds the proof. M3 fixes the incident paths. M4 finishes the res
 
 Steps:
 
+- [ ] **Test (red):** `TestLifecycleAddressValidate`, `TestLifecycleAddressKeyDistinctPerTeam` (§3). Then
+  create `couchcore/lifecycleaddress.go` with both arms; nothing calls the hub arm yet.
 - [ ] **Test (red):** `TestThreadRecordPreservesUnknownFieldsThroughRewrite` (§2a). Then make the
   `ThreadRecord` decoder tolerant and preserving, before the new field lands.
 - [ ] **Test (red):** `TestTranscriptBindingValidate`. A binding is accepted only when its path is absolute,
@@ -540,3 +571,11 @@ Steps:
   binding. #683 does the same for the failure store. No version bump: no new field is a guard, and teardown has
   no persisted phase. The first tolerant build can't help builds from before it.
 - 2026-10-18 22:30 — pair:5's evidence handoff (delivery 566735e7) made two implied invariants explicit: exact address, revision and park nonce carried through queues (refuse when moved), and archive refuses an open park. Tests added to M2/M3. No new state or mechanism.
+- 2026-10-18 23:00 — operator scope addition via hub (delivery da27249b), from the introduce-team project: the
+  lifecycle address gets two kinds from the start, a slot (`repo:N`) and a team hub (a team folder with a
+  committed `.hub`, several teams possibly in one ops checkout, no sdlc claims). `Teardown`, `Converge`,
+  `TeardownProof` and the orphan origin take `LifecycleAddress` instead of `SlotIdentity`, and the lease, store
+  and failure records are keyed by `Address.Key()`. The two tests land in M1, with the type. This is a type
+  change only: no milestone grows, and hub addressing, startup and the switcher stay in pair#694. The existing
+  `HubSlot`/`HubDefinition` (report routing) is untouched here; pair#694 decides whether team identity replaces
+  it.
