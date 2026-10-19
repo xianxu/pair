@@ -165,7 +165,7 @@ func New(namespace CouchNamespace, r Runner, p PathOps, g GitRunner, proc ProcOp
 		if err != nil {
 			return nil, err
 		}
-		if err := coordinator.RegisterRuntime(context.Background(), process, "couch-runtime"); err != nil {
+		if err := coordinator.RegisterRuntime(context.Background(), process, storagegc.CouchRuntimeRole, storagegc.RuntimeRegistrationOptions{DiagnosticProtocol: storagegc.DiagnosticProtocolVersion}); err != nil {
 			return nil, err
 		}
 		threads, err = NewCoordinatedThreadStore(namespace, coordinator)

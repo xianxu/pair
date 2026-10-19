@@ -71,6 +71,36 @@ func SelectSlotRow(rows []ActionableThreadSummary, number int, path string) (Act
 	return ActionableThreadSummary{}, &SlotOperationError{Code: SlotOpAmbiguous, Detail: fmt.Sprintf("%d Couch threads stand for %s", len(found), path)}
 }
 
+// SelectCachedSlotRow resolves a slot from cached identities alone, then uses
+// SelectSlotRow for the shared row selection rule. Duplicate identities refuse
+// even when they name different checkout paths. No filesystem or Git probes.
+func SelectCachedSlotRow(rows []ActionableThreadSummary, primary string, number int) (ActionableThreadSummary, error) {
+	primary = filepath.Clean(primary)
+	if !workspaceAbsolute(primary) || number < 0 {
+		return ActionableThreadSummary{}, &SlotOperationError{Code: SlotOpUnknownSlot, Detail: "invalid cached slot address"}
+	}
+	if number == 0 {
+		return SelectSlotRow(rows, number, primary)
+	}
+	path, matches := "", 0
+	for _, row := range rows {
+		if row.Target.Kind == ThreadTargetSlot && row.Target.Slot.PrimaryRoot == primary && row.Target.Slot.Number == number {
+			path = row.Target.Slot.WorktreeRoot
+			matches++
+		}
+	}
+	if matches == 0 {
+		return ActionableThreadSummary{}, &SlotOperationError{Code: SlotOpNoThread, Detail: fmt.Sprintf("no cached Couch thread stands for %s:%d", primary, number)}
+	}
+	if matches > 1 {
+		return ActionableThreadSummary{}, &SlotOperationError{Code: SlotOpAmbiguous, Detail: fmt.Sprintf("%d cached Couch threads stand for %s:%d", matches, primary, number)}
+	}
+	if !workspaceAbsolute(path) {
+		return ActionableThreadSummary{}, &SlotOperationError{Code: SlotOpUnknownSlot, Detail: "invalid cached slot checkout"}
+	}
+	return SelectSlotRow(rows, number, path)
+}
+
 // ActorOperationArgs is the one row → arguments mapping for resume and
 // reboot, read by the switcher and the socket alike (ARCH-DRY). A slot row is
 // addressed by its host checkout (its record may be missing or replaced under

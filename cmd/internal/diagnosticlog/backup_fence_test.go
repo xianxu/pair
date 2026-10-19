@@ -2,13 +2,12 @@ package diagnosticlog
 
 import (
 	"bytes"
-	"errors"
 	"os"
 	"testing"
 	"time"
 )
 
-func TestBackupFenceRotatesBeyondFormerCountAndInventoryBounds(t *testing.T) {
+func TestRecentGenerationsRotateBeyondFormerCountAndInventoryBounds(t *testing.T) {
 	path, now, opts := fixture(t)
 	opts.MaxBytes = 1
 	w, err := Open(path, opts)
@@ -82,7 +81,7 @@ func TestBackupFenceRotatesBeyondFormerCountAndInventoryBounds(t *testing.T) {
 	}
 
 }
-func TestBackupFenceKeepsExpiredManagedAndLegacyDiagnostics(t *testing.T) {
+func TestExpiredManagedAndLegacyDiagnosticsNeedNoBackup(t *testing.T) {
 	path, now, opts := fixture(t)
 	w, err := Open(path, opts)
 	if err != nil {
@@ -92,64 +91,39 @@ func TestBackupFenceKeepsExpiredManagedAndLegacyDiagnostics(t *testing.T) {
 	*now = now.Add(25 * time.Hour)
 	w.Write([]byte("new"))
 	w.Close()
-	names, _, _, err := generationPage(path, "", 100, false, opts)
-	if err != nil || len(names) != 1 {
-		t.Fatal(names, err)
-	}
-	old := segmentPath(path, names[0])
 	*now = now.Add(RetentionPeriod + time.Hour)
-	rows, err := Collect(path, opts, 100)
-	if err != nil || len(rows) != 0 {
-		t.Fatal("collection bypassed backup fence", rows, err)
+	if rows, err := Collect(path, opts, 100); err != nil || len(rows) != 2 {
+		t.Fatal(rows, err)
 	}
-	for p, want := range map[string]string{path: "new", old: "old"} {
-		body, err := os.ReadFile(p)
-		if err != nil || string(body) != want {
-			t.Fatal(p, string(body), err)
-		}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatal("expired current remains", err)
 	}
 	legacy := path + ".legacy"
-	if err = os.WriteFile(legacy, []byte("legacy"), 0600); err != nil {
+	if err := os.WriteFile(legacy, []byte("legacy"), 0600); err != nil {
 		t.Fatal(err)
 	}
 	stamp := now.Add(-RetentionPeriod - time.Hour)
-	if err = os.Chtimes(legacy, stamp, stamp); err != nil {
-		t.Fatal(err)
-	}
-	if rows, err := CollectLegacy(legacy, opts); err != nil || len(rows) != 0 {
+	os.Chtimes(legacy, stamp, stamp)
+	if rows, err := CollectLegacy(legacy, opts); err != nil || len(rows) != 1 {
 		t.Fatal(rows, err)
 	}
-	if body, err := os.ReadFile(legacy); err != nil || string(body) != "legacy" {
-		t.Fatal(string(body), err)
+	if _, err := os.Stat(legacy); !os.IsNotExist(err) {
+		t.Fatal("expired legacy remains", err)
 	}
 }
-func TestBackupFenceStopsPreviouslyPersistedDeletionIntent(t *testing.T) {
+func TestPreviouslyPersistedDeletionIntentFinishesWithoutBackup(t *testing.T) {
 	path, p, opts := deletionIntentFixture(t)
-	before, err := os.ReadFile(p)
-	if err != nil {
+	if _, err := Collect(path, opts, 100); err != nil {
 		t.Fatal(err)
 	}
-	stateBefore, err := load(path)
-	if err != nil {
-		t.Fatal(err)
+	if _, err := os.Stat(p); !os.IsNotExist(err) {
+		t.Fatal("pending deletion remains", err)
 	}
-	if _, err := Collect(path, opts, 100); err == nil {
-		t.Fatal("pending deletion replay escaped backup fence")
+	state, err := load(path)
+	if err != nil || state.Deleting != nil {
+		t.Fatal("intent not completed", err)
 	}
-	after, err := os.ReadFile(p)
-	if err != nil || !bytes.Equal(before, after) {
-		t.Fatal("pending deletion payload changed", err)
-	}
-	stateAfter, err := load(path)
-	if err != nil || stateAfter.Deleting == nil || !generationMetadataEqual(*stateBefore.Deleting, *stateAfter.Deleting) {
-		t.Fatal("pending authority lost", err)
-	}
-	if w, err := Open(path, opts); err == nil {
-		w.Close()
-		t.Fatal("Open replayed pending deletion")
-	}
-	// Direct recovery is fenced too, even when callers bypass preview selection.
-	if err := recoverDeletion(path, &stateAfter, opts); err == nil || errors.Is(err, os.ErrNotExist) {
-		t.Fatal(err)
+	if b, err := os.ReadFile(path); err != nil || string(b) != "new" {
+		t.Fatal(string(b), err)
 	}
 }

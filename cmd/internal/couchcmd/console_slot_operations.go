@@ -3,6 +3,7 @@ package couchcmd
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
@@ -46,11 +47,20 @@ func consoleSlotOperations(console *couchtty.Console, c *couchcore.Couch, probe 
 		}
 		return c.Threads.RepositoryNamesContext(ctx)
 	}, time.Now)
-	ops.preparePark = func(ctx context.Context, target string, guard func(context.Context) error) (slotOperationRunner, error) {
-		bound, _, err := c.PrepareSlotOperation(ctx, couchcore.OpRecoverPark, target, couchcore.LiveRestartOptions{})
+	ops.preparePark = func(ctx context.Context, target string, repository couchcore.RepositoryName, guard func(context.Context) error) (slotOperationRunner, error) {
+		snapshot := console.ResourceInventory()
+		if !snapshot.InventoryKnown {
+			return nil, errors.New("recovery inventory is unavailable; refresh the switcher inventory, inspect the row and retry")
+		}
+		ref, _, err := couchcore.ParseWorkspaceReference(target)
 		if err != nil {
 			return nil, err
 		}
+		row, err := couchcore.SelectCachedSlotRow(snapshot.Rows, repository.Key, ref.Number)
+		if err != nil {
+			return nil, fmt.Errorf("%w; refresh the switcher inventory, inspect the row and retry", err)
+		}
+		bound := couchcore.OperationCall{Name: couchcore.OpRecoverPark, Args: couchcore.ActorOperationArgs(row, couchcore.OpRecoverPark)}
 		check := func(ctx context.Context) error {
 			if guard != nil {
 				if err := guard(ctx); err != nil {

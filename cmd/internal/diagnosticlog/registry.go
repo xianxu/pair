@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+
+	"github.com/xianxu/pair/cmd/internal/storagegc"
 )
 
 type RegistryEntry struct {
@@ -147,7 +149,7 @@ func EnumerateRoot(ctx context.Context, root string, offset, limit int) (Registr
 		if err := ctx.Err(); err != nil {
 			return RegistryPage{}, err
 		}
-		if err := validateRegistryEntry(entry); err != nil {
+		if err := validateRegistryEntry(entry); err != nil && !os.IsNotExist(err) {
 			return RegistryPage{}, err
 		}
 		sum := sha256.Sum256([]byte(entry.Path))
@@ -159,12 +161,18 @@ func EnumerateRoot(ctx context.Context, root string, offset, limit int) (Registr
 	return RegistryPage{Entries: entries, NextOffset: nextOffset, Complete: complete}, nil
 }
 
+// Validate shape before filesystem resolution: a missing parent cannot conceal
+// malformed authority. Enumeration may report a missing valid declaration, but
+// per-path canonicalization still blocks every collection effect on that path.
 func validateRegistryEntry(entry RegistryEntry) error {
+	if entry.Version != 1 || !filepath.IsAbs(entry.Path) || filepath.Clean(entry.Path) != entry.Path || entry.Directory != directory(entry.Path) || entry.Lock != lockPath(entry.Path) {
+		return errors.New("invalid diagnostic registry entry")
+	}
 	p, err := canonical(entry.Path)
 	if err != nil {
 		return err
 	}
-	if entry.Version != 1 || p != entry.Path || entry.Directory != directory(p) || entry.Lock != lockPath(p) {
+	if p != entry.Path {
 		return errors.New("invalid diagnostic registry entry")
 	}
 	return nil
@@ -174,7 +182,11 @@ func validateRegistryEntry(entry RegistryEntry) error {
 // standalone traces never fall back to real HOME. Root registration runs under the stable
 // log lock and takes no root lock; collection may hold root then log.
 func EnvironmentOptions(getenv func(string) string) Options {
-	o := Options{Proof: DefaultProof}
+	return environmentOptions(getenv, OSInspection{})
+}
+
+func environmentOptions(getenv func(string) string, inspection Inspection) Options {
+	o := Options{Proof: InspectionProof(inspection)}
 	selected := getenv("PAIR_DATA_DIR")
 	if selected == "" {
 		return o
@@ -190,6 +202,12 @@ func EnvironmentOptions(getenv func(string) string) Options {
 	if filepath.Base(filepath.Dir(p)) == "repos" {
 		p = filepath.Dir(filepath.Dir(p))
 	}
+	coordinator, e := storagegc.NewCoordinator(p)
+	if e != nil {
+		o.Proof = func(context.Context, string, []Registration) error { return inspectionFailure(e) }
+		return o
+	}
+	o.Proof = InspectionProof(WithRuntimeRegistry(coordinator, inspection))
 	o.Root = p
 	o.Registry = func(ctx context.Context, entry RegistryEntry) error { return register(ctx, p, entry) }
 	o.Retire = func(ctx context.Context, entry RegistryEntry) error { return unregister(ctx, p, entry) }

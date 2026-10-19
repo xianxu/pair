@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"time"
 
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/crashreport"
@@ -20,12 +21,23 @@ type Service struct {
 	DiagnosticOptions diagnosticlog.Options
 }
 type Report struct {
+	DiagnosticRetentionDays  int                        `json:"diagnostic_retention_days"`
 	Storage                  storagegc.CollectionReport `json:"storage"`
 	Diagnostics              []diagnosticlog.Segment    `json:"diagnostics"`
 	DiagnosticCollectedBytes int64                      `json:"diagnostic_collected_bytes"`
 }
 
-func New(root string) (*Service, error) { return NewWithInspection(root, diagnosticlog.OSInspection{}) }
+func New(root string) (*Service, error) {
+	period, err := diagnosticlog.ParseRetentionDays(os.Getenv("PAIR_DIAGNOSTIC_DAYS"))
+	if err != nil {
+		return nil, err
+	}
+	service, err := NewWithInspection(root, diagnosticlog.OSInspection{})
+	if err == nil {
+		service.DiagnosticOptions.RetentionPeriod = period
+	}
+	return service, err
+}
 
 // NewWithInspection composes the same process/open-file observation boundary
 // into both legacy runtime and diagnostic writer proofs.
@@ -45,9 +57,10 @@ func NewWithInspection(root string, inspection diagnosticlog.Inspection) (*Servi
 		}
 		return ""
 	})
-	opts.Proof = func(ctx context.Context, path string, writers []diagnosticlog.Registration) error {
-		return diagnosticlog.VerifyWriters(ctx, path, writers, inspection)
-	}
+	opts.RetentionPeriod = diagnosticlog.RetentionPeriod
+	rooted := diagnosticlog.WithRuntimeRegistry(c, inspection)
+	opts.Proof = diagnosticlog.InspectionProof(rooted)
+	opts.ReaderProof = diagnosticlog.InspectionReaderProof(rooted)
 	return &Service{Collector: collector, DiagnosticOptions: opts}, nil
 }
 
@@ -168,6 +181,7 @@ func diagnosticPaths(r *storagegc.CollectionReport, entries []diagnosticlog.Regi
 	return out
 }
 func (s *Service) Preview(ctx context.Context) (r Report, err error) {
+	r.DiagnosticRetentionDays = s.retentionDays()
 	entries, err := s.prepare()
 	if err != nil {
 		return r, err
@@ -176,12 +190,15 @@ func (s *Service) Preview(ctx context.Context) (r Report, err error) {
 	if err != nil {
 		return r, err
 	}
-	for _, path := range diagnosticPaths(&r.Storage, entries) {
+	paths := diagnosticPaths(&r.Storage, entries)
+	ctx = diagnosticlog.SweepContext(ctx, paths)
+	for _, path := range paths {
 		if ctx.Err() != nil {
 			return r, ctx.Err()
 		}
 		rows, e := s.diagnosticPages(ctx, path, false)
 		if e != nil {
+			r.Diagnostics = append(r.Diagnostics, rows...)
 			r.Diagnostics = append(r.Diagnostics, diagnosticlog.Segment{Path: path, Reason: e.Error()})
 			continue
 		}
@@ -191,6 +208,7 @@ func (s *Service) Preview(ctx context.Context) (r Report, err error) {
 	return r, nil
 }
 func (s *Service) Apply(ctx context.Context, limit int) (r Report, err error) {
+	r.DiagnosticRetentionDays = s.retentionDays()
 	if err := diagnosticlog.RecoverRegistry(ctx, s.Collector.Coordinator.Root); err != nil {
 		return r, err
 	}
@@ -203,9 +221,7 @@ func (s *Service) Apply(ctx context.Context, limit int) (r Report, err error) {
 		return r, err
 	}
 	paths := diagnosticPaths(&r.Storage, entries)
-	if !r.Storage.MigrationComplete {
-		return r, nil
-	}
+	ctx = diagnosticlog.SweepContext(ctx, paths)
 	for i, path := range paths {
 		if i >= limit {
 			break
@@ -216,7 +232,6 @@ func (s *Service) Apply(ctx context.Context, limit int) (r Report, err error) {
 		rows, e := s.diagnosticPages(ctx, path, true)
 		if e != nil {
 			r.Diagnostics = append(r.Diagnostics, diagnosticlog.Segment{Path: path, Reason: e.Error()})
-			continue
 		}
 		for _, row := range rows {
 			if row.Eligible {
@@ -224,6 +239,9 @@ func (s *Service) Apply(ctx context.Context, limit int) (r Report, err error) {
 			}
 		}
 		r.Diagnostics = append(r.Diagnostics, rows...)
+	}
+	if !r.Storage.MigrationComplete {
+		return r, nil
 	}
 	for _, row := range s.crashRows(true, limit) {
 		if row.Eligible {
@@ -280,29 +298,33 @@ func (s *Service) diagnosticPages(ctx context.Context, path string, apply bool) 
 		if err := ctx.Err(); err != nil {
 			return result, err
 		}
+		options := s.DiagnosticOptions
+		options.Context = ctx
+		if apply {
+			observer := options.ObserveCollection
+			options.ObserveCollection = func(row diagnosticlog.Segment) {
+				result = append(result, row)
+				if observer != nil {
+					observer(row)
+				}
+			}
+		}
 		var rows []diagnosticlog.Segment
 		var next string
 		var complete bool
 		var err error
 		if apply {
 			err = s.Collector.Coordinator.WithLock(ctx, func(*storagegc.Locked) error {
-				registry, err := s.Collector.Coordinator.ReadRegistry()
-				if err != nil {
-					return err
-				}
-				if !registry.MigrationComplete {
-					return errors.New("Couch inventory not acknowledged")
-				}
-				rows, next, complete, err = diagnosticlog.CollectLegacyPage(path, s.DiagnosticOptions, cursor, 100)
+				rows, next, complete, err = diagnosticlog.CollectLegacyPage(path, options, cursor, 100)
 				return err
 			})
 		} else {
-			rows, next, complete, err = diagnosticlog.PreviewLegacyPage(path, s.DiagnosticOptions, cursor, 100)
+			rows, next, complete, err = diagnosticlog.PreviewLegacyPage(path, options, cursor, 100)
 		}
+		result = append(result, rows...)
 		if err != nil {
 			return result, err
 		}
-		result = append(result, rows...)
 		if complete {
 			return result, nil
 		}
@@ -312,4 +334,56 @@ func (s *Service) diagnosticPages(ctx context.Context, path string, apply bool) 
 		cursor = next
 	}
 	return result, errors.New("diagnostic traversal budget exceeded")
+}
+
+func (s *Service) retentionDays() int {
+	period := s.DiagnosticOptions.RetentionPeriod
+	if period == 0 {
+		period = diagnosticlog.RetentionPeriod
+	}
+	return int(period / (24 * time.Hour))
+}
+
+// PreviewDiagnostics discovers only exact diagnostic families. It initializes no
+// session clocks and does not require Couch's history migration acknowledgment.
+func (s *Service) PreviewDiagnostics(ctx context.Context) (Report, error) {
+	return s.diagnosticsOnly(ctx, false, 0)
+}
+func (s *Service) ApplyDiagnostics(ctx context.Context, limit int) (Report, error) {
+	return s.diagnosticsOnly(ctx, true, limit)
+}
+func (s *Service) diagnosticsOnly(ctx context.Context, apply bool, limit int) (r Report, err error) {
+	r.DiagnosticRetentionDays = s.retentionDays()
+	if apply {
+		if err := diagnosticlog.RecoverRegistry(ctx, s.Collector.Coordinator.Root); err != nil {
+			return r, err
+		}
+	}
+	entries, err := s.prepareContext(ctx)
+	if err != nil {
+		return r, err
+	}
+	inventory, err := s.Collector.DiagnosticInventory(ctx)
+	if err != nil {
+		return r, err
+	}
+	paths := diagnosticPaths(&inventory, entries)
+	ctx = diagnosticlog.SweepContext(ctx, paths)
+	// Do not return session rows or unknown authored paths from a diagnostic scope.
+	for i, path := range paths {
+		if apply && i >= limit {
+			break
+		}
+		rows, e := s.diagnosticPages(ctx, path, apply)
+		if e != nil {
+			r.Diagnostics = append(r.Diagnostics, diagnosticlog.Segment{Path: path, Reason: e.Error()})
+		}
+		for _, row := range rows {
+			if apply && row.Eligible {
+				r.DiagnosticCollectedBytes += row.Bytes
+			}
+		}
+		r.Diagnostics = append(r.Diagnostics, rows...)
+	}
+	return r, ctx.Err()
 }

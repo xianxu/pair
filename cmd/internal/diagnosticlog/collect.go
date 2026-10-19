@@ -22,7 +22,7 @@ type Segment struct {
 
 // DecideSegment is independent of session activity and Couch visibility.
 func DecideSegment(now, lastWrite time.Time) bool {
-	return !lastWrite.IsZero() && !lastWrite.After(now) && !now.Before(lastWrite.Add(RetentionPeriod))
+	return DecideGeneration(now, lastWrite, 0, MaxGenerationBytes, RetentionPeriod)
 }
 
 // Preview is read-only: it does not create a lock, initialize or recover state.
@@ -109,15 +109,23 @@ func collectManagedPage(path string, options Options, cursor string, limit int) 
 		if options.Proof == nil {
 			return ErrUnknownWriters
 		}
-		if e = options.prove(p, s.Writers); e != nil {
-			return e
+		if options.ReaderProof == nil {
+			if e = options.prove(p, s.Writers); e != nil {
+				return e
+			}
 		}
 		if s.Deleting != nil {
+			if e = options.proveGeneration(p, *s.Deleting, s.Writers); e != nil {
+				return e
+			}
 			if e = recoverDeletion(p, &s, options); e != nil {
 				return e
 			}
 		}
 		if s.Pending != nil {
+			if e = options.prove(p, s.Writers); e != nil {
+				return e
+			}
 			if e = recoverRotation(p, &s, options); e != nil {
 				return e
 			}
@@ -135,11 +143,19 @@ func collectManagedPage(path string, options Options, cursor string, limit int) 
 				return err
 			}
 			if !r.Eligible {
+				if options.ObserveCollection != nil {
+					options.ObserveCollection(r)
+				}
 				continue
 			}
 			g := s.Current
 			if r.Path != p {
 				if e = readJSON(r.Path+".json", &g); e != nil {
+					return e
+				}
+			}
+			if options.ReaderProof != nil {
+				if e = options.proveGeneration(p, g, s.Writers); e != nil {
 					return e
 				}
 			}
@@ -180,9 +196,6 @@ func recoverDeletion(path string, s *diskState, o Options) error {
 	if err := o.checkContext(); err != nil {
 		return err
 	}
-	if KeepDiagnosticsUntilBackup {
-		return ErrBackupRequired
-	}
 	g := *s.Deleting
 	p := path
 	if g.Name != "" {
@@ -190,6 +203,11 @@ func recoverDeletion(path string, s *diskState, o Options) error {
 			return errors.New("invalid diagnostic deletion")
 		}
 		p = segmentPath(path, g.Name)
+	}
+	// Every replay entrypoint must prove the actual payload before any effect.
+	// A closed generation can have readers even when the current path is idle.
+	if err := o.proveGeneration(path, g, s.Writers); err != nil {
+		return err
 	}
 	if g.Name != "" {
 		if e := syncExistingParent(filepath.Dir(p), directory(path), o); e != nil {
@@ -344,7 +362,7 @@ func cleanupTemps(path string, o Options, limit int) error {
 		if e != nil {
 			return e
 		}
-		if !DecideSegment(o.Now(), st.ModTime()) {
+		if !DecideGeneration(o.Now(), st.ModTime(), st.Size(), MaxGenerationBytes, o.RetentionPeriod) {
 			continue
 		}
 		if err := o.checkContext(); err != nil {
@@ -366,4 +384,14 @@ func deletionBase(path string, g generation) string {
 		return filepath.Dir(path)
 	}
 	return directory(path)
+}
+
+func (o Options) proveGeneration(path string, g generation, writers []Registration) error {
+	if g.Name != "" {
+		path = segmentPath(path, g.Name)
+		if o.ReaderProof != nil {
+			return o.ReaderProof(o.context(), path)
+		}
+	}
+	return o.prove(path, writers)
 }

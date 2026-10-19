@@ -1,8 +1,10 @@
 package sessionwatch
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"os"
 	"path/filepath"
@@ -136,8 +138,8 @@ func TestRunFollowsAuthorizedTranscriptToLaterCompletion(t *testing.T) {
 	if len(lifecycle) != 2 || lifecycle[0].Outcome != "started" || lifecycle[1].Outcome != "completed" {
 		t.Fatalf("lifecycle=%+v", lifecycle)
 	}
-	if got := native.OperationCount(sessioninventorytest.OperationReadAt, artifact.StorageRoot+":"+artifact.RelativePath); got != 2 {
-		t.Fatalf("range reads=%d, want initial plus appended suffix", got)
+	if got := native.OperationCount(sessioninventorytest.OperationReadAt, artifact.StorageRoot+":"+artifact.RelativePath); got != 4 {
+		t.Fatalf("range reads=%d, want validation, admission boundary, growth boundary and suffix", got)
 	}
 }
 
@@ -543,7 +545,19 @@ type watcherRuntime struct {
 }
 
 func newWatcherRuntime(native sessioninventory.Runtime) *watcherRuntime {
-	return &watcherRuntime{now: time.Unix(100, 0), files: map[string][]byte{}, modTimes: map[string]time.Time{}, identities: map[string]string{}, writes: map[string][]byte{}, native: native, store: &fakeLifecycleStore{}}
+	r := &watcherRuntime{now: time.Unix(100, 0), files: map[string][]byte{}, modTimes: map[string]time.Time{}, identities: map[string]string{}, writes: map[string][]byte{}, native: native, store: &fakeLifecycleStore{}}
+	// Mirror durable appends into the authoritative ledger seen by bound guards.
+	// The old fake kept records only in its assertion slice, unlike production.
+	r.store.nextOrdinal = func(path string) uint64 { return uint64(bytes.Count(r.files[path], []byte{'\n'}) + 1) }
+	r.store.onRecord = func(path string, record sessionledger.Record) {
+		raw, err := sessionledger.EncodeRecord(record)
+		if err != nil {
+			panic(err)
+		}
+		r.files[path] = append(r.files[path], append(raw, '\n')...)
+		r.mirrorLedger(path)
+	}
+	return r
 }
 
 func (r *watcherRuntime) Now() time.Time { return r.now }
@@ -575,9 +589,28 @@ func (r *watcherRuntime) AtomicWrite(path string, raw []byte) error {
 	r.writes[path] = append([]byte(nil), raw...)
 	return nil
 }
-func (r *watcherRuntime) Log(outcome adapt.Outcome, _ string)                { r.logs = append(r.logs, outcome) }
-func (r *watcherRuntime) NativeRuntime(_, _ string) sessioninventory.Runtime { return r.native }
-func (r *watcherRuntime) LedgerAppender() LedgerAppender                     { return r.store }
+func (r *watcherRuntime) Log(outcome adapt.Outcome, _ string) { r.logs = append(r.logs, outcome) }
+func (r *watcherRuntime) NativeRuntime(_, dataDir string) sessioninventory.Runtime {
+	if setter, ok := r.native.(interface {
+		SetPairDataRoot(sessioninventory.StorageRoot)
+	}); ok {
+		setter.SetPairDataRoot(sessioninventory.StorageRoot{Name: "pair-data", Path: dataDir})
+	}
+	for path := range r.files {
+		if artifactpath.IsLedgerHistorySidecar(filepath.Base(path)) {
+			r.mirrorLedger(path)
+		}
+	}
+	return r.native
+}
+func (r *watcherRuntime) mirrorLedger(path string) {
+	if putter, ok := r.native.(interface {
+		PutFile(sessioninventory.FileEntry, []byte)
+	}); ok {
+		putter.PutFile(sessioninventory.FileEntry{Artifact: sessioninventory.Artifact{StorageRoot: "pair-data", RelativePath: filepath.Base(path)}, StableFileID: sessioninventory.StableFileID(path), MutationToken: sessioninventory.MutationToken(fmt.Sprint(len(r.files[path])))}, r.files[path])
+	}
+}
+func (r *watcherRuntime) LedgerAppender() LedgerAppender { return r.store }
 func (r *watcherRuntime) CatalogStore() sessioninventory.CatalogStore {
 	if r.catalogRuntime != nil {
 		return sessioninventory.CatalogStore{Runtime: r.catalogRuntime}

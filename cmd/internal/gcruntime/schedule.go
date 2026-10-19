@@ -62,17 +62,11 @@ func (s *Service) Batch(ctx context.Context, cursor string, limit int) (string, 
 			state.Owner = report.NextOwner
 			return nextMaintenance(state)
 		}
-		if !report.MigrationComplete {
-			return "", true, nil
-		}
 		return nextMaintenance(maintenanceCursor{Phase: "diagnostics"})
 	}
 	report, err := s.Collector.DiagnosticInventory(ctx)
 	if err != nil {
 		return "", false, err
-	}
-	if !report.MigrationComplete {
-		return "", true, nil
 	}
 	paths := diagnosticPaths(&report, entries)
 	index := sort.SearchStrings(paths, state.Path)
@@ -83,6 +77,7 @@ func (s *Service) Batch(ctx context.Context, cursor string, limit int) (string, 
 		return "", true, nil
 	}
 	path := paths[index]
+	ctx = diagnosticlog.SweepContext(ctx, []string{path})
 	segment := ""
 	if path == state.Path && !state.After {
 		segment = state.Segment
@@ -90,16 +85,50 @@ func (s *Service) Batch(ctx context.Context, cursor string, limit int) (string, 
 	var next string
 	var complete bool
 	err = s.Collector.Coordinator.TryWithLock(ctx, func(held *storagegc.Locked) error {
-		registry, err := s.Collector.Coordinator.ReadRegistry()
-		if err != nil {
-			return err
-		}
-		if !registry.MigrationComplete {
-			return errors.New("migration acknowledgement unavailable")
-		}
 		options := s.DiagnosticOptions
 		options.Context = ctx
+		// Advisory row classification may report proof errors as blocked rows
+		// rather than return them. Preserve sweep-wide failures across that
+		// conversion so an incomplete observation cannot advance the scheduler.
+		var proofFailure error
+		observeProof := func(err error) error {
+			if errors.Is(err, diagnosticlog.ErrInspectionUnavailable) ||
+				errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+				proofFailure = err
+			}
+			return err
+		}
+		if proof := options.Proof; proof != nil {
+			options.Proof = func(ctx context.Context, path string, writers []diagnosticlog.Registration) error {
+				return observeProof(proof(ctx, path, writers))
+			}
+		}
+		if proof := options.ReaderProof; proof != nil {
+			options.ReaderProof = func(ctx context.Context, path string) error {
+				return observeProof(proof(ctx, path))
+			}
+		}
 		_, next, complete, err = diagnosticlog.CollectLegacyPage(path, options, segment, min(limit, 100))
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		if proofFailure != nil && !errors.Is(err, diagnosticlog.ErrBusy) &&
+			!errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
+			return proofFailure
+		}
+		// Collection errors at this boundary belong to this one log. Keep its
+		// declaration and certificates visible to PreviewDiagnostics, but do not
+		// let a damaged certificate, held recovery or local filesystem failure
+		// strand unrelated logs on every restart. Cancellation, contention and
+		// incomplete shared inspection cannot establish a safe sweep and retain
+		// the durable cursor for the scheduler's existing retry/error handling.
+		if err != nil && ctx.Err() == nil &&
+			!errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) &&
+			!errors.Is(err, diagnosticlog.ErrBusy) &&
+			!errors.Is(err, diagnosticlog.ErrInspectionUnavailable) {
+			next, complete = "", true
+			return nil
+		}
 		if errors.Is(err, diagnosticlog.ErrBusy) {
 			return storagegc.ErrCoordinatorBusy
 		}
