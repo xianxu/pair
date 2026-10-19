@@ -179,7 +179,8 @@ Full flow approved by hub f7e7fe62-5f41-4133-ba43-4296e82fd885; simplified flat-
 
 - [x] Integrated fake N/2N actual command counts, complete-pair budget deferral, hard-link and verified-copy paths, partial-batch receipts, and cleanup on success/failure/cancel.
 - [x] Installed-local batch conformance and race/guard checks on the revised code.
-- [ ] Final pushed-head recorded suite and binary-owned close review, then landing.
+- [x] Final pushed-head recorded suite and binary-owned close review (7674d3a2, exit 0 in 16m31s; round 2 SHIP).
+- [ ] Normal landing after integration gates.
 
 
 ### 2026-10-18 close BR-1 — destination capacity
