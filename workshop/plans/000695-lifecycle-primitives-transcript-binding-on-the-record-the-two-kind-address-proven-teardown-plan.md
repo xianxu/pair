@@ -396,3 +396,26 @@ Steps:
   one, and maps it to `ErrTeardownUnproven` with the server named. It refuses and never retries, and the
   listing's absence counts only when the process scan agrees. Test (M2): `TestTeardownUnprovenWhenListingOmitsLiveServer`.
   This depends on #692 landing first. If #695's M2 starts before then, that test waits for #692.
+- 2026-10-19 — #683 landed (PR #452, merge d964bbc11); merged into this branch. Its final shapes are folded in here.
+  Where §2's P3 text differs, these govern:
+  - **Failure log is completion-only.** There is no write-time supersession and no `superseded_at` production, and
+    a success writes nothing. A failure is hidden when `LastLifecycleSuccessAt(record)`
+    (couchcore/lifecyclefailure_projection.go:130) is strictly later than it. That function is the single seam,
+    and today it counts `VerifiedPark.ParkedAt` and a committed live incarnation's `StartedAt`. **M2 adds the
+    proven-teardown event:** `TeardownProof.ProvenAt` is persisted with the archived record (or the parked record for
+    Down), and `LastLifecycleSuccessAt` takes it into account. This is so that an unproven teardown followed by a
+    proven retry no longer shows on the emptied slot. Test (M2): `TestProvenTeardownHidesEarlierUnprovenFailure`.
+  - **Teardown errors implement `LifecycleFailureDetails`** (couchcore/lifecyclefailure.go:16: `FailurePhase`,
+    `FailureHolders`, `FailureOutcome`). The holders are #683's `ProcessIdentityLine{Process, Kind}`, and the
+    `Kind` comes from #683's catalogue (pair, pair-wrap, pair-launch-helper, zellij, nvim). M2 extends that catalogue
+    with `agent` and `session-watch` rather than defining a second holder type. `ErrTeardownUnproven` is the
+    `unproven` outcome with phase `prove`, and `LeftRunning` is evidence only. There are no capture sites in
+    Teardown: the dispatcher's completion recorder reads the interface. Test (M2):
+    `TestTeardownUnprovenRecordsPhaseAndHolders`, which goes through the real recorder with the store fake.
+  - **The slot arm of `Key()` equals #683's slot key.** `LifecycleFailureSlotKey` is `slot:` plus the canonical
+    physical starting path (lifecyclefailure.go:30). `LifecycleAddress{Kind: slot}.Key()` returns exactly that,
+    which covers `:0` too: #683's key needs no `Number > 0`, so the slot arm keys by the slot's physical root. File
+    names (lease, store dir) are a digest of `Key()`, never the raw path. `lifecycleFailureTargetKey` delegates to
+    `Key()` for a slot target in M1, and `TestLifecycleAddressSlotKeyMatchesFailureSlotKey` pins the equality. The
+    team arm (`team/<scope>/<TeamDir>`) has no failure-row matcher yet; pair#694 M3 adds it to
+    `lifecycleFailureRowTargets`.
