@@ -734,6 +734,207 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 9016333d-ec91-4480-af66-dc2138dc2bec
+            repository: github.com/xianxu/pair
+            issue_id: "000695"
+            recipe: milestone-review
+            round: 4
+            attempt: 1
+            agent: claude
+            root: /Users/xianxu/Library/Caches/sdlc/review-checkouts/812ed72f3c403142
+            reviewed_head: 99ca957e2b74d77402d35ca9eb40a408a295cb11
+            slot: pair:1
+            requested_at: "2026-10-19T19:46:12.850059Z"
+          phase: finished
+          pid: 18007
+          started_at: "2026-10-19T19:46:13.015702Z"
+          finished_at: "2026-10-19T20:16:10.12661Z"
+          session_id: f1831f85-10bb-44ea-8d61-ddd0b630abfe
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-v1
+        repository: github.com/xianxu/pair
+        code_head: 99ca957e2b74d77402d35ca9eb40a408a295cb11
+        tracker_head: 9e1fcff2b38cf616784e99d01160802c4f709428
+        branch_point: fffbf9c0d921bfc1df6ffb1fc0fe18628e53d812
+        since: "2026-10-18T22:57:15-07:00"
+        until: "2026-10-19T12:44:58-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-18T22:57:15-07:00"
+              end: "2026-10-19T12:44:58-07:00"
+              began: "2026-10-18T22:57:15-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot1/pair
+        sources:
+            - harness: claude
+              id: 0f8622e1-c463-4612-8427-0339d0387f2b
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              digest: ca3da0965e8961d1c61c665731c4cd42b4e97772c869410aef3541505e4f55ce
+              started: "2026-10-19T13:36:29.283Z"
+              spawned: false
+              bytes: 393181
+              windows:
+                - start: "2026-10-19T13:36:29.283Z"
+                  end: "2026-10-19T12:44:58-07:00"
+            - harness: claude
+              id: 507d0585-c54a-4834-8abd-9a52d7f9da76
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              digest: cee3b4a311375517db078d115a92caf62758255fc422d8ac956fd9af34de4f72
+              started: "2026-10-19T02:49:17.103Z"
+              spawned: false
+              bytes: 15758559
+              windows:
+                - start: "2026-10-18T22:57:15-07:00"
+                  end: "2026-10-19T12:44:58-07:00"
+            - harness: claude
+              id: 6fa6fea2-8902-4f5c-9b2a-6548cf879f30
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              digest: faaf9c38d70a8a84ae00d705b1eef74c2570dd281bc35df426c3f6a837398123
+              started: "2026-10-19T13:30:41.221Z"
+              spawned: false
+              bytes: 614766
+              windows:
+                - start: "2026-10-19T13:30:41.221Z"
+                  end: "2026-10-19T12:44:58-07:00"
+            - harness: claude
+              id: 84fed9bb-2c33-495b-a2ac-b1c365c8f242
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              digest: 45246414c4d539667e82f0898e93805a8f3c200e359a018f9d53d1c10c45e757
+              started: "2026-10-19T13:36:13.159Z"
+              spawned: false
+              bytes: 572779
+              windows:
+                - start: "2026-10-19T13:36:13.159Z"
+                  end: "2026-10-19T12:44:58-07:00"
+            - harness: claude
+              id: 98afc721-0259-4ecb-a3aa-286966a8fa6b
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              digest: 0a6426bb7d4eda2cbe641637263404af0ffc0e861b43796863689e58ebf3b5ab
+              started: "2026-10-19T13:35:01.399Z"
+              spawned: false
+              bytes: 418152
+              windows:
+                - start: "2026-10-19T13:35:01.399Z"
+                  end: "2026-10-19T12:44:58-07:00"
+            - harness: claude
+              id: b5833248-4bc3-4582-a4e6-6c13f3737a1f
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              digest: 00e83c9ffe05ea6321734652c9f1f96a46f491047bfc59de33ed5ac5eff504d4
+              started: "2026-10-19T13:32:47.197Z"
+              spawned: false
+              bytes: 604367
+              windows:
+                - start: "2026-10-19T13:32:47.197Z"
+                  end: "2026-10-19T12:44:58-07:00"
+            - harness: claude
+              id: ccfc2441-0f65-4249-8017-65b2eb08cc24
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              digest: 5b9b248858b400579af6244ff35f2baa03f8f0e3b41b50d9804fd87bf8a87314
+              started: "2026-10-19T13:34:27.337Z"
+              spawned: false
+              bytes: 574614
+              windows:
+                - start: "2026-10-19T13:34:27.337Z"
+                  end: "2026-10-19T12:44:58-07:00"
+        cuts:
+            - boundary: M1
+              dispatched: "2026-10-19T07:20:37-07:00"
+              finalized: "2026-10-19T07:40:57-07:00"
+              finalizing: false
+            - boundary: M1
+              dispatched: "2026-10-19T07:55:34-07:00"
+              finalized: "2026-10-19T08:17:38-07:00"
+              finalizing: false
+            - boundary: M1
+              dispatched: "2026-10-19T08:27:51-07:00"
+              finalized: "2026-10-19T08:44:32-07:00"
+              finalizing: true
+            - boundary: M2
+              dispatched: "2026-10-19T12:16:55-07:00"
+              finalized: "2026-10-19T12:31:56-07:00"
+              finalizing: false
+      "n": 6
+      timestamp: "2026-10-19T13:16:10-07:00"
+      dispatched: "2026-10-19T12:46:10-07:00"
+      agent: claude
+      reviewer: claude (anthropic; author anthropic)
+      dispose:
+        - id: BR-11
+          disposition: addressed
+          note: teardown.go:365-369 adds the published agent by exact pid+identity; mutation (drop add) turns TestTeardownWitnessesAnAgentWithoutATerminal red.
+          round: 6
+        - id: BR-12
+          disposition: addressed
+          note: TestTeardownNeverSweepsAReusedTerminal fails under the `if true ||` mutation (pid 900 terminated), verified in this checkout.
+          round: 6
+        - id: BR-13
+          disposition: addressed
+          note: Lease removed after a proof in every mode (all-mode test fails when limited to stopping mode); SweepFree at Couch start with TestSweepFreeRemovesOnlyFreeLeases; atlas states the lifetime.
+          round: 6
+        - id: BR-14
+          disposition: addressed
+          note: Authority fields unexported with accessors; fixtures use TestOnlyTeardownProof plus a scan test (scan-scope gap raised as a new Minor).
+          round: 6
+        - id: BR-15
+          disposition: addressed
+          note: README.md:477-481 and :823-829 now name the left-running processes that --reap-orphans --confirm ends and the --resources section.
+          round: 6
+        - id: BR-16
+          disposition: addressed
+          note: Each of the 7 mismatches got code or a Revisions entry (plan round-4 log); sweep and recorder tests exist, and Active is the single activation predicate.
+          round: 6
+        - id: BR-17
+          disposition: addressed
+          note: orphan_registry.go refuses schema_version != 1 and pid<=0 or empty identity at decode, and the rewrite keeps the version; refusal + byte-unchanged test present.
+          round: 6
+        - id: BR-18
+          disposition: addressed
+          note: strictjson.DecodeKnown replaces the five sites; no remaining copy of the split/encode/decode sequence in the diff.
+          round: 6
+        - id: BR-19
+          disposition: addressed
+          note: teardownMode enum with stops()/folds() replaces (stop, fold bool).
+          round: 6
+        - id: BR-20
+          disposition: addressed
+          note: readiness/record.go:30 comment now says decimal device number (Darwin e_tdev, Linux tty_nr).
+          round: 6
+      findings:
+        - kind: defect
+          id: BR-21
+          severity: Minor
+          title: Teardown unlinks the proven-free lease without holding its exclusive lock, unlike SweepFree
+          detail: 'teardown.go:245 calls os.Remove after proveDown''s Free released its probe lock, so a Hold that locks between the two keeps an unlinked inode that every later witness misses. Rule: a lock file is unlinked only under LOCK_EX with a same-file check; share one lifetimelease removeIfFree helper used by SweepFree and teardown.'
+          family: unlink-lock-file-under-lock
+          round: 6
+        - kind: defect
+          id: BR-22
+          severity: Minor
+          title: The production-caller scan for TestOnlyTeardownProof covers only cmd/internal and exempts couchcoretest
+          detail: 'This is the 2nd finding in family authority-unforgeable. Rule: an authority''s test-only minting path is unreachable from every production package in the module, so the guard walks the module root and also refuses non-test imports of couchcoretest. retire_test.go walks ".." (cmd/internal) only, so cmd/couch and cmd/pair-go are unscanned.'
+          family: authority-unforgeable
+          round: 6
+      boundary: M2
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: 99ca957e2b74d77402d35ca9eb40a408a295cb11
+      blocked: false
 ---
 
 # Gate ledger — pair#695 (boundary-review)
@@ -826,17 +1027,31 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-20** [Minor] `comment-code-drift` (kind: defect) ReadyRecord.TTY comment says names like ttys183 or pts/3, but the value is a decimal device number
   procutil.Process.TTY stores e_tdev or tty_nr in decimal, and the wrapper publishes that same value. Fix the comment at readiness/record.go:30.
 
+## Round 6 — 2026-10-19T13:16:10-07:00 (claude) — passed
+
+### Disposed
+
+- BR-11 — addressed — teardown.go:365-369 adds the published agent by exact pid+identity; mutation (drop add) turns TestTeardownWitnessesAnAgentWithoutATerminal red.
+- BR-12 — addressed — TestTeardownNeverSweepsAReusedTerminal fails under the `if true ||` mutation (pid 900 terminated), verified in this checkout.
+- BR-13 — addressed — Lease removed after a proof in every mode (all-mode test fails when limited to stopping mode); SweepFree at Couch start with TestSweepFreeRemovesOnlyFreeLeases; atlas states the lifetime.
+- BR-14 — addressed — Authority fields unexported with accessors; fixtures use TestOnlyTeardownProof plus a scan test (scan-scope gap raised as a new Minor).
+- BR-15 — addressed — README.md:477-481 and :823-829 now name the left-running processes that --reap-orphans --confirm ends and the --resources section.
+- BR-16 — addressed — Each of the 7 mismatches got code or a Revisions entry (plan round-4 log); sweep and recorder tests exist, and Active is the single activation predicate.
+- BR-17 — addressed — orphan_registry.go refuses schema_version != 1 and pid<=0 or empty identity at decode, and the rewrite keeps the version; refusal + byte-unchanged test present.
+- BR-18 — addressed — strictjson.DecodeKnown replaces the five sites; no remaining copy of the split/encode/decode sequence in the diff.
+- BR-19 — addressed — teardownMode enum with stops()/folds() replaces (stop, fold bool).
+- BR-20 — addressed — readiness/record.go:30 comment now says decimal device number (Darwin e_tdev, Linux tty_nr).
+
+### Raised
+
+- **BR-21** [Minor] `unlink-lock-file-under-lock` (kind: defect) Teardown unlinks the proven-free lease without holding its exclusive lock, unlike SweepFree
+  teardown.go:245 calls os.Remove after proveDown's Free released its probe lock, so a Hold that locks between the two keeps an unlinked inode that every later witness misses. Rule: a lock file is unlinked only under LOCK_EX with a same-file check; share one lifetimelease removeIfFree helper used by SweepFree and teardown.
+- **BR-22** [Minor] `authority-unforgeable` (kind: defect) The production-caller scan for TestOnlyTeardownProof covers only cmd/internal and exempts couchcoretest
+  This is the 2nd finding in family authority-unforgeable. Rule: an authority's test-only minting path is unreachable from every production package in the module, so the guard walks the module root and also refuses non-test imports of couchcoretest. retire_test.go walks ".." (cmd/internal) only, so cmd/couch and cmd/pair-go are unscanned.
+
 ## Open findings
 
 - **BR-9** [Minor] `deferral-recorded-at-receiver` (kind: defect) BR-4's row note and legacy-ledger row detail are deferred to #684 M2 only in #695's plan; #684's tracker does not mention them
 - **BR-10** [Minor] `nested-unknown-preservation` (kind: defect) Record.Unknown comment still says nested objects stay strict after BR-7 made transcript tolerant
-- **BR-11** [Critical] `proof-witness-per-process-kind` (kind: defect) Teardown proves a tree down while the published agent is still alive when agent-ready carries no tty
-- **BR-12** [Important] `kill-guard-regression-test` (kind: defect) The tty-trusted-only-while-the-tree-is-up guard has no test; a mutation that always trusts the tty passes the suite
-- **BR-13** [Important] `artifact-removal-path` (kind: defect) Per-thread lifetime lease files are removed only by Teardown(stop); every other retirement leaks one file forever
-- **BR-14** [Important] `authority-unforgeable` (kind: defect) TeardownProof is forgeable (all fields exported), unlike the three other constructor-only retire authorities
-- **BR-15** [Important] `readme-surface-gate` (kind: defect) README update missing: couch --reap-orphans --confirm now also ends teardown's left-running processes
-- **BR-16** [Important] `plan-code-drift` (kind: defect) M2 plan contracts and named tests not delivered as specified (plain-pair test cases, both-env activation, sweep test, recorder path, holder kinds, witnesses)
-- **BR-17** [Important] `decode-strictness-beyond-types` (kind: defect) orphans.json accepts any schema_version and rewrites it as 1; entries with pid <= 0 or an empty identity decode
-- **BR-18** [Minor] `preserving-codec-boilerplate` (kind: defect) The split, encode, strict-decode, keep-unknown sequence is copy-pasted at five decode sites
-- **BR-19** [Minor] `mode-as-bool-flags` (kind: defect) teardown(stop, fold bool) encodes three legal modes as two booleans; stop without fold is representable but unused
-- **BR-20** [Minor] `comment-code-drift` (kind: defect) ReadyRecord.TTY comment says names like ttys183 or pts/3, but the value is a decimal device number
+- **BR-21** [Minor] `unlink-lock-file-under-lock` (kind: defect) Teardown unlinks the proven-free lease without holding its exclusive lock, unlike SweepFree
+- **BR-22** [Minor] `authority-unforgeable` (kind: defect) The production-caller scan for TestOnlyTeardownProof covers only cmd/internal and exempts couchcoretest

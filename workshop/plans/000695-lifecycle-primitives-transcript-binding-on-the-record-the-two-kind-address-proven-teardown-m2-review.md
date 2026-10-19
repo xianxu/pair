@@ -205,3 +205,148 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-19T13:16:10-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 695 — Lifecycle primitives: transcript binding on the record, the two-kind address, proven teardown |
+| repo | pair |
+| issue file | workshop/issues/000695-lifecycle-primitives-transcript-binding-on-the-record-the-two-kind-address-proven-teardown.md |
+| boundary | milestone M2 |
+| milestone | M2 |
+| window | 76f0676dd41f77e3c207111e57d5a1eef8c527a6..99ca957e2b74d77402d35ca9eb40a408a295cb11 |
+| command | sdlc milestone-close --issue 695 --milestone M2 |
+| reviewer | claude (anthropic; author anthropic) |
+| isolation | fenced |
+| timestamp | 2026-10-19T13:16:10-07:00 |
+| verdict | SHIP |
+
+## Review
+
+Checking the claimed fixes for BR-11 through BR-20 against the code; next I'll run the teardown tests with mutations.
+
+Now mutation-checking the BR-11 and BR-12 regression tests.
+
+Targeted tests and mutations are green; now checking whether the full-suite failures come from the sandbox or from the code.
+
+```verdict
+verdict: SHIP
+confidence: medium
+```
+
+All ten open findings from round 4 (BR-11 to BR-20) are fixed in code, and the behaviour fixes have regression tests that I checked by mutation in this checkout. Teardown now takes the published agent as a witness by its exact pid and identity, whatever its tty (`teardown.go:365-369`). If that branch is removed, `TestTeardownWitnessesAnAgentWithoutATerminal` fails with "ProveDown with a live agent and no tty = <nil>". If the tty-trust guard is changed to `if true || …`, `TestTeardownNeverSweepsAReusedTerminal` fails because pid 900 is signalled. If lease removal is limited to stopping mode, the `prove_and_fold` case of `TestTeardownRemovesTheProvenLease` fails. The targeted suites pass: lifetimelease, strictjson, readiness, threadrecord and procutil, plus couchcore filtered to the Teardown, Retire, LeftRunning, ProveDown and Archive tests. The full couchcore and couchcmd runs fail here, but I traced every failure I looked at to this sandbox; details are in the test notes. Nothing blocks shipping. The two new findings are Minor.
+
+### 1. Strengths
+- **Agent witness by exact identity.** `teardown.go:362-369` closes the BR-11 gap without trusting the tty. The lesson recorded in `workshop/lessons.md` states the rule as a class: a derived witness is only a supplement.
+- **Lease sweep.** `lifetimelease.SweepFree` unlinks a file only while it holds the exclusive lock and the file is still the one at that path. `Hold` re-checks with `current()`, so a sweep can never leave a holder locking an unlinked file (`lease.go:79-147`).
+- **Unforgeable proof.** `TeardownProof` now hides its authority fields behind accessors. `teardownMode` makes the three legal modes readable from the type (`teardown.go:63-111`).
+- **Orphan registry.** `orphans.json` now refuses unsupported values when it decodes, and its rewrite no longer overwrites `schema_version`. `TestLeftRunningRegistryRefusesUnsupportedValues` also checks that a refused registry stays byte-identical.
+- **One decode helper.** `strictjson.DecodeKnown` replaces the five copy-pasted decode sequences, which closes ARCH-DRY.
+
+### 2. Critical
+None.
+
+### 3. Important
+None.
+
+### 4. Minor
+- **Lease removal is not under lock** (`teardown.go:245`). Teardown deletes the lease file with a plain `os.Remove`, without the exclusive lock and same-file check that `SweepFree` uses. A holder that locks the file between `proveDown`'s `Free` and the `Remove` ends up holding an unlinked inode, and every later witness misses it. It is only reachable if the same thread key is relaunched during its own teardown. Fix: share one `removeIfFree(path)` helper in `lifetimelease` that both `SweepFree` and teardown call.
+- **The guard on the test-only minting path does not cover the whole module** (`retire_test.go:304-328`). `TestOnlyTeardownProofHasNoProductionCaller` scans only `cmd/internal`. `cmd/couch` and `cmd/pair-go` can import couchcore and are not scanned. It also exempts `couchcoretest/`, a non-test package, and nothing checks that production code never imports it.
+
+### 5. Test coverage notes
+- **Mutations.** The BR-11, BR-12 and BR-13 tests each fail for the right reason when their fix is reverted (results above).
+- **couchcmd.** The full run fails here because the socket path exceeds 103 bytes under the review's long `TMPDIR`. With a short `TMPDIR` the sandbox refuses `git init` outside the reviewer's directories. Both are environmental.
+- **couchcore.** `TestSpawnComposesProductionPairRegistrationBoundary` fails the same way at base `76f0676dd` ("couch session repository scope changed"), so it predates this work. The couchcore write budget was exceeded in this environment (about 190 MB against a 128 MB cap). I did not compare that against base, so the full-suite write budget is unconfirmed here.
+- **Plain-pair test.** `TestPlainPairUnchangedWithoutCouch` covers the env predicate and the absence of an extra descriptor, not the two-session scenario. That is acceptable because `Active` is the single gate for both holding the lease and publishing the tty.
+
+### 6. Architectural notes (one line per principle)
+- **ARCH-DRY:** pass. `DecodeKnown` is the single preserving decoder. The nested-null split in `lifecyclefailure_codec.go` predates this work and has a different shape.
+- **ARCH-PURE:** pass. Teardown decisions go through `Proc`, `ProcessTable` and `Clock`, which are injected.
+- **ARCH-PURPOSE:** pass. Every retirement path either removes its lease on proof or leaves it to the sweep.
+- **ARCH-MOCK:** pass. Fake process table plus the real-pty conformance test.
+- **ARCH-CONSTRAINTS:** pass. Teardown has a 10 s budget, 3 rounds and bounded signal waits. `Prune` now writes only when something is gone.
+- **ARCH-SECURE:** pass, with the Minor guard-scope note above.
+- **ARCH-ORDER:** pass. `teardownMode` replaces the two booleans, and tty trust is tied to the tree being up. The remove-without-lock race is the Minor above.
+- **ARCH-FUNERAL:** pass. Lease files are removed after any proof or by `SweepFree` at Couch start, and the atlas documents both. The orphan registry is capped at 256 entries.
+- **ARCH-EVOLVE:** pass. The registry refuses an unknown version and never rewrites one it refused.
+
+### 7. Plan revision recommendations
+- Plan line 368 still describes `TestPlainPairUnchangedWithoutCouch` as "two pair sessions start in one directory…". Add a Revisions line that explicitly retires the two-session, sidecar-without-tty and lease-without-tag cases in favour of the shared `Active` predicate. This is optional, because the round-4 revision already records the narrowed test.
+
+```findings
+dispose:
+  - id: BR-11
+    disposition: addressed
+    note: |
+      teardown.go:365-369 adds the published agent by exact pid+identity; mutation (drop add) turns TestTeardownWitnessesAnAgentWithoutATerminal red.
+  - id: BR-12
+    disposition: addressed
+    note: |
+      TestTeardownNeverSweepsAReusedTerminal fails under the `if true ||` mutation (pid 900 terminated), verified in this checkout.
+  - id: BR-13
+    disposition: addressed
+    note: |
+      Lease removed after a proof in every mode (all-mode test fails when limited to stopping mode); SweepFree at Couch start with TestSweepFreeRemovesOnlyFreeLeases; atlas states the lifetime.
+  - id: BR-14
+    disposition: addressed
+    note: |
+      Authority fields unexported with accessors; fixtures use TestOnlyTeardownProof plus a scan test (scan-scope gap raised as a new Minor).
+  - id: BR-15
+    disposition: addressed
+    note: |
+      README.md:477-481 and :823-829 now name the left-running processes that --reap-orphans --confirm ends and the --resources section.
+  - id: BR-16
+    disposition: addressed
+    note: |
+      Each of the 7 mismatches got code or a Revisions entry (plan round-4 log); sweep and recorder tests exist, and Active is the single activation predicate.
+  - id: BR-17
+    disposition: addressed
+    note: |
+      orphan_registry.go refuses schema_version != 1 and pid<=0 or empty identity at decode, and the rewrite keeps the version; refusal + byte-unchanged test present.
+  - id: BR-18
+    disposition: addressed
+    note: |
+      strictjson.DecodeKnown replaces the five sites; no remaining copy of the split/encode/decode sequence in the diff.
+  - id: BR-19
+    disposition: addressed
+    note: |
+      teardownMode enum with stops()/folds() replaces (stop, fold bool).
+  - id: BR-20
+    disposition: addressed
+    note: |
+      readiness/record.go:30 comment now says decimal device number (Darwin e_tdev, Linux tty_nr).
+findings:
+  - id: new
+    severity: Minor
+    kind: defect
+    family: unlink-lock-file-under-lock
+    title: |
+      Teardown unlinks the proven-free lease without holding its exclusive lock, unlike SweepFree
+    detail: |
+      teardown.go:245 calls os.Remove after proveDown's Free released its probe lock, so a Hold that locks between the two keeps an unlinked inode that every later witness misses. Rule: a lock file is unlinked only under LOCK_EX with a same-file check; share one lifetimelease removeIfFree helper used by SweepFree and teardown.
+  - id: new
+    severity: Minor
+    kind: defect
+    family: authority-unforgeable
+    title: |
+      The production-caller scan for TestOnlyTeardownProof covers only cmd/internal and exempts couchcoretest
+    detail: |
+      This is the 2nd finding in family authority-unforgeable. Rule: an authority's test-only minting path is unreachable from every production package in the module, so the guard walks the module root and also refuses non-test imports of couchcoretest. retire_test.go walks ".." (cmd/internal) only, so cmd/couch and cmd/pair-go are unscanned.
+```
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"9016333d-ec91-4480-af66-dc2138dc2bec","repository":"github.com/xianxu/pair","issue_id":"000695","recipe":"milestone-review","round":4,"attempt":1,"agent":"claude","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/812ed72f3c403142","reviewed_head":"99ca957e2b74d77402d35ca9eb40a408a295cb11","slot":"pair:1","requested_at":"2026-10-19T19:46:12.850059Z"},"phase":"finished","pid":18007,"started_at":"2026-10-19T19:46:13.015702Z","finished_at":"2026-10-19T20:16:10.12661Z","session_id":"f1831f85-10bb-44ea-8d61-ddd0b630abfe","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.022632958s
+head: "99ca957e2b74d77402d35ca9eb40a408a295cb11"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
