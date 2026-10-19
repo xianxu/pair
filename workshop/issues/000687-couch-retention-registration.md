@@ -75,6 +75,7 @@ Filed unclaimed at the hub's request in receipt42a427eb-c28b-4124-9ef2-8c09ed6b5
 
 
 ### 2026-10-18 — claim, source evidence and proposed plan
+- 2026-10-18: closed — BR-1 addressed: pure lease-matching tests use value literals; codec tests use JSON-only fixtures. Exact version1 lease consumption and open-holder/cancellation fences pass stateful production options, explicit/scheduled GC and Couch constructor regressions. Affected full storagegc/diagnosticlog/gcruntime/couchcore/artifactpath packages and Godoc guard pass; native owned-child conformance and N8/16 counts pass. Real preview4.463s preserves registry and old supervisor block; approved real check follows operator restart, no live apply/staging. Final test-only head f479a6e80c28 has recorded suite queued; its pass and green CI required before landing.; review verdict: SHIP
 
 Verified fresh hub assignment c1eb775b-6d04-44d9-93e5-013b5940f0bd, claimed #687 and ran start-plan. The first start-plan refreshed the ariadne substrate and explicitly refused branching under the old binary; its requested rerun created the issue branch. No product code or live data mutation has occurred. start-plan currently lists ariadne#454 in flight, so ARCH-EVOLVE is an explicit hub requirement even though the delivered principle registry has not added it yet.
 
