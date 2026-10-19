@@ -1,8 +1,8 @@
 ---
 id: 000681
-status: codecomplete
+status: done
 created: 2026-10-18
-updated: 2026-10-18
+updated: 2026-10-19
 estimate_hours:
 github_issue:
 severity: high
@@ -22,6 +22,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 13bab42b594631c392438fcb89aac5837d3dece8
         evidence_commit: 31d3bbe5100b3172d72ad6abe62728aff2bc1552
+        landed_commit: 8059ab717462c1553fce5afc66dea265c03be888
 ---
 
 # Recover park inventory exceeds CLI admission deadline
