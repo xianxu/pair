@@ -47,6 +47,7 @@ Durable design: [000678-drive-history-backup-plan.md](../plans/000678-drive-hist
 ## Log
 
 ### 2026-10-18
+- 2026-10-18: closed — Operator live acceptance: pass1 56 verified plus2 pending; pass2 7 verified (2 retries plus5 new),56 already recorded,0 pending,0 downloads. Final batch tests enforce <=4 rclone processes at N8/16, <=5 with downloaded hash batch; partial progress, 4GiB completepair cap, staging cleanup and bounded diagnostics covered. BR-1 capacity regression RED6.496s then GREEN7.863s; broader Drive/model/fake passed14.780s/0.136s; artifactpath passed9.763s. Corrected-head recorded suite queued on7674d3a2 and must pass before merge. Earlier fullrace and installedrclone conformance passed; focused capacity race pending. README/atlas updated. TL owns history-backup project, so --no-project avoids worker edits.; review verdict: SHIP
 
 
 - Recovery evidence: requested previous terminal capture returned unavailable. Git and sdlc state show #670 already landed and #678 claimed/started on its own branch; no implementation edits. Historical screen instructions are context, not fresh permission. Verified the original #678 dispatch receipts before continuing its existing planning work.

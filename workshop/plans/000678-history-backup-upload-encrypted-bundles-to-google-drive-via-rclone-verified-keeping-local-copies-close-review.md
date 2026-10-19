@@ -93,3 +93,89 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-18T19:25:37-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 678 — history backup: upload encrypted bundles to Google Drive via rclone (verified), keeping local copies |
+| repo | pair |
+| issue file | workshop/issues/000678-history-backup-upload-encrypted-bundles-to-google-drive-via-rclone-verified-keeping-local-copies.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 7eaf4fa8e7f26b8a8590b47be5971150d46a442f..7674d3a24c36cac0ff8109b22499c15382d25fe4 |
+| command | sdlc close --issue 678 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-18T19:25:37-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned implementation delivers verified backlog replication while preserving independent local backup success. BR-1 is addressed with destination-wide capacity reservation and regression tests that fail when the guard is disabled. No new blocking findings emerged; README and atlas cover the new surface.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      drive.go:145 counts all existing destination entries, reserves only missing members before staging/copy, and visibly defers complete pairs. Tests at drive_external_test.go:194 and :222 pass at pinned HEAD. Disabling the admission guard in a disposable HEAD copy made all three cases fail with invalid remote inventory count after excess uploads. Tests also verify rerun stability, vacancy recovery, single-member completion and full-inventory adoption. The disposable copy was removed.
+```
+
+1. **Strengths**
+
+   - Local completion and its success marker precede remote work; remote errors remain visible without failing local backup (`continuous.go:128`).
+   - Final observations authorize receipts independently of copy exit status, preserving verified progress after partial failures (`drive.go:291`).
+   - Stateful fake tests exercise retained bytes, late duplicates, retry, complete-pair deferral and zero-copy reruns (`drive_external_test.go`).
+   - Descriptor-checked staging reuses immutable local files, with verified EXDEV copying and cleanup on failure/cancellation (`drive_staging.go:145`).
+
+2. **Critical findings:** None remaining.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Passed:
+
+   - `go test ./cmd/internal/historyarchive/... ./cmd/internal/archivecmd -count=1`
+   - Installed-rclone local-backend conformance and started-child cancellation tests.
+   - `go test ./cmd/internal/artifactpath ./cmd/internal/testpair ./internal/repolint -count=1`
+   - Patch whitespace checks.
+
+   BR-1’s guard-disabled run reproduced the original failure. Review left the checkout unchanged. Real Drive acceptance was not rerun; the tracker distinguishes its earlier serial-transport evidence from batch qualification.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — Pass:** Reuses Catalog, LocalSink and existing validation/publication machinery.
+   - **ARCH-PURE — Pass:** Destination, receipt, admission and transition logic have direct tests without IO; orchestration owns effects.
+   - **ARCH-PURPOSE — Pass:** Projects historical catalog entries and retries backlog independently of newly archived sources.
+   - **ARCH-MOCK — Pass:** Production and stateful fake share the runner seam; installed-local conformance passed.
+   - **ARCH-CONSTRAINTS — Pass:** Bounds cover subprocess output, phase duration, transfer concurrency, staged bytes and destination entry admission.
+   - **ARCH-SECURE — Pass:** Typed validation, duplicate-key rejection, argv invocation, verified staging and bounded/redacted diagnostics protect the relevant boundaries.
+   - **ARCH-ORDER — Pass:** Receipt transitions require final pair verification; partial outcomes reconcile through fresh observations. Controlled failure and ordering tests exercise production flow.
+   - **ARCH-FUNERAL — Pass:** Staging has synchronous cleanup and next-owner recovery. Receipts have explicit size/count bounds and documented retention.
+
+7. **Plan revision recommendations:** None. The destination-capacity revision matches the implementation; remaining suite/landing checkboxes are workflow obligations.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"3591ece7-ec66-4160-b68d-ef8bb7ec56fd","repository":"github.com/xianxu/pair","issue_id":"000678","recipe":"milestone-review","round":2,"attempt":1,"agent":"codex","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/64322459ac648b05","reviewed_head":"7674d3a24c36cac0ff8109b22499c15382d25fe4","slot":"pair:6","requested_at":"2026-10-19T02:24:07.321391Z"},"phase":"finished","pid":68929,"started_at":"2026-10-19T02:24:07.425413Z","finished_at":"2026-10-19T02:25:36.990453Z","session_id":"01a151f9-2ff9-7dd0-9063-1a10b621b700","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.488014416s
+head: "7674d3a24c36cac0ff8109b22499c15382d25fe4"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

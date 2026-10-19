@@ -184,6 +184,201 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 3591ece7-ec66-4160-b68d-ef8bb7ec56fd
+            repository: github.com/xianxu/pair
+            issue_id: "000678"
+            recipe: milestone-review
+            round: 2
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/Library/Caches/sdlc/review-checkouts/64322459ac648b05
+            reviewed_head: 7674d3a24c36cac0ff8109b22499c15382d25fe4
+            slot: pair:6
+            requested_at: "2026-10-19T02:24:07.321391Z"
+          phase: finished
+          pid: 68929
+          started_at: "2026-10-19T02:24:07.425413Z"
+          finished_at: "2026-10-19T02:25:36.990453Z"
+          session_id: 01a151f9-2ff9-7dd0-9063-1a10b621b700
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-queue-v1
+        repository: github.com/xianxu/pair
+        code_head: 7674d3a24c36cac0ff8109b22499c15382d25fe4
+        tracker_head: 2c3c406469ab71c8fb44683b77a710fbe3046e76
+        branch_point: 7eaf4fa8e7f26b8a8590b47be5971150d46a442f
+        since: "2026-10-18T17:51:28-07:00"
+        until: "2026-10-18T19:23:15-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-18T17:51:28-07:00"
+              end: "2026-10-18T19:23:15-07:00"
+              began: "2026-10-18T17:51:28-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot6/pair
+        sources:
+            - harness: codex
+              id: 01a14b2c-9890-74f3-a738-58879659bef5
+              slot: pair:6
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              digest: 3b1b133099ed9fe103cdd7987d8a5695241fe96f281e8c798ff785fcf5322f6c
+              started: "2026-10-17T18:42:56.865Z"
+              spawned: false
+              bytes: 32418785
+              windows:
+                - start: "2026-10-18T17:51:28-07:00"
+                  end: "2026-10-18T19:23:15-07:00"
+            - harness: codex
+              id: 01a151a4-9476-77b1-8e4b-fc1e1915aa9b
+              slot: pair:6
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              parent_id: 01a14b2c-9890-74f3-a738-58879659bef5
+              digest: fb352b06f13eae7ec04bab60eb6818cae3ed900c28af737369a224b5636b3c5a
+              started: "2026-10-19T00:51:42.935Z"
+              spawned: true
+              bytes: 518259
+              windows:
+                - start: "2026-10-19T00:51:42.935Z"
+                  end: "2026-10-18T19:23:15-07:00"
+            - harness: codex
+              id: 01a151ab-5d66-7b73-98a7-0d2e931a47f6
+              slot: pair:6
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              digest: 07a58db9bc01cebc41708ae93a8fb2fe9bd58d6b542a47912871ee9270be421a
+              started: "2026-10-19T00:59:08.25Z"
+              spawned: false
+              bytes: 669196
+              windows:
+                - start: "2026-10-19T00:59:08.25Z"
+                  end: "2026-10-18T19:23:15-07:00"
+            - harness: codex
+              id: 01a151ae-d55e-7981-adb3-e7c55acbcf14
+              slot: pair:6
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              digest: b1a2dc13fda1044cf0f355ddfe0f0a7b22ac9101a1e491ad07f8e9775f0def23
+              started: "2026-10-19T01:02:55.31Z"
+              spawned: false
+              bytes: 537929
+              windows:
+                - start: "2026-10-19T01:02:55.31Z"
+                  end: "2026-10-18T19:23:15-07:00"
+            - harness: codex
+              id: 01a151c7-2b21-75f2-8752-a0225df224ce
+              slot: pair:6
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              digest: b48b53de7772d7f2f4bc20ff3f47a4624860ecdef5cb099859787858a507c597
+              started: "2026-10-19T01:29:30.554Z"
+              spawned: false
+              bytes: 450209
+              windows:
+                - start: "2026-10-19T01:29:30.554Z"
+                  end: "2026-10-18T19:23:15-07:00"
+            - harness: codex
+              id: 01a151c7-8c06-7ff0-aee7-ae9a657cfe85
+              slot: pair:6
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              digest: c23ea4ae3aa744b46312e296c2d2ea252fb8b7262dcb1e7cb8dc6d108024bcab
+              started: "2026-10-19T01:29:54.752Z"
+              spawned: false
+              bytes: 441005
+              windows:
+                - start: "2026-10-19T01:29:54.752Z"
+                  end: "2026-10-18T19:23:15-07:00"
+            - harness: codex
+              id: 01a151c8-3cf6-7d10-9b52-07bc9d5c8312
+              slot: pair:6
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              parent_id: 01a14b2c-9890-74f3-a738-58879659bef5
+              digest: 5c43155ac25e70b5cb486539b5e7bd2a3f0cc2cd78d19d0976cbfaa3fc029ccd
+              started: "2026-10-19T01:30:39.88Z"
+              spawned: true
+              bytes: 708823
+              windows:
+                - start: "2026-10-19T01:30:39.88Z"
+                  end: "2026-10-18T19:23:15-07:00"
+            - harness: codex
+              id: 01a151c8-b147-7ff1-93c6-babcd610cb02
+              slot: pair:6
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              parent_id: 01a14b2c-9890-74f3-a738-58879659bef5
+              digest: 5ba63ba4e54fc3f848acb29519c491bbc0ecd1d7a3b43a4bb8ed3c7ddcc38c20
+              started: "2026-10-19T01:31:09.632Z"
+              spawned: true
+              bytes: 1129661
+              windows:
+                - start: "2026-10-19T01:31:09.632Z"
+                  end: "2026-10-18T19:23:15-07:00"
+            - harness: codex
+              id: 01a151e3-4494-7af1-a2cd-3011f472c95e
+              slot: pair:6
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              digest: 3dd0fa80fd6311aca4f0a78ab786b2c744c5e1e0d70be3cf70fe5474995ba95a
+              started: "2026-10-19T02:00:11.646Z"
+              spawned: false
+              bytes: 451147
+              windows:
+                - start: "2026-10-19T02:00:11.646Z"
+                  end: "2026-10-18T19:23:15-07:00"
+            - harness: codex
+              id: 01a151e3-a41b-7c33-976f-e256007ccfcb
+              slot: pair:6
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              digest: 45af1c8051cab6898a55565cfc6aaf59fa1b2834e8343b131c16184d6d325e43
+              started: "2026-10-19T02:00:36.463Z"
+              spawned: false
+              bytes: 429183
+              windows:
+                - start: "2026-10-19T02:00:36.463Z"
+                  end: "2026-10-18T19:23:15-07:00"
+            - harness: codex
+              id: 01a151f6-6020-71e0-979f-35dcd84ed5e5
+              slot: pair:6
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              parent_id: 01a14b2c-9890-74f3-a738-58879659bef5
+              digest: 4cafbb9ec8a42097acb6f9914b0f5f24ecef956d4ad862b101fbc45ad6442f77
+              started: "2026-10-19T02:21:03.478Z"
+              spawned: true
+              bytes: 552703
+              windows:
+                - start: "2026-10-19T02:21:03.478Z"
+                  end: "2026-10-18T19:23:15-07:00"
+        queue_waits:
+            - attempt_id: b9fa9937cb7f8be6385ed9881047a05e
+              slot: pair:6
+              record_digest: fe120c8ad97b73ae66b3c3fdb890d72594e7e70e3cc7c291240aa6e8ddf839b4
+              start: "2026-10-19T01:42:57.985342Z"
+              end: "2026-10-19T01:52:59.308564Z"
+              queue_seconds: 601.323222
+              raw_seconds: 601.323222
+              exact: true
+        excluded_brain_sessions: 1
+        excluded_brain_minutes: 0.11616666666666667
+        cuts:
+            - dispatched: "2026-10-18T19:17:00-07:00"
+              finalized: "2026-10-18T19:20:11-07:00"
+              finalizing: false
+      "n": 2
+      timestamp: "2026-10-18T19:25:37-07:00"
+      dispatched: "2026-10-18T19:24:05-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: drive.go:145 counts all existing destination entries, reserves only missing members before staging/copy, and visibly defers complete pairs. Tests at drive_external_test.go:194 and :222 pass at pinned HEAD. Disabling the admission guard in a disposable HEAD copy made all three cases fail with invalid remote inventory count after excess uploads. Tests also verify rerun stability, vacancy recovery, single-member completion and full-inventory adoption. The disposable copy was removed.
+          round: 2
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: 7674d3a24c36cac0ff8109b22499c15382d25fe4
+      blocked: false
 ---
 
 # Gate ledger — pair#678 (boundary-review)
@@ -198,6 +393,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-1** [Critical] `writer-reader-capacity-consistency` (kind: defect) Upload admission can exceed the remote inventory reader's permanent capacity
   cmd/internal/historyarchive/drive.go:199 limits only the current batch to 50,000 pairs, ignoring objects already present in the destination. DecodeFlatInventory rejects more than 100,000 total entries (rclone.go:179). With 49,999 recorded pairs and two new pairs, admission uploads four objects, producing 100,002 entries; final observation fails before publishing receipts, and every subsequent pass fails its initial observation. ARCH-CONSTRAINTS / ARCH-FUNERAL: reserve destination-wide capacity before copying, account for existing objects and missing members, and visibly defer complete pairs before exceeding reader bounds. Add a regression covering near-capacity admission and rerun recovery.
 
+## Round 2 — 2026-10-18T19:25:37-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — drive.go:145 counts all existing destination entries, reserves only missing members before staging/copy, and visibly defers complete pairs. Tests at drive_external_test.go:194 and :222 pass at pinned HEAD. Disabling the admission guard in a disposable HEAD copy made all three cases fail with invalid remote inventory count after excess uploads. Tests also verify rerun stability, vacancy recovery, single-member completion and full-inventory adoption. The disposable copy was removed.
+
 ## Open findings
 
-- **BR-1** [Critical] `writer-reader-capacity-consistency` (kind: defect) Upload admission can exceed the remote inventory reader's permanent capacity
+(none — every finding has been disposed)
