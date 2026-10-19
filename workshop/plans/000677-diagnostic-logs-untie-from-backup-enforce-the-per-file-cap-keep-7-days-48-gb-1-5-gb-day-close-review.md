@@ -116,3 +116,119 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-18T19:23:36-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 677 — diagnostic logs: untie from backup, enforce the per-file cap, keep ~7 days (48 GB, +1.5 GB/day) |
+| repo | pair |
+| issue file | workshop/issues/000677-diagnostic-logs-untie-from-backup-enforce-the-per-file-cap-keep-7-days-48-gb-1-5-gb-day.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 9950fa540423ab382e682437fc0564fadc104f29..8238fd8577e5a9244600bdbaa9913e90173bf74a |
+| command | sdlc close --issue 677 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-18T19:23:36-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The retention policy, diagnostic-only scope, exact-target replay protection, and reporting fixes are supported by passing tests. All five prior corrections are verified. One related blocking defect remains: other per-path diagnostic failures still terminate scheduled collection and strand later eligible logs.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      collect.go:209 now proves the exact deletion target in shared recoverDeletion. The regression covers Open, Write, maintain and direct recovery; all four fail when the correction is removed through a temporary overlay.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      The real-scheduler missing-parent regression passes and fails without the schedule.go correction. It verifies later collection, unchanged declaration bytes, no parent recreation and visible preview blocking. A remaining sibling in the broader isolation family is reported below.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      The plan's Core concepts table now classifies CLI scope under Integration point at line 41 and identifies diagnostic_turn_budget_test.go as a new test at line 42. Both match the implementation; the Revisions passage records the correction.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      ObserveCollection preserves managed retained/blocked decisions, and runtime.go:323 appends completed rows before propagating errors. Both mixed-result and second-deletion-fault regressions pass at head and fail with the prior implementations overlaid.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      manifest.go classifies proof.go as a resolved consumer and sweep.go as a non-artifact source. The ownership guard passes at head and fails with the previous manifest; the known-violations allowance is unchanged.
+findings:
+  - id: new
+    severity: Critical
+    kind: defect
+    family: diagnostic-traversal-blocker-isolation
+    title: |
+      Other per-path diagnostic blockers still terminate scheduled collection
+    detail: |
+      cmd/internal/gcruntime/schedule.go:96-110 isolates only missing registered paths. A temporary regression using reportingFixture, an external append to its managed current log, and a later expired wrap-events-z-good.jsonl fails on scheduler batch 2 with "diagnostic reservation identity or size changed"; the later log remains uncollected. storagegc/schedule.go:117-118 propagates that error, preserving the cursor, and its worker exits. This is the 2nd finding in family diagnostic-traversal-blocker-isolation: state and enforce the rule across all path-local certificate/recovery blockers, retaining them visibly while advancing past that path. Enumerate and test the class rather than adding another message-specific exception; preserve cancellation, busy handling and global inventory failures. ARCH-PURPOSE, ARCH-FUNERAL.
+```
+
+1. **Strengths**
+
+   - Shared recovery now checks the actual payload before deletion effects: `cmd/internal/diagnosticlog/collect.go:209`.
+   - One pure age-or-size selector governs retention, with configurable days and conservative handling of invalid evidence.
+   - Diagnostic-only integrations verify zero session-clock effects, holder revalidation, and authored-data survival.
+   - README and atlas document the new flag, configuration, and oversized-generation policy.
+
+2. **Critical findings**
+
+   - Scheduler blocker isolation remains incomplete, as detailed above. Introduce explicit classification of path-local blockers and sequence tests proving subsequent paths remain reachable.
+
+3. **Important findings**
+
+   - None additional.
+
+4. **Minor findings**
+
+   - None.
+
+5. **Test coverage notes**
+
+   - Passed: diagnosticlog, gcruntime, gccmd, artifactpath, and wrapcmd package suites.
+   - Native current/closed-file inspection conformance passed explicitly.
+   - Temporary overlays demonstrated meaningful failures without the BR-1, BR-2, BR-4, and BR-5 corrections.
+   - The temporary scheduler sibling regression fails at pinned head. Temporary files were removed; tracked files remain unchanged.
+   - Full recorded-suite and landing gates remain outstanding in the tracker.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** shared retention selection and deletion recovery.
+   - **ARCH-PURE — pass:** policy logic remains separate from filesystem/process integrations.
+   - **ARCH-PURPOSE — flag:** scheduled collection still strands eligible paths behind local blockers.
+   - **ARCH-MOCK — pass:** injected stateful inspection and portable fixtures exercise production seams; native conformance is present.
+   - **ARCH-CONSTRAINTS — pass:** bounded pages, native output/deadlines, and counted N/2N effects have coverage.
+   - **ARCH-SECURE — pass:** exact identity checks and uncertain inspection retain data.
+   - **ARCH-ORDER — pass:** reviewed replay fixes protect exact targets; partial-result tests preserve completed effects.
+   - **ARCH-FUNERAL — flag:** scheduler termination defeats automatic expiration for later logs.
+
+7. **Plan revision recommendations**
+
+   Add a `## Revisions` entry defining which failures are path-local blockers versus global failures, how blockers stay observable, and scheduler tests covering changed certificates and blocked recovery before later eligible paths.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"de4f7aaf-4757-4c1a-8c19-ba3953bf2a04","repository":"github.com/xianxu/pair","issue_id":"000677","recipe":"milestone-review","round":2,"attempt":1,"agent":"codex","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/e94da22159af4b75","reviewed_head":"8238fd8577e5a9244600bdbaa9913e90173bf74a","slot":"pair:3","requested_at":"2026-10-19T02:20:49.684649Z"},"phase":"finished","pid":8052,"started_at":"2026-10-19T02:20:49.978767Z","finished_at":"2026-10-19T02:23:35.581654Z","session_id":"01a151f6-2d4d-7572-ad08-f9a096bab008","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.17413875s
+head: "8238fd8577e5a9244600bdbaa9913e90173bf74a"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000411

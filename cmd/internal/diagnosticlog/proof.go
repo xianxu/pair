@@ -16,6 +16,15 @@ import (
 	"github.com/xianxu/pair/cmd/internal/procutil"
 )
 
+// ErrInspectionUnavailable distinguishes incomplete native evidence from a
+// complete observation that blocks one log. Scheduled sweeps must propagate
+// acquisition failures instead of skipping every candidate as path-local.
+var ErrInspectionUnavailable = errors.New("diagnostic inspection unavailable or incomplete")
+
+func inspectionFailure(err error) error {
+	return fmt.Errorf("%w: %w", ErrInspectionUnavailable, err)
+}
+
 type Runtime struct {
 	Process  Registration
 	Protocol bool
@@ -35,7 +44,7 @@ func VerifyWriters(ctx context.Context, path string, registered []Registration, 
 		return err
 	}
 	if probe == nil {
-		return ErrUnknownWriters
+		return inspectionFailure(ErrUnknownWriters)
 	}
 	known := func(p Registration) bool {
 		for _, r := range registered {
@@ -47,7 +56,7 @@ func VerifyWriters(ctx context.Context, path string, registered []Registration, 
 	}
 	holders, e := probe.OpenFiles(ctx, path)
 	if e != nil {
-		return fmt.Errorf("diagnostic open-file inspection: %w", e)
+		return fmt.Errorf("diagnostic open-file inspection: %w", inspectionFailure(e))
 	}
 	if err := ctx.Err(); err != nil {
 		return err
@@ -57,7 +66,7 @@ func VerifyWriters(ctx context.Context, path string, registered []Registration, 
 	}
 	runtimes, e := probe.Runtimes(ctx)
 	if e != nil {
-		return fmt.Errorf("diagnostic runtime inspection: %w", e)
+		return fmt.Errorf("diagnostic runtime inspection: %w", inspectionFailure(e))
 	}
 	if err := ctx.Err(); err != nil {
 		return err

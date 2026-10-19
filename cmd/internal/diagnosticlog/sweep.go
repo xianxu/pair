@@ -47,7 +47,7 @@ func InspectionProof(inspector Inspection) Proof {
 	return func(ctx context.Context, path string, registered []Registration) error {
 		effective, err := sweepInspection(ctx, inspector)
 		if err != nil {
-			return err
+			return inspectionFailure(err)
 		}
 		return VerifyWriters(ctx, path, registered, effective)
 	}
@@ -59,14 +59,14 @@ func InspectionReaderProof(inspector Inspection) func(context.Context, string) e
 	return func(ctx context.Context, path string) error {
 		effective, err := sweepInspection(ctx, inspector)
 		if err != nil {
-			return err
+			return inspectionFailure(err)
 		}
 		if effective == nil {
-			return ErrUnknownWriters
+			return inspectionFailure(ErrUnknownWriters)
 		}
 		holders, err := effective.OpenFiles(ctx, path)
 		if err != nil {
-			return fmt.Errorf("diagnostic open-file inspection: %w", err)
+			return fmt.Errorf("diagnostic open-file inspection: %w", inspectionFailure(err))
 		}
 		if err := ctx.Err(); err != nil {
 			return err

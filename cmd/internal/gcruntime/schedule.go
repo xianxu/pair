@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"os"
 	"sort"
 
 	"github.com/xianxu/pair/cmd/internal/diagnosticlog"
@@ -88,18 +87,47 @@ func (s *Service) Batch(ctx context.Context, cursor string, limit int) (string, 
 	err = s.Collector.Coordinator.TryWithLock(ctx, func(held *storagegc.Locked) error {
 		options := s.DiagnosticOptions
 		options.Context = ctx
-		_, next, complete, err = diagnosticlog.CollectLegacyPage(path, options, segment, min(limit, 100))
-		// Enumeration validates declaration shape but deliberately preserves a
-		// missing parent as a visible blocker. It grants no authority to recreate
-		// that parent. Leave the declaration for PreviewDiagnostics to report and
-		// advance past this path so it cannot starve unrelated generations.
-		if errors.Is(err, os.ErrNotExist) && ctx.Err() == nil {
-			for _, entry := range entries {
-				if entry.Path == path {
-					next, complete = "", true
-					return nil
-				}
+		// Advisory row classification may report proof errors as blocked rows
+		// rather than return them. Preserve sweep-wide failures across that
+		// conversion so an incomplete observation cannot advance the scheduler.
+		var proofFailure error
+		observeProof := func(err error) error {
+			if errors.Is(err, diagnosticlog.ErrInspectionUnavailable) ||
+				errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+				proofFailure = err
 			}
+			return err
+		}
+		if proof := options.Proof; proof != nil {
+			options.Proof = func(ctx context.Context, path string, writers []diagnosticlog.Registration) error {
+				return observeProof(proof(ctx, path, writers))
+			}
+		}
+		if proof := options.ReaderProof; proof != nil {
+			options.ReaderProof = func(ctx context.Context, path string) error {
+				return observeProof(proof(ctx, path))
+			}
+		}
+		_, next, complete, err = diagnosticlog.CollectLegacyPage(path, options, segment, min(limit, 100))
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		if proofFailure != nil && !errors.Is(err, diagnosticlog.ErrBusy) &&
+			!errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
+			return proofFailure
+		}
+		// Collection errors at this boundary belong to this one log. Keep its
+		// declaration and certificates visible to PreviewDiagnostics, but do not
+		// let a damaged certificate, held recovery or local filesystem failure
+		// strand unrelated logs on every restart. Cancellation, contention and
+		// incomplete shared inspection cannot establish a safe sweep and retain
+		// the durable cursor for the scheduler's existing retry/error handling.
+		if err != nil && ctx.Err() == nil &&
+			!errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) &&
+			!errors.Is(err, diagnosticlog.ErrBusy) &&
+			!errors.Is(err, diagnosticlog.ErrInspectionUnavailable) {
+			next, complete = "", true
+			return nil
 		}
 		if errors.Is(err, diagnosticlog.ErrBusy) {
 			return storagegc.ErrCoordinatorBusy
