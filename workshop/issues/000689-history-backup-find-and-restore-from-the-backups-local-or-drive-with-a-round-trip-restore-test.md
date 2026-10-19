@@ -209,6 +209,10 @@ Package write caps also failed: couchcmd 821989376/100663296; couchcore 19099704
 
 A bounded unchanged-head A/B test establishes filesystem-dependent metadata failure: TestFingerprintFileInfoDetectsSameSizeRewrite passed with TMPDIR=/private/tmp (0.097s) and failed with TMPDIR=/Volumes/TestScratch/tmp (0.077s, same-size rewrite with restored mtime reused evidence). No source, assertion or deadline changed. Fractional timestamp loss and clone fallback appear implicated in the broader set; their complete root causes are not claimed. The hub received every failure and the A/B proof. Further qualification is held for its substrate/root decision; no mount, write budget, identity guard or assertion is changed under #689. The full-suite pass, narrow review, landing, unclaimed drill follow-up and subsequent #706 remain outstanding.
 
+### 2026-10-19 — APFS recovery authorized; waiting for operator recreation
+
+Hub receipt bf5f4f78-4281-4bbf-a560-8d4e8c74399a identifies the RAM disk's HFS+ whole-second timestamps and lack of clonefile as the substrate cause. The hub reports changing the ops creation script to APFS and probing nanosecond timestamps plus clonefile; these are hub-owned measurements, not worker filesystem changes. It filed ariadne#474 to refuse non-APFS scratch storage. The operator will recreate the disk after the currently active suite finishes. The hub explicitly authorizes one fresh #689 combined-head recorded suite after its readiness message. Until that message, start no new qualification on the old scratch disk. No new flakes are registered for the substrate failures, and all existing guards remain intact.
+
 ## Revisions
 
 - 2026-10-18: clarified the later sync-index Spec supersedes remote queries from find. Recorded the hub-approved label/location evidence and atomic refresh contract; original Done-when obligations are retained without reduction. Added the durable plan with M1/M2 review boundaries.
