@@ -178,3 +178,9 @@ Additional function-level strategies:
 | SnapshotResult classification | CLI returns generic exit 1 with misleading lock text | Typed context/alarm evidence only; real CLI failure and fake agree on unknown failure |
 
 Implementation inserts the helper/lease red-green tests before Task 1's collector wiring, with targeted go test ./cmd/internal/execalarm ./cmd/pair-go ./cmd/internal/historyarchive. Register every new production source in the artifactpath inventory and regenerate runtime-bundle mirrors through the repository's existing generator if required. No production implementation starts before the revised plan gate passes.
+
+### 2026-10-19 — implementation qualification
+
+The helper implementation lives in execalarm.go/run_unix.go/run_other.go and timer_darwin.go/timer_linux.go. ITIMER_REAL is periodic at the same budget so an expiry consumed by Go before exec cannot leave an unbounded native child; thread-local unblocking and a caught signal disposition also qualify inherited mask/ignore cases. The collector's context still supplies total elapsed cancellation while alive. Actual SQLite owner-death and held-lease cleanup conformance passed.
+
+Cost wording above refers to one freshness index projection: existing OpenCatalog validates shards, and existing archive publication performs its own catalog verification. This change adds no per-database catalog projection. Counted 3/6-database tests defend the new acquisition/validation work and prove failed acquisitions cannot reuse staging. Native acceptance is an opt-in test of the production ContinuousPass with the configured local sink/catalog, a separately built pair-go launcher, no Drive phase and a five-minute outer cancellation bound; it is skipped in ordinary suites. The hub coordinates when to run it.

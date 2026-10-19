@@ -27,16 +27,16 @@ func (f *fixtureSnapshotter) Sweep() error {
 	return nil
 }
 
-func (f *fixtureSnapshotter) Snapshot(_ context.Context, root, rel, staging string) (bool, string, error) {
+func (f *fixtureSnapshotter) Snapshot(_ context.Context, root, rel, staging string) (ha.SnapshotResult, error) {
 	f.calls++
 	raw, err := os.ReadFile(filepath.Join(root, rel))
 	if err != nil {
-		return false, err.Error(), nil
+		return ha.SnapshotResult{Status: ha.SnapshotRejected, Detail: err.Error()}, nil
 	}
 	if err := os.MkdirAll(staging, 0o700); err != nil {
-		return false, "", err
+		return ha.SnapshotResult{}, err
 	}
-	return true, "", os.WriteFile(filepath.Join(staging, rel), raw, 0o600)
+	return ha.SnapshotResult{Status: ha.SnapshotReady}, os.WriteFile(filepath.Join(staging, rel), raw, 0o600)
 }
 
 func treeState(t *testing.T, root string) map[string]string {
@@ -164,8 +164,8 @@ func sameKeys(a, b map[string]string) bool {
 
 type failingSnapshotter struct{}
 
-func (failingSnapshotter) Snapshot(context.Context, string, string, string) (bool, string, error) {
-	return false, "", errors.New("snapshot store unavailable")
+func (failingSnapshotter) Snapshot(context.Context, string, string, string) (ha.SnapshotResult, error) {
+	return ha.SnapshotResult{}, errors.New("snapshot store unavailable")
 }
 func (failingSnapshotter) Sweep() error { return nil }
 

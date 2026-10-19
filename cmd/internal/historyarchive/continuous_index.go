@@ -8,8 +8,9 @@ import "time"
 // a new version: same path, new hash.
 // pair:m5-concept pure
 type ArchivedIndex struct {
-	hashes map[indexKey]map[string]bool
-	stamps map[indexKey]map[stamp]bool
+	hashes   map[indexKey]map[string]bool
+	stamps   map[indexKey]map[stamp]bool
+	verified map[indexKey]time.Time
 }
 
 type indexKey struct {
@@ -23,7 +24,24 @@ type stamp struct {
 }
 
 func NewArchivedIndex() *ArchivedIndex {
-	return &ArchivedIndex{hashes: map[indexKey]map[string]bool{}, stamps: map[indexKey]map[stamp]bool{}}
+	return &ArchivedIndex{hashes: map[indexKey]map[string]bool{}, stamps: map[indexKey]map[stamp]bool{}, verified: map[indexKey]time.Time{}}
+}
+
+// AddRecord records archived content and its latest successful verification.
+func (x *ArchivedIndex) AddRecord(r CatalogRecord) {
+	x.Add(r.Manifest)
+	for _, f := range r.Manifest.Files {
+		k := indexKey{r.Manifest.Source, f.Path}
+		if r.VerifiedAt.After(x.verified[k]) {
+			x.verified[k] = r.VerifiedAt
+		}
+	}
+}
+
+// LatestVerified reports the newest verified catalog record for this source path.
+// A zero time means no verified record has been added.
+func (x *ArchivedIndex) LatestVerified(source SourceIdentity, path string) time.Time {
+	return x.verified[indexKey{source, path}]
 }
 
 // Add records every file of one archived manifest.

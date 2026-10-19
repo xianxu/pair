@@ -203,12 +203,31 @@ does nothing.
   is a new version. Worktree slots share their repository's git common dir, so
   sdlc data is archived once per repository.
 - **Databases:** snapshotted daily regardless of quiet. `SQLiteSnapshotter`
-  never opens the live file: it copies the `-wal` and then the database into a
-  private directory, refuses the copy if either changed meanwhile (a checkpoint
-  mid-copy), runs SQLite's `.backup` on the private copy, switches it to
-  `journal_mode=DELETE` and passes `PRAGMA integrity_check` before publishing
-  it under `$PAIR_DATA_DIR/archive-snapshots/` (outside the catalog directory).
-  A skipped database is retried on the next pass.
+  opens the live database through SQLite's read-only WAL-reader protocol,
+  pins a read transaction and runs `.backup` into a private directory. DB/WAL
+  content is never written by the reader; SQLite may create/update SHM read
+  marks. The source reader has a 5-second budget and a 250ms busy timeout,
+  with no retry inside the pass. The pair binary's internal `exec-alarm`
+  launcher arms a kernel timer before execing SQLite, so collector death
+  cannot leave an unbounded read pin. Its periodic interval also protects a
+  launcher whose first alarm expired before exec. A scratch flock inherited
+  by the child prevents cleanup while an orphaned reader is still alive.
+  Source replacement refuses publication. After the source reader exits,
+  only the private candidate is switched to `journal_mode=DELETE` and checked
+  with `PRAGMA integrity_check` (separate 10-minute ceiling), then published
+  under `$PAIR_DATA_DIR/archive-snapshots/`. Opaque backup preserves unknown
+  SQL schema/values and implicit rowids. Invalid/truncated tool output never
+  counts as integrity evidence. Cancellation discards the candidate and keeps
+  the previous stage and verified bundles. A deferred database waits for the
+  next scheduled pass or an explicit operator rerun; generic CLI failures are
+  unknown failures, never guessed to be busy from their text.
+- **Database freshness:** each pass prints archived, unchanged, deferred or
+  failed per database, plus its last verified catalog timestamp/age (or never).
+  A checked-unchanged source is current even when its stored bundle is old;
+  a skipped source has no successful check timestamp. Acquisition success
+  alone is not a verified backup. These are runtime reports, with no catalog
+  or manifest format changes. `continuous.last` still means pass completion,
+  not that every database has a fresh bundle. Freshness alerts are #700.
 - **Never deletes sources or retained copies;** writes the archive store, snapshot root, local sink/catalog, and the configured remote after local success. One pass at a time (`continuous.lock`); a completed full pass
   writes `continuous.last`.
 - **Schedule:** Couch checks hourly and runs the command at `nice 10` when
@@ -216,6 +235,16 @@ does nothing.
   logging to `$PAIR_DATA_DIR/archive/continuous.log`. A manual run uses the same
   lock.
 - Files over their kind's raw bound are skipped with a note. Database snapshots use the snapshot bound (`rawBundleLimit`, 8 GiB): they compress well (Codex `thread_history_1.sqlite` 1.60 GB to 115 MB), so the 2 GiB ciphertext bound is their real limit, and a snapshot whose compressed bundle exceeds it is skipped with a note (`ErrCiphertextLimit`), not a failed pass (#616). Each snapshot is its own request, so a skip never drops another database. Cost: a database that changes daily is a new version every pass, and the sink never deletes; at the measured 115 MB per `thread_history_1.sqlite` bundle that is roughly 40 GB a year for that one database. Pruning old snapshot versions is a separate, not-yet-made retention decision.
+
+The raw bound is checked before acquisition and on the private output; it is
+not a filesystem quota. One candidate runs at a time. Temporary candidate growth
+and native WAL growth behind a pinned reader are limited by reader lifetime,
+not an exact transient byte cap. Disk-full fails without replacing prior data.
+Scratch `sqlite-*` directories are removed on completion or swept under the
+continuous lock once their work lease is free; unreadable leases are left intact
+with an error for inspection. Staging keeps the latest validated file per path;
+unchanged bytes retain its mtime for dedup. Encrypted versions retain the existing
+storage policy above.
 
 
 ## Drive copies (#678)
