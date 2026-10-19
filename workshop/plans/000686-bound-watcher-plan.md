@@ -78,3 +78,10 @@ Growth drivers: unrelated tree files N, owned transcript suffix B, one partial r
 - [ ] Run recorded full suite, close review and gated landing; report actual merge to hub and stop.
 
 Single atomic review boundary, no Mx tags. Await hub approval of scope/cadence before change-code; estimate comes only after plan-quality clears.
+
+
+## Revisions
+
+### 2026-10-18 — approved
+
+Hub approved scope and cadence in7f664349-b72a-4c11-a1b2-91baf70f21ba. Cold discovery remains an explicit slot-lifecycle project follow-up, owned by the TL's project record. The hub schedules the live CPU check on a fresh Codex slot when the build is ready. Proceed through change-code; no new executor, binding rule, timeout increase or corpus fallback.
