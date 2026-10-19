@@ -16,6 +16,7 @@ claimant:
     workspace: pair:7
     worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "8513c471", done: "9c9475b0"}
 ---
 
 # Drive batch budget test assumes equal-size timestamp-dependent fixture pairs
