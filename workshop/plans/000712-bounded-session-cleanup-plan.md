@@ -72,23 +72,23 @@ No production format fields are required: reuse existing incarnation unknown sta
 
 ### 1. Deterministic failure tests
 
-- [ ] Preserve the probe results in the issue Log, then remove the throwaway measurement test.
-- [ ] Add failing persistent-error/deadline tests with the existing stateful artifact fake, plus literal cleanup decision tables. Use controlled entry/cancellation; no sleep-based speed assertion.
-- [ ] Add a fake listing regression with restored/poisoned caller environment and ended server state. Reproduce the composed failed launch under ordinary and fresh-slot starts; capture its repeated cleanup error before repair.
-- [ ] Run the named tests and retain expected RED diagnostics; fixtures release and join on every path.
+- [x] Preserve the probe results in the issue Log, then remove the throwaway measurement test.
+- [x] Add failing persistent-error/deadline tests with the existing stateful artifact fake, plus literal cleanup decision tables. Use controlled entry/cancellation; no sleep-based speed assertion.
+- [x] Add a fake listing regression with restored/poisoned caller environment and ended server state. Reproduce the composed failed launch under ordinary and fresh-slot starts; capture its repeated cleanup error before repair.
+- [x] Run the named tests and retain expected RED diagnostics; fixtures release and join on every path.
 
 ### 2. Bounded session phase and retained ownership
 
-- [ ] Add SessionCleanupUnconfirmed and cleanup-knowledge input/decider cases.
-- [ ] Refactor only the session phase to use one bounded context. Keep helper drain unchanged. Retain last refusal and exact identity on expiration.
-- [ ] Use the contextual native deleter and retain exact unknown thread/start state on unproven cleanup without further session reads.
-- [ ] Surface the named error through existing lifecycle details and bounded operator projection. Test public receipt/history/show behavior using isolated service composition.
-- [ ] Run focused tests and source guards, and prove omission of the shared deadline or unknown-state retention makes the new regressions fail.
+- [x] Add SessionCleanupUnconfirmed and cleanup-knowledge input/decider cases.
+- [x] Refactor only the session phase to use one bounded context. Keep helper drain unchanged. Retain last refusal and exact identity on expiration.
+- [x] Use the contextual native deleter and retain exact unknown thread/start state on unproven cleanup without further session reads.
+- [x] Surface the named error through existing lifecycle details and bounded operator projection. Test public receipt/history/show behavior using isolated service composition.
+- [x] Run focused tests and source guards, and prove omission of the shared deadline or unknown-state retention makes the new regressions fail.
 
 ### 3. Fixture lifecycle and verification
 
-- [ ] Implement persisted session identity/lifetime in the existing terminal fake; preserve canonical reply rendering and #698 ordering.
-- [ ] Run the original composed test and deterministic failed-launch variants with -race. Verify all owned server/wrapper/agent children are reaped before test return.
+- [x] Implement persisted session identity/lifetime in the existing terminal fake; preserve canonical reply rendering and #698 ordering.
+- [x] Run the original composed test and deterministic failed-launch variants with -race. Verify all owned server/wrapper/agent children are reaped before test return.
 - [ ] Run the composed family 20 times under bounded owned CPU load (20 workers, watchdog, kill-and-Wait in defer/cleanup on every exit). No native Zellij or live Couch.
 - [ ] Update atlas/README for bounded failure/recovery behavior and lessons. Add any applicable mechanical API guard at the shared lint owner; do not invent a syntax rule for a semantic fixture lifecycle bug.
 - [ ] Push, early draft PR, recorded suite, SDLC close review, normal merge gates; report the verified merge to the hub.
