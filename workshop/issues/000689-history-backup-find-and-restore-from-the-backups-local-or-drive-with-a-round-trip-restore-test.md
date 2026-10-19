@@ -1,13 +1,21 @@
 ---
 id: 000689
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-18
 updated: 2026-10-18
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: '60ca1b70dda5eca2182f17cccc2c1fa6b2b7845f' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'f03d43448f7e1c0f9910ab253ce0a066159a0c1f' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-18T23:32:01-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:6
+    worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
+    repository: github.com/xianxu/pair
 ---
 
 # history backup: find and restore from the backups (local or Drive), with a round-trip restore test
@@ -35,8 +43,26 @@ lost its local catalog can reconstruct it from Drive alone, then restore selecti
 
 ## Plan
 
-- [ ]
+Durable plan: [find, restore and label/location index](../plans/000689-find-restore-index-plan.md).
+
+- [ ] M1 — Preserve additive label/index fields; implement local-only find and atomic local/Drive index synchronization, including catalog-loss rebuild.
+- [ ] M2 — Implement verified fresh-destination restore, throwaway-key full round trip, and operator-owned real Claude-day Drive drill; qualify and land before retention.
 
 ## Log
 
 ### 2026-10-18
+
+
+### 2026-10-18 — design checkpoint
+
+- Claimed while unowned; start-plan refreshed the stale ariadne tooling, then was rerun as instructed to start this issue branch. No implementation edits or tests/builds initiated by this worker; the tool-owned catch-up rebuilt its own binaries.
+- Read the entire Spec, including the local-only find/sync-index addition. Existing CatalogRecord requires a private Manifest, so public labels cannot reconstruct its authority. Uploaded labels are immutable and cannot gain location fields without invalidating #678 hashes.
+- Hub bb8ab7c9-1c77-43ae-9d13-d2e28ff82dd7 approved separate index envelopes, observed/verified evidence, no ciphertext download during sync, complete refresh marking unavailable while retaining history, and no changes from failed/partial refreshes. The plan uses one atomically replaced snapshot, preserves unknown fields at every label/index nesting level, and distinguishes publication uncertainty from a confirmed failed observation.
+- Restore always verifies staged ciphertext against the label before GPG/zstd and validates all tar members, including unselected files, before exclusive publication to a new scratch target. The real Drive/day/key drill remains the operator's. No retention or live-data import is included.
+- Read-only component mapping reused existing safe paths, catalog/receipt/hash helpers, rclone runner/fake and isolated GPG fixture. Full design and initial batch limits are awaiting hub approval before change-code.
+
+## Revisions
+
+- 2026-10-18: clarified the later sync-index Spec supersedes remote queries from find. Recorded the hub-approved label/location evidence and atomic refresh contract; original Done-when obligations are retained without reduction. Added the durable plan with M1/M2 review boundaries.
+
+- One-pass read-only plan editing aid identified two gaps before code: Drive-only source-root overlap is knowable only after decrypting the manifest, and a staging pathname/lock alone does not prove ownership of existing contents. The durable plan now requires the post-manifest check and an ownership-stamped staging protocol with refusal on unknown contents; tests preserve a preexisting operator staging directory and a target below a recovered source root. Created files/directories also share a whole-request bound so small-file/directory growth cannot bypass byte admission.
