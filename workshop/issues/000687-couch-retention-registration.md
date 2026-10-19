@@ -42,7 +42,7 @@ Proposed for hub approval: publish explicit diagnostic protocol version1 on the 
 
 ## Plan
 
-See [implementation plan](../plans/000687-couch-retention-registration-plan.md). Await hub approval before change-code or implementation.
+See [implementation plan](../plans/000687-couch-retention-registration-plan.md). Hub approved the plan; enter implementation through change-code.
 
 - [ ] Preserve unknown runtime-registry members through bounded validated reads and surviving-record rewrites; add the explicit diagnostic capability to the existing lease.
 - [ ] Consume exact identity-fenced participation from the selected root through shared writer/GC inspection, with stateful sequence and counted sweep regressions.
@@ -60,6 +60,10 @@ Verified fresh hub assignment c1eb775b-6d04-44d9-93e5-013b5940f0bd, claimed #687
 Couch constructor already registers the exact current PID/birth as couch-runtime before its coordinated thread store. The lease producer originated in #239, predating the diagnostic protocol, so treating every existing lease as that later capability is unsafe. Proposed explicit versioned capability on that same record, consumed from already-selected roots rather than environment/HOME guessing. Current runtime reads reject additive fields, and RegisterRuntime rewrites through a lossy typed projection; a private wire codec preserves unknown envelope/record/process members without making shared ProcessIdentity non-comparable or relaxing every retention schema. A bounded read-only helper confirmed the existing strictjson duplicate-key primitive and these three preservation depths.
 
 The durable plan names all writer/GC consumers, unchanged open-holder protection, PID reuse and cancellation, one-read/one-native-snapshot N/2N budgets, alternatives, and a proposed owned/live arrangement. Plan approval and the change-code gate are still outstanding; no implementation tests or builds beyond the tool's required substrate refresh have run.
+
+### 2026-10-18 — hub approval
+
+Hub receipt34b6b719-dab8-4751-aeff-2a87883e7d88 approves the explicit diagnostic_protocol v1 capability, one selected-root adapter, unchanged exact-holder protection, and unknown-member preservation with strict known checks. The owned child conformance/read-only preview arrangement is approved; the existing supervisor remains blocked until the operator restart publishes its capability. No pair:0 staging or live apply. Proceeding to the full-flow change-code gate.
 
 ## Revisions
 
