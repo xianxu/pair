@@ -182,7 +182,7 @@ func decodeLifecycleFailureHistory(raw []byte) (LifecycleFailureHistory, error) 
 			return nil, err
 		}
 		for _, old := range h {
-			if old.Address == normalized.Address && old.Nonce == normalized.Nonce && LifecycleFailureSlotKey(failureTarget(old)) == LifecycleFailureSlotKey(failureTarget(normalized)) {
+			if old.Address == normalized.Address && old.Nonce == normalized.Nonce && lifecycleFailureTargetKey(failureTarget(old)) == lifecycleFailureTargetKey(failureTarget(normalized)) {
 				return nil, fmt.Errorf("duplicate launch diagnostic identity")
 			}
 		}

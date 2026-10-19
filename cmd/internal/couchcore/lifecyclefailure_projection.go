@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 )
 
 // lifecycleFailureSnapshotCache belongs to one recorder and never authorizes an effect.
@@ -82,9 +83,6 @@ func lifecycleFailureProjectionKey(f LifecycleFailure) string {
 func latestLifecycleFailures(history []LaunchFailure) map[string]LifecycleFailure {
 	latest := make(map[string]LifecycleFailure, len(history))
 	for _, f := range history {
-		if f.SupersededAt != nil {
-			continue
-		}
 		key := lifecycleFailureProjectionKey(f)
 		old, ok := latest[key]
 		recency := compareLifecycleFailureRecency(f, old)
@@ -104,11 +102,11 @@ func ProjectLifecycleFailures(rows []ActionableThreadSummary, history []LaunchFa
 		row := &out[i]
 		row.Failure = nil
 		row.DiagnosticError = diagnosticError
-		key := LifecycleFailureSlotKey(LifecycleFailureTarget{StartingPath: row.StartingPath})
-		f, ok := latest[key]
-		if !ok {
-			f, ok = latest[lifecycleFailureTargetKey(LifecycleFailureTarget{Address: row.Address})]
+		f, ok := latestLifecycleFailureForTargets(latest, lifecycleFailureRowTargets(*row))
+		if ok && row.LastLifecycleSuccessAt.After(f.FailedAt) {
+			ok = false
 		}
+
 		if ok {
 			v := cloneLaunchFailure(f)
 			row.Failure = &v
@@ -123,4 +121,50 @@ func (c *Couch) applyLifecycleFailures(rows []ActionableThreadSummary) []Actiona
 		detail = fmt.Sprintf("read lifecycle diagnostics: %v", err)
 	}
 	return ProjectLifecycleFailures(rows, h, detail)
+}
+
+// LastLifecycleSuccessAt is the one display-only definition of a recorded
+// lifecycle success. Activity/retirement is deliberately not success. #695 can
+// add its persisted proven-teardown event here without changing failure history.
+func LastLifecycleSuccessAt(record ThreadRecord) time.Time {
+	var latest time.Time
+	if record.VerifiedPark != nil {
+		latest = record.VerifiedPark.ParkedAt
+	}
+	for _, incarnation := range record.Incarnations {
+		if incarnation.State == IncarnationLive && incarnation.Start == nil && incarnation.StartedAt.After(latest) {
+			latest = incarnation.StartedAt
+		}
+	}
+	return latest
+}
+
+func lifecycleFailureRowTargets(row ActionableThreadSummary) []LifecycleFailureTarget {
+	targets := []LifecycleFailureTarget{{StartingPath: row.StartingPath}, {Address: row.Address}}
+	if row.Target.Kind == ThreadTargetSlot {
+		slot := row.Target.Slot
+		if slot.Repo != "" {
+			targets = append(targets, LifecycleFailureTarget{Target: fmt.Sprintf("%s:%d", slot.Repo, slot.Number)})
+		}
+		if slot.PrimaryRoot != "" {
+			targets = append(targets, LifecycleFailureTarget{Target: fmt.Sprintf("%s:%d", slot.PrimaryRoot, slot.Number)})
+		}
+	}
+	return targets
+}
+func latestLifecycleFailureForTargets(latest map[string]LifecycleFailure, targets []LifecycleFailureTarget) (LifecycleFailure, bool) {
+	var result LifecycleFailure
+	found := false
+	for _, target := range targets {
+		key := lifecycleFailureTargetKey(target)
+		if key == "" {
+			continue
+		}
+		f, ok := latest[key]
+		if ok && (!found || compareLifecycleFailureRecency(f, result) > 0) {
+			result = f
+			found = true
+		}
+	}
+	return result, found
 }

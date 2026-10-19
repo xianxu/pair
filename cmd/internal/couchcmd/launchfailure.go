@@ -33,9 +33,6 @@ func renderLaunchFailures(w io.Writer, failures []couchcore.LaunchFailure, readE
 		renderLaunchFailureText(w, "lifecycle diagnostics unavailable", readError)
 	}
 	for _, f := range failures {
-		if f.SupersededAt != nil {
-			continue
-		}
 		if f.Operation != "" || f.Phase != "" || f.Slot != "" {
 			phase := f.Phase
 			if phase == "" {
@@ -55,6 +52,7 @@ func renderLaunchFailures(w io.Writer, failures []couchcore.LaunchFailure, readE
 		fmt.Fprintf(w, "  helper started: %t\n", f.HelperStarted)
 		fmt.Fprintf(w, "  exit before cleanup: %s; exit after cleanup: %s\n", launchFailureExit(f.BeforeExit), launchFailureExit(f.AfterExit))
 		renderLaunchFailureText(w, "operation", f.Operation)
+		renderLaunchFailureText(w, "dispatched target", f.Target)
 		renderLaunchFailureText(w, "agent", f.Agent)
 		renderLaunchFailureText(w, "launch stage", f.Stage)
 		renderLaunchFailureText(w, "thread", f.Address.RepoScope+"/"+string(f.Address.Tag))

@@ -145,13 +145,14 @@ func (s *messageService) handleAgentSwitch(ctx context.Context, r couchmessage.R
 	}
 	return s.slotOps.admit(ctx, caller, r, func(key string, started func(), finished func(any, error)) error {
 		return service.enqueue(key, func(ctx context.Context) (couchcore.OperationCall, error) {
-			if err := guard(ctx); err != nil {
-				return couchcore.OperationCall{}, err
-			}
 			call := couchcore.OperationCall{Name: "switch-agent", Args: map[string]string{
 				"repo-scope": address.RepoScope, "tag": string(address.Tag), "agent": r.Agent,
 				"known-config": "true", "fingerprint": prepared.Fingerprint, "source": token,
 			}}
+			call.FailureTarget = &couchcore.LifecycleFailureTarget{Address: address, Target: r.Target}
+			if err := guard(ctx); err != nil {
+				return call, err
+			}
 			if s.authority.hubs != nil {
 				call.TypedPayload = hubMutationPayload{original: call.TypedPayload, guard: guard}
 			}

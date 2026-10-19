@@ -23,7 +23,7 @@ func consoleSlotOperations(console *couchtty.Console, c *couchcore.Couch, probe 
 		// orders the two.
 		var note string
 		var await func(context.Context) error
-		return lifecycleQueue.Enqueue(key, op, func(ctx context.Context) (couchcore.OperationCall, error) {
+		return lifecycleQueue.EnqueueForReference(key, op, target, func(ctx context.Context) (couchcore.OperationCall, error) {
 			if guard != nil {
 				if err := guard(ctx); err != nil {
 					return couchcore.OperationCall{}, err
@@ -75,7 +75,7 @@ func consoleSlotOperations(console *couchtty.Console, c *couchcore.Couch, probe 
 			return validateParkRecoveryTarget(bound, current)
 		}
 		return func(key, op, _ string, _ couchcore.LiveRestartOptions, started func(), finished func(any, error)) error {
-			return lifecycleQueue.Enqueue(key, op, func(ctx context.Context) (couchcore.OperationCall, error) {
+			return lifecycleQueue.EnqueueForReference(key, op, target, func(ctx context.Context) (couchcore.OperationCall, error) {
 				if err := check(ctx); err != nil {
 					return couchcore.OperationCall{}, err
 				}
@@ -88,7 +88,7 @@ func consoleSlotOperations(console *couchtty.Console, c *couchcore.Couch, probe 
 	}
 	ops.reference = c.RecoveryConfirmationReference
 	ops.recovery = func(key, actor string, request couchmessage.Request, guard func(context.Context) error, started func(), finished func(any, error)) error {
-		return lifecycleQueue.Enqueue(key, request.Op, func(ctx context.Context) (couchcore.OperationCall, error) {
+		return lifecycleQueue.EnqueueForReference(key, request.Op, request.Target, func(ctx context.Context) (couchcore.OperationCall, error) {
 			ctx = couchcore.WithRecoveryConfirmer(ctx, actor)
 			if guard != nil {
 				if err := guard(ctx); err != nil {
@@ -142,7 +142,7 @@ func consoleSlotOperations(console *couchtty.Console, c *couchcore.Couch, probe 
 		return c.ResumeCandidates(ctx, resolved)
 	}
 	ops.candidate = func(key, target, candidate string, started func(), finished func(any, error), guards ...func(context.Context) error) error {
-		return lifecycleQueue.Enqueue(key, "resume", func(ctx context.Context) (couchcore.OperationCall, error) {
+		return lifecycleQueue.EnqueueForReference(key, "resume", target, func(ctx context.Context) (couchcore.OperationCall, error) {
 			var guard func(context.Context) error
 			if len(guards) > 0 {
 				guard = guards[0]

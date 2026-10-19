@@ -88,8 +88,8 @@ func TestLifecycleFailureQueueReadinessOwnsFinalCompletion(t *testing.T) {
 	if err := <-finished; err == nil {
 		t.Fatal("lost readiness failure")
 	}
-	if len(store.Writes) != 1 || store.Writes[0].SupersededAt == nil {
-		t.Fatalf("late older failure obscured newer success: %+v", store.Writes)
+	if len(store.Writes) != 1 || store.Writes[0].FinalError != "readiness was not confirmed" {
+		t.Fatalf("late failure was not retained as historical evidence: %+v", store.Writes)
 	}
 }
 
@@ -107,5 +107,62 @@ func TestLifecycleFailureQueueCompletedCleanupWarningHasReceiptNonce(t *testing.
 	outcome := <-finished
 	if outcome.Status != couchmessage.ReceiptSucceeded || outcome.FailureNonce == "" || outcome.Warning == "" || len(store.Writes) != 1 || store.Writes[0].Nonce != outcome.FailureNonce {
 		t.Fatalf("completed effect lost cleanup warning: %+v, %+v", outcome, store.Writes)
+	}
+}
+
+func TestLifecycleFailureQueueMissingCacheRetainsCompletion(t *testing.T) {
+	for _, phase := range []string{"prepare", "adopt", "ready"} {
+		t.Run(phase, func(t *testing.T) {
+			q, store, jobs := newLifecycleQueueFixture()
+			q.rows = func() []couchcore.ActionableThreadSummary { return nil }
+			cause := errors.New(phase + " failed")
+			var result error
+			var wait func(context.Context) error
+			if phase == "ready" {
+				wait = func(context.Context) error { return cause }
+			}
+			done := make(chan struct{})
+			err := q.EnqueueForReference("remote\x00/project:1", "relaunch", "project:1", func(ctx context.Context) (couchcore.OperationCall, error) {
+				if couchcore.OperationAttemptFromContext(ctx) == nil {
+					t.Fatal("missing cache disabled terminal ownership")
+				}
+				call := couchcore.OperationCall{Name: "park", Context: ctx, Args: map[string]string{"repo-scope": "scope", "tag": "dispatched"}, Implicit: true}
+				if phase == "prepare" {
+					return call, cause
+				}
+				_, err := couchcore.DispatchOperation(couchcore.OperationExecutors{Attempt: q.couch.OperationAttemptForCall, LiveOwner: func(couchcore.OperationCall) (any, error) { return nil, nil }}, call)
+				return call, err
+			}, func() {}, func(_ any, err error) { result = err; close(done) }, &wait)
+			if err != nil {
+				t.Fatal(err)
+			}
+			call, err := (*jobs)[0].prepare(t.Context())
+			if phase == "adopt" {
+				err = cause
+			}
+			if len(store.Writes) != 0 {
+				t.Fatal("dispatcher published before final completion")
+			}
+			(*jobs)[0].finish(call, err)
+			<-done
+			if !errors.Is(result, cause) || couchcore.FailureNonce(result) == "" || len(store.Writes) != 1 || store.Writes[0].Target != "project:1" || store.Writes[0].Address.Tag != "dispatched" {
+				t.Fatalf("missing completion evidence: %v %+v", result, store.Writes)
+			}
+		})
+	}
+}
+
+func TestLifecycleFailureQueueHubMoveRetainsDispatchedTargets(t *testing.T) {
+	q, store, jobs := newLifecycleQueueFixture()
+	cause := errors.New("hub disconnected")
+	if err := q.Queue("hub-move", "move-slot", func(context.Context) (couchcore.OperationCall, error) {
+		return couchcore.OperationCall{Name: "move-slot", FailureTarget: &couchcore.LifecycleFailureTarget{Target: "project:1,project:2"}}, cause
+	}, func() {}, func(any, error) {}); err != nil {
+		t.Fatal(err)
+	}
+	_, err := (*jobs)[0].prepare(t.Context())
+	(*jobs)[0].finish(nil, err)
+	if len(store.Writes) != 1 || store.Writes[0].Target != "project:1,project:2" || store.Writes[0].Operation != "move-slot" {
+		t.Fatalf("hub move lost target evidence: %+v", store.Writes)
 	}
 }

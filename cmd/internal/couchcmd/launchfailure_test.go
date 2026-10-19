@@ -74,18 +74,14 @@ func TestLaunchFailurePresentationKeepsFullErrorForShow(t *testing.T) {
 	}
 }
 
-func TestLifecycleFailureShowGenericOperationAndSuperseded(t *testing.T) {
+func TestLifecycleFailureShowGenericOperation(t *testing.T) {
 	var out bytes.Buffer
-	at := time.Unix(1, 0)
-	renderLaunchFailures(&out, []couchcore.LaunchFailure{{Slot: "pair:8", Operation: "recover-park", Outcome: "refused", Nonce: "operation-nonce", FinalError: "still finishing"}, {Nonce: "hidden", SupersededAt: &at}}, "")
+	renderLaunchFailures(&out, []couchcore.LaunchFailure{{Slot: "pair:8", Operation: "recover-park", Outcome: "refused", Nonce: "operation-nonce", FinalError: "still finishing"}}, "")
 	got := out.String()
 	for _, want := range []string{"pair:8", "recover-park", "refused", "operation-nonce", "still finishing"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("missing %q: %s", want, got)
 		}
-	}
-	if strings.Contains(got, "hidden") {
-		t.Fatalf("superseded shown: %s", got)
 	}
 }
 

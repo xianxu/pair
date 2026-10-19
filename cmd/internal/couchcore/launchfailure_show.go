@@ -5,11 +5,12 @@ import (
 	"fmt"
 	"path/filepath"
 	"sort"
+	"time"
 )
 
 // launchFailuresForShow reads independent evidence without manufacturing a
-// lifecycle record. An exact address or canonical starting path is authority;
-// fuzzy thread labels never broaden the retained history lookup.
+// lifecycle record. Exact dispatched references, addresses and canonical paths
+// select evidence; fuzzy labels never broaden this display-only lookup.
 func (c *Couch) launchFailuresForShow(ctx context.Context, scope, ref string, matches []ThreadRecord, slot SlotIdentity) ([]LaunchFailure, string) {
 	if c.LaunchFailures == nil {
 		return nil, ""
@@ -28,8 +29,21 @@ func (c *Couch) launchFailuresForShow(ctx context.Context, scope, ref string, ma
 		paths = append(paths, p)
 	}
 	wanted := map[ThreadAddress]bool{{RepoScope: scope, Tag: ThreadTag(ref)}: true}
+	successes := map[string]time.Time{}
+	displayKeys := map[string]string{}
 	for _, m := range matches {
 		wanted[m.Address] = true
+		success := LastLifecycleSuccessAt(m)
+		displayKey := lifecycleFailureTargetKey(LifecycleFailureTarget{StartingPath: m.StartingPath, Address: m.Address})
+		for _, target := range lifecycleFailureRowTargets(ActionableThreadSummary{Address: m.Address, StartingPath: m.StartingPath, Target: ThreadTarget{Kind: ThreadTargetSlot, Slot: slot}}) {
+			key := lifecycleFailureTargetKey(target)
+			if key != "" {
+				displayKeys[key] = displayKey
+			}
+			if key != "" && success.After(successes[key]) {
+				successes[key] = success
+			}
+		}
 	}
 	canonical := map[string]bool{}
 	for _, p := range paths {
@@ -37,17 +51,28 @@ func (c *Couch) launchFailuresForShow(ctx context.Context, scope, ref string, ma
 			canonical[physical] = true
 		}
 	}
+	selected := map[string]LaunchFailure{}
 	var out []LaunchFailure
 	for _, f := range latestLifecycleFailures(history) {
-		matched := wanted[f.Address]
+		matched := wanted[f.Address] || (f.Target != "" && f.Target == ref)
 		if !matched && f.StartingPath != "" {
 			if physical, e := retainedPhysicalPath(f.StartingPath); e == nil {
 				matched = canonical[physical]
 			}
 		}
-		if matched {
-			out = append(out, cloneLaunchFailure(f))
+		success := successes[lifecycleFailureProjectionKey(f)]
+		if matched && !success.After(f.FailedAt) {
+			key := lifecycleFailureProjectionKey(f)
+			if displayKey := displayKeys[key]; displayKey != "" {
+				key = displayKey
+			}
+			if old, exists := selected[key]; !exists || compareLifecycleFailureRecency(f, old) > 0 {
+				selected[key] = f
+			}
 		}
+	}
+	for _, f := range selected {
+		out = append(out, cloneLaunchFailure(f))
 	}
 	sort.Slice(out, func(i, j int) bool {
 		if out[i].FailedAt.Equal(out[j].FailedAt) {

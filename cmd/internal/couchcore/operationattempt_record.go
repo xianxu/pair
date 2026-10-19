@@ -8,32 +8,19 @@ import (
 	"time"
 )
 
-// LifecycleFailureRecorder owns terminal publication and the ordering evidence
-// retained while attempts on the same slot overlap.
+// LifecycleFailureRecorder appends terminal failure evidence. It owns no
+// lifecycle identity, admission ordering or successful-action state.
 type LifecycleFailureRecorder struct {
 	store    LaunchFailureStorage
 	now      func() time.Time
 	nonce    func() (string, error)
-	mu       sync.Mutex
-	epoch    string
-	next     uint64
-	slots    map[string]*operationAttemptGroup
+	mu       sync.Mutex // serializes only the injected nonce source
 	snapshot lifecycleFailureSnapshotCache
 }
 
-type operationAttemptGroup struct {
-	mu    sync.Mutex
-	state OperationAttemptState
-	refs  int // protected by the recorder mutex, never by the group mutex
-}
-
-// OperationAttempt owns one terminal result. Nested calls borrow it through
-// context; only its admitting boundary calls Finish.
+// OperationAttempt belongs to one completion boundary; nested calls borrow it.
 type OperationAttempt struct {
 	recorder *LifecycleFailureRecorder
-	group    *operationAttemptGroup
-	key      string
-	order    uint64
 	nonce    string
 	op       string
 	target   LifecycleFailureTarget
@@ -45,72 +32,49 @@ type OperationAttempt struct {
 	failure  bool
 }
 
-// NewLifecycleFailureRecorder injects storage, clock and nonce allocation.
 func NewLifecycleFailureRecorder(store LaunchFailureStorage, now func() time.Time, nonce func() (string, error)) *LifecycleFailureRecorder {
-	return &LifecycleFailureRecorder{store: store, now: now, nonce: nonce, slots: make(map[string]*operationAttemptGroup)}
+	return &LifecycleFailureRecorder{store: store, now: now, nonce: nonce}
 }
 
-// Begin freezes the exact target and admission order without inspecting a
-// replacement thread or performing a lifecycle effect.
+// Begin copies diagnostic evidence only. It performs no IO and cannot refuse a
+// lifecycle action. Entropy and publication are needed only after failure.
 func (r *LifecycleFailureRecorder) Begin(op string, target LifecycleFailureTarget) (*OperationAttempt, error) {
-	key := lifecycleFailureTargetKey(target)
-	if key == "" {
-		return nil, errors.New("lifecycle diagnostics need an exact slot or thread target")
-	}
-	r.mu.Lock()
-	if r.epoch == "" {
-		var err error
-		r.epoch, err = r.nonce()
-		if err != nil {
-			r.mu.Unlock()
-			return nil, err
-		}
-	}
-	nonce, err := r.nonce()
-	if err != nil {
-		r.mu.Unlock()
-		return nil, err
-	}
-	r.next++
-	order := r.next
-	group := r.slots[key]
-	if group == nil {
-		group = &operationAttemptGroup{}
-		r.slots[key] = group
-	}
-	group.refs++
-	r.mu.Unlock()
-	group.mu.Lock()
-	group.state, _, err = AdvanceOperationAttempt(group.state, OperationAttemptEvent{Kind: AttemptAdmitted, Order: order})
-	group.mu.Unlock()
-	if err != nil {
-		r.release(key, group)
-		return nil, err
-	}
-	return &OperationAttempt{recorder: r, group: group, key: key, order: order, nonce: nonce, op: op, target: target}, nil
+	return &OperationAttempt{recorder: r, op: op, target: target}, nil
 }
 
-func (r *LifecycleFailureRecorder) release(key string, group *operationAttemptGroup) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	group.refs--
-	if group.refs == 0 && r.slots[key] == group {
-		delete(r.slots, key)
+// ObserveCall enriches diagnostic evidence with the call actually prepared,
+// including an error return. It grants no effect or identity authority.
+func (a *OperationAttempt) ObserveCall(call OperationCall) {
+	t := lifecycleFailureTargetForCall(call)
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if t.Address != (ThreadAddress{}) {
+		a.target.Address = t.Address
+	}
+	if t.StartingPath != "" {
+		a.target.StartingPath = t.StartingPath
+	}
+	if t.ParkNonce != "" {
+		a.target.ParkNonce = t.ParkNonce
+	}
+	if t.Slot != "" {
+		a.target.Slot = t.Slot
+	}
+	if call.FailureTarget != nil && call.FailureTarget.Target != "" {
+		a.target.Target = t.Target
 	}
 }
 
-// Nonce is the immutable operation identity carried by the failure and receipt.
-func (a *OperationAttempt) Nonce() string { return a.nonce }
-
-// DiagnosticWarning reports a failed optional publication without changing a
-// successful lifecycle effect into a reason to repeat it.
+func (a *OperationAttempt) Nonce() string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.nonce
+}
 func (a *OperationAttempt) DiagnosticWarning() string {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return a.warning
 }
-
-// RecordedFailureNonce includes partial cleanup evidence on successful effects.
 func (a *OperationAttempt) RecordedFailureNonce() string {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -120,8 +84,8 @@ func (a *OperationAttempt) RecordedFailureNonce() string {
 	return ""
 }
 
-// Finish is the sole terminal recorder. Repeated or concurrent completion
-// returns the first answer and cannot publish or execute an effect again.
+// Finish is the only publisher. Success reads and writes no diagnostics;
+// duplicate completion returns the original result without another append.
 func (a *OperationAttempt) Finish(value any, cause error) (any, error) {
 	a.once.Do(func() {
 		evidenceCause := cause
@@ -140,53 +104,32 @@ func (a *OperationAttempt) Finish(value any, cause error) (any, error) {
 }
 
 func (a *OperationAttempt) finish(cause, evidenceCause error) (error, string) {
-	r := a.recorder
-	defer r.release(a.key, a.group)
-	a.group.mu.Lock()
-	defer a.group.mu.Unlock()
-	at := r.now()
-	kind := AttemptSucceeded
-	if evidenceCause != nil {
-		kind = AttemptFailed
-	}
-	next, decision, transitionErr := AdvanceOperationAttempt(a.group.state, OperationAttemptEvent{Kind: kind, Order: a.order, At: at})
-	if transitionErr != nil {
-		return errors.Join(cause, transitionErr), transitionErr.Error()
-	}
-	a.group.state = next
-	ctx, cancel := context.WithTimeout(context.Background(), launchDiagnosticsAdmissionTimeout)
-	defer cancel()
 	if evidenceCause == nil {
-		if r.store == nil {
-			return nil, "lifecycle diagnostics unavailable; success was not repeated"
-		}
-		history, err := r.Snapshot()
-		if err == nil {
-			_, changed := LifecycleFailureHistory(history).Supersede(a.target, r.epoch, a.order, at)
-			if !changed {
-				return nil, ""
-			}
-			if store, ok := r.store.(LifecycleFailureStorage); ok {
-				err = store.Supersede(ctx, a.target, r.epoch, a.order, at)
-			} else {
-				err = errors.New("lifecycle diagnostics do not support successful supersession")
-			}
-		}
-		if err != nil {
-			return nil, "lifecycle succeeded; diagnostic supersession failed: " + err.Error()
-		}
 		return nil, ""
 	}
-	f := lifecycleFailureForAttempt(a, evidenceCause, at)
-	if cause == nil {
-		f.Outcome = "unproven"
-	}
-	f.SupersededAt = decision.SupersededAt
+	r := a.recorder
 	var saved error
-	if r.store == nil {
-		saved = errors.New("lifecycle diagnostic store unavailable")
-	} else {
-		saved = r.store.Save(ctx, f)
+	if a.nonce == "" {
+		r.mu.Lock()
+		nonce, err := r.nonce()
+		r.mu.Unlock()
+		a.mu.Lock()
+		a.nonce = nonce
+		a.mu.Unlock()
+		saved = err
+	}
+	if saved == nil {
+		if r.store == nil {
+			saved = errors.New("lifecycle diagnostic store unavailable")
+		} else {
+			f := lifecycleFailureForAttempt(a, evidenceCause, r.now())
+			if cause == nil {
+				f.Outcome = "unproven"
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), launchDiagnosticsAdmissionTimeout)
+			saved = r.store.Save(ctx, f)
+			cancel()
+		}
 	}
 	warning := ""
 	if saved != nil {
@@ -210,6 +153,9 @@ func optionalDiagnosticWarning(warning string) string {
 }
 
 func lifecycleFailureForAttempt(a *OperationAttempt, cause error, at time.Time) LifecycleFailure {
+	a.mu.Lock()
+	target := a.target
+	a.mu.Unlock()
 	f := LifecycleFailure{FailedAt: at, Outcome: "failed"}
 	var launch *launchFailureError
 	if errors.As(cause, &launch) {
@@ -217,14 +163,15 @@ func lifecycleFailureForAttempt(a *OperationAttempt, cause error, at time.Time) 
 		f.LaunchNonce = f.Nonce
 		f.Phase = "launch"
 	}
-	f.Nonce, f.Operation, f.AttemptEpoch, f.AttemptOrder = a.nonce, a.op, a.recorder.epoch, a.order
-	if a.target.Address != (ThreadAddress{}) {
-		f.Address = a.target.Address
+	f.Nonce, f.Operation, f.FailedAt = a.nonce, a.op, at
+	f.Target = target.Target
+	if target.Address != (ThreadAddress{}) {
+		f.Address = target.Address
 	}
-	if a.target.StartingPath != "" {
-		f.StartingPath = a.target.StartingPath
+	if target.StartingPath != "" {
+		f.StartingPath = target.StartingPath
 	}
-	f.Slot, f.ParkNonce, f.FinalError = a.target.Slot, a.target.ParkNonce, cause.Error()
+	f.Slot, f.ParkNonce, f.FinalError = target.Slot, target.ParkNonce, cause.Error()
 	f.Outcome = lifecycleFailureOutcome(cause)
 	var details LifecycleFailureDetails
 	if errors.As(cause, &details) {

@@ -20,9 +20,8 @@ func (s *countedFailureSnapshotStore) Read() ([]LaunchFailure, error) {
 }
 func TestLifecycleFailureProjectionLatestUnresolved(t *testing.T) {
 	at := time.Unix(100, 0)
-	superseded := at
-	rows := []ActionableThreadSummary{{StartingPath: "/a", State: ThreadDetached}, {StartingPath: "/b", State: ThreadLive}}
-	h := []LaunchFailure{{StartingPath: "/a", Nonce: "old", FailedAt: at}, {StartingPath: "/a", Nonce: "new", FailedAt: at.Add(time.Second)}, {StartingPath: "/b", Nonce: "hidden", SupersededAt: &superseded}}
+	rows := []ActionableThreadSummary{{StartingPath: "/a", State: ThreadDetached}, {StartingPath: "/b", State: ThreadLive, LastLifecycleSuccessAt: at.Add(time.Second)}}
+	h := []LaunchFailure{{StartingPath: "/a", Nonce: "old", FailedAt: at}, {StartingPath: "/a", Nonce: "new", FailedAt: at.Add(time.Second)}, {StartingPath: "/b", Nonce: "hidden", FailedAt: at}}
 	got := ProjectLifecycleFailures(rows, h, "")
 	if got[0].Failure == nil || got[0].Failure.Nonce != "new" || got[1].Failure != nil || got[0].State != ThreadDetached {
 		t.Fatalf("projection: %+v", got)
@@ -32,6 +31,58 @@ func TestLifecycleFailureProjectionLatestUnresolved(t *testing.T) {
 		t.Fatal("projection aliases retained evidence")
 	}
 }
+
+func TestLastLifecycleSuccessAtUsesOnlyCommittedSuccess(t *testing.T) {
+	at := time.Unix(100, 0)
+	later := at.Add(time.Second)
+	for _, tc := range []struct {
+		name   string
+		record ThreadRecord
+		want   time.Time
+	}{
+		{"missing", ThreadRecord{}, time.Time{}},
+		{"retirement", ThreadRecord{LastActiveAt: later}, time.Time{}},
+		{"park", ThreadRecord{VerifiedPark: &VerifiedPark{ParkedAt: at}, LastActiveAt: later}, at},
+		{"committed live", ThreadRecord{Incarnations: []ThreadIncarnation{{State: IncarnationLive, StartedAt: at}}}, at},
+		{"creating", ThreadRecord{Incarnations: []ThreadIncarnation{{State: IncarnationCreating, StartedAt: later}}}, time.Time{}},
+		{"unknown", ThreadRecord{Incarnations: []ThreadIncarnation{{State: IncarnationUnknown, StartedAt: later}}}, time.Time{}},
+		{"uncommitted live", ThreadRecord{Incarnations: []ThreadIncarnation{{State: IncarnationLive, StartedAt: later, Start: &ThreadStartClaim{Nonce: "pending"}}}}, time.Time{}},
+		{"latest success", ThreadRecord{VerifiedPark: &VerifiedPark{ParkedAt: at}, Incarnations: []ThreadIncarnation{{State: IncarnationLive, StartedAt: later}}}, later},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := LastLifecycleSuccessAt(tc.record); !got.Equal(tc.want) {
+				t.Fatalf("success=%v want=%v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestLifecycleFailureProjectionRetirementDoesNotHideFailure(t *testing.T) {
+	at := time.Unix(100, 0)
+	address := ThreadAddress{RepoScope: "scope", Tag: "tag"}
+	for _, tc := range []struct {
+		name   string
+		record ThreadRecord
+		hidden bool
+	}{
+		{"retirement after failure", ThreadRecord{LastActiveAt: at.Add(time.Second)}, false},
+		{"park after failure", ThreadRecord{VerifiedPark: &VerifiedPark{ParkedAt: at.Add(time.Second)}}, true},
+		{"live after failure", ThreadRecord{Incarnations: []ThreadIncarnation{{State: IncarnationLive, StartedAt: at.Add(time.Second)}}}, true},
+		{"equal park", ThreadRecord{VerifiedPark: &VerifiedPark{ParkedAt: at}}, false},
+		{"creating after failure", ThreadRecord{Incarnations: []ThreadIncarnation{{State: IncarnationCreating, StartedAt: at.Add(time.Second)}}}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			tc.record.Address = address
+			tc.record.StartingPath = "/a"
+			rows := ProjectActionableThreads(ThreadProjectionInput{Records: []ThreadRecord{tc.record}})
+			got := ProjectLifecycleFailures(rows, []LaunchFailure{{Address: address, StartingPath: "/a", FailedAt: at, Nonce: "failure"}}, "")
+			if (got[0].Failure == nil) != tc.hidden {
+				t.Fatalf("row=%+v hidden=%v", got[0], tc.hidden)
+			}
+		})
+	}
+}
+
 func TestLifecycleFailureSnapshotReplacementAndCorruption(t *testing.T) {
 	dir, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {
@@ -181,5 +232,27 @@ func TestLifecycleFailureSnapshotConcurrentReadersSharePayload(t *testing.T) {
 	}
 	if count.reads != 1 {
 		t.Fatalf("concurrent payload reads=%d", count.reads)
+	}
+}
+
+func TestLifecycleFailureProjectionUsesLatestAcrossDisplayIdentities(t *testing.T) {
+	at := time.Unix(100, 0)
+	address := ThreadAddress{RepoScope: "scope", Tag: "tag"}
+	rows := []ActionableThreadSummary{{Address: address, StartingPath: "/a"}, {Address: ThreadAddress{RepoScope: "scope", Tag: "other"}, StartingPath: "/b"}}
+	history := []LaunchFailure{{Address: address, StartingPath: "/a", Nonce: "old path", FailedAt: at}, {Address: address, Nonce: "new exact", FailedAt: at.Add(time.Second)}}
+	got := ProjectLifecycleFailures(rows, history, "")
+	if got[0].Failure == nil || got[0].Failure.Nonce != "new exact" || got[1].Failure != nil {
+		t.Fatalf("projection=%+v", got)
+	}
+}
+
+func TestLifecycleFailureProjectionExactSlotTarget(t *testing.T) {
+	slot := SlotIdentity{Repo: "pair", PrimaryRoot: "/workspace/pair", Number: 8}
+	rows := []ActionableThreadSummary{{Target: ThreadTarget{Kind: ThreadTargetSlot, Slot: slot}, StartingPath: "/slot8"}}
+	for _, target := range []string{"pair:8", "/workspace/pair:8"} {
+		got := ProjectLifecycleFailures(rows, []LaunchFailure{{Target: target, Nonce: "exact", FailedAt: time.Unix(100, 0)}}, "")
+		if got[0].Failure == nil {
+			t.Fatalf("target=%s missing", target)
+		}
 	}
 }

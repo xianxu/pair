@@ -832,7 +832,6 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcore/lifecyclefailure_codec.go",
 	"cmd/internal/couchcore/lifecyclefailure_record.go",
 	"cmd/internal/couchcore/lifecyclefailure_projection.go",
-	"cmd/internal/couchcore/operationattempt.go",
 	"cmd/internal/couchcore/operationattempt_record.go",
 	"cmd/internal/couchcmd/lifecyclefailure_queue.go",
 	"cmd/internal/couchtty/console_lifecycle_failure.go",

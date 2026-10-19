@@ -183,9 +183,10 @@ to the selected global namespace beneath the account lease.
 ### Lifecycle failure evidence (#531, #683)
 
 `launchfailure.go` owns `LifecycleFailure` and the legacy `LaunchFailure` aliases,
-independently of ThreadRecord. `lifecyclefailure.go` freezes the target and derives
-one slot key from its already verified physical path. Records retain the operation
-nonce, optional thread address, slot path, park/launch nonce, phase, outcome and
+independently of ThreadRecord. `lifecyclefailure.go` centralizes display matching
+of exact dispatched addresses/references and optional canonical slot paths; these
+are diagnostic evidence, never lifecycle binding authority. Records retain the operation
+nonce, dispatched target, optional thread address, slot path, park/launch nonce, phase, outcome and
 bounded exact process identities with executable kinds. Holders never collect argv.
 Generic failures have no inferred phase. Launch fields retain their existing
 16 KiB raw output tail, 4 KiB per error and separate pre/post-cleanup exit codes.
@@ -199,7 +200,6 @@ and holder/process members, through enrichment and rewrite. Known types, require
 identity/time fields and recursive duplicate keys remain strict; legacy rows need
 no new fields. No format version or global strictjson policy changes.
 
-`operationattempt.go` owns pure admission-order transitions;
 `operationattempt_record.go` owns `OperationAttempt.Finish`, the sole terminal
 recorder. Synchronous dispatch finishes its attempt directly. Queued actions keep
 one owned attempt through preparation, guards, effect, adoption and readiness,
@@ -210,16 +210,23 @@ stored operation nonce after the receipt expires. #695 supplies teardown details
 through `LifecycleFailureDetails`; this evidence does not authorize teardown or
 finalize a park.
 
-A later successful lifecycle operation sets optional `superseded_at` on earlier same-slot
-failures, keeping raw evidence until ring eviction. Ordinary success performs no
-store rewrite when nothing needs superseding. Overlapping attempts use admission
-order, so an older late failure is already superseded when saved. The coordinator
-retains state only while admitted attempts overlap; it writes no success rows or
-second file. A success whose diagnostic update fails remains successful with a
-warning rather than inviting a repeated external effect.
+The recorder appends failure evidence once and performs no diagnostics IO on
+success. It owns no coordinator, admission order, target-binding requirement or
+write-time supersession. Missing cached paths still retain exact dispatched
+references; preparation can add the actual dispatched thread address without
+resolving or authorizing it for diagnostics. Unreadable records remain recoverable.
+Optional nonce/publication failures preserve the original action result with a
+warning rather than inviting another external effect.
+
+Pure `LastLifecycleSuccessAt(record)` is the sole success-time definition: verified
+park time and a committed live incarnation's start time. LastActiveAt is excluded
+because retirement may represent death. Row and show hide a historical failure
+only when this existing record evidence is strictly later than its completion.
+Missing/equal timestamps retain it, including a late failure after an earlier
+success. #695 extends this pure seam with its persisted proven-teardown event.
 
 `lifecyclefailure_projection.go` caches one bounded store snapshot by file identity,
-size and mtime. Each inventory refresh projects the latest unsuperseded failure in
+size and mtime. Each inventory refresh projects the latest matching historical failure in
 O(history + rows), without altering row state or action guards. A malformed or
 unreadable store stays visibly unavailable. `couch --show` uses the same evidence,
 including failures for an empty slot and legacy exact-address records. The existing

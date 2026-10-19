@@ -3,7 +3,6 @@ package couchcore
 import (
 	"context"
 	"sync"
-	"time"
 )
 
 // FakeLaunchFailureStore retains evidence across Couch reconstructions. Tests
@@ -45,28 +44,4 @@ func (s *FakeLaunchFailureStore) Save(ctx context.Context, f LaunchFailure) erro
 		s.History = next
 	}
 	return err
-}
-
-func (s *FakeLaunchFailureStore) Supersede(ctx context.Context, t LifecycleFailureTarget, epoch string, order uint64, at time.Time) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	if s.ReadError != nil {
-		return s.ReadError
-	}
-	next, changed := s.History.Supersede(t, epoch, order, at)
-	if !changed {
-		return nil
-	}
-	if s.SaveError != nil {
-		return s.SaveError
-	}
-	next, err := fitLifecycleFailureHistory(next, launchFailureEncodedLimit, encodeLifecycleFailureRow)
-	if err != nil {
-		return err
-	}
-	s.History = next
-	return nil
 }

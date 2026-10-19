@@ -20,16 +20,14 @@ const launchFailureHistoryLimit = 64
 type LifecycleFailure struct {
 	Unknown          map[string]json.RawMessage `json:"-"`
 	addressUnknown   map[string]json.RawMessage
+	Target           string                `json:"target,omitempty"`
 	Slot             string                `json:"slot,omitempty"`
 	Phase            string                `json:"phase,omitempty"`
 	Outcome          string                `json:"outcome,omitempty"`
 	Holders          []ProcessIdentityLine `json:"holders,omitempty"`
 	HoldersTruncated int                   `json:"holders_truncated,omitempty"`
-	SupersededAt     *time.Time            `json:"superseded_at,omitempty"`
 	LaunchNonce      string                `json:"launch_nonce,omitempty"`
 	ParkNonce        string                `json:"park_nonce,omitempty"`
-	AttemptEpoch     string                `json:"attempt_epoch,omitempty"`
-	AttemptOrder     uint64                `json:"attempt_order,omitempty"`
 	Address          ThreadAddress         `json:"address"`
 	Nonce            string                `json:"nonce"`
 	StartingPath     string                `json:"starting_path,omitempty"`
@@ -56,10 +54,6 @@ func cloneLaunchFailure(f LaunchFailure) LaunchFailure {
 	f.Unknown = cloneFailureUnknown(f.Unknown)
 	f.addressUnknown = cloneFailureUnknown(f.addressUnknown)
 	f.Holders = cloneFailureHolders(f.Holders)
-	if f.SupersededAt != nil {
-		v := *f.SupersededAt
-		f.SupersededAt = &v
-	}
 	if f.BeforeExit != nil {
 		v := *f.BeforeExit
 		f.BeforeExit = &v
@@ -90,19 +84,19 @@ func normalizeLaunchFailure(f LaunchFailure) (LaunchFailure, error) {
 	if f.HoldersTruncated < 0 {
 		return f, fmt.Errorf("invalid holder truncation count")
 	}
-	if f.SupersededAt != nil && f.SupersededAt.IsZero() {
-		return f, fmt.Errorf("invalid supersession time")
-	}
 	identities := []string{f.Nonce}
 	if f.Address != (ThreadAddress{}) {
 		identities = append(identities, f.Address.RepoScope, string(f.Address.Tag))
-	} else if !filepath.IsAbs(f.StartingPath) {
-		return f, fmt.Errorf("slot failure requires absolute starting path")
+	} else if !filepath.IsAbs(f.StartingPath) && f.Target == "" {
+		return f, fmt.Errorf("failure requires an exact address, absolute starting path, or target")
 	}
 	for _, v := range identities {
 		if v == "" || len(v) > 1024 || !utf8.ValidString(v) {
 			return f, fmt.Errorf("invalid launch failure identity")
 		}
+	}
+	if len(f.Target) > 1024 || !utf8.ValidString(f.Target) {
+		return f, fmt.Errorf("invalid failure target")
 	}
 	if f.Phase != "" && !failureEnum(f.Phase, "observe", "preserve", "stop", "sweep", "prove", "bind", "launch", "commit") {
 		return f, fmt.Errorf("invalid failure phase")
@@ -123,7 +117,7 @@ func normalizeLaunchFailure(f LaunchFailure) (LaunchFailure, error) {
 	if f.FailedAt.IsZero() {
 		return f, fmt.Errorf("missing launch failure time")
 	}
-	for _, v := range []string{f.StartingPath, f.Agent, f.Operation, f.Stage, f.Stream, f.Slot, f.LaunchNonce, f.ParkNonce, f.AttemptEpoch} {
+	for _, v := range []string{f.StartingPath, f.Agent, f.Operation, f.Stage, f.Stream, f.Slot, f.LaunchNonce, f.ParkNonce} {
 		if len(v) > 4096 || !utf8.ValidString(v) {
 			return f, fmt.Errorf("invalid launch failure metadata")
 		}
@@ -149,12 +143,9 @@ func (h LaunchFailureHistory) Upsert(f LaunchFailure) (LaunchFailureHistory, err
 	found := false
 	for _, old := range h {
 		old = cloneLaunchFailure(old)
-		if old.Address == f.Address && old.Nonce == f.Nonce && LifecycleFailureSlotKey(failureTarget(old)) == LifecycleFailureSlotKey(failureTarget(f)) {
+		if old.Address == f.Address && old.Nonce == f.Nonce && lifecycleFailureTargetKey(failureTarget(old)) == lifecycleFailureTargetKey(failureTarget(f)) {
 			old.Unknown = mergeFailureUnknown(old.Unknown, f.Unknown)
 			old.addressUnknown = mergeFailureUnknown(old.addressUnknown, f.addressUnknown)
-			if old.SupersededAt == nil {
-				old.SupersededAt = f.SupersededAt
-			}
 			if f.Phase != "" {
 				old.Phase = f.Phase
 			}

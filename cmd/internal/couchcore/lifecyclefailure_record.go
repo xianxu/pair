@@ -3,7 +3,6 @@ package couchcore
 import (
 	"crypto/rand"
 	"encoding/hex"
-	"fmt"
 	"io"
 	"path/filepath"
 	"strconv"
@@ -33,37 +32,27 @@ func (c *Couch) lifecycleFailureRecorder() *LifecycleFailureRecorder {
 	return c.failureRecorder
 }
 
-// BeginOperationAttempt binds a tag-only admitted action once to its exact
-// record path. Cached queue targets already carry that physical path and do
-// no additional IO here. Callers invoke this only after receipt admission.
+// BeginOperationAttempt copies available evidence without resolving or binding a target.
 func (c *Couch) BeginOperationAttempt(op string, target LifecycleFailureTarget) (*OperationAttempt, error) {
-	if target.StartingPath == "" && target.Address.Tag != "" {
-		if c.Threads == nil {
-			return nil, fmt.Errorf("%s: exact thread binding unavailable; refresh and retry", op)
-		}
-		record, err := c.Threads.GetThread(target.Address)
-		if err != nil {
-			return nil, fmt.Errorf("%s: exact thread binding unavailable; refresh and retry: %w", op, err)
-		}
-		if record.Address != target.Address || !filepath.IsAbs(record.StartingPath) || filepath.Clean(record.StartingPath) != record.StartingPath {
-			return nil, fmt.Errorf("%s: canonical thread slot unavailable; refresh and retry", op)
-		}
-		target.StartingPath = record.StartingPath
-	}
 	return c.lifecycleFailureRecorder().Begin(op, target)
 }
 
 // OperationAttemptForCall is the production dispatcher factory. Prepared owner
-// calls already carry canonical paths or exact thread identity; unresolved calls
-// do not acquire a fabricated diagnostic target.
+// calls may carry canonical paths or exact thread identity; unresolved calls
+// retain their dispatched reference without acquiring lifecycle authority.
 func (c *Couch) OperationAttemptForCall(call OperationCall) (*OperationAttempt, error) {
 	op, known := operationByName(call.Name)
 	if !known || !OperationRecordsLifecycleFailure(op) {
 		return nil, nil
 	}
+	return c.BeginOperationAttempt(call.Name, lifecycleFailureTargetForCall(call))
+}
+
+// lifecycleFailureTargetForCall copies evidence and never resolves a reference.
+func lifecycleFailureTargetForCall(call OperationCall) LifecycleFailureTarget {
 	target := LifecycleFailureTarget{
 		Address:      ThreadAddress{RepoScope: call.Args["repo-scope"], Tag: ThreadTag(call.Args["tag"])},
-		StartingPath: call.Args["path"], ParkNonce: call.Args["park-nonce"],
+		StartingPath: call.Args["path"], ParkNonce: call.Args["park-nonce"], Target: call.Args["ref"],
 	}
 	if call.FailureTarget != nil {
 		target = *call.FailureTarget
@@ -72,12 +61,15 @@ func (c *Couch) OperationAttemptForCall(call OperationCall) (*OperationAttempt, 
 		target.StartingPath = call.Args["ref"]
 	}
 	if !filepath.IsAbs(target.StartingPath) || filepath.Clean(target.StartingPath) != target.StartingPath {
+		if target.Target == "" {
+			target.Target = target.StartingPath
+		}
 		target.StartingPath = "" // Resolution belongs to the operation, not diagnostics.
 	}
-	if target.StartingPath == "" && target.Address.Tag == "" {
-		return nil, nil
+	if target.Target == "" && target.StartingPath == "" && target.Address.Tag == "" {
+		target.Target = "unresolved " + call.Name
 	}
-	return c.BeginOperationAttempt(call.Name, target)
+	return target
 }
 
 // LifecycleFailureTargetForRow freezes a selected row before queued work.

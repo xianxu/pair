@@ -56,7 +56,7 @@ func TestDispatchLifecycleFailureBorrowsDeferredAttemptAndIgnoresReads(t *testin
 	}
 }
 
-func TestDispatchLifecycleFailureSuccessfulEffectShowsStoreWarning(t *testing.T) {
+func TestDispatchLifecycleFailureSuccessIgnoresUnavailableDiagnostics(t *testing.T) {
 	r, store := attemptRecorderFixture()
 	store.ReadError = errors.New("diagnostics unreadable")
 	var warning string
@@ -68,8 +68,8 @@ func TestDispatchLifecycleFailureSuccessfulEffectShowsStoreWarning(t *testing.T)
 		LiveOwner:         func(OperationCall) (any, error) { return "completed", nil },
 	}
 	value, err := DispatchOperation(executors, OperationCall{Name: "park", Args: map[string]string{"repo-scope": "scope", "tag": "exact"}, Implicit: true})
-	if err != nil || value != "completed" || warning == "" {
-		t.Fatalf("successful effect lost its diagnostics warning: %v, %v, %q", value, err, warning)
+	if err != nil || value != "completed" || warning != "" {
+		t.Fatalf("success depended on diagnostics: %v %v %q", value, err, warning)
 	}
 }
 
@@ -77,8 +77,8 @@ func TestLifecycleFailureUnresolvedRelativeTargetPreservesAdmission(t *testing.T
 	c := &Couch{}
 	for _, path := range []string{".", "relative", "/project/../other"} {
 		attempt, err := c.OperationAttemptForCall(OperationCall{Name: "prepare-start", Args: map[string]string{"path": path}})
-		if err != nil || attempt != nil {
-			t.Fatalf("optional diagnostics changed unresolved target admission %q: %v %v", path, attempt, err)
+		if err != nil || attempt == nil {
+			t.Fatalf("completion log failed to retain unresolved dispatch evidence %q: %v %v", path, attempt, err)
 		}
 	}
 }

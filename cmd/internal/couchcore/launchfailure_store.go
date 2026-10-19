@@ -71,17 +71,6 @@ func (s *LaunchFailureStore) Save(ctx context.Context, f LaunchFailure) error {
 		return next, true, err
 	})
 }
-func (s *LaunchFailureStore) Supersede(ctx context.Context, t LifecycleFailureTarget, epoch string, order uint64, at time.Time) error {
-	return s.update(ctx, func(old LaunchFailureHistory) (LaunchFailureHistory, bool, error) {
-		next, changed := old.Supersede(t, epoch, order, at)
-		if changed {
-			var err error
-			next, err = fitLifecycleFailureHistory(next, launchFailureEncodedLimit, encodeLifecycleFailureRow)
-			return next, true, err
-		}
-		return next, changed, nil
-	})
-}
 func (s *LaunchFailureStore) update(ctx context.Context, change func(LaunchFailureHistory) (LaunchFailureHistory, bool, error)) error {
 	dir := filepath.Dir(s.path)
 	if err := provisionMkdirAll(dir); err != nil {

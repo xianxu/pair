@@ -4,14 +4,16 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
 )
 
-func TestLifecycleFailurePrivateServiceSurvivesReceiptLossAndSupersedes(t *testing.T) {
+func TestLifecycleFailurePrivateServiceSurvivesReceiptLossAndUsesRecordedSuccess(t *testing.T) {
 	r := newParkAdmissionRig(t, false)
 	primary := r.before.StartingPath
 	cause := "fixture workspace observation unavailable"
@@ -65,11 +67,39 @@ func TestLifecycleFailurePrivateServiceSurvivesReceiptLossAndSupersedes(t *testi
 	if success := r.terminal(t, successRequest.ID); success.Status != couchmessage.ReceiptSucceeded {
 		t.Fatalf("successor: %+v", success)
 	}
+	// Recovery retirement has no success timestamp; it cannot clear failure text.
+	if after := show(); len(after.LaunchFailures) != 1 {
+		t.Fatal("retirement hid failure without a success event")
+	}
+	beforeBytes, err := os.ReadFile(reopened.Path())
+	if err != nil {
+		t.Fatal(err)
+	}
+	current, err := r.couch.Threads.GetThread(r.before.Address)
+	if err != nil {
+		t.Fatal(err)
+	}
+	profile := current.LatestLaunchProfile
+	nonce := "fixture-committed-success"
+	current, err = r.couch.Threads.CommitStartClaim(current.Address, current.Revision, primary+"/.git", history[0].FailedAt.Add(time.Second), couchcore.StartEvent{Kind: couchcore.StartClaimed, Shape: couchcore.StartFreshExisting, Nonce: nonce, Owner: couchcore.SupervisorOwner{PID: 100, Identity: "fixture-owner"}, Profile: profile})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, event := range []couchcore.StartEvent{{Kind: couchcore.StartHelperRecorded, Nonce: nonce, Helper: couchcore.ProcessIdentity{PID: 101, Identity: "fixture-helper"}}, {Kind: couchcore.StartRegistered, Nonce: nonce}} {
+		current, err = r.couch.Threads.AdvanceStart(current.Address, current.Revision, event)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
 	if after := show(); len(after.LaunchFailures) != 0 {
-		t.Fatalf("success did not supersede visible failure: %+v", after.LaunchFailures)
+		t.Fatalf("recorded committed start did not hide failure: %+v", after.LaunchFailures)
+	}
+	afterBytes, err := os.ReadFile(reopened.Path())
+	if err != nil || !bytes.Equal(beforeBytes, afterBytes) {
+		t.Fatalf("success rewrote failure log: %v", err)
 	}
 	history, err = reopened.Read()
-	if err != nil || len(history) != 1 || history[0].SupersededAt == nil || history[0].Nonce != failed.FailureNonce {
-		t.Fatalf("success deleted or failed to supersede evidence: %+v %v", history, err)
+	if err != nil || len(history) != 1 || history[0].Nonce != failed.FailureNonce {
+		t.Fatalf("historical failure lost: %+v %v", history, err)
 	}
 }

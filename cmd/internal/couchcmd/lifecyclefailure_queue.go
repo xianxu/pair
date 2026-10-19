@@ -32,14 +32,17 @@ func newLifecycleRemoteQueue(console *couchtty.Console, c *couchcore.Couch) *lif
 // Enqueue gives preparation, execution, adoption and readiness one terminal
 // owner. The underlying console queue retains its ordinary scheduling contract.
 func (q *lifecycleRemoteQueue) Enqueue(key, op string, prepare func(context.Context) (couchcore.OperationCall, error), started func(), finished func(any, error), awaits ...*func(context.Context) error) error {
-	target, known := lifecycleFailureQueueTarget(q.rows(), key)
-	var attempt *couchcore.OperationAttempt
-	if known {
-		var err error
-		attempt, err = q.couch.OperationAttemptForCall(couchcore.OperationCall{Name: op, FailureTarget: &target})
-		if err != nil {
-			return err
-		}
+	return q.EnqueueForReference(key, op, strings.TrimPrefix(key, "remote\x00"), prepare, started, finished, awaits...)
+}
+
+// EnqueueForReference retains the dispatched reference even without a cache hit.
+// Diagnostic evidence never changes operation admission or target resolution.
+func (q *lifecycleRemoteQueue) EnqueueForReference(key, op, reference string, prepare func(context.Context) (couchcore.OperationCall, error), started func(), finished func(any, error), awaits ...*func(context.Context) error) error {
+	target, _ := lifecycleFailureQueueTarget(q.rows(), key)
+	target.Target = reference
+	attempt, err := q.couch.OperationAttemptForCall(couchcore.OperationCall{Name: op, FailureTarget: &target})
+	if err != nil {
+		return err
 	}
 	terminal := func(value any, err error) {
 		if attempt != nil {
@@ -58,11 +61,14 @@ func (q *lifecycleRemoteQueue) Enqueue(key, op string, prepare func(context.Cont
 	if len(awaits) != 0 && awaits[0] != nil {
 		completion = awaitReadiness(awaits[0], terminal)
 	}
-	err := q.enqueue(key, op, func(ctx context.Context) (couchcore.OperationCall, error) {
+	err = q.enqueue(key, op, func(ctx context.Context) (couchcore.OperationCall, error) {
 		if attempt != nil {
 			ctx = couchcore.WithOperationAttempt(ctx, attempt)
 		}
 		call, err := prepare(ctx)
+		if attempt != nil {
+			attempt.ObserveCall(call)
+		}
 		if err == nil && attempt != nil {
 			if call.Context == nil {
 				call.Context = ctx

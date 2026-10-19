@@ -107,12 +107,8 @@ func TestShowLifecycleFailureLatestUnresolvedAndEmptySlot(t *testing.T) {
 		t.Fatal(err)
 	}
 	at := time.Unix(100, 0)
-	for i, nonce := range []string{"old", "latest", "superseded"} {
+	for i, nonce := range []string{"old", "latest"} {
 		f := LaunchFailure{StartingPath: root, Slot: "pair:8", Operation: "recover-park", Nonce: nonce, FailedAt: at.Add(time.Duration(i) * time.Second)}
-		if i == 2 {
-			v := at.Add(3 * time.Second)
-			f.SupersededAt = &v
-		}
 		if err := store.Save(t.Context(), f); err != nil {
 			t.Fatal(err)
 		}
@@ -120,5 +116,69 @@ func TestShowLifecycleFailureLatestUnresolvedAndEmptySlot(t *testing.T) {
 	got, detail := env.Couch.launchFailuresForShow(t.Context(), "scope", root, nil, SlotIdentity{})
 	if detail != "" || len(got) != 1 || got[0].Nonce != "latest" {
 		t.Fatalf("show=%+v detail=%s", got, detail)
+	}
+}
+
+func TestShowLifecycleFailureUsesRecordedSuccessOnly(t *testing.T) {
+	at := time.Unix(100, 0)
+	address := ThreadAddress{RepoScope: "scope", Tag: "tag"}
+	for _, tc := range []struct {
+		name   string
+		record ThreadRecord
+		hidden bool
+	}{
+		{"retire after failure", ThreadRecord{LastActiveAt: at.Add(time.Second)}, false},
+		{"verified park", ThreadRecord{VerifiedPark: &VerifiedPark{ParkedAt: at.Add(time.Second)}}, true},
+		{"committed live", ThreadRecord{Incarnations: []ThreadIncarnation{{State: IncarnationLive, StartedAt: at.Add(time.Second)}}}, true},
+		{"equal time", ThreadRecord{VerifiedPark: &VerifiedPark{ParkedAt: at}}, false},
+		{"creating", ThreadRecord{Incarnations: []ThreadIncarnation{{State: IncarnationCreating, StartedAt: at.Add(time.Second)}}}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			env := newTestEnv(t, "/repo")
+			store := NewFakeLaunchFailureStore()
+			env.Couch.LaunchFailures = store
+			if err := store.Save(t.Context(), LaunchFailure{Address: address, Nonce: "failure", FailedAt: at}); err != nil {
+				t.Fatal(err)
+			}
+			tc.record.Address = address
+			got, detail := env.Couch.launchFailuresForShow(t.Context(), "scope", "tag", []ThreadRecord{tc.record}, SlotIdentity{})
+			if detail != "" || (len(got) == 0) != tc.hidden {
+				t.Fatalf("failures=%+v detail=%s hidden=%v", got, detail, tc.hidden)
+			}
+		})
+	}
+}
+
+func TestShowLifecycleFailureExactUnresolvedTarget(t *testing.T) {
+	env := newTestEnv(t, "/repo")
+	store := NewFakeLaunchFailureStore()
+	env.Couch.LaunchFailures = store
+	if err := store.Save(t.Context(), LaunchFailure{Target: "pair:8", Nonce: "failure", FailedAt: time.Unix(100, 0)}); err != nil {
+		t.Fatal(err)
+	}
+	got, detail := env.Couch.launchFailuresForShow(t.Context(), "scope", "pair:8", nil, SlotIdentity{})
+	if detail != "" || len(got) != 1 {
+		t.Fatalf("failures=%+v detail=%s", got, detail)
+	}
+	absent, _ := env.Couch.launchFailuresForShow(t.Context(), "scope", "pair:9", nil, SlotIdentity{})
+	if len(absent) != 0 {
+		t.Fatalf("cross-slot diagnostics=%+v", absent)
+	}
+}
+
+func TestShowLifecycleFailureNewestAcrossExactAndSlotIdentity(t *testing.T) {
+	env := newTestEnv(t, "/repo")
+	store := NewFakeLaunchFailureStore()
+	env.Couch.LaunchFailures = store
+	address := ThreadAddress{RepoScope: "scope", Tag: "tag"}
+	at := time.Unix(100, 0)
+	for _, f := range []LaunchFailure{{Address: address, StartingPath: "/a", Nonce: "old slot", FailedAt: at}, {Address: address, Nonce: "new exact", FailedAt: at.Add(time.Second)}} {
+		if err := store.Save(t.Context(), f); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got, detail := env.Couch.launchFailuresForShow(t.Context(), "scope", "tag", []ThreadRecord{{Address: address, StartingPath: "/a"}}, SlotIdentity{})
+	if detail != "" || len(got) != 1 || got[0].Nonce != "new exact" {
+		t.Fatalf("failures=%+v detail=%s", got, detail)
 	}
 }

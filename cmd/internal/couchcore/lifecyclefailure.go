@@ -1,12 +1,10 @@
 package couchcore
 
 import (
-	"context"
 	"encoding/json"
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"path/filepath"
 	"strings"
-	"time"
 )
 
 type ProcessIdentityLine struct {
@@ -26,6 +24,7 @@ type LifecycleFailureTarget struct {
 	StartingPath string
 	Slot         string
 	ParkNonce    string
+	Target       string
 }
 
 // LifecycleFailureSlotKey derives identity from a previously verified physical path.
@@ -43,28 +42,21 @@ func lifecycleFailureTargetKey(t LifecycleFailureTarget) string {
 	if t.Address.RepoScope != "" && t.Address.Tag != "" {
 		return "thread:" + t.Address.RepoScope + "/" + string(t.Address.Tag)
 	}
+	if t.Target != "" {
+		return "target:" + t.Target
+	}
 	return ""
 }
 func failureTarget(f LifecycleFailure) LifecycleFailureTarget {
-	return LifecycleFailureTarget{Address: f.Address, StartingPath: f.StartingPath, Slot: f.Slot, ParkNonce: f.ParkNonce}
+	return LifecycleFailureTarget{Address: f.Address, StartingPath: f.StartingPath, Slot: f.Slot, ParkNonce: f.ParkNonce, Target: f.Target}
 }
 
-// compareLifecycleFailureRecency retains time ordering across owners and uses
-// admission order to break identical-clock ties within the same owner.
+// compareLifecycleFailureRecency uses completion time and a stable nonce tie.
 func compareLifecycleFailureRecency(a, b LifecycleFailure) int {
 	if recency := a.FailedAt.Compare(b.FailedAt); recency != 0 {
 		return recency
 	}
-	if epoch := strings.Compare(a.AttemptEpoch, b.AttemptEpoch); epoch != 0 {
-		return epoch
-	}
-	if a.AttemptOrder > b.AttemptOrder {
-		return 1
-	}
-	if a.AttemptOrder < b.AttemptOrder {
-		return -1
-	}
-	return 0
+	return strings.Compare(a.Nonce, b.Nonce)
 }
 func failureEnum(v string, allowed ...string) bool {
 	for _, a := range allowed {
@@ -127,33 +119,4 @@ func mergeFailureHolders(old, next []ProcessIdentityLine) []ProcessIdentityLine 
 		}
 	}
 	return out
-}
-
-// Supersede keeps raw evidence while hiding only failures admitted no later than success.
-func (h LifecycleFailureHistory) Supersede(t LifecycleFailureTarget, epoch string, order uint64, at time.Time) (LifecycleFailureHistory, bool) {
-	out := make(LifecycleFailureHistory, len(h))
-	changed := false
-	key := lifecycleFailureTargetKey(t)
-	for i, f := range h {
-		out[i] = cloneLaunchFailure(f)
-		sameTarget := key != "" && lifecycleFailureTargetKey(failureTarget(f)) == key
-		// Legacy/synchronous callers can name an exact conversation without a
-		// physical slot path. They never broaden to another conversation or two
-		// independently known slot paths.
-		if !sameTarget && t.Address.RepoScope != "" && t.Address.Tag != "" && t.Address == f.Address && (LifecycleFailureSlotKey(t) == "" || LifecycleFailureSlotKey(failureTarget(f)) == "") {
-			sameTarget = true
-		}
-		if sameTarget && f.SupersededAt == nil && (f.AttemptEpoch != epoch || f.AttemptOrder <= order) {
-			v := at
-			out[i].SupersededAt = &v
-			changed = true
-		}
-	}
-	return out, changed
-}
-
-// LifecycleFailureStorage is the same durable store used by legacy launch capture.
-type LifecycleFailureStorage interface {
-	LaunchFailureStorage
-	Supersede(context.Context, LifecycleFailureTarget, string, uint64, time.Time) error
 }
