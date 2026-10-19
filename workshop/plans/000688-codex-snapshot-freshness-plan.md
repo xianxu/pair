@@ -34,7 +34,7 @@ Sources: [online backup](https://www.sqlite.org/backup.html), [backup API](https
 | DatabaseBackupStatus / DatabaseBackupSummary | cmd/internal/historyarchive/continuous_snapshot_model.go | new |
 | ArchivedIndex | cmd/internal/historyarchive/continuous_index.go | modified |
 
-- **SnapshotResult** replaces the bool/free-form-note protocol with Ready, Deferred or Rejected and bounded detail. Ready means a coherent validated staging file, not a verified encrypted backup. Deferred means lock/deadline contention; Rejected means invalid input, integrity or size refusal. Infrastructure errors and caller cancellation remain errors. No status is inferred from message text. Unit tests use literal values.
+- **SnapshotResult** replaces the bool/free-form-note protocol with Ready, Deferred or Rejected and bounded detail. Ready means a coherent validated staging file, not a verified encrypted backup. Deferred means a confirmed context/alarm deadline; Rejected includes invalid input, integrity/size refusal and ambiguous generic CLI failure. The CLI does not expose a reliable structured busy result: exit 1 remains failed/unknown, even if its diagnostic mentions a lock. Infrastructure errors and caller cancellation remain errors. No status is inferred from message text. Unit tests use literal values.
 - **SnapshotObservation** retains preflight size/WAL-presence facts for admission; size/mtime equality stops being consistency authority. Delete SnapshotStable and its old behavioral dependency rather than keeping a second consistency algorithm.
 - **DatabaseBackupSummary** combines one acquisition result, dedup/publication result, current observation time and optional last verified bundle time. It projects Archived, Unchanged, Deferred or Failed. A source checked unchanged today is distinguishable from one not successfully observed since an old bundle. Tests cover unknown timestamp, clock skew, publication failure and previous verified bundles.
 - **ArchivedIndex** remains the one per-pass catalog projection. Add latest verified time keyed by the existing exact source identity/path, populated alongside existing hashes/stamps from each CatalogRecord. Preserve its manifest-only Add use for current tests/callers; add AddRecord for timestamp-bearing records. No second catalog scan per database. Future report fields extend this runtime projection, not stored records.
@@ -82,7 +82,7 @@ Actions: wait for the next scheduled pass; rerun the continuous command explicit
 |---|---|---|---|
 | Validated snapshot, new encrypted bundle and verified catalog record | Archived; last verified timestamp/age | Wait for next scheduled pass | Writes after the pinned snapshot are absent from this version |
 | Validated snapshot matches a cataloged content hash | Unchanged; checked this pass, last stored bundle timestamp/age | Wait for next scheduled pass | No new version; an old bundle timestamp alone is not failure |
-| Busy or source deadline; prior verified bundle exists or none exists | Deferred with reason; last verified age or never | Explicitly rerun once when ready | New writes remain unbacked-up; old verified versions remain |
+| Confirmed source deadline; prior verified bundle exists or none exists | Deferred with reason; last verified age or never | Explicitly rerun once when ready | New writes remain unbacked-up; old verified versions remain |
 | Size refusal, invalid/replaced source, tool or integrity failure | Failed/skipped with bounded reason; prior age or never | Repair the named cause and rerun | Latest state unavailable; prior bundles preserved |
 | Caller cancels or process dies with partial private output | Incomplete pass, no claim of freshness | Rerun the command | Partial private candidate discarded/swept; prior versions retained |
 | Encryption/catalog publication fails after acquisition | Failed publication, prior verified age retained | Repair the named publication cause and rerun | Private coherent acquisition is not a verified bundle |
@@ -119,19 +119,19 @@ Covered: sustained writes, bounded source pin, partial acquisition/publication, 
 Files: modify sqlite_snapshot.go/sqlite_snapshot_test.go; create sqlite_snapshot_model.go/sqlite_snapshot_model_test.go and sqlite_snapshot_exec.go/sqlite_snapshot_exec_test.go under cmd/internal/historyarchive/. Modify cmd/internal/artifactpath/manifest.go for the new production-source classifications.
 
 - [ ] Add a portable stateful writer fixture and negative control that advances the source between old copy boundaries, proving changed-during-copy starvation. Retain the failing run before replacing the implementation.
-- [ ] Add typed result/policy literal tests and failing stateful-runner tests: pin before backup, writer keeps advancing, one attempt, validation after reader exit, cancellation and no publication of partial output. Run go test ./cmd/internal/historyarchive -run 'TestSQLiteSnapshot|TestExecSQLite' -count=1; record the expected failures.
+- [ ] Add failing policy and stateful-runner tests using the function-level strategies above. Run go test ./cmd/internal/historyarchive -run 'TestSQLiteSnapshot|TestExecSQLite' -count=1; record the expected failures.
 - [ ] Implement typed acquisition, fixed script, exact identity checks, separate bounded runner streams/deadlines and private validation. Delete raw copy stability authority. Retain copyRegularFile only where existing unrelated test fixtures need it; remove unused production hooks.
-- [ ] Add subprocess-level runner tests with readiness/held pipes, cancellation, nonzero exit, output overflow, ignored startup file, spaces/quotes/newlines in source/scratch paths, and explicit no retry. Timeout tests use an injected runner budget only after readiness; no assertion that external startup finishes within a tiny host-speed limit.
-- [ ] Run real disposable SQLite conformance: writer transaction invariant, integrity_check, unknown table/column/blob and sparse implicit rowids, quiescent DB/WAL byte+inode/ownership unchanged, SHM allowed to change. Keep SQLite-owning writer in a separate process from raw inspectors. Prove writer commits while snapshot work is in progress through barrier/count evidence.
+- [ ] Implement the runner/identity guards against the named adversarial classes, using readiness-controlled subprocess fixtures rather than external startup timing assertions.
+- [ ] Run the same collector contract against a real disposable SQLite writer; keep SQLite-owning writer and raw inspectors in separate processes, with barriers and counters proving concurrent commits. Record the conformance output.
 - [ ] Exercise rejection/corruption/size/disk-error paths and crash sweep. Run targeted snapshot tests and go test ./cmd/internal/artifactpath ./cmd/internal/testpair; commit the verified mechanism with issue/agent trailers.
 
 ### Task 2: Project freshness through the existing continuous pass
 
 Files: modify cmd/internal/historyarchive/continuous.go, continuous_index.go, continuous_external_test.go, continuous_select_test.go, bounds_internal_test.go; create continuous_snapshot_model.go/continuous_snapshot_model_test.go; modify cmd/internal/archivecmd/continuous.go and continuous_test.go. Classify the new production file in artifactpath/manifest.go.
 
-- [ ] Write failing literal projection/index tests for Archived/Unchanged/Deferred/Failed, unknown/old/future verified times and exact identity/path separation. Write failing pass tests for one source busy, failed staged residue, unchanged content and publication failure.
+- [ ] Write failing projection/index and production-pass tests using their named boundary strategies; record the red result before implementing.
 - [ ] Implement Snapshotter typed return and runtime database summaries; populate latest verification times during the existing single catalog scan and successful record adoption. Update all fixture Snapshotter implementations. Preserve dedup/source identity and other source-kind output.
-- [ ] Render one deterministic freshness line per DB in runContinuous, including partial failures. Add CLI assertions for checked-unchanged versus old/unobserved and never-backed-up cases.
+- [ ] Render one deterministic freshness line per DB in runContinuous and test its strategy through the CLI entry point.
 - [ ] Run counted production-path N=3/6 cases: one catalog traversal, ≤D acquisitions, ≤D private validations, no retry, continued progress after one deferred DB. Run go test ./cmd/internal/historyarchive ./cmd/internal/archivecmd ./cmd/internal/artifactpath ./cmd/internal/testpair -count=1 and commit.
 
 ### Task 3: Document, verify live with the hub, close and land
@@ -147,3 +147,34 @@ Files: modify atlas/history-backup.md and its existing atlas/index.md entry if t
 ## Architecture accounting
 
 ARCH-DRY: one SQLite runner, existing lock/publication/dedup/sweep and one catalog pass. ARCH-PURE: typed result/index/report policy separated from IO; fake and real DB work explicitly integration. ARCH-PURPOSE: prove active-writer progress and all three native DBs, not just private-copy coherence. ARCH-MOCK: stateful SQLite fake and disposable actual-SQLite contract checks. ARCH-CONSTRAINTS: bounded native reader, one attempt, serial batch, counted growth and honest transient disk limits. ARCH-SECURE: read-only/no-follow native opening, ignored startup file, fixed script with argv paths, private scratch, no row/credential output. ARCH-STATE: lexical acquisition/validation/publication ownership and typed outcomes; cancellation cannot promote a partial candidate. ARCH-FUNERAL: existing sweep/staging replacement and existing bundle retention, no persistent retries. ARCH-EVOLVE: no persisted format changes; opaque .backup preserves unknown SQL schema, values and rowids.
+
+## Revisions
+
+### 2026-10-19 — PQ-1/PQ-2/PQ-3 and hub-directed Go alarm launcher
+
+Reason: collector death invalidates a parent-only deadline; generic SQLite exit codes do not distinguish busy. This revision supersedes the direct sqlite3 launch and unconditional scratch sweep described above. Hub c6bca0a7-27cc-4445-a53a-a28b509b2102 explicitly directs the same-binary Go launcher, with no Perl/runtime dependency. Ambiguous exit classification and condensed test tasks address PQ-2/PQ-3.
+
+Additional INTEGRATION concepts:
+
+| Name | Lives in | Status | Wraps |
+|---|---|---|---|
+| execalarm.Run / armTimer | cmd/internal/execalarm/run.go, timer_darwin.go, timer_linux.go | new | kernel ITIMER_REAL and syscall.Exec |
+| internal exec-alarm routing | cmd/pair-go/main.go | modified | early private CLI dispatch |
+| snapshot work lease | cmd/internal/historyarchive/sqlite_snapshot.go | new | inherited flock descriptor and guarded sweep |
+
+- The existing pair binary gets a private early route: internal exec-alarm SECONDS -- PROGRAM ARGS. Parse a positive bounded integer (1–600), resolve PROGRAM before arming the timer, arm ITIMER_REAL, then syscall.Exec. This route bypasses launch/session setup. The source request always supplies 5 seconds; private validation may use its existing bounded 600-second ceiling. The caller's context remains the earlier cancellation path. No new installed executable or interpreted dependency.
+- Linux uses unix.Setitimer. Darwin uses syscall.Syscall(SYS_SETITIMER, ITIMER_REAL=0, pointer to unix.Itimerval, nil) with a short documented unsafe bridge and runtime.KeepAlive. A disposable Go probe on this Darwin arm64 machine armed a one-second timer and execed sleep; it exited with signal: alarm clock. If the syscall fails on any supported platform, refuse before opening the DB and report the cause; never fall back to parent-only supervision. Unsupported platforms fail clearly.
+- Kernel ownership is the key resource: the timer belongs to the process that becomes sqlite3 and survives exec/collector death. No watchdog process is needed. SQLite must not clear SIGALRM/the timer; actual CLI owner-death conformance qualifies that dependency. The deadline begins before exec (and may reject slow startup), never after the source is opened. Acquisition remains one attempt.
+- Before spawning either child, Snapshotter creates/locks a regular no-follow work/lease file, holds it through its own cleanup, and passes the open description as fd 3 via ExtraFiles. The helper preserves that fd across exec. Sweep acquires the same per-work flock nonblocking before deletion; held/uncertain leases are skipped, never deleted. Parent death releases its reference but not the child's. Child death releases the last reference; a later sweep collects it. Legacy work without a lease remains safe to collect because old snapshot children opened only private sources; lease-present but unreadable/malformed work is not removed speculatively. This changes scratch coordination only, not archive/catalog formats.
+- Process and lease ownership end on exec failure, normal child exit, context cancellation or kernel alarm. An orphan may survive until its own alarm but cannot pin the source past that kernel budget; no later pass deletes its live scratch. Reaping/lease cleanup tests use controlled process ordering, not host-speed ceilings.
+
+Additional function-level strategies:
+
+| Function / seam | Adversarial strategy | Mechanical guard and regression |
+|---|---|---|
+| execalarm.Run / armTimer | Invalid budget/argv, exec failure, killed collector | Parse before effects, kernel timer before exec; owned-process probe verifies SIGALRM and lease release after collector death |
+| main.runWithLegacyRuntime | Internal helper mistaken for public pair launch | Exact early internal route; test asserts no launch/runtime-root setup |
+| SQLiteSnapshotter.Sweep | Collector dead but native reader alive | Nonblocking same-description work lease; controlled owner-death fixture proves sweep skips until reader exits |
+| SnapshotResult classification | CLI returns generic exit 1 with misleading lock text | Typed context/alarm evidence only; real CLI failure and fake agree on unknown failure |
+
+Implementation inserts the helper/lease red-green tests before Task 1's collector wiring, with targeted go test ./cmd/internal/execalarm ./cmd/pair-go ./cmd/internal/historyarchive. Register every new production source in the artifactpath inventory and regenerate runtime-bundle mirrors through the repository's existing generator if required. No production implementation starts before the revised plan gate passes.
