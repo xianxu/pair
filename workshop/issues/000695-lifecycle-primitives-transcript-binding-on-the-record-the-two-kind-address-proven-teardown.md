@@ -96,6 +96,7 @@ Durable plan: `workshop/plans/000695-lifecycle-primitives-transcript-binding-on-
 - [x] M2 — Lifetime lease, agent tty witness, `Teardown` with `TeardownProof`; archive and replace require a proof (P1); orphan registry
 
 ## Log
+- 2026-10-19: suite. Attempt 98a0a59b on 84b58903c failed in ten tests across couchcmd, historyarchive, launcher, sessioninventory, workbenchperftest, wrapcmd and zellijtest, plus write budgets. Cause: the TestScratch RAM disk was HFS+, with 1-second mtimes and no clone-based write accounting. Measured: the same tests failed there and passed on the normal TMPDIR on the same commit. The hub confirmed it (ariadne#474: sdlc now refuses a non-APFS scratch disk). After the disk was reformatted as APFS, the suite on 84b58903c passed with 0 failures, but sdlc keeps the earlier unexplained attempt against that head, so this entry lands the explanation on a new head.
 
 
 
