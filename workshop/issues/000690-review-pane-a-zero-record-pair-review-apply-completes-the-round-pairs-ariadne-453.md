@@ -61,6 +61,7 @@ ARCH-FUNERAL: no new artifact; the one round file is replaced on every apply, as
 ### 2026-10-18
 
 ### 2026-10-19
+- 2026-10-19: closed — sdlc-local/suite green on b84d11e5 (12m); round-1 fixes in 8e19651f re-verified with go test sessionsync reviewapply and make test-lua test-review. Targeted: TestApplyFileWithNoChangeWritesAnEmptyRound, TestApplyFileRefusesAnEmptyApplyAlike, TestApplyFileEmptyRoundWriteFailureWarns, TestPairReviewApplyWithNoRecordsIsAnEmptyRound; review-window-test empty-round-ends-the-turn goes red with is_empty forced false. Live no-edits pane check is post-landing, held by the TL for the next Couch restart.; review verdict: SHIP
 
 Hand-off: the hub split the empty-round work. ariadne#453 (landed as ariadne PR 316) is the producer side only: shared xx-fix always calls pair review apply, with records [] when it has no edits, and an empty reply never makes the agent commit. Two pieces moved here from ariadne:3: the empty-round contract wording in workshop/targets/review-protocol.md, and the live no-edits pane check once both issues have landed. ariadne:3 records the same hand-off in ariadne#453.
 
