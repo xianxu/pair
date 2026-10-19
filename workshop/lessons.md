@@ -7,6 +7,8 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- A display decorator must preserve its input collection's empty-versus-unavailable contract. Cloning by append to nil collapses an owned empty slice; run existing inventory tests as well as the new diagnostic-name subset when adding row fields. (#683 suite qualification)
+
 - Optional terminal publication belongs after adoption on an existing joined worker, never the console reducer. Test blocked storage through actual input and Stop, and verify the publication context is canceled by console lifetime; a responsive callback mock alone misses a missing lifetime wire. (#683 BR-6)
 
 - A shared diagnostic projection must be tested through every public reference for the same slot: slot name, canonical primary-root reference, path and exact tag. Centralize matching before latest-selection and visibility filtering so row/show parity survives missing-cache reference-only evidence. (#683 BR-5)

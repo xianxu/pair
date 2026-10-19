@@ -97,7 +97,8 @@ func latestLifecycleFailures(history []LaunchFailure) map[string]LifecycleFailur
 // lifecycle state or action authority. The returned evidence owns its bytes.
 func ProjectLifecycleFailures(rows []ActionableThreadSummary, history []LaunchFailure, diagnosticError string) []ActionableThreadSummary {
 	latest := latestLifecycleFailures(history)
-	out := append([]ActionableThreadSummary(nil), rows...)
+	out := make([]ActionableThreadSummary, len(rows))
+	copy(out, rows)
 	for i := range out {
 		row := &out[i]
 		row.Failure = nil
