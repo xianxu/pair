@@ -99,3 +99,90 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-19T11:58:07-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 708 — couch: put slots' temp folders and Zellij session metadata on the TestScratch RAM disk |
+| repo | pair |
+| issue file | workshop/issues/000708-couch-put-slots-temp-folders-and-zellij-session-metadata-on-the-testscratch-ram-disk.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | e51a0e6eda6910f209e68fde2df8f9ea494ec07f..613439241486df66548977b33c25e9d2d6b4f0c9 |
+| command | sdlc close --issue 708 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-19T11:58:07-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: medium
+```
+
+The implementation matches the approved R1/R3 contracts. Both prior findings are addressed with reachable regressions that fail when the fixes are removed. No new blocking defects found. Focused verification passed; this review does not establish a passing full suite.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      temp.go:83 uses TryLock before probing or resolving identity. Restoring blocking acquisition made TestPrepareFallsBackWhileSweepIsPaused fail; the restored regression passes.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Injected probe, server observation, clock and ticks exercise enabled/fallback constructor behavior, startup effects and maintenance cancellation/join. Removing run.go startup or message_service.go maintenance independently failed the corresponding regression; restored regressions pass.
+```
+
+1. **Strengths**
+
+   - Admission falls back during maintenance without resolving optional identity (`cmd/internal/couchscratch/temp.go:82`).
+   - Cleanup checks descendant ages, excludes special files and revalidates before deletion (`cmd/internal/couchscratch/sweep.go:50`).
+   - Metadata setup preserves paths on live or unavailable server evidence and retains the original backup (`cmd/internal/couchscratch/metadata.go:101`).
+   - README and atlas document age-loss risk, relaunch requirements, fallback and socket pinning.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   - Complete `couchscratch` tests passed.
+   - Relevant race checks passed across scratch, command composition, core launch/identity, launcher and executable socket pinning.
+   - All three omission mutations produced regression failures; disposable checkouts were removed.
+   - The broader run encountered socket-path-length and production-registration failures and was interrupted. A broad race selection exceeded 90 seconds in unrelated metadata tests; the narrowed core scratch race run passed. No full-suite success is claimed.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** Native socket fallback consumers share one resolver.
+   - **ARCH-PURE — pass:** Policy functions are directly tested; filesystem effects remain in integration code. Current concept classifications match implementation.
+   - **ARCH-PURPOSE — pass:** Both launch boundaries, startup cleanup, hourly maintenance and R1 routing are wired.
+   - **ARCH-MOCK — pass:** Production composition exposes observation/scheduling seams; tests use portable private filesystem state and the existing fake runner.
+   - **ARCH-CONSTRAINTS — pass:** Nonblocking admission, bounded identity lookup, serial sweeps and counted linear work are covered.
+   - **ARCH-SECURE — pass:** Owner declarations receive strict validation; traversal refuses symlinks and tests use isolated roots.
+   - **ARCH-ORDER — pass:** Metadata decisions use an explicit action model; maintenance cancellation and joining are exercised.
+   - **ARCH-FUNERAL — pass:** Ordinary contents have age cleanup; roots and special trees have reboot lifetime; permanent backup retention is explicitly approved.
+   - **ARCH-EVOLVE — pass:** Accepted owner declarations remain byte-preserved, including unknown nested fields; malformed known fields are rejected.
+
+7. **Plan revision recommendations:** None. The final revisions describe the implemented inventory, lifecycle and concurrent-deletion limits.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"4dbb2bef-35c5-453b-81be-37e35e918bd3","repository":"github.com/xianxu/pair","issue_id":"000708","recipe":"milestone-review","round":2,"attempt":1,"agent":"codex","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/4a5ce43430719611","reviewed_head":"613439241486df66548977b33c25e9d2d6b4f0c9","slot":"pair:3","requested_at":"2026-10-19T18:53:28.200519Z"},"phase":"finished","pid":61024,"started_at":"2026-10-19T18:53:28.360605Z","finished_at":"2026-10-19T18:58:06.419679Z","session_id":"01a15582-f704-7230-b440-8fae0fb4211c","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.012091667s
+head: "613439241486df66548977b33c25e9d2d6b4f0c9"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

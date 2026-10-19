@@ -98,6 +98,7 @@ Rows respectively cover temp manager/ownership, age sweep/worker, socket resolve
 ## Log
 
 ### 2026-10-19
+- 2026-10-19: closed — BR-1 addressed: TryLock/nonblocking flock and one probe precede lazy identity; paused sweep and unavailable regressions prove no resolver call, caller cancellation bounds identity. BR-2 addressed: injected private native observation/clock/ticks exercise enabled and fallback constructor-to-launch, actual startup and maintenance callsites, and service cancellation/join. Both production callsite omission mutations fail as required; restored targeted race/source guards pass. Fresh recorded suite queued on 613439241486df66548977b33c25e9d2d6b4f0c9. --no-plan-check acknowledges only the compound final suite/close/landing row; final suite pass required by merge. Real smoke remains approved operator reboot/relaunch, without live edits or pair:0 staging.; review verdict: SHIP
 
 Verified the hub's canonical assignment receipt dcc7fdf7-95c8-43b1-aad6-fcf150ad0053 (submitted to this pair:3 incarnation), ran tl-worker, claimed and entered start-plan. Start-plan refreshed the slot's ariadne substrate and created the branch from main at e51a0e6eda6910f209e68fde2df8f9ea494ec07f. Read the complete Spec and ops second-machine measurement document. No live session/cache/volume changes made.
 
