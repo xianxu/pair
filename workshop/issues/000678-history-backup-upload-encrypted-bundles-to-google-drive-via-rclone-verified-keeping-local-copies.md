@@ -58,3 +58,5 @@ Durable design: [000678-drive-history-backup-plan.md](../plans/000678-drive-hist
 - 2026-10-18: expanded the initial empty Plan into a full-flow design after inspecting local catalog identity and publication. Proposed a destination-specific upload catalog, keeping the existing local schema and authority unchanged; retained the original Spec and Done when for hub review.
 
 - 2026-10-18 approval: canonical submitted hub receipt f7e7fe62-5f41-4133-ba43-4296e82fd885 approves the plan, receipt family and bounds. Added per-bundle backend/downloaded checksum-path reporting; hub arranges live Drive pass after fake-backed readiness. Proceeding to change-code.
+
+- Plan-quality round 1 blocked on PQ-1 (stat cannot prove unique Drive name identity) and PQ-2 (duplicated prose test inventories). Verified against official rclone lsjson/Drive contracts. Revised plan names bounded initial/final inventories, pinned destination ID, deferred receipt publication and identity-fenced downloaded hashes; compressed test prose. This is a new observation mechanism, so hub approval is requested before another change-code attempt. No code was edited.

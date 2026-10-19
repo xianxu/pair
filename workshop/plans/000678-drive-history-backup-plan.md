@@ -33,7 +33,7 @@ Use existing LocalSink safe open/publication/Verify machinery for the receipt ca
 
 DriveDestination validates a named remote (no inline backend, flags, colon or controls), slash-separated relative folder, and existing derived object keys. It owns canonical destination and receipt namespace derivation. UploadReceipt is one receipt per bundle per destination; ValidateUploadReceipt requires explicit version, identity, hashes, sizes, keys and verification timestamp. MatchReceipt compares exact expected object identities rather than trusting a filename. These are pure functions with direct unit/property tests. Natural extension is another destination using the same receipt contract, not a new framework now. ARCH-DRY reuses existing BundleLabel validation and derived bundle keys.
 
-NextUpload is the sole owner of legal operation decisions. States are CheckingBundle, CopyingBundle, CheckingLabel, CopyingLabel, ReadyToRecord, Verified, Pending and Refused. Events contain an exact bundle/destination identity plus observed absent/matching/conflicting/unknown status or operation outcome. Caller executes returned effects and feeds their observations back; it cannot manufacture Verified from command exit status. Terminal interruption ends this attempt, not the durable remote objects.
+NextUpload is the sole owner of legal operation decisions. States are InventoryBefore, CheckingBundle, CopyingBundle, CheckingLabel, CopyingLabel, InventoryAfter, ReadyToRecord, Verified, Pending and Refused. Events contain an exact bundle/destination identity plus observed absent/matching/conflicting/unknown status or operation outcome. Caller executes returned effects and feeds their observations back; it cannot manufacture Verified from command exit status. Terminal interruption ends this attempt, not the durable remote objects.
 
 ### Integration points
 
@@ -45,7 +45,7 @@ NextUpload is the sole owner of legal operation decisions. States are CheckingBu
 | ContinuousPass.Run | cmd/internal/historyarchive/continuous.go | modified | optional replication after local completion |
 | runContinuous | cmd/internal/archivecmd/continuous.go | modified | production adapter wiring and visible summary |
 
-Runner accepts argv arrays and context, returns bounded structured output/exit information; no shell evaluation. FakeRclone implements exactly that boundary with retained object bytes, missing remote/tool, partial writes, immutable conflicts, checksum corruption, missing hashes, output truncation and held completions. Test flow and production use the same adapter and NextUpload. Existing local storage is portable private temp roots; no test inherits operator data or remote configuration. ARCH-MOCK conformance uses disposable installed-rclone local backend plus one operator-run real Drive check.
+Runner accepts argv arrays and context, returns bounded structured output/exit information; no shell evaluation. FakeRclone implements exactly that boundary with retained object bytes and stable IDs (including duplicate names/folders), missing remote/tool, partial writes, immutable conflicts, checksum corruption, missing hashes, output truncation and held completions. Test flow and production use the same adapter and NextUpload. Existing local storage is portable private temp roots; no test inherits operator data or remote configuration. ARCH-MOCK conformance uses disposable installed-rclone local backend plus one operator-run real Drive check.
 
 ## Full flow and ordering
 
@@ -55,9 +55,20 @@ Runner accepts argv arrays and context, returns bounded structured output/exit i
 4. For each candidate, read the bounded local public label, validate it against the local CatalogRecord, and hash its actual bytes. A matching durable upload receipt skips further work. Receipt absence is pending; corrupt/conflicting receipt is visible refusal, never fabricated success.
 5. For each pending object, safely read through LocalSink into a private regular staging file; hash/size must match expected ciphertext or label before a subprocess can read it. Never pass an unvalidated mutable source path to rclone. No plaintext source or private catalog enters staging/upload.
 6. Observe exact remote object. Matching hash and size adopts an earlier upload without copying; explicit missing object permits copy; conflict refuses replacement. Use `rclone copyto <private-file> <remote-key> --immutable --checksum --no-update-modtime --retries 1 --low-level-retries 1`. Treat command success as a request outcome only, then obtain independent remote checksum evidence. Never use sync, move, purge, delete, overwrite, or automatic dedupe.
-7. Prefer `rclone lsjson <remote-key> --stat --hash-type SHA-256 --no-modtime --no-mimetype`: validate exactly one file, expected name/path, nonnegative matching size and a valid hash. Where SHA256 is unavailable, `rclone hashsum SHA256 <remote-key> --download` computes it by reading the remote bytes. Never substitute size-only verification. Report the verification path for each bundle (backend SHA256 versus downloaded SHA256, including mixed bundle/label paths) and aggregate downloaded-checksum counts without logging credentials or child stderr. Missing remote/auth and ambiguous/invalid output do not prove an absent object. Duplicate-name evidence refuses adoption.
-8. After bundle and label are both verified, publish and verify the immutable UploadReceipt using LocalSink. An uncertain receipt write is pending; rerun reconciles its exact contents. Stop remote phase on its first failure with verified-so-far count and an actionable pending/unavailable note; keep all local files. Cancellation cancels and joins any owned subprocess before returning.
+7. First establish unique remote identity using ObserveRemoteInventory below; `--stat` alone is never uniqueness evidence. Prefer `rclone lsjson <remote-key> --stat --hash-type SHA-256 --no-modtime --no-mimetype`: validate exactly one file, expected name/path, nonnegative matching size and a valid hash. Where SHA256 is unavailable, `rclone hashsum SHA256 <remote-key> --download` computes it by reading the remote bytes. Never substitute size-only verification. Report the verification path for each bundle (backend SHA256 versus downloaded SHA256, including mixed bundle/label paths) and aggregate downloaded-checksum counts without logging credentials or child stderr. Missing remote/auth and ambiguous/invalid output do not prove an absent object. Duplicate-name evidence refuses adoption.
+8. After bundle and label checks match, spool candidate receipts privately. Publish and verify each immutable UploadReceipt using LocalSink only after the final ObserveRemoteInventory fence confirms the same unique remote object IDs, sizes and available hashes. Receipt candidates retain their exact downloaded-checksum observation when backend SHA256 is absent. An uncertain receipt write is pending; rerun reconciles its exact contents. Stop remote phase on its first failure with verified-so-far count and an actionable pending/unavailable note; keep all local files. Cancellation cancels and joins any owned subprocess before returning.
 9. Report local counts separately from Drive verified/already-recorded/pending/unavailable state. Remote failure alone does not change local success exit status or marker. A later daily/manual pass retries; there is no in-pass automatic retry storm.
+
+
+### Remote uniqueness observation (PQ-1 refinement; awaiting hub approval)
+
+ObserveRemoteInventory resolves the configured folder component by component with nonrecursive lsjson listings. At each component require exactly one matching directory with a nonempty stable ID for Drive; duplicate or uncertain names refuse. Bound depth to 16 and each listing to 4 MiB / 10,000 children. Pin the resolved Drive destination with internally constructed `--drive-root-folder-id <ID>` for the rest of this phase, so later commands do not resolve ambiguous ancestor names again. The disposable local-backend conformance uses its single filesystem path identity instead of Drive IDs.
+
+Inside that pinned folder, perform one recursive lsjson inventory before effects and one after effects, including directories and files with relative paths and IDs, rejecting any duplicate path, directory/file collision, malformed identity or overflow. Stream inventories to private spool files (2 GiB each), retaining a compact path/ID/hash/size index capped at 100,000 entries / 64 MiB. Exceeding any bound leaves Drive visibly pending/unavailable. This additional temporary family is owned and swept with the existing upload staging family. Root resolution and its IDs are checked again before receipt publication. Ordinary new archive subdirectories are allowed only when the final inventory proves one directory per path; no receipt is published on ambiguous final structure.
+
+Before and after a downloaded hashsum observation, stat the exact selected file and require the same ID, size and available hashes. Its candidate receipt carries that ID and downloaded SHA256. The final inventory must resolve that path to the same unique ID with matching size/hash metadata before publication; an unknown/change/duplicate prevents the receipt. This is bounded observational evidence, not a lease over arbitrary external Drive writers: a later mutation remains outside the receipt timestamp, as already specified. No remote deletion or dedupe is attempted.
+
+Receipt publication is deferred until this final fence. A failed/uncertain phase keeps all remote objects but no new receipts; the next pass adopts matching objects after a fresh unique inventory. Existing committed receipts are still skipped. Count inventory traversals and entries at N/2N as well as commands: exactly two inventories, no per-object directory enumeration, constant ancestor depth, and O(N) retained index/work. FakeRclone models duplicate ancestor names, duplicate files, replacement IDs and namespace changes at both inventory barriers. Required guards are no receipt without unique final identity and no destructive effect for unknown/ambiguous state.
 
 ### State decisions (ARCH-ORDER)
 
@@ -68,6 +79,8 @@ Runner accepts argv arrays and context, returns bounded structured output/exit i
 | Copying + successful request | corresponding Checking state / fresh checksum observation |
 | Any check + conflicting bytes or malformed authority | Refused / report; no write |
 | Any operation + unavailable or unknown outcome | Pending / report; no receipt |
+| Both object observations match | InventoryAfter / final unique inventory fence |
+| InventoryAfter + exact unique identities | ReadyToRecord / publish candidate receipt |
 | ReadyToRecord + durable exact receipt | Verified / count |
 | Receipt publication + unknown/error | Pending / reconcile next pass |
 | Any active state + cancel/deadline | Pending / cancel and join child, clean private staging |
@@ -116,7 +129,7 @@ Files: create drive_model.go and drive_model_test.go under cmd/internal/historya
 
 Files: create historyarchive/rclone.go, rclone_test.go and archivetest/rclone.go.
 
-- [ ] Write adapter tests against retained fake remote bytes, including partial publication, checksum mismatch, missing remote/tool, immutable conflict, missing SHA256 and downloaded-hash fallback.
+- [ ] Write TestRcloneObservation and TestRcloneCopyRecovery against the stateful runner; use the adversarial strategy/guard table below.
 - [ ] Run `go test ./cmd/internal/historyarchive/... -run 'TestRclone|TestFakeRclone' -count=1` RED; implement minimum adapter and stateful fake, then GREEN.
 - [ ] Add an opt-in installed-rclone local-backend conformance test using isolated config/private roots; run it once against installed rclone, retaining version and command results. It never contacts Drive.
 - [ ] Commit the independently verified boundary.
@@ -125,7 +138,7 @@ Files: create historyarchive/rclone.go, rclone_test.go and archivetest/rclone.go
 
 Files: create historyarchive/drive.go, drive_test.go; modify historyarchive/continuous.go and continuous_test.go; archivecmd/continuous.go and its tests; artifactpath/manifest.go plus applicable artifact-family declarations/tests.
 
-- [ ] Write failing production-flow tests: backlog-only pass; both objects verified before receipt; partial upload recovered without overwrite; receipt cannot authorize different destination/label; local marker and success preserved for every remote failure; cancellation joins child; staging crash sweep; local catalog lock obtainable while fake transfer is held.
+- [ ] Write TestDriveMirrorRecovery and TestContinuousDriveIsolation using the DriveMirror.Run strategy and independent guards below.
 - [ ] Run `go test ./cmd/internal/historyarchive/... ./cmd/internal/archivecmd -run 'TestDrive|TestContinuous' -count=1` RED; implement private catalog snapshot, verified staging, receipt publication and optional post-local phase; rerun GREEN.
 - [ ] Add counted 8/16 bundle cycle tests and second-pass zero-copy assertions using actual production catalog and fake retained remote state.
 - [ ] Run targeted packages with race detector where appropriate, and `go test ./cmd/internal/artifactpath ./cmd/internal/testpair ./cmd/internal/repolint -count=1` (verify package paths before execution); commit.
@@ -145,10 +158,10 @@ Files: README.md; atlas/history-backup.md (already indexed); issue Log and this 
 | --- | --- | --- |
 | ParseDriveDestination / object-key derivation | generate Unicode/control/colon/absolute/dot-segment spellings and long segments | parsed destination roundtrip plus all keys remain beneath exact configured prefix; argv never changes option count |
 | DecodeUploadReceipt / MatchReceipt | mutate every required field, truncate at every boundary, duplicate keys, null/overflow/version skew | no mutation authorizes Verified for an independently constructed expected pair; bounded serialization/read |
-| DecodeRemoteObservation | varied optional backend fields, duplicate/omitted required fields, wrong size/hash/name/IsDir, oversized output | no malformed observation authorizes copy-as-absent or receipt; size and independently computed SHA256 must both match |
+| DecodeRemoteObservation / ObserveRemoteInventory | varied optional backend fields, duplicate/omitted required fields, wrong size/hash/name/IsDir, oversized output | no malformed observation authorizes copy-as-absent or receipt; size and independently computed SHA256 must both match |
 | NextUpload | generated sequences of observations/outcomes, cancellations and stale identity results | append receipt implies two matching remote object observations; uncertain outcomes never imply absence; transition/effect enum assertions |
 | DriveMirror.Run | barrier-controlled child completion and receipt/staging IO faults at each publication boundary | retain and compare local files; no returned live child; no receipt before checksum success; rerun converges from actual fake bytes |
-| Receipt publication and private staging | symlink replacements, corrupt complete receipts, interrupted publication and stale stage | LocalSink safe-open/no-overwrite contract; ordinary cleanup plus next-owner sweep; destination/bundle mismatch refuses |
+| PublishUploadReceipt / StageVerifiedObject / SweepUploadStaging | symlink replacements, corrupt complete receipts, interrupted publication and stale stage | LocalSink safe-open/no-overwrite contract; ordinary cleanup plus next-owner sweep; destination/bundle mismatch refuses |
 
 ## Approval checkpoint
 
@@ -157,3 +170,5 @@ Full flow: send this plan and state/coverage tradeoffs to the hub and wait for a
 ## Revisions
 
 - 2026-10-18: hub approved the full design, receipt family and bounds (delivery f7e7fe62-5f41-4133-ba43-4296e82fd885). Added its requested per-bundle verification-path reporting and fallback counts. Hub will arrange the real Drive pass when fake-backed implementation is ready.
+
+- 2026-10-18 plan-quality PQ-1/PQ-2: specified bounded before/after namespace inventories, pinned Drive folder identity and deferred receipt publication, with checksum observations fenced to exact IDs. Compressed duplicated prose case inventories into named function strategies. This identity mechanism delta is submitted to the hub before rerunning change-code.
