@@ -1,6 +1,6 @@
 ---
 id: 000700
-status: codecomplete
+status: done
 created: 2026-10-19
 updated: 2026-10-19
 estimate_hours: 2.21
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 47fd390f227e85d08c6caa0008ef50f263e8d484
         evidence_commit: 4ea6b2e5d4bacb26d4aed8cfcbe8adbabb38f7e0
+        landed_commit: 4465ce8a406820b196dc0933667a3ec91608468c
 ---
 
 # Warn when a database backup is older than its freshness threshold
