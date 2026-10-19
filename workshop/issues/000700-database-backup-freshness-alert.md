@@ -5,9 +5,9 @@ deps: [pair#688]
 github_issue:
 created: 2026-10-19
 updated: 2026-10-19
-estimate_hours:
+estimate_hours: 2.21
 collaboration-mode: collaboration
-card_mirror: '5ebb5d3c44bc164afd11b8abea4d01082f3227b3' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '9ff25a0d7a31602770d3d7fe30b41486981fb5cd' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-19T06:12:56-07:00
 claimant:
     operator: Xian Xu
@@ -62,3 +62,25 @@ Warn the operator when a configured database's last verified backup bundle excee
 - 2026-10-19, hub 053b4ee5 confirmed PQ-1 owner/fallback contract and requested a single small archiveWarningOwner seam for pair#694's future steward-team routing. Rerun change-code; no implementation until admitted.
 
 - 2026-10-19, plan-quality round 2: primary-hub/fallback contract accepted; PQ-2 remains open only because old task inventories duplicated the new function-level strategies. Replaced active inventories with named-strategy references and recorded the presentation revision. No implementation or estimate derived yet.
+
+## Estimate
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only; calibration source reports stale, so hours are provisional. Derived after plan-quality CLEAN, not from elapsed task time.
+
+Decomposition: issue/spec; three small Go concerns (freshness projection, daily admission, typed report codec); existing CLI/scheduler/notification integration and its stateful fixture; docs; one atomic close review. Existing time/json/exec libraries and current notification/catalog seams cover the stack, so there is no greenfield API discovery or novel-library allowance. Base v2 design choices are 1.0, 0.2/0.2/0.2, 2.0, 0.1 and 0.1 hours; each gets the thorough-spec 0.2 multiplier. Base implementation choices are 0.2, 0.5/0.5/0.5, 1.0, 0.15 and 0.5 hours; v3.1 scales each by 0.40. Familiar archive/scheduler/Go territory uses 1.0 familiarity, with 15% design buffer. No retry/queue mechanism or new native integration is costed.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.20 impl=0.08
+item: smaller-go-module design=0.04 impl=0.20
+item: smaller-go-module design=0.04 impl=0.20
+item: smaller-go-module design=0.04 impl=0.20
+item: api-integration design=0.40 impl=0.40
+item: atlas-docs design=0.02 impl=0.06
+item: milestone-review design=0.02 impl=0.20
+design-buffer: 0.15
+total: 2.21
+```
+
+Design subtotal 0.76 × 1.15 = 0.874; implementation subtotal 1.34 × 1.0 = 1.34; total 2.214, rounded 2.21 hours. Single repo, existing API seams, no cross-repo surcharge.
